@@ -1,0 +1,9 @@
+{
+  "PluginConfiguration": {
+    "ChainId": 1001,
+    "L1RpcEndpoint": "http://localhost:10332",
+    "SettlementManagerHash": "0x0000000000000000000000000000000000000000",
+    "ProofType": 1,
+    "Enabled": true
+  }
+}

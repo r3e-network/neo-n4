@@ -1,0 +1,9 @@
+{
+  "PluginConfiguration": {
+    "ChainId": 1001,
+    "MaxBlocksPerBatch": 50,
+    "MaxTransactionsPerBatch": 5000,
+    "MaxBatchAgeMillis": 30000,
+    "Enabled": true
+  }
+}

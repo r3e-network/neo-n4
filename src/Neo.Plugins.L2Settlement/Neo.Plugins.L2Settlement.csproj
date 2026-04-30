@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.Plugins.L2</RootNamespace>
+    <AssemblyName>Neo.Plugins.L2Settlement</AssemblyName>
+    <Description>Neo node plugin that signs sealed L2 batches and submits them to NeoHub.</Description>
+    <PackageTags>NEO;L2;Plugin;Settlement</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
+    <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+    <ProjectReference Include="..\Neo.L2.Batch\Neo.L2.Batch.csproj" />
+    <ProjectReference Include="..\Neo.L2.Proving\Neo.L2.Proving.csproj" />
+    <ProjectReference Include="..\Neo.L2.State\Neo.L2.State.csproj" />
+    <ProjectReference Include="..\Neo.Plugins.L2Batch\Neo.Plugins.L2Batch.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.Plugins.L2</RootNamespace>
+    <AssemblyName>Neo.Plugins.L2Batch</AssemblyName>
+    <Description>Neo node plugin that drives L2 batch building from block commits.</Description>
+    <PackageTags>NEO;L2;Plugin;Batch</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
+    <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+    <ProjectReference Include="..\Neo.L2.Batch\Neo.L2.Batch.csproj" />
+    <ProjectReference Include="..\Neo.L2.State\Neo.L2.State.csproj" />
+    <ProjectReference Include="..\Neo.L2.Executor\Neo.L2.Executor.csproj" />
+    <ProjectReference Include="..\Neo.L2.Bridge\Neo.L2.Bridge.csproj" />
+    <ProjectReference Include="..\Neo.L2.Messaging\Neo.L2.Messaging.csproj" />
+  </ItemGroup>
+
+</Project>

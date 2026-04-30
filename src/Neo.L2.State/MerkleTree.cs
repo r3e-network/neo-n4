@@ -158,4 +158,7 @@ public sealed record MerkleProof
 
     /// <summary>Bit <c>i</c> set means the level-<c>i</c> sibling is the left child.</summary>
     public required ulong PathBitmap { get; init; }
+
+    /// <summary>Verify this proof reconstructs to <paramref name="expectedRoot"/>. Equivalent to <c>MerkleTree.Verify(this, expectedRoot)</c>.</summary>
+    public bool Verify(UInt256 expectedRoot) => MerkleTree.Verify(this, expectedRoot);
 }

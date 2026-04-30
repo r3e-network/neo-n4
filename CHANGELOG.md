@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Misc polish
+
+- **`Neo.Plugins.L2Metrics/config.json`** — config template so operators can drop the plugin into a Neo node and have it work. Mirrors the file shape every other L2 plugin uses (`PluginConfiguration` block).
+- **`MerkleProof.Verify(root)`** — instance-method convenience; delegates to the existing `MerkleTree.Verify(proof, root)`. Lets call sites read `proof.Verify(root)` without the static dispatch boilerplate.
+
+Cumulative: 296 tests / 27 projects.
+
 ### Added — Composition-root integration test
 
 - **`UT_E2E_L2MetricsPlugin_CompositionRoot`** — wires every instrumented component (`BatchSealer`, `MetricsEmittingDAWriter`, `DepositProcessor`, `WithdrawalProcessor`, `BinaryTreeAggregator`, `L2RpcMethods`) to one shared sink hosted by `L2MetricsPlugin`, drives activity, scrapes `/metrics` through the plugin's HTTP server, and asserts every component's metric family is present in the response. Locks in that the composition root in `docs/telemetry.md` actually works end-to-end as advertised.

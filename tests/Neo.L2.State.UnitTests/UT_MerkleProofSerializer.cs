@@ -125,6 +125,17 @@ public class UT_MerkleProofSerializer
     }
 
     [TestMethod]
+    public void MerkleProof_VerifyInstanceMethod_DelegatesToStatic()
+    {
+        var leaves = new[] { H(1), H(2), H(3), H(4) };
+        var tree = new MerkleTree(leaves);
+        var proof = tree.GetProof(2);
+
+        Assert.IsTrue(proof.Verify(tree.Root));
+        Assert.IsFalse(proof.Verify(UInt256.Zero), "wrong root → false");
+    }
+
+    [TestMethod]
     public void Roundtrip_For_AllPositionsIn_SevenLeafTree()
     {
         var leaves = Enumerable.Range(1, 7).Select(H).ToList();

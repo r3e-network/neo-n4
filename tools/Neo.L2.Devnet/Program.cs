@@ -15,6 +15,7 @@ using Neo.L2.Proving.Attestation;
 using Neo.L2.Sequencer;
 using Neo.L2.State;
 using Neo.L2.Audit;
+using Neo.L2.Telemetry;
 using Neo.Plugins.L2Rpc;
 
 namespace Neo.L2.Devnet;
@@ -93,6 +94,9 @@ internal static class Program
         var executor = new ReferenceBatchExecutor(
             new ReferenceTransactionExecutor(),
             stateRootOracle);
+
+        var metrics = new InMemoryMetrics();
+        Console.WriteLine($"[wire] in-memory metrics ({MetricNames.BatchesSealed.Substring(0, 3)} canonical naming)");
         Console.WriteLine();
 
         // ---- Walk through N batches ----
@@ -194,13 +198,23 @@ internal static class Program
                 Proof = proofResult.Proof,
             };
 
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             var verify = await verifierRegistry.VerifyAsync(commitment, publicInputs);
+            sw.Stop();
             Console.WriteLine($"  [seal] preRoot={Truncate(preStateRoot)} postRoot={Truncate(commitment.PostStateRoot)} verify={verify.Valid}");
             if (!verify.Valid)
             {
                 Console.Error.WriteLine($"  ❌ verification failed: {verify.FailureReason}");
                 return 1;
             }
+
+            // Emit metrics for this batch.
+            metrics.IncrementCounter(MetricNames.BatchesSealed);
+            metrics.RecordHistogram(MetricNames.BatchSealLatencyMs, sw.Elapsed.TotalMilliseconds);
+            metrics.SetGauge(MetricNames.BatchTxCount, execReq.Transactions.Count);
+            metrics.IncrementCounter(MetricNames.ProofsGenerated, 1, ("kind", commitment.ProofType.ToString()));
+            metrics.IncrementCounter(MetricNames.DepositsProcessed);
+            metrics.IncrementCounter(MetricNames.WithdrawalsStaged);
 
             // 5. Finalize in RPC store.
             rpcStore.AddBatch(commitment, BatchStatus.Pending);
@@ -222,10 +236,26 @@ internal static class Program
             .Register(new ProofValidityCheck(verifierRegistry, c => publicInputsByBatch[c.BatchNumber]));
         var report = await auditor.AuditAsync(allCommitments);
         Console.WriteLine(report.Summarize());
+        metrics.IncrementCounter(MetricNames.AuditsRun);
         if (!report.Passed)
         {
+            metrics.IncrementCounter(MetricNames.AuditFailures);
             Console.Error.WriteLine("❌ audit failed");
             return 1;
+        }
+
+        // ---- Metrics summary ----
+        Console.WriteLine();
+        Console.WriteLine("───── metrics ─────");
+        Console.WriteLine($"  {MetricNames.BatchesSealed,-32} {metrics.GetCounter(MetricNames.BatchesSealed)}");
+        Console.WriteLine($"  {MetricNames.DepositsProcessed,-32} {metrics.GetCounter(MetricNames.DepositsProcessed)}");
+        Console.WriteLine($"  {MetricNames.WithdrawalsStaged,-32} {metrics.GetCounter(MetricNames.WithdrawalsStaged)}");
+        Console.WriteLine($"  {MetricNames.ProofsGenerated,-32} {metrics.GetCounter(MetricNames.ProofsGenerated, ("kind", "Multisig"))} (kind=Multisig)");
+        Console.WriteLine($"  {MetricNames.AuditsRun,-32} {metrics.GetCounter(MetricNames.AuditsRun)}");
+        var latencies = metrics.GetHistogram(MetricNames.BatchSealLatencyMs);
+        if (latencies.Count > 0)
+        {
+            Console.WriteLine($"  {MetricNames.BatchSealLatencyMs,-32} count={latencies.Count} avg={latencies.Average():F2}ms max={latencies.Max():F2}ms");
         }
 
         Console.WriteLine();

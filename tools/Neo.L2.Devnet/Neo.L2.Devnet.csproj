@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Neo.L2.Devnet</RootNamespace>
+    <AssemblyName>neo-l2-devnet</AssemblyName>
+    <Description>In-process devnet runner that demonstrates the full Neo Elastic Network L2 batch lifecycle.</Description>
+    <PackageTags>NEO;L2;Devnet</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Batch\Neo.L2.Batch.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.State\Neo.L2.State.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Bridge\Neo.L2.Bridge.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Messaging\Neo.L2.Messaging.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Proving\Neo.L2.Proving.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Executor\Neo.L2.Executor.csproj" />
+    <ProjectReference Include="..\..\src\Neo.Plugins.L2Rpc\Neo.Plugins.L2Rpc.csproj" />
+  </ItemGroup>
+
+</Project>

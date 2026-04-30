@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.Plugins.L2</RootNamespace>
+    <AssemblyName>Neo.Plugins.L2Gateway</AssemblyName>
+    <Description>Phase 5 — Neo Gateway proof aggregation + global message root scaffold.</Description>
+    <PackageTags>NEO;L2;Plugin;Gateway;Aggregation</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
+    <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+    <ProjectReference Include="..\Neo.L2.State\Neo.L2.State.csproj" />
+  </ItemGroup>
+
+</Project>

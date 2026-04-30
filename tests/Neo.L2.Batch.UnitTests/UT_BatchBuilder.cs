@@ -1,0 +1,84 @@
+namespace Neo.L2.Batch.UnitTests;
+
+[TestClass]
+public class UT_BatchBuilder
+{
+    private static BatchBlockContext SampleContext() => new()
+    {
+        L1FinalizedHeight = 1234,
+        FirstBlockTimestamp = 1_700_000_000_000,
+        LastBlockTimestamp = 1_700_000_005_000,
+        SequencerCommitteeHash = UInt256.Parse("0x" + new string('1', 64)),
+        Network = 0x4F454E,
+    };
+
+    private static BatchExecutionResult SampleResult() => new()
+    {
+        PostStateRoot = UInt256.Parse("0x" + new string('a', 64)),
+        ReceiptRoot = UInt256.Parse("0x" + new string('b', 64)),
+        WithdrawalRoot = UInt256.Parse("0x" + new string('c', 64)),
+        L2ToL1MessageRoot = UInt256.Parse("0x" + new string('d', 64)),
+        L2ToL2MessageRoot = UInt256.Parse("0x" + new string('e', 64)),
+        TxRoot = UInt256.Parse("0x" + new string('f', 64)),
+        GasConsumed = 999_999,
+    };
+
+    [TestMethod]
+    public void Builder_AccumulatesBlocksTransactionsAndMessages()
+    {
+        var b = new BatchBuilder(1001, 7, 100, UInt256.Zero);
+        b.AddBlock(101).AddBlock(102).AddBlock(103);
+        b.AddTransaction(new byte[] { 0x01, 0x02 });
+        b.AddTransaction(new byte[] { 0x03 });
+
+        Assert.AreEqual(100UL, b.Batch.FirstBlock);
+        Assert.AreEqual(103UL, b.Batch.LastBlock);
+        Assert.AreEqual(2, b.Batch.TransactionCount);
+        Assert.AreEqual(1001U, b.Batch.ChainId);
+    }
+
+    [TestMethod]
+    public void Builder_RejectsOutOfOrderBlocks()
+    {
+        var b = new BatchBuilder(1001, 1, 100, UInt256.Zero);
+        b.AddBlock(101);
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => b.AddBlock(99));
+    }
+
+    [TestMethod]
+    public void Builder_RequiresBlockContextBeforeExecutionRequest()
+    {
+        var b = new BatchBuilder(1001, 1, 100, UInt256.Zero);
+        Assert.ThrowsExactly<InvalidOperationException>(() => b.ToExecutionRequest());
+    }
+
+    [TestMethod]
+    public void Builder_ProducesExecutionRequestThenCommitment()
+    {
+        var b = new BatchBuilder(1001, 1, 100, UInt256.Zero);
+        b.AddBlock(100).AddBlock(101);
+        b.AddTransaction(new byte[] { 0xAA });
+        b.WithBlockContext(SampleContext());
+
+        var req = b.ToExecutionRequest();
+        Assert.AreEqual(1001U, req.ChainId);
+        Assert.AreEqual(1UL, req.BatchNumber);
+        Assert.AreEqual(1, req.Transactions.Count);
+
+        var commitment = b.Seal(SampleResult(), UInt256.Zero, UInt256.Zero, ProofType.Multisig, new byte[] { 0x77 });
+
+        Assert.AreEqual(1001U, commitment.ChainId);
+        Assert.AreEqual(101UL, commitment.LastBlock);
+        Assert.AreEqual(ProofType.Multisig, commitment.ProofType);
+        Assert.IsTrue(b.Batch.IsSealed);
+    }
+
+    [TestMethod]
+    public void Builder_RejectsAddAfterSeal()
+    {
+        var b = new BatchBuilder(1001, 1, 100, UInt256.Zero);
+        b.WithBlockContext(SampleContext());
+        b.Seal(SampleResult(), UInt256.Zero, UInt256.Zero, ProofType.None, ReadOnlyMemory<byte>.Empty);
+        Assert.ThrowsExactly<InvalidOperationException>(() => b.AddBlock(200));
+    }
+}

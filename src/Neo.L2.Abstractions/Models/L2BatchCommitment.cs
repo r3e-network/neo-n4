@@ -55,4 +55,48 @@ public sealed record L2BatchCommitment
 
     /// <summary>Proof bytes whose interpretation depends on <see cref="ProofType"/>.</summary>
     public required ReadOnlyMemory<byte> Proof { get; init; }
+
+    /// <inheritdoc />
+    public bool Equals(L2BatchCommitment? other)
+    {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
+        return ChainId == other.ChainId
+            && BatchNumber == other.BatchNumber
+            && FirstBlock == other.FirstBlock
+            && LastBlock == other.LastBlock
+            && PreStateRoot.Equals(other.PreStateRoot)
+            && PostStateRoot.Equals(other.PostStateRoot)
+            && TxRoot.Equals(other.TxRoot)
+            && ReceiptRoot.Equals(other.ReceiptRoot)
+            && WithdrawalRoot.Equals(other.WithdrawalRoot)
+            && L2ToL1MessageRoot.Equals(other.L2ToL1MessageRoot)
+            && L2ToL2MessageRoot.Equals(other.L2ToL2MessageRoot)
+            && DACommitment.Equals(other.DACommitment)
+            && PublicInputHash.Equals(other.PublicInputHash)
+            && ProofType == other.ProofType
+            && Proof.Span.SequenceEqual(other.Proof.Span);
+    }
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(ChainId);
+        hash.Add(BatchNumber);
+        hash.Add(FirstBlock);
+        hash.Add(LastBlock);
+        hash.Add(PreStateRoot);
+        hash.Add(PostStateRoot);
+        hash.Add(TxRoot);
+        hash.Add(ReceiptRoot);
+        hash.Add(WithdrawalRoot);
+        hash.Add(L2ToL1MessageRoot);
+        hash.Add(L2ToL2MessageRoot);
+        hash.Add(DACommitment);
+        hash.Add(PublicInputHash);
+        hash.Add(ProofType);
+        hash.AddBytes(Proof.Span);
+        return hash.ToHashCode();
+    }
 }

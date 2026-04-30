@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.L2.Batch</RootNamespace>
+    <AssemblyName>Neo.L2.Batch</AssemblyName>
+    <Description>Batch building and canonical serialization for Neo Elastic Network L2 chains.</Description>
+    <PackageTags>NEO;L2;Batch</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

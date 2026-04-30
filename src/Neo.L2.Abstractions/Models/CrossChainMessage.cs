@@ -31,4 +31,34 @@ public sealed record CrossChainMessage
 
     /// <summary>Hash committing to all the other fields, used for inclusion proofs.</summary>
     public required UInt256 MessageHash { get; init; }
+
+    /// <inheritdoc />
+    public bool Equals(CrossChainMessage? other)
+    {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
+        return SourceChainId == other.SourceChainId
+            && TargetChainId == other.TargetChainId
+            && Nonce == other.Nonce
+            && Sender.Equals(other.Sender)
+            && Receiver.Equals(other.Receiver)
+            && MessageType == other.MessageType
+            && Payload.Span.SequenceEqual(other.Payload.Span)
+            && MessageHash.Equals(other.MessageHash);
+    }
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(SourceChainId);
+        hash.Add(TargetChainId);
+        hash.Add(Nonce);
+        hash.Add(Sender);
+        hash.Add(Receiver);
+        hash.Add(MessageType);
+        hash.AddBytes(Payload.Span);
+        hash.Add(MessageHash);
+        return hash.ToHashCode();
+    }
 }

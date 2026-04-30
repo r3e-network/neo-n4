@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.L2.Telemetry</RootNamespace>
+    <AssemblyName>Neo.L2.Telemetry</AssemblyName>
+    <Description>Production metrics + tracing layer for Neo Elastic Network L2 plugins.</Description>
+    <PackageTags>NEO;L2;Telemetry;Metrics</PackageTags>
+  </PropertyGroup>
+
+</Project>

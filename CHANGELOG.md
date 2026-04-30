@@ -21,12 +21,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Pluggable verifier registry**: `VerifierRegistry` dispatches by `ProofType`, mirroring NeoHub's L1 contract — the same wire-format moves from off-chain to on-chain unchanged.
 - **Canonical encodings**: `L2BatchCommitment`, `PublicInputs`, `MessageHasher`, `DepositPayload` all serialize little-endian with deterministic byte layouts; the same encoding is what NeoHub's contracts decode.
 
-### Out of MVP scope (deferred)
+### Added — Phase 1 / 4 acceleration
 
-- Live L1 RPC client for `ISettlementClient` (`Neo.Network.RPC` integration).
-- One-shot NeoHub deploy + register-chain script.
-- `nccs` artifact generation (the build target is wired with `ContinueOnError=true`; users install nccs to generate `.nef` + `.manifest.json`).
-- RpcServer plugin integration partial that registers `L2RpcMethods` as `[RpcMethod]`-attributed entry points.
-- Phase 4 SP1 FFI bridge to `neo-zkvm`.
-- Phase 5 recursive proof aggregation (current `PassThroughAggregator` is a non-ZK reference impl).
-- Forced inclusion handler (doc.md §15.4).
+- **`NeoHub.ForcedInclusion` + `Neo.L2.ForcedInclusion`** (doc.md §15.4): anti-censorship primitive — L1 enqueue, L2 drain with deadline tracking, replay protection. 8 unit tests.
+- **`Neo.L2.Settlement.Rpc`**: JSON-RPC 2.0 client over `HttpClient` + `Neo.Json` (no third-party deps). `RpcSettlementClient` implements `ISettlementClient` for read-only methods; submit-batch delegates to a caller-supplied signer. 6 unit tests with in-memory `HttpMessageHandler` mocks.
+- **`Neo.Hub.Deploy`** (`neo-hub-deploy` CLI): declarative deploy planner with topological sort, `$step:<name>` placeholder resolution, cycle/unknown-dep detection, canonical 10-step NeoHub scaffold. 8 unit tests.
+- **`bridge/neo-zkvm-bridge`** (Rust cdylib) + **`Neo.L2.Proving.Sp1`** (C#): Phase-4 SP1 FFI scaffold. Stable 4-symbol C ABI; default features = NOT_IMPLEMENTED so the C# side falls back to `MockRiscVProver`; `--features real-prover` links the actual `neo-zkvm-prover` crate. 6 unit tests.
+- **Phase-1 cross-component integration test** that walks: deploy-planner topological resolve → forced-inclusion enqueue/drain → SP1 fallback prover → multi-chain Gateway aggregation. 5 new tests.
+
+### Out of MVP scope (still deferred)
+
+- **Live L1 signer for `RpcSettlementClient.SubmitBatchAsync`** — interface in place; concrete wallet integration is operator-specific.
+- **One-shot deploy runner** — `Neo.Hub.Deploy` emits the bundle JSON; the consumer (signer + chain bookkeeper) lives outside this repo.
+- **`nccs` artifact generation** — `Directory.Build.props` calls `nccs` with `ContinueOnError=true`; users install nccs separately.
+- **RpcServer plugin integration partial** that registers `L2RpcMethods` as `[RpcMethod]`-attributed entry points (needs neo's RpcServer plugin source).
+- **Real SP1 prover linkage** — flip `--features real-prover` on the bridge crate to enable.
+- **Phase 5 recursive proof aggregation** — `PassThroughAggregator` is a non-ZK reference impl.
+- **Forced-inclusion bond/slashing** — contract emits the report event; actual sequencer slashing depends on `SettlementManager` integration.
+- **NeoFS DA writer** — stub class throws; production wires NeoFS client.
+- **dBFT sequencer-committee selection per Neo Elastic** (doc.md §7.1) — defaults to neo's existing `DBFTPlugin` consensus.

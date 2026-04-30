@@ -20,7 +20,11 @@
     <ProjectReference Include="..\..\src\Neo.L2.Bridge\Neo.L2.Bridge.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Messaging\Neo.L2.Messaging.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Proving\Neo.L2.Proving.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Proving.Sp1\Neo.L2.Proving.Sp1.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Executor\Neo.L2.Executor.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.ForcedInclusion\Neo.L2.ForcedInclusion.csproj" />
+    <ProjectReference Include="..\..\src\Neo.Plugins.L2Gateway\Neo.Plugins.L2Gateway.csproj" />
+    <ProjectReference Include="..\..\tools\Neo.Hub.Deploy\Neo.Hub.Deploy.csproj" />
   </ItemGroup>
 
 </Project>

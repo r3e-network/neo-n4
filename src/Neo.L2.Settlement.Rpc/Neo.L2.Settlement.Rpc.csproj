@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.L2.Settlement.Rpc</RootNamespace>
+    <AssemblyName>Neo.L2.Settlement.Rpc</AssemblyName>
+    <Description>HTTP JSON-RPC client that implements ISettlementClient against NeoHub on L1.</Description>
+    <PackageTags>NEO;L2;Settlement;Rpc</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
+    <ProjectReference Include="$(NeoCorePath)\Neo.Json\Neo.Json.csproj" />
+    <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+    <ProjectReference Include="..\Neo.L2.Batch\Neo.L2.Batch.csproj" />
+  </ItemGroup>
+
+</Project>

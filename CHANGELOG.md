@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — End-to-end telemetry integration test
+
+- **`UT_E2E_Telemetry_Pipeline`** — drives the full telemetry pipeline (single shared `InMemoryMetrics` + `BatchSealer` + `MetricsEmittingDAWriter` + synthesized settlement/proving/bridge counters), stands up a `MetricsHttpServer` on a free port, scrapes `/metrics` over real HTTP, and asserts on the resulting Prometheus exposition. Covers both success path (4 batches → counters at 4) and failure path (DA write throws → `l2_da_publish_failures_total` incremented, success counter absent).
+- Locks the metric contract end-to-end: every metric the production stack emits has a regression test.
+
+Cumulative: 244 tests / 26 projects.
+
 ### Added — `/metrics` HTTP endpoint
 
 - **`MetricsRequestHandler`** — framework-agnostic pure handler. Takes a request path, returns `MetricsHttpResponse` (status / content-type / body). Routes <c>/metrics</c> (with tolerance for trailing slash and query string) to a fresh `PrometheusExporter.Format(snapshot)`; everything else returns 404. Drop into any HTTP host (ASP.NET, Kestrel, RpcServer plugin) by routing GET <c>/metrics</c> through `Handle()`.

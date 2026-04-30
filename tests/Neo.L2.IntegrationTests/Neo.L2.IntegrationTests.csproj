@@ -28,6 +28,9 @@
     <ProjectReference Include="..\..\src\Neo.L2.Sequencer\Neo.L2.Sequencer.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Censorship\Neo.L2.Censorship.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Challenge\Neo.L2.Challenge.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Telemetry\Neo.L2.Telemetry.csproj" />
+    <ProjectReference Include="..\..\src\Neo.Plugins.L2Batch\Neo.Plugins.L2Batch.csproj" />
+    <ProjectReference Include="..\..\src\Neo.Plugins.L2DA\Neo.Plugins.L2DA.csproj" />
   </ItemGroup>
 
 </Project>

@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Canonical `MerkleProof` wire format
+
+- **`MerkleProofSerializer`** (`Neo.L2.State`) — fixed-layout encoding of `MerkleProof` consumed by L1 NeoHub.SharedBridge for withdrawal verification. Closes a real gap: prior to this, off-chain code could `MerkleTree.GetProof` + `Verify`, but there was no canonical byte format for sending a proof across the off-chain ↔ on-chain boundary.
+- Layout (48 + 32 × siblingCount bytes, all little-endian):
+  - 0 .. 32  — Leaf hash
+  - 32 .. 36 — LeafIndex (uint32)
+  - 36 .. 44 — PathBitmap (uint64)
+  - 44 .. 48 — SiblingCount (uint32)
+  - 48 ..    — Siblings, 32 bytes each, leaf-to-root order
+- **`MaxDepth = 64`** matches `MerkleTree.Verify`'s existing depth limit.
+- **10 new tests**: round-trip 4-leaf, depth-0 single-leaf (header-only), exact byte-layout assertion, truncated-header rejection, truncated-siblings rejection, extra-trailing-bytes rejection, oversized-depth-on-encode rejection, header-claims-too-many-siblings rejection, null-arg, all-positions in 7-leaf tree round-trip.
+- Listed in `AGENTS.md` "Canonical encodings" so future contributors don't reinvent.
+
+Cumulative: 282 tests / 26 projects.
+
 ### Added — `/healthz` + `/readyz` endpoints
 
 - **`MetricsRequestHandler`** now answers `/healthz` (always 200) and `/readyz` (200 or 503 based on optional predicate) in addition to `/metrics`. Standard Kubernetes-style liveness / readiness probes for load-balancer integration without bringing in an additional HTTP framework.

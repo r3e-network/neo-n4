@@ -88,6 +88,7 @@ For more detail, see [`docs/architecture-walkthrough.md`](./docs/architecture-wa
   - `Neo.L2.Batch.BatchSerializer` — `L2BatchCommitment` + `PublicInputs`.
   - `Neo.L2.State.MessageHasher` — cross-chain messages + withdrawal records.
   - `Neo.L2.Bridge.DepositPayload` — deposit message body.
+  - `Neo.L2.State.MerkleProofSerializer` — canonical inclusion-proof bytes (consumed by L1 SharedBridge for withdrawal verification).
   - `Neo.L2.Proving.Attestation.MultisigProofPayload` / `Optimistic.OptimisticProofPayload`
     / `RiscVZk.RiscVProofPayload` — per-stage proof bytes.
   - `Neo.L2.Challenge.FraudProofPayload` — Phase-3 fraud-proof bytes.

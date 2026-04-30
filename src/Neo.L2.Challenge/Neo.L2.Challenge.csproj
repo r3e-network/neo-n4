@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.L2.Challenge</RootNamespace>
+    <AssemblyName>Neo.L2.Challenge</AssemblyName>
+    <Description>Phase-3 fraud-proof generator + challenge orchestrator for optimistic L2 batches.</Description>
+    <PackageTags>NEO;L2;Challenge;FraudProof</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+    <ProjectReference Include="..\Neo.L2.Batch\Neo.L2.Batch.csproj" />
+    <ProjectReference Include="..\Neo.L2.Executor\Neo.L2.Executor.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>NeoHub.OptimisticChallenge</RootNamespace>
+    <AssemblyName>NeoHub.OptimisticChallenge</AssemblyName>
+  </PropertyGroup>
+</Project>

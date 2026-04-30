@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.L2.Censorship</RootNamespace>
+    <AssemblyName>Neo.L2.Censorship</AssemblyName>
+    <Description>Off-chain censorship-detection orchestrator for Neo Elastic Network L2 chains.</Description>
+    <PackageTags>NEO;L2;Censorship;Slashing</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+    <ProjectReference Include="..\Neo.L2.ForcedInclusion\Neo.L2.ForcedInclusion.csproj" />
+    <ProjectReference Include="..\Neo.L2.Sequencer\Neo.L2.Sequencer.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -31,6 +31,8 @@
     <ProjectReference Include="..\..\src\Neo.L2.Telemetry\Neo.L2.Telemetry.csproj" />
     <ProjectReference Include="..\..\src\Neo.Plugins.L2Batch\Neo.Plugins.L2Batch.csproj" />
     <ProjectReference Include="..\..\src\Neo.Plugins.L2DA\Neo.Plugins.L2DA.csproj" />
+    <ProjectReference Include="..\..\src\Neo.Plugins.L2Metrics\Neo.Plugins.L2Metrics.csproj" />
+    <ProjectReference Include="..\..\src\Neo.Plugins.L2Rpc\Neo.Plugins.L2Rpc.csproj" />
   </ItemGroup>
 
 </Project>

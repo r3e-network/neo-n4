@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Composition-root integration test
+
+- **`UT_E2E_L2MetricsPlugin_CompositionRoot`** — wires every instrumented component (`BatchSealer`, `MetricsEmittingDAWriter`, `DepositProcessor`, `WithdrawalProcessor`, `BinaryTreeAggregator`, `L2RpcMethods`) to one shared sink hosted by `L2MetricsPlugin`, drives activity, scrapes `/metrics` through the plugin's HTTP server, and asserts every component's metric family is present in the response. Locks in that the composition root in `docs/telemetry.md` actually works end-to-end as advertised.
+
+Cumulative: 295 tests / 27 projects.
+
 ### Added — `Neo.Plugins.L2Metrics` composition root
 
 - New plugin **`L2MetricsPlugin`** owns the shared `InMemoryMetrics` sink the rest of the L2 plugin set wires its `WithMetrics()` calls to, and stands up the `MetricsHttpServer` based on settings (BindAddress, Port, Enabled). Pulls everything together — operators register this plugin first, then call `plugin.Metrics` from each other plugin's `WithMetrics()`.

@@ -36,6 +36,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.L2.Proving.UnitTests", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.L2.Executor.UnitTests", "tests\Neo.L2.Executor.UnitTests\Neo.L2.Executor.UnitTests.csproj", "{A0002000-0000-0000-0000-000000000007}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.L2.IntegrationTests", "tests\Neo.L2.IntegrationTests\Neo.L2.IntegrationTests.csproj", "{A0002000-0000-0000-0000-000000000008}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -98,6 +100,10 @@ Global
 		{A0002000-0000-0000-0000-000000000007}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A0002000-0000-0000-0000-000000000007}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A0002000-0000-0000-0000-000000000007}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A0002000-0000-0000-0000-000000000008}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A0002000-0000-0000-0000-000000000008}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A0002000-0000-0000-0000-000000000008}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A0002000-0000-0000-0000-000000000008}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -117,5 +123,6 @@ Global
 		{A0002000-0000-0000-0000-000000000005} = {FEED0001-0000-0000-0000-000000000002}
 		{A0002000-0000-0000-0000-000000000006} = {FEED0001-0000-0000-0000-000000000002}
 		{A0002000-0000-0000-0000-000000000007} = {FEED0001-0000-0000-0000-000000000002}
+		{A0002000-0000-0000-0000-000000000008} = {FEED0001-0000-0000-0000-000000000002}
 	EndGlobalSection
 EndGlobal

@@ -59,6 +59,12 @@ public static class MetricCatalog
         [MetricNames.FraudProofsEmitted]   = "Fraud proofs the orchestrator emitted",
         [MetricNames.BisectionRounds]      = "Bisection rounds taken to settle each fraud dispute",
 
+        // Gateway (Phase 5)
+        [MetricNames.GatewayAggregations]            = "Aggregations performed by the local gateway",
+        [MetricNames.GatewayAggregationRounds]       = "Rounds of pairwise reduction taken by each aggregation",
+        [MetricNames.GatewayAggregationLatencyMs]    = "Wall-clock milliseconds spent in each aggregation",
+        [MetricNames.GatewayBatchesAggregated]       = "Constituent batches folded into aggregations (incremented by N each time)",
+
         // RPC
         [MetricNames.RpcCalls]             = "L2 RPC method calls, tagged by method name",
         [MetricNames.RpcLatencyMs]         = "Wall-clock milliseconds for each L2 RPC call, tagged by method name",

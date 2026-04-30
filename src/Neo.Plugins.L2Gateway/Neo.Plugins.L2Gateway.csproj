@@ -11,6 +11,7 @@
     <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
     <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
     <ProjectReference Include="..\Neo.L2.State\Neo.L2.State.csproj" />
+    <ProjectReference Include="..\Neo.L2.Telemetry\Neo.L2.Telemetry.csproj" />
   </ItemGroup>
 
 </Project>

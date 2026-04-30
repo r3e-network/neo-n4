@@ -1,4 +1,5 @@
 using Neo.L2;
+using Neo.L2.Telemetry;
 
 namespace Neo.Plugins.L2Gateway;
 
@@ -21,14 +22,16 @@ public sealed class BinaryTreeAggregator : IGatewayAggregator
     private readonly Lock _gate = new();
     private readonly List<L2BatchCommitment> _pending = new();
     private readonly IRoundProver _roundProver;
+    private readonly IL2Metrics _metrics;
 
     /// <summary>The active round prover.</summary>
     public IRoundProver RoundProver => _roundProver;
 
     /// <summary>Construct with a round prover (default = pass-through).</summary>
-    public BinaryTreeAggregator(IRoundProver? roundProver = null)
+    public BinaryTreeAggregator(IRoundProver? roundProver = null, IL2Metrics? metrics = null)
     {
         _roundProver = roundProver ?? new PassThroughRoundProver();
+        _metrics = metrics ?? NoOpMetrics.Instance;
     }
 
     /// <inheritdoc />
@@ -55,6 +58,8 @@ public sealed class BinaryTreeAggregator : IGatewayAggregator
             _pending.Clear();
         }
 
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
         // Seed the leaves: each batch contributes its L2->L2 message root + its own proof bytes.
         var current = new RoundResult[snapshot.Length];
         for (var i = 0; i < snapshot.Length; i++)
@@ -69,6 +74,7 @@ public sealed class BinaryTreeAggregator : IGatewayAggregator
         // Pairwise reduce — log(N) rounds. Odd cardinality promotes the trailing leaf unchanged
         // (matches Neo's Merkle convention but without leaf duplication so the proof bytes don't
         // grow on odd levels).
+        var rounds = 0;
         while (current.Length > 1)
         {
             var next = new RoundResult[(current.Length + 1) / 2];
@@ -79,7 +85,14 @@ public sealed class BinaryTreeAggregator : IGatewayAggregator
                 next[i] = _roundProver.Combine(left, right);
             }
             current = next;
+            rounds++;
         }
+
+        sw.Stop();
+        _metrics.IncrementCounter(MetricNames.GatewayAggregations);
+        _metrics.IncrementCounter(MetricNames.GatewayBatchesAggregated, snapshot.Length);
+        _metrics.RecordHistogram(MetricNames.GatewayAggregationRounds, rounds);
+        _metrics.RecordHistogram(MetricNames.GatewayAggregationLatencyMs, sw.Elapsed.TotalMilliseconds);
 
         var root = current[0];
         return new AggregatedCommitment

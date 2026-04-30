@@ -79,6 +79,20 @@ public static class MetricNames
     /// <summary>Histogram: number of bisection rounds to settle a fraud dispute.</summary>
     public const string BisectionRounds = "l2.challenge.bisection_rounds";
 
+    // ---- Gateway (Phase 5 aggregation) ----
+
+    /// <summary>Counter: aggregations performed by the local gateway.</summary>
+    public const string GatewayAggregations = "l2.gateway.aggregations";
+
+    /// <summary>Histogram: rounds (tree depth) per aggregation.</summary>
+    public const string GatewayAggregationRounds = "l2.gateway.aggregation_rounds";
+
+    /// <summary>Histogram: aggregation wall-clock ms.</summary>
+    public const string GatewayAggregationLatencyMs = "l2.gateway.aggregation_latency_ms";
+
+    /// <summary>Counter: total constituent batches folded into an aggregation (incremented by N each time).</summary>
+    public const string GatewayBatchesAggregated = "l2.gateway.batches_aggregated";
+
     // ---- RPC ----
 
     /// <summary>Counter: L2 RPC method calls, tagged by <c>method</c>.</summary>

@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Gateway aggregation telemetry
+
+- **`BinaryTreeAggregator`** accepts an optional `IL2Metrics` constructor parameter (default `NoOpMetrics`). On every successful `Aggregate()` it emits `l2.gateway.aggregations` (counter), `l2.gateway.batches_aggregated` (counter, +N constituents), `l2.gateway.aggregation_rounds` (histogram = tree depth), and `l2.gateway.aggregation_latency_ms` (histogram). Empty-pending case emits nothing.
+- **4 new `MetricNames`** + matching catalog entries.
+- **5 new tests** in `Neo.Plugins.L2Gateway.UnitTests`: 4-batch case verifies rounds = log2(4) = 2; 1-batch case verifies rounds = 0; empty case verifies no emission; repeated aggregations verify accumulation; default NoOp safety. **Last plugin without telemetry is now wired.**
+
+Cumulative: 266 tests / 26 projects. Telemetry coverage matrix complete.
+
 ### Added — RPC telemetry
 
 - **`L2RpcMethods`** wraps each of its 9 RPC methods through a private `Time` helper that emits `l2.rpc.calls` (counter) + `l2.rpc.latency_ms` (histogram) on success and `l2.rpc.failures` (counter) on exception, all tagged by `method` name (e.g. `getl2stateroot`, `getl2batch`). Optional `IL2Metrics` constructor parameter; default `NoOpMetrics`.

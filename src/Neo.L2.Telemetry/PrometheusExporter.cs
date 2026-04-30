@@ -36,7 +36,7 @@ public static class PrometheusExporter
         foreach (var (baseName, entries) in GroupHistograms(snapshot.Histograms))
         {
             var promBase = ToPromName(baseName);
-            sb.Append("# HELP ").Append(promBase).Append(" L2 telemetry histogram (").Append(baseName).Append(")\n");
+            sb.Append("# HELP ").Append(promBase).Append(' ').Append(MetricCatalog.GetHelp(baseName)).Append('\n');
             sb.Append("# TYPE ").Append(promBase).Append(" summary\n");
             foreach (var (key, values) in entries)
             {
@@ -75,7 +75,7 @@ public static class PrometheusExporter
         foreach (var baseName in byBase.Keys.OrderBy(s => s, StringComparer.Ordinal))
         {
             var promBase = ToPromName(baseName) + nameSuffix;
-            sb.Append("# HELP ").Append(promBase).Append(" L2 telemetry ").Append(promType).Append(" (").Append(baseName).Append(")\n");
+            sb.Append("# HELP ").Append(promBase).Append(' ').Append(MetricCatalog.GetHelp(baseName)).Append('\n');
             sb.Append("# TYPE ").Append(promBase).Append(' ').Append(promType).Append('\n');
             foreach (var kv in byBase[baseName].OrderBy(kv => kv.Key, StringComparer.Ordinal))
             {

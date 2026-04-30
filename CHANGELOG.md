@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `MetricCatalog` (operator-facing HELP strings)
+
+- **`MetricCatalog`** — single source of truth for the operator-facing description of every canonical metric. `GetHelp(name)` returns a sentence-form description; `IsKnown(name)` answers whether the catalog has an entry. `Descriptions` exposes the full map.
+- **`PrometheusExporter`** now consults `MetricCatalog.GetHelp(baseName)` so HELP lines read e.g. `# HELP l2_batch_sealed_total Number of L2 batches sealed by the local sequencer` instead of the previous generic `L2 telemetry counter (l2.batch.sealed)`.
+- **6 new tests** in `Neo.L2.Telemetry.UnitTests`: catalog-completeness check (reflects over `MetricNames` constants and asserts every one has an entry — guards against future drift), unknown-name fallback, expected-description spot-checks, null-arg validation, no-trailing-period convention check, end-to-end exporter integration.
+
+Cumulative: 250 tests / 26 projects.
+
 ### Added — End-to-end telemetry integration test
 
 - **`UT_E2E_Telemetry_Pipeline`** — drives the full telemetry pipeline (single shared `InMemoryMetrics` + `BatchSealer` + `MetricsEmittingDAWriter` + synthesized settlement/proving/bridge counters), stands up a `MetricsHttpServer` on a free port, scrapes `/metrics` over real HTTP, and asserts on the resulting Prometheus exposition. Covers both success path (4 batches → counters at 4) and failure path (DA write throws → `l2_da_publish_failures_total` incremented, success counter absent).

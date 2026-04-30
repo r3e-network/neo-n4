@@ -33,8 +33,9 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.ForcedInclusion`  | Anti-censorship `IForcedInclusionSource` + in-memory backend     |
 | `Neo.L2.Sequencer`        | `ISequencerCommitteeProvider` + in-memory backend (Register / BeginExit / Finalize) |
 | `Neo.L2.Censorship`       | `CensorshipDetector` — turns overdue forced-tx entries into `CensorshipReport[]` |
-| `Neo.L2.Challenge`        | **`FraudProofPayload` + `ChallengeOrchestrator` + `BisectionGame`** for Phase-3 |
+| `Neo.L2.Challenge`        | `FraudProofPayload` + `ChallengeOrchestrator` + `BisectionGame` for Phase-3 |
 | `Neo.L2.Settlement.Rpc`   | JSON-RPC client + `RpcSettlementClient` for L1 read methods + signer-delegated submit |
+| `Neo.L2.Audit`            | **End-to-end chain auditor: `ContinuityCheck` + `ProofValidityCheck` + `ChainAuditor`** |
 
 ### Native FFI bridge (`bridge/`)
 
@@ -67,12 +68,12 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | Tool                  | Role                                                  |
 | --------------------- | ----------------------------------------------------- |
 | `Neo.Stack.Cli`       | `neo-stack` CLI: 8 subcommands                        |
-| `Neo.L2.Devnet`       | `neo-l2-devnet <N>` — runs N batches end-to-end with **real `KeyedStateStore` continuity + sequencer committee** |
+| `Neo.L2.Devnet`       | `neo-l2-devnet <N>` — runs N batches end-to-end with real `KeyedStateStore` continuity + sequencer committee + **post-run `ChainAuditor` pass** |
 | `Neo.Hub.Deploy`      | `neo-hub-deploy` — declarative L1 deploy planner: scaffold / plan / verify |
 
 ### Tests
 
-**184 unit + integration tests across 21 projects:**
+**194 unit + integration tests across 23 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -87,13 +88,14 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.ForcedInclusion.UnitTests`   | 8     | nonce ordering, replay, overdue detection   |
 | `Neo.L2.Sequencer.UnitTests`         | 9     | register/exit/finalize lifecycle            |
 | `Neo.L2.Censorship.UnitTests`        | 7     | overdue detection, sequencer attribution    |
-| `Neo.L2.Challenge.UnitTests`         | 19    | **fraud-proof payload, orchestrator, BisectionGame** |
+| `Neo.L2.Challenge.UnitTests`         | 19    | fraud-proof payload, orchestrator, BisectionGame |
+| `Neo.L2.Audit.UnitTests`             | 9     | **continuity + proof-validity checks, summary** |
 | `Neo.Plugins.L2Rpc.UnitTests`        | 9     | all 9 RPC methods, foreign-chain rejection  |
 | `Neo.Plugins.L2DA.UnitTests`         | 7     | InMemory + NeoFsLike DA writers             |
 | `Neo.Plugins.L2Gateway.UnitTests`    | 13    | flat + binary-tree aggregator, edge cases   |
 | `Neo.L2.Settlement.Rpc.UnitTests`    | 6     | JSON-RPC envelope, stack parsing, signer    |
 | `Neo.Hub.Deploy.UnitTests`           | 8     | topo sort, cycle detection, scaffold        |
-| `Neo.L2.IntegrationTests`            | 11    | **Phase 0 MVP + Phase 1 cross-component + Phase 2 full-stack + Phase 3 optimistic-challenge stitch** |
+| `Neo.L2.IntegrationTests`            | 12    | Phase 0 MVP + Phase 1 cross-component + Phase 2 full-stack + Phase 3 optimistic-challenge + **all-phases stitch** |
 
 ## What's not yet wired (out of MVP scope)
 

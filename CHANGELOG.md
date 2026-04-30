@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Auditor + devnet v0.3
+
+- **`Neo.L2.Audit`** — chain auditor: pluggable `IAuditCheck`, built-in `ContinuityCheck` (sequential batch numbers + state-root linking + non-overlapping block ranges) and `ProofValidityCheck` (re-runs each batch's proof through `VerifierRegistry`). `ChainAuditor` aggregates findings into `AuditReport` with human-readable `Summarize()`. 9 unit tests.
+- **Devnet v0.3** — after the per-batch loop, runs the full `ChainAuditor` pass (continuity + proof validity) and prints the `AuditReport.Summarize()` output. The devnet is now a complete end-to-end demonstration: state-root continuity, real multisig proofs, balance arithmetic, and an explicit auditor pass.
+- **`UT_Mvp_AllPhases_FullStack`** integration test — single readable scenario that runs Phase-1 deploy planner → Phase-0/2 batch lifecycle with state continuity → Phase-3 BisectionGame → Phase-5 Gateway aggregation, all in one test.
+
+Cumulative: 194 tests / 23 projects.
+
 ### Added — Phase 3 completion (optimistic challenge window + bisection)
 
 - **`NeoHub.OptimisticChallenge`** L1 contract — accepts fraud proofs against pending `Challengeable` batches; on accepted challenge, reads sequencer's full bond, splits per `ChallengerRewardBps` (default 50%), pays challenger via `SequencerBond.Slash`, treasures the rest, and calls `SettlementManager.RevertBatch`. `FinalizeIfPastWindow` for unchallenged batches. Owner-gated `SetWindowSeconds` (60s..7d).

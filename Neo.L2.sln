@@ -101,6 +101,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.Json", "..\neo\src\Neo.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.Plugins.L2Batch", "src\Neo.Plugins.L2Batch\Neo.Plugins.L2Batch.csproj", "{282F37B4-3938-49DF-B34D-DF40CD423570}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.Plugins.L2Batch.UnitTests", "tests\Neo.Plugins.L2Batch.UnitTests\Neo.Plugins.L2Batch.UnitTests.csproj", "{0C78DF1C-DC74-49A5-A350-FC9ECB18599B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -663,6 +665,18 @@ Global
 		{282F37B4-3938-49DF-B34D-DF40CD423570}.Release|x64.Build.0 = Release|Any CPU
 		{282F37B4-3938-49DF-B34D-DF40CD423570}.Release|x86.ActiveCfg = Release|Any CPU
 		{282F37B4-3938-49DF-B34D-DF40CD423570}.Release|x86.Build.0 = Release|Any CPU
+		{0C78DF1C-DC74-49A5-A350-FC9ECB18599B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0C78DF1C-DC74-49A5-A350-FC9ECB18599B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0C78DF1C-DC74-49A5-A350-FC9ECB18599B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0C78DF1C-DC74-49A5-A350-FC9ECB18599B}.Debug|x64.Build.0 = Debug|Any CPU
+		{0C78DF1C-DC74-49A5-A350-FC9ECB18599B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{0C78DF1C-DC74-49A5-A350-FC9ECB18599B}.Debug|x86.Build.0 = Debug|Any CPU
+		{0C78DF1C-DC74-49A5-A350-FC9ECB18599B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0C78DF1C-DC74-49A5-A350-FC9ECB18599B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0C78DF1C-DC74-49A5-A350-FC9ECB18599B}.Release|x64.ActiveCfg = Release|Any CPU
+		{0C78DF1C-DC74-49A5-A350-FC9ECB18599B}.Release|x64.Build.0 = Release|Any CPU
+		{0C78DF1C-DC74-49A5-A350-FC9ECB18599B}.Release|x86.ActiveCfg = Release|Any CPU
+		{0C78DF1C-DC74-49A5-A350-FC9ECB18599B}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -710,5 +724,6 @@ Global
 		{E568DB27-A3E8-4164-88FA-991FD63EEFEF} = {FEED0001-0000-0000-0000-000000000002}
 		{FC9A41CA-3221-4D94-A627-27A0FD248E10} = {FEED0001-0000-0000-0000-000000000001}
 		{282F37B4-3938-49DF-B34D-DF40CD423570} = {FEED0001-0000-0000-0000-000000000001}
+		{0C78DF1C-DC74-49A5-A350-FC9ECB18599B} = {FEED0001-0000-0000-0000-000000000002}
 	EndGlobalSection
 EndGlobal

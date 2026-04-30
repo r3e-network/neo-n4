@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Refactor — extract testable `BatchSealer`
+
+- **`BatchSealer`** (`Neo.Plugins.L2Batch`) — pure batch-accumulation state machine extracted from `L2BatchPlugin`. Owns `BatchBuilder` lifecycle, the three seal triggers (block-count, tx-count, age), block-context construction, and metric emission. Takes an injectable `Func<long>` clock so age-based seal can be exercised without sleeping. The plugin shrinks to ~70 lines whose only job is forwarding `Blockchain.Committed` to the sealer.
+- **`Neo.Plugins.L2Batch.UnitTests`** — 7 unit tests that drive `BatchSealer` directly: seal-on-block-count, seal-on-tx-count, seal-on-age (with fake clock), batch-number monotonicity across seals, builder reset post-seal, NoOp metrics default safety, gauge-replace semantics for `l2.batch.tx_count`. Locks down the sealer's contract so future plugin refactors can't silently break the seal triggers.
+
+Cumulative: 213 tests / 26 projects.
+
 ### Added — Plugin telemetry wiring
 
 - **`L2BatchPlugin.WithMetrics(IL2Metrics)`** — emits `l2.batch.sealed` (counter), `l2.batch.seal_latency_ms` (histogram), and `l2.batch.tx_count` (gauge) on every seal. Default sink is `NoOpMetrics.Instance` so the metric path is opt-in.

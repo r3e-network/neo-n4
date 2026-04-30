@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NeoHub.VerifierRegistry</RootNamespace>
+    <AssemblyName>NeoHub.VerifierRegistry</AssemblyName>
+  </PropertyGroup>
+
+</Project>

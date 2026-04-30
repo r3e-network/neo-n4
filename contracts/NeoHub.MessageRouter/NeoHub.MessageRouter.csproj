@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NeoHub.MessageRouter</RootNamespace>
+    <AssemblyName>NeoHub.MessageRouter</AssemblyName>
+  </PropertyGroup>
+
+</Project>

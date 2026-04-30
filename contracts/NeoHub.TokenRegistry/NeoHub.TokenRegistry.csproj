@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NeoHub.TokenRegistry</RootNamespace>
+    <AssemblyName>NeoHub.TokenRegistry</AssemblyName>
+  </PropertyGroup>
+
+</Project>

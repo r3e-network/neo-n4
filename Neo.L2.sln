@@ -42,6 +42,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.Plugins.L2Rpc", "src\Ne
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.Plugins.L2Rpc.UnitTests", "tests\Neo.Plugins.L2Rpc.UnitTests\Neo.Plugins.L2Rpc.UnitTests.csproj", "{A0002000-0000-0000-0000-000000000009}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.Plugins.L2Gateway", "src\Neo.Plugins.L2Gateway\Neo.Plugins.L2Gateway.csproj", "{A0001000-0000-0000-0000-000000000009}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.Plugins.L2Gateway.UnitTests", "tests\Neo.Plugins.L2Gateway.UnitTests\Neo.Plugins.L2Gateway.UnitTests.csproj", "{A0002000-0000-0000-0000-00000000000A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -116,6 +120,14 @@ Global
 		{A0002000-0000-0000-0000-000000000009}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A0002000-0000-0000-0000-000000000009}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A0002000-0000-0000-0000-000000000009}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A0001000-0000-0000-0000-000000000009}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A0001000-0000-0000-0000-000000000009}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A0001000-0000-0000-0000-000000000009}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A0001000-0000-0000-0000-000000000009}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A0002000-0000-0000-0000-00000000000A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A0002000-0000-0000-0000-00000000000A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A0002000-0000-0000-0000-00000000000A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A0002000-0000-0000-0000-00000000000A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -138,5 +150,7 @@ Global
 		{A0002000-0000-0000-0000-000000000008} = {FEED0001-0000-0000-0000-000000000002}
 		{A0001000-0000-0000-0000-000000000008} = {FEED0001-0000-0000-0000-000000000001}
 		{A0002000-0000-0000-0000-000000000009} = {FEED0001-0000-0000-0000-000000000002}
+		{A0001000-0000-0000-0000-000000000009} = {FEED0001-0000-0000-0000-000000000001}
+		{A0002000-0000-0000-0000-00000000000A} = {FEED0001-0000-0000-0000-000000000002}
 	EndGlobalSection
 EndGlobal

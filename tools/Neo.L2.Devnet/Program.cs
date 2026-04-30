@@ -258,6 +258,16 @@ internal static class Program
             Console.WriteLine($"  {MetricNames.BatchSealLatencyMs,-32} count={latencies.Count} avg={latencies.Average():F2}ms max={latencies.Max():F2}ms");
         }
 
+        // Same data, rendered in Prometheus exposition format. In production, the L2 node
+        // exposes this via an HTTP /metrics endpoint and Prometheus scrapes it directly.
+        Console.WriteLine();
+        Console.WriteLine("───── /metrics (Prometheus text format) ─────");
+        var promText = PrometheusExporter.Format(metrics.Snapshot());
+        foreach (var line in promText.Split('\n'))
+        {
+            if (line.Length > 0) Console.WriteLine("  " + line);
+        }
+
         Console.WriteLine();
         Console.WriteLine("───── post-run RPC snapshot ─────");
         var latest = rpc.GetL2StateRoot(new Json.JArray { LocalChainId });

@@ -36,7 +36,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.Challenge`        | `FraudProofPayload` + `ChallengeOrchestrator` + `BisectionGame` for Phase-3 |
 | `Neo.L2.Settlement.Rpc`   | JSON-RPC client + `RpcSettlementClient` for L1 read methods + signer-delegated submit |
 | `Neo.L2.Audit`            | **End-to-end chain auditor: `ContinuityCheck` + `ProofValidityCheck` + `ChainAuditor`** |
-| `Neo.L2.Telemetry`        | `IL2Metrics` (counter/histogram/gauge) + `NoOpMetrics` + `InMemoryMetrics` + canonical `MetricNames` (l2.batch, l2.proving, l2.bridge, l2.audit, …) |
+| `Neo.L2.Telemetry`        | `IL2Metrics` (counter/histogram/gauge) + `NoOpMetrics` + `InMemoryMetrics` + `MetricsSnapshot` + **`PrometheusExporter`** (HELP/TYPE preamble, `_total` suffix, label encoding, `summary` aggregates for histograms) + canonical `MetricNames` |
 
 ### Native FFI bridge (`bridge/`)
 
@@ -74,7 +74,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**219 unit + integration tests across 26 projects:**
+**229 unit + integration tests across 26 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -97,7 +97,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.Plugins.L2Batch.UnitTests`      | 7     | `BatchSealer` block / tx / age triggers, batch-number monotonicity, gauge replace, NoOp default |
 | `Neo.Plugins.L2Settlement.UnitTests` | 4     | **metric emission on submit success / failure / no-op default** |
 | `Neo.L2.Settlement.Rpc.UnitTests`    | 6     | JSON-RPC envelope, stack parsing, signer    |
-| `Neo.L2.Telemetry.UnitTests`         | 8     | counter/histogram/gauge accumulation, tag canonicalization |
+| `Neo.L2.Telemetry.UnitTests`         | 18    | counter/histogram/gauge accumulation, tag canonicalization, **Prometheus exporter (counter/gauge/summary, labels, name sanitization, frozen-snapshot)** |
 | `Neo.Hub.Deploy.UnitTests`           | 8     | topo sort, cycle detection, scaffold        |
 | `Neo.L2.IntegrationTests`            | 12    | Phase 0 MVP + Phase 1 cross-component + Phase 2 full-stack + Phase 3 optimistic-challenge + **all-phases stitch** |
 

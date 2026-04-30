@@ -67,6 +67,25 @@ public sealed class InMemoryMetrics : IL2Metrics
     /// <summary>Total number of counter+gauge+histogram entries (test inspection).</summary>
     public int EntryCount => _counters.Count + _gauges.Count + _histograms.Count;
 
+    /// <summary>
+    /// Snapshot the current state for export. The result is a frozen copy; further
+    /// emissions on this instance won't mutate it.
+    /// </summary>
+    public MetricsSnapshot Snapshot()
+    {
+        Dictionary<string, IReadOnlyList<double>> histos;
+        lock (_gate)
+        {
+            histos = _histograms.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<double>)kv.Value.ToArray());
+        }
+        return new MetricsSnapshot
+        {
+            Counters = _counters.ToArray().ToDictionary(kv => kv.Key, kv => kv.Value),
+            Gauges = _gauges.ToArray().ToDictionary(kv => kv.Key, kv => kv.Value),
+            Histograms = histos,
+        };
+    }
+
     private static string TaggedKey(string name, (string Key, string Value)[] tags)
     {
         if (tags.Length == 0) return name;

@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Prometheus exporter
+
+- **`MetricsSnapshot`** — frozen point-in-time read of every counter / gauge / histogram. Decouples accumulation (`IL2Metrics`) from export so future exporters (OpenTelemetry, StatsD, …) reuse the same shape.
+- **`InMemoryMetrics.Snapshot()`** — produces a `MetricsSnapshot` immune to subsequent emissions.
+- **`PrometheusExporter.Format(snapshot)`** — emits standards-compliant Prometheus exposition text: counters get `_total` suffix and `counter` type, gauges stay as-is with `gauge` type, histograms produce `_count` + `_sum` + `_max` aggregates with `summary` type. Tag pairs become labels with proper quoting; `.` and `-` in metric names sanitize to `_` per Prometheus naming rules. HELP/TYPE preambles emitted once per metric family.
+- **`PrometheusExporter.ContentType`** — the canonical `text/plain; version=0.0.4; charset=utf-8` HTTP header value.
+- **Devnet** now prints a `───── /metrics (Prometheus text format) ─────` section after each run, demonstrating the same data viewed through both the human summary and the production exporter.
+- **10 new tests** in `Neo.L2.Telemetry.UnitTests`: empty-snapshot, counter, tagged counter, gauge, histogram, mixed kinds, content-type constant, name sanitization with dots+dashes, tagged histogram, snapshot frozenness.
+
+Cumulative: 229 tests / 26 projects.
+
 ### Added — DA telemetry decorator
 
 - **`MetricsEmittingDAWriter`** (`Neo.Plugins.L2DA`) — composition-pattern decorator that wraps any `IDAWriter` and emits `l2.da.published` (counter), `l2.da.publish_latency_ms` (histogram), and `l2.da.publish_failures` (counter), all tagged by `mode`. New writers automatically participate in the metric contract by being wrapped at plugin configure time.

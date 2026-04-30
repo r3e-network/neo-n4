@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.L2.Sequencer</RootNamespace>
+    <AssemblyName>Neo.L2.Sequencer</AssemblyName>
+    <Description>L2-side sequencer-committee provider — view of NeoHub.SequencerRegistry.</Description>
+    <PackageTags>NEO;L2;Sequencer;dBFT</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
+    <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>NeoHub.SequencerRegistry</RootNamespace>
+    <AssemblyName>NeoHub.SequencerRegistry</AssemblyName>
+  </PropertyGroup>
+</Project>

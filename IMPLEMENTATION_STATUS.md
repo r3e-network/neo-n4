@@ -9,7 +9,7 @@
 | 0     | Sidechain PoC                             | ✅ MVP integration test passes              |
 | 1     | NeoHub v0 + Shared Bridge                 | ✅ All 12 NeoHub contracts compile + deploy planner emits 10-step bundle |
 | 2     | Batch Settlement                          | ✅ Off-chain green; real `KeyedStateStore` continuity verified across batches |
-| 3     | Optimistic Challenge Window               | 🟡 Verifier shipped + `SequencerBond` slashing primitive; full challenge window TBD |
+| 3     | Optimistic Challenge Window               | ✅ `OptimisticChallenge` contract + `ChallengeOrchestrator` + `BisectionGame` (log-N narrowing) all green |
 | 4     | NeoVM2 / RISC-V ZK Validity Proof         | 🟡 SP1 FFI bridge scaffolded; flip `--features real-prover` to enable |
 | 5     | Neo Gateway (proof aggregation)           | 🟡 `BinaryTreeAggregator` with pluggable `IRoundProver` (default = pass-through hash) |
 | 6     | Neo Stack CLI / Templates                 | 🟡 8 subcommands scaffolded                 |
@@ -33,6 +33,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.ForcedInclusion`  | Anti-censorship `IForcedInclusionSource` + in-memory backend     |
 | `Neo.L2.Sequencer`        | `ISequencerCommitteeProvider` + in-memory backend (Register / BeginExit / Finalize) |
 | `Neo.L2.Censorship`       | `CensorshipDetector` — turns overdue forced-tx entries into `CensorshipReport[]` |
+| `Neo.L2.Challenge`        | **`FraudProofPayload` + `ChallengeOrchestrator` + `BisectionGame`** for Phase-3 |
 | `Neo.L2.Settlement.Rpc`   | JSON-RPC client + `RpcSettlementClient` for L1 read methods + signer-delegated submit |
 
 ### Native FFI bridge (`bridge/`)
@@ -53,10 +54,10 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.Plugins.L2Rpc`          | 9 RPC handlers (doc.md §14.1) + `IL2RpcStore`         |
 | `Neo.Plugins.L2Gateway`      | **`BinaryTreeAggregator`** with pluggable `IRoundProver` (default `PassThroughRoundProver`); `PassThroughAggregator` for flat aggregation |
 
-### Smart contracts (`contracts/`) — 18 total, all type-check via devpack
+### Smart contracts (`contracts/`) — 19 total, all type-check via devpack
 
-**NeoHub L1 suite (12):**
-`ChainRegistry` · `SharedBridge` · `SettlementManager` · `VerifierRegistry` · `MessageRouter` · `TokenRegistry` · `DARegistry` · `GovernanceController` · `EmergencyManager` · **`ForcedInclusion`** · **`SequencerBond`** · **`SequencerRegistry`**
+**NeoHub L1 suite (13):**
+`ChainRegistry` · `SharedBridge` · `SettlementManager` · `VerifierRegistry` · `MessageRouter` · `TokenRegistry` · `DARegistry` · `GovernanceController` · `EmergencyManager` · `ForcedInclusion` · `SequencerBond` · `SequencerRegistry` · **`OptimisticChallenge`**
 
 **L2 native (6):**
 `L2BridgeContract` · `L2MessageContract` · `L2BatchInfoContract` · `L2FeeContract` · `L2PaymasterContract` · `L2SystemConfigContract`
@@ -71,7 +72,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**162 unit + integration tests across 19 projects:**
+**184 unit + integration tests across 21 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -86,12 +87,13 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.ForcedInclusion.UnitTests`   | 8     | nonce ordering, replay, overdue detection   |
 | `Neo.L2.Sequencer.UnitTests`         | 9     | register/exit/finalize lifecycle            |
 | `Neo.L2.Censorship.UnitTests`        | 7     | overdue detection, sequencer attribution    |
+| `Neo.L2.Challenge.UnitTests`         | 19    | **fraud-proof payload, orchestrator, BisectionGame** |
 | `Neo.Plugins.L2Rpc.UnitTests`        | 9     | all 9 RPC methods, foreign-chain rejection  |
 | `Neo.Plugins.L2DA.UnitTests`         | 7     | InMemory + NeoFsLike DA writers             |
 | `Neo.Plugins.L2Gateway.UnitTests`    | 13    | flat + binary-tree aggregator, edge cases   |
 | `Neo.L2.Settlement.Rpc.UnitTests`    | 6     | JSON-RPC envelope, stack parsing, signer    |
 | `Neo.Hub.Deploy.UnitTests`           | 8     | topo sort, cycle detection, scaffold        |
-| `Neo.L2.IntegrationTests`            | 8     | **MVP Phase 0 + Phase 1 cross-component + Phase 2 full-stack stitch** |
+| `Neo.L2.IntegrationTests`            | 11    | **Phase 0 MVP + Phase 1 cross-component + Phase 2 full-stack + Phase 3 optimistic-challenge stitch** |
 
 ## What's not yet wired (out of MVP scope)
 

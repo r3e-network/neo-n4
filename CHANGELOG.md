@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Phase 3 completion (optimistic challenge window + bisection)
+
+- **`NeoHub.OptimisticChallenge`** L1 contract — accepts fraud proofs against pending `Challengeable` batches; on accepted challenge, reads sequencer's full bond, splits per `ChallengerRewardBps` (default 50%), pays challenger via `SequencerBond.Slash`, treasures the rest, and calls `SettlementManager.RevertBatch`. `FinalizeIfPastWindow` for unchallenged batches. Owner-gated `SetWindowSeconds` (60s..7d).
+- **`Neo.L2.Challenge.FraudProofPayload`** — 101-byte canonical wire format (1B version + 32B preStateRoot + 32B claimedPostStateRoot + 32B replayedPostStateRoot + 4B disputedTxIndex).
+- **`Neo.L2.Challenge.ChallengeOrchestrator`** — pluggable `IFraudProofGenerator`; `InspectAsync` takes claimedCommitment + reconstructed inputs and emits a `FraudProofPayload` only when challenger's deterministic replay disagrees with the sequencer's claim.
+- **`Neo.L2.Challenge.BisectionGame`** — pure state machine that converges challenger and sequencer to a single disputed tx index in `O(log N)` rounds (standard optimistic-rollup design). Makes on-chain fraud verification O(1) instead of O(N).
+- **Phase-3 end-to-end integration test** (`UT_Mvp_Phase3_OptimisticChallenge`) demonstrates: 8-tx batch with `KeyedStateStore`-backed honest checkpoints → sequencer lies from index 5 → `ChallengeOrchestrator` detects → `BisectionGame` narrows to disputed tx index 4 in ≤ 3 rounds.
+
+Phase 3 → ✅. Cumulative: 184 tests / 21 projects.
+
 ### Added — Phase 2 / 3 / 5 wave (real state, slashing, recursive aggregation)
 
 - **`KeyedStateStore` + `KeyedStateRootOracle`** (`Neo.L2.Executor.State`) — replace the XOR-mix stub with a sorted-leaf Merkle root computed over `Hash256(4B keyLen || key || 4B valueLen || value)` leaves; deterministic + insert-order-independent. The devnet now runs with real state-root continuity (`postRoot[N] == preRoot[N+1]`).

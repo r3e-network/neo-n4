@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Neo.Hub.Deploy</RootNamespace>
+    <AssemblyName>neo-hub-deploy</AssemblyName>
+    <Description>Declarative NeoHub L1 contract deployment planner.</Description>
+    <PackageTags>NEO;L2;NeoHub;Deploy</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
+    <ProjectReference Include="$(NeoCorePath)\Neo.Json\Neo.Json.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Settlement.Rpc\Neo.L2.Settlement.Rpc.csproj" />
+  </ItemGroup>
+
+</Project>

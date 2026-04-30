@@ -6,7 +6,7 @@ namespace Neo.L2.Telemetry;
 /// In-process <see cref="IL2Metrics"/> for tests + dev — accumulates emissions in
 /// thread-safe maps so tests can assert on what plugins emitted.
 /// </summary>
-public sealed class InMemoryMetrics : IL2Metrics
+public sealed class InMemoryMetrics : IL2Metrics, IMetricsSource
 {
     private readonly ConcurrentDictionary<string, long> _counters = new();
     private readonly ConcurrentDictionary<string, double> _gauges = new();

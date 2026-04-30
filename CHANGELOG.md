@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `/metrics` HTTP endpoint
+
+- **`MetricsRequestHandler`** — framework-agnostic pure handler. Takes a request path, returns `MetricsHttpResponse` (status / content-type / body). Routes <c>/metrics</c> (with tolerance for trailing slash and query string) to a fresh `PrometheusExporter.Format(snapshot)`; everything else returns 404. Drop into any HTTP host (ASP.NET, Kestrel, RpcServer plugin) by routing GET <c>/metrics</c> through `Handle()`.
+- **`IMetricsSource`** — read-side companion to `IL2Metrics`. `InMemoryMetrics` implements both. Decouples the snapshot read from the exporter so future sources (e.g. an OpenTelemetry-backed cache) plug in cleanly.
+- **`MetricsHttpServer`** — minimal in-process HTTP server. Uses `TcpListener` + raw HTTP/1.0 framing instead of `HttpListener` (which is unreliable on Linux). Binds to a configurable IP/port (use port 0 for "any free port"; the resolved port is exposed via `Endpoint`). No third-party deps.
+- **13 new tests**: 8 handler tests (status routing, query/trailing-slash tolerance, fresh-snapshot-per-call, null-arg validation, `IMetricsSource` round-trip), 5 server tests (real HTTP scrape, 404 on bad path, sequential requests, null-arg, port-zero binding). HttpClient explicitly bypasses ambient proxy env vars.
+
+Cumulative: 242 tests / 26 projects.
+
 ### Added — Prometheus exporter
 
 - **`MetricsSnapshot`** — frozen point-in-time read of every counter / gauge / histogram. Decouples accumulation (`IL2Metrics`) from export so future exporters (OpenTelemetry, StatsD, …) reuse the same shape.

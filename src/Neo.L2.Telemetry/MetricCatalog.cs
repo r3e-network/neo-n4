@@ -45,7 +45,9 @@ public static class MetricCatalog
 
         // Bridge / DA / messaging
         [MetricNames.DepositsProcessed]    = "Deposits processed from the L1 bridge inbox",
+        [MetricNames.DepositsRejected]     = "Deposits rejected by validation (replay, unknown asset, inactive mapping)",
         [MetricNames.WithdrawalsStaged]    = "Withdrawals staged into the L2 outbox",
+        [MetricNames.WithdrawalsRejected]  = "Withdrawals rejected by validation (unknown asset, duplicate nonce, non-positive amount)",
         [MetricNames.MessagesEmitted]      = "Cross-chain messages emitted from this L2",
         [MetricNames.DAPublished]          = "DA payloads published successfully, tagged by DA mode",
         [MetricNames.DAPublishLatencyMs]   = "Wall-clock milliseconds for each DA publish, tagged by DA mode",

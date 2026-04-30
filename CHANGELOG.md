@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Bridge processor telemetry
+
+- **`DepositProcessor`** + **`WithdrawalProcessor`** now accept an optional `IL2Metrics` constructor parameter and emit:
+  - `l2.bridge.deposits` (counter) on successful `Process`, `l2.bridge.deposits_rejected` on validation failure (replay, unknown asset, inactive mapping).
+  - `l2.bridge.withdrawals` (counter) on successful `Stage`, `l2.bridge.withdrawals_rejected` on validation failure (unknown asset, duplicate nonce, non-positive amount).
+- **`L2BridgePlugin.WithMetrics(IL2Metrics)`** — re-creates the processors with the new sink. Default is `NoOpMetrics`.
+- **2 new `MetricNames`**: `DepositsRejected`, `WithdrawalsRejected` + matching catalog entries.
+- **7 new tests** in `Neo.L2.Bridge.UnitTests`: success path, replay, unknown asset, withdrawal success, duplicate nonce, negative amount, default-NoOp safety. Closes the gap where bridge counters were only emitted manually in the devnet's inline path; production plugin path now emits them too.
+
+Cumulative: 257 tests / 26 projects.
+
 ### Added — `MetricCatalog` (operator-facing HELP strings)
 
 - **`MetricCatalog`** — single source of truth for the operator-facing description of every canonical metric. `GetHelp(name)` returns a sentence-form description; `IsKnown(name)` answers whether the catalog has an entry. `Descriptions` exposes the full map.

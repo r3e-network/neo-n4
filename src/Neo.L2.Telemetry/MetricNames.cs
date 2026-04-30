@@ -44,8 +44,14 @@ public static class MetricNames
     /// <summary>Counter: deposits processed (incoming L1 messages).</summary>
     public const string DepositsProcessed = "l2.bridge.deposits";
 
+    /// <summary>Counter: deposits rejected by validation (replay, unknown asset, inactive mapping).</summary>
+    public const string DepositsRejected = "l2.bridge.deposits_rejected";
+
     /// <summary>Counter: withdrawals staged.</summary>
     public const string WithdrawalsStaged = "l2.bridge.withdrawals";
+
+    /// <summary>Counter: withdrawals rejected by validation (unknown asset, duplicate nonce, non-positive amount).</summary>
+    public const string WithdrawalsRejected = "l2.bridge.withdrawals_rejected";
 
     /// <summary>Counter: cross-chain messages emitted.</summary>
     public const string MessagesEmitted = "l2.messaging.emitted";

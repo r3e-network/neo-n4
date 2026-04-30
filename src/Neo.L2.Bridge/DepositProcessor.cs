@@ -1,3 +1,5 @@
+using Neo.L2.Telemetry;
+
 namespace Neo.L2.Bridge;
 
 /// <summary>
@@ -11,6 +13,7 @@ namespace Neo.L2.Bridge;
 public sealed class DepositProcessor
 {
     private readonly AssetRegistry _registry;
+    private readonly IL2Metrics _metrics;
     private readonly HashSet<(uint, ulong)> _consumed = new();
     private readonly Lock _gate = new();
 
@@ -18,11 +21,12 @@ public sealed class DepositProcessor
     public uint LocalChainId { get; }
 
     /// <summary>Construct with the chain identifier and shared asset registry.</summary>
-    public DepositProcessor(uint localChainId, AssetRegistry registry)
+    public DepositProcessor(uint localChainId, AssetRegistry registry, IL2Metrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         LocalChainId = localChainId;
         _registry = registry;
+        _metrics = metrics ?? NoOpMetrics.Instance;
     }
 
     /// <summary>
@@ -32,33 +36,43 @@ public sealed class DepositProcessor
     public MintInstruction Process(CrossChainMessage message)
     {
         ArgumentNullException.ThrowIfNull(message);
-        if (message.MessageType != MessageType.Deposit)
-            throw new ArgumentException($"Expected MessageType.Deposit, got {message.MessageType}", nameof(message));
-        if (message.TargetChainId != LocalChainId)
-            throw new ArgumentException($"Message targets chain {message.TargetChainId}, but local is {LocalChainId}", nameof(message));
-
-        lock (_gate)
+        try
         {
-            if (!_consumed.Add((message.SourceChainId, message.Nonce)))
-                throw new InvalidOperationException(
-                    $"Deposit ({message.SourceChainId},{message.Nonce}) was already processed");
+            if (message.MessageType != MessageType.Deposit)
+                throw new ArgumentException($"Expected MessageType.Deposit, got {message.MessageType}", nameof(message));
+            if (message.TargetChainId != LocalChainId)
+                throw new ArgumentException($"Message targets chain {message.TargetChainId}, but local is {LocalChainId}", nameof(message));
+
+            lock (_gate)
+            {
+                if (!_consumed.Add((message.SourceChainId, message.Nonce)))
+                    throw new InvalidOperationException(
+                        $"Deposit ({message.SourceChainId},{message.Nonce}) was already processed");
+            }
+
+            var payload = DepositPayload.Decode(message.Payload.Span);
+
+            if (!_registry.TryGetByL1(payload.L1Asset, LocalChainId, out var mapping) || mapping is null)
+                throw new InvalidOperationException($"No L2 asset mapping for L1 asset {payload.L1Asset}");
+            if (!mapping.Active)
+                throw new InvalidOperationException($"Asset mapping for {payload.L1Asset} is inactive");
+
+            var instr = new MintInstruction
+            {
+                L2Asset = mapping.L2Asset,
+                Recipient = payload.L2Recipient,
+                Amount = payload.Amount,
+                SourceChainId = message.SourceChainId,
+                SourceNonce = message.Nonce,
+            };
+            _metrics.IncrementCounter(MetricNames.DepositsProcessed);
+            return instr;
         }
-
-        var payload = DepositPayload.Decode(message.Payload.Span);
-
-        if (!_registry.TryGetByL1(payload.L1Asset, LocalChainId, out var mapping) || mapping is null)
-            throw new InvalidOperationException($"No L2 asset mapping for L1 asset {payload.L1Asset}");
-        if (!mapping.Active)
-            throw new InvalidOperationException($"Asset mapping for {payload.L1Asset} is inactive");
-
-        return new MintInstruction
+        catch
         {
-            L2Asset = mapping.L2Asset,
-            Recipient = payload.L2Recipient,
-            Amount = payload.Amount,
-            SourceChainId = message.SourceChainId,
-            SourceNonce = message.Nonce,
-        };
+            _metrics.IncrementCounter(MetricNames.DepositsRejected);
+            throw;
+        }
     }
 
     /// <summary>True if a prior call to <see cref="Process"/> consumed this (source, nonce).</summary>

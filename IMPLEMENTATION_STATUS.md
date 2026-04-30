@@ -25,7 +25,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.Abstractions`     | 7 interfaces + 14 model records (doc.md §19)                      |
 | `Neo.L2.Batch`            | `L2Batch`, `BatchBuilder`, deterministic `BatchSerializer`        |
 | `Neo.L2.State`            | `MerkleTree` (matches Neo `Hash256`), `MessageHasher`, `WithdrawalTree`, `MessageTree`, `StateRootCalculator` |
-| `Neo.L2.Bridge`           | `AssetRegistry`, `DepositPayload`, `DepositProcessor`, `WithdrawalProcessor` |
+| `Neo.L2.Bridge`           | `AssetRegistry`, `DepositPayload`, `DepositProcessor`, `WithdrawalProcessor` (both processors emit `l2.bridge.deposits/deposits_rejected/withdrawals/withdrawals_rejected` to a per-instance `IL2Metrics`) |
 | `Neo.L2.Messaging`        | `MessageBuilder`, `L1MessageInbox`, `L2Outbox`, `InMemoryMessageRouter` |
 | `Neo.L2.Proving`          | Stage 0 multisig (real), Stage 1 optimistic, Stage 2 mock RISC-V; `VerifierRegistry` |
 | `Neo.L2.Proving.Sp1`      | Phase 4 SP1 P/Invoke wrapper with graceful fallback to mock when native bridge missing |
@@ -74,7 +74,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**250 unit + integration tests across 26 projects:**
+**257 unit + integration tests across 26 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -82,7 +82,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.Batch.UnitTests`             | 13    | builder lifecycle, serializer round-trip    |
 | `Neo.L2.State.UnitTests`             | 12    | Merkle tree, proof verify, hashers          |
 | `Neo.L2.Messaging.UnitTests`         | 7     | inbox FIFO, replay protection, outbox split |
-| `Neo.L2.Bridge.UnitTests`            | 7     | registry, deposit replay, withdrawal staging |
+| `Neo.L2.Bridge.UnitTests`            | 14    | registry, deposit replay, withdrawal staging, **metric emission on success/replay/unknown-asset/duplicate-nonce/negative-amount paths** |
 | `Neo.L2.Proving.UnitTests`           | 11    | Stage 0/1/2 prove+verify, registry dispatch |
 | `Neo.L2.Proving.Sp1.UnitTests`       | 6     | bridge unavailable, mock fallback, VK mismatch |
 | `Neo.L2.Executor.UnitTests`          | 14    | empty/single/many, ordering, determinism, **KeyedStateStore + oracle** |

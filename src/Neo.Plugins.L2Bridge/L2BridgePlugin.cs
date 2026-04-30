@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Neo.L2.Bridge;
 using Neo.L2.Messaging;
+using Neo.L2.Telemetry;
 
 namespace Neo.Plugins.L2;
 
@@ -17,6 +18,7 @@ public sealed class L2BridgePlugin : Plugin
     private DepositProcessor? _depositProcessor;
     private WithdrawalProcessor? _withdrawalProcessor;
     private readonly L1MessageInbox _inbox = new();
+    private IL2Metrics _metrics = NoOpMetrics.Instance;
 
     /// <inheritdoc />
     public override string Name => "L2BridgePlugin";
@@ -36,12 +38,27 @@ public sealed class L2BridgePlugin : Plugin
     /// <summary>L1→L2 message inbox feeding the deposit processor.</summary>
     public L1MessageInbox Inbox => _inbox;
 
+    /// <summary>
+    /// Wire a metrics sink. The processors emit
+    /// <c>l2.bridge.deposits/deposits_rejected/withdrawals/withdrawals_rejected</c> against
+    /// this sink. Defaults to <see cref="NoOpMetrics"/>.
+    /// </summary>
+    public void WithMetrics(IL2Metrics metrics)
+    {
+        ArgumentNullException.ThrowIfNull(metrics);
+        _metrics = metrics;
+        if (_depositProcessor is not null)
+            _depositProcessor = new DepositProcessor(_chainId, _registry, _metrics);
+        if (_withdrawalProcessor is not null)
+            _withdrawalProcessor = new WithdrawalProcessor(_chainId, _registry, _metrics);
+    }
+
     /// <inheritdoc />
     protected override void Configure()
     {
         var section = GetConfiguration();
         _chainId = section.GetValue<uint>("ChainId");
-        _depositProcessor = new DepositProcessor(_chainId, _registry);
-        _withdrawalProcessor = new WithdrawalProcessor(_chainId, _registry);
+        _depositProcessor = new DepositProcessor(_chainId, _registry, _metrics);
+        _withdrawalProcessor = new WithdrawalProcessor(_chainId, _registry, _metrics);
     }
 }

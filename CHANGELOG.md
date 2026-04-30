@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Devnet `--metrics-port` flag (live HTTP demo)
+
+- `neo-l2-devnet <N> --metrics-port <P>` (or `--metrics-port 0` for "any free port") now stands up a real `MetricsHttpServer` after the batch run, self-scrapes `/metrics`, `/healthz`, and `/readyz` over real HTTP, and prints the round-trip status + content-type + body summary. Promotes the previously static "Prometheus text format" devnet section to a live demonstration of the production scrape path.
+
+Cumulative: 287 tests / 26 projects (no new tests; the e2e telemetry integration test already covers this code path).
+
 ### Added — `NoZeroProofCheck` audit
 
 - New `IAuditCheck` implementation flags batches that were soft-sealed but never had a real proof attached: `ProofType.None`, or non-`None` discriminator paired with empty `Proof` bytes. Cheap and fast — does not re-verify the proof (that's `ProofValidityCheck`'s job), it just catches the "soft-sealed but never proved" failure mode that would otherwise need full verification cost to detect.

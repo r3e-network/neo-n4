@@ -28,6 +28,17 @@ the snapshot is a frozen `MetricsSnapshot`, the request handler is framework
 agnostic (drop into ASP.NET / Kestrel / RpcServer), and the HTTP server uses raw
 `TcpListener` — no third-party deps.
 
+## Try it locally
+
+```bash
+# Run a 3-batch devnet and self-scrape /metrics + /healthz + /readyz over real HTTP.
+dotnet run --project tools/Neo.L2.Devnet -- 3 --metrics-port 9090
+```
+
+The trailing `───── live HTTP /metrics ─────` section shows the round-trip:
+status code, Content-Type, body length, and the first few lines of Prometheus
+exposition. Port 0 lets the OS pick any free port.
+
 ## Endpoints
 
 The HTTP handler answers three paths (everything else is 404):

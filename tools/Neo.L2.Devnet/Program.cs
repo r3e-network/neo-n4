@@ -37,6 +37,7 @@ internal static class Program
     public static async Task<int> Main(string[] args)
     {
         var batches = args.Length > 0 && int.TryParse(args[0], out var n) ? n : 3;
+        var metricsPort = ParseMetricsPort(args);
 
         Console.WriteLine("┌─────────────────────────────────────────────┐");
         Console.WriteLine("│  Neo Elastic Network — devnet runner v0.2    │");
@@ -286,9 +287,42 @@ internal static class Program
             return 1;
         }
 
+        // ---- Live HTTP /metrics demonstration ----
+        if (metricsPort.HasValue)
+        {
+            Console.WriteLine();
+            Console.WriteLine("───── live HTTP /metrics ─────");
+            var handler = new MetricsRequestHandler(metrics);
+            using var server = new MetricsHttpServer(System.Net.IPAddress.Loopback, metricsPort.Value, handler);
+            server.Start();
+            using var http = new System.Net.Http.HttpClient(new System.Net.Http.HttpClientHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(5) };
+            var url = $"http://127.0.0.1:{server.Endpoint.Port}/metrics";
+            Console.WriteLine($"  scraping: {url}");
+            var resp = await http.GetAsync(url);
+            Console.WriteLine($"  status:   {(int)resp.StatusCode} {resp.ReasonPhrase}");
+            Console.WriteLine($"  type:     {resp.Content.Headers.ContentType}");
+            var body = await resp.Content.ReadAsStringAsync();
+            var lines = body.Split('\n');
+            Console.WriteLine($"  body:     {lines.Length} lines, {body.Length} bytes (first 3 below)");
+            for (var i = 0; i < Math.Min(3, lines.Length); i++)
+                Console.WriteLine($"    | {lines[i]}");
+            Console.WriteLine($"  health:   {(int)(await http.GetAsync($"http://127.0.0.1:{server.Endpoint.Port}/healthz")).StatusCode}");
+            Console.WriteLine($"  ready:    {(int)(await http.GetAsync($"http://127.0.0.1:{server.Endpoint.Port}/readyz")).StatusCode}");
+        }
+
         Console.WriteLine();
         Console.WriteLine("✅ devnet run complete.");
         return 0;
+    }
+
+    private static int? ParseMetricsPort(string[] args)
+    {
+        for (var i = 0; i < args.Length - 1; i++)
+        {
+            if (args[i] == "--metrics-port" && int.TryParse(args[i + 1], out var port))
+                return port;
+        }
+        return null;
     }
 
     // ---- Helpers ----

@@ -69,7 +69,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | Tool                  | Role                                                  |
 | --------------------- | ----------------------------------------------------- |
 | `Neo.Stack.Cli`       | `neo-stack` CLI: 8 subcommands                        |
-| `Neo.L2.Devnet`       | `neo-l2-devnet <N>` — runs N batches end-to-end with real `KeyedStateStore` continuity + sequencer committee + **post-run `ChainAuditor` pass** |
+| `Neo.L2.Devnet`       | `neo-l2-devnet <N> [--metrics-port <P>]` — runs N batches end-to-end with real `KeyedStateStore` continuity + sequencer committee + post-run `ChainAuditor` pass; with `--metrics-port` it stands up a live HTTP server and self-scrapes `/metrics`, `/healthz`, `/readyz` |
 | `Neo.Hub.Deploy`      | `neo-hub-deploy` — declarative L1 deploy planner: scaffold / plan / verify |
 
 ### Tests
@@ -122,6 +122,9 @@ dotnet build contracts/NeoHub.ChainRegistry /p:NuGetAudit=false /p:DisableNccs=t
 
 # Run the in-process devnet demo with real state-root continuity
 dotnet run --project tools/Neo.L2.Devnet -- 5
+
+# Same demo plus live HTTP /metrics scrape on port 9090
+dotnet run --project tools/Neo.L2.Devnet -- 5 --metrics-port 9090
 
 # Generate a NeoHub deploy bundle
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold --output deploy-plan.json

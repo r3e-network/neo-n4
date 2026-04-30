@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — DA telemetry decorator
+
+- **`MetricsEmittingDAWriter`** (`Neo.Plugins.L2DA`) — composition-pattern decorator that wraps any `IDAWriter` and emits `l2.da.published` (counter), `l2.da.publish_latency_ms` (histogram), and `l2.da.publish_failures` (counter), all tagged by `mode`. New writers automatically participate in the metric contract by being wrapped at plugin configure time.
+- **`L2DAPlugin.WithMetrics(IL2Metrics)`** — wraps the chosen raw writer in the decorator. Idempotent: re-wiring a different metrics sink unwraps and re-wraps. NoOp metrics (the default) skip wrapping entirely.
+- **6 new tests** in `Neo.Plugins.L2DA.UnitTests`: success path, propagating-throw failure path, accumulation across multiple publishes, `IsAvailableAsync` pass-through, null-arg validation, mode mirroring.
+- **2 new `MetricNames`** entries: `DAPublishLatencyMs`, `DAPublishFailures`.
+
+Cumulative: 219 tests / 26 projects.
+
 ### Refactor — extract testable `BatchSealer`
 
 - **`BatchSealer`** (`Neo.Plugins.L2Batch`) — pure batch-accumulation state machine extracted from `L2BatchPlugin`. Owns `BatchBuilder` lifecycle, the three seal triggers (block-count, tx-count, age), block-context construction, and metric emission. Takes an injectable `Func<long>` clock so age-based seal can be exercised without sleeping. The plugin shrinks to ~70 lines whose only job is forwarding `Blockchain.Committed` to the sealer.

@@ -53,6 +53,12 @@ public static class MetricNames
     /// <summary>Counter: DA payloads published, tagged by <c>mode</c>.</summary>
     public const string DAPublished = "l2.da.published";
 
+    /// <summary>Histogram: DA publish wall-clock ms, tagged by <c>mode</c>.</summary>
+    public const string DAPublishLatencyMs = "l2.da.publish_latency_ms";
+
+    /// <summary>Counter: DA publishes that threw, tagged by <c>mode</c>.</summary>
+    public const string DAPublishFailures = "l2.da.publish_failures";
+
     // ---- Forced inclusion / censorship / challenge ----
 
     /// <summary>Counter: forced-inclusion entries observed by the local node.</summary>

@@ -51,7 +51,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.Plugins.L2Batch`        | Hooks `Blockchain.Committed`; seal logic lives on testable `BatchSealer`; emits `l2.batch.sealed/seal_latency_ms/tx_count` via `WithMetrics()` |
 | `Neo.Plugins.L2Settlement`   | Wires prover + settlement client; signs sealed batches; **emits `l2.settlement.submitted/submit_failures/submit_latency_ms` + `l2.proving.generated/latency_ms` via `WithMetrics()`** |
 | `Neo.Plugins.L2Bridge`       | Hosts `AssetRegistry` + processors                    |
-| `Neo.Plugins.L2DA`           | Picks DA writer by `DAMode` config — `InMemoryDAWriter`, **`NeoFsLikeDAWriter`** (content-addressed), L1/External/DAC stubs |
+| `Neo.Plugins.L2DA`           | Picks DA writer by `DAMode` config — `InMemoryDAWriter`, **`NeoFsLikeDAWriter`** (content-addressed), L1/External/DAC stubs; `WithMetrics()` wraps the chosen writer in `MetricsEmittingDAWriter` (mode-tagged `l2.da.published/publish_latency_ms/publish_failures`) |
 | `Neo.Plugins.L2Prover`       | Hosts `IL2Prover` for the configured `ProofType`      |
 | `Neo.Plugins.L2Rpc`          | 9 RPC handlers (doc.md §14.1) + `IL2RpcStore`         |
 | `Neo.Plugins.L2Gateway`      | **`BinaryTreeAggregator`** with pluggable `IRoundProver` (default `PassThroughRoundProver`); `PassThroughAggregator` for flat aggregation |
@@ -74,7 +74,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**213 unit + integration tests across 26 projects:**
+**219 unit + integration tests across 26 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -92,7 +92,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.Challenge.UnitTests`         | 19    | fraud-proof payload, orchestrator, BisectionGame |
 | `Neo.L2.Audit.UnitTests`             | 9     | **continuity + proof-validity checks, summary** |
 | `Neo.Plugins.L2Rpc.UnitTests`        | 9     | all 9 RPC methods, foreign-chain rejection  |
-| `Neo.Plugins.L2DA.UnitTests`         | 7     | InMemory + NeoFsLike DA writers             |
+| `Neo.Plugins.L2DA.UnitTests`         | 13    | InMemory + NeoFsLike DA writers + **MetricsEmittingDAWriter (success / throw / accumulate / passthrough)** |
 | `Neo.Plugins.L2Gateway.UnitTests`    | 13    | flat + binary-tree aggregator, edge cases   |
 | `Neo.Plugins.L2Batch.UnitTests`      | 7     | `BatchSealer` block / tx / age triggers, batch-number monotonicity, gauge replace, NoOp default |
 | `Neo.Plugins.L2Settlement.UnitTests` | 4     | **metric emission on submit success / failure / no-op default** |

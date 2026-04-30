@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Neo.L2.Audit.UnitTests</RootNamespace>
+    <AssemblyName>Neo.L2.Audit.UnitTests</AssemblyName>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MSTest" Version="$(MSTestVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Neo.L2.Audit\Neo.L2.Audit.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Proving\Neo.L2.Proving.csproj" />
+  </ItemGroup>
+
+</Project>

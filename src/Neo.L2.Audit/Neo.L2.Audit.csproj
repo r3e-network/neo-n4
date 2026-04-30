@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.L2.Audit</RootNamespace>
+    <AssemblyName>Neo.L2.Audit</AssemblyName>
+    <Description>End-to-end chain auditor for Neo Elastic Network L2s.</Description>
+    <PackageTags>NEO;L2;Audit</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+    <ProjectReference Include="..\Neo.L2.Batch\Neo.L2.Batch.csproj" />
+    <ProjectReference Include="..\Neo.L2.Proving\Neo.L2.Proving.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>NeoHub.GovernanceController</RootNamespace>
+    <AssemblyName>NeoHub.GovernanceController</AssemblyName>
+  </PropertyGroup>
+</Project>

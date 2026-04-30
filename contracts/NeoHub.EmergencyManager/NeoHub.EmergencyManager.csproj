@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>NeoHub.EmergencyManager</RootNamespace>
+    <AssemblyName>NeoHub.EmergencyManager</AssemblyName>
+  </PropertyGroup>
+</Project>

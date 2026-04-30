@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>L2Native.L2FeeContract</RootNamespace>
+    <AssemblyName>L2Native.L2FeeContract</AssemblyName>
+  </PropertyGroup>
+</Project>

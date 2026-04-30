@@ -1,0 +1,23 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsNotAsErrors>CS1591</WarningsNotAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <NeoCorePath>$(MSBuildThisFileDirectory)..$([System.IO.Path]::DirectorySeparatorChar)neo$([System.IO.Path]::DirectorySeparatorChar)src</NeoCorePath>
+    <Authors>Neo Project</Authors>
+    <Company>Neo Project</Company>
+    <Product>Neo Elastic Network</Product>
+    <Copyright>Copyright © 2026 The Neo Project</Copyright>
+    <RepositoryUrl>https://github.com/neo-project/neo4</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <MSTestVersion>3.10.0</MSTestVersion>
+  </PropertyGroup>
+
+</Project>

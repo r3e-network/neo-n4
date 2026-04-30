@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.L2</RootNamespace>
+    <AssemblyName>Neo.L2.Abstractions</AssemblyName>
+    <Description>Pluggable interfaces and core data models for Neo Elastic Network L2 chains.</Description>
+    <PackageTags>NEO;L2;Rollup;Abstractions</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
+    <ProjectReference Include="$(NeoCorePath)\Neo.IO\Neo.IO.csproj" />
+  </ItemGroup>
+
+</Project>

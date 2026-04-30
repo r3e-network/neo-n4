@@ -1,0 +1,206 @@
+using System.Numerics;
+using Neo.L2.Executor.Receipts;
+
+namespace Neo.L2.Executor.UnitTests;
+
+[TestClass]
+public class UT_ReferenceBatchExecutor
+{
+    private static BatchBlockContext SampleContext() => new()
+    {
+        L1FinalizedHeight = 100,
+        FirstBlockTimestamp = 1_700_000_000_000,
+        LastBlockTimestamp = 1_700_000_005_000,
+        SequencerCommitteeHash = UInt256.Parse("0x" + new string('1', 64)),
+        Network = 0x4F454E,
+    };
+
+    private sealed class StubL1MessageProcessor : IL1MessageProcessor
+    {
+        public List<CrossChainMessage> Applied { get; } = new();
+        public ValueTask ApplyAsync(CrossChainMessage message, CancellationToken cancellationToken = default)
+        {
+            Applied.Add(message);
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class StubEffectsCollector : IBatchEffectsCollector
+    {
+        private readonly Dictionary<UInt256, BatchEffects> _effects;
+        public StubEffectsCollector(IDictionary<UInt256, BatchEffects> effects) => _effects = new(effects);
+        public BatchEffects GetEffects(UInt256 txHash) =>
+            _effects.TryGetValue(txHash, out var e) ? e : BatchEffects.Empty;
+    }
+
+    [TestMethod]
+    public async Task EmptyBatch_ProducesAllZeroRootsExceptPostState()
+    {
+        var executor = new ReferenceBatchExecutor(
+            new ReferenceTransactionExecutor(),
+            new DerivedPostStateRootOracle());
+
+        var result = await executor.ApplyBatchAsync(new BatchExecutionRequest
+        {
+            ChainId = 1001,
+            BatchNumber = 1,
+            PreStateRoot = UInt256.Zero,
+            Transactions = Array.Empty<ReadOnlyMemory<byte>>(),
+            L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
+            BlockContext = SampleContext(),
+        });
+
+        Assert.AreEqual(UInt256.Zero, result.TxRoot);
+        Assert.AreEqual(UInt256.Zero, result.ReceiptRoot);
+        Assert.AreEqual(UInt256.Zero, result.WithdrawalRoot);
+        Assert.AreEqual(UInt256.Zero, result.L2ToL1MessageRoot);
+        Assert.AreEqual(UInt256.Zero, result.L2ToL2MessageRoot);
+        Assert.AreEqual(0L, result.GasConsumed);
+        // Post-state oracle hashes pre + receipt + ctx → non-zero even when receipt is zero.
+        Assert.AreNotEqual(UInt256.Zero, result.PostStateRoot);
+    }
+
+    [TestMethod]
+    public async Task SingleTransaction_ProducesNonZeroRoots()
+    {
+        var executor = new ReferenceBatchExecutor(
+            new ReferenceTransactionExecutor(),
+            new DerivedPostStateRootOracle());
+
+        var result = await executor.ApplyBatchAsync(new BatchExecutionRequest
+        {
+            ChainId = 1001,
+            BatchNumber = 1,
+            PreStateRoot = UInt256.Zero,
+            Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 0xAA, 0xBB } },
+            L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
+            BlockContext = SampleContext(),
+        });
+
+        Assert.AreNotEqual(UInt256.Zero, result.TxRoot);
+        Assert.AreNotEqual(UInt256.Zero, result.ReceiptRoot);
+    }
+
+    [TestMethod]
+    public async Task L1Messages_AppliedInOrder()
+    {
+        var processor = new StubL1MessageProcessor();
+        var executor = new ReferenceBatchExecutor(
+            new ReferenceTransactionExecutor(),
+            new DerivedPostStateRootOracle(),
+            processor);
+
+        var msgs = new[]
+        {
+            new CrossChainMessage { SourceChainId = 0, TargetChainId = 1001, Nonce = 1, Sender = UInt160.Zero, Receiver = UInt160.Zero, MessageType = MessageType.Deposit, Payload = ReadOnlyMemory<byte>.Empty, MessageHash = UInt256.Parse("0x" + new string('1', 64)) },
+            new CrossChainMessage { SourceChainId = 0, TargetChainId = 1001, Nonce = 2, Sender = UInt160.Zero, Receiver = UInt160.Zero, MessageType = MessageType.Deposit, Payload = ReadOnlyMemory<byte>.Empty, MessageHash = UInt256.Parse("0x" + new string('2', 64)) },
+        };
+
+        await executor.ApplyBatchAsync(new BatchExecutionRequest
+        {
+            ChainId = 1001,
+            BatchNumber = 1,
+            PreStateRoot = UInt256.Zero,
+            Transactions = Array.Empty<ReadOnlyMemory<byte>>(),
+            L1MessagesConsumed = msgs,
+            BlockContext = SampleContext(),
+        });
+
+        Assert.AreEqual(2, processor.Applied.Count);
+        Assert.AreEqual(1UL, processor.Applied[0].Nonce);
+        Assert.AreEqual(2UL, processor.Applied[1].Nonce);
+    }
+
+    [TestMethod]
+    public async Task TransactionEffects_PopulateBatchTrees()
+    {
+        // Construct a transaction whose hash we can predict, then attach effects to it.
+        var txBytes = new ReadOnlyMemory<byte>(new byte[] { 0x10, 0x20, 0x30 });
+        var txHash = new UInt256(Cryptography.Crypto.Hash256(txBytes.Span));
+
+        var withdrawal = new WithdrawalRequest
+        {
+            EmittingContract = UInt160.Zero,
+            L2Sender = UInt160.Parse("0x" + new string('a', 40)),
+            L1Recipient = UInt160.Parse("0x" + new string('b', 40)),
+            L2Asset = UInt160.Parse("0x" + new string('c', 40)),
+            Amount = new BigInteger(123),
+            Nonce = 1,
+        };
+        var msgL1 = new CrossChainMessage
+        {
+            SourceChainId = 1001, TargetChainId = 0, Nonce = 1,
+            Sender = UInt160.Zero, Receiver = UInt160.Zero,
+            MessageType = MessageType.Withdraw,
+            Payload = ReadOnlyMemory<byte>.Empty,
+            MessageHash = UInt256.Parse("0x" + new string('5', 64)),
+        };
+        var msgL2 = msgL1 with { TargetChainId = 2002, MessageHash = UInt256.Parse("0x" + new string('6', 64)) };
+
+        var effects = new StubEffectsCollector(new Dictionary<UInt256, BatchEffects>
+        {
+            [txHash] = new BatchEffects
+            {
+                Withdrawals = new[] { withdrawal },
+                Messages = new[] { msgL1, msgL2 },
+            },
+        });
+
+        var executor = new ReferenceBatchExecutor(
+            new ReferenceTransactionExecutor(effects),
+            new DerivedPostStateRootOracle());
+
+        var result = await executor.ApplyBatchAsync(new BatchExecutionRequest
+        {
+            ChainId = 1001,
+            BatchNumber = 1,
+            PreStateRoot = UInt256.Zero,
+            Transactions = new[] { txBytes },
+            L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
+            BlockContext = SampleContext(),
+        });
+
+        Assert.AreNotEqual(UInt256.Zero, result.WithdrawalRoot);
+        Assert.AreNotEqual(UInt256.Zero, result.L2ToL1MessageRoot);
+        Assert.AreNotEqual(UInt256.Zero, result.L2ToL2MessageRoot);
+    }
+
+    [TestMethod]
+    public async Task Determinism_SameInputsProduceSameOutputs()
+    {
+        var executor = new ReferenceBatchExecutor(
+            new ReferenceTransactionExecutor(),
+            new DerivedPostStateRootOracle());
+
+        BatchExecutionRequest Build() => new()
+        {
+            ChainId = 1001,
+            BatchNumber = 5,
+            PreStateRoot = UInt256.Parse("0x" + new string('a', 64)),
+            Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 1, 2 }, new byte[] { 3 } },
+            L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
+            BlockContext = SampleContext(),
+        };
+
+        var r1 = await executor.ApplyBatchAsync(Build());
+        var r2 = await executor.ApplyBatchAsync(Build());
+
+        Assert.AreEqual(r1.TxRoot, r2.TxRoot);
+        Assert.AreEqual(r1.ReceiptRoot, r2.ReceiptRoot);
+        Assert.AreEqual(r1.PostStateRoot, r2.PostStateRoot);
+    }
+
+    [TestMethod]
+    public void Receipt_HashStableAcrossInstances()
+    {
+        Receipt Mk() => new()
+        {
+            TxHash = UInt256.Parse("0x" + new string('1', 64)),
+            Success = true,
+            GasConsumed = 1000,
+            StorageDeltaHash = UInt256.Parse("0x" + new string('2', 64)),
+            EventsHash = UInt256.Parse("0x" + new string('3', 64)),
+        };
+        Assert.AreEqual(Mk().Hash(), Mk().Hash());
+    }
+}

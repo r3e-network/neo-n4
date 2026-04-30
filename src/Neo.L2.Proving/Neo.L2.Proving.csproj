@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.L2.Proving</RootNamespace>
+    <AssemblyName>Neo.L2.Proving</AssemblyName>
+    <Description>Pluggable proof generation and verification for Neo Elastic Network L2 chains: attestation (Stage 0), optimistic (Stage 1), RISC-V ZK (Stage 2).</Description>
+    <PackageTags>NEO;L2;Proving;ZK</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+    <ProjectReference Include="..\Neo.L2.Batch\Neo.L2.Batch.csproj" />
+    <ProjectReference Include="..\Neo.L2.State\Neo.L2.State.csproj" />
+  </ItemGroup>
+
+</Project>

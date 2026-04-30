@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.L2.Executor</RootNamespace>
+    <AssemblyName>Neo.L2.Executor</AssemblyName>
+    <Description>Deterministic batch executor for Neo Elastic Network — the function the prover proves.</Description>
+    <PackageTags>NEO;L2;Executor;Determinism</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+    <ProjectReference Include="..\Neo.L2.Batch\Neo.L2.Batch.csproj" />
+    <ProjectReference Include="..\Neo.L2.State\Neo.L2.State.csproj" />
+    <ProjectReference Include="..\Neo.L2.Bridge\Neo.L2.Bridge.csproj" />
+    <ProjectReference Include="..\Neo.L2.Messaging\Neo.L2.Messaging.csproj" />
+  </ItemGroup>
+
+</Project>

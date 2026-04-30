@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.L2.Messaging</RootNamespace>
+    <AssemblyName>Neo.L2.Messaging</AssemblyName>
+    <Description>Cross-chain message queues, outboxes, and proofs for Neo Elastic Network L2 chains.</Description>
+    <PackageTags>NEO;L2;Messaging;NeoConnect</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+    <ProjectReference Include="..\Neo.L2.State\Neo.L2.State.csproj" />
+  </ItemGroup>
+
+</Project>

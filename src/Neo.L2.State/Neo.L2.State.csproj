@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.L2.State</RootNamespace>
+    <AssemblyName>Neo.L2.State</AssemblyName>
+    <Description>Merkle trees for withdrawals, messages, and state roots in Neo Elastic Network L2 chains.</Description>
+    <PackageTags>NEO;L2;State;Merkle</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

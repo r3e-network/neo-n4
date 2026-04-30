@@ -1,0 +1,91 @@
+namespace Neo.L2.Bridge;
+
+/// <summary>
+/// Consumes inbound L1 deposit messages and translates them to L2-side mint operations.
+/// </summary>
+/// <remarks>
+/// See doc.md §15.2 (deposit flow). The actual mint happens in the on-L2 native bridge contract;
+/// this class is the orchestration shim that decodes the payload, validates the canonical asset,
+/// and hands off to the contract.
+/// </remarks>
+public sealed class DepositProcessor
+{
+    private readonly AssetRegistry _registry;
+    private readonly HashSet<(uint, ulong)> _consumed = new();
+    private readonly Lock _gate = new();
+
+    /// <summary>Identifier of the L2 chain this processor runs on.</summary>
+    public uint LocalChainId { get; }
+
+    /// <summary>Construct with the chain identifier and shared asset registry.</summary>
+    public DepositProcessor(uint localChainId, AssetRegistry registry)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        LocalChainId = localChainId;
+        _registry = registry;
+    }
+
+    /// <summary>
+    /// Validate <paramref name="message"/> and produce a <see cref="MintInstruction"/> ready
+    /// for the L2 bridge contract to execute. Throws on replay or unknown asset.
+    /// </summary>
+    public MintInstruction Process(CrossChainMessage message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        if (message.MessageType != MessageType.Deposit)
+            throw new ArgumentException($"Expected MessageType.Deposit, got {message.MessageType}", nameof(message));
+        if (message.TargetChainId != LocalChainId)
+            throw new ArgumentException($"Message targets chain {message.TargetChainId}, but local is {LocalChainId}", nameof(message));
+
+        lock (_gate)
+        {
+            if (!_consumed.Add((message.SourceChainId, message.Nonce)))
+                throw new InvalidOperationException(
+                    $"Deposit ({message.SourceChainId},{message.Nonce}) was already processed");
+        }
+
+        var payload = DepositPayload.Decode(message.Payload.Span);
+
+        if (!_registry.TryGetByL1(payload.L1Asset, LocalChainId, out var mapping) || mapping is null)
+            throw new InvalidOperationException($"No L2 asset mapping for L1 asset {payload.L1Asset}");
+        if (!mapping.Active)
+            throw new InvalidOperationException($"Asset mapping for {payload.L1Asset} is inactive");
+
+        return new MintInstruction
+        {
+            L2Asset = mapping.L2Asset,
+            Recipient = payload.L2Recipient,
+            Amount = payload.Amount,
+            SourceChainId = message.SourceChainId,
+            SourceNonce = message.Nonce,
+        };
+    }
+
+    /// <summary>True if a prior call to <see cref="Process"/> consumed this (source, nonce).</summary>
+    public bool HasConsumed(uint sourceChainId, ulong nonce)
+    {
+        lock (_gate)
+            return _consumed.Contains((sourceChainId, nonce));
+    }
+}
+
+/// <summary>
+/// What the bridge contract should do as a result of a single deposit message.
+/// </summary>
+public sealed record MintInstruction
+{
+    /// <summary>L2 asset to mint.</summary>
+    public required UInt160 L2Asset { get; init; }
+
+    /// <summary>L2 address that should hold the newly minted amount.</summary>
+    public required UInt160 Recipient { get; init; }
+
+    /// <summary>Smallest-unit amount to mint.</summary>
+    public required System.Numerics.BigInteger Amount { get; init; }
+
+    /// <summary>Source chain identifier (used for audit + replay protection on the contract side).</summary>
+    public required uint SourceChainId { get; init; }
+
+    /// <summary>Per-source nonce (used for audit + replay protection).</summary>
+    public required ulong SourceNonce { get; init; }
+}

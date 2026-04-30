@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.L2.Proving.Sp1</RootNamespace>
+    <AssemblyName>Neo.L2.Proving.Sp1</AssemblyName>
+    <Description>SP1 RISC-V zkVM prover bridge — C# P/Invoke wrapper around neo-zkvm-bridge.</Description>
+    <PackageTags>NEO;L2;Proving;SP1;RISC-V;ZK</PackageTags>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+    <ProjectReference Include="..\Neo.L2.Batch\Neo.L2.Batch.csproj" />
+    <ProjectReference Include="..\Neo.L2.Proving\Neo.L2.Proving.csproj" />
+    <ProjectReference Include="..\Neo.L2.State\Neo.L2.State.csproj" />
+  </ItemGroup>
+
+</Project>

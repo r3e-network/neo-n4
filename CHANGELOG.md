@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Phase 2 / 3 / 5 wave (real state, slashing, recursive aggregation)
+
+- **`KeyedStateStore` + `KeyedStateRootOracle`** (`Neo.L2.Executor.State`) — replace the XOR-mix stub with a sorted-leaf Merkle root computed over `Hash256(4B keyLen || key || 4B valueLen || value)` leaves; deterministic + insert-order-independent. The devnet now runs with real state-root continuity (`postRoot[N] == preRoot[N+1]`).
+- **`NeoHub.SequencerBond` + `NeoHub.SequencerRegistry`** — slashable bond escrow (`Deposit` / `Slash` / `Withdraw`) and per-chain dBFT pubkey registry (`Register` / `Unregister` / `Finalize` with exit window). `Register` gates on `SequencerBond.HasMinBond` via inter-contract call.
+- **`Neo.L2.Sequencer`** — L2-side `ISequencerCommitteeProvider` + `InMemorySequencerCommitteeProvider`. Models the L1 contract semantics so L2 nodes can test their committee-aware code paths.
+- **`Neo.L2.Censorship`** — off-chain `CensorshipDetector` that polls `IForcedInclusionSource` for overdue entries, uses `ISequencerCommitteeProvider` to identify the responsible signer, and emits `CensorshipReport[]` ready for `NeoHub.ForcedInclusion.ReportCensorship` + `NeoHub.SequencerBond.Slash`.
+- **`BinaryTreeAggregator` + `IRoundProver`** (`Neo.Plugins.L2Gateway`) — log(N)-round pairwise reduction with pluggable round prover. Default `PassThroughRoundProver` (Hash256 + length-prefixed proof concat). Production swaps for SP1 Compress / Halo2 accumulator / Risc0 fold.
+- **`NeoFsLikeDAWriter`** — content-addressed in-process DA writer with NeoFS object semantics (object id = SHA256(payload), per-chain container, 36-byte pointer = 4B chainId LE + 32B objectId).
+- **`Neo.L2.Devnet` v0.2** — upgraded to use `KeyedStateRootOracle` and 3-member `InMemorySequencerCommitteeProvider`; verified end-to-end across 5 batches with Alice's balance arithmetic check.
+- **Phase-2 full-stack integration test** (`UT_Mvp_Phase2_FullStack`) stitches `KeyedStateStore` continuity + sequencer committee + forced-inclusion + censorship detection + multi-chain `BinaryTreeAggregator` together.
+
+Cumulative: 162 tests / 19 projects, all green.
+
 ### Added — Phase 0 / 1 / 2 substantial scaffolding
 
 - **Off-chain libraries** (`src/Neo.L2.*`): `Abstractions`, `Batch`, `State`, `Bridge`, `Messaging`, `Proving`, `Executor`. 7 interfaces, 14 model records, deterministic batch executor + spec, Merkle tree matching Neo's `Hash256` convention, Stage 0 multisig prover (production-usable) + verifier, Stage 1 optimistic verifier, Stage 2 RISC-V mock backend.

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.Plugins.L2Rpc</RootNamespace>
+    <AssemblyName>Neo.Plugins.L2Rpc</AssemblyName>
+    <Description>L2 RPC method handlers (doc.md §14.1) for Neo Elastic Network L2 nodes.</Description>
+    <PackageTags>NEO;L2;Plugin;Rpc</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
+    <ProjectReference Include="$(NeoCorePath)\Neo.Json\Neo.Json.csproj" />
+    <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+    <ProjectReference Include="..\Neo.L2.Batch\Neo.L2.Batch.csproj" />
+    <ProjectReference Include="..\Neo.L2.State\Neo.L2.State.csproj" />
+  </ItemGroup>
+
+</Project>

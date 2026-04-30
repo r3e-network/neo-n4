@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Neo.Plugins.L2Rpc.UnitTests</RootNamespace>
+    <AssemblyName>Neo.Plugins.L2Rpc.UnitTests</AssemblyName>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MSTest" Version="$(MSTestVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Neo.Plugins.L2Rpc\Neo.Plugins.L2Rpc.csproj" />
+  </ItemGroup>
+
+</Project>

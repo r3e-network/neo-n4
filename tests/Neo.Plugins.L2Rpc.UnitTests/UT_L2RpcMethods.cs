@@ -1,0 +1,138 @@
+using Neo.Json;
+
+namespace Neo.Plugins.L2Rpc.UnitTests;
+
+[TestClass]
+public class UT_L2RpcMethods
+{
+    private static L2BatchCommitment SampleBatch(ulong batchNumber) => new()
+    {
+        ChainId = 1001,
+        BatchNumber = batchNumber,
+        FirstBlock = 100, LastBlock = 200,
+        PreStateRoot = UInt256.Parse("0x" + new string('1', 64)),
+        PostStateRoot = UInt256.Parse("0x" + new string('2', 64)),
+        TxRoot = UInt256.Parse("0x" + new string('3', 64)),
+        ReceiptRoot = UInt256.Parse("0x" + new string('4', 64)),
+        WithdrawalRoot = UInt256.Parse("0x" + new string('5', 64)),
+        L2ToL1MessageRoot = UInt256.Parse("0x" + new string('6', 64)),
+        L2ToL2MessageRoot = UInt256.Parse("0x" + new string('7', 64)),
+        DACommitment = UInt256.Parse("0x" + new string('8', 64)),
+        PublicInputHash = UInt256.Parse("0x" + new string('9', 64)),
+        ProofType = ProofType.Multisig,
+        Proof = new byte[] { 0xAA, 0xBB, 0xCC },
+    };
+
+    [TestMethod]
+    public void GetL2Batch_ReturnsObject()
+    {
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
+        var batch = SampleBatch(1);
+        store.AddBatch(batch, BatchStatus.Pending);
+        var methods = new L2RpcMethods(store);
+
+        var result = methods.GetL2Batch(new JArray { 1001, 1UL });
+        var obj = (JObject)result!;
+        Assert.AreEqual(1001U, (uint)obj["chainId"]!.AsNumber());
+        Assert.AreEqual(1UL, (ulong)obj["batchNumber"]!.AsNumber());
+        Assert.AreEqual((byte)ProofType.Multisig, (byte)obj["proofType"]!.AsNumber());
+    }
+
+    [TestMethod]
+    public void GetL2Batch_NullForUnknown()
+    {
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
+        var methods = new L2RpcMethods(store);
+        var result = methods.GetL2Batch(new JArray { 1001, 999UL });
+        Assert.AreEqual(JToken.Null, result);
+    }
+
+    [TestMethod]
+    public void GetL2BatchStatus_ReturnsCorrectName()
+    {
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
+        store.AddBatch(SampleBatch(7), BatchStatus.Challengeable);
+        var methods = new L2RpcMethods(store);
+
+        var obj = (JObject)methods.GetL2BatchStatus(new JArray { 1001, 7UL })!;
+        Assert.AreEqual((byte)BatchStatus.Challengeable, (byte)obj["status"]!.AsNumber());
+        Assert.AreEqual("Challengeable", obj["statusName"]!.AsString());
+    }
+
+    [TestMethod]
+    public void GetL2StateRoot_BatchSpecificAndLatest()
+    {
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
+        var b1 = SampleBatch(1);
+        var b2 = SampleBatch(2) with { PostStateRoot = UInt256.Parse("0x" + new string('a', 64)) };
+        store.AddBatch(b1, BatchStatus.Pending);
+        store.AddBatch(b2, BatchStatus.Pending);
+        store.Finalize(2);
+        var methods = new L2RpcMethods(store);
+
+        // Specific batch.
+        var rootAt1 = methods.GetL2StateRoot(new JArray { 1001, 1UL })!;
+        Assert.AreEqual(b1.PostStateRoot.ToString(), rootAt1.AsString());
+
+        // Latest (only batch 2 was finalized).
+        var latest = methods.GetL2StateRoot(new JArray { 1001 })!;
+        Assert.AreEqual(b2.PostStateRoot.ToString(), latest.AsString());
+    }
+
+    [TestMethod]
+    public void GetL2WithdrawalProof_HexEncoded()
+    {
+        var leaf = UInt256.Parse("0x" + new string('e', 64));
+        var bytes = new byte[] { 0xDE, 0xAD, 0xBE, 0xEF };
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
+        store.RecordWithdrawalProof(leaf, bytes);
+        var methods = new L2RpcMethods(store);
+
+        var result = methods.GetL2WithdrawalProof(new JArray { 1001, leaf.ToString() })!;
+        Assert.AreEqual("DEADBEEF", result.AsString());
+    }
+
+    [TestMethod]
+    public void GetCanonicalAndBridgedAsset_AreInverse()
+    {
+        var l1 = UInt160.Parse("0x" + new string('1', 40));
+        var l2 = UInt160.Parse("0x" + new string('2', 40));
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
+        store.RegisterAsset(l1, l2);
+        var methods = new L2RpcMethods(store);
+
+        Assert.AreEqual(l1.ToString(), methods.GetCanonicalAsset(new JArray { l2.ToString() })!.AsString());
+        Assert.AreEqual(l2.ToString(), methods.GetBridgedAsset(new JArray { l1.ToString() })!.AsString());
+    }
+
+    [TestMethod]
+    public void GetSecurityLevel_PropagatesStoreLabel()
+    {
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Validity);
+        var methods = new L2RpcMethods(store);
+        var obj = (JObject)methods.GetSecurityLevel(new JArray { 1001 })!;
+        Assert.AreEqual((byte)SecurityLevel.Validity, (byte)obj["level"]!.AsNumber());
+        Assert.AreEqual("Validity", obj["levelName"]!.AsString());
+    }
+
+    [TestMethod]
+    public void RejectsForeignChainId()
+    {
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
+        var methods = new L2RpcMethods(store);
+        Assert.ThrowsExactly<ArgumentException>(() => methods.GetL2BatchStatus(new JArray { 9999, 1UL }));
+    }
+
+    [TestMethod]
+    public void GetL1DepositStatus_RoundTrips()
+    {
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
+        store.RecordDeposit(new DepositStatus(0, 5, ConsumedOnL2: true, IncludedInBatch: 3));
+        var methods = new L2RpcMethods(store);
+        var obj = (JObject)methods.GetL1DepositStatus(new JArray { 0, 5UL })!;
+        Assert.AreEqual(0U, (uint)obj["sourceChainId"]!.AsNumber());
+        Assert.AreEqual(5UL, (ulong)obj["nonce"]!.AsNumber());
+        Assert.IsTrue(obj["consumedOnL2"]!.AsBoolean());
+        Assert.AreEqual(3UL, (ulong)obj["includedInBatch"]!.AsNumber());
+    }
+}

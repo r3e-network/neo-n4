@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `NoZeroProofCheck` audit
+
+- New `IAuditCheck` implementation flags batches that were soft-sealed but never had a real proof attached: `ProofType.None`, or non-`None` discriminator paired with empty `Proof` bytes. Cheap and fast — does not re-verify the proof (that's `ProofValidityCheck`'s job), it just catches the "soft-sealed but never proved" failure mode that would otherwise need full verification cost to detect.
+- 5 new tests in `Neo.L2.Audit.UnitTests`: all-proved happy path, `ProofType.None`, empty proof bytes, multiple failures all reported, empty batch list.
+
+Cumulative: 287 tests / 26 projects.
+
 ### Added — Canonical `MerkleProof` wire format
 
 - **`MerkleProofSerializer`** (`Neo.L2.State`) — fixed-layout encoding of `MerkleProof` consumed by L1 NeoHub.SharedBridge for withdrawal verification. Closes a real gap: prior to this, off-chain code could `MerkleTree.GetProof` + `Verify`, but there was no canonical byte format for sending a proof across the off-chain ↔ on-chain boundary.

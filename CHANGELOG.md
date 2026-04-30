@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `/healthz` + `/readyz` endpoints
+
+- **`MetricsRequestHandler`** now answers `/healthz` (always 200) and `/readyz` (200 or 503 based on optional predicate) in addition to `/metrics`. Standard Kubernetes-style liveness / readiness probes for load-balancer integration without bringing in an additional HTTP framework.
+- **`MetricsRequestHandler` constructor** gets an optional `Func<bool>? readinessCheck` parameter. When unwired, `/readyz` always returns 200; when wired, the predicate is evaluated on every scrape.
+- **6 new tests** covering: `/healthz` always-200, `/readyz` no-predicate-200, predicate-true-200, predicate-false-503, predicate evaluated per-request, trailing-slash + query-string tolerance on `/healthz`.
+- `docs/telemetry.md` gets an "Endpoints" table and a `/readyz` predicate example.
+
+Cumulative: 272 tests / 26 projects.
+
 ### Added — Gateway aggregation telemetry
 
 - **`BinaryTreeAggregator`** accepts an optional `IL2Metrics` constructor parameter (default `NoOpMetrics`). On every successful `Aggregate()` it emits `l2.gateway.aggregations` (counter), `l2.gateway.batches_aggregated` (counter, +N constituents), `l2.gateway.aggregation_rounds` (histogram = tree depth), and `l2.gateway.aggregation_latency_ms` (histogram). Empty-pending case emits nothing.

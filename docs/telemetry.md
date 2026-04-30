@@ -28,6 +28,25 @@ the snapshot is a frozen `MetricsSnapshot`, the request handler is framework
 agnostic (drop into ASP.NET / Kestrel / RpcServer), and the HTTP server uses raw
 `TcpListener` — no third-party deps.
 
+## Endpoints
+
+The HTTP handler answers three paths (everything else is 404):
+
+| Path | Status | Description |
+|---|---|---|
+| `GET /metrics` | 200 | Prometheus exposition text |
+| `GET /healthz` | 200 | Process liveness — always 200 if the server is responding |
+| `GET /readyz` | 200 / 503 | Wired predicate; 200 when no predicate is supplied |
+
+`/healthz` and `/readyz` follow the Kubernetes naming convention. Use
+`/healthz` for liveness (restart on failure) and `/readyz` for readiness
+(remove from load balancer on failure). For example:
+
+```csharp
+var handler = new MetricsRequestHandler(metrics, readinessCheck: () =>
+    settlementClient.LastCanonicalBatchAge < TimeSpan.FromMinutes(2));
+```
+
 ## Wiring a node
 
 ```csharp

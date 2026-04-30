@@ -39,7 +39,7 @@ public class UT_MetricsHttpServer
         server.Start();
 
         using var client = new HttpClient(new HttpClientHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(5) };
-        var resp = await client.GetAsync($"http://127.0.0.1:{server.Endpoint.Port}/healthz");
+        var resp = await client.GetAsync($"http://127.0.0.1:{server.Endpoint.Port}/random");
         Assert.AreEqual(404, (int)resp.StatusCode);
     }
 

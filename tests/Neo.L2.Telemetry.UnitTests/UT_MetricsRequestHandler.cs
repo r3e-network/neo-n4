@@ -48,7 +48,7 @@ public class UT_MetricsRequestHandler
         var handler = new MetricsRequestHandler(new InMemoryMetrics());
 
         Assert.AreEqual(404, handler.Handle("/").StatusCode);
-        Assert.AreEqual(404, handler.Handle("/healthz").StatusCode);
+        Assert.AreEqual(404, handler.Handle("/random").StatusCode);
         Assert.AreEqual(404, handler.Handle("/metrics/foo").StatusCode);
         Assert.AreEqual(404, handler.Handle("/api/metrics").StatusCode);
     }
@@ -87,5 +87,70 @@ public class UT_MetricsRequestHandler
         var snap = source.Snapshot();
         Assert.IsNotNull(snap);
         Assert.AreEqual(0, snap.TotalEntries);
+    }
+
+    [TestMethod]
+    public void Healthz_AlwaysReturns200()
+    {
+        var handler = new MetricsRequestHandler(new InMemoryMetrics());
+
+        var response = handler.Handle("/healthz");
+
+        Assert.AreEqual(200, response.StatusCode);
+        StringAssert.Contains(response.Body, "ok");
+    }
+
+    [TestMethod]
+    public void Readyz_NoCheck_Returns200()
+    {
+        var handler = new MetricsRequestHandler(new InMemoryMetrics());
+
+        var response = handler.Handle("/readyz");
+
+        Assert.AreEqual(200, response.StatusCode);
+        StringAssert.Contains(response.Body, "ready");
+    }
+
+    [TestMethod]
+    public void Readyz_CheckReturnsTrue_Returns200()
+    {
+        var handler = new MetricsRequestHandler(new InMemoryMetrics(), readinessCheck: () => true);
+
+        Assert.AreEqual(200, handler.Handle("/readyz").StatusCode);
+    }
+
+    [TestMethod]
+    public void Readyz_CheckReturnsFalse_Returns503()
+    {
+        var handler = new MetricsRequestHandler(new InMemoryMetrics(), readinessCheck: () => false);
+
+        var response = handler.Handle("/readyz");
+
+        Assert.AreEqual(503, response.StatusCode);
+        StringAssert.Contains(response.Body, "not ready");
+    }
+
+    [TestMethod]
+    public void Readyz_PredicateCalled_OnEveryRequest()
+    {
+        var counter = 0;
+        var handler = new MetricsRequestHandler(new InMemoryMetrics(), readinessCheck: () =>
+        {
+            counter++;
+            return counter % 2 == 0; // false, true, false, true, ...
+        });
+
+        Assert.AreEqual(503, handler.Handle("/readyz").StatusCode); // counter=1, odd → false
+        Assert.AreEqual(200, handler.Handle("/readyz").StatusCode); // counter=2, even → true
+        Assert.AreEqual(503, handler.Handle("/readyz").StatusCode); // counter=3, odd → false
+    }
+
+    [TestMethod]
+    public void Healthz_TolerantOf_TrailingSlashAndQuery()
+    {
+        var handler = new MetricsRequestHandler(new InMemoryMetrics());
+
+        Assert.AreEqual(200, handler.Handle("/healthz/").StatusCode);
+        Assert.AreEqual(200, handler.Handle("/healthz?probe=1").StatusCode);
     }
 }

@@ -1,44 +1,75 @@
 namespace Neo.L2.Telemetry;
 
 /// <summary>
-/// Pure HTTP request handler for the Prometheus <c>/metrics</c> endpoint. Frameworks-agnostic
-/// — plug it into <see cref="MetricsHttpServer"/>, ASP.NET, Kestrel, or even an existing
-/// RpcServer plugin endpoint by routing GET /metrics to <see cref="Handle"/>.
+/// Pure HTTP request handler for the operator-facing endpoints (<c>/metrics</c>,
+/// <c>/healthz</c>, <c>/readyz</c>). Framework-agnostic — plug it into
+/// <see cref="MetricsHttpServer"/>, ASP.NET, Kestrel, or an existing RpcServer plugin
+/// endpoint by routing GET requests through <see cref="Handle"/>.
 /// </summary>
 /// <remarks>
 /// The handler reads the metrics through an <see cref="IMetricsSource"/> on every call so the
 /// response always reflects the latest emissions. There is no internal cache — Prometheus
 /// scrapes on its own cadence (default 15s), and the snapshot itself is cheap.
+/// <para>
+/// <c>/healthz</c> always returns 200 (process liveness). <c>/readyz</c> returns 200 if no
+/// readiness predicate was wired or the predicate returned <c>true</c>; otherwise 503.
+/// Standard pattern for Kubernetes / Docker / load-balancer probes.
+/// </para>
 /// </remarks>
 public sealed class MetricsRequestHandler
 {
+    private const string PlainText = "text/plain; charset=utf-8";
+
     private readonly IMetricsSource _source;
+    private readonly Func<bool>? _readinessCheck;
 
     /// <summary>Construct a handler reading from <paramref name="source"/>.</summary>
-    public MetricsRequestHandler(IMetricsSource source)
+    /// <param name="source">Metrics snapshot source.</param>
+    /// <param name="readinessCheck">
+    /// Optional predicate for <c>/readyz</c>. When <c>null</c> (default), <c>/readyz</c>
+    /// always returns 200 — wire a real predicate in production deployments to gate
+    /// load-balancer traffic on (e.g.) "have we caught up to L1?".
+    /// </param>
+    public MetricsRequestHandler(IMetricsSource source, Func<bool>? readinessCheck = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         _source = source;
+        _readinessCheck = readinessCheck;
     }
 
     /// <summary>Handle a request. <paramref name="path"/> is the URL path component (e.g. <c>"/metrics"</c>).</summary>
     public MetricsHttpResponse Handle(string path)
     {
         ArgumentNullException.ThrowIfNull(path);
-        if (!IsMetricsPath(path))
-            return new MetricsHttpResponse(404, "text/plain; charset=utf-8", "Not Found\n");
+        var normalized = NormalizePath(path);
+        return normalized switch
+        {
+            "/metrics" => HandleMetrics(),
+            "/healthz" => new MetricsHttpResponse(200, PlainText, "ok\n"),
+            "/readyz" => HandleReady(),
+            _ => new MetricsHttpResponse(404, PlainText, "Not Found\n"),
+        };
+    }
 
+    private MetricsHttpResponse HandleMetrics()
+    {
         var body = PrometheusExporter.Format(_source.Snapshot());
         return new MetricsHttpResponse(200, PrometheusExporter.ContentType, body);
     }
 
-    private static bool IsMetricsPath(string path)
+    private MetricsHttpResponse HandleReady()
     {
-        // Tolerate trailing slashes and query strings.
+        if (_readinessCheck is null || _readinessCheck())
+            return new MetricsHttpResponse(200, PlainText, "ready\n");
+        return new MetricsHttpResponse(503, PlainText, "not ready\n");
+    }
+
+    private static string NormalizePath(string path)
+    {
         var qIdx = path.IndexOf('?');
         var p = qIdx < 0 ? path : path[..qIdx];
         if (p.Length > 1 && p.EndsWith('/')) p = p[..^1];
-        return string.Equals(p, "/metrics", StringComparison.Ordinal);
+        return p;
     }
 }
 

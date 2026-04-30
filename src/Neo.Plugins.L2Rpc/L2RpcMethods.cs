@@ -2,6 +2,7 @@ using System.Numerics;
 using Neo.Json;
 using Neo.L2;
 using Neo.L2.Batch;
+using Neo.L2.Telemetry;
 
 namespace Neo.Plugins.L2Rpc;
 
@@ -19,25 +20,27 @@ namespace Neo.Plugins.L2Rpc;
 public sealed class L2RpcMethods
 {
     private readonly IL2RpcStore _store;
+    private readonly IL2Metrics _metrics;
 
-    /// <summary>Construct against a backing store.</summary>
-    public L2RpcMethods(IL2RpcStore store)
+    /// <summary>Construct against a backing store, optionally wired to a metrics sink.</summary>
+    public L2RpcMethods(IL2RpcStore store, IL2Metrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         _store = store;
+        _metrics = metrics ?? NoOpMetrics.Instance;
     }
 
     /// <summary>RPC: <c>getl2batch</c>.</summary>
-    public JToken?GetL2Batch(JArray @params)
+    public JToken? GetL2Batch(JArray @params) => Time("getl2batch", () =>
     {
         var (chainId, batchNumber) = ReadChainAndBatch(@params);
         AssertOurChain(chainId);
         var batch = _store.GetBatch(batchNumber);
         return batch is null ? JToken.Null : EncodeBatch(batch);
-    }
+    });
 
     /// <summary>RPC: <c>getl2batchstatus</c>.</summary>
-    public JToken?GetL2BatchStatus(JArray @params)
+    public JToken? GetL2BatchStatus(JArray @params) => Time("getl2batchstatus", () =>
     {
         var (chainId, batchNumber) = ReadChainAndBatch(@params);
         AssertOurChain(chainId);
@@ -48,43 +51,43 @@ public sealed class L2RpcMethods
         obj["status"] = (byte)status;
         obj["statusName"] = status.ToString();
         return obj;
-    }
+    });
 
     /// <summary>RPC: <c>getl2stateroot</c>. Optional batch param; otherwise latest.</summary>
-    public JToken?GetL2StateRoot(JArray @params)
+    public JToken? GetL2StateRoot(JArray @params) => Time("getl2stateroot", () =>
     {
         var chainId = (uint)ReadULong(@params, 0);
         AssertOurChain(chainId);
         if (@params.Count >= 2 && @params[1] is not null)
         {
             var batchNumber = ReadULong(@params, 1);
-            return new JString(_store.GetStateRootAtBatch(batchNumber).ToString());
+            return (JToken?)new JString(_store.GetStateRootAtBatch(batchNumber).ToString());
         }
-        return new JString(_store.GetLatestStateRoot().ToString());
-    }
+        return (JToken?)new JString(_store.GetLatestStateRoot().ToString());
+    });
 
     /// <summary>RPC: <c>getl2withdrawalproof</c>.</summary>
-    public JToken?GetL2WithdrawalProof(JArray @params)
+    public JToken? GetL2WithdrawalProof(JArray @params) => Time("getl2withdrawalproof", () =>
     {
         var chainId = (uint)ReadULong(@params, 0);
         AssertOurChain(chainId);
         var leaf = ReadUInt256(@params, 1);
         var proof = _store.GetWithdrawalProof(leaf);
         return proof is null ? JToken.Null : new JString(Convert.ToHexString(proof.Value.Span));
-    }
+    });
 
     /// <summary>RPC: <c>getl2messageproof</c>.</summary>
-    public JToken?GetL2MessageProof(JArray @params)
+    public JToken? GetL2MessageProof(JArray @params) => Time("getl2messageproof", () =>
     {
         var chainId = (uint)ReadULong(@params, 0);
         AssertOurChain(chainId);
         var msgHash = ReadUInt256(@params, 1);
         var proof = _store.GetMessageProof(msgHash);
         return proof is null ? JToken.Null : new JString(Convert.ToHexString(proof.Value.Span));
-    }
+    });
 
     /// <summary>RPC: <c>getl1depositstatus</c>.</summary>
-    public JToken?GetL1DepositStatus(JArray @params)
+    public JToken? GetL1DepositStatus(JArray @params) => Time("getl1depositstatus", () =>
     {
         var sourceChainId = (uint)ReadULong(@params, 0);
         var nonce = ReadULong(@params, 1);
@@ -97,26 +100,26 @@ public sealed class L2RpcMethods
         obj["consumedOnL2"] = s.ConsumedOnL2;
         obj["includedInBatch"] = s.IncludedInBatch.HasValue ? (JToken)s.IncludedInBatch.Value : JToken.Null;
         return obj;
-    }
+    });
 
     /// <summary>RPC: <c>getcanonicalasset</c>.</summary>
-    public JToken?GetCanonicalAsset(JArray @params)
+    public JToken? GetCanonicalAsset(JArray @params) => Time("getcanonicalasset", () =>
     {
         var l2Asset = ReadUInt160(@params, 0);
         var l1 = _store.GetCanonicalAsset(l2Asset);
         return l1 is null ? JToken.Null : new JString(l1.ToString());
-    }
+    });
 
     /// <summary>RPC: <c>getbridgedasset</c>.</summary>
-    public JToken?GetBridgedAsset(JArray @params)
+    public JToken? GetBridgedAsset(JArray @params) => Time("getbridgedasset", () =>
     {
         var l1Asset = ReadUInt160(@params, 0);
         var l2 = _store.GetBridgedAsset(l1Asset);
         return l2 is null ? JToken.Null : new JString(l2.ToString());
-    }
+    });
 
     /// <summary>RPC: <c>getsecuritylevel</c>.</summary>
-    public JToken?GetSecurityLevel(JArray @params)
+    public JToken? GetSecurityLevel(JArray @params) => Time("getsecuritylevel", () =>
     {
         var chainId = (uint)ReadULong(@params, 0);
         AssertOurChain(chainId);
@@ -126,6 +129,25 @@ public sealed class L2RpcMethods
         obj["level"] = (byte)lvl;
         obj["levelName"] = lvl.ToString();
         return obj;
+    });
+
+    private JToken? Time(string method, Func<JToken?> body)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            var result = body();
+            sw.Stop();
+            var tag = ("method", method);
+            _metrics.IncrementCounter(MetricNames.RpcCalls, 1, tag);
+            _metrics.RecordHistogram(MetricNames.RpcLatencyMs, sw.Elapsed.TotalMilliseconds, tag);
+            return result;
+        }
+        catch
+        {
+            _metrics.IncrementCounter(MetricNames.RpcFailures, 1, ("method", method));
+            throw;
+        }
     }
 
     private void AssertOurChain(uint chainId)

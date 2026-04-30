@@ -59,6 +59,11 @@ public static class MetricCatalog
         [MetricNames.FraudProofsEmitted]   = "Fraud proofs the orchestrator emitted",
         [MetricNames.BisectionRounds]      = "Bisection rounds taken to settle each fraud dispute",
 
+        // RPC
+        [MetricNames.RpcCalls]             = "L2 RPC method calls, tagged by method name",
+        [MetricNames.RpcLatencyMs]         = "Wall-clock milliseconds for each L2 RPC call, tagged by method name",
+        [MetricNames.RpcFailures]          = "L2 RPC calls that threw, tagged by method name",
+
         // Audit
         [MetricNames.AuditsRun]            = "Times the chain auditor ran",
         [MetricNames.AuditFailures]        = "Audit findings that failed the audit",

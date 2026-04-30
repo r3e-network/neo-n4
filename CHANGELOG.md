@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — RPC telemetry
+
+- **`L2RpcMethods`** wraps each of its 9 RPC methods through a private `Time` helper that emits `l2.rpc.calls` (counter) + `l2.rpc.latency_ms` (histogram) on success and `l2.rpc.failures` (counter) on exception, all tagged by `method` name (e.g. `getl2stateroot`, `getl2batch`). Optional `IL2Metrics` constructor parameter; default `NoOpMetrics`.
+- **3 new `MetricNames`**: `RpcCalls`, `RpcLatencyMs`, `RpcFailures` + matching catalog entries.
+- **4 new tests** in `Neo.Plugins.L2Rpc.UnitTests`: per-method tag isolation, repeated-call accumulation, foreign-chain rejection ↑ failure counter, no-metrics-default safety.
+
+Cumulative: 261 tests / 26 projects.
+
 ### Added — Bridge processor telemetry
 
 - **`DepositProcessor`** + **`WithdrawalProcessor`** now accept an optional `IL2Metrics` constructor parameter and emit:

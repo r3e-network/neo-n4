@@ -79,6 +79,17 @@ public static class MetricNames
     /// <summary>Histogram: number of bisection rounds to settle a fraud dispute.</summary>
     public const string BisectionRounds = "l2.challenge.bisection_rounds";
 
+    // ---- RPC ----
+
+    /// <summary>Counter: L2 RPC method calls, tagged by <c>method</c>.</summary>
+    public const string RpcCalls = "l2.rpc.calls";
+
+    /// <summary>Histogram: L2 RPC method wall-clock ms, tagged by <c>method</c>.</summary>
+    public const string RpcLatencyMs = "l2.rpc.latency_ms";
+
+    /// <summary>Counter: L2 RPC method calls that threw, tagged by <c>method</c>.</summary>
+    public const string RpcFailures = "l2.rpc.failures";
+
     // ---- Audit ----
 
     /// <summary>Counter: audits run.</summary>

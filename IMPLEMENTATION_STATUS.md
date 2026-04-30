@@ -53,7 +53,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.Plugins.L2Bridge`       | Hosts `AssetRegistry` + processors                    |
 | `Neo.Plugins.L2DA`           | Picks DA writer by `DAMode` config — `InMemoryDAWriter`, **`NeoFsLikeDAWriter`** (content-addressed), L1/External/DAC stubs; `WithMetrics()` wraps the chosen writer in `MetricsEmittingDAWriter` (mode-tagged `l2.da.published/publish_latency_ms/publish_failures`) |
 | `Neo.Plugins.L2Prover`       | Hosts `IL2Prover` for the configured `ProofType`      |
-| `Neo.Plugins.L2Rpc`          | 9 RPC handlers (doc.md §14.1) + `IL2RpcStore`         |
+| `Neo.Plugins.L2Rpc`          | 9 RPC handlers (doc.md §14.1) + `IL2RpcStore`; per-method `l2.rpc.calls/latency_ms/failures` tagged by `method` |
 | `Neo.Plugins.L2Gateway`      | **`BinaryTreeAggregator`** with pluggable `IRoundProver` (default `PassThroughRoundProver`); `PassThroughAggregator` for flat aggregation |
 
 ### Smart contracts (`contracts/`) — 19 total, all type-check via devpack
@@ -74,7 +74,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**257 unit + integration tests across 26 projects:**
+**261 unit + integration tests across 26 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -91,7 +91,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.Censorship.UnitTests`        | 7     | overdue detection, sequencer attribution    |
 | `Neo.L2.Challenge.UnitTests`         | 19    | fraud-proof payload, orchestrator, BisectionGame |
 | `Neo.L2.Audit.UnitTests`             | 9     | **continuity + proof-validity checks, summary** |
-| `Neo.Plugins.L2Rpc.UnitTests`        | 9     | all 9 RPC methods, foreign-chain rejection  |
+| `Neo.Plugins.L2Rpc.UnitTests`        | 13    | all 9 RPC methods, foreign-chain rejection, **per-method metric emission (calls/latency/failures)** |
 | `Neo.Plugins.L2DA.UnitTests`         | 13    | InMemory + NeoFsLike DA writers + **MetricsEmittingDAWriter (success / throw / accumulate / passthrough)** |
 | `Neo.Plugins.L2Gateway.UnitTests`    | 13    | flat + binary-tree aggregator, edge cases   |
 | `Neo.Plugins.L2Batch.UnitTests`      | 7     | `BatchSealer` block / tx / age triggers, batch-number monotonicity, gauge replace, NoOp default |

@@ -36,6 +36,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.Challenge`        | `FraudProofPayload` + `ChallengeOrchestrator` + `BisectionGame` for Phase-3 |
 | `Neo.L2.Settlement.Rpc`   | JSON-RPC client + `RpcSettlementClient` for L1 read methods + signer-delegated submit |
 | `Neo.L2.Audit`            | **End-to-end chain auditor: `ContinuityCheck` + `ProofValidityCheck` + `ChainAuditor`** |
+| `Neo.L2.Telemetry`        | `IL2Metrics` (counter/histogram/gauge) + `NoOpMetrics` + `InMemoryMetrics` + canonical `MetricNames` (l2.batch, l2.proving, l2.bridge, l2.audit, …) |
 
 ### Native FFI bridge (`bridge/`)
 
@@ -47,8 +48,8 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 | Plugin                       | Role                                                  |
 | ---------------------------- | ----------------------------------------------------- |
-| `Neo.Plugins.L2Batch`        | Hooks `Blockchain.Committed`; seals batches by size/age threshold |
-| `Neo.Plugins.L2Settlement`   | Wires prover + settlement client; signs sealed batches |
+| `Neo.Plugins.L2Batch`        | Hooks `Blockchain.Committed`; seals batches by size/age threshold; **emits `l2.batch.sealed/seal_latency_ms/tx_count` via `WithMetrics()`** |
+| `Neo.Plugins.L2Settlement`   | Wires prover + settlement client; signs sealed batches; **emits `l2.settlement.submitted/submit_failures/submit_latency_ms` + `l2.proving.generated/latency_ms` via `WithMetrics()`** |
 | `Neo.Plugins.L2Bridge`       | Hosts `AssetRegistry` + processors                    |
 | `Neo.Plugins.L2DA`           | Picks DA writer by `DAMode` config — `InMemoryDAWriter`, **`NeoFsLikeDAWriter`** (content-addressed), L1/External/DAC stubs |
 | `Neo.Plugins.L2Prover`       | Hosts `IL2Prover` for the configured `ProofType`      |
@@ -73,7 +74,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**194 unit + integration tests across 23 projects:**
+**206 unit + integration tests across 25 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -93,7 +94,9 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.Plugins.L2Rpc.UnitTests`        | 9     | all 9 RPC methods, foreign-chain rejection  |
 | `Neo.Plugins.L2DA.UnitTests`         | 7     | InMemory + NeoFsLike DA writers             |
 | `Neo.Plugins.L2Gateway.UnitTests`    | 13    | flat + binary-tree aggregator, edge cases   |
+| `Neo.Plugins.L2Settlement.UnitTests` | 4     | **metric emission on submit success / failure / no-op default** |
 | `Neo.L2.Settlement.Rpc.UnitTests`    | 6     | JSON-RPC envelope, stack parsing, signer    |
+| `Neo.L2.Telemetry.UnitTests`         | 8     | counter/histogram/gauge accumulation, tag canonicalization |
 | `Neo.Hub.Deploy.UnitTests`           | 8     | topo sort, cycle detection, scaffold        |
 | `Neo.L2.IntegrationTests`            | 12    | Phase 0 MVP + Phase 1 cross-component + Phase 2 full-stack + Phase 3 optimistic-challenge + **all-phases stitch** |
 

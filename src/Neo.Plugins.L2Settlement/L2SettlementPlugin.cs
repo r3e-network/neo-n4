@@ -5,6 +5,7 @@ using Neo.L2.Batch;
 using Neo.L2.Proving;
 using Neo.L2.Proving.Attestation;
 using Neo.L2.State;
+using Neo.L2.Telemetry;
 
 namespace Neo.Plugins.L2;
 
@@ -27,6 +28,7 @@ public sealed class L2SettlementPlugin : Plugin
     private IL2Prover? _prover;
     private ISettlementClient? _client;
     private L2BatchPlugin? _batchPlugin;
+    private IL2Metrics _metrics = NoOpMetrics.Instance;
 
     /// <inheritdoc />
     public override string Name => "L2SettlementPlugin";
@@ -55,6 +57,18 @@ public sealed class L2SettlementPlugin : Plugin
         _batchPlugin.OnBatchSealed += OnBatchSealed;
     }
 
+    /// <summary>
+    /// Wire a metrics sink. The plugin emits <c>l2.settlement.submitted</c>,
+    /// <c>l2.settlement.submit_failures</c>, <c>l2.settlement.submit_latency_ms</c>,
+    /// <c>l2.proving.generated</c> (tagged by kind), and <c>l2.proving.latency_ms</c> against
+    /// this sink. Call before the first batch arrives; defaults to <see cref="NoOpMetrics"/>.
+    /// </summary>
+    public void WithMetrics(IL2Metrics metrics)
+    {
+        ArgumentNullException.ThrowIfNull(metrics);
+        _metrics = metrics;
+    }
+
     /// <inheritdoc />
     public override void Dispose()
     {
@@ -68,10 +82,21 @@ public sealed class L2SettlementPlugin : Plugin
         get { lock (_pending) return _pending.Count; }
     }
 
-    private void OnBatchSealed(object? sender, L2BatchCommitment commitment)
+    /// <summary>
+    /// Enqueue a sealed batch for submission. The hot path goes through this on every
+    /// <see cref="L2BatchPlugin.OnBatchSealed"/> event, but operators can also call it
+    /// directly to backfill a missed batch (e.g. from a node restart).
+    /// </summary>
+    public void Enqueue(L2BatchCommitment commitment)
     {
+        ArgumentNullException.ThrowIfNull(commitment);
         if (!_settings.Enabled) return;
         lock (_pending) _pending.Enqueue(commitment);
+    }
+
+    private void OnBatchSealed(object? sender, L2BatchCommitment commitment)
+    {
+        Enqueue(commitment);
         _ = SubmitNextAsync();
     }
 
@@ -92,12 +117,17 @@ public sealed class L2SettlementPlugin : Plugin
             var publicInputs = BuildPublicInputs(next);
             var hash = StateRootCalculator.HashPublicInputs(publicInputs);
 
+            var proveSw = System.Diagnostics.Stopwatch.StartNew();
             var proofResult = await _prover.ProveAsync(new ProofRequest
             {
                 PublicInputs = publicInputs,
                 Witness = ReadOnlyMemory<byte>.Empty,
                 Kind = (ProofType)_settings.ProofType,
             });
+            proveSw.Stop();
+            var kindTag = ("kind", proofResult.Kind.ToString());
+            _metrics.IncrementCounter(MetricNames.ProofsGenerated, 1, kindTag);
+            _metrics.RecordHistogram(MetricNames.ProveLatencyMs, proveSw.Elapsed.TotalMilliseconds, kindTag);
 
             var finalCommitment = next with
             {
@@ -106,10 +136,15 @@ public sealed class L2SettlementPlugin : Plugin
                 PublicInputHash = hash,
             };
 
+            var submitSw = System.Diagnostics.Stopwatch.StartNew();
             await _client.SubmitBatchAsync(finalCommitment, publicInputs);
+            submitSw.Stop();
+            _metrics.IncrementCounter(MetricNames.BatchesSubmitted);
+            _metrics.RecordHistogram(MetricNames.SubmitLatencyMs, submitSw.Elapsed.TotalMilliseconds);
         }
         catch (Exception)
         {
+            _metrics.IncrementCounter(MetricNames.SubmitFailures);
             // Re-queue at the head so we retry. Production handler logs and bumps a metric.
             lock (_pending)
             {

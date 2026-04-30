@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Plugin telemetry wiring
+
+- **`L2BatchPlugin.WithMetrics(IL2Metrics)`** — emits `l2.batch.sealed` (counter), `l2.batch.seal_latency_ms` (histogram), and `l2.batch.tx_count` (gauge) on every seal. Default sink is `NoOpMetrics.Instance` so the metric path is opt-in.
+- **`L2SettlementPlugin.WithMetrics(IL2Metrics)`** — emits `l2.proving.generated{kind=…}` (counter), `l2.proving.latency_ms{kind=…}` (histogram), `l2.settlement.submitted` (counter), `l2.settlement.submit_latency_ms` (histogram), and `l2.settlement.submit_failures` (counter on exception). Failed submits re-queue at the head, exactly matching the prior retry semantics.
+- **`L2SettlementPlugin.Enqueue(L2BatchCommitment)`** — public hot-path entry that's also useful for backfilling missed batches after a node restart. Replaces the previously private event handler.
+- **`Neo.Plugins.L2Settlement.UnitTests`** — 4 new unit tests exercising submit-success / submit-failure / default-NoOp paths with mocked `IL2Prover` + `ISettlementClient` + `InMemoryMetrics`. First plugin-level test project that drives an actual Plugin subclass.
+
+Cumulative: 206 tests / 25 projects.
+
 ### Added — Auditor + devnet v0.3
 
 - **`Neo.L2.Audit`** — chain auditor: pluggable `IAuditCheck`, built-in `ContinuityCheck` (sequential batch numbers + state-root linking + non-overlapping block ranges) and `ProofValidityCheck` (re-runs each batch's proof through `VerifierRegistry`). `ChainAuditor` aggregates findings into `AuditReport` with human-readable `Summarize()`. 9 unit tests.

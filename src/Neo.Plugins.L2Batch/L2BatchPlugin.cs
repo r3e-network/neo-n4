@@ -4,6 +4,7 @@ using Neo.L2;
 using Neo.L2.Batch;
 using Neo.L2.Executor.Receipts;
 using Neo.L2.State;
+using Neo.L2.Telemetry;
 using Neo.Ledger;
 using Neo.Network.P2P.Payloads;
 
@@ -26,9 +27,21 @@ public sealed class L2BatchPlugin : Plugin
     private long _batchStartedAtUtcMillis;
     private ulong _nextBatchNumber = 1;
     private UInt256 _lastPostStateRoot = UInt256.Zero;
+    private IL2Metrics _metrics = NoOpMetrics.Instance;
 
     /// <summary>Emitted whenever a batch is sealed and ready for submission.</summary>
     public event EventHandler<L2BatchCommitment>? OnBatchSealed;
+
+    /// <summary>
+    /// Wire a metrics sink. The plugin emits <c>l2.batch.sealed</c>,
+    /// <c>l2.batch.seal_latency_ms</c>, and <c>l2.batch.tx_count</c> against this sink. Call
+    /// before the first block commit; defaults to <see cref="NoOpMetrics"/>.
+    /// </summary>
+    public void WithMetrics(IL2Metrics metrics)
+    {
+        ArgumentNullException.ThrowIfNull(metrics);
+        _metrics = metrics;
+    }
 
     /// <inheritdoc />
     public override string Name => "L2BatchPlugin";
@@ -67,7 +80,13 @@ public sealed class L2BatchPlugin : Plugin
 
         if (ShouldSeal(builder))
         {
+            var txCount = builder.Batch.TransactionCount;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             var sealed_ = SealBatch(builder, block, system);
+            sw.Stop();
+            _metrics.IncrementCounter(MetricNames.BatchesSealed);
+            _metrics.RecordHistogram(MetricNames.BatchSealLatencyMs, sw.Elapsed.TotalMilliseconds);
+            _metrics.SetGauge(MetricNames.BatchTxCount, txCount);
             OnBatchSealed?.Invoke(this, sealed_);
             _builder = null;
         }

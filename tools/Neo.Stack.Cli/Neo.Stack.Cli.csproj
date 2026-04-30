@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Neo.Stack.Cli</RootNamespace>
+    <AssemblyName>neo-stack</AssemblyName>
+    <Description>Launch framework CLI for Neo Elastic Network L2 chains.</Description>
+    <PackageTags>NEO;L2;CLI;NeoStack</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Batch\Neo.L2.Batch.csproj" />
+  </ItemGroup>
+
+</Project>

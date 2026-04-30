@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.Plugins.L2</RootNamespace>
+    <AssemblyName>Neo.Plugins.L2Prover</AssemblyName>
+    <Description>Neo node plugin: drives proof generation per the chain's configured ProofType.</Description>
+    <PackageTags>NEO;L2;Plugin;Prover</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
+    <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+    <ProjectReference Include="..\Neo.L2.Proving\Neo.L2.Proving.csproj" />
+  </ItemGroup>
+
+</Project>

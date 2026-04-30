@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NeoHub.SharedBridge</RootNamespace>
+    <AssemblyName>NeoHub.SharedBridge</AssemblyName>
+  </PropertyGroup>
+
+</Project>

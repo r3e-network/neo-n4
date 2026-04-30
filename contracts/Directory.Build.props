@@ -1,0 +1,33 @@
+<Project>
+
+  <!--
+    Smart-contract projects: source compiles to NeoVM bytecode via nccs (the Neo C# Compiler).
+    The C# source ALSO type-checks against Neo.SmartContract.Framework via dotnet build, which
+    catches API misuse early. Type-check is automatic; .nef / .manifest.json generation happens
+    when nccs is in PATH and runs `nccs <project>` (the BeforeBuild target below — soft-fails
+    when nccs is unavailable).
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <OutputType>Library</OutputType>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NeoDevpackPath>$(MSBuildThisFileDirectory)..$([System.IO.Path]::DirectorySeparatorChar)..$([System.IO.Path]::DirectorySeparatorChar)neo-devpack-dotnet$([System.IO.Path]::DirectorySeparatorChar)src</NeoDevpackPath>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <NuGetAudit>false</NuGetAudit>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(NeoDevpackPath)\Neo.SmartContract.Framework\Neo.SmartContract.Framework.csproj" />
+  </ItemGroup>
+
+  <Target Name="GenerateNef" BeforeTargets="PreBuildEvent" Condition="'$(IsTestProject)' != 'true' AND '$(DisableNccs)' != 'true'">
+    <Exec Command="nccs &quot;$(MSBuildProjectFile)&quot;" ContinueOnError="true" />
+  </Target>
+
+</Project>

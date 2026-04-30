@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NeoHub.SettlementManager</RootNamespace>
+    <AssemblyName>NeoHub.SettlementManager</AssemblyName>
+  </PropertyGroup>
+
+</Project>

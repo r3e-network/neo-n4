@@ -14,6 +14,7 @@ using Neo.L2.Proving;
 using Neo.L2.Proving.Attestation;
 using Neo.L2.Sequencer;
 using Neo.L2.State;
+using Neo.L2.Audit;
 using Neo.Plugins.L2Rpc;
 
 namespace Neo.L2.Devnet;
@@ -96,6 +97,8 @@ internal static class Program
 
         // ---- Walk through N batches ----
         var preStateRoot = stateStore.ComputeRoot(); // start from empty store root = Zero
+        var allCommitments = new List<L2BatchCommitment>();
+        var publicInputsByBatch = new Dictionary<ulong, PublicInputs>();
         for (var batchNum = 1; batchNum <= batches; batchNum++)
         {
             Console.WriteLine($"────── batch #{batchNum} ──────");
@@ -204,8 +207,25 @@ internal static class Program
             rpcStore.Finalize((ulong)batchNum);
             rpcStore.RecordDeposit(new DepositStatus(0, (ulong)batchNum, ConsumedOnL2: true, IncludedInBatch: (ulong)batchNum));
 
+            allCommitments.Add(commitment);
+            publicInputsByBatch[(ulong)batchNum] = publicInputs;
+
             // Continuity: next batch's pre = this batch's post.
             preStateRoot = commitment.PostStateRoot;
+        }
+
+        // ---- Audit pass over the produced sequence ----
+        Console.WriteLine();
+        Console.WriteLine("───── audit pass ─────");
+        var auditor = new ChainAuditor()
+            .Register(new ContinuityCheck())
+            .Register(new ProofValidityCheck(verifierRegistry, c => publicInputsByBatch[c.BatchNumber]));
+        var report = await auditor.AuditAsync(allCommitments);
+        Console.WriteLine(report.Summarize());
+        if (!report.Passed)
+        {
+            Console.Error.WriteLine("❌ audit failed");
+            return 1;
         }
 
         Console.WriteLine();

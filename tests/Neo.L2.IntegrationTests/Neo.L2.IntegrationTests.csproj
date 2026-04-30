@@ -25,6 +25,8 @@
     <ProjectReference Include="..\..\src\Neo.L2.ForcedInclusion\Neo.L2.ForcedInclusion.csproj" />
     <ProjectReference Include="..\..\src\Neo.Plugins.L2Gateway\Neo.Plugins.L2Gateway.csproj" />
     <ProjectReference Include="..\..\tools\Neo.Hub.Deploy\Neo.Hub.Deploy.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Sequencer\Neo.L2.Sequencer.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Censorship\Neo.L2.Censorship.csproj" />
   </ItemGroup>
 
 </Project>

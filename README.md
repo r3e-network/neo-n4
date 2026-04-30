@@ -11,6 +11,7 @@ The full architecture spec is in [`doc.md`](./doc.md). For a fast tour:
 
 - [**`docs/getting-started.md`**](./docs/getting-started.md) — clone → test → run devnet in 5 minutes.
 - [**`docs/architecture-walkthrough.md`**](./docs/architecture-walkthrough.md) — narrative tour mapping every `doc.md` section to code.
+- [**`docs/telemetry.md`**](./docs/telemetry.md) — metric catalog, wiring example, Prometheus exposition format.
 - [**`ARCHITECTURE.md`**](./ARCHITECTURE.md) — English distillation of `doc.md`.
 - [**`IMPLEMENTATION_STATUS.md`**](./IMPLEMENTATION_STATUS.md) — per-phase coverage matrix + what's deferred.
 - [**`CONTRIBUTING.md`**](./CONTRIBUTING.md) — how to add a component, code style, PR checklist.

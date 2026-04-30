@@ -9,6 +9,7 @@ This file orients AI agents working on `neo4`. Read it before making changes.
 2. **`ARCHITECTURE.md`** — English distillation; reference only, not authoritative.
 3. **`docs/architecture-walkthrough.md`** — narrative tour mapping every `doc.md` section
    to a concrete file. The fastest way to find where a feature lives.
+   `docs/telemetry.md` covers the metrics surface separately.
 4. **`IMPLEMENTATION_STATUS.md`** — per-phase coverage matrix + per-component table + the
    explicit "what's not yet wired" deferral list. Always check this before assuming a
    component doesn't exist.

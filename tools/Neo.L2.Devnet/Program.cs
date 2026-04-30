@@ -8,9 +8,11 @@ using Neo.L2.Batch;
 using Neo.L2.Bridge;
 using Neo.L2.Executor;
 using Neo.L2.Executor.Receipts;
+using Neo.L2.Executor.State;
 using Neo.L2.Messaging;
 using Neo.L2.Proving;
 using Neo.L2.Proving.Attestation;
+using Neo.L2.Sequencer;
 using Neo.L2.State;
 using Neo.Plugins.L2Rpc;
 
@@ -18,8 +20,9 @@ namespace Neo.L2.Devnet;
 
 /// <summary>
 /// In-process devnet runner. Boots all the off-chain L2 pieces, walks through a few batches
-/// (deposit → execute → prove → verify → withdraw), and prints the resulting state. Useful as
-/// a sanity check after major refactors and as a "what does an L2 actually do?" demo.
+/// (deposit → execute → prove → verify → withdraw), and prints the resulting state. Real
+/// <see cref="KeyedStateStore"/> backs the post-state-root oracle, so each batch's
+/// <c>preStateRoot</c> equals the previous batch's <c>postStateRoot</c>.
 /// </summary>
 internal static class Program
 {
@@ -34,7 +37,7 @@ internal static class Program
         var batches = args.Length > 0 && int.TryParse(args[0], out var n) ? n : 3;
 
         Console.WriteLine("┌─────────────────────────────────────────────┐");
-        Console.WriteLine("│  Neo Elastic Network — devnet runner v0.1    │");
+        Console.WriteLine("│  Neo Elastic Network — devnet runner v0.2    │");
         Console.WriteLine($"│  chainId = {LocalChainId}, batches = {batches,2}                      │");
         Console.WriteLine("└─────────────────────────────────────────────┘");
         Console.WriteLine();
@@ -51,7 +54,7 @@ internal static class Program
             LockMint = true,
             Active = true,
         });
-        Console.WriteLine($"[wire] asset registry: 1 mapping (GAS L1={GasL1} → L2={GasL2})");
+        Console.WriteLine($"[wire] asset registry: 1 mapping (GAS L1={Truncate160(GasL1)} → L2={Truncate160(GasL2)})");
 
         var depositProcessor = new DepositProcessor(LocalChainId, registry);
         var withdrawalProcessor = new WithdrawalProcessor(LocalChainId, registry);
@@ -65,49 +68,70 @@ internal static class Program
         var verifierRegistry = new VerifierRegistry();
         verifierRegistry.Register(verifier);
 
+        // Sequencer committee — 3 sequencers, all bonded.
+        var committeeProvider = new InMemorySequencerCommitteeProvider(LocalChainId, maxCommitteeSize: 7);
+        for (var i = 0; i < 3; i++)
+        {
+            var (pub, _) = GenKey((byte)(100 + i));
+            var addr = new byte[20];
+            for (var j = 0; j < 20; j++) addr[j] = (byte)(0x10 * (i + 1));
+            committeeProvider.Register(pub, new UInt160(addr));
+        }
+        var initialCommittee = await committeeProvider.GetActiveCommitteeAsync();
+        Console.WriteLine($"[wire] sequencer committee: {initialCommittee.Count} active members");
+
+        // Real state store + oracle. Seed Alice with 0 balance.
+        var stateStore = new KeyedStateStore();
+        var stateRootOracle = new KeyedStateRootOracle(stateStore);
+        Console.WriteLine($"[wire] keyed state store + oracle ({stateStore.Count} initial entries)");
+
         var rpcStore = new InMemoryL2RpcStore(LocalChainId, SecurityLevel.Optimistic);
         rpcStore.RegisterAsset(GasL1, GasL2);
         var rpc = new L2RpcMethods(rpcStore);
 
         var executor = new ReferenceBatchExecutor(
             new ReferenceTransactionExecutor(),
-            new DerivedPostStateRootOracle());
+            stateRootOracle);
         Console.WriteLine();
 
         // ---- Walk through N batches ----
-        var preStateRoot = UInt256.Zero;
+        var preStateRoot = stateStore.ComputeRoot(); // start from empty store root = Zero
         for (var batchNum = 1; batchNum <= batches; batchNum++)
         {
             Console.WriteLine($"────── batch #{batchNum} ──────");
 
-            // 1. Deposit message from L1.
-            var deposit = new DepositPayload { L1Asset = GasL1, L2Recipient = Alice, Amount = new BigInteger(1_000_000 * batchNum) };
+            // 1. Deposit message from L1 → mint balance to Alice in the state store.
+            var depositAmount = new BigInteger(1_000_000 * batchNum);
+            var deposit = new DepositPayload { L1Asset = GasL1, L2Recipient = Alice, Amount = depositAmount };
             var depositMsg = MessageBuilder.Build(0, LocalChainId, (ulong)batchNum, UInt160.Zero, Alice, MessageType.Deposit, deposit.Encode());
             var mint = depositProcessor.Process(depositMsg);
-            Console.WriteLine($"  [deposit] minted {mint.Amount} → {mint.Recipient} (nonce={mint.SourceNonce})");
+            // Apply to the store (this is what a real L2BridgeContract.mint would do).
+            ApplyMint(stateStore, mint.L2Asset, mint.Recipient, mint.Amount);
+            Console.WriteLine($"  [deposit] minted {mint.Amount} → Alice (nonce={mint.SourceNonce})");
 
-            // 2. Stage a withdrawal.
+            // 2. Stage a withdrawal — Alice → Bob on L1.
+            var withdrawalAmount = new BigInteger(10_000 * batchNum);
             var withdrawal = new WithdrawalRequest
             {
                 EmittingContract = UInt160.Zero,
                 L2Sender = Alice,
                 L1Recipient = Bob,
                 L2Asset = GasL2,
-                Amount = new BigInteger(10_000 * batchNum),
+                Amount = withdrawalAmount,
                 Nonce = (ulong)batchNum,
             };
             withdrawalProcessor.Stage(withdrawal);
-            Console.WriteLine($"  [withdraw] staged {withdrawal.Amount} from {Alice} → {Bob} (nonce={withdrawal.Nonce})");
+            ApplyBurn(stateStore, withdrawal.L2Asset, withdrawal.L2Sender, withdrawal.Amount);
+            Console.WriteLine($"  [withdraw] staged {withdrawal.Amount} from Alice → Bob (nonce={withdrawal.Nonce})");
 
-            // 3. Build a batch with one synthetic tx whose effects = [withdrawal].
+            // 3. Build batch + run executor.
             var txBytes = BitConverter.GetBytes((long)batchNum * 17);
-            var txHash = new UInt256(Crypto.Hash256(txBytes));
             var ctx = new BatchBlockContext
             {
                 L1FinalizedHeight = (uint)(1000 + batchNum),
                 FirstBlockTimestamp = (ulong)(1_700_000_000_000 + batchNum * 10_000),
                 LastBlockTimestamp = (ulong)(1_700_000_000_000 + batchNum * 10_000 + 5_000),
-                SequencerCommitteeHash = UInt256.Parse("0x" + new string('c', 64)),
+                SequencerCommitteeHash = HashCommittee(initialCommittee),
                 Network = 0x4F454E,
             };
             var execReq = new BatchExecutionRequest
@@ -121,11 +145,9 @@ internal static class Program
             };
             var execResult = await executor.ApplyBatchAsync(execReq);
 
-            // For the demo, the executor's returned WithdrawalRoot is whatever its bound
-            // state oracle produces. We override here with the processor's snapshot so the
-            // public-input bundle and the user-side proof both anchor on the same root.
-            var (withdrawalRoot, withdrawalTree) = withdrawalProcessor.SealBatch();
-            execResult = execResult with { WithdrawalRoot = withdrawalRoot };
+            // Replace executor's WithdrawalRoot with the processor's view (matches what NeoHub commits to).
+            var (wRoot, _) = withdrawalProcessor.SealBatch();
+            execResult = execResult with { WithdrawalRoot = wRoot };
 
             // 4. Sign + verify.
             var publicInputs = new PublicInputs
@@ -143,7 +165,6 @@ internal static class Program
                 DACommitment = UInt256.Zero,
                 BlockContextHash = StateRootCalculator.HashBlockContext(ctx),
             };
-
             var proofResult = await prover.ProveAsync(new ProofRequest
             {
                 PublicInputs = publicInputs,
@@ -171,34 +192,46 @@ internal static class Program
             };
 
             var verify = await verifierRegistry.VerifyAsync(commitment, publicInputs);
-            Console.WriteLine($"  [seal] postStateRoot={Truncate(commitment.PostStateRoot)} verify={verify.Valid}");
+            Console.WriteLine($"  [seal] preRoot={Truncate(preStateRoot)} postRoot={Truncate(commitment.PostStateRoot)} verify={verify.Valid}");
             if (!verify.Valid)
             {
                 Console.Error.WriteLine($"  ❌ verification failed: {verify.FailureReason}");
                 return 1;
             }
 
-            // 5. RPC store gets the batch + finalizes immediately (Phase 0 mode).
+            // 5. Finalize in RPC store.
             rpcStore.AddBatch(commitment, BatchStatus.Pending);
             rpcStore.Finalize((ulong)batchNum);
             rpcStore.RecordDeposit(new DepositStatus(0, (ulong)batchNum, ConsumedOnL2: true, IncludedInBatch: (ulong)batchNum));
-            var withdrawalLeaf = MessageHasher.HashWithdrawal(withdrawal);
-            rpcStore.RecordWithdrawalProof(withdrawalLeaf, EncodeProof(withdrawalTree.GetProof(0)));
 
+            // Continuity: next batch's pre = this batch's post.
             preStateRoot = commitment.PostStateRoot;
         }
 
         Console.WriteLine();
         Console.WriteLine("───── post-run RPC snapshot ─────");
         var latest = rpc.GetL2StateRoot(new Json.JArray { LocalChainId });
-        Console.WriteLine($"  getl2stateroot:  {latest!.AsString()}");
-        var sec = rpc.GetSecurityLevel(new Json.JArray { LocalChainId });
-        Console.WriteLine($"  getsecuritylevel: {sec}");
+        Console.WriteLine($"  getl2stateroot:   {latest!.AsString()}");
+        Console.WriteLine($"  state entries:    {stateStore.Count}");
+        Console.WriteLine($"  committee active: {(await committeeProvider.GetActiveCommitteeAsync()).Count}");
+
+        // Show Alice's net position: deposits - withdrawals over N batches.
+        var aliceBalance = ReadBalance(stateStore, GasL2, Alice);
+        var expected = BigInteger.Zero;
+        for (var i = 1; i <= batches; i++) expected += new BigInteger(1_000_000 * i) - new BigInteger(10_000 * i);
+        Console.WriteLine($"  alice balance:    {aliceBalance} (expected {expected})");
+        if (aliceBalance != expected)
+        {
+            Console.Error.WriteLine("❌ Alice's balance disagrees with expected; state-store wiring broken.");
+            return 1;
+        }
 
         Console.WriteLine();
         Console.WriteLine("✅ devnet run complete.");
         return 0;
     }
+
+    // ---- Helpers ----
 
     private static (ECPoint pub, byte[] priv) GenKey(byte seed)
     {
@@ -213,16 +246,49 @@ internal static class Program
         return s.Length <= 18 ? s : s[..10] + "…" + s[^6..];
     }
 
-    private static byte[] EncodeProof(MerkleProof proof)
+    private static string Truncate160(UInt160 h)
     {
-        // Tiny canonical proof envelope: 4B leafIndex + 8B path + 1B siblingCount + 32B*siblings.
-        var size = 4 + 8 + 1 + 32 * proof.Siblings.Count;
-        var buf = new byte[size];
-        BitConverter.TryWriteBytes(buf.AsSpan(0, 4), proof.LeafIndex);
-        BitConverter.TryWriteBytes(buf.AsSpan(4, 8), proof.PathBitmap);
-        buf[12] = (byte)proof.Siblings.Count;
-        for (var i = 0; i < proof.Siblings.Count; i++)
-            proof.Siblings[i].GetSpan().CopyTo(buf.AsSpan(13 + 32 * i, 32));
-        return buf;
+        var s = h.ToString();
+        return s.Length <= 14 ? s : s[..10] + "…" + s[^4..];
+    }
+
+    private static UInt256 HashCommittee(IReadOnlyList<CommitteeMember> members)
+    {
+        if (members.Count == 0) return UInt256.Zero;
+        var bytes = new List<byte>();
+        foreach (var m in members.OrderBy(x => x.PublicKey)) bytes.AddRange(m.PublicKey.EncodePoint(true));
+        return new UInt256(Crypto.Hash256(bytes.ToArray()));
+    }
+
+    private static byte[] BalanceKey(UInt160 asset, UInt160 holder)
+    {
+        var k = new byte[1 + 20 + 20];
+        k[0] = 0x01; // domain prefix for "balance"
+        asset.GetSpan().CopyTo(k.AsSpan(1, 20));
+        holder.GetSpan().CopyTo(k.AsSpan(21, 20));
+        return k;
+    }
+
+    private static void ApplyMint(KeyedStateStore store, UInt160 asset, UInt160 holder, BigInteger amount)
+    {
+        var key = BalanceKey(asset, holder);
+        var current = ReadBalance(store, asset, holder);
+        store.Put(key, (current + amount).ToByteArray(isUnsigned: true, isBigEndian: false));
+    }
+
+    private static void ApplyBurn(KeyedStateStore store, UInt160 asset, UInt160 holder, BigInteger amount)
+    {
+        var key = BalanceKey(asset, holder);
+        var current = ReadBalance(store, asset, holder);
+        var next = current - amount;
+        if (next < 0) throw new InvalidOperationException("insufficient balance");
+        store.Put(key, next.ToByteArray(isUnsigned: true, isBigEndian: false));
+    }
+
+    private static BigInteger ReadBalance(KeyedStateStore store, UInt160 asset, UInt160 holder)
+    {
+        var bytes = store.Get(BalanceKey(asset, holder));
+        if (bytes.Length == 0) return BigInteger.Zero;
+        return new BigInteger(bytes.Span, isUnsigned: true, isBigEndian: false);
     }
 }

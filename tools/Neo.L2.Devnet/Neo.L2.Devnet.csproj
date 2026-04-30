@@ -16,6 +16,7 @@
     <ProjectReference Include="..\..\src\Neo.L2.Messaging\Neo.L2.Messaging.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Proving\Neo.L2.Proving.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Executor\Neo.L2.Executor.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Sequencer\Neo.L2.Sequencer.csproj" />
     <ProjectReference Include="..\..\src\Neo.Plugins.L2Rpc\Neo.Plugins.L2Rpc.csproj" />
   </ItemGroup>
 

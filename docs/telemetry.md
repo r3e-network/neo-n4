@@ -60,34 +60,48 @@ var handler = new MetricsRequestHandler(metrics, readinessCheck: () =>
 
 ## Wiring a node
 
+The `Neo.Plugins.L2Metrics` plugin is the composition root — it owns the
+shared sink and the HTTP server.
+
 ```csharp
-using Neo.L2.Telemetry;
 using Neo.Plugins.L2;
-using System.Net;
 
-// 1. One metrics sink, shared by every plugin.
-var metrics = new InMemoryMetrics();
+// 1. The composition root.
+var metrics = new L2MetricsPlugin();
 
-// 2. Wire each plugin to the sink.
+// 2. Other plugins pull metrics.Metrics for their WithMetrics() call.
 var batchPlugin = new L2BatchPlugin();
-batchPlugin.WithMetrics(metrics);
+batchPlugin.WithMetrics(metrics.Metrics);
 
 var settlementPlugin = new L2SettlementPlugin();
 settlementPlugin.Wire(batchPlugin, prover, settlementClient);
-settlementPlugin.WithMetrics(metrics);
+settlementPlugin.WithMetrics(metrics.Metrics);
 
 var daPlugin = new L2DAPlugin();
-daPlugin.WithMetrics(metrics);
+daPlugin.WithMetrics(metrics.Metrics);
 
 var bridgePlugin = new L2BridgePlugin();
-bridgePlugin.WithMetrics(metrics);
+bridgePlugin.WithMetrics(metrics.Metrics);
 
-// 3. Start the /metrics endpoint.
-var handler = new MetricsRequestHandler(metrics);
-var metricsServer = new MetricsHttpServer(IPAddress.Loopback, port: 9090, handler);
-metricsServer.Start();
+// 3. Optional: gate /readyz on a real predicate.
+metrics.WithReadinessCheck(() => settlementClient.LastFinalizedBatchAge < TimeSpan.FromMinutes(2));
 
-// curl http://localhost:9090/metrics
+// 4. Start the HTTP server (after Configure() has loaded settings).
+metrics.Start();
+
+// curl http://127.0.0.1:9090/metrics
+```
+
+Plugin config (in `Neo.Plugins.L2Metrics/config.json`):
+
+```json
+{
+  "PluginConfiguration": {
+    "Enabled": true,
+    "BindAddress": "127.0.0.1",
+    "Port": 9090
+  }
+}
 ```
 
 ## Metric catalog

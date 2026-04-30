@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `Neo.Plugins.L2Metrics` composition root
+
+- New plugin **`L2MetricsPlugin`** owns the shared `InMemoryMetrics` sink the rest of the L2 plugin set wires its `WithMetrics()` calls to, and stands up the `MetricsHttpServer` based on settings (BindAddress, Port, Enabled). Pulls everything together — operators register this plugin first, then call `plugin.Metrics` from each other plugin's `WithMetrics()`.
+- **Optional readiness predicate** via `WithReadinessCheck(Func<bool>)` — gates `/readyz` 200 vs 503.
+- **Idempotent `Start()`** — extra calls are no-ops, simplifying host startup.
+- **`L2MetricsSettings`** — `Enabled` (kill switch), `BindAddress` (default `127.0.0.1`), `Port` (default 9090, use 0 for any free port). Loaded from the standard plugin `config.json` `PluginConfiguration` section.
+- **7 new tests** in `Neo.Plugins.L2Metrics.UnitTests`: bound-port-zero-before-Start, default-settings, idempotent Start, real HTTP scrape with emitted counter, readiness predicate gating 200 ↔ 503, null-arg validation.
+
+Cumulative: 294 tests / 27 projects.
+
 ### Added — Devnet `--metrics-port` flag (live HTTP demo)
 
 - `neo-l2-devnet <N> --metrics-port <P>` (or `--metrics-port 0` for "any free port") now stands up a real `MetricsHttpServer` after the batch run, self-scrapes `/metrics`, `/healthz`, and `/readyz` over real HTTP, and prints the round-trip status + content-type + body summary. Promotes the previously static "Prometheus text format" devnet section to a live demonstration of the production scrape path.

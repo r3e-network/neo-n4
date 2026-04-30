@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.Plugins.L2</RootNamespace>
+    <AssemblyName>Neo.Plugins.L2Metrics</AssemblyName>
+    <Description>Composition root for Neo Elastic Network telemetry: hosts the shared IL2Metrics sink and the /metrics + /healthz + /readyz HTTP server.</Description>
+    <PackageTags>NEO;L2;Plugin;Telemetry;Metrics;Prometheus</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
+    <ProjectReference Include="..\Neo.L2.Telemetry\Neo.L2.Telemetry.csproj" />
+  </ItemGroup>
+
+</Project>

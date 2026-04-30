@@ -1,0 +1,27 @@
+using Microsoft.Extensions.Configuration;
+
+namespace Neo.Plugins.L2;
+
+/// <summary>Configuration for <see cref="L2MetricsPlugin"/>.</summary>
+public sealed class L2MetricsSettings
+{
+    /// <summary>Master kill switch. When false, the plugin loads but does not start the HTTP server.</summary>
+    public bool Enabled { get; init; } = true;
+
+    /// <summary>IP address the HTTP server binds to. Default <c>127.0.0.1</c> — front with a reverse proxy for external access.</summary>
+    public string BindAddress { get; init; } = "127.0.0.1";
+
+    /// <summary>TCP port. <c>0</c> picks any free port (useful for tests / dev).</summary>
+    public int Port { get; init; } = 9090;
+
+    /// <summary>Build settings from the plugin's <c>PluginConfiguration</c> section.</summary>
+    public static L2MetricsSettings From(IConfigurationSection s)
+    {
+        return new L2MetricsSettings
+        {
+            Enabled = s.GetValue("Enabled", true),
+            BindAddress = s.GetValue("BindAddress", "127.0.0.1")!,
+            Port = s.GetValue("Port", 9090),
+        };
+    }
+}

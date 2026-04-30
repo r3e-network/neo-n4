@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>NeoHub.ForcedInclusion</RootNamespace>
+    <AssemblyName>NeoHub.ForcedInclusion</AssemblyName>
+  </PropertyGroup>
+</Project>

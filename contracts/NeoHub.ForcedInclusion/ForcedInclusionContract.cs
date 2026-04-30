@@ -1,0 +1,213 @@
+using System;
+using System.ComponentModel;
+using System.Numerics;
+using Neo.SmartContract.Framework;
+using Neo.SmartContract.Framework.Attributes;
+using Neo.SmartContract.Framework.Native;
+using Neo.SmartContract.Framework.Services;
+
+namespace NeoHub.ForcedInclusion;
+
+/// <summary>
+/// Anti-censorship: a user can post any L2 transaction here and the L2 sequencer is obliged
+/// to include it before <c>InclusionDeadlineSeconds</c> elapses. Failure to include slashes
+/// the sequencer's bond and pauses the L2 in <c>NeoHub.SettlementManager</c>.
+/// </summary>
+/// <remarks>
+/// See doc.md §15.4 (Forced Inclusion) and §17 (sequencer-censorship mitigation).
+/// <para>
+/// Production deploys would gate <see cref="EnqueueForcedTransaction"/> behind a small
+/// L1 fee in GAS to discourage spam; the MVP version below is fee-free.
+/// </para>
+/// </remarks>
+[DisplayName("NeoHub.ForcedInclusion")]
+[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractDescription("Forced-inclusion queue per L2 chain — anti-censorship primitive.")]
+[ContractVersion("0.1.0")]
+[ContractSourceCode("https://github.com/neo-project/neo4/tree/master/contracts/NeoHub.ForcedInclusion")]
+[ContractPermission(Permission.Any, Method.Any)]
+public class ForcedInclusionContract : SmartContract
+{
+    private const byte PrefixNonce = 0x01;            // 0x01 + chainId(4B) → next nonce
+    private const byte PrefixEntry = 0x02;             // 0x02 + chainId(4B) + nonce(8B) → encoded forced entry
+    private const byte PrefixConsumed = 0x03;          // 0x03 + chainId(4B) + nonce(8B) → 1
+    private const byte KeyDeadlineSeconds = 0x04;
+    private const byte KeySettlementManager = 0xFD;
+    private const byte KeyOwner = 0xFF;
+
+    /// <summary>Default time the sequencer has to include a forced tx before censorship kicks in.</summary>
+    public const uint DefaultDeadlineSeconds = 7200;   // 2 hours
+
+    /// <summary>Emitted whenever a user enqueues a forced transaction.</summary>
+    [DisplayName("ForcedTxEnqueued")]
+    public static event Action<uint, ulong, UInt160, UInt256> OnForcedTxEnqueued = default!;
+
+    /// <summary>Emitted when the L2 confirms inclusion (callback from SettlementManager).</summary>
+    [DisplayName("ForcedTxConsumed")]
+    public static event Action<uint, ulong> OnForcedTxConsumed = default!;
+
+    /// <summary>Emitted when a sequencer is reported missing the deadline.</summary>
+    [DisplayName("SequencerCensorshipReported")]
+    public static event Action<uint, ulong, UInt160> OnSequencerCensorshipReported = default!;
+
+    /// <summary>Set wiring at deploy time.</summary>
+    public static void _deploy(object data, bool update)
+    {
+        if (update) return;
+        var arr = (object[])data;
+        Storage.Put(new byte[] { KeyOwner }, (UInt160)arr[0]);
+        Storage.Put(new byte[] { KeySettlementManager }, (UInt160)arr[1]);
+        var deadline = arr.Length >= 3 ? (uint)(BigInteger)arr[2] : DefaultDeadlineSeconds;
+        Storage.Put(new byte[] { KeyDeadlineSeconds }, (BigInteger)deadline);
+    }
+
+    /// <summary>Governance owner.</summary>
+    [Safe]
+    public static UInt160 GetOwner()
+    {
+        var raw = Storage.Get(new byte[] { KeyOwner });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Configured censorship deadline in seconds.</summary>
+    [Safe]
+    public static uint GetDeadlineSeconds()
+    {
+        var raw = Storage.Get(new byte[] { KeyDeadlineSeconds });
+        return raw == null ? DefaultDeadlineSeconds : (uint)(BigInteger)raw;
+    }
+
+    /// <summary>Update the deadline. Owner only.</summary>
+    public static void SetDeadlineSeconds(uint seconds)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(seconds >= 60 && seconds <= 86400, "deadline out of bounds [60, 86400]");
+        Storage.Put(new byte[] { KeyDeadlineSeconds }, (BigInteger)seconds);
+    }
+
+    /// <summary>
+    /// Submit a forced L2 transaction. Stores the encoded payload + the L1 timestamp at which
+    /// the sequencer must include it.
+    /// </summary>
+    /// <param name="chainId">Target L2 chain.</param>
+    /// <param name="encodedTx">Canonical Neo-serialized transaction the L2 must execute.</param>
+    /// <param name="txHash">Hash of <paramref name="encodedTx"/> (caller pre-computes for cheap lookup).</param>
+    public static ulong EnqueueForcedTransaction(uint chainId, byte[] encodedTx, UInt256 txHash)
+    {
+        ExecutionEngine.Assert(encodedTx.Length > 0, "empty tx");
+        var caller = Runtime.CallingScriptHash;
+
+        var nonceKey = NonceKey(chainId);
+        var raw = Storage.Get(nonceKey);
+        var nonce = raw == null ? 1UL : (ulong)(BigInteger)raw + 1UL;
+        Storage.Put(nonceKey, (BigInteger)nonce);
+
+        var deadline = GetDeadlineSeconds();
+        var enqueuedAt = (uint)Runtime.Time / 1000u; // ms → seconds
+        var payload = EncodeEntry(caller, txHash, encodedTx, enqueuedAt + deadline);
+        Storage.Put(EntryKey(chainId, nonce), payload);
+
+        OnForcedTxEnqueued(chainId, nonce, caller, txHash);
+        return nonce;
+    }
+
+    /// <summary>Read a forced-inclusion entry by (chainId, nonce). Empty bytes if not present.</summary>
+    [Safe]
+    public static byte[] GetEntry(uint chainId, ulong nonce)
+    {
+        var raw = Storage.Get(EntryKey(chainId, nonce));
+        return raw == null ? new byte[0] : (byte[])raw;
+    }
+
+    /// <summary>SettlementManager calls this to mark a forced tx consumed by an L2 batch.</summary>
+    public static void MarkConsumed(uint chainId, ulong nonce)
+    {
+        var sm = (UInt160)(Storage.Get(new byte[] { KeySettlementManager }) ?? throw new Exception("sm unset"));
+        ExecutionEngine.Assert(Runtime.CheckWitness(sm), "not settlement manager");
+        var key = ConsumedKey(chainId, nonce);
+        ExecutionEngine.Assert(Storage.Get(key) == null, "already consumed");
+        Storage.Put(key, new byte[] { 1 });
+        OnForcedTxConsumed(chainId, nonce);
+    }
+
+    /// <summary>True if (chainId, nonce) has been marked consumed.</summary>
+    [Safe]
+    public static bool IsConsumed(uint chainId, ulong nonce)
+    {
+        return Storage.Get(ConsumedKey(chainId, nonce)) != null;
+    }
+
+    /// <summary>
+    /// Anyone can call to flag censorship if the deadline has passed and the entry is still
+    /// unconsumed. Returns true on a successful report; the SettlementManager hook is left to
+    /// governance / production wiring (slashing logic depends on bond contract).
+    /// </summary>
+    public static bool ReportCensorship(uint chainId, ulong nonce, UInt160 sequencer)
+    {
+        ExecutionEngine.Assert(!IsConsumed(chainId, nonce), "already consumed");
+        var rawEntry = Storage.Get(EntryKey(chainId, nonce));
+        ExecutionEngine.Assert(rawEntry != null, "entry not found");
+
+        var entry = (byte[])rawEntry!;
+        var deadline = ReadUInt32(entry, 20 + 32 + 4 + entry.Length - 20 - 32 - 4 - 4); // last 4 bytes
+        var nowSec = (uint)Runtime.Time / 1000u;
+        if (nowSec < deadline) return false;
+
+        OnSequencerCensorshipReported(chainId, nonce, sequencer);
+        // Production: call SettlementManager to slash sequencer + pause finalization.
+        return true;
+    }
+
+    private static byte[] NonceKey(uint chainId)
+    {
+        var k = new byte[5];
+        k[0] = PrefixNonce;
+        k[1] = (byte)chainId; k[2] = (byte)(chainId >> 8); k[3] = (byte)(chainId >> 16); k[4] = (byte)(chainId >> 24);
+        return k;
+    }
+
+    private static byte[] EntryKey(uint chainId, ulong nonce) =>
+        BuildKey(PrefixEntry, chainId, nonce);
+
+    private static byte[] ConsumedKey(uint chainId, ulong nonce) =>
+        BuildKey(PrefixConsumed, chainId, nonce);
+
+    private static byte[] BuildKey(byte prefix, uint chainId, ulong number)
+    {
+        var k = new byte[13];
+        k[0] = prefix;
+        k[1] = (byte)chainId; k[2] = (byte)(chainId >> 8); k[3] = (byte)(chainId >> 16); k[4] = (byte)(chainId >> 24);
+        k[5] = (byte)number; k[6] = (byte)(number >> 8); k[7] = (byte)(number >> 16); k[8] = (byte)(number >> 24);
+        k[9] = (byte)(number >> 32); k[10] = (byte)(number >> 40); k[11] = (byte)(number >> 48); k[12] = (byte)(number >> 56);
+        return k;
+    }
+
+    private static byte[] EncodeEntry(UInt160 sender, UInt256 txHash, byte[] tx, uint deadlineUnixSec)
+    {
+        // 20B sender + 32B txHash + 4B txLen + tx bytes + 4B deadline = 60 + tx.Length.
+        var size = 20 + 32 + 4 + tx.Length + 4;
+        var buf = new byte[size];
+        var pos = 0;
+        var s = (byte[])sender;
+        for (var i = 0; i < 20; i++) buf[pos + i] = s[i];
+        pos += 20;
+        var h = (byte[])txHash;
+        for (var i = 0; i < 32; i++) buf[pos + i] = h[i];
+        pos += 32;
+        buf[pos++] = (byte)tx.Length; buf[pos++] = (byte)(tx.Length >> 8);
+        buf[pos++] = (byte)(tx.Length >> 16); buf[pos++] = (byte)(tx.Length >> 24);
+        for (var i = 0; i < tx.Length; i++) buf[pos + i] = tx[i];
+        pos += tx.Length;
+        buf[pos++] = (byte)deadlineUnixSec; buf[pos++] = (byte)(deadlineUnixSec >> 8);
+        buf[pos++] = (byte)(deadlineUnixSec >> 16); buf[pos++] = (byte)(deadlineUnixSec >> 24);
+        return buf;
+    }
+
+    private static uint ReadUInt32(byte[] data, int offset)
+    {
+        return (uint)data[offset]
+            | ((uint)data[offset + 1] << 8)
+            | ((uint)data[offset + 2] << 16)
+            | ((uint)data[offset + 3] << 24);
+    }
+}

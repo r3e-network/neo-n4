@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.L2.ForcedInclusion</RootNamespace>
+    <AssemblyName>Neo.L2.ForcedInclusion</AssemblyName>
+    <Description>L2-side forced-inclusion source: drain NeoHub.ForcedInclusion queue into the next batch.</Description>
+    <PackageTags>NEO;L2;ForcedInclusion;AntiCensorship</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

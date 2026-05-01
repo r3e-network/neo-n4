@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Hard cap on `MultisigProofPayload` signer count
+
+- `signerCount` is uint16, naturally capped at 65535. The decoder validated buffer-size match but had no upper limit on count itself — a 65535-signer header forced allocation of `SignerSignature[65535]` (~7 MB) before any sanity check. Production multisigs run 7-21 signers; cap at `MaxSigners = 256` is generous but defensive.
+- **1 new test** verifies a 257-signer header is rejected.
+
+Cumulative: 344 tests / 27 projects. All four proof-payload decoders (Multisig, Optimistic, RiscV, plus the outer `BatchSerializer` wrap) now have explicit bounds.
+
 ### Fixed — Hard caps on `OptimisticProofPayload` + `RiscVProofPayload` decode
 
 - The decoders accepted any non-negative length matching the buffer size — no upper bound. A hostile peer feeding a 4 GiB length-prefix would crash the verifier on `OutOfMemory` instead of getting a clean `InvalidDataException`. The outer `BatchSerializer.Decode` already caps at 1 MiB, but a caller decoding these payloads directly (skipping `BatchSerializer`) inherits no protection.

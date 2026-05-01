@@ -17,6 +17,9 @@ public sealed record MultisigProofPayload
     /// <summary>Wire-format version (currently <c>1</c>).</summary>
     public const byte Version = 1;
 
+    /// <summary>Hard cap on signer count on Decode (defensive — production multisigs run 7-21 signers).</summary>
+    public const int MaxSigners = 256;
+
     /// <summary>Per-signer public-key + signature pairs, in canonical (sorted) order.</summary>
     public required IReadOnlyList<SignerSignature> Signatures { get; init; }
 
@@ -47,6 +50,8 @@ public sealed record MultisigProofPayload
         if (bytes[0] != Version) throw new InvalidDataException($"Unsupported multisig proof version {bytes[0]}");
 
         var count = BinaryPrimitives.ReadUInt16LittleEndian(bytes.Slice(1, 2));
+        if (count > MaxSigners)
+            throw new InvalidDataException($"signerCount {count} exceeds MaxSigners {MaxSigners}");
         var expected = 3 + count * (33 + 64);
         if (bytes.Length != expected)
             throw new InvalidDataException($"Buffer size {bytes.Length} != expected {expected} for {count} signers");

@@ -117,4 +117,17 @@ public class UT_Attestation
         Assert.AreEqual(1, decoded.Signatures.Count);
         Assert.AreEqual(k.pub, decoded.Signatures[0].PublicKey);
     }
+
+    [TestMethod]
+    public void MultisigPayload_Decode_RejectsOversizedSignerCount()
+    {
+        // Craft a header claiming MaxSigners+1; decoder must reject before allocating.
+        var oversized = MultisigProofPayload.MaxSigners + 1;
+        var totalBytes = 3 + oversized * (33 + 64);
+        var bigBuf = new byte[totalBytes];
+        bigBuf[0] = MultisigProofPayload.Version;
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(bigBuf.AsSpan(1, 2), (ushort)oversized);
+
+        Assert.ThrowsExactly<InvalidDataException>(() => MultisigProofPayload.Decode(bigBuf));
+    }
 }

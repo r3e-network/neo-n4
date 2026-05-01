@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `L2MetricsPlugin.ResolveBindAddress` rejects empty / null input
+
+- Empty `""` BindAddress fell through `IPAddress.TryParse` to `Dns.GetHostAddresses("")`, which on Linux returns ALL local interface addresses non-deterministically. The plugin would bind to a random interface depending on machine config — exactly the opaque-failure-mode an operator hates.
+- Now `ArgumentException.ThrowIfNullOrEmpty` rejects both upfront with a clear error.
+- **2 new tests**: empty + null both throw.
+
+Cumulative: 361 tests / 27 projects.
+
 ### Fixed — `DeployPlan.FromJson` rejects unsupported version
 
 - `FromJson` read the `version` field but didn't validate it. A future v2 plan with renamed fields (e.g. `nefPath` → `wasmPath`) would silently parse with the v1 reader and produce garbage. Same defensive pattern as the proof-payload decoders' version checks.

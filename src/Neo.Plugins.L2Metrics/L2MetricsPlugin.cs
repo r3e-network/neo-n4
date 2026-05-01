@@ -85,6 +85,7 @@ public sealed class L2MetricsPlugin : Plugin
     /// </summary>
     public static IPAddress ResolveBindAddress(string bindAddress)
     {
+        ArgumentException.ThrowIfNullOrEmpty(bindAddress);
         if (IPAddress.TryParse(bindAddress, out var direct))
             return direct;
 

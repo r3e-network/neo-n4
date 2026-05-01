@@ -121,6 +121,23 @@ public class UT_L2MetricsPlugin
     }
 
     [TestMethod]
+    public void ResolveBindAddress_EmptyString_Throws()
+    {
+        // Defensive: empty string would otherwise reach Dns.GetHostAddresses, which on
+        // Linux returns ALL local interface addresses non-deterministically. Operator
+        // gets a server bound to a random interface depending on machine config.
+        Assert.ThrowsExactly<ArgumentException>(() =>
+            L2MetricsPlugin.ResolveBindAddress(""));
+    }
+
+    [TestMethod]
+    public void ResolveBindAddress_Null_Throws()
+    {
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
+            L2MetricsPlugin.ResolveBindAddress(null!));
+    }
+
+    [TestMethod]
     public void Start_ConcurrentCalls_BindOnlyOnce()
     {
         // Without the start lock, two threads could both observe _server == null and

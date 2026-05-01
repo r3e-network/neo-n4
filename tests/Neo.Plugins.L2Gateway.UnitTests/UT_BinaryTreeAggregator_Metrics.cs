@@ -110,4 +110,25 @@ public class UT_BinaryTreeAggregator_Metrics
         var result = agg.Aggregate();
         Assert.IsNotNull(result);
     }
+
+    [TestMethod]
+    public void WithMetrics_PreservesPendingSubmissions()
+    {
+        // Symmetric with iter 70/71 fixes — the in-place metric swap must preserve the
+        // aggregator's pending submission list (re-constructing would lose them).
+        var initial = new InMemoryMetrics();
+        var agg = new BinaryTreeAggregator(metrics: initial);
+        agg.Submit(MkBatch(1001, new byte[] { 0x01 }, H('a')));
+        agg.Submit(MkBatch(1002, new byte[] { 0x02 }, H('b')));
+
+        var second = new InMemoryMetrics();
+        agg.WithMetrics(second);
+        Assert.AreEqual(2, agg.PendingCount, "pending list survives the rewire");
+
+        var result = agg.Aggregate();
+        Assert.IsNotNull(result);
+        Assert.AreEqual(2, result!.Constituents.Count);
+        Assert.AreEqual(1, second.GetCounter(MetricNames.GatewayAggregations), "post-rewire emit hits new sink");
+        Assert.AreEqual(0, initial.GetCounter(MetricNames.GatewayAggregations), "pre-rewire never aggregated");
+    }
 }

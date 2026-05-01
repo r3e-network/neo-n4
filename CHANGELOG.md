@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `BinaryTreeAggregator.WithMetrics` for consistency
+
+- Previously the aggregator only accepted metrics via constructor — an operator wanting to swap the sink mid-flight had to construct a new aggregator and lose the pending submission list. Adds an in-place `WithMetrics(IL2Metrics)` setter consistent with the same-named methods now on `BatchSealer`, `DepositProcessor`, `WithdrawalProcessor`, and the `L2DAPlugin` decorator-based path.
+- **1 new test** verifies the pending list survives a mid-flight sink swap.
+
+Cumulative: 335 tests / 27 projects. The "in-place metric swap on long-lived stateful components" pattern is now uniform across every plugin / library that holds state between metric emissions.
+
 ### Fixed — `L2BatchPlugin.WithMetrics` preserves sealer state
 
 - Same shape as the `L2BridgePlugin` fix in iter 70: calling `WithMetrics` set `_sealer = null`, which silently dropped the sealer's `_nextBatchNumber`, `_lastPostStateRoot`, and any in-progress builder. A mid-flight rewire would have caused the next batch to be numbered 1 again — colliding with whatever the chain had already submitted.

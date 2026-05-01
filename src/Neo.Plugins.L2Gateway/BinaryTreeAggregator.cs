@@ -22,7 +22,7 @@ public sealed class BinaryTreeAggregator : IGatewayAggregator
     private readonly Lock _gate = new();
     private readonly List<L2BatchCommitment> _pending = new();
     private readonly IRoundProver _roundProver;
-    private readonly IL2Metrics _metrics;
+    private IL2Metrics _metrics;
 
     /// <summary>The active round prover.</summary>
     public IRoundProver RoundProver => _roundProver;
@@ -32,6 +32,13 @@ public sealed class BinaryTreeAggregator : IGatewayAggregator
     {
         _roundProver = roundProver ?? new PassThroughRoundProver();
         _metrics = metrics ?? NoOpMetrics.Instance;
+    }
+
+    /// <summary>Swap the metrics sink in-place. Preserves pending submissions, unlike re-constructing.</summary>
+    public void WithMetrics(IL2Metrics metrics)
+    {
+        ArgumentNullException.ThrowIfNull(metrics);
+        _metrics = metrics;
     }
 
     /// <inheritdoc />

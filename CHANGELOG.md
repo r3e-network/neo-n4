@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Dispose-without-Start regression test for `MetricsHttpServer`
+
+- All existing tests called `Start()` after construction; the constructed-but-never-Started case was uncovered. Future refactor that assumes `_loop` is non-null at Dispose would silently NPE only in deployments where Start was deferred or never called.
+- **1 new test** constructs a server, calls Dispose without Start, then calls Dispose a second time — both must be no-throw.
+
+Cumulative: 345 tests / 27 projects.
+
 ### Docs — AGENTS.md catches up to current state
 
 - Component counts updated: 11 → 15 off-chain libs, 7 → 8 plugins (the new `Neo.Plugins.L2Metrics` was added in iter 50 but the `AGENTS.md` summary still said the old numbers).

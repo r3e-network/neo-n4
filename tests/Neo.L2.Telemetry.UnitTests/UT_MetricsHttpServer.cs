@@ -80,6 +80,20 @@ public class UT_MetricsHttpServer
     }
 
     [TestMethod]
+    public void Server_DisposeWithoutStart_DoesNotThrow()
+    {
+        // Regression — Dispose must handle the case where Start was never called.
+        // (Constructor binds the TcpListener so the port is already taken; we want to
+        // make sure we can release it cleanly even if Start was skipped.)
+        var handler = new MetricsRequestHandler(new InMemoryMetrics());
+        var server = new MetricsHttpServer(IPAddress.Loopback, port: 0, handler);
+        server.Dispose(); // no-throw
+
+        // Double-Dispose should also be safe.
+        server.Dispose();
+    }
+
+    [TestMethod]
     public async Task Server_StartTwiceIsIdempotent()
     {
         var handler = new MetricsRequestHandler(new InMemoryMetrics());

@@ -119,4 +119,34 @@ public class UT_L2MetricsPlugin
         Assert.ThrowsExactly<InvalidOperationException>(() =>
             L2MetricsPlugin.ResolveBindAddress("does-not-exist.invalid"));
     }
+
+    [TestMethod]
+    public void Start_ConcurrentCalls_BindOnlyOnce()
+    {
+        // Without the start lock, two threads could both observe _server == null and
+        // try to bind, racing on the port and leaking one of the two servers.
+        using var plugin = new L2MetricsPlugin();
+        var threadCount = 8;
+        var threads = new System.Threading.Thread[threadCount];
+        var barrier = new System.Threading.Barrier(threadCount);
+        var firstBound = 0;
+
+        for (var i = 0; i < threadCount; i++)
+        {
+            threads[i] = new System.Threading.Thread(() =>
+            {
+                barrier.SignalAndWait();
+                plugin.Start(portOverride: 0);
+            });
+            threads[i].Start();
+        }
+        foreach (var t in threads) t.Join();
+
+        firstBound = plugin.BoundPort;
+        Assert.AreNotEqual(0, firstBound, "Start should have bound a real port");
+
+        // After the storm, calling Start again is still a no-op — port stays the same.
+        plugin.Start(portOverride: 0);
+        Assert.AreEqual(firstBound, plugin.BoundPort);
+    }
 }

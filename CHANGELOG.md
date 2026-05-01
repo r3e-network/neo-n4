@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `L2MetricsPlugin.Start` is now thread-safe
+
+- `Start` was idempotent under serial calls but had a race window between the `_server is null` check and the assignment. Two threads calling `Start` concurrently could both observe `_server == null` and bind two servers, leaking one. Now guarded by a `Lock _startGate` so only the first call binds.
+- **1 new test** spawns 8 threads that all call `Start(portOverride: 0)` past a `Barrier`; asserts only one server is bound and the port stays stable across a follow-up `Start` call.
+
+Cumulative: 329 tests / 27 projects.
+
 ### Docs — CONTRIBUTING.md test count + new wire-format guidance
 
 - Updated stale "162 tests" → 328 in the Quick Start.

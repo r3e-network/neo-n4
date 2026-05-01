@@ -27,6 +27,7 @@ public sealed class L2MetricsPlugin : Plugin
     private InMemoryMetrics _metrics = new();
     private MetricsHttpServer? _server;
     private Func<bool>? _readinessCheck;
+    private readonly Lock _startGate = new();
 
     /// <summary>The shared metrics sink. L2 plugins call <c>WithMetrics(plugin.Metrics)</c>.</summary>
     public IL2Metrics Metrics => _metrics;
@@ -64,13 +65,17 @@ public sealed class L2MetricsPlugin : Plugin
     /// </param>
     public void Start(int? portOverride = null)
     {
-        if (!_settings.Enabled || _server is not null) return;
-        var address = ResolveBindAddress(_settings.BindAddress);
+        lock (_startGate)
+        {
+            if (!_settings.Enabled || _server is not null) return;
+            var address = ResolveBindAddress(_settings.BindAddress);
 
-        var handler = new MetricsRequestHandler(_metrics, _readinessCheck);
-        var port = portOverride ?? _settings.Port;
-        _server = new MetricsHttpServer(address, port, handler);
-        _server.Start();
+            var handler = new MetricsRequestHandler(_metrics, _readinessCheck);
+            var port = portOverride ?? _settings.Port;
+            var server = new MetricsHttpServer(address, port, handler);
+            server.Start();
+            _server = server;
+        }
     }
 
     /// <summary>

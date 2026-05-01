@@ -65,6 +65,20 @@ public static class MetricNames
     /// <summary>Counter: DA publishes that threw, tagged by <c>mode</c>.</summary>
     public const string DAPublishFailures = "l2.da.publish_failures";
 
+    // ---- Sequencer registry ----
+
+    /// <summary>Counter: sequencers registered to the local committee.</summary>
+    public const string SequencersRegistered = "l2.sequencer.registered";
+
+    /// <summary>Counter: sequencer exit windows started.</summary>
+    public const string SequencerExitsStarted = "l2.sequencer.exits_started";
+
+    /// <summary>Counter: sequencer exits that finalized (removed from committee).</summary>
+    public const string SequencerExitsFinalized = "l2.sequencer.exits_finalized";
+
+    /// <summary>Gauge: current committee size (active + exiting members).</summary>
+    public const string SequencerCommitteeSize = "l2.sequencer.committee_size";
+
     // ---- Forced inclusion / censorship / challenge ----
 
     /// <summary>Counter: forced-inclusion entries observed by the local node.</summary>

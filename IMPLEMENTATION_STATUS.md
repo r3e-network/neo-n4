@@ -31,7 +31,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.Proving.Sp1`      | Phase 4 SP1 P/Invoke wrapper with graceful fallback to mock when native bridge missing |
 | `Neo.L2.Executor`         | `SPEC.md` + `Receipt`, pluggable `ITransactionExecutor` / `IPostStateRootOracle` / `IL1MessageProcessor`, `ReferenceBatchExecutor`, **`KeyedStateStore` + `KeyedStateRootOracle`** |
 | `Neo.L2.ForcedInclusion`  | Anti-censorship `IForcedInclusionSource` + in-memory backend (emits `l2.forced_inclusion.observed` on Enqueue) |
-| `Neo.L2.Sequencer`        | `ISequencerCommitteeProvider` + in-memory backend (Register / BeginExit / Finalize) |
+| `Neo.L2.Sequencer`        | `ISequencerCommitteeProvider` + in-memory backend (Register / BeginExit / Finalize); emits `l2.sequencer.registered/exits_started/exits_finalized` + `l2.sequencer.committee_size` gauge |
 | `Neo.L2.Censorship`       | `CensorshipDetector` — turns overdue forced-tx entries into `CensorshipReport[]` (emits `l2.censorship.reports` per detection batch) |
 | `Neo.L2.Challenge`        | `FraudProofPayload` + `ChallengeOrchestrator` (emits `l2.challenge.fraud_proofs` on emit) + `BisectionGame` (emits `l2.challenge.bisection_rounds` on settle) for Phase-3 |
 | `Neo.L2.Settlement.Rpc`   | JSON-RPC client + `RpcSettlementClient` for L1 read methods + signer-delegated submit |
@@ -75,7 +75,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**302 unit + integration tests across 27 projects:**
+**306 unit + integration tests across 27 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -88,7 +88,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.Proving.Sp1.UnitTests`       | 6     | bridge unavailable, mock fallback, VK mismatch |
 | `Neo.L2.Executor.UnitTests`          | 14    | empty/single/many, ordering, determinism, **KeyedStateStore + oracle** |
 | `Neo.L2.ForcedInclusion.UnitTests`   | 8     | nonce ordering, replay, overdue detection   |
-| `Neo.L2.Sequencer.UnitTests`         | 9     | register/exit/finalize lifecycle            |
+| `Neo.L2.Sequencer.UnitTests`         | 13    | register/exit/finalize lifecycle, **metric emission for all three lifecycle ops + committee-size gauge** |
 | `Neo.L2.Censorship.UnitTests`        | 7     | overdue detection, sequencer attribution    |
 | `Neo.L2.Challenge.UnitTests`         | 19    | fraud-proof payload, orchestrator, BisectionGame |
 | `Neo.L2.Audit.UnitTests`             | 14    | continuity + proof-validity checks, summary, **`NoZeroProofCheck` (all-proved / ProofType.None / empty bytes / multi-failure / empty list)** |

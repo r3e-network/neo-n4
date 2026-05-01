@@ -53,6 +53,12 @@ public static class MetricCatalog
         [MetricNames.DAPublishLatencyMs]   = "Wall-clock milliseconds for each DA publish, tagged by DA mode",
         [MetricNames.DAPublishFailures]    = "DA publishes that threw, tagged by DA mode",
 
+        // Sequencer registry
+        [MetricNames.SequencersRegistered]      = "Sequencers registered to the local committee",
+        [MetricNames.SequencerExitsStarted]     = "Sequencer exit windows started",
+        [MetricNames.SequencerExitsFinalized]   = "Sequencer exits that finalized (removed from committee)",
+        [MetricNames.SequencerCommitteeSize]    = "Current committee size (active + exiting members)",
+
         // Forced inclusion / censorship / challenge
         [MetricNames.ForcedInclusionObserved] = "Forced-inclusion entries observed by this node",
         [MetricNames.CensorshipReports]    = "Censorship reports the detector emitted",

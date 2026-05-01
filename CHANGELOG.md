@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Sequencer registry telemetry
+
+- **`InMemorySequencerCommitteeProvider`** emits `l2.sequencer.registered` (counter) on Register, `l2.sequencer.exits_started` (counter) on BeginExit, `l2.sequencer.exits_finalized` (counter) on Finalize, and `l2.sequencer.committee_size` (gauge) on every Register / Finalize. Optional `IL2Metrics` constructor param. Lets operators alert on unexpected committee shrinkage or rapid churn.
+- **4 new `MetricNames`** constants + matching catalog entries.
+- **4 new tests**: counter+gauge on Register, exits_started on BeginExit (size unchanged), exits_finalized + size decremented on Finalize, NoOp default safety.
+
+Cumulative: 306 tests / 27 projects.
+
 ### Added — Forced-inclusion / censorship / challenge telemetry
 
 The four `MetricNames` constants for these subsystems were declared in iter 33 but not actually emitted. Closing that gap:

@@ -1,4 +1,5 @@
 using Neo.Cryptography.ECC;
+using Neo.L2.Telemetry;
 
 namespace Neo.L2.Sequencer;
 
@@ -10,22 +11,25 @@ public sealed class InMemorySequencerCommitteeProvider : ISequencerCommitteeProv
 {
     private readonly Lock _gate = new();
     private readonly Dictionary<ECPoint, CommitteeMember> _members = new();
+    private readonly IL2Metrics _metrics;
     private int _maxSize;
 
     /// <inheritdoc />
     public uint ChainId { get; }
 
     /// <summary>Construct against a chain id and committee size.</summary>
-    public InMemorySequencerCommitteeProvider(uint chainId, int maxCommitteeSize = 21)
+    public InMemorySequencerCommitteeProvider(uint chainId, int maxCommitteeSize = 21, IL2Metrics? metrics = null)
     {
         ChainId = chainId;
         _maxSize = maxCommitteeSize;
+        _metrics = metrics ?? NoOpMetrics.Instance;
     }
 
     /// <summary>Add a member with status=Active. Throws if already present or committee is full.</summary>
     public void Register(ECPoint pubKey, UInt160 l1Address)
     {
         ArgumentNullException.ThrowIfNull(pubKey);
+        int newSize;
         lock (_gate)
         {
             if (_members.ContainsKey(pubKey))
@@ -39,7 +43,10 @@ public sealed class InMemorySequencerCommitteeProvider : ISequencerCommitteeProv
                 Status = 1, // Active
                 ExitsAtUnixSeconds = 0,
             };
+            newSize = _members.Count;
         }
+        _metrics.IncrementCounter(MetricNames.SequencersRegistered);
+        _metrics.SetGauge(MetricNames.SequencerCommitteeSize, newSize);
     }
 
     /// <summary>Mark a member as exiting; their entry stays in the committee until <see cref="Finalize"/>.</summary>
@@ -54,12 +61,14 @@ public sealed class InMemorySequencerCommitteeProvider : ISequencerCommitteeProv
                 throw new InvalidOperationException("already exiting");
             _members[pubKey] = member with { Status = 2, ExitsAtUnixSeconds = exitsAtUnixSeconds };
         }
+        _metrics.IncrementCounter(MetricNames.SequencerExitsStarted);
     }
 
     /// <summary>Permanently remove an exiting member after their window has elapsed.</summary>
     public void Finalize(ECPoint pubKey, uint nowUnixSeconds)
     {
         ArgumentNullException.ThrowIfNull(pubKey);
+        int newSize;
         lock (_gate)
         {
             if (!_members.TryGetValue(pubKey, out var member))
@@ -69,7 +78,10 @@ public sealed class InMemorySequencerCommitteeProvider : ISequencerCommitteeProv
             if (nowUnixSeconds < member.ExitsAtUnixSeconds)
                 throw new InvalidOperationException("exit window still open");
             _members.Remove(pubKey);
+            newSize = _members.Count;
         }
+        _metrics.IncrementCounter(MetricNames.SequencerExitsFinalized);
+        _metrics.SetGauge(MetricNames.SequencerCommitteeSize, newSize);
     }
 
     /// <summary>Update the configured max committee size.</summary>

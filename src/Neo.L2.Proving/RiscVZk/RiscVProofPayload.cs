@@ -8,6 +8,17 @@ namespace Neo.L2.Proving.RiscVZk;
 /// </summary>
 /// <remarks>
 /// See doc.md §7.5 (Stage 2) and §8 (Proof system).
+/// <para>
+/// Wire layout (38 + proofLen bytes, all little-endian):
+/// <code>
+/// offset  size       field
+/// 0       1          version (currently 1)
+/// 1       1          proofSystem (<see cref="ProofSystem"/> byte)
+/// 2       32         verificationKeyId (UInt256)
+/// 34      4          proofLen (int32)
+/// 38      proofLen   proofBytes
+/// </code>
+/// </para>
 /// </remarks>
 public sealed record RiscVProofPayload
 {

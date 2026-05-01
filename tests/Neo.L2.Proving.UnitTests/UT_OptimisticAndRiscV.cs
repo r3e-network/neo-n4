@@ -173,4 +173,53 @@ public class UT_OptimisticAndRiscV
         var verify = await registry.VerifyAsync(commitment, inputs);
         Assert.IsFalse(verify.Valid);
     }
+
+    [TestMethod]
+    public void OptimisticProofPayload_ByteLayout_MatchesDocumentedOffsets()
+    {
+        // Pins the layout claimed in OptimisticProofPayload's XML docs.
+        var bond = UInt160.Parse("0x" + new string('a', 40));
+        var bondTx = UInt256.Parse("0x" + new string('b', 64));
+        var sig = new byte[] { 0xCA, 0xFE, 0xBA, 0xBE };
+
+        var payload = new OptimisticProofPayload
+        {
+            BondContract = bond,
+            BondTxHash = bondTx,
+            SubmittedAt = 0x1122334455667788,
+            SequencerSignature = sig,
+        };
+        var bytes = payload.Encode();
+
+        Assert.AreEqual(65 + sig.Length, bytes.Length);
+        Assert.AreEqual(OptimisticProofPayload.Version, bytes[0]);
+        CollectionAssert.AreEqual(bond.GetSpan().ToArray(), bytes[1..21]);
+        CollectionAssert.AreEqual(bondTx.GetSpan().ToArray(), bytes[21..53]);
+        Assert.AreEqual(0x1122334455667788UL, System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(bytes.AsSpan(53, 8)));
+        Assert.AreEqual(sig.Length, System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(61, 4)));
+        CollectionAssert.AreEqual(sig, bytes[65..]);
+    }
+
+    [TestMethod]
+    public void RiscVProofPayload_ByteLayout_MatchesDocumentedOffsets()
+    {
+        // Pins the layout claimed in RiscVProofPayload's XML docs.
+        var vk = UInt256.Parse("0x" + new string('c', 64));
+        var proofBytes = new byte[] { 0x11, 0x22, 0x33, 0x44, 0x55 };
+
+        var payload = new RiscVProofPayload
+        {
+            ProofSystem = ProofSystem.Sp1,
+            ProofBytes = proofBytes,
+            VerificationKeyId = vk,
+        };
+        var bytes = payload.Encode();
+
+        Assert.AreEqual(38 + proofBytes.Length, bytes.Length);
+        Assert.AreEqual(RiscVProofPayload.Version, bytes[0]);
+        Assert.AreEqual((byte)ProofSystem.Sp1, bytes[1]);
+        CollectionAssert.AreEqual(vk.GetSpan().ToArray(), bytes[2..34]);
+        Assert.AreEqual(proofBytes.Length, System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(34, 4)));
+        CollectionAssert.AreEqual(proofBytes, bytes[38..]);
+    }
 }

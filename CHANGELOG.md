@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Documented byte layouts for `OptimisticProofPayload` + `RiscVProofPayload`
+
+- Both payload types previously had `<remarks>See doc.md §X</remarks>` but no actual byte layout written down. A contract author parsing them off the wire had to read the source to know offsets. Layouts now spelled out as offset/size tables matching the format used in other canonical encoders.
+- **2 new tests** in `Neo.L2.Proving.UnitTests` pin every byte range so future encoder reorders fail the build.
+
+Cumulative: 318 tests / 27 projects.
+
 ### Fixed — `FraudProofPayload` doc-comment layout matches the encoder
 
 - The XML doc-comment listed fields in a different order than `Encode` actually produced. Real layout (101 bytes, all little-endian): version (1B) + preStateRoot (32B) + claimedPostStateRoot (32B) + replayedPostStateRoot (32B) + disputedTxIndex (uint32, 4B). Doc updated and a new byte-layout test pins the offsets so future reorders fail the build.

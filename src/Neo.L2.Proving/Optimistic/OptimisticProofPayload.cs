@@ -10,6 +10,18 @@ namespace Neo.L2.Proving.Optimistic;
 /// <remarks>
 /// See doc.md §7.5 (Stage 1). The challenge window enforcement is handled by
 /// <c>NeoHub.SettlementManager</c>, not by the verifier.
+/// <para>
+/// Wire layout (65 + sigLen bytes, all little-endian):
+/// <code>
+/// offset  size      field
+/// 0       1         version (currently 1)
+/// 1       20        bondContract (UInt160)
+/// 21      32        bondTxHash (UInt256)
+/// 53      8         submittedAt (uint64)
+/// 61      4         sigLen (int32)
+/// 65      sigLen    sequencerSignature
+/// </code>
+/// </para>
 /// </remarks>
 public sealed record OptimisticProofPayload
 {

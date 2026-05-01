@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Bidirectional `MetricCatalog` ↔ `MetricNames` consistency check
+
+- The existing completeness test enforced "every `MetricNames` constant has a catalog entry." The reverse — "every catalog entry references a real constant" — was uncovered. An orphan description surviving a metric rename or removal would silently bloat the exposition without triggering any test.
+- **1 new test** reflects over `MetricNames` constants and asserts every catalog key matches one. Both directions are now pinned.
+
+Cumulative: 347 tests / 27 projects.
+
 ### Added — `MetricsHttpServer.IsRunning` diagnostic
 
 - Public `IsRunning` property returns `true` after `Start()` and `false` after `Dispose()`. Useful for integration-test assertions, operator diagnostics, and host-side health checks that need to verify the metrics endpoint is up before reporting the node ready.

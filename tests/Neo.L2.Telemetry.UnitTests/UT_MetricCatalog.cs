@@ -27,6 +27,23 @@ public class UT_MetricCatalog
     }
 
     [TestMethod]
+    public void Catalog_HasNo_OrphanEntries()
+    {
+        // Reverse direction: every catalog entry must reference a real MetricNames constant.
+        // Catches orphan descriptions that survive a metric rename or removal.
+        var nameType = typeof(MetricNames);
+        var declared = nameType.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+            .Where(f => f.IsLiteral && !f.IsInitOnly && f.FieldType == typeof(string))
+            .Select(f => (string)f.GetRawConstantValue()!)
+            .ToHashSet();
+
+        var orphans = MetricCatalog.Descriptions.Keys.Where(k => !declared.Contains(k)).ToList();
+
+        Assert.AreEqual(0, orphans.Count,
+            $"MetricCatalog has descriptions for non-existent MetricNames: {string.Join(", ", orphans)}. Either restore the MetricNames constant or remove the catalog entry.");
+    }
+
+    [TestMethod]
     public void GetHelp_UnknownName_ReturnsGenericFallback()
     {
         Assert.AreEqual("L2 telemetry metric", MetricCatalog.GetHelp("not.a.real.metric"));

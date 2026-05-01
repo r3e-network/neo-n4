@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Docs — AGENTS.md catches up to current state
+
+- Component counts updated: 11 → 15 off-chain libs, 7 → 8 plugins (the new `Neo.Plugins.L2Metrics` was added in iter 50 but the `AGENTS.md` summary still said the old numbers).
+- §5 row in the doc.md→code mapping now includes `L2Metrics` alongside the other plugins.
+- New "Cross-cutting / Telemetry" row points at `Neo.L2.Telemetry` + `Neo.Plugins.L2Metrics` and `docs/telemetry.md`, mirroring the same row in `architecture-walkthrough.md`.
+- Quick-commands test-count refreshed (194 → 344).
+
 ### Fixed — Hard cap on `MultisigProofPayload` signer count
 
 - `signerCount` is uint16, naturally capped at 65535. The decoder validated buffer-size match but had no upper limit on count itself — a 65535-signer header forced allocation of `SignerSignature[65535]` (~7 MB) before any sanity check. Production multisigs run 7-21 signers; cap at `MaxSigners = 256` is generous but defensive.

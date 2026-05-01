@@ -35,7 +35,7 @@ components on top of pre-existing Neo ecosystem repos in `/home/neo/git/`:
   generally NOT what to extend.
 
 **Before writing a new component, search this repo's existing libs first** (the per-component
-table in `IMPLEMENTATION_STATUS.md` has 11 off-chain libs + 7 plugins + 19 contracts; many
+table in `IMPLEMENTATION_STATUS.md` has 15 off-chain libs + 8 plugins + 19 contracts; many
 features that look missing are already there).
 
 ## Mapping `doc.md` to code (current state)
@@ -44,7 +44,7 @@ features that look missing are already there).
 | ---------- | --------------------------- | ------------- |
 | §3.2 NeoHub                | L1 contract suite          | `contracts/NeoHub.*` (13 contracts) |
 | §4 Neo Gateway             | Phase-5 aggregation        | `src/Neo.Plugins.L2Gateway` (`BinaryTreeAggregator` + `IRoundProver`) |
-| §5 L2 node internals       | Per-L2 plugin layout       | `src/Neo.Plugins.L2{Batch,Settlement,Bridge,DA,Prover,Rpc,Gateway}` |
+| §5 L2 node internals       | Per-L2 plugin layout       | `src/Neo.Plugins.L2{Batch,Settlement,Bridge,DA,Prover,Rpc,Gateway,Metrics}` |
 | §7.1 Sequencer / dBFT      | Committee selection        | `contracts/NeoHub.SequencerRegistry` + `src/Neo.L2.Sequencer` |
 | §7.2 Batcher               | Block ↦ batch              | `src/Neo.L2.Batch` + `src/Neo.Plugins.L2Batch` |
 | §7.3 StateRootGenerator    | Per-batch roots            | `src/Neo.L2.State` + `src/Neo.L2.Executor.State.KeyedStateStore` |
@@ -64,6 +64,7 @@ features that look missing are already there).
 | §18 Phased rollout         | Phase 0–6 plan             | `IMPLEMENTATION_STATUS.md` |
 | §19 Module layout          | Recommended structure      | `src/`, `contracts/`, `tools/` (this layout matches §19) |
 | §20 MVP                    | Phase-0 success criteria   | `tests/Neo.L2.IntegrationTests/UT_Mvp_Phase0_Sidechain` |
+| Cross-cutting              | Telemetry / observability  | `src/Neo.L2.Telemetry` + `src/Neo.Plugins.L2Metrics` (composition root); operator catalog in [`docs/telemetry.md`](./docs/telemetry.md) |
 
 For more detail, see [`docs/architecture-walkthrough.md`](./docs/architecture-walkthrough.md).
 
@@ -147,7 +148,7 @@ Phases 0/1/2/3 are ✅. Phases 4/5/6 are 🟡 — substantial scaffolding + test
 ## Quick commands
 
 ```bash
-# Type-check + run all 194 tests
+# Type-check + run all 344 tests
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Devnet demonstration with audit pass

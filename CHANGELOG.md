@@ -5,6 +5,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Docs — Refresh README counts to match current state
+
+- README's "What ships" section was stale at 194 tests / 19 test projects / 11 off-chain libs / 7 plugins. Now: 320 tests / 21 test projects / 15 off-chain libs / 8 plugins, with the new bullets calling out the production-grade telemetry stack (Prometheus + `/metrics` + `/healthz` + `/readyz`) and that every canonical wire format has a byte-layout test.
+- Quick-start gets a `--metrics-port 9090` example for the live HTTP scrape.
+
 ### Docs — Walk #4 covers telemetry in `docs/architecture-walkthrough.md`
 
 - Added a "Walk #4: telemetry — emit, snapshot, scrape" section with an ASCII diagram of the metrics pipeline + the catalog of every component → metric family mapping. Cross-references `docs/telemetry.md` for the operator detail.

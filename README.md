@@ -74,7 +74,7 @@ neo4/
 │   └── Neo.Hub.Deploy/          # neo-hub-deploy declarative L1 deploy planner
 ├── bridge/
 │   └── neo-zkvm-bridge/         # Rust cdylib + C ABI for SP1 prover P/Invoke
-└── tests/                       # 194 tests across 19 test projects
+└── tests/                       # 320 tests across 21 test projects
 ```
 
 ## Quick start
@@ -83,8 +83,11 @@ Requires **.NET 10 SDK** (`dotnet 10.0.x`) and a sibling clone of
 [`neo-project/neo`](https://github.com/neo-project/neo) at `../neo`.
 
 ```bash
-# Type-check + run all 194 tests
+# Type-check + run all 320 tests
 dotnet test Neo.L2.sln /p:NuGetAudit=false
+
+# Same plus a live HTTP /metrics scrape
+dotnet run --project tools/Neo.L2.Devnet -- 5 --metrics-port 9090
 
 # Run the in-process devnet (state-root continuity + audit pass)
 dotnet run --project tools/Neo.L2.Devnet -- 5
@@ -103,13 +106,15 @@ See [`docs/getting-started.md`](./docs/getting-started.md) for the annotated wal
 
 - **19 smart contracts** (13 NeoHub L1 + 6 L2 native), all type-checked against
   [`Neo.SmartContract.Framework`](https://github.com/neo-project/neo-devpack-dotnet).
-- **11 off-chain libraries** with deterministic encodings, real Merkle state-root
-  computation, multisig + optimistic + ZK-mock provers, JSON-RPC client.
-- **7 neo-node plugins** (`Neo.Plugins.L2*`) extending `Neo.Plugins.Plugin`.
+- **15 off-chain libraries** with deterministic encodings (every wire format has byte-layout tests),
+  real Merkle state-root computation, multisig + optimistic + ZK-mock provers,
+  JSON-RPC client, end-to-end audit framework, and a production-grade telemetry stack
+  (Prometheus exporter + `/metrics` + `/healthz` + `/readyz` HTTP endpoints).
+- **8 neo-node plugins** (`Neo.Plugins.L2*` — Batch, Settlement, Bridge, DA, Prover, Rpc, Gateway, Metrics)
+  extending `Neo.Plugins.Plugin`.
 - **3 CLI tools** (`neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`).
 - **1 Rust FFI bridge** crate (`neo-zkvm-bridge`) for SP1 prover P/Invoke.
-- **194 tests / 19 test projects**, all green.
-- **494 lines of contributor + getting-started + architecture docs**.
+- **320 tests / 21 test projects**, all green.
 
 ## License
 

@@ -25,6 +25,9 @@ public sealed record RiscVProofPayload
     /// <summary>Wire-format version (currently <c>1</c>).</summary>
     public const byte Version = 1;
 
+    /// <summary>Hard cap on inner proof bytes on Decode (defensive — matches BatchSerializer's 1 MiB cap).</summary>
+    public const int MaxProofBytes = 1024 * 1024;
+
     /// <summary>Identifier of the underlying proof system (e.g. SP1, RISC-Zero).</summary>
     public required ProofSystem ProofSystem { get; init; }
 
@@ -57,7 +60,7 @@ public sealed record RiscVProofPayload
         var system = (ProofSystem)bytes[1];
         var vk = new UInt256(bytes.Slice(2, 32));
         var len = BinaryPrimitives.ReadInt32LittleEndian(bytes.Slice(34, 4));
-        if (len < 0 || 38 + len != bytes.Length)
+        if (len < 0 || len > MaxProofBytes || 38 + len != bytes.Length)
             throw new InvalidDataException($"Bad proof length {len}");
         var proof = bytes.Slice(38, len).ToArray();
         return new RiscVProofPayload { ProofSystem = system, ProofBytes = proof, VerificationKeyId = vk };

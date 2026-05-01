@@ -28,6 +28,9 @@ public sealed record OptimisticProofPayload
     /// <summary>Wire-format version (currently <c>1</c>).</summary>
     public const byte Version = 1;
 
+    /// <summary>Hard cap on the sequencer-signature byte length on Decode (defensive — real signatures are 64 bytes).</summary>
+    public const int MaxSignatureBytes = 4096;
+
     /// <summary>L1 contract that holds the sequencer's bond for this claim.</summary>
     public required UInt160 BondContract { get; init; }
 
@@ -65,7 +68,7 @@ public sealed record OptimisticProofPayload
         var bondTxHash = new UInt256(bytes.Slice(21, 32));
         var submittedAt = BinaryPrimitives.ReadUInt64LittleEndian(bytes.Slice(53, 8));
         var sigLen = BinaryPrimitives.ReadInt32LittleEndian(bytes.Slice(61, 4));
-        if (sigLen < 0 || 65 + sigLen != bytes.Length)
+        if (sigLen < 0 || sigLen > MaxSignatureBytes || 65 + sigLen != bytes.Length)
             throw new InvalidDataException($"Bad sequencer signature length {sigLen}");
         var sig = bytes.Slice(65, sigLen).ToArray();
 

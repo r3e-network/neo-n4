@@ -201,6 +201,39 @@ public class UT_OptimisticAndRiscV
     }
 
     [TestMethod]
+    public void OptimisticProofPayload_Decode_RejectsOversizedSigLen()
+    {
+        var inner = new OptimisticProofPayload
+        {
+            BondContract = UInt160.Zero, BondTxHash = UInt256.Zero,
+            SubmittedAt = 0, SequencerSignature = new byte[64],
+        };
+        var bytes = inner.Encode();
+        var oversized = OptimisticProofPayload.MaxSignatureBytes + 1;
+        var bigBuf = new byte[65 + oversized];
+        Array.Copy(bytes, bigBuf, 65);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(bigBuf.AsSpan(61, 4), oversized);
+
+        Assert.ThrowsExactly<InvalidDataException>(() => OptimisticProofPayload.Decode(bigBuf));
+    }
+
+    [TestMethod]
+    public void RiscVProofPayload_Decode_RejectsOversizedProofLen()
+    {
+        var inner = new RiscVProofPayload
+        {
+            ProofSystem = ProofSystem.Sp1, VerificationKeyId = UInt256.Zero, ProofBytes = new byte[8],
+        };
+        var bytes = inner.Encode();
+        var oversized = RiscVProofPayload.MaxProofBytes + 1;
+        var bigBuf = new byte[38 + oversized];
+        Array.Copy(bytes, bigBuf, 38);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(bigBuf.AsSpan(34, 4), oversized);
+
+        Assert.ThrowsExactly<InvalidDataException>(() => RiscVProofPayload.Decode(bigBuf));
+    }
+
+    [TestMethod]
     public void RiscVProofPayload_ByteLayout_MatchesDocumentedOffsets()
     {
         // Pins the layout claimed in RiscVProofPayload's XML docs.

@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Hard caps on `OptimisticProofPayload` + `RiscVProofPayload` decode
+
+- The decoders accepted any non-negative length matching the buffer size — no upper bound. A hostile peer feeding a 4 GiB length-prefix would crash the verifier on `OutOfMemory` instead of getting a clean `InvalidDataException`. The outer `BatchSerializer.Decode` already caps at 1 MiB, but a caller decoding these payloads directly (skipping `BatchSerializer`) inherits no protection.
+- Added defense-in-depth caps: `OptimisticProofPayload.MaxSignatureBytes = 4096` (real signatures are 64), `RiscVProofPayload.MaxProofBytes = 1 MiB` (matches `BatchSerializer`).
+- **2 new tests** craft a header claiming oversized length; assert decoder throws `InvalidDataException`.
+
+Cumulative: 343 tests / 27 projects.
+
 ### Added — `BatchSerializer` proof-size-limit tests
 
 - `BatchSerializer.Encode` validates `Proof.Length <= ProofMaxBytes` (1 MiB) and `Decode` validates the same in the header. Both checks were uncovered by tests.

@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `BatchSerializer` proof-size-limit tests
+
+- `BatchSerializer.Encode` validates `Proof.Length <= ProofMaxBytes` (1 MiB) and `Decode` validates the same in the header. Both checks were uncovered by tests.
+- **2 new tests**: encoding a 1 MiB+1 byte proof throws `ArgumentException`; decoding a header claiming oversized proof throws `InvalidDataException`. Closes a defense-in-depth gap — these limits are the safety net against a hostile peer dumping a 4 GiB proof at the L1 settlement contract.
+
+Cumulative: 341 tests / 27 projects.
+
 ### Fixed — `PrometheusExporter` formats `±Infinity` per spec
 
 - .NET's `double.ToString` returns `Infinity` / `-Infinity` for non-finite values, but Prometheus exposition format requires `+Inf` / `-Inf`. A scraper rejects the bad form. None of the current emit sites produce infinity, so this is defensive — but a misbehaving plugin (e.g. division by zero in a gauge) would silently corrupt the scrape.

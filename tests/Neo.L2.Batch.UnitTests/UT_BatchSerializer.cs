@@ -135,6 +135,27 @@ public class UT_BatchSerializer
     }
 
     [TestMethod]
+    public void Commitment_Encode_RejectsOversizedProof()
+    {
+        // Proof exceeding 1 MiB throws — defensive limit matching NeoHub.
+        var oversized = new byte[1024 * 1024 + 1];
+        var c = Sample(oversized);
+        Assert.ThrowsExactly<ArgumentException>(() => BatchSerializer.Encode(c));
+    }
+
+    [TestMethod]
+    public void Commitment_Decode_RejectsHeaderClaimingOversizedProof()
+    {
+        // Craft a header that claims proof length > ProofMaxBytes; decoder must reject before
+        // attempting to allocate the array.
+        var c = Sample(new byte[] { 0xAA });
+        var bytes = BatchSerializer.Encode(c);
+        // Overwrite the proof-length prefix at offset 317 with a huge value.
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(317, 4), 1024 * 1024 + 1);
+        Assert.ThrowsExactly<InvalidDataException>(() => BatchSerializer.Decode(bytes));
+    }
+
+    [TestMethod]
     public void PublicInputs_ByteLayout_MatchesDocumentedOffsets()
     {
         var inputs = new PublicInputs

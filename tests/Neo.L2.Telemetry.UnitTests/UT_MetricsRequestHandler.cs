@@ -153,4 +153,18 @@ public class UT_MetricsRequestHandler
         Assert.AreEqual(200, handler.Handle("/healthz/").StatusCode);
         Assert.AreEqual(200, handler.Handle("/healthz?probe=1").StatusCode);
     }
+
+    [TestMethod]
+    public void Readyz_PredicateThrows_Returns503()
+    {
+        // A buggy or missing-dependency readiness predicate should produce 503, not crash
+        // the connection. Operators chase the underlying exception in their logs, not via HTTP.
+        var handler = new MetricsRequestHandler(new InMemoryMetrics(),
+            readinessCheck: () => throw new InvalidOperationException("dependency unavailable"));
+
+        var response = handler.Handle("/readyz");
+
+        Assert.AreEqual(503, response.StatusCode);
+        StringAssert.Contains(response.Body, "predicate threw");
+    }
 }

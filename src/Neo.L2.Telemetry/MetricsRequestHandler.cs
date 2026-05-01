@@ -59,9 +59,20 @@ public sealed class MetricsRequestHandler
 
     private MetricsHttpResponse HandleReady()
     {
-        if (_readinessCheck is null || _readinessCheck())
-            return new MetricsHttpResponse(200, PlainText, "ready\n");
-        return new MetricsHttpResponse(503, PlainText, "not ready\n");
+        if (_readinessCheck is null) return new MetricsHttpResponse(200, PlainText, "ready\n");
+
+        bool isReady;
+        try { isReady = _readinessCheck(); }
+        catch
+        {
+            // If the predicate itself threw, we definitely aren't ready — surface 503 instead
+            // of letting the exception kill the connection. The body is generic on purpose;
+            // operators should look at the exception in their logs, not the HTTP response.
+            return new MetricsHttpResponse(503, PlainText, "predicate threw\n");
+        }
+        return isReady
+            ? new MetricsHttpResponse(200, PlainText, "ready\n")
+            : new MetricsHttpResponse(503, PlainText, "not ready\n");
     }
 
     private static string NormalizePath(string path)

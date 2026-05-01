@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `/readyz` returns 503 when the readiness predicate throws
+
+- A readiness predicate that threw (e.g. checking a missing dependency) propagated the exception out of `Handle`, dropped the connection, and gave the scraper a TCP-level error rather than a clean 503. Predicate is wrapped in try/catch now; any throw produces 503 with body `predicate threw\n`. Operators chase the underlying exception in their logs, not the HTTP response.
+- **1 new test** asserts a throwing predicate produces 503.
+
+Cumulative: 331 tests / 27 projects.
+
 ### Fixed — `MetricsHttpServer` slow-client deadline
 
 - `NetworkStream.ReadTimeout` doesn't apply to async reads, so a client that connected but never sent a request line could pin a worker thread indefinitely (slow-loris-style). Each connection now runs under a `CancellationTokenSource` linked to a 5-second deadline + the server's shutdown token. Both the read and write paths receive the linked token so they cancel together.

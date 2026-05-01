@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Neo.L2.Challenge\Neo.L2.Challenge.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Telemetry\Neo.L2.Telemetry.csproj" />
   </ItemGroup>
 
 </Project>

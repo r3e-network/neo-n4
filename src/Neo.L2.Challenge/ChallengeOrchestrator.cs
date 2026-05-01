@@ -1,3 +1,5 @@
+using Neo.L2.Telemetry;
+
 namespace Neo.L2.Challenge;
 
 /// <summary>
@@ -9,12 +11,14 @@ namespace Neo.L2.Challenge;
 public sealed class ChallengeOrchestrator
 {
     private readonly IFraudProofGenerator _replayer;
+    private readonly IL2Metrics _metrics;
 
     /// <summary>Construct with the replayer.</summary>
-    public ChallengeOrchestrator(IFraudProofGenerator replayer)
+    public ChallengeOrchestrator(IFraudProofGenerator replayer, IL2Metrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(replayer);
         _replayer = replayer;
+        _metrics = metrics ?? NoOpMetrics.Instance;
     }
 
     /// <summary>
@@ -45,12 +49,14 @@ public sealed class ChallengeOrchestrator
             return null;
         }
 
-        return new FraudProofPayload
+        var payload = new FraudProofPayload
         {
             PreStateRoot = claimedCommitment.PreStateRoot,
             ClaimedPostStateRoot = claimedCommitment.PostStateRoot,
             ReplayedPostStateRoot = replayedRoot,
             DisputedTxIndex = 0, // MVP: no per-tx narrowing yet.
         };
+        _metrics.IncrementCounter(MetricNames.FraudProofsEmitted);
+        return payload;
     }
 }

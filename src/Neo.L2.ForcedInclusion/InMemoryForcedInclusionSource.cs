@@ -1,3 +1,5 @@
+using Neo.L2.Telemetry;
+
 namespace Neo.L2.ForcedInclusion;
 
 /// <summary>
@@ -9,14 +11,16 @@ public sealed class InMemoryForcedInclusionSource : IForcedInclusionSource
     private readonly Lock _gate = new();
     private readonly SortedDictionary<ulong, ForcedInclusionEntry> _pending = new();
     private readonly HashSet<ulong> _consumed = new();
+    private readonly IL2Metrics _metrics;
 
     /// <inheritdoc />
     public uint ChainId { get; }
 
-    /// <summary>Construct against a chain id.</summary>
-    public InMemoryForcedInclusionSource(uint chainId)
+    /// <summary>Construct against a chain id, optionally wired to a metrics sink.</summary>
+    public InMemoryForcedInclusionSource(uint chainId, IL2Metrics? metrics = null)
     {
         ChainId = chainId;
+        _metrics = metrics ?? NoOpMetrics.Instance;
     }
 
     /// <summary>Number of entries that have not yet been drained or consumed.</summary>
@@ -36,6 +40,7 @@ public sealed class InMemoryForcedInclusionSource : IForcedInclusionSource
             if (!_pending.TryAdd(entry.Nonce, entry))
                 throw new InvalidOperationException($"nonce {entry.Nonce} already pending");
         }
+        _metrics.IncrementCounter(MetricNames.ForcedInclusionObserved);
     }
 
     /// <inheritdoc />

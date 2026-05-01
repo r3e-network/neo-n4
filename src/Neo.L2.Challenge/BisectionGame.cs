@@ -1,3 +1,5 @@
+using Neo.L2.Telemetry;
+
 namespace Neo.L2.Challenge;
 
 /// <summary>
@@ -19,6 +21,7 @@ public sealed class BisectionGame
 {
     private readonly UInt256[] _challengerCheckpoints;
     private readonly UInt256[] _sequencerCheckpoints;
+    private readonly IL2Metrics _metrics;
     private int _lo;
     private int _hi;
     private int _rounds;
@@ -52,7 +55,7 @@ public sealed class BisectionGame
     /// <remarks>
     /// Length-N+1 arrays: index 0 is the agreed pre-state; index N is the disputed post-state.
     /// </remarks>
-    public BisectionGame(UInt256[] challengerCheckpoints, UInt256[] sequencerCheckpoints)
+    public BisectionGame(UInt256[] challengerCheckpoints, UInt256[] sequencerCheckpoints, IL2Metrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(challengerCheckpoints);
         ArgumentNullException.ThrowIfNull(sequencerCheckpoints);
@@ -67,6 +70,7 @@ public sealed class BisectionGame
 
         _challengerCheckpoints = challengerCheckpoints;
         _sequencerCheckpoints = sequencerCheckpoints;
+        _metrics = metrics ?? NoOpMetrics.Instance;
         TxCount = challengerCheckpoints.Length - 1;
         _lo = 0;                              // agree at this index
         _hi = TxCount;                         // disagree at this index
@@ -124,6 +128,7 @@ public sealed class BisectionGame
         {
             _disputedIndex = _lo;
             _settled = true;
+            _metrics.RecordHistogram(MetricNames.BisectionRounds, _rounds);
         }
     }
 

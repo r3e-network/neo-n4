@@ -1,6 +1,7 @@
 using System.Numerics;
 using Neo.L2.ForcedInclusion;
 using Neo.L2.Sequencer;
+using Neo.L2.Telemetry;
 
 namespace Neo.L2.Censorship;
 
@@ -23,6 +24,7 @@ public sealed class CensorshipDetector
     private readonly ISequencerCommitteeProvider _committee;
     private readonly IClock _clock;
     private readonly BigInteger _baseSlashAmount;
+    private readonly IL2Metrics _metrics;
 
     /// <summary>Amount to slash (default policy: fixed per overdue entry).</summary>
     public BigInteger BaseSlashAmount => _baseSlashAmount;
@@ -32,7 +34,8 @@ public sealed class CensorshipDetector
         IForcedInclusionSource source,
         ISequencerCommitteeProvider committee,
         IClock? clock = null,
-        BigInteger? baseSlashAmount = null)
+        BigInteger? baseSlashAmount = null,
+        IL2Metrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(committee);
@@ -40,6 +43,7 @@ public sealed class CensorshipDetector
         _committee = committee;
         _clock = clock ?? new SystemClock();
         _baseSlashAmount = baseSlashAmount ?? new BigInteger(1_000_000); // 1.0 GAS at 8 decimals
+        _metrics = metrics ?? NoOpMetrics.Instance;
     }
 
     /// <summary>
@@ -77,6 +81,8 @@ public sealed class CensorshipDetector
                     SlashAmount = _baseSlashAmount,
                 });
             }
+            if (reports.Count > 0)
+                _metrics.IncrementCounter(MetricNames.CensorshipReports, reports.Count);
             return reports;
         }
 
@@ -98,6 +104,8 @@ public sealed class CensorshipDetector
                 SlashAmount = _baseSlashAmount,
             });
         }
+        if (reports.Count > 0)
+            _metrics.IncrementCounter(MetricNames.CensorshipReports, reports.Count);
         return reports;
     }
 }

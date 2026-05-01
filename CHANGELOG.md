@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Forced-inclusion / censorship / challenge telemetry
+
+The four `MetricNames` constants for these subsystems were declared in iter 33 but not actually emitted. Closing that gap:
+
+- **`InMemoryForcedInclusionSource`** emits `l2.forced_inclusion.observed` on every `Enqueue`. Optional `IL2Metrics` constructor param.
+- **`CensorshipDetector`** emits `l2.censorship.reports` (incremented by report count) when `DetectOverdueAsync` returns a non-empty list. Optional `IL2Metrics` constructor param.
+- **`ChallengeOrchestrator`** emits `l2.challenge.fraud_proofs` when `InspectAsync` returns a non-null payload. Optional `IL2Metrics` constructor param.
+- **`BisectionGame`** records `l2.challenge.bisection_rounds` (histogram) when the game settles, value = number of rounds taken. Optional `IL2Metrics` constructor param.
+- **6 new tests** across the three lib test projects.
+
+Cumulative: 302 tests / 27 projects. Every metric in `MetricCatalog` now has at least one emitter in source.
+
 ### Added — Misc polish
 
 - **`Neo.Plugins.L2Metrics/config.json`** — config template so operators can drop the plugin into a Neo node and have it work. Mirrors the file shape every other L2 plugin uses (`PluginConfiguration` block).

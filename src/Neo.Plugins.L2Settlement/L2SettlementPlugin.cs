@@ -103,14 +103,17 @@ public sealed class L2SettlementPlugin : Plugin
     /// <summary>Drain one pending batch (best-effort — exceptions are logged, not surfaced).</summary>
     public async System.Threading.Tasks.Task SubmitNextAsync()
     {
+        // Check wiring BEFORE dequeue — otherwise an un-wired plugin silently drains items
+        // into the void. The metric path also wouldn't tag this as a failure (we'd just
+        // exit). Items stay queued until Wire() is called.
+        if (_prover is null || _client is null) return;
+
         L2BatchCommitment? next;
         lock (_pending)
         {
             if (_pending.Count == 0) return;
             next = _pending.Dequeue();
         }
-
-        if (_prover is null || _client is null) return;
 
         try
         {

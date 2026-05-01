@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `L2SettlementPlugin.SubmitNextAsync` no longer drains queue when un-wired
+
+- Real silent-data-loss bug: `SubmitNextAsync` dequeued an item BEFORE checking whether `_prover` / `_client` had been wired. If `Wire()` hadn't been called yet (operator setup error, or `OnBatchSealed` event firing before wiring completed), every batch flowing through this plugin would be silently dropped — no exception, no failure metric, just gone.
+- Fixed by moving the wiring check before the dequeue. Items stay in the queue until `Wire()` is called.
+- **1 new test** asserts pending count stays at 1 after `SubmitNextAsync` is called without `Wire`.
+
+Cumulative: 357 tests / 27 projects.
+
 ### Added — `MetricsEmittingDAWriter` unwrap/rewrap state-preservation test
 
 - `L2DAPlugin.WithMetrics` unwraps the existing decorator and rewraps with the new sink. The inner `InMemoryDAWriter`'s content store is preserved through this swap, but no test pinned that property — a future refactor that re-allocated the inner could silently lose published content.

@@ -72,6 +72,21 @@ public class UT_L2SettlementPlugin_Metrics
     }
 
     [TestMethod]
+    public async Task SubmitNextAsync_WithoutWire_DoesNotDrainQueue()
+    {
+        // Regression: previously SubmitNextAsync dequeued FIRST, then checked _prover/_client,
+        // silently losing the item if Wire() hadn't been called. Now the wiring check comes
+        // before the dequeue so items stay in the queue until properly wired.
+        using var settlement = new L2SettlementPlugin();
+        settlement.Enqueue(BuildCommitment(batchNumber: 1));
+        Assert.AreEqual(1, settlement.PendingCount);
+
+        await settlement.SubmitNextAsync(); // no Wire called
+
+        Assert.AreEqual(1, settlement.PendingCount, "item must stay queued until Wire() is called");
+    }
+
+    [TestMethod]
     public async Task Enqueue_WhenDisabled_DoesNothing_AndPendingStaysZero()
     {
         // We can't easily flip the private _settings.Enabled, so this test just confirms

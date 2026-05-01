@@ -43,10 +43,16 @@ public sealed class MetricsHttpServer : IDisposable
     public MetricsHttpServer(IPAddress address, int port, MetricsRequestHandler handler)
         : this(new IPEndPoint(address, port), handler) { }
 
-    /// <summary>Start accepting requests. Runs until <see cref="Dispose"/>.</summary>
+    private readonly Lock _startGate = new();
+
+    /// <summary>Start accepting requests. Runs until <see cref="Dispose"/>. Idempotent — extra calls are no-ops.</summary>
     public void Start()
     {
-        _loop = Task.Run(AcceptLoopAsync);
+        lock (_startGate)
+        {
+            if (_loop is not null) return;
+            _loop = Task.Run(AcceptLoopAsync);
+        }
     }
 
     private async Task AcceptLoopAsync()

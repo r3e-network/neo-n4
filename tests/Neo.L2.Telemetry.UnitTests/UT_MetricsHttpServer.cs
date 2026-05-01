@@ -80,6 +80,19 @@ public class UT_MetricsHttpServer
     }
 
     [TestMethod]
+    public async Task Server_StartTwiceIsIdempotent()
+    {
+        var handler = new MetricsRequestHandler(new InMemoryMetrics());
+        using var server = new MetricsHttpServer(IPAddress.Loopback, port: 0, handler);
+        server.Start();
+        server.Start(); // no-op
+
+        using var client = new HttpClient(new HttpClientHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(5) };
+        var resp = await client.GetAsync($"http://127.0.0.1:{server.Endpoint.Port}/metrics");
+        Assert.AreEqual(200, (int)resp.StatusCode);
+    }
+
+    [TestMethod]
     public async Task Server_RemainsResponsive_AfterSlowClient_GetsCutOff()
     {
         // Open a TCP connection but never send a request line. The server should drop

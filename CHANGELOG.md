@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `MetricsHttpServer.Start` is now idempotent
+
+- Previously a second `Start` call would overwrite `_loop` with a new `Task.Run`, leaving the first accept loop dangling on the same `TcpListener`. Both loops would race on `AcceptTcpClientAsync`, only the latest got awaited at Dispose. Defensive fix consistent with iter 67's plugin-level lock.
+- **1 new test** asserts `Start()` twice still serves a clean scrape.
+
+Cumulative: 336 tests / 27 projects.
+
 ### Added — `BinaryTreeAggregator.WithMetrics` for consistency
 
 - Previously the aggregator only accepted metrics via constructor — an operator wanting to swap the sink mid-flight had to construct a new aggregator and lose the pending submission list. Adds an in-place `WithMetrics(IL2Metrics)` setter consistent with the same-named methods now on `BatchSealer`, `DepositProcessor`, `WithdrawalProcessor`, and the `L2DAPlugin` decorator-based path.

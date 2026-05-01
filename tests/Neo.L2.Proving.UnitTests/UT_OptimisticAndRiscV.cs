@@ -234,6 +234,35 @@ public class UT_OptimisticAndRiscV
     }
 
     [TestMethod]
+    public void OptimisticProofPayload_AcceptsExactlyMaxSignatureBytes()
+    {
+        // Boundary case: exactly MaxSignatureBytes must succeed. Pairs with
+        // RejectsOversizedSigLen above to pin the limit on both sides.
+        var sig = new byte[OptimisticProofPayload.MaxSignatureBytes];
+        var inner = new OptimisticProofPayload
+        {
+            BondContract = UInt160.Zero, BondTxHash = UInt256.Zero,
+            SubmittedAt = 0, SequencerSignature = sig,
+        };
+        var bytes = inner.Encode();
+        var decoded = OptimisticProofPayload.Decode(bytes);
+        Assert.AreEqual(OptimisticProofPayload.MaxSignatureBytes, decoded.SequencerSignature.Length);
+    }
+
+    [TestMethod]
+    public void RiscVProofPayload_AcceptsExactlyMaxProofBytes()
+    {
+        var proof = new byte[RiscVProofPayload.MaxProofBytes];
+        var inner = new RiscVProofPayload
+        {
+            ProofSystem = ProofSystem.Sp1, VerificationKeyId = UInt256.Zero, ProofBytes = proof,
+        };
+        var bytes = inner.Encode();
+        var decoded = RiscVProofPayload.Decode(bytes);
+        Assert.AreEqual(RiscVProofPayload.MaxProofBytes, decoded.ProofBytes.Length);
+    }
+
+    [TestMethod]
     public void RiscVProofPayload_ByteLayout_MatchesDocumentedOffsets()
     {
         // Pins the layout claimed in RiscVProofPayload's XML docs.

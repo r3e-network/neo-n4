@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Boundary tests for `Optimistic`/`RiscV`/`Multisig` proof payload caps
+
+- Iter 76-77 added max-length caps to all three inner proof-payload decoders, with reject-at-`Max+1` tests. Now paired with accept-at-exactly-`Max` tests on each (matches the symmetric pattern from iters 82-83 for `BatchSerializer` and `MerkleProofSerializer`):
+  - `OptimisticProofPayload`: 4096-byte signature accepts.
+  - `RiscVProofPayload`: 1 MiB inner-proof accepts.
+  - `MultisigProofPayload`: 256-signer payload accepts.
+- Each pair locks the boundary on both sides — an off-by-one in any direction now fails the build.
+- **3 new tests**.
+
+Cumulative: 352 tests / 27 projects. Every length-prefix decoder in the stack now has paired accept-at-`Max` + reject-at-`Max+1` tests.
+
 ### Added — `MerkleProofSerializer` boundary test at exactly `MaxDepth`
 
 - Same shape as iter 82's `BatchSerializer` fix: the reject-at-`MaxDepth+1` test (iter 47) lacked a paired accept-at-exactly-`MaxDepth=64` test. An off-by-one could either reject a depth-64 proof (too strict) or admit depth-65 (too loose). Pinning both directions makes the boundary explicit.

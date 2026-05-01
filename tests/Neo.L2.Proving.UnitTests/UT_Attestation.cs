@@ -130,4 +130,21 @@ public class UT_Attestation
 
         Assert.ThrowsExactly<InvalidDataException>(() => MultisigProofPayload.Decode(bigBuf));
     }
+
+    [TestMethod]
+    public void MultisigPayload_AcceptsExactlyMaxSigners()
+    {
+        // Boundary case: exactly MaxSigners=256 must succeed. Pairs with the reject test.
+        var k = GenKey(1);
+        var sig = Crypto.Sign(new byte[] { 1 }, k.priv);
+        var sigs = new SignerSignature[MultisigProofPayload.MaxSigners];
+        for (var i = 0; i < sigs.Length; i++)
+            sigs[i] = new SignerSignature { PublicKey = k.pub, Signature = sig };
+
+        var payload = new MultisigProofPayload { Signatures = sigs };
+        var bytes = payload.Encode();
+        var decoded = MultisigProofPayload.Decode(bytes);
+
+        Assert.AreEqual(MultisigProofPayload.MaxSigners, decoded.Signatures.Count);
+    }
 }

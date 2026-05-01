@@ -80,6 +80,20 @@ public class UT_MetricsHttpServer
     }
 
     [TestMethod]
+    public void Server_IsRunning_FollowsLifecycle()
+    {
+        var handler = new MetricsRequestHandler(new InMemoryMetrics());
+        var server = new MetricsHttpServer(IPAddress.Loopback, port: 0, handler);
+        Assert.IsFalse(server.IsRunning, "before Start");
+
+        server.Start();
+        Assert.IsTrue(server.IsRunning, "after Start");
+
+        server.Dispose();
+        Assert.IsFalse(server.IsRunning, "after Dispose");
+    }
+
+    [TestMethod]
     public void Server_DisposeWithoutStart_DoesNotThrow()
     {
         // Regression — Dispose must handle the case where Start was never called.

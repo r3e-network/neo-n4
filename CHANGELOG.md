@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `MetricsHttpServer.IsRunning` diagnostic
+
+- Public `IsRunning` property returns `true` after `Start()` and `false` after `Dispose()`. Useful for integration-test assertions, operator diagnostics, and host-side health checks that need to verify the metrics endpoint is up before reporting the node ready.
+- **1 new test** verifies the lifecycle: `false` → `true` after `Start()` → `false` after `Dispose()`.
+
+Cumulative: 346 tests / 27 projects.
+
 ### Added — Dispose-without-Start regression test for `MetricsHttpServer`
 
 - All existing tests called `Start()` after construction; the constructed-but-never-Started case was uncovered. Future refactor that assumes `_loop` is non-null at Dispose would silently NPE only in deployments where Start was deferred or never called.

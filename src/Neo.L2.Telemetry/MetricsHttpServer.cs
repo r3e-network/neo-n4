@@ -26,6 +26,9 @@ public sealed class MetricsHttpServer : IDisposable
     /// <summary>The concrete IP endpoint the server bound. Useful when constructing with port 0.</summary>
     public IPEndPoint Endpoint { get; }
 
+    /// <summary>True when <see cref="Start"/> has been called and <see cref="Dispose"/> has not. Useful for diagnostics + integration tests.</summary>
+    public bool IsRunning => _loop is not null && !_cts.IsCancellationRequested;
+
     /// <summary>Construct a server that binds to <paramref name="endpoint"/>.</summary>
     /// <param name="endpoint">IP endpoint to bind. Use port 0 for "any free port".</param>
     /// <param name="handler">Request handler to dispatch requests through.</param>

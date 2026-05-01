@@ -82,4 +82,41 @@ public class UT_L2MetricsPlugin
         Assert.AreEqual("127.0.0.1", s.BindAddress);
         Assert.AreEqual(9090, s.Port);
     }
+
+    [TestMethod]
+    public void ResolveBindAddress_NumericIPv4_Works()
+    {
+        var ip = L2MetricsPlugin.ResolveBindAddress("127.0.0.1");
+        Assert.AreEqual(System.Net.IPAddress.Loopback, ip);
+    }
+
+    [TestMethod]
+    public void ResolveBindAddress_NumericIPv6_Works()
+    {
+        var ip = L2MetricsPlugin.ResolveBindAddress("::1");
+        Assert.AreEqual(System.Net.IPAddress.IPv6Loopback, ip);
+    }
+
+    [TestMethod]
+    public void ResolveBindAddress_AnyAddress_Works()
+    {
+        var ip = L2MetricsPlugin.ResolveBindAddress("0.0.0.0");
+        Assert.AreEqual(System.Net.IPAddress.Any, ip);
+    }
+
+    [TestMethod]
+    public void ResolveBindAddress_LocalhostHostname_ResolvesToLoopback()
+    {
+        // Regression: this used to throw InvalidOperationException because
+        // IPAddress.TryParse rejects hostnames. Now we fall through to DNS.
+        var ip = L2MetricsPlugin.ResolveBindAddress("localhost");
+        Assert.IsTrue(System.Net.IPAddress.IsLoopback(ip), $"got {ip}, expected a loopback address");
+    }
+
+    [TestMethod]
+    public void ResolveBindAddress_BogusHostname_Throws()
+    {
+        Assert.ThrowsExactly<InvalidOperationException>(() =>
+            L2MetricsPlugin.ResolveBindAddress("does-not-exist.invalid"));
+    }
 }

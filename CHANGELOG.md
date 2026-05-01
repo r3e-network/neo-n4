@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `L2MetricsPlugin` accepts hostnames in BindAddress (e.g. `localhost`)
+
+- `Start` previously crashed if `BindAddress` wasn't a numeric IP — `IPAddress.TryParse` rejects hostnames. A reasonable operator config like `"BindAddress": "localhost"` would throw `InvalidOperationException` at startup. Now falls back to `Dns.GetHostAddresses` for hostnames; raises a clear error only if DNS resolution fails or returns zero addresses.
+- New public helper `L2MetricsPlugin.ResolveBindAddress(string)` so the resolution logic is directly testable + reusable.
+- **5 new tests**: numeric IPv4, IPv6, any-address (`0.0.0.0`), `localhost` regression, bogus hostname → throw.
+
+Cumulative: 325 tests / 27 projects.
+
 ### Fixed — `L2MetricsPlugin.Start(portOverride)` removes test fragility
 
 - Tests for `L2MetricsPlugin` and `UT_E2E_L2MetricsPlugin_CompositionRoot` previously fell back to `Assert.Inconclusive` when port 9090 was in use on the test machine — fragile on shared CI runners. `Start` now accepts an optional `portOverride` parameter (`0` = "any free port") so tests bind deterministically. Production callers leave it null and let the JSON config drive.

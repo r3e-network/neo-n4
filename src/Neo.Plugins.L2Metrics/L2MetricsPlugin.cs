@@ -65,13 +65,35 @@ public sealed class L2MetricsPlugin : Plugin
     public void Start(int? portOverride = null)
     {
         if (!_settings.Enabled || _server is not null) return;
-        if (!IPAddress.TryParse(_settings.BindAddress, out var address))
-            throw new InvalidOperationException($"L2Metrics: BindAddress '{_settings.BindAddress}' is not a valid IP address");
+        var address = ResolveBindAddress(_settings.BindAddress);
 
         var handler = new MetricsRequestHandler(_metrics, _readinessCheck);
         var port = portOverride ?? _settings.Port;
         _server = new MetricsHttpServer(address, port, handler);
         _server.Start();
+    }
+
+    /// <summary>
+    /// Resolve <paramref name="bindAddress"/> to an <see cref="IPAddress"/>. Accepts numeric
+    /// addresses (<c>127.0.0.1</c>, <c>0.0.0.0</c>, <c>::1</c>) and hostnames (<c>localhost</c>);
+    /// for hostnames, returns the first DNS resolution result.
+    /// </summary>
+    public static IPAddress ResolveBindAddress(string bindAddress)
+    {
+        if (IPAddress.TryParse(bindAddress, out var direct))
+            return direct;
+
+        // DNS lookup. Hostnames like "localhost" land here.
+        IPAddress[] resolved;
+        try { resolved = System.Net.Dns.GetHostAddresses(bindAddress); }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"L2Metrics: BindAddress '{bindAddress}' is not a valid IP address and DNS resolution failed: {ex.Message}", ex);
+        }
+        if (resolved.Length == 0)
+            throw new InvalidOperationException($"L2Metrics: BindAddress '{bindAddress}' resolved to zero addresses");
+        return resolved[0];
     }
 
     /// <inheritdoc />

@@ -87,6 +87,33 @@ public class UT_L2SettlementPlugin_Metrics
     }
 
     [TestMethod]
+    public async Task SubmitNextAsync_ConcurrentCalls_SerializeViaGate()
+    {
+        // Without the gate, two fire-and-forget OnBatchSealed events would spawn parallel
+        // submits that race each other to call SubmitBatchAsync — landing on L1 out of
+        // order. The gate ensures only one prove-and-submit runs at a time.
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin();
+        var client = new ConcurrencyTrackingClient();
+        settlement.Wire(batch, new FakeProver(ProofType.Multisig), client);
+
+        // Queue 4 commitments and fire 4 concurrent SubmitNextAsync calls.
+        for (var i = 1; i <= 4; i++) settlement.Enqueue(BuildCommitment((ulong)i));
+        var tasks = new[]
+        {
+            settlement.SubmitNextAsync(),
+            settlement.SubmitNextAsync(),
+            settlement.SubmitNextAsync(),
+            settlement.SubmitNextAsync(),
+        };
+        await Task.WhenAll(tasks);
+
+        Assert.AreEqual(4, client.SubmitCount, "all 4 batches submitted");
+        Assert.AreEqual(0, settlement.PendingCount, "queue drained");
+        Assert.AreEqual(1, client.MaxConcurrent, $"only one submit should be in flight at a time (peak={client.MaxConcurrent})");
+    }
+
+    [TestMethod]
     public async Task Enqueue_WhenDisabled_DoesNothing_AndPendingStaysZero()
     {
         // We can't easily flip the private _settings.Enabled, so this test just confirms
@@ -150,6 +177,41 @@ public class UT_L2SettlementPlugin_Metrics
             if (ThrowOnSubmit) throw new InvalidOperationException("simulated submit failure");
             SubmitCount++;
             return ValueTask.FromResult(UInt256.Zero);
+        }
+
+        public ValueTask<UInt256> GetCanonicalStateRootAsync(uint chainId, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(UInt256.Zero);
+
+        public ValueTask<BatchStatus> GetBatchStatusAsync(uint chainId, ulong batchNumber, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(BatchStatus.Unknown);
+    }
+
+    private sealed class ConcurrencyTrackingClient : ISettlementClient
+    {
+        private int _inFlight;
+        private int _maxConcurrent;
+        private int _submitCount;
+
+        public int SubmitCount => Volatile.Read(ref _submitCount);
+        public int MaxConcurrent => Volatile.Read(ref _maxConcurrent);
+
+        public async ValueTask<UInt256> SubmitBatchAsync(L2BatchCommitment commitment, PublicInputs publicInputs, CancellationToken cancellationToken = default)
+        {
+            var current = Interlocked.Increment(ref _inFlight);
+            // Track peak parallelism — without the gate, this would spike to N.
+            int prev;
+            do
+            {
+                prev = Volatile.Read(ref _maxConcurrent);
+                if (current <= prev) break;
+            } while (Interlocked.CompareExchange(ref _maxConcurrent, current, prev) != prev);
+
+            // Yield so a racing caller has a chance to also enter this method.
+            await Task.Delay(20).ConfigureAwait(false);
+
+            Interlocked.Increment(ref _submitCount);
+            Interlocked.Decrement(ref _inFlight);
+            return UInt256.Zero;
         }
 
         public ValueTask<UInt256> GetCanonicalStateRootAsync(uint chainId, CancellationToken cancellationToken = default)

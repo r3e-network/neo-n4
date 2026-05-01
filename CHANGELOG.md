@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `L2SettlementPlugin.SubmitNextAsync` serializes parallel submits
+
+- `OnBatchSealed` did `_ = SubmitNextAsync()` fire-and-forget. When N batches sealed in quick succession, N submit tasks ran in parallel — racing each other into `_client.SubmitBatchAsync`. NeoHub then sees out-of-order `BatchNumber` values and rejects the late ones; the retry path tries to re-queue the loser, but the winner's batch is already on-chain — the L1 expects `lastSubmitted+1`, so the loser stays stuck and retries forever.
+- Added a `SemaphoreSlim(1, 1)` gate around the dequeue + prove + submit path. Concurrent calls now wait their turn; submission order matches enqueue order.
+- **1 new test**: 4 concurrent `SubmitNextAsync` calls against a tracking client → all 4 batches submitted, peak in-flight = 1.
+
+Cumulative: 372 tests / 27 projects.
+
 ### Fixed — `ChallengeOrchestrator.InspectWithBisectionAsync` validates checkpoint shapes
 
 - The agreement-at-end short-circuit (`challengerCheckpoints[^1].Equals(sequencerCheckpoints[^1])`) ran *before* any length validation. An empty array crashed with raw `IndexOutOfRangeException`; mismatched-length arrays silently compared incompatible last elements (could wrongly return "no fraud" when the last entries happened to match).

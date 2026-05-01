@@ -25,6 +25,7 @@ public sealed class L2SettlementPlugin : Plugin
 {
     private L2SettlementSettings _settings = new();
     private readonly Queue<L2BatchCommitment> _pending = new();
+    private readonly SemaphoreSlim _submitGate = new(1, 1);
     private IL2Prover? _prover;
     private ISettlementClient? _client;
     private L2BatchPlugin? _batchPlugin;
@@ -74,6 +75,7 @@ public sealed class L2SettlementPlugin : Plugin
     {
         if (_batchPlugin is not null)
             _batchPlugin.OnBatchSealed -= OnBatchSealed;
+        _submitGate.Dispose();
     }
 
     /// <summary>How many batches are currently queued for submission.</summary>
@@ -100,13 +102,25 @@ public sealed class L2SettlementPlugin : Plugin
         _ = SubmitNextAsync();
     }
 
-    /// <summary>Drain one pending batch (best-effort — exceptions are logged, not surfaced).</summary>
+    /// <summary>
+    /// Drain one pending batch (best-effort — exceptions are logged, not surfaced).
+    /// Serialized via an internal gate so back-to-back <see cref="L2BatchPlugin.OnBatchSealed"/>
+    /// events don't spawn parallel submits that could land on L1 out-of-order.
+    /// </summary>
     public async System.Threading.Tasks.Task SubmitNextAsync()
     {
         // Check wiring BEFORE dequeue — otherwise an un-wired plugin silently drains items
         // into the void. The metric path also wouldn't tag this as a failure (we'd just
         // exit). Items stay queued until Wire() is called.
         if (_prover is null || _client is null) return;
+
+        // Serialize submission across concurrent fire-and-forget callers. Without this,
+        // OnBatchSealed → _ = SubmitNextAsync() can spawn N parallel submits when N batches
+        // seal in quick succession, racing each other to call SubmitBatchAsync — NeoHub then
+        // sees out-of-order BatchNumber values and rejects the late ones.
+        await _submitGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
 
         L2BatchCommitment? next;
         lock (_pending)
@@ -156,6 +170,12 @@ public sealed class L2SettlementPlugin : Plugin
                 _pending.Enqueue(next);
                 foreach (var b in rest) _pending.Enqueue(b);
             }
+        }
+
+        }
+        finally
+        {
+            _submitGate.Release();
         }
     }
 

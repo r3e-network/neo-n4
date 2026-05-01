@@ -75,7 +75,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**371 unit + integration tests across 27 projects:**
+**372 unit + integration tests across 27 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -97,7 +97,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.Plugins.L2Gateway.UnitTests`    | 18    | flat + binary-tree aggregator, edge cases, **metric emission with rounds=log2(N) + per-batch accumulation** |
 | `Neo.Plugins.L2Metrics.UnitTests`    | 7     | composition root: bound port, idempotent Start, real HTTP scrape, readiness predicate gating, default settings |
 | `Neo.Plugins.L2Batch.UnitTests`      | 7     | `BatchSealer` block / tx / age triggers, batch-number monotonicity, gauge replace, NoOp default |
-| `Neo.Plugins.L2Settlement.UnitTests` | 4     | **metric emission on submit success / failure / no-op default** |
+| `Neo.Plugins.L2Settlement.UnitTests` | 6     | **metric emission on submit success / failure / no-op default, wire-before-dequeue, concurrent-call gate serialization** |
 | `Neo.L2.Settlement.Rpc.UnitTests`    | 6     | JSON-RPC envelope, stack parsing, signer    |
 | `Neo.L2.Telemetry.UnitTests`         | 43    | counter/histogram/gauge accumulation, tag canonicalization, Prometheus exporter (counter/gauge/summary, labels, name sanitization, frozen-snapshot), request handler routing, TCP server round-trip + multi-request, catalog completeness vs MetricNames + Prometheus integration, **`/healthz` + `/readyz` (with predicate)** |
 | `Neo.Hub.Deploy.UnitTests`           | 8     | topo sort, cycle detection, scaffold        |

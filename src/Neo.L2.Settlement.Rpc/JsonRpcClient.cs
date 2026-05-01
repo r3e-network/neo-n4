@@ -62,7 +62,25 @@ public sealed class JsonRpcClient : IDisposable
         };
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-        using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        HttpResponseMessage response;
+        try { response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Caller-driven cancellation: propagate so they get the OperationCanceledException
+            // they expected.
+            throw;
+        }
+        catch (OperationCanceledException ex)
+        {
+            // Timeout — caller didn't cancel, but the SendAsync gave up (HttpClient.Timeout).
+            throw new JsonRpcException(-32603, $"RPC timeout: {ex.Message}");
+        }
+        catch (HttpRequestException ex)
+        {
+            // Network-level failure (connection refused, DNS, TLS).
+            throw new JsonRpcException(-32603, $"HTTP send failed: {ex.Message}");
+        }
+        using var _response = response;
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {

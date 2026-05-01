@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `JsonRpcClient` wraps network-level failures as `JsonRpcException`
+
+- Iters 93 + 94 wrapped malformed JSON and non-2xx HTTP. This completes the picture by wrapping `HttpRequestException` (connection refused / DNS / TLS) and `TaskCanceledException` from a timeout. Caller-driven `OperationCanceledException` (via the supplied `CancellationToken`) is preserved verbatim so the caller distinguishes their own cancel from a server-side issue.
+- All wrap to `JsonRpcException(-32603)` with a descriptive message.
+- **2 new tests**: network error → wrapped; caller cancellation → `OperationCanceledException` propagates.
+
+Cumulative: 365 tests / 27 projects. The RPC client now exposes exactly one exception type for every failure mode except caller-cancellation.
+
 ### Fixed — `JsonRpcClient` wraps non-2xx HTTP responses as `JsonRpcException`
 
 - `EnsureSuccessStatusCode` threw `HttpRequestException` on a non-2xx status (e.g. proxy 502, server 500, gateway 504), inconsistent with the parse-error wrapping fixed in iter 93. Callers had to handle two different exception types depending on whether the failure was at the HTTP or JSON layer.

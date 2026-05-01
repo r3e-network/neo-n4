@@ -48,6 +48,47 @@ public class UT_RpcSettlementClient
     }
 
     [TestMethod]
+    public async Task JsonRpcClient_NetworkError_WrappedAsJsonRpcException()
+    {
+        // SendAsync throws HttpRequestException (connection refused / DNS fail / TLS).
+        // Wrap as JsonRpcException so callers see the uniform contract.
+        var stub = new ThrowingHandler { ToThrow = new HttpRequestException("connection refused") };
+        using var http = new HttpClient(stub);
+        using var client = new JsonRpcClient(FakeEndpoint, http);
+
+        var ex = await Assert.ThrowsExactlyAsync<JsonRpcException>(async () =>
+            await client.CallAsync("ping", new JArray()));
+        Assert.AreEqual(-32603, ex.Code);
+        StringAssert.Contains(ex.Message, "connection refused");
+    }
+
+    [TestMethod]
+    public async Task JsonRpcClient_CallerCancellation_PropagatesOperationCanceled()
+    {
+        // Caller-driven cancellation must NOT be wrapped — the caller expects
+        // OperationCanceledException so they can distinguish their own cancel from a
+        // server-side failure.
+        var stub = new ThrowingHandler { ToThrow = new TaskCanceledException("cancelled") };
+        using var http = new HttpClient(stub);
+        using var client = new JsonRpcClient(FakeEndpoint, http);
+
+        var cts = new CancellationTokenSource();
+        cts.Cancel();
+        await Assert.ThrowsExactlyAsync<TaskCanceledException>(async () =>
+            await client.CallAsync("ping", new JArray(), cts.Token));
+    }
+
+    private sealed class ThrowingHandler : HttpMessageHandler
+    {
+        public Exception ToThrow { get; set; } = new InvalidOperationException();
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            throw ToThrow;
+        }
+    }
+
+    [TestMethod]
     public async Task JsonRpcClient_HttpError_ThrowsJsonRpcException()
     {
         // Symmetric with the malformed-JSON test: server returns HTTP 502. Used to leak

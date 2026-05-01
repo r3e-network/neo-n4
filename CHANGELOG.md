@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Docs — Walk #4 covers telemetry in `docs/architecture-walkthrough.md`
+
+- Added a "Walk #4: telemetry — emit, snapshot, scrape" section with an ASCII diagram of the metrics pipeline + the catalog of every component → metric family mapping. Cross-references `docs/telemetry.md` for the operator detail.
+- Added a "Cross-cutting / Telemetry" row to the doc.md→code mapping table so a contributor scanning the table for the observability path finds it.
+- No code changes; 320 tests / 27 projects.
+
 ### Added — `BatchSerializer` byte layouts in XML docs + tests
 
 - `BatchSerializer`'s XML doc now includes full offset tables for both `L2BatchCommitment` (321 + proofLen bytes) and `PublicInputs` (332 bytes). This is THE format `NeoHub.SettlementManager` reads on-chain — having the layout in the doc means a contract author parsing the bytes doesn't need to read the encoder source.

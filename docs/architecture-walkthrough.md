@@ -189,6 +189,51 @@ The `AggregatedCommitment` carries:
 - The aggregated proof bytes.
 - The `BackendId` so on-L1 verification can route correctly.
 
+## Walk #4: telemetry — emit, snapshot, scrape
+
+Cross-cutting observability layer. Every plugin that does meaningful work emits to a
+shared `IL2Metrics` sink; one HTTP endpoint serves the result.
+
+```text
+plugins emit ──> IL2Metrics ──> InMemoryMetrics ──> Snapshot()
+                                                      │
+                                                      ▼
+                                              PrometheusExporter
+                                                      │
+                                                      ▼
+                                            MetricsRequestHandler
+                                                      │  /metrics, /healthz, /readyz
+                                                      ▼
+                                              MetricsHttpServer
+                                                      │
+                                                      ▼
+                                          GET http://node/metrics
+```
+
+The composition root is `Neo.Plugins.L2Metrics.L2MetricsPlugin`. Operators construct it
+first, then wire each L2 plugin's `WithMetrics()` setter to `metricsPlugin.Metrics`. After
+that, every counter / histogram / gauge is reachable via a single Prometheus scrape:
+
+- `l2.batch.sealed/seal_latency_ms/tx_count` (`L2BatchPlugin` → `BatchSealer`)
+- `l2.settlement.submitted/submit_latency_ms/submit_failures` + `l2.proving.generated/latency_ms` (`L2SettlementPlugin`)
+- `l2.da.published/publish_latency_ms/publish_failures` (`MetricsEmittingDAWriter`, mode-tagged)
+- `l2.bridge.deposits/withdrawals` + rejected variants (`Deposit/WithdrawalProcessor`)
+- `l2.rpc.calls/latency_ms/failures` (`L2RpcMethods`, method-tagged)
+- `l2.gateway.aggregations/aggregation_rounds/aggregation_latency_ms/batches_aggregated` (`BinaryTreeAggregator`)
+- `l2.sequencer.{registered,exits_started,exits_finalized,committee_size}` (`InMemorySequencerCommitteeProvider`)
+- `l2.forced_inclusion.observed`, `l2.censorship.reports`, `l2.challenge.{fraud_proofs,bisection_rounds}`
+- `l2.audit.runs/failures` (`ChainAuditor`, intrinsic)
+- `l2.messaging.emitted` (`L2Outbox`)
+
+`MetricCatalog` holds an operator-facing description for each, which `PrometheusExporter`
+embeds as `# HELP` lines so the exposition is self-documenting. A reflection-based
+completeness test (`UT_MetricCatalog`) fails the build if a new `MetricNames` constant is
+added without a catalog entry. A composition-root integration test
+(`UT_E2E_L2MetricsPlugin_CompositionRoot`) drives every component above through one sink
+and asserts each metric family appears in a real HTTP scrape.
+
+For the full catalog and wiring example, see [`docs/telemetry.md`](./telemetry.md).
+
 ## Where each `doc.md` section lives in code
 
 | `doc.md` § | What it specifies            | Code location                                                                  |
@@ -228,3 +273,4 @@ The `AggregatedCommitment` carries:
 | §19 Module layout       | Recommended structure          | This repo's `src/`, `contracts/`, `tools/` layout                              |
 | §20 MVP                 | Phase-0 success criteria       | `tests/Neo.L2.IntegrationTests/UT_Mvp_Phase0_Sidechain`                        |
 | §22 Design tradeoffs    | Choices made                   | This doc + `ARCHITECTURE.md`                                                   |
+| Cross-cutting           | Telemetry / observability      | `Neo.L2.Telemetry` + `Neo.Plugins.L2Metrics`; operator catalog in [`docs/telemetry.md`](./telemetry.md) |

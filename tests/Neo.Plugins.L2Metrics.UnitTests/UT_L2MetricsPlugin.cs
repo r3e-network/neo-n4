@@ -26,28 +26,13 @@ public class UT_L2MetricsPlugin
     }
 
     [TestMethod]
-    public async Task Start_WithDefaultSettings_BindsHttpServer_AndScrapeWorks()
+    public async Task Start_BindsHttpServer_AndScrapeWorks()
     {
         using var plugin = new L2MetricsPlugin();
+        plugin.Start(portOverride: 0); // any free port
 
-        // Default port is 9090 which may collide. Reach into settings via a small detour:
-        // construct a fresh plugin and immediately swap settings via reflection — actually
-        // the plugin's Configure path is the only mutation point. The cleaner test is to
-        // just observe Start succeeds OR throws on collision; we use port=0 by placing it
-        // in a config file is overkill, so we use the default and detect collision.
-        try
-        {
-            plugin.Start();
-        }
-        catch (System.Net.Sockets.SocketException)
-        {
-            Assert.Inconclusive("port 9090 in use on this machine; skip");
-            return;
-        }
+        Assert.AreNotEqual(0, plugin.BoundPort);
 
-        Assert.AreNotEqual(0, plugin.BoundPort, "server should bind a real port after Start");
-
-        // Emit a metric, scrape, confirm.
         plugin.Metrics.IncrementCounter(MetricNames.BatchesSealed, 7);
 
         using var client = new HttpClient(new HttpClientHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(5) };
@@ -62,9 +47,9 @@ public class UT_L2MetricsPlugin
     public void Start_TwiceIsIdempotent()
     {
         using var plugin = new L2MetricsPlugin();
-        try { plugin.Start(); } catch (System.Net.Sockets.SocketException) { Assert.Inconclusive(); return; }
+        plugin.Start(portOverride: 0);
         var first = plugin.BoundPort;
-        plugin.Start(); // no-op
+        plugin.Start(portOverride: 0); // no-op
         Assert.AreEqual(first, plugin.BoundPort);
     }
 
@@ -81,7 +66,7 @@ public class UT_L2MetricsPlugin
         using var plugin = new L2MetricsPlugin();
         var ready = false;
         plugin.WithReadinessCheck(() => ready);
-        try { plugin.Start(); } catch (System.Net.Sockets.SocketException) { Assert.Inconclusive(); return; }
+        plugin.Start(portOverride: 0);
 
         using var client = new HttpClient(new HttpClientHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(5) };
         Assert.AreEqual(503, (int)(await client.GetAsync($"http://127.0.0.1:{plugin.BoundPort}/readyz")).StatusCode);

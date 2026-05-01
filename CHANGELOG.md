@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `L2MetricsPlugin.Start(portOverride)` removes test fragility
+
+- Tests for `L2MetricsPlugin` and `UT_E2E_L2MetricsPlugin_CompositionRoot` previously fell back to `Assert.Inconclusive` when port 9090 was in use on the test machine — fragile on shared CI runners. `Start` now accepts an optional `portOverride` parameter (`0` = "any free port") so tests bind deterministically. Production callers leave it null and let the JSON config drive.
+- Removed 4 `Assert.Inconclusive` paths across 5 tests; all now run unconditionally.
+
+Cumulative: 320 tests / 27 projects (no count change; tests are just now reliable).
+
 ### Docs — Refresh README counts to match current state
 
 - README's "What ships" section was stale at 194 tests / 19 test projects / 11 off-chain libs / 7 plugins. Now: 320 tests / 21 test projects / 15 off-chain libs / 8 plugins, with the new bullets calling out the production-grade telemetry stack (Prometheus + `/metrics` + `/healthz` + `/readyz`) and that every canonical wire format has a byte-layout test.

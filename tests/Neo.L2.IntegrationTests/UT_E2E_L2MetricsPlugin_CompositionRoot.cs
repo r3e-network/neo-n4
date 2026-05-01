@@ -64,11 +64,8 @@ public class UT_E2E_L2MetricsPlugin_CompositionRoot
         rpc.GetL2StateRoot(new JArray { 1001 });
         rpc.GetSecurityLevel(new JArray { 1001 });
 
-        // 4. Bind the HTTP server on a free port. Plugin's Start uses settings; the default
-        //    is port 9090 which may collide. We test by reflection-free path: try Start
-        //    and skip on collision (matches UT_L2MetricsPlugin's pattern).
-        try { metricsPlugin.Start(); }
-        catch (System.Net.Sockets.SocketException) { Assert.Inconclusive("port 9090 in use"); return; }
+        // 4. Bind the HTTP server on a free port via the test-friendly Start overload.
+        metricsPlugin.Start(portOverride: 0);
 
         // 5. Scrape /metrics through the plugin and assert every component's family appears.
         using var client = new HttpClient(new HttpClientHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(5) };

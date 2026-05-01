@@ -58,14 +58,19 @@ public sealed class L2MetricsPlugin : Plugin
     }
 
     /// <summary>Start the HTTP server. Idempotent — extra calls are no-ops.</summary>
-    public void Start()
+    /// <param name="portOverride">
+    /// Optional port that overrides the configured value. Use <c>0</c> to bind any free port
+    /// (useful for tests). Production callers leave this <c>null</c> and let the JSON config drive.
+    /// </param>
+    public void Start(int? portOverride = null)
     {
         if (!_settings.Enabled || _server is not null) return;
         if (!IPAddress.TryParse(_settings.BindAddress, out var address))
             throw new InvalidOperationException($"L2Metrics: BindAddress '{_settings.BindAddress}' is not a valid IP address");
 
         var handler = new MetricsRequestHandler(_metrics, _readinessCheck);
-        _server = new MetricsHttpServer(address, _settings.Port, handler);
+        var port = portOverride ?? _settings.Port;
+        _server = new MetricsHttpServer(address, port, handler);
         _server.Start();
     }
 

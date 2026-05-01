@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `PublicInputHashConsistencyCheck` audit
+
+- New `IAuditCheck` that re-derives `PublicInputHash` from each batch's stored fields (via `StateRootCalculator.HashPublicInputs`) and compares against the stored value. Catches commitments where the hash was set to a value derived from different public inputs than the commitment claims — a tamper that would otherwise verify against the wrong proof.
+- MVP assumes `L1MessageHash = Zero` and `BlockContextHash = Zero`, matching the Phase 0-3 settlement plugin's `BuildPublicInputs`. When future phases populate those fields, this check needs an augmenting resolver (same shape as `ProofValidityCheck`'s `publicInputsResolver`).
+- **3 new tests**: consistent hash → pass with summary; tampered hash → fail with batch number; empty list → vacuous pass.
+
+Cumulative: 368 tests / 27 projects. Audit pluggability now covers continuity, proof validity, no-zero-proof, and public-input-hash consistency.
+
 ### Fixed — `JsonRpcClient` wraps network-level failures as `JsonRpcException`
 
 - Iters 93 + 94 wrapped malformed JSON and non-2xx HTTP. This completes the picture by wrapping `HttpRequestException` (connection refused / DNS / TLS) and `TaskCanceledException` from a timeout. Caller-driven `OperationCanceledException` (via the supplied `CancellationToken`) is preserved verbatim so the caller distinguishes their own cancel from a server-side issue.

@@ -16,6 +16,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Neo.L2.Audit\Neo.L2.Audit.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Proving\Neo.L2.Proving.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.State\Neo.L2.State.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Telemetry\Neo.L2.Telemetry.csproj" />
   </ItemGroup>
 

@@ -78,4 +78,23 @@ public class UT_MetricsHttpServer
         using var server = new MetricsHttpServer(IPAddress.Loopback, port: 0, handler);
         Assert.IsTrue(server.Endpoint.Port > 0, "should resolve to a real port");
     }
+
+    [TestMethod]
+    public async Task Server_RemainsResponsive_AfterSlowClient_GetsCutOff()
+    {
+        // Open a TCP connection but never send a request line. The server should drop
+        // the connection after its 5-second deadline (we don't wait for the timeout in
+        // this test — we just confirm the server still serves a fresh request afterwards).
+        var handler = new MetricsRequestHandler(new InMemoryMetrics());
+        using var server = new MetricsHttpServer(IPAddress.Loopback, port: 0, handler);
+        server.Start();
+
+        using var slow = new System.Net.Sockets.TcpClient();
+        await slow.ConnectAsync(IPAddress.Loopback, server.Endpoint.Port);
+        // ...silence...
+
+        using var client = new HttpClient(new HttpClientHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(5) };
+        var resp = await client.GetAsync($"http://127.0.0.1:{server.Endpoint.Port}/metrics");
+        Assert.AreEqual(200, (int)resp.StatusCode, "server stays responsive while a slow client is mid-handshake");
+    }
 }

@@ -65,19 +65,21 @@ public sealed class MetricsHttpServer : IDisposable
 
     private async Task HandleConnectionAsync(TcpClient client)
     {
+        // Apply a per-connection deadline so a slow client can't pin a worker forever.
+        // NetworkStream.ReadTimeout doesn't apply to ReadAsync, so we use a CTS instead.
+        using var deadlineCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token, deadlineCts.Token);
+
         try
         {
             using (client)
             using (var stream = client.GetStream())
             {
-                stream.ReadTimeout = 5_000;
-                stream.WriteTimeout = 5_000;
-
-                var path = await ReadRequestPathAsync(stream).ConfigureAwait(false);
+                var path = await ReadRequestPathAsync(stream, linkedCts.Token).ConfigureAwait(false);
                 if (path is null) return;
 
                 var response = _handler.Handle(path);
-                await WriteResponseAsync(stream, response).ConfigureAwait(false);
+                await WriteResponseAsync(stream, response, linkedCts.Token).ConfigureAwait(false);
             }
         }
         catch
@@ -86,14 +88,14 @@ public sealed class MetricsHttpServer : IDisposable
         }
     }
 
-    private static async Task<string?> ReadRequestPathAsync(NetworkStream stream)
+    private static async Task<string?> ReadRequestPathAsync(NetworkStream stream, CancellationToken cancellationToken)
     {
         // Read the request line + minimal headers up to the blank line. We only care about path.
         var buf = new byte[4096];
         var total = 0;
         while (total < buf.Length)
         {
-            var n = await stream.ReadAsync(buf.AsMemory(total, buf.Length - total)).ConfigureAwait(false);
+            var n = await stream.ReadAsync(buf.AsMemory(total, buf.Length - total), cancellationToken).ConfigureAwait(false);
             if (n <= 0) break;
             total += n;
             // crlf-crlf or lf-lf indicates end of headers
@@ -111,7 +113,7 @@ public sealed class MetricsHttpServer : IDisposable
         return null;
     }
 
-    private static async Task WriteResponseAsync(NetworkStream stream, MetricsHttpResponse response)
+    private static async Task WriteResponseAsync(NetworkStream stream, MetricsHttpResponse response, CancellationToken cancellationToken)
     {
         var bodyBytes = Encoding.UTF8.GetBytes(response.Body);
         var headers =
@@ -120,8 +122,8 @@ public sealed class MetricsHttpServer : IDisposable
             $"Content-Length: {bodyBytes.Length}\r\n" +
             "Connection: close\r\n\r\n";
         var headerBytes = Encoding.ASCII.GetBytes(headers);
-        await stream.WriteAsync(headerBytes).ConfigureAwait(false);
-        await stream.WriteAsync(bodyBytes).ConfigureAwait(false);
+        await stream.WriteAsync(headerBytes, cancellationToken).ConfigureAwait(false);
+        await stream.WriteAsync(bodyBytes, cancellationToken).ConfigureAwait(false);
     }
 
     private static string StatusText(int code) => code switch

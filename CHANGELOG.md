@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `MetricsHttpServer` slow-client deadline
+
+- `NetworkStream.ReadTimeout` doesn't apply to async reads, so a client that connected but never sent a request line could pin a worker thread indefinitely (slow-loris-style). Each connection now runs under a `CancellationTokenSource` linked to a 5-second deadline + the server's shutdown token. Both the read and write paths receive the linked token so they cancel together.
+- **1 new test** opens a slow-client TCP connection and never sends; verifies the server stays responsive to a parallel real scrape.
+
+Cumulative: 330 tests / 27 projects.
+
 ### Fixed — `L2MetricsPlugin.Start` is now thread-safe
 
 - `Start` was idempotent under serial calls but had a race window between the `_server is null` check and the assignment. Two threads calling `Start` concurrently could both observe `_server == null` and bind two servers, leaking one. Now guarded by a `Lock _startGate` so only the first call binds.

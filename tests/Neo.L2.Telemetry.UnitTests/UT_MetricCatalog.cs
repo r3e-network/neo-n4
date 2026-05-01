@@ -77,6 +77,20 @@ public class UT_MetricCatalog
     }
 
     [TestMethod]
+    public void Descriptions_AreNotBlank()
+    {
+        // An empty/whitespace description in the catalog would silently produce a
+        // useless Prometheus HELP line ("# HELP foo_total " with nothing after).
+        var blanks = MetricCatalog.Descriptions
+            .Where(kv => string.IsNullOrWhiteSpace(kv.Value))
+            .Select(kv => kv.Key)
+            .ToList();
+
+        Assert.AreEqual(0, blanks.Count,
+            $"These descriptions are blank: {string.Join(", ", blanks)}");
+    }
+
+    [TestMethod]
     public void PrometheusExporter_UsesCatalogHelp_NotGenericString()
     {
         var m = new InMemoryMetrics();

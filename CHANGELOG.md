@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `MetricCatalog` non-blank-description check
+
+- Existing tests enforced "every metric has an entry" + "no orphan entries" + "no trailing period". Missing: empty/whitespace descriptions, which would silently produce a useless Prometheus HELP line (`# HELP foo_total ` with nothing after).
+- **1 new test** asserts every catalog value passes `string.IsNullOrWhiteSpace` → false.
+
+Cumulative: 354 tests / 27 projects.
+
 ### Fixed — `ChainAuditor.AuditAsync` fails on zero-checks-registered
 
 - An audit with no checks registered used to silently report `Passed = true` because `Findings.All(...)` returns true on an empty collection. A misconfigured production deployment that registered zero checks would get a green report despite proving nothing.

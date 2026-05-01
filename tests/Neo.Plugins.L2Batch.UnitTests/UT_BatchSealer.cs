@@ -158,6 +158,38 @@ public class UT_BatchSealer
         Assert.AreEqual(2L, metrics.GetCounter(MetricNames.BatchesSealed), "counter increments");
     }
 
+    [TestMethod]
+    public void Sealer_WithMetrics_PreservesBatchNumberingAndBuilderState()
+    {
+        // Regression: previously L2BatchPlugin.WithMetrics nulled _sealer, dropping
+        // _nextBatchNumber, _lastPostStateRoot, and any in-progress builder. Replaying
+        // batch 1 after the rewire would collide with whatever was already submitted.
+        // Now WithMetrics swaps the sink in-place on the existing sealer.
+        var settings = new L2BatchSettings
+        {
+            ChainId = 1001,
+            MaxBlocksPerBatch = 1,
+            MaxTransactionsPerBatch = 100,
+            MaxBatchAgeMillis = int.MaxValue,
+            Enabled = true,
+        };
+        var initial = new InMemoryMetrics();
+        var sealer = new BatchSealer(settings, initial, () => 0L);
+
+        var b1 = sealer.OnBlockCommit(10, 1000, 11, NoTxs())!;
+        Assert.AreEqual(1u, b1.BatchNumber);
+
+        // Mid-flight rewire to a new sink.
+        var second = new InMemoryMetrics();
+        sealer.WithMetrics(second);
+
+        // Batch numbering must continue from 2, not reset to 1.
+        var b2 = sealer.OnBlockCommit(11, 2000, 11, NoTxs())!;
+        Assert.AreEqual(2u, b2.BatchNumber, "batch numbering survives the rewire");
+        Assert.AreEqual(1, second.GetCounter(MetricNames.BatchesSealed), "post-rewire seal hits new sink");
+        Assert.AreEqual(1, initial.GetCounter(MetricNames.BatchesSealed), "pre-rewire seal stayed on old sink");
+    }
+
     private static IEnumerable<byte[]> NoTxs() => Array.Empty<byte[]>();
 
     private static IEnumerable<byte[]> MakeTxs(int n)

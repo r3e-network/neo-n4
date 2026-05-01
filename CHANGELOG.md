@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `L2BatchPlugin.WithMetrics` preserves sealer state
+
+- Same shape as the `L2BridgePlugin` fix in iter 70: calling `WithMetrics` set `_sealer = null`, which silently dropped the sealer's `_nextBatchNumber`, `_lastPostStateRoot`, and any in-progress builder. A mid-flight rewire would have caused the next batch to be numbered 1 again — colliding with whatever the chain had already submitted.
+- New `BatchSealer.WithMetrics(IL2Metrics)` setter swaps the sink in-place. Plugin's `WithMetrics` calls it instead of nulling.
+- **1 new regression test**: post-rewire batch is numbered 2, not 1; old sink keeps batch-1 counter, new sink gets batch-2 counter.
+
+Cumulative: 334 tests / 27 projects.
+
 ### Fixed — `L2BridgePlugin.WithMetrics` preserves processor state
 
 - Calling `WithMetrics` on the bridge plugin used to re-construct `DepositProcessor` and `WithdrawalProcessor`, dropping their consumed-nonce dedup sets and the in-progress withdrawal tree. A replay deposit submitted after a re-wire would silently slip through; an in-progress withdrawal batch would lose accumulated leaves. Now `WithMetrics` swaps the sink in-place via new `Processor.WithMetrics(IL2Metrics)` setters, preserving every piece of state.

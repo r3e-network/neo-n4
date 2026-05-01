@@ -31,13 +31,15 @@ public sealed class L2BatchPlugin : Plugin
     /// <summary>
     /// Wire a metrics sink. The plugin's <see cref="BatchSealer"/> emits
     /// <c>l2.batch.sealed</c>, <c>l2.batch.seal_latency_ms</c>, and <c>l2.batch.tx_count</c>
-    /// against this sink. Call before the first block commit; defaults to <see cref="NoOpMetrics"/>.
+    /// against this sink. Defaults to <see cref="NoOpMetrics"/>.
+    /// Swaps the sink in-place on the existing sealer so batch-numbering / state-root /
+    /// in-progress-builder state survives a re-wire.
     /// </summary>
     public void WithMetrics(IL2Metrics metrics)
     {
         ArgumentNullException.ThrowIfNull(metrics);
         _metrics = metrics;
-        _sealer = null; // re-create on next commit so the new sink is honored
+        _sealer?.WithMetrics(metrics);
     }
 
     /// <inheritdoc />

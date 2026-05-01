@@ -20,13 +20,20 @@ namespace Neo.Plugins.L2;
 public sealed class BatchSealer
 {
     private readonly L2BatchSettings _settings;
-    private readonly IL2Metrics _metrics;
+    private IL2Metrics _metrics;
     private readonly Func<long> _nowUtcMillis;
 
     private BatchBuilder? _builder;
     private long _batchStartedAtUtcMillis;
     private ulong _nextBatchNumber = 1;
     private UInt256 _lastPostStateRoot = UInt256.Zero;
+
+    /// <summary>Swap the metrics sink in-place. Preserves all batch-numbering + builder state, unlike re-constructing.</summary>
+    public void WithMetrics(IL2Metrics metrics)
+    {
+        ArgumentNullException.ThrowIfNull(metrics);
+        _metrics = metrics;
+    }
 
     /// <summary>Construct a sealer. <paramref name="nowUtcMillis"/> is injectable so tests can advance time.</summary>
     public BatchSealer(L2BatchSettings settings, IL2Metrics metrics, Func<long>? nowUtcMillis = null)

@@ -12,6 +12,46 @@ namespace Neo.L2.Batch;
 /// This is the byte format that NeoHub's settlement contract reads, so any change here is a
 /// breaking on-chain change.
 /// </para>
+/// <para>
+/// <b>L2BatchCommitment layout (321 + proofLen bytes):</b>
+/// <code>
+/// offset  size       field
+/// 0       4          chainId (uint32)
+/// 4       8          batchNumber (uint64)
+/// 12      8          firstBlock (uint64)
+/// 20      8          lastBlock (uint64)
+/// 28      32         preStateRoot
+/// 60      32         postStateRoot
+/// 92      32         txRoot
+/// 124     32         receiptRoot
+/// 156     32         withdrawalRoot
+/// 188     32         l2ToL1MessageRoot
+/// 220     32         l2ToL2MessageRoot
+/// 252     32         daCommitment
+/// 284     32         publicInputHash
+/// 316     1          proofType (byte)
+/// 317     4          proofLen (int32)
+/// 321     proofLen   proof bytes
+/// </code>
+/// </para>
+/// <para>
+/// <b>PublicInputs layout (332 bytes, fixed):</b>
+/// <code>
+/// offset  size  field
+/// 0       4     chainId (uint32)
+/// 4       8     batchNumber (uint64)
+/// 12      32    preStateRoot
+/// 44      32    postStateRoot
+/// 76      32    txRoot
+/// 108     32    receiptRoot
+/// 140     32    withdrawalRoot
+/// 172     32    l2ToL1MessageRoot
+/// 204     32    l2ToL2MessageRoot
+/// 236     32    l1MessageHash
+/// 268     32    daCommitment
+/// 300     32    blockContextHash
+/// </code>
+/// </para>
 /// </remarks>
 public static class BatchSerializer
 {

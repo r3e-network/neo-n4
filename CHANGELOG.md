@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `BatchSerializer` byte layouts in XML docs + tests
+
+- `BatchSerializer`'s XML doc now includes full offset tables for both `L2BatchCommitment` (321 + proofLen bytes) and `PublicInputs` (332 bytes). This is THE format `NeoHub.SettlementManager` reads on-chain — having the layout in the doc means a contract author parsing the bytes doesn't need to read the encoder source.
+- **2 new tests** in `Neo.L2.Batch.UnitTests` pin every documented offset.
+
+Cumulative: 320 tests / 27 projects.
+
 ### Added — Documented byte layouts for `OptimisticProofPayload` + `RiscVProofPayload`
 
 - Both payload types previously had `<remarks>See doc.md §X</remarks>` but no actual byte layout written down. A contract author parsing them off the wire had to read the source to know offsets. Layouts now spelled out as offset/size tables matching the format used in other canonical encoders.

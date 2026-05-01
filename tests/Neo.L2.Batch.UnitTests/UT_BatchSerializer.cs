@@ -103,4 +103,61 @@ public class UT_BatchSerializer
         Assert.ThrowsExactly<ArgumentException>(() =>
             BatchSerializer.DecodePublicInputs(new byte[BatchSerializer.PublicInputsSize - 1]));
     }
+
+    [TestMethod]
+    public void Commitment_ByteLayout_MatchesDocumentedOffsets()
+    {
+        // Pins the layout claimed in BatchSerializer's XML docs. NeoHub.SettlementManager
+        // depends on these offsets; a future encoder reorder must fail this test.
+        var c = Sample(new byte[] { 0xAA, 0xBB, 0xCC });
+        var bytes = BatchSerializer.Encode(c);
+
+        Assert.AreEqual(BatchSerializer.CommitmentFixedSize + c.Proof.Length, bytes.Length);
+
+        Assert.AreEqual(0xCAFEBABEu, System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(0, 4)));
+        Assert.AreEqual(0xDEAD_BEEF_F00D_BABEUL, System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(bytes.AsSpan(4, 8)));
+        Assert.AreEqual(100UL, System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(bytes.AsSpan(12, 8)));
+        Assert.AreEqual(200UL, System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(bytes.AsSpan(20, 8)));
+
+        CollectionAssert.AreEqual(c.PreStateRoot.GetSpan().ToArray(), bytes[28..60]);
+        CollectionAssert.AreEqual(c.PostStateRoot.GetSpan().ToArray(), bytes[60..92]);
+        CollectionAssert.AreEqual(c.TxRoot.GetSpan().ToArray(), bytes[92..124]);
+        CollectionAssert.AreEqual(c.ReceiptRoot.GetSpan().ToArray(), bytes[124..156]);
+        CollectionAssert.AreEqual(c.WithdrawalRoot.GetSpan().ToArray(), bytes[156..188]);
+        CollectionAssert.AreEqual(c.L2ToL1MessageRoot.GetSpan().ToArray(), bytes[188..220]);
+        CollectionAssert.AreEqual(c.L2ToL2MessageRoot.GetSpan().ToArray(), bytes[220..252]);
+        CollectionAssert.AreEqual(c.DACommitment.GetSpan().ToArray(), bytes[252..284]);
+        CollectionAssert.AreEqual(c.PublicInputHash.GetSpan().ToArray(), bytes[284..316]);
+
+        Assert.AreEqual((byte)ProofType.Zk, bytes[316]);
+        Assert.AreEqual(c.Proof.Length, System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(317, 4)));
+        CollectionAssert.AreEqual(c.Proof.ToArray(), bytes[321..]);
+    }
+
+    [TestMethod]
+    public void PublicInputs_ByteLayout_MatchesDocumentedOffsets()
+    {
+        var inputs = new PublicInputs
+        {
+            ChainId = 0xCAFEBABE,
+            BatchNumber = 0xDEAD_BEEFUL,
+            PreStateRoot = H('a'),
+            PostStateRoot = H('b'),
+            TxRoot = H('c'),
+            ReceiptRoot = H('d'),
+            WithdrawalRoot = H('e'),
+            L2ToL1MessageRoot = H('f'),
+            L2ToL2MessageRoot = H('1'),
+            L1MessageHash = H('2'),
+            DACommitment = H('3'),
+            BlockContextHash = H('4'),
+        };
+        var bytes = BatchSerializer.EncodePublicInputs(inputs);
+
+        Assert.AreEqual(332, bytes.Length);
+        Assert.AreEqual(0xCAFEBABEu, System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(0, 4)));
+        Assert.AreEqual(0xDEAD_BEEFUL, System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(bytes.AsSpan(4, 8)));
+        CollectionAssert.AreEqual(inputs.PreStateRoot.GetSpan().ToArray(), bytes[12..44]);
+        CollectionAssert.AreEqual(inputs.BlockContextHash.GetSpan().ToArray(), bytes[300..332]);
+    }
 }

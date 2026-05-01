@@ -48,6 +48,21 @@ public class UT_RpcSettlementClient
     }
 
     [TestMethod]
+    public async Task JsonRpcClient_MalformedJson_ThrowsJsonRpcException()
+    {
+        // Server returns malformed JSON (e.g. proxy error page in HTML, or truncated body).
+        // The client must wrap this as a JsonRpcException so callers don't have to handle
+        // disparate parser exceptions.
+        var stub = new StubHandler { ResponseBody = "<html><body>502 Bad Gateway</body></html>" };
+        using var http = new HttpClient(stub);
+        using var client = new JsonRpcClient(FakeEndpoint, http);
+
+        var ex = await Assert.ThrowsExactlyAsync<JsonRpcException>(async () =>
+            await client.CallAsync("ping", new JArray()));
+        Assert.AreEqual(-32700, ex.Code, "JSON-RPC 2.0 spec code for parse error");
+    }
+
+    [TestMethod]
     public async Task JsonRpcClient_SurfacesRpcError()
     {
         var stub = new StubHandler

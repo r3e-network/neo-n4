@@ -66,7 +66,15 @@ public sealed class JsonRpcClient : IDisposable
         response.EnsureSuccessStatusCode();
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
-        var parsed = JToken.Parse(responseBody);
+        JToken? parsed;
+        try { parsed = JToken.Parse(responseBody); }
+        catch (Exception ex)
+        {
+            // -32700 is the JSON-RPC 2.0 spec code for "Parse error". Wrapping here gives
+            // callers a uniform exception type to handle (JsonRpcException) regardless of
+            // whether the failure originated server-side or in the response body.
+            throw new JsonRpcException(-32700, $"failed to parse RPC response: {ex.Message}");
+        }
         if (parsed is not JObject obj)
             throw new JsonRpcException(-32600, $"unexpected response: {responseBody.Substring(0, Math.Min(200, responseBody.Length))}");
 

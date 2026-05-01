@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `JsonRpcClient` wraps malformed-JSON as `JsonRpcException`
+
+- `JToken.Parse` exceptions on malformed RPC responses (e.g. proxy returning HTML 502, gateway truncated body) leaked as raw parser exceptions instead of `JsonRpcException`. Callers had to write disparate exception handlers depending on the failure origin.
+- Wraps in `JsonRpcException` with code `-32700` (JSON-RPC 2.0 spec code for "Parse error") so callers see one exception type regardless of failure source.
+- **1 new test** stubs an HTML 502 response and asserts `JsonRpcException(-32700)`.
+
+Cumulative: 362 tests / 27 projects.
+
 ### Fixed — `L2MetricsPlugin.ResolveBindAddress` rejects empty / null input
 
 - Empty `""` BindAddress fell through `IPAddress.TryParse` to `Dns.GetHostAddresses("")`, which on Linux returns ALL local interface addresses non-deterministically. The plugin would bind to a random interface depending on machine config — exactly the opaque-failure-mode an operator hates.

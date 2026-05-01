@@ -16,7 +16,7 @@
 ## Quick start
 
 ```bash
-# Type-check everything + run all 162 tests
+# Type-check everything + run all 328 tests
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Run the in-process devnet demo
@@ -115,6 +115,23 @@ neo4/
 5. **`IMPLEMENTATION_STATUS.md`.** Update the per-component table and the test count.
 6. **`CHANGELOG.md`.** Add a bullet under `[Unreleased]`. Keep it terse — the diff is the
    spec; the changelog is the highlight reel.
+
+## Adding a new wire format
+
+If your component adds a canonical byte encoding (anything that crosses the off-chain ↔
+on-chain boundary, e.g. proof payloads, message envelopes, Merkle proofs):
+
+1. **Document the layout in the type's XML docs** as an offset/size table inside `<remarks>`.
+   Match the format used by `BatchSerializer`, `FraudProofPayload`, `MerkleProofSerializer`, etc.
+   A contract author parsing the bytes off the wire should be able to read the table without
+   reading the C# encoder.
+2. **Add a byte-layout test** that pins each documented offset. Future encoder reorders fail
+   the test instead of silently breaking on-chain verifiers. See
+   `UT_MerkleProofSerializer.Encode_LayoutMatchesSpec` for the pattern.
+3. **Add the encoder to `AGENTS.md`'s "Canonical encodings" list.** This is the registry
+   future agents consult before reinventing one.
+4. **Add round-trip + rejection tests.** Verify Encode → Decode is identity, and that Decode
+   throws on truncated / oversized / wrong-version input.
 
 ## Adding a smart contract
 

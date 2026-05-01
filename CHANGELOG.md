@@ -5,6 +5,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Docs — CONTRIBUTING.md test count + new wire-format guidance
+
+- Updated stale "162 tests" → 328 in the Quick Start.
+- Added a new "Adding a new wire format" section that codifies the byte-layout-table-in-docs + byte-layout-test pattern established by iter 47 / 58–60. Closes the contributor onboarding gap where someone introducing a new canonical encoding wouldn't know the convention.
+
 ### Fixed — `PrometheusExporter` escapes label values per spec
 
 - Label values containing `"`, `\`, or newline were emitted verbatim, producing malformed Prometheus exposition that would break a real scraper. No current `MetricNames` emit those characters in tags, so this is defensive — but if anyone ever adds e.g. a `("user_agent", request.UserAgent)` tag, the exporter is now safe.

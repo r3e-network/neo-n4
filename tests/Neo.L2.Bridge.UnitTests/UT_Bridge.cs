@@ -50,6 +50,21 @@ public class UT_Bridge
     }
 
     [TestMethod]
+    public void Registry_Register_SameKey_Overwrites()
+    {
+        // Documents the overwrite behavior: re-registering a mapping with the same
+        // (L1Asset, L2ChainId) replaces the prior entry. Same L2Asset keeps a single
+        // _byL2 entry pointing at the latest mapping.
+        var r = new AssetRegistry();
+        r.Register(GasMapping() with { Active = true });
+        r.Register(GasMapping() with { Active = false });
+
+        Assert.AreEqual(1, r.Count);
+        r.TryGetByL2(GasL2, out var m);
+        Assert.IsFalse(m!.Active, "second Register replaces the first");
+    }
+
+    [TestMethod]
     public void DepositPayload_RoundTrips()
     {
         var p = new DepositPayload

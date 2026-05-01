@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `AssetRegistry` overwrite-semantics test
+
+- `Register` silently overwrites an existing entry under the same `(L1Asset, L2ChainId)` key. Documented now via a test that registers twice with different `Active` flags and asserts the second registration wins. Pins overwrite as a deliberate API choice — a future refactor to "throw on duplicate" would break the test instead of silently breaking governance flows that re-register assets.
+- **1 new test**.
+
+Cumulative: 358 tests / 27 projects.
+
 ### Fixed — `L2SettlementPlugin.SubmitNextAsync` no longer drains queue when un-wired
 
 - Real silent-data-loss bug: `SubmitNextAsync` dequeued an item BEFORE checking whether `_prover` / `_client` had been wired. If `Wire()` hadn't been called yet (operator setup error, or `OnBatchSealed` event firing before wiring completed), every batch flowing through this plugin would be silently dropped — no exception, no failure metric, just gone.

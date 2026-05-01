@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `ChainAuditor.AuditAsync` fails on zero-checks-registered
+
+- An audit with no checks registered used to silently report `Passed = true` because `Findings.All(...)` returns true on an empty collection. A misconfigured production deployment that registered zero checks would get a green report despite proving nothing.
+- Surfaces as a failure now with a `"no audit checks registered"` finding before any per-check work; feeds into the existing `l2.audit.failures` counter so an alert fires on the misconfiguration.
+- **1 new test** registers no checks, runs an audit, asserts `Passed=false` and the failure counter increments.
+
+Cumulative: 353 tests / 27 projects.
+
 ### Added — Boundary tests for `Optimistic`/`RiscV`/`Multisig` proof payload caps
 
 - Iter 76-77 added max-length caps to all three inner proof-payload decoders, with reject-at-`Max+1` tests. Now paired with accept-at-exactly-`Max` tests on each (matches the symmetric pattern from iters 82-83 for `BatchSerializer` and `MerkleProofSerializer`):

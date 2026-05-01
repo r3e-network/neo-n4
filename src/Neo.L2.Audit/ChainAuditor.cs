@@ -65,11 +65,24 @@ public sealed class ChainAuditor
         }
 
         var allFindings = new List<AuditFinding>();
-        foreach (var check in _checks)
+        if (_checks.Count == 0)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var findings = await check.RunAsync(batches, cancellationToken).ConfigureAwait(false);
-            allFindings.AddRange(findings);
+            // No checks registered → audit proves nothing; surface as a failure rather
+            // than silently passing.
+            allFindings.Add(new AuditFinding
+            {
+                Check = "input", Passed = false, BatchNumber = 0,
+                Detail = "no audit checks registered — call Register() before Audit",
+            });
+        }
+        else
+        {
+            foreach (var check in _checks)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var findings = await check.RunAsync(batches, cancellationToken).ConfigureAwait(false);
+                allFindings.AddRange(findings);
+            }
         }
 
         var failureCount = allFindings.Count(f => !f.Passed);

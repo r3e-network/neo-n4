@@ -92,4 +92,22 @@ public class UT_ChainAuditor_Metrics
         var report = await auditor.AuditAsync(new[] { Mk(1, H(0), H(1)) });
         Assert.IsTrue(report.Passed);
     }
+
+    [TestMethod]
+    public async Task NoChecksRegistered_FailsAudit_AndIncrementsFailures()
+    {
+        // Defensive: an audit with zero checks proves nothing. Used to silently report
+        // 'passed' because Findings was empty and Passed = Findings.All(...) returns true
+        // on an empty collection. Now surfaces as a failure with a clear 'no audit checks
+        // registered' finding.
+        var metrics = new InMemoryMetrics();
+        var auditor = new ChainAuditor(metrics);
+        var report = await auditor.AuditAsync(new[] { Mk(1, H(0), H(1)) });
+
+        Assert.IsFalse(report.Passed);
+        Assert.AreEqual(1, report.Findings.Count);
+        Assert.AreEqual("input", report.Findings[0].Check);
+        StringAssert.Contains(report.Findings[0].Detail, "no audit checks registered");
+        Assert.AreEqual(1, metrics.GetCounter(MetricNames.AuditFailures));
+    }
 }

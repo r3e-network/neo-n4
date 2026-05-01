@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `PrometheusExporter` escapes label values per spec
+
+- Label values containing `"`, `\`, or newline were emitted verbatim, producing malformed Prometheus exposition that would break a real scraper. No current `MetricNames` emit those characters in tags, so this is defensive — but if anyone ever adds e.g. a `("user_agent", request.UserAgent)` tag, the exporter is now safe.
+- Escapes per the Prometheus exposition format: `\` → `\\`, `"` → `\"`, newline → `\n`.
+- **3 new tests** cover each escape case + the regression where a raw newline in a label used to make `line2` look like the start of a new metric line to the parser.
+
+Cumulative: 328 tests / 27 projects.
+
 ### Fixed — `L2MetricsPlugin` accepts hostnames in BindAddress (e.g. `localhost`)
 
 - `Start` previously crashed if `BindAddress` wasn't a numeric IP — `IPAddress.TryParse` rejects hostnames. A reasonable operator config like `"BindAddress": "localhost"` would throw `InvalidOperationException` at startup. Now falls back to `Dns.GetHostAddresses` for hostnames; raises a clear error only if DNS resolution fails or returns zero addresses.

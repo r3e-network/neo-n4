@@ -136,4 +136,41 @@ public class UT_PrometheusExporter
         Assert.AreEqual(1, snap.Counters[MetricNames.BatchesSealed], "snapshot is frozen");
         Assert.AreEqual(100, m.GetCounter(MetricNames.BatchesSealed), "live sink keeps mutating");
     }
+
+    [TestMethod]
+    public void Format_LabelValue_EscapesQuote()
+    {
+        var m = new InMemoryMetrics();
+        m.IncrementCounter(MetricNames.RpcCalls, 1, ("method", "weird\"name"));
+
+        var output = PrometheusExporter.Format(m.Snapshot());
+
+        StringAssert.Contains(output, @"l2_rpc_calls_total{method=""weird\""name""} 1");
+    }
+
+    [TestMethod]
+    public void Format_LabelValue_EscapesBackslash()
+    {
+        var m = new InMemoryMetrics();
+        m.IncrementCounter(MetricNames.RpcCalls, 1, ("method", @"path\with\slash"));
+
+        var output = PrometheusExporter.Format(m.Snapshot());
+
+        StringAssert.Contains(output, @"l2_rpc_calls_total{method=""path\\with\\slash""} 1");
+    }
+
+    [TestMethod]
+    public void Format_LabelValue_EscapesNewline()
+    {
+        var m = new InMemoryMetrics();
+        m.IncrementCounter(MetricNames.RpcCalls, 1, ("method", "line1\nline2"));
+
+        var output = PrometheusExporter.Format(m.Snapshot());
+
+        StringAssert.Contains(output, @"l2_rpc_calls_total{method=""line1\nline2""} 1");
+        // Critical: the literal \n must NOT appear unescaped — that would break the parser
+        // by making a new line look like a separate metric line.
+        var lines = output.Split('\n');
+        Assert.IsFalse(lines.Any(l => l.StartsWith("line2")), "raw newline must be escaped");
+    }
 }

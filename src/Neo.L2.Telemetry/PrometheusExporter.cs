@@ -122,7 +122,7 @@ public static class PrometheusExporter
         sb.Append(name);
         if (labels.Length > 0)
         {
-            // Convert internal {k=v,k2=v2} → Prometheus {k="v",k2="v2"}
+            // Convert internal {k=v,k2=v2} → Prometheus {k="v",k2="v2"} with proper escaping.
             sb.Append('{');
             var inner = labels.AsSpan(1, labels.Length - 2); // strip { and }
             var first = true;
@@ -132,11 +132,35 @@ public static class PrometheusExporter
                 if (eq < 0) continue;
                 if (!first) sb.Append(',');
                 first = false;
-                sb.Append(pair[..eq]).Append("=\"").Append(pair[(eq + 1)..]).Append('"');
+                sb.Append(pair[..eq]).Append("=\"");
+                AppendEscapedLabelValue(sb, pair.AsSpan(eq + 1));
+                sb.Append('"');
             }
             sb.Append('}');
         }
         sb.Append(' ').Append(value).Append('\n');
+    }
+
+    /// <summary>
+    /// Escape a Prometheus label value per the exposition spec:
+    /// <list type="bullet">
+    ///   <item><description><c>\</c> → <c>\\</c></description></item>
+    ///   <item><description><c>"</c> → <c>\"</c></description></item>
+    ///   <item><description>newline → <c>\n</c></description></item>
+    /// </list>
+    /// </summary>
+    private static void AppendEscapedLabelValue(StringBuilder sb, ReadOnlySpan<char> value)
+    {
+        foreach (var c in value)
+        {
+            switch (c)
+            {
+                case '\\': sb.Append('\\').Append('\\'); break;
+                case '"': sb.Append('\\').Append('"'); break;
+                case '\n': sb.Append('\\').Append('n'); break;
+                default: sb.Append(c); break;
+            }
+        }
     }
 
     private static IEnumerable<string> SplitOnComma(ReadOnlySpan<char> s)

@@ -8,8 +8,15 @@ namespace Neo.L2.Challenge;
 /// re-decoded by the configured fraud-verifier contract.
 /// </summary>
 /// <remarks>
-/// MVP layout: 1B version + 32B claimedPostStateRoot + 32B replayedPostStateRoot
-/// + 4B disputedTxIndex + 32B preStateRoot.
+/// MVP layout (101 bytes, all little-endian):
+/// <code>
+/// offset  size  field
+/// 0       1     version (currently 1)
+/// 1       32    preStateRoot
+/// 33      32    claimedPostStateRoot
+/// 65      32    replayedPostStateRoot
+/// 97      4     disputedTxIndex (uint32)
+/// </code>
 /// Real production: extend with execution-trace witness bytes that the verifier replays
 /// step-by-step inside the L1 contract. The MVP version proves *that there is a discrepancy*
 /// — sufficient for a multisig governance verifier to pause the chain pending arbitration.

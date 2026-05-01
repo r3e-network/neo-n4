@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `FraudProofPayload` doc-comment layout matches the encoder
+
+- The XML doc-comment listed fields in a different order than `Encode` actually produced. Real layout (101 bytes, all little-endian): version (1B) + preStateRoot (32B) + claimedPostStateRoot (32B) + replayedPostStateRoot (32B) + disputedTxIndex (uint32, 4B). Doc updated and a new byte-layout test pins the offsets so future reorders fail the build.
+- **1 new test** in `Neo.L2.Challenge.UnitTests` asserts each byte range matches the documented offsets.
+
+Cumulative: 316 tests / 27 projects.
+
 ### Added — `ChallengeOrchestrator.InspectWithBisectionAsync`
 
 - New overload that takes per-tx checkpoint sequences from both parties, runs `BisectionGame` internally, and emits a `FraudProofPayload` with `DisputedTxIndex` set to the single narrowed tx index. Pulls the bisection step inside the orchestrator so the caller doesn't have to wire it manually.

@@ -88,6 +88,33 @@ public class UT_Challenge
     }
 
     [TestMethod]
+    public void Payload_ByteLayout_MatchesDocumentedOffsets()
+    {
+        // Pins the byte layout claimed in FraudProofPayload's XML docs. If anyone reorders
+        // fields in Encode, this fails — the layout is part of the off-chain ↔ on-chain
+        // contract.
+        var pre = H('p'); var claimed = H('c'); var replayed = H('r');
+        var p = new FraudProofPayload
+        {
+            PreStateRoot = pre,
+            ClaimedPostStateRoot = claimed,
+            ReplayedPostStateRoot = replayed,
+            DisputedTxIndex = 0x12345678,
+        };
+        var bytes = p.Encode();
+
+        Assert.AreEqual(101, bytes.Length, "documented total size");
+        Assert.AreEqual(FraudProofPayload.Version, bytes[0], "byte 0 = version");
+        CollectionAssert.AreEqual(pre.GetSpan().ToArray(), bytes[1..33], "bytes 1..33 = preStateRoot");
+        CollectionAssert.AreEqual(claimed.GetSpan().ToArray(), bytes[33..65], "bytes 33..65 = claimedPostStateRoot");
+        CollectionAssert.AreEqual(replayed.GetSpan().ToArray(), bytes[65..97], "bytes 65..97 = replayedPostStateRoot");
+        Assert.AreEqual(
+            0x12345678u,
+            System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(97, 4)),
+            "bytes 97..101 = disputedTxIndex (LE uint32)");
+    }
+
+    [TestMethod]
     public async Task Inspect_NullWhenReplayMatches()
     {
         var pre = H('p');

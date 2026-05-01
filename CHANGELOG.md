@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `ChallengeOrchestrator.InspectWithBisectionAsync`
+
+- New overload that takes per-tx checkpoint sequences from both parties, runs `BisectionGame` internally, and emits a `FraudProofPayload` with `DisputedTxIndex` set to the single narrowed tx index. Pulls the bisection step inside the orchestrator so the caller doesn't have to wire it manually.
+- Returns `null` when checkpoints agree at the final index (no fraud). Otherwise emits `l2.challenge.fraud_proofs` (counter) and `l2.challenge.bisection_rounds` (histogram via `BisectionGame`).
+- **3 new tests**: agreement returns null, log-N narrowing produces the right disputed index region, arg validation matches `InspectAsync`.
+
+Cumulative: 315 tests / 27 projects.
+
 ### Added — `ChainAuditor` self-emits audit metrics
 
 - **`ChainAuditor`** accepts an optional `IL2Metrics` constructor parameter and emits `l2.audit.runs` (counter, +1 per `AuditAsync` call) and `l2.audit.failures` (counter, delta = number of failed findings — not 1 per failed audit) automatically. Devnet's manual emission of these metrics is removed; the auditor handles it now.

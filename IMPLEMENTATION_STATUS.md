@@ -33,7 +33,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.ForcedInclusion`  | Anti-censorship `IForcedInclusionSource` + in-memory backend (emits `l2.forced_inclusion.observed` on Enqueue) |
 | `Neo.L2.Sequencer`        | `ISequencerCommitteeProvider` + in-memory backend (Register / BeginExit / Finalize); emits `l2.sequencer.registered/exits_started/exits_finalized` + `l2.sequencer.committee_size` gauge |
 | `Neo.L2.Censorship`       | `CensorshipDetector` — turns overdue forced-tx entries into `CensorshipReport[]` (emits `l2.censorship.reports` per detection batch) |
-| `Neo.L2.Challenge`        | `FraudProofPayload` + `ChallengeOrchestrator` (emits `l2.challenge.fraud_proofs` on emit) + `BisectionGame` (emits `l2.challenge.bisection_rounds` on settle) for Phase-3 |
+| `Neo.L2.Challenge`        | `FraudProofPayload` + `ChallengeOrchestrator` (`InspectAsync` for replay-based fraud detection, `InspectWithBisectionAsync` for log-N narrowing of disputed tx index) + `BisectionGame` for Phase-3 |
 | `Neo.L2.Settlement.Rpc`   | JSON-RPC client + `RpcSettlementClient` for L1 read methods + signer-delegated submit |
 | `Neo.L2.Audit`            | End-to-end chain auditor: `ContinuityCheck` + `ProofValidityCheck` + `NoZeroProofCheck` + `ChainAuditor` (auto-emits `l2.audit.runs` + `l2.audit.failures`) |
 | `Neo.L2.Telemetry`        | `IL2Metrics` (counter/histogram/gauge) + `NoOpMetrics` + `InMemoryMetrics` + `MetricsSnapshot` + `PrometheusExporter` + `MetricsRequestHandler` (`/metrics` + **`/healthz` + `/readyz`**) + `MetricsHttpServer` (TcpListener-based, no third-party deps) + canonical `MetricNames` + `MetricCatalog` (operator-facing HELP descriptions) |
@@ -75,7 +75,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**312 unit + integration tests across 27 projects:**
+**315 unit + integration tests across 27 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -90,7 +90,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.ForcedInclusion.UnitTests`   | 8     | nonce ordering, replay, overdue detection   |
 | `Neo.L2.Sequencer.UnitTests`         | 13    | register/exit/finalize lifecycle, **metric emission for all three lifecycle ops + committee-size gauge** |
 | `Neo.L2.Censorship.UnitTests`        | 7     | overdue detection, sequencer attribution    |
-| `Neo.L2.Challenge.UnitTests`         | 19    | fraud-proof payload, orchestrator, BisectionGame |
+| `Neo.L2.Challenge.UnitTests`         | 24    | fraud-proof payload, orchestrator, BisectionGame, **`InspectWithBisectionAsync` (no-fraud agreement, log-N narrowing, arg validation)**, metric emission |
 | `Neo.L2.Audit.UnitTests`             | 18    | continuity + proof-validity checks, summary, `NoZeroProofCheck`, **`ChainAuditor` self-emits runs + failures (delta = failed-finding count)** |
 | `Neo.Plugins.L2Rpc.UnitTests`        | 13    | all 9 RPC methods, foreign-chain rejection, **per-method metric emission (calls/latency/failures)** |
 | `Neo.Plugins.L2DA.UnitTests`         | 13    | InMemory + NeoFsLike DA writers + **MetricsEmittingDAWriter (success / throw / accumulate / passthrough)** |

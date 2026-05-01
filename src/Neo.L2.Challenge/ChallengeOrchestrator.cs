@@ -59,4 +59,52 @@ public sealed class ChallengeOrchestrator
         _metrics.IncrementCounter(MetricNames.FraudProofsEmitted);
         return payload;
     }
+
+    /// <summary>
+    /// Like <see cref="InspectAsync"/>, but the caller already has per-tx checkpoint
+    /// sequences for both parties. Runs <see cref="BisectionGame"/> internally and emits a
+    /// fraud proof whose <see cref="FraudProofPayload.DisputedTxIndex"/> is the single
+    /// narrowed index the verifier needs to re-execute.
+    /// </summary>
+    /// <param name="claimedCommitment">The batch the sequencer published.</param>
+    /// <param name="inputs">Inputs the challenger reconstructed.</param>
+    /// <param name="challengerCheckpoints">Length N+1: state root after applying tx[0..i].</param>
+    /// <param name="sequencerCheckpoints">Same shape, from the sequencer's view.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Fraud-proof payload with narrowed <c>DisputedTxIndex</c>, or null when no fraud.</returns>
+    public ValueTask<FraudProofPayload?> InspectWithBisectionAsync(
+        L2BatchCommitment claimedCommitment,
+        BatchExecutionRequest inputs,
+        UInt256[] challengerCheckpoints,
+        UInt256[] sequencerCheckpoints,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(claimedCommitment);
+        ArgumentNullException.ThrowIfNull(inputs);
+        ArgumentNullException.ThrowIfNull(challengerCheckpoints);
+        ArgumentNullException.ThrowIfNull(sequencerCheckpoints);
+        if (claimedCommitment.ChainId != inputs.ChainId)
+            throw new ArgumentException("commitment.ChainId != inputs.ChainId");
+        if (claimedCommitment.BatchNumber != inputs.BatchNumber)
+            throw new ArgumentException("commitment.BatchNumber != inputs.BatchNumber");
+        if (!claimedCommitment.PreStateRoot.Equals(inputs.PreStateRoot))
+            throw new ArgumentException("commitment.PreStateRoot != inputs.PreStateRoot");
+
+        // No fraud if checkpoints agree at the end.
+        if (challengerCheckpoints[^1].Equals(sequencerCheckpoints[^1]))
+            return ValueTask.FromResult<FraudProofPayload?>(null);
+
+        var game = new BisectionGame(challengerCheckpoints, sequencerCheckpoints, _metrics);
+        var disputedIndex = game.RunToSettlement();
+
+        var payload = new FraudProofPayload
+        {
+            PreStateRoot = claimedCommitment.PreStateRoot,
+            ClaimedPostStateRoot = claimedCommitment.PostStateRoot,
+            ReplayedPostStateRoot = challengerCheckpoints[^1],
+            DisputedTxIndex = (uint)disputedIndex,
+        };
+        _metrics.IncrementCounter(MetricNames.FraudProofsEmitted);
+        return ValueTask.FromResult<FraudProofPayload?>(payload);
+    }
 }

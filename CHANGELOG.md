@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `PrometheusExporter` formats `±Infinity` per spec
+
+- .NET's `double.ToString` returns `Infinity` / `-Infinity` for non-finite values, but Prometheus exposition format requires `+Inf` / `-Inf`. A scraper rejects the bad form. None of the current emit sites produce infinity, so this is defensive — but a misbehaving plugin (e.g. division by zero in a gauge) would silently corrupt the scrape.
+- Helper `FormatDouble` handles `NaN`, `+Inf`, `-Inf` as Prometheus specifies; finite values still go through `G17` invariant.
+- **3 new tests** for each non-finite case.
+
+Cumulative: 339 tests / 27 projects.
+
 ### Fixed — `MetricsHttpServer.Start` is now idempotent
 
 - Previously a second `Start` call would overwrite `_loop` with a new `Task.Run`, leaving the first accept loop dangling on the same `TcpListener`. Both loops would race on `AcceptTcpClientAsync`, only the latest got awaited at Dispose. Defensive fix consistent with iter 67's plugin-level lock.

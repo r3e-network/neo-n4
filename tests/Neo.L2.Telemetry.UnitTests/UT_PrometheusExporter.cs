@@ -160,6 +160,40 @@ public class UT_PrometheusExporter
     }
 
     [TestMethod]
+    public void Format_PositiveInfinityGauge_RendersAsPlusInf()
+    {
+        var m = new InMemoryMetrics();
+        m.SetGauge(MetricNames.BatchTxCount, double.PositiveInfinity);
+
+        var output = PrometheusExporter.Format(m.Snapshot());
+
+        StringAssert.Contains(output, "l2_batch_tx_count +Inf");
+        StringAssert.DoesNotMatch(output, new System.Text.RegularExpressions.Regex(@"\bInfinity\b"));
+    }
+
+    [TestMethod]
+    public void Format_NegativeInfinityGauge_RendersAsMinusInf()
+    {
+        var m = new InMemoryMetrics();
+        m.SetGauge(MetricNames.BatchTxCount, double.NegativeInfinity);
+
+        var output = PrometheusExporter.Format(m.Snapshot());
+
+        StringAssert.Contains(output, "l2_batch_tx_count -Inf");
+    }
+
+    [TestMethod]
+    public void Format_NaNGauge_RendersAsNaN()
+    {
+        var m = new InMemoryMetrics();
+        m.SetGauge(MetricNames.BatchTxCount, double.NaN);
+
+        var output = PrometheusExporter.Format(m.Snapshot());
+
+        StringAssert.Contains(output, "l2_batch_tx_count NaN");
+    }
+
+    [TestMethod]
     public void Format_LabelValue_EscapesNewline()
     {
         var m = new InMemoryMetrics();

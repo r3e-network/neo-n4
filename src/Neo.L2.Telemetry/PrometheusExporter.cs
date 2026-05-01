@@ -31,7 +31,7 @@ public static class PrometheusExporter
 
         // Group by base name so HELP/TYPE only appears once per family.
         WriteFamilies(sb, snapshot.Counters, "counter", static (k, v) => v.ToString(CultureInfo.InvariantCulture), nameSuffix: "_total");
-        WriteFamilies(sb, snapshot.Gauges, "gauge", static (k, v) => v.ToString("G17", CultureInfo.InvariantCulture));
+        WriteFamilies(sb, snapshot.Gauges, "gauge", static (k, v) => FormatDouble(v));
 
         foreach (var (baseName, entries) in GroupHistograms(snapshot.Histograms))
         {
@@ -49,12 +49,25 @@ public static class PrometheusExporter
                     if (values[i] > max) max = values[i];
                 }
                 AppendLine(sb, promBase + "_count", labels, count.ToString(CultureInfo.InvariantCulture));
-                AppendLine(sb, promBase + "_sum", labels, sum.ToString("G17", CultureInfo.InvariantCulture));
-                AppendLine(sb, promBase + "_max", labels, max.ToString("G17", CultureInfo.InvariantCulture));
+                AppendLine(sb, promBase + "_sum", labels, FormatDouble(sum));
+                AppendLine(sb, promBase + "_max", labels, FormatDouble(max));
             }
         }
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Format a double for Prometheus exposition. Replaces .NET's "Infinity" / "-Infinity"
+    /// (which a Prometheus parser rejects) with the spec-mandated "+Inf" / "-Inf"; "NaN" is
+    /// already correct in both.
+    /// </summary>
+    private static string FormatDouble(double v)
+    {
+        if (double.IsNaN(v)) return "NaN";
+        if (double.IsPositiveInfinity(v)) return "+Inf";
+        if (double.IsNegativeInfinity(v)) return "-Inf";
+        return v.ToString("G17", CultureInfo.InvariantCulture);
     }
 
     private static void WriteFamilies<TVal>(

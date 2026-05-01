@@ -100,6 +100,46 @@ public class UT_ChallengeOrchestrator_WithBisection
                 MkCommit(pre, H(1)) with { ChainId = 9999 }, MkInputs(pre), arr, arr));
     }
 
+    [TestMethod]
+    public async Task Bisection_EmptyCheckpoints_ThrowsArgumentException()
+    {
+        // Regression: was IndexOutOfRangeException when [^1] hit an empty array before
+        // validation. Now the orchestrator's own boundary rejects with ArgumentException.
+        var orch = new ChallengeOrchestrator(new NoopReplayer());
+        var pre = H(0);
+        var empty = Array.Empty<UInt256>();
+
+        await Assert.ThrowsExactlyAsync<ArgumentException>(async () =>
+            await orch.InspectWithBisectionAsync(MkCommit(pre, H(1)), MkInputs(pre), empty, empty));
+    }
+
+    [TestMethod]
+    public async Task Bisection_MismatchedCheckpointLengths_ThrowsArgumentException()
+    {
+        // Was: line 94 silently compared arrays' last elements at different positions.
+        // If the last-elements happened to coincide, we'd wrongly return "no fraud".
+        var orch = new ChallengeOrchestrator(new NoopReplayer());
+        var pre = H(0);
+        var shorter = new[] { pre, H(1), H(2) };
+        var longer = new[] { pre, H(1), H(2), H(3), H(4) };
+
+        var ex = await Assert.ThrowsExactlyAsync<ArgumentException>(async () =>
+            await orch.InspectWithBisectionAsync(MkCommit(pre, H(4)), MkInputs(pre), shorter, longer));
+        StringAssert.Contains(ex.Message, "same length");
+    }
+
+    [TestMethod]
+    public async Task Bisection_SingleCheckpoint_ThrowsArgumentException()
+    {
+        // Length-1 means just preState, no postState — nothing to bisect.
+        var orch = new ChallengeOrchestrator(new NoopReplayer());
+        var pre = H(0);
+        var oneOnly = new[] { pre };
+
+        await Assert.ThrowsExactlyAsync<ArgumentException>(async () =>
+            await orch.InspectWithBisectionAsync(MkCommit(pre, H(1)), MkInputs(pre), oneOnly, oneOnly));
+    }
+
     private sealed class NoopReplayer : IFraudProofGenerator
     {
         public ValueTask<UInt256> ReplayAsync(BatchExecutionRequest inputs, CancellationToken cancellationToken = default)

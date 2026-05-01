@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `ChallengeOrchestrator.InspectWithBisectionAsync` validates checkpoint shapes
+
+- The agreement-at-end short-circuit (`challengerCheckpoints[^1].Equals(sequencerCheckpoints[^1])`) ran *before* any length validation. An empty array crashed with raw `IndexOutOfRangeException`; mismatched-length arrays silently compared incompatible last elements (could wrongly return "no fraud" when the last entries happened to match).
+- Now the orchestrator validates `length match` and `length ≥ 2` upfront, throwing `ArgumentException` at its boundary. The `BisectionGame` constructor's existing checks become defensive duplicates.
+- **3 new tests**: empty arrays → throws; mismatched lengths → throws; single-checkpoint (length 1) → throws.
+
+Cumulative: 371 tests / 27 projects.
+
 ### Added — `PublicInputHashConsistencyCheck` audit
 
 - New `IAuditCheck` that re-derives `PublicInputHash` from each batch's stored fields (via `StateRootCalculator.HashPublicInputs`) and compares against the stored value. Catches commitments where the hash was set to a value derived from different public inputs than the commitment claims — a tamper that would otherwise verify against the wrong proof.

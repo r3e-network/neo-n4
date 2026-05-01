@@ -89,6 +89,15 @@ public sealed class ChallengeOrchestrator
             throw new ArgumentException("commitment.BatchNumber != inputs.BatchNumber");
         if (!claimedCommitment.PreStateRoot.Equals(inputs.PreStateRoot))
             throw new ArgumentException("commitment.PreStateRoot != inputs.PreStateRoot");
+        // Validate checkpoint shapes BEFORE the [^1] access below — otherwise an empty
+        // array crashes with IndexOutOfRangeException, and mismatched lengths silently
+        // compare incompatible last elements (could wrongly return "no fraud" when the
+        // arrays happen to coincide at their last index).
+        if (challengerCheckpoints.Length != sequencerCheckpoints.Length)
+            throw new ArgumentException(
+                $"checkpoint arrays must have the same length (challenger={challengerCheckpoints.Length}, sequencer={sequencerCheckpoints.Length})");
+        if (challengerCheckpoints.Length < 2)
+            throw new ArgumentException("checkpoint arrays must have length ≥ 2 (preState + at least one postState)");
 
         // No fraud if checkpoints agree at the end.
         if (challengerCheckpoints[^1].Equals(sequencerCheckpoints[^1]))

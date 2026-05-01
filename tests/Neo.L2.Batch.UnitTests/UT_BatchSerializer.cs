@@ -144,6 +144,18 @@ public class UT_BatchSerializer
     }
 
     [TestMethod]
+    public void Commitment_Encode_AcceptsExactlyMaxProof()
+    {
+        // Boundary case: exactly 1 MiB must succeed. Off-by-one in the limit check would
+        // either reject this (too strict) or accept 1 MiB+1 (too loose) — pin both directions.
+        var atLimit = new byte[1024 * 1024];
+        var c = Sample(atLimit);
+        var bytes = BatchSerializer.Encode(c);
+        var decoded = BatchSerializer.Decode(bytes);
+        Assert.AreEqual(atLimit.Length, decoded.Proof.Length);
+    }
+
+    [TestMethod]
     public void Commitment_Decode_RejectsHeaderClaimingOversizedProof()
     {
         // Craft a header that claims proof length > ProofMaxBytes; decoder must reject before

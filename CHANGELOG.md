@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `BatchSerializer` boundary test at exactly `ProofMaxBytes`
+
+- The reject-at-1MiB+1 test (iter 75) didn't have a paired accept-at-exactly-1MiB test. An off-by-one in the limit check could either reject the boundary (too strict) or accept 1MiB+1 (too loose). Pinning both directions makes the boundary explicit.
+- **1 new test** encodes + decodes a commitment with a 1MiB proof and verifies round-trip identity.
+
+Cumulative: 348 tests / 27 projects.
+
 ### Added — Bidirectional `MetricCatalog` ↔ `MetricNames` consistency check
 
 - The existing completeness test enforced "every `MetricNames` constant has a catalog entry." The reverse — "every catalog entry references a real constant" — was uncovered. An orphan description surviving a metric rename or removal would silently bloat the exposition without triggering any test.

@@ -80,6 +80,30 @@ public class UT_MetricsEmittingDAWriter
         Assert.AreSame(inner, decorated.Inner);
     }
 
+    [TestMethod]
+    public async Task Inner_PreservedAcross_UnwrapRewrap()
+    {
+        // Regression: L2DAPlugin.WithMetrics unwraps the existing decorator and re-wraps with
+        // the new metrics. The inner InMemoryDAWriter must keep its state — otherwise a
+        // mid-flight metrics sink swap would lose previously-published content.
+        var inner = new InMemoryDAWriter();
+        var decorated1 = new MetricsEmittingDAWriter(inner, new InMemoryMetrics());
+
+        var receipt = await decorated1.PublishAsync(new DAPublishRequest
+        {
+            ChainId = 1001,
+            BatchNumber = 1,
+            Payload = new byte[] { 1, 2, 3 },
+        });
+
+        // Simulate a metrics-sink rewire: unwrap, rewrap with a different sink.
+        var unwrapped = decorated1.Inner;
+        var decorated2 = new MetricsEmittingDAWriter(unwrapped, new InMemoryMetrics());
+
+        // The inner store must still know about the original publish.
+        Assert.IsTrue(await decorated2.IsAvailableAsync(receipt));
+    }
+
     private static DAPublishRequest BuildRequest(ulong batch, byte[] payload) => new()
     {
         ChainId = 1001,

@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `MetricsEmittingDAWriter` unwrap/rewrap state-preservation test
+
+- `L2DAPlugin.WithMetrics` unwraps the existing decorator and rewraps with the new sink. The inner `InMemoryDAWriter`'s content store is preserved through this swap, but no test pinned that property — a future refactor that re-allocated the inner could silently lose published content.
+- **1 new test** publishes to a decorated writer, unwraps + rewraps with a different sink, then asserts `IsAvailableAsync(receipt)` still returns true on the new wrapper.
+
+Cumulative: 356 tests / 27 projects.
+
 ### Added — `Plan_DetectsSelfCycle` test in `Neo.Hub.Deploy.UnitTests`
 
 - The existing 2-step cycle test (`A→B→A`) didn't cover the degenerate length-1 self-cycle (`A→A`). Adding it pins the trivial case so a future refactor of the recursion-path check can't regress on it.

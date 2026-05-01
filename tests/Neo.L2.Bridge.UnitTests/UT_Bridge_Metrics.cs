@@ -121,6 +121,39 @@ public class UT_Bridge_Metrics
         wproc.Stage(BuildWithdrawalRequest(nonce: 1)); // no-throw
     }
 
+    [TestMethod]
+    public void Deposit_WithMetrics_PreservesConsumedNonceState()
+    {
+        // Regression: previously L2BridgePlugin.WithMetrics re-constructed the processor,
+        // dropping the consumed-nonce HashSet — a replay after re-wiring would slip through.
+        // Now WithMetrics swaps the sink in-place, preserving state.
+        var initial = new InMemoryMetrics();
+        var proc = new DepositProcessor(LocalChain, RegistryWithGas(), initial);
+        proc.Process(BuildDepositMessage(nonce: 1));
+
+        var second = new InMemoryMetrics();
+        proc.WithMetrics(second);
+
+        // Replay must still be rejected — proves consumed-nonce state survived the swap.
+        Assert.ThrowsExactly<InvalidOperationException>(() => proc.Process(BuildDepositMessage(nonce: 1)));
+        Assert.AreEqual(1, second.GetCounter(MetricNames.DepositsRejected), "post-swap rejection emits to new sink");
+        Assert.AreEqual(1, initial.GetCounter(MetricNames.DepositsProcessed), "pre-swap success was on old sink");
+    }
+
+    [TestMethod]
+    public void Withdrawal_WithMetrics_PreservesNonceState()
+    {
+        var initial = new InMemoryMetrics();
+        var proc = new WithdrawalProcessor(LocalChain, RegistryWithGas(), initial);
+        proc.Stage(BuildWithdrawalRequest(nonce: 1));
+
+        var second = new InMemoryMetrics();
+        proc.WithMetrics(second);
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => proc.Stage(BuildWithdrawalRequest(nonce: 1)));
+        Assert.AreEqual(1, second.GetCounter(MetricNames.WithdrawalsRejected));
+    }
+
     private static CrossChainMessage BuildDepositMessage(ulong nonce)
     {
         var payload = new DepositPayload

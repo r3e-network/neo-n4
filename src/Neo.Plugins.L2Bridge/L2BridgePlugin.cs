@@ -42,15 +42,15 @@ public sealed class L2BridgePlugin : Plugin
     /// Wire a metrics sink. The processors emit
     /// <c>l2.bridge.deposits/deposits_rejected/withdrawals/withdrawals_rejected</c> against
     /// this sink. Defaults to <see cref="NoOpMetrics"/>.
+    /// Swaps the sink in-place on existing processors so consumed-nonce / withdrawal-tree
+    /// state survives a re-wire.
     /// </summary>
     public void WithMetrics(IL2Metrics metrics)
     {
         ArgumentNullException.ThrowIfNull(metrics);
         _metrics = metrics;
-        if (_depositProcessor is not null)
-            _depositProcessor = new DepositProcessor(_chainId, _registry, _metrics);
-        if (_withdrawalProcessor is not null)
-            _withdrawalProcessor = new WithdrawalProcessor(_chainId, _registry, _metrics);
+        _depositProcessor?.WithMetrics(metrics);
+        _withdrawalProcessor?.WithMetrics(metrics);
     }
 
     /// <inheritdoc />

@@ -11,7 +11,7 @@ namespace Neo.L2.Bridge;
 public sealed class WithdrawalProcessor
 {
     private readonly AssetRegistry _registry;
-    private readonly IL2Metrics _metrics;
+    private IL2Metrics _metrics;
     private readonly Lock _gate = new();
     private readonly Dictionary<(UInt160, ulong), int> _byNonce = new();
     private WithdrawalTree _tree = new();
@@ -32,6 +32,13 @@ public sealed class WithdrawalProcessor
         LocalChainId = localChainId;
         _registry = registry;
         _metrics = metrics ?? NoOpMetrics.Instance;
+    }
+
+    /// <summary>Swap the metrics sink in-place. Preserves nonce-dedup + tree state, unlike re-constructing.</summary>
+    public void WithMetrics(IL2Metrics metrics)
+    {
+        ArgumentNullException.ThrowIfNull(metrics);
+        _metrics = metrics;
     }
 
     /// <summary>

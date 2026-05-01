@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `L2BridgePlugin.WithMetrics` preserves processor state
+
+- Calling `WithMetrics` on the bridge plugin used to re-construct `DepositProcessor` and `WithdrawalProcessor`, dropping their consumed-nonce dedup sets and the in-progress withdrawal tree. A replay deposit submitted after a re-wire would silently slip through; an in-progress withdrawal batch would lose accumulated leaves. Now `WithMetrics` swaps the sink in-place via new `Processor.WithMetrics(IL2Metrics)` setters, preserving every piece of state.
+- **2 new tests**: replay-deposit-after-rewire still rejects + emits to the new sink; same for withdrawal duplicate-nonce.
+
+Cumulative: 333 tests / 27 projects.
+
 ### Fixed — `/readyz` returns 503 when the readiness predicate throws
 
 - A readiness predicate that threw (e.g. checking a missing dependency) propagated the exception out of `Handle`, dropped the connection, and gave the scraper a TCP-level error rather than a clean 503. Predicate is wrapped in try/catch now; any throw produces 503 with body `predicate threw\n`. Operators chase the underlying exception in their logs, not the HTTP response.

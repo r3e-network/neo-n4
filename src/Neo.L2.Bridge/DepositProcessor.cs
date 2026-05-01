@@ -13,7 +13,7 @@ namespace Neo.L2.Bridge;
 public sealed class DepositProcessor
 {
     private readonly AssetRegistry _registry;
-    private readonly IL2Metrics _metrics;
+    private IL2Metrics _metrics;
     private readonly HashSet<(uint, ulong)> _consumed = new();
     private readonly Lock _gate = new();
 
@@ -27,6 +27,13 @@ public sealed class DepositProcessor
         LocalChainId = localChainId;
         _registry = registry;
         _metrics = metrics ?? NoOpMetrics.Instance;
+    }
+
+    /// <summary>Swap the metrics sink in-place. Preserves consumed-nonce state, unlike re-constructing.</summary>
+    public void WithMetrics(IL2Metrics metrics)
+    {
+        ArgumentNullException.ThrowIfNull(metrics);
+        _metrics = metrics;
     }
 
     /// <summary>

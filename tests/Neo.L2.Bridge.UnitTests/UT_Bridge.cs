@@ -144,6 +144,38 @@ public class UT_Bridge
     }
 
     [TestMethod]
+    public void DepositProcessor_AssetUnknownThenRegistered_RetrySucceeds()
+    {
+        // Regression: previously the consumed-set was populated BEFORE asset lookup, so a
+        // transient "asset not yet registered" failure permanently locked the (source, nonce)
+        // pair. After the operator registers the missing asset, retry would fail with
+        // "already processed" instead of succeeding. The fix moves the consumed-claim to
+        // AFTER all validation passes.
+        var registry = new AssetRegistry();
+        var proc = new DepositProcessor(LocalChain, registry);
+        var payload = new DepositPayload { L1Asset = GasL1, L2Recipient = Recipient, Amount = 1 };
+        var msg = new CrossChainMessage
+        {
+            SourceChainId = 0, TargetChainId = LocalChain, Nonce = 42,
+            Sender = Sender, Receiver = Recipient,
+            MessageType = MessageType.Deposit, Payload = payload.Encode(),
+            MessageHash = UInt256.Zero,
+        };
+
+        // Attempt 1 — asset not registered yet.
+        Assert.ThrowsExactly<InvalidOperationException>(() => proc.Process(msg));
+        Assert.IsFalse(proc.HasConsumed(0, 42), "nonce must NOT be consumed when validation failed");
+
+        // Operator registers the missing asset.
+        registry.Register(GasMapping());
+
+        // Attempt 2 — should succeed now.
+        var instr = proc.Process(msg);
+        Assert.AreEqual(GasL2, instr.L2Asset);
+        Assert.IsTrue(proc.HasConsumed(0, 42), "nonce must be consumed after success");
+    }
+
+    [TestMethod]
     public void WithdrawalProcessor_Stages_RejectsDuplicateNonce()
     {
         var registry = RegistryWithGas();

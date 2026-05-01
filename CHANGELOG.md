@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `DepositProcessor.Process` claims nonce only after validation succeeds
+
+- The consumed-set was populated BEFORE the asset-registry lookup, so a transient validation failure (e.g. "asset not yet registered" — the L2 cross-chain pipeline can deliver a deposit before the asset is registered on L2) permanently locked the `(SourceChainId, Nonce)` pair. When the operator later registered the missing asset, retry hit the consumed-set first and threw `"already processed"` — the L1 message stayed in NeoHub's "delivered" state but the L2 could never mint the funds.
+- Now: decode + asset-registry lookup happens first, then the atomic claim-and-add to `_consumed`. Replay protection still covers the success path (subsequent identical-nonce calls fail), and the concurrency window for two callers passing validation simultaneously is still safe (only one wins the `_consumed.Add`).
+- **1 new test**: process with unknown asset → fails, nonce NOT consumed; register the asset; retry → succeeds, nonce now consumed.
+
+Cumulative: 373 tests / 27 projects.
+
 ### Fixed — `L2SettlementPlugin.SubmitNextAsync` serializes parallel submits
 
 - `OnBatchSealed` did `_ = SubmitNextAsync()` fire-and-forget. When N batches sealed in quick succession, N submit tasks ran in parallel — racing each other into `_client.SubmitBatchAsync`. NeoHub then sees out-of-order `BatchNumber` values and rejects the late ones; the retry path tries to re-queue the loser, but the winner's batch is already on-chain — the L1 expects `lastSubmitted+1`, so the loser stays stuck and retries forever.

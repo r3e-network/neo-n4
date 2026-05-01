@@ -50,19 +50,27 @@ public sealed class DepositProcessor
             if (message.TargetChainId != LocalChainId)
                 throw new ArgumentException($"Message targets chain {message.TargetChainId}, but local is {LocalChainId}", nameof(message));
 
-            lock (_gate)
-            {
-                if (!_consumed.Add((message.SourceChainId, message.Nonce)))
-                    throw new InvalidOperationException(
-                        $"Deposit ({message.SourceChainId},{message.Nonce}) was already processed");
-            }
-
+            // Decode + validate BEFORE marking the nonce consumed. Otherwise a transient
+            // validation failure (e.g. asset not yet registered, decode error) permanently
+            // locks the (source, nonce) pair — when the asset is later registered, a retry
+            // would fail with "already processed" instead of succeeding. Replay protection
+            // only needs to cover the success path.
             var payload = DepositPayload.Decode(message.Payload.Span);
 
             if (!_registry.TryGetByL1(payload.L1Asset, LocalChainId, out var mapping) || mapping is null)
                 throw new InvalidOperationException($"No L2 asset mapping for L1 asset {payload.L1Asset}");
             if (!mapping.Active)
                 throw new InvalidOperationException($"Asset mapping for {payload.L1Asset} is inactive");
+
+            // Atomic claim: if another thread already processed this nonce while we were
+            // validating, lose the race and throw. The successful thread still emits the
+            // mint instruction; the loser sees "already processed" and gives up.
+            lock (_gate)
+            {
+                if (!_consumed.Add((message.SourceChainId, message.Nonce)))
+                    throw new InvalidOperationException(
+                        $"Deposit ({message.SourceChainId},{message.Nonce}) was already processed");
+            }
 
             var instr = new MintInstruction
             {

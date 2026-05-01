@@ -26,7 +26,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.Batch`            | `L2Batch`, `BatchBuilder`, deterministic `BatchSerializer`        |
 | `Neo.L2.State`            | `MerkleTree` (matches Neo `Hash256`), **`MerkleProofSerializer`** (canonical 48 + 32×N byte wire format consumed by L1 SharedBridge), `MessageHasher`, `WithdrawalTree`, `MessageTree`, `StateRootCalculator` |
 | `Neo.L2.Bridge`           | `AssetRegistry`, `DepositPayload`, `DepositProcessor`, `WithdrawalProcessor` (both processors emit `l2.bridge.deposits/deposits_rejected/withdrawals/withdrawals_rejected` to a per-instance `IL2Metrics`) |
-| `Neo.L2.Messaging`        | `MessageBuilder`, `L1MessageInbox`, `L2Outbox`, `InMemoryMessageRouter` |
+| `Neo.L2.Messaging`        | `MessageBuilder`, `L1MessageInbox`, `L2Outbox` (emits `l2.messaging.emitted`), `InMemoryMessageRouter` |
 | `Neo.L2.Proving`          | Stage 0 multisig (real), Stage 1 optimistic, Stage 2 mock RISC-V; `VerifierRegistry` |
 | `Neo.L2.Proving.Sp1`      | Phase 4 SP1 P/Invoke wrapper with graceful fallback to mock when native bridge missing |
 | `Neo.L2.Executor`         | `SPEC.md` + `Receipt`, pluggable `ITransactionExecutor` / `IPostStateRootOracle` / `IL1MessageProcessor`, `ReferenceBatchExecutor`, **`KeyedStateStore` + `KeyedStateRootOracle`** |
@@ -75,14 +75,14 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**306 unit + integration tests across 27 projects:**
+**308 unit + integration tests across 27 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
 | `Neo.L2.Abstractions.UnitTests`      | 17    | enum discriminants, models, interface shape |
 | `Neo.L2.Batch.UnitTests`             | 13    | builder lifecycle, serializer round-trip    |
 | `Neo.L2.State.UnitTests`             | 22    | Merkle tree, proof verify, hashers, **canonical proof wire format (round-trip, layout, truncation, oversized depth, 7-leaf all-positions)** |
-| `Neo.L2.Messaging.UnitTests`         | 7     | inbox FIFO, replay protection, outbox split |
+| `Neo.L2.Messaging.UnitTests`         | 9     | inbox FIFO, replay protection, outbox split, **L2Outbox metric emission across destinations** |
 | `Neo.L2.Bridge.UnitTests`            | 14    | registry, deposit replay, withdrawal staging, **metric emission on success/replay/unknown-asset/duplicate-nonce/negative-amount paths** |
 | `Neo.L2.Proving.UnitTests`           | 11    | Stage 0/1/2 prove+verify, registry dispatch |
 | `Neo.L2.Proving.Sp1.UnitTests`       | 6     | bridge unavailable, mock fallback, VK mismatch |

@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `L2Outbox` messaging telemetry
+
+- **`L2Outbox`** emits `l2.messaging.emitted` (counter) on every `Add`. Optional `IL2Metrics` constructor param. The metric was declared in iter 33's `MetricNames` but never emitted by any component.
+- **2 new tests** in `Neo.L2.Messaging.UnitTests`: counter increments across L1 + L2 destinations, NoOp default safety.
+
+Cumulative: 308 tests / 27 projects.
+
 ### Added — Sequencer registry telemetry
 
 - **`InMemorySequencerCommitteeProvider`** emits `l2.sequencer.registered` (counter) on Register, `l2.sequencer.exits_started` (counter) on BeginExit, `l2.sequencer.exits_finalized` (counter) on Finalize, and `l2.sequencer.committee_size` (gauge) on every Register / Finalize. Optional `IL2Metrics` constructor param. Lets operators alert on unexpected committee shrinkage or rapid churn.

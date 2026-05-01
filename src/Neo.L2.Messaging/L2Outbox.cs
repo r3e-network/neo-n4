@@ -1,4 +1,5 @@
 using Neo.L2.State;
+using Neo.L2.Telemetry;
 
 namespace Neo.L2.Messaging;
 
@@ -18,6 +19,13 @@ public sealed class L2Outbox
 
     private readonly MessageTree _l2ToL1 = new();
     private readonly MessageTree _l2ToL2 = new();
+    private readonly IL2Metrics _metrics;
+
+    /// <summary>Construct, optionally wired to a metrics sink.</summary>
+    public L2Outbox(IL2Metrics? metrics = null)
+    {
+        _metrics = metrics ?? NoOpMetrics.Instance;
+    }
 
     /// <summary>Number of L2 → L1 messages staged.</summary>
     public int L2ToL1Count => _l2ToL1.Count;
@@ -29,9 +37,11 @@ public sealed class L2Outbox
     public int Add(CrossChainMessage message)
     {
         ArgumentNullException.ThrowIfNull(message);
-        return message.TargetChainId == L1ChainId
+        var idx = message.TargetChainId == L1ChainId
             ? _l2ToL1.Add(message)
             : _l2ToL2.Add(message);
+        _metrics.IncrementCounter(MetricNames.MessagesEmitted);
+        return idx;
     }
 
     /// <summary>Merkle root of L2 → L1 messages (goes into <c>L2BatchCommitment.L2ToL1MessageRoot</c>).</summary>

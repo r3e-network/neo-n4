@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `Plan_DetectsSelfCycle` test in `Neo.Hub.Deploy.UnitTests`
+
+- The existing 2-step cycle test (`A→B→A`) didn't cover the degenerate length-1 self-cycle (`A→A`). Adding it pins the trivial case so a future refactor of the recursion-path check can't regress on it.
+- **1 new test**.
+
+Cumulative: 355 tests / 27 projects.
+
 ### Added — `MetricCatalog` non-blank-description check
 
 - Existing tests enforced "every metric has an entry" + "no orphan entries" + "no trailing period". Missing: empty/whitespace descriptions, which would silently produce a useless Prometheus HELP line (`# HELP foo_total ` with nothing after).

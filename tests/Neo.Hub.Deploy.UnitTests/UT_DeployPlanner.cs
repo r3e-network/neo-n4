@@ -45,6 +45,24 @@ public class UT_DeployPlanner
     }
 
     [TestMethod]
+    public void Plan_DetectsSelfCycle()
+    {
+        // Step A depends on itself — degenerate cycle of length 1. Existing 2-step cycle
+        // test covered A→B→A; this pins the trivial degenerate case so a future refactor
+        // that special-cases the recursion-path check can't regress.
+        var plan = new DeployPlan
+        {
+            Version = 1,
+            Network = "test",
+            Steps = new[] { Step("A", new JArray(), "A") },
+        };
+
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() =>
+            DeployPlanner.Plan(plan, _ => UInt160.Zero));
+        StringAssert.Contains(ex.Message, "cycle");
+    }
+
+    [TestMethod]
     public void Plan_DetectsCycles()
     {
         var plan = new DeployPlan

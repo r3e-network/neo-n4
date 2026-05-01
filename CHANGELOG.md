@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `ChainAuditor` self-emits audit metrics
+
+- **`ChainAuditor`** accepts an optional `IL2Metrics` constructor parameter and emits `l2.audit.runs` (counter, +1 per `AuditAsync` call) and `l2.audit.failures` (counter, delta = number of failed findings — not 1 per failed audit) automatically. Devnet's manual emission of these metrics is removed; the auditor handles it now.
+- **`NoZeroProofCheck`** registered in the devnet's auditor pipeline alongside `Continuity` + `ProofValidity`.
+- **4 new tests** in `Neo.L2.Audit.UnitTests`: passing-audit increments runs only, failing-audit increments runs + failures by failed-finding count, repeated audits accumulate, NoOp default safety.
+
+Cumulative: 312 tests / 27 projects.
+
 ### Added — `L2Outbox` messaging telemetry
 
 - **`L2Outbox`** emits `l2.messaging.emitted` (counter) on every `Add`. Optional `IL2Metrics` constructor param. The metric was declared in iter 33's `MetricNames` but never emitted by any component.

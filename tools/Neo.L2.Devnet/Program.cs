@@ -232,15 +232,14 @@ internal static class Program
         // ---- Audit pass over the produced sequence ----
         Console.WriteLine();
         Console.WriteLine("───── audit pass ─────");
-        var auditor = new ChainAuditor()
+        var auditor = new ChainAuditor(metrics)
             .Register(new ContinuityCheck())
+            .Register(new NoZeroProofCheck())
             .Register(new ProofValidityCheck(verifierRegistry, c => publicInputsByBatch[c.BatchNumber]));
         var report = await auditor.AuditAsync(allCommitments);
         Console.WriteLine(report.Summarize());
-        metrics.IncrementCounter(MetricNames.AuditsRun);
         if (!report.Passed)
         {
-            metrics.IncrementCounter(MetricNames.AuditFailures);
             Console.Error.WriteLine("❌ audit failed");
             return 1;
         }

@@ -35,7 +35,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.Censorship`       | `CensorshipDetector` — turns overdue forced-tx entries into `CensorshipReport[]` (emits `l2.censorship.reports` per detection batch) |
 | `Neo.L2.Challenge`        | `FraudProofPayload` + `ChallengeOrchestrator` (emits `l2.challenge.fraud_proofs` on emit) + `BisectionGame` (emits `l2.challenge.bisection_rounds` on settle) for Phase-3 |
 | `Neo.L2.Settlement.Rpc`   | JSON-RPC client + `RpcSettlementClient` for L1 read methods + signer-delegated submit |
-| `Neo.L2.Audit`            | End-to-end chain auditor: `ContinuityCheck` + `ProofValidityCheck` + **`NoZeroProofCheck`** + `ChainAuditor` |
+| `Neo.L2.Audit`            | End-to-end chain auditor: `ContinuityCheck` + `ProofValidityCheck` + `NoZeroProofCheck` + `ChainAuditor` (auto-emits `l2.audit.runs` + `l2.audit.failures`) |
 | `Neo.L2.Telemetry`        | `IL2Metrics` (counter/histogram/gauge) + `NoOpMetrics` + `InMemoryMetrics` + `MetricsSnapshot` + `PrometheusExporter` + `MetricsRequestHandler` (`/metrics` + **`/healthz` + `/readyz`**) + `MetricsHttpServer` (TcpListener-based, no third-party deps) + canonical `MetricNames` + `MetricCatalog` (operator-facing HELP descriptions) |
 
 ### Native FFI bridge (`bridge/`)
@@ -75,7 +75,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**308 unit + integration tests across 27 projects:**
+**312 unit + integration tests across 27 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -91,7 +91,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.Sequencer.UnitTests`         | 13    | register/exit/finalize lifecycle, **metric emission for all three lifecycle ops + committee-size gauge** |
 | `Neo.L2.Censorship.UnitTests`        | 7     | overdue detection, sequencer attribution    |
 | `Neo.L2.Challenge.UnitTests`         | 19    | fraud-proof payload, orchestrator, BisectionGame |
-| `Neo.L2.Audit.UnitTests`             | 14    | continuity + proof-validity checks, summary, **`NoZeroProofCheck` (all-proved / ProofType.None / empty bytes / multi-failure / empty list)** |
+| `Neo.L2.Audit.UnitTests`             | 18    | continuity + proof-validity checks, summary, `NoZeroProofCheck`, **`ChainAuditor` self-emits runs + failures (delta = failed-finding count)** |
 | `Neo.Plugins.L2Rpc.UnitTests`        | 13    | all 9 RPC methods, foreign-chain rejection, **per-method metric emission (calls/latency/failures)** |
 | `Neo.Plugins.L2DA.UnitTests`         | 13    | InMemory + NeoFsLike DA writers + **MetricsEmittingDAWriter (success / throw / accumulate / passthrough)** |
 | `Neo.Plugins.L2Gateway.UnitTests`    | 18    | flat + binary-tree aggregator, edge cases, **metric emission with rounds=log2(N) + per-batch accumulation** |

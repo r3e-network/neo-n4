@@ -1,3 +1,5 @@
+using Neo.L2.Telemetry;
+
 namespace Neo.L2.Audit;
 
 /// <summary>
@@ -7,6 +9,13 @@ namespace Neo.L2.Audit;
 public sealed class ChainAuditor
 {
     private readonly List<IAuditCheck> _checks = new();
+    private readonly IL2Metrics _metrics;
+
+    /// <summary>Construct, optionally wired to a metrics sink.</summary>
+    public ChainAuditor(IL2Metrics? metrics = null)
+    {
+        _metrics = metrics ?? NoOpMetrics.Instance;
+    }
 
     /// <summary>Add a check. Order matters — checks are run sequentially.</summary>
     public ChainAuditor Register(IAuditCheck check)
@@ -62,6 +71,11 @@ public sealed class ChainAuditor
             var findings = await check.RunAsync(batches, cancellationToken).ConfigureAwait(false);
             allFindings.AddRange(findings);
         }
+
+        var failureCount = allFindings.Count(f => !f.Passed);
+        _metrics.IncrementCounter(MetricNames.AuditsRun);
+        if (failureCount > 0)
+            _metrics.IncrementCounter(MetricNames.AuditFailures, failureCount);
 
         return new AuditReport
         {

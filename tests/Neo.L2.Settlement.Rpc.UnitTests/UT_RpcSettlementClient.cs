@@ -48,6 +48,26 @@ public class UT_RpcSettlementClient
     }
 
     [TestMethod]
+    public async Task JsonRpcClient_HttpError_ThrowsJsonRpcException()
+    {
+        // Symmetric with the malformed-JSON test: server returns HTTP 502. Used to leak
+        // as HttpRequestException from EnsureSuccessStatusCode; now wraps as JsonRpcException
+        // so callers see one exception type for all RPC failure modes.
+        var stub = new StubHandler
+        {
+            ResponseBody = "Bad Gateway\n",
+            StatusCode = HttpStatusCode.BadGateway,
+        };
+        using var http = new HttpClient(stub);
+        using var client = new JsonRpcClient(FakeEndpoint, http);
+
+        var ex = await Assert.ThrowsExactlyAsync<JsonRpcException>(async () =>
+            await client.CallAsync("ping", new JArray()));
+        Assert.AreEqual(-32603, ex.Code);
+        StringAssert.Contains(ex.Message, "502");
+    }
+
+    [TestMethod]
     public async Task JsonRpcClient_MalformedJson_ThrowsJsonRpcException()
     {
         // Server returns malformed JSON (e.g. proxy error page in HTML, or truncated body).

@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `JsonRpcClient` wraps non-2xx HTTP responses as `JsonRpcException`
+
+- `EnsureSuccessStatusCode` threw `HttpRequestException` on a non-2xx status (e.g. proxy 502, server 500, gateway 504), inconsistent with the parse-error wrapping fixed in iter 93. Callers had to handle two different exception types depending on whether the failure was at the HTTP or JSON layer.
+- Now wraps as `JsonRpcException(-32603)` ("Internal error" per JSON-RPC 2.0 spec) with the status + reason phrase + body snippet.
+- **1 new test** stubs an HTTP 502 response and asserts `JsonRpcException(-32603)`.
+
+Cumulative: 363 tests / 27 projects. The RPC client now produces exactly one exception type for all failure modes (RPC error, parse error, HTTP error).
+
 ### Fixed — `JsonRpcClient` wraps malformed-JSON as `JsonRpcException`
 
 - `JToken.Parse` exceptions on malformed RPC responses (e.g. proxy returning HTML 502, gateway truncated body) leaked as raw parser exceptions instead of `JsonRpcException`. Callers had to write disparate exception handlers depending on the failure origin.

@@ -63,8 +63,15 @@ public sealed class JsonRpcClient : IDisposable
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
         using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            // Symmetric with the parse-error wrapping below: a non-2xx status (proxy 502,
+            // server 500, etc.) gets a JsonRpcException so callers handle one type.
+            // -32603 is the JSON-RPC 2.0 spec code for "Internal error".
+            var snippet = responseBody.Length <= 200 ? responseBody : responseBody[..200];
+            throw new JsonRpcException(-32603, $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}: {snippet}");
+        }
 
         JToken? parsed;
         try { parsed = JToken.Parse(responseBody); }

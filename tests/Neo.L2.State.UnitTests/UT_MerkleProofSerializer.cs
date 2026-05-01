@@ -119,6 +119,24 @@ public class UT_MerkleProofSerializer
     }
 
     [TestMethod]
+    public void Encode_AcceptsExactlyMaxDepth_AndRoundTrips()
+    {
+        // Boundary case: exactly MaxDepth siblings must succeed. Pairs with the reject-at-
+        // MaxDepth+1 test above so an off-by-one in the limit check is caught either way.
+        var proof = new MerkleProof
+        {
+            Leaf = H(1),
+            LeafIndex = 0,
+            Siblings = Enumerable.Range(0, MerkleProofSerializer.MaxDepth).Select(H).ToList(),
+            PathBitmap = 0,
+        };
+        var bytes = MerkleProofSerializer.Encode(proof);
+        var decoded = MerkleProofSerializer.Decode(bytes);
+        Assert.AreEqual(MerkleProofSerializer.MaxDepth, decoded.Siblings.Count);
+        Assert.AreEqual(proof.Leaf, decoded.Leaf);
+    }
+
+    [TestMethod]
     public void Encode_RejectsNullProof()
     {
         Assert.ThrowsExactly<ArgumentNullException>(() => MerkleProofSerializer.Encode(null!));

@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `MerkleProofSerializer` boundary test at exactly `MaxDepth`
+
+- Same shape as iter 82's `BatchSerializer` fix: the reject-at-`MaxDepth+1` test (iter 47) lacked a paired accept-at-exactly-`MaxDepth=64` test. An off-by-one could either reject a depth-64 proof (too strict) or admit depth-65 (too loose). Pinning both directions makes the boundary explicit.
+- **1 new test** encodes + decodes a depth-64 proof end-to-end.
+
+Cumulative: 349 tests / 27 projects.
+
 ### Added — `BatchSerializer` boundary test at exactly `ProofMaxBytes`
 
 - The reject-at-1MiB+1 test (iter 75) didn't have a paired accept-at-exactly-1MiB test. An off-by-one in the limit check could either reject the boundary (too strict) or accept 1MiB+1 (too loose). Pinning both directions makes the boundary explicit.

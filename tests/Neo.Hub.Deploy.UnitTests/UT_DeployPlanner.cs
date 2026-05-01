@@ -131,6 +131,16 @@ public class UT_DeployPlanner
     }
 
     [TestMethod]
+    public void FromJson_RejectsUnsupportedVersion()
+    {
+        // A future version=2 plan with a different schema would silently parse with the
+        // v1 reader and produce garbage. Now we reject explicitly so a future contract
+        // author has to migrate the reader together with the bumped version.
+        var json = """{"version":99,"network":"testnet","steps":[]}""";
+        Assert.ThrowsExactly<InvalidDataException>(() => DeployPlan.FromJson(json));
+    }
+
+    [TestMethod]
     public void DeployPlan_RoundTripsJson()
     {
         var plan = new DeployPlan

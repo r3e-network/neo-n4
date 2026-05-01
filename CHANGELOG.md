@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `DeployPlan.FromJson` rejects unsupported version
+
+- `FromJson` read the `version` field but didn't validate it. A future v2 plan with renamed fields (e.g. `nefPath` → `wasmPath`) would silently parse with the v1 reader and produce garbage. Same defensive pattern as the proof-payload decoders' version checks.
+- Added `DeployPlan.CurrentVersion = 1` constant + a hard check in `FromJson` that throws `InvalidDataException` on mismatch.
+- **1 new test** verifies a `version=99` plan is rejected.
+
+Cumulative: 359 tests / 27 projects.
+
 ### Added — `AssetRegistry` overwrite-semantics test
 
 - `Register` silently overwrites an existing entry under the same `(L1Asset, L2ChainId)` key. Documented now via a test that registers twice with different `Active` flags and asserts the second registration wins. Pins overwrite as a deliberate API choice — a future refactor to "throw on duplicate" would break the test instead of silently breaking governance flows that re-register assets.

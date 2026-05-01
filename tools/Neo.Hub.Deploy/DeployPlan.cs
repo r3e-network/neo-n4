@@ -13,7 +13,10 @@ namespace Neo.Hub.Deploy;
 /// </remarks>
 public sealed record DeployPlan
 {
-    /// <summary>Plan format version (currently 1).</summary>
+    /// <summary>The currently-supported plan format version. Bump together with FromJson's check.</summary>
+    public const int CurrentVersion = 1;
+
+    /// <summary>Plan format version (currently <see cref="CurrentVersion"/>).</summary>
     public required int Version { get; init; }
 
     /// <summary>Human-readable network identifier (e.g. "neo-n3-testnet").</summary>
@@ -39,6 +42,8 @@ public sealed record DeployPlan
     {
         var obj = (JObject)(JToken.Parse(json) ?? throw new ArgumentException("empty plan"));
         var version = (int)obj["version"]!.AsNumber();
+        if (version != CurrentVersion)
+            throw new InvalidDataException($"unsupported deploy-plan version {version}; expected {CurrentVersion}");
         var network = obj["network"]!.AsString();
         var stepsArr = (JArray)obj["steps"]!;
         var steps = new DeployStep[stepsArr.Count];

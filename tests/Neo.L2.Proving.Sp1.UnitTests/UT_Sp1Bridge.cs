@@ -27,6 +27,18 @@ public class UT_Sp1Bridge
     }
 
     [TestMethod]
+    public void Bridge_MaxProofBytes_IsFiniteAndUnderInt32Max()
+    {
+        // Pin the defensive cap so a future "remove the size check, native bridge is
+        // trusted" refactor can't silently drop it. Without the bound, a misbehaving
+        // FFI return that declares >2GB would wrap the (int) cast in Prove() and feed
+        // a wrapped length into Marshal.Copy — heap-overflow shape.
+        Assert.IsTrue(Sp1Bridge.MaxProofBytes > 0);
+        Assert.IsTrue(Sp1Bridge.MaxProofBytes < int.MaxValue,
+            "cap must be < int.MaxValue so the (int) cast in Prove can't truncate");
+    }
+
+    [TestMethod]
     public void Bridge_Prove_WithoutLibraryReturnsNotImplemented()
     {
         var (status, proof) = Sp1Bridge.Prove(new byte[] { 0x01 });

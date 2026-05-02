@@ -22,6 +22,15 @@ public static class Sp1Bridge
     /// <summary>The ABI version this binding is built against. Must match the bridge's report.</summary>
     public const uint ExpectedAbiVersion = 1;
 
+    /// <summary>
+    /// Defensive cap on proof bytes returned by the native bridge. SP1 proofs are typically
+    /// &lt;1 MB; this 1 GiB ceiling guards against a misbehaving FFI return that declares a
+    /// >2 GB length, which would wrap the <c>(int)</c> cast in <see cref="Prove"/> and feed
+    /// a wrapped length into <see cref="Marshal.Copy(IntPtr, byte[], int, int)"/> — a heap-
+    /// overflow shape.
+    /// </summary>
+    public const long MaxProofBytes = 1L * 1024 * 1024 * 1024;
+
     [DllImport(LibraryName, EntryPoint = "neo_zkvm_abi_version", CallingConvention = CallingConvention.Cdecl)]
     private static extern uint NativeAbiVersion();
 
@@ -76,6 +85,9 @@ public static class Sp1Bridge
 
                 try
                 {
+                    if (outputLen > (nuint)MaxProofBytes)
+                        return (Sp1BridgeStatus.InvalidInput, null);
+
                     var bytes = new byte[(int)outputLen];
                     Marshal.Copy(outputPtr, bytes, 0, (int)outputLen);
                     return (Sp1BridgeStatus.Ok, bytes);

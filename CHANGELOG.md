@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `Sp1Bridge.Prove` bounds-checks native return length
+
+- The Native FFI returned `nuint outputLen` was cast `(int)outputLen` for `new byte[len]` and `Marshal.Copy(..., len)` without bounds checking. A misbehaving native bridge or corrupted FFI return that declared > 2 GB would wrap the cast and feed a wrapped length into `Marshal.Copy` — a heap-overflow shape on a process boundary that crosses .NET ↔ unmanaged.
+- Added `Sp1Bridge.MaxProofBytes = 1 GiB` defensive cap (well above realistic SP1 proof sizes, well below `int.MaxValue`). Cast is now guarded — anything above the cap returns `Sp1BridgeStatus.InvalidInput` and the buffer is freed via the existing `finally`.
+- **1 new test**: pins `MaxProofBytes > 0 && < int.MaxValue` so a future "trust the bridge" refactor can't silently drop the guard.
+
+Cumulative: 404 tests / 27 projects.
+
 ### Fixed — `MetricsHttpServer.StatusText` returns the right reason phrase for 503
 
 - The switch only knew about 200/404/500. The readiness-probe failure path (`HandleReady` → `MetricsHttpResponse(503, ...)`) fell through to the default `=> "OK"`, sending `"HTTP/1.0 503 OK"` on the wire — status code says error, reason phrase says OK. Strict HTTP parsers (load-balancer health-check libraries, Kubernetes probes) would reject this as malformed.

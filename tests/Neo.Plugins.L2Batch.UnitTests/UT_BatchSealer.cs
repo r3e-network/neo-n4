@@ -190,6 +190,38 @@ public class UT_BatchSealer
         Assert.AreEqual(1, initial.GetCounter(MetricNames.BatchesSealed), "pre-rewire seal stayed on old sink");
     }
 
+    [TestMethod]
+    public void Settings_ValidatePositive_RejectsZero()
+    {
+        // Regression: previously MaxBlocksPerBatch: 0 (or any other Max*: 0) made
+        // BatchSealer.ShouldSeal return true on every block — every block became its own
+        // batch, producing degenerate per-block batches that each carry full settlement /
+        // proving overhead. The misconfig surfaces as a runaway L1 submission rate hours
+        // later instead of at plugin load.
+        var ex = Assert.ThrowsExactly<System.IO.InvalidDataException>(() =>
+            L2BatchSettings.ValidatePositive(0, "MaxBlocksPerBatch"));
+        StringAssert.Contains(ex.Message, "MaxBlocksPerBatch");
+    }
+
+    [TestMethod]
+    public void Settings_ValidatePositive_RejectsNegative()
+    {
+        var ex = Assert.ThrowsExactly<System.IO.InvalidDataException>(() =>
+            L2BatchSettings.ValidatePositive(-5, "MaxTransactionsPerBatch"));
+        StringAssert.Contains(ex.Message, "MaxTransactionsPerBatch");
+        StringAssert.Contains(ex.Message, "-5");
+    }
+
+    [TestMethod]
+    public void Settings_ValidatePositive_AcceptsOne()
+    {
+        // Boundary partner: 1 is the smallest valid threshold. A user explicitly opting
+        // into per-block batches must be allowed (seal-every-block is degenerate but
+        // not incoherent — useful for tests, devnet diagnostics).
+        Assert.AreEqual(1, L2BatchSettings.ValidatePositive(1, "MaxBlocksPerBatch"));
+        Assert.AreEqual(50, L2BatchSettings.ValidatePositive(50, "MaxBlocksPerBatch"));
+    }
+
     private static IEnumerable<byte[]> NoTxs() => Array.Empty<byte[]>();
 
     private static IEnumerable<byte[]> MakeTxs(int n)

@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `L2BatchSettings.From` rejects zero / negative thresholds at parse time
+
+- `MaxBlocksPerBatch`, `MaxTransactionsPerBatch`, and `MaxBatchAgeMillis` accepted any int. A misconfig like `MaxBlocksPerBatch: 0` made `BatchSealer.ShouldSeal` return `true` on every block — every block became its own batch, producing degenerate per-block batches that each carry full settlement / proving overhead. Operators saw the misconfig as a runaway L1 submission rate hours later, not at plugin load.
+- Added `L2BatchSettings.ValidatePositive(int, name)` that throws `InvalidDataException("L2Batch <name> must be > 0, got N — fix config")` at parse time. `From` calls it on each Max* setting.
+- **3 new tests**: zero → rejected with name; negative → rejected with value+name; boundary `1` → accepted (per-block sealing is degenerate but legal for test/devnet diagnostics).
+
+Cumulative: 397 tests / 27 projects.
+
 ### Fixed — `L2MetricsSettings.From` validates port range at parse time
 
 - `Port = s.GetValue("Port", 9090)` accepted any int. A typo like `Port: 90909` (six digits) propagated to `IPEndPoint` construction at `Start()`, where the resulting `ArgumentOutOfRangeException("value must be between 0..65535")` is real but the operator has to dig through a stack trace to map it back to a config typo.

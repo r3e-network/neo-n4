@@ -39,10 +39,26 @@ public sealed class L2BatchSettings
         return new L2BatchSettings
         {
             ChainId = section.GetValue<uint>("ChainId"),
-            MaxBlocksPerBatch = section.GetValue("MaxBlocksPerBatch", 50),
-            MaxTransactionsPerBatch = section.GetValue("MaxTransactionsPerBatch", 5_000),
-            MaxBatchAgeMillis = section.GetValue("MaxBatchAgeMillis", 30_000),
+            MaxBlocksPerBatch = ValidatePositive(section.GetValue("MaxBlocksPerBatch", 50), "MaxBlocksPerBatch"),
+            MaxTransactionsPerBatch = ValidatePositive(section.GetValue("MaxTransactionsPerBatch", 5_000), "MaxTransactionsPerBatch"),
+            MaxBatchAgeMillis = ValidatePositive(section.GetValue("MaxBatchAgeMillis", 30_000), "MaxBatchAgeMillis"),
             Enabled = section.GetValue("Enabled", true),
         };
+    }
+
+    /// <summary>
+    /// Reject zero or negative thresholds at config-parse time. Without this, a misconfigured
+    /// <c>MaxBlocksPerBatch: 0</c> (or any other Max* set to 0/negative) makes
+    /// <see cref="BatchSealer.ShouldSeal"/> return <c>true</c> on every block — every block
+    /// becomes its own batch, producing degenerate per-block batches that each carry full
+    /// settlement / proving overhead. The operator's misconfig surfaces as a runaway L1
+    /// submission rate hours later instead of at plugin load.
+    /// </summary>
+    public static int ValidatePositive(int value, string name)
+    {
+        if (value <= 0)
+            throw new InvalidDataException(
+                $"L2Batch {name} must be > 0, got {value} — fix config");
+        return value;
     }
 }

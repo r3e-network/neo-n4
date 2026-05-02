@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `ProofValidityCheck.RunAsync` matches null-guard convention
+
+- Sister checks (`ContinuityCheck`, `NoZeroProofCheck`, `PublicInputHashConsistencyCheck`) all begin with `cancellationToken.ThrowIfCancellationRequested()` + `ArgumentNullException.ThrowIfNull(batches)`. `ProofValidityCheck.RunAsync` was missing both — a null-batches caller hit the `foreach` and got a `NullReferenceException` with no link back to the bad input.
+- Added the standard prelude.
+- **1 new test**: `RunAsync(null)` → `ArgumentNullException`.
+
+Cumulative: 409 tests / 27 projects.
+
 ### Added — Shared `Neo.L2.Telemetry.PortValidator.Validate(int, label)`
 
 - The devnet runner's `--metrics-port` parser had no bounds check — a typo like `--metrics-port 99999` propagated to `IPEndPoint` construction and surfaced an opaque "value must be between 0..65535" deep in the wiring path.

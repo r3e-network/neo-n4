@@ -154,6 +154,25 @@ public class UT_ChainAuditor
     }
 
     [TestMethod]
+    public async Task ProofValidityCheck_NullBatches_ThrowsArgumentNullException()
+    {
+        // Match the null-guard convention of sibling checks. Without the guard the foreach
+        // would surface a NullReferenceException with no link back to the bad input.
+        var registry = new VerifierRegistry();
+        var check = new ProofValidityCheck(registry, _ => new PublicInputs
+        {
+            ChainId = 1, BatchNumber = 1,
+            PreStateRoot = UInt256.Zero, PostStateRoot = UInt256.Zero,
+            TxRoot = UInt256.Zero, ReceiptRoot = UInt256.Zero,
+            WithdrawalRoot = UInt256.Zero, L2ToL1MessageRoot = UInt256.Zero,
+            L2ToL2MessageRoot = UInt256.Zero, L1MessageHash = UInt256.Zero,
+            DACommitment = UInt256.Zero, BlockContextHash = UInt256.Zero,
+        });
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(async () =>
+            await check.RunAsync(null!));
+    }
+
+    [TestMethod]
     public void AuditReport_EmptyFindings_DoesNotVacuouslyPass()
     {
         // Regression: AuditReport.Passed was Findings.All(f => f.Passed), which returns

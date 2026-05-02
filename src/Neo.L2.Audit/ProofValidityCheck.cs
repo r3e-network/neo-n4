@@ -29,6 +29,11 @@ public sealed class ProofValidityCheck : IAuditCheck
         IReadOnlyList<L2BatchCommitment> batches,
         CancellationToken cancellationToken = default)
     {
+        // Match the null-guard convention of the sibling checks (ContinuityCheck,
+        // NoZeroProofCheck, PublicInputHashConsistencyCheck) — an early ArgumentNullException
+        // beats a foreach-on-null NullReferenceException with no clue about the cause.
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(batches);
         var findings = new List<AuditFinding>();
         foreach (var batch in batches)
         {

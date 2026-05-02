@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — `MessageBuilder.Build` rejects null `sender` / `receiver`
+
+- `UInt160` is a reference type in Neo's library, so a null `sender` or `receiver` slipped past the C# nullable analysis (the `required` keyword on `CrossChainMessage` just means "must be set," not "non-null"). The null then crashed inside `MessageHasher.HashMessage`'s `GetSpan()` with a `NullReferenceException` and no link back to the bad argument.
+- Added `ArgumentNullException.ThrowIfNull(sender)` + same for `receiver` at the API boundary so the operator sees which arg was wrong.
+
+Cumulative: 424 tests / 27 projects.
+
 ### Changed — `L2BatchPlugin.Configure` no longer resets `_sealer` (preserves batch-numbering state)
 
 - Companion to iter-144's bridge fix. `Configure` explicitly set `_sealer = null` after parsing settings — so a re-fired Configure (config-watcher, host re-init) would discard `BatchSealer._nextBatchNumber` and the in-progress `_builder`. Next `OnBlockCommitted` would lazy-create a fresh sealer starting from BatchNumber=1, potentially producing duplicate batch numbers if any batches were already submitted.

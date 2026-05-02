@@ -18,6 +18,11 @@ public static class MessageBuilder
         MessageType messageType,
         ReadOnlyMemory<byte> payload)
     {
+        // UInt160 is a reference type in Neo's library; null would crash inside
+        // MessageHasher.HashMessage's GetSpan() with no link back to the bad caller.
+        // Reject at the boundary so the operator sees which argument was wrong.
+        ArgumentNullException.ThrowIfNull(sender);
+        ArgumentNullException.ThrowIfNull(receiver);
         // Build a temporary message with placeholder hash, then compute the real hash.
         var unhashed = new CrossChainMessage
         {

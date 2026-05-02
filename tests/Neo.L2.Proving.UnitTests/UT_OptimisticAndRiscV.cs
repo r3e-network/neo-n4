@@ -218,6 +218,39 @@ public class UT_OptimisticAndRiscV
     }
 
     [TestMethod]
+    public void RiscVProofPayload_Decode_RejectsUnknownProofSystem()
+    {
+        // Regression: previously bytes[1] was cast (ProofSystem) without bounds-checking.
+        // A corrupted or replayed-from-future payload with a discriminant > 4 would slip
+        // through as an undefined enum value, and a downstream verifier dispatcher's
+        // `==` comparison would silently treat it as "not the expected one".
+        var inner = new RiscVProofPayload
+        {
+            ProofSystem = ProofSystem.Sp1, VerificationKeyId = UInt256.Zero, ProofBytes = new byte[8],
+        };
+        var bytes = inner.Encode();
+        bytes[1] = 99; // overwrite ProofSystem byte with an out-of-range value
+        var ex = Assert.ThrowsExactly<InvalidDataException>(() => RiscVProofPayload.Decode(bytes));
+        StringAssert.Contains(ex.Message, "Unknown ProofSystem");
+    }
+
+    [TestMethod]
+    public void RiscVProofPayload_Decode_AcceptsAllValidProofSystems()
+    {
+        // Boundary partner: every defined enum byte (0..4) round-trips.
+        foreach (ProofSystem ps in Enum.GetValues<ProofSystem>())
+        {
+            var inner = new RiscVProofPayload
+            {
+                ProofSystem = ps, VerificationKeyId = UInt256.Zero, ProofBytes = new byte[8],
+            };
+            var bytes = inner.Encode();
+            var decoded = RiscVProofPayload.Decode(bytes);
+            Assert.AreEqual(ps, decoded.ProofSystem);
+        }
+    }
+
+    [TestMethod]
     public void RiscVProofPayload_Decode_RejectsOversizedProofLen()
     {
         var inner = new RiscVProofPayload

@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `RiscVProofPayload.Decode` rejects unknown `ProofSystem` discriminants
+
+- Same enum-discriminant gap as iter 103's `BatchSerializer` fix, but in the inner Stage-2 ZK proof wrapper. `bytes[1]` was cast `(ProofSystem)` without bounds-checking. A corrupted or replayed-from-future payload with a discriminant > 4 slipped through as an undefined enum value, and a downstream verifier dispatcher's `==` comparison would silently treat it as "not the expected one" — selecting the wrong backend or skipping verification entirely.
+- Now bounds-checks against `(byte)ProofSystem.Axiom` and throws `InvalidDataException` with a clear message.
+- **2 new tests**: byte 99 → rejected; every valid byte 0..4 → round-trips.
+
+Cumulative: 388 tests / 27 projects.
+
 ### Fixed — `BatchSerializer.Decode` rejects trailing bytes (strict length match)
 
 - Same trailing-byte malleability surface as `DepositPayload` (iter 106) but in the master commitment wire format. The check was `data.Length < pos + proofLen` — only caught buffers shorter than declared. Trailing bytes after the proof were silently ignored, opening a divergence between the L1 contract (hashes full calldata) and the L2 decoder (strips trailing). Same logical commitment, two different hashes.

@@ -57,7 +57,16 @@ public sealed record RiscVProofPayload
         if (bytes.Length < 38) throw new ArgumentException("Buffer too small", nameof(bytes));
         if (bytes[0] != Version) throw new InvalidDataException($"Unsupported RiscV proof version {bytes[0]}");
 
-        var system = (ProofSystem)bytes[1];
+        // Validate ProofSystem byte against the defined enum range. Same defensive pattern
+        // as BatchSerializer's ProofType check (iter 103) — without this, an unknown byte
+        // would propagate as an undefined enum value that downstream `==` comparisons would
+        // silently treat as "not the expected one", a silent verifier-route mismatch that
+        // could cause the wrong backend to be selected.
+        var systemByte = bytes[1];
+        if (systemByte > (byte)ProofSystem.Axiom)
+            throw new InvalidDataException(
+                $"Unknown ProofSystem byte {systemByte} (max {(byte)ProofSystem.Axiom})");
+        var system = (ProofSystem)systemByte;
         var vk = new UInt256(bytes.Slice(2, 32));
         var len = BinaryPrimitives.ReadInt32LittleEndian(bytes.Slice(34, 4));
         if (len < 0 || len > MaxProofBytes || 38 + len != bytes.Length)

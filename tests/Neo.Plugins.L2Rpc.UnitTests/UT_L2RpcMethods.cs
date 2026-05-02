@@ -124,6 +124,33 @@ public class UT_L2RpcMethods
     }
 
     [TestMethod]
+    public void RejectsTooFewParams_ClearMessage()
+    {
+        // Regression: previously the JArray indexer threw raw ArgumentOutOfRangeException
+        // ("Index was out of range. Must be non-negative and less than the size of the
+        // collection.") on a missing param. RPC clients had no clue which param was missing.
+        // Now: ArgumentException("param[N] missing").
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
+        var methods = new L2RpcMethods(store);
+
+        // GetL2Batch wants chainId + batchNumber; only chainId provided.
+        var ex = Assert.ThrowsExactly<ArgumentException>(() => methods.GetL2Batch(new JArray { 1001 }));
+        StringAssert.Contains(ex.Message, "param[1]");
+    }
+
+    [TestMethod]
+    public void RejectsOversizedChainId_OverflowException()
+    {
+        // Regression: previously chainId was read as ulong then cast `(uint)` — silently
+        // truncating. Caller passes 0x100000001 → reduced to 1 → AssertOurChain compares 1
+        // vs 1001 with a misleading "differs from local" message. Now: OverflowException.
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
+        var methods = new L2RpcMethods(store);
+        ulong oversized = 0x1_0000_0000UL;  // UInt32.MaxValue + 1
+        Assert.ThrowsExactly<OverflowException>(() => methods.GetL2BatchStatus(new JArray { oversized, 1UL }));
+    }
+
+    [TestMethod]
     public void GetL1DepositStatus_RoundTrips()
     {
         var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);

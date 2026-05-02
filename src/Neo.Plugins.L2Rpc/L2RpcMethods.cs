@@ -56,7 +56,7 @@ public sealed class L2RpcMethods
     /// <summary>RPC: <c>getl2stateroot</c>. Optional batch param; otherwise latest.</summary>
     public JToken? GetL2StateRoot(JArray @params) => Time("getl2stateroot", () =>
     {
-        var chainId = (uint)ReadULong(@params, 0);
+        var chainId = ReadUInt(@params, 0);
         AssertOurChain(chainId);
         if (@params.Count >= 2 && @params[1] is not null)
         {
@@ -69,7 +69,7 @@ public sealed class L2RpcMethods
     /// <summary>RPC: <c>getl2withdrawalproof</c>.</summary>
     public JToken? GetL2WithdrawalProof(JArray @params) => Time("getl2withdrawalproof", () =>
     {
-        var chainId = (uint)ReadULong(@params, 0);
+        var chainId = ReadUInt(@params, 0);
         AssertOurChain(chainId);
         var leaf = ReadUInt256(@params, 1);
         var proof = _store.GetWithdrawalProof(leaf);
@@ -79,7 +79,7 @@ public sealed class L2RpcMethods
     /// <summary>RPC: <c>getl2messageproof</c>.</summary>
     public JToken? GetL2MessageProof(JArray @params) => Time("getl2messageproof", () =>
     {
-        var chainId = (uint)ReadULong(@params, 0);
+        var chainId = ReadUInt(@params, 0);
         AssertOurChain(chainId);
         var msgHash = ReadUInt256(@params, 1);
         var proof = _store.GetMessageProof(msgHash);
@@ -89,7 +89,7 @@ public sealed class L2RpcMethods
     /// <summary>RPC: <c>getl1depositstatus</c>.</summary>
     public JToken? GetL1DepositStatus(JArray @params) => Time("getl1depositstatus", () =>
     {
-        var sourceChainId = (uint)ReadULong(@params, 0);
+        var sourceChainId = ReadUInt(@params, 0);
         var nonce = ReadULong(@params, 1);
         var status = _store.GetL1DepositStatus(sourceChainId, nonce);
         if (status is null) return JToken.Null;
@@ -121,7 +121,7 @@ public sealed class L2RpcMethods
     /// <summary>RPC: <c>getsecuritylevel</c>.</summary>
     public JToken? GetSecurityLevel(JArray @params) => Time("getsecuritylevel", () =>
     {
-        var chainId = (uint)ReadULong(@params, 0);
+        var chainId = ReadUInt(@params, 0);
         AssertOurChain(chainId);
         var lvl = _store.SecurityLevel;
         var obj = new JObject();
@@ -157,11 +157,21 @@ public sealed class L2RpcMethods
     }
 
     private static (uint chainId, ulong batchNumber) ReadChainAndBatch(JArray @params)
-        => ((uint)ReadULong(@params, 0), ReadULong(@params, 1));
+        => (ReadUInt(@params, 0), ReadULong(@params, 1));
+
+    private static JToken RequireParam(JArray @params, int idx)
+    {
+        // Bounds-check BEFORE indexing — JArray's indexer is backed by List<T> which throws
+        // ArgumentOutOfRangeException with a confusing message when idx >= Count. RPC callers
+        // get a clearer "param[N] missing" instead.
+        if (idx >= @params.Count)
+            throw new ArgumentException($"param[{idx}] missing (only {@params.Count} provided)");
+        return @params[idx] ?? throw new ArgumentException($"param[{idx}] missing");
+    }
 
     private static ulong ReadULong(JArray @params, int idx)
     {
-        var token = @params[idx] ?? throw new ArgumentException($"param[{idx}] missing");
+        var token = RequireParam(@params, idx);
         return token switch
         {
             JNumber n => checked((ulong)(BigInteger)n.AsNumber()),
@@ -170,15 +180,24 @@ public sealed class L2RpcMethods
         };
     }
 
+    private static uint ReadUInt(JArray @params, int idx)
+    {
+        // Use checked cast so a chainId > UInt32.MaxValue surfaces an OverflowException
+        // instead of silently truncating to a small uint that could collide with a real
+        // L2 chain id (e.g. 0x100000001 → 1, which AssertOurChain would compare misleadingly).
+        var v = ReadULong(@params, idx);
+        return checked((uint)v);
+    }
+
     private static UInt256 ReadUInt256(JArray @params, int idx)
     {
-        var token = @params[idx] ?? throw new ArgumentException($"param[{idx}] missing");
+        var token = RequireParam(@params, idx);
         return UInt256.Parse(token.AsString());
     }
 
     private static UInt160 ReadUInt160(JArray @params, int idx)
     {
-        var token = @params[idx] ?? throw new ArgumentException($"param[{idx}] missing");
+        var token = RequireParam(@params, idx);
         return UInt160.Parse(token.AsString());
     }
 

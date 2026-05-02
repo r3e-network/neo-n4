@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `L2RpcMethods` parameter parsing surfaces clear errors
+
+- An RPC call with too few params (e.g. `getl2batch [1001]` — missing the batch number) hit `JArray`'s underlying `List<T>` indexer and surfaced `ArgumentOutOfRangeException` with the unhelpful `"Index was out of range..."` message. RPC clients had no way to tell which param was missing.
+- A `chainId` value above `UInt32.MaxValue` was read as `ulong` then cast `(uint)` — silently truncating. Caller passing `0x100000001` got reduced to `1`; `AssertOurChain` then compared `1` vs the local id with a misleading "differs from local" message instead of the actual overflow.
+- Added `RequireParam` helper that bounds-checks before indexing, plus `ReadUInt` helper that uses `checked((uint)…)` so oversized chain ids surface `OverflowException` at the parsing boundary.
+- **2 new tests**: too-few-params → `ArgumentException("param[N] missing")`; oversized chainId → `OverflowException`.
+
+Cumulative: 377 tests / 27 projects.
+
 ### Fixed — `AssetRegistry.Register` removes orphan index entries on re-point
 
 - Re-registering an L1 asset to a different L2 token (or vice versa) overwrote one index but left the stale entry in the other. `TryGetByL2(oldL2Asset)` would still return the prior mapping while `TryGetByL1` returned the new one — a silent registry inconsistency that could route a deposit through the old L2 token long after the operator thought they had repointed it.

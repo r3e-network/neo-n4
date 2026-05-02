@@ -75,7 +75,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**375 unit + integration tests across 27 projects:**
+**377 unit + integration tests across 27 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -92,7 +92,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.Censorship.UnitTests`        | 7     | overdue detection, sequencer attribution    |
 | `Neo.L2.Challenge.UnitTests`         | 28    | fraud-proof payload, orchestrator, BisectionGame, **`InspectWithBisectionAsync` (no-fraud agreement, log-N narrowing, arg validation, empty/mismatched/single-element checkpoint shape rejection)**, metric emission |
 | `Neo.L2.Audit.UnitTests`             | 22    | continuity + proof-validity + **public-input-hash consistency** checks, summary, `NoZeroProofCheck`, **`ChainAuditor` self-emits runs + failures (delta = failed-finding count)** |
-| `Neo.Plugins.L2Rpc.UnitTests`        | 13    | all 9 RPC methods, foreign-chain rejection, **per-method metric emission (calls/latency/failures)** |
+| `Neo.Plugins.L2Rpc.UnitTests`        | 15    | all 9 RPC methods, foreign-chain rejection, **per-method metric emission (calls/latency/failures), too-few-params clear-error, oversized-chainId overflow** |
 | `Neo.Plugins.L2DA.UnitTests`         | 13    | InMemory + NeoFsLike DA writers + **MetricsEmittingDAWriter (success / throw / accumulate / passthrough)** |
 | `Neo.Plugins.L2Gateway.UnitTests`    | 18    | flat + binary-tree aggregator, edge cases, **metric emission with rounds=log2(N) + per-batch accumulation** |
 | `Neo.Plugins.L2Metrics.UnitTests`    | 7     | composition root: bound port, idempotent Start, real HTTP scrape, readiness predicate gating, default settings |

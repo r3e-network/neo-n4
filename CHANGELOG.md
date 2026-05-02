@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `ChainAuditor.AuditAsync` per-check exception isolation
+
+- A buggy custom check that threw aborted the entire audit — subsequent checks were skipped, and the operator saw only the exception (no findings from anything that ran before it). For an audit framework whose value is "every registered check runs and reports its result," this is the wrong default.
+- Now: per-check try/catch converts a thrown exception into a single failure finding (`Check = check.Name`, `Detail = "check threw {Type}: {Message}"`), and the audit continues. Caller cancellation still propagates verbatim as `OperationCanceledException` — that's a control-flow signal, not a check failure.
+- **2 new tests**: throwing-check produces a failure finding while a sibling `ContinuityCheck` still runs to completion; pre-cancelled token surfaces `OperationCanceledException` instead of being swallowed.
+
+Cumulative: 414 tests / 27 projects.
+
 ### Fixed — `ChainAuditor.AuditAsync` empty-batches still emits run + failure metrics
 
 - The empty-batches early return short-circuited before the metric increments. The failing finding showed up in the returned `AuditReport`, but `AuditsRun` and `AuditFailures` counters never ticked. An operator watching only dashboards would see the audit as "didn't happen" — invisible to monitoring even though we returned a failed report.

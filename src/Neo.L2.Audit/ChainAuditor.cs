@@ -92,7 +92,33 @@ public sealed class ChainAuditor
             foreach (var check in _checks)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var findings = await check.RunAsync(batches, cancellationToken).ConfigureAwait(false);
+                IReadOnlyList<AuditFinding> findings;
+                try
+                {
+                    findings = await check.RunAsync(batches, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    // Caller cancelled — bubble out so the auditor honors the token
+                    // contract instead of swallowing into a finding.
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    // A buggy custom check that throws shouldn't abort the entire audit.
+                    // Convert to a failure finding so the remaining checks still run and
+                    // the operator sees both the broken check AND the rest of the report.
+                    findings = new[]
+                    {
+                        new AuditFinding
+                        {
+                            Check = check.Name,
+                            Passed = false,
+                            BatchNumber = 0,
+                            Detail = $"check threw {ex.GetType().Name}: {ex.Message}",
+                        },
+                    };
+                }
                 allFindings.AddRange(findings);
             }
         }

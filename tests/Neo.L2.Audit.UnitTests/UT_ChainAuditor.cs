@@ -173,6 +173,57 @@ public class UT_ChainAuditor
     }
 
     [TestMethod]
+    public async Task Auditor_CheckThrows_ConvertsToFinding_AndContinues()
+    {
+        // Regression: previously a check that threw aborted the entire audit, hiding
+        // any subsequent checks' results from the operator. Now: per-check try/catch
+        // converts the throw into a single failure finding so other checks still run.
+        var batches = new[]
+        {
+            Mk(1001, 1, H(0), H(1), 100, 200),
+            Mk(1001, 2, H(1), H(2), 201, 300),
+        };
+        var auditor = new ChainAuditor()
+            .Register(new ThrowingCheck("buggy"))
+            .Register(new ContinuityCheck());
+
+        var report = await auditor.AuditAsync(batches);
+
+        Assert.IsFalse(report.Passed, "buggy check should produce a failure");
+        var buggyFinding = report.Findings.First(f => f.Check == "buggy");
+        Assert.IsFalse(buggyFinding.Passed);
+        StringAssert.Contains(buggyFinding.Detail, "InvalidOperationException");
+        // ContinuityCheck still ran (it would emit a passing summary for these continuous batches).
+        Assert.IsTrue(report.Findings.Any(f => f.Check == "continuity" && f.Passed));
+    }
+
+    [TestMethod]
+    public async Task Auditor_CallerCancellation_DoesNotConvertToFinding()
+    {
+        // Caller cancellation is part of the normal control flow — it must propagate as
+        // OperationCanceledException, not get swallowed into a "check threw" finding.
+        var batches = new[] { Mk(1001, 1, H(0), H(1), 100, 200) };
+        var auditor = new ChainAuditor().Register(new ThrowingCheck("never"));
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        await Assert.ThrowsExactlyAsync<OperationCanceledException>(async () =>
+            await auditor.AuditAsync(batches, cts.Token));
+    }
+
+    private sealed class ThrowingCheck : IAuditCheck
+    {
+        public string Name { get; }
+        public ThrowingCheck(string name) { Name = name; }
+        public ValueTask<IReadOnlyList<AuditFinding>> RunAsync(
+            IReadOnlyList<L2BatchCommitment> batches,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new InvalidOperationException("simulated check bug");
+        }
+    }
+
+    [TestMethod]
     public async Task Auditor_EmptyBatches_StillEmitsRunAndFailureMetrics()
     {
         // Regression: previously the empty-batches early return skipped the metric path —

@@ -138,6 +138,10 @@ public sealed class MetricsHttpServer : IDisposable
     private static string StatusText(int code) => code switch
     {
         200 => "OK",
+        // 503 is the readiness-probe failure response (MetricsRequestHandler.HandleReady).
+        // Without this case the response wire-form was "HTTP/1.0 503 OK" — clients would
+        // see a 503 status with the OK reason phrase, a strict-parser confusion vector.
+        503 => "Service Unavailable",
         404 => "Not Found",
         500 => "Internal Server Error",
         _ => "OK",

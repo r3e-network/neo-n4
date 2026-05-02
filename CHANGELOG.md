@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `MetricsHttpServer.StatusText` returns the right reason phrase for 503
+
+- The switch only knew about 200/404/500. The readiness-probe failure path (`HandleReady` → `MetricsHttpResponse(503, ...)`) fell through to the default `=> "OK"`, sending `"HTTP/1.0 503 OK"` on the wire — status code says error, reason phrase says OK. Strict HTTP parsers (load-balancer health-check libraries, Kubernetes probes) would reject this as malformed.
+- Added the 503 case → `"Service Unavailable"`.
+- **1 new test**: real HTTP scrape against `/readyz` with a failing readiness check → status 503, reason phrase "Service Unavailable".
+
+Cumulative: 403 tests / 27 projects.
+
 ### Fixed — `AttestationVerifier` deduplicates signers before signature verification
 
 - The verify loop sequence was validator-set → length → ECDSA-verify → dedup. A malicious prover could fill the wire payload with `MaxSigners` (256) copies of the same valid signature and force the verifier to perform 256 redundant ECDSA verifications before the duplicate-signer check fired. Not a DoS at production scale, but a wasted-cost vector that ramps with the cap.

@@ -62,6 +62,23 @@ public class UT_MetricsHttpServer
     }
 
     [TestMethod]
+    public async Task Server_ReadyzWhenNotReady_Returns503_WithCorrectReasonPhrase()
+    {
+        // Regression: previously StatusText didn't include 503 — the readiness-probe
+        // failure path returned "HTTP/1.0 503 OK", confusing strict HTTP parsers
+        // (status code says error, reason phrase says OK). Now: "503 Service Unavailable".
+        var handler = new MetricsRequestHandler(new InMemoryMetrics(), readinessCheck: () => false);
+
+        using var server = new MetricsHttpServer(IPAddress.Loopback, port: 0, handler);
+        server.Start();
+
+        using var client = new HttpClient(new HttpClientHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(5) };
+        var resp = await client.GetAsync($"http://127.0.0.1:{server.Endpoint.Port}/readyz");
+        Assert.AreEqual(503, (int)resp.StatusCode);
+        Assert.AreEqual("Service Unavailable", resp.ReasonPhrase);
+    }
+
+    [TestMethod]
     public void Constructor_Rejects_NullArguments()
     {
         var handler = new MetricsRequestHandler(new InMemoryMetrics());

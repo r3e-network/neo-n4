@@ -145,8 +145,14 @@ public static class BatchSerializer
 
         if (proofLen < 0 || proofLen > ProofMaxBytes)
             throw new InvalidDataException($"Invalid proof length {proofLen}");
-        if (data.Length < pos + proofLen)
-            throw new InvalidDataException($"Buffer truncated: need {pos + proofLen}, have {data.Length}");
+        // Strict length match: trailing bytes after the proof would be silently ignored,
+        // creating a malleability surface where the same logical commitment yields
+        // different on-chain hashes if the L1 contract hashes the full calldata while
+        // the L2 decoder strips trailing bytes. Same defensive pattern as
+        // OptimisticProofPayload.Decode and DepositPayload.Decode.
+        if (pos + proofLen != data.Length)
+            throw new InvalidDataException(
+                $"Buffer length mismatch: expected {pos + proofLen}, have {data.Length}");
 
         var proof = data.Slice(pos, proofLen).ToArray();
 

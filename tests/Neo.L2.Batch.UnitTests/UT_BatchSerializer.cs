@@ -168,6 +168,21 @@ public class UT_BatchSerializer
     }
 
     [TestMethod]
+    public void Commitment_Decode_RejectsTrailingBytes()
+    {
+        // Regression: previously the length check was `data.Length < pos + proofLen`
+        // (allows trailing). Trailing bytes after the proof would be silently ignored,
+        // creating a malleability surface — the same logical commitment yields different
+        // on-chain hashes if the L1 contract hashes the full calldata while the L2
+        // decoder strips trailing bytes.
+        var c = Sample(new byte[] { 0x01, 0x02 });
+        var bytes = BatchSerializer.Encode(c).ToList();
+        bytes.AddRange(new byte[] { 0xFF, 0xFF, 0xFF });  // trailing padding
+        var ex = Assert.ThrowsExactly<InvalidDataException>(() => BatchSerializer.Decode(bytes.ToArray()));
+        StringAssert.Contains(ex.Message, "length mismatch");
+    }
+
+    [TestMethod]
     public void Commitment_Decode_RejectsUnknownProofType()
     {
         // Regression: previously the ProofType byte was cast (ProofType)data[pos++] without

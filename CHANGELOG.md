@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `BatchSerializer.Decode` rejects trailing bytes (strict length match)
+
+- Same trailing-byte malleability surface as `DepositPayload` (iter 106) but in the master commitment wire format. The check was `data.Length < pos + proofLen` — only caught buffers shorter than declared. Trailing bytes after the proof were silently ignored, opening a divergence between the L1 contract (hashes full calldata) and the L2 decoder (strips trailing). Same logical commitment, two different hashes.
+- Strengthened to `pos + proofLen != data.Length`. The four boundary-pair tests around proof length (zero, at-cap, oversized-claim, trailing-bytes) now form a complete defensive set.
+- **1 new test**: commitment with trailing bytes → `InvalidDataException("length mismatch")`.
+
+Cumulative: 386 tests / 27 projects.
+
 ### Fixed — `DepositPayload.Decode` rejects trailing bytes (strict length match)
 
 - The length check was `pos + amountLen > bytes.Length`, which only caught buffers shorter than declared. Trailing bytes after the amount were silently ignored. An attacker could append padding that the L1 hashes (full bytes) but the L2 decoder strips — a malleability surface where the same logical deposit produces different leaves on either side.

@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `CensorshipDetector` rejects negative `baseSlashAmount`
+
+- The constructor accepted any `BigInteger` for `baseSlashAmount`. A negative slash amount, embedded in the resulting `CensorshipReport.SlashAmount`, would either get silently flipped on L1 (rewarding the offending sequencer instead of penalizing) or revert at the slash transaction — either way the operator only finds out after submitting reports.
+- Now: reject negative at construction with `ArgumentOutOfRangeException`. Zero is still allowed for warning-only modes (operator wants detection without enforcement).
+- **2 new tests**: negative → rejected; zero → accepted (warning-only mode).
+
+Cumulative: 422 tests / 27 projects.
+
 ### Changed — `Sp1Bridge.IsAvailable` caches the lib-loadable result
 
 - Every `Prove`/`Verify` call invoked `IsAvailable`, which re-attempted the `NativeAbiVersion()` P/Invoke and re-paid the `DllNotFoundException` cost in dev environments where the bridge is intentionally absent. The result is sticky for process lifetime — the lib is either there at startup or it isn't.

@@ -120,6 +120,30 @@ public class UT_CensorshipDetector
     }
 
     [TestMethod]
+    public void Constructor_RejectsNegativeBaseSlashAmount()
+    {
+        // Regression: previously any BigInteger was accepted. A negative slash amount on
+        // L1 would effectively reward the offending sequencer — clearly nonsensical.
+        // Now: rejected at construction so the misconfig surfaces here, not when a slash
+        // transaction reverts on L1.
+        var src = new InMemoryForcedInclusionSource(1001);
+        var committee = new InMemorySequencerCommitteeProvider(1001);
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
+            new CensorshipDetector(src, committee, baseSlashAmount: new System.Numerics.BigInteger(-1)));
+    }
+
+    [TestMethod]
+    public void Constructor_AcceptsZeroBaseSlashAmount()
+    {
+        // Zero is allowed for warning-only modes — operator wants detection without
+        // enforcement. The boundary is just non-negative.
+        var src = new InMemoryForcedInclusionSource(1001);
+        var committee = new InMemorySequencerCommitteeProvider(1001);
+        var detector = new CensorshipDetector(src, committee, baseSlashAmount: System.Numerics.BigInteger.Zero);
+        Assert.AreEqual(System.Numerics.BigInteger.Zero, detector.BaseSlashAmount);
+    }
+
+    [TestMethod]
     public async Task CustomSlashAmount_PropagatesToReport()
     {
         var src = new InMemoryForcedInclusionSource(1001);

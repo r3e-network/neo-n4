@@ -43,6 +43,13 @@ public sealed class CensorshipDetector
         _committee = committee;
         _clock = clock ?? new SystemClock();
         _baseSlashAmount = baseSlashAmount ?? new BigInteger(1_000_000); // 1.0 GAS at 8 decimals
+        // A negative slash amount on L1 would effectively reward the offending sequencer
+        // — clearly nonsensical. Zero is allowed for warning-only modes (operator wants
+        // detection without enforcement). Reject negative outright at construction so the
+        // misconfig surfaces here, not at L1 settlement when a slash transaction reverts.
+        if (_baseSlashAmount < BigInteger.Zero)
+            throw new ArgumentOutOfRangeException(nameof(baseSlashAmount),
+                $"BaseSlashAmount must be non-negative, got {_baseSlashAmount}");
         _metrics = metrics ?? NoOpMetrics.Instance;
     }
 

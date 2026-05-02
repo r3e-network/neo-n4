@@ -27,9 +27,13 @@ public sealed class L2SettlementSettings
         // Validate at parse time so a misconfigured ProofType byte fails at plugin
         // load, not later at SubmitNextAsync when the first batch is sealed.
         Neo.L2.ProofTypeExtensions.Resolve(rawProofType);
+        // ChainId: distinguish "key missing" (test mode, no config supplied) from
+        // "explicitly set to 0" (operator misconfig). Nullable read returns null for
+        // the former and 0 for the latter; we only validate the second.
+        var rawChainId = s.GetValue<uint?>("ChainId");
         return new L2SettlementSettings
         {
-            ChainId = s.GetValue<uint>("ChainId"),
+            ChainId = rawChainId is null ? 0u : Neo.L2.ChainIdValidator.ValidateL2(rawChainId.Value),
             L1RpcEndpoint = s.GetValue("L1RpcEndpoint", "http://localhost:10332")!,
             SettlementManagerHash = s.GetValue("SettlementManagerHash", "")!,
             ProofType = rawProofType,

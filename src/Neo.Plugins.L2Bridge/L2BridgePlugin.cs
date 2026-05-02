@@ -57,7 +57,8 @@ public sealed class L2BridgePlugin : Plugin
     protected override void Configure()
     {
         var section = GetConfiguration();
-        _chainId = section.GetValue<uint>("ChainId");
+        var rawChainId = section.GetValue<uint?>("ChainId");
+        _chainId = rawChainId is null ? 0u : Neo.L2.ChainIdValidator.ValidateL2(rawChainId.Value);
         _depositProcessor = new DepositProcessor(_chainId, _registry, _metrics);
         _withdrawalProcessor = new WithdrawalProcessor(_chainId, _registry, _metrics);
     }

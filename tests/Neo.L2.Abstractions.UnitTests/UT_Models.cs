@@ -62,6 +62,35 @@ public class UT_Models
     }
 
     [TestMethod]
+    public void ChainIdValidator_ValidateL2_RejectsZero()
+    {
+        // Regression: ChainId=0 is reserved for Neo L1 (L2Outbox.L1ChainId). An L2 chain
+        // adopting it would misroute L2→L2 messages as L2→L1. Default-uint config (when
+        // ChainId is omitted) lands on 0, so plugin Configure must surface this clearly
+        // at load time, not let it slip into runtime where a misrouted message is silent.
+        var ex = Assert.ThrowsExactly<System.IO.InvalidDataException>(() => ChainIdValidator.ValidateL2(0));
+        StringAssert.Contains(ex.Message, "reserved for Neo L1");
+    }
+
+    [TestMethod]
+    public void ChainIdValidator_ValidateL2_AcceptsNonZero()
+    {
+        Assert.AreEqual(1u, ChainIdValidator.ValidateL2(1));
+        Assert.AreEqual(1001u, ChainIdValidator.ValidateL2(1001));
+        Assert.AreEqual(uint.MaxValue, ChainIdValidator.ValidateL2(uint.MaxValue));
+    }
+
+    [TestMethod]
+    public void ChainIdValidator_ValidateL2_NamesSettingInError()
+    {
+        // The optional setting-name parameter lets each call site identify which config
+        // key was bad — useful when the same plugin reads multiple chain ids.
+        var ex = Assert.ThrowsExactly<System.IO.InvalidDataException>(() =>
+            ChainIdValidator.ValidateL2(0, "BridgeChainId"));
+        StringAssert.Contains(ex.Message, "BridgeChainId");
+    }
+
+    [TestMethod]
     public void MessageType_HasExpectedDiscriminants()
     {
         Assert.AreEqual(0, (byte)MessageType.Deposit);

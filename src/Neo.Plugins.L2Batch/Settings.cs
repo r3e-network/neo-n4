@@ -36,9 +36,13 @@ public sealed class L2BatchSettings
     /// <summary>Build settings from the plugin's <c>PluginConfiguration</c> section.</summary>
     public static L2BatchSettings From(IConfigurationSection section)
     {
+        // Distinguish "key missing" (test mode, no config supplied — leave ChainId at 0)
+        // from "explicitly set to 0" (operator misconfig — reject). The nullable read
+        // returns null for the former and 0 for the latter; we only validate the second.
+        var rawChainId = section.GetValue<uint?>("ChainId");
         return new L2BatchSettings
         {
-            ChainId = section.GetValue<uint>("ChainId"),
+            ChainId = rawChainId is null ? 0u : Neo.L2.ChainIdValidator.ValidateL2(rawChainId.Value),
             MaxBlocksPerBatch = ValidatePositive(section.GetValue("MaxBlocksPerBatch", 50), "MaxBlocksPerBatch"),
             MaxTransactionsPerBatch = ValidatePositive(section.GetValue("MaxTransactionsPerBatch", 5_000), "MaxTransactionsPerBatch"),
             MaxBatchAgeMillis = ValidatePositive(section.GetValue("MaxBatchAgeMillis", 30_000), "MaxBatchAgeMillis"),

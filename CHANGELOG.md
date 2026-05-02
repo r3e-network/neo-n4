@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `ChainIdValidator.ValidateL2(uint)` plugin-config validator
+
+- `ChainId = 0` is reserved for Neo L1 (matches `L2Outbox.L1ChainId` sentinel). An L2 chain that adopts it would misroute L2→L2 messages as L2→L1, sending them out the wrong outbox subtree. The default `uint` value is 0, so an operator who omits `ChainId` from `config.json` silently lands on the reserved value.
+- Added `Neo.L2.ChainIdValidator.ValidateL2(uint, settingName?)` (in `Neo.L2.Abstractions`) that throws `InvalidDataException("<settingName> 0 is reserved for Neo L1")` on the reserved id. Wired into `L2BridgePlugin.Configure`, `L2BatchSettings.From`, and `L2SettlementSettings.From`.
+- Each call site reads via `GetValue<uint?>("ChainId")` to distinguish "key missing" (test mode, no config — leave at default 0) from "explicitly set to 0" (operator misconfig — reject). Real production configs always set the key, so the validator fires whenever it's actually wrong.
+- **3 new tests**: ValidateL2(0) → rejected; ValidateL2(1, 1001, MaxValue) → accepted; setting-name parameter included in error message.
+
+Cumulative: 401 tests / 27 projects.
+
 ### Fixed — `AuditReport.Passed` requires non-empty `Findings`
 
 - `Passed` was `Findings.All(f => f.Passed)`, which returns `true` vacuously on an empty list. A caller who constructed the report directly (bypassing `ChainAuditor`'s no-checks-registered guard) would see "passed" with no checks run — a silent observability regression for hand-built reports. Sister case to iter 85's `ChainAuditor` empty-checks fix, applied at the report-API layer.

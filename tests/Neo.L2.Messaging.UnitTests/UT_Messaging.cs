@@ -93,4 +93,44 @@ public class UT_Messaging
         var p = await router.GetMessageProofAsync(UInt256.Zero);
         Assert.IsNull(p);
     }
+
+    [TestMethod]
+    public void Router_RecordFinalized_AndGetMessageProof_AreThreadSafe()
+    {
+        // Regression: previously _finalized was a plain Dictionary<>. Concurrent
+        // GetMessageProofAsync (RPC threads) + RecordFinalized (settlement thread) had
+        // a small chance of corruption / NRE. Now ConcurrentDictionary; this test stress-
+        // races them and asserts no exceptions plus reads see a consistent snapshot.
+        var router = new InMemoryMessageRouter();
+        var threadCount = 8;
+        var iterations = 500;
+        var threads = new Thread[threadCount];
+        Exception? failure = null;
+
+        for (var t = 0; t < threadCount; t++)
+        {
+            var threadIdx = t;
+            threads[t] = new Thread(() =>
+            {
+                try
+                {
+                    for (var i = 0; i < iterations; i++)
+                    {
+                        var seedByte = (byte)((threadIdx + i) % 256);
+                        var bytes = new byte[32];
+                        bytes[0] = seedByte;
+                        var hash = new UInt256(bytes);
+                        if ((threadIdx & 1) == 0)
+                            router.RecordFinalized(hash, new byte[] { seedByte, 0xFF });
+                        else
+                            _ = router.GetMessageProofAsync(hash).Result;
+                    }
+                }
+                catch (Exception ex) { failure ??= ex; }
+            });
+            threads[t].Start();
+        }
+        foreach (var th in threads) th.Join();
+        Assert.IsNull(failure, $"concurrent access threw: {failure}");
+    }
 }

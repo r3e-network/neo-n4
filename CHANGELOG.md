@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `InMemoryMessageRouter._finalized` is thread-safe
+
+- `_finalized` was a plain `Dictionary<UInt256, FinalizedEntry>`. `RecordFinalized` (settlement-pipeline thread) writes; `GetMessageProofAsync` (RPC-handler threads) reads. A concurrent read while writing had a small but real chance of corruption / `NullReferenceException` deep in `Dictionary.FindEntry`.
+- Swapped to `ConcurrentDictionary<UInt256, FinalizedEntry>`. The cost is negligible for the test/devnet backend; production wires a different impl.
+- **1 new test**: 8 threads × 500 iterations alternating writes / reads → no exceptions.
+
+Cumulative: 411 tests / 27 projects.
+
 ### Fixed — `InMemorySequencerCommitteeProvider.SetMaxCommitteeSize` rejects shrink below current count
 
 - The setter accepted any `max ∈ [1, 64]` regardless of how many members were already registered. Calling `SetMaxCommitteeSize(2)` on a 5-member committee silently succeeded; the count then exceeded the cap until members organically exited — a misleading "almost-frozen" state that hides the operator's typo (registrations would be rejected with no clear pointer back to the misconfigured cap).

@@ -10,7 +10,11 @@ public sealed class InMemoryMessageRouter : IMessageRouter
 {
     private readonly L1MessageInbox _inbox;
     private readonly L2Outbox _outbox;
-    private readonly Dictionary<UInt256, FinalizedEntry> _finalized = new();
+    // ConcurrentDictionary because GetMessageProofAsync can be called from RPC handler
+    // threads while RecordFinalized is being driven from the settlement-pipeline thread —
+    // a plain Dictionary would have a small but real chance of corruption / NRE under
+    // the race. Cost is negligible for the in-memory test backend.
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<UInt256, FinalizedEntry> _finalized = new();
 
     /// <summary>The L1 inbox feeding inbound messages.</summary>
     public L1MessageInbox Inbox => _inbox;

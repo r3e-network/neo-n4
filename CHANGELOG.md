@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `DepositPayload.Decode` rejects trailing bytes (strict length match)
+
+- The length check was `pos + amountLen > bytes.Length`, which only caught buffers shorter than declared. Trailing bytes after the amount were silently ignored. An attacker could append padding that the L1 hashes (full bytes) but the L2 decoder strips — a malleability surface where the same logical deposit produces different leaves on either side.
+- Strengthened to `pos + amountLen != bytes.Length` (matches the `OptimisticProofPayload.Decode` pattern).
+- **1 new test**: payload with trailing bytes → `InvalidDataException`.
+
+Cumulative: 385 tests / 27 projects.
+
 ### Fixed — `L2DAPlugin.Configure` rejects unknown `DAMode` bytes
 
 - The `DAMode` switch fell through to `InMemoryDAWriter` for any byte outside `0..3`. An operator who misconfigured `DAMode = 99` would silently end up with the in-memory test backend — they'd think batch payloads were going to External DA, but actually they vanish into a process-local hash table that disappears at restart. The kind of failure that only surfaces hours later when something downstream tries to fetch the data.

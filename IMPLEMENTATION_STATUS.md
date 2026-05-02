@@ -75,7 +75,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**384 unit + integration tests across 27 projects:**
+**385 unit + integration tests across 27 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -83,7 +83,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.Batch.UnitTests`             | 20    | builder lifecycle, serializer round-trip, **proof-length bounds, unknown-ProofType rejection, all-valid-ProofType round-trip** |
 | `Neo.L2.State.UnitTests`             | 22    | Merkle tree, proof verify, hashers, **canonical proof wire format (round-trip, layout, truncation, oversized depth, 7-leaf all-positions)** |
 | `Neo.L2.Messaging.UnitTests`         | 9     | inbox FIFO, replay protection, outbox split, **L2Outbox metric emission across destinations** |
-| `Neo.L2.Bridge.UnitTests`            | 20    | registry, deposit replay, withdrawal staging, **metric emission on success/replay/unknown-asset/duplicate-nonce/negative-amount paths, retryability after transient validation failure, registry orphan cleanup on L1/L2 repoint** |
+| `Neo.L2.Bridge.UnitTests`            | 21    | registry, deposit replay, withdrawal staging, **metric emission on success/replay/unknown-asset/duplicate-nonce/negative-amount paths, retryability after transient validation failure, registry orphan cleanup on L1/L2 repoint, DepositPayload trailing-byte rejection** |
 | `Neo.L2.Proving.UnitTests`           | 11    | Stage 0/1/2 prove+verify, registry dispatch |
 | `Neo.L2.Proving.Sp1.UnitTests`       | 6     | bridge unavailable, mock fallback, VK mismatch |
 | `Neo.L2.Executor.UnitTests`          | 14    | empty/single/many, ordering, determinism, **KeyedStateStore + oracle** |

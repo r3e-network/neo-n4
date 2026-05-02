@@ -49,8 +49,12 @@ public sealed record DepositPayload
         var l1 = new UInt160(bytes.Slice(pos, 20)); pos += 20;
         var l2 = new UInt160(bytes.Slice(pos, 20)); pos += 20;
         var amountLen = BinaryPrimitives.ReadInt32LittleEndian(bytes.Slice(pos, 4)); pos += 4;
-        if (amountLen < 0 || amountLen > 64 || pos + amountLen > bytes.Length)
-            throw new InvalidDataException($"Invalid amount length {amountLen}");
+        // Strict length match: trailing bytes after the amount would be silently ignored,
+        // creating a malleability surface where an attacker appends padding the L1 hashes
+        // (full bytes) but the L2 ignores. Same defensive pattern as OptimisticProofPayload.
+        if (amountLen < 0 || amountLen > 64 || pos + amountLen != bytes.Length)
+            throw new InvalidDataException(
+                $"Invalid amount length {amountLen} (expected total {pos + amountLen}, have {bytes.Length})");
         var amount = new BigInteger(bytes.Slice(pos, amountLen), isUnsigned: true, isBigEndian: false);
         return new DepositPayload { L1Asset = l1, L2Recipient = l2, Amount = amount };
     }

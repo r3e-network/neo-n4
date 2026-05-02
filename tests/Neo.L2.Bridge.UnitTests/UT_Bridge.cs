@@ -165,6 +165,18 @@ public class UT_Bridge
     }
 
     [TestMethod]
+    public void DepositPayload_Decode_RejectsTrailingBytes()
+    {
+        // Regression: previously the length check was `pos + amountLen > bytes.Length`,
+        // which silently accepted trailing bytes. An attacker could append padding that
+        // the L1 hashes (full bytes) but the L2 decoder ignored — a malleability surface.
+        var p = new DepositPayload { L1Asset = GasL1, L2Recipient = Recipient, Amount = new BigInteger(1) };
+        var bytes = p.Encode().ToList();
+        bytes.AddRange(new byte[] { 0xFF, 0xFF }); // trailing padding
+        Assert.ThrowsExactly<InvalidDataException>(() => DepositPayload.Decode(bytes.ToArray()));
+    }
+
+    [TestMethod]
     public void DepositProcessor_RejectsUnknownAsset()
     {
         var proc = new DepositProcessor(LocalChain, new AssetRegistry());

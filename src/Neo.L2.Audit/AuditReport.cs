@@ -14,8 +14,17 @@ public sealed record AuditReport
     /// <summary>Inclusive batch number range that was audited.</summary>
     public required ulong LastBatch { get; init; }
 
-    /// <summary>Overall result: true iff every check in <see cref="Findings"/> passed.</summary>
-    public bool Passed => Findings.All(f => f.Passed);
+    /// <summary>
+    /// Overall result: true iff <see cref="Findings"/> is non-empty AND every entry passed.
+    /// </summary>
+    /// <remarks>
+    /// The non-empty guard prevents <c>Findings.All(...)</c>'s vacuous-true on an empty list
+    /// — a caller who constructs an <see cref="AuditReport"/> directly (bypassing
+    /// <see cref="ChainAuditor"/>) with no findings would otherwise silently look "passed".
+    /// <see cref="ChainAuditor"/> already guarantees at least one finding via its
+    /// no-checks-registered guard, so this is purely defense for hand-built reports.
+    /// </remarks>
+    public bool Passed => Findings.Count > 0 && Findings.All(f => f.Passed);
 
     /// <summary>Per-check findings, in order they were run.</summary>
     public required IReadOnlyList<AuditFinding> Findings { get; init; }

@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `AuditReport.Passed` requires non-empty `Findings`
+
+- `Passed` was `Findings.All(f => f.Passed)`, which returns `true` vacuously on an empty list. A caller who constructed the report directly (bypassing `ChainAuditor`'s no-checks-registered guard) would see "passed" with no checks run — a silent observability regression for hand-built reports. Sister case to iter 85's `ChainAuditor` empty-checks fix, applied at the report-API layer.
+- Now: `Findings.Count > 0 && Findings.All(...)`. `ChainAuditor` already guarantees at least one finding via the iter-85 guard, so this is purely defense for hand-built reports.
+- **1 new test**: report with empty findings → `Passed = false`.
+
+Cumulative: 398 tests / 27 projects.
+
 ### Fixed — `L2BatchSettings.From` rejects zero / negative thresholds at parse time
 
 - `MaxBlocksPerBatch`, `MaxTransactionsPerBatch`, and `MaxBatchAgeMillis` accepted any int. A misconfig like `MaxBlocksPerBatch: 0` made `BatchSealer.ShouldSeal` return `true` on every block — every block became its own batch, producing degenerate per-block batches that each carry full settlement / proving overhead. Operators saw the misconfig as a runaway L1 submission rate hours later, not at plugin load.

@@ -154,6 +154,22 @@ public class UT_ChainAuditor
     }
 
     [TestMethod]
+    public void AuditReport_EmptyFindings_DoesNotVacuouslyPass()
+    {
+        // Regression: AuditReport.Passed was Findings.All(f => f.Passed), which returns
+        // true vacuously on an empty list. A caller who constructed the report directly
+        // (bypassing ChainAuditor's guards) would see "passed" with no checks run.
+        var report = new AuditReport
+        {
+            ChainId = 1001,
+            FirstBatch = 0,
+            LastBatch = 0,
+            Findings = Array.Empty<AuditFinding>(),
+        };
+        Assert.IsFalse(report.Passed, "empty findings must not count as a passed audit");
+    }
+
+    [TestMethod]
     public async Task Auditor_RejectsDuplicateBatchNumbers()
     {
         // Regression: previously the sort check was `<` which silently allowed duplicates.

@@ -75,7 +75,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**409 unit + integration tests across 27 projects:**
+**410 unit + integration tests across 27 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -88,7 +88,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.Proving.Sp1.UnitTests`       | 7     | bridge unavailable, mock fallback, VK mismatch, **`MaxProofBytes` bound pinned** |
 | `Neo.L2.Executor.UnitTests`          | 14    | empty/single/many, ordering, determinism, **KeyedStateStore + oracle** |
 | `Neo.L2.ForcedInclusion.UnitTests`   | 8     | nonce ordering, replay, overdue detection   |
-| `Neo.L2.Sequencer.UnitTests`         | 13    | register/exit/finalize lifecycle, **metric emission for all three lifecycle ops + committee-size gauge** |
+| `Neo.L2.Sequencer.UnitTests`         | 14    | register/exit/finalize lifecycle, **metric emission for all three lifecycle ops + committee-size gauge, `SetMaxCommitteeSize` shrink-below-count rejection** |
 | `Neo.L2.Censorship.UnitTests`        | 7     | overdue detection, sequencer attribution    |
 | `Neo.L2.Challenge.UnitTests`         | 28    | fraud-proof payload, orchestrator, BisectionGame, **`InspectWithBisectionAsync` (no-fraud agreement, log-N narrowing, arg validation, empty/mismatched/single-element checkpoint shape rejection)**, metric emission |
 | `Neo.L2.Audit.UnitTests`             | 25    | continuity + proof-validity + **public-input-hash consistency** checks, summary, `NoZeroProofCheck`, **`ChainAuditor` self-emits runs + failures (delta = failed-finding count), strict-ascending duplicate-rejection, `AuditReport.Passed` non-empty guard, `ProofValidityCheck` null-guard** |

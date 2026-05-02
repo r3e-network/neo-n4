@@ -85,10 +85,23 @@ public sealed class InMemorySequencerCommitteeProvider : ISequencerCommitteeProv
     }
 
     /// <summary>Update the configured max committee size.</summary>
+    /// <remarks>
+    /// Rejects values smaller than the current member count. Without that check, an operator
+    /// could shrink the cap below the existing committee, leaving a state where the count
+    /// silently exceeds the cap until members exit organically — a misleading "almost-frozen"
+    /// configuration that hides the misconfig. Callers who genuinely want to freeze new
+    /// registrations should add a separate explicit API rather than abusing this setter.
+    /// </remarks>
     public void SetMaxCommitteeSize(int max)
     {
         if (max < 1 || max > 64) throw new ArgumentOutOfRangeException(nameof(max));
-        lock (_gate) _maxSize = max;
+        lock (_gate)
+        {
+            if (max < _members.Count)
+                throw new InvalidOperationException(
+                    $"max {max} < current committee count {_members.Count} — exit members before shrinking");
+            _maxSize = max;
+        }
     }
 
     /// <inheritdoc />

@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `InMemorySequencerCommitteeProvider.SetMaxCommitteeSize` rejects shrink below current count
+
+- The setter accepted any `max ∈ [1, 64]` regardless of how many members were already registered. Calling `SetMaxCommitteeSize(2)` on a 5-member committee silently succeeded; the count then exceeded the cap until members organically exited — a misleading "almost-frozen" state that hides the operator's typo (registrations would be rejected with no clear pointer back to the misconfigured cap).
+- Now: rejects with `InvalidOperationException("max N < current committee count M — exit members before shrinking")` so the operator sees both the proposed and actual values immediately.
+- **1 new test**: 5-member committee, `SetMaxCommitteeSize(2)` → rejected with both numbers in the message.
+
+Cumulative: 410 tests / 27 projects.
+
 ### Fixed — `ProofValidityCheck.RunAsync` matches null-guard convention
 
 - Sister checks (`ContinuityCheck`, `NoZeroProofCheck`, `PublicInputHashConsistencyCheck`) all begin with `cancellationToken.ThrowIfCancellationRequested()` + `ArgumentNullException.ThrowIfNull(batches)`. `ProofValidityCheck.RunAsync` was missing both — a null-batches caller hit the `foreach` and got a `NullReferenceException` with no link back to the bad input.

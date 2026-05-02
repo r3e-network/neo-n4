@@ -115,4 +115,19 @@ public class UT_InMemorySequencerCommitteeProvider
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => p.SetMaxCommitteeSize(0));
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => p.SetMaxCommitteeSize(65));
     }
+
+    [TestMethod]
+    public void SetMaxCommitteeSize_RejectsShrinkBelowCurrentCount()
+    {
+        // Regression: previously SetMaxCommitteeSize(2) on a 5-member committee silently
+        // succeeded. The provider's count exceeded the cap until members exited
+        // organically — a misleading "almost-frozen" state that hid the operator's typo.
+        var p = new InMemorySequencerCommitteeProvider(1001, 7);
+        for (byte i = 1; i <= 5; i++)
+            p.Register(K(i), A(i));
+
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() => p.SetMaxCommitteeSize(2));
+        StringAssert.Contains(ex.Message, "max 2");
+        StringAssert.Contains(ex.Message, "current committee count 5");
+    }
 }

@@ -241,11 +241,14 @@ public class UT_L2SettlementPlugin_Metrics
         public ProofType Kind { get; }
         public ValueTask<ProofResult> ProveAsync(ProofRequest request, CancellationToken cancellationToken = default)
         {
+            // Honor the prover contract: return the actual hash of the supplied
+            // publicInputs so the iter-140 settlement-plugin assertion (proofResult.
+            // PublicInputHash must match settlement's computed hash) passes.
             return ValueTask.FromResult(new ProofResult
             {
                 Proof = new byte[] { 0x01, 0x02, 0x03 },
                 Kind = Kind,
-                PublicInputHash = UInt256.Zero,
+                PublicInputHash = Neo.L2.State.StateRootCalculator.HashPublicInputs(request.PublicInputs),
             });
         }
     }

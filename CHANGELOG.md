@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `L2SettlementPlugin` also checks `ProofResult.PublicInputHash` matches settlement's hash
+
+- Companion to the iter-139 Kind check. The settlement plugin computes its own `hash = StateRootCalculator.HashPublicInputs(publicInputs)` and the prover returns its own `proofResult.PublicInputHash`. If the two disagree, the prover proved a different set of inputs than settlement built — the iter-128 verifier-side `PublicInputHash` check catches it later, but it costs a wasted `SubmitBatch` round-trip and surfaces as a confusing remote rejection.
+- Now the settlement plugin also asserts `proofResult.PublicInputHash.Equals(hash)` at the prove boundary; the catch-and-requeue path takes care of the rest.
+- Updated `FakeProver` test fixture to honor the prover contract (compute the actual hash from `request.PublicInputs` instead of returning Zero).
+
+Cumulative: 423 tests / 27 projects (same count; the iter-139 LiarProver test now exercises both Kind and PublicInputHash via the same plugin assertion path).
+
 ### Fixed — `L2SettlementPlugin` checks `ProofResult.Kind` matches requested kind
 
 - A buggy prover that returned `ProofResult.Kind = None` (or any other mismatch) silently produced a commitment with whatever the prover claimed. The mismatch would only surface at audit time as `NoZeroProofCheck` failing with "ProofType.None — soft-sealed but never proved" — confusing, with no direct link back to the prover bug.

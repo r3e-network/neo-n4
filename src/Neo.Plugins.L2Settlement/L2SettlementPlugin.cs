@@ -151,6 +151,15 @@ public sealed class L2SettlementPlugin : Plugin
             if (proofResult.Kind != requestedKind)
                 throw new InvalidOperationException(
                     $"prover returned ProofType {proofResult.Kind}, expected {requestedKind}");
+            // Same defense for the public-input hash: if the prover signed a different set
+            // of inputs than we built, the verifier's iter-128 PublicInputHash check would
+            // catch it on submission, but we'd waste a SubmitBatch round-trip and surface
+            // the failure deep in the stack. Catch the disagreement here at the prove
+            // boundary so the operator sees "prover's hash differs from settlement's"
+            // directly.
+            if (!proofResult.PublicInputHash.Equals(hash))
+                throw new InvalidOperationException(
+                    "prover's PublicInputHash differs from settlement's — prover proved different inputs");
             var kindTag = ("kind", proofResult.Kind.ToString());
             _metrics.IncrementCounter(MetricNames.ProofsGenerated, 1, kindTag);
             _metrics.RecordHistogram(MetricNames.ProveLatencyMs, proveSw.Elapsed.TotalMilliseconds, kindTag);

@@ -34,6 +34,12 @@ public sealed class AssetRegistry
     public void Register(AssetMapping mapping)
     {
         ArgumentNullException.ThrowIfNull(mapping);
+        // Both index keys depend on these UInt160 fields. A null L2Asset throws
+        // ArgumentNullException from `_byL2[null]` deep in Dictionary; a null L1Asset
+        // creates a tuple key `(null, chainId)` that lookups would interpret oddly.
+        // Catch them at the API boundary so the operator sees the bad field directly.
+        ArgumentNullException.ThrowIfNull(mapping.L1Asset);
+        ArgumentNullException.ThrowIfNull(mapping.L2Asset);
         lock (_gate)
         {
             var l1Key = (mapping.L1Asset, mapping.L2ChainId);

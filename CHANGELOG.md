@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — `AssetRegistry.Register` + `Sequencer.Register` reject null `UInt160` fields
+
+- Continuation of the iter-146/147 null-guard sweep.
+- `AssetRegistry.Register`: a null `mapping.L1Asset` creates the tuple key `(null, chainId)` (Dictionary tolerates null inside a tuple) — lookups would interpret it oddly. A null `mapping.L2Asset` throws deep in `_byL2[null]`.
+- `InMemorySequencerCommitteeProvider.Register`: a null `l1Address` propagates into `CommitteeMember.L1Address` → `CensorshipReport.ResponsibleSequencerAddress` → either misroutes the slash payout or hard-reverts the slash transaction at L1.
+- Both call sites now `ArgumentNullException.ThrowIfNull` the relevant fields up front.
+
+Cumulative: 424 tests / 27 projects.
+
 ### Changed — `WithdrawalProcessor.Stage` rejects null `UInt160` fields
 
 - Same defensive shape as the iter-146 `MessageBuilder.Build` fix, applied to the withdrawal-staging boundary. `WithdrawalRequest`'s `EmittingContract` / `L2Sender` / `L1Recipient` / `L2Asset` are `required UInt160` (reference type) — the `required` keyword forces them to be set but doesn't prevent null. A null field would crash deep in `MessageHasher.HashWithdrawal`'s `GetSpan()` with no link back to the bad field.

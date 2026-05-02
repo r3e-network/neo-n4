@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — `L2ProverPlugin.Wire` gives a clear error for `ProofType.None`
+
+- `ProofType.None` is a legitimate enum value (used for genesis / operator-trusted flows in the wire format) but the prover plugin can't produce a proof for it. The switch's `_ => throw NotSupportedException($"Unknown ProofType {_kind}")` arm fired with `"Unknown ProofType None"` — misleading, since None is defined.
+- Added an explicit `ProofType.None => …` case with a message explaining what the operator should do: configure Multisig/Optimistic/Zk to enable settlement.
+
+Cumulative: 418 tests / 27 projects.
+
 ### Fixed — `InMemoryL2RpcStore.RegisterAsset` removes orphan index entries
 
 - Same bug pattern as iter 100's `AssetRegistry.Register` fix, in the RPC-side asset cache. Re-registering an L1 asset against a different L2 token (or vice versa) overwrote one index but left the stale entry in the other. `GetCanonicalAsset(oldL2)` still returned the L1 asset while `GetBridgedAsset(L1)` returned the new L2 — silent inconsistency between the two RPC lookups.

@@ -40,6 +40,11 @@ public sealed class L2ProverPlugin : Plugin
             ProofType.Multisig => new AttestationProver(signerSet ?? throw new InvalidOperationException("ProofType.Multisig requires a signer set")),
             ProofType.Zk => riscVProver ?? throw new InvalidOperationException("ProofType.Zk requires a RiscV prover"),
             ProofType.Optimistic => throw new NotSupportedException("Optimistic prover lives in L2SettlementPlugin (it just signs)."),
+            // ProofType.None is legal in the wire format (genesis / operator-trusted flows)
+            // but the prover plugin can't produce a proof for it. Without this explicit case
+            // the operator sees "Unknown ProofType None" — misleading, since None is defined.
+            ProofType.None => throw new NotSupportedException(
+                "ProofType.None has no prover (used only for genesis or operator-trusted flows; configure Multisig/Optimistic/Zk to enable settlement)"),
             _ => throw new NotSupportedException($"Unknown ProofType {_kind}"),
         };
     }

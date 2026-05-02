@@ -173,6 +173,22 @@ public class UT_ChainAuditor
     }
 
     [TestMethod]
+    public async Task Auditor_EmptyBatches_StillEmitsRunAndFailureMetrics()
+    {
+        // Regression: previously the empty-batches early return skipped the metric path —
+        // the failure showed in the report but not in counters, so an operator watching
+        // dashboards saw nothing. Now: AuditsRun and AuditFailures both tick.
+        var metrics = new InMemoryMetrics();
+        var auditor = new ChainAuditor(metrics).Register(new ContinuityCheck());
+
+        var report = await auditor.AuditAsync(Array.Empty<L2BatchCommitment>());
+
+        Assert.IsFalse(report.Passed);
+        Assert.AreEqual(1, metrics.GetCounter(MetricNames.AuditsRun), "AuditsRun must tick");
+        Assert.AreEqual(1, metrics.GetCounter(MetricNames.AuditFailures), "AuditFailures must tick");
+    }
+
+    [TestMethod]
     public void AuditReport_EmptyFindings_DoesNotVacuouslyPass()
     {
         // Regression: AuditReport.Passed was Findings.All(f => f.Passed), which returns

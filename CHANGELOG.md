@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `ChainAuditor.AuditAsync` empty-batches still emits run + failure metrics
+
+- The empty-batches early return short-circuited before the metric increments. The failing finding showed up in the returned `AuditReport`, but `AuditsRun` and `AuditFailures` counters never ticked. An operator watching only dashboards would see the audit as "didn't happen" — invisible to monitoring even though we returned a failed report.
+- Now: increment `AuditsRun` + `AuditFailures` on the empty-batches branch too, before returning. The report-side and metrics-side observability paths are now consistent.
+- **1 new test**: empty batches → both counters tick + report still fails.
+
+Cumulative: 412 tests / 27 projects.
+
 ### Fixed — `neo-stack` exception handling + `init-l2 --chain-id` validation
 
 - Two related gaps in the launcher CLI:

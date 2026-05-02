@@ -39,6 +39,12 @@ public sealed class ChainAuditor
         ArgumentNullException.ThrowIfNull(batches);
         if (batches.Count == 0)
         {
+            // Surface the failure both in the report AND in the metrics so an operator
+            // who watches dashboards sees the audit count tick + failure tick. Without
+            // these the empty-input case appears nowhere in counters — the run is
+            // invisible to monitoring even though we returned a failed report.
+            _metrics.IncrementCounter(MetricNames.AuditsRun);
+            _metrics.IncrementCounter(MetricNames.AuditFailures, 1);
             return new AuditReport
             {
                 ChainId = 0,

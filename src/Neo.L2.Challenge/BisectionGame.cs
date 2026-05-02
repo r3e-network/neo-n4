@@ -92,8 +92,14 @@ public sealed class BisectionGame
         if (mid == _lo)
         {
             // [_lo, _hi] is adjacent (hi = lo + 1) → no further midpoint, atomic dispute.
+            // This branch is normally unreachable because TrySettle (called at the end of
+            // construction + every prior RunRound) settles whenever _hi - _lo <= 1. Keep
+            // it as a defense-in-depth fallback and emit the same BisectionRounds metric
+            // TrySettle would, so a future refactor that breaks the invariant doesn't
+            // produce a settled game with no metric record.
             _disputedIndex = _lo;
             _settled = true;
+            _metrics.RecordHistogram(MetricNames.BisectionRounds, _rounds);
             return false;
         }
 

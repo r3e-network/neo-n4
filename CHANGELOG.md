@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — `BisectionGame.RunRound` emits the BisectionRounds metric on its dead-branch settle path
+
+- The `mid == _lo` branch in `RunRound` is normally unreachable (TrySettle at construction + every prior round keeps `_hi - _lo > 1` while `_settled == false`). But if a future refactor ever breaks that invariant, the branch settles the game without emitting `MetricNames.BisectionRounds` — a silent metric drop. Defense-in-depth: emit the same metric `TrySettle` would.
+- No behavior change in the non-degenerate path; just makes the dead-branch fallback consistent with `TrySettle`.
+
+Cumulative: 423 tests / 27 projects.
+
 ### Fixed — `L2SettlementPlugin` also checks `ProofResult.PublicInputHash` matches settlement's hash
 
 - Companion to the iter-139 Kind check. The settlement plugin computes its own `hash = StateRootCalculator.HashPublicInputs(publicInputs)` and the prover returns its own `proofResult.PublicInputHash`. If the two disagree, the prover proved a different set of inputs than settlement built — the iter-128 verifier-side `PublicInputHash` check catches it later, but it costs a wasted `SubmitBatch` round-trip and surfaces as a confusing remote rejection.

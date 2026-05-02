@@ -37,6 +37,7 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore
     /// <summary>Record a sealed batch + its initial status (typically Pending).</summary>
     public void AddBatch(L2BatchCommitment commitment, BatchStatus status)
     {
+        ArgumentNullException.ThrowIfNull(commitment);
         _batches[commitment.BatchNumber] = commitment;
         _statuses[commitment.BatchNumber] = status;
         _stateRoots[commitment.BatchNumber] = commitment.PostStateRoot;
@@ -72,6 +73,8 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore
     /// </remarks>
     public void RegisterAsset(UInt160 l1Asset, UInt160 l2Asset)
     {
+        ArgumentNullException.ThrowIfNull(l1Asset);
+        ArgumentNullException.ThrowIfNull(l2Asset);
         if (_l2ByL1.TryGetValue(l1Asset, out var oldL2) && !oldL2.Equals(l2Asset))
             _l1ByL2.TryRemove(oldL2, out _);
         if (_l1ByL2.TryGetValue(l2Asset, out var oldL1) && !oldL1.Equals(l1Asset))

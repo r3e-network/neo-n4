@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — `InMemoryL2RpcStore.AddBatch` + `RegisterAsset` reject null inputs
+
+- Continuation of the iter-146/147/148 null-guard sweep.
+- `AddBatch(L2BatchCommitment commitment, ...)`: a null commitment crashes deep in `commitment.BatchNumber` access.
+- `RegisterAsset(UInt160 l1Asset, UInt160 l2Asset)`: a null UInt160 throws from `ConcurrentDictionary.TryGetValue(null)` deep in the hash path.
+- Both call sites now `ArgumentNullException.ThrowIfNull` up front.
+- (Note: `RecordDeposit(DepositStatus)` doesn't need a guard — `DepositStatus` is a `record struct` (value type), so null is impossible at the type level.)
+
+Cumulative: 424 tests / 27 projects.
+
 ### Changed — `AssetRegistry.Register` + `Sequencer.Register` reject null `UInt160` fields
 
 - Continuation of the iter-146/147 null-guard sweep.

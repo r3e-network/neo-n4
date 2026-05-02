@@ -59,7 +59,12 @@ public sealed class L2BridgePlugin : Plugin
         var section = GetConfiguration();
         var rawChainId = section.GetValue<uint?>("ChainId");
         _chainId = rawChainId is null ? 0u : Neo.L2.ChainIdValidator.ValidateL2(rawChainId.Value);
-        _depositProcessor = new DepositProcessor(_chainId, _registry, _metrics);
-        _withdrawalProcessor = new WithdrawalProcessor(_chainId, _registry, _metrics);
+        // Lazy init the processors — Configure may be called more than once (config-watcher
+        // re-fire, host re-init). Without this guard, recreating the processors would
+        // discard their consumed-nonce state, allowing already-processed deposits / closed-
+        // batch withdrawals to be replayed on the L2 (the duplicate would only fail
+        // hours later at L1 settlement).
+        _depositProcessor ??= new DepositProcessor(_chainId, _registry, _metrics);
+        _withdrawalProcessor ??= new WithdrawalProcessor(_chainId, _registry, _metrics);
     }
 }

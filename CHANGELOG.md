@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — `L2BridgePlugin.Configure` lazily inits processors to preserve cross-batch state
+
+- `Configure` unconditionally recreated `DepositProcessor` + `WithdrawalProcessor`. If `Configure` ever ran twice (config-watcher re-fire, host re-init), the new processors started fresh — discarding `DepositProcessor._consumed` and `WithdrawalProcessor._consumedAcrossBatches` (iter 133), allowing already-processed deposits and closed-batch withdrawals to be replayed on L2 with the duplicate only catching hours later at L1 settlement.
+- Switched to `_depositProcessor ??= new …` / `_withdrawalProcessor ??= new …` lazy init. Subsequent Configure calls are now no-ops for the processor instances; their replay-protection sets persist for the plugin's lifetime. Matches the iter-70/71 in-place-WithMetrics-rewire pattern that was added for the same reason.
+
+Cumulative: 424 tests / 27 projects.
+
 ### Fixed — `ReferenceBatchExecutor` skips effects from failed transactions
 
 - A failed transaction's emitted withdrawals + L2→* messages were still added to the batch trees. Per L2 semantics, a failed tx reverts all its state changes — including emitted effects. The `ITransactionExecutor` contract should already filter on the executor side, but a buggy executor that leaks effects from a failed tx silently produces a withdrawal-tree commitment that doesn't match the (correct) ReceiptRoot — surfacing only at L1 settlement when the inclusion proof for the leaked withdrawal is checked against the user's actual state (which never debited the funds).

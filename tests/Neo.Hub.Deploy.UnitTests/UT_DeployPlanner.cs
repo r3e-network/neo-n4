@@ -45,6 +45,45 @@ public class UT_DeployPlanner
     }
 
     [TestMethod]
+    public void Plan_RejectsDuplicateStepNames_WithClearMessage()
+    {
+        // Regression: previously ToDictionary surfaced "An item with the same key has
+        // already been added. Key: <name>" — generic. Now: clear "duplicate deploy step
+        // name '<name>'" so the operator can find their typo.
+        var plan = new DeployPlan
+        {
+            Version = 1,
+            Network = "test",
+            Steps = new[]
+            {
+                Step("A", new JArray()),
+                Step("A", new JArray()),
+            },
+        };
+
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() =>
+            DeployPlanner.Plan(plan, _ => UInt160.Zero));
+        StringAssert.Contains(ex.Message, "duplicate deploy step name 'A'");
+    }
+
+    [TestMethod]
+    public void Plan_RejectsEmptyStepName()
+    {
+        // Without this check, an empty-name step would slip into byName as the empty key.
+        // A subsequent step that depends on "" would resolve, masking a typo in the JSON.
+        var plan = new DeployPlan
+        {
+            Version = 1,
+            Network = "test",
+            Steps = new[] { Step("", new JArray()) },
+        };
+
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() =>
+            DeployPlanner.Plan(plan, _ => UInt160.Zero));
+        StringAssert.Contains(ex.Message, "must not be empty");
+    }
+
+    [TestMethod]
     public void Plan_DetectsSelfCycle()
     {
         // Step A depends on itself — degenerate cycle of length 1. Existing 2-step cycle

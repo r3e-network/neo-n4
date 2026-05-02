@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `DeployPlanner` surfaces clear errors for duplicate / empty step names
+
+- The name index was built via `steps.ToDictionary(s => s.Name)`, which throws a generic `ArgumentException("An item with the same key has already been added. Key: foo")` on duplicates. Operators with a typo in their plan JSON had to map the message back to the offending entry by hand.
+- Empty / whitespace step names slipped through silently — a `DependsOn: [""]` reference would happen-to-resolve and the operator's typo would only show up at runtime.
+- Now: explicit foreach with `string.IsNullOrWhiteSpace` rejection (`"deploy step name must not be empty or whitespace"`) and `TryAdd` for clearer duplicate messages (`"duplicate deploy step name '<name>'"`).
+- **2 new tests**: duplicate-name rejection with name in message; empty-name rejection.
+
+Cumulative: 382 tests / 27 projects.
+
 ### Fixed — `BatchSerializer.Decode` rejects unknown `ProofType` discriminants
 
 - The decoder cast `(ProofType)data[pos++]` without validating the byte was within the defined enum range (0..3). A corrupted L1 calldata payload, a replay from a future-version chain, or a hand-crafted attack could carry a discriminant > 3, producing an undefined enum value that downstream `==` comparisons would silently treat as "not the expected one" — a silent verification skip.

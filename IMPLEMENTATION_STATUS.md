@@ -75,7 +75,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**380 unit + integration tests across 27 projects:**
+**382 unit + integration tests across 27 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -100,7 +100,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.Plugins.L2Settlement.UnitTests` | 6     | **metric emission on submit success / failure / no-op default, wire-before-dequeue, concurrent-call gate serialization** |
 | `Neo.L2.Settlement.Rpc.UnitTests`    | 6     | JSON-RPC envelope, stack parsing, signer    |
 | `Neo.L2.Telemetry.UnitTests`         | 43    | counter/histogram/gauge accumulation, tag canonicalization, Prometheus exporter (counter/gauge/summary, labels, name sanitization, frozen-snapshot), request handler routing, TCP server round-trip + multi-request, catalog completeness vs MetricNames + Prometheus integration, **`/healthz` + `/readyz` (with predicate)** |
-| `Neo.Hub.Deploy.UnitTests`           | 8     | topo sort, cycle detection, scaffold        |
+| `Neo.Hub.Deploy.UnitTests`           | 12    | topo sort, cycle detection, scaffold, **plan-version check, duplicate / empty step names** |
 | `Neo.L2.IntegrationTests`            | 15    | Phase 0 MVP + Phase 1 cross-component + Phase 2 full-stack + Phase 3 optimistic-challenge + all-phases stitch + e2e telemetry pipeline + **L2MetricsPlugin composition root (every instrumented component → one sink → HTTP scrape)** |
 
 ## What's not yet wired (out of MVP scope)

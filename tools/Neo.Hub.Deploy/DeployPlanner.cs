@@ -91,7 +91,17 @@ public static class DeployPlanner
 
     private static IReadOnlyList<DeployStep> TopologicalSort(IReadOnlyList<DeployStep> steps)
     {
-        var byName = steps.ToDictionary(s => s.Name);
+        // Build the name index manually so we can surface clear errors for empty / duplicate
+        // names. ToDictionary would throw a generic "An item with the same key has already
+        // been added" message that doesn't tell the operator which step was duplicated.
+        var byName = new Dictionary<string, DeployStep>();
+        foreach (var step in steps)
+        {
+            if (string.IsNullOrWhiteSpace(step.Name))
+                throw new InvalidOperationException("deploy step name must not be empty or whitespace");
+            if (!byName.TryAdd(step.Name, step))
+                throw new InvalidOperationException($"duplicate deploy step name '{step.Name}'");
+        }
         var visited = new HashSet<string>();
         var visiting = new HashSet<string>();
         var output = new List<DeployStep>(steps.Count);

@@ -17,7 +17,9 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore
     private readonly ConcurrentDictionary<(uint, ulong), DepositStatus> _deposits = new();
     private readonly ConcurrentDictionary<UInt160, UInt160> _l1ByL2 = new();
     private readonly ConcurrentDictionary<UInt160, UInt160> _l2ByL1 = new();
+    private readonly Lock _latestGate = new();
     private UInt256 _latestStateRoot = UInt256.Zero;
+    private long _latestFinalizedBatch = -1;
 
     /// <inheritdoc />
     public uint ChainId { get; }
@@ -40,12 +42,24 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore
         _stateRoots[commitment.BatchNumber] = commitment.PostStateRoot;
     }
 
-    /// <summary>Mark a batch finalized; bump latest state root.</summary>
+    /// <summary>Mark a batch finalized; bump latest state root only if this is the newest one finalized.</summary>
+    /// <remarks>
+    /// Without the monotonicity check, finalizing batch 5 then batch 3 would revert
+    /// <c>_latestStateRoot</c> to batch 3's post-state — RPC <c>getl2stateroot</c> (no batch arg)
+    /// would then return a stale older root, which a downstream relayer treats as a regression.
+    /// </remarks>
     public void Finalize(ulong batchNumber)
     {
         if (!_batches.TryGetValue(batchNumber, out var b)) return;
         _statuses[batchNumber] = BatchStatus.Finalized;
-        _latestStateRoot = b.PostStateRoot;
+        lock (_latestGate)
+        {
+            if ((long)batchNumber > _latestFinalizedBatch)
+            {
+                _latestFinalizedBatch = (long)batchNumber;
+                _latestStateRoot = b.PostStateRoot;
+            }
+        }
     }
 
     /// <summary>Register an asset mapping (bidirectional).</summary>
@@ -82,7 +96,12 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore
         _statuses.TryGetValue(batchNumber, out var s) ? s : BatchStatus.Unknown;
 
     /// <inheritdoc />
-    public UInt256 GetLatestStateRoot() => _latestStateRoot;
+    public UInt256 GetLatestStateRoot()
+    {
+        // Held under the same gate as Finalize so a concurrent caller doesn't observe a torn
+        // UInt256 (32 bytes — not naturally atomic on most ABIs).
+        lock (_latestGate) return _latestStateRoot;
+    }
 
     /// <inheritdoc />
     public UInt256 GetStateRootAtBatch(ulong batchNumber) =>

@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `InMemoryL2RpcStore.Finalize` keeps `_latestStateRoot` monotonic
+
+- `Finalize(N)` blindly overwrote `_latestStateRoot` with batch N's post-state root regardless of N. Finalizing batch 5 then batch 3 left the latest root at batch 3's older value — an apparent state-root regression that a downstream relayer treats as a chain reorg signal.
+- Now tracks `_latestFinalizedBatch` under a lock; `Finalize` only updates `_latestStateRoot` when the new batch number exceeds the prior latest. `GetLatestStateRoot` reads under the same lock so a concurrent reader never observes a torn `UInt256`.
+- **1 new test**: `Finalize(5)` then `Finalize(3)` → latest root stays at batch 5.
+
+Cumulative: 378 tests / 27 projects.
+
 ### Fixed — `L2RpcMethods` parameter parsing surfaces clear errors
 
 - An RPC call with too few params (e.g. `getl2batch [1001]` — missing the batch number) hit `JArray`'s underlying `List<T>` indexer and surfaced `ArgumentOutOfRangeException` with the unhelpful `"Index was out of range..."` message. RPC clients had no way to tell which param was missing.

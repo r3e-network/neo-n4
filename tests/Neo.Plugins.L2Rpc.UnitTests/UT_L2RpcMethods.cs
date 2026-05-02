@@ -139,6 +139,27 @@ public class UT_L2RpcMethods
     }
 
     [TestMethod]
+    public void Finalize_OutOfOrder_DoesNotRegressLatestStateRoot()
+    {
+        // Regression: Finalize(N) blindly overwrote _latestStateRoot with batch N's
+        // post-state root regardless of N. Finalize(5) then Finalize(3) would set the
+        // latest to batch 3's older root — an apparent state-root regression that a
+        // downstream relayer treats as a chain reorg signal.
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
+        var b3 = SampleBatch(3) with { PostStateRoot = UInt256.Parse("0x" + new string('3', 64)) };
+        var b5 = SampleBatch(5) with { PostStateRoot = UInt256.Parse("0x" + new string('5', 64)) };
+        store.AddBatch(b3, BatchStatus.Pending);
+        store.AddBatch(b5, BatchStatus.Pending);
+
+        store.Finalize(5);
+        Assert.AreEqual(b5.PostStateRoot, store.GetLatestStateRoot());
+
+        store.Finalize(3);
+        Assert.AreEqual(b5.PostStateRoot, store.GetLatestStateRoot(),
+            "out-of-order Finalize must not regress latest root");
+    }
+
+    [TestMethod]
     public void RejectsOversizedChainId_OverflowException()
     {
         // Regression: previously chainId was read as ulong then cast `(uint)` — silently

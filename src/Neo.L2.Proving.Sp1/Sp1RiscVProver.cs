@@ -54,10 +54,21 @@ public sealed class Sp1RiscVProver : RiscVProverBase
         request.Witness.Span.CopyTo(span.Slice(8 + publicInputBytes.Length));
 
         var (status, proofBytes) = Sp1Bridge.Prove(combined);
+        if (status == Sp1BridgeStatus.NotImplemented)
+        {
+            // Bridge missing or compiled without the real prover (dev/test) — fall back
+            // to the mock so dev flows still work end-to-end.
+            return await _fallback.ProveAsync(request, cancellationToken).ConfigureAwait(false);
+        }
         if (status != Sp1BridgeStatus.Ok || proofBytes is null)
         {
-            // Bridge present but rejected — fall back to mock so dev/test flows still work.
-            return await _fallback.ProveAsync(request, cancellationToken).ConfigureAwait(false);
+            // Bridge IS available and ran, but rejected the input or failed proving.
+            // Falling back to mock here would silently substitute a trivially-valid proof
+            // for a real failure — the downstream verifier would then reject the mock,
+            // surfacing only as a confusing "verify rejected" message hours later.
+            // Surface the bridge's status directly so the operator can diagnose.
+            throw new InvalidOperationException(
+                $"SP1 bridge {status} for proof generation — verify input shape, witness, or bridge state");
         }
 
         var publicInputHash = StateRootCalculator.HashPublicInputs(request.PublicInputs);

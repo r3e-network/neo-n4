@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `Sp1RiscVProver` only falls back to mock on `NotImplemented`
+
+- The fallback condition was `status != Ok || proofBytes is null`, which silently substituted a trivially-valid mock proof on **any** non-OK status — including real bridge errors like `InvalidInput` (malformed witness) or `ProveFailed` (prover crashed). The downstream verifier then ran the mock proof through the real bridge, got `VerifyRejected`, and surfaced only as a confusing "verify rejected" message hours later — disconnecting the cause (bad input on the prover side) from the symptom (failed verify).
+- Now: fallback fires only on `NotImplemented` (the genuine "bridge missing" signal). Other non-OK statuses throw `InvalidOperationException("SP1 bridge {status} for proof generation — verify input shape, witness, or bridge state")` so the operator sees the bridge's actual status at the failure site.
+
+Cumulative: 404 tests / 27 projects.
+
 ### Fixed — `Sp1Bridge.Prove` bounds-checks native return length
 
 - The Native FFI returned `nuint outputLen` was cast `(int)outputLen` for `new byte[len]` and `Marshal.Copy(..., len)` without bounds checking. A misbehaving native bridge or corrupted FFI return that declared > 2 GB would wrap the cast and feed a wrapped length into `Marshal.Copy` — a heap-overflow shape on a process boundary that crosses .NET ↔ unmanaged.

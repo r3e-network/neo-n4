@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — `L1MessageInbox.Enqueue` duplicate-pending check is O(1)
+
+- The check was `foreach (var existing in _pending) if (...) throw` — O(n) per enqueue. Under bursty inbound traffic with thousands of pending messages, the cost compounds: a flood of N legitimate messages is O(N²). Not a security bug, but a performance cliff.
+- Added a `HashSet<(uint, ulong)> _pendingKeys` mirror that's kept in sync with `_pending`. Enqueue uses `Add` (returns false on duplicate), Dequeue uses `Remove`. Behavior is identical; the hot path is now O(1).
+- No new tests — behavior unchanged, existing 10 messaging tests still pass.
+
+Cumulative: 416 tests / 27 projects (no test count change).
+
 ### Fixed — `VerifierRegistry.VerifyAsync` checks `commitment.PublicInputHash` matches `publicInputs`
 
 - The registry compared 10 duplicated fields between `commitment` and `publicInputs` but never re-derived the actual hash of `publicInputs` and matched it against `commitment.PublicInputHash`. A malicious submission could set `PublicInputHash` to any value (planning a forged future replay against the consensus-recorded hash) while supplying real `publicInputs` that the verifier accepts. The audit-time `PublicInputHashConsistencyCheck` (iter 96) caught this after-the-fact, but verify-time is the right boundary.

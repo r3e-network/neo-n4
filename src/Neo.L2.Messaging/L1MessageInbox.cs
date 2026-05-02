@@ -13,6 +13,10 @@ public sealed class L1MessageInbox
 {
     private readonly Lock _gate = new();
     private readonly Queue<CrossChainMessage> _pending = new();
+    // Mirror of _pending's (sourceChain, nonce) pairs so the duplicate-pending check in
+    // Enqueue is O(1) instead of O(n) — for an inbox with thousands of pending messages
+    // the prior list-scan is observable.
+    private readonly HashSet<(uint, ulong)> _pendingKeys = new();
     private readonly HashSet<(uint, ulong)> _consumed = new();
 
     /// <summary>Number of unconsumed messages currently buffered.</summary>
@@ -36,11 +40,8 @@ public sealed class L1MessageInbox
             var key = (message.SourceChainId, message.Nonce);
             if (_consumed.Contains(key))
                 throw new InvalidOperationException($"Message ({key.SourceChainId},{key.Nonce}) was already consumed");
-            foreach (var existing in _pending)
-            {
-                if (existing.SourceChainId == message.SourceChainId && existing.Nonce == message.Nonce)
-                    throw new InvalidOperationException($"Message ({key.SourceChainId},{key.Nonce}) is already pending");
-            }
+            if (!_pendingKeys.Add(key))
+                throw new InvalidOperationException($"Message ({key.SourceChainId},{key.Nonce}) is already pending");
             _pending.Enqueue(message);
         }
     }
@@ -58,7 +59,9 @@ public sealed class L1MessageInbox
             for (var i = 0; i < n; i++)
             {
                 result[i] = _pending.Dequeue();
-                _consumed.Add((result[i].SourceChainId, result[i].Nonce));
+                var key = (result[i].SourceChainId, result[i].Nonce);
+                _pendingKeys.Remove(key);
+                _consumed.Add(key);
             }
             return result;
         }

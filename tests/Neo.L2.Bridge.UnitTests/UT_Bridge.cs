@@ -165,6 +165,35 @@ public class UT_Bridge
     }
 
     [TestMethod]
+    public void WithdrawalProcessor_RejectsCrossBatchDuplicateNonce()
+    {
+        // Regression: previously SealBatch cleared _byNonce, which meant a user could
+        // re-stage the same (sender, nonce) in the next batch — the L2 accepted, the
+        // duplicate was caught only at L1 settlement hours later. The Nonce field is
+        // documented as "per-(chain, sender) monotonic for replay protection," so the
+        // L2 must enforce uniqueness across the chain's lifetime, not just per-batch.
+        var registry = RegistryWithGas();
+        var proc = new WithdrawalProcessor(LocalChain, registry);
+
+        WithdrawalRequest Mk(ulong nonce) => new()
+        {
+            EmittingContract = UInt160.Zero,
+            L2Sender = Sender,
+            L1Recipient = Recipient,
+            L2Asset = GasL2,
+            Amount = new BigInteger(100),
+            Nonce = nonce,
+        };
+
+        proc.Stage(Mk(1));
+        proc.SealBatch();
+
+        // Nonce 1 from the same sender in the *next* batch must be rejected.
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() => proc.Stage(Mk(1)));
+        StringAssert.Contains(ex.Message, "prior batch");
+    }
+
+    [TestMethod]
     public void DepositPayload_Decode_RejectsTrailingBytes()
     {
         // Regression: previously the length check was `pos + amountLen > bytes.Length`,

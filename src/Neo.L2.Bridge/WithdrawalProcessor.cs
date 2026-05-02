@@ -14,6 +14,12 @@ public sealed class WithdrawalProcessor
     private IL2Metrics _metrics;
     private readonly Lock _gate = new();
     private readonly Dictionary<(UInt160, ulong), int> _byNonce = new();
+    // Cross-batch nonce dedup. Without this, after SealBatch clears _byNonce, a user
+    // could re-stage the same (sender, nonce) in the next batch — the L2 accepts it,
+    // and the duplicate is only caught hours later at L1 settlement. The
+    // (chain, sender, nonce) tuple is monotonic per-sender per the WithdrawalRequest
+    // contract, so we enforce uniqueness across the chain's lifetime.
+    private readonly HashSet<(UInt160, ulong)> _consumedAcrossBatches = new();
     private WithdrawalTree _tree = new();
 
     /// <summary>Identifier of the L2 chain this processor runs on.</summary>
@@ -62,6 +68,9 @@ public sealed class WithdrawalProcessor
                 if (_byNonce.ContainsKey(key))
                     throw new InvalidOperationException(
                         $"Withdrawal nonce {request.Nonce} already used by sender {request.L2Sender}");
+                if (_consumedAcrossBatches.Contains(key))
+                    throw new InvalidOperationException(
+                        $"Withdrawal nonce {request.Nonce} already used by sender {request.L2Sender} in a prior batch");
                 var index = _tree.Add(request);
                 _byNonce[key] = index;
                 var leaf = MessageHasher.HashWithdrawal(request);
@@ -85,6 +94,12 @@ public sealed class WithdrawalProcessor
         lock (_gate)
         {
             var sealed_ = _tree;
+            // Promote the about-to-seal batch's nonces into the cross-batch consumed
+            // set BEFORE clearing _byNonce. After SealBatch returns, the next call to
+            // Stage on a duplicate (sender, nonce) sees it in _consumedAcrossBatches
+            // and rejects it.
+            foreach (var key in _byNonce.Keys)
+                _consumedAcrossBatches.Add(key);
             _tree = new WithdrawalTree();
             _byNonce.Clear();
             return (sealed_.Root, sealed_);

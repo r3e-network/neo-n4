@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `WithdrawalProcessor` enforces nonce uniqueness across batches
+
+- `_byNonce` was cleared on `SealBatch`, so a user could re-stage the same `(sender, nonce)` withdrawal in the next batch — L2 silently accepted; the duplicate was only caught hours later at L1 settlement. The `WithdrawalRequest.Nonce` field's docstring is explicit: "per-(chain, sender) monotonic for replay protection," so L2 must enforce uniqueness across the chain's lifetime, not just per-batch.
+- Added `_consumedAcrossBatches` set populated on `SealBatch` (just before clearing `_byNonce`). `Stage` now rejects duplicates from prior batches with a clear "already used by sender X in a prior batch" message.
+- **1 new test**: stage nonce 1, seal, attempt to stage nonce 1 again → rejected.
+
+Cumulative: 417 tests / 27 projects.
+
 ### Changed — `checked` arithmetic sweep for unbounded buffer-size sums
 
 - Continued the iter-130/131 pattern across the remaining unbounded `var size = X + caller.Length` sites:

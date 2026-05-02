@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — `Sp1RiscVProver.ProveAsync` uses `checked` arithmetic for combined-buffer size
+
+- `4 + publicInputBytes.Length + 4 + request.Witness.Length` summed in plain `int`. A pathological witness near `int.MaxValue` would wrap to negative and surface as `OverflowException` from `new byte[wrappedNeg]` with no link to the offending sum.
+- Wrapped the size computation in `checked(…)` (matches the iter-130 pattern in the gateway aggregators). Behavior under realistic witness sizes is unchanged.
+
+Cumulative: 416 tests / 27 projects.
+
 ### Changed — Gateway aggregators use `checked` arithmetic for size sums
 
 - `PassThroughAggregator.ConcatenateProofs` and `PassThroughRoundProver.Combine` summed `4 + proofLen` accumulators in plain `int` arithmetic. A pathological N × proofLen combination near `int.MaxValue` (~2 GiB) would silently wrap to negative; the next `new byte[wrappedNeg]` then threw `OverflowException` deep in the allocator with no link back to the offending sum.

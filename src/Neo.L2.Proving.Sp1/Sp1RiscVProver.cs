@@ -44,8 +44,12 @@ public sealed class Sp1RiscVProver : RiscVProverBase
         // Build the canonical input bytes the bridge expects: PublicInputs encoding +
         // length-prefixed witness bytes. The bridge's bincode v0.1 ABI accepts whatever
         // wrapper neo-zkvm's ProofInput uses; here we treat it as opaque and hand off.
+        // Use checked arithmetic so a pathological witness size near int.MaxValue
+        // surfaces as an OverflowException naming the sum, not a confusing
+        // OverflowException from `new byte[wrappedNeg]` deep in the allocator.
         var publicInputBytes = BatchSerializer.EncodePublicInputs(request.PublicInputs);
-        var combined = new byte[4 + publicInputBytes.Length + 4 + request.Witness.Length];
+        var combinedSize = checked(4 + publicInputBytes.Length + 4 + request.Witness.Length);
+        var combined = new byte[combinedSize];
         var span = combined.AsSpan();
         System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(span.Slice(0, 4), publicInputBytes.Length);
         publicInputBytes.AsSpan().CopyTo(span.Slice(4));

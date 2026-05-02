@@ -319,7 +319,13 @@ internal static class Program
         for (var i = 0; i < args.Length - 1; i++)
         {
             if (args[i] == "--metrics-port" && int.TryParse(args[i + 1], out var port))
-                return port;
+            {
+                // Use the shared port validator so a bogus --metrics-port surfaces a clear
+                // error here instead of a stack trace from IPEndPoint construction deep
+                // in the wiring path. Lives in Neo.L2.Telemetry so devnet doesn't have to
+                // depend on the metrics plugin shell.
+                return Telemetry.PortValidator.Validate(port, "--metrics-port");
+            }
         }
         return null;
     }

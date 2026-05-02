@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Shared `Neo.L2.Telemetry.PortValidator.Validate(int, label)`
+
+- The devnet runner's `--metrics-port` parser had no bounds check — a typo like `--metrics-port 99999` propagated to `IPEndPoint` construction and surfaced an opaque "value must be between 0..65535" deep in the wiring path.
+- Promoted iter-111's `L2MetricsSettings.ValidatePort` to a shared helper in `Neo.L2.Telemetry` so CLI tools can reuse the check without taking a plugin dependency. Caller-supplied `contextLabel` ("L2Metrics Port" vs `--metrics-port`) appears in the error message so the operator sees which input was bad. `L2MetricsSettings.ValidatePort` now delegates to it.
+- **4 new tests**: boundary values 0/9090/65535 → accepted; negative → rejected; >65535 → rejected; context label appears in error message.
+
+Cumulative: 408 tests / 27 projects.
+
 ### Fixed — `Sp1RiscVProver` only falls back to mock on `NotImplemented`
 
 - The fallback condition was `status != Ok || proofBytes is null`, which silently substituted a trivially-valid mock proof on **any** non-OK status — including real bridge errors like `InvalidInput` (malformed witness) or `ProveFailed` (prover crashed). The downstream verifier then ran the mock proof through the real bridge, got `VerifyRejected`, and surfaced only as a confusing "verify rejected" message hours later — disconnecting the cause (bad input on the prover side) from the symptom (failed verify).

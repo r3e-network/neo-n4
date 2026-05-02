@@ -26,17 +26,10 @@ public sealed class L2MetricsSettings
     }
 
     /// <summary>
-    /// Validate a port value at config-parse time. Without this a typo like
-    /// <c>Port: 90909</c> propagates to <see cref="System.Net.IPEndPoint"/> construction
-    /// at <c>Start()</c>; the resulting <see cref="ArgumentOutOfRangeException"/> there
-    /// is real but the operator has to dig through the stack trace to map
-    /// "value must be between 0..65535" back to a config typo.
+    /// Validate a port value at config-parse time. Delegates to
+    /// <see cref="Neo.L2.Telemetry.PortValidator.Validate(int, string)"/> so CLI tools
+    /// (devnet runner, etc.) can reuse the same check without taking a plugin dependency.
     /// </summary>
-    public static int ValidatePort(int port)
-    {
-        if (port < 0 || port > 65535)
-            throw new InvalidDataException(
-                $"L2Metrics Port {port} out of range — must be 0 (any free) or 1..65535");
-        return port;
-    }
+    public static int ValidatePort(int port) =>
+        Neo.L2.Telemetry.PortValidator.Validate(port, "L2Metrics Port");
 }

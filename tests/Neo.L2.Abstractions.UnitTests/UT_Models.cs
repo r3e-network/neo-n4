@@ -43,6 +43,25 @@ public class UT_Models
     }
 
     [TestMethod]
+    public void ProofTypeExtensions_Resolve_AcceptsAllValidBytes()
+    {
+        Assert.AreEqual(ProofType.None, ProofTypeExtensions.Resolve(0));
+        Assert.AreEqual(ProofType.Multisig, ProofTypeExtensions.Resolve(1));
+        Assert.AreEqual(ProofType.Optimistic, ProofTypeExtensions.Resolve(2));
+        Assert.AreEqual(ProofType.Zk, ProofTypeExtensions.Resolve(3));
+    }
+
+    [TestMethod]
+    public void ProofTypeExtensions_Resolve_RejectsUnknownByte()
+    {
+        // Used by L2ProverPlugin.Configure and L2SettlementSettings.From to validate
+        // operator-supplied ProofType bytes at plugin-load time. Without this the
+        // misconfiguration only surfaces at first proof generation.
+        var ex = Assert.ThrowsExactly<System.IO.InvalidDataException>(() => ProofTypeExtensions.Resolve(99));
+        StringAssert.Contains(ex.Message, "ProofType 99");
+    }
+
+    [TestMethod]
     public void MessageType_HasExpectedDiscriminants()
     {
         Assert.AreEqual(0, (byte)MessageType.Deposit);

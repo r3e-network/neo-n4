@@ -23,12 +23,16 @@ public sealed class L2SettlementSettings
     /// <summary>Build settings from <c>PluginConfiguration</c>.</summary>
     public static L2SettlementSettings From(IConfigurationSection s)
     {
+        var rawProofType = s.GetValue<byte>("ProofType", 1);
+        // Validate at parse time so a misconfigured ProofType byte fails at plugin
+        // load, not later at SubmitNextAsync when the first batch is sealed.
+        Neo.L2.ProofTypeExtensions.Resolve(rawProofType);
         return new L2SettlementSettings
         {
             ChainId = s.GetValue<uint>("ChainId"),
             L1RpcEndpoint = s.GetValue("L1RpcEndpoint", "http://localhost:10332")!,
             SettlementManagerHash = s.GetValue("SettlementManagerHash", "")!,
-            ProofType = s.GetValue<byte>("ProofType", 1),
+            ProofType = rawProofType,
             Enabled = s.GetValue("Enabled", true),
         };
     }

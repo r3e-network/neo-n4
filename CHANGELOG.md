@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `ProofTypeExtensions.Resolve(byte)` plugin-config validator
+
+- `L2ProverPlugin.Configure` did `_kind = (ProofType)section.GetValue<byte>(...)` without bounds-checking. A misconfigured `ProofType: 99` would only surface much later at `Wire()` time (when the operator sees `NotSupportedException("Unknown ProofType 99")`).
+- `L2SettlementSettings.From` did the same — the bad byte propagated into `_settings.ProofType` and only failed at first `SubmitNextAsync`.
+- Added `ProofTypeExtensions.Resolve(byte)` (in `Neo.L2.Abstractions`, alongside the enum) that throws `InvalidDataException` with a clear message listing valid values. Both plugins now use it at config-parse time, so misconfiguration surfaces at plugin load.
+- **2 new tests**: every valid byte 0..3 → resolves; byte 99 → rejected with the byte in the message.
+
+Cumulative: 390 tests / 27 projects.
+
 ### Fixed — `RiscVProofPayload.Decode` rejects unknown `ProofSystem` discriminants
 
 - Same enum-discriminant gap as iter 103's `BatchSerializer` fix, but in the inner Stage-2 ZK proof wrapper. `bytes[1]` was cast `(ProofSystem)` without bounds-checking. A corrupted or replayed-from-future payload with a discriminant > 4 slipped through as an undefined enum value, and a downstream verifier dispatcher's `==` comparison would silently treat it as "not the expected one" — selecting the wrong backend or skipping verification entirely.

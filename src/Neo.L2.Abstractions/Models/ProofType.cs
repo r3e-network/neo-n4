@@ -21,3 +21,21 @@ public enum ProofType : byte
     /// <summary>Stage 2 — ZK validity proof (NeoVM2 / RISC-V).</summary>
     Zk = 3,
 }
+
+/// <summary>Validation helpers for <see cref="ProofType"/>.</summary>
+public static class ProofTypeExtensions
+{
+    /// <summary>
+    /// Validate a config-supplied byte against the defined <see cref="ProofType"/> range.
+    /// Throws <see cref="System.IO.InvalidDataException"/> on an unknown value so misconfiguration
+    /// surfaces at plugin-load time instead of at first proof generation.
+    /// </summary>
+    public static ProofType Resolve(byte raw)
+    {
+        var pt = (ProofType)raw;
+        if (pt is not (ProofType.None or ProofType.Multisig or ProofType.Optimistic or ProofType.Zk))
+            throw new System.IO.InvalidDataException(
+                $"ProofType {raw} is not one of None(0), Multisig(1), Optimistic(2), Zk(3) — fix config");
+        return pt;
+    }
+}

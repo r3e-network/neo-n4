@@ -48,6 +48,9 @@ public sealed class L2ProverPlugin : Plugin
     protected override void Configure()
     {
         var section = GetConfiguration();
-        _kind = (ProofType)section.GetValue<byte>("ProofType", (byte)ProofType.Multisig);
+        // Resolve via the shared validator so a misconfigured ProofType byte fails at
+        // load time, not at first Wire(). Without this, an operator who sets ProofType:99
+        // would only see the error when the first batch is sealed and Wire is called.
+        _kind = ProofTypeExtensions.Resolve(section.GetValue<byte>("ProofType", (byte)ProofType.Multisig));
     }
 }

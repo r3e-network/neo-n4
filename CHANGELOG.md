@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `ChainAuditor.AuditAsync` rejects duplicate batch numbers (strict ascending)
+
+- The sort check was `batches[i].BatchNumber < batches[i - 1].BatchNumber` (strict less-than), which silently allowed equal batch numbers. A duplicate-batch-number list is a precondition violation (a chain can't carry two distinct commitments at the same height) but the auditor would let it pass; the duplicate would then surface downstream as a confusing `ContinuityCheck` failure ("batch N does not follow N").
+- Tightened to `<=` so duplicates throw `ArgumentException("batches must be sorted strictly ascending by batchNumber")` at the input-validation step.
+- **1 new test**: two batches at batch number 5 → throws with "strictly ascending" in message.
+
+Cumulative: 391 tests / 27 projects.
+
 ### Added — `ProofTypeExtensions.Resolve(byte)` plugin-config validator
 
 - `L2ProverPlugin.Configure` did `_kind = (ProofType)section.GetValue<byte>(...)` without bounds-checking. A misconfigured `ProofType: 99` would only surface much later at `Wire()` time (when the operator sees `NotSupportedException("Unknown ProofType 99")`).

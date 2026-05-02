@@ -154,6 +154,23 @@ public class UT_ChainAuditor
     }
 
     [TestMethod]
+    public async Task Auditor_RejectsDuplicateBatchNumbers()
+    {
+        // Regression: previously the sort check was `<` which silently allowed duplicates.
+        // Two batches at the same height violates the precondition (a chain can't carry
+        // two distinct commitments at the same number). Now strict-ascending: duplicate
+        // throws with a clear message instead of being buried as a continuity violation.
+        var batches = new[]
+        {
+            Mk(1001, 5, H(0), H(1), 100, 200),
+            Mk(1001, 5, H(1), H(2), 201, 300), // same BatchNumber!
+        };
+        var auditor = new ChainAuditor().Register(new ContinuityCheck());
+        var ex = await Assert.ThrowsExactlyAsync<ArgumentException>(async () => await auditor.AuditAsync(batches));
+        StringAssert.Contains(ex.Message, "strictly ascending");
+    }
+
+    [TestMethod]
     public async Task Auditor_RejectsMixedChainIds()
     {
         var batches = new[]

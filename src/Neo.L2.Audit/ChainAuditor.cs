@@ -60,8 +60,14 @@ public sealed class ChainAuditor
         {
             if (batches[i].ChainId != chainId)
                 throw new ArgumentException($"batch {i} has chainId {batches[i].ChainId}, expected {chainId}");
-            if (batches[i].BatchNumber < batches[i - 1].BatchNumber)
-                throw new ArgumentException($"batches must be sorted by batchNumber ascending");
+            // Strictly ascending: duplicate batch numbers are a precondition violation
+            // (a chain can't carry two distinct commitments at the same height). Without
+            // the equality clause, duplicates would get buried as a "continuity violation"
+            // by ContinuityCheck downstream, masking the real issue.
+            if (batches[i].BatchNumber <= batches[i - 1].BatchNumber)
+                throw new ArgumentException(
+                    $"batches must be sorted strictly ascending by batchNumber " +
+                    $"(batch {i}: {batches[i].BatchNumber}, prior: {batches[i - 1].BatchNumber})");
         }
 
         var allFindings = new List<AuditFinding>();

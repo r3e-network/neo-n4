@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `ReferenceBatchExecutor` skips effects from failed transactions
+
+- A failed transaction's emitted withdrawals + L2→* messages were still added to the batch trees. Per L2 semantics, a failed tx reverts all its state changes — including emitted effects. The `ITransactionExecutor` contract should already filter on the executor side, but a buggy executor that leaks effects from a failed tx silently produces a withdrawal-tree commitment that doesn't match the (correct) ReceiptRoot — surfacing only at L1 settlement when the inclusion proof for the leaked withdrawal is checked against the user's actual state (which never debited the funds).
+- Defense in depth at the batch level: `if (!result.Receipt.Success) continue;` skips the `withdrawalTree.Add` / `outbox.Add` calls.
+- **1 new test**: `FailingExecutor` returns a leaked withdrawal on a failed tx → batch's `WithdrawalRoot` is still `Zero`.
+
+Cumulative: 424 tests / 27 projects.
+
 ### Changed — Documented `ProofResult` prover contract
 
 - The iter-139 (Kind match) and iter-140 (PublicInputHash match) settlement-plugin assertions are now also documented in the `ProofResult` record's XML doc — making the contract explicit at the API surface where prover authors will see it. No behavior change; just makes the invariants visible to anyone implementing `IL2Prover` without having to read the settlement plugin to discover what's checked.

@@ -62,6 +62,16 @@ public sealed class ReferenceBatchExecutor : IL2BatchExecutor
             txHashes.Add(result.TxHash);
             totalGas += result.Receipt.GasConsumed;
 
+            // Per L2 semantics, a failed transaction reverts all its state changes —
+            // including emitted withdrawals and L2-side cross-chain messages. The
+            // ITransactionExecutor contract should already filter these on the executor
+            // side, but enforce it at the batch level too as defense in depth: a buggy
+            // executor that leaks effects from a failed tx would silently produce a
+            // withdrawal-tree / outbox commitment that doesn't match the (correct)
+            // ReceiptRoot, surfacing only at L1 settlement when the inclusion proof
+            // for the leaked withdrawal is checked against the user's actual state.
+            if (!result.Receipt.Success) continue;
+
             foreach (var w in result.Withdrawals) withdrawalTree.Add(w);
             foreach (var m in result.Messages) outbox.Add(m);
         }

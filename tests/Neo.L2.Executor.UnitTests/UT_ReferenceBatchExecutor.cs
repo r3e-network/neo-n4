@@ -191,6 +191,69 @@ public class UT_ReferenceBatchExecutor
     }
 
     [TestMethod]
+    public async Task FailedTransaction_EffectsAreSuppressed()
+    {
+        // Regression: previously a failed transaction's emitted withdrawals + L2→* messages
+        // were still added to the batch trees. Per L2 semantics, a failed tx reverts all
+        // its state changes — including emitted effects. A buggy executor that leaks effects
+        // from a failed tx would silently produce a withdrawal-tree commitment that doesn't
+        // match the (correct) ReceiptRoot, surfacing only at L1 settlement when the
+        // inclusion proof for the leaked withdrawal is checked against the user's actual
+        // state (which never debited the funds).
+        var receiptTx = UInt256.Parse("0x" + new string('5', 64));
+        var withdrawal = new WithdrawalRequest
+        {
+            EmittingContract = UInt160.Zero,
+            L2Sender = UInt160.Parse("0x" + new string('a', 40)),
+            L1Recipient = UInt160.Parse("0x" + new string('b', 40)),
+            L2Asset = UInt160.Parse("0x" + new string('c', 40)),
+            Amount = new BigInteger(1000),
+            Nonce = 1,
+        };
+
+        var executor = new ReferenceBatchExecutor(
+            new FailingExecutor(receiptTx, new[] { withdrawal }, Array.Empty<CrossChainMessage>()),
+            new DerivedPostStateRootOracle());
+
+        var result = await executor.ApplyBatchAsync(new BatchExecutionRequest
+        {
+            ChainId = 1001, BatchNumber = 1, PreStateRoot = UInt256.Zero,
+            Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 0x00 } },
+            L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
+            BlockContext = SampleContext(),
+        });
+
+        Assert.AreEqual(UInt256.Zero, result.WithdrawalRoot, "failed tx must not leak withdrawals");
+    }
+
+    private sealed class FailingExecutor : ITransactionExecutor
+    {
+        private readonly UInt256 _txHash;
+        private readonly IReadOnlyList<WithdrawalRequest> _withdrawals;
+        private readonly IReadOnlyList<CrossChainMessage> _messages;
+        public FailingExecutor(UInt256 txHash, IReadOnlyList<WithdrawalRequest> w, IReadOnlyList<CrossChainMessage> m)
+        { _txHash = txHash; _withdrawals = w; _messages = m; }
+
+        public ValueTask<TransactionExecutionResult> ExecuteAsync(
+            ReadOnlyMemory<byte> serializedTx, BatchBlockContext batchContext, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(new TransactionExecutionResult
+            {
+                TxHash = _txHash,
+                Receipt = new Receipt
+                {
+                    TxHash = _txHash,
+                    Success = false,  // ← failed
+                    GasConsumed = 100,
+                    StorageDeltaHash = UInt256.Zero,
+                    EventsHash = UInt256.Zero,
+                },
+                // Buggy executor leaks effects from a failed tx.
+                Withdrawals = _withdrawals,
+                Messages = _messages,
+            });
+    }
+
+    [TestMethod]
     public void Receipt_HashStableAcrossInstances()
     {
         Receipt Mk() => new()

@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `L2MetricsSettings.From` validates port range at parse time
+
+- `Port = s.GetValue("Port", 9090)` accepted any int. A typo like `Port: 90909` (six digits) propagated to `IPEndPoint` construction at `Start()`, where the resulting `ArgumentOutOfRangeException("value must be between 0..65535")` is real but the operator has to dig through a stack trace to map it back to a config typo.
+- Added `L2MetricsSettings.ValidatePort(int)` that throws `InvalidDataException("L2Metrics Port N out of range — must be 0 (any free) or 1..65535")` at parse time, citing both the bad value and the config-key name. `From` calls it on the parsed value.
+- **3 new tests**: out-of-range high → rejected; negative → rejected; boundary values 0, 9090, 65535 → accepted.
+
+Cumulative: 394 tests / 27 projects.
+
 ### Fixed — `ChainAuditor.AuditAsync` rejects duplicate batch numbers (strict ascending)
 
 - The sort check was `batches[i].BatchNumber < batches[i - 1].BatchNumber` (strict less-than), which silently allowed equal batch numbers. A duplicate-batch-number list is a precondition violation (a chain can't carry two distinct commitments at the same height) but the auditor would let it pass; the duplicate would then surface downstream as a confusing `ContinuityCheck` failure ("batch N does not follow N").

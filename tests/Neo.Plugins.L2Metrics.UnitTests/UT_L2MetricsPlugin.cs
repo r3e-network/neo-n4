@@ -84,6 +84,34 @@ public class UT_L2MetricsPlugin
     }
 
     [TestMethod]
+    public void Settings_ValidatePort_RejectsOutOfRange()
+    {
+        // Regression: previously a typo like Port: 90909 would propagate to IPEndPoint
+        // at Start() and surface an opaque "must be between 0..65535" deep in the stack.
+        // Now: parse-time rejection with a clear error pointing at the config key.
+        var ex = Assert.ThrowsExactly<System.IO.InvalidDataException>(() =>
+            L2MetricsSettings.ValidatePort(90909));
+        StringAssert.Contains(ex.Message, "Port 90909");
+    }
+
+    [TestMethod]
+    public void Settings_ValidatePort_RejectsNegative()
+    {
+        var ex = Assert.ThrowsExactly<System.IO.InvalidDataException>(() =>
+            L2MetricsSettings.ValidatePort(-1));
+        StringAssert.Contains(ex.Message, "Port -1");
+    }
+
+    [TestMethod]
+    public void Settings_ValidatePort_AcceptsBoundaryValues()
+    {
+        // 0 (any free port) and 65535 (max) are the inclusive bounds.
+        Assert.AreEqual(0, L2MetricsSettings.ValidatePort(0));
+        Assert.AreEqual(65535, L2MetricsSettings.ValidatePort(65535));
+        Assert.AreEqual(9090, L2MetricsSettings.ValidatePort(9090));
+    }
+
+    [TestMethod]
     public void ResolveBindAddress_NumericIPv4_Works()
     {
         var ip = L2MetricsPlugin.ResolveBindAddress("127.0.0.1");

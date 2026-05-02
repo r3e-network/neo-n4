@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — `WithdrawalProcessor.Stage` rejects null `UInt160` fields
+
+- Same defensive shape as the iter-146 `MessageBuilder.Build` fix, applied to the withdrawal-staging boundary. `WithdrawalRequest`'s `EmittingContract` / `L2Sender` / `L1Recipient` / `L2Asset` are `required UInt160` (reference type) — the `required` keyword forces them to be set but doesn't prevent null. A null field would crash deep in `MessageHasher.HashWithdrawal`'s `GetSpan()` with no link back to the bad field.
+- Catch all four at the API boundary with `ArgumentNullException.ThrowIfNull`.
+
+Cumulative: 424 tests / 27 projects.
+
 ### Changed — `MessageBuilder.Build` rejects null `sender` / `receiver`
 
 - `UInt160` is a reference type in Neo's library, so a null `sender` or `receiver` slipped past the C# nullable analysis (the `required` keyword on `CrossChainMessage` just means "must be set," not "non-null"). The null then crashed inside `MessageHasher.HashMessage`'s `GetSpan()` with a `NullReferenceException` and no link back to the bad argument.

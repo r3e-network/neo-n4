@@ -53,6 +53,15 @@ public sealed class WithdrawalProcessor
     public UInt256 Stage(WithdrawalRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        // Defensive: WithdrawalRequest's UInt160 fields are reference types — `required`
+        // forces them to be set but doesn't prevent null. A null EmittingContract /
+        // L2Sender / L1Recipient / L2Asset would surface only deep in
+        // MessageHasher.HashWithdrawal's GetSpan() with a NullReferenceException and no
+        // link back to the bad field. Catch them at the API boundary.
+        ArgumentNullException.ThrowIfNull(request.EmittingContract);
+        ArgumentNullException.ThrowIfNull(request.L2Sender);
+        ArgumentNullException.ThrowIfNull(request.L1Recipient);
+        ArgumentNullException.ThrowIfNull(request.L2Asset);
         try
         {
             if (!_registry.TryGetByL2(request.L2Asset, out var mapping) || mapping is null)

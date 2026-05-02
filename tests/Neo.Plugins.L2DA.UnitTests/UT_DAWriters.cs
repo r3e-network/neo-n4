@@ -23,6 +23,28 @@ public class UT_DAWriters
     }
 
     [TestMethod]
+    public void ResolveDAMode_AcceptsAllValidEnumValues()
+    {
+        // Boundary partner of the rejection test below.
+        Assert.AreEqual(DAMode.L1, L2DAPlugin.ResolveDAMode(0));
+        Assert.AreEqual(DAMode.NeoFS, L2DAPlugin.ResolveDAMode(1));
+        Assert.AreEqual(DAMode.External, L2DAPlugin.ResolveDAMode(2));
+        Assert.AreEqual(DAMode.DAC, L2DAPlugin.ResolveDAMode(3));
+    }
+
+    [TestMethod]
+    public void ResolveDAMode_RejectsUnknownByte()
+    {
+        // Regression: previously L2DAPlugin.Configure silently fell through to
+        // InMemoryDAWriter for any DAMode byte > 3. An operator who misconfigured
+        // DAMode = 99 would think they had real DA but lose batch payloads to a
+        // process-local hash table — the kind of failure that surfaces only after
+        // the chain has been running for hours.
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() => L2DAPlugin.ResolveDAMode(99));
+        StringAssert.Contains(ex.Message, "DAMode 99");
+    }
+
+    [TestMethod]
     public async Task InMemory_AvailabilityFalseForUnknownReceipt()
     {
         var w = new InMemoryDAWriter();

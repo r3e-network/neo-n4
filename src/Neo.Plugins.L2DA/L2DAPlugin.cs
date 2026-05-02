@@ -43,16 +43,33 @@ public sealed class L2DAPlugin : Plugin
     protected override void Configure()
     {
         var section = GetConfiguration();
-        _mode = (DAMode)section.GetValue<byte>("DAMode", (byte)DAMode.External);
+        var rawMode = section.GetValue<byte>("DAMode", (byte)DAMode.External);
+        _mode = ResolveDAMode(rawMode);
         IDAWriter raw = _mode switch
         {
             DAMode.L1 => new L1DAWriter(),
             DAMode.NeoFS => new NeoFSDAWriter(),
             DAMode.External => new ExternalDAWriter(),
             DAMode.DAC => new DACDAWriter(),
-            _ => new InMemoryDAWriter(),
+            // ResolveDAMode guarantees we don't hit this; kept as a defense-in-depth assert.
+            _ => throw new InvalidOperationException($"unhandled DAMode {(byte)_mode}"),
         };
         _writer = WrapWithMetrics(raw);
+    }
+
+    /// <summary>
+    /// Validate a raw DAMode byte against the defined enum range. Without this an operator
+    /// who misconfigures <c>DAMode = 99</c> would silently fall through to the in-memory
+    /// writer and lose real DA delivery — by the time something downstream notices, the
+    /// batch data is gone.
+    /// </summary>
+    public static DAMode ResolveDAMode(byte raw)
+    {
+        var mode = (DAMode)raw;
+        if (mode is not (DAMode.L1 or DAMode.NeoFS or DAMode.External or DAMode.DAC))
+            throw new InvalidOperationException(
+                $"DAMode {raw} is not one of L1(0), NeoFS(1), External(2), DAC(3) — fix config");
+        return mode;
     }
 
     /// <summary>

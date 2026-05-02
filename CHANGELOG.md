@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `L2DAPlugin.Configure` rejects unknown `DAMode` bytes
+
+- The `DAMode` switch fell through to `InMemoryDAWriter` for any byte outside `0..3`. An operator who misconfigured `DAMode = 99` would silently end up with the in-memory test backend — they'd think batch payloads were going to External DA, but actually they vanish into a process-local hash table that disappears at restart. The kind of failure that only surfaces hours later when something downstream tries to fetch the data.
+- Added `L2DAPlugin.ResolveDAMode(byte)` that validates against the defined enum range and throws `InvalidOperationException` with a clear message listing the valid values. The switch's `_` arm is now an internal-defense `InvalidOperationException("unhandled DAMode N")` since `ResolveDAMode` already filters.
+- **2 new tests**: every valid byte 0..3 → resolves to its enum; byte 99 → rejected with the byte in the message.
+
+Cumulative: 384 tests / 27 projects.
+
 ### Fixed — `DeployPlanner` surfaces clear errors for duplicate / empty step names
 
 - The name index was built via `steps.ToDictionary(s => s.Name)`, which throws a generic `ArgumentException("An item with the same key has already been added. Key: foo")` on duplicates. Operators with a typo in their plan JSON had to map the message back to the offending entry by hand.

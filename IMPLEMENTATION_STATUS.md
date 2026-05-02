@@ -75,12 +75,12 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**378 unit + integration tests across 27 projects:**
+**380 unit + integration tests across 27 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
 | `Neo.L2.Abstractions.UnitTests`      | 17    | enum discriminants, models, interface shape |
-| `Neo.L2.Batch.UnitTests`             | 13    | builder lifecycle, serializer round-trip    |
+| `Neo.L2.Batch.UnitTests`             | 20    | builder lifecycle, serializer round-trip, **proof-length bounds, unknown-ProofType rejection, all-valid-ProofType round-trip** |
 | `Neo.L2.State.UnitTests`             | 22    | Merkle tree, proof verify, hashers, **canonical proof wire format (round-trip, layout, truncation, oversized depth, 7-leaf all-positions)** |
 | `Neo.L2.Messaging.UnitTests`         | 9     | inbox FIFO, replay protection, outbox split, **L2Outbox metric emission across destinations** |
 | `Neo.L2.Bridge.UnitTests`            | 20    | registry, deposit replay, withdrawal staging, **metric emission on success/replay/unknown-asset/duplicate-nonce/negative-amount paths, retryability after transient validation failure, registry orphan cleanup on L1/L2 repoint** |

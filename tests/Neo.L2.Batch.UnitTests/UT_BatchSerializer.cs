@@ -168,6 +168,34 @@ public class UT_BatchSerializer
     }
 
     [TestMethod]
+    public void Commitment_Decode_RejectsUnknownProofType()
+    {
+        // Regression: previously the ProofType byte was cast (ProofType)data[pos++] without
+        // bounds-checking. A corrupted or replayed-from-future payload with a discriminant
+        // > 3 silently produced an undefined-name enum value that downstream `==` checks
+        // would treat as "not the expected one" — silent verification skip.
+        var c = Sample(new byte[] { 0xAA });
+        var bytes = BatchSerializer.Encode(c);
+        // ProofType byte is at offset 316; max valid is 3 (Zk). Overwrite with 99.
+        bytes[316] = 99;
+        var ex = Assert.ThrowsExactly<InvalidDataException>(() => BatchSerializer.Decode(bytes));
+        StringAssert.Contains(ex.Message, "Unknown ProofType");
+    }
+
+    [TestMethod]
+    public void Commitment_Decode_AcceptsAllValidProofTypes()
+    {
+        // Boundary partner of the rejection test: every valid enum byte (0..3) decodes.
+        foreach (ProofType pt in Enum.GetValues<ProofType>())
+        {
+            var c = Sample(new byte[] { 0xAA }) with { ProofType = pt };
+            var bytes = BatchSerializer.Encode(c);
+            var decoded = BatchSerializer.Decode(bytes);
+            Assert.AreEqual(pt, decoded.ProofType);
+        }
+    }
+
+    [TestMethod]
     public void PublicInputs_ByteLayout_MatchesDocumentedOffsets()
     {
         var inputs = new PublicInputs

@@ -131,7 +131,16 @@ public static class BatchSerializer
         var daCommitment = ReadUInt256(data, ref pos);
         var publicInputHash = ReadUInt256(data, ref pos);
 
-        var proofType = (ProofType)data[pos++];
+        // Validate ProofType byte is within the defined enum range. An untrusted decoder
+        // input (corrupted L1 calldata, replayed older batch from a different version)
+        // could carry an unknown discriminant — without this check it would propagate as
+        // an undefined ProofType, and downstream `==` comparisons would silently treat it
+        // as "not the expected one" rather than rejecting the batch outright.
+        var proofTypeByte = data[pos++];
+        if (proofTypeByte > (byte)ProofType.Zk)
+            throw new InvalidDataException($"Unknown ProofType byte {proofTypeByte} (max {(byte)ProofType.Zk})");
+        var proofType = (ProofType)proofTypeByte;
+
         var proofLen = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(pos, 4)); pos += 4;
 
         if (proofLen < 0 || proofLen > ProofMaxBytes)

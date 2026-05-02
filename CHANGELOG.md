@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `BatchSerializer.Decode` rejects unknown `ProofType` discriminants
+
+- The decoder cast `(ProofType)data[pos++]` without validating the byte was within the defined enum range (0..3). A corrupted L1 calldata payload, a replay from a future-version chain, or a hand-crafted attack could carry a discriminant > 3, producing an undefined enum value that downstream `==` comparisons would silently treat as "not the expected one" — a silent verification skip.
+- Now bounds-checks the byte against `(byte)ProofType.Zk` and throws `InvalidDataException` with a clear message.
+- **2 new tests**: byte 99 → rejected; every valid byte 0..3 → round-trips.
+
+Cumulative: 380 tests / 27 projects.
+
 ### Fixed — `InMemoryL2RpcStore.Finalize` keeps `_latestStateRoot` monotonic
 
 - `Finalize(N)` blindly overwrote `_latestStateRoot` with batch N's post-state root regardless of N. Finalizing batch 5 then batch 3 left the latest root at batch 3's older value — an apparent state-root regression that a downstream relayer treats as a chain reorg signal.

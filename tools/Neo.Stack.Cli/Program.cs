@@ -16,19 +16,31 @@ internal static class Program
 
         var subcommand = args[0];
         var rest = args[1..];
-        return subcommand switch
+        // Top-level try/catch matches neo-hub-deploy's pattern. Without it, a
+        // FormatException from int.Parse, an IOException from Directory.CreateDirectory,
+        // or any subcommand-thrown InvalidDataException leaks as a raw stack trace —
+        // unhelpful for an operator running from a terminal.
+        try
         {
-            "create-chain" => CreateChainCommand.Run(rest),
-            "init-l2" => InitL2Command.Run(rest),
-            "register-chain" => await RegisterChainCommand.RunAsync(rest),
-            "deploy-bridge-adapter" => await DeployBridgeAdapterCommand.RunAsync(rest),
-            "start-sequencer" => StartSequencerCommand.Run(rest),
-            "start-batcher" => StartBatcherCommand.Run(rest),
-            "start-prover" => StartProverCommand.Run(rest),
-            "submit-batch" => await SubmitBatchCommand.RunAsync(rest),
-            "--help" or "-h" or "help" => PrintHelp(),
-            _ => Unknown(subcommand),
-        };
+            return subcommand switch
+            {
+                "create-chain" => CreateChainCommand.Run(rest),
+                "init-l2" => InitL2Command.Run(rest),
+                "register-chain" => await RegisterChainCommand.RunAsync(rest),
+                "deploy-bridge-adapter" => await DeployBridgeAdapterCommand.RunAsync(rest),
+                "start-sequencer" => StartSequencerCommand.Run(rest),
+                "start-batcher" => StartBatcherCommand.Run(rest),
+                "start-prover" => StartProverCommand.Run(rest),
+                "submit-batch" => await SubmitBatchCommand.RunAsync(rest),
+                "--help" or "-h" or "help" => PrintHelp(),
+                _ => Unknown(subcommand),
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
     }
 
     private static int Unknown(string subcommand)

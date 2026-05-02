@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `neo-stack` exception handling + `init-l2 --chain-id` validation
+
+- Two related gaps in the launcher CLI:
+  1. `init-l2` parsed `--chain-id` with `uint.Parse` (raw `FormatException` on bad input) and never validated against the L1-reserved 0. Aligned with `create-chain`'s iter-123 fix: `uint.TryParse` + `ChainIdValidator.ValidateL2(value, "--chain-id")`.
+  2. `Program.Main` had no top-level try/catch. Any subcommand exception (`FormatException`, `IOException`, `InvalidDataException` from the validators) leaked as a raw stack trace. Added the wrap that `neo-hub-deploy` already uses: catch → `Console.Error.WriteLine($"Error: {ex.Message}")` + exit 1.
+
+Cumulative: 411 tests / 27 projects (CLI changes aren't unit-tested; the underlying validator is covered in `UT_Models`).
+
 ### Fixed — `neo-stack create-chain --chain-id` validates against L1-reserved 0
 
 - `uint.Parse(...)` accepted any value, including the L1-reserved `0` (matches `L2Outbox.L1ChainId`). An operator who typo'd `--chain-id 0` would generate a chain config that misroutes L2→L2 messages as L2→L1 — silently broken from the genesis block. Also: malformed input like `--chain-id abc` threw `FormatException` with a raw stack trace.

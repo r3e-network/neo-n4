@@ -7,7 +7,16 @@ internal static class InitL2Command
 {
     public static int Run(string[] args)
     {
-        var chainId = uint.Parse(ArgUtil.Get(args, "--chain-id", "1001"));
+        var rawChainId = ArgUtil.Get(args, "--chain-id", "1001");
+        if (!uint.TryParse(rawChainId, out var parsedChainId))
+        {
+            Console.Error.WriteLine($"--chain-id must be a non-negative integer, got '{rawChainId}'");
+            return 1;
+        }
+        // Match create-chain's iter-123 fix: reject the L1-reserved 0 here too so the
+        // operator sees the misconfig at init time, not when the L2 first tries to
+        // route a cross-chain message.
+        var chainId = Neo.L2.ChainIdValidator.ValidateL2(parsedChainId, "--chain-id");
         var da = ArgUtil.Get(args, "--da", "neofs");
         var path = ArgUtil.Get(args, "--path", $"./chain-{chainId}");
 

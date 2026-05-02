@@ -135,14 +135,22 @@ public sealed class L2SettlementPlugin : Plugin
             var publicInputs = BuildPublicInputs(next);
             var hash = StateRootCalculator.HashPublicInputs(publicInputs);
 
+            var requestedKind = (ProofType)_settings.ProofType;
             var proveSw = System.Diagnostics.Stopwatch.StartNew();
             var proofResult = await _prover.ProveAsync(new ProofRequest
             {
                 PublicInputs = publicInputs,
                 Witness = ReadOnlyMemory<byte>.Empty,
-                Kind = (ProofType)_settings.ProofType,
+                Kind = requestedKind,
             });
             proveSw.Stop();
+            // Sanity-check the prover's contract: the returned Kind must match what we
+            // asked for. A buggy prover that returns ProofType.None would silently produce
+            // a commitment that fails NoZeroProofCheck at audit time hours later, with no
+            // direct link back to the prover bug — better to surface the mismatch here.
+            if (proofResult.Kind != requestedKind)
+                throw new InvalidOperationException(
+                    $"prover returned ProofType {proofResult.Kind}, expected {requestedKind}");
             var kindTag = ("kind", proofResult.Kind.ToString());
             _metrics.IncrementCounter(MetricNames.ProofsGenerated, 1, kindTag);
             _metrics.RecordHistogram(MetricNames.ProveLatencyMs, proveSw.Elapsed.TotalMilliseconds, kindTag);

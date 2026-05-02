@@ -114,6 +114,44 @@ public class UT_L2SettlementPlugin_Metrics
     }
 
     [TestMethod]
+    public async Task Submit_RejectsProverKindMismatch()
+    {
+        // Regression: previously a buggy prover that returned ProofResult.Kind != requested
+        // Kind silently produced a commitment with whatever the prover claimed. The mismatch
+        // would only surface at audit time as "ProofType.None — soft-sealed but never
+        // proved" with no link to the prover bug. Now: settlement plugin asserts the
+        // contract at the prove boundary.
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin();
+        var liarProver = new LiarProver();  // claims Kind = None regardless of request
+        var client = new FakeClient();
+        var metrics = new InMemoryMetrics();
+
+        settlement.Wire(batch, liarProver, client);
+        settlement.WithMetrics(metrics);
+
+        settlement.Enqueue(BuildCommitment(batchNumber: 1));
+        await settlement.SubmitNextAsync();
+
+        // The mismatch should be caught and counted as a submit failure.
+        Assert.AreEqual(0, metrics.GetCounter(MetricNames.BatchesSubmitted));
+        Assert.AreEqual(1, metrics.GetCounter(MetricNames.SubmitFailures));
+        Assert.AreEqual(1, settlement.PendingCount, "batch re-queued for retry");
+    }
+
+    private sealed class LiarProver : IL2Prover
+    {
+        public ProofType Kind => ProofType.Multisig;
+        public ValueTask<ProofResult> ProveAsync(ProofRequest request, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(new ProofResult
+            {
+                Proof = new byte[] { 0x01 },
+                Kind = ProofType.None,  // ← lying about the kind
+                PublicInputHash = UInt256.Zero,
+            });
+    }
+
+    [TestMethod]
     public async Task Dispose_DuringInFlightSubmit_DoesNotThrow()
     {
         // Regression: previously Dispose() called _submitGate.Dispose() unguarded; if a

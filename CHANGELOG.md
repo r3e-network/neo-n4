@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `L2SettlementPlugin` checks `ProofResult.Kind` matches requested kind
+
+- A buggy prover that returned `ProofResult.Kind = None` (or any other mismatch) silently produced a commitment with whatever the prover claimed. The mismatch would only surface at audit time as `NoZeroProofCheck` failing with "ProofType.None — soft-sealed but never proved" — confusing, with no direct link back to the prover bug.
+- The settlement plugin now asserts the prover's contract at the prove boundary: `proofResult.Kind != requestedKind` throws `InvalidOperationException`. The exception is caught by the existing `try/catch` around prove+submit, increments `SubmitFailures`, and re-queues the batch — so a buggy prover doesn't block the queue but its bug is at least visible in counters.
+- **1 new test**: `LiarProver` returns `Kind = None` for a `Multisig` request → caught, no submission, failure counter ticks.
+
+Cumulative: 423 tests / 27 projects.
+
 ### Fixed — `CensorshipDetector` rejects negative `baseSlashAmount`
 
 - The constructor accepted any `BigInteger` for `baseSlashAmount`. A negative slash amount, embedded in the resulting `CensorshipReport.SlashAmount`, would either get silently flipped on L1 (rewarding the offending sequencer instead of penalizing) or revert at the slash transaction — either way the operator only finds out after submitting reports.

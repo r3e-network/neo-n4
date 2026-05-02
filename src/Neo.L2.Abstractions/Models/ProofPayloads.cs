@@ -68,15 +68,27 @@ public sealed record ProofRequest
 /// <summary>
 /// Output of a successful proof generation.
 /// </summary>
+/// <remarks>
+/// <para>Provers must honor two contracts that callers (notably <c>L2SettlementPlugin</c>)
+/// assert at the prove boundary:</para>
+/// <list type="bullet">
+///   <item><description><see cref="Kind"/> equals the <c>Kind</c> of the originating
+///   <see cref="ProofRequest"/>. A prover that returns a different kind is a bug.</description></item>
+///   <item><description><see cref="PublicInputHash"/> equals
+///   <c>StateRootCalculator.HashPublicInputs(request.PublicInputs)</c>. Proving for one
+///   set of inputs while reporting another is an inconsistency that downstream verifiers
+///   would catch but at the cost of a wasted submit round-trip.</description></item>
+/// </list>
+/// </remarks>
 public sealed record ProofResult
 {
     /// <summary>Bytes that go into <see cref="L2BatchCommitment.Proof"/>.</summary>
     public required ReadOnlyMemory<byte> Proof { get; init; }
 
-    /// <summary>The proof kind. Mirrors <see cref="L2BatchCommitment.ProofType"/>.</summary>
+    /// <summary>The proof kind. Must match <c>ProofRequest.Kind</c>. Mirrors <see cref="L2BatchCommitment.ProofType"/>.</summary>
     public required ProofType Kind { get; init; }
 
-    /// <summary>Hash of the canonical encoding of <see cref="PublicInputs"/>.</summary>
+    /// <summary>Hash of the canonical encoding of <see cref="PublicInputs"/>. Must equal <c>StateRootCalculator.HashPublicInputs(request.PublicInputs)</c>.</summary>
     public required UInt256 PublicInputHash { get; init; }
 }
 

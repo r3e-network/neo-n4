@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Documented `ProofResult` prover contract
+
+- The iter-139 (Kind match) and iter-140 (PublicInputHash match) settlement-plugin assertions are now also documented in the `ProofResult` record's XML doc — making the contract explicit at the API surface where prover authors will see it. No behavior change; just makes the invariants visible to anyone implementing `IL2Prover` without having to read the settlement plugin to discover what's checked.
+
+Cumulative: 423 tests / 27 projects.
+
 ### Changed — `BisectionGame.RunRound` emits the BisectionRounds metric on its dead-branch settle path
 
 - The `mid == _lo` branch in `RunRound` is normally unreachable (TrySettle at construction + every prior round keeps `_hi - _lo > 1` while `_settled == false`). But if a future refactor ever breaks that invariant, the branch settles the game without emitting `MetricNames.BisectionRounds` — a silent metric drop. Defense-in-depth: emit the same metric `TrySettle` would.

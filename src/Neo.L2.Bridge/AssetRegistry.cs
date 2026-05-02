@@ -23,12 +23,27 @@ public sealed class AssetRegistry
     }
 
     /// <summary>Insert or replace a mapping.</summary>
+    /// <remarks>
+    /// When replacing, both indexes are kept consistent: if the (L1Asset, L2ChainId) slot
+    /// previously held a mapping with a *different* L2Asset, the stale `_byL2` entry is
+    /// removed. The reverse cleanup handles the symmetric case (same L2Asset, different
+    /// L1 key). Without this, a registry that re-points an L2 token at a new L1 asset
+    /// would leak orphan entries that the lookups would happily return — a silent
+    /// inconsistency.
+    /// </remarks>
     public void Register(AssetMapping mapping)
     {
         ArgumentNullException.ThrowIfNull(mapping);
         lock (_gate)
         {
-            _byL1[(mapping.L1Asset, mapping.L2ChainId)] = mapping;
+            var l1Key = (mapping.L1Asset, mapping.L2ChainId);
+            if (_byL1.TryGetValue(l1Key, out var oldByL1) && !oldByL1.L2Asset.Equals(mapping.L2Asset))
+                _byL2.Remove(oldByL1.L2Asset);
+            if (_byL2.TryGetValue(mapping.L2Asset, out var oldByL2)
+                && (!oldByL2.L1Asset.Equals(mapping.L1Asset) || oldByL2.L2ChainId != mapping.L2ChainId))
+                _byL1.Remove((oldByL2.L1Asset, oldByL2.L2ChainId));
+
+            _byL1[l1Key] = mapping;
             _byL2[mapping.L2Asset] = mapping;
         }
     }

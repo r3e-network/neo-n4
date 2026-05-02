@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `AssetRegistry.Register` removes orphan index entries on re-point
+
+- Re-registering an L1 asset to a different L2 token (or vice versa) overwrote one index but left the stale entry in the other. `TryGetByL2(oldL2Asset)` would still return the prior mapping while `TryGetByL1` returned the new one — a silent registry inconsistency that could route a deposit through the old L2 token long after the operator thought they had repointed it.
+- `Register` now detects both repoint cases — `(L1Asset, L2ChainId)` mapped to a new `L2Asset`, and `L2Asset` mapped to a new `(L1Asset, L2ChainId)` — and removes the orphaned entry from the opposite index before writing the new mapping.
+- **2 new tests**: repoint L2Asset → orphan L2 index removed; repoint L1Asset → orphan L1 index removed.
+
+Cumulative: 375 tests / 27 projects.
+
 ### Fixed — `DepositProcessor.Process` claims nonce only after validation succeeds
 
 - The consumed-set was populated BEFORE the asset-registry lookup, so a transient validation failure (e.g. "asset not yet registered" — the L2 cross-chain pipeline can deliver a deposit before the asset is registered on L2) permanently locked the `(SourceChainId, Nonce)` pair. When the operator later registered the missing asset, retry hit the consumed-set first and threw `"already processed"` — the L1 message stayed in NeoHub's "delivered" state but the L2 could never mint the funds.

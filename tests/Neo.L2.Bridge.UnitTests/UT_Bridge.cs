@@ -65,6 +65,42 @@ public class UT_Bridge
     }
 
     [TestMethod]
+    public void Registry_Register_RepointL2Asset_RemovesOrphan()
+    {
+        // Regression: previously when (L1Asset, L2ChainId) was repointed to a different
+        // L2Asset, the old _byL2 entry leaked — TryGetByL2(oldL2) would still return the
+        // stale mapping while TryGetByL1(L1) returned the new one. Silent inconsistency.
+        var newL2 = UInt160.Parse("0x" + new string('5', 40));
+        var r = new AssetRegistry();
+        r.Register(GasMapping());
+        r.Register(GasMapping() with { L2Asset = newL2 });
+
+        Assert.AreEqual(1, r.Count, "exactly one mapping should remain");
+        Assert.IsFalse(r.TryGetByL2(GasL2, out _), "old L2Asset entry must be removed");
+        Assert.IsTrue(r.TryGetByL2(newL2, out var byNewL2));
+        Assert.AreEqual(GasL1, byNewL2!.L1Asset);
+        Assert.IsTrue(r.TryGetByL1(GasL1, LocalChain, out var byL1));
+        Assert.AreEqual(newL2, byL1!.L2Asset, "L1 lookup must point at the new L2Asset");
+    }
+
+    [TestMethod]
+    public void Registry_Register_RepointL1Asset_RemovesOrphan()
+    {
+        // Symmetric: same L2Asset re-pointed to a different L1Asset must clean up the
+        // old _byL1 entry. Otherwise a deposit on the old L1 asset would still resolve
+        // to the L2 token that is now mapped elsewhere.
+        var newL1 = UInt160.Parse("0x" + new string('6', 40));
+        var r = new AssetRegistry();
+        r.Register(GasMapping());
+        r.Register(GasMapping() with { L1Asset = newL1 });
+
+        Assert.AreEqual(1, r.Count, "exactly one mapping should remain");
+        Assert.IsFalse(r.TryGetByL1(GasL1, LocalChain, out _), "old L1 entry must be removed");
+        Assert.IsTrue(r.TryGetByL1(newL1, LocalChain, out var byNewL1));
+        Assert.AreEqual(GasL2, byNewL1!.L2Asset);
+    }
+
+    [TestMethod]
     public void DepositPayload_RoundTrips()
     {
         var p = new DepositPayload

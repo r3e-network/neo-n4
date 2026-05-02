@@ -64,7 +64,12 @@ public sealed class L2BatchPlugin : Plugin
     protected override void Configure()
     {
         _settings = L2BatchSettings.From(GetConfiguration());
-        _sealer = null;
+        // Do NOT reset _sealer here — that would discard batch-numbering state and the
+        // in-progress builder if Configure ever runs more than once (config-watcher
+        // re-fire, host re-init). Matches the iter-144 lazy-init pattern in the bridge
+        // plugin. Settings updates here only take effect for a future fresh sealer; the
+        // existing sealer keeps its captured settings (acceptable: re-configuration of
+        // batch thresholds mid-flight isn't a supported operation).
     }
 
     /// <summary>Block-commit hook — entry point for batch accumulation.</summary>

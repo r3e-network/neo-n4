@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `AttestationVerifier` deduplicates signers before signature verification
+
+- The verify loop sequence was validator-set → length → ECDSA-verify → dedup. A malicious prover could fill the wire payload with `MaxSigners` (256) copies of the same valid signature and force the verifier to perform 256 redundant ECDSA verifications before the duplicate-signer check fired. Not a DoS at production scale, but a wasted-cost vector that ramps with the cap.
+- Reordered: dedup-on-first-occurrence runs before signature verification. Cost is now bounded by the number of *distinct* keys submitted, not the wire-payload count. Correctness unchanged: duplicates still fail with the same error.
+- **1 new test**: payload with one signer repeated twice → `"duplicate signer"` failure.
+
+Cumulative: 402 tests / 27 projects.
+
 ### Added — `ChainIdValidator.ValidateL2(uint)` plugin-config validator
 
 - `ChainId = 0` is reserved for Neo L1 (matches `L2Outbox.L1ChainId` sentinel). An L2 chain that adopts it would misroute L2→L2 messages as L2→L1, sending them out the wrong outbox subtree. The default `uint` value is 0, so an operator who omits `ChainId` from `config.json` silently lands on the reserved value.

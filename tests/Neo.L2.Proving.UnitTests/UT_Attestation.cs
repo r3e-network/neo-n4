@@ -88,6 +88,33 @@ public class UT_Attestation
     }
 
     [TestMethod]
+    public async Task Verify_FailsOnDuplicateSigner()
+    {
+        // Regression: previously the verifier sequence was validator-set → length →
+        // sig-verify → dedup. A malicious prover could submit MaxSigners=256 copies of
+        // one valid signature and force 256 redundant ECDSA verifications before the
+        // duplicate check fired. Now: dedup runs BEFORE sig-verify, capping cost at
+        // first occurrence per key.
+        var keys = Enumerable.Range(1, 4).Select(i => GenKey((byte)i)).ToList();
+        var signers = new InMemorySignerSet(keys);
+        var prover = new AttestationProver(signers);
+        var verifier = new AttestationVerifier(keys.Select(k => k.pub), threshold: 3);
+
+        var inputs = SamplePublicInputs();
+        var honest = await prover.ProveAsync(new ProofRequest { PublicInputs = inputs, Witness = ReadOnlyMemory<byte>.Empty, Kind = ProofType.Multisig });
+        var honestPayload = MultisigProofPayload.Decode(honest.Proof.Span);
+
+        // Build a payload that repeats the first signer twice.
+        var repeated = new MultisigProofPayload
+        {
+            Signatures = new[] { honestPayload.Signatures[0], honestPayload.Signatures[0], honestPayload.Signatures[1], honestPayload.Signatures[2] },
+        };
+        var verify = await verifier.VerifyAsync(inputs, repeated.Encode());
+        Assert.IsFalse(verify.Valid);
+        StringAssert.Contains(verify.FailureReason ?? "", "duplicate signer");
+    }
+
+    [TestMethod]
     public async Task Verify_FailsWhenInputsTampered()
     {
         var keys = Enumerable.Range(1, 4).Select(i => GenKey((byte)i)).ToList();

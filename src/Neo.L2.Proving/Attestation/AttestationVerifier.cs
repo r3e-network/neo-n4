@@ -64,15 +64,19 @@ public sealed class AttestationVerifier : IL2ProofVerifier
             if (!_validatorSet.Contains(s.PublicKey))
                 return new ValueTask<ProofVerificationResult>(
                     ProofVerificationResult.Fail($"unknown signer {s.PublicKey}"));
+            // Dedup BEFORE signature verification so a payload that repeats the same
+            // signer N times caps verification cost at "first occurrence". Without this,
+            // a malicious prover could submit MaxSigners=256 copies of one valid signature
+            // and force 256 redundant ECDSA verifications before the duplicate fires.
+            if (!seen.Add(s.PublicKey))
+                return new ValueTask<ProofVerificationResult>(
+                    ProofVerificationResult.Fail($"duplicate signer {s.PublicKey}"));
             if (s.Signature.Length != 64)
                 return new ValueTask<ProofVerificationResult>(
                     ProofVerificationResult.Fail($"signature length {s.Signature.Length} != 64"));
             if (!Crypto.VerifySignature(canonicalBytes, s.Signature.Span, s.PublicKey))
                 return new ValueTask<ProofVerificationResult>(
                     ProofVerificationResult.Fail($"signature verification failed for {s.PublicKey}"));
-            if (!seen.Add(s.PublicKey))
-                return new ValueTask<ProofVerificationResult>(
-                    ProofVerificationResult.Fail($"duplicate signer {s.PublicKey}"));
         }
 
         if (seen.Count < Threshold)

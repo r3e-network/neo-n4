@@ -118,7 +118,8 @@ public sealed class L2SettlementPlugin : Plugin
         // OnBatchSealed → _ = SubmitNextAsync() can spawn N parallel submits when N batches
         // seal in quick succession, racing each other to call SubmitBatchAsync — NeoHub then
         // sees out-of-order BatchNumber values and rejects the late ones.
-        await _submitGate.WaitAsync().ConfigureAwait(false);
+        try { await _submitGate.WaitAsync().ConfigureAwait(false); }
+        catch (ObjectDisposedException) { return; } // plugin is shutting down — drop quietly
         try
         {
 
@@ -175,7 +176,12 @@ public sealed class L2SettlementPlugin : Plugin
         }
         finally
         {
-            _submitGate.Release();
+            // If Dispose ran while we were in flight, the semaphore is gone. Suppress
+            // the resulting ObjectDisposedException — the plugin is tearing down and
+            // there's nothing the caller (typically a fire-and-forget event handler)
+            // can do with it. Without this guard, the exception surfaces only via the
+            // TaskScheduler.UnobservedTaskException path, which is invisible by default.
+            try { _submitGate.Release(); } catch (ObjectDisposedException) { }
         }
     }
 

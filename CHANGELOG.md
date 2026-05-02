@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `L2SettlementPlugin.Dispose` no longer races in-flight `SubmitNextAsync`
+
+- `Dispose` called `_submitGate.Dispose()` unconditionally. If `SubmitNextAsync` was mid-flight (very plausible since it's invoked fire-and-forget from `OnBatchSealed`), the inevitable `Release()` in its `finally` threw `ObjectDisposedException` — which surfaces only via `TaskScheduler.UnobservedTaskException` (invisible by default) and aborts the in-flight submit's metric accounting.
+- Both ends of the gate now swallow `ObjectDisposedException`: the entry `WaitAsync` returns quietly when shutdown wins the race; the exit `Release` is wrapped in a try/catch. Either way the in-flight task completes cleanly.
+- **1 new test**: submit parked inside a blocking client, `Dispose()` while in-flight, then unblock the client — assert no exception escapes.
+
+Cumulative: 415 tests / 27 projects.
+
 ### Fixed — `ChainAuditor.AuditAsync` per-check exception isolation
 
 - A buggy custom check that threw aborted the entire audit — subsequent checks were skipped, and the operator saw only the exception (no findings from anything that ran before it). For an audit framework whose value is "every registered check runs and reports its result," this is the wrong default.

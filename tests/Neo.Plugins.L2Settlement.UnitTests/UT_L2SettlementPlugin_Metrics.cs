@@ -114,6 +114,51 @@ public class UT_L2SettlementPlugin_Metrics
     }
 
     [TestMethod]
+    public async Task Dispose_DuringInFlightSubmit_DoesNotThrow()
+    {
+        // Regression: previously Dispose() called _submitGate.Dispose() unguarded; if a
+        // SubmitNextAsync was in flight, its finally-block Release() would throw
+        // ObjectDisposedException, which surfaces only via TaskScheduler.UnobservedTaskException
+        // (invisible by default). Now: WaitAsync/Release both swallow ObjectDisposedException.
+        var batch = new L2BatchPlugin();
+        var settlement = new L2SettlementPlugin();
+        var blockingClient = new BlockingClient();
+        settlement.Wire(batch, new FakeProver(ProofType.Multisig), blockingClient);
+
+        settlement.Enqueue(BuildCommitment(1));
+        var submitTask = settlement.SubmitNextAsync();
+        // Wait until the submit is parked inside the client's TaskCompletionSource.
+        await blockingClient.SubmitEntered.Task;
+
+        // Tear down the plugin while a submit is mid-flight.
+        settlement.Dispose();
+        batch.Dispose();
+        // Let the in-flight submit complete; it should finish without throwing despite
+        // the gate being disposed.
+        blockingClient.SubmitGate.SetResult();
+        await submitTask;
+    }
+
+    private sealed class BlockingClient : ISettlementClient
+    {
+        public TaskCompletionSource SubmitEntered { get; } = new();
+        public TaskCompletionSource SubmitGate { get; } = new();
+
+        public async ValueTask<UInt256> SubmitBatchAsync(L2BatchCommitment commitment, PublicInputs publicInputs, CancellationToken cancellationToken = default)
+        {
+            SubmitEntered.TrySetResult();
+            await SubmitGate.Task;
+            return UInt256.Zero;
+        }
+
+        public ValueTask<UInt256> GetCanonicalStateRootAsync(uint chainId, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(UInt256.Zero);
+
+        public ValueTask<BatchStatus> GetBatchStatusAsync(uint chainId, ulong batchNumber, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(BatchStatus.Unknown);
+    }
+
+    [TestMethod]
     public async Task Enqueue_WhenDisabled_DoesNothing_AndPendingStaysZero()
     {
         // We can't easily flip the private _settings.Enabled, so this test just confirms

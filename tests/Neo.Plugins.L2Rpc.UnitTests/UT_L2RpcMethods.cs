@@ -139,6 +139,26 @@ public class UT_L2RpcMethods
     }
 
     [TestMethod]
+    public void RegisterAsset_RepointL2_RemovesOrphan()
+    {
+        // Regression: previously RegisterAsset wrote both indexes without cleanup. Re-
+        // registering an L1 asset against a different L2 token left the prior L2 entry
+        // as an orphan in _l1ByL2 — GetCanonicalAsset(oldL2) still returned the L1 asset
+        // even though GetBridgedAsset(L1) now returned the new L2. Mirrors the iter-100
+        // fix in AssetRegistry.
+        var l1 = UInt160.Parse("0x" + new string('1', 40));
+        var oldL2 = UInt160.Parse("0x" + new string('2', 40));
+        var newL2 = UInt160.Parse("0x" + new string('5', 40));
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
+        store.RegisterAsset(l1, oldL2);
+        store.RegisterAsset(l1, newL2);
+
+        Assert.IsNull(store.GetCanonicalAsset(oldL2), "stale L2 → L1 entry must be removed");
+        Assert.AreEqual(l1, store.GetCanonicalAsset(newL2));
+        Assert.AreEqual(newL2, store.GetBridgedAsset(l1));
+    }
+
+    [TestMethod]
     public void Finalize_OutOfOrder_DoesNotRegressLatestStateRoot()
     {
         // Regression: Finalize(N) blindly overwrote _latestStateRoot with batch N's

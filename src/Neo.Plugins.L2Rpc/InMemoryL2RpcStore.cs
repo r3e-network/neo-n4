@@ -63,8 +63,19 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore
     }
 
     /// <summary>Register an asset mapping (bidirectional).</summary>
+    /// <remarks>
+    /// Same orphan-cleanup pattern as <c>AssetRegistry.Register</c> (iter 100): when
+    /// re-pointing an L1 asset to a new L2 token (or vice versa), remove the stale entry
+    /// from the opposite index. Without this, a re-registration leaves a silent
+    /// inconsistency where one direction returns the new mapping and the other still
+    /// returns the orphaned old one.
+    /// </remarks>
     public void RegisterAsset(UInt160 l1Asset, UInt160 l2Asset)
     {
+        if (_l2ByL1.TryGetValue(l1Asset, out var oldL2) && !oldL2.Equals(l2Asset))
+            _l1ByL2.TryRemove(oldL2, out _);
+        if (_l1ByL2.TryGetValue(l2Asset, out var oldL1) && !oldL1.Equals(l1Asset))
+            _l2ByL1.TryRemove(oldL1, out _);
         _l2ByL1[l1Asset] = l2Asset;
         _l1ByL2[l2Asset] = l1Asset;
     }

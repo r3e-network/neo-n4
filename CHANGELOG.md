@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `InMemoryL2RpcStore.RegisterAsset` removes orphan index entries
+
+- Same bug pattern as iter 100's `AssetRegistry.Register` fix, in the RPC-side asset cache. Re-registering an L1 asset against a different L2 token (or vice versa) overwrote one index but left the stale entry in the other. `GetCanonicalAsset(oldL2)` still returned the L1 asset while `GetBridgedAsset(L1)` returned the new L2 — silent inconsistency between the two RPC lookups.
+- Now: detect both repoint cases and `TryRemove` the orphaned entry from the opposite index before writing the new mapping.
+- **1 new test**: `RegisterAsset_RepointL2_RemovesOrphan` — re-register, assert old L2 → L1 lookup returns null.
+
+Cumulative: 418 tests / 27 projects.
+
 ### Fixed — `WithdrawalProcessor` enforces nonce uniqueness across batches
 
 - `_byNonce` was cleared on `SealBatch`, so a user could re-stage the same `(sender, nonce)` withdrawal in the next batch — L2 silently accepted; the duplicate was only caught hours later at L1 settlement. The `WithdrawalRequest.Nonce` field's docstring is explicit: "per-(chain, sender) monotonic for replay protection," so L2 must enforce uniqueness across the chain's lifetime, not just per-batch.

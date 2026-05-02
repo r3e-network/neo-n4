@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Gateway aggregators use `checked` arithmetic for size sums
+
+- `PassThroughAggregator.ConcatenateProofs` and `PassThroughRoundProver.Combine` summed `4 + proofLen` accumulators in plain `int` arithmetic. A pathological N × proofLen combination near `int.MaxValue` (~2 GiB) would silently wrap to negative; the next `new byte[wrappedNeg]` then threw `OverflowException` deep in the allocator with no link back to the offending sum.
+- Wrapped both sites in `checked(…)` so an overflow surfaces with the operation in scope. Behavior under realistic loads is unchanged.
+- No new tests — behavior preserved; existing 19 gateway tests still pass.
+
+Cumulative: 416 tests / 27 projects.
+
 ### Changed — `L1MessageInbox.Enqueue` duplicate-pending check is O(1)
 
 - The check was `foreach (var existing in _pending) if (...) throw` — O(n) per enqueue. Under bursty inbound traffic with thousands of pending messages, the cost compounds: a flood of N legitimate messages is O(N²). Not a security bug, but a performance cliff.

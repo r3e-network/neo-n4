@@ -32,7 +32,12 @@ public sealed class PassThroughRoundProver : IRoundProver
 
         var lp = left.ProofBytes;
         var rp = right.ProofBytes;
-        var combinedProof = new byte[4 + lp.Length + 4 + rp.Length];
+        // Checked arithmetic: at log(N) tree depth with proofs doubling per level, the
+        // total size could in theory exceed int.MaxValue for a pathological combination.
+        // Without `checked`, the wrap would surface as a confusing OverflowException
+        // from `new byte[neg]` rather than naming the offending sum.
+        var combinedSize = checked(4 + lp.Length + 4 + rp.Length);
+        var combinedProof = new byte[combinedSize];
         var span = combinedProof.AsSpan();
         System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(span.Slice(0, 4), lp.Length);
         lp.Span.CopyTo(span.Slice(4));

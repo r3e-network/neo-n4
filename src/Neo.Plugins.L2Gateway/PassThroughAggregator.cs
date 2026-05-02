@@ -65,8 +65,13 @@ public sealed class PassThroughAggregator : IGatewayAggregator
     private static byte[] ConcatenateProofs(L2BatchCommitment[] batches)
     {
         // 4B count + (4B len + len bytes) per constituent.
+        // Use checked arithmetic so a pathological N × proofLen that overflows int (~2 GiB)
+        // surfaces as an OverflowException naming the operation, rather than wrapping to a
+        // negative size and throwing OverflowException from `new byte[neg]` deep in the
+        // allocator with no link back to the cause.
         var totalSize = 4;
-        for (var i = 0; i < batches.Length; i++) totalSize += 4 + batches[i].Proof.Length;
+        for (var i = 0; i < batches.Length; i++)
+            totalSize = checked(totalSize + 4 + batches[i].Proof.Length);
         var buffer = new byte[totalSize];
         var span = buffer.AsSpan();
         System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(span.Slice(0, 4), batches.Length);

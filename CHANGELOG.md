@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `neo-stack create-chain --chain-id` validates against L1-reserved 0
+
+- `uint.Parse(...)` accepted any value, including the L1-reserved `0` (matches `L2Outbox.L1ChainId`). An operator who typo'd `--chain-id 0` would generate a chain config that misroutes L2→L2 messages as L2→L1 — silently broken from the genesis block. Also: malformed input like `--chain-id abc` threw `FormatException` with a raw stack trace.
+- Now: `uint.TryParse` for clean error on non-numeric, plus `ChainIdValidator.ValidateL2(value, "--chain-id")` (the shared helper from iter 114) for the reserved-id check. Each surfaces a clear single-line error and exit code 1.
+
+Cumulative: 411 tests / 27 projects (no new test; the validator is already covered in `UT_Models`).
+
 ### Fixed — `InMemoryMessageRouter._finalized` is thread-safe
 
 - `_finalized` was a plain `Dictionary<UInt256, FinalizedEntry>`. `RecordFinalized` (settlement-pipeline thread) writes; `GetMessageProofAsync` (RPC-handler threads) reads. A concurrent read while writing had a small but real chance of corruption / `NullReferenceException` deep in `Dictionary.FindEntry`.

@@ -1,3 +1,5 @@
+using Neo.L2.State;
+
 namespace Neo.L2.Proving;
 
 /// <summary>
@@ -56,6 +58,22 @@ public sealed class VerifierRegistry
         {
             return new ValueTask<ProofVerificationResult>(
                 ProofVerificationResult.Fail("commitment ↔ public inputs disagree on at least one field"));
+        }
+
+        // Verify the commitment's claimed PublicInputHash matches the actual hash of
+        // the supplied publicInputs. The 10 field comparisons above only cover what's
+        // duplicated in the commitment; they don't cover L1MessageHash and BlockContextHash
+        // (which only live in publicInputs). Without this check, a malicious submission
+        // could supply a publicInputs that the verifier accepts while claiming a
+        // different PublicInputHash on-chain — an attacker uses the consensus-recorded
+        // hash to point at a forged future replay. The audit-time
+        // PublicInputHashConsistencyCheck (iter 96) catches this after-the-fact, but
+        // verify-time is the right boundary.
+        var expectedHash = StateRootCalculator.HashPublicInputs(publicInputs);
+        if (!commitment.PublicInputHash.Equals(expectedHash))
+        {
+            return new ValueTask<ProofVerificationResult>(
+                ProofVerificationResult.Fail("commitment.PublicInputHash != hash(publicInputs)"));
         }
 
         return verifier.VerifyAsync(publicInputs, commitment.Proof, cancellationToken);

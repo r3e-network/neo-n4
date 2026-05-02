@@ -175,6 +175,45 @@ public class UT_OptimisticAndRiscV
     }
 
     [TestMethod]
+    public async Task Registry_FailsWhenPublicInputHashIsForged()
+    {
+        // Regression: previously VerifierRegistry only compared 10 commitment fields
+        // against publicInputs but never re-derived publicInputs's hash. A malicious
+        // submission could set commitment.PublicInputHash to an arbitrary value (the
+        // attacker plans to claim it later in a forged replay) while supplying a real
+        // publicInputs that the verifier accepts. Now the registry catches the
+        // forgery with "commitment.PublicInputHash != hash(publicInputs)".
+        var vkId = UInt256.Parse("0x" + new string('f', 64));
+        var registry = new VerifierRegistry();
+        registry.Register(new MockRiscVVerifier(vkId));
+
+        var prover = new MockRiscVProver(vkId);
+        var inputs = SamplePublicInputs();
+        var proof = await prover.ProveAsync(new ProofRequest { PublicInputs = inputs, Witness = ReadOnlyMemory<byte>.Empty, Kind = ProofType.Zk });
+
+        var forged = new L2BatchCommitment
+        {
+            ChainId = inputs.ChainId,
+            BatchNumber = inputs.BatchNumber,
+            FirstBlock = 100, LastBlock = 200,
+            PreStateRoot = inputs.PreStateRoot,
+            PostStateRoot = inputs.PostStateRoot,
+            TxRoot = inputs.TxRoot, ReceiptRoot = inputs.ReceiptRoot,
+            WithdrawalRoot = inputs.WithdrawalRoot,
+            L2ToL1MessageRoot = inputs.L2ToL1MessageRoot,
+            L2ToL2MessageRoot = inputs.L2ToL2MessageRoot,
+            DACommitment = inputs.DACommitment,
+            PublicInputHash = UInt256.Parse("0x" + new string('e', 64)),  // forged
+            ProofType = ProofType.Zk,
+            Proof = proof.Proof,
+        };
+
+        var verify = await registry.VerifyAsync(forged, inputs);
+        Assert.IsFalse(verify.Valid);
+        StringAssert.Contains(verify.FailureReason ?? "", "PublicInputHash");
+    }
+
+    [TestMethod]
     public void OptimisticProofPayload_ByteLayout_MatchesDocumentedOffsets()
     {
         // Pins the layout claimed in OptimisticProofPayload's XML docs.

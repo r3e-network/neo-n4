@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `VerifierRegistry.VerifyAsync` checks `commitment.PublicInputHash` matches `publicInputs`
+
+- The registry compared 10 duplicated fields between `commitment` and `publicInputs` but never re-derived the actual hash of `publicInputs` and matched it against `commitment.PublicInputHash`. A malicious submission could set `PublicInputHash` to any value (planning a forged future replay against the consensus-recorded hash) while supplying real `publicInputs` that the verifier accepts. The audit-time `PublicInputHashConsistencyCheck` (iter 96) caught this after-the-fact, but verify-time is the right boundary.
+- Added `StateRootCalculator.HashPublicInputs(publicInputs).Equals(commitment.PublicInputHash)` check; failure → `ProofVerificationResult.Fail("commitment.PublicInputHash != hash(publicInputs)")`.
+- **1 new test**: `Registry_FailsWhenPublicInputHashIsForged` — commitment with arbitrary `PublicInputHash` but valid 10-field-aligned `publicInputs` → rejected with the right reason.
+
+Cumulative: 416 tests / 27 projects.
+
 ### Fixed — `L2SettlementPlugin.Dispose` no longer races in-flight `SubmitNextAsync`
 
 - `Dispose` called `_submitGate.Dispose()` unconditionally. If `SubmitNextAsync` was mid-flight (very plausible since it's invoked fire-and-forget from `OnBatchSealed`), the inevitable `Release()` in its `finally` threw `ObjectDisposedException` — which surfaces only via `TaskScheduler.UnobservedTaskException` (invisible by default) and aborts the in-flight submit's metric accounting.

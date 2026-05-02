@@ -87,15 +87,25 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore
     }
 
     /// <summary>Record an inclusion proof for a withdrawal leaf.</summary>
+    /// <remarks>
+    /// Defensive copy: the store retains the bytes for later RPC reads. Without the clone,
+    /// a caller who mutates their copy after passing it in (or who reuses a single
+    /// scratch buffer across many calls) would silently corrupt the stored proof.
+    /// </remarks>
     public void RecordWithdrawalProof(UInt256 leafHash, byte[] proofBytes)
     {
-        _withdrawalProofs[leafHash] = proofBytes;
+        ArgumentNullException.ThrowIfNull(proofBytes);
+        _withdrawalProofs[leafHash] = (byte[])proofBytes.Clone();
     }
 
     /// <summary>Record an inclusion proof for a message hash.</summary>
+    /// <remarks>
+    /// See <see cref="RecordWithdrawalProof"/> for the defensive-copy rationale.
+    /// </remarks>
     public void RecordMessageProof(UInt256 messageHash, byte[] proofBytes)
     {
-        _messageProofs[messageHash] = proofBytes;
+        ArgumentNullException.ThrowIfNull(proofBytes);
+        _messageProofs[messageHash] = (byte[])proofBytes.Clone();
     }
 
     /// <inheritdoc />

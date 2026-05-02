@@ -139,6 +139,26 @@ public class UT_L2RpcMethods
     }
 
     [TestMethod]
+    public void RecordWithdrawalProof_TakesDefensiveCopy()
+    {
+        // Regression: previously the store retained the caller's byte[] reference. A
+        // caller who reused a scratch buffer across many records (or mutated it after
+        // passing it in) would silently corrupt the previously stored proof.
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
+        var leaf = UInt256.Parse("0x" + new string('e', 64));
+        var bytes = new byte[] { 0xCA, 0xFE, 0xBA, 0xBE };
+        store.RecordWithdrawalProof(leaf, bytes);
+
+        // Mutate the caller's array — the stored copy must NOT change.
+        bytes[0] = 0x00;
+        bytes[1] = 0x00;
+        var stored = store.GetWithdrawalProof(leaf);
+        Assert.IsNotNull(stored);
+        Assert.AreEqual(0xCA, stored.Value.Span[0]);
+        Assert.AreEqual(0xFE, stored.Value.Span[1]);
+    }
+
+    [TestMethod]
     public void RegisterAsset_RepointL2_RemovesOrphan()
     {
         // Regression: previously RegisterAsset wrote both indexes without cleanup. Re-

@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `InMemoryL2RpcStore.Record*Proof` takes a defensive copy
+
+- `RecordWithdrawalProof` and `RecordMessageProof` retained the caller's `byte[]` reference. A caller who reused a scratch buffer across many records — or who mutated their copy after passing it in — would silently corrupt the previously stored proof. The corruption would only surface much later when an RPC client scraped `/getl2withdrawalproof` and got back garbage.
+- Both setters now `Clone()` the input. The `IReadOnlyList<byte>` style API (`ReadOnlyMemory<byte>?`) on the read side already guards against caller mutation; this aligns the write side.
+- **1 new test**: store, mutate caller's buffer, read — assert stored bytes unchanged.
+
+Cumulative: 419 tests / 27 projects.
+
 ### Changed — `L2ProverPlugin.Wire` gives a clear error for `ProofType.None`
 
 - `ProofType.None` is a legitimate enum value (used for genesis / operator-trusted flows in the wire format) but the prover plugin can't produce a proof for it. The switch's `_ => throw NotSupportedException($"Unknown ProofType {_kind}")` arm fired with `"Unknown ProofType None"` — misleading, since None is defined.

@@ -19,7 +19,8 @@ public static class MessageHasher
     public static UInt256 HashMessage(CrossChainMessage message)
     {
         ArgumentNullException.ThrowIfNull(message);
-        var size = 4 + 4 + 8 + 20 + 20 + 1 + 4 + message.Payload.Length;
+        // checked: payload is unbounded — a near-int.MaxValue payload would wrap.
+        var size = checked(4 + 4 + 8 + 20 + 20 + 1 + 4 + message.Payload.Length);
         var buffer = size <= 256 ? stackalloc byte[size] : new byte[size];
 
         var pos = 0;

@@ -67,7 +67,10 @@ public sealed class KeyedStateStore
     /// <summary>Canonical leaf hash for a (key, value) pair.</summary>
     public static UInt256 HashEntry(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value)
     {
-        var size = 4 + key.Length + 4 + value.Length;
+        // checked: key + value are caller-supplied and unbounded; a near-int.MaxValue
+        // value would wrap to negative, surfacing only as a confusing
+        // OverflowException from `new byte[neg]`.
+        var size = checked(4 + key.Length + 4 + value.Length);
         Span<byte> buffer = size <= 256 ? stackalloc byte[size] : new byte[size];
         var pos = 0;
         BinaryPrimitives.WriteInt32LittleEndian(buffer.Slice(pos, 4), key.Length); pos += 4;

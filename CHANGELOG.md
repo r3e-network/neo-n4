@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — `checked` arithmetic sweep for unbounded buffer-size sums
+
+- Continued the iter-130/131 pattern across the remaining unbounded `var size = X + caller.Length` sites:
+  - `BatchSerializer.Encode` — `CommitmentFixedSize + commitment.Proof.Length`.
+  - `MessageHasher.HashMessage` — `61 + payload.Length`.
+  - `KeyedStateStore.HashEntry` — `4 + key.Length + 4 + value.Length`.
+- Each sum is now wrapped in `checked(…)` so a pathological caller-supplied length near `int.MaxValue` surfaces an `OverflowException` at the sum site rather than later as a confusing `OverflowException` from `new byte[wrappedNeg]` deep in the allocator. Bounded payloads (signature/proof bytes already capped by validators) are unchanged.
+
+Cumulative: 416 tests / 27 projects.
+
 ### Changed — `Sp1RiscVProver.ProveAsync` uses `checked` arithmetic for combined-buffer size
 
 - `4 + publicInputBytes.Length + 4 + request.Witness.Length` summed in plain `int`. A pathological witness near `int.MaxValue` would wrap to negative and surface as `OverflowException` from `new byte[wrappedNeg]` with no link to the offending sum.

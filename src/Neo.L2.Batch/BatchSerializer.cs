@@ -78,7 +78,11 @@ public static class BatchSerializer
         if (commitment.Proof.Length > ProofMaxBytes)
             throw new ArgumentException($"Proof bytes exceed maximum {ProofMaxBytes}", nameof(commitment));
 
-        var buffer = new byte[CommitmentFixedSize + commitment.Proof.Length];
+        // checked: a Proof.Length near int.MaxValue (caught later by ProofMaxBytes, but
+        // not here at allocation time) wraps. Surface as OverflowException at the sum
+        // site so the cause is visible.
+        var bufferSize = checked(CommitmentFixedSize + commitment.Proof.Length);
+        var buffer = new byte[bufferSize];
         var span = buffer.AsSpan();
         var pos = 0;
 

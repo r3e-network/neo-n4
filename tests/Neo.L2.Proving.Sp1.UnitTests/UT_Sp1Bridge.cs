@@ -27,6 +27,21 @@ public class UT_Sp1Bridge
     }
 
     [TestMethod]
+    public void Bridge_IsAvailable_ResultIsCached()
+    {
+        // Reset → first call computes (and caches false in dev). Second call returns
+        // the cache without re-attempting the P/Invoke. ResetAvailableCache forces the
+        // next call to recompute.
+        Sp1Bridge.ResetAvailableCache();
+        var first = Sp1Bridge.IsAvailable;
+        var second = Sp1Bridge.IsAvailable;
+        Assert.AreEqual(first, second);
+        Sp1Bridge.ResetAvailableCache();
+        var afterReset = Sp1Bridge.IsAvailable;
+        Assert.AreEqual(first, afterReset, "post-reset re-compute must yield the same answer in dev");
+    }
+
+    [TestMethod]
     public void Bridge_MaxProofBytes_IsFiniteAndUnderInt32Max()
     {
         // Pin the defensive cap so a future "remove the size check, native bridge is

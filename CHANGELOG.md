@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — `Sp1Bridge.IsAvailable` caches the lib-loadable result
+
+- Every `Prove`/`Verify` call invoked `IsAvailable`, which re-attempted the `NativeAbiVersion()` P/Invoke and re-paid the `DllNotFoundException` cost in dev environments where the bridge is intentionally absent. The result is sticky for process lifetime — the lib is either there at startup or it isn't.
+- Cached the result in a `static bool? _isAvailableCache`. Added `ResetAvailableCache()` for test scenarios that want to re-probe.
+- **1 new test**: pin the cache behavior (first/second/post-reset calls all return the same result, no exception).
+
+Cumulative: 420 tests / 27 projects.
+
 ### Fixed — `InMemoryL2RpcStore.Record*Proof` takes a defensive copy
 
 - `RecordWithdrawalProof` and `RecordMessageProof` retained the caller's `byte[]` reference. A caller who reused a scratch buffer across many records — or who mutated their copy after passing it in — would silently corrupt the previously stored proof. The corruption would only surface much later when an RPC client scraped `/getl2withdrawalproof` and got back garbage.

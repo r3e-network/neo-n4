@@ -45,20 +45,34 @@ public static class Sp1Bridge
     [DllImport(LibraryName, EntryPoint = "neo_zkvm_free_buffer", CallingConvention = CallingConvention.Cdecl)]
     private static extern void NativeFreeBuffer(IntPtr ptr, nuint len);
 
+    // Cache the lib-loadable + ABI-match result. The bridge's loaded-or-not state is
+    // sticky for process lifetime: if the .so is missing at startup, it stays missing;
+    // if it's present and version-matched, it stays so. Without caching, every Prove /
+    // Verify call re-attempts the P/Invoke and re-pays the DllNotFoundException cost
+    // in dev environments where the lib is intentionally absent (~10× per batch).
+    private static bool? _isAvailableCache;
+
     /// <summary>True if the native library is loadable AND its ABI matches.</summary>
     public static bool IsAvailable
     {
         get
         {
-            try
-            {
-                return NativeAbiVersion() == ExpectedAbiVersion;
-            }
-            catch (DllNotFoundException) { return false; }
-            catch (BadImageFormatException) { return false; }
-            catch (EntryPointNotFoundException) { return false; }
+            if (_isAvailableCache is { } cached) return cached;
+            bool result;
+            try { result = NativeAbiVersion() == ExpectedAbiVersion; }
+            catch (DllNotFoundException) { result = false; }
+            catch (BadImageFormatException) { result = false; }
+            catch (EntryPointNotFoundException) { result = false; }
+            _isAvailableCache = result;
+            return result;
         }
     }
+
+    /// <summary>
+    /// Reset the <see cref="IsAvailable"/> cache. Test-only — production deployments don't
+    /// hot-load native libraries, so the cached result is correct for process lifetime.
+    /// </summary>
+    public static void ResetAvailableCache() => _isAvailableCache = null;
 
     /// <summary>
     /// Generate a proof. Returns the proof bytes on success or an error status. The caller

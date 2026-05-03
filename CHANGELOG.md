@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `ReferenceBatchExecutor.ApplyBatchAsync` per-entry null-guards
+
+- Per-entry null-guards added at three foreach sites: `request.L1MessagesConsumed[i]` (would propagate as a generic NRE inside `_l1Processor.ApplyAsync`), `result.Withdrawals[i]` and `result.Messages[i]` (would surface as `WithdrawalTree.Add` / `L2Outbox.Add` "X is null" without naming the misbehaving executor or the bad index). Now surfaces at the source with the index AND the executor's tx hash. Same iter-181 `BatchSealer.OnBlockCommit` per-entry pattern. 1 pinning test for the L1-message case.
+
+Cumulative: 482 tests / 27 projects.
+
 ### Fixed — `L2SettlementPlugin.Wire` revalidates `_settings.ProofType`
 
 - `L2SettlementSettings.From` validates `ProofType` byte range at config-parse time, but `init` setters bypass that path. Same iter-191 ctor-symmetry pattern: revalidate in `Wire` (the latest fail-fast point before the first `OnBatchSealed → SubmitNextAsync`). Without this, an invalid byte would surface only deep inside the broad-catch as a generic `AttestationProver expects ProofType.Multisig, got (ProofType)X` ArgumentException tagged as `("exception", "ArgumentException")`. Now: clear `InvalidDataException` at Wire time. No pinning test (Plugin's `Configure` is protected and `_settings` private — the validation is reachable only through direct internal construction; existing tests still pass with the default `ProofType=1`).

@@ -310,6 +310,33 @@ public class UT_ReferenceBatchExecutor
     }
 
     [TestMethod]
+    public async Task ApplyBatchAsync_RejectsNullL1MessageEntry()
+    {
+        // Regression for iter 193: a null entry in L1MessagesConsumed would propagate
+        // to _l1Processor.ApplyAsync with no clear "[index] is null" diagnostic. Now
+        // surfaces at the source with the bad index.
+        var executor = new ReferenceBatchExecutor(
+            new ReferenceTransactionExecutor(),
+            new DerivedPostStateRootOracle(),
+            new NoopL1Processor());
+        var ex = await Assert.ThrowsExactlyAsync<ArgumentException>(async () =>
+            await executor.ApplyBatchAsync(new BatchExecutionRequest
+            {
+                ChainId = 1001, BatchNumber = 1, PreStateRoot = UInt256.Zero,
+                Transactions = Array.Empty<ReadOnlyMemory<byte>>(),
+                L1MessagesConsumed = new CrossChainMessage?[] { null }!,
+                BlockContext = SampleContext(),
+            }));
+        StringAssert.Contains(ex.Message, "[0]");
+    }
+
+    private sealed class NoopL1Processor : IL1MessageProcessor
+    {
+        public ValueTask ApplyAsync(CrossChainMessage message, CancellationToken cancellationToken = default)
+            => ValueTask.CompletedTask;
+    }
+
+    [TestMethod]
     public void Receipt_HashStableAcrossInstances()
     {
         Receipt Mk() => new()

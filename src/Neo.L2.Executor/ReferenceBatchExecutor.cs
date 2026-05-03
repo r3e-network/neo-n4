@@ -44,8 +44,13 @@ public sealed class ReferenceBatchExecutor : IL2BatchExecutor
         // 1. Apply L1 messages first (per SPEC.md §"Execution order" #1).
         if (_l1Processor is not null)
         {
-            foreach (var msg in request.L1MessagesConsumed)
+            for (var i = 0; i < request.L1MessagesConsumed.Count; i++)
+            {
+                var msg = request.L1MessagesConsumed[i]
+                    ?? throw new ArgumentException(
+                        $"request.L1MessagesConsumed[{i}] is null", nameof(request));
                 await _l1Processor.ApplyAsync(msg, cancellationToken).ConfigureAwait(false);
+            }
         }
 
         // 2. Apply transactions in order, collecting receipts + side effects.
@@ -79,8 +84,24 @@ public sealed class ReferenceBatchExecutor : IL2BatchExecutor
             // for the leaked withdrawal is checked against the user's actual state.
             if (!result.Receipt.Success) continue;
 
-            foreach (var w in result.Withdrawals) withdrawalTree.Add(w);
-            foreach (var m in result.Messages) outbox.Add(m);
+            // Per-entry null guard: WithdrawalTree.Add / L2Outbox.Add null-guard the
+            // arg, but the message there ("withdrawal is null") doesn't name which
+            // executor returned the bad entry. Surface here with the index so a
+            // misbehaving ITransactionExecutor's bug is obvious.
+            for (var i = 0; i < result.Withdrawals.Count; i++)
+            {
+                var w = result.Withdrawals[i]
+                    ?? throw new InvalidOperationException(
+                        $"ITransactionExecutor returned null result.Withdrawals[{i}] for tx {result.TxHash}");
+                withdrawalTree.Add(w);
+            }
+            for (var i = 0; i < result.Messages.Count; i++)
+            {
+                var m = result.Messages[i]
+                    ?? throw new InvalidOperationException(
+                        $"ITransactionExecutor returned null result.Messages[{i}] for tx {result.TxHash}");
+                outbox.Add(m);
+            }
         }
 
         // 3. Compute the four batch-level roots.

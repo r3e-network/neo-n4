@@ -335,6 +335,36 @@ public class UT_OptimisticAndRiscV
     }
 
     [TestMethod]
+    public void OptimisticProofPayload_Encode_RejectsOversizedSig()
+    {
+        // Regression for iter 159: Encode/Decode symmetry. Without this Encode-side
+        // check, a producer could create bytes the Decode would refuse — the failure
+        // would surface only at the next consumer (e.g., a verifier downstream),
+        // hiding the producer-side bug.
+        var oversized = new byte[OptimisticProofPayload.MaxSignatureBytes + 1];
+        var payload = new OptimisticProofPayload
+        {
+            BondContract = UInt160.Zero, BondTxHash = UInt256.Zero,
+            SubmittedAt = 0, SequencerSignature = oversized,
+        };
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() => payload.Encode());
+        StringAssert.Contains(ex.Message, "MaxSignatureBytes");
+    }
+
+    [TestMethod]
+    public void RiscVProofPayload_Encode_RejectsOversizedProof()
+    {
+        // Regression for iter 159: same Encode/Decode symmetry pattern as Optimistic.
+        var oversized = new byte[RiscVProofPayload.MaxProofBytes + 1];
+        var payload = new RiscVProofPayload
+        {
+            ProofSystem = ProofSystem.Sp1, VerificationKeyId = UInt256.Zero, ProofBytes = oversized,
+        };
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() => payload.Encode());
+        StringAssert.Contains(ex.Message, "MaxProofBytes");
+    }
+
+    [TestMethod]
     public void RiscVProofPayload_ByteLayout_MatchesDocumentedOffsets()
     {
         // Pins the layout claimed in RiscVProofPayload's XML docs.

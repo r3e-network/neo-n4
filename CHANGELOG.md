@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Pinning tests for `OptimisticProofPayload.Encode`/`RiscVProofPayload.Encode` size caps
+
+- Two new tests in `UT_OptimisticAndRiscV.cs` lock down the iter-159 Encode-side cap rejection: `OptimisticProofPayload_Encode_RejectsOversizedSig` (`MaxSignatureBytes + 1`) and `RiscVProofPayload_Encode_RejectsOversizedProof` (`MaxProofBytes + 1`). Both assert the exception message names the cap constant so a future refactor that drops the validation is caught here, not at the next consumer.
+
+Cumulative: 436 tests / 27 projects.
+
 ### Added — Pinning tests for `MultisigProofPayload.Encode` validation
 
 - Three new tests in `UT_Attestation.cs` lock down the iter-159 Encode-side checks: `Encode_RejectsBadSignatureLength` (boundary 63 / 65 vs. the silent-zero-pad at length < 64), `Encode_RejectsNullSignerEntry` (asserts the null index appears in the exception message), `Encode_RejectsOversizedSignerCount` (Encode/Decode symmetry pin). Without these, future refactors could regress the silent-padding bug undetected.

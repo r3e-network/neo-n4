@@ -159,4 +159,20 @@ public class UT_BinaryTreeAggregator
             return new PassThroughRoundProver().Combine(left, right);
         }
     }
+
+    [TestMethod]
+    public void PassThroughRoundProver_Combine_RejectsNullMessageRootContribution()
+    {
+        // Regression for iter 180: MessageRootContribution is UInt256 (reference type),
+        // `required` doesn't prevent null. Without the guard, GetSpan() NREs deep
+        // inside the round combine. Same iter-156 hashing-primitive defense pattern.
+        var prover = new PassThroughRoundProver();
+        var leftBad = new RoundResult { MessageRootContribution = null!, ProofBytes = new byte[] { 0x01 } };
+        var goodRight = new RoundResult { MessageRootContribution = UInt256.Zero, ProofBytes = new byte[] { 0x02 } };
+        Assert.ThrowsExactly<ArgumentNullException>(() => prover.Combine(leftBad, goodRight));
+
+        var goodLeft = new RoundResult { MessageRootContribution = UInt256.Zero, ProofBytes = new byte[] { 0x01 } };
+        var rightBad = new RoundResult { MessageRootContribution = null!, ProofBytes = new byte[] { 0x02 } };
+        Assert.ThrowsExactly<ArgumentNullException>(() => prover.Combine(goodLeft, rightBad));
+    }
 }

@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `PassThroughRoundProver.Combine` null-guard on `MessageRootContribution`
+
+- The hashing primitive at `Combine` dereferenced `left.MessageRootContribution.GetSpan()` and `right.MessageRootContribution.GetSpan()` without null-checking the `UInt256` references. Same iter-156 hashing-primitive defense pattern. 1 pinning test that asserts both `left`-bad and `right`-bad cases throw.
+
+Cumulative: 466 tests / 27 projects.
+
 ### Fixed — `MerkleTree` constructor + `ComputeRoot` null-leaf-entry guard
 
 - Both the constructor and the static `ComputeRoot` accepted `IReadOnlyList<UInt256>` but didn't per-entry null-check. A null leaf would NRE deep in `CombineHash`'s `GetSpan()` (or, for `ComputeRoot` with a single null leaf, return null `UInt256` to the caller). Added the same iter-158/168 per-entry index-naming guard as `MerkleProofSerializer.Encode` and `MerkleTree.Verify`. 2 pinning tests.

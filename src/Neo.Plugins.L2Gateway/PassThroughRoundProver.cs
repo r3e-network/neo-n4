@@ -25,6 +25,11 @@ public sealed class PassThroughRoundProver : IRoundProver
 
         if (right is null) return left;
 
+        // Defense-in-depth: MessageRootContribution is UInt256 (reference type) and
+        // `required` doesn't prevent null. Without these guards, GetSpan() NREs deep
+        // inside the round combine. Same iter-156 hashing-primitive pattern.
+        ArgumentNullException.ThrowIfNull(left.MessageRootContribution);
+        ArgumentNullException.ThrowIfNull(right.MessageRootContribution);
         Span<byte> rootBuf = stackalloc byte[64];
         left.MessageRootContribution.GetSpan().CopyTo(rootBuf);
         right.MessageRootContribution.GetSpan().CopyTo(rootBuf[32..]);

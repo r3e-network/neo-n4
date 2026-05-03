@@ -38,7 +38,9 @@ public sealed class ProofValidityCheck : IAuditCheck
         foreach (var batch in batches)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var publicInputs = _publicInputsResolver(batch);
+            var publicInputs = _publicInputsResolver(batch)
+                ?? throw new InvalidOperationException(
+                    $"publicInputsResolver returned null for batch {batch.BatchNumber}");
             var result = await _registry.VerifyAsync(batch, publicInputs, cancellationToken).ConfigureAwait(false);
             findings.Add(new AuditFinding
             {

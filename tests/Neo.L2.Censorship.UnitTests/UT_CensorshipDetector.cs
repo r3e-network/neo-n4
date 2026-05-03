@@ -161,6 +161,59 @@ public class UT_CensorshipDetector
     }
 
     [TestMethod]
+    public async Task DetectOverdueAsync_SurfacesNullReturnFromSourceAsContractViolation()
+    {
+        // Regression for iter 172: a buggy IForcedInclusionSource that returns null from
+        // DrainAsync would NRE inside the foreach, with no link to the source's contract
+        // violation. Now surfaces as InvalidOperationException naming DrainAsync.
+        var src = new BuggySource { ReturnsNullDrain = true };
+        var committee = new InMemorySequencerCommitteeProvider(1001);
+        var clock = new FakeClock { NowUnixSeconds = 1_700_010_000 };
+        var detector = new CensorshipDetector(src, committee, clock);
+        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            async () => await detector.DetectOverdueAsync());
+        StringAssert.Contains(ex.Message, "DrainAsync");
+    }
+
+    [TestMethod]
+    public async Task DetectOverdueAsync_SurfacesNullReturnFromCommitteeAsContractViolation()
+    {
+        // Same iter-172 pattern: a buggy ISequencerCommitteeProvider returning null from
+        // GetActiveCommitteeAsync would NRE on .Count.
+        var src = new InMemoryForcedInclusionSource(1001);
+        src.Enqueue(MkEntry(1, 1_700_000_000));
+        var committee = new BuggyCommittee();
+        var clock = new FakeClock { NowUnixSeconds = 1_700_010_000 };
+        var detector = new CensorshipDetector(src, committee, clock);
+        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            async () => await detector.DetectOverdueAsync());
+        StringAssert.Contains(ex.Message, "GetActiveCommitteeAsync");
+    }
+
+    private sealed class BuggySource : IForcedInclusionSource
+    {
+        public uint ChainId => 1001;
+        public bool ReturnsNullDrain { get; init; }
+        public ValueTask<bool> HasOverdueEntryAsync(uint nowUnixSeconds, CancellationToken cancellationToken = default)
+            => new ValueTask<bool>(true);
+        public ValueTask<IReadOnlyList<ForcedInclusionEntry>> DrainAsync(int max, CancellationToken cancellationToken = default)
+            => new ValueTask<IReadOnlyList<ForcedInclusionEntry>>(ReturnsNullDrain ? null! : Array.Empty<ForcedInclusionEntry>());
+        public ValueTask MarkConsumedAsync(ulong nonce, CancellationToken cancellationToken = default)
+            => ValueTask.CompletedTask;
+    }
+
+    private sealed class BuggyCommittee : ISequencerCommitteeProvider
+    {
+        public uint ChainId => 1001;
+        public ValueTask<IReadOnlyList<CommitteeMember>> GetActiveCommitteeAsync(CancellationToken cancellationToken = default)
+            => new ValueTask<IReadOnlyList<CommitteeMember>>((IReadOnlyList<CommitteeMember>)null!);
+        public ValueTask<bool> IsRegisteredAsync(ECPoint publicKey, CancellationToken cancellationToken = default)
+            => new ValueTask<bool>(false);
+        public ValueTask<int> GetMaxCommitteeSizeAsync(CancellationToken cancellationToken = default)
+            => new ValueTask<int>(7);
+    }
+
+    [TestMethod]
     public async Task PartiallyOverdue_OnlyOverdueReported()
     {
         var src = new InMemoryForcedInclusionSource(1001);

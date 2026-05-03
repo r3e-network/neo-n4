@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Callee-returns-null contract assertions in `CensorshipDetector` + `ProofValidityCheck`
+
+- Extended the iter-171 callee-contract pattern. (1) `CensorshipDetector.DetectOverdueAsync` now asserts the buggy-source contract: a null return from `IForcedInclusionSource.DrainAsync` or `ISequencerCommitteeProvider.GetActiveCommitteeAsync` surfaces as `InvalidOperationException` naming the contract method, instead of NREing inside the foreach / `.Count` access. (2) `ProofValidityCheck.RunAsync` now asserts `_publicInputsResolver(batch) != null` (was previously dereferenced on the next line); the existing `ProofVerificationResult` is `record struct` so it can't be null and doesn't need a guard.
+- 2 pinning tests with `BuggySource` and `BuggyCommittee` test doubles in `UT_CensorshipDetector.cs`.
+
+Cumulative: 457 tests / 27 projects.
+
 ### Fixed — `ChallengeOrchestrator.InspectAsync` null-guards + replayer-contract assertion
 
 - Three new defensive guards in `ChallengeOrchestrator.InspectAsync`. (1) `claimedCommitment.PreStateRoot`/`PostStateRoot` and `inputs.PreStateRoot` are `UInt256` reference types — `required` doesn't force non-null. The chain-id/batch-number/pre-state validation that follows would NRE on `.Equals(...)`. Same iter-156 hashing-primitive defense pattern. (2) After `_replayer.ReplayAsync(...)`, the `replayedRoot` is now checked for null — a buggy `IFraudProofGenerator` returning null would otherwise NRE inside `replayedRoot.Equals(...)` with no link to the replayer's contract violation; surfaced as `InvalidOperationException` naming `ReplayAsync`.

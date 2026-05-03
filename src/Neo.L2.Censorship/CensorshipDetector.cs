@@ -66,9 +66,18 @@ public sealed class CensorshipDetector
 
         // Drain candidates without consuming. We need entries' nonces + tx hashes + deadlines.
         var entries = await _source.DrainAsync(int.MaxValue, cancellationToken).ConfigureAwait(false);
+        // Defensive: a buggy IForcedInclusionSource that returns null would NRE in the
+        // foreach below with no link to the source's contract violation. Same iter-171
+        // pattern: surface the bad return value as InvalidOperationException with the
+        // contract method name.
+        if (entries is null)
+            throw new InvalidOperationException("IForcedInclusionSource.DrainAsync returned null");
         var reports = new List<CensorshipReport>();
 
         var committee = await _committee.GetActiveCommitteeAsync(cancellationToken).ConfigureAwait(false);
+        if (committee is null)
+            throw new InvalidOperationException(
+                "ISequencerCommitteeProvider.GetActiveCommitteeAsync returned null");
         if (committee.Count == 0)
         {
             // No active committee → every overdue entry is a fault but no responsible signer.

@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `MerkleTree` constructor + `ComputeRoot` null-leaf-entry guard
+
+- Both the constructor and the static `ComputeRoot` accepted `IReadOnlyList<UInt256>` but didn't per-entry null-check. A null leaf would NRE deep in `CombineHash`'s `GetSpan()` (or, for `ComputeRoot` with a single null leaf, return null `UInt256` to the caller). Added the same iter-158/168 per-entry index-naming guard as `MerkleProofSerializer.Encode` and `MerkleTree.Verify`. 2 pinning tests.
+
+Cumulative: 465 tests / 27 projects.
+
 ### Fixed — `L2BridgePlugin.DepositProcessor`/`WithdrawalProcessor` accessor null-handling
 
 - The two accessors used the `!` null-forgiving operator (`_depositProcessor!`), so a caller who accessed them before `Configure()` had run got the underlying `null` and NRE'd on the next field access. Replaced with `?? throw new InvalidOperationException("... accessed before Configure() — wire the L2BridgePlugin into the host first")` so the cause is named at the source. No pinning test (would require adding a new `Neo.Plugins.L2Bridge.UnitTests` project; the change is small and the throw message is self-explanatory).

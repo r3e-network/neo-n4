@@ -95,6 +95,25 @@ public class UT_MerkleTree
     }
 
     [TestMethod]
+    public void Constructor_RejectsNullLeafEntry()
+    {
+        // Regression for iter 179: null UInt256 leaf entry would NRE deep in the tree
+        // construction loop's CombineHash. Same iter-158/168 pattern; surface bad index.
+        var leaves = new UInt256?[] { UInt256.Zero, null, UInt256.Zero };
+        var ex = Assert.ThrowsExactly<ArgumentException>(() => new MerkleTree(leaves!));
+        StringAssert.Contains(ex.Message, "[1]");
+    }
+
+    [TestMethod]
+    public void ComputeRoot_RejectsNullLeafEntry()
+    {
+        // Same iter-179 guard on the static-method path.
+        var leaves = new UInt256?[] { null, UInt256.Zero };
+        var ex = Assert.ThrowsExactly<ArgumentException>(() => MerkleTree.ComputeRoot(leaves!));
+        StringAssert.Contains(ex.Message, "[0]");
+    }
+
+    [TestMethod]
     public void Verify_RejectsNullSiblingEntry()
     {
         // Regression for iter 168: Siblings[i] is a reference type; even with the

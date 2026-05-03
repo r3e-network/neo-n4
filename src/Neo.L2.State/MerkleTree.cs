@@ -30,6 +30,13 @@ public sealed class MerkleTree
     public MerkleTree(IReadOnlyList<UInt256> leaves)
     {
         ArgumentNullException.ThrowIfNull(leaves);
+        // Defense-in-depth: leaves[i] is UInt256 (reference type) and `required` doesn't
+        // prevent null entries even when the collection itself is non-null. Same iter-158
+        // / iter-168 pattern. Without this, CombineHash's GetSpan() would NRE deep in
+        // the tree-build loop with no link to the bad index.
+        for (var i = 0; i < leaves.Count; i++)
+            if (leaves[i] is null)
+                throw new ArgumentException($"leaves[{i}] is null", nameof(leaves));
         if (leaves.Count == 0)
         {
             _levels = [Array.Empty<UInt256>()];
@@ -61,6 +68,12 @@ public sealed class MerkleTree
     public static UInt256 ComputeRoot(IReadOnlyList<UInt256> leaves)
     {
         ArgumentNullException.ThrowIfNull(leaves);
+        // Defense-in-depth: same per-entry null-guard as the constructor above. Without
+        // this, leaves[0] is null returns null (single-leaf path), or CombineHash NREs
+        // in the loop. Same iter-158/168 pattern.
+        for (var i = 0; i < leaves.Count; i++)
+            if (leaves[i] is null)
+                throw new ArgumentException($"leaves[{i}] is null", nameof(leaves));
         if (leaves.Count == 0) return UInt256.Zero;
         if (leaves.Count == 1) return leaves[0];
 

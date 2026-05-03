@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Tests — Regression coverage for iter-147 `WithdrawalProcessor.Stage` null-guards
+
+- The iter-147 fix added `ArgumentNullException.ThrowIfNull` for the four `UInt160` fields on `WithdrawalRequest`. Pinned with regression tests so a future refactor can't silently drop them.
+- **2 new tests**: `WithdrawalProcessor_Stage_RejectsNullL2Sender` and `WithdrawalProcessor_Stage_RejectsNullL1Recipient` — both pass `null!` for the respective field and assert `ArgumentNullException`.
+
+Cumulative: 428 tests / 27 projects.
+
 ### Tests — Regression coverage for iter-146 `MessageBuilder.Build` null-guards
 
 - The iter-146 fix added `ArgumentNullException.ThrowIfNull` to `sender` / `receiver`. This iter pins the contract with two regression tests so a future "trust the caller" refactor can't silently drop the guards.

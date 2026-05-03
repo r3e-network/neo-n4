@@ -194,6 +194,41 @@ public class UT_Bridge
     }
 
     [TestMethod]
+    public void WithdrawalProcessor_Stage_RejectsNullL2Sender()
+    {
+        // Regression for iter 147: null UInt160 fields slipped past `required` (which only
+        // forces "must be set," not "non-null") and crashed deep in
+        // MessageHasher.HashWithdrawal's GetSpan(). Now caught at the API boundary.
+        var proc = new WithdrawalProcessor(LocalChain, RegistryWithGas());
+        var bad = new WithdrawalRequest
+        {
+            EmittingContract = UInt160.Zero,
+            L2Sender = null!,  // ← null
+            L1Recipient = Recipient,
+            L2Asset = GasL2,
+            Amount = new BigInteger(100),
+            Nonce = 1,
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => proc.Stage(bad));
+    }
+
+    [TestMethod]
+    public void WithdrawalProcessor_Stage_RejectsNullL1Recipient()
+    {
+        var proc = new WithdrawalProcessor(LocalChain, RegistryWithGas());
+        var bad = new WithdrawalRequest
+        {
+            EmittingContract = UInt160.Zero,
+            L2Sender = Sender,
+            L1Recipient = null!,  // ← null
+            L2Asset = GasL2,
+            Amount = new BigInteger(100),
+            Nonce = 1,
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => proc.Stage(bad));
+    }
+
+    [TestMethod]
     public void DepositPayload_Decode_RejectsTrailingBytes()
     {
         // Regression: previously the length check was `pos + amountLen > bytes.Length`,

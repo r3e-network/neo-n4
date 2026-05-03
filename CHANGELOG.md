@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `ChallengeOrchestrator.InspectWithBisectionAsync` null-guards (parity with `InspectAsync`)
+
+- `InspectAsync` got iter-171 null-guards on `claimedCommitment.PreStateRoot`/`PostStateRoot`/`inputs.PreStateRoot` (UInt256 reference type, `required` doesn't prevent null). `InspectWithBisectionAsync` was missed at that time. Brought to parity. Additionally added per-entry null guards on `challengerCheckpoints[i]` / `sequencerCheckpoints[i]` so a null entry surfaces with the bad index instead of NREing inside `[^1].Equals(...)` or BisectionGame's loop. 1 pinning test.
+
+Cumulative: 486 tests / 27 projects.
+
 ### Fixed — `BinaryTreeAggregator.Aggregate` validates `IRoundProver.Combine` return
 
 - A buggy `IRoundProver.Combine` returning null would propagate to the next round's `current[i*2]` as null, causing a confusing NRE deep inside `Combine` on the next round. Now caught at the source with round/slot index. Same iter-171/172/173 callee-contract pattern. 1 pinning test using a `NullReturningRoundProver` test double.

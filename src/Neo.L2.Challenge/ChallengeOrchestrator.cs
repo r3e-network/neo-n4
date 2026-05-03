@@ -94,6 +94,11 @@ public sealed class ChallengeOrchestrator
         ArgumentNullException.ThrowIfNull(inputs);
         ArgumentNullException.ThrowIfNull(challengerCheckpoints);
         ArgumentNullException.ThrowIfNull(sequencerCheckpoints);
+        // Same iter-171 defensive null-guards as InspectAsync. UInt256 fields are
+        // reference type and `required` doesn't prevent null.
+        ArgumentNullException.ThrowIfNull(claimedCommitment.PreStateRoot);
+        ArgumentNullException.ThrowIfNull(claimedCommitment.PostStateRoot);
+        ArgumentNullException.ThrowIfNull(inputs.PreStateRoot);
         if (claimedCommitment.ChainId != inputs.ChainId)
             throw new ArgumentException("commitment.ChainId != inputs.ChainId");
         if (claimedCommitment.BatchNumber != inputs.BatchNumber)
@@ -109,6 +114,19 @@ public sealed class ChallengeOrchestrator
                 $"checkpoint arrays must have the same length (challenger={challengerCheckpoints.Length}, sequencer={sequencerCheckpoints.Length})");
         if (challengerCheckpoints.Length < 2)
             throw new ArgumentException("checkpoint arrays must have length ≥ 2 (preState + at least one postState)");
+
+        // Per-entry null guards: BisectionGame combines these via .Equals(); a null
+        // entry would NRE deep in the bisection loop with no link to the bad index.
+        // Same iter-179 MerkleTree.ComputeRoot per-entry pattern applied here.
+        for (var i = 0; i < challengerCheckpoints.Length; i++)
+        {
+            if (challengerCheckpoints[i] is null)
+                throw new ArgumentException(
+                    $"challengerCheckpoints[{i}] is null", nameof(challengerCheckpoints));
+            if (sequencerCheckpoints[i] is null)
+                throw new ArgumentException(
+                    $"sequencerCheckpoints[{i}] is null", nameof(sequencerCheckpoints));
+        }
 
         // No fraud if checkpoints agree at the end.
         if (challengerCheckpoints[^1].Equals(sequencerCheckpoints[^1]))

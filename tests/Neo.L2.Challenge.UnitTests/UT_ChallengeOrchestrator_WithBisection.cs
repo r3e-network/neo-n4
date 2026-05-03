@@ -145,4 +145,21 @@ public class UT_ChallengeOrchestrator_WithBisection
         public ValueTask<UInt256> ReplayAsync(BatchExecutionRequest inputs, CancellationToken cancellationToken = default)
             => ValueTask.FromResult(UInt256.Zero);
     }
+
+    [TestMethod]
+    public async Task Bisection_RejectsNullCheckpointEntry()
+    {
+        // Regression for iter 196: a null entry in either checkpoint array would
+        // propagate to .Equals() in the no-fraud check or BisectionGame's loop,
+        // producing a confusing NRE deep in the bisection. Now caught at the source
+        // with the bad index named.
+        var orch = new ChallengeOrchestrator(new NoopReplayer());
+        var pre = H(0);
+        var bad = new UInt256?[] { pre, null, H(2) };
+        var good = new[] { pre, H(1), H(2) };
+
+        var ex = await Assert.ThrowsExactlyAsync<ArgumentException>(async () =>
+            await orch.InspectWithBisectionAsync(MkCommit(pre, H(2)), MkInputs(pre), bad!, good));
+        StringAssert.Contains(ex.Message, "[1]");
+    }
 }

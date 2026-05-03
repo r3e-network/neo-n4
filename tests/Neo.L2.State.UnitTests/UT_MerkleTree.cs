@@ -77,4 +77,37 @@ public class UT_MerkleTree
         var tampered = proof with { Leaf = H(999) };
         Assert.IsFalse(MerkleTree.Verify(tampered, tree.Root));
     }
+
+    [TestMethod]
+    public void Verify_RejectsNullLeaf()
+    {
+        // Regression for iter 168: Leaf is UInt256 (reference type) — `required` only
+        // forces it to be set, not non-null. Without the iter-168 null-guard, a null
+        // Leaf would NRE inside CombineHash's GetSpan() with no link to the bad caller.
+        var bad = new MerkleProof
+        {
+            Leaf = null!,
+            LeafIndex = 0,
+            Siblings = new[] { UInt256.Zero },
+            PathBitmap = 0,
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => MerkleTree.Verify(bad, UInt256.Zero));
+    }
+
+    [TestMethod]
+    public void Verify_RejectsNullSiblingEntry()
+    {
+        // Regression for iter 168: Siblings[i] is a reference type; even with the
+        // collection itself non-null, individual entries can still be null. The
+        // exception names the bad index so it's actionable.
+        var bad = new MerkleProof
+        {
+            Leaf = UInt256.Zero,
+            LeafIndex = 0,
+            Siblings = new UInt256?[] { UInt256.Zero, null, UInt256.Zero }!,
+            PathBitmap = 0,
+        };
+        var ex = Assert.ThrowsExactly<ArgumentException>(() => MerkleTree.Verify(bad, UInt256.Zero));
+        StringAssert.Contains(ex.Message, "[1]");
+    }
 }

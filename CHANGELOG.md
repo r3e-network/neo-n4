@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `MerkleTree.Verify` null-guards on proof.Leaf and Siblings entries
+
+- `MerkleTree.Verify` only null-checked the proof object itself; `proof.Leaf` (UInt256, reference type) and individual `proof.Siblings[d]` entries could still be null and would NRE inside `CombineHash`'s `GetSpan()` with no link to the bad caller. Same iter-158 pattern from `MerkleProofSerializer.Encode`. Now: top-level `ArgumentNullException.ThrowIfNull` on `proof.Leaf` and `proof.Siblings`, and the per-sibling check fires inside the loop with `Siblings[i]` index in the message.
+- 2 pinning tests in `UT_MerkleTree.cs`: `Verify_RejectsNullLeaf` and `Verify_RejectsNullSiblingEntry` (asserts the bad index appears in the exception).
+
+Cumulative: 446 tests / 27 projects.
+
 ### Fixed — `InMemoryMessageRouter`: null-hash NRE + caller-mutation corruption
 
 - `RecordFinalized(messageHash, proofBytes)` and `GetMessageProofAsync(messageHash, ...)` didn't null-guard `messageHash`. UInt256 is a reference type — null would NRE inside `ConcurrentDictionary`'s hash lookup with no link to the bad caller.

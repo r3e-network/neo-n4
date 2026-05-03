@@ -116,13 +116,20 @@ public sealed class MerkleTree
     public static bool Verify(MerkleProof proof, UInt256 expectedRoot)
     {
         ArgumentNullException.ThrowIfNull(proof);
+        // Defense-in-depth: Leaf and Siblings entries are UInt256 (reference type);
+        // `required` only forces "must be set," not "non-null." A null would NRE inside
+        // CombineHash's GetSpan() with no link to the bad caller. Same iter-158 pattern
+        // applied to MerkleProofSerializer.Encode.
+        ArgumentNullException.ThrowIfNull(proof.Leaf);
+        ArgumentNullException.ThrowIfNull(proof.Siblings);
         if (proof.Siblings.Count > 64)
             throw new ArgumentException("Path depth exceeds 64", nameof(proof));
 
         var current = proof.Leaf;
         for (var d = 0; d < proof.Siblings.Count; d++)
         {
-            var sibling = proof.Siblings[d];
+            var sibling = proof.Siblings[d] ?? throw new ArgumentException(
+                $"Siblings[{d}] is null", nameof(proof));
             var siblingIsLeft = ((proof.PathBitmap >> d) & 1UL) == 1UL;
             current = siblingIsLeft ? CombineHash(sibling, current) : CombineHash(current, sibling);
         }

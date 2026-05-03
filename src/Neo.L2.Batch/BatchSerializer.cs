@@ -75,6 +75,18 @@ public static class BatchSerializer
     public static byte[] Encode(L2BatchCommitment commitment)
     {
         ArgumentNullException.ThrowIfNull(commitment);
+        // Defense-in-depth: all 9 root fields are UInt256 (reference type) — null in
+        // any one would crash inside WriteUInt256's GetSpan(). Same iter-154/155/156
+        // hashing-primitive null-guard pattern.
+        ArgumentNullException.ThrowIfNull(commitment.PreStateRoot);
+        ArgumentNullException.ThrowIfNull(commitment.PostStateRoot);
+        ArgumentNullException.ThrowIfNull(commitment.TxRoot);
+        ArgumentNullException.ThrowIfNull(commitment.ReceiptRoot);
+        ArgumentNullException.ThrowIfNull(commitment.WithdrawalRoot);
+        ArgumentNullException.ThrowIfNull(commitment.L2ToL1MessageRoot);
+        ArgumentNullException.ThrowIfNull(commitment.L2ToL2MessageRoot);
+        ArgumentNullException.ThrowIfNull(commitment.DACommitment);
+        ArgumentNullException.ThrowIfNull(commitment.PublicInputHash);
         if (commitment.Proof.Length > ProofMaxBytes)
             throw new ArgumentException($"Proof bytes exceed maximum {ProofMaxBytes}", nameof(commitment));
 
@@ -184,6 +196,17 @@ public static class BatchSerializer
     public static byte[] EncodePublicInputs(PublicInputs inputs)
     {
         ArgumentNullException.ThrowIfNull(inputs);
+        // Defense-in-depth: 10 UInt256 fields, mirror StateRootCalculator.HashPublicInputs.
+        ArgumentNullException.ThrowIfNull(inputs.PreStateRoot);
+        ArgumentNullException.ThrowIfNull(inputs.PostStateRoot);
+        ArgumentNullException.ThrowIfNull(inputs.TxRoot);
+        ArgumentNullException.ThrowIfNull(inputs.ReceiptRoot);
+        ArgumentNullException.ThrowIfNull(inputs.WithdrawalRoot);
+        ArgumentNullException.ThrowIfNull(inputs.L2ToL1MessageRoot);
+        ArgumentNullException.ThrowIfNull(inputs.L2ToL2MessageRoot);
+        ArgumentNullException.ThrowIfNull(inputs.L1MessageHash);
+        ArgumentNullException.ThrowIfNull(inputs.DACommitment);
+        ArgumentNullException.ThrowIfNull(inputs.BlockContextHash);
         var buffer = new byte[PublicInputsSize];
         var span = buffer.AsSpan();
         var pos = 0;

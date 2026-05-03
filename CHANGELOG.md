@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — `BatchSerializer.Encode`/`EncodePublicInputs` defense-in-depth null-guards
+
+- Continued the iter-154/155/156 hashing-primitive null-guard pattern through the wire serializer. `BatchSerializer.Encode` now null-checks all 9 commitment `UInt256` fields before reaching `WriteUInt256`'s `GetSpan()`. `EncodePublicInputs` mirrors `StateRootCalculator.HashPublicInputs` with all 10 root fields. This finishes the cryptographic-primitive null-guard sweep across the codebase.
+
+Cumulative: 431 tests / 27 projects.
+
 ### Changed — `StateRootCalculator` defense-in-depth null-guards
 
 - Continued the iter-154/155 hashing-primitive null-guard pattern through `StateRootCalculator.HashBlockContext` (one `UInt256`) and `StateRootCalculator.HashPublicInputs` (ten `UInt256` fields). Each null-checked before reaching the `WriteRoot` / `GetSpan()` boundary.

@@ -120,4 +120,32 @@ public class UT_MetricsEmittingDAWriter
         public ValueTask<bool> IsAvailableAsync(DAReceipt receipt, CancellationToken cancellationToken = default)
             => ValueTask.FromResult(false);
     }
+
+    [TestMethod]
+    public async Task Publish_BuggyInnerReturnsNull_SurfacesContractViolation()
+    {
+        // Regression for iter 173: a buggy IDAWriter returning null DAReceipt would
+        // propagate to callers as a NRE on `receipt.Commitment` access. Now surfaced
+        // as a clear InvalidOperationException naming the contract method, and the
+        // failure metric is still bumped so dashboards see something.
+        var metrics = new InMemoryMetrics();
+        var inner = new NullReturningWriter();
+        var decorated = new MetricsEmittingDAWriter(inner, metrics);
+        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            async () => await decorated.PublishAsync(BuildRequest(1, new byte[] { 0xAA })));
+        StringAssert.Contains(ex.Message, "PublishAsync");
+        Assert.AreEqual(1, metrics.GetCounter(MetricNames.DAPublishFailures, ("mode", "External")),
+            "failure must be counted even on contract violation");
+        Assert.AreEqual(0, metrics.GetCounter(MetricNames.DAPublished, ("mode", "External")),
+            "success metric must NOT fire on null return");
+    }
+
+    private sealed class NullReturningWriter : IDAWriter
+    {
+        public DAMode Mode => DAMode.External;
+        public ValueTask<DAReceipt> PublishAsync(DAPublishRequest request, CancellationToken cancellationToken = default)
+            => new ValueTask<DAReceipt>((DAReceipt)null!);
+        public ValueTask<bool> IsAvailableAsync(DAReceipt receipt, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(false);
+    }
 }

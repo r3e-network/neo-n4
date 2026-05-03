@@ -254,6 +254,33 @@ public class UT_ReferenceBatchExecutor
     }
 
     [TestMethod]
+    public async Task ApplyBatchAsync_BuggyTxExecutorReturnsNull_SurfacesContractViolation()
+    {
+        // Regression for iter 173: a buggy ITransactionExecutor that returns null would
+        // propagate as a confusing NRE deep in the for loop. Now surfaced as
+        // InvalidOperationException naming the contract method.
+        var executor = new ReferenceBatchExecutor(
+            new NullReturningTxExecutor(),
+            new DerivedPostStateRootOracle());
+        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(async () =>
+            await executor.ApplyBatchAsync(new BatchExecutionRequest
+            {
+                ChainId = 1001, BatchNumber = 1, PreStateRoot = UInt256.Zero,
+                Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 0x01 } },
+                L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
+                BlockContext = SampleContext(),
+            }));
+        StringAssert.Contains(ex.Message, "ExecuteAsync");
+    }
+
+    private sealed class NullReturningTxExecutor : ITransactionExecutor
+    {
+        public ValueTask<TransactionExecutionResult> ExecuteAsync(
+            ReadOnlyMemory<byte> serializedTx, BatchBlockContext batchContext, CancellationToken cancellationToken = default)
+            => new ValueTask<TransactionExecutionResult>((TransactionExecutionResult)null!);
+    }
+
+    [TestMethod]
     public async Task DerivedPostStateRootOracle_RejectsNullPreStateRoot()
     {
         // Regression for iter 169: previously a null UInt256 input would NRE deep inside

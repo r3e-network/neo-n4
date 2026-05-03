@@ -57,7 +57,14 @@ public sealed class ReferenceBatchExecutor : IL2BatchExecutor
 
         foreach (var serializedTx in request.Transactions)
         {
-            var result = await _txExecutor.ExecuteAsync(serializedTx, request.BlockContext, cancellationToken).ConfigureAwait(false);
+            var result = await _txExecutor.ExecuteAsync(serializedTx, request.BlockContext, cancellationToken).ConfigureAwait(false)
+                ?? throw new InvalidOperationException("ITransactionExecutor.ExecuteAsync returned null");
+            // Defensive: even with `required` on the record fields, individual fields can
+            // be null. Receipt would NRE on the .Hash() call below; TxHash would NRE in
+            // MerkleTree.ComputeRoot. Surface as a clear contract violation. Same
+            // iter-171/172 callee-contract pattern.
+            ArgumentNullException.ThrowIfNull(result.Receipt);
+            ArgumentNullException.ThrowIfNull(result.TxHash);
             receipts.Add(result.Receipt);
             txHashes.Add(result.TxHash);
             totalGas += result.Receipt.GasConsumed;

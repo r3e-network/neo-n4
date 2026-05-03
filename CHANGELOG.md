@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Two more callee-contract assertions: `MetricsEmittingDAWriter` + `ReferenceBatchExecutor`
+
+- Continued the iter-171/172 sweep. (1) `MetricsEmittingDAWriter.PublishAsync` now asserts the inner writer's contract: a null `DAReceipt` return surfaces as `InvalidOperationException` naming `PublishAsync` (with the mode tag) and bumps the failure metric. Previously a downstream consumer would NRE on `receipt.Commitment`. (2) `ReferenceBatchExecutor.ApplyBatchAsync` now asserts `ITransactionExecutor.ExecuteAsync` returns non-null AND that `result.Receipt`/`result.TxHash` are non-null (would NRE inside `result.Receipt.Hash()` or `MerkleTree.ComputeRoot(txHashes)` containing nulls).
+- 2 pinning tests: `Publish_BuggyInnerReturnsNull_SurfacesContractViolation` (asserts the failure metric still ticks but the success metric does not) and `ApplyBatchAsync_BuggyTxExecutorReturnsNull_SurfacesContractViolation`.
+
+Cumulative: 459 tests / 27 projects.
+
 ### Fixed — Callee-returns-null contract assertions in `CensorshipDetector` + `ProofValidityCheck`
 
 - Extended the iter-171 callee-contract pattern. (1) `CensorshipDetector.DetectOverdueAsync` now asserts the buggy-source contract: a null return from `IForcedInclusionSource.DrainAsync` or `ISequencerCommitteeProvider.GetActiveCommitteeAsync` surfaces as `InvalidOperationException` naming the contract method, instead of NREing inside the foreach / `.Count` access. (2) `ProofValidityCheck.RunAsync` now asserts `_publicInputsResolver(batch) != null` (was previously dereferenced on the next line); the existing `ProofVerificationResult` is `record struct` so it can't be null and doesn't need a guard.

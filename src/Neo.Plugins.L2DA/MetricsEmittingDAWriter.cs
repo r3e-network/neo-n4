@@ -50,6 +50,17 @@ public sealed class MetricsEmittingDAWriter : IDAWriter
             _metrics.SafeIncrementCounter(MetricNames.DAPublishFailures, 1, _modeTag);
             throw;
         }
+        // Defensive: a buggy IDAWriter that returns null would propagate as a NRE deep
+        // in the caller (e.g. consumer dereferencing receipt.Commitment). Surface as a
+        // clear contract violation instead. Same iter-171/172 callee-contract pattern.
+        // Bumps the failure metric so operators still see something in the dashboard.
+        if (receipt is null)
+        {
+            sw.Stop();
+            _metrics.SafeIncrementCounter(MetricNames.DAPublishFailures, 1, _modeTag);
+            throw new InvalidOperationException(
+                $"IDAWriter.PublishAsync returned null (mode={_modeTag.Value})");
+        }
         sw.Stop();
         // Success metrics outside the try: a metric throw here would otherwise be caught
         // as a "publish failure" — a worst-case false alarm where the DA blob WAS

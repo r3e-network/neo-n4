@@ -285,6 +285,24 @@ public class UT_ChainAuditor
     }
 
     [TestMethod]
+    public async Task AuditAsync_RejectsNullBatchEntry()
+    {
+        // Regression for iter 169: previously a null batch entry would surface as a
+        // confusing NullReferenceException deep inside an audit check (e.g. ContinuityCheck's
+        // `cur.PreStateRoot.Equals(...)`). The audit-level guard now names the bad index.
+        var batches = new L2BatchCommitment[]
+        {
+            Mk(1001, 1, H(0), H(1), 100, 200),
+            null!,
+            Mk(1001, 3, H(2), H(3), 301, 400),
+        };
+        var auditor = new ChainAuditor().Register(new ContinuityCheck());
+        var ex = await Assert.ThrowsExactlyAsync<ArgumentException>(
+            async () => await auditor.AuditAsync(batches));
+        StringAssert.Contains(ex.Message, "[1]");
+    }
+
+    [TestMethod]
     public async Task AuditReport_SummarizeIsHumanReadable()
     {
         var batches = new[]

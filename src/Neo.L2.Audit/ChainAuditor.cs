@@ -61,6 +61,15 @@ public sealed class ChainAuditor
             };
         }
 
+        // Per-entry null guard before any field access. Without this, a null entry would
+        // surface as a confusing NullReferenceException deep inside an audit check (e.g.
+        // ContinuityCheck's `cur.PreStateRoot.Equals(...)`); the audit-level message
+        // names the bad index so the operator sees which batch is missing.
+        for (var i = 0; i < batches.Count; i++)
+        {
+            if (batches[i] is null)
+                throw new ArgumentException($"batches[{i}] is null", nameof(batches));
+        }
         var chainId = batches[0].ChainId;
         for (var i = 1; i < batches.Count; i++)
         {

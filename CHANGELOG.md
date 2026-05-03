@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Two more null-guard surfaces: `DerivedPostStateRootOracle` + `ChainAuditor` per-batch
+
+- `DerivedPostStateRootOracle.ResolveAsync` now null-guards `preStateRoot`, `receiptRoot`, and `blockContext` at the API boundary. Without these, a null `UInt256` would NRE inside `GetSpan()` with no link to the caller.
+- `ChainAuditor.AuditAsync` now per-entry null-checks `batches[i]` BEFORE any field access (the chainId/sort scan touches `.ChainId`/`.BatchNumber`). Without this, a null entry would surface as a confusing NRE deep inside an audit check (e.g. `ContinuityCheck`'s `cur.PreStateRoot.Equals(...)`); the audit-level message names the bad index so the operator sees which batch is missing.
+- 4 pinning tests: 3 for the oracle's reject-null-input cases, 1 for the auditor's null-batch-entry case.
+
+Cumulative: 450 tests / 27 projects.
+
 ### Fixed — `MerkleTree.Verify` null-guards on proof.Leaf and Siblings entries
 
 - `MerkleTree.Verify` only null-checked the proof object itself; `proof.Leaf` (UInt256, reference type) and individual `proof.Siblings[d]` entries could still be null and would NRE inside `CombineHash`'s `GetSpan()` with no link to the bad caller. Same iter-158 pattern from `MerkleProofSerializer.Encode`. Now: top-level `ArgumentNullException.ThrowIfNull` on `proof.Leaf` and `proof.Siblings`, and the per-sibling check fires inside the loop with `Siblings[i]` index in the message.

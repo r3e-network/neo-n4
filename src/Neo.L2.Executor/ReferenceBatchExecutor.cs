@@ -124,6 +124,13 @@ public sealed class DerivedPostStateRootOracle : IPostStateRootOracle
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        // Defense-in-depth: UInt256 is a reference type; null would NRE inside GetSpan()
+        // with no link to the caller. Same iter-156 hashing-primitive pattern applied to
+        // StateRootCalculator. (HashBlockContext also null-guards blockContext, but
+        // blockContext == null surfaces as a clearer message here.)
+        ArgumentNullException.ThrowIfNull(preStateRoot);
+        ArgumentNullException.ThrowIfNull(receiptRoot);
+        ArgumentNullException.ThrowIfNull(blockContext);
         var ctxHash = StateRootCalculator.HashBlockContext(blockContext);
         Span<byte> buf = stackalloc byte[32];
         var pre = preStateRoot.GetSpan();

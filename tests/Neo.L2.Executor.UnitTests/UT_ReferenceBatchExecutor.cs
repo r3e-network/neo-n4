@@ -254,6 +254,35 @@ public class UT_ReferenceBatchExecutor
     }
 
     [TestMethod]
+    public async Task DerivedPostStateRootOracle_RejectsNullPreStateRoot()
+    {
+        // Regression for iter 169: previously a null UInt256 input would NRE deep inside
+        // GetSpan() with no link to the bad caller. Same iter-156 hashing-primitive
+        // null-guard pattern, applied at the oracle's API boundary.
+        var oracle = new DerivedPostStateRootOracle();
+        var ctx = SampleContext();
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await oracle.ResolveAsync(null!, UInt256.Zero, ctx));
+    }
+
+    [TestMethod]
+    public async Task DerivedPostStateRootOracle_RejectsNullReceiptRoot()
+    {
+        var oracle = new DerivedPostStateRootOracle();
+        var ctx = SampleContext();
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await oracle.ResolveAsync(UInt256.Zero, null!, ctx));
+    }
+
+    [TestMethod]
+    public async Task DerivedPostStateRootOracle_RejectsNullBlockContext()
+    {
+        var oracle = new DerivedPostStateRootOracle();
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await oracle.ResolveAsync(UInt256.Zero, UInt256.Zero, null!));
+    }
+
+    [TestMethod]
     public void Receipt_HashStableAcrossInstances()
     {
         Receipt Mk() => new()

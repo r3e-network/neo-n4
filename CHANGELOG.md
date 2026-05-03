@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `L2BatchPlugin.OnBatchSealed` subscriber-failure isolation
+
+- A throwing `OnBatchSealed` subscriber would propagate its exception back to Neo's `Blockchain.Committed` via standard .NET event dispatch (first-throw aborts further dispatch + exception rethrows to event source), making a buggy downstream listener (e.g. `L2SettlementPlugin`) potentially destabilize block import. Refactored to iterate `GetInvocationList()` and try/catch each subscriber individually; failures bump the new `MetricNames.BatchSealedSubscriberFailures` counter (+catalog entry).
+- Extracted the dispatch into an `internal static DispatchSealed` so it can be unit-tested without spinning up a `NeoSystem`. Added `InternalsVisibleTo` for the test project. New `UT_L2BatchPlugin.cs` with 3 pinning tests: one-throws-others-still-fire, no-subscribers, and multi-throw-counter.
+
+Cumulative: 453 tests / 27 projects.
+
 ### Fixed — Two more null-guard surfaces: `DerivedPostStateRootOracle` + `ChainAuditor` per-batch
 
 - `DerivedPostStateRootOracle.ResolveAsync` now null-guards `preStateRoot`, `receiptRoot`, and `blockContext` at the API boundary. Without these, a null `UInt256` would NRE inside `GetSpan()` with no link to the caller.

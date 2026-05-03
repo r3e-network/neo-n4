@@ -17,6 +17,9 @@ public static class MetricNames
     /// <summary>Gauge: number of transactions in the most recently sealed batch.</summary>
     public const string BatchTxCount = "l2.batch.tx_count";
 
+    /// <summary>Counter: number of times an OnBatchSealed subscriber threw an exception.</summary>
+    public const string BatchSealedSubscriberFailures = "l2.batch.subscriber_failures";
+
     // ---- Settlement ----
 
     /// <summary>Counter: batches submitted to NeoHub successfully.</summary>

@@ -9,13 +9,14 @@
                         ┌─────────────────────────────────────────┐
                         │                Neo N3 / Neo 4 L1         │
                         │  ┌───────────────────────────────────┐   │
-                        │  │  NeoHub  (12 L1 contracts)         │   │
+                        │  │  NeoHub  (13 L1 contracts)         │   │
                         │  │  ChainRegistry · SharedBridge ·    │   │
                         │  │  SettlementManager · VerifierReg ·  │   │
                         │  │  MessageRouter · TokenRegistry ·    │   │
                         │  │  DARegistry · GovernanceController · │   │
                         │  │  EmergencyManager · ForcedInclusion · │   │
-                        │  │  SequencerBond · SequencerRegistry   │   │
+                        │  │  SequencerBond · SequencerRegistry · │   │
+                        │  │  OptimisticChallenge                 │   │
                         │  └───────────────────────────────────┘   │
                         └─────────────────────────────────────────┘
                                           │ JSON-RPC

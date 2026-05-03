@@ -23,7 +23,7 @@ ls ../neo/src/Neo  # confirm the sibling neo checkout
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 ```
 
-Expected: **162 tests pass across 19 projects**, ~10 seconds end-to-end.
+Expected: **468 tests pass across 25 projects**, ~10 seconds end-to-end.
 
 If your machine doesn't have network access, `/p:NuGetAudit=false` is what suppresses the
 audit hop to nuget.org.

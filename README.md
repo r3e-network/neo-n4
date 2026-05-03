@@ -1,120 +1,181 @@
 # Neo Elastic Network (`neo4`)
 
-> **Multi-L2 network on Neo 4 core, with shared bridge, proof aggregation, and native interoperability.**
+> **A multi-L2 network on Neo 4 core, with a shared bridge, proof aggregation, and native cross-chain messaging.**
 
-`neo4` is the consolidation repo for the Neo Elastic Network — a system that uses
+`neo4` is the consolidation repo for the **Neo Elastic Network** — a system that uses
 [`neo-project/neo`](https://github.com/neo-project/neo) Neo 4 core as the L2 execution
-kernel, anchors all L2 chains to a unified L1 contract suite (**NeoHub**) on Neo N3 / Neo 4
-L1, and aggregates proofs and inter-L2 messages through **Neo Gateway**.
+kernel, anchors every L2 chain to a unified L1 contract suite (**NeoHub**) on Neo N3 / Neo 4
+L1, and aggregates proofs and inter-L2 messages through an optional **Neo Gateway** layer.
 
-The full architecture spec is in [`doc.md`](./doc.md). For a fast tour:
+The architecture borrows the *shared-bridge / chain-registry / proof-aggregation* pattern
+from ZKsync Elastic Chain, rebuilt on Neo's stack: dBFT 2.0 finality, NEP-17 assets, NeoVM,
+NeoFS data availability.
 
-- [**`docs/getting-started.md`**](./docs/getting-started.md) — clone → test → run devnet in 5 minutes.
-- [**`docs/architecture-walkthrough.md`**](./docs/architecture-walkthrough.md) — narrative tour mapping every `doc.md` section to code.
-- [**`docs/telemetry.md`**](./docs/telemetry.md) — metric catalog, wiring example, Prometheus exposition format.
-- [**`ARCHITECTURE.md`**](./ARCHITECTURE.md) — English distillation of `doc.md`.
-- [**`IMPLEMENTATION_STATUS.md`**](./IMPLEMENTATION_STATUS.md) — per-phase coverage matrix + what's deferred.
-- [**`CONTRIBUTING.md`**](./CONTRIBUTING.md) — how to add a component, code style, PR checklist.
-- [**`AGENTS.md`**](./AGENTS.md) — guide for AI-assisted contributors.
+---
+
+## Table of contents
+
+1. [Architecture at a glance](#architecture-at-a-glance)
+2. [What's in the repo](#whats-in-the-repo)
+3. [Phased status](#phased-status)
+4. [Quick start](#quick-start)
+5. [Documentation map](#documentation-map)
+6. [License](#license)
+
+---
 
 ## Architecture at a glance
 
 ```
-Neo N3 / Neo 4 L1
-    │
-    ▼
-NeoHub (13 L1 contracts)
-  ChainRegistry · SharedBridge · SettlementManager · VerifierRegistry · MessageRouter
-  TokenRegistry · DARegistry · GovernanceController · EmergencyManager
-  ForcedInclusion · SequencerBond · SequencerRegistry · OptimisticChallenge
-    │
-    ▼
-Neo Gateway (Phase 5 — optional)
-  BinaryTreeAggregator + IRoundProver (default = pass-through; production = SP1 Compress / Halo2 / Risc0 fold)
-    │
-    ▼
-Multiple Neo 4 L2 chains
-  Each runs Neo 4 core + plugin suite (Batch, Settlement, Bridge, DA, Prover, Rpc, Gateway)
-  + 6 on-L2 native contracts (L2BridgeContract, L2MessageContract, L2BatchInfoContract, …)
+┌───────────────────────────────────────────────────────────────┐
+│                  Neo N3 / Neo 4 L1                            │
+│                                                               │
+│  NeoHub (13 contracts)                                        │
+│    ChainRegistry · SharedBridge · SettlementManager           │
+│    VerifierRegistry · MessageRouter · TokenRegistry           │
+│    DARegistry · GovernanceController · EmergencyManager       │
+│    ForcedInclusion · SequencerBond · SequencerRegistry        │
+│    OptimisticChallenge                                        │
+└───────────────────────────────────────────────────────────────┘
+                          │ JSON-RPC submitBatch / verify
+                          ▼
+┌───────────────────────────────────────────────────────────────┐
+│                  Neo Gateway (Phase 5, optional)              │
+│  Neo.Plugins.L2Gateway:                                       │
+│    BinaryTreeAggregator (log-N rounds)                        │
+│    IRoundProver — pluggable (default = pass-through hash;     │
+│       production swaps in SP1 Compress / Halo2 / Risc0 fold)  │
+└───────────────────────────────────────────────────────────────┘
+                          │
+       ┌──────────────────┼──────────────────┐
+       ▼                  ▼                  ▼
+┌────────────┐    ┌────────────┐    ┌────────────┐
+│ Neo L2 #1  │    │ Neo L2 #2  │    │   …        │
+│            │    │            │    │            │
+│ Neo 4 core │    │ Neo 4 core │    │            │
+│ + 8 L2     │    │ + 8 L2     │    │            │
+│   plugins  │    │   plugins  │    │            │
+│ + 6 native │    │ + 6 native │    │            │
+│   contracts│    │   contracts│    │            │
+└────────────┘    └────────────┘    └────────────┘
 ```
+
+L1 owns canonical assets, settlement, message routing, and governance. L2s execute, batch,
+and prove. Optional Gateway aggregates many L2s' proofs into one settlement post on L1.
+
+For a full English distillation of the architecture, see [`ARCHITECTURE.md`](./ARCHITECTURE.md).
+For the formal technical document, see [`WHITEPAPER.md`](./WHITEPAPER.md).
+For the master Chinese spec, see [`doc.md`](./doc.md).
+
+---
+
+## What's in the repo
+
+| Area              | Count     | Description                                                              |
+| ----------------- | --------- | ------------------------------------------------------------------------ |
+| Off-chain libraries | **15**  | `Neo.L2.{Abstractions,Audit,Batch,Bridge,Censorship,Challenge,Executor,ForcedInclusion,Messaging,Proving,Proving.Sp1,Sequencer,Settlement.Rpc,State,Telemetry}` |
+| Node plugins      | **8**     | `Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}`  |
+| Smart contracts   | **19**    | 13 NeoHub L1 + 6 L2 native; all type-check via `Neo.SmartContract.Framework` |
+| CLI tools         | **3**     | `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`                           |
+| Native FFI        | **1**     | `bridge/neo-zkvm-bridge` — Rust cdylib + C ABI for SP1 prover P/Invoke   |
+| Tests             | **468 / 25 projects**  | Module-level unit tests + integration tests + contract tests; all green |
+
+```
+neo4/
+├── README.md  ARCHITECTURE.md  WHITEPAPER.md  CHANGELOG.md
+├── IMPLEMENTATION_STATUS.md  CONTRIBUTING.md  AGENTS.md  LICENSE
+├── doc.md                                  # master spec (Chinese, authoritative)
+├── docs/                                   # operator + integrator guides
+├── src/
+│   ├── Neo.L2.Abstractions/                # interfaces + records (doc.md §19)
+│   ├── Neo.L2.{Batch,State,Bridge,Messaging,Executor}/
+│   ├── Neo.L2.{Sequencer,ForcedInclusion,Censorship,Challenge,Audit}/
+│   ├── Neo.L2.Proving/  Neo.L2.Proving.Sp1/
+│   ├── Neo.L2.Settlement.Rpc/
+│   ├── Neo.L2.Telemetry/                   # IL2Metrics + PrometheusExporter
+│   └── Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}/
+├── contracts/
+│   ├── NeoHub.* (13)                       # L1 contract suite
+│   └── L2Native.* (6)                      # on-L2 native contracts
+├── tools/
+│   ├── Neo.Stack.Cli/                      # neo-stack CLI
+│   ├── Neo.L2.Devnet/                      # in-process end-to-end demo runner
+│   └── Neo.Hub.Deploy/                     # declarative L1 deploy planner
+├── bridge/
+│   └── neo-zkvm-bridge/                    # Rust cdylib + C ABI
+└── tests/                                  # 468 tests / 25 projects
+```
+
+---
 
 ## Phased status
 
 Per [`doc.md` §18](./doc.md):
 
-| Phase | Goal                                | Status                                              |
-| ----- | ----------------------------------- | --------------------------------------------------- |
-| 0     | Sidechain PoC                       | ✅ MVP integration test passes                      |
-| 1     | NeoHub v0 + Shared Bridge           | ✅ All 13 NeoHub contracts compile + deploy planner |
-| 2     | Batch Settlement                    | ✅ Real `KeyedStateStore` continuity verified       |
-| 3     | Optimistic Challenge Window         | ✅ `OptimisticChallenge` + `BisectionGame` (log-N)  |
-| 4     | NeoVM2 / RISC-V ZK Validity Proof   | 🟡 SP1 FFI bridge scaffolded                        |
-| 5     | Neo Gateway proof aggregation       | 🟡 Recursive structure ready; round-prover stub    |
-| 6     | Neo Stack CLI                       | 🟡 8 subcommands scaffolded                         |
+| Phase | Goal                                | Status | Evidence                                                  |
+| ----- | ----------------------------------- | :----: | --------------------------------------------------------- |
+| 0     | Sidechain PoC                       | ✅     | MVP integration test passes end-to-end                    |
+| 1     | NeoHub v0 + Shared Bridge           | ✅     | All 13 NeoHub contracts compile; deploy planner emits 13-step bundle |
+| 2     | Batch Settlement                    | ✅     | Real `KeyedStateStore` continuity verified across batches |
+| 3     | Optimistic Challenge Window         | ✅     | `OptimisticChallenge` contract + `BisectionGame` (log-N narrowing) |
+| 4     | NeoVM 2 / RISC-V ZK Validity Proof  | 🟡     | SP1 FFI bridge scaffolded; `--features real-prover` flips to native |
+| 5     | Neo Gateway proof aggregation       | 🟡     | `BinaryTreeAggregator` + pluggable `IRoundProver` (default = pass-through) |
+| 6     | Neo Stack CLI / templates           | 🟡     | 8 subcommands scaffolded                                  |
 
-## Repo layout
+Legend: ✅ done · 🟡 substantial scaffolding + tests · 🔴 stub.
 
-```
-neo4/
-├── doc.md / ARCHITECTURE.md / CHANGELOG.md / IMPLEMENTATION_STATUS.md
-├── CONTRIBUTING.md / AGENTS.md / docs/
-├── src/
-│   ├── Neo.L2.Abstractions / Batch / State / Bridge / Messaging
-│   ├── Neo.L2.Proving / Neo.L2.Proving.Sp1
-│   ├── Neo.L2.Executor (incl. KeyedStateStore + KeyedStateRootOracle)
-│   ├── Neo.L2.ForcedInclusion / Sequencer / Censorship / Challenge / Audit
-│   ├── Neo.L2.Settlement.Rpc
-│   └── Neo.Plugins.L2{Batch,Settlement,Bridge,DA,Prover,Rpc,Gateway}
-├── contracts/
-│   ├── NeoHub.*/                # 13 L1 contracts
-│   └── L2Native.*/              # 6 on-L2 native contracts
-├── tools/
-│   ├── Neo.Stack.Cli/           # neo-stack CLI
-│   ├── Neo.L2.Devnet/           # neo-l2-devnet runnable demo (state continuity + audit)
-│   └── Neo.Hub.Deploy/          # neo-hub-deploy declarative L1 deploy planner
-├── bridge/
-│   └── neo-zkvm-bridge/         # Rust cdylib + C ABI for SP1 prover P/Invoke
-└── tests/                       # 320 tests across 21 test projects
-```
+Detailed coverage per project: [`IMPLEMENTATION_STATUS.md`](./IMPLEMENTATION_STATUS.md).
+
+---
 
 ## Quick start
 
-Requires **.NET 10 SDK** (`dotnet 10.0.x`) and a sibling clone of
+**Requires** .NET 10 SDK (`dotnet --version` must report `10.0.x`) and a sibling clone of
 [`neo-project/neo`](https://github.com/neo-project/neo) at `../neo`.
 
 ```bash
-# Type-check + run all 320 tests
+git clone https://github.com/neo-project/neo4
+cd neo4
+
+# Type-check everything + run all 468 tests (~10 seconds)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
-# Same plus a live HTTP /metrics scrape
-dotnet run --project tools/Neo.L2.Devnet -- 5 --metrics-port 9090
-
-# Run the in-process devnet (state-root continuity + audit pass)
+# Run the in-process devnet (5 batches, real state-root continuity, post-run audit)
 dotnet run --project tools/Neo.L2.Devnet -- 5
 
-# Generate a NeoHub deploy bundle
-dotnet run --project tools/Neo.Hub.Deploy -- scaffold --output deploy-plan.json
-dotnet run --project tools/Neo.Hub.Deploy -- plan --plan deploy-plan.json --output bundle.json
+# Same plus a live HTTP /metrics scrape at :9090
+dotnet run --project tools/Neo.L2.Devnet -- 5 --metrics-port 9090
 
-# Build a smart contract (type-check only without nccs)
+# Generate a NeoHub deploy bundle (declarative, dependency-resolved)
+dotnet run --project tools/Neo.Hub.Deploy -- scaffold --output deploy-plan.json
+dotnet run --project tools/Neo.Hub.Deploy -- plan     --plan deploy-plan.json --output bundle.json
+
+# Type-check a smart contract (no nccs required)
 dotnet build contracts/NeoHub.ChainRegistry /p:NuGetAudit=false /p:DisableNccs=true
 ```
 
-See [`docs/getting-started.md`](./docs/getting-started.md) for the annotated walkthrough.
+A 5-minute walkthrough is in [`docs/getting-started.md`](./docs/getting-started.md).
 
-## What ships in this repo
+---
 
-- **19 smart contracts** (13 NeoHub L1 + 6 L2 native), all type-checked against
-  [`Neo.SmartContract.Framework`](https://github.com/neo-project/neo-devpack-dotnet).
-- **15 off-chain libraries** with deterministic encodings (every wire format has byte-layout tests),
-  real Merkle state-root computation, multisig + optimistic + ZK-mock provers,
-  JSON-RPC client, end-to-end audit framework, and a production-grade telemetry stack
-  (Prometheus exporter + `/metrics` + `/healthz` + `/readyz` HTTP endpoints).
-- **8 neo-node plugins** (`Neo.Plugins.L2*` — Batch, Settlement, Bridge, DA, Prover, Rpc, Gateway, Metrics)
-  extending `Neo.Plugins.Plugin`.
-- **3 CLI tools** (`neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`).
-- **1 Rust FFI bridge** crate (`neo-zkvm-bridge`) for SP1 prover P/Invoke.
-- **320 tests / 21 test projects**, all green.
+## Documentation map
+
+| Document                                                                | Audience              | Purpose                                                              |
+| ----------------------------------------------------------------------- | --------------------- | -------------------------------------------------------------------- |
+| [`README.md`](./README.md)                                              | everyone              | This file. What is `neo4`, how to run it.                            |
+| [`WHITEPAPER.md`](./WHITEPAPER.md)                                      | architects, reviewers | Formal technical document — design, security model, comparison.      |
+| [`ARCHITECTURE.md`](./ARCHITECTURE.md)                                  | engineers             | English distillation of `doc.md` §-by-§ for quick cross-reference.   |
+| [`doc.md`](./doc.md)                                                    | spec authors          | Master architecture spec (Chinese, authoritative).                   |
+| [`IMPLEMENTATION_STATUS.md`](./IMPLEMENTATION_STATUS.md)                | reviewers             | What's built vs deferred, per project.                               |
+| [`CHANGELOG.md`](./CHANGELOG.md)                                        | reviewers             | Per-iteration change log.                                            |
+| [`docs/getting-started.md`](./docs/getting-started.md)                  | new contributors      | Clone → test → run devnet in 5 minutes.                              |
+| [`docs/architecture-walkthrough.md`](./docs/architecture-walkthrough.md) | engineers             | Narrative tour mapping every `doc.md` section to code.               |
+| [`docs/telemetry.md`](./docs/telemetry.md)                              | operators             | Metric catalog, wiring example, Prometheus exposition format.        |
+| [`docs/security-model.md`](./docs/security-model.md)                    | operators, reviewers  | What L1 guarantees, threat → mitigation table, operator checklist.   |
+| [`CONTRIBUTING.md`](./CONTRIBUTING.md)                                  | contributors          | Layout, conventions, PR checklist.                                   |
+| [`AGENTS.md`](./AGENTS.md)                                              | AI tooling            | Guide for AI-assisted contributors.                                  |
+
+---
 
 ## License
 

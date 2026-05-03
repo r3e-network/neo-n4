@@ -128,6 +128,23 @@ public class UT_InMemorySequencerCommitteeProvider
     }
 
     [TestMethod]
+    public void Constructor_ValidatesMaxCommitteeSize()
+    {
+        // Regression for iter 190: previously the ctor accepted maxCommitteeSize = 0
+        // (every Register would throw "full" silently), -1 (same), or > 64 (exceeds
+        // dBFT 2.0 practical committee bound). Symmetric with SetMaxCommitteeSize.
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(
+            () => new InMemorySequencerCommitteeProvider(1001, 0));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(
+            () => new InMemorySequencerCommitteeProvider(1001, -1));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(
+            () => new InMemorySequencerCommitteeProvider(1001, 65));
+        // Boundary: 1 and 64 must succeed.
+        new InMemorySequencerCommitteeProvider(1001, 1);
+        new InMemorySequencerCommitteeProvider(1001, 64);
+    }
+
+    [TestMethod]
     public void SetMaxCommitteeSize_RejectsShrinkBelowCurrentCount()
     {
         // Regression: previously SetMaxCommitteeSize(2) on a 5-member committee silently

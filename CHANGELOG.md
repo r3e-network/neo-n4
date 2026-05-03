@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `InMemorySequencerCommitteeProvider` ctor validates `maxCommitteeSize`
+
+- `SetMaxCommitteeSize` validates the range `[1..64]`; the constructor did not. Operator-supplied `0` silently accepted every `Register` call as "committee full", `-1` same, and `> 64` exceeded the dBFT 2.0 practical bound. Now symmetric: surface the misconfig at construction time, not at first `Register`. 1 pinning test covers `0` / `-1` / `65` reject and `1` / `64` boundary accept.
+
+Cumulative: 480 tests / 27 projects.
+
 ### Fixed — `RpcSettlementClient.SubmitBatchAsync` validates `SignAndSendAsync` return
 
 - A buggy `SignAndSendAsync` delegate returning null `UInt256` would propagate as a NRE further downstream — typically an L1-tracker dereferencing the tx hash. Same iter-171/172/173 callee-contract pattern: surface the bad return as `InvalidOperationException` naming the delegate. Made `SubmitBatchAsync` async to enable awaiting and validating the result. 1 pinning test using a delegate that returns `(UInt256)null!`.

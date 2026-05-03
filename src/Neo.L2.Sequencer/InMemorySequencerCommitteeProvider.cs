@@ -20,6 +20,13 @@ public sealed class InMemorySequencerCommitteeProvider : ISequencerCommitteeProv
     /// <summary>Construct against a chain id and committee size.</summary>
     public InMemorySequencerCommitteeProvider(uint chainId, int maxCommitteeSize = 21, IL2Metrics? metrics = null)
     {
+        // Symmetric validation with SetMaxCommitteeSize: range [1..64]. Without this, a
+        // ctor-time `0` or `-1` accepts every Register call as "full" silently, and
+        // `>64` exceeds dBFT 2.0's practical committee bound. Surface the misconfig at
+        // construction time, not at first Register.
+        if (maxCommitteeSize < 1 || maxCommitteeSize > 64)
+            throw new ArgumentOutOfRangeException(nameof(maxCommitteeSize),
+                $"maxCommitteeSize {maxCommitteeSize} must be in [1, 64]");
         ChainId = chainId;
         _maxSize = maxCommitteeSize;
         _metrics = metrics ?? NoOpMetrics.Instance;

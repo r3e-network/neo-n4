@@ -50,6 +50,9 @@ public sealed class InMemoryMessageRouter : IMessageRouter
     public ValueTask<ReadOnlyMemory<byte>?> GetMessageProofAsync(UInt256 messageHash, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        // Null UInt256 would NRE inside ConcurrentDictionary's hash lookup; surface
+        // it at the API boundary like the iter-148/149 sweep.
+        ArgumentNullException.ThrowIfNull(messageHash);
         if (!_finalized.TryGetValue(messageHash, out var entry))
             return new ValueTask<ReadOnlyMemory<byte>?>((ReadOnlyMemory<byte>?)null);
         return new ValueTask<ReadOnlyMemory<byte>?>(entry.ProofBytes);
@@ -59,9 +62,17 @@ public sealed class InMemoryMessageRouter : IMessageRouter
     /// Mark a message as finalized in a particular batch and remember the proof bytes for later
     /// retrieval by <see cref="GetMessageProofAsync"/>. Used by tests / settlement plugins.
     /// </summary>
+    /// <remarks>
+    /// Defensive copy: ReadOnlyMemory&lt;byte&gt; gives immutability semantics for the *view*,
+    /// but the underlying array can still be mutated through other references. Without
+    /// the copy, a caller who reuses a scratch buffer or mutates their copy after
+    /// passing it in would silently corrupt the stored proof. Same pattern as
+    /// InMemoryL2RpcStore.RecordWithdrawalProof.
+    /// </remarks>
     public void RecordFinalized(UInt256 messageHash, ReadOnlyMemory<byte> proofBytes)
     {
-        _finalized[messageHash] = new FinalizedEntry(proofBytes);
+        ArgumentNullException.ThrowIfNull(messageHash);
+        _finalized[messageHash] = new FinalizedEntry(proofBytes.ToArray());
     }
 
     private sealed record FinalizedEntry(ReadOnlyMemory<byte> ProofBytes);

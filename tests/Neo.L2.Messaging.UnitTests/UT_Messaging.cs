@@ -165,4 +165,50 @@ public class UT_Messaging
         foreach (var th in threads) th.Join();
         Assert.IsNull(failure, $"concurrent access threw: {failure}");
     }
+
+    [TestMethod]
+    public void Router_RecordFinalized_RejectsNullHash()
+    {
+        // Regression for iter 167: previously a null UInt256 messageHash would NRE
+        // inside ConcurrentDictionary's hash lookup with no link back to the bad
+        // caller. Same iter-148/149 pattern.
+        var router = new InMemoryMessageRouter();
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => router.RecordFinalized(null!, new byte[] { 0x01 }));
+    }
+
+    [TestMethod]
+    public async Task Router_GetMessageProof_RejectsNullHash()
+    {
+        var router = new InMemoryMessageRouter();
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await router.GetMessageProofAsync(null!));
+    }
+
+    [TestMethod]
+    public async Task Router_RecordFinalized_DefensiveCopyProtectsAgainstCallerMutation()
+    {
+        // Regression for iter 167: ReadOnlyMemory<byte>.ToArray() defensive copy means a
+        // caller who reuses a scratch buffer or mutates their bytes after RecordFinalized
+        // returns CANNOT silently corrupt the stored proof. Same pattern as
+        // InMemoryL2RpcStore.RecordWithdrawalProof.
+        var router = new InMemoryMessageRouter();
+        var hashBytes = new byte[32]; hashBytes[0] = 0xAA;
+        var hash = new UInt256(hashBytes);
+        var scratch = new byte[] { 0x11, 0x22, 0x33 };
+
+        router.RecordFinalized(hash, scratch);
+
+        // Mutate the scratch buffer AFTER RecordFinalized — must not affect stored proof.
+        scratch[0] = 0xFF;
+        scratch[1] = 0xFF;
+        scratch[2] = 0xFF;
+
+        var stored = await router.GetMessageProofAsync(hash);
+        Assert.IsNotNull(stored);
+        var bytes = stored.Value.ToArray();
+        Assert.AreEqual(0x11, bytes[0]);
+        Assert.AreEqual(0x22, bytes[1]);
+        Assert.AreEqual(0x33, bytes[2]);
+    }
 }

@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `InMemoryL2RpcStore` ctor: L1-sentinel chainId + SecurityLevel range
+
+- `InMemoryL2RpcStore` ctor accepted `chainId = 0` (the L1 sentinel) silently — every subsequent RPC `AssertOurChain` would later fail with a misleading "differs from local 0" comparison. Now uses `ChainIdValidator.ValidateL2`. Same path also accepted `(SecurityLevel)99` silently — would propagate as `levelName = "99"` in RPC responses. Now range-checked. 2 pinning tests.
+
+Cumulative: 489 tests / 27 projects.
+
 ### Fixed — RISC-V prover/verifier ctors null-guard `verificationKeyId`
 
 - `Sp1RiscVProver`, `Sp1RiscVVerifier`, `MockRiscVProver`, `MockRiscVVerifier` ctors all accepted a null `UInt256 verificationKeyId` silently. The null would later surface as a iter-159 `RiscVProofPayload.Encode` "VerificationKeyId is null" — naming the payload field but not the actual producer (the prover/verifier ctor that took the bad value). Surface at the source. No pinning tests (4 trivial ctor guards; existing tests still pass with valid VKs).

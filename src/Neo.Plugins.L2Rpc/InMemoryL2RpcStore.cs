@@ -30,7 +30,14 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore
     /// <summary>Construct with the chain id and its published security label.</summary>
     public InMemoryL2RpcStore(uint chainId, SecurityLevel level)
     {
-        ChainId = chainId;
+        // Reject the L1-sentinel chain id (0) — every RPC call would later fail
+        // AssertOurChain with a misleading "differs from local 0" comparison.
+        ChainId = Neo.L2.ChainIdValidator.ValidateL2(chainId);
+        // Range-check the SecurityLevel byte enum so a `(SecurityLevel)99` cast
+        // doesn't silently propagate as `levelName = "99"` in RPC responses.
+        if (level is not (SecurityLevel.Sidechain or SecurityLevel.Settled or SecurityLevel.Optimistic or SecurityLevel.Validity))
+            throw new ArgumentOutOfRangeException(nameof(level),
+                $"SecurityLevel {(byte)level} not in [0..3]");
         SecurityLevel = level;
     }
 

@@ -212,6 +212,25 @@ public class UT_L2RpcMethods
     }
 
     [TestMethod]
+    public void Store_Constructor_RejectsL1ChainIdSentinel()
+    {
+        // Regression for iter 199: chainId = 0 is the L1 sentinel and never valid for
+        // an L2 store. Without this guard, every RPC AssertOurChain would later reject
+        // with a misleading "differs from local 0" comparison.
+        Assert.ThrowsExactly<System.IO.InvalidDataException>(
+            () => new InMemoryL2RpcStore(0, SecurityLevel.Optimistic));
+    }
+
+    [TestMethod]
+    public void Store_Constructor_RejectsOutOfRangeSecurityLevel()
+    {
+        // SecurityLevel range-check at ctor — without it `(SecurityLevel)99` would
+        // silently propagate as `levelName = "99"` in RPC responses.
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(
+            () => new InMemoryL2RpcStore(1001, (SecurityLevel)99));
+    }
+
+    [TestMethod]
     public void Store_RejectsNullKey_AcrossEntryPoints()
     {
         // Regression for iter 184: Dictionary<UInt256/UInt160, T>.TryGetValue(null) /

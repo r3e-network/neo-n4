@@ -97,6 +97,9 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore
     /// </remarks>
     public void RecordWithdrawalProof(UInt256 leafHash, byte[] proofBytes)
     {
+        // Same iter-148/183 pattern: surface null UInt256 / UInt160 keys at the API
+        // boundary instead of as a generic Dictionary "key" message.
+        ArgumentNullException.ThrowIfNull(leafHash);
         ArgumentNullException.ThrowIfNull(proofBytes);
         _withdrawalProofs[leafHash] = (byte[])proofBytes.Clone();
     }
@@ -107,6 +110,7 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore
     /// </remarks>
     public void RecordMessageProof(UInt256 messageHash, byte[] proofBytes)
     {
+        ArgumentNullException.ThrowIfNull(messageHash);
         ArgumentNullException.ThrowIfNull(proofBytes);
         _messageProofs[messageHash] = (byte[])proofBytes.Clone();
     }
@@ -132,22 +136,34 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore
         _stateRoots.TryGetValue(batchNumber, out var r) ? r : UInt256.Zero;
 
     /// <inheritdoc />
-    public ReadOnlyMemory<byte>? GetWithdrawalProof(UInt256 leafHash) =>
-        _withdrawalProofs.TryGetValue(leafHash, out var p) ? p : null;
+    public ReadOnlyMemory<byte>? GetWithdrawalProof(UInt256 leafHash)
+    {
+        ArgumentNullException.ThrowIfNull(leafHash);
+        return _withdrawalProofs.TryGetValue(leafHash, out var p) ? p : null;
+    }
 
     /// <inheritdoc />
-    public ReadOnlyMemory<byte>? GetMessageProof(UInt256 messageHash) =>
-        _messageProofs.TryGetValue(messageHash, out var p) ? p : null;
+    public ReadOnlyMemory<byte>? GetMessageProof(UInt256 messageHash)
+    {
+        ArgumentNullException.ThrowIfNull(messageHash);
+        return _messageProofs.TryGetValue(messageHash, out var p) ? p : null;
+    }
 
     /// <inheritdoc />
     public DepositStatus? GetL1DepositStatus(uint sourceChainId, ulong nonce) =>
         _deposits.TryGetValue((sourceChainId, nonce), out var s) ? s : null;
 
     /// <inheritdoc />
-    public UInt160? GetCanonicalAsset(UInt160 l2Asset) =>
-        _l1ByL2.TryGetValue(l2Asset, out var l1) ? l1 : null;
+    public UInt160? GetCanonicalAsset(UInt160 l2Asset)
+    {
+        ArgumentNullException.ThrowIfNull(l2Asset);
+        return _l1ByL2.TryGetValue(l2Asset, out var l1) ? l1 : null;
+    }
 
     /// <inheritdoc />
-    public UInt160? GetBridgedAsset(UInt160 l1Asset) =>
-        _l2ByL1.TryGetValue(l1Asset, out var l2) ? l2 : null;
+    public UInt160? GetBridgedAsset(UInt160 l1Asset)
+    {
+        ArgumentNullException.ThrowIfNull(l1Asset);
+        return _l2ByL1.TryGetValue(l1Asset, out var l2) ? l2 : null;
+    }
 }

@@ -212,6 +212,27 @@ public class UT_L2RpcMethods
     }
 
     [TestMethod]
+    public void Store_RejectsNullKey_AcrossEntryPoints()
+    {
+        // Regression for iter 184: Dictionary<UInt256/UInt160, T>.TryGetValue(null) /
+        // setter[null] throws ArgumentNullException with a generic "key" message. Surface
+        // null at the API boundary with the actual parameter name. Same iter-148/183 pattern.
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
+
+        // Setters
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => store.RecordWithdrawalProof(null!, new byte[] { 0x01 }));
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => store.RecordMessageProof(null!, new byte[] { 0x01 }));
+
+        // Getters
+        Assert.ThrowsExactly<ArgumentNullException>(() => store.GetWithdrawalProof(null!));
+        Assert.ThrowsExactly<ArgumentNullException>(() => store.GetMessageProof(null!));
+        Assert.ThrowsExactly<ArgumentNullException>(() => store.GetCanonicalAsset(null!));
+        Assert.ThrowsExactly<ArgumentNullException>(() => store.GetBridgedAsset(null!));
+    }
+
+    [TestMethod]
     public void GetL1DepositStatus_RoundTrips()
     {
         var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);

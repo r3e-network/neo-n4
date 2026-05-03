@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `InMemoryL2RpcStore` null-key sweep (6 entry points)
+
+- Closed the iter-148/183 Dictionary-key null-guard pattern in 6 more entry points: `RecordWithdrawalProof`/`RecordMessageProof` (setters add explicit guards on `leafHash`/`messageHash` keys; the byte-payload guards already existed), and `GetWithdrawalProof`/`GetMessageProof`/`GetCanonicalAsset`/`GetBridgedAsset` (getters now null-guard their `UInt256`/`UInt160` keys instead of relying on `Dictionary<,>.TryGetValue(null)`'s generic message). 1 pinning test asserts all 6 entry points reject null with a clear `ArgumentNullException`.
+
+Cumulative: 472 tests / 27 projects.
+
 ### Fixed — `AssetRegistry` lookup/setter null-guard sweep
 
 - `TryGetByL1`, `TryGetByL2`, and `SetActive` previously delegated null-key handling to `Dictionary<UInt160, T>` whose `TryGetValue(null)` throws `ArgumentNullException` with a generic `"key"` message. Surface the bad arg at the API boundary so the operator sees which parameter is wrong. Same iter-148 pattern as `Register`. 3 pinning tests.

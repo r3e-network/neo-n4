@@ -89,7 +89,9 @@ public sealed class BinaryTreeAggregator : IGatewayAggregator
             {
                 var left = current[i * 2];
                 var right = (i * 2 + 1 < current.Length) ? current[i * 2 + 1] : null;
-                next[i] = _roundProver.Combine(left, right);
+                next[i] = _roundProver.Combine(left, right)
+                    ?? throw new InvalidOperationException(
+                        $"IRoundProver.Combine returned null at round {rounds}, slot {i}");
             }
             current = next;
             rounds++;

@@ -161,6 +161,26 @@ public class UT_BinaryTreeAggregator
     }
 
     [TestMethod]
+    public void Aggregate_BuggyRoundProverReturnsNull_SurfacesContractViolation()
+    {
+        // Regression for iter 195: a buggy IRoundProver.Combine returning null would
+        // propagate to the next round's `current[i*2]` as null, causing a confusing
+        // NRE deep inside Combine on the next round. Now caught at the source with
+        // round/slot index. Same iter-171/172 callee-contract pattern.
+        var agg = new BinaryTreeAggregator(new NullReturningRoundProver(), new InMemoryMetrics());
+        agg.Submit(MkBatch(1001, new byte[] { 0x01 }, UInt256.Zero));
+        agg.Submit(MkBatch(1002, new byte[] { 0x02 }, UInt256.Zero));
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() => agg.Aggregate());
+        StringAssert.Contains(ex.Message, "Combine");
+    }
+
+    private sealed class NullReturningRoundProver : IRoundProver
+    {
+        public byte BackendId => 0xBB;
+        public RoundResult Combine(RoundResult left, RoundResult? right) => null!;
+    }
+
+    [TestMethod]
     public void PassThroughRoundProver_Combine_RejectsNullMessageRootContribution()
     {
         // Regression for iter 180: MessageRootContribution is UInt256 (reference type),

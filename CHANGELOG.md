@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `BatchSealer` ctor revalidates `L2BatchSettings` positivity
+
+- `L2BatchSettings.From` validates `Max*` positivity at config-parse time, but `init` setters allow direct construction (tests / programmatic wiring) to bypass that path. A caller writing `new L2BatchSettings { MaxBlocksPerBatch = 0 }` would slip past the parser, then `BatchSealer.ShouldSeal` returns true on every block — degenerate per-block batches surface only as a runaway L1 submission rate hours later. Now `BatchSealer` ctor calls `L2BatchSettings.ValidatePositive` for all three `Max*` fields. Same pattern as iter-190's sequencer ctor symmetry. 1 pinning test covers the three Max* misconfigs + default-settings boundary.
+
+Cumulative: 481 tests / 27 projects.
+
 ### Fixed — `InMemorySequencerCommitteeProvider` ctor validates `maxCommitteeSize`
 
 - `SetMaxCommitteeSize` validates the range `[1..64]`; the constructor did not. Operator-supplied `0` silently accepted every `Register` call as "committee full", `-1` same, and `> 64` exceeded the dBFT 2.0 practical bound. Now symmetric: surface the misconfig at construction time, not at first `Register`. 1 pinning test covers `0` / `-1` / `65` reject and `1` / `64` boundary accept.

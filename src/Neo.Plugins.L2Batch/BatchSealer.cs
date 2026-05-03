@@ -40,6 +40,15 @@ public sealed class BatchSealer
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(metrics);
+        // L2BatchSettings.From validates positivity at config-parse time, but `init`
+        // setters allow direct construction (tests / programmatic wiring) to bypass
+        // that path. Re-validate here so a `new L2BatchSettings { MaxBlocksPerBatch
+        // = 0 }` doesn't slip through and make ShouldSeal return true on every block
+        // — a degenerate per-block batch storm that surfaces only as a runaway L1
+        // submission rate hours later.
+        L2BatchSettings.ValidatePositive(settings.MaxBlocksPerBatch, nameof(settings.MaxBlocksPerBatch));
+        L2BatchSettings.ValidatePositive(settings.MaxTransactionsPerBatch, nameof(settings.MaxTransactionsPerBatch));
+        L2BatchSettings.ValidatePositive(settings.MaxBatchAgeMillis, nameof(settings.MaxBatchAgeMillis));
         _settings = settings;
         _metrics = metrics;
         _nowUtcMillis = nowUtcMillis ?? (() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());

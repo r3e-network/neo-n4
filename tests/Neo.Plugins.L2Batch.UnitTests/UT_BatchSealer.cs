@@ -223,6 +223,26 @@ public class UT_BatchSealer
     }
 
     [TestMethod]
+    public void Constructor_ValidatesSettingsPositivity()
+    {
+        // Regression for iter 191: previously the BatchSealer ctor accepted
+        // L2BatchSettings constructed via init-setters that bypassed
+        // L2BatchSettings.From's validation — e.g. `new L2BatchSettings {
+        // MaxBlocksPerBatch = 0 }`. With Max*=0, ShouldSeal returns true on every block,
+        // producing degenerate per-block batches and a runaway L1 submission rate.
+        // Now caught at the ctor.
+        Assert.ThrowsExactly<System.IO.InvalidDataException>(() =>
+            new BatchSealer(new L2BatchSettings { MaxBlocksPerBatch = 0 }, new InMemoryMetrics()));
+        Assert.ThrowsExactly<System.IO.InvalidDataException>(() =>
+            new BatchSealer(new L2BatchSettings { MaxTransactionsPerBatch = -1 }, new InMemoryMetrics()));
+        Assert.ThrowsExactly<System.IO.InvalidDataException>(() =>
+            new BatchSealer(new L2BatchSettings { MaxBatchAgeMillis = 0 }, new InMemoryMetrics()));
+
+        // Default settings (50/5000/30000) must still work.
+        new BatchSealer(new L2BatchSettings(), new InMemoryMetrics());
+    }
+
+    [TestMethod]
     public void OnBlockCommit_RejectsNullTransactionInList()
     {
         // Regression for iter 181: previously the implicit byte[] → ReadOnlyMemory<byte>

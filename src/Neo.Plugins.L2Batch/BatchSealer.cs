@@ -66,8 +66,18 @@ public sealed class BatchSealer
 
         var builder = _builder ??= StartFreshBatch(blockIndex);
         builder.AddBlock(blockIndex);
+        var txIndex = 0;
         foreach (var tx in rawTransactions)
+        {
+            // The implicit byte[] → ReadOnlyMemory<byte> conversion silently turns null
+            // into Empty, so a null entry would be folded into the batch's tx tree as an
+            // empty leaf — a deterministic-replay nightmare since the commitment would
+            // not match what re-execution produces. Surface the null at the source.
+            if (tx is null)
+                throw new ArgumentException($"rawTransactions[{txIndex}] is null", nameof(rawTransactions));
             builder.AddTransaction(tx);
+            txIndex++;
+        }
 
         if (!ShouldSeal(builder)) return null;
 

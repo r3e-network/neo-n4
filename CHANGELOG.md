@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `BatchSealer.OnBlockCommit` silently treated null tx as empty (`byte[]→ReadOnlyMemory<byte>`)
+
+- The implicit `byte[]` → `ReadOnlyMemory<byte>` conversion in C# accepts null and produces an empty `ReadOnlyMemory` rather than throwing. So a null entry in the `IEnumerable<byte[]> rawTransactions` argument was silently folded into the batch's tx tree as an empty leaf — a deterministic-replay nightmare because the commitment wouldn't match what re-execution produces, and a sequencer's batch could quietly diverge from any honest replay. Now caught at the foreach with the bad index named. 1 pinning test.
+
+Cumulative: 467 tests / 27 projects.
+
 ### Fixed — `PassThroughRoundProver.Combine` null-guard on `MessageRootContribution`
 
 - The hashing primitive at `Combine` dereferenced `left.MessageRootContribution.GetSpan()` and `right.MessageRootContribution.GetSpan()` without null-checking the `UInt256` references. Same iter-156 hashing-primitive defense pattern. 1 pinning test that asserts both `left`-bad and `right`-bad cases throw.

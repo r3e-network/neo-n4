@@ -222,6 +222,21 @@ public class UT_BatchSealer
         Assert.AreEqual(50, L2BatchSettings.ValidatePositive(50, "MaxBlocksPerBatch"));
     }
 
+    [TestMethod]
+    public void OnBlockCommit_RejectsNullTransactionInList()
+    {
+        // Regression for iter 181: previously the implicit byte[] → ReadOnlyMemory<byte>
+        // conversion silently turned null into Empty, so a null tx in the list would be
+        // folded into the batch's tx tree as an empty leaf — a deterministic-replay
+        // nightmare since the commitment would not match what re-execution produces.
+        // Now caught at the foreach with the bad index named.
+        var sealer = new BatchSealer(new L2BatchSettings(), new InMemoryMetrics());
+        var bad = new byte[]?[] { new byte[] { 0x01 }, null, new byte[] { 0x02 } };
+        var ex = Assert.ThrowsExactly<ArgumentException>(
+            () => sealer.OnBlockCommit(1, 1000, 11, bad!));
+        StringAssert.Contains(ex.Message, "[1]");
+    }
+
     private static IEnumerable<byte[]> NoTxs() => Array.Empty<byte[]>();
 
     private static IEnumerable<byte[]> MakeTxs(int n)

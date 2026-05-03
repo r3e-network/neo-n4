@@ -131,4 +131,17 @@ public class UT_BisectionGame
         Assert.IsFalse(game.IsSettled);
         Assert.ThrowsExactly<InvalidOperationException>(() => _ = game.DisputedIndex);
     }
+
+    [TestMethod]
+    public void Constructor_RejectsNullCheckpointEntry()
+    {
+        // Regression for iter 197: ChallengeOrchestrator.InspectWithBisectionAsync (iter
+        // 196) already per-entry-null-checks before invoking, but BisectionGame is a
+        // public constructor that other callers can hit directly. Defense-in-depth.
+        var (c, s) = BuildScenario(4, firstWrongIndex: 2);
+        // BuildScenario returns length txCount+1 = 5. Match s's length.
+        var bad = new UInt256?[] { c[0], null, c[2], c[3], c[4] };
+        var ex = Assert.ThrowsExactly<ArgumentException>(() => new BisectionGame(bad!, s));
+        StringAssert.Contains(ex.Message, "[1]");
+    }
 }

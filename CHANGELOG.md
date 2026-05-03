@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `BisectionGame` ctor per-entry null-guards (defense-in-depth for direct callers)
+
+- `ChallengeOrchestrator.InspectWithBisectionAsync` (iter 196) per-entry-null-checks before invoking, but `BisectionGame` is a public constructor that other callers can hit directly. Without this guard, a null entry would NRE inside the `[0].Equals(...)` / `[^1].Equals(...)` checks or `RunRound`'s mid-comparison. 1 pinning test (had to fix the test on first run — `BuildScenario(N, ...)` returns `N+1` arrays, not `N`; off-by-one caught by length-mismatch firing first).
+
+Cumulative: 487 tests / 27 projects.
+
 ### Fixed — `ChallengeOrchestrator.InspectWithBisectionAsync` null-guards (parity with `InspectAsync`)
 
 - `InspectAsync` got iter-171 null-guards on `claimedCommitment.PreStateRoot`/`PostStateRoot`/`inputs.PreStateRoot` (UInt256 reference type, `required` doesn't prevent null). `InspectWithBisectionAsync` was missed at that time. Brought to parity. Additionally added per-entry null guards on `challengerCheckpoints[i]` / `sequencerCheckpoints[i]` so a null entry surfaces with the bad index instead of NREing inside `[^1].Equals(...)` or BisectionGame's loop. 1 pinning test.

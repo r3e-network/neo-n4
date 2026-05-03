@@ -63,6 +63,20 @@ public sealed class BisectionGame
             throw new ArgumentException("checkpoint arrays must have the same length");
         if (challengerCheckpoints.Length < 2)
             throw new ArgumentException("need at least preState + postState (length ≥ 2)");
+        // Per-entry null guards. ChallengeOrchestrator.InspectWithBisectionAsync (iter
+        // 196) already checks these, but BisectionGame is a public constructor so other
+        // callers (tests, future code paths) need defense-in-depth. Without the per-entry
+        // check, a null entry would NRE inside the .Equals(...) below or RunRound's
+        // mid-checkpoint comparison.
+        for (var i = 0; i < challengerCheckpoints.Length; i++)
+        {
+            if (challengerCheckpoints[i] is null)
+                throw new ArgumentException(
+                    $"challengerCheckpoints[{i}] is null", nameof(challengerCheckpoints));
+            if (sequencerCheckpoints[i] is null)
+                throw new ArgumentException(
+                    $"sequencerCheckpoints[{i}] is null", nameof(sequencerCheckpoints));
+        }
         if (!challengerCheckpoints[0].Equals(sequencerCheckpoints[0]))
             throw new ArgumentException("preState (index 0) must agree before bisection starts");
         if (challengerCheckpoints[^1].Equals(sequencerCheckpoints[^1]))

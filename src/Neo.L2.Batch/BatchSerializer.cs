@@ -89,6 +89,13 @@ public static class BatchSerializer
         ArgumentNullException.ThrowIfNull(commitment.PublicInputHash);
         if (commitment.Proof.Length > ProofMaxBytes)
             throw new ArgumentException($"Proof bytes exceed maximum {ProofMaxBytes}", nameof(commitment));
+        // Encode/Decode symmetry: Decode rejects ProofType bytes > Zk (iter 103). Refuse
+        // to Encode bytes the round-trip would later fail on. Same iter-159 pattern as
+        // OptimisticProofPayload / RiscVProofPayload size-cap symmetry.
+        if (commitment.ProofType > ProofType.Zk)
+            throw new ArgumentException(
+                $"ProofType {(byte)commitment.ProofType} not in defined range [0..{(byte)ProofType.Zk}]",
+                nameof(commitment));
 
         // checked: a Proof.Length near int.MaxValue (caught later by ProofMaxBytes, but
         // not here at allocation time) wraps. Surface as OverflowException at the sum

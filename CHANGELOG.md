@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `BatchSerializer.Encode` rejects out-of-range `ProofType` (Encode/Decode symmetry)
+
+- `Decode` rejects `ProofType` bytes outside `[0..Zk]` (iter 103). `Encode` did not — an out-of-range cast (e.g. `(ProofType)99`) produced bytes the round-trip `Decode` would refuse, masking the producer-side bug at the consumer. Same iter-159 Encode/Decode-symmetry pattern as `OptimisticProofPayload.MaxSignatureBytes` and `RiscVProofPayload.MaxProofBytes`. 1 pinning test asserts the throw + index in message.
+
+Cumulative: 477 tests / 27 projects.
+
 ### Fixed — `MetricsRequestHandler.HandleMetrics` returns 500 on snapshot/format failure
 
 - Previously a buggy `IMetricsSource` that returned null or threw from `Snapshot()` (or a downstream `PrometheusExporter.Format` regression) would surface as a closed connection to the scraper — no diagnostic, no alertable HTTP status. Wrapped the snapshot/format pipeline in `try/catch` so the failure becomes a `500` with a generic body, which flips most Prometheus servers into an "exporter down" alert state. Generic-on-purpose body; operators chase the actual exception in logs. 2 pinning tests using `NullSnapshotSource` and `ThrowingSnapshotSource`.

@@ -236,4 +236,17 @@ public class UT_BatchSerializer
         CollectionAssert.AreEqual(inputs.PreStateRoot.GetSpan().ToArray(), bytes[12..44]);
         CollectionAssert.AreEqual(inputs.BlockContextHash.GetSpan().ToArray(), bytes[300..332]);
     }
+
+    [TestMethod]
+    public void Encode_RejectsOutOfRangeProofType()
+    {
+        // Regression for iter 187: BatchSerializer.Encode previously cast ProofType to
+        // byte without bounds-checking. The Decode side rejects unknown bytes (iter 103),
+        // so an out-of-range ProofType could produce bytes Decode would refuse — masking
+        // the producer-side bug at the consumer. Now Encode/Decode are symmetric.
+        var bad = Sample() with { ProofType = (ProofType)99 };
+        var ex = Assert.ThrowsExactly<ArgumentException>(() => BatchSerializer.Encode(bad));
+        StringAssert.Contains(ex.Message, "ProofType");
+        StringAssert.Contains(ex.Message, "99");
+    }
 }

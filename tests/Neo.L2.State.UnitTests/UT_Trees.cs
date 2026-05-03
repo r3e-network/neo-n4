@@ -120,6 +120,31 @@ public class UT_Trees
     }
 
     [TestMethod]
+    public void MessageTree_GetMessage_RejectsOutOfRangeIndex()
+    {
+        // Regression for iter 194: List<T>'s indexer threw a generic
+        // "Index was out of range" message; now we surface the actual range.
+        var tree = new MessageTree();
+        tree.Add(Message(2002, 1));
+        var ex = Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => tree.GetMessage(-1));
+        StringAssert.Contains(ex.Message, "[0, 1)");
+        var ex2 = Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => tree.GetMessage(5));
+        StringAssert.Contains(ex2.Message, "[0, 1)");
+    }
+
+    [TestMethod]
+    public void WithdrawalTree_GetWithdrawal_RejectsOutOfRangeIndex()
+    {
+        var tree = new WithdrawalTree();
+        tree.Add(Withdrawal(0));
+        tree.Add(Withdrawal(1));
+        var ex = Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => tree.GetWithdrawal(-1));
+        StringAssert.Contains(ex.Message, "[0, 2)");
+        var ex2 = Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => tree.GetWithdrawal(2));
+        StringAssert.Contains(ex2.Message, "[0, 2)");
+    }
+
+    [TestMethod]
     public void MessageTree_TryGetIndex_RejectsNullHash()
     {
         var tree = new MessageTree();

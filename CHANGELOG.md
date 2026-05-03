@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `MessageTree.GetMessage` / `WithdrawalTree.GetWithdrawal` clearer out-of-range errors
+
+- Both methods previously delegated index-validation to `List<T>`'s indexer, which throws a generic `ArgumentOutOfRangeException` with `"Index was out of range"`. Now both surface a clearer `"index N not in [0, count)"` so an operator chasing a stale or out-of-band index sees the actual valid range. 2 pinning tests covering negative-index and beyond-count cases.
+
+Cumulative: 484 tests / 27 projects.
+
 ### Fixed — `ReferenceBatchExecutor.ApplyBatchAsync` per-entry null-guards
 
 - Per-entry null-guards added at three foreach sites: `request.L1MessagesConsumed[i]` (would propagate as a generic NRE inside `_l1Processor.ApplyAsync`), `result.Withdrawals[i]` and `result.Messages[i]` (would surface as `WithdrawalTree.Add` / `L2Outbox.Add` "X is null" without naming the misbehaving executor or the bad index). Now surfaces at the source with the index AND the executor's tx hash. Same iter-181 `BatchSealer.OnBlockCommit` per-entry pattern. 1 pinning test for the L1-message case.

@@ -46,5 +46,11 @@ public sealed class WithdrawalTree
     }
 
     /// <summary>Look up a withdrawal by index.</summary>
-    public WithdrawalRequest GetWithdrawal(int index) => _withdrawals[index];
+    public WithdrawalRequest GetWithdrawal(int index)
+    {
+        if ((uint)index >= (uint)_withdrawals.Count)
+            throw new ArgumentOutOfRangeException(nameof(index),
+                $"index {index} not in [0, {_withdrawals.Count})");
+        return _withdrawals[index];
+    }
 }

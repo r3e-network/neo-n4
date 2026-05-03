@@ -61,5 +61,12 @@ public sealed class MessageTree
     }
 
     /// <summary>Look up a message by index.</summary>
-    public CrossChainMessage GetMessage(int index) => _messages[index];
+    public CrossChainMessage GetMessage(int index)
+    {
+        // Surface a clearer bound-error than List<T>'s generic "Index was out of range".
+        if ((uint)index >= (uint)_messages.Count)
+            throw new ArgumentOutOfRangeException(nameof(index),
+                $"index {index} not in [0, {_messages.Count})");
+        return _messages[index];
+    }
 }

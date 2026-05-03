@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Tests — Regression coverage for iter-146 `MessageBuilder.Build` null-guards
+
+- The iter-146 fix added `ArgumentNullException.ThrowIfNull` to `sender` / `receiver`. This iter pins the contract with two regression tests so a future "trust the caller" refactor can't silently drop the guards.
+- **2 new tests**: `MessageBuilder_RejectsNullSender` and `MessageBuilder_RejectsNullReceiver` — both pass `null!` for the respective field and assert `ArgumentNullException`.
+
+Cumulative: 426 tests / 27 projects.
+
 ### Changed — `BatchBuilder` reject-null guards on all reference-type append methods
 
 - Continuation of the iter-146–149 null-guard sweep, applied to the batch-builder API surface.

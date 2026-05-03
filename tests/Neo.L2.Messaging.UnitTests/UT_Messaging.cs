@@ -14,6 +14,38 @@ public class UT_Messaging
             payload: new byte[] { 0xAA, 0xBB });
 
     [TestMethod]
+    public void MessageBuilder_RejectsNullSender()
+    {
+        // Regression: previously a null sender slipped past the C# nullable analysis
+        // (UInt160 is reference; `required` only forces "must be set," not "non-null")
+        // and crashed deep in MessageHasher.HashMessage's GetSpan(). Now caught at
+        // the Build boundary.
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
+            MessageBuilder.Build(
+                sourceChainId: 1001,
+                targetChainId: 0,
+                nonce: 1,
+                sender: null!,
+                receiver: UInt160.Parse("0x" + new string('b', 40)),
+                messageType: MessageType.Call,
+                payload: ReadOnlyMemory<byte>.Empty));
+    }
+
+    [TestMethod]
+    public void MessageBuilder_RejectsNullReceiver()
+    {
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
+            MessageBuilder.Build(
+                sourceChainId: 1001,
+                targetChainId: 0,
+                nonce: 1,
+                sender: UInt160.Parse("0x" + new string('a', 40)),
+                receiver: null!,
+                messageType: MessageType.Call,
+                payload: ReadOnlyMemory<byte>.Empty));
+    }
+
+    [TestMethod]
     public void MessageBuilder_FillsHash()
     {
         var m = Build(0, 1);

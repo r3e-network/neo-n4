@@ -103,6 +103,19 @@ public sealed class JsonRpcClient : IDisposable
         if (parsed is not JObject obj)
             throw new JsonRpcException(-32600, $"unexpected response: {responseBody.Substring(0, Math.Min(200, responseBody.Length))}");
 
+        // Validate the response's id matches the request's. JSON-RPC 2.0 spec §5
+        // mandates this for response correlation. Although we rely on HTTP one-request-
+        // at-a-time correlation here (so a mismatch can't actually misroute a response),
+        // accepting a mismatched id silently masks server bugs / proxy misconfiguration
+        // / a confused upstream that's interleaving streams. Reject loudly.
+        var responseIdToken = obj["id"];
+        var responseId = responseIdToken is JNumber rn ? (long)rn.AsNumber()
+            : responseIdToken is JString rs && long.TryParse(rs.AsString(), out var rsi) ? rsi
+            : -1L;
+        if (responseId != id)
+            throw new JsonRpcException(-32603,
+                $"response id {responseId} does not match request id {id}");
+
         if (obj["error"] is JObject err)
         {
             var code = err["code"] is JNumber n ? (int)n.AsNumber() : -32603;

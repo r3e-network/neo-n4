@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `JsonRpcClient.CallAsync` rejects mismatched response id
+
+- JSON-RPC 2.0 §5 mandates the response's `id` field match the request's. A buggy server, misconfigured proxy, or confused upstream that interleaves streams could silently send a response correlating to a different request — previously accepted as if it answered ours. Although we rely on HTTP one-request-per-connection correlation here (so a mismatch can't actually misroute a response on the happy path), the missing check masked server bugs that an operator would otherwise want to catch. Now throws `JsonRpcException(-32603, "response id N does not match request id M")`. 1 pinning test using a `StubHandler` that returns `id=999` for a request sent with `id=1`.
+
+Cumulative: 468 tests / 27 projects.
+
 ### Fixed — `BatchSealer.OnBlockCommit` silently treated null tx as empty (`byte[]→ReadOnlyMemory<byte>`)
 
 - The implicit `byte[]` → `ReadOnlyMemory<byte>` conversion in C# accepts null and produces an empty `ReadOnlyMemory` rather than throwing. So a null entry in the `IEnumerable<byte[]> rawTransactions` argument was silently folded into the batch's tx tree as an empty leaf — a deterministic-replay nightmare because the commitment wouldn't match what re-execution produces, and a sequencer's batch could quietly diverge from any honest replay. Now caught at the foreach with the bad index named. 1 pinning test.

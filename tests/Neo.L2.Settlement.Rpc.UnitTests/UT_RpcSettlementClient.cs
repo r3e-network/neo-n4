@@ -237,4 +237,25 @@ public class UT_RpcSettlementClient
         Assert.IsNotNull(sentBytes);
         Assert.IsTrue(sentBytes!.Length > 0);
     }
+
+    [TestMethod]
+    public async Task JsonRpcClient_RejectsMismatchedResponseId()
+    {
+        // Regression for iter 182: JSON-RPC 2.0 §5 mandates response id == request id.
+        // A buggy server / misconfigured proxy returning a response with the wrong id
+        // would previously be accepted silently. Now caught as a contract violation.
+        // The first call sends id=1; we craft a response with id=999 to force a mismatch.
+        var stub = new StubHandler
+        {
+            ResponseBody = "{\"jsonrpc\":\"2.0\",\"id\":999,\"result\":42}",
+        };
+        using var http = new HttpClient(stub);
+        using var client = new JsonRpcClient(FakeEndpoint, http);
+
+        var ex = await Assert.ThrowsExactlyAsync<JsonRpcException>(async () =>
+            await client.CallAsync("ping", new JArray()));
+        Assert.AreEqual(-32603, ex.Code);
+        StringAssert.Contains(ex.Message, "999");
+        StringAssert.Contains(ex.Message, "request id");
+    }
 }

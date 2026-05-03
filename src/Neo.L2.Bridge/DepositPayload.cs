@@ -25,6 +25,10 @@ public sealed record DepositPayload
     /// <summary>Encode to canonical bytes for embedding in <see cref="CrossChainMessage.Payload"/>.</summary>
     public byte[] Encode()
     {
+        // Defense-in-depth: UInt160 is a reference type; `required` only forces
+        // "must be set," not "non-null." Same iter-154+ pattern.
+        ArgumentNullException.ThrowIfNull(L1Asset);
+        ArgumentNullException.ThrowIfNull(L2Recipient);
         var amountBytes = Amount.ToByteArray(isUnsigned: true, isBigEndian: false);
         if (amountBytes.Length > 64)
             throw new InvalidOperationException("Deposit amount exceeds 64 bytes");

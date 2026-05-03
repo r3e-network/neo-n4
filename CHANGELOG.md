@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Proof/deposit payload encoders: null-guards + Encode/Decode-symmetry checks
+
+- Swept the four remaining payload encoders. Added null-guards on the reference-type `UInt160`/`UInt256` fields (`OptimisticProofPayload`, `RiscVProofPayload`, `MultisigProofPayload`, `DepositPayload`). Added Encode-side cap checks where the matching `Decode` already rejects oversized inputs (`MaxSignatureBytes`, `MaxProofBytes`, `MaxSigners`) — without these you could `Encode` bytes the round-trip `Decode` would refuse, masking the producer-side bug at the next consumer. `MultisigProofPayload.Encode` additionally validates each signer's `Signature.Length == 64` (a shorter source silently zero-pads via `Span.CopyTo`, producing a structurally-valid but semantically-wrong encoding).
+- This **does** finish the encoder sweep — all eight `Encode` methods (3 in `BatchSerializer`/`StateRootCalculator`, 1 in `MessageHasher`, 1 in `Receipt`, 1 in `MerkleProofSerializer`, 1 in `FraudProofPayload`, 4 in payload encoders) now uniformly null-guard their reference-type fields.
+
+Cumulative: 431 tests / 27 projects.
+
 ### Changed — `FraudProofPayload.Encode` and `MerkleProofSerializer.Encode` defense-in-depth null-guards
 
 - Extended the iter-154…157 null-guard pattern to the remaining encoders. `FraudProofPayload.Encode` now guards its 3 `UInt256` roots; `MerkleProofSerializer.Encode` guards `Leaf`, the `Siblings` collection, and each sibling entry inside the loop (`Siblings[i]` could be a null reference even with the collection itself non-null). The previous claim that iter-157 "finished" the sweep was premature — these were missed.

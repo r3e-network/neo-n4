@@ -26,14 +26,31 @@ public sealed record MultisigProofPayload
     /// <summary>Encode to canonical bytes for embedding in <see cref="L2BatchCommitment.Proof"/>.</summary>
     public byte[] Encode()
     {
+        // Defense-in-depth: collection or any entry/PublicKey could be null even with
+        // `required` — `required` only forces "must be set," not "non-null."
+        ArgumentNullException.ThrowIfNull(Signatures);
+        // Symmetry with Decode: Decode rejects > MaxSigners, so refuse to Encode bytes
+        // the round-trip would later fail on.
+        if (Signatures.Count > MaxSigners)
+            throw new InvalidOperationException(
+                $"Signatures.Count {Signatures.Count} exceeds MaxSigners {MaxSigners}");
         var size = 1 + 2 + Signatures.Count * (33 + 64);
         var buffer = new byte[size];
         var span = buffer.AsSpan();
         span[0] = Version;
         BinaryPrimitives.WriteUInt16LittleEndian(span.Slice(1, 2), checked((ushort)Signatures.Count));
         var pos = 3;
-        foreach (var s in Signatures)
+        for (var i = 0; i < Signatures.Count; i++)
         {
+            var s = Signatures[i] ?? throw new ArgumentException(
+                $"Signatures[{i}] is null", nameof(Signatures));
+            ArgumentNullException.ThrowIfNull(s.PublicKey);
+            // Per-signer Signature length must be exactly 64 — Span.CopyTo with a
+            // shorter source silently zero-pads the destination, producing an Encode
+            // that's structurally valid but semantically wrong (signature won't verify).
+            if (s.Signature.Length != 64)
+                throw new ArgumentException(
+                    $"Signatures[{i}].Signature length {s.Signature.Length} != 64", nameof(Signatures));
             s.PublicKey.GetSpan().CopyTo(span.Slice(pos, 33));
             pos += 33;
             s.Signature.Span.CopyTo(span.Slice(pos, 64));

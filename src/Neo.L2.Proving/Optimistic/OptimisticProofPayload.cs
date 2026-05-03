@@ -46,6 +46,16 @@ public sealed record OptimisticProofPayload
     /// <summary>Encode to canonical bytes for embedding in <see cref="L2BatchCommitment.Proof"/>.</summary>
     public byte[] Encode()
     {
+        // Defense-in-depth: UInt160/UInt256 are reference types; `required` only forces
+        // "must be set," not "non-null." Same iter-154+ hashing-primitive pattern.
+        ArgumentNullException.ThrowIfNull(BondContract);
+        ArgumentNullException.ThrowIfNull(BondTxHash);
+        // Symmetry with Decode: Decode rejects > MaxSignatureBytes, so refuse to Encode
+        // bytes the round-trip would later fail on. Without this an Encode succeeds and
+        // the payload is unreadable, masking the producer-side bug at the next consumer.
+        if (SequencerSignature.Length > MaxSignatureBytes)
+            throw new InvalidOperationException(
+                $"SequencerSignature {SequencerSignature.Length} bytes exceeds MaxSignatureBytes {MaxSignatureBytes}");
         var size = 1 + 20 + 32 + 8 + 4 + SequencerSignature.Length;
         var buffer = new byte[size];
         var span = buffer.AsSpan();

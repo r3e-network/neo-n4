@@ -40,6 +40,14 @@ public sealed record RiscVProofPayload
     /// <summary>Encode to canonical bytes for embedding in <see cref="L2BatchCommitment.Proof"/>.</summary>
     public byte[] Encode()
     {
+        // Defense-in-depth: UInt256 is a reference type; `required` only forces
+        // "must be set," not "non-null." Same iter-154+ hashing-primitive pattern.
+        ArgumentNullException.ThrowIfNull(VerificationKeyId);
+        // Symmetry with Decode: Decode rejects > MaxProofBytes, so refuse to Encode
+        // bytes the round-trip would later fail on.
+        if (ProofBytes.Length > MaxProofBytes)
+            throw new InvalidOperationException(
+                $"ProofBytes {ProofBytes.Length} exceeds MaxProofBytes {MaxProofBytes}");
         var size = 1 + 1 + 32 + 4 + ProofBytes.Length;
         var buffer = new byte[size];
         var span = buffer.AsSpan();

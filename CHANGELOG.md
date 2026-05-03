@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Tests — Regression coverage for iter-148 `Register` null-guards
+
+- Pinned the iter-148 null-guards on `AssetRegistry.Register` and `InMemorySequencerCommitteeProvider.Register` with regression tests so a future refactor can't silently drop them.
+- **3 new tests**:
+  - `AssetRegistry_Register_RejectsNullL1Asset`
+  - `AssetRegistry_Register_RejectsNullL2Asset`
+  - `Sequencer.Register_RejectsNullL1Address`
+
+Cumulative: 431 tests / 27 projects.
+
 ### Tests — Regression coverage for iter-147 `WithdrawalProcessor.Stage` null-guards
 
 - The iter-147 fix added `ArgumentNullException.ThrowIfNull` for the four `UInt160` fields on `WithdrawalRequest`. Pinned with regression tests so a future refactor can't silently drop them.

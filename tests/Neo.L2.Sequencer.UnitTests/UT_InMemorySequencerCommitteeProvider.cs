@@ -33,6 +33,17 @@ public class UT_InMemorySequencerCommitteeProvider
     }
 
     [TestMethod]
+    public void Register_RejectsNullL1Address()
+    {
+        // Regression for iter 148: null l1Address would silently propagate into
+        // CommitteeMember.L1Address → CensorshipReport.ResponsibleSequencerAddress →
+        // either misroutes the slash payout or hard-reverts the slash transaction at L1.
+        // Now caught at the API boundary.
+        var p = new InMemorySequencerCommitteeProvider(1001, 7);
+        Assert.ThrowsExactly<ArgumentNullException>(() => p.Register(K(1), null!));
+    }
+
+    [TestMethod]
     public void Register_DuplicateThrows()
     {
         var p = new InMemorySequencerCommitteeProvider(1001, 7);

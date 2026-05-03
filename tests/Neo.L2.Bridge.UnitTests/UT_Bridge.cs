@@ -229,6 +229,39 @@ public class UT_Bridge
     }
 
     [TestMethod]
+    public void AssetRegistry_Register_RejectsNullL1Asset()
+    {
+        // Regression for iter 148: null UInt160 fields in AssetMapping would either
+        // create a tuple key (null, chainId) (Dictionary tolerates null inside a tuple)
+        // or throw deep in `_byL2[null]`. Both are surfaced clearly at the API boundary.
+        var r = new AssetRegistry();
+        var bad = new AssetMapping
+        {
+            L1Asset = null!,  // ← null
+            L2ChainId = LocalChain,
+            L2Asset = GasL2,
+            AssetType = AssetType.Gas,
+            MintBurn = true, LockMint = true, Active = true,
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => r.Register(bad));
+    }
+
+    [TestMethod]
+    public void AssetRegistry_Register_RejectsNullL2Asset()
+    {
+        var r = new AssetRegistry();
+        var bad = new AssetMapping
+        {
+            L1Asset = GasL1,
+            L2ChainId = LocalChain,
+            L2Asset = null!,  // ← null
+            AssetType = AssetType.Gas,
+            MintBurn = true, LockMint = true, Active = true,
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => r.Register(bad));
+    }
+
+    [TestMethod]
     public void DepositPayload_Decode_RejectsTrailingBytes()
     {
         // Regression: previously the length check was `pos + amountLen > bytes.Length`,

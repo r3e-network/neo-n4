@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `ChallengeOrchestrator.InspectAsync` null-guards + replayer-contract assertion
+
+- Three new defensive guards in `ChallengeOrchestrator.InspectAsync`. (1) `claimedCommitment.PreStateRoot`/`PostStateRoot` and `inputs.PreStateRoot` are `UInt256` reference types — `required` doesn't force non-null. The chain-id/batch-number/pre-state validation that follows would NRE on `.Equals(...)`. Same iter-156 hashing-primitive defense pattern. (2) After `_replayer.ReplayAsync(...)`, the `replayedRoot` is now checked for null — a buggy `IFraudProofGenerator` returning null would otherwise NRE inside `replayedRoot.Equals(...)` with no link to the replayer's contract violation; surfaced as `InvalidOperationException` naming `ReplayAsync`.
+- Two pinning tests in `UT_Challenge.cs`: `Inspect_RejectsBuggyReplayerReturningNull` (asserts `ReplayAsync` appears in the message) and `Inspect_RejectsNullPreStateRootInCommitment`.
+
+Cumulative: 455 tests / 27 projects.
+
 ### Fixed — `L2BatchPlugin.OnBatchSealed` subscriber-failure isolation
 
 - A throwing `OnBatchSealed` subscriber would propagate its exception back to Neo's `Blockchain.Committed` via standard .NET event dispatch (first-throw aborts further dispatch + exception rethrows to event source), making a buggy downstream listener (e.g. `L2SettlementPlugin`) potentially destabilize block import. Refactored to iterate `GetInvocationList()` and try/catch each subscriber individually; failures bump the new `MetricNames.BatchSealedSubscriberFailures` counter (+catalog entry).

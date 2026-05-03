@@ -35,6 +35,12 @@ public sealed class ChallengeOrchestrator
     {
         ArgumentNullException.ThrowIfNull(claimedCommitment);
         ArgumentNullException.ThrowIfNull(inputs);
+        // Defense-in-depth: UInt256 fields are reference types, `required` doesn't prevent
+        // null. PreStateRoot.Equals(...) NREs if PreStateRoot itself is null. PostStateRoot
+        // is dereferenced below for the fraud-proof construction. Same iter-156 pattern.
+        ArgumentNullException.ThrowIfNull(claimedCommitment.PreStateRoot);
+        ArgumentNullException.ThrowIfNull(claimedCommitment.PostStateRoot);
+        ArgumentNullException.ThrowIfNull(inputs.PreStateRoot);
         if (claimedCommitment.ChainId != inputs.ChainId)
             throw new ArgumentException("commitment.ChainId != inputs.ChainId");
         if (claimedCommitment.BatchNumber != inputs.BatchNumber)
@@ -43,6 +49,11 @@ public sealed class ChallengeOrchestrator
             throw new ArgumentException("commitment.PreStateRoot != inputs.PreStateRoot");
 
         var replayedRoot = await _replayer.ReplayAsync(inputs, cancellationToken).ConfigureAwait(false);
+        // Defensive: a buggy IFraudProofGenerator that returns null would NRE on
+        // .Equals() below with no link to the replayer's contract violation. Surface
+        // it as an InvalidOperationException so a custom replayer's bug is obvious.
+        if (replayedRoot is null)
+            throw new InvalidOperationException("IFraudProofGenerator.ReplayAsync returned null");
         if (replayedRoot.Equals(claimedCommitment.PostStateRoot))
         {
             // Sequencer's claim matches challenger's replay → no fraud.

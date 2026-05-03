@@ -174,4 +174,36 @@ public class UT_Challenge
         var inputs = MkRequest(1001, 1, H('z'));
         await Assert.ThrowsExactlyAsync<ArgumentException>(async () => await orchestrator.InspectAsync(commitment, inputs));
     }
+
+    [TestMethod]
+    public async Task Inspect_RejectsBuggyReplayerReturningNull()
+    {
+        // Regression for iter 171: a buggy IFraudProofGenerator that returns null UInt256
+        // would NRE inside replayedRoot.Equals() with no link to the replayer's contract
+        // violation. Now surfaced as InvalidOperationException with the contract name.
+        var orchestrator = new ChallengeOrchestrator(new NullReturningReplayer());
+        var commitment = MkCommitment(1001, 1, H('a'), H('b'));
+        var inputs = MkRequest(1001, 1, H('a'));
+        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            async () => await orchestrator.InspectAsync(commitment, inputs));
+        StringAssert.Contains(ex.Message, "ReplayAsync");
+    }
+
+    [TestMethod]
+    public async Task Inspect_RejectsNullPreStateRootInCommitment()
+    {
+        // Regression for iter 171: a null UInt256 PreStateRoot would NRE inside
+        // PreStateRoot.Equals(...). Same iter-156 hashing-primitive defense pattern.
+        var orchestrator = new ChallengeOrchestrator(new FixedReplayer { ReplayedRoot = UInt256.Zero });
+        var commitment = MkCommitment(1001, 1, null!, H('b'));
+        var inputs = MkRequest(1001, 1, H('a'));
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await orchestrator.InspectAsync(commitment, inputs));
+    }
+
+    private sealed class NullReturningReplayer : IFraudProofGenerator
+    {
+        public ValueTask<UInt256> ReplayAsync(BatchExecutionRequest request, CancellationToken cancellationToken = default)
+            => new ValueTask<UInt256>((UInt256)null!);
+    }
 }

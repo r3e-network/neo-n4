@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `BatchBuilder.ToCommitment` null-guards before sealing
+
+- `ToCommitment` would NRE on the first `executionResult.PostStateRoot` access if `executionResult` was null. Worse, `daCommitment` and `publicInputHash` were `UInt256` (reference type) — null in either would slip through here, get assembled into the commitment, and be caught only later in `BatchSerializer.Encode`'s iter-156/157 null-guards — but by then `_batch.Seal()` had already mutated state irreversibly, so the operator couldn't simply retry. Now all three are guarded BEFORE `_batch.Seal()` runs.
+- 3 pinning tests in `UT_BatchBuilder.cs` assert the throw AND that `b.Batch.IsSealed` is false after the failed call (proves the guard fires before sealing so a retry can succeed).
+
+Cumulative: 441 tests / 27 projects.
+
 ### Added — Pin iter-164 worst-case + sweep last 2 metric sites
 
 - New regression test `Submit_ThrowingMetrics_DoesNotReQueueAlreadySubmittedBatch` in `UT_L2SettlementPlugin_Metrics.cs` uses a `ThrowingMetrics` test double to assert that a metrics-sink failure after `SubmitBatchAsync` returns does NOT re-queue the batch (which would loop indefinitely against L1's duplicate-rejection). Verifies `client.SubmitCount == 1` and `settlement.PendingCount == 0`.

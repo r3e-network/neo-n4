@@ -81,4 +81,40 @@ public class UT_BatchBuilder
         b.Seal(SampleResult(), UInt256.Zero, UInt256.Zero, ProofType.None, ReadOnlyMemory<byte>.Empty);
         Assert.ThrowsExactly<InvalidOperationException>(() => b.AddBlock(200));
     }
+
+    [TestMethod]
+    public void ToCommitment_RejectsNullExecutionResult()
+    {
+        // Regression for iter 166: previously a null executionResult would NRE on
+        // the first property access (executionResult.PostStateRoot) — confusing for the
+        // operator and only surfaced AFTER _batch.Seal() had committed. The early null
+        // guard surfaces the bad input before sealing so a re-attempt can succeed.
+        var b = new BatchBuilder(1001, 1, 100, UInt256.Zero);
+        b.WithBlockContext(SampleContext());
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => b.Seal(null!, UInt256.Zero, UInt256.Zero, ProofType.None, ReadOnlyMemory<byte>.Empty));
+        // Batch must NOT be sealed after the failed call — confirms the guard fires
+        // BEFORE _batch.Seal().
+        Assert.IsFalse(b.Batch.IsSealed, "guard must fire before Seal so a retry can succeed");
+    }
+
+    [TestMethod]
+    public void ToCommitment_RejectsNullDaCommitment()
+    {
+        var b = new BatchBuilder(1001, 1, 100, UInt256.Zero);
+        b.WithBlockContext(SampleContext());
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => b.Seal(SampleResult(), null!, UInt256.Zero, ProofType.None, ReadOnlyMemory<byte>.Empty));
+        Assert.IsFalse(b.Batch.IsSealed);
+    }
+
+    [TestMethod]
+    public void ToCommitment_RejectsNullPublicInputHash()
+    {
+        var b = new BatchBuilder(1001, 1, 100, UInt256.Zero);
+        b.WithBlockContext(SampleContext());
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => b.Seal(SampleResult(), UInt256.Zero, null!, ProofType.None, ReadOnlyMemory<byte>.Empty));
+        Assert.IsFalse(b.Batch.IsSealed);
+    }
 }

@@ -109,6 +109,13 @@ public sealed class BatchBuilder
         ProofType proofType,
         ReadOnlyMemory<byte> proof)
     {
+        ArgumentNullException.ThrowIfNull(executionResult);
+        // Defense-in-depth: daCommitment and publicInputHash are UInt256 (reference type),
+        // and `_batch.Seal()` below mutates state irreversibly. If a null hash slips through
+        // here, the iter-156/157 BatchSerializer.Encode null-guards would catch it later
+        // — but only AFTER the batch is sealed. Surface it here so a re-attempt can succeed.
+        ArgumentNullException.ThrowIfNull(daCommitment);
+        ArgumentNullException.ThrowIfNull(publicInputHash);
         _batch.Seal();
         return new L2BatchCommitment
         {

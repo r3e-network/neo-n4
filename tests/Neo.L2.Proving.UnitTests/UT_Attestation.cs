@@ -159,6 +159,67 @@ public class UT_Attestation
     }
 
     [TestMethod]
+    public void MultisigPayload_Encode_RejectsBadSignatureLength()
+    {
+        // Regression for iter 159: previously Encode used Span.CopyTo(span.Slice(pos, 64))
+        // which silently zero-pads when the source is < 64 bytes (only throws for source >
+        // destination), producing a structurally-valid but semantically-wrong encoding —
+        // the signature won't verify on the receiving side. Now caught at Encode time.
+        var k = GenKey(1);
+        var truncated = new byte[63];                          // off-by-one short
+        var oversized = new byte[65];                          // off-by-one long
+        var truncPayload = new MultisigProofPayload
+        {
+            Signatures = new[] { new SignerSignature { PublicKey = k.pub, Signature = truncated } },
+        };
+        var oversizePayload = new MultisigProofPayload
+        {
+            Signatures = new[] { new SignerSignature { PublicKey = k.pub, Signature = oversized } },
+        };
+        Assert.ThrowsExactly<ArgumentException>(() => truncPayload.Encode());
+        Assert.ThrowsExactly<ArgumentException>(() => oversizePayload.Encode());
+    }
+
+    [TestMethod]
+    public void MultisigPayload_Encode_RejectsNullSignerEntry()
+    {
+        // Regression for iter 159: Signatures[i] is a reference type; even with `required`
+        // forcing the collection to be set, individual entries can still be null. Without
+        // the guard, Encode would NRE inside s.PublicKey.GetSpan() with no link to the
+        // bad index. Now caught with the bad index in the exception message.
+        var k = GenKey(1);
+        var sig = Crypto.Sign(new byte[] { 1 }, k.priv);
+        var payload = new MultisigProofPayload
+        {
+            Signatures = new SignerSignature?[]
+            {
+                new() { PublicKey = k.pub, Signature = sig },
+                null,
+                new() { PublicKey = k.pub, Signature = sig },
+            }!,
+        };
+        var ex = Assert.ThrowsExactly<ArgumentException>(() => payload.Encode());
+        StringAssert.Contains(ex.Message, "[1]");
+    }
+
+    [TestMethod]
+    public void MultisigPayload_Encode_RejectsOversizedSignerCount()
+    {
+        // Encode/Decode symmetry — Decode rejects > MaxSigners (covered above by
+        // RejectsOversizedSignerCount). Without the matching Encode-side check, a
+        // producer could create bytes that round-trip Decode would refuse, hiding
+        // the bug at the next consumer.
+        var k = GenKey(1);
+        var sig = Crypto.Sign(new byte[] { 1 }, k.priv);
+        var sigs = new SignerSignature[MultisigProofPayload.MaxSigners + 1];
+        for (var i = 0; i < sigs.Length; i++)
+            sigs[i] = new SignerSignature { PublicKey = k.pub, Signature = sig };
+
+        var payload = new MultisigProofPayload { Signatures = sigs };
+        Assert.ThrowsExactly<InvalidOperationException>(() => payload.Encode());
+    }
+
+    [TestMethod]
     public void MultisigPayload_AcceptsExactlyMaxSigners()
     {
         // Boundary case: exactly MaxSigners=256 must succeed. Pairs with the reject test.

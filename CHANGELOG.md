@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Pinning tests for `MultisigProofPayload.Encode` validation
+
+- Three new tests in `UT_Attestation.cs` lock down the iter-159 Encode-side checks: `Encode_RejectsBadSignatureLength` (boundary 63 / 65 vs. the silent-zero-pad at length < 64), `Encode_RejectsNullSignerEntry` (asserts the null index appears in the exception message), `Encode_RejectsOversizedSignerCount` (Encode/Decode symmetry pin). Without these, future refactors could regress the silent-padding bug undetected.
+
+Cumulative: 434 tests / 27 projects.
+
 ### Changed — Proof/deposit payload encoders: null-guards + Encode/Decode-symmetry checks
 
 - Swept the four remaining payload encoders. Added null-guards on the reference-type `UInt160`/`UInt256` fields (`OptimisticProofPayload`, `RiscVProofPayload`, `MultisigProofPayload`, `DepositPayload`). Added Encode-side cap checks where the matching `Decode` already rejects oversized inputs (`MaxSignatureBytes`, `MaxProofBytes`, `MaxSigners`) — without these you could `Encode` bytes the round-trip `Decode` would refuse, masking the producer-side bug at the next consumer. `MultisigProofPayload.Encode` additionally validates each signer's `Signature.Length == 64` (a shorter source silently zero-pads via `Span.CopyTo`, producing a structurally-valid but semantically-wrong encoding).

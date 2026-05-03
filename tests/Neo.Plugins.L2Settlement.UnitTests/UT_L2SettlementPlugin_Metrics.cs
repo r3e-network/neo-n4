@@ -239,6 +239,42 @@ public class UT_L2SettlementPlugin_Metrics
     }
 
     [TestMethod]
+    public async Task Submit_RejectsEmptyProverProof_AtProveBoundary()
+    {
+        // Regression for iter 177: a prover that returns empty Proof bytes paired with
+        // a non-None ProofType would otherwise produce a commitment that NoZeroProofCheck
+        // catches hours later at audit time, with no link back to the prover bug.
+        // Now caught at the prove boundary as a contract violation.
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin();
+        var emptyProver = new EmptyProofProver();
+        var client = new FakeClient();
+        var metrics = new InMemoryMetrics();
+
+        settlement.Wire(batch, emptyProver, client);
+        settlement.WithMetrics(metrics);
+
+        settlement.Enqueue(BuildCommitment(batchNumber: 1));
+        await settlement.SubmitNextAsync();
+
+        Assert.AreEqual(0, client.SubmitCount, "must not submit a soft-sealed batch");
+        Assert.AreEqual(1, metrics.GetCounter(MetricNames.SubmitFailures, ("exception", "InvalidOperationException")));
+        Assert.AreEqual(1, settlement.PendingCount);
+    }
+
+    private sealed class EmptyProofProver : IL2Prover
+    {
+        public ProofType Kind => ProofType.Multisig;
+        public ValueTask<ProofResult> ProveAsync(ProofRequest request, CancellationToken cancellationToken = default)
+            => new ValueTask<ProofResult>(new ProofResult
+            {
+                Proof = ReadOnlyMemory<byte>.Empty,           // ← empty
+                Kind = ProofType.Multisig,
+                PublicInputHash = Neo.L2.State.StateRootCalculator.HashPublicInputs(request.PublicInputs),
+            });
+    }
+
+    [TestMethod]
     public async Task Submit_BuggyProverReturnsNull_TaggedAsContractViolation()
     {
         // Regression for iter 175: a buggy IL2Prover.ProveAsync returning null would

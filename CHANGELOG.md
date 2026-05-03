@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `L2SettlementPlugin`: fail-fast on empty `proofResult.Proof`
+
+- A prover that returned empty `Proof` bytes paired with a non-None `ProofType` would otherwise produce a soft-sealed commitment that `NoZeroProofCheck` catches hours later at audit time, with no link back to the prover bug. Now caught at the prove boundary in `SubmitNextAsync` — same iter-128/140-style "fail close to the contract" pattern as the Kind/PublicInputHash mismatch checks. The exception flows through the iter-175 catch tagging so dashboards see `SubmitFailures{exception=InvalidOperationException}`. 1 pinning test with `EmptyProofProver` test double.
+
+Cumulative: 463 tests / 27 projects.
+
 ### Fixed — `KeyedStateStore.EnumerateSorted` defensive copy
 
 - The "test/debug helper" `EnumerateSorted` yielded the raw `byte[]` references stored in the `SortedDictionary`, so a debug consumer that mutated the yielded keys/values would silently corrupt the store's internal state. `Put` already copies (iter-167 pattern) and `Get` returns immutable `ReadOnlyMemory`, but this iterator was the lone hole. Now each yielded entry is a fresh `Clone()` — caller mutations are isolated. Pinning test mutates the yielded buffers and asserts the stored entry is unchanged.

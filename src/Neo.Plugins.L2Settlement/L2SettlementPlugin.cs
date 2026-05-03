@@ -165,6 +165,13 @@ public sealed class L2SettlementPlugin : Plugin
             if (!proofResult.PublicInputHash.Equals(hash))
                 throw new InvalidOperationException(
                     "prover's PublicInputHash differs from settlement's — prover proved different inputs");
+            // Defensive: a non-None ProofType must carry actual bytes. Empty would slip
+            // through here, get assembled into the commitment, and only be flagged hours
+            // later by NoZeroProofCheck at audit time. Fail fast so the operator sees the
+            // prover bug at the prove boundary instead of inheriting a "soft-sealed" batch.
+            if (proofResult.Proof.IsEmpty)
+                throw new InvalidOperationException(
+                    $"prover returned empty Proof bytes for ProofType={proofResult.Kind} — would be flagged later by NoZeroProofCheck");
             var kindTag = ("kind", proofResult.Kind.ToString());
             // Safe* wrappers throughout: a metric throw caught by the broad `catch
             // (Exception)` below would re-queue the batch — and after SubmitBatchAsync,

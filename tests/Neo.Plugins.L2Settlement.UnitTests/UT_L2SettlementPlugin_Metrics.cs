@@ -49,7 +49,11 @@ public class UT_L2SettlementPlugin_Metrics
         await settlement.SubmitNextAsync();
 
         Assert.AreEqual(0, metrics.GetCounter(MetricNames.BatchesSubmitted), "no successful submit");
-        Assert.AreEqual(1, metrics.GetCounter(MetricNames.SubmitFailures), "failure counter incremented");
+        // iter 175: SubmitFailures is now tagged with the exception type so dashboards
+        // can separate contract violations (InvalidOperationException) from real
+        // network/L1 failures.
+        Assert.AreEqual(1, metrics.GetCounter(MetricNames.SubmitFailures, ("exception", "InvalidOperationException")),
+            "failure counter incremented and tagged with exception type");
         Assert.AreEqual(1, settlement.PendingCount, "batch re-queued for retry");
         Assert.AreEqual(1, metrics.GetCounter(MetricNames.ProofsGenerated, ("kind", "Multisig")), "prove still ran");
     }
@@ -133,9 +137,10 @@ public class UT_L2SettlementPlugin_Metrics
         settlement.Enqueue(BuildCommitment(batchNumber: 1));
         await settlement.SubmitNextAsync();
 
-        // The mismatch should be caught and counted as a submit failure.
+        // The mismatch should be caught and counted as a submit failure with the
+        // contract-violation exception type tag (iter 175).
         Assert.AreEqual(0, metrics.GetCounter(MetricNames.BatchesSubmitted));
-        Assert.AreEqual(1, metrics.GetCounter(MetricNames.SubmitFailures));
+        Assert.AreEqual(1, metrics.GetCounter(MetricNames.SubmitFailures, ("exception", "InvalidOperationException")));
         Assert.AreEqual(1, settlement.PendingCount, "batch re-queued for retry");
     }
 
@@ -231,6 +236,38 @@ public class UT_L2SettlementPlugin_Metrics
             => throw new InvalidOperationException($"sink down: {name}");
         public void SetGauge(string name, double value, params (string Key, string Value)[] tags)
             => throw new InvalidOperationException($"sink down: {name}");
+    }
+
+    [TestMethod]
+    public async Task Submit_BuggyProverReturnsNull_TaggedAsContractViolation()
+    {
+        // Regression for iter 175: a buggy IL2Prover.ProveAsync returning null would
+        // previously NRE inside `proofResult.Kind` access; now surfaces as
+        // InvalidOperationException, gets caught by the broad catch, and is tagged
+        // with the exception type so dashboards can separate contract violations.
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin();
+        var nullProver = new NullReturningProver();
+        var client = new FakeClient();
+        var metrics = new InMemoryMetrics();
+
+        settlement.Wire(batch, nullProver, client);
+        settlement.WithMetrics(metrics);
+
+        settlement.Enqueue(BuildCommitment(batchNumber: 1));
+        await settlement.SubmitNextAsync();
+
+        Assert.AreEqual(0, client.SubmitCount, "client must not be called when prover violates contract");
+        Assert.AreEqual(1, metrics.GetCounter(MetricNames.SubmitFailures, ("exception", "InvalidOperationException")),
+            "failure metric tagged with exception type");
+        Assert.AreEqual(1, settlement.PendingCount, "batch re-queued for retry");
+    }
+
+    private sealed class NullReturningProver : IL2Prover
+    {
+        public ProofType Kind => ProofType.Multisig;
+        public ValueTask<ProofResult> ProveAsync(ProofRequest request, CancellationToken cancellationToken = default)
+            => new ValueTask<ProofResult>((ProofResult)null!);
     }
 
     [TestMethod]

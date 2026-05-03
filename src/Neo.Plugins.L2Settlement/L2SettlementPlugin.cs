@@ -142,7 +142,12 @@ public sealed class L2SettlementPlugin : Plugin
                 PublicInputs = publicInputs,
                 Witness = ReadOnlyMemory<byte>.Empty,
                 Kind = requestedKind,
-            });
+            }) ?? throw new InvalidOperationException("IL2Prover.ProveAsync returned null");
+            // Defensive: ProofResult fields are reference types; required doesn't prevent
+            // null. Surface bad fields as a clear contract violation instead of NREing
+            // inside the .Kind / .PublicInputHash / .Equals(hash) checks below. Same
+            // iter-171/172/173/174 callee-contract pattern.
+            ArgumentNullException.ThrowIfNull(proofResult.PublicInputHash);
             proveSw.Stop();
             // Sanity-check the prover's contract: the returned Kind must match what we
             // asked for. A buggy prover that returns ProofType.None would silently produce
@@ -183,9 +188,14 @@ public sealed class L2SettlementPlugin : Plugin
             _metrics.SafeIncrementCounter(MetricNames.BatchesSubmitted);
             _metrics.SafeRecordHistogram(MetricNames.SubmitLatencyMs, submitSw.Elapsed.TotalMilliseconds);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            _metrics.SafeIncrementCounter(MetricNames.SubmitFailures);
+            // Tag the failure metric with the exception type so a dashboard can
+            // separate contract violations (InvalidOperationException) from network
+            // (HttpRequestException) from L1-side rejections. Without this tag the
+            // SubmitFailures counter is a single number that hides the failure mode.
+            _metrics.SafeIncrementCounter(
+                MetricNames.SubmitFailures, 1, ("exception", ex.GetType().Name));
             // Re-queue at the head so we retry. Production handler logs and bumps a metric.
             lock (_pending)
             {

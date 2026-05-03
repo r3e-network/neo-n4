@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — `L2SettlementPlugin`: prover-contract assertion + exception-tagged failure metric
+
+- `L2SettlementPlugin.SubmitNextAsync` now asserts the prover's contract: `IL2Prover.ProveAsync` returning null surfaces as `InvalidOperationException`, and `proofResult.PublicInputHash` is null-guarded (was previously dereferenced on the next `.Equals(hash)`). Same iter-171/172/173/174 callee-contract pattern.
+- The broad `catch (Exception)` block now tags `MetricNames.SubmitFailures` with `("exception", typeName)` so an operator's dashboard can separate contract violations (`InvalidOperationException`) from network failures (`HttpRequestException`) from L1-side rejections. Previously the counter was a single number that hid the failure mode.
+- 1 new pinning test (`Submit_BuggyProverReturnsNull_TaggedAsContractViolation`) + 2 existing tests updated to assert the new tag.
+
+Cumulative: 461 tests / 27 projects.
+
 ### Fixed — `AttestationProver` callee-contract assertion on `ISignerSet.SignAsync`
 
 - A buggy `ISignerSet` returning null from `SignAsync` would propagate as a NRE inside `MultisigProofPayload.Encode`'s iter-159 null-guard (which would name `Signatures` rather than the actual root cause). Now surfaced at the prover boundary as `InvalidOperationException` naming `SignAsync`. 1 pinning test with `NullReturningSigners` test double.

@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — RISC-V prover/verifier ctors null-guard `verificationKeyId`
+
+- `Sp1RiscVProver`, `Sp1RiscVVerifier`, `MockRiscVProver`, `MockRiscVVerifier` ctors all accepted a null `UInt256 verificationKeyId` silently. The null would later surface as a iter-159 `RiscVProofPayload.Encode` "VerificationKeyId is null" — naming the payload field but not the actual producer (the prover/verifier ctor that took the bad value). Surface at the source. No pinning tests (4 trivial ctor guards; existing tests still pass with valid VKs).
+
+Cumulative: 487 tests / 27 projects.
+
 ### Fixed — `BisectionGame` ctor per-entry null-guards (defense-in-depth for direct callers)
 
 - `ChallengeOrchestrator.InspectWithBisectionAsync` (iter 196) per-entry-null-checks before invoking, but `BisectionGame` is a public constructor that other callers can hit directly. Without this guard, a null entry would NRE inside the `[0].Equals(...)` / `[^1].Equals(...)` checks or `RunRound`'s mid-comparison. 1 pinning test (had to fix the test on first run — `BuildScenario(N, ...)` returns `N+1` arrays, not `N`; off-by-one caught by length-mismatch firing first).

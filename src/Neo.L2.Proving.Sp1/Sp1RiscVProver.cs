@@ -27,6 +27,10 @@ public sealed class Sp1RiscVProver : RiscVProverBase
     /// <summary>Construct with the verification-key id the matching verifier expects.</summary>
     public Sp1RiscVProver(UInt256 verificationKeyId)
     {
+        // UInt256 is a reference type. Surface a null vk at the ctor instead of letting
+        // it propagate to the iter-159 RiscVProofPayload.Encode null-guard later, which
+        // would name "VerificationKeyId" but not the producer (this prover).
+        ArgumentNullException.ThrowIfNull(verificationKeyId);
         _verificationKeyId = verificationKeyId;
         _fallback = new MockRiscVProver(verificationKeyId);
     }
@@ -103,6 +107,7 @@ public sealed class Sp1RiscVVerifier : IL2ProofVerifier
     /// <summary>Construct expecting a specific verification-key id.</summary>
     public Sp1RiscVVerifier(UInt256 expectedVkId)
     {
+        ArgumentNullException.ThrowIfNull(expectedVkId);
         _expectedVkId = expectedVkId;
         _fallback = new MockRiscVVerifier(expectedVkId);
     }

@@ -42,6 +42,7 @@ public sealed class MockRiscVProver : RiscVProverBase
     /// <summary>Construct with the verification-key identifier the matching verifier expects.</summary>
     public MockRiscVProver(UInt256 verificationKeyId)
     {
+        ArgumentNullException.ThrowIfNull(verificationKeyId);
         _vkId = verificationKeyId;
     }
 
@@ -88,6 +89,7 @@ public sealed class MockRiscVVerifier : IL2ProofVerifier
     /// <summary>Construct expecting a specific verification-key id.</summary>
     public MockRiscVVerifier(UInt256 expectedVkId)
     {
+        ArgumentNullException.ThrowIfNull(expectedVkId);
         _expectedVkId = expectedVkId;
     }
 

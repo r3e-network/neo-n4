@@ -71,10 +71,18 @@ public sealed class NeoFsLikeDAWriter : IDAWriter
     }
 
     /// <summary>Retrieve a previously published payload by chain + object id (test/debug helper).</summary>
+    /// <remarks>
+    /// Defensive copy: the store retains the original <c>byte[]</c> reference; without
+    /// the per-call clone, a debug consumer that mutated the returned bytes would
+    /// silently corrupt the store. Same iter-176 pattern as
+    /// <c>KeyedStateStore.EnumerateSorted</c>.
+    /// </remarks>
     public ReadOnlyMemory<byte>? TryGet(uint chainId, UInt256 objectId)
     {
         ArgumentNullException.ThrowIfNull(objectId);
-        return _store.TryGetValue((chainId, objectId), out var bytes) ? bytes : null;
+        return _store.TryGetValue((chainId, objectId), out var bytes)
+            ? (ReadOnlyMemory<byte>?)(byte[])bytes.Clone()
+            : null;
     }
 
     /// <summary>Drop everything (test-only convenience).</summary>

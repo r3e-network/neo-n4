@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `NeoFsLikeDAWriter.TryGet` defensive copy
+
+- Same iter-176 defensive-copy pattern as `KeyedStateStore.EnumerateSorted`. Previously returned the raw stored `byte[]` wrapped in `ReadOnlyMemory<byte>?`; a debug consumer that mutated the returned bytes would silently corrupt the store. Now returns a per-call `Clone()`. 1 pinning test mutates the first read and asserts the second read sees the original bytes.
+
+Cumulative: 478 tests / 27 projects.
+
 ### Fixed — `BatchSerializer.Encode` rejects out-of-range `ProofType` (Encode/Decode symmetry)
 
 - `Decode` rejects `ProofType` bytes outside `[0..Zk]` (iter 103). `Encode` did not — an out-of-range cast (e.g. `(ProofType)99`) produced bytes the round-trip `Decode` would refuse, masking the producer-side bug at the consumer. Same iter-159 Encode/Decode-symmetry pattern as `OptimisticProofPayload.MaxSignatureBytes` and `RiscVProofPayload.MaxProofBytes`. 1 pinning test asserts the throw + index in message.

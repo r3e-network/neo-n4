@@ -134,4 +134,27 @@ public class UT_DAWriters
         };
         Assert.IsFalse(await w.IsAvailableAsync(fake));
     }
+
+    [TestMethod]
+    public async Task NeoFsLike_TryGet_DefensiveCopy_CallerCannotCorruptStore()
+    {
+        // Regression for iter 188: TryGet previously returned the raw stored byte[]
+        // wrapped in ReadOnlyMemory<byte>?. A debug consumer that mutated the returned
+        // bytes would silently corrupt the store. Same iter-176 pattern as
+        // KeyedStateStore.EnumerateSorted.
+        var w = new NeoFsLikeDAWriter();
+        var receipt = await w.PublishAsync(new DAPublishRequest
+        {
+            ChainId = 1001, BatchNumber = 1, Payload = new byte[] { 0x11, 0x22, 0x33 },
+        });
+
+        var first = w.TryGet(1001, receipt.Commitment)!.Value.ToArray();
+        // Mutate the caller's copy.
+        first[0] = 0xFF; first[1] = 0xFF; first[2] = 0xFF;
+
+        var second = w.TryGet(1001, receipt.Commitment)!.Value.ToArray();
+        Assert.AreEqual(0x11, second[0], "stored bytes must survive caller mutations");
+        Assert.AreEqual(0x22, second[1]);
+        Assert.AreEqual(0x33, second[2]);
+    }
 }

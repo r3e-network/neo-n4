@@ -76,9 +76,13 @@ public sealed class BatchSealer
         var commitment = SealBatch(builder, blockTimestamp, network);
         sw.Stop();
 
-        _metrics.IncrementCounter(MetricNames.BatchesSealed);
-        _metrics.RecordHistogram(MetricNames.BatchSealLatencyMs, sw.Elapsed.TotalMilliseconds);
-        _metrics.SetGauge(MetricNames.BatchTxCount, txCount);
+        // Safe* wrappers: the seal is committed and `_builder = null` MUST run so the
+        // next OnBlockCommit starts a fresh batch. Without these, a metric throw would
+        // leave _builder pointing at the just-sealed builder; the next call would add
+        // blocks to a sealed builder (or hit "already sealed"). See iter-162/163 fix.
+        _metrics.SafeIncrementCounter(MetricNames.BatchesSealed);
+        _metrics.SafeRecordHistogram(MetricNames.BatchSealLatencyMs, sw.Elapsed.TotalMilliseconds);
+        _metrics.SafeSetGauge(MetricNames.BatchTxCount, txCount);
 
         _builder = null;
         return commitment;

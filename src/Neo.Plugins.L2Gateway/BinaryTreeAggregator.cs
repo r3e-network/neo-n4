@@ -96,10 +96,12 @@ public sealed class BinaryTreeAggregator : IGatewayAggregator
         }
 
         sw.Stop();
-        _metrics.IncrementCounter(MetricNames.GatewayAggregations);
-        _metrics.IncrementCounter(MetricNames.GatewayBatchesAggregated, snapshot.Length);
-        _metrics.RecordHistogram(MetricNames.GatewayAggregationRounds, rounds);
-        _metrics.RecordHistogram(MetricNames.GatewayAggregationLatencyMs, sw.Elapsed.TotalMilliseconds);
+        // Safe* wrappers: the aggregation result is computed and must be returned even
+        // if the metrics sink throws.
+        _metrics.SafeIncrementCounter(MetricNames.GatewayAggregations);
+        _metrics.SafeIncrementCounter(MetricNames.GatewayBatchesAggregated, snapshot.Length);
+        _metrics.SafeRecordHistogram(MetricNames.GatewayAggregationRounds, rounds);
+        _metrics.SafeRecordHistogram(MetricNames.GatewayAggregationLatencyMs, sw.Elapsed.TotalMilliseconds);
 
         var root = current[0];
         return new AggregatedCommitment

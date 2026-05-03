@@ -56,7 +56,7 @@ public sealed class ChallengeOrchestrator
             ReplayedPostStateRoot = replayedRoot,
             DisputedTxIndex = 0, // MVP: no per-tx narrowing yet.
         };
-        _metrics.IncrementCounter(MetricNames.FraudProofsEmitted);
+        _metrics.SafeIncrementCounter(MetricNames.FraudProofsEmitted);
         return payload;
     }
 
@@ -113,7 +113,7 @@ public sealed class ChallengeOrchestrator
             ReplayedPostStateRoot = challengerCheckpoints[^1],
             DisputedTxIndex = (uint)disputedIndex,
         };
-        _metrics.IncrementCounter(MetricNames.FraudProofsEmitted);
+        _metrics.SafeIncrementCounter(MetricNames.FraudProofsEmitted);
         return ValueTask.FromResult<FraudProofPayload?>(payload);
     }
 }

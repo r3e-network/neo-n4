@@ -43,8 +43,8 @@ public sealed class ChainAuditor
             // who watches dashboards sees the audit count tick + failure tick. Without
             // these the empty-input case appears nowhere in counters — the run is
             // invisible to monitoring even though we returned a failed report.
-            _metrics.IncrementCounter(MetricNames.AuditsRun);
-            _metrics.IncrementCounter(MetricNames.AuditFailures, 1);
+            _metrics.SafeIncrementCounter(MetricNames.AuditsRun);
+            _metrics.SafeIncrementCounter(MetricNames.AuditFailures, 1);
             return new AuditReport
             {
                 ChainId = 0,
@@ -124,9 +124,10 @@ public sealed class ChainAuditor
         }
 
         var failureCount = allFindings.Count(f => !f.Passed);
-        _metrics.IncrementCounter(MetricNames.AuditsRun);
+        // Safe* wrappers: a metric throw must not lose the audit report the caller needs.
+        _metrics.SafeIncrementCounter(MetricNames.AuditsRun);
         if (failureCount > 0)
-            _metrics.IncrementCounter(MetricNames.AuditFailures, failureCount);
+            _metrics.SafeIncrementCounter(MetricNames.AuditFailures, failureCount);
 
         return new AuditReport
         {

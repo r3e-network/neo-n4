@@ -39,20 +39,25 @@ public sealed class MetricsEmittingDAWriter : IDAWriter
     public async ValueTask<DAReceipt> PublishAsync(DAPublishRequest request, CancellationToken cancellationToken = default)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
+        DAReceipt receipt;
         try
         {
-            var receipt = await _inner.PublishAsync(request, cancellationToken).ConfigureAwait(false);
-            sw.Stop();
-            _metrics.IncrementCounter(MetricNames.DAPublished, 1, _modeTag);
-            _metrics.RecordHistogram(MetricNames.DAPublishLatencyMs, sw.Elapsed.TotalMilliseconds, _modeTag);
-            return receipt;
+            receipt = await _inner.PublishAsync(request, cancellationToken).ConfigureAwait(false);
         }
         catch
         {
             sw.Stop();
-            _metrics.IncrementCounter(MetricNames.DAPublishFailures, 1, _modeTag);
+            _metrics.SafeIncrementCounter(MetricNames.DAPublishFailures, 1, _modeTag);
             throw;
         }
+        sw.Stop();
+        // Success metrics outside the try: a metric throw here would otherwise be caught
+        // as a "publish failure" — a worst-case false alarm where the DA blob WAS
+        // published (downstream relayers will pick it up) but our metrics + the caller
+        // both say it failed, prompting a re-publish that double-pays the DA layer.
+        _metrics.SafeIncrementCounter(MetricNames.DAPublished, 1, _modeTag);
+        _metrics.SafeRecordHistogram(MetricNames.DAPublishLatencyMs, sw.Elapsed.TotalMilliseconds, _modeTag);
+        return receipt;
     }
 
     /// <inheritdoc />

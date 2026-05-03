@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Metric-induced re-submission of already-on-L1 batches + sweep across 5 more sites
+
+- Worst-case bug fixed: in `L2SettlementPlugin.SubmitNextAsync`, a metrics-sink throw between the success of `SubmitBatchAsync` (line 175) and either of the post-submit metric calls (177/178) was caught by the broad `catch (Exception)` block, which re-queues the batch. The L1 contract would reject the duplicate commitment, the plugin would treat the rejection as another submit failure, and the batch would loop indefinitely — paying L1 gas every retry.
+- Same pattern swept across 4 more sites: `BatchSealer.OnBlockCommit` (would leave `_builder` non-null pointing at the just-sealed builder so the next call adds blocks to a sealed batch), `MetricsEmittingDAWriter.PublishAsync` (would re-publish an already-on-DA blob), `BinaryTreeAggregator`, `ChainAuditor`, `ChallengeOrchestrator`. All converted to `SafeIncrementCounter`/`SafeRecordHistogram`/`SafeSetGauge`.
+
+Cumulative: 437 tests / 27 projects.
+
 ### Added — `MetricsExtensions.SafeIncrementCounter`/`SafeSetGauge`/`SafeRecordHistogram` + sweep
 
 - New `Neo.L2.Telemetry.MetricsExtensions` (3 helpers) wraps `IL2Metrics` calls in `try/catch` swallows so a defective sink can never affect business logic. Refactored 4 state-mutating sites to use it: `InMemorySequencerCommitteeProvider.Register`/`BeginExit`/`Finalize`, `InMemoryForcedInclusionSource.Enqueue`, `L2Outbox.Add`. Each was previously vulnerable to the iter-162 defect: state committed under the lock, then a metric throw outside the lock would surface as a caller-visible "operation failed" while the state had already mutated. Added `WithdrawalProcessor_Stage_SurvivesThrowingMetricsSink` pinning test using a `ThrowingMetrics` test double that throws on every call.

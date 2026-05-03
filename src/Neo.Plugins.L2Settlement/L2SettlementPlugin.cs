@@ -161,8 +161,14 @@ public sealed class L2SettlementPlugin : Plugin
                 throw new InvalidOperationException(
                     "prover's PublicInputHash differs from settlement's — prover proved different inputs");
             var kindTag = ("kind", proofResult.Kind.ToString());
-            _metrics.IncrementCounter(MetricNames.ProofsGenerated, 1, kindTag);
-            _metrics.RecordHistogram(MetricNames.ProveLatencyMs, proveSw.Elapsed.TotalMilliseconds, kindTag);
+            // Safe* wrappers throughout: a metric throw caught by the broad `catch
+            // (Exception)` below would re-queue the batch — and after SubmitBatchAsync,
+            // re-queuing means re-submitting an already-on-L1 commitment. The L1 contract
+            // would reject the duplicate, the plugin would treat that rejection as
+            // another submit failure, and the batch would loop indefinitely. Worst-case
+            // metric-induced bug found in iter 164.
+            _metrics.SafeIncrementCounter(MetricNames.ProofsGenerated, 1, kindTag);
+            _metrics.SafeRecordHistogram(MetricNames.ProveLatencyMs, proveSw.Elapsed.TotalMilliseconds, kindTag);
 
             var finalCommitment = next with
             {
@@ -174,12 +180,12 @@ public sealed class L2SettlementPlugin : Plugin
             var submitSw = System.Diagnostics.Stopwatch.StartNew();
             await _client.SubmitBatchAsync(finalCommitment, publicInputs);
             submitSw.Stop();
-            _metrics.IncrementCounter(MetricNames.BatchesSubmitted);
-            _metrics.RecordHistogram(MetricNames.SubmitLatencyMs, submitSw.Elapsed.TotalMilliseconds);
+            _metrics.SafeIncrementCounter(MetricNames.BatchesSubmitted);
+            _metrics.SafeRecordHistogram(MetricNames.SubmitLatencyMs, submitSw.Elapsed.TotalMilliseconds);
         }
         catch (Exception)
         {
-            _metrics.IncrementCounter(MetricNames.SubmitFailures);
+            _metrics.SafeIncrementCounter(MetricNames.SubmitFailures);
             // Re-queue at the head so we retry. Production handler logs and bumps a metric.
             lock (_pending)
             {

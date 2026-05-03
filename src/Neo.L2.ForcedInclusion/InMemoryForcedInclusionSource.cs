@@ -40,7 +40,10 @@ public sealed class InMemoryForcedInclusionSource : IForcedInclusionSource
             if (!_pending.TryAdd(entry.Nonce, entry))
                 throw new InvalidOperationException($"nonce {entry.Nonce} already pending");
         }
-        _metrics.IncrementCounter(MetricNames.ForcedInclusionObserved);
+        // SafeIncrementCounter: the enqueue is committed before the metric fires; a
+        // metric throw must not surface as a caller-visible "enqueue failed". See
+        // iter-162/163 fix.
+        _metrics.SafeIncrementCounter(MetricNames.ForcedInclusionObserved);
     }
 
     /// <inheritdoc />

@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `MetricsExtensions.SafeIncrementCounter`/`SafeSetGauge`/`SafeRecordHistogram` + sweep
+
+- New `Neo.L2.Telemetry.MetricsExtensions` (3 helpers) wraps `IL2Metrics` calls in `try/catch` swallows so a defective sink can never affect business logic. Refactored 4 state-mutating sites to use it: `InMemorySequencerCommitteeProvider.Register`/`BeginExit`/`Finalize`, `InMemoryForcedInclusionSource.Enqueue`, `L2Outbox.Add`. Each was previously vulnerable to the iter-162 defect: state committed under the lock, then a metric throw outside the lock would surface as a caller-visible "operation failed" while the state had already mutated. Added `WithdrawalProcessor_Stage_SurvivesThrowingMetricsSink` pinning test using a `ThrowingMetrics` test double that throws on every call.
+
+Cumulative: 437 tests / 27 projects.
+
 ### Fixed — Metrics-sink exception corrupts `WithdrawalProcessor`/`DepositProcessor` state
 
 - Both processors had the same defect: a defective `IL2Metrics` implementation that throws would leave business state committed (`_byNonce` / `_tree` / `_consumed`) while the caller saw an exception and assumed the operation failed. Worse, the broad `catch { _metrics.IncrementCounter(*Rejected); throw; }` block would then fire too — double-counting. The interface contract doesn't promise `IL2Metrics.IncrementCounter` is non-throwing (any HTTP-pushing implementation absolutely could throw), so business code can't trust it. Fix: success counter is now outside the lock and outside the try block, both metric calls are individually try/catch-swallowed, and the rejection counter no longer competes with the success path.

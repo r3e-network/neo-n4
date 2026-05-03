@@ -49,8 +49,12 @@ public sealed class InMemorySequencerCommitteeProvider : ISequencerCommitteeProv
             };
             newSize = _members.Count;
         }
-        _metrics.IncrementCounter(MetricNames.SequencersRegistered);
-        _metrics.SetGauge(MetricNames.SequencerCommitteeSize, newSize);
+        // Safe* wrappers: if the metrics sink throws, the registration is already
+        // committed — bubbling that exception would make the caller assume failure
+        // and try to re-register, which would then throw "already registered". See
+        // iter-162/163 fix.
+        _metrics.SafeIncrementCounter(MetricNames.SequencersRegistered);
+        _metrics.SafeSetGauge(MetricNames.SequencerCommitteeSize, newSize);
     }
 
     /// <summary>Mark a member as exiting; their entry stays in the committee until <see cref="Finalize"/>.</summary>
@@ -65,7 +69,7 @@ public sealed class InMemorySequencerCommitteeProvider : ISequencerCommitteeProv
                 throw new InvalidOperationException("already exiting");
             _members[pubKey] = member with { Status = 2, ExitsAtUnixSeconds = exitsAtUnixSeconds };
         }
-        _metrics.IncrementCounter(MetricNames.SequencerExitsStarted);
+        _metrics.SafeIncrementCounter(MetricNames.SequencerExitsStarted);
     }
 
     /// <summary>Permanently remove an exiting member after their window has elapsed.</summary>
@@ -84,8 +88,8 @@ public sealed class InMemorySequencerCommitteeProvider : ISequencerCommitteeProv
             _members.Remove(pubKey);
             newSize = _members.Count;
         }
-        _metrics.IncrementCounter(MetricNames.SequencerExitsFinalized);
-        _metrics.SetGauge(MetricNames.SequencerCommitteeSize, newSize);
+        _metrics.SafeIncrementCounter(MetricNames.SequencerExitsFinalized);
+        _metrics.SafeSetGauge(MetricNames.SequencerCommitteeSize, newSize);
     }
 
     /// <summary>Update the configured max committee size.</summary>

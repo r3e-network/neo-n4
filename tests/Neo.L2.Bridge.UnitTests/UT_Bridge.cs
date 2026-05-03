@@ -346,4 +346,44 @@ public class UT_Bridge
         Assert.AreEqual(2, tree.Count);
         Assert.AreEqual(0, proc.StagedCount); // sealed → fresh tree
     }
+
+    [TestMethod]
+    public void WithdrawalProcessor_Stage_SurvivesThrowingMetricsSink()
+    {
+        // Regression for iter 162/163: previously a throwing IL2Metrics would either
+        //  (a) leave the staged tree mutation committed but throw to the caller, who
+        //      would then assume the operation failed and retry — only to hit
+        //      "nonce already used" since _byNonce DID record it; or
+        //  (b) double-count (BOTH WithdrawalsStaged and WithdrawalsRejected) because
+        //      the broad catch above caught the metrics throw too.
+        // The fix: success counter is outside the lock and outside the try; both
+        // metric calls are individually try/catch-swallowed via SafeIncrementCounter.
+        var registry = RegistryWithGas();
+        var proc = new WithdrawalProcessor(LocalChain, registry, new ThrowingMetrics());
+
+        var req = new WithdrawalRequest
+        {
+            EmittingContract = UInt160.Zero,
+            L2Sender = Sender,
+            L1Recipient = Recipient,
+            L2Asset = GasL2,
+            Amount = new BigInteger(100),
+            Nonce = 1,
+        };
+
+        // Must not throw, even though the metrics sink throws on every call.
+        var leaf = proc.Stage(req);
+        Assert.AreNotEqual(UInt256.Zero, leaf);
+        Assert.AreEqual(1, proc.StagedCount);
+    }
+
+    private sealed class ThrowingMetrics : Neo.L2.Telemetry.IL2Metrics
+    {
+        public void IncrementCounter(string name, long delta = 1, params (string Key, string Value)[] tags)
+            => throw new InvalidOperationException($"sink down: {name}");
+        public void RecordHistogram(string name, double value, params (string Key, string Value)[] tags)
+            => throw new InvalidOperationException($"sink down: {name}");
+        public void SetGauge(string name, double value, params (string Key, string Value)[] tags)
+            => throw new InvalidOperationException($"sink down: {name}");
+    }
 }

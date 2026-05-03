@@ -40,7 +40,10 @@ public sealed class L2Outbox
         var idx = message.TargetChainId == L1ChainId
             ? _l2ToL1.Add(message)
             : _l2ToL2.Add(message);
-        _metrics.IncrementCounter(MetricNames.MessagesEmitted);
+        // SafeIncrementCounter: the message is committed to the tree before the metric
+        // fires; a metric throw must not surface as a caller-visible "Add failed", which
+        // would leave the caller out of sync with the message tree's actual contents.
+        _metrics.SafeIncrementCounter(MetricNames.MessagesEmitted);
         return idx;
     }
 

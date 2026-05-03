@@ -57,6 +57,10 @@ public sealed class AssetRegistry
     /// <summary>Look up the mapping for an L1 asset on a given L2 chain.</summary>
     public bool TryGetByL1(UInt160 l1Asset, uint l2ChainId, out AssetMapping? mapping)
     {
+        // Surface bad input at the API boundary. Without this, Dictionary<UInt160, T>'s
+        // TryGetValue(null) throws ArgumentNullException with a generic "key" message;
+        // here the operator sees which arg is wrong. Same iter-148 Register pattern.
+        ArgumentNullException.ThrowIfNull(l1Asset);
         lock (_gate)
         {
             if (_byL1.TryGetValue((l1Asset, l2ChainId), out var m))
@@ -72,6 +76,7 @@ public sealed class AssetRegistry
     /// <summary>Look up the mapping for a known L2 asset.</summary>
     public bool TryGetByL2(UInt160 l2Asset, out AssetMapping? mapping)
     {
+        ArgumentNullException.ThrowIfNull(l2Asset);
         lock (_gate)
         {
             if (_byL2.TryGetValue(l2Asset, out var m))
@@ -87,6 +92,7 @@ public sealed class AssetRegistry
     /// <summary>Mark an existing mapping active or inactive (governance pause).</summary>
     public bool SetActive(UInt160 l2Asset, bool active)
     {
+        ArgumentNullException.ThrowIfNull(l2Asset);
         lock (_gate)
         {
             if (!_byL2.TryGetValue(l2Asset, out var existing)) return false;

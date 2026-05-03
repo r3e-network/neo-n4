@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `AssetRegistry` lookup/setter null-guard sweep
+
+- `TryGetByL1`, `TryGetByL2`, and `SetActive` previously delegated null-key handling to `Dictionary<UInt160, T>` whose `TryGetValue(null)` throws `ArgumentNullException` with a generic `"key"` message. Surface the bad arg at the API boundary so the operator sees which parameter is wrong. Same iter-148 pattern as `Register`. 3 pinning tests.
+
+Cumulative: 471 tests / 27 projects.
+
 ### Fixed — `JsonRpcClient.CallAsync` rejects mismatched response id
 
 - JSON-RPC 2.0 §5 mandates the response's `id` field match the request's. A buggy server, misconfigured proxy, or confused upstream that interleaves streams could silently send a response correlating to a different request — previously accepted as if it answered ours. Although we rely on HTTP one-request-per-connection correlation here (so a mismatch can't actually misroute a response on the happy path), the missing check masked server bugs that an operator would otherwise want to catch. Now throws `JsonRpcException(-32603, "response id N does not match request id M")`. 1 pinning test using a `StubHandler` that returns `id=999` for a request sent with `id=1`.

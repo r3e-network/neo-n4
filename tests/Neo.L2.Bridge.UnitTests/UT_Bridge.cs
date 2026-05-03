@@ -386,4 +386,29 @@ public class UT_Bridge
         public void SetGauge(string name, double value, params (string Key, string Value)[] tags)
             => throw new InvalidOperationException($"sink down: {name}");
     }
+
+    [TestMethod]
+    public void Registry_TryGetByL1_RejectsNullL1Asset()
+    {
+        // Regression for iter 183: Dictionary<UInt160, T>.TryGetValue(null) throws
+        // ArgumentNullException with a generic "key" message. Surface at the API
+        // boundary so the operator sees the actual argument name.
+        var r = new AssetRegistry();
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => r.TryGetByL1(null!, LocalChain, out _));
+    }
+
+    [TestMethod]
+    public void Registry_TryGetByL2_RejectsNullL2Asset()
+    {
+        var r = new AssetRegistry();
+        Assert.ThrowsExactly<ArgumentNullException>(() => r.TryGetByL2(null!, out _));
+    }
+
+    [TestMethod]
+    public void Registry_SetActive_RejectsNullL2Asset()
+    {
+        var r = new AssetRegistry();
+        Assert.ThrowsExactly<ArgumentNullException>(() => r.SetActive(null!, false));
+    }
 }

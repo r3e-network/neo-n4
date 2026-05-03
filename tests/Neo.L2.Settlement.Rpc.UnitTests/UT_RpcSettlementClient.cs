@@ -239,6 +239,44 @@ public class UT_RpcSettlementClient
     }
 
     [TestMethod]
+    public async Task SubmitBatchAsync_BuggySignAndSendReturnsNull_SurfacesContractViolation()
+    {
+        // Regression for iter 189: a buggy SignAndSendAsync delegate returning null
+        // UInt256 would propagate as a NRE further downstream (e.g. an L1-tracker that
+        // dereferences the tx hash). Now surfaced at the boundary as a clear
+        // InvalidOperationException naming the delegate.
+        using var rpc = new JsonRpcClient(FakeEndpoint, new HttpClient(new StubHandler { ResponseBody = "{}" }));
+        using var settlement = new RpcSettlementClient(
+            rpc,
+            UInt160.Parse("0x" + new string('1', 40)),
+            (sm, bytes, ct) => new ValueTask<UInt256>((UInt256)null!));
+
+        var commitment = new L2BatchCommitment
+        {
+            ChainId = 1001, BatchNumber = 5,
+            FirstBlock = 100, LastBlock = 200,
+            PreStateRoot = UInt256.Zero, PostStateRoot = UInt256.Zero,
+            TxRoot = UInt256.Zero, ReceiptRoot = UInt256.Zero,
+            WithdrawalRoot = UInt256.Zero,
+            L2ToL1MessageRoot = UInt256.Zero, L2ToL2MessageRoot = UInt256.Zero,
+            DACommitment = UInt256.Zero, PublicInputHash = UInt256.Zero,
+            ProofType = ProofType.Multisig, Proof = new byte[] { 0xAB },
+        };
+        var publicInputs = new PublicInputs
+        {
+            ChainId = 1001, BatchNumber = 5,
+            PreStateRoot = UInt256.Zero, PostStateRoot = UInt256.Zero,
+            TxRoot = UInt256.Zero, ReceiptRoot = UInt256.Zero,
+            WithdrawalRoot = UInt256.Zero,
+            L2ToL1MessageRoot = UInt256.Zero, L2ToL2MessageRoot = UInt256.Zero,
+            L1MessageHash = UInt256.Zero, DACommitment = UInt256.Zero, BlockContextHash = UInt256.Zero,
+        };
+        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            async () => await settlement.SubmitBatchAsync(commitment, publicInputs));
+        StringAssert.Contains(ex.Message, "SignAndSendAsync");
+    }
+
+    [TestMethod]
     public async Task JsonRpcClient_RejectsMismatchedResponseId()
     {
         // Regression for iter 182: JSON-RPC 2.0 §5 mandates response id == request id.

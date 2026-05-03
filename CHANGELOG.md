@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `RpcSettlementClient.SubmitBatchAsync` validates `SignAndSendAsync` return
+
+- A buggy `SignAndSendAsync` delegate returning null `UInt256` would propagate as a NRE further downstream — typically an L1-tracker dereferencing the tx hash. Same iter-171/172/173 callee-contract pattern: surface the bad return as `InvalidOperationException` naming the delegate. Made `SubmitBatchAsync` async to enable awaiting and validating the result. 1 pinning test using a delegate that returns `(UInt256)null!`.
+
+Cumulative: 479 tests / 27 projects.
+
 ### Fixed — `NeoFsLikeDAWriter.TryGet` defensive copy
 
 - Same iter-176 defensive-copy pattern as `KeyedStateStore.EnumerateSorted`. Previously returned the raw stored `byte[]` wrapped in `ReadOnlyMemory<byte>?`; a debug consumer that mutated the returned bytes would silently corrupt the store. Now returns a per-call `Clone()`. 1 pinning test mutates the first read and asserts the second read sees the original bytes.

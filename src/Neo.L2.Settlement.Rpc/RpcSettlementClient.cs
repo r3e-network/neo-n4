@@ -41,11 +41,17 @@ public sealed class RpcSettlementClient : ISettlementClient, IDisposable
     }
 
     /// <inheritdoc />
-    public ValueTask<UInt256> SubmitBatchAsync(L2BatchCommitment commitment, PublicInputs publicInputs, CancellationToken cancellationToken = default)
+    public async ValueTask<UInt256> SubmitBatchAsync(L2BatchCommitment commitment, PublicInputs publicInputs, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(commitment);
         var bytes = BatchSerializer.Encode(commitment);
-        return _signAndSend(_settlementManagerHash, bytes, cancellationToken);
+        // Defensive: a buggy signAndSend that returns null UInt256 would propagate as a
+        // NRE further downstream (e.g. an L1-tracker that dereferences the tx hash).
+        // Same iter-171/172/173 callee-contract pattern.
+        var txHash = await _signAndSend(_settlementManagerHash, bytes, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidOperationException(
+                "RpcSettlementClient.SignAndSendAsync delegate returned null tx hash");
+        return txHash;
     }
 
     /// <inheritdoc />

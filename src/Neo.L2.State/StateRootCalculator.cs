@@ -51,6 +51,10 @@ public static class StateRootCalculator
     public static UInt256 HashBlockContext(BatchBlockContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
+        // Defense-in-depth: SequencerCommitteeHash is a UInt256 (reference type) — null
+        // would crash inside GetSpan() with no link back to the caller. Match the
+        // iter-154/155 hashing-primitive null-guard pattern.
+        ArgumentNullException.ThrowIfNull(context.SequencerCommitteeHash);
         Span<byte> buffer = stackalloc byte[4 + 8 + 8 + 32 + 4];
         var pos = 0;
         BinaryPrimitives.WriteUInt32LittleEndian(buffer.Slice(pos, 4), context.L1FinalizedHeight); pos += 4;
@@ -68,6 +72,18 @@ public static class StateRootCalculator
     public static UInt256 HashPublicInputs(PublicInputs inputs)
     {
         ArgumentNullException.ThrowIfNull(inputs);
+        // Defense-in-depth: all 10 root fields are UInt256 (reference type) — null in
+        // any one would crash inside WriteRoot's GetSpan(). Same iter-154/155 pattern.
+        ArgumentNullException.ThrowIfNull(inputs.PreStateRoot);
+        ArgumentNullException.ThrowIfNull(inputs.PostStateRoot);
+        ArgumentNullException.ThrowIfNull(inputs.TxRoot);
+        ArgumentNullException.ThrowIfNull(inputs.ReceiptRoot);
+        ArgumentNullException.ThrowIfNull(inputs.WithdrawalRoot);
+        ArgumentNullException.ThrowIfNull(inputs.L2ToL1MessageRoot);
+        ArgumentNullException.ThrowIfNull(inputs.L2ToL2MessageRoot);
+        ArgumentNullException.ThrowIfNull(inputs.L1MessageHash);
+        ArgumentNullException.ThrowIfNull(inputs.DACommitment);
+        ArgumentNullException.ThrowIfNull(inputs.BlockContextHash);
         // Use the canonical encoding from BatchSerializer-equivalent layout.
         Span<byte> buffer = stackalloc byte[4 + 8 + 10 * 32];
         var pos = 0;

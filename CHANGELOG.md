@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — `StateRootCalculator` defense-in-depth null-guards
+
+- Continued the iter-154/155 hashing-primitive null-guard pattern through `StateRootCalculator.HashBlockContext` (one `UInt256`) and `StateRootCalculator.HashPublicInputs` (ten `UInt256` fields). Each null-checked before reaching the `WriteRoot` / `GetSpan()` boundary.
+
+Cumulative: 431 tests / 27 projects.
+
 ### Changed — `Receipt.Hash` defense-in-depth null-guards
 
 - Same pattern as iter 154's `MessageHasher` fix, applied to `Receipt.Hash()`. The three `UInt256` fields (`TxHash`, `StorageDeltaHash`, `EventsHash`) are reference types; `required` only forces "must be set," not "non-null." A null field would crash inside `GetSpan()` with no link back to the bad caller. Now `ArgumentNullException.ThrowIfNull` each before hitting the buffer copy.

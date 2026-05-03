@@ -81,10 +81,17 @@ public sealed class KeyedStateStore
     }
 
     /// <summary>Iterate the store in sorted-key order (test/debug helper).</summary>
+    /// <remarks>
+    /// Defensive copy: <c>_data</c> stores raw <c>byte[]</c> references that callers
+    /// could mutate. Without the per-entry copy, a debug consumer that touched the
+    /// returned bytes would silently corrupt the store's keys/values — Put copies
+    /// (iter-167 pattern), Get returns immutable <c>ReadOnlyMemory</c>, but this
+    /// helper would otherwise be the lone hole.
+    /// </remarks>
     public IEnumerable<(byte[] Key, byte[] Value)> EnumerateSorted()
     {
         foreach (var entry in _data)
-            yield return (entry.Key, entry.Value);
+            yield return ((byte[])entry.Key.Clone(), (byte[])entry.Value.Clone());
     }
 
     private sealed class ByteArrayComparer : IComparer<byte[]>

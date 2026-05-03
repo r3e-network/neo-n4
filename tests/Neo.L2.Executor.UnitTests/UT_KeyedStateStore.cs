@@ -87,6 +87,28 @@ public class UT_KeyedStateStore
     }
 
     [TestMethod]
+    public void EnumerateSorted_DefensiveCopy_CallerCannotCorruptStore()
+    {
+        // Regression for iter 176: previously EnumerateSorted yielded the raw byte[]
+        // references stored in the SortedDictionary, so a debug consumer that mutated
+        // the returned bytes would silently corrupt the store's keys/values. Now
+        // each yielded entry is a fresh clone — caller mutations are isolated.
+        var s = new KeyedStateStore();
+        s.Put(new byte[] { 0x05 }, new byte[] { 0x42 });
+
+        foreach (var (key, value) in s.EnumerateSorted())
+        {
+            // Mutate the yielded buffers — must not leak back into the store.
+            key[0] = 0xFF;
+            value[0] = 0xFF;
+        }
+
+        var roundtrip = s.Get(new byte[] { 0x05 }).ToArray();
+        Assert.AreEqual(0x42, roundtrip[0], "stored value must survive caller mutations");
+        Assert.IsTrue(s.Contains(new byte[] { 0x05 }), "stored key must survive caller mutations");
+    }
+
+    [TestMethod]
     public async Task Oracle_ReturnsStoreRoot()
     {
         var store = new KeyedStateStore();

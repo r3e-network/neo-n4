@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `KeyedStateStore.EnumerateSorted` defensive copy
+
+- The "test/debug helper" `EnumerateSorted` yielded the raw `byte[]` references stored in the `SortedDictionary`, so a debug consumer that mutated the yielded keys/values would silently corrupt the store's internal state. `Put` already copies (iter-167 pattern) and `Get` returns immutable `ReadOnlyMemory`, but this iterator was the lone hole. Now each yielded entry is a fresh `Clone()` — caller mutations are isolated. Pinning test mutates the yielded buffers and asserts the stored entry is unchanged.
+- Spent earlier in this iteration trying to broaden the iter-175 exception-tagging pattern across 5 more failure-counter sites (`WithdrawalsRejected`, `DepositsRejected`, `RpcFailures`, `DAPublishFailures`, `BatchSealedSubscriberFailures`) — broke 12 tests that asserted untagged metrics. Reverted; the per-site choice was deliberate, broadening it requires a coordinated test update done in a focused refactor PR rather than a defensive-sweep iter.
+
+Cumulative: 462 tests / 27 projects.
+
 ### Changed — `L2SettlementPlugin`: prover-contract assertion + exception-tagged failure metric
 
 - `L2SettlementPlugin.SubmitNextAsync` now asserts the prover's contract: `IL2Prover.ProveAsync` returning null surfaces as `InvalidOperationException`, and `proofResult.PublicInputHash` is null-guarded (was previously dereferenced on the next `.Equals(hash)`). Same iter-171/172/173/174 callee-contract pattern.

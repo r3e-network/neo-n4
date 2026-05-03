@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `AttestationProver` callee-contract assertion on `ISignerSet.SignAsync`
+
+- A buggy `ISignerSet` returning null from `SignAsync` would propagate as a NRE inside `MultisigProofPayload.Encode`'s iter-159 null-guard (which would name `Signatures` rather than the actual root cause). Now surfaced at the prover boundary as `InvalidOperationException` naming `SignAsync`. 1 pinning test with `NullReturningSigners` test double.
+
+Cumulative: 460 tests / 27 projects.
+
 ### Fixed — Two more callee-contract assertions: `MetricsEmittingDAWriter` + `ReferenceBatchExecutor`
 
 - Continued the iter-171/172 sweep. (1) `MetricsEmittingDAWriter.PublishAsync` now asserts the inner writer's contract: a null `DAReceipt` return surfaces as `InvalidOperationException` naming `PublishAsync` (with the mode tag) and bumps the failure metric. Previously a downstream consumer would NRE on `receipt.Commitment`. (2) `ReferenceBatchExecutor.ApplyBatchAsync` now asserts `ITransactionExecutor.ExecuteAsync` returns non-null AND that `result.Receipt`/`result.TxHash` are non-null (would NRE inside `result.Receipt.Hash()` or `MerkleTree.ComputeRoot(txHashes)` containing nulls).

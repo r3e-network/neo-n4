@@ -36,7 +36,8 @@ public sealed class AttestationProver : IL2Prover
         var canonicalBytes = BatchSerializer.EncodePublicInputs(request.PublicInputs);
         var publicInputHash = StateRootCalculator.HashPublicInputs(request.PublicInputs);
 
-        var signatures = await _signers.SignAsync(canonicalBytes, cancellationToken).ConfigureAwait(false);
+        var signatures = await _signers.SignAsync(canonicalBytes, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidOperationException("ISignerSet.SignAsync returned null");
         var payload = new MultisigProofPayload { Signatures = signatures };
 
         return new ProofResult

@@ -235,4 +235,30 @@ public class UT_Attestation
 
         Assert.AreEqual(MultisigProofPayload.MaxSigners, decoded.Signatures.Count);
     }
+
+    [TestMethod]
+    public async Task AttestationProver_BuggySignerSetReturnsNull_SurfacesContractViolation()
+    {
+        // Regression for iter 174: a buggy ISignerSet that returns null from SignAsync
+        // would propagate as a confusing NRE inside MultisigProofPayload.Encode's
+        // null-guard (which would name "Signatures" but not the actual root cause).
+        // Now surfaces as InvalidOperationException at the prover boundary.
+        var prover = new AttestationProver(new NullReturningSigners());
+        var inputs = SamplePublicInputs();
+        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(async () =>
+            await prover.ProveAsync(new ProofRequest
+            {
+                PublicInputs = inputs,
+                Witness = ReadOnlyMemory<byte>.Empty,
+                Kind = ProofType.Multisig,
+            }));
+        StringAssert.Contains(ex.Message, "SignAsync");
+    }
+
+    private sealed class NullReturningSigners : ISignerSet
+    {
+        public IReadOnlyList<ECPoint> ValidatorKeys { get; } = Array.Empty<ECPoint>();
+        public ValueTask<IReadOnlyList<SignerSignature>> SignAsync(ReadOnlyMemory<byte> message, CancellationToken cancellationToken = default)
+            => new ValueTask<IReadOnlyList<SignerSignature>>((IReadOnlyList<SignerSignature>)null!);
+    }
 }

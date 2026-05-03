@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Pin iter-164 worst-case + sweep last 2 metric sites
+
+- New regression test `Submit_ThrowingMetrics_DoesNotReQueueAlreadySubmittedBatch` in `UT_L2SettlementPlugin_Metrics.cs` uses a `ThrowingMetrics` test double to assert that a metrics-sink failure after `SubmitBatchAsync` returns does NOT re-queue the batch (which would loop indefinitely against L1's duplicate-rejection). Verifies `client.SubmitCount == 1` and `settlement.PendingCount == 0`.
+- Swept the final two metric call sites: `L2RpcMethods.Time` (would surface a successful RPC body as an `RpcFailures` to the caller, prompting a retry) and `CensorshipDetector` (less severe — pure compute path, but consistent with the rest). Metric-sink-isolation sweep is now complete across the L2 stack.
+
+Cumulative: 438 tests / 27 projects.
+
 ### Fixed — Metric-induced re-submission of already-on-L1 batches + sweep across 5 more sites
 
 - Worst-case bug fixed: in `L2SettlementPlugin.SubmitNextAsync`, a metrics-sink throw between the success of `SubmitBatchAsync` (line 175) and either of the post-submit metric calls (177/178) was caught by the broad `catch (Exception)` block, which re-queues the batch. The L1 contract would reject the duplicate commitment, the plugin would treat the rejection as another submit failure, and the batch would loop indefinitely — paying L1 gas every retry.

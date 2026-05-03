@@ -89,11 +89,12 @@ public sealed class CensorshipDetector
                 });
             }
             if (reports.Count > 0)
-                _metrics.IncrementCounter(MetricNames.CensorshipReports, reports.Count);
+                _metrics.SafeIncrementCounter(MetricNames.CensorshipReports, reports.Count);
             return reports;
         }
 
         // Pick the first active member as the "responsible sequencer". Real production deploys
+
         // identify the actual dBFT proposer at the deadline timestamp.
         var responsible = committee.OrderBy(m => m.PublicKey).First();
 

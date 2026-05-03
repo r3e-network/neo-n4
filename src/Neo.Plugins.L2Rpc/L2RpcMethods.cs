@@ -134,20 +134,25 @@ public sealed class L2RpcMethods
     private JToken? Time(string method, Func<JToken?> body)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
+        JToken? result;
         try
         {
-            var result = body();
-            sw.Stop();
-            var tag = ("method", method);
-            _metrics.IncrementCounter(MetricNames.RpcCalls, 1, tag);
-            _metrics.RecordHistogram(MetricNames.RpcLatencyMs, sw.Elapsed.TotalMilliseconds, tag);
-            return result;
+            result = body();
         }
         catch
         {
-            _metrics.IncrementCounter(MetricNames.RpcFailures, 1, ("method", method));
+            sw.Stop();
+            _metrics.SafeIncrementCounter(MetricNames.RpcFailures, 1, ("method", method));
             throw;
         }
+        sw.Stop();
+        // Safe* outside the try: a metric throw here would otherwise be caught as an
+        // RpcFailure — a false alarm where the body succeeded but the caller sees a
+        // thrown exception, prompting a retry. Same iter-162/163/164 pattern.
+        var tag = ("method", method);
+        _metrics.SafeIncrementCounter(MetricNames.RpcCalls, 1, tag);
+        _metrics.SafeRecordHistogram(MetricNames.RpcLatencyMs, sw.Elapsed.TotalMilliseconds, tag);
+        return result;
     }
 
     private void AssertOurChain(uint chainId)

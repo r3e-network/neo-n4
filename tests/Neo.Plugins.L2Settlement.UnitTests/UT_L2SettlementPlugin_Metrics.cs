@@ -197,6 +197,43 @@ public class UT_L2SettlementPlugin_Metrics
     }
 
     [TestMethod]
+    public async Task Submit_ThrowingMetrics_DoesNotReQueueAlreadySubmittedBatch()
+    {
+        // Regression for iter 164: previously a metrics-sink throw between
+        // SubmitBatchAsync's success and the BatchesSubmitted/SubmitLatencyMs metric
+        // calls was caught by the broad catch(Exception) block, which re-queues the
+        // batch. Result: an already-on-L1 commitment gets re-submitted, the L1
+        // contract rejects the duplicate, and the loop never terminates — paying L1
+        // gas every retry. Now metrics are SafeIncrementCounter/SafeRecordHistogram
+        // wrapped, so a metrics throw doesn't trigger the catch path.
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin();
+        var prover = new FakeProver(ProofType.Multisig);
+        var client = new FakeClient();
+        var metrics = new ThrowingMetrics();
+
+        settlement.Wire(batch, prover, client);
+        settlement.WithMetrics(metrics);
+
+        settlement.Enqueue(BuildCommitment(batchNumber: 13));
+        await settlement.SubmitNextAsync();
+
+        Assert.AreEqual(1, client.SubmitCount, "submit must run exactly once");
+        Assert.AreEqual(0, settlement.PendingCount,
+            "batch must NOT be re-queued — it's already on L1; re-queue would loop forever");
+    }
+
+    private sealed class ThrowingMetrics : Neo.L2.Telemetry.IL2Metrics
+    {
+        public void IncrementCounter(string name, long delta = 1, params (string Key, string Value)[] tags)
+            => throw new InvalidOperationException($"sink down: {name}");
+        public void RecordHistogram(string name, double value, params (string Key, string Value)[] tags)
+            => throw new InvalidOperationException($"sink down: {name}");
+        public void SetGauge(string name, double value, params (string Key, string Value)[] tags)
+            => throw new InvalidOperationException($"sink down: {name}");
+    }
+
+    [TestMethod]
     public async Task Enqueue_WhenDisabled_DoesNothing_AndPendingStaysZero()
     {
         // We can't easily flip the private _settings.Enabled, so this test just confirms

@@ -30,10 +30,18 @@ public sealed class L2BridgePlugin : Plugin
     public AssetRegistry Registry => _registry;
 
     /// <summary>The deposit processor (consumes inbound L1 deposit messages → MintInstruction).</summary>
-    public DepositProcessor DepositProcessor => _depositProcessor!;
+    /// <remarks>Throws if accessed before <see cref="Configure"/> has run. The previous
+    /// <c>!</c> null-forgiving operator deferred the failure to the caller's next field
+    /// access — a NRE without a clue about the cause. Iter 178 surfaces it at the source.</remarks>
+    public DepositProcessor DepositProcessor =>
+        _depositProcessor ?? throw new InvalidOperationException(
+            "DepositProcessor accessed before Configure() — wire the L2BridgePlugin into the host first");
 
     /// <summary>The withdrawal processor (stages withdrawals into the per-batch tree).</summary>
-    public WithdrawalProcessor WithdrawalProcessor => _withdrawalProcessor!;
+    /// <remarks>See <see cref="DepositProcessor"/> for the not-yet-configured rationale.</remarks>
+    public WithdrawalProcessor WithdrawalProcessor =>
+        _withdrawalProcessor ?? throw new InvalidOperationException(
+            "WithdrawalProcessor accessed before Configure() — wire the L2BridgePlugin into the host first");
 
     /// <summary>L1→L2 message inbox feeding the deposit processor.</summary>
     public L1MessageInbox Inbox => _inbox;

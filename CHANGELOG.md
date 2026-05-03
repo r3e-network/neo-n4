@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `L2BridgePlugin.DepositProcessor`/`WithdrawalProcessor` accessor null-handling
+
+- The two accessors used the `!` null-forgiving operator (`_depositProcessor!`), so a caller who accessed them before `Configure()` had run got the underlying `null` and NRE'd on the next field access. Replaced with `?? throw new InvalidOperationException("... accessed before Configure() — wire the L2BridgePlugin into the host first")` so the cause is named at the source. No pinning test (would require adding a new `Neo.Plugins.L2Bridge.UnitTests` project; the change is small and the throw message is self-explanatory).
+
+Cumulative: 463 tests / 27 projects.
+
 ### Fixed — `L2SettlementPlugin`: fail-fast on empty `proofResult.Proof`
 
 - A prover that returned empty `Proof` bytes paired with a non-None `ProofType` would otherwise produce a soft-sealed commitment that `NoZeroProofCheck` catches hours later at audit time, with no link back to the prover bug. Now caught at the prove boundary in `SubmitNextAsync` — same iter-128/140-style "fail close to the contract" pattern as the Kind/PublicInputHash mismatch checks. The exception flows through the iter-175 catch tagging so dashboards see `SubmitFailures{exception=InvalidOperationException}`. 1 pinning test with `EmptyProofProver` test double.

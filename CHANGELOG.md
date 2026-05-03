@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Metrics-sink exception corrupts `WithdrawalProcessor`/`DepositProcessor` state
+
+- Both processors had the same defect: a defective `IL2Metrics` implementation that throws would leave business state committed (`_byNonce` / `_tree` / `_consumed`) while the caller saw an exception and assumed the operation failed. Worse, the broad `catch { _metrics.IncrementCounter(*Rejected); throw; }` block would then fire too — double-counting. The interface contract doesn't promise `IL2Metrics.IncrementCounter` is non-throwing (any HTTP-pushing implementation absolutely could throw), so business code can't trust it. Fix: success counter is now outside the lock and outside the try block, both metric calls are individually try/catch-swallowed, and the rejection counter no longer competes with the success path.
+
+Cumulative: 436 tests / 27 projects.
+
 ### Added — Pinning tests for `OptimisticProofPayload.Encode`/`RiscVProofPayload.Encode` size caps
 
 - Two new tests in `UT_OptimisticAndRiscV.cs` lock down the iter-159 Encode-side cap rejection: `OptimisticProofPayload_Encode_RejectsOversizedSig` (`MaxSignatureBytes + 1`) and `RiscVProofPayload_Encode_RejectsOversizedProof` (`MaxProofBytes + 1`). Both assert the exception message names the cap constant so a future refactor that drops the validation is caught here, not at the next consumer.

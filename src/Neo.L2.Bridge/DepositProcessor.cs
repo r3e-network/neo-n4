@@ -43,6 +43,7 @@ public sealed class DepositProcessor
     public MintInstruction Process(CrossChainMessage message)
     {
         ArgumentNullException.ThrowIfNull(message);
+        MintInstruction instr;
         try
         {
             if (message.MessageType != MessageType.Deposit)
@@ -72,7 +73,7 @@ public sealed class DepositProcessor
                         $"Deposit ({message.SourceChainId},{message.Nonce}) was already processed");
             }
 
-            var instr = new MintInstruction
+            instr = new MintInstruction
             {
                 L2Asset = mapping.L2Asset,
                 Recipient = payload.L2Recipient,
@@ -80,14 +81,19 @@ public sealed class DepositProcessor
                 SourceChainId = message.SourceChainId,
                 SourceNonce = message.Nonce,
             };
-            _metrics.IncrementCounter(MetricNames.DepositsProcessed);
-            return instr;
         }
         catch
         {
-            _metrics.IncrementCounter(MetricNames.DepositsRejected);
+            try { _metrics.IncrementCounter(MetricNames.DepositsRejected); } catch { }
             throw;
         }
+        // Success counter outside the try: a defective metrics sink would otherwise
+        // throw AFTER _consumed.Add committed, leaving the nonce permanently locked
+        // while the caller saw an exception and assumed the deposit failed. Worse,
+        // the catch block above would also fire (double-counting). Same iter-162
+        // pattern as WithdrawalProcessor.
+        try { _metrics.IncrementCounter(MetricNames.DepositsProcessed); } catch { }
+        return instr;
     }
 
     /// <summary>True if a prior call to <see cref="Process"/> consumed this (source, nonce).</summary>

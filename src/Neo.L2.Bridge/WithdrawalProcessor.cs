@@ -62,6 +62,7 @@ public sealed class WithdrawalProcessor
         ArgumentNullException.ThrowIfNull(request.L2Sender);
         ArgumentNullException.ThrowIfNull(request.L1Recipient);
         ArgumentNullException.ThrowIfNull(request.L2Asset);
+        UInt256 leaf;
         try
         {
             if (!_registry.TryGetByL2(request.L2Asset, out var mapping) || mapping is null)
@@ -82,16 +83,23 @@ public sealed class WithdrawalProcessor
                         $"Withdrawal nonce {request.Nonce} already used by sender {request.L2Sender} in a prior batch");
                 var index = _tree.Add(request);
                 _byNonce[key] = index;
-                var leaf = MessageHasher.HashWithdrawal(request);
-                _metrics.IncrementCounter(MetricNames.WithdrawalsStaged);
-                return leaf;
+                leaf = MessageHasher.HashWithdrawal(request);
             }
         }
         catch
         {
-            _metrics.IncrementCounter(MetricNames.WithdrawalsRejected);
+            // Metric calls are isolated so a defective sink can't double-count or
+            // mask the original business exception. Same swallow-and-rethrow as the
+            // success path below.
+            try { _metrics.IncrementCounter(MetricNames.WithdrawalsRejected); } catch { }
             throw;
         }
+        // Success counter outside the lock + outside the try: a defective metrics sink
+        // would otherwise leave the staged tree mutation committed but throw to the
+        // caller, who would then think the operation failed. The catch above would also
+        // fire (double-counting). Now metrics failure is invisible to the caller.
+        try { _metrics.IncrementCounter(MetricNames.WithdrawalsStaged); } catch { }
+        return leaf;
     }
 
     /// <summary>

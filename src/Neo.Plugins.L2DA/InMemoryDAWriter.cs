@@ -43,6 +43,10 @@ public sealed class InMemoryDAWriter : IDAWriter
     {
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(receipt);
+        // Commitment is UInt256 (reference type); `required` doesn't prevent null.
+        // Without this guard, ContainsKey(null) throws ArgumentNullException with a
+        // generic "key" message. Same iter-148/183/184 pattern.
+        ArgumentNullException.ThrowIfNull(receipt.Commitment);
         return new ValueTask<bool>(_store.ContainsKey(receipt.Commitment));
     }
 }

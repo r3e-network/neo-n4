@@ -57,6 +57,7 @@ public sealed class NeoFsLikeDAWriter : IDAWriter
     {
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(receipt);
+        ArgumentNullException.ThrowIfNull(receipt.Commitment);
 
         if (receipt.Pointer.Length != 36)
             return new ValueTask<bool>(false);
@@ -72,6 +73,7 @@ public sealed class NeoFsLikeDAWriter : IDAWriter
     /// <summary>Retrieve a previously published payload by chain + object id (test/debug helper).</summary>
     public ReadOnlyMemory<byte>? TryGet(uint chainId, UInt256 objectId)
     {
+        ArgumentNullException.ThrowIfNull(objectId);
         return _store.TryGetValue((chainId, objectId), out var bytes) ? bytes : null;
     }
 

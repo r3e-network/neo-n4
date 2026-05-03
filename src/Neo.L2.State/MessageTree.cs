@@ -23,6 +23,11 @@ public sealed class MessageTree
     public int Add(CrossChainMessage message)
     {
         ArgumentNullException.ThrowIfNull(message);
+        // MessageHash is UInt256 (reference type); `required` on the property doesn't
+        // prevent null. Without this guard, _byHash[null] throws ArgumentNullException
+        // with a generic "key" message and the leaves list ends up with a null entry
+        // that the next iter-179 MerkleTree.ComputeRoot would catch — but only later.
+        ArgumentNullException.ThrowIfNull(message.MessageHash);
         var index = _messages.Count;
         _messages.Add(message);
         _leaves.Add(message.MessageHash);
@@ -42,8 +47,11 @@ public sealed class MessageTree
     }
 
     /// <summary>Look up message index by its <see cref="CrossChainMessage.MessageHash"/>.</summary>
-    public bool TryGetIndex(UInt256 messageHash, out int index) =>
-        _byHash.TryGetValue(messageHash, out index);
+    public bool TryGetIndex(UInt256 messageHash, out int index)
+    {
+        ArgumentNullException.ThrowIfNull(messageHash);
+        return _byHash.TryGetValue(messageHash, out index);
+    }
 
     /// <summary>Generate an inclusion proof for the message at <paramref name="index"/>.</summary>
     public MerkleProof GetProof(int index)

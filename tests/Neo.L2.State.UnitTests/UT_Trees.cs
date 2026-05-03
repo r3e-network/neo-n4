@@ -98,4 +98,31 @@ public class UT_Trees
         Assert.AreEqual(a, b);
         Assert.AreNotEqual(UInt256.Zero, a);
     }
+
+    [TestMethod]
+    public void MessageTree_Add_RejectsNullMessageHash()
+    {
+        // Regression for iter 185: MessageHash is UInt256 (reference type) and `required`
+        // doesn't prevent null. Without this guard, _byHash[null] threw with a generic
+        // "key" message, and _leaves picked up a null entry that the iter-179
+        // MerkleTree.ComputeRoot guard would catch — but only later. Surface at the
+        // source.
+        var tree = new MessageTree();
+        var bad = new CrossChainMessage
+        {
+            SourceChainId = 1, TargetChainId = 2, Nonce = 1,
+            Sender = UInt160.Zero, Receiver = UInt160.Zero,
+            MessageType = MessageType.Call,
+            Payload = ReadOnlyMemory<byte>.Empty,
+            MessageHash = null!,
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => tree.Add(bad));
+    }
+
+    [TestMethod]
+    public void MessageTree_TryGetIndex_RejectsNullHash()
+    {
+        var tree = new MessageTree();
+        Assert.ThrowsExactly<ArgumentNullException>(() => tree.TryGetIndex(null!, out _));
+    }
 }

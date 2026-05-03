@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `MessageTree` + DA writers null-key sweep
+
+- Closed the iter-148/183/184 Dictionary-key null-guard pattern in 4 more entry points: `MessageTree.Add` (now guards `message.MessageHash`; without this `_byHash[null]` throws with generic message and `_leaves` accumulates a null that iter-179's `ComputeRoot` would catch only later), `MessageTree.TryGetIndex` (UInt256 key), `InMemoryDAWriter.IsAvailableAsync` (`receipt.Commitment`), and `NeoFsLikeDAWriter.IsAvailableAsync` + `TryGet`. 2 pinning tests for the `MessageTree` cases.
+
+Cumulative: 474 tests / 27 projects.
+
 ### Fixed — `InMemoryL2RpcStore` null-key sweep (6 entry points)
 
 - Closed the iter-148/183 Dictionary-key null-guard pattern in 6 more entry points: `RecordWithdrawalProof`/`RecordMessageProof` (setters add explicit guards on `leafHash`/`messageHash` keys; the byte-payload guards already existed), and `GetWithdrawalProof`/`GetMessageProof`/`GetCanonicalAsset`/`GetBridgedAsset` (getters now null-guard their `UInt256`/`UInt160` keys instead of relying on `Dictionary<,>.TryGetValue(null)`'s generic message). 1 pinning test asserts all 6 entry points reject null with a clear `ArgumentNullException`.

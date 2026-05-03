@@ -19,6 +19,13 @@ public static class MessageHasher
     public static UInt256 HashMessage(CrossChainMessage message)
     {
         ArgumentNullException.ThrowIfNull(message);
+        // Defense at the cryptographic-primitive boundary: CrossChainMessage's UInt160
+        // fields are reference types and `required` only forces "must be set," not
+        // "non-null." Callers like MessageBuilder.Build already validate (iter 146),
+        // but HashMessage is a static utility that anything can call directly — guard
+        // here too so a null field can't reach GetSpan().
+        ArgumentNullException.ThrowIfNull(message.Sender);
+        ArgumentNullException.ThrowIfNull(message.Receiver);
         // checked: payload is unbounded — a near-int.MaxValue payload would wrap.
         var size = checked(4 + 4 + 8 + 20 + 20 + 1 + 4 + message.Payload.Length);
         var buffer = size <= 256 ? stackalloc byte[size] : new byte[size];
@@ -43,6 +50,15 @@ public static class MessageHasher
     public static UInt256 HashWithdrawal(WithdrawalRequest withdrawal)
     {
         ArgumentNullException.ThrowIfNull(withdrawal);
+        // Defense at the cryptographic-primitive boundary: WithdrawalRequest's UInt160
+        // fields are reference types and `required` only forces "must be set," not
+        // "non-null." Callers like WithdrawalProcessor.Stage already validate (iter 147),
+        // but HashWithdrawal is a static utility that anything can call directly — guard
+        // here too so a null field can't reach GetSpan().
+        ArgumentNullException.ThrowIfNull(withdrawal.EmittingContract);
+        ArgumentNullException.ThrowIfNull(withdrawal.L2Sender);
+        ArgumentNullException.ThrowIfNull(withdrawal.L1Recipient);
+        ArgumentNullException.ThrowIfNull(withdrawal.L2Asset);
         var amountBytes = withdrawal.Amount.ToByteArray(isUnsigned: true, isBigEndian: false);
         if (amountBytes.Length > 64)
             throw new ArgumentException("Withdrawal amount exceeds 64 bytes", nameof(withdrawal));

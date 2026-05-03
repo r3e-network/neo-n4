@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — `MessageHasher` defense-in-depth null-guards
+
+- The iter-146/147 fixes added null-guards at the API boundaries (`MessageBuilder.Build`, `WithdrawalProcessor.Stage`). Added the same guards at the cryptographic-primitive boundary too — `MessageHasher.HashMessage` / `HashWithdrawal` — covers any direct caller (tests, future helpers) that bypasses the higher-level boundaries. Defense in depth.
+- Both methods now `ArgumentNullException.ThrowIfNull` each `UInt160` field they read (Sender/Receiver for HashMessage; EmittingContract/L2Sender/L1Recipient/L2Asset for HashWithdrawal) before hitting `GetSpan()`.
+
+Cumulative: 431 tests / 27 projects.
+
 ### Tests — Regression coverage for iter-148 `Register` null-guards
 
 - Pinned the iter-148 null-guards on `AssetRegistry.Register` and `InMemorySequencerCommitteeProvider.Register` with regression tests so a future refactor can't silently drop them.

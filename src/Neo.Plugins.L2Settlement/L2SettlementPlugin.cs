@@ -52,6 +52,14 @@ public sealed class L2SettlementPlugin : Plugin
         ArgumentNullException.ThrowIfNull(batchPlugin);
         ArgumentNullException.ThrowIfNull(prover);
         ArgumentNullException.ThrowIfNull(client);
+        // Settings.From validates ProofType at config-parse time, but `init` setters
+        // allow direct construction (tests / programmatic wiring) to bypass that path.
+        // Re-validate here at Wire — the latest point we can fail fast before the
+        // first OnBatchSealed → SubmitNextAsync. Without this, an invalid byte would
+        // surface only as a "AttestationProver expects ProofType.Multisig, got X"
+        // failure deep inside the broad catch tagged as ArgumentException. Same iter-191
+        // BatchSealer ctor symmetry.
+        Neo.L2.ProofTypeExtensions.Resolve(_settings.ProofType);
         _batchPlugin = batchPlugin;
         _prover = prover;
         _client = client;

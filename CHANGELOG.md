@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `L2SettlementPlugin.Wire` revalidates `_settings.ProofType`
+
+- `L2SettlementSettings.From` validates `ProofType` byte range at config-parse time, but `init` setters bypass that path. Same iter-191 ctor-symmetry pattern: revalidate in `Wire` (the latest fail-fast point before the first `OnBatchSealed → SubmitNextAsync`). Without this, an invalid byte would surface only deep inside the broad-catch as a generic `AttestationProver expects ProofType.Multisig, got (ProofType)X` ArgumentException tagged as `("exception", "ArgumentException")`. Now: clear `InvalidDataException` at Wire time. No pinning test (Plugin's `Configure` is protected and `_settings` private — the validation is reachable only through direct internal construction; existing tests still pass with the default `ProofType=1`).
+
+Cumulative: 481 tests / 27 projects.
+
 ### Fixed — `BatchSealer` ctor revalidates `L2BatchSettings` positivity
 
 - `L2BatchSettings.From` validates `Max*` positivity at config-parse time, but `init` setters allow direct construction (tests / programmatic wiring) to bypass that path. A caller writing `new L2BatchSettings { MaxBlocksPerBatch = 0 }` would slip past the parser, then `BatchSealer.ShouldSeal` returns true on every block — degenerate per-block batches surface only as a runaway L1 submission rate hours later. Now `BatchSealer` ctor calls `L2BatchSettings.ValidatePositive` for all three `Max*` fields. Same pattern as iter-190's sequencer ctor symmetry. 1 pinning test covers the three Max* misconfigs + default-settings boundary.

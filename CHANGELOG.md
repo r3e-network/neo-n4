@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `MetricsRequestHandler.HandleMetrics` returns 500 on snapshot/format failure
+
+- Previously a buggy `IMetricsSource` that returned null or threw from `Snapshot()` (or a downstream `PrometheusExporter.Format` regression) would surface as a closed connection to the scraper — no diagnostic, no alertable HTTP status. Wrapped the snapshot/format pipeline in `try/catch` so the failure becomes a `500` with a generic body, which flips most Prometheus servers into an "exporter down" alert state. Generic-on-purpose body; operators chase the actual exception in logs. 2 pinning tests using `NullSnapshotSource` and `ThrowingSnapshotSource`.
+
+Cumulative: 476 tests / 27 projects.
+
 ### Fixed — `MessageTree` + DA writers null-key sweep
 
 - Closed the iter-148/183/184 Dictionary-key null-guard pattern in 4 more entry points: `MessageTree.Add` (now guards `message.MessageHash`; without this `_byHash[null]` throws with generic message and `_leaves` accumulates a null that iter-179's `ComputeRoot` would catch only later), `MessageTree.TryGetIndex` (UInt256 key), `InMemoryDAWriter.IsAvailableAsync` (`receipt.Commitment`), and `NeoFsLikeDAWriter.IsAvailableAsync` + `TryGet`. 2 pinning tests for the `MessageTree` cases.

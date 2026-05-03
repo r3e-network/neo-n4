@@ -53,8 +53,22 @@ public sealed class MetricsRequestHandler
 
     private MetricsHttpResponse HandleMetrics()
     {
-        var body = PrometheusExporter.Format(_source.Snapshot());
-        return new MetricsHttpResponse(200, PrometheusExporter.ContentType, body);
+        // Wrap the snapshot/format pipeline so a buggy IMetricsSource (or a downstream
+        // formatter regression) doesn't surface as a connection close to the scraper.
+        // The exception text is intentionally generic in the body — operators should
+        // look at logs, not the HTTP response. 500 also flips most Prometheus servers
+        // into an "exporter down" alert state, which is the correct outcome.
+        try
+        {
+            var snapshot = _source.Snapshot()
+                ?? throw new InvalidOperationException("IMetricsSource.Snapshot returned null");
+            var body = PrometheusExporter.Format(snapshot);
+            return new MetricsHttpResponse(200, PrometheusExporter.ContentType, body);
+        }
+        catch
+        {
+            return new MetricsHttpResponse(500, PlainText, "metrics export failed\n");
+        }
     }
 
     private MetricsHttpResponse HandleReady()

@@ -155,6 +155,39 @@ public class UT_MetricsRequestHandler
     }
 
     [TestMethod]
+    public void Metrics_BuggyMetricsSourceReturnsNull_Returns500()
+    {
+        // Regression for iter 186: previously a buggy IMetricsSource that returned null
+        // from Snapshot would NRE inside PrometheusExporter.Format, surfaced to the
+        // scraper as a closed connection (no diagnostic). Now: 500 with a generic body,
+        // so dashboards see an "exporter down" alert.
+        var handler = new MetricsRequestHandler(new NullSnapshotSource());
+        var response = handler.Handle("/metrics");
+        Assert.AreEqual(500, response.StatusCode);
+        StringAssert.Contains(response.Body, "metrics export failed");
+    }
+
+    [TestMethod]
+    public void Metrics_BuggyMetricsSourceThrows_Returns500()
+    {
+        var handler = new MetricsRequestHandler(new ThrowingSnapshotSource());
+        var response = handler.Handle("/metrics");
+        Assert.AreEqual(500, response.StatusCode);
+        StringAssert.Contains(response.Body, "metrics export failed");
+    }
+
+    private sealed class NullSnapshotSource : IMetricsSource
+    {
+        public MetricsSnapshot Snapshot() => null!;
+    }
+
+    private sealed class ThrowingSnapshotSource : IMetricsSource
+    {
+        public MetricsSnapshot Snapshot()
+            => throw new InvalidOperationException("source down");
+    }
+
+    [TestMethod]
     public void Readyz_PredicateThrows_Returns503()
     {
         // A buggy or missing-dependency readiness predicate should produce 503, not crash

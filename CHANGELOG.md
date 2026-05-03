@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — `FraudProofPayload.Encode` and `MerkleProofSerializer.Encode` defense-in-depth null-guards
+
+- Extended the iter-154…157 null-guard pattern to the remaining encoders. `FraudProofPayload.Encode` now guards its 3 `UInt256` roots; `MerkleProofSerializer.Encode` guards `Leaf`, the `Siblings` collection, and each sibling entry inside the loop (`Siblings[i]` could be a null reference even with the collection itself non-null). The previous claim that iter-157 "finished" the sweep was premature — these were missed.
+
+Cumulative: 431 tests / 27 projects.
+
 ### Changed — `BatchSerializer.Encode`/`EncodePublicInputs` defense-in-depth null-guards
 
 - Continued the iter-154/155/156 hashing-primitive null-guard pattern through the wire serializer. `BatchSerializer.Encode` now null-checks all 9 commitment `UInt256` fields before reaching `WriteUInt256`'s `GetSpan()`. `EncodePublicInputs` mirrors `StateRootCalculator.HashPublicInputs` with all 10 root fields. This finishes the cryptographic-primitive null-guard sweep across the codebase.

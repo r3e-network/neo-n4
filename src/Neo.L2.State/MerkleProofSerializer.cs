@@ -30,6 +30,11 @@ public static class MerkleProofSerializer
     public static byte[] Encode(MerkleProof proof)
     {
         ArgumentNullException.ThrowIfNull(proof);
+        // Defense-in-depth: Leaf and Siblings entries are UInt256 (reference type); a
+        // null would crash in GetSpan() with no link back to the caller. Same iter-154+
+        // hashing-primitive null-guard pattern. Sibling-entry check sits in the loop.
+        ArgumentNullException.ThrowIfNull(proof.Leaf);
+        ArgumentNullException.ThrowIfNull(proof.Siblings);
         if (proof.LeafIndex < 0)
             throw new ArgumentException("LeafIndex must be non-negative", nameof(proof));
         if (proof.Siblings.Count > MaxDepth)
@@ -46,7 +51,9 @@ public static class MerkleProofSerializer
         var cursor = HeaderSize;
         for (var i = 0; i < proof.Siblings.Count; i++)
         {
-            proof.Siblings[i].GetSpan().CopyTo(span[cursor..(cursor + 32)]);
+            var sibling = proof.Siblings[i] ?? throw new ArgumentException(
+                $"Siblings[{i}] is null", nameof(proof));
+            sibling.GetSpan().CopyTo(span[cursor..(cursor + 32)]);
             cursor += 32;
         }
         return bytes;

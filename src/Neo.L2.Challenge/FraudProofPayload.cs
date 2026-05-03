@@ -44,6 +44,12 @@ public sealed record FraudProofPayload
     /// <summary>Encode to canonical bytes.</summary>
     public byte[] Encode()
     {
+        // Defense-in-depth: UInt256 fields are reference types; `required` only forces
+        // "must be set," not "non-null." A null root would crash in GetSpan() with no
+        // link back to the caller. Same iter-154/155/156/157 hashing-primitive pattern.
+        ArgumentNullException.ThrowIfNull(PreStateRoot);
+        ArgumentNullException.ThrowIfNull(ClaimedPostStateRoot);
+        ArgumentNullException.ThrowIfNull(ReplayedPostStateRoot);
         var buffer = new byte[Size];
         var span = buffer.AsSpan();
         span[0] = Version;

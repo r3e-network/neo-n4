@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — `BatchBuilder` reject-null guards on all reference-type append methods
+
+- Continuation of the iter-146–149 null-guard sweep, applied to the batch-builder API surface.
+- `ConsumeL1Message(CrossChainMessage)`, `AddWithdrawal(WithdrawalRequest)`, `AddL2ToL1Message(CrossChainMessage)`, `AddL2ToL2Message(CrossChainMessage)`: all four now `ArgumentNullException.ThrowIfNull` their reference-type input. Previously a null arg silently added a null entry to the underlying `L2Batch._{l1Messages,withdrawals,l2ToL1,l2ToL2}` list, which would then crash hours later inside the per-batch hashing pass with no link back to the bad caller.
+
+Cumulative: 424 tests / 27 projects.
+
 ### Changed — `InMemoryL2RpcStore.AddBatch` + `RegisterAsset` reject null inputs
 
 - Continuation of the iter-146/147/148 null-guard sweep.

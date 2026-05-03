@@ -43,6 +43,7 @@ public sealed class BatchBuilder
     /// <summary>Mark an inbound L1 message as consumed by this batch.</summary>
     public BatchBuilder ConsumeL1Message(CrossChainMessage message)
     {
+        ArgumentNullException.ThrowIfNull(message);
         _batch.AddL1Message(message);
         return this;
     }
@@ -50,6 +51,7 @@ public sealed class BatchBuilder
     /// <summary>Record a withdrawal that will go into the batch's withdrawal Merkle tree.</summary>
     public BatchBuilder AddWithdrawal(WithdrawalRequest withdrawal)
     {
+        ArgumentNullException.ThrowIfNull(withdrawal);
         _batch.AddWithdrawal(withdrawal);
         return this;
     }
@@ -57,6 +59,7 @@ public sealed class BatchBuilder
     /// <summary>Record an L2 → L1 message emitted during execution.</summary>
     public BatchBuilder AddL2ToL1Message(CrossChainMessage message)
     {
+        ArgumentNullException.ThrowIfNull(message);
         _batch.AddL2ToL1Message(message);
         return this;
     }
@@ -64,6 +67,7 @@ public sealed class BatchBuilder
     /// <summary>Record an L2 → L2 message emitted during execution.</summary>
     public BatchBuilder AddL2ToL2Message(CrossChainMessage message)
     {
+        ArgumentNullException.ThrowIfNull(message);
         _batch.AddL2ToL2Message(message);
         return this;
     }

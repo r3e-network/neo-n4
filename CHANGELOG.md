@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — `Receipt.Hash` defense-in-depth null-guards
+
+- Same pattern as iter 154's `MessageHasher` fix, applied to `Receipt.Hash()`. The three `UInt256` fields (`TxHash`, `StorageDeltaHash`, `EventsHash`) are reference types; `required` only forces "must be set," not "non-null." A null field would crash inside `GetSpan()` with no link back to the bad caller. Now `ArgumentNullException.ThrowIfNull` each before hitting the buffer copy.
+
+Cumulative: 431 tests / 27 projects.
+
 ### Changed — `MessageHasher` defense-in-depth null-guards
 
 - The iter-146/147 fixes added null-guards at the API boundaries (`MessageBuilder.Build`, `WithdrawalProcessor.Stage`). Added the same guards at the cryptographic-primitive boundary too — `MessageHasher.HashMessage` / `HashWithdrawal` — covers any direct caller (tests, future helpers) that bypasses the higher-level boundaries. Defense in depth.

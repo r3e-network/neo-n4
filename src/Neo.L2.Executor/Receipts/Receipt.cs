@@ -30,6 +30,12 @@ public sealed record Receipt
     /// <summary>Compute the canonical leaf hash for this receipt.</summary>
     public UInt256 Hash()
     {
+        // Defense-in-depth: UInt256 fields are reference types; `required` only forces
+        // "must be set," not "non-null." A null field would crash inside GetSpan() with
+        // no link back to the bad caller. Match the iter-154 MessageHasher pattern.
+        ArgumentNullException.ThrowIfNull(TxHash);
+        ArgumentNullException.ThrowIfNull(StorageDeltaHash);
+        ArgumentNullException.ThrowIfNull(EventsHash);
         Span<byte> buffer = stackalloc byte[32 + 1 + 8 + 32 + 32];
         var pos = 0;
         TxHash.GetSpan().CopyTo(buffer.Slice(pos, 32)); pos += 32;

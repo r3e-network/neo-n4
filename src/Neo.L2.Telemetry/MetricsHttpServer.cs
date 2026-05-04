@@ -44,7 +44,17 @@ public sealed class MetricsHttpServer : IDisposable
 
     /// <summary>Construct a server that binds to <paramref name="address"/> and <paramref name="port"/>.</summary>
     public MetricsHttpServer(IPAddress address, int port, MetricsRequestHandler handler)
-        : this(new IPEndPoint(address, port), handler) { }
+        : this(MakeValidatedEndpoint(address, port), handler) { }
+
+    private static IPEndPoint MakeValidatedEndpoint(IPAddress address, int port)
+    {
+        // Surface a clear "port out of range" via PortValidator instead of IPEndPoint's
+        // generic "port" ArgumentOutOfRangeException. IPAddress null-guard is delegated
+        // to IPEndPoint (which throws ArgumentNullException with arg name "address" —
+        // already clear).
+        Neo.L2.Telemetry.PortValidator.Validate(port, "MetricsHttpServer port");
+        return new IPEndPoint(address, port);
+    }
 
     private readonly Lock _startGate = new();
 

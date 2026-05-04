@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `MetricsHttpServer(IPAddress, int port, ...)` validates port via `PortValidator`
+
+- The `(IPAddress, int port, MetricsRequestHandler)` overload previously delegated port validation to `IPEndPoint`, which throws a generic `port` `ArgumentOutOfRangeException`. The existing `PortValidator.Validate` is in the same project and surfaces the contextual message `"MetricsHttpServer port {x} out of range — must be 0 (any free) or 1..65535"`. Now both overloads use it (via a new `MakeValidatedEndpoint` helper). 1 pinning test covering the -1 / 65536 reject cases.
+
+Cumulative: 496 tests / 27 projects.
+
 ### Fixed — `JsonRpcClient` rejects relative URIs (iter-206 follow-up)
 
 - The iter-206 scheme check accesses `endpoint.Scheme`, which throws `InvalidOperationException("operation not supported on relative URI")` for a relative URI. So a caller passing `new Uri("/x", UriKind.Relative)` would get that confusing message instead of a clear "endpoint must be absolute". Now we check `IsAbsoluteUri` first. 1 pinning test.

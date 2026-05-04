@@ -155,4 +155,22 @@ public class UT_MetricsHttpServer
         var resp = await client.GetAsync($"http://127.0.0.1:{server.Endpoint.Port}/metrics");
         Assert.AreEqual(200, (int)resp.StatusCode, "server stays responsive while a slow client is mid-handshake");
     }
+
+    [TestMethod]
+    public void Constructor_RejectsOutOfRangePort()
+    {
+        // Regression for iter 208: previously the (IPAddress, int port, ...) overload
+        // delegated port validation to IPEndPoint, which throws a generic "port"
+        // ArgumentOutOfRangeException. Now goes through PortValidator.Validate, which
+        // surfaces "MetricsHttpServer port {x} out of range".
+        var handler = new MetricsRequestHandler(new InMemoryMetrics());
+        var ex = Assert.ThrowsExactly<System.IO.InvalidDataException>(
+            () => new MetricsHttpServer(IPAddress.Loopback, -1, handler));
+        StringAssert.Contains(ex.Message, "MetricsHttpServer port");
+        Assert.ThrowsExactly<System.IO.InvalidDataException>(
+            () => new MetricsHttpServer(IPAddress.Loopback, 65536, handler));
+        // Boundary: 0 (any free) and 65535 must succeed.
+        using var s1 = new MetricsHttpServer(IPAddress.Loopback, 0, handler);
+        // Skip 65535 — may collide with an in-use port on the test host.
+    }
 }

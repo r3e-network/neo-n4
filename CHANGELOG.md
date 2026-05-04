@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `WithdrawalProcessor` boundary pins
+
+- The Stage L2Sender / L1Recipient null-guards were already pinned (iter 147), but the four other paths weren't. Added 5:
+  - `WithdrawalProcessor_Stage_RejectsNullRequest`
+  - `WithdrawalProcessor_Stage_RejectsNullEmittingContract` (`WithdrawalProcessor.cs:61`)
+  - `WithdrawalProcessor_Stage_RejectsNullL2Asset` (`:64`) — without this the bad input would surface only in the registry's TryGetByL2(null) call with a generic "key" message
+  - `WithdrawalProcessor_Constructor_RejectsNullRegistry`
+  - `WithdrawalProcessor_WithMetrics_RejectsNullMetrics` (the ctor accepts null metrics → NoOpMetrics, but the explicit-swap path must not)
+
+Cumulative: 543 tests / 27 projects.
+
 ### Added — `KeyedStateStore.Put` boundary pins
 
 - `Put_RejectsEmptyKey` pins `KeyedStateStore.cs:32`'s `ArgumentOutOfRangeException.ThrowIfZero(key.Length)`. Empty keys would hash via HashEntry to leaves distinguishable only by value.

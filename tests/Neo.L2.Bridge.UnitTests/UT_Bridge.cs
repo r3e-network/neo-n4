@@ -272,6 +272,59 @@ public class UT_Bridge
     }
 
     [TestMethod]
+    public void WithdrawalProcessor_Stage_RejectsNullRequest()
+        => Assert.ThrowsExactly<ArgumentNullException>(
+            () => new WithdrawalProcessor(LocalChain, RegistryWithGas()).Stage(null!));
+
+    [TestMethod]
+    public void WithdrawalProcessor_Stage_RejectsNullEmittingContract()
+    {
+        // Companion to RejectsNullL2Sender / RejectsNullL1Recipient. Pinning
+        // WithdrawalProcessor.cs:61. Without it a null EmittingContract surfaces only
+        // deep in MessageHasher.HashWithdrawal's GetSpan with no link back to the field.
+        var proc = new WithdrawalProcessor(LocalChain, RegistryWithGas());
+        var bad = new WithdrawalRequest
+        {
+            EmittingContract = null!,
+            L2Sender = Sender, L1Recipient = Recipient, L2Asset = GasL2,
+            Amount = new BigInteger(100), Nonce = 1,
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => proc.Stage(bad));
+    }
+
+    [TestMethod]
+    public void WithdrawalProcessor_Stage_RejectsNullL2Asset()
+    {
+        // Without WithdrawalProcessor.cs:64, a null L2Asset would slip past the
+        // per-field null-guards and fail later inside `_registry.TryGetByL2(null)` —
+        // the same iter-148 generic "key" message Register's guard avoided. Pin it
+        // at Stage where the bad input first arrives.
+        var proc = new WithdrawalProcessor(LocalChain, RegistryWithGas());
+        var bad = new WithdrawalRequest
+        {
+            EmittingContract = UInt160.Zero, L2Sender = Sender, L1Recipient = Recipient,
+            L2Asset = null!,
+            Amount = new BigInteger(100), Nonce = 1,
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => proc.Stage(bad));
+    }
+
+    [TestMethod]
+    public void WithdrawalProcessor_Constructor_RejectsNullRegistry()
+        => Assert.ThrowsExactly<ArgumentNullException>(
+            () => new WithdrawalProcessor(LocalChain, null!));
+
+    [TestMethod]
+    public void WithdrawalProcessor_WithMetrics_RejectsNullMetrics()
+    {
+        // Pinning WithdrawalProcessor.cs:46. The `IL2Metrics?` parameter on the ctor
+        // accepts null (defaults to NoOpMetrics), but WithMetrics is the explicit-swap
+        // path and must reject null — otherwise a later metric call NREs deep inside.
+        var proc = new WithdrawalProcessor(LocalChain, RegistryWithGas());
+        Assert.ThrowsExactly<ArgumentNullException>(() => proc.WithMetrics(null!));
+    }
+
+    [TestMethod]
     public void AssetRegistry_Register_RejectsNullL1Asset()
     {
         // Regression for iter 148: null UInt160 fields in AssetMapping would either

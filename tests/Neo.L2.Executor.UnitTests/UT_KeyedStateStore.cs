@@ -142,6 +142,14 @@ public class UT_KeyedStateStore
     }
 
     [TestMethod]
+    public void Oracle_Constructor_RejectsNullStore()
+    {
+        // Pin KeyedStateRootOracle.cs:23. Without it ResolveAsync NREs on the first store
+        // member access.
+        Assert.ThrowsExactly<ArgumentNullException>(() => new KeyedStateRootOracle(null!));
+    }
+
+    [TestMethod]
     public async Task Oracle_ReturnsStoreRoot()
     {
         var store = new KeyedStateStore();

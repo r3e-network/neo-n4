@@ -273,6 +273,71 @@ public class UT_ReferenceBatchExecutor
         StringAssert.Contains(ex.Message, "ExecuteAsync");
     }
 
+    [TestMethod]
+    public async Task ApplyBatchAsync_BuggyTxExecutorReturnsNullReceipt_SurfacesContractViolation()
+    {
+        // Pin ReferenceBatchExecutor.cs:71. iter-173's existing test covers the whole
+        // TransactionExecutionResult being null; this test covers a non-null result
+        // with a null Receipt sub-field — same callee-contract pattern, distinct path.
+        var executor = new ReferenceBatchExecutor(
+            new NullReceiptExecutor(),
+            new DerivedPostStateRootOracle());
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(async () =>
+            await executor.ApplyBatchAsync(new BatchExecutionRequest
+            {
+                ChainId = 1001, BatchNumber = 1, PreStateRoot = UInt256.Zero,
+                Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 0x01 } },
+                L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
+                BlockContext = SampleContext(),
+            }));
+    }
+
+    [TestMethod]
+    public async Task ApplyBatchAsync_BuggyTxExecutorReturnsNullTxHash_SurfacesContractViolation()
+    {
+        // Pin ReferenceBatchExecutor.cs:72.
+        var executor = new ReferenceBatchExecutor(
+            new NullTxHashExecutor(),
+            new DerivedPostStateRootOracle());
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(async () =>
+            await executor.ApplyBatchAsync(new BatchExecutionRequest
+            {
+                ChainId = 1001, BatchNumber = 1, PreStateRoot = UInt256.Zero,
+                Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 0x01 } },
+                L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
+                BlockContext = SampleContext(),
+            }));
+    }
+
+    private sealed class NullReceiptExecutor : ITransactionExecutor
+    {
+        public ValueTask<TransactionExecutionResult> ExecuteAsync(
+            ReadOnlyMemory<byte> serializedTx, BatchBlockContext batchContext, CancellationToken cancellationToken = default)
+            => new ValueTask<TransactionExecutionResult>(new TransactionExecutionResult
+            {
+                TxHash = UInt256.Zero, Receipt = null!,
+                Withdrawals = Array.Empty<WithdrawalRequest>(),
+                Messages = Array.Empty<CrossChainMessage>(),
+            });
+    }
+
+    private sealed class NullTxHashExecutor : ITransactionExecutor
+    {
+        public ValueTask<TransactionExecutionResult> ExecuteAsync(
+            ReadOnlyMemory<byte> serializedTx, BatchBlockContext batchContext, CancellationToken cancellationToken = default)
+            => new ValueTask<TransactionExecutionResult>(new TransactionExecutionResult
+            {
+                TxHash = null!,
+                Receipt = new Neo.L2.Executor.Receipts.Receipt
+                {
+                    TxHash = UInt256.Zero, Success = true, GasConsumed = 1,
+                    StorageDeltaHash = UInt256.Zero, EventsHash = UInt256.Zero,
+                },
+                Withdrawals = Array.Empty<WithdrawalRequest>(),
+                Messages = Array.Empty<CrossChainMessage>(),
+            });
+    }
+
     private sealed class NullReturningTxExecutor : ITransactionExecutor
     {
         public ValueTask<TransactionExecutionResult> ExecuteAsync(

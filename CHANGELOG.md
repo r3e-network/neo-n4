@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Executor callee-contract sub-field pins + KeyedStateRootOracle ctor
+
+- ReferenceBatchExecutor's iter-173 callee-contract test pinned the whole-result-null path. The sub-field null-guards at `ReferenceBatchExecutor.cs:71` (result.Receipt) and `:72` (result.TxHash) covered a distinct callee-contract path: a non-null result with a null sub-field. Added 2.
+- `KeyedStateRootOracle` ctor's `ThrowIfNull(store)` (`KeyedStateRootOracle.cs:23`) was unpinned. Added `Oracle_Constructor_RejectsNullStore`.
+
+Cumulative: 648 tests / 27 projects.
+
 ### Added — `RpcSettlementClient.SubmitBatchAsync` null-commitment pin
 
 - `RpcSettlementClient.SubmitBatchAsync` had a `BuggySignAndSendReturnsNull_SurfacesContractViolation` callee-contract pin but no direct null-commitment pin (`RpcSettlementClient.cs:46`). Added `SubmitBatchAsync_RejectsNullCommitment`.

@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Sequencer-committee null-pubKey pins
+
+- `InMemorySequencerCommitteeProvider` had a `Register_RejectsNullL1Address` pin (iter 148) but the four ECPoint-keyed null-guards (Register pubKey, BeginExit pubKey, Finalize pubKey, IsRegisteredAsync sequencerKey at `InMemorySequencerCommitteeProvider.cs:38`, `:70`, `:85`, `:143`) were unpinned. Added 4. Without these guards a null ECPoint would propagate into Dictionary.ContainsKey(null) with a generic "key" error message.
+
+Cumulative: 566 tests / 27 projects.
+
 ### Added — Audit-module null-guard pins
 
 - The audit module had only one direct null pin (`ProofValidityCheck_NullBatches_ThrowsArgumentNullException`); the other 7 guards on `ChainAuditor`, `ContinuityCheck`, `NoZeroProofCheck`, `PublicInputHashConsistencyCheck`, and `ProofValidityCheck`'s ctor were unpinned. Added 7:

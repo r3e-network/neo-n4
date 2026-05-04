@@ -33,6 +33,41 @@ public class UT_InMemorySequencerCommitteeProvider
     }
 
     [TestMethod]
+    public void Register_RejectsNullPubKey()
+    {
+        // Companion to RejectsNullL1Address. ECPoint is reference-typed and `_members`
+        // keys against it; without InMemorySequencerCommitteeProvider.cs:38, a null pubKey
+        // would NRE inside Dictionary.ContainsKey(null) with a generic "key" message.
+        var p = new InMemorySequencerCommitteeProvider(1001, 7);
+        Assert.ThrowsExactly<ArgumentNullException>(() => p.Register(null!, A(0xAA)));
+    }
+
+    [TestMethod]
+    public void BeginExit_RejectsNullPubKey()
+    {
+        // Pin InMemorySequencerCommitteeProvider.cs:70.
+        var p = new InMemorySequencerCommitteeProvider(1001, 7);
+        Assert.ThrowsExactly<ArgumentNullException>(() => p.BeginExit(null!, 0));
+    }
+
+    [TestMethod]
+    public void Finalize_RejectsNullPubKey()
+    {
+        // Pin InMemorySequencerCommitteeProvider.cs:85.
+        var p = new InMemorySequencerCommitteeProvider(1001, 7);
+        Assert.ThrowsExactly<ArgumentNullException>(() => p.Finalize(null!, 0));
+    }
+
+    [TestMethod]
+    public async Task IsRegisteredAsync_RejectsNullSequencerKey()
+    {
+        // Pin InMemorySequencerCommitteeProvider.cs:143.
+        var p = new InMemorySequencerCommitteeProvider(1001, 7);
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await p.IsRegisteredAsync(null!));
+    }
+
+    [TestMethod]
     public void Register_RejectsNullL1Address()
     {
         // Regression for iter 148: null l1Address would silently propagate into

@@ -118,7 +118,18 @@ public sealed class JsonRpcClient : IDisposable
 
         if (obj["error"] is JObject err)
         {
-            var code = err["code"] is JNumber n ? (int)n.AsNumber() : -32603;
+            // Bound-check the server-supplied code before casting double → int. A
+            // pathological server response with code = 1e100 or 2^32 would wrap to
+            // int.MinValue (or undefined behavior) — the JsonRpcException would carry
+            // the wrong code and operators chasing the value in dashboards see a
+            // confusing -2147483648. Clamp to the JSON-RPC 2.0 spec error-code range.
+            var code = -32603;
+            if (err["code"] is JNumber n)
+            {
+                var d = n.AsNumber();
+                if (d >= int.MinValue && d <= int.MaxValue) code = (int)d;
+                // Out-of-range: keep the -32603 internal-error sentinel as a stand-in.
+            }
             var message = err["message"]?.AsString() ?? "rpc error";
             throw new JsonRpcException(code, message);
         }

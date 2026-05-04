@@ -239,6 +239,25 @@ public class UT_RpcSettlementClient
     }
 
     [TestMethod]
+    public async Task JsonRpcClient_OutOfRangeErrorCode_ClampedToInternalError()
+    {
+        // Regression for iter 204: a server-supplied error code outside int range
+        // (e.g. 1e100) used to wrap silently to int.MinValue or undefined behavior.
+        // Now: clamps out-of-range to the -32603 "internal error" sentinel.
+        var stub = new StubHandler
+        {
+            ResponseBody = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":1e100,\"message\":\"insane code\"}}",
+        };
+        using var http = new HttpClient(stub);
+        using var client = new JsonRpcClient(FakeEndpoint, http);
+
+        var ex = await Assert.ThrowsExactlyAsync<JsonRpcException>(async () =>
+            await client.CallAsync("ping", new JArray()));
+        Assert.AreEqual(-32603, ex.Code);
+        StringAssert.Contains(ex.Message, "insane code");
+    }
+
+    [TestMethod]
     public async Task SubmitBatchAsync_BuggySignAndSendReturnsNull_SurfacesContractViolation()
     {
         // Regression for iter 189: a buggy SignAndSendAsync delegate returning null

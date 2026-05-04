@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `JsonRpcClient` clamps out-of-range server error code
+
+- `(int)n.AsNumber()` cast on a server-supplied error code wrapped silently for `code` values outside int range (e.g. `1e100` → `int.MinValue`). The `JsonRpcException` would carry the wrong code; operators chasing the value in dashboards would see a confusing `-2147483648`. Now: bound-check the double first; out-of-range falls back to the `-32603` "internal error" sentinel. Same iter-202/203 wrap-protection pattern. 1 pinning test.
+
+Cumulative: 493 tests / 27 projects.
+
 ### Fixed — `MerkleProofSerializer.Decode` rejects `leafIndex > int.MaxValue`
 
 - Encoder writes `leafIndex` via `(uint)proof.LeafIndex` after a `LeafIndex < 0` check, so honest output is in `[0, int.MaxValue]`. A malicious or corrupt input could carry `leafIndex > int.MaxValue`; the `(int)cast` in `Decode` would silently wrap to negative. Same iter-202 ulong/int wrap pattern. 1 pinning test that crafts a wire-form payload with `leafIndex = uint.MaxValue` and asserts the decoder rejects.

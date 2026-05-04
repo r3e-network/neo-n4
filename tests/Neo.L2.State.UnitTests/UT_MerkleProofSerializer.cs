@@ -154,6 +154,26 @@ public class UT_MerkleProofSerializer
     }
 
     [TestMethod]
+    public void Decode_RejectsLeafIndexExceedingIntMax()
+    {
+        // Regression for iter 203: encoder writes leafIndex via `(uint)proof.LeafIndex`
+        // after a `LeafIndex < 0` check, so honest output is in [0, int.MaxValue]. A
+        // malicious or corrupt input could carry leafIndex > int.MaxValue; the (int)cast
+        // in Decode would silently wrap to negative. Now rejected at decode time.
+        var leaves = new[] { H(1), H(2), H(3), H(4) };
+        var tree = new MerkleTree(leaves);
+        var proof = tree.GetProof(0);
+        var bytes = MerkleProofSerializer.Encode(proof);
+        // Overwrite the leafIndex bytes (offset 32, 4 bytes) with 0xFFFFFFFF (uint.MaxValue,
+        // > int.MaxValue).
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(
+            bytes.AsSpan(32, 4), uint.MaxValue);
+
+        var ex = Assert.ThrowsExactly<ArgumentException>(() => MerkleProofSerializer.Decode(bytes));
+        StringAssert.Contains(ex.Message, "LeafIndex");
+    }
+
+    [TestMethod]
     public void Roundtrip_For_AllPositionsIn_SevenLeafTree()
     {
         var leaves = Enumerable.Range(1, 7).Select(H).ToList();

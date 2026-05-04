@@ -72,6 +72,16 @@ public static class MerkleProofSerializer
 
         if (siblingCount > MaxDepth)
             throw new ArgumentException($"SiblingCount {siblingCount} exceeds MaxDepth {MaxDepth}", nameof(bytes));
+        // The encoder writes leafIndex as a uint via `(uint)proof.LeafIndex` after a
+        // `LeafIndex < 0` check (Encode line 33), so honest output is in [0, int.MaxValue].
+        // A malicious or corrupt input could carry leafIndex > int.MaxValue; the (int)cast
+        // below would silently wrap to negative, and downstream MerkleTree.Verify's
+        // `(uint)idx >= (uint)LeafCount` check evaluates `(uint)(-1) = 0xFFFFFFFF` which
+        // happens to bounds-fail correctly — but only for that path. Defense-in-depth:
+        // reject at decode time so the bad bytes never become a typed MerkleProof.
+        if (leafIndex > int.MaxValue)
+            throw new ArgumentException(
+                $"LeafIndex {leafIndex} exceeds int.MaxValue (encoder produces signed-positive)", nameof(bytes));
 
         var expected = HeaderSize + 32 * (int)siblingCount;
         if (bytes.Length != expected)

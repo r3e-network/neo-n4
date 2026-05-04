@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `MerkleProofSerializer.Decode` rejects `leafIndex > int.MaxValue`
+
+- Encoder writes `leafIndex` via `(uint)proof.LeafIndex` after a `LeafIndex < 0` check, so honest output is in `[0, int.MaxValue]`. A malicious or corrupt input could carry `leafIndex > int.MaxValue`; the `(int)cast` in `Decode` would silently wrap to negative. Same iter-202 ulong/int wrap pattern. 1 pinning test that crafts a wire-form payload with `leafIndex = uint.MaxValue` and asserts the decoder rejects.
+
+Cumulative: 492 tests / 27 projects.
+
 ### Fixed — `BatchSealer.ShouldSeal` int-cast wrap on >2.1B blocks
 
 - `var blocksInBatch = builder.Batch.LastBlock - builder.Batch.FirstBlock + 1;` is `ulong`. The previous `(int)blocksInBatch >= _settings.MaxBlocksPerBatch` cast wrapped when `blocksInBatch > int.MaxValue` (~2.1B), making the seal-by-blocks check silently never fire — an ultra-long-lived sequencer would accumulate unboundedly. Now compares in ulong space (`blocksInBatch >= (ulong)_settings.MaxBlocksPerBatch`); iter-191's ctor validation ensures `MaxBlocksPerBatch > 0` so the cast direction is safe. No pinning test (constructing a 2.1B-block batch in a unit test isn't practical; the fix is a 1-character symmetric-cast change).

@@ -89,6 +89,21 @@ public class UT_MetricsHttpServer
     }
 
     [TestMethod]
+    public void Constructor_SecondaryOverload_RejectsNullAddress()
+    {
+        // The (IPAddress, int port, handler) ctor delegates null-address handling
+        // to IPEndPoint via MakeValidatedEndpoint (see comment at MetricsHttpServer.cs:53).
+        // Pin the contract so a refactor that replaced IPEndPoint with a different type
+        // — or moved the port check before address handling such that PortValidator
+        // succeeded but a downstream NRE was the next failure — wouldn't silently
+        // change the surface from ArgumentNullException to NRE.
+        var handler = new MetricsRequestHandler(new InMemoryMetrics());
+        var ex = Assert.ThrowsExactly<ArgumentNullException>(
+            () => new MetricsHttpServer((IPAddress)null!, 0, handler));
+        Assert.AreEqual("address", ex.ParamName);
+    }
+
+    [TestMethod]
     public void Endpoint_BoundToActualPort_WhenConstructedWithPortZero()
     {
         var handler = new MetricsRequestHandler(new InMemoryMetrics());

@@ -212,6 +212,21 @@ public class UT_L2RpcMethods
     }
 
     [TestMethod]
+    public void RejectsNegativeNumberForULongParam_OverflowException()
+    {
+        // Companion pin to RejectsOversizedChainId: the OTHER half of L2RpcMethods.cs:182
+        // — `checked((ulong)(BigInteger)n.AsNumber())`. Without `checked`, a negative
+        // JSON-RPC number would silently wrap into a large positive ulong (e.g. -1
+        // → 18446744073709551615) — a batchNumber lookup by that value would then miss,
+        // returning a "not found" rather than the more diagnostic "param[idx] must be ≥ 0".
+        // OverflowException at least surfaces the bad input shape clearly.
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
+        var methods = new L2RpcMethods(store);
+        Assert.ThrowsExactly<OverflowException>(
+            () => methods.GetL2BatchStatus(new JArray { 1001UL, -5L }));
+    }
+
+    [TestMethod]
     public void Store_Constructor_RejectsL1ChainIdSentinel()
     {
         // Regression for iter 199: chainId = 0 is the L1 sentinel and never valid for

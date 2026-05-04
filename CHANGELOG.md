@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Two pinning tests: secondary-ctor null-address and JSON-RPC negative-ulong wrap
+
+- `Constructor_SecondaryOverload_RejectsNullAddress` (UT_MetricsHttpServer): the `(IPAddress, int port, handler)` ctor delegates null-address handling to `IPEndPoint` via `MakeValidatedEndpoint`. That contract was documented in a comment but unpinned — a refactor could silently change the surface from `ArgumentNullException` to NRE.
+- `RejectsNegativeNumberForULongParam_OverflowException` (UT_L2RpcMethods): companion to `RejectsOversizedChainId_OverflowException`. Pins the OTHER half of `L2RpcMethods.cs:182`'s `checked((ulong)(BigInteger)n.AsNumber())` — without `checked`, a negative JSON-RPC number (e.g. `-5`) would silently wrap into a huge positive ulong, turning a "missing batch" lookup miss instead of surfacing the bad input shape clearly.
+
+Cumulative: 515 tests / 27 projects.
+
 ### Added — Pinning tests for iter-198 Sp1RiscV ctor null-guards (companion to iter 215)
 
 - iter 215 pinned the Mock* ctor null-guards but the changelog incorrectly claimed the Sp1* counterparts were "tested by the same code path." That was wrong: `Sp1RiscVProver` and `Sp1RiscVVerifier` each have their OWN `ArgumentNullException.ThrowIfNull` guard at the top of their ctor (`Sp1RiscVProver.cs:33` and `:110`) — these fire *before* the fallback `MockRiscV*` is constructed, so the iter-215 pins don't exercise them. Now directly pinned: `Sp1Prover_Constructor_RejectsNullVerificationKeyId` and `Sp1Verifier_Constructor_RejectsNullExpectedVkId`. A refactor that dropped the Sp1* guard would silently fall through to the Mock*'s, attributing the failure to the wrong type.

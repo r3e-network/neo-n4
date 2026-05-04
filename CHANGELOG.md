@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Bisection-game param-level null pins
+
+- `BisectionGame` had a `Constructor_RejectsNullCheckpointEntry` per-entry pin (iter 197) but the param-level array null-guards (`BisectionGame.cs:60-61`) were unpinned. Added 2.
+- `ChallengeOrchestrator.InspectWithBisectionAsync` had per-entry, length, and shape pins but no param-level pins for the 4 ref-typed args (`ChallengeOrchestrator.cs:93-96`). Added 4.
+
+Cumulative: 584 tests / 27 projects.
+
 ### Added — Challenge module null-guard pins
 
 - `FraudProofPayload.Encode`'s 3 UInt256 root null-guards (`FraudProofPayload.cs:50-52`) were unpinned. Added 3 (PreStateRoot, ClaimedPostStateRoot, ReplayedPostStateRoot).

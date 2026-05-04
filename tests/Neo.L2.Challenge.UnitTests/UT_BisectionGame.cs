@@ -133,6 +133,23 @@ public class UT_BisectionGame
     }
 
     [TestMethod]
+    public void Constructor_RejectsNullChallengerCheckpoints()
+    {
+        // Pin BisectionGame.cs:60. Companion to RejectsNullCheckpointEntry — the
+        // per-entry guard catches an entry within a non-null array, the param-level
+        // guard catches a null array reference itself.
+        var good = new[] { UInt256.Zero, UInt256.Zero };
+        Assert.ThrowsExactly<ArgumentNullException>(() => new BisectionGame(null!, good));
+    }
+
+    [TestMethod]
+    public void Constructor_RejectsNullSequencerCheckpoints()
+    {
+        var good = new[] { UInt256.Zero, UInt256.Zero };
+        Assert.ThrowsExactly<ArgumentNullException>(() => new BisectionGame(good, null!));
+    }
+
+    [TestMethod]
     public void Constructor_RejectsNullCheckpointEntry()
     {
         // Regression for iter 197: ChallengeOrchestrator.InspectWithBisectionAsync (iter

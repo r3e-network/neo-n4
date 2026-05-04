@@ -89,6 +89,51 @@ public class UT_ChallengeOrchestrator_WithBisection
     }
 
     [TestMethod]
+    public async Task InspectWithBisection_RejectsNullCommitment()
+    {
+        // Pin ChallengeOrchestrator.cs:93. Param-level null-guard companion to
+        // Bisection_RejectsNullCheckpointEntry (per-entry, iter 196).
+        var orch = new ChallengeOrchestrator(new NoopReplayer());
+        var pre = H(0);
+        var arr = new[] { pre, H(1) };
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(async () =>
+            await orch.InspectWithBisectionAsync(null!, MkInputs(pre), arr, arr));
+    }
+
+    [TestMethod]
+    public async Task InspectWithBisection_RejectsNullInputs()
+    {
+        // Pin ChallengeOrchestrator.cs:94.
+        var orch = new ChallengeOrchestrator(new NoopReplayer());
+        var pre = H(0);
+        var arr = new[] { pre, H(1) };
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(async () =>
+            await orch.InspectWithBisectionAsync(MkCommit(pre, H(1)), null!, arr, arr));
+    }
+
+    [TestMethod]
+    public async Task InspectWithBisection_RejectsNullChallengerCheckpoints()
+    {
+        // Pin ChallengeOrchestrator.cs:95.
+        var orch = new ChallengeOrchestrator(new NoopReplayer());
+        var pre = H(0);
+        var arr = new[] { pre, H(1) };
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(async () =>
+            await orch.InspectWithBisectionAsync(MkCommit(pre, H(1)), MkInputs(pre), null!, arr));
+    }
+
+    [TestMethod]
+    public async Task InspectWithBisection_RejectsNullSequencerCheckpoints()
+    {
+        // Pin ChallengeOrchestrator.cs:96.
+        var orch = new ChallengeOrchestrator(new NoopReplayer());
+        var pre = H(0);
+        var arr = new[] { pre, H(1) };
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(async () =>
+            await orch.InspectWithBisectionAsync(MkCommit(pre, H(1)), MkInputs(pre), arr, null!));
+    }
+
+    [TestMethod]
     public async Task Bisection_ValidatesArgsLikeInspect()
     {
         var orch = new ChallengeOrchestrator(new NoopReplayer());

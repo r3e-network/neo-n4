@@ -109,8 +109,13 @@ public sealed class BatchSealer
 
     private bool ShouldSeal(BatchBuilder builder)
     {
+        // Compare in ulong space to avoid the int-cast wrap. The previous (int)cast
+        // wrapped when blocksInBatch > int.MaxValue (~2.1B), making the seal-by-blocks
+        // check silently never fire — ultra-long-lived sequencers would accumulate
+        // unboundedly. iter-191 BatchSealer ctor validates MaxBlocksPerBatch > 0, so
+        // the unchecked-cast is safe in the other direction.
         var blocksInBatch = builder.Batch.LastBlock - builder.Batch.FirstBlock + 1;
-        if ((int)blocksInBatch >= _settings.MaxBlocksPerBatch) return true;
+        if (blocksInBatch >= (ulong)_settings.MaxBlocksPerBatch) return true;
         if (builder.Batch.TransactionCount >= _settings.MaxTransactionsPerBatch) return true;
         var ageMs = _nowUtcMillis() - _batchStartedAtUtcMillis;
         if (ageMs >= _settings.MaxBatchAgeMillis) return true;

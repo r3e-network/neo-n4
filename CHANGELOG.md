@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `BatchSealer.ShouldSeal` int-cast wrap on >2.1B blocks
+
+- `var blocksInBatch = builder.Batch.LastBlock - builder.Batch.FirstBlock + 1;` is `ulong`. The previous `(int)blocksInBatch >= _settings.MaxBlocksPerBatch` cast wrapped when `blocksInBatch > int.MaxValue` (~2.1B), making the seal-by-blocks check silently never fire — an ultra-long-lived sequencer would accumulate unboundedly. Now compares in ulong space (`blocksInBatch >= (ulong)_settings.MaxBlocksPerBatch`); iter-191's ctor validation ensures `MaxBlocksPerBatch > 0` so the cast direction is safe. No pinning test (constructing a 2.1B-block batch in a unit test isn't practical; the fix is a 1-character symmetric-cast change).
+
+Cumulative: 491 tests / 27 projects.
+
 ### Fixed — `DeployPlanner.ResolveToken` validates `HashResolver` delegate return
 
 - A buggy `HashResolver` delegate returning null `UInt160` would NRE on `.ToString()` in `ResolveToken`. Now surfaces as `InvalidOperationException` naming the step. Same iter-171/172 callee-contract pattern. 1 pinning test.

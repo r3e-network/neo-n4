@@ -1,0 +1,146 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 720" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">Transaction lifecycle on a Neo L2 chain</title>
+  <desc id="desc">Nine numbered stages in the path of a single transaction from user submission, through dBFT sequencing, block commit, batch execution, sealing, proving, L1 submission, finalization, and eventual L1-side withdrawal claim.</desc>
+
+  <defs>
+    <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card2" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .step-num     { font-size: 11px; font-weight: 700; letter-spacing: 0.6px; }
+      .step-title   { font-size: 13px; font-weight: 600; }
+      .step-sub     { font-size: 10.5px; }
+      .step-tag     { font-size: 9.5px; font-style: italic; fill: #6e7781; }
+      .lane-title   { font-size: 12px; font-weight: 700; letter-spacing: 0.7px; }
+      .caption      { font-size: 11.5px; fill: #57606a; }
+    </style>
+  </defs>
+
+  <rect width="960" height="720" fill="#ffffff"/>
+
+  <!-- ============================================================== -->
+  <!--   Lanes (vertical bands)                                        -->
+  <!-- ============================================================== -->
+  <!-- L2 lane -->
+  <rect x="40" y="40" width="540" height="600" rx="10" fill="#ecf5ee" stroke="#6fa37b" stroke-width="1.2"/>
+  <text x="58" y="62" class="lane-title" fill="#1c3d27">L2 SIDE — execution + sealing + proving</text>
+
+  <!-- L1 lane -->
+  <rect x="600" y="40" width="320" height="600" rx="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.2"/>
+  <text x="618" y="62" class="lane-title" fill="#1e2a55">L1 SIDE — settlement + finality</text>
+
+  <!-- ============================================================== -->
+  <!--   Steps                                                         -->
+  <!-- ============================================================== -->
+  <!-- 1. User -->
+  <g filter="url(#card2)">
+    <rect x="60" y="84" width="200" height="62" rx="6" fill="#fff" stroke="#6fa37b"/>
+    <circle cx="78" cy="100" r="9" fill="#1c3d27"/>
+    <text x="78" y="104" text-anchor="middle" class="step-num" fill="#fff">1</text>
+    <text x="92" y="106" class="step-title" fill="#1c3d27">User submits tx</text>
+    <text x="92" y="124" class="step-sub" fill="#2f5e3c">RPC → mempool</text>
+    <text x="92" y="138" class="step-tag">Neo RpcServer (upstream)</text>
+  </g>
+
+  <!-- 2. dBFT -->
+  <g filter="url(#card2)">
+    <rect x="60" y="166" width="200" height="62" rx="6" fill="#fff" stroke="#6fa37b"/>
+    <circle cx="78" cy="182" r="9" fill="#1c3d27"/>
+    <text x="78" y="186" class="step-num" fill="#fff">2</text>
+    <text x="92" y="188" class="step-title" fill="#1c3d27">dBFT sequencing</text>
+    <text x="92" y="206" class="step-sub" fill="#2f5e3c">committee from SequencerRegistry</text>
+    <text x="92" y="220" class="step-tag">Neo.Plugins.DBFTPlugin</text>
+  </g>
+
+  <!-- 3. Block commit -->
+  <g filter="url(#card2)">
+    <rect x="60" y="248" width="200" height="62" rx="6" fill="#fff" stroke="#6fa37b"/>
+    <circle cx="78" cy="264" r="9" fill="#1c3d27"/>
+    <text x="78" y="268" class="step-num" fill="#fff">3</text>
+    <text x="92" y="270" class="step-title" fill="#1c3d27">Block commit hook</text>
+    <text x="92" y="288" class="step-sub" fill="#2f5e3c">accumulate · seal on threshold</text>
+    <text x="92" y="302" class="step-tag">L2BatchPlugin → BatchSealer</text>
+  </g>
+
+  <!-- 4. Executor -->
+  <g filter="url(#card2)">
+    <rect x="60" y="330" width="200" height="78" rx="6" fill="#fff" stroke="#6fa37b"/>
+    <circle cx="78" cy="346" r="9" fill="#1c3d27"/>
+    <text x="78" y="350" class="step-num" fill="#fff">4</text>
+    <text x="92" y="352" class="step-title" fill="#1c3d27">Batch execution</text>
+    <text x="92" y="370" class="step-sub" fill="#2f5e3c">L1 msgs → txs → roots</text>
+    <text x="92" y="384" class="step-sub" fill="#2f5e3c">postStateRoot via oracle</text>
+    <text x="92" y="400" class="step-tag">ReferenceBatchExecutor</text>
+  </g>
+
+  <!-- 5. Seal -->
+  <g filter="url(#card2)">
+    <rect x="60" y="428" width="200" height="62" rx="6" fill="#fff" stroke="#6fa37b"/>
+    <circle cx="78" cy="444" r="9" fill="#1c3d27"/>
+    <text x="78" y="448" class="step-num" fill="#fff">5</text>
+    <text x="92" y="450" class="step-title" fill="#1c3d27">Seal commitment</text>
+    <text x="92" y="468" class="step-sub" fill="#2f5e3c">317-B header + proof bytes</text>
+    <text x="92" y="482" class="step-tag">BatchBuilder · BatchSerializer</text>
+  </g>
+
+  <!-- 6. Prove -->
+  <g filter="url(#card2)">
+    <rect x="320" y="428" width="240" height="62" rx="6" fill="#fff" stroke="#6fa37b"/>
+    <circle cx="338" cy="444" r="9" fill="#1c3d27"/>
+    <text x="338" y="448" class="step-num" fill="#fff">6</text>
+    <text x="352" y="450" class="step-title" fill="#1c3d27">Prove batch</text>
+    <text x="352" y="468" class="step-sub" fill="#2f5e3c">multisig (today) · ZK / SP1 (Phase 4)</text>
+    <text x="352" y="482" class="step-tag">IL2Prover · L2SettlementPlugin</text>
+  </g>
+
+  <!-- 7. Submit -->
+  <g filter="url(#card2)">
+    <rect x="320" y="510" width="240" height="62" rx="6" fill="#fff" stroke="#6fa37b"/>
+    <circle cx="338" cy="526" r="9" fill="#1c3d27"/>
+    <text x="338" y="530" class="step-num" fill="#fff">7</text>
+    <text x="352" y="532" class="step-title" fill="#1c3d27">Submit to L1</text>
+    <text x="352" y="550" class="step-sub" fill="#2f5e3c">JSON-RPC submitBatch</text>
+    <text x="352" y="564" class="step-tag">RpcSettlementClient</text>
+  </g>
+
+  <!-- 8. L1 verify -->
+  <g filter="url(#card2)">
+    <rect x="620" y="510" width="280" height="62" rx="6" fill="#fff" stroke="#7587c1"/>
+    <circle cx="638" cy="526" r="9" fill="#1e2a55"/>
+    <text x="638" y="530" class="step-num" fill="#fff">8</text>
+    <text x="652" y="532" class="step-title" fill="#1e2a55">L1 verify + finalize</text>
+    <text x="652" y="550" class="step-sub" fill="#3a4a82">VerifierRegistry routes by ProofType</text>
+    <text x="652" y="564" class="step-tag">SettlementManager · NeoHub</text>
+  </g>
+
+  <!-- 9. Withdrawal -->
+  <g filter="url(#card2)">
+    <rect x="620" y="592" width="280" height="42" rx="6" fill="#fff" stroke="#7587c1" stroke-dasharray="4 3"/>
+    <circle cx="638" cy="608" r="9" fill="#1e2a55"/>
+    <text x="638" y="612" class="step-num" fill="#fff">9</text>
+    <text x="652" y="614" class="step-title" fill="#1e2a55">Withdrawal claim (later)</text>
+    <text x="652" y="628" class="step-tag">SharedBridge — once batch finalized</text>
+  </g>
+
+  <!-- ============================================================== -->
+  <!--   Arrows between steps                                          -->
+  <!-- ============================================================== -->
+  <line x1="160" y1="146" x2="160" y2="166" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah2)"/>
+  <line x1="160" y1="228" x2="160" y2="248" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah2)"/>
+  <line x1="160" y1="310" x2="160" y2="330" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah2)"/>
+  <line x1="160" y1="408" x2="160" y2="428" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah2)"/>
+  <!-- 5 → 6 horizontal -->
+  <line x1="260" y1="459" x2="320" y2="459" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah2)"/>
+  <!-- 6 → 7 -->
+  <line x1="440" y1="490" x2="440" y2="510" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah2)"/>
+  <!-- 7 → 8 (cross-lane) -->
+  <line x1="560" y1="541" x2="620" y2="541" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah2)"/>
+  <!-- 8 → 9 -->
+  <line x1="760" y1="572" x2="760" y2="592" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah2)"/>
+
+  <!-- caption -->
+  <text x="480" y="704" text-anchor="middle" class="caption">Figure 2 · Transaction lifecycle on a Neo L2 chain — nine stages from user submission to L1 finality.</text>
+</svg>

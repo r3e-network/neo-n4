@@ -11,6 +11,10 @@
 
 ## Walk #1: a transaction's life on an L2 chain
 
+<p align="center">
+  <img src="figures/tx-lifecycle.svg" alt="Transaction lifecycle: nine stages from user submission, through dBFT sequencing, batch execution, sealing, proving, submission, L1 verification, finalization, and eventual withdrawal claim" width="900">
+</p>
+
 This is the hot path. The user submits a transaction; we follow it through every
 component until the L1 commit lands.
 

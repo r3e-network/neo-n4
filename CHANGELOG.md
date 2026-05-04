@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Messaging null-arg pins
+
+- `L2Outbox.Add(null)` (`L2Outbox.cs:39`), `L1MessageInbox.Enqueue(null)` (`L1MessageInbox.cs:37`), and `InMemoryMessageRouter.EnqueueOutboundAsync(null)` (`InMemoryMessageRouter.cs:44`) had no pins. Added 3.
+
+Cumulative: 639 tests / 27 projects.
+
 ### Added — Verifier/prover async-method null-publicInputs pins
 
 - 4 unpinned async-method null-arg guards across the verifier/prover pipeline. Added: `OptimisticVerifier_VerifyAsync_RejectsNullPublicInputs` (`OptimisticVerifier.cs:37`), `AttestationVerifier_VerifyAsync_RejectsNullPublicInputs` (`AttestationVerifier.cs:48`), `MockRiscVProver_ProveAsync_RejectsNullRequest` (`RiscVProver.cs:52`), `MockRiscVVerifier_VerifyAsync_RejectsNullPublicInputs` (`:103`).

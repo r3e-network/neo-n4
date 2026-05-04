@@ -147,6 +147,31 @@ public class UT_Messaging
     }
 
     [TestMethod]
+    public void Outbox_Add_RejectsNull()
+    {
+        // Pin L2Outbox.cs:39.
+        var outbox = new L2Outbox();
+        Assert.ThrowsExactly<ArgumentNullException>(() => outbox.Add(null!));
+    }
+
+    [TestMethod]
+    public void Inbox_Enqueue_RejectsNull()
+    {
+        // Pin L1MessageInbox.cs:37.
+        var inbox = new L1MessageInbox();
+        Assert.ThrowsExactly<ArgumentNullException>(() => inbox.Enqueue(null!));
+    }
+
+    [TestMethod]
+    public async Task Router_EnqueueOutboundAsync_RejectsNull()
+    {
+        // Pin InMemoryMessageRouter.cs:44.
+        var router = new InMemoryMessageRouter();
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await router.EnqueueOutboundAsync(null!));
+    }
+
+    [TestMethod]
     public async Task Router_RoundTrips()
     {
         var router = new InMemoryMessageRouter();

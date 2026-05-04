@@ -212,6 +212,14 @@ public class UT_L2RpcMethods
     }
 
     [TestMethod]
+    public void Constructor_RejectsNullStore()
+    {
+        // Pin L2RpcMethods.cs:28's ArgumentNullException.ThrowIfNull(store). Without it
+        // every RPC method would NRE on the first store.GetX call with no link to ctor.
+        Assert.ThrowsExactly<ArgumentNullException>(() => new L2RpcMethods(null!));
+    }
+
+    [TestMethod]
     public void RejectsNegativeNumberForULongParam_OverflowException()
     {
         // Companion pin to RejectsOversizedChainId: the OTHER half of L2RpcMethods.cs:182

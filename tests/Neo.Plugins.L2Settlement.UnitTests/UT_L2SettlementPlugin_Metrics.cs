@@ -307,6 +307,50 @@ public class UT_L2SettlementPlugin_Metrics
     }
 
     [TestMethod]
+    public void Wire_RejectsNullBatchPlugin()
+    {
+        using var settlement = new L2SettlementPlugin();
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => settlement.Wire(null!, new FakeProver(ProofType.Multisig), new FakeClient()));
+    }
+
+    [TestMethod]
+    public void Wire_RejectsNullProver()
+    {
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin();
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => settlement.Wire(batch, null!, new FakeClient()));
+    }
+
+    [TestMethod]
+    public void Wire_RejectsNullClient()
+    {
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin();
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => settlement.Wire(batch, new FakeProver(ProofType.Multisig), null!));
+    }
+
+    [TestMethod]
+    public void WithMetrics_RejectsNullMetrics()
+    {
+        using var settlement = new L2SettlementPlugin();
+        Assert.ThrowsExactly<ArgumentNullException>(() => settlement.WithMetrics(null!));
+    }
+
+    [TestMethod]
+    public void Enqueue_RejectsNullCommitment()
+    {
+        // Pin L2SettlementPlugin.cs:102. Without the guard a null commitment would slip
+        // into the pending queue and NRE during SubmitNextAsync's `_pending.Dequeue` ->
+        // ProveAsync(null!.Proof) deep in the submit loop, with no link back to the
+        // bad caller.
+        using var settlement = new L2SettlementPlugin();
+        Assert.ThrowsExactly<ArgumentNullException>(() => settlement.Enqueue(null!));
+    }
+
+    [TestMethod]
     public async Task Enqueue_WhenDisabled_DoesNothing_AndPendingStaysZero()
     {
         // We can't easily flip the private _settings.Enabled, so this test just confirms

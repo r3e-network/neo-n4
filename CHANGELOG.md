@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Settlement & RPC plugin null-arg pins
+
+- `L2SettlementPlugin` had no null-arg pins on its public Wire / WithMetrics / Enqueue surface (`L2SettlementPlugin.cs:52-54, 77, 102`). Added 5: `Wire_RejectsNullBatchPlugin`, `Wire_RejectsNullProver`, `Wire_RejectsNullClient`, `WithMetrics_RejectsNullMetrics`, `Enqueue_RejectsNullCommitment`.
+- `L2RpcMethods` ctor's `ArgumentNullException.ThrowIfNull(store)` (`L2RpcMethods.cs:28`) was unpinned. Added `Constructor_RejectsNullStore`.
+
+Cumulative: 572 tests / 27 projects.
+
 ### Added — Sequencer-committee null-pubKey pins
 
 - `InMemorySequencerCommitteeProvider` had a `Register_RejectsNullL1Address` pin (iter 148) but the four ECPoint-keyed null-guards (Register pubKey, BeginExit pubKey, Finalize pubKey, IsRegisteredAsync sequencerKey at `InMemorySequencerCommitteeProvider.cs:38`, `:70`, `:85`, `:143`) were unpinned. Added 4. Without these guards a null ECPoint would propagate into Dictionary.ContainsKey(null) with a generic "key" error message.

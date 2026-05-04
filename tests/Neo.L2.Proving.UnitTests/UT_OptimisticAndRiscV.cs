@@ -442,4 +442,48 @@ public class UT_OptimisticAndRiscV
     {
         Assert.ThrowsExactly<ArgumentNullException>(() => new MockRiscVVerifier(null!));
     }
+
+    [TestMethod]
+    public void VerifierRegistry_Register_RejectsNullVerifier()
+    {
+        // Pin VerifierRegistry.cs:21. Without it Register would silently store null
+        // and the next VerifyAsync would NRE on the dispatch.
+        var registry = new VerifierRegistry();
+        Assert.ThrowsExactly<ArgumentNullException>(() => registry.Register(null!));
+    }
+
+    [TestMethod]
+    public async Task VerifierRegistry_VerifyAsync_RejectsNullCommitment()
+    {
+        // Pin VerifierRegistry.cs:37.
+        var registry = new VerifierRegistry();
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await registry.VerifyAsync(null!, SamplePublicInputs()));
+    }
+
+    [TestMethod]
+    public async Task VerifierRegistry_VerifyAsync_RejectsNullPublicInputs()
+    {
+        // Pin VerifierRegistry.cs:38.
+        var registry = new VerifierRegistry();
+        var sample = new L2BatchCommitment
+        {
+            ChainId = 1001, BatchNumber = 1, FirstBlock = 0, LastBlock = 0,
+            PreStateRoot = UInt256.Zero, PostStateRoot = UInt256.Zero,
+            TxRoot = UInt256.Zero, ReceiptRoot = UInt256.Zero,
+            WithdrawalRoot = UInt256.Zero, L2ToL1MessageRoot = UInt256.Zero,
+            L2ToL2MessageRoot = UInt256.Zero, DACommitment = UInt256.Zero,
+            PublicInputHash = UInt256.Zero, ProofType = ProofType.None,
+            Proof = ReadOnlyMemory<byte>.Empty,
+        };
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await registry.VerifyAsync(sample, null!));
+    }
+
+    [TestMethod]
+    public void OptimisticVerifier_Constructor_RejectsNullSequencerKey()
+    {
+        // Pin OptimisticVerifier.cs:26.
+        Assert.ThrowsExactly<ArgumentNullException>(() => new OptimisticVerifier(null!));
+    }
 }

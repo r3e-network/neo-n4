@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Proving-pipeline null-arg pins
+
+- 7 unpinned guards in the proving pipeline. Added: `VerifierRegistry_Register_RejectsNullVerifier` (`VerifierRegistry.cs:21`), `VerifyAsync_RejectsNullCommitment` (`:37`), `VerifyAsync_RejectsNullPublicInputs` (`:38`); `OptimisticVerifier_Constructor_RejectsNullSequencerKey` (`OptimisticVerifier.cs:26`); `AttestationProver_Constructor_RejectsNullSigners` (`AttestationProver.cs:25`), `ProveAsync_RejectsNullRequest` (`:32`); `AttestationVerifier_Constructor_RejectsNullValidators` (`AttestationVerifier.cs:31`).
+
+Cumulative: 632 tests / 27 projects.
+
 ### Added — InMemoryL2RpcStore null-arg pins (companion to iter 184)
 
 - iter 184's `Store_RejectsNullKey_AcrossEntryPoints` covered the leafHash/messageHash/l1Asset/l2Asset null-keys but not other write paths. Added 5: `AddBatch_RejectsNullCommitment` (`InMemoryL2RpcStore.cs:47`), `RegisterAsset_RejectsNullL1Asset` (`:83`), `_RejectsNullL2Asset` (`:84`), `RecordWithdrawalProof_RejectsNullProofBytes` (`:110`), `RecordMessageProof_RejectsNullProofBytes` (`:121`).

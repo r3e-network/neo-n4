@@ -290,4 +290,27 @@ public class UT_Attestation
         public ValueTask<IReadOnlyList<SignerSignature>> SignAsync(ReadOnlyMemory<byte> message, CancellationToken cancellationToken = default)
             => new ValueTask<IReadOnlyList<SignerSignature>>((IReadOnlyList<SignerSignature>)null!);
     }
+
+    [TestMethod]
+    public void AttestationProver_Constructor_RejectsNullSigners()
+    {
+        // Pin AttestationProver.cs:25.
+        Assert.ThrowsExactly<ArgumentNullException>(() => new AttestationProver(null!));
+    }
+
+    [TestMethod]
+    public async Task AttestationProver_ProveAsync_RejectsNullRequest()
+    {
+        // Pin AttestationProver.cs:32.
+        var prover = new AttestationProver(new NullReturningSigners());
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await prover.ProveAsync(null!));
+    }
+
+    [TestMethod]
+    public void AttestationVerifier_Constructor_RejectsNullValidators()
+    {
+        // Pin AttestationVerifier.cs:31.
+        Assert.ThrowsExactly<ArgumentNullException>(() => new AttestationVerifier(null!, threshold: 1));
+    }
 }

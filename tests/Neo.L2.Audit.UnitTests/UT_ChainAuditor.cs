@@ -154,6 +154,52 @@ public class UT_ChainAuditor
     }
 
     [TestMethod]
+    public void ChainAuditor_Register_RejectsNullCheck()
+    {
+        // Pin ChainAuditor.cs:23. Without it a null check would either NRE in the loop
+        // or sit silently in the registry, surfacing only when AuditAsync iterated.
+        var auditor = new ChainAuditor();
+        Assert.ThrowsExactly<ArgumentNullException>(() => auditor.Register(null!));
+    }
+
+    [TestMethod]
+    public async Task ChainAuditor_AuditAsync_RejectsNullBatches()
+    {
+        // Pin ChainAuditor.cs:39. Without it a null batches array NREs deep in the
+        // per-check iteration; the auditor-level guard names the bad input directly.
+        var auditor = new ChainAuditor().Register(new ContinuityCheck());
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await auditor.AuditAsync(null!));
+    }
+
+    [TestMethod]
+    public void ProofValidityCheck_Constructor_RejectsNullRegistry()
+    {
+        // Pin ProofValidityCheck.cs:18. A null registry would NRE inside RunAsync's
+        // verifier lookup with no link back to the bad ctor arg.
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => new ProofValidityCheck(null!, _ => default!));
+    }
+
+    [TestMethod]
+    public void ProofValidityCheck_Constructor_RejectsNullPublicInputsResolver()
+    {
+        // Pin ProofValidityCheck.cs:19. A null resolver would NRE when invoked per batch.
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => new ProofValidityCheck(new VerifierRegistry(), null!));
+    }
+
+    [TestMethod]
+    public async Task ContinuityCheck_RunAsync_RejectsNullBatches()
+    {
+        // Pin ContinuityCheck.cs:22. Match sibling-check convention (NoZeroProofCheck,
+        // PublicInputHashConsistencyCheck, ProofValidityCheck — all guarded the same way).
+        var check = new ContinuityCheck();
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await check.RunAsync(null!));
+    }
+
+    [TestMethod]
     public async Task ProofValidityCheck_NullBatches_ThrowsArgumentNullException()
     {
         // Match the null-guard convention of sibling checks. Without the guard the foreach

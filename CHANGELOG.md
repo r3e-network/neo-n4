@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Audit-module null-guard pins
+
+- The audit module had only one direct null pin (`ProofValidityCheck_NullBatches_ThrowsArgumentNullException`); the other 7 guards on `ChainAuditor`, `ContinuityCheck`, `NoZeroProofCheck`, `PublicInputHashConsistencyCheck`, and `ProofValidityCheck`'s ctor were unpinned. Added 7:
+  - `ChainAuditor_Register_RejectsNullCheck`, `ChainAuditor_AuditAsync_RejectsNullBatches`
+  - `ProofValidityCheck_Constructor_RejectsNullRegistry`, `ProofValidityCheck_Constructor_RejectsNullPublicInputsResolver`
+  - `ContinuityCheck_RunAsync_RejectsNullBatches`
+  - `NoZeroProofCheck.RunAsync_RejectsNullBatches`
+  - `PublicInputHashConsistencyCheck.RunAsync_RejectsNullBatches`
+
+Cumulative: 562 tests / 27 projects.
+
 ### Added — Batch-construction boundary pins
 
 - `BatchSerializer.EncodePublicInputs` (`BatchSerializer.cs:205-216`) had no null-guard pins. Added 2 representative pins (the inputs param, plus PreStateRoot for the per-field pattern that's uniform across 10 fields).

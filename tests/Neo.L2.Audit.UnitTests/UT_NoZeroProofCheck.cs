@@ -111,4 +111,15 @@ public class UT_NoZeroProofCheck
         Assert.AreEqual(1, findings.Count);
         Assert.IsTrue(findings[0].Passed);
     }
+
+    [TestMethod]
+    public async Task RunAsync_RejectsNullBatches()
+    {
+        // Pin NoZeroProofCheck.cs:27. Without it a null batches array would NRE inside
+        // the foreach, masking the real input-shape problem. Same iter-148 boundary
+        // pattern the other checks use.
+        var check = new NoZeroProofCheck();
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await check.RunAsync(null!));
+    }
 }

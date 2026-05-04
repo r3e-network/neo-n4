@@ -105,6 +105,24 @@ public class UT_Sp1Bridge
     }
 
     [TestMethod]
+    public void Sp1Prover_Constructor_RejectsNullVerificationKeyId()
+    {
+        // Regression for iter 198: Sp1RiscVProver has its OWN ArgumentNullException
+        // guard at the top of its ctor (Sp1RiscVProver.cs:33), separate from the
+        // MockRiscVProver fallback that the same ctor constructs as a backup. The
+        // iter-215 pin on MockRiscVProver doesn't exercise this path — the Sp1* guard
+        // fires first. Pin it directly so a refactor that drops the Sp1* guard would
+        // not silently fall through to the Mock* one with confusing error attribution.
+        Assert.ThrowsExactly<ArgumentNullException>(() => new Sp1RiscVProver(null!));
+    }
+
+    [TestMethod]
+    public void Sp1Verifier_Constructor_RejectsNullExpectedVkId()
+    {
+        Assert.ThrowsExactly<ArgumentNullException>(() => new Sp1RiscVVerifier(null!));
+    }
+
+    [TestMethod]
     public async Task Sp1Verifier_RejectsWrongVk()
     {
         var prover = new Sp1RiscVProver(UInt256.Parse("0x" + new string('a', 64)));

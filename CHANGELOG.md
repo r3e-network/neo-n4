@@ -5,9 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Pinning tests for iter-198 Sp1RiscV ctor null-guards (companion to iter 215)
+
+- iter 215 pinned the Mock* ctor null-guards but the changelog incorrectly claimed the Sp1* counterparts were "tested by the same code path." That was wrong: `Sp1RiscVProver` and `Sp1RiscVVerifier` each have their OWN `ArgumentNullException.ThrowIfNull` guard at the top of their ctor (`Sp1RiscVProver.cs:33` and `:110`) — these fire *before* the fallback `MockRiscV*` is constructed, so the iter-215 pins don't exercise them. Now directly pinned: `Sp1Prover_Constructor_RejectsNullVerificationKeyId` and `Sp1Verifier_Constructor_RejectsNullExpectedVkId`. A refactor that dropped the Sp1* guard would silently fall through to the Mock*'s, attributing the failure to the wrong type.
+
+Cumulative: 513 tests / 27 projects.
+
 ### Added — Pinning tests for iter-198 RISC-V ctor null-guards
 
-- iter-198 added 4 ctor null-guards (`Sp1RiscVProver`, `Sp1RiscVVerifier`, `MockRiscVProver`, `MockRiscVVerifier`) but committed without pinning tests at the time. Now pinned: `MockRiscVProver_Constructor_RejectsNullVerificationKeyId` and `MockRiscVVerifier_Constructor_RejectsNullExpectedVkId`. (The Sp1* counterparts delegate to MockRiscV* internally as fallback.)
+- iter-198 added 4 ctor null-guards (`Sp1RiscVProver`, `Sp1RiscVVerifier`, `MockRiscVProver`, `MockRiscVVerifier`) but committed without pinning tests at the time. Now pinned: `MockRiscVProver_Constructor_RejectsNullVerificationKeyId` and `MockRiscVVerifier_Constructor_RejectsNullExpectedVkId`. (The Sp1* counterparts are pinned in the next iter — see above.)
 
 Cumulative: 511 tests / 27 projects.
 

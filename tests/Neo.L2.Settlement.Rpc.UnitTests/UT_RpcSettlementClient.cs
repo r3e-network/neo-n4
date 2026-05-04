@@ -239,6 +239,24 @@ public class UT_RpcSettlementClient
     }
 
     [TestMethod]
+    public void JsonRpcClient_RejectsNonHttpScheme()
+    {
+        // Regression for iter 206: a misconfigured endpoint with file://, mailto:, ftp://
+        // etc. would previously slip past the ctor and surface as an obscure HttpClient
+        // SendAsync error at first request. Now caught at construction.
+        Assert.ThrowsExactly<ArgumentException>(
+            () => new JsonRpcClient(new Uri("file:///tmp/x"), httpClient: null));
+        Assert.ThrowsExactly<ArgumentException>(
+            () => new JsonRpcClient(new Uri("ftp://example.com"), httpClient: null));
+        Assert.ThrowsExactly<ArgumentException>(
+            () => new JsonRpcClient(new Uri("mailto:foo@bar"), httpClient: null));
+
+        // Boundary: http and https must succeed.
+        using var http1 = new JsonRpcClient(new Uri("http://localhost"), httpClient: null);
+        using var http2 = new JsonRpcClient(new Uri("https://example.com"), httpClient: null);
+    }
+
+    [TestMethod]
     public async Task JsonRpcClient_OutOfRangeErrorCode_ClampedToInternalError()
     {
         // Regression for iter 204: a server-supplied error code outside int range

@@ -24,6 +24,13 @@ public sealed class JsonRpcClient : IDisposable
     public JsonRpcClient(Uri endpoint, HttpClient? httpClient)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
+        // Reject non-HTTP schemes at construction so a misconfigured endpoint
+        // (file://, mailto:, ftp://, etc.) doesn't surface as an obscure HttpClient
+        // SendAsync error at first request. JsonRpcClient is HTTP/HTTPS only.
+        if (endpoint.Scheme is not ("http" or "https"))
+            throw new ArgumentException(
+                $"endpoint scheme '{endpoint.Scheme}' must be http or https",
+                nameof(endpoint));
         _endpoint = endpoint;
         if (httpClient is null)
         {

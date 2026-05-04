@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `JsonRpcClient` rejects non-HTTP schemes at construction
+
+- A misconfigured endpoint (`file://`, `mailto:`, `ftp://`, `gopher://`, etc.) silently slipped past the ctor and surfaced as an obscure `HttpClient.SendAsync` error at first request — by which point the operator has lost the trail back to the bad config. Now the ctor rejects any `endpoint.Scheme` that isn't `http` or `https`. 1 pinning test covering 3 reject cases + 2 boundary accepts.
+
+Cumulative: 494 tests / 27 projects.
+
 ### Fixed — `JsonRpcClient(Uri, HttpClient?)` ctor null-guards `endpoint`
 
 - The string-overload `JsonRpcClient(string endpoint)` fails fast via `new Uri(null)`, but the `(Uri, HttpClient?)` overload silently assigned a null endpoint, then later NRE'd inside `HttpRequestMessage`'s constructor at first request. Surface at the ctor. Trivial 1-line guard, no pinning test.

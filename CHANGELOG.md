@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — DA writer null-guard pins
+
+- `InMemoryDAWriter` and `NeoFsLikeDAWriter` had no null-arg pins on PublishAsync / IsAvailableAsync / TryGet; only `MetricsEmittingDAWriter`'s ctor was pinned. Added 7:
+  - `InMemoryDAWriter_PublishAsync_RejectsNullRequest` (`InMemoryDAWriter.cs:28`)
+  - `InMemoryDAWriter_IsAvailableAsync_RejectsNullReceipt` (`:45`), `_RejectsNullCommitment` (`:49`)
+  - `NeoFsLikeDAWriter_PublishAsync_RejectsNullRequest` (`NeoFsLikeDAWriter.cs:32`)
+  - `NeoFsLikeDAWriter_IsAvailableAsync_RejectsNullReceipt` (`:59`), `_RejectsNullCommitment` (`:60`)
+  - `NeoFsLikeDAWriter_TryGet_RejectsNullObjectId` (`:82`)
+
+Cumulative: 591 tests / 27 projects.
+
 ### Added — Bisection-game param-level null pins
 
 - `BisectionGame` had a `Constructor_RejectsNullCheckpointEntry` per-entry pin (iter 197) but the param-level array null-guards (`BisectionGame.cs:60-61`) were unpinned. Added 2.

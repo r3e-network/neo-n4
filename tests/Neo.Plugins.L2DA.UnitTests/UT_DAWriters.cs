@@ -136,6 +136,73 @@ public class UT_DAWriters
     }
 
     [TestMethod]
+    public async Task InMemoryDAWriter_PublishAsync_RejectsNullRequest()
+    {
+        // Pin InMemoryDAWriter.cs:28. Null DAPublishRequest would NRE on `.Payload.Span`
+        // with no link to the bad input.
+        var w = new InMemoryDAWriter();
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await w.PublishAsync(null!));
+    }
+
+    [TestMethod]
+    public async Task InMemoryDAWriter_IsAvailableAsync_RejectsNullReceipt()
+    {
+        // Pin InMemoryDAWriter.cs:45.
+        var w = new InMemoryDAWriter();
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await w.IsAvailableAsync(null!));
+    }
+
+    [TestMethod]
+    public async Task InMemoryDAWriter_IsAvailableAsync_RejectsNullCommitment()
+    {
+        // Pin InMemoryDAWriter.cs:49. Without it ContainsKey(null) throws ArgumentNull
+        // with a generic "key" message. Same iter-148/183/184 pattern.
+        var w = new InMemoryDAWriter();
+        var bad = new DAReceipt { Commitment = null!, Pointer = ReadOnlyMemory<byte>.Empty, Layer = DAMode.External };
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await w.IsAvailableAsync(bad));
+    }
+
+    [TestMethod]
+    public async Task NeoFsLikeDAWriter_PublishAsync_RejectsNullRequest()
+    {
+        // Pin NeoFsLikeDAWriter.cs:32.
+        var w = new NeoFsLikeDAWriter();
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await w.PublishAsync(null!));
+    }
+
+    [TestMethod]
+    public async Task NeoFsLikeDAWriter_IsAvailableAsync_RejectsNullReceipt()
+    {
+        // Pin NeoFsLikeDAWriter.cs:59.
+        var w = new NeoFsLikeDAWriter();
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await w.IsAvailableAsync(null!));
+    }
+
+    [TestMethod]
+    public async Task NeoFsLikeDAWriter_IsAvailableAsync_RejectsNullCommitment()
+    {
+        // Pin NeoFsLikeDAWriter.cs:60.
+        var w = new NeoFsLikeDAWriter();
+        var bad = new DAReceipt { Commitment = null!, Pointer = new byte[36], Layer = DAMode.NeoFS };
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await w.IsAvailableAsync(bad));
+    }
+
+    [TestMethod]
+    public void NeoFsLikeDAWriter_TryGet_RejectsNullObjectId()
+    {
+        // Pin NeoFsLikeDAWriter.cs:82. UInt256 reference-typed; null would NRE inside
+        // the tuple key (chainId, null) Dictionary lookup.
+        var w = new NeoFsLikeDAWriter();
+        Assert.ThrowsExactly<ArgumentNullException>(() => w.TryGet(1001, null!));
+    }
+
+    [TestMethod]
     public async Task NeoFsLike_TryGet_DefensiveCopy_CallerCannotCorruptStore()
     {
         // Regression for iter 188: TryGet previously returned the raw stored byte[]

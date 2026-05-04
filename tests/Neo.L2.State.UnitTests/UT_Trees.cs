@@ -150,4 +150,33 @@ public class UT_Trees
         var tree = new MessageTree();
         Assert.ThrowsExactly<ArgumentNullException>(() => tree.TryGetIndex(null!, out _));
     }
+
+    [TestMethod]
+    public void StateRootCalculator_HashL1Messages_RejectsNullMessages()
+    {
+        // Pin StateRootCalculator.cs:26. Without it the foreach loop NREs.
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => StateRootCalculator.HashL1Messages(null!));
+    }
+
+    [TestMethod]
+    public void StateRootCalculator_HashBlockContext_RejectsNullSequencerCommitteeHash()
+    {
+        // Pin StateRootCalculator.cs:57. UInt256 reference-typed; null would NRE on
+        // GetSpan() inside the buffer-write loop.
+        var bad = new BatchBlockContext
+        {
+            L1FinalizedHeight = 1,
+            FirstBlockTimestamp = 1, LastBlockTimestamp = 2,
+            SequencerCommitteeHash = null!,
+            Network = 0,
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => StateRootCalculator.HashBlockContext(bad));
+    }
+
+    [TestMethod]
+    public void StateRootCalculator_HashPublicInputs_RejectsNullInputs()
+        => Assert.ThrowsExactly<ArgumentNullException>(
+            () => StateRootCalculator.HashPublicInputs(null!));
 }

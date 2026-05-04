@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — State-primitive null-guard pins
+
+- `MerkleTree.ComputeRoot`'s param-level null-leaves guard (`MerkleTree.cs:32`) was unpinned — only the per-entry null-guard from iter 179 had a test. Same for `Verify`'s null-proof guard (`:131`). Added 2.
+- `StateRootCalculator` had no null pins on `HashL1Messages`, `HashBlockContext`'s SequencerCommitteeHash, or `HashPublicInputs` (`StateRootCalculator.cs:26, 57, 74`). Added 3.
+
+Cumulative: 604 tests / 27 projects.
+
 ### Added — Censorship + plugin WithMetrics null pins
 
 - `CensorshipDetector` had the negative-slash test (`Constructor_RejectsNegativeBaseSlashAmount`) but the ctor's null-source / null-committee guards (`CensorshipDetector.cs:40-41`) were unpinned. Added 2.

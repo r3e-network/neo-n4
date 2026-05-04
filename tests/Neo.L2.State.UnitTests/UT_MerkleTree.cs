@@ -129,4 +129,22 @@ public class UT_MerkleTree
         var ex = Assert.ThrowsExactly<ArgumentException>(() => MerkleTree.Verify(bad, UInt256.Zero));
         StringAssert.Contains(ex.Message, "[1]");
     }
+
+    [TestMethod]
+    public void ComputeRoot_RejectsNullLeavesArray()
+    {
+        // Pin MerkleTree.cs:32. Param-level guard distinct from the per-entry pin
+        // (ComputeRoot_RejectsNullLeafEntry, iter 179). Without it ComputeRoot would
+        // NRE on `leaves.Count` access.
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => MerkleTree.ComputeRoot((IReadOnlyList<UInt256>)null!));
+    }
+
+    [TestMethod]
+    public void Verify_RejectsNullProof()
+    {
+        // Pin MerkleTree.cs:131. Companion to Verify_RejectsNullLeaf (per-member, iter 168).
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => MerkleTree.Verify(null!, UInt256.Zero));
+    }
 }

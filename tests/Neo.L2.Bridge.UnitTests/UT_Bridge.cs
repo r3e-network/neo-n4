@@ -400,6 +400,64 @@ public class UT_Bridge
     }
 
     [TestMethod]
+    public void DepositProcessor_Process_RejectsNullMessage()
+        => Assert.ThrowsExactly<ArgumentNullException>(
+            () => new DepositProcessor(LocalChain, new AssetRegistry()).Process(null!));
+
+    [TestMethod]
+    public void DepositProcessor_Constructor_RejectsNullRegistry()
+        => Assert.ThrowsExactly<ArgumentNullException>(
+            () => new DepositProcessor(LocalChain, null!));
+
+    [TestMethod]
+    public void DepositProcessor_WithMetrics_RejectsNullMetrics()
+    {
+        // Symmetric to WithdrawalProcessor_WithMetrics_RejectsNullMetrics (iter 223).
+        var proc = new DepositProcessor(LocalChain, new AssetRegistry());
+        Assert.ThrowsExactly<ArgumentNullException>(() => proc.WithMetrics(null!));
+    }
+
+    [TestMethod]
+    public void DepositProcessor_Process_RejectsWrongMessageType()
+    {
+        // Pinning DepositProcessor.cs:49-50. A non-Deposit message reaching Process is
+        // a bug: the router shouldn't dispatch them here. Without this guard, downstream
+        // DepositPayload.Decode would consume bytes meant for another schema and either
+        // succeed by accident or fail with a confusing parse error.
+        var proc = new DepositProcessor(LocalChain, new AssetRegistry());
+        var payload = new DepositPayload { L1Asset = GasL1, L2Recipient = Recipient, Amount = 1 };
+        var msg = new CrossChainMessage
+        {
+            SourceChainId = 0, TargetChainId = LocalChain, Nonce = 1,
+            Sender = Sender, Receiver = Recipient,
+            MessageType = MessageType.Withdraw,  // ← wrong type
+            Payload = payload.Encode(),
+            MessageHash = UInt256.Zero,
+        };
+        var ex = Assert.ThrowsExactly<ArgumentException>(() => proc.Process(msg));
+        StringAssert.Contains(ex.Message, "Deposit");
+    }
+
+    [TestMethod]
+    public void DepositProcessor_Process_RejectsWrongTargetChain()
+    {
+        // Pinning DepositProcessor.cs:51-52. A message targeting a different L2 must not
+        // be processed locally — without this guard the deposit would mint on the wrong
+        // chain. Same defense-in-depth as the AssertOurChain RPC pattern.
+        var proc = new DepositProcessor(LocalChain, new AssetRegistry());
+        var payload = new DepositPayload { L1Asset = GasL1, L2Recipient = Recipient, Amount = 1 };
+        var msg = new CrossChainMessage
+        {
+            SourceChainId = 0, TargetChainId = 9999,  // ← not local
+            Nonce = 1, Sender = Sender, Receiver = Recipient,
+            MessageType = MessageType.Deposit, Payload = payload.Encode(),
+            MessageHash = UInt256.Zero,
+        };
+        var ex = Assert.ThrowsExactly<ArgumentException>(() => proc.Process(msg));
+        StringAssert.Contains(ex.Message, "9999");
+    }
+
+    [TestMethod]
     public void DepositProcessor_RejectsUnknownAsset()
     {
         var proc = new DepositProcessor(LocalChain, new AssetRegistry());

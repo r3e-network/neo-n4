@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `DepositProcessor` boundary pins
+
+- Symmetric to iter 223's WithdrawalProcessor pins. Process happy path and replay are tested, but the boundary contracts weren't. Added 5:
+  - `DepositProcessor_Process_RejectsNullMessage` (`DepositProcessor.cs:45`)
+  - `DepositProcessor_Constructor_RejectsNullRegistry` (`:26`)
+  - `DepositProcessor_WithMetrics_RejectsNullMetrics` (`:35`)
+  - `DepositProcessor_Process_RejectsWrongMessageType` (`:49-50`) — a non-Deposit message would otherwise reach DepositPayload.Decode and produce a confusing parse error
+  - `DepositProcessor_Process_RejectsWrongTargetChain` (`:51-52`) — a message targeting a different L2 must not be processed locally
+
+Cumulative: 548 tests / 27 projects.
+
 ### Added — `WithdrawalProcessor` boundary pins
 
 - The Stage L2Sender / L1Recipient null-guards were already pinned (iter 147), but the four other paths weren't. Added 5:

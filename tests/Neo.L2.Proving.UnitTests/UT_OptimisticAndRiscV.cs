@@ -386,4 +386,20 @@ public class UT_OptimisticAndRiscV
         Assert.AreEqual(proofBytes.Length, System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(34, 4)));
         CollectionAssert.AreEqual(proofBytes, bytes[38..]);
     }
+
+    [TestMethod]
+    public void MockRiscVProver_Constructor_RejectsNullVerificationKeyId()
+    {
+        // Regression for iter 198: null UInt256 verificationKeyId would slip past the
+        // ctor and surface much later in RiscVProofPayload.Encode's iter-159 null-guard
+        // ("VerificationKeyId is null"), which names the payload field but not the
+        // producer. Surface at the source.
+        Assert.ThrowsExactly<ArgumentNullException>(() => new MockRiscVProver(null!));
+    }
+
+    [TestMethod]
+    public void MockRiscVVerifier_Constructor_RejectsNullExpectedVkId()
+    {
+        Assert.ThrowsExactly<ArgumentNullException>(() => new MockRiscVVerifier(null!));
+    }
 }

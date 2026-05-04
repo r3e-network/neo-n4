@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Pinning tests for iter-198 RISC-V ctor null-guards
+
+- iter-198 added 4 ctor null-guards (`Sp1RiscVProver`, `Sp1RiscVVerifier`, `MockRiscVProver`, `MockRiscVVerifier`) but committed without pinning tests at the time. Now pinned: `MockRiscVProver_Constructor_RejectsNullVerificationKeyId` and `MockRiscVVerifier_Constructor_RejectsNullExpectedVkId`. (The Sp1* counterparts delegate to MockRiscV* internally as fallback.)
+
+Cumulative: 511 tests / 27 projects.
+
 ### Added — Direct unit tests for `MetricsExtensions` Safe* helpers
 
 - The iter-163 `MetricsExtensions.SafeIncrementCounter`/`SafeRecordHistogram`/`SafeSetGauge` helpers were tested transitively via plugins (the iter-163 `WithdrawalProcessor_Stage_SurvivesThrowingMetricsSink` test). Now have direct unit tests in a new `UT_MetricsExtensions.cs`: 3 tests confirming a `ThrowingSink` doesn't surface failures + 1 happy-path assertion that the wrapper actually forwards to the underlying sink. Pins the contract directly so a future refactor can't accidentally remove the swallow.

@@ -75,7 +75,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**609 unit + integration tests across 27 projects:**
+**617 unit + integration tests across 27 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |

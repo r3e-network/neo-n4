@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Executor + RPC client null-arg ctor pins
+
+- `JsonRpcClient` had `RejectsRelativeUri` and `RejectsNonHttpScheme` pins (iter 206/207) but no null-arg pins. Added 3: `Constructor_RejectsNullEndpoint`, `CallAsync_RejectsNullMethod`, `CallAsync_RejectsNullParams` (`JsonRpcClient.cs:26, 63, 64`).
+- `RpcSettlementClient` ctor null-arg guards (`RpcSettlementClient.cs:36-37`) were unpinned. Added 2: `Constructor_RejectsNullRpc`, `Constructor_RejectsNullSignAndSend`.
+- `ReferenceBatchExecutor` ctor null-arg guards and `ApplyBatchAsync` null-request guard (`ReferenceBatchExecutor.cs:30-31, 42`) were unpinned. Added 3: `Constructor_RejectsNullTxExecutor`, `Constructor_RejectsNullPostStateRootOracle`, `ApplyBatchAsync_RejectsNullRequest`.
+
+Cumulative: 617 tests / 27 projects.
+
 ### Added — More state-tree + serializer null pins
 
 - `MessageTree_Add_RejectsNullMessage` (`MessageTree.cs:25`) — companion to the per-member `RejectsNullMessageHash` pin (iter 185).

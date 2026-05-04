@@ -239,6 +239,46 @@ public class UT_RpcSettlementClient
     }
 
     [TestMethod]
+    public void JsonRpcClient_Constructor_RejectsNullEndpoint()
+        => Assert.ThrowsExactly<ArgumentNullException>(
+            () => new JsonRpcClient((Uri)null!, httpClient: null));
+
+    [TestMethod]
+    public async Task JsonRpcClient_CallAsync_RejectsNullMethod()
+    {
+        // Pin JsonRpcClient.cs:63.
+        using var client = new JsonRpcClient(new Uri("http://localhost"), httpClient: null);
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await client.CallAsync(null!, new JArray()));
+    }
+
+    [TestMethod]
+    public async Task JsonRpcClient_CallAsync_RejectsNullParams()
+    {
+        // Pin JsonRpcClient.cs:64.
+        using var client = new JsonRpcClient(new Uri("http://localhost"), httpClient: null);
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await client.CallAsync("foo", null!));
+    }
+
+    [TestMethod]
+    public void RpcSettlementClient_Constructor_RejectsNullRpc()
+    {
+        // Pin RpcSettlementClient.cs:36.
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => new RpcSettlementClient(null!, UInt160.Zero, (sm, b, ct) => new ValueTask<UInt256>(UInt256.Zero)));
+    }
+
+    [TestMethod]
+    public void RpcSettlementClient_Constructor_RejectsNullSignAndSend()
+    {
+        // Pin RpcSettlementClient.cs:37.
+        using var rpc = new JsonRpcClient(new Uri("http://localhost"), httpClient: null);
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => new RpcSettlementClient(rpc, UInt160.Zero, null!));
+    }
+
+    [TestMethod]
     public void JsonRpcClient_RejectsRelativeUri()
     {
         // Regression for iter 207: a relative URI's .Scheme access throws

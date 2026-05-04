@@ -281,6 +281,33 @@ public class UT_ReferenceBatchExecutor
     }
 
     [TestMethod]
+    public void Constructor_RejectsNullTxExecutor()
+    {
+        // Pin ReferenceBatchExecutor.cs:30. Without it the first ExecuteAsync NREs with
+        // no link to the bad ctor arg.
+        var oracle = new DerivedPostStateRootOracle();
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => new ReferenceBatchExecutor(null!, oracle));
+    }
+
+    [TestMethod]
+    public void Constructor_RejectsNullPostStateRootOracle()
+    {
+        // Pin ReferenceBatchExecutor.cs:31.
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => new ReferenceBatchExecutor(new ReferenceTransactionExecutor(), null!));
+    }
+
+    [TestMethod]
+    public async Task ApplyBatchAsync_RejectsNullRequest()
+    {
+        // Pin ReferenceBatchExecutor.cs:42.
+        var executor = new ReferenceBatchExecutor(new ReferenceTransactionExecutor(), new DerivedPostStateRootOracle());
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await executor.ApplyBatchAsync(null!));
+    }
+
+    [TestMethod]
     public async Task DerivedPostStateRootOracle_RejectsNullPreStateRoot()
     {
         // Regression for iter 169: previously a null UInt256 input would NRE deep inside

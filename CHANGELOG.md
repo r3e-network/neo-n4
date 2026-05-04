@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Challenge orchestrator per-member null pins
+
+- iter 171's `Inspect_RejectsNullPreStateRootInCommitment` was the only per-member null-pin in `ChallengeOrchestrator`. Added 4 companion pins for the remaining per-member guards:
+  - `Inspect_RejectsNullPostStateRootInCommitment` (`ChallengeOrchestrator.cs:42`)
+  - `Inspect_RejectsNullPreStateRootInInputs` (`:43`)
+  - `InspectWithBisection_RejectsNullPostStateRootInCommitment` (`:100`)
+  - `InspectWithBisection_RejectsNullPreStateRootInInputs` (`:101`)
+
+Cumulative: 657 tests / 27 projects.
+
 ### Added — `PrometheusExporter.Format` null-arg pins
 
 - `Format(null)` (`PrometheusExporter.cs:29`) was unpinned. The existing iter-200 `Format_RejectsMalformedSnapshotWithNullDictionary` only exercised the Counters guard (line 33); the Gauges (`:34`) and Histograms (`:35`) per-field null-guards were unpinned too. Added 3.

@@ -134,6 +134,30 @@ public class UT_ChallengeOrchestrator_WithBisection
     }
 
     [TestMethod]
+    public async Task InspectWithBisection_RejectsNullPostStateRootInCommitment()
+    {
+        // Pin ChallengeOrchestrator.cs:100. Companion to Inspect's pin.
+        var orch = new ChallengeOrchestrator(new NoopReplayer());
+        var pre = H(0);
+        var arr = new[] { pre, H(1) };
+        var commitment = MkCommit(pre, null!);
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(async () =>
+            await orch.InspectWithBisectionAsync(commitment, MkInputs(pre), arr, arr));
+    }
+
+    [TestMethod]
+    public async Task InspectWithBisection_RejectsNullPreStateRootInInputs()
+    {
+        // Pin ChallengeOrchestrator.cs:101.
+        var orch = new ChallengeOrchestrator(new NoopReplayer());
+        var pre = H(0);
+        var arr = new[] { pre, H(1) };
+        var inputs = MkInputs(null!);
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(async () =>
+            await orch.InspectWithBisectionAsync(MkCommit(pre, H(1)), inputs, arr, arr));
+    }
+
+    [TestMethod]
     public async Task Bisection_ValidatesArgsLikeInspect()
     {
         var orch = new ChallengeOrchestrator(new NoopReplayer());

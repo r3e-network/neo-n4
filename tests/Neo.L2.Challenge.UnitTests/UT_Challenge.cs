@@ -248,6 +248,29 @@ public class UT_Challenge
     }
 
     [TestMethod]
+    public async Task Inspect_RejectsNullPostStateRootInCommitment()
+    {
+        // Pin ChallengeOrchestrator.cs:42. PostStateRoot is referenced in the fraud-proof
+        // construction below the early null-checks; without the guard it NREs deeper.
+        var orchestrator = new ChallengeOrchestrator(new FixedReplayer { ReplayedRoot = UInt256.Zero });
+        var commitment = MkCommitment(1001, 1, H('a'), null!);
+        var inputs = MkRequest(1001, 1, H('a'));
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await orchestrator.InspectAsync(commitment, inputs));
+    }
+
+    [TestMethod]
+    public async Task Inspect_RejectsNullPreStateRootInInputs()
+    {
+        // Pin ChallengeOrchestrator.cs:43.
+        var orchestrator = new ChallengeOrchestrator(new FixedReplayer { ReplayedRoot = UInt256.Zero });
+        var commitment = MkCommitment(1001, 1, H('a'), H('b'));
+        var inputs = MkRequest(1001, 1, null!);
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await orchestrator.InspectAsync(commitment, inputs));
+    }
+
+    [TestMethod]
     public async Task Inspect_RejectsNullPreStateRootInCommitment()
     {
         // Regression for iter 171: a null UInt256 PreStateRoot would NRE inside

@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — InMemoryL2RpcStore null-arg pins (companion to iter 184)
+
+- iter 184's `Store_RejectsNullKey_AcrossEntryPoints` covered the leafHash/messageHash/l1Asset/l2Asset null-keys but not other write paths. Added 5: `AddBatch_RejectsNullCommitment` (`InMemoryL2RpcStore.cs:47`), `RegisterAsset_RejectsNullL1Asset` (`:83`), `_RejectsNullL2Asset` (`:84`), `RecordWithdrawalProof_RejectsNullProofBytes` (`:110`), `RecordMessageProof_RejectsNullProofBytes` (`:121`).
+
+Cumulative: 625 tests / 27 projects.
+
 ### Added — `Receipt.Hash` null-guard pins
 
 - The 3 Receipt.Hash UInt256 null-guards (`Receipt.cs:36-38`) were unpinned. Same iter-154+ hashing-primitive defense-in-depth pattern as MessageHasher, FraudProofPayload, etc. Added `Receipt_Hash_RejectsNullTxHash`, `_RejectsNullStorageDeltaHash`, `_RejectsNullEventsHash`.

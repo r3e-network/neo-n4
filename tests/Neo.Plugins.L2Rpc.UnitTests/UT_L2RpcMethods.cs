@@ -254,6 +254,51 @@ public class UT_L2RpcMethods
     }
 
     [TestMethod]
+    public void Store_AddBatch_RejectsNullCommitment()
+    {
+        // Pin InMemoryL2RpcStore.cs:47.
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => store.AddBatch(null!, BatchStatus.Pending));
+    }
+
+    [TestMethod]
+    public void Store_RegisterAsset_RejectsNullL1Asset()
+    {
+        // Pin InMemoryL2RpcStore.cs:83.
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => store.RegisterAsset(null!, UInt160.Zero));
+    }
+
+    [TestMethod]
+    public void Store_RegisterAsset_RejectsNullL2Asset()
+    {
+        // Pin InMemoryL2RpcStore.cs:84.
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => store.RegisterAsset(UInt160.Zero, null!));
+    }
+
+    [TestMethod]
+    public void Store_RecordWithdrawalProof_RejectsNullProofBytes()
+    {
+        // Pin InMemoryL2RpcStore.cs:110. Companion to the existing leafHash null pin.
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => store.RecordWithdrawalProof(UInt256.Zero, null!));
+    }
+
+    [TestMethod]
+    public void Store_RecordMessageProof_RejectsNullProofBytes()
+    {
+        // Pin InMemoryL2RpcStore.cs:121.
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => store.RecordMessageProof(UInt256.Zero, null!));
+    }
+
+    [TestMethod]
     public void Store_RejectsNullKey_AcrossEntryPoints()
     {
         // Regression for iter 184: Dictionary<UInt256/UInt160, T>.TryGetValue(null) /

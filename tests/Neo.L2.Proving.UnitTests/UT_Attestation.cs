@@ -292,6 +292,13 @@ public class UT_Attestation
     }
 
     [TestMethod]
+    public void InMemorySignerSet_Constructor_RejectsNullKeys()
+    {
+        // Pin ISignerSet.cs:42. Without it the OrderBy on null NREs.
+        Assert.ThrowsExactly<ArgumentNullException>(() => new InMemorySignerSet(null!));
+    }
+
+    [TestMethod]
     public void AttestationProver_Constructor_RejectsNullSigners()
     {
         // Pin AttestationProver.cs:25.

@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `InMemorySignerSet` ctor null-keys pin
+
+- `InMemorySignerSet` ctor's `ThrowIfNull(keys)` (`ISignerSet.cs:42`) was unpinned. Without it the OrderBy on null NREs.
+
+Cumulative: 650 tests / 27 projects.
+
 ### Added — `Sp1RiscVProver.ProveAsync` null-request pin
 
 - Sp1RiscVProver.ProveAsync's null-request guard (`Sp1RiscVProver.cs:41`) was unpinned. Symmetric to MockRiscVProver.ProveAsync's pin (iter 240). Added `Sp1Prover_ProveAsync_RejectsNullRequest`.

@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 620" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">Neo Elastic Network — Architecture</title>
+  <desc id="desc">Three-tier architecture: Neo N3/Neo 4 L1 anchor (NeoHub: 13 contracts grouped into Settlement, Bridge, Messaging, Security, Governance), an optional Phase 5 Neo Gateway aggregator, and N elastic L2 execution chains. Data flows upward via batch + proof submissions; settlement is via JSON-RPC submitBatch / verify on L1.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .band-title { font-size: 12.5px; font-weight: 700; letter-spacing: 0.6px; }
+      .band-sub   { font-size: 11px; }
+      .card-title { font-size: 13px; font-weight: 600; }
+      .card-sub   { font-size: 10.5px; }
+      .edge-lbl   { font-size: 11px; font-style: italic; fill: #525a64; }
+      .caption    { font-size: 11.5px; fill: #57606a; }
+    </style>
+  </defs>
+
+  <!-- canvas -->
+  <rect width="960" height="620" fill="#ffffff"/>
+
+  <!-- ============================================================== -->
+  <!--   L1 BAND                                                       -->
+  <!-- ============================================================== -->
+  <rect x="40" y="32" width="880" height="170" rx="10" ry="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.2"/>
+  <text x="58" y="56" class="band-title" fill="#1e2a55">L1 · NEOHUB ON NEO N3 / NEO 4</text>
+  <text x="58" y="74" class="band-sub" fill="#3f5193">Canonical anchor — assets · settlement · message routing · governance</text>
+
+  <g filter="url(#card)">
+    <!-- Settlement -->
+    <rect x="62" y="92" width="166" height="98" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
+    <text x="145" y="114" text-anchor="middle" class="card-title" fill="#1e2a55">Settlement</text>
+    <text x="145" y="138" text-anchor="middle" class="card-sub" fill="#3a4a82">SettlementManager</text>
+    <text x="145" y="156" text-anchor="middle" class="card-sub" fill="#3a4a82">VerifierRegistry</text>
+
+    <!-- Bridge -->
+    <rect x="240" y="92" width="166" height="98" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
+    <text x="323" y="114" text-anchor="middle" class="card-title" fill="#1e2a55">Bridge</text>
+    <text x="323" y="138" text-anchor="middle" class="card-sub" fill="#3a4a82">SharedBridge</text>
+    <text x="323" y="156" text-anchor="middle" class="card-sub" fill="#3a4a82">TokenRegistry</text>
+    <text x="323" y="174" text-anchor="middle" class="card-sub" fill="#3a4a82">ChainRegistry</text>
+
+    <!-- Messaging -->
+    <rect x="418" y="92" width="166" height="98" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
+    <text x="501" y="114" text-anchor="middle" class="card-title" fill="#1e2a55">Messaging</text>
+    <text x="501" y="138" text-anchor="middle" class="card-sub" fill="#3a4a82">MessageRouter</text>
+    <text x="501" y="156" text-anchor="middle" class="card-sub" fill="#3a4a82">DARegistry</text>
+
+    <!-- Security -->
+    <rect x="596" y="92" width="178" height="98" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
+    <text x="685" y="114" text-anchor="middle" class="card-title" fill="#1e2a55">Security</text>
+    <text x="685" y="138" text-anchor="middle" class="card-sub" fill="#3a4a82">SequencerRegistry · Bond</text>
+    <text x="685" y="156" text-anchor="middle" class="card-sub" fill="#3a4a82">ForcedInclusion</text>
+    <text x="685" y="174" text-anchor="middle" class="card-sub" fill="#3a4a82">OptimisticChallenge</text>
+
+    <!-- Governance -->
+    <rect x="786" y="92" width="116" height="98" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
+    <text x="844" y="114" text-anchor="middle" class="card-title" fill="#1e2a55">Governance</text>
+    <text x="844" y="138" text-anchor="middle" class="card-sub" fill="#3a4a82">Controller</text>
+    <text x="844" y="156" text-anchor="middle" class="card-sub" fill="#3a4a82">Emergency</text>
+  </g>
+
+  <!-- ============================================================== -->
+  <!--   ARROW: Gateway → L1                                           -->
+  <!-- ============================================================== -->
+  <line x1="480" y1="262" x2="480" y2="207" stroke="#525a64" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="490" y="237" class="edge-lbl">JSON-RPC · submitBatch · verify</text>
+
+  <!-- ============================================================== -->
+  <!--   GATEWAY BAND                                                  -->
+  <!-- ============================================================== -->
+  <rect x="220" y="270" width="520" height="98" rx="10" ry="10" fill="#f5edff" stroke="#9072c6" stroke-width="1.2"/>
+  <text x="240" y="294" class="band-title" fill="#321d62">NEO GATEWAY · PHASE 5 · OPTIONAL</text>
+  <text x="240" y="312" class="band-sub" fill="#5a3f93">Aggregates many L2s' proofs into one settlement post on L1</text>
+
+  <g filter="url(#card)">
+    <rect x="240" y="324" width="220" height="34" rx="6" ry="6" fill="#ffffff" stroke="#9072c6"/>
+    <text x="350" y="346" text-anchor="middle" class="card-title" fill="#321d62">BinaryTreeAggregator</text>
+    <text x="455" y="346" text-anchor="end" class="card-sub" fill="#5a3f93"></text>
+
+    <rect x="476" y="324" width="244" height="34" rx="6" ry="6" fill="#ffffff" stroke="#9072c6"/>
+    <text x="598" y="346" text-anchor="middle" class="card-title" fill="#321d62">IRoundProver</text>
+  </g>
+  <!-- subtitles for gateway cards -->
+  <text x="350" y="375" text-anchor="middle" class="card-sub" fill="#5a3f93">log-N rounds</text>
+  <text x="598" y="375" text-anchor="middle" class="card-sub" fill="#5a3f93">SP1 · Halo2 · Risc0 (default: pass-through)</text>
+
+  <!-- ============================================================== -->
+  <!--   FORKING ARROW: L2s → Gateway                                  -->
+  <!-- ============================================================== -->
+  <!-- vertical drop from gateway center -->
+  <line x1="480" y1="404" x2="480" y2="430" stroke="#525a64" stroke-width="1.6"/>
+  <!-- horizontal bus -->
+  <line x1="160" y1="430" x2="800" y2="430" stroke="#525a64" stroke-width="1.6"/>
+  <!-- three risers up from L2 cards -->
+  <line x1="160" y1="468" x2="160" y2="430" stroke="#525a64" stroke-width="1.6" marker-start="url(#arrow)"/>
+  <line x1="480" y1="468" x2="480" y2="430" stroke="#525a64" stroke-width="1.6" marker-start="url(#arrow)"/>
+  <line x1="800" y1="468" x2="800" y2="430" stroke="#525a64" stroke-width="1.6" marker-start="url(#arrow)"/>
+  <text x="490" y="423" class="edge-lbl">batch + proof</text>
+
+  <!-- ============================================================== -->
+  <!--   L2 BAND                                                       -->
+  <!-- ============================================================== -->
+  <rect x="40" y="476" width="880" height="120" rx="10" ry="10" fill="#ecf5ee" stroke="#6fa37b" stroke-width="1.2"/>
+  <text x="58" y="500" class="band-title" fill="#1c3d27">L2 · ELASTIC EXECUTION CHAINS</text>
+  <text x="58" y="518" class="band-sub" fill="#2f5e3c">Neo 4 core · 8 plugins · 6 native contracts — independent state, shared L1 anchor</text>
+
+  <g filter="url(#card)">
+    <rect x="80" y="528" width="200" height="56" rx="6" ry="6" fill="#ffffff" stroke="#6fa37b"/>
+    <text x="180" y="550" text-anchor="middle" class="card-title" fill="#1c3d27">Neo L2 #1</text>
+    <text x="180" y="570" text-anchor="middle" class="card-sub" fill="#2f5e3c">Neo 4 · 8 plugins · 6 contracts</text>
+
+    <rect x="380" y="528" width="200" height="56" rx="6" ry="6" fill="#ffffff" stroke="#6fa37b"/>
+    <text x="480" y="550" text-anchor="middle" class="card-title" fill="#1c3d27">Neo L2 #2</text>
+    <text x="480" y="570" text-anchor="middle" class="card-sub" fill="#2f5e3c">Neo 4 · 8 plugins · 6 contracts</text>
+
+    <rect x="680" y="528" width="200" height="56" rx="6" ry="6" fill="#ffffff" stroke="#6fa37b" stroke-dasharray="4 3"/>
+    <text x="780" y="550" text-anchor="middle" class="card-title" fill="#1c3d27">Neo L2 #N</text>
+    <text x="780" y="570" text-anchor="middle" class="card-sub" fill="#2f5e3c">N elastic chains</text>
+  </g>
+
+  <!-- caption -->
+  <text x="480" y="612" text-anchor="middle" class="caption">Figure 1 · Neo Elastic Network — three-tier architecture (L1 anchor · optional Gateway · N L2 chains).</text>
+</svg>

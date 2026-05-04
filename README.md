@@ -36,31 +36,23 @@ NeoFS data availability.
 
 ## Architecture at a glance
 
-```mermaid
-flowchart TB
-    L1["<b>Neo N3 / Neo 4 L1</b><br/><br/><b>NeoHub</b> · 13 contracts<br/>ChainRegistry · SharedBridge · SettlementManager · VerifierRegistry<br/>MessageRouter · TokenRegistry · DARegistry · GovernanceController<br/>EmergencyManager · ForcedInclusion · SequencerBond · SequencerRegistry<br/>OptimisticChallenge"]
+<p align="center">
+  <img src="docs/figures/architecture.svg" alt="Neo Elastic Network — three-tier architecture: L1 (NeoHub) anchor, optional Phase 5 Neo Gateway, and N elastic L2 execution chains" width="900">
+</p>
 
-    Gateway["<b>Neo Gateway</b> · Phase 5, optional<br/><br/><b>Neo.Plugins.L2Gateway</b><br/>BinaryTreeAggregator (log-N rounds)<br/>IRoundProver — pluggable<br/><i>default: pass-through hash · production: SP1 Compress / Halo2 / Risc0 fold</i>"]
+The architecture is three tiers:
 
-    L2A["<b>Neo L2 #1</b><br/>Neo 4 core<br/>+ 8 L2 plugins<br/>+ 6 native contracts"]
-    L2B["<b>Neo L2 #2</b><br/>Neo 4 core<br/>+ 8 L2 plugins<br/>+ 6 native contracts"]
-    L2N["…"]
-
-    Gateway -- "JSON-RPC submitBatch / verify" --> L1
-    L2A -- "submit batch + proof" --> Gateway
-    L2B -- "submit batch + proof" --> Gateway
-    L2N -.-> Gateway
-
-    classDef l1 fill:#1f6feb,stroke:#0d2a55,color:#fff,stroke-width:2px
-    classDef gw fill:#8957e5,stroke:#3b1f70,color:#fff,stroke-width:2px
-    classDef l2 fill:#238636,stroke:#0f3d1c,color:#fff,stroke-width:2px
-    class L1 l1
-    class Gateway gw
-    class L2A,L2B,L2N l2
-```
-
-L1 owns canonical assets, settlement, message routing, and governance. L2s execute, batch,
-and prove. Optional Gateway aggregates many L2s' proofs into one settlement post on L1.
+- **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 13 contracts grouped into
+  five concerns: *Settlement* (SettlementManager · VerifierRegistry), *Bridge*
+  (SharedBridge · TokenRegistry · ChainRegistry), *Messaging* (MessageRouter · DARegistry),
+  *Security* (SequencerRegistry · SequencerBond · ForcedInclusion · OptimisticChallenge),
+  and *Governance* (GovernanceController · EmergencyManager). Owns assets, settlement,
+  message routing, and governance.
+- **Neo Gateway (Phase 5, optional)** — aggregates many L2s' proofs into one settlement
+  post on L1. `BinaryTreeAggregator` reduces in log-N rounds; `IRoundProver` is
+  pluggable (default: pass-through hash; production: SP1 Compress / Halo2 / Risc0 fold).
+- **L2 chains (elastic, N of them)** — Neo 4 core as execution kernel, 8 L2 plugins,
+  6 native L2 contracts per chain. Independent state, shared L1 anchor.
 
 For a full English distillation of the architecture, see [`ARCHITECTURE.md`](./ARCHITECTURE.md).
 For the formal technical document, see [`WHITEPAPER.md`](./WHITEPAPER.md).

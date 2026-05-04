@@ -2,6 +2,16 @@
 
 > **A multi-L2 network on Neo 4 core, with a shared bridge, proof aggregation, and native cross-chain messaging.**
 
+> [!IMPORTANT]
+> **This is NOT the official Neo 4 release.** This repository is an **independent
+> community exploration** — a research/prototype effort to investigate what a multi-L2
+> elastic-network architecture *could* look like on top of Neo's stack. It is **not
+> endorsed by, affiliated with, or maintained by Neo Global Development (NGD), the Neo
+> Foundation, or the [`neo-project`](https://github.com/neo-project) organization**.
+> The "Neo 4" name in this repo refers to the *target core* used as the L2 execution
+> kernel; the canonical Neo 4 protocol roadmap is owned by the Neo project. Treat
+> design choices here as one community's prototype, not as a spec.
+
 `neo4` is the consolidation repo for the **Neo Elastic Network** — a system that uses
 [`neo-project/neo`](https://github.com/neo-project/neo) Neo 4 core as the L2 execution
 kernel, anchors every L2 chain to a unified L1 contract suite (**NeoHub**) on Neo N3 / Neo 4

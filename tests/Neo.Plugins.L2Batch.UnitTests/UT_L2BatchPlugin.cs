@@ -67,4 +67,12 @@ public class UT_L2BatchPlugin
         L2BatchPlugin.DispatchSealed(this, handler, SampleCommitment(), metrics);
         Assert.AreEqual(4, metrics.GetCounter(MetricNames.BatchSealedSubscriberFailures));
     }
+
+    [TestMethod]
+    public void WithMetrics_RejectsNullMetrics()
+    {
+        // Pin L2BatchPlugin.cs:40. Symmetric to other plugin WithMetrics pins.
+        using var plugin = new L2BatchPlugin();
+        Assert.ThrowsExactly<ArgumentNullException>(() => plugin.WithMetrics(null!));
+    }
 }

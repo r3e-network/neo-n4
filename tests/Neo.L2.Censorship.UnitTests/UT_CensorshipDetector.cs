@@ -120,6 +120,26 @@ public class UT_CensorshipDetector
     }
 
     [TestMethod]
+    public void Constructor_RejectsNullSource()
+    {
+        // Pin CensorshipDetector.cs:40. The forced-inclusion source provides every entry
+        // the detector inspects; null would NRE at the first InspectAsync.
+        var committee = new InMemorySequencerCommitteeProvider(1001);
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => new CensorshipDetector(null!, committee));
+    }
+
+    [TestMethod]
+    public void Constructor_RejectsNullCommittee()
+    {
+        // Pin CensorshipDetector.cs:41. The committee provides ResponsibleSequencerAddress
+        // for every report; null would NRE at the first deadline-passed entry.
+        var src = new InMemoryForcedInclusionSource(1001);
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => new CensorshipDetector(src, null!));
+    }
+
+    [TestMethod]
     public void Constructor_RejectsNegativeBaseSlashAmount()
     {
         // Regression: previously any BigInteger was accepted. A negative slash amount on

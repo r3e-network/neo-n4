@@ -203,6 +203,14 @@ public class UT_DAWriters
     }
 
     [TestMethod]
+    public void L2DAPlugin_WithMetrics_RejectsNullMetrics()
+    {
+        // Pin L2DAPlugin.cs:37. Symmetric to other plugin WithMetrics pins.
+        using var plugin = new L2DAPlugin();
+        Assert.ThrowsExactly<ArgumentNullException>(() => plugin.WithMetrics(null!));
+    }
+
+    [TestMethod]
     public async Task NeoFsLike_TryGet_DefensiveCopy_CallerCannotCorruptStore()
     {
         // Regression for iter 188: TryGet previously returned the raw stored byte[]

@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Censorship + plugin WithMetrics null pins
+
+- `CensorshipDetector` had the negative-slash test (`Constructor_RejectsNegativeBaseSlashAmount`) but the ctor's null-source / null-committee guards (`CensorshipDetector.cs:40-41`) were unpinned. Added 2.
+- `L2BatchPlugin` and `L2DAPlugin` had no `WithMetrics(null)` pin (`L2BatchPlugin.cs:40`, `L2DAPlugin.cs:37`). Added 2 — symmetric to the L2SettlementPlugin pin from iter 228.
+
+Cumulative: 599 tests / 27 projects.
+
 ### Added — `BatchSealer` param-level null pins
 
 - BatchSealer had a `ValidatePositive` ctor pin (iter 191) and a per-entry-null `RejectsNullTransactionInList` pin (iter 181), but the param-level null-guards on the ctor (`BatchSealer.cs:41-42`), WithMetrics (`:34`), and OnBlockCommit's rawTransactions arg (`:74`) were unpinned. Added 4: `Constructor_RejectsNullSettings`, `Constructor_RejectsNullMetrics`, `WithMetrics_RejectsNullMetrics`, `OnBlockCommit_RejectsNullRawTransactions`.

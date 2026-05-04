@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Proof-payload Encode-side null-guard pins
+
+- Three proof payloads (`MultisigProofPayload`, `OptimisticProofPayload`, `RiscVProofPayload`) all share the iter-159 Encode/Decode symmetry pattern with size-cap guards. Many of those size-cap and per-entry guards are pinned, but the top-level reference-typed null-guards at the start of `Encode` are not. Added 5 pins:
+  - `MultisigPayload_Encode_RejectsNullSignaturesCollection` (`MultisigProofPayload.cs:31`)
+  - `MultisigPayload_Encode_RejectsNullPublicKey` (`:47` — per-signer guard; companion to `RejectsNullSignerEntry`)
+  - `OptimisticProofPayload_Encode_RejectsNullBondContract` (`OptimisticProofPayload.cs:51`)
+  - `OptimisticProofPayload_Encode_RejectsNullBondTxHash` (`:52`)
+  - `RiscVProofPayload_Encode_RejectsNullVerificationKeyId` (`RiscVProofPayload.cs:45`)
+
+Cumulative: 533 tests / 27 projects.
+
 ### Added — `BatchSerializer.Encode` defensive-guard pinning tests
 
 - The Decode side of BatchSerializer is well-pinned (`Commitment_Decode_RejectsHeaderClaimingOversizedProof`, `Commitment_Decode_RejectsTrailingBytes`, `Commitment_Decode_RejectsUnknownProofType`, `Commitment_Decode_AcceptsAllValidProofTypes`). The Encode-side guards at `BatchSerializer.cs:77` (null commitment), `:81-89` (per-field null-guards on 9 UInt256 root fields), and `:95-98` (iter-159 Encode/Decode symmetry — refuse to produce bytes Decode would later reject) had no direct pins. Added 3:

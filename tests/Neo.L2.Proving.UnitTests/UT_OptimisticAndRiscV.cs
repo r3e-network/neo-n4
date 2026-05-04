@@ -335,6 +335,46 @@ public class UT_OptimisticAndRiscV
     }
 
     [TestMethod]
+    public void OptimisticProofPayload_Encode_RejectsNullBondContract()
+    {
+        // BondContract is `required` UInt160 (reference type) — the keyword forces "must
+        // be set," not "non-null." Without OptimisticProofPayload.cs:51's
+        // ArgumentNullException.ThrowIfNull, Encode would NRE inside BondContract.GetSpan().
+        var payload = new OptimisticProofPayload
+        {
+            BondContract = null!, BondTxHash = UInt256.Zero,
+            SubmittedAt = 0, SequencerSignature = new byte[64],
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => payload.Encode());
+    }
+
+    [TestMethod]
+    public void OptimisticProofPayload_Encode_RejectsNullBondTxHash()
+    {
+        var payload = new OptimisticProofPayload
+        {
+            BondContract = UInt160.Zero, BondTxHash = null!,
+            SubmittedAt = 0, SequencerSignature = new byte[64],
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => payload.Encode());
+    }
+
+    [TestMethod]
+    public void RiscVProofPayload_Encode_RejectsNullVerificationKeyId()
+    {
+        // Pinning RiscVProofPayload.cs:45's ArgumentNullException.ThrowIfNull. Without
+        // the guard a null VerificationKeyId NREs inside its GetSpan call. (The Sp1*
+        // and Mock* ctor guards added in iter 198 surface this earlier in production —
+        // before constructing the payload — but a direct caller of Encode bypasses
+        // those, so the per-field guard at the payload level still earns its keep.)
+        var payload = new RiscVProofPayload
+        {
+            ProofSystem = ProofSystem.Sp1, VerificationKeyId = null!, ProofBytes = new byte[1],
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => payload.Encode());
+    }
+
+    [TestMethod]
     public void OptimisticProofPayload_Encode_RejectsOversizedSig()
     {
         // Regression for iter 159: Encode/Decode symmetry. Without this Encode-side

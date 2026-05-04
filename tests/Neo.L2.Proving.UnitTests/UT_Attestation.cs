@@ -181,6 +181,35 @@ public class UT_Attestation
     }
 
     [TestMethod]
+    public void MultisigPayload_Encode_RejectsNullSignaturesCollection()
+    {
+        // The required `Signatures` member can still hold null — `required` only enforces
+        // "must be set," not "non-null." Without MultisigProofPayload.cs:31's
+        // ArgumentNullException.ThrowIfNull(Signatures), Encode would NRE inside the
+        // `Signatures.Count` access with no link back to the bad input.
+        var bad = new MultisigProofPayload { Signatures = null! };
+        Assert.ThrowsExactly<ArgumentNullException>(() => bad.Encode());
+    }
+
+    [TestMethod]
+    public void MultisigPayload_Encode_RejectsNullPublicKey()
+    {
+        // Companion to RejectsNullSignerEntry. PublicKey is also `required` but reference-
+        // typed (ECPoint); a SignerSignature with PublicKey = null reaches Encode and
+        // would NRE on PublicKey.GetSpan() without MultisigProofPayload.cs:47's guard.
+        var k = GenKey(1);
+        var sig = Crypto.Sign(new byte[] { 1 }, k.priv);
+        var payload = new MultisigProofPayload
+        {
+            Signatures = new[]
+            {
+                new SignerSignature { PublicKey = null!, Signature = sig },
+            },
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => payload.Encode());
+    }
+
+    [TestMethod]
     public void MultisigPayload_Encode_RejectsNullSignerEntry()
     {
         // Regression for iter 159: Signatures[i] is a reference type; even with `required`

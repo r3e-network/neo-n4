@@ -262,6 +262,26 @@ public class UT_RpcSettlementClient
     }
 
     [TestMethod]
+    public async Task SubmitBatchAsync_RejectsNullCommitment()
+    {
+        // Pin RpcSettlementClient.cs:46. Without it BatchSerializer.Encode(null) throws
+        // with a generic ArgumentNullException naming "commitment" but BatchSerializer's
+        // own line — naming the bad input directly at the API boundary is clearer.
+        using var rpc = new JsonRpcClient(new Uri("http://localhost"), httpClient: null);
+        var client = new RpcSettlementClient(rpc, UInt160.Zero, (sm, b, ct) => new ValueTask<UInt256>(UInt256.Zero));
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await client.SubmitBatchAsync(null!, new PublicInputs
+            {
+                ChainId = 1, BatchNumber = 1,
+                PreStateRoot = UInt256.Zero, PostStateRoot = UInt256.Zero,
+                TxRoot = UInt256.Zero, ReceiptRoot = UInt256.Zero,
+                WithdrawalRoot = UInt256.Zero, L2ToL1MessageRoot = UInt256.Zero,
+                L2ToL2MessageRoot = UInt256.Zero, L1MessageHash = UInt256.Zero,
+                DACommitment = UInt256.Zero, BlockContextHash = UInt256.Zero,
+            }));
+    }
+
+    [TestMethod]
     public void RpcSettlementClient_Constructor_RejectsNullRpc()
     {
         // Pin RpcSettlementClient.cs:36.

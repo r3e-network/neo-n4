@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `RpcSettlementClient.SubmitBatchAsync` null-commitment pin
+
+- `RpcSettlementClient.SubmitBatchAsync` had a `BuggySignAndSendReturnsNull_SurfacesContractViolation` callee-contract pin but no direct null-commitment pin (`RpcSettlementClient.cs:46`). Added `SubmitBatchAsync_RejectsNullCommitment`.
+
+Cumulative: 645 tests / 27 projects.
+
 ### Added — `BinaryTreeAggregator` null-arg pins
 
 - `BinaryTreeAggregator.Submit(null)` (`BinaryTreeAggregator.cs:53`) and `WithMetrics(null)` (`:40`) had no pins. Symmetric to the PassThroughAggregator pins. Added 2.

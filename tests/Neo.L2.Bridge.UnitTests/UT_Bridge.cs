@@ -50,6 +50,49 @@ public class UT_Bridge
     }
 
     [TestMethod]
+    public void Registry_SetActive_UnknownAsset_ReturnsFalse()
+    {
+        // SetActive returns bool — true on existing, false on missing. Documents the
+        // graceful no-op for unknown L2Asset (vs throwing). Test pins the contract so
+        // a future "throw on unknown" refactor is caught.
+        var r = new AssetRegistry();
+        var unknownL2 = UInt160.Parse("0x" + new string('e', 40));
+        Assert.IsFalse(r.SetActive(unknownL2, false));
+        Assert.IsFalse(r.SetActive(unknownL2, true));
+    }
+
+    [TestMethod]
+    public void Registry_Snapshot_ReturnsAllMappings_AndIsImmutable()
+    {
+        // Snapshot is meant to be a frozen read for inspection / serialization. Pins
+        // both that all registered mappings are returned AND that the returned list is
+        // an array snapshot — a future Register() doesn't mutate the prior snapshot.
+        var r = new AssetRegistry();
+        var aL1 = UInt160.Parse("0x" + new string('a', 40));
+        var aL2 = UInt160.Parse("0x" + new string('b', 40));
+        r.Register(new AssetMapping
+        {
+            L1Asset = aL1, L2ChainId = LocalChain, L2Asset = aL2,
+            AssetType = AssetType.Nep17, MintBurn = true, LockMint = true, Active = true,
+        });
+
+        var snapshot1 = r.Snapshot();
+        Assert.AreEqual(1, snapshot1.Count);
+
+        // Add another mapping; the prior snapshot must not change.
+        var bL1 = UInt160.Parse("0x" + new string('c', 40));
+        var bL2 = UInt160.Parse("0x" + new string('d', 40));
+        r.Register(new AssetMapping
+        {
+            L1Asset = bL1, L2ChainId = LocalChain, L2Asset = bL2,
+            AssetType = AssetType.Nep17, MintBurn = true, LockMint = true, Active = true,
+        });
+
+        Assert.AreEqual(1, snapshot1.Count, "prior snapshot is frozen");
+        Assert.AreEqual(2, r.Snapshot().Count, "fresh snapshot reflects new state");
+    }
+
+    [TestMethod]
     public void Registry_Register_SameKey_Overwrites()
     {
         // Documents the overwrite behavior: re-registering a mapping with the same

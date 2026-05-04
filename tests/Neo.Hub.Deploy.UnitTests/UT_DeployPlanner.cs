@@ -218,4 +218,26 @@ public class UT_DeployPlanner
         var bundle = DeployPlanner.Plan(plan, _ => H(0x42));
         Assert.AreEqual(plan.Steps.Count, bundle.Invocations.Count);
     }
+
+    [TestMethod]
+    public void Plan_BuggyResolverReturnsNull_SurfacesContractViolation()
+    {
+        // Regression for iter 201: a HashResolver returning null UInt160 would NRE on
+        // .ToString() in ResolveToken. Now surfaces as InvalidOperationException naming
+        // the step. Same iter-171/172 callee-contract pattern.
+        var plan = new DeployPlan
+        {
+            Version = 1, Network = "test",
+            Steps = new[]
+            {
+                Step("A", new JArray()),
+                Step("B", new JArray { new JString("$step:A") }, "A"),
+            },
+        };
+
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(
+            () => DeployPlanner.Plan(plan, _ => null!));
+        StringAssert.Contains(ex.Message, "HashResolver");
+        StringAssert.Contains(ex.Message, "'A'");
+    }
 }

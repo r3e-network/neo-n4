@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `DeployPlanner.ResolveToken` validates `HashResolver` delegate return
+
+- A buggy `HashResolver` delegate returning null `UInt160` would NRE on `.ToString()` in `ResolveToken`. Now surfaces as `InvalidOperationException` naming the step. Same iter-171/172 callee-contract pattern. 1 pinning test.
+
+Cumulative: 491 tests / 27 projects.
+
 ### Fixed — `PrometheusExporter.Format` null-guards on snapshot dictionary fields
 
 - `MetricsSnapshot.Counters`/`Gauges`/`Histograms` are `required` but `init` setters accept null. A buggy `IMetricsSource` building a malformed snapshot would NRE deep inside `WriteFamilies` / `GroupHistograms` foreach. Iter-186's `MetricsRequestHandler` wrap converts the HTTP path's failure to a 500, but direct API callers see only the obscure NRE. Now `Format` itself null-guards each field. 1 pinning test (iter 200 milestone).

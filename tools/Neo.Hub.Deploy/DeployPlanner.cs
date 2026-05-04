@@ -75,7 +75,10 @@ public static class DeployPlanner
                 var name = s.AsString()[6..];
                 if (!deployed.Contains(name))
                     throw new InvalidOperationException($"placeholder $step:{name} references step that has not been deployed yet");
-                return new JString(resolver(name).ToString());
+                var hash = resolver(name)
+                    ?? throw new InvalidOperationException(
+                        $"HashResolver delegate returned null for step '{name}'");
+                return new JString(hash.ToString());
             case JArray arr:
                 var newArr = new JArray();
                 foreach (var t in arr) newArr.Add(ResolveToken(t, deployed, resolver));

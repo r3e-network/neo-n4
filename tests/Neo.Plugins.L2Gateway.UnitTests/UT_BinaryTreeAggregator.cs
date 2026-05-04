@@ -181,6 +181,22 @@ public class UT_BinaryTreeAggregator
     }
 
     [TestMethod]
+    public void Submit_RejectsNull()
+    {
+        // Pin BinaryTreeAggregator.cs:53. Symmetric to PassThroughAggregator.Submit pin.
+        var agg = new BinaryTreeAggregator();
+        Assert.ThrowsExactly<ArgumentNullException>(() => agg.Submit(null!));
+    }
+
+    [TestMethod]
+    public void WithMetrics_RejectsNullMetrics()
+    {
+        // Pin BinaryTreeAggregator.cs:40.
+        var agg = new BinaryTreeAggregator();
+        Assert.ThrowsExactly<ArgumentNullException>(() => agg.WithMetrics(null!));
+    }
+
+    [TestMethod]
     public void PassThroughRoundProver_Combine_RejectsNullMessageRootContribution()
     {
         // Regression for iter 180: MessageRootContribution is UInt256 (reference type),

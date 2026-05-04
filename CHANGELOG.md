@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `BinaryTreeAggregator` null-arg pins
+
+- `BinaryTreeAggregator.Submit(null)` (`BinaryTreeAggregator.cs:53`) and `WithMetrics(null)` (`:40`) had no pins. Symmetric to the PassThroughAggregator pins. Added 2.
+
+Cumulative: 644 tests / 27 projects.
+
 ### Added — State-primitive boundary pins
 
 - `MerkleTree.GetProof` had no out-of-range index pin. Added `GetProof_RejectsOutOfRangeIndex` (`MerkleTree.cs:98-99`) covering both negative and >= LeafCount.

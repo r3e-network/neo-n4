@@ -168,6 +168,16 @@ public class UT_Trees
     }
 
     [TestMethod]
+    public void StateRootCalculator_HashL1Messages_EmptyListReturnsZero()
+    {
+        // Pin StateRootCalculator.cs:27. Empty list short-circuits to UInt256.Zero
+        // without calling MerkleTree.ComputeRoot. Without this test a refactor that
+        // dropped the early return would silently change the empty-batch hash from
+        // Zero to ComputeRoot(empty array) — same value today but not pinned.
+        Assert.AreEqual(UInt256.Zero, StateRootCalculator.HashL1Messages(Array.Empty<CrossChainMessage>()));
+    }
+
+    [TestMethod]
     public void StateRootCalculator_HashL1Messages_RejectsNullMessages()
     {
         // Pin StateRootCalculator.cs:26. Without it the foreach loop NREs.

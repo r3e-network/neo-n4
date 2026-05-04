@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `HashL1Messages` empty-list zero-hash boundary pin
+
+- `StateRootCalculator.HashL1Messages` short-circuits to `UInt256.Zero` for empty lists (`StateRootCalculator.cs:27`). Pinned the boundary so a refactor that drops the early return would not silently change the empty-batch hash.
+
+Cumulative: 658 tests / 27 projects.
+
 ### Added — Challenge orchestrator per-member null pins
 
 - iter 171's `Inspect_RejectsNullPreStateRootInCommitment` was the only per-member null-pin in `ChallengeOrchestrator`. Added 4 companion pins for the remaining per-member guards:

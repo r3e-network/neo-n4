@@ -1,0 +1,144 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 580" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="t3 d3">
+  <title id="t3">Multi-L2 proof aggregation — binary-tree fold</title>
+  <desc id="d3">N L2 batch commitments are reduced through log(N) pairwise rounds by the Neo Gateway's BinaryTreeAggregator. Each round invokes a pluggable IRoundProver.Combine. The single root commitment is then submitted to L1 SettlementManager in one call.</desc>
+
+  <defs>
+    <marker id="ah3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card3" x="-3%" y="-4%" width="106%" height="108%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .node-title  { font-size: 11.5px; font-weight: 600; }
+      .node-sub    { font-size: 10px; }
+      .round-lbl   { font-size: 11px; font-weight: 700; letter-spacing: 0.6px; fill: #525a64; }
+      .edge-lbl    { font-size: 10.5px; font-style: italic; fill: #525a64; }
+      .caption     { font-size: 11.5px; fill: #57606a; }
+    </style>
+  </defs>
+
+  <rect width="960" height="580" fill="#ffffff"/>
+
+  <!-- ============================================================== -->
+  <!--   L1 receiver at top                                            -->
+  <!-- ============================================================== -->
+  <g filter="url(#card3)">
+    <rect x="320" y="36" width="320" height="56" rx="8" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
+    <text x="480" y="60" text-anchor="middle" class="node-title" fill="#1e2a55">L1 · NeoHub.SettlementManager</text>
+    <text x="480" y="78" text-anchor="middle" class="node-sub" fill="#3a4a82">verifies one aggregated proof for N L2 batches</text>
+  </g>
+
+  <!-- ============================================================== -->
+  <!--   Round 3 root                                                  -->
+  <!-- ============================================================== -->
+  <text x="824" y="160" class="round-lbl">ROUND 3 · root</text>
+  <g filter="url(#card3)">
+    <rect x="406" y="148" width="148" height="44" rx="6" fill="#f5edff" stroke="#9072c6" stroke-width="1.2"/>
+    <text x="480" y="166" text-anchor="middle" class="node-title" fill="#321d62">AggregatedCommitment</text>
+    <text x="480" y="182" text-anchor="middle" class="node-sub" fill="#5a3f93">root</text>
+  </g>
+
+  <!-- ============================================================== -->
+  <!--   Round 2 (2 nodes)                                             -->
+  <!-- ============================================================== -->
+  <text x="824" y="252" class="round-lbl">ROUND 2 · log-N fold</text>
+  <g filter="url(#card3)">
+    <rect x="186" y="240" width="148" height="44" rx="6" fill="#fff" stroke="#9072c6" stroke-width="1.1"/>
+    <text x="260" y="258" text-anchor="middle" class="node-title" fill="#321d62">Combine(AB, CD)</text>
+    <text x="260" y="274" text-anchor="middle" class="node-sub" fill="#5a3f93">IRoundProver</text>
+
+    <rect x="626" y="240" width="148" height="44" rx="6" fill="#fff" stroke="#9072c6" stroke-width="1.1"/>
+    <text x="700" y="258" text-anchor="middle" class="node-title" fill="#321d62">Combine(EF, GH)</text>
+    <text x="700" y="274" text-anchor="middle" class="node-sub" fill="#5a3f93">IRoundProver</text>
+  </g>
+
+  <!-- ============================================================== -->
+  <!--   Round 1 (4 nodes)                                             -->
+  <!-- ============================================================== -->
+  <text x="824" y="344" class="round-lbl">ROUND 1 · pairwise</text>
+  <g filter="url(#card3)">
+    <rect x="76" y="332" width="128" height="44" rx="6" fill="#fff" stroke="#9072c6" stroke-width="1.1"/>
+    <text x="140" y="350" text-anchor="middle" class="node-title" fill="#321d62">Combine(A, B)</text>
+    <text x="140" y="366" text-anchor="middle" class="node-sub" fill="#5a3f93">IRoundProver</text>
+
+    <rect x="316" y="332" width="128" height="44" rx="6" fill="#fff" stroke="#9072c6" stroke-width="1.1"/>
+    <text x="380" y="350" text-anchor="middle" class="node-title" fill="#321d62">Combine(C, D)</text>
+    <text x="380" y="366" text-anchor="middle" class="node-sub" fill="#5a3f93">IRoundProver</text>
+
+    <rect x="556" y="332" width="128" height="44" rx="6" fill="#fff" stroke="#9072c6" stroke-width="1.1"/>
+    <text x="620" y="350" text-anchor="middle" class="node-title" fill="#321d62">Combine(E, F)</text>
+    <text x="620" y="366" text-anchor="middle" class="node-sub" fill="#5a3f93">IRoundProver</text>
+
+    <rect x="796" y="332" width="128" height="44" rx="6" fill="#fff" stroke="#9072c6" stroke-width="1.1"/>
+    <text x="860" y="350" text-anchor="middle" class="node-title" fill="#321d62">Combine(G, H)</text>
+    <text x="860" y="366" text-anchor="middle" class="node-sub" fill="#5a3f93">IRoundProver</text>
+  </g>
+
+  <!-- ============================================================== -->
+  <!--   Leaves: 8 L2 batch commitments                                -->
+  <!-- ============================================================== -->
+  <text x="36" y="448" class="round-lbl" transform="rotate(-90 36 448)">L2 BATCHES (N)</text>
+  <g filter="url(#card3)">
+    <rect x="80" y="440" width="60" height="60" rx="6" fill="#ecf5ee" stroke="#6fa37b" stroke-width="1.1"/>
+    <text x="110" y="466" text-anchor="middle" class="node-title" fill="#1c3d27">A</text>
+    <text x="110" y="484" text-anchor="middle" class="node-sub" fill="#2f5e3c">L2 #1</text>
+
+    <rect x="148" y="440" width="60" height="60" rx="6" fill="#ecf5ee" stroke="#6fa37b" stroke-width="1.1"/>
+    <text x="178" y="466" text-anchor="middle" class="node-title" fill="#1c3d27">B</text>
+    <text x="178" y="484" text-anchor="middle" class="node-sub" fill="#2f5e3c">L2 #2</text>
+
+    <rect x="320" y="440" width="60" height="60" rx="6" fill="#ecf5ee" stroke="#6fa37b" stroke-width="1.1"/>
+    <text x="350" y="466" text-anchor="middle" class="node-title" fill="#1c3d27">C</text>
+    <text x="350" y="484" text-anchor="middle" class="node-sub" fill="#2f5e3c">L2 #3</text>
+
+    <rect x="388" y="440" width="60" height="60" rx="6" fill="#ecf5ee" stroke="#6fa37b" stroke-width="1.1"/>
+    <text x="418" y="466" text-anchor="middle" class="node-title" fill="#1c3d27">D</text>
+    <text x="418" y="484" text-anchor="middle" class="node-sub" fill="#2f5e3c">L2 #4</text>
+
+    <rect x="560" y="440" width="60" height="60" rx="6" fill="#ecf5ee" stroke="#6fa37b" stroke-width="1.1"/>
+    <text x="590" y="466" text-anchor="middle" class="node-title" fill="#1c3d27">E</text>
+    <text x="590" y="484" text-anchor="middle" class="node-sub" fill="#2f5e3c">L2 #5</text>
+
+    <rect x="628" y="440" width="60" height="60" rx="6" fill="#ecf5ee" stroke="#6fa37b" stroke-width="1.1"/>
+    <text x="658" y="466" text-anchor="middle" class="node-title" fill="#1c3d27">F</text>
+    <text x="658" y="484" text-anchor="middle" class="node-sub" fill="#2f5e3c">L2 #6</text>
+
+    <rect x="800" y="440" width="60" height="60" rx="6" fill="#ecf5ee" stroke="#6fa37b" stroke-width="1.1"/>
+    <text x="830" y="466" text-anchor="middle" class="node-title" fill="#1c3d27">G</text>
+    <text x="830" y="484" text-anchor="middle" class="node-sub" fill="#2f5e3c">L2 #7</text>
+
+    <rect x="868" y="440" width="60" height="60" rx="6" fill="#ecf5ee" stroke="#6fa37b" stroke-width="1.1"/>
+    <text x="898" y="466" text-anchor="middle" class="node-title" fill="#1c3d27">H</text>
+    <text x="898" y="484" text-anchor="middle" class="node-sub" fill="#2f5e3c">L2 #8</text>
+  </g>
+
+  <!-- ============================================================== -->
+  <!--   Edges: leaves → round 1                                       -->
+  <!-- ============================================================== -->
+  <line x1="110" y1="440" x2="135" y2="378" stroke="#525a64" stroke-width="1.2" marker-end="url(#ah3)"/>
+  <line x1="178" y1="440" x2="146" y2="378" stroke="#525a64" stroke-width="1.2" marker-end="url(#ah3)"/>
+  <line x1="350" y1="440" x2="375" y2="378" stroke="#525a64" stroke-width="1.2" marker-end="url(#ah3)"/>
+  <line x1="418" y1="440" x2="386" y2="378" stroke="#525a64" stroke-width="1.2" marker-end="url(#ah3)"/>
+  <line x1="590" y1="440" x2="615" y2="378" stroke="#525a64" stroke-width="1.2" marker-end="url(#ah3)"/>
+  <line x1="658" y1="440" x2="626" y2="378" stroke="#525a64" stroke-width="1.2" marker-end="url(#ah3)"/>
+  <line x1="830" y1="440" x2="855" y2="378" stroke="#525a64" stroke-width="1.2" marker-end="url(#ah3)"/>
+  <line x1="898" y1="440" x2="866" y2="378" stroke="#525a64" stroke-width="1.2" marker-end="url(#ah3)"/>
+
+  <!-- round 1 → round 2 -->
+  <line x1="140" y1="332" x2="244" y2="286" stroke="#525a64" stroke-width="1.2" marker-end="url(#ah3)"/>
+  <line x1="380" y1="332" x2="276" y2="286" stroke="#525a64" stroke-width="1.2" marker-end="url(#ah3)"/>
+  <line x1="620" y1="332" x2="684" y2="286" stroke="#525a64" stroke-width="1.2" marker-end="url(#ah3)"/>
+  <line x1="860" y1="332" x2="716" y2="286" stroke="#525a64" stroke-width="1.2" marker-end="url(#ah3)"/>
+
+  <!-- round 2 → root -->
+  <line x1="260" y1="240" x2="440" y2="194" stroke="#525a64" stroke-width="1.2" marker-end="url(#ah3)"/>
+  <line x1="700" y1="240" x2="520" y2="194" stroke="#525a64" stroke-width="1.2" marker-end="url(#ah3)"/>
+
+  <!-- root → L1 -->
+  <line x1="480" y1="148" x2="480" y2="94" stroke="#525a64" stroke-width="1.6" marker-end="url(#ah3)"/>
+  <text x="490" y="124" class="edge-lbl">submit one aggregated proof</text>
+
+  <!-- caption -->
+  <text x="480" y="558" text-anchor="middle" class="caption">Figure 3 · Phase 5 multi-L2 proof aggregation — N L2 batches reduced in log(N) IRoundProver rounds, then one L1 settlement.</text>
+</svg>

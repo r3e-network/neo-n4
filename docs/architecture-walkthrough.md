@@ -134,23 +134,12 @@ reporter)` directly. Bond is debited; reporter is paid (or the funds go to the t
 
 ## Walk #3: multi-L2 proof aggregation (Phase 5)
 
-```text
-L2-A batch ────┐
-L2-B batch ────┼──> Neo Gateway → BinaryTreeAggregator → AggregatedCommitment
-L2-C batch ────┘                                              │
-                                                              ▼
-                                              NeoHub.SettlementManager
-                                              (aggregated proof verified
-                                               in one call)
-```
+<p align="center">
+  <img src="figures/proof-aggregation.svg" alt="Multi-L2 proof aggregation: eight L2 batches reduced through three rounds of pairwise IRoundProver.Combine into a single AggregatedCommitment that NeoHub.SettlementManager verifies in one call" width="900">
+</p>
 
-`Neo.Plugins.L2Gateway.BinaryTreeAggregator` does log(N)-round pairwise reduction:
-
-```text
-[A, B, C, D]                             ← 4 leaves
-  → [Combine(A,B), Combine(C,D)]         ← round 1
-  → [Combine(Combine(A,B), Combine(C,D))] ← round 2 = root
-```
+`Neo.Plugins.L2Gateway.BinaryTreeAggregator` does log(N)-round pairwise reduction —
+each round invokes the swappable `IRoundProver.Combine` on adjacent siblings.
 
 `IRoundProver.Combine` is the swappable hot path:
 

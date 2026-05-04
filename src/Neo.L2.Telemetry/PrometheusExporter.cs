@@ -27,6 +27,12 @@ public static class PrometheusExporter
     public static string Format(MetricsSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        // Defense-in-depth: MetricsSnapshot fields are `required` but `init` setters
+        // accept null. Without these, WriteFamilies / GroupHistograms would NRE deep
+        // inside the foreach with no link back to the bad snapshot field.
+        ArgumentNullException.ThrowIfNull(snapshot.Counters);
+        ArgumentNullException.ThrowIfNull(snapshot.Gauges);
+        ArgumentNullException.ThrowIfNull(snapshot.Histograms);
         var sb = new StringBuilder(2048);
 
         // Group by base name so HELP/TYPE only appears once per family.

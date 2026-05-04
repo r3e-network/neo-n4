@@ -207,4 +207,21 @@ public class UT_PrometheusExporter
         var lines = output.Split('\n');
         Assert.IsFalse(lines.Any(l => l.StartsWith("line2")), "raw newline must be escaped");
     }
+
+    [TestMethod]
+    public void Format_RejectsMalformedSnapshotWithNullDictionary()
+    {
+        // Regression for iter 200: a buggy IMetricsSource that builds a malformed
+        // snapshot with one of the dictionary fields = null would NRE deep inside
+        // WriteFamilies / GroupHistograms. Now caught at the entry point. iter-186
+        // wraps this in MetricsRequestHandler so the HTTP path returns 500, but
+        // direct API callers benefit from the clear contract violation.
+        var bad = new MetricsSnapshot
+        {
+            Counters = null!,
+            Gauges = new Dictionary<string, double>(),
+            Histograms = new Dictionary<string, IReadOnlyList<double>>(),
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => PrometheusExporter.Format(bad));
+    }
 }

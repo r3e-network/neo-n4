@@ -36,38 +36,27 @@ NeoFS data availability.
 
 ## Architecture at a glance
 
-```
-┌───────────────────────────────────────────────────────────────┐
-│                  Neo N3 / Neo 4 L1                            │
-│                                                               │
-│  NeoHub (13 contracts)                                        │
-│    ChainRegistry · SharedBridge · SettlementManager           │
-│    VerifierRegistry · MessageRouter · TokenRegistry           │
-│    DARegistry · GovernanceController · EmergencyManager       │
-│    ForcedInclusion · SequencerBond · SequencerRegistry        │
-│    OptimisticChallenge                                        │
-└───────────────────────────────────────────────────────────────┘
-                          │ JSON-RPC submitBatch / verify
-                          ▼
-┌───────────────────────────────────────────────────────────────┐
-│                  Neo Gateway (Phase 5, optional)              │
-│  Neo.Plugins.L2Gateway:                                       │
-│    BinaryTreeAggregator (log-N rounds)                        │
-│    IRoundProver — pluggable (default = pass-through hash;     │
-│       production swaps in SP1 Compress / Halo2 / Risc0 fold)  │
-└───────────────────────────────────────────────────────────────┘
-                          │
-       ┌──────────────────┼──────────────────┐
-       ▼                  ▼                  ▼
-┌────────────┐    ┌────────────┐    ┌────────────┐
-│ Neo L2 #1  │    │ Neo L2 #2  │    │   …        │
-│            │    │            │    │            │
-│ Neo 4 core │    │ Neo 4 core │    │            │
-│ + 8 L2     │    │ + 8 L2     │    │            │
-│   plugins  │    │   plugins  │    │            │
-│ + 6 native │    │ + 6 native │    │            │
-│   contracts│    │   contracts│    │            │
-└────────────┘    └────────────┘    └────────────┘
+```mermaid
+flowchart TB
+    L1["<b>Neo N3 / Neo 4 L1</b><br/><br/><b>NeoHub</b> · 13 contracts<br/>ChainRegistry · SharedBridge · SettlementManager · VerifierRegistry<br/>MessageRouter · TokenRegistry · DARegistry · GovernanceController<br/>EmergencyManager · ForcedInclusion · SequencerBond · SequencerRegistry<br/>OptimisticChallenge"]
+
+    Gateway["<b>Neo Gateway</b> · Phase 5, optional<br/><br/><b>Neo.Plugins.L2Gateway</b><br/>BinaryTreeAggregator (log-N rounds)<br/>IRoundProver — pluggable<br/><i>default: pass-through hash · production: SP1 Compress / Halo2 / Risc0 fold</i>"]
+
+    L2A["<b>Neo L2 #1</b><br/>Neo 4 core<br/>+ 8 L2 plugins<br/>+ 6 native contracts"]
+    L2B["<b>Neo L2 #2</b><br/>Neo 4 core<br/>+ 8 L2 plugins<br/>+ 6 native contracts"]
+    L2N["…"]
+
+    Gateway -- "JSON-RPC submitBatch / verify" --> L1
+    L2A -- "submit batch + proof" --> Gateway
+    L2B -- "submit batch + proof" --> Gateway
+    L2N -.-> Gateway
+
+    classDef l1 fill:#1f6feb,stroke:#0d2a55,color:#fff,stroke-width:2px
+    classDef gw fill:#8957e5,stroke:#3b1f70,color:#fff,stroke-width:2px
+    classDef l2 fill:#238636,stroke:#0f3d1c,color:#fff,stroke-width:2px
+    class L1 l1
+    class Gateway gw
+    class L2A,L2B,L2N l2
 ```
 
 L1 owns canonical assets, settlement, message routing, and governance. L2s execute, batch,

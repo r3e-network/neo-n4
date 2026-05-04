@@ -5,39 +5,9 @@
 
 ## Layered diagram
 
-```
-                        ┌─────────────────────────────────────────┐
-                        │                Neo N3 / Neo 4 L1         │
-                        │  ┌───────────────────────────────────┐   │
-                        │  │  NeoHub  (13 L1 contracts)         │   │
-                        │  │  ChainRegistry · SharedBridge ·    │   │
-                        │  │  SettlementManager · VerifierReg ·  │   │
-                        │  │  MessageRouter · TokenRegistry ·    │   │
-                        │  │  DARegistry · GovernanceController · │   │
-                        │  │  EmergencyManager · ForcedInclusion · │   │
-                        │  │  SequencerBond · SequencerRegistry · │   │
-                        │  │  OptimisticChallenge                 │   │
-                        │  └───────────────────────────────────┘   │
-                        └─────────────────────────────────────────┘
-                                          │ JSON-RPC
-                                          ▼
-                        ┌─────────────────────────────────────────┐
-                        │      Neo Gateway (Phase 5, optional)      │
-                        │  Neo.Plugins.L2Gateway:                   │
-                        │  · BinaryTreeAggregator (log-N rounds)    │
-                        │  · IRoundProver (default = pass-through;  │
-                        │    swap for SP1 Compress / Halo2 / Risc0) │
-                        └─────────────────────────────────────────┘
-                                          │
-              ┌───────────────────────────┼───────────────────────────┐
-              ▼                           ▼                           ▼
-   ┌─────────────────────┐    ┌─────────────────────┐    ┌─────────────────────┐
-   │      Neo L2 #N       │    │      Neo L2 #N+1     │    │       …              │
-   │ (Neo 4 core + L2     │    │ (Neo 4 core + L2     │    │                      │
-   │  plugins + on-L2     │    │  plugins + on-L2     │    │                      │
-   │  native contracts)   │    │  native contracts)   │    │                      │
-   └─────────────────────┘    └─────────────────────┘    └─────────────────────┘
-```
+<p align="center">
+  <img src="figures/architecture.svg" alt="Neo Elastic Network architecture: L1 NeoHub anchor, optional Phase 5 Neo Gateway, and N elastic L2 chains" width="900">
+</p>
 
 ## Walk #1: a transaction's life on an L2 chain
 

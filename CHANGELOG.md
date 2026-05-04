@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — More state-tree + serializer null pins
+
+- `MessageTree_Add_RejectsNullMessage` (`MessageTree.cs:25`) — companion to the per-member `RejectsNullMessageHash` pin (iter 185).
+- `WithdrawalTree_Add_RejectsNullWithdrawal` (`WithdrawalTree.cs:23`).
+- `MerkleProofSerializer.Encode_RejectsNullLeaf` / `_RejectsNullSiblings` (`MerkleProofSerializer.cs:36-37`) — companion to the existing `RejectsNullProof` param-level pin.
+- `MerkleTree.Verify_RejectsNullSiblings` (`MerkleTree.cs:137`) — companion to the existing `Verify_RejectsNullLeaf` (iter 168) and `_RejectsNullProof` (iter 234).
+
+Cumulative: 609 tests / 27 projects.
+
 ### Added — State-primitive null-guard pins
 
 - `MerkleTree.ComputeRoot`'s param-level null-leaves guard (`MerkleTree.cs:32`) was unpinned — only the per-entry null-guard from iter 179 had a test. Same for `Verify`'s null-proof guard (`:131`). Added 2.

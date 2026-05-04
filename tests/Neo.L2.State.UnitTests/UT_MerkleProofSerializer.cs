@@ -143,6 +143,31 @@ public class UT_MerkleProofSerializer
     }
 
     [TestMethod]
+    public void Encode_RejectsNullLeaf()
+    {
+        // Pin MerkleProofSerializer.cs:36. Without it Encode NREs on
+        // proof.Leaf.GetSpan(). Same iter-154+ defense pattern.
+        var bad = new MerkleProof
+        {
+            Leaf = null!, LeafIndex = 0,
+            Siblings = new[] { UInt256.Zero }, PathBitmap = 0,
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => MerkleProofSerializer.Encode(bad));
+    }
+
+    [TestMethod]
+    public void Encode_RejectsNullSiblings()
+    {
+        // Pin MerkleProofSerializer.cs:37.
+        var bad = new MerkleProof
+        {
+            Leaf = UInt256.Zero, LeafIndex = 0,
+            Siblings = null!, PathBitmap = 0,
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => MerkleProofSerializer.Encode(bad));
+    }
+
+    [TestMethod]
     public void MerkleProof_VerifyInstanceMethod_DelegatesToStatic()
     {
         var leaves = new[] { H(1), H(2), H(3), H(4) };

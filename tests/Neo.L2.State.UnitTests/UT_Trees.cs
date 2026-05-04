@@ -100,6 +100,22 @@ public class UT_Trees
     }
 
     [TestMethod]
+    public void MessageTree_Add_RejectsNullMessage()
+    {
+        // Pin MessageTree.cs:25. Companion to RejectsNullMessageHash (per-member, iter 185).
+        var tree = new MessageTree();
+        Assert.ThrowsExactly<ArgumentNullException>(() => tree.Add(null!));
+    }
+
+    [TestMethod]
+    public void WithdrawalTree_Add_RejectsNullWithdrawal()
+    {
+        // Pin WithdrawalTree.cs:23. Without it Add would NRE in MessageHasher.
+        var tree = new WithdrawalTree();
+        Assert.ThrowsExactly<ArgumentNullException>(() => tree.Add(null!));
+    }
+
+    [TestMethod]
     public void MessageTree_Add_RejectsNullMessageHash()
     {
         // Regression for iter 185: MessageHash is UInt256 (reference type) and `required`

@@ -147,4 +147,19 @@ public class UT_MerkleTree
         Assert.ThrowsExactly<ArgumentNullException>(
             () => MerkleTree.Verify(null!, UInt256.Zero));
     }
+
+    [TestMethod]
+    public void Verify_RejectsNullSiblings()
+    {
+        // Pin MerkleTree.cs:137. Companion to Verify_RejectsNullLeaf (Leaf member, iter 168)
+        // and the per-entry pin already in this file. Without it Verify NREs on
+        // proof.Siblings.Count.
+        var bad = new MerkleProof
+        {
+            Leaf = UInt256.Zero, LeafIndex = 0,
+            Siblings = null!, PathBitmap = 0,
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => MerkleTree.Verify(bad, UInt256.Zero));
+    }
 }

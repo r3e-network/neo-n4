@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `DepositPayload.Encode` defensive-guard pins
+
+- DepositPayload's Decode-side malleability tests (`Decode_RejectsTrailingBytes`) are pinned, but its Encode-side guards at `DepositPayload.cs:30-31` (UInt160 null-guards on L1Asset / L2Recipient) and `:33-34` (64-byte amount cap) had no direct tests. Added 3:
+  - `DepositPayload_Encode_RejectsNullL1Asset`
+  - `DepositPayload_Encode_RejectsNullL2Recipient`
+  - `DepositPayload_Encode_RejectsOversizedAmount` (mirror of `HashWithdrawal` amount cap pinned in iter 218)
+
+Cumulative: 536 tests / 27 projects.
+
 ### Added — Proof-payload Encode-side null-guard pins
 
 - Three proof payloads (`MultisigProofPayload`, `OptimisticProofPayload`, `RiscVProofPayload`) all share the iter-159 Encode/Decode symmetry pattern with size-cap guards. Many of those size-cap and per-entry guards are pinned, but the top-level reference-typed null-guards at the start of `Encode` are not. Added 5 pins:

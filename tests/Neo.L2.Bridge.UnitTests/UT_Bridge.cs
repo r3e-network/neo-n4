@@ -305,6 +305,36 @@ public class UT_Bridge
     }
 
     [TestMethod]
+    public void DepositPayload_Encode_RejectsNullL1Asset()
+    {
+        // Pin DepositPayload.cs:30. UInt160 is reference-typed; without the guard, a
+        // null L1Asset would NRE on GetSpan() inside Encode with no link to the bad
+        // field. Same iter-154+ defense-in-depth pattern as Multisig/Optimistic/RiscV
+        // proof payloads (iter 220).
+        var bad = new DepositPayload { L1Asset = null!, L2Recipient = Recipient, Amount = 1 };
+        Assert.ThrowsExactly<ArgumentNullException>(() => bad.Encode());
+    }
+
+    [TestMethod]
+    public void DepositPayload_Encode_RejectsNullL2Recipient()
+    {
+        var bad = new DepositPayload { L1Asset = GasL1, L2Recipient = null!, Amount = 1 };
+        Assert.ThrowsExactly<ArgumentNullException>(() => bad.Encode());
+    }
+
+    [TestMethod]
+    public void DepositPayload_Encode_RejectsOversizedAmount()
+    {
+        // Pin DepositPayload.cs:33-34. The 64-byte amount cap (already a > 256-bit
+        // number, well past any plausible token) bounds the buffer alloc against
+        // attacker-influenced sizes — same shape as MessageHasher.HashWithdrawal's
+        // amount cap pinned in iter 218.
+        var huge = BigInteger.One << 600; // ~75 bytes when serialized
+        var bad = new DepositPayload { L1Asset = GasL1, L2Recipient = Recipient, Amount = huge };
+        Assert.ThrowsExactly<InvalidOperationException>(() => bad.Encode());
+    }
+
+    [TestMethod]
     public void DepositPayload_Decode_RejectsTrailingBytes()
     {
         // Regression: previously the length check was `pos + amountLen > bytes.Length`,

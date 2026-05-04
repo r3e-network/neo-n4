@@ -23,6 +23,7 @@ public sealed class JsonRpcClient : IDisposable
     /// <summary>Construct with an explicit endpoint and optional caller-owned <see cref="HttpClient"/>.</summary>
     public JsonRpcClient(Uri endpoint, HttpClient? httpClient)
     {
+        ArgumentNullException.ThrowIfNull(endpoint);
         _endpoint = endpoint;
         if (httpClient is null)
         {

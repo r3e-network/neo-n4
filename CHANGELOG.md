@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `Sp1RiscVProver.ProveAsync` null-request pin
+
+- Sp1RiscVProver.ProveAsync's null-request guard (`Sp1RiscVProver.cs:41`) was unpinned. Symmetric to MockRiscVProver.ProveAsync's pin (iter 240). Added `Sp1Prover_ProveAsync_RejectsNullRequest`.
+
+Cumulative: 649 tests / 27 projects.
+
 ### Added — Executor callee-contract sub-field pins + KeyedStateRootOracle ctor
 
 - ReferenceBatchExecutor's iter-173 callee-contract test pinned the whole-result-null path. The sub-field null-guards at `ReferenceBatchExecutor.cs:71` (result.Receipt) and `:72` (result.TxHash) covered a distinct callee-contract path: a non-null result with a null sub-field. Added 2.

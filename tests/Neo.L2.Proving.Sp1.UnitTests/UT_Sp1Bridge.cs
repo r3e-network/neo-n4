@@ -123,6 +123,15 @@ public class UT_Sp1Bridge
     }
 
     [TestMethod]
+    public async Task Sp1Prover_ProveAsync_RejectsNullRequest()
+    {
+        // Pin Sp1RiscVProver.cs:41. Without it ProveAsync NREs on request.Kind access.
+        var prover = new Sp1RiscVProver(UInt256.Parse("0x" + new string('a', 64)));
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await prover.ProveAsync(null!));
+    }
+
+    [TestMethod]
     public async Task Sp1Verifier_RejectsWrongVk()
     {
         var prover = new Sp1RiscVProver(UInt256.Parse("0x" + new string('a', 64)));

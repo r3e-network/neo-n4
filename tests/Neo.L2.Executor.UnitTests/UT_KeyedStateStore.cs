@@ -75,6 +75,39 @@ public class UT_KeyedStateStore
     }
 
     [TestMethod]
+    public void Put_RejectsEmptyKey()
+    {
+        // Pin KeyedStateStore.cs:32's ArgumentOutOfRangeException.ThrowIfZero(key.Length).
+        // Empty keys would otherwise hash via HashEntry to a leaf identifiable only by
+        // value — every empty-key entry would distinguish only by HashEntry(0,...).
+        // Surface the bad input at Put rather than letting it pollute the Merkle root.
+        var s = new KeyedStateStore();
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(
+            () => s.Put(ReadOnlySpan<byte>.Empty, new byte[] { 0xAA }));
+    }
+
+    [TestMethod]
+    public void Put_DefensiveCopy_CallerMutationAfterPutDoesNotCorruptStore()
+    {
+        // Symmetric write-side pin to EnumerateSorted_DefensiveCopy: KeyedStateStore.cs:33
+        // calls ToArray() on both key and value, so a caller that mutates their original
+        // backing buffer after Put returns must not corrupt stored state. Same iter-167
+        // pattern as InMemoryL2RpcStore.RecordWithdrawalProof / InMemoryMessageRouter.
+        var s = new KeyedStateStore();
+        var keyBuf = new byte[] { 0x05 };
+        var valBuf = new byte[] { 0x42 };
+        s.Put(keyBuf, valBuf);
+
+        keyBuf[0] = 0xFF;
+        valBuf[0] = 0xFF;
+
+        var stored = s.Get(new byte[] { 0x05 }).ToArray();
+        Assert.AreEqual(0x42, stored[0], "stored value must not reflect post-Put mutation");
+        Assert.IsTrue(s.Contains(new byte[] { 0x05 }), "stored key must not reflect post-Put mutation");
+        Assert.IsFalse(s.Contains(new byte[] { 0xFF }), "post-mutation key must not appear in store");
+    }
+
+    [TestMethod]
     public void EnumerateSorted_ReturnsLexOrder()
     {
         var s = new KeyedStateStore();

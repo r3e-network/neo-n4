@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `KeyedStateStore.Put` boundary pins
+
+- `Put_RejectsEmptyKey` pins `KeyedStateStore.cs:32`'s `ArgumentOutOfRangeException.ThrowIfZero(key.Length)`. Empty keys would hash via HashEntry to leaves distinguishable only by value.
+- `Put_DefensiveCopy_CallerMutationAfterPutDoesNotCorruptStore` is the symmetric write-side pin to the existing `EnumerateSorted_DefensiveCopy` (read-side, iter 176). Same iter-167 ToArray() copy pattern used by `InMemoryL2RpcStore.RecordWithdrawalProof` and `InMemoryMessageRouter.RecordFinalized`.
+
+Cumulative: 538 tests / 27 projects.
+
 ### Added — `DepositPayload.Encode` defensive-guard pins
 
 - DepositPayload's Decode-side malleability tests (`Decode_RejectsTrailingBytes`) are pinned, but its Encode-side guards at `DepositPayload.cs:30-31` (UInt160 null-guards on L1Asset / L2Recipient) and `:33-34` (64-byte amount cap) had no direct tests. Added 3:

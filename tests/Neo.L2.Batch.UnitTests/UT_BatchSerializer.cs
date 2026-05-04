@@ -66,6 +66,36 @@ public class UT_BatchSerializer
     }
 
     [TestMethod]
+    public void Commitment_Encode_RejectsNullCommitment()
+        => Assert.ThrowsExactly<ArgumentNullException>(() => BatchSerializer.Encode(null!));
+
+    [TestMethod]
+    public void Commitment_Encode_RejectsNullRootField()
+    {
+        // Pin one of the 9 per-field null-guards at BatchSerializer.cs:81-89. Pattern is
+        // uniform — all 9 are `ArgumentNullException.ThrowIfNull` against UInt256 root
+        // fields. Without these, a null root would NRE inside WriteUInt256's GetSpan with
+        // no link back to which field was null. Same iter-154/155/156 hashing-primitive
+        // null-guard pattern that this test pins for the Encode side.
+        var bad = Sample() with { PreStateRoot = null! };
+        Assert.ThrowsExactly<ArgumentNullException>(() => BatchSerializer.Encode(bad));
+    }
+
+    [TestMethod]
+    public void Commitment_Encode_RejectsOutOfRangeProofType()
+    {
+        // iter-159 Encode/Decode symmetry: Decode rejects ProofType > Zk; Encode must
+        // refuse to produce bytes Decode would later reject. Without this guard, a
+        // malformed commitment (ProofType = (ProofType)99) would round-trip Encode →
+        // bytes → Decode where Decode finally rejects, with a misleading "decoder bug"
+        // suspicion rather than the actual cause (encoder accepted bad input).
+        var bad = Sample() with { ProofType = (ProofType)99 };
+        var ex = Assert.ThrowsExactly<ArgumentException>(() => BatchSerializer.Encode(bad));
+        StringAssert.Contains(ex.Message, "ProofType");
+        StringAssert.Contains(ex.Message, "99");
+    }
+
+    [TestMethod]
     public void Commitment_DetectsTruncation()
     {
         var bytes = BatchSerializer.Encode(Sample());

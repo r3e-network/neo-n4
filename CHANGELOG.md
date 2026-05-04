@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `BatchSerializer.Encode` defensive-guard pinning tests
+
+- The Decode side of BatchSerializer is well-pinned (`Commitment_Decode_RejectsHeaderClaimingOversizedProof`, `Commitment_Decode_RejectsTrailingBytes`, `Commitment_Decode_RejectsUnknownProofType`, `Commitment_Decode_AcceptsAllValidProofTypes`). The Encode-side guards at `BatchSerializer.cs:77` (null commitment), `:81-89` (per-field null-guards on 9 UInt256 root fields), and `:95-98` (iter-159 Encode/Decode symmetry — refuse to produce bytes Decode would later reject) had no direct pins. Added 3:
+  - `Commitment_Encode_RejectsNullCommitment`
+  - `Commitment_Encode_RejectsNullRootField` (representative — pattern uniform across 9 fields)
+  - `Commitment_Encode_RejectsOutOfRangeProofType` (iter-159 symmetry)
+
+Cumulative: 528 tests / 27 projects.
+
 ### Added — Direct unit tests for `MessageHasher` static utility
 
 - New `UT_MessageHasher.cs` directly pins the per-field null-guards on `HashMessage` and `HashWithdrawal`. Existing coverage is at the upstream `MessageBuilder.Build` / `WithdrawalProcessor.Stage` boundary (UT_Messaging, UT_Bridge), which catches null fields before they reach the hasher. But MessageHasher is a static utility — any caller can invoke it directly. The per-field guards at `MessageHasher.cs:27-28` and `:58-61` are documented as defense-in-depth for that case; without direct pins, a refactor could drop them silently.

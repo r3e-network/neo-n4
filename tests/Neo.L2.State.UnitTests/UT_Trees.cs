@@ -195,4 +195,31 @@ public class UT_Trees
     public void StateRootCalculator_HashPublicInputs_RejectsNullInputs()
         => Assert.ThrowsExactly<ArgumentNullException>(
             () => StateRootCalculator.HashPublicInputs(null!));
+
+    [TestMethod]
+    public void StateRootCalculator_HashBlockContext_RejectsNullContext()
+    {
+        // Pin StateRootCalculator.cs:53. BatchBlockContext is reference-typed (record class
+        // — yes, even records). Without the guard, the next member access NREs.
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => StateRootCalculator.HashBlockContext(null!));
+    }
+
+    [TestMethod]
+    public void StateRootCalculator_HashPublicInputs_RejectsNullMember()
+    {
+        // Pin one of the 10 per-field null-guards at StateRootCalculator.cs:77-86.
+        // Pattern is uniform — same defense-in-depth used in BatchSerializer.Encode (iter
+        // 219). PreStateRoot is the representative.
+        var bad = new PublicInputs
+        {
+            ChainId = 1001, BatchNumber = 1,
+            PreStateRoot = null!,
+            PostStateRoot = UInt256.Zero, TxRoot = UInt256.Zero, ReceiptRoot = UInt256.Zero,
+            WithdrawalRoot = UInt256.Zero, L2ToL1MessageRoot = UInt256.Zero, L2ToL2MessageRoot = UInt256.Zero,
+            L1MessageHash = UInt256.Zero, DACommitment = UInt256.Zero, BlockContextHash = UInt256.Zero,
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => StateRootCalculator.HashPublicInputs(bad));
+    }
 }

@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — State-primitive boundary pins
+
+- `MerkleTree.GetProof` had no out-of-range index pin. Added `GetProof_RejectsOutOfRangeIndex` (`MerkleTree.cs:98-99`) covering both negative and >= LeafCount.
+- `StateRootCalculator.HashBlockContext` null-context guard (`:53`) and one representative of the 10 per-field null-guards in `HashPublicInputs` (`:77-86`) were unpinned. Added 2.
+
+Cumulative: 642 tests / 27 projects.
+
 ### Added — Messaging null-arg pins
 
 - `L2Outbox.Add(null)` (`L2Outbox.cs:39`), `L1MessageInbox.Enqueue(null)` (`L1MessageInbox.cs:37`), and `InMemoryMessageRouter.EnqueueOutboundAsync(null)` (`InMemoryMessageRouter.cs:44`) had no pins. Added 3.

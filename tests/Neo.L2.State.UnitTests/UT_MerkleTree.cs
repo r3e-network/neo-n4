@@ -149,6 +149,16 @@ public class UT_MerkleTree
     }
 
     [TestMethod]
+    public void GetProof_RejectsOutOfRangeIndex()
+    {
+        // Pin MerkleTree.cs:98-99. Without it the access at `_levels[..][idx]` in the
+        // loop would throw IndexOutOfRange with no link to the bad index input.
+        var tree = new MerkleTree(new[] { UInt256.Zero, UInt256.Zero });
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => tree.GetProof(-1));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => tree.GetProof(2));
+    }
+
+    [TestMethod]
     public void Verify_RejectsNullSiblings()
     {
         // Pin MerkleTree.cs:137. Companion to Verify_RejectsNullLeaf (Leaf member, iter 168)

@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Direct unit tests for `MetricsExtensions` Safe* helpers
+
+- The iter-163 `MetricsExtensions.SafeIncrementCounter`/`SafeRecordHistogram`/`SafeSetGauge` helpers were tested transitively via plugins (the iter-163 `WithdrawalProcessor_Stage_SurvivesThrowingMetricsSink` test). Now have direct unit tests in a new `UT_MetricsExtensions.cs`: 3 tests confirming a `ThrowingSink` doesn't surface failures + 1 happy-path assertion that the wrapper actually forwards to the underlying sink. Pins the contract directly so a future refactor can't accidentally remove the swallow.
+
+Cumulative: 509 tests / 27 projects.
+
 ### Added — `InMemoryForcedInclusionSource` boundary tests
 
 - 3 new tests pinning behaviors: `Enqueue` rejects null entry (the iter-148 null-guard pattern was already in the code but lacked a regression test), `DrainAsync(0)`/`DrainAsync(-5)` short-circuit to empty without consuming, and `HasOverdueEntryAsync` returns false on an empty queue regardless of clock value.

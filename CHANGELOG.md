@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `InMemoryForcedInclusionSource` boundary tests
+
+- 3 new tests pinning behaviors: `Enqueue` rejects null entry (the iter-148 null-guard pattern was already in the code but lacked a regression test), `DrainAsync(0)`/`DrainAsync(-5)` short-circuit to empty without consuming, and `HasOverdueEntryAsync` returns false on an empty queue regardless of clock value.
+
+Cumulative: 505 tests / 27 projects.
+
 ### Added — `L1MessageInbox` boundary + happy-path coverage
 
 - 4 new tests: `Dequeue(0)` returns empty without consuming, `Dequeue(-1)` throws `ArgumentOutOfRangeException`, `Dequeue(N > pending)` drains all available, and `HasConsumed` flips post-dequeue. Caught a small test-writing bug on first run (the `Build()` helper hard-codes `SourceChainId = 1001`, but I queried `HasConsumed(0, ...)` initially — same `BuildScenario(N, ...)` off-by-one trap as iter 197).

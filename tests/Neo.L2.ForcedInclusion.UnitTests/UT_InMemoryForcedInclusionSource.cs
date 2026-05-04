@@ -92,4 +92,31 @@ public class UT_InMemoryForcedInclusionSource
         var src = new InMemoryForcedInclusionSource(1001);
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(async () => await src.MarkConsumedAsync(99));
     }
+
+    [TestMethod]
+    public void Enqueue_RejectsNullEntry()
+    {
+        var src = new InMemoryForcedInclusionSource(1001);
+        Assert.ThrowsExactly<ArgumentNullException>(() => src.Enqueue(null!));
+    }
+
+    [TestMethod]
+    public async Task DrainAsync_ZeroOrNegativeMax_ReturnsEmpty()
+    {
+        // Boundary: max <= 0 short-circuits to empty before lock acquire.
+        var src = new InMemoryForcedInclusionSource(1001);
+        src.Enqueue(MkEntry(1, 1_700_000_000));
+        Assert.AreEqual(0, (await src.DrainAsync(0)).Count);
+        Assert.AreEqual(0, (await src.DrainAsync(-5)).Count);
+        Assert.AreEqual(1, src.PendingCount, "DrainAsync with max<=0 must not consume");
+    }
+
+    [TestMethod]
+    public async Task HasOverdueEntryAsync_EmptyQueue_ReturnsFalse()
+    {
+        // Boundary: empty pending → no overdue regardless of clock.
+        var src = new InMemoryForcedInclusionSource(1001);
+        Assert.IsFalse(await src.HasOverdueEntryAsync(uint.MaxValue));
+        Assert.IsFalse(await src.HasOverdueEntryAsync(0));
+    }
 }

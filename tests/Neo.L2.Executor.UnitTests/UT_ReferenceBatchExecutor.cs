@@ -376,4 +376,39 @@ public class UT_ReferenceBatchExecutor
         };
         Assert.AreEqual(Mk().Hash(), Mk().Hash());
     }
+
+    [TestMethod]
+    public void Receipt_Hash_RejectsNullTxHash()
+    {
+        // Pin Receipt.cs:36. Same iter-154+ hashing-primitive defense pattern. Without
+        // the guard Hash() NREs inside TxHash.GetSpan().
+        var bad = new Receipt
+        {
+            TxHash = null!, Success = true, GasConsumed = 1,
+            StorageDeltaHash = UInt256.Zero, EventsHash = UInt256.Zero,
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => bad.Hash());
+    }
+
+    [TestMethod]
+    public void Receipt_Hash_RejectsNullStorageDeltaHash()
+    {
+        var bad = new Receipt
+        {
+            TxHash = UInt256.Zero, Success = true, GasConsumed = 1,
+            StorageDeltaHash = null!, EventsHash = UInt256.Zero,
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => bad.Hash());
+    }
+
+    [TestMethod]
+    public void Receipt_Hash_RejectsNullEventsHash()
+    {
+        var bad = new Receipt
+        {
+            TxHash = UInt256.Zero, Success = true, GasConsumed = 1,
+            StorageDeltaHash = UInt256.Zero, EventsHash = null!,
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => bad.Hash());
+    }
 }

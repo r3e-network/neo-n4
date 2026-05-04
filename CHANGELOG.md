@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `Receipt.Hash` null-guard pins
+
+- The 3 Receipt.Hash UInt256 null-guards (`Receipt.cs:36-38`) were unpinned. Same iter-154+ hashing-primitive defense-in-depth pattern as MessageHasher, FraudProofPayload, etc. Added `Receipt_Hash_RejectsNullTxHash`, `_RejectsNullStorageDeltaHash`, `_RejectsNullEventsHash`.
+
+Cumulative: 620 tests / 27 projects.
+
 ### Added — Executor + RPC client null-arg ctor pins
 
 - `JsonRpcClient` had `RejectsRelativeUri` and `RejectsNonHttpScheme` pins (iter 206/207) but no null-arg pins. Added 3: `Constructor_RejectsNullEndpoint`, `CallAsync_RejectsNullMethod`, `CallAsync_RejectsNullParams` (`JsonRpcClient.cs:26, 63, 64`).

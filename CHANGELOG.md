@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Challenge module null-guard pins
+
+- `FraudProofPayload.Encode`'s 3 UInt256 root null-guards (`FraudProofPayload.cs:50-52`) were unpinned. Added 3 (PreStateRoot, ClaimedPostStateRoot, ReplayedPostStateRoot).
+- `ChallengeOrchestrator` had `Inspect_RejectsNullPreStateRootInCommitment` (iter 171) but the param-level guards (ctor null-replayer, Inspect null commitment, Inspect null inputs at `ChallengeOrchestrator.cs:19, 36, 37`) weren't pinned. Added 3.
+
+Cumulative: 578 tests / 27 projects.
+
 ### Added — Settlement & RPC plugin null-arg pins
 
 - `L2SettlementPlugin` had no null-arg pins on its public Wire / WithMetrics / Enqueue surface (`L2SettlementPlugin.cs:52-54, 77, 102`). Added 5: `Wire_RejectsNullBatchPlugin`, `Wire_RejectsNullProver`, `Wire_RejectsNullClient`, `WithMetrics_RejectsNullMetrics`, `Enqueue_RejectsNullCommitment`.

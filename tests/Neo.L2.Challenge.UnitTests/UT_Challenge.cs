@@ -190,6 +190,64 @@ public class UT_Challenge
     }
 
     [TestMethod]
+    public void FraudProofPayload_Encode_RejectsNullPreStateRoot()
+    {
+        // Pin FraudProofPayload.cs:50. UInt256 reference-typed; same iter-154+
+        // hashing-primitive defense pattern as the L2BatchCommitment Encode pins.
+        var bad = new FraudProofPayload
+        {
+            PreStateRoot = null!, ClaimedPostStateRoot = UInt256.Zero,
+            ReplayedPostStateRoot = UInt256.Zero, DisputedTxIndex = 0,
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => bad.Encode());
+    }
+
+    [TestMethod]
+    public void FraudProofPayload_Encode_RejectsNullClaimedPostStateRoot()
+    {
+        var bad = new FraudProofPayload
+        {
+            PreStateRoot = UInt256.Zero, ClaimedPostStateRoot = null!,
+            ReplayedPostStateRoot = UInt256.Zero, DisputedTxIndex = 0,
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => bad.Encode());
+    }
+
+    [TestMethod]
+    public void FraudProofPayload_Encode_RejectsNullReplayedPostStateRoot()
+    {
+        var bad = new FraudProofPayload
+        {
+            PreStateRoot = UInt256.Zero, ClaimedPostStateRoot = UInt256.Zero,
+            ReplayedPostStateRoot = null!, DisputedTxIndex = 0,
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => bad.Encode());
+    }
+
+    [TestMethod]
+    public void ChallengeOrchestrator_Constructor_RejectsNullReplayer()
+        => Assert.ThrowsExactly<ArgumentNullException>(() => new ChallengeOrchestrator(null!));
+
+    [TestMethod]
+    public async Task Inspect_RejectsNullCommitment()
+    {
+        // Pin ChallengeOrchestrator.cs:36.
+        var orchestrator = new ChallengeOrchestrator(new FixedReplayer { ReplayedRoot = UInt256.Zero });
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await orchestrator.InspectAsync(null!, MkRequest(1001, 1, H('a'))));
+    }
+
+    [TestMethod]
+    public async Task Inspect_RejectsNullInputs()
+    {
+        // Pin ChallengeOrchestrator.cs:37.
+        var orchestrator = new ChallengeOrchestrator(new FixedReplayer { ReplayedRoot = UInt256.Zero });
+        var commitment = MkCommitment(1001, 1, H('a'), H('b'));
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await orchestrator.InspectAsync(commitment, null!));
+    }
+
+    [TestMethod]
     public async Task Inspect_RejectsNullPreStateRootInCommitment()
     {
         // Regression for iter 171: a null UInt256 PreStateRoot would NRE inside

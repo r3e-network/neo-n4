@@ -117,4 +117,43 @@ public class UT_BatchBuilder
             () => b.Seal(SampleResult(), UInt256.Zero, null!, ProofType.None, ReadOnlyMemory<byte>.Empty));
         Assert.IsFalse(b.Batch.IsSealed);
     }
+
+    [TestMethod]
+    public void Constructor_RejectsNullPreStateRoot()
+    {
+        // Pin L2Batch.cs:59. UInt256 is reference-typed; `required` only forces "must be
+        // set," not "non-null." A null preStateRoot would surface only at Seal time when
+        // EncodePublicInputs runs its own ThrowIfNull, attributing the failure to the
+        // sealer rather than the constructor. Catch at the source.
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => new BatchBuilder(1001, 1, 100, null!));
+    }
+
+    [TestMethod]
+    public void ConsumeL1Message_RejectsNull()
+    {
+        var b = new BatchBuilder(1001, 1, 100, UInt256.Zero);
+        Assert.ThrowsExactly<ArgumentNullException>(() => b.ConsumeL1Message(null!));
+    }
+
+    [TestMethod]
+    public void AddWithdrawal_RejectsNull()
+    {
+        var b = new BatchBuilder(1001, 1, 100, UInt256.Zero);
+        Assert.ThrowsExactly<ArgumentNullException>(() => b.AddWithdrawal(null!));
+    }
+
+    [TestMethod]
+    public void AddL2ToL1Message_RejectsNull()
+    {
+        var b = new BatchBuilder(1001, 1, 100, UInt256.Zero);
+        Assert.ThrowsExactly<ArgumentNullException>(() => b.AddL2ToL1Message(null!));
+    }
+
+    [TestMethod]
+    public void AddL2ToL2Message_RejectsNull()
+    {
+        var b = new BatchBuilder(1001, 1, 100, UInt256.Zero);
+        Assert.ThrowsExactly<ArgumentNullException>(() => b.AddL2ToL2Message(null!));
+    }
 }

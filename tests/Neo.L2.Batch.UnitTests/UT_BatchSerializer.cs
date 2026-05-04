@@ -135,6 +135,28 @@ public class UT_BatchSerializer
     }
 
     [TestMethod]
+    public void PublicInputs_Encode_RejectsNullInputs()
+        => Assert.ThrowsExactly<ArgumentNullException>(
+            () => BatchSerializer.EncodePublicInputs(null!));
+
+    [TestMethod]
+    public void PublicInputs_Encode_RejectsNullMember()
+    {
+        // Pin one of the 10 per-field null-guards at BatchSerializer.cs:207-216. Pattern
+        // is uniform — same Encode-side defense-in-depth pattern as the L2BatchCommitment
+        // guards pinned in iter 219. PreStateRoot is the representative.
+        var bad = new PublicInputs
+        {
+            ChainId = 1001, BatchNumber = 1,
+            PreStateRoot = null!,
+            PostStateRoot = H('1'), TxRoot = H('2'), ReceiptRoot = H('3'),
+            WithdrawalRoot = H('4'), L2ToL1MessageRoot = H('5'), L2ToL2MessageRoot = H('6'),
+            L1MessageHash = H('7'), DACommitment = H('8'), BlockContextHash = H('9'),
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => BatchSerializer.EncodePublicInputs(bad));
+    }
+
+    [TestMethod]
     public void Commitment_ByteLayout_MatchesDocumentedOffsets()
     {
         // Pins the layout claimed in BatchSerializer's XML docs. NeoHub.SettlementManager

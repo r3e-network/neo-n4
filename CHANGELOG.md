@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Batch-construction boundary pins
+
+- `BatchSerializer.EncodePublicInputs` (`BatchSerializer.cs:205-216`) had no null-guard pins. Added 2 representative pins (the inputs param, plus PreStateRoot for the per-field pattern that's uniform across 10 fields).
+- `L2Batch` constructor (`L2Batch.cs:59`) had no null-PreStateRoot pin. Added `Constructor_RejectsNullPreStateRoot` — without it a null root would surface only at Seal time when EncodePublicInputs runs its own ThrowIfNull, attributing the failure to the sealer rather than the constructor.
+- `BatchBuilder` had no null-arg pins on its 4 Add* / ConsumeL1Message methods. Added 4: `ConsumeL1Message_RejectsNull`, `AddWithdrawal_RejectsNull`, `AddL2ToL1Message_RejectsNull`, `AddL2ToL2Message_RejectsNull`.
+
+Cumulative: 555 tests / 27 projects.
+
 ### Added — `DepositProcessor` boundary pins
 
 - Symmetric to iter 223's WithdrawalProcessor pins. Process happy path and replay are tested, but the boundary contracts weren't. Added 5:

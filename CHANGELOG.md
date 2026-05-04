@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `BatchSealer` param-level null pins
+
+- BatchSealer had a `ValidatePositive` ctor pin (iter 191) and a per-entry-null `RejectsNullTransactionInList` pin (iter 181), but the param-level null-guards on the ctor (`BatchSealer.cs:41-42`), WithMetrics (`:34`), and OnBlockCommit's rawTransactions arg (`:74`) were unpinned. Added 4: `Constructor_RejectsNullSettings`, `Constructor_RejectsNullMetrics`, `WithMetrics_RejectsNullMetrics`, `OnBlockCommit_RejectsNullRawTransactions`.
+
+Cumulative: 595 tests / 27 projects.
+
 ### Added — DA writer null-guard pins
 
 - `InMemoryDAWriter` and `NeoFsLikeDAWriter` had no null-arg pins on PublishAsync / IsAvailableAsync / TryGet; only `MetricsEmittingDAWriter`'s ctor was pinned. Added 7:

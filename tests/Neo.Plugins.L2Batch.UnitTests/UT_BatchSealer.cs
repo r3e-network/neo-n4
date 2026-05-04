@@ -243,6 +243,35 @@ public class UT_BatchSealer
     }
 
     [TestMethod]
+    public void Constructor_RejectsNullSettings()
+        => Assert.ThrowsExactly<ArgumentNullException>(
+            () => new BatchSealer(null!, new InMemoryMetrics()));
+
+    [TestMethod]
+    public void Constructor_RejectsNullMetrics()
+        => Assert.ThrowsExactly<ArgumentNullException>(
+            () => new BatchSealer(new L2BatchSettings(), null!));
+
+    [TestMethod]
+    public void WithMetrics_RejectsNullMetrics()
+    {
+        // Pin BatchSealer.cs:34. Symmetric to other plugin WithMetrics pins.
+        var sealer = new BatchSealer(new L2BatchSettings(), new InMemoryMetrics());
+        Assert.ThrowsExactly<ArgumentNullException>(() => sealer.WithMetrics(null!));
+    }
+
+    [TestMethod]
+    public void OnBlockCommit_RejectsNullRawTransactions()
+    {
+        // Pin BatchSealer.cs:74. Companion to RejectsNullTransactionInList — the per-entry
+        // guard catches null entries within a non-null IEnumerable; this guard catches a
+        // null IEnumerable itself.
+        var sealer = new BatchSealer(new L2BatchSettings(), new InMemoryMetrics());
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => sealer.OnBlockCommit(1, 1000, 11, null!));
+    }
+
+    [TestMethod]
     public void OnBlockCommit_RejectsNullTransactionInList()
     {
         // Regression for iter 181: previously the implicit byte[] → ReadOnlyMemory<byte>

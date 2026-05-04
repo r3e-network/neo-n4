@@ -209,6 +209,40 @@ public class UT_PrometheusExporter
     }
 
     [TestMethod]
+    public void Format_RejectsNullSnapshot()
+    {
+        // Pin PrometheusExporter.cs:29.
+        Assert.ThrowsExactly<ArgumentNullException>(() => PrometheusExporter.Format(null!));
+    }
+
+    [TestMethod]
+    public void Format_RejectsNullGauges()
+    {
+        // Pin PrometheusExporter.cs:34. Companion to RejectsMalformedSnapshotWithNullDictionary
+        // (which only exercises the Counters guard from the same group of 3 per-field guards).
+        var bad = new MetricsSnapshot
+        {
+            Counters = new Dictionary<string, long>(),
+            Gauges = null!,
+            Histograms = new Dictionary<string, IReadOnlyList<double>>(),
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => PrometheusExporter.Format(bad));
+    }
+
+    [TestMethod]
+    public void Format_RejectsNullHistograms()
+    {
+        // Pin PrometheusExporter.cs:35.
+        var bad = new MetricsSnapshot
+        {
+            Counters = new Dictionary<string, long>(),
+            Gauges = new Dictionary<string, double>(),
+            Histograms = null!,
+        };
+        Assert.ThrowsExactly<ArgumentNullException>(() => PrometheusExporter.Format(bad));
+    }
+
+    [TestMethod]
     public void Format_RejectsMalformedSnapshotWithNullDictionary()
     {
         // Regression for iter 200: a buggy IMetricsSource that builds a malformed

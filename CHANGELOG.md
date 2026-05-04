@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `PrometheusExporter.Format` null-arg pins
+
+- `Format(null)` (`PrometheusExporter.cs:29`) was unpinned. The existing iter-200 `Format_RejectsMalformedSnapshotWithNullDictionary` only exercised the Counters guard (line 33); the Gauges (`:34`) and Histograms (`:35`) per-field null-guards were unpinned too. Added 3.
+
+Cumulative: 653 tests / 27 projects.
+
 ### Added — `InMemorySignerSet` ctor null-keys pin
 
 - `InMemorySignerSet` ctor's `ThrowIfNull(keys)` (`ISignerSet.cs:42`) was unpinned. Without it the OrderBy on null NREs.

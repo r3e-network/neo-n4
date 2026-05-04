@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `L1MessageInbox` boundary + happy-path coverage
+
+- 4 new tests: `Dequeue(0)` returns empty without consuming, `Dequeue(-1)` throws `ArgumentOutOfRangeException`, `Dequeue(N > pending)` drains all available, and `HasConsumed` flips post-dequeue. Caught a small test-writing bug on first run (the `Build()` helper hard-codes `SourceChainId = 1001`, but I queried `HasConsumed(0, ...)` initially — same `BuildScenario(N, ...)` off-by-one trap as iter 197).
+
+Cumulative: 502 tests / 27 projects.
+
 ### Added — `AssetRegistry` happy-path coverage: `SetActive` unknown-asset, `Snapshot` immutability
 
 - The defensive sweep is at plateau. Pivoted to filling test-coverage gaps. `SetActive_UnknownAsset_ReturnsFalse` pins the contract that `SetActive` returns false (not throws) for missing L2 assets, so a future "throw on unknown" refactor is caught. `Snapshot_ReturnsAllMappings_AndIsImmutable` asserts that registering after a snapshot does NOT mutate the prior snapshot — pinning the `_byL2.Values.ToArray()` defensive copy. Caught a small naming bug on first run (`AssetType.NEP17` is actually `Nep17`).

@@ -83,6 +83,49 @@ public class UT_Messaging
     }
 
     [TestMethod]
+    public void Inbox_DequeueZero_ReturnsEmpty()
+    {
+        // Boundary: max=0 must return empty without modifying state. Prior behavior
+        // is short-circuit before lock acquire, which we pin here.
+        var inbox = new L1MessageInbox();
+        inbox.Enqueue(Build(0, 1));
+        var taken = inbox.Dequeue(0);
+        Assert.AreEqual(0, taken.Count);
+        Assert.AreEqual(1, inbox.PendingCount, "Dequeue(0) must not consume");
+    }
+
+    [TestMethod]
+    public void Inbox_DequeueRejectsNegativeMax()
+    {
+        var inbox = new L1MessageInbox();
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => inbox.Dequeue(-1));
+    }
+
+    [TestMethod]
+    public void Inbox_DequeueLargerThanPending_DrainsAll()
+    {
+        // Boundary: requesting more than pending is fine; returns whatever's there.
+        var inbox = new L1MessageInbox();
+        inbox.Enqueue(Build(0, 1));
+        inbox.Enqueue(Build(0, 2));
+        var taken = inbox.Dequeue(100);
+        Assert.AreEqual(2, taken.Count);
+        Assert.AreEqual(0, inbox.PendingCount);
+    }
+
+    [TestMethod]
+    public void Inbox_HasConsumed_TracksPostDequeue()
+    {
+        // Build() hard-codes SourceChainId = 1001, so consume-tracking keys against 1001.
+        var inbox = new L1MessageInbox();
+        inbox.Enqueue(Build(0, 5));
+        Assert.IsFalse(inbox.HasConsumed(1001, 5), "not yet consumed");
+        inbox.Dequeue(1);
+        Assert.IsTrue(inbox.HasConsumed(1001, 5), "consumed after dequeue");
+        Assert.IsFalse(inbox.HasConsumed(1001, 99), "unrelated nonce stays false");
+    }
+
+    [TestMethod]
     public void Inbox_RejectsDuplicatePending()
     {
         var inbox = new L1MessageInbox();

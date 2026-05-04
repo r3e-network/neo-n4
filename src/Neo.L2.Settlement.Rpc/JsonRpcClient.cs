@@ -24,6 +24,13 @@ public sealed class JsonRpcClient : IDisposable
     public JsonRpcClient(Uri endpoint, HttpClient? httpClient)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
+        // Relative URIs throw InvalidOperationException on .Scheme access; reject
+        // them at the ctor with a clear ArgumentException so callers see a config
+        // error rather than a confusing "operation not supported on relative URI".
+        if (!endpoint.IsAbsoluteUri)
+            throw new ArgumentException(
+                $"endpoint must be an absolute URI; got '{endpoint}'",
+                nameof(endpoint));
         // Reject non-HTTP schemes at construction so a misconfigured endpoint
         // (file://, mailto:, ftp://, etc.) doesn't surface as an obscure HttpClient
         // SendAsync error at first request. JsonRpcClient is HTTP/HTTPS only.

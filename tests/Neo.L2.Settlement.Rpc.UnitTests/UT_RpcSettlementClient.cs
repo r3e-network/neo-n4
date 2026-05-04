@@ -239,6 +239,18 @@ public class UT_RpcSettlementClient
     }
 
     [TestMethod]
+    public void JsonRpcClient_RejectsRelativeUri()
+    {
+        // Regression for iter 207: a relative URI's .Scheme access throws
+        // InvalidOperationException("operation not supported on relative URI"). The
+        // iter-206 scheme check would have surfaced that confusing message; now
+        // we reject the relative URI at the ctor with a clear ArgumentException.
+        var ex = Assert.ThrowsExactly<ArgumentException>(
+            () => new JsonRpcClient(new Uri("/x", UriKind.Relative), httpClient: null));
+        StringAssert.Contains(ex.Message, "absolute URI");
+    }
+
+    [TestMethod]
     public void JsonRpcClient_RejectsNonHttpScheme()
     {
         // Regression for iter 206: a misconfigured endpoint with file://, mailto:, ftp://

@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `JsonRpcClient` rejects relative URIs (iter-206 follow-up)
+
+- The iter-206 scheme check accesses `endpoint.Scheme`, which throws `InvalidOperationException("operation not supported on relative URI")` for a relative URI. So a caller passing `new Uri("/x", UriKind.Relative)` would get that confusing message instead of a clear "endpoint must be absolute". Now we check `IsAbsoluteUri` first. 1 pinning test.
+
+Cumulative: 495 tests / 27 projects.
+
 ### Fixed — `JsonRpcClient` rejects non-HTTP schemes at construction
 
 - A misconfigured endpoint (`file://`, `mailto:`, `ftp://`, `gopher://`, etc.) silently slipped past the ctor and surfaced as an obscure `HttpClient.SendAsync` error at first request — by which point the operator has lost the trail back to the bad config. Now the ctor rejects any `endpoint.Scheme` that isn't `http` or `https`. 1 pinning test covering 3 reject cases + 2 boundary accepts.

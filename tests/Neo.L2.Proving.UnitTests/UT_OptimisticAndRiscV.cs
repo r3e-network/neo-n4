@@ -486,4 +486,33 @@ public class UT_OptimisticAndRiscV
         // Pin OptimisticVerifier.cs:26.
         Assert.ThrowsExactly<ArgumentNullException>(() => new OptimisticVerifier(null!));
     }
+
+    [TestMethod]
+    public async Task OptimisticVerifier_VerifyAsync_RejectsNullPublicInputs()
+    {
+        // Pin OptimisticVerifier.cs:37.
+        var priv = new byte[32]; priv[0] = 1;
+        var realPub = ECCurve.Secp256r1.G * priv;
+        var verifier = new OptimisticVerifier(realPub);
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await verifier.VerifyAsync(null!, ReadOnlyMemory<byte>.Empty));
+    }
+
+    [TestMethod]
+    public async Task MockRiscVProver_ProveAsync_RejectsNullRequest()
+    {
+        // Pin RiscVProver.cs:52.
+        var prover = new MockRiscVProver(UInt256.Parse("0x" + new string('a', 64)));
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await prover.ProveAsync(null!));
+    }
+
+    [TestMethod]
+    public async Task MockRiscVVerifier_VerifyAsync_RejectsNullPublicInputs()
+    {
+        // Pin RiscVProver.cs:103.
+        var verifier = new MockRiscVVerifier(UInt256.Parse("0x" + new string('a', 64)));
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await verifier.VerifyAsync(null!, ReadOnlyMemory<byte>.Empty));
+    }
 }

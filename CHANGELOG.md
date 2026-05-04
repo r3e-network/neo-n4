@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Verifier/prover async-method null-publicInputs pins
+
+- 4 unpinned async-method null-arg guards across the verifier/prover pipeline. Added: `OptimisticVerifier_VerifyAsync_RejectsNullPublicInputs` (`OptimisticVerifier.cs:37`), `AttestationVerifier_VerifyAsync_RejectsNullPublicInputs` (`AttestationVerifier.cs:48`), `MockRiscVProver_ProveAsync_RejectsNullRequest` (`RiscVProver.cs:52`), `MockRiscVVerifier_VerifyAsync_RejectsNullPublicInputs` (`:103`).
+
+Cumulative: 636 tests / 27 projects.
+
 ### Added — Proving-pipeline null-arg pins
 
 - 7 unpinned guards in the proving pipeline. Added: `VerifierRegistry_Register_RejectsNullVerifier` (`VerifierRegistry.cs:21`), `VerifyAsync_RejectsNullCommitment` (`:37`), `VerifyAsync_RejectsNullPublicInputs` (`:38`); `OptimisticVerifier_Constructor_RejectsNullSequencerKey` (`OptimisticVerifier.cs:26`); `AttestationProver_Constructor_RejectsNullSigners` (`AttestationProver.cs:25`), `ProveAsync_RejectsNullRequest` (`:32`); `AttestationVerifier_Constructor_RejectsNullValidators` (`AttestationVerifier.cs:31`).

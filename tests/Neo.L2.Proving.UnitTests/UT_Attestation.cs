@@ -313,4 +313,14 @@ public class UT_Attestation
         // Pin AttestationVerifier.cs:31.
         Assert.ThrowsExactly<ArgumentNullException>(() => new AttestationVerifier(null!, threshold: 1));
     }
+
+    [TestMethod]
+    public async Task AttestationVerifier_VerifyAsync_RejectsNullPublicInputs()
+    {
+        // Pin AttestationVerifier.cs:48.
+        var k = GenKey(1);
+        var verifier = new AttestationVerifier(new[] { k.pub }, threshold: 1);
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            async () => await verifier.VerifyAsync(null!, ReadOnlyMemory<byte>.Empty));
+    }
 }

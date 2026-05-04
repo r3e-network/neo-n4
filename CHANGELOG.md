@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Direct unit tests for `MessageHasher` static utility
+
+- New `UT_MessageHasher.cs` directly pins the per-field null-guards on `HashMessage` and `HashWithdrawal`. Existing coverage is at the upstream `MessageBuilder.Build` / `WithdrawalProcessor.Stage` boundary (UT_Messaging, UT_Bridge), which catches null fields before they reach the hasher. But MessageHasher is a static utility — any caller can invoke it directly. The per-field guards at `MessageHasher.cs:27-28` and `:58-61` are documented as defense-in-depth for that case; without direct pins, a refactor could drop them silently.
+- Tests added (10): `HashMessage_RejectsNullMessage`, `_RejectsNullSender`, `_RejectsNullReceiver`, `_DeterministicForSameInput`; `HashWithdrawal_RejectsNullWithdrawal`, `_RejectsNullEmittingContract`, `_RejectsNullL2Sender`, `_RejectsNullL1Recipient`, `_RejectsNullL2Asset`, `_RejectsOversizedAmount` (this last one pins the iter-set 64-byte amount cap that bounds the buffer alloc against attacker-influenced sizes).
+
+Cumulative: 525 tests / 27 projects.
+
 ### Added — Two pinning tests: secondary-ctor null-address and JSON-RPC negative-ulong wrap
 
 - `Constructor_SecondaryOverload_RejectsNullAddress` (UT_MetricsHttpServer): the `(IPAddress, int port, handler)` ctor delegates null-address handling to `IPEndPoint` via `MakeValidatedEndpoint`. That contract was documented in a comment but unpinned — a refactor could silently change the surface from `ArgumentNullException` to NRE.

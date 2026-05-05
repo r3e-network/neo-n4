@@ -118,6 +118,7 @@ public class SequencerBondContract : SmartContract
     /// </summary>
     public static void Deposit(uint chainId, UInt160 sequencer, BigInteger amount)
     {
+        ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         ExecutionEngine.Assert(amount > 0, "amount must be positive");
         ExecutionEngine.Assert(sequencer.IsValid && !sequencer.IsZero, "invalid sequencer");
 

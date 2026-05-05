@@ -23,6 +23,13 @@ public static class MessageBuilder
         // Reject at the boundary so the operator sees which argument was wrong.
         ArgumentNullException.ThrowIfNull(sender);
         ArgumentNullException.ThrowIfNull(receiver);
+        // Self-routed messages have no transport: there is no L1→L1 or L2→L2 route
+        // when source == target. Surface the misconfig at build time, not later when
+        // the gateway silently drops the message.
+        if (sourceChainId == targetChainId)
+            throw new ArgumentException(
+                $"sourceChainId == targetChainId == {sourceChainId} — self-routed messages have no cross-chain transport",
+                nameof(targetChainId));
         // Build a temporary message with placeholder hash, then compute the real hash.
         var unhashed = new CrossChainMessage
         {

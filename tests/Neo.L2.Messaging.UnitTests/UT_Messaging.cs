@@ -32,6 +32,43 @@ public class UT_Messaging
     }
 
     [TestMethod]
+    public void MessageBuilder_RejectsSelfRoutedMessage()
+    {
+        // Self-routed messages (sourceChainId == targetChainId) have no cross-chain
+        // transport — gateways have no route from X→X. Pin the rejection so a
+        // refactor that drops it doesn't silently emit messages that the gateway
+        // would later drop without explanation.
+        var ex = Assert.ThrowsExactly<ArgumentException>(() =>
+            MessageBuilder.Build(
+                sourceChainId: 1001,
+                targetChainId: 1001,
+                nonce: 1,
+                sender: UInt160.Parse("0x" + new string('a', 40)),
+                receiver: UInt160.Parse("0x" + new string('b', 40)),
+                messageType: MessageType.Call,
+                payload: ReadOnlyMemory<byte>.Empty));
+        StringAssert.Contains(ex.Message, "1001");
+        StringAssert.Contains(ex.Message, "self-routed");
+    }
+
+    [TestMethod]
+    public void MessageBuilder_RejectsZeroToZeroSelfRoute()
+    {
+        // Edge case: both source AND target = 0 (which would be "L1 to L1") is
+        // also self-routed and should be rejected — pre-fix, the L1ChainId=0
+        // sentinel lets this slip past any "non-zero" guard.
+        Assert.ThrowsExactly<ArgumentException>(() =>
+            MessageBuilder.Build(
+                sourceChainId: 0,
+                targetChainId: 0,
+                nonce: 1,
+                sender: UInt160.Parse("0x" + new string('a', 40)),
+                receiver: UInt160.Parse("0x" + new string('b', 40)),
+                messageType: MessageType.Call,
+                payload: ReadOnlyMemory<byte>.Empty));
+    }
+
+    [TestMethod]
     public void MessageBuilder_RejectsNullReceiver()
     {
         Assert.ThrowsExactly<ArgumentNullException>(() =>

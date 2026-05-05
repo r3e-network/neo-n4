@@ -76,14 +76,14 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**807 unit + integration tests across 26 projects:**
+**809 unit + integration tests across 26 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
 | `Neo.L2.Abstractions.UnitTests`      | 22    | enum discriminants, models, interface shape, **`ProofTypeExtensions.Resolve` boundary tests, `ChainIdValidator.ValidateL2` (zero-rejection / non-zero-acceptance / setting-name)** |
 | `Neo.L2.Batch.UnitTests`             | 35    | builder lifecycle, serializer round-trip, **proof-length bounds, unknown-ProofType rejection, all-valid-ProofType round-trip, trailing-byte rejection** |
 | `Neo.L2.State.UnitTests`             | 57    | Merkle tree, proof verify, hashers, **canonical proof wire format (round-trip, layout, truncation, oversized depth, 7-leaf all-positions)** |
-| `Neo.L2.Messaging.UnitTests`         | 27    | inbox FIFO, replay protection, outbox split, **L2Outbox metric emission across destinations, persistence reopen pins** |
+| `Neo.L2.Messaging.UnitTests`         | 29    | inbox FIFO, replay protection, outbox split, **L2Outbox metric emission across destinations, persistence reopen pins, MessageBuilder rejects self-routed messages (incl. zero-to-zero)** |
 | `Neo.L2.Bridge.UnitTests`            | 45    | registry, deposit replay, withdrawal staging, **metric emission on success/replay/unknown-asset/duplicate-nonce/negative-amount paths, retryability after transient validation failure, registry orphan cleanup on L1/L2 repoint, DepositPayload trailing-byte rejection** |
 | `Neo.L2.Proving.UnitTests`           | 48    | Stage 0/1/2 prove+verify, registry dispatch, **proof-payload boundary tests (length, version, ProofSystem range), AttestationVerifier dedup-before-verify** |
 | `Neo.L2.Proving.Sp1.UnitTests`       | 11    | bridge unavailable, mock fallback, VK mismatch, **`MaxProofBytes` bound pinned** |

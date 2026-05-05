@@ -17,6 +17,9 @@ TestResults/
 coverage/
 *.coverage
 *.lock
+# Cargo.lock IS checked in for binary/cdylib crates so the bridge's transitive
+# dep tree (esp. SP1 / neo-zkvm) is reproducible across `cargo build` runs.
+!Cargo.lock
 .DS_Store
 *.swp
 *.tmp

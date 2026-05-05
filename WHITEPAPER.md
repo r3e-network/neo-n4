@@ -71,33 +71,9 @@ proof regime moves up the trust ladder one phase at a time without rewriting eit
 
 ## 2. System overview
 
-```
-┌───────────────────────────────────────────────────────────────┐
-│                     Neo N3 / Neo 4 L1                         │
-│                                                               │
-│  NeoHub (13 L1 contracts)                                     │
-│   ChainRegistry · SharedBridge · SettlementManager            │
-│   VerifierRegistry · MessageRouter · TokenRegistry            │
-│   DARegistry · GovernanceController · EmergencyManager        │
-│   ForcedInclusion · SequencerBond · SequencerRegistry         │
-│   OptimisticChallenge                                         │
-└───────────────────────────────────────────────────────────────┘
-                          │
-                          ▼ submitBatch / verify
-┌───────────────────────────────────────────────────────────────┐
-│                Neo Gateway (Phase 5, optional)                │
-│   BinaryTreeAggregator (log-N rounds) + pluggable IRoundProver │
-└───────────────────────────────────────────────────────────────┘
-                          │
-       ┌──────────────────┼──────────────────┐
-       ▼                  ▼                  ▼
-┌────────────┐    ┌────────────┐    ┌────────────┐
-│ Neo L2 #1  │    │ Neo L2 #2  │    │   …        │
-│ (Neo 4     │    │            │    │            │
-│  core +    │    │            │    │            │
-│  plugins)  │    │            │    │            │
-└────────────┘    └────────────┘    └────────────┘
-```
+<p align="center">
+  <img src="docs/figures/architecture.svg" alt="Neo Elastic Network — three-tier architecture: L1 NeoHub anchor (13 contracts grouped into Settlement, Bridge, Messaging, Security, Governance), optional Phase 5 Neo Gateway aggregator, and N elastic L2 chains" width="900">
+</p>
 
 Three layers, each with one job:
 

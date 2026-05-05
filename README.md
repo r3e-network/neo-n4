@@ -94,7 +94,7 @@ neo4/
 │   └── Neo.Hub.Deploy/                     # declarative L1 deploy planner
 ├── bridge/
 │   └── neo-zkvm-bridge/                    # Rust cdylib + C ABI
-└── tests/                                  # 468 tests / 25 projects
+└── tests/                                  # 658 tests / 27 projects
 ```
 
 ---

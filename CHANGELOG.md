@@ -5,6 +5,58 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Vendored upstream deps as git submodules (was: sibling-clone hack)
+
+The repo expected three sibling-clones (`../neo`, `../../neo-devpack-dotnet`,
+`../../../neo-zkvm`) and the existing code drifted onto APIs from a personal
+fork of neo-core, so a fresh clone against the public r3e-network/neo-n4 url
+couldn't even build.
+
+Closed by vendoring all three as git submodules under `external/`:
+
+  - `external/neo` — neo-project/neo master (Neo 4 core), commit `12df510d`
+  - `external/neo-devpack-dotnet` — neo-project/neo-devpack-dotnet master, commit `80fcc176`
+  - `external/neo-zkvm` — r3e-network/neo-zkvm master, commit `1b28c6e` (optional, behind `real-prover`)
+
+Updated 8 callsites to use neo-project/neo master's stable APIs (the prior
+fork had its own extensions):
+  - `Crypto.Sign(bytes, byte[])` → `Crypto.Sign(bytes, new KeyPair(byte[]))`
+    (5 callsites: `ISignerSet` + 3 test files)
+  - `public override Dispose()` → `protected override Dispose(bool disposing)`
+    on 3 plugins (`L2Batch`, `L2Metrics`, `L2Settlement`)
+  - `using Neo.Extensions.IO;` for `Transaction.ToArray()` extension
+  - `Neo.L2.sln` — 4 hardcoded `..\neo\src\` paths → `external\neo\src\`
+
+`Directory.Build.props` `NeoCorePath` and `contracts/Directory.Build.props`
+`NeoDevpackPath` now default to the submodule paths; both can be overridden
+on the command line for local-fork development.
+
+Docs all switched to `git clone --recurse-submodules`: README, CONTRIBUTING,
+AGENTS, contracts/README, bridge/neo-zkvm-bridge/README, getting-started.
+
+### Added — GitHub Actions CI workflow
+
+`.github/workflows/build.yml` now runs on every push + PR to master. Three
+jobs:
+  - `test`: full `dotnet build` + `dotnet test` (820 unit + integration
+    tests). Uses `submodules: recursive` so external/neo + external/
+    neo-devpack-dotnet are checked out before the build.
+  - `contracts`: type-checks all 19 NeoHub + L2Native contracts with
+    `DisableNccs=true` (nccs not on runner; C# type-check still catches
+    API drift).
+  - `bridge`: `cargo check --no-default-features` for the Rust
+    neo-zkvm-bridge so the Phase-4 SP1 prover dep stays optional.
+
+CI status badge added to README header.
+
+### Fixed — `neo-project/neo4` URL never existed
+
+All `ContractSourceCode` attributes on the 19 contracts pointed at
+`https://github.com/neo-project/neo4` — that repo never existed. Updated
+to `https://github.com/r3e-network/neo-n4` (the actual public URL,
+already in README clone instructions). Same fix for
+`Directory.Build.props` `RepositoryUrl` (drives NuGet package metadata).
+
 ### Added — Phase 6 done: all 8 neo-stack subcommands functional
 
 `register-chain` and `deploy-bridge-adapter` were the last two stub
@@ -70,7 +122,7 @@ non-zero guards at deploy + per-method entry points. Targeted gaps:
     --data-dir for rehydration verification gracefully skips audit
   - ChainAuditor mixed-chainId rejection pinned with explicit message-format test
 
-Cumulative: 817 tests / 26 projects.
+Cumulative: 820 tests / 26 projects.
 
 ### Added — RocksDB-by-default persistence across all stateful L2 components
 

@@ -102,6 +102,10 @@ public class ForcedInclusionContract : SmartContract
     /// <param name="txHash">Hash of <paramref name="encodedTx"/> (caller pre-computes for cheap lookup).</param>
     public static ulong EnqueueForcedTransaction(uint chainId, byte[] encodedTx, UInt256 txHash)
     {
+        // chainId 0 is the L1 sentinel — without this guard, anyone could enqueue
+        // forced txs for chainId=0 and bloat L1 storage with entries that no L2
+        // would ever consume.
+        ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         ExecutionEngine.Assert(encodedTx.Length > 0, "empty tx");
         var caller = Runtime.CallingScriptHash;
 

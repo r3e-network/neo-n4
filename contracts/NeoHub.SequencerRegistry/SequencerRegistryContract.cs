@@ -115,6 +115,9 @@ public class SequencerRegistryContract : SmartContract
     /// </summary>
     public static void Register(uint chainId, ECPoint sequencerKey, UInt160 sequencerAddress)
     {
+        // chainId 0 is the L1 sentinel; a registration there is meaningless because no
+        // L2 with chainId=0 exists. Reject at the source so storage stays clean.
+        ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         ExecutionEngine.Assert(Runtime.CheckWitness(sequencerKey), "no witness for sequencer key");
         ExecutionEngine.Assert(sequencerAddress.IsValid && !sequencerAddress.IsZero, "invalid sequencer address");
 

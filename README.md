@@ -70,7 +70,7 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 | Smart contracts   | **19**    | 13 NeoHub L1 + 6 L2 native; all type-check via `Neo.SmartContract.Framework` |
 | CLI tools         | **3**     | `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`                           |
 | Native FFI        | **1**     | `bridge/neo-zkvm-bridge` — Rust cdylib + C ABI for SP1 prover P/Invoke   |
-| Tests             | **786 / 28 projects**  | Module-level unit tests + integration tests + contract tests; all green |
+| Tests             | **820 / 26 projects**  | Module-level unit tests + integration tests; all green |
 
 ```
 neo4/

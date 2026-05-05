@@ -88,7 +88,10 @@ internal static class Program
         // Sequencer committee — 3 sequencers, all bonded. Optionally RocksDB-backed
         // when --data-dir was supplied so state survives a restart.
         var committeeStore = MaybeRocks(dataDir, "sequencer");
-        var committeeProvider = committeeStore is null
+        // `using` for proper disposal on shutdown — RocksDB's WAL guarantees durability,
+        // but a clean dispose flushes the memtable + closes file handles deterministically
+        // so a restart re-opens against a tidy DB rather than the WAL replay path.
+        using var committeeProvider = committeeStore is null
             ? new InMemorySequencerCommitteeProvider(LocalChainId, maxCommitteeSize: 7)
             : new InMemorySequencerCommitteeProvider(LocalChainId, committeeStore, ownsStore: true, maxCommitteeSize: 7);
         // Skip re-registration if the store already had members from a prior run.
@@ -107,14 +110,14 @@ internal static class Program
 
         // Real state store + oracle. Seed Alice with 0 balance.
         var stateBacking = MaybeRocks(dataDir, "state");
-        var stateStore = stateBacking is null
+        using var stateStore = stateBacking is null
             ? new KeyedStateStore()
             : new KeyedStateStore(stateBacking, ownsBacking: true);
         var stateRootOracle = new KeyedStateRootOracle(stateStore);
         Console.WriteLine($"[wire] keyed state store + oracle ({stateStore.Count} initial entries)");
 
         var rpcProofStore = MaybeRocks(dataDir, "rpc-proofs");
-        var rpcStore = rpcProofStore is null
+        using var rpcStore = rpcProofStore is null
             ? new InMemoryL2RpcStore(LocalChainId, SecurityLevel.Optimistic)
             : new InMemoryL2RpcStore(LocalChainId, SecurityLevel.Optimistic, rpcProofStore, ownsProofs: true);
         rpcStore.RegisterAsset(GasL1, GasL2);
@@ -123,9 +126,14 @@ internal static class Program
         // DA writer. With --data-dir, payloads are content-addressed in RocksDB so a
         // restart can resurrect any commitment. Without it, in-memory only — the
         // devnet's executor is deterministic so re-running re-derives every payload.
+        // BuildDefaultWriter returns IDAWriter; concrete impls are IDisposable. The cast
+        // path here is safe — InMemoryDAWriter, NeoFsLikeDAWriter, and PersistentDAWriter
+        // all implement IDisposable. If a future writer doesn't, IDisposable becomes
+        // optional and `daWriter as IDisposable` returns null which `using` tolerates.
         IDAWriter daWriter = dataDir is null
             ? L2DAPlugin.BuildDefaultWriter(DAMode.External, dataDir: null)
             : L2DAPlugin.BuildDefaultWriter(DAMode.External, Path.Combine(dataDir, "da"));
+        using var daWriterDispose = daWriter as IDisposable;
         Console.WriteLine($"[wire] DA writer = {daWriter.GetType().Name} (mode={daWriter.Mode})");
 
         var executor = new ReferenceBatchExecutor(
@@ -280,7 +288,19 @@ internal static class Program
         }
 
         // ---- Audit pass over the produced sequence ----
+        // Skip audit when no batches were produced this run — the operator likely passed
+        // 0 to verify rehydration only. The auditor's "no batches supplied" check is
+        // intentional for serving real audit requests; firing it on an empty re-run
+        // would mask the persistence verification path with a confusing audit failure.
         Console.WriteLine();
+        if (allCommitments.Count == 0)
+        {
+            Console.WriteLine("───── audit pass ─────");
+            Console.WriteLine("  (skipped — 0 batches this run; rehydration verification only)");
+            Console.WriteLine();
+            Console.WriteLine("✅ devnet run complete.");
+            return 0;
+        }
         Console.WriteLine("───── audit pass ─────");
         var auditor = new ChainAuditor(metrics)
             .Register(new ContinuityCheck())

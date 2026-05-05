@@ -129,6 +129,10 @@ public class GovernanceControllerContract : SmartContract
     {
         ExecutionEngine.Assert(IsCouncilMember(signer), "not a council member");
         ExecutionEngine.Assert(Runtime.CheckWitness(signer), "no witness");
+        // An empty payload is meaningless — Approve() can't tell what's being voted on.
+        // Without this guard, a council member typo could waste a proposal id and
+        // collect approvals for "vote on nothing".
+        ExecutionEngine.Assert(payload.Length > 0, "empty proposal payload");
         var idRaw = Storage.Get(new byte[] { KeyNextProposalId });
         var id = idRaw == null ? 1UL : (ulong)(BigInteger)idRaw;
         Storage.Put(new byte[] { KeyNextProposalId }, (BigInteger)(id + 1));

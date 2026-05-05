@@ -75,7 +75,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**700 unit + integration tests across 29 projects:**
+**717 unit + integration tests across 29 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -105,7 +105,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ## What's not yet wired (out of MVP scope)
 
-- **Live L1 signer for `RpcSettlementClient.SubmitBatchAsync`** — interface in place; concrete wallet integration is operator-specific.
+- **Live L1 signer for `RpcSettlementClient.SubmitBatchAsync`** — interface in place; concrete wallet integration is operator-specific. For tests + devnets, `Neo.L2.Settlement.Rpc.InMemorySettlementClient` provides a fully-functional in-process `ISettlementClient` with deterministic tx hashes and an explicit `AdvanceStatus` lifecycle driver.
 - **`nccs` artifact generation** — `Directory.Build.props` calls `nccs` with `ContinueOnError=true`; users install nccs separately.
 - **RpcServer plugin integration partial** — `L2RpcMethods` callable as plain methods; the `[RpcMethod]`-attributed wrapper for neo's `RpcServer` plugin needs the RpcServer source.
 - **Real SP1 prover linkage** — flip `--features real-prover` on the bridge crate to enable.

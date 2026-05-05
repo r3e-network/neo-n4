@@ -76,7 +76,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**786 unit + integration tests across 28 projects:**
+**793 unit + integration tests across 28 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -94,7 +94,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.Challenge.UnitTests`         | 28    | fraud-proof payload, orchestrator, BisectionGame, **`InspectWithBisectionAsync` (no-fraud agreement, log-N narrowing, arg validation, empty/mismatched/single-element checkpoint shape rejection)**, metric emission |
 | `Neo.L2.Audit.UnitTests`             | 25    | continuity + proof-validity + **public-input-hash consistency** checks, summary, `NoZeroProofCheck`, **`ChainAuditor` self-emits runs + failures (delta = failed-finding count), strict-ascending duplicate-rejection, `AuditReport.Passed` non-empty guard, `ProofValidityCheck` null-guard** |
 | `Neo.Plugins.L2Rpc.UnitTests`        | 16    | all 9 RPC methods, foreign-chain rejection, **per-method metric emission (calls/latency/failures), too-few-params clear-error, oversized-chainId overflow, monotonic `_latestStateRoot` on out-of-order Finalize** |
-| `Neo.Plugins.L2DA.UnitTests`         | 45    | InMemory + NeoFsLike DA writers + **MetricsEmittingDAWriter (success / throw / accumulate / passthrough), `ResolveDAMode` accepts 0..3 / rejects unknown, all DAWriter null-arg paths, `L2DAPlugin` default-writer / `WithWriter` injection, `CommitteeAttestedDAWriter` round-trip + tampered-sig + null-arg + buggy-callback contracts** |
+| `Neo.Plugins.L2DA.UnitTests`         | 52    | InMemory + NeoFsLike DA writers + **MetricsEmittingDAWriter (success / throw / accumulate / passthrough), `ResolveDAMode` accepts 0..3 / rejects unknown, all DAWriter null-arg paths, `L2DAPlugin` default-writer / `WithWriter` injection, `CommitteeAttestedDAWriter` round-trip + tampered-sig + null-arg + buggy-callback contracts, `BuildDefaultWriter` (External/NeoFS/L1/DAC × dataDir-set/null/empty/whitespace boundary)** |
 | `Neo.Plugins.L2Gateway.UnitTests`    | 18    | flat + binary-tree aggregator, edge cases, **metric emission with rounds=log2(N) + per-batch accumulation** |
 | `Neo.Plugins.L2Metrics.UnitTests`    | 18    | composition root: bound port, idempotent Start, real HTTP scrape, readiness predicate gating, default settings, **`ResolveBindAddress` boundary tests, concurrent-Start race-safety, `ValidatePort` boundary tests** |
 | `Neo.Plugins.L2Batch.UnitTests`      | 11    | `BatchSealer` block / tx / age triggers, batch-number monotonicity, gauge replace, NoOp default, **`ValidatePositive` boundary tests** |

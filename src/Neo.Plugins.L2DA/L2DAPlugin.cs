@@ -58,23 +58,40 @@ public sealed class L2DAPlugin : Plugin
         // implementation or a real NeoFS SDK adapter), respect it. Otherwise pick the
         // built-in default for the configured mode.
         if (_writerOverridden) { _writer = WrapWithMetrics(Unwrap(_writer)); return; }
+        var dataDir = section.GetValue<string?>("DataDirectory");
+        _writer = WrapWithMetrics(BuildDefaultWriter(_mode, dataDir));
+    }
 
+    /// <summary>
+    /// Pure writer-resolution rule used by <see cref="Configure"/>. Extracted so the
+    /// "DataDirectory wins / falls back to mode-specific default" logic can be unit
+    /// tested without driving Plugin.GetConfiguration() through a real config.json on
+    /// disk. Without this seam the DataDirectory-driven RocksDB path could silently
+    /// regress to an in-memory default — which would be invisible until production data
+    /// vanished on restart.
+    /// </summary>
+    /// <remarks>
+    /// If <paramref name="dataDir"/> is non-empty, returns a <see cref="PersistentDAWriter"/>
+    /// over a <see cref="RocksDbKeyValueStore"/> at that path — independent of mode, since
+    /// the writer is mode-tagged. Otherwise picks the built-in default for the configured
+    /// mode, throwing <see cref="NotSupportedException"/> for L1 / DAC which need
+    /// operator-supplied writers.
+    /// </remarks>
+    public static IDAWriter BuildDefaultWriter(DAMode mode, string? dataDir)
+    {
         // If the operator configured a DataDirectory, use it to back a durable
         // PersistentDAWriter via RocksDB. Without it, fall back to in-memory (suitable
         // for tests + devnets only). Production deployments should always set
         // DataDirectory or wire WithWriter() — pinning this is what makes RocksDB the
         // production default for the Neo Elastic Network.
-        var dataDir = section.GetValue<string?>("DataDirectory");
         if (!string.IsNullOrWhiteSpace(dataDir))
         {
-            _writer = WrapWithMetrics(new PersistentDAWriter(
+            return new PersistentDAWriter(
                 new RocksDbKeyValueStore(dataDir),
-                _mode,
-                ownsStore: true));
-            return;
+                mode,
+                ownsStore: true);
         }
-
-        IDAWriter raw = _mode switch
+        return mode switch
         {
             DAMode.External => new InMemoryDAWriter(),
             DAMode.NeoFS => new NeoFsLikeDAWriter(),
@@ -83,9 +100,8 @@ public sealed class L2DAPlugin : Plugin
             DAMode.DAC => throw new NotSupportedException(
                 "DAMode.DAC has no built-in default writer — provide a committee-attestation IDAWriter via WithWriter() before Configure()"),
             // ResolveDAMode guarantees we don't hit this; kept as a defense-in-depth assert.
-            _ => throw new InvalidOperationException($"unhandled DAMode {(byte)_mode}"),
+            _ => throw new InvalidOperationException($"unhandled DAMode {(byte)mode}"),
         };
-        _writer = WrapWithMetrics(raw);
     }
 
     private bool _writerOverridden;

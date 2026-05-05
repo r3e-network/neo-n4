@@ -239,6 +239,97 @@ public class UT_DAWriters
     }
 
     [TestMethod]
+    public void BuildDefaultWriter_External_NoDataDir_ReturnsInMemory()
+    {
+        // Pin the dev/test default — the bare External mode without a DataDirectory
+        // is the path that single-node demos hit, and silently swapping it for
+        // anything else would break those.
+        var w = L2DAPlugin.BuildDefaultWriter(DAMode.External, dataDir: null);
+        Assert.IsInstanceOfType(w, typeof(InMemoryDAWriter));
+        Assert.AreEqual(DAMode.External, w.Mode);
+    }
+
+    [TestMethod]
+    public void BuildDefaultWriter_NeoFS_NoDataDir_ReturnsNeoFsLike()
+    {
+        var w = L2DAPlugin.BuildDefaultWriter(DAMode.NeoFS, dataDir: null);
+        Assert.IsInstanceOfType(w, typeof(NeoFsLikeDAWriter));
+        Assert.AreEqual(DAMode.NeoFS, w.Mode);
+    }
+
+    [TestMethod]
+    public void BuildDefaultWriter_L1_NoDataDir_Throws()
+    {
+        // L1 mode has no built-in writer; without WithWriter() OR DataDirectory the
+        // plugin must surface a clear message at Configure-time rather than silently
+        // falling through to in-memory (which would lose batch payloads).
+        var ex = Assert.ThrowsExactly<NotSupportedException>(
+            () => L2DAPlugin.BuildDefaultWriter(DAMode.L1, dataDir: null));
+        StringAssert.Contains(ex.Message, "DAMode.L1");
+        StringAssert.Contains(ex.Message, "WithWriter");
+        StringAssert.Contains(ex.Message, "DataDirectory");
+    }
+
+    [TestMethod]
+    public void BuildDefaultWriter_DAC_NoDataDir_Throws()
+    {
+        var ex = Assert.ThrowsExactly<NotSupportedException>(
+            () => L2DAPlugin.BuildDefaultWriter(DAMode.DAC, dataDir: null));
+        StringAssert.Contains(ex.Message, "DAMode.DAC");
+        StringAssert.Contains(ex.Message, "WithWriter");
+    }
+
+    [TestMethod]
+    public void BuildDefaultWriter_DataDirectorySet_ReturnsPersistentDAWriter()
+    {
+        // The production default. With DataDirectory set, mode is irrelevant: every
+        // mode resolves to PersistentDAWriter over RocksDB. Pinning this prevents
+        // a refactor that tightens the dataDir branch to "External only" from
+        // silently regressing the production wiring.
+        var dir = Path.Combine(Path.GetTempPath(), "neo-l2-da-build-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var w = (PersistentDAWriter)L2DAPlugin.BuildDefaultWriter(DAMode.External, dir);
+            Assert.AreEqual(DAMode.External, w.Mode);
+        }
+        finally
+        {
+            if (Directory.Exists(dir)) try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
+
+    [TestMethod]
+    public void BuildDefaultWriter_DataDirectorySet_OverridesL1Throw()
+    {
+        // L1 mode without DataDirectory throws (no built-in default). With
+        // DataDirectory, the same mode succeeds via PersistentDAWriter — the
+        // dataDir path "wins" over the mode-specific NotSupportedException. This
+        // is the operator escape hatch documented in the L1 throw message.
+        var dir = Path.Combine(Path.GetTempPath(), "neo-l2-da-l1esc-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var w = (PersistentDAWriter)L2DAPlugin.BuildDefaultWriter(DAMode.L1, dir);
+            Assert.AreEqual(DAMode.L1, w.Mode);
+        }
+        finally
+        {
+            if (Directory.Exists(dir)) try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
+
+    [TestMethod]
+    public void BuildDefaultWriter_EmptyDataDir_TreatedAsAbsent()
+    {
+        // string.IsNullOrWhiteSpace is the gate — empty string + whitespace must NOT
+        // resolve to PersistentDAWriter (RocksDb at "" or "   " would either fail or
+        // succeed in the wrong place). They should be treated as "no dataDir".
+        var w1 = L2DAPlugin.BuildDefaultWriter(DAMode.External, dataDir: "");
+        Assert.IsInstanceOfType(w1, typeof(InMemoryDAWriter));
+        var w2 = L2DAPlugin.BuildDefaultWriter(DAMode.External, dataDir: "   ");
+        Assert.IsInstanceOfType(w2, typeof(InMemoryDAWriter));
+    }
+
+    [TestMethod]
     public async Task NeoFsLike_TryGet_DefensiveCopy_CallerCannotCorruptStore()
     {
         // Regression for iter 188: TryGet previously returned the raw stored byte[]

@@ -77,6 +77,9 @@ public class SharedBridgeContract : SmartContract
         ExecutionEngine.Assert(asset.IsValid && !asset.IsZero, "invalid asset");
         ExecutionEngine.Assert(amount > 0, "amount must be positive");
         ExecutionEngine.Assert(l2Recipient.IsValid && !l2Recipient.IsZero, "invalid recipient");
+        // chainId 0 is the L1 sentinel — without this guard a deposit to chainId=0
+        // would lock tokens in escrow that no L2 would ever pick up.
+        ExecutionEngine.Assert(targetChainId > 0, "targetChainId 0 is reserved for L1");
 
         var caller = Runtime.CallingScriptHash;
 
@@ -115,6 +118,7 @@ public class SharedBridgeContract : SmartContract
         UInt160 recipient,
         BigInteger amount)
     {
+        ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         ExecutionEngine.Assert(amount > 0, "amount must be positive");
         ExecutionEngine.Assert(asset.IsValid && !asset.IsZero, "invalid asset");
         ExecutionEngine.Assert(recipient.IsValid && !recipient.IsZero, "invalid recipient");

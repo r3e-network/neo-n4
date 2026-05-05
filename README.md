@@ -129,7 +129,7 @@ Detailed coverage per project: [`IMPLEMENTATION_STATUS.md`](./IMPLEMENTATION_STA
 git clone https://github.com/r3e-network/neo-n4
 cd neo-n4
 
-# Type-check everything + run all 794 tests (~10 seconds)
+# Type-check everything + run all 797 tests (~10 seconds)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Run the in-process devnet (5 batches, real state-root continuity, post-run audit)

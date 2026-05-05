@@ -4,7 +4,7 @@ namespace Neo.Hub.Deploy;
 
 /// <summary>
 /// Generates the canonical default <see cref="DeployPlan"/> that matches the layout in
-/// doc.md §3.2 and §13.1. The 9 NeoHub contracts deploy in dependency order; L2 native
+/// doc.md §3.2 and §13.1. The 13 NeoHub contracts deploy in dependency order; L2 native
 /// contracts are listed but commented as "deploy on the L2", not the L1.
 /// </summary>
 public static class ScaffoldPlan
@@ -63,6 +63,52 @@ public static class ScaffoldPlan
                     "contracts/NeoHub.ForcedInclusion/bin/Release/NeoHub.ForcedInclusion.nef",
                     OwnerAndDep("SettlementManager"),
                     "SettlementManager"),
+
+                // SequencerBond holds the bonded GAS that backs each sequencer + pays out
+                // slash awards. Initial slashers list is just GovernanceController so the
+                // bond contract can deploy first without a cycle. After OptimisticChallenge
+                // is up the operator calls SequencerBond.SetSlashers([gov, optChallenge]).
+                Step("SequencerBond",
+                    "contracts/NeoHub.SequencerBond/bin/Release/NeoHub.SequencerBond.nef",
+                    BondDeployData(),
+                    "GovernanceController"),
+
+                // SequencerRegistry tracks the live committee + exit windows. Bonds are
+                // checked against SequencerBond before a register goes through.
+                Step("SequencerRegistry",
+                    "contracts/NeoHub.SequencerRegistry/bin/Release/NeoHub.SequencerRegistry.nef",
+                    OwnerAndDep("SequencerBond"),
+                    "SequencerBond"),
+
+                // OptimisticChallenge is the Phase 3 contract. Its window timer + slash
+                // payout requires both SettlementManager (for batch lookups) + SequencerBond
+                // (to deduct on a successful challenge).
+                Step("OptimisticChallenge",
+                    "contracts/NeoHub.OptimisticChallenge/bin/Release/NeoHub.OptimisticChallenge.nef",
+                    OwnerAndDeps("SettlementManager", "SequencerBond"),
+                    "SettlementManager", "SequencerBond"),
+            },
+        };
+    }
+
+    /// <summary>
+    /// SequencerBond's deploy_data: (owner, bondAsset, slashers[]). Initial slashers list
+    /// only includes GovernanceController to avoid a deploy cycle (OptimisticChallenge
+    /// itself depends on SequencerBond). After OptimisticChallenge is deployed, the
+    /// operator must call <c>SequencerBond.SetSlashers([gov, optChallenge])</c> to enable
+    /// the Phase 3 challenge slash payout. The slashers array is resolved by the same
+    /// <c>$step:</c> machinery as scalars — see <c>DeployPlanner.ResolveToken</c>'s
+    /// JArray branch.
+    /// </summary>
+    private static JArray BondDeployData()
+    {
+        return new JArray
+        {
+            "OWNER_REPLACE_ME",
+            "BOND_ASSET_REPLACE_ME",   // canonical GAS hash on the target L1
+            new JArray
+            {
+                "$step:GovernanceController",
             },
         };
     }

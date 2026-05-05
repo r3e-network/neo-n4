@@ -202,12 +202,62 @@ public class UT_DeployPlanner
     public void Scaffold_DefaultIncludesAllNeoHubContracts()
     {
         var plan = ScaffoldPlan.Default();
-        Assert.AreEqual(10, plan.Steps.Count);
+        Assert.AreEqual(13, plan.Steps.Count);
         var names = plan.Steps.Select(s => s.Name).ToHashSet();
+        // Phase 0/1/2 contracts
         Assert.IsTrue(names.Contains("ChainRegistry"));
         Assert.IsTrue(names.Contains("SharedBridge"));
         Assert.IsTrue(names.Contains("SettlementManager"));
+        Assert.IsTrue(names.Contains("VerifierRegistry"));
+        Assert.IsTrue(names.Contains("TokenRegistry"));
+        Assert.IsTrue(names.Contains("DARegistry"));
+        Assert.IsTrue(names.Contains("MessageRouter"));
+        Assert.IsTrue(names.Contains("EmergencyManager"));
+        Assert.IsTrue(names.Contains("GovernanceController"));
         Assert.IsTrue(names.Contains("ForcedInclusion"));
+        // Phase 3 contracts (newly added to scaffold)
+        Assert.IsTrue(names.Contains("SequencerBond"));
+        Assert.IsTrue(names.Contains("SequencerRegistry"));
+        Assert.IsTrue(names.Contains("OptimisticChallenge"));
+    }
+
+    [TestMethod]
+    public void Scaffold_SequencerBondSlashersIsArrayWithGovernanceController()
+    {
+        // Pin the unusual 3rd deploy arg shape — SequencerBond takes
+        // (owner, bondAsset, slashers[]) where slashers is a JArray, not a scalar.
+        // A regression that flattens this into "$step:GovernanceController" alone
+        // would break the contract's _deploy at runtime with a confusing cast error.
+        var plan = ScaffoldPlan.Default();
+        var bond = plan.Steps.Single(s => s.Name == "SequencerBond");
+        Assert.AreEqual(3, bond.DeployData.Count, "SequencerBond needs (owner, bondAsset, slashers[])");
+        var slashers = bond.DeployData[2] as Neo.Json.JArray;
+        Assert.IsNotNull(slashers, "3rd arg must be a JArray (slashers list)");
+        Assert.AreEqual(1, slashers.Count, "Initial slashers list = [GovernanceController]");
+    }
+
+    [TestMethod]
+    public void Scaffold_OptimisticChallengeDependsOnSettlementAndBond()
+    {
+        // Pin the dep edges so a refactor that breaks the topo ordering surfaces
+        // here, not at L1 deploy time when arr[1] / arr[2] become invalid hashes.
+        var plan = ScaffoldPlan.Default();
+        var oc = plan.Steps.Single(s => s.Name == "OptimisticChallenge");
+        CollectionAssert.Contains(oc.DependsOn.ToArray(), "SettlementManager");
+        CollectionAssert.Contains(oc.DependsOn.ToArray(), "SequencerBond");
+    }
+
+    [TestMethod]
+    public void Scaffold_NoDeployCycle_BondBeforeChallenge()
+    {
+        // Pin the cycle-break: SequencerBond does NOT depend on OptimisticChallenge,
+        // so the topo sort can put bond first and challenge later. Without this
+        // assertion, somebody re-adding OptimisticChallenge to BondDeployData would
+        // re-introduce the cycle and the planner would fail with a confusing
+        // "dependency cycle detected through step 'SequencerBond'" error.
+        var plan = ScaffoldPlan.Default();
+        var bond = plan.Steps.Single(s => s.Name == "SequencerBond");
+        CollectionAssert.DoesNotContain(bond.DependsOn.ToArray(), "OptimisticChallenge");
     }
 
     [TestMethod]

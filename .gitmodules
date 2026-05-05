@@ -1,3 +1,6 @@
 [submodule "external/neo"]
 	path = external/neo
 	url = https://github.com/neo-project/neo.git
+[submodule "external/neo-devpack-dotnet"]
+	path = external/neo-devpack-dotnet
+	url = https://github.com/neo-project/neo-devpack-dotnet.git

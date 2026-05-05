@@ -1,0 +1,85 @@
+name: build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: dotnet test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          # neo-project/neo and neo-project/neo-devpack-dotnet are vendored as
+          # submodules at external/neo and external/neo-devpack-dotnet (see
+          # Directory.Build.props NeoCorePath / contracts/Directory.Build.props
+          # NeoDevpackPath). Both are never released on NuGet for the versions
+          # we track here, so the submodule init is required for the build.
+          submodules: recursive
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build
+        run: dotnet build Neo.L2.sln /p:NuGetAudit=false --nologo
+
+      - name: Test
+        run: dotnet test Neo.L2.sln /p:NuGetAudit=false --nologo --no-build
+
+  contracts:
+    name: type-check contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Type-check NeoHub + L2Native contracts
+        # nccs (Neo C# Compiler) isn't on the runner. /p:DisableNccs=true skips the
+        # .nef + .manifest.json artifact step; the C# type-check still runs and
+        # catches API misuse. See contracts/Directory.Build.props for the toggle.
+        run: |
+          for d in contracts/NeoHub.* contracts/L2Native.*; do
+            dotnet build "$d" /p:NuGetAudit=false /p:DisableNccs=true --nologo
+          done
+
+  bridge:
+    name: cargo check (Rust bridge)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # Default features: real-prover is OFF, so the bridge is buildable without
+      # actually wiring up neo-zkvm's prover crates. The `real-prover` feature
+      # toggle is exercised by operators who supply the keys + RISC-V toolchain.
+      - name: cargo check
+        working-directory: bridge/neo-zkvm-bridge
+        run: cargo check --no-default-features

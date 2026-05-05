@@ -32,6 +32,24 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Override nuget.config for the submodule
+        # external/neo/nuget.config <clear/>s sources and adds MyGet-neo, which
+        # times out on CI runners. Force MSBuild to use only nuget.org for this
+        # submodule via a sibling override that takes precedence (NuGet picks the
+        # closest config — drop one inside the submodule that does NOT have <clear/>).
+        # The override only lives in the runner's working tree; it does not affect
+        # the committed submodule state.
+        run: |
+          cat > external/neo/nuget.config <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="NuGet.org" value="https://api.nuget.org/v3/index.json" />
+            </packageSources>
+          </configuration>
+          EOF
+
       - name: Build
         run: dotnet build Neo.L2.sln /p:NuGetAudit=false --nologo
 
@@ -53,6 +71,20 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+
+      - name: Override nuget.config for the submodule
+        # See the test job for context — force only nuget.org so MyGet-neo doesn't
+        # time out CI restores.
+        run: |
+          cat > external/neo/nuget.config <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="NuGet.org" value="https://api.nuget.org/v3/index.json" />
+            </packageSources>
+          </configuration>
+          EOF
 
       - name: Type-check NeoHub + L2Native contracts
         # nccs (Neo C# Compiler) isn't on the runner. /p:DisableNccs=true skips the

@@ -37,6 +37,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.Settlement.Rpc`   | JSON-RPC client + `RpcSettlementClient` for L1 read methods + signer-delegated submit |
 | `Neo.L2.Audit`            | End-to-end chain auditor: `ContinuityCheck` + `ProofValidityCheck` + `NoZeroProofCheck` + `ChainAuditor` (auto-emits `l2.audit.runs` + `l2.audit.failures`) |
 | `Neo.L2.Telemetry`        | `IL2Metrics` (counter/histogram/gauge) + `NoOpMetrics` + `InMemoryMetrics` + `MetricsSnapshot` + `PrometheusExporter` + `MetricsRequestHandler` (`/metrics` + **`/healthz` + `/readyz`**) + `MetricsHttpServer` (TcpListener-based, no third-party deps) + canonical `MetricNames` + `MetricCatalog` (operator-facing HELP descriptions) |
+| `Neo.L2.Persistence`      | **`IL2KeyValueStore` abstraction + `InMemoryKeyValueStore` + `RocksDbKeyValueStore` (RocksDbSharp 10.4.2, snappy compression default).** Wired into `KeyedStateStore`, `InMemoryL2RpcStore`, `InMemoryMessageRouter`, `InMemoryForcedInclusionSource`, `InMemorySequencerCommitteeProvider`, `PersistentDAWriter` so production data survives restart. Per-component reopen tests pin the durability story. |
 
 ### Native FFI bridge (`bridge/`)
 
@@ -70,12 +71,12 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | Tool                  | Role                                                  |
 | --------------------- | ----------------------------------------------------- |
 | `Neo.Stack.Cli`       | `neo-stack` CLI: 8 subcommands                        |
-| `Neo.L2.Devnet`       | `neo-l2-devnet <N> [--metrics-port <P>]` — runs N batches end-to-end with real `KeyedStateStore` continuity + sequencer committee + post-run `ChainAuditor` pass; with `--metrics-port` it stands up a live HTTP server and self-scrapes `/metrics`, `/healthz`, `/readyz` |
+| `Neo.L2.Devnet`       | `neo-l2-devnet <N> [--metrics-port <P>] [--data-dir <path>]` — runs N batches end-to-end with real `KeyedStateStore` continuity + sequencer committee + post-run `ChainAuditor` pass; with `--metrics-port` stands up a live HTTP server + self-scrapes `/metrics`, `/healthz`, `/readyz`; with `--data-dir` wires `RocksDbKeyValueStore` instances under that path so committee + state + RPC proofs survive restart |
 | `Neo.Hub.Deploy`      | `neo-hub-deploy` — declarative L1 deploy planner: scaffold / plan / verify |
 
 ### Tests
 
-**786 unit + integration tests across 30 projects:**
+**786 unit + integration tests across 28 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -100,6 +101,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.Plugins.L2Settlement.UnitTests` | 6     | **metric emission on submit success / failure / no-op default, wire-before-dequeue, concurrent-call gate serialization** |
 | `Neo.L2.Settlement.Rpc.UnitTests`    | 6     | JSON-RPC envelope, stack parsing, signer    |
 | `Neo.L2.Telemetry.UnitTests`         | 43    | counter/histogram/gauge accumulation, tag canonicalization, Prometheus exporter (counter/gauge/summary, labels, name sanitization, frozen-snapshot), request handler routing, TCP server round-trip + multi-request, catalog completeness vs MetricNames + Prometheus integration, **`/healthz` + `/readyz` (with predicate)** |
+| `Neo.L2.Persistence.UnitTests`       | 15    | **`InMemoryKeyValueStore` + `RocksDbKeyValueStore` parity (Put / Get / Delete / Contains / EnumeratePrefix / Count, lexicographic ordering, dispose semantics, defensive-copy on read)** |
 | `Neo.Hub.Deploy.UnitTests`           | 12    | topo sort, cycle detection, scaffold, **plan-version check, duplicate / empty step names** |
 | `Neo.L2.IntegrationTests`            | 15    | Phase 0 MVP + Phase 1 cross-component + Phase 2 full-stack + Phase 3 optimistic-challenge + all-phases stitch + e2e telemetry pipeline + **L2MetricsPlugin composition root (every instrumented component → one sink → HTTP scrape)** |
 
@@ -111,7 +113,8 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 - **Real SP1 prover linkage** — flip `--features real-prover` on the bridge crate to enable.
 - **Real recursive ZK round prover** — `BinaryTreeAggregator` has the right shape; production swaps `PassThroughRoundProver` for SP1 Compress / Halo2 accumulator / Risc0 fold.
 - **Real NeoFS client** — `NeoFsLikeDAWriter` models the semantics with content-addressed in-process storage and is now the default `DAMode.NeoFS` writer wired by `L2DAPlugin`. Production swaps it via `L2DAPlugin.WithWriter(yourNeoFsSdkAdapter)` before `Configure` runs.
-- **L1-DA / DAC writers** — `DAMode.L1` (publish to Neo N3) and `DAMode.DAC` (committee attestation) have no built-in default. Both throw a clear `NotSupportedException` at `Configure`-time pointing the operator at `L2DAPlugin.WithWriter()` for production injection.
+- **L1-DA writer** — `DAMode.L1` (publish to Neo N3) has no built-in default and throws a clear `NotSupportedException` at `Configure`-time pointing the operator at `L2DAPlugin.WithWriter()` for production injection.
+- **DAC mode wiring** — `Neo.Plugins.L2DA.CommitteeAttestedDAWriter` provides a real DAMode.DAC implementation (N committee signers, secp256r1 sigs verified before answering IsAvailable=true), but the plugin can't auto-wire it without operator-supplied committee keys + signer callback — operators inject via `L2DAPlugin.WithWriter(new CommitteeAttestedDAWriter(committee, sign))` before `Configure`.
 - **dBFT consensus integration** — `SequencerRegistry` and `Neo.L2.Sequencer` provide the per-chain validator set; wiring it into neo's `DBFTPlugin` consensus selector is operator-specific.
 
 ## How to run
@@ -128,6 +131,9 @@ dotnet run --project tools/Neo.L2.Devnet -- 5
 
 # Same demo plus live HTTP /metrics scrape on port 9090
 dotnet run --project tools/Neo.L2.Devnet -- 5 --metrics-port 9090
+
+# Persist devnet state to disk via RocksDB (state survives restart)
+dotnet run --project tools/Neo.L2.Devnet -- 5 --data-dir /tmp/neo-l2-devnet
 
 # Generate a NeoHub deploy bundle
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold --output deploy-plan.json

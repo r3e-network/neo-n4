@@ -138,6 +138,9 @@ dotnet run --project tools/Neo.L2.Devnet -- 5
 # Same plus a live HTTP /metrics scrape at :9090
 dotnet run --project tools/Neo.L2.Devnet -- 5 --metrics-port 9090
 
+# Persist devnet state to disk via RocksDB (state survives restart)
+dotnet run --project tools/Neo.L2.Devnet -- 5 --data-dir /tmp/neo-l2-devnet
+
 # Generate a NeoHub deploy bundle (declarative, dependency-resolved)
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold --output deploy-plan.json
 dotnet run --project tools/Neo.Hub.Deploy -- plan     --plan deploy-plan.json --output bundle.json

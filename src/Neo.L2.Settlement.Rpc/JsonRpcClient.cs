@@ -17,8 +17,17 @@ public sealed class JsonRpcClient : IDisposable
     private bool _ownsHttp;
 
     /// <summary>Construct against an endpoint URI; allocates a default <see cref="HttpClient"/>.</summary>
-    public JsonRpcClient(string endpoint) : this(new Uri(endpoint), httpClient: null)
+    public JsonRpcClient(string endpoint) : this(ParseEndpoint(endpoint), httpClient: null)
     { }
+
+    private static Uri ParseEndpoint(string endpoint)
+    {
+        // Without this pre-check, a null endpoint surfaces as "Value cannot be null.
+        // (Parameter 'uriString')" — confusing because the caller's parameter is named
+        // `endpoint`, not `uriString`. Same for an empty string (UriFormatException).
+        ArgumentException.ThrowIfNullOrEmpty(endpoint);
+        return new Uri(endpoint);
+    }
 
     /// <summary>Construct with an explicit endpoint and optional caller-owned <see cref="HttpClient"/>.</summary>
     public JsonRpcClient(Uri endpoint, HttpClient? httpClient)

@@ -42,14 +42,18 @@ You should see:
 │  chainId = 1001, batches =  5                      │
 └─────────────────────────────────────────────┘
 
+[persist] in-memory stores (devnet default — data lost on restart)
+
 [wire] asset registry: 1 mapping (GAS L1=0x11111111…1111 → L2=0x22222222…2222)
 [wire] 4 validators, attestation threshold = 3
 [wire] sequencer committee: 3 active members
 [wire] keyed state store + oracle (0 initial entries)
+[wire] DA writer = InMemoryDAWriter (mode=External)
 
 ────── batch #1 ──────
   [deposit] minted 1000000 → Alice (nonce=1)
   [withdraw] staged 10000 from Alice → Bob (nonce=1)
+  [DA]   layer=External commitment=0xc7a1cb54…7819b6
   [seal] preRoot=0x00000000…000000 postRoot=0xe863d100…d70776 verify=True
 […]
 ✅ devnet run complete.
@@ -61,9 +65,28 @@ What just happened:
 - **5 batches** ran — each containing a deposit + withdrawal — through `ReferenceBatchExecutor`.
 - The **`KeyedStateStore`** held real (asset, holder) → balance entries; each batch's
   `preStateRoot` equals the previous `postStateRoot` (state-root continuity guaranteed).
+- Each batch published its payload to the **DA writer**; the resulting commitment was
+  bound into the proof's public inputs.
 - **Stage-0 multisig prover** signed canonical public-input bytes; **`AttestationVerifier`**
   validated 3-of-4 signatures.
 - **Alice's net balance** was checked against the expected sum at the end.
+
+### Persistent devnet (state survives restart)
+
+Add `--data-dir <path>` to swap every store to RocksDB:
+
+```bash
+dotnet run --project tools/Neo.L2.Devnet -- 5 --data-dir /tmp/neo-l2-devnet1
+# [persist] RocksDB-backed stores at /tmp/neo-l2-devnet1 (data survives restart)
+
+# Re-run with 0 batches — committee + state are rehydrated from disk
+dotnet run --project tools/Neo.L2.Devnet -- 0 --data-dir /tmp/neo-l2-devnet1
+# [wire] sequencer committee: 3 active members  (no re-registration)
+# [wire] keyed state store + oracle (5 initial entries)
+```
+
+Layout under `<path>/`: `state/`, `rpc-proofs/`, `sequencer/`, `da/`. See
+[`docs/persistence.md`](./persistence.md) for the production wiring story.
 
 ## Step 4 — Generate a NeoHub deploy bundle
 
@@ -72,10 +95,18 @@ dotnet run --project tools/Neo.Hub.Deploy -- scaffold --output deploy-plan.json
 dotnet run --project tools/Neo.Hub.Deploy -- plan --plan deploy-plan.json --output bundle.json
 ```
 
-`bundle.json` is a topologically-sorted, dependency-resolved sequence of contract deploy
-invocations — every `$step:<name>` placeholder substituted with deterministic stub hashes.
-Production deployments feed the bundle to a wallet-equipped runner that signs + sends each
-invocation.
+`bundle.json` is a topologically-sorted, dependency-resolved sequence of 13 contract
+deploy invocations — every `$step:<name>` placeholder substituted with deterministic
+stub hashes. Production deployments feed the bundle to a wallet-equipped runner that
+signs + sends each invocation.
+
+The `plan` command also prints required post-deploy actions when the bundle does not
+fully wire the system on its own — e.g.:
+
+```
+Required post-deploy actions:
+  - SequencerBond.RegisterSlasher(OptimisticChallenge)  # enable Phase-3 challenge slashing
+```
 
 ## Step 5 — Build a smart contract
 

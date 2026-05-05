@@ -7,7 +7,7 @@
 | Phase | Goal                                      | Status                                      |
 | ----- | ----------------------------------------- | ------------------------------------------- |
 | 0     | Sidechain PoC                             | ✅ MVP integration test passes              |
-| 1     | NeoHub v0 + Shared Bridge                 | ✅ All 12 NeoHub contracts compile + deploy planner emits 10-step bundle |
+| 1     | NeoHub v0 + Shared Bridge                 | ✅ All 13 NeoHub contracts compile + deploy planner emits 13-step bundle |
 | 2     | Batch Settlement                          | ✅ Off-chain green; real `KeyedStateStore` continuity verified across batches |
 | 3     | Optimistic Challenge Window               | ✅ `OptimisticChallenge` contract + `ChallengeOrchestrator` + `BisectionGame` (log-N narrowing) all green |
 | 4     | NeoVM2 / RISC-V ZK Validity Proof         | 🟡 SP1 FFI bridge scaffolded; flip `--features real-prover` to enable |

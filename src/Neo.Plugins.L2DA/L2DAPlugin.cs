@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Neo.L2;
+using Neo.L2.Persistence;
 using Neo.L2.Telemetry;
 
 namespace Neo.Plugins.L2;
@@ -57,12 +58,28 @@ public sealed class L2DAPlugin : Plugin
         // implementation or a real NeoFS SDK adapter), respect it. Otherwise pick the
         // built-in default for the configured mode.
         if (_writerOverridden) { _writer = WrapWithMetrics(Unwrap(_writer)); return; }
+
+        // If the operator configured a DataDirectory, use it to back a durable
+        // PersistentDAWriter via RocksDB. Without it, fall back to in-memory (suitable
+        // for tests + devnets only). Production deployments should always set
+        // DataDirectory or wire WithWriter() — pinning this is what makes RocksDB the
+        // production default for the Neo Elastic Network.
+        var dataDir = section.GetValue<string?>("DataDirectory");
+        if (!string.IsNullOrWhiteSpace(dataDir))
+        {
+            _writer = WrapWithMetrics(new PersistentDAWriter(
+                new RocksDbKeyValueStore(dataDir),
+                _mode,
+                ownsStore: true));
+            return;
+        }
+
         IDAWriter raw = _mode switch
         {
             DAMode.External => new InMemoryDAWriter(),
             DAMode.NeoFS => new NeoFsLikeDAWriter(),
             DAMode.L1 => throw new NotSupportedException(
-                "DAMode.L1 has no built-in default writer — provide an L1-RPC-backed IDAWriter via WithWriter() before Configure()"),
+                "DAMode.L1 has no built-in default writer — provide an L1-RPC-backed IDAWriter via WithWriter() or set DataDirectory in config before Configure()"),
             DAMode.DAC => throw new NotSupportedException(
                 "DAMode.DAC has no built-in default writer — provide a committee-attestation IDAWriter via WithWriter() before Configure()"),
             // ResolveDAMode guarantees we don't hit this; kept as a defense-in-depth assert.

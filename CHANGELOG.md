@@ -5,6 +5,115 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — RocksDB-by-default persistence across all stateful L2 components
+
+The "L2 component holds an in-memory dict" pattern is fine for tests + devnets but
+unacceptable in production: a sequencer mid-exit losing its `ExitsAtUnixSeconds`
+deadline on restart could re-admit a sequencer that should be in cooldown, or fail
+to finalize an exit that already passed its window. Same correctness risk for
+finalized message proofs, withdrawal proofs, consumed forced-inclusion nonces, and
+DA payloads.
+
+- **New `Neo.L2.Persistence` project** with `IL2KeyValueStore` abstraction
+  (`Put` / `Get` / `Delete` / `Contains` / `EnumeratePrefix` / `Count` / `IDisposable`),
+  plus `InMemoryKeyValueStore` (devnet/test default) and `RocksDbKeyValueStore`
+  (RocksDB 10.4.2 with snappy compression — production default).
+- **Six L2 components** now take an optional `IL2KeyValueStore` ctor overload with an
+  ownership flag, with a backwards-compat default ctor that wires `InMemoryKeyValueStore`:
+  - `KeyedStateStore` — (asset, holder) → balance entries
+  - `InMemoryL2RpcStore` — withdrawal + message proofs (33-byte prefixed keys)
+  - `InMemoryMessageRouter` — finalized message proofs
+  - `InMemoryForcedInclusionSource` — consumed nonce set (8-byte LE keys)
+  - `InMemorySequencerCommitteeProvider` — committee membership + exit windows
+    (write-through dict + shadow KV writes; hydrated on construction)
+  - `PersistentDAWriter` (new) — content-addressed batch payloads
+- **Devnet `--data-dir <path>` flag** wires four of these stores under one root
+  automatically (`state/`, `rpc-proofs/`, `sequencer/`, `da/`); state survives
+  restart, with banner showing in-memory vs RocksDB mode.
+- **`L2DAPlugin.BuildDefaultWriter(DAMode, dataDir)`** static helper extracted from
+  `Configure()` so the DataDirectory-driven RocksDB path is unit testable without
+  driving Plugin.GetConfiguration() through a real config.json.
+- **Per-component reopen tests** plus an end-to-end integration test
+  (`UT_E2E_Persistence_FullStack`) that pins the multi-component story:
+  four RocksDB instances under one root, no cross-contamination, all four
+  rehydrate from disk after dispose+reopen.
+- **Docs**: new `docs/persistence.md` operator guide, Walk #5 in
+  `docs/architecture-walkthrough.md`, §4.4 in `WHITEPAPER.md`, refreshed
+  `docs/getting-started.md` with the persistent-devnet sub-section.
+
+### Added — EmergencyManager EscapeHatchExit verifies against finalized state root (§15.5)
+
+Closed a real correctness gap vs `doc.md` §15.5: `EscapeHatchExit` was recording any
+leaf hash without verifying it actually corresponds to the chain's latest finalized
+state root. A user could submit a fabricated leaf, get the `OnEscapeHatchExit` event,
+and trick downstream off-chain indexers into thinking they were exiting a real balance.
+
+- `EscapeHatchExit` gains a `chainId` parameter (was missing entirely — multi-L2
+  architecture needs to know which L2 the exit is from)
+- Cross-calls `SettlementManager.getCanonicalStateRoot(chainId)` and asserts
+  `leafHash` matches (consistent with `SharedBridge.VerifyWithdrawalLeaf`'s MVP
+  simplification — full Merkle path verification deferred off-chain)
+- Replay protection moves from `leafHash` to `(chainId, leafHash)` so a leaf valid
+  on chain A can't be replayed against chain B's escape hatch
+- Event `OnEscapeHatchExit` gains chainId so off-chain indexers can attribute each
+  exit to the right L2
+- `_deploy` now takes a 3rd arg (`settlementManager`); deploy scaffolder updated to
+  `OwnerAndDeps("GovernanceController", "SettlementManager")` + dependsOn
+
+### Added — Deploy scaffold completes all 13 NeoHub contracts + post-deploy hint
+
+Scaffold previously emitted only 10 of 13 NeoHub contracts — missing
+`SequencerBond`, `SequencerRegistry`, `OptimisticChallenge`. An operator following
+`IMPLEMENTATION_STATUS` would think they had a complete bundle but be silently
+missing the Phase-3 challenge stack.
+
+- All 13 NeoHub contracts now in scaffold output (verified via
+  `Scaffold_DefaultIncludesAllNeoHubContracts`)
+- Deploy cycle (bond ↔ challenge) broken via initial slashers list of just
+  `[GovernanceController]`; operator wires `SequencerBond.RegisterSlasher(challenge)`
+  post-deploy
+- New `ScaffoldPlan.PostDeployActions(bundle)` API yields one human-readable line
+  per required follow-up call; `plan` command now prints them under
+  "Required post-deploy actions:" after the bundle summary
+- 3 new tests pin: full bundle → emits hint, partial bundle → suppresses hint,
+  null bundle → ArgumentNullException
+
+### Added — neo-stack CLI: real `submit-batch` validation + `start-*` preflight
+
+Six of eight `neo-stack` subcommands (per `doc.md` §14.2) were "would do X" stubs;
+three are now functional, the remaining three (register-chain, deploy-bridge-adapter,
+real process spawning) genuinely require operator-side L1 wallet integration.
+
+- `submit-batch` now reads + decodes via `BatchSerializer`, surfaces decode errors at
+  CLI entry (clear message) instead of at L1 (opaque revert), prints a structured
+  summary (chainId, batchNumber, blocks, state roots, proof type + length), uses
+  distinct exit codes for file-not-found / read-failure / decode-failure
+- `start-sequencer` / `start-batcher` / `start-prover` validate `--chain-id` is
+  non-zero, verify chain dir + `chain.config.json` exist, print composition guidance
+  (which plugins to load, where, how to wire into neo-cli) on success, point at
+  create-chain → init-l2 sequence on failure
+
+### Added — Devnet publishes each batch payload to DA writer
+
+Closed the last in-memory-by-default gap in the devnet — previously the DA step
+from `doc.md` §15.1 was skipped entirely (`DACommitment` hard-coded to `UInt256.Zero`),
+even though production has `DAWriter` publishing batch data before the prover runs.
+
+- Devnet now publishes each batch's payload to an `IDAWriter` between
+  `PostStateRoot` computation and proof generation
+- `PublicInputs.DACommitment` + `L2BatchCommitment.DACommitment` set to the real
+  receipt commitment so proofs bind to the published DA layer
+- With `--data-dir`, writer is `PersistentDAWriter` over RocksDB; without, it's
+  `InMemoryDAWriter`
+
+### Removed — Two empty placeholder test directories
+
+`tests/Neo.L2.UnitTests` and `tests/Neo.L2.ContractTests` were empty placeholder
+dirs that confused project counts (`ls tests/` reported 28, actual was 26
+csproj-wise). Deleted both.
+
+Cumulative: 800 tests / 26 projects.
+
 ### Added — `HashL1Messages` empty-list zero-hash boundary pin
 
 - `StateRootCalculator.HashL1Messages` short-circuits to `UInt256.Zero` for empty lists (`StateRootCalculator.cs:27`). Pinned the boundary so a refactor that drops the early return would not silently change the empty-batch hash.

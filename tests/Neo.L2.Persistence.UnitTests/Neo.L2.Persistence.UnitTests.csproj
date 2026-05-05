@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Neo.L2.Persistence.UnitTests</RootNamespace>
+    <AssemblyName>Neo.L2.Persistence.UnitTests</AssemblyName>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MSTest" Version="$(MSTestVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Neo.L2.Persistence\Neo.L2.Persistence.csproj" />
+  </ItemGroup>
+
+</Project>

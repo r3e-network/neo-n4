@@ -1,0 +1,106 @@
+using System.Collections.Concurrent;
+
+namespace Neo.L2.Persistence;
+
+/// <summary>
+/// In-process <see cref="IL2KeyValueStore"/> backed by a sorted dictionary keyed on
+/// lexicographic byte comparison. Suitable for tests, dev-nets, and single-node demos.
+/// Production wires <see cref="RocksDbKeyValueStore"/> for durable persistence.
+/// </summary>
+/// <remarks>
+/// Concurrent access uses a single lock — adequate for the moderate write rate L2
+/// stores see in tests + dev-nets. Production traffic patterns are served better by
+/// RocksDB's per-column-family locking, which is why this class is not the production
+/// default.
+/// </remarks>
+public sealed class InMemoryKeyValueStore : IL2KeyValueStore
+{
+    private readonly Lock _gate = new();
+    private readonly SortedDictionary<byte[], byte[]> _data = new(ByteArrayComparer.Lexicographic);
+
+    /// <inheritdoc />
+    public long Count
+    {
+        get { lock (_gate) return _data.Count; }
+    }
+
+    /// <inheritdoc />
+    public void Put(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value)
+    {
+        if (key.Length == 0)
+            throw new ArgumentOutOfRangeException(nameof(key), "key must be non-empty");
+        var keyArr = key.ToArray();
+        var valArr = value.ToArray();
+        lock (_gate) _data[keyArr] = valArr;
+    }
+
+    /// <inheritdoc />
+    public byte[]? Get(ReadOnlySpan<byte> key)
+    {
+        var keyArr = key.ToArray();
+        lock (_gate)
+        {
+            return _data.TryGetValue(keyArr, out var value) ? (byte[])value.Clone() : null;
+        }
+    }
+
+    /// <inheritdoc />
+    public bool Delete(ReadOnlySpan<byte> key)
+    {
+        var keyArr = key.ToArray();
+        lock (_gate) return _data.Remove(keyArr);
+    }
+
+    /// <inheritdoc />
+    public bool Contains(ReadOnlySpan<byte> key)
+    {
+        var keyArr = key.ToArray();
+        lock (_gate) return _data.ContainsKey(keyArr);
+    }
+
+    /// <inheritdoc />
+    public IEnumerable<(byte[] Key, byte[] Value)> EnumeratePrefix(ReadOnlySpan<byte> prefix)
+        // Materialize the span on the heap before delegating to the iterator — a
+        // ReadOnlySpan<byte> can't cross a yield boundary.
+        => EnumerateSnapshot(prefix.ToArray());
+
+    private IEnumerable<(byte[] Key, byte[] Value)> EnumerateSnapshot(byte[] prefix)
+    {
+        // Snapshot under the lock to avoid holding it across the yield boundary; defensive
+        // copies on every yielded entry so caller mutations can't reach the store.
+        List<KeyValuePair<byte[], byte[]>> snapshot;
+        lock (_gate) snapshot = _data.Where(kv => StartsWith(kv.Key, prefix)).ToList();
+        foreach (var kv in snapshot)
+            yield return ((byte[])kv.Key.Clone(), (byte[])kv.Value.Clone());
+    }
+
+    /// <inheritdoc />
+    public void Dispose() { /* no-op for the in-memory backend */ }
+
+    private static bool StartsWith(byte[] key, byte[] prefix)
+    {
+        if (prefix.Length == 0) return true;
+        if (key.Length < prefix.Length) return false;
+        for (var i = 0; i < prefix.Length; i++)
+            if (key[i] != prefix[i]) return false;
+        return true;
+    }
+
+    private sealed class ByteArrayComparer : IComparer<byte[]>
+    {
+        public static readonly ByteArrayComparer Lexicographic = new();
+
+        public int Compare(byte[]? x, byte[]? y)
+        {
+            if (x is null) return y is null ? 0 : -1;
+            if (y is null) return 1;
+            var n = Math.Min(x.Length, y.Length);
+            for (var i = 0; i < n; i++)
+            {
+                var c = x[i].CompareTo(y[i]);
+                if (c != 0) return c;
+            }
+            return x.Length.CompareTo(y.Length);
+        }
+    }
+}

@@ -91,13 +91,13 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.Plugins.L2Settlement.Un
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.Plugins.L2Settlement", "src\Neo.Plugins.L2Settlement\Neo.Plugins.L2Settlement.csproj", "{FC9A41CA-3221-4D94-A627-27A0FD248E10}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo", "..\neo\src\Neo\Neo.csproj", "{07FD4D68-7C54-4D28-A407-55A0048C6922}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo", "external\neo\src\Neo\Neo.csproj", "{07FD4D68-7C54-4D28-A407-55A0048C6922}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.Extensions", "..\neo\src\Neo.Extensions\Neo.Extensions.csproj", "{95553B2F-E405-49ED-88EC-F28A5763C5D4}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.Extensions", "external\neo\src\Neo.Extensions\Neo.Extensions.csproj", "{95553B2F-E405-49ED-88EC-F28A5763C5D4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.IO", "..\neo\src\Neo.IO\Neo.IO.csproj", "{547A60A4-13CD-452B-AE4B-AE29FDE52144}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.IO", "external\neo\src\Neo.IO\Neo.IO.csproj", "{547A60A4-13CD-452B-AE4B-AE29FDE52144}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.Json", "..\neo\src\Neo.Json\Neo.Json.csproj", "{903858AD-DA7E-478A-9BA0-BEB2A721CF72}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.Json", "external\neo\src\Neo.Json\Neo.Json.csproj", "{903858AD-DA7E-478A-9BA0-BEB2A721CF72}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.Plugins.L2Batch", "src\Neo.Plugins.L2Batch\Neo.Plugins.L2Batch.csproj", "{282F37B4-3938-49DF-B34D-DF40CD423570}"
 EndProject

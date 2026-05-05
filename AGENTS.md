@@ -35,7 +35,7 @@ components on top of pre-existing Neo ecosystem repos in `/home/neo/git/`:
   generally NOT what to extend.
 
 **Before writing a new component, search this repo's existing libs first** (the per-component
-table in `IMPLEMENTATION_STATUS.md` has 15 off-chain libs + 8 plugins + 19 contracts; many
+table in `IMPLEMENTATION_STATUS.md` has 16 off-chain libs + 8 plugins + 19 contracts; many
 features that look missing are already there).
 
 ## Mapping `doc.md` to code (current state)
@@ -125,13 +125,17 @@ Every cross-cutting capability has an interface so phases can swap implementatio
 
 ## Phased work
 
-Phases 0/1/2/3 are ✅. Phases 4/5/6 are 🟡 — substantial scaffolding + tests, but blocked on:
+Phases 0/1/2/3/6 are ✅. Phases 4 and 5 are 🟡 — substantial scaffolding + tests,
+but blocked on:
 
 - **Phase 4**: real SP1 prover requires `cargo build --release --features real-prover` in
   `bridge/neo-zkvm-bridge` against a sibling `neo-zkvm` checkout.
 - **Phase 5**: real recursive-ZK round prover (SP1 Compress / Halo2 / Risc0 fold). The
   `IRoundProver` interface is the plug-in point.
-- **Phase 6**: 8 CLI subcommands stub their RPC submission; needs operator wallet wiring.
+
+Phase 6 (8 CLI subcommands) is ✅ — every subcommand is functional. The 3 commands
+that need L1/L2 wallet integration (register-chain, deploy-bridge-adapter, submit-batch)
+print structured operator plans rather than performing the wallet-side submission.
 
 ## Don'ts
 
@@ -148,7 +152,7 @@ Phases 0/1/2/3 are ✅. Phases 4/5/6 are 🟡 — substantial scaffolding + test
 ## Quick commands
 
 ```bash
-# Type-check + run all 344 tests
+# Type-check + run all 820 tests
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Devnet demonstration with audit pass

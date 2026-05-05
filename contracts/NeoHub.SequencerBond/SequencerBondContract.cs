@@ -52,12 +52,25 @@ public class SequencerBondContract : SmartContract
         var bondAsset = (UInt160)arr[1];
         var slashers = (UInt160[])arr[2];
 
+        // Validate inputs at the source — without these guards, a typo'd zero owner
+        // would deploy successfully but every owner-gated method would later fail with
+        // a confusing "not authorized" check. A zero bondAsset would lock every
+        // Deposit() at the NEP-17 transfer step. An empty slashers list means no one
+        // can ever slash (Phase-3 economic security broken). And a zero slasher
+        // entry is a meaningless storage row that confuses IsSlasher() consumers.
+        ExecutionEngine.Assert(owner.IsValid && !owner.IsZero, "invalid owner");
+        ExecutionEngine.Assert(bondAsset.IsValid && !bondAsset.IsZero, "invalid bond asset");
+        ExecutionEngine.Assert(slashers.Length > 0, "slashers list must be non-empty");
+
         Storage.Put(new byte[] { KeyOwner }, owner);
         Storage.Put(new byte[] { KeyBondAsset }, bondAsset);
         Storage.Put(new byte[] { KeyMinBond }, (BigInteger)DefaultMinBond);
 
         foreach (var s in slashers)
+        {
+            ExecutionEngine.Assert(s.IsValid && !s.IsZero, "invalid slasher in initial list");
             Storage.Put(SlasherKey(s), new byte[] { 1 });
+        }
     }
 
     /// <summary>Governance owner.</summary>

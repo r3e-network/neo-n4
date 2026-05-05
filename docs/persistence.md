@@ -163,6 +163,36 @@ Each RocksDB instance is independent — they're not column families of one
 database. That's intentional: one corrupt database doesn't take down the
 others, and operators can back up + restore them individually.
 
+## Devnet runner
+
+The in-process devnet runner (`tools/Neo.L2.Devnet`) supports a `--data-dir`
+flag that wires four of these stores under one root automatically — the
+quickest way to see the persistence story end-to-end:
+
+```bash
+# First run — writes to RocksDB
+dotnet run --project tools/Neo.L2.Devnet -- 5 --data-dir /tmp/devnet1
+
+# Second run — same dir, state survives
+dotnet run --project tools/Neo.L2.Devnet -- 0 --data-dir /tmp/devnet1
+# → "[wire] sequencer committee: 3 active members"  (rehydrated, not re-registered)
+# → "[wire] keyed state store + oracle (5 initial entries)"  (Alice's balance restored)
+```
+
+When `--data-dir <path>` is passed, the devnet creates these subdirectories:
+
+```
+<path>/
+├── state/        # KeyedStateStore
+├── rpc-proofs/   # InMemoryL2RpcStore (withdrawal + message proofs)
+├── sequencer/    # InMemorySequencerCommitteeProvider
+└── da/           # PersistentDAWriter (DAMode.External + dataDir)
+```
+
+Without `--data-dir`, every store is in-memory — fine for tests, but everything
+is lost on restart. Production deployments should always set `--data-dir` (or
+the equivalent config keys for plugin-based deployments).
+
 ## Operator checklist
 
 - [ ] Every L2 component that needs durability uses the `(IL2KeyValueStore)` ctor

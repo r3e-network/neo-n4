@@ -310,7 +310,10 @@ internal static class Program
         var auditor = new ChainAuditor(metrics)
             .Register(new ContinuityCheck())
             .Register(new NoZeroProofCheck())
-            .Register(new ProofValidityCheck(verifierRegistry, c => publicInputsByBatch[c.BatchNumber]));
+            .Register(new ProofValidityCheck(verifierRegistry, c => publicInputsByBatch[c.BatchNumber]))
+            // Catches "DA layer dropped the payload" — relevant only when --data-dir is
+            // set, but cheap enough to always run (in-memory writer never drops).
+            .Register(new DAAvailabilityCheck(daWriter));
         var report = await auditor.AuditAsync(allCommitments);
         Console.WriteLine(report.Summarize());
         if (!report.Passed)

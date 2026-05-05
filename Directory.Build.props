@@ -24,7 +24,7 @@
     <RepositoryUrl>https://github.com/r3e-network/neo-n4</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <VersionPrefix>0.1.0</VersionPrefix>
-    <MSTestVersion>3.10.0</MSTestVersion>
+    <MSTestVersion>4.2.2</MSTestVersion>
   </PropertyGroup>
 
 </Project>

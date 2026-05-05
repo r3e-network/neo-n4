@@ -18,6 +18,7 @@ using Neo.L2.Sequencer;
 using Neo.L2.State;
 using Neo.L2.Audit;
 using Neo.L2.Telemetry;
+using Neo.Plugins.L2;
 using Neo.Plugins.L2Rpc;
 
 namespace Neo.L2.Devnet;
@@ -119,6 +120,14 @@ internal static class Program
         rpcStore.RegisterAsset(GasL1, GasL2);
         var rpc = new L2RpcMethods(rpcStore);
 
+        // DA writer. With --data-dir, payloads are content-addressed in RocksDB so a
+        // restart can resurrect any commitment. Without it, in-memory only — the
+        // devnet's executor is deterministic so re-running re-derives every payload.
+        IDAWriter daWriter = dataDir is null
+            ? L2DAPlugin.BuildDefaultWriter(DAMode.External, dataDir: null)
+            : L2DAPlugin.BuildDefaultWriter(DAMode.External, Path.Combine(dataDir, "da"));
+        Console.WriteLine($"[wire] DA writer = {daWriter.GetType().Name} (mode={daWriter.Mode})");
+
         var executor = new ReferenceBatchExecutor(
             new ReferenceTransactionExecutor(),
             stateRootOracle);
@@ -184,7 +193,21 @@ internal static class Program
             var (wRoot, _) = withdrawalProcessor.SealBatch();
             execResult = execResult with { WithdrawalRoot = wRoot };
 
-            // 4. Sign + verify.
+            // 4. DA: publish the batch payload (the canonical-encoded commitment-stub
+            // is a stand-in for the real ordered tx blob) so the DA layer has a copy
+            // even if the L2 itself goes dark. With --data-dir the payload lands in
+            // RocksDB; without, it sits in an in-memory store. Either way the resulting
+            // commitment goes into PublicInputs so the proof binds to *this* DA layer.
+            var daPayload = txBytes;
+            var daReceipt = await daWriter.PublishAsync(new DAPublishRequest
+            {
+                ChainId = LocalChainId,
+                BatchNumber = (ulong)batchNum,
+                Payload = daPayload,
+            });
+            Console.WriteLine($"  [DA]   layer={daReceipt.Layer} commitment={Truncate(daReceipt.Commitment)}");
+
+            // 5. Sign + verify.
             var publicInputs = new PublicInputs
             {
                 ChainId = LocalChainId,
@@ -197,7 +220,7 @@ internal static class Program
                 L2ToL1MessageRoot = execResult.L2ToL1MessageRoot,
                 L2ToL2MessageRoot = execResult.L2ToL2MessageRoot,
                 L1MessageHash = StateRootCalculator.HashL1Messages(execReq.L1MessagesConsumed),
-                DACommitment = UInt256.Zero,
+                DACommitment = daReceipt.Commitment,
                 BlockContextHash = StateRootCalculator.HashBlockContext(ctx),
             };
             var proofResult = await prover.ProveAsync(new ProofRequest
@@ -220,7 +243,7 @@ internal static class Program
                 WithdrawalRoot = execResult.WithdrawalRoot,
                 L2ToL1MessageRoot = execResult.L2ToL1MessageRoot,
                 L2ToL2MessageRoot = execResult.L2ToL2MessageRoot,
-                DACommitment = UInt256.Zero,
+                DACommitment = daReceipt.Commitment,
                 PublicInputHash = proofResult.PublicInputHash,
                 ProofType = ProofType.Multisig,
                 Proof = proofResult.Proof,
@@ -244,7 +267,7 @@ internal static class Program
             metrics.IncrementCounter(MetricNames.DepositsProcessed);
             metrics.IncrementCounter(MetricNames.WithdrawalsStaged);
 
-            // 5. Finalize in RPC store.
+            // 6. Finalize in RPC store.
             rpcStore.AddBatch(commitment, BatchStatus.Pending);
             rpcStore.Finalize((ulong)batchNum);
             rpcStore.RecordDeposit(new DepositStatus(0, (ulong)batchNum, ConsumedOnL2: true, IncludedInBatch: (ulong)batchNum));

@@ -21,6 +21,7 @@
     <ProjectReference Include="..\..\src\Neo.L2.Audit\Neo.L2.Audit.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Telemetry\Neo.L2.Telemetry.csproj" />
     <ProjectReference Include="..\..\src\Neo.Plugins.L2Rpc\Neo.Plugins.L2Rpc.csproj" />
+    <ProjectReference Include="..\..\src\Neo.Plugins.L2DA\Neo.Plugins.L2DA.csproj" />
   </ItemGroup>
 
 </Project>

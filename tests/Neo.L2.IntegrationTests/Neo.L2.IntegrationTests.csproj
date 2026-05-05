@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\src\Neo.L2.Proving.Sp1\Neo.L2.Proving.Sp1.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Executor\Neo.L2.Executor.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.ForcedInclusion\Neo.L2.ForcedInclusion.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Persistence\Neo.L2.Persistence.csproj" />
     <ProjectReference Include="..\..\src\Neo.Plugins.L2Gateway\Neo.Plugins.L2Gateway.csproj" />
     <ProjectReference Include="..\..\tools\Neo.Hub.Deploy\Neo.Hub.Deploy.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Sequencer\Neo.L2.Sequencer.csproj" />

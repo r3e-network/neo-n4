@@ -189,6 +189,26 @@ compatibility. Devnet's `--data-dir <path>` flag wires four of these stores
 (state / rpc-proofs / sequencer / da) under one root automatically. See
 [`docs/persistence.md`](docs/persistence.md) for the operator wiring recipes.
 
+### 4.5 Invariant audit — `ChainAuditor` + `IAuditCheck`
+
+Settlement gives canonical batches; proofs cryptographically bind state transitions; DA
+keeps payloads recoverable. None of those individually answer the operator's day-2
+question: *"is the chain still well-formed?"* `Neo.L2.Audit.ChainAuditor` composes a
+sequence of `IAuditCheck` invariants and runs them over a batch sequence on a
+periodic schedule. Six built-in checks ship:
+
+- **`ContinuityCheck`** — inter-batch state-root continuity, monotonic batch numbers, non-overlapping block ranges.
+- **`NoZeroProofCheck`** — flags batches with `ProofType.None` or empty proof bytes (soft-sealed but never proved).
+- **`ProofValidityCheck`** — re-runs the cryptographic verifier against each commitment's public inputs.
+- **`PublicInputHashConsistencyCheck`** — pins that the stored `PublicInputHash` matches what the commitment fields hash to (catches tampered submissions).
+- **`BatchRangeCheck`** — intra-batch invariants (`firstBlock <= lastBlock`, `batchNumber >= 1`).
+- **`DAAvailabilityCheck`** — pings each batch's `DACommitment` against the configured DA layer's `IsAvailableAsync`.
+
+Failures bump `l2.audit.failures` for ops dashboards; the auditor catches buggy
+custom checks (`Exception` thrown from `RunAsync`) and converts them to a failure
+finding so one bad check doesn't abort the whole pass. Mixed-chainId batch lists
+are rejected with `ArgumentException` upstream of the per-check pipeline.
+
 ---
 
 ## 5. Proof system

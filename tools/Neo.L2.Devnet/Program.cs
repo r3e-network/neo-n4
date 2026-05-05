@@ -39,6 +39,11 @@ internal static class Program
 
     public static async Task<int> Main(string[] args)
     {
+        if (args.Length > 0 && (args[0] == "--help" || args[0] == "-h"))
+        {
+            PrintUsage();
+            return 0;
+        }
         var batches = args.Length > 0 && int.TryParse(args[0], out var n) ? n : 3;
         var metricsPort = ParseMetricsPort(args);
         var dataDir = ParseDataDir(args);
@@ -415,6 +420,31 @@ internal static class Program
         var path = Path.Combine(baseDir, subDir);
         Directory.CreateDirectory(path);
         return new RocksDbKeyValueStore(path);
+    }
+
+    private static void PrintUsage()
+    {
+        Console.WriteLine("neo-l2-devnet — in-process Neo Elastic Network devnet runner");
+        Console.WriteLine();
+        Console.WriteLine("Usage:");
+        Console.WriteLine("  neo-l2-devnet [<batches>] [--metrics-port <port>] [--data-dir <path>]");
+        Console.WriteLine("  neo-l2-devnet --help");
+        Console.WriteLine();
+        Console.WriteLine("Arguments:");
+        Console.WriteLine("  <batches>            Number of batches to seal (default: 3, 0 = rehydrate-only).");
+        Console.WriteLine();
+        Console.WriteLine("Options:");
+        Console.WriteLine("  --metrics-port <p>   Stand up a Prometheus /metrics + /healthz + /readyz HTTP server.");
+        Console.WriteLine("  --data-dir <path>    Wire RocksDB-backed stores under <path>/{state,rpc-proofs,sequencer,da}.");
+        Console.WriteLine("                       Without this, every store is in-memory and data is lost on restart.");
+        Console.WriteLine();
+        Console.WriteLine("Examples:");
+        Console.WriteLine("  neo-l2-devnet 5                         # 5 batches, in-memory");
+        Console.WriteLine("  neo-l2-devnet 5 --metrics-port 9090     # 5 batches + live HTTP scrape");
+        Console.WriteLine("  neo-l2-devnet 5 --data-dir /tmp/dn1     # 5 batches, persisted to disk");
+        Console.WriteLine("  neo-l2-devnet 0 --data-dir /tmp/dn1     # rehydrate state from disk only");
+        Console.WriteLine();
+        Console.WriteLine("See docs/getting-started.md and docs/persistence.md for more.");
     }
 
     // ---- Helpers ----

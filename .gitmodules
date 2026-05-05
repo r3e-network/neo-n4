@@ -4,3 +4,6 @@
 [submodule "external/neo-devpack-dotnet"]
 	path = external/neo-devpack-dotnet
 	url = https://github.com/neo-project/neo-devpack-dotnet.git
+[submodule "external/neo-zkvm"]
+	path = external/neo-zkvm
+	url = https://github.com/r3e-network/neo-zkvm.git

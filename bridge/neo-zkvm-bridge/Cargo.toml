@@ -10,10 +10,11 @@ name = "neo_zkvm_bridge"
 crate-type = ["cdylib", "staticlib", "rlib"]
 
 [dependencies]
-# The bridge re-exports neo-zkvm's prover/verifier behind a stable C ABI. Wire the
-# real path up when neo-zkvm is published on crates.io; for now this is a path dep
-# matching the local checkout.
-neo-zkvm-prover = { path = "../../../neo-zkvm/crates/neo-zkvm-prover", optional = true }
+# The bridge re-exports neo-zkvm's prover/verifier behind a stable C ABI.
+# neo-zkvm is vendored as a git submodule at external/neo-zkvm (init via
+# `git submodule update --init --recursive`). Wire as a crates.io dep when
+# neo-zkvm gets published.
+neo-zkvm-prover = { path = "../../external/neo-zkvm/crates/neo-zkvm-prover", optional = true }
 bincode = { version = "1.3", optional = true }
 
 [features]

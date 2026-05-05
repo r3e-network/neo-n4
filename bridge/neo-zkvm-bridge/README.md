@@ -1,15 +1,18 @@
 # neo-zkvm-bridge
 
-C ABI shim that lets C# (`Neo.L2.Proving.Sp1`) call into [`neo-zkvm`](https://github.com/neo-project/neo-zkvm)'s
-`NeoProver` over P/Invoke.
+C ABI shim that lets C# (`Neo.L2.Proving.Sp1`) call into [`neo-zkvm`](https://github.com/r3e-network/neo-zkvm)'s
+`NeoProver` over P/Invoke. neo-zkvm is vendored as a git submodule at
+`external/neo-zkvm` (init via `git submodule update --init --recursive` from the
+repo root).
 
 ## Build
 
 ```bash
-# Default build — bridge is buildable without neo-zkvm installed; all calls return NOT_IMPLEMENTED.
+# Default build — bridge is buildable without neo-zkvm; all calls return NOT_IMPLEMENTED.
 cargo build --release
 
-# With the real SP1 prover enabled (requires a sibling neo-zkvm checkout at ../../../neo-zkvm):
+# With the real SP1 prover enabled (uses the external/neo-zkvm submodule).
+# Run `git submodule update --init --recursive` first if you cloned without --recurse-submodules.
 cargo build --release --features real-prover
 
 # Run unit tests

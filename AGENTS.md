@@ -28,7 +28,9 @@ components on top of pre-existing Neo ecosystem repos in `/home/neo/git/`:
   (never released on NuGet; project references resolve directly to the source tree via
   `Directory.Build.props` `NeoCorePath`).
 - `neo-zkvm`, `neo-axiom` — ZK proof systems. `bridge/neo-zkvm-bridge` (Rust cdylib in this
-  repo) wraps `neo-zkvm-prover` for C# P/Invoke.
+  repo) wraps `neo-zkvm-prover` for C# P/Invoke. neo-zkvm is vendored as a git submodule
+  at `external/neo-zkvm` (Cargo path dep, behind the optional `real-prover` feature so
+  the bridge cargo-checks fine even without it).
 - `neo-devpack-dotnet` — compile C# to NeoVM (used for `contracts/`). Also vendored as a
   git submodule at `external/neo-devpack-dotnet` (never released on NuGet for the version
   we track). `contracts/Directory.Build.props` defaults `NeoDevpackPath` to the submodule.
@@ -132,7 +134,7 @@ Phases 0/1/2/3/6 are ✅. Phases 4 and 5 are 🟡 — substantial scaffolding + 
 but blocked on:
 
 - **Phase 4**: real SP1 prover requires `cargo build --release --features real-prover` in
-  `bridge/neo-zkvm-bridge` against a sibling `neo-zkvm` checkout.
+  `bridge/neo-zkvm-bridge`. neo-zkvm comes in via the `external/neo-zkvm` git submodule.
 - **Phase 5**: real recursive-ZK round prover (SP1 Compress / Halo2 / Risc0 fold). The
   `IRoundProver` interface is the plug-in point.
 

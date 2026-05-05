@@ -124,6 +124,48 @@ public class UT_E2E_AuditPipeline
         Assert.AreEqual(0, metrics.GetCounter(MetricNames.AuditFailures));
     }
 
+    [TestMethod]
+    public async Task FullAuditPipeline_BrokenBatchRange_ReportsFail_MetricsCount()
+    {
+        // The complementary failure-detection test: pin that the pipeline catches a
+        // bad batch AND emits l2.audit.failures > 0. Without this, a refactor that
+        // accidentally short-circuits the audit on first finding (or never increments
+        // the failure counter) would slip past the happy-path test only.
+        const uint chainId = 1001;
+        var metrics = new InMemoryMetrics();
+
+        // One batch with inverted block range — deliberately bad input.
+        var bad = new L2BatchCommitment
+        {
+            ChainId = chainId,
+            BatchNumber = 1,
+            FirstBlock = 100,
+            LastBlock = 50, // inverted!
+            PreStateRoot = UInt256.Zero,
+            PostStateRoot = HashWithSeed(1),
+            TxRoot = UInt256.Zero,
+            ReceiptRoot = UInt256.Zero,
+            WithdrawalRoot = UInt256.Zero,
+            L2ToL1MessageRoot = UInt256.Zero,
+            L2ToL2MessageRoot = UInt256.Zero,
+            DACommitment = UInt256.Zero, // skipped by DAAvailabilityCheck
+            PublicInputHash = HashWithSeed(99),
+            ProofType = ProofType.Multisig,
+            Proof = new byte[] { 0xAA },
+        };
+
+        var auditor = new ChainAuditor(metrics)
+            .Register(new BatchRangeCheck());
+
+        var report = await auditor.AuditAsync(new[] { bad });
+
+        Assert.IsFalse(report.Passed, "broken batch range should fail audit");
+        Assert.IsTrue(report.Findings.Any(f => !f.Passed && f.Detail.Contains("inverted")));
+        Assert.AreEqual(1, metrics.GetCounter(MetricNames.AuditsRun));
+        Assert.AreEqual(1, metrics.GetCounter(MetricNames.AuditFailures),
+            "one failed finding → AuditFailures += 1");
+    }
+
     private static (ISignerSet signers, AttestationVerifier verifier) BuildAttestationSet()
     {
         // 3-of-4 multisig, deterministic keys via simple seeds.

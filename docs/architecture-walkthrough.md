@@ -204,7 +204,7 @@ implementations:
 
 - `InMemoryKeyValueStore` — a `SortedDictionary<byte[], byte[]>` with
   `ByteArrayComparer.Lexicographic`. Devnet / test default.
-- `RocksDbKeyValueStore` — `RocksDbSharp 10.4.2` with snappy compression. Production default.
+- `RocksDbKeyValueStore` — `RocksDbSharp 10.10.1` with snappy compression. Production default.
 
 Six L2 components take an `IL2KeyValueStore` ctor argument with a backwards-compatible
 default ctor that wires `InMemoryKeyValueStore`:

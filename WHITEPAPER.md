@@ -181,7 +181,7 @@ Solution: an explicit `IL2KeyValueStore` abstraction (`Put` / `Get` / `Delete` /
 
 - `InMemoryKeyValueStore` — `SortedDictionary<byte[], byte[]>` with lexicographic
   ordering. Devnet / test default.
-- `RocksDbKeyValueStore` — RocksDB 10.4.2 with snappy compression. Production default.
+- `RocksDbKeyValueStore` — RocksDB 10.10.1 with snappy compression. Production default.
 
 Each stateful component takes an optional `IL2KeyValueStore` ctor overload and an
 ownership flag; the bare default ctor still works (in-memory) for backwards

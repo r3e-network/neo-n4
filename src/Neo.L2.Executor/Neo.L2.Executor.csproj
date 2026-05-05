@@ -13,6 +13,7 @@
     <ProjectReference Include="..\Neo.L2.State\Neo.L2.State.csproj" />
     <ProjectReference Include="..\Neo.L2.Bridge\Neo.L2.Bridge.csproj" />
     <ProjectReference Include="..\Neo.L2.Messaging\Neo.L2.Messaging.csproj" />
+    <ProjectReference Include="..\Neo.L2.Persistence\Neo.L2.Persistence.csproj" />
   </ItemGroup>
 
 </Project>

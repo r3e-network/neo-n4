@@ -1,12 +1,16 @@
 using System.Buffers.Binary;
 using Neo.Cryptography;
+using Neo.L2.Persistence;
 using Neo.L2.State;
 
 namespace Neo.L2.Executor.State;
 
 /// <summary>
-/// Sorted-key in-memory state store with a deterministic Merkle root computed over
+/// Sorted-key state store with a deterministic Merkle root computed over
 /// <c>Hash256(keyLen || key || valueLen || value)</c> leaves in lexicographic key order.
+/// Backed by an <see cref="IL2KeyValueStore"/> — production wires
+/// <see cref="RocksDbKeyValueStore"/> for state that survives node restarts; tests +
+/// devnets use the default <see cref="InMemoryKeyValueStore"/>.
 /// </summary>
 /// <remarks>
 /// Pragmatic stand-in for an MPT state-root oracle. The Neo MPTTrie source isn't reachable
@@ -18,35 +22,45 @@ namespace Neo.L2.Executor.State;
 /// of <see cref="L2BatchCommitment.PostStateRoot"/> stays a 32-byte hash either way.
 /// </para>
 /// </remarks>
-public sealed class KeyedStateStore
+public sealed class KeyedStateStore : IDisposable
 {
-    // Lexicographic key ordering keeps the Merkle root deterministic across insert orders.
-    private readonly SortedDictionary<byte[], byte[]> _data = new(ByteArrayComparer.Lexicographic);
+    private readonly IL2KeyValueStore _backing;
+    private readonly bool _ownsBacking;
+    private bool _disposed;
+
+    /// <summary>Construct with a default in-memory backing.</summary>
+    public KeyedStateStore() : this(new InMemoryKeyValueStore(), ownsBacking: true) { }
+
+    /// <summary>
+    /// Construct against a caller-supplied <see cref="IL2KeyValueStore"/> — production
+    /// wires <see cref="RocksDbKeyValueStore"/> here for state that survives node restarts.
+    /// </summary>
+    public KeyedStateStore(IL2KeyValueStore backing, bool ownsBacking = false)
+    {
+        ArgumentNullException.ThrowIfNull(backing);
+        _backing = backing;
+        _ownsBacking = ownsBacking;
+    }
 
     /// <summary>Number of stored entries.</summary>
-    public int Count => _data.Count;
+    public int Count => checked((int)_backing.Count);
 
     /// <summary>Insert or replace a value.</summary>
     public void Put(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value)
     {
         ArgumentOutOfRangeException.ThrowIfZero(key.Length);
-        _data[key.ToArray()] = value.ToArray();
+        _backing.Put(key, value);
     }
 
     /// <summary>Delete a key. Returns <c>true</c> if it existed.</summary>
-    public bool Delete(ReadOnlySpan<byte> key)
-    {
-        return _data.Remove(key.ToArray());
-    }
+    public bool Delete(ReadOnlySpan<byte> key) => _backing.Delete(key);
 
     /// <summary>Read a value, or empty span if missing.</summary>
     public ReadOnlyMemory<byte> Get(ReadOnlySpan<byte> key)
-    {
-        return _data.TryGetValue(key.ToArray(), out var value) ? value : Array.Empty<byte>();
-    }
+        => _backing.Get(key) ?? Array.Empty<byte>();
 
     /// <summary>True if a key is present.</summary>
-    public bool Contains(ReadOnlySpan<byte> key) => _data.ContainsKey(key.ToArray());
+    public bool Contains(ReadOnlySpan<byte> key) => _backing.Contains(key);
 
     /// <summary>
     /// Compute the deterministic Merkle root of the current store contents.
@@ -54,13 +68,12 @@ public sealed class KeyedStateStore
     /// </summary>
     public UInt256 ComputeRoot()
     {
-        if (_data.Count == 0) return UInt256.Zero;
-        var leaves = new UInt256[_data.Count];
-        var i = 0;
-        foreach (var (key, value) in _data)
-        {
-            leaves[i++] = HashEntry(key, value);
-        }
+        // Materialize entries in lex-key order (IL2KeyValueStore guarantees this).
+        var entries = _backing.EnumeratePrefix(ReadOnlySpan<byte>.Empty).ToList();
+        if (entries.Count == 0) return UInt256.Zero;
+        var leaves = new UInt256[entries.Count];
+        for (var i = 0; i < entries.Count; i++)
+            leaves[i] = HashEntry(entries[i].Key, entries[i].Value);
         return Neo.L2.State.MerkleTree.ComputeRoot(leaves);
     }
 
@@ -82,33 +95,19 @@ public sealed class KeyedStateStore
 
     /// <summary>Iterate the store in sorted-key order (test/debug helper).</summary>
     /// <remarks>
-    /// Defensive copy: <c>_data</c> stores raw <c>byte[]</c> references that callers
-    /// could mutate. Without the per-entry copy, a debug consumer that touched the
-    /// returned bytes would silently corrupt the store's keys/values — Put copies
-    /// (iter-167 pattern), Get returns immutable <c>ReadOnlyMemory</c>, but this
-    /// helper would otherwise be the lone hole.
+    /// Defensive copy: every yielded byte[] is a fresh clone produced by the backing
+    /// <see cref="IL2KeyValueStore"/>. Caller mutations cannot reach the underlying store.
+    /// Same iter-176 pattern as before, now enforced uniformly across InMemory + RocksDB
+    /// backends.
     /// </remarks>
     public IEnumerable<(byte[] Key, byte[] Value)> EnumerateSorted()
-    {
-        foreach (var entry in _data)
-            yield return ((byte[])entry.Key.Clone(), (byte[])entry.Value.Clone());
-    }
+        => _backing.EnumeratePrefix(ReadOnlySpan<byte>.Empty);
 
-    private sealed class ByteArrayComparer : IComparer<byte[]>
+    /// <inheritdoc />
+    public void Dispose()
     {
-        public static readonly ByteArrayComparer Lexicographic = new();
-
-        public int Compare(byte[]? x, byte[]? y)
-        {
-            if (ReferenceEquals(x, y)) return 0;
-            if (x is null) return -1;
-            if (y is null) return 1;
-            var n = Math.Min(x.Length, y.Length);
-            for (var i = 0; i < n; i++)
-            {
-                if (x[i] != y[i]) return x[i] < y[i] ? -1 : 1;
-            }
-            return x.Length.CompareTo(y.Length);
-        }
+        if (_disposed) return;
+        _disposed = true;
+        if (_ownsBacking) _backing.Dispose();
     }
 }

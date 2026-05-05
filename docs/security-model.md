@@ -44,6 +44,10 @@ verifies.** Phase 4 (ZK validity) makes the verifier trustless. Phase 3
 
 ## Per-chain security labels
 
+<p align="center">
+  <img src="figures/trust-spectrum.svg" alt="Per-chain security spectrum: 0 sidechain (full sequencer trust), 1 settled L2 (DA + state-root commitments), 2 optimistic rollup (fraud-proof challenge window), 3 ZK validity (cryptographic finality). Each card shows what the user trusts, L1 guarantee, withdrawal time, failure mode, and an example deployment." width="900">
+</p>
+
 `ChainRegistry` requires every L2 to publish on-chain its security profile:
 
 | Field             | Meaning                                                                    |

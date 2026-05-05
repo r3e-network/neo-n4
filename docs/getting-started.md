@@ -11,8 +11,8 @@
 ## Step 1 — Clone and check the toolchain
 
 ```bash
-git clone https://github.com/neo-project/neo4
-cd neo4
+git clone https://github.com/r3e-network/neo-n4
+cd neo-n4
 dotnet --version    # expect 10.0.x
 ls ../neo/src/Neo  # confirm the sibling neo checkout
 ```

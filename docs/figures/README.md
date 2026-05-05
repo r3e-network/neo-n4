@@ -11,6 +11,7 @@ across browsers, fonts, and zoom levels.
 | **3** — Multi-L2 proof aggregation | [`proof-aggregation.svg`](proof-aggregation.svg) | [`architecture-walkthrough.md`](../architecture-walkthrough.md#walk-3-multi-l2-proof-aggregation-phase-5) (Walk #3) |
 | **4** — Forced inclusion + slashing | [`forced-inclusion.svg`](forced-inclusion.svg) | [`architecture-walkthrough.md`](../architecture-walkthrough.md#walk-2-anti-censorship-via-forced-inclusion) (Walk #2) |
 | **5** — Telemetry pipeline | [`telemetry-pipeline.svg`](telemetry-pipeline.svg) | [`architecture-walkthrough.md`](../architecture-walkthrough.md#walk-4-telemetry--emit-snapshot-scrape) (Walk #4) |
+| **6** — Trust spectrum (security levels) | [`trust-spectrum.svg`](trust-spectrum.svg) | [`security-model.md`](../security-model.md#per-chain-security-labels) |
 
 ## Visual conventions
 

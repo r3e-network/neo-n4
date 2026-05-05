@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 460" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="t6 d6">
+  <title id="t6">Per-chain security spectrum (ChainRegistry.securityLevel)</title>
+  <desc id="d6">Four-position trust spectrum showing the four securityLevel values declared by every L2 chain in NeoHub.ChainRegistry: 0 sidechain (full sequencer trust), 1 settled L2 (DA + state-root commitments), 2 optimistic rollup (fraud-proof challenge window), 3 ZK validity (cryptographic finality). Each level lists what the user must trust, withdrawal time, and a representative deployment.</desc>
+
+  <defs>
+    <marker id="ah6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <linearGradient id="trust-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#fee2e2"/>
+      <stop offset="33%"  stop-color="#fef3c7"/>
+      <stop offset="66%"  stop-color="#dbeafe"/>
+      <stop offset="100%" stop-color="#dcfce7"/>
+    </linearGradient>
+    <filter id="card6" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .axis-lbl    { font-size: 11px; font-weight: 700; letter-spacing: 0.7px; fill: #525a64; }
+      .level-num   { font-size: 24px; font-weight: 700; }
+      .level-name  { font-size: 13.5px; font-weight: 700; }
+      .row-key     { font-size: 10.5px; font-weight: 600; fill: #6e7781; letter-spacing: 0.4px; }
+      .row-val     { font-size: 10.5px; }
+      .caption     { font-size: 11.5px; fill: #57606a; }
+    </style>
+  </defs>
+
+  <rect width="960" height="460" fill="#ffffff"/>
+
+  <!-- ============================================================== -->
+  <!--   Top: trust gradient bar with axis labels                      -->
+  <!-- ============================================================== -->
+  <text x="40" y="48" class="axis-lbl">TRUST IN THE SEQUENCER</text>
+  <text x="920" y="48" text-anchor="end" class="axis-lbl">TRUST IN MATH</text>
+
+  <rect x="40" y="56" width="880" height="14" rx="3" fill="url(#trust-gradient)" stroke="#9aa6b2" stroke-width="0.5"/>
+  <line x1="40" y1="80" x2="920" y2="80" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah6)"/>
+  <text x="480" y="98" text-anchor="middle" class="axis-lbl" fill="#1f2328">SECURITY LEVEL</text>
+
+  <!-- ============================================================== -->
+  <!--   Four cards, one per securityLevel                              -->
+  <!-- ============================================================== -->
+  <!-- Level 0: sidechain -->
+  <g filter="url(#card6)">
+    <rect x="40" y="120" width="210" height="280" rx="8" fill="#fff" stroke="#dc2626" stroke-width="1.2"/>
+    <rect x="40" y="120" width="210" height="44" rx="8" fill="#fee2e2" stroke="none"/>
+    <text x="60" y="148" class="level-num" fill="#991b1b">0</text>
+    <text x="92" y="146" class="level-name" fill="#991b1b">SIDECHAIN</text>
+    <text x="92" y="160" class="row-val" fill="#991b1b">independent chain · no L1 anchor</text>
+
+    <text x="56" y="194" class="row-key">TRUST</text>
+    <text x="56" y="210" class="row-val">sequencer + DA both</text>
+
+    <text x="56" y="234" class="row-key">L1 GUARANTEE</text>
+    <text x="56" y="250" class="row-val">none · informational only</text>
+
+    <text x="56" y="274" class="row-key">WITHDRAWAL</text>
+    <text x="56" y="290" class="row-val">trusted bridge contract</text>
+
+    <text x="56" y="314" class="row-key">FAILURE MODE</text>
+    <text x="56" y="330" class="row-val">sequencer rugs · DA disappears</text>
+
+    <text x="56" y="358" class="row-key">EXAMPLE</text>
+    <text x="56" y="374" class="row-val">app-specific dev chain</text>
+  </g>
+
+  <!-- Level 1: settled L2 -->
+  <g filter="url(#card6)">
+    <rect x="270" y="120" width="210" height="280" rx="8" fill="#fff" stroke="#d97706" stroke-width="1.2"/>
+    <rect x="270" y="120" width="210" height="44" rx="8" fill="#fef3c7" stroke="none"/>
+    <text x="290" y="148" class="level-num" fill="#92400e">1</text>
+    <text x="322" y="146" class="level-name" fill="#92400e">SETTLED L2</text>
+    <text x="322" y="160" class="row-val" fill="#92400e">DA + roots posted to L1</text>
+
+    <text x="286" y="194" class="row-key">TRUST</text>
+    <text x="286" y="210" class="row-val">sequencer (no fraud proof)</text>
+
+    <text x="286" y="234" class="row-key">L1 GUARANTEE</text>
+    <text x="286" y="250" class="row-val">data availability + state roots</text>
+
+    <text x="286" y="274" class="row-key">WITHDRAWAL</text>
+    <text x="286" y="290" class="row-val">via SharedBridge · short delay</text>
+
+    <text x="286" y="314" class="row-key">FAILURE MODE</text>
+    <text x="286" y="330" class="row-val">sequencer fraud goes undetected</text>
+
+    <text x="286" y="358" class="row-key">EXAMPLE</text>
+    <text x="286" y="374" class="row-val">app-chain with public DA</text>
+  </g>
+
+  <!-- Level 2: optimistic rollup -->
+  <g filter="url(#card6)">
+    <rect x="500" y="120" width="210" height="280" rx="8" fill="#fff" stroke="#3f74cf" stroke-width="1.2"/>
+    <rect x="500" y="120" width="210" height="44" rx="8" fill="#dbeafe" stroke="none"/>
+    <text x="520" y="148" class="level-num" fill="#1e3a8a">2</text>
+    <text x="552" y="146" class="level-name" fill="#1e3a8a">OPTIMISTIC ROLLUP</text>
+    <text x="552" y="160" class="row-val" fill="#1e3a8a">fraud-proof challenge window</text>
+
+    <text x="516" y="194" class="row-key">TRUST</text>
+    <text x="516" y="210" class="row-val">at least one honest challenger</text>
+
+    <text x="516" y="234" class="row-key">L1 GUARANTEE</text>
+    <text x="516" y="250" class="row-val">post-challenge-window finality</text>
+
+    <text x="516" y="274" class="row-key">WITHDRAWAL</text>
+    <text x="516" y="290" class="row-val">7 days (challenge window)</text>
+
+    <text x="516" y="314" class="row-key">FAILURE MODE</text>
+    <text x="516" y="330" class="row-val">no challengers · invalid state stands</text>
+
+    <text x="516" y="358" class="row-key">EXAMPLE</text>
+    <text x="516" y="374" class="row-val">general-purpose app rollup</text>
+  </g>
+
+  <!-- Level 3: ZK validity -->
+  <g filter="url(#card6)">
+    <rect x="730" y="120" width="190" height="280" rx="8" fill="#fff" stroke="#16a34a" stroke-width="1.2"/>
+    <rect x="730" y="120" width="190" height="44" rx="8" fill="#dcfce7" stroke="none"/>
+    <text x="750" y="148" class="level-num" fill="#166534">3</text>
+    <text x="782" y="146" class="level-name" fill="#166534">ZK VALIDITY</text>
+    <text x="782" y="160" class="row-val" fill="#166534">cryptographic finality</text>
+
+    <text x="746" y="194" class="row-key">TRUST</text>
+    <text x="746" y="210" class="row-val">just math (vk · hash)</text>
+
+    <text x="746" y="234" class="row-key">L1 GUARANTEE</text>
+    <text x="746" y="250" class="row-val">SP1 / Halo2 / Risc0 verified on-chain</text>
+
+    <text x="746" y="274" class="row-key">WITHDRAWAL</text>
+    <text x="746" y="290" class="row-val">prover latency only (~min)</text>
+
+    <text x="746" y="314" class="row-key">FAILURE MODE</text>
+    <text x="746" y="330" class="row-val">soundness break in proof system</text>
+
+    <text x="746" y="358" class="row-key">EXAMPLE</text>
+    <text x="746" y="374" class="row-val">payments · DeFi · institutional</text>
+  </g>
+
+  <!-- caption -->
+  <text x="480" y="438" text-anchor="middle" class="caption">Figure 6 · Per-chain security spectrum — every L2 publishes its securityLevel in ChainRegistry; UIs MUST surface it.</text>
+</svg>

@@ -1,25 +1,36 @@
 using System.Collections.Concurrent;
 using Neo.L2;
+using Neo.L2.Persistence;
 
 namespace Neo.Plugins.L2Rpc;
 
 /// <summary>
-/// In-memory <see cref="IL2RpcStore"/> for tests + devnet RPC. Plug your real settlement
-/// store / batch ledger / L1 cache in for production.
+/// <see cref="IL2RpcStore"/> with in-memory dictionaries for batch / asset / deposit
+/// lookups and a pluggable <see cref="IL2KeyValueStore"/> for the durability-critical
+/// withdrawal-proof and message-proof maps. Production wires
+/// <see cref="RocksDbKeyValueStore"/> so finalized inclusion proofs survive node
+/// restarts and remain queryable indefinitely.
 /// </summary>
-public sealed class InMemoryL2RpcStore : IL2RpcStore
+public sealed class InMemoryL2RpcStore : IL2RpcStore, IDisposable
 {
     private readonly ConcurrentDictionary<ulong, L2BatchCommitment> _batches = new();
     private readonly ConcurrentDictionary<ulong, BatchStatus> _statuses = new();
     private readonly ConcurrentDictionary<ulong, UInt256> _stateRoots = new();
-    private readonly ConcurrentDictionary<UInt256, byte[]> _withdrawalProofs = new();
-    private readonly ConcurrentDictionary<UInt256, byte[]> _messageProofs = new();
+    // Withdrawal + message proofs — durability-critical. Stored under prefixed keys in
+    // the same KV backing so production deployments can persist both with one RocksDB
+    // database. Prefix bytes: 0x01 = withdrawal, 0x02 = message.
+    private readonly IL2KeyValueStore _proofs;
+    private readonly bool _ownsProofs;
     private readonly ConcurrentDictionary<(uint, ulong), DepositStatus> _deposits = new();
     private readonly ConcurrentDictionary<UInt160, UInt160> _l1ByL2 = new();
     private readonly ConcurrentDictionary<UInt160, UInt160> _l2ByL1 = new();
     private readonly Lock _latestGate = new();
     private UInt256 _latestStateRoot = UInt256.Zero;
     private long _latestFinalizedBatch = -1;
+    private bool _disposed;
+
+    private const byte WithdrawalProofPrefix = 0x01;
+    private const byte MessageProofPrefix = 0x02;
 
     /// <inheritdoc />
     public uint ChainId { get; }
@@ -27,9 +38,18 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore
     /// <inheritdoc />
     public SecurityLevel SecurityLevel { get; }
 
-    /// <summary>Construct with the chain id and its published security label.</summary>
+    /// <summary>Construct with the chain id, security label, and a default in-memory proof store.</summary>
     public InMemoryL2RpcStore(uint chainId, SecurityLevel level)
+        : this(chainId, level, new InMemoryKeyValueStore(), ownsProofs: true) { }
+
+    /// <summary>
+    /// Construct with the chain id, security label, and a caller-supplied proof store —
+    /// production wires <see cref="RocksDbKeyValueStore"/> so finalized inclusion proofs
+    /// survive node restarts.
+    /// </summary>
+    public InMemoryL2RpcStore(uint chainId, SecurityLevel level, IL2KeyValueStore proofs, bool ownsProofs = false)
     {
+        ArgumentNullException.ThrowIfNull(proofs);
         // Reject the L1-sentinel chain id (0) — every RPC call would later fail
         // AssertOurChain with a misleading "differs from local 0" comparison.
         ChainId = Neo.L2.ChainIdValidator.ValidateL2(chainId);
@@ -39,6 +59,16 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore
             throw new ArgumentOutOfRangeException(nameof(level),
                 $"SecurityLevel {(byte)level} not in [0..3]");
         SecurityLevel = level;
+        _proofs = proofs;
+        _ownsProofs = ownsProofs;
+    }
+
+    private static byte[] BuildKey(byte prefix, UInt256 hash)
+    {
+        var key = new byte[33];
+        key[0] = prefix;
+        hash.GetSpan().CopyTo(key.AsSpan(1));
+        return key;
     }
 
     /// <summary>Record a sealed batch + its initial status (typically Pending).</summary>
@@ -108,7 +138,9 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore
         // boundary instead of as a generic Dictionary "key" message.
         ArgumentNullException.ThrowIfNull(leafHash);
         ArgumentNullException.ThrowIfNull(proofBytes);
-        _withdrawalProofs[leafHash] = (byte[])proofBytes.Clone();
+        // IL2KeyValueStore.Put copies internally — the iter-167 defensive-copy
+        // contract is now enforced uniformly across InMemory + RocksDB backends.
+        _proofs.Put(BuildKey(WithdrawalProofPrefix, leafHash), proofBytes);
     }
 
     /// <summary>Record an inclusion proof for a message hash.</summary>
@@ -119,7 +151,7 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore
     {
         ArgumentNullException.ThrowIfNull(messageHash);
         ArgumentNullException.ThrowIfNull(proofBytes);
-        _messageProofs[messageHash] = (byte[])proofBytes.Clone();
+        _proofs.Put(BuildKey(MessageProofPrefix, messageHash), proofBytes);
     }
 
     /// <inheritdoc />
@@ -146,14 +178,19 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore
     public ReadOnlyMemory<byte>? GetWithdrawalProof(UInt256 leafHash)
     {
         ArgumentNullException.ThrowIfNull(leafHash);
-        return _withdrawalProofs.TryGetValue(leafHash, out var p) ? p : null;
+        var bytes = _proofs.Get(BuildKey(WithdrawalProofPrefix, leafHash));
+        // Explicit null-check: byte[] → ReadOnlyMemory<byte>? coerces null into a
+        // non-null empty memory through the implicit conversion. We need
+        // Nullable<ReadOnlyMemory<byte>> with HasValue=false on miss.
+        return bytes is null ? null : (ReadOnlyMemory<byte>?)new ReadOnlyMemory<byte>(bytes);
     }
 
     /// <inheritdoc />
     public ReadOnlyMemory<byte>? GetMessageProof(UInt256 messageHash)
     {
         ArgumentNullException.ThrowIfNull(messageHash);
-        return _messageProofs.TryGetValue(messageHash, out var p) ? p : null;
+        var bytes = _proofs.Get(BuildKey(MessageProofPrefix, messageHash));
+        return bytes is null ? null : (ReadOnlyMemory<byte>?)new ReadOnlyMemory<byte>(bytes);
     }
 
     /// <inheritdoc />
@@ -172,5 +209,13 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore
     {
         ArgumentNullException.ThrowIfNull(l1Asset);
         return _l2ByL1.TryGetValue(l1Asset, out var l2) ? l2 : null;
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        if (_ownsProofs) _proofs.Dispose();
     }
 }

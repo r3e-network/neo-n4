@@ -69,7 +69,7 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 | Smart contracts   | **19**    | 13 NeoHub L1 + 6 L2 native; all type-check via `Neo.SmartContract.Framework` |
 | CLI tools         | **3**     | `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`                           |
 | Native FFI        | **1**     | `bridge/neo-zkvm-bridge` — Rust cdylib + C ABI for SP1 prover P/Invoke   |
-| Tests             | **767 / 28 projects**  | Module-level unit tests + integration tests + contract tests; all green |
+| Tests             | **774 / 28 projects**  | Module-level unit tests + integration tests + contract tests; all green |
 
 ```
 neo4/
@@ -94,7 +94,7 @@ neo4/
 │   └── Neo.Hub.Deploy/                     # declarative L1 deploy planner
 ├── bridge/
 │   └── neo-zkvm-bridge/                    # Rust cdylib + C ABI
-└── tests/                                  # 767 tests / 30 projects
+└── tests/                                  # 774 tests / 30 projects
 ```
 
 ---
@@ -128,7 +128,7 @@ Detailed coverage per project: [`IMPLEMENTATION_STATUS.md`](./IMPLEMENTATION_STA
 git clone https://github.com/r3e-network/neo-n4
 cd neo-n4
 
-# Type-check everything + run all 767 tests (~10 seconds)
+# Type-check everything + run all 774 tests (~10 seconds)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Run the in-process devnet (5 batches, real state-root continuity, post-run audit)

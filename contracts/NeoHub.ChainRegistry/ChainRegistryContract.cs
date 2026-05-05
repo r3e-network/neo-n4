@@ -76,6 +76,9 @@ public class ChainRegistryContract : SmartContract
     public static void RegisterChain(uint chainId, byte[] configBytes)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        // chainId 0 is the L1 sentinel (see L2Outbox.L1ChainId) — registering a chain
+        // with id 0 would silently break L2→L2 routing for every other chain.
+        ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         ExecutionEngine.Assert(configBytes.Length == ConfigSize, "config size mismatch");
         ExecutionEngine.Assert(ReadChainId(configBytes) == chainId, "chainId mismatch");
 
@@ -92,6 +95,7 @@ public class ChainRegistryContract : SmartContract
     public static void UpdateChain(uint chainId, byte[] configBytes)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         ExecutionEngine.Assert(configBytes.Length == ConfigSize, "config size mismatch");
         ExecutionEngine.Assert(ReadChainId(configBytes) == chainId, "chainId mismatch");
         ExecutionEngine.Assert(Storage.Get(ConfigKey(chainId)) != null, "chain not registered");

@@ -190,6 +190,50 @@ and asserts each metric family appears in a real HTTP scrape.
 
 For the full catalog and wiring example, see [`docs/telemetry.md`](./telemetry.md).
 
+## Walk #5: durable state — IL2KeyValueStore + RocksDB by default
+
+The Neo Elastic Network's "L2 component holds an in-memory dict" pattern is fine for
+tests + devnets but unacceptable in production: a sequencer mid-exit losing its
+ExitsAtUnixSeconds deadline on restart could re-admit a sequencer that should be in
+cooldown, or fail to finalize an exit that already passed its window. Same
+correctness risk for finalized message proofs, withdrawal proofs, consumed forced-
+inclusion nonces, and DA payloads.
+
+Solution: an explicit `IL2KeyValueStore` abstraction (`src/Neo.L2.Persistence/`) with two
+implementations:
+
+- `InMemoryKeyValueStore` — a `SortedDictionary<byte[], byte[]>` with
+  `ByteArrayComparer.Lexicographic`. Devnet / test default.
+- `RocksDbKeyValueStore` — `RocksDbSharp 10.4.2` with snappy compression. Production default.
+
+Six L2 components take an `IL2KeyValueStore` ctor argument with a backwards-compatible
+default ctor that wires `InMemoryKeyValueStore`:
+
+| Component | What persists |
+| --- | --- |
+| `KeyedStateStore` | (asset, holder) → balance entries |
+| `InMemoryL2RpcStore` | withdrawal + message proofs (other in-mem dicts rebuildable from L1) |
+| `InMemoryMessageRouter` | finalized message proofs |
+| `InMemoryForcedInclusionSource` | consumed nonce set |
+| `InMemorySequencerCommitteeProvider` | committee membership + exit windows (write-through dict) |
+| `PersistentDAWriter` | content-addressed batch payloads |
+
+Devnet's `--data-dir <path>` flag wires four of these (state, RPC proofs, sequencer,
+DA) under one root automatically — operators can see the persistence story end-to-end
+in two commands:
+
+```bash
+dotnet run --project tools/Neo.L2.Devnet -- 5 --data-dir /tmp/devnet1
+dotnet run --project tools/Neo.L2.Devnet -- 0 --data-dir /tmp/devnet1
+# → committee + state + DA payloads all rehydrate
+```
+
+Tests pin both per-component reopen behavior and the combined-story integration test
+(`UT_E2E_Persistence_FullStack`) so a refactor that accidentally collapses two stores
+onto one directory or omits a component breaks the suite, not devnet-on-restart. See
+[`docs/persistence.md`](./persistence.md) for the operator wiring recipes + per-component
+"what breaks if X is lost" table.
+
 ## Where each `doc.md` section lives in code
 
 | `doc.md` § | What it specifies            | Code location                                                                  |

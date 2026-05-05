@@ -45,6 +45,12 @@ public class L2BridgeContract : SmartContract
         var arr = (object[])data;
         var owner = (UInt160)arr[0];
         var systemAccount = (UInt160)arr[1];
+        // Without these guards a typo'd zero owner deploys cleanly but every
+        // owner-gated method (RegisterMapping / etc.) fails with "not authorized";
+        // a zero systemAccount means ApplyDeposit's `Runtime.CheckWitness(system)`
+        // never passes, so no deposits can ever land on this L2.
+        ExecutionEngine.Assert(owner.IsValid && !owner.IsZero, "invalid owner");
+        ExecutionEngine.Assert(systemAccount.IsValid && !systemAccount.IsZero, "invalid system account");
         Storage.Put(new byte[] { KeyOwner }, owner);
         Storage.Put(new byte[] { KeySystemAccount }, systemAccount);
     }

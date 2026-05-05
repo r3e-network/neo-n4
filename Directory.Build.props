@@ -15,7 +15,7 @@
     <Company>Neo Project</Company>
     <Product>Neo Elastic Network</Product>
     <Copyright>Copyright © 2026 The Neo Project</Copyright>
-    <RepositoryUrl>https://github.com/neo-project/neo4</RepositoryUrl>
+    <RepositoryUrl>https://github.com/r3e-network/neo-n4</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <VersionPrefix>0.1.0</VersionPrefix>
     <MSTestVersion>3.10.0</MSTestVersion>

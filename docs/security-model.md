@@ -123,6 +123,26 @@ rationale per defense.
 
 ---
 
+## Reserved chain ids
+
+`chainId = 0` is reserved as the **L1 sentinel**. The convention is encoded in
+`L2Outbox.L1ChainId` and enforced at every external mutator across the contract
+suite — `RegisterChain`, `EnqueueForcedTransaction`, `Deposit`, `FinalizeWithdrawal`,
+`SequencerRegistry.Register`, `SequencerBond.Deposit`, `MessageRouter.EnqueueL1ToL2`,
+`OptimisticChallenge.OpenWindow`, `EmitMessage` (L2 native), and the `L2SystemConfig` /
+`L2MessageContract` `_deploy` paths. Off-chain sites also reject it via
+`ChainIdValidator.ValidateL2`.
+
+Why so many enforcement points: the L2 routing layer interprets `chainId == 0` as
+"this message goes to L1." A registered L2 with `chainId = 0` would silently
+misroute every L2→L2 message as L2→L1, dropping them at the gateway and breaking
+every other chain in the network. Defense-in-depth here means both the deploy-time
+admission gate (`ChainRegistry`) and every individual contract that takes a
+chainId rejects 0 — so an operator misconfig only ever produces a clear error
+at the contract entry point, never silent misrouting.
+
+---
+
 ## Operator checklist
 
 Before launching an L2:

@@ -17,6 +17,7 @@ some state, if lost, breaks security or correctness invariants:
 | Forced-inclusion consumed-nonce set    | L2 may re-execute or refuse a forced tx — breaks at-most-once.       |
 | Deterministic state-store contents     | Post-state root after restart != pre-state root; commitments diverge.|
 | DA blob bytes (when L2 owns them)      | Verifiers can't reconstruct what was claimed.                        |
+| Sequencer committee + exit windows     | Mid-exit deadlines lost; bad-actor sequencer re-admitted or stuck.   |
 
 Every store backed by RocksDB is one less source of restart-induced incidents.
 
@@ -50,7 +51,7 @@ a TestClass with a `Create()` factory.
 
 ## Per-component wiring
 
-Five components currently delegate their durability-critical state to
+Six components currently delegate their durability-critical state to
 `IL2KeyValueStore`. Each has a default ctor that uses an in-memory backing
 (suitable for tests) and an alternate ctor that takes a caller-supplied store:
 
@@ -125,6 +126,24 @@ The pending queue stays in-memory. Only the consumed-nonce set needs
 durability — losing it would let a sequencer re-include or reject already-
 consumed forced txs.
 
+### 6. Sequencer committee membership (`Neo.L2.Sequencer.InMemorySequencerCommitteeProvider`)
+
+```csharp
+using var rocks = new RocksDbKeyValueStore("/var/lib/neo-l2/sequencer");
+using var p = new InMemorySequencerCommitteeProvider(
+    chainId: 1001,
+    store: rocks,
+    ownsStore: true);
+```
+
+In-memory dictionary stays as the hot path; all writes (Register / BeginExit /
+Finalize) shadow-write to the KV store. On construction, members are hydrated
+from the store back into the dict so a restart picks up where the previous
+process left off — including mid-exit windows. Without persistence, a node
+bounce mid-exit could lose the `ExitsAtUnixSeconds` deadline and either
+re-admit a sequencer that was supposed to be in cooldown or refuse to finalize
+an exit whose window already passed.
+
 ## Operator config recipe
 
 A production L2 node typically carves out a single base directory and gives
@@ -136,7 +155,8 @@ each store its own subdirectory:
 ├── state/               # KeyedStateStore
 ├── messages/            # InMemoryMessageRouter (finalized proofs)
 ├── rpc-proofs/          # InMemoryL2RpcStore (withdrawal + message)
-└── forced-inclusion/    # InMemoryForcedInclusionSource (consumed)
+├── forced-inclusion/    # InMemoryForcedInclusionSource (consumed)
+└── sequencer/           # InMemorySequencerCommitteeProvider (membership + exit windows)
 ```
 
 Each RocksDB instance is independent — they're not column families of one

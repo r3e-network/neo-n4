@@ -22,7 +22,7 @@ namespace NeoHub.OptimisticChallenge;
 [ContractAuthor("Neo Project", "dev@neo.org")]
 [ContractDescription("Phase-3 optimistic-rollup challenge window for Neo Elastic Network.")]
 [ContractVersion("0.1.0")]
-[ContractSourceCode("https://github.com/neo-project/neo4/tree/master/contracts/NeoHub.OptimisticChallenge")]
+[ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.OptimisticChallenge")]
 [ContractPermission(Permission.Any, Method.Any)]
 public class OptimisticChallengeContract : SmartContract
 {

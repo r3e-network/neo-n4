@@ -16,7 +16,7 @@ namespace NeoHub.SharedBridge;
 [ContractAuthor("Neo Project", "dev@neo.org")]
 [ContractDescription("Canonical asset escrow + L1↔L2 transfer for Neo Elastic Network.")]
 [ContractVersion("0.1.0")]
-[ContractSourceCode("https://github.com/neo-project/neo4/tree/master/contracts/NeoHub.SharedBridge")]
+[ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.SharedBridge")]
 [ContractPermission(Permission.Any, Method.Any)]
 public class SharedBridgeContract : SmartContract
 {

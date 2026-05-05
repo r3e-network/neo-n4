@@ -18,7 +18,7 @@ namespace L2Native.L2MessageContract;
 [ContractAuthor("Neo Project", "dev@neo.org")]
 [ContractDescription("L2-side cross-chain message I/O for Neo Elastic Network.")]
 [ContractVersion("0.1.0")]
-[ContractSourceCode("https://github.com/neo-project/neo4/tree/master/contracts/L2Native.L2MessageContract")]
+[ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/L2Native.L2MessageContract")]
 [ContractPermission(Permission.Any, Method.Any)]
 public class L2MessageContract : SmartContract
 {

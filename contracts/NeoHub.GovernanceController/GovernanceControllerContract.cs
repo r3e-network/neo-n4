@@ -17,7 +17,7 @@ namespace NeoHub.GovernanceController;
 [ContractAuthor("Neo Project", "dev@neo.org")]
 [ContractDescription("Governance controller for the Neo Elastic Network: council, timelocks, admission policy.")]
 [ContractVersion("0.1.0")]
-[ContractSourceCode("https://github.com/neo-project/neo4/tree/master/contracts/NeoHub.GovernanceController")]
+[ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.GovernanceController")]
 [ContractPermission(Permission.Any, Method.Any)]
 public class GovernanceControllerContract : SmartContract
 {

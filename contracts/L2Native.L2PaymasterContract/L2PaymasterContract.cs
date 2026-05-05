@@ -18,7 +18,7 @@ namespace L2Native.L2PaymasterContract;
 [ContractAuthor("Neo Project", "dev@neo.org")]
 [ContractDescription("Lets L2 users pay fees in stablecoin / sponsored assets instead of bridged GAS.")]
 [ContractVersion("0.1.0")]
-[ContractSourceCode("https://github.com/neo-project/neo4/tree/master/contracts/L2Native.L2PaymasterContract")]
+[ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/L2Native.L2PaymasterContract")]
 [ContractPermission(Permission.Any, Method.Any)]
 public class L2PaymasterContract : SmartContract
 {

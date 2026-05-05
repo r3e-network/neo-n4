@@ -17,7 +17,7 @@ namespace NeoHub.MessageRouter;
 [ContractAuthor("Neo Project", "dev@neo.org")]
 [ContractDescription("Cross-chain message queue + message-root registry for Neo Elastic Network.")]
 [ContractVersion("0.1.0")]
-[ContractSourceCode("https://github.com/neo-project/neo4/tree/master/contracts/NeoHub.MessageRouter")]
+[ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.MessageRouter")]
 [ContractPermission(Permission.Any, Method.Any)]
 public class MessageRouterContract : SmartContract
 {

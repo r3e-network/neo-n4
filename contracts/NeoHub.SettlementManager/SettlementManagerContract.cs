@@ -16,7 +16,7 @@ namespace NeoHub.SettlementManager;
 [ContractAuthor("Neo Project", "dev@neo.org")]
 [ContractDescription("Batch settlement + canonical state root tracking for Neo Elastic Network.")]
 [ContractVersion("0.1.0")]
-[ContractSourceCode("https://github.com/neo-project/neo4/tree/master/contracts/NeoHub.SettlementManager")]
+[ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.SettlementManager")]
 [ContractPermission(Permission.Any, Method.Any)]
 public class SettlementManagerContract : SmartContract
 {

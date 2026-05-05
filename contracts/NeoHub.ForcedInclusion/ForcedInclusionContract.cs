@@ -24,7 +24,7 @@ namespace NeoHub.ForcedInclusion;
 [ContractAuthor("Neo Project", "dev@neo.org")]
 [ContractDescription("Forced-inclusion queue per L2 chain — anti-censorship primitive.")]
 [ContractVersion("0.1.0")]
-[ContractSourceCode("https://github.com/neo-project/neo4/tree/master/contracts/NeoHub.ForcedInclusion")]
+[ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.ForcedInclusion")]
 [ContractPermission(Permission.Any, Method.Any)]
 public class ForcedInclusionContract : SmartContract
 {

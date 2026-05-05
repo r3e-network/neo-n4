@@ -20,7 +20,7 @@ namespace L2Native.L2BridgeContract;
 [ContractAuthor("Neo Project", "dev@neo.org")]
 [ContractDescription("L2-side bridge: mints / burns assets that NeoHub.SharedBridge holds in escrow.")]
 [ContractVersion("0.1.0")]
-[ContractSourceCode("https://github.com/neo-project/neo4/tree/master/contracts/L2Native.L2BridgeContract")]
+[ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/L2Native.L2BridgeContract")]
 [ContractPermission(Permission.Any, Method.Any)]
 public class L2BridgeContract : SmartContract
 {

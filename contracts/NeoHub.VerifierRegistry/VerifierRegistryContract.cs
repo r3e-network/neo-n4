@@ -15,7 +15,7 @@ namespace NeoHub.VerifierRegistry;
 [ContractAuthor("Neo Project", "dev@neo.org")]
 [ContractDescription("Pluggable proof verifier dispatch table for Neo Elastic Network.")]
 [ContractVersion("0.1.0")]
-[ContractSourceCode("https://github.com/neo-project/neo4/tree/master/contracts/NeoHub.VerifierRegistry")]
+[ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.VerifierRegistry")]
 [ContractPermission(Permission.Any, Method.Any)]
 public class VerifierRegistryContract : SmartContract
 {

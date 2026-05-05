@@ -18,7 +18,7 @@ namespace L2Native.L2SystemConfigContract;
 [ContractAuthor("Neo Project", "dev@neo.org")]
 [ContractDescription("L2-side cache of NeoHub-pushed system configuration.")]
 [ContractVersion("0.1.0")]
-[ContractSourceCode("https://github.com/neo-project/neo4/tree/master/contracts/L2Native.L2SystemConfigContract")]
+[ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/L2Native.L2SystemConfigContract")]
 [ContractPermission(Permission.Any, Method.Any)]
 public class L2SystemConfigContract : SmartContract
 {

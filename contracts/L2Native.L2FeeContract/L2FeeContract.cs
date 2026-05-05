@@ -16,7 +16,7 @@ namespace L2Native.L2FeeContract;
 [ContractAuthor("Neo Project", "dev@neo.org")]
 [ContractDescription("L2 fee splitter: sequencer / prover / DA shares.")]
 [ContractVersion("0.1.0")]
-[ContractSourceCode("https://github.com/neo-project/neo4/tree/master/contracts/L2Native.L2FeeContract")]
+[ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/L2Native.L2FeeContract")]
 [ContractPermission(Permission.Any, Method.Any)]
 public class L2FeeContract : SmartContract
 {

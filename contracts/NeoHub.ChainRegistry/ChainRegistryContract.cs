@@ -16,7 +16,7 @@ namespace NeoHub.ChainRegistry;
 [ContractAuthor("Neo Project", "dev@neo.org")]
 [ContractDescription("L2 chain admission and per-chain config registry for Neo Elastic Network.")]
 [ContractVersion("0.1.0")]
-[ContractSourceCode("https://github.com/neo-project/neo4/tree/master/contracts/NeoHub.ChainRegistry")]
+[ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.ChainRegistry")]
 [ContractPermission(Permission.Any, Method.Any)]
 public class ChainRegistryContract : SmartContract
 {

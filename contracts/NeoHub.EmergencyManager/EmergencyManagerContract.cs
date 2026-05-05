@@ -16,7 +16,7 @@ namespace NeoHub.EmergencyManager;
 [ContractAuthor("Neo Project", "dev@neo.org")]
 [ContractDescription("Emergency pause + escape hatch for Neo Elastic Network.")]
 [ContractVersion("0.1.0")]
-[ContractSourceCode("https://github.com/neo-project/neo4/tree/master/contracts/NeoHub.EmergencyManager")]
+[ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.EmergencyManager")]
 [ContractPermission(Permission.Any, Method.Any)]
 public class EmergencyManagerContract : SmartContract
 {

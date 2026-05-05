@@ -16,7 +16,7 @@ namespace L2Native.L2BatchInfoContract;
 [ContractAuthor("Neo Project", "dev@neo.org")]
 [ContractDescription("Exposes batch context (chainId, batchNumber, L1 height) to L2 contracts.")]
 [ContractVersion("0.1.0")]
-[ContractSourceCode("https://github.com/neo-project/neo4/tree/master/contracts/L2Native.L2BatchInfoContract")]
+[ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/L2Native.L2BatchInfoContract")]
 [ContractPermission(Permission.Any, Method.Any)]
 public class L2BatchInfoContract : SmartContract
 {

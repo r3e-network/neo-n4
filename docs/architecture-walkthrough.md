@@ -159,24 +159,12 @@ The `AggregatedCommitment` carries:
 
 ## Walk #4: telemetry — emit, snapshot, scrape
 
+<p align="center">
+  <img src="figures/telemetry-pipeline.svg" alt="Telemetry pipeline: plugins emit to IL2Metrics, snapshotted into a point-in-time copy, exported by PrometheusExporter, served by MetricsRequestHandler over MetricsHttpServer, scraped by Prometheus" width="900">
+</p>
+
 Cross-cutting observability layer. Every plugin that does meaningful work emits to a
 shared `IL2Metrics` sink; one HTTP endpoint serves the result.
-
-```text
-plugins emit ──> IL2Metrics ──> InMemoryMetrics ──> Snapshot()
-                                                      │
-                                                      ▼
-                                              PrometheusExporter
-                                                      │
-                                                      ▼
-                                            MetricsRequestHandler
-                                                      │  /metrics, /healthz, /readyz
-                                                      ▼
-                                              MetricsHttpServer
-                                                      │
-                                                      ▼
-                                          GET http://node/metrics
-```
 
 The composition root is `Neo.Plugins.L2Metrics.L2MetricsPlugin`. Operators construct it
 first, then wire each L2 plugin's `WithMetrics()` setter to `metricsPlugin.Metrics`. After

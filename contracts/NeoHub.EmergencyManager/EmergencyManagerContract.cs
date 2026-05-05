@@ -22,25 +22,43 @@ public class EmergencyManagerContract : SmartContract
 {
     private const byte KeyPaused = 0x01;
     private const byte KeyEmergencyCouncil = 0x02;   // multisig hash that can pause
-    private const byte PrefixEscapeConsumed = 0x03;   // 0x03 + leafHash(32B) → 1
+    private const byte PrefixEscapeConsumed = 0x03;   // 0x03 + chainId(4B) + leafHash(32B) → 1
+    private const byte KeySettlementManager = 0x04;
     private const byte KeyOwner = 0xFF;
 
     /// <summary>Emitted whenever the global pause flag toggles.</summary>
     [DisplayName("PauseStateChanged")]
     public static event Action<bool> OnPauseStateChanged = default!;
 
-    /// <summary>Emitted on a successful escape-hatch withdrawal.</summary>
+    /// <summary>Emitted on a successful escape-hatch withdrawal. Includes chainId so off-chain
+    /// indexers can attribute the exit to the right L2.</summary>
     [DisplayName("EscapeHatchExit")]
-    public static event Action<UInt160, UInt256> OnEscapeHatchExit = default!;
+    public static event Action<uint, UInt160, UInt256> OnEscapeHatchExit = default!;
 
-    /// <summary>Set wiring on deploy.</summary>
+    /// <summary>Set wiring on deploy. Args: (owner, emergencyCouncil, settlementManager).</summary>
     public static void _deploy(object data, bool update)
     {
         if (update) return;
         var arr = (object[])data;
-        Storage.Put(new byte[] { KeyOwner }, (UInt160)arr[0]);
-        Storage.Put(new byte[] { KeyEmergencyCouncil }, (UInt160)arr[1]);
+        var owner = (UInt160)arr[0];
+        var council = (UInt160)arr[1];
+        var settlementManager = (UInt160)arr[2];
+        ExecutionEngine.Assert(owner.IsValid && !owner.IsZero, "invalid owner");
+        ExecutionEngine.Assert(council.IsValid && !council.IsZero, "invalid council");
+        ExecutionEngine.Assert(settlementManager.IsValid && !settlementManager.IsZero, "invalid settlement manager");
+        Storage.Put(new byte[] { KeyOwner }, owner);
+        Storage.Put(new byte[] { KeyEmergencyCouncil }, council);
+        Storage.Put(new byte[] { KeySettlementManager }, settlementManager);
         Storage.Put(new byte[] { KeyPaused }, new byte[] { 0 });
+    }
+
+    /// <summary>Hash of the SettlementManager contract whose finalized state roots the
+    /// escape hatch verifies against.</summary>
+    [Safe]
+    public static UInt160 GetSettlementManager()
+    {
+        var raw = Storage.Get(new byte[] { KeySettlementManager });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
     }
 
     /// <summary>Governance owner (typically the GovernanceController contract hash).</summary>
@@ -79,25 +97,45 @@ public class EmergencyManagerContract : SmartContract
 
     /// <summary>
     /// Escape-hatch withdrawal: when an L2 has stalled or its sequencer is malicious, a user
-    /// can prove ownership directly to NeoHub and receive the canonical asset. Replay-protected
-    /// on the leaf hash (which the user computes against the last finalized state root).
+    /// can prove ownership directly to NeoHub and receive the canonical asset. The leaf hash
+    /// is verified against the chain's latest finalized state root via SettlementManager —
+    /// without that check, a malicious user could submit a leaf for any state, valid or not.
+    /// Replay-protected per (chainId, leafHash) so the same proof can't drain twice and so a
+    /// leaf valid on one L2 can't be replayed against another.
     /// </summary>
-    public static void EscapeHatchExit(UInt160 sender, UInt256 leafHash)
+    public static void EscapeHatchExit(uint chainId, UInt160 sender, UInt256 leafHash)
     {
         ExecutionEngine.Assert(IsPaused(), "escape hatch only valid while paused");
         ExecutionEngine.Assert(Runtime.CheckWitness(sender), "no witness");
-        var key = EscapeKey(leafHash);
+        var key = EscapeKey(chainId, leafHash);
         ExecutionEngine.Assert(Storage.Get(key) == null, "escape leaf already consumed");
+
+        // Verify the leaf hash is anchored in the chain's latest finalized state root.
+        // MVP simplification (see SharedBridge.VerifyWithdrawalLeaf): the leaf is treated
+        // as the state root commitment itself; full Merkle-path verification is delegated
+        // off-chain. A future iteration can expose VerifyStateLeaf(chainId, leafHash,
+        // siblings, leafIndex) on SettlementManager and call that instead.
+        var sm = GetSettlementManager();
+        ExecutionEngine.Assert(sm != UInt160.Zero, "settlement manager unset");
+        var canonicalRoot = (UInt256)Contract.Call(sm, "getCanonicalStateRoot",
+            CallFlags.ReadOnly, new object[] { chainId });
+        ExecutionEngine.Assert(canonicalRoot.Equals(leafHash),
+            "leaf does not match latest finalized state root");
+
         Storage.Put(key, new byte[] { 1 });
-        OnEscapeHatchExit(sender, leafHash);
+        OnEscapeHatchExit(chainId, sender, leafHash);
     }
 
-    private static byte[] EscapeKey(UInt256 leafHash)
+    private static byte[] EscapeKey(uint chainId, UInt256 leafHash)
     {
-        var k = new byte[1 + 32];
+        var k = new byte[1 + 4 + 32];
         k[0] = PrefixEscapeConsumed;
+        k[1] = (byte)(chainId & 0xFF);
+        k[2] = (byte)((chainId >> 8) & 0xFF);
+        k[3] = (byte)((chainId >> 16) & 0xFF);
+        k[4] = (byte)((chainId >> 24) & 0xFF);
         var b = (byte[])leafHash;
-        for (var i = 0; i < 32; i++) k[1 + i] = b[i];
+        for (var i = 0; i < 32; i++) k[1 + 4 + i] = b[i];
         return k;
     }
 }

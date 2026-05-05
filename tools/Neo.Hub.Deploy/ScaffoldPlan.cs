@@ -37,8 +37,8 @@ public static class ScaffoldPlan
 
                 Step("EmergencyManager",
                     "contracts/NeoHub.EmergencyManager/bin/Release/NeoHub.EmergencyManager.nef",
-                    OwnerAndDep("GovernanceController"),
-                    "GovernanceController"),
+                    OwnerAndDeps("GovernanceController", "SettlementManager"),
+                    "GovernanceController", "SettlementManager"),
 
                 Step("GovernanceController",
                     "contracts/NeoHub.GovernanceController/bin/Release/NeoHub.GovernanceController.nef",

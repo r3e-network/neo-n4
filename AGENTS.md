@@ -29,7 +29,9 @@ components on top of pre-existing Neo ecosystem repos in `/home/neo/git/`:
   `Directory.Build.props` `NeoCorePath`).
 - `neo-zkvm`, `neo-axiom` — ZK proof systems. `bridge/neo-zkvm-bridge` (Rust cdylib in this
   repo) wraps `neo-zkvm-prover` for C# P/Invoke.
-- `neo-devpack-dotnet` — compile C# to NeoVM (used for `contracts/`).
+- `neo-devpack-dotnet` — compile C# to NeoVM (used for `contracts/`). Also vendored as a
+  git submodule at `external/neo-devpack-dotnet` (never released on NuGet for the version
+  we track). `contracts/Directory.Build.props` defaults `NeoDevpackPath` to the submodule.
 - `neo-execution-specs` — deterministic state-transition spec (proving target).
 - `neo-riscv-{vm,core,node}`, `neo-llvm` — RISC-V VM stack (NeoVM2 candidate).
 - `neo-sovereign-rollup`, `neo-matrix`, `neo-nexus` — earlier attempts at related tooling;

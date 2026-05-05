@@ -7,8 +7,10 @@ This directory contains the on-chain contracts for the **NeoHub** (L1 contract s
 
 Each contract is a plain `Microsoft.NET.Sdk` class library that references
 [`Neo.SmartContract.Framework`](https://github.com/neo-project/neo-devpack-dotnet) via
-`ProjectReference`. The framework lives at `../../neo-devpack-dotnet/src/Neo.SmartContract.Framework/`
-(adjust `NeoDevpackPath` in `Directory.Build.props` if your layout differs).
+`ProjectReference`. The framework is vendored as a git submodule at
+`external/neo-devpack-dotnet/src/Neo.SmartContract.Framework/` (init via
+`git submodule update --init --recursive` after cloning). Override `NeoDevpackPath`
+in `Directory.Build.props` if you want to point at a local fork.
 
 ```bash
 dotnet build contracts/                      # type-checks all contracts

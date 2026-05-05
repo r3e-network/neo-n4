@@ -166,6 +166,29 @@ Each L2 declares one of four modes via `ChainRegistry.securityLevel`:
 This is on-chain so users can read the chain's actual security level via the
 `getsecuritylevel` RPC (`§14.1` of `doc.md`).
 
+### 4.4 Durable state — `IL2KeyValueStore`
+
+Six off-chain components carry state that must survive a restart: the keyed state
+store, RPC withdrawal/message proofs, finalized message proofs, consumed forced-
+inclusion nonces, sequencer committee membership (with mid-flight exit windows),
+and DA payloads. An in-memory dict is fine for tests but unacceptable in production
+— a sequencer mid-exit losing its `ExitsAtUnixSeconds` deadline on restart could
+re-admit a sequencer that should be in cooldown, or fail to finalize an exit that
+already passed its window.
+
+Solution: an explicit `IL2KeyValueStore` abstraction (`Put` / `Get` / `Delete` /
+`Contains` / `EnumeratePrefix` / `Count` / `IDisposable`) with two implementations:
+
+- `InMemoryKeyValueStore` — `SortedDictionary<byte[], byte[]>` with lexicographic
+  ordering. Devnet / test default.
+- `RocksDbKeyValueStore` — RocksDB 10.4.2 with snappy compression. Production default.
+
+Each stateful component takes an optional `IL2KeyValueStore` ctor overload and an
+ownership flag; the bare default ctor still works (in-memory) for backwards
+compatibility. Devnet's `--data-dir <path>` flag wires four of these stores
+(state / rpc-proofs / sequencer / da) under one root automatically. See
+[`docs/persistence.md`](docs/persistence.md) for the operator wiring recipes.
+
 ---
 
 ## 5. Proof system

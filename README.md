@@ -125,8 +125,8 @@ Detailed coverage per project: [`IMPLEMENTATION_STATUS.md`](./IMPLEMENTATION_STA
 [`neo-project/neo`](https://github.com/neo-project/neo) at `../neo`.
 
 ```bash
-git clone https://github.com/neo-project/neo4
-cd neo4
+git clone https://github.com/r3e-network/neo-n4
+cd neo-n4
 
 # Type-check everything + run all 658 tests (~10 seconds)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
@@ -163,6 +163,7 @@ A 5-minute walkthrough is in [`docs/getting-started.md`](./docs/getting-started.
 | [`docs/architecture-walkthrough.md`](./docs/architecture-walkthrough.md) | engineers             | Narrative tour mapping every `doc.md` section to code.               |
 | [`docs/telemetry.md`](./docs/telemetry.md)                              | operators             | Metric catalog, wiring example, Prometheus exposition format.        |
 | [`docs/security-model.md`](./docs/security-model.md)                    | operators, reviewers  | What L1 guarantees, threat → mitigation table, operator checklist.   |
+| [`docs/figures/`](./docs/figures/)                                      | everyone              | Figure gallery — 5 hand-tuned SVGs reused across README + walkthrough + whitepaper. |
 | [`CONTRIBUTING.md`](./CONTRIBUTING.md)                                  | contributors          | Layout, conventions, PR checklist.                                   |
 | [`AGENTS.md`](./AGENTS.md)                                              | AI tooling            | Guide for AI-assisted contributors.                                  |
 

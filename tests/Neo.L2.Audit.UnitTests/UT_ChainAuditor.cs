@@ -88,6 +88,27 @@ public class UT_ChainAuditor
     }
 
     [TestMethod]
+    public async Task ChainAuditor_RejectsMixedChainIds()
+    {
+        // Defense-in-depth: a caller that accidentally concatenates batches from two
+        // different chains gets a clear ArgumentException pointing at the offending
+        // index, not a confusing "batch number out of sequence" finding (which would
+        // fire later only because batch numbers happen to restart). Pin the explicit
+        // message so a refactor that drops the precondition would surface here.
+        var batches = new[]
+        {
+            Mk(1001, 1, H(0), H(1), 100, 200),
+            Mk(2002, 2, H(1), H(2), 201, 300), // different chain
+        };
+        var auditor = new ChainAuditor().Register(new ContinuityCheck());
+        var ex = await Assert.ThrowsExactlyAsync<ArgumentException>(
+            async () => await auditor.AuditAsync(batches));
+        StringAssert.Contains(ex.Message, "chainId");
+        StringAssert.Contains(ex.Message, "1001");
+        StringAssert.Contains(ex.Message, "2002");
+    }
+
+    [TestMethod]
     public async Task ContinuityCheck_DetectsBlockOverlap()
     {
         var batches = new[]

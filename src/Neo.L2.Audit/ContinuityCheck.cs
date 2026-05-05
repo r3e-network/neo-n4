@@ -7,6 +7,9 @@ namespace Neo.L2.Audit;
 ///   <item><description>preStateRoot of batch N+1 equals postStateRoot of batch N.</description></item>
 ///   <item><description>firstBlock of batch N+1 is greater than lastBlock of batch N.</description></item>
 /// </list>
+/// Note: chainId continuity is already enforced upstream by <see cref="ChainAuditor"/>'s
+/// precondition check (raises <c>ArgumentException</c>), so this check assumes a single-chain
+/// list and does not re-verify it.
 /// </summary>
 public sealed class ContinuityCheck : IAuditCheck
 {

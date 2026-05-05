@@ -234,6 +234,37 @@ onto one directory or omits a component breaks the suite, not devnet-on-restart.
 [`docs/persistence.md`](./persistence.md) for the operator wiring recipes + per-component
 "what breaks if X is lost" table.
 
+## Walk #6: invariant audit — `ChainAuditor` + 6 checks
+
+Settlement gives canonical batches; proofs cryptographically bind state transitions; DA
+keeps payloads recoverable. But none of those individually answer the operator's
+day-2 question: *"is the chain still well-formed?"* That's where `Neo.L2.Audit.ChainAuditor`
+fits — it composes a sequence of `IAuditCheck` invariants and runs them over a batch
+sequence on a periodic ops-side schedule. Failures bump `l2.audit.failures` for
+dashboards; the report names every failed finding by check + batch.
+
+Built-in checks (devnet wires all six):
+
+| Check | What it catches |
+| --- | --- |
+| `ContinuityCheck` | inter-batch state-root continuity + monotonic batch numbers + non-overlapping block ranges |
+| `NoZeroProofCheck` | "soft-sealed but never proved" batches — `ProofType.None` or empty proof bytes |
+| `ProofValidityCheck` | the cryptographic verifier rejects the proof against its public inputs |
+| `PublicInputHashConsistencyCheck` | the stored `PublicInputHash` doesn't match what the commitment fields would hash to (tampered submission) |
+| `BatchRangeCheck` | intra-batch invariants: `firstBlock <= lastBlock`, `batchNumber >= 1` |
+| `DAAvailabilityCheck` | the DA layer dropped the payload that the proof commitment binds to |
+
+Each check returns one summary `AuditFinding` on success, one finding per failure
+otherwise; the auditor catches buggy custom checks (`Exception` thrown from `RunAsync`)
+and converts them to a failure finding so one bad check doesn't abort the whole pass.
+Mixed-chainId batch lists are rejected with `ArgumentException` upstream of the
+per-check pipeline.
+
+The integration test `UT_E2E_AuditPipeline` exercises three scenarios end-to-end on
+a real attestation-signed chain: healthy (all 6 pass + metric counts), `BatchRange`
+violation (caught with right detail + counter increments), and DA-dropped (caught
+specifically by `DAAvailabilityCheck` against a writer that never saw the payload).
+
 ## Where each `doc.md` section lives in code
 
 | `doc.md` § | What it specifies            | Code location                                                                  |

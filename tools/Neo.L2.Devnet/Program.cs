@@ -311,6 +311,9 @@ internal static class Program
             .Register(new ContinuityCheck())
             .Register(new NoZeroProofCheck())
             .Register(new ProofValidityCheck(verifierRegistry, c => publicInputsByBatch[c.BatchNumber]))
+            // Catches intra-batch range inversions + zero batch numbers; cheap and
+            // catches a class of buggy-sequencer bugs not covered by ContinuityCheck.
+            .Register(new BatchRangeCheck())
             // Catches "DA layer dropped the payload" — relevant only when --data-dir is
             // set, but cheap enough to always run (in-memory writer never drops).
             .Register(new DAAvailabilityCheck(daWriter));

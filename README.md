@@ -95,7 +95,7 @@ neo4/
 │   └── Neo.Hub.Deploy/                     # declarative L1 deploy planner
 ├── bridge/
 │   └── neo-zkvm-bridge/                    # Rust cdylib + C ABI
-└── tests/                                  # 810 tests / 26 projects
+└── tests/                                  # 817 tests / 26 projects
 ```
 
 ---
@@ -129,7 +129,7 @@ Detailed coverage per project: [`IMPLEMENTATION_STATUS.md`](./IMPLEMENTATION_STA
 git clone https://github.com/r3e-network/neo-n4
 cd neo-n4
 
-# Type-check everything + run all 810 tests (~10 seconds)
+# Type-check everything + run all 817 tests (~10 seconds)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Run the in-process devnet (5 batches, real state-root continuity, post-run audit)

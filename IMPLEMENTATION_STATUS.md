@@ -12,7 +12,7 @@
 | 3     | Optimistic Challenge Window               | ✅ `OptimisticChallenge` contract + `ChallengeOrchestrator` + `BisectionGame` (log-N narrowing) all green |
 | 4     | NeoVM2 / RISC-V ZK Validity Proof         | 🟡 SP1 FFI bridge scaffolded; flip `--features real-prover` to enable |
 | 5     | Neo Gateway (proof aggregation)           | 🟡 `BinaryTreeAggregator` with pluggable `IRoundProver` (default = pass-through hash) |
-| 6     | Neo Stack CLI / Templates                 | 🟡 8 subcommands scaffolded                 |
+| 6     | Neo Stack CLI / Templates                 | ✅ All 8 subcommands functional (create-chain / init-l2 / register-chain / deploy-bridge-adapter / start-sequencer / start-batcher / start-prover / submit-batch) |
 
 Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
@@ -70,7 +70,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 | Tool                  | Role                                                  |
 | --------------------- | ----------------------------------------------------- |
-| `Neo.Stack.Cli`       | `neo-stack` CLI: 8 subcommands                        |
+| `Neo.Stack.Cli`       | `neo-stack` CLI: 8 subcommands all functional (create-chain, init-l2, register-chain, deploy-bridge-adapter, start-{sequencer,batcher,prover}, submit-batch). The 3 commands that need L1/L2 wallet integration print structured operator plans (target contract + args + numbered next steps) instead of placeholder "would do X" text |
 | `Neo.L2.Devnet`       | `neo-l2-devnet <N> [--metrics-port <P>] [--data-dir <path>]` — runs N batches end-to-end with real `KeyedStateStore` continuity + sequencer committee + DA publish per batch + post-run `ChainAuditor` pass; with `--metrics-port` stands up a live HTTP server + self-scrapes `/metrics`, `/healthz`, `/readyz`; with `--data-dir` wires `RocksDbKeyValueStore` instances under that path so committee + state + RPC proofs + DA payloads all survive restart |
 | `Neo.Hub.Deploy`      | `neo-hub-deploy` — declarative L1 deploy planner: scaffold / plan / verify |
 

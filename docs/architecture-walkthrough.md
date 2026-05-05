@@ -103,6 +103,10 @@ releases the canonical asset.
 
 ## Walk #2: anti-censorship via forced inclusion
 
+<p align="center">
+  <img src="figures/forced-inclusion.svg" alt="Forced-inclusion + censorship slashing sequence: user enqueues forced tx on L1, L2 polls and drains, sequencer censors past deadline, CensorshipDetector observes overdue, operator reports, SequencerBond slashes" width="900">
+</p>
+
 `doc.md` §15.4 + §17 spell out the censorship-resistance design. Here's how it works:
 
 ### 1. User posts forced tx on L1

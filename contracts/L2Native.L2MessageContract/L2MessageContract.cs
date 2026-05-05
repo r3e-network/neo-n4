@@ -70,6 +70,10 @@ public class L2MessageContract : SmartContract
     public static ulong EmitMessage(uint targetChainId, UInt160 receiver, byte messageType, byte[] payload)
     {
         ExecutionEngine.Assert(receiver.IsValid && !receiver.IsZero, "invalid receiver");
+        // Self-messages are meaningless — there's no cross-chain transport for a message
+        // from chainId X to chainId X. Surface the misconfig at emit time, not at gateway
+        // routing time when the message would silently disappear.
+        ExecutionEngine.Assert(targetChainId != GetChainId(), "self-targeted message (use a local invocation)");
         var sender = Runtime.CallingScriptHash;
         var nonce = NextNonce(sender);
         OnMessageEmitted(GetChainId(), targetChainId, nonce, sender, receiver, messageType);

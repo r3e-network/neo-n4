@@ -177,7 +177,7 @@ A 5-minute walkthrough is in [`docs/getting-started.md`](./docs/getting-started.
 | [`docs/telemetry.md`](./docs/telemetry.md)                              | operators             | Metric catalog, wiring example, Prometheus exposition format.        |
 | [`docs/security-model.md`](./docs/security-model.md)                    | operators, reviewers  | What L1 guarantees, threat → mitigation table, operator checklist.   |
 | [`docs/persistence.md`](./docs/persistence.md)                          | operators             | RocksDB-backed durable state — IL2KeyValueStore, per-component wiring, operator checklist. |
-| [`docs/figures/`](./docs/figures/)                                      | everyone              | Figure gallery — 5 hand-tuned SVGs reused across README + walkthrough + whitepaper. |
+| [`docs/figures/`](./docs/figures/)                                      | everyone              | Figure gallery — 6 hand-tuned SVGs reused across README + walkthrough + whitepaper + security-model. |
 | [`CONTRIBUTING.md`](./CONTRIBUTING.md)                                  | contributors          | Layout, conventions, PR checklist.                                   |
 | [`AGENTS.md`](./AGENTS.md)                                              | AI tooling            | Guide for AI-assisted contributors.                                  |
 

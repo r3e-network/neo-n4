@@ -11,7 +11,8 @@ namespace Neo.Plugins.L2;
 /// snapshot file.
 /// </summary>
 /// <remarks>
-/// Production deployments swap this for <see cref="NeoFSDAWriter"/> wired to a NeoFS client.
+/// Production deployments register a custom <see cref="IDAWriter"/> wired to a NeoFS SDK
+/// via <c>L2DAPlugin.WithWriter</c>.
 /// The on-chain commitment recorded in <c>NeoHub.DARegistry</c> is the object id (32 bytes),
 /// matching what the real NeoFS implementation will produce. See doc.md §12.2 (NeoFS DA).
 /// </remarks>

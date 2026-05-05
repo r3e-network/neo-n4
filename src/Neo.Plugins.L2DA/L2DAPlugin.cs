@@ -40,21 +40,50 @@ public sealed class L2DAPlugin : Plugin
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Mode → writer wiring:
+    /// <list type="bullet">
+    /// <item><description><see cref="DAMode.External"/> → <see cref="InMemoryDAWriter"/> — content-addressed in-process store; the operator-defined "external DA" is the host process itself, suitable for tests, dev-nets, and single-node demos.</description></item>
+    /// <item><description><see cref="DAMode.NeoFS"/> → <see cref="NeoFsLikeDAWriter"/> — chain-scoped object store with per-call defensive copies; production swaps this for a real NeoFS SDK by re-implementing <see cref="IDAWriter"/> against the SDK and registering it before <see cref="Configure"/> runs.</description></item>
+    /// <item><description><see cref="DAMode.L1"/> and <see cref="DAMode.DAC"/> have no first-class default — both require external clients (L1 RPC + signing wallet; DAC committee key set + attestation aggregation) the plugin can't materialize alone. Configuring either without first calling <see cref="WithWriter"/> throws <see cref="NotSupportedException"/> with a clear operator message.</description></item>
+    /// </list>
+    /// </remarks>
     protected override void Configure()
     {
         var section = GetConfiguration();
         var rawMode = section.GetValue<byte>("DAMode", (byte)DAMode.External);
         _mode = ResolveDAMode(rawMode);
+        // If the operator already provided a writer via WithWriter (e.g. an L1 RPC-backed
+        // implementation or a real NeoFS SDK adapter), respect it. Otherwise pick the
+        // built-in default for the configured mode.
+        if (_writerOverridden) { _writer = WrapWithMetrics(Unwrap(_writer)); return; }
         IDAWriter raw = _mode switch
         {
-            DAMode.L1 => new L1DAWriter(),
-            DAMode.NeoFS => new NeoFSDAWriter(),
-            DAMode.External => new ExternalDAWriter(),
-            DAMode.DAC => new DACDAWriter(),
+            DAMode.External => new InMemoryDAWriter(),
+            DAMode.NeoFS => new NeoFsLikeDAWriter(),
+            DAMode.L1 => throw new NotSupportedException(
+                "DAMode.L1 has no built-in default writer — provide an L1-RPC-backed IDAWriter via WithWriter() before Configure()"),
+            DAMode.DAC => throw new NotSupportedException(
+                "DAMode.DAC has no built-in default writer — provide a committee-attestation IDAWriter via WithWriter() before Configure()"),
             // ResolveDAMode guarantees we don't hit this; kept as a defense-in-depth assert.
             _ => throw new InvalidOperationException($"unhandled DAMode {(byte)_mode}"),
         };
         _writer = WrapWithMetrics(raw);
+    }
+
+    private bool _writerOverridden;
+
+    /// <summary>
+    /// Override the writer with an operator-provided implementation. Used by production
+    /// deployments that wire an L1 RPC client, real NeoFS SDK, or DAC committee. Call
+    /// before the plugin host runs <see cref="Configure"/>.
+    /// </summary>
+    public void WithWriter(IDAWriter writer)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        _writer = writer;
+        _mode = writer.Mode;
+        _writerOverridden = true;
     }
 
     /// <summary>

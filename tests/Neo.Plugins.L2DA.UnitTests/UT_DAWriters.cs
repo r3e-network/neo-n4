@@ -211,6 +211,34 @@ public class UT_DAWriters
     }
 
     [TestMethod]
+    public void L2DAPlugin_DefaultWriter_IsInMemory()
+    {
+        // Pre-Configure default — pinned so a refactor that changes the field initializer
+        // doesn't silently break tests / devnet that construct the plugin and immediately
+        // call GetWriter() without a config section.
+        using var plugin = new L2DAPlugin();
+        Assert.IsInstanceOfType(plugin.GetWriter(), typeof(InMemoryDAWriter));
+    }
+
+    [TestMethod]
+    public void L2DAPlugin_WithWriter_OverridesDefault()
+    {
+        // Production deployments inject a custom IDAWriter (real NeoFS SDK, L1 RPC client,
+        // DAC committee adapter). WithWriter must replace the default before Configure runs.
+        using var plugin = new L2DAPlugin();
+        var custom = new NeoFsLikeDAWriter();
+        plugin.WithWriter(custom);
+        Assert.AreSame(custom, plugin.GetWriter());
+    }
+
+    [TestMethod]
+    public void L2DAPlugin_WithWriter_RejectsNull()
+    {
+        using var plugin = new L2DAPlugin();
+        Assert.ThrowsExactly<ArgumentNullException>(() => plugin.WithWriter(null!));
+    }
+
+    [TestMethod]
     public async Task NeoFsLike_TryGet_DefensiveCopy_CallerCannotCorruptStore()
     {
         // Regression for iter 188: TryGet previously returned the raw stored byte[]

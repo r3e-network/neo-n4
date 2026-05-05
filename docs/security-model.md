@@ -141,8 +141,9 @@ Before launching an L2:
 - [ ] Configure the audit framework. `Neo.L2.Audit.ChainAuditor` accepts a
       sequence of `IAuditCheck` implementations; the default suite
       (`ContinuityCheck`, `ProofValidityCheck`, `NoZeroProofCheck`,
-      `PublicInputHashConsistencyCheck`) catches the typical "drifted state"
-      modes within minutes of a bad batch.
+      `PublicInputHashConsistencyCheck`, `BatchRangeCheck`,
+      `DAAvailabilityCheck`) catches the typical "drifted state" modes within
+      minutes of a bad batch. The devnet runner shows the canonical wiring.
 
 ---
 

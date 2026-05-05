@@ -54,6 +54,8 @@ Each L2 = `Neo 4 core` + L2 extensions:
 - **BridgeAdapter** — L2-side handler for deposits / withdrawals
 - **MessageAdapter** — L2-side cross-chain messaging
 - **ForcedInclusionHandler** — anti-censorship: user can post tx directly to L1 forced-inclusion queue; sequencer must include before deadline or get slashed
+- **DurableStateBackend** — `IL2KeyValueStore` over RocksDB by default; survives restarts. Six components persist state: keyed state, RPC proofs, message-router proofs, forced-inclusion nonces, sequencer committee + exit windows, DA payloads. See [`docs/persistence.md`](docs/persistence.md).
+- **ChainAuditor** — runs 6 invariant checks (continuity, proof validity, no-zero-proof, public-input-hash, batch range, DA availability) against produced commitments; emits `l2.audit.runs` + `l2.audit.failures` for ops dashboards.
 
 ChainMode: `L1Mode` | `SidechainMode` | `L2RollupMode` | `L2ValidiumMode`.
 

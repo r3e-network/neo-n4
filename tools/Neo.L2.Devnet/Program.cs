@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Numerics;
 using System.Threading.Tasks;
 using Neo.Cryptography;
@@ -10,6 +11,7 @@ using Neo.L2.Executor;
 using Neo.L2.Executor.Receipts;
 using Neo.L2.Executor.State;
 using Neo.L2.Messaging;
+using Neo.L2.Persistence;
 using Neo.L2.Proving;
 using Neo.L2.Proving.Attestation;
 using Neo.L2.Sequencer;
@@ -38,11 +40,22 @@ internal static class Program
     {
         var batches = args.Length > 0 && int.TryParse(args[0], out var n) ? n : 3;
         var metricsPort = ParseMetricsPort(args);
+        var dataDir = ParseDataDir(args);
 
         Console.WriteLine("┌─────────────────────────────────────────────┐");
         Console.WriteLine("│  Neo Elastic Network — devnet runner v0.2    │");
         Console.WriteLine($"│  chainId = {LocalChainId}, batches = {batches,2}                      │");
         Console.WriteLine("└─────────────────────────────────────────────┘");
+        Console.WriteLine();
+        if (dataDir is not null)
+        {
+            Directory.CreateDirectory(dataDir);
+            Console.WriteLine($"[persist] RocksDB-backed stores at {dataDir} (data survives restart)");
+        }
+        else
+        {
+            Console.WriteLine("[persist] in-memory stores (devnet default — data lost on restart)");
+        }
         Console.WriteLine();
 
         // ---- Wire components ----
@@ -71,24 +84,38 @@ internal static class Program
         var verifierRegistry = new VerifierRegistry();
         verifierRegistry.Register(verifier);
 
-        // Sequencer committee — 3 sequencers, all bonded.
-        var committeeProvider = new InMemorySequencerCommitteeProvider(LocalChainId, maxCommitteeSize: 7);
-        for (var i = 0; i < 3; i++)
+        // Sequencer committee — 3 sequencers, all bonded. Optionally RocksDB-backed
+        // when --data-dir was supplied so state survives a restart.
+        var committeeStore = MaybeRocks(dataDir, "sequencer");
+        var committeeProvider = committeeStore is null
+            ? new InMemorySequencerCommitteeProvider(LocalChainId, maxCommitteeSize: 7)
+            : new InMemorySequencerCommitteeProvider(LocalChainId, committeeStore, ownsStore: true, maxCommitteeSize: 7);
+        // Skip re-registration if the store already had members from a prior run.
+        if ((await committeeProvider.GetActiveCommitteeAsync()).Count == 0)
         {
-            var (pub, _) = GenKey((byte)(100 + i));
-            var addr = new byte[20];
-            for (var j = 0; j < 20; j++) addr[j] = (byte)(0x10 * (i + 1));
-            committeeProvider.Register(pub, new UInt160(addr));
+            for (var i = 0; i < 3; i++)
+            {
+                var (pub, _) = GenKey((byte)(100 + i));
+                var addr = new byte[20];
+                for (var j = 0; j < 20; j++) addr[j] = (byte)(0x10 * (i + 1));
+                committeeProvider.Register(pub, new UInt160(addr));
+            }
         }
         var initialCommittee = await committeeProvider.GetActiveCommitteeAsync();
         Console.WriteLine($"[wire] sequencer committee: {initialCommittee.Count} active members");
 
         // Real state store + oracle. Seed Alice with 0 balance.
-        var stateStore = new KeyedStateStore();
+        var stateBacking = MaybeRocks(dataDir, "state");
+        var stateStore = stateBacking is null
+            ? new KeyedStateStore()
+            : new KeyedStateStore(stateBacking, ownsBacking: true);
         var stateRootOracle = new KeyedStateRootOracle(stateStore);
         Console.WriteLine($"[wire] keyed state store + oracle ({stateStore.Count} initial entries)");
 
-        var rpcStore = new InMemoryL2RpcStore(LocalChainId, SecurityLevel.Optimistic);
+        var rpcProofStore = MaybeRocks(dataDir, "rpc-proofs");
+        var rpcStore = rpcProofStore is null
+            ? new InMemoryL2RpcStore(LocalChainId, SecurityLevel.Optimistic)
+            : new InMemoryL2RpcStore(LocalChainId, SecurityLevel.Optimistic, rpcProofStore, ownsProofs: true);
         rpcStore.RegisterAsset(GasL1, GasL2);
         var rpc = new L2RpcMethods(rpcStore);
 
@@ -328,6 +355,23 @@ internal static class Program
             }
         }
         return null;
+    }
+
+    private static string? ParseDataDir(string[] args)
+    {
+        for (var i = 0; i < args.Length - 1; i++)
+        {
+            if (args[i] == "--data-dir") return args[i + 1];
+        }
+        return null;
+    }
+
+    private static IL2KeyValueStore? MaybeRocks(string? baseDir, string subDir)
+    {
+        if (baseDir is null) return null;
+        var path = Path.Combine(baseDir, subDir);
+        Directory.CreateDirectory(path);
+        return new RocksDbKeyValueStore(path);
     }
 
     // ---- Helpers ----

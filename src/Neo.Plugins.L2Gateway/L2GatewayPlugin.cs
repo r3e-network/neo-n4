@@ -33,6 +33,11 @@ public sealed class L2GatewayPlugin : Plugin
     /// <summary>Forward a per-chain sealed batch into the aggregator.</summary>
     public void ReceiveBatch(L2BatchCommitment commitment)
     {
+        // Surface null at the API boundary instead of relying on the aggregator's own
+        // guard — same iter-148/183 boundary pattern. A null commitment would otherwise
+        // produce a generic ArgumentNullException with no link to the L2GatewayPlugin
+        // call site.
+        ArgumentNullException.ThrowIfNull(commitment);
         if (!_enabled) return;
         _aggregator.Submit(commitment);
     }

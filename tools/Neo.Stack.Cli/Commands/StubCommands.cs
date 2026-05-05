@@ -12,9 +12,55 @@ internal static class RegisterChainCommand
     public static Task<int> RunAsync(string[] args)
     {
         var l1 = ArgUtil.Get(args, "--l1", "neo-n3-testnet");
-        var chainId = ArgUtil.Get(args, "--chain-id", "1001");
-        Console.WriteLine($"Would register chain {chainId} with NeoHub on {l1}.");
-        Console.WriteLine("(full L1 RPC submission lands in a future iteration; see doc.md §14.2.)");
+        var rawChainId = ArgUtil.Get(args, "--chain-id", "1001");
+        var chainDir = ArgUtil.Get(args, "--path", $"./chain-{rawChainId}");
+        if (!uint.TryParse(rawChainId, out var parsedChainId))
+        {
+            Console.Error.WriteLine($"--chain-id must be a non-negative integer, got '{rawChainId}'");
+            return Task.FromResult(1);
+        }
+        var chainId = Neo.L2.ChainIdValidator.ValidateL2(parsedChainId, "--chain-id");
+
+        var configPath = System.IO.Path.Combine(chainDir, "chain.config.json");
+        if (!System.IO.File.Exists(configPath))
+        {
+            Console.Error.WriteLine($"Missing config: {configPath}");
+            Console.Error.WriteLine("Run `neo-stack create-chain --chain-id <id>` first.");
+            return Task.FromResult(2);
+        }
+
+        // Read + display the config so the operator knows exactly what would land on L1.
+        // Real L1 submission needs a wallet-equipped signer; this command outputs what
+        // would be submitted so an operator can audit before sending.
+        string configJson;
+        try
+        {
+            configJson = System.IO.File.ReadAllText(configPath);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"failed to read {configPath}: {ex.Message}");
+            return Task.FromResult(3);
+        }
+
+        Console.WriteLine($"Registration plan for chain {chainId} on L1 '{l1}':");
+        Console.WriteLine();
+        Console.WriteLine($"  Target contract : NeoHub.ChainRegistry");
+        Console.WriteLine($"  Method          : registerChain");
+        Console.WriteLine($"  Args            : (chainId={chainId}, configBytes=<encoded>)");
+        Console.WriteLine($"  Config source   : {configPath}");
+        Console.WriteLine($"  Config bytes    : {configJson.Length} chars (will be NEO-serialized to bytes)");
+        Console.WriteLine();
+        Console.WriteLine($"--- chain config preview ---");
+        Console.WriteLine(configJson.Length > 600 ? configJson[..600] + "…" : configJson);
+        Console.WriteLine($"--- end ---");
+        Console.WriteLine();
+        Console.WriteLine($"Next steps for production registration:");
+        Console.WriteLine($"  1. Discover the L1 ChainRegistry contract hash (see neo-hub-deploy bundle output)");
+        Console.WriteLine($"  2. Sign + submit registerChain({chainId}, <configBytes>) via your wallet RPC");
+        Console.WriteLine($"  3. Verify on L1 by calling ChainRegistry.isActive({chainId})");
+        Console.WriteLine();
+        Console.WriteLine($"(Wallet integration is operator-specific — wire your signer via Neo.L2.Settlement.Rpc.RpcSettlementClient.)");
         return Task.FromResult(0);
     }
 }
@@ -23,8 +69,29 @@ internal static class DeployBridgeAdapterCommand
 {
     public static Task<int> RunAsync(string[] args)
     {
-        var chainId = ArgUtil.Get(args, "--chain-id", "1001");
-        Console.WriteLine($"Would deploy bridge adapter for chain {chainId}.");
+        var rawChainId = ArgUtil.Get(args, "--chain-id", "1001");
+        if (!uint.TryParse(rawChainId, out var parsed))
+        {
+            Console.Error.WriteLine($"--chain-id must be a non-negative integer, got '{rawChainId}'");
+            return Task.FromResult(1);
+        }
+        var chainId = Neo.L2.ChainIdValidator.ValidateL2(parsed, "--chain-id");
+
+        Console.WriteLine($"Bridge adapter deployment plan for chain {chainId}:");
+        Console.WriteLine();
+        Console.WriteLine("  L2-side native contract   : L2Native.L2BridgeContract");
+        Console.WriteLine("  L1-side anchor contract   : NeoHub.SharedBridge");
+        Console.WriteLine();
+        Console.WriteLine("  Required asset mappings   :");
+        Console.WriteLine("    L2BridgeContract.RegisterMapping(<L1 GAS>, <L2 GAS>)");
+        Console.WriteLine("    NeoHub.TokenRegistry.RegisterMapping(<encoded L1+chainId+L2 mapping>)");
+        Console.WriteLine();
+        Console.WriteLine($"Next steps for production deploy:");
+        Console.WriteLine($"  1. Deploy L2Native.L2BridgeContract on chain {chainId} via the L2 sequencer");
+        Console.WriteLine($"  2. Register the L1↔L2 GAS mapping on both sides (asymmetric — L1 calls TokenRegistry, L2 calls L2BridgeContract)");
+        Console.WriteLine($"  3. Verify bidirectional lookup: TokenRegistry.GetL2Asset(L1_GAS, {chainId}) and L2BridgeContract.GetL2Asset(L1_GAS)");
+        Console.WriteLine();
+        Console.WriteLine($"(L2 deploy needs a sequencer-controlled signer; L1 deploy needs the contract owner — both operator-specific.)");
         return Task.FromResult(0);
     }
 }

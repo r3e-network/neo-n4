@@ -1,26 +1,60 @@
+using System.Buffers.Binary;
+using Neo.L2.Persistence;
 using Neo.L2.Telemetry;
 
 namespace Neo.L2.ForcedInclusion;
 
 /// <summary>
-/// In-memory <see cref="IForcedInclusionSource"/> for tests + devnet. Production wires the
-/// L1-RPC-backed implementation (which polls <c>NeoHub.ForcedInclusion.GetEntry</c>).
+/// <see cref="IForcedInclusionSource"/> with an in-memory pending queue and a pluggable
+/// <see cref="IL2KeyValueStore"/> backing for the consumed-nonce set. Production wires
+/// <see cref="RocksDbKeyValueStore"/> here so replay protection survives node restarts —
+/// without it, a node that restarted mid-batch could re-include a forced tx that was
+/// already consumed, breaking the L1's at-most-once contract.
 /// </summary>
-public sealed class InMemoryForcedInclusionSource : IForcedInclusionSource
+/// <remarks>
+/// Pending queue stays in-memory (re-fetchable from L1 on startup). Consumed-nonce set
+/// is durability-critical: an L2 that "forgets" a consumed nonce after restart would
+/// either replay the tx (incorrect — double-execution on L2) or refuse to include a
+/// new tx with that nonce (incorrect — a sequencer-replay-after-restart denial).
+/// </remarks>
+public sealed class InMemoryForcedInclusionSource : IForcedInclusionSource, IDisposable
 {
     private readonly Lock _gate = new();
     private readonly SortedDictionary<ulong, ForcedInclusionEntry> _pending = new();
-    private readonly HashSet<ulong> _consumed = new();
+    private readonly IL2KeyValueStore _consumed;
+    private readonly bool _ownsConsumed;
     private readonly IL2Metrics _metrics;
+    private bool _disposed;
 
     /// <inheritdoc />
     public uint ChainId { get; }
 
-    /// <summary>Construct against a chain id, optionally wired to a metrics sink.</summary>
+    /// <summary>Construct with an in-memory consumed-nonce store. Suitable for tests + devnets.</summary>
     public InMemoryForcedInclusionSource(uint chainId, IL2Metrics? metrics = null)
+        : this(chainId, new InMemoryKeyValueStore(), ownsConsumed: true, metrics) { }
+
+    /// <summary>
+    /// Construct with a caller-supplied IL2KeyValueStore for the consumed-nonce set —
+    /// production wires <see cref="RocksDbKeyValueStore"/> here.
+    /// </summary>
+    public InMemoryForcedInclusionSource(uint chainId, IL2KeyValueStore consumed, bool ownsConsumed = false, IL2Metrics? metrics = null)
     {
+        ArgumentNullException.ThrowIfNull(consumed);
         ChainId = chainId;
+        _consumed = consumed;
+        _ownsConsumed = ownsConsumed;
         _metrics = metrics ?? NoOpMetrics.Instance;
+    }
+
+    private static byte[] NonceKey(ulong nonce)
+    {
+        var key = new byte[8];
+        BinaryPrimitives.WriteUInt64LittleEndian(key, nonce);
+        // Defensive against an empty-key rejection: nonce 0 would yield 8 zero bytes,
+        // which IL2KeyValueStore.Put accepts (it's only zero-LENGTH keys that are
+        // rejected). Pin the assumption here so a refactor that changes the key
+        // encoding has to reckon with it.
+        return key;
     }
 
     /// <summary>Number of entries that have not yet been drained or consumed.</summary>
@@ -35,7 +69,7 @@ public sealed class InMemoryForcedInclusionSource : IForcedInclusionSource
         ArgumentNullException.ThrowIfNull(entry);
         lock (_gate)
         {
-            if (_consumed.Contains(entry.Nonce))
+            if (_consumed.Contains(NonceKey(entry.Nonce)))
                 throw new InvalidOperationException($"nonce {entry.Nonce} already consumed");
             if (!_pending.TryAdd(entry.Nonce, entry))
                 throw new InvalidOperationException($"nonce {entry.Nonce} already pending");
@@ -74,7 +108,9 @@ public sealed class InMemoryForcedInclusionSource : IForcedInclusionSource
         {
             if (!_pending.Remove(nonce))
                 throw new InvalidOperationException($"nonce {nonce} not pending");
-            _consumed.Add(nonce);
+            // Persist the consumed-nonce marker. Value byte is irrelevant — presence is
+            // the signal. Replay protection across restarts depends on this Put landing.
+            _consumed.Put(NonceKey(nonce), new byte[] { 0x01 });
         }
         return ValueTask.CompletedTask;
     }
@@ -91,5 +127,13 @@ public sealed class InMemoryForcedInclusionSource : IForcedInclusionSource
             }
             return new ValueTask<bool>(false);
         }
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        if (_ownsConsumed) _consumed.Dispose();
     }
 }

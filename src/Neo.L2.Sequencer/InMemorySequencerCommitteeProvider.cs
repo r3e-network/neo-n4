@@ -1,25 +1,54 @@
+using System.Buffers.Binary;
 using Neo.Cryptography.ECC;
+using Neo.L2.Persistence;
 using Neo.L2.Telemetry;
 
 namespace Neo.L2.Sequencer;
 
 /// <summary>
-/// In-memory <see cref="ISequencerCommitteeProvider"/> for tests + devnet. Production wires
-/// the L1-RPC-backed implementation that polls <c>NeoHub.SequencerRegistry</c>.
+/// <see cref="ISequencerCommitteeProvider"/> with an in-memory cache and an optional
+/// <see cref="IL2KeyValueStore"/> backing for the committee membership. Production
+/// wires <see cref="RocksDbKeyValueStore"/> here so registered sequencers + their
+/// exit windows survive node restarts — without persistence, a node bounce mid-exit
+/// would lose the ExitsAtUnixSeconds deadline and either re-admit a sequencer that
+/// was supposed to be in cooldown or refuse to finalize an exit that already passed
+/// its window.
 /// </summary>
-public sealed class InMemorySequencerCommitteeProvider : ISequencerCommitteeProvider
+/// <remarks>
+/// Implementation: in-memory <c>Dictionary&lt;ECPoint, CommitteeMember&gt;</c> as the
+/// hot path (fast O(1) ContainsKey + Values enumeration) plus shadow writes to the
+/// IL2KeyValueStore. On construction, members are loaded from the KV store back
+/// into the dict so a restart picks up where the previous instance left off.
+/// </remarks>
+public sealed class InMemorySequencerCommitteeProvider : ISequencerCommitteeProvider, IDisposable
 {
     private readonly Lock _gate = new();
     private readonly Dictionary<ECPoint, CommitteeMember> _members = new();
+    private readonly IL2KeyValueStore _store;
+    private readonly bool _ownsStore;
     private readonly IL2Metrics _metrics;
     private int _maxSize;
+    private bool _disposed;
 
     /// <inheritdoc />
     public uint ChainId { get; }
 
-    /// <summary>Construct against a chain id and committee size.</summary>
+    /// <summary>Construct against a chain id and committee size, with an in-memory backing.</summary>
     public InMemorySequencerCommitteeProvider(uint chainId, int maxCommitteeSize = 21, IL2Metrics? metrics = null)
+        : this(chainId, new InMemoryKeyValueStore(), ownsStore: true, maxCommitteeSize, metrics) { }
+
+    /// <summary>
+    /// Construct with a caller-supplied <see cref="IL2KeyValueStore"/> for the committee
+    /// membership — production wires <see cref="RocksDbKeyValueStore"/> here.
+    /// </summary>
+    public InMemorySequencerCommitteeProvider(
+        uint chainId,
+        IL2KeyValueStore store,
+        bool ownsStore = false,
+        int maxCommitteeSize = 21,
+        IL2Metrics? metrics = null)
     {
+        ArgumentNullException.ThrowIfNull(store);
         // Symmetric validation with SetMaxCommitteeSize: range [1..64]. Without this, a
         // ctor-time `0` or `-1` accepts every Register call as "full" silently, and
         // `>64` exceeds dBFT 2.0's practical committee bound. Surface the misconfig at
@@ -28,8 +57,20 @@ public sealed class InMemorySequencerCommitteeProvider : ISequencerCommitteeProv
             throw new ArgumentOutOfRangeException(nameof(maxCommitteeSize),
                 $"maxCommitteeSize {maxCommitteeSize} must be in [1, 64]");
         ChainId = chainId;
+        _store = store;
+        _ownsStore = ownsStore;
         _maxSize = maxCommitteeSize;
         _metrics = metrics ?? NoOpMetrics.Instance;
+
+        // Hydrate the in-memory cache from the KV store. A restart picks up exactly
+        // where the previous process left off — registered members keep their
+        // (Status, ExitsAtUnixSeconds) state.
+        foreach (var (key, value) in _store.EnumeratePrefix(ReadOnlySpan<byte>.Empty))
+        {
+            var pub = ECPoint.DecodePoint(key, ECCurve.Secp256r1);
+            var member = DecodeMember(pub, value);
+            _members[pub] = member;
+        }
     }
 
     /// <summary>Add a member with status=Active. Throws if already present or committee is full.</summary>
@@ -41,19 +82,21 @@ public sealed class InMemorySequencerCommitteeProvider : ISequencerCommitteeProv
         // misroute the slash or hard-revert the slash transaction.
         ArgumentNullException.ThrowIfNull(l1Address);
         int newSize;
+        var member = new CommitteeMember
+        {
+            PublicKey = pubKey,
+            L1Address = l1Address,
+            Status = 1, // Active
+            ExitsAtUnixSeconds = 0,
+        };
         lock (_gate)
         {
             if (_members.ContainsKey(pubKey))
                 throw new InvalidOperationException($"already registered: {pubKey}");
             if (_members.Count >= _maxSize)
                 throw new InvalidOperationException($"committee full ({_maxSize})");
-            _members[pubKey] = new CommitteeMember
-            {
-                PublicKey = pubKey,
-                L1Address = l1Address,
-                Status = 1, // Active
-                ExitsAtUnixSeconds = 0,
-            };
+            _members[pubKey] = member;
+            _store.Put(EncodeKey(pubKey), EncodeValue(member));
             newSize = _members.Count;
         }
         // Safe* wrappers: if the metrics sink throws, the registration is already
@@ -74,7 +117,9 @@ public sealed class InMemorySequencerCommitteeProvider : ISequencerCommitteeProv
                 throw new InvalidOperationException($"not registered: {pubKey}");
             if (member.Status != 1)
                 throw new InvalidOperationException("already exiting");
-            _members[pubKey] = member with { Status = 2, ExitsAtUnixSeconds = exitsAtUnixSeconds };
+            var updated = member with { Status = 2, ExitsAtUnixSeconds = exitsAtUnixSeconds };
+            _members[pubKey] = updated;
+            _store.Put(EncodeKey(pubKey), EncodeValue(updated));
         }
         _metrics.SafeIncrementCounter(MetricNames.SequencerExitsStarted);
     }
@@ -93,6 +138,7 @@ public sealed class InMemorySequencerCommitteeProvider : ISequencerCommitteeProv
             if (nowUnixSeconds < member.ExitsAtUnixSeconds)
                 throw new InvalidOperationException("exit window still open");
             _members.Remove(pubKey);
+            _store.Delete(EncodeKey(pubKey));
             newSize = _members.Count;
         }
         _metrics.SafeIncrementCounter(MetricNames.SequencerExitsFinalized);
@@ -142,5 +188,45 @@ public sealed class InMemorySequencerCommitteeProvider : ISequencerCommitteeProv
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(sequencerKey);
         lock (_gate) return new ValueTask<bool>(_members.ContainsKey(sequencerKey));
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        if (_ownsStore) _store.Dispose();
+    }
+
+    // -- Encoding helpers --
+    // Key: 33-byte compressed secp256r1 pubkey.
+    // Value: 20-B L1Address || 1-B Status || 4-B little-endian ExitsAtUnixSeconds = 25 bytes.
+
+    private static byte[] EncodeKey(ECPoint pubKey) => pubKey.EncodePoint(true);
+
+    private static byte[] EncodeValue(CommitteeMember m)
+    {
+        var bytes = new byte[25];
+        m.L1Address.GetSpan().CopyTo(bytes.AsSpan(0, 20));
+        bytes[20] = m.Status;
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(21, 4), m.ExitsAtUnixSeconds);
+        return bytes;
+    }
+
+    private static CommitteeMember DecodeMember(ECPoint pubKey, ReadOnlySpan<byte> value)
+    {
+        if (value.Length != 25)
+            throw new InvalidOperationException(
+                $"corrupt CommitteeMember encoding: expected 25 bytes, got {value.Length}");
+        var l1 = new UInt160(value.Slice(0, 20));
+        var status = value[20];
+        var exits = BinaryPrimitives.ReadUInt32LittleEndian(value.Slice(21, 4));
+        return new CommitteeMember
+        {
+            PublicKey = pubKey,
+            L1Address = l1,
+            Status = status,
+            ExitsAtUnixSeconds = exits,
+        };
     }
 }

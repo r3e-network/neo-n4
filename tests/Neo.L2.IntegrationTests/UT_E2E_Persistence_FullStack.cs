@@ -3,19 +3,20 @@ using Neo.Cryptography.ECC;
 using Neo.L2.Executor.State;
 using Neo.L2.Persistence;
 using Neo.L2.Sequencer;
+using Neo.Plugins.L2;
 using Neo.Plugins.L2Rpc;
 
 namespace Neo.L2.IntegrationTests;
 
 /// <summary>
-/// End-to-end persistence integration test. Devnet's <c>--data-dir</c> flag wires three
+/// End-to-end persistence integration test. Devnet's <c>--data-dir</c> flag wires four
 /// independent <see cref="RocksDbKeyValueStore"/> instances under a shared root directory:
-/// one each for <see cref="KeyedStateStore"/>, <see cref="InMemoryL2RpcStore"/>, and
-/// <see cref="InMemorySequencerCommitteeProvider"/>. Per-component reopen tests already
-/// pin each store individually; this test pins the *combined* story:
-///   1. Three independently-RocksDB-backed components share one root directory
+/// one each for <see cref="KeyedStateStore"/>, <see cref="InMemoryL2RpcStore"/>,
+/// <see cref="InMemorySequencerCommitteeProvider"/>, and the DA writer. Per-component
+/// reopen tests already pin each store individually; this test pins the *combined* story:
+///   1. Four independently-RocksDB-backed components share one root directory
 ///   2. Each gets its own subdirectory and they don't trample each other
-///   3. After dispose+reopen, all three rehydrate correctly with no cross-contamination
+///   3. After dispose+reopen, all four rehydrate correctly with no cross-contamination
 ///
 /// Without this test, a refactor that accidentally shared a directory (or omitted one
 /// component from the persistence wiring) would slip through component-level tests but
@@ -65,6 +66,8 @@ public class UT_E2E_Persistence_FullStack
             0xAA,0xAA,0xAA,0xAA, 0xAA,0xAA,0xAA,0xAA, 0xAA,0xAA,0xAA,0xAA, 0xAA,0xAA,0xAA,0xAA
         });
         var proofBytes = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05 };
+        var daPayload = new byte[] { 0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE };
+        UInt256 daCommitment = default!;
 
         try
         {
@@ -75,6 +78,8 @@ public class UT_E2E_Persistence_FullStack
             using (var rpcStore = new InMemoryL2RpcStore(chainId, SecurityLevel.Optimistic, rpcRocks, ownsProofs: true))
             using (var seqRocks = new RocksDbKeyValueStore(Path.Combine(root, "sequencer")))
             using (var seqProvider = new InMemorySequencerCommitteeProvider(chainId, seqRocks, ownsStore: true))
+            using (var daWriter = (PersistentDAWriter)L2DAPlugin.BuildDefaultWriter(
+                DAMode.External, Path.Combine(root, "da")))
             {
                 // (1) State: alice has 100 wei in assetL2.
                 stateStore.Put(aliceBalanceKey, new BigInteger(100).ToByteArray());
@@ -85,6 +90,15 @@ public class UT_E2E_Persistence_FullStack
 
                 // (3) Sequencer: register a committee member.
                 seqProvider.Register(seqKey.pub, seqL1Addr);
+
+                // (4) DA: publish a payload — receipt commitment is content-addressed.
+                var receipt = await daWriter.PublishAsync(new DAPublishRequest
+                {
+                    ChainId = chainId,
+                    BatchNumber = 1,
+                    Payload = daPayload,
+                });
+                daCommitment = receipt.Commitment;
             }
 
             // Second boot: rehydrate against the same directories. Each component must
@@ -115,6 +129,21 @@ public class UT_E2E_Persistence_FullStack
                 var committee = await seqProvider.GetActiveCommitteeAsync();
                 Assert.AreEqual(1, committee.Count);
                 Assert.AreEqual(seqL1Addr, committee[0].L1Address);
+
+                // (4) DA: same content-addressed commitment must still resolve to
+                // IsAvailable=true after restart. PersistentDAWriter is a property of
+                // the plugin layer; the integration test pins that the per-mode wiring
+                // (External + dataDir → RocksDB) actually persists across the dispose
+                // boundary and isn't lost when the plugin's process exits.
+                using var daWriter2 = (PersistentDAWriter)L2DAPlugin.BuildDefaultWriter(
+                    DAMode.External, Path.Combine(root, "da"));
+                var available = await daWriter2.IsAvailableAsync(new DAReceipt
+                {
+                    Commitment = daCommitment,
+                    Pointer = ReadOnlyMemory<byte>.Empty,
+                    Layer = DAMode.External,
+                });
+                Assert.IsTrue(available, "DA payload must rehydrate from RocksDB");
             }
         }
         finally

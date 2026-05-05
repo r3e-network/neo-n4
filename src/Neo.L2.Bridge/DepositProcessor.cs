@@ -21,6 +21,13 @@ public sealed class DepositProcessor
     public uint LocalChainId { get; }
 
     /// <summary>Construct with the chain identifier and shared asset registry.</summary>
+    /// <remarks>
+    /// chainId is not range-checked at construction time because plugins (notably
+    /// <c>L2BridgePlugin</c>) may need to construct the processor before config-loading
+    /// completes. Validation happens at the plugin layer's <c>Configure()</c> step
+    /// instead, where a missing/zero ChainId surfaces as a clear "set ChainId in config"
+    /// error to the operator.
+    /// </remarks>
     public DepositProcessor(uint localChainId, AssetRegistry registry, IL2Metrics? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(registry);

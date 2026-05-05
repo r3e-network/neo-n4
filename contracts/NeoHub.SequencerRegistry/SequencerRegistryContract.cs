@@ -55,8 +55,15 @@ public class SequencerRegistryContract : SmartContract
     {
         if (update) return;
         var arr = (object[])data;
-        Storage.Put(new byte[] { KeyOwner }, (UInt160)arr[0]);
-        Storage.Put(new byte[] { KeyBondContract }, (UInt160)arr[1]);
+        var owner = (UInt160)arr[0];
+        var bondContract = (UInt160)arr[1];
+        // Without these guards a bondContract=0 would silently let unbonded sequencers
+        // register — the worst kind of "looks deployed but actually broken" outcome
+        // for a Phase-3 bonded committee.
+        ExecutionEngine.Assert(owner.IsValid && !owner.IsZero, "invalid owner");
+        ExecutionEngine.Assert(bondContract.IsValid && !bondContract.IsZero, "invalid bond contract");
+        Storage.Put(new byte[] { KeyOwner }, owner);
+        Storage.Put(new byte[] { KeyBondContract }, bondContract);
         Storage.Put(new byte[] { KeyMaxCommitteeSize }, new byte[] { DefaultMaxCommitteeSize });
         Storage.Put(new byte[] { KeyExitWindowSeconds }, (BigInteger)DefaultExitWindowSeconds);
     }

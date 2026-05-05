@@ -48,7 +48,12 @@ public class GovernanceControllerContract : SmartContract
         var members = (ECPoint[])arr[1];
         var threshold = (uint)(BigInteger)arr[2];
         var timelockSeconds = (uint)(BigInteger)arr[3];
+        ExecutionEngine.Assert(owner.IsValid && !owner.IsZero, "invalid owner");
+        ExecutionEngine.Assert(members.Length > 0, "council must be non-empty");
         ExecutionEngine.Assert(threshold > 0 && threshold <= members.Length, "bad threshold");
+        // A zero timelock means proposals execute instantly — defeats the point of a
+        // timelock. Surface the misconfig at deploy time.
+        ExecutionEngine.Assert(timelockSeconds > 0, "timelock must be positive");
 
         Storage.Put(new byte[] { KeyOwner }, owner);
         Storage.Put(new byte[] { KeyCouncilCount }, (BigInteger)members.Length);

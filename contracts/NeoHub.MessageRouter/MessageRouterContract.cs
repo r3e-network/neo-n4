@@ -45,6 +45,11 @@ public class MessageRouterContract : SmartContract
         var arr = (object[])data;
         var owner = (UInt160)arr[0];
         var settlementManager = (UInt160)arr[1];
+        // Without these guards a typo'd zero settlementManager would deploy successfully
+        // but every Route call would later fail mysteriously when verifying message
+        // proofs against a non-existent contract.
+        ExecutionEngine.Assert(owner.IsValid && !owner.IsZero, "invalid owner");
+        ExecutionEngine.Assert(settlementManager.IsValid && !settlementManager.IsZero, "invalid settlement manager");
         Storage.Put(new byte[] { KeyOwner }, owner);
         Storage.Put(new byte[] { PrefixSettlementManager }, settlementManager);
     }

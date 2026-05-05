@@ -57,6 +57,12 @@ public class SettlementManagerContract : SmartContract
         var chainRegistry = (UInt160)arr[1];
         var verifierRegistry = (UInt160)arr[2];
         ExecutionEngine.Assert(owner.IsValid && !owner.IsZero, "invalid owner");
+        // SettlementManager is the load-bearing contract — chainRegistry + verifierRegistry
+        // hashes feed into every SubmitBatch call. A typo'd zero here would deploy
+        // successfully but every batch submission would later fail with a confusing
+        // cross-contract Contract.Call error.
+        ExecutionEngine.Assert(chainRegistry.IsValid && !chainRegistry.IsZero, "invalid chain registry");
+        ExecutionEngine.Assert(verifierRegistry.IsValid && !verifierRegistry.IsZero, "invalid verifier registry");
         Storage.Put(new byte[] { KeyOwner }, owner);
         Storage.Put(new byte[] { PrefixChainRegistry }, chainRegistry);
         Storage.Put(new byte[] { PrefixVerifierRegistry }, verifierRegistry);

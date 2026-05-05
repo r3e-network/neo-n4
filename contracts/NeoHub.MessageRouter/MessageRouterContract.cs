@@ -70,6 +70,10 @@ public class MessageRouterContract : SmartContract
     public static ulong EnqueueL1ToL2(uint targetChainId, UInt160 receiver, byte messageType, byte[] payload)
     {
         ExecutionEngine.Assert(receiver.IsValid && !receiver.IsZero, "invalid receiver");
+        // chainId 0 is the L1 sentinel — without this guard anyone could enqueue
+        // L1→L2 messages bound for chainId 0 that no L2 would ever consume,
+        // bloating L1 storage with no-op entries.
+        ExecutionEngine.Assert(targetChainId > 0, "targetChainId 0 is reserved for L1");
 
         var nonceKey = NonceKey(targetChainId);
         var raw = Storage.Get(nonceKey);

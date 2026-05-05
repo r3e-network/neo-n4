@@ -1,0 +1,175 @@
+# Persistence
+
+Neo Elastic Network L2 components persist their durability-critical state through
+the `Neo.L2.Persistence` abstraction. **Production deployments use RocksDB**;
+the in-memory backing is for tests and devnets only.
+
+## Why this matters
+
+L2 state isn't all the same kind. Some of it can be re-derived from L1 on startup
+(asset registries, batch metadata) — losing it is a slow restart, not a bug. But
+some state, if lost, breaks security or correctness invariants:
+
+| State                                  | What breaks if lost                                                  |
+| -------------------------------------- | -------------------------------------------------------------------- |
+| Finalized message-inclusion proofs     | RPC clients can't query proofs after node bounce; bridge stalls.     |
+| Withdrawal-inclusion proofs            | Users can't claim finalized withdrawals on L1.                       |
+| Forced-inclusion consumed-nonce set    | L2 may re-execute or refuse a forced tx — breaks at-most-once.       |
+| Deterministic state-store contents     | Post-state root after restart != pre-state root; commitments diverge.|
+| DA blob bytes (when L2 owns them)      | Verifiers can't reconstruct what was claimed.                        |
+
+Every store backed by RocksDB is one less source of restart-induced incidents.
+
+## The abstraction
+
+`IL2KeyValueStore` (in `Neo.L2.Persistence`) is the minimal byte-keyed,
+byte-valued store interface every persistable component delegates to:
+
+```csharp
+public interface IL2KeyValueStore : IDisposable
+{
+    void Put(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value);
+    byte[]? Get(ReadOnlySpan<byte> key);
+    bool Delete(ReadOnlySpan<byte> key);
+    bool Contains(ReadOnlySpan<byte> key);
+    IEnumerable<(byte[] Key, byte[] Value)> EnumeratePrefix(ReadOnlySpan<byte> prefix);
+    long Count { get; }
+}
+```
+
+Two implementations ship in the box:
+
+| Class                       | Use for           | Backing                     | Survives restart |
+| --------------------------- | ----------------- | --------------------------- | ---------------- |
+| `InMemoryKeyValueStore`     | Tests, devnets    | `SortedDictionary<byte[], byte[]>` | No        |
+| `RocksDbKeyValueStore`      | Production        | RocksDB 10.4 (Snappy compression) | Yes        |
+
+A shared `KeyValueStoreContractTests` suite runs against both backends — same
+behavior either way; future LevelDB / SQLite / cloud backends bolt on by adding
+a TestClass with a `Create()` factory.
+
+## Per-component wiring
+
+Five components currently delegate their durability-critical state to
+`IL2KeyValueStore`. Each has a default ctor that uses an in-memory backing
+(suitable for tests) and an alternate ctor that takes a caller-supplied store:
+
+### 1. DA writer (`Neo.Plugins.L2DA.PersistentDAWriter`)
+
+```csharp
+using var rocks = new RocksDbKeyValueStore("/var/lib/neo-l2/da");
+plugin.WithWriter(new PersistentDAWriter(rocks, DAMode.External, ownsStore: true));
+```
+
+Or, simpler — set `DataDirectory` in the plugin's config section and the
+`L2DAPlugin` opens a RocksDB at that path automatically:
+
+```json
+{
+  "PluginConfiguration": {
+    "DAMode": 2,
+    "DataDirectory": "/var/lib/neo-l2/da"
+  }
+}
+```
+
+### 2. State oracle (`Neo.L2.Executor.State.KeyedStateStore`)
+
+```csharp
+using var rocks = new RocksDbKeyValueStore("/var/lib/neo-l2/state");
+var store = new KeyedStateStore(rocks);
+var oracle = new KeyedStateRootOracle(store);
+```
+
+The `ComputeRoot()` Merkle root is identical across InMemory and RocksDB
+backends for the same content — drop-in replacement.
+
+### 3. Message router finalized proofs (`Neo.L2.Messaging.InMemoryMessageRouter`)
+
+```csharp
+using var rocks = new RocksDbKeyValueStore("/var/lib/neo-l2/messages");
+var router = new InMemoryMessageRouter(
+    inbox: null, outbox: null,
+    finalized: rocks, ownsFinalized: true);
+```
+
+Inbox + outbox stay transient — they're re-drained from L1 on startup. Only
+the finalized-proof map needs durability.
+
+### 4. RPC store proofs (`Neo.Plugins.L2Rpc.InMemoryL2RpcStore`)
+
+```csharp
+using var rocks = new RocksDbKeyValueStore("/var/lib/neo-l2/rpc-proofs");
+var store = new InMemoryL2RpcStore(
+    chainId: 1001,
+    level: SecurityLevel.Optimistic,
+    proofs: rocks,
+    ownsProofs: true);
+```
+
+Withdrawal + message proofs share a single RocksDB (1-byte key prefixes
+disambiguate). Other RPC state (batches, asset mappings, deposits) is still
+in-memory — it's rebuildable from L1.
+
+### 5. Forced-inclusion consumed-nonce set (`Neo.L2.ForcedInclusion.InMemoryForcedInclusionSource`)
+
+```csharp
+using var rocks = new RocksDbKeyValueStore("/var/lib/neo-l2/forced-inclusion");
+var src = new InMemoryForcedInclusionSource(
+    chainId: 1001,
+    consumed: rocks,
+    ownsConsumed: true);
+```
+
+The pending queue stays in-memory. Only the consumed-nonce set needs
+durability — losing it would let a sequencer re-include or reject already-
+consumed forced txs.
+
+## Operator config recipe
+
+A production L2 node typically carves out a single base directory and gives
+each store its own subdirectory:
+
+```
+/var/lib/neo-l2/
+├── da/                  # PersistentDAWriter
+├── state/               # KeyedStateStore
+├── messages/            # InMemoryMessageRouter (finalized proofs)
+├── rpc-proofs/          # InMemoryL2RpcStore (withdrawal + message)
+└── forced-inclusion/    # InMemoryForcedInclusionSource (consumed)
+```
+
+Each RocksDB instance is independent — they're not column families of one
+database. That's intentional: one corrupt database doesn't take down the
+others, and operators can back up + restore them individually.
+
+## Operator checklist
+
+- [ ] Every L2 component that needs durability uses the `(IL2KeyValueStore)` ctor
+      overload. The bare default ctor is for tests only — do not ship it.
+- [ ] The directory passed to `RocksDbKeyValueStore` is on durable storage
+      (not `tmpfs` or an ephemeral container volume).
+- [ ] Backups capture all five subdirectories above. A point-in-time backup of
+      one without the others can leave the L2 in an inconsistent state on
+      restore (e.g., consumed nonces but no corresponding finalized proofs).
+- [ ] The process running the L2 node has write access to each directory.
+- [ ] On planned shutdown, dispose stores explicitly (`using` blocks) so
+      RocksDB flushes its memtable.
+
+## Adding a new persistence backend
+
+To add (e.g.) LevelDB or a cloud KV like DynamoDB:
+
+1. Implement `IL2KeyValueStore`.
+2. Add a TestClass to `tests/Neo.L2.Persistence.UnitTests/UT_KeyValueStore.cs`
+   that inherits from `KeyValueStoreContractTests` and supplies a `Create()`
+   factory pointing at your backend. The 12 shared contract tests run as-is.
+3. Wire it into the relevant plugin's `WithWriter` / ctor injection point.
+
+No changes needed to the consumers — the abstraction makes them agnostic.
+
+## See also
+
+- `src/Neo.L2.Persistence/IL2KeyValueStore.cs` — the interface, with full XML docs.
+- `src/Neo.L2.Persistence/RocksDbKeyValueStore.cs` — the production backend.
+- `tests/Neo.L2.Persistence.UnitTests/UT_KeyValueStore.cs` — contract tests.

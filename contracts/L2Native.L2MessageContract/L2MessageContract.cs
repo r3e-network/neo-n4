@@ -44,6 +44,12 @@ public class L2MessageContract : SmartContract
         var owner = (UInt160)arr[0];
         var systemAccount = (UInt160)arr[1];
         var chainId = (uint)(BigInteger)arr[2];
+        // Surface typo'd zero hashes / chainId here. chainId == 0 is the L1 sentinel
+        // (see L2Outbox.L1ChainId) — an L2 with chainId=0 would misroute every L2→L2
+        // message as L2→L1.
+        ExecutionEngine.Assert(owner.IsValid && !owner.IsZero, "invalid owner");
+        ExecutionEngine.Assert(systemAccount.IsValid && !systemAccount.IsZero, "invalid system account");
+        ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         Storage.Put(new byte[] { KeyOwner }, owner);
         Storage.Put(new byte[] { KeySystemAccount }, systemAccount);
         Storage.Put(new byte[] { KeyChainId }, (BigInteger)chainId);

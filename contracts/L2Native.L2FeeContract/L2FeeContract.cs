@@ -41,14 +41,31 @@ public class L2FeeContract : SmartContract
     {
         if (update) return;
         var arr = (object[])data;
-        Storage.Put(new byte[] { KeyOwner }, (UInt160)arr[0]);
-        Storage.Put(new byte[] { KeyFeeAsset }, (UInt160)arr[1]);
-        Storage.Put(new byte[] { KeySequencerAddress }, (UInt160)arr[2]);
-        Storage.Put(new byte[] { KeyProverAddress }, (UInt160)arr[3]);
-        Storage.Put(new byte[] { KeyDAAddress }, (UInt160)arr[4]);
-        Storage.Put(new byte[] { KeySequencerBps }, (BigInteger)(uint)(BigInteger)arr[5]);
-        Storage.Put(new byte[] { KeyProverBps }, (BigInteger)(uint)(BigInteger)arr[6]);
-        Storage.Put(new byte[] { KeyDABps }, (BigInteger)(uint)(BigInteger)arr[7]);
+        var owner = (UInt160)arr[0];
+        var feeAsset = (UInt160)arr[1];
+        var sequencer = (UInt160)arr[2];
+        var prover = (UInt160)arr[3];
+        var da = (UInt160)arr[4];
+        var sBps = (uint)(BigInteger)arr[5];
+        var pBps = (uint)(BigInteger)arr[6];
+        var dBps = (uint)(BigInteger)arr[7];
+        // Surface typo'd zero hashes here. Without these guards a zero recipient would
+        // silently route fees to a black hole.
+        ExecutionEngine.Assert(owner.IsValid && !owner.IsZero, "invalid owner");
+        ExecutionEngine.Assert(feeAsset.IsValid && !feeAsset.IsZero, "invalid fee asset");
+        ExecutionEngine.Assert(sequencer.IsValid && !sequencer.IsZero, "invalid sequencer address");
+        ExecutionEngine.Assert(prover.IsValid && !prover.IsZero, "invalid prover address");
+        ExecutionEngine.Assert(da.IsValid && !da.IsZero, "invalid DA address");
+        // BPS must sum to 10000 (100%) — anything else loses fees or over-distributes.
+        ExecutionEngine.Assert(sBps + pBps + dBps == 10_000, "bps must sum to 10000");
+        Storage.Put(new byte[] { KeyOwner }, owner);
+        Storage.Put(new byte[] { KeyFeeAsset }, feeAsset);
+        Storage.Put(new byte[] { KeySequencerAddress }, sequencer);
+        Storage.Put(new byte[] { KeyProverAddress }, prover);
+        Storage.Put(new byte[] { KeyDAAddress }, da);
+        Storage.Put(new byte[] { KeySequencerBps }, (BigInteger)sBps);
+        Storage.Put(new byte[] { KeyProverBps }, (BigInteger)pBps);
+        Storage.Put(new byte[] { KeyDABps }, (BigInteger)dBps);
     }
 
     /// <summary>Update the split (owner only). Must sum to <see cref="BasisPointsTotal"/>.</summary>

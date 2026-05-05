@@ -40,8 +40,14 @@ public class L2PaymasterContract : SmartContract
     {
         if (update) return;
         var arr = (object[])data;
-        Storage.Put(new byte[] { KeyOwner }, (UInt160)arr[0]);
-        Storage.Put(new byte[] { KeyFeeContract }, (UInt160)arr[1]);
+        var owner = (UInt160)arr[0];
+        var feeContract = (UInt160)arr[1];
+        // Surface typo'd zero hashes here. A zero feeContract would silently fail to
+        // route paymaster-paid fees on first use.
+        ExecutionEngine.Assert(owner.IsValid && !owner.IsZero, "invalid owner");
+        ExecutionEngine.Assert(feeContract.IsValid && !feeContract.IsZero, "invalid fee contract");
+        Storage.Put(new byte[] { KeyOwner }, owner);
+        Storage.Put(new byte[] { KeyFeeContract }, feeContract);
     }
 
     /// <summary>Approve a new fee-payment asset. Owner only.</summary>

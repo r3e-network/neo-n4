@@ -1,5 +1,7 @@
 # Neo Elastic Network (`neo4`)
 
+[![build](https://github.com/r3e-network/neo-n4/actions/workflows/build.yml/badge.svg)](https://github.com/r3e-network/neo-n4/actions/workflows/build.yml)
+
 > **A multi-L2 network on Neo 4 core, with a shared bridge, proof aggregation, and native cross-chain messaging.**
 
 > [!IMPORTANT]

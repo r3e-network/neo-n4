@@ -81,6 +81,14 @@ public class L2BatchInfoContract : SmartContract
         var current = GetBatchNumber();
         ExecutionEngine.Assert(newBatchNumber == current + 1, "batch number out of sequence");
 
+        // L1 finalized height must monotonically increase (or stay equal — same L1 block
+        // can finalize multiple consecutive L2 batches when batch interval < L1 block
+        // time). Without this guard a sequencer mistake that passes a stale L1 height
+        // would silently break apps relying on L1FinalizedHeight as a "no-deeper-rollback"
+        // confirmation signal.
+        var currentL1 = GetL1FinalizedHeight();
+        ExecutionEngine.Assert(newL1Height >= currentL1, "L1 finalized height must not decrease");
+
         Storage.Put(new byte[] { KeyBatchNumber }, (BigInteger)newBatchNumber);
         Storage.Put(new byte[] { KeyL1FinalizedHeight }, (BigInteger)newL1Height);
 

@@ -55,7 +55,11 @@ public sealed class InMemorySignerSet : ISignerSet
         var sigs = new SignerSignature[_keys.Count];
         for (var i = 0; i < _keys.Count; i++)
         {
-            var sig = Cryptography.Crypto.Sign(message.ToArray(), _keys[i].PrivateKey);
+            // neo-project/neo master Crypto.Sign takes a KeyPair, not raw bytes; wrap on
+            // each call so the underlying secret stays in the immutable tuple field.
+            var sig = Cryptography.Crypto.Sign(
+                message.ToArray(),
+                new Neo.Wallets.KeyPair(_keys[i].PrivateKey));
             sigs[i] = new SignerSignature { PublicKey = _keys[i].PubKey, Signature = sig };
         }
         return new ValueTask<IReadOnlyList<SignerSignature>>(sigs);

@@ -34,7 +34,7 @@ public class UT_OptimisticAndRiscV
 
         var inputs = SamplePublicInputs();
         var canonical = BatchSerializer.EncodePublicInputs(inputs);
-        var sig = Crypto.Sign(canonical, priv);
+        var sig = Crypto.Sign(canonical, new Neo.Wallets.KeyPair(priv));
 
         var payload = new OptimisticProofPayload
         {
@@ -58,7 +58,7 @@ public class UT_OptimisticAndRiscV
 
         var inputs = SamplePublicInputs();
         var canonical = BatchSerializer.EncodePublicInputs(inputs);
-        var sig = Crypto.Sign(canonical, fakePriv); // signed with the wrong key
+        var sig = Crypto.Sign(canonical, new Neo.Wallets.KeyPair(fakePriv)); // signed with the wrong key
 
         var payload = new OptimisticProofPayload
         {

@@ -79,11 +79,19 @@ public sealed class L2SettlementPlugin : Plugin
     }
 
     /// <inheritdoc />
-    public override void Dispose()
+    /// <remarks>
+    /// neo-project/neo master sealed the public <c>Dispose()</c>; cleanup goes through
+    /// the standard <c>Dispose(bool disposing)</c> hook.
+    /// </remarks>
+    protected override void Dispose(bool disposing)
     {
-        if (_batchPlugin is not null)
-            _batchPlugin.OnBatchSealed -= OnBatchSealed;
-        _submitGate.Dispose();
+        if (disposing)
+        {
+            if (_batchPlugin is not null)
+                _batchPlugin.OnBatchSealed -= OnBatchSealed;
+            _submitGate.Dispose();
+        }
+        base.Dispose(disposing);
     }
 
     /// <summary>How many batches are currently queued for submission.</summary>

@@ -123,12 +123,17 @@ Detailed coverage per project: [`IMPLEMENTATION_STATUS.md`](./IMPLEMENTATION_STA
 
 ## Quick start
 
-**Requires** .NET 10 SDK (`dotnet --version` must report `10.0.x`) and a sibling clone of
-[`neo-project/neo`](https://github.com/neo-project/neo) at `../neo`.
+**Requires** .NET 10 SDK (`dotnet --version` must report `10.0.x`). The
+[`neo-project/neo`](https://github.com/neo-project/neo) Neo 4 core is vendored as a
+git submodule at `external/neo` (it is never released on NuGet; project references
+go directly at the source tree).
 
 ```bash
-git clone https://github.com/r3e-network/neo-n4
+git clone --recurse-submodules https://github.com/r3e-network/neo-n4
 cd neo-n4
+
+# If you forgot --recurse-submodules:
+# git submodule update --init --recursive
 
 # Type-check everything + run all 820 tests (~10 seconds)
 dotnet test Neo.L2.sln /p:NuGetAudit=false

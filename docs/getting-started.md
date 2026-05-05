@@ -11,10 +11,16 @@
 ## Step 1 — Clone and check the toolchain
 
 ```bash
-git clone https://github.com/r3e-network/neo-n4
+git clone --recurse-submodules https://github.com/r3e-network/neo-n4
 cd neo-n4
-dotnet --version    # expect 10.0.x
-ls ../neo/src/Neo  # confirm the sibling neo checkout
+dotnet --version            # expect 10.0.x
+ls external/neo/src/Neo     # confirm the neo-project/neo submodule
+```
+
+If you forgot `--recurse-submodules` at clone time:
+
+```bash
+git submodule update --init --recursive
 ```
 
 ## Step 2 — Run the test suite
@@ -135,9 +141,11 @@ and emit deployable bytecode.
 Add `/p:NuGetAudit=false` to your build command. The repo's `Directory.Build.props` already
 sets `NuGetAudit=false`, but some restore code paths re-evaluate the property.
 
-**`dotnet test` reports `Could not find ../neo/src/Neo/Neo.csproj`.**
-Make sure the sibling `neo` checkout is at `../neo` relative to this repo. Or override
-`NeoCorePath` in `Directory.Build.props` to point at your checkout.
+**`dotnet test` reports `Could not find external/neo/src/Neo/Neo.csproj`.**
+The neo-project/neo submodule isn't initialized. Run
+`git submodule update --init --recursive` from the repo root, or re-clone with
+`git clone --recurse-submodules`. To point at a different checkout, override on the
+command line: `dotnet build /p:NeoCorePath=/path/to/neo/src`.
 
 **Contracts don't emit `.nef` files.**
 That's expected without `nccs`. Install nccs from `neo-project/neo-devpack-dotnet` and run

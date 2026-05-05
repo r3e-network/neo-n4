@@ -23,7 +23,7 @@ public class UT_CommitteeAttestedDAWriter
         var sigs = new byte[committee.Length][];
         var msg = commitment.GetSpan().ToArray();
         for (var i = 0; i < committee.Length; i++)
-            sigs[i] = Crypto.Sign(msg, committee[i].priv);
+            sigs[i] = Crypto.Sign(msg, new Neo.Wallets.KeyPair(committee[i].priv));
         return sigs;
     }
 

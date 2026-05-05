@@ -134,7 +134,7 @@ public class UT_Attestation
     public void MultisigPayload_RoundTrips()
     {
         var k = GenKey(1);
-        var sig = Crypto.Sign(new byte[] { 1, 2, 3 }, k.priv);
+        var sig = Crypto.Sign(new byte[] { 1, 2, 3 }, new Neo.Wallets.KeyPair(k.priv));
         var payload = new MultisigProofPayload
         {
             Signatures = new[] { new SignerSignature { PublicKey = k.pub, Signature = sig } },
@@ -198,7 +198,7 @@ public class UT_Attestation
         // typed (ECPoint); a SignerSignature with PublicKey = null reaches Encode and
         // would NRE on PublicKey.GetSpan() without MultisigProofPayload.cs:47's guard.
         var k = GenKey(1);
-        var sig = Crypto.Sign(new byte[] { 1 }, k.priv);
+        var sig = Crypto.Sign(new byte[] { 1 }, new Neo.Wallets.KeyPair(k.priv));
         var payload = new MultisigProofPayload
         {
             Signatures = new[]
@@ -217,7 +217,7 @@ public class UT_Attestation
         // the guard, Encode would NRE inside s.PublicKey.GetSpan() with no link to the
         // bad index. Now caught with the bad index in the exception message.
         var k = GenKey(1);
-        var sig = Crypto.Sign(new byte[] { 1 }, k.priv);
+        var sig = Crypto.Sign(new byte[] { 1 }, new Neo.Wallets.KeyPair(k.priv));
         var payload = new MultisigProofPayload
         {
             Signatures = new SignerSignature?[]
@@ -239,7 +239,7 @@ public class UT_Attestation
         // producer could create bytes that round-trip Decode would refuse, hiding
         // the bug at the next consumer.
         var k = GenKey(1);
-        var sig = Crypto.Sign(new byte[] { 1 }, k.priv);
+        var sig = Crypto.Sign(new byte[] { 1 }, new Neo.Wallets.KeyPair(k.priv));
         var sigs = new SignerSignature[MultisigProofPayload.MaxSigners + 1];
         for (var i = 0; i < sigs.Length; i++)
             sigs[i] = new SignerSignature { PublicKey = k.pub, Signature = sig };
@@ -253,7 +253,7 @@ public class UT_Attestation
     {
         // Boundary case: exactly MaxSigners=256 must succeed. Pairs with the reject test.
         var k = GenKey(1);
-        var sig = Crypto.Sign(new byte[] { 1 }, k.priv);
+        var sig = Crypto.Sign(new byte[] { 1 }, new Neo.Wallets.KeyPair(k.priv));
         var sigs = new SignerSignature[MultisigProofPayload.MaxSigners];
         for (var i = 0; i < sigs.Length; i++)
             sigs[i] = new SignerSignature { PublicKey = k.pub, Signature = sig };

@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using Neo.Extensions;
+using Neo.Extensions.IO;
 using Neo.L2;
 using Neo.L2.Telemetry;
 using Neo.Ledger;
@@ -55,9 +56,18 @@ public sealed class L2BatchPlugin : Plugin
     }
 
     /// <inheritdoc />
-    public override void Dispose()
+    /// <remarks>
+    /// neo-project/neo master sealed the public <c>Dispose()</c> and routes cleanup through
+    /// the standard <c>Dispose(bool disposing)</c> hook. Override that instead so the
+    /// Blockchain.Committed handler is unsubscribed deterministically.
+    /// </remarks>
+    protected override void Dispose(bool disposing)
     {
-        Blockchain.Committed -= OnBlockCommitted;
+        if (disposing)
+        {
+            Blockchain.Committed -= OnBlockCommitted;
+        }
+        base.Dispose(disposing);
     }
 
     /// <inheritdoc />

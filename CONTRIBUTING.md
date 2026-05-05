@@ -7,8 +7,11 @@
 
 - **.NET 10 SDK** (`dotnet --version` must report `10.0.x`).
 - **Rust toolchain** (1.75+) — only required if you touch `bridge/neo-zkvm-bridge`.
-- A sibling clone of [`neo-project/neo`](https://github.com/neo-project/neo) at `../neo`. This
-  repo's `Directory.Build.props` resolves all Neo core projects via `NeoCorePath`.
+- The [`neo-project/neo`](https://github.com/neo-project/neo) Neo 4 core, vendored as a git
+  submodule at `external/neo`. Run `git submodule update --init --recursive` after cloning
+  (or use `git clone --recurse-submodules`). `Directory.Build.props` defaults `NeoCorePath`
+  to the submodule path; override with `dotnet build /p:NeoCorePath=/path/to/neo/src` if
+  you want to point at a local fork.
 - (Optional) [`nccs`](https://github.com/neo-project/neo-devpack-dotnet) on `PATH` if you want
   the contract build step to emit `.nef` + `.manifest.json`. Without it, contracts still
   type-check.

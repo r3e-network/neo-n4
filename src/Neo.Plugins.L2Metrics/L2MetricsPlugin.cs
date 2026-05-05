@@ -103,9 +103,17 @@ public sealed class L2MetricsPlugin : Plugin
     }
 
     /// <inheritdoc />
-    public override void Dispose()
+    /// <remarks>
+    /// neo-project/neo master sealed the public <c>Dispose()</c>; cleanup goes through
+    /// the standard <c>Dispose(bool disposing)</c> hook.
+    /// </remarks>
+    protected override void Dispose(bool disposing)
     {
-        _server?.Dispose();
-        _server = null;
+        if (disposing)
+        {
+            _server?.Dispose();
+            _server = null;
+        }
+        base.Dispose(disposing);
     }
 }

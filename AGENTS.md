@@ -24,8 +24,9 @@ silently diverging.
 `neo4` is a **consolidation layer**, not a fork. It adds L2 / NeoHub / Gateway / Stack
 components on top of pre-existing Neo ecosystem repos in `/home/neo/git/`:
 
-- `neo` — official Neo 4 core (net10.0). Reference as a project sibling at `../neo` via
-  `Directory.Build.props` `NeoCorePath`.
+- `neo` — official Neo 4 core (net10.0). Vendored as a git submodule at `external/neo`
+  (never released on NuGet; project references resolve directly to the source tree via
+  `Directory.Build.props` `NeoCorePath`).
 - `neo-zkvm`, `neo-axiom` — ZK proof systems. `bridge/neo-zkvm-bridge` (Rust cdylib in this
   repo) wraps `neo-zkvm-prover` for C# P/Invoke.
 - `neo-devpack-dotnet` — compile C# to NeoVM (used for `contracts/`).

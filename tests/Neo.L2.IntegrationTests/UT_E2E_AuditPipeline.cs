@@ -125,6 +125,51 @@ public class UT_E2E_AuditPipeline
     }
 
     [TestMethod]
+    public async Task FullAuditPipeline_DaDropped_DAAvailabilityCatchesIt()
+    {
+        // Specifically pin the DA-dropped failure mode end-to-end: publish a payload
+        // to a DA writer, then audit against a SECOND writer that never saw the
+        // commitment. The check should flag the missing payload by name + commitment.
+        const uint chainId = 1001;
+        var publisher = L2DAPlugin.BuildDefaultWriter(DAMode.External, dataDir: null);
+        var auditWriter = L2DAPlugin.BuildDefaultWriter(DAMode.External, dataDir: null);
+
+        var receipt = await publisher.PublishAsync(new DAPublishRequest
+        {
+            ChainId = chainId,
+            BatchNumber = 1,
+            Payload = new byte[] { 0x42 },
+        });
+
+        var batch = new L2BatchCommitment
+        {
+            ChainId = chainId,
+            BatchNumber = 1,
+            FirstBlock = 0, LastBlock = 9,
+            PreStateRoot = UInt256.Zero,
+            PostStateRoot = HashWithSeed(1),
+            TxRoot = UInt256.Zero,
+            ReceiptRoot = UInt256.Zero,
+            WithdrawalRoot = UInt256.Zero,
+            L2ToL1MessageRoot = UInt256.Zero,
+            L2ToL2MessageRoot = UInt256.Zero,
+            DACommitment = receipt.Commitment, // the OTHER writer's payload
+            PublicInputHash = UInt256.Zero,
+            ProofType = ProofType.Multisig,
+            Proof = new byte[] { 0xAA },
+        };
+
+        var auditor = new ChainAuditor()
+            .Register(new DAAvailabilityCheck(auditWriter));
+        var report = await auditor.AuditAsync(new[] { batch });
+
+        Assert.IsFalse(report.Passed);
+        var failed = report.Findings.Single(f => !f.Passed);
+        Assert.AreEqual("da_availability", failed.Check);
+        StringAssert.Contains(failed.Detail, "no longer available");
+    }
+
+    [TestMethod]
     public async Task FullAuditPipeline_BrokenBatchRange_ReportsFail_MetricsCount()
     {
         // The complementary failure-detection test: pin that the pipeline catches a

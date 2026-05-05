@@ -125,6 +125,11 @@ public class OptimisticChallengeContract : SmartContract
     {
         var sm = (UInt160)(Storage.Get(new byte[] { KeySettlementManager }) ?? throw new Exception("sm unset"));
         ExecutionEngine.Assert(Runtime.CheckWitness(sm), "not settlement manager");
+        // chainId 0 is the L1 sentinel; would be meaningless. sequencer=0 means a
+        // successful challenge later would fail to slash any actual sequencer — the
+        // economic security of Phase-3 depends on a valid sequencer hash here.
+        ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
+        ExecutionEngine.Assert(sequencer.IsValid && !sequencer.IsZero, "invalid sequencer");
 
         var deadline = (uint)(Runtime.Time / 1000) + GetWindowSeconds();
         var deadlineKey = DeadlineKey(chainId, batchNumber);
@@ -146,6 +151,11 @@ public class OptimisticChallengeContract : SmartContract
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(challenger), "no witness for challenger");
         ExecutionEngine.Assert(fraudProofBytes.Length > 0, "empty fraud proof");
+        // Without these guards, a zero challenger would reach the bond payout step
+        // and silently pay the reward to address 0; a zero fraudVerifier would NRE
+        // inside Contract.Call instead of surfacing the misconfig clearly.
+        ExecutionEngine.Assert(challenger.IsValid && !challenger.IsZero, "invalid challenger");
+        ExecutionEngine.Assert(fraudVerifier.IsValid && !fraudVerifier.IsZero, "invalid fraud verifier");
 
         var deadlineKey = DeadlineKey(chainId, batchNumber);
         var rawDeadline = Storage.Get(deadlineKey);

@@ -82,6 +82,19 @@ internal static class Program
         Console.WriteLine($"  network: {bundle.Network}");
         Console.WriteLine();
         Console.WriteLine("⚠ Hashes are deterministic stubs — pass through a wallet-equipped signer to deploy.");
+        Console.WriteLine();
+
+        // Surface required post-deploy actions. The bundle alone does not finish the
+        // wiring — SequencerBond's slashers list is intentionally minimal at deploy time
+        // to avoid a cycle (see ScaffoldPlan.BondDeployData). Without this hint, an
+        // operator who runs the bundle could think the deployment is "done" but be
+        // silently missing the Phase-3 slash payout path.
+        var postActions = ScaffoldPlan.PostDeployActions(bundle).ToList();
+        if (postActions.Count > 0)
+        {
+            Console.WriteLine("Required post-deploy actions:");
+            foreach (var a in postActions) Console.WriteLine($"  - {a}");
+        }
         return 0;
     }
 

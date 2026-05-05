@@ -290,4 +290,42 @@ public class UT_DeployPlanner
         StringAssert.Contains(ex.Message, "HashResolver");
         StringAssert.Contains(ex.Message, "'A'");
     }
+
+    [TestMethod]
+    public void PostDeployActions_BothBondAndChallenge_EmitsRegisterSlasherHint()
+    {
+        // Pin the operator-facing hint emitted by `plan` after a successful resolution.
+        // Without this, an operator could miss the cycle-break post-deploy step and
+        // leave Phase-3 challenges with no slash payout path.
+        var plan = ScaffoldPlan.Default();
+        var bundle = DeployPlanner.Plan(plan, name => H((byte)(name.Length & 0xFF)));
+        var actions = ScaffoldPlan.PostDeployActions(bundle).ToList();
+        Assert.AreEqual(1, actions.Count);
+        StringAssert.Contains(actions[0], "SequencerBond.RegisterSlasher");
+        StringAssert.Contains(actions[0], "OptimisticChallenge");
+    }
+
+    [TestMethod]
+    public void PostDeployActions_NoChallenge_NoHint()
+    {
+        // If a custom plan deploys SequencerBond without OptimisticChallenge (e.g. the
+        // operator opted out of Phase-3 entirely), no hint is emitted — the bond's
+        // initial slashers list of just GovernanceController is fine for that setup.
+        var custom = new DeployPlan
+        {
+            Version = 1,
+            Network = "test",
+            Steps = new[] { Step("SequencerBond", new JArray { "X" }) },
+        };
+        var bundle = DeployPlanner.Plan(custom, name => H(0xAA));
+        var actions = ScaffoldPlan.PostDeployActions(bundle).ToList();
+        Assert.AreEqual(0, actions.Count);
+    }
+
+    [TestMethod]
+    public void PostDeployActions_RejectsNullBundle()
+    {
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => ScaffoldPlan.PostDeployActions(null!).ToList());
+    }
 }

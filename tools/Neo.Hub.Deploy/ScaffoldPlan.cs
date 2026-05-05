@@ -67,7 +67,8 @@ public static class ScaffoldPlan
                 // SequencerBond holds the bonded GAS that backs each sequencer + pays out
                 // slash awards. Initial slashers list is just GovernanceController so the
                 // bond contract can deploy first without a cycle. After OptimisticChallenge
-                // is up the operator calls SequencerBond.SetSlashers([gov, optChallenge]).
+                // is up the operator calls SequencerBond.RegisterSlasher(optChallenge) to
+                // enable Phase-3 challenge slashing.
                 Step("SequencerBond",
                     "contracts/NeoHub.SequencerBond/bin/Release/NeoHub.SequencerBond.nef",
                     BondDeployData(),
@@ -95,7 +96,7 @@ public static class ScaffoldPlan
     /// SequencerBond's deploy_data: (owner, bondAsset, slashers[]). Initial slashers list
     /// only includes GovernanceController to avoid a deploy cycle (OptimisticChallenge
     /// itself depends on SequencerBond). After OptimisticChallenge is deployed, the
-    /// operator must call <c>SequencerBond.SetSlashers([gov, optChallenge])</c> to enable
+    /// operator must call <c>SequencerBond.RegisterSlasher(optChallenge)</c> to enable
     /// the Phase 3 challenge slash payout. The slashers array is resolved by the same
     /// <c>$step:</c> machinery as scalars — see <c>DeployPlanner.ResolveToken</c>'s
     /// JArray branch.
@@ -123,6 +124,28 @@ public static class ScaffoldPlan
             DeployData = deployData,
             DependsOn = dependsOn,
         };
+    }
+
+    /// <summary>
+    /// Operator follow-up calls that aren't part of the bundle itself but are needed
+    /// before the deployment is fully wired. Returns human-readable lines (each line is
+    /// a single contract call) that <c>plan</c> prints after the bundle summary.
+    /// </summary>
+    /// <remarks>
+    /// Currently surfaces:
+    /// <list type="bullet">
+    ///   <item><description>SequencerBond.RegisterSlasher(OptimisticChallenge): broken cycle workaround — bond can't depend on challenge at deploy time, so the operator wires it post-deploy.</description></item>
+    /// </list>
+    /// </remarks>
+    public static IEnumerable<string> PostDeployActions(DeployBundle bundle)
+    {
+        ArgumentNullException.ThrowIfNull(bundle);
+        var bond = bundle.Invocations.FirstOrDefault(i => i.Name == "SequencerBond");
+        var oc = bundle.Invocations.FirstOrDefault(i => i.Name == "OptimisticChallenge");
+        if (bond is not null && oc is not null)
+        {
+            yield return $"SequencerBond.RegisterSlasher({oc.Name})  # enable Phase-3 challenge slashing (broken cycle: bond→challenge dep is post-deploy)";
+        }
     }
 
     private static JArray OwnerOnly()

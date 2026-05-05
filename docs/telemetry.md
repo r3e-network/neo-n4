@@ -117,6 +117,7 @@ the test suite enforces this via reflection.
 | `l2.batch.sealed` | counter | Number of L2 batches sealed by the local sequencer |
 | `l2.batch.seal_latency_ms` | histogram | Wall-clock milliseconds spent sealing each batch |
 | `l2.batch.tx_count` | gauge | Transactions in the most recently sealed batch |
+| `l2.batch.subscriber_failures` | counter | Per-subscriber failures dispatching `OnBatchSealed` (one buggy listener can't destabilize block import) |
 
 ### Settlement (`Neo.Plugins.L2Settlement`)
 
@@ -179,6 +180,21 @@ backend automatically participates.
 | `l2.censorship.reports` | counter | Censorship reports the detector emitted |
 | `l2.challenge.fraud_proofs` | counter | Fraud proofs the orchestrator emitted |
 | `l2.challenge.bisection_rounds` | histogram | Bisection rounds taken to settle each fraud dispute |
+
+### Sequencer (`Neo.L2.Sequencer.InMemorySequencerCommitteeProvider`)
+
+| Metric | Type | Description |
+|---|---|---|
+| `l2.sequencer.registered` | counter | Sequencers added to the committee |
+| `l2.sequencer.exits_started` | counter | Times a sequencer entered the exit window |
+| `l2.sequencer.exits_finalized` | counter | Times a sequencer was permanently removed after their window expired |
+| `l2.sequencer.committee_size` | gauge | Current number of committee members (post-mutation) |
+
+### Messaging (`Neo.L2.Messaging.L2Outbox`)
+
+| Metric | Type | Description |
+|---|---|---|
+| `l2.messaging.emitted` | counter | Cross-chain messages emitted by the local L2 (target-chain-tagged) |
 
 ### Audit
 

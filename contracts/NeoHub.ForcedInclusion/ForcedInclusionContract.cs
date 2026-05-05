@@ -55,9 +55,17 @@ public class ForcedInclusionContract : SmartContract
     {
         if (update) return;
         var arr = (object[])data;
-        Storage.Put(new byte[] { KeyOwner }, (UInt160)arr[0]);
-        Storage.Put(new byte[] { KeySettlementManager }, (UInt160)arr[1]);
+        var owner = (UInt160)arr[0];
+        var settlementManager = (UInt160)arr[1];
+        // Surface a typo'd zero / invalid hash here, not at first call.
+        ExecutionEngine.Assert(owner.IsValid && !owner.IsZero, "invalid owner");
+        ExecutionEngine.Assert(settlementManager.IsValid && !settlementManager.IsZero, "invalid settlement manager");
+        Storage.Put(new byte[] { KeyOwner }, owner);
+        Storage.Put(new byte[] { KeySettlementManager }, settlementManager);
         var deadline = arr.Length >= 3 ? (uint)(BigInteger)arr[2] : DefaultDeadlineSeconds;
+        // A zero deadline would let any sequencer pass the censorship check by definition;
+        // surface the misconfig at deploy time.
+        ExecutionEngine.Assert(deadline > 0, "deadline must be positive");
         Storage.Put(new byte[] { KeyDeadlineSeconds }, (BigInteger)deadline);
     }
 

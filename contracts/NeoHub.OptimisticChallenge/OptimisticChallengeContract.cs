@@ -61,9 +61,18 @@ public class OptimisticChallengeContract : SmartContract
     {
         if (update) return;
         var arr = (object[])data;
-        Storage.Put(new byte[] { KeyOwner }, (UInt160)arr[0]);
-        Storage.Put(new byte[] { KeySettlementManager }, (UInt160)arr[1]);
-        Storage.Put(new byte[] { KeySequencerBond }, (UInt160)arr[2]);
+        var owner = (UInt160)arr[0];
+        var settlementManager = (UInt160)arr[1];
+        var sequencerBond = (UInt160)arr[2];
+        // Surface typo'd zero / invalid hashes here. Without these guards an opChallenge
+        // with sequencerBond=0 would silently fail to slash on a successful challenge —
+        // the worst kind of "looks deployed but actually broken" outcome.
+        ExecutionEngine.Assert(owner.IsValid && !owner.IsZero, "invalid owner");
+        ExecutionEngine.Assert(settlementManager.IsValid && !settlementManager.IsZero, "invalid settlement manager");
+        ExecutionEngine.Assert(sequencerBond.IsValid && !sequencerBond.IsZero, "invalid sequencer bond");
+        Storage.Put(new byte[] { KeyOwner }, owner);
+        Storage.Put(new byte[] { KeySettlementManager }, settlementManager);
+        Storage.Put(new byte[] { KeySequencerBond }, sequencerBond);
         Storage.Put(new byte[] { KeyChallengeWindowSeconds }, (BigInteger)DefaultWindowSeconds);
         Storage.Put(new byte[] { KeyChallengerRewardBps }, (BigInteger)DefaultChallengerRewardBps);
     }

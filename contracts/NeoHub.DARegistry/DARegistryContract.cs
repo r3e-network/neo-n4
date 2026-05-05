@@ -34,8 +34,13 @@ public class DARegistryContract : SmartContract
     {
         if (update) return;
         var arr = (object[])data;
-        Storage.Put(new byte[] { KeyOwner }, (UInt160)arr[0]);
-        Storage.Put(new byte[] { PrefixSettlementManager }, (UInt160)arr[1]);
+        var owner = (UInt160)arr[0];
+        var settlementManager = (UInt160)arr[1];
+        // Surface a typo'd zero / invalid hash here, not at first use.
+        ExecutionEngine.Assert(owner.IsValid && !owner.IsZero, "invalid owner");
+        ExecutionEngine.Assert(settlementManager.IsValid && !settlementManager.IsZero, "invalid settlement manager");
+        Storage.Put(new byte[] { KeyOwner }, owner);
+        Storage.Put(new byte[] { PrefixSettlementManager }, settlementManager);
     }
 
     /// <summary>Governance owner.</summary>

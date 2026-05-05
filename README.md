@@ -82,6 +82,7 @@ neo4/
 │   ├── Neo.L2.Abstractions/                # interfaces + records (doc.md §19)
 │   ├── Neo.L2.{Batch,State,Bridge,Messaging,Executor}/
 │   ├── Neo.L2.{Sequencer,ForcedInclusion,Censorship,Challenge,Audit}/
+│   ├── Neo.L2.Persistence/                   # IL2KeyValueStore + RocksDB
 │   ├── Neo.L2.Proving/  Neo.L2.Proving.Sp1/
 │   ├── Neo.L2.Settlement.Rpc/
 │   ├── Neo.L2.Telemetry/                   # IL2Metrics + PrometheusExporter

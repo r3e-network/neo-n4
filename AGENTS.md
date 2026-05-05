@@ -22,7 +22,10 @@ silently diverging.
 ## Working scope
 
 `neo4` is a **consolidation layer**, not a fork. It adds L2 / NeoHub / Gateway / Stack
-components on top of pre-existing Neo ecosystem repos in `/home/neo/git/`:
+components on top of pre-existing Neo ecosystem repos. The three critical build-dep
+upstreams are vendored as git submodules under `external/` (see
+`project_submodule_layout.md` in memory); other repos in `/home/neo/git/` are
+reference implementations the agent can read but does NOT need to extend in place.
 
 - `neo` — official Neo 4 core (net10.0). Vendored as a git submodule at `external/neo`
   (never released on NuGet; project references resolve directly to the source tree via

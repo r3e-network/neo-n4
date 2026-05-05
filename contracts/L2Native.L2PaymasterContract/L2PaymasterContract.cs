@@ -55,6 +55,7 @@ public class L2PaymasterContract : SmartContract
     {
         var owner = (UInt160)(Storage.Get(new byte[] { KeyOwner }) ?? throw new Exception("owner unset"));
         ExecutionEngine.Assert(Runtime.CheckWitness(owner), "not authorized");
+        ExecutionEngine.Assert(asset.IsValid && !asset.IsZero, "invalid asset");
         Storage.Put(ApprovalKey(asset), new byte[] { 1 });
     }
 
@@ -72,6 +73,11 @@ public class L2PaymasterContract : SmartContract
     public static void TopUp(UInt160 user, UInt160 asset, BigInteger amount)
     {
         ExecutionEngine.Assert(amount > 0, "amount must be positive");
+        // Without these guards a zero user would silently accumulate balance under a
+        // dead key (no holder), and a zero asset would route the NEP-17 transfer to a
+        // typically-rejected zero address. Reject at the entry instead.
+        ExecutionEngine.Assert(user.IsValid && !user.IsZero, "invalid user");
+        ExecutionEngine.Assert(asset.IsValid && !asset.IsZero, "invalid asset");
         ExecutionEngine.Assert(IsApproved(asset), "asset not approved");
 
         var caller = Runtime.CallingScriptHash;
@@ -103,6 +109,8 @@ public class L2PaymasterContract : SmartContract
         var feeContract = (UInt160)(Storage.Get(new byte[] { KeyFeeContract }) ?? throw new Exception("fee contract unset"));
         ExecutionEngine.Assert(Runtime.CheckWitness(feeContract), "not fee contract");
         ExecutionEngine.Assert(amount > 0, "amount must be positive");
+        ExecutionEngine.Assert(user.IsValid && !user.IsZero, "invalid user");
+        ExecutionEngine.Assert(asset.IsValid && !asset.IsZero, "invalid asset");
 
         var key = BalanceKey(user, asset);
         var raw = Storage.Get(key);

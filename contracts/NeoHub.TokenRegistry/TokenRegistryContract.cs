@@ -59,6 +59,13 @@ public class TokenRegistryContract : SmartContract
         var chainId = ReadUInt32(mappingBytes, 20);
         var l2Asset = ReadUInt160(mappingBytes, 24);
 
+        // Surface corrupt deployment data here. A zero asset on either side would
+        // silently route every bridge transfer of that asset to a dead-letter; a
+        // chainId=0 mapping is the L1 sentinel which no L2 watches.
+        ExecutionEngine.Assert(l1Asset.IsValid && !l1Asset.IsZero, "invalid L1 asset");
+        ExecutionEngine.Assert(l2Asset.IsValid && !l2Asset.IsZero, "invalid L2 asset");
+        ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
+
         Storage.Put(MappingKey(l1Asset, chainId), mappingBytes);
         OnMappingRegistered(l1Asset, chainId, l2Asset);
     }

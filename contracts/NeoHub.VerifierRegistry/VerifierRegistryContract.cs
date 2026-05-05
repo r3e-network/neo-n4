@@ -54,6 +54,12 @@ public class VerifierRegistryContract : SmartContract
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero, "invalid verifier");
+        // ProofType range: None(0)/Multisig(1)/Optimistic(2)/Zk(3). Reject 0 because
+        // "no proof" can't be verified by anything; reject >3 because off-chain code
+        // would reject the same ProofType byte at decode time, so accepting it here
+        // would let an operator wire a verifier that's effectively unreachable —
+        // confusing later when batches with that ProofType are rejected upstream.
+        ExecutionEngine.Assert(proofType >= 1 && proofType <= 3, "proofType must be 1..3 (Multisig/Optimistic/Zk)");
         Storage.Put(new byte[] { PrefixVerifier, proofType }, verifier);
         OnVerifierRegistered(proofType, verifier);
     }

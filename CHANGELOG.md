@@ -5,6 +5,73 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Phase 6 done: all 8 neo-stack subcommands functional
+
+`register-chain` and `deploy-bridge-adapter` were the last two stub
+subcommands ("would do X" placeholders). Both now produce structured
+operator plans:
+  - register-chain reads chain.config.json + prints target contract,
+    method, args, config preview, and 3 numbered next steps for wallet-
+    side submission
+  - deploy-bridge-adapter prints the L2/L1 contract pair, required
+    asset mappings, and operator next-steps
+
+Neither performs L1 submission (genuinely operator-specific signer
+requirement), but both give the operator the exact information needed
+to script the submission. Phase 6 in README + IMPLEMENTATION_STATUS
+bumped from 🟡 to ✅.
+
+### Added — Two new audit checks: DAAvailabilityCheck + BatchRangeCheck
+
+`Neo.L2.Audit` grew from 4 checks to 6:
+  - `DAAvailabilityCheck` — pings each batch's DACommitment against
+    the configured DA layer's IsAvailableAsync. Catches the "DA layer
+    dropped/garbage-collected the payload" failure mode that would
+    leave L2 batches recoverable in commitment but unrecoverable in
+    actual data. Skips legacy zero-commitment batches.
+  - `BatchRangeCheck` — flags intra-batch range inversions
+    (firstBlock > lastBlock) and zero batch numbers (collide with
+    genesis state-root assumptions). Cheap, no external lookups.
+
+Both wired into the devnet's audit pass alongside the original 4
+(ContinuityCheck, NoZeroProofCheck, ProofValidityCheck,
+PublicInputHashConsistencyCheck).
+
+### Added — Contract-level validation sweep across all 19 contracts
+
+All 13 NeoHub + 6 L2 native contracts now have appropriate IsValid +
+non-zero guards at deploy + per-method entry points. Targeted gaps:
+  - All `_deploy` methods reject zero owner / dependency / asset hashes
+  - chainId=0 (the L1 sentinel) rejected at every external mutator:
+    ChainRegistry.Register/UpdateChain, ForcedInclusion.EnqueueForced,
+    SequencerRegistry.Register, SharedBridge.Deposit/FinalizeWithdrawal,
+    SequencerBond.Deposit, MessageRouter.EnqueueL1ToL2, OptimisticChallenge.OpenWindow
+  - VerifierRegistry.RegisterVerifier rejects proofType outside [1..3]
+  - DARegistry.Record range-checks daMode <= 3
+  - L2FeeContract._deploy pins BPS sum == 10000
+  - L2BatchInfoContract.Advance pins L1FinalizedHeight monotonic
+  - L2MessageContract.EmitMessage + off-chain MessageBuilder.Build
+    reject self-routed messages (sourceChainId == targetChainId, incl.
+    zero-to-zero edge case)
+  - GovernanceController.CreateProposal rejects empty payload
+  - L2PaymasterContract validates user/asset hashes in ApproveAsset /
+    TopUp / Charge
+
+### Added — EmergencyManager EscapeHatchExit verifies against finalized state root (§15.5)
+
+[Earlier entry — preserved]
+
+### Misc
+
+  - JsonRpcClient(string endpoint) ctor now uses ArgumentException.ThrowIfNullOrEmpty
+    for clearer error message (was surfacing as confusing 'uriString' parameter name)
+  - Devnet: --help/-h flag for usage parity with neo-stack and neo-hub-deploy
+  - Devnet: stores now disposed cleanly via `using var`; 0-batch run with
+    --data-dir for rehydration verification gracefully skips audit
+  - ChainAuditor mixed-chainId rejection pinned with explicit message-format test
+
+Cumulative: 817 tests / 26 projects.
+
 ### Added — RocksDB-by-default persistence across all stateful L2 components
 
 The "L2 component holds an in-memory dict" pattern is fine for tests + devnets but

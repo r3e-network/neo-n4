@@ -182,6 +182,19 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Refactored — extract `L2ChainConfigJsonReader` for unit-testable JSON parsing
+
+The CLI's `register-chain` had ~50 lines of inlined JSON parsing + helper
+methods (`BuildConfigFromJson`, `ParseEnum`, `ParseBool`, `ParseHash`)
+that were all private static — untestable without spawning the CLI process.
+Extracts to `Neo.L2.L2ChainConfigJsonReader.FromJson(...)` in Abstractions
+so the parser is exercisable from a normal unit test. CLI is now a thin glue
+layer. 8 new tests pin full-population, roundtrip-through-serializer, named-
+error-messages (unknown enum, missing field, malformed UInt160, null inputs),
+plus a validium-template shape pin.
+
+Cumulative: 913 tests / 27 projects.
+
 ### Changed — `neo-stack register-chain` emits canonical configBytes hex
 
 Composes the new `L2ChainConfigSerializer` with the operator-supplied L1

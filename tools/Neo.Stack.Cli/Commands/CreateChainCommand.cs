@@ -24,7 +24,12 @@ internal static class CreateChainCommand
         // entry instead of becoming a working chain that misroutes L2→L2 messages as
         // L2→L1 (ChainId 0 is the L1 sentinel — see L2Outbox.L1ChainId).
         var chainId = Neo.L2.ChainIdValidator.ValidateL2(parsedChainId, "--chain-id");
-        var output = ArgUtil.Get(args, "--output", $"./chain-{chainId}");
+        // Accept either --output or --path; init-l2 / register-chain / start-* use
+        // --path, so a script that strings the subcommands together can reuse one flag.
+        var pathFlag = ArgUtil.Get(args, "--path", "");
+        var output = pathFlag.Length > 0
+            ? pathFlag
+            : ArgUtil.Get(args, "--output", $"./chain-{chainId}");
 
         Directory.CreateDirectory(output);
         var configPath = Path.Combine(output, "chain.config.json");

@@ -18,7 +18,12 @@ internal static class InitL2Command
         // route a cross-chain message.
         var chainId = Neo.L2.ChainIdValidator.ValidateL2(parsedChainId, "--chain-id");
         var da = ArgUtil.Get(args, "--da", "neofs");
-        var path = ArgUtil.Get(args, "--path", $"./chain-{chainId}");
+        // Accept either --path or --output; create-chain uses --output, so a script
+        // that strings the subcommands together can reuse one flag.
+        var outputFlag = ArgUtil.Get(args, "--output", "");
+        var path = outputFlag.Length > 0
+            ? outputFlag
+            : ArgUtil.Get(args, "--path", $"./chain-{chainId}");
 
         if (!Directory.Exists(path))
         {

@@ -19,7 +19,7 @@
 ## Quick start
 
 ```bash
-# Type-check everything + run all 847 tests
+# Type-check everything + run all 851 tests
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Run the in-process devnet demo

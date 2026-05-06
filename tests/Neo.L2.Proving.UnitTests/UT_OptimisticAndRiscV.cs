@@ -515,4 +515,18 @@ public class UT_OptimisticAndRiscV
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(
             async () => await verifier.VerifyAsync(null!, ReadOnlyMemory<byte>.Empty));
     }
+
+    [TestMethod]
+    public void ProofSystem_HasExpectedDiscriminants()
+    {
+        // RiscVProofPayload encodes ProofSystem as a 1-byte field at the documented
+        // offset; the values double as L1 verifier-registry dispatch keys. Pinning
+        // them surfaces a future renumber as a visible diff rather than silent verifier
+        // mismatch.
+        Assert.AreEqual(0, (byte)ProofSystem.Unknown);
+        Assert.AreEqual(1, (byte)ProofSystem.Sp1);
+        Assert.AreEqual(2, (byte)ProofSystem.RiscZero);
+        Assert.AreEqual(3, (byte)ProofSystem.Halo2);
+        Assert.AreEqual(4, (byte)ProofSystem.Axiom);
+    }
 }

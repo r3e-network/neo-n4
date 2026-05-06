@@ -252,6 +252,31 @@ public class UT_Models
     }
 
     [TestMethod]
+    public void BatchStatus_HasExpectedDiscriminants()
+    {
+        // RpcSettlementClient.GetBatchStatusAsync depends on the 0..4 range to validate
+        // the L1 contract's response — pinning here surfaces a future enum renumber as a
+        // visible diff rather than silent invalid status acceptance.
+        Assert.AreEqual(0, (byte)BatchStatus.Unknown);
+        Assert.AreEqual(1, (byte)BatchStatus.Pending);
+        Assert.AreEqual(2, (byte)BatchStatus.Challengeable);
+        Assert.AreEqual(3, (byte)BatchStatus.Finalized);
+        Assert.AreEqual(4, (byte)BatchStatus.Reverted);
+    }
+
+    [TestMethod]
+    public void AssetType_HasExpectedDiscriminants()
+    {
+        // AssetMapping serializes AssetType as a 1-byte field. Pinning the values
+        // protects the L1 ↔ L2 wire format across renumbers.
+        Assert.AreEqual(0, (byte)AssetType.Gas);
+        Assert.AreEqual(1, (byte)AssetType.Neo);
+        Assert.AreEqual(2, (byte)AssetType.Nep17);
+        Assert.AreEqual(3, (byte)AssetType.Stablecoin);
+        Assert.AreEqual(4, (byte)AssetType.Rwa);
+    }
+
+    [TestMethod]
     public void BatchExecutionRequest_DistinguishesByTransactionListContent()
     {
         // BatchExecutionRequest holds IReadOnlyList<ReadOnlyMemory<byte>> and

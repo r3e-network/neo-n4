@@ -143,4 +143,18 @@ public class UT_Sp1Bridge
 
         Assert.IsFalse(verify.Valid);
     }
+
+    [TestMethod]
+    public void Sp1BridgeStatus_HasExpectedDiscriminants()
+    {
+        // The Rust cdylib returns these specific int32 values across the FFI boundary
+        // (see bridge/neo-zkvm-bridge/README.md). Renumbering on the C# side without
+        // matching the Rust side would silently swap "ok" with "verify rejected" or
+        // similar. Pin the values so a desync surfaces at unit-test time.
+        Assert.AreEqual(0, (int)Sp1BridgeStatus.Ok);
+        Assert.AreEqual(-1, (int)Sp1BridgeStatus.InvalidInput);
+        Assert.AreEqual(-2, (int)Sp1BridgeStatus.ProveFailed);
+        Assert.AreEqual(-3, (int)Sp1BridgeStatus.VerifyRejected);
+        Assert.AreEqual(-9, (int)Sp1BridgeStatus.NotImplemented);
+    }
 }

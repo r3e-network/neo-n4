@@ -32,6 +32,7 @@ internal static class Program
                 "start-batcher" => StartBatcherCommand.Run(rest),
                 "start-prover" => StartProverCommand.Run(rest),
                 "submit-batch" => await SubmitBatchCommand.RunAsync(rest),
+                "validate" => ValidateChainConfigCommand.Run(rest),
                 "--help" or "-h" or "help" => PrintHelp(),
                 _ => Unknown(subcommand),
             };
@@ -66,6 +67,7 @@ internal static class Program
               start-batcher         Start the batcher
               start-prover          Start the prover
               submit-batch          Submit a sealed batch to NeoHub
+              validate              Sanity-check a chain.config.json (enum names, required fields)
               help                  Show this message
 
             See doc.md §14.2 for the full design.

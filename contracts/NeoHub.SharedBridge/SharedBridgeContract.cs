@@ -106,10 +106,9 @@ public class SharedBridgeContract : SmartContract
     }
 
     /// <summary>
-    /// Finalize a withdrawal. Must be called only after the L2's batch carrying
-    /// <paramref name="withdrawalLeafHash"/> in its <c>withdrawalRoot</c> has reached
-    /// <c>BatchStatus.Finalized</c>. Caller is responsible for supplying a valid Merkle proof
-    /// upstream (verification is delegated here to <c>SettlementManager</c>).
+    /// Finalize a withdrawal anchored in the latest finalized batch on
+    /// <paramref name="chainId"/>. Use <see cref="FinalizeWithdrawalAt"/> when the user's
+    /// withdrawal is anchored in an older finalized batch.
     /// </summary>
     public static void FinalizeWithdrawal(
         uint chainId,
@@ -118,12 +117,7 @@ public class SharedBridgeContract : SmartContract
         UInt160 recipient,
         BigInteger amount)
     {
-        ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
-        ExecutionEngine.Assert(amount > 0, "amount must be positive");
-        ExecutionEngine.Assert(asset.IsValid && !asset.IsZero, "invalid asset");
-        ExecutionEngine.Assert(recipient.IsValid && !recipient.IsZero, "invalid recipient");
-
-        // Replay protection: the same leaf can finalize at most once.
+        ValidateWithdrawalArgs(chainId, asset, recipient, amount);
         var consumedKey = WithdrawalKey(chainId, withdrawalLeafHash);
         ExecutionEngine.Assert(Storage.Get(consumedKey) == null, "withdrawal already consumed");
 
@@ -135,6 +129,47 @@ public class SharedBridgeContract : SmartContract
             new object[] { chainId, withdrawalLeafHash });
         ExecutionEngine.Assert(verified, "withdrawal leaf not in finalized batch");
 
+        ConsumeAndPayout(consumedKey, chainId, asset, recipient, amount);
+    }
+
+    /// <summary>
+    /// Finalize a withdrawal anchored in a specific finalized batch on <paramref name="chainId"/>.
+    /// Lets a user claim a withdrawal whose batch is no longer the latest — without this,
+    /// the claim would silently fail once the chain has progressed past their batch.
+    /// </summary>
+    public static void FinalizeWithdrawalAt(
+        uint chainId,
+        ulong batchNumber,
+        UInt256 withdrawalLeafHash,
+        UInt160 asset,
+        UInt160 recipient,
+        BigInteger amount)
+    {
+        ValidateWithdrawalArgs(chainId, asset, recipient, amount);
+        var consumedKey = WithdrawalKey(chainId, withdrawalLeafHash);
+        ExecutionEngine.Assert(Storage.Get(consumedKey) == null, "withdrawal already consumed");
+
+        // Verify against the explicitly-named finalized batch, not just the latest.
+        var sm = GetSettlementManager();
+        var verified = (bool)Contract.Call(
+            sm, "verifyWithdrawalLeafAt",
+            CallFlags.ReadOnly,
+            new object[] { chainId, batchNumber, withdrawalLeafHash });
+        ExecutionEngine.Assert(verified, "withdrawal leaf not in named finalized batch");
+
+        ConsumeAndPayout(consumedKey, chainId, asset, recipient, amount);
+    }
+
+    private static void ValidateWithdrawalArgs(uint chainId, UInt160 asset, UInt160 recipient, BigInteger amount)
+    {
+        ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
+        ExecutionEngine.Assert(amount > 0, "amount must be positive");
+        ExecutionEngine.Assert(asset.IsValid && !asset.IsZero, "invalid asset");
+        ExecutionEngine.Assert(recipient.IsValid && !recipient.IsZero, "invalid recipient");
+    }
+
+    private static void ConsumeAndPayout(byte[] consumedKey, uint chainId, UInt160 asset, UInt160 recipient, BigInteger amount)
+    {
         Storage.Put(consumedKey, new byte[] { 1 });
 
         var transferred = (bool)Contract.Call(

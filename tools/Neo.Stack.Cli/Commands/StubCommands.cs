@@ -1,5 +1,7 @@
 using System;
+using System.Text.Json;
 using System.Threading.Tasks;
+using Neo.L2;
 
 namespace Neo.Stack.Cli.Commands;
 
@@ -53,8 +55,45 @@ internal static class RegisterChainCommand
         Console.WriteLine();
         Console.WriteLine($"  Target contract : NeoHub.ChainRegistry");
         Console.WriteLine($"  Method          : registerChain");
-        Console.WriteLine($"  Args            : (chainId={chainId}, configBytes=<encoded>)");
         Console.WriteLine($"  Config source   : {configPath}");
+        Console.WriteLine();
+
+        // If the operator supplied the four L1 contract hashes (discovered from the
+        // neo-hub-deploy bundle output), encode the L2ChainConfig into the canonical
+        // 91-byte wire format and print it as hex — directly pasteable into a wallet's
+        // contract-call args. Without addresses, fall back to the legacy plan-only
+        // output (JSON preview + numbered next steps).
+        var operatorHash = ArgUtil.Get(args, "--operator", "");
+        var verifierHash = ArgUtil.Get(args, "--verifier", "");
+        var bridgeHash = ArgUtil.Get(args, "--bridge", "");
+        var messageHash = ArgUtil.Get(args, "--message", "");
+
+        if (operatorHash.Length > 0 && verifierHash.Length > 0
+            && bridgeHash.Length > 0 && messageHash.Length > 0)
+        {
+            try
+            {
+                var config = BuildConfigFromJson(chainId, configJson,
+                    operatorHash, verifierHash, bridgeHash, messageHash);
+                var bytes = L2ChainConfigSerializer.Encode(config);
+                Console.WriteLine($"  Args            : (chainId={chainId}, configBytes=<{bytes.Length} bytes>)");
+                Console.WriteLine();
+                Console.WriteLine($"  configBytes (hex, copy-pasteable):");
+                Console.WriteLine($"  0x{Convert.ToHexString(bytes).ToLowerInvariant()}");
+                Console.WriteLine();
+                Console.WriteLine($"Next steps:");
+                Console.WriteLine($"  1. Sign + submit registerChain({chainId}, 0x{Convert.ToHexString(bytes).ToLowerInvariant()}) via your wallet RPC");
+                Console.WriteLine($"  2. Verify on L1 by calling ChainRegistry.isActive({chainId})");
+                return Task.FromResult(0);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"failed to build configBytes: {ex.Message}");
+                return Task.FromResult(4);
+            }
+        }
+
+        Console.WriteLine($"  Args            : (chainId={chainId}, configBytes=<encoded>)");
         Console.WriteLine($"  Config bytes    : {configJson.Length} chars (will be NEO-serialized to bytes)");
         Console.WriteLine();
         Console.WriteLine($"--- chain config preview ---");
@@ -63,11 +102,80 @@ internal static class RegisterChainCommand
         Console.WriteLine();
         Console.WriteLine($"Next steps for production registration:");
         Console.WriteLine($"  1. Discover the L1 ChainRegistry contract hash (see neo-hub-deploy bundle output)");
-        Console.WriteLine($"  2. Sign + submit registerChain({chainId}, <configBytes>) via your wallet RPC");
-        Console.WriteLine($"  3. Verify on L1 by calling ChainRegistry.isActive({chainId})");
+        Console.WriteLine($"  2. Re-run with the four L1 contract hashes:");
+        Console.WriteLine($"       neo-stack register-chain --chain-id {chainId} \\");
+        Console.WriteLine($"         --operator <hash> --verifier <hash> --bridge <hash> --message <hash>");
+        Console.WriteLine($"     to emit the canonical 91-byte configBytes hex (ready for wallet-side submission).");
+        Console.WriteLine($"  3. Sign + submit registerChain({chainId}, <configBytes>) via your wallet RPC.");
+        Console.WriteLine($"  4. Verify on L1 by calling ChainRegistry.isActive({chainId}).");
         Console.WriteLine();
         Console.WriteLine($"(Wallet integration is operator-specific — wire your signer via Neo.L2.Settlement.Rpc.RpcSettlementClient.)");
         return Task.FromResult(0);
+    }
+
+    /// <summary>
+    /// Parse the JSON written by <c>create-chain</c> + the four operator-supplied
+    /// L1 contract hashes into an <see cref="L2ChainConfig"/> ready to encode. Throws
+    /// <see cref="ArgumentException"/> with a clear message on any unparseable enum
+    /// or malformed UInt160 — the operator sees the field name they need to fix.
+    /// </summary>
+    private static L2ChainConfig BuildConfigFromJson(uint chainId, string json,
+        string operatorHash, string verifierHash, string bridgeHash, string messageHash)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        var securityLevel = ParseEnum<SecurityLevel>(root, "securityLevel");
+        var daMode = ParseEnum<DAMode>(root, "daMode");
+        var sequencer = ParseEnum<SequencerModel>(root, "sequencerModel");
+        var exit = ParseEnum<ExitModel>(root, "exitModel");
+        var gatewayEnabled = ParseBool(root, "gatewayEnabled");
+        var permissionlessExit = ParseBool(root, "permissionlessExit");
+
+        return new L2ChainConfig
+        {
+            ChainId = chainId,
+            OperatorManager = ParseHash(operatorHash, "--operator"),
+            Verifier = ParseHash(verifierHash, "--verifier"),
+            BridgeAdapter = ParseHash(bridgeHash, "--bridge"),
+            MessageAdapter = ParseHash(messageHash, "--message"),
+            SecurityLevel = securityLevel,
+            DAMode = daMode,
+            GatewayEnabled = gatewayEnabled,
+            PermissionlessExit = permissionlessExit,
+            Sequencer = sequencer,
+            Exit = exit,
+            Active = true,
+        };
+    }
+
+    private static T ParseEnum<T>(JsonElement root, string field) where T : struct, Enum
+    {
+        if (!root.TryGetProperty(field, out var prop))
+            throw new ArgumentException($"chain.config.json missing '{field}'");
+        var name = prop.GetString();
+        if (!Enum.TryParse<T>(name, ignoreCase: false, out var value))
+            throw new ArgumentException($"chain.config.json '{field}'='{name}' is not a valid {typeof(T).Name}");
+        return value;
+    }
+
+    private static bool ParseBool(JsonElement root, string field)
+    {
+        if (!root.TryGetProperty(field, out var prop))
+            throw new ArgumentException($"chain.config.json missing '{field}'");
+        return prop.GetBoolean();
+    }
+
+    private static UInt160 ParseHash(string hex, string flag)
+    {
+        try
+        {
+            return UInt160.Parse(hex);
+        }
+        catch (Exception ex)
+        {
+            throw new ArgumentException($"{flag}='{hex}' is not a valid UInt160 (expected 0x + 40 hex chars): {ex.Message}");
+        }
     }
 }
 

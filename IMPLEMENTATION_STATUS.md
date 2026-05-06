@@ -10,7 +10,7 @@
 | 1     | NeoHub v0 + Shared Bridge                 | ✅ All 13 NeoHub contracts compile + deploy planner emits 13-step bundle |
 | 2     | Batch Settlement                          | ✅ Off-chain green; real `KeyedStateStore` continuity verified across batches |
 | 3     | Optimistic Challenge Window               | ✅ `OptimisticChallenge` contract + `ChallengeOrchestrator` + `BisectionGame` (log-N narrowing) all green |
-| 4     | NeoVM2 / RISC-V ZK Validity Proof         | 🟡 SP1 FFI bridge buildable (`cargo build --release --features real-prover` produces `libneo_zkvm_bridge.so`); CI exercises the link path with `SP1_FORCE_DUMMY=true`. Real proof requires the SP1 toolchain offline + matching guest ELF |
+| 4     | NeoVM2 / RISC-V ZK Validity Proof         | 🟡 Two tracks: **RISC-V execution** — `Neo.L2.Executor.RiscV` P/Invokes into `external/neo-riscv-vm/crates/neo-riscv-host` (PolkaVM-backed). **SP1 ZK proving** — bridge buildable (`cargo build --release --features real-prover` produces `libneo_zkvm_bridge.so`); CI exercises the link path with `SP1_FORCE_DUMMY=true`. Real proof requires the SP1 toolchain offline + matching guest ELF |
 | 5     | Neo Gateway (proof aggregation)           | 🟡 `BinaryTreeAggregator` with pluggable `IRoundProver` (default = pass-through hash) |
 | 6     | Neo Stack CLI / Templates                 | ✅ All 8 subcommands functional (create-chain / init-l2 / register-chain / deploy-bridge-adapter / start-sequencer / start-batcher / start-prover / submit-batch) |
 
@@ -38,6 +38,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.Audit`            | End-to-end chain auditor: `ContinuityCheck` + `ProofValidityCheck` + `NoZeroProofCheck` + `PublicInputHashConsistencyCheck` + `DAAvailabilityCheck` + **`BatchRangeCheck`** + `ChainAuditor` (auto-emits `l2.audit.runs` + `l2.audit.failures`) |
 | `Neo.L2.Telemetry`        | `IL2Metrics` (counter/histogram/gauge) + `NoOpMetrics` + `InMemoryMetrics` + `MetricsSnapshot` + `PrometheusExporter` + `MetricsRequestHandler` (`/metrics` + **`/healthz` + `/readyz`**) + `MetricsHttpServer` (TcpListener-based, no third-party deps) + canonical `MetricNames` + `MetricCatalog` (operator-facing HELP descriptions) |
 | `Neo.L2.Persistence`      | **`IL2KeyValueStore` abstraction + `InMemoryKeyValueStore` + `RocksDbKeyValueStore` (RocksDbSharp 10.10.1, snappy compression default).** Wired into `KeyedStateStore`, `InMemoryL2RpcStore`, `InMemoryMessageRouter`, `InMemoryForcedInclusionSource`, `InMemorySequencerCommitteeProvider`, `PersistentDAWriter` so production data survives restart. Per-component reopen tests pin the durability story. |
+| `Neo.L2.Executor.RiscV`   | **Phase 4 RISC-V execution engine binding.** P/Invoke wrapper around `libneo_riscv_host` (PolkaVM-backed, vendored at `external/neo-riscv-vm`). `RiscVHost.IsAvailable` is a sticky-cached probe; `RiscVHost.Execute(script, trigger, network, timestamp, gasLeft)` thin-wraps the FFI and returns `RiscVExecutionResult` (state / fee / error). Native lib operator-deployed via `LD_LIBRARY_PATH` or alongside the C# binaries. |
 
 ### Native FFI bridge (`bridge/`)
 
@@ -76,7 +77,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**866 unit + integration tests across 26 projects:**
+**872 unit + integration tests across 27 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -104,6 +105,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.Settlement.Rpc.UnitTests`    | 38    | JSON-RPC envelope, stack parsing, signer, **InMemorySettlementClient lifecycle, AdvanceStatus driver, retry semantics**    |
 | `Neo.L2.Telemetry.UnitTests`         | 73    | counter/histogram/gauge accumulation, tag canonicalization, Prometheus exporter (counter/gauge/summary, labels, name sanitization, frozen-snapshot), request handler routing, TCP server round-trip + multi-request, catalog completeness vs MetricNames + Prometheus integration, **`/healthz` + `/readyz` (with predicate)** |
 | `Neo.L2.Persistence.UnitTests`       | 27    | **`InMemoryKeyValueStore` + `RocksDbKeyValueStore` parity (Put / Get / Delete / Contains / EnumeratePrefix / Count, lexicographic ordering, dispose semantics, defensive-copy on read)** |
+| `Neo.L2.Executor.RiscV.UnitTests`    | 6     | `RiscVHost` structural contracts (Neo VMState byte constants, default network = N3 mainnet, application trigger byte, IsAvailable doesn't throw on missing lib, empty-script rejection, RiscVExecutionResult.Halted property) |
 | `Neo.Hub.Deploy.UnitTests`           | 19    | topo sort, cycle detection, scaffold, **plan-version check, duplicate / empty step names, full 13-NeoHub-contract scaffold pin, SequencerBond slashers[] array shape, OptimisticChallenge dependency edges, no-cycle pin (bond → challenge but not back), PostDeployActions surfaces RegisterSlasher hint / suppresses when challenge absent / null-arg guard** |
 | `Neo.L2.IntegrationTests`            | 19    | Phase 0 MVP + Phase 1 cross-component + Phase 2 full-stack + Phase 3 optimistic-challenge + all-phases stitch + e2e telemetry pipeline + **L2MetricsPlugin composition root (every instrumented component → one sink → HTTP scrape) + e2e RocksDB persistence (KeyedStateStore + InMemoryL2RpcStore + InMemorySequencerCommitteeProvider all rehydrate from one shared data dir on reopen) + e2e audit pipeline (all 6 checks pass on healthy chain + DA-dropped scenario specifically catches via `DAAvailabilityCheck` + broken-batch-range failure-detection metric counts)** |
 

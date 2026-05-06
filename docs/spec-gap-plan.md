@@ -180,12 +180,39 @@ deployment-specific.
 ## Summary
 
 **6 in-repo items** in priority order:
-  1. §16.1-admission (smallest, highest value — unlocks the 3-phase roadmap)
-  2. §16.1-approved-sets (needed for mode 1)
-  3. §16.2-config-bytes (wire-format extension; medium-invasive)
-  4. §16-council-veto (security-critical for mainnet)
-  5. §12-l1-da-default (operator convenience)
-  6. §8-witness-canonical (premature without a real prover targeting it)
+  1. ✅ §16.1-admission — closed: `ChainRegistry.SetGovernanceController` +
+     `RegisterChainPublic` mode 0/1/2 branches.
+  2. ✅ §16.1-approved-sets — closed:
+     `GovernanceController.{Approve,Revoke}{Verifier,BridgeAdapter}` +
+     `IsApproved*` consulted by `RegisterChainPublic` mode 1.
+  3. ✅ §16.2-config-bytes — closed: `ConfigSize` 89 → 91 bytes,
+     `OffsetSequencerModel` / `OffsetExitModel` constants, single-purpose
+     `[Safe] Get*` readers, `SequencerModel` / `ExitModel` enums in
+     Abstractions.
+  4. ✅ §16-council-veto — closed: `GovernanceController.GetApprovedAt` +
+     `IsApprovedAndTimelocked`, `VerifierRegistry.SetGovernanceController` +
+     `RegisterVerifierViaProposal` (consults the timelock gate).
+  5. ✅ §12-l1-da-default — closed: `Neo.Plugins.L2DA.JsonRpcL1DAWriter`
+     (`JsonRpcClient` + signed-tx delegate, 13 unit tests).
+  6. ⏭ §8-witness-canonical — **deferred** (plan note: "premature without
+     a real prover targeting it" — re-evaluate when the SP1 toolchain lands
+     and the guest ELF defines its expected witness shape).
+
+**Second-order gaps closed during the same window** (additive, not in the
+original 6):
+  - Canonical 91-byte `L2ChainConfigSerializer` + `L2ChainConfigJsonReader`
+    in Abstractions; CLI's `register-chain` emits the hex directly when
+    operator hashes are supplied.
+  - `ChainRegistry` rounds out the §16.2 reader API (`GetSecurityLevel` /
+    `GetDAMode` / `GetGatewayEnabled` / `GetPermissionlessExit`) for
+    symmetry with the existing `GetSequencerModel` / `GetExitModel`.
+  - `GovernanceController.GetApprovalCount` `[Safe]` public reader.
+  - Off-chain RPC `getsecuritylabel` exposes the full 5-dimension §16.2
+    label.
+  - `ScaffoldPlan.PostDeployActions` surfaces the
+    `ChainRegistry.SetGovernanceController` +
+    `VerifierRegistry.SetGovernanceController` post-deploy wiring (+
+    existing `SequencerBond.RegisterSlasher`).
 
 **3 upstream items** tracked but blocked on external dependencies.
 

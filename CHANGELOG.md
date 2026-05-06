@@ -264,6 +264,19 @@ test-time, not at the operator's terminal.
 
 Cumulative: 923 tests / 27 projects.
 
+### Added — `neo-stack validate <chain.config.json>` subcommand
+
+Sanity-checks a chain.config.json before deploy / devnet preview. Validates:
+each enum field parses to a known value (lists valid values on failure),
+each bool / int field is present + correctly typed, chainId is a non-zero
+L2 (uses `ChainIdValidator`), and emits non-fatal cross-field warnings
+(e.g. SecurityLevel.Validity SHOULD pair with proofType=Zk). Exits 0 with a
+"✅ valid: ..." summary on success, 2 with a field-named error on failure.
+
+Verified against all 4 samples — each prints clean ✅; a `"daMode": "Foo"`
+typo correctly produces:
+  `❌ 'daMode'='Foo' is not a valid DAMode (expected one of: L1, NeoFS, External, DAC)`
+
 ### Changed — `neo-stack register-chain` emits canonical configBytes hex
 
 Composes the new `L2ChainConfigSerializer` with the operator-supplied L1

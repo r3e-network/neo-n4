@@ -53,6 +53,11 @@ dotnet run --project tools/Neo.L2.Devnet -- 5
 # Or preview your operator-template config end-to-end (the post-run RPC
 # snapshot's getsecuritylabel will reflect the JSON's §16.2 dimensions):
 dotnet run --project tools/Neo.L2.Devnet -- 5 --config ./my-l2/chain.config.json
+
+# Sanity-check the JSON before running anything against L1:
+neo-stack validate ./my-l2/chain.config.json
+# ✅ valid: chainId=1099 securityLevel=Optimistic daMode=L1 ...
+# (or ❌ pointing at exactly the field that's wrong)
 ```
 
 ---

@@ -37,4 +37,15 @@ public sealed record L2ChainConfig
 
     /// <summary>True if the chain is currently active (not paused by NeoHub governance).</summary>
     public required bool Active { get; init; }
+
+    /// <summary>How L2 transactions are ordered (doc.md §16.2 security label). Defaults to
+    /// Neo's native dBFT committee model — operators wiring a centralized or fully
+    /// decentralized sequencer override this explicitly.</summary>
+    public SequencerModel Sequencer { get; init; } = SequencerModel.DbftCommittee;
+
+    /// <summary>How users exit the L2 if it turns malicious (doc.md §16.2). Defaults to
+    /// Permissionless (matches <c>EmergencyManager.EscapeHatchExit*</c>); operators on
+    /// validium / DAC chains may downgrade to Delayed or OperatorAssisted with explicit
+    /// disclosure.</summary>
+    public ExitModel Exit { get; init; } = ExitModel.Permissionless;
 }

@@ -125,6 +125,18 @@ public class UT_Models
         var b = a with { ChainId = 1001 };
 
         Assert.AreEqual(a, b);
+
+        // doc.md §16.2 — Sequencer + Exit fields default to dBFT committee + permissionless
+        // exit (the spec's strongest-guarantee defaults). Pin so a future reorder doesn't
+        // accidentally weaken the published security label of every existing chain config.
+        Assert.AreEqual(SequencerModel.DbftCommittee, a.Sequencer);
+        Assert.AreEqual(ExitModel.Permissionless, a.Exit);
+
+        // Override path: operators on validium / DAC chains can downgrade explicitly.
+        var validium = a with { Sequencer = SequencerModel.Centralized, Exit = ExitModel.OperatorAssisted };
+        Assert.AreEqual(SequencerModel.Centralized, validium.Sequencer);
+        Assert.AreEqual(ExitModel.OperatorAssisted, validium.Exit);
+        Assert.AreNotEqual(a, validium);
     }
 
     [TestMethod]

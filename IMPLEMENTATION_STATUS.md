@@ -10,7 +10,7 @@
 | 1     | NeoHub v0 + Shared Bridge                 | ✅ All 13 NeoHub contracts compile + deploy planner emits 13-step bundle |
 | 2     | Batch Settlement                          | ✅ Off-chain green; real `KeyedStateStore` continuity verified across batches |
 | 3     | Optimistic Challenge Window               | ✅ `OptimisticChallenge` contract + `ChallengeOrchestrator` + `BisectionGame` (log-N narrowing) all green |
-| 4     | NeoVM2 / RISC-V ZK Validity Proof         | 🟡 SP1 FFI bridge scaffolded; flip `--features real-prover` to enable |
+| 4     | NeoVM2 / RISC-V ZK Validity Proof         | 🟡 SP1 FFI bridge buildable (`cargo build --release --features real-prover` produces `libneo_zkvm_bridge.so`); CI exercises the link path with `SP1_FORCE_DUMMY=true`. Real proof requires the SP1 toolchain offline + matching guest ELF |
 | 5     | Neo Gateway (proof aggregation)           | 🟡 `BinaryTreeAggregator` with pluggable `IRoundProver` (default = pass-through hash) |
 | 6     | Neo Stack CLI / Templates                 | ✅ All 8 subcommands functional (create-chain / init-l2 / register-chain / deploy-bridge-adapter / start-sequencer / start-batcher / start-prover / submit-batch) |
 
@@ -110,7 +110,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 ## What's not yet wired (out of MVP scope)
 
 - **Live L1 signer for `RpcSettlementClient.SubmitBatchAsync`** — interface in place; concrete wallet integration is operator-specific. For tests + devnets, `Neo.L2.Settlement.Rpc.InMemorySettlementClient` provides a fully-functional in-process `ISettlementClient` with deterministic tx hashes and an explicit `AdvanceStatus` lifecycle driver.
-- **`nccs` artifact generation** — `Directory.Build.props` calls `nccs` with `ContinueOnError=true`; users install nccs separately.
+- **`nccs` artifact generation** — `Directory.Build.props` calls `nccs` with `ContinueOnError=true` so dev builds without nccs still type-check. CI installs `Neo.Compiler.CSharp` on the runner and verifies all 19 contracts produce `.nef` + `.manifest.json` artifacts on every commit (catches NeoVM-specific compile errors that the C# type-check doesn't).
 - **RpcServer plugin integration partial** — `L2RpcMethods` callable as plain methods; the `[RpcMethod]`-attributed wrapper for neo's `RpcServer` plugin needs the RpcServer source.
 - **Real SP1 prover linkage** — flip `--features real-prover` on the bridge crate to link `neo-zkvm-prover` into the cdylib. CI now exercises this path with `SP1_FORCE_DUMMY=true` so the host-side dependency graph stays buildable across crate bumps; a real proof requires the SP1 toolchain (`sp1up`) installed and the matching `neo-zkvm-program` guest ELF compiled (without `SP1_FORCE_DUMMY`).
 - **Real recursive ZK round prover** — `BinaryTreeAggregator` has the right shape; production swaps `PassThroughRoundProver` for SP1 Compress / Halo2 accumulator / Risc0 fold.

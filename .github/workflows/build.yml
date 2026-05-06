@@ -86,14 +86,39 @@ jobs:
           </configuration>
           EOF
 
-      - name: Type-check NeoHub + L2Native contracts
-        # nccs (Neo C# Compiler) isn't on the runner. /p:DisableNccs=true skips the
-        # .nef + .manifest.json artifact step; the C# type-check still runs and
-        # catches API misuse. See contracts/Directory.Build.props for the toggle.
+      - name: Install nccs (Neo C# Compiler)
+        # Without nccs, contracts only type-check — nccs catches a separate class of
+        # error (NeoVM-specific opcode constraints, manifest emission, ABI compile
+        # errors) that the C# compiler never sees. Installing it on the runner means
+        # every commit gets the .nef + .manifest.json artifacts validated.
+        run: dotnet tool install -g Neo.Compiler.CSharp
+
+      - name: Type-check + compile NeoHub + L2Native contracts
+        # `nccs <project>` runs automatically via the BeforeBuild target in
+        # contracts/Directory.Build.props once nccs is on PATH. The artifacts land
+        # in <project>/bin/sc/.
         run: |
           for d in contracts/NeoHub.* contracts/L2Native.*; do
-            dotnet build "$d" /p:NuGetAudit=false /p:DisableNccs=true --nologo
+            dotnet build "$d" /p:NuGetAudit=false --nologo
           done
+
+      - name: Verify .nef + .manifest.json artifacts produced
+        run: |
+          missing=0
+          for d in contracts/NeoHub.* contracts/L2Native.*; do
+            name=$(basename "$d")
+            for ext in nef manifest.json; do
+              if [ ! -f "$d/bin/sc/$name.$ext" ]; then
+                echo "MISSING: $d/bin/sc/$name.$ext"
+                missing=$((missing+1))
+              fi
+            done
+          done
+          if [ $missing -gt 0 ]; then
+            echo "$missing artifacts missing — nccs did not run for some contracts"
+            exit 1
+          fi
+          echo "All 19 contracts produced .nef + .manifest.json artifacts"
 
   bridge:
     name: cargo check (Rust bridge)

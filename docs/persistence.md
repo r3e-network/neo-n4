@@ -43,7 +43,7 @@ Two implementations ship in the box:
 | Class                       | Use for           | Backing                     | Survives restart |
 | --------------------------- | ----------------- | --------------------------- | ---------------- |
 | `InMemoryKeyValueStore`     | Tests, devnets    | `SortedDictionary<byte[], byte[]>` | No        |
-| `RocksDbKeyValueStore`      | Production        | RocksDB 10.4 (Snappy compression) | Yes        |
+| `RocksDbKeyValueStore`      | Production        | RocksDB 10.10 (Snappy compression) | Yes       |
 
 A shared `KeyValueStoreContractTests` suite runs against both backends — same
 behavior either way; future LevelDB / SQLite / cloud backends bolt on by adding
@@ -199,7 +199,7 @@ the equivalent config keys for plugin-based deployments).
       overload. The bare default ctor is for tests only — do not ship it.
 - [ ] The directory passed to `RocksDbKeyValueStore` is on durable storage
       (not `tmpfs` or an ephemeral container volume).
-- [ ] Backups capture all five subdirectories above. A point-in-time backup of
+- [ ] Backups capture all six subdirectories above. A point-in-time backup of
       one without the others can leave the L2 in an inconsistent state on
       restore (e.g., consumed nonces but no corresponding finalized proofs).
 - [ ] The process running the L2 node has write access to each directory.

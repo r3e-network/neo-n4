@@ -133,7 +133,7 @@ Eight node plugins extending `Neo.Plugins.Plugin`:
 | `Neo.Plugins.L2Bridge`  | Hosts `AssetRegistry` + deposit / withdrawal processors.                              |
 | `Neo.Plugins.L2DA`      | Picks a DA writer by configured `DAMode` (in-memory, NeoFS-like, L1, External, DAC).  |
 | `Neo.Plugins.L2Prover`  | Hosts an `IL2Prover` for the configured `ProofType`.                                  |
-| `Neo.Plugins.L2Rpc`     | Implements 9 L2 RPC methods (see §6 of `doc.md`).                                     |
+| `Neo.Plugins.L2Rpc`     | Implements 10 L2 RPC methods (see §6 of `doc.md`); incl. `getsecuritylabel` for the §16.2 5-dimension label. |
 | `Neo.Plugins.L2Gateway` | Phase-5 proof aggregation entry point.                                                |
 | `Neo.Plugins.L2Metrics` | Telemetry composition root: shared `IL2Metrics` sink + Prometheus HTTP endpoints.     |
 

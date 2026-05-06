@@ -111,7 +111,7 @@ Adjusted contracts: `GAS` (bridge-controlled supply), `NEO` (bridged but governa
 
 ## §14 RPC / SDK / Tooling
 
-L2 RPC additions: `getl2batch`, `getl2batchstatus`, `getl2stateroot`, `getl2withdrawalproof`, `getl2messageproof`, `getl1depositstatus`, `getcanonicalasset`, `getbridgedasset`, `getsecuritylevel`.
+L2 RPC additions: `getl2batch`, `getl2batchstatus`, `getl2stateroot`, `getl2withdrawalproof`, `getl2messageproof`, `getl1depositstatus`, `getcanonicalasset`, `getbridgedasset`, `getsecuritylevel`, `getsecuritylabel` (full 5-dimension §16.2 label).
 
 `neo-stack` CLI: `create-chain`, `init-l2`, `register-chain`, `deploy-bridge-adapter`, `start-{sequencer,batcher,prover}`, `submit-batch`.
 

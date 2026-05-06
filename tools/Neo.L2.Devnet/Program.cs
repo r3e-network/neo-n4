@@ -47,6 +47,12 @@ internal static class Program
         var batches = args.Length > 0 && int.TryParse(args[0], out var n) ? n : 3;
         var metricsPort = ParseMetricsPort(args);
         var dataDir = ParseDataDir(args);
+        var configPath = ParseConfigPath(args);
+        // Pull §16.2 security label from operator config so e.g. `neo-stack create-chain
+        // --template validium` flows into the devnet preview without re-typing. Defaults
+        // (Optimistic / External / DbftCommittee / Permissionless / gateway=off) preserve
+        // the legacy devnet behavior when no --config is supplied.
+        var labelOverrides = ReadLabelOverrides(configPath);
 
         Console.WriteLine("┌─────────────────────────────────────────────┐");
         Console.WriteLine("│  Neo Elastic Network — devnet runner v0.2    │");
@@ -123,8 +129,20 @@ internal static class Program
 
         var rpcProofStore = MaybeRocks(dataDir, "rpc-proofs");
         using var rpcStore = rpcProofStore is null
-            ? new InMemoryL2RpcStore(LocalChainId, SecurityLevel.Optimistic)
-            : new InMemoryL2RpcStore(LocalChainId, SecurityLevel.Optimistic, rpcProofStore, ownsProofs: true);
+            ? new InMemoryL2RpcStore(LocalChainId, labelOverrides.SecurityLevel)
+            {
+                DAMode = labelOverrides.DAMode,
+                GatewayEnabled = labelOverrides.GatewayEnabled,
+                Sequencer = labelOverrides.Sequencer,
+                Exit = labelOverrides.Exit,
+            }
+            : new InMemoryL2RpcStore(LocalChainId, labelOverrides.SecurityLevel, rpcProofStore, ownsProofs: true)
+            {
+                DAMode = labelOverrides.DAMode,
+                GatewayEnabled = labelOverrides.GatewayEnabled,
+                Sequencer = labelOverrides.Sequencer,
+                Exit = labelOverrides.Exit,
+            };
         rpcStore.RegisterAsset(GasL1, GasL2);
         var rpc = new L2RpcMethods(rpcStore);
 
@@ -429,6 +447,71 @@ internal static class Program
         return null;
     }
 
+    private static string? ParseConfigPath(string[] args)
+    {
+        for (var i = 0; i < args.Length - 1; i++)
+        {
+            if (args[i] == "--config") return args[i + 1];
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Per-dimension §16.2 label values applied to the devnet's <c>InMemoryL2RpcStore</c>.
+    /// Defaults preserve the legacy devnet behavior; operators supply <c>--config</c>
+    /// pointing at a <c>neo-stack create-chain</c> output to preview a template-specific
+    /// label end-to-end.
+    /// </summary>
+    private readonly record struct LabelOverrides(
+        SecurityLevel SecurityLevel,
+        DAMode DAMode,
+        bool GatewayEnabled,
+        SequencerModel Sequencer,
+        ExitModel Exit);
+
+    private static LabelOverrides ReadLabelOverrides(string? configPath)
+    {
+        // Devnet defaults (matches the legacy hardcoded values + InMemoryL2RpcStore
+        // sane defaults — Optimistic / External / DbftCommittee / Permissionless / off).
+        var defaults = new LabelOverrides(
+            SecurityLevel.Optimistic, DAMode.External, false,
+            SequencerModel.DbftCommittee, ExitModel.Permissionless);
+        if (configPath is null) return defaults;
+
+        if (!File.Exists(configPath))
+        {
+            Console.Error.WriteLine($"--config '{configPath}' not found; falling back to defaults");
+            return defaults;
+        }
+        try
+        {
+            var json = File.ReadAllText(configPath);
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            // Each field is optional — missing → use the default for that dimension.
+            return new LabelOverrides(
+                ParseEnumOrDefault(root, "securityLevel", defaults.SecurityLevel),
+                ParseEnumOrDefault(root, "daMode", defaults.DAMode),
+                root.TryGetProperty("gatewayEnabled", out var ge) && ge.GetBoolean(),
+                ParseEnumOrDefault(root, "sequencerModel", defaults.Sequencer),
+                ParseEnumOrDefault(root, "exitModel", defaults.Exit));
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"--config parse failed ({ex.Message}); falling back to defaults");
+            return defaults;
+        }
+    }
+
+    private static T ParseEnumOrDefault<T>(System.Text.Json.JsonElement root, string field, T fallback)
+        where T : struct, Enum
+    {
+        if (!root.TryGetProperty(field, out var prop)) return fallback;
+        var name = prop.GetString();
+        return Enum.TryParse<T>(name, ignoreCase: false, out var value) ? value : fallback;
+    }
+
     private static IL2KeyValueStore? MaybeRocks(string? baseDir, string subDir)
     {
         if (baseDir is null) return null;
@@ -442,7 +525,7 @@ internal static class Program
         Console.WriteLine("neo-l2-devnet — in-process Neo Elastic Network devnet runner");
         Console.WriteLine();
         Console.WriteLine("Usage:");
-        Console.WriteLine("  neo-l2-devnet [<batches>] [--metrics-port <port>] [--data-dir <path>]");
+        Console.WriteLine("  neo-l2-devnet [<batches>] [--metrics-port <port>] [--data-dir <path>] [--config <path>]");
         Console.WriteLine("  neo-l2-devnet --help");
         Console.WriteLine();
         Console.WriteLine("Arguments:");
@@ -452,12 +535,18 @@ internal static class Program
         Console.WriteLine("  --metrics-port <p>   Stand up a Prometheus /metrics + /healthz + /readyz HTTP server.");
         Console.WriteLine("  --data-dir <path>    Wire RocksDB-backed stores under <path>/{state,rpc-proofs,sequencer,da}.");
         Console.WriteLine("                       Without this, every store is in-memory and data is lost on restart.");
+        Console.WriteLine("  --config <path>      Read §16.2 security-label dimensions (securityLevel / daMode /");
+        Console.WriteLine("                       sequencerModel / exitModel / gatewayEnabled) from a chain.config.json");
+        Console.WriteLine("                       (typically produced by `neo-stack create-chain --template <X>`) so the");
+        Console.WriteLine("                       devnet's getsecuritylabel RPC reflects your operator config.");
         Console.WriteLine();
         Console.WriteLine("Examples:");
-        Console.WriteLine("  neo-l2-devnet 5                         # 5 batches, in-memory");
+        Console.WriteLine("  neo-l2-devnet 5                         # 5 batches, in-memory, default Optimistic label");
         Console.WriteLine("  neo-l2-devnet 5 --metrics-port 9090     # 5 batches + live HTTP scrape");
         Console.WriteLine("  neo-l2-devnet 5 --data-dir /tmp/dn1     # 5 batches, persisted to disk");
         Console.WriteLine("  neo-l2-devnet 0 --data-dir /tmp/dn1     # rehydrate state from disk only");
+        Console.WriteLine("  neo-l2-devnet 5 --config ./my-l2/chain.config.json");
+        Console.WriteLine("                                          # preview an operator-template config end-to-end");
         Console.WriteLine();
         Console.WriteLine("See docs/getting-started.md and docs/persistence.md for more.");
     }

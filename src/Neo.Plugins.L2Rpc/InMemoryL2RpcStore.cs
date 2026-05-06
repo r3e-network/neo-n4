@@ -67,9 +67,12 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore, IDisposable
         ChainId = Neo.L2.ChainIdValidator.ValidateL2(chainId);
         // Range-check the SecurityLevel byte enum so a `(SecurityLevel)99` cast
         // doesn't silently propagate as `levelName = "99"` in RPC responses.
-        if (level is not (SecurityLevel.Sidechain or SecurityLevel.Settled or SecurityLevel.Optimistic or SecurityLevel.Validity))
+        // Includes Validium (=4 — added later when §16.2 split out off-chain DA from
+        // pure Validity rollups).
+        if (level is not (SecurityLevel.Sidechain or SecurityLevel.Settled or SecurityLevel.Optimistic
+            or SecurityLevel.Validity or SecurityLevel.Validium))
             throw new ArgumentOutOfRangeException(nameof(level),
-                $"SecurityLevel {(byte)level} not in [0..3]");
+                $"SecurityLevel {(byte)level} not in [0..4]");
         SecurityLevel = level;
         _proofs = proofs;
         _ownsProofs = ownsProofs;

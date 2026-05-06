@@ -423,6 +423,27 @@ public class UT_L2RpcMethods
     }
 
     [TestMethod]
+    public void Constructor_AcceptsValidium()
+    {
+        // Regression: the original SecurityLevel range-check predated Validium being
+        // added (which has byte value 4, outside the 0..3 range the original logic
+        // checked). The devnet hit this when fed a `--config` JSON from
+        // `neo-stack create-chain --template validium`. Pin so a future refactor
+        // doesn't reintroduce the range gap.
+        using var store = new InMemoryL2RpcStore(1001, SecurityLevel.Validium);
+        Assert.AreEqual(SecurityLevel.Validium, store.SecurityLevel);
+    }
+
+    [TestMethod]
+    public void Constructor_RejectsOutOfRangeSecurityLevel()
+    {
+        // Pin the upper bound: bytes outside 0..4 (the Validium-inclusive range)
+        // surface as ArgumentOutOfRangeException at construction.
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
+            new InMemoryL2RpcStore(1001, (SecurityLevel)99));
+    }
+
+    [TestMethod]
     public void GetSecurityLabel_OnMinimalRpcStore_ReflectsDefaults()
     {
         // End-to-end: a third-party IL2RpcStore that only implements required members

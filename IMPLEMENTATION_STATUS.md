@@ -76,7 +76,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**853 unit + integration tests across 26 projects:**
+**857 unit + integration tests across 26 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -99,7 +99,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.Plugins.L2Metrics.UnitTests`    | 19    | composition root: bound port, idempotent Start, real HTTP scrape, readiness predicate gating, default settings, **`ResolveBindAddress` boundary tests, concurrent-Start race-safety, `ValidatePort` boundary tests, plugin Name + Description non-empty** |
 | `Neo.Plugins.L2Batch.UnitTests`      | 22    | `BatchSealer` block / tx / age triggers, batch-number monotonicity, gauge replace, NoOp default, **`ValidatePositive` boundary tests, plugin Name + Description non-empty** |
 | `Neo.Plugins.L2Bridge.UnitTests`     | 8     | `L2BridgePlugin` lifecycle, asset registration, default behavior |
-| `Neo.Plugins.L2Prover.UnitTests`     | 6     | `L2ProverPlugin` lifecycle, ProofType resolution |
+| `Neo.Plugins.L2Prover.UnitTests`     | 10    | `L2ProverPlugin` lifecycle, ProofType resolution, **Wire dispatch coverage for all branches: Zk-with-prover / Zk-without (helpful error) / Optimistic (points at L2SettlementPlugin) / None (points at Multisig+Optimistic+Zk)** |
 | `Neo.Plugins.L2Settlement.UnitTests` | 17    | **metric emission on submit success / failure / no-op default, wire-before-dequeue, concurrent-call gate serialization, plugin Name + Description non-empty** |
 | `Neo.L2.Settlement.Rpc.UnitTests`    | 38    | JSON-RPC envelope, stack parsing, signer, **InMemorySettlementClient lifecycle, AdvanceStatus driver, retry semantics**    |
 | `Neo.L2.Telemetry.UnitTests`         | 73    | counter/histogram/gauge accumulation, tag canonicalization, Prometheus exporter (counter/gauge/summary, labels, name sanitization, frozen-snapshot), request handler routing, TCP server round-trip + multi-request, catalog completeness vs MetricNames + Prometheus integration, **`/healthz` + `/readyz` (with predicate)** |

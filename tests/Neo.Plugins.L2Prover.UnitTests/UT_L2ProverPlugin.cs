@@ -69,4 +69,48 @@ public class UT_L2ProverPlugin
         Assert.IsFalse(string.IsNullOrWhiteSpace(plugin.Description));
         StringAssert.Contains(plugin.Name, "L2Prover");
     }
+
+    [TestMethod]
+    public void Wire_Zk_WithRiscVProver_SetsMockRiscVProver()
+    {
+        using var plugin = new L2ProverPlugin { Kind = ProofType.Zk };
+        var vk = UInt256.Parse("0x" + new string('a', 64));
+        var rv = new MockRiscVProver(vk);
+        plugin.Wire(riscVProver: rv);
+        Assert.IsNotNull(plugin.Prover);
+        Assert.AreSame(rv, plugin.Prover);
+        Assert.AreEqual(ProofType.Zk, plugin.Prover.Kind);
+    }
+
+    [TestMethod]
+    public void Wire_Zk_WithoutRiscVProver_ThrowsHelpfulError()
+    {
+        using var plugin = new L2ProverPlugin { Kind = ProofType.Zk };
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() => plugin.Wire());
+        StringAssert.Contains(ex.Message, "Zk");
+        StringAssert.Contains(ex.Message, "RiscV");
+    }
+
+    [TestMethod]
+    public void Wire_Optimistic_ThrowsWithPointerToSettlementPlugin()
+    {
+        // Optimistic proving lives in L2SettlementPlugin (it just signs); the prover
+        // plugin can't supply that. The error must point operators at the right plugin.
+        using var plugin = new L2ProverPlugin { Kind = ProofType.Optimistic };
+        var ex = Assert.ThrowsExactly<NotSupportedException>(() => plugin.Wire());
+        StringAssert.Contains(ex.Message, "Optimistic");
+        StringAssert.Contains(ex.Message, "L2SettlementPlugin");
+    }
+
+    [TestMethod]
+    public void Wire_None_ThrowsHelpfulError()
+    {
+        // ProofType.None is legal in the wire format (genesis / operator-trusted flows)
+        // but the prover plugin can't produce a proof for it. Error must explain why
+        // and point at valid alternatives (Multisig/Optimistic/Zk).
+        using var plugin = new L2ProverPlugin { Kind = ProofType.None };
+        var ex = Assert.ThrowsExactly<NotSupportedException>(() => plugin.Wire());
+        StringAssert.Contains(ex.Message, "None");
+        StringAssert.Contains(ex.Message, "Multisig");
+    }
 }

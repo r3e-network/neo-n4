@@ -25,8 +25,13 @@ public sealed class L2ProverPlugin : Plugin
     /// <summary>The active prover (null until <see cref="Wire"/> has been called).</summary>
     public IL2Prover? Prover => _prover;
 
-    /// <summary>The proof type this prover produces.</summary>
-    public ProofType Kind => _kind;
+    /// <summary>The proof type this prover produces. Set by <see cref="Configure"/> from the
+    /// plugin config; can be overridden in test code that bypasses Configure.</summary>
+    public ProofType Kind
+    {
+        get => _kind;
+        set => _kind = value;
+    }
 
     /// <summary>
     /// Wire the plugin with stage-specific dependencies. Multisig wants an <see cref="ISignerSet"/>;

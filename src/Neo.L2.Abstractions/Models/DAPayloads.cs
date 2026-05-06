@@ -14,6 +14,26 @@ public sealed record DAPublishRequest
 
     /// <summary>Compressed batch payload (typically the ordered transaction blob).</summary>
     public required ReadOnlyMemory<byte> Payload { get; init; }
+
+    /// <inheritdoc />
+    public bool Equals(DAPublishRequest? other)
+    {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
+        return ChainId == other.ChainId
+            && BatchNumber == other.BatchNumber
+            && Payload.Span.SequenceEqual(other.Payload.Span);
+    }
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(ChainId);
+        hash.Add(BatchNumber);
+        hash.AddBytes(Payload.Span);
+        return hash.ToHashCode();
+    }
 }
 
 /// <summary>
@@ -31,4 +51,24 @@ public sealed record DAReceipt
 
     /// <summary>The DA layer that was actually used.</summary>
     public required DAMode Layer { get; init; }
+
+    /// <inheritdoc />
+    public bool Equals(DAReceipt? other)
+    {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
+        return Layer == other.Layer
+            && Commitment.Equals(other.Commitment)
+            && Pointer.Span.SequenceEqual(other.Pointer.Span);
+    }
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(Layer);
+        hash.Add(Commitment);
+        hash.AddBytes(Pointer.Span);
+        return hash.ToHashCode();
+    }
 }

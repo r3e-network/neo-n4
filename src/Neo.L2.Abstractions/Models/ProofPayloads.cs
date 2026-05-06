@@ -63,6 +63,26 @@ public sealed record ProofRequest
 
     /// <summary>The proof system the caller wants used.</summary>
     public required ProofType Kind { get; init; }
+
+    /// <inheritdoc />
+    public bool Equals(ProofRequest? other)
+    {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
+        return PublicInputs.Equals(other.PublicInputs)
+            && Kind == other.Kind
+            && Witness.Span.SequenceEqual(other.Witness.Span);
+    }
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(PublicInputs);
+        hash.Add(Kind);
+        hash.AddBytes(Witness.Span);
+        return hash.ToHashCode();
+    }
 }
 
 /// <summary>
@@ -90,6 +110,26 @@ public sealed record ProofResult
 
     /// <summary>Hash of the canonical encoding of <see cref="PublicInputs"/>. Must equal <c>StateRootCalculator.HashPublicInputs(request.PublicInputs)</c>.</summary>
     public required UInt256 PublicInputHash { get; init; }
+
+    /// <inheritdoc />
+    public bool Equals(ProofResult? other)
+    {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
+        return Kind == other.Kind
+            && PublicInputHash.Equals(other.PublicInputHash)
+            && Proof.Span.SequenceEqual(other.Proof.Span);
+    }
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(Kind);
+        hash.Add(PublicInputHash);
+        hash.AddBytes(Proof.Span);
+        return hash.ToHashCode();
+    }
 }
 
 /// <summary>

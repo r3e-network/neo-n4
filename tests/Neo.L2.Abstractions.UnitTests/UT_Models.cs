@@ -181,4 +181,73 @@ public class UT_Models
         Assert.IsFalse(f.Valid);
         Assert.AreEqual("bad multiset", f.FailureReason);
     }
+
+    [TestMethod]
+    public void DAPublishRequest_DistinguishesByPayloadContent()
+    {
+        // Per AGENTS.md "When a record contains ReadOnlyMemory<byte>, override Equals
+        // + GetHashCode so byte-content participates." Without the override, default
+        // record equality compares ReadOnlyMemory<byte> by reference: two records with
+        // identical bytes (constructed independently) compare unequal.
+        DAPublishRequest Mk(byte[] payload) => new()
+        {
+            ChainId = 1001, BatchNumber = 7, Payload = payload,
+        };
+        var a = Mk([0x01, 0x02, 0x03]);
+        var b = Mk([0x01, 0x02, 0x03]);
+        Assert.AreEqual(a, b);
+        Assert.AreEqual(a.GetHashCode(), b.GetHashCode());
+        Assert.AreNotEqual(a, Mk([0x01, 0x02, 0xFF]));
+    }
+
+    [TestMethod]
+    public void DAReceipt_DistinguishesByPointerContent()
+    {
+        DAReceipt Mk(byte[] pointer) => new()
+        {
+            Commitment = UInt256.Zero, Pointer = pointer, Layer = DAMode.NeoFS,
+        };
+        var a = Mk([0xCA, 0xFE]);
+        var b = Mk([0xCA, 0xFE]);
+        Assert.AreEqual(a, b);
+        Assert.AreEqual(a.GetHashCode(), b.GetHashCode());
+        Assert.AreNotEqual(a, Mk([0xDE, 0xAD]));
+    }
+
+    [TestMethod]
+    public void ProofRequest_DistinguishesByWitnessContent()
+    {
+        var inputs = new PublicInputs
+        {
+            ChainId = 1001, BatchNumber = 1,
+            PreStateRoot = UInt256.Zero, PostStateRoot = UInt256.Zero, TxRoot = UInt256.Zero,
+            ReceiptRoot = UInt256.Zero, WithdrawalRoot = UInt256.Zero,
+            L2ToL1MessageRoot = UInt256.Zero, L2ToL2MessageRoot = UInt256.Zero,
+            L1MessageHash = UInt256.Zero, DACommitment = UInt256.Zero,
+            BlockContextHash = UInt256.Zero,
+        };
+        ProofRequest Mk(byte[] witness) => new()
+        {
+            PublicInputs = inputs, Witness = witness, Kind = ProofType.Multisig,
+        };
+        var a = Mk([0x10, 0x20]);
+        var b = Mk([0x10, 0x20]);
+        Assert.AreEqual(a, b);
+        Assert.AreEqual(a.GetHashCode(), b.GetHashCode());
+        Assert.AreNotEqual(a, Mk([0x10, 0x21]));
+    }
+
+    [TestMethod]
+    public void ProofResult_DistinguishesByProofContent()
+    {
+        ProofResult Mk(byte[] proof) => new()
+        {
+            Proof = proof, Kind = ProofType.Multisig, PublicInputHash = UInt256.Zero,
+        };
+        var a = Mk([0xAA, 0xBB]);
+        var b = Mk([0xAA, 0xBB]);
+        Assert.AreEqual(a, b);
+        Assert.AreEqual(a.GetHashCode(), b.GetHashCode());
+        Assert.AreNotEqual(a, Mk([0xAA, 0xCC]));
+    }
 }

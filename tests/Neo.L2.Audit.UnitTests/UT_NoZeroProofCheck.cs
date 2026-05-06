@@ -122,4 +122,12 @@ public class UT_NoZeroProofCheck
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(
             async () => await check.RunAsync(null!));
     }
+
+    [TestMethod]
+    public void NameIsStable()
+    {
+        // Pin the canonical name — ChainAuditor uses it to attribute findings, and
+        // operator dashboards / log filters key on it.
+        Assert.AreEqual("no_zero_proof", new NoZeroProofCheck().Name);
+    }
 }

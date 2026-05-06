@@ -384,4 +384,25 @@ public class UT_ChainAuditor
         StringAssert.Contains(summary, "chain 1001");
         StringAssert.Contains(summary, "continuity");
     }
+
+    [TestMethod]
+    public void ContinuityCheck_NameIsStable()
+    {
+        // Pin the canonical name — ChainAuditor uses it to attribute findings, and
+        // operator dashboards / log filters key on it. The other per-check files
+        // each pin their own Name; ContinuityCheck has no per-check file (covered
+        // here in UT_ChainAuditor) so the pin lives alongside its other tests.
+        Assert.AreEqual("continuity", new ContinuityCheck().Name);
+    }
+
+    [TestMethod]
+    public void ProofValidityCheck_NameIsStable()
+    {
+        // Same convention as ContinuityCheck above. ProofValidityCheck takes a
+        // VerifierRegistry + resolver in its ctor; pass a stub registry since the
+        // test only consults Name.
+        var registry = new Neo.L2.Proving.VerifierRegistry();
+        var check = new ProofValidityCheck(registry, _ => null!);
+        Assert.AreEqual("proof", check.Name);
+    }
 }

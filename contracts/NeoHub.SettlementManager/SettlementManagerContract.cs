@@ -218,6 +218,80 @@ public class SettlementManagerContract : SmartContract
         return root.Equals(leafHash);
     }
 
+    /// <summary>
+    /// True if <paramref name="leafHash"/> is included in finalized batch
+    /// <paramref name="batchNumber"/>'s <c>withdrawalRoot</c> via the supplied Merkle inclusion
+    /// proof. This is the production-shape check — the prior leaf-equals-root variants are
+    /// MVP placeholders that only work when the entire withdrawal tree has a single leaf.
+    /// </summary>
+    /// <param name="chainId">L2 chain identifier.</param>
+    /// <param name="batchNumber">Finalized batch the user's withdrawal was sealed into.</param>
+    /// <param name="leafHash">The hash of the user's specific withdrawal entry.</param>
+    /// <param name="siblings">Per-level sibling hashes from leaf to just below root, each
+    /// exactly 32 bytes. Length is the tree depth (capped at <see cref="MaxProofDepth"/>).</param>
+    /// <param name="leafIndex">Position of the leaf in the original leaf list. Determines
+    /// whether the leaf sits on the left or right of each sibling at every level (bit i of
+    /// leafIndex governs level i: 0 = left, 1 = right).</param>
+    /// <remarks>
+    /// Hash composition matches the off-chain <c>Neo.L2.State.MerkleTree</c> convention:
+    /// <c>Hash256(left || right) = Sha256(Sha256(left || right))</c>, where <c>||</c> is
+    /// concatenation. Same construction as Neo's <c>Cryptography.MerkleTree</c>.
+    /// </remarks>
+    [Safe]
+    public static bool VerifyWithdrawalLeafWithProof(
+        uint chainId,
+        ulong batchNumber,
+        UInt256 leafHash,
+        byte[][] siblings,
+        ulong leafIndex)
+    {
+        // Same finalized-status precondition as the MVP path.
+        var statusRaw = Storage.Get(StatusKey(chainId, batchNumber));
+        if (statusRaw == null) return false;
+        var status = ((byte[])statusRaw)[0];
+        if (status != StatusFinalized) return false;
+
+        var rootRaw = Storage.Get(WithdrawalRootKey(chainId, batchNumber));
+        if (rootRaw == null) return false;
+        var storedRoot = (UInt256)rootRaw;
+
+        // Bound the proof depth so a malicious caller can't force unbounded work.
+        // 64 levels = 2^64 leaves, well past any plausible batch size.
+        ExecutionEngine.Assert(siblings != null, "siblings required");
+        ExecutionEngine.Assert(siblings.Length <= MaxProofDepth, "proof too deep");
+
+        // Empty siblings → leaf is itself the root (single-leaf tree).
+        var current = (byte[])leafHash;
+        var index = leafIndex;
+        for (var i = 0; i < siblings.Length; i++)
+        {
+            var sibling = siblings[i];
+            ExecutionEngine.Assert(sibling.Length == 32, "sibling must be 32 bytes");
+            // Concat 64-byte buffer in left/right order driven by index's low bit.
+            var combined = new byte[64];
+            if ((index & 1UL) == 0UL)
+            {
+                // current on the left
+                for (var j = 0; j < 32; j++) combined[j] = current[j];
+                for (var j = 0; j < 32; j++) combined[32 + j] = sibling[j];
+            }
+            else
+            {
+                // current on the right
+                for (var j = 0; j < 32; j++) combined[j] = sibling[j];
+                for (var j = 0; j < 32; j++) combined[32 + j] = current[j];
+            }
+            // Hash256 = Sha256(Sha256(x)) — Neo MerkleTree convention.
+            var h1 = CryptoLib.Sha256((ByteString)combined);
+            current = (byte[])CryptoLib.Sha256(h1);
+            index = index >> 1;
+        }
+        return storedRoot.Equals((UInt256)current);
+    }
+
+    /// <summary>Maximum tree depth the on-chain verifier will accept (2^64 leaves).</summary>
+    public const int MaxProofDepth = 64;
+
     private static void SetLatestFinalizedBatch(uint chainId, ulong batchNumber)
     {
         Storage.Put(LatestBatchKey(chainId), (BigInteger)batchNumber);

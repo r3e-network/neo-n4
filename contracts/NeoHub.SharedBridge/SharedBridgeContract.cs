@@ -160,6 +160,41 @@ public class SharedBridgeContract : SmartContract
         ConsumeAndPayout(consumedKey, chainId, asset, recipient, amount);
     }
 
+    /// <summary>
+    /// Finalize a withdrawal using the production-shape Merkle inclusion proof. Use this
+    /// when the L2 batch has many withdrawals — the user supplies the per-level sibling
+    /// hashes and their leaf index so the L1 contract can re-derive the batch's
+    /// withdrawalRoot and verify the user's specific leaf is in it.
+    /// </summary>
+    /// <remarks>
+    /// Hash composition matches the off-chain <c>Neo.L2.State.MerkleTree</c>:
+    /// <c>Sha256(Sha256(left || right))</c>, left/right ordered by the leaf-index bit
+    /// for that level. See <c>SettlementManager.VerifyWithdrawalLeafWithProof</c>.
+    /// </remarks>
+    public static void FinalizeWithdrawalWithProof(
+        uint chainId,
+        ulong batchNumber,
+        UInt256 withdrawalLeafHash,
+        byte[][] siblings,
+        ulong leafIndex,
+        UInt160 asset,
+        UInt160 recipient,
+        BigInteger amount)
+    {
+        ValidateWithdrawalArgs(chainId, asset, recipient, amount);
+        var consumedKey = WithdrawalKey(chainId, withdrawalLeafHash);
+        ExecutionEngine.Assert(Storage.Get(consumedKey) == null, "withdrawal already consumed");
+
+        var sm = GetSettlementManager();
+        var verified = (bool)Contract.Call(
+            sm, "verifyWithdrawalLeafWithProof",
+            CallFlags.ReadOnly,
+            new object[] { chainId, batchNumber, withdrawalLeafHash, siblings, leafIndex });
+        ExecutionEngine.Assert(verified, "withdrawal leaf not in batch's Merkle root (proof failed)");
+
+        ConsumeAndPayout(consumedKey, chainId, asset, recipient, amount);
+    }
+
     private static void ValidateWithdrawalArgs(uint chainId, UInt160 asset, UInt160 recipient, BigInteger amount)
     {
         ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");

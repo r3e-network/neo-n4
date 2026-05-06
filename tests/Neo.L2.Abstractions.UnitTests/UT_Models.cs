@@ -265,6 +265,25 @@ public class UT_Models
     }
 
     [TestMethod]
+    public void SequencerModel_HasExpectedDiscriminants()
+    {
+        // doc.md §16.2 — security label byte that L2ChainConfig publishes via
+        // NeoHub.ChainRegistry. Values are wire-format and must not shift.
+        Assert.AreEqual(0, (byte)SequencerModel.Centralized);
+        Assert.AreEqual(1, (byte)SequencerModel.DbftCommittee);
+        Assert.AreEqual(2, (byte)SequencerModel.Decentralized);
+    }
+
+    [TestMethod]
+    public void ExitModel_HasExpectedDiscriminants()
+    {
+        // doc.md §16.2 — security label byte for how users exit the L2.
+        Assert.AreEqual(0, (byte)ExitModel.Permissionless);
+        Assert.AreEqual(1, (byte)ExitModel.Delayed);
+        Assert.AreEqual(2, (byte)ExitModel.OperatorAssisted);
+    }
+
+    [TestMethod]
     public void AssetType_HasExpectedDiscriminants()
     {
         // AssetMapping serializes AssetType as a 1-byte field. Pinning the values

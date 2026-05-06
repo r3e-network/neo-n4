@@ -77,11 +77,11 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**877 unit + integration tests across 27 projects:**
+**879 unit + integration tests across 27 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
-| `Neo.L2.Abstractions.UnitTests`      | 29    | enum discriminants (ChainMode / SecurityLevel / DAMode / ProofType / MessageType / **BatchStatus / AssetType**), models, interface shape, **`ProofTypeExtensions.Resolve` boundary tests, `ChainIdValidator.ValidateL2` (zero-rejection / non-zero-acceptance / setting-name), record byte-content equality (DAPublishRequest / DAReceipt / ProofRequest / ProofResult / BatchExecutionRequest — overrides per AGENTS.md convention, including list-of-bytes element-wise comparison)** |
+| `Neo.L2.Abstractions.UnitTests`      | 31    | enum discriminants (ChainMode / SecurityLevel / DAMode / ProofType / MessageType / BatchStatus / AssetType / **SequencerModel / ExitModel** — closing doc.md §16.2 spec coverage), models, interface shape, **`ProofTypeExtensions.Resolve` boundary tests, `ChainIdValidator.ValidateL2` (zero-rejection / non-zero-acceptance / setting-name), record byte-content equality (DAPublishRequest / DAReceipt / ProofRequest / ProofResult / BatchExecutionRequest — overrides per AGENTS.md convention, including list-of-bytes element-wise comparison)** |
 | `Neo.L2.Batch.UnitTests`             | 35    | builder lifecycle, serializer round-trip, **proof-length bounds, unknown-ProofType rejection, all-valid-ProofType round-trip, trailing-byte rejection** |
 | `Neo.L2.State.UnitTests`             | 66    | Merkle tree, proof verify, hashers, **canonical proof wire format (round-trip, layout, truncation, oversized depth, 7-leaf all-positions), `MessageHasher.HashMessage` + `HashWithdrawal` canonical-buffer layout pinned (independent assembly + Hash256 re-derivation), HashMessage field-order sensitivity, HashWithdrawal at-max 64-byte amount accepted (boundary partner of RejectsOversizedAmount), on-chain Merkle verifier parity (4-leaf / 5-leaf odd-card / 7-leaf all-positions / tampered-sibling rejection / state-tree pin via KeyedStateStore.HashEntry — guards against algorithmic divergence between off-chain proof generator and on-chain `SettlementManager.Verify*WithProof`)** |
 | `Neo.L2.Messaging.UnitTests`         | 29    | inbox FIFO, replay protection, outbox split, **L2Outbox metric emission across destinations, persistence reopen pins, MessageBuilder rejects self-routed messages (incl. zero-to-zero)** |

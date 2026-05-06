@@ -19,6 +19,17 @@ public class UT_L2MetricsPlugin
     }
 
     [TestMethod]
+    public void Plugin_NameAndDescription_AreNonEmpty()
+    {
+        // Surfaced in plugin host startup logs; pin so a refactor doesn't accidentally
+        // empty either. Same convention as UT_L2BridgePlugin / UT_L2GatewayPlugin /
+        // UT_L2ProverPlugin.
+        using var plugin = new L2MetricsPlugin();
+        Assert.IsFalse(string.IsNullOrWhiteSpace(plugin.Name));
+        Assert.IsFalse(string.IsNullOrWhiteSpace(plugin.Description));
+    }
+
+    [TestMethod]
     public void BoundPort_IsZero_BeforeStart()
     {
         using var plugin = new L2MetricsPlugin();

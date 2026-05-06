@@ -239,6 +239,17 @@ public class UT_DAWriters
     }
 
     [TestMethod]
+    public void L2DAPlugin_NameAndDescription_AreNonEmpty()
+    {
+        // Surfaced in plugin host startup logs; pin so a refactor doesn't accidentally
+        // empty either. Same convention as UT_L2BridgePlugin / UT_L2GatewayPlugin /
+        // UT_L2ProverPlugin.
+        using var plugin = new L2DAPlugin();
+        Assert.IsFalse(string.IsNullOrWhiteSpace(plugin.Name));
+        Assert.IsFalse(string.IsNullOrWhiteSpace(plugin.Description));
+    }
+
+    [TestMethod]
     public void BuildDefaultWriter_External_NoDataDir_ReturnsInMemory()
     {
         // Pin the dev/test default — the bare External mode without a DataDirectory

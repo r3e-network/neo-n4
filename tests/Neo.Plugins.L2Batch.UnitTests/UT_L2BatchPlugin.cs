@@ -75,4 +75,15 @@ public class UT_L2BatchPlugin
         using var plugin = new L2BatchPlugin();
         Assert.ThrowsExactly<ArgumentNullException>(() => plugin.WithMetrics(null!));
     }
+
+    [TestMethod]
+    public void Plugin_NameAndDescription_AreNonEmpty()
+    {
+        // Surfaced in plugin host startup logs; pin so a refactor doesn't accidentally
+        // empty either. Same convention as UT_L2BridgePlugin / UT_L2GatewayPlugin /
+        // UT_L2ProverPlugin.
+        using var plugin = new L2BatchPlugin();
+        Assert.IsFalse(string.IsNullOrWhiteSpace(plugin.Name));
+        Assert.IsFalse(string.IsNullOrWhiteSpace(plugin.Description));
+    }
 }

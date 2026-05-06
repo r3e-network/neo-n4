@@ -209,6 +209,23 @@ public class GovernanceControllerContract : SmartContract
     }
 
     /// <summary>
+    /// Current approval count for <paramref name="proposalId"/>. Returns 0 for unknown
+    /// proposals. Operators / wallets / dashboards consult this to render
+    /// "M of N approvals" UI without bumping the counter.
+    /// </summary>
+    /// <remarks>
+    /// Pure read — does NOT increment. The internal <c>CountApprovals</c> private helper
+    /// is misleadingly named (it bumps + returns); this <see cref="GetApprovalCount"/>
+    /// is the safe public read.
+    /// </remarks>
+    [Safe]
+    public static uint GetApprovalCount(ulong proposalId)
+    {
+        var raw = Storage.Get(ProposalIdKey(PrefixApprovalCount, proposalId));
+        return raw == null ? 0u : (uint)(BigInteger)raw;
+    }
+
+    /// <summary>
     /// True iff the proposal has reached the M-of-N approval threshold AND the configured
     /// timelock has elapsed since first-threshold-reach. Verifier / bridge upgrades on
     /// other contracts call this via <c>Contract.Call</c> as the §16 council-veto gate.

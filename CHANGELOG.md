@@ -5,6 +5,67 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Records with `ReadOnlyMemory<byte>` now follow the byte-content equality convention
+
+`AGENTS.md` "Code style" mandates that records holding `ReadOnlyMemory<byte>`
+override `Equals` + `GetHashCode` so byte-content participates. `L2BatchCommitment`
+and `CrossChainMessage` already followed this; five other records did not — so
+default record equality compared those fields by reference, and independently-
+constructed records with identical bytes compared unequal (breaking
+`Set.Contains` / `Dictionary` lookups, hash bucketing).
+
+  - `DAPublishRequest` (Payload)
+  - `DAReceipt` (Pointer)
+  - `ProofRequest` (Witness)
+  - `ProofResult` (Proof)
+  - `BatchExecutionRequest` (Transactions list — element-wise) +
+    `L1MessagesConsumed` (delegates to `CrossChainMessage.Equals`)
+
+Each gets a typed `Equals` using `Span.SequenceEqual` / element-wise list
+iteration and a `GetHashCode` using `HashCode.AddBytes`, matching the existing
+pattern on `L2BatchCommitment`.
+
+### Misc — Convention-consistency sweep across the test surface
+
+Fills in test patterns that were inconsistent — each had a 2-out-of-N or
+4-out-of-N coverage that left load-bearing properties unprotected against
+silent refactor breakage.
+
+  - 4 `IAuditCheck.Name` discriminator pins (`continuity` / `proof` /
+    `no_zero_proof` / `public_input_hash`) — `batch_range` / `da_availability`
+    already had them. Names are used by `ChainAuditor` for finding attribution
+    and by metric tags / log filters.
+  - 4 plugin `Name`+`Description` pins (`L2BatchPlugin` / `L2MetricsPlugin` /
+    `L2DAPlugin` / `L2SettlementPlugin`) — `L2BridgePlugin` / `L2GatewayPlugin` /
+    `L2ProverPlugin` already had them. Surface in plugin host startup logs.
+  - 2 byte-layout-pinning tests for canonical encoders (`MultisigProofPayload`
+    / `DepositPayload`) — the other 4 (`OptimisticProofPayload` / `RiscVProofPayload`
+    / `FraudProofPayload` / `MerkleProofSerializer`) already had them, per the
+    `CONTRIBUTING.md` "Adding a new wire format" recipe.
+  - 3 `MessageHasher` canonical-buffer pins (`HashMessage` layout, `HashWithdrawal`
+    layout, field-order sentinel — independently re-derive the documented
+    buffer and assert `Hash256(buf)` equals the function output).
+  - 2 at-max boundary tests partnering `RejectsOversizedAmount` on
+    `DepositPayload.Encode` and `MessageHasher.HashWithdrawal` (use `2^504` as
+    the exactly-64-byte sentinel). Other proof-payload encoders already had
+    `AcceptsExactlyMax*` partners.
+  - 4 enum discriminant pins (`BatchStatus` / `AssetType` / `ProofSystem` /
+    `Sp1BridgeStatus`) — other 5 already had `HasExpectedDiscriminants` tests.
+    `Sp1BridgeStatus` ties the C# values to the Rust cdylib's int32 ABI per
+    `bridge/neo-zkvm-bridge/README.md`.
+  - 7 `PassThroughRoundProver` byte-layout tests at the round-prover level,
+    independent of the aggregator (BackendId=0xFE constant, right-null odd-leaf
+    rule, `Hash256(left || right)` root composition,
+    `[4B leftLen][bytes][4B rightLen][bytes]` proof envelope, both-empty
+    handling, asymmetry, null-left rejection).
+
+Plus per-iteration doc-drift fixes across `IMPLEMENTATION_STATUS`, `README`,
+`WHITEPAPER`, `docs/persistence`, `docs/architecture-walkthrough`,
+`contracts/README`, `CONTRIBUTING` (numbering bug), and the figure-gallery
+count.
+
+Cumulative: 851 tests / 26 projects.
+
 ### Added — Vendored upstream deps as git submodules (was: sibling-clone hack)
 
 The repo expected three sibling-clones (`../neo`, `../../neo-devpack-dotnet`,

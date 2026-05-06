@@ -258,7 +258,11 @@ its dimension choices encode.
     no proof, sidechain trust)
 
 All four verified ✅ devnet run complete with distinct getsecuritylabel
-output. `samples/README.md` tabulates each + when to start from each.
+output. `samples/README.md` tabulates each + when to start from each. 5
+new unit tests pin each sample's shape so a typo in any sample fails
+test-time, not at the operator's terminal.
+
+Cumulative: 923 tests / 27 projects.
 
 ### Changed — `neo-stack register-chain` emits canonical configBytes hex
 

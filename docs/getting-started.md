@@ -5,8 +5,10 @@
 ## Prerequisites
 
 - .NET 10 SDK (`dotnet --version` ≥ `10.0.0`).
-- Sibling [`neo-project/neo`](https://github.com/neo-project/neo) checkout at `../neo`
-  (relative to this repo). The `NeoCorePath` property in `Directory.Build.props` finds it.
+- The [`neo-project/neo`](https://github.com/neo-project/neo) Neo 4 core, vendored as a git
+  submodule at `external/neo` (the `NeoCorePath` property in `Directory.Build.props` defaults
+  to the submodule path). Run `git clone --recurse-submodules` or
+  `git submodule update --init --recursive` after a regular clone.
 
 ## Step 1 — Clone and check the toolchain
 
@@ -29,7 +31,7 @@ git submodule update --init --recursive
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 ```
 
-Expected: **468 tests pass across 25 projects**, ~10 seconds end-to-end.
+Expected: **914 tests pass across 27 projects**, ~10 seconds end-to-end.
 
 If your machine doesn't have network access, `/p:NuGetAudit=false` is what suppresses the
 audit hop to nuget.org.
@@ -112,6 +114,8 @@ fully wire the system on its own — e.g.:
 ```
 Required post-deploy actions:
   - SequencerBond.RegisterSlasher(OptimisticChallenge)  # enable Phase-3 challenge slashing
+  - ChainRegistry.SetGovernanceController(GovernanceController)  # enable §16.1 admission policy
+  - VerifierRegistry.SetGovernanceController(GovernanceController)  # enable §16 council-veto path
 ```
 
 ## Step 5 — Build a smart contract

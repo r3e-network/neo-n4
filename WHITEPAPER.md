@@ -381,9 +381,15 @@ Three layers:
 | L2 local    | The L2's own governance contract                       | Sequencer committee, local fee policy, app-chain params, DA mode (within approved range) |
 | App         | Each dApp / RWA issuer / stablecoin policy             | Per-app rules, KYC list, enterprise permissioning                              |
 
-Every L2 must publish security labels: chain type, DA mode, proof mode, sequencer model,
-exit model, bridge model. Users see these via the `getsecuritylevel` RPC; UIs should
-surface them prominently.
+Every L2 must publish security labels per `doc.md` §16.2: securityLevel
+(`SecurityLevel` enum — Sidechain / Settled / Optimistic / Validity / Validium),
+daMode (`DAMode` enum — L1 / NeoFS / External / DAC), gatewayEnabled (Phase-5
+aggregation participation), sequencerModel (Centralized / DbftCommittee /
+Decentralized), exitModel (Permissionless / Delayed / OperatorAssisted).
+Users query the full set via `getsecuritylabel` (or each dimension singly via
+`getsecuritylevel` / `getsequencerModel` / `getExitModel` / `getDAMode` /
+`getGatewayEnabled` / `getPermissionlessExit` on the on-chain
+`ChainRegistry`); UIs should surface them prominently.
 
 ---
 

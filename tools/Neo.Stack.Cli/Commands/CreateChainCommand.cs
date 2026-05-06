@@ -4,15 +4,44 @@ using System.IO;
 namespace Neo.Stack.Cli.Commands;
 
 /// <summary>
-/// <c>create-chain</c> — generate a working directory with config files, genesis block, and a
-/// dBFT committee for a new L2 chain. Uses sensible defaults (L2RollupMode, NeoFS DA,
-/// Multisig proof) unless overridden.
+/// <c>create-chain</c> — generate a working directory with config files for a new L2 chain.
+/// The <c>--template</c> flag picks a starting point (rollup / zk-rollup / validium /
+/// sidechain) that drives chainMode + daMode + proofType + security label defaults
+/// (doc.md §6 + §16.2). Operators can edit <c>chain.config.json</c> after creation to
+/// tweak any field.
 /// </summary>
 internal static class CreateChainCommand
 {
+    /// <summary>Per-template starting defaults (doc.md §6 + §16.2).</summary>
+    private readonly record struct Template(
+        string ChainMode, string DaMode, string ProofType, string SecurityLevel,
+        string SequencerModel, string ExitModel,
+        bool GatewayEnabled, bool PermissionlessExit);
+
+    private static Template Resolve(string templateName) => templateName switch
+    {
+        "zk-rollup" => new Template(
+            ChainMode: "L2RollupMode", DaMode: "L1", ProofType: "Zk",
+            SecurityLevel: "Validity", SequencerModel: "DbftCommittee",
+            ExitModel: "Permissionless", GatewayEnabled: true, PermissionlessExit: true),
+        "validium" => new Template(
+            ChainMode: "L2ValidiumMode", DaMode: "NeoFS", ProofType: "Zk",
+            SecurityLevel: "Validium", SequencerModel: "DbftCommittee",
+            ExitModel: "Delayed", GatewayEnabled: true, PermissionlessExit: false),
+        "sidechain" => new Template(
+            ChainMode: "SidechainMode", DaMode: "External", ProofType: "None",
+            SecurityLevel: "Sidechain", SequencerModel: "DbftCommittee",
+            ExitModel: "Permissionless", GatewayEnabled: false, PermissionlessExit: true),
+        // "rollup" (default): optimistic challenge window, L1 DA, dBFT committee, delayed exit
+        _ => new Template(
+            ChainMode: "L2RollupMode", DaMode: "L1", ProofType: "Optimistic",
+            SecurityLevel: "Optimistic", SequencerModel: "DbftCommittee",
+            ExitModel: "Delayed", GatewayEnabled: false, PermissionlessExit: true),
+    };
+
     public static int Run(string[] args)
     {
-        var template = ArgUtil.Get(args, "--template", "rollup");
+        var templateName = ArgUtil.Get(args, "--template", "rollup");
         var vm = ArgUtil.Get(args, "--vm", "neovm");
         var rawChainId = ArgUtil.Get(args, "--chain-id", "1001");
         if (!uint.TryParse(rawChainId, out var parsedChainId))
@@ -31,28 +60,43 @@ internal static class CreateChainCommand
             ? pathFlag
             : ArgUtil.Get(args, "--output", $"./chain-{chainId}");
 
+        var t = Resolve(templateName);
         Directory.CreateDirectory(output);
         var configPath = Path.Combine(output, "chain.config.json");
         File.WriteAllText(configPath, $$"""
             {
               "chainId": {{chainId}},
-              "template": "{{template}}",
+              "template": "{{templateName}}",
               "vm": "{{vm}}",
-              "chainMode": "L2RollupMode",
-              "daMode": "NeoFS",
-              "proofType": "Multisig",
+              "chainMode": "{{t.ChainMode}}",
+              "daMode": "{{t.DaMode}}",
+              "proofType": "{{t.ProofType}}",
+              "securityLevel": "{{t.SecurityLevel}}",
+              "sequencerModel": "{{t.SequencerModel}}",
+              "exitModel": "{{t.ExitModel}}",
+              "gatewayEnabled": {{(t.GatewayEnabled ? "true" : "false")}},
+              "permissionlessExit": {{(t.PermissionlessExit ? "true" : "false")}},
               "milestonePerBlockMs": 5000,
               "validators": []
             }
             """);
 
         Console.WriteLine($"Created {output}");
-        Console.WriteLine($"  template     = {template}");
-        Console.WriteLine($"  vm           = {vm}");
-        Console.WriteLine($"  chainId      = {chainId}");
-        Console.WriteLine($"  config file  = {configPath}");
+        Console.WriteLine($"  template       = {templateName}");
+        Console.WriteLine($"  vm             = {vm}");
+        Console.WriteLine($"  chainId        = {chainId}");
+        Console.WriteLine($"  chainMode      = {t.ChainMode}");
+        Console.WriteLine($"  daMode         = {t.DaMode}");
+        Console.WriteLine($"  proofType      = {t.ProofType}");
+        Console.WriteLine($"  securityLevel  = {t.SecurityLevel}");
+        Console.WriteLine($"  sequencerModel = {t.SequencerModel}");
+        Console.WriteLine($"  exitModel      = {t.ExitModel}");
+        Console.WriteLine($"  gateway        = {(t.GatewayEnabled ? "enabled" : "disabled")}");
+        Console.WriteLine($"  exit policy    = {(t.PermissionlessExit ? "permissionless" : "operator-gated")}");
+        Console.WriteLine($"  config file    = {configPath}");
         Console.WriteLine();
-        Console.WriteLine("Next: `neo-stack init-l2 --chain-id <id>`");
+        Console.WriteLine($"Templates: rollup (default), zk-rollup, validium, sidechain");
+        Console.WriteLine($"Next: `neo-stack init-l2 --chain-id {chainId}`");
         return 0;
     }
 }

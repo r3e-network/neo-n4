@@ -1,0 +1,213 @@
+# Launching a new L2 chain on Neo Elastic Network
+
+This guide walks an operator from `git clone` to a registered, batch-producing
+L2 chain. It also documents every plug-in point where chain-specific logic can
+be customized without forking the framework.
+
+The framework treats each L2 as an independent execution kernel + a uniform
+NeoHub registration. Custom chains differ in *config* (chain id, DA mode,
+proof type, sequencer model) and *injected components* (transaction executor,
+DA writer, prover, sequencer source). Everything else — settlement protocol,
+message routing, withdrawal verification — is shared.
+
+---
+
+## Quick path: 5 commands to a running L2
+
+```bash
+# 1. Generate config from a template (rollup / zk-rollup / validium / sidechain).
+neo-stack create-chain --chain-id 1099 --template rollup --output ./my-l2
+
+# 2. Initialize the node working directory (data/ logs/ Plugins/).
+neo-stack init-l2 --chain-id 1099 --output ./my-l2
+
+# 3. Print the L1 registration plan (run during permissioned admission phase
+#    or governance-approved semi-permissionless / permissionless modes).
+neo-stack register-chain --chain-id 1099 --output ./my-l2
+
+# 4. Print the bridge adapter deploy plan (one-time per new chain).
+neo-stack deploy-bridge-adapter --chain-id 1099 --output ./my-l2
+
+# 5. Run sequencer + batcher + prover. Each subcommand prints its preflight
+#    checks and exits zero when the chain is ready to accept transactions.
+neo-stack start-sequencer --chain-id 1099 --output ./my-l2 &
+neo-stack start-batcher  --chain-id 1099 --output ./my-l2 &
+neo-stack start-prover   --chain-id 1099 --output ./my-l2 &
+```
+
+Wallet-gated steps (#3, #4, and `submit-batch`) print the structured operator
+plan — target contract, args, signed-transaction template, numbered next-steps —
+rather than auto-signing. Operators feed the plan into their wallet of choice
+(NEP-6 keystore, Ledger, etc.).
+
+For a fully in-process demo without L1, see `tools/Neo.L2.Devnet`:
+
+```bash
+dotnet run --project tools/Neo.L2.Devnet -- 5
+# 5 batches end-to-end, real KeyedStateStore continuity, post-run audit pass
+```
+
+---
+
+## Templates
+
+`neo-stack create-chain --template <name>` picks one of four starting points.
+Each writes a different `chain.config.json` (chainMode + daMode + proofType +
+security label set per `doc.md` §6 + §16.2):
+
+| Template     | chainMode        | daMode    | proofType  | SecurityLevel | Exit             |
+|--------------|------------------|-----------|------------|---------------|------------------|
+| `rollup`     | L2RollupMode     | L1        | Optimistic | Optimistic    | Delayed          |
+| `zk-rollup`  | L2RollupMode     | L1        | Zk         | Validity      | Permissionless   |
+| `validium`   | L2ValidiumMode   | NeoFS     | Zk         | Validium      | Delayed          |
+| `sidechain`  | SidechainMode    | External  | None       | Sidechain     | Permissionless   |
+
+All templates default to `sequencerModel: DbftCommittee` (Neo-native one-block
+finality). All can be edited post-`create-chain` — the JSON is operator
+property.
+
+---
+
+## Architecture: where custom logic plugs in
+
+The framework's extension surface is a set of interfaces that each L2 wires
+to its own implementation. The sample wiring lives in
+`tools/Neo.L2.Devnet/Program.cs`; production deployments substitute their own
+classes at the same call sites.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Settlement (NeoHub)                — operator-shared, immutable │
+│   ChainRegistry · SharedBridge · SettlementManager · ...        │
+└──────────────────┬──────────────────────────────────────────────┘
+                   │  IL2BatchExecutor.ApplyBatchAsync
+                   │  ITransactionExecutor.ExecuteAsync
+                   │  IL2Prover.ProveAsync       ──► IL2ProofVerifier
+                   │  IDAWriter.PublishAsync     ──► IDAWriter.IsAvailableAsync
+                   │  ISequencerCommitteeProvider.GetActiveCommitteeAsync
+                   │  IForcedInclusionSource.DequeueOverdueAsync
+                   │  IL2Metrics.IncrementCounter / RecordHistogram / SetGauge
+                   ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ Per-L2 plug-in (you implement / configure)                      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Five extension points operators commonly customize
+
+| Interface                                    | Default                           | When to swap                                 |
+|----------------------------------------------|-----------------------------------|----------------------------------------------|
+| `ITransactionExecutor`                       | `ReferenceTransactionExecutor`    | Wire to a real NeoVM `ApplicationEngine`     |
+| `IL2Prover` / `IL2ProofVerifier`             | Multisig / Optimistic / Mock-RiscV| Phase 4: SP1 prover via `Sp1RiscVProver`     |
+| `IDAWriter`                                  | InMemory / NeoFsLike / Persistent | Real NeoFS SDK / L1 sendrawtransaction       |
+| `ISequencerCommitteeProvider`                | `InMemorySequencerCommitteeProvider`| Wire to neo's `DBFTPlugin` consensus selector|
+| `IRoundProver` (Phase 5 only)                | `PassThroughRoundProver`          | SP1 Compress / Halo2 accumulator / Risc0 fold|
+
+All of these accept ctor injection. The plugin host is the single composition
+root; see `Neo.Plugins.L2Metrics.L2MetricsPlugin` for the canonical pattern of
+"plugin-A exposes a sink, plugin-B reads it via `WithMetrics(plugin.Metrics)`".
+
+### Concrete customization recipe
+
+```csharp
+// 1. Build your custom transaction executor (e.g. backed by a real NeoVM).
+var myExecutor = new MyNeoVmTransactionExecutor(myNeoSystem);
+
+// 2. Wire it into the batch executor that the plugin host instantiates.
+var batchExecutor = new ReferenceBatchExecutor(
+    txExecutor: myExecutor,                        // ← injected
+    stateRootOracle: keyedStateOracle,
+    l1MessageProcessor: depositProcessor);
+
+// 3. Inject your DA writer (e.g. real NeoFS SDK adapter you wrote).
+plugin.WithWriter(new MyNeoFsAdapter(neoFsClient));
+
+// 4. Wire metrics so all your custom components emit through the same sink.
+myExecutor.WithMetrics(metricsPlugin.Metrics);
+plugin.WithMetrics(metricsPlugin.Metrics);
+```
+
+Every plug-in point has the same shape: an interface in `Neo.L2.Abstractions`,
+a default implementation in `Neo.L2.*` (in-memory / mock), and an injection
+hook on the plugin (`WithWriter`, `WithMetrics`, ctor parameter).
+
+---
+
+## Lifecycle in one diagram
+
+```
+User:    ──► Deposit on L1 (SharedBridge.Deposit)
+                                 ↓
+L2:      ── L1MessageInbox dequeues → DepositProcessor mints L2 GAS
+                                 ↓
+         User submits L2 tx → Sequencer orders → Batcher accumulates
+                                 ↓
+         Batch sealed → StateRootGenerator computes 7 roots
+                                 ↓
+         DAWriter publishes batch payload → DAReceipt → daCommitment
+                                 ↓
+         Prover produces proof (Multisig / Optimistic / ZK)
+                                 ↓
+L1:      SettlementManager.SubmitBatch(commitment, publicInputs, proof)
+                                 ↓
+         Verifier dispatches → finalize → updates canonical state root
+                                 ↓
+User:    Withdrawal: SharedBridge.FinalizeWithdrawalWithProof(...)
+         (or EmergencyManager.EscapeHatchExitWithProof if L2 stalled)
+```
+
+Each arrow is a contract or a plugin method already present in the codebase.
+For the spec mapping see `AGENTS.md` "Mapping doc.md to code" or
+`docs/architecture-walkthrough.md`.
+
+---
+
+## Extending vs forking
+
+This framework is designed for *extension*, not forking. Patterns:
+
+- **New chain type** (e.g. a privacy chain) → add a `--template` entry in
+  `CreateChainCommand.cs` with the right defaults; everything else reuses the
+  shared NeoHub.
+- **New proof system** (e.g. Halo2) → implement `IL2Prover` + `IL2ProofVerifier`,
+  register with `VerifierRegistry`, point the L2's chain config at it.
+- **New DA tier** (e.g. Celestia, Avail) → implement `IDAWriter`, wire via
+  `L2DAPlugin.WithWriter()`, document the `daMode` byte you claim.
+- **New sequencer model** (e.g. PoS-rotated) → implement
+  `ISequencerCommitteeProvider`, wire via `L2BridgePlugin` ctor.
+
+Each path keeps the chain inside the Neo Elastic Network — same SharedBridge,
+same settlement, same message routing — while letting the chain's *internals*
+be whatever the operator needs.
+
+---
+
+## Verifying your chain registered
+
+```bash
+# Devnet
+dotnet run --project tools/Neo.L2.Devnet -- 3 --metrics-port 9090
+curl http://127.0.0.1:9090/metrics | grep l2_batch_sealed
+
+# After register-chain on L1, query NeoHub:
+neo-cli invoke <ChainRegistryHash> getChainConfig <chainId>
+# → returns 89 bytes (encoded L2ChainConfig); empty = not registered
+```
+
+A registered, batch-producing chain emits `l2.batch.sealed`,
+`l2.settlement.submitted`, `l2.proving.generated`, and `l2.bridge.deposits`.
+The audit framework (`Neo.L2.Audit.ChainAuditor`) runs 6 invariant checks
+post-run; the devnet runs them automatically and prints a final ✅ / ❌.
+
+---
+
+## Reference
+
+- Spec: [`doc.md`](../doc.md) (Chinese, authoritative)
+- Architecture: [`ARCHITECTURE.md`](../ARCHITECTURE.md) (English distillation)
+- Per-component: [`IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md)
+- Walkthroughs: [`docs/architecture-walkthrough.md`](architecture-walkthrough.md)
+- Telemetry: [`docs/telemetry.md`](telemetry.md)
+- Persistence: [`docs/persistence.md`](persistence.md)
+- Security model: [`docs/security-model.md`](security-model.md)
+- Spec-gap plan: [`docs/spec-gap-plan.md`](spec-gap-plan.md)

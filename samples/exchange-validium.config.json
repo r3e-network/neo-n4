@@ -1,0 +1,16 @@
+{
+  "chainId": 1300,
+  "template": "validium",
+  "vm": "neovm",
+  "chainMode": "L2ValidiumMode",
+  "daMode": "NeoFS",
+  "proofType": "Zk",
+  "securityLevel": "Validium",
+  "sequencerModel": "DbftCommittee",
+  "exitModel": "Delayed",
+  "gatewayEnabled": true,
+  "permissionlessExit": false,
+  "milestonePerBlockMs": 2000,
+  "validators": [],
+  "_comment": "DEX / orderbook / matching-engine chain. ZK validity (no challenge window — finalization IS the proof, sub-batch latency); NeoFS off-chain DA (cheap, retrievable, Neo-native); delayed exit gives the operator a window to drain orderbook on shutdown without users front-running; gatewayEnabled=true so traders can move funds across Elastic Network L2s without L1 round-trips. permissionlessExit=false matches the operator-assisted shutdown story; users escape via the §15.5 escape hatch if the operator stalls. See samples/README.md."
+}

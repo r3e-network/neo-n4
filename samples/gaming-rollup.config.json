@@ -1,0 +1,16 @@
+{
+  "chainId": 1200,
+  "template": "rollup",
+  "vm": "neovm",
+  "chainMode": "L2RollupMode",
+  "daMode": "External",
+  "proofType": "Optimistic",
+  "securityLevel": "Optimistic",
+  "sequencerModel": "Centralized",
+  "exitModel": "Delayed",
+  "gatewayEnabled": false,
+  "permissionlessExit": true,
+  "milestonePerBlockMs": 1000,
+  "validators": [],
+  "_comment": "High-frequency gaming chain. Centralized sequencer = sub-second seal (no committee round-trip latency); External DA = cheap blob storage (gaming state updates are too frequent for L1 DA to amortize); permissionlessExit stays true so users can always escape if the centralized sequencer goes rogue. milestonePerBlockMs=1000 favors throughput over batch density. Trades sequencer-trust for speed — pick when asset-loss radius is bounded (e.g. in-game items, not custodied assets). See samples/README.md."
+}

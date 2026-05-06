@@ -5,6 +5,120 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `[plan: §16.1-admission]` `[plan: §16.1-approved-sets]` 3-phase L2 admission policy
+
+doc.md §16.1 specifies three admission phases — permissioned (owner approves),
+semi-permissionless (any caller if verifier+bridge are approved), permissionless
+(any caller). The mode was stored in `GovernanceController.SetAdmissionMode(0..2)`
+but never enforced — `ChainRegistry.RegisterChain` always required owner witness.
+
+  - `ChainRegistry.SetGovernanceController(UInt160)` (owner-only) wires the
+    admission-policy source.
+  - `ChainRegistry.RegisterChainPublic(chainId, configBytes)` is the non-owner
+    path that reads the wired GovernanceController hash, calls `getAdmissionMode()`,
+    and branches: mode 0 rejects with "use RegisterChain"; mode 1 reads the L2's
+    declared verifier (offset 24..43) + bridge (44..63) and asserts both are in
+    GovernanceController's approved sets; mode 2 falls through to the standard
+    write path with no extra check.
+  - `GovernanceController.{Approve,Revoke}{Verifier,BridgeAdapter}` (owner-only
+    mutators) + `[Safe] IsApproved{Verifier,BridgeAdapter}` (read paths) curate
+    the approved sets that mode 1 consults. Revoke is forward-only — already-
+    registered chains keep working; only future RegisterChainPublic calls are
+    affected.
+  - Refactored: `ChainRegistry.WriteChainConfig` private helper shared by
+    RegisterChain (owner path) and RegisterChainPublic (governance path) so
+    chainId/size/consistency assertions + event emission stay in sync.
+
+### Added — `[plan: §16.2-config-bytes]` SequencerModel + ExitModel in wire format
+
+doc.md §16.2 says every L2 must publicly display 5 security label dimensions.
+Three were already wire-format fields (security/da/exit/active flags); two were
+off-chain-only enums.
+
+  - `ChainRegistry.ConfigSize` 89 → 91 bytes. New layout in XML doc:
+    `[4B chainId][20B operator][20B verifier][20B bridge][20B msg]
+    [1B securityLevel][1B daMode][1B gatewayEnabled][1B permissionlessExit]
+    [1B sequencerModel][1B exitModel][1B active]`. `active` stays at
+    ConfigSize-1 so Pause/Resume don't move.
+  - `OffsetSequencerModel` (88) + `OffsetExitModel` (89) constants for callers.
+  - `[Safe] GetSequencerModel(chainId)` / `[Safe] GetExitModel(chainId)`. Both
+    return 0 (strongest-default) if the chain isn't registered, matching the
+    off-chain L2ChainConfig record's init-defaults.
+  - New `SequencerModel` enum (Centralized=0 / DbftCommittee=1 / Decentralized=2)
+    + `ExitModel` enum (Permissionless=0 / Delayed=1 / OperatorAssisted=2) in
+    `Neo.L2.Abstractions`. Discriminant pin tests in UT_Models.
+
+### Added — `[plan: §16-council-veto]` verifier upgrades behind multisig + timelock
+
+doc.md §16 + §17 mitigation #7 require verifier upgrades to clear a council
+multisig + governance delay. GovernanceController had council members + Approve
++ a stored timelock seconds, but no contract enforced execution gating on the
+council vote.
+
+  - `GovernanceController.GetApprovedAt(proposalId)` records `Runtime.Time` (ms
+    since epoch) when the approval count first crosses `GetThreshold()`. First-
+    crossing only — re-records blocked by a "no overwrite" guard so a later
+    vote past threshold can't reset the timer.
+  - `[Safe] IsApprovedAndTimelocked(proposalId)` returns true iff approvedAt is
+    set AND `Runtime.Time >= approvedAt + (timelockSeconds * 1000)`. The window
+    between threshold-reach and timelock-elapsed is the council's last chance
+    to raise an alarm.
+  - `VerifierRegistry.SetGovernanceController(UInt160)` + `[Safe]
+    GetGovernanceController` wire the gate.
+  - `VerifierRegistry.RegisterVerifierViaProposal(proofType, verifier, proposalId)`
+    is the council-veto path. Anyone may submit; authority comes from the
+    proposal's approved+timelocked state. Replay-protected per proposalId.
+    Original `RegisterVerifier` stays as the owner-only path.
+  - Refactored: `WriteVerifier` private helper shared by both paths.
+
+### Added — `[plan: §12-l1-da-default]` `JsonRpcL1DAWriter` for DAMode.L1
+
+doc.md §12.1 lists L1 DA as one of three DA tiers, but
+`L2DAPlugin.BuildDefaultWriter(DAMode.L1, ...)` threw `NotSupportedException`
+unless the operator pre-injected a writer. NeoFS / DAC already had built-in
+defaults; L1 didn't.
+
+`Neo.Plugins.L2DA.JsonRpcL1DAWriter`: same composition shape as
+`RpcSettlementClient` — takes a `JsonRpcClient` + a target contract hash + a
+sign-and-send delegate so operators plug in their own wallet without forcing a
+particular signer dependency. PublishAsync delegates the L1 transaction signing
+to the operator's callback and returns a `DAReceipt` with
+`Commitment = Hash256(payload)` (cross-tier convention so DAAvailabilityCheck
+compares across DA layers) and `Pointer` = the 32-byte L1 tx hash for off-chain
+re-fetch via `getrawtransaction`. IsAvailableAsync round-trips an
+`invokefunction(isAvailable, [Hash256:commitment])` to L1; HALT+true → true,
+HALT+false → false, FAULT → false. 13 unit tests using the StubHandler /
+StringContent pattern from UT_RpcSettlementClient.
+
+### Added — L2 development framework: templates + operator setup guide
+
+`tools/Neo.Stack.Cli` `create-chain --template <name>` was cosmetic; now four
+templates produce sensibly-distinct configs that match the §16.2 security label
+defaults: `rollup` (default; L2RollupMode + L1 DA + Optimistic proof + Delayed
+exit), `zk-rollup` (Validity + Permissionless + Gateway-enabled), `validium`
+(L2ValidiumMode + NeoFS + Zk + Delayed), `sidechain` (SidechainMode + External
++ None + Permissionless).
+
+`docs/launching-an-l2.md`: 5-command quick path (create-chain → init-l2 →
+register-chain → deploy-bridge-adapter → start-{sequencer,batcher,prover}) +
+templates table + architecture diagram pointing at the 5 customization extension
+points (`ITransactionExecutor`, `IL2Prover`/`IL2ProofVerifier`, `IDAWriter`,
+`ISequencerCommitteeProvider`, `IRoundProver`) with default impls + when to
+swap + concrete C# customization recipe + full lifecycle diagram + extending-vs-
+forking guidance. Linked from the README doc-map.
+
+### Added — `docs/spec-gap-plan.md`: systematic plan for remaining doc.md gaps
+
+A doc.md compliance audit (delegated to a sub-agent) identified 6 in-repo gaps
++ 3 upstream-blocked + 3 operator-specific. The plan documents each in-repo
+item with: spec quote, current state, smallest-meaningful change, acceptance
+criteria. 5 of 6 items closed in this Unreleased window; #6 (`§8-witness-
+canonical`) deferred per the plan's own note ("premature without a real prover
+targeting it"). Items 4 + 5 + 6 of the upstream/operator-specific tracks
+remain blocked on external dependencies and are explicitly out of scope.
+
+Cumulative: 892 tests / 27 projects.
+
 ### Added — Per-batch withdrawal verification on L1
 
 `SettlementManager.VerifyWithdrawalLeaf(chainId, leafHash)` only matched against

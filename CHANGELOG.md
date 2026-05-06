@@ -5,6 +5,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Per-batch withdrawal verification on L1
+
+`SettlementManager.VerifyWithdrawalLeaf(chainId, leafHash)` only matched against
+the *latest* finalized batch's `withdrawalRoot` — a withdrawal anchored in
+batch N silently broke once N+1 finalized. Adds a 3-arg overload
+`VerifyWithdrawalLeafAt(chainId, batchNumber, leafHash)` that verifies the
+explicit batch (status=Finalized + matching root); the latest-only version is
+now a thin wrapper. The operator-facing partner
+`SharedBridge.FinalizeWithdrawalAt(chainId, batchNumber, …)` lets users claim
+withdrawals against historical batches. Two private helpers
+(`ValidateWithdrawalArgs`, `ConsumeAndPayout`) keep the latest-batch and named-
+batch paths in sync — a future defensive check applies to both.
+
+### Added — `PublicInputHashConsistencyCheck` resolver seam
+
+The check's MVP simplification was zero-filling `L1MessageHash` and
+`BlockContextHash` (matches Phase 0–3 settlement). Its remarks already noted
+"future phases need an augmenting resolver." Adds the constructor overload
+`PublicInputHashConsistencyCheck(Func<L2BatchCommitment, PublicInputs>?)` so
+Phase 4+ can plumb in actual values from a side store. Default ctor preserves
+zero-fill behavior.
+
+### Misc — Test propagation + dispatch-coverage pins
+
+  - 4 `L2ProverPlugin.Wire` dispatch coverage tests — the switch had 5
+    branches (Multisig / Zk / Optimistic / None / unknown); only Multisig was
+    tested. Made `Kind` settable so tests can drive the rest. Pins helpful-
+    error contracts that point operators at the right plugin (Optimistic →
+    L2SettlementPlugin) or valid alternatives (None → Multisig + Optimistic
+    + Zk).
+  - 2 plugin `WithMetrics` propagation pins (`L2BridgePlugin`, `L2DAPlugin`).
+    Both source comments claimed "swap the sink in-place on existing
+    processors / inner writer" but the propagation was unverified — a refactor
+    that re-creates the processor / leaves the outer decorator stale would
+    silently lose every subsequent metric on a mid-flight sink swap.
+
+Cumulative: 859 tests / 26 projects.
+
 ### Fixed — Records with `ReadOnlyMemory<byte>` now follow the byte-content equality convention
 
 `AGENTS.md` "Code style" mandates that records holding `ReadOnlyMemory<byte>`

@@ -1,5 +1,4 @@
 using System;
-using System.Text.Json;
 using System.Threading.Tasks;
 using Neo.L2;
 
@@ -73,7 +72,7 @@ internal static class RegisterChainCommand
         {
             try
             {
-                var config = BuildConfigFromJson(chainId, configJson,
+                var config = L2ChainConfigJsonReader.FromJson(chainId, configJson,
                     operatorHash, verifierHash, bridgeHash, messageHash);
                 var bytes = L2ChainConfigSerializer.Encode(config);
                 Console.WriteLine($"  Args            : (chainId={chainId}, configBytes=<{bytes.Length} bytes>)");
@@ -113,70 +112,6 @@ internal static class RegisterChainCommand
         return Task.FromResult(0);
     }
 
-    /// <summary>
-    /// Parse the JSON written by <c>create-chain</c> + the four operator-supplied
-    /// L1 contract hashes into an <see cref="L2ChainConfig"/> ready to encode. Throws
-    /// <see cref="ArgumentException"/> with a clear message on any unparseable enum
-    /// or malformed UInt160 — the operator sees the field name they need to fix.
-    /// </summary>
-    private static L2ChainConfig BuildConfigFromJson(uint chainId, string json,
-        string operatorHash, string verifierHash, string bridgeHash, string messageHash)
-    {
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-
-        var securityLevel = ParseEnum<SecurityLevel>(root, "securityLevel");
-        var daMode = ParseEnum<DAMode>(root, "daMode");
-        var sequencer = ParseEnum<SequencerModel>(root, "sequencerModel");
-        var exit = ParseEnum<ExitModel>(root, "exitModel");
-        var gatewayEnabled = ParseBool(root, "gatewayEnabled");
-        var permissionlessExit = ParseBool(root, "permissionlessExit");
-
-        return new L2ChainConfig
-        {
-            ChainId = chainId,
-            OperatorManager = ParseHash(operatorHash, "--operator"),
-            Verifier = ParseHash(verifierHash, "--verifier"),
-            BridgeAdapter = ParseHash(bridgeHash, "--bridge"),
-            MessageAdapter = ParseHash(messageHash, "--message"),
-            SecurityLevel = securityLevel,
-            DAMode = daMode,
-            GatewayEnabled = gatewayEnabled,
-            PermissionlessExit = permissionlessExit,
-            Sequencer = sequencer,
-            Exit = exit,
-            Active = true,
-        };
-    }
-
-    private static T ParseEnum<T>(JsonElement root, string field) where T : struct, Enum
-    {
-        if (!root.TryGetProperty(field, out var prop))
-            throw new ArgumentException($"chain.config.json missing '{field}'");
-        var name = prop.GetString();
-        if (!Enum.TryParse<T>(name, ignoreCase: false, out var value))
-            throw new ArgumentException($"chain.config.json '{field}'='{name}' is not a valid {typeof(T).Name}");
-        return value;
-    }
-
-    private static bool ParseBool(JsonElement root, string field)
-    {
-        if (!root.TryGetProperty(field, out var prop))
-            throw new ArgumentException($"chain.config.json missing '{field}'");
-        return prop.GetBoolean();
-    }
-
-    private static UInt160 ParseHash(string hex, string flag)
-    {
-        try
-        {
-            return UInt160.Parse(hex);
-        }
-        catch (Exception ex)
-        {
-            throw new ArgumentException($"{flag}='{hex}' is not a valid UInt160 (expected 0x + 40 hex chars): {ex.Message}");
-        }
-    }
 }
 
 internal static class DeployBridgeAdapterCommand

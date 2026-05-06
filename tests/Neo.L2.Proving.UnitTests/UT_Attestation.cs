@@ -146,6 +146,38 @@ public class UT_Attestation
     }
 
     [TestMethod]
+    public void MultisigPayload_ByteLayout_MatchesDocumentedOffsets()
+    {
+        // Pins the layout claimed in MultisigProofPayload's XML docs:
+        // [1B version=1] [2B signerCount LE] (per signer: [33B compressed-pubkey] [64B sig])
+        var k0 = GenKey(1);
+        var k1 = GenKey(7);
+        var sig0 = new byte[64];
+        var sig1 = new byte[64];
+        for (var i = 0; i < 64; i++) { sig0[i] = (byte)(0x10 + i); sig1[i] = (byte)(0x80 + i); }
+        var payload = new MultisigProofPayload
+        {
+            Signatures = new[]
+            {
+                new SignerSignature { PublicKey = k0.pub, Signature = sig0 },
+                new SignerSignature { PublicKey = k1.pub, Signature = sig1 },
+            },
+        };
+        var bytes = payload.Encode();
+
+        // Total = 3 (header) + 2 * (33 + 64) = 197.
+        Assert.AreEqual(3 + 2 * (33 + 64), bytes.Length);
+        Assert.AreEqual(MultisigProofPayload.Version, bytes[0]);
+        Assert.AreEqual(2, System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(1, 2)));
+        // Signer 0 occupies [3..36) pubkey + [36..100) sig.
+        CollectionAssert.AreEqual(k0.pub.EncodePoint(true), bytes[3..36]);
+        CollectionAssert.AreEqual(sig0, bytes[36..100]);
+        // Signer 1 occupies [100..133) pubkey + [133..197) sig.
+        CollectionAssert.AreEqual(k1.pub.EncodePoint(true), bytes[100..133]);
+        CollectionAssert.AreEqual(sig1, bytes[133..197]);
+    }
+
+    [TestMethod]
     public void MultisigPayload_Decode_RejectsOversizedSignerCount()
     {
         // Craft a header claiming MaxSigners+1; decoder must reject before allocating.

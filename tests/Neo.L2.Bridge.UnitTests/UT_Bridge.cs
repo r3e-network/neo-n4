@@ -160,6 +160,26 @@ public class UT_Bridge
     }
 
     [TestMethod]
+    public void DepositPayload_ByteLayout_MatchesDocumentedOffsets()
+    {
+        // Pins the layout claimed in DepositPayload's XML docs:
+        // [20B l1Asset] [20B l2Recipient] [4B amountLength LE] [amountLength B amount(unsigned LE)]
+        // The L1 SharedBridge contract parses bytes off the wire and depends on these
+        // exact offsets — silent reorder would desync L2 mint from L1 lock.
+        var amount = new BigInteger(0x1122334455667788UL);
+        var amountBytes = amount.ToByteArray(isUnsigned: true, isBigEndian: false);
+        var p = new DepositPayload { L1Asset = GasL1, L2Recipient = Recipient, Amount = amount };
+        var bytes = p.Encode();
+
+        Assert.AreEqual(20 + 20 + 4 + amountBytes.Length, bytes.Length);
+        CollectionAssert.AreEqual(GasL1.GetSpan().ToArray(), bytes[0..20]);
+        CollectionAssert.AreEqual(Recipient.GetSpan().ToArray(), bytes[20..40]);
+        Assert.AreEqual(amountBytes.Length,
+            System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(40, 4)));
+        CollectionAssert.AreEqual(amountBytes, bytes[44..]);
+    }
+
+    [TestMethod]
     public void DepositProcessor_MintsForKnownAsset()
     {
         var registry = RegistryWithGas();

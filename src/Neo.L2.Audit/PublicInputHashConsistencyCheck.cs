@@ -10,13 +10,29 @@ namespace Neo.L2.Audit;
 /// would otherwise verify against the wrong proof.
 /// </summary>
 /// <remarks>
-/// MVP: assumes <c>L1MessageHash</c> and <c>BlockContextHash</c> are zero (matching the
-/// current Phase 0-3 settlement plugin's <c>BuildPublicInputs</c>). When future phases
-/// fill those in, this check needs an augmenting resolver — the same shape as
-/// <see cref="ProofValidityCheck"/>'s <c>publicInputsResolver</c>.
+/// The commitment alone doesn't carry every <see cref="PublicInputs"/> field
+/// (specifically <c>L1MessageHash</c> and <c>BlockContextHash</c>). The default
+/// reconstruction matches the current Phase 0–3 settlement plugin's
+/// <c>BuildPublicInputs</c> by zero-filling those fields. When future phases populate
+/// them, callers can pass an optional <c>publicInputsResolver</c> to the constructor —
+/// same shape as <see cref="ProofValidityCheck"/>'s resolver — to look up the actual
+/// values from a side store / replay path.
 /// </remarks>
 public sealed class PublicInputHashConsistencyCheck : IAuditCheck
 {
+    private readonly Func<L2BatchCommitment, PublicInputs>? _resolver;
+
+    /// <summary>Default ctor — assumes <c>L1MessageHash</c> and <c>BlockContextHash</c>
+    /// are zero (Phase 0–3 settlement convention).</summary>
+    public PublicInputHashConsistencyCheck() : this(resolver: null) { }
+
+    /// <summary>Construct with an explicit public-inputs resolver. Pass when later phases
+    /// fill in <c>L1MessageHash</c> / <c>BlockContextHash</c> off-chain.</summary>
+    public PublicInputHashConsistencyCheck(Func<L2BatchCommitment, PublicInputs>? resolver)
+    {
+        _resolver = resolver;
+    }
+
     /// <inheritdoc />
     public string Name => "public_input_hash";
 
@@ -35,21 +51,11 @@ public sealed class PublicInputHashConsistencyCheck : IAuditCheck
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var inputs = new PublicInputs
-            {
-                ChainId = batch.ChainId,
-                BatchNumber = batch.BatchNumber,
-                PreStateRoot = batch.PreStateRoot,
-                PostStateRoot = batch.PostStateRoot,
-                TxRoot = batch.TxRoot,
-                ReceiptRoot = batch.ReceiptRoot,
-                WithdrawalRoot = batch.WithdrawalRoot,
-                L2ToL1MessageRoot = batch.L2ToL1MessageRoot,
-                L2ToL2MessageRoot = batch.L2ToL2MessageRoot,
-                L1MessageHash = UInt256.Zero,
-                DACommitment = batch.DACommitment,
-                BlockContextHash = UInt256.Zero,
-            };
+            var inputs = _resolver is null
+                ? DefaultReconstruct(batch)
+                : _resolver(batch)
+                    ?? throw new InvalidOperationException(
+                        $"publicInputsResolver returned null for batch {batch.BatchNumber}");
             var expected = StateRootCalculator.HashPublicInputs(inputs);
 
             if (!batch.PublicInputHash.Equals(expected))
@@ -77,6 +83,22 @@ public sealed class PublicInputHashConsistencyCheck : IAuditCheck
         }
         return new ValueTask<IReadOnlyList<AuditFinding>>(findings);
     }
+
+    private static PublicInputs DefaultReconstruct(L2BatchCommitment batch) => new()
+    {
+        ChainId = batch.ChainId,
+        BatchNumber = batch.BatchNumber,
+        PreStateRoot = batch.PreStateRoot,
+        PostStateRoot = batch.PostStateRoot,
+        TxRoot = batch.TxRoot,
+        ReceiptRoot = batch.ReceiptRoot,
+        WithdrawalRoot = batch.WithdrawalRoot,
+        L2ToL1MessageRoot = batch.L2ToL1MessageRoot,
+        L2ToL2MessageRoot = batch.L2ToL2MessageRoot,
+        L1MessageHash = UInt256.Zero,
+        DACommitment = batch.DACommitment,
+        BlockContextHash = UInt256.Zero,
+    };
 
     private static string Truncate(UInt256 root)
     {

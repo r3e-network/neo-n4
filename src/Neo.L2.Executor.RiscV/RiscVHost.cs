@@ -125,12 +125,14 @@ public static class RiscVHost
     public static void ResetAvailabilityCache() => _isAvailableCache = null;
 
     /// <summary>
-    /// Execute a NeoVM script on the RISC-V VM. Returns the execution outcome including the
-    /// final state, fee consumed, and stack contents. Throws
+    /// Execute a RISC-V program on the PolkaVM-backed engine. Returns the execution outcome
+    /// including the final state, fee consumed, and an optional fault message. Throws
     /// <see cref="DllNotFoundException"/> when the native library is missing — gate calls
     /// behind <see cref="IsAvailable"/>.
     /// </summary>
-    /// <param name="script">NeoVM script bytes.</param>
+    /// <param name="script">Compiled RISC-V program bytes (typically a Neo guest program ELF;
+    /// raw NeoVM opcodes are <em>not</em> accepted — those go through Neo's standard NeoVM
+    /// engine, not this RISC-V host).</param>
     /// <param name="trigger">Trigger byte (Application = 0x40, Verification = 0x20, etc.).</param>
     /// <param name="network">Network magic (use <see cref="DefaultNetwork"/> if unsure).</param>
     /// <param name="timestamp">Block timestamp; 0 = unset.</param>

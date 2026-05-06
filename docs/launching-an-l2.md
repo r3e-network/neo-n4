@@ -209,6 +209,65 @@ Reference implementations that follow this exact shape:
 - `Neo.Plugins.L2DA.PersistentDAWriter` — RocksDB-backed local store
 - `Neo.Plugins.L2DA.CommitteeAttestedDAWriter` — DAC committee multisig
 
+### Worked example: writing a custom `ISequencerCommitteeProvider`
+
+If your chain uses a non-dBFT sequencer model (centralized, PoS-rotated,
+oracle-selected, etc.), implement `ISequencerCommitteeProvider` to feed
+your selection logic into the L2 node:
+
+```csharp
+using Neo.Cryptography.ECC;
+using Neo.L2.Sequencer;
+
+public sealed class StakeWeightedSequencerProvider : ISequencerCommitteeProvider
+{
+    private readonly IStakeOracle _stakes;
+    private readonly int _maxSize;
+
+    public uint ChainId { get; }
+
+    public StakeWeightedSequencerProvider(uint chainId, IStakeOracle stakes, int maxSize)
+    {
+        ChainId = chainId;
+        _stakes = stakes;
+        _maxSize = maxSize;
+    }
+
+    public async ValueTask<IReadOnlyList<CommitteeMember>> GetActiveCommitteeAsync(
+        CancellationToken cancellationToken = default)
+    {
+        // Pull the current top-N stakers from your stake oracle. The framework
+        // doesn't care HOW you select — it just expects a list of CommitteeMember
+        // records, each with PublicKey + L1Address + Status (1=Active) + ExitsAt.
+        var top = await _stakes.GetTopByStakeAsync(_maxSize, cancellationToken);
+        return top.Select(s => new CommitteeMember
+        {
+            PublicKey = s.PublicKey,
+            L1Address = s.L1Address,
+            Status = 1,                 // Active
+            ExitsAtUnixSeconds = 0,     // Active members have no exit window
+        }).ToList();
+    }
+
+    public ValueTask<int> GetMaxCommitteeSizeAsync(CancellationToken cancellationToken = default)
+        => new ValueTask<int>(_maxSize);
+
+    public ValueTask<bool> IsRegisteredAsync(ECPoint sequencerKey,
+        CancellationToken cancellationToken = default)
+        => _stakes.HasStakeAsync(sequencerKey, cancellationToken);
+}
+```
+
+Wire it through whatever component owns the sequencer reference (typically
+the L2 node's consensus selector — the existing `InMemorySequencerCommitteeProvider`
+in `Neo.L2.Sequencer` shows the production-ready persistence + lifecycle
+pattern your custom provider can follow if you also need restart-survival).
+
+The L2 node's dBFT plugin polls this interface before each round, so switching
+the provider is the only on-chain-visible step needed to swap sequencer models —
+NeoHub's `SequencerRegistry` continues to track *who registered* but the
+*selection policy* is the L2's call.
+
 ---
 
 ## Lifecycle in one diagram

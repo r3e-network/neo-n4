@@ -155,6 +155,17 @@ placeholder, leaving operators to hand-roll the serialization. Adds
 
 Cumulative: 903 tests / 27 projects.
 
+### Changed — `neo-stack register-chain` emits canonical configBytes hex
+
+Composes the new `L2ChainConfigSerializer` with the operator-supplied L1
+contract hashes (`--operator` / `--verifier` / `--bridge` / `--message`) to
+print the 91-byte hex string ready for wallet-side `registerChain(chainId,
+configBytes)` submission. Without those flags, falls back to the legacy
+plan-only output and now hints the operator to re-run with addresses for the
+canonical encoding. Errors surface field-by-field (e.g.
+"chain.config.json 'securityLevel'='Foo' is not a valid SecurityLevel" or
+"--operator='0xDEAD' is not a valid UInt160").
+
 ### Added — Per-batch withdrawal verification on L1
 
 `SettlementManager.VerifyWithdrawalLeaf(chainId, leafHash)` only matched against

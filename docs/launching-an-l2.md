@@ -23,7 +23,11 @@ neo-stack init-l2 --chain-id 1099 --output ./my-l2
 
 # 3. Print the L1 registration plan (run during permissioned admission phase
 #    or governance-approved semi-permissionless / permissionless modes).
-neo-stack register-chain --chain-id 1099 --output ./my-l2
+#    Without --operator/--verifier/--bridge/--message: prints plan-only.
+#    With those four UInt160 hashes (discovered from neo-hub-deploy bundle):
+#    emits the canonical 91-byte configBytes hex you paste into your wallet.
+neo-stack register-chain --chain-id 1099 --output ./my-l2 \
+    --operator <hash> --verifier <hash> --bridge <hash> --message <hash>
 
 # 4. Print the bridge adapter deploy plan (one-time per new chain).
 neo-stack deploy-bridge-adapter --chain-id 1099 --output ./my-l2

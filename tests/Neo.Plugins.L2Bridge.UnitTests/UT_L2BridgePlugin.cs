@@ -94,4 +94,42 @@ public class UT_L2BridgePlugin
         Assert.IsFalse(string.IsNullOrWhiteSpace(plugin.Description));
         StringAssert.Contains(plugin.Name, "L2Bridge");
     }
+
+    [TestMethod]
+    public void WithMetrics_PropagatesToExistingProcessors()
+    {
+        // L2BridgePlugin.WithMetrics must swap the sink on its DepositProcessor +
+        // WithdrawalProcessor (the source comment claims this; the test pins it).
+        // Without the propagation, operators' metrics dashboard would silently miss
+        // every l2.bridge.* signal on a re-wire.
+        // The plugin's _chainId is 0 outside a real Plugin host (Configure runs against
+        // an empty config), so we exercise the WithdrawalProcessor path which doesn't
+        // depend on per-chain message routing — only on AssetRegistry lookup by L2 asset.
+        using var plugin = new L2BridgePlugin();
+        var l1Asset = UInt160.Parse("0x" + new string('1', 40));
+        var l2Asset = UInt160.Parse("0x" + new string('2', 40));
+        plugin.Registry.Register(new Neo.L2.AssetMapping
+        {
+            L1Asset = l1Asset, L2Asset = l2Asset,
+            L2ChainId = 0u, AssetType = Neo.L2.AssetType.Gas,
+            MintBurn = true, LockMint = false, Active = true,
+        });
+
+        var captured = new InMemoryMetrics();
+        plugin.WithMetrics(captured);
+
+        var withdrawal = new Neo.L2.WithdrawalRequest
+        {
+            EmittingContract = UInt160.Parse("0x" + new string('e', 40)),
+            L2Sender = UInt160.Parse("0x" + new string('a', 40)),
+            L1Recipient = UInt160.Parse("0x" + new string('b', 40)),
+            L2Asset = l2Asset,
+            Amount = new System.Numerics.BigInteger(1000),
+            Nonce = 1,
+        };
+        plugin.WithdrawalProcessor.Stage(withdrawal);
+
+        Assert.AreEqual(1, captured.GetCounter(MetricNames.WithdrawalsStaged),
+            "metrics swap must reach the existing WithdrawalProcessor");
+    }
 }

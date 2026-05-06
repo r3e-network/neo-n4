@@ -110,17 +110,55 @@ public class EmergencyManagerContract : SmartContract
         var key = EscapeKey(chainId, leafHash);
         ExecutionEngine.Assert(Storage.Get(key) == null, "escape leaf already consumed");
 
-        // Verify the leaf hash is anchored in the chain's latest finalized state root.
-        // MVP simplification (see SharedBridge.VerifyWithdrawalLeaf): the leaf is treated
-        // as the state root commitment itself; full Merkle-path verification is delegated
-        // off-chain. A future iteration can expose VerifyStateLeaf(chainId, leafHash,
-        // siblings, leafIndex) on SettlementManager and call that instead.
+        // MVP shape: the leaf is treated as the state root commitment itself — i.e. the
+        // user supplies the entire root, which only works for trees with a single state
+        // entry. <see cref="EscapeHatchExitWithProof"/> is the production-shape path
+        // that takes a Merkle inclusion proof against the canonical state root.
         var sm = GetSettlementManager();
         ExecutionEngine.Assert(sm != UInt160.Zero, "settlement manager unset");
         var canonicalRoot = (UInt256)Contract.Call(sm, "getCanonicalStateRoot",
             CallFlags.ReadOnly, new object[] { chainId });
         ExecutionEngine.Assert(canonicalRoot.Equals(leafHash),
             "leaf does not match latest finalized state root");
+
+        Storage.Put(key, new byte[] { 1 });
+        OnEscapeHatchExit(chainId, sender, leafHash);
+    }
+
+    /// <summary>
+    /// Production-shape escape hatch: prove ownership of a specific state-tree leaf via
+    /// a Merkle inclusion proof against the chain's canonical state root. Lets users
+    /// exit individual balance / ownership entries from a multi-entry state tree —
+    /// <see cref="EscapeHatchExit"/> only works when the entire state collapses to a
+    /// single root-equal-to-leaf shape.
+    /// </summary>
+    /// <remarks>
+    /// The leaf hash is computed off-chain via
+    /// <c>Neo.L2.Executor.State.KeyedStateStore.HashEntry(key, value)</c>. The siblings
+    /// array + leafIndex come from a Merkle proof generated against the canonical state
+    /// tree (built with <c>Neo.L2.State.MerkleTree</c> over all state entries in lex-key
+    /// order). Verification is delegated to
+    /// <c>SettlementManager.VerifyStateLeafWithProof</c>.
+    /// </remarks>
+    public static void EscapeHatchExitWithProof(
+        uint chainId,
+        UInt160 sender,
+        UInt256 leafHash,
+        byte[][] siblings,
+        ulong leafIndex)
+    {
+        ExecutionEngine.Assert(IsPaused(), "escape hatch only valid while paused");
+        ExecutionEngine.Assert(Runtime.CheckWitness(sender), "no witness");
+        var key = EscapeKey(chainId, leafHash);
+        ExecutionEngine.Assert(Storage.Get(key) == null, "escape leaf already consumed");
+
+        var sm = GetSettlementManager();
+        ExecutionEngine.Assert(sm != UInt160.Zero, "settlement manager unset");
+        var verified = (bool)Contract.Call(sm, "verifyStateLeafWithProof",
+            CallFlags.ReadOnly,
+            new object[] { chainId, leafHash, siblings, leafIndex });
+        ExecutionEngine.Assert(verified,
+            "leaf does not Merkle-verify against latest finalized state root");
 
         Storage.Put(key, new byte[] { 1 });
         OnEscapeHatchExit(chainId, sender, leafHash);

@@ -292,6 +292,55 @@ public class SettlementManagerContract : SmartContract
     /// <summary>Maximum tree depth the on-chain verifier will accept (2^64 leaves).</summary>
     public const int MaxProofDepth = 64;
 
+    /// <summary>
+    /// True if <paramref name="leafHash"/> is included in <paramref name="chainId"/>'s
+    /// current canonical state root via the supplied Merkle inclusion proof. Same proof
+    /// shape as <see cref="VerifyWithdrawalLeafWithProof"/> — this verifies against the
+    /// canonical state Merkle root, used by <c>EmergencyManager.EscapeHatchExitWithProof</c>
+    /// when a user is exiting against the L2's last finalized state.
+    /// </summary>
+    /// <remarks>
+    /// Hash composition matches <c>Neo.L2.State.MerkleTree</c> /
+    /// <c>Neo.L2.Executor.State.KeyedStateStore.ComputeRoot</c>: <c>Hash256(left || right)</c>
+    /// with left/right ordered by the leaf-index bit at each level.
+    /// </remarks>
+    [Safe]
+    public static bool VerifyStateLeafWithProof(
+        uint chainId,
+        UInt256 leafHash,
+        byte[][] siblings,
+        ulong leafIndex)
+    {
+        var canonicalRoot = GetCanonicalStateRoot(chainId);
+        if (canonicalRoot.Equals(UInt256.Zero)) return false;
+
+        ExecutionEngine.Assert(siblings != null, "siblings required");
+        ExecutionEngine.Assert(siblings.Length <= MaxProofDepth, "proof too deep");
+
+        var current = (byte[])leafHash;
+        var index = leafIndex;
+        for (var i = 0; i < siblings.Length; i++)
+        {
+            var sibling = siblings[i];
+            ExecutionEngine.Assert(sibling.Length == 32, "sibling must be 32 bytes");
+            var combined = new byte[64];
+            if ((index & 1UL) == 0UL)
+            {
+                for (var j = 0; j < 32; j++) combined[j] = current[j];
+                for (var j = 0; j < 32; j++) combined[32 + j] = sibling[j];
+            }
+            else
+            {
+                for (var j = 0; j < 32; j++) combined[j] = sibling[j];
+                for (var j = 0; j < 32; j++) combined[32 + j] = current[j];
+            }
+            var h1 = CryptoLib.Sha256((ByteString)combined);
+            current = (byte[])CryptoLib.Sha256(h1);
+            index = index >> 1;
+        }
+        return canonicalRoot.Equals((UInt256)current);
+    }
+
     private static void SetLatestFinalizedBatch(uint chainId, ulong batchNumber)
     {
         Storage.Put(LatestBatchKey(chainId), (BigInteger)batchNumber);

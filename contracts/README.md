@@ -32,6 +32,10 @@ contracts/
 ├── NeoHub.MessageRouter/        # L1↔L2 / L2↔L2 message queues
 ├── NeoHub.TokenRegistry/        # canonical L1↔L2 asset mappings
 ├── NeoHub.DARegistry/           # DA layer commitment store
+├── NeoHub.SequencerRegistry/    # per-chain validator set / committee membership
+├── NeoHub.SequencerBond/        # bonded stake + slashing for sequencer misbehavior
+├── NeoHub.ForcedInclusion/      # anti-censorship forced-tx queue
+├── NeoHub.OptimisticChallenge/  # Phase-3 fraud-proof challenge window + bisection
 ├── NeoHub.GovernanceController/ # L2 admission policy / verifier upgrades
 ├── NeoHub.EmergencyManager/     # pause / escape hatch
 ├── L2Native.L2BridgeContract/         # L2-side mint/burn for bridged assets

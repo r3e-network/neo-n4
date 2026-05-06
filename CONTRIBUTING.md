@@ -143,11 +143,11 @@ on-chain boundary, e.g. proof payloads, message envelopes, Merkle proofs):
 2. Class under `<Domain>.<Name>` namespace, ending in `Contract`. Decorate with
    `[DisplayName]`, `[ContractAuthor]`, `[ContractDescription]`, `[ContractVersion]`,
    `[ContractSourceCode]`, `[ContractPermission(Permission.Any, Method.Any)]`.
-4. Storage prefixes: pick a single byte per logical map. Keep the table at the top of the
+3. Storage prefixes: pick a single byte per logical map. Keep the table at the top of the
    file as `private const byte Prefix<Foo> = 0x__;`.
-5. Use `[Safe]` on every read-only public method.
-6. Wire `_deploy(object data, bool update)` for one-shot init.
-7. Encode events through `[DisplayName("…")] public static event Action<…> On<…> = default!;`.
+4. Use `[Safe]` on every read-only public method.
+5. Wire `_deploy(object data, bool update)` for one-shot init.
+6. Encode events through `[DisplayName("…")] public static event Action<…> On<…> = default!;`.
 
 The Neo `nccs` compiler picks up the `.csproj` and emits `.nef` + `.manifest.json`. Without
 `nccs` on `PATH`, the C# still type-checks; you just don't get bytecode.

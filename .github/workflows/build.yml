@@ -152,3 +152,12 @@ jobs:
         env:
           SP1_FORCE_DUMMY: "true"
         run: cargo check --features real-prover
+
+      # neo-riscv-host: PolkaVM-backed Neo RISC-V execution engine vendored at
+      # external/neo-riscv-vm. This is the Phase 4 NeoVM2 / RISC-V execution path
+      # (companion to the SP1 proving path above). C# project Neo.L2.Executor.RiscV
+      # P/Invokes into the produced libneo_riscv_host.so. cargo check (not build)
+      # keeps CI fast — the actual cdylib is operator-built when deploying.
+      - name: cargo check (neo-riscv-host)
+        working-directory: external/neo-riscv-vm
+        run: cargo check -p neo-riscv-host

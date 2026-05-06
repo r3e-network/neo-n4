@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.L2.Executor.RiscV</RootNamespace>
+    <AssemblyName>Neo.L2.Executor.RiscV</AssemblyName>
+    <Description>Neo RISC-V VM bridge — C# P/Invoke wrapper around neo-riscv-host (PolkaVM-backed).</Description>
+    <PackageTags>NEO;L2;RISC-V;PolkaVM</PackageTags>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -7,3 +7,6 @@
 [submodule "external/neo-zkvm"]
 	path = external/neo-zkvm
 	url = https://github.com/r3e-network/neo-zkvm.git
+[submodule "external/neo-riscv-vm"]
+	path = external/neo-riscv-vm
+	url = https://github.com/r3e-network/neo-riscv-vm.git

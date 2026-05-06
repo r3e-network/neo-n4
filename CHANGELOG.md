@@ -155,6 +155,33 @@ placeholder, leaving operators to hand-roll the serialization. Adds
 
 Cumulative: 903 tests / 27 projects.
 
+### Added — `ChainRegistry` rounds out §16.2 reader API
+
+Adds `[Safe]` single-purpose readers for the four label dimensions that
+were missing single-purpose getters: `GetSecurityLevel` / `GetDAMode` /
+`GetGatewayEnabled` / `GetPermissionlessExit`. Symmetric with the existing
+`GetSequencerModel` / `GetExitModel`. All six follow the same not-registered-
+returns-strongest-default convention. Public `Offset*` constants (84..89)
+exposed for callers that want to address bytes by name.
+
+### Changed — `L2DAPlugin` `DAMode.L1` error message names `JsonRpcL1DAWriter`
+
+Operators hitting the "DAMode.L1 has no built-in default" error previously
+got a vague "use WithWriter()" hint with no class name to reach for. Now the
+message names the concrete class + ctor signature.
+
+### Added — `ScaffoldPlan.PostDeployActions` surfaces governance wiring
+
+The 13-step bundle deploys all contracts but doesn't wire the §16.1 admission
+policy (ChainRegistry → GovernanceController) or §16 council-veto path
+(VerifierRegistry → GovernanceController). Without surfacing these post-deploy
+calls, an operator who runs the bundle silently misses two governance
+features. Adds two new `PostDeployActions` entries — emitted only when both
+the target contract and GovernanceController are in the bundle. 2 new tests
+pin the asymmetry behavior.
+
+Cumulative: 905 tests / 27 projects.
+
 ### Changed — `neo-stack register-chain` emits canonical configBytes hex
 
 Composes the new `L2ChainConfigSerializer` with the operator-supplied L1

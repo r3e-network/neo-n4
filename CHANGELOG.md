@@ -205,6 +205,24 @@ the blind spot.
 
 Cumulative: 914 tests / 27 projects.
 
+### Added — `IL2RpcStore` default-interface body pins + e2e through `getsecuritylabel`
+
+Third-party `IL2RpcStore` implementations that don't override the new §16.2
+dimension properties inherit default-method bodies (External / false /
+DbftCommittee / Permissionless). Without these pins, a refactor that changes
+any default would silently shift every external operator's `getsecuritylabel`
+output. New `MinimalRpcStore` test fixture implements only the required
+interface members; two tests assert the documented defaults and the
+end-to-end RPC propagation.
+
+### Showcase — devnet runner emits `getsecuritylabel` in post-run snapshot
+
+Operators learning the system from the runner's output now see the §16.2
+5-dimension label visibly alongside `getl2stateroot`/`state entries`/
+`committee active`.
+
+Cumulative: 916 tests / 27 projects.
+
 ### Changed — `neo-stack register-chain` emits canonical configBytes hex
 
 Composes the new `L2ChainConfigSerializer` with the operator-supplied L1

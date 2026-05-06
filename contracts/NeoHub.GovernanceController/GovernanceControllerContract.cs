@@ -29,8 +29,10 @@ public class GovernanceControllerContract : SmartContract
     private const byte PrefixProposal = 0x06;             // 0x06 + proposalId(8B) → encoded proposal
     private const byte PrefixApproval = 0x07;             // 0x07 + proposalId(8B) + memberKey(33B) → 1
     private const byte KeyNextProposalId = 0x08;
+    private const byte PrefixApprovalCount = 0x09;        // 0x09 + proposalId(8B) → BigInteger count
     private const byte PrefixApprovedVerifier = 0x0A;    // 0x0A + verifierHash(20B) → 1   (§16.1 semi-permissionless gate)
     private const byte PrefixApprovedBridge = 0x0B;      // 0x0B + bridgeHash(20B) → 1     (§16.1 semi-permissionless gate)
+    private const byte PrefixApprovedAt = 0x0C;           // 0x0C + proposalId(8B) → BigInteger unix-seconds when threshold first hit
     private const byte KeyOwner = 0xFF;
 
     /// <summary>Emitted whenever a proposal is registered.</summary>
@@ -169,15 +171,70 @@ public class GovernanceControllerContract : SmartContract
     {
         // Iteration over all members would require Find; for MVP we just track a counter
         // bumped on each new approval. Production deploys add a dedicated index.
-        var counterKey = new byte[1 + 8];
-        counterKey[0] = 0x09;
-        counterKey[1] = (byte)proposalId; counterKey[2] = (byte)(proposalId >> 8); counterKey[3] = (byte)(proposalId >> 16); counterKey[4] = (byte)(proposalId >> 24);
-        counterKey[5] = (byte)(proposalId >> 32); counterKey[6] = (byte)(proposalId >> 40); counterKey[7] = (byte)(proposalId >> 48); counterKey[8] = (byte)(proposalId >> 56);
+        var counterKey = ProposalIdKey(PrefixApprovalCount, proposalId);
         var raw = Storage.Get(counterKey);
         var current = raw == null ? 0u : (uint)(BigInteger)raw;
         var next = current + 1;
         Storage.Put(counterKey, (BigInteger)next);
+
+        // §16-council-veto: when the count first crosses the threshold, record the
+        // wall-clock time so IsApprovedAndTimelocked can enforce the configured timelock.
+        // Only record on the *first* threshold-reach (current < threshold && next >= threshold)
+        // so a later vote past threshold can't reset the timer.
+        var threshold = GetThreshold();
+        if (threshold > 0 && current < threshold && next >= threshold)
+        {
+            var approvedAtKey = ProposalIdKey(PrefixApprovedAt, proposalId);
+            if (Storage.Get(approvedAtKey) == null)
+            {
+                // Runtime.Time is in milliseconds since unix epoch; we store the same
+                // unit so IsApprovedAndTimelocked can compare directly. Timelock seconds
+                // is converted to ms there.
+                Storage.Put(approvedAtKey, (BigInteger)Runtime.Time);
+            }
+        }
         return next;
+    }
+
+    /// <summary>
+    /// Wall-clock time (Runtime.Time, ms since epoch) at which the proposal first reached
+    /// <see cref="GetThreshold"/> approvals. Returns 0 if never crossed. Used by
+    /// <see cref="IsApprovedAndTimelocked"/> to gate verifier / bridge upgrade execution.
+    /// </summary>
+    [Safe]
+    public static ulong GetApprovedAt(ulong proposalId)
+    {
+        var raw = Storage.Get(ProposalIdKey(PrefixApprovedAt, proposalId));
+        return raw == null ? 0UL : (ulong)(BigInteger)raw;
+    }
+
+    /// <summary>
+    /// True iff the proposal has reached the M-of-N approval threshold AND the configured
+    /// timelock has elapsed since first-threshold-reach. Verifier / bridge upgrades on
+    /// other contracts call this via <c>Contract.Call</c> as the §16 council-veto gate.
+    /// </summary>
+    /// <remarks>
+    /// Threshold reach without elapsed timelock returns false — that's the window where
+    /// the security council can still raise an alarm and revert / re-approve.
+    /// </remarks>
+    [Safe]
+    public static bool IsApprovedAndTimelocked(ulong proposalId)
+    {
+        var approvedAt = GetApprovedAt(proposalId);
+        if (approvedAt == 0UL) return false;
+        var timelockSeconds = GetTimelockSeconds();
+        // Runtime.Time is ms; timelock is seconds → multiply to compare on the same scale.
+        ulong timelockMs = (ulong)timelockSeconds * 1000UL;
+        return Runtime.Time >= approvedAt + timelockMs;
+    }
+
+    private static byte[] ProposalIdKey(byte prefix, ulong id)
+    {
+        var k = new byte[1 + 8];
+        k[0] = prefix;
+        k[1] = (byte)id; k[2] = (byte)(id >> 8); k[3] = (byte)(id >> 16); k[4] = (byte)(id >> 24);
+        k[5] = (byte)(id >> 32); k[6] = (byte)(id >> 40); k[7] = (byte)(id >> 48); k[8] = (byte)(id >> 56);
+        return k;
     }
 
     private static byte[] ProposalKey(ulong id)

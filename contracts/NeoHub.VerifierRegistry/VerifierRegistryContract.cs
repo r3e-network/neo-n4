@@ -20,6 +20,8 @@ namespace NeoHub.VerifierRegistry;
 public class VerifierRegistryContract : SmartContract
 {
     private const byte PrefixVerifier = 0x01;   // 0x01 + proofType(1B) → UInt160 verifier
+    private const byte KeyGovernanceController = 0x02;
+    private const byte PrefixConsumedProposal = 0x03;  // 0x03 + proposalId(8B) → 1 (replay protection)
     private const byte KeyOwner = 0xFF;
 
     /// <summary>
@@ -49,10 +51,73 @@ public class VerifierRegistryContract : SmartContract
         return raw == null ? UInt160.Zero : (UInt160)raw;
     }
 
-    /// <summary>Bind a verifier contract to a <c>ProofType</c>. Owner only.</summary>
+    /// <summary>Bind a verifier contract to a <c>ProofType</c>. Owner only — the §16
+    /// council-veto path is <see cref="RegisterVerifierViaProposal"/>.</summary>
     public static void RegisterVerifier(byte proofType, UInt160 verifier)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        WriteVerifier(proofType, verifier);
+    }
+
+    /// <summary>Wire the GovernanceController contract hash that
+    /// <see cref="RegisterVerifierViaProposal"/> consults for the §16 council-veto +
+    /// timelock check. Owner only.</summary>
+    public static void SetGovernanceController(UInt160 governanceController)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(governanceController.IsValid && !governanceController.IsZero,
+            "invalid governance controller");
+        Storage.Put(new byte[] { KeyGovernanceController }, governanceController);
+    }
+
+    /// <summary>Look up the wired GovernanceController hash, or <see cref="UInt160.Zero"/>
+    /// if not yet set.</summary>
+    [Safe]
+    public static UInt160 GetGovernanceController()
+    {
+        var raw = Storage.Get(new byte[] { KeyGovernanceController });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>
+    /// Apply a verifier registration that has been approved by the GovernanceController
+    /// council and has cleared the configured timelock — the §16 council-veto path.
+    /// Anyone may submit; the proof of authority is the proposal's approval state, not
+    /// the caller's witness.
+    /// </summary>
+    /// <remarks>
+    /// Replay-protected per <paramref name="proposalId"/>: a single approved proposal can
+    /// be applied at most once. The (proofType, verifier) pair is supplied as args rather
+    /// than decoded from the proposal payload — payload format is operator-specific. The
+    /// off-chain side ensures the args match what the council voted on; this contract just
+    /// gates execution on "the proposal is approved + timelocked".
+    /// </remarks>
+    public static void RegisterVerifierViaProposal(byte proofType, UInt160 verifier, ulong proposalId)
+    {
+        var gc = GetGovernanceController();
+        ExecutionEngine.Assert(gc != UInt160.Zero,
+            "governance controller not wired — owner must call SetGovernanceController first");
+
+        // Replay protection.
+        var consumedKey = new byte[1 + 8];
+        consumedKey[0] = PrefixConsumedProposal;
+        consumedKey[1] = (byte)proposalId; consumedKey[2] = (byte)(proposalId >> 8);
+        consumedKey[3] = (byte)(proposalId >> 16); consumedKey[4] = (byte)(proposalId >> 24);
+        consumedKey[5] = (byte)(proposalId >> 32); consumedKey[6] = (byte)(proposalId >> 40);
+        consumedKey[7] = (byte)(proposalId >> 48); consumedKey[8] = (byte)(proposalId >> 56);
+        ExecutionEngine.Assert(Storage.Get(consumedKey) == null, "proposal already consumed");
+
+        var ok = (bool)Contract.Call(gc, "isApprovedAndTimelocked",
+            CallFlags.ReadOnly, new object[] { proposalId });
+        ExecutionEngine.Assert(ok,
+            "proposal not approved + timelocked (council multisig + timelock not satisfied)");
+
+        Storage.Put(consumedKey, new byte[] { 1 });
+        WriteVerifier(proofType, verifier);
+    }
+
+    private static void WriteVerifier(byte proofType, UInt160 verifier)
+    {
         ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero, "invalid verifier");
         // ProofType range: None(0)/Multisig(1)/Optimistic(2)/Zk(3). Reject 0 because
         // "no proof" can't be verified by anything; reject >3 because off-chain code

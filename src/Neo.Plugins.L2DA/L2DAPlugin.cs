@@ -96,7 +96,9 @@ public sealed class L2DAPlugin : Plugin
             DAMode.External => new InMemoryDAWriter(),
             DAMode.NeoFS => new NeoFsLikeDAWriter(),
             DAMode.L1 => throw new NotSupportedException(
-                "DAMode.L1 has no built-in default writer — provide an L1-RPC-backed IDAWriter via WithWriter() or set DataDirectory in config before Configure()"),
+                "DAMode.L1 has no zero-config default writer (operator must supply RPC client + signer). " +
+                "Construct Neo.Plugins.L2DA.JsonRpcL1DAWriter(rpc, daContractHash, signAndSend) and pass it to WithWriter() before Configure(); " +
+                "or set DataDirectory in config to use the local PersistentDAWriter fallback."),
             DAMode.DAC => throw new NotSupportedException(
                 "DAMode.DAC has no built-in default writer — provide a committee-attestation IDAWriter via WithWriter() before Configure()"),
             // ResolveDAMode guarantees we don't hit this; kept as a defense-in-depth assert.

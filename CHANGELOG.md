@@ -242,6 +242,24 @@ two new boundary tests pin Validium-acceptance + out-of-range-rejection.
 
 Cumulative: 918 tests / 27 projects.
 
+### Added — `samples/`: 4 runnable L2 chain configs covering distinct use cases
+
+Each sample is the same JSON shape `neo-stack create-chain` writes; drop into
+`neo-l2-devnet --config <path>` to preview the §16.2 label end-to-end before
+deploying to L1. Each sample documents (in a `_comment` field) the trade-offs
+its dimension choices encode.
+
+  - `general-rollup` (chainId 1100): general-purpose Neo L2 — the safe default
+  - `gaming-rollup` (chainId 1200): high-frequency gaming chain (centralized
+    sequencer for sub-second seal + External DA)
+  - `exchange-validium` (chainId 1300): DEX / orderbook (ZK + NeoFS off-chain
+    DA + delayed exit + gateway-enabled)
+  - `privacy-sidechain` (chainId 1400): permissioned consortium (SidechainMode,
+    no proof, sidechain trust)
+
+All four verified ✅ devnet run complete with distinct getsecuritylabel
+output. `samples/README.md` tabulates each + when to start from each.
+
 ### Changed — `neo-stack register-chain` emits canonical configBytes hex
 
 Composes the new `L2ChainConfigSerializer` with the operator-supplied L1

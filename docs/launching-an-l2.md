@@ -74,6 +74,11 @@ All templates default to `sequencerModel: DbftCommittee` (Neo-native one-block
 finality). All can be edited post-`create-chain` — the JSON is operator
 property.
 
+For ready-to-run sample configs covering distinct use cases (general-purpose
+DeFi rollup / gaming chain / DEX validium / privacy sidechain), see
+[`samples/`](../samples/README.md). Each sample is verified end-to-end via
+`neo-l2-devnet --config samples/<name>.config.json`.
+
 ---
 
 ## Architecture: where custom logic plugs in

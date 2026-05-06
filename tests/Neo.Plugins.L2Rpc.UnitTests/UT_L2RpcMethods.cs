@@ -383,4 +383,60 @@ public class UT_L2RpcMethods
         Assert.IsTrue(obj["consumedOnL2"]!.AsBoolean());
         Assert.AreEqual(3UL, (ulong)obj["includedInBatch"]!.AsNumber());
     }
+
+    /// <summary>
+    /// Minimal third-party <see cref="IL2RpcStore"/> implementation that only implements
+    /// the required interface members — the §16.2 dimension properties (DAMode /
+    /// GatewayEnabled / Sequencer / Exit) are covered by the interface's default-method
+    /// bodies. Pinning these defaults explicitly catches a refactor that changes the
+    /// "strongest-default" (e.g. flipping DAMode default to L1, which would mislead
+    /// every third-party implementation that didn't override).
+    /// </summary>
+    private sealed class MinimalRpcStore : IL2RpcStore
+    {
+        public uint ChainId => 1001;
+        public SecurityLevel SecurityLevel => SecurityLevel.Optimistic;
+        public L2BatchCommitment? GetBatch(ulong batchNumber) => null;
+        public BatchStatus GetBatchStatus(ulong batchNumber) => BatchStatus.Unknown;
+        public UInt256 GetLatestStateRoot() => UInt256.Zero;
+        public UInt256 GetStateRootAtBatch(ulong batchNumber) => UInt256.Zero;
+        public ReadOnlyMemory<byte>? GetWithdrawalProof(UInt256 leafHash) => null;
+        public ReadOnlyMemory<byte>? GetMessageProof(UInt256 messageHash) => null;
+        public DepositStatus? GetL1DepositStatus(uint sourceChainId, ulong nonce) => null;
+        public UInt160? GetCanonicalAsset(UInt160 l2Asset) => null;
+        public UInt160? GetBridgedAsset(UInt160 l1Asset) => null;
+    }
+
+    [TestMethod]
+    public void IL2RpcStore_DefaultInterfaceMethods_ReturnDocumentedDefaults()
+    {
+        // Pin the §16.2 dimension default values exposed via IL2RpcStore default-method
+        // bodies. Third-party stores that don't override see these — a future change to
+        // any default would silently shift every external operator's getsecuritylabel
+        // output. Defaults match L2ChainConfig record's init defaults.
+        IL2RpcStore store = new MinimalRpcStore();
+
+        Assert.AreEqual(DAMode.External, store.DAMode);
+        Assert.IsFalse(store.GatewayEnabled);
+        Assert.AreEqual(SequencerModel.DbftCommittee, store.Sequencer);
+        Assert.AreEqual(ExitModel.Permissionless, store.Exit);
+    }
+
+    [TestMethod]
+    public void GetSecurityLabel_OnMinimalRpcStore_ReflectsDefaults()
+    {
+        // End-to-end: a third-party IL2RpcStore that only implements required members
+        // surfaces the documented defaults through getsecuritylabel without any extra
+        // wiring. This is the operator-friendly path — third parties don't need to know
+        // about the new properties to deploy the L2RpcMethods.
+        IL2RpcStore store = new MinimalRpcStore();
+        var methods = new L2RpcMethods(store);
+        var obj = (JObject)methods.GetSecurityLabel(new JArray { 1001 })!;
+
+        Assert.AreEqual("Optimistic", obj["securityLevelName"]!.AsString());
+        Assert.AreEqual("External", obj["daModeName"]!.AsString());
+        Assert.IsFalse(obj["gatewayEnabled"]!.AsBoolean());
+        Assert.AreEqual("DbftCommittee", obj["sequencerName"]!.AsString());
+        Assert.AreEqual("Permissionless", obj["exitName"]!.AsString());
+    }
 }

@@ -131,6 +131,32 @@ public sealed class L2RpcMethods
         return obj;
     });
 
+    /// <summary>RPC: <c>getsecuritylabel</c> — full 5-dimension §16.2 label.</summary>
+    /// <remarks>
+    /// doc.md §16.2 mandates each L2 publish 5 security label dimensions so users + bridges
+    /// can assess trust posture at a glance. <c>getsecuritylevel</c> returns only the chainType
+    /// dimension; this method exposes all five (security level / DA mode / gateway-enabled /
+    /// sequencer model / exit model). Mirrors the on-chain <c>ChainRegistry.getSequencerModel</c>
+    /// + <c>getExitModel</c> readers.
+    /// </remarks>
+    public JToken? GetSecurityLabel(JArray @params) => Time("getsecuritylabel", () =>
+    {
+        var chainId = ReadUInt(@params, 0);
+        AssertOurChain(chainId);
+        var obj = new JObject();
+        obj["chainId"] = chainId;
+        obj["securityLevel"] = (byte)_store.SecurityLevel;
+        obj["securityLevelName"] = _store.SecurityLevel.ToString();
+        obj["daMode"] = (byte)_store.DAMode;
+        obj["daModeName"] = _store.DAMode.ToString();
+        obj["gatewayEnabled"] = _store.GatewayEnabled;
+        obj["sequencer"] = (byte)_store.Sequencer;
+        obj["sequencerName"] = _store.Sequencer.ToString();
+        obj["exit"] = (byte)_store.Exit;
+        obj["exitName"] = _store.Exit.ToString();
+        return obj;
+    });
+
     private JToken? Time(string method, Func<JToken?> body)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();

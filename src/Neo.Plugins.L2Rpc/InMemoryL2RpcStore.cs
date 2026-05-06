@@ -38,6 +38,18 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore, IDisposable
     /// <inheritdoc />
     public SecurityLevel SecurityLevel { get; }
 
+    /// <inheritdoc />
+    public DAMode DAMode { get; init; } = DAMode.External;
+
+    /// <inheritdoc />
+    public bool GatewayEnabled { get; init; }
+
+    /// <inheritdoc />
+    public SequencerModel Sequencer { get; init; } = SequencerModel.DbftCommittee;
+
+    /// <inheritdoc />
+    public ExitModel Exit { get; init; } = ExitModel.Permissionless;
+
     /// <summary>Construct with the chain id, security label, and a default in-memory proof store.</summary>
     public InMemoryL2RpcStore(uint chainId, SecurityLevel level)
         : this(chainId, level, new InMemoryKeyValueStore(), ownsProofs: true) { }

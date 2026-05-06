@@ -116,6 +116,58 @@ public class UT_L2RpcMethods
     }
 
     [TestMethod]
+    public void GetSecurityLabel_ExposesAllFiveDimensions_FromDefaults()
+    {
+        // doc.md §16.2 mandates 5 security label dimensions. Without explicitly setting
+        // the new init properties, callers should see the documented sane defaults
+        // (matches the L2ChainConfig record's defaults + the on-chain "0" sentinel).
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
+        var methods = new L2RpcMethods(store);
+        var obj = (JObject)methods.GetSecurityLabel(new JArray { 1001 })!;
+
+        Assert.AreEqual(1001U, (uint)obj["chainId"]!.AsNumber());
+        Assert.AreEqual((byte)SecurityLevel.Optimistic, (byte)obj["securityLevel"]!.AsNumber());
+        Assert.AreEqual("Optimistic", obj["securityLevelName"]!.AsString());
+        Assert.AreEqual((byte)DAMode.External, (byte)obj["daMode"]!.AsNumber());
+        Assert.AreEqual("External", obj["daModeName"]!.AsString());
+        Assert.IsFalse(obj["gatewayEnabled"]!.AsBoolean());
+        Assert.AreEqual((byte)SequencerModel.DbftCommittee, (byte)obj["sequencer"]!.AsNumber());
+        Assert.AreEqual("DbftCommittee", obj["sequencerName"]!.AsString());
+        Assert.AreEqual((byte)ExitModel.Permissionless, (byte)obj["exit"]!.AsNumber());
+        Assert.AreEqual("Permissionless", obj["exitName"]!.AsString());
+    }
+
+    [TestMethod]
+    public void GetSecurityLabel_ReflectsOverrides()
+    {
+        // A validium operator overrides DA + Exit; a centralized-sequencer operator
+        // overrides Sequencer. The label RPC must surface those.
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Validity)
+        {
+            DAMode = DAMode.NeoFS,
+            GatewayEnabled = true,
+            Sequencer = SequencerModel.Centralized,
+            Exit = ExitModel.Delayed,
+        };
+        var methods = new L2RpcMethods(store);
+        var obj = (JObject)methods.GetSecurityLabel(new JArray { 1001 })!;
+
+        Assert.AreEqual((byte)DAMode.NeoFS, (byte)obj["daMode"]!.AsNumber());
+        Assert.IsTrue(obj["gatewayEnabled"]!.AsBoolean());
+        Assert.AreEqual((byte)SequencerModel.Centralized, (byte)obj["sequencer"]!.AsNumber());
+        Assert.AreEqual("Centralized", obj["sequencerName"]!.AsString());
+        Assert.AreEqual((byte)ExitModel.Delayed, (byte)obj["exit"]!.AsNumber());
+    }
+
+    [TestMethod]
+    public void GetSecurityLabel_RejectsForeignChainId()
+    {
+        var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
+        var methods = new L2RpcMethods(store);
+        Assert.ThrowsExactly<ArgumentException>(() => methods.GetSecurityLabel(new JArray { 9999 }));
+    }
+
+    [TestMethod]
     public void RejectsForeignChainId()
     {
         var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);

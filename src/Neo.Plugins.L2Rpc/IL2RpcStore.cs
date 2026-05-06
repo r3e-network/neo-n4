@@ -14,6 +14,23 @@ public interface IL2RpcStore
     /// <summary>The chain's published security level (matches ChainRegistry's).</summary>
     SecurityLevel SecurityLevel { get; }
 
+    /// <summary>The chain's published DA mode (doc.md §16.2 dimension 2).</summary>
+    /// <remarks>Default <c>External</c> keeps existing implementations source-compatible;
+    /// production stores override.</remarks>
+    DAMode DAMode => DAMode.External;
+
+    /// <summary>True if the chain participates in Neo Gateway proof aggregation
+    /// (doc.md §4 + §16.2).</summary>
+    bool GatewayEnabled => false;
+
+    /// <summary>The chain's sequencer model (doc.md §16.2 dimension 4). Default
+    /// <see cref="SequencerModel.DbftCommittee"/> matches Neo's native dBFT.</summary>
+    SequencerModel Sequencer => SequencerModel.DbftCommittee;
+
+    /// <summary>The chain's exit model (doc.md §16.2 dimension 5). Default
+    /// <see cref="ExitModel.Permissionless"/> matches <c>EmergencyManager.EscapeHatchExit*</c>.</summary>
+    ExitModel Exit => ExitModel.Permissionless;
+
     /// <summary>Look up a sealed batch commitment by its number.</summary>
     L2BatchCommitment? GetBatch(ulong batchNumber);
 

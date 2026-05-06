@@ -76,7 +76,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**820 unit + integration tests across 26 projects:**
+**827 unit + integration tests across 26 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -95,7 +95,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.L2.Audit.UnitTests`             | 51    | continuity + proof-validity + **public-input-hash consistency** checks, summary, `NoZeroProofCheck`, **`ChainAuditor` self-emits runs + failures (delta = failed-finding count), strict-ascending duplicate-rejection, `AuditReport.Passed` non-empty guard, `ProofValidityCheck` null-guard, `DAAvailabilityCheck` (all-available, one-missing, zero-commitment-skipped, mixed, null-arg guards, stable name), `BatchRangeCheck` (valid-range / inverted-range / zero-batch-number / empty-list / multi-failure / null-arg / stable name)** |
 | `Neo.Plugins.L2Rpc.UnitTests`        | 35    | all 9 RPC methods, foreign-chain rejection, **per-method metric emission (calls/latency/failures), too-few-params clear-error, oversized-chainId overflow, monotonic `_latestStateRoot` on out-of-order Finalize, persistence reopen pins** |
 | `Neo.Plugins.L2DA.UnitTests`         | 64    | InMemory + NeoFsLike DA writers + **MetricsEmittingDAWriter (success / throw / accumulate / passthrough), `ResolveDAMode` accepts 0..3 / rejects unknown, all DAWriter null-arg paths, `L2DAPlugin` default-writer / `WithWriter` injection, `CommitteeAttestedDAWriter` round-trip + tampered-sig + null-arg + buggy-callback contracts, `BuildDefaultWriter` (External/NeoFS/L1/DAC × dataDir-set/null/empty/whitespace boundary), `PersistentDAWriter` (RocksDB-backed: round-trip + configured-mode-flow + cross-instance reopen pin + unknown-commitment / null-store / null-request / null-receipt / null-commitment guards + defensive-copy + dispose-owning-vs-borrowed semantics + default-mode = External)** |
-| `Neo.Plugins.L2Gateway.UnitTests`    | 32    | flat + binary-tree aggregator, edge cases, **metric emission with rounds=log2(N) + per-batch accumulation** |
+| `Neo.Plugins.L2Gateway.UnitTests`    | 39    | flat + binary-tree aggregator, edge cases, **metric emission with rounds=log2(N) + per-batch accumulation, `PassThroughRoundProver` round-prover-level pinning (BackendId=0xFE constant, right-null odd-leaf rule, Hash256 message-root composition, [4B leftLen][bytes][4B rightLen][bytes] proof byte layout, both-empty-proof envelope, asymmetry, null-left rejection)** |
 | `Neo.Plugins.L2Metrics.UnitTests`    | 18    | composition root: bound port, idempotent Start, real HTTP scrape, readiness predicate gating, default settings, **`ResolveBindAddress` boundary tests, concurrent-Start race-safety, `ValidatePort` boundary tests** |
 | `Neo.Plugins.L2Batch.UnitTests`      | 21    | `BatchSealer` block / tx / age triggers, batch-number monotonicity, gauge replace, NoOp default, **`ValidatePositive` boundary tests** |
 | `Neo.Plugins.L2Bridge.UnitTests`     | 8     | `L2BridgePlugin` lifecycle, asset registration, default behavior |

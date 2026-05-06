@@ -160,7 +160,7 @@ print structured operator plans rather than performing the wallet-side submissio
 ## Quick commands
 
 ```bash
-# Type-check + run all 820 tests
+# Type-check + run all 827 tests
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Devnet demonstration with audit pass

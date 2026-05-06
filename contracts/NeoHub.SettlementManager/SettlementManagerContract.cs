@@ -176,8 +176,8 @@ public class SettlementManagerContract : SmartContract
     }
 
     /// <summary>
-    /// True if <paramref name="leafHash"/> is the withdrawal root (or root prefix) of any
-    /// finalized batch on <paramref name="chainId"/>. Used by SharedBridge.FinalizeWithdrawal.
+    /// True if <paramref name="leafHash"/> is the withdrawal root of the latest finalized batch
+    /// on <paramref name="chainId"/>. Used by SharedBridge.FinalizeWithdrawal.
     /// </summary>
     /// <remarks>
     /// MVP version: just confirms that the latest finalized batch's withdrawalRoot equals the
@@ -188,7 +188,31 @@ public class SettlementManagerContract : SmartContract
     public static bool VerifyWithdrawalLeaf(uint chainId, UInt256 leafHash)
     {
         var latest = GetLatestFinalizedBatch(chainId);
-        var raw = Storage.Get(WithdrawalRootKey(chainId, latest));
+        return VerifyWithdrawalLeafAt(chainId, latest, leafHash);
+    }
+
+    /// <summary>
+    /// True if <paramref name="leafHash"/> is the withdrawal root of finalized batch
+    /// <paramref name="batchNumber"/> on <paramref name="chainId"/>. Lets a withdrawal anchored
+    /// in an older batch finalize even after newer batches have shipped.
+    /// </summary>
+    /// <remarks>
+    /// MVP same shape as <see cref="VerifyWithdrawalLeaf"/>: leaf-hash must equal the stored
+    /// batch withdrawalRoot. Production extension: combine with off-chain Merkle proof
+    /// verification (the leaf is a single withdrawal entry hash, not the whole tree root) by
+    /// folding siblings on-chain.
+    /// </remarks>
+    [Safe]
+    public static bool VerifyWithdrawalLeafAt(uint chainId, ulong batchNumber, UInt256 leafHash)
+    {
+        // Status check: only Finalized batches' roots are valid for withdrawals. Without it,
+        // a Pending or Challengeable batch's root could authorize a premature withdraw.
+        var statusRaw = Storage.Get(StatusKey(chainId, batchNumber));
+        if (statusRaw == null) return false;
+        var status = ((byte[])statusRaw)[0];
+        if (status != StatusFinalized) return false;
+
+        var raw = Storage.Get(WithdrawalRootKey(chainId, batchNumber));
         if (raw == null) return false;
         var root = (UInt256)raw;
         return root.Equals(leafHash);

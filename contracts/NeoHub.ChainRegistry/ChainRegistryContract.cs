@@ -26,6 +26,10 @@ public class ChainRegistryContract : SmartContract
     /// <summary>Storage prefix for the index of all registered chain ids.</summary>
     private const byte PrefixChainIndex = 0x02;
 
+    /// <summary>Storage key for the GovernanceController contract hash. Set post-deploy by
+    /// the owner; consulted by <see cref="RegisterChainPublic"/> for §16.1 admission policy.</summary>
+    private const byte KeyGovernanceController = 0x03;
+
     /// <summary>Storage key for the owner address.</summary>
     private const byte KeyOwner = 0xFF;
 
@@ -72,10 +76,72 @@ public class ChainRegistryContract : SmartContract
         Storage.Put(new byte[] { KeyOwner }, newOwner);
     }
 
-    /// <summary>Register a new L2 chain. Owner only. Idempotent on chainId.</summary>
+    /// <summary>Register a new L2 chain. Owner only (the §16.1 "permissioned" admission
+    /// path). Idempotent on chainId. <see cref="RegisterChainPublic"/> is the
+    /// non-owner path gated by GovernanceController's admission mode.</summary>
     public static void RegisterChain(uint chainId, byte[] configBytes)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        WriteChainConfig(chainId, configBytes);
+    }
+
+    /// <summary>Wire the GovernanceController contract hash that <see cref="RegisterChainPublic"/>
+    /// consults for the §16.1 admission policy. Owner only.</summary>
+    public static void SetGovernanceController(UInt160 governanceController)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(governanceController.IsValid && !governanceController.IsZero,
+            "invalid governance controller");
+        Storage.Put(new byte[] { KeyGovernanceController }, governanceController);
+    }
+
+    /// <summary>Look up the wired GovernanceController hash, or <see cref="UInt160.Zero"/>
+    /// if not yet set.</summary>
+    [Safe]
+    public static UInt160 GetGovernanceController()
+    {
+        var raw = Storage.Get(new byte[] { KeyGovernanceController });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>
+    /// Permissionless / semi-permissionless registration path (§16.1). Reads the admission
+    /// mode from <see cref="GetGovernanceController"/>:
+    /// <list type="bullet">
+    ///   <item><description>mode 0 (permissioned) → reject with a clear "use RegisterChain" hint</description></item>
+    ///   <item><description>mode 1 (semi-permissionless) → defer until the GovernanceController
+    ///   approved-verifier / approved-bridge sets are wired (§16.1-approved-sets in the
+    ///   plan)</description></item>
+    ///   <item><description>mode 2 (permissionless) → any caller, with the standard
+    ///   chainId / size / consistency checks</description></item>
+    /// </list>
+    /// </summary>
+    public static void RegisterChainPublic(uint chainId, byte[] configBytes)
+    {
+        var gc = GetGovernanceController();
+        ExecutionEngine.Assert(gc != UInt160.Zero,
+            "governance controller not wired — owner must call SetGovernanceController first");
+        var mode = (byte)(BigInteger)Contract.Call(gc, "getAdmissionMode",
+            CallFlags.ReadOnly, new object[0]);
+        if (mode == 0)
+        {
+            ExecutionEngine.Assert(false,
+                "admission mode = permissioned; use RegisterChain (owner-only)");
+        }
+        else if (mode == 1)
+        {
+            // semi-permissionless: pending the approved-set contract methods.
+            // Bail explicitly with a clear message rather than silently allowing
+            // since we can't yet check the approval requirement.
+            ExecutionEngine.Assert(false,
+                "admission mode = semi-permissionless; approved-verifier / approved-bridge sets not yet wired");
+        }
+        // mode 2 (permissionless) falls through to the same write path.
+        WriteChainConfig(chainId, configBytes);
+    }
+
+    private static void WriteChainConfig(uint chainId, byte[] configBytes)
+    {
         // chainId 0 is the L1 sentinel (see L2Outbox.L1ChainId) — registering a chain
         // with id 0 would silently break L2→L2 routing for every other chain.
         ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");

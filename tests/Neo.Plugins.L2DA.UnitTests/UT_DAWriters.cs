@@ -250,6 +250,29 @@ public class UT_DAWriters
     }
 
     [TestMethod]
+    public async Task L2DAPlugin_WithMetrics_PropagatesToWriter()
+    {
+        // L2DAPlugin.WithMetrics unwraps any existing decorator and re-wraps the inner
+        // writer with the new metrics. Without that, an operator who swaps the metrics
+        // sink mid-flight gets silent metric loss for every subsequent publish (the
+        // outer decorator stays bound to the old sink). UT_MetricsEmittingDAWriter
+        // pins the wrapper-level invariant; this pins the plugin-level call path.
+        using var plugin = new L2DAPlugin();
+        var captured = new InMemoryMetrics();
+        plugin.WithMetrics(captured);
+
+        await plugin.GetWriter().PublishAsync(new DAPublishRequest
+        {
+            ChainId = 1001,
+            BatchNumber = 1,
+            Payload = new byte[] { 0x01, 0x02 },
+        });
+
+        Assert.AreEqual(1, captured.GetCounter(MetricNames.DAPublished, ("mode", "External")),
+            "plugin's WithMetrics must wire the captured sink onto the active writer");
+    }
+
+    [TestMethod]
     public void BuildDefaultWriter_External_NoDataDir_ReturnsInMemory()
     {
         // Pin the dev/test default — the bare External mode without a DataDirectory

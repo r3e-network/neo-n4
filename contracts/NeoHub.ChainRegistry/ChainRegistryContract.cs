@@ -53,6 +53,18 @@ public class ChainRegistryContract : SmartContract
     /// </summary>
     public const int ConfigSize = 4 + 20 * 4 + 7;
 
+    /// <summary>Offset of the securityLevel byte within the encoded config.</summary>
+    public const int OffsetSecurityLevel = 84;
+
+    /// <summary>Offset of the daMode byte within the encoded config.</summary>
+    public const int OffsetDAMode = 85;
+
+    /// <summary>Offset of the gatewayEnabled flag byte within the encoded config.</summary>
+    public const int OffsetGatewayEnabled = 86;
+
+    /// <summary>Offset of the permissionlessExit flag byte within the encoded config.</summary>
+    public const int OffsetPermissionlessExit = 87;
+
     /// <summary>Offset of the sequencerModel byte within the encoded config.</summary>
     public const int OffsetSequencerModel = 88;
 
@@ -248,6 +260,45 @@ public class ChainRegistryContract : SmartContract
         if (raw == null) return false;
         var bytes = (byte[])raw;
         return bytes[ConfigSize - 1] == 1;
+    }
+
+    /// <summary>Read the securityLevel byte (doc.md §16.2). Returns 0 (Sidechain — the
+    /// strongest-default trust posture) if the chain is not registered.</summary>
+    [Safe]
+    public static byte GetSecurityLevel(uint chainId)
+    {
+        var raw = Storage.Get(ConfigKey(chainId));
+        if (raw == null) return 0;
+        return ((byte[])raw)[OffsetSecurityLevel];
+    }
+
+    /// <summary>Read the daMode byte (doc.md §12.1). Returns 0 (L1 — the highest-security
+    /// default) if the chain is not registered.</summary>
+    [Safe]
+    public static byte GetDAMode(uint chainId)
+    {
+        var raw = Storage.Get(ConfigKey(chainId));
+        if (raw == null) return 0;
+        return ((byte[])raw)[OffsetDAMode];
+    }
+
+    /// <summary>Read the gatewayEnabled flag. Returns false if the chain is not registered.</summary>
+    [Safe]
+    public static bool GetGatewayEnabled(uint chainId)
+    {
+        var raw = Storage.Get(ConfigKey(chainId));
+        if (raw == null) return false;
+        return ((byte[])raw)[OffsetGatewayEnabled] == 1;
+    }
+
+    /// <summary>Read the permissionlessExit flag. Returns false if the chain is not registered
+    /// (defaults to operator-gated for safety).</summary>
+    [Safe]
+    public static bool GetPermissionlessExit(uint chainId)
+    {
+        var raw = Storage.Get(ConfigKey(chainId));
+        if (raw == null) return false;
+        return ((byte[])raw)[OffsetPermissionlessExit] == 1;
     }
 
     /// <summary>Read the sequencerModel byte (doc.md §16.2). Returns 0 (Centralized) if

@@ -130,11 +130,26 @@ public class ChainRegistryContract : SmartContract
         }
         else if (mode == 1)
         {
-            // semi-permissionless: pending the approved-set contract methods.
-            // Bail explicitly with a clear message rather than silently allowing
-            // since we can't yet check the approval requirement.
-            ExecutionEngine.Assert(false,
-                "admission mode = semi-permissionless; approved-verifier / approved-bridge sets not yet wired");
+            // semi-permissionless: any caller, but the L2's declared verifier + bridgeAdapter
+            // must both be in the GovernanceController's approved sets. The config layout
+            // is "[4B chainId][20B operator][20B verifier][20B bridge][20B msg]...":
+            // verifier at offset 24..43, bridge at 44..63.
+            ExecutionEngine.Assert(configBytes.Length >= 64, "config too short for verifier+bridge read");
+            var verifierBytes = new byte[20];
+            var bridgeBytes = new byte[20];
+            for (var i = 0; i < 20; i++) verifierBytes[i] = configBytes[24 + i];
+            for (var i = 0; i < 20; i++) bridgeBytes[i] = configBytes[44 + i];
+            var verifier = (UInt160)verifierBytes;
+            var bridge = (UInt160)bridgeBytes;
+
+            var verifierApproved = (bool)Contract.Call(gc, "isApprovedVerifier",
+                CallFlags.ReadOnly, new object[] { verifier });
+            ExecutionEngine.Assert(verifierApproved,
+                "verifier not in GovernanceController approved set (semi-permissionless mode)");
+            var bridgeApproved = (bool)Contract.Call(gc, "isApprovedBridgeAdapter",
+                CallFlags.ReadOnly, new object[] { bridge });
+            ExecutionEngine.Assert(bridgeApproved,
+                "bridge adapter not in GovernanceController approved set (semi-permissionless mode)");
         }
         // mode 2 (permissionless) falls through to the same write path.
         WriteChainConfig(chainId, configBytes);

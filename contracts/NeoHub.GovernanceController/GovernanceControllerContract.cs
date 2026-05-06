@@ -29,6 +29,8 @@ public class GovernanceControllerContract : SmartContract
     private const byte PrefixProposal = 0x06;             // 0x06 + proposalId(8B) → encoded proposal
     private const byte PrefixApproval = 0x07;             // 0x07 + proposalId(8B) + memberKey(33B) → 1
     private const byte KeyNextProposalId = 0x08;
+    private const byte PrefixApprovedVerifier = 0x0A;    // 0x0A + verifierHash(20B) → 1   (§16.1 semi-permissionless gate)
+    private const byte PrefixApprovedBridge = 0x0B;      // 0x0B + bridgeHash(20B) → 1     (§16.1 semi-permissionless gate)
     private const byte KeyOwner = 0xFF;
 
     /// <summary>Emitted whenever a proposal is registered.</summary>
@@ -195,6 +197,86 @@ public class GovernanceControllerContract : SmartContract
         k[5] = (byte)(id >> 32); k[6] = (byte)(id >> 40); k[7] = (byte)(id >> 48); k[8] = (byte)(id >> 56);
         var pk = (byte[])memberKey;
         for (var j = 0; j < 33; j++) k[9 + j] = pk[j];
+        return k;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // §16.1 semi-permissionless admission gate: approved verifier + bridge sets
+    //
+    // ChainRegistry.RegisterChainPublic consults these sets when admission mode
+    // is 1 (semi-permissionless). An L2 can register without owner approval if
+    // its declared verifier + bridgeAdapter both appear in the approved sets.
+    // The owner curates the sets — this is the operational lever that lets
+    // governance say "we trust these verifier implementations and these bridge
+    // adapters, anyone using them is welcome."
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Approve a verifier contract for §16.1 semi-permissionless admission. Owner only.</summary>
+    public static void ApproveVerifier(UInt160 verifier)
+    {
+        ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero, "invalid verifier");
+        var owner = (UInt160)(Storage.Get(new byte[] { KeyOwner }) ?? throw new Exception("owner unset"));
+        ExecutionEngine.Assert(Runtime.CheckWitness(owner), "not authorized");
+        Storage.Put(VerifierKey(verifier), new byte[] { 1 });
+    }
+
+    /// <summary>Revoke a previously-approved verifier. Owner only. Does not affect chains
+    /// already registered under this verifier — only future <c>RegisterChainPublic</c> calls.</summary>
+    public static void RevokeVerifier(UInt160 verifier)
+    {
+        ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero, "invalid verifier");
+        var owner = (UInt160)(Storage.Get(new byte[] { KeyOwner }) ?? throw new Exception("owner unset"));
+        ExecutionEngine.Assert(Runtime.CheckWitness(owner), "not authorized");
+        Storage.Delete(VerifierKey(verifier));
+    }
+
+    /// <summary>True if <paramref name="verifier"/> is in the approved-verifier set.</summary>
+    [Safe]
+    public static bool IsApprovedVerifier(UInt160 verifier)
+    {
+        return Storage.Get(VerifierKey(verifier)) != null;
+    }
+
+    /// <summary>Approve a bridge-adapter contract for §16.1 semi-permissionless admission. Owner only.</summary>
+    public static void ApproveBridgeAdapter(UInt160 bridge)
+    {
+        ExecutionEngine.Assert(bridge.IsValid && !bridge.IsZero, "invalid bridge");
+        var owner = (UInt160)(Storage.Get(new byte[] { KeyOwner }) ?? throw new Exception("owner unset"));
+        ExecutionEngine.Assert(Runtime.CheckWitness(owner), "not authorized");
+        Storage.Put(BridgeKey(bridge), new byte[] { 1 });
+    }
+
+    /// <summary>Revoke a previously-approved bridge adapter. Owner only.</summary>
+    public static void RevokeBridgeAdapter(UInt160 bridge)
+    {
+        ExecutionEngine.Assert(bridge.IsValid && !bridge.IsZero, "invalid bridge");
+        var owner = (UInt160)(Storage.Get(new byte[] { KeyOwner }) ?? throw new Exception("owner unset"));
+        ExecutionEngine.Assert(Runtime.CheckWitness(owner), "not authorized");
+        Storage.Delete(BridgeKey(bridge));
+    }
+
+    /// <summary>True if <paramref name="bridge"/> is in the approved-bridge-adapter set.</summary>
+    [Safe]
+    public static bool IsApprovedBridgeAdapter(UInt160 bridge)
+    {
+        return Storage.Get(BridgeKey(bridge)) != null;
+    }
+
+    private static byte[] VerifierKey(UInt160 verifier)
+    {
+        var k = new byte[1 + 20];
+        k[0] = PrefixApprovedVerifier;
+        var b = (byte[])verifier;
+        for (var i = 0; i < 20; i++) k[1 + i] = b[i];
+        return k;
+    }
+
+    private static byte[] BridgeKey(UInt160 bridge)
+    {
+        var k = new byte[1 + 20];
+        k[0] = PrefixApprovedBridge;
+        var b = (byte[])bridge;
+        for (var i = 0; i < 20; i++) k[1 + i] = b[i];
         return k;
     }
 }

@@ -268,6 +268,109 @@ the provider is the only on-chain-visible step needed to swap sequencer models �
 NeoHub's `SequencerRegistry` continues to track *who registered* but the
 *selection policy* is the L2's call.
 
+### Worked example: writing a custom `IL2Prover` + `IL2ProofVerifier`
+
+Phase 4 (ZK validity proofs) lets operators bring their own proof system —
+SP1 ships as the reference, but a chain that wants Halo2, Plonky3, or Risc0
+just implements the prover/verifier pair and registers the verifier with
+`NeoHub.VerifierRegistry` on L1.
+
+Both interfaces live in `Neo.L2.Abstractions`. The pair must agree on
+the same wire format — what the prover emits in `ProofResult.Proof` is
+what the verifier later decodes:
+
+```csharp
+using Neo.L2;
+
+// Prover side: runs on the sequencer, produces proofs.
+public sealed class Halo2Prover : IL2Prover
+{
+    private readonly IHalo2BackendClient _backend;
+
+    public Halo2Prover(IHalo2BackendClient backend) => _backend = backend;
+
+    public ProofType Kind => ProofType.Zk;  // shares ProofType.Zk with SP1; on-chain
+                                            // dispatch by VerificationKeyId distinguishes them.
+
+    public async ValueTask<ProofResult> ProveAsync(
+        ProofRequest request, CancellationToken cancellationToken = default)
+    {
+        // 1. Serialize public inputs in the canonical format VerifierRegistry expects.
+        var publicInputBytes = Neo.L2.Batch.BatchSerializer.EncodePublicInputs(
+            request.PublicInputs);
+
+        // 2. Hand off to your proof-system backend with the witness (request.Witness).
+        var proofBytes = await _backend.ProveAsync(
+            publicInputBytes, request.Witness, cancellationToken);
+
+        // 3. Wrap in the canonical RiscVProofPayload envelope. ProofSystem byte
+        //    distinguishes Sp1 / Halo2 / etc. so the verifier knows which decoder to use.
+        var payload = new Neo.L2.Proving.RiscVZk.RiscVProofPayload
+        {
+            ProofSystem = Neo.L2.Proving.RiscVZk.ProofSystem.Halo2,  // or your registered tag
+            ProofBytes = proofBytes,
+            VerificationKeyId = _backend.VerificationKeyId,
+        };
+
+        return new ProofResult
+        {
+            Proof = payload.Encode(),
+            Kind = ProofType.Zk,
+            PublicInputHash = Neo.L2.State.StateRootCalculator.HashPublicInputs(
+                request.PublicInputs),
+        };
+    }
+}
+
+// Verifier side: runs on L1 (off-chain pre-flight) and is mirrored on-chain in the
+// VerifierRegistry-registered NeoVM contract that does the actual cryptographic check.
+public sealed class Halo2Verifier : IL2ProofVerifier
+{
+    private readonly UInt256 _expectedVkId;
+    private readonly IHalo2BackendClient _backend;
+
+    public Halo2Verifier(UInt256 expectedVkId, IHalo2BackendClient backend)
+    {
+        _expectedVkId = expectedVkId;
+        _backend = backend;
+    }
+
+    public ProofType Kind => ProofType.Zk;
+
+    public async ValueTask<ProofVerificationResult> VerifyAsync(
+        PublicInputs publicInputs, ReadOnlyMemory<byte> proof,
+        CancellationToken cancellationToken = default)
+    {
+        // 1. Decode the canonical envelope. Bad bytes → fail with a clear reason.
+        Neo.L2.Proving.RiscVZk.RiscVProofPayload payload;
+        try
+        {
+            payload = Neo.L2.Proving.RiscVZk.RiscVProofPayload.Decode(proof.Span);
+        }
+        catch (Exception ex)
+        {
+            return ProofVerificationResult.Fail($"decode: {ex.Message}");
+        }
+
+        // 2. VK pin: caller's expected vk must match what the prover declared.
+        if (!payload.VerificationKeyId.Equals(_expectedVkId))
+            return ProofVerificationResult.Fail("vk mismatch");
+
+        // 3. Hand off to your verifier backend.
+        var ok = await _backend.VerifyAsync(
+            publicInputs, payload.ProofBytes, cancellationToken);
+        return ok ? ProofVerificationResult.Ok : ProofVerificationResult.Fail("halo2 reject");
+    }
+}
+```
+
+The reference is `Neo.L2.Proving.Sp1.Sp1RiscVProver` / `Sp1RiscVVerifier` — same
+shape, with a `MockRiscVProver` fallback when the native bridge isn't loaded
+(see the `Sp1Bridge.IsAvailable` gate). Wire the verifier into the chain's
+boot sequence; register the matching on-chain verifier contract via
+`NeoHub.VerifierRegistry.RegisterVerifier(proofType, verifierHash)` so the
+canonical settlement path picks it up.
+
 ---
 
 ## Lifecycle in one diagram

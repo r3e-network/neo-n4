@@ -76,7 +76,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**859 unit + integration tests across 26 projects:**
+**866 unit + integration tests across 26 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -100,7 +100,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.Plugins.L2Batch.UnitTests`      | 22    | `BatchSealer` block / tx / age triggers, batch-number monotonicity, gauge replace, NoOp default, **`ValidatePositive` boundary tests, plugin Name + Description non-empty** |
 | `Neo.Plugins.L2Bridge.UnitTests`     | 9     | `L2BridgePlugin` lifecycle, asset registration, default behavior, **WithMetrics propagates to existing WithdrawalProcessor (the source claims sink-swap preserves nonce-dedup state; this pins the propagation reaches the processor)** |
 | `Neo.Plugins.L2Prover.UnitTests`     | 10    | `L2ProverPlugin` lifecycle, ProofType resolution, **Wire dispatch coverage for all branches: Zk-with-prover / Zk-without (helpful error) / Optimistic (points at L2SettlementPlugin) / None (points at Multisig+Optimistic+Zk)** |
-| `Neo.Plugins.L2Settlement.UnitTests` | 17    | **metric emission on submit success / failure / no-op default, wire-before-dequeue, concurrent-call gate serialization, plugin Name + Description non-empty** |
+| `Neo.Plugins.L2Settlement.UnitTests` | 24    | **metric emission on submit success / failure / no-op default, wire-before-dequeue, concurrent-call gate serialization, plugin Name + Description non-empty, `L2SettlementSettings.From` config parsing (defaults / explicit-zero ChainId rejected / non-zero accepted / invalid ProofType byte rejected / valid byte stored / explicit L1RpcEndpoint + Enabled overrides)** |
 | `Neo.L2.Settlement.Rpc.UnitTests`    | 38    | JSON-RPC envelope, stack parsing, signer, **InMemorySettlementClient lifecycle, AdvanceStatus driver, retry semantics**    |
 | `Neo.L2.Telemetry.UnitTests`         | 73    | counter/histogram/gauge accumulation, tag canonicalization, Prometheus exporter (counter/gauge/summary, labels, name sanitization, frozen-snapshot), request handler routing, TCP server round-trip + multi-request, catalog completeness vs MetricNames + Prometheus integration, **`/healthz` + `/readyz` (with predicate)** |
 | `Neo.L2.Persistence.UnitTests`       | 27    | **`InMemoryKeyValueStore` + `RocksDbKeyValueStore` parity (Put / Get / Delete / Contains / EnumeratePrefix / Count, lexicographic ordering, dispose semantics, defensive-copy on read)** |

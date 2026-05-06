@@ -250,4 +250,32 @@ public class UT_Models
         Assert.AreEqual(a.GetHashCode(), b.GetHashCode());
         Assert.AreNotEqual(a, Mk([0xAA, 0xCC]));
     }
+
+    [TestMethod]
+    public void BatchExecutionRequest_DistinguishesByTransactionListContent()
+    {
+        // BatchExecutionRequest holds IReadOnlyList<ReadOnlyMemory<byte>> and
+        // IReadOnlyList<CrossChainMessage>. Default record equality compares both
+        // lists by reference. Without the override two requests with identical
+        // contents-but-different-list-instances would compare unequal.
+        var ctx = new BatchBlockContext
+        {
+            L1FinalizedHeight = 42,
+            FirstBlockTimestamp = 100, LastBlockTimestamp = 200,
+            SequencerCommitteeHash = UInt256.Zero, Network = 5195086u,
+        };
+        BatchExecutionRequest Mk(byte[][] txs) => new()
+        {
+            ChainId = 1001, BatchNumber = 7, PreStateRoot = UInt256.Zero,
+            Transactions = txs.Select(t => (ReadOnlyMemory<byte>)t).ToArray(),
+            L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
+            BlockContext = ctx,
+        };
+        var a = Mk([[0x01, 0x02], [0x03]]);
+        var b = Mk([[0x01, 0x02], [0x03]]);
+        Assert.AreEqual(a, b);
+        Assert.AreEqual(a.GetHashCode(), b.GetHashCode());
+        Assert.AreNotEqual(a, Mk([[0x01, 0x02], [0x04]]));
+        Assert.AreNotEqual(a, Mk([[0x01, 0x02]]));  // shorter list
+    }
 }

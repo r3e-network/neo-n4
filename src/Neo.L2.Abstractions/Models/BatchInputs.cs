@@ -50,6 +50,42 @@ public sealed record BatchExecutionRequest
 
     /// <summary>Block-level context for deterministic execution.</summary>
     public required BatchBlockContext BlockContext { get; init; }
+
+    /// <inheritdoc />
+    public bool Equals(BatchExecutionRequest? other)
+    {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
+        if (ChainId != other.ChainId
+            || BatchNumber != other.BatchNumber
+            || !PreStateRoot.Equals(other.PreStateRoot)
+            || !BlockContext.Equals(other.BlockContext)) return false;
+        if (Transactions.Count != other.Transactions.Count) return false;
+        for (var i = 0; i < Transactions.Count; i++)
+        {
+            if (!Transactions[i].Span.SequenceEqual(other.Transactions[i].Span)) return false;
+        }
+        if (L1MessagesConsumed.Count != other.L1MessagesConsumed.Count) return false;
+        for (var i = 0; i < L1MessagesConsumed.Count; i++)
+        {
+            if (!L1MessagesConsumed[i].Equals(other.L1MessagesConsumed[i])) return false;
+        }
+        return true;
+    }
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(ChainId);
+        hash.Add(BatchNumber);
+        hash.Add(PreStateRoot);
+        hash.Add(BlockContext);
+        // Iterate explicitly so byte-content participates and list-reference identity does not.
+        foreach (var tx in Transactions) hash.AddBytes(tx.Span);
+        foreach (var msg in L1MessagesConsumed) hash.Add(msg);
+        return hash.ToHashCode();
+    }
 }
 
 /// <summary>

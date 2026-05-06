@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Neo.L2.State\Neo.L2.State.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Executor\Neo.L2.Executor.csproj" />
   </ItemGroup>
 
 </Project>

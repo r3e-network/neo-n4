@@ -291,7 +291,7 @@ specifically by `DAAvailabilityCheck` against a writer that never saw the payloa
 | §11 Bridge              | SharedBridge design           | `contracts/NeoHub.SharedBridge/` + `Neo.L2.Bridge.*`                           |
 | §12 Data Availability   | DA tiers                      | `Neo.L2.DAMode` + `Neo.Plugins.L2DA.*` (incl. `NeoFsLikeDAWriter`)             |
 | §13 L2 native contracts | On-L2 system contracts        | `contracts/L2Native.*/` (6 contracts)                                          |
-| §14.1 L2 RPC            | RPC method surface            | `Neo.Plugins.L2Rpc.L2RpcMethods` (9 methods)                                   |
+| §14.1 L2 RPC            | RPC method surface            | `Neo.Plugins.L2Rpc.L2RpcMethods` (10 methods incl. `getsecuritylabel`)         |
 | §14.2 neo-stack CLI     | Launch framework              | `tools/Neo.Stack.Cli/`                                                          |
 | §15.1 Tx flow           | Hot path                       | This doc, Walk #1                                                              |
 | §15.2 Deposit           | L1→L2                          | `Neo.L2.Bridge.DepositProcessor` + `L2Native.L2BridgeContract.ApplyDeposit`    |

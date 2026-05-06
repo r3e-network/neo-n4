@@ -4,8 +4,14 @@ using System.Threading.Tasks;
 namespace Neo.Stack.Cli.Commands;
 
 /// <summary>
-/// Subcommand placeholders. Each prints what it would do; future iterations wire them to
-/// real RPC clients, plugin host processes, and signed L1 transactions.
+/// neo-stack subcommands that issue a structured operator plan rather than executing
+/// against L1/L2 directly. Each one validates inputs, reads the chain config it would
+/// act on, and prints the deterministic plan (target contract + args + numbered next
+/// steps) so an operator can audit before signing. Production wiring (signed L1
+/// transactions, running plugin processes) is operator-supplied — these subcommands
+/// are the deterministic, auditable preflight side. The filename ("StubCommands") is
+/// historical; per IMPLEMENTATION_STATUS Phase 6 status, all 8 neo-stack subcommands
+/// are functional.
 /// </summary>
 internal static class RegisterChainCommand
 {

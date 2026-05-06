@@ -132,4 +132,53 @@ public class UT_L2BridgePlugin
         Assert.AreEqual(1, captured.GetCounter(MetricNames.WithdrawalsStaged),
             "metrics swap must reach the existing WithdrawalProcessor");
     }
+
+    [TestMethod]
+    public void WithMetrics_PropagatesToDepositProcessor()
+    {
+        // Symmetric pin to WithMetrics_PropagatesToExistingProcessors above. The plugin
+        // wires the metrics sink to BOTH the DepositProcessor and WithdrawalProcessor;
+        // the existing test only catches a regression on the withdrawal side.
+        // Without this counterpart, a refactor that drops `_depositProcessor?.WithMetrics(metrics)`
+        // would silently lose every l2.bridge.deposits/deposits_rejected signal — same
+        // operator pain as the withdrawal-side regression but invisible until production.
+        using var plugin = new L2BridgePlugin();
+        var l1Asset = UInt160.Parse("0x" + new string('3', 40));
+        var l2Asset = UInt160.Parse("0x" + new string('4', 40));
+        plugin.Registry.Register(new Neo.L2.AssetMapping
+        {
+            L1Asset = l1Asset, L2Asset = l2Asset,
+            L2ChainId = 0u, AssetType = Neo.L2.AssetType.Gas,
+            MintBurn = true, LockMint = false, Active = true,
+        });
+
+        var captured = new InMemoryMetrics();
+        plugin.WithMetrics(captured);
+
+        // DepositProcessor.Process needs a CrossChainMessage targeting the local chain
+        // (chainId 0 in the no-config-host scenario). The DepositPayload encoder builds
+        // the canonical [20B L1Asset][20B L2Recipient][4B amountLen][N bytes amount].
+        var recipient = UInt160.Parse("0x" + new string('b', 40));
+        var payload = new Neo.L2.Bridge.DepositPayload
+        {
+            L1Asset = l1Asset,
+            L2Recipient = recipient,
+            Amount = new System.Numerics.BigInteger(500),
+        };
+        var message = new Neo.L2.CrossChainMessage
+        {
+            SourceChainId = 1u,
+            TargetChainId = 0u,  // matches plugin._chainId in the no-config host
+            Nonce = 7UL,
+            MessageType = Neo.L2.MessageType.Deposit,
+            Sender = UInt160.Parse("0x" + new string('a', 40)),
+            Receiver = recipient,
+            Payload = payload.Encode(),
+            MessageHash = UInt256.Zero,
+        };
+        plugin.DepositProcessor.Process(message);
+
+        Assert.AreEqual(1, captured.GetCounter(MetricNames.DepositsProcessed),
+            "metrics swap must reach the existing DepositProcessor");
+    }
 }

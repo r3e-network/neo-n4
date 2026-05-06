@@ -356,6 +356,15 @@ internal static class Program
         Console.WriteLine($"  state entries:    {stateStore.Count}");
         Console.WriteLine($"  committee active: {(await committeeProvider.GetActiveCommitteeAsync()).Count}");
 
+        // doc.md §16.2 5-dimension security label — InMemoryL2RpcStore returns the
+        // strongest-default values for dimensions the devnet doesn't explicitly set.
+        // Showcasing this here makes the new getsecuritylabel RPC visible to operators
+        // following the devnet output as an introduction to the system.
+        var label = (Json.JObject)rpc.GetSecurityLabel(new Json.JArray { LocalChainId })!;
+        Console.WriteLine($"  getsecuritylabel: securityLevel={label["securityLevelName"]!.AsString()} " +
+            $"daMode={label["daModeName"]!.AsString()} sequencer={label["sequencerName"]!.AsString()} " +
+            $"exit={label["exitName"]!.AsString()} gateway={label["gatewayEnabled"]!.AsBoolean()}");
+
         // Show Alice's net position: deposits - withdrawals over N batches.
         var aliceBalance = ReadBalance(stateStore, GasL2, Alice);
         var expected = BigInteger.Zero;

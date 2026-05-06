@@ -112,6 +112,18 @@ jobs:
       # Default features: real-prover is OFF, so the bridge is buildable without
       # actually wiring up neo-zkvm's prover crates. The `real-prover` feature
       # toggle is exercised by operators who supply the keys + RISC-V toolchain.
-      - name: cargo check
+      - name: cargo check (default features, real-prover OFF)
         working-directory: bridge/neo-zkvm-bridge
         run: cargo check --no-default-features
+
+      # real-prover ON: exercises the full sp1-sdk + neo-zkvm-prover dependency
+      # graph so a future bump to either crate that breaks the bridge surfaces here,
+      # not later when an operator first flips the feature on. SP1_FORCE_DUMMY=true
+      # tells external/neo-zkvm/crates/neo-zkvm-prover/build.rs to use a dummy guest
+      # ELF — the host-side prover code still gets type-checked + linked, but the
+      # RISC-V guest compile (which would need the SP1 toolchain) is skipped.
+      - name: cargo check (real-prover ON, SP1 dummy ELF)
+        working-directory: bridge/neo-zkvm-bridge
+        env:
+          SP1_FORCE_DUMMY: "true"
+        run: cargo check --features real-prover

@@ -98,6 +98,7 @@ For more detail, see [`docs/architecture-walkthrough.md`](./docs/architecture-wa
   - `Neo.L2.State.MessageHasher` — cross-chain messages + withdrawal records.
   - `Neo.L2.Bridge.DepositPayload` — deposit message body.
   - `Neo.L2.State.MerkleProofSerializer` — canonical inclusion-proof bytes (consumed by L1 SharedBridge for withdrawal verification).
+  - `Neo.L2.L2ChainConfigSerializer` — 91-byte L2ChainConfig wire format (consumed by `NeoHub.ChainRegistry.RegisterChain`).
   - `Neo.L2.Proving.Attestation.MultisigProofPayload` / `Optimistic.OptimisticProofPayload`
     / `RiscVZk.RiscVProofPayload` — per-stage proof bytes.
   - `Neo.L2.Challenge.FraudProofPayload` — Phase-3 fraud-proof bytes.
@@ -160,7 +161,7 @@ print structured operator plans rather than performing the wallet-side submissio
 ## Quick commands
 
 ```bash
-# Type-check + run all 895 tests
+# Type-check + run all 903 tests
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Devnet demonstration with audit pass

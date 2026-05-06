@@ -133,6 +133,28 @@ existing `getsecuritylevel`).
 
 Cumulative: 895 tests / 27 projects.
 
+### Added — `L2ChainConfigSerializer`: canonical 91-byte wire encoder
+
+`NeoHub.ChainRegistry.RegisterChain(chainId, configBytes)` requires exactly 91
+bytes in a precise layout (doc.md §3.2 + §16.2), but no off-chain encoder
+existed — the Stack CLI's `register-chain` printed `<configBytes>` as a
+placeholder, leaving operators to hand-roll the serialization. Adds
+`Neo.L2.L2ChainConfigSerializer` with `Encode(L2ChainConfig)` /
+`Decode(ReadOnlySpan<byte>)` mirroring the on-chain layout byte-for-byte.
+
+  - **Layout pinned in 7 tests** — `ConfigSize == 91` constant agreement, byte-
+    layout pin (positions 0..90), full round-trip, enum-extreme round-trip
+    (Validium / DAC / Decentralized / OperatorAssisted / Active=false),
+    wrong-length rejection, out-of-range enum-byte rejection, chainId LE
+    parsing parity (mirrors the contract's `(uint)b[0] | ((uint)b[1]<<8) | ...`
+    expression).
+  - **Range-checks on decode** — `securityLevel > 4`, `daMode > 3`,
+    `sequencer > 2`, `exit > 2` reject up front so corrupted on-chain reads
+    surface as ArgumentException instead of silently propagating as
+    `(SecurityLevel)99`.
+
+Cumulative: 903 tests / 27 projects.
+
 ### Added — Per-batch withdrawal verification on L1
 
 `SettlementManager.VerifyWithdrawalLeaf(chainId, leafHash)` only matched against

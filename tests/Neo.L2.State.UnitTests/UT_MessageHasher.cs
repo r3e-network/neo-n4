@@ -1,4 +1,6 @@
+using System.Buffers.Binary;
 using System.Numerics;
+using Neo.Cryptography;
 
 namespace Neo.L2.State.UnitTests;
 
@@ -104,6 +106,106 @@ public class UT_MessageHasher
     {
         var bad = Wd(emitting: A(), l2sender: B(), l1recipient: C(), l2asset: null);
         Assert.ThrowsExactly<ArgumentNullException>(() => MessageHasher.HashWithdrawal(bad));
+    }
+
+    [TestMethod]
+    public void HashMessage_CanonicalBufferLayout_MatchesDocumented()
+    {
+        // Pins the canonical hash-input layout claimed in MessageHasher.cs:30-43:
+        //   [4B sourceChainId][4B targetChainId][8B nonce][20B sender][20B receiver]
+        //   [1B messageType][4B payloadLen][payloadLen B payload]
+        //   → Hash256
+        // If any L1 contract reads message bytes off the wire with a different field
+        // order or endianness, the hashes desync. Independently assembles the buffer
+        // here and asserts Hash256 of it equals MessageHasher.HashMessage's output.
+        var msg = new CrossChainMessage
+        {
+            SourceChainId = 1001,
+            TargetChainId = 2002,
+            Nonce = 0xDEADBEEFCAFEBABE,
+            Sender = A(),
+            Receiver = B(),
+            MessageType = MessageType.Call,
+            Payload = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05 },
+            MessageHash = UInt256.Zero,
+        };
+
+        var size = 4 + 4 + 8 + 20 + 20 + 1 + 4 + msg.Payload.Length;
+        var buf = new byte[size];
+        var span = buf.AsSpan();
+        var pos = 0;
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(pos, 4), msg.SourceChainId); pos += 4;
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(pos, 4), msg.TargetChainId); pos += 4;
+        BinaryPrimitives.WriteUInt64LittleEndian(span.Slice(pos, 8), msg.Nonce); pos += 8;
+        msg.Sender.GetSpan().CopyTo(span.Slice(pos, 20)); pos += 20;
+        msg.Receiver.GetSpan().CopyTo(span.Slice(pos, 20)); pos += 20;
+        span[pos++] = (byte)msg.MessageType;
+        BinaryPrimitives.WriteInt32LittleEndian(span.Slice(pos, 4), msg.Payload.Length); pos += 4;
+        msg.Payload.Span.CopyTo(span.Slice(pos));
+
+        var expected = new UInt256(Crypto.Hash256(buf));
+        Assert.AreEqual(expected, MessageHasher.HashMessage(msg));
+    }
+
+    [TestMethod]
+    public void HashWithdrawal_CanonicalBufferLayout_MatchesDocumented()
+    {
+        // Pins the canonical hash-input layout claimed in MessageHasher.cs:66-76:
+        //   [20B emittingContract][20B l2Sender][20B l1Recipient][20B l2Asset]
+        //   [4B amountLen][amountLen B unsigned-LE-amount][8B nonce]
+        //   → Hash256
+        // The L1 SharedBridge verifies withdrawal-leaf inclusion against this hash.
+        var amount = new BigInteger(0x1122334455667788UL);
+        var amountBytes = amount.ToByteArray(isUnsigned: true, isBigEndian: false);
+        var wd = new WithdrawalRequest
+        {
+            EmittingContract = A(),
+            L2Sender = B(),
+            L1Recipient = C(),
+            L2Asset = D(),
+            Amount = amount,
+            Nonce = 0xCAFEBABEDEADBEEFUL,
+        };
+
+        var size = 20 + 20 + 20 + 20 + 4 + amountBytes.Length + 8;
+        var buf = new byte[size];
+        var span = buf.AsSpan();
+        var pos = 0;
+        wd.EmittingContract.GetSpan().CopyTo(span.Slice(pos, 20)); pos += 20;
+        wd.L2Sender.GetSpan().CopyTo(span.Slice(pos, 20)); pos += 20;
+        wd.L1Recipient.GetSpan().CopyTo(span.Slice(pos, 20)); pos += 20;
+        wd.L2Asset.GetSpan().CopyTo(span.Slice(pos, 20)); pos += 20;
+        BinaryPrimitives.WriteInt32LittleEndian(span.Slice(pos, 4), amountBytes.Length); pos += 4;
+        amountBytes.AsSpan().CopyTo(span.Slice(pos, amountBytes.Length)); pos += amountBytes.Length;
+        BinaryPrimitives.WriteUInt64LittleEndian(span.Slice(pos, 8), wd.Nonce);
+
+        var expected = new UInt256(Crypto.Hash256(buf));
+        Assert.AreEqual(expected, MessageHasher.HashWithdrawal(wd));
+    }
+
+    [TestMethod]
+    public void HashMessage_FieldOrderChange_ProducesDifferentHash()
+    {
+        // Sentinel: swapping source/target chainId must produce a different hash. If
+        // the encoder ever degrades to a commutative concat (or hashes a Set instead
+        // of an ordered tuple), this fails.
+        var sender = A();
+        var receiver = B();
+        var h1 = MessageHasher.HashMessage(new CrossChainMessage
+        {
+            SourceChainId = 1001, TargetChainId = 2002, Nonce = 1,
+            Sender = sender, Receiver = receiver,
+            MessageType = MessageType.Call, Payload = new byte[0],
+            MessageHash = UInt256.Zero,
+        });
+        var h2 = MessageHasher.HashMessage(new CrossChainMessage
+        {
+            SourceChainId = 2002, TargetChainId = 1001, Nonce = 1,
+            Sender = sender, Receiver = receiver,
+            MessageType = MessageType.Call, Payload = new byte[0],
+            MessageHash = UInt256.Zero,
+        });
+        Assert.AreNotEqual(h1, h2);
     }
 
     [TestMethod]

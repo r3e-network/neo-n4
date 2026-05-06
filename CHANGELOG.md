@@ -223,6 +223,25 @@ Operators learning the system from the runner's output now see the §16.2
 
 Cumulative: 916 tests / 27 projects.
 
+### Added — devnet `--config <path>` flag for previewing operator templates
+
+`neo-stack create-chain --template <X>` writes a `chain.config.json`. The
+devnet runner now accepts `--config <path>` pointing at that JSON; reads the
+§16.2 security-label dimensions (`securityLevel` / `daMode` / `gatewayEnabled`
+/ `sequencerModel` / `exitModel`); applies them to the in-memory L2RpcStore
+via `init` properties. Result: `getsecuritylabel` in the post-run snapshot
+reflects the operator's template choice end-to-end. Missing fields fall back
+to per-dimension defaults so a minimal config doesn't error.
+
+### Fixed — `InMemoryL2RpcStore` range-check now accepts `SecurityLevel.Validium`
+
+The original 0..3 range-check predated Validium being added (which has byte
+value 4). Operators feeding a Validium template config to the devnet hit
+`ArgumentOutOfRangeException("not in [0..3]")`. Now accepts 0..4 inclusive;
+two new boundary tests pin Validium-acceptance + out-of-range-rejection.
+
+Cumulative: 918 tests / 27 projects.
+
 ### Changed — `neo-stack register-chain` emits canonical configBytes hex
 
 Composes the new `L2ChainConfigSerializer` with the operator-supplied L1

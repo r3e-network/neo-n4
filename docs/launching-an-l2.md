@@ -49,6 +49,10 @@ For a fully in-process demo without L1, see `tools/Neo.L2.Devnet`:
 ```bash
 dotnet run --project tools/Neo.L2.Devnet -- 5
 # 5 batches end-to-end, real KeyedStateStore continuity, post-run audit pass
+
+# Or preview your operator-template config end-to-end (the post-run RPC
+# snapshot's getsecuritylabel will reflect the JSON's §16.2 dimensions):
+dotnet run --project tools/Neo.L2.Devnet -- 5 --config ./my-l2/chain.config.json
 ```
 
 ---

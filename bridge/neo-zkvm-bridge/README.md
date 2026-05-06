@@ -15,12 +15,29 @@ cargo build --release
 # Run `git submodule update --init --recursive` first if you cloned without --recurse-submodules.
 cargo build --release --features real-prover
 
+# Same, but skip the SP1 RISC-V guest compile (uses a dummy guest ELF). Useful when
+# the SP1 toolchain isn't installed locally — the host-side prover code still gets
+# linked in, so the bridge's cdylib loads and reports the right ABI version. Calls
+# that exercise actual proof generation will fail, but `IsAvailable` reports true.
+SP1_FORCE_DUMMY=true cargo build --release --features real-prover
+
 # Run unit tests
 cargo test
 ```
 
 The resulting `target/release/libneo_zkvm_bridge.{so,dylib,dll}` should be placed
 alongside the C# binaries (Linux: `LD_LIBRARY_PATH` or `Plugins/`).
+
+## CI coverage
+
+The bridge job in `.github/workflows/build.yml` runs:
+
+  - `cargo check --no-default-features` — quick type-check of the bridge sans prover
+  - `cargo check --features real-prover` with `SP1_FORCE_DUMMY=true` — full sp1-sdk
+    + neo-zkvm-prover dependency graph type-check (~2 min); a future bump to either
+    crate that breaks the bridge surfaces here, not when an operator first flips
+    the feature on. CI does not install the SP1 toolchain — that's left to operators
+    who deploy a real prover.
 
 ## ABI
 

@@ -135,6 +135,80 @@ Every plug-in point has the same shape: an interface in `Neo.L2.Abstractions`,
 a default implementation in `Neo.L2.*` (in-memory / mock), and an injection
 hook on the plugin (`WithWriter`, `WithMetrics`, ctor parameter).
 
+### Worked example: writing a custom `IDAWriter`
+
+To support a new DA tier (e.g. Celestia, Avail, or your own off-chain blob
+service), implement `IDAWriter` and pass it to `L2DAPlugin.WithWriter()`.
+Anatomy of the smallest viable implementation:
+
+```csharp
+using Neo.L2;
+
+public sealed class CelestiaLikeDAWriter : IDAWriter
+{
+    private readonly ICelestiaClient _client;
+
+    public CelestiaLikeDAWriter(ICelestiaClient client) => _client = client;
+
+    // Pick the DAMode discriminant that matches your tier (External=2 for
+    // generic third-party DA layers per Neo.L2.DAMode).
+    public DAMode Mode => DAMode.External;
+
+    public async ValueTask<DAReceipt> PublishAsync(
+        DAPublishRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        // 1. Submit the payload to the DA layer; capture the layer's pointer
+        //    (Celestia: namespace + height + index; NeoFS: container+object id).
+        var pointer = await _client.SubmitBlobAsync(
+            request.Payload, cancellationToken);
+
+        // 2. Compute the cross-tier commitment. Always Hash256(payload) so
+        //    DAAvailabilityCheck can compare across tiers without knowing
+        //    the underlying layer's native commitment scheme.
+        var commitment = Crypto.Hash256(request.Payload.Span);
+
+        // 3. Return the receipt — Pointer must round-trip through your
+        //    own layer's "fetch by pointer" RPC.
+        return new DAReceipt
+        {
+            Commitment = new UInt256(commitment),
+            Layer = Mode,
+            Pointer = pointer.AsMemory(),
+        };
+    }
+
+    public async ValueTask<bool> IsAvailableAsync(
+        DAReceipt receipt,
+        CancellationToken cancellationToken = default)
+    {
+        // Your layer's "is this still retrievable" check. Many layers expose
+        // a HEAD-style endpoint that returns 200 if the blob's still pinned.
+        return await _client.HeadAsync(receipt.Pointer, cancellationToken);
+    }
+}
+```
+
+Then wire it at the plugin host:
+
+```csharp
+var dapw = new L2DAPlugin();
+dapw.WithWriter(new CelestiaLikeDAWriter(myCelestiaClient));
+dapw.WithMetrics(metricsPlugin.Metrics);  // emits l2.da.published / l2.da.errors
+```
+
+The framework's `MetricsEmittingDAWriter` (composed automatically when
+`WithMetrics` is called) wraps whatever writer you passed in, so your
+custom layer gets the same telemetry as the built-in writers without any
+extra plumbing.
+
+Reference implementations that follow this exact shape:
+- `Neo.Plugins.L2DA.InMemoryDAWriter` — the simplest possible
+- `Neo.Plugins.L2DA.NeoFsLikeDAWriter` — content-addressed blob store
+- `Neo.Plugins.L2DA.JsonRpcL1DAWriter` — submits to an L1 NEP-17-style contract
+- `Neo.Plugins.L2DA.PersistentDAWriter` — RocksDB-backed local store
+- `Neo.Plugins.L2DA.CommitteeAttestedDAWriter` — DAC committee multisig
+
 ---
 
 ## Lifecycle in one diagram
@@ -195,7 +269,15 @@ curl http://127.0.0.1:9090/metrics | grep l2_batch_sealed
 
 # After register-chain on L1, query NeoHub:
 neo-cli invoke <ChainRegistryHash> getChainConfig <chainId>
-# → returns 89 bytes (encoded L2ChainConfig); empty = not registered
+# → returns 91 bytes (encoded L2ChainConfig per §16.2); empty = not registered
+
+# Or query the 5-dimension §16.2 security label as a single object:
+neo-cli invoke <ChainRegistryHash> getSecurityLevel <chainId>
+neo-cli invoke <ChainRegistryHash> getSequencerModel <chainId>
+neo-cli invoke <ChainRegistryHash> getExitModel <chainId>
+neo-cli invoke <ChainRegistryHash> getDAMode <chainId>
+neo-cli invoke <ChainRegistryHash> getGatewayEnabled <chainId>
+neo-cli invoke <ChainRegistryHash> getPermissionlessExit <chainId>
 ```
 
 A registered, batch-producing chain emits `l2.batch.sealed`,

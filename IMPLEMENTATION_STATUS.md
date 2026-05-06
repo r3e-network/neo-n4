@@ -77,7 +77,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**913 unit + integration tests across 27 projects:**
+**914 unit + integration tests across 27 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -99,7 +99,7 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 | `Neo.Plugins.L2Gateway.UnitTests`    | 39    | flat + binary-tree aggregator, edge cases, **metric emission with rounds=log2(N) + per-batch accumulation, `PassThroughRoundProver` round-prover-level pinning (BackendId=0xFE constant, right-null odd-leaf rule, Hash256 message-root composition, [4B leftLen][bytes][4B rightLen][bytes] proof byte layout, both-empty-proof envelope, asymmetry, null-left rejection)** |
 | `Neo.Plugins.L2Metrics.UnitTests`    | 19    | composition root: bound port, idempotent Start, real HTTP scrape, readiness predicate gating, default settings, **`ResolveBindAddress` boundary tests, concurrent-Start race-safety, `ValidatePort` boundary tests, plugin Name + Description non-empty** |
 | `Neo.Plugins.L2Batch.UnitTests`      | 22    | `BatchSealer` block / tx / age triggers, batch-number monotonicity, gauge replace, NoOp default, **`ValidatePositive` boundary tests, plugin Name + Description non-empty** |
-| `Neo.Plugins.L2Bridge.UnitTests`     | 9     | `L2BridgePlugin` lifecycle, asset registration, default behavior, **WithMetrics propagates to existing WithdrawalProcessor (the source claims sink-swap preserves nonce-dedup state; this pins the propagation reaches the processor)** |
+| `Neo.Plugins.L2Bridge.UnitTests`     | 10    | `L2BridgePlugin` lifecycle, asset registration, default behavior, **WithMetrics propagates to existing Deposit + Withdrawal processors (symmetric pins — without both, a refactor that drops one of the `?.WithMetrics()` calls would silently lose half the `l2.bridge.*` metric stream)** |
 | `Neo.Plugins.L2Prover.UnitTests`     | 10    | `L2ProverPlugin` lifecycle, ProofType resolution, **Wire dispatch coverage for all branches: Zk-with-prover / Zk-without (helpful error) / Optimistic (points at L2SettlementPlugin) / None (points at Multisig+Optimistic+Zk)** |
 | `Neo.Plugins.L2Settlement.UnitTests` | 24    | **metric emission on submit success / failure / no-op default, wire-before-dequeue, concurrent-call gate serialization, plugin Name + Description non-empty, `L2SettlementSettings.From` config parsing (defaults / explicit-zero ChainId rejected / non-zero accepted / invalid ProofType byte rejected / valid byte stored / explicit L1RpcEndpoint + Enabled overrides)** |
 | `Neo.L2.Settlement.Rpc.UnitTests`    | 38    | JSON-RPC envelope, stack parsing, signer, **InMemorySettlementClient lifecycle, AdvanceStatus driver, retry semantics**    |

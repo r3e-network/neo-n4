@@ -195,6 +195,16 @@ plus a validium-template shape pin.
 
 Cumulative: 913 tests / 27 projects.
 
+### Added — symmetric `L2BridgePlugin.WithMetrics` deposit-side propagation pin
+
+The existing test only caught a regression on the withdrawal-side
+propagation. A refactor that drops `_depositProcessor?.WithMetrics(metrics)`
+would silently lose every `l2.bridge.deposits/deposits_rejected` signal —
+invisible until production dashboards go quiet. New symmetric test closes
+the blind spot.
+
+Cumulative: 914 tests / 27 projects.
+
 ### Changed — `neo-stack register-chain` emits canonical configBytes hex
 
 Composes the new `L2ChainConfigSerializer` with the operator-supplied L1

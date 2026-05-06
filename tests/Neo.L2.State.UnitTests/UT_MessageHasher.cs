@@ -226,4 +226,21 @@ public class UT_MessageHasher
         };
         Assert.ThrowsExactly<ArgumentException>(() => MessageHasher.HashWithdrawal(bad));
     }
+
+    [TestMethod]
+    public void HashWithdrawal_AcceptsExactly64ByteAmount()
+    {
+        // Boundary partner of RejectsOversizedAmount: cap is `> 64`, so exactly 64
+        // bytes must hash without error. 2^504 serializes to exactly 64 unsigned-LE
+        // bytes (bit 504 = byte 63 bit 0).
+        var atMax = BigInteger.One << 504;
+        var w = new WithdrawalRequest
+        {
+            EmittingContract = A(), L2Sender = B(),
+            L1Recipient = C(), L2Asset = D(),
+            Amount = atMax, Nonce = 1,
+        };
+        var hash = MessageHasher.HashWithdrawal(w);
+        Assert.AreNotEqual(UInt256.Zero, hash);
+    }
 }

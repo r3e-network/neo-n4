@@ -76,15 +76,15 @@ Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
 ### Tests
 
-**845 unit + integration tests across 26 projects:**
+**847 unit + integration tests across 26 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
 | `Neo.L2.Abstractions.UnitTests`      | 27    | enum discriminants, models, interface shape, **`ProofTypeExtensions.Resolve` boundary tests, `ChainIdValidator.ValidateL2` (zero-rejection / non-zero-acceptance / setting-name), record byte-content equality (DAPublishRequest / DAReceipt / ProofRequest / ProofResult / BatchExecutionRequest — overrides per AGENTS.md convention, including list-of-bytes element-wise comparison)** |
 | `Neo.L2.Batch.UnitTests`             | 35    | builder lifecycle, serializer round-trip, **proof-length bounds, unknown-ProofType rejection, all-valid-ProofType round-trip, trailing-byte rejection** |
-| `Neo.L2.State.UnitTests`             | 60    | Merkle tree, proof verify, hashers, **canonical proof wire format (round-trip, layout, truncation, oversized depth, 7-leaf all-positions), `MessageHasher.HashMessage` + `HashWithdrawal` canonical-buffer layout pinned (independent assembly + Hash256 re-derivation), HashMessage field-order sensitivity** |
+| `Neo.L2.State.UnitTests`             | 61    | Merkle tree, proof verify, hashers, **canonical proof wire format (round-trip, layout, truncation, oversized depth, 7-leaf all-positions), `MessageHasher.HashMessage` + `HashWithdrawal` canonical-buffer layout pinned (independent assembly + Hash256 re-derivation), HashMessage field-order sensitivity, HashWithdrawal at-max 64-byte amount accepted (boundary partner of RejectsOversizedAmount)** |
 | `Neo.L2.Messaging.UnitTests`         | 29    | inbox FIFO, replay protection, outbox split, **L2Outbox metric emission across destinations, persistence reopen pins, MessageBuilder rejects self-routed messages (incl. zero-to-zero)** |
-| `Neo.L2.Bridge.UnitTests`            | 46    | registry, deposit replay, withdrawal staging, **metric emission on success/replay/unknown-asset/duplicate-nonce/negative-amount paths, retryability after transient validation failure, registry orphan cleanup on L1/L2 repoint, DepositPayload trailing-byte rejection, `DepositPayload` byte-layout pinned at documented offsets ([20B l1Asset][20B l2Recipient][4B amountLen LE][amountBytes])** |
+| `Neo.L2.Bridge.UnitTests`            | 47    | registry, deposit replay, withdrawal staging, **metric emission on success/replay/unknown-asset/duplicate-nonce/negative-amount paths, retryability after transient validation failure, registry orphan cleanup on L1/L2 repoint, DepositPayload trailing-byte rejection, `DepositPayload` byte-layout pinned at documented offsets ([20B l1Asset][20B l2Recipient][4B amountLen LE][amountBytes]), DepositPayload at-max 64-byte amount accepted (boundary partner of RejectsOversizedAmount)** |
 | `Neo.L2.Proving.UnitTests`           | 49    | Stage 0/1/2 prove+verify, registry dispatch, **proof-payload boundary tests (length, version, ProofSystem range), AttestationVerifier dedup-before-verify, `MultisigProofPayload` byte-layout pinned at documented offsets ([1B version][2B signerCount LE]·N×([33B pubkey][64B sig]))** |
 | `Neo.L2.Proving.Sp1.UnitTests`       | 11    | bridge unavailable, mock fallback, VK mismatch, **`MaxProofBytes` bound pinned** |
 | `Neo.L2.Executor.UnitTests`          | 38    | empty/single/many, ordering, determinism, **KeyedStateStore + oracle, persistence reopen pins** |

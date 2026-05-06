@@ -408,6 +408,19 @@ public class UT_Bridge
     }
 
     [TestMethod]
+    public void DepositPayload_Encode_AcceptsExactly64ByteAmount()
+    {
+        // Boundary partner of RejectsOversizedAmount: the cap is `> 64`, so 64 must
+        // encode without error. 2^504 serializes to exactly 64 bytes (bit 504 = byte 63
+        // bit 0). Same boundary-pair pattern as the other proof-payload encoders.
+        var atMax = BigInteger.One << 504;  // exactly 64 unsigned-LE bytes
+        var p = new DepositPayload { L1Asset = GasL1, L2Recipient = Recipient, Amount = atMax };
+        var bytes = p.Encode();
+        Assert.AreEqual(64, System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(40, 4)));
+        Assert.AreEqual(atMax, DepositPayload.Decode(bytes).Amount);
+    }
+
+    [TestMethod]
     public void DepositPayload_Decode_RejectsTrailingBytes()
     {
         // Regression: previously the length check was `pos + amountLen > bytes.Length`,

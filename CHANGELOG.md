@@ -119,6 +119,20 @@ remain blocked on external dependencies and are explicitly out of scope.
 
 Cumulative: 892 tests / 27 projects.
 
+### Added — `getsecuritylabel` RPC: full 5-dimension §16.2 label
+
+`getsecuritylevel` returned only dimension 1 (chainType / SecurityLevel); the
+other 4 dimensions were tracked on-chain in ChainRegistry's wire format but had
+no RPC surface. `IL2RpcStore` now exposes `DAMode` / `GatewayEnabled` /
+`Sequencer` / `Exit` (default-interface-method bodies match L2ChainConfig
+defaults so existing third-party stores stay source-compatible);
+`InMemoryL2RpcStore` overrides each as `{ get; init; }`. New
+`L2RpcMethods.GetSecurityLabel` returns chainId + level + daMode +
+gatewayEnabled + sequencer + exit (byte + string-name shape, same as the
+existing `getsecuritylevel`).
+
+Cumulative: 895 tests / 27 projects.
+
 ### Added — Per-batch withdrawal verification on L1
 
 `SettlementManager.VerifyWithdrawalLeaf(chainId, leafHash)` only matched against

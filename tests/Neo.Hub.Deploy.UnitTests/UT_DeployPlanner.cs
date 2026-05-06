@@ -292,24 +292,37 @@ public class UT_DeployPlanner
     }
 
     [TestMethod]
-    public void PostDeployActions_BothBondAndChallenge_EmitsRegisterSlasherHint()
+    public void PostDeployActions_DefaultPlan_EmitsAllThreeWiringHints()
     {
-        // Pin the operator-facing hint emitted by `plan` after a successful resolution.
-        // Without this, an operator could miss the cycle-break post-deploy step and
-        // leave Phase-3 challenges with no slash payout path.
+        // Pin the operator-facing hints emitted by `plan` after a successful resolution.
+        // Without these, an operator could miss the cycle-break + governance wiring
+        // post-deploy steps, leaving Phase-3 challenges with no slash payout path AND
+        // §16.1 admission / §16 council-veto silently broken.
         var plan = ScaffoldPlan.Default();
         var bundle = DeployPlanner.Plan(plan, name => H((byte)(name.Length & 0xFF)));
         var actions = ScaffoldPlan.PostDeployActions(bundle).ToList();
-        Assert.AreEqual(1, actions.Count);
+        Assert.AreEqual(3, actions.Count);
+
+        // 1. SequencerBond.RegisterSlasher(OptimisticChallenge) — Phase-3 cycle-break.
         StringAssert.Contains(actions[0], "SequencerBond.RegisterSlasher");
         StringAssert.Contains(actions[0], "OptimisticChallenge");
+
+        // 2. ChainRegistry.SetGovernanceController(GovernanceController) — §16.1.
+        StringAssert.Contains(actions[1], "ChainRegistry.SetGovernanceController");
+        StringAssert.Contains(actions[1], "GovernanceController");
+        StringAssert.Contains(actions[1], "§16.1");
+
+        // 3. VerifierRegistry.SetGovernanceController(GovernanceController) — §16 council-veto.
+        StringAssert.Contains(actions[2], "VerifierRegistry.SetGovernanceController");
+        StringAssert.Contains(actions[2], "GovernanceController");
+        StringAssert.Contains(actions[2], "§16");
     }
 
     [TestMethod]
-    public void PostDeployActions_NoChallenge_NoHint()
+    public void PostDeployActions_NoChallenge_NoSlasherHint()
     {
         // If a custom plan deploys SequencerBond without OptimisticChallenge (e.g. the
-        // operator opted out of Phase-3 entirely), no hint is emitted — the bond's
+        // operator opted out of Phase-3 entirely), no slasher hint is emitted — the bond's
         // initial slashers list of just GovernanceController is fine for that setup.
         var custom = new DeployPlan
         {
@@ -320,6 +333,49 @@ public class UT_DeployPlanner
         var bundle = DeployPlanner.Plan(custom, name => H(0xAA));
         var actions = ScaffoldPlan.PostDeployActions(bundle).ToList();
         Assert.AreEqual(0, actions.Count);
+    }
+
+    [TestMethod]
+    public void PostDeployActions_NoGovernance_NoGovernanceHints()
+    {
+        // A custom plan with ChainRegistry + VerifierRegistry but no GovernanceController
+        // emits no governance-wiring hints — the operator either deploys GovernanceController
+        // separately or opted out (§16.1 admission then defaults to permissioned-only).
+        var custom = new DeployPlan
+        {
+            Version = 1,
+            Network = "test",
+            Steps = new[]
+            {
+                Step("ChainRegistry", new JArray { "X" }),
+                Step("VerifierRegistry", new JArray { "X" }),
+            },
+        };
+        var bundle = DeployPlanner.Plan(custom, name => H(0xAA));
+        var actions = ScaffoldPlan.PostDeployActions(bundle).ToList();
+        Assert.AreEqual(0, actions.Count);
+    }
+
+    [TestMethod]
+    public void PostDeployActions_OnlyChainRegistryAndGovernance_EmitsOneHint()
+    {
+        // Asymmetry test: an operator who only deploys ChainRegistry (without
+        // VerifierRegistry — e.g. governance-controlled chain admission only) gets
+        // exactly one hint.
+        var custom = new DeployPlan
+        {
+            Version = 1,
+            Network = "test",
+            Steps = new[]
+            {
+                Step("ChainRegistry", new JArray { "X" }),
+                Step("GovernanceController", new JArray { "X" }),
+            },
+        };
+        var bundle = DeployPlanner.Plan(custom, name => H(0xAA));
+        var actions = ScaffoldPlan.PostDeployActions(bundle).ToList();
+        Assert.AreEqual(1, actions.Count);
+        StringAssert.Contains(actions[0], "ChainRegistry.SetGovernanceController");
     }
 
     [TestMethod]

@@ -134,7 +134,9 @@ public static class ScaffoldPlan
     /// <remarks>
     /// Currently surfaces:
     /// <list type="bullet">
-    ///   <item><description>SequencerBond.RegisterSlasher(OptimisticChallenge): broken cycle workaround — bond can't depend on challenge at deploy time, so the operator wires it post-deploy.</description></item>
+    ///   <item><description><c>SequencerBond.RegisterSlasher(OptimisticChallenge)</c>: broken cycle workaround — bond can't depend on challenge at deploy time, so the operator wires it post-deploy.</description></item>
+    ///   <item><description><c>ChainRegistry.SetGovernanceController(GovernanceController)</c>: doc.md §16.1 admission policy needs the GovernanceController hash wired before <c>RegisterChainPublic</c> works in mode 1/2.</description></item>
+    ///   <item><description><c>VerifierRegistry.SetGovernanceController(GovernanceController)</c>: doc.md §16 council-veto needs the GovernanceController hash wired before <c>RegisterVerifierViaProposal</c> can consult <c>IsApprovedAndTimelocked</c>.</description></item>
     /// </list>
     /// </remarks>
     public static IEnumerable<string> PostDeployActions(DeployBundle bundle)
@@ -142,9 +144,21 @@ public static class ScaffoldPlan
         ArgumentNullException.ThrowIfNull(bundle);
         var bond = bundle.Invocations.FirstOrDefault(i => i.Name == "SequencerBond");
         var oc = bundle.Invocations.FirstOrDefault(i => i.Name == "OptimisticChallenge");
+        var chainReg = bundle.Invocations.FirstOrDefault(i => i.Name == "ChainRegistry");
+        var verifierReg = bundle.Invocations.FirstOrDefault(i => i.Name == "VerifierRegistry");
+        var gc = bundle.Invocations.FirstOrDefault(i => i.Name == "GovernanceController");
+
         if (bond is not null && oc is not null)
         {
             yield return $"SequencerBond.RegisterSlasher({oc.Name})  # enable Phase-3 challenge slashing (broken cycle: bond→challenge dep is post-deploy)";
+        }
+        if (chainReg is not null && gc is not null)
+        {
+            yield return $"ChainRegistry.SetGovernanceController({gc.Name})  # enable §16.1 3-phase admission policy (RegisterChainPublic depends on this wiring)";
+        }
+        if (verifierReg is not null && gc is not null)
+        {
+            yield return $"VerifierRegistry.SetGovernanceController({gc.Name})  # enable §16 council-veto path (RegisterVerifierViaProposal depends on this wiring)";
         }
     }
 

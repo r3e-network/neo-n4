@@ -114,6 +114,11 @@ public class UT_Mvp_Phase1_Cross_Component
     [TestMethod]
     public async Task Sp1Fallback_ProveVerify_FullCycle()
     {
+        // Pins the mock-fallback path. CI runs without the bridge .so on the loader path
+        // → BridgeAvailable=false → fallback exercised. A dev who built the bridge and
+        // set LD_LIBRARY_PATH sees BridgeAvailable=true; skip in that case (the real-
+        // bridge path needs a real SP1 prover with a non-dummy ELF, not in unit-test scope).
+        if (Sp1Bridge.IsAvailable) { Assert.Inconclusive("bridge loaded — pins mock-fallback path only"); return; }
         var vkId = UInt256.Parse("0x" + new string('e', 64));
         var prover = new Sp1RiscVProver(vkId);
         var verifier = new Sp1RiscVVerifier(vkId);
@@ -190,6 +195,11 @@ public class UT_Mvp_Phase1_Cross_Component
     [TestMethod]
     public async Task EndToEnd_ForcedInclusion_Then_Sp1_Then_Aggregation()
     {
+        // Same mock-fallback gate as Sp1Fallback_ProveVerify_FullCycle. The cross-
+        // component flow (forced inclusion → SP1 mock prove → aggregation) is end-to-
+        // end mock-fallback wiring; with the real bridge loaded the SP1 leg would
+        // need a real ELF.
+        if (Sp1Bridge.IsAvailable) { Assert.Inconclusive("bridge loaded — pins mock-fallback wiring only"); return; }
         // 1. User posts a forced tx because the sequencer was censoring.
         var src = new InMemoryForcedInclusionSource(1001);
         var forcedTx = new byte[] { 0xFE, 0xED, 0xFA, 0xCE };

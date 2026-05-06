@@ -22,23 +22,33 @@ public class UT_Sp1Bridge
     [TestMethod]
     public void Bridge_IsAvailable_FalseWhenLibraryMissing()
     {
-        // The bridge .so isn't installed in dev environments; expect false.
+        // CI runs without the bridge .so on the dynamic loader path → IsAvailable=false.
+        // A developer who built the bridge and set LD_LIBRARY_PATH will see true here;
+        // skip in that case rather than fail (the test pins the missing-lib behavior;
+        // the real-bridge path has its own integration tests off the unit-test critical
+        // path, gated by an opt-in env var).
+        if (Sp1Bridge.IsAvailable)
+        {
+            Assert.Inconclusive("Sp1 bridge .so is loaded — this test pins the missing-lib path only");
+            return;
+        }
         Assert.IsFalse(Sp1Bridge.IsAvailable);
     }
 
     [TestMethod]
     public void Bridge_IsAvailable_ResultIsCached()
     {
-        // Reset → first call computes (and caches false in dev). Second call returns
-        // the cache without re-attempting the P/Invoke. ResetAvailableCache forces the
-        // next call to recompute.
+        // Reset → first call computes. Second call returns the cache without re-attempting
+        // the P/Invoke. ResetAvailableCache forces the next call to recompute. The cache
+        // value is whatever the environment returns (false in CI, true with the bridge
+        // loaded); we only assert it's stable across reads.
         Sp1Bridge.ResetAvailableCache();
         var first = Sp1Bridge.IsAvailable;
         var second = Sp1Bridge.IsAvailable;
         Assert.AreEqual(first, second);
         Sp1Bridge.ResetAvailableCache();
         var afterReset = Sp1Bridge.IsAvailable;
-        Assert.AreEqual(first, afterReset, "post-reset re-compute must yield the same answer in dev");
+        Assert.AreEqual(first, afterReset, "post-reset re-compute must yield the same answer");
     }
 
     [TestMethod]
@@ -56,6 +66,7 @@ public class UT_Sp1Bridge
     [TestMethod]
     public void Bridge_Prove_WithoutLibraryReturnsNotImplemented()
     {
+        if (Sp1Bridge.IsAvailable) { Assert.Inconclusive("bridge loaded — pins missing-lib path only"); return; }
         var (status, proof) = Sp1Bridge.Prove(new byte[] { 0x01 });
         Assert.AreEqual(Sp1BridgeStatus.NotImplemented, status);
         Assert.IsNull(proof);
@@ -64,6 +75,7 @@ public class UT_Sp1Bridge
     [TestMethod]
     public void Bridge_Verify_WithoutLibraryReturnsNotImplemented()
     {
+        if (Sp1Bridge.IsAvailable) { Assert.Inconclusive("bridge loaded — pins missing-lib path only"); return; }
         var status = Sp1Bridge.Verify(new byte[] { 0x01 });
         Assert.AreEqual(Sp1BridgeStatus.NotImplemented, status);
     }
@@ -71,6 +83,7 @@ public class UT_Sp1Bridge
     [TestMethod]
     public async Task Sp1Prover_FallsBackToMockWhenBridgeUnavailable()
     {
+        if (Sp1Bridge.IsAvailable) { Assert.Inconclusive("bridge loaded — pins fallback path only"); return; }
         var vkId = UInt256.Parse("0x" + new string('f', 64));
         var prover = new Sp1RiscVProver(vkId);
         Assert.IsFalse(prover.BridgeAvailable);
@@ -88,6 +101,7 @@ public class UT_Sp1Bridge
     [TestMethod]
     public async Task Sp1Verifier_AcceptsMockFallbackProof()
     {
+        if (Sp1Bridge.IsAvailable) { Assert.Inconclusive("bridge loaded — pins mock-fallback path only"); return; }
         var vkId = UInt256.Parse("0x" + new string('f', 64));
         var prover = new Sp1RiscVProver(vkId);
         var verifier = new Sp1RiscVVerifier(vkId);
@@ -134,6 +148,10 @@ public class UT_Sp1Bridge
     [TestMethod]
     public async Task Sp1Verifier_RejectsWrongVk()
     {
+        // Mock-fallback path only: the mock produces a proof tagged with the prover's VK,
+        // and the verifier rejects when its expected VK differs. Real-bridge path would
+        // need a real ZK proof to exercise the same property; that's out of unit-test scope.
+        if (Sp1Bridge.IsAvailable) { Assert.Inconclusive("bridge loaded — VK mismatch is mock-fallback-specific"); return; }
         var prover = new Sp1RiscVProver(UInt256.Parse("0x" + new string('a', 64)));
         var verifier = new Sp1RiscVVerifier(UInt256.Parse("0x" + new string('b', 64)));
 

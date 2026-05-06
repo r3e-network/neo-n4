@@ -34,10 +34,30 @@ public class ChainRegistryContract : SmartContract
     private const byte KeyOwner = 0xFF;
 
     /// <summary>
-    /// Encoded length of an L2ChainConfig. See doc.md §3.2.
-    /// 4B chainId + 4×20B (operator/verifier/bridge/message) + 5×1B (security/da/gateway/exit/active) = 89 bytes.
+    /// Encoded length of an L2ChainConfig. See doc.md §3.2 + §16.2.
+    /// Layout (91 bytes total):
+    /// <list type="table">
+    ///   <item><description>0..3   — chainId (4B LE uint)</description></item>
+    ///   <item><description>4..23  — operatorManager (20B UInt160)</description></item>
+    ///   <item><description>24..43 — verifier (20B UInt160)</description></item>
+    ///   <item><description>44..63 — bridgeAdapter (20B UInt160)</description></item>
+    ///   <item><description>64..83 — messageAdapter (20B UInt160)</description></item>
+    ///   <item><description>84     — securityLevel (1B; doc.md §16.2)</description></item>
+    ///   <item><description>85     — daMode (1B; doc.md §12)</description></item>
+    ///   <item><description>86     — gatewayEnabled (1B bool)</description></item>
+    ///   <item><description>87     — permissionlessExit (1B bool)</description></item>
+    ///   <item><description>88     — sequencerModel (1B; doc.md §16.2 — Centralized=0/DbftCommittee=1/Decentralized=2)</description></item>
+    ///   <item><description>89     — exitModel (1B; doc.md §16.2 — Permissionless=0/Delayed=1/OperatorAssisted=2)</description></item>
+    ///   <item><description>90     — active (1B bool; <see cref="ConfigSize"/> - 1 — Pause/Resume mutate this byte)</description></item>
+    /// </list>
     /// </summary>
-    public const int ConfigSize = 4 + 20 * 4 + 5;
+    public const int ConfigSize = 4 + 20 * 4 + 7;
+
+    /// <summary>Offset of the sequencerModel byte within the encoded config.</summary>
+    public const int OffsetSequencerModel = 88;
+
+    /// <summary>Offset of the exitModel byte within the encoded config.</summary>
+    public const int OffsetExitModel = 89;
 
     /// <summary>Emitted whenever a chain is registered or updated.</summary>
     [DisplayName("ChainRegistered")]
@@ -228,6 +248,26 @@ public class ChainRegistryContract : SmartContract
         if (raw == null) return false;
         var bytes = (byte[])raw;
         return bytes[ConfigSize - 1] == 1;
+    }
+
+    /// <summary>Read the sequencerModel byte (doc.md §16.2). Returns 0 (Centralized) if
+    /// the chain is not registered.</summary>
+    [Safe]
+    public static byte GetSequencerModel(uint chainId)
+    {
+        var raw = Storage.Get(ConfigKey(chainId));
+        if (raw == null) return 0;
+        return ((byte[])raw)[OffsetSequencerModel];
+    }
+
+    /// <summary>Read the exitModel byte (doc.md §16.2). Returns 0 (Permissionless) if
+    /// the chain is not registered.</summary>
+    [Safe]
+    public static byte GetExitModel(uint chainId)
+    {
+        var raw = Storage.Get(ConfigKey(chainId));
+        if (raw == null) return 0;
+        return ((byte[])raw)[OffsetExitModel];
     }
 
     private static byte[] ConfigKey(uint chainId)

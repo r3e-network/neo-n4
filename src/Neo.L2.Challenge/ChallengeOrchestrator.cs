@@ -153,12 +153,30 @@ public sealed class ChallengeOrchestrator
         var game = new BisectionGame(challengerCheckpoints, sequencerCheckpoints, _metrics);
         var disputedIndex = game.RunToSettlement();
 
+        // Embed the disputed-tx bytes as a v2 witness when they fit under the
+        // FraudProofPayload cap. A re-execution-capable verifier consumes this
+        // directly; a structural verifier (NeoHub.GovernanceFraudVerifier) accepts
+        // v2 the same way it accepts v1 — the witness is metadata, not part of
+        // the structural decision. If the disputed tx is somehow oversized
+        // (chain shipped a >64KB tx) we silently fall back to v1; the dispute
+        // can still be filed and arbitrated structurally, and operators with
+        // re-execution verifiers needing the witness can fetch it via their
+        // own side-channel (e.g. a state-proof RPC against a recent snapshot).
+        var disputedTxBytes = ReadOnlyMemory<byte>.Empty;
+        if (disputedIndex >= 0 && disputedIndex < inputs.Transactions.Count)
+        {
+            var candidate = inputs.Transactions[disputedIndex];
+            if (candidate.Length > 0 && candidate.Length <= FraudProofPayload.MaxDisputedTxBytes)
+                disputedTxBytes = candidate;
+        }
+
         var payload = new FraudProofPayload
         {
             PreStateRoot = claimedCommitment.PreStateRoot,
             ClaimedPostStateRoot = claimedCommitment.PostStateRoot,
             ReplayedPostStateRoot = challengerCheckpoints[^1],
             DisputedTxIndex = (uint)disputedIndex,
+            DisputedTxBytes = disputedTxBytes,
         };
         _metrics.SafeIncrementCounter(MetricNames.FraudProofsEmitted);
         return ValueTask.FromResult<FraudProofPayload?>(payload);

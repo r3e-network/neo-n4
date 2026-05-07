@@ -231,4 +231,110 @@ public class UT_ChallengeOrchestrator_WithBisection
             await orch.InspectWithBisectionAsync(MkCommit(pre, H(2)), MkInputs(pre), bad!, good));
         StringAssert.Contains(ex.Message, "[1]");
     }
+
+    private static BatchExecutionRequest MkInputsWithTxs(UInt256 preRoot, params byte[][] txs)
+    {
+        var memos = txs.Select(b => (ReadOnlyMemory<byte>)b).ToList();
+        return new BatchExecutionRequest
+        {
+            ChainId = 1001,
+            BatchNumber = 5,
+            PreStateRoot = preRoot,
+            Transactions = memos,
+            L1MessagesConsumed = new List<CrossChainMessage>(),
+            BlockContext = new BatchBlockContext
+            {
+                L1FinalizedHeight = 100,
+                FirstBlockTimestamp = 1000, LastBlockTimestamp = 1000,
+                SequencerCommitteeHash = UInt256.Zero, Network = 11,
+            },
+        };
+    }
+
+    [TestMethod]
+    public async Task Bisection_PopulatesDisputedTxBytesAsV2Witness()
+    {
+        // After v2 wire format landed, the orchestrator's bisection path embeds the
+        // disputed tx bytes as the v2 witness automatically. Pin so a refactor that
+        // drops the witness emission downgrades to v1 silently.
+        // Bisection semantics: checkpoints[i] = state after applying tx[0..i-1], so
+        // a divergence at checkpoints[i] means tx[i-1] is the disputed tx.
+        var orch = new ChallengeOrchestrator(new NoopReplayer());
+        var pre = H(0);
+        var honest = new[] { pre, H(1), H(2), H(3) };
+        var lying = new[] { pre, H(1), H(0xAA), H(0xBB) };  // diverges at checkpoint 2 → tx[1] disputed
+
+        var disputedTx = new byte[] { 0xCA, 0xFE, 0xBA, 0xBE };
+        var inputs = MkInputsWithTxs(pre,
+            new byte[] { 0x01, 0x02 },     // tx[0] — fine
+            disputedTx,                     // tx[1] — disputed (produces checkpoint[2] divergence)
+            new byte[] { 0x03, 0x04 },     // tx[2] — wouldn't be evaluated in real bisection
+            new byte[] { 0x07, 0x08 });    // tx[3]
+
+        var fraud = await orch.InspectWithBisectionAsync(
+            MkCommit(pre, lying[^1]), inputs, honest, lying);
+
+        Assert.IsNotNull(fraud);
+        Assert.AreEqual(1u, fraud!.DisputedTxIndex,
+            "Bisection identifies tx[1] as the disputed one (post-state diverged at checkpoint 2)");
+        CollectionAssert.AreEqual(disputedTx, fraud.DisputedTxBytes.ToArray(),
+            "InspectWithBisection must populate v2 witness from Transactions[DisputedTxIndex]");
+
+        // Encoded payload should be v2 (witness present → encoder picks v2).
+        var bytes = fraud.Encode();
+        Assert.AreEqual(FraudProofPayload.Version2, bytes[0]);
+        Assert.AreEqual(FraudProofPayload.V2HeaderSize + disputedTx.Length, bytes.Length);
+    }
+
+    [TestMethod]
+    public async Task Bisection_FallsBackToV1_WhenDisputedTxOversized()
+    {
+        // Pathological case: the disputed tx is bigger than the v2 witness cap. The
+        // orchestrator falls back to a v1 (witnessless) payload — still allows the
+        // dispute to be filed via structural verifiers; operators with re-execution
+        // verifiers needing the witness use a side channel.
+        var orch = new ChallengeOrchestrator(new NoopReplayer());
+        var pre = H(0);
+        var honest = new[] { pre, H(1), H(2) };           // pre, post-tx0, post-tx1
+        var lying = new[] { pre, H(1), H(0xAA) };         // diverges at checkpoint 2 → tx[1] disputed
+
+        var oversized = new byte[FraudProofPayload.MaxDisputedTxBytes + 1];
+        var inputs = MkInputsWithTxs(pre, new byte[] { 0x01 }, oversized);
+        // disputedIndex = 1, Transactions[1] = oversized → fall back to v1.
+
+        var fraud = await orch.InspectWithBisectionAsync(
+            MkCommit(pre, lying[^1]), inputs, honest, lying);
+
+        Assert.IsNotNull(fraud);
+        Assert.AreEqual(1u, fraud!.DisputedTxIndex);
+        Assert.IsTrue(fraud.DisputedTxBytes.IsEmpty,
+            "oversized disputed tx → fall back to v1 witnessless");
+        // Encoded payload is v1.
+        var bytes = fraud.Encode();
+        Assert.AreEqual(FraudProofPayload.Version, bytes[0]);
+        Assert.AreEqual(FraudProofPayload.Size, bytes.Length);
+    }
+
+    [TestMethod]
+    public async Task Bisection_FallsBackToV1_WhenTransactionsListShort()
+    {
+        // Pathological case: bisection settles on disputedIndex N but
+        // inputs.Transactions has fewer than N+1 entries (a malformed reconstruction).
+        // Don't crash — fall back to v1 witnessless. The caller's reconstruction is
+        // wrong but the dispute still surfaces structurally.
+        var orch = new ChallengeOrchestrator(new NoopReplayer());
+        var pre = H(0);
+        var honest = new[] { pre, H(1), H(2), H(3) };
+        var lying = new[] { pre, H(1), H(0xAA), H(0xBB) };  // diverges at index 2
+
+        // Only 1 tx supplied; disputedIndex (2) is out of range.
+        var inputs = MkInputsWithTxs(pre, new byte[] { 0xFF });
+
+        var fraud = await orch.InspectWithBisectionAsync(
+            MkCommit(pre, lying[^1]), inputs, honest, lying);
+
+        Assert.IsNotNull(fraud);
+        Assert.IsTrue(fraud!.DisputedTxBytes.IsEmpty,
+            "out-of-range disputedIndex → fall back to v1 witnessless");
+    }
 }

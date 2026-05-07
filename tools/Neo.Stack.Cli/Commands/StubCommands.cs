@@ -112,10 +112,14 @@ internal static class RegisterChainCommand
         Console.WriteLine($"--- end ---");
         Console.WriteLine();
         Console.WriteLine($"Next steps for production registration:");
-        Console.WriteLine($"  1. Discover the L1 ChainRegistry contract hash (see neo-hub-deploy bundle output)");
-        Console.WriteLine($"  2. Re-run with the four L1 contract hashes:");
+        Console.WriteLine($"  1. Run `neo-hub-deploy scaffold` + `plan` to get the deploy bundle.");
+        Console.WriteLine($"     Feed the bundle to your wallet — each ContractManagement.Deploy call");
+        Console.WriteLine($"     returns the REAL on-chain contract hash (the bundle's own hashes are");
+        Console.WriteLine($"     deterministic stubs, only valid for plan reproducibility).");
+        Console.WriteLine($"  2. Re-run register-chain with the four wallet-returned hashes:");
         Console.WriteLine($"       neo-stack register-chain --chain-id {chainId} \\");
-        Console.WriteLine($"         --operator <hash> --verifier <hash> --bridge <hash> --message <hash>");
+        Console.WriteLine($"         --operator <real hash> --verifier <real hash> \\");
+        Console.WriteLine($"         --bridge <real hash> --message <real hash>");
         Console.WriteLine($"     to emit the canonical 91-byte configBytes hex (ready for wallet-side submission).");
         Console.WriteLine($"  3. Sign + submit registerChain({chainId}, <configBytes>) via your wallet RPC.");
         Console.WriteLine($"  4. Verify on L1 by calling ChainRegistry.isActive({chainId}).");

@@ -182,6 +182,39 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Updated — launching-an-l2 + new-l2 next-steps now point at neo-hub-deploy for L1 bring-up
+
+Two doc-set / ergonomics fixes for the "I scaffolded a chain — now how do I
+actually deploy NeoHub to L1?" gap:
+
+`docs/launching-an-l2.md`:
+  - The "Optimistic-rollup operators: wire a fraud verifier" section was
+    stale (referenced "the 14th NeoHub contract" + said v3 was "still
+    missing"; both shipped iterations ago). Rewritten as three paths:
+    governance-arbitration via `GovernanceFraudVerifier`, trustless v3 via
+    `RestrictedExecutionFraudVerifier` (the new on-chain path),
+    fully-custom verifier with skip-both-references guidance. Also
+    surfaces the `neo-hub-deploy` post-deploy informational notes that
+    name the right verifier hash for each path.
+  - New "Going to L1: deploying NeoHub" section walks through the three
+    `neo-hub-deploy` subcommands (scaffold → plan → bundle → wallet
+    deploy → capture-hashes → register-chain) so an operator who
+    scaffolded a chain via `new-l2` has an explicit path from "buildable
+    starter" to "L2 producing batches against a deployed NeoHub on L1."
+    Calls out the bundle's `PostDeployActions` section (cycle-break
+    wiring + §16.1 admission + per-verifier informational notes) so
+    those steps don't get missed.
+
+`tools/Neo.Stack.Cli/Commands/NewL2Command.cs`:
+  - Next-steps output gains a 5th step pointing at the
+    `neo-hub-deploy scaffold/plan/bundle` flow + the resulting
+    `register-chain --operator/--verifier/--bridge/--message <hash>`
+    invocation. So the operator who runs `neo-stack new-l2` sees the
+    full L2-to-L1 path on screen, not just the local-dev preview path.
+
+No code logic changed; pure documentation + console-output improvements.
+1034 tests still green.
+
 ### Added — `neo-stack list-templates` + shared `TemplateCatalog` (1025 → 1034)
 
 12th `neo-stack` subcommand. Prints the four chain-config templates with

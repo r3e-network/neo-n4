@@ -190,27 +190,39 @@ batchNumber, challenger, fraudProofBytes, fraudVerifier)` delegates the
 actual cryptographic check to a contract identified by the
 `fraudVerifier` argument.
 
-Two paths:
+Three paths, all in the default `neo-hub-deploy plan` 15-step bundle:
 
-  1. **Governance-arbitration mode** (default operator-friendly path):
-     deploy `NeoHub.GovernanceFraudVerifier` (it's in the default
-     `neo-hub-deploy plan` output as the 14th NeoHub contract). It does
-     a structural check of the canonical `FraudProofPayload` (v1=101 bytes
-     fixed or v2=105+N bytes with disputed-tx witness; length / version /
+  1. **Governance-arbitration mode** (the simplest operator-friendly path):
+     deploy `NeoHub.GovernanceFraudVerifier`. It does a structural check
+     of the canonical `FraudProofPayload` (v1=101 bytes fixed or v2=105+N
+     bytes with disputed-tx witness; length / version /
      claims-a-real-discrepancy) and emits accept/reject events for the
      security council to arbitrate. Pass its deployed hash as
      `fraudVerifier` when filing a challenge.
-  2. **Trustless re-execution mode**: ship your own fraud verifier that
-     re-executes the disputed transaction on L1. The `FraudProofPayload`
-     v2 wire format (`DisputedTxBytes` field) carries the disputed tx
-     bytes the verifier needs to re-execute. **Still missing**: the
-     storage-read + storage-write manifests with Merkle proofs against
-     the pre / post state roots — that's a v3 wire format extension
-     tracked in `IMPLEMENTATION_STATUS.md`. A re-execution verifier today
-     must supply that data through its own side-channel (e.g. operator-
-     run state proof server) or wait for v3. Operators choosing this
-     path skip `GovernanceFraudVerifier` from the deploy bundle and
-     register their own verifier's hash.
+  2. **Trustless v3 mode** (no council arbitration): deploy
+     `NeoHub.RestrictedExecutionFraudVerifier`. It re-derives pre/post
+     state roots on-chain from each `FraudProofPayload` v3 storage proof
+     (leaf-hash + Merkle siblings + leafIndex) and checks them against
+     the v1 header's `PreStateRoot` and `ReplayedPostStateRoot`. A v3
+     payload that reconstructs cleanly + claims a real discrepancy is
+     accepted automatically. The challenger generates v3 payloads off-
+     chain (see `Neo.L2.Challenge.V3StorageProofVerifier` for the
+     reference + parity test against the on-chain logic).
+  3. **Custom verifier**: ship your own fraud verifier (e.g. one that
+     re-executes the disputed transaction on L1 with restricted state).
+     Skip both reference verifiers from the deploy bundle and register
+     your own verifier's hash. The `FraudProofPayload` v2 (DisputedTxBytes)
+     and v3 (StorageProofs) wire-format fields carry the disputed-tx
+     bytes + storage manifests a re-execution verifier needs.
+
+`neo-hub-deploy`'s post-deploy actions output surfaces the right hash for
+each verifier so operators know which to pass as the `fraudVerifier`
+argument:
+
+```
+# Note: for v1/v2 fraud proofs (governance arbitration), pass GovernanceFraudVerifier.Hash ...
+# Note: for v3 fraud proofs (trustless storage-proof re-derivation), pass RestrictedExecutionFraudVerifier.Hash ...
+```
 
 ---
 
@@ -576,6 +588,69 @@ This framework is designed for *extension*, not forking. Patterns:
 Each path keeps the chain inside the Neo Elastic Network — same SharedBridge,
 same settlement, same message routing — while letting the chain's *internals*
 be whatever the operator needs.
+
+---
+
+## Going to L1: deploying NeoHub
+
+Before `register-chain` works, the 15 NeoHub contracts must be deployed on
+the target L1. The `neo-hub-deploy` tool emits a deploy bundle that names
+each contract, its dependencies, and the resolved hashes after a topological
+sort:
+
+```bash
+# 1. Scaffold a starter plan (15 NeoHub contracts in dependency order +
+#    GovernanceFraudVerifier v1/v2 + RestrictedExecutionFraudVerifier v3).
+dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
+    --output ./my-l2/deploy-plan.json
+
+# 2. Edit the plan to fill in OWNER_REPLACE_ME / BOND_ASSET_REPLACE_ME
+#    placeholders (canonical GAS hash on the target L1, your operator
+#    multisig hash, etc.). The plan is JSON — diff-friendly + editable.
+
+# 3. Topo-sort + resolve $step:<name> placeholders against deterministic
+#    contract hashes derived from the deploy order. The output bundle is
+#    what your wallet feeds to ContractManagement.Deploy in order.
+dotnet run --project tools/Neo.Hub.Deploy -- plan \
+    --plan ./my-l2/deploy-plan.json \
+    --output ./my-l2/deploy-bundle.json
+```
+
+The bundle's `Invocations` array is your wallet's deploy script — one
+`ContractManagement.Deploy` call per entry, in order. Each entry has a
+`Name`, the path to its `.nef` + `.manifest.json`, and the resolved
+`DeployData` (with all `$step:<name>` placeholders replaced by the hashes
+of contracts deployed earlier in the bundle).
+
+The bundle's "PostDeployActions" section surfaces the wiring steps that
+have to run AFTER all contracts are deployed (e.g.
+`SequencerBond.RegisterSlasher(OptimisticChallenge)` to break the
+bond↔challenge cycle, `ChainRegistry.SetGovernanceController` to enable
+§16.1 admission policy, and per-fraud-verifier informational notes
+naming which contract hash to pass as the `fraudVerifier` argument to
+`OptimisticChallenge.Challenge`).
+
+After all 15 deploys + post-deploy wiring complete, capture the resolved
+contract hashes from the bundle into the four `register-chain` flags:
+
+```bash
+neo-stack register-chain --chain-id 1099 --output ./my-l2 \
+    --operator <hash from your multisig deploy> \
+    --verifier <hash from VerifierRegistry deploy> \
+    --bridge <hash from your bridge-adapter deploy> \
+    --message <hash from MessageRouter deploy>
+```
+
+That emits the canonical 91-byte `configBytes` your wallet pastes into
+`ChainRegistry.RegisterChain` (admission-mode 0) or
+`ChainRegistry.RegisterChainPublic` (admission-modes 1 + 2 — the §16.1
+3-phase flow gated by `GovernanceController.GetAdmissionMode`).
+
+Once `RegisterChain` returns, the L2 is alive — the sequencer +
+batcher + prover plugins start producing batches (`start-sequencer`
+/ `start-batcher` / `start-prover` from the 5-command path above), and
+each batch's commitment flows through `SettlementManager.SubmitBatch`
+on L1.
 
 ---
 

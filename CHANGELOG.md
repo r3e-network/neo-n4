@@ -182,6 +182,43 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Fixed — `start-{sequencer,batcher,prover}` now accept `--output` (1051 → 1060)
+
+The 5-command Quick path documented in `docs/launching-an-l2.md`:
+
+```
+neo-stack start-sequencer --chain-id 1099 --output ./my-l2 &
+neo-stack start-batcher  --chain-id 1099 --output ./my-l2 &
+neo-stack start-prover   --chain-id 1099 --output ./my-l2 &
+```
+
+…actually fails. `StartCommandPreflight.Verify` only accepted `--path`,
+so any operator following the documented walkthrough with `--output`
+silently fell back to the default `./chain-1099` path (which doesn't
+exist) and got "Chain dir not found".
+
+Fix: accept both `--output` and `--path`, with `--output` taking
+precedence when both are supplied (matches `InitL2Command`'s pattern,
+mirrors the create-chain primary flag). `--path` continues to work for
+backwards compat.
+
+9 new tests in `UT_StartCommands` pin every preflight + flag-routing
+path:
+- Happy path for each of the three start-{sequencer,batcher,prover}
+  commands (exits 0).
+- Non-numeric `--chain-id` → exits 1 (caller error).
+- `--chain-id 0` throws (L1 sentinel reject).
+- Missing chain dir → exits 2.
+- Missing chain.config.json → exits 3 (distinguishes "no chain dir"
+  from "chain dir but no config" so the operator's diagnostic is
+  precise).
+- `--path` continues to work for operator scripts predating `--output`.
+- `--output` takes precedence when both are supplied (a non-existent
+  `--path` doesn't poison the run).
+
+Doc-set: test count 1051 → 1060 across the standard files;
+Neo.Stack.Cli.UnitTests per-row 34 → 43.
+
 ### Fixed — `neo-hub-deploy verify` now exits non-zero on missing artifacts (1043 → 1051)
 
 The `verify` command's MVP implementation always returned exit 0, even

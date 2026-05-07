@@ -163,7 +163,16 @@ internal static class StartCommandPreflight
             return 1;
         }
         var chainId = Neo.L2.ChainIdValidator.ValidateL2(parsed, "--chain-id");
-        chainDir = ArgUtil.Get(args, "--path", $"./chain-{chainId}");
+        // Accept both --output (the create-chain default flag, matches the Quick-path
+        // walkthrough in launching-an-l2.md) and --path (the original flag — kept for
+        // backwards compatibility). --output takes precedence when both are supplied,
+        // mirroring InitL2Command's pattern. Without this, the documented 5-command
+        // path `neo-stack start-sequencer --chain-id N --output ./my-l2` would silently
+        // fall back to ./chain-N and fail with "Chain dir not found".
+        var outputFlag = ArgUtil.Get(args, "--output", "");
+        chainDir = outputFlag.Length > 0
+            ? outputFlag
+            : ArgUtil.Get(args, "--path", $"./chain-{chainId}");
         if (!System.IO.Directory.Exists(chainDir))
         {
             Console.Error.WriteLine($"Chain dir not found: {chainDir}");

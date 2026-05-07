@@ -51,6 +51,9 @@ public sealed record FraudProofPayload
     /// <summary>v2 wire-format version (adds disputed-tx witness).</summary>
     public const byte Version2 = 2;
 
+    /// <summary>v3 wire-format version (adds storage-proof manifests).</summary>
+    public const byte Version3 = 3;
+
     /// <summary>v1 fixed encoding length.</summary>
     public const int Size = 1 + 32 + 32 + 4 + 32;  // = 101
 
@@ -63,6 +66,9 @@ public sealed record FraudProofPayload
     /// arbitrarily-large payloads.
     /// </summary>
     public const int MaxDisputedTxBytes = 64 * 1024;
+
+    /// <summary>Cap on the number of storage proofs a v3 payload may carry.</summary>
+    public const int MaxStorageProofsPerPayload = 32;
 
     /// <summary>Pre-state root the batch claimed to start from.</summary>
     public required UInt256 PreStateRoot { get; init; }
@@ -77,16 +83,43 @@ public sealed record FraudProofPayload
     public required uint DisputedTxIndex { get; init; }
 
     /// <summary>
-    /// Disputed-transaction witness bytes (v2 only). Empty in v1 encodings. When
-    /// non-empty, the encoder produces a v2 payload; when empty, the encoder produces
-    /// a v1 payload.
+    /// Disputed-transaction witness bytes (v2+). Empty in v1 encodings. When non-empty
+    /// (and <see cref="StorageProofs"/> is empty), the encoder produces a v2 payload;
+    /// when empty + no storage proofs, the encoder produces a v1 payload.
     /// </summary>
     public ReadOnlyMemory<byte> DisputedTxBytes { get; init; } = ReadOnlyMemory<byte>.Empty;
 
+    /// <summary>
+    /// Storage proof manifests (v3 only). Each entry is a key + pre-value + post-value +
+    /// Merkle proofs against the pre / post state roots. When non-empty, the encoder
+    /// produces a v3 payload.
+    /// </summary>
+    public IReadOnlyList<StorageProof> StorageProofs { get; init; } = Array.Empty<StorageProof>();
+
+    /// <summary>True if this payload would encode as v3.</summary>
+    public bool IsV3 => StorageProofs.Count > 0;
+
+    /// <summary>True if this payload would encode as v2 (has tx witness, no storage proofs).</summary>
+    public bool IsV2 => StorageProofs.Count == 0 && !DisputedTxBytes.IsEmpty;
+
+    /// <summary>True if this payload would encode as v1 (no tx witness, no storage proofs).</summary>
+    public bool IsV1 => StorageProofs.Count == 0 && DisputedTxBytes.IsEmpty;
+
     /// <summary>Encoded size in bytes (varies by version).</summary>
-    public int EncodedSize => DisputedTxBytes.IsEmpty
-        ? Size
-        : V2HeaderSize + DisputedTxBytes.Length;
+    public int EncodedSize
+    {
+        get
+        {
+            if (IsV1) return Size;
+            var size = V2HeaderSize + DisputedTxBytes.Length;
+            if (IsV3)
+            {
+                size += 4;  // numStorageProofs (uint32)
+                foreach (var p in StorageProofs) size += p.EncodedSize;
+            }
+            return size;
+        }
+    }
 
     /// <summary>Encode to canonical bytes.</summary>
     public byte[] Encode()
@@ -100,19 +133,48 @@ public sealed record FraudProofPayload
         if (DisputedTxBytes.Length > MaxDisputedTxBytes)
             throw new InvalidOperationException(
                 $"DisputedTxBytes length {DisputedTxBytes.Length} exceeds MaxDisputedTxBytes ({MaxDisputedTxBytes})");
+        if (StorageProofs.Count > MaxStorageProofsPerPayload)
+            throw new InvalidOperationException(
+                $"StorageProofs count {StorageProofs.Count} exceeds MaxStorageProofsPerPayload ({MaxStorageProofsPerPayload})");
 
-        var isV2 = !DisputedTxBytes.IsEmpty;
-        var buffer = new byte[isV2 ? V2HeaderSize + DisputedTxBytes.Length : Size];
+        // Pre-validate each storage proof's caps (null-safe + size guards) before
+        // allocating the buffer, so an oversized proof fails early rather than after
+        // a partial write into a too-small buffer.
+        foreach (var p in StorageProofs)
+        {
+            ArgumentNullException.ThrowIfNull(p);
+            // EncodedSize getter validates internally; reading it triggers the cap checks.
+            _ = p.EncodedSize;
+        }
+
+        var totalSize = EncodedSize;
+        var buffer = new byte[totalSize];
         var span = buffer.AsSpan();
-        span[0] = isV2 ? Version2 : Version;
+
+        // Version byte dispatch: v3 if storage proofs, else v2 if tx witness, else v1.
+        if (IsV3) span[0] = Version3;
+        else if (IsV2) span[0] = Version2;
+        else span[0] = Version;
+
+        // v1 tail (always present in all versions).
         PreStateRoot.GetSpan().CopyTo(span.Slice(1, 32));
         ClaimedPostStateRoot.GetSpan().CopyTo(span.Slice(33, 32));
         ReplayedPostStateRoot.GetSpan().CopyTo(span.Slice(65, 32));
         BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(97, 4), DisputedTxIndex);
-        if (isV2)
+        if (IsV1) return buffer;
+
+        // v2+ tail: disputed-tx witness (length-prefixed).
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(101, 4), (uint)DisputedTxBytes.Length);
+        DisputedTxBytes.Span.CopyTo(span.Slice(V2HeaderSize));
+        if (IsV2) return buffer;
+
+        // v3 tail: storage-proof manifests (count + N proofs).
+        var pos = V2HeaderSize + DisputedTxBytes.Length;
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(pos, 4), (uint)StorageProofs.Count);
+        pos += 4;
+        foreach (var p in StorageProofs)
         {
-            BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(101, 4), (uint)DisputedTxBytes.Length);
-            DisputedTxBytes.Span.CopyTo(span.Slice(V2HeaderSize));
+            pos += p.Encode(span.Slice(pos));
         }
         return buffer;
     }
@@ -136,23 +198,62 @@ public sealed record FraudProofPayload
                 DisputedTxBytes = ReadOnlyMemory<byte>.Empty,
             };
         }
-        if (version == Version2)
+        if (version == Version2 || version == Version3)
         {
             if (bytes.Length < V2HeaderSize)
                 throw new ArgumentException(
-                    $"v2 payload must be ≥ {V2HeaderSize} bytes (header), got {bytes.Length}");
+                    $"v{version} payload must be ≥ {V2HeaderSize} bytes (header), got {bytes.Length}");
             var declaredLen = BinaryPrimitives.ReadUInt32LittleEndian(bytes.Slice(101, 4));
             if (declaredLen > MaxDisputedTxBytes)
                 throw new ArgumentException(
-                    $"v2 disputedTxLen {declaredLen} exceeds MaxDisputedTxBytes ({MaxDisputedTxBytes})");
-            // Strict length match — extra trailing bytes are a malformed payload, not "ignore".
-            // Without this, a fraudulent payload could include junk bytes after the witness
-            // and decode as "valid" with a possibly-different effective layout.
-            if (bytes.Length != V2HeaderSize + declaredLen)
+                    $"v{version} disputedTxLen {declaredLen} exceeds MaxDisputedTxBytes ({MaxDisputedTxBytes})");
+            if (bytes.Length < V2HeaderSize + declaredLen)
                 throw new ArgumentException(
-                    $"v2 payload length {bytes.Length} != header({V2HeaderSize}) + disputedTxLen({declaredLen})");
+                    $"v{version} payload length {bytes.Length} < header({V2HeaderSize}) + disputedTxLen({declaredLen})");
             var txBytes = new byte[declaredLen];
             bytes.Slice(V2HeaderSize, (int)declaredLen).CopyTo(txBytes);
+
+            // For v2: strict length match. For v3: continue past the v2 tail to read storage proofs.
+            if (version == Version2)
+            {
+                if (bytes.Length != V2HeaderSize + declaredLen)
+                    throw new ArgumentException(
+                        $"v2 payload length {bytes.Length} != header({V2HeaderSize}) + disputedTxLen({declaredLen})");
+                return new FraudProofPayload
+                {
+                    PreStateRoot = new UInt256(bytes.Slice(1, 32)),
+                    ClaimedPostStateRoot = new UInt256(bytes.Slice(33, 32)),
+                    ReplayedPostStateRoot = new UInt256(bytes.Slice(65, 32)),
+                    DisputedTxIndex = BinaryPrimitives.ReadUInt32LittleEndian(bytes.Slice(97, 4)),
+                    DisputedTxBytes = txBytes,
+                };
+            }
+
+            // v3: parse storage-proof manifests after the v2 tail.
+            var pos = V2HeaderSize + (int)declaredLen;
+            if (bytes.Length < pos + 4)
+                throw new ArgumentException("v3 payload: truncated numStorageProofs");
+            var numProofs = BinaryPrimitives.ReadUInt32LittleEndian(bytes.Slice(pos, 4));
+            pos += 4;
+            if (numProofs > MaxStorageProofsPerPayload)
+                throw new ArgumentException(
+                    $"v3 storageProofs count {numProofs} exceeds MaxStorageProofsPerPayload ({MaxStorageProofsPerPayload})");
+            // v3 must claim at least one storage proof (otherwise it should be v2).
+            if (numProofs == 0)
+                throw new ArgumentException("v3 payload claims 0 storage proofs (use v2 instead)");
+
+            var proofs = new List<StorageProof>((int)numProofs);
+            for (var i = 0; i < numProofs; i++)
+            {
+                var (p, consumed) = StorageProof.Decode(bytes.Slice(pos));
+                proofs.Add(p);
+                pos += consumed;
+            }
+            // Strict total-length match: extra trailing bytes after all proofs is malformed.
+            if (pos != bytes.Length)
+                throw new ArgumentException(
+                    $"v3 payload has {bytes.Length - pos} trailing bytes after {numProofs} storage proofs");
+
             return new FraudProofPayload
             {
                 PreStateRoot = new UInt256(bytes.Slice(1, 32)),
@@ -160,6 +261,7 @@ public sealed record FraudProofPayload
                 ReplayedPostStateRoot = new UInt256(bytes.Slice(65, 32)),
                 DisputedTxIndex = BinaryPrimitives.ReadUInt32LittleEndian(bytes.Slice(97, 4)),
                 DisputedTxBytes = txBytes,
+                StorageProofs = proofs,
             };
         }
         throw new InvalidDataException($"unsupported version {version}");
@@ -177,7 +279,11 @@ public sealed record FraudProofPayload
         if (!Equals(ClaimedPostStateRoot, other.ClaimedPostStateRoot)) return false;
         if (!Equals(ReplayedPostStateRoot, other.ReplayedPostStateRoot)) return false;
         if (DisputedTxIndex != other.DisputedTxIndex) return false;
-        return DisputedTxBytes.Span.SequenceEqual(other.DisputedTxBytes.Span);
+        if (!DisputedTxBytes.Span.SequenceEqual(other.DisputedTxBytes.Span)) return false;
+        if (StorageProofs.Count != other.StorageProofs.Count) return false;
+        for (var i = 0; i < StorageProofs.Count; i++)
+            if (!Equals(StorageProofs[i], other.StorageProofs[i])) return false;
+        return true;
     }
 
     /// <inheritdoc />

@@ -242,6 +242,143 @@ public class UT_Challenge
         Assert.AreEqual(FraudProofPayload.V2HeaderSize + 10, withWitness.EncodedSize);
     }
 
+    private static StorageProof SampleProof(byte fill = 0x42)
+    {
+        return new StorageProof
+        {
+            Key = new byte[] { 0xAA, 0xBB },
+            PreValue = new byte[] { 0xC0 },
+            PostValue = new byte[] { 0xC1 },
+            LeafIndex = 7,
+            PreSiblings = new[] { H((char)fill), H((char)(fill + 1)) },
+            PostSiblings = new[] { H((char)(fill + 2)), H((char)(fill + 3)) },
+        };
+    }
+
+    [TestMethod]
+    public void Payload_V3_RoundTrips()
+    {
+        var p = new FraudProofPayload
+        {
+            PreStateRoot = H('a'),
+            ClaimedPostStateRoot = H('b'),
+            ReplayedPostStateRoot = H('c'),
+            DisputedTxIndex = 5,
+            DisputedTxBytes = new byte[] { 0xDE, 0xAD },
+            StorageProofs = new[] { SampleProof(0x10), SampleProof(0x20) },
+        };
+        var bytes = p.Encode();
+        Assert.AreEqual(FraudProofPayload.Version3, bytes[0]);
+        Assert.IsTrue(p.IsV3);
+        Assert.IsFalse(p.IsV2);
+        Assert.IsFalse(p.IsV1);
+
+        var decoded = FraudProofPayload.Decode(bytes);
+        Assert.AreEqual(p, decoded, "v3 roundtrip preserves all fields including storage proofs");
+        Assert.AreEqual(2, decoded.StorageProofs.Count);
+    }
+
+    [TestMethod]
+    public void Payload_V3_RejectsZeroProofs()
+    {
+        // A v3-tagged payload with zero proofs is malformed — should be encoded as v2/v1.
+        // Construct a v3-version-byte payload with numProofs=0 manually.
+        var v2 = new FraudProofPayload
+        {
+            PreStateRoot = H('a'),
+            ClaimedPostStateRoot = H('b'),
+            ReplayedPostStateRoot = H('c'),
+            DisputedTxIndex = 0,
+            DisputedTxBytes = new byte[] { 0x01 },
+        };
+        var v2Bytes = v2.Encode();
+        // Take v2 bytes, change version to 3, append [0,0,0,0] (numProofs=0).
+        var crafted = new byte[v2Bytes.Length + 4];
+        v2Bytes.CopyTo(crafted, 0);
+        crafted[0] = FraudProofPayload.Version3;
+        // numProofs = 0 in last 4 bytes
+        Assert.ThrowsExactly<ArgumentException>(() => FraudProofPayload.Decode(crafted));
+    }
+
+    [TestMethod]
+    public void Payload_V3_RejectsCapsViolation_TooManyProofs()
+    {
+        var proofs = new StorageProof[FraudProofPayload.MaxStorageProofsPerPayload + 1];
+        for (var i = 0; i < proofs.Length; i++) proofs[i] = SampleProof();
+        var p = new FraudProofPayload
+        {
+            PreStateRoot = H('a'),
+            ClaimedPostStateRoot = H('b'),
+            ReplayedPostStateRoot = H('c'),
+            DisputedTxIndex = 0,
+            StorageProofs = proofs,
+        };
+        Assert.ThrowsExactly<InvalidOperationException>(() => p.Encode());
+    }
+
+    [TestMethod]
+    public void Payload_V3_DecodeRejectsExtraTrailingBytes()
+    {
+        var p = new FraudProofPayload
+        {
+            PreStateRoot = H('a'),
+            ClaimedPostStateRoot = H('b'),
+            ReplayedPostStateRoot = H('c'),
+            DisputedTxIndex = 0,
+            StorageProofs = new[] { SampleProof() },
+        };
+        var bytes = p.Encode();
+        var withExtra = new byte[bytes.Length + 5];
+        bytes.CopyTo(withExtra, 0);
+        Assert.ThrowsExactly<ArgumentException>(() => FraudProofPayload.Decode(withExtra));
+    }
+
+    [TestMethod]
+    public void Payload_V3_StorageProofIndividualCapsEnforced()
+    {
+        // Per-proof caps: oversize key, value, or siblings depth → InvalidOperationException
+        // at encode time.
+        var oversizedKey = new StorageProof
+        {
+            Key = new byte[StorageProof.MaxKeyBytes + 1],
+            PreValue = new byte[1],
+            PostValue = new byte[1],
+            LeafIndex = 0,
+        };
+        var p = new FraudProofPayload
+        {
+            PreStateRoot = H('a'),
+            ClaimedPostStateRoot = H('b'),
+            ReplayedPostStateRoot = H('c'),
+            DisputedTxIndex = 0,
+            StorageProofs = new[] { oversizedKey },
+        };
+        Assert.ThrowsExactly<InvalidOperationException>(() => p.Encode());
+    }
+
+    [TestMethod]
+    public void StorageProof_RoundTrips()
+    {
+        var p = SampleProof(0x42);
+        var buf = new byte[p.EncodedSize];
+        var written = p.Encode(buf);
+        Assert.AreEqual(p.EncodedSize, written);
+        var (decoded, consumed) = StorageProof.Decode(buf);
+        Assert.AreEqual(p.EncodedSize, consumed);
+        Assert.AreEqual(p, decoded);
+    }
+
+    [TestMethod]
+    public void StorageProof_DecodeRejectsTruncatedKey()
+    {
+        var p = SampleProof();
+        var buf = new byte[p.EncodedSize];
+        p.Encode(buf);
+        // Truncate to just the keyLen header (2 bytes), no key bytes.
+        var truncated = buf.AsSpan(0, 2).ToArray();
+        Assert.ThrowsExactly<ArgumentException>(() => StorageProof.Decode(truncated));
+    }
+
     [TestMethod]
     public void Payload_Size_Is_101_Bytes_OnChainContractConstant()
     {

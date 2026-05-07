@@ -73,7 +73,7 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 | CLI tools         | **3**     | `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`                           |
 | Native FFI        | **1**     | `bridge/neo-zkvm-bridge` — Rust cdylib + C ABI for SP1 prover P/Invoke   |
 | Submodules        | **3**     | `external/neo` (Neo 4 core) · `external/neo-devpack-dotnet` (NeoVM compiler framework) · `external/neo-zkvm` (SP1 prover, optional). None are released on NuGet/crates.io for the versions tracked here. |
-| Tests             | **1169 / 30 projects** | Module-level unit tests + integration tests; all green |
+| Tests             | **1170 / 30 projects** | Module-level unit tests + integration tests; all green |
 
 ```
 neo4/
@@ -103,7 +103,7 @@ neo4/
 │   └── executors/                          # Sample.CounterChainExecutor + scaffold target
 ├── bridge/
 │   └── neo-zkvm-bridge/                    # Rust cdylib + C ABI
-└── tests/                                  # 1169 tests / 30 projects
+└── tests/                                  # 1170 tests / 30 projects
 ```
 
 ---
@@ -142,7 +142,7 @@ cd neo-n4
 # If you forgot --recurse-submodules:
 # git submodule update --init --recursive
 
-# Type-check everything + run all 1169 tests (~10 seconds)
+# Type-check everything + run all 1170 tests (~10 seconds)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # --- Bootstrapping a new L2 chain (recommended path) ---

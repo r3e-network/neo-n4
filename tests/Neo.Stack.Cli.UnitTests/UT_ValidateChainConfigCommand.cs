@@ -407,6 +407,48 @@ public class UT_ValidateChainConfigCommand
         StringAssert.Contains(output, "L2ValidiumMode pairs with securityLevel=Validium");
     }
 
+    [TestMethod]
+    public void Validate_AllShippedSamples_HaveNoCrossFieldWarnings()
+    {
+        // Templates ship as canonical references; if a future edit introduces a
+        // cross-field contradiction in any sample, every operator who copies it
+        // inherits the contradiction. Pin that all 4 shipped samples pass `validate`
+        // with zero `⚠` warnings.
+        //
+        // This is an integration-style guard: it exercises the actual JSON files
+        // under samples/ + the actual ValidateChainConfigCommand path. If a future
+        // commit adds a new validate warning that incidentally fires on an existing
+        // sample, this test catches it before the sample ships broken.
+        var samplesRoot = FindSamplesRoot();
+        foreach (var name in new[] { "general-rollup", "gaming-rollup", "exchange-validium", "privacy-sidechain" })
+        {
+            var path = Path.Combine(samplesRoot, $"{name}.config.json");
+            Assert.IsTrue(File.Exists(path), $"sample missing: {path}");
+            var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
+            Assert.AreEqual(0, rc, $"{name} must validate cleanly (rc=0); got: {output}");
+            Assert.IsFalse(output.Contains("⚠"),
+                $"{name} emits a cross-field warning — sample is internally inconsistent.\nOutput:\n{output}");
+        }
+    }
+
+    private static string FindSamplesRoot()
+    {
+        // Walk up from bin/Debug/net10.0/ to repo root; samples/ lives there.
+        // Mirrors the locator in UT_Samples — keeping it inline avoids a
+        // cross-test-project dependency.
+        var dir = Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory);
+        for (var i = 0; i < 8; i++)
+        {
+            var candidate = Path.Combine(dir, "samples");
+            if (Directory.Exists(candidate)) return candidate;
+            var parent = Path.GetDirectoryName(dir);
+            if (parent is null || parent == dir) break;
+            dir = parent;
+        }
+        throw new DirectoryNotFoundException(
+            $"samples/ not found walking up from {AppContext.BaseDirectory}");
+    }
+
     // ---- Helpers ----
 
     private static (int rc, string stdout) CaptureStdout(Func<int> run)

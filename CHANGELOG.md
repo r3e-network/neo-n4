@@ -229,6 +229,30 @@ exercise what the previous command actually wrote).
 
 Doc-set: test count 1150 → 1153 across the standard files.
 
+### Added — Pin all 4 shipped samples pass `validate` with zero warnings (1169 → 1170)
+
+The 4 sample chain configs (`samples/general-rollup`,
+`samples/gaming-rollup`, `samples/exchange-validium`,
+`samples/privacy-sidechain`) ship as canonical references — operators
+copy them directly into their own deployments. If a future edit
+introduces a cross-field contradiction in any sample, every operator
+who copied it inherits the contradiction.
+
+`UT_ValidateChainConfigCommand.Validate_AllShippedSamples_HaveNoCrossFieldWarnings`
+walks `samples/` and runs the actual `ValidateChainConfigCommand` path
+against each `.config.json`, asserting `rc=0` and zero `⚠` characters
+in stdout. If a future commit adds a new validate warning that
+incidentally fires on an existing sample (e.g. a new chainMode×SequencerModel
+contradiction we add later that one of the samples trips), this test
+catches it before the sample ships broken.
+
+This also indirectly pins that the sample defaults stay in sync with
+the cross-field rules — e.g. swapping `general-rollup`'s `chainMode`
+to `SidechainMode` without also lowering `securityLevel` would now
+fail the test.
+
+Doc-set: test count 1169 → 1170 across the standard files.
+
 ### Added — `validate` flags chainMode × securityLevel pairing mismatches (1166 → 1169)
 
 Per `doc.md` §6, each `chainMode` has a canonical set of compatible

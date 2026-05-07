@@ -93,19 +93,21 @@ jobs:
         # every commit gets the .nef + .manifest.json artifacts validated.
         run: dotnet tool install -g Neo.Compiler.CSharp
 
-      - name: Type-check + compile NeoHub + L2Native contracts
+      - name: Type-check + compile NeoHub + L2Native + sample contracts
         # `nccs <project>` runs automatically via the BeforeBuild target in
         # contracts/Directory.Build.props once nccs is on PATH. The artifacts land
-        # in <project>/bin/sc/.
+        # in <project>/bin/sc/. samples/contracts/Sample.* are app-developer
+        # examples — same compile path, so a refactor that breaks the sample API
+        # surfaces here, not at an operator's terminal.
         run: |
-          for d in contracts/NeoHub.* contracts/L2Native.*; do
+          for d in contracts/NeoHub.* contracts/L2Native.* samples/contracts/Sample.*; do
             dotnet build "$d" /p:NuGetAudit=false --nologo
           done
 
       - name: Verify .nef + .manifest.json artifacts produced
         run: |
           missing=0
-          for d in contracts/NeoHub.* contracts/L2Native.*; do
+          for d in contracts/NeoHub.* contracts/L2Native.* samples/contracts/Sample.*; do
             name=$(basename "$d")
             for ext in nef manifest.json; do
               if [ ! -f "$d/bin/sc/$name.$ext" ]; then
@@ -118,7 +120,8 @@ jobs:
             echo "$missing artifacts missing — nccs did not run for some contracts"
             exit 1
           fi
-          echo "All 19 contracts produced .nef + .manifest.json artifacts"
+          # Count: 13 NeoHub + 6 L2Native + 2 samples = 21
+          echo "All 21 contracts produced .nef + .manifest.json artifacts"
 
   bridge:
     name: cargo check (Rust bridge)

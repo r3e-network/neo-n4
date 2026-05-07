@@ -118,6 +118,17 @@ internal static class ValidateChainConfigCommand
                 Console.WriteLine($"⚠ chainMode=L2ValidiumMode contradicts daMode=L1; validium chains by definition have off-chain DA (NeoFS / External / DAC)");
             }
 
+            // ExitModel.OperatorAssisted vs permissionlessExit=true: per the
+            // ExitModel doc, OperatorAssisted means "user exit requires the
+            // operator to co-sign or pre-stage exit batches." That's the opposite
+            // of permissionless. A chain claiming both is internally
+            // contradictory — pin so the operator doesn't ship a chain config
+            // that promises permissionlessness it can't deliver.
+            if (exit == ExitModel.OperatorAssisted && permExit)
+            {
+                Console.WriteLine($"⚠ exitModel=OperatorAssisted contradicts permissionlessExit=true; OperatorAssisted means user exit requires operator co-sign — flip permissionlessExit to false or change exitModel");
+            }
+
             Console.WriteLine($"✅ valid: chainId={chainId} chainMode={chainMode} securityLevel={sec} daMode={da} " +
                 $"sequencer={seq} exit={exit} proofType={proof} gateway={gateway} permExit={permExit}");
             return 0;

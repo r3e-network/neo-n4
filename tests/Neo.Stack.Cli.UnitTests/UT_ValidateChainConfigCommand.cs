@@ -164,6 +164,39 @@ public class UT_ValidateChainConfigCommand
     }
 
     [TestMethod]
+    public void Validate_CrossFieldWarning_OperatorAssistedExitWithPermissionlessTrue()
+    {
+        // exitModel=OperatorAssisted means 'user exit requires operator
+        // co-sign'. That's the opposite of permissionless. A chain claiming
+        // both OperatorAssisted AND permissionlessExit=true is contradictory —
+        // pin the warning so the operator doesn't ship a chain that promises
+        // permissionlessness it can't deliver.
+        var contradiction = ValidRollupConfig()
+            .Replace("\"exitModel\": \"Delayed\"", "\"exitModel\": \"OperatorAssisted\"");
+        // permissionlessExit still true → contradiction
+        var path = WriteConfig(contradiction);
+        var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
+        Assert.AreEqual(0, rc, "cross-field warning is informational, not fatal");
+        StringAssert.Contains(output, "⚠");
+        StringAssert.Contains(output, "OperatorAssisted");
+        StringAssert.Contains(output, "permissionlessExit=true");
+    }
+
+    [TestMethod]
+    public void Validate_CrossFieldNoWarning_OperatorAssistedExitWithPermissionlessFalse()
+    {
+        // OperatorAssisted + permissionlessExit=false is consistent.
+        var consistent = ValidRollupConfig()
+            .Replace("\"exitModel\": \"Delayed\"", "\"exitModel\": \"OperatorAssisted\"")
+            .Replace("\"permissionlessExit\": true", "\"permissionlessExit\": false");
+        var path = WriteConfig(consistent);
+        var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
+        Assert.AreEqual(0, rc);
+        Assert.IsFalse(output.Contains("OperatorAssisted contradicts"),
+            "OperatorAssisted + permissionlessExit=false is consistent — no contradiction warning");
+    }
+
+    [TestMethod]
     public void Validate_CrossFieldNoWarning_ValidiumModeWithNeoFS()
     {
         // Canonical validium template: L2ValidiumMode + NeoFS DA — no contradiction.

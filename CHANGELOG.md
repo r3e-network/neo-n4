@@ -229,6 +229,26 @@ exercise what the previous command actually wrote).
 
 Doc-set: test count 1150 → 1153 across the standard files.
 
+### Added — `validate` flags ExitModel.OperatorAssisted vs permissionlessExit=true contradiction (1163 → 1165)
+
+Per `Neo.L2.ExitModel`'s doc, `OperatorAssisted` means "user exit
+requires the operator to co-sign or pre-stage exit batches" — the
+opposite of permissionless. A chain config claiming BOTH
+`exitModel=OperatorAssisted` AND `permissionlessExit=true` is
+internally contradictory: the chain is promising users a guarantee
+it can't deliver. `validate` now flags this with a `⚠` warning + a
+remediation hint.
+
+2 new tests in `UT_ValidateChainConfigCommand`:
+- `Validate_CrossFieldWarning_OperatorAssistedExitWithPermissionlessTrue`
+  — pins the new contradiction warning.
+- `Validate_CrossFieldNoWarning_OperatorAssistedExitWithPermissionlessFalse`
+  — pins that the consistent pair (OperatorAssisted + false) does NOT
+  warn (catches a regression that fires on every OperatorAssisted
+  config regardless of the bool).
+
+Doc-set: test count 1163 → 1165 across the standard files.
+
 ### Added — `validate` parses chainMode + flags Validium-vs-L1-DA contradiction (1159 → 1163)
 
 `ValidateChainConfigCommand` previously ignored the `chainMode` field

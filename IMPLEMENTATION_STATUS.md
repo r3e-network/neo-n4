@@ -191,7 +191,7 @@ subcommands.
 
 ### Tests
 
-**980 unit + integration tests across 27 projects:**
+**993 unit + integration tests across 28 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -222,6 +222,7 @@ subcommands.
 | `Neo.L2.Executor.RiscV.UnitTests`    | 6     | `RiscVHost` structural contracts (Neo VMState byte constants, default network = N3 mainnet, application trigger byte, IsAvailable doesn't throw on missing lib, empty-script rejection, RiscVExecutionResult.Halted property) |
 | `Neo.Hub.Deploy.UnitTests`           | 21    | topo sort, cycle detection, scaffold, **plan-version check, duplicate / empty step names, full 13-NeoHub-contract scaffold pin, SequencerBond slashers[] array shape, OptimisticChallenge dependency edges, no-cycle pin (bond → challenge but not back), PostDeployActions surfaces RegisterSlasher + ChainRegistry/VerifierRegistry SetGovernanceController wiring hints / suppresses governance hints when GovernanceController absent / asymmetric (ChainRegistry-only-emits-one-hint) / null-arg guard** |
 | `Neo.L2.IntegrationTests`            | 19    | Phase 0 MVP + Phase 1 cross-component + Phase 2 full-stack + Phase 3 optimistic-challenge + all-phases stitch + e2e telemetry pipeline + **L2MetricsPlugin composition root (every instrumented component → one sink → HTTP scrape) + e2e RocksDB persistence (KeyedStateStore + InMemoryL2RpcStore + InMemorySequencerCommitteeProvider all rehydrate from one shared data dir on reopen) + e2e audit pipeline (all 6 checks pass on healthy chain + DA-dropped scenario specifically catches via `DAAvailabilityCheck` + broken-batch-range failure-detection metric counts)** |
+| `Sample.CounterChainExecutor.UnitTests` | 13 | **operator-facing reference for "how to plug in custom chain logic"**: 3-opcode custom executor (IncrementCounter / EmitWithdrawal / EmitMessage) demonstrates the `ITransactionExecutor` seam. Per-sender-counter happy-path + accumulation + ulong wraparound semantics; per-sender state isolation; truncated-tx → Failed-receipt path (not crash); withdrawal happy-path produces valid `WithdrawalRequest` with deterministic txHash-derived nonce; zero-amount withdrawal rejected; message happy-path produces routable `CrossChainMessage` via canonical `MessageBuilder.Build`; self-routed (source==target) rejected; oversized message body builder-rejected at MaxMessageBytes cap; unknown-opcode + empty-tx → Failed; SPEC.md determinism pin (two fresh executors + identical inputs → identical receipts + state); mixed-opcode batch smoke test |
 
 ## What's not yet wired (out of MVP scope)
 

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Sample.CounterChainExecutor</RootNamespace>
+    <AssemblyName>Sample.CounterChainExecutor</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\src\Neo.L2.Executor\Neo.L2.Executor.csproj" />
+  </ItemGroup>
+
+</Project>

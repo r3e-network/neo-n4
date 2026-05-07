@@ -182,6 +182,54 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — `Sample.CounterChainExecutor` reference custom executor (980 → 993)
+
+Operator-facing reference for the `ITransactionExecutor` seam — the framework's
+plug-in point for "how to specify custom chain logic." Until this sample,
+the framework had the seam (interface + reference no-op stand-in) but no
+runnable demonstration of how an operator brings their own chain to it.
+
+`samples/executors/Sample.CounterChainExecutor` is a small custom L2 with
+three opcodes:
+- `IncrementCounter (0x01)` — `[1B opcode][20B sender][8B u64 amount LE]`
+  → adds to a per-sender counter in state, with documented ulong-wraparound
+  semantics matching Neo NEP-17.
+- `EmitWithdrawal (0x02)` — `[1B opcode][20B recipient][20B token][8B u64
+  amount LE]` → builds a `WithdrawalRequest` with a deterministic
+  txHash-derived nonce.
+- `EmitMessage (0x03)` — `[1B opcode][4B destChainId LE][2B msgLen LE][N
+  bytes msg]` → builds a `CrossChainMessage` via canonical
+  `MessageBuilder.Build`, inheriting the hash composition + self-routed
+  rejection from the framework.
+
+Demonstrates the patterns a real custom executor needs:
+- **Determinism contract** (per `Neo.L2.Executor/SPEC.md`): receipts derive
+  from `(serializedTx, batchContext, preStateRoot)` alone — no clock, no
+  RNG, no I/O. Pinned by `Execute_Determinism_SameInputSameOutput`.
+- **Failed-receipt path**: malformed transactions produce
+  `Receipt.Success = false` instead of crashing the batch — required so one
+  bad tx can't take down the whole batch's proving pipeline.
+- **State seam**: takes an `ICounterChainState` interface so tests inject
+  `InMemoryCounterChainState` and production wires
+  `Neo.L2.Executor.State.KeyedStateStore`.
+- **Per-opcode gas schedule**: fixed gas per opcode keeps `GasConsumed`
+  reproducible by any verifier.
+
+13 new tests in `Sample.CounterChainExecutor.UnitTests`:
+counter happy path + accumulation + ulong wraparound; per-sender state
+isolation; truncated-tx → Failed (not crash); withdrawal happy path with
+deterministic nonce; zero-amount withdrawal rejected; message happy path
+with valid `MessageHash`; self-routed message (source==target) rejected;
+oversized message body rejected at `MaxMessageBytes` cap; unknown opcode
++ empty tx → Failed; SPEC.md determinism pin; mixed-opcode batch smoke
+test.
+
+`samples/README.md` gains a "Custom chain logic" section walking through
+how to fork the sample for your own chain. AGENTS.md mapping table gains
+a row for §3 / §7.1 custom chain logic pointing at the seam + reference.
+
+Project count 27 → 28.
+
 ### Added — `NeoHub.RestrictedExecutionFraudVerifier` on-chain v3 verifier (965 → 980)
 
 15th NeoHub contract — the trustless companion to

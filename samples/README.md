@@ -1,10 +1,13 @@
-# Sample L2 chains
+# Sample L2 chains + custom chain logic
 
 End-to-end example chain configs that exercise the four Neo Elastic Network
-templates against four distinct use cases. Each `*.config.json` is the same
-shape `neo-stack create-chain` writes — drop into the devnet runner via
-`--config <path>` to preview the §16.2 security label end-to-end before
-deploying to L1.
+templates against four distinct use cases, plus a runnable reference custom
+transaction executor showing how an operator brings their own chain logic to
+the framework.
+
+Each `*.config.json` is the same shape `neo-stack create-chain` writes — drop
+into the devnet runner via `--config <path>` to preview the §16.2 security
+label end-to-end before deploying to L1.
 
 ## The four samples
 
@@ -60,6 +63,52 @@ other Elastic Network L2s without waiting on L1.
 or enterprise networks where the L1 anchor isn't a trust anchor — it's just
 a discovery + asset-bridge endpoint. No prover plugin needed; settlement
 happens via attestation alone.
+
+## Custom chain logic — `executors/Sample.CounterChainExecutor`
+
+[`samples/executors/Sample.CounterChainExecutor`](./executors/Sample.CounterChainExecutor)
+is a runnable, fully-tested reference for the
+`Neo.L2.Executor.ITransactionExecutor` seam — the framework's plug-in point
+for "what happens when a transaction lands on this L2." The reference handles
+three opcodes: `IncrementCounter` (per-sender u64 counter), `EmitWithdrawal`
+(L2→L1 with replay-protected nonce), and `EmitMessage` (L2→L2 via canonical
+`MessageBuilder.Build`).
+
+### What the sample shows
+
+- **Custom transaction wire format** — opcode byte + opcode-specific body,
+  decoded straight from `ReadOnlyMemory<byte>`. No need to inherit from a
+  framework base class.
+- **Determinism contract** — receipts are derivable from
+  `(serializedTx, batchContext, preStateRoot)` alone. No clock reads, no
+  RNG, no I/O. The `Execute_Determinism_SameInputSameOutput` test pins this.
+- **Failed-receipt path** — malformed transactions produce
+  `Receipt.Success = false` instead of crashing the batch. The
+  `ReferenceBatchExecutor` requires this so one bad tx can't take down the
+  whole batch's proving pipeline.
+- **State seam** — the executor takes an `ICounterChainState` interface so
+  tests inject `InMemoryCounterChainState` and production wires
+  `Neo.L2.Executor.State.KeyedStateStore`.
+- **Withdrawal + message emission** — withdrawals build a `WithdrawalRequest`
+  with txHash-derived nonces; messages route through `MessageBuilder.Build`
+  to inherit the canonical hash composition and self-routed-rejection.
+- **Per-opcode gas schedule** — fixed gas per opcode keeps `GasConsumed`
+  reproducible by any verifier (each opcode declares a const).
+
+### How to fork it for your own chain
+
+1. Copy `samples/executors/Sample.CounterChainExecutor/` to
+   `your-org/MyChainExecutor/`.
+2. Replace the three opcodes + their decoders with your chain's transaction
+   types. Keep the opcode-byte + opcode-specific-body shape (or define your
+   own — only `ITransactionExecutor.ExecuteAsync` is the contract).
+3. Replace `ICounterChainState` with your own state-mutation seam, or wire
+   directly to `KeyedStateStore` if that's enough.
+4. Hand the executor to `ReferenceBatchExecutor.WithExecutor(yourExec)` —
+   the rest of the pipeline (sealing, proving, settlement, fraud-proof) is
+   already wired by the Neo Elastic Network plug-ins.
+5. Mirror the test shape in `tests/Sample.CounterChainExecutor.UnitTests/`:
+   per-opcode happy path + edge cases + determinism pin + mixed-batch smoke.
 
 ## See also
 

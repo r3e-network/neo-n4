@@ -237,6 +237,40 @@ public class UT_CreateChainCommand
         StringAssert.Contains(output, "Next: `neo-stack init-l2 --chain-id 9099`");
     }
 
+    [TestMethod]
+    [DataRow("rollup", DisplayName = "rollup → validate clean")]
+    [DataRow("zk-rollup", DisplayName = "zk-rollup → validate clean")]
+    [DataRow("validium", DisplayName = "validium → validate clean")]
+    [DataRow("sidechain", DisplayName = "sidechain → validate clean")]
+    public void CreateChain_EachTemplate_PassesValidateWithNoWarnings(string template)
+    {
+        // Pin the create-chain ↔ validate contract: every template a user can
+        // pick via --template MUST produce a config the validate command accepts
+        // cleanly, with zero ⚠ cross-field warnings. If a future commit adds a
+        // new validate warning that incidentally fires on a freshly-created
+        // template config, OR a template's defaults drift into a contradiction,
+        // this test catches it. Complements the samples-walk test in
+        // UT_ValidateChainConfigCommand which checks the hand-maintained
+        // samples/*.config.json files; this test exercises the actual
+        // CreateChainCommand JSON-emission path.
+        var rc = CreateChainCommand.Run(new[]
+        {
+            "--chain-id", "1099",
+            "--template", template,
+            "--output", _tempDir,
+        });
+        Assert.AreEqual(0, rc, $"create-chain failed for template={template}");
+        var configPath = Path.Combine(_tempDir, "chain.config.json");
+        Assert.IsTrue(File.Exists(configPath), $"chain.config.json missing after create-chain --template={template}");
+
+        var (validateRc, validateOutput) = CaptureStdout(() =>
+            ValidateChainConfigCommand.Run(new[] { configPath }));
+        Assert.AreEqual(0, validateRc,
+            $"validate rejected freshly-created template={template} config:\n{validateOutput}");
+        Assert.IsFalse(validateOutput.Contains("⚠"),
+            $"validate emitted a cross-field warning for template={template} — template defaults are internally inconsistent.\nOutput:\n{validateOutput}");
+    }
+
     // ---- Helpers ----
 
     private static (int rc, string stdout) CaptureStdout(Func<int> run)

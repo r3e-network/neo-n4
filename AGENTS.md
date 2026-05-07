@@ -164,7 +164,7 @@ operator plans rather than performing the wallet-side submission.
 ## Quick commands
 
 ```bash
-# Type-check + run all 1170 tests
+# Type-check + run all 1174 tests
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Devnet demonstration with audit pass

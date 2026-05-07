@@ -229,6 +229,26 @@ exercise what the previous command actually wrote).
 
 Doc-set: test count 1150 → 1153 across the standard files.
 
+### Added — Pin every `--template` produces a config `validate` accepts cleanly (1170 → 1174)
+
+`UT_CreateChainCommand.CreateChain_EachTemplate_PassesValidateWithNoWarnings`
+is parametric across all 4 templates (`rollup` / `zk-rollup` / `validium` /
+`sidechain`): for each, run `create-chain --template T` then run
+`validate` against the produced config, asserting `rc=0` + zero `⚠`.
+
+Complements the samples-walk test (which checks the hand-maintained
+`samples/*.config.json` files) by exercising the actual JSON-emission
+path through `CreateChainCommand` + `TemplateCatalog`. If a future
+edit introduces a contradiction in `TemplateCatalog.All`, OR a new
+`validate` warning incidentally fires on a template default, OR a
+template-resolution refactor produces a config field-set that doesn't
+parse, this test catches it before an operator runs the Quick path.
+
+This pins the create-chain ↔ validate contract bidirectionally:
+neither side can drift without the other being updated to match.
+
+Doc-set: test count 1170 → 1174 across the standard files.
+
 ### Added — Pin all 4 shipped samples pass `validate` with zero warnings (1169 → 1170)
 
 The 4 sample chain configs (`samples/general-rollup`,

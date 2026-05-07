@@ -221,5 +221,24 @@ public class UT_Mvp_Phase3_OptimisticChallenge
         Assert.AreEqual(fraudProof.PreStateRoot, decoded.PreStateRoot);
         Assert.AreEqual(fraudProof.ClaimedPostStateRoot, decoded.ClaimedPostStateRoot);
         Assert.AreEqual(fraudProof.ReplayedPostStateRoot, decoded.ReplayedPostStateRoot);
+
+        // End-to-end Phase 3 closing pin: the bytes produced by the orchestrator's
+        // fraud detection must be the bytes the on-chain `NeoHub.GovernanceFraudVerifier`
+        // accepts. We simulate the contract's structural decision tree (length →
+        // version → claimedPostStateRoot != replayedPostStateRoot) here — same logic
+        // as in UT_GovernanceFraudVerifierParity.SimulateVerify, but inlined so the
+        // integration test self-contains the cross-component pin.
+        Assert.AreEqual(101, bytes.Length, "GovernanceFraudVerifier requires 101-byte payload");
+        Assert.AreEqual((byte)1, bytes[0], "GovernanceFraudVerifier requires version=1");
+        // The discrepancy claim — the structural verifier rejects payloads where
+        // claimedPostStateRoot[33..64] == replayedPostStateRoot[65..96].
+        bool sameRoots = true;
+        for (var i = 0; i < 32; i++)
+        {
+            if (bytes[33 + i] != bytes[65 + i]) { sameRoots = false; break; }
+        }
+        Assert.IsFalse(sameRoots,
+            "the orchestrator's fraud proof must claim a real discrepancy (claimed != replayed) " +
+            "so GovernanceFraudVerifier accepts it; equal roots would reject as ReasonNoDiscrepancy");
     }
 }

@@ -229,6 +229,35 @@ exercise what the previous command actually wrote).
 
 Doc-set: test count 1150 → 1153 across the standard files.
 
+### Added — `validate` parses chainMode + flags Validium-vs-L1-DA contradiction (1159 → 1163)
+
+`ValidateChainConfigCommand` previously ignored the `chainMode` field
+entirely — operators could type `"chainMode": "garbage"` and pass
+silently. Now `chainMode` is required + parsed as the canonical
+`Neo.L2.ChainMode` enum (L1Mode / SidechainMode / L2RollupMode /
+L2ValidiumMode), so unparseable values reject with the standard
+"expected one of: ..." diagnostic.
+
+Plus a new cross-field consistency warning for the
+`L2ValidiumMode` + `DAMode.L1` contradiction. Validium chains by
+definition store transaction data off-chain (per doc.md §6 + §12); a
+config claiming both `L2ValidiumMode` and `daMode: L1` is internally
+contradictory — the operator probably wanted either `L2RollupMode +
+L1` or `L2ValidiumMode + NeoFS/External/DAC`.
+
+The success summary line also gained `chainMode={chainMode}` so the
+operator-facing output reflects all parsed dimensions.
+
+4 new tests in `UT_ValidateChainConfigCommand`:
+- `Validate_UnknownChainMode_ExitsTwo` — typo in chainMode rejected.
+- `Validate_MissingChainMode_ExitsTwo` — required field.
+- `Validate_CrossFieldWarning_ValidiumModeWithL1DA` — pins the new
+  contradiction warning.
+- `Validate_CrossFieldNoWarning_ValidiumModeWithNeoFS` — canonical
+  validium template (NeoFS DA) emits no contradiction warning.
+
+Doc-set: test count 1159 → 1163 across the standard files.
+
 ### Added — `validate` cross-field consistency for Validium + Sidechain SecurityLevels (1156 → 1159)
 
 `ValidateChainConfigCommand`'s cross-field consistency checks only

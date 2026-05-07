@@ -126,6 +126,60 @@ public class UT_ValidateChainConfigCommand
     }
 
     [TestMethod]
+    public void Validate_UnknownChainMode_ExitsTwo()
+    {
+        // chainMode is the §6 enum (L1Mode / SidechainMode / L2RollupMode /
+        // L2ValidiumMode). An unrecognized value (typo) must reject loud.
+        var typo = ValidRollupConfig().Replace("\"L2RollupMode\"", "\"L2RolupMode\"");  // typo
+        var path = WriteConfig(typo);
+        var (rc, _, stderr) = CaptureBoth(() => ValidateChainConfigCommand.Run(new[] { path }));
+        Assert.AreEqual(2, rc);
+        StringAssert.Contains(stderr, "expected one of:");
+    }
+
+    [TestMethod]
+    public void Validate_MissingChainMode_ExitsTwo()
+    {
+        var noChainMode = ValidRollupConfig().Replace("\"chainMode\": \"L2RollupMode\",", "");
+        var path = WriteConfig(noChainMode);
+        var (rc, _, stderr) = CaptureBoth(() => ValidateChainConfigCommand.Run(new[] { path }));
+        Assert.AreEqual(2, rc);
+        StringAssert.Contains(stderr, "missing 'chainMode'");
+    }
+
+    [TestMethod]
+    public void Validate_CrossFieldWarning_ValidiumModeWithL1DA()
+    {
+        // chainMode=L2ValidiumMode + daMode=L1 is a spec contradiction (validium
+        // means OFF-chain DA by definition, per doc.md §6 + §12). Pin the warning.
+        var contradiction = ValidRollupConfig()
+            .Replace("\"chainMode\": \"L2RollupMode\"", "\"chainMode\": \"L2ValidiumMode\"");
+        // daMode still "L1" → contradiction
+        var path = WriteConfig(contradiction);
+        var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
+        Assert.AreEqual(0, rc, "cross-field warning is informational, not fatal");
+        StringAssert.Contains(output, "⚠");
+        StringAssert.Contains(output, "L2ValidiumMode");
+        StringAssert.Contains(output, "off-chain DA");
+    }
+
+    [TestMethod]
+    public void Validate_CrossFieldNoWarning_ValidiumModeWithNeoFS()
+    {
+        // Canonical validium template: L2ValidiumMode + NeoFS DA — no contradiction.
+        var validium = ValidRollupConfig()
+            .Replace("\"chainMode\": \"L2RollupMode\"", "\"chainMode\": \"L2ValidiumMode\"")
+            .Replace("\"daMode\": \"L1\"", "\"daMode\": \"NeoFS\"")
+            .Replace("\"securityLevel\": \"Optimistic\"", "\"securityLevel\": \"Validium\"")
+            .Replace("\"proofType\": \"Optimistic\"", "\"proofType\": \"Zk\"");
+        var path = WriteConfig(validium);
+        var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
+        Assert.AreEqual(0, rc);
+        Assert.IsFalse(output.Contains("L2ValidiumMode contradicts"),
+            "L2ValidiumMode + NeoFS DA is canonical — no contradiction warning");
+    }
+
+    [TestMethod]
     public void Validate_UnknownDaMode_ExitsTwo()
     {
         var typo = ValidRollupConfig().Replace("\"daMode\": \"L1\"", "\"daMode\": \"L99\"");

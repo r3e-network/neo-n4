@@ -72,6 +72,10 @@ internal static class ValidateChainConfigCommand
             var seq = RequireEnum<SequencerModel>(root, "sequencerModel");
             var exit = RequireEnum<ExitModel>(root, "exitModel");
 
+            // §6 ChainMode (drives consensus + settlement + DA semantics). Required
+            // so an unparseable value surfaces here, not at L1-registration time.
+            var chainMode = RequireEnum<ChainMode>(root, "chainMode");
+
             // ProofType (off-chain metadata; the verifier registry uses ProofType
             // to dispatch). Required so an unparseable value surfaces here, not
             // mid-prove.
@@ -104,7 +108,17 @@ internal static class ValidateChainConfigCommand
                 Console.WriteLine($"⚠ securityLevel=Sidechain typically pairs with proofType=None or Multisig; got {proof}");
             }
 
-            Console.WriteLine($"✅ valid: chainId={chainId} securityLevel={sec} daMode={da} " +
+            // ChainMode vs DAMode: L2ValidiumMode means "transaction data lives
+            // off L1" by definition (per doc.md §6 + §12). DAMode=L1 contradicts
+            // that. This is a spec-level contradiction worth surfacing — operator
+            // probably meant to choose either L2RollupMode (with L1 DA) or change
+            // daMode to NeoFS / External / DAC.
+            if (chainMode == ChainMode.L2ValidiumMode && da == DAMode.L1)
+            {
+                Console.WriteLine($"⚠ chainMode=L2ValidiumMode contradicts daMode=L1; validium chains by definition have off-chain DA (NeoFS / External / DAC)");
+            }
+
+            Console.WriteLine($"✅ valid: chainId={chainId} chainMode={chainMode} securityLevel={sec} daMode={da} " +
                 $"sequencer={seq} exit={exit} proofType={proof} gateway={gateway} permExit={permExit}");
             return 0;
         }

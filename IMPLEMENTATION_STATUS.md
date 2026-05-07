@@ -70,7 +70,7 @@ verifier could replay step-by-step on L1 — that's tracked here:
 
 | Item | What's still missing | Where |
 |------|---------------------|-------|
-| `Neo.L2.Challenge.FraudProofPayload` storage-tree witness | v2 wire format now carries the disputed-tx witness bytes (`DisputedTxBytes` field, `[1B version=2][...96B v1 tail...][4B txLen][N bytes tx]`, capped at 64 KB). `GovernanceFraudVerifier` accepts both v1 and v2 structurally. **Still missing for full trustless re-execution**: the storage-read manifest (key + pre-value pairs the disputed tx reads) and storage-write manifest (key + post-value pairs it writes). Future v3 wire format extension would carry those + Merkle proofs against the pre/post state roots in the v1 header. | `src/Neo.L2.Challenge/FraudProofPayload.cs`, `contracts/NeoHub.GovernanceFraudVerifier/` |
+| `NeoHub.RestrictedExecutionFraudVerifier` (on-chain v3 consumer) | v3 off-chain wire format now carries the storage-proof manifests for trustless on-L1 re-execution: per disputed key, the pre-value, post-value, and Merkle proofs against the pre / post state roots. `Neo.L2.Challenge.StorageProof` + `FraudProofPayload`'s `StorageProofs` field encode/decode v3 round-trip cleanly with caps. **Still missing**: the on-chain verifier contract that re-derives the pre/post state roots from each storage proof's siblings + leafIndex and checks them against the v1 header roots. The structural `NeoHub.GovernanceFraudVerifier` continues to reject v3 with ReasonBadVersion (operators running v3 ship their own re-execution verifier). | `src/Neo.L2.Challenge/StorageProof.cs` (off-chain ✅), no on-chain v3 verifier contract yet |
 
 ### Reference / scaffolding — operator must replace
 
@@ -191,7 +191,7 @@ subcommands.
 
 ### Tests
 
-**951 unit + integration tests across 27 projects:**
+**958 unit + integration tests across 27 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |

@@ -182,6 +182,44 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — `FraudProofPayload` v3 wire format with storage-proof manifests (951 → 958)
+
+Closes the storage-tree witness half of the "Optimistic-challenge fraud-proof
+game" audit gap (off-chain side). v3 layout extends v2 with a length-prefixed
+array of storage-proof manifests:
+
+```
+[v2 bytes (header + disputed-tx witness)]
+[4B numStorageProofs]
+[for each StorageProof:
+  [2B keyLen][N bytes key]
+  [4B preValueLen][N bytes preValue]
+  [4B postValueLen][N bytes postValue]
+  [8B leafIndex (uint64 LE)]
+  [1B preSiblingCount][32 × preSiblingCount bytes preSiblings]
+  [1B postSiblingCount][32 × postSiblingCount bytes postSiblings]]
+```
+
+Per-proof caps: `MaxKeyBytes = 256`, `MaxValueBytes = 4096`, `MaxSiblingDepth = 64`.
+Per-payload cap: `MaxStorageProofsPerPayload = 32`. Encode picks version
+automatically: storage proofs → v3, else disputed-tx witness → v2, else v1.
+New `IsV1` / `IsV2` / `IsV3` instance helpers expose the version dispatch.
+
+A real on-L1 trustless re-execution verifier consumes v3 directly: re-derives
+the pre-state root from each storage proof's leaf-hash + siblings + leafIndex,
+checks against the payload's `PreStateRoot` (v1 header), then same on the
+post side against `ClaimedPostStateRoot` or `ReplayedPostStateRoot`. The
+structural `NeoHub.GovernanceFraudVerifier` continues to reject v3 with
+`ReasonBadVersion` — operators running v3 ship their own re-execution
+verifier.
+
+7 new tests in `UT_Challenge`: `StorageProof_RoundTrips`,
+`StorageProof_DecodeRejectsTruncatedKey`, `Payload_V3_RoundTrips`,
+`Payload_V3_RejectsZeroProofs` (zero-proof v3 = use v2 instead),
+`Payload_V3_RejectsCapsViolation_TooManyProofs`,
+`Payload_V3_DecodeRejectsExtraTrailingBytes`,
+`Payload_V3_StorageProofIndividualCapsEnforced`.
+
 ### Added — `FraudProofPayload` v2 wire format with disputed-tx witness (934 → 948)
 
 Closes the disputed-tx half of the "Optimistic-challenge fraud-proof game"

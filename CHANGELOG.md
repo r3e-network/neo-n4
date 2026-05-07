@@ -182,6 +182,44 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — `neo-hub-deploy scaffold` + `plan` subcommand tests (1114 → 1124)
+
+The two remaining `neo-hub-deploy` subcommands (after `verify` got
+extracted last week) without dedicated tests. With this commit, all
+three `neo-hub-deploy` subcommands have dedicated UT_*Command tests
+pinning their exit-code contracts + operator-facing diagnostics.
+
+Refactored: extracted `RunScaffold` / `RunPlan` from `Program.cs` into
+public `ScaffoldCommand` + `PlanCommand` classes (parallel shape to
+`VerifyCommand` from the previous round). `Program.cs` now just
+dispatches `scaffold` → `ScaffoldCommand.Run` and `plan` →
+`PlanCommand.Run`; the private `RunScaffold` / `RunPlan` /
+`DeterministicStubHash` are gone.
+
+`UT_ScaffoldCommand` (4 tests):
+- Happy path writes a parseable 15-step plan to `--output`.
+- Default `--output` (`./deploy-plan.json`) used when omitted.
+- Null args rejected at boundary.
+- Unwriteable output (target is a directory) → exit 1 + "failed to
+  write" diagnostic in stderr.
+
+`UT_PlanCommand` (6 tests):
+- Happy path emits a 15-invocation bundle (matching the scaffold's
+  step count) to `--output`.
+- Plan file not found → exit 1 + "plan file not found" diagnostic.
+- Malformed plan JSON → exit 1 + "failed to parse" diagnostic.
+- Stdout includes "Required post-deploy actions:" with all the wiring
+  hints (RegisterSlasher / SetGovernanceController / both fraud-verifier
+  notes) — pin so a refactor that drops the post-deploy summary doesn't
+  silently break the operator's deployment guidance.
+- Stdout includes the ⚠ "deterministic stubs" warning so operators
+  don't try to deploy the plain bundle without routing through their
+  wallet's signer.
+- Null args rejected at boundary.
+
+`Neo.Hub.Deploy.UnitTests` per-row 33 → 43. Test count 1114 → 1124
+across the doc-set.
+
 ### Added — `init-l2` + `submit-batch` subcommand tests (1100 → 1114)
 
 The last two CLI subcommands without dedicated tests now have them. Every

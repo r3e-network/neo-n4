@@ -15,9 +15,9 @@ internal static class Program
         {
             return args[0] switch
             {
-                "plan" => RunPlan(args[1..]),
+                "plan" => PlanCommand.Run(args[1..]),
                 "verify" => await VerifyCommand.RunAsync(args[1..]),
-                "scaffold" => RunScaffold(args[1..]),
+                "scaffold" => ScaffoldCommand.Run(args[1..]),
                 "help" or "--help" or "-h" => PrintHelp(),
                 _ => Unknown(args[0]),
             };
@@ -54,58 +54,6 @@ internal static class Program
         return PrintHelp();
     }
 
-    // ---- subcommands ----
-
-    private static int RunScaffold(string[] args)
-    {
-        var output = ArgUtil.Get(args, "--output", "deploy-plan.json");
-        var plan = ScaffoldPlan.Default();
-        File.WriteAllText(output, plan.ToJson());
-        Console.WriteLine($"Wrote starter plan to {output}");
-        Console.WriteLine($"  steps: {plan.Steps.Count}");
-        return 0;
-    }
-
-    private static int RunPlan(string[] args)
-    {
-        var planPath = ArgUtil.Get(args, "--plan", "deploy-plan.json");
-        var output = ArgUtil.Get(args, "--output", "deploy-bundle.json");
-
-        var plan = DeployPlan.FromJson(File.ReadAllText(planPath));
-
-        // For 'plan' (no signer), resolve hashes deterministically from step name. Real deploys
-        // override via 'verify' once contracts have actual L1 hashes.
-        var bundle = DeployPlanner.Plan(plan, name => DeterministicStubHash(name));
-
-        File.WriteAllText(output, bundle.ToJson());
-        Console.WriteLine($"Resolved {bundle.Invocations.Count} invocations → {output}");
-        Console.WriteLine($"  network: {bundle.Network}");
-        Console.WriteLine();
-        Console.WriteLine("⚠ Hashes are deterministic stubs — pass through a wallet-equipped signer to deploy.");
-        Console.WriteLine();
-
-        // Surface required post-deploy actions. The bundle alone does not finish the
-        // wiring — SequencerBond's slashers list is intentionally minimal at deploy time
-        // to avoid a cycle (see ScaffoldPlan.BondDeployData). Without this hint, an
-        // operator who runs the bundle could think the deployment is "done" but be
-        // silently missing the Phase-3 slash payout path.
-        var postActions = ScaffoldPlan.PostDeployActions(bundle).ToList();
-        if (postActions.Count > 0)
-        {
-            Console.WriteLine("Required post-deploy actions:");
-            foreach (var a in postActions) Console.WriteLine($"  - {a}");
-        }
-        return 0;
-    }
-
-    private static UInt160 DeterministicStubHash(string stepName)
-    {
-        // Predictable per-name placeholder so 'plan' is reproducible without a signer.
-        var bytes = new byte[20];
-        var nameBytes = System.Text.Encoding.UTF8.GetBytes(stepName);
-        Array.Copy(nameBytes, bytes, Math.Min(nameBytes.Length, 20));
-        return new UInt160(bytes);
-    }
 }
 
 internal static class ArgUtil

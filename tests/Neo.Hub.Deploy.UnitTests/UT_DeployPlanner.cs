@@ -224,6 +224,23 @@ public class UT_DeployPlanner
     }
 
     [TestMethod]
+    public void Scaffold_GovernanceFraudVerifierHasEmptyDeployData()
+    {
+        // Pin the GovernanceFraudVerifier step's empty-args deploy shape. The contract
+        // is stateless (no _deploy handler, no Storage.Put) — the structural verifier
+        // doesn't need owner / config / wired-deps. A regression that adds an
+        // OwnerOnly() or OwnerAndDep() call would break ContractManagement.Deploy
+        // with a confusing cast error at deploy time. Pin the empty JArray shape so
+        // the no-args contract on-chain stays in lockstep with the planner.
+        var plan = ScaffoldPlan.Default();
+        var v = plan.Steps.Single(s => s.Name == "GovernanceFraudVerifier");
+        Assert.AreEqual(0, v.DeployData.Count,
+            "GovernanceFraudVerifier is stateless — no deploy args");
+        Assert.AreEqual(0, v.DependsOn.Count,
+            "GovernanceFraudVerifier has no deploy-time dependencies — verifies a static wire format");
+    }
+
+    [TestMethod]
     public void Scaffold_SequencerBondSlashersIsArrayWithGovernanceController()
     {
         // Pin the unusual 3rd deploy arg shape — SequencerBond takes

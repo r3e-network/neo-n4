@@ -229,6 +229,31 @@ exercise what the previous command actually wrote).
 
 Doc-set: test count 1150 → 1153 across the standard files.
 
+### Added — Direct unit-test coverage for `ArgUtil` parser (1178 → 1188)
+
+`ArgUtil` is the tiny CLI argument parser shared by every neo-stack
+subcommand (`Get(args, name, default)` and `HasFlag(args, name)`).
+It was previously exercised only indirectly via per-command tests —
+a regression that changed `Get`'s "first occurrence wins" or "trailing
+flag without value returns default" semantics could ship undetected
+if it didn't trip a specific command's assertion.
+
+10 new tests in `UT_ArgUtil` pin every observable behavior:
+- `Get` happy path + missing flag + empty args
+- `Get_FlagAtEndWithoutValue_ReturnsDefault` (the loop's `i < args.Length - 1`
+  bound)
+- `Get_DuplicateFlag_ReturnsFirstOccurrence` (first-wins semantics)
+- `Get_EqualsSyntaxNotSupported_FallsBackToDefault` (only `--flag value`,
+  not `--flag=value`; pin so a refactor adding equals-form is an explicit
+  feature, not a silent semantic change)
+- `HasFlag` present / missing / empty args / value-of-another-flag
+  (linear scan with no positional awareness)
+
+Each non-trivial case names what it pins and why, so a future contributor
+reading the test sees the documented intent without git-blaming a refactor.
+
+Doc-set: test count 1178 → 1188 across the standard files.
+
 ### Added — Pin `new-l2` composite emits zero cross-field warnings per template (1174 → 1178)
 
 `UT_NewL2Command.NewL2_EachTemplate_InternalValidateEmitsZeroCrossFieldWarnings`

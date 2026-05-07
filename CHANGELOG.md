@@ -182,6 +182,29 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — register-chain configBytes hex round-trip pin (1074 → 1075)
+
+The existing `Register_WithFourHashes_EmitsConfigBytesHex` test only
+checked that the announcement strings appear in stdout — a refactor that
+broke the actual hex (e.g. byte ordering, casing, separators) would still
+pass. The new `Register_WithFourHashes_EmittedHex_DecodesBackToValidConfig`
+test extracts the hex via regex, decodes it through
+`L2ChainConfigSerializer.Decode`, and pins:
+- exact 91 bytes (the canonical wire format size)
+- ChainId round-trips to 1099
+- Each §16.2 dimension matches the rollup template defaults
+  (Optimistic / L1 DA / DbftCommittee / Delayed exit / gateway off /
+  permissionless exit)
+- The four UInt160 hashes round-trip too (operator hash[0] = 0xaa,
+  verifier = 0xbb, bridge = 0xcc, message = 0xdd)
+
+Catches a refactor that breaks the operator-pasteable round-trip — the
+existing StringAssert.Contains tests would still pass even if the hex
+itself were wrong (e.g. byte-order swap, extra prefix, uppercase).
+
+Doc-set: test count 1074 → 1075 across the standard files;
+Neo.Stack.Cli.UnitTests per-row 57 → 58.
+
 ### Fixed — `deploy-bridge-adapter` now accepts `--output` + does the same chain-config preflight (1067 → 1074)
 
 Last of three plan-printer commands that silently ignored `--output`. The

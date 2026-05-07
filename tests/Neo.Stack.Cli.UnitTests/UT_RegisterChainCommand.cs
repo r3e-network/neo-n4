@@ -159,4 +159,65 @@ public class UT_RegisterChainCommand
             Console.SetOut(origOut);
         }
     }
+
+    [TestMethod]
+    public async Task Register_WithFourHashes_EmittedHex_DecodesBackToValidConfig()
+    {
+        // Stronger pin than the previous test's StringAssert.Contains: extract the
+        // emitted hex from stdout, decode via L2ChainConfigSerializer, and verify
+        // the decoded ChainId / SecurityLevel match the input. Catches a refactor
+        // that breaks the operator-pasteable round-trip (e.g. hex casing changes,
+        // accidental separators, byte ordering bugs) — the current StringAssert
+        // tests would still pass even if the hex itself were wrong.
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(Path.Combine(_tempDir, "chain.config.json"), MinimalConfigJson(1099));
+
+        var origOut = Console.Out;
+        try
+        {
+            var sw = new StringWriter();
+            Console.SetOut(sw);
+            var rc = await RegisterChainCommand.RunAsync(new[]
+            {
+                "--chain-id", "1099",
+                "--output", _tempDir,
+                "--operator", "0x" + new string('a', 40),
+                "--verifier", "0x" + new string('b', 40),
+                "--bridge",   "0x" + new string('c', 40),
+                "--message",  "0x" + new string('d', 40),
+            });
+            Assert.AreEqual(0, rc);
+            var output = sw.ToString();
+
+            // Extract the hex line: '0x' followed by 182 lowercase hex chars (91 bytes).
+            var match = System.Text.RegularExpressions.Regex.Match(
+                output, @"\b0x([0-9a-f]{182})\b");
+            Assert.IsTrue(match.Success, "must emit a 91-byte (182-hex-char) lowercase configBytes line");
+            var hexBody = match.Groups[1].Value;
+            var bytes = Convert.FromHexString(hexBody);
+            Assert.AreEqual(91, bytes.Length, "L2ChainConfig wire format is exactly 91 bytes");
+
+            // Round-trip decode + verify the chainId and §16.2 dimensions came through.
+            var decoded = Neo.L2.L2ChainConfigSerializer.Decode(bytes);
+            Assert.AreEqual(1099u, decoded.ChainId, "round-trip preserves chainId");
+            Assert.AreEqual(Neo.L2.SecurityLevel.Optimistic, decoded.SecurityLevel,
+                "rollup template default → SecurityLevel.Optimistic");
+            Assert.AreEqual(Neo.L2.DAMode.L1, decoded.DAMode, "rollup template default → DAMode.L1");
+            Assert.AreEqual(Neo.L2.SequencerModel.DbftCommittee, decoded.Sequencer);
+            Assert.AreEqual(Neo.L2.ExitModel.Delayed, decoded.Exit);
+            Assert.IsFalse(decoded.GatewayEnabled);
+            Assert.IsTrue(decoded.PermissionlessExit);
+
+            // The four UInt160 hashes round-trip too: operator=0xaa..., verifier=0xbb...,
+            // bridge=0xcc..., message=0xdd... — all 20 bytes of repeating-byte fills.
+            Assert.AreEqual((byte)0xaa, decoded.OperatorManager.GetSpan()[0], "operator hash[0] = 0xaa");
+            Assert.AreEqual((byte)0xbb, decoded.Verifier.GetSpan()[0], "verifier hash[0] = 0xbb");
+            Assert.AreEqual((byte)0xcc, decoded.BridgeAdapter.GetSpan()[0], "bridge hash[0] = 0xcc");
+            Assert.AreEqual((byte)0xdd, decoded.MessageAdapter.GetSpan()[0], "message hash[0] = 0xdd");
+        }
+        finally
+        {
+            Console.SetOut(origOut);
+        }
+    }
 }

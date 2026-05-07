@@ -31,6 +31,18 @@ internal static class InitL2Command
             Console.Error.WriteLine("Run `neo-stack create-chain --chain-id <id>` first.");
             return 1;
         }
+        // Defense-in-depth: chain.config.json is the authoritative input for every
+        // downstream step (register-chain, start-*, devnet preview). If it's missing,
+        // the operator forgot create-chain (or pointed --output at an unrelated dir).
+        // Surface that here with a clear remediation rather than silently creating
+        // the working subdirs against a chain that hasn't been configured.
+        var configPath = Path.Combine(path, "chain.config.json");
+        if (!File.Exists(configPath))
+        {
+            Console.Error.WriteLine($"Missing chain.config.json: {configPath}");
+            Console.Error.WriteLine("Run `neo-stack create-chain --chain-id <id>` first.");
+            return 2;
+        }
 
         Directory.CreateDirectory(Path.Combine(path, "data"));
         Directory.CreateDirectory(Path.Combine(path, "logs"));

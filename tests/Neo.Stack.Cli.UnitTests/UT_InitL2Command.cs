@@ -27,10 +27,16 @@ public class UT_InitL2Command
         if (Directory.Exists(_tempDir)) Directory.Delete(_tempDir, recursive: true);
     }
 
+    private void SeedChainDirWithConfig()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(Path.Combine(_tempDir, "chain.config.json"), "{}");
+    }
+
     [TestMethod]
     public void InitL2_HappyPath_CreatesAllThreeSubdirs()
     {
-        Directory.CreateDirectory(_tempDir);
+        SeedChainDirWithConfig();
         var rc = InitL2Command.Run(new[]
         {
             "--chain-id", "1099",
@@ -40,6 +46,29 @@ public class UT_InitL2Command
         Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "data")), "data/ must be created");
         Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "logs")), "logs/ must be created");
         Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "Plugins")), "Plugins/ must be created");
+    }
+
+    [TestMethod]
+    public void InitL2_MissingChainConfig_ExitsTwo()
+    {
+        // Defense-in-depth: chain dir exists but chain.config.json doesn't —
+        // operator forgot create-chain (or pointed --output at an unrelated dir).
+        // Pin exit 2 (distinct from 1=chain dir missing) so a CI script can
+        // disambiguate the two missing-prerequisite cases.
+        Directory.CreateDirectory(_tempDir);  // chain dir exists, but no chain.config.json
+        var (rc, _, stderr) = CaptureBoth(() => InitL2Command.Run(new[]
+        {
+            "--chain-id", "1099",
+            "--output", _tempDir,
+        }));
+        Assert.AreEqual(2, rc);
+        StringAssert.Contains(stderr, "Missing chain.config.json");
+        StringAssert.Contains(stderr, "neo-stack create-chain");
+        // None of the working subdirs should have been created.
+        Assert.IsFalse(Directory.Exists(Path.Combine(_tempDir, "data")),
+            "missing-config rejection must abort before subdirs are created");
+        Assert.IsFalse(Directory.Exists(Path.Combine(_tempDir, "logs")));
+        Assert.IsFalse(Directory.Exists(Path.Combine(_tempDir, "Plugins")));
     }
 
     [TestMethod]
@@ -85,7 +114,7 @@ public class UT_InitL2Command
     {
         // --path was the original flag; --output came later. Both must continue to
         // work (operator scripts predating --output depend on --path).
-        Directory.CreateDirectory(_tempDir);
+        SeedChainDirWithConfig();
         var rc = InitL2Command.Run(new[]
         {
             "--chain-id", "1099",
@@ -100,7 +129,7 @@ public class UT_InitL2Command
     {
         // --output wins (matches register-chain + start-* + deploy-bridge-adapter
         // precedence — different from create-chain's inverted convention).
-        Directory.CreateDirectory(_tempDir);
+        SeedChainDirWithConfig();
         var bogusPath = Path.Combine(_tempDir, "bogus");
         var rc = InitL2Command.Run(new[]
         {
@@ -117,7 +146,7 @@ public class UT_InitL2Command
     public void InitL2_DaFlag_PrintedInSummary()
     {
         // --da is informational metadata that surfaces in the operator-facing summary.
-        Directory.CreateDirectory(_tempDir);
+        SeedChainDirWithConfig();
         var (rc, output) = CaptureStdout(() => InitL2Command.Run(new[]
         {
             "--chain-id", "1099",
@@ -135,7 +164,7 @@ public class UT_InitL2Command
         // on a second run. Directory.CreateDirectory is idempotent — pin the
         // semantics so a refactor doesn't switch to a recursive-delete-then-create
         // pattern.
-        Directory.CreateDirectory(_tempDir);
+        SeedChainDirWithConfig();
         var rc1 = InitL2Command.Run(new[]
         {
             "--chain-id", "1099",

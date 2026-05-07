@@ -182,6 +182,36 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Fixed — `init-l2` now defends-in-depth against missing chain.config.json (1149 → 1150)
+
+`InitL2Command` previously only checked the chain dir exists, not
+`chain.config.json` inside it. So an operator who:
+- created a temp dir manually (e.g. `mkdir ./my-l2`)
+- forgot `neo-stack create-chain`
+- ran `neo-stack init-l2 --output ./my-l2`
+
+…would silently get `data/` `logs/` `Plugins/` subdirs created against a
+chain dir that has no chain.config.json. Then `register-chain` /
+`start-*` / devnet preview would fail with confusing "Missing config"
+errors despite init-l2 having reported success.
+
+Fix: init-l2 now also checks chain.config.json exists. Returns exit 2
+(distinct from 1=chain dir missing) so a CI script can disambiguate the
+two missing-prerequisite cases. Diagnostic message names the exact
+missing path + points at create-chain.
+
+1 new test `InitL2_MissingChainConfig_ExitsTwo` pins the new check:
+chain dir present + no config → exit 2 + "Missing chain.config.json"
+diagnostic + abort BEFORE creating the working subdirs (operator's
+existing dir contents stay clean).
+
+5 existing init-l2 tests updated to write a placeholder
+`chain.config.json` before invoking init-l2 (they previously relied on
+the old lax behavior). Extracted a `SeedChainDirWithConfig` helper to
+keep the setup pattern consistent.
+
+Doc-set: test count 1149 → 1150 across the standard files.
+
 ### Added — `DevnetLabelOverrides` extraction + per-field fallback tests (1140 → 1149)
 
 The devnet's `--config <chain.config.json>` reader was the last untested

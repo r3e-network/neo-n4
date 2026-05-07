@@ -62,6 +62,55 @@ neo-stack validate ./my-l2/chain.config.json
 
 ---
 
+## Adding custom chain logic (optional)
+
+Most L2 chains specialize how transactions execute on their chain — gaming
+rollups want fast counter increments, exchange validiums want orderbook ops,
+privacy sidechains want proof-verification opcodes. The framework's seam is
+[`ITransactionExecutor`](../src/Neo.L2.Executor/ITransactionExecutor.cs) — one
+method, deterministic per [`SPEC.md`](../src/Neo.L2.Executor/SPEC.md), wired
+into the standard pipeline so sealing / proving / settlement / fraud-proof
+all just work without further plumbing.
+
+```bash
+# 1. Scaffold a starter custom-executor project (csproj + executor skeleton +
+#    state seam + tx builder + KeyedStateStore adapter + README in one go).
+neo-stack scaffold-executor --name MyChain --chain-id 1099
+
+# Output (default ./samples/executors/MyChainExecutor):
+#   MyChainExecutor.csproj
+#   MyChainExecutor.cs              ← ITransactionExecutor with a NoOp placeholder
+#   IMyChainState.cs                ← state seam + InMemory impl
+#   MyChainTxBuilder.cs             ← canonical tx-byte builders
+#   MyChainKeyedStateStoreAdapter.cs← production bridge to KeyedStateStore
+#   README.md                       ← 5-step customization checklist
+
+# 2. The scaffold compiles as-is. Build it:
+dotnet build samples/executors/MyChainExecutor /p:NuGetAudit=false
+
+# 3. Edit MyChainExecutor.cs — replace Opcode.NoOp with your chain's opcodes
+#    (IncrementCounter, EmitWithdrawal, EmitMessage, AppSpecificOp, …).
+#    Each opcode is one byte at offset 0; the rest is opcode-specific body.
+```
+
+Working reference for what a "real" custom executor looks like:
+[`samples/executors/Sample.CounterChainExecutor`](../samples/executors/Sample.CounterChainExecutor) —
+3 opcodes (IncrementCounter / EmitWithdrawal / EmitMessage), per-sender state
+mutation, withdrawal emission, L2→L2 messaging via canonical
+`MessageBuilder.Build`, full SPEC.md determinism. End-to-end-tested
+through `ReferenceBatchExecutor` + `KeyedStateRootOracle` + multisig
+prover/verifier in
+[`tests/Neo.L2.IntegrationTests/UT_E2E_CustomExecutor_FullStack.cs`](../tests/Neo.L2.IntegrationTests/UT_E2E_CustomExecutor_FullStack.cs).
+
+The scaffold's `KeyedStateStoreAdapter` is the bridge that lets your
+executor's writes participate in the post-state-root oracle. With it wired,
+`BatchExecutionResult.PostStateRoot` reflects the actual mutations (not a
+synthetic XOR of the receipt root) — see
+[`UT_KeyedStateStoreAdapter.cs`](../tests/Sample.CounterChainExecutor.UnitTests/UT_KeyedStateStoreAdapter.cs)
+for the parity pin against direct `KeyedStateStore` writes.
+
+---
+
 ## Templates
 
 `neo-stack create-chain --template <name>` picks one of four starting points.
@@ -146,7 +195,7 @@ classes at the same call sites.
 
 | Interface                                    | Default                           | When to swap                                 |
 |----------------------------------------------|-----------------------------------|----------------------------------------------|
-| `ITransactionExecutor`                       | `ReferenceTransactionExecutor`    | Wire to a real NeoVM `ApplicationEngine`     |
+| `ITransactionExecutor`                       | `ReferenceTransactionExecutor`    | Domain-specific opcodes — `neo-stack scaffold-executor` emits a starter, [`Sample.CounterChainExecutor`](../samples/executors/Sample.CounterChainExecutor) is the working reference |
 | `IL2Prover` / `IL2ProofVerifier`             | Multisig / Optimistic / Mock-RiscV| Phase 4: SP1 prover via `Sp1RiscVProver`     |
 | `IDAWriter`                                  | InMemory / NeoFsLike / Persistent | Real NeoFS SDK / L1 sendrawtransaction       |
 | `ISequencerCommitteeProvider`                | `InMemorySequencerCommitteeProvider`| Wire to neo's `DBFTPlugin` consensus selector|
@@ -159,26 +208,41 @@ root; see `Neo.Plugins.L2Metrics.L2MetricsPlugin` for the canonical pattern of
 ### Concrete customization recipe
 
 ```csharp
-// 1. Build your custom transaction executor (e.g. backed by a real NeoVM).
-var myExecutor = new MyNeoVmTransactionExecutor(myNeoSystem);
+// 1. Build your custom transaction executor. Either fork the working
+//    sample (samples/executors/Sample.CounterChainExecutor — has 3
+//    real opcodes already) or scaffold a fresh one:
+//
+//      neo-stack scaffold-executor --name MyChain --chain-id 1099
+//
+//    For a NeoVM-backed real chain, wrap ApplicationEngine instead.
+var stateStore = new KeyedStateStore();              // production: rocksdb-backed
+var stateAdapter = new MyChainKeyedStateStoreAdapter(stateStore);
+var myExecutor = new MyChainExecutor(
+    chainId: 1099,
+    state: stateAdapter,                              // executor's writes flow into…
+    emittingContract: emittingContractHash);
 
 // 2. Wire it into the batch executor that the plugin host instantiates.
+var keyedStateOracle = new KeyedStateRootOracle(stateStore);  // …the same store the oracle hashes
 var batchExecutor = new ReferenceBatchExecutor(
-    txExecutor: myExecutor,                        // ← injected
-    stateRootOracle: keyedStateOracle,
-    l1MessageProcessor: depositProcessor);
+    txExecutor: myExecutor,                          // ← injected
+    postStateRootOracle: keyedStateOracle,
+    l1Processor: depositProcessor);
 
 // 3. Inject your DA writer (e.g. real NeoFS SDK adapter you wrote).
 plugin.WithWriter(new MyNeoFsAdapter(neoFsClient));
 
 // 4. Wire metrics so all your custom components emit through the same sink.
-myExecutor.WithMetrics(metricsPlugin.Metrics);
 plugin.WithMetrics(metricsPlugin.Metrics);
 ```
 
 Every plug-in point has the same shape: an interface in `Neo.L2.Abstractions`,
 a default implementation in `Neo.L2.*` (in-memory / mock), and an injection
 hook on the plugin (`WithWriter`, `WithMetrics`, ctor parameter).
+
+End-to-end test for the full custom-executor pipeline (this exact wiring
+shape):
+[`tests/Neo.L2.IntegrationTests/UT_E2E_CustomExecutor_FullStack.cs`](../tests/Neo.L2.IntegrationTests/UT_E2E_CustomExecutor_FullStack.cs).
 
 ### Worked example: writing a custom `IDAWriter`
 

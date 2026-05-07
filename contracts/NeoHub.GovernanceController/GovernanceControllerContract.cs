@@ -156,7 +156,7 @@ public class GovernanceControllerContract : SmartContract
         ExecutionEngine.Assert(Storage.Get(aKey) == null, "already approved");
         Storage.Put(aKey, new byte[] { 1 });
         OnProposalApproved(proposalId, memberKey);
-        return CountApprovals(proposalId);
+        return IncrementAndCountApprovals(proposalId);
     }
 
     /// <summary>Look up the encoded payload of a proposal (or empty bytes).</summary>
@@ -167,10 +167,21 @@ public class GovernanceControllerContract : SmartContract
         return raw == null ? new byte[0] : (byte[])raw;
     }
 
-    private static uint CountApprovals(ulong proposalId)
+    /// <summary>
+    /// Increment the per-proposal approval counter by 1 and return the new value.
+    /// Also records <c>approvedAt</c> on the first crossing of <see cref="GetThreshold"/>
+    /// so <see cref="IsApprovedAndTimelocked"/> can enforce the council-veto window.
+    /// </summary>
+    /// <remarks>
+    /// Bump-and-return semantics — NOT a pure read. The pure-read companion is the
+    /// <see cref="GetApprovalCount"/> public method (added so wallets / dashboards can
+    /// render "M of N approvals" UI without bumping the counter).
+    /// </remarks>
+    private static uint IncrementAndCountApprovals(ulong proposalId)
     {
-        // Iteration over all members would require Find; for MVP we just track a counter
-        // bumped on each new approval. Production deploys add a dedicated index.
+        // Iteration over all members would require Find; we track a counter bumped on
+        // each new approval instead. The same counter is exposed read-only via
+        // GetApprovalCount for UI / observability paths.
         var counterKey = ProposalIdKey(PrefixApprovalCount, proposalId);
         var raw = Storage.Get(counterKey);
         var current = raw == null ? 0u : (uint)(BigInteger)raw;

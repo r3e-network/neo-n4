@@ -52,20 +52,25 @@ These are real production-shape implementations with full test coverage:
 - **CLI tooling** — `neo-stack` plan-printers + `validate` subcommand;
   `neo-hub-deploy` declarative L1 deploy planner.
 
-### Optimistic-challenge fraud-proof game — incomplete
+### Optimistic-challenge fraud-proof game — partial
 
 The optimistic challenge mechanism's settlement path delegates to an
-operator-supplied fraud verifier; that verifier does not ship in this
-repo, and the `FraudProofPayload` wire format only proves *that there
-is a discrepancy*, not the specific opcode step that produced it.
-Operators choosing the optimistic-rollup template (`samples/general-rollup.config.json`)
-must either implement a real fraud verifier or run the chain in
-governance-arbitration mode where a human council resolves disputes.
+operator-supplied fraud verifier. A reference verifier
+(`NeoHub.GovernanceFraudVerifier`) now ships for chains running in
+**governance-arbitration mode** — it decodes the canonical 101-byte
+`FraudProofPayload`, verifies the wire format (length + version +
+claims-a-real-discrepancy), and emits structured events for the
+human security council to review. Wire by passing this contract's
+deployed hash as the `fraudVerifier` argument to
+`OptimisticChallenge.Challenge`.
 
-| Item | What's missing | Where |
-|------|----------------|-------|
-| `Neo.L2.Challenge.FraudProofPayload` consumer wiring | `OptimisticChallenge.Challenge` delegates to an external `fraudVerifier` contract via `Contract.Call`. The verifier contract that consumes `DisputedTxIndex` to do per-tx re-execution does not ship in this repo. | `contracts/NeoHub.OptimisticChallenge/OptimisticChallengeContract.cs:170` (the `verifyFraud` callsite) |
-| `Neo.L2.Challenge.FraudProofPayload` wire format | Proves "there is a discrepancy" but not the specific opcode-step that produced it. A production-shape fraud proof would extend the layout with execution-trace witness bytes the verifier replays step-by-step. | `src/Neo.L2.Challenge/FraudProofPayload.cs` |
+Production trustlessness still requires extending the
+`FraudProofPayload` wire format with execution-trace witness bytes a
+verifier could replay step-by-step on L1 — that's tracked here:
+
+| Item | What's still missing | Where |
+|------|---------------------|-------|
+| `Neo.L2.Challenge.FraudProofPayload` execution-trace witness | The current 101-byte layout proves "there is a discrepancy" but not the specific opcode-step that produced it. A trustless fraud verifier needs witness bytes (the disputed tx + its pre-state reads + expected post-state writes) to re-execute on L1 without trusting the challenger's replay. | `src/Neo.L2.Challenge/FraudProofPayload.cs` |
 
 ### Reference / scaffolding — operator must replace
 

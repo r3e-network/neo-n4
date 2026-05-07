@@ -120,8 +120,8 @@ jobs:
             echo "$missing artifacts missing — nccs did not run for some contracts"
             exit 1
           fi
-          # Count: 13 NeoHub + 6 L2Native + 2 samples = 21
-          echo "All 21 contracts produced .nef + .manifest.json artifacts"
+          # Count: 14 NeoHub + 6 L2Native + 2 samples = 22
+          echo "All 22 contracts produced .nef + .manifest.json artifacts"
 
   bridge:
     name: cargo check (Rust bridge)

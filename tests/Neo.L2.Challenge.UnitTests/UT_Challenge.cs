@@ -80,6 +80,29 @@ public class UT_Challenge
     }
 
     [TestMethod]
+    public void Payload_Size_Is_101_Bytes_OnChainContractConstant()
+    {
+        // The on-chain NeoHub.GovernanceFraudVerifier hardcodes
+        // FraudProofPayloadSize = 101 (= 1 version + 32 + 32 + 32 + 4 disputed-tx-index).
+        // If this off-chain Size value drifts, the on-chain decoder rejects every payload
+        // with "bad length" — a silent break of the optimistic-challenge fraud-proof game
+        // that surfaces only when an operator submits a real fraud proof. Pin the value
+        // explicitly so a refactor that changes the layout has to also update the
+        // on-chain constant in lockstep.
+        Assert.AreEqual(101, FraudProofPayload.Size);
+    }
+
+    [TestMethod]
+    public void Payload_Version_Is_1_OnChainContractConstant()
+    {
+        // Same parity contract as Payload_Size_Is_101_Bytes_OnChainContractConstant.
+        // The on-chain verifier hardcodes SupportedVersion = 1; bumping the off-chain
+        // version without bumping the on-chain SupportedVersion would have every fraud
+        // proof rejected "bad version".
+        Assert.AreEqual((byte)1, FraudProofPayload.Version);
+    }
+
+    [TestMethod]
     public void Payload_RejectsWrongVersion()
     {
         var bytes = new byte[FraudProofPayload.Size];

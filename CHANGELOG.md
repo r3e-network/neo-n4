@@ -182,6 +182,36 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — Quick-path end-to-end integration tests (1150 → 1153)
+
+The documented Quick path in `docs/launching-an-l2.md` walks operators
+through 7 commands in sequence (create-chain → validate → init-l2 →
+register-chain → deploy-bridge-adapter → start-sequencer/batcher/prover).
+Each command had unit tests, but no test pinned the **command-to-command
+interaction**. A regression in any one command's input/output shape
+(e.g. create-chain emitting JSON validate can't parse, init-l2's new
+chain.config.json check breaking register-chain's preflight) would only
+surface when an operator follows the published walkthrough.
+
+3 new tests in `UT_QuickPathIntegration`:
+- `QuickPath_AllSevenCommands_SucceedInSequence` — runs the full 7-step
+  Quick path against a fresh tempdir + asserts each command exits 0
+  + each step's expected artifacts exist before the next runs.
+- `QuickPath_RegisterWithFourHashes_EmitsConfigBytesHex` — variant
+  where register-chain is called with all four UInt160 flags;
+  validates the validium-template path through to the canonical
+  91-byte configBytes hex.
+- `QuickPath_NewL2Composite_AllStepsSucceed` — the alternate composite
+  bring-up via `new-l2`; pins all 4 composite-step artifacts
+  (chain.config.json + data/logs/Plugins + executor + tests project).
+
+These are higher-value than per-command unit tests for this scenario
+because they catch regressions in command-to-command contracts that
+unit tests miss (each command stub-checks its OWN inputs but doesn't
+exercise what the previous command actually wrote).
+
+Doc-set: test count 1150 → 1153 across the standard files.
+
 ### Fixed — `init-l2` now defends-in-depth against missing chain.config.json (1149 → 1150)
 
 `InitL2Command` previously only checked the chain dir exists, not

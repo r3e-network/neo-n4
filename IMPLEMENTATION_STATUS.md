@@ -9,10 +9,10 @@
 | 0     | Sidechain PoC                             | ✅ MVP integration test passes              |
 | 1     | NeoHub v0 + Shared Bridge                 | ✅ All 14 NeoHub contracts compile + deploy planner emits 14-step bundle |
 | 2     | Batch Settlement                          | ✅ Off-chain green; real `KeyedStateStore` continuity verified across batches |
-| 3     | Optimistic Challenge Window               | ✅ `OptimisticChallenge` contract + `ChallengeOrchestrator` + `BisectionGame` (log-N narrowing) all green |
+| 3     | Optimistic Challenge Window               | ✅ `OptimisticChallenge` contract + `ChallengeOrchestrator` + `BisectionGame` (log-N narrowing) + `GovernanceFraudVerifier` reference (structural, governance-arbitration mode) all green |
 | 4     | NeoVM2 / RISC-V ZK Validity Proof         | 🟡 Two tracks: **RISC-V execution** — `Neo.L2.Executor.RiscV` P/Invokes into `external/neo-riscv-vm/crates/neo-riscv-host` (PolkaVM-backed). **SP1 ZK proving** — bridge buildable (`cargo build --release --features real-prover` produces `libneo_zkvm_bridge.so`); CI exercises the link path with `SP1_FORCE_DUMMY=true`. Real proof requires the SP1 toolchain offline + matching guest ELF |
 | 5     | Neo Gateway (proof aggregation)           | 🟡 `BinaryTreeAggregator` with pluggable `IRoundProver` (default = pass-through hash) |
-| 6     | Neo Stack CLI / Templates                 | ✅ All 8 subcommands functional (create-chain / init-l2 / register-chain / deploy-bridge-adapter / start-sequencer / start-batcher / start-prover / submit-batch) |
+| 6     | Neo Stack CLI / Templates                 | ✅ All 9 subcommands functional (create-chain / init-l2 / register-chain / deploy-bridge-adapter / start-sequencer / start-batcher / start-prover / submit-batch / validate) |
 
 Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 

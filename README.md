@@ -116,7 +116,7 @@ Per [`doc.md` §18](./doc.md):
 | 3     | Optimistic Challenge Window         | ✅     | `OptimisticChallenge` contract + `BisectionGame` (log-N narrowing) |
 | 4     | NeoVM 2 / RISC-V ZK Validity Proof  | 🟡     | SP1 FFI bridge scaffolded; `--features real-prover` flips to native |
 | 5     | Neo Gateway proof aggregation       | 🟡     | `BinaryTreeAggregator` + pluggable `IRoundProver` (default = pass-through) |
-| 6     | Neo Stack CLI / templates           | ✅     | 8 subcommands functional (3 print operator-plan output for the L1/L2-wallet-gated steps) |
+| 6     | Neo Stack CLI / templates           | ✅     | 9 subcommands functional (3 print operator-plan output for the L1/L2-wallet-gated steps; `validate` is a pure JSON sanity-check) |
 
 Legend: ✅ done · 🟡 substantial scaffolding + tests · 🔴 stub.
 

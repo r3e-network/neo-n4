@@ -182,6 +182,48 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — `scaffold-executor --with-tests` flag (1013 → 1016)
+
+Closes the "scaffold to running tests" loop. Until this flag, an operator
+running `neo-stack scaffold-executor` got a buildable starter project but
+no test project — they had to hand-write the tests csproj + Usings.cs +
+starter tests themselves. With `--with-tests`, the scaffold also emits:
+
+  - `<output>.UnitTests/<projectName>.UnitTests.csproj` (MSTest +
+    ProjectReference to the main project)
+  - `<output>.UnitTests/Usings.cs` (global usings: MSTest +
+    Neo + Neo.L2 + the executor's namespace)
+  - `<output>.UnitTests/UT_<projectName>.cs` (3 starter tests pinning
+    the placeholder NoOp opcode + the failed-receipt edge cases)
+
+The starter tests pin: `Execute_NoOp_ReturnsSuccessReceiptWithNoEffects`
+(NoOp dispatch + GasNoOp accounting), `Execute_EmptyTx_ReturnsFailedReceipt`
+(SPEC.md determinism: malformed txs don't crash the batch),
+`Execute_UnknownOpcode_ReturnsFailedReceipt`. As the operator adds real
+opcodes, they mirror new tests against the working sample's pattern at
+`tests/Sample.CounterChainExecutor.UnitTests/UT_CounterChainExecutor.cs`.
+
+When `--with-tests` is set, the scaffold also:
+  - Refuses to overwrite a non-empty `<output>.UnitTests` directory (same
+    defense-in-depth as the main `--output` check).
+  - Aborts atomically: if the tests dir is non-empty, the main project
+    is NOT created either — operators don't lose work mid-scaffold.
+  - Adds a "companion test project" blurb to the main project's README.
+
+3 new tests in UT_ScaffoldExecutorCommand pin the new flag:
+`WithTests_EmitsSiblingTestsProject`, `WithoutTests_OmitsTestsProject`
+(default behavior unchanged), `WithTests_NonEmptyTestsDir_Rejected`
+(atomic abort).
+
+End-to-end smoke-tested manually: scaffolded `SmokeTestChain --with-tests`
+inside the monorepo at `samples/executors/`; both projects built clean +
+all 3 starter tests passed; cleaned up.
+
+Doc-set: docs/launching-an-l2.md "Adding custom chain logic" section
+shows `--with-tests` in the canonical example. IMPLEMENTATION_STATUS.md
+Neo.Stack.Cli.UnitTests row 13 → 16. Test count 1013 → 1016 across the
+doc-set.
+
 ### Added — `neo-l2-devnet --executor counter` flag
 
 Wires `Sample.CounterChainExecutor` end-to-end through the in-process devnet.

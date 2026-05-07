@@ -75,7 +75,10 @@ all just work without further plumbing.
 ```bash
 # 1. Scaffold a starter custom-executor project (csproj + executor skeleton +
 #    state seam + tx builder + KeyedStateStore adapter + README in one go).
-neo-stack scaffold-executor --name MyChain --chain-id 1099
+#    Add --with-tests to also emit a sibling tests project that pins the
+#    placeholder opcodes (3 starter tests: NoOp success + empty-tx failed +
+#    unknown-opcode failed).
+neo-stack scaffold-executor --name MyChain --chain-id 1099 --with-tests
 
 # Output (default ./samples/executors/MyChainExecutor):
 #   MyChainExecutor.csproj
@@ -84,13 +87,20 @@ neo-stack scaffold-executor --name MyChain --chain-id 1099
 #   MyChainTxBuilder.cs             ← canonical tx-byte builders
 #   MyChainKeyedStateStoreAdapter.cs← production bridge to KeyedStateStore
 #   README.md                       ← 5-step customization checklist
+#
+# With --with-tests, also: ./samples/executors/MyChainExecutor.UnitTests/
+#   MyChainExecutor.UnitTests.csproj
+#   Usings.cs
+#   UT_MyChainExecutor.cs           ← 3 starter tests (NoOp success + edge cases)
 
-# 2. The scaffold compiles as-is. Build it:
+# 2. The scaffold compiles + tests pass as-is. Build + test:
 dotnet build samples/executors/MyChainExecutor /p:NuGetAudit=false
+dotnet test  samples/executors/MyChainExecutor.UnitTests /p:NuGetAudit=false
 
 # 3. Edit MyChainExecutor.cs — replace Opcode.NoOp with your chain's opcodes
 #    (IncrementCounter, EmitWithdrawal, EmitMessage, AppSpecificOp, …).
 #    Each opcode is one byte at offset 0; the rest is opcode-specific body.
+#    Mirror new opcodes' tests in UT_MyChainExecutor.cs as you add them.
 ```
 
 Working reference for what a "real" custom executor looks like:

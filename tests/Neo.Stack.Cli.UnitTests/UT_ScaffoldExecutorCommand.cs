@@ -195,4 +195,116 @@ public class UT_ScaffoldExecutorCommand
         Assert.AreEqual(0, rc);
         Assert.IsTrue(File.Exists(Path.Combine(_tempDir, "FooExecutor.csproj")));
     }
+
+    [TestMethod]
+    public void WithTests_EmitsSiblingTestsProject()
+    {
+        var rc = ScaffoldExecutorCommand.Run(new[]
+        {
+            "--name", "Foo",
+            "--output", _tempDir,
+            "--with-tests",
+        });
+        Assert.AreEqual(0, rc);
+
+        // Main project still emits its 6 files.
+        Assert.IsTrue(File.Exists(Path.Combine(_tempDir, "FooExecutor.csproj")));
+
+        // Tests project emits at <output>.UnitTests as a sibling directory.
+        var testsDir = _tempDir + ".UnitTests";
+        try
+        {
+            Assert.IsTrue(Directory.Exists(testsDir),
+                $"--with-tests must create {testsDir}");
+            Assert.IsTrue(File.Exists(Path.Combine(testsDir, "FooExecutor.UnitTests.csproj")),
+                "tests csproj must exist");
+            Assert.IsTrue(File.Exists(Path.Combine(testsDir, "Usings.cs")),
+                "Usings.cs must exist");
+            Assert.IsTrue(File.Exists(Path.Combine(testsDir, "UT_FooExecutor.cs")),
+                "test source file must exist");
+
+            // Tests csproj references the main project.
+            var testsCsproj = File.ReadAllText(Path.Combine(testsDir, "FooExecutor.UnitTests.csproj"));
+            StringAssert.Contains(testsCsproj, "MSTest",
+                "tests csproj must reference MSTest");
+            // Relative path to the main project is ..\<basename(output)>\FooExecutor.csproj.
+            // For the standard default output `./samples/executors/FooExecutor`, that's
+            // `..\FooExecutor\FooExecutor.csproj`; for an arbitrary --output, basename varies.
+            var mainBasename = Path.GetFileName(_tempDir);
+            StringAssert.Contains(testsCsproj, $"..\\{mainBasename}\\FooExecutor.csproj",
+                $"tests csproj must ProjectReference the main project at ../{mainBasename}/...");
+            StringAssert.Contains(testsCsproj, "<RootNamespace>FooExecutor.UnitTests</RootNamespace>",
+                "tests RootNamespace must follow the .UnitTests convention");
+
+            // Test source contains 3 [TestMethod] entries (NoOp success, empty-tx failed, unknown-opcode failed).
+            var testSrc = File.ReadAllText(Path.Combine(testsDir, "UT_FooExecutor.cs"));
+            var testMethodCount = System.Text.RegularExpressions.Regex.Matches(testSrc, @"\[TestMethod\]").Count;
+            Assert.AreEqual(3, testMethodCount,
+                "starter test should pin NoOp + empty-tx + unknown-opcode behaviors");
+
+            // README mentions the tests project location.
+            var readme = File.ReadAllText(Path.Combine(_tempDir, "README.md"));
+            StringAssert.Contains(readme, "FooExecutor.UnitTests",
+                "with --with-tests, README must point at the companion test project");
+        }
+        finally
+        {
+            if (Directory.Exists(testsDir)) Directory.Delete(testsDir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void WithoutTests_OmitsTestsProject()
+    {
+        // Default behavior (no --with-tests): only the main project is emitted.
+        // Pin the absence so a regression that always-emits doesn't silently bloat
+        // the no-tests scaffold.
+        var rc = ScaffoldExecutorCommand.Run(new[]
+        {
+            "--name", "Foo",
+            "--output", _tempDir,
+        });
+        Assert.AreEqual(0, rc);
+        Assert.IsTrue(File.Exists(Path.Combine(_tempDir, "FooExecutor.csproj")));
+
+        var testsDir = _tempDir + ".UnitTests";
+        Assert.IsFalse(Directory.Exists(testsDir),
+            "without --with-tests, the .UnitTests directory must not be created");
+
+        // README must NOT mention the tests project.
+        var readme = File.ReadAllText(Path.Combine(_tempDir, "README.md"));
+        Assert.IsFalse(readme.Contains("UnitTests"),
+            "without --with-tests, README must not reference a non-existent tests project");
+    }
+
+    [TestMethod]
+    public void WithTests_NonEmptyTestsDir_Rejected()
+    {
+        // Same defense-in-depth as the main --output: refuse to overwrite. An
+        // operator who already has a TestsDir from a prior run shouldn't lose work.
+        var testsDir = _tempDir + ".UnitTests";
+        try
+        {
+            Directory.CreateDirectory(testsDir);
+            File.WriteAllText(Path.Combine(testsDir, "preexisting.txt"), "hands off!");
+
+            var rc = ScaffoldExecutorCommand.Run(new[]
+            {
+                "--name", "Foo",
+                "--output", _tempDir,
+                "--with-tests",
+            });
+            Assert.AreEqual(1, rc, "non-empty tests dir must be rejected");
+
+            // Existing file untouched.
+            Assert.AreEqual("hands off!", File.ReadAllText(Path.Combine(testsDir, "preexisting.txt")));
+            // Main project must NOT be created if the tests dir check fails — atomic.
+            Assert.IsFalse(Directory.Exists(_tempDir),
+                "non-empty tests dir rejection must abort before main-project creation (atomic)");
+        }
+        finally
+        {
+            if (Directory.Exists(testsDir)) Directory.Delete(testsDir, recursive: true);
+        }
+    }
 }

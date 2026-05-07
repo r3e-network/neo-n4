@@ -43,22 +43,29 @@ These are real production-shape implementations with full test coverage:
 - **Bridge accounting** — `AssetRegistry`, `DepositProcessor`,
   `WithdrawalProcessor` with replay protection + nonce dedup, plus per-batch
   withdrawal verification on L1 (`SettlementManager.VerifyWithdrawalLeafWithProof`).
+- **Forced-inclusion spam control** — `NeoHub.ForcedInclusion` charges
+  configurable GAS fee per enqueue (`SetFee` / `SetFeeRecipient` /
+  `SetGasToken`); atomic fail-on-transfer-failure; default 0 preserves the
+  fee-free legacy path.
 - **Audit pipeline** — 6 invariant checks (continuity / proof-validity /
   public-input hash / no-zero-proof / DA availability / batch range).
 - **CLI tooling** — `neo-stack` plan-printers + `validate` subcommand;
   `neo-hub-deploy` declarative L1 deploy planner.
 
-### MVP shapes — incomplete, need real implementation work
+### Optimistic-challenge fraud-proof game — incomplete
 
-These are explicitly labeled "MVP" in the source — the framework provides
-the skeleton, but the cryptographic / economic / verification logic is
-simplified and would need real implementation before mainnet:
+The optimistic challenge mechanism's settlement path delegates to an
+operator-supplied fraud verifier; that verifier does not ship in this
+repo, and the `FraudProofPayload` wire format only proves *that there
+is a discrepancy*, not the specific opcode step that produced it.
+Operators choosing the optimistic-rollup template (`samples/general-rollup.config.json`)
+must either implement a real fraud verifier or run the chain in
+governance-arbitration mode where a human council resolves disputes.
 
-| Item | What's MVP | Where |
-|------|------------|-------|
-| `NeoHub.ForcedInclusion` initial fee config | Now charges configurable GAS fee per `EnqueueForcedTransaction` when operator wires `SetFee` + `SetFeeRecipient` + `SetGasToken`. Default 0 = fee-free (legacy + tests preserved). Production operators set non-zero fee at deploy / runtime to discourage spam. | `contracts/NeoHub.ForcedInclusion/ForcedInclusionContract.cs` |
+| Item | What's missing | Where |
+|------|----------------|-------|
 | `Neo.L2.Challenge.FraudProofPayload` consumer wiring | `OptimisticChallenge.Challenge` delegates to an external `fraudVerifier` contract via `Contract.Call`. The verifier contract that consumes `DisputedTxIndex` to do per-tx re-execution does not ship in this repo. | `contracts/NeoHub.OptimisticChallenge/OptimisticChallengeContract.cs:170` (the `verifyFraud` callsite) |
-| `Neo.L2.Challenge.FraudProofPayload` | Proves "there is a discrepancy" but not the specific opcode-step that produced it. | `src/Neo.L2.Challenge/FraudProofPayload.cs` |
+| `Neo.L2.Challenge.FraudProofPayload` wire format | Proves "there is a discrepancy" but not the specific opcode-step that produced it. A production-shape fraud proof would extend the layout with execution-trace witness bytes the verifier replays step-by-step. | `src/Neo.L2.Challenge/FraudProofPayload.cs` |
 
 ### Reference / scaffolding — operator must replace
 

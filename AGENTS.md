@@ -64,7 +64,7 @@ features that look missing are already there).
 | §11 SharedBridge           | Asset escrow               | `contracts/NeoHub.SharedBridge` + `src/Neo.L2.Bridge` |
 | §12 Data Availability      | DA tiers                   | `src/Neo.L2.Abstractions.DAMode` + `src/Neo.Plugins.L2DA` (incl. `NeoFsLikeDAWriter`) |
 | §13 L2 native contracts    | On-L2 system contracts     | `contracts/L2Native.*` (6 contracts) |
-| §3 / §7.1 Custom chain logic | Operator-provided executor seam | `src/Neo.L2.Executor/ITransactionExecutor.cs` (interface), `samples/executors/Sample.CounterChainExecutor/` (runnable reference: 3-opcode custom tx format + state seam + withdrawal/message emission + 13 tests) |
+| §3 / §7.1 Custom chain logic | Operator-provided executor seam | `src/Neo.L2.Executor/ITransactionExecutor.cs` (interface), `samples/executors/Sample.CounterChainExecutor/` (runnable reference: 3-opcode custom tx format + state seam + withdrawal/message emission + 24 tests) |
 | §14.1 L2 RPC               | RPC method surface         | `src/Neo.Plugins.L2Rpc.L2RpcMethods` |
 | §14.2 neo-stack CLI        | Launch framework           | `tools/Neo.Stack.Cli` |
 | §15.4 Forced inclusion     | Anti-censorship            | `contracts/NeoHub.ForcedInclusion` + `src/Neo.L2.ForcedInclusion` + `src/Neo.L2.Censorship` |

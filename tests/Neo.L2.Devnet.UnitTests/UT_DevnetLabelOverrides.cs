@@ -175,6 +175,68 @@ public class UT_DevnetLabelOverrides
     }
 
     [TestMethod]
+    public void GatewayEnabled_StringInsteadOfBool_FallsBackToDefaults()
+    {
+        // JSON type mismatch: gatewayEnabled emitted as a string instead of bool.
+        // GetBoolean() throws on non-bool → caught by outer try/catch → all five
+        // dimensions fall back to defaults. Pin this so a refactor that changes
+        // the recovery path (e.g. making just gatewayEnabled tolerant) doesn't
+        // silently accept malformed config.
+        var path = Path.Combine(_tempDir, "type-mismatch.json");
+        File.WriteAllText(path, @"{ ""gatewayEnabled"": ""true"" }");
+
+        var origErr = Console.Error;
+        try
+        {
+            var sw = new StringWriter();
+            Console.SetError(sw);
+            var result = DevnetLabelOverrides.ReadFromConfig(path);
+            Assert.AreEqual(DevnetLabelOverrides.Defaults, result,
+                "JSON type mismatch on any field falls back to ALL defaults (whole-document recovery)");
+            StringAssert.Contains(sw.ToString(), "parse failed");
+        }
+        finally
+        {
+            Console.SetError(origErr);
+        }
+    }
+
+    [TestMethod]
+    public void GatewayEnabled_NullValue_FallsBackToDefaults()
+    {
+        // Same shape as above but with explicit null. JsonElement.GetBoolean()
+        // throws on null; outer catch falls back.
+        var path = Path.Combine(_tempDir, "null-bool.json");
+        File.WriteAllText(path, @"{ ""gatewayEnabled"": null }");
+
+        var origErr = Console.Error;
+        try
+        {
+            var sw = new StringWriter();
+            Console.SetError(sw);
+            var result = DevnetLabelOverrides.ReadFromConfig(path);
+            Assert.AreEqual(DevnetLabelOverrides.Defaults, result);
+            StringAssert.Contains(sw.ToString(), "parse failed");
+        }
+        finally
+        {
+            Console.SetError(origErr);
+        }
+    }
+
+    [TestMethod]
+    public void EmptyJsonObject_AllFieldsFallToDefaults()
+    {
+        // {} — completely empty config. All five fields fall back to per-field
+        // defaults via TryGetProperty's miss path. This is the "operator
+        // pointed --config at an unrelated JSON file" recovery.
+        var path = Path.Combine(_tempDir, "empty.json");
+        File.WriteAllText(path, "{}");
+        var result = DevnetLabelOverrides.ReadFromConfig(path);
+        Assert.AreEqual(DevnetLabelOverrides.Defaults, result);
+    }
+
+    [TestMethod]
     public void EnumIsCaseSensitive()
     {
         // Pin: lowercase "optimistic" doesn't match SecurityLevel.Optimistic.

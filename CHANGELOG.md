@@ -182,6 +182,23 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — `DevnetLabelOverrides` type-mismatch / null-value / empty-object recovery tests (1153 → 1156)
+
+The label-overrides reader's permissive-fallback semantics handle three
+edge cases the existing tests didn't cover:
+- `gatewayEnabled` emitted as string (`"true"` instead of `true`) →
+  `JsonElement.GetBoolean()` throws → outer catch falls back to all-defaults.
+- `gatewayEnabled` explicitly null → same shape (GetBoolean() throws).
+- `{}` empty config → every field's `TryGetProperty` misses → all fields
+  fall back to per-field defaults.
+
+3 new tests pin these recovery paths so a refactor that changes the
+recovery shape (e.g. making just gatewayEnabled tolerant of strings, or
+returning early on the empty case) breaks loud here, not when an
+operator's hand-edited JSON gets silently accepted.
+
+Doc-set: test count 1153 → 1156 across the standard files.
+
 ### Added — Quick-path end-to-end integration tests (1150 → 1153)
 
 The documented Quick path in `docs/launching-an-l2.md` walks operators

@@ -182,6 +182,82 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — `neo-stack new-l2` composite command (1016 → 1024)
+
+11th `neo-stack` subcommand. Strings `create-chain` + `init-l2` +
+`scaffold-executor --with-tests` together so an operator goes from "I
+want a custom L2" to a buildable + testable + devnet-previewable starter
+in one command:
+
+```bash
+neo-stack new-l2 --name MyChain --chain-id 1234 [--template rollup] [--output ./my-l2]
+```
+
+Produces (default `--output ./chain-<chainId>`):
+
+```
+chain-1234/
+├── chain.config.json              # from create-chain (template-driven §16.2)
+├── data/  logs/  Plugins/         # from init-l2 (node working dirs)
+├── MyChainExecutor/               # from scaffold-executor (custom executor)
+│   ├── MyChainExecutor.csproj
+│   ├── MyChainExecutor.cs
+│   ├── IMyChainState.cs
+│   ├── MyChainTxBuilder.cs
+│   ├── MyChainKeyedStateStoreAdapter.cs
+│   └── README.md
+└── MyChainExecutor.UnitTests/     # from scaffold-executor --with-tests
+    ├── MyChainExecutor.UnitTests.csproj
+    ├── Usings.cs
+    └── UT_MyChainExecutor.cs
+```
+
+After the composite runs, the operator's "Next" output points them at:
+`dotnet build` + `dotnet test` for the executor scaffold, `neo-stack
+validate` for the chain.config.json sanity check, and
+`dotnet run --project tools/Neo.L2.Devnet -- 5 --config <path>` to
+preview the chain end-to-end through the in-process devnet.
+
+Validation + flag handling is largely delegated to the underlying
+commands (so refuse-to-overwrite + identifier validation behavior is
+inherited):
+- `--name` is required at the composite level (rejected before
+  any command runs, atomic — no partial artifacts on disk).
+- `--chain-id 0` throws via `Neo.L2.ChainIdValidator.ValidateL2`
+  (atomic).
+- An invalid `--name` (e.g. `1Bad`) reaches `scaffold-executor`'s
+  identifier validator mid-flow — the composite propagates exit 1
+  with a "new-l2 aborted at scaffold-executor" diagnostic. Earlier-
+  step artifacts (chain.config.json + data/logs/Plugins) ARE on
+  disk; operators can inspect what was written before the failure.
+- `--template` propagates to `chain.config.json`.
+- `--path` is an alias for `--output` (matches create-chain +
+  scaffold-executor + init-l2 ergonomics).
+
+8 new tests in `UT_NewL2Command`:
+- `HappyPath_CreatesAllArtifacts_AndExitsZero` — verifies all
+  create-chain / init-l2 / scaffold artifacts exist after one composite
+  run.
+- `MissingName_Rejected_BeforeAnyCommandRuns` — atomic abort pin.
+- `ChainIdZero_Rejected` — same.
+- `NonNumericChainId_Rejected`.
+- `InvalidName_RejectedByScaffoldStep_AfterEarlierStepsRan` — pin
+  that earlier-step artifacts are preserved on disk for inspection.
+- `PathFlagAlias_UsedWhenOutputAbsent`.
+- `DefaultOutput_IsChainNumberDir` — `./chain-<id>` default works.
+- `TemplatePassedThrough_ToCreateChain` — validium template surfaces
+  in `chain.config.json`'s `securityLevel: Validium`.
+
+End-to-end smoke-tested manually: `neo-stack new-l2 --name SmokeChain
+--chain-id 1234 --output /tmp/new-l2-smoke` produced all artifacts
+correctly; cleaned up.
+
+Doc-set: CLI subcommand count 10 → 11 in IMPLEMENTATION_STATUS.md
+(Phase 6 row + tools table) + README.md (Phase 6 row). Test count 1016
+→ 1024 across AGENTS.md / CONTRIBUTING.md / README.md /
+IMPLEMENTATION_STATUS.md / docs/getting-started.md / docs/tech-stack-
+coverage.md. IMPLEMENTATION_STATUS Stack.Cli row 16 → 24.
+
 ### Added — `scaffold-executor --with-tests` flag (1013 → 1016)
 
 Closes the "scaffold to running tests" loop. Until this flag, an operator

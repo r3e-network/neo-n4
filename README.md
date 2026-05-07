@@ -73,7 +73,7 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 | CLI tools         | **3**     | `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`                           |
 | Native FFI        | **1**     | `bridge/neo-zkvm-bridge` — Rust cdylib + C ABI for SP1 prover P/Invoke   |
 | Submodules        | **3**     | `external/neo` (Neo 4 core) · `external/neo-devpack-dotnet` (NeoVM compiler framework) · `external/neo-zkvm` (SP1 prover, optional). None are released on NuGet/crates.io for the versions tracked here. |
-| Tests             | **1016 / 29 projects** | Module-level unit tests + integration tests; all green |
+| Tests             | **1024 / 29 projects** | Module-level unit tests + integration tests; all green |
 
 ```
 neo4/
@@ -99,7 +99,7 @@ neo4/
 │   └── Neo.Hub.Deploy/                     # declarative L1 deploy planner
 ├── bridge/
 │   └── neo-zkvm-bridge/                    # Rust cdylib + C ABI
-└── tests/                                  # 1016 tests / 29 projects
+└── tests/                                  # 1024 tests / 29 projects
 ```
 
 ---
@@ -116,7 +116,7 @@ Per [`doc.md` §18](./doc.md):
 | 3     | Optimistic Challenge Window         | ✅     | `OptimisticChallenge` contract + `BisectionGame` (log-N narrowing) |
 | 4     | NeoVM 2 / RISC-V ZK Validity Proof  | 🟡     | SP1 FFI bridge scaffolded; `--features real-prover` flips to native |
 | 5     | Neo Gateway proof aggregation       | 🟡     | `BinaryTreeAggregator` + pluggable `IRoundProver` (default = pass-through) |
-| 6     | Neo Stack CLI / templates           | ✅     | 10 subcommands functional (3 print operator-plan output for the L1/L2-wallet-gated steps; `validate` is a pure JSON sanity-check; `scaffold-executor` emits a custom-executor starter project) |
+| 6     | Neo Stack CLI / templates           | ✅     | 11 subcommands functional (3 print operator-plan output for the L1/L2-wallet-gated steps; `validate` is a pure JSON sanity-check; `scaffold-executor` emits a custom-executor starter project; `new-l2` is the composite that strings create-chain + init-l2 + scaffold-executor --with-tests together) |
 
 Legend: ✅ done · 🟡 substantial scaffolding + tests · 🔴 stub.
 
@@ -138,7 +138,7 @@ cd neo-n4
 # If you forgot --recurse-submodules:
 # git submodule update --init --recursive
 
-# Type-check everything + run all 1016 tests (~10 seconds)
+# Type-check everything + run all 1024 tests (~10 seconds)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Run the in-process devnet (5 batches, real state-root continuity, post-run audit)

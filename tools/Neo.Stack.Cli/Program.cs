@@ -34,6 +34,7 @@ internal static class Program
                 "submit-batch" => await SubmitBatchCommand.RunAsync(rest),
                 "validate" => ValidateChainConfigCommand.Run(rest),
                 "scaffold-executor" => ScaffoldExecutorCommand.Run(rest),
+                "new-l2" => NewL2Command.Run(rest),
                 "--help" or "-h" or "help" => PrintHelp(),
                 _ => Unknown(subcommand),
             };
@@ -70,6 +71,7 @@ internal static class Program
               submit-batch          Submit a sealed batch to NeoHub
               validate              Sanity-check a chain.config.json (enum names, required fields)
               scaffold-executor     Generate a starter custom-ITransactionExecutor project
+              new-l2                Composite: create-chain + init-l2 + scaffold-executor --with-tests
               help                  Show this message
 
             See doc.md §14.2 for the full design.

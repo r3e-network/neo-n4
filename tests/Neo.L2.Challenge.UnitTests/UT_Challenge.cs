@@ -76,7 +76,170 @@ public class UT_Challenge
     [TestMethod]
     public void Payload_RejectsWrongSize()
     {
-        Assert.ThrowsExactly<ArgumentException>(() => FraudProofPayload.Decode(new byte[42]));
+        // v1 with wrong length: ArgumentException ("v1 payload must be exactly 101 bytes").
+        var badV1 = new byte[42];
+        badV1[0] = FraudProofPayload.Version;  // = 1
+        Assert.ThrowsExactly<ArgumentException>(() => FraudProofPayload.Decode(badV1));
+
+        // v2 with truncated header: ArgumentException ("v2 payload must be ≥ 105 bytes").
+        var truncatedV2 = new byte[42];
+        truncatedV2[0] = FraudProofPayload.Version2;  // = 2
+        Assert.ThrowsExactly<ArgumentException>(() => FraudProofPayload.Decode(truncatedV2));
+    }
+
+    [TestMethod]
+    public void Payload_RejectsUnknownVersion()
+    {
+        // Unknown version byte → InvalidDataException, regardless of length.
+        var unknown = new byte[101];
+        unknown[0] = 99;
+        Assert.ThrowsExactly<InvalidDataException>(() => FraudProofPayload.Decode(unknown));
+    }
+
+    [TestMethod]
+    public void Payload_RejectsEmpty()
+    {
+        // Zero-length buffer can't even read the version byte → ArgumentException.
+        Assert.ThrowsExactly<ArgumentException>(() => FraudProofPayload.Decode(ReadOnlySpan<byte>.Empty));
+    }
+
+    [TestMethod]
+    public void Payload_V2_RoundTrips()
+    {
+        // v2 carries disputed-tx witness bytes — encode produces 105 + N, decode
+        // recovers the witness exactly.
+        var tx = new byte[] { 0xAA, 0xBB, 0xCC, 0xDD, 0xEE };
+        var p = new FraudProofPayload
+        {
+            PreStateRoot = H('a'),
+            ClaimedPostStateRoot = H('b'),
+            ReplayedPostStateRoot = H('c'),
+            DisputedTxIndex = 7,
+            DisputedTxBytes = tx,
+        };
+        var bytes = p.Encode();
+        Assert.AreEqual(FraudProofPayload.V2HeaderSize + tx.Length, bytes.Length,
+            "v2 with 5-byte tx → 105 + 5 = 110 bytes");
+        Assert.AreEqual(FraudProofPayload.Version2, bytes[0]);
+
+        var decoded = FraudProofPayload.Decode(bytes);
+        Assert.AreEqual(p.PreStateRoot, decoded.PreStateRoot);
+        Assert.AreEqual(p.ClaimedPostStateRoot, decoded.ClaimedPostStateRoot);
+        Assert.AreEqual(p.ReplayedPostStateRoot, decoded.ReplayedPostStateRoot);
+        Assert.AreEqual(p.DisputedTxIndex, decoded.DisputedTxIndex);
+        CollectionAssert.AreEqual(tx, decoded.DisputedTxBytes.ToArray());
+        Assert.AreEqual(p, decoded, "FraudProofPayload Equals must compare witness bytes");
+    }
+
+    [TestMethod]
+    public void Payload_V1_BackwardsCompat_EmptyWitnessOnDecode()
+    {
+        // v1-encoded bytes (no witness in the source) decode into a record with empty
+        // DisputedTxBytes. Pin so a future change can't accidentally make v1 bytes look
+        // like they had a witness.
+        var p = new FraudProofPayload
+        {
+            PreStateRoot = H('a'),
+            ClaimedPostStateRoot = H('b'),
+            ReplayedPostStateRoot = H('c'),
+            DisputedTxIndex = 5,
+            // DisputedTxBytes deliberately omitted — defaults to ReadOnlyMemory<byte>.Empty.
+        };
+        var bytes = p.Encode();
+        Assert.AreEqual(FraudProofPayload.Size, bytes.Length, "no witness → v1 size (101)");
+        Assert.AreEqual(FraudProofPayload.Version, bytes[0]);
+
+        var decoded = FraudProofPayload.Decode(bytes);
+        Assert.IsTrue(decoded.DisputedTxBytes.IsEmpty,
+            "v1 decode must produce empty witness, not garbage");
+        Assert.AreEqual(p, decoded);
+    }
+
+    [TestMethod]
+    public void Payload_V2_RejectsCapsViolation()
+    {
+        // Encoding > 64KB of witness bytes is refused — without the cap, a malicious
+        // challenger could submit arbitrarily large payloads.
+        var huge = new byte[FraudProofPayload.MaxDisputedTxBytes + 1];
+        var p = new FraudProofPayload
+        {
+            PreStateRoot = H('a'),
+            ClaimedPostStateRoot = H('b'),
+            ReplayedPostStateRoot = H('c'),
+            DisputedTxIndex = 0,
+            DisputedTxBytes = huge,
+        };
+        Assert.ThrowsExactly<InvalidOperationException>(() => p.Encode());
+    }
+
+    [TestMethod]
+    public void Payload_V2_DecodeRejectsTruncatedTrailer()
+    {
+        // v2 with declared len = 10 but only 5 bytes of witness data → reject.
+        // Without strict length enforcement, a fraudulent payload could include a
+        // partial witness and be silently accepted with whatever was at the bounds.
+        var p = new FraudProofPayload
+        {
+            PreStateRoot = H('a'),
+            ClaimedPostStateRoot = H('b'),
+            ReplayedPostStateRoot = H('c'),
+            DisputedTxIndex = 0,
+            DisputedTxBytes = new byte[] { 1, 2, 3, 4, 5 },
+        };
+        var bytes = p.Encode();
+        // Declared len is 5 (= bytes[101..104] LE). Trim the actual payload to 105+3.
+        var truncated = bytes.AsSpan(0, FraudProofPayload.V2HeaderSize + 3).ToArray();
+        Assert.ThrowsExactly<ArgumentException>(() => FraudProofPayload.Decode(truncated));
+    }
+
+    [TestMethod]
+    public void Payload_V2_DecodeRejectsExtraTrailingBytes()
+    {
+        // v2 with extra bytes after the declared witness → reject. Pin strict length.
+        var p = new FraudProofPayload
+        {
+            PreStateRoot = H('a'),
+            ClaimedPostStateRoot = H('b'),
+            ReplayedPostStateRoot = H('c'),
+            DisputedTxIndex = 0,
+            DisputedTxBytes = new byte[] { 1, 2, 3 },
+        };
+        var bytes = p.Encode();
+        var withExtra = new byte[bytes.Length + 5];
+        bytes.CopyTo(withExtra, 0);
+        Assert.ThrowsExactly<ArgumentException>(() => FraudProofPayload.Decode(withExtra));
+    }
+
+    [TestMethod]
+    public void Payload_V2_DecodeRejectsOversizedDeclaredLen()
+    {
+        // Construct a v2 buffer with declaredLen > MaxDisputedTxBytes; reject before
+        // attempting to allocate / read.
+        var bytes = new byte[FraudProofPayload.V2HeaderSize + 10];
+        bytes[0] = FraudProofPayload.Version2;
+        // Write a length that would claim > 64KB.
+        var oversized = (uint)FraudProofPayload.MaxDisputedTxBytes + 1;
+        bytes[101] = (byte)oversized;
+        bytes[102] = (byte)(oversized >> 8);
+        bytes[103] = (byte)(oversized >> 16);
+        bytes[104] = (byte)(oversized >> 24);
+        Assert.ThrowsExactly<ArgumentException>(() => FraudProofPayload.Decode(bytes));
+    }
+
+    [TestMethod]
+    public void Payload_EncodedSize_VariesByVersion()
+    {
+        var noWitness = new FraudProofPayload
+        {
+            PreStateRoot = H('a'),
+            ClaimedPostStateRoot = H('b'),
+            ReplayedPostStateRoot = H('c'),
+            DisputedTxIndex = 0,
+        };
+        Assert.AreEqual(FraudProofPayload.Size, noWitness.EncodedSize);
+
+        var withWitness = noWitness with { DisputedTxBytes = new byte[10] };
+        Assert.AreEqual(FraudProofPayload.V2HeaderSize + 10, withWitness.EncodedSize);
     }
 
     [TestMethod]

@@ -48,11 +48,20 @@ namespace NeoHub.GovernanceFraudVerifier;
 [ContractPermission(Permission.Any, Method.Any)]
 public class GovernanceFraudVerifierContract : SmartContract
 {
-    /// <summary>Wire-format payload size — must match Neo.L2.Challenge.FraudProofPayload.Size.</summary>
+    /// <summary>v1 wire-format payload size — must match Neo.L2.Challenge.FraudProofPayload.Size.</summary>
     public const int FraudProofPayloadSize = 1 + 32 + 32 + 32 + 4;
 
-    /// <summary>Wire-format version we accept. Bump when the off-chain payload format changes.</summary>
+    /// <summary>v2 wire-format header size (= v1 size + 4-byte witness length prefix).</summary>
+    public const int V2HeaderSize = FraudProofPayloadSize + 4;
+
+    /// <summary>Cap on the v2 disputed-tx witness — must match Neo.L2.Challenge.FraudProofPayload.MaxDisputedTxBytes.</summary>
+    public const int MaxDisputedTxBytes = 64 * 1024;
+
+    /// <summary>v1 wire-format version (structural-only, fixed length).</summary>
     public const byte SupportedVersion = 1;
+
+    /// <summary>v2 wire-format version (includes disputed-tx witness trailer).</summary>
+    public const byte SupportedVersion2 = 2;
 
     /// <summary>Emitted on every accepted fraud-proof structural verification.</summary>
     [DisplayName("FraudProofAccepted")]
@@ -62,21 +71,26 @@ public class GovernanceFraudVerifierContract : SmartContract
     [DisplayName("FraudProofRejected")]
     public static event Action<uint, ulong, byte> OnFraudProofRejected = default!;
 
-    /// <summary>Reject reason: payload bytes are not the canonical 101-byte length.</summary>
+    /// <summary>Reject reason: payload bytes are not the canonical 101-byte length (v1) or
+    /// the v2 length doesn't match the declared header + witness size.</summary>
     public const byte ReasonBadLength = 1;
 
-    /// <summary>Reject reason: payload version byte does not match the supported version.</summary>
+    /// <summary>Reject reason: payload version byte is not 1 (v1) or 2 (v2).</summary>
     public const byte ReasonBadVersion = 2;
 
     /// <summary>Reject reason: claimedPostStateRoot equals replayedPostStateRoot — no discrepancy claimed.</summary>
     public const byte ReasonNoDiscrepancy = 3;
 
+    /// <summary>Reject reason (v2 only): declared disputed-tx witness length exceeds MaxDisputedTxBytes.</summary>
+    public const byte ReasonOversizedWitness = 4;
+
     /// <summary>
-    /// Verify a fraud-proof payload's structural validity.
+    /// Verify a fraud-proof payload's structural validity. Accepts both v1 (101-byte
+    /// fixed) and v2 (105 + N-byte variable, with disputed-tx witness) wire formats.
     /// </summary>
     /// <param name="chainId">L2 chain id (passed through from <c>OptimisticChallenge.Challenge</c>).</param>
     /// <param name="batchNumber">Disputed batch number (passed through).</param>
-    /// <param name="payload">Canonical <c>FraudProofPayload</c> bytes (101 bytes, version=1).</param>
+    /// <param name="payload">Canonical <c>FraudProofPayload</c> bytes (v1 or v2).</param>
     /// <returns>
     /// True when the payload is well-formed AND claims a real discrepancy
     /// (claimedPostStateRoot != replayedPostStateRoot). False otherwise — the rejected
@@ -85,23 +99,64 @@ public class GovernanceFraudVerifierContract : SmartContract
     [Safe]
     public static bool VerifyFraud(uint chainId, ulong batchNumber, byte[] payload)
     {
-        if (payload.Length != FraudProofPayloadSize)
+        // Need at least the 1-byte version prefix to dispatch.
+        if (payload.Length < 1)
         {
             OnFraudProofRejected(chainId, batchNumber, ReasonBadLength);
             return false;
         }
-        if (payload[0] != SupportedVersion)
+        var version = payload[0];
+
+        if (version == SupportedVersion)
+        {
+            // v1: fixed 101 bytes, no witness trailer.
+            if (payload.Length != FraudProofPayloadSize)
+            {
+                OnFraudProofRejected(chainId, batchNumber, ReasonBadLength);
+                return false;
+            }
+        }
+        else if (version == SupportedVersion2)
+        {
+            // v2: at least 105 bytes for the header + declared witness length.
+            if (payload.Length < V2HeaderSize)
+            {
+                OnFraudProofRejected(chainId, batchNumber, ReasonBadLength);
+                return false;
+            }
+            // Read uint32 LE at offset 101..104 = declared disputed-tx witness length.
+            var declaredLen = (uint)payload[101]
+                | ((uint)payload[102] << 8)
+                | ((uint)payload[103] << 16)
+                | ((uint)payload[104] << 24);
+            if (declaredLen > MaxDisputedTxBytes)
+            {
+                OnFraudProofRejected(chainId, batchNumber, ReasonOversizedWitness);
+                return false;
+            }
+            // Strict length match — extra trailing bytes or a truncated witness are
+            // both malformed. Same iter discipline as the off-chain Decode.
+            if (payload.Length != V2HeaderSize + declaredLen)
+            {
+                OnFraudProofRejected(chainId, batchNumber, ReasonBadLength);
+                return false;
+            }
+        }
+        else
         {
             OnFraudProofRejected(chainId, batchNumber, ReasonBadVersion);
             return false;
         }
 
         // Wire layout (matches Neo.L2.Challenge.FraudProofPayload.Encode):
-        //   [0]      : version
+        //   [0]      : version (1 or 2)
         //   [1..32]  : preStateRoot
         //   [33..64] : claimedPostStateRoot
         //   [65..96] : replayedPostStateRoot
         //   [97..100]: disputedTxIndex (uint32 LE)
+        //   v2 only:
+        //   [101..104]: disputedTxLen (uint32 LE)
+        //   [105..]   : disputedTxBytes
         // The discrepancy claim is: claimedPostStateRoot != replayedPostStateRoot.
         // If they're equal, the challenger has no actual fraud claim — reject.
         if (BytesEqual(payload, 33, payload, 65, 32))
@@ -112,7 +167,8 @@ public class GovernanceFraudVerifierContract : SmartContract
 
         // Structural validation passed. Pull out the two state roots for the event log
         // so the security council reviewing this dispute has them visible without
-        // re-decoding the bytes.
+        // re-decoding the bytes. v2 witness bytes are NOT in the event — operators
+        // who want them re-decode the original payload off-chain.
         var claimedRoot = SliceUInt256(payload, 33);
         var replayedRoot = SliceUInt256(payload, 65);
         OnFraudProofAccepted(chainId, batchNumber, claimedRoot, replayedRoot);

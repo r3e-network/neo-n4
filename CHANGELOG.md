@@ -182,6 +182,43 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — `FraudProofPayload` v2 wire format with disputed-tx witness (934 → 948)
+
+Closes the disputed-tx half of the "Optimistic-challenge fraud-proof game"
+audit gap. v2 layout extends v1 with a length-prefixed witness:
+
+```
+[1B version=2][32B preStateRoot][32B claimedPostStateRoot]
+[32B replayedPostStateRoot][4B disputedTxIndex]
+[4B disputedTxLen][N bytes disputedTxBytes]
+```
+
+`FraudProofPayload.Encode()` produces v1 bytes when `DisputedTxBytes` is
+empty (legacy callers preserved), v2 bytes otherwise. `Decode()` reads the
+version byte and dispatches to the right format. `MaxDisputedTxBytes = 64KB`
+cap prevents unbounded payloads.
+
+`NeoHub.GovernanceFraudVerifier` now accepts both versions. The decision
+tree changed order to dispatch on version FIRST (different versions have
+different valid lengths), then per-version length check, then the
+discrepancy claim. New reject reason byte: `ReasonOversizedWitness = 4`.
+
+  - Off-chain: 9 new tests in `UT_Challenge` (v2 round-trip; v1 backwards
+    compat empty-witness pin; cap-violation rejection; truncated-trailer +
+    extra-trailing-bytes rejections; oversized-declared-len rejection;
+    `EncodedSize` varies-by-version pin; explicit unknown-version vs
+    bad-length distinction)
+  - Off-chain parity: 5 new tests in `UT_GovernanceFraudVerifierParity`
+    extending `SimulateVerify` to handle v2 (real-discrepancy → accept;
+    same-root → reject NoDiscrepancy; truncated-witness → BadLength;
+    oversized-witness → OversizedWitness; bad-version pin)
+  - Updated 2 existing tests to reflect the new version-first dispatch
+    order (length checks now happen per-version, not before version)
+
+What's still missing for full trustless re-execution: the storage-read +
+storage-write manifests with Merkle proofs against the pre/post state
+roots in the v1 header. v3 wire format territory.
+
 ### Added — `GovernanceFraudVerifier` parity test coverage (925 → 933)
 
 8 new tests in `UT_GovernanceFraudVerifierParity` simulate the on-chain

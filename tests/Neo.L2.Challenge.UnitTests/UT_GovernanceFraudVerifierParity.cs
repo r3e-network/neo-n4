@@ -27,18 +27,41 @@ public class UT_GovernanceFraudVerifierParity
     private const byte ReasonBadLength = 1;
     private const byte ReasonBadVersion = 2;
     private const byte ReasonNoDiscrepancy = 3;
+    private const byte ReasonOversizedWitness = 4;
     private const byte ReasonAccepted = 0;
     private const byte SupportedVersion = 1;
+    private const byte SupportedVersion2 = 2;
     private const int FraudProofPayloadSize = 101;
+    private const int V2HeaderSize = 105;
+    private const int MaxDisputedTxBytes = 64 * 1024;
 
     /// <summary>
     /// C# replica of <c>GovernanceFraudVerifierContract.VerifyFraud</c>'s decision tree.
-    /// Returns the on-chain reason byte (0 for accept, 1/2/3 for the three rejection paths).
+    /// Returns the on-chain reason byte (0 for accept, 1/2/3/4 for the rejection paths).
+    /// Handles v1 (101 bytes) and v2 (105 + N bytes with witness trailer) formats.
     /// </summary>
     private static byte SimulateVerify(byte[] payload)
     {
-        if (payload.Length != FraudProofPayloadSize) return ReasonBadLength;
-        if (payload[0] != SupportedVersion) return ReasonBadVersion;
+        if (payload.Length < 1) return ReasonBadLength;
+        var version = payload[0];
+        if (version == SupportedVersion)
+        {
+            if (payload.Length != FraudProofPayloadSize) return ReasonBadLength;
+        }
+        else if (version == SupportedVersion2)
+        {
+            if (payload.Length < V2HeaderSize) return ReasonBadLength;
+            var declaredLen = (uint)payload[101]
+                | ((uint)payload[102] << 8)
+                | ((uint)payload[103] << 16)
+                | ((uint)payload[104] << 24);
+            if (declaredLen > MaxDisputedTxBytes) return ReasonOversizedWitness;
+            if (payload.Length != V2HeaderSize + declaredLen) return ReasonBadLength;
+        }
+        else
+        {
+            return ReasonBadVersion;
+        }
         // Compare claimedPostStateRoot (offset 33..64) vs replayedPostStateRoot (offset 65..96).
         for (var i = 0; i < 32; i++)
         {
@@ -89,9 +112,14 @@ public class UT_GovernanceFraudVerifierParity
     [TestMethod]
     public void Verify_BadLength_Rejected()
     {
-        // Truncated and oversized inputs must reject with ReasonBadLength.
-        Assert.AreEqual(ReasonBadLength, SimulateVerify(new byte[100]));
-        Assert.AreEqual(ReasonBadLength, SimulateVerify(new byte[102]));
+        // For a known version (v1), bad length → ReasonBadLength.
+        var v1Short = new byte[100]; v1Short[0] = SupportedVersion;
+        Assert.AreEqual(ReasonBadLength, SimulateVerify(v1Short));
+        var v1Long = new byte[102]; v1Long[0] = SupportedVersion;
+        Assert.AreEqual(ReasonBadLength, SimulateVerify(v1Long));
+
+        // Empty buffer can't even read the version byte → ReasonBadLength
+        // (we can't dispatch version-first if there's no version byte).
         Assert.AreEqual(ReasonBadLength, SimulateVerify(new byte[0]));
     }
 
@@ -106,17 +134,17 @@ public class UT_GovernanceFraudVerifierParity
     }
 
     [TestMethod]
-    public void Verify_DecisionTreeOrder_LengthBeforeVersion()
+    public void Verify_DecisionTreeOrder_VersionBeforeLength()
     {
-        // Pin the order: length is checked first, so a bad-length+bad-version
-        // payload reports ReasonBadLength (1), not ReasonBadVersion (2).
-        // Without this ordering pin, a refactor that swapped the checks would
-        // change the on-chain event's reason byte for malformed inputs and
-        // operators reading the reject-reason metric would see the wrong cause.
+        // After v2 support landed, version dispatch happens FIRST (different
+        // versions have different valid lengths). So a bad-version + bad-length
+        // payload reports ReasonBadVersion (2), not ReasonBadLength (1). Pin so
+        // a refactor that re-orders the checks doesn't change the operator-facing
+        // reject metric for malformed inputs.
         var bytes = new byte[100];
         bytes[0] = 99;
-        Assert.AreEqual(ReasonBadLength, SimulateVerify(bytes),
-            "length check runs before version check");
+        Assert.AreEqual(ReasonBadVersion, SimulateVerify(bytes),
+            "version check runs before per-version length check (since v2 added)");
     }
 
     [TestMethod]
@@ -165,5 +193,72 @@ public class UT_GovernanceFraudVerifierParity
         var b2 = p2.Encode();
         Assert.AreEqual(SimulateVerify(b1), SimulateVerify(b2),
             "DisputedTxIndex must not affect the structural verifier's accept/reject decision");
+    }
+
+    [TestMethod]
+    public void Verify_V2_WithWitness_RealDiscrepancy_Accepted()
+    {
+        // v2 payload with a real disputed-tx witness + claimed != replayed → accept.
+        var p = SamplePayload(claimed: H(0xA1), replayed: H(0xB2)) with
+        {
+            DisputedTxBytes = new byte[] { 0xDE, 0xAD, 0xBE, 0xEF },
+        };
+        var bytes = p.Encode();
+        Assert.AreEqual(V2HeaderSize + 4, bytes.Length);
+        Assert.AreEqual(SupportedVersion2, bytes[0]);
+        Assert.AreEqual(ReasonAccepted, SimulateVerify(bytes),
+            "v2 well-formed + real-discrepancy → accept");
+    }
+
+    [TestMethod]
+    public void Verify_V2_NoDiscrepancy_Rejected()
+    {
+        // v2 with same claimed + replayed roots → reject NoDiscrepancy regardless of
+        // the witness content. The witness exists for re-execution verifiers; the
+        // structural verifier still requires the basic claim.
+        var sameRoot = H(0xCC);
+        var p = SamplePayload(claimed: sameRoot, replayed: sameRoot) with
+        {
+            DisputedTxBytes = new byte[] { 1, 2, 3 },
+        };
+        var bytes = p.Encode();
+        Assert.AreEqual(ReasonNoDiscrepancy, SimulateVerify(bytes));
+    }
+
+    [TestMethod]
+    public void Verify_V2_TruncatedWitness_Rejected()
+    {
+        // Declared length 5, but only 3 bytes of witness data → BadLength.
+        var p = SamplePayload(claimed: H(0xA1), replayed: H(0xB2)) with
+        {
+            DisputedTxBytes = new byte[] { 1, 2, 3, 4, 5 },
+        };
+        var bytes = p.Encode();
+        var truncated = bytes.AsSpan(0, V2HeaderSize + 3).ToArray();
+        Assert.AreEqual(ReasonBadLength, SimulateVerify(truncated));
+    }
+
+    [TestMethod]
+    public void Verify_V2_OversizedWitness_Rejected()
+    {
+        // Construct a v2 buffer with declaredLen > MaxDisputedTxBytes; reject before
+        // length-match check.
+        var bytes = new byte[V2HeaderSize + 10];
+        bytes[0] = SupportedVersion2;
+        var oversized = (uint)MaxDisputedTxBytes + 1;
+        bytes[101] = (byte)oversized;
+        bytes[102] = (byte)(oversized >> 8);
+        bytes[103] = (byte)(oversized >> 16);
+        bytes[104] = (byte)(oversized >> 24);
+        Assert.AreEqual(ReasonOversizedWitness, SimulateVerify(bytes));
+    }
+
+    [TestMethod]
+    public void Verify_V2_BadVersion_Rejected()
+    {
+        // version=99 → BadVersion regardless of length.
+        var bytes = new byte[200];
+        bytes[0] = 99;
+        Assert.AreEqual(ReasonBadVersion, SimulateVerify(bytes));
     }
 }

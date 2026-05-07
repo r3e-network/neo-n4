@@ -94,9 +94,13 @@ neo4/
 │   ├── NeoHub.* (15)                       # L1 contract suite
 │   └── L2Native.* (6)                      # on-L2 native contracts
 ├── tools/
-│   ├── Neo.Stack.Cli/                      # neo-stack CLI
+│   ├── Neo.Stack.Cli/                      # neo-stack CLI (12 subcommands)
 │   ├── Neo.L2.Devnet/                      # in-process end-to-end demo runner
 │   └── Neo.Hub.Deploy/                     # declarative L1 deploy planner
+├── samples/
+│   ├── *.config.json (4)                   # ready-to-run chain configs
+│   ├── contracts/                          # Sample.CrossChainGreeter, Sample.WithdrawalDemo
+│   └── executors/                          # Sample.CounterChainExecutor + scaffold target
 ├── bridge/
 │   └── neo-zkvm-bridge/                    # Rust cdylib + C ABI
 └── tests/                                  # 1156 tests / 30 projects

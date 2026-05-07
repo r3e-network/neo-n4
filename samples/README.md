@@ -64,7 +64,12 @@ or enterprise networks where the L1 anchor isn't a trust anchor — it's just
 a discovery + asset-bridge endpoint. No prover plugin needed; settlement
 happens via attestation alone.
 
-## Custom chain logic — `executors/Sample.CounterChainExecutor`
+## Custom chain logic — `executors/`
+
+[`samples/executors/`](./executors/) is the directory the
+`neo-stack scaffold-executor` helper writes to by default + the home of the
+working reference sample. See [`executors/README.md`](./executors/README.md)
+for the full overview of "scaffold your own" + "see it run end-to-end."
 
 [`samples/executors/Sample.CounterChainExecutor`](./executors/Sample.CounterChainExecutor)
 is a runnable, fully-tested reference for the

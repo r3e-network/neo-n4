@@ -62,7 +62,7 @@ internal static class Program
               neo-stack <subcommand> [options]
 
             Subcommands:
-              create-chain          Generate config + genesis for a new L2 chain
+              create-chain          Generate chain.config.json from a template (rollup / zk-rollup / validium / sidechain)
               init-l2               Initialize an L2 node working directory
               register-chain        Register the L2 with NeoHub.ChainRegistry on L1
               deploy-bridge-adapter Deploy the chain's bridge adapter on L1

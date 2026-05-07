@@ -36,6 +36,7 @@
     <ProjectReference Include="..\..\src\Neo.Plugins.L2DA\Neo.Plugins.L2DA.csproj" />
     <ProjectReference Include="..\..\src\Neo.Plugins.L2Metrics\Neo.Plugins.L2Metrics.csproj" />
     <ProjectReference Include="..\..\src\Neo.Plugins.L2Rpc\Neo.Plugins.L2Rpc.csproj" />
+    <ProjectReference Include="..\..\samples\executors\Sample.CounterChainExecutor\Sample.CounterChainExecutor.csproj" />
   </ItemGroup>
 
 </Project>

@@ -182,6 +182,49 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — `KeyedStateStoreAdapter` + e2e custom-executor full-stack integration test (993 → 998)
+
+Closes the loop on "custom chain logic" — the seam now has a runnable
+end-to-end demonstration that a custom `ITransactionExecutor` produces
+well-formed commitments through the entire pipeline.
+
+`samples/executors/Sample.CounterChainExecutor/KeyedStateStoreAdapter.cs`:
+production-ready bridge from `ICounterChainState` to the framework's
+canonical `Neo.L2.Executor.State.KeyedStateStore`. With the adapter wired,
+the executor's writes participate in the same store the post-state-root
+oracle hashes — so `BatchExecutionResult.PostStateRoot` reflects the
+executor's actual state mutations, not just a synthetic XOR of the receipt
+root. 3 unit tests pin Put/Get round-trip + missing-key + ComputeRoot parity
+with direct `KeyedStateStore` writes.
+
+`tests/Neo.L2.IntegrationTests/UT_E2E_CustomExecutor_FullStack.cs`: 2 new
+end-to-end tests:
+
+  - `CustomExecutor_FullPipeline_ProducesValidCommitmentsWithContinuity` —
+    3-batch run with mixed Increment / Withdraw / Message txs through
+    `CounterChainExecutor` + `KeyedStateStoreAdapter` + `ReferenceBatchExecutor`
+    + `KeyedStateRootOracle` + `AttestationProver` + `VerifierRegistry`.
+    Pins: all 4 batch roots non-zero; state root advances per batch;
+    4-root uniqueness across batches (no collisions = state was actually
+    distinct); per-opcode gas schedule respected; multisig verifier
+    accepts commitments built from custom-executor batches; `BatchSerializer`
+    encode/decode round-trip is identity; final state has 6 expected
+    counter entries (2 senders × 3 batches); spot-check Alice's batch-3
+    counter equals the IncrementCounter amount.
+  - `CustomExecutor_FailedTxsDoNotPolluteRoots` — defense-in-depth pin:
+    a batch with one malformed tx (unknown opcode) flanked by good
+    increments must not let the failed tx's hypothetical effects flow
+    through to `WithdrawalRoot` or message roots. Gas accounting stays
+    correct; state from successful txs intact.
+
+This is the cross-cutting invariant proof: a future seam refactor that
+broke "custom executor → standard pipeline → valid commitment" would now
+fail loud at integration-test time.
+
+Test count 993 → 998 across AGENTS.md / CONTRIBUTING.md / README.md /
+IMPLEMENTATION_STATUS.md. Sample.CounterChainExecutor.UnitTests row 13 → 16;
+Neo.L2.IntegrationTests row 19 → 21.
+
 ### Added — `Sample.CounterChainExecutor` reference custom executor (980 → 993)
 
 Operator-facing reference for the `ITransactionExecutor` seam — the framework's

@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\samples\executors\Sample.CounterChainExecutor\Sample.CounterChainExecutor.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Executor\Neo.L2.Executor.csproj" />
   </ItemGroup>
 
 </Project>

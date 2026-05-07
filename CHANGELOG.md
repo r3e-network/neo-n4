@@ -182,6 +182,39 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — `create-chain` subcommand tests for the previously-untested writer (1088 → 1100)
+
+`create-chain` is the first command an operator runs (it writes the
+chain.config.json every other command consumes), and it's auto-invoked
+by `new-l2`. It had ZERO direct tests — `new-l2` exercised it
+indirectly but didn't pin per-template dimensions or operator-facing
+diagnostics.
+
+12 new tests in `UT_CreateChainCommand`:
+- Default-args happy path emits valid config with rollup defaults.
+- Non-numeric `--chain-id` → exit 1 + atomic abort (no output dir
+  created on failure).
+- chainId=0 → throws (L1 sentinel reject).
+- Per-template dimension pins for all 4 templates: rollup +
+  zk-rollup (Validity + Zk + Permissionless + gateway-on) +
+  validium (NeoFS DA + Delayed exit + permissionlessExit=false) +
+  sidechain (None proof + External DA).
+- Unknown template falls back to rollup defaults but preserves the
+  operator-typed name verbatim in the JSON (so they can grep for the
+  typo).
+- `--vm` flag propagates to the JSON.
+- `--path` takes precedence over `--output` (the inverted convention
+  unique to create-chain — pin so a refactor doesn't reverse it).
+- Default-style `./chain-<id>` output works.
+- Emitted JSON is parseable via System.Text.Json (catches a malformed
+  template that would only fail at the operator's first `validate`
+  run).
+- "Next: neo-stack init-l2 --chain-id N" hint is printed (catches a
+  refactor that drops the operator-facing next-step pointer).
+
+Doc-set: test count 1088 → 1100 across the standard files;
+Neo.Stack.Cli.UnitTests per-row 71 → 83.
+
 ### Added — `validate` chain.config.json sanity-check tests (1075 → 1088)
 
 The `validate` subcommand had ZERO tests despite being a routinely-used

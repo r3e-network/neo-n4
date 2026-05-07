@@ -182,6 +182,45 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — `DevnetLabelOverrides` extraction + per-field fallback tests (1140 → 1149)
+
+The devnet's `--config <chain.config.json>` reader was the last untested
+piece of `Neo.L2.Devnet/Program.cs`'s flag-handling surface. The reader
+has substantial behavior worth pinning: null-config → defaults; missing
+file → defaults + warning; malformed JSON → defaults + warning; partial
+config → per-field defaults; unknown enum value in any field → that
+field's default. None of those paths were tested.
+
+Refactored: extracted the private `LabelOverrides` record + private
+`ReadLabelOverrides` + private `ParseEnumOrDefault` from `Program.cs`
+into a public `Neo.L2.Devnet.DevnetLabelOverrides` record struct (with
+`Defaults`, `ReadFromConfig`, `ParseEnumOrDefault` as public statics).
+Same shape as the previous `DevnetArgs` extraction.
+
+9 new tests in `UT_DevnetLabelOverrides`:
+- `Defaults_MatchInMemoryStoreSaneDefaults` — pins the canonical default
+  values (Optimistic / External / DbftCommittee / Permissionless / off).
+- `NullPath_ReturnsDefaults`.
+- `NonExistentPath_ReturnsDefaults_WithWarning` — devnet should still
+  run; the operator gets a "not found, falling back to defaults" warning
+  instead of a stack trace.
+- `MalformedJson_ReturnsDefaults_WithWarning` — same shape: parse
+  failure surfaces a warning + falls back, doesn't abort.
+- `ValidConfig_AllFieldsOverride` — validium-template-shaped config
+  overrides every dimension correctly.
+- `PartialConfig_MissingFieldsUseDefaults` — per-field independence: a
+  config with only securityLevel + daMode set still produces a valid
+  overrides record with the other three fields at defaults.
+- `UnknownEnumValue_FallsBackToFieldDefault` — typo in one field falls
+  back for THAT field; other valid fields still apply.
+- `ParseEnumOrDefault_PerFieldBehavior` — direct test of the per-field
+  parser (missing / valid / invalid).
+- `EnumIsCaseSensitive` — lowercase "validium" does NOT match
+  `Validium` (devnet's permissive-fallback returns the default; the
+  case-strict diagnostic lives in `neo-stack validate`).
+
+Doc-set: test count 1140 → 1149 across the standard files.
+
 ### Added — `Neo.L2.Devnet` argument parser tests + extracted `DevnetArgs` (1124 → 1140)
 
 The devnet was the third CLI binary without dedicated tests. Its

@@ -54,7 +54,7 @@ internal static class Program
         // --template validium` flows into the devnet preview without re-typing. Defaults
         // (Optimistic / External / DbftCommittee / Permissionless / gateway=off) preserve
         // the legacy devnet behavior when no --config is supplied.
-        var labelOverrides = ReadLabelOverrides(configPath);
+        var labelOverrides = DevnetLabelOverrides.ReadFromConfig(configPath);
 
         Console.WriteLine("┌─────────────────────────────────────────────┐");
         Console.WriteLine("│  Neo Elastic Network — devnet runner v0.2    │");
@@ -480,61 +480,8 @@ internal static class Program
     // (tests can call DevnetArgs.ParseMetricsPort etc. without subprocess-invoking
     // the binary). Program.Main consumes DevnetArgs directly.
 
-    /// <summary>
-    /// Per-dimension §16.2 label values applied to the devnet's <c>InMemoryL2RpcStore</c>.
-    /// Defaults preserve the legacy devnet behavior; operators supply <c>--config</c>
-    /// pointing at a <c>neo-stack create-chain</c> output to preview a template-specific
-    /// label end-to-end.
-    /// </summary>
-    private readonly record struct LabelOverrides(
-        SecurityLevel SecurityLevel,
-        DAMode DAMode,
-        bool GatewayEnabled,
-        SequencerModel Sequencer,
-        ExitModel Exit);
-
-    private static LabelOverrides ReadLabelOverrides(string? configPath)
-    {
-        // Devnet defaults (matches the legacy hardcoded values + InMemoryL2RpcStore
-        // sane defaults — Optimistic / External / DbftCommittee / Permissionless / off).
-        var defaults = new LabelOverrides(
-            SecurityLevel.Optimistic, DAMode.External, false,
-            SequencerModel.DbftCommittee, ExitModel.Permissionless);
-        if (configPath is null) return defaults;
-
-        if (!File.Exists(configPath))
-        {
-            Console.Error.WriteLine($"--config '{configPath}' not found; falling back to defaults");
-            return defaults;
-        }
-        try
-        {
-            var json = File.ReadAllText(configPath);
-            using var doc = System.Text.Json.JsonDocument.Parse(json);
-            var root = doc.RootElement;
-
-            // Each field is optional — missing → use the default for that dimension.
-            return new LabelOverrides(
-                ParseEnumOrDefault(root, "securityLevel", defaults.SecurityLevel),
-                ParseEnumOrDefault(root, "daMode", defaults.DAMode),
-                root.TryGetProperty("gatewayEnabled", out var ge) && ge.GetBoolean(),
-                ParseEnumOrDefault(root, "sequencerModel", defaults.Sequencer),
-                ParseEnumOrDefault(root, "exitModel", defaults.Exit));
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"--config parse failed ({ex.Message}); falling back to defaults");
-            return defaults;
-        }
-    }
-
-    private static T ParseEnumOrDefault<T>(System.Text.Json.JsonElement root, string field, T fallback)
-        where T : struct, Enum
-    {
-        if (!root.TryGetProperty(field, out var prop)) return fallback;
-        var name = prop.GetString();
-        return Enum.TryParse<T>(name, ignoreCase: false, out var value) ? value : fallback;
-    }
+    // LabelOverrides + ReadLabelOverrides + ParseEnumOrDefault moved to
+    // DevnetLabelOverrides.cs for direct unit testability.
 
     private static IL2KeyValueStore? MaybeRocks(string? baseDir, string subDir)
     {

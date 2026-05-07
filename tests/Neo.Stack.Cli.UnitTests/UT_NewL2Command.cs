@@ -209,4 +209,45 @@ public class UT_NewL2Command
             Assert.IsTrue(File.Exists(Path.Combine(perTemplateDir, "chain.config.json")));
         }
     }
+
+    [TestMethod]
+    [DataRow("rollup", DisplayName = "rollup → composite emits zero warnings")]
+    [DataRow("zk-rollup", DisplayName = "zk-rollup → composite emits zero warnings")]
+    [DataRow("validium", DisplayName = "validium → composite emits zero warnings")]
+    [DataRow("sidechain", DisplayName = "sidechain → composite emits zero warnings")]
+    public void NewL2_EachTemplate_InternalValidateEmitsZeroCrossFieldWarnings(string template)
+    {
+        // Stronger pin than ValidateStep_RunsAfterCreateChain_AcceptsTemplateOutput —
+        // captures stdout while new-l2 runs and asserts NO `⚠` cross-field warning
+        // appears in the embedded validate output. Cross-field warnings are
+        // informational (rc=0 even when fired), so the existing test wouldn't catch
+        // a template default that drifts into a warning-but-not-error state.
+        // This test also pins the create-chain ↔ validate contract along the
+        // composite (new-l2) bring-up path, complementing the same contract pinned
+        // for the standalone create-chain bring-up path in UT_CreateChainCommand.
+        var perTemplateDir = Path.Combine(_tempDir, $"chain-{template}");
+        var origOut = Console.Out;
+        string output;
+        int rc;
+        try
+        {
+            var sw = new StringWriter();
+            Console.SetOut(sw);
+            rc = NewL2Command.Run(new[]
+            {
+                "--name", "TestChain",
+                "--chain-id", "5556",
+                "--template", template,
+                "--output", perTemplateDir,
+            });
+            output = sw.ToString();
+        }
+        finally
+        {
+            Console.SetOut(origOut);
+        }
+        Assert.AreEqual(0, rc, $"new-l2 --template {template} must succeed end-to-end");
+        Assert.IsFalse(output.Contains("⚠"),
+            $"new-l2 --template {template} embedded validate emitted a cross-field warning — template defaults are internally inconsistent.\nFull stdout:\n{output}");
+    }
 }

@@ -229,6 +229,26 @@ exercise what the previous command actually wrote).
 
 Doc-set: test count 1150 → 1153 across the standard files.
 
+### Added — Pin `new-l2` composite emits zero cross-field warnings per template (1174 → 1178)
+
+`UT_NewL2Command.NewL2_EachTemplate_InternalValidateEmitsZeroCrossFieldWarnings`
+is parametric across all 4 templates: it captures stdout while
+`NewL2Command.Run` executes (which internally invokes `create-chain` →
+`validate` → `init-l2` → `scaffold-executor`), then asserts the captured
+stdout contains no `⚠` character.
+
+Stronger guard than the prior `ValidateStep_RunsAfterCreateChain_AcceptsTemplateOutput`
+test, which only checked exit-code 0. Cross-field warnings are informational
+(rc stays 0 even when fired), so the prior test would have missed a template
+default drifting into a warning-but-not-error state.
+
+This pins the create-chain ↔ validate contract along the composite (`new-l2`)
+bring-up path — symmetric to the same contract being pinned for the standalone
+`create-chain` bring-up path in `UT_CreateChainCommand`. Both paths are now
+covered.
+
+Doc-set: test count 1174 → 1178 across the standard files.
+
 ### Added — Pin every `--template` produces a config `validate` accepts cleanly (1170 → 1174)
 
 `UT_CreateChainCommand.CreateChain_EachTemplate_PassesValidateWithNoWarnings`

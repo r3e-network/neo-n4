@@ -7,7 +7,7 @@
 | Phase | Goal                                      | Status                                      |
 | ----- | ----------------------------------------- | ------------------------------------------- |
 | 0     | Sidechain PoC                             | ✅ MVP integration test passes              |
-| 1     | NeoHub v0 + Shared Bridge                 | ✅ All 14 NeoHub contracts compile + deploy planner emits 14-step bundle |
+| 1     | NeoHub v0 + Shared Bridge                 | ✅ All 15 NeoHub contracts compile + deploy planner emits 14-step bundle |
 | 2     | Batch Settlement                          | ✅ Off-chain green; real `KeyedStateStore` continuity verified across batches |
 | 3     | Optimistic Challenge Window               | ✅ `OptimisticChallenge` contract + `ChallengeOrchestrator` + `BisectionGame` (log-N narrowing) + `GovernanceFraudVerifier` reference (structural, governance-arbitration mode) all green |
 | 4     | NeoVM2 / RISC-V ZK Validity Proof         | 🟡 Two tracks: **RISC-V execution** — `Neo.L2.Executor.RiscV` P/Invokes into `external/neo-riscv-vm/crates/neo-riscv-host` (PolkaVM-backed). **SP1 ZK proving** — bridge buildable (`cargo build --release --features real-prover` produces `libneo_zkvm_bridge.so`); CI exercises the link path with `SP1_FORCE_DUMMY=true`. Real proof requires the SP1 toolchain offline + matching guest ELF |
@@ -26,9 +26,9 @@ component is mainnet-ready. Below is an honest readiness audit.
 
 These are real production-shape implementations with full test coverage:
 
-- **All 14 NeoHub L1 contracts** + **6 L2Native contracts** type-check via
+- **All 15 NeoHub L1 contracts** + **6 L2Native contracts** type-check via
   `Neo.SmartContract.Framework`; CI compiles each with `nccs` and verifies
-  the `.nef` + `.manifest.json` artifacts (21 contracts total incl.
+  the `.nef` + `.manifest.json` artifacts (22 contracts total incl.
   `samples/contracts/Sample.*`).
 - **Off-chain canonical encoders**, byte-layout-pinned + tested:
   `BatchSerializer`, `MessageHasher`, `MerkleProofSerializer`,
@@ -70,7 +70,7 @@ verifier could replay step-by-step on L1 — that's tracked here:
 
 | Item | What's still missing | Where |
 |------|---------------------|-------|
-| `NeoHub.RestrictedExecutionFraudVerifier` (on-chain v3 consumer) | v3 off-chain wire format now carries the storage-proof manifests for trustless on-L1 re-execution: per disputed key, the pre-value, post-value, and Merkle proofs against the pre / post state roots. `Neo.L2.Challenge.StorageProof` + `FraudProofPayload`'s `StorageProofs` field encode/decode v3 round-trip cleanly with caps. **Still missing**: the on-chain verifier contract that re-derives the pre/post state roots from each storage proof's siblings + leafIndex and checks them against the v1 header roots. The structural `NeoHub.GovernanceFraudVerifier` continues to reject v3 with ReasonBadVersion (operators running v3 ship their own re-execution verifier). | `src/Neo.L2.Challenge/StorageProof.cs` (off-chain ✅), no on-chain v3 verifier contract yet |
+| Full L1 disputed-tx re-execution | The on-chain v3 verifier (`NeoHub.RestrictedExecutionFraudVerifier`) now ships and re-derives pre/post state roots from each storage proof's siblings + leafIndex against the v1 header roots — well-formed v3 fraud claims are accepted on-chain without governance arbitration. **Still missing**: actually re-executing the disputed transaction on L1 with restricted state (an `ApplicationEngine` instance seeded only with the storage proofs' pre-values) to confirm the challenger's `ReplayedPostStateRoot` is truly correct. Until that lands, "accepted by RestrictedExecutionFraudVerifier" means "the challenger has made a structurally credible claim a downstream re-execution service must arbitrate." | `contracts/NeoHub.RestrictedExecutionFraudVerifier/` (on-chain v3 ✅), no on-L1 NeoVM-with-restricted-state re-executor yet |
 
 ### Reference / scaffolding — operator must replace
 
@@ -173,10 +173,10 @@ subcommands.
 | `Neo.Plugins.L2Gateway`      | `BinaryTreeAggregator` with pluggable `IRoundProver` (default `PassThroughRoundProver`); `PassThroughAggregator` for flat aggregation; emits `l2.gateway.aggregations/batches_aggregated/aggregation_rounds/aggregation_latency_ms` |
 | `Neo.Plugins.L2Metrics`      | **Composition root**: hosts the shared `IL2Metrics` sink + `MetricsHttpServer`; other plugins call `metricsPlugin.Metrics` and pass to their `WithMetrics()` setters; configurable bind address + port + readiness predicate |
 
-### Smart contracts (`contracts/`) — 19 total, all type-check via devpack
+### Smart contracts (`contracts/`) — 21 total, all type-check via devpack
 
-**NeoHub L1 suite (13):**
-`ChainRegistry` · `SharedBridge` · `SettlementManager` · `VerifierRegistry` · `MessageRouter` · `TokenRegistry` · `DARegistry` · `GovernanceController` · `EmergencyManager` · `ForcedInclusion` · `SequencerBond` · `SequencerRegistry` · **`OptimisticChallenge`**
+**NeoHub L1 suite (15):**
+`ChainRegistry` · `SharedBridge` · `SettlementManager` · `VerifierRegistry` · `MessageRouter` · `TokenRegistry` · `DARegistry` · `GovernanceController` · `EmergencyManager` · `ForcedInclusion` · `SequencerBond` · `SequencerRegistry` · `OptimisticChallenge` · `GovernanceFraudVerifier` (structural v1/v2) · **`RestrictedExecutionFraudVerifier`** (trustless v3 — on-chain Merkle re-derivation)
 
 **L2 native (6):**
 `L2BridgeContract` · `L2MessageContract` · `L2BatchInfoContract` · `L2FeeContract` · `L2PaymasterContract` · `L2SystemConfigContract`
@@ -191,7 +191,7 @@ subcommands.
 
 ### Tests
 
-**965 unit + integration tests across 27 projects:**
+**980 unit + integration tests across 27 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -206,7 +206,7 @@ subcommands.
 | `Neo.L2.ForcedInclusion.UnitTests`   | 19    | nonce ordering, replay, overdue detection, **persistence reopen pins**   |
 | `Neo.L2.Sequencer.UnitTests`         | 26    | register/exit/finalize lifecycle, **metric emission for all three lifecycle ops + committee-size gauge, `SetMaxCommitteeSize` shrink-below-count rejection, persistence reopen pins (incl. exit-window survives restart)** |
 | `Neo.L2.Censorship.UnitTests`        | 15    | overdue detection, sequencer attribution, **metric emission per detection batch** |
-| `Neo.L2.Challenge.UnitTests`         | 89    | fraud-proof payload, orchestrator, BisectionGame, **`InspectWithBisectionAsync` (no-fraud agreement, log-N narrowing, arg validation, empty/mismatched/single-element checkpoint shape rejection, **v2 witness auto-emission** + bounded fallback to v1 when disputed tx is oversized / index out of range)**, metric emission, **`GovernanceFraudVerifier` parity coverage (real-discrepancy → accept; same-root → reject NoDiscrepancy; bad-length → reject BadLength; bad-version → reject BadVersion; decision-tree order pins; layout-offsets parity vs FraudProofPayload encoder; DisputedTxIndex doesn't change structural verdict; v2 round-trip incl. truncated/oversized witness rejection; v2 acceptance through verifier; v2 OversizedWitness path), **v3 wire-format round-trip + caps + auto version dispatch (v1/v2/v3 IsX flags; storage-proof per-proof + per-payload caps; truncated key/value/sibling rejection; zero-proof v3 rejected — use v2 instead)**, **`V3StorageProofVerifier` (off-chain reference: NotV3 / NoDiscrepancy returns; happy-path 2-leaf-tree Verified; PreStateRootMismatch + ReplayedPostStateRootMismatch rejected; encode→decode round-trip preserves verifiability; `HashEntry` layout pinned in lockstep with `KeyedStateStore.HashEntry`)** |
+| `Neo.L2.Challenge.UnitTests`         | 104   | fraud-proof payload, orchestrator, BisectionGame, **`InspectWithBisectionAsync` (no-fraud agreement, log-N narrowing, arg validation, empty/mismatched/single-element checkpoint shape rejection, **v2 witness auto-emission** + bounded fallback to v1 when disputed tx is oversized / index out of range)**, metric emission, **`GovernanceFraudVerifier` parity coverage (real-discrepancy → accept; same-root → reject NoDiscrepancy; bad-length → reject BadLength; bad-version → reject BadVersion; decision-tree order pins; layout-offsets parity vs FraudProofPayload encoder; DisputedTxIndex doesn't change structural verdict; v2 round-trip incl. truncated/oversized witness rejection; v2 acceptance through verifier; v2 OversizedWitness path), **v3 wire-format round-trip + caps + auto version dispatch (v1/v2/v3 IsX flags; storage-proof per-proof + per-payload caps; truncated key/value/sibling rejection; zero-proof v3 rejected — use v2 instead)**, **`V3StorageProofVerifier` (off-chain reference: NotV3 / NoDiscrepancy returns; happy-path 2-leaf-tree Verified; PreStateRootMismatch + ReplayedPostStateRootMismatch rejected; encode→decode round-trip preserves verifiability; `HashEntry` layout pinned in lockstep with `KeyedStateStore.HashEntry`)**, **`RestrictedExecutionFraudVerifier` parity (15 tests: happy-path 2-leaf-tree → ReasonAccepted; v1/v2 payloads → BadVersion; truncated below v2 header / past num-proofs prefix → BadLength; oversized witness → OversizedWitness; same-root → NoDiscrepancy short-circuits before per-proof verify; zero-proof / >MaxStorageProofsPerPayload → ProofCountInvalid; pre-derived root mismatch → PreStateRootMismatch; post-derived root mismatch → ReplayedPostStateRootMismatch; decision-tree order pins; layout-offset pins for PreStateRoot@1 + ReplayedPostStateRoot@65; encode→decode→encode survives on-chain accept)** |
 | `Neo.L2.Audit.UnitTests`             | 57    | continuity + proof-validity + **public-input-hash consistency** checks, summary, `NoZeroProofCheck`, **`ChainAuditor` self-emits runs + failures (delta = failed-finding count), strict-ascending duplicate-rejection, `AuditReport.Passed` non-empty guard, `ProofValidityCheck` null-guard, `DAAvailabilityCheck` (all-available, one-missing, zero-commitment-skipped, mixed, null-arg guards, stable name), `BatchRangeCheck` (valid-range / inverted-range / zero-batch-number / empty-list / multi-failure / null-arg / stable name), all 6 `IAuditCheck.Name` strings pinned (continuity / proof / no_zero_proof / public_input_hash / da_availability / batch_range), `PublicInputHashConsistencyCheck` resolver path (default zero-fill vs override-resolver pin + null-resolver loud failure)** |
 | `Neo.Plugins.L2Rpc.UnitTests`        | 40    | all 10 RPC methods (incl. `getsecuritylabel` for the doc.md §16.2 5-dimension label), foreign-chain rejection, **per-method metric emission (calls/latency/failures), too-few-params clear-error, oversized-chainId overflow, monotonic `_latestStateRoot` on out-of-order Finalize, persistence reopen pins, `getsecuritylabel` defaults + override propagation pins, IL2RpcStore default-interface defaults (External / false / DbftCommittee / Permissionless) + e2e through getsecuritylabel for third-party minimal-impl stores** |
 | `Neo.Plugins.L2DA.UnitTests`         | 79    | InMemory + NeoFsLike DA writers + **MetricsEmittingDAWriter (success / throw / accumulate / passthrough), `ResolveDAMode` accepts 0..3 / rejects unknown, all DAWriter null-arg paths, `L2DAPlugin` default-writer / `WithWriter` injection / Name+Description non-empty / `WithMetrics` propagates to active writer (mid-flight sink swap), `CommitteeAttestedDAWriter` round-trip + tampered-sig + null-arg + buggy-callback contracts, `BuildDefaultWriter` (External/NeoFS/L1/DAC × dataDir-set/null/empty/whitespace boundary), `PersistentDAWriter` (RocksDB-backed: round-trip + configured-mode-flow + cross-instance reopen pin + unknown-commitment / null-store / null-request / null-receipt / null-commitment guards + defensive-copy + dispose-owning-vs-borrowed semantics + default-mode = External), `JsonRpcL1DAWriter` (mode=L1, ctor null-guards / empty-rpc-method, PublishAsync delegates with contract+request, Commitment=Hash256(payload) cross-tier convention, pointer=32B tx hash, null-tx-hash defense, IsAvailableAsync zero-commitment short-circuit / HALT-true / HALT-false / FAULT-state-false, dispose semantics)** |

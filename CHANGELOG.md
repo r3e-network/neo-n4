@@ -182,6 +182,86 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — `NeoHub.RestrictedExecutionFraudVerifier` on-chain v3 verifier (965 → 980)
+
+15th NeoHub contract — the trustless companion to
+`NeoHub.GovernanceFraudVerifier`. Where the governance verifier stops at
+structural checks (length / version / claimed != replayed) and defers
+correctness arbitration to the security council, this verifier requires
+the challenger to supply storage-proof manifests for every key the
+disputed transaction touched and rejects the proof on-chain if those
+manifests don't reconstruct to the payload's `PreStateRoot` and
+`ReplayedPostStateRoot`.
+
+`VerifyFraud(uint chainId, ulong batchNumber, byte[] payload) → bool`:
+parses canonical v3 `FraudProofPayload` bytes, iterates each storage
+proof, re-derives the pre/post state roots via `Hash256(left || right)`
+sibling-folding driven by `leafIndex`'s low bits, and matches against
+the v1 header roots at offsets `[1..32]` / `[65..96]`.
+
+Reject reasons (event-logged so operators can attribute the rejection
+without re-decoding the payload):
+- `ReasonBadLength = 1` — truncated, trailing bytes, or any structural
+  decode failure.
+- `ReasonBadVersion = 2` — version byte != 3 (use GovernanceFraudVerifier
+  for v1/v2).
+- `ReasonNoDiscrepancy = 3` — `claimedPostStateRoot == replayedPostStateRoot`,
+  no real fraud claim. Short-circuits before per-proof verify.
+- `ReasonOversizedWitness = 4` — declared disputed-tx witness exceeds
+  64 KB cap.
+- `ReasonInvalidStorageProof = 5` — any proof violates per-proof caps
+  (key > 256 B, value > 4 KB, sibling depth > 64).
+- `ReasonProofCountInvalid = 6` — zero storage proofs (use v2 instead)
+  or > 32 per payload.
+- `ReasonPreStateRootMismatch = 7` — pre-derived root doesn't match
+  `PreStateRoot` at offset `[1..32]`.
+- `ReasonReplayedPostStateRootMismatch = 8` — post-derived root doesn't
+  match `ReplayedPostStateRoot` at offset `[65..96]`.
+
+What this verifier proves on-chain: the challenger's storage proofs are
+internally consistent — starting from `PreStateRoot` and applying the
+proof's pre→post value changes for the disputed key produces a tree
+whose root matches `ReplayedPostStateRoot`. Combined with claimed !=
+replayed, this gives a structurally credible v3 fraud proof that an
+on-L1 contract accepts without trusting the challenger or a council.
+
+What this verifier does NOT prove: that re-running the disputed
+transaction on the pre-state actually produces the challenger's claimed
+post-state. That requires running NeoVM with restricted state on L1 —
+substantial multi-iteration work and the natural follow-on to this
+contract. Until then, "accepted by RestrictedExecutionFraudVerifier"
+means "the challenger has made a structurally credible claim a downstream
+re-execution service must arbitrate." `IMPLEMENTATION_STATUS.md`'s
+"Optimistic-challenge fraud-proof game" gap-list is updated to mark
+this contract as shipped and surface the remaining on-L1 NeoVM-with-
+restricted-state re-executor.
+
+Hash composition pinned to canonical primitives:
+- Leaf hash matches `Neo.L2.Executor.State.KeyedStateStore.HashEntry`:
+  `Hash256(int32LE(keyLen) || key || int32LE(valueLen) || value)`.
+- Sibling folding matches `NeoHub.SettlementManager.VerifyWithdrawalLeafWithProof`:
+  `Hash256(left || right)` (= `Sha256(Sha256(...))` — Neo `MerkleTree`
+  convention) with `leafIndex` bits selecting left/right ordering.
+- Reads keys / values / siblings directly from the payload by offset to
+  avoid allocating intermediate per-proof byte arrays beyond the leaf-
+  hash composition buffer.
+
+15 new parity tests in `UT_RestrictedExecutionFraudVerifierParity`
+(`SimulateVerify` mirrors the on-chain decision tree 1:1 against
+hand-built 2-leaf Merkle trees): happy path → ReasonAccepted; v1 / v2
+payloads → BadVersion (this verifier is v3-only); truncated below v2
+header / past num-proofs prefix → BadLength; oversized witness →
+OversizedWitness; same-root → NoDiscrepancy short-circuits before
+per-proof verify; zero-proof / > MaxStorageProofsPerPayload →
+ProofCountInvalid; pre-derived root mismatch → PreStateRootMismatch;
+post-derived root mismatch → ReplayedPostStateRootMismatch (ordering
+pin: pre check fires before post); decision-tree order pins (version
+before all, discrepancy before per-proof verify); layout-offset pins
+for `PreStateRoot @ 1` + `ReplayedPostStateRoot @ 65`; encode→decode→
+encode round-trip preserves on-chain acceptance.
+
+NeoHub L1 contract count 14 → 15. Total contracts 20 → 21.
+
 ### Added — `V3StorageProofVerifier` off-chain reference verifier (958 → 965)
 
 Demonstrates the algorithm a future on-chain re-execution-capable fraud

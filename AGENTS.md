@@ -50,7 +50,7 @@ features that look missing are already there).
 
 | `doc.md` § | Topic                       | Code location |
 | ---------- | --------------------------- | ------------- |
-| §3.2 NeoHub                | L1 contract suite          | `contracts/NeoHub.*` (14 contracts incl. `GovernanceFraudVerifier` reference) |
+| §3.2 NeoHub                | L1 contract suite          | `contracts/NeoHub.*` (15 contracts incl. `GovernanceFraudVerifier` (structural v1/v2) + `RestrictedExecutionFraudVerifier` (trustless v3)) |
 | §4 Neo Gateway             | Phase-5 aggregation        | `src/Neo.Plugins.L2Gateway` (`BinaryTreeAggregator` + `IRoundProver`) |
 | §5 L2 node internals       | Per-L2 plugin layout       | `src/Neo.Plugins.L2{Batch,Settlement,Bridge,DA,Prover,Rpc,Gateway,Metrics}` |
 | §7.1 Sequencer / dBFT      | Committee selection        | `contracts/NeoHub.SequencerRegistry` + `src/Neo.L2.Sequencer` |
@@ -161,7 +161,7 @@ print structured operator plans rather than performing the wallet-side submissio
 ## Quick commands
 
 ```bash
-# Type-check + run all 965 tests
+# Type-check + run all 980 tests
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Devnet demonstration with audit pass

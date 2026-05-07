@@ -44,7 +44,7 @@ NeoFS data availability.
 
 The architecture is three tiers:
 
-- **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 14 contracts grouped into
+- **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 15 contracts grouped into
   five concerns: *Settlement* (SettlementManager · VerifierRegistry), *Bridge*
   (SharedBridge · TokenRegistry · ChainRegistry), *Messaging* (MessageRouter · DARegistry),
   *Security* (SequencerRegistry · SequencerBond · ForcedInclusion · OptimisticChallenge),
@@ -69,11 +69,11 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 | Off-chain libraries | **16**  | `Neo.L2.{Abstractions,Audit,Batch,Bridge,Censorship,Challenge,Executor,ForcedInclusion,Messaging,Persistence,Proving,Proving.Sp1,Sequencer,Settlement.Rpc,State,Telemetry}` |
 | Persistence backends | **2**  | `InMemoryKeyValueStore` (tests) · `RocksDbKeyValueStore` (production default) — see [`docs/persistence.md`](./docs/persistence.md) |
 | Node plugins      | **8**     | `Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}`  |
-| Smart contracts   | **20**    | 14 NeoHub L1 (incl. `GovernanceFraudVerifier` — structural fraud-verifier reference for governance-arbitration optimistic chains) + 6 L2 native; all type-check via `Neo.SmartContract.Framework` |
+| Smart contracts   | **21**    | 15 NeoHub L1 (incl. `GovernanceFraudVerifier` — structural verifier for governance-arbitration chains, and `RestrictedExecutionFraudVerifier` — trustless v3 verifier that re-derives pre/post state roots from each storage proof's siblings + leafIndex on-chain) + 6 L2 native; all type-check via `Neo.SmartContract.Framework` |
 | CLI tools         | **3**     | `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`                           |
 | Native FFI        | **1**     | `bridge/neo-zkvm-bridge` — Rust cdylib + C ABI for SP1 prover P/Invoke   |
 | Submodules        | **3**     | `external/neo` (Neo 4 core) · `external/neo-devpack-dotnet` (NeoVM compiler framework) · `external/neo-zkvm` (SP1 prover, optional). None are released on NuGet/crates.io for the versions tracked here. |
-| Tests             | **948 / 27 projects**  | Module-level unit tests + integration tests; all green |
+| Tests             | **980 / 27 projects**  | Module-level unit tests + integration tests; all green |
 
 ```
 neo4/
@@ -91,7 +91,7 @@ neo4/
 │   ├── Neo.L2.Telemetry/                   # IL2Metrics + PrometheusExporter
 │   └── Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}/
 ├── contracts/
-│   ├── NeoHub.* (13)                       # L1 contract suite
+│   ├── NeoHub.* (15)                       # L1 contract suite
 │   └── L2Native.* (6)                      # on-L2 native contracts
 ├── tools/
 │   ├── Neo.Stack.Cli/                      # neo-stack CLI
@@ -99,7 +99,7 @@ neo4/
 │   └── Neo.Hub.Deploy/                     # declarative L1 deploy planner
 ├── bridge/
 │   └── neo-zkvm-bridge/                    # Rust cdylib + C ABI
-└── tests/                                  # 965 tests / 27 projects
+└── tests/                                  # 980 tests / 27 projects
 ```
 
 ---
@@ -111,7 +111,7 @@ Per [`doc.md` §18](./doc.md):
 | Phase | Goal                                | Status | Evidence                                                  |
 | ----- | ----------------------------------- | :----: | --------------------------------------------------------- |
 | 0     | Sidechain PoC                       | ✅     | MVP integration test passes end-to-end                    |
-| 1     | NeoHub v0 + Shared Bridge           | ✅     | All 14 NeoHub contracts compile; deploy planner emits 14-step bundle |
+| 1     | NeoHub v0 + Shared Bridge           | ✅     | All 15 NeoHub contracts compile; deploy planner emits 14-step bundle |
 | 2     | Batch Settlement                    | ✅     | Real `KeyedStateStore` continuity verified across batches |
 | 3     | Optimistic Challenge Window         | ✅     | `OptimisticChallenge` contract + `BisectionGame` (log-N narrowing) |
 | 4     | NeoVM 2 / RISC-V ZK Validity Proof  | 🟡     | SP1 FFI bridge scaffolded; `--features real-prover` flips to native |
@@ -138,7 +138,7 @@ cd neo-n4
 # If you forgot --recurse-submodules:
 # git submodule update --init --recursive
 
-# Type-check everything + run all 965 tests (~10 seconds)
+# Type-check everything + run all 980 tests (~10 seconds)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Run the in-process devnet (5 batches, real state-root continuity, post-run audit)

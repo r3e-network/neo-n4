@@ -182,6 +182,32 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — `validate` chain.config.json sanity-check tests (1075 → 1088)
+
+The `validate` subcommand had ZERO tests despite being a routinely-used
+operator helper (also auto-invoked by the `new-l2` composite's
+defense-in-depth step). Any regression in the JSON-shape contract or
+exit-code semantics would have leaked through.
+
+13 new tests in `UT_ValidateChainConfigCommand`:
+- Happy path: rollup template config → exit 0 + ✅ valid summary line.
+- No args → exit 1 (caller error, distinct from validation failure).
+- File not found → exit 2 + "file not found" diagnostic.
+- Unparseable JSON → exit 2 + ❌ diagnostic.
+- Missing chainId / gatewayEnabled → exit 2 + "missing 'X'" diagnostic
+  (operator-friendly: names the failing field).
+- chainId 0 → exit 2 (L1 sentinel reject).
+- Unknown enum values (securityLevel / daMode / sequencerModel) →
+  exit 2 + "expected one of:" listing valid values.
+- Cross-field warning: `securityLevel=Validity` + non-Zk proof emits a
+  ⚠ note but still exits 0 (operator-informational, not fatal).
+- Cross-field non-warning: consistent pairs (Optimistic + Optimistic;
+  Sidechain + None) do NOT emit warnings (catches a regression that
+  emits warnings on every config).
+
+Doc-set: test count 1075 → 1088 across the standard files;
+Neo.Stack.Cli.UnitTests per-row 58 → 71.
+
 ### Added — register-chain configBytes hex round-trip pin (1074 → 1075)
 
 The existing `Register_WithFourHashes_EmitsConfigBytesHex` test only

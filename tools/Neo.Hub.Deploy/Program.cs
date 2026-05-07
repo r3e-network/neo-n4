@@ -38,9 +38,9 @@ internal static class Program
               neo-hub-deploy <subcommand> [options]
 
             Subcommands:
-              scaffold --output <path>            Write a starter DeployPlan covering all NeoHub contracts.
+              scaffold --output <path>            Write a starter DeployPlan covering all 15 NeoHub contracts (13 core + 2 fraud verifiers).
               plan --plan <path> --output <path>  Topologically sort + resolve a plan; emit a deploy bundle.
-              verify --plan <path> --rpc <url>    Confirm planned contracts are deployed at expected hashes.
+              verify --plan <path> --rpc <url>    Confirm each plan step's nef + manifest exist on disk (exit 2 on any missing).
               help                                Show this message.
 
             See doc.md §3.2 (NeoHub) for the contract suite layout.

@@ -229,6 +229,28 @@ exercise what the previous command actually wrote).
 
 Doc-set: test count 1150 → 1153 across the standard files.
 
+### Added — `validate` flags chainMode=L1Mode in an L2 config (1165 → 1166)
+
+`Neo.L2.ChainMode` distinguishes `L1Mode` (the actual Neo L1 — "Plain
+Neo L1" per the enum's doc-comment) from the L2 modes (`L2RollupMode`,
+`L2ValidiumMode`, `SidechainMode`). A `chain.config.json` describes an
+L2 chain by definition, so `chainMode=L1Mode` in there is internally
+contradictory — an operator who copy-pasted a wrong template could ship
+a config the framework would still parse cleanly. `validate` now flags
+this with a `⚠` warning + a remediation hint pointing at the three
+valid L2 modes.
+
+1 new test in `UT_ValidateChainConfigCommand`:
+- `Validate_CrossFieldWarning_L1ModeInL2Config` — pins the warning text
+  + that exit-code stays 0 (informational, not fatal).
+
+Closes the last cross-field consistency gap on the `chainMode` axis;
+combined with the prior Validium-vs-L1-DA + ExitModel-vs-permissionlessExit
+warnings, every §6 chainMode + §16.2 dimension that has a hard contradiction
+is now flagged.
+
+Doc-set: test count 1165 → 1166 across the standard files.
+
 ### Added — `validate` flags ExitModel.OperatorAssisted vs permissionlessExit=true contradiction (1163 → 1165)
 
 Per `Neo.L2.ExitModel`'s doc, `OperatorAssisted` means "user exit

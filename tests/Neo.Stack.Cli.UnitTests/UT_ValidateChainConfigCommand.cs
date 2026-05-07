@@ -197,6 +197,21 @@ public class UT_ValidateChainConfigCommand
     }
 
     [TestMethod]
+    public void Validate_CrossFieldWarning_L1ModeInL2Config()
+    {
+        // L1Mode is reserved for the actual Neo L1 (per ChainMode doc: "Plain
+        // Neo L1"). A chain.config.json describes an L2; L1Mode in there is
+        // internally contradictory. Pin the warning so an operator who
+        // copy-pasted a wrong config sees it before deploying against L1.
+        var l1Mode = ValidRollupConfig().Replace("\"chainMode\": \"L2RollupMode\"", "\"chainMode\": \"L1Mode\"");
+        var path = WriteConfig(l1Mode);
+        var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
+        Assert.AreEqual(0, rc, "warning is informational, not fatal");
+        StringAssert.Contains(output, "⚠");
+        StringAssert.Contains(output, "L1Mode is reserved");
+    }
+
+    [TestMethod]
     public void Validate_CrossFieldNoWarning_ValidiumModeWithNeoFS()
     {
         // Canonical validium template: L2ValidiumMode + NeoFS DA — no contradiction.

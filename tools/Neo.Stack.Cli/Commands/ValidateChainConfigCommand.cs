@@ -108,6 +108,16 @@ internal static class ValidateChainConfigCommand
                 Console.WriteLine($"⚠ securityLevel=Sidechain typically pairs with proofType=None or Multisig; got {proof}");
             }
 
+            // chainMode=L1Mode is reserved for the actual Neo L1 (per ChainMode's
+            // doc: "Plain Neo L1"). A *chain.config.json* describes an L2 chain;
+            // claiming L1Mode is internally contradictory — the L2 won't behave
+            // like L1 just because it says so. Pin the warning so an operator who
+            // copy-pasted a wrong config sees it before deploy.
+            if (chainMode == ChainMode.L1Mode)
+            {
+                Console.WriteLine($"⚠ chainMode=L1Mode is reserved for the actual Neo L1; an L2 chain config should use L2RollupMode / L2ValidiumMode / SidechainMode");
+            }
+
             // ChainMode vs DAMode: L2ValidiumMode means "transaction data lives
             // off L1" by definition (per doc.md §6 + §12). DAMode=L1 contradicts
             // that. This is a spec-level contradiction worth surfacing — operator

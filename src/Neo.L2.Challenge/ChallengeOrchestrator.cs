@@ -8,6 +8,19 @@ namespace Neo.L2.Challenge;
 /// with the batch's claimed one, emit a <see cref="FraudProofPayload"/> the operator can
 /// submit to <c>NeoHub.OptimisticChallenge.Challenge</c>.
 /// </summary>
+/// <remarks>
+/// Two entry points:
+/// <list type="bullet">
+///   <item><see cref="InspectAsync"/> — caller supplies inputs only; orchestrator replays
+///     the whole batch and reports a batch-level discrepancy (no per-tx narrowing).
+///     Use when bisection inputs aren't available (naive replay-only checkers, audit
+///     pipelines that just want a yes/no answer).</item>
+///   <item><see cref="InspectWithBisectionAsync"/> — caller supplies per-tx checkpoint
+///     sequences for both parties; orchestrator runs <see cref="BisectionGame"/> and
+///     reports the single narrowed disputed-tx index. Use this in production whenever
+///     the L1 fraud verifier needs to know which transaction to re-execute.</item>
+/// </list>
+/// </remarks>
 public sealed class ChallengeOrchestrator
 {
     private readonly IFraudProofGenerator _replayer;
@@ -65,7 +78,12 @@ public sealed class ChallengeOrchestrator
             PreStateRoot = claimedCommitment.PreStateRoot,
             ClaimedPostStateRoot = claimedCommitment.PostStateRoot,
             ReplayedPostStateRoot = replayedRoot,
-            DisputedTxIndex = 0, // MVP: no per-tx narrowing yet.
+            // Batch-level entry: caller hasn't supplied per-tx checkpoints, so we can't
+            // narrow which transaction caused the divergence. Sentinel value 0 is fine
+            // for fraud verifiers that re-execute the entire batch; verifiers that need
+            // per-tx narrowing must use InspectWithBisectionAsync (which runs BisectionGame
+            // and supplies the real index).
+            DisputedTxIndex = 0,
         };
         _metrics.SafeIncrementCounter(MetricNames.FraudProofsEmitted);
         return payload;

@@ -182,6 +182,45 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — `V3StorageProofVerifier` off-chain reference verifier (958 → 965)
+
+Demonstrates the algorithm a future on-chain re-execution-capable fraud
+verifier would mirror. Takes a v3 `FraudProofPayload`, re-derives the pre/post
+Merkle roots from each `StorageProof`'s leaf-hash + siblings + leafIndex,
+checks them against the payload's `PreStateRoot` and `ReplayedPostStateRoot`.
+
+`Verdict` enum: `Verified` (all proofs check out) / `NotV3` / `NoDiscrepancy`
+(claimed == replayed — no real fraud claim) / `PreStateRootMismatch` /
+`ReplayedPostStateRootMismatch`.
+
+Successful verification proves the challenger's storage proofs are
+internally consistent — starting from `PreStateRoot` and applying the
+proof's pre→post value changes for the disputed key produces a tree whose
+root matches `ReplayedPostStateRoot`. Combined with the structural
+`ClaimedPostStateRoot != ReplayedPostStateRoot` check, this gives a
+well-formed v3 fraud-proof. It does NOT re-execute the disputed transaction
+— that last step requires running NeoVM with restricted state (downstream
+multi-iteration work). The structural `NeoHub.GovernanceFraudVerifier`
+contract continues to reject v3 with `ReasonBadVersion` until that
+on-chain verifier exists.
+
+Composition pinned to existing canonical primitives:
+- `HashEntry(key, value)` = `Hash256(int32LE(keyLen) || key ||
+  int32LE(valueLen) || value)` — must stay in lockstep with
+  `Neo.L2.Executor.State.KeyedStateStore.HashEntry` (a parity test fails
+  loud if either side drifts).
+- `FoldMerkleProof(leafHash, siblings, leafIndex)` mirrors
+  `Neo.L2.State.MerkleTree`'s `Hash256(left || right)` composition with
+  leafIndex bits selecting left/right ordering at each level — same fold
+  shape as on-chain `SettlementManager.VerifyWithdrawalLeafWithProof`.
+
+7 new tests in `UT_V3StorageProofVerifier`: NotV3 / NoDiscrepancy short-
+circuits; happy-path 2-leaf-tree Verified; PreStateRootMismatch and
+ReplayedPostStateRootMismatch each rejected with correct verdict;
+encode→decode through `FraudProofPayload` preserves verifiability (cross-
+component contract pin); `HashEntry` layout matches `KeyedStateStore`
+exactly.
+
 ### Added — `FraudProofPayload` v3 wire format with storage-proof manifests (951 → 958)
 
 Closes the storage-tree witness half of the "Optimistic-challenge fraud-proof

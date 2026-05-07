@@ -98,15 +98,20 @@ Two paths:
   1. **Governance-arbitration mode** (default operator-friendly path):
      deploy `NeoHub.GovernanceFraudVerifier` (it's in the default
      `neo-hub-deploy plan` output as the 14th NeoHub contract). It does
-     a structural check of the canonical 101-byte `FraudProofPayload`
-     (length / version / claims-a-real-discrepancy) and emits accept/reject
-     events for the security council to arbitrate. Pass its deployed hash
-     as `fraudVerifier` when filing a challenge.
+     a structural check of the canonical `FraudProofPayload` (v1=101 bytes
+     fixed or v2=105+N bytes with disputed-tx witness; length / version /
+     claims-a-real-discrepancy) and emits accept/reject events for the
+     security council to arbitrate. Pass its deployed hash as
+     `fraudVerifier` when filing a challenge.
   2. **Trustless re-execution mode**: ship your own fraud verifier that
-     consumes execution-trace witness bytes and re-executes the disputed
-     transaction on L1. The current `FraudProofPayload` wire format
-     doesn't carry such witness bytes; extending it is one of the
-     remaining `IMPLEMENTATION_STATUS.md` items. Operators choosing this
+     re-executes the disputed transaction on L1. The `FraudProofPayload`
+     v2 wire format (`DisputedTxBytes` field) carries the disputed tx
+     bytes the verifier needs to re-execute. **Still missing**: the
+     storage-read + storage-write manifests with Merkle proofs against
+     the pre / post state roots — that's a v3 wire format extension
+     tracked in `IMPLEMENTATION_STATUS.md`. A re-execution verifier today
+     must supply that data through its own side-channel (e.g. operator-
+     run state proof server) or wait for v3. Operators choosing this
      path skip `GovernanceFraudVerifier` from the deploy bundle and
      register their own verifier's hash.
 

@@ -61,7 +61,7 @@ pipeline with no further wiring.
 
 | What to read | Where |
 |--------------|-------|
-| Per-opcode unit tests (16 total — happy path + edge cases + determinism + adapter parity) | [`tests/Sample.CounterChainExecutor.UnitTests/`](../../../tests/Sample.CounterChainExecutor.UnitTests) |
+| Per-opcode unit tests (24 total — happy path + edge cases + determinism + adapter parity + boundary defenses) | [`tests/Sample.CounterChainExecutor.UnitTests/`](../../../tests/Sample.CounterChainExecutor.UnitTests) |
 | End-to-end integration test (3-batch run through full pipeline + multisig prover/verifier + commitment round-trip + failed-tx defense) | [`tests/Neo.L2.IntegrationTests/UT_E2E_CustomExecutor_FullStack.cs`](../../../tests/Neo.L2.IntegrationTests/UT_E2E_CustomExecutor_FullStack.cs) |
 | Run it through the in-process devnet (deposits + Counter txs + sealing + proving + audit) | `dotnet run --project tools/Neo.L2.Devnet -- 5 --executor counter` |
 

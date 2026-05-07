@@ -110,10 +110,12 @@ public class EmergencyManagerContract : SmartContract
         var key = EscapeKey(chainId, leafHash);
         ExecutionEngine.Assert(Storage.Get(key) == null, "escape leaf already consumed");
 
-        // MVP shape: the leaf is treated as the state root commitment itself — i.e. the
-        // user supplies the entire root, which only works for trees with a single state
-        // entry. <see cref="EscapeHatchExitWithProof"/> is the production-shape path
-        // that takes a Merkle inclusion proof against the canonical state root.
+        // Single-entry-tree fast path: the user supplies the entire state root as the
+        // leaf hash. Works only when the L2's canonical state collapses to a single
+        // entry (root == leaf) — typically genesis or a deliberately-pruned escape
+        // configuration. Multi-entry state trees MUST use EscapeHatchExitWithProof,
+        // which takes a Merkle inclusion proof against the canonical state root and
+        // is the standard production path.
         var sm = GetSettlementManager();
         ExecutionEngine.Assert(sm != UInt160.Zero, "settlement manager unset");
         var canonicalRoot = (UInt256)Contract.Call(sm, "getCanonicalStateRoot",

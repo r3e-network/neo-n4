@@ -180,9 +180,12 @@ public class SettlementManagerContract : SmartContract
     /// on <paramref name="chainId"/>. Used by SharedBridge.FinalizeWithdrawal.
     /// </summary>
     /// <remarks>
-    /// MVP version: just confirms that the latest finalized batch's withdrawalRoot equals the
-    /// supplied leaf-hash. A production version traverses every finalized batch and accepts
-    /// any match, paired with an off-chain Merkle proof verification step.
+    /// Single-leaf fast path: confirms that the latest finalized batch's withdrawalRoot
+    /// equals the supplied leaf-hash. Mathematically only valid when the batch's
+    /// withdrawal tree has exactly one entry (so root == leaf). Multi-withdrawal batches
+    /// MUST use <see cref="VerifyWithdrawalLeafWithProof"/>, which is the standard
+    /// production path; that variant takes per-level sibling hashes + a leaf index and
+    /// re-derives the root via on-chain Merkle folding.
     /// </remarks>
     [Safe]
     public static bool VerifyWithdrawalLeaf(uint chainId, UInt256 leafHash)
@@ -197,10 +200,11 @@ public class SettlementManagerContract : SmartContract
     /// in an older batch finalize even after newer batches have shipped.
     /// </summary>
     /// <remarks>
-    /// MVP same shape as <see cref="VerifyWithdrawalLeaf"/>: leaf-hash must equal the stored
-    /// batch withdrawalRoot. Production extension: combine with off-chain Merkle proof
-    /// verification (the leaf is a single withdrawal entry hash, not the whole tree root) by
-    /// folding siblings on-chain.
+    /// Single-leaf fast path, same shape as <see cref="VerifyWithdrawalLeaf"/>: leaf-hash
+    /// must equal the stored batch withdrawalRoot. Mathematically only valid when the
+    /// batch had exactly one withdrawal. Multi-withdrawal batches MUST use
+    /// <see cref="VerifyWithdrawalLeafWithProof"/> (siblings + leafIndex,
+    /// folded on-chain to re-derive the root).
     /// </remarks>
     [Safe]
     public static bool VerifyWithdrawalLeafAt(uint chainId, ulong batchNumber, UInt256 leafHash)

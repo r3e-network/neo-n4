@@ -56,8 +56,6 @@ simplified and would need real implementation before mainnet:
 
 | Item | What's MVP | Where |
 |------|------------|-------|
-| `NeoHub.SettlementManager.VerifyWithdrawalLeaf` | Just confirms leaf == latest stored root (not a Merkle inclusion proof). The `*WithProof` variant IS real. | `contracts/NeoHub.SettlementManager/SettlementManagerContract.cs` |
-| `NeoHub.EmergencyManager.EscapeHatchExit` | Treats the leaf as the state-root commitment itself (no real exit-tree verification). The `*WithProof` variant IS real. | `contracts/NeoHub.EmergencyManager/EmergencyManagerContract.cs` |
 | `NeoHub.ForcedInclusion` initial fee config | Now charges configurable GAS fee per `EnqueueForcedTransaction` when operator wires `SetFee` + `SetFeeRecipient` + `SetGasToken`. Default 0 = fee-free (legacy + tests preserved). Production operators set non-zero fee at deploy / runtime to discourage spam. | `contracts/NeoHub.ForcedInclusion/ForcedInclusionContract.cs` |
 | `Neo.L2.Challenge.FraudProofPayload` consumer wiring | `OptimisticChallenge.Challenge` delegates to an external `fraudVerifier` contract via `Contract.Call`. The verifier contract that consumes `DisputedTxIndex` to do per-tx re-execution does not ship in this repo. | `contracts/NeoHub.OptimisticChallenge/OptimisticChallengeContract.cs:170` (the `verifyFraud` callsite) |
 | `Neo.L2.Challenge.FraudProofPayload` | Proves "there is a discrepancy" but not the specific opcode-step that produced it. | `src/Neo.L2.Challenge/FraudProofPayload.cs` |
@@ -112,8 +110,12 @@ The framework is **architecturally complete + sufficient for a devnet** with
 real cryptographic primitives, real persistence, real test coverage. It is
 **not** a turnkey mainnet deployment — operators targeting production must
 (a) replace the reference / in-memory scaffolding through the documented
-plug-in seams, (b) implement real impls for the 5 MVP-labeled contract
-methods above, and (c) integrate wallet signing for the 4 plan-printing
+plug-in seams, (b) wire production fee config on `ForcedInclusion`
+(`SetFee` / `SetFeeRecipient` / `SetGasToken`) to enable spam control,
+(c) use the `*WithProof` variants of `SettlementManager.VerifyWithdrawalLeaf*`
+and `EmergencyManager.EscapeHatchExit` (the no-proof variants are
+intentional single-leaf fast paths, only valid when the relevant tree has
+exactly one entry), and (d) integrate wallet signing for the 4 plan-printing
 subcommands.
 
 ## Completed work — by code

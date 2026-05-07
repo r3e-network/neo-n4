@@ -46,10 +46,10 @@ internal static class Program
             return 0;
         }
         var batches = args.Length > 0 && int.TryParse(args[0], out var n) ? n : 3;
-        var metricsPort = ParseMetricsPort(args);
-        var dataDir = ParseDataDir(args);
-        var configPath = ParseConfigPath(args);
-        var executorMode = ParseExecutor(args);
+        var metricsPort = DevnetArgs.ParseMetricsPort(args);
+        var dataDir = DevnetArgs.ParseDataDir(args);
+        var configPath = DevnetArgs.ParseConfigPath(args);
+        var executorMode = DevnetArgs.ParseExecutor(args);
         // Pull §16.2 security label from operator config so e.g. `neo-stack create-chain
         // --template validium` flows into the devnet preview without re-typing. Defaults
         // (Optimistic / External / DbftCommittee / Permissionless / gateway=off) preserve
@@ -476,60 +476,9 @@ internal static class Program
         return 0;
     }
 
-    private static int? ParseMetricsPort(string[] args)
-    {
-        for (var i = 0; i < args.Length - 1; i++)
-        {
-            if (args[i] == "--metrics-port" && int.TryParse(args[i + 1], out var port))
-            {
-                // Use the shared port validator so a bogus --metrics-port surfaces a clear
-                // error here instead of a stack trace from IPEndPoint construction deep
-                // in the wiring path. Lives in Neo.L2.Telemetry so devnet doesn't have to
-                // depend on the metrics plugin shell.
-                return Telemetry.PortValidator.Validate(port, "--metrics-port");
-            }
-        }
-        return null;
-    }
-
-    private static string? ParseDataDir(string[] args)
-    {
-        for (var i = 0; i < args.Length - 1; i++)
-        {
-            if (args[i] == "--data-dir") return args[i + 1];
-        }
-        return null;
-    }
-
-    private static string? ParseConfigPath(string[] args)
-    {
-        for (var i = 0; i < args.Length - 1; i++)
-        {
-            if (args[i] == "--config") return args[i + 1];
-        }
-        return null;
-    }
-
-    /// <summary>
-    /// Parse <c>--executor</c> flag. Defaults to <c>reference</c> for legacy compatibility.
-    /// Recognizes <c>reference</c> (no-op default) and <c>counter</c> (the
-    /// <c>Sample.CounterChainExecutor</c> demo). Unknown values fall back to <c>reference</c>
-    /// with a warning so a typo doesn't silently swap executors.
-    /// </summary>
-    private static string ParseExecutor(string[] args)
-    {
-        for (var i = 0; i < args.Length - 1; i++)
-        {
-            if (args[i] != "--executor") continue;
-            var value = args[i + 1];
-            if (value == "reference" || value == "counter") return value;
-            Console.Error.WriteLine(
-                $"--executor '{value}' not recognized; falling back to 'reference'. " +
-                "Valid values: reference, counter.");
-            return "reference";
-        }
-        return "reference";
-    }
+    // Argument-parsing helpers moved to DevnetArgs.cs for direct unit testability
+    // (tests can call DevnetArgs.ParseMetricsPort etc. without subprocess-invoking
+    // the binary). Program.Main consumes DevnetArgs directly.
 
     /// <summary>
     /// Per-dimension §16.2 label values applied to the devnet's <c>InMemoryL2RpcStore</c>.

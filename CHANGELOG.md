@@ -182,6 +182,36 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — `Neo.L2.Devnet` argument parser tests + extracted `DevnetArgs` (1124 → 1140)
+
+The devnet was the third CLI binary without dedicated tests. Its
+argument parsers (`--metrics-port` / `--data-dir` / `--config` /
+`--executor`) had no coverage. Operators relying on `--executor counter`
+or `--metrics-port 9090` got behavior pinned only by manual smoke tests
+— a regression in the parser would surface only at the operator's first
+run.
+
+Refactored: extracted the four flag parsers from `Program.cs` into a new
+public `Neo.L2.Devnet.DevnetArgs` static class (parallel shape to the
+`scaffold` / `plan` / `verify` extractions in `neo-hub-deploy`). Program
+now consumes `DevnetArgs.ParseMetricsPort` etc. directly.
+
+New `tests/Neo.L2.Devnet.UnitTests/` project (project count 29 → 30) +
+16 tests in `UT_DevnetArgs`:
+- `--metrics-port`: valid value returned (incl. boundaries 0 + 65535);
+  absent → null; non-numeric → null (legacy-script-friendly: not a
+  hard error); out-of-range (-1 / 65536) → throws via PortValidator.
+- `--data-dir` / `--config`: value returned; absent → null.
+- `--executor`: defaults to `reference` when absent; recognizes
+  `reference` + `counter`; unknown values fall back to `reference`
+  with a `Console.Error` warning naming both valid values (catches
+  typos like `counte` so they don't silently swap executors).
+- All four parsers reject null `args` at the boundary.
+
+Doc-set: test count 1124 → 1140; project count 29 → 30 across
+AGENTS.md / CONTRIBUTING.md / README.md / IMPLEMENTATION_STATUS.md /
+docs/getting-started.md / docs/tech-stack-coverage.md.
+
 ### Added — `neo-hub-deploy scaffold` + `plan` subcommand tests (1114 → 1124)
 
 The two remaining `neo-hub-deploy` subcommands (after `verify` got

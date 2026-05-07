@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Neo.L2.Devnet.UnitTests</RootNamespace>
+    <AssemblyName>Neo.L2.Devnet.UnitTests</AssemblyName>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MSTest" Version="$(MSTestVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\tools\Neo.L2.Devnet\Neo.L2.Devnet.csproj" />
+  </ItemGroup>
+
+</Project>

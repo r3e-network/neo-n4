@@ -20,6 +20,7 @@ using Neo.L2.Audit;
 using Neo.L2.Telemetry;
 using Neo.Plugins.L2;
 using Neo.Plugins.L2Rpc;
+using Sample.CounterChainExecutor;
 
 namespace Neo.L2.Devnet;
 
@@ -48,6 +49,7 @@ internal static class Program
         var metricsPort = ParseMetricsPort(args);
         var dataDir = ParseDataDir(args);
         var configPath = ParseConfigPath(args);
+        var executorMode = ParseExecutor(args);
         // Pull §16.2 security label from operator config so e.g. `neo-stack create-chain
         // --template validium` flows into the devnet preview without re-typing. Defaults
         // (Optimistic / External / DbftCommittee / Permissionless / gateway=off) preserve
@@ -159,9 +161,28 @@ internal static class Program
         using var daWriterDispose = daWriter as IDisposable;
         Console.WriteLine($"[wire] DA writer = {daWriter.GetType().Name} (mode={daWriter.Mode})");
 
-        var executor = new ReferenceBatchExecutor(
-            new ReferenceTransactionExecutor(),
-            stateRootOracle);
+        // Pick the per-tx executor based on --executor flag. Default `reference` keeps
+        // the legacy devnet behavior (no-op tx executor + 8-byte dummy tx). `counter`
+        // wires the Sample.CounterChainExecutor end-to-end so an operator can preview
+        // a real custom executor through the same pipeline (real opcodes, real state
+        // mutation via KeyedStateStoreAdapter, real receipt + withdrawal + message
+        // roots from CounterTxBuilder-built transactions).
+        ITransactionExecutor txExec;
+        switch (executorMode)
+        {
+            case "counter":
+                txExec = new CounterChainExecutor(
+                    chainId: LocalChainId,
+                    state: new KeyedStateStoreAdapter(stateStore),
+                    emittingContract: GasL2);  // sentinel for the demo
+                Console.WriteLine($"[wire] tx executor = CounterChainExecutor (chainId={LocalChainId}, --executor counter)");
+                break;
+            default:
+                txExec = new ReferenceTransactionExecutor();
+                Console.WriteLine($"[wire] tx executor = ReferenceTransactionExecutor (no-op default — pass --executor counter for the Sample.CounterChainExecutor demo)");
+                break;
+        }
+        var executor = new ReferenceBatchExecutor(txExec, stateRootOracle);
 
         var metrics = new InMemoryMetrics();
         Console.WriteLine($"[wire] in-memory metrics ({MetricNames.BatchesSealed.Substring(0, 3)} canonical naming)");
@@ -199,8 +220,38 @@ internal static class Program
             ApplyBurn(stateStore, withdrawal.L2Asset, withdrawal.L2Sender, withdrawal.Amount);
             Console.WriteLine($"  [withdraw] staged {withdrawal.Amount} from Alice → Bob (nonce={withdrawal.Nonce})");
 
-            // 3. Build batch + run executor.
-            var txBytes = BitConverter.GetBytes((long)batchNum * 17);
+            // 3. Build batch + run executor. Tx bytes vary by --executor mode:
+            //    - reference: 8-byte dummy (legacy ReferenceTransactionExecutor just hashes them)
+            //    - counter:   3 Counter opcodes that exercise IncrementCounter (state mutation),
+            //                 EmitWithdrawal (withdrawal channel), EmitMessage (cross-chain channel)
+            ReadOnlyMemory<byte>[] txList;
+            byte[] daPayload;
+            if (executorMode == "counter")
+            {
+                txList = new ReadOnlyMemory<byte>[]
+                {
+                    CounterTxBuilder.IncrementCounter(Alice, (ulong)(100 * batchNum)),
+                    CounterTxBuilder.IncrementCounter(Bob, (ulong)(50 * batchNum)),
+                    CounterTxBuilder.EmitMessage(destChainId: 1002, body: new byte[] { (byte)batchNum }),
+                };
+                // Concatenate tx bytes for the DA payload so an off-chain consumer can
+                // re-derive the batch contents from DA without needing the L2 itself.
+                var totalLen = 0;
+                foreach (var t in txList) totalLen += t.Length;
+                daPayload = new byte[totalLen];
+                var dst = 0;
+                foreach (var t in txList)
+                {
+                    t.Span.CopyTo(daPayload.AsSpan(dst));
+                    dst += t.Length;
+                }
+            }
+            else
+            {
+                var legacyTx = BitConverter.GetBytes((long)batchNum * 17);
+                txList = new ReadOnlyMemory<byte>[] { legacyTx };
+                daPayload = legacyTx;
+            }
             var ctx = new BatchBlockContext
             {
                 L1FinalizedHeight = (uint)(1000 + batchNum),
@@ -214,11 +265,15 @@ internal static class Program
                 ChainId = LocalChainId,
                 BatchNumber = (ulong)batchNum,
                 PreStateRoot = preStateRoot,
-                Transactions = new ReadOnlyMemory<byte>[] { txBytes },
+                Transactions = txList,
                 L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
                 BlockContext = ctx,
             };
             var execResult = await executor.ApplyBatchAsync(execReq);
+            if (executorMode == "counter")
+            {
+                Console.WriteLine($"  [exec] {txList.Length} Counter txs → gas={execResult.GasConsumed}, txRoot={Truncate(execResult.TxRoot.ToString())}, l2L2Root={Truncate(execResult.L2ToL2MessageRoot.ToString())}");
+            }
 
             // Replace executor's WithdrawalRoot with the processor's view (matches what NeoHub commits to).
             var (wRoot, _) = withdrawalProcessor.SealBatch();
@@ -229,7 +284,6 @@ internal static class Program
             // even if the L2 itself goes dark. With --data-dir the payload lands in
             // RocksDB; without, it sits in an in-memory store. Either way the resulting
             // commitment goes into PublicInputs so the proof binds to *this* DA layer.
-            var daPayload = txBytes;
             var daReceipt = await daWriter.PublishAsync(new DAPublishRequest
             {
                 ChainId = LocalChainId,
@@ -457,6 +511,27 @@ internal static class Program
     }
 
     /// <summary>
+    /// Parse <c>--executor</c> flag. Defaults to <c>reference</c> for legacy compatibility.
+    /// Recognizes <c>reference</c> (no-op default) and <c>counter</c> (the
+    /// <c>Sample.CounterChainExecutor</c> demo). Unknown values fall back to <c>reference</c>
+    /// with a warning so a typo doesn't silently swap executors.
+    /// </summary>
+    private static string ParseExecutor(string[] args)
+    {
+        for (var i = 0; i < args.Length - 1; i++)
+        {
+            if (args[i] != "--executor") continue;
+            var value = args[i + 1];
+            if (value == "reference" || value == "counter") return value;
+            Console.Error.WriteLine(
+                $"--executor '{value}' not recognized; falling back to 'reference'. " +
+                "Valid values: reference, counter.");
+            return "reference";
+        }
+        return "reference";
+    }
+
+    /// <summary>
     /// Per-dimension §16.2 label values applied to the devnet's <c>InMemoryL2RpcStore</c>.
     /// Defaults preserve the legacy devnet behavior; operators supply <c>--config</c>
     /// pointing at a <c>neo-stack create-chain</c> output to preview a template-specific
@@ -525,7 +600,7 @@ internal static class Program
         Console.WriteLine("neo-l2-devnet — in-process Neo Elastic Network devnet runner");
         Console.WriteLine();
         Console.WriteLine("Usage:");
-        Console.WriteLine("  neo-l2-devnet [<batches>] [--metrics-port <port>] [--data-dir <path>] [--config <path>]");
+        Console.WriteLine("  neo-l2-devnet [<batches>] [--metrics-port <port>] [--data-dir <path>] [--config <path>] [--executor <kind>]");
         Console.WriteLine("  neo-l2-devnet --help");
         Console.WriteLine();
         Console.WriteLine("Arguments:");
@@ -539,6 +614,12 @@ internal static class Program
         Console.WriteLine("                       sequencerModel / exitModel / gatewayEnabled) from a chain.config.json");
         Console.WriteLine("                       (typically produced by `neo-stack create-chain --template <X>`) so the");
         Console.WriteLine("                       devnet's getsecuritylabel RPC reflects your operator config.");
+        Console.WriteLine("  --executor <kind>    Pick the per-tx executor. Default 'reference' is the no-op");
+        Console.WriteLine("                       ReferenceTransactionExecutor. 'counter' wires the");
+        Console.WriteLine("                       Sample.CounterChainExecutor end-to-end (state mutation via");
+        Console.WriteLine("                       KeyedStateStoreAdapter, real receipts/withdrawals/messages");
+        Console.WriteLine("                       from CounterTxBuilder-built transactions) so an operator can");
+        Console.WriteLine("                       preview a real custom executor through the same pipeline.");
         Console.WriteLine();
         Console.WriteLine("Examples:");
         Console.WriteLine("  neo-l2-devnet 5                         # 5 batches, in-memory, default Optimistic label");
@@ -547,6 +628,7 @@ internal static class Program
         Console.WriteLine("  neo-l2-devnet 0 --data-dir /tmp/dn1     # rehydrate state from disk only");
         Console.WriteLine("  neo-l2-devnet 5 --config ./my-l2/chain.config.json");
         Console.WriteLine("                                          # preview an operator-template config end-to-end");
+        Console.WriteLine("  neo-l2-devnet 5 --executor counter      # run with the Sample.CounterChainExecutor demo");
         Console.WriteLine();
         Console.WriteLine("See docs/getting-started.md and docs/persistence.md for more.");
     }

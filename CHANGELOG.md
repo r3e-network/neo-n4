@@ -182,6 +182,47 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — `neo-l2-devnet --executor counter` flag
+
+Wires `Sample.CounterChainExecutor` end-to-end through the in-process devnet.
+Closes the operator-visible loop on the custom-chain-logic story: scaffold
+gives you the project, the integration test pins the wiring, and now the
+devnet shows it running through deposits / proving / settlement / audit
+just like the legacy ReferenceTransactionExecutor demo.
+
+```
+neo-l2-devnet 5 --executor counter
+[wire] tx executor = CounterChainExecutor (chainId=1001, --executor counter)
+...
+  [exec] 3 Counter txs → gas=400, txRoot=0x9b3..., l2L2Root=0x4e0...
+...
+state entries: 3       # Alice GasL2 balance + Alice counter + Bob counter
+✅ devnet run complete.
+```
+
+What changes per batch when `--executor counter` is set:
+- 1 deposit + 1 staged withdrawal still flow through the bridge as
+  before (executor-independent).
+- 3 Counter transactions are added to the batch:
+  `IncrementCounter(Alice, 100×batchNum)`,
+  `IncrementCounter(Bob, 50×batchNum)`,
+  `EmitMessage(destChainId=1002, body=batchNum)`.
+- The Counter executor writes through `KeyedStateStoreAdapter` to the
+  same `KeyedStateStore` the post-state-root oracle hashes — so the
+  state root advances per batch by both the deposit-induced mints AND
+  the Counter ops.
+- DA payload is the concatenated tx bytes (so an off-chain consumer
+  can re-derive the batch contents from DA).
+- L2-to-L2 message root populates from the EmitMessage opcodes.
+
+Default `--executor reference` preserves the legacy devnet behavior
+(no-op tx executor + 8-byte dummy tx). Unknown values fall back to
+`reference` with a warning so a typo doesn't silently swap executors.
+
+Smoke-tested both modes: 3 batches each, Multisig proofs verified, all
+6 audit checks pass, RPC snapshot matches expected balances + state
+entry counts.
+
 ### Added — RestrictedExecutionFraudVerifier added to deploy planner (1011 → 1013)
 
 The 15th NeoHub contract (shipped 4 iterations ago) was missing from

@@ -109,6 +109,22 @@ synthetic XOR of the receipt root) — see
 [`UT_KeyedStateStoreAdapter.cs`](../tests/Sample.CounterChainExecutor.UnitTests/UT_KeyedStateStoreAdapter.cs)
 for the parity pin against direct `KeyedStateStore` writes.
 
+To see a custom executor running through the full devnet pipeline (deposits +
+state mutations + receipts + withdrawals + DA + proving + verification + audit):
+
+```bash
+# Run the in-process devnet with the Sample.CounterChainExecutor wired in.
+# Each batch adds a deposit (as before) PLUS three Counter txs that exercise
+# IncrementCounter (state mutation), EmitWithdrawal (withdrawal channel),
+# EmitMessage (L2→L2 cross-chain channel).
+dotnet run --project tools/Neo.L2.Devnet -- 5 --executor counter
+
+# Look for the "[exec]" line per batch — gas + txRoot + L2-to-L2 root all
+# come from the Counter executor's actual outputs. The post-run RPC
+# snapshot's "state entries" count includes the Counter writes alongside
+# the deposit-induced bridge balance.
+```
+
 ---
 
 ## Templates

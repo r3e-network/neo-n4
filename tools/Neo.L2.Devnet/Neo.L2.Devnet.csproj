@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\src\Neo.L2.Telemetry\Neo.L2.Telemetry.csproj" />
     <ProjectReference Include="..\..\src\Neo.Plugins.L2Rpc\Neo.Plugins.L2Rpc.csproj" />
     <ProjectReference Include="..\..\src\Neo.Plugins.L2DA\Neo.Plugins.L2DA.csproj" />
+    <ProjectReference Include="..\..\samples\executors\Sample.CounterChainExecutor\Sample.CounterChainExecutor.csproj" />
   </ItemGroup>
 
 </Project>

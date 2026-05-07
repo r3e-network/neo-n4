@@ -351,11 +351,12 @@ public class UT_DeployPlanner
         // Without these, an operator could miss the cycle-break + governance wiring
         // post-deploy steps, leaving Phase-3 challenges with no slash payout path AND
         // §16.1 admission / §16 council-veto silently broken; or miss the informational
-        // note about which contract hash to pass as fraudVerifier when challenging.
+        // notes about which fraud-verifier contract hash to pass as fraudVerifier
+        // when challenging (one note per deployed verifier — v1/v2 + v3).
         var plan = ScaffoldPlan.Default();
         var bundle = DeployPlanner.Plan(plan, name => H((byte)(name.Length & 0xFF)));
         var actions = ScaffoldPlan.PostDeployActions(bundle).ToList();
-        Assert.AreEqual(4, actions.Count);
+        Assert.AreEqual(5, actions.Count);
 
         // 1. SequencerBond.RegisterSlasher(OptimisticChallenge) — Phase-3 cycle-break.
         StringAssert.Contains(actions[0], "SequencerBond.RegisterSlasher");
@@ -371,10 +372,44 @@ public class UT_DeployPlanner
         StringAssert.Contains(actions[2], "GovernanceController");
         StringAssert.Contains(actions[2], "§16");
 
-        // 4. Informational: pass GovernanceFraudVerifier hash to OptimisticChallenge.Challenge
+        // 4. Informational: pass GovernanceFraudVerifier hash to OptimisticChallenge.Challenge (v1/v2).
         StringAssert.Contains(actions[3], "GovernanceFraudVerifier");
         StringAssert.Contains(actions[3], "fraudVerifier");
         StringAssert.Contains(actions[3], "OptimisticChallenge.Challenge");
+        StringAssert.Contains(actions[3], "v1/v2");
+
+        // 5. Informational: pass RestrictedExecutionFraudVerifier hash to OptimisticChallenge.Challenge (v3 trustless).
+        StringAssert.Contains(actions[4], "RestrictedExecutionFraudVerifier");
+        StringAssert.Contains(actions[4], "fraudVerifier");
+        StringAssert.Contains(actions[4], "OptimisticChallenge.Challenge");
+        StringAssert.Contains(actions[4], "v3");
+    }
+
+    [TestMethod]
+    public void PostDeployActions_OnlyV3FraudVerifier_EmitsOnlyV3Note()
+    {
+        // Asymmetric pin: an operator who only deploys RestrictedExecutionFraudVerifier
+        // (e.g. a chain that wants trustless v3 only, no governance-arbitration fallback)
+        // gets ONLY the v3 note — not the v1/v2 GovernanceFraudVerifier note. This
+        // verifies the two verifier-note paths are independent.
+        var custom = new DeployPlan
+        {
+            Version = 1,
+            Network = "test",
+            Steps = new[]
+            {
+                Step("OptimisticChallenge", new JArray { "X" }),
+                Step("RestrictedExecutionFraudVerifier", new JArray()),
+            },
+        };
+        var bundle = DeployPlanner.Plan(custom, name => H(0xAA));
+        var actions = ScaffoldPlan.PostDeployActions(bundle).ToList();
+        Assert.AreEqual(1, actions.Count);
+        StringAssert.Contains(actions[0], "RestrictedExecutionFraudVerifier");
+        StringAssert.Contains(actions[0], "v3");
+        // v1/v2 note must NOT be present.
+        Assert.IsFalse(actions[0].Contains("GovernanceFraudVerifier"),
+            "v1/v2 note must not be emitted when only v3 verifier is in the bundle");
     }
 
     [TestMethod]

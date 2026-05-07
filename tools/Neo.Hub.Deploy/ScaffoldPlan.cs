@@ -161,6 +161,7 @@ public static class ScaffoldPlan
     ///   <item><description><c>SequencerBond.RegisterSlasher(OptimisticChallenge)</c>: broken cycle workaround — bond can't depend on challenge at deploy time, so the operator wires it post-deploy.</description></item>
     ///   <item><description><c>ChainRegistry.SetGovernanceController(GovernanceController)</c>: doc.md §16.1 admission policy needs the GovernanceController hash wired before <c>RegisterChainPublic</c> works in mode 1/2.</description></item>
     ///   <item><description><c>VerifierRegistry.SetGovernanceController(GovernanceController)</c>: doc.md §16 council-veto needs the GovernanceController hash wired before <c>RegisterVerifierViaProposal</c> can consult <c>IsApprovedAndTimelocked</c>.</description></item>
+    ///   <item><description>Informational note(s) for each fraud-verifier reference contract present in the bundle, so operators know which hash to pass as the <c>fraudVerifier</c> argument to <c>OptimisticChallenge.Challenge</c>: <c>GovernanceFraudVerifier</c> (v1/v2 governance arbitration) or <c>RestrictedExecutionFraudVerifier</c> (v3 trustless on-chain re-derivation).</description></item>
     /// </list>
     /// </remarks>
     public static IEnumerable<string> PostDeployActions(DeployBundle bundle)
@@ -171,7 +172,8 @@ public static class ScaffoldPlan
         var chainReg = bundle.Invocations.FirstOrDefault(i => i.Name == "ChainRegistry");
         var verifierReg = bundle.Invocations.FirstOrDefault(i => i.Name == "VerifierRegistry");
         var gc = bundle.Invocations.FirstOrDefault(i => i.Name == "GovernanceController");
-        var fraudVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "GovernanceFraudVerifier");
+        var govFraudVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "GovernanceFraudVerifier");
+        var rexFraudVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "RestrictedExecutionFraudVerifier");
 
         if (bond is not null && oc is not null)
         {
@@ -185,13 +187,22 @@ public static class ScaffoldPlan
         {
             yield return $"VerifierRegistry.SetGovernanceController({gc.Name})  # enable §16 council-veto path (RegisterVerifierViaProposal depends on this wiring)";
         }
-        if (fraudVerifier is not null && oc is not null)
+        if (govFraudVerifier is not null && oc is not null)
         {
             // Informational only — no on-chain wiring step. Challengers pass
             // GovernanceFraudVerifier.Hash as the fraudVerifier argument when calling
             // OptimisticChallenge.Challenge. Surface so operators know which hash to
             // hand to challengers (or to embed in their CLI / front-end).
-            yield return $"# Note: pass {fraudVerifier.Name}.Hash as the `fraudVerifier` argument to OptimisticChallenge.Challenge when filing a fraud proof.";
+            yield return $"# Note: for v1/v2 fraud proofs (governance arbitration), pass {govFraudVerifier.Name}.Hash as the `fraudVerifier` argument to OptimisticChallenge.Challenge.";
+        }
+        if (rexFraudVerifier is not null && oc is not null)
+        {
+            // Same informational shape as GovernanceFraudVerifier above. The two
+            // verifiers are peers — operators pick which to invoke per-challenge
+            // based on whether they're filing a v1/v2 (governance) or v3 (trustless)
+            // FraudProofPayload. Both can be deployed simultaneously since
+            // OptimisticChallenge.Challenge takes the verifier hash as a parameter.
+            yield return $"# Note: for v3 fraud proofs (trustless storage-proof re-derivation), pass {rexFraudVerifier.Name}.Hash as the `fraudVerifier` argument to OptimisticChallenge.Challenge.";
         }
     }
 

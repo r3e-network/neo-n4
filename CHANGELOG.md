@@ -182,6 +182,42 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Updated — neo-hub-deploy PostDeployActions surfaces both fraud verifiers (1024 → 1025)
+
+The `Neo.Hub.Deploy.ScaffoldPlan.PostDeployActions` operator-facing
+hints used to mention only `GovernanceFraudVerifier` (v1/v2 governance
+arbitration). Now that both verifiers ship in the default scaffold,
+operators running `neo-hub-deploy plan` see one note per deployed
+verifier so they know which contract hash to pass as the
+`fraudVerifier` argument when filing each kind of fraud proof:
+
+```
+# Note: for v1/v2 fraud proofs (governance arbitration), pass GovernanceFraudVerifier.Hash as the `fraudVerifier` argument to OptimisticChallenge.Challenge.
+# Note: for v3 fraud proofs (trustless storage-proof re-derivation), pass RestrictedExecutionFraudVerifier.Hash as the `fraudVerifier` argument to OptimisticChallenge.Challenge.
+```
+
+The two verifiers are peers — operators pick which to invoke per-
+challenge based on whether they're filing a v1/v2 (governance) or v3
+(trustless) `FraudProofPayload`. Both can be deployed simultaneously.
+
+`PostDeployActions_DefaultPlan_EmitsAllWiringHints` updated: 4 → 5
+expected actions (the new v3 note); each verifier note's body is
+pinned to mention the verifier name + "fraudVerifier" + "OptimisticChallenge.Challenge"
++ the wire-format version qualifier ("v1/v2" / "v3").
+
+1 new test `PostDeployActions_OnlyV3FraudVerifier_EmitsOnlyV3Note` —
+asymmetric pin: an operator deploying only the v3 verifier (no v1/v2
+fallback) gets ONLY the v3 note. Verifies the two verifier-note paths
+are independent.
+
+Also updated the docs/launching-an-l2.md "Quick path" section to
+feature the new-l2 composite as the recommended starting point, with
+the existing 5-command path retained for fine-grained control.
+
+Doc-set: test count 1024 → 1025; IMPLEMENTATION_STATUS Hub.Deploy
+row 24 → 25 with description updated to mention the per-verifier
+informational notes + the asymmetric-only-v3 pin.
+
 ### Added — `neo-stack new-l2` composite command (1016 → 1024)
 
 11th `neo-stack` subcommand. Strings `create-chain` + `init-l2` +

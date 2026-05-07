@@ -12,6 +12,28 @@ message routing, withdrawal verification — is shared.
 
 ---
 
+## Quickest path: the `new-l2` composite
+
+```bash
+# Single command: generates chain.config.json, initializes the node working
+# directories (data/ logs/ Plugins/), and scaffolds a custom-executor project
+# (csproj + executor skeleton + state seam + tx builder + KeyedStateStore
+# adapter + README) PLUS a sibling MSTest project with 3 starter tests.
+neo-stack new-l2 --name MyChain --chain-id 1099 --template rollup --output ./my-l2
+
+# After the composite runs, the operator's "Next" output points at:
+#   1. dotnet build + dotnet test for the executor scaffold
+#   2. neo-stack validate for chain.config.json sanity-checks
+#   3. dotnet run --project tools/Neo.L2.Devnet -- 5 --config ./my-l2/chain.config.json
+#   4. edit MyChainExecutor.cs to replace the placeholder NoOp with real opcodes
+```
+
+Use the [`new-l2` composite](#quickest-path-the-new-l2-composite) when you want
+the simplest path to a buildable + testable + devnet-previewable starter. Use
+the [5-command path below](#quick-path-5-commands-to-a-running-l2) when you
+want fine-grained control (e.g. skipping the executor scaffold for chains that
+will use `ReferenceTransactionExecutor`).
+
 ## Quick path: 5 commands to a running L2
 
 ```bash

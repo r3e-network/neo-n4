@@ -88,6 +88,15 @@ public static class ScaffoldPlan
                     "contracts/NeoHub.OptimisticChallenge/bin/Release/NeoHub.OptimisticChallenge.nef",
                     OwnerAndDeps("SettlementManager", "SequencerBond"),
                     "SettlementManager", "SequencerBond"),
+
+                // GovernanceFraudVerifier is the structural-verifier reference contract
+                // operators in governance-arbitration mode pass as the fraudVerifier
+                // argument to OptimisticChallenge.Challenge. It has no deploy-time deps —
+                // verifies a static wire format. Skip this step entirely if the chain
+                // ships its own (re-execution-capable) fraud verifier.
+                Step("GovernanceFraudVerifier",
+                    "contracts/NeoHub.GovernanceFraudVerifier/bin/Release/NeoHub.GovernanceFraudVerifier.nef",
+                    new JArray()),
             },
         };
     }
@@ -147,6 +156,7 @@ public static class ScaffoldPlan
         var chainReg = bundle.Invocations.FirstOrDefault(i => i.Name == "ChainRegistry");
         var verifierReg = bundle.Invocations.FirstOrDefault(i => i.Name == "VerifierRegistry");
         var gc = bundle.Invocations.FirstOrDefault(i => i.Name == "GovernanceController");
+        var fraudVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "GovernanceFraudVerifier");
 
         if (bond is not null && oc is not null)
         {
@@ -159,6 +169,14 @@ public static class ScaffoldPlan
         if (verifierReg is not null && gc is not null)
         {
             yield return $"VerifierRegistry.SetGovernanceController({gc.Name})  # enable §16 council-veto path (RegisterVerifierViaProposal depends on this wiring)";
+        }
+        if (fraudVerifier is not null && oc is not null)
+        {
+            // Informational only — no on-chain wiring step. Challengers pass
+            // GovernanceFraudVerifier.Hash as the fraudVerifier argument when calling
+            // OptimisticChallenge.Challenge. Surface so operators know which hash to
+            // hand to challengers (or to embed in their CLI / front-end).
+            yield return $"# Note: pass {fraudVerifier.Name}.Hash as the `fraudVerifier` argument to OptimisticChallenge.Challenge when filing a fraud proof.";
         }
     }
 

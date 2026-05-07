@@ -202,8 +202,10 @@ public class UT_DeployPlanner
     public void Scaffold_DefaultIncludesAllNeoHubContracts()
     {
         var plan = ScaffoldPlan.Default();
-        Assert.AreEqual(13, plan.Steps.Count);
+        // 13 core NeoHub contracts + GovernanceFraudVerifier reference contract = 14
+        Assert.AreEqual(14, plan.Steps.Count);
         var names = plan.Steps.Select(s => s.Name).ToHashSet();
+        Assert.IsTrue(names.Contains("GovernanceFraudVerifier"));
         // Phase 0/1/2 contracts
         Assert.IsTrue(names.Contains("ChainRegistry"));
         Assert.IsTrue(names.Contains("SharedBridge"));
@@ -292,16 +294,17 @@ public class UT_DeployPlanner
     }
 
     [TestMethod]
-    public void PostDeployActions_DefaultPlan_EmitsAllThreeWiringHints()
+    public void PostDeployActions_DefaultPlan_EmitsAllWiringHints()
     {
         // Pin the operator-facing hints emitted by `plan` after a successful resolution.
         // Without these, an operator could miss the cycle-break + governance wiring
         // post-deploy steps, leaving Phase-3 challenges with no slash payout path AND
-        // §16.1 admission / §16 council-veto silently broken.
+        // §16.1 admission / §16 council-veto silently broken; or miss the informational
+        // note about which contract hash to pass as fraudVerifier when challenging.
         var plan = ScaffoldPlan.Default();
         var bundle = DeployPlanner.Plan(plan, name => H((byte)(name.Length & 0xFF)));
         var actions = ScaffoldPlan.PostDeployActions(bundle).ToList();
-        Assert.AreEqual(3, actions.Count);
+        Assert.AreEqual(4, actions.Count);
 
         // 1. SequencerBond.RegisterSlasher(OptimisticChallenge) — Phase-3 cycle-break.
         StringAssert.Contains(actions[0], "SequencerBond.RegisterSlasher");
@@ -316,6 +319,11 @@ public class UT_DeployPlanner
         StringAssert.Contains(actions[2], "VerifierRegistry.SetGovernanceController");
         StringAssert.Contains(actions[2], "GovernanceController");
         StringAssert.Contains(actions[2], "§16");
+
+        // 4. Informational: pass GovernanceFraudVerifier hash to OptimisticChallenge.Challenge
+        StringAssert.Contains(actions[3], "GovernanceFraudVerifier");
+        StringAssert.Contains(actions[3], "fraudVerifier");
+        StringAssert.Contains(actions[3], "OptimisticChallenge.Challenge");
     }
 
     [TestMethod]

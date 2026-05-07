@@ -33,8 +33,8 @@ that:
 The original owner-only `RegisterChain` stays as the permissioned path for
 backwards compatibility.
 
-**Acceptance.** Type-check clean. Existing 879 tests still green. New tests pin
-mode 0 rejects on RegisterChainPublic; mode 2 accepts.
+**Acceptance.** Type-check clean. Existing tests still green (no regressions).
+New tests pin mode 0 rejects on RegisterChainPublic; mode 2 accepts.
 
 ### §16.1-approved-sets — Approved verifier + bridge sets on GovernanceController
 

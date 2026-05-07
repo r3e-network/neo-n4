@@ -141,16 +141,40 @@ cd neo-n4
 # Type-check everything + run all 1034 tests (~10 seconds)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
-# Run the in-process devnet (5 batches, real state-root continuity, post-run audit)
+# --- Bootstrapping a new L2 chain (recommended path) ---
+
+# See available templates + their use-case descriptions
+dotnet run --project tools/Neo.Stack.Cli -- list-templates
+
+# Composite: chain.config.json + node working dirs + custom-executor scaffold
+# + sibling MSTest project, all in one command. Default output: ./chain-1099/
+dotnet run --project tools/Neo.Stack.Cli -- new-l2 \
+    --name MyChain --chain-id 1099 --template rollup
+
+# Build + test the scaffolded executor
+dotnet build chain-1099/MyChainExecutor /p:NuGetAudit=false
+dotnet test  chain-1099/MyChainExecutor.UnitTests /p:NuGetAudit=false
+
+# --- Devnet preview (in-process end-to-end) ---
+
+# Run the default devnet (5 batches, real state-root continuity, post-run audit)
 dotnet run --project tools/Neo.L2.Devnet -- 5
 
-# Same plus a live HTTP /metrics scrape at :9090
+# Or preview the working Sample.CounterChainExecutor through the same pipeline
+dotnet run --project tools/Neo.L2.Devnet -- 5 --executor counter
+
+# Or preview your own chain config (the post-run getsecuritylabel reflects §16.2)
+dotnet run --project tools/Neo.L2.Devnet -- 5 --config chain-1099/chain.config.json
+
+# Same plus a live HTTP /metrics + /healthz + /readyz scrape at :9090
 dotnet run --project tools/Neo.L2.Devnet -- 5 --metrics-port 9090
 
 # Persist devnet state to disk via RocksDB (state survives restart)
 dotnet run --project tools/Neo.L2.Devnet -- 5 --data-dir /tmp/neo-l2-devnet
 
-# Generate a NeoHub deploy bundle (declarative, dependency-resolved)
+# --- L1 deploy (when ready) ---
+
+# Generate a NeoHub deploy bundle (15 contracts, declarative, dependency-resolved)
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold --output deploy-plan.json
 dotnet run --project tools/Neo.Hub.Deploy -- plan     --plan deploy-plan.json --output bundle.json
 

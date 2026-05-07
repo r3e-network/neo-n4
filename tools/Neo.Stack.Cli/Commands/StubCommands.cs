@@ -138,6 +138,26 @@ internal static class DeployBridgeAdapterCommand
         }
         var chainId = Neo.L2.ChainIdValidator.ValidateL2(parsed, "--chain-id");
 
+        // Accept --output / --path for consistency with the rest of the CLI (the
+        // documented Quick path passes --output to every command). When supplied,
+        // do the same chain.config.json existence preflight as register-chain so
+        // an operator who forgot create-chain gets a clear diagnostic instead of
+        // a plan that doesn't apply to anything. Without --output / --path, the
+        // command keeps its previous chain-id-only behavior — a generic plan.
+        var outputFlag = ArgUtil.Get(args, "--output", "");
+        var pathFlag = ArgUtil.Get(args, "--path", "");
+        var chainDir = outputFlag.Length > 0 ? outputFlag : pathFlag;
+        if (chainDir.Length > 0)
+        {
+            var configPath = System.IO.Path.Combine(chainDir, "chain.config.json");
+            if (!System.IO.File.Exists(configPath))
+            {
+                Console.Error.WriteLine($"Missing config: {configPath}");
+                Console.Error.WriteLine("Run `neo-stack create-chain --chain-id <id>` first.");
+                return Task.FromResult(2);
+            }
+        }
+
         Console.WriteLine($"Bridge adapter deployment plan for chain {chainId}:");
         Console.WriteLine();
         Console.WriteLine("  L2-side native contract   : L2Native.L2BridgeContract");

@@ -182,6 +182,45 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Fixed — `deploy-bridge-adapter` now accepts `--output` + does the same chain-config preflight (1067 → 1074)
+
+Last of three plan-printer commands that silently ignored `--output`. The
+documented Quick path passes `--output` to every step:
+
+```
+neo-stack deploy-bridge-adapter --chain-id 1099 --output ./my-l2
+```
+
+The command was chain-id-only and silently dropped the `--output` value
+(no error, no warning, just emitted a generic plan that wasn't tied to
+any actual chain dir).
+
+Fix: accept both `--output` and `--path` (with `--output` precedence,
+mirroring `register-chain` + `start-*` + `init-l2`). When supplied,
+preflight-check `chain.config.json` exists in the chain dir — same shape
+as `register-chain`. Without `--output`/`--path`, the command keeps its
+previous behavior (chain-id-only, generic plan) so existing scripts
+don't break.
+
+7 new tests in `UT_DeployBridgeAdapterCommand`:
+- `DeployBridge_NoChainDir_ChainIdOnly_ExitsZero` — backwards-compat path.
+- `DeployBridge_WithOutput_ConfigExists_ExitsZero` — preflight passes.
+- `DeployBridge_WithOutput_ConfigMissing_ExitsTwo` — preflight catches
+  the operator-forgot-create-chain misconfig with a clear diagnostic.
+- `DeployBridge_AcceptsPathFlag_BackwardsCompat`.
+- `DeployBridge_OutputTakesPrecedenceOverPath` — bogus `--path` doesn't
+  poison the run when `--output` is supplied.
+- `DeployBridge_NonNumericChainId_ExitsOne` — caller error.
+- `DeployBridge_ChainIdZero_Throws` — L1 sentinel reject.
+
+This finishes the three-iteration sweep of `--path`-only bugs in CLI
+commands. The documented 5-command Quick path now works end-to-end with
+`--output` consistently across `init-l2` / `register-chain` /
+`deploy-bridge-adapter` / `start-{sequencer,batcher,prover}`.
+
+Doc-set: test count 1067 → 1074 across the standard files;
+Neo.Stack.Cli.UnitTests per-row 50 → 57.
+
 ### Fixed — `register-chain` now accepts `--output` (1060 → 1067)
 
 Same `--path`-only bug as last iteration's `start-{sequencer,batcher,prover}`

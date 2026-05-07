@@ -11,8 +11,10 @@ namespace Neo.Stack.Cli.Commands;
 /// steps) so an operator can audit before signing. Production wiring (signed L1
 /// transactions, running plugin processes) is operator-supplied — these subcommands
 /// are the deterministic, auditable preflight side. The filename ("StubCommands") is
-/// historical; per IMPLEMENTATION_STATUS Phase 6 status, all 8 neo-stack subcommands
-/// are functional.
+/// historical; per IMPLEMENTATION_STATUS Phase 6 status, all 12 neo-stack subcommands
+/// are functional (this file hosts register-chain / deploy-bridge-adapter / submit-batch
+/// / start-{sequencer,batcher,prover}; create-chain / init-l2 / validate /
+/// scaffold-executor / new-l2 / list-templates have their own files).
 /// </summary>
 internal static class RegisterChainCommand
 {
@@ -20,13 +22,23 @@ internal static class RegisterChainCommand
     {
         var l1 = ArgUtil.Get(args, "--l1", "neo-n3-testnet");
         var rawChainId = ArgUtil.Get(args, "--chain-id", "1001");
-        var chainDir = ArgUtil.Get(args, "--path", $"./chain-{rawChainId}");
         if (!uint.TryParse(rawChainId, out var parsedChainId))
         {
             Console.Error.WriteLine($"--chain-id must be a non-negative integer, got '{rawChainId}'");
             return Task.FromResult(1);
         }
         var chainId = Neo.L2.ChainIdValidator.ValidateL2(parsedChainId, "--chain-id");
+        // Accept both --output (matches the Quick-path walkthrough in
+        // launching-an-l2.md + create-chain primary flag) and --path (kept for
+        // backwards compat). --output takes precedence when both supplied, mirroring
+        // InitL2Command + StartCommandPreflight. Without this, the documented
+        // 5-command path `neo-stack register-chain --chain-id N --output ./my-l2`
+        // silently fell back to ./chain-N and either ran with the wrong dir or
+        // exited with "Missing config".
+        var outputFlag = ArgUtil.Get(args, "--output", "");
+        var chainDir = outputFlag.Length > 0
+            ? outputFlag
+            : ArgUtil.Get(args, "--path", $"./chain-{chainId}");
 
         var configPath = System.IO.Path.Combine(chainDir, "chain.config.json");
         if (!System.IO.File.Exists(configPath))

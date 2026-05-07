@@ -182,6 +182,47 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Fixed — `register-chain` now accepts `--output` (1060 → 1067)
+
+Same `--path`-only bug as last iteration's `start-{sequencer,batcher,prover}`
+fix, but in `register-chain`. The documented Quick path:
+
+```
+neo-stack register-chain --chain-id 1099 --output ./my-l2 \
+    --operator <hash> --verifier <hash> --bridge <hash> --message <hash>
+```
+
+…silently fell back to `./chain-1099` because the command only checked
+`--path`. Operators following the documented walkthrough either ran
+against the wrong directory or got "Missing config" depending on whether
+`./chain-1099` happened to exist.
+
+Fix: accept both `--output` and `--path`, with `--output` taking
+precedence (matches `InitL2Command` + `StartCommandPreflight` + the
+`new-l2` composite + the `create-chain` primary flag). `--path`
+continues to work for backwards compat.
+
+Also bumped a stale doc comment in `StubCommands.cs` from "all 8
+neo-stack subcommands are functional" → "all 12" (we shipped
+`scaffold-executor` / `new-l2` / `list-templates` / `validate` since
+the original 8).
+
+7 new tests in `UT_RegisterChainCommand` pin every path:
+- `Register_HappyPath_PlanOnly_ExitsZero` (no four-hash flags → plan-only).
+- `Register_NonNumericChainId_ExitsOne` (caller error).
+- `Register_ChainIdZero_Throws` (L1 sentinel reject).
+- `Register_MissingConfig_ExitsTwo` (no chain.config.json → "run
+  create-chain first" diagnostic).
+- `Register_AcceptsPathFlag_BackwardsCompat`.
+- `Register_OutputTakesPrecedenceOverPath` (bogus `--path` doesn't
+  poison the run when `--output` is supplied).
+- `Register_WithFourHashes_EmitsConfigBytesHex` (verifies the canonical
+  91-byte configBytes hex appears in stdout when all four UInt160 flags
+  are supplied).
+
+Doc-set: test count 1060 → 1067 across the standard files;
+Neo.Stack.Cli.UnitTests per-row 43 → 50.
+
 ### Fixed — `start-{sequencer,batcher,prover}` now accept `--output` (1051 → 1060)
 
 The 5-command Quick path documented in `docs/launching-an-l2.md`:

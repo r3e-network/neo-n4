@@ -28,8 +28,8 @@ These are real production-shape implementations with full test coverage:
 
 - **All 15 NeoHub L1 contracts** + **6 L2Native contracts** type-check via
   `Neo.SmartContract.Framework`; CI compiles each with `nccs` and verifies
-  the `.nef` + `.manifest.json` artifacts (22 contracts total incl.
-  `samples/contracts/Sample.*`).
+  the `.nef` + `.manifest.json` artifacts (23 contracts total incl. the 2
+  `samples/contracts/Sample.*` app-developer examples).
 - **Off-chain canonical encoders**, byte-layout-pinned + tested:
   `BatchSerializer`, `MessageHasher`, `MerkleProofSerializer`,
   `L2ChainConfigSerializer`, `DepositPayload`, `MultisigProofPayload`,

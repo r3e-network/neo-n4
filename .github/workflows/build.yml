@@ -120,8 +120,13 @@ jobs:
             echo "$missing artifacts missing — nccs did not run for some contracts"
             exit 1
           fi
-          # Count: 14 NeoHub + 6 L2Native + 2 samples = 22
-          echo "All 22 contracts produced .nef + .manifest.json artifacts"
+          # Count is logged dynamically so the message can't drift from reality
+          # when a contract is added (matches the loop above + the verification loop).
+          neo_count=$(ls -d contracts/NeoHub.* 2>/dev/null | wc -l)
+          native_count=$(ls -d contracts/L2Native.* 2>/dev/null | wc -l)
+          sample_count=$(ls -d samples/contracts/Sample.* 2>/dev/null | wc -l)
+          total=$((neo_count + native_count + sample_count))
+          echo "All $total contracts ($neo_count NeoHub + $native_count L2Native + $sample_count samples) produced .nef + .manifest.json artifacts"
 
   bridge:
     name: cargo check (Rust bridge)

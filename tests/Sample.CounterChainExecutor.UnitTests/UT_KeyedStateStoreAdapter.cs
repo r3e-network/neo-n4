@@ -52,4 +52,39 @@ public class UT_KeyedStateStoreAdapter
         Assert.AreEqual(store2.ComputeRoot(), nonEmptyRoot,
             "adapter writes must produce the same root as direct KeyedStateStore writes");
     }
+
+    [TestMethod]
+    public void Adapter_NullStore_RejectedAtCtor()
+    {
+        // The ctor's null-store guard catches a misconfigured wiring (e.g. a DI
+        // container that returns null for the IKeyValueStore service) at the
+        // composition root, not later when the executor's first write trips with
+        // an NRE that has no link back to the bad caller.
+        Assert.ThrowsExactly<System.ArgumentNullException>(() =>
+            new KeyedStateStoreAdapter(null!));
+    }
+
+    [TestMethod]
+    public void Adapter_NullKey_TryGet_Rejected()
+    {
+        var adapter = new KeyedStateStoreAdapter(new KeyedStateStore());
+        Assert.ThrowsExactly<System.ArgumentNullException>(() =>
+            adapter.TryGet(null!, out _));
+    }
+
+    [TestMethod]
+    public void Adapter_NullKey_Put_Rejected()
+    {
+        var adapter = new KeyedStateStoreAdapter(new KeyedStateStore());
+        Assert.ThrowsExactly<System.ArgumentNullException>(() =>
+            adapter.Put(null!, new byte[] { 1, 2 }));
+    }
+
+    [TestMethod]
+    public void Adapter_NullValue_Put_Rejected()
+    {
+        var adapter = new KeyedStateStoreAdapter(new KeyedStateStore());
+        Assert.ThrowsExactly<System.ArgumentNullException>(() =>
+            adapter.Put(new byte[] { 1, 2 }, null!));
+    }
 }

@@ -182,6 +182,43 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — Sample.CounterChainExecutor null-arg + cancellation guards pinned (1035 → 1043)
+
+The executor + adapter both have `ArgumentNullException.ThrowIfNull` /
+`ThrowIfCancellationRequested` defenses but no tests pinned them. A
+regression that drops one of those guards would only surface as an NRE
+or unattributed batch crash later. 8 new tests pin the boundary:
+
+`UT_CounterChainExecutor` (16 → 20):
+- `Ctor_NullState_Rejected` — DI container returning null for the state
+  service must fail loud at composition time, not at first ExecuteAsync.
+- `Ctor_NullEmittingContract_Rejected` — same shape pin for the emitting
+  contract sentinel.
+- `Execute_NullBatchContext_Rejected` — `BatchBlockContext` is a ref type
+  with `required` fields, so null is a real possibility from a buggy
+  batch driver. Pin ArgumentNullException at the call boundary.
+- `Execute_CancelledToken_RespectsCancellation` — cooperative cancellation
+  pin: a cancelled token must produce `OperationCanceledException` rather
+  than running the whole tx and returning a receipt the caller will
+  discard. Catches a future refactor that drops the
+  `ThrowIfCancellationRequested` call.
+
+`UT_KeyedStateStoreAdapter` (3 → 7):
+- `Adapter_NullStore_RejectedAtCtor` — same DI-misconfig pin for the
+  adapter's underlying store.
+- `Adapter_NullKey_TryGet_Rejected`
+- `Adapter_NullKey_Put_Rejected`
+- `Adapter_NullValue_Put_Rejected`
+  — every method's null-arg path. Together they pin the contract that
+  the adapter doesn't silently swallow null reads/writes (which would
+  produce confusing diagnostics at the underlying KeyedStateStore layer).
+
+Doc-set: test count 1035 → 1043 across AGENTS.md / CONTRIBUTING.md /
+README.md / IMPLEMENTATION_STATUS.md / docs/getting-started.md /
+docs/tech-stack-coverage.md. Sample.CounterChainExecutor.UnitTests
+per-row 16 → 24 with description updated to call out the executor
+null-arg + cancellation pins + adapter null-arg pins.
+
 ### Updated — `new-l2` composite gains a `validate` defense-in-depth step (1034 → 1035)
 
 The composite is now 4 steps instead of 3 (create-chain → **validate** →

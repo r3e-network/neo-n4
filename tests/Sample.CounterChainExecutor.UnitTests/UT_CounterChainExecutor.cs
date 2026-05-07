@@ -282,4 +282,47 @@ public class UT_CounterChainExecutor
             .ToArray();
     }
 
+    [TestMethod]
+    public void Ctor_NullState_Rejected()
+    {
+        // ctor null-guards catch a misconfigured wiring (e.g. DI container missing
+        // a registration) at composition time, not later when the executor's first
+        // ExecuteAsync trips with an NRE that has no link back to the bad caller.
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
+            new CounterChainExecutor(SampleChainId, null!, Addr(0x42)));
+    }
+
+    [TestMethod]
+    public void Ctor_NullEmittingContract_Rejected()
+    {
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
+            new CounterChainExecutor(SampleChainId, new InMemoryCounterChainState(), null!));
+    }
+
+    [TestMethod]
+    public async Task Execute_NullBatchContext_Rejected()
+    {
+        // Same null-guard pattern at the call boundary. The production executor
+        // would also need this since BatchBlockContext is a ref type with
+        // `required` fields — null is a real possibility from a buggy batch driver.
+        var (exec, _) = NewExecutor();
+        var tx = CounterTxBuilder.IncrementCounter(Addr(0xAA), 1);
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(async () =>
+            await exec.ExecuteAsync(tx, batchContext: null!));
+    }
+
+    [TestMethod]
+    public async Task Execute_CancelledToken_RespectsCancellation()
+    {
+        // Cooperative cancellation: the executor must honor a cancelled token rather
+        // than running the whole tx and returning a receipt the caller will discard.
+        // Pin OperationCanceledException so a future refactor that drops
+        // ThrowIfCancellationRequested can't silently regress.
+        var (exec, _) = NewExecutor();
+        var tx = CounterTxBuilder.IncrementCounter(Addr(0xAA), 1);
+        var cts = new System.Threading.CancellationTokenSource();
+        cts.Cancel();
+        await Assert.ThrowsExactlyAsync<System.OperationCanceledException>(async () =>
+            await exec.ExecuteAsync(tx, Context(), cts.Token));
+    }
 }

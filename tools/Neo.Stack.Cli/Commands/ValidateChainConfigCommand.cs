@@ -128,6 +128,32 @@ internal static class ValidateChainConfigCommand
                 Console.WriteLine($"⚠ chainMode=L2ValidiumMode contradicts daMode=L1; validium chains by definition have off-chain DA (NeoFS / External / DAC)");
             }
 
+            // ChainMode vs SecurityLevel: each chainMode has a canonical set of
+            // SecurityLevels that match its consensus + DA semantics (per doc.md §6).
+            //  - SidechainMode: {Sidechain, Settled} — no L1 proof verification
+            //  - L2RollupMode:  {Optimistic, Validity} — L1 proof + on-chain DA
+            //  - L2ValidiumMode:{Validium} — L1 ZK proof + off-chain DA
+            // Any deviation is internally contradictory: e.g. a SidechainMode chain
+            // claiming SecurityLevel=Validity promises ZK verification on L1 it never
+            // delivers, and an L2RollupMode chain claiming SecurityLevel=Validium
+            // contradicts the rollup property of on-chain DA. (L1Mode is already
+            // flagged above as not appearing in an L2 config at all.)
+            if (chainMode == ChainMode.SidechainMode &&
+                sec != SecurityLevel.Sidechain && sec != SecurityLevel.Settled)
+            {
+                Console.WriteLine($"⚠ chainMode=SidechainMode pairs with securityLevel ∈ {{Sidechain, Settled}} (no L1 proof verification); got {sec}");
+            }
+            else if (chainMode == ChainMode.L2RollupMode &&
+                sec != SecurityLevel.Optimistic && sec != SecurityLevel.Validity)
+            {
+                Console.WriteLine($"⚠ chainMode=L2RollupMode pairs with securityLevel ∈ {{Optimistic, Validity}} (L1 proof + on-chain DA); got {sec}");
+            }
+            else if (chainMode == ChainMode.L2ValidiumMode &&
+                sec != SecurityLevel.Validium)
+            {
+                Console.WriteLine($"⚠ chainMode=L2ValidiumMode pairs with securityLevel=Validium (L1 ZK proof + off-chain DA); got {sec}");
+            }
+
             // ExitModel.OperatorAssisted vs permissionlessExit=true: per the
             // ExitModel doc, OperatorAssisted means "user exit requires the
             // operator to co-sign or pre-stage exit batches." That's the opposite

@@ -325,8 +325,10 @@ public class UT_ValidateChainConfigCommand
     [TestMethod]
     public void Validate_CrossFieldNoWarning_ValidiumWithZk()
     {
-        // validium template default: SecurityLevel.Validium + ProofType.Zk — match.
+        // validium template default: chainMode=L2ValidiumMode + SecurityLevel.Validium
+        // + ProofType.Zk + daMode=NeoFS — all internally consistent.
         var validiumZk = ValidRollupConfig()
+            .Replace("\"chainMode\": \"L2RollupMode\"", "\"chainMode\": \"L2ValidiumMode\"")
             .Replace("\"securityLevel\": \"Optimistic\"", "\"securityLevel\": \"Validium\"")
             .Replace("\"daMode\": \"L1\"", "\"daMode\": \"NeoFS\"")
             .Replace("\"proofType\": \"Optimistic\"", "\"proofType\": \"Zk\"");
@@ -334,23 +336,75 @@ public class UT_ValidateChainConfigCommand
         var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
         Assert.AreEqual(0, rc);
         Assert.IsFalse(output.Contains("⚠"),
-            "Validium + Zk is the canonical pair — no warning");
+            "Validium template (L2ValidiumMode + Validium + Zk + NeoFS) is canonical — no warning");
     }
 
     [TestMethod]
     public void Validate_CrossFieldNoWarning_SidechainWithNone()
     {
-        // sidechain template defaults: SecurityLevel.Sidechain + ProofType.None — also
-        // valid. The cross-field warning logic only fires for Validity / Optimistic
-        // combinations, so Sidechain shouldn't trigger it.
+        // sidechain template defaults: chainMode=SidechainMode + SecurityLevel.Sidechain
+        // + ProofType.None — all internally consistent. No cross-field warning should fire.
         var sidechain = ValidRollupConfig()
+            .Replace("\"chainMode\": \"L2RollupMode\"", "\"chainMode\": \"SidechainMode\"")
             .Replace("\"securityLevel\": \"Optimistic\"", "\"securityLevel\": \"Sidechain\"")
             .Replace("\"proofType\": \"Optimistic\"", "\"proofType\": \"None\"");
         var path = WriteConfig(sidechain);
         var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
         Assert.AreEqual(0, rc);
         Assert.IsFalse(output.Contains("⚠"),
-            "Sidechain + None should NOT emit a cross-field warning");
+            "Sidechain template (SidechainMode + Sidechain + None) is canonical — no warning");
+    }
+
+    [TestMethod]
+    public void Validate_CrossFieldWarning_RollupModeWithValidiumLevel()
+    {
+        // L2RollupMode pairs with SecurityLevel ∈ {Optimistic, Validity} — Validium
+        // belongs with L2ValidiumMode (off-chain DA), not the rollup-mode (on-chain DA).
+        // Operator copying a rollup template + flipping securityLevel to Validium without
+        // also flipping chainMode would silently ship an internally-contradictory config.
+        var contradictory = ValidRollupConfig()
+            .Replace("\"securityLevel\": \"Optimistic\"", "\"securityLevel\": \"Validium\"");
+        var path = WriteConfig(contradictory);
+        var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
+        Assert.AreEqual(0, rc, "warning is informational, not fatal");
+        StringAssert.Contains(output, "⚠");
+        StringAssert.Contains(output, "L2RollupMode");
+        StringAssert.Contains(output, "Optimistic, Validity");
+    }
+
+    [TestMethod]
+    public void Validate_CrossFieldWarning_SidechainModeWithValidityLevel()
+    {
+        // SidechainMode pairs with SecurityLevel ∈ {Sidechain, Settled} — sidechains
+        // don't verify state-transitions on L1, so claiming Validity (which requires
+        // L1 ZK verification) is contradictory. Pin to catch a copy-paste bug where
+        // someone leaves chainMode=SidechainMode but raises securityLevel.
+        var contradictory = ValidRollupConfig()
+            .Replace("\"chainMode\": \"L2RollupMode\"", "\"chainMode\": \"SidechainMode\"")
+            .Replace("\"securityLevel\": \"Optimistic\"", "\"securityLevel\": \"Validity\"");
+        var path = WriteConfig(contradictory);
+        var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
+        Assert.AreEqual(0, rc);
+        StringAssert.Contains(output, "⚠");
+        StringAssert.Contains(output, "SidechainMode");
+        StringAssert.Contains(output, "Sidechain, Settled");
+    }
+
+    [TestMethod]
+    public void Validate_CrossFieldWarning_ValidiumModeWithOptimisticLevel()
+    {
+        // L2ValidiumMode pairs with SecurityLevel=Validium (its defining property:
+        // L1 ZK proof + off-chain DA). Optimistic implies a challenge window with
+        // on-chain DA — contradictory with validium's off-chain-DA premise.
+        var contradictory = ValidRollupConfig()
+            .Replace("\"chainMode\": \"L2RollupMode\"", "\"chainMode\": \"L2ValidiumMode\"")
+            .Replace("\"daMode\": \"L1\"", "\"daMode\": \"NeoFS\"");
+        // securityLevel stays "Optimistic" from base config
+        var path = WriteConfig(contradictory);
+        var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
+        Assert.AreEqual(0, rc);
+        StringAssert.Contains(output, "⚠");
+        StringAssert.Contains(output, "L2ValidiumMode pairs with securityLevel=Validium");
     }
 
     // ---- Helpers ----

@@ -229,6 +229,41 @@ exercise what the previous command actually wrote).
 
 Doc-set: test count 1150 → 1153 across the standard files.
 
+### Added — `validate` flags chainMode × securityLevel pairing mismatches (1166 → 1169)
+
+Per `doc.md` §6, each `chainMode` has a canonical set of compatible
+`SecurityLevel`s based on consensus + DA semantics:
+
+  - `SidechainMode` → `{Sidechain, Settled}` (no L1 proof verification)
+  - `L2RollupMode`  → `{Optimistic, Validity}` (L1 proof + on-chain DA)
+  - `L2ValidiumMode`→ `{Validium}` (L1 ZK proof + off-chain DA)
+
+Any deviation is internally contradictory: a `SidechainMode` chain
+claiming `Validity` promises L1 ZK verification it never delivers; a
+`L2RollupMode` chain claiming `Validium` contradicts the rollup property
+of on-chain DA; a `L2ValidiumMode` chain claiming `Optimistic` would
+need on-chain DA the validium definition rules out. `validate` now
+flags all three buckets with a `⚠` warning naming the canonical set.
+
+3 new tests in `UT_ValidateChainConfigCommand`:
+- `Validate_CrossFieldWarning_RollupModeWithValidiumLevel`
+- `Validate_CrossFieldWarning_SidechainModeWithValidityLevel`
+- `Validate_CrossFieldWarning_ValidiumModeWithOptimisticLevel`
+
+Also tightened 2 existing "no-warning" tests
+(`Validate_CrossFieldNoWarning_SidechainWithNone` and
+`Validate_CrossFieldNoWarning_ValidiumWithZk`) to align chainMode with
+their securityLevel — they were previously passing on internally-inconsistent
+configs because the chainMode×securityLevel axis was unchecked. With the
+new warning, the canonical-pair test cases now exercise canonical chainModes.
+
+This closes the chainMode × securityLevel cross-field gap; combined with
+the prior chainMode × DAMode and ExitModel × permissionlessExit warnings,
+every two-field consistency dimension that has a hard contradiction is
+now flagged at validate time rather than at L1-registration time.
+
+Doc-set: test count 1166 → 1169 across the standard files.
+
 ### Added — `validate` flags chainMode=L1Mode in an L2 config (1165 → 1166)
 
 `Neo.L2.ChainMode` distinguishes `L1Mode` (the actual Neo L1 — "Plain

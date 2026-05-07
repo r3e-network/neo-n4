@@ -13,4 +13,8 @@
     <ProjectReference Include="..\..\src\Neo.L2.Batch\Neo.L2.Batch.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Neo.Stack.Cli.UnitTests" />
+  </ItemGroup>
+
 </Project>

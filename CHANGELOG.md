@@ -182,6 +182,62 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — `neo-stack scaffold-executor` CLI subcommand (998 → 1011)
+
+Operator goes from "I want a custom L2" to a buildable project in one
+command. Mirrors the working `samples/executors/Sample.CounterChainExecutor`
+reference shape — emits a complete starter project the operator can
+`dotnet build` immediately and customize.
+
+```
+neo-stack scaffold-executor --name MyChain [--chain-id 1234] [--output <dir>]
+```
+
+Output (default `./samples/executors/<Name>Executor`):
+- `<Name>Executor.csproj` — references `Neo.L2.Abstractions` +
+  `Neo.L2.Executor` via 3-up relative path (matches in-monorepo placement).
+- `<Name>Executor.cs` — skeleton `ITransactionExecutor` with one placeholder
+  `NoOp` opcode + customization markers (`// TODO: add your chain's opcodes
+  here.`).
+- `I<Name>State.cs` — state seam + `InMemory<Name>State` for tests.
+- `<Name>TxBuilder.cs` — canonical tx-byte helpers.
+- `<Name>KeyedStateStoreAdapter.cs` — production-ready bridge to
+  `Neo.L2.Executor.State.KeyedStateStore`.
+- `README.md` — what's in the scaffold + 5-step customization checklist
+  pointing at the reference sample.
+
+Validation:
+- `--name` must be a valid C# identifier (compiles as namespace + class
+  name; rejects digit-first, hyphens, empty).
+- `--chain-id` must be a non-zero L2 chain id (delegates to
+  `Neo.L2.ChainIdValidator.ValidateL2`, throws on the L1 sentinel).
+- `--output` directory must be empty (refuses to overwrite existing files).
+- `--path` is an alias for `--output` (matches `create-chain` ergonomics so
+  scripts can string subcommands together with one flag name).
+
+Also adds `tests/Neo.Stack.Cli.UnitTests/` (project count 28 → 29) — this
+is the first test project for the CLI. Wired via
+`<InternalsVisibleTo Include="Neo.Stack.Cli.UnitTests" />` so the test
+project can call `internal static ScaffoldExecutorCommand.Run` directly
+instead of subprocess-invoking the binary.
+
+13 new tests in `UT_ScaffoldExecutorCommand`:
+- Happy path: all 6 expected files emitted.
+- Csproj content: RootNamespace + AssemblyName + 3-up project refs match.
+- Executor content: namespace + class shape + `Opcode.NoOp` dispatch +
+  `// TODO` customization marker.
+- README links to the reference sample + the 5-step checklist heading.
+- Invalid `--name` (digit-first / hyphen / empty) → exit 1 + no dir created.
+- `--chain-id 0` throws `InvalidDataException` (L1 sentinel reject).
+- Non-numeric `--chain-id` → exit 1.
+- Non-empty output dir refused (preexisting file untouched).
+- Default chainId 1001 surfaced in README when `--chain-id` omitted.
+- Case preservation: `MyDeFi` → `MyDeFiExecutor.cs`.
+- `--path` alias works when `--output` is absent.
+
+CLI subcommand count 9 → 10 in IMPLEMENTATION_STATUS.md / README.md / Phase
+6 row. Test count 998 → 1011; project count 28 → 29.
+
 ### Added — `KeyedStateStoreAdapter` + e2e custom-executor full-stack integration test (993 → 998)
 
 Closes the loop on "custom chain logic" — the seam now has a runnable

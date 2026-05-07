@@ -630,15 +630,23 @@ bond↔challenge cycle, `ChainRegistry.SetGovernanceController` to enable
 naming which contract hash to pass as the `fraudVerifier` argument to
 `OptimisticChallenge.Challenge`).
 
-After all 15 deploys + post-deploy wiring complete, capture the resolved
-contract hashes from the bundle into the four `register-chain` flags:
+> **Note on hashes**: the bundle's per-step `Hash` fields are
+> *deterministic stubs* derived from the step name (so `plan` is
+> reproducible without a wallet). The actual L1 contract hashes only
+> exist after your wallet calls `ContractManagement.Deploy`. The wallet
+> returns each real hash; capture those into the four `register-chain`
+> flags below — NOT the stub hashes from the bundle.
+
+After all 15 deploys + post-deploy wiring complete, capture the
+**real on-chain** contract hashes (returned by your wallet from each
+`ContractManagement.Deploy` call) into the four `register-chain` flags:
 
 ```bash
 neo-stack register-chain --chain-id 1099 --output ./my-l2 \
-    --operator <hash from your multisig deploy> \
-    --verifier <hash from VerifierRegistry deploy> \
-    --bridge <hash from your bridge-adapter deploy> \
-    --message <hash from MessageRouter deploy>
+    --operator <real hash returned by your multisig deploy> \
+    --verifier <real hash returned by your VerifierRegistry deploy> \
+    --bridge <real hash returned by your bridge-adapter deploy> \
+    --message <real hash returned by your MessageRouter deploy>
 ```
 
 That emits the canonical 91-byte `configBytes` your wallet pastes into

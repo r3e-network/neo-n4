@@ -81,15 +81,27 @@ internal static class ValidateChainConfigCommand
             var gateway = RequireBool(root, "gatewayEnabled");
             var permExit = RequireBool(root, "permissionlessExit");
 
-            // Cross-field consistency: a chain claiming SecurityLevel.Validity
-            // SHOULD use proofType=Zk; mismatch isn't fatal but is worth surfacing.
+            // Cross-field consistency: a chain claiming a particular SecurityLevel
+            // SHOULD use a matching proofType. Mismatches aren't fatal — operators
+            // who know what they're doing can ship anyway — but the warning catches
+            // a typo (e.g. zk-rollup template + accidentally-changed proofType).
+            // One warning per supported SecurityLevel dimension so a Validium / Sidechain
+            // operator gets the same diagnostic an Optimistic / Validity operator would.
             if (sec == SecurityLevel.Validity && proof != ProofType.Zk)
             {
                 Console.WriteLine($"⚠ securityLevel=Validity typically pairs with proofType=Zk; got {proof}");
             }
+            if (sec == SecurityLevel.Validium && proof != ProofType.Zk)
+            {
+                Console.WriteLine($"⚠ securityLevel=Validium typically pairs with proofType=Zk; got {proof}");
+            }
             if (sec == SecurityLevel.Optimistic && proof != ProofType.Optimistic && proof != ProofType.Multisig)
             {
                 Console.WriteLine($"⚠ securityLevel=Optimistic typically pairs with proofType=Optimistic or Multisig; got {proof}");
+            }
+            if (sec == SecurityLevel.Sidechain && proof != ProofType.None && proof != ProofType.Multisig)
+            {
+                Console.WriteLine($"⚠ securityLevel=Sidechain typically pairs with proofType=None or Multisig; got {proof}");
             }
 
             Console.WriteLine($"✅ valid: chainId={chainId} securityLevel={sec} daMode={da} " +

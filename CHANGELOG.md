@@ -229,6 +229,30 @@ exercise what the previous command actually wrote).
 
 Doc-set: test count 1150 → 1153 across the standard files.
 
+### Added — `validate` cross-field consistency for Validium + Sidechain SecurityLevels (1156 → 1159)
+
+`ValidateChainConfigCommand`'s cross-field consistency checks only
+covered two of the four `SecurityLevel` dimensions: Validity and
+Optimistic. An operator who typed e.g. `securityLevel: Validium` with
+`proofType: Optimistic` (mismatched) got no warning — silent
+acceptance of a clearly-wrong config.
+
+Added two parallel warnings:
+- `securityLevel=Validium` → expects `proofType=Zk` (validity-proof
+  paradigm; off-chain DA doesn't change the proof system).
+- `securityLevel=Sidechain` → expects `proofType=None` or
+  `Multisig` (sidechains usually don't run a prover).
+
+3 new tests in `UT_ValidateChainConfigCommand`:
+- `Validate_CrossFieldWarning_ValidiumWithNonZkProof` — Validium +
+  Optimistic proof emits the warning + still exits 0.
+- `Validate_CrossFieldWarning_SidechainWithUnusualProof` — Sidechain +
+  Zk proof emits the warning naming valid alternatives.
+- `Validate_CrossFieldNoWarning_ValidiumWithZk` — canonical Validium +
+  Zk pair (the validium template default) does NOT emit a warning.
+
+Doc-set: test count 1156 → 1159 across the standard files.
+
 ### Fixed — `init-l2` now defends-in-depth against missing chain.config.json (1149 → 1150)
 
 `InitL2Command` previously only checked the chain dir exists, not

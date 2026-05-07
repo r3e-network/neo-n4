@@ -185,6 +185,57 @@ public class UT_ValidateChainConfigCommand
     }
 
     [TestMethod]
+    public void Validate_CrossFieldWarning_ValidiumWithNonZkProof()
+    {
+        // Same shape as the Validity warning but for SecurityLevel.Validium → ProofType.Zk.
+        // Pin so operators who type a validium template + accidentally non-Zk proofType
+        // see the warning instead of silently shipping a misconfigured chain.
+        var validiumWithOptimistic = ValidRollupConfig()
+            .Replace("\"securityLevel\": \"Optimistic\"", "\"securityLevel\": \"Validium\"")
+            .Replace("\"daMode\": \"L1\"", "\"daMode\": \"NeoFS\"");
+        // proofType still "Optimistic" → mismatch
+        var path = WriteConfig(validiumWithOptimistic);
+        var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
+        Assert.AreEqual(0, rc, "cross-field warning is informational, not fatal");
+        StringAssert.Contains(output, "⚠");
+        StringAssert.Contains(output, "Validium");
+        StringAssert.Contains(output, "Zk");
+    }
+
+    [TestMethod]
+    public void Validate_CrossFieldWarning_SidechainWithUnusualProof()
+    {
+        // SecurityLevel.Sidechain typically pairs with ProofType.None or Multisig
+        // (sidechains usually don't run a prover). Anything else gets a warning.
+        var sidechainWithZk = ValidRollupConfig()
+            .Replace("\"securityLevel\": \"Optimistic\"", "\"securityLevel\": \"Sidechain\"")
+            .Replace("\"chainMode\": \"L2RollupMode\"", "\"chainMode\": \"SidechainMode\"")
+            .Replace("\"daMode\": \"L1\"", "\"daMode\": \"External\"")
+            .Replace("\"proofType\": \"Optimistic\"", "\"proofType\": \"Zk\"");
+        var path = WriteConfig(sidechainWithZk);
+        var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
+        Assert.AreEqual(0, rc);
+        StringAssert.Contains(output, "⚠");
+        StringAssert.Contains(output, "Sidechain");
+        StringAssert.Contains(output, "None or Multisig");
+    }
+
+    [TestMethod]
+    public void Validate_CrossFieldNoWarning_ValidiumWithZk()
+    {
+        // validium template default: SecurityLevel.Validium + ProofType.Zk — match.
+        var validiumZk = ValidRollupConfig()
+            .Replace("\"securityLevel\": \"Optimistic\"", "\"securityLevel\": \"Validium\"")
+            .Replace("\"daMode\": \"L1\"", "\"daMode\": \"NeoFS\"")
+            .Replace("\"proofType\": \"Optimistic\"", "\"proofType\": \"Zk\"");
+        var path = WriteConfig(validiumZk);
+        var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
+        Assert.AreEqual(0, rc);
+        Assert.IsFalse(output.Contains("⚠"),
+            "Validium + Zk is the canonical pair — no warning");
+    }
+
+    [TestMethod]
     public void Validate_CrossFieldNoWarning_SidechainWithNone()
     {
         // sidechain template defaults: SecurityLevel.Sidechain + ProofType.None — also

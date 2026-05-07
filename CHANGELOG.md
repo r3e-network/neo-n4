@@ -182,6 +182,43 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — `init-l2` + `submit-batch` subcommand tests (1100 → 1114)
+
+The last two CLI subcommands without dedicated tests now have them. Every
+`neo-stack` subcommand is now backed by a UT_*Command test file pinning
+its exit-code contract + operator-facing diagnostics.
+
+`UT_InitL2Command` (8 tests):
+- Happy path creates `data/`, `logs/`, `Plugins/` subdirs.
+- Non-numeric `--chain-id` → exit 1.
+- chainId=0 → throws (L1 sentinel reject).
+- Missing chain dir → exit 1 + "Run create-chain first" diagnostic
+  (operator-friendly remediation).
+- `--path` continues to work (backwards-compat pin).
+- `--output` takes precedence over `--path` (matches the
+  register-chain / start-* / deploy-bridge-adapter precedence — different
+  from create-chain's inverted convention).
+- `--da` flag surfaces in the operator-facing summary line.
+- Re-run is idempotent — operator's `data/` contents survive a second
+  init-l2 run (catches a refactor that switches to recursive-delete-
+  then-create).
+
+`UT_SubmitBatchCommand` (6 tests):
+- Happy path decodes a real `BatchSerializer.Encode` output and prints
+  chainId / batchNumber / blocks / proofType / "Validation passed".
+- Missing `--file` flag → exit 1 (caller error).
+- File not found → exit 2 + "batch file not found" diagnostic.
+- Malformed bytes → exit 4 + "batch decode failed" + "Submit aborted"
+  (distinct exit code so a CI script can disambiguate caller-error
+  from decode-fail).
+- Round-trips through every ProofType (Multisig / Optimistic / Zk) so
+  the CLI's preflight is symmetric with BatchSerializer's own tests.
+- All four state roots surface in the operator-facing audit output.
+
+This finishes the multi-iteration CLI test sweep. All 12 `neo-stack`
+subcommands now have dedicated UT_*Command files. Test count
+1100 → 1114 across the doc-set; Neo.Stack.Cli.UnitTests per-row 83 → 97.
+
 ### Added — `create-chain` subcommand tests for the previously-untested writer (1088 → 1100)
 
 `create-chain` is the first command an operator runs (it writes the

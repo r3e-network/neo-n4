@@ -1,0 +1,201 @@
+using System;
+using System.IO;
+using Neo.Stack.Cli.Commands;
+
+namespace Neo.Stack.Cli.UnitTests;
+
+/// <summary>
+/// Tests for <see cref="InitL2Command"/> — creates the L2 node working subdirectories
+/// (<c>data/</c>, <c>logs/</c>, <c>Plugins/</c>) inside an existing chain dir
+/// (output of <c>create-chain</c>). Pins the missing-prerequisite diagnostic + the
+/// flag-routing precedence + the exact set of subdirs created.
+/// </summary>
+[TestClass]
+public class UT_InitL2Command
+{
+    private string _tempDir = null!;
+
+    [TestInitialize]
+    public void SetUp()
+    {
+        _tempDir = Path.Combine(Path.GetTempPath(), "neo-n4-init-l2-test-" + Guid.NewGuid().ToString("N"));
+    }
+
+    [TestCleanup]
+    public void TearDown()
+    {
+        if (Directory.Exists(_tempDir)) Directory.Delete(_tempDir, recursive: true);
+    }
+
+    [TestMethod]
+    public void InitL2_HappyPath_CreatesAllThreeSubdirs()
+    {
+        Directory.CreateDirectory(_tempDir);
+        var rc = InitL2Command.Run(new[]
+        {
+            "--chain-id", "1099",
+            "--output", _tempDir,
+        });
+        Assert.AreEqual(0, rc);
+        Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "data")), "data/ must be created");
+        Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "logs")), "logs/ must be created");
+        Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "Plugins")), "Plugins/ must be created");
+    }
+
+    [TestMethod]
+    public void InitL2_NonNumericChainId_ExitsOne()
+    {
+        var rc = InitL2Command.Run(new[]
+        {
+            "--chain-id", "abc",
+            "--output", _tempDir,
+        });
+        Assert.AreEqual(1, rc);
+    }
+
+    [TestMethod]
+    public void InitL2_ChainIdZero_Throws()
+    {
+        Assert.ThrowsExactly<System.IO.InvalidDataException>(() =>
+            InitL2Command.Run(new[]
+            {
+                "--chain-id", "0",
+                "--output", _tempDir,
+            }));
+    }
+
+    [TestMethod]
+    public void InitL2_ChainDirNotFound_ExitsOne_PointsAtCreateChain()
+    {
+        // The "Chain dir not found" diagnostic must point operators at create-chain.
+        // Without this, an operator who skipped step 1 sees a confusing diagnostic.
+        var nonExistent = Path.Combine(_tempDir, "does-not-exist");
+        var (rc, _, stderr) = CaptureBoth(() => InitL2Command.Run(new[]
+        {
+            "--chain-id", "1099",
+            "--output", nonExistent,
+        }));
+        Assert.AreEqual(1, rc);
+        StringAssert.Contains(stderr, "Chain dir not found");
+        StringAssert.Contains(stderr, "neo-stack create-chain");
+    }
+
+    [TestMethod]
+    public void InitL2_AcceptsPathFlag_BackwardsCompat()
+    {
+        // --path was the original flag; --output came later. Both must continue to
+        // work (operator scripts predating --output depend on --path).
+        Directory.CreateDirectory(_tempDir);
+        var rc = InitL2Command.Run(new[]
+        {
+            "--chain-id", "1099",
+            "--path", _tempDir,
+        });
+        Assert.AreEqual(0, rc);
+        Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "data")));
+    }
+
+    [TestMethod]
+    public void InitL2_OutputTakesPrecedenceOverPath()
+    {
+        // --output wins (matches register-chain + start-* + deploy-bridge-adapter
+        // precedence — different from create-chain's inverted convention).
+        Directory.CreateDirectory(_tempDir);
+        var bogusPath = Path.Combine(_tempDir, "bogus");
+        var rc = InitL2Command.Run(new[]
+        {
+            "--chain-id", "1099",
+            "--output", _tempDir,
+            "--path", bogusPath,
+        });
+        Assert.AreEqual(0, rc, "--output wins; bogus --path doesn't poison the run");
+        Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "data")));
+        Assert.IsFalse(Directory.Exists(Path.Combine(bogusPath, "data")));
+    }
+
+    [TestMethod]
+    public void InitL2_DaFlag_PrintedInSummary()
+    {
+        // --da is informational metadata that surfaces in the operator-facing summary.
+        Directory.CreateDirectory(_tempDir);
+        var (rc, output) = CaptureStdout(() => InitL2Command.Run(new[]
+        {
+            "--chain-id", "1099",
+            "--da", "L1",
+            "--output", _tempDir,
+        }));
+        Assert.AreEqual(0, rc);
+        StringAssert.Contains(output, "da mode    = L1");
+    }
+
+    [TestMethod]
+    public void InitL2_RerunIsIdempotent()
+    {
+        // Operator who already ran init-l2 + populated data/ shouldn't lose work
+        // on a second run. Directory.CreateDirectory is idempotent — pin the
+        // semantics so a refactor doesn't switch to a recursive-delete-then-create
+        // pattern.
+        Directory.CreateDirectory(_tempDir);
+        var rc1 = InitL2Command.Run(new[]
+        {
+            "--chain-id", "1099",
+            "--output", _tempDir,
+        });
+        Assert.AreEqual(0, rc1);
+
+        // Drop a sentinel file in data/.
+        var sentinel = Path.Combine(_tempDir, "data", "preexisting.db");
+        File.WriteAllText(sentinel, "operator data");
+
+        // Re-run init-l2.
+        var rc2 = InitL2Command.Run(new[]
+        {
+            "--chain-id", "1099",
+            "--output", _tempDir,
+        });
+        Assert.AreEqual(0, rc2, "second init-l2 run must succeed (idempotent)");
+
+        // Sentinel survived.
+        Assert.IsTrue(File.Exists(sentinel),
+            "operator's data/ contents must NOT be wiped by a second init-l2 run");
+        Assert.AreEqual("operator data", File.ReadAllText(sentinel));
+    }
+
+    // ---- Helpers ----
+
+    private static (int rc, string stdout) CaptureStdout(Func<int> run)
+    {
+        var origOut = Console.Out;
+        try
+        {
+            var sw = new StringWriter();
+            Console.SetOut(sw);
+            var rc = run();
+            return (rc, sw.ToString());
+        }
+        finally
+        {
+            Console.SetOut(origOut);
+        }
+    }
+
+    private static (int rc, string stdout, string stderr) CaptureBoth(Func<int> run)
+    {
+        var origOut = Console.Out;
+        var origErr = Console.Error;
+        try
+        {
+            var swOut = new StringWriter();
+            var swErr = new StringWriter();
+            Console.SetOut(swOut);
+            Console.SetError(swErr);
+            var rc = run();
+            return (rc, swOut.ToString(), swErr.ToString());
+        }
+        finally
+        {
+            Console.SetOut(origOut);
+            Console.SetError(origErr);
+        }
+    }
+}

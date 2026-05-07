@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\tools\Neo.Stack.Cli\Neo.Stack.Cli.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Batch\Neo.L2.Batch.csproj" />
   </ItemGroup>
 
 </Project>

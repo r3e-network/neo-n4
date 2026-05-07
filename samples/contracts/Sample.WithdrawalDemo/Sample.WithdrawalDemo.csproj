@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Sample.WithdrawalDemo</RootNamespace>
+    <AssemblyName>Sample.WithdrawalDemo</AssemblyName>
+  </PropertyGroup>
+
+  <Import Project="..\..\..\contracts\Directory.Build.props" />
+
+</Project>

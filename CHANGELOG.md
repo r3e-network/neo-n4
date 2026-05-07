@@ -264,6 +264,35 @@ test-time, not at the operator's terminal.
 
 Cumulative: 923 tests / 27 projects.
 
+### Added — `docs/tech-stack-coverage.md`: honest L2-stack gap analysis
+
+A 5-layer coverage table (protocol contracts / node infrastructure /
+operator tooling / app development / end-user UIs) catalogs each component
+against ✅ done / 🟡 scaffolded / 🔴 out-of-repo. **51 / 59 components
+shipped**; 2 🟡 (Phase 4/5 ZK infra blocked on SP1 toolchain + recursive ZK
+backend); 6 🔴 (deliberately out-of-repo: typed SDKs, block explorer,
+bridge UI, doc site, faucet, wallet integration — all deployment-specific).
+
+### Added — `samples/contracts/`: 2 sample L2-aware dApp contracts
+
+Original Neo smart contracts demonstrating standard patterns for app
+contracts integrating with the `L2Native.*` system suite. Each compiles
+under `nccs` to `.nef` + `.manifest.json` exactly like the production
+contracts.
+
+  - `Sample.CrossChainGreeter` — emit an L2 → L1 / L2 → L2 message via
+    `L2Native.L2MessageContract.EmitMessage`. Shows the standard pattern:
+    take the L2Native hash at deploy, expose owner-gated update path,
+    `Contract.Call` the partner with the operator-supplied (target,
+    receiver, type, payload) tuple.
+  - `Sample.WithdrawalDemo` — initiate an L2 → L1 withdrawal via
+    `L2Native.L2BridgeContract.InitiateWithdrawal`. Shows the burn-on-L2 +
+    enqueue-into-batch-tree pattern users follow when claiming back to L1.
+
+`samples/contracts/README.md` documents the wiring + the recipe for
+adding more samples (csproj wrapper, `<Import>` of contracts/Directory.Build.props,
+storage-prefix conventions, `_deploy` data tuple shape).
+
 ### Added — `neo-stack validate <chain.config.json>` subcommand
 
 Sanity-checks a chain.config.json before deploy / devnet preview. Validates:

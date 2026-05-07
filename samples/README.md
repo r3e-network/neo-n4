@@ -61,9 +61,16 @@ or enterprise networks where the L1 anchor isn't a trust anchor — it's just
 a discovery + asset-bridge endpoint. No prover plugin needed; settlement
 happens via attestation alone.
 
+## See also
+
+- [`contracts/`](./contracts/README.md) — sample L2-aware app contracts
+  (`Sample.CrossChainGreeter`, `Sample.WithdrawalDemo`) showing standard
+  patterns for integrating with the `L2Native.*` system contracts.
+
 ## Reference
 
 - Template defaults: [`tools/Neo.Stack.Cli/Commands/CreateChainCommand.cs`](../tools/Neo.Stack.Cli/Commands/CreateChainCommand.cs)
 - Devnet `--config` parser: [`tools/Neo.L2.Devnet/Program.cs`](../tools/Neo.L2.Devnet/Program.cs) (`ReadLabelOverrides`)
 - Custom chain logic: [`docs/launching-an-l2.md`](../docs/launching-an-l2.md)
+- Tech-stack coverage: [`docs/tech-stack-coverage.md`](../docs/tech-stack-coverage.md)
 - Spec: [`doc.md`](../doc.md) §6 (chain modes), §12 (DA tiers), §16.2 (security label)

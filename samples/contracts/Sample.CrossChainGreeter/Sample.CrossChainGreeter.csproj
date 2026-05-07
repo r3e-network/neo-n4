@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Sample.CrossChainGreeter</RootNamespace>
+    <AssemblyName>Sample.CrossChainGreeter</AssemblyName>
+  </PropertyGroup>
+
+  <Import Project="..\..\..\contracts\Directory.Build.props" />
+
+</Project>

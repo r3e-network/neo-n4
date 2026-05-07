@@ -58,7 +58,7 @@ simplified and would need real implementation before mainnet:
 |------|------------|-------|
 | `NeoHub.SettlementManager.VerifyWithdrawalLeaf` | Just confirms leaf == latest stored root (not a Merkle inclusion proof). The `*WithProof` variant IS real. | `contracts/NeoHub.SettlementManager/SettlementManagerContract.cs` |
 | `NeoHub.EmergencyManager.EscapeHatchExit` | Treats the leaf as the state-root commitment itself (no real exit-tree verification). The `*WithProof` variant IS real. | `contracts/NeoHub.EmergencyManager/EmergencyManagerContract.cs` |
-| `NeoHub.ForcedInclusion` | Fee-free; real version charges L1 GAS to discourage spam. | `contracts/NeoHub.ForcedInclusion/ForcedInclusionContract.cs` |
+| `NeoHub.ForcedInclusion` initial fee config | Now charges configurable GAS fee per `EnqueueForcedTransaction` when operator wires `SetFee` + `SetFeeRecipient` + `SetGasToken`. Default 0 = fee-free (legacy + tests preserved). Production operators set non-zero fee at deploy / runtime to discourage spam. | `contracts/NeoHub.ForcedInclusion/ForcedInclusionContract.cs` |
 | `Neo.L2.Challenge.FraudProofPayload` consumer wiring | `OptimisticChallenge.Challenge` delegates to an external `fraudVerifier` contract via `Contract.Call`. The verifier contract that consumes `DisputedTxIndex` to do per-tx re-execution does not ship in this repo. | `contracts/NeoHub.OptimisticChallenge/OptimisticChallengeContract.cs:170` (the `verifyFraud` callsite) |
 | `Neo.L2.Challenge.FraudProofPayload` | Proves "there is a discrepancy" but not the specific opcode-step that produced it. | `src/Neo.L2.Challenge/FraudProofPayload.cs` |
 

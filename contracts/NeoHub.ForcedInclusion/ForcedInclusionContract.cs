@@ -16,8 +16,11 @@ namespace NeoHub.ForcedInclusion;
 /// <remarks>
 /// See doc.md §15.4 (Forced Inclusion) and §17 (sequencer-censorship mitigation).
 /// <para>
-/// Production deploys would gate <see cref="EnqueueForcedTransaction"/> behind a small
-/// L1 fee in GAS to discourage spam; the MVP version below is fee-free.
+/// Spam control: <see cref="EnqueueForcedTransaction"/> charges <see cref="GetFee"/> GAS
+/// (NEP-17 transfer from the caller to <see cref="GetFeeRecipient"/>) before storing the
+/// entry. Default fee = 0 + recipient = zero hash — fee-free until an operator calls
+/// <see cref="SetFee"/> + <see cref="SetFeeRecipient"/> at deploy / runtime. A non-zero fee
+/// MUST have a non-zero recipient or the enqueue rejects.
 /// </para>
 /// </remarks>
 [DisplayName("NeoHub.ForcedInclusion")]
@@ -32,6 +35,9 @@ public class ForcedInclusionContract : SmartContract
     private const byte PrefixEntry = 0x02;             // 0x02 + chainId(4B) + nonce(8B) → encoded forced entry
     private const byte PrefixConsumed = 0x03;          // 0x03 + chainId(4B) + nonce(8B) → 1
     private const byte KeyDeadlineSeconds = 0x04;
+    private const byte KeyFeeAmount = 0x05;            // GAS amount charged per enqueue (BigInteger)
+    private const byte KeyFeeRecipient = 0x06;         // 20B address that receives the fees
+    private const byte KeyGasToken = 0x07;             // 20B GAS contract hash (operator-configurable for testnet/local)
     private const byte KeySettlementManager = 0xFD;
     private const byte KeyOwner = 0xFF;
 
@@ -50,7 +56,16 @@ public class ForcedInclusionContract : SmartContract
     [DisplayName("SequencerCensorshipReported")]
     public static event Action<uint, ulong, UInt160> OnSequencerCensorshipReported = default!;
 
-    /// <summary>Set wiring at deploy time.</summary>
+    /// <summary>Emitted when an enqueue-fee is charged. <c>(payer, recipient, amount)</c>.</summary>
+    [DisplayName("ForcedInclusionFeeCharged")]
+    public static event Action<UInt160, UInt160, BigInteger> OnFeeCharged = default!;
+
+    /// <summary>
+    /// Set wiring at deploy time. Data tuple:
+    /// <c>[owner, settlementManager, deadlineSeconds?, gasTokenHash?]</c> — the optional
+    /// 4th element is the GAS NEP-17 contract hash; defaults to <see cref="UInt160.Zero"/>
+    /// (operator must call <see cref="SetGasToken"/> before enabling fees).
+    /// </summary>
     public static void _deploy(object data, bool update)
     {
         if (update) return;
@@ -67,6 +82,15 @@ public class ForcedInclusionContract : SmartContract
         // surface the misconfig at deploy time.
         ExecutionEngine.Assert(deadline > 0, "deadline must be positive");
         Storage.Put(new byte[] { KeyDeadlineSeconds }, (BigInteger)deadline);
+
+        // Optional GAS token — operator can defer setting this and run fee-free; sets when
+        // they want to enable fees later via SetGasToken + SetFee.
+        if (arr.Length >= 4)
+        {
+            var gas = (UInt160)arr[3];
+            ExecutionEngine.Assert(gas.IsValid && !gas.IsZero, "invalid gas token hash");
+            Storage.Put(new byte[] { KeyGasToken }, gas);
+        }
     }
 
     /// <summary>Governance owner.</summary>
@@ -93,6 +117,68 @@ public class ForcedInclusionContract : SmartContract
         Storage.Put(new byte[] { KeyDeadlineSeconds }, (BigInteger)seconds);
     }
 
+    /// <summary>GAS amount charged per <see cref="EnqueueForcedTransaction"/> call. 0 = no fee.</summary>
+    [Safe]
+    public static BigInteger GetFee()
+    {
+        var raw = Storage.Get(new byte[] { KeyFeeAmount });
+        return raw == null ? BigInteger.Zero : (BigInteger)raw;
+    }
+
+    /// <summary>Address that receives accumulated fees. Zero address = fees disabled.</summary>
+    [Safe]
+    public static UInt160 GetFeeRecipient()
+    {
+        var raw = Storage.Get(new byte[] { KeyFeeRecipient });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>GAS NEP-17 contract hash used for fee transfers.</summary>
+    [Safe]
+    public static UInt160 GetGasToken()
+    {
+        var raw = Storage.Get(new byte[] { KeyGasToken });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>
+    /// Owner-gated: set the per-enqueue fee in smallest GAS units. Set to 0 to disable
+    /// fee collection entirely. Non-zero requires <see cref="GetFeeRecipient"/> to be set.
+    /// </summary>
+    public static void SetFee(BigInteger amount)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(amount >= 0, "fee must be non-negative");
+        // Defense-in-depth: a non-zero fee with a zero recipient would silently transfer
+        // GAS to the zero address (typically rejected, but the failure would surface as
+        // "fee transfer failed" deep in EnqueueForcedTransaction). Surface the misconfig
+        // at SetFee time instead.
+        if (amount > 0)
+        {
+            var rec = GetFeeRecipient();
+            ExecutionEngine.Assert(rec.IsValid && !rec.IsZero, "set feeRecipient before non-zero fee");
+            var gas = GetGasToken();
+            ExecutionEngine.Assert(gas.IsValid && !gas.IsZero, "set gasToken before non-zero fee");
+        }
+        Storage.Put(new byte[] { KeyFeeAmount }, amount);
+    }
+
+    /// <summary>Owner-gated: set the address that receives forced-inclusion fees.</summary>
+    public static void SetFeeRecipient(UInt160 recipient)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(recipient.IsValid && !recipient.IsZero, "invalid recipient");
+        Storage.Put(new byte[] { KeyFeeRecipient }, recipient);
+    }
+
+    /// <summary>Owner-gated: set the GAS NEP-17 contract hash used for fee transfers.</summary>
+    public static void SetGasToken(UInt160 gasContract)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(gasContract.IsValid && !gasContract.IsZero, "invalid gas hash");
+        Storage.Put(new byte[] { KeyGasToken }, gasContract);
+    }
+
     /// <summary>
     /// Submit a forced L2 transaction. Stores the encoded payload + the L1 timestamp at which
     /// the sequencer must include it.
@@ -108,6 +194,31 @@ public class ForcedInclusionContract : SmartContract
         ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         ExecutionEngine.Assert(encodedTx.Length > 0, "empty tx");
         var caller = Runtime.CallingScriptHash;
+
+        // Charge the configured spam-control fee BEFORE storing any state. If the
+        // transfer fails (insufficient balance, no allowance, GAS contract reverts),
+        // the whole enqueue fails — caller's nonce stays untouched and no entry is
+        // stored. Fee == 0 is the legacy fee-free path; non-zero requires the recipient
+        // + gas-token to be wired (SetFee enforces this at config time).
+        var fee = GetFee();
+        if (fee > 0)
+        {
+            var recipient = GetFeeRecipient();
+            var gas = GetGasToken();
+            // Defensive re-checks: fee > 0 should imply recipient/gas are set (SetFee
+            // enforces it), but a Storage.Put bug or out-of-band manipulation could
+            // leave fee>0 without recipient. Surface the misconfig clearly.
+            ExecutionEngine.Assert(recipient.IsValid && !recipient.IsZero, "fee recipient unset");
+            ExecutionEngine.Assert(gas.IsValid && !gas.IsZero, "gas token unset");
+            // Caller must have authorized this contract to spend their GAS (Neo's
+            // standard NEP-17 transfer pattern uses CheckWitness internally on `from`,
+            // so the wallet that signed the EnqueueForcedTransaction tx has approved
+            // both intents).
+            var transferred = (bool)Contract.Call(gas, "transfer", CallFlags.All,
+                new object[] { caller, recipient, fee, null! });
+            ExecutionEngine.Assert(transferred, "fee transfer failed");
+            OnFeeCharged(caller, recipient, fee);
+        }
 
         var nonceKey = NonceKey(chainId);
         var raw = Storage.Get(nonceKey);

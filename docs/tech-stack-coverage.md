@@ -31,8 +31,9 @@ any other project's source.
 | Governance + council + timelock | ✅ | `contracts/NeoHub.GovernanceController/` |
 | Emergency pause + escape hatch | ✅ | `contracts/NeoHub.EmergencyManager/` |
 | Fraud verifier (governance-arbitration mode reference) | ✅ | `contracts/NeoHub.GovernanceFraudVerifier/` |
+| Fraud verifier (trustless v3 — on-chain Merkle re-derivation) | ✅ | `contracts/NeoHub.RestrictedExecutionFraudVerifier/` |
 
-**14 NeoHub contracts.** All type-check via `Neo.SmartContract.Framework`; CI
+**15 NeoHub contracts.** All type-check via `Neo.SmartContract.Framework`; CI
 builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 
 | Component | Status | Code |
@@ -74,7 +75,7 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 | Phase-5 proof aggregation | 🟡 | `src/Neo.Plugins.L2Gateway/` (BinaryTreeAggregator + IRoundProver pluggable; default = pass-through) |
 
 **16 off-chain libraries + 8 plugins.** All have `tests/Neo.*.UnitTests/` mirrors;
-1011 tests across 29 projects pass.
+1013 tests across 29 projects pass.
 
 ---
 

@@ -202,10 +202,12 @@ public class UT_DeployPlanner
     public void Scaffold_DefaultIncludesAllNeoHubContracts()
     {
         var plan = ScaffoldPlan.Default();
-        // 13 core NeoHub contracts + GovernanceFraudVerifier reference contract = 14
-        Assert.AreEqual(14, plan.Steps.Count);
+        // 13 core NeoHub contracts + GovernanceFraudVerifier (v1/v2 structural)
+        // + RestrictedExecutionFraudVerifier (v3 trustless) = 15.
+        Assert.AreEqual(15, plan.Steps.Count);
         var names = plan.Steps.Select(s => s.Name).ToHashSet();
         Assert.IsTrue(names.Contains("GovernanceFraudVerifier"));
+        Assert.IsTrue(names.Contains("RestrictedExecutionFraudVerifier"));
         // Phase 0/1/2 contracts
         Assert.IsTrue(names.Contains("ChainRegistry"));
         Assert.IsTrue(names.Contains("SharedBridge"));
@@ -221,6 +223,38 @@ public class UT_DeployPlanner
         Assert.IsTrue(names.Contains("SequencerBond"));
         Assert.IsTrue(names.Contains("SequencerRegistry"));
         Assert.IsTrue(names.Contains("OptimisticChallenge"));
+    }
+
+    [TestMethod]
+    public void Scaffold_RestrictedExecutionFraudVerifierHasEmptyDeployData()
+    {
+        // Same shape pin as Scaffold_GovernanceFraudVerifierHasEmptyDeployData.
+        // The on-chain v3 verifier is also stateless — re-derives state roots from
+        // wire-format storage proofs. No owner / config / wired deps. Pin so a future
+        // refactor that adds OwnerOnly()/OwnerAndDep() to one verifier without
+        // updating the contract's _deploy handler would fail loud here, not at
+        // deploy time on L1 with a confusing ContractManagement.Deploy cast error.
+        var plan = ScaffoldPlan.Default();
+        var v = plan.Steps.Single(s => s.Name == "RestrictedExecutionFraudVerifier");
+        Assert.AreEqual(0, v.DeployData.Count,
+            "RestrictedExecutionFraudVerifier is stateless — no deploy args");
+        Assert.AreEqual(0, v.DependsOn.Count,
+            "RestrictedExecutionFraudVerifier has no deploy-time dependencies — verifies a static wire format");
+    }
+
+    [TestMethod]
+    public void Scaffold_BothFraudVerifiers_ParallelShape()
+    {
+        // Pin that the two fraud verifiers (v1/v2 governance + v3 trustless) have
+        // identical deploy-shape: no args, no deps. They're peers — operators pick
+        // one (or deploy both) based on whether they're running governance-
+        // arbitration or trustless v3. A regression that adds asymmetry between
+        // them would mean the planner can't be a pure superset.
+        var plan = ScaffoldPlan.Default();
+        var gov = plan.Steps.Single(s => s.Name == "GovernanceFraudVerifier");
+        var rex = plan.Steps.Single(s => s.Name == "RestrictedExecutionFraudVerifier");
+        Assert.AreEqual(gov.DeployData.Count, rex.DeployData.Count);
+        Assert.AreEqual(gov.DependsOn.Count, rex.DependsOn.Count);
     }
 
     [TestMethod]

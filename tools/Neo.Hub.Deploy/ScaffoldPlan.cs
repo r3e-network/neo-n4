@@ -4,8 +4,11 @@ namespace Neo.Hub.Deploy;
 
 /// <summary>
 /// Generates the canonical default <see cref="DeployPlan"/> that matches the layout in
-/// doc.md §3.2 and §13.1. The 13 NeoHub contracts deploy in dependency order; L2 native
-/// contracts are listed but commented as "deploy on the L2", not the L1.
+/// doc.md §3.2 and §13.1. The 13 core NeoHub contracts deploy in dependency order, plus
+/// two stateless fraud-verifier reference contracts (<c>GovernanceFraudVerifier</c> for
+/// v1/v2 structural verification and <c>RestrictedExecutionFraudVerifier</c> for
+/// trustless v3 storage-proof verification). L2 native contracts are listed but
+/// commented as "deploy on the L2", not the L1.
 /// </summary>
 public static class ScaffoldPlan
 {
@@ -92,10 +95,22 @@ public static class ScaffoldPlan
                 // GovernanceFraudVerifier is the structural-verifier reference contract
                 // operators in governance-arbitration mode pass as the fraudVerifier
                 // argument to OptimisticChallenge.Challenge. It has no deploy-time deps —
-                // verifies a static wire format. Skip this step entirely if the chain
-                // ships its own (re-execution-capable) fraud verifier.
+                // verifies a static wire format (v1/v2). Skip this step entirely if the
+                // chain ships its own (re-execution-capable) fraud verifier.
                 Step("GovernanceFraudVerifier",
                     "contracts/NeoHub.GovernanceFraudVerifier/bin/Release/NeoHub.GovernanceFraudVerifier.nef",
+                    new JArray()),
+
+                // RestrictedExecutionFraudVerifier is the trustless v3 verifier — re-derives
+                // pre/post Merkle roots from each storage proof's leaf-hash + siblings +
+                // leafIndex and matches against the v1 header roots. Same stateless
+                // shape as GovernanceFraudVerifier (no deploy args, no deps). Operators
+                // running v3 fraud-proofs pass this contract's hash as the fraudVerifier
+                // argument; operators running v1/v2 governance-arbitration use
+                // GovernanceFraudVerifier instead. Both can be deployed simultaneously
+                // — the OptimisticChallenge.Challenge caller picks which to invoke.
+                Step("RestrictedExecutionFraudVerifier",
+                    "contracts/NeoHub.RestrictedExecutionFraudVerifier/bin/Release/NeoHub.RestrictedExecutionFraudVerifier.nef",
                     new JArray()),
             },
         };

@@ -182,6 +182,40 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — RestrictedExecutionFraudVerifier added to deploy planner (1011 → 1013)
+
+The 15th NeoHub contract (shipped 4 iterations ago) was missing from
+`Neo.Hub.Deploy.ScaffoldPlan.Default()`'s 14-step bundle. Operators
+running `neo-hub-deploy scaffold` got the v1/v2 GovernanceFraudVerifier
+but had to manually add the v3 RestrictedExecutionFraudVerifier
+themselves — easy to miss for chains that want trustless v3.
+
+ScaffoldPlan.Default() now emits 15 steps. RestrictedExecutionFraudVerifier
+has the same shape as GovernanceFraudVerifier — stateless contract, no
+deploy args, no deps. Operators running v3 fraud-proofs pass this
+contract's hash as the `fraudVerifier` argument to
+`OptimisticChallenge.Challenge`; operators running governance-arbitration
+v1/v2 use GovernanceFraudVerifier; both can be deployed simultaneously
+since the caller picks which to invoke per-challenge.
+
+2 new tests in `UT_DeployPlanner`:
+- `Scaffold_RestrictedExecutionFraudVerifierHasEmptyDeployData` — same
+  empty-args + no-deps shape pin as the existing
+  `Scaffold_GovernanceFraudVerifierHasEmptyDeployData`.
+- `Scaffold_BothFraudVerifiers_ParallelShape` — pin that the two
+  verifiers have identical deploy shape (peers, not asymmetric).
+
+`Scaffold_DefaultIncludesAllNeoHubContracts` updated: step count
+14 → 15; new assertion that names contains
+`RestrictedExecutionFraudVerifier`.
+
+Doc-set bumps: deploy-planner step count "14-step bundle" → "15-step
+bundle" in IMPLEMENTATION_STATUS.md / README.md (Phase 1 row); test
+count 1011 → 1013 across AGENTS.md / CONTRIBUTING.md / README.md /
+IMPLEMENTATION_STATUS.md / docs/getting-started.md / docs/tech-stack-
+coverage.md. tech-stack-coverage.md NeoHub contract list gains a row
+for the v3 verifier; "14 NeoHub contracts" → "15 NeoHub contracts".
+
 ### Added — `neo-stack scaffold-executor` CLI subcommand (998 → 1011)
 
 Operator goes from "I want a custom L2" to a buildable project in one

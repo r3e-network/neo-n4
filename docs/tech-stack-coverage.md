@@ -74,7 +74,7 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 | Phase-5 proof aggregation | 🟡 | `src/Neo.Plugins.L2Gateway/` (BinaryTreeAggregator + IRoundProver pluggable; default = pass-through) |
 
 **16 off-chain libraries + 8 plugins.** All have `tests/Neo.*.UnitTests/` mirrors;
-923 tests across 27 projects pass.
+951 tests across 27 projects pass.
 
 ---
 

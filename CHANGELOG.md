@@ -182,6 +182,41 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Fixed — `neo-hub-deploy verify` now exits non-zero on missing artifacts (1043 → 1051)
+
+The `verify` command's MVP implementation always returned exit 0, even
+when nef or manifest files for plan steps were missing on disk. A CI
+script using `neo-hub-deploy verify --plan ... --rpc ...` would treat the
+`[missing]` lines as informational and treat the run as success — so a
+broken build pipeline would deploy with missing artifacts.
+
+Fix: track `missing` count across plan steps; exit `2` if any nef or
+manifest is missing. Also surfaces a count summary line ("N ok / M
+missing of T total") so an operator scanning the output sees the verdict
+without scrolling.
+
+Refactored: extracted the `verify` logic from `Program.cs` into a public
+`Neo.Hub.Deploy.VerifyCommand` class (parallel shape to
+`Neo.Stack.Cli.Commands/`) so it's directly testable. `Program.cs` now
+just dispatches `verify` → `VerifyCommand.RunAsync` and the
+`RunVerifyAsync` private method is gone.
+
+8 new tests in `UT_VerifyCommand` pin the exit-code contract:
+- `Verify_AllArtifactsPresent_ExitsZero` — happy path.
+- `Verify_MissingNef_ExitsTwo` — missing nef → exit 2 (the bug being fixed).
+- `Verify_MissingManifest_ExitsTwo` — missing manifest → exit 2.
+- `Verify_PartialMissing_ExitsTwo` — 1 ok + 1 missing still exits 2
+  (CI semantics: "most are ok" ≠ success).
+- `Verify_MissingRpcFlag_ExitsOne` — caller error (missing required flag),
+  distinct from 2 (verification fail).
+- `Verify_MissingPlanFile_ExitsOne` — bad plan path → caller error.
+- `Verify_MalformedPlanJson_ExitsOne` — unparseable plan → caller error.
+- `Verify_NullArgs_Rejected` — boundary defense.
+
+Doc-set: test count 1043 → 1051 across the standard files;
+Neo.Hub.Deploy.UnitTests per-row 25 → 33; row description gains the new
+exit-code coverage.
+
 ### Added — Sample.CounterChainExecutor null-arg + cancellation guards pinned (1035 → 1043)
 
 The executor + adapter both have `ArgumentNullException.ThrowIfNull` /

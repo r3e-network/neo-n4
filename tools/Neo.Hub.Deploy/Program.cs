@@ -16,7 +16,7 @@ internal static class Program
             return args[0] switch
             {
                 "plan" => RunPlan(args[1..]),
-                "verify" => await RunVerifyAsync(args[1..]),
+                "verify" => await VerifyCommand.RunAsync(args[1..]),
                 "scaffold" => RunScaffold(args[1..]),
                 "help" or "--help" or "-h" => PrintHelp(),
                 _ => Unknown(args[0]),
@@ -95,31 +95,6 @@ internal static class Program
             Console.WriteLine("Required post-deploy actions:");
             foreach (var a in postActions) Console.WriteLine($"  - {a}");
         }
-        return 0;
-    }
-
-    private static async Task<int> RunVerifyAsync(string[] args)
-    {
-        var planPath = ArgUtil.Get(args, "--plan", "deploy-plan.json");
-        var rpcUrl = ArgUtil.Get(args, "--rpc", "");
-        if (string.IsNullOrEmpty(rpcUrl))
-        {
-            Console.Error.WriteLine("--rpc <url> is required");
-            return 1;
-        }
-
-        var plan = DeployPlan.FromJson(File.ReadAllText(planPath));
-        Console.WriteLine($"Verifying {plan.Steps.Count} steps against {rpcUrl}...");
-
-        // Hook for production: query the L1 chain to confirm each contract is deployed and
-        // its manifest matches the planned ABI. MVP version just confirms the file paths exist.
-        foreach (var step in plan.Steps)
-        {
-            var nefExists = File.Exists(step.NefPath);
-            var manifestExists = File.Exists(step.ManifestPath);
-            Console.WriteLine($"  [{(nefExists && manifestExists ? "ok" : "missing")}] {step.Name}");
-        }
-        await Task.Yield();
         return 0;
     }
 

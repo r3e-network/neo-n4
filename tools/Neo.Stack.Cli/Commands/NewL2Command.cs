@@ -165,10 +165,12 @@ internal static class NewL2Command
         Console.WriteLine($"  # 5. When ready for L1 deploy, generate the NeoHub deploy bundle:");
         Console.WriteLine($"  dotnet run --project tools/Neo.Hub.Deploy -- scaffold --output {output}/deploy-plan.json");
         Console.WriteLine($"  dotnet run --project tools/Neo.Hub.Deploy -- plan --plan {output}/deploy-plan.json --output {output}/deploy-bundle.json");
-        Console.WriteLine($"  #    Then feed the bundle to your wallet to deploy each NeoHub contract,");
-        Console.WriteLine($"  #    capture the resolved contract hashes, and call:");
+        Console.WriteLine($"  #    Feed the bundle to your wallet to deploy each NeoHub contract via");
+        Console.WriteLine($"  #    ContractManagement.Deploy. Capture the REAL on-chain hash your wallet");
+        Console.WriteLine($"  #    returns from each deploy (NOT the deterministic stub hashes in the");
+        Console.WriteLine($"  #    bundle, which only exist for plan reproducibility), then call:");
         Console.WriteLine($"  neo-stack register-chain --chain-id {chainId} --output {output} \\");
-        Console.WriteLine($"    --operator <hash> --verifier <hash> --bridge <hash> --message <hash>");
+        Console.WriteLine($"    --operator <real hash> --verifier <real hash> --bridge <real hash> --message <real hash>");
         Console.WriteLine($"  # See docs/launching-an-l2.md for the full L1-deploy walkthrough.");
         return 0;
     }

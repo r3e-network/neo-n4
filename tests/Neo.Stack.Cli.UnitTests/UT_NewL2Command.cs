@@ -184,4 +184,29 @@ public class UT_NewL2Command
         StringAssert.Contains(config, "\"securityLevel\": \"Validium\"",
             "validium template must produce SecurityLevel=Validium");
     }
+
+    [TestMethod]
+    public void ValidateStep_RunsAfterCreateChain_AcceptsTemplateOutput()
+    {
+        // Defense-in-depth pin: the template output MUST validate cleanly via the
+        // step-2 validate call. A regression in CreateChainCommand's emitted JSON
+        // (typo in an enum name, unknown securityLevel byte, missing chainId) would
+        // surface here, not later when the operator's first `validate` run catches it.
+        // Run all 4 known templates through new-l2 → each should validate clean.
+        foreach (var template in new[] { "rollup", "zk-rollup", "validium", "sidechain" })
+        {
+            var perTemplateDir = Path.Combine(_tempDir, $"chain-{template}");
+            var rc = NewL2Command.Run(new[]
+            {
+                "--name", "Foo",
+                "--chain-id", "5555",
+                "--template", template,
+                "--output", perTemplateDir,
+            });
+            Assert.AreEqual(0, rc, $"new-l2 with --template {template} must exit 0 (validate step must pass)");
+            // The validate step writes to stdout via Console.WriteLine; here we just
+            // assert the composite as a whole accepted the chain.config.json.
+            Assert.IsTrue(File.Exists(Path.Combine(perTemplateDir, "chain.config.json")));
+        }
+    }
 }

@@ -6,8 +6,9 @@ namespace Neo.Stack.Cli.Commands;
 /// <summary>
 /// <c>new-l2</c> — composite that goes from "I want a custom L2" to a buildable +
 /// testable + devnet-previewable starter directory in one command. Strings together
-/// <see cref="CreateChainCommand"/>, <see cref="InitL2Command"/>, and
-/// <see cref="ScaffoldExecutorCommand"/> with their flags routed appropriately.
+/// <see cref="CreateChainCommand"/>, <see cref="ValidateChainConfigCommand"/>,
+/// <see cref="InitL2Command"/>, and <see cref="ScaffoldExecutorCommand"/> with their
+/// flags routed appropriately.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -75,7 +76,7 @@ internal static class NewL2Command
             : ArgUtil.Get(args, "--output", $"./chain-{chainId}");
 
         // Step 1: create-chain → write chain.config.json at <output>/.
-        Console.WriteLine("┌─ new-l2 step 1/3: create-chain");
+        Console.WriteLine("┌─ new-l2 step 1/4: create-chain");
         var createArgs = new[]
         {
             "--chain-id", chainId.ToString(),
@@ -90,9 +91,25 @@ internal static class NewL2Command
             return createRc;
         }
 
-        // Step 2: init-l2 → create data/ logs/ Plugins/ at <output>/.
+        // Step 2: validate → confirm the just-emitted chain.config.json parses.
+        // Defense-in-depth: catches a template / serializer / validator drift
+        // immediately, not later when the operator's first `neo-stack validate` run
+        // surfaces it. With well-known templates this should always pass — failure
+        // here means a genuine bug in one of the three components.
         Console.WriteLine();
-        Console.WriteLine("├─ new-l2 step 2/3: init-l2");
+        Console.WriteLine("├─ new-l2 step 2/4: validate (chain.config.json sanity check)");
+        var configPath = Path.Combine(output, "chain.config.json");
+        var validateRc = ValidateChainConfigCommand.Run(new[] { configPath });
+        if (validateRc != 0)
+        {
+            Console.Error.WriteLine($"new-l2 aborted at validate (exit {validateRc}).");
+            Console.Error.WriteLine($"This usually indicates a template / serializer drift — please file a bug.");
+            return validateRc;
+        }
+
+        // Step 3: init-l2 → create data/ logs/ Plugins/ at <output>/.
+        Console.WriteLine();
+        Console.WriteLine("├─ new-l2 step 3/4: init-l2");
         var initArgs = new[]
         {
             "--chain-id", chainId.ToString(),
@@ -106,10 +123,10 @@ internal static class NewL2Command
             return initRc;
         }
 
-        // Step 3: scaffold-executor --with-tests → emit <output>/<Name>Executor/ +
+        // Step 4: scaffold-executor --with-tests → emit <output>/<Name>Executor/ +
         //         <output>/<Name>Executor.UnitTests/.
         Console.WriteLine();
-        Console.WriteLine("└─ new-l2 step 3/3: scaffold-executor --with-tests");
+        Console.WriteLine("└─ new-l2 step 4/4: scaffold-executor --with-tests");
         var executorOutput = Path.Combine(output, $"{name}Executor");
         var scaffoldArgs = new[]
         {

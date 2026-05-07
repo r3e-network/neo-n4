@@ -182,6 +182,35 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Updated — `new-l2` composite gains a `validate` defense-in-depth step (1034 → 1035)
+
+The composite is now 4 steps instead of 3 (create-chain → **validate** →
+init-l2 → scaffold-executor --with-tests). After the chain.config.json is
+emitted, `ValidateChainConfigCommand.Run` immediately re-parses it to confirm
+the §16.2 enum dimensions + chainId all decode cleanly. This is purely
+defense-in-depth — with well-known templates the validate step always
+passes — but it catches a hypothetical regression in any of the three
+components (template emission, serializer, validator) at composite time
+rather than later when the operator's first manual `validate` run surfaces
+it.
+
+A failing validate step aborts the composite with the validate exit code
++ a "this usually indicates a template / serializer drift — please file a
+bug" diagnostic. Earlier-step artifacts (chain.config.json) stay on disk
+so an operator can inspect what was emitted before the failure.
+
+1 new test in `UT_NewL2Command.ValidateStep_RunsAfterCreateChain_AcceptsTemplateOutput`:
+runs `new-l2` against EVERY template in the catalog (rollup / zk-rollup /
+validium / sidechain) — each must exit 0 with a well-formed
+chain.config.json. Catches a regression in any single template's emitted
+shape. Test count 1034 → 1035 across the doc-set; UT_NewL2Command per-row
+33 → 34. The IMPLEMENTATION_STATUS Stack.Cli row description gains a
+note about the new validate step's per-template coverage.
+
+Doc-set: AGENTS.md / CONTRIBUTING.md / README.md /
+IMPLEMENTATION_STATUS.md / docs/getting-started.md /
+docs/tech-stack-coverage.md.
+
 ### Updated — launching-an-l2 + new-l2 next-steps now point at neo-hub-deploy for L1 bring-up
 
 Two doc-set / ergonomics fixes for the "I scaffolded a chain — now how do I

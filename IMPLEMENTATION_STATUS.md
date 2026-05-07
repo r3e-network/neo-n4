@@ -7,7 +7,7 @@
 | Phase | Goal                                      | Status                                      |
 | ----- | ----------------------------------------- | ------------------------------------------- |
 | 0     | Sidechain PoC                             | ✅ MVP integration test passes              |
-| 1     | NeoHub v0 + Shared Bridge                 | ✅ All 13 NeoHub contracts compile + deploy planner emits 13-step bundle |
+| 1     | NeoHub v0 + Shared Bridge                 | ✅ All 14 NeoHub contracts compile + deploy planner emits 14-step bundle |
 | 2     | Batch Settlement                          | ✅ Off-chain green; real `KeyedStateStore` continuity verified across batches |
 | 3     | Optimistic Challenge Window               | ✅ `OptimisticChallenge` contract + `ChallengeOrchestrator` + `BisectionGame` (log-N narrowing) all green |
 | 4     | NeoVM2 / RISC-V ZK Validity Proof         | 🟡 Two tracks: **RISC-V execution** — `Neo.L2.Executor.RiscV` P/Invokes into `external/neo-riscv-vm/crates/neo-riscv-host` (PolkaVM-backed). **SP1 ZK proving** — bridge buildable (`cargo build --release --features real-prover` produces `libneo_zkvm_bridge.so`); CI exercises the link path with `SP1_FORCE_DUMMY=true`. Real proof requires the SP1 toolchain offline + matching guest ELF |
@@ -26,7 +26,7 @@ component is mainnet-ready. Below is an honest readiness audit.
 
 These are real production-shape implementations with full test coverage:
 
-- **All 13 NeoHub L1 contracts** + **6 L2Native contracts** type-check via
+- **All 14 NeoHub L1 contracts** + **6 L2Native contracts** type-check via
   `Neo.SmartContract.Framework`; CI compiles each with `nccs` and verifies
   the `.nef` + `.manifest.json` artifacts (21 contracts total incl.
   `samples/contracts/Sample.*`).

@@ -72,7 +72,7 @@ proof regime moves up the trust ladder one phase at a time without rewriting eit
 ## 2. System overview
 
 <p align="center">
-  <img src="docs/figures/architecture.svg" alt="Neo Elastic Network — three-tier architecture: L1 NeoHub anchor (13 contracts grouped into Settlement, Bridge, Messaging, Security, Governance), optional Phase 5 Neo Gateway aggregator, and N elastic L2 chains" width="900">
+  <img src="docs/figures/architecture.svg" alt="Neo Elastic Network — three-tier architecture: L1 NeoHub anchor (14 contracts grouped into Settlement, Bridge, Messaging, Security, Governance, plus a fraud-verifier reference), optional Phase 5 Neo Gateway aggregator, and N elastic L2 chains" width="900">
 </p>
 
 Three layers, each with one job:
@@ -91,7 +91,7 @@ routing, and governance must be unified.**
 ## 3. L1 contract suite — NeoHub
 
 NeoHub is the L1 contract suite shared by every L2. Conceptually it combines ZKsync's
-BridgeHub, SharedBridge, VerifierRegistry, and MessageRouter into one suite. The 13 contracts:
+BridgeHub, SharedBridge, VerifierRegistry, and MessageRouter into one suite. The 14 contracts:
 
 | Contract                | Responsibility                                                                                  |
 | ----------------------- | ----------------------------------------------------------------------------------------------- |
@@ -108,8 +108,9 @@ BridgeHub, SharedBridge, VerifierRegistry, and MessageRouter into one suite. The
 | `SequencerBond`         | Sequencer collateral; slashing target for missed forced-inclusion deadlines.                    |
 | `SequencerRegistry`     | Active sequencer committee per chain; admission / exit lifecycle.                               |
 | `OptimisticChallenge`   | Phase-3 challenge window; entry point for the bisection-game fraud-proof flow.                  |
+| `GovernanceFraudVerifier` | Reference fraud verifier for governance-arbitration optimistic chains. Decodes the canonical 101-byte `FraudProofPayload`, validates structural integrity, emits accept/reject events for council review. Operators ship this OR a re-execution-capable verifier. |
 
-All 13 contracts type-check against `Neo.SmartContract.Framework`. The
+All 14 contracts type-check against `Neo.SmartContract.Framework`. The
 `Neo.Hub.Deploy` tool emits a topologically-sorted, dependency-resolved deploy bundle.
 
 The principle behind NeoHub is **one suite of L1 trust roots for all L2s**. A new L2 does
@@ -442,7 +443,7 @@ the L2 plugin set are stable across phases; the *verifier* changes.
 | Aspect                  | Neo Elastic Network              | ZKsync Elastic Chain    | OP Stack                      | Arbitrum Orbit                  |
 | ----------------------- | -------------------------------- | ----------------------- | ----------------------------- | ------------------------------- |
 | Execution kernel        | Neo 4 (NeoVM / NeoVM 2)          | EraVM (zkEVM)           | EVM (op-geth)                 | EVM (Nitro)                     |
-| L1 settlement contracts | NeoHub (13 contracts)            | BridgeHub + SharedBridge + V.R. | OptimismPortal etc.    | RollupCore + Inbox              |
+| L1 settlement contracts | NeoHub (14 contracts)            | BridgeHub + SharedBridge + V.R. | OptimismPortal etc.    | RollupCore + Inbox              |
 | Sequencer               | dBFT 2.0 committee (M-of-N)      | Centralized (with FCFS) | Centralized (decentralizing)  | Centralized (decentralizing)    |
 | Proof regimes           | Multisig → Optimistic → ZK       | ZK (production)         | Optimistic (Cannon)           | Optimistic (BOLD challenge game) |
 | Native interop          | L1↔L2 + L2↔L2 + bundles          | Native L2-L2 via Gateway | Superchain interop (early)   | Cross-chain Inbox messaging     |

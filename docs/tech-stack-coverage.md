@@ -30,8 +30,9 @@ any other project's source.
 | Optimistic challenge game | ✅ | `contracts/NeoHub.OptimisticChallenge/` |
 | Governance + council + timelock | ✅ | `contracts/NeoHub.GovernanceController/` |
 | Emergency pause + escape hatch | ✅ | `contracts/NeoHub.EmergencyManager/` |
+| Fraud verifier (governance-arbitration mode reference) | ✅ | `contracts/NeoHub.GovernanceFraudVerifier/` |
 
-**13 NeoHub contracts.** All type-check via `Neo.SmartContract.Framework`; CI
+**14 NeoHub contracts.** All type-check via `Neo.SmartContract.Framework`; CI
 builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 
 | Component | Status | Code |
@@ -126,13 +127,13 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 
 | Layer | Components | ✅ Done | 🟡 Scaffolded | 🔴 Out-of-repo |
 |-------|-----------:|--------:|--------------:|---------------:|
-| L1 protocol contracts | 12 | 12 | 0 | 0 |
+| L1 protocol contracts | 13 | 13 | 0 | 0 |
 | L2 native contracts | 6 | 6 | 0 | 0 |
 | Node infrastructure | 19 | 17 | 2 | 0 |
 | Operator tooling | 11 | 11 | 0 | 0 |
 | App development | 6 | 5 | 0 | 1 |
 | End-user UIs | 5 | 0 | 0 | 5 |
-| **Total** | **59** | **51** | **2** | **6** |
+| **Total** | **60** | **52** | **2** | **6** |
 
 The two 🟡 items are explicitly tracked in `IMPLEMENTATION_STATUS.md`'s Phase
 matrix — both blocked on real ZK infrastructure (SP1 toolchain offline + matching

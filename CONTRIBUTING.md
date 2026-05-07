@@ -50,7 +50,7 @@ neo4/
 │   ├── Neo.L2.Settlement.Rpc/       # JSON-RPC client for L1
 │   └── Neo.Plugins.L2*/             # neo-node Plugin subclasses
 ├── contracts/                       # 19 Neo SmartContract.Framework projects
-│   ├── NeoHub.*/                    # 13 L1 contracts
+│   ├── NeoHub.*/                    # 14 L1 contracts
 │   └── L2Native.*/                  # 6 on-L2 native contracts
 ├── tools/
 │   ├── Neo.Stack.Cli/               # neo-stack CLI

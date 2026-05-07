@@ -44,7 +44,7 @@ NeoFS data availability.
 
 The architecture is three tiers:
 
-- **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 13 contracts grouped into
+- **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 14 contracts grouped into
   five concerns: *Settlement* (SettlementManager · VerifierRegistry), *Bridge*
   (SharedBridge · TokenRegistry · ChainRegistry), *Messaging* (MessageRouter · DARegistry),
   *Security* (SequencerRegistry · SequencerBond · ForcedInclusion · OptimisticChallenge),
@@ -111,7 +111,7 @@ Per [`doc.md` §18](./doc.md):
 | Phase | Goal                                | Status | Evidence                                                  |
 | ----- | ----------------------------------- | :----: | --------------------------------------------------------- |
 | 0     | Sidechain PoC                       | ✅     | MVP integration test passes end-to-end                    |
-| 1     | NeoHub v0 + Shared Bridge           | ✅     | All 13 NeoHub contracts compile; deploy planner emits 13-step bundle |
+| 1     | NeoHub v0 + Shared Bridge           | ✅     | All 14 NeoHub contracts compile; deploy planner emits 14-step bundle |
 | 2     | Batch Settlement                    | ✅     | Real `KeyedStateStore` continuity verified across batches |
 | 3     | Optimistic Challenge Window         | ✅     | `OptimisticChallenge` contract + `BisectionGame` (log-N narrowing) |
 | 4     | NeoVM 2 / RISC-V ZK Validity Proof  | 🟡     | SP1 FFI bridge scaffolded; `--features real-prover` flips to native |

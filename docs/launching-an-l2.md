@@ -84,6 +84,32 @@ DeFi rollup / gaming chain / DEX validium / privacy sidechain), see
 [`samples/`](../samples/README.md). Each sample is verified end-to-end via
 `neo-l2-devnet --config samples/<name>.config.json`.
 
+### Optimistic-rollup operators: wire a fraud verifier
+
+`rollup` template chains run with `proofType: Optimistic`, which means
+`NeoHub.OptimisticChallenge` enforces a challenge window during which any
+party can submit a fraud proof. Submission via `Challenge(chainId,
+batchNumber, challenger, fraudProofBytes, fraudVerifier)` delegates the
+actual cryptographic check to a contract identified by the
+`fraudVerifier` argument.
+
+Two paths:
+
+  1. **Governance-arbitration mode** (default operator-friendly path):
+     deploy `NeoHub.GovernanceFraudVerifier` (it's in the default
+     `neo-hub-deploy plan` output as the 14th NeoHub contract). It does
+     a structural check of the canonical 101-byte `FraudProofPayload`
+     (length / version / claims-a-real-discrepancy) and emits accept/reject
+     events for the security council to arbitrate. Pass its deployed hash
+     as `fraudVerifier` when filing a challenge.
+  2. **Trustless re-execution mode**: ship your own fraud verifier that
+     consumes execution-trace witness bytes and re-executes the disputed
+     transaction on L1. The current `FraudProofPayload` wire format
+     doesn't carry such witness bytes; extending it is one of the
+     remaining `IMPLEMENTATION_STATUS.md` items. Operators choosing this
+     path skip `GovernanceFraudVerifier` from the deploy bundle and
+     register their own verifier's hash.
+
 ---
 
 ## Architecture: where custom logic plugs in

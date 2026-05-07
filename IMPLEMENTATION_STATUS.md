@@ -16,6 +16,106 @@
 
 Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
 
+## Production-readiness audit
+
+The phase matrix above measures **architectural coverage** — does the
+component exist with the right shape? It does NOT measure whether each
+component is mainnet-ready. Below is an honest readiness audit.
+
+### Production-ready
+
+These are real production-shape implementations with full test coverage:
+
+- **All 13 NeoHub L1 contracts** + **6 L2Native contracts** type-check via
+  `Neo.SmartContract.Framework`; CI compiles each with `nccs` and verifies
+  the `.nef` + `.manifest.json` artifacts (21 contracts total incl.
+  `samples/contracts/Sample.*`).
+- **Off-chain canonical encoders**, byte-layout-pinned + tested:
+  `BatchSerializer`, `MessageHasher`, `MerkleProofSerializer`,
+  `L2ChainConfigSerializer`, `DepositPayload`, `MultisigProofPayload`,
+  `RiscVProofPayload`, `OptimisticProofPayload`, `FraudProofPayload`.
+- **Persistence layer** — `IL2KeyValueStore` with `InMemoryKeyValueStore`
+  (tests) + `RocksDbKeyValueStore` (production); per-component reopen tests
+  pin the durability story across 6 components.
+- **Stage 0 multisig prover** — real Secp256r1 signature aggregation
+  (`AttestationProver`, `AttestationVerifier`).
+- **Optimistic challenge bisection game** — real log-N narrowing algorithm.
+- **Bridge accounting** — `AssetRegistry`, `DepositProcessor`,
+  `WithdrawalProcessor` with replay protection + nonce dedup, plus per-batch
+  withdrawal verification on L1 (`SettlementManager.VerifyWithdrawalLeafWithProof`).
+- **Audit pipeline** — 6 invariant checks (continuity / proof-validity /
+  public-input hash / no-zero-proof / DA availability / batch range).
+- **CLI tooling** — `neo-stack` plan-printers + `validate` subcommand;
+  `neo-hub-deploy` declarative L1 deploy planner.
+
+### MVP shapes — incomplete, need real implementation work
+
+These are explicitly labeled "MVP" in the source — the framework provides
+the skeleton, but the cryptographic / economic / verification logic is
+simplified and would need real implementation before mainnet:
+
+| Item | What's MVP | Where |
+|------|------------|-------|
+| `NeoHub.SettlementManager.VerifyWithdrawalLeaf` | Just confirms leaf == latest stored root (not a Merkle inclusion proof). The `*WithProof` variant IS real. | `contracts/NeoHub.SettlementManager/SettlementManagerContract.cs` |
+| `NeoHub.EmergencyManager.EscapeHatchExit` | Treats the leaf as the state-root commitment itself (no real exit-tree verification). The `*WithProof` variant IS real. | `contracts/NeoHub.EmergencyManager/EmergencyManagerContract.cs` |
+| `NeoHub.ForcedInclusion` | Fee-free; real version charges L1 GAS to discourage spam. | `contracts/NeoHub.ForcedInclusion/ForcedInclusionContract.cs` |
+| `Neo.L2.Challenge.ChallengeOrchestrator` | `DisputedTxIndex` hardcoded to 0 — no per-tx narrowing of the dispute. | `src/Neo.L2.Challenge/ChallengeOrchestrator.cs` |
+| `Neo.L2.Challenge.FraudProofPayload` | Proves "there is a discrepancy" but not the specific opcode-step that produced it. | `src/Neo.L2.Challenge/FraudProofPayload.cs` |
+
+### Reference / scaffolding — operator must replace
+
+These are the deliberate "framework provides seam, operator brings impl"
+boundaries. They're functional for the in-process devnet and tests, but
+production would inject a real implementation through the documented
+interface:
+
+| Reference / scaffolding default | Production needs | Plug-in point |
+|---------------------------------|------------------|---------------|
+| `ReferenceTransactionExecutor` | NeoVM `ApplicationEngine`-backed executor | `ITransactionExecutor` |
+| `ReferenceBatchExecutor` (placeholder post-state root) | Real MPT-backed batch executor | `IL2BatchExecutor` |
+| `MockRiscVProver` / `MockRiscVVerifier` | Real ZK prover / verifier | `IL2Prover` / `IL2ProofVerifier` |
+| `Sp1RiscVProver` falls back to mock without bridge | SP1 toolchain offline + matching guest ELF (operator-built); real `--features real-prover` libneo_zkvm_bridge | `IL2Prover` |
+| `PassThroughRoundProver` (Phase 5 default) | SP1 Compress / Halo2 fold / Risc0 fold | `IRoundProver` |
+| `InMemorySequencerCommitteeProvider` | L1-RPC-backed `SequencerRegistry` poller (does not exist in repo) | `ISequencerCommitteeProvider` |
+| `InMemoryForcedInclusionSource` | L1-RPC-backed `ForcedInclusion` poller (does not exist in repo) | `IForcedInclusionSource` |
+| `InMemoryMessageRouter` | L1-RPC-backed `MessageRouter` poller (does not exist in repo) | `IMessageRouter` |
+| `InMemorySettlementClient` | Real L1 JSON-RPC client + signer | `ISettlementClient` (RpcSettlementClient exists; signer = operator-supplied delegate) |
+| `InMemoryDAWriter`, `NeoFsLikeDAWriter`, `JsonRpcL1DAWriter` (signer = delegate), `CommitteeAttestedDAWriter` (committee = delegate) | Real NeoFS SDK adapter / signed L1 transactions / real DAC committee | `IDAWriter` |
+
+### Plan-printers — not actual executors
+
+These CLI subcommands print structured operator plans but do not execute
+the corresponding L1/L2 wallet operations:
+
+- `neo-stack register-chain` — emits 91-byte configBytes hex; does not sign or submit.
+- `neo-stack deploy-bridge-adapter` — prints deploy plan; does not deploy.
+- `neo-stack submit-batch` — validates the batch payload; does not sign or submit.
+- `neo-stack start-{sequencer,batcher,prover}` — preflight check + "compose with neo-cli" instruction; does not spawn anything.
+
+Wallet integration is operator-specific (NEP-6 keystore / Ledger / etc.)
+and is deliberately out-of-repo per the spec-gap-plan's operator-track.
+
+### Out of repo by design
+
+- `[RpcMethod]`-attributed `RpcServerExtensions` partial class wrapping
+  `L2RpcMethods` (10 methods exist but no neo `RpcServer` integration yet)
+  — pending neo's `RpcServer` source becoming integrable. Tracked in
+  `docs/spec-gap-plan.md` upstream/operator-blocked items.
+- `Neo.L2.Sequencer` → `DBFTPlugin` consensus-selector wiring — deployment-specific.
+- Block explorer / bridge UI / wallet integration / typed SDKs / faucet —
+  Layer 5 of [`docs/tech-stack-coverage.md`](docs/tech-stack-coverage.md);
+  operator territory in any L2 ecosystem.
+
+### Bottom line
+
+The framework is **architecturally complete + sufficient for a devnet** with
+real cryptographic primitives, real persistence, real test coverage. It is
+**not** a turnkey mainnet deployment — operators targeting production must
+(a) replace the reference / in-memory scaffolding through the documented
+plug-in seams, (b) implement real impls for the 5 MVP-labeled contract
+methods above, and (c) integrate wallet signing for the 4 plan-printing
+subcommands.
+
 ## Completed work — by code
 
 ### Off-chain libraries (`src/Neo.L2.*`)

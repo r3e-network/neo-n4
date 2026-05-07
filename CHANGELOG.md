@@ -182,6 +182,33 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — `NeoHub.GovernanceFraudVerifier` reference contract (14th NeoHub)
+
+Closes the on-chain fraudVerifier gap. `OptimisticChallenge.Challenge`
+already delegated proof verification to `Contract.Call(fraudVerifier,
+"verifyFraud", ...)` but no verifier shipped — operators choosing the
+optimistic-rollup template had to bring their own. Now ships as a
+governance-arbitration-mode reference: decodes the canonical 101-byte
+`FraudProofPayload`, validates length + version + claims-a-real-discrepancy
+(`claimedPostStateRoot != replayedPostStateRoot`), emits
+`FraudProofAccepted` with both state roots so a security council reviewing
+the dispute has them visible without re-decoding bytes; emits
+`FraudProofRejected` with reason byte (1=bad-length, 2=bad-version,
+3=no-discrepancy) so failures are diagnosable.
+
+Caveat (documented in the contract XML): does NOT re-execute the disputed
+transaction on L1 — a trustless verifier needs execution-trace witness
+bytes that the current `FraudProofPayload` format doesn't carry. That's
+the remaining gap tracked in `IMPLEMENTATION_STATUS.md`'s "Optimistic-
+challenge fraud-proof game" section.
+
+  - 2 new wire-format pin tests in `UT_Challenge`: assert
+    `FraudProofPayload.Size == 101` + `Version == 1` explicitly so the
+    on-chain hardcoded constants stay in lockstep with the off-chain
+    encoder. (923 → 925 tests.)
+  - CI workflow extended: 14 NeoHub + 6 L2Native + 2 samples = 22 contracts.
+  - README contract count 19 → 20.
+
 ### Refactored — extract `L2ChainConfigJsonReader` for unit-testable JSON parsing
 
 The CLI's `register-chain` had ~50 lines of inlined JSON parsing + helper

@@ -69,7 +69,7 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 | Off-chain libraries | **16**  | `Neo.L2.{Abstractions,Audit,Batch,Bridge,Censorship,Challenge,Executor,ForcedInclusion,Messaging,Persistence,Proving,Proving.Sp1,Sequencer,Settlement.Rpc,State,Telemetry}` |
 | Persistence backends | **2**  | `InMemoryKeyValueStore` (tests) · `RocksDbKeyValueStore` (production default) — see [`docs/persistence.md`](./docs/persistence.md) |
 | Node plugins      | **8**     | `Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}`  |
-| Smart contracts   | **19**    | 13 NeoHub L1 + 6 L2 native; all type-check via `Neo.SmartContract.Framework` |
+| Smart contracts   | **20**    | 14 NeoHub L1 (incl. `GovernanceFraudVerifier` — structural fraud-verifier reference for governance-arbitration optimistic chains) + 6 L2 native; all type-check via `Neo.SmartContract.Framework` |
 | CLI tools         | **3**     | `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`                           |
 | Native FFI        | **1**     | `bridge/neo-zkvm-bridge` — Rust cdylib + C ABI for SP1 prover P/Invoke   |
 | Submodules        | **3**     | `external/neo` (Neo 4 core) · `external/neo-devpack-dotnet` (NeoVM compiler framework) · `external/neo-zkvm` (SP1 prover, optional). None are released on NuGet/crates.io for the versions tracked here. |
@@ -99,7 +99,7 @@ neo4/
 │   └── Neo.Hub.Deploy/                     # declarative L1 deploy planner
 ├── bridge/
 │   └── neo-zkvm-bridge/                    # Rust cdylib + C ABI
-└── tests/                                  # 923 tests / 27 projects
+└── tests/                                  # 925 tests / 27 projects
 ```
 
 ---
@@ -138,7 +138,7 @@ cd neo-n4
 # If you forgot --recurse-submodules:
 # git submodule update --init --recursive
 
-# Type-check everything + run all 923 tests (~10 seconds)
+# Type-check everything + run all 925 tests (~10 seconds)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Run the in-process devnet (5 batches, real state-root continuity, post-run audit)

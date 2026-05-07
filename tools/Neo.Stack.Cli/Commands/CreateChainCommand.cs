@@ -12,33 +12,6 @@ namespace Neo.Stack.Cli.Commands;
 /// </summary>
 internal static class CreateChainCommand
 {
-    /// <summary>Per-template starting defaults (doc.md §6 + §16.2).</summary>
-    private readonly record struct Template(
-        string ChainMode, string DaMode, string ProofType, string SecurityLevel,
-        string SequencerModel, string ExitModel,
-        bool GatewayEnabled, bool PermissionlessExit);
-
-    private static Template Resolve(string templateName) => templateName switch
-    {
-        "zk-rollup" => new Template(
-            ChainMode: "L2RollupMode", DaMode: "L1", ProofType: "Zk",
-            SecurityLevel: "Validity", SequencerModel: "DbftCommittee",
-            ExitModel: "Permissionless", GatewayEnabled: true, PermissionlessExit: true),
-        "validium" => new Template(
-            ChainMode: "L2ValidiumMode", DaMode: "NeoFS", ProofType: "Zk",
-            SecurityLevel: "Validium", SequencerModel: "DbftCommittee",
-            ExitModel: "Delayed", GatewayEnabled: true, PermissionlessExit: false),
-        "sidechain" => new Template(
-            ChainMode: "SidechainMode", DaMode: "External", ProofType: "None",
-            SecurityLevel: "Sidechain", SequencerModel: "DbftCommittee",
-            ExitModel: "Permissionless", GatewayEnabled: false, PermissionlessExit: true),
-        // "rollup" (default): optimistic challenge window, L1 DA, dBFT committee, delayed exit
-        _ => new Template(
-            ChainMode: "L2RollupMode", DaMode: "L1", ProofType: "Optimistic",
-            SecurityLevel: "Optimistic", SequencerModel: "DbftCommittee",
-            ExitModel: "Delayed", GatewayEnabled: false, PermissionlessExit: true),
-    };
-
     public static int Run(string[] args)
     {
         var templateName = ArgUtil.Get(args, "--template", "rollup");
@@ -60,7 +33,7 @@ internal static class CreateChainCommand
             ? pathFlag
             : ArgUtil.Get(args, "--output", $"./chain-{chainId}");
 
-        var t = Resolve(templateName);
+        var t = TemplateCatalog.Resolve(templateName);
         Directory.CreateDirectory(output);
         var configPath = Path.Combine(output, "chain.config.json");
         File.WriteAllText(configPath, $$"""
@@ -95,7 +68,7 @@ internal static class CreateChainCommand
         Console.WriteLine($"  exit policy    = {(t.PermissionlessExit ? "permissionless" : "operator-gated")}");
         Console.WriteLine($"  config file    = {configPath}");
         Console.WriteLine();
-        Console.WriteLine($"Templates: rollup (default), zk-rollup, validium, sidechain");
+        Console.WriteLine($"Templates: {TemplateCatalog.ValidNames} (default: {TemplateCatalog.All[0].Name}). Run `neo-stack list-templates` for use-case descriptions.");
         Console.WriteLine($"Next: `neo-stack init-l2 --chain-id {chainId}`");
         return 0;
     }

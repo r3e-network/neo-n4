@@ -182,6 +182,53 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — `neo-stack list-templates` + shared `TemplateCatalog` (1025 → 1034)
+
+12th `neo-stack` subcommand. Prints the four chain-config templates with
+their §16.2 dimensions + use-case descriptions for operator
+discoverability. Two modes:
+
+```bash
+# No args: summary table + per-template overview.
+neo-stack list-templates
+
+# --template <name>: full per-template details + sample command.
+neo-stack list-templates --template validium
+```
+
+Without this, an operator evaluating which template to pick had to read
+source (CreateChainCommand.cs) or run `create-chain` repeatedly to see
+what each one produces.
+
+Refactor: extracted the per-template defaults from
+`CreateChainCommand.Resolve` into a shared `TemplateCatalog` class.
+Single source of truth consumed by `create-chain`, `new-l2`, and
+`list-templates`. Drift between commands' template definitions is now
+impossible. The TemplateCatalog also gains:
+- `Template.Name` field (canonical display name)
+- `Template.TagLine` (one-line use-case summary)
+- `Template.UseCase` (paragraph-length explainer)
+- `IsKnown(name)` predicate
+- `ValidNames` comma-separated string for error messages
+
+`CreateChainCommand`'s "Templates: ..." footer now references
+`TemplateCatalog.ValidNames` + points at `list-templates` for full
+descriptions instead of inlining the 4 names.
+
+9 new tests in `UT_ListTemplatesCommand`:
+- Catalog has exactly 4 templates in canonical order (rollup first).
+- Resolve returns exact struct for known names; falls back to default
+  for unknown.
+- IsKnown is case-sensitive (rejects "Rollup" + empty).
+- ValidNames lists all in order.
+- list-templates with no args prints all 4 + default note + exits 0.
+- --template <name> prints full per-template details (chainMode +
+  daMode + use-case + sample command).
+- Unknown --template exits 1 with valid-names error.
+- Per-template detail round-trips through every supported name.
+
+CLI subcommand count 11 → 12; test count 1025 → 1034 across the doc-set.
+
 ### Updated — neo-hub-deploy PostDeployActions surfaces both fraud verifiers (1024 → 1025)
 
 The `Neo.Hub.Deploy.ScaffoldPlan.PostDeployActions` operator-facing

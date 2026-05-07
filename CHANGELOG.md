@@ -182,6 +182,26 @@ pin the asymmetry behavior.
 
 Cumulative: 905 tests / 27 projects.
 
+### Added — `GovernanceFraudVerifier` parity test coverage (925 → 933)
+
+8 new tests in `UT_GovernanceFraudVerifierParity` simulate the on-chain
+contract's decision tree in C# (length → version → discrepancy) and run
+the same fraud-proof payloads through both, pinning each accept/reject
+decision against the contract's reason-byte mapping. Closes the behavioral
+coverage gap for the new contract without needing an `ApplicationEngine`-
+backed test harness.
+
+Pins include:
+  - real-discrepancy → accept; same-root → reject ReasonNoDiscrepancy (3)
+  - bad-length / bad-version → reject with the correct reason byte (1 / 2)
+  - Decision-tree order (length-before-version, version-before-discrepancy)
+    so a refactor that swaps checks doesn't change operator-facing reject
+    metrics
+  - Offset parity: claimed at 33..64, replayed at 65..96 — same bytes the
+    contract's BytesEqual reads
+  - DisputedTxIndex doesn't affect the structural verdict (it's metadata
+    for re-execution-capable verifiers)
+
 ### Added — `NeoHub.GovernanceFraudVerifier` reference contract (14th NeoHub)
 
 Closes the on-chain fraudVerifier gap. `OptimisticChallenge.Challenge`

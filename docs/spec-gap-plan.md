@@ -214,6 +214,43 @@ original 6):
     `VerifierRegistry.SetGovernanceController` post-deploy wiring (+
     existing `SequencerBond.RegisterSlasher`).
 
+**Production-readiness audit follow-ups** (later iterations after the
+honest "is everything correctly and completely implemented?" audit):
+  - `IMPLEMENTATION_STATUS.md` gains an explicit "Production-readiness
+    audit" section catalogueing what's production-ready vs. MVP shapes
+    vs. reference scaffolding (operator must replace) vs. plan-printers
+    (CLI doesn't actually sign/submit) vs. out-of-repo-by-design.
+  - `NeoHub.ForcedInclusion` ships a real configurable spam-control fee
+    (`SetFee` / `SetFeeRecipient` / `SetGasToken`); default 0 = fee-free
+    legacy preserved. Closes the "fee-free MVP" callout.
+  - `NeoHub.GovernanceFraudVerifier` (the 14th NeoHub contract) ships as
+    a structural fraud verifier reference for governance-arbitration
+    optimistic chains. Decodes the canonical 101-byte `FraudProofPayload`,
+    validates length / version / claims-a-real-discrepancy, emits
+    accept/reject events with reason codes for council review. Closes
+    the on-chain `fraudVerifier` callsite gap. Wired into
+    `ScaffoldPlan.Default()` + `PostDeployActions` informational hint.
+  - 8 parity tests (`UT_GovernanceFraudVerifierParity`) simulate the
+    contract's decision tree in C# so a refactor that changes constants
+    / order / offsets is caught at unit-test time.
+  - "MVP" comment label cleanup: `ChallengeOrchestrator.InspectAsync`
+    (the narrowing path exists in `*WithBisection`),
+    `SettlementManager.VerifyWithdrawalLeaf{,At}` and
+    `EmergencyManager.EscapeHatchExit` (intentional single-leaf fast
+    paths, not incomplete MVP), `BatchSealer.SealBatch` (sealer is the
+    tx-collector phase; executor pass produces real roots).
+  - `CountApprovals` private helper renamed to
+    `IncrementAndCountApprovals` so the bump-and-return semantics aren't
+    misleading; `[Safe] GetApprovalCount` is the pure-read companion.
+  - `samples/` ships 4 ready-to-run chain configs covering distinct use
+    cases (general-rollup / gaming-rollup / exchange-validium /
+    privacy-sidechain) verified end-to-end via
+    `neo-l2-devnet --config`.
+  - `samples/contracts/` ships 2 dApp examples (`CrossChainGreeter`,
+    `WithdrawalDemo`) compiled by CI as the 21st + 22nd contracts.
+  - `docs/tech-stack-coverage.md` honest 5-layer gap analysis: 52/60
+    components ✅, 2 🟡 (Phase 4/5 ZK), 6 🔴 (deployment-specific UIs).
+
 **3 upstream items** tracked but blocked on external dependencies.
 
 **3 operator-specific items** explicitly not in this repo's scope.

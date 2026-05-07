@@ -143,9 +143,11 @@ but blocked on:
 - **Phase 5**: real recursive-ZK round prover (SP1 Compress / Halo2 / Risc0 fold). The
   `IRoundProver` interface is the plug-in point.
 
-Phase 6 (8 CLI subcommands) is ✅ — every subcommand is functional. The 3 commands
-that need L1/L2 wallet integration (register-chain, deploy-bridge-adapter, submit-batch)
-print structured operator plans rather than performing the wallet-side submission.
+Phase 6 (12 CLI subcommands: create-chain / init-l2 / register-chain / deploy-bridge-adapter
+/ start-{sequencer,batcher,prover} / submit-batch / validate / scaffold-executor / new-l2 /
+list-templates) is ✅ — every subcommand is functional. The 3 commands that need L1/L2
+wallet integration (register-chain, deploy-bridge-adapter, submit-batch) print structured
+operator plans rather than performing the wallet-side submission.
 
 ## Don'ts
 

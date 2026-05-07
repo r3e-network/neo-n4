@@ -139,8 +139,19 @@ public sealed class BatchSealer
             Network = network,
         });
 
-        // Sealing here is "soft" — we have not actually run the deterministic executor yet.
-        // For now, we package zero roots; a downstream executor pass replaces them.
+        // BatchSealer is the *transaction-collector* phase of the pipeline. Its job is to
+        // observe block commits, group transactions into batches by the configured triggers
+        // (max-blocks / max-txs / max-age), and produce a "soft" commitment that pins which
+        // transactions went into the batch (TxRoot is real). The deterministic executor
+        // (`IL2BatchExecutor` — `ReferenceBatchExecutor` for tests, an `ApplicationEngine`-
+        // backed implementation for production) runs separately and produces the real
+        // post-state / receipts / withdrawals / messages roots, then the L2SettlementPlugin
+        // re-seals the batch with the executor's outputs before submitting to L1.
+        //
+        // The zero-valued roots here aren't placeholder data ever observed on L1 — they're
+        // the "execution-not-yet-run" sentinel for the soft commitment. Non-zero values
+        // come from the executor pass. See `tools/Neo.L2.Devnet/Program.cs` for the full
+        // pipeline: sealer → executor → settlement client.
         var executionResult = new BatchExecutionResult
         {
             PostStateRoot = _lastPostStateRoot,

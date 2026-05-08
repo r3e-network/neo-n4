@@ -86,8 +86,8 @@ interface:
 | `MockRiscVProver` / `MockRiscVVerifier` | Real ZK prover / verifier | `IL2Prover` / `IL2ProofVerifier` |
 | `Sp1RiscVProver` falls back to mock without bridge | SP1 toolchain offline + matching guest ELF (operator-built); real `--features real-prover` libneo_zkvm_bridge | `IL2Prover` |
 | `PassThroughRoundProver` is one of THREE production implementations alongside `MultisigRoundProver` and `MerklePathRoundProver` — pick the one that matches your trust model | SP1 Compress / Halo2 fold / Risc0 fold (only needed for *recursive ZK* aggregation; the three shipped implementations are real production cryptography for committee-attested + inclusion-proof models) | `IRoundProver` |
-| `InMemorySequencerCommitteeProvider` | L1-RPC-backed `SequencerRegistry` poller (does not exist in repo) | `ISequencerCommitteeProvider` |
-| `InMemoryForcedInclusionSource` | L1-RPC-backed `ForcedInclusion` poller (does not exist in repo) | `IForcedInclusionSource` |
+| `InMemorySequencerCommitteeProvider` (devnet/tests) | `RpcSequencerCommitteeProvider` ships in `src/Neo.L2.Sequencer/` — production L1-RPC poller with configurable cache TTL, parallel status fanout across known keys, operator-supplied known-keys bootstrap (genesis + RegisterKnownKey hook for event-driven additions). `IsRegisteredAsync` always hits L1 (source of truth) | `ISequencerCommitteeProvider` |
+| `InMemoryForcedInclusionSource` (devnet/tests) | `RpcForcedInclusionSource` ships in `src/Neo.L2.ForcedInclusion/` — production L1-RPC poller. Operator wires `RegisterNonce` to `OnForcedTxEnqueued` event subscription; `DrainAsync` issues parallel `getEntry` + `isConsumed` reads per known nonce, drops L1-finalized entries automatically, returns deadline-ordered list. `MarkConsumedAsync` is local bookkeeping (the L1 contract's matching method is SettlementManager-driven) | `IForcedInclusionSource` |
 | `InMemoryMessageRouter` | L1-RPC-backed `MessageRouter` poller (does not exist in repo) | `IMessageRouter` |
 | `InMemorySettlementClient` | Real L1 JSON-RPC client + signer | `ISettlementClient` (RpcSettlementClient exists; signer = operator-supplied delegate) |
 | `InMemoryDAWriter`, `NeoFsLikeDAWriter`, `JsonRpcL1DAWriter` (signer = delegate), `CommitteeAttestedDAWriter` (committee = delegate) | Real NeoFS SDK adapter / signed L1 transactions / real DAC committee | `IDAWriter` |
@@ -191,7 +191,7 @@ subcommands.
 
 ### Tests
 
-**1263 unit + integration tests across 33 projects:**
+**1272 unit + integration tests across 33 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |

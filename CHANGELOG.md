@@ -229,6 +229,46 @@ exercise what the previous command actually wrote).
 
 Doc-set: test count 1150 → 1153 across the standard files.
 
+### Added — `RpcForcedInclusionSource` production L1-RPC poller (1263 → 1272)
+
+Closes the second of three "L1-RPC-backed poller (does not exist in repo)"
+gaps in IMPLEMENTATION_STATUS's operator-must-replace table. Same design
+as `RpcSequencerCommitteeProvider`: operator wires the genesis nonce
+seed + `RegisterNonce` hook to L1's `OnForcedTxEnqueued` event watcher,
+provider polls each known nonce's live state via `[Safe]` reads.
+
+For each known nonce, issues `getEntry` + `isConsumed` in parallel via
+`Task.WhenAll`. Entries L1 has marked consumed (via SettlementManager)
+are silently dropped. Returns deadline-ordered list capped at the
+caller's `max`.
+
+`DecodeEntry(nonce, bytes)` parses the canonical contract encoding
+(`[20B sender][32B txHash][4B txLen LE][txBytes][4B deadline LE]`) into
+a typed `ForcedInclusionEntry`. Exposed `public static` for verifier
+re-use + tested independently against tampered `txLen`, truncated
+buffer, and known-encoding round-trip.
+
+`MarkConsumedAsync` is local-only bookkeeping (the L1 contract's same
+method is SettlementManager-driven; the L2 batcher consuming this source
+just needs to remember "this nonce went into a sealed batch, don't drain
+it again until the next pull").
+
+`HasOverdueEntryAsync` walks the drain set; pin <-rather-than-≤ on the
+deadline check matches `InMemoryForcedInclusionSource`'s convention
+(deadline at exactly nowUnixSeconds is "due," not "overdue" — gives the
+batcher one final block to include before censorship is reported).
+
+9 new tests across `UT_RpcForcedInclusionSource`:
+- 2-nonce drain deadline-ordered
+- L1-consumed entry silently dropped
+- max-cap respected
+- local MarkConsumedAsync excludes nonce from future drains
+- RegisterNonce adds + invalidates cache
+- HasOverdueEntry detects deadline strictly past now (3 boundary cases)
+- DecodeEntry truncated/inconsistent rejection + known-encoding round-trip
+
+Doc-set test count 1263 → 1272.
+
 ### Added — `RpcSequencerCommitteeProvider` production L1-RPC poller (1257 → 1263)
 
 Closes one of the three "L1-RPC-backed poller (does not exist in repo)"

@@ -74,10 +74,13 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 | Persistence backends | **2**  | `InMemoryKeyValueStore` (tests) · `RocksDbKeyValueStore` (production default) — see [`docs/persistence.md`](./docs/persistence.md) |
 | Node plugins      | **8**     | `Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}`  |
 | Smart contracts   | **21**    | 15 NeoHub L1 (incl. `GovernanceFraudVerifier` — structural verifier for governance-arbitration chains, and `RestrictedExecutionFraudVerifier` — trustless v3 verifier that re-derives pre/post state roots from each storage proof's siblings + leafIndex on-chain) + 6 L2 native; all type-check via `Neo.SmartContract.Framework` |
-| CLI tools         | **5**     | `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`, `neo-l2-explore`, `neo-bridge` |
-| Native FFI        | **1**     | `bridge/neo-zkvm-bridge` — Rust cdylib + C ABI for SP1 prover P/Invoke   |
+| CLI tools         | **6**     | `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`, `neo-l2-explore`, `neo-bridge`, `neo-l2-faucet` |
+| App SDKs          | **3**     | `src/Neo.L2.Sdk/` (.NET) · `sdk/typescript/` (`@neo-n4/sdk`) · `sdk/rust/` (`neo-n4-sdk`) — all 10 RPC methods, same wire shape, same 4-class error taxonomy |
+| Web app           | **1**     | `sdk/web-explorer/index.html` — single static-file UI: Explore + Bridge + Faucet + state-root continuity Audit |
+| Docs site config  | **1**     | `book.toml` + `docs/SUMMARY.md` (mdBook) |
+| Native FFI        | **2**     | `bridge/neo-zkvm-bridge` (Rust cdylib + C ABI for SP1 host) · `bridge/neo-zkvm-guest` (Rust → RISC-V ELF for SP1 zkVM) |
 | Submodules        | **3**     | `external/neo` (Neo 4 core) · `external/neo-devpack-dotnet` (NeoVM compiler framework) · `external/neo-zkvm` (SP1 prover, optional). None are released on NuGet/crates.io for the versions tracked here. |
-| Tests             | **1344 / 33 projects** | Module-level unit tests + integration tests; all green |
+| Tests             | **1344 .NET + 33 cross-lang** | 1344 across 33 .NET projects; 15 TypeScript (vitest) + 10 Rust SDK (mockito) + 8 SP1 guest (host) — all green |
 
 ```
 neo4/

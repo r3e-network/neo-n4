@@ -169,3 +169,46 @@ jobs:
       - name: cargo check (neo-riscv-host)
         working-directory: external/neo-riscv-vm
         run: cargo check -p neo-riscv-host
+
+      # neo-zkvm-guest: the Rust crate that compiles to RISC-V ELF inside SP1's
+      # zkVM. Host-side compilation + tests pin the deterministic execution
+      # contract (parse, Merkle root, hash256). The actual `cargo prove build`
+      # that produces the RISC-V ELF requires the SP1 toolchain — operator-supplied
+      # at deploy time per bridge/neo-zkvm-guest/README.md.
+      - name: cargo build + test (neo-zkvm-guest, host mode)
+        working-directory: bridge/neo-zkvm-guest
+        run: |
+          cargo build
+          cargo test
+
+      # Rust app-developer SDK — the typed-client mirror of src/Neo.L2.Sdk
+      # for Rust dApps. Mockito-driven integration tests exercise every method
+      # against canned JSON-RPC responses.
+      - name: cargo build + test (sdk/rust)
+        working-directory: sdk/rust
+        run: |
+          cargo build
+          cargo test
+
+  sdk-typescript:
+    name: TypeScript SDK
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # @neo-n4/sdk — typed TS wrapper around all 10 RPC methods. vitest
+      # tests use an in-process stub fetch matching the .NET StubHttpHandler
+      # pattern. Catches drift between the wire format the .NET server emits
+      # and what the TS client expects.
+      - name: npm install + test
+        working-directory: sdk/typescript
+        run: |
+          npm install --no-audit --no-fund
+          npm test

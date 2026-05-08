@@ -102,8 +102,11 @@ the corresponding L1/L2 wallet operations:
 - `neo-stack submit-batch` — validates the batch payload; does not sign or submit.
 - `neo-stack start-{sequencer,batcher,prover}` — preflight check + "compose with neo-cli" instruction; does not spawn anything.
 
-Wallet integration is operator-specific (NEP-6 keystore / Ledger / etc.)
-and is deliberately out-of-repo per the spec-gap-plan's operator-track.
+Wallet integration patterns are documented in
+[`docs/wallet-integration.md`](docs/wallet-integration.md): paste-into-wallet
+hex (cold-key flows) + delegate signing (hot-wallet automation). Worked
+examples for NeoLine, Neon, NEP-6, Ledger, KMS — every CLI emits canonical
+hex; the framework never holds private keys.
 
 ### Out of repo by design
 
@@ -112,9 +115,13 @@ and is deliberately out-of-repo per the spec-gap-plan's operator-track.
   — pending neo's `RpcServer` source becoming integrable. Tracked in
   `docs/spec-gap-plan.md` upstream/operator-blocked items.
 - `Neo.L2.Sequencer` → `DBFTPlugin` consensus-selector wiring — deployment-specific.
-- Block explorer / bridge UI / wallet integration / typed SDKs / faucet —
-  Layer 5 of [`docs/tech-stack-coverage.md`](docs/tech-stack-coverage.md);
-  operator territory in any L2 ecosystem.
+- **Block explorer / bridge UI / faucet UI**: web variants ship in
+  `sdk/web-explorer/index.html` (single static-file app with inlined JS SDK).
+- **Typed SDKs**: ship in three languages — `src/Neo.L2.Sdk/` (.NET),
+  `sdk/typescript/` (TS), `sdk/rust/` (Rust). All same wire shape, same
+  4-class error taxonomy.
+- **Faucet CLI**: `tools/Neo.L2.Faucet.Cli/` (`neo-l2-faucet`) — production
+  drip with rate limiting + RocksDB-persisted journal.
 
 ### Bottom line
 
@@ -191,7 +198,8 @@ subcommands.
 
 ### Tests
 
-**1344 unit + integration tests across 33 projects:**
+**1344 .NET tests across 33 projects, plus 33 cross-language tests
+(15 TypeScript + 10 Rust SDK + 8 SP1 guest host-mode) — all green.**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |

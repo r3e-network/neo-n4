@@ -98,6 +98,20 @@ simpler to verify.
 
 ### Phase C — Integration
 
+**C0. NeoVM genesis bootstrap helper** ✅ — `src/Neo.L2.Executor/NeoVMGenesisBootstrap.cs`
+- Replicates the relevant slice of `NeoSystem.Blockchain.Initialize` without
+  Akka actors. Runs `OnPersist` + `PostPersist` scripts against an
+  `L2DataCacheAdapter`. Compiles + executes cleanly + propagates writes
+  through to the underlying KV store.
+- The earlier "cache propagation gap" diagnosis was wrong: writes DO
+  propagate via Neo's standard child-cache `Commit()` chain. The actual
+  bug was an `IsInitialized` false-positive (gas=0 ApplicationEngine.Create
+  short-circuits before reading PolicyContract → returned true on empty
+  stores). Fix: probe storage directly for PolicyContract's ExecFeeFactor key.
+- **End-to-end verified**: `BootstrappedStore_RunsRealNeoVMScript_HALT`
+  pins that after `Run()`, `ApplicationEngineTransactionExecutor` runs a
+  real PUSH1 script through Neo VM and gets a Success receipt.
+
 **C1. Devnet wiring** — `tools/Neo.L2.Devnet`
 - Add `--executor neovm` flag to swap from `ReferenceTransactionExecutor`
   to `ApplicationEngineTransactionExecutor`.

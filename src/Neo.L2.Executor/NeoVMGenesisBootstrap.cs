@@ -72,10 +72,27 @@ public static class NeoVMGenesisBootstrap
         var genesisBlock = BuildGenesisBlock(settings);
         var cache = new L2DataCacheAdapter(state);
 
-        RunPersistTrigger(TriggerType.OnPersist, BuildOnPersistScript(), cache, genesisBlock, settings);
-        RunPersistTrigger(TriggerType.PostPersist, BuildPostPersistScript(), cache, genesisBlock, settings);
+        RunOnCache(cache, settings);
 
         cache.Commit();
+    }
+
+    /// <summary>
+    /// Run the OnPersist + PostPersist scripts against an existing
+    /// <see cref="DataCache"/>. Caller is responsible for committing the cache
+    /// to the underlying store. Used internally by <see cref="Run"/> and
+    /// directly by tests that need to inspect the cache state.
+    /// </summary>
+    public static void RunOnCache(DataCache cache, ProtocolSettings? settings = null)
+    {
+        ArgumentNullException.ThrowIfNull(cache);
+        settings ??= DefaultBootstrapSettings;
+        if (settings.StandbyCommittee.Count == 0)
+            throw new ArgumentException(
+                "ProtocolSettings.StandbyCommittee must contain at least one validator", nameof(settings));
+        var genesisBlock = BuildGenesisBlock(settings);
+        RunPersistTrigger(TriggerType.OnPersist, BuildOnPersistScript(), cache, genesisBlock, settings);
+        RunPersistTrigger(TriggerType.PostPersist, BuildPostPersistScript(), cache, genesisBlock, settings);
     }
 
     /// <summary>
@@ -86,32 +103,13 @@ public static class NeoVMGenesisBootstrap
     public static bool IsInitialized(IL2KeyValueStore state, ProtocolSettings? settings = null)
     {
         ArgumentNullException.ThrowIfNull(state);
-        settings ??= DefaultBootstrapSettings;
-        if (settings.StandbyCommittee.Count == 0) return false;
-        // The Ledger native contract writes a "currentIndex" entry during OnPersist.
-        // If we can read it back, we're initialized. We use the Ledger contract's
-        // canonical storage key — its existence is the same signal NeoSystem uses
-        // (NativeContract.Ledger.Initialized). We probe by attempting a non-throwing
-        // ApplicationEngine read; if it doesn't FAULT, we're initialized.
-        var cache = new L2DataCacheAdapter(state, readOnly: true);
-        try
-        {
-            // Constructing ApplicationEngine reads PolicyContract.GetExecFeeFactor,
-            // which throws KeyNotFoundException on un-initialized state. If construction
-            // succeeds, we know native contracts are initialized.
-            using var engine = ApplicationEngine.Create(
-                TriggerType.Application,
-                container: null,
-                snapshot: cache,
-                persistingBlock: BuildGenesisBlock(settings),
-                settings: settings,
-                gas: 0);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        // Direct probe of PolicyContract's ExecFeeFactor storage key:
+        // [4B Id LE = 0xFFFFFFF9 (-7)][1B prefix 0x12]. If this key is in the
+        // store, native-contract bootstrap has already run.
+        // (We don't go through ApplicationEngine because gas=0 short-circuits
+        // its constructor before reading PolicyContract — would yield false
+        // positives on empty stores.)
+        return state.Contains(stackalloc byte[] { 0xF9, 0xFF, 0xFF, 0xFF, 0x12 });
     }
 
     private static void RunPersistTrigger(TriggerType trigger, byte[] script, DataCache cache, Block block, ProtocolSettings settings)

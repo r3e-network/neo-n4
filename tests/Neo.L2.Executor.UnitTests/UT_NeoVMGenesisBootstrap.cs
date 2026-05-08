@@ -24,48 +24,34 @@ public class UT_NeoVMGenesisBootstrap
     };
 
     [TestMethod]
-    public void Run_DoesNotThrow_DocumentsCachePropagationGap()
+    public void Run_PopulatesNativeContractStorage()
     {
-        // CURRENT STATE: NeoVMGenesisBootstrap.Run completes without throwing
-        // (the OnPersist + PostPersist scripts execute against L2DataCacheAdapter
-        // and HALT cleanly). However, Neo's ApplicationEngine creates child
-        // snapshot caches during native-contract InitializeAsync that don't
-        // propagate back through L2DataCacheAdapter.Commit() to the underlying
-        // IL2KeyValueStore. Result: bootstrap is logically correct but its writes
-        // are lost on the round-trip.
-        //
-        // FIX (Phase C follow-up): either (a) implement child-cache propagation
-        // explicitly in L2DataCacheAdapter (override CloneCache / Commit to walk
-        // child-cache change-sets), or (b) refactor ApplicationEngineTransactionExecutor
-        // to accept a long-lived DataCache instance and reuse it across bootstrap
-        // → execution (instead of round-tripping via IL2KeyValueStore on every
-        // tx). The (b) path matches NeoSystem's actual pattern.
-        //
-        // Until that fix lands, this test pins that Run completes (no throw) so
-        // a regression that breaks the helper's compile path surfaces here.
+        // PHASE C0 SUCCESS: Run() actually writes native-contract state to the
+        // underlying KV store. The earlier "cache propagation gap" was actually
+        // an IsInitialized false-positive that short-circuited Run() before
+        // bootstrap; the fix probes the storage directly instead of via a
+        // gas=0 ApplicationEngine.Create.
         using var store = new InMemoryKeyValueStore();
-        NeoVMGenesisBootstrap.Run(store); // must not throw
-        // store.Count is 0 today (cache propagation gap) — that's the documented
-        // state; a future commit fixing the gap will flip Count > 0 and we update
-        // the assertion accordingly.
-        Assert.AreEqual(0L, store.Count, "documenting the current cache-propagation gap");
+        Assert.AreEqual(0L, store.Count, "store starts empty");
+        NeoVMGenesisBootstrap.Run(store);
+        Assert.IsTrue(store.Count > 0,
+            $"after bootstrap, store must have native-contract state (count={store.Count})");
+        Assert.IsTrue(NeoVMGenesisBootstrap.IsInitialized(store),
+            "IsInitialized must return true after a successful Run");
     }
 
     [TestMethod]
-    public async Task BootstrappedStore_RunCompletes_ButHappyPathStillNeedsCachePropagation()
+    public async Task BootstrappedStore_RunsRealNeoVMScript_HALT()
     {
-        // Documented partial-progress: NeoVMGenesisBootstrap.Run completes and writes
-        // genesis state to the KV store, but the SUBSEQUENT ApplicationEngineTransactionExecutor
-        // against that same store still FAULTs because Neo's ApplicationEngine creates
-        // child snapshot caches during OnPersist + InitializeAsync, and those child
-        // caches don't fully propagate back through L2DataCacheAdapter's Commit path.
-        // The fix requires either reusing a single live DataCache instance across
-        // bootstrap → execution (instead of round-tripping via IL2KeyValueStore) or
-        // implementing the child-cache propagation explicitly in L2DataCacheAdapter.
-        // Tracked as the Phase C follow-up in docs/plan-application-engine-and-mpt.md.
+        // Phase C0 SUCCESS: after genesis bootstrap, ApplicationEngineTransactionExecutor
+        // runs a real PUSH1 script through Neo VM and gets HALT + Success receipt.
+        // This is the smoking-gun proof that the entire pipeline works:
+        //   IL2KeyValueStore → L2DataCacheAdapter → ApplicationEngine → Receipt
         using var store = new InMemoryKeyValueStore();
         NeoVMGenesisBootstrap.Run(store);
 
+        // Executor MUST use the same ProtocolSettings as bootstrap — Network and
+        // StandbyCommittee both affect native-contract storage keying.
         var executor = new ApplicationEngineTransactionExecutor(
             store, settings: NeoVMGenesisBootstrap.DefaultBootstrapSettings);
         var script = new byte[] { (byte)OpCode.PUSH1 };
@@ -80,10 +66,9 @@ public class UT_NeoVMGenesisBootstrap
         var serialized = tx.ToArray();
 
         var result = await executor.ExecuteAsync(serialized, Ctx);
-        // Pin: the FAULT mode is documented. A future commit that fixes child-cache
-        // propagation will flip this assertion — that flip is the real Phase C ship.
-        Assert.IsFalse(result.Receipt.Success,
-            "until child-cache propagation is fixed, this FAULTs (see plan-application-engine-and-mpt.md Phase C)");
+        Assert.IsTrue(result.Receipt.Success,
+            $"PUSH1 must HALT against bootstrapped state — got Success={result.Receipt.Success}");
+        Assert.IsTrue(result.Receipt.GasConsumed > 0, "HALT execution consumed gas");
     }
 
     [TestMethod]

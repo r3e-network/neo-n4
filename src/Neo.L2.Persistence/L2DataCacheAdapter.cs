@@ -31,6 +31,13 @@ public sealed class L2DataCacheAdapter : DataCache
 {
     private readonly IL2KeyValueStore _store;
 
+    /// <summary>Diagnostic: count of AddInternal calls.</summary>
+    public int AddCount { get; private set; }
+    /// <summary>Diagnostic: count of UpdateInternal calls.</summary>
+    public int UpdateCount { get; private set; }
+    /// <summary>Diagnostic: count of DeleteInternal calls.</summary>
+    public int DeleteCount { get; private set; }
+
     /// <summary>Construct against the underlying L2 KV store. The cache is mutable by default.</summary>
     public L2DataCacheAdapter(IL2KeyValueStore store, bool readOnly = false) : base(readOnly)
     {
@@ -43,6 +50,7 @@ public sealed class L2DataCacheAdapter : DataCache
     {
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(value);
+        AddCount++;
         // Neo's DataCache base contract: AddInternal is called only when the
         // key is not already present (the base class guards). We honor that
         // with a Put — same byte-layout semantics as the production KV store.
@@ -53,6 +61,7 @@ public sealed class L2DataCacheAdapter : DataCache
     protected override void DeleteInternal(StorageKey key)
     {
         ArgumentNullException.ThrowIfNull(key);
+        DeleteCount++;
         _store.Delete(key.ToArray());
     }
 
@@ -85,6 +94,7 @@ public sealed class L2DataCacheAdapter : DataCache
     {
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(value);
+        UpdateCount++;
         // Update vs Add: base class guarantees the key existed at the time
         // Update was called. A Put is correct either way (insert-or-replace).
         _store.Put(key.ToArray(), value.Value.Span);

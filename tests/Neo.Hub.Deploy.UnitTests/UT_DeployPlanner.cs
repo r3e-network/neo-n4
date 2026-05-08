@@ -202,9 +202,11 @@ public class UT_DeployPlanner
     public void Scaffold_DefaultIncludesAllNeoHubContracts()
     {
         var plan = ScaffoldPlan.Default();
-        // 13 core NeoHub contracts + GovernanceFraudVerifier (v1/v2 structural)
-        // + RestrictedExecutionFraudVerifier (v3 trustless) = 15.
-        Assert.AreEqual(15, plan.Steps.Count);
+        // 13 core NeoHub contracts + 2 fraud verifiers (Governance v1/v2 +
+        // RestrictedExecution v3) + 4 external-bridge contracts (doc.md
+        // §11.3: MpcCommitteeVerifier, ExternalBridgeRegistry,
+        // ExternalBridgeEscrow, ExternalBridgeBond) = 19.
+        Assert.AreEqual(19, plan.Steps.Count);
         var names = plan.Steps.Select(s => s.Name).ToHashSet();
         Assert.IsTrue(names.Contains("GovernanceFraudVerifier"));
         Assert.IsTrue(names.Contains("RestrictedExecutionFraudVerifier"));
@@ -223,6 +225,14 @@ public class UT_DeployPlanner
         Assert.IsTrue(names.Contains("SequencerBond"));
         Assert.IsTrue(names.Contains("SequencerRegistry"));
         Assert.IsTrue(names.Contains("OptimisticChallenge"));
+        // External-bridge stack (doc.md §11.3 — cross-foreign-chain bridge to
+        // Eth/Tron/Solana). The four pieces deploy independently of the
+        // Phase-3 settlement contracts; the verifier is a committee, not a
+        // per-batch settlement gate.
+        Assert.IsTrue(names.Contains("MpcCommitteeVerifier"));
+        Assert.IsTrue(names.Contains("ExternalBridgeRegistry"));
+        Assert.IsTrue(names.Contains("ExternalBridgeEscrow"));
+        Assert.IsTrue(names.Contains("ExternalBridgeBond"));
     }
 
     [TestMethod]
@@ -350,13 +360,15 @@ public class UT_DeployPlanner
         // Pin the operator-facing hints emitted by `plan` after a successful resolution.
         // Without these, an operator could miss the cycle-break + governance wiring
         // post-deploy steps, leaving Phase-3 challenges with no slash payout path AND
-        // §16.1 admission / §16 council-veto silently broken; or miss the informational
-        // notes about which fraud-verifier contract hash to pass as fraudVerifier
-        // when challenging (one note per deployed verifier — v1/v2 + v3).
+        // §16.1 admission / §16 council-veto silently broken; the bridge committee
+        // governance never gets wired; or miss the informational notes about which
+        // fraud-verifier contract hash to pass as fraudVerifier when challenging
+        // (one note per deployed verifier — v1/v2 + v3).
         var plan = ScaffoldPlan.Default();
         var bundle = DeployPlanner.Plan(plan, name => H((byte)(name.Length & 0xFF)));
         var actions = ScaffoldPlan.PostDeployActions(bundle).ToList();
-        Assert.AreEqual(5, actions.Count);
+        // 5 original (Phase 0–3) + 4 external-bridge wiring hints = 9.
+        Assert.AreEqual(9, actions.Count);
 
         // 1. SequencerBond.RegisterSlasher(OptimisticChallenge) — Phase-3 cycle-break.
         StringAssert.Contains(actions[0], "SequencerBond.RegisterSlasher");
@@ -383,6 +395,25 @@ public class UT_DeployPlanner
         StringAssert.Contains(actions[4], "fraudVerifier");
         StringAssert.Contains(actions[4], "OptimisticChallenge.Challenge");
         StringAssert.Contains(actions[4], "v3");
+
+        // 6. MpcCommitteeVerifier.SetGovernanceController(GovernanceController) — bridge committee gov.
+        StringAssert.Contains(actions[5], "MpcCommitteeVerifier.SetGovernanceController");
+        StringAssert.Contains(actions[5], "GovernanceController");
+        StringAssert.Contains(actions[5], "RegisterCommitteeViaProposal");
+
+        // 7. ExternalBridgeRegistry.SetGovernanceController(GovernanceController) — bridge verifier upgrade gov.
+        StringAssert.Contains(actions[6], "ExternalBridgeRegistry.SetGovernanceController");
+        StringAssert.Contains(actions[6], "GovernanceController");
+        StringAssert.Contains(actions[6], "UpgradeVerifierViaProposal");
+
+        // 8. Per-foreign-chain committee setup pointer.
+        StringAssert.Contains(actions[7], "neo-external-bridge");
+        StringAssert.Contains(actions[7], "RegisterVerifier");
+        StringAssert.Contains(actions[7], "0xE0000001");
+
+        // 9. Phase-C reminder for ExternalBridgeBond slasher.
+        StringAssert.Contains(actions[8], "ExternalBridgeBond.RegisterSlasher");
+        StringAssert.Contains(actions[8], "MpcCommitteeFraudVerifier");
     }
 
     [TestMethod]

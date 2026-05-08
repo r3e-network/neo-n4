@@ -49,13 +49,14 @@ public class UT_PlanCommand
         Assert.AreEqual(0, rc);
         Assert.IsTrue(File.Exists(bundlePath), "plan must produce the bundle file");
 
-        // Resolved bundle JSON should be parseable + carry 15 invocations
-        // (matching the scaffold's step count).
+        // Resolved bundle JSON should be parseable + carry 19 invocations
+        // (matching the scaffold's step count: 13 core + 2 fraud verifiers +
+        // 4 external-bridge).
         var json = File.ReadAllText(bundlePath);
         using var doc = System.Text.Json.JsonDocument.Parse(json);
         var invocations = doc.RootElement.GetProperty("invocations");
-        Assert.AreEqual(15, invocations.GetArrayLength(),
-            "default scaffold → 15 resolved invocations in the bundle");
+        Assert.AreEqual(19, invocations.GetArrayLength(),
+            "default scaffold → 19 resolved invocations in the bundle");
     }
 
     [TestMethod]

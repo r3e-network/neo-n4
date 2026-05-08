@@ -112,6 +112,49 @@ public static class ScaffoldPlan
                 Step("RestrictedExecutionFraudVerifier",
                     "contracts/NeoHub.RestrictedExecutionFraudVerifier/bin/Release/NeoHub.RestrictedExecutionFraudVerifier.nef",
                     new JArray()),
+
+                // ─── External-bridge stack (doc.md §11.3) ────────────────
+                // The cross-foreign-chain bridge contracts. Independent of
+                // SettlementManager / SequencerBond — the verifier is a
+                // committee, not a per-batch settlement gate. Order:
+                //   MpcCommitteeVerifier (no deps; verifier impl)
+                //   ExternalBridgeRegistry (no deps; routes externalChainId
+                //                            → verifier hash)
+                //   ExternalBridgeEscrow (depends on Registry; locks NEP-17
+                //                         outbound + dispatches inbound)
+                //   ExternalBridgeBond (no deps; committee bonding)
+                // After deploy: operator runs RegisterCommittee on the
+                // verifier + RegisterVerifier on the registry per supported
+                // foreign chain (use neo-external-bridge committee-blob /
+                // deploy-bundle to assemble the calls).
+
+                Step("MpcCommitteeVerifier",
+                    "contracts/NeoHub.MpcCommitteeVerifier/bin/Release/NeoHub.MpcCommitteeVerifier.nef",
+                    OwnerOnly()),
+
+                Step("ExternalBridgeRegistry",
+                    "contracts/NeoHub.ExternalBridgeRegistry/bin/Release/NeoHub.ExternalBridgeRegistry.nef",
+                    OwnerOnly()),
+
+                // ExternalBridgeEscrow's _deploy takes (owner, registry).
+                // The registry hash is resolved via $step:ExternalBridgeRegistry.
+                Step("ExternalBridgeEscrow",
+                    "contracts/NeoHub.ExternalBridgeEscrow/bin/Release/NeoHub.ExternalBridgeEscrow.nef",
+                    OwnerAndDep("ExternalBridgeRegistry"),
+                    "ExternalBridgeRegistry"),
+
+                // ExternalBridgeBond mirrors SequencerBond — owner + bondAsset
+                // (canonical GAS hash on the target L1; operator-substituted
+                // exactly like SequencerBond's BOND_ASSET_REPLACE_ME). The
+                // slasher set defaults to GovernanceController; Phase C will
+                // add MpcCommitteeFraudVerifier as a slasher post-deploy.
+                Step("ExternalBridgeBond",
+                    "contracts/NeoHub.ExternalBridgeBond/bin/Release/NeoHub.ExternalBridgeBond.nef",
+                    new JArray
+                    {
+                        "OWNER_REPLACE_ME",
+                        "BOND_ASSET_REPLACE_ME",
+                    }),
             },
         };
     }
@@ -174,6 +217,10 @@ public static class ScaffoldPlan
         var gc = bundle.Invocations.FirstOrDefault(i => i.Name == "GovernanceController");
         var govFraudVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "GovernanceFraudVerifier");
         var rexFraudVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "RestrictedExecutionFraudVerifier");
+        var mpcVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "MpcCommitteeVerifier");
+        var extRegistry = bundle.Invocations.FirstOrDefault(i => i.Name == "ExternalBridgeRegistry");
+        var extEscrow = bundle.Invocations.FirstOrDefault(i => i.Name == "ExternalBridgeEscrow");
+        var extBond = bundle.Invocations.FirstOrDefault(i => i.Name == "ExternalBridgeBond");
 
         if (bond is not null && oc is not null)
         {
@@ -203,6 +250,38 @@ public static class ScaffoldPlan
             // FraudProofPayload. Both can be deployed simultaneously since
             // OptimisticChallenge.Challenge takes the verifier hash as a parameter.
             yield return $"# Note: for v3 fraud proofs (trustless storage-proof re-derivation), pass {rexFraudVerifier.Name}.Hash as the `fraudVerifier` argument to OptimisticChallenge.Challenge.";
+        }
+
+        // ─── External-bridge wiring ──────────────────────────────────────
+        // The MPC verifier + registry both have governance-mediated
+        // upgrade paths (RegisterCommitteeViaProposal /
+        // UpgradeVerifierViaProposal). Same wiring shape as
+        // VerifierRegistry — point them at the GovernanceController so
+        // those proposal-gated calls can consult IsApprovedAndTimelocked.
+        if (mpcVerifier is not null && gc is not null)
+        {
+            yield return $"{mpcVerifier.Name}.SetGovernanceController({gc.Name})  # enable governance-mediated committee upgrade (RegisterCommitteeViaProposal depends on this)";
+        }
+        if (extRegistry is not null && gc is not null)
+        {
+            yield return $"{extRegistry.Name}.SetGovernanceController({gc.Name})  # enable governance-mediated verifier upgrade (UpgradeVerifierViaProposal depends on this)";
+        }
+        if (mpcVerifier is not null && extRegistry is not null)
+        {
+            // Informational — operators must wire each supported foreign
+            // chain at deploy time using the neo-external-bridge CLI to
+            // generate the committee blob + the dual-side deploy bundle.
+            // Without this step the registry has no verifier registered
+            // and ExternalBridgeEscrow.Receive reverts with "no verifier
+            // registered for externalChainId" on first inbound message.
+            yield return $"# Per supported foreign chain (e.g. Eth=0xE0000001, Sepolia=0xE0000002): run `neo-external-bridge committee-blob` + `neo-external-bridge deploy-bundle` to register the committee on {mpcVerifier.Name} and bind it to {extRegistry.Name} via RegisterVerifier(externalChainId, mpcVerifier.Hash, bridgeKindMpc=1).";
+        }
+        if (extEscrow is not null && extBond is not null)
+        {
+            // Phase-C reminder. ExternalBridgeBond's slasher seam is
+            // currently owner-only; once MpcCommitteeFraudVerifier ships
+            // (Phase C) it goes here as a registered slasher.
+            yield return $"# Phase-C reminder: when MpcCommitteeFraudVerifier deploys, call {extBond.Name}.RegisterSlasher(MpcCommitteeFraudVerifier) so equivocation challenges can slash the bond.";
         }
     }
 

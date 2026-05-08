@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Neo.External.Bridge.Cli</RootNamespace>
+    <AssemblyName>neo-external-bridge</AssemblyName>
+    <Description>Operator CLI for the cross-foreign-chain bridge. Subcommands: genkey (secp256k1 keypair → Neo committee pubkey + Eth committee address), committee-blob (concat pubkeys into MpcCommitteeVerifier.RegisterCommittee blob format + Eth address list), deploy-bundle (print the dual-side wire-up call sequence so an operator can deploy + register Neo + Eth contracts in lock-step). No live RPC — emits canonical bytes / plans the operator's wallet of choice signs and submits.</Description>
+    <PackageTags>NEO;Bridge;Cli;ExternalBridge</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
+    <ProjectReference Include="..\Neo.L2.Bridge.Cli\Neo.L2.Bridge.Cli.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Neo.External.Bridge.Cli.UnitTests" />
+  </ItemGroup>
+
+</Project>

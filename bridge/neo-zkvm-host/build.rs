@@ -9,6 +9,7 @@ use std::process::Command;
 
 fn main() {
     println!("cargo:rerun-if-changed=../neo-zkvm-guest/src/main.rs");
+    println!("cargo:rerun-if-changed=../neo-zkvm-guest/src/lib.rs");
     println!("cargo:rerun-if-changed=../neo-zkvm-guest/Cargo.toml");
 
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());

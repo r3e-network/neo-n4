@@ -4,6 +4,11 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 description = "Real SP1 host that loads neo-zkvm-guest's RISC-V ELF, runs it via SP1's prover, and produces a verifiable ZK proof of L2 batch execution."
+# build.rs invokes `cargo prove build` against ../neo-zkvm-guest and exposes
+# the produced RISC-V ELF path via the NEO_ZKVM_GUEST_ELF env var so lib.rs
+# can `include_bytes!()` it. (Cargo silently ignores `build` keys placed
+# inside other tables like [[bin]] — keep this under [package].)
+build = "build.rs"
 
 [dependencies]
 sp1-sdk = { version = "6.0", features = ["blocking"] }
@@ -17,7 +22,3 @@ neo-zkvm-guest = { path = "../neo-zkvm-guest" }
 [[bin]]
 name = "prove-batch"
 path = "src/bin/prove_batch.rs"
-
-# Embed the guest ELF at compile time.  Set in build.rs to the path produced
-# by `cargo prove build` against bridge/neo-zkvm-guest.
-build = "build.rs"

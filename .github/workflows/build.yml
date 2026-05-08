@@ -190,6 +190,58 @@ jobs:
           cargo build
           cargo test
 
+  # Real SP1 zkVM smoke test for bridge/neo-zkvm-host. Runs in its own job
+  # because the SP1 toolchain install (sp1up) is heavy (~5 min wall + tens
+  # of MB) — keeping it isolated stops slow toolchain bootstrapping from
+  # blocking the fast .NET / bridge / SDK feedback loops.
+  #
+  # Coverage: builds the guest ELF via `cargo prove build`, then runs the
+  # default neo-zkvm-host test (~42s — runs the guest in SP1's zkVM and
+  # cross-checks the public-input hash matches host-mode execution). The
+  # #[ignore]-gated real-proof tests are NOT run in CI (they take ~4
+  # minutes wall time on a beefy CPU and would dominate the budget) —
+  # they're documented in bridge/neo-zkvm-host/README.md and run manually
+  # before each release.
+  sp1-host:
+    name: cargo build + test (neo-zkvm-host, real SP1 zkVM)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Cache SP1 toolchain
+        id: cache-sp1
+        uses: actions/cache@v4
+        with:
+          path: ~/.sp1
+          key: sp1-toolchain-v6.0-${{ runner.os }}
+
+      - name: Install SP1 toolchain (sp1up + cargo-prove)
+        if: steps.cache-sp1.outputs.cache-hit != 'true'
+        run: |
+          curl -L https://sp1up.succinct.xyz | bash
+          ~/.sp1/bin/sp1up
+
+      - name: Add SP1 to PATH
+        run: echo "$HOME/.sp1/bin" >> "$GITHUB_PATH"
+
+      - name: cargo prove build (guest ELF)
+        working-directory: bridge/neo-zkvm-guest
+        run: cargo prove build
+
+      - name: cargo build + test (neo-zkvm-host, default suite)
+        working-directory: bridge/neo-zkvm-host
+        run: |
+          cargo build --release
+          cargo test --release
+
   sdk-typescript:
     name: TypeScript SDK
     runs-on: ubuntu-latest

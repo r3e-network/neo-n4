@@ -229,6 +229,52 @@ exercise what the previous command actually wrote).
 
 Doc-set: test count 1150 → 1153 across the standard files.
 
+### Added — `neo-bridge` production CLI for SharedBridge invocation hex (1243 → 1257)
+
+`tools/Neo.L2.Bridge.Cli/` (binary name `neo-bridge`) emits canonical
+Neo VM invocation scripts for `SharedBridge.Deposit` and
+`SharedBridge.FinalizeWithdrawalWithProof`, plus query commands that
+walk `Neo.L2.Sdk.L2RpcClient`.
+
+Subcommands:
+- `deposit` — emits the canonical Deposit invocation hex (paste into any
+  Neo wallet — Neo-Express, Neon Wallet, NeoLine, custom HSM tooling —
+  for signing + broadcast). Real argument validation: rejects zero
+  amount and zero target chainId at script-build time, mirroring the
+  contract's own guards.
+- `withdraw` — emits the canonical FinalizeWithdrawalWithProof invocation
+  hex, automatically fetching the per-leaf Merkle proof from the L2 RPC
+  endpoint via the SDK and decoding it into the contract's expected
+  `byte[][] siblings` parameter shape.
+- `query-deposit` — looks up an L1 deposit's L2-side consumption status
+  (consumedOnL2 + includedInBatch).
+- `audit-withdrawal` — fetches a proof + verifies its structure (header
+  consistency, sibling count) before paying L1 gas to submit it.
+
+`InvocationBuilder` uses `Neo.Extensions.VM.ScriptBuilderExtensions.EmitDynamicCall`
+with `ContractParameter` wrappers for the nested `byte[][]` siblings —
+the canonical wire shape Neo's RPC `invokefunction` consumes.
+`MerkleProofDecoder` uses `Neo.L2.State.MerkleProofSerializer`'s 48-byte
+header layout (32 leaf + 4 leafIndex + 8 pathBitmap + 4 siblingCount +
+32×N siblings, leaf-to-root order matching SettlementManager's
+verification walk).
+
+No built-in signer: production deployments use HSMs / cold wallets. The
+CLI prints the invocation hex for the operator's wallet to sign and
+submit — same plan-printer pattern as `neo-stack register-chain`.
+
+14 tests across 2 files in `tests/Neo.L2.Bridge.Cli.UnitTests/`:
+- `UT_InvocationBuilder` (8) — script reproducibility, different inputs
+  produce different scripts (catches a regression where an arg is
+  ignored), embedded method-name string check, argument validation
+  (zero amount / zero chain id / zero target chain).
+- `UT_MerkleProofDecoder` (5) — round-trip via real
+  `MerkleProofSerializer.Encode`, single-leaf empty-siblings edge case,
+  truncated-header rejection, size-vs-count rejection, leaf-to-root
+  order preservation.
+
+CLI count 4 → 5; project count 32 → 33; doc-set test count 1243 → 1257.
+
 ### Added — Two production-grade `IRoundProver` implementations for Phase-5 aggregation (1227 → 1243)
 
 `Neo.Plugins.L2Gateway` ships two new production aggregators alongside

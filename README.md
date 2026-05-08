@@ -74,10 +74,10 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 | Persistence backends | **2**  | `InMemoryKeyValueStore` (tests) · `RocksDbKeyValueStore` (production default) — see [`docs/persistence.md`](./docs/persistence.md) |
 | Node plugins      | **8**     | `Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}`  |
 | Smart contracts   | **21**    | 15 NeoHub L1 (incl. `GovernanceFraudVerifier` — structural verifier for governance-arbitration chains, and `RestrictedExecutionFraudVerifier` — trustless v3 verifier that re-derives pre/post state roots from each storage proof's siblings + leafIndex on-chain) + 6 L2 native; all type-check via `Neo.SmartContract.Framework` |
-| CLI tools         | **4**     | `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`, `neo-l2-explore`         |
+| CLI tools         | **5**     | `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`, `neo-l2-explore`, `neo-bridge` |
 | Native FFI        | **1**     | `bridge/neo-zkvm-bridge` — Rust cdylib + C ABI for SP1 prover P/Invoke   |
 | Submodules        | **3**     | `external/neo` (Neo 4 core) · `external/neo-devpack-dotnet` (NeoVM compiler framework) · `external/neo-zkvm` (SP1 prover, optional). None are released on NuGet/crates.io for the versions tracked here. |
-| Tests             | **1243 / 32 projects** | Module-level unit tests + integration tests; all green |
+| Tests             | **1257 / 33 projects** | Module-level unit tests + integration tests; all green |
 
 ```
 neo4/
@@ -107,7 +107,7 @@ neo4/
 │   └── executors/                          # Sample.CounterChainExecutor + scaffold target
 ├── bridge/
 │   └── neo-zkvm-bridge/                    # Rust cdylib + C ABI
-└── tests/                                  # 1243 tests / 32 projects
+└── tests/                                  # 1257 tests / 33 projects
 ```
 
 ---
@@ -146,7 +146,7 @@ cd neo-n4
 # If you forgot --recurse-submodules:
 # git submodule update --init --recursive
 
-# Type-check everything + run all 1243 tests (~10 seconds)
+# Type-check everything + run all 1257 tests (~10 seconds)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # --- Bootstrapping a new L2 chain (recommended path) ---

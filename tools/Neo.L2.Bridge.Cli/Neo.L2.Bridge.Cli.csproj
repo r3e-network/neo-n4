@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Neo.L2.Bridge.Cli</RootNamespace>
+    <AssemblyName>neo-bridge</AssemblyName>
+    <Description>Production bridge CLI: emits canonical Neo VM invocation scripts for SharedBridge.Deposit + SharedBridge.FinalizeWithdrawalWithProof (operator pastes into wallet of choice for signing) and queries L2-side deposit/withdrawal status via Neo.L2.Sdk.</Description>
+    <PackageTags>NEO;L2;Bridge;Cli</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Sdk\Neo.L2.Sdk.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Neo.L2.Bridge.Cli.UnitTests" />
+  </ItemGroup>
+
+</Project>

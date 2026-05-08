@@ -35,3 +35,63 @@ fn execute_guest_in_zkvm_matches_host_run() {
         zkvm_result.public_input_hash, zkvm_result.cycles
     );
 }
+
+/// Generate a real cryptographic proof + verify it. Gated behind `--ignored`
+/// because CPU proving for even a minimal batch takes minutes; running it in
+/// every CI loop would dominate the test budget. Run manually with:
+///
+/// ```text
+/// CPATH=/home/neo/.local/include cargo test --release \
+///     -p neo-zkvm-host --test end_to_end -- --ignored --nocapture
+/// ```
+#[test]
+#[ignore]
+#[serial_test::serial]
+fn prove_and_verify_real_zk_proof() {
+    let bytes = build_minimal_request();
+    let host_result = neo_zkvm_guest::execute_batch(&bytes).expect("host execute failed");
+
+    let t0 = std::time::Instant::now();
+    let proof_result = neo_zkvm_host::prove(&bytes).expect("zkVM prove failed");
+    let prove_elapsed = t0.elapsed();
+    println!(
+        "✅ proof generated in {:?}: {} bytes (vk: {} bytes)",
+        prove_elapsed,
+        proof_result.proof_bytes.len(),
+        proof_result.vk_bytes.len()
+    );
+
+    assert_eq!(
+        proof_result.public_input_hash, host_result.public_input_hash,
+        "prove() public-input hash must match host execute_batch()"
+    );
+
+    let t1 = std::time::Instant::now();
+    neo_zkvm_host::verify(
+        &proof_result.proof_bytes,
+        &proof_result.vk_bytes,
+        &proof_result.public_input_hash,
+    )
+    .expect("proof verification failed");
+    println!("✅ proof verified in {:?}", t1.elapsed());
+}
+
+/// Negative test: a proof with the wrong expected public-input hash must
+/// be rejected. Also #[ignore]-gated for the same proving-cost reason.
+#[test]
+#[ignore]
+#[serial_test::serial]
+fn verify_rejects_mismatched_public_input_hash() {
+    let bytes = build_minimal_request();
+    let proof_result = neo_zkvm_host::prove(&bytes).expect("zkVM prove failed");
+
+    let mut tampered = proof_result.public_input_hash;
+    tampered[0] ^= 0xFF;
+    let err = neo_zkvm_host::verify(&proof_result.proof_bytes, &proof_result.vk_bytes, &tampered)
+        .expect_err("tampered hash must fail verification");
+    assert!(
+        err.contains("public-input hash mismatch"),
+        "expected hash-mismatch error, got: {}",
+        err
+    );
+}

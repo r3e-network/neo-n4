@@ -1,4 +1,10 @@
 bin/
+# Rust crate `src/bin/` directories are NOT build output — they hold extra
+# binary entrypoints for the same crate. Negate the `bin/` rule for them.
+!bridge/*/src/bin/
+!bridge/*/src/bin/**
+!sdk/*/src/bin/
+!sdk/*/src/bin/**
 obj/
 out/
 *.user

@@ -63,7 +63,7 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 | Forced-inclusion source | ✅ | `src/Neo.L2.ForcedInclusion/` |
 | Multisig (Stage 0) prover/verifier | ✅ | `src/Neo.L2.Proving.Attestation/` |
 | Optimistic (Stage 1) prover/verifier | ✅ | `src/Neo.L2.Proving.Optimistic/` |
-| RISC-V ZK (Stage 2) prover/verifier — full path | ✅ | `src/Neo.L2.Proving.RiscVZk/` + `src/Neo.L2.Proving.Sp1/` (C# host) · `bridge/neo-zkvm-bridge/` (Rust C ABI) · `bridge/neo-zkvm-guest/` (RISC-V ELF compiled by `cargo prove build`) · `bridge/neo-zkvm-host/` (real SP1 prover + executor). End-to-end verified: `bridge/neo-zkvm-host/tests/end_to_end.rs` runs the guest inside SP1's zkVM (42s proving work) and asserts the public-input hash matches host-mode execution byte-for-byte. |
+| RISC-V ZK (Stage 2) prover/verifier — full path | ✅ | `src/Neo.L2.Proving.RiscVZk/` + `src/Neo.L2.Proving.Sp1/` (C# host) · `bridge/neo-zkvm-bridge/` (Rust C ABI) · `bridge/neo-zkvm-guest/` (RISC-V ELF compiled by `cargo prove build`) · `bridge/neo-zkvm-host/` (real SP1 prover + executor + verifier). End-to-end verified: `bridge/neo-zkvm-host/tests/end_to_end.rs` runs the guest inside SP1's zkVM (42s execution-only run) and asserts the public-input hash matches host-mode execution byte-for-byte. The host crate also exposes `prove()` (real CPU proof generation, returns proof bytes + verifying-key bytes for on-chain submission) and `verify()` (off-chain proof check before settlement); `prove-batch --prove <hex>` produces the on-chain settlement artifact. Proof + verify is exercised end-to-end by the `prove_and_verify_real_zk_proof` `#[ignore]`-gated test (proving cost makes it impractical for default CI). |
 | DA writers (in-memory / NeoFS / L1 / DAC / RocksDB) | ✅ | `src/Neo.Plugins.L2DA/` (5 implementations) |
 | Settlement RPC client | ✅ | `src/Neo.L2.Settlement.Rpc/` |
 | Telemetry (Prometheus-shaped) | ✅ | `src/Neo.L2.Telemetry/`, `Neo.Plugins.L2Metrics/` |
@@ -75,7 +75,10 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 | Phase-5 proof aggregation | ✅ | `src/Neo.Plugins.L2Gateway/` — `BinaryTreeAggregator` with three `IRoundProver` implementations: `MultisigRoundProver` (Secp256r1 threshold-attested), `MerklePathRoundProver` (per-leaf inclusion proofs), `PassThroughRoundProver` (minimal-cost reference). Recursive-ZK fold variants (SP1 Compress / Halo2 / Risc0) operator-supplied through the same seam |
 
 **16 off-chain libraries + 8 plugins.** All have `tests/Neo.*.UnitTests/` mirrors;
-1344 tests across 33 projects pass.
+1344 tests across 34 .NET projects pass. Rust workspace ships 21 default-CI
+tests (host-mode crypto + SDK + zkVM execute round-trip) plus 2 `#[ignore]`-gated
+tests that exercise real CPU proof generation + verification (~4 minutes wall
+time). TypeScript SDK ships 15 vitest tests.
 
 ---
 

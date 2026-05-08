@@ -108,6 +108,17 @@ public class UT_DevnetArgs
     }
 
     [TestMethod]
+    public void Executor_RecognizesNeovm()
+    {
+        // Pin: 'neovm' is a recognized executor mode (wires the real Neo VM via
+        // ApplicationEngineTransactionExecutor + NeoVMGenesisBootstrap). A
+        // regression that drops it from the allowlist would silently fall back
+        // to ReferenceTransactionExecutor — the operator wouldn't know they're
+        // not actually running Neo VM.
+        Assert.AreEqual("neovm", DevnetArgs.ParseExecutor(new[] { "--executor", "neovm" }));
+    }
+
+    [TestMethod]
     public void Executor_UnknownValue_FallsBackToReference_WithWarning()
     {
         // Pin the warning + fallback. Without this, a typo like '--executor counte'
@@ -121,7 +132,7 @@ public class UT_DevnetArgs
             Assert.AreEqual("reference", result, "unknown values fall back to 'reference'");
             var stderr = sw.ToString();
             StringAssert.Contains(stderr, "--executor 'counte' not recognized");
-            StringAssert.Contains(stderr, "Valid values: reference, counter");
+            StringAssert.Contains(stderr, "Valid values: reference, counter, neovm");
         }
         finally
         {

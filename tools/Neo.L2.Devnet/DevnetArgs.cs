@@ -65,10 +65,10 @@ public static class DevnetArgs
         {
             if (args[i] != "--executor") continue;
             var value = args[i + 1];
-            if (value == "reference" || value == "counter") return value;
+            if (value == "reference" || value == "counter" || value == "neovm") return value;
             Console.Error.WriteLine(
                 $"--executor '{value}' not recognized; falling back to 'reference'. " +
-                "Valid values: reference, counter.");
+                "Valid values: reference, counter, neovm.");
             return "reference";
         }
         return "reference";

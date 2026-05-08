@@ -168,6 +168,10 @@ internal static class Program
         // mutation via KeyedStateStoreAdapter, real receipt + withdrawal + message
         // roots from CounterTxBuilder-built transactions).
         ITransactionExecutor txExec;
+        // neovm-mode also needs a dedicated NeoVM state store (separate from the L2's
+        // domain stateStore — native-contract storage layout differs from KeyedStateStore's).
+        // The store is disposed at end-of-run via DeferredDispose's `using` contract.
+        IL2KeyValueStore? neovmStore = null;
         switch (executorMode)
         {
             case "counter":
@@ -177,9 +181,20 @@ internal static class Program
                     emittingContract: GasL2);  // sentinel for the demo
                 Console.WriteLine($"[wire] tx executor = CounterChainExecutor (chainId={LocalChainId}, --executor counter)");
                 break;
+            case "neovm":
+                // Real Neo VM execution: bootstrap a fresh store with native-contract
+                // genesis state, then wire ApplicationEngineTransactionExecutor against
+                // it. Operator-supplied scripts run through the production VM path.
+                var neovmBacking = MaybeRocks(dataDir, "neovm-state");
+                neovmStore = neovmBacking ?? new InMemoryKeyValueStore();
+                NeoVMGenesisBootstrap.Run(neovmStore, NeoVMGenesisBootstrap.DefaultBootstrapSettings);
+                txExec = new ApplicationEngineTransactionExecutor(
+                    neovmStore, settings: NeoVMGenesisBootstrap.DefaultBootstrapSettings);
+                Console.WriteLine($"[wire] tx executor = ApplicationEngineTransactionExecutor (real Neo VM, --executor neovm; bootstrapped {neovmStore.Count} native-contract keys)");
+                break;
             default:
                 txExec = new ReferenceTransactionExecutor();
-                Console.WriteLine($"[wire] tx executor = ReferenceTransactionExecutor (no-op default — pass --executor counter for the Sample.CounterChainExecutor demo)");
+                Console.WriteLine($"[wire] tx executor = ReferenceTransactionExecutor (no-op default — pass --executor counter for the sample custom-executor demo, or --executor neovm for real Neo VM)");
                 break;
         }
         var executor = new ReferenceBatchExecutor(txExec, stateRootOracle);
@@ -473,6 +488,10 @@ internal static class Program
 
         Console.WriteLine();
         Console.WriteLine("✅ devnet run complete.");
+        // Explicit dispose for the conditionally-allocated neovm state store.
+        // Other stores use `using var` directly; this one is conditional on the
+        // --executor flag so it has to be disposed manually here.
+        neovmStore?.Dispose();
         return 0;
     }
 
@@ -514,8 +533,10 @@ internal static class Program
         Console.WriteLine("                       ReferenceTransactionExecutor. 'counter' wires the");
         Console.WriteLine("                       Sample.CounterChainExecutor end-to-end (state mutation via");
         Console.WriteLine("                       KeyedStateStoreAdapter, real receipts/withdrawals/messages");
-        Console.WriteLine("                       from CounterTxBuilder-built transactions) so an operator can");
-        Console.WriteLine("                       preview a real custom executor through the same pipeline.");
+        Console.WriteLine("                       from CounterTxBuilder-built transactions). 'neovm' wires");
+        Console.WriteLine("                       ApplicationEngineTransactionExecutor against a fresh KV store");
+        Console.WriteLine("                       bootstrapped via NeoVMGenesisBootstrap (real Neo VM execution");
+        Console.WriteLine("                       — operator-supplied scripts run through the production VM path).");
         Console.WriteLine();
         Console.WriteLine("Examples:");
         Console.WriteLine("  neo-l2-devnet 5                         # 5 batches, in-memory, default Optimistic label");

@@ -1,0 +1,17 @@
+[package]
+name = "neo-n4-sdk"
+version = "0.1.0"
+edition = "2021"
+description = "Typed Rust SDK for the Neo Elastic Network L2 RPC surface (doc.md §14.1)"
+license = "MIT"
+
+[dependencies]
+reqwest = { version = "0.12", features = ["json"], default-features = false }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+tokio = { version = "1.0", features = ["macros", "rt"] }
+
+[dev-dependencies]
+mockito = "1.4"
+tokio = { version = "1.0", features = ["macros", "rt", "test-util"] }

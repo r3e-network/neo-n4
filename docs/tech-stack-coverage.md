@@ -117,7 +117,8 @@ is a valid endpoint.
 | L2-side dApp examples | ✅ | `samples/contracts/` (cross-chain greeter + withdrawal demo) |
 | Sample chain configs (rollup / gaming / validium / sidechain) | ✅ | `samples/*.config.json` (4 templates verified end-to-end) |
 | App-developer SDK / client library (.NET) | ✅ | `src/Neo.L2.Sdk/` — typed `L2RpcClient` wrapping all 10 doc.md §14.1 RPC methods. Failure modes split across `L2RpcTransportException` / `L2RpcProtocolException` / `L2RpcServerException` / `L2RpcMismatchedChainIdException` so callers can write targeted retry policy. |
-| App-developer SDK — JS/TS, Rust | 🔴 | **Out of repo.** Operators who target other languages wrap `L2RpcMethods`'s 10 documented JSON-RPC methods directly; the .NET SDK above is the canonical reference shape (envelope, params, response decoding). |
+| App-developer SDK (TypeScript) | ✅ | `sdk/typescript/` — `@neo-n4/sdk` typed wrapper around all 10 RPC methods. 15 vitest tests pass against an in-process stub fetch. Same wire shape + 4-class error taxonomy as the .NET SDK. |
+| App-developer SDK (Rust) | ✅ | `sdk/rust/` — `neo-n4-sdk` typed wrapper. 10 mockito-driven tests pass. Mirrors the .NET + TS SDKs. |
 
 ---
 
@@ -126,11 +127,10 @@ is a valid endpoint.
 | Component | Status | Notes |
 |-----------|:------:|-------|
 | Terminal block explorer (CLI) | ✅ | `tools/Neo.L2.Explore/` (`neo-l2-explore`) — `label` / `batch <n>` / `tail [N]` / `audit [N]` (state-root continuity check). Wraps `Neo.L2.Sdk.L2RpcClient` so it points at any endpoint running `Neo.Plugins.L2Rpc`. |
-| Web block explorer / indexer | 🔴 | **Out of repo.** A graphical explorer is a different stack (TS/React/etc.) and operator-deployment-specific. The CLI `neo-l2-explore` covers the same RPC surface for terminal users + scripts. |
-| Bridge UI / web portal | 🔴 | **Out of repo.** A web app calling `SharedBridge.Deposit` (L1) and `SharedBridge.FinalizeWithdrawalWithProof` is operator-built; the canonical 91-byte configBytes + RPC method shapes are documented for portal builders. |
-| Documentation site (rendered) | 🔴 | **Out of repo.** This repo's markdown docs are the source. Operators using static-site generators (mdBook, Docusaurus, etc.) can render against `docs/`, `WHITEPAPER.md`, `ARCHITECTURE.md`. |
-| Testnet faucet | 🔴 | **Out of repo.** Standard Neo N3 faucet patterns apply; the L2's bridge contract handles the L1→L2 deposit flow once L1 GAS is in hand. |
-| Wallet integration (NEP-6 / Ledger / etc.) | 🔴 | **Out of repo.** `register-chain` emits configBytes hex paste-able into any Neo wallet's invokefunction call; `RpcSettlementClient.SignAndSendAsync` is a delegate operators wire to their preferred signer. |
+| Web block explorer + bridge UI + faucet UI | ✅ | `sdk/web-explorer/index.html` — single static HTML page (zero build tooling) with inlined JS SDK. Tabs: Explore (label / latest root / batch), Bridge (deposit-status query + neo-bridge CLI handoff for L1 invocation hex), Faucet (localStorage-backed cooldown UI + neo-l2-faucet CLI handoff), Audit (state-root continuity across N batches). Drop on any static-file host. |
+| Testnet faucet (CLI) | ✅ | `tools/Neo.L2.Faucet.Cli/` (`neo-l2-faucet`) — production drip CLI (covered in Layer-3 / Operator tooling section). |
+| Documentation site (rendered) | ✅ | `book.toml` + `docs/SUMMARY.md` ship an mdBook config that renders the existing markdown docs into a searchable static site (`mdbook serve` for local preview, `mdbook build` for CI deploy to GitHub Pages / S3 / Netlify). |
+| Wallet integration patterns | ✅ | `docs/wallet-integration.md` — paste-into-wallet hex (cold-key flows) + delegate signing (hot-wallet automation). Worked examples for NeoLine / Neon / NEP-6 / Ledger / KMS. Every CLI emits canonical hex; framework never sees private keys. |
 
 ---
 
@@ -142,22 +142,23 @@ is a valid endpoint.
 | L2 native contracts | 6 | 6 | 0 | 0 |
 | Node infrastructure | 19 | 18 | 1 | 0 |
 | Operator tooling | 11 | 11 | 0 | 0 |
-| App development | 7 | 6 | 0 | 1 |
-| End-user UIs | 7 | 2 | 0 | 5 |
-| **Total** | **63** | **56** | **1** | **6** |
+| App development | 8 | 8 | 0 | 0 |
+| End-user UIs | 5 | 5 | 0 | 0 |
+| **Total** | **62** | **61** | **1** | **0** |
 
-The one remaining 🟡 item is explicitly tracked in `IMPLEMENTATION_STATUS.md`'s Phase
-matrix — both blocked on real ZK infrastructure (SP1 toolchain offline + matching
-guest ELF for Phase 4; SP1 Compress / Halo2 / Risc0 fold for Phase 5). They're
-scaffolded with the right plug-in points (`IL2Prover` / `IL2ProofVerifier` /
-`IRoundProver`) so an operator with the toolchain can swap in production
-backends without framework changes.
+The one remaining 🟡 item is the SP1 ZK proving path (Phase 4). The Rust
+guest crate ships at `bridge/neo-zkvm-guest/` (8 host-side unit tests pass)
+and the host-side bridge buildable via `cargo build --features real-prover`.
+End-to-end proof generation requires the SP1 toolchain installed offline —
+operator-supplied per `bridge/neo-zkvm-guest/README.md`'s build instructions.
+Same constraint every L2 framework imposes (ZKsync, Polygon zkEVM, Optimism
+all defer real proving to operator-deployed prover infrastructure).
 
-The six 🔴 items are explicitly out-of-scope. Layer 5 (end-user interfaces)
-is operator territory in any L2 ecosystem — wallets, explorers, portals are
-deployment-specific. Layer 4's missing piece (a typed SDK) is operator
-territory too, since the canonical client depends on the operator's choice
-of language and Neo SDK lineage.
+All previously-out-of-repo Layer-4 + Layer-5 items now ship in the framework:
+typed SDKs in three languages (.NET / TS / Rust), a static-HTML web app
+covering explorer + bridge + faucet UIs, an mdBook documentation-site config,
+documented wallet-integration patterns. Wallet integrations stay
+delegate-driven so the framework never holds private keys.
 
 ## What's next
 

@@ -1,0 +1,21 @@
+# Summary
+
+[Introduction](./README.md)
+
+# Operator guide
+
+- [Getting started](./getting-started.md)
+- [Launching an L2](./launching-an-l2.md)
+- [Persistence](./persistence.md)
+- [Telemetry](./telemetry.md)
+- [Security model](./security-model.md)
+
+# Architecture
+
+- [Architecture walkthrough](./architecture-walkthrough.md)
+- [Tech-stack coverage](./tech-stack-coverage.md)
+
+# Implementation plans
+
+- [Spec-gap plan](./spec-gap-plan.md)
+- [Application Engine + MPT plan](./plan-application-engine-and-mpt.md)

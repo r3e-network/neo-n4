@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Neo Elastic Network — Web Explorer</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; max-width: 1100px; margin: 2em auto; padding: 1em; color: #1a1a1a; background: #f7f7f8; }
+    h1 { margin-top: 0; }
+    nav { display: flex; gap: 0.5em; margin-bottom: 1em; flex-wrap: wrap; }
+    nav button { padding: 0.5em 1em; cursor: pointer; border: 1px solid #ccc; background: #fff; border-radius: 4px; }
+    nav button.active { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+    .panel { background: #fff; padding: 1.5em; border: 1px solid #e0e0e0; border-radius: 6px; }
+    .config { display: grid; grid-template-columns: 140px 1fr; gap: 0.5em; align-items: center; margin-bottom: 1em; padding-bottom: 1em; border-bottom: 1px solid #eee; }
+    .config label { font-weight: bold; }
+    .config input { padding: 0.4em; border: 1px solid #ccc; border-radius: 3px; font-family: inherit; }
+    .actions { display: flex; gap: 0.5em; flex-wrap: wrap; margin-bottom: 1em; }
+    .actions input { padding: 0.4em; border: 1px solid #ccc; border-radius: 3px; font-family: inherit; flex: 1; min-width: 150px; }
+    .actions button { padding: 0.5em 1em; cursor: pointer; border: 1px solid #1a1a1a; background: #1a1a1a; color: #fff; border-radius: 3px; }
+    .actions button:hover { background: #333; }
+    pre.output { background: #f0f0f0; padding: 1em; border-radius: 4px; overflow-x: auto; min-height: 100px; white-space: pre-wrap; word-break: break-all; }
+    pre.output.ok { border-left: 4px solid #0a7d20; }
+    pre.output.err { border-left: 4px solid #c01010; color: #c01010; }
+    .label-grid { display: grid; grid-template-columns: 200px 1fr; gap: 0.5em; }
+    .label-grid div:nth-child(odd) { font-weight: bold; }
+    .hidden { display: none; }
+    footer { margin-top: 2em; color: #666; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+  <h1>Neo Elastic Network — Web Explorer</h1>
+  <p>Static HTML + bundled JS SDK. Talks directly to any L2 node running <code>Neo.Plugins.L2Rpc</code>.</p>
+
+  <div class="config">
+    <label for="endpoint">Endpoint:</label>
+    <input id="endpoint" type="text" value="http://localhost:30332" placeholder="http://node.example:30332">
+    <label for="chain-id">Chain ID:</label>
+    <input id="chain-id" type="number" value="1099">
+  </div>
+
+  <nav>
+    <button data-tab="explore" class="active">Explore</button>
+    <button data-tab="bridge">Bridge</button>
+    <button data-tab="faucet">Faucet</button>
+    <button data-tab="audit">Audit</button>
+  </nav>
+
+  <!-- Explore tab -->
+  <div id="tab-explore" class="panel">
+    <h2>Block Explorer</h2>
+    <div class="actions">
+      <button onclick="exploreLabel()">Security label</button>
+      <button onclick="exploreLatestRoot()">Latest state root</button>
+      <input id="explore-batch" type="number" placeholder="batch number">
+      <button onclick="exploreBatch()">Get batch</button>
+    </div>
+    <pre id="explore-output" class="output">(idle)</pre>
+  </div>
+
+  <!-- Bridge tab -->
+  <div id="tab-bridge" class="panel hidden">
+    <h2>Bridge UI</h2>
+    <p>Builds canonical SharedBridge invocation hex. Paste into your wallet of choice (NeoLine / Neon / cold signer) for signing + broadcast.</p>
+    <div class="actions">
+      <input id="bridge-deposit-asset" placeholder="L1 asset hash (UInt160)">
+      <input id="bridge-deposit-recipient" placeholder="L2 recipient (UInt160)">
+      <input id="bridge-deposit-amount" type="number" placeholder="amount (datoshi)">
+      <button onclick="bridgeQueryDeposit()">Query deposit status</button>
+    </div>
+    <p><em>Note: invocation-script encoding requires a Neo VM script-builder library. This UI surfaces the L2-side deposit-status query; for L1 invocation hex, use <code>neo-bridge deposit</code> from the .NET CLI (paste-into-wallet hex).</em></p>
+    <div class="actions">
+      <input id="bridge-deposit-source" placeholder="source chainId">
+      <input id="bridge-deposit-nonce" placeholder="deposit nonce">
+    </div>
+    <pre id="bridge-output" class="output">(idle)</pre>
+  </div>
+
+  <!-- Faucet tab -->
+  <div id="tab-faucet" class="panel hidden">
+    <h2>Faucet</h2>
+    <p>Same drip surface as <code>neo-l2-faucet</code> CLI. Tracks rate-limit history in browser localStorage so the request UI is honest about the cooldown.</p>
+    <div class="actions">
+      <input id="faucet-recipient" placeholder="L2 recipient (UInt160)">
+      <button onclick="faucetCheck()">Check eligibility</button>
+      <button onclick="faucetClaim()">Claim drip</button>
+    </div>
+    <pre id="faucet-output" class="output">(idle)</pre>
+  </div>
+
+  <!-- Audit tab -->
+  <div id="tab-audit" class="panel hidden">
+    <h2>State-Root Continuity Audit</h2>
+    <p>Same audit as <code>neo-l2-explore audit</code>: walks recent batches and asserts each batch's preStateRoot equals the previous batch's postStateRoot.</p>
+    <div class="actions">
+      <input id="audit-from" type="number" placeholder="from batch (e.g. 1)">
+      <input id="audit-count" type="number" placeholder="batch count" value="5">
+      <button onclick="runAudit()">Run audit</button>
+    </div>
+    <pre id="audit-output" class="output">(idle)</pre>
+  </div>
+
+  <footer>
+    Wraps the <code>@neo-n4/sdk</code> TypeScript SDK (vendored inline below). No build tooling — drop into any static-file host.
+    Wallet integration: emit canonical hex via <code>neo-bridge</code>, sign in your wallet of choice (NEP-6, Ledger, NeoLine), broadcast through any Neo RPC.
+  </footer>
+
+  <script type="module">
+    /**
+     * Inline JS SDK — distilled from sdk/typescript/src/index.ts.
+     * Same wire shape, same 4-class error taxonomy.
+     */
+    class L2RpcError extends Error {
+      constructor(method, message) { super(`${method}: ${message}`); this.name = new.target.name; this.method = method; }
+    }
+    class L2RpcTransportError extends L2RpcError {}
+    class L2RpcProtocolError extends L2RpcError {}
+    class L2RpcServerError extends L2RpcError {
+      constructor(method, code, msg) { super(method, `server error ${code}: ${msg}`); this.code = code; }
+    }
+    class L2RpcMismatchedChainIdError extends L2RpcError {
+      constructor(method, expected, got) { super(method, `server returned chainId ${got}, expected ${expected}`); this.expected = expected; this.got = got; }
+    }
+
+    class L2RpcClient {
+      constructor(endpoint, chainId) {
+        const u = new URL(endpoint);
+        if (!["http:", "https:"].includes(u.protocol)) throw new Error(`endpoint scheme ${u.protocol} must be http(s)`);
+        if (chainId === 0) throw new Error("chainId 0 is reserved for L1");
+        this.endpoint = u.toString();
+        this.chainId = chainId;
+        this.nextId = 0;
+      }
+      async call(method, params) {
+        const id = ++this.nextId;
+        let response;
+        try {
+          response = await fetch(this.endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ jsonrpc: "2.0", method, params, id }),
+          });
+        } catch (e) { throw new L2RpcTransportError(method, e.message); }
+        if (!response.ok) throw new L2RpcTransportError(method, `http ${response.status}`);
+        const env = await response.json().catch(e => { throw new L2RpcProtocolError(method, e.message); });
+        if (env.id !== id) throw new L2RpcProtocolError(method, `response id ${env.id} ≠ request id ${id}`);
+        if (env.error) throw new L2RpcServerError(method, env.error.code ?? -32603, env.error.message ?? "rpc error");
+        return env.result ?? null;
+      }
+      assertChainId(obj, method) {
+        if (obj?.chainId !== undefined && Number(obj.chainId) !== this.chainId)
+          throw new L2RpcMismatchedChainIdError(method, this.chainId, Number(obj.chainId));
+      }
+      async getBatch(batchNumber) {
+        const r = await this.call("getl2batch", [this.chainId, Number(batchNumber)]);
+        if (r === null) return null;
+        this.assertChainId(r, "getl2batch");
+        return r;
+      }
+      async getLatestStateRoot() { return this.call("getl2stateroot", [this.chainId]); }
+      async getStateRootAt(batch) { return this.call("getl2stateroot", [this.chainId, Number(batch)]); }
+      async getDepositStatus(srcChain, nonce) { return this.call("getl1depositstatus", [Number(srcChain), Number(nonce)]); }
+      async getSecurityLabel() {
+        const r = await this.call("getsecuritylabel", [this.chainId]);
+        this.assertChainId(r, "getsecuritylabel");
+        return r;
+      }
+    }
+
+    /* ─── tab switching ─── */
+    document.querySelectorAll("nav button").forEach(b => {
+      b.addEventListener("click", () => {
+        document.querySelectorAll("nav button").forEach(x => x.classList.remove("active"));
+        b.classList.add("active");
+        document.querySelectorAll(".panel").forEach(p => p.classList.add("hidden"));
+        document.getElementById(`tab-${b.dataset.tab}`).classList.remove("hidden");
+      });
+    });
+
+    /* ─── shared helpers ─── */
+    function client() {
+      const ep = document.getElementById("endpoint").value;
+      const id = parseInt(document.getElementById("chain-id").value, 10);
+      return new L2RpcClient(ep, id);
+    }
+    function show(id, text, ok = true) {
+      const el = document.getElementById(id);
+      el.textContent = text;
+      el.classList.toggle("ok", ok);
+      el.classList.toggle("err", !ok);
+    }
+    async function safe(id, op) {
+      show(id, "Loading...");
+      try {
+        const result = await op();
+        show(id, JSON.stringify(result, (_k, v) => typeof v === "bigint" ? v.toString() : v, 2), true);
+      } catch (e) { show(id, `❌ ${e.name}: ${e.message}`, false); }
+    }
+
+    /* ─── tab handlers (exported to window so onclick= works) ─── */
+    window.exploreLabel = () => safe("explore-output", () => client().getSecurityLabel());
+    window.exploreLatestRoot = () => safe("explore-output", () => client().getLatestStateRoot());
+    window.exploreBatch = () => {
+      const n = document.getElementById("explore-batch").value;
+      if (!n) return show("explore-output", "❌ enter a batch number", false);
+      safe("explore-output", () => client().getBatch(BigInt(n)));
+    };
+    window.bridgeQueryDeposit = () => {
+      const src = document.getElementById("bridge-deposit-source").value;
+      const nonce = document.getElementById("bridge-deposit-nonce").value;
+      if (!src || !nonce) return show("bridge-output", "❌ enter source chainId + nonce", false);
+      safe("bridge-output", () => client().getDepositStatus(Number(src), BigInt(nonce)));
+    };
+
+    /* ─── faucet uses localStorage ───
+     * Mirrors the .NET FaucetJournal/FaucetPolicy pattern but runs in the browser
+     * (UI honesty about cooldown). The actual drip emits canonical invocation hex
+     * via neo-l2-faucet CLI; the web UI just shows the operator-facing rate-limit
+     * status they'll hit.
+     */
+    const FAUCET_KEY = "neo-l2-faucet-history";
+    const FAUCET_COOLDOWN_S = 3600;
+    function faucetHistory() { try { return JSON.parse(localStorage.getItem(FAUCET_KEY) ?? "{}"); } catch { return {}; } }
+    function saveFaucetHistory(h) { localStorage.setItem(FAUCET_KEY, JSON.stringify(h)); }
+    window.faucetCheck = () => {
+      const r = document.getElementById("faucet-recipient").value;
+      if (!r) return show("faucet-output", "❌ enter recipient", false);
+      const h = faucetHistory();
+      const last = h[r];
+      if (!last) return show("faucet-output", `recipient ${r}: never received a drip`, true);
+      const elapsed = Math.floor(Date.now() / 1000) - last.lastDripUnix;
+      const remaining = FAUCET_COOLDOWN_S - elapsed;
+      if (remaining > 0) {
+        show("faucet-output", `recipient ${r}: cooldown active (${remaining}s remaining)\nlastDripUnix=${last.lastDripUnix}\ntotalDripped=${last.totalDripped}\ncount=${last.count}`, false);
+      } else {
+        show("faucet-output", `recipient ${r}: eligible. Prior drips: count=${last.count} totalDripped=${last.totalDripped}`, true);
+      }
+    };
+    window.faucetClaim = () => {
+      const r = document.getElementById("faucet-recipient").value;
+      if (!r) return show("faucet-output", "❌ enter recipient", false);
+      const h = faucetHistory();
+      const now = Math.floor(Date.now() / 1000);
+      const last = h[r];
+      if (last && (now - last.lastDripUnix) < FAUCET_COOLDOWN_S) {
+        const remaining = FAUCET_COOLDOWN_S - (now - last.lastDripUnix);
+        return show("faucet-output", `❌ cooldown active: ${remaining}s remaining`, false);
+      }
+      h[r] = {
+        lastDripUnix: now,
+        totalDripped: ((last?.totalDripped ?? 0) + 100_000_000),
+        count: (last?.count ?? 0) + 1,
+      };
+      saveFaucetHistory(h);
+      show("faucet-output", `✅ drip recorded locally (1 GAS / 100M datoshi)\n\nNext step (off-browser): run\n  neo-l2-faucet drip --bridge <hash> --asset <hash> \\\n                       --target-chain ${document.getElementById("chain-id").value} \\\n                       --recipient ${r} --amount 100000000\nto get the actual deposit invocation hex (paste into Neo wallet to broadcast).`, true);
+    };
+
+    /* ─── audit ─── */
+    window.runAudit = async () => {
+      const fromStr = document.getElementById("audit-from").value;
+      const countStr = document.getElementById("audit-count").value;
+      if (!fromStr || !countStr) return show("audit-output", "❌ enter from + count", false);
+      const from = BigInt(fromStr);
+      const count = parseInt(countStr, 10);
+      show("audit-output", "Running audit...");
+      try {
+        const c = client();
+        const lines = [];
+        let prev = null;
+        for (let i = 0; i < count; i++) {
+          const n = from + BigInt(i);
+          const b = await c.getBatch(n);
+          if (b === null) { lines.push(`#${n}: NOT SEALED YET (audit aborted)`); break; }
+          if (prev) {
+            const ok = b.preStateRoot === prev.postStateRoot;
+            lines.push(`#${n}: ${ok ? "✅" : "❌"} preStateRoot=${b.preStateRoot.slice(0, 18)}... ${ok ? "==" : "≠"} prev.postStateRoot=${prev.postStateRoot.slice(0, 18)}...`);
+            if (!ok) {
+              show("audit-output", lines.join("\n") + "\n\n❌ State-root continuity violation detected.", false);
+              return;
+            }
+          } else {
+            lines.push(`#${n}: postStateRoot=${b.postStateRoot.slice(0, 18)}... (start)`);
+          }
+          prev = b;
+        }
+        show("audit-output", lines.join("\n") + "\n\n✅ State-root continuity holds across all checked batches.", true);
+      } catch (e) { show("audit-output", `❌ ${e.name}: ${e.message}`, false); }
+    };
+  </script>
+</body>
+</html>

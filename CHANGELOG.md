@@ -229,6 +229,46 @@ exercise what the previous command actually wrote).
 
 Doc-set: test count 1150 → 1153 across the standard files.
 
+### Added — `RpcSequencerCommitteeProvider` production L1-RPC poller (1257 → 1263)
+
+Closes one of the three "L1-RPC-backed poller (does not exist in repo)"
+gaps in IMPLEMENTATION_STATUS's "operator must replace" table. Real
+production code, no toolchain dependency.
+
+`src/Neo.L2.Sequencer/RpcSequencerCommitteeProvider` polls the deployed
+`NeoHub.SequencerRegistry` contract via Neo's standard `invokefunction`
+RPC. For each known sequencer key it issues `getStatus` + `getSequencerAddress`
+in parallel via `Task.WhenAll`, so a 21-validator committee resolves in
+one fanout per cache miss instead of 21 sequential round trips.
+
+Design choice: the contract doesn't expose key enumeration via `[Safe]`
+methods (its storage iterator is only reachable via Neo's `findstates`
+RPC, which not every node exposes). To stay portable, this provider
+takes its known-keys set from the operator — genesis committee in the
+constructor + `RegisterKnownKey(ECPoint)` mutator the operator wires
+to an L1 event-watcher (typically subscribing to `OnSequencerRegistered`
+notifications). Removed sequencers are detected automatically when L1
+`getStatus` returns the unregistered byte (0); they're silently dropped
+from the committee snapshot. `IsRegisteredAsync` always hits L1 directly
+so an operator querying registration state sees the source of truth even
+if their event-watcher hasn't yet picked up a recent change.
+
+Cache TTL is configurable (default 5s) — short enough for live status
+changes to propagate, long enough that dBFT consensus can read the
+committee per-block without fanning out 21 RPC calls every time. Tests
+pin both fresh-fetch and cached-hit paths.
+
+6 new tests in `UT_RpcSequencerCommitteeProvider`:
+- 3-key happy path (all Active) round-trip
+- A key reporting status=0 silently dropped (the operator's known-keys
+  set is allowed to drift; L1 is the source of truth)
+- `RegisterKnownKey` adds + invalidates cache
+- `IsRegisteredAsync` always hits L1 (no shortcut from local set)
+- `GetMaxCommitteeSize` cached across calls
+- `InvalidateCache` forces fresh fanout
+
+Doc-set test count 1257 → 1263.
+
 ### Added — `neo-bridge` production CLI for SharedBridge invocation hex (1243 → 1257)
 
 `tools/Neo.L2.Bridge.Cli/` (binary name `neo-bridge`) emits canonical

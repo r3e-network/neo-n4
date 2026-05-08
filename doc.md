@@ -865,6 +865,84 @@ struct AssetMapping {
 }
 ```
 
+## 11.3 跨外链桥 ExternalBridge
+
+`SharedBridge` 只服务 Neo L1 ↔ Neo L2 这条单一管辖域链路。当 L2 dApp
+需要与 Ethereum / Tron / Solana 等外部链交互时，需要一套独立的、**桥
+协议无关**的可插拔桥：`ExternalBridge`。
+
+设计原则与 `VerifierRegistry` 相同：上层 API 永远不变，底层 verifier
+合约可在 MPC committee → Optimistic challenge → ZK light client 之间
+通过 governance 升级，而不破坏 dApp 调用路径。
+
+### 11.3.1 合约组
+
+```text
+NeoHub.ExternalBridgeRegistry      # externalChainId → IExternalBridgeVerifier 路由
+NeoHub.ExternalBridgeEscrow        # 锁仓 + 入站验证 + 凭证派发
+NeoHub.ExternalBridgeBond          # 委员会绑定 + 切片
+L2Native.ExternalBridgeContract    # L2 侧入口（Send / Receive）
+```
+
+### 11.3.2 Verifier 抽象
+
+```csharp
+interface IExternalBridgeVerifier {
+    bool VerifyInboundMessage(uint externalChainId, byte[] msgBytes, byte[] proofBytes);
+    byte BridgeKind();   // 1=MPC, 2=Optimistic, 3=ZK
+}
+```
+
+`ExternalBridgeRegistry.VerifyInbound(externalChainId, msg, proof)`
+读取该外链当前注册的 verifier 哈希，`Contract.Call`
+`VerifyInboundMessage`。dApp 永远看不到底层是哪种 verifier。
+
+### 11.3.3 ExternalCrossChainMessage 线格式
+
+```csharp
+struct ExternalCrossChainMessage {
+    uint32 externalChainId;     // Eth=0xE000_0001, Tron=0xE000_0010, Sol=0xE000_0020
+    uint32 neoChainId;          // 目标 Neo L2 chainId（0 = L1）
+    ulong  nonce;               // 单方向单 pair 的 replay key
+    byte   direction;           // 1 = Neo→Foreign, 2 = Foreign→Neo
+    UInt160 sender;
+    UInt160 recipient;
+    ulong  deadlineUnixSeconds;
+    UInt256 sourceTxRef;        // Eth tx hash / Tron tx hash / Solana sig
+    byte   messageType;         // 0=AssetTransfer, 1=Call, 2=AssetAndCall
+    byte[] payload;
+    UInt256 messageHash;        // Hash256 over canonical bytes
+}
+```
+
+`externalChainId` 高位 `0xE0` 前缀保留外链命名空间，与 Neo L2 chainId
+（从 1 开始）无冲突。
+
+### 11.3.4 加密原语
+
+Neo `CryptoLib` 已暴露：
+
+- `VerifyWithECDsa`（secp256k1 + Keccak256）→ Eth / Tron 签名验证
+- `VerifyWithEd25519` → Solana 签名验证
+
+签名验证不是瓶颈，**轻客户端复杂度才是**。Solana 因 Tower BFT 验证
+集 ~1500、每 epoch 轮换、需要推理 lockouts，不能短期做无信任轻
+客户端，因此 Solana 桥的所有 Phase 都停留在 MPC committee 模型。
+
+### 11.3.5 升级路径（Phase 顺序）
+
+```text
+Phase A：Foundation       # 三个合约 + IExternalBridgeVerifier seam（无 verifier）
+Phase B：MPC Committee    # M-of-N 委员会 + Eth/Tron/Sol watchers + 链上 escrow router
+Phase C：Optimistic       # 挑战窗口 + 欺诈证明（MpcCommitteeFraudVerifier）
+Phase D：ZK Light Client  # Eth 优先（SP1 + sync committee SNARK）；Tron 次之；Sol 保留 MPC
+```
+
+每次 Phase 升级 = governance 通过 `ExternalBridgeRegistry.UpgradeVerifier`
+切换 verifier 合约哈希，dApp 调用路径不动。
+
+详细路线图见 `docs/external-bridge-roadmap.md`。
+
 ---
 
 # 12. Data Availability 设计

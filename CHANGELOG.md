@@ -229,6 +229,43 @@ exercise what the previous command actually wrote).
 
 Doc-set: test count 1150 → 1153 across the standard files.
 
+### Added — End-to-end full-stack composition test for all 3 L1-RPC pollers (1283 → 1285)
+
+`UT_E2E_L1RpcPollers_FullStack` wires `RpcSequencerCommitteeProvider`,
+`RpcForcedInclusionSource`, `RpcMessageRouter`, and the bridge-CLI's
+`InvocationBuilder` against a **single shared in-process L1 RPC stub**
+that holds real per-contract state (sequencer registrations, forced-tx
+queue, L1→L2 message queue) and routes `invokefunction` by contract hash.
+
+Drives a full L1↔L2 round-trip:
+1. Operator-side L1 actions: register 3 sequencers, enqueue 2 forced-inclusion
+   entries, enqueue 2 L1→L2 messages.
+2. L2-side adapters poll the shared L1 RPC stub. Each adapter sees its own
+   contract's state correctly.
+3. Cross-checks: committee size, forced-tx deadline ordering, L1→L2 message
+   types preserved, **canonical hash recomputed by `RpcMessageRouter` (never
+   trusts an off-wire hash)**.
+4. L2 batcher emits an outbound L2→L1 withdrawal; bridge-CLI builds the
+   canonical `FinalizeWithdrawalWithProof` invocation hex.
+5. L1 marks one forced-tx consumed; the L2's next poll drops it.
+
+A second test pins that an L1 sequencer unregistration (status → 0) is
+detected by the L2 poller silently — the operator's known-keys set is
+allowed to drift; L1 is the source of truth.
+
+This integration test catches regressions individual unit tests miss:
+- canonical encoders' wire format mismatches between two adapters
+  (forced-inclusion's `[20B sender][32B txHash]...` vs message-router's
+  `[4B sourceChainId][4B targetChainId]...` — both `[Safe] byte[]` reads,
+  but with different layouts)
+- shared-RPC contract-routing bugs (one adapter accidentally hitting another's hash)
+- recomputed-hash drift if `MessageHasher` ever changes
+
+The shared stub mirrors the canonical contract encoders so adapter decoders
+get realistic responses, not hand-written canned blobs.
+
+Doc-set test count 1283 → 1285.
+
 ### Added — `RpcMessageRouter` production L1-RPC poller (1272 → 1283)
 
 Closes the **third and final** "L1-RPC-backed poller (does not exist in

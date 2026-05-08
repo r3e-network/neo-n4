@@ -191,7 +191,7 @@ subcommands.
 
 ### Tests
 
-**1283 unit + integration tests across 33 projects:**
+**1285 unit + integration tests across 33 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |

@@ -51,8 +51,12 @@ The architecture is three tiers:
   and *Governance* (GovernanceController · EmergencyManager). Owns assets, settlement,
   message routing, and governance.
 - **Neo Gateway (Phase 5, optional)** — aggregates many L2s' proofs into one settlement
-  post on L1. `BinaryTreeAggregator` reduces in log-N rounds; `IRoundProver` is
-  pluggable (default: pass-through hash; production: SP1 Compress / Halo2 / Risc0 fold).
+  post on L1. `BinaryTreeAggregator` reduces in log-N rounds; `IRoundProver` ships in
+  three production-grade implementations (`MultisigRoundProver` for committee-attested
+  rounds, `MerklePathRoundProver` for per-leaf inclusion proofs against the aggregate
+  root, `PassThroughRoundProver` as the minimal-cost reference). Recursive-ZK fold
+  variants (SP1 Compress / Halo2 / Risc0) plug into the same seam when the operator
+  brings the toolchain.
 - **L2 chains (elastic, N of them)** — Neo 4 core as execution kernel, 8 L2 plugins,
   6 native L2 contracts per chain. Independent state, shared L1 anchor.
 
@@ -73,7 +77,7 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 | CLI tools         | **4**     | `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`, `neo-l2-explore`         |
 | Native FFI        | **1**     | `bridge/neo-zkvm-bridge` — Rust cdylib + C ABI for SP1 prover P/Invoke   |
 | Submodules        | **3**     | `external/neo` (Neo 4 core) · `external/neo-devpack-dotnet` (NeoVM compiler framework) · `external/neo-zkvm` (SP1 prover, optional). None are released on NuGet/crates.io for the versions tracked here. |
-| Tests             | **1227 / 32 projects** | Module-level unit tests + integration tests; all green |
+| Tests             | **1243 / 32 projects** | Module-level unit tests + integration tests; all green |
 
 ```
 neo4/
@@ -103,7 +107,7 @@ neo4/
 │   └── executors/                          # Sample.CounterChainExecutor + scaffold target
 ├── bridge/
 │   └── neo-zkvm-bridge/                    # Rust cdylib + C ABI
-└── tests/                                  # 1227 tests / 32 projects
+└── tests/                                  # 1243 tests / 32 projects
 ```
 
 ---
@@ -119,7 +123,7 @@ Per [`doc.md` §18](./doc.md):
 | 2     | Batch Settlement                    | ✅     | Real `KeyedStateStore` continuity verified across batches |
 | 3     | Optimistic Challenge Window         | ✅     | `OptimisticChallenge` contract + `BisectionGame` (log-N narrowing) |
 | 4     | NeoVM 2 / RISC-V ZK Validity Proof  | 🟡     | SP1 FFI bridge scaffolded; `--features real-prover` flips to native |
-| 5     | Neo Gateway proof aggregation       | 🟡     | `BinaryTreeAggregator` + pluggable `IRoundProver` (default = pass-through) |
+| 5     | Neo Gateway proof aggregation       | ✅     | `BinaryTreeAggregator` ships 3 production `IRoundProver`s: `MultisigRoundProver` (Secp256r1 threshold-attested) · `MerklePathRoundProver` (per-leaf inclusion proofs) · `PassThroughRoundProver` (reference) |
 | 6     | Neo Stack CLI / templates           | ✅     | 12 subcommands functional (3 print operator-plan output for the L1/L2-wallet-gated steps; `validate` is a pure JSON sanity-check; `scaffold-executor` emits a custom-executor starter project; `new-l2` is the composite; `list-templates` prints discoverable template + use-case descriptions) |
 
 Legend: ✅ done · 🟡 substantial scaffolding + tests · 🔴 stub.
@@ -142,7 +146,7 @@ cd neo-n4
 # If you forgot --recurse-submodules:
 # git submodule update --init --recursive
 
-# Type-check everything + run all 1227 tests (~10 seconds)
+# Type-check everything + run all 1243 tests (~10 seconds)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # --- Bootstrapping a new L2 chain (recommended path) ---

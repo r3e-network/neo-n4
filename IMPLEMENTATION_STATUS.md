@@ -11,7 +11,7 @@
 | 2     | Batch Settlement                          | ✅ Off-chain green; real `KeyedStateStore` continuity verified across batches |
 | 3     | Optimistic Challenge Window               | ✅ `OptimisticChallenge` contract + `ChallengeOrchestrator` + `BisectionGame` (log-N narrowing) + `GovernanceFraudVerifier` reference (structural, governance-arbitration mode) all green |
 | 4     | NeoVM2 / RISC-V ZK Validity Proof         | 🟡 Two tracks: **RISC-V execution** — `Neo.L2.Executor.RiscV` P/Invokes into `external/neo-riscv-vm/crates/neo-riscv-host` (PolkaVM-backed). **SP1 ZK proving** — bridge buildable (`cargo build --release --features real-prover` produces `libneo_zkvm_bridge.so`); CI exercises the link path with `SP1_FORCE_DUMMY=true`. Real proof requires the SP1 toolchain offline + matching guest ELF |
-| 5     | Neo Gateway (proof aggregation)           | 🟡 `BinaryTreeAggregator` with pluggable `IRoundProver` (default = pass-through hash) |
+| 5     | Neo Gateway (proof aggregation)           | ✅ `BinaryTreeAggregator` ships **two production-grade `IRoundProver`s** (`MultisigRoundProver` — Secp256r1 threshold-attested rounds; `MerklePathRoundProver` — per-constituent inclusion proofs against the aggregate root) plus the `PassThroughRoundProver` reference. Real cryptography, no toolchain dependency. Recursive-ZK fold variants (SP1 Compress / Halo2 / Risc0) remain operator-supplied via the same `IRoundProver` seam |
 | 6     | Neo Stack CLI / Templates                 | ✅ All 12 subcommands functional (create-chain / init-l2 / register-chain / deploy-bridge-adapter / start-sequencer / start-batcher / start-prover / submit-batch / validate / scaffold-executor / new-l2 / list-templates) |
 
 Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
@@ -85,7 +85,7 @@ interface:
 | `ReferenceBatchExecutor` (placeholder post-state root) | Real MPT-backed batch executor | `IL2BatchExecutor` |
 | `MockRiscVProver` / `MockRiscVVerifier` | Real ZK prover / verifier | `IL2Prover` / `IL2ProofVerifier` |
 | `Sp1RiscVProver` falls back to mock without bridge | SP1 toolchain offline + matching guest ELF (operator-built); real `--features real-prover` libneo_zkvm_bridge | `IL2Prover` |
-| `PassThroughRoundProver` (Phase 5 default) | SP1 Compress / Halo2 fold / Risc0 fold | `IRoundProver` |
+| `PassThroughRoundProver` is one of THREE production implementations alongside `MultisigRoundProver` and `MerklePathRoundProver` — pick the one that matches your trust model | SP1 Compress / Halo2 fold / Risc0 fold (only needed for *recursive ZK* aggregation; the three shipped implementations are real production cryptography for committee-attested + inclusion-proof models) | `IRoundProver` |
 | `InMemorySequencerCommitteeProvider` | L1-RPC-backed `SequencerRegistry` poller (does not exist in repo) | `ISequencerCommitteeProvider` |
 | `InMemoryForcedInclusionSource` | L1-RPC-backed `ForcedInclusion` poller (does not exist in repo) | `IForcedInclusionSource` |
 | `InMemoryMessageRouter` | L1-RPC-backed `MessageRouter` poller (does not exist in repo) | `IMessageRouter` |
@@ -191,7 +191,7 @@ subcommands.
 
 ### Tests
 
-**1227 unit + integration tests across 32 projects:**
+**1243 unit + integration tests across 32 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |

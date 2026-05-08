@@ -229,6 +229,56 @@ exercise what the previous command actually wrote).
 
 Doc-set: test count 1150 → 1153 across the standard files.
 
+### Added — Two production-grade `IRoundProver` implementations for Phase-5 aggregation (1227 → 1243)
+
+`Neo.Plugins.L2Gateway` ships two new production aggregators alongside
+the existing `PassThroughRoundProver` reference, flipping Phase 5 from
+🟡 to ✅:
+
+- **`MultisigRoundProver`** — committee-attested aggregation. Each
+  round computes a canonical message (domain-tag + backend-id +
+  length-prefixed left/right roots and proof bytes) and threshold-signs
+  it via the same `ISignerSet` / `MultisigProofPayload` infrastructure
+  used by the Stage-0 attestation prover. Threshold is configurable;
+  `Combine` rejects rounds where insufficient signatures arrive rather
+  than producing a silently-weak aggregate. Static `VerifyRound` checks
+  threshold validity, validates each signer is in the canonical set,
+  rejects duplicates and out-of-set signatures, and re-derives the
+  combined message hash to detect tampered children.
+- **`MerklePathRoundProver`** — per-constituent inclusion proofs. Each
+  round commits to its two children's roots and recursively wraps the
+  subtree path bytes; the final aggregate root is equivalent to a
+  Merkle root over each batch's `L2ToL2MessageRoot`. `ProveLeaf`
+  extracts a canonical sibling-list inclusion proof; `VerifyLeaf`
+  re-derives the aggregate root by hashing the leaf up through the
+  siblings using directions re-computed from `(leafIndex, totalLeaves)`.
+  Handles odd-cardinality trees correctly (trailing leaf promoted
+  through odd levels — bit-pattern indexing alone wouldn't work since
+  depth varies per leaf in unbalanced trees).
+
+Real cryptography in both — Secp256r1 ECDSA + Hash256 / Merkle, no
+toolchain dependency, no scaffolding. The recursive-ZK fold variants
+(SP1 Compress / Halo2 / Risc0) plug into the same `IRoundProver` seam
+when an operator brings their toolchain; that's now correctly framed
+in `IMPLEMENTATION_STATUS.md` as "operator brings the toolchain for
+recursive-ZK aggregation," not "framework only ships scaffolding."
+
+16 new tests across 2 files (`UT_MultisigRoundProver` + `UT_MerklePathRoundProver`):
+- Multisig: full-committee verifies; threshold raised above signer count
+  rejects; tampered right-child rejects; outside-set signatures rejected;
+  odd-trailing-child promoted unchanged; deterministic signer ordering
+  (sorted by pubkey, since ECDSA itself is non-deterministic); ctor
+  rejection of out-of-bounds threshold; end-to-end aggregator pipeline.
+- MerklePath: 4-leaf and 8-leaf round-trip (every leaf provable); altered
+  leaf and wrong-index claims both rejected; 5-leaf odd-cardinality
+  every leaf provable (including trailing promoted leaf); single-leaf
+  edge case; out-of-range leaf index throws.
+
+Phase 5 row in IMPLEMENTATION_STATUS + tech-stack-coverage flips
+🟡 → ✅; coverage table 62/54 → 62/55, 🟡 count 2 → 1.
+
+Doc-set test count 1227 → 1243 across the standard files.
+
 ### Added — `neo-l2-explore` terminal block explorer + state-root continuity audit (1213 → 1227)
 
 `tools/Neo.L2.Explore/` ships a 4-subcommand CLI (`label`, `batch <n>`,

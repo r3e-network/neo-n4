@@ -12,6 +12,7 @@
     <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
     <ProjectReference Include="..\Neo.L2.State\Neo.L2.State.csproj" />
     <ProjectReference Include="..\Neo.L2.Telemetry\Neo.L2.Telemetry.csproj" />
+    <ProjectReference Include="..\Neo.L2.Proving\Neo.L2.Proving.csproj" />
   </ItemGroup>
 
 </Project>

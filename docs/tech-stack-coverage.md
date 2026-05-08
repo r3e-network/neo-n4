@@ -72,10 +72,10 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 | Cross-chain messaging | ✅ | `src/Neo.L2.Messaging/` |
 | Asset registry + deposit/withdrawal processors | ✅ | `src/Neo.L2.Bridge/` |
 | Per-L2 RPC method surface | ✅ | `src/Neo.Plugins.L2Rpc/` (10 methods) |
-| Phase-5 proof aggregation | 🟡 | `src/Neo.Plugins.L2Gateway/` (BinaryTreeAggregator + IRoundProver pluggable; default = pass-through) |
+| Phase-5 proof aggregation | ✅ | `src/Neo.Plugins.L2Gateway/` — `BinaryTreeAggregator` with three `IRoundProver` implementations: `MultisigRoundProver` (Secp256r1 threshold-attested), `MerklePathRoundProver` (per-leaf inclusion proofs), `PassThroughRoundProver` (minimal-cost reference). Recursive-ZK fold variants (SP1 Compress / Halo2 / Risc0) operator-supplied through the same seam |
 
 **16 off-chain libraries + 8 plugins.** All have `tests/Neo.*.UnitTests/` mirrors;
-1227 tests across 32 projects pass.
+1243 tests across 32 projects pass.
 
 ---
 
@@ -140,13 +140,13 @@ is a valid endpoint.
 |-------|-----------:|--------:|--------------:|---------------:|
 | L1 protocol contracts | 13 | 13 | 0 | 0 |
 | L2 native contracts | 6 | 6 | 0 | 0 |
-| Node infrastructure | 19 | 17 | 2 | 0 |
+| Node infrastructure | 19 | 18 | 1 | 0 |
 | Operator tooling | 11 | 11 | 0 | 0 |
 | App development | 7 | 6 | 0 | 1 |
 | End-user UIs | 6 | 1 | 0 | 5 |
-| **Total** | **62** | **54** | **2** | **6** |
+| **Total** | **62** | **55** | **1** | **6** |
 
-The two 🟡 items are explicitly tracked in `IMPLEMENTATION_STATUS.md`'s Phase
+The one remaining 🟡 item is explicitly tracked in `IMPLEMENTATION_STATUS.md`'s Phase
 matrix — both blocked on real ZK infrastructure (SP1 toolchain offline + matching
 guest ELF for Phase 4; SP1 Compress / Halo2 / Risc0 fold for Phase 5). They're
 scaffolded with the right plug-in points (`IL2Prover` / `IL2ProofVerifier` /

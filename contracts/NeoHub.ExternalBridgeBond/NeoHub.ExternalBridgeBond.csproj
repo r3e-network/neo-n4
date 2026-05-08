@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NeoHub.ExternalBridgeBond</RootNamespace>
+    <AssemblyName>NeoHub.ExternalBridgeBond</AssemblyName>
+  </PropertyGroup>
+
+</Project>

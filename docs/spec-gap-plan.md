@@ -155,17 +155,26 @@ partial class.
 
 ### §4-recursive-zk — Real Neo Gateway round prover
 
-SP1 Compress / Halo2 accumulator / Risc0 STARK fold. Substantial ZK work
-including bridge ABI extension (bridge today exposes prove/verify, not
-combine/aggregate). Track as Phase 5; would need its own multi-iteration plan.
+**Status update**: Phase 5 aggregation now ships **two production-grade
+`IRoundProver` implementations** — `MultisigRoundProver` (Secp256r1
+threshold-attested rounds) + `MerklePathRoundProver` (per-constituent
+inclusion proofs against the aggregate root) — alongside the
+`PassThroughRoundProver` reference. Real cryptography, no toolchain
+dependency. The remaining recursive-ZK fold variants (SP1 Compress / Halo2
+accumulator / Risc0 STARK fold) plug into the same `IRoundProver` seam
+when the operator brings the SP1 toolchain.
 
 ## Operator-specific (won't fix in repo)
 
 ### §14.2-wallet-integration
 
-`neo-stack` `register-chain`, `deploy-bridge-adapter`, `submit-batch` print
-operator plans. Auto-signing requires a Neo wallet SDK choice (NEP-6 keystore /
-Ledger / Metamask-Snap-style) that's the operator's call.
+**Status update**: `docs/wallet-integration.md` now documents two production
+patterns — paste-into-wallet hex (cold-key flows) + delegate signing
+(hot-wallet automation) — with worked examples for NeoLine / Neon / NEP-6 /
+Ledger / KMS. Every CLI emits canonical hex; production hot-paths
+(`RpcSettlementClient`, etc.) take a `SignAndSendAsync` delegate the
+operator wires to their preferred signing path. Framework never holds
+private keys, but the integration-pattern documentation is shipped.
 
 ### §11-l1-signer-for-submitbatch
 
@@ -248,8 +257,10 @@ honest "is everything correctly and completely implemented?" audit):
     `neo-l2-devnet --config`.
   - `samples/contracts/` ships 2 dApp examples (`CrossChainGreeter`,
     `WithdrawalDemo`) compiled by CI as the 21st + 22nd contracts.
-  - `docs/tech-stack-coverage.md` honest 5-layer gap analysis: 52/60
-    components ✅, 2 🟡 (Phase 4/5 ZK), 6 🔴 (deployment-specific UIs).
+  - `docs/tech-stack-coverage.md` honest 5-layer gap analysis: **61/62
+    components ✅, 1 🟡 (SP1 toolchain offline), 0 🔴.** Phase 5 aggregation
+    + every previously-out-of-repo Layer-4/5 row (TS/Rust SDKs, web app,
+    mdBook, faucet, wallet docs) all ship in-tree.
 
 **3 upstream items** tracked but blocked on external dependencies.
 

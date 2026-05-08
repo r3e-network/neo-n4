@@ -1,6 +1,14 @@
 //! Pure deterministic execution functions for the SP1 ZK guest. This crate
 //! is host-testable; the SP1 entrypoint lives in `src/main.rs` and calls
 //! into these functions.
+//!
+//! Each tx in the batch wire format is loaded as a Neo N3 VM script and
+//! executed by `neo_vm_guest::execute` (vendored via the
+//! `external/neo-zkvm` submodule). The proof attests to real VM
+//! execution — opcodes, gas accounting, halt/fault outcome — not just a
+//! hash of the bytes.
+
+extern crate alloc;
 
 use core::convert::TryInto;
 use sha2::{Digest, Sha256};
@@ -138,23 +146,56 @@ fn apply_l1_message(prev_root: &[u8; 32], msg: &L1Message) -> [u8; 32] {
     out
 }
 
+/// Default per-tx gas limit when the wire format doesn't specify one.
+/// 100,000,000 datoshi = 1 GAS — matches Neo N3's typical tx-level cap.
+const DEFAULT_PER_TX_GAS_LIMIT: u64 = 100_000_000;
+
+/// Execute a single tx through the real Neo N3 VM (`neo_vm_guest::execute`)
+/// and fold its outcome into the running state root + receipt digest.
+///
+/// The tx bytes are loaded as the script; arguments are empty (entrypoint
+/// scripts must push their own args via Neo's PUSH opcodes); gas is bounded.
+/// The returned `ProofOutput` carries the VM exit state (`0=halt`, non-zero
+/// fault), gas consumed, and the top-of-stack result — all of which feed
+/// into the receipt hash so a tampered execution can't pass the proof.
 fn apply_transaction(prev_root: &[u8; 32], tx: &[u8]) -> ([u8; 32], [u8; 32], [u8; 32], bool) {
     let tx_hash = hash256(tx);
-    let success = !tx.is_empty();
-    let mut receipt_buf = Vec::with_capacity(7 + 32 + 1);
-    receipt_buf.extend_from_slice(b"receipt");
-    receipt_buf.extend_from_slice(&tx_hash);
-    receipt_buf.push(if success { 1 } else { 0 });
-    let receipt_hash = hash256(&receipt_buf);
-    let new_root = if success {
-        let mut buf = [0u8; 64];
-        buf[..32].copy_from_slice(prev_root);
-        buf[32..].copy_from_slice(&tx_hash);
-        hash256(&buf)
-    } else {
-        *prev_root
+
+    let input = neo_vm_guest::ProofInput {
+        script: tx.to_vec(),
+        arguments: alloc::vec::Vec::new(),
+        gas_limit: DEFAULT_PER_TX_GAS_LIMIT,
     };
+    let output = neo_vm_guest::execute(input);
+    let success = output.state == 0;
+
+    // Receipt digest commits to: tx hash + VM state + gas consumed + serialized
+    // ProofOutput. Any tampering with the execution (different state, different
+    // gas, different result) changes the receipt root and the proof fails.
+    let mut receipt_buf = alloc::vec::Vec::with_capacity(64);
+    receipt_buf.extend_from_slice(b"neo-vm-receipt:v1:");
+    receipt_buf.extend_from_slice(&tx_hash);
+    receipt_buf.push(output.state);
+    receipt_buf.extend_from_slice(&output.gas_consumed.to_le_bytes());
+    receipt_buf.extend_from_slice(&hash_proof_output(&output));
+    let receipt_hash = hash256(&receipt_buf);
+
+    // State root advances on every tx (halt OR fault) — both outcomes are
+    // legitimate VM observations the proof attests to. The ordering of the
+    // mix-in matches the canonical receipt content.
+    let mut buf = [0u8; 64];
+    buf[..32].copy_from_slice(prev_root);
+    buf[32..].copy_from_slice(&receipt_hash);
+    let new_root = hash256(&buf);
+
     (new_root, tx_hash, receipt_hash, success)
+}
+
+/// Bincode-encode a ProofOutput then hash. Defers to neo-vm-guest's
+/// helper so wire-format changes upstream don't silently desync this
+/// guest's hash from the verifier's expectation.
+fn hash_proof_output(output: &neo_vm_guest::ProofOutput) -> [u8; 32] {
+    neo_vm_guest::hash_proof_output(output)
 }
 
 pub fn merkle_root(leaves: &[[u8; 32]]) -> [u8; 32] {

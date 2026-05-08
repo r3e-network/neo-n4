@@ -27,6 +27,14 @@ to a RISC-V ELF by `cargo prove build`). This crate is the orchestrator
 that runs that ELF inside SP1's zkVM and exposes a clean three-function
 public API to the rest of the framework (and to operator scripts).
 
+**What's being proved**: each tx in the batch is loaded as a Neo N3 VM
+script and executed by the real `neo_vm_guest::execute` (vendored from
+`external/neo-zkvm/crates/neo-vm-guest`, which contains the full Neo N3
+VM in pure Rust — opcodes, stack, gas accounting, native contracts,
+storage). The proof attests to actual VM execution outcomes — halt or
+fault, gas consumed, top-of-stack result — not just a hash of the
+input bytes.
+
 ## Build
 
 Requires the SP1 toolchain (`sp1up` → installs `cargo prove` and the

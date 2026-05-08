@@ -2505,6 +2505,7 @@ dependencies = [
 name = "neo-zkvm-guest"
 version = "0.1.0"
 dependencies = [
+ "neo-vm-guest",
  "sha2",
  "sp1-zkvm",
 ]

@@ -29,13 +29,21 @@
 //! - RocksDB-backed last-processed-block journal (restart safety).
 //! - Daemon main loop wiring all of the above.
 
+pub mod core;
+pub mod event_source;
+pub mod journal;
 pub mod messaging;
 pub mod proof;
 pub mod signer;
+pub mod submitter;
 
+pub use core::{CoreError, WatcherCore};
+pub use event_source::{EventSource, EventSourceError, LockedEvent, MockEventSource};
+pub use journal::{InMemoryJournal, Journal, JournalError};
 pub use messaging::{
     canonical_message_bytes, message_hash, BuildError, ExternalBridgeDirection,
     ExternalMessageType, ExternalCrossChainMessage,
 };
-pub use proof::{NeoProofBytes, EthProofBytes, ProofBuildError, Curve};
+pub use proof::{Curve, EthProofBytes, NeoProofBytes, ProofBuildError};
 pub use signer::{FileSigner, Signer, SignerError};
+pub use submitter::{InboundSubmission, MockSubmitter, NeoSubmitter, SubmitterError};

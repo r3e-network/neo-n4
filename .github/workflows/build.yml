@@ -212,3 +212,24 @@ jobs:
         run: |
           npm install --no-audit --no-fund
           npm test
+
+  docs-site:
+    name: mdBook docs site
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # mdBook renders the docs/ tree (linked from docs/SUMMARY.md) into a
+      # searchable static site. The build step exercises the SUMMARY.md
+      # navigation + every cross-link — a stale link or missing referenced
+      # file fails the build.
+      - name: Install mdBook
+        run: |
+          mkdir -p $HOME/.local/bin
+          curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.4.40/mdbook-v0.4.40-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C $HOME/.local/bin
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: mdbook build
+        run: mdbook build

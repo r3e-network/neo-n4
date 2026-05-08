@@ -689,6 +689,101 @@ post-run; the devnet runs them automatically and prints a final ✅ / ❌.
 
 ---
 
+## Prover deployment (Stage 2 ZK validity)
+
+If your chain runs in Stage-2 (RISC-V ZK validity) mode, the prover should
+be a **separate process** from the sequencer — same architecture every
+mainstream zk-rollup uses (Optimism's op-batcher/op-proposer split,
+Arbitrum's BoLD provers, ZKsync's prover subsystem). Provers are
+multi-GB, multi-CPU/GPU workloads with their own SLA; coupling them to
+the sequencer process is fragile and doesn't scale.
+
+The framework ships **two** SP1 integrations. Pick one:
+
+### Recommended: out-of-process Rust prover daemon
+
+**This is the production path.** Modern sp1-sdk 6.0, simpler dep graph,
+matches industry-standard L2 layout.
+
+```bash
+# Build the daemon binary (one-time):
+cd bridge/neo-zkvm-host
+cargo build --release
+# → target/release/prove-batch
+
+# Wire the sequencer to drop sealed batches into a queue dir
+# (e.g. /var/lib/neo-l2/batches/) — the format is just the canonical
+# BatchExecutionRequest bytes written to <batch-number>.batch.bin.
+# That format is what `Neo.L2.Batch.BatchExecutionRequest.Encode()` emits.
+
+# Run the daemon (typically under systemd / k8s):
+prove-batch daemon \
+    --watch /var/lib/neo-l2/batches \
+    --archive /var/lib/neo-l2/proven \
+    --poll-secs 5
+```
+
+The daemon polls `--watch` for `*.batch.bin`, generates a real ZK proof
+for each, writes `<name>.proof.bin` (the on-chain submission artifact)
++ `<name>.proof.vk` (the verifying key, stable per guest ELF), and moves
+the input to `--archive` so it's not re-processed. Failures leave the
+input in place and log loudly so monitoring catches poison-pill batches.
+
+What it actually proves: each tx in the batch is loaded as a Neo N3 VM
+script and executed by `neo_vm_guest::execute` (vendored from
+`external/neo-zkvm/crates/neo-vm-guest`, which contains the full Neo N3
+VM in pure Rust — opcodes, eval stack, gas accounting, native contracts,
+storage). The proof attests that each tx halted or faulted at a specific
+gas count with a specific top-of-stack result. Tampering with any
+execution detail breaks the proof.
+
+The on-chain settlement transaction submits `<name>.proof.bin`,
+`<name>.proof.vk`, and the public-input commitment via
+`NeoHub.SettlementManager.SubmitBatch`. `VerifierRegistry` dispatches to
+the registered verifier and the chain finalizes if the proof verifies.
+
+### Legacy: in-process C# P/Invoke prover
+
+`Neo.L2.Proving.Sp1` + `bridge/neo-zkvm-bridge` (cdylib) is the
+in-process proving path: the L2 prover plugin (`Neo.Plugins.L2Prover`)
+loads it, calls SP1 over the C ABI, and produces the same kind of proof
+without a separate daemon. Useful for:
+
+- **Devnet / single-tenant testnets** where simplicity beats scale
+- **Short-lived demos** where one process is easier to deploy
+- **Existing operator setups** that already wired the C# plugin chain
+
+Limitations vs. the daemon: pinned to sp1-zkvm 5.2 (older), P/Invoke
+ABI fragility (cdylib + .NET runtime version match), couples proving
+latency to sequencer process restarts. We don't recommend it for
+production rollups but it's not deprecated — it works and proves the
+same NeoVM semantics. If you outgrow it, the migration path is exactly
+"swap in `prove-batch daemon` with the same input wire format" — both
+integrations consume the canonical `BatchExecutionRequest` bytes.
+
+### Verifying a proof off-chain before submission
+
+The framework ships a public `verify()` so an operator can sanity-check
+a proof before paying L1 gas:
+
+```rust
+use neo_zkvm_host;
+
+let proof = std::fs::read("00000042.proof.bin")?;
+let vk    = std::fs::read("00000042.proof.vk")?;
+let expected_pi_hash: [u8; 32] = /* from BatchExecutionRequest */;
+
+neo_zkvm_host::verify(&proof, &vk, &expected_pi_hash)?;
+```
+
+Verification is ~42 s on a beefy CPU for the current circuit size.
+Fold this into your prover daemon's pre-submission check if you want
+belt-and-braces (the daemon doesn't run it by default — the prover
+already produced the proof, so verification only catches bugs in the
+prover itself).
+
+---
+
 ## Reference
 
 - Spec: [`doc.md`](../doc.md) (Chinese, authoritative)

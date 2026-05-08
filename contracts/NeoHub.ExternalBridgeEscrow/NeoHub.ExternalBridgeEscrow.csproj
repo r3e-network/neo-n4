@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NeoHub.ExternalBridgeEscrow</RootNamespace>
+    <AssemblyName>NeoHub.ExternalBridgeEscrow</AssemblyName>
+  </PropertyGroup>
+
+</Project>

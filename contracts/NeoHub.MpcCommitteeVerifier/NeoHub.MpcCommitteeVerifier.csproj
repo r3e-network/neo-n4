@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NeoHub.MpcCommitteeVerifier</RootNamespace>
+    <AssemblyName>NeoHub.MpcCommitteeVerifier</AssemblyName>
+  </PropertyGroup>
+
+</Project>

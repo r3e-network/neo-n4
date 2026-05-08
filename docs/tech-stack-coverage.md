@@ -75,7 +75,7 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 | Phase-5 proof aggregation | 🟡 | `src/Neo.Plugins.L2Gateway/` (BinaryTreeAggregator + IRoundProver pluggable; default = pass-through) |
 
 **16 off-chain libraries + 8 plugins.** All have `tests/Neo.*.UnitTests/` mirrors;
-1213 tests across 31 projects pass.
+1227 tests across 32 projects pass.
 
 ---
 
@@ -95,7 +95,15 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 | In-process devnet runner | ✅ | `tools/Neo.L2.Devnet/` (5 batches default; `--config`, `--data-dir`, `--metrics-port`) |
 | Sample chain configs | ✅ | `samples/` (4 templates verified end-to-end) |
 
-**3 CLI tools, 9 + 3 + 1 = 13 subcommands across them.**
+**4 CLI tools, 9 + 3 + 1 + 4 = 17 subcommands across them.**
+
+The `neo-l2-explore` CLI is the framework's terminal block explorer: `label`
+(prints the §16.2 5-dimension security label), `batch <n>` (full canonical
+commitment for one batch + status), `tail [N]` (walk recent batches), and
+`audit [N]` — the unique capability — which verifies state-root continuity
+across the last N sealed batches and exits non-zero if a discontinuity is
+found. Wraps `Neo.L2.Sdk.L2RpcClient`, so any node running `Neo.Plugins.L2Rpc`
+is a valid endpoint.
 
 ---
 
@@ -117,7 +125,8 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 
 | Component | Status | Notes |
 |-----------|:------:|-------|
-| Block explorer / indexer | 🔴 | **Out of repo.** Operators wire to existing tools (NEO N3 explorers, custom indexer pointing at `getl2batch` / `getl2stateroot` / `getl2withdrawalproof`). |
+| Terminal block explorer (CLI) | ✅ | `tools/Neo.L2.Explore/` (`neo-l2-explore`) — `label` / `batch <n>` / `tail [N]` / `audit [N]` (state-root continuity check). Wraps `Neo.L2.Sdk.L2RpcClient` so it points at any endpoint running `Neo.Plugins.L2Rpc`. |
+| Web block explorer / indexer | 🔴 | **Out of repo.** A graphical explorer is a different stack (TS/React/etc.) and operator-deployment-specific. The CLI `neo-l2-explore` covers the same RPC surface for terminal users + scripts. |
 | Bridge UI / web portal | 🔴 | **Out of repo.** A web app calling `SharedBridge.Deposit` (L1) and `SharedBridge.FinalizeWithdrawalWithProof` is operator-built; the canonical 91-byte configBytes + RPC method shapes are documented for portal builders. |
 | Documentation site (rendered) | 🔴 | **Out of repo.** This repo's markdown docs are the source. Operators using static-site generators (mdBook, Docusaurus, etc.) can render against `docs/`, `WHITEPAPER.md`, `ARCHITECTURE.md`. |
 | Testnet faucet | 🔴 | **Out of repo.** Standard Neo N3 faucet patterns apply; the L2's bridge contract handles the L1→L2 deposit flow once L1 GAS is in hand. |
@@ -134,8 +143,8 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 | Node infrastructure | 19 | 17 | 2 | 0 |
 | Operator tooling | 11 | 11 | 0 | 0 |
 | App development | 7 | 6 | 0 | 1 |
-| End-user UIs | 5 | 0 | 0 | 5 |
-| **Total** | **61** | **53** | **2** | **6** |
+| End-user UIs | 6 | 1 | 0 | 5 |
+| **Total** | **62** | **54** | **2** | **6** |
 
 The two 🟡 items are explicitly tracked in `IMPLEMENTATION_STATUS.md`'s Phase
 matrix — both blocked on real ZK infrastructure (SP1 toolchain offline + matching

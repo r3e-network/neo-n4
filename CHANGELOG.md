@@ -229,6 +229,50 @@ exercise what the previous command actually wrote).
 
 Doc-set: test count 1150 → 1153 across the standard files.
 
+### Added — `neo-l2-explore` terminal block explorer + state-root continuity audit (1213 → 1227)
+
+`tools/Neo.L2.Explore/` ships a 4-subcommand CLI (`label`, `batch <n>`,
+`tail [N]`, `audit [N]`) that wraps `Neo.L2.Sdk.L2RpcClient` to give
+operators + dApp developers a fast terminal-side view into any node
+running `Neo.Plugins.L2Rpc`. Closes the Layer-5 "block explorer" 🔴
+row in `docs/tech-stack-coverage.md`'s end-user-interfaces table for
+the CLI dimension; a graphical explorer remains intentionally out-of-repo
+since it's a different stack (TS/React) and operator-deployment-specific.
+
+The unique capability is `audit [N]`: walks the last N sealed batches
+and verifies state-root continuity (each batch's `preStateRoot` MUST
+equal the previous batch's `postStateRoot`). On-chain settlement
+enforces this for finalized batches, but a misbehaving / pre-finalization
+sequencer can ship continuity-violating batches; the audit catches them
+before settlement does. Distinct exit codes:
+  - `0` — chain continuous, prints the count of consecutive pairs verified
+  - `1` — caller error (missing/invalid args)
+  - `2` — chain has no sealed batches (or audit start beyond head)
+  - `4` — continuity violation found; stderr names the offending batch
+        + prints both state roots so the operator sees the gap
+
+14 tests across 4 files in `tests/Neo.L2.Explore.UnitTests/`:
+- `UT_LabelCommand` (3) — full label printout + missing-arg paths
+- `UT_BatchCommand` (3) — full canonical-commitment printout + status
+  + not-found / missing-number rejection paths
+- `UT_TailCommand` (4) — default-5 vs explicit-N depth, descending order
+  pin, no-batches and only-genesis edge cases
+- `UT_AuditCommand` (4) — continuous chain accepts, deliberately-injected
+  discontinuity at batch #3 surfaces as exit-4 with the offending batch
+  named in stderr, count-under-2 rejection, default-count-is-10 pin
+
+Each test uses a `StubBackedClient` that wires the SDK's HTTP request
+through an in-memory bridge handler to a real `L2RpcMethods` dispatcher
+(no listener; same pattern as `UT_L2RpcClient_ContractWithServer`) — so
+the tests exercise the full request/response cycle through the SDK + the
+real server logic, not canned responses.
+
+Project count 31 → 32, test count 1213 → 1227. Doc-set updated:
+README ("3 CLI tools" → "4 CLI tools" + neo-l2-explore in the list),
+tech-stack-coverage (Layer-3 subcommand-count tally + Layer-5 split row +
+totals 61 → 62 / 53 → 54), IMPLEMENTATION_STATUS, AGENTS, CONTRIBUTING,
+getting-started.
+
 ### Added — `Neo.L2.Sdk` typed app-developer client (1188 → 1213)
 
 Closes the Layer-4 🔴 row in `docs/tech-stack-coverage.md`. Operators who

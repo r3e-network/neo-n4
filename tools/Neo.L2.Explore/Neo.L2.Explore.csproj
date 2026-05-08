@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Neo.L2.Explore</RootNamespace>
+    <AssemblyName>neo-l2-explore</AssemblyName>
+    <Description>Terminal block-explorer CLI for an L2 node. Wraps Neo.L2.Sdk to print batch summaries, walk recent history, verify state-root continuity, and inspect §16.2 security labels — what an explorer UI would surface, plus an audit invariant most explorers don't run.</Description>
+    <PackageTags>NEO;L2;Explorer;Cli</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Neo.L2.Sdk\Neo.L2.Sdk.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Neo.L2.Explore.UnitTests" />
+  </ItemGroup>
+
+</Project>

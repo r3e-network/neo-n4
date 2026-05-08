@@ -229,6 +229,53 @@ exercise what the previous command actually wrote).
 
 Doc-set: test count 1150 → 1153 across the standard files.
 
+### Added — `RpcMessageRouter` production L1-RPC poller (1272 → 1283)
+
+Closes the **third and final** "L1-RPC-backed poller (does not exist in
+repo)" gap in IMPLEMENTATION_STATUS's operator-must-replace table. Every
+in-memory provider that was flagged "does not exist in repo" now has a
+real production sibling.
+
+`RpcMessageRouter` is hybrid:
+
+- **Inbound (L1→L2)**: `DequeueL1MessagesAsync` polls
+  `NeoHub.MessageRouter.getL1ToL2(chainId, nonce)` + `isConsumed(hash)`
+  in parallel for each known nonce. Same operator-bootstrap pattern —
+  `RegisterInboundNonce` for event-driven additions. After Dequeue,
+  nonces are locally marked consumed (mirrors the in-memory `L1MessageInbox.Dequeue`
+  contract — subsequent calls don't re-return them).
+- **Outbound (L2-internal)**: `EnqueueOutboundAsync` stages outbound
+  messages in a local `L2Outbox` the L2 batcher consumes when sealing.
+  No L1 RPC needed for this path.
+- **Proofs**: `GetMessageProofAsync` looks up finalized inclusion proofs
+  in a caller-supplied `IL2KeyValueStore` (operators wire RocksDb so
+  proofs survive restarts). `RecordFinalizedProof` is wired to the L2
+  settlement plugin's batch-finalized callback.
+
+`DecodeMessage(bytes)` parses the canonical contract encoding
+(`[4B sourceChainId LE][4B targetChainId LE][8B nonce LE][20B sender][20B receiver][1B messageType][4B payloadLen LE][payload]`)
+and **recomputes** the canonical hash via `MessageHasher.HashMessage` —
+never trusts an off-wire hash. A drift between the contract's hash
+convention and the off-chain hasher would break inclusion proofs; this
+keeps the two in lockstep.
+
+10 new tests across `UT_RpcMessageRouter`:
+- 2-nonce inbound round-trip nonce-ordered
+- L1-consumed entries silently dropped
+- Local-consume after Dequeue stays honored across calls
+- Mismatched chainId rejected
+- RegisterInboundNonce adds + invalidates cache
+- EnqueueOutbound appends to outbox
+- GetMessageProof returns recorded bytes / null for unknown hash
+- DecodeMessage truncated rejection / payloadLen mismatch rejection /
+  known-encoding round-trip with recomputed hash
+
+All three L1-RPC poller gaps are now closed: `RpcSequencerCommitteeProvider`,
+`RpcForcedInclusionSource`, `RpcMessageRouter`. The operator-must-replace
+table no longer flags any in-memory provider as "does not exist in repo."
+
+Doc-set test count 1272 → 1283.
+
 ### Added — `RpcForcedInclusionSource` production L1-RPC poller (1263 → 1272)
 
 Closes the second of three "L1-RPC-backed poller (does not exist in repo)"

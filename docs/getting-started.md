@@ -155,7 +155,9 @@ command line: `dotnet build /p:NeoCorePath=/path/to/neo/src`.
 That's expected without `nccs`. Install nccs from `neo-project/neo-devpack-dotnet` and run
 `dotnet build` without `DisableNccs=true`.
 
-**SP1 prover returns `NotImplemented`.**
-The `bridge/neo-zkvm-bridge` Rust crate defaults to a feature-gated stub. Build with
-`cargo build --release --features real-prover` (and have `../neo-zkvm` available) to enable
-the real prover.
+**Want real ZK proofs (Stage-2 validity)?**
+Build the Rust prover daemon: `CPATH=~/.local/include cargo build --release -p neo-zkvm-host`
+(needs the SP1 toolchain — install via `sp1up`). Run it as
+`target/release/prove-batch daemon --watch <queue-dir>`; the .NET sequencer drops sealed
+batches into the queue dir and the daemon emits matching `*.proof.bin` + `*.proof.vk` for
+L1 submission. See `docs/launching-an-l2.md` § "Prover deployment".

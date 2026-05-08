@@ -252,7 +252,7 @@ plugin code or L2 contract changes required.
 | ----- | --------------------- | ------------------------------------------- | ---------------------------------------------------------------------- |
 | 0     | `AttestationVerifier` | `AttestationProver` + `ISignerSet`           | ✅ production-ready; M-of-N secp256r1 over canonical public-input bytes |
 | 1     | `OptimisticVerifier`  | `OptimisticProofPayload` + sequencer signature | ✅ Stage-1 verifier; `BisectionGame` for log-N narrowing of disputed tx |
-| 2     | `RiscVZkVerifier`     | `Sp1RiscVProver` (real) + `MockRiscVProver` (test) | 🟡 SP1 FFI bridge scaffolded; gated behind `--features real-prover`     |
+| 2     | `RiscVZkVerifier`     | `prove-batch daemon` (real, out-of-process) + `MockRiscVProver` (in-process test seam) | ✅ Real Neo N3 VM proven via SP1 6.0; end-to-end queue → daemon → verify pipeline validated     |
 
 Aggregated proofs (Phase 5 Gateway) reuse the same registry — `ProofType.Aggregated` plus a
 backend tag identifies the recursive scheme used.

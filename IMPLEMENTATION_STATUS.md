@@ -83,8 +83,7 @@ interface:
 |---------------------------------|------------------|---------------|
 | `ReferenceTransactionExecutor` (devnet/tests) | `ApplicationEngineTransactionExecutor` ships in `src/Neo.L2.Executor/` — runs real Neo VM via `ApplicationEngine.Run` against an `L2DataCacheAdapter`-wrapped `IL2KeyValueStore`. Bootstrapped via `NeoVMGenesisBootstrap.Run` (replicates `NeoSystem.Blockchain.Initialize` without Akka actors). End-to-end verified: `--executor neovm` flag in `neo-l2-devnet`; `UT_E2E_RealVM_FullStack` runs 5 batches with state-root continuity through real Neo VM | `ITransactionExecutor` |
 | `ReferenceBatchExecutor` + `DerivedPostStateRootOracle` (XOR placeholder) | `MerkleStatePostStateRootOracle` ships in `src/Neo.L2.Executor/` — production state root via `KeyedStateMerkleTree` (binary Merkle over sorted (key, value) pairs, same primitive ZKsync / Polygon zkEVM / Optimism use). Per-key inclusion proofs via `Prove(byte[])`. Plugs into the existing `ReferenceBatchExecutor` (which is otherwise production-quality); replacing the oracle turns the whole batch executor into production code | `IL2BatchExecutor` / `IPostStateRootOracle` |
-| `MockRiscVProver` / `MockRiscVVerifier` | Real ZK prover / verifier | `IL2Prover` / `IL2ProofVerifier` |
-| `Sp1RiscVProver` falls back to mock without bridge | SP1 toolchain offline + matching guest ELF (operator-built); real `--features real-prover` libneo_zkvm_bridge | `IL2Prover` |
+| `MockRiscVProver` / `MockRiscVVerifier` (in-process testing) | Real ZK prover lives out-of-process: `prove-batch daemon` (Rust, `bridge/neo-zkvm-host/`). The .NET `L2ProverPlugin` keeps the in-process Zk path mock-only by design — see `docs/launching-an-l2.md` § "Prover deployment" | `IL2Prover` / `IL2ProofVerifier` |
 | `PassThroughRoundProver` is one of THREE production implementations alongside `MultisigRoundProver` and `MerklePathRoundProver` — pick the one that matches your trust model | SP1 Compress / Halo2 fold / Risc0 fold (only needed for *recursive ZK* aggregation; the three shipped implementations are real production cryptography for committee-attested + inclusion-proof models) | `IRoundProver` |
 | `InMemorySequencerCommitteeProvider` (devnet/tests) | `RpcSequencerCommitteeProvider` ships in `src/Neo.L2.Sequencer/` — production L1-RPC poller with configurable cache TTL, parallel status fanout across known keys, operator-supplied known-keys bootstrap (genesis + RegisterKnownKey hook for event-driven additions). `IsRegisteredAsync` always hits L1 (source of truth) | `ISequencerCommitteeProvider` |
 | `InMemoryForcedInclusionSource` (devnet/tests) | `RpcForcedInclusionSource` ships in `src/Neo.L2.ForcedInclusion/` — production L1-RPC poller. Operator wires `RegisterNonce` to `OnForcedTxEnqueued` event subscription; `DrainAsync` issues parallel `getEntry` + `isConsumed` reads per known nonce, drops L1-finalized entries automatically, returns deadline-ordered list. `MarkConsumedAsync` is local bookkeeping (the L1 contract's matching method is SettlementManager-driven) | `IForcedInclusionSource` |
@@ -148,8 +147,7 @@ subcommands.
 | `Neo.L2.State`            | `MerkleTree` (matches Neo `Hash256`), **`MerkleProofSerializer`** (canonical 48 + 32×N byte wire format consumed by L1 SharedBridge), `MessageHasher`, `WithdrawalTree`, `MessageTree`, `StateRootCalculator` |
 | `Neo.L2.Bridge`           | `AssetRegistry`, `DepositPayload`, `DepositProcessor`, `WithdrawalProcessor` (both processors emit `l2.bridge.deposits/deposits_rejected/withdrawals/withdrawals_rejected` to a per-instance `IL2Metrics`) |
 | `Neo.L2.Messaging`        | `MessageBuilder`, `L1MessageInbox`, `L2Outbox` (emits `l2.messaging.emitted`), `InMemoryMessageRouter` |
-| `Neo.L2.Proving`          | Stage 0 multisig (real), Stage 1 optimistic, Stage 2 mock RISC-V; `VerifierRegistry` |
-| `Neo.L2.Proving.Sp1`      | Phase 4 SP1 P/Invoke wrapper with graceful fallback to mock when native bridge missing |
+| `Neo.L2.Proving`          | Stage 0 multisig (real), Stage 1 optimistic, Stage 2 mock RISC-V (in-process testing seam); `VerifierRegistry`. Real Stage-2 ZK proving lives in `bridge/neo-zkvm-host/` (Rust) — a separate process operators run as the `prove-batch daemon`. |
 | `Neo.L2.Executor`         | `SPEC.md` + `Receipt`, pluggable `ITransactionExecutor` / `IPostStateRootOracle` / `IL1MessageProcessor`, `ReferenceBatchExecutor`, **`KeyedStateStore` + `KeyedStateRootOracle`** |
 | `Neo.L2.ForcedInclusion`  | Anti-censorship `IForcedInclusionSource` + in-memory backend with optional `IL2KeyValueStore` (RocksDB) for consumed-nonce durability across restart (emits `l2.forced_inclusion.observed` on Enqueue) |
 | `Neo.L2.Sequencer`        | `ISequencerCommitteeProvider` + in-memory backend with optional `IL2KeyValueStore` (RocksDB) for committee + exit-window durability across restart (Register / BeginExit / Finalize); emits `l2.sequencer.registered/exits_started/exits_finalized` + `l2.sequencer.committee_size` gauge |
@@ -165,7 +163,7 @@ subcommands.
 
 | Crate                | Role                                             |
 | -------------------- | ------------------------------------------------ |
-| `neo-zkvm-bridge`    | Rust cdylib with stable C ABI (`neo_zkvm_prove` / `_verify` / `_free_buffer` / `_abi_version`); optional `real-prover` feature links against `neo-zkvm-prover` |
+| `neo-zkvm-host`      | Rust binary (sp1-sdk 6.0): `prove-batch daemon --watch <dir>` is the production prover. Also exposes lib API (`execute()` / `prove()` / `verify()`) for callers that want the proof inline. |
 
 ### neo-node plugins (`src/Neo.Plugins.L2*`)
 
@@ -209,7 +207,6 @@ subcommands.
 | `Neo.L2.Messaging.UnitTests`         | 29    | inbox FIFO, replay protection, outbox split, **L2Outbox metric emission across destinations, persistence reopen pins, MessageBuilder rejects self-routed messages (incl. zero-to-zero)** |
 | `Neo.L2.Bridge.UnitTests`            | 47    | registry, deposit replay, withdrawal staging, **metric emission on success/replay/unknown-asset/duplicate-nonce/negative-amount paths, retryability after transient validation failure, registry orphan cleanup on L1/L2 repoint, DepositPayload trailing-byte rejection, `DepositPayload` byte-layout pinned at documented offsets ([20B l1Asset][20B l2Recipient][4B amountLen LE][amountBytes]), DepositPayload at-max 64-byte amount accepted (boundary partner of RejectsOversizedAmount)** |
 | `Neo.L2.Proving.UnitTests`           | 50    | Stage 0/1/2 prove+verify, registry dispatch, **proof-payload boundary tests (length, version, ProofSystem range), AttestationVerifier dedup-before-verify, `MultisigProofPayload` byte-layout pinned at documented offsets ([1B version][2B signerCount LE]·N×([33B pubkey][64B sig])), ProofSystem enum discriminants pinned (Unknown=0..Axiom=4 — wire byte at RiscVProofPayload offset 1)** |
-| `Neo.L2.Proving.Sp1.UnitTests`       | 12    | bridge unavailable, mock fallback, VK mismatch, **`MaxProofBytes` bound pinned, Sp1BridgeStatus enum discriminants pinned (Ok=0, InvalidInput=-1, ProveFailed=-2, VerifyRejected=-3, NotImplemented=-9 — must match Rust ABI)** |
 | `Neo.L2.Executor.UnitTests`          | 38    | empty/single/many, ordering, determinism, **KeyedStateStore + oracle, persistence reopen pins** |
 | `Neo.L2.ForcedInclusion.UnitTests`   | 19    | nonce ordering, replay, overdue detection, **persistence reopen pins**   |
 | `Neo.L2.Sequencer.UnitTests`         | 26    | register/exit/finalize lifecycle, **metric emission for all three lifecycle ops + committee-size gauge, `SetMaxCommitteeSize` shrink-below-count rejection, persistence reopen pins (incl. exit-window survives restart)** |
@@ -238,8 +235,7 @@ subcommands.
 - **Live L1 signer for `RpcSettlementClient.SubmitBatchAsync`** — interface in place; concrete wallet integration is operator-specific. For tests + devnets, `Neo.L2.Settlement.Rpc.InMemorySettlementClient` provides a fully-functional in-process `ISettlementClient` with deterministic tx hashes and an explicit `AdvanceStatus` lifecycle driver.
 - **`nccs` artifact generation** — `Directory.Build.props` calls `nccs` with `ContinueOnError=true` so dev builds without nccs still type-check. CI installs `Neo.Compiler.CSharp` on the runner and verifies all 19 contracts produce `.nef` + `.manifest.json` artifacts on every commit (catches NeoVM-specific compile errors that the C# type-check doesn't).
 - **RpcServer plugin integration partial** — `L2RpcMethods` callable as plain methods; the `[RpcMethod]`-attributed wrapper for neo's `RpcServer` plugin needs the RpcServer source.
-- **Real SP1 prover linkage (recommended path)** — `bridge/neo-zkvm-host/` (Rust, sp1-sdk 6.0) is the canonical production prover. `prove()` returns proof + verifying-key bytes for on-chain submission, `verify()` confirms off-chain pre-settlement. The `prove-batch` CLI ships a `daemon --watch <dir> --archive <dir>` mode that polls a queue directory for `*.batch.bin` files and emits matching `*.proof.bin` + `*.proof.vk`, atomically renaming inputs so the loop is restart-safe. Verified end-to-end on a real proof: 87s prove time, 2.78MB proof artifact, 42s verify time, public-input hash matches host execute byte-for-byte. This is the recommended deployment shape for any chain running Stage-2 ZK validity (matches Optimism / Arbitrum / ZKsync architecture: prover as a separate process from the sequencer). See `docs/launching-an-l2.md` § "Prover deployment" for the operator runbook.
-- **Legacy in-process SP1 prover** — `Neo.L2.Proving.Sp1` + `bridge/neo-zkvm-bridge` (Rust C ABI cdylib over `external/neo-zkvm`, sp1-zkvm 5.2) is the older in-process path that the `Neo.Plugins.L2Prover` plugin P/Invokes directly. Same NeoVM semantics, older SDK, useful for devnet / single-tenant setups where one process is simpler. Not deprecated but not recommended for production rollups; the migration path is "swap in `prove-batch daemon`" since both consume the same canonical `BatchExecutionRequest` wire format.
+- **Real SP1 prover** — `bridge/neo-zkvm-host/` (Rust, sp1-sdk 6.0). The framework's only production proving path: `prove()` returns proof + verifying-key bytes for on-chain submission, `verify()` confirms off-chain pre-settlement. The `prove-batch` CLI ships a `daemon --watch <dir> --archive <dir>` mode that polls a queue directory for `*.batch.bin` files and emits matching `*.proof.bin` + `*.proof.vk`, atomically renaming inputs so the loop is restart-safe. Verified end-to-end on a real proof: 87s prove time, 2.78MB proof artifact, 42s verify time, public-input hash matches host execute byte-for-byte. The prover lives in a separate process from the sequencer (matches Optimism / Arbitrum / ZKsync architecture) — see `docs/launching-an-l2.md` § "Prover deployment" for the operator runbook.
 - **Real recursive ZK round prover** — `BinaryTreeAggregator` has the right shape; production swaps `PassThroughRoundProver` for SP1 Compress / Halo2 accumulator / Risc0 fold.
 - **Real NeoFS client** — `NeoFsLikeDAWriter` models the semantics with content-addressed in-process storage and is now the default `DAMode.NeoFS` writer wired by `L2DAPlugin`. Production swaps it via `L2DAPlugin.WithWriter(yourNeoFsSdkAdapter)` before `Configure` runs.
 - **L1-DA writer** — `DAMode.L1` (publish to Neo N3) has no built-in default targeting Neo N3 specifically. Operator paths: (a) wire an L1-RPC-backed `IDAWriter` via `L2DAPlugin.WithWriter()` before `Configure`, or (b) set `DataDirectory` in plugin config to use `PersistentDAWriter` over RocksDB for content-addressed local DA. The plain `DAMode.L1` path with no override + no DataDirectory throws a clear `NotSupportedException` at `Configure`-time.
@@ -268,11 +264,15 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --data-dir /tmp/neo-l2-devnet
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold --output deploy-plan.json
 dotnet run --project tools/Neo.Hub.Deploy -- plan --plan deploy-plan.json --output bundle.json
 
-# Build the SP1 FFI bridge (default = mock fallback)
-cd bridge/neo-zkvm-bridge && cargo build --release
+# Build the SP1 prover (real Stage-2 ZK validity prover daemon)
+CPATH=~/.local/include cargo build --release -p neo-zkvm-host
 
-# Build the SP1 FFI bridge with real prover linkage
-cd bridge/neo-zkvm-bridge && cargo build --release --features real-prover
+# Run the prover daemon (consumes *.batch.bin from --watch dir,
+# emits matching *.proof.bin + *.proof.vk)
+target/release/prove-batch daemon \
+    --watch /var/lib/neo-l2/batches \
+    --archive /var/lib/neo-l2/proven \
+    --poll-secs 5
 
 # Use the launcher CLI
 dotnet run --project tools/Neo.Stack.Cli -- help

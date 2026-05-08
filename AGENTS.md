@@ -30,10 +30,12 @@ reference implementations the agent can read but does NOT need to extend in plac
 - `neo` — official Neo 4 core (net10.0). Vendored as a git submodule at `external/neo`
   (never released on NuGet; project references resolve directly to the source tree via
   `Directory.Build.props` `NeoCorePath`).
-- `neo-zkvm`, `neo-axiom` — ZK proof systems. `bridge/neo-zkvm-bridge` (Rust cdylib in this
-  repo) wraps `neo-zkvm-prover` for C# P/Invoke. neo-zkvm is vendored as a git submodule
-  at `external/neo-zkvm` (Cargo path dep, behind the optional `real-prover` feature so
-  the bridge cargo-checks fine even without it).
+- `neo-zkvm`, `neo-axiom` — ZK proof systems. `bridge/neo-zkvm-host` (Rust prover daemon
+  in this repo) is the production prover, built on sp1-sdk 6.0; `bridge/neo-zkvm-guest`
+  is the function it proves correct (compiled to RISC-V via `cargo prove build`, runs
+  real Neo N3 VM via `neo-vm-guest`). neo-zkvm is vendored as a git submodule at
+  `external/neo-zkvm`; the guest crate's path-dep is `crates/neo-vm-guest` (the full
+  Neo N3 VM in pure Rust).
 - `neo-devpack-dotnet` — compile C# to NeoVM (used for `contracts/`). Also vendored as a
   git submodule at `external/neo-devpack-dotnet` (never released on NuGet for the version
   we track). `contracts/Directory.Build.props` defaults `NeoDevpackPath` to the submodule.
@@ -57,7 +59,7 @@ features that look missing are already there).
 | §7.2 Batcher               | Block ↦ batch              | `src/Neo.L2.Batch` + `src/Neo.Plugins.L2Batch` |
 | §7.3 StateRootGenerator    | Per-batch roots            | `src/Neo.L2.State` + `src/Neo.L2.Executor.State.KeyedStateStore` |
 | §7.4 DAWriter              | DA layer abstraction       | `src/Neo.L2.Abstractions.IDAWriter` + `src/Neo.Plugins.L2DA` |
-| §7.5 ProverAdapter         | 3-stage proving            | `src/Neo.L2.Proving.Attestation/Optimistic/RiscVZk` + `src/Neo.L2.Proving.Sp1` |
+| §7.5 ProverAdapter         | 3-stage proving            | `src/Neo.L2.Proving/{Attestation,Optimistic,RiscVZk}` (Stage 0/1/mock-2 in-process) + `bridge/neo-zkvm-host/` (real Stage-2 ZK out-of-process via `prove-batch daemon`) |
 | §8 Proof system            | Proving spec               | `src/Neo.L2.Executor/SPEC.md` |
 | §9 Token / GAS model       | Bridged accounting         | `src/Neo.L2.Bridge.AssetRegistry` + `contracts/L2Native.L2BridgeContract` |
 | §10 Neo Connect            | Cross-chain messaging      | `src/Neo.L2.Messaging` + `contracts/L2Native.L2MessageContract` |

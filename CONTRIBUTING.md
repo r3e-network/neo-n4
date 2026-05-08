@@ -6,7 +6,7 @@
 ## Prerequisites
 
 - **.NET 10 SDK** (`dotnet --version` must report `10.0.x`).
-- **Rust toolchain** (1.75+) — only required if you touch `bridge/neo-zkvm-bridge`.
+- **Rust toolchain** (stable) — only required if you touch `bridge/neo-zkvm-{guest,host}` or `sdk/rust`. The SP1 toolchain (`sp1up`) is needed only when compiling the guest ELF or running the prover daemon.
 - The [`neo-project/neo`](https://github.com/neo-project/neo) Neo 4 core, vendored as a git
   submodule at `external/neo`. Run `git submodule update --init --recursive` after cloning
   (or use `git clone --recurse-submodules`). `Directory.Build.props` defaults `NeoCorePath`
@@ -45,19 +45,19 @@ neo4/
 ├── src/
 │   ├── Neo.L2.Abstractions/         # interfaces + model records (the contract surface)
 │   ├── Neo.L2.{Batch,State,Bridge,Messaging,Proving,Executor,…}/
-│   ├── Neo.L2.Proving.Sp1/          # SP1 P/Invoke wrapper
 │   ├── Neo.L2.{ForcedInclusion,Sequencer,Censorship}/
 │   ├── Neo.L2.Settlement.Rpc/       # JSON-RPC client for L1
 │   └── Neo.Plugins.L2*/             # neo-node Plugin subclasses
-├── contracts/                       # 19 Neo SmartContract.Framework projects
-│   ├── NeoHub.*/                    # 14 L1 contracts
+├── contracts/                       # 21 Neo SmartContract.Framework projects
+│   ├── NeoHub.*/                    # 15 L1 contracts
 │   └── L2Native.*/                  # 6 on-L2 native contracts
 ├── tools/
 │   ├── Neo.Stack.Cli/               # neo-stack CLI
 │   ├── Neo.L2.Devnet/               # neo-l2-devnet runnable demo
 │   └── Neo.Hub.Deploy/              # declarative deploy planner
 ├── bridge/
-│   └── neo-zkvm-bridge/             # Rust cdylib for SP1 prover P/Invoke
+│   ├── neo-zkvm-guest/              # Rust → RISC-V ELF, real Neo N3 VM
+│   └── neo-zkvm-host/               # sp1-sdk 6.0 prover daemon (prove-batch)
 ├── tests/                           # one *.UnitTests project per src/* and tools/* item
 └── docs/
     ├── getting-started.md

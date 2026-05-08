@@ -36,14 +36,23 @@ public sealed class L2ProverPlugin : Plugin
     /// <summary>
     /// Wire the plugin with stage-specific dependencies. Multisig wants an <see cref="ISignerSet"/>;
     /// Optimistic wants a sequencer key + bond reference (handled in L2SettlementPlugin); Zk
-    /// wants a RISC-V backend (currently <see cref="MockRiscVProver"/> only).
+    /// wants a <see cref="MockRiscVProver"/> for in-process testing.
     /// </summary>
+    /// <remarks>
+    /// For production Stage-2 (RISC-V ZK validity) chains, the real prover is a separate
+    /// process — the framework's <c>prove-batch daemon</c> at <c>bridge/neo-zkvm-host/</c>
+    /// (see <c>docs/launching-an-l2.md</c> § "Prover deployment"). This plugin's in-process
+    /// <c>ProofType.Zk</c> path stays mock-only by design; trying to bolt a real SP1 prover
+    /// into the .NET process would couple proving latency to sequencer restarts and doesn't
+    /// match how mainstream zk-rollups (Optimism, Arbitrum, ZKsync, Polygon zkEVM) deploy.
+    /// </remarks>
     public void Wire(ISignerSet? signerSet = null, MockRiscVProver? riscVProver = null)
     {
         _prover = _kind switch
         {
             ProofType.Multisig => new AttestationProver(signerSet ?? throw new InvalidOperationException("ProofType.Multisig requires a signer set")),
-            ProofType.Zk => riscVProver ?? throw new InvalidOperationException("ProofType.Zk requires a RiscV prover"),
+            ProofType.Zk => riscVProver ?? throw new InvalidOperationException(
+                "ProofType.Zk in-process wants a MockRiscVProver (testing only). For real ZK proofs run the out-of-process `prove-batch daemon`; see docs/launching-an-l2.md § 'Prover deployment'."),
             ProofType.Optimistic => throw new NotSupportedException("Optimistic prover lives in L2SettlementPlugin (it just signs)."),
             // ProofType.None is legal in the wire format (genesis / operator-trusted flows)
             // but the prover plugin can't produce a proof for it. Without this explicit case

@@ -70,7 +70,7 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 
 | Area              | Count     | Description                                                              |
 | ----------------- | --------- | ------------------------------------------------------------------------ |
-| Off-chain libraries | **16**  | `Neo.L2.{Abstractions,Audit,Batch,Bridge,Censorship,Challenge,Executor,ForcedInclusion,Messaging,Persistence,Proving,Proving.Sp1,Sequencer,Settlement.Rpc,State,Telemetry}` |
+| Off-chain libraries | **15**  | `Neo.L2.{Abstractions,Audit,Batch,Bridge,Censorship,Challenge,Executor,ForcedInclusion,Messaging,Persistence,Proving,Sequencer,Settlement.Rpc,State,Telemetry}` |
 | Persistence backends | **2**  | `InMemoryKeyValueStore` (tests) · `RocksDbKeyValueStore` (production default) — see [`docs/persistence.md`](./docs/persistence.md) |
 | Node plugins      | **8**     | `Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}`  |
 | Smart contracts   | **21**    | 15 NeoHub L1 (incl. `GovernanceFraudVerifier` — structural verifier for governance-arbitration chains, and `RestrictedExecutionFraudVerifier` — trustless v3 verifier that re-derives pre/post state roots from each storage proof's siblings + leafIndex on-chain) + 6 L2 native; all type-check via `Neo.SmartContract.Framework` |
@@ -78,9 +78,9 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 | App SDKs          | **3**     | `src/Neo.L2.Sdk/` (.NET) · `sdk/typescript/` (`@neo-n4/sdk`) · `sdk/rust/` (`neo-n4-sdk`) — all 10 RPC methods, same wire shape, same 4-class error taxonomy |
 | Web app           | **1**     | `sdk/web-explorer/index.html` — single static-file UI: Explore + Bridge + Faucet + state-root continuity Audit |
 | Docs site config  | **1**     | `book.toml` + `docs/SUMMARY.md` (mdBook) |
-| Native FFI        | **2**     | `bridge/neo-zkvm-bridge` (Rust cdylib + C ABI for SP1 host) · `bridge/neo-zkvm-guest` (Rust → RISC-V ELF for SP1 zkVM) |
-| Submodules        | **3**     | `external/neo` (Neo 4 core) · `external/neo-devpack-dotnet` (NeoVM compiler framework) · `external/neo-zkvm` (SP1 prover, optional). None are released on NuGet/crates.io for the versions tracked here. |
-| Tests             | **1344 .NET + 33 cross-lang** | 1344 across 33 .NET projects; 15 TypeScript (vitest) + 10 Rust SDK (mockito) + 8 SP1 guest (host) — all green |
+| Rust prover       | **2**     | `bridge/neo-zkvm-host/` (sp1-sdk 6.0 prover + `prove-batch daemon`) · `bridge/neo-zkvm-guest/` (the function being proved — RISC-V ELF, real Neo N3 VM via `neo_vm_guest::execute`) |
+| Submodules        | **4**     | `external/neo` (Neo 4 core) · `external/neo-devpack-dotnet` (smart-contract devpack + nccs) · `external/neo-riscv-vm` (PolkaVM-backed Neo RISC-V engine) · `external/neo-zkvm` (Neo VM in pure Rust + SP1 prover crates). None are released on NuGet/crates.io for the versions tracked here. |
+| Tests             | **1332 .NET + 33 cross-lang** | 1332 across 33 .NET projects; 15 TypeScript (vitest) + 10 Rust SDK (mockito) + 8 SP1 guest (host) — all green |
 
 ```
 neo4/
@@ -93,7 +93,7 @@ neo4/
 │   ├── Neo.L2.{Batch,State,Bridge,Messaging,Executor}/
 │   ├── Neo.L2.{Sequencer,ForcedInclusion,Censorship,Challenge,Audit}/
 │   ├── Neo.L2.Persistence/                   # IL2KeyValueStore + RocksDB
-│   ├── Neo.L2.Proving/  Neo.L2.Proving.Sp1/
+│   ├── Neo.L2.Proving/                       # Stage 0/1 + RiscVZk testing seam
 │   ├── Neo.L2.Settlement.Rpc/
 │   ├── Neo.L2.Telemetry/                   # IL2Metrics + PrometheusExporter
 │   └── Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}/
@@ -109,8 +109,9 @@ neo4/
 │   ├── contracts/                          # Sample.CrossChainGreeter, Sample.WithdrawalDemo
 │   └── executors/                          # Sample.CounterChainExecutor + scaffold target
 ├── bridge/
-│   └── neo-zkvm-bridge/                    # Rust cdylib + C ABI
-└── tests/                                  # 1344 tests / 33 projects
+│   ├── neo-zkvm-guest/                     # Rust → RISC-V ELF (real Neo VM, SP1-proven)
+│   └── neo-zkvm-host/                      # sp1-sdk 6.0 prover daemon (prove-batch)
+└── tests/                                  # 1332 tests / 33 projects
 ```
 
 ---

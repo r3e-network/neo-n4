@@ -68,8 +68,12 @@ hands it to the configured `IL2Prover`:
 - **Stage 1 (challenge window):** `OptimisticProofPayload` carries a sequencer signature
   + bond reference. Verifier accepts immediately; the actual challenge logic lives in
   `NeoHub.SettlementManager`.
-- **Stage 2 (ZK):** `Neo.L2.Proving.Sp1.Sp1RiscVProver` calls `bridge/neo-zkvm-bridge`
-  via P/Invoke. Falls back to `MockRiscVProver` when the native lib isn't present.
+- **Stage 2 (ZK):** Out-of-process Rust prover at `bridge/neo-zkvm-host/`
+  (run as `prove-batch daemon --watch <queue-dir>`). Each tx in the batch is
+  loaded as a Neo N3 VM script and executed by `neo_vm_guest::execute` (real
+  NeoVM in pure Rust); SP1 6.0 proves that execution. The .NET prover plugin
+  uses `MockRiscVProver` for in-process testing only — production proving
+  lives in the daemon.
 
 The prover output goes into `L2BatchCommitment.Proof` with the matching `ProofType`.
 
@@ -284,7 +288,7 @@ specifically by `DAAvailabilityCheck` against a writer that never saw the payloa
 | §7.2 Batcher            | Block ↦ batch                 | `Neo.L2.Batch.BatchBuilder` + `Neo.Plugins.L2Batch.L2BatchPlugin`             |
 | §7.3 StateRootGenerator | Per-batch roots               | `Neo.L2.State.*` + `Neo.L2.Executor.State.KeyedStateStore`                     |
 | §7.4 DAWriter           | DA layer abstraction          | `Neo.L2.Abstractions.IDAWriter` + `Neo.Plugins.L2DA.*`                         |
-| §7.5 ProverAdapter      | 3-stage proving               | `Neo.L2.Proving.Attestation / Optimistic / RiscVZk` + `Neo.L2.Proving.Sp1`     |
+| §7.5 ProverAdapter      | 3-stage proving               | `Neo.L2.Proving.Attestation / Optimistic / RiscVZk` + `bridge/neo-zkvm-host/` (out-of-process Stage-2)     |
 | §8 Proof system         | Proving spec                  | `src/Neo.L2.Executor/SPEC.md`                                                  |
 | §9 Token / GAS model    | Bridged asset accounting      | `Neo.L2.Bridge.AssetRegistry` + `L2Native.L2BridgeContract`                    |
 | §10 Neo Connect         | Cross-chain messaging         | `Neo.L2.Messaging.*` + `L2Native.L2MessageContract`                            |

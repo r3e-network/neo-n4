@@ -11,7 +11,6 @@ using Neo.L2.ForcedInclusion;
 using Neo.L2.Proving;
 using Neo.L2.Proving.Attestation;
 using Neo.L2.Proving.RiscVZk;
-using Neo.L2.Proving.Sp1;
 using Neo.L2.State;
 using Neo.Plugins.L2Gateway;
 
@@ -19,7 +18,9 @@ namespace Neo.L2.IntegrationTests;
 
 /// <summary>
 /// Phase-1 cross-component integration test. Walks: deploy planner → forced inclusion
-/// drain → batch executor → SP1 fallback prover → multi-chain Gateway aggregation.
+/// drain → batch executor → mock RISC-V prover → multi-chain Gateway aggregation.
+/// The real ZK prover lives out-of-process (`prove-batch daemon`); these in-process
+/// tests pin the framework's prover seam wiring with a deterministic mock.
 /// </summary>
 [TestClass]
 public class UT_Mvp_Phase1_Cross_Component
@@ -112,19 +113,16 @@ public class UT_Mvp_Phase1_Cross_Component
     }
 
     [TestMethod]
-    public async Task Sp1Fallback_ProveVerify_FullCycle()
+    public async Task MockRiscVProver_ProveVerify_FullCycle()
     {
-        // Pins the mock-fallback path. CI runs without the bridge .so on the loader path
-        // → BridgeAvailable=false → fallback exercised. A dev who built the bridge and
-        // set LD_LIBRARY_PATH sees BridgeAvailable=true; skip in that case (the real-
-        // bridge path needs a real SP1 prover with a non-dummy ELF, not in unit-test scope).
-        if (Sp1Bridge.IsAvailable) { Assert.Inconclusive("bridge loaded — pins mock-fallback path only"); return; }
+        // Pins the framework's RISC-V prover seam with a deterministic mock. The
+        // real ZK prover lives out-of-process — operators run `prove-batch daemon`
+        // which produces real SP1 proofs (see docs/launching-an-l2.md § "Prover
+        // deployment"). This test only validates the in-process IL2Prover wiring
+        // is sane: same prover round-trips an arbitrary public-inputs commitment.
         var vkId = UInt256.Parse("0x" + new string('e', 64));
-        var prover = new Sp1RiscVProver(vkId);
-        var verifier = new Sp1RiscVVerifier(vkId);
-
-        // Bridge unavailable in CI → both should fall back to mock.
-        Assert.IsFalse(prover.BridgeAvailable);
+        var prover = new MockRiscVProver(vkId);
+        var verifier = new MockRiscVVerifier(vkId);
 
         var publicInputs = new PublicInputs
         {
@@ -193,13 +191,11 @@ public class UT_Mvp_Phase1_Cross_Component
     }
 
     [TestMethod]
-    public async Task EndToEnd_ForcedInclusion_Then_Sp1_Then_Aggregation()
+    public async Task EndToEnd_ForcedInclusion_Then_MockRiscV_Then_Aggregation()
     {
-        // Same mock-fallback gate as Sp1Fallback_ProveVerify_FullCycle. The cross-
-        // component flow (forced inclusion → SP1 mock prove → aggregation) is end-to-
-        // end mock-fallback wiring; with the real bridge loaded the SP1 leg would
-        // need a real ELF.
-        if (Sp1Bridge.IsAvailable) { Assert.Inconclusive("bridge loaded — pins mock-fallback wiring only"); return; }
+        // Cross-component flow: forced inclusion → batch execute → mock RISC-V
+        // prove → aggregation. The mock prover stands in for the out-of-process
+        // `prove-batch daemon`, which is what produces real SP1 proofs in production.
         // 1. User posts a forced tx because the sequencer was censoring.
         var src = new InMemoryForcedInclusionSource(1001);
         var forcedTx = new byte[] { 0xFE, 0xED, 0xFA, 0xCE };
@@ -227,9 +223,9 @@ public class UT_Mvp_Phase1_Cross_Component
             new DerivedPostStateRootOracle());
         var execResult = await executor.ApplyBatchAsync(builder.ToExecutionRequest());
 
-        // 3. Phase-4 SP1 prover (falls back to mock in CI).
+        // 3. Phase-4 prover seam — mock stands in for the out-of-process daemon.
         var vkId = UInt256.Parse("0x" + new string('f', 64));
-        var prover = new Sp1RiscVProver(vkId);
+        var prover = new MockRiscVProver(vkId);
         var publicInputs = new PublicInputs
         {
             ChainId = 1001, BatchNumber = 1,
@@ -262,8 +258,8 @@ public class UT_Mvp_Phase1_Cross_Component
         Assert.AreEqual(commitment, aggregated.Constituents[0]);
         Assert.AreNotEqual(UInt256.Zero, aggregated.GlobalMessageRoot);
 
-        // 5. Mock SP1 verifier accepts the per-chain proof.
-        var verifier = new Sp1RiscVVerifier(vkId);
+        // 5. Mock RISC-V verifier accepts the per-chain proof.
+        var verifier = new MockRiscVVerifier(vkId);
         var verify = await verifier.VerifyAsync(publicInputs, commitment.Proof);
         Assert.IsTrue(verify.Valid, verify.FailureReason);
     }

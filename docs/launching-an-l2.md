@@ -256,7 +256,7 @@ classes at the same call sites.
 | Interface                                    | Default                           | When to swap                                 |
 |----------------------------------------------|-----------------------------------|----------------------------------------------|
 | `ITransactionExecutor`                       | `ReferenceTransactionExecutor`    | Domain-specific opcodes — `neo-stack scaffold-executor` emits a starter, [`Sample.CounterChainExecutor`](../samples/executors/Sample.CounterChainExecutor) is the working reference |
-| `IL2Prover` / `IL2ProofVerifier`             | Multisig / Optimistic / Mock-RiscV| Phase 4: SP1 prover via `Sp1RiscVProver`     |
+| `IL2Prover` / `IL2ProofVerifier`             | Multisig / Optimistic / Mock-RiscV| Stage 2 (ZK validity): `prove-batch daemon` (out-of-process Rust prover at `bridge/neo-zkvm-host/`)     |
 | `IDAWriter`                                  | InMemory / NeoFsLike / Persistent | Real NeoFS SDK / L1 sendrawtransaction       |
 | `ISequencerCommitteeProvider`                | `InMemorySequencerCommitteeProvider`| Wire to neo's `DBFTPlugin` consensus selector|
 | `IRoundProver` (Phase 5 only)                | `PassThroughRoundProver`          | SP1 Compress / Halo2 accumulator / Risc0 fold|
@@ -533,10 +533,11 @@ public sealed class Halo2Verifier : IL2ProofVerifier
 }
 ```
 
-The reference is `Neo.L2.Proving.Sp1.Sp1RiscVProver` / `Sp1RiscVVerifier` — same
-shape, with a `MockRiscVProver` fallback when the native bridge isn't loaded
-(see the `Sp1Bridge.IsAvailable` gate). Wire the verifier into the chain's
-boot sequence; register the matching on-chain verifier contract via
+The reference for Stage-2 ZK validity is `bridge/neo-zkvm-host/` — the
+production prover daemon (`prove-batch daemon --watch <dir>`). For
+in-process testing, `Neo.L2.Proving.RiscVZk.MockRiscVProver` provides a
+deterministic placeholder. Wire the verifier into the chain's boot
+sequence; register the matching on-chain verifier contract via
 `NeoHub.VerifierRegistry.RegisterVerifier(proofType, verifierHash)` so the
 canonical settlement path picks it up.
 
@@ -741,25 +742,6 @@ The on-chain settlement transaction submits `<name>.proof.bin`,
 `<name>.proof.vk`, and the public-input commitment via
 `NeoHub.SettlementManager.SubmitBatch`. `VerifierRegistry` dispatches to
 the registered verifier and the chain finalizes if the proof verifies.
-
-### Legacy: in-process C# P/Invoke prover
-
-`Neo.L2.Proving.Sp1` + `bridge/neo-zkvm-bridge` (cdylib) is the
-in-process proving path: the L2 prover plugin (`Neo.Plugins.L2Prover`)
-loads it, calls SP1 over the C ABI, and produces the same kind of proof
-without a separate daemon. Useful for:
-
-- **Devnet / single-tenant testnets** where simplicity beats scale
-- **Short-lived demos** where one process is easier to deploy
-- **Existing operator setups** that already wired the C# plugin chain
-
-Limitations vs. the daemon: pinned to sp1-zkvm 5.2 (older), P/Invoke
-ABI fragility (cdylib + .NET runtime version match), couples proving
-latency to sequencer process restarts. We don't recommend it for
-production rollups but it's not deprecated — it works and proves the
-same NeoVM semantics. If you outgrow it, the migration path is exactly
-"swap in `prove-batch daemon` with the same input wire format" — both
-integrations consume the canonical `BatchExecutionRequest` bytes.
 
 ### Verifying a proof off-chain before submission
 

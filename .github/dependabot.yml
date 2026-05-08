@@ -12,10 +12,11 @@ updates:
       - dependencies
       - nuget
 
-  # Rust deps for the neo-zkvm-bridge crate. neo-zkvm itself is a submodule
-  # path-dep and won't get a dependabot PR.
+  # Rust deps for the in-repo workspace (bridge/neo-zkvm-{guest,host} +
+  # sdk/rust). external/* submodules are path-deps and won't get a
+  # dependabot PR.
   - package-ecosystem: cargo
-    directory: /bridge/neo-zkvm-bridge
+    directory: /
     schedule:
       interval: monthly
     open-pull-requests-limit: 5

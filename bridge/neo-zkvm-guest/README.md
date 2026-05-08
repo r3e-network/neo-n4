@@ -8,21 +8,24 @@ points its prover at.
 ## Position in the stack
 
 ```
-[off-chain L2 batch builder]
-         ↓ canonical BatchExecutionRequest bytes
-[SP1 prover host: bridge/neo-zkvm-bridge]
-         ↓ runs neo-zkvm-guest (this crate) inside zkVM
-         ↓ produces ZK proof + public-input commitment
+[off-chain L2 sequencer]
+         ↓ canonical BatchExecutionRequest bytes (*.batch.bin in queue dir)
+[bridge/neo-zkvm-host  (prove-batch daemon)]
+         ↓ loads neo-zkvm-guest (this crate) into SP1 zkVM
+         ↓ runs neo_vm_guest::execute on every tx → real Neo N3 VM
+         ↓ produces ZK proof + verifying-key bytes + public-input commitment
 [L1 NeoHub.VerifierRegistry]
          ↓ verifies proof
 [L1 NeoHub.SettlementManager]
          ✓ batch finalized
 ```
 
-Mirrors the C# reference path
-(`Neo.L2.Executor.ApplicationEngineTransactionExecutor` +
-`Neo.L2.Executor.ReferenceBatchExecutor`) in compute, but encoded as a
-RISC-V program SP1 can prove.
+What gets proven: each tx in the batch is loaded as a Neo N3 VM script and
+executed by `neo_vm_guest::execute` (vendored from
+`external/neo-zkvm/crates/neo-vm-guest`, which contains the full Neo N3
+VM in pure Rust — opcodes, eval stack, gas accounting, native contracts,
+storage). The proof attests to actual VM execution outcomes — halt or
+fault, gas consumed, top-of-stack result — not a hash of the input bytes.
 
 ## Build
 
@@ -36,7 +39,7 @@ sp1up
 # 2. Build the guest ELF:
 cd bridge/neo-zkvm-guest
 cargo prove build
-# → produces target/elf-compilation/riscv32im-succinct-zkvm-elf/release/neo-zkvm-guest
+# → produces target/elf-compilation/riscv64im-succinct-zkvm-elf/release/neo-zkvm-guest
 ```
 
 Without the SP1 toolchain, `cargo build` (default features) compiles the
@@ -45,7 +48,7 @@ functions on the host:
 
 ```bash
 cargo test
-# → 7 tests passed (parse + execute + Merkle determinism + version/truncation rejection)
+# → 8 tests passed (parse + execute + Merkle determinism + version/truncation rejection)
 ```
 
 ## Wire format
@@ -72,34 +75,24 @@ verifier compares against `L2BatchCommitment.PublicInputHash`.
 
 1. Parses the canonical wire-format batch request.
 2. Applies any L1→L2 messages to the state (hashing each into the state root).
-3. Applies each transaction in order — pure deterministic state-root advancement.
+3. **Executes each tx through real Neo N3 VM** via `neo_vm_guest::execute`,
+   folding the resulting `ProofOutput` (state, gas, top-of-stack, error)
+   into the receipt digest and state root.
 4. Computes Merkle roots over per-tx hashes + per-receipt hashes.
 5. Commits a public-input bundle hash to the SP1 output stream.
 
-## What's intentionally simplified vs the C# path
+## End-to-end proving
 
-- **No real Neo VM execution**: the guest's `apply_transaction` is a
-  deterministic state-root advancement (Hash256(prev_root || tx_hash)),
-  not a Neo VM `ApplicationEngine.Run`. Real Stage-2 deployments wire
-  in a RISC-V port of the operator's executor logic — same shape, but
-  with the actual contract-execution semantics they care about.
-- **No native-contract bootstrap**: the C# path needs `NeoVMGenesisBootstrap`
-  to populate PolicyContract / ContractManagement state. The proving
-  target only needs the deterministic state-root function; the executor
-  semantics are the operator's business.
+`cargo prove build` step requires SP1's RISC-V toolchain installed
+(several GB of cross-compile bits, install via `sp1up`). Once built,
+`bridge/neo-zkvm-host/tests/end_to_end.rs` runs the guest in real SP1's
+zkVM and asserts the public-input hash matches host-mode execution
+byte-for-byte. Two `#[ignore]`-gated tests exercise real CPU proof
+generation + verification + a tampered-hash negative test (~3.5 min
+combined) — see `bridge/neo-zkvm-host/README.md`.
 
-## Constraint: this sandbox cannot compile the SP1-feature path
-
-The `cargo prove` step requires SP1's RISC-V toolchain installed offline
-(several GB of cross-compile bits). This sandbox doesn't have it, so
-end-to-end proving is verified by:
-
-1. Host-side unit tests pass (`cargo test`) — the pure execution functions
-   are deterministic + correct.
-2. The `bridge/neo-zkvm-bridge` Rust crate exercises the SP1 link path
-   with `SP1_FORCE_DUMMY=true` in CI (skips guest compile, exercises host
-   prover linkage).
-
-Operators who deploy Stage-2 chains run `cargo prove build` once on their
-prover infrastructure to produce the matching guest ELF. The C# host then
-loads it via `Sp1RiscVProver` (in `src/Neo.L2.Proving.Sp1/`).
+Operators who deploy Stage-2 chains run `cargo prove build` once on
+their prover infrastructure to produce the matching guest ELF, then run
+`prove-batch daemon --watch <queue-dir>` to consume sealed batches as
+they arrive. See `docs/launching-an-l2.md` § "Prover deployment" for the
+operator runbook.

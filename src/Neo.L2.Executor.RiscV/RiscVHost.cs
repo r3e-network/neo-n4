@@ -73,7 +73,7 @@ public static class RiscVHost
     // The bridge's loaded-or-not state is sticky for process lifetime: if the .so is missing
     // at startup it stays missing; if it's present it stays present. Cache so every call
     // doesn't re-pay the DllNotFoundException cost on dev environments where the lib is
-    // intentionally absent. Same iter pattern as Sp1Bridge.IsAvailable.
+    // intentionally absent.
     private static bool? _isAvailableCache;
 
     /// <summary>True if <c>libneo_riscv_host</c> is loadable.</summary>

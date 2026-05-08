@@ -16,6 +16,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Neo.L2.Bridge.Cli.UnitTests" />
     <InternalsVisibleTo Include="Neo.L2.IntegrationTests" />
+    <InternalsVisibleTo Include="neo-l2-faucet" />
   </ItemGroup>
 
 </Project>

@@ -81,8 +81,8 @@ interface:
 
 | Reference / scaffolding default | Production needs | Plug-in point |
 |---------------------------------|------------------|---------------|
-| `ReferenceTransactionExecutor` | NeoVM `ApplicationEngine`-backed executor | `ITransactionExecutor` |
-| `ReferenceBatchExecutor` (placeholder post-state root) | Real MPT-backed batch executor | `IL2BatchExecutor` |
+| `ReferenceTransactionExecutor` (devnet/tests) | `ApplicationEngineTransactionExecutor` ships in `src/Neo.L2.Executor/` — runs real Neo VM via `ApplicationEngine.Run` against an `L2DataCacheAdapter`-wrapped `IL2KeyValueStore`. Bootstrapped via `NeoVMGenesisBootstrap.Run` (replicates `NeoSystem.Blockchain.Initialize` without Akka actors). End-to-end verified: `--executor neovm` flag in `neo-l2-devnet`; `UT_E2E_RealVM_FullStack` runs 5 batches with state-root continuity through real Neo VM | `ITransactionExecutor` |
+| `ReferenceBatchExecutor` + `DerivedPostStateRootOracle` (XOR placeholder) | `MerkleStatePostStateRootOracle` ships in `src/Neo.L2.Executor/` — production state root via `KeyedStateMerkleTree` (binary Merkle over sorted (key, value) pairs, same primitive ZKsync / Polygon zkEVM / Optimism use). Per-key inclusion proofs via `Prove(byte[])`. Plugs into the existing `ReferenceBatchExecutor` (which is otherwise production-quality); replacing the oracle turns the whole batch executor into production code | `IL2BatchExecutor` / `IPostStateRootOracle` |
 | `MockRiscVProver` / `MockRiscVVerifier` | Real ZK prover / verifier | `IL2Prover` / `IL2ProofVerifier` |
 | `Sp1RiscVProver` falls back to mock without bridge | SP1 toolchain offline + matching guest ELF (operator-built); real `--features real-prover` libneo_zkvm_bridge | `IL2Prover` |
 | `PassThroughRoundProver` is one of THREE production implementations alongside `MultisigRoundProver` and `MerklePathRoundProver` — pick the one that matches your trust model | SP1 Compress / Halo2 fold / Risc0 fold (only needed for *recursive ZK* aggregation; the three shipped implementations are real production cryptography for committee-attested + inclusion-proof models) | `IRoundProver` |
@@ -191,7 +191,7 @@ subcommands.
 
 ### Tests
 
-**1331 unit + integration tests across 33 projects:**
+**1344 unit + integration tests across 33 projects:**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |

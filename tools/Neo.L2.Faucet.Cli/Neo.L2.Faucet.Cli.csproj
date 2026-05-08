@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Neo.L2.Faucet.Cli</RootNamespace>
+    <AssemblyName>neo-l2-faucet</AssemblyName>
+    <Description>Production testnet faucet CLI: emits canonical SharedBridge.Deposit invocation scripts (paste-into-wallet hex) with per-recipient rate limiting + amount caps + drip journaling. Real bookkeeping over IL2KeyValueStore — no built-in signer (operator's wallet of choice signs + broadcasts the emitted script).</Description>
+    <PackageTags>NEO;L2;Faucet;Cli</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Persistence\Neo.L2.Persistence.csproj" />
+    <ProjectReference Include="..\Neo.L2.Bridge.Cli\Neo.L2.Bridge.Cli.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Neo.L2.Faucet.Cli.UnitTests" />
+  </ItemGroup>
+
+</Project>

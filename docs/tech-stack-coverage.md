@@ -75,7 +75,7 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 | Phase-5 proof aggregation | ✅ | `src/Neo.Plugins.L2Gateway/` — `BinaryTreeAggregator` with three `IRoundProver` implementations: `MultisigRoundProver` (Secp256r1 threshold-attested), `MerklePathRoundProver` (per-leaf inclusion proofs), `PassThroughRoundProver` (minimal-cost reference). Recursive-ZK fold variants (SP1 Compress / Halo2 / Risc0) operator-supplied through the same seam |
 
 **16 off-chain libraries + 8 plugins.** All have `tests/Neo.*.UnitTests/` mirrors;
-1331 tests across 33 projects pass.
+1344 tests across 33 projects pass.
 
 ---
 
@@ -95,7 +95,7 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 | In-process devnet runner | ✅ | `tools/Neo.L2.Devnet/` (5 batches default; `--config`, `--data-dir`, `--metrics-port`) |
 | Sample chain configs | ✅ | `samples/` (4 templates verified end-to-end) |
 
-**4 CLI tools, 9 + 3 + 1 + 4 = 17 subcommands across them.**
+**6 CLI tools, 9 + 3 + 1 + 4 + 4 + 2 = 23 subcommands across them.**
 
 The `neo-l2-explore` CLI is the framework's terminal block explorer: `label`
 (prints the §16.2 5-dimension security label), `batch <n>` (full canonical
@@ -143,8 +143,8 @@ is a valid endpoint.
 | Node infrastructure | 19 | 18 | 1 | 0 |
 | Operator tooling | 11 | 11 | 0 | 0 |
 | App development | 7 | 6 | 0 | 1 |
-| End-user UIs | 6 | 1 | 0 | 5 |
-| **Total** | **62** | **55** | **1** | **6** |
+| End-user UIs | 7 | 2 | 0 | 5 |
+| **Total** | **63** | **56** | **1** | **6** |
 
 The one remaining 🟡 item is explicitly tracked in `IMPLEMENTATION_STATUS.md`'s Phase
 matrix — both blocked on real ZK infrastructure (SP1 toolchain offline + matching

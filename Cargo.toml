@@ -1,0 +1,21 @@
+[workspace]
+resolver = "2"
+members = [
+    "bridge/neo-zkvm-bridge",
+    "bridge/neo-zkvm-guest",
+    "sdk/rust",
+]
+# Vendored Neo Rust crates live under external/ as git submodules. They keep
+# their own workspaces (external/neo-zkvm, external/neo-riscv-vm) so we
+# explicitly exclude them from this top-level workspace to avoid Cargo
+# attempting to resolve them as members.
+exclude = [
+    "external",
+]
+
+# Defaults shared by every workspace member. Override in member crates as
+# needed (e.g. the SP1 guest needs `panic = "abort"` for the zkVM target).
+[workspace.package]
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/r3e-network/neo-n4"

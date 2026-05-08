@@ -24,3 +24,5 @@ coverage/
 *.swp
 *.tmp
 *.log
+# mdBook generated static site (CI builds + deploys; not checked in).
+book/

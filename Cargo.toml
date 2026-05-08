@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "bridge/neo-zkvm-bridge",
     "bridge/neo-zkvm-guest",
+    "bridge/neo-zkvm-host",
     "sdk/rust",
 ]
 # Vendored Neo Rust crates live under external/ as git submodules. They keep

@@ -2,27 +2,21 @@
 name = "neo-zkvm-guest"
 version = "0.1.0"
 edition = "2021"
-description = "SP1 ZK guest program: deterministic Neo L2 batch executor that the SP1 prover proves correct. Mirrors src/Neo.L2.Executor/ApplicationEngineTransactionExecutor's deterministic execution contract."
+description = "SP1 ZK guest program: deterministic Neo L2 batch executor that the SP1 prover proves correct."
+
+[lib]
+name = "neo_zkvm_guest"
+path = "src/lib.rs"
 
 [[bin]]
 name = "neo-zkvm-guest"
 path = "src/main.rs"
 
 [dependencies]
-# Inputs are the canonical L2 BatchExecutionRequest wire bytes. We deserialize
-# manually with byteorder rather than pulling in a heavyweight Borsh/serde
-# stack — keeps the proving circuit small.
-sp1-zkvm = { version = "3.0", optional = true }
 sha2 = { version = "0.10", default-features = false }
-
-[features]
-# Default features: zero — build via `cargo build --release --target riscv32im-succinct-zkvm-elf`
-# pulls in sp1-zkvm via the SP1 toolchain's build context.
-default = []
-sp1 = ["dep:sp1-zkvm"]
+sp1-zkvm = "6.0"
 
 [profile.release]
-# Smaller proving circuit + smaller ELF.
 opt-level = "z"
 lto = true
 codegen-units = 1

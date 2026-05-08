@@ -31,7 +31,7 @@ git submodule update --init --recursive
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 ```
 
-Expected: **1299 tests pass across 33 projects**, ~10 seconds end-to-end.
+Expected: **1321 tests pass across 33 projects**, ~10 seconds end-to-end.
 
 If your machine doesn't have network access, `/p:NuGetAudit=false` is what suppresses the
 audit hop to nuget.org.

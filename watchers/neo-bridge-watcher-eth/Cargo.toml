@@ -1,0 +1,22 @@
+[package]
+name = "neo-bridge-watcher-eth"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Off-chain watcher daemon for Neo Elastic Network's Eth ↔ Neo external bridge. This crate provides the messaging + signing core; live RPC plumbing (subscribing to Locked events on Eth, submitting to Neo's MpcCommitteeVerifier) lives in subsequent iterations once anvil + neo-express test infrastructure is wired."
+
+[lib]
+name = "neo_bridge_watcher_eth"
+path = "src/lib.rs"
+
+[dependencies]
+# secp256k1 ECDSA (used by both Eth and Neo verifiers — same curve, same hash).
+k256 = { version = "0.13", features = ["ecdsa", "sha2"] }
+sha2 = "0.10"
+# Compact error types for the watcher's failure modes.
+thiserror = "1.0"
+hex = "0.4"
+
+[dev-dependencies]
+# Test-vector helpers.
+rand = "0.8"

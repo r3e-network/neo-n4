@@ -1,0 +1,7 @@
+# Foundry
+out/
+cache/
+broadcast/
+
+# forge-std is cloned at setup time (see README); never tracked.
+lib/

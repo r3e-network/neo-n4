@@ -229,6 +229,45 @@ exercise what the previous command actually wrote).
 
 Doc-set: test count 1150 → 1153 across the standard files.
 
+### Added — `Neo.L2.Sdk` typed app-developer client (1188 → 1213)
+
+Closes the Layer-4 🔴 row in `docs/tech-stack-coverage.md`. Operators who
+build dApps against an L2 node can now reference one NuGet-style project
+instead of hand-rolling JSON-RPC envelope code per repo.
+
+Public API:
+- `L2RpcClient` — async client exposing all 10 `doc.md §14.1` RPC methods
+  as strongly-typed methods (no `JArray` / `JObject` in the public surface).
+  Constructor takes `(endpoint, chainId, httpClient?)`; the chainId is
+  cross-checked against every response field that includes one.
+- Typed responses: `L2BatchView`, `BatchStatusResponse`, `DepositStatusResponse`,
+  `SecurityLevelResponse`, `SecurityLabelResponse` (full §16.2 5-dimension label).
+- Failure-mode split into 4 distinct exception types so callers can write
+  targeted retry policy:
+  - `L2RpcTransportException` — HTTP-layer (timeout, refused, non-2xx)
+  - `L2RpcProtocolException` — bad envelope, parse error, mismatched id
+  - `L2RpcServerException` — JSON-RPC `error` field (carries the int code)
+  - `L2RpcMismatchedChainIdException` — server returned a different chainId
+    than the client was constructed with (config error, not silently consumed)
+
+25 tests across 3 files in `tests/Neo.L2.Sdk.UnitTests/`:
+- `UT_L2RpcClient_HappyPath` (12 tests, canned-response wire shape pins for
+  every method including param ordering, hex-encoded byte decoding, and
+  enum byte / name decoding for security label dimensions)
+- `UT_L2RpcClient_ErrorPaths` (6 tests, each failure mode pinned to its
+  exception type + message; ctor rejection of bad scheme / empty / zero
+  chainId / relative URI)
+- `UT_L2RpcClient_ContractWithServer` (7 tests, end-to-end via an in-memory
+  bridge handler that wires the SDK's HTTP request to a real
+  `L2RpcMethods` dispatcher — no listener, but exercises both sides of
+  the wire contract through actual server logic; catches a SDK ↔ server
+  drift in UInt160 / UInt256 / hex-byte encoding that canned-response
+  tests would miss)
+
+Project count 30 → 31, test count 1188 → 1213. Doc-set updated:
+README, IMPLEMENTATION_STATUS, AGENTS, CONTRIBUTING, getting-started,
+tech-stack-coverage (Layer 4 ✅ row added; coverage table 60 → 61 / 52 → 53).
+
 ### Added — Direct unit-test coverage for `ArgUtil` parser (1178 → 1188)
 
 `ArgUtil` is the tiny CLI argument parser shared by every neo-stack

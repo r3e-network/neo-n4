@@ -75,7 +75,7 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 | Phase-5 proof aggregation | 🟡 | `src/Neo.Plugins.L2Gateway/` (BinaryTreeAggregator + IRoundProver pluggable; default = pass-through) |
 
 **16 off-chain libraries + 8 plugins.** All have `tests/Neo.*.UnitTests/` mirrors;
-1188 tests across 30 projects pass.
+1213 tests across 31 projects pass.
 
 ---
 
@@ -108,7 +108,8 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 | Custom IDAWriter / ISequencerCommitteeProvider / IL2Prover examples | ✅ | `docs/launching-an-l2.md` (worked examples) |
 | L2-side dApp examples | ✅ | `samples/contracts/` (cross-chain greeter + withdrawal demo) |
 | Sample chain configs (rollup / gaming / validium / sidechain) | ✅ | `samples/*.config.json` (4 templates verified end-to-end) |
-| App-developer SDK / client library (.NET, JS/TS, Rust) | 🔴 | **Out of repo.** Existing Neo SDKs (`Neo.RpcClient`, NeonJS, etc.) provide the base RPC client; the L2-specific RPC methods (`getl2batch` / `getsecuritylabel` / etc.) are documented in `Neo.Plugins.L2Rpc.L2RpcMethods` — wrap as needed for your language. |
+| App-developer SDK / client library (.NET) | ✅ | `src/Neo.L2.Sdk/` — typed `L2RpcClient` wrapping all 10 doc.md §14.1 RPC methods. Failure modes split across `L2RpcTransportException` / `L2RpcProtocolException` / `L2RpcServerException` / `L2RpcMismatchedChainIdException` so callers can write targeted retry policy. |
+| App-developer SDK — JS/TS, Rust | 🔴 | **Out of repo.** Operators who target other languages wrap `L2RpcMethods`'s 10 documented JSON-RPC methods directly; the .NET SDK above is the canonical reference shape (envelope, params, response decoding). |
 
 ---
 
@@ -132,9 +133,9 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 | L2 native contracts | 6 | 6 | 0 | 0 |
 | Node infrastructure | 19 | 17 | 2 | 0 |
 | Operator tooling | 11 | 11 | 0 | 0 |
-| App development | 6 | 5 | 0 | 1 |
+| App development | 7 | 6 | 0 | 1 |
 | End-user UIs | 5 | 0 | 0 | 5 |
-| **Total** | **60** | **52** | **2** | **6** |
+| **Total** | **61** | **53** | **2** | **6** |
 
 The two 🟡 items are explicitly tracked in `IMPLEMENTATION_STATUS.md`'s Phase
 matrix — both blocked on real ZK infrastructure (SP1 toolchain offline + matching

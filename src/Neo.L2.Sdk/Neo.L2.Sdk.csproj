@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.L2.Sdk</RootNamespace>
+    <AssemblyName>Neo.L2.Sdk</AssemblyName>
+    <Description>App-developer SDK: typed .NET wrapper around the L2 RPC method surface (doc.md §14.1) — getl2batch / getl2stateroot / getl2withdrawalproof / etc. Wire-compatible with any node running Neo.Plugins.L2Rpc; the operator-supplied endpoint URL is the only configuration needed.</Description>
+    <PackageTags>NEO;L2;Sdk;Rpc;Client</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
+    <ProjectReference Include="$(NeoCorePath)\Neo.Json\Neo.Json.csproj" />
+    <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+    <ProjectReference Include="..\Neo.L2.Batch\Neo.L2.Batch.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Neo.L2.Sdk.UnitTests" />
+  </ItemGroup>
+
+</Project>

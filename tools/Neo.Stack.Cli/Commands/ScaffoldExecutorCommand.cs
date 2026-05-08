@@ -138,6 +138,13 @@ internal static class ScaffoldExecutorCommand
             <Project Sdk="Microsoft.NET.Sdk">
 
               <PropertyGroup>
+                <!-- Set explicitly so the project type-checks even when scaffolded
+                     outside the neo-n4 repo (where Directory.Build.props would
+                     otherwise inject TargetFramework). Inside the repo this is a
+                     no-op — Directory.Build.props sets the same value. -->
+                <TargetFramework>net10.0</TargetFramework>
+                <Nullable>enable</Nullable>
+                <ImplicitUsings>enable</ImplicitUsings>
                 <RootNamespace>{{rootNs}}</RootNamespace>
                 <AssemblyName>{{projectName}}</AssemblyName>
               </PropertyGroup>
@@ -452,6 +459,12 @@ internal static class ScaffoldExecutorCommand
             <Project Sdk="Microsoft.NET.Sdk">
 
               <PropertyGroup>
+                <!-- Set explicitly so the project type-checks even when scaffolded
+                     outside the neo-n4 repo (where Directory.Build.props would
+                     otherwise inject TargetFramework). -->
+                <TargetFramework>net10.0</TargetFramework>
+                <Nullable>enable</Nullable>
+                <ImplicitUsings>enable</ImplicitUsings>
                 <OutputType>Exe</OutputType>
                 <IsPackable>false</IsPackable>
                 <RootNamespace>{{rootNs}}.UnitTests</RootNamespace>
@@ -461,7 +474,12 @@ internal static class ScaffoldExecutorCommand
               </PropertyGroup>
 
               <ItemGroup>
-                <PackageReference Include="MSTest" Version="$(MSTestVersion)" />
+                <!-- Pin a concrete MSTest version so the property fallback isn't
+                     required when scaffolded outside the neo-n4 repo. Inside the
+                     repo, Directory.Build.props sets MSTestVersion which would
+                     also satisfy this; the literal version keeps standalone use
+                     working. -->
+                <PackageReference Include="MSTest" Version="3.10.0" />
               </ItemGroup>
 
               <ItemGroup>

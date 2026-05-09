@@ -12,6 +12,7 @@
 
 # Architecture
 
+- [Architecture atlas (start here)](./architecture-atlas.md)
 - [Architecture walkthrough](./architecture-walkthrough.md)
 - [L2 chain lifecycle](./architecture-l2-lifecycle.md)
 - [Wire formats](./architecture-wire-formats.md)

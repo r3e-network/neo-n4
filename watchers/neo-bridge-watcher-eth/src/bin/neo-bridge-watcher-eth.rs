@@ -42,6 +42,7 @@
 //! min_confirmations     = 12                   # Eth: 12 = ~99.9% finality
 //! ```
 
+use neo_bridge_watcher_eth::chains;
 use neo_bridge_watcher_eth::live::{
     EthRpcEventSource, EthRpcEventSourceBuilder, FileJournal, NeoRpcError,
     NeoRpcSubmitter, NeoRpcSubmitterBuilder,
@@ -71,14 +72,43 @@ fn main() -> ExitCode {
         }
     };
 
+    let chain_label = chains::name_for_chain_id(config.external_chain_id)
+        .unwrap_or("(unknown chain — operator-allocated)");
     eprintln!(
-        "neo-bridge-watcher-eth starting:\n  externalChainId = 0x{:08X}\n  ethRouter        = 0x{}\n  neoEscrow        = 0x{}\n  signer           = 0x{}\n  journalDir       = {}",
+        "neo-bridge-watcher-eth starting:\n  externalChainId = 0x{:08X} ({})\n  ethRouter        = 0x{}\n  neoEscrow        = 0x{}\n  signer           = 0x{}\n  journalDir       = {}",
         config.external_chain_id,
+        chain_label,
         hex::encode(config.eth_router_address),
         hex::encode(config.neo_escrow_address),
         hex::encode(config.neo_signer_address),
         config.journal_dir.display(),
     );
+
+    // Confirmation-buffer sanity: if the operator left min_confirmations
+    // at 0 but this chain's recommendation is non-zero, emit a warning
+    // surfacing the recommended value. Don't fail — the operator may
+    // have a deliberate reason (testnet, L2 with separate L1 finality
+    // signal); just point them at the right value if they didn't.
+    if config.poll.min_confirmations == 0 {
+        if let Some(recommended) = chains::recommended_confirmations(config.external_chain_id) {
+            if recommended > 0 {
+                eprintln!(
+                    "WARNING: min_confirmations is 0 but chain 0x{:08X} ({}) \
+                     recommends {} — short reorgs could produce phantom mints. \
+                     Set [poll].min_confirmations in your TOML to silence \
+                     this warning (and set explicitly to 0 if you mean \
+                     no buffer).",
+                    config.external_chain_id, chain_label, recommended
+                );
+            }
+        } else {
+            eprintln!(
+                "WARNING: chain 0x{:08X} is not in the curated chains.rs table \
+                 — verify your finality assumptions before production use.",
+                config.external_chain_id
+            );
+        }
+    }
 
     match run(config) {
         Ok(()) => ExitCode::SUCCESS,

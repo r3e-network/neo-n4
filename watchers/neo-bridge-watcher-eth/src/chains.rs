@@ -274,6 +274,101 @@ pub fn is_evm_family(chain_id: u32) -> bool {
     EVM_FAMILY_CHAINS.contains(&chain_id)
 }
 
+/// Recommended `min_confirmations` buffer for a chain id. The buffer
+/// is the operator's defense against short-reorg-induced phantom
+/// mints — the watcher refuses to emit events from blocks shallower
+/// than this many confirmations from the chain head.
+///
+/// Returns `None` for unknown chain ids: the operator MUST set the
+/// value explicitly when adding a new chain (don't fall back to a
+/// silent default — different chains have wildly different finality
+/// characteristics, and an unsuitable buffer is worse than a loud
+/// "I don't know this chain" error).
+///
+/// Source: this table mirrors the per-chain guidance in
+/// `docs/external-bridge-evm-chains.md`. Values reflect mainnet-grade
+/// safety; testnets in each bank use a smaller buffer to keep dev
+/// cycles fast.
+///
+/// L2s where finality follows L1 batch posts (Arbitrum, Optimism, Base,
+/// Linea, zkSync Era, Scroll, Mantle, Polygon zkEVM) return `Some(0)`
+/// — operators must layer their own L1-batch-finality signal on top.
+/// The 0 here is "the watcher won't slow you down on its own"; it's
+/// not a claim the L2 events are immediately final.
+pub fn recommended_confirmations(chain_id: u32) -> Option<u64> {
+    match chain_id {
+        // Ethereum: 12 ~= 99.9% finality (Casper-finalized = 32, but 12
+        // is the operator-favored default; operators with stricter
+        // requirements explicitly raise to 32 in their TOML).
+        ETH_MAINNET => Some(12),
+        ETH_HOLESKY => Some(5),
+        ETH_SEPOLIA => Some(5),
+
+        // Tron: DPoS, 19 SR-rounds for full confirmation.
+        TRON_MAINNET => Some(19),
+        TRON_NILE_TESTNET => Some(1),
+        TRON_SHASTA_TESTNET => Some(1),
+
+        // Solana: not EVM-family; this table is for the secp256k1 stack.
+        // Caller should branch on is_evm_family() first; the value here
+        // (32 slots = 1 epoch ≈ ~12.8s) is informational only.
+        SOLANA_MAINNET => Some(32),
+        SOLANA_DEVNET => Some(1),
+        SOLANA_TESTNET => Some(1),
+
+        // BSC: Parlia consensus; ~15 blocks for cross-validator confirmation.
+        BSC_MAINNET => Some(15),
+        BSC_TESTNET => Some(5),
+
+        // Polygon PoS: heuristic finality at 256 (CheckpointManager
+        // finalizes every ~30 min). zkEVM is L1-gated.
+        POLYGON_MAINNET => Some(256),
+        POLYGON_AMOY_TESTNET => Some(64),
+        POLYGON_ZKEVM => Some(0),
+        POLYGON_ZKEVM_CARDONA => Some(0),
+
+        // Arbitrum: settles when the rollup batch posts on L1; 0 here
+        // means "the watcher itself doesn't gate", operator must pair
+        // with an L1 batch-finality check.
+        ARBITRUM_ONE => Some(0),
+        ARBITRUM_SEPOLIA => Some(0),
+        ARBITRUM_NOVA => Some(0),
+
+        // Optimism / Base: same OP-Stack semantics; 0 with L1 pairing.
+        OPTIMISM_MAINNET => Some(0),
+        OPTIMISM_SEPOLIA => Some(0),
+        BASE_MAINNET => Some(0),
+        BASE_SEPOLIA => Some(0),
+
+        // Avalanche C-Chain: Snowman++ near-instant finality; 1 suffices.
+        AVALANCHE_C_MAINNET => Some(1),
+        AVALANCHE_FUJI => Some(1),
+
+        // Linea / Scroll / zkSync Era: ZK rollup, L1-gated.
+        LINEA_MAINNET => Some(0),
+        LINEA_SEPOLIA => Some(0),
+        ZKSYNC_ERA_MAINNET => Some(0),
+        ZKSYNC_SEPOLIA => Some(0),
+        SCROLL_MAINNET => Some(0),
+        SCROLL_SEPOLIA => Some(0),
+
+        // Mantle: OP-Stack derivative, L1-gated.
+        MANTLE_MAINNET => Some(0),
+        MANTLE_SEPOLIA => Some(0),
+
+        // Fantom Opera: Lachesis aBFT; 5 blocks safe.
+        FANTOM_OPERA => Some(5),
+        SONIC_MAINNET => Some(5),
+
+        // Celo: IBFT 2.0 BFT consensus; 1 confirmation suffices.
+        CELO_MAINNET => Some(1),
+        CELO_ALFAJORES => Some(1),
+
+        // Unknown — operator must set explicitly.
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -367,6 +462,57 @@ mod tests {
         }
         // Sanity: an unknown id returns None.
         assert!(name_for_chain_id(0xE000_FFFF).is_none());
+    }
+
+    /// Every constant in `EVM_FAMILY_CHAINS` (plus the Solana ids)
+    /// must have a `recommended_confirmations` arm. A new chain
+    /// constant added without one would surface here with `None`,
+    /// pointing the contributor at the doc table they need to update
+    /// in lockstep.
+    #[test]
+    fn every_constant_has_a_recommended_confirmation() {
+        for id in EVM_FAMILY_CHAINS {
+            assert!(
+                recommended_confirmations(*id).is_some(),
+                "no recommended_confirmations for chain id 0x{id:08X} — \
+                 add an arm + update docs/external-bridge-evm-chains.md"
+            );
+        }
+        for id in [SOLANA_MAINNET, SOLANA_DEVNET, SOLANA_TESTNET] {
+            assert!(
+                recommended_confirmations(id).is_some(),
+                "Solana ids should have recommended_confirmations too"
+            );
+        }
+    }
+
+    /// Pin a few well-known values directly so a future refactor that
+    /// silently changed (say) Eth mainnet from 12 → 0 would break
+    /// loudly here, not in production.
+    #[test]
+    fn anchor_values_for_well_known_chains() {
+        assert_eq!(recommended_confirmations(ETH_MAINNET), Some(12));
+        assert_eq!(recommended_confirmations(BSC_MAINNET), Some(15));
+        assert_eq!(recommended_confirmations(POLYGON_MAINNET), Some(256));
+        assert_eq!(recommended_confirmations(TRON_MAINNET), Some(19));
+        assert_eq!(recommended_confirmations(AVALANCHE_C_MAINNET), Some(1));
+        // L2s settle on L1 — 0 here means the watcher doesn't gate;
+        // operator pairs with an L1 batch-finality check separately.
+        assert_eq!(recommended_confirmations(ARBITRUM_ONE), Some(0));
+        assert_eq!(recommended_confirmations(OPTIMISM_MAINNET), Some(0));
+        assert_eq!(recommended_confirmations(BASE_MAINNET), Some(0));
+    }
+
+    /// Unknown chain ids return None — operator must set explicitly.
+    /// Pinned because a silent fallback to (say) 0 or some default
+    /// would be worse than an explicit "not configured" error.
+    #[test]
+    fn unknown_chain_id_returns_none() {
+        // 0xE000_FFFF is in the namespace but unallocated.
+        assert_eq!(recommended_confirmations(0xE000_FFFF), None);
+        // Out-of-namespace ids return None too (already rejected by
+        // the namespace check at construction time, but defensive).
+        assert_eq!(recommended_confirmations(0x0000_0001), None);
     }
 
     /// Pin `is_evm_family` excludes Solana (different crypto) and

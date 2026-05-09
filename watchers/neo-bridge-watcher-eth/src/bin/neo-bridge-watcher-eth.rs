@@ -47,7 +47,7 @@ use neo_bridge_watcher_eth::live::{
     EthRpcEventSourceBuilder, FileJournal, HealthServer, HealthState, NeoRpcError,
     NeoRpcSubmitterBuilder,
 };
-use neo_bridge_watcher_eth::{CoreError, FileSigner, Signer, WatcherCore};
+use neo_bridge_watcher_eth::{CoreError, FileSigner, Journal, Signer, WatcherCore};
 use serde::Deserialize;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -252,7 +252,7 @@ fn print_usage() {
          \n\
          Optional [poll] section: poll_interval_secs, backoff_initial_secs,\n\
          backoff_max_secs, eth_chunk_size, request_timeout_secs,\n\
-         min_confirmations\n\
+         min_confirmations, start_block\n\
          \n\
          Optional [health] section: bind, threshold_secs"
     );
@@ -444,6 +444,19 @@ struct PollConfig {
     /// Operators MUST set a chain-appropriate value for production.
     #[serde(default)]
     min_confirmations: u64,
+    /// First-run cursor bootstrap. When the journal's cursor is
+    /// strictly less than `start_block`, the daemon advances the
+    /// cursor to `start_block` at startup — useful when deploying
+    /// a watcher mid-stream against a chain that's been running for
+    /// months (default behavior would re-scan from genesis, hammering
+    /// the operator's RPC budget). Default 0 (start at genesis).
+    ///
+    /// Important: this advances the cursor MONOTONICALLY (only forward).
+    /// It cannot rewind a journal that's already past `start_block`.
+    /// To rewind, the operator manually clears the journal directory
+    /// — opt-in destructive behavior, not a config knob.
+    #[serde(default)]
+    start_block: u64,
 }
 
 // Manual Default impl — `#[serde(default = "fn")]` only fires for fields
@@ -461,6 +474,7 @@ impl Default for PollConfig {
             eth_chunk_size: default_eth_chunk_size(),
             request_timeout_secs: default_request_timeout(),
             min_confirmations: 0,
+            start_block: 0,
         }
     }
 }
@@ -522,8 +536,26 @@ fn run(config: Config) -> Result<(), String> {
     .build()
     .map_err(|e| format!("build NeoRpcSubmitter: {e:?}"))?;
 
-    let journal = FileJournal::open(&config.journal_dir)
+    let mut journal = FileJournal::open(&config.journal_dir)
         .map_err(|e| format!("open FileJournal: {e:?}"))?;
+
+    // First-run cursor bootstrap: if start_block is set + the journal's
+    // cursor is below it, advance. set_cursor is monotonic, so calling
+    // it on a journal that's already past start_block is a safe no-op.
+    if config.poll.start_block > 0 {
+        let cur = journal
+            .cursor()
+            .map_err(|e| format!("read journal cursor: {e:?}"))?;
+        if cur < config.poll.start_block {
+            journal
+                .set_cursor(config.poll.start_block)
+                .map_err(|e| format!("bootstrap cursor: {e:?}"))?;
+            eprintln!(
+                "journal cursor bootstrapped to start_block = {} (was {})",
+                config.poll.start_block, cur
+            );
+        }
+    }
 
     let mut core = WatcherCore::new(
         config.external_chain_id,

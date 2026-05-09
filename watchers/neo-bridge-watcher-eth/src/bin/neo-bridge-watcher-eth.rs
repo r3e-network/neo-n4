@@ -39,6 +39,7 @@
 //! backoff_max_secs      = 300
 //! eth_chunk_size        = 5000                 # eth_getLogs chunk
 //! request_timeout_secs  = 30
+//! min_confirmations     = 12                   # Eth: 12 = ~99.9% finality
 //! ```
 
 use neo_bridge_watcher_eth::live::{
@@ -145,6 +146,14 @@ struct PollConfig {
     eth_chunk_size: u64,
     #[serde(default = "default_request_timeout")]
     request_timeout_secs: u64,
+    /// Block-finality buffer. The watcher will not emit events from
+    /// blocks less than this many confirmations deep — guards against
+    /// short-reorg phantom mints. Per-chain guidance lives in
+    /// `neo_bridge_watcher_eth::chains` doc + `min_confirmations`
+    /// builder method docs. Default 0 (no buffer, testnet-only).
+    /// Operators MUST set a chain-appropriate value for production.
+    #[serde(default)]
+    min_confirmations: u64,
 }
 
 fn default_poll_interval() -> u64 { 12 }
@@ -182,6 +191,7 @@ fn run(config: Config) -> Result<(), String> {
         config.eth_router_address,
     )
     .chunk_size(config.poll.eth_chunk_size)
+    .min_confirmations(config.poll.min_confirmations)
     .request_timeout(Duration::from_secs(config.poll.request_timeout_secs))
     .build()
     .map_err(|e| format!("build EthRpcEventSource: {e:?}"))?;

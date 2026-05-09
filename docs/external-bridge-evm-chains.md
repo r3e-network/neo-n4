@@ -201,6 +201,36 @@ For chains beyond this curated set, allocate the next free `..F0..FF`
 slot or the next free 16-slot bank above `0xE000_00FF`. Submit a PR
 adding the constant + a `name_for_chain_id` arm.
 
+## Per-chain confirmation buffers (`min_confirmations`)
+
+Each EVM chain has different reorg characteristics. The watcher's
+`[poll]` config exposes `min_confirmations` — the source will not
+emit events from blocks shallower than `min_confirmations` deep
+from the chain head. Setting it correctly is the operator's
+defense against short-reorg-induced phantom mints.
+
+| Chain                | `min_confirmations` | Rationale                                                          |
+|----------------------|---------------------|--------------------------------------------------------------------|
+| Ethereum mainnet     | **12** (or 32)      | 12 ≈ 99.9% finality; 32 ≈ Casper-finalized (recommended for gov)   |
+| Ethereum testnets    | 5                   | Faster feedback for dev; testnet reorgs are common but cheap       |
+| BSC mainnet          | 15                  | Parlia consensus; ~15 blocks for cross-validator confirmation      |
+| Polygon PoS          | 256                 | Heuristic finality; CheckpointManager finalizes every ~30 min      |
+| Polygon zkEVM        | 0                   | ZK validity proofs gate L2 finality on L1 batch posts              |
+| Arbitrum One/Nova    | 0                   | Operator waits for L1 batch finality via separate signal           |
+| Optimism / Base      | 0                   | Same — settles on L1                                               |
+| Avalanche C-Chain    | 1                   | Snowman++ near-instant finality; 1 confirmation suffices           |
+| Linea / Scroll       | 0                   | ZK rollup; finality follows L1 batch posts                         |
+| zkSync Era           | 0                   | Same                                                               |
+| Mantle / Mode        | 0                   | OP Stack derivative                                                |
+| Fantom / Sonic       | 5                   | Lachesis aBFT; ~5 blocks safe                                      |
+| Celo mainnet         | 1                   | IBFT; near-instant finality                                        |
+| Tron mainnet         | 19                  | DPoS Super-Representative-confirmed (KSR/SR2 round)                |
+| Tron Nile/Shasta     | 1                   | Testnet — fast feedback                                            |
+
+For L2s where `min_confirmations` is 0, the operator must layer their
+own signal — typically by polling the L1 settlement contract for
+batch finality before processing the L2 events.
+
 ## What the framework guarantees across EVM chains
 
 The same trait abstractions (`Signer`, `EventSource`, `NeoSubmitter`,

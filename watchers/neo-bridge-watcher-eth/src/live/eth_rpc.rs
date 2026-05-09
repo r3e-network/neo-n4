@@ -63,6 +63,11 @@ pub struct EthRpcEventSourceBuilder {
     router_address: [u8; 20],
     chunk_size: u64,
     request_timeout: Duration,
+    /// Block-finality buffer: the source never polls events from blocks
+    /// less than `min_confirmations` deep from the chain head. Chosen
+    /// per-chain by the operator based on the target chain's reorg
+    /// characteristics. Default 0 (no buffer — caller's job to set).
+    min_confirmations: u64,
     /// Keep an in-memory FIFO of decoded events; pop one per
     /// `next_event` call.
     queue: std::collections::VecDeque<LockedEvent>,
@@ -78,6 +83,7 @@ impl EthRpcEventSourceBuilder {
             router_address,
             chunk_size: DEFAULT_BLOCK_CHUNK,
             request_timeout: DEFAULT_REQUEST_TIMEOUT,
+            min_confirmations: 0,
             queue: std::collections::VecDeque::new(),
             next_block_to_poll: 0,
         }
@@ -97,6 +103,26 @@ impl EthRpcEventSourceBuilder {
         self
     }
 
+    /// Set the minimum confirmations buffer. The source will not emit
+    /// events from blocks less than `n` deep from the chain head, so a
+    /// reorg shallower than `n` blocks cannot produce a phantom mint.
+    ///
+    /// Per-chain guidance (see [`crate::chains`]):
+    /// - Ethereum mainnet: 12 (~99.9% finality), 32 for finalized
+    /// - BSC: 15
+    /// - Polygon PoS: 256 (heuristic finality; longer for hard finality)
+    /// - Arbitrum / Optimism / Base: 0 — finality follows L1 batch posts;
+    ///   operators wait for L1 confirmation via a separate signal.
+    /// - Avalanche C-Chain: 1 (snowman++ has near-instant finality)
+    /// - Tron: 19 (super-representative-confirmed)
+    /// - L2 testnets / devnets: 0 (don't slow down dev cycles)
+    ///
+    /// Default 0 — the operator MUST opt in for production deployments.
+    pub fn min_confirmations(mut self, n: u64) -> Self {
+        self.min_confirmations = n;
+        self
+    }
+
     pub fn build(self) -> Result<EthRpcEventSource, EthRpcError> {
         let client = reqwest::blocking::Client::builder()
             .timeout(self.request_timeout)
@@ -107,6 +133,7 @@ impl EthRpcEventSourceBuilder {
             rpc_url: self.rpc_url,
             router_address: self.router_address,
             chunk_size: self.chunk_size,
+            min_confirmations: self.min_confirmations,
             queue: self.queue,
             next_block_to_poll: self.next_block_to_poll,
         })
@@ -119,6 +146,7 @@ pub struct EthRpcEventSource {
     rpc_url: String,
     router_address: [u8; 20],
     chunk_size: u64,
+    min_confirmations: u64,
     queue: std::collections::VecDeque<LockedEvent>,
     next_block_to_poll: u64,
 }
@@ -139,18 +167,22 @@ impl EventSource for EthRpcEventSource {
             self.next_block_to_poll = start_block;
         }
 
-        // 3. Get current head height — we never poll past the latest
-        //    block (avoids dealing with reorgs in v0; operators wait for
-        //    a few-block confirmation depth via their journal write
-        //    cadence).
+        // 3. Get current head height — we never poll within
+        //    `min_confirmations` blocks of head (would expose us to
+        //    short-reorg-induced phantom mints — events from blocks that
+        //    end up reorganized away). Operators set the threshold per
+        //    target chain's finality characteristics; default 0 means no
+        //    buffer (suitable only for testnets).
         let head = self.fetch_block_number()?;
-        if self.next_block_to_poll > head {
+        let effective_head = head.saturating_sub(self.min_confirmations);
+        if self.next_block_to_poll > effective_head {
             return Ok(None);
         }
 
-        // 4. Poll one chunk worth of blocks. Don't overshoot the head.
+        // 4. Poll one chunk worth of blocks. Don't overshoot the
+        //    effective head.
         let from = self.next_block_to_poll;
-        let to = (from.saturating_add(self.chunk_size - 1)).min(head);
+        let to = (from.saturating_add(self.chunk_size - 1)).min(effective_head);
         let logs = self.fetch_locked_logs(from, to)?;
 
         // 5. Decode + enqueue all matching logs. Advance our cursor past
@@ -775,6 +807,171 @@ mod tests {
             }
             other => panic!("expected EventSourceError::Rpc, got {other:?}"),
         }
+    }
+
+    /// `min_confirmations` keeps the source from polling within
+    /// `n` blocks of the chain head — defends against short-reorg
+    /// phantom mints. Pin: head=100, confirmations=12 → effective_head=88;
+    /// the next_event call must NOT include block 89..100 in its
+    /// `eth_getLogs` `toBlock` parameter.
+    #[test]
+    fn live_min_confirmations_caps_polling_window_below_head() {
+        // Capture the toBlock parameter the source sends.
+        let captured_to: Arc<std::sync::Mutex<Option<u64>>> =
+            Arc::new(std::sync::Mutex::new(None));
+        let captured = captured_to.clone();
+        let server = FakeRpcServer::spawn(move |body: &str| {
+            if body.contains("eth_blockNumber") {
+                r#"{"jsonrpc":"2.0","id":1,"result":"0x64"}"#.to_string() // 100
+            } else if body.contains("eth_getLogs") {
+                // Parse the toBlock from the params JSON. The body is
+                // small + we control the shape; a substring lookup
+                // suffices.
+                if let Some(idx) = body.find(r#""toBlock":""#) {
+                    let after = &body[idx + r#""toBlock":""#.len()..];
+                    if let Some(end) = after.find('"') {
+                        let hex = after[..end].trim_start_matches("0x");
+                        if let Ok(v) = u64::from_str_radix(hex, 16) {
+                            *captured.lock().unwrap() = Some(v);
+                        }
+                    }
+                }
+                r#"{"jsonrpc":"2.0","id":1,"result":[]}"#.to_string()
+            } else {
+                r#"{"jsonrpc":"2.0","id":1,"result":null}"#.to_string()
+            }
+        });
+
+        let mut source = EthRpcEventSource::builder(server.url.clone(), [0u8; 20])
+            .chunk_size(50_000) // big enough that toBlock = effective_head
+            .min_confirmations(12)
+            .request_timeout(Duration::from_secs(5))
+            .build()
+            .unwrap();
+
+        assert!(source.next_event(0).unwrap().is_none());
+
+        let to = captured_to.lock().unwrap().expect("getLogs called once");
+        assert_eq!(
+            to, 88,
+            "with head=100 + confirmations=12, polling window should cap at \
+             effective_head=88 — got toBlock={to}"
+        );
+    }
+
+    /// When the head is below `min_confirmations`, `effective_head`
+    /// saturates at 0 (no panic on underflow). If the cursor is above
+    /// the saturated effective_head, the source must return None
+    /// without polling. Pins the saturation case — would otherwise
+    /// underflow the u64 if the head was momentarily below the
+    /// confirmation buffer.
+    #[test]
+    fn live_min_confirmations_saturates_when_head_below_threshold() {
+        // head = 5, confirmations = 12 → effective_head saturates to 0.
+        let get_logs_calls = Arc::new(AtomicUsize::new(0));
+        let counter = get_logs_calls.clone();
+        let server = FakeRpcServer::spawn(move |body: &str| {
+            if body.contains("eth_blockNumber") {
+                r#"{"jsonrpc":"2.0","id":1,"result":"0x5"}"#.to_string()
+            } else if body.contains("eth_getLogs") {
+                counter.fetch_add(1, Ordering::Relaxed);
+                r#"{"jsonrpc":"2.0","id":1,"result":[]}"#.to_string()
+            } else {
+                r#"{"jsonrpc":"2.0","id":1,"result":null}"#.to_string()
+            }
+        });
+
+        let mut source = EthRpcEventSource::builder(server.url.clone(), [0u8; 20])
+            .min_confirmations(12)
+            .request_timeout(Duration::from_secs(5))
+            .build()
+            .unwrap();
+
+        // cursor=5, effective_head=0 → cursor > effective_head → no poll.
+        assert!(source.next_event(5).unwrap().is_none());
+        assert_eq!(
+            get_logs_calls.load(Ordering::Relaxed),
+            0,
+            "must NOT poll when cursor > effective_head — saturation case \
+             (would underflow without saturating_sub)"
+        );
+    }
+
+    /// When `cursor <= effective_head`, the source DOES poll. Pins the
+    /// positive path: confirmations = 12, head = 100, cursor = 50 →
+    /// effective_head = 88 → polls [50..88], emits decoded events.
+    #[test]
+    fn live_min_confirmations_emits_events_below_buffer() {
+        let log = synthetic_locked_log(0xE000_0001, 1099, 7);
+        let server = FakeRpcServer::spawn(move |body: &str| {
+            if body.contains("eth_blockNumber") {
+                r#"{"jsonrpc":"2.0","id":1,"result":"0x64"}"#.to_string() // 100
+            } else if body.contains("eth_getLogs") {
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "result": [log.clone()]
+                })
+                .to_string()
+            } else {
+                r#"{"jsonrpc":"2.0","id":1,"result":null}"#.to_string()
+            }
+        });
+
+        let mut source = EthRpcEventSource::builder(server.url.clone(), [0u8; 20])
+            .chunk_size(100)
+            .min_confirmations(12)
+            .request_timeout(Duration::from_secs(5))
+            .build()
+            .unwrap();
+
+        // cursor=50, head=100, confirmations=12 → effective_head=88;
+        // poll window = [50..88]; the synthetic event is at block 0x10
+        // = 16 < 50 (so won't appear if filter strict) — but we return
+        // it from the fake regardless to verify decode flows.
+        let ev = source.next_event(50).unwrap().expect("event emitted");
+        assert_eq!(ev.nonce, 7);
+    }
+
+    /// Default `min_confirmations` is 0 — no buffer (existing behavior).
+    /// Pin so a future builder change to a non-zero default doesn't
+    /// silently change the polling window for callers that don't opt in.
+    #[test]
+    fn live_default_min_confirmations_is_zero() {
+        let captured_to: Arc<std::sync::Mutex<Option<u64>>> =
+            Arc::new(std::sync::Mutex::new(None));
+        let captured = captured_to.clone();
+        let server = FakeRpcServer::spawn(move |body: &str| {
+            if body.contains("eth_blockNumber") {
+                r#"{"jsonrpc":"2.0","id":1,"result":"0x64"}"#.to_string() // 100
+            } else if body.contains("eth_getLogs") {
+                if let Some(idx) = body.find(r#""toBlock":""#) {
+                    let after = &body[idx + r#""toBlock":""#.len()..];
+                    if let Some(end) = after.find('"') {
+                        let hex = after[..end].trim_start_matches("0x");
+                        if let Ok(v) = u64::from_str_radix(hex, 16) {
+                            *captured.lock().unwrap() = Some(v);
+                        }
+                    }
+                }
+                r#"{"jsonrpc":"2.0","id":1,"result":[]}"#.to_string()
+            } else {
+                r#"{"jsonrpc":"2.0","id":1,"result":null}"#.to_string()
+            }
+        });
+
+        // No .min_confirmations(...) on the builder.
+        let mut source = EthRpcEventSource::builder(server.url.clone(), [0u8; 20])
+            .chunk_size(50_000)
+            .request_timeout(Duration::from_secs(5))
+            .build()
+            .unwrap();
+        assert!(source.next_event(0).unwrap().is_none());
+        assert_eq!(
+            captured_to.lock().unwrap().expect("getLogs called once"),
+            100,
+            "default builder polls right up to head — no buffer"
+        );
     }
 
     /// HTTP transport failure (server doesn't respond / connection

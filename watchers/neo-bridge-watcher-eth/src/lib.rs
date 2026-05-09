@@ -37,6 +37,14 @@ pub mod proof;
 pub mod signer;
 pub mod submitter;
 
+/// Live JSON-RPC adapters connecting the trait abstractions to real
+/// chains. Gated behind the `live-rpc` feature so default `cargo test`
+/// keeps a lean dep tree (the messaging + signing + orchestration core
+/// has no networking deps). Operators run
+/// `cargo build --features live-rpc` when building the runnable daemon.
+#[cfg(feature = "live-rpc")]
+pub mod live;
+
 pub use core::{CoreError, WatcherCore};
 pub use event_source::{EventSource, EventSourceError, LockedEvent, MockEventSource};
 pub use journal::{InMemoryJournal, Journal, JournalError};

@@ -17,6 +17,23 @@ sha2 = "0.10"
 thiserror = "1.0"
 hex = "0.4"
 
+# Live RPC dependencies, gated behind the `live-rpc` feature so default
+# `cargo test` keeps a lean dep tree (the messaging + signing + orchestration
+# core has no networking deps). Operators flip on `live-rpc` to compile the
+# concrete EthEventSource impl that talks to an Eth JSON-RPC endpoint.
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls", "json"], optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
+tiny-keccak = { version = "2.0", features = ["keccak"], optional = true }
+
+[features]
+default = []
+# Pulls the JSON-RPC HTTP client (reqwest blocking) + JSON serde + keccak
+# (for computing the Locked event topic). Also includes the live module's
+# concrete EthEventSource impl. Operators run `cargo build --features live-rpc`
+# when building the runnable daemon.
+live-rpc = ["dep:reqwest", "dep:serde", "dep:serde_json", "dep:tiny-keccak"]
+
 [dev-dependencies]
 # Test-vector helpers.
 rand = "0.8"

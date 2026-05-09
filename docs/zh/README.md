@@ -1,55 +1,181 @@
-# Neo Elastic Network — 中文文档
+# Neo Elastic Network(`neo4`)—— 中文文档
 
-> 本目录是英文架构文档（[`docs/`](../)）的中文版镜像。
-> 内容与英文文档保持同步；当两者发生冲突时，[`doc.md`](../../doc.md)（中文母版规范）为权威。
+[![build](https://github.com/r3e-network/neo-n4/actions/workflows/build.yml/badge.svg)](https://github.com/r3e-network/neo-n4/actions/workflows/build.yml)
 
-## 翻译进度
+> 本目录是英文架构文档(`docs/`)的中文版镜像 —— 与英文版一一对应。
+> 当两者发生冲突时,[`doc.md`](../../doc.md)(中文母版规范)为权威。
 
-英文架构文档体系包含 5 个主要章节 + 1 个 L1 vs L2 设计分析章节，
-每章节都会逐步翻译并配上中文图表。当前进度：
+> [!IMPORTANT]
+> **本仓库不是 Neo 4 官方版本。** 这是一份**独立的社区探索** —— 一个研究/原型项目,
+> 用以探索一个多 L2 弹性网络架构在 Neo 栈上**可能**的样子。**它未受 Neo Global
+> Development(NGD)、Neo 基金会或 [`neo-project`](https://github.com/neo-project)
+> 组织背书、关联或维护。** 本仓中的"Neo 4"指的是被用作 L2 执行内核的*目标 core*;
+> 权威的 Neo 4 协议路线图归 Neo 项目所有。请把此处的设计选择视为一份社区原型,
+> 而非规格。
 
-| 章节 | 英文版 | 中文版 |
-|------|--------|--------|
-| 文档导航（Atlas） | [`architecture-atlas.md`](../architecture-atlas.md) | [`architecture-atlas.md`](./architecture-atlas.md) ✅ |
-| L2 链生命周期 | [`architecture-l2-lifecycle.md`](../architecture-l2-lifecycle.md) | _翻译中_ |
-| L1 vs L2 职责划分 | [`architecture-l1-vs-l2.md`](../architecture-l1-vs-l2.md) | _翻译中_ |
-| 数据线格式 | [`architecture-wire-formats.md`](../architecture-wire-formats.md) | _待翻译_ |
-| 信任边界 | [`architecture-trust-boundaries.md`](../architecture-trust-boundaries.md) | _待翻译_ |
-| 术语表 + 组件目录 | [`architecture-glossary.md`](../architecture-glossary.md) | _待翻译_ |
+`neo4` 是 **Neo Elastic Network** 的整合仓 —— 一个使用
+[`neo-project/neo`](https://github.com/neo-project/neo) Neo 4 core 作为 L2 执行
+内核、把每条 L2 链锚定到 Neo N3 / Neo 4 L1 上的统一 L1 合约套件(**NeoHub**)、
+并通过可选的 **Neo Gateway** 层聚合证明与 L2 间消息的系统。
 
-## 图表
+本架构借鉴了 ZKsync Elastic Chain 的*共享桥 / 链注册表 / 证明聚合*模式,在 Neo 栈
+上重新构建:dBFT 2.0 终结性、NEP-17 资产、NeoVM、NeoFS 数据可用性。
 
-[`figures/architecture/`](./figures/architecture/) 存放
-中文版 SVG 图表，与英文版（[`docs/figures/architecture/`](../figures/architecture/)）
-一一对应。SVG 内的所有文字标签均翻译成中文，几何布局保持一致。
+---
 
-| 图表 | 文件 | 状态 |
-|------|------|------|
-| 系统四层拓扑 | [`system-tiers.svg`](./figures/architecture/system-tiers.svg) | ✅ |
-| NeoHub L1 合约组成 | [`neohub-anatomy.svg`](./figures/architecture/neohub-anatomy.svg) | ✅ |
-| L1 ↔ L2 跨层数据流 | [`l1-l2-bridge.svg`](./figures/architecture/l1-l2-bridge.svg) | ✅ |
-| 信任边界总图 | [`trust-boundaries.svg`](./figures/architecture/trust-boundaries.svg) | ✅ |
+## 目录
+
+1. [架构鸟瞰](#架构鸟瞰)
+2. [仓里有什么](#仓里有什么)
+3. [分阶段状态](#分阶段状态)
+4. [快速上手](#快速上手)
+5. [文档地图(中文)](#文档地图中文)
+6. [术语对照](#术语对照)
+7. [License](#license)
+
+---
+
+## 架构鸟瞰
+
+<p align="center">
+  <img src="../figures/architecture.svg" alt="Neo Elastic Network 三层架构:L1(NeoHub)锚、可选的 Phase 5 Neo Gateway、N 条弹性 L2 链" width="900">
+</p>
+
+架构分三层:
+
+- **L1(Neo N3 / Neo 4 上的 NeoHub)** —— 规范锚。21 个合约分到 6 个关注点:
+  *Settlement*、*Bridge*、*Messaging*、*Security*、*Governance*、*External Bridge*。
+  持有资产、负责结算、消息路由与治理。
+- **Neo Gateway(Phase 5,可选)** —— 把多条 L2 的证明聚合为 L1 上的单次结算
+  提交。`BinaryTreeAggregator` 在 log-N 轮内归约;`IRoundProver` 出货 3 份生产级
+  实现(`MultisigRoundProver`、`MerklePathRoundProver`、`PassThroughRoundProver`)。
+- **L2 链(弹性,N 条)** —— Neo 4 core 作执行内核,每条链 8 个 L2 插件,7 个 L2
+  原生合约。状态独立、L1 锚共享。
+
+完整的英文架构精炼版见 [`ARCHITECTURE.md`](../../ARCHITECTURE.md);正式技术文档见
+[`WHITEPAPER.md`](../../WHITEPAPER.md);权威中文主规格见 [`doc.md`](../../doc.md)。
+
+新读者建议从 [`architecture-atlas.md`](./architecture-atlas.md) 开始,它会根据角色
+(运维 / SDK 开发 / 审计 / 贡献者)推荐阅读路径。
+
+---
+
+## 仓里有什么
+
+| 区域              | 数量        | 说明                                                                      |
+| ----------------- | ----------- | ------------------------------------------------------------------------- |
+| 链下库             | **15**     | `Neo.L2.{Abstractions,Audit,Batch,Bridge,Censorship,Challenge,Executor,ForcedInclusion,Messaging,Persistence,Proving,Sequencer,Settlement.Rpc,State,Telemetry}` |
+| 持久化后备         | **2**      | `InMemoryKeyValueStore`(测试)· `RocksDbKeyValueStore`(生产默认)—— 见 [`persistence.md`](./persistence.md) |
+| 节点插件          | **8**       | `Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}`   |
+| 智能合约          | **28**      | 21 个 NeoHub L1 + 7 个 L2 原生(均经 `Neo.SmartContract.Framework` 类型检查) |
+| CLI 工具          | **6**       | `neo-stack`、`neo-l2-devnet`、`neo-hub-deploy`、`neo-l2-explore`、`neo-bridge`、`neo-l2-faucet` |
+| 应用 SDK          | **3**       | `src/Neo.L2.Sdk/`(.NET)· `sdk/typescript/`(`@neo-n4/sdk`)· `sdk/rust/`(`neo-n4-sdk`) |
+| Web 应用          | **1**       | `sdk/web-explorer/index.html` —— 单文件静态 UI:Explore + Bridge + Faucet + Audit |
+| Rust 证明者        | **2**      | `bridge/neo-zkvm-host/`(sp1-sdk 6.0 证明者 + `prove-batch daemon`)· `bridge/neo-zkvm-guest/`(被证明的函数) |
+| Submodule         | **4**       | `external/neo`、`external/neo-devpack-dotnet`、`external/neo-riscv-vm`、`external/neo-zkvm` |
+| 测试              | **1344 .NET + 33 跨语言** | 33 个 .NET 工程的 1344 条测试;15 TS + 10 Rust SDK + 8 SP1 guest —— 全绿 |
+
+---
+
+## 分阶段状态
+
+按 [`doc.md` §18](../../doc.md):
+
+| 阶段 | 目标                                | 状态  | 证据                                                       |
+| ---- | ----------------------------------- | :---: | ---------------------------------------------------------- |
+| 0    | 侧链 PoC                             | ✅   | MVP 集成测试端到端通过                                    |
+| 1    | NeoHub v0 + 共享桥                   | ✅   | 21 个 NeoHub 合约全部编译;部署计划器输出 21 步 bundle    |
+| 2    | 批次结算                             | ✅   | 真实 `KeyedStateStore` 在跨批次得到连续性验证             |
+| 3    | 乐观挑战窗口                         | ✅   | `OptimisticChallenge` 合约 + `BisectionGame`(log-N 收敛) |
+| 4    | NeoVM 2 / RISC-V ZK Validity 证明    | 🟡   | SP1 FFI 桥已搭好;`--features real-prover` 切到原生        |
+| 5    | Neo Gateway 证明聚合                 | ✅   | `BinaryTreeAggregator` + 3 份 `IRoundProver`             |
+| 6    | Neo Stack CLI / 模板                 | ✅   | 12 个子命令可用                                          |
+
+图例:✅ 完成 · 🟡 大量脚手架 + 测试 · 🔴 stub。
+
+按工程的覆盖详情:[`IMPLEMENTATION_STATUS.md`](../../IMPLEMENTATION_STATUS.md)。
+
+---
+
+## 快速上手
+
+**要求** .NET 10 SDK(`dotnet --version` 必须报 `10.0.x`)。
+[`neo-project/neo`](https://github.com/neo-project/neo) Neo 4 core 作为 git
+submodule 引入到 `external/neo`。
+
+```bash
+git clone --recurse-submodules https://github.com/r3e-network/neo-n4
+cd neo-n4
+
+# 类型检查 + 跑全部测试(约 10 秒)
+dotnet test Neo.L2.sln /p:NuGetAudit=false
+
+# 启动一条新 L2 链
+dotnet run --project tools/Neo.Stack.Cli -- list-templates
+dotnet run --project tools/Neo.Stack.Cli -- new-l2 \
+    --name MyChain --chain-id 1099 --template rollup
+
+# Devnet 端到端预览
+dotnet run --project tools/Neo.L2.Devnet -- 5 --metrics-port 9090
+dotnet run --project tools/Neo.L2.Devnet -- 5 --data-dir /tmp/neo-l2-devnet
+
+# 生成 NeoHub 部署 bundle
+dotnet run --project tools/Neo.Hub.Deploy -- scaffold --output deploy-plan.json
+dotnet run --project tools/Neo.Hub.Deploy -- plan     --plan deploy-plan.json --output bundle.json
+```
+
+5 分钟教程见 [`getting-started.md`](./getting-started.md);完整流程见
+[`launching-an-l2.md`](./launching-an-l2.md)。
+
+---
+
+## 文档地图(中文)
+
+| 文档                                                                  | 受众               | 用途                                                                  |
+| ----------------------------------------------------------------------- | ------------------ | --------------------------------------------------------------------- |
+| [`README.md`](./README.md)(本文)                                       | 所有人              | `neo4` 是什么、怎么跑。                                              |
+| [`SUMMARY.md`](./SUMMARY.md)                                            | 所有人              | mdBook 用的目录索引。                                                |
+| [`getting-started.md`](./getting-started.md)                            | 新贡献者            | clone → 测试 → 跑 devnet,5 分钟。                                  |
+| [`launching-an-l2.md`](./launching-an-l2.md)                            | L2 运维者           | 5 步上线一条 L2 链。                                                |
+| [`architecture-atlas.md`](./architecture-atlas.md)                       | 所有人              | 架构地图,从角色推荐阅读路径。                                       |
+| [`architecture-walkthrough.md`](./architecture-walkthrough.md)          | 工程师              | 把 `doc.md` 每节映射到代码的叙事导览。                              |
+| [`architecture-l2-lifecycle.md`](./architecture-l2-lifecycle.md)        | 工程师              | L2 链生命周期(创建 → 部署 → 运行 → 退出)。                       |
+| [`architecture-l1-vs-l2.md`](./architecture-l1-vs-l2.md)                 | 工程师              | L1 与 L2 职责划分 + 决策树。                                        |
+| [`architecture-wire-formats.md`](./architecture-wire-formats.md)        | 集成方              | 字节级线协议格式。                                                  |
+| [`architecture-trust-boundaries.md`](./architecture-trust-boundaries.md) | 审稿人              | 5 大信任边界 + 验证职责。                                           |
+| [`architecture-glossary.md`](./architecture-glossary.md)                 | 所有人              | 术语表 + 组件目录。                                                  |
+| [`tech-stack-coverage.md`](./tech-stack-coverage.md)                    | 审稿人              | 5 层栈覆盖矩阵。                                                    |
+| [`telemetry.md`](./telemetry.md)                                        | 运维者              | 指标目录、接线样例、Prometheus exposition 格式。                     |
+| [`security-model.md`](./security-model.md)                              | 运维者、审稿人       | L1 保证、威胁 → 缓解表、运维 checklist。                           |
+| [`persistence.md`](./persistence.md)                                    | 运维者              | RocksDB 后备的持久状态接线。                                        |
+| [`wallet-integration.md`](./wallet-integration.md)                      | 运维者              | NEP-6 / Ledger / NeoLine / Neon / KMS 接入模式。                   |
+| [`external-bridge-roadmap.md`](./external-bridge-roadmap.md)            | 集成方              | 外链桥 4 阶段路线图。                                                |
+| [`external-bridge-evm-chains.md`](./external-bridge-evm-chains.md)      | 运维者              | 接入新 EVM 链的 5 步 runbook。                                      |
+| [`spec-gap-plan.md`](./spec-gap-plan.md)                                | 审稿人              | doc.md § 空白闭合追踪。                                              |
+| [`plan-application-engine-and-mpt.md`](./plan-application-engine-and-mpt.md) | 工程师 | ApplicationEngine + Merkle 状态根计划。                             |
+
+---
 
 ## 术语对照
 
-为保持中英文术语一致，使用以下对照表（与 [`doc.md`](../../doc.md) 的用法对齐）：
+为保持中英文术语一致,使用以下对照表(与 [`doc.md`](../../doc.md) 的用法对齐):
 
 | 英文 | 中文 |
 |------|------|
 | L1 anchor | L1 锚定层 |
-| canonical (wire format / bytes) | 规范（线格式 / 字节） |
+| canonical(wire format / bytes) | 规范(线协议格式 / 字节) |
 | settlement | 结算 |
 | bridge | 桥 |
 | escrow | 托管 |
 | messaging | 消息传递 |
 | sequencer | 排序器 |
 | batcher | 批处理器 |
-| prover (daemon) | 证明守护进程 |
+| prover(daemon) | 证明守护进程 |
 | DA writer | DA 写入器 |
-| watcher (daemon) | 中继器（守护进程） |
+| watcher(daemon) | 中继器(守护进程) |
 | committee | 委员会 |
 | slash / slashable | 罚没 / 可罚没 |
-| forced inclusion | 强制包含 |
+| forced inclusion | 强制纳入 |
 | optimistic challenge | 乐观挑战 |
 | trust boundary | 信任边界 |
 | economic security | 经济安全 |
@@ -62,23 +188,26 @@
 | native contract | 原生合约 |
 | plugin | 插件 |
 | cursor | 游标 |
-| nonce | 随机数 / 序号 |
+| nonce | 序号 / nonce |
 | Merkle proof | Merkle 证明 |
-| public input hash | 公共输入哈希 |
+| public input hash | public input 哈希 |
+| stamp | 盖章 |
+| admission | 准入 |
+| genesis | 创世 |
 
 ## 与英文版的对应规则
 
-- **目录结构镜像**：每个 `docs/<name>.md` 对应 `docs/zh/<name>.md`。
-- **图表镜像**：每个 `docs/figures/architecture/<name>.svg` 对应
-  `docs/zh/figures/architecture/<name>.svg`。SVG 内文字翻译，几何不变。
-- **链接相对路径**：中文版章节之间互相链接使用 `./` 前缀；
-  指向英文版（如 `doc.md` 母版）使用 `../../` 前缀。
-- **代码 / 配置 / 命令**：所有代码块、TOML 字段名、CLI 参数、
-  合约名都保持原文（不翻译），与英文版一致。
-- **同步原则**：英文版有更新时，中文版应在合理时间内同步。
-  当前所有英文章节为 2026-05-09 之后的版本。
+- **目录结构镜像**:每个 `docs/<name>.md` 对应 `docs/zh/<name>.md`。
+- **图表镜像**:中文版指向 `../figures/architecture/` 下的同名 SVG。SVG 内文字
+  翻译,几何不变。
+- **链接相对路径**:中文版章节之间互相链接使用 `./` 前缀;指向英文母版(如
+  `doc.md`)使用 `../../` 前缀。
+- **代码 / 配置 / 命令**:所有代码块、TOML 字段名、CLI 参数、合约名都保持原文
+  (不翻译),与英文版一致。
+- **同步原则**:英文版有更新时,中文版应在合理时间内同步。
 
-## 入口
+---
 
-新读者建议从 [`architecture-atlas.md`](./architecture-atlas.md) 开始 ——
-它会根据角色（运维 / SDK 开发 / 审计 / 贡献者）推荐阅读路径。
+## License
+
+MIT —— 见 [`LICENSE`](../../LICENSE)。

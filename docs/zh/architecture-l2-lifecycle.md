@@ -165,21 +165,9 @@ DA / 证明 / RPC / gateway / metrics)。
 `neo-stack new-l2 --name X --chain-id Y --template Z` 命令把 3 个低层操作串在
 一起。生成什么:
 
-```text
-    ./MyChain/
-    ├── chain.config.json              ← 可编为 91 字节的规范 config
-    ├── MyChainExecutor/
-    │   ├── MyChainExecutor.csproj
-    │   ├── src/
-    │   │   ├── MyChainExecutor.cs     ← ITransactionExecutor stub
-    │   │   ├── MyChainStateSeam.cs    ← 状态 store 绑定
-    │   │   └── MyChainTxBuilder.cs    ← 充值/消息 tx helper
-    │   └── README.md
-    ├── MyChainExecutor.UnitTests/     ← --with-tests
-    │   ├── MyChainExecutor.UnitTests.csproj
-    │   └── *.Tests.cs                 ← 3 条起步测试
-    └── data/  logs/  Plugins/         ← 节点工作目录
-```
+<p align="center">
+  <img src="../figures/architecture/new-l2-scaffold-tree.svg" alt="neo-stack new-l2 生成的文件:./MyChain/ 根目录,含 chain.config.json(91 字节可编码的规范 config)、MyChainExecutor/ 子目录(csproj + src 文件:MyChainExecutor.cs、MyChainStateSeam.cs、MyChainTxBuilder.cs + README.md)、MyChainExecutor.UnitTests/ 子目录(由 --with-tests 添加,含 csproj + 3 条起步 Tests.cs)、3 个节点工作目录(data/、logs/、Plugins/)" width="900">
+</p>
 
 `MyChainExecutor` 脚手架是给需要自定义交易语义的链(例如 RWA 链带 KYC 检查、
 DEX 链内置撮合)的起步点。只需要标准 NeoVM + NEP-17 的链不用定制 —— 它们用

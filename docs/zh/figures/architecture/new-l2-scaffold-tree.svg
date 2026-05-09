@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 460" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">new-l2 组合命令脚手架输出</title>
+  <desc id="desc">neo-stack new-l2 --name MyChain --chain-id 1099 --template &lt;template&gt; 生成的文件。顶层 MyChain/ 含 chain.config.json(91 字节可编码的规范 config),MyChainExecutor/ 子目录(csproj + src 文件:MyChainExecutor.cs、MyChainStateSeam.cs、MyChainTxBuilder.cs,加 README.md),MyChainExecutor.UnitTests/ 子目录(由 --with-tests 添加,含 csproj 加 3 条起步 Tests.cs),以及 3 个节点工作目录(data/、logs/、Plugins/)。</desc>
+
+  <defs>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .root       { font-size: 14px; font-weight: 700; fill: #1e2a55; font-family: ui-monospace, 'SF Mono', monospace; }
+      .dir        { font-size: 12.5px; font-weight: 700; fill: #1e2a55; font-family: ui-monospace, 'SF Mono', monospace; }
+      .file       { font-size: 12px; fill: #2d3a48; font-family: ui-monospace, 'SF Mono', monospace; }
+      .annot      { font-size: 11px; fill: #525a64; font-style: italic; }
+      .opt        { font-size: 11px; fill: #c4413e; font-weight: 700; font-style: italic; }
+      .branch     { stroke: #cfd5dd; stroke-width: 1.2; }
+      .ftr        { font-size: 11px; fill: #525a64; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect width="960" height="460" fill="#ffffff"/>
+
+  <text x="480" y="30" text-anchor="middle" class="header" fill="#1e2a55">new-l2 组合命令 —— 生成什么</text>
+  <text x="480" y="50" text-anchor="middle" class="ftr">$ neo-stack new-l2 --name MyChain --chain-id 1099 --template &lt;rollup|zk-rollup|validium|sidechain&gt;</text>
+
+  <text x="60" y="92" class="root">./MyChain/</text>
+
+  <line class="branch" x1="76" y1="100" x2="76" y2="116"/>
+  <line class="branch" x1="76" y1="116" x2="98" y2="116"/>
+  <text x="100" y="120" class="file">├── chain.config.json</text>
+  <text x="380" y="120" class="annot">← 91 字节可编码的规范 config</text>
+
+  <line class="branch" x1="76" y1="120" x2="76" y2="148"/>
+  <line class="branch" x1="76" y1="148" x2="98" y2="148"/>
+  <g filter="url(#card)">
+    <rect x="100" y="134" width="700" height="150" rx="6" ry="6" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.3"/>
+    <text x="116" y="156" class="dir">├── MyChainExecutor/</text>
+    <text x="490" y="156" class="annot">← 自定义执行器脚手架(csproj + 源码)</text>
+
+    <text x="140" y="178" class="file">│   ├── MyChainExecutor.csproj</text>
+
+    <text x="140" y="200" class="file">│   ├── src/</text>
+    <text x="160" y="220" class="file">│   │   ├── MyChainExecutor.cs</text>
+    <text x="490" y="220" class="annot">← ITransactionExecutor 占位</text>
+    <text x="160" y="240" class="file">│   │   ├── MyChainStateSeam.cs</text>
+    <text x="490" y="240" class="annot">← state-store 绑定</text>
+    <text x="160" y="260" class="file">│   │   └── MyChainTxBuilder.cs</text>
+    <text x="490" y="260" class="annot">← 充值 / 消息 tx 构造器</text>
+
+    <text x="140" y="278" class="file">│   └── README.md</text>
+  </g>
+
+  <line class="branch" x1="76" y1="284" x2="76" y2="300"/>
+  <line class="branch" x1="76" y1="300" x2="98" y2="300"/>
+  <g filter="url(#card)">
+    <rect x="100" y="290" width="700" height="78" rx="6" ry="6" fill="#f1ecf8" stroke="#7d59b3" stroke-width="1.3" stroke-dasharray="3 2"/>
+    <text x="116" y="312" class="dir">├── MyChainExecutor.UnitTests/</text>
+    <text x="380" y="312" class="opt">★ 由 --with-tests 添加</text>
+    <text x="140" y="334" class="file">│   ├── MyChainExecutor.UnitTests.csproj</text>
+    <text x="140" y="356" class="file">│   └── *.Tests.cs</text>
+    <text x="380" y="356" class="annot">← 3 条起步测试(NoOp 成功 + 2 个边缘场景)</text>
+  </g>
+
+  <line class="branch" x1="76" y1="368" x2="76" y2="394"/>
+  <line class="branch" x1="76" y1="394" x2="98" y2="394"/>
+  <g filter="url(#card)">
+    <rect x="100" y="382" width="700" height="36" rx="6" ry="6" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.3"/>
+    <text x="116" y="404" class="dir">└── data/  logs/  Plugins/</text>
+    <text x="380" y="404" class="annot">← 节点工作目录</text>
+  </g>
+
+  <text x="480" y="442" text-anchor="middle" class="ftr" fill="#525a64">MyChainExecutor 脚手架开箱编译 + 测试通过。编辑 MyChainExecutor.cs 把 NoOp 替换为真实 opcode 即可。</text>
+</svg>

@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 320" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">Forced inclusion step 1 — user posts forced tx on L1</title>
+  <desc id="desc">User on L1 calls NeoHub.ForcedInclusion.EnqueueForcedTransaction(chainId, encodedTx, txHash). Returns a nonce, emits a ForcedTxEnqueued event, and records (sender, txHash, encodedTx, deadlineUnix=now+2h) in the contract's storage.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .actor-t    { font-size: 12px; font-weight: 700; }
+      .call       { font-size: 12px; font-weight: 700; fill: #1e2a55; font-family: ui-monospace, 'SF Mono', monospace; }
+      .effect-t   { font-size: 11.5px; font-weight: 700; }
+      .effect-d   { font-size: 11px; fill: #2d3a48; font-family: ui-monospace, 'SF Mono', monospace; }
+      .ftr        { font-size: 11px; fill: #525a64; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect width="960" height="320" fill="#ffffff"/>
+
+  <text x="480" y="32" text-anchor="middle" class="header" fill="#1e2a55">Forced inclusion · step 1: user posts forced tx on L1</text>
+
+  <!-- L1 user card -->
+  <g filter="url(#card)">
+    <rect x="40" y="62" width="160" height="50" rx="8" ry="8" fill="#ffffff" stroke="#7587c1" stroke-width="1.4"/>
+    <text x="120" y="84" text-anchor="middle" class="actor-t" fill="#1e2a55">L1 user</text>
+    <text x="120" y="100" text-anchor="middle" class="ftr">wallet</text>
+  </g>
+
+  <!-- Call -->
+  <line x1="200" y1="86" x2="468" y2="86" stroke="#525a64" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="334" y="80" text-anchor="middle" class="call">EnqueueForcedTransaction(chainId, encodedTx, txHash)</text>
+
+  <!-- ForcedInclusion contract card -->
+  <g filter="url(#card)">
+    <rect x="476" y="62" width="240" height="50" rx="8" ry="8" fill="#eff3ff" stroke="#7587c1" stroke-width="1.5"/>
+    <text x="596" y="84" text-anchor="middle" class="actor-t" fill="#1e2a55">NeoHub.ForcedInclusion</text>
+    <text x="596" y="100" text-anchor="middle" class="ftr">L1 contract</text>
+  </g>
+
+  <!-- 3 effects fanning down from the contract -->
+  <line x1="540" y1="112" x2="240" y2="156" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <line x1="596" y1="112" x2="596" y2="156" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <line x1="652" y1="112" x2="900" y2="156" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <!-- Effect 1: returns nonce -->
+  <g filter="url(#card)">
+    <rect x="60" y="160" width="240" height="80" rx="8" ry="8" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.3"/>
+    <text x="180" y="184" text-anchor="middle" class="effect-t" fill="#1d4d2c">RETURNS</text>
+    <text x="180" y="208" text-anchor="middle" class="effect-d">nonce</text>
+    <text x="180" y="226" text-anchor="middle" class="ftr">monotonic per chainId</text>
+  </g>
+
+  <!-- Effect 2: emits event -->
+  <g filter="url(#card)">
+    <rect x="476" y="160" width="240" height="80" rx="8" ry="8" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.3"/>
+    <text x="596" y="184" text-anchor="middle" class="effect-t" fill="#7a4a14">EMITS EVENT</text>
+    <text x="596" y="208" text-anchor="middle" class="effect-d">ForcedTxEnqueued</text>
+    <text x="596" y="226" text-anchor="middle" class="ftr">L2 batcher polls this</text>
+  </g>
+
+  <!-- Effect 3: records storage -->
+  <g filter="url(#card)">
+    <rect x="720" y="160" width="220" height="80" rx="8" ry="8" fill="#f1ecf8" stroke="#7d59b3" stroke-width="1.3"/>
+    <text x="830" y="184" text-anchor="middle" class="effect-t" fill="#3e2865">RECORDS STORAGE</text>
+    <text x="830" y="206" text-anchor="middle" class="effect-d">(sender, txHash, encodedTx,</text>
+    <text x="830" y="222" text-anchor="middle" class="effect-d">deadlineUnix = now + 2h)</text>
+  </g>
+
+  <!-- Footer note -->
+  <text x="480" y="278" text-anchor="middle" class="ftr" fill="#525a64">After this step, the L2 batcher MUST include the forced tx within deadlineUnix</text>
+  <text x="480" y="296" text-anchor="middle" class="ftr" fill="#525a64">or the operator can submit a censorship report and slash the sequencer's bond.</text>
+</svg>

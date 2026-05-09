@@ -115,11 +115,9 @@ releases the canonical asset.
 
 ### 1. User posts forced tx on L1
 
-```text
-NeoHub.ForcedInclusion.EnqueueForcedTransaction(chainId, encodedTx, txHash)
-  → returns nonce; emits ForcedTxEnqueued event
-  → records (sender, txHash, encodedTx, deadlineUnix=now+2h)
-```
+<p align="center">
+  <img src="figures/architecture/forced-inclusion-step1.svg" alt="Forced inclusion step 1: L1 user calls NeoHub.ForcedInclusion.EnqueueForcedTransaction(chainId, encodedTx, txHash). The contract returns a nonce, emits a ForcedTxEnqueued event, and records (sender, txHash, encodedTx, deadlineUnix=now+2h) in storage. The L2 batcher must include the forced tx within deadlineUnix or the operator can submit a censorship report and slash the sequencer's bond" width="900">
+</p>
 
 ### 2. L2 batcher polls + drains
 

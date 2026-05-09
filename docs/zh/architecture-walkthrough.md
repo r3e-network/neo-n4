@@ -109,11 +109,9 @@ recipient, amount)`。SharedBridge 回调 `SettlementManager.VerifyWithdrawalLea
 
 ### 1. 用户在 L1 上传强制 tx
 
-```text
-NeoHub.ForcedInclusion.EnqueueForcedTransaction(chainId, encodedTx, txHash)
-  → 返回 nonce;发出 ForcedTxEnqueued 事件
-  → 记录 (sender, txHash, encodedTx, deadlineUnix=now+2h)
-```
+<p align="center">
+  <img src="../figures/architecture/forced-inclusion-step1.svg" alt="强制纳入第 1 步:L1 用户调 NeoHub.ForcedInclusion.EnqueueForcedTransaction(chainId, encodedTx, txHash)。合约返回 nonce、发出 ForcedTxEnqueued 事件、在存储里记录 (sender, txHash, encodedTx, deadlineUnix=now+2h)。L2 批处理器必须在 deadlineUnix 之前纳入此强制 tx,否则运维者可提交审查报告并罚没排序器保证金" width="900">
+</p>
 
 ### 2. L2 批处理器 poll + 抽空
 

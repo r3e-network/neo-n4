@@ -13,7 +13,13 @@
 # Build artifacts.
 target/
 **/target/
+# Note: `**/bin/` would strip Rust's `src/bin/` source dirs (cargo
+# binary entrypoints live at `<crate>/src/bin/<name>.rs`). Allowlist
+# Rust src/bin/ back in. The intent of `**/bin/` is .NET build
+# output (which lives at `<project>/bin/`, not `src/bin/`).
 **/bin/
+!**/src/bin/
+!**/src/bin/**
 **/obj/
 **/dist/
 **/node_modules/

@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 1080" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">跨层验证链 —— 同一字节,在每步重新哈希</title>
+  <desc id="desc">单笔 bridge 交易跨越的逐步验证链。第 1 步:用户用 Secp256r1 对 L1 tx 签名(用户持有密钥)。Neo L1 dBFT 验证并 commit,SharedBridge 锁资产,发出 DepositReady。CrossChainMessage 规范字节经 MessageHasher 哈希。第 2-4 步:L2 批处理器直接读 Blockchain 事件,NeoVM 在 L2 上 apply 该 deposit,L2 收据对其 commit(信任 = 直接读事件)。L2 批处理器封装批次,带 txRoot、receiptRoot、postStateRoot、publicInputHash。L2BatchCommitment 规范字节(321+N)流入第 5-6 步:SP1 zkVM 证明 execute_batch,证明的 public-input 与 SettlementManager 从承诺重算的 publicInputHash 一致(信任 = 数学)。Neo L1 SettlementManager 接受批次,发出 SettlementAccepted。第 7-9 步:L2 用户在某个晚些批次 B 上提款,B 的 withdrawalRoot 含用户提款叶子,用户在 L1 提交 Merkle 证明,SharedBridge.VerifyWithdrawalLeafWithProof 链式哈希到 withdrawalRoot(信任 = 哈希抗碰撞),资产被释放。</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .step-num   { font-size: 11.5px; font-weight: 700; fill: #c4413e; }
+      .step-t     { font-size: 11.5px; fill: #2d3a48; }
+      .actor-t    { font-size: 12.5px; font-weight: 700; }
+      .actor-s    { font-size: 11px; fill: #2d3a48; }
+      .bytes-t    { font-size: 11.5px; font-weight: 700; fill: #1e2a55; font-family: ui-monospace, 'SF Mono', monospace; }
+      .bytes-s    { font-size: 10.5px; fill: #525a64; font-style: italic; }
+      .trust-t    { font-size: 11px; font-weight: 700; }
+      .trust-s    { font-size: 10.5px; fill: #525a64; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect width="960" height="1080" fill="#ffffff"/>
+
+  <text x="480" y="32" text-anchor="middle" class="header" fill="#1e2a55">跨层验证链 —— 同一字节,在每步重新哈希</text>
+
+  <g filter="url(#card)">
+    <rect x="200" y="60" width="380" height="60" rx="8" ry="8" fill="#ffffff" stroke="#7587c1" stroke-width="1.2"/>
+    <text x="220" y="84" class="step-num">1.</text>
+    <text x="240" y="84" class="actor-t" fill="#1e2a55">用户对 L1 tx 签名</text>
+    <text x="240" y="104" class="step-t">对规范 L1 交易字节做 Secp256r1 签名</text>
+  </g>
+  <g>
+    <rect x="610" y="68" width="190" height="44" rx="6" ry="6" fill="#fde8e8" stroke="#c4413e" stroke-width="1"/>
+    <text x="705" y="86" text-anchor="middle" class="trust-t" fill="#88312e">信任:</text>
+    <text x="705" y="104" text-anchor="middle" class="trust-s">用户持有密钥</text>
+  </g>
+  <line x1="390" y1="120" x2="390" y2="148" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <g filter="url(#card)">
+    <rect x="200" y="150" width="380" height="74" rx="8" ry="8" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
+    <text x="390" y="174" text-anchor="middle" class="actor-t" fill="#1e2a55">Neo L1 —— dBFT 验证并 commit</text>
+    <text x="390" y="194" text-anchor="middle" class="actor-s">SharedBridge 锁资产</text>
+    <text x="390" y="210" text-anchor="middle" class="actor-s">发出 DepositReady 事件</text>
+  </g>
+  <line x1="390" y1="224" x2="390" y2="252" stroke="#525a64" stroke-width="1.4"/>
+
+  <g filter="url(#card)">
+    <rect x="280" y="252" width="220" height="56" rx="8" ry="8" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.3"/>
+    <text x="390" y="274" text-anchor="middle" class="bytes-t">CrossChainMessage</text>
+    <text x="390" y="292" text-anchor="middle" class="bytes-s">规范字节(MessageHasher)</text>
+  </g>
+  <text x="610" y="280" class="bytes-s" fill="#cd7c2e">hash = sha256(canonical_bytes)</text>
+  <line x1="390" y1="308" x2="390" y2="336" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <g filter="url(#card)">
+    <rect x="200" y="338" width="380" height="116" rx="8" ry="8" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.3"/>
+    <text x="220" y="362" class="step-num">2.</text>
+    <text x="240" y="362" class="step-t" fill="#1d4d2c"><tspan font-weight="600">L2 批处理器读 + 重放</tspan></text>
+    <text x="220" y="386" class="step-num">3.</text>
+    <text x="240" y="386" class="step-t" fill="#1d4d2c"><tspan font-weight="600">NeoVM 在 L2 上 apply 该 deposit</tspan></text>
+    <text x="220" y="410" class="step-num">4.</text>
+    <text x="240" y="410" class="step-t" fill="#1d4d2c"><tspan font-weight="600">L2 收据对其 commit</tspan></text>
+    <text x="240" y="432" class="actor-s">(deposit 铸进 L2 用户的包装余额)</text>
+  </g>
+  <g>
+    <rect x="610" y="362" width="190" height="62" rx="6" ry="6" fill="#fde8e8" stroke="#c4413e" stroke-width="1"/>
+    <text x="705" y="382" text-anchor="middle" class="trust-t" fill="#88312e">信任:</text>
+    <text x="705" y="400" text-anchor="middle" class="trust-s">直接读</text>
+    <text x="705" y="416" text-anchor="middle" class="trust-s">Blockchain 事件</text>
+  </g>
+  <line x1="390" y1="454" x2="390" y2="482" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <g filter="url(#card)">
+    <rect x="200" y="484" width="380" height="100" rx="8" ry="8" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.4"/>
+    <text x="390" y="508" text-anchor="middle" class="actor-t" fill="#1d4d2c">L2 批处理器封装批次</text>
+    <text x="390" y="528" text-anchor="middle" class="actor-s">· txRoot      (tx 的 Merkle)</text>
+    <text x="390" y="544" text-anchor="middle" class="actor-s">· receiptRoot (recs 的 Merkle)</text>
+    <text x="390" y="560" text-anchor="middle" class="actor-s">· postStateRoot · publicInputHash</text>
+  </g>
+  <line x1="390" y1="584" x2="390" y2="612" stroke="#525a64" stroke-width="1.4"/>
+
+  <g filter="url(#card)">
+    <rect x="280" y="612" width="220" height="56" rx="8" ry="8" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.3"/>
+    <text x="390" y="634" text-anchor="middle" class="bytes-t">L2BatchCommitment</text>
+    <text x="390" y="652" text-anchor="middle" class="bytes-s">BatchSerializer · 321+N 字节</text>
+  </g>
+  <line x1="390" y1="668" x2="390" y2="696" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <g filter="url(#card)">
+    <rect x="200" y="698" width="380" height="92" rx="8" ry="8" fill="#f1ecf8" stroke="#7d59b3" stroke-width="1.3"/>
+    <text x="220" y="722" class="step-num">5.</text>
+    <text x="240" y="722" class="step-t" fill="#3e2865"><tspan font-weight="600">SP1 zkVM 证明 execute_batch(payload)</tspan></text>
+    <text x="220" y="748" class="step-num">6.</text>
+    <text x="240" y="748" class="step-t" fill="#3e2865"><tspan font-weight="600">证明 public-input == 链上 publicInputHash</tspan></text>
+    <text x="240" y="768" class="actor-s">(由 SettlementManager 从承诺字段重算)</text>
+  </g>
+  <g>
+    <rect x="610" y="722" width="190" height="46" rx="6" ry="6" fill="#fde8e8" stroke="#c4413e" stroke-width="1"/>
+    <text x="705" y="740" text-anchor="middle" class="trust-t" fill="#88312e">信任:数学</text>
+    <text x="705" y="758" text-anchor="middle" class="trust-s">(证明就是验证)</text>
+  </g>
+  <line x1="390" y1="790" x2="390" y2="818" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <g filter="url(#card)">
+    <rect x="200" y="820" width="380" height="60" rx="8" ry="8" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
+    <text x="390" y="844" text-anchor="middle" class="actor-t" fill="#1e2a55">Neo L1 —— SettlementManager 接受批次</text>
+    <text x="390" y="864" text-anchor="middle" class="actor-s">发出 SettlementAccepted(规范状态根)</text>
+  </g>
+  <line x1="390" y1="880" x2="390" y2="908" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <g filter="url(#card)">
+    <rect x="200" y="910" width="380" height="92" rx="8" ry="8" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.3"/>
+    <text x="220" y="934" class="step-num">7.</text>
+    <text x="240" y="934" class="step-t" fill="#1d4d2c"><tspan font-weight="600">L2 用户在晚些的批次 B 上提款</tspan></text>
+    <text x="240" y="952" class="actor-s">B 的 withdrawalRoot 含用户提款叶子</text>
+    <text x="220" y="970" class="step-num">8.</text>
+    <text x="240" y="970" class="step-t" fill="#1d4d2c"><tspan font-weight="600">用户在 L1 上提交 Merkle 证明</tspan></text>
+    <text x="220" y="988" class="step-num">9.</text>
+    <text x="240" y="988" class="step-t" fill="#1d4d2c"><tspan font-weight="600">SharedBridge.VerifyWithdrawalLeafWithProof → 释放资产</tspan></text>
+  </g>
+  <g>
+    <rect x="610" y="934" width="190" height="62" rx="6" ry="6" fill="#fde8e8" stroke="#c4413e" stroke-width="1"/>
+    <text x="705" y="954" text-anchor="middle" class="trust-t" fill="#88312e">信任:</text>
+    <text x="705" y="972" text-anchor="middle" class="trust-s">哈希</text>
+    <text x="705" y="988" text-anchor="middle" class="trust-s">抗碰撞</text>
+  </g>
+
+  <text x="480" y="1040" text-anchor="middle" class="bytes-s" fill="#525a64">同一规范字节被不同位置的不同角色多次哈希。</text>
+  <text x="480" y="1060" text-anchor="middle" class="bytes-s" fill="#525a64">任何方都不能"取消签名"或"重新签名" —— 字节自承诺。</text>
+</svg>

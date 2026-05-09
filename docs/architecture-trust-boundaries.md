@@ -125,80 +125,9 @@ A single bridge transaction crosses 3-4 trust boundaries and
 accumulates verifications at each. The same canonical bytes get
 re-hashed + re-verified at every step:
 
-```text
-   L1 user signs tx                                      ┐
-            │                                            │
-   1. Secp256r1 sig over L1 tx                           │  [user owns key]
-            │                                            ┘
-            ▼
-   ┌─────────────────────────────────────┐
-   │  Neo L1: dBFT verifies + commits    │
-   │  SharedBridge locks asset           │
-   │  emits DepositReady event           │
-   └────────────────┬────────────────────┘
-                    │
-            ┌───────┴────────┐
-            │  CrossChain-   │   ← canonical bytes
-            │  Message       │     (MessageHasher)
-            │  (deposit)     │
-            └───────┬────────┘
-                    │  hash = sha256(canonical_bytes)
-                    ▼                                    ┐
-   2. L2 batcher reads + replays                         │  [reads
-            │                                            │  Blockchain
-   3. NeoVM applies the deposit on L2                    │  events
-            │                                            │  directly]
-   4. L2 receipt commits to it                           ┘
-            │
-            ▼
-   ┌─────────────────────────────────────┐
-   │  L2 batcher seals batch:            │
-   │   · txRoot       (Merkle of txs)    │
-   │   · receiptRoot  (Merkle of recs)   │
-   │   · postStateRoot                   │
-   │   · publicInputHash                 │
-   └────────────────┬────────────────────┘
-                    │
-            ┌───────┴────────┐
-            │  L2BatchComm-  │   ← canonical bytes
-            │  itment        │     (BatchSerializer,
-            │                │      321+N bytes)
-            └───────┬────────┘
-                    │
-                    ▼                                    ┐
-   5. SP1 zkVM proves execute_batch(payload)             │  [math:
-            │                                            │   proof IS
-   6. Proof's public-input == on-chain                   │   verification]
-      publicInputHash (recomputed by                     ┘
-      SettlementManager)
-            │
-            ▼
-   ┌─────────────────────────────────────┐
-   │  Neo L1: SettlementManager accepts  │
-   │  batch as canonical                 │
-   │  emits SettlementAccepted           │
-   └────────────────┬────────────────────┘
-                    │
-                    │
-   7. L2 user makes a withdrawal at some later batch B
-            │
-            ▼
-   ┌─────────────────────────────────────┐
-   │  Batch B's withdrawalRoot           │
-   │  contains user's withdrawal leaf    │
-   └────────────────┬────────────────────┘
-                    │
-                    ▼                                    ┐
-   8. User submits Merkle proof on L1                    │  [hash
-            │                                            │   collision-
-   9. SharedBridge.VerifyWithdrawalLeafWithProof:        │   resistance]
-            │   keccak/sha256 chain hashes to            ┘
-            │   withdrawalRoot
-            ▼
-   ┌─────────────────────────────────────┐
-   │  Asset released                     │
-   └─────────────────────────────────────┘
-```
+<p align="center">
+  <img src="figures/architecture/cross-tier-verification.svg" alt="Cross-tier verification chain. Step 1: user signs L1 tx (trust = user owns key). Neo L1 dBFT commits, SharedBridge locks asset, emits DepositReady. CrossChainMessage canonical bytes hashed. Steps 2-4: L2 batcher reads events directly, NeoVM applies deposit, receipt commits (trust = reads Blockchain events directly). Batcher seals batch with txRoot, receiptRoot, postStateRoot, publicInputHash. L2BatchCommitment canonical bytes (321+N). Steps 5-6: SP1 zkVM proves execute_batch and the proof's public-input matches the on-chain publicInputHash (trust = math). SettlementManager accepts. Steps 7-9: user withdraws at later batch B, submits Merkle proof, SharedBridge.VerifyWithdrawalLeafWithProof releases asset (trust = hash collision-resistance)" width="900">
+</p>
 
 **Key insight:** the same `canonical_bytes` get hashed multiple
 times by different actors in different places. Whichever party

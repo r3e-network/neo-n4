@@ -320,33 +320,70 @@ fn preflight(config: &Config) -> Result<(), String> {
         );
     }
 
-    // 5. Eth RPC reachability — build the source + call its
-    //    head-fetching path. This validates URL + reachability +
-    //    JSON-RPC shape in one go.
+    // 5. Eth RPC reachability — build the source + actually probe
+    //    `eth_blockNumber`. Validates URL + DNS + TLS + the endpoint
+    //    speaking the JSON-RPC dialect we expect, all in one round
+    //    trip. Uses a tighter timeout (5s) than the run loop's
+    //    request_timeout — preflight is a quick sanity check, not
+    //    a long-running poll.
+    let preflight_timeout = Duration::from_secs(5);
     let source = EthRpcEventSourceBuilder::new(
         config.eth_rpc_url.clone(),
         config.eth_router_address,
     )
-    .request_timeout(Duration::from_secs(config.poll.request_timeout_secs))
+    .request_timeout(preflight_timeout)
     .build()
     .map_err(|e| format!("build EthRpcEventSource: {e:?}"))?;
-    drop(source);
-    // NOTE: we don't actually probe head here — `EthRpcEventSource`
-    // doesn't expose a public head-fetch method. A real preflight
-    // would add one. For now we validate URL + client construction.
+    let head = source
+        .fetch_block_number()
+        .map_err(|e| format!("eth_blockNumber on {}: {e:?}", config.eth_rpc_url))?;
     eprintln!(
-        "[ok]   eth_rpc_url {} client built (HTTP probe deferred)",
+        "[ok]   eth_rpc_url {} responsive (head = {head})",
         config.eth_rpc_url
     );
 
-    // 6. Neo RPC reachability — same: build the submitter; production
-    //    preflight would also probe `getversion` or `getblockcount`.
-    let _submitter_url = config.neo_rpc_url.clone();
+    // 6. Neo RPC reachability — direct reqwest probe of `getversion`,
+    //    which every Neo node implements. Avoids needing a public
+    //    head-probe on NeoRpcSubmitter (which is structured around
+    //    invokefunction, not raw queries).
+    probe_neo_rpc(&config.neo_rpc_url, preflight_timeout)
+        .map_err(|e| format!("getversion on {}: {e}", config.neo_rpc_url))?;
     eprintln!(
-        "[ok]   neo_rpc_url {} client buildable (HTTP probe deferred)",
+        "[ok]   neo_rpc_url {} responsive (getversion succeeded)",
         config.neo_rpc_url
     );
 
+    Ok(())
+}
+
+/// Lightweight probe: POST `getversion` to a Neo JSON-RPC node. Returns
+/// Ok(()) iff the response is a valid JSON-RPC reply with no `error`
+/// field. We don't care what's in `result` — just that the endpoint
+/// is reachable + speaks the dialect.
+fn probe_neo_rpc(rpc_url: &str, timeout: Duration) -> Result<(), String> {
+    let client = reqwest::blocking::Client::builder()
+        .timeout(timeout)
+        .build()
+        .map_err(|e| format!("build client: {e}"))?;
+    let req = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "getversion",
+        "params": []
+    });
+    let resp: serde_json::Value = client
+        .post(rpc_url)
+        .json(&req)
+        .send()
+        .map_err(|e| format!("send: {e}"))?
+        .json()
+        .map_err(|e| format!("parse JSON-RPC response: {e}"))?;
+    if let Some(err) = resp.get("error") {
+        return Err(format!("rpc error: {err}"));
+    }
+    if resp.get("result").is_none() {
+        return Err("response has no `result` and no `error`".into());
+    }
     Ok(())
 }
 

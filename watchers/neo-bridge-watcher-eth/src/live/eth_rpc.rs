@@ -203,7 +203,11 @@ impl EthRpcEventSource {
     }
 
     /// `eth_blockNumber` — returns the current head height.
-    fn fetch_block_number(&self) -> Result<u64, EthRpcError> {
+    ///
+    /// Public so operator tooling (e.g. `--preflight`) can use it to
+    /// validate RPC reachability without reaching for a separate
+    /// JSON-RPC client.
+    pub fn fetch_block_number(&self) -> Result<u64, EthRpcError> {
         let req = JsonRpcRequest {
             jsonrpc: "2.0",
             id: 1,

@@ -248,8 +248,11 @@ struct JsonRpcError {
 
 #[derive(Deserialize, Debug, Clone)]
 struct RawLog {
-    /// The router contract address (also in the request filter; included
-    /// here for safety so we reject logs from unexpected contracts).
+    /// The router contract address. Already constrained at the
+    /// request level by `eth_getLogs`'s `address` filter, but kept on
+    /// the struct so a future hardening pass can cross-check it
+    /// post-decode without changing the wire shape.
+    #[allow(dead_code)]
     address: String,
     /// Topic hashes; Solidity events put indexed args into topics[1..].
     /// topics[0] is the event signature hash.
@@ -577,5 +580,297 @@ mod tests {
         assert_eq!(decode_hex_u64("0x100").unwrap(), 256);
         assert_eq!(decode_hex_u64("100").unwrap(), 256);
         assert_eq!(decode_hex_u64("0xff").unwrap(), 255);
+    }
+
+    // ─── live HTTP integration tests ─────────────────────────────────────
+    //
+    // Drive `EthRpcEventSource` through the actual `reqwest::blocking` HTTP
+    // stack against an in-process fake JSON-RPC server. Validates the
+    // production request shape (URL + method name + body params), the
+    // response decode pipeline (hex → u64, log JSON → LockedEvent), and
+    // the cursor-management semantics (cursor advances past polled
+    // windows, doesn't poll past the head).
+    //
+    // The decoder unit tests above only exercise `decode_locked_event` in
+    // isolation — they don't catch a regression in the JSON-RPC layer
+    // (request body shape, RawLog deserialization, error-path handling).
+    // These tests close that gap without requiring an external testnet.
+
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    use std::thread;
+
+    /// In-process JSON-RPC fake. Spawns a TCP listener bound to a random
+    /// loopback port, dispatches each incoming HTTP POST to the
+    /// caller-supplied handler closure (which inspects the body and
+    /// returns the JSON response), and tears down on `Drop`.
+    struct FakeRpcServer {
+        url: String,
+        stop: Arc<AtomicBool>,
+        _handle: thread::JoinHandle<()>,
+    }
+
+    impl FakeRpcServer {
+        fn spawn<F>(handler: F) -> Self
+        where
+            F: Fn(&str) -> String + Send + 'static,
+        {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            listener.set_nonblocking(true).unwrap();
+            let port = listener.local_addr().unwrap().port();
+            let url = format!("http://127.0.0.1:{}/", port);
+            let stop = Arc::new(AtomicBool::new(false));
+            let stop_c = stop.clone();
+            let handle = thread::spawn(move || {
+                while !stop_c.load(Ordering::Relaxed) {
+                    match listener.accept() {
+                        Ok((mut stream, _)) => {
+                            // The accepted stream inherits non-blocking
+                            // mode from the listener; flip back to blocking
+                            // for a clean read+write cycle.
+                            let _ = stream.set_nonblocking(false);
+                            let mut buf = vec![0u8; 8192];
+                            let n = stream.read(&mut buf).unwrap_or(0);
+                            let req = String::from_utf8_lossy(&buf[..n]).to_string();
+                            // HTTP request body sits after the empty line
+                            // separating headers from body.
+                            let body = req.split("\r\n\r\n").nth(1).unwrap_or("").to_string();
+                            let resp = handler(&body);
+                            let http = format!(
+                                "HTTP/1.1 200 OK\r\n\
+                                 Content-Type: application/json\r\n\
+                                 Content-Length: {}\r\n\
+                                 Connection: close\r\n\
+                                 \r\n{}",
+                                resp.len(),
+                                resp
+                            );
+                            let _ = stream.write_all(http.as_bytes());
+                        }
+                        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                            thread::sleep(std::time::Duration::from_millis(20));
+                        }
+                        Err(_) => break,
+                    }
+                }
+            });
+            Self {
+                url,
+                stop,
+                _handle: handle,
+            }
+        }
+    }
+
+    impl Drop for FakeRpcServer {
+        fn drop(&mut self) {
+            self.stop.store(true, Ordering::Relaxed);
+        }
+    }
+
+    /// Build a synthetic Locked event JSON object matching the
+    /// `RawLog` shape, with the given chain id / neo chain id / nonce.
+    fn synthetic_locked_log(
+        external_chain_id: u32,
+        neo_chain_id: u32,
+        nonce: u64,
+    ) -> serde_json::Value {
+        let topic_sig = format!("0x{}", hex::encode(locked_event_topic_hash()));
+        let topic_chain = format!("0x{:0>64x}", external_chain_id);
+        let topic_neo = format!("0x{:0>64x}", neo_chain_id);
+        let topic_nonce = format!("0x{:0>64x}", nonce);
+
+        // ABI-encoded data (same layout as decode_locked_event_round_trip):
+        let mut data = Vec::new();
+        data.extend_from_slice(&[0u8; 12]); // sender pad
+        data.extend_from_slice(&[0x11; 20]); // sender
+        data.extend_from_slice(&[0xaa; 20]); // neoRecipient (bytes20 left-aligned)
+        data.extend_from_slice(&[0u8; 12]); //   right-pad
+        data.extend_from_slice(&[0u8; 12]); // asset pad
+        data.extend_from_slice(&[0xee; 20]); // asset
+        let mut amount32 = [0u8; 32];
+        amount32[28..32].copy_from_slice(&1_000_000u32.to_be_bytes());
+        data.extend_from_slice(&amount32); // amount
+        let mut off32 = [0u8; 32];
+        off32[24..32].copy_from_slice(&192u64.to_be_bytes());
+        data.extend_from_slice(&off32); // payload offset = 192
+        let mut dl32 = [0u8; 32];
+        dl32[24..32].copy_from_slice(&1_900_000_000u64.to_be_bytes());
+        data.extend_from_slice(&dl32); // deadline
+        let mut len32 = [0u8; 32];
+        len32[24..32].copy_from_slice(&3u64.to_be_bytes());
+        data.extend_from_slice(&len32); // payload length = 3
+        data.extend_from_slice(&[0xCA, 0xFE, 0xBA]);
+        data.extend_from_slice(&[0u8; 29]); // 32-byte alignment pad
+
+        serde_json::json!({
+            "address": "0x0102030405060708090a0b0c0d0e0f1011121314",
+            "topics": [topic_sig, topic_chain, topic_neo, topic_nonce],
+            "data": format!("0x{}", hex::encode(&data)),
+            "blockNumber": "0x10",
+            "transactionHash": format!("0x{}", "ee".repeat(32))
+        })
+    }
+
+    /// Full round trip: server returns a Locked log; the source decodes
+    /// it via the real reqwest+JSON pipeline. Pins request shape + response
+    /// decoding end-to-end.
+    #[test]
+    fn live_decodes_locked_event_via_http() {
+        let log = synthetic_locked_log(0xE000_0001, 1099, 42);
+        let server = FakeRpcServer::spawn(move |body: &str| {
+            if body.contains("eth_blockNumber") {
+                r#"{"jsonrpc":"2.0","id":1,"result":"0x100"}"#.to_string()
+            } else if body.contains("eth_getLogs") {
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "result": [log.clone()]
+                })
+                .to_string()
+            } else {
+                r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"unknown"}}"#
+                    .to_string()
+            }
+        });
+
+        let mut source = EthRpcEventSource::builder(server.url.clone(), [0u8; 20])
+            .request_timeout(Duration::from_secs(5))
+            .build()
+            .unwrap();
+
+        let ev = source
+            .next_event(0)
+            .expect("rpc call succeeded")
+            .expect("event present");
+        assert_eq!(ev.external_chain_id, 0xE000_0001);
+        assert_eq!(ev.neo_chain_id, 1099);
+        assert_eq!(ev.nonce, 42);
+        assert_eq!(ev.sender, [0x11; 20]);
+        assert_eq!(ev.neo_recipient, [0xaa; 20]);
+        assert_eq!(ev.asset, [0xee; 20]);
+        assert_eq!(ev.payload, vec![0xCA, 0xFE, 0xBA]);
+        assert_eq!(ev.deadline, 1_900_000_000);
+        assert_eq!(ev.block_number, 0x10);
+    }
+
+    /// Cursor advances past the polled window even if no logs match —
+    /// otherwise the source would re-poll the same range forever.
+    #[test]
+    fn live_advances_cursor_through_empty_window() {
+        // Server: head = 0x100; getLogs always returns []. The source
+        // should poll once then return None; cursor should be past
+        // start_block.
+        let server = FakeRpcServer::spawn(|body: &str| {
+            if body.contains("eth_blockNumber") {
+                r#"{"jsonrpc":"2.0","id":1,"result":"0x100"}"#.to_string()
+            } else {
+                r#"{"jsonrpc":"2.0","id":1,"result":[]}"#.to_string()
+            }
+        });
+
+        let mut source = EthRpcEventSource::builder(server.url.clone(), [0u8; 20])
+            .chunk_size(50) // small chunk so we can observe cursor advancement
+            .request_timeout(Duration::from_secs(5))
+            .build()
+            .unwrap();
+
+        // First call: polls blocks [0..49], gets []; returns None.
+        assert!(source.next_event(0).unwrap().is_none());
+        // Internal cursor advanced past 49 → next_block_to_poll = 50.
+        assert_eq!(source.next_block_to_poll, 50);
+    }
+
+    /// Cursor above the head means "nothing to do" — must NOT call
+    /// eth_getLogs (otherwise wastes RPC budget on a guaranteed-empty
+    /// query). Pin via a server that fails the test if getLogs is hit.
+    #[test]
+    fn live_skips_get_logs_when_cursor_above_head() {
+        // Counter that the test inspects after the call. AtomicUsize so
+        // the closure (Send + Fn) can mutate it.
+        let get_logs_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let counter = get_logs_calls.clone();
+        let server = FakeRpcServer::spawn(move |body: &str| {
+            if body.contains("eth_blockNumber") {
+                r#"{"jsonrpc":"2.0","id":1,"result":"0x10"}"#.to_string()
+            } else if body.contains("eth_getLogs") {
+                counter.fetch_add(1, Ordering::Relaxed);
+                r#"{"jsonrpc":"2.0","id":1,"result":[]}"#.to_string()
+            } else {
+                r#"{"jsonrpc":"2.0","id":1,"result":null}"#.to_string()
+            }
+        });
+
+        let mut source = EthRpcEventSource::builder(server.url.clone(), [0u8; 20])
+            .request_timeout(Duration::from_secs(5))
+            .build()
+            .unwrap();
+
+        // start_block = 1000; head = 0x10 = 16. Cursor far above head.
+        assert!(source.next_event(1000).unwrap().is_none());
+
+        // Critical: we should NOT have queried getLogs.
+        assert_eq!(
+            get_logs_calls.load(Ordering::Relaxed),
+            0,
+            "must not poll eth_getLogs when cursor is above head — would waste RPC budget"
+        );
+    }
+
+    /// JSON-RPC error responses surface as `EventSourceError::Rpc`,
+    /// not as a silent skip — operators rely on the watcher escalating
+    /// errors via the daemon's exponential-backoff loop.
+    #[test]
+    fn live_propagates_rpc_error_response() {
+        let server = FakeRpcServer::spawn(|_body: &str| {
+            r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"node sync"}}"#
+                .to_string()
+        });
+
+        let mut source = EthRpcEventSource::builder(server.url.clone(), [0u8; 20])
+            .request_timeout(Duration::from_secs(5))
+            .build()
+            .unwrap();
+
+        let err = source.next_event(0).expect_err("should surface rpc error");
+        match err {
+            crate::event_source::EventSourceError::Rpc(msg) => {
+                assert!(
+                    msg.contains("-32000") || msg.contains("node sync"),
+                    "rpc error message must carry server-side detail: got '{msg}'"
+                );
+            }
+            other => panic!("expected EventSourceError::Rpc, got {other:?}"),
+        }
+    }
+
+    /// HTTP transport failure (server doesn't respond / connection
+    /// refused) also surfaces as an `EventSourceError`. The daemon's
+    /// retry loop catches this and backs off — so silent swallowing
+    /// would mask outages.
+    #[test]
+    fn live_propagates_transport_failure() {
+        // Bind a port + immediately drop the listener so the address is
+        // (briefly) unreachable. We accept that this is racy on busy
+        // CI; if the OS rebinds the port the test could be flaky.
+        // Mitigation: the source has a 1s timeout; we'd see at worst a
+        // delay, not a wrong result.
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+
+        let url = format!("http://127.0.0.1:{}/", port);
+        let mut source = EthRpcEventSource::builder(url, [0u8; 20])
+            .request_timeout(Duration::from_secs(1))
+            .build()
+            .unwrap();
+
+        let err = source.next_event(0).expect_err("transport failure must surface");
+        match err {
+            crate::event_source::EventSourceError::Rpc(_) => { /* expected */ }
+            other => panic!("expected EventSourceError::Rpc, got {other:?}"),
+        }
     }
 }

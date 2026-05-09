@@ -284,44 +284,9 @@ l2_batch_info_hash          = 0x...  # 此 L2 的 L2BatchInfoContract
 
 ### 通道 2 —— 桥(资产转移)
 
-**L1 → L2 充值:**
-
-```text
-    L1 用户         NeoHub.SharedBridge      L2BridgeContract        L2 用户
-       │                    │                       │                   │
-       │── Deposit(chainId, asset, amount, recipient) ─▶                │
-       │                    │                       │                   │
-       │                    │ 锁资产,发出                              │
-       │                    │ DepositReady 事件                         │
-       │                    │                       │                   │
-       │            (L2 批处理器 poll 事件)         │                   │
-       │                    │── DepositReady ──────▶│                   │
-       │                    │                       │                   │
-       │                    │                       │ 铸包装资产,        │
-       │                    │                       │ 计入接收方         │
-       │                    │                       │                   │
-       │                    │                       │── 余额到账 ──────▶│
-```
-
-**L2 → L1 提款:**
-
-```text
-    L2 用户         L2BridgeContract        SharedBridge          L1 用户
-       │                    │                       │                   │
-       │── Withdraw(asset, amount, recipient) ─────▶│                   │
-       │                    │                       │                   │
-       │                    │ 销包装资产,                              │
-       │                    │ 发出 WithdrawalReady                      │
-       │                    │                       │                   │
-       │  (提款记录在下个批次中封装;批次在 L1 上最终化后,接收方领取)   │
-       │                    │                       │                   │
-       │                    │                       │◀─── ClaimWithdrawal(batchId, leafIdx, merkleProof)
-       │                    │                       │                   │
-       │                    │                       │ VerifyWithdrawal- │
-       │                    │                       │ LeafWithProof     │
-       │                    │                       │                   │
-       │                    │                       │── 释放资产 ──────▶│
-```
+<p align="center">
+  <img src="../figures/architecture/bridge-sequences.svg" alt="桥的双面板序列图。上面板 L1→L2 充值:L1 用户在 SharedBridge 上调 Deposit → 资产被锁、发出 DepositReady → L2 批处理器中继到 L2BridgeContract → 铸包装资产 → L2 用户余额到账。下面板 L2→L1 提款:L2 用户在 L2BridgeContract 上调 Withdraw → 销包装资产、发出 WithdrawalReady → 提款记录在下一批次封装 → L1 用户带 Merkle 证明调 ClaimWithdrawal → SharedBridge.VerifyWithdrawalLeafWithProof 释放资产" width="900">
+</p>
 
 线协议格式:L1→L2 用 `DepositPayload`,L2→L1 用 `WithdrawalRecord` + Merkle 路径。
 两个 encoder 都在 `Neo.L2.Bridge/`。

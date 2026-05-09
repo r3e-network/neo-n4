@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 760" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">桥序列 —— 通道 2(充值 + 提款)</title>
+  <desc id="desc">L1↔L2 桥的两个配对序列图。上面板 L1→L2 充值:L1 用户在 NeoHub.SharedBridge 上调 Deposit(chainId、asset、amount、recipient);SharedBridge 锁资产并发出 DepositReady;L2 批处理器 poll 事件后转发给 L2BridgeContract;L2BridgeContract 铸包装资产并计入接收方,L2 用户余额到账。下面板 L2→L1 提款:L2 用户在 L2BridgeContract 上调 Withdraw(asset、amount、recipient);L2BridgeContract 销包装资产并发出 WithdrawalReady;提款记录在下一批次封装,L1 上最终化后,L1 用户调 ClaimWithdrawal(batchId、leafIdx、merkleProof);SharedBridge.VerifyWithdrawalLeafWithProof 释放资产。</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .panel-t    { font-size: 13px; font-weight: 700; letter-spacing: 0.4px; }
+      .actor-t    { font-size: 11.5px; font-weight: 700; }
+      .actor-s    { font-size: 10px; fill: #525a64; font-style: italic; }
+      .lifeline   { stroke: #cfd5dd; stroke-width: 1; stroke-dasharray: 3 3; }
+      .msg-t      { font-size: 11px; fill: #1e2a55; font-weight: 600; }
+      .msg-s      { font-size: 10.5px; fill: #525a64; font-style: italic; }
+      .note       { font-size: 10.5px; fill: #2d3a48; }
+    </style>
+  </defs>
+
+  <rect width="960" height="760" fill="#ffffff"/>
+
+  <text x="480" y="30" text-anchor="middle" class="header" fill="#1e2a55">桥序列 —— 通道 2(资产转移)</text>
+
+  <text x="60" y="62" class="panel-t" fill="#1d4d2c">L1 → L2 充值</text>
+  <text x="200" y="62" class="msg-s">用户在 L1 锁资产,批处理器中继事件,L2 铸包装资产</text>
+
+  <g filter="url(#card)">
+    <rect x="60" y="76" width="120" height="50" rx="6" ry="6" fill="#ffffff" stroke="#7587c1" stroke-width="1.2"/>
+    <text x="120" y="98" text-anchor="middle" class="actor-t" fill="#1e2a55">L1 用户</text>
+    <text x="120" y="114" text-anchor="middle" class="actor-s">钱包</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="300" y="76" width="120" height="50" rx="6" ry="6" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
+    <text x="360" y="98" text-anchor="middle" class="actor-t" fill="#1e2a55">SharedBridge</text>
+    <text x="360" y="114" text-anchor="middle" class="actor-s">L1 NeoHub</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="540" y="76" width="120" height="50" rx="6" ry="6" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.4"/>
+    <text x="600" y="98" text-anchor="middle" class="actor-t" fill="#1d4d2c">L2BridgeContract</text>
+    <text x="600" y="114" text-anchor="middle" class="actor-s">L2 原生</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="780" y="76" width="120" height="50" rx="6" ry="6" fill="#ffffff" stroke="#3a8454" stroke-width="1.2"/>
+    <text x="840" y="98" text-anchor="middle" class="actor-t" fill="#1d4d2c">L2 用户</text>
+    <text x="840" y="114" text-anchor="middle" class="actor-s">钱包</text>
+  </g>
+
+  <line class="lifeline" x1="120" y1="126" x2="120" y2="320"/>
+  <line class="lifeline" x1="360" y1="126" x2="360" y2="320"/>
+  <line class="lifeline" x1="600" y1="126" x2="600" y2="320"/>
+  <line class="lifeline" x1="840" y1="126" x2="840" y2="320"/>
+
+  <line x1="120" y1="156" x2="360" y2="156" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="240" y="150" text-anchor="middle" class="msg-t">Deposit(chainId, asset, amount, recipient)</text>
+
+  <g>
+    <rect x="310" y="180" width="100" height="36" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-dasharray="2 2"/>
+    <text x="360" y="196" text-anchor="middle" class="msg-s">锁资产,发出</text>
+    <text x="360" y="210" text-anchor="middle" class="msg-s">DepositReady 事件</text>
+  </g>
+
+  <g>
+    <rect x="200" y="226" width="280" height="22" rx="4" ry="4" fill="#fff8ee" stroke="#cd7c2e" stroke-dasharray="2 2"/>
+    <text x="340" y="241" text-anchor="middle" class="msg-s">(L2 批处理器按自己的节奏 poll L1 事件)</text>
+  </g>
+
+  <line x1="360" y1="270" x2="600" y2="270" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="480" y="264" text-anchor="middle" class="msg-t">DepositReady(中继)</text>
+
+  <g>
+    <rect x="540" y="280" width="120" height="22" rx="4" ry="4" fill="#e7f4eb" stroke="#3a8454" stroke-dasharray="2 2"/>
+    <text x="600" y="295" text-anchor="middle" class="msg-s">铸包装资产</text>
+  </g>
+
+  <line x1="600" y1="316" x2="840" y2="316" stroke="#3a8454" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="720" y="310" text-anchor="middle" class="msg-t" fill="#1d4d2c">余额到账</text>
+
+  <line x1="60" y1="360" x2="900" y2="360" stroke="#cfd5dd" stroke-width="1.2"/>
+
+  <text x="60" y="392" class="panel-t" fill="#88312e">L2 → L1 提款</text>
+  <text x="200" y="392" class="msg-s">用户销包装资产,批次在 L1 上最终化,用户用 Merkle 证明领取</text>
+
+  <g filter="url(#card)">
+    <rect x="60" y="406" width="120" height="50" rx="6" ry="6" fill="#ffffff" stroke="#3a8454" stroke-width="1.2"/>
+    <text x="120" y="428" text-anchor="middle" class="actor-t" fill="#1d4d2c">L2 用户</text>
+    <text x="120" y="444" text-anchor="middle" class="actor-s">钱包</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="300" y="406" width="120" height="50" rx="6" ry="6" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.4"/>
+    <text x="360" y="428" text-anchor="middle" class="actor-t" fill="#1d4d2c">L2BridgeContract</text>
+    <text x="360" y="444" text-anchor="middle" class="actor-s">L2 原生</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="540" y="406" width="120" height="50" rx="6" ry="6" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
+    <text x="600" y="428" text-anchor="middle" class="actor-t" fill="#1e2a55">SharedBridge</text>
+    <text x="600" y="444" text-anchor="middle" class="actor-s">L1 NeoHub</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="780" y="406" width="120" height="50" rx="6" ry="6" fill="#ffffff" stroke="#7587c1" stroke-width="1.2"/>
+    <text x="840" y="428" text-anchor="middle" class="actor-t" fill="#1e2a55">L1 用户</text>
+    <text x="840" y="444" text-anchor="middle" class="actor-s">钱包</text>
+  </g>
+
+  <line class="lifeline" x1="120" y1="456" x2="120" y2="700"/>
+  <line class="lifeline" x1="360" y1="456" x2="360" y2="700"/>
+  <line class="lifeline" x1="600" y1="456" x2="600" y2="700"/>
+  <line class="lifeline" x1="840" y1="456" x2="840" y2="700"/>
+
+  <line x1="120" y1="486" x2="360" y2="486" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="240" y="480" text-anchor="middle" class="msg-t">Withdraw(asset, amount, recipient)</text>
+
+  <g>
+    <rect x="305" y="500" width="110" height="36" rx="4" ry="4" fill="#e7f4eb" stroke="#3a8454" stroke-dasharray="2 2"/>
+    <text x="360" y="516" text-anchor="middle" class="msg-s">销包装资产</text>
+    <text x="360" y="530" text-anchor="middle" class="msg-s">发出 WithdrawalReady</text>
+  </g>
+
+  <g>
+    <rect x="160" y="552" width="500" height="40" rx="4" ry="4" fill="#fff8ee" stroke="#cd7c2e" stroke-dasharray="2 2"/>
+    <text x="410" y="568" text-anchor="middle" class="msg-s">(提款记录在下一批次封装;</text>
+    <text x="410" y="582" text-anchor="middle" class="msg-s">批次在 L1 上最终化后,接收方可领取)</text>
+  </g>
+
+  <line x1="840" y1="616" x2="600" y2="616" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="720" y="610" text-anchor="middle" class="msg-t">ClaimWithdrawal(batchId, leafIdx, merkleProof)</text>
+
+  <g>
+    <rect x="535" y="630" width="130" height="36" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-dasharray="2 2"/>
+    <text x="600" y="646" text-anchor="middle" class="msg-s">VerifyWithdrawalLeaf-</text>
+    <text x="600" y="660" text-anchor="middle" class="msg-s">WithProof → 释放</text>
+  </g>
+
+  <line x1="600" y1="690" x2="840" y2="690" stroke="#3a8454" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="720" y="684" text-anchor="middle" class="msg-t" fill="#1d4d2c">资产已释放</text>
+
+  <text x="480" y="740" text-anchor="middle" class="msg-s" fill="#525a64">线协议格式:DepositPayload(L1→L2)· WithdrawalRecord + Merkle 路径(L2→L1)—— 都在 Neo.L2.Bridge/。</text>
+</svg>

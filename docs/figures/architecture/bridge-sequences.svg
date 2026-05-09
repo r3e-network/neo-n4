@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 760" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">Bridge sequences — channel 2 (deposit + withdrawal)</title>
+  <desc id="desc">Two paired sequence diagrams for the L1 to L2 bridge. Top panel L1 to L2 deposit: L1 user calls Deposit on NeoHub.SharedBridge with chainId, asset, amount, recipient. SharedBridge locks the asset and emits DepositReady. The L2 batcher polls events and forwards DepositReady to L2BridgeContract. L2BridgeContract mints the wrapped asset and credits the recipient; the L2 user sees a balance bump. Bottom panel L2 to L1 withdrawal: L2 user calls Withdraw on L2BridgeContract with asset, amount, recipient. L2BridgeContract burns the wrapped asset and emits WithdrawalReady. The withdrawal record is sealed in the next batch and finalized on L1; the L1 user then calls ClaimWithdrawal with batchId, leafIdx, and merkleProof. SharedBridge.VerifyWithdrawalLeafWithProof releases the asset.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .panel-t    { font-size: 13px; font-weight: 700; letter-spacing: 0.4px; }
+      .actor-t    { font-size: 11.5px; font-weight: 700; }
+      .actor-s    { font-size: 10px; fill: #525a64; font-style: italic; }
+      .lifeline   { stroke: #cfd5dd; stroke-width: 1; stroke-dasharray: 3 3; }
+      .msg-t      { font-size: 11px; fill: #1e2a55; font-weight: 600; }
+      .msg-s      { font-size: 10.5px; fill: #525a64; font-style: italic; }
+      .note       { font-size: 10.5px; fill: #2d3a48; }
+    </style>
+  </defs>
+
+  <rect width="960" height="760" fill="#ffffff"/>
+
+  <text x="480" y="30" text-anchor="middle" class="header" fill="#1e2a55">Bridge sequences — channel 2 (asset transfers)</text>
+
+  <!-- Top panel: deposit -->
+  <text x="60" y="62" class="panel-t" fill="#1d4d2c">L1 → L2 deposit</text>
+  <text x="218" y="62" class="msg-s">user locks asset on L1, batcher relays event, L2 mints wrapped asset</text>
+
+  <!-- Actors (deposit): 4 columns at 120, 360, 600, 840 -->
+  <g filter="url(#card)">
+    <rect x="60" y="76" width="120" height="50" rx="6" ry="6" fill="#ffffff" stroke="#7587c1" stroke-width="1.2"/>
+    <text x="120" y="98" text-anchor="middle" class="actor-t" fill="#1e2a55">L1 user</text>
+    <text x="120" y="114" text-anchor="middle" class="actor-s">wallet</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="300" y="76" width="120" height="50" rx="6" ry="6" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
+    <text x="360" y="98" text-anchor="middle" class="actor-t" fill="#1e2a55">SharedBridge</text>
+    <text x="360" y="114" text-anchor="middle" class="actor-s">L1 NeoHub</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="540" y="76" width="120" height="50" rx="6" ry="6" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.4"/>
+    <text x="600" y="98" text-anchor="middle" class="actor-t" fill="#1d4d2c">L2BridgeContract</text>
+    <text x="600" y="114" text-anchor="middle" class="actor-s">L2 native</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="780" y="76" width="120" height="50" rx="6" ry="6" fill="#ffffff" stroke="#3a8454" stroke-width="1.2"/>
+    <text x="840" y="98" text-anchor="middle" class="actor-t" fill="#1d4d2c">L2 user</text>
+    <text x="840" y="114" text-anchor="middle" class="actor-s">wallet</text>
+  </g>
+
+  <line class="lifeline" x1="120" y1="126" x2="120" y2="320"/>
+  <line class="lifeline" x1="360" y1="126" x2="360" y2="320"/>
+  <line class="lifeline" x1="600" y1="126" x2="600" y2="320"/>
+  <line class="lifeline" x1="840" y1="126" x2="840" y2="320"/>
+
+  <!-- Deposit msg 1: Deposit(chainId, asset, amount, recipient) -->
+  <line x1="120" y1="156" x2="360" y2="156" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="240" y="150" text-anchor="middle" class="msg-t">Deposit(chainId, asset, amount, recipient)</text>
+
+  <!-- Note: Lock asset, emit DepositReady -->
+  <g>
+    <rect x="310" y="180" width="100" height="36" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-dasharray="2 2"/>
+    <text x="360" y="196" text-anchor="middle" class="msg-s">Lock asset, emit</text>
+    <text x="360" y="210" text-anchor="middle" class="msg-s">DepositReady event</text>
+  </g>
+
+  <!-- Note: L2 batcher polls events -->
+  <g>
+    <rect x="200" y="226" width="280" height="22" rx="4" ry="4" fill="#fff8ee" stroke="#cd7c2e" stroke-dasharray="2 2"/>
+    <text x="340" y="241" text-anchor="middle" class="msg-s">(L2 batcher polls L1 events on its own cadence)</text>
+  </g>
+
+  <!-- Deposit msg 2: DepositReady (L1 batcher relays to L2BridgeContract) -->
+  <line x1="360" y1="270" x2="600" y2="270" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="480" y="264" text-anchor="middle" class="msg-t">DepositReady (relayed)</text>
+
+  <!-- Note: Mint wrapped asset -->
+  <g>
+    <rect x="540" y="280" width="120" height="22" rx="4" ry="4" fill="#e7f4eb" stroke="#3a8454" stroke-dasharray="2 2"/>
+    <text x="600" y="295" text-anchor="middle" class="msg-s">Mint wrapped asset</text>
+  </g>
+
+  <!-- Deposit msg 3: balance bump -->
+  <line x1="600" y1="316" x2="840" y2="316" stroke="#3a8454" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="720" y="310" text-anchor="middle" class="msg-t" fill="#1d4d2c">balance bump</text>
+
+  <!-- Divider -->
+  <line x1="60" y1="360" x2="900" y2="360" stroke="#cfd5dd" stroke-width="1.2"/>
+
+  <!-- Bottom panel: withdrawal -->
+  <text x="60" y="392" class="panel-t" fill="#88312e">L2 → L1 withdrawal</text>
+  <text x="218" y="392" class="msg-s">user burns wrapped asset, batch finalizes on L1, user claims with Merkle proof</text>
+
+  <!-- Actors (withdrawal): same 4 columns -->
+  <g filter="url(#card)">
+    <rect x="60" y="406" width="120" height="50" rx="6" ry="6" fill="#ffffff" stroke="#3a8454" stroke-width="1.2"/>
+    <text x="120" y="428" text-anchor="middle" class="actor-t" fill="#1d4d2c">L2 user</text>
+    <text x="120" y="444" text-anchor="middle" class="actor-s">wallet</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="300" y="406" width="120" height="50" rx="6" ry="6" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.4"/>
+    <text x="360" y="428" text-anchor="middle" class="actor-t" fill="#1d4d2c">L2BridgeContract</text>
+    <text x="360" y="444" text-anchor="middle" class="actor-s">L2 native</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="540" y="406" width="120" height="50" rx="6" ry="6" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
+    <text x="600" y="428" text-anchor="middle" class="actor-t" fill="#1e2a55">SharedBridge</text>
+    <text x="600" y="444" text-anchor="middle" class="actor-s">L1 NeoHub</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="780" y="406" width="120" height="50" rx="6" ry="6" fill="#ffffff" stroke="#7587c1" stroke-width="1.2"/>
+    <text x="840" y="428" text-anchor="middle" class="actor-t" fill="#1e2a55">L1 user</text>
+    <text x="840" y="444" text-anchor="middle" class="actor-s">wallet</text>
+  </g>
+
+  <line class="lifeline" x1="120" y1="456" x2="120" y2="700"/>
+  <line class="lifeline" x1="360" y1="456" x2="360" y2="700"/>
+  <line class="lifeline" x1="600" y1="456" x2="600" y2="700"/>
+  <line class="lifeline" x1="840" y1="456" x2="840" y2="700"/>
+
+  <!-- Withdraw msg 1: Withdraw -->
+  <line x1="120" y1="486" x2="360" y2="486" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="240" y="480" text-anchor="middle" class="msg-t">Withdraw(asset, amount, recipient)</text>
+
+  <!-- Note: Burn wrapped, emit WithdrawalReady -->
+  <g>
+    <rect x="305" y="500" width="110" height="36" rx="4" ry="4" fill="#e7f4eb" stroke="#3a8454" stroke-dasharray="2 2"/>
+    <text x="360" y="516" text-anchor="middle" class="msg-s">Burn wrapped asset</text>
+    <text x="360" y="530" text-anchor="middle" class="msg-s">emit WithdrawalReady</text>
+  </g>
+
+  <!-- Note: Withdrawal sealed in next batch + finalized on L1 -->
+  <g>
+    <rect x="160" y="552" width="500" height="40" rx="4" ry="4" fill="#fff8ee" stroke="#cd7c2e" stroke-dasharray="2 2"/>
+    <text x="410" y="568" text-anchor="middle" class="msg-s">(withdrawal record sealed in next batch;</text>
+    <text x="410" y="582" text-anchor="middle" class="msg-s">after batch finalizes on L1, recipient can claim)</text>
+  </g>
+
+  <!-- Withdraw msg 2: ClaimWithdrawal (back from L1 user to SharedBridge) -->
+  <line x1="840" y1="616" x2="600" y2="616" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="720" y="610" text-anchor="middle" class="msg-t">ClaimWithdrawal(batchId, leafIdx, merkleProof)</text>
+
+  <!-- Note: VerifyWithdrawalLeafWithProof -->
+  <g>
+    <rect x="535" y="630" width="130" height="36" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-dasharray="2 2"/>
+    <text x="600" y="646" text-anchor="middle" class="msg-s">VerifyWithdrawalLeaf-</text>
+    <text x="600" y="660" text-anchor="middle" class="msg-s">WithProof → release</text>
+  </g>
+
+  <!-- Withdraw msg 3: release asset -->
+  <line x1="600" y1="690" x2="840" y2="690" stroke="#3a8454" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="720" y="684" text-anchor="middle" class="msg-t" fill="#1d4d2c">asset released</text>
+
+  <!-- Footer note -->
+  <text x="480" y="740" text-anchor="middle" class="msg-s" fill="#525a64">Wire formats: DepositPayload (L1→L2) · WithdrawalRecord + Merkle path (L2→L1) — both in Neo.L2.Bridge/.</text>
+</svg>

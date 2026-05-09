@@ -306,46 +306,9 @@ lifecycle" for the per-tx zoom-in.
 
 ### Channel 2 — Bridge (asset transfers)
 
-**L1 → L2 deposit:**
-
-```text
-    L1 user         NeoHub.SharedBridge      L2BridgeContract        L2 user
-       │                    │                       │                   │
-       │── Deposit(chainId, asset, amount, recipient) ─▶                │
-       │                    │                       │                   │
-       │                    │ Lock asset, emit                          │
-       │                    │ DepositReady event                        │
-       │                    │                       │                   │
-       │            (L2 batcher polls events)       │                   │
-       │                    │── DepositReady ──────▶│                   │
-       │                    │                       │                   │
-       │                    │                       │ Mint wrapped      │
-       │                    │                       │ asset, credit     │
-       │                    │                       │ recipient         │
-       │                    │                       │                   │
-       │                    │                       │── balance bump ──▶│
-```
-
-**L2 → L1 withdrawal:**
-
-```text
-    L2 user         L2BridgeContract        SharedBridge          L1 user
-       │                    │                       │                   │
-       │── Withdraw(asset, amount, recipient) ─────▶│                   │
-       │                    │                       │                   │
-       │                    │ Burn wrapped asset,                       │
-       │                    │ emit WithdrawalReady                      │
-       │                    │                       │                   │
-       │  (Withdrawal record sealed in next batch;                      │
-       │   after batch finalizes on L1, recipient claims)               │
-       │                    │                       │                   │
-       │                    │                       │◀─── ClaimWithdrawal(batchId, leafIdx, merkleProof)
-       │                    │                       │                   │
-       │                    │                       │ VerifyWithdrawal- │
-       │                    │                       │ LeafWithProof     │
-       │                    │                       │                   │
-       │                    │                       │── release asset ─▶│
-```
+<p align="center">
+  <img src="figures/architecture/bridge-sequences.svg" alt="Two-panel bridge sequence diagram. Top panel L1→L2 deposit: L1 user calls Deposit on SharedBridge → asset locked + DepositReady emitted → L2 batcher relays to L2BridgeContract → wrapped asset minted → L2 user balance bumps. Bottom panel L2→L1 withdrawal: L2 user calls Withdraw on L2BridgeContract → wrapped asset burned + WithdrawalReady emitted → withdrawal record sealed in next batch → L1 user calls ClaimWithdrawal with Merkle proof → SharedBridge.VerifyWithdrawalLeafWithProof releases the asset" width="900">
+</p>
 
 Wire format: `DepositPayload` for L1→L2, `WithdrawalRecord` +
 Merkle path for L2→L1. Both encoders live in `Neo.L2.Bridge/`.

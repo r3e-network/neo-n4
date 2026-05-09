@@ -23,7 +23,10 @@
 # ───────────────────────────────────────────────────────────────────
 # Stage 1 — builder
 # ───────────────────────────────────────────────────────────────────
-FROM rust:1.83-slim-bookworm AS builder
+# Rust 1.85+ required: transitive dep `base64ct` (pulled by k256 →
+# elliptic-curve) uses edition 2024, stabilized in 1.85. Pin 1.86
+# (current stable as of 2026-05) for headroom.
+FROM rust:1.86-slim-bookworm AS builder
 
 # System deps for rustls + ring (used by reqwest's blocking client).
 # pkg-config + libssl-dev are belt-and-suspenders — rustls technically

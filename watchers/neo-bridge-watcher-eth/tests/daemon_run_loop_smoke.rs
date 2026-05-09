@@ -24,7 +24,7 @@ use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::os::fd::AsRawFd;
 use std::os::unix::process::ExitStatusExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -113,7 +113,7 @@ mod tempdir {
     }
 }
 
-fn build_test_config(eth_url: &str, neo_url: &str, journal_dir: &PathBuf) -> (tempdir::TempDir, PathBuf) {
+fn build_test_config(eth_url: &str, neo_url: &str, journal_dir: &Path) -> (tempdir::TempDir, PathBuf) {
     let tmp = tempdir::TempDir::new("daemon-run-loop").unwrap();
     let key_path = tmp.path().join("watcher.priv");
     std::fs::write(&key_path, [0x42u8; 32]).unwrap();

@@ -93,11 +93,12 @@ cast send $ROUTER_ADDRESS \
 
 ```bash
 # Generate a watcher private key (one-time, per-chain or shared):
-cargo run --release -p neo-external-bridge -- genkey --out bsc-watcher.priv
+dotnet run --project tools/Neo.External.Bridge.Cli -- \
+    genkey --out bsc-watcher.priv
 
 cat > bsc-watcher.toml <<TOML
-external_chain_id   = 0xE0000030                                # BSC mainnet
-eth_rpc_url         = "https://bsc-dataseed.binance.org"        # any BSC RPC
+external_chain_id   = 0xE0000030                              # BSC mainnet
+eth_rpc_url         = "https://bsc-dataseed.binance.org"      # any BSC RPC
 eth_router_address  = "0xDEPLOYED_ROUTER_FROM_STEP_2"
 neo_rpc_url         = "https://rpc.testnet.neo.org"
 neo_escrow_address  = "0xNEO_ESCROW_DEPLOYED_BY_NEO_HUB_DEPLOY"
@@ -106,20 +107,50 @@ signer_key_path     = "bsc-watcher.priv"
 journal_dir         = "./journal-bsc"
 
 [poll]
-poll_interval_ms       = 6000          # BSC ~3s blocks; 2-block cadence
-initial_backoff_ms     = 500
-max_backoff_ms         = 60000
+poll_interval_secs    = 6              # BSC ~3s blocks; 2-block cadence
+backoff_initial_secs  = 5
+backoff_max_secs      = 300
+eth_chunk_size        = 5000
+request_timeout_secs  = 30
+min_confirmations     = 15             # BSC reorg buffer (see chains.rs)
+start_block           = 38_400_000     # OPTIONAL — bootstrap mid-stream
+                                       # (omit/set 0 to scan from genesis)
+
+[health]                               # OPTIONAL — for k8s probes / Prometheus
+bind                  = "0.0.0.0:9090"
+threshold_secs        = 120
 TOML
 
-# Build with live-rpc, point at config:
+# Build with live-rpc:
 CPATH=~/.local/include cargo build --release \
     -p neo-bridge-watcher-eth --features live-rpc
+
+# Validate config + signer + journal + RPC reachability before running:
+./target/release/neo-bridge-watcher-eth --config bsc-watcher.toml --preflight
+# Exit 0 = safe to start. Walks 6 checks; failure is specific to the
+# bad component (e.g. eth_blockNumber on http://...: connection refused).
+
+# Run:
 ./target/release/neo-bridge-watcher-eth --config bsc-watcher.toml
 ```
 
 The daemon's startup log echoes the human-readable chain name from
 `name_for_chain_id(...)` — operators verify the right chain at a
-glance before letting it run.
+glance before letting it run. If `min_confirmations = 0` but the
+chain has a non-zero recommendation in `chains::recommended_confirmations`,
+the daemon emits a `WARNING` at startup pointing at the recommended value.
+
+**`start_block` for mid-stream bootstrap** (the highlighted field
+above): when the daemon's journal cursor is below `start_block`,
+the cursor is advanced at startup. Useful when deploying a watcher
+against a chain that's been running for months — without
+`start_block`, the daemon scans from block 0, hammering the RPC
+provider for a year of empty blocks. Set `start_block` to the
+chain's current head minus a few thousand blocks (a safety margin
+for any in-flight inbound events you don't want to miss).
+Subsequent restarts read from the journal as normal; `start_block`
+is monotonic — only the first run that finds journal cursor <
+start_block advances.
 
 ### Step 4 — Register the committee + verifier on Neo
 

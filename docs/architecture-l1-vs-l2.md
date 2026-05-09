@@ -21,17 +21,9 @@
 
 ## 1. The dividing principle
 
-```text
-   ┌─────────────────────────────────────────────────────────────────────┐
-   │                                                                     │
-   │   L1 = canonical agreement + economic security                      │
-   │        (slow, expensive, globally consistent)                       │
-   │                                                                     │
-   │   L2 = execution + state + throughput                               │
-   │        (fast, cheap, locally consistent — anchored to L1)           │
-   │                                                                     │
-   └─────────────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="figures/architecture/dividing-principle.svg" alt="L1 equals canonical agreement plus economic security (slow, expensive, globally consistent — all L2s share this floor of truth). L2 equals execution plus state plus throughput (fast, cheap, locally consistent — anchored to L1)" width="900">
+</p>
 
 A piece of state or logic belongs on **L1** if and only if at least
 one of these is true:

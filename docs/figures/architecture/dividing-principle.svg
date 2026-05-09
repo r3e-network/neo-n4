@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 240" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">L1 vs L2 — the dividing principle</title>
+  <desc id="desc">L1 = canonical agreement plus economic security: slow, expensive, globally consistent. L2 = execution plus state plus throughput: fast, cheap, locally consistent and anchored to L1.</desc>
+
+  <defs>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .label      { font-size: 26px; font-weight: 800; }
+      .equals     { font-size: 18px; fill: #525a64; font-weight: 600; }
+      .body       { font-size: 14px; fill: #2d3a48; }
+      .caption    { font-size: 11.5px; fill: #525a64; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect width="960" height="240" fill="#ffffff"/>
+
+  <text x="480" y="32" text-anchor="middle" class="header" fill="#1e2a55">L1 vs L2 — the dividing principle</text>
+
+  <!-- L1 card -->
+  <g filter="url(#card)">
+    <rect x="60" y="60" width="420" height="148" rx="12" ry="12" fill="#eff3ff" stroke="#7587c1" stroke-width="1.5"/>
+    <text x="100" y="106" class="label" fill="#1e2a55">L1</text>
+    <text x="148" y="106" class="equals">=</text>
+    <text x="180" y="106" class="body" font-weight="700">canonical agreement</text>
+    <text x="180" y="128" class="body" font-weight="700">+ economic security</text>
+    <line x1="80" y1="148" x2="460" y2="148" stroke="#7587c1" stroke-dasharray="3 2"/>
+    <text x="270" y="170" text-anchor="middle" class="caption">slow · expensive · globally consistent</text>
+    <text x="270" y="190" text-anchor="middle" class="caption">all L2s share this floor of truth</text>
+  </g>
+
+  <!-- L2 card -->
+  <g filter="url(#card)">
+    <rect x="500" y="60" width="400" height="148" rx="12" ry="12" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.5"/>
+    <text x="540" y="106" class="label" fill="#1d4d2c">L2</text>
+    <text x="588" y="106" class="equals">=</text>
+    <text x="620" y="106" class="body" font-weight="700">execution + state</text>
+    <text x="620" y="128" class="body" font-weight="700">+ throughput</text>
+    <line x1="520" y1="148" x2="880" y2="148" stroke="#3a8454" stroke-dasharray="3 2"/>
+    <text x="700" y="170" text-anchor="middle" class="caption">fast · cheap · locally consistent</text>
+    <text x="700" y="190" text-anchor="middle" class="caption">anchored to L1</text>
+  </g>
+</svg>

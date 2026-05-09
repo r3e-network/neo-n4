@@ -147,11 +147,19 @@ kind: Service
 metadata:
   name: neo-bridge-watcher-eth-bsc
   namespace: neo-bridge
+  # Prometheus scrape annotations — picked up by the standard
+  # `prometheus.io/*` relabel rules. Tune the path/port if your
+  # Prometheus uses a different convention.
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port:   "9090"
+    prometheus.io/path:   "/metrics"
 spec:
   selector: {app: neo-bridge-watcher-eth, chain: bsc}
   ports:
     - {name: health, port: 9090, targetPort: 9090, protocol: TCP}
-  # ClusterIP — health probes are cluster-internal. Exposing /healthz
-  # to the public internet is unnecessary and a low-grade information
-  # leak (chain id, journal cursor, last error visible to anyone).
+  # ClusterIP — health probes + metrics are cluster-internal.
+  # Exposing /healthz or /metrics to the public internet is
+  # unnecessary and a low-grade information leak (chain id, journal
+  # cursor, last error, throughput visible to anyone).
   type: ClusterIP

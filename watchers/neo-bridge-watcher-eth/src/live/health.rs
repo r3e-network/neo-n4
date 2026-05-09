@@ -127,6 +127,70 @@ impl HealthState {
         );
         (healthy, json)
     }
+
+    /// Build a Prometheus exposition-format snapshot. The output matches
+    /// the standard `# HELP ... # TYPE ... <metric> <value>` shape that
+    /// Prometheus / VictoriaMetrics / OpenTelemetry collectors all parse.
+    ///
+    /// Metrics:
+    /// - `watcher_started_at_unix_timestamp` (gauge) — process start time
+    /// - `watcher_last_tick_unix_timestamp` (gauge) — 0 if no tick yet
+    /// - `watcher_last_tick_success_unix_timestamp` (gauge) — 0 if none
+    /// - `watcher_ticks_total` (counter) — every iteration of the run loop
+    /// - `watcher_events_processed_total` (counter) — events seen
+    /// - `watcher_submissions_total` (counter) — successful submissions
+    /// - `watcher_journal_cursor` (gauge) — current block cursor
+    /// - `watcher_last_error_unix_timestamp` (gauge) — 0 if no error
+    /// - `watcher_healthy` (gauge) — 1 if `now - last_tick_success ≤ threshold`
+    ///
+    /// The operator-facing dashboard typically alerts on:
+    ///   - `time() - watcher_last_tick_success_unix_timestamp > 300` (stale)
+    ///   - `watcher_healthy == 0` (same alert, threshold-aware)
+    ///   - `rate(watcher_submissions_total[5m]) == 0` AND `events_processed > 0` (stuck)
+    pub fn metrics_text(&self, healthy_threshold_secs: u64) -> String {
+        let s = self.inner.lock().unwrap();
+        let now = unix_now();
+        let reference = s.last_tick_success_unix.unwrap_or(s.started_at_unix);
+        let healthy = if now.saturating_sub(reference) <= healthy_threshold_secs { 1 } else { 0 };
+        format!(
+            "# HELP watcher_started_at_unix_timestamp Watcher process start time (Unix seconds)\n\
+             # TYPE watcher_started_at_unix_timestamp gauge\n\
+             watcher_started_at_unix_timestamp {}\n\
+             # HELP watcher_last_tick_unix_timestamp Time of last run-loop iteration (success or error)\n\
+             # TYPE watcher_last_tick_unix_timestamp gauge\n\
+             watcher_last_tick_unix_timestamp {}\n\
+             # HELP watcher_last_tick_success_unix_timestamp Time of last tick that completed without error\n\
+             # TYPE watcher_last_tick_success_unix_timestamp gauge\n\
+             watcher_last_tick_success_unix_timestamp {}\n\
+             # HELP watcher_ticks_total Total run-loop iterations\n\
+             # TYPE watcher_ticks_total counter\n\
+             watcher_ticks_total {}\n\
+             # HELP watcher_events_processed_total Total Locked events the watcher has processed\n\
+             # TYPE watcher_events_processed_total counter\n\
+             watcher_events_processed_total {}\n\
+             # HELP watcher_submissions_total Total successful submissions to NeoHub.ExternalBridgeEscrow.Receive\n\
+             # TYPE watcher_submissions_total counter\n\
+             watcher_submissions_total {}\n\
+             # HELP watcher_journal_cursor Current journal block cursor\n\
+             # TYPE watcher_journal_cursor gauge\n\
+             watcher_journal_cursor {}\n\
+             # HELP watcher_last_error_unix_timestamp Time of last error in the run loop (0 = none)\n\
+             # TYPE watcher_last_error_unix_timestamp gauge\n\
+             watcher_last_error_unix_timestamp {}\n\
+             # HELP watcher_healthy 1 if last tick succeeded within the configured threshold, else 0\n\
+             # TYPE watcher_healthy gauge\n\
+             watcher_healthy {}\n",
+            s.started_at_unix,
+            s.last_tick_at_unix.unwrap_or(0),
+            s.last_tick_success_unix.unwrap_or(0),
+            s.ticks_total,
+            s.events_processed,
+            s.submissions_total,
+            s.journal_cursor,
+            s.last_error_unix.unwrap_or(0),
+            healthy,
+        )
+    }
 }
 
 impl Default for HealthState {
@@ -195,28 +259,38 @@ fn handle_request(stream: &mut TcpStream, state: &HealthState, threshold: u64) {
     // Request line: "GET /path HTTP/1.1"
     let path = req.split_whitespace().nth(1).unwrap_or("/");
 
-    let (status_code, status_text, body) = match path {
+    let (status_code, status_text, content_type, body) = match path {
         "/healthz" => {
             let (healthy, json) = state.snapshot(threshold);
             if healthy {
-                (200, "OK", json)
+                (200, "OK", "application/json", json)
             } else {
-                (503, "Service Unavailable", json)
+                (503, "Service Unavailable", "application/json", json)
             }
         }
         "/info" | "/" => {
             let (_, json) = state.snapshot(threshold);
-            (200, "OK", json)
+            (200, "OK", "application/json", json)
         }
+        "/metrics" => (
+            200,
+            "OK",
+            // Prometheus exposition format. text/plain version 0.0.4 is
+            // what Prometheus / VictoriaMetrics / OpenTelemetry expect;
+            // the version param is optional but conventional.
+            "text/plain; version=0.0.4; charset=utf-8",
+            state.metrics_text(threshold),
+        ),
         _ => (
             404,
             "Not Found",
-            r#"{"error":"unknown path; try /healthz or /info"}"#.to_string(),
+            "application/json",
+            r#"{"error":"unknown path; try /healthz, /info, or /metrics"}"#.to_string(),
         ),
     };
     let resp = format!(
         "HTTP/1.1 {status_code} {status_text}\r\n\
-         Content-Type: application/json\r\n\
+         Content-Type: {content_type}\r\n\
          Content-Length: {}\r\n\
          Connection: close\r\n\
          \r\n{body}",
@@ -371,6 +445,94 @@ mod tests {
 
         let resp = client.get(format!("{url}/unknown")).send().unwrap();
         assert_eq!(resp.status(), 404);
+    }
+
+    /// Prometheus /metrics endpoint emits valid exposition format with
+    /// all expected metrics. Pin: HELP + TYPE lines per metric, value
+    /// lines reflect recorder state, content-type matches Prometheus
+    /// convention.
+    #[test]
+    fn http_server_serves_prometheus_metrics() {
+        let state = HealthState::new();
+        state.record_tick(true);
+        state.record_tick(false);
+        state.record_submission();
+        state.record_cursor(42);
+
+        let server = HealthServer::spawn("127.0.0.1:0", state, 60).unwrap();
+        let url = format!("http://{}", server.bound_addr);
+
+        let client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()
+            .unwrap();
+
+        let resp = client.get(format!("{url}/metrics")).send().unwrap();
+        assert_eq!(resp.status(), 200);
+        let ct = resp.headers().get("content-type").unwrap().to_str().unwrap();
+        assert!(
+            ct.starts_with("text/plain") && ct.contains("version=0.0.4"),
+            "Prometheus expects 'text/plain; version=0.0.4'; got '{ct}'"
+        );
+        let body = resp.text().unwrap();
+
+        // Every metric must have a HELP + TYPE preamble + a value line.
+        let expected_metrics = [
+            "watcher_started_at_unix_timestamp",
+            "watcher_last_tick_unix_timestamp",
+            "watcher_last_tick_success_unix_timestamp",
+            "watcher_ticks_total",
+            "watcher_events_processed_total",
+            "watcher_submissions_total",
+            "watcher_journal_cursor",
+            "watcher_last_error_unix_timestamp",
+            "watcher_healthy",
+        ];
+        for metric in expected_metrics {
+            assert!(
+                body.contains(&format!("# HELP {metric} ")),
+                "missing HELP for {metric} in:\n{body}"
+            );
+            assert!(
+                body.contains(&format!("# TYPE {metric} ")),
+                "missing TYPE for {metric}"
+            );
+            assert!(
+                body.lines().any(|l| l.starts_with(&format!("{metric} "))),
+                "missing value line for {metric}"
+            );
+        }
+
+        // Pin specific values — counters reflect recorder calls; cursor
+        // matches the explicit set; healthy=1 because we recorded a
+        // tick within threshold.
+        assert!(body.contains("watcher_ticks_total 2\n"));
+        assert!(body.contains("watcher_events_processed_total 1\n"));
+        assert!(body.contains("watcher_submissions_total 1\n"));
+        assert!(body.contains("watcher_journal_cursor 42\n"));
+        assert!(body.contains("watcher_healthy 1\n"));
+        // No error recorded → 0 timestamp.
+        assert!(body.contains("watcher_last_error_unix_timestamp 0\n"));
+    }
+
+    /// `/metrics` reports `watcher_healthy 0` when stale — same logic
+    /// drives `/healthz`'s 503. A monitoring stack can alert on this
+    /// metric without polling /healthz separately.
+    #[test]
+    fn metrics_reports_healthy_zero_when_stale() {
+        let state = HealthState::new();
+        std::thread::sleep(Duration::from_millis(1100));
+        let server = HealthServer::spawn("127.0.0.1:0", state, 0).unwrap();
+        let url = format!("http://{}", server.bound_addr);
+
+        let client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()
+            .unwrap();
+
+        let body = client.get(format!("{url}/metrics")).send().unwrap().text().unwrap();
+        assert!(body.contains("watcher_healthy 0\n"),
+            "stale daemon must report watcher_healthy 0 in /metrics: {body}");
     }
 
     /// Server cleans up on Drop — port is reusable immediately.

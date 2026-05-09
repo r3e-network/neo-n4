@@ -5,6 +5,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Prometheus `/metrics` endpoint for the watcher daemon
+
+The same `[health]` server now exposes `GET /metrics` in Prometheus
+exposition format (text/plain; version=0.0.4). Operators get
+out-of-the-box monitoring without a separate exporter binary.
+
+9 metrics: `watcher_started_at_unix_timestamp`,
+`watcher_last_tick_unix_timestamp`,
+`watcher_last_tick_success_unix_timestamp`, `watcher_ticks_total`
+(counter), `watcher_events_processed_total` (counter),
+`watcher_submissions_total` (counter), `watcher_journal_cursor`,
+`watcher_last_error_unix_timestamp`, `watcher_healthy` (1/0 —
+same logic as `/healthz`'s 200/503).
+
+Each metric has Prometheus-conventional `# HELP` + `# TYPE`
+preambles. 2 new tests pin the format + content; existing 7 health
+tests unchanged.
+
+`deploy/k8s.yaml` Service now carries `prometheus.io/scrape` /
+`prometheus.io/port` / `prometheus.io/path` annotations so the
+default Prometheus operator picks it up automatically.
+`deploy/README.md` includes a scrape-config example with `chain=`
+relabel + recommended alert rules covering staleness, stuck
+submissions, and recent errors.
+
 ### Added — Production deployment manifests + watcher README sweep
 
 Documentation for the operational features shipped this session

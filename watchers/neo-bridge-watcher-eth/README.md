@@ -84,6 +84,7 @@ against the Neo RPC catches verifier-rejection paths regardless.
 | **Concurrent-instance detection** | Two daemons pointed at the same `journal_dir` is a recipe for corrupting `consumed.log`. The journal acquires a `flock(LOCK_EX | LOCK_NB)` on a `.lock` sentinel — second instance fails fast with a typed error. | `live::file_journal::FileJournal::open` |
 | **Per-chain confirmation buffer** | `[poll].min_confirmations = N` defends against short-reorg phantom mints. Source caps polling at `head - N`. The daemon WARNs at startup if `min_confirmations = 0` but the chain id has a non-zero recommendation in `chains::recommended_confirmations`. | `live::eth_rpc` + `chains` |
 | **Health endpoint** | `GET /healthz` → 200 (healthy) or 503 (no successful tick within `threshold_secs`); `GET /info` → always 200 with same JSON body. K8s readiness/liveness probes consume the status code; dashboards consume the body. | `live::health` |
+| **Prometheus metrics** | `GET /metrics` → exposition format with 9 metrics: `watcher_started_at_unix_timestamp`, `watcher_last_tick_success_unix_timestamp`, `watcher_ticks_total`, `watcher_events_processed_total`, `watcher_submissions_total`, `watcher_journal_cursor`, `watcher_last_error_unix_timestamp`, `watcher_healthy`. Same port as `/healthz`. Scrape config example in [`deploy/README.md`](./deploy/README.md). | `live::health` |
 
 ### Production deployment
 

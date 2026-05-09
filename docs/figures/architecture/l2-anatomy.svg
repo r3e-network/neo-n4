@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 380" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">What defines an L2 chain — 4 artifacts</title>
+  <desc id="desc">Every L2 chain in the Neo Elastic Network is fully defined by 4 artifacts: (1) chain.config.json — the 91-byte canonical config + JSON metadata, (2) ITransactionExecutor implementation — ApplicationEngine-based or custom, compiled into the L2 plugin, (3) ChainRegistry entry on L1 — 24-byte UInt160 references for operatorManager, verifier, bridgeAdapter, messageAdapter, plus the 91-byte configBytes, (4) Off-chain operators — sequencer, batcher, prover daemon, DA writer.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .num        { font-size: 22px; font-weight: 800; }
+      .title      { font-size: 14px; font-weight: 700; }
+      .body       { font-size: 11.5px; fill: #2d3a48; }
+      .caption    { font-size: 11px; fill: #525a64; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect width="960" height="380" fill="#ffffff"/>
+
+  <text x="480" y="36" text-anchor="middle" class="header" fill="#1e2a55">What defines an L2 chain — 4 artifacts</text>
+
+  <!-- Card 1: chain.config.json -->
+  <g filter="url(#card)">
+    <rect x="40" y="74" width="220" height="240" rx="10" ry="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
+    <text x="64" y="106" class="num" fill="#3f5193">1</text>
+    <text x="98" y="103" class="title" fill="#1e2a55">chain.config.json</text>
+    <text x="98" y="120" class="caption">local artifact</text>
+    <foreignObject x="56" y="140" width="188" height="160">
+      <p xmlns="http://www.w3.org/1999/xhtml" style="font: 11.5px -apple-system, sans-serif; margin: 0; color: #2d3a48; line-height: 1.5;">
+        <strong>91-byte canonical config</strong> + JSON metadata. Drives the
+        on-chain config <em>and</em> the executor's behavior. Encoded by
+        <code>L2ChainConfigSerializer</code>.
+      </p>
+    </foreignObject>
+  </g>
+  <line x1="260" y1="194" x2="293" y2="194" stroke="#525a64" stroke-width="1.6" marker-end="url(#arrow)"/>
+
+  <!-- Card 2: ITransactionExecutor -->
+  <g filter="url(#card)">
+    <rect x="295" y="74" width="220" height="240" rx="10" ry="10" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.4"/>
+    <text x="319" y="106" class="num" fill="#a96027">2</text>
+    <text x="353" y="103" class="title" fill="#7a4a14">ITransactionExecutor</text>
+    <text x="353" y="120" class="caption">runtime behavior</text>
+    <foreignObject x="311" y="140" width="188" height="160">
+      <p xmlns="http://www.w3.org/1999/xhtml" style="font: 11.5px -apple-system, sans-serif; margin: 0; color: #2d3a48; line-height: 1.5;">
+        ApplicationEngine-based <em>or</em> custom. Compiled into the L2
+        plugin set on each sequencer. Decides per-tx semantics. See
+        <code>scaffold-executor</code> CLI.
+      </p>
+    </foreignObject>
+  </g>
+  <line x1="515" y1="194" x2="548" y2="194" stroke="#525a64" stroke-width="1.6" marker-end="url(#arrow)"/>
+
+  <!-- Card 3: ChainRegistry entry -->
+  <g filter="url(#card)">
+    <rect x="550" y="74" width="220" height="240" rx="10" ry="10" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.4"/>
+    <text x="574" y="106" class="num" fill="#2f5e3c">3</text>
+    <text x="608" y="103" class="title" fill="#1d4d2c">ChainRegistry entry</text>
+    <text x="608" y="120" class="caption">L1 record</text>
+    <foreignObject x="566" y="140" width="188" height="160">
+      <p xmlns="http://www.w3.org/1999/xhtml" style="font: 11.5px -apple-system, sans-serif; margin: 0; color: #2d3a48; line-height: 1.5;">
+        4 × 24-byte <strong>UInt160</strong> references
+        (operatorManager, verifier, bridgeAdapter, messageAdapter)
+        + the 91-byte <code>configBytes</code>. Registered on L1 by the
+        operator's wallet.
+      </p>
+    </foreignObject>
+  </g>
+  <line x1="770" y1="194" x2="803" y2="194" stroke="#525a64" stroke-width="1.6" marker-end="url(#arrow)"/>
+
+  <!-- Card 4: Off-chain operators -->
+  <g filter="url(#card)">
+    <rect x="805" y="74" width="115" height="240" rx="10" ry="10" fill="#f1ecf8" stroke="#7d59b3" stroke-width="1.4"/>
+    <text x="824" y="106" class="num" fill="#5d4084">4</text>
+    <text x="858" y="103" class="title" fill="#3e2865">Off-chain</text>
+    <text x="862" y="120" class="caption">operators</text>
+    <foreignObject x="817" y="140" width="93" height="160">
+      <p xmlns="http://www.w3.org/1999/xhtml" style="font: 11px -apple-system, sans-serif; margin: 0; color: #2d3a48; line-height: 1.5;">
+        Sequencer<br/>
+        Batcher<br/>
+        Prover daemon<br/>
+        DA writer<br/>
+        (External-chain watcher when foreign bridge enabled)
+      </p>
+    </foreignObject>
+  </g>
+
+  <!-- Bottom caption -->
+  <text x="480" y="358" text-anchor="middle" class="caption" fill="#525a64">All four must be present + consistent for the L2 to function. Missing any one = chain not yet "Active" on L1.</text>
+</svg>

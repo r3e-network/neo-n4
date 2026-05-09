@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 380" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">一条 L2 链由什么定义 —— 4 个工件</title>
+  <desc id="desc">Neo Elastic Network 中每条 L2 链由 4 个工件完整定义:(1)chain.config.json —— 91 字节规范 config + JSON 元数据;(2)ITransactionExecutor 实现 —— 基于 ApplicationEngine 或自定义,编进 L2 插件;(3)L1 上的 ChainRegistry 条目 —— 4 个 24 字节 UInt160 引用(operatorManager、verifier、bridgeAdapter、messageAdapter)加 91 字节 configBytes;(4)链下运营者 —— 排序器、批处理器、证明守护进程、DA writer。</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .num        { font-size: 22px; font-weight: 800; }
+      .title      { font-size: 14px; font-weight: 700; }
+      .body       { font-size: 11.5px; fill: #2d3a48; }
+      .caption    { font-size: 11px; fill: #525a64; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect width="960" height="380" fill="#ffffff"/>
+
+  <text x="480" y="36" text-anchor="middle" class="header" fill="#1e2a55">一条 L2 链由什么定义 —— 4 个工件</text>
+
+  <g filter="url(#card)">
+    <rect x="40" y="74" width="220" height="240" rx="10" ry="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
+    <text x="64" y="106" class="num" fill="#3f5193">1</text>
+    <text x="98" y="103" class="title" fill="#1e2a55">chain.config.json</text>
+    <text x="98" y="120" class="caption">本地工件</text>
+    <foreignObject x="56" y="140" width="188" height="160">
+      <p xmlns="http://www.w3.org/1999/xhtml" style="font: 11.5px -apple-system, sans-serif; margin: 0; color: #2d3a48; line-height: 1.5;">
+        <strong>91 字节规范 config</strong> + JSON 元数据。驱动链上 config
+        <em>以及</em>执行器行为。由 <code>L2ChainConfigSerializer</code> 编码。
+      </p>
+    </foreignObject>
+  </g>
+  <line x1="260" y1="194" x2="293" y2="194" stroke="#525a64" stroke-width="1.6" marker-end="url(#arrow)"/>
+
+  <g filter="url(#card)">
+    <rect x="295" y="74" width="220" height="240" rx="10" ry="10" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.4"/>
+    <text x="319" y="106" class="num" fill="#a96027">2</text>
+    <text x="353" y="103" class="title" fill="#7a4a14">ITransactionExecutor</text>
+    <text x="353" y="120" class="caption">运行时行为</text>
+    <foreignObject x="311" y="140" width="188" height="160">
+      <p xmlns="http://www.w3.org/1999/xhtml" style="font: 11.5px -apple-system, sans-serif; margin: 0; color: #2d3a48; line-height: 1.5;">
+        基于 ApplicationEngine <em>或</em>自定义。编进每个排序器的 L2
+        插件集合。决定每笔 tx 的语义。见 <code>scaffold-executor</code>
+        CLI。
+      </p>
+    </foreignObject>
+  </g>
+  <line x1="515" y1="194" x2="548" y2="194" stroke="#525a64" stroke-width="1.6" marker-end="url(#arrow)"/>
+
+  <g filter="url(#card)">
+    <rect x="550" y="74" width="220" height="240" rx="10" ry="10" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.4"/>
+    <text x="574" y="106" class="num" fill="#2f5e3c">3</text>
+    <text x="608" y="103" class="title" fill="#1d4d2c">ChainRegistry 条目</text>
+    <text x="608" y="120" class="caption">L1 记录</text>
+    <foreignObject x="566" y="140" width="188" height="160">
+      <p xmlns="http://www.w3.org/1999/xhtml" style="font: 11.5px -apple-system, sans-serif; margin: 0; color: #2d3a48; line-height: 1.5;">
+        4 × 24 字节 <strong>UInt160</strong> 引用
+        (operatorManager、verifier、bridgeAdapter、messageAdapter)
+        + 91 字节 <code>configBytes</code>。由运维者钱包在 L1 上注册。
+      </p>
+    </foreignObject>
+  </g>
+  <line x1="770" y1="194" x2="803" y2="194" stroke="#525a64" stroke-width="1.6" marker-end="url(#arrow)"/>
+
+  <g filter="url(#card)">
+    <rect x="805" y="74" width="115" height="240" rx="10" ry="10" fill="#f1ecf8" stroke="#7d59b3" stroke-width="1.4"/>
+    <text x="824" y="106" class="num" fill="#5d4084">4</text>
+    <text x="858" y="103" class="title" fill="#3e2865">链下</text>
+    <text x="862" y="120" class="caption">运营者</text>
+    <foreignObject x="817" y="140" width="93" height="160">
+      <p xmlns="http://www.w3.org/1999/xhtml" style="font: 11px -apple-system, sans-serif; margin: 0; color: #2d3a48; line-height: 1.5;">
+        排序器<br/>
+        批处理器<br/>
+        证明守护进程<br/>
+        DA writer<br/>
+        (启用外链桥时:外链 watcher)
+      </p>
+    </foreignObject>
+  </g>
+
+  <text x="480" y="358" text-anchor="middle" class="caption" fill="#525a64">4 个全部到位 + 一致,L2 才能运转;缺其一 = 链尚未在 L1 上"活跃"。</text>
+</svg>

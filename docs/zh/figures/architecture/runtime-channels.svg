@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">L2 ↔ L1 运行时连接 —— 3 条独立通道</title>
+  <desc id="desc">L2 链部署后,经 3 条独立通道与 L1 对话,各自按自己节奏运行。结算(热路径):L2BatchPlugin 在 Block.Committed 时封批,链下证明守护进程产生证明(SP1 zkVM),DA writer 把 payload 发到 NeoFS / L1 / 委员会,批处理器把 commitment + 证明提交给 NeoHub.SettlementManager,后者经 VerifierRegistry 验证。桥:SharedBridge 发出 DepositReady 到 L2 批处理器,L2BridgeContract 发出 WithdrawalReady 回 SharedBridge。消息传递:MessageRouter 把入站消息路由到 L2MessageContract,L2MessageContract 把出站消息路由回去。</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .tier-t     { font-size: 14px; font-weight: 700; letter-spacing: 0.4px; }
+      .comp-t     { font-size: 11.5px; font-weight: 600; fill: #2d3a48; }
+      .comp-s     { font-size: 10.5px; fill: #525a64; }
+      .ch-t       { font-size: 11.5px; font-weight: 700; }
+      .ch-s       { font-size: 10.5px; fill: #525a64; font-style: italic; }
+      .ch-lbl     { font-size: 10px; fill: #525a64; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect width="960" height="540" fill="#ffffff"/>
+
+  <text x="480" y="32" text-anchor="middle" class="header" fill="#1e2a55">L2 ↔ L1 运行时连接 —— 3 条独立通道</text>
+
+  <rect x="40" y="60" width="380" height="450" rx="10" ry="10" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.4"/>
+  <text x="60" y="86" class="tier-t" fill="#1d4d2c">L2 链(运行中)</text>
+
+  <g filter="url(#card)">
+    <rect x="60" y="100" width="200" height="48" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="160" y="120" text-anchor="middle" class="comp-t">Blockchain</text>
+    <text x="160" y="138" text-anchor="middle" class="comp-s">dBFT 2.0 commit 区块</text>
+  </g>
+
+  <line x1="160" y1="148" x2="160" y2="178" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="170" y="166" class="ch-lbl">Block.Committed</text>
+
+  <g filter="url(#card)">
+    <rect x="60" y="180" width="200" height="50" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="160" y="200" text-anchor="middle" class="comp-t">L2BatchPlugin → BatchSealer</text>
+    <text x="160" y="218" text-anchor="middle" class="comp-s">封装 BatchCommitment</text>
+  </g>
+
+  <g filter="url(#card)">
+    <rect x="60" y="248" width="120" height="48" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="120" y="268" text-anchor="middle" class="comp-t" font-size="10.5">证明守护进程</text>
+    <text x="120" y="285" text-anchor="middle" class="comp-s" font-size="10">SP1 zkVM(进程外)</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="200" y="248" width="100" height="48" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="250" y="268" text-anchor="middle" class="comp-t" font-size="10.5">DA writer</text>
+    <text x="250" y="285" text-anchor="middle" class="comp-s" font-size="10">NeoFS / L1 / DAC</text>
+  </g>
+
+  <g filter="url(#card)">
+    <rect x="60" y="320" width="200" height="48" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="160" y="340" text-anchor="middle" class="comp-t">L2BridgeContract</text>
+    <text x="160" y="358" text-anchor="middle" class="comp-s">铸/销包装资产</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="60" y="384" width="200" height="48" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="160" y="404" text-anchor="middle" class="comp-t">L2MessageContract</text>
+    <text x="160" y="422" text-anchor="middle" class="comp-s">跨 L2 inbox / outbox</text>
+  </g>
+
+  <rect x="540" y="60" width="380" height="450" rx="10" ry="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
+  <text x="560" y="86" class="tier-t" fill="#1e2a55">L1 NeoHub</text>
+
+  <g filter="url(#card)">
+    <rect x="700" y="180" width="200" height="50" rx="6" ry="6" fill="#ffffff" stroke="#7587c1" stroke-width="1.5"/>
+    <text x="800" y="200" text-anchor="middle" class="comp-t">SettlementManager</text>
+    <text x="800" y="218" text-anchor="middle" class="comp-s">经 VerifierRegistry 验证</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="700" y="248" width="200" height="48" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
+    <text x="800" y="268" text-anchor="middle" class="comp-t">DARegistry</text>
+    <text x="800" y="285" text-anchor="middle" class="comp-s">记录 daCommitment</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="700" y="320" width="200" height="48" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
+    <text x="800" y="340" text-anchor="middle" class="comp-t">SharedBridge</text>
+    <text x="800" y="358" text-anchor="middle" class="comp-s">L1 托管 + 最终化</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="700" y="384" width="200" height="48" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
+    <text x="800" y="404" text-anchor="middle" class="comp-t">MessageRouter</text>
+    <text x="800" y="422" text-anchor="middle" class="comp-s">跨 L2 路由 + 去重</text>
+  </g>
+
+  <line x1="260" y1="205" x2="700" y2="205" stroke="#c4413e" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="430" y="198" class="ch-t" fill="#c4413e">SubmitBatch(commitment, proof)</text>
+  <text x="450" y="217" class="ch-s">通道 1 —— 结算(热路径)</text>
+
+  <line x1="300" y1="272" x2="700" y2="272" stroke="#525a64" stroke-width="1.3" stroke-dasharray="3 2" marker-end="url(#arrow)"/>
+  <text x="500" y="266" class="ch-lbl">DA payload + 承诺</text>
+
+  <line x1="700" y1="338" x2="260" y2="338" stroke="#3a8454" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="430" y="332" class="ch-t" fill="#1d4d2c">DepositReady</text>
+  <line x1="260" y1="356" x2="700" y2="356" stroke="#3a8454" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="430" y="350" class="ch-t" fill="#1d4d2c">WithdrawalReady</text>
+  <text x="450" y="370" class="ch-s">通道 2 —— 桥(资产转移)</text>
+
+  <line x1="700" y1="402" x2="260" y2="402" stroke="#7d59b3" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="430" y="396" class="ch-t" fill="#3e2865">InboundMessage</text>
+  <line x1="260" y1="420" x2="700" y2="420" stroke="#7d59b3" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="430" y="414" class="ch-t" fill="#3e2865">OutboundMessage</text>
+  <text x="450" y="434" class="ch-s">通道 3 —— 跨 L2 消息(可选)</text>
+
+  <text x="480" y="490" text-anchor="middle" class="ch-s" fill="#525a64">3 条通道独立运行 —— 一条故障或延迟不阻塞另外两条。</text>
+</svg>

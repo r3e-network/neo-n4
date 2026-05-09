@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">L2 部署流 —— 4 步有序</title>
+  <desc id="desc">部署一条新 L2 的 4 步:第 1 步部署 NeoHub(每网络一次性)—— neo-hub-deploy plan 输出 20 步 bundle,运维钱包提交后整套 L1 合约上线。第 2 步注册一条 L2 链 —— neo-stack register-chain 输出 ChainRegistry.RegisterChain 计划;提交后 L2 在 L1 上有 chainId 与 configBytes。第 3 步部署 L2 桥 adapter —— neo-stack deploy-bridge-adapter 输出 L2NativeBridgeContract 部署计划。第 4 步接好消息传递 adapter(可选)—— 运维者部署 L2MessageContract 并调用 MessageRouter.RegisterAdapter,启用跨 L2 消息传递。</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .step-num   { font-size: 26px; font-weight: 800; }
+      .step-t     { font-size: 14px; font-weight: 700; }
+      .step-cad   { font-size: 11px; fill: #525a64; font-style: italic; }
+      .body       { font-size: 11.5px; fill: #2d3a48; }
+      .caption    { font-size: 11px; fill: #525a64; }
+      .cli        { font-size: 10.5px; fill: #1e2a55; font-family: ui-monospace, 'SF Mono', monospace; }
+    </style>
+  </defs>
+
+  <rect width="960" height="540" fill="#ffffff"/>
+
+  <text x="480" y="36" text-anchor="middle" class="header" fill="#1e2a55">L2 部署流 —— 4 步有序</text>
+
+  <g filter="url(#card)">
+    <rect x="60" y="76" width="840" height="100" rx="10" ry="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
+    <text x="92" y="116" class="step-num" fill="#3f5193">1</text>
+    <text x="138" y="106" class="step-t" fill="#1e2a55">部署 NeoHub</text>
+    <text x="138" y="124" class="step-cad">每网络一次性</text>
+    <text x="138" y="148" class="cli">$ dotnet run --project tools/Neo.Hub.Deploy -- plan</text>
+    <text x="138" y="164" class="body">→ 20 步有序 bundle(SharedBridge · SettlementManager · ChainRegistry · MessageRouter · ...)</text>
+  </g>
+  <line x1="480" y1="176" x2="480" y2="216" stroke="#525a64" stroke-width="1.6" marker-end="url(#arrow)"/>
+
+  <g filter="url(#card)">
+    <rect x="60" y="218" width="840" height="100" rx="10" ry="10" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.4"/>
+    <text x="92" y="258" class="step-num" fill="#a96027">2</text>
+    <text x="138" y="248" class="step-t" fill="#7a4a14">注册一条 L2 链</text>
+    <text x="138" y="266" class="step-cad">每条链</text>
+    <text x="138" y="290" class="cli">$ neo-stack register-chain --config chain.config.json</text>
+    <text x="138" y="306" class="body">→ ChainRegistry.RegisterChain 计划;钱包提交后 L2 在 L1 上记录 chainId + configBytes</text>
+  </g>
+  <line x1="480" y1="318" x2="480" y2="358" stroke="#525a64" stroke-width="1.6" marker-end="url(#arrow)"/>
+
+  <g filter="url(#card)">
+    <rect x="60" y="360" width="840" height="100" rx="10" ry="10" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.4"/>
+    <text x="92" y="400" class="step-num" fill="#2f5e3c">3</text>
+    <text x="138" y="390" class="step-t" fill="#1d4d2c">部署 L2 桥 adapter</text>
+    <text x="138" y="408" class="step-cad">每条链</text>
+    <text x="138" y="432" class="cli">$ neo-stack deploy-bridge-adapter --chain-id 1099</text>
+    <text x="138" y="448" class="body">→ L2NativeBridgeContract 部署计划;钱包提交后,跨层(L1↔L2)转账启用</text>
+  </g>
+  <line x1="480" y1="460" x2="480" y2="492" stroke="#525a64" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
+
+  <g filter="url(#card)">
+    <rect x="60" y="494" width="840" height="38" rx="8" ry="8" fill="#f1ecf8" stroke="#7d59b3" stroke-width="1.2" stroke-dasharray="3 2"/>
+    <text x="92" y="520" class="step-num" fill="#5d4084" font-size="20px">4</text>
+    <text x="138" y="514" class="step-t" fill="#3e2865" font-size="13px">接好消息传递 adapter <tspan font-style="italic" font-size="11px" fill="#525a64">(可选,每条链)</tspan></text>
+    <text x="138" y="528" class="cli">部署 L2MessageContract;调用 MessageRouter.RegisterAdapter(chainId, l2MessageHash) → 跨 L2 消息启用</text>
+  </g>
+</svg>

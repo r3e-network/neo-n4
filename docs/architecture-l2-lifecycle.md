@@ -153,37 +153,9 @@ Each L2 needs at least one of each:
 
 Every L2 chain is fully described by **four artifacts**:
 
-```text
-    ┌─────────────────────────────────────────────────────────────────┐
-    │   What defines an L2 chain                                      │
-    └─────────────────────────────────────────────────────────────────┘
-
-    ┌──────────────────────────────────────┐
-    │  1. chain.config.json                │  drives the on-chain config
-    │     (91-byte canonical config        │  + the executor's behavior
-    │      + JSON metadata)                │
-    └────────────────┬─────────────────────┘
-                     │
-                     ▼
-    ┌──────────────────────────────────────┐
-    │  2. ITransactionExecutor impl        │  ApplicationEngine-based,
-    │     (compiled into the L2 plugin     │  OR custom for app-specific
-    │      set on each sequencer)          │  chains
-    └────────────────┬─────────────────────┘
-                     │
-                     ▼
-    ┌──────────────────────────────────────┐
-    │  3. ChainRegistry entry on L1        │  operatorManager · verifier
-    │     (24-byte UInt160 references      │  · bridgeAdapter · messageAdapter
-    │      + 91-byte configBytes)          │  · securityLevel · daMode · ...
-    └────────────────┬─────────────────────┘
-                     │
-                     ▼
-    ┌──────────────────────────────────────┐
-    │  4. Off-chain operators              │  sequencer · batcher
-    │     (running the L2 + reaching L1)   │  · prover · DA writer
-    └──────────────────────────────────────┘
-```
+<p align="center">
+  <img src="figures/architecture/l2-anatomy.svg" alt="What defines an L2 chain — 4 artifacts: chain.config.json (91-byte canonical config), ITransactionExecutor implementation, ChainRegistry entry on L1 (4 UInt160 references plus configBytes), and off-chain operators (sequencer / batcher / prover / DA writer)" width="900">
+</p>
 
 ### The §16.2 chain config dimensions
 
@@ -319,47 +291,9 @@ Permissionless chain registration is gated through `[plan: §16.1-admission]`
 
 Which contracts go where, in what order:
 
-```text
-    ┌─────────────────────────────────────────────────────────────────┐
-    │  Step 1 — Deploy NeoHub (one-time, per network)                 │
-    │  ──────                                                         │
-    │  neo-hub-deploy plan                                            │
-    │      → 20-step ordered deploy bundle                            │
-    │  Operator wallet submits each step                              │
-    │      → NeoHub fully deployed:                                   │
-    │        SharedBridge · SettlementManager · ChainRegistry ·       │
-    │        MessageRouter · ... (20 contracts total)                 │
-    └────────────────────────────┬────────────────────────────────────┘
-                                 │
-                                 ▼
-    ┌─────────────────────────────────────────────────────────────────┐
-    │  Step 2 — Register one L2 chain (per chain)                     │
-    │  ──────                                                         │
-    │  neo-stack register-chain --config chain.config.json            │
-    │      → emits ChainRegistry.RegisterChain plan                   │
-    │  Operator wallet submits plan                                   │
-    │      → L2 has chainId, configBytes recorded                     │
-    └────────────────────────────┬────────────────────────────────────┘
-                                 │
-                                 ▼
-    ┌─────────────────────────────────────────────────────────────────┐
-    │  Step 3 — Deploy L2 bridge adapter (per chain)                  │
-    │  ──────                                                         │
-    │  neo-stack deploy-bridge-adapter --chain-id 1099                │
-    │      → emits L2NativeBridgeContract deploy plan                 │
-    │  Operator wallet submits                                        │
-    │      → L2NativeBridge live; cross-tier transfers enabled        │
-    └────────────────────────────┬────────────────────────────────────┘
-                                 │
-                                 ▼
-    ┌─────────────────────────────────────────────────────────────────┐
-    │  Step 4 — Wire messaging adapter (optional, per chain)          │
-    │  ──────                                                         │
-    │  Operator deploys L2MessageContract                             │
-    │  MessageRouter.RegisterAdapter(chainId, l2MessageHash)          │
-    │      → cross-L2 messaging enabled                               │
-    └─────────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="figures/architecture/deployment-flow.svg" alt="L2 deployment flow — 4 ordered steps: deploy NeoHub one-time per network via neo-hub-deploy, register one L2 chain via neo-stack register-chain, deploy L2 bridge adapter via neo-stack deploy-bridge-adapter, and optionally wire the messaging adapter via MessageRouter.RegisterAdapter" width="900">
+</p>
 
 Every command emits a structured plan rather than submitting directly
 — the framework never holds private keys. Operators paste the
@@ -394,31 +328,9 @@ l2_batch_info_hash          = 0x...  # this L2's L2BatchInfoContract
 Once deployed, an L2 chain is "connected" via three independent
 channels — each runs on its own cadence:
 
-```text
-    ┌──────────────────────────────┐                 ┌──────────────────────────────┐
-    │  L2 chain (running)          │                 │  L1 NeoHub                   │
-    │                              │                 │                              │
-    │   Blockchain                 │                 │                              │
-    │       │                      │                 │                              │
-    │       │ Block.Committed      │                 │                              │
-    │       ▼                      │                 │                              │
-    │   L2BatchPlugin ──seal──▶ ──┼──▶ off-chain     │                              │
-    │       │              │     │   prover daemon  │                              │
-    │       │              │     │   (SP1 zkVM)     │                              │
-    │       │              ▼     │                  │                              │
-    │       │           DA writer ──▶ NeoFS / L1 ──▶│  DARegistry                  │
-    │       │                    │                  │                              │
-    │       └─── SubmitBatch ───────────────────────▶│  SettlementManager           │
-    │                            │                  │  (verifies via               │
-    │                            │                  │   VerifierRegistry)          │
-    │                            │                  │                              │
-    │   L2BridgeContract ◀── DepositReady ─────────  │  SharedBridge                │
-    │                ─── WithdrawalReady ──────────▶ │                              │
-    │                            │                  │                              │
-    │   L2MessageContract ◀── InboundMessage ─────── │  MessageRouter               │
-    │                ─── OutboundMessage ──────────▶ │                              │
-    └──────────────────────────────┘                 └──────────────────────────────┘
-```
+<p align="center">
+  <img src="figures/architecture/runtime-channels.svg" alt="L2-to-L1 runtime connection — 3 independent channels: settlement (hot path), bridge (asset transfers via DepositReady and WithdrawalReady), and cross-L2 messaging (InboundMessage and OutboundMessage). Each channel runs on its own cadence; failure or delay in one does not block the others" width="900">
+</p>
 
 ### Channel 1 — Settlement (the hot path)
 

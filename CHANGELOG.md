@@ -5,6 +5,60 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — External bridge Phase C (optimistic-challenge slashing for committee equivocation)
+
+Phase B's economic security model assumed an "owner-only-slashable"
+`ExternalBridgeBond` would be replaced with permissionless slashing
+once a fraud verifier shipped. This is that fraud verifier and the
+on-chain plumbing it needs.
+
+- `NeoHub.MpcCommitteeFraudVerifier` — accepts cryptographic proof
+  of equivocation: same `(externalChainId, nonce)`, two byte-distinct
+  messages, both signed by the same committee pubkey. On valid proof,
+  slashes the equivocator's full bond + pays the reporter
+  (`Runtime.CallingScriptHash`). Verification chain (each step
+  fail-loudly):
+  1. Replay-protect per `(chainId, signerIdx)` — single equivocation
+     slashes once.
+  2. Both messages parse as `ExternalCrossChainMessage` (≥102B) with
+     the same `(chainId, nonce)` at offsets 0 + 8.
+  3. Messages are NOT byte-identical (ECDSA permits distinct `(r,s)`
+     for the same digest, so byte-equality is the load-bearing rule).
+  4. Both signatures verify against the SAME committee pubkey
+     (`secp256k1+SHA256` for Eth/Tron, `ed25519` for Solana).
+  5. Signer slot has a bond-holder bound via the new
+     `RegisterCommitteeWithMembers` — refuses to slash if not bound.
+  6. Reads full bond balance, calls
+     `ExternalBridgeBond.Slash(...)`, pays reporter.
+  Emits `CommitteeMemberSlashed(chainId, signerIdx, member, amount,
+  reporter)` for off-chain monitoring.
+
+- `MpcCommitteeVerifier` extended (additive) with
+  `RegisterCommitteeWithMembers(...)` + `GetSignerMember(...)`.
+  Binds each signer index to a Neo-side bond-holder address so the
+  fraud verifier can identify which bond to slash. Original
+  `RegisterCommittee` still works for chains not using slashing.
+
+- `Neo.Hub.Deploy.ScaffoldPlan` — scaffold now includes the fraud
+  verifier as step 20 (depends on `MpcCommitteeVerifier` +
+  `ExternalBridgeBond`). Total: 20 steps, was 19.
+  PostDeployActions: dropped the "Phase-C reminder" stub, added two
+  real wiring hints (`ExternalBridgeBond.RegisterSlasher(fraud
+  verifier)` + per-chain `RegisterCommitteeWithMembers` pointer).
+  Total: 10 hints, was 9.
+
+- `tests/Neo.L2.Bridge.UnitTests/UT_MpcFraudProof_RealCrypto.cs` —
+  7 tests with real `Crypto.Sign` + `Crypto.VerifySignature` on real
+  secp256k1 keys, mirroring exactly what the on-chain verifier does.
+  Pins: happy path, identical-messages-not-equivocation,
+  different-nonces-honest, wrong-pubkey-rejection,
+  chainId-mismatch-rejection, nonce-zero edge case, committee-blob
+  layout invariant.
+
+Cumulative: 1362 .NET tests across 33 projects, 78 cross-language
+tests (15 TS + 10 Rust SDK + 8 SP1 guest + 24 Rust bridge watcher +
+13 Foundry Solidity + 8 fraud-proof real-crypto), all green.
+
 ### Added — Cross-foreign-chain bridge (Phase B — doc.md §11.3)
 
 A pluggable bridge to foreign chains (Ethereum, Tron, Solana). Distinct

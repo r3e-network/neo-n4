@@ -8,7 +8,6 @@
 
 use k256::ecdsa::SigningKey;
 use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
-use k256::elliptic_curve::sec1::ToEncodedPoint;
 use sha2::{Digest, Sha256};
 use std::path::Path;
 use thiserror::Error;

@@ -96,12 +96,15 @@ mod tests {
     fn tron_chain_ids_disjoint_from_eth_and_solana() {
         // Eth uses 0xE0_00_00_01..0F (16 IDs reserved); Tron 0xE0_00_00_10..1F;
         // Solana 0xE0_00_00_20..2F. Pin so a future addition can't accidentally
-        // collide.
-        assert!(TRON_MAINNET_CHAIN_ID >= 0xE000_0010);
-        assert!(TRON_MAINNET_CHAIN_ID < 0xE000_0020);
-        assert!(TRON_NILE_TESTNET_CHAIN_ID >= 0xE000_0010);
-        assert!(TRON_NILE_TESTNET_CHAIN_ID < 0xE000_0020);
-        assert!(TRON_SHASTA_TESTNET_CHAIN_ID >= 0xE000_0010);
-        assert!(TRON_SHASTA_TESTNET_CHAIN_ID < 0xE000_0020);
+        // collide. const { assert!(...) } blocks turn into compile-time checks
+        // (no runtime overhead) and silence clippy::assertions_on_constants.
+        const _: () = {
+            assert!(TRON_MAINNET_CHAIN_ID >= 0xE000_0010);
+            assert!(TRON_MAINNET_CHAIN_ID < 0xE000_0020);
+            assert!(TRON_NILE_TESTNET_CHAIN_ID >= 0xE000_0010);
+            assert!(TRON_NILE_TESTNET_CHAIN_ID < 0xE000_0020);
+            assert!(TRON_SHASTA_TESTNET_CHAIN_ID >= 0xE000_0010);
+            assert!(TRON_SHASTA_TESTNET_CHAIN_ID < 0xE000_0020);
+        };
     }
 }

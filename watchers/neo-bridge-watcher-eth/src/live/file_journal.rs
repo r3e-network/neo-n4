@@ -367,7 +367,6 @@ mod tests {
                 msg.contains("cursor"),
                 "error should name the cursor field, got: {msg}"
             ),
-            Err(other) => panic!("expected JournalError::Io, got {other:?}"),
             Ok(_) => panic!(
                 "must NOT silently succeed with a corrupt cursor.bin — \
                  would re-process every event since genesis"
@@ -431,7 +430,6 @@ mod tests {
                     "lock-failure message must name the lock mechanism: got '{msg}'"
                 );
             }
-            Err(other) => panic!("expected JournalError::Io, got {other:?}"),
             Ok(_) => panic!(
                 "second open MUST fail while the first instance holds the lock"
             ),

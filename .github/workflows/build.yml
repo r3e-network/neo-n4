@@ -202,6 +202,23 @@ jobs:
           cargo build --release
           cargo test --release
 
+      # Clippy gate for the watcher crates. Runs across both feature
+      # configurations of the eth crate (default cryptographic core +
+      # live-rpc HTTP/journal/health adapters) plus tron + sol. -D warnings
+      # promotes lints to errors so the gate is binary, not advisory.
+      # The watcher daemon binary is the production runtime — drift from
+      # idiomatic Rust here is high-cost (HSM/RPC code paths).
+      - name: cargo clippy (neo-bridge-watcher-eth, default features)
+        working-directory: watchers/neo-bridge-watcher-eth
+        run: cargo clippy --release --all-targets -- -D warnings
+
+      - name: cargo clippy (neo-bridge-watcher-eth, --features live-rpc)
+        working-directory: watchers/neo-bridge-watcher-eth
+        run: cargo clippy --release --features live-rpc --all-targets -- -D warnings
+
+      - name: cargo clippy (neo-bridge-watcher-tron + neo-bridge-watcher-sol)
+        run: cargo clippy --release --all-targets -p neo-bridge-watcher-tron -p neo-bridge-watcher-sol -- -D warnings
+
   # Real SP1 zkVM smoke test for bridge/neo-zkvm-host. Runs in its own job
   # because the SP1 toolchain install (sp1up) is heavy (~5 min wall + tens
   # of MB) — keeping it isolated stops slow toolchain bootstrapping from

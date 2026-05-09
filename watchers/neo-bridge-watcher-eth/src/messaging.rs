@@ -56,7 +56,7 @@ pub enum BuildError {
 /// Build the canonical pre-image bytes (102-byte fixed prefix + payload).
 /// The watcher signs THESE bytes; the verifier hashes them with secp256k1
 /// + SHA256 (Eth `ecrecover(sha256(messageBytes))` and Neo
-/// `CryptoLib.VerifyWithECDsa(secp256k1SHA256)` are the same operation).
+///   `CryptoLib.VerifyWithECDsa(secp256k1SHA256)` are the same operation).
 pub fn canonical_message_bytes(
     msg: &ExternalCrossChainMessage,
 ) -> Result<Vec<u8>, BuildError> {

@@ -146,7 +146,7 @@ mod tests {
             SOLANA_DEVNET_CHAIN_ID,
             SOLANA_TESTNET_CHAIN_ID,
         ] {
-            assert!(id >= 0xE000_0020 && id < 0xE000_0030);
+            assert!((0xE000_0020..0xE000_0030).contains(&id));
         }
     }
 

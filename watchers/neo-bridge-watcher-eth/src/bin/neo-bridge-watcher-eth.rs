@@ -44,8 +44,8 @@
 
 use neo_bridge_watcher_eth::chains;
 use neo_bridge_watcher_eth::live::{
-    EthRpcEventSource, EthRpcEventSourceBuilder, FileJournal, HealthServer, HealthState,
-    NeoRpcError, NeoRpcSubmitter, NeoRpcSubmitterBuilder,
+    EthRpcEventSourceBuilder, FileJournal, HealthServer, HealthState, NeoRpcError,
+    NeoRpcSubmitterBuilder,
 };
 use neo_bridge_watcher_eth::{CoreError, FileSigner, WatcherCore};
 use serde::Deserialize;

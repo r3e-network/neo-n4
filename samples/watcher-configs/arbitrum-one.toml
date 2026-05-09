@@ -1,0 +1,32 @@
+# neo-bridge-watcher-eth — Arbitrum One mainnet config
+# ──────────────────────────────────────────────────────
+# Chain id: 0xE0000050 (canonical Arbitrum One slot)
+# Block time: ~250ms (sequencer cadence)
+# Finality: gated by L1 batch posts, NOT by L2 block depth
+#
+# IMPORTANT: Arbitrum's actual finality is "when the L1 rollup batch
+# posts settlement on Ethereum." min_confirmations=0 means the watcher
+# itself doesn't gate; operators should pair this with a SEPARATE L1
+# Ethereum confirmation signal before considering events truly final.
+# See docs/external-bridge-evm-chains.md for the trust gradient.
+
+external_chain_id   = 0xE0000050
+eth_rpc_url         = "https://arb1.arbitrum.io/rpc"
+eth_router_address  = "0xREPLACE_WITH_DEPLOYED_ROUTER_ADDR"
+neo_rpc_url         = "https://rpc.neo.org"
+neo_escrow_address  = "0xREPLACE_WITH_NEOHUB_ESCROW_ADDR"
+neo_signer_address  = "0xREPLACE_WITH_WATCHER_NEO_ACCOUNT"
+signer_key_path     = "/var/lib/watcher/keys/arbitrum-one.priv"
+journal_dir         = "/var/lib/watcher/journal-arbitrum-one"
+
+[poll]
+poll_interval_secs    = 2         # fast block cadence; ~8 L2 blocks/poll
+backoff_initial_secs  = 5
+backoff_max_secs      = 300
+eth_chunk_size        = 10000     # larger because blocks are smaller + faster
+request_timeout_secs  = 30
+min_confirmations     = 0         # operator gates via L1 finality signal
+
+[health]
+bind                  = "0.0.0.0:9090"
+threshold_secs        = 60

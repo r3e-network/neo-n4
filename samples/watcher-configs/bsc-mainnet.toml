@@ -1,0 +1,26 @@
+# neo-bridge-watcher-eth — BNB Smart Chain mainnet config
+# ─────────────────────────────────────────────────────────
+# Chain id: 0xE0000030 (canonical BSC mainnet slot)
+# Block time: ~3s
+# Finality: 15 blocks (Parlia consensus cross-validator confirmation)
+
+external_chain_id   = 0xE0000030
+eth_rpc_url         = "https://bsc-dataseed.binance.org"
+eth_router_address  = "0xREPLACE_WITH_DEPLOYED_ROUTER_ADDR"
+neo_rpc_url         = "https://rpc.neo.org"
+neo_escrow_address  = "0xREPLACE_WITH_NEOHUB_ESCROW_ADDR"
+neo_signer_address  = "0xREPLACE_WITH_WATCHER_NEO_ACCOUNT"
+signer_key_path     = "/var/lib/watcher/keys/bsc-mainnet.priv"
+journal_dir         = "/var/lib/watcher/journal-bsc-mainnet"
+
+[poll]
+poll_interval_secs    = 6         # 2-block cadence at 3s blocks
+backoff_initial_secs  = 5
+backoff_max_secs      = 300
+eth_chunk_size        = 5000
+request_timeout_secs  = 30
+min_confirmations     = 15        # Parlia finality
+
+[health]
+bind                  = "0.0.0.0:9090"
+threshold_secs        = 120

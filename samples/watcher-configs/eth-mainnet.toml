@@ -1,0 +1,32 @@
+# neo-bridge-watcher-eth — Ethereum mainnet config
+# ──────────────────────────────────────────────────
+# Chain id: 0xE0000001 (canonical Ethereum mainnet slot)
+# Block time: ~12s
+# Finality: 12 blocks ≈ 99.9% (Casper finalized = 32 blocks)
+#
+# Replace the REPLACE_WITH_* placeholders below. Validate via:
+#   neo-bridge-watcher-eth --config eth-mainnet.toml --preflight
+
+external_chain_id   = 0xE0000001
+eth_rpc_url         = "https://eth.llamarpc.com"          # or your archive provider
+eth_router_address  = "0xREPLACE_WITH_DEPLOYED_ROUTER_ADDR"
+neo_rpc_url         = "https://rpc.neo.org"
+neo_escrow_address  = "0xREPLACE_WITH_NEOHUB_ESCROW_ADDR"
+neo_signer_address  = "0xREPLACE_WITH_WATCHER_NEO_ACCOUNT"
+signer_key_path     = "/var/lib/watcher/keys/eth-mainnet.priv"
+journal_dir         = "/var/lib/watcher/journal-eth-mainnet"
+
+[poll]
+poll_interval_secs    = 12        # Eth block time
+backoff_initial_secs  = 5
+backoff_max_secs      = 300
+eth_chunk_size        = 5000      # most providers cap at 10k; 5k is safe
+request_timeout_secs  = 30
+min_confirmations     = 12        # 99.9% finality; raise to 32 for Casper
+
+# Optional: bootstrap the cursor when deploying mid-stream.
+# start_block         = 18_500_000
+
+[health]
+bind                  = "0.0.0.0:9090"
+threshold_secs        = 120

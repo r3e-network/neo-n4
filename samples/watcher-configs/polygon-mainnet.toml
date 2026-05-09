@@ -1,0 +1,30 @@
+# neo-bridge-watcher-eth — Polygon PoS mainnet config
+# ─────────────────────────────────────────────────────
+# Chain id: 0xE0000040 (canonical Polygon mainnet slot)
+# Block time: ~2s
+# Finality: 256 blocks (heuristic; CheckpointManager finalizes ~30 min)
+#
+# WARNING: Polygon's heuristic finality is high. For applications
+# that need stronger guarantees, raise `min_confirmations` further or
+# poll the L1 CheckpointManager separately.
+
+external_chain_id   = 0xE0000040
+eth_rpc_url         = "https://polygon-rpc.com"
+eth_router_address  = "0xREPLACE_WITH_DEPLOYED_ROUTER_ADDR"
+neo_rpc_url         = "https://rpc.neo.org"
+neo_escrow_address  = "0xREPLACE_WITH_NEOHUB_ESCROW_ADDR"
+neo_signer_address  = "0xREPLACE_WITH_WATCHER_NEO_ACCOUNT"
+signer_key_path     = "/var/lib/watcher/keys/polygon-mainnet.priv"
+journal_dir         = "/var/lib/watcher/journal-polygon-mainnet"
+
+[poll]
+poll_interval_secs    = 4         # 2-block cadence at 2s blocks
+backoff_initial_secs  = 5
+backoff_max_secs      = 300
+eth_chunk_size        = 1000      # Polygon RPCs cap at 1-3k
+request_timeout_secs  = 30
+min_confirmations     = 256       # heuristic; CheckpointManager =~ 30 min
+
+[health]
+bind                  = "0.0.0.0:9090"
+threshold_secs        = 600       # higher because Polygon ticks slower-acting

@@ -1,0 +1,58 @@
+# Keep the Docker build context lean.
+#
+# The watcher build (`docker build -f watchers/.../Dockerfile .`)
+# needs:
+#   - Workspace Cargo.toml + Cargo.lock
+#   - All Rust-crate Cargo.toml files (for workspace resolution)
+#   - The watcher crate source + its dependencies' source
+#
+# It does NOT need: build artifacts, .NET projects, test fixtures,
+# the vendored Neo / Neo-zkvm submodules (the watcher crate doesn't
+# depend on them), the docs site, the SDK web app, etc.
+
+# Build artifacts.
+target/
+**/target/
+**/bin/
+**/obj/
+**/dist/
+**/node_modules/
+artifacts/
+out/
+TestResults/
+coverage/
+
+# Git + IDE state — large + irrelevant to the build.
+.git/
+.gitignore
+.vscode/
+.idea/
+.vs/
+*.swp
+*.tmp
+*.log
+.DS_Store
+
+# Vendored submodules under external/. Most aren't needed by the
+# watcher's Rust build, but `bridge/neo-zkvm-guest` (a workspace
+# member) has a path dep on `external/neo-zkvm/crates/neo-vm-guest`,
+# so cargo workspace metadata resolution requires that one to be
+# present. Exclude the others (~325 MB combined).
+external/neo/
+external/neo-devpack-dotnet/
+external/neo-riscv-vm/
+external/foreign-contracts/
+
+# .NET artifacts that occasionally land in source paths.
+*.user
+*.suo
+*.dll
+*.pdb
+*.exe
+
+# mdBook output.
+book/
+
+# Docker assets themselves don't need to be in the context.
+**/Dockerfile
+.dockerignore

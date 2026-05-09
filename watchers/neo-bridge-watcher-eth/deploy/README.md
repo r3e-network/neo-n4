@@ -1,6 +1,6 @@
 # neo-bridge-watcher-eth — deployment manifests
 
-Reference manifests for running the watcher daemon in production. Both
+Reference manifests for running the watcher daemon in production. All
 files are self-contained examples; customize the placeholders before
 applying.
 
@@ -8,8 +8,49 @@ applying.
 
 | File | Purpose |
 |------|---------|
+| [`../Dockerfile`](../Dockerfile) | Multi-stage Docker build: `rust:1.83-slim-bookworm` builder → `gcr.io/distroless/cc-debian12:nonroot` runtime. Strips the binary, runs as uid:gid 65532:65532, exposes `:9090`. ~50 MB final image. |
 | [`k8s.yaml`](./k8s.yaml) | Kubernetes Deployment + Service + ConfigMap + Secret + PVC. Wires `/healthz` to readiness/liveness probes; uses `Recreate` strategy + `terminationGracePeriodSeconds=30` for clean shutdown. |
 | [`neo-bridge-watcher.service`](./neo-bridge-watcher.service) | systemd unit. SIGTERM-driven clean shutdown via `KillSignal=SIGTERM` + `TimeoutStopSec=30`. Hardened with `ProtectSystem=strict` / `NoNewPrivileges=true`. |
+
+## Build the image
+
+```bash
+# From the workspace root (NOT from this directory — cargo workspace
+# resolution needs the root Cargo.toml + sibling crates).
+docker build \
+    -f watchers/neo-bridge-watcher-eth/Dockerfile \
+    -t neo-bridge-watcher-eth:latest .
+
+# Tag for your registry (replace ghcr.io/r3e-network with yours):
+docker tag neo-bridge-watcher-eth:latest \
+    ghcr.io/r3e-network/neo-bridge-watcher-eth:latest
+docker push ghcr.io/r3e-network/neo-bridge-watcher-eth:latest
+```
+
+The `.dockerignore` at the workspace root keeps the build context
+lean (excludes `target/`, `external/`, `.git/`, .NET artifacts, etc.).
+First build pulls Rust deps fresh — usually 8–15 minutes;
+subsequent builds use Docker layer caching.
+
+## Run with `docker`
+
+```bash
+docker run --rm \
+    -v $(pwd)/watcher.toml:/etc/watcher/watcher.toml:ro \
+    -v $(pwd)/watcher.priv:/var/lib/watcher/keys/watcher.priv:ro \
+    -v watcher-journal:/var/lib/watcher/journal \
+    -p 9090:9090 \
+    neo-bridge-watcher-eth:latest
+
+# Custom config path:
+docker run ... neo-bridge-watcher-eth:latest --config /alt/path.toml
+```
+
+The named volume `watcher-journal` survives container restarts; it
+backs `journal_dir` in the TOML config. Don't bind-mount this from
+the host without a single-instance discipline — the journal's
+`flock` defends against concurrent writes, but two containers
+sharing the same host directory is asking for trouble.
 
 ## Operational invariants the manifests assume
 

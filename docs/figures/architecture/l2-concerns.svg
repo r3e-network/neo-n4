@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 700" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">What L2 does — 3 layers per chain</title>
+  <desc id="desc">Each L2 chain comprises three concerns: 7 native L2 contracts (per-chain state — L2BridgeContract, L2NativeExternalBridge, L2MessageContract, L2BatchInfoContract, L2FeeContract, L2PaymasterContract, L2SystemConfigContract), 8 L2 plugins (per-chain runtime — L2Batch, L2Settlement, L2Bridge, L2DA, L2Prover, L2Rpc, L2Gateway, L2Metrics), and the L2 execution kernel (Neo 4 core vendored as submodule — dBFT 2.0 consensus, NeoVM, Mempool, local state storage, receipt generation).</desc>
+
+  <defs>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .grp-t      { font-size: 13.5px; font-weight: 700; letter-spacing: 0.3px; }
+      .grp-s      { font-size: 11px; fill: #525a64; font-style: italic; }
+      .ctr-name   { font-size: 11px; font-weight: 600; fill: #1d4d2c; font-family: ui-monospace, 'SF Mono', monospace; }
+      .ctr-desc   { font-size: 10.5px; fill: #2d3a48; }
+      .why-t      { font-size: 10.5px; font-weight: 700; fill: #c4413e; }
+    </style>
+  </defs>
+
+  <rect width="960" height="700" fill="#ffffff"/>
+
+  <text x="480" y="32" text-anchor="middle" class="header" fill="#1d4d2c">What L2 does — 3 layers per chain</text>
+
+  <!-- Layer 1: L2 native contracts (top) -->
+  <g filter="url(#card)">
+    <rect x="40" y="58" width="880" height="216" rx="10" ry="10" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.5"/>
+    <text x="60" y="82" class="grp-t" fill="#1d4d2c">L2 native contracts</text>
+    <text x="220" y="82" class="grp-s">— deployed to each L2 chain (7 contracts)</text>
+    <line x1="56" y1="92" x2="904" y2="92" stroke="#3a8454" stroke-dasharray="3 2"/>
+
+    <text x="60" y="118" class="ctr-name">L2BridgeContract</text>
+    <text x="240" y="118" class="ctr-desc">→ mints/burns wrapped L1 asset (NEP-17)</text>
+    <text x="60" y="140" class="ctr-name">L2NativeExternalBridge</text>
+    <text x="240" y="140" class="ctr-desc">→ same, for foreign-chain assets</text>
+    <text x="60" y="162" class="ctr-name">L2MessageContract</text>
+    <text x="240" y="162" class="ctr-desc">→ cross-L2 inbox / outbox</text>
+    <text x="60" y="184" class="ctr-name">L2BatchInfoContract</text>
+    <text x="240" y="184" class="ctr-desc">→ records batch cursor on this L2 itself</text>
+    <text x="60" y="206" class="ctr-name">L2FeeContract</text>
+    <text x="240" y="206" class="ctr-desc">→ L2 gas fee config (base/priority/op)</text>
+    <text x="60" y="228" class="ctr-name">L2PaymasterContract</text>
+    <text x="240" y="228" class="ctr-desc">→ optional gas sponsorship</text>
+    <text x="60" y="250" class="ctr-name">L2SystemConfigContract</text>
+    <text x="240" y="250" class="ctr-desc">→ L2-side mirror of select chainConfig fields</text>
+
+    <line x1="540" y1="100" x2="540" y2="262" stroke="#cfd5dd" stroke-dasharray="2 2"/>
+    <text x="560" y="124" class="why-t">WHY L2:</text>
+    <foreignObject x="560" y="132" width="340" height="120">
+      <p xmlns="http://www.w3.org/1999/xhtml" style="font: 10.5px -apple-system, sans-serif; margin: 0; color: #2d3a48; line-height: 1.5;">
+        Each is per-chain state — no other L2 needs to read it directly.
+        Asset balances scale with L2's user count; fee config is L2-specific;
+        paymaster is per-app.
+      </p>
+    </foreignObject>
+  </g>
+
+  <!-- Layer 2: L2 plugins (middle) -->
+  <g filter="url(#card)">
+    <rect x="40" y="290" width="880" height="200" rx="10" ry="10" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.5"/>
+    <text x="60" y="314" class="grp-t" fill="#7a4a14">L2 plugins</text>
+    <text x="160" y="314" class="grp-s">— loaded by neo-cli per L2 chain (8 plugins)</text>
+    <line x1="56" y1="324" x2="904" y2="324" stroke="#cd7c2e" stroke-dasharray="3 2"/>
+
+    <text x="60" y="350" class="ctr-name" fill="#7a4a14">L2Batch</text>
+    <text x="180" y="350" class="ctr-desc">→ seals txs into BatchCommitment on Block.Committed</text>
+    <text x="60" y="372" class="ctr-name" fill="#7a4a14">L2Settlement</text>
+    <text x="180" y="372" class="ctr-desc">→ posts sealed batches + proofs to L1</text>
+    <text x="60" y="394" class="ctr-name" fill="#7a4a14">L2Bridge</text>
+    <text x="180" y="394" class="ctr-desc">→ AssetRegistry + DepositProcessor + Withdrawal</text>
+    <text x="60" y="416" class="ctr-name" fill="#7a4a14">L2DA</text>
+    <text x="180" y="416" class="ctr-desc">→ publishes batch payload to NeoFS / L1 / committee</text>
+    <text x="60" y="438" class="ctr-name" fill="#7a4a14">L2Prover</text>
+    <text x="180" y="438" class="ctr-desc">→ SP1 zkVM (or Stage-0 multisig) proof generation</text>
+    <text x="60" y="460" class="ctr-name" fill="#7a4a14">L2Rpc</text>
+    <text x="180" y="460" class="ctr-desc">→ 9 chain-specific RPC handlers</text>
+    <text x="540" y="350" class="ctr-name" fill="#7a4a14">L2Gateway</text>
+    <text x="660" y="350" class="ctr-desc">→ optional Phase-5 multi-L2 aggregation</text>
+    <text x="540" y="372" class="ctr-name" fill="#7a4a14">L2Metrics</text>
+    <text x="660" y="372" class="ctr-desc">→ IL2Metrics + /metrics + /healthz HTTP</text>
+
+    <line x1="56" y1="394" x2="904" y2="394" stroke="#cfd5dd" stroke-dasharray="2 2" transform="translate(0, 80)"/>
+    <text x="540" y="414" class="why-t">WHY L2:</text>
+    <foreignObject x="540" y="422" width="360" height="60">
+      <p xmlns="http://www.w3.org/1999/xhtml" style="font: 10.5px -apple-system, sans-serif; margin: 0; color: #2d3a48; line-height: 1.45;">
+        Each plugin is per-chain runtime — different L2s run different plugins
+        (sidechain skips L2Settlement; ZK rollup configures L2Prover differently).
+        Throughput scales with L2 alone.
+      </p>
+    </foreignObject>
+  </g>
+
+  <!-- Layer 3: L2 execution kernel (bottom) -->
+  <g filter="url(#card)">
+    <rect x="40" y="506" width="880" height="148" rx="10" ry="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.5"/>
+    <text x="60" y="530" class="grp-t" fill="#1e2a55">L2 execution kernel</text>
+    <text x="220" y="530" class="grp-s">— Neo 4 core, vendored at external/neo</text>
+    <line x1="56" y1="540" x2="904" y2="540" stroke="#7587c1" stroke-dasharray="3 2"/>
+
+    <text x="60" y="566" class="ctr-name" fill="#1e2a55">dBFT 2.0 consensus</text>
+    <text x="220" y="566" class="ctr-desc">— produces L2 blocks</text>
+    <text x="60" y="588" class="ctr-name" fill="#1e2a55">NeoVM execution</text>
+    <text x="220" y="588" class="ctr-desc">— runs txs</text>
+    <text x="60" y="610" class="ctr-name" fill="#1e2a55">Mempool</text>
+    <text x="220" y="610" class="ctr-desc">— pending tx queue</text>
+    <text x="540" y="566" class="ctr-name" fill="#1e2a55">Local state storage</text>
+    <text x="700" y="566" class="ctr-desc">— RocksDB / IL2KeyValueStore</text>
+    <text x="540" y="588" class="ctr-name" fill="#1e2a55">Receipt generation</text>
+    <text x="700" y="588" class="ctr-desc">— local</text>
+
+    <text x="60" y="640" class="why-t">WHY L2:</text>
+    <text x="120" y="640" class="ctr-desc"><tspan font-style="italic">this IS the throughput layer. L1 cannot run user txs at the volume any single chain (let alone N chains) needs.</tspan></text>
+  </g>
+
+  <!-- Footer note -->
+  <text x="480" y="682" text-anchor="middle" class="grp-s" fill="#525a64">L2 holds bulk state + heavy execution. Bridges + messages are summaries — hot path never touches L1.</text>
+</svg>

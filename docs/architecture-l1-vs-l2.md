@@ -50,86 +50,9 @@ The 20 production NeoHub contracts (plus 1 testing stub) cluster into
 six concerns. Each entry below names *the property that forces it
 onto L1*:
 
-```text
-   ┌──────────────────────────────────────────────────────────────────────┐
-   │  Settlement (the trust boundary)                                     │
-   │  ──────────                                                          │
-   │  SettlementManager   → accepts L2 batches; emits canonical state     │
-   │  VerifierRegistry    → dispatches by proofType; protocol-versioned   │
-   │                                                                      │
-   │  WHY L1: this defines what "L2 finalized" means. Cannot live on L2   │
-   │  (would be circular: L2 deciding L2's own validity).                 │
-   └──────────────────────────────────────────────────────────────────────┘
-
-   ┌──────────────────────────────────────────────────────────────────────┐
-   │  Bridge (asset escrow)                                               │
-   │  ──────                                                              │
-   │  SharedBridge        → escrows assets, releases on Merkle proof      │
-   │  TokenRegistry       → asset metadata (symbol/decimals/native chain) │
-   │  ChainRegistry       → registers L2 chains; stores 91-byte config    │
-   │                                                                      │
-   │  WHY L1: assets ARE on L1; escrow has to be where the assets are.    │
-   │  Chain registry must be on L1 because all L2s + all bridges read it. │
-   └──────────────────────────────────────────────────────────────────────┘
-
-   ┌──────────────────────────────────────────────────────────────────────┐
-   │  Messaging (cross-L2 routing)                                        │
-   │  ─────────                                                           │
-   │  MessageRouter       → routes msgs between L2s; canonical hashes     │
-   │  DARegistry          → records published daCommitment hashes         │
-   │                                                                      │
-   │  WHY L1: a message from L2-A to L2-B has no other trust anchor.      │
-   │  Both endpoints have to share L1 as the routing arbiter.             │
-   └──────────────────────────────────────────────────────────────────────┘
-
-   ┌──────────────────────────────────────────────────────────────────────┐
-   │  Security (slashable bonds + anti-censorship)                        │
-   │  ────────                                                            │
-   │  SequencerRegistry   → registered sequencers per chain               │
-   │  SequencerBond       → slashable bonds (slashed by OptimisticChall.) │
-   │  ForcedInclusion     → anti-censorship gate (L1-driven by design)    │
-   │  OptimisticChallenge → bisection-game fraud-proof window             │
-   │                                                                      │
-   │  WHY L1: bonds need the L1 validator set's economic security to be   │
-   │  meaningfully slashable. Forced inclusion has to be L1 — if it were  │
-   │  L2-controlled, a censoring sequencer would also control the         │
-   │  censorship-resistance mechanism.                                    │
-   └──────────────────────────────────────────────────────────────────────┘
-
-   ┌──────────────────────────────────────────────────────────────────────┐
-   │  Governance + emergency                                              │
-   │  ──────────────────────                                              │
-   │  GovernanceController → multisig + timelock for verifier upgrades    │
-   │  EmergencyManager     → operator-multisig pause for individual chains│
-   │                                                                      │
-   │  WHY L1: protocol upgrades need to be slow + multi-signature; that's │
-   │  what L1 finality + visibility provide. Emergency pause must outlast │
-   │  any individual L2's outage.                                         │
-   └──────────────────────────────────────────────────────────────────────┘
-
-   ┌──────────────────────────────────────────────────────────────────────┐
-   │  External-chain bridge (Phase B/C)                                   │
-   │  ─────────────                                                       │
-   │  MpcCommitteeVerifier        → M-of-N committee proof verification   │
-   │  ExternalBridgeRegistry      → per-foreign-chain (verifier, bondAcc) │
-   │  ExternalBridgeEscrow        → mints/burns wrapped foreign assets    │
-   │  ExternalBridgeBond          → slashable bonds (committee equiv.)    │
-   │  MpcCommitteeFraudVerifier   → proves equivocation; slashes bonds    │
-   │  ExternalBridgeStubVerifier  → testing stub (not production)         │
-   │                                                                      │
-   │  WHY L1: same trust + economic-security argument as the L1↔L2 bridge.│
-   │  The committee's bonds need L1's slashing power.                     │
-   └──────────────────────────────────────────────────────────────────────┘
-
-   Plus 1 specialized verifier:
-
-   ┌──────────────────────────────────────────────────────────────────────┐
-   │  RestrictedExecutionFraudVerifier   (a verifier slot)                │
-   │  ──────────                                                          │
-   │  Re-derives pre/post state roots from storage proofs;                │
-   │  registered with VerifierRegistry per (chainId, proofType=v3).       │
-   └──────────────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="figures/architecture/l1-concerns.svg" alt="The 21 NeoHub L1 contracts grouped into 6 concerns plus 1 specialized verifier slot. Settlement (SettlementManager + VerifierRegistry) defines the trust boundary. Bridge (SharedBridge + TokenRegistry + ChainRegistry) escrows assets. Messaging (MessageRouter + DARegistry) is the cross-L2 routing arbiter. Security (SequencerRegistry + SequencerBond + ForcedInclusion + OptimisticChallenge) gates slashable bonds and anti-censorship. Governance + Emergency (GovernanceController + EmergencyManager) handle slow upgrades + escape hatch. External bridge (6 contracts) is the cross-foreign-chain bridge. Plus RestrictedExecutionFraudVerifier as a specialized verifier slot" width="900">
+</p>
 
 **Key observation about L1 contracts:** they hold *commitments* and
 *permissions*, not bulk state. NeoHub's storage is intentionally
@@ -144,53 +67,9 @@ trust model requires it.
 The 7 native L2 contracts + 8 plugins per L2 chain cluster around
 *execution* + *bulk state* + *throughput-bound work*:
 
-```text
-   ┌──────────────────────────────────────────────────────────────────────┐
-   │  L2 native contracts (deployed to each L2)                           │
-   │  ─────────                                                           │
-   │  L2BridgeContract           → mints/burns wrapped L1-asset (NEP-17)  │
-   │  L2NativeExternalBridge     → same for foreign-chain assets         │
-   │  L2MessageContract          → cross-L2 inbox/outbox                  │
-   │  L2BatchInfoContract        → records batch cursor on this L2 itself │
-   │  L2FeeContract              → L2 gas fee config (base/priority/op)   │
-   │  L2PaymasterContract        → optional gas sponsorship               │
-   │  L2SystemConfigContract     → L2-side mirror of select chainConfig   │
-   │                                                                      │
-   │  WHY L2: each is per-chain state — no other L2 needs to read it     │
-   │  directly. Asset balances scale with L2's user count; fee config is  │
-   │  L2-specific; paymaster is per-app.                                  │
-   └──────────────────────────────────────────────────────────────────────┘
-
-   ┌──────────────────────────────────────────────────────────────────────┐
-   │  L2 plugins (loaded by neo-cli per L2 chain)                         │
-   │  ──────────                                                          │
-   │  L2Batch         → seals txs into BatchCommitment on Block.Committed │
-   │  L2Settlement    → posts sealed batches + proofs to L1               │
-   │  L2Bridge        → AssetRegistry + DepositProcessor + Withdrawal     │
-   │  L2DA            → publishes batch payload to NeoFS / L1 / committee │
-   │  L2Prover        → SP1 zkVM (or Stage-0 multisig) proof generation   │
-   │  L2Rpc           → 9 chain-specific RPC handlers                     │
-   │  L2Gateway       → optional Phase-5 multi-L2 aggregation             │
-   │  L2Metrics       → IL2Metrics + /metrics + /healthz HTTP server      │
-   │                                                                      │
-   │  WHY L2: each plugin is per-chain runtime — different L2s run        │
-   │  different plugins (sidechain may skip L2Settlement; ZK rollup       │
-   │  configures L2Prover differently). Throughput scales with L2 alone.  │
-   └──────────────────────────────────────────────────────────────────────┘
-
-   ┌──────────────────────────────────────────────────────────────────────┐
-   │  L2 execution kernel (Neo 4 core, vendored)                          │
-   │  ──────────                                                          │
-   │  dBFT 2.0 consensus     — produces L2 blocks                         │
-   │  NeoVM execution        — runs txs                                   │
-   │  Mempool                — pending tx queue                           │
-   │  Local state storage    — RocksDB / IL2KeyValueStore                 │
-   │  Receipt generation     — local                                      │
-   │                                                                      │
-   │  WHY L2: this IS the throughput layer. L1 cannot run user txs at     │
-   │  the volume any single chain (let alone N chains) needs.             │
-   └──────────────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="figures/architecture/l2-concerns.svg" alt="What L2 does — 3 layers per chain. Top: 7 L2 native contracts (per-chain state — L2BridgeContract, L2NativeExternalBridge, L2MessageContract, L2BatchInfoContract, L2FeeContract, L2PaymasterContract, L2SystemConfigContract). Middle: 8 L2 plugins (per-chain runtime — L2Batch, L2Settlement, L2Bridge, L2DA, L2Prover, L2Rpc, L2Gateway, L2Metrics). Bottom: L2 execution kernel — Neo 4 core vendored as a git submodule, with dBFT 2.0 consensus, NeoVM, mempool, local state storage, and receipt generation" width="900">
+</p>
 
 **Key observation about L2:** L2 holds the **bulk state + the heavy
 execution**. Bridges + messages are *summaries* of what happened on

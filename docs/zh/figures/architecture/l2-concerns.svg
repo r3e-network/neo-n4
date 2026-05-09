@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 700" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">L2 做什么 —— 每条链 3 层</title>
+  <desc id="desc">每条 L2 链由三个关注点组成:7 个 L2 原生合约(按链状态 —— L2BridgeContract、L2NativeExternalBridge、L2MessageContract、L2BatchInfoContract、L2FeeContract、L2PaymasterContract、L2SystemConfigContract)、8 个 L2 插件(按链运行时 —— L2Batch、L2Settlement、L2Bridge、L2DA、L2Prover、L2Rpc、L2Gateway、L2Metrics)、L2 执行内核(Neo 4 core 引入的 submodule —— dBFT 2.0 共识、NeoVM、内存池、本地状态存储、receipt 生成)。</desc>
+
+  <defs>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .grp-t      { font-size: 13.5px; font-weight: 700; letter-spacing: 0.3px; }
+      .grp-s      { font-size: 11px; fill: #525a64; font-style: italic; }
+      .ctr-name   { font-size: 11px; font-weight: 600; fill: #1d4d2c; font-family: ui-monospace, 'SF Mono', monospace; }
+      .ctr-desc   { font-size: 10.5px; fill: #2d3a48; }
+      .why-t      { font-size: 10.5px; font-weight: 700; fill: #c4413e; }
+    </style>
+  </defs>
+
+  <rect width="960" height="700" fill="#ffffff"/>
+
+  <text x="480" y="32" text-anchor="middle" class="header" fill="#1d4d2c">L2 做什么 —— 每条链 3 层</text>
+
+  <g filter="url(#card)">
+    <rect x="40" y="58" width="880" height="216" rx="10" ry="10" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.5"/>
+    <text x="60" y="82" class="grp-t" fill="#1d4d2c">L2 原生合约</text>
+    <text x="180" y="82" class="grp-s">—— 部署到每条 L2 链(7 个合约)</text>
+    <line x1="56" y1="92" x2="904" y2="92" stroke="#3a8454" stroke-dasharray="3 2"/>
+
+    <text x="60" y="118" class="ctr-name">L2BridgeContract</text>
+    <text x="240" y="118" class="ctr-desc">→ 铸/销包装的 L1 资产(NEP-17)</text>
+    <text x="60" y="140" class="ctr-name">L2NativeExternalBridge</text>
+    <text x="240" y="140" class="ctr-desc">→ 外链资产同上</text>
+    <text x="60" y="162" class="ctr-name">L2MessageContract</text>
+    <text x="240" y="162" class="ctr-desc">→ 跨 L2 inbox / outbox</text>
+    <text x="60" y="184" class="ctr-name">L2BatchInfoContract</text>
+    <text x="240" y="184" class="ctr-desc">→ 在本 L2 上记录批次游标</text>
+    <text x="60" y="206" class="ctr-name">L2FeeContract</text>
+    <text x="240" y="206" class="ctr-desc">→ L2 gas 费用 config(基础/优先/op)</text>
+    <text x="60" y="228" class="ctr-name">L2PaymasterContract</text>
+    <text x="240" y="228" class="ctr-desc">→ 可选 gas 代付</text>
+    <text x="60" y="250" class="ctr-name">L2SystemConfigContract</text>
+    <text x="240" y="250" class="ctr-desc">→ L2 侧的 chainConfig 镜像</text>
+
+    <line x1="540" y1="100" x2="540" y2="262" stroke="#cfd5dd" stroke-dasharray="2 2"/>
+    <text x="560" y="124" class="why-t">为什么 L2:</text>
+    <foreignObject x="560" y="132" width="340" height="120">
+      <p xmlns="http://www.w3.org/1999/xhtml" style="font: 10.5px -apple-system, sans-serif; margin: 0; color: #2d3a48; line-height: 1.5;">
+        每个都是按链状态 —— 没有别的 L2 需要直接读。资产余额随
+        L2 用户数缩放;费用配置 L2 特有;paymaster 按应用。
+      </p>
+    </foreignObject>
+  </g>
+
+  <g filter="url(#card)">
+    <rect x="40" y="290" width="880" height="200" rx="10" ry="10" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.5"/>
+    <text x="60" y="314" class="grp-t" fill="#7a4a14">L2 插件</text>
+    <text x="140" y="314" class="grp-s">—— neo-cli 按 L2 链加载(8 个插件)</text>
+    <line x1="56" y1="324" x2="904" y2="324" stroke="#cd7c2e" stroke-dasharray="3 2"/>
+
+    <text x="60" y="350" class="ctr-name" fill="#7a4a14">L2Batch</text>
+    <text x="180" y="350" class="ctr-desc">→ Block.Committed 时把 tx 封进 BatchCommitment</text>
+    <text x="60" y="372" class="ctr-name" fill="#7a4a14">L2Settlement</text>
+    <text x="180" y="372" class="ctr-desc">→ 把封好的批次 + 证明发到 L1</text>
+    <text x="60" y="394" class="ctr-name" fill="#7a4a14">L2Bridge</text>
+    <text x="180" y="394" class="ctr-desc">→ AssetRegistry + DepositProcessor + Withdrawal</text>
+    <text x="60" y="416" class="ctr-name" fill="#7a4a14">L2DA</text>
+    <text x="180" y="416" class="ctr-desc">→ 把批次负载发到 NeoFS / L1 / 委员会</text>
+    <text x="60" y="438" class="ctr-name" fill="#7a4a14">L2Prover</text>
+    <text x="180" y="438" class="ctr-desc">→ SP1 zkVM(或 Stage-0 multisig)证明产生</text>
+    <text x="60" y="460" class="ctr-name" fill="#7a4a14">L2Rpc</text>
+    <text x="180" y="460" class="ctr-desc">→ 9 个按链的 RPC handler</text>
+    <text x="540" y="350" class="ctr-name" fill="#7a4a14">L2Gateway</text>
+    <text x="660" y="350" class="ctr-desc">→ 可选 Phase-5 多 L2 聚合</text>
+    <text x="540" y="372" class="ctr-name" fill="#7a4a14">L2Metrics</text>
+    <text x="660" y="372" class="ctr-desc">→ IL2Metrics + /metrics + /healthz HTTP</text>
+
+    <text x="540" y="414" class="why-t">为什么 L2:</text>
+    <foreignObject x="540" y="422" width="360" height="60">
+      <p xmlns="http://www.w3.org/1999/xhtml" style="font: 10.5px -apple-system, sans-serif; margin: 0; color: #2d3a48; line-height: 1.45;">
+        每个插件是按链运行时 —— 不同 L2 跑不同插件(侧链跳过 L2Settlement;
+        ZK rollup 配置 L2Prover 不同)。吞吐量只随 L2 缩放。
+      </p>
+    </foreignObject>
+  </g>
+
+  <g filter="url(#card)">
+    <rect x="40" y="506" width="880" height="148" rx="10" ry="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.5"/>
+    <text x="60" y="530" class="grp-t" fill="#1e2a55">L2 执行内核</text>
+    <text x="180" y="530" class="grp-s">—— Neo 4 core,external/neo 引入</text>
+    <line x1="56" y1="540" x2="904" y2="540" stroke="#7587c1" stroke-dasharray="3 2"/>
+
+    <text x="60" y="566" class="ctr-name" fill="#1e2a55">dBFT 2.0 共识</text>
+    <text x="220" y="566" class="ctr-desc">—— 产出 L2 区块</text>
+    <text x="60" y="588" class="ctr-name" fill="#1e2a55">NeoVM 执行</text>
+    <text x="220" y="588" class="ctr-desc">—— 跑 tx</text>
+    <text x="60" y="610" class="ctr-name" fill="#1e2a55">内存池</text>
+    <text x="220" y="610" class="ctr-desc">—— 待打包 tx 队列</text>
+    <text x="540" y="566" class="ctr-name" fill="#1e2a55">本地状态存储</text>
+    <text x="680" y="566" class="ctr-desc">—— RocksDB / IL2KeyValueStore</text>
+    <text x="540" y="588" class="ctr-name" fill="#1e2a55">Receipt 生成</text>
+    <text x="680" y="588" class="ctr-desc">—— 本地</text>
+
+    <text x="60" y="640" class="why-t">为什么 L2:</text>
+    <text x="140" y="640" class="ctr-desc"><tspan font-style="italic">这**就是**吞吐层。L1 无法承担任何单条链(更不用说 N 条)所需的用户 tx 量。</tspan></text>
+  </g>
+
+  <text x="480" y="682" text-anchor="middle" class="grp-s" fill="#525a64">L2 持有批量状态 + 重型执行。桥 + 消息是摘要 —— 热路径不触及 L1。</text>
+</svg>

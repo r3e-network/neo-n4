@@ -43,83 +43,9 @@
 20 个生产 NeoHub 合约(加 1 个测试 stub)聚成 6 个关注点。每条都点出*把它强制放在
 L1 的属性*:
 
-```text
-   ┌──────────────────────────────────────────────────────────────────────┐
-   │  Settlement(信任边界)                                              │
-   │  ──────────                                                          │
-   │  SettlementManager   → 接收 L2 批次;发出规范状态                     │
-   │  VerifierRegistry    → 按 proofType 派发;按协议版本                  │
-   │                                                                      │
-   │  为什么 L1:这定义"L2 已最终化"是什么意思。不能住 L2(会循环:L2     │
-   │  自己决定 L2 的合法性)。                                            │
-   └──────────────────────────────────────────────────────────────────────┘
-
-   ┌──────────────────────────────────────────────────────────────────────┐
-   │  Bridge(资产托管)                                                   │
-   │  ──────                                                              │
-   │  SharedBridge        → 托管资产,凭 Merkle 证明释放                   │
-   │  TokenRegistry       → 资产元信息(symbol/decimals/native chain)     │
-   │  ChainRegistry       → 注册 L2 链;存 91 字节 config                  │
-   │                                                                      │
-   │  为什么 L1:资产**就在** L1 上;托管必须在资产所在处。链注册表必须    │
-   │  在 L1 上,因为所有 L2 + 所有桥都读它。                              │
-   └──────────────────────────────────────────────────────────────────────┘
-
-   ┌──────────────────────────────────────────────────────────────────────┐
-   │  Messaging(跨 L2 路由)                                              │
-   │  ─────────                                                           │
-   │  MessageRouter       → 在 L2 间路由消息;规范哈希                     │
-   │  DARegistry          → 记录已发布 daCommitment 哈希                  │
-   │                                                                      │
-   │  为什么 L1:从 L2-A 到 L2-B 的消息没有别的信任锚。两端都必须把 L1     │
-   │  作为路由仲裁。                                                      │
-   └──────────────────────────────────────────────────────────────────────┘
-
-   ┌──────────────────────────────────────────────────────────────────────┐
-   │  Security(可罚没保证金 + 抗审查)                                   │
-   │  ────────                                                            │
-   │  SequencerRegistry   → 按链已注册的排序器                            │
-   │  SequencerBond       → 可罚没保证金(被 OptimisticChall. 罚)        │
-   │  ForcedInclusion     → 抗审查门(设计上由 L1 驱动)                  │
-   │  OptimisticChallenge → 二分博弈欺诈证明窗口                         │
-   │                                                                      │
-   │  为什么 L1:保证金需要 L1 验证人集合的经济安全才能被有意义地罚没。   │
-   │  强制纳入必须在 L1 —— 若 L2 控制,审查排序器会同时控制抗审查机制。  │
-   └──────────────────────────────────────────────────────────────────────┘
-
-   ┌──────────────────────────────────────────────────────────────────────┐
-   │  治理 + 紧急                                                          │
-   │  ──────────────────────                                              │
-   │  GovernanceController → 验证器升级的多签 + timelock                  │
-   │  EmergencyManager     → 个别链的运维多签暂停                          │
-   │                                                                      │
-   │  为什么 L1:协议升级需要慢 + 多签;那正是 L1 终结性 + 可见性提供的。  │
-   │  紧急暂停必须比任何单条 L2 的故障期更长。                            │
-   └──────────────────────────────────────────────────────────────────────┘
-
-   ┌──────────────────────────────────────────────────────────────────────┐
-   │  外链桥(Phase B/C)                                                  │
-   │  ─────────────                                                       │
-   │  MpcCommitteeVerifier        → M-of-N 委员会证明验证                 │
-   │  ExternalBridgeRegistry      → 按外链的 (verifier, bondAcc)          │
-   │  ExternalBridgeEscrow        → 铸/销包装外链资产                      │
-   │  ExternalBridgeBond          → 可罚没保证金(委员会等价签名)        │
-   │  MpcCommitteeFraudVerifier   → 证明等价签名;罚没保证金              │
-   │  ExternalBridgeStubVerifier  → 测试 stub(非生产)                   │
-   │                                                                      │
-   │  为什么 L1:同 L1↔L2 桥的信任 + 经济安全论据。委员会的保证金需要 L1   │
-   │  的罚没能力。                                                        │
-   └──────────────────────────────────────────────────────────────────────┘
-
-   外加 1 个专用 verifier:
-
-   ┌──────────────────────────────────────────────────────────────────────┐
-   │  RestrictedExecutionFraudVerifier(verifier 槽位)                  │
-   │  ──────────                                                          │
-   │  从 storage 证明重新派生 pre/post 状态根;按 (chainId, proofType=v3) │
-   │  注册到 VerifierRegistry。                                           │
-   └──────────────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="../figures/architecture/l1-concerns.svg" alt="21 个 NeoHub L1 合约按 6 个关注点 + 1 个专用 verifier 槽位分组。Settlement(SettlementManager + VerifierRegistry)定义信任边界。Bridge(SharedBridge + TokenRegistry + ChainRegistry)托管资产。Messaging(MessageRouter + DARegistry)是跨 L2 路由仲裁。Security(SequencerRegistry + SequencerBond + ForcedInclusion + OptimisticChallenge)把关可罚没保证金与抗审查。Governance + Emergency(GovernanceController + EmergencyManager)负责慢升级 + 逃生通道。外链桥(6 个合约)。再加 RestrictedExecutionFraudVerifier 作为专用 verifier 槽位" width="900">
+</p>
 
 **关于 L1 合约的关键观察:** 它们持有的是*承诺*与*权限*,而非批量状态。NeoHub 的
 存储刻意稀疏 —— 注册表条目、余额、可罚没保证金账本、证明接受记录。L1 存储的代价
@@ -132,51 +58,9 @@ L1 的属性*:
 每条 L2 链的 7 个原生 L2 合约 + 8 个插件聚集在*执行* + *批量状态* + *吞吐量瓶颈
 工作*周围:
 
-```text
-   ┌──────────────────────────────────────────────────────────────────────┐
-   │  L2 原生合约(部署到每条 L2)                                        │
-   │  ─────────                                                           │
-   │  L2BridgeContract           → 铸/销包装的 L1 资产(NEP-17)           │
-   │  L2NativeExternalBridge     → 外链资产同上                            │
-   │  L2MessageContract          → 跨 L2 inbox/outbox                     │
-   │  L2BatchInfoContract        → 在本 L2 上记录批次游标                 │
-   │  L2FeeContract              → L2 gas 费用 config(基础/优先/op)      │
-   │  L2PaymasterContract        → 可选 gas 代付                           │
-   │  L2SystemConfigContract     → L2 侧的 chainConfig 镜像               │
-   │                                                                      │
-   │  为什么 L2:每个都是按链状态 —— 没有别的 L2 需要直接读。资产余额随   │
-   │  L2 用户数缩放;费用配置 L2 特有;paymaster 按应用。                 │
-   └──────────────────────────────────────────────────────────────────────┘
-
-   ┌──────────────────────────────────────────────────────────────────────┐
-   │  L2 插件(neo-cli 按 L2 链加载)                                      │
-   │  ──────────                                                          │
-   │  L2Batch         → Block.Committed 时把 tx 封进 BatchCommitment      │
-   │  L2Settlement    → 把封好的批次 + 证明发到 L1                          │
-   │  L2Bridge        → AssetRegistry + DepositProcessor + Withdrawal      │
-   │  L2DA            → 把批次负载发到 NeoFS / L1 / 委员会                  │
-   │  L2Prover        → SP1 zkVM(或 Stage-0 multisig)证明产生            │
-   │  L2Rpc           → 9 个按链的 RPC handler                             │
-   │  L2Gateway       → 可选的 Phase-5 多 L2 聚合                          │
-   │  L2Metrics       → IL2Metrics + /metrics + /healthz HTTP server       │
-   │                                                                      │
-   │  为什么 L2:每个插件是按链运行时 —— 不同 L2 跑不同插件(侧链可能跳过 │
-   │  L2Settlement;ZK rollup 配置 L2Prover 不同)。吞吐量只随 L2 缩放。  │
-   └──────────────────────────────────────────────────────────────────────┘
-
-   ┌──────────────────────────────────────────────────────────────────────┐
-   │  L2 执行内核(Neo 4 core,引入)                                      │
-   │  ──────────                                                          │
-   │  dBFT 2.0 共识        — 产出 L2 区块                                  │
-   │  NeoVM 执行           — 跑 tx                                          │
-   │  内存池                — 待打包 tx 队列                              │
-   │  本地状态存储          — RocksDB / IL2KeyValueStore                   │
-   │  Receipt 生成           — 本地                                        │
-   │                                                                      │
-   │  为什么 L2:这**就是**吞吐层。L1 无法承担任何单条链(更不用说 N 条)│
-   │  所需的用户 tx 量。                                                  │
-   └──────────────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="../figures/architecture/l2-concerns.svg" alt="L2 做什么 —— 每条链 3 层。顶层:7 个 L2 原生合约(按链状态 —— L2BridgeContract、L2NativeExternalBridge、L2MessageContract、L2BatchInfoContract、L2FeeContract、L2PaymasterContract、L2SystemConfigContract)。中层:8 个 L2 插件(按链运行时 —— L2Batch、L2Settlement、L2Bridge、L2DA、L2Prover、L2Rpc、L2Gateway、L2Metrics)。底层:L2 执行内核 —— Neo 4 core 作为 git submodule 引入,含 dBFT 2.0 共识、NeoVM、内存池、本地状态存储、receipt 生成" width="900">
+</p>
 
 **关于 L2 的关键观察:** L2 持有**批量状态 + 重型执行**。桥 + 消息是 L2 上发生的事
 的*摘要*,经证明 + 提交到 L1。任何用户 tx 的热路径都不触及 L1。

@@ -168,6 +168,10 @@ fn preflight_passes_with_responsive_rpc_endpoints() {
     let eth = FakeRpcServer::spawn(|body: &str| {
         if body.contains("eth_blockNumber") {
             r#"{"jsonrpc":"2.0","id":1,"result":"0x100"}"#.to_string()
+        } else if body.contains("eth_getCode") {
+            // Return a tiny but non-empty bytecode hex — preflight
+            // just checks "more than 0x" so a single byte is enough.
+            r#"{"jsonrpc":"2.0","id":1,"result":"0x6080604052"}"#.to_string()
         } else {
             r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"not found"}}"#.into()
         }
@@ -198,6 +202,10 @@ fn preflight_passes_with_responsive_rpc_endpoints() {
         "expected eth probe success line; output:\n{output}"
     );
     assert!(
+        output.contains("[ok]   eth_router_address has bytecode"),
+        "expected eth_getCode probe success line; output:\n{output}"
+    );
+    assert!(
         output.contains("[ok]   neo_rpc_url"),
         "expected neo probe success line; output:\n{output}"
     );
@@ -205,6 +213,35 @@ fn preflight_passes_with_responsive_rpc_endpoints() {
     assert!(
         output.contains("head = 256"),
         "expected to see head height (0x100 = 256) in output; got:\n{output}"
+    );
+}
+
+#[test]
+fn preflight_fails_when_router_address_has_no_bytecode() {
+    // eth_blockNumber succeeds (RPC is reachable) but eth_getCode
+    // returns "0x" — operator passed an EOA / non-existent address
+    // / typo'd a contract address.
+    let eth = FakeRpcServer::spawn(|body: &str| {
+        if body.contains("eth_blockNumber") {
+            r#"{"jsonrpc":"2.0","id":1,"result":"0x10"}"#.to_string()
+        } else if body.contains("eth_getCode") {
+            r#"{"jsonrpc":"2.0","id":1,"result":"0x"}"#.to_string()
+        } else {
+            r#"{"jsonrpc":"2.0","id":1,"result":null}"#.to_string()
+        }
+    });
+    // Neo isn't reached — eth_getCode fires + fails first.
+    let neo = FakeRpcServer::spawn(|_body: &str| {
+        r#"{"jsonrpc":"2.0","id":1,"result":{"network":860833102}}"#.to_string()
+    });
+
+    let fix = build_fixture(&eth.url, &neo.url);
+    let (code, output) = run_preflight(&fix.config_path);
+
+    assert_eq!(code, 1);
+    assert!(
+        output.contains("preflight: FAILED") && output.contains("no bytecode"),
+        "failure should name the no-bytecode condition; got:\n{output}"
     );
 }
 
@@ -266,8 +303,14 @@ journal_dir         = "{}"
 
 #[test]
 fn preflight_fails_when_neo_rpc_returns_jsonrpc_error() {
-    let eth = FakeRpcServer::spawn(|_body: &str| {
-        r#"{"jsonrpc":"2.0","id":1,"result":"0x10"}"#.to_string()
+    let eth = FakeRpcServer::spawn(|body: &str| {
+        if body.contains("eth_blockNumber") {
+            r#"{"jsonrpc":"2.0","id":1,"result":"0x10"}"#.to_string()
+        } else if body.contains("eth_getCode") {
+            r#"{"jsonrpc":"2.0","id":1,"result":"0x6080604052"}"#.to_string()
+        } else {
+            r#"{"jsonrpc":"2.0","id":1,"result":null}"#.to_string()
+        }
     });
     let neo = FakeRpcServer::spawn(|_body: &str| {
         // Server is reachable but returns a JSON-RPC error — operator

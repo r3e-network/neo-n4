@@ -369,6 +369,20 @@ fn preflight(config: &Config) -> Result<(), String> {
         config.eth_rpc_url
     );
 
+    // 5b. eth_getCode on the router address. Catches operators
+    //     passing an EOA / wrong proxy / typo'd contract address —
+    //     all of which would silently fail to emit Locked events
+    //     forever. A successful contract returns >= 1 byte of code.
+    probe_eth_get_code(
+        &config.eth_rpc_url,
+        config.eth_router_address,
+        preflight_timeout,
+    )
+    .map_err(|e| format!("eth_getCode on router {}: {e}", hex::encode(config.eth_router_address)))?;
+    eprintln!(
+        "[ok]   eth_router_address has bytecode (eth_getCode returned > 0 bytes)"
+    );
+
     // 6. Neo RPC reachability — direct reqwest probe of `getversion`,
     //    which every Neo node implements. Avoids needing a public
     //    head-probe on NeoRpcSubmitter (which is structured around
@@ -380,6 +394,50 @@ fn preflight(config: &Config) -> Result<(), String> {
         config.neo_rpc_url
     );
 
+    Ok(())
+}
+
+/// `eth_getCode` probe for the router address. Returns Ok(()) iff
+/// the response is a hex string of at least 1 byte (i.e., NOT "0x"
+/// alone). "0x" with no bytecode means the address is either an EOA
+/// or non-existent — in either case the watcher would never see
+/// Locked events from it, so we hard-fail at preflight.
+fn probe_eth_get_code(
+    rpc_url: &str,
+    address: [u8; 20],
+    timeout: Duration,
+) -> Result<(), String> {
+    let client = reqwest::blocking::Client::builder()
+        .timeout(timeout)
+        .build()
+        .map_err(|e| format!("build client: {e}"))?;
+    let req = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "eth_getCode",
+        "params": [format!("0x{}", hex::encode(address)), "latest"]
+    });
+    let resp: serde_json::Value = client
+        .post(rpc_url)
+        .json(&req)
+        .send()
+        .map_err(|e| format!("send: {e}"))?
+        .json()
+        .map_err(|e| format!("parse JSON-RPC response: {e}"))?;
+    if let Some(err) = resp.get("error") {
+        return Err(format!("rpc error: {err}"));
+    }
+    let code = resp
+        .get("result")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "response missing string `result`".to_string())?;
+    let stripped = code.strip_prefix("0x").unwrap_or(code);
+    if stripped.is_empty() {
+        return Err(format!(
+            "address has no bytecode — either an EOA or non-existent. \
+             Did you pass the right router address? (got '{code}')"
+        ));
+    }
     Ok(())
 }
 

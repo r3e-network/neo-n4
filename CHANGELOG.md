@@ -5,6 +5,103 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Watcher daemon production-readiness sweep
+
+Operational features shipped iteratively that take the watcher daemon
+from a v0 messaging+signing core to a kubernetes-deployable service:
+
+- **Graceful SIGTERM/SIGINT shutdown** (`1fd9077`) — static AtomicBool
+  + async-signal-safe handler; `interruptible_sleep` polls the flag
+  every 100ms so kill signals respond within ~100ms even from a long
+  backoff sleep. Verified via SIGTERM during a 30s backoff: clean
+  exit in 1s vs full 30s without.
+
+- **Per-chain `min_confirmations` reorg buffer** (`a4e6f2c`) —
+  `EthRpcEventSourceBuilder.min_confirmations(n)` caps the polling
+  window at `head - n` (saturating), defending against short-reorg
+  phantom mints. Operator's primary defense across the EVM family.
+  4 new live-RPC tests pin the saturating + emit-after-buffer paths.
+
+- **`chains::recommended_confirmations(chain_id)`** (`7da733b`) —
+  programmatic per-chain default for all 14 EVM-family slots + Solana.
+  Daemon startup emits a WARNING if `min_confirmations = 0` but the
+  chain has a non-zero recommendation (e.g., BSC mainnet → 15;
+  Polygon → 256; L2s → 0 with operator-supplied L1 finality signal).
+  3 new tests pin coverage + anchor values + unknown-id None.
+
+- **`PollConfig::default` fix** (`c510cec`) — when `[poll]` table was
+  omitted entirely, serde fell back to `#[derive(Default)]` which
+  zeroed every field, producing a tight retry spin (poll 0s, backoff
+  0-0s). Manual `Default` impl now mirrors the per-field defaults.
+
+- **`Dockerfile` + `.dockerignore`** (`d39f3ff`, `de6a6f1`,
+  `ab67ef7`) — multi-stage build (rust:1.86-slim builder →
+  distroless cc-debian12 runtime, ~50 MB final image). Runs as
+  uid:gid 65532:65532, exposes `:9090`. `.dockerignore` keeps the
+  context lean (excludes ~325MB of unrelated submodule source) but
+  preserves `external/neo-zkvm` for cargo workspace metadata.
+
+- **CI workflow `build-watcher-image.yml`** (`3e375d7` + repairs in
+  `b3e7233` / `de6a6f1` / `ab67ef7`) — pushes to GHCR on master with
+  `:latest` + `:master` + `:sha-<7char>` tags + `type=gha` layer
+  cache (subsequent builds ~2 min vs ~10 min cold).
+
+- **`deploy/k8s.yaml`** + **`deploy/neo-bridge-watcher.service`** —
+  reference Kubernetes (Deployment + Service + ConfigMap + Secret +
+  PVC; `Recreate` strategy + `terminationGracePeriodSeconds=30` to
+  cooperate with the journal's `flock`-based concurrent-instance
+  detection) and systemd (hardened with `ProtectSystem=strict` +
+  `NoNewPrivileges=true`) manifests.
+
+### Added — Watcher CI gates (cargo build + test + clippy)
+
+`.github/workflows/build.yml`'s `bridge` job now exercises every
+watcher crate (`ddb2a66`):
+
+- `cargo build + test (neo-bridge-watcher-eth, default features)` —
+  cryptographic core, parity vectors, chains-table validity.
+- `cargo build + test (neo-bridge-watcher-eth, --features live-rpc)`
+  — HTTP adapters, journal, health server, Prometheus /metrics.
+- `cargo build + test (neo-bridge-watcher-tron)` — chain-id namespace
+  + cross-curve abstraction.
+- `cargo build + test (neo-bridge-watcher-sol)` — ed25519 signer +
+  trait polymorphism.
+
+Plus a `cargo clippy --all-targets -- -D warnings` gate covering
+both feature configurations of eth + tron + sol (`9ce55b7`). Came
+with a small drift-cleanup pass: dropped unused imports
+(signer.rs, bin/main.rs), fixed doc-list-item indentation
+(messaging.rs), removed unreachable test arms (file_journal.rs,
+JournalError has only one variant today), used `Range::contains`
+(sol), wrapped const-bound assertions in `const _: () = { ... }`
+(tron) so they're compile-time checks.
+
+### Fixed — Pre-existing CI repairs (build.yml red on every commit)
+
+The existing build.yml CI had been red on every push for ~24 hours
+when this session began. Three independent issues, all unrelated
+to watcher work but necessary to unblock the green-build state:
+
+- **`neo-zkvm-guest` host-mode test** (`3b32f80`) —
+  `sp1_zkvm::entrypoint!(main)` macro exits with non-zero status
+  when invoked outside the SP1 zkVM (160 locally / 192 in CI).
+  cargo test interpreted the non-zero as failure. Fix: add
+  `test = false` to the `[[bin]]` entry; bin still builds for
+  the real-zkVM job, just skipped from cargo test.
+
+- **`neo-zkvm-host` SP1 zkVM job missing submodules** (`06d6214`)
+  — `actions/checkout@v6` without `submodules: recursive` left
+  `external/neo-zkvm/crates/neo-vm-guest/Cargo.toml` absent;
+  `cargo prove build` failed at metadata resolution. Matched the
+  existing bridge job's checkout config.
+
+- **SP1 toolchain cache missing the `succinct` rustup toolchain**
+  (`6c915f0`) — the cache only saved `~/.sp1/` (binaries), not
+  `~/.rustup/toolchains/succinct/` (the actual cargo +succinct
+  toolchain). On cache hit, the install step was skipped, leaving
+  binaries present but the toolchain absent. Extended cache path
+  + bumped key to v6.1.
+
 ### Added — Prometheus `/metrics` endpoint for the watcher daemon
 
 The same `[health]` server now exposes `GET /metrics` in Prometheus

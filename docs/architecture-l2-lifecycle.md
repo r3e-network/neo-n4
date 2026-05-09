@@ -296,31 +296,9 @@ channels — each runs on its own cadence:
 
 For every L2 block:
 
-```text
-    L2 Blockchain   L2BatchPlugin    BatchSealer    Prover daemon    SettlementManager
-        │              │                  │              │                   │
-        │ Committed ───▶                  │              │                   │
-        │              │── tx batch + ───▶│              │                   │
-        │              │   post-state-root │             │                   │
-        │              │                  │              │                   │
-        │              │                  │ build        │                   │
-        │              │                  │ BatchCommitment                  │
-        │              │                  │ (canonical                       │
-        │              │                  │ 32-byte fields)                  │
-        │              │                  │              │                   │
-        │              │                  │── BatchPayload ─▶                │
-        │              │                  │              │                   │
-        │              │                  │              │ SP1 zkVM proves   │
-        │              │                  │              │ execute_batch(...)│
-        │              │                  │              │                   │
-        │              │                  │ ◀── validity_proof + vk ──       │
-        │              │                  │              │                   │
-        │              │                  │── SubmitBatch(commitment, proof, vk) ──▶
-        │              │                  │              │                   │
-        │              │                  │              │ ◀── VerifierRegistry.Verify
-        │              │                  │              │                   │
-        │              │                  │ ◀── SettlementAccepted event ────│
-```
+<p align="center">
+  <img src="figures/architecture/settlement-sequence.svg" alt="Settlement hot-path sequence — 5 actors L2 Blockchain, L2BatchPlugin, BatchSealer, Prover daemon, SettlementManager. Block.Committed → tx batch + post-state-root → BatchSealer constructs canonical BatchCommitment → BatchPayload to Prover daemon → SP1 zkVM proves execute_batch → validity_proof + vk back → SubmitBatch on SettlementManager → VerifierRegistry.Verify dispatch → SettlementAccepted event" width="900">
+</p>
 
 Wire format: `BatchSerializer` (`Neo.L2.Batch/`) — 32-byte fields
 in canonical order. See `architecture-walkthrough.md` § "transaction

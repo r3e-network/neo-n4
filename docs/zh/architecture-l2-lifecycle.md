@@ -275,31 +275,9 @@ l2_batch_info_hash          = 0x...  # 此 L2 的 L2BatchInfoContract
 
 每个 L2 块:
 
-```text
-    L2 Blockchain   L2BatchPlugin    BatchSealer    证明守护进程    SettlementManager
-        │              │                  │              │                   │
-        │ Committed ───▶                  │              │                   │
-        │              │── tx 批 + ──────▶│              │                   │
-        │              │   post-state-root │             │                   │
-        │              │                  │              │                   │
-        │              │                  │ 构造          │                   │
-        │              │                  │ BatchCommitment                  │
-        │              │                  │ (规范                            │
-        │              │                  │  32 字节字段)                    │
-        │              │                  │              │                   │
-        │              │                  │── BatchPayload ─▶                │
-        │              │                  │              │                   │
-        │              │                  │              │ SP1 zkVM 证明     │
-        │              │                  │              │ execute_batch(...)│
-        │              │                  │              │                   │
-        │              │                  │ ◀── validity_proof + vk ──       │
-        │              │                  │              │                   │
-        │              │                  │── SubmitBatch(commitment, proof, vk) ──▶
-        │              │                  │              │                   │
-        │              │                  │              │ ◀── VerifierRegistry.Verify
-        │              │                  │              │                   │
-        │              │                  │ ◀── SettlementAccepted 事件 ────│
-```
+<p align="center">
+  <img src="../figures/architecture/settlement-sequence.svg" alt="结算热路径序列 —— 5 个角色 L2 Blockchain、L2BatchPlugin、BatchSealer、证明守护进程、SettlementManager。Block.Committed → tx 批 + post-state-root → BatchSealer 构造规范 BatchCommitment → BatchPayload 到证明守护进程 → SP1 zkVM 证明 execute_batch → validity_proof + vk 回传 → SubmitBatch 到 SettlementManager → VerifierRegistry.Verify 派发 → SettlementAccepted 事件" width="900">
+</p>
 
 线协议格式:`BatchSerializer`(`Neo.L2.Batch/`)—— 规范顺序的 32 字节字段。
 按 tx 的细节见 `architecture-walkthrough.md` 的"transaction lifecycle"。

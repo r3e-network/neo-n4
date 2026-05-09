@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">Settlement sequence — channel 1 hot path</title>
+  <desc id="desc">Sequence diagram of the L2 settlement hot path. For every L2 block: L2 Blockchain commits, L2BatchPlugin receives Block.Committed and forwards a tx batch with post-state-root to BatchSealer. BatchSealer constructs a canonical 32-byte-field BatchCommitment and sends a BatchPayload to the off-chain Prover daemon. SP1 zkVM proves execute_batch and returns validity_proof + vk. BatchSealer calls SubmitBatch(commitment, proof, vk) on SettlementManager, which dispatches to VerifierRegistry.Verify and emits SettlementAccepted on success.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <marker id="arrow-back" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M10,0 L0,5 L10,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .actor-t    { font-size: 11.5px; font-weight: 700; fill: #1e2a55; }
+      .actor-s    { font-size: 10px; fill: #525a64; font-style: italic; }
+      .lifeline   { stroke: #cfd5dd; stroke-width: 1; stroke-dasharray: 3 3; }
+      .msg-t      { font-size: 11px; fill: #1e2a55; font-weight: 600; }
+      .msg-s      { font-size: 10.5px; fill: #525a64; font-style: italic; }
+      .note-t     { font-size: 10.5px; fill: #2d3a48; }
+    </style>
+  </defs>
+
+  <rect width="960" height="560" fill="#ffffff"/>
+
+  <text x="480" y="30" text-anchor="middle" class="header" fill="#1e2a55">Settlement — channel 1 hot path (per L2 block)</text>
+
+  <!-- 5 actor headers at x = 100, 280, 460, 640, 820 -->
+  <g filter="url(#card)">
+    <rect x="40" y="50" width="120" height="50" rx="6" ry="6" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.2"/>
+    <text x="100" y="72" text-anchor="middle" class="actor-t" fill="#1d4d2c">L2 Blockchain</text>
+    <text x="100" y="88" text-anchor="middle" class="actor-s">dBFT 2.0</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="220" y="50" width="120" height="50" rx="6" ry="6" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.2"/>
+    <text x="280" y="72" text-anchor="middle" class="actor-t" fill="#1d4d2c">L2BatchPlugin</text>
+    <text x="280" y="88" text-anchor="middle" class="actor-s">subscribes</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="400" y="50" width="120" height="50" rx="6" ry="6" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.2"/>
+    <text x="460" y="72" text-anchor="middle" class="actor-t" fill="#7a4a14">BatchSealer</text>
+    <text x="460" y="88" text-anchor="middle" class="actor-s">canonical bytes</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="580" y="50" width="120" height="50" rx="6" ry="6" fill="#f1ecf8" stroke="#7d59b3" stroke-width="1.2"/>
+    <text x="640" y="72" text-anchor="middle" class="actor-t" fill="#3e2865">Prover daemon</text>
+    <text x="640" y="88" text-anchor="middle" class="actor-s">SP1 zkVM (off-proc)</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="760" y="50" width="160" height="50" rx="6" ry="6" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
+    <text x="840" y="72" text-anchor="middle" class="actor-t" fill="#1e2a55">SettlementManager</text>
+    <text x="840" y="88" text-anchor="middle" class="actor-s">L1 NeoHub</text>
+  </g>
+
+  <!-- Lifelines -->
+  <line class="lifeline" x1="100" y1="100" x2="100" y2="500"/>
+  <line class="lifeline" x1="280" y1="100" x2="280" y2="500"/>
+  <line class="lifeline" x1="460" y1="100" x2="460" y2="500"/>
+  <line class="lifeline" x1="640" y1="100" x2="640" y2="500"/>
+  <line class="lifeline" x1="840" y1="100" x2="840" y2="500"/>
+
+  <!-- Message 1: Block.Committed -->
+  <line x1="100" y1="130" x2="280" y2="130" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="190" y="124" text-anchor="middle" class="msg-t">Block.Committed</text>
+
+  <!-- Message 2: tx batch + post-state-root -->
+  <line x1="280" y1="170" x2="460" y2="170" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="370" y="164" text-anchor="middle" class="msg-t">tx batch + post-state-root</text>
+
+  <!-- Note: build BatchCommitment -->
+  <g>
+    <rect x="410" y="200" width="100" height="36" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-dasharray="2 2"/>
+    <text x="460" y="216" text-anchor="middle" class="msg-s">build</text>
+    <text x="460" y="230" text-anchor="middle" class="msg-s">BatchCommitment</text>
+  </g>
+
+  <!-- Message 3: BatchPayload -->
+  <line x1="460" y1="266" x2="640" y2="266" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="550" y="260" text-anchor="middle" class="msg-t">BatchPayload</text>
+
+  <!-- Note: SP1 zkVM proves execute_batch -->
+  <g>
+    <rect x="590" y="290" width="110" height="36" rx="4" ry="4" fill="#f1ecf8" stroke="#7d59b3" stroke-dasharray="2 2"/>
+    <text x="645" y="306" text-anchor="middle" class="msg-s">SP1 zkVM proves</text>
+    <text x="645" y="320" text-anchor="middle" class="msg-s">execute_batch(...)</text>
+  </g>
+
+  <!-- Message 4: validity_proof + vk (back) -->
+  <line x1="640" y1="356" x2="460" y2="356" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="550" y="350" text-anchor="middle" class="msg-t">validity_proof + vk</text>
+
+  <!-- Message 5: SubmitBatch -->
+  <line x1="460" y1="396" x2="840" y2="396" stroke="#c4413e" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="650" y="390" text-anchor="middle" class="msg-t" fill="#88312e">SubmitBatch(commitment, proof, vk)</text>
+
+  <!-- Note: VerifierRegistry.Verify -->
+  <g>
+    <rect x="770" y="416" width="140" height="32" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-dasharray="2 2"/>
+    <text x="840" y="436" text-anchor="middle" class="msg-s">VerifierRegistry.Verify</text>
+  </g>
+
+  <!-- Message 6: SettlementAccepted (back) -->
+  <line x1="840" y1="476" x2="460" y2="476" stroke="#3a8454" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="650" y="470" text-anchor="middle" class="msg-t" fill="#1d4d2c">SettlementAccepted event</text>
+
+  <!-- Footer note -->
+  <text x="480" y="540" text-anchor="middle" class="msg-s" fill="#525a64">Wire format: BatchSerializer (Neo.L2.Batch/) — 32-byte fields in canonical order.</text>
+</svg>

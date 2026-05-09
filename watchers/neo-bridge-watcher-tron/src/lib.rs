@@ -41,6 +41,12 @@
 /// Tron mainnet chain id. The high byte `0xE0` reserves the foreign-namespace
 /// prefix; `0xE0_00_00_10` is canonical for Tron mainnet (vs `0xE0_00_00_01`
 /// for Eth mainnet, `0xE0_00_00_20` for Solana mainnet).
+///
+/// For all other EVM chains (BSC, Polygon, Arbitrum, Optimism, Base, etc.)
+/// the canonical chain-id constants live in
+/// [`neo_bridge_watcher_eth::chains`] (re-exported as [`chains`] below) —
+/// the Eth watcher daemon serves the entire EVM family with no per-chain
+/// code; only the constructor-passed `external_chain_id` differs.
 pub const TRON_MAINNET_CHAIN_ID: u32 = 0xE000_0010;
 
 /// Tron Nile testnet (the one most operators target for Tron testing).
@@ -49,6 +55,12 @@ pub const TRON_NILE_TESTNET_CHAIN_ID: u32 = 0xE000_0011;
 /// Tron Shasta testnet (older; less commonly used). Surface so an operator
 /// who happens to be on Shasta gets a stable chain-id constant.
 pub const TRON_SHASTA_TESTNET_CHAIN_ID: u32 = 0xE000_0012;
+
+/// Canonical foreign-namespace chain-id table for every EVM chain the
+/// framework supports — re-exported from the Eth watcher crate so Tron
+/// consumers don't need a separate import. Adding a new EVM chain is a
+/// matter of allocating a constant here, NOT writing a new watcher crate.
+pub use neo_bridge_watcher_eth::chains;
 
 /// Re-export the Eth watcher's full public API. Tron daemons import directly
 /// from this module — consumers that already use the Eth crate can swap

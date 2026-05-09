@@ -29,6 +29,7 @@
 //! - RocksDB-backed last-processed-block journal (restart safety).
 //! - Daemon main loop wiring all of the above.
 
+pub mod chains;
 pub mod core;
 pub mod event_source;
 pub mod journal;

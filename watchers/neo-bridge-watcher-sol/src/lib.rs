@@ -29,7 +29,10 @@ use std::path::Path;
 
 /// Solana mainnet-beta. The high byte `0xE0` reserves the foreign-namespace
 /// prefix; `0xE0_00_00_20` is canonical for Solana mainnet (vs
-/// `0xE0_00_00_01` for Eth, `0xE0_00_00_10` for Tron).
+/// `0xE0_00_00_01` for Eth, `0xE0_00_00_10` for Tron). The full canonical
+/// chain-id table — including all EVM-family chains the Eth watcher
+/// covers — lives in [`chains`] (re-exported from
+/// [`neo_bridge_watcher_eth`]).
 pub const SOLANA_MAINNET_CHAIN_ID: u32 = 0xE000_0020;
 
 /// Solana devnet — the canonical "throwaway" Solana network operators
@@ -39,6 +42,13 @@ pub const SOLANA_DEVNET_CHAIN_ID: u32 = 0xE000_0021;
 /// Solana testnet — the validator-staking-aware test network. Less
 /// commonly used by application devs but pinned here for completeness.
 pub const SOLANA_TESTNET_CHAIN_ID: u32 = 0xE000_0022;
+
+/// Canonical foreign-namespace chain-id table for the entire framework
+/// — Eth + every EVM family chain + Solana. Re-exported here so a Solana
+/// daemon that needs to cross-reference an EVM constant (e.g., to share
+/// committee config across chains) doesn't have to reach into
+/// `neo_bridge_watcher_eth` directly.
+pub use neo_bridge_watcher_eth::chains;
 
 /// Re-export the Eth watcher's full public API; ed25519 signers and
 /// secp256k1 signers both plug into the same trait surface.

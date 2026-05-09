@@ -3,6 +3,15 @@
 Off-chain watcher daemon for Neo Elastic Network's Eth ↔ Neo external
 bridge.
 
+This crate serves the **entire EVM family** — Ethereum, BSC, Polygon,
+Arbitrum, Optimism, Base, Avalanche, Linea, zkSync Era, Scroll,
+Mantle, Fantom, Celo, plus Tron's EVM-flavored TVM. The same daemon
+binary is fully chain-id-driven: changing one TOML field swaps which
+chain is being watched. See
+[`docs/external-bridge-evm-chains.md`](../../docs/external-bridge-evm-chains.md)
+for the 5-step onboarding runbook + the canonical foreign-namespace
+slot allocation; the constants live in [`src/chains.rs`](src/chains.rs).
+
 Two build modes:
 
 - **Default** (`cargo build`): the messaging + signing + orchestration

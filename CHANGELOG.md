@@ -5,6 +5,51 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Generic EVM-chain support for the external bridge
+
+The watcher framework now treats the entire EVM family (Ethereum, BSC,
+Polygon + zkEVM, Arbitrum One/Sepolia/Nova, Optimism, Base, Avalanche
+C, Linea, zkSync Era, Scroll, Mantle, Fantom/Sonic, Celo, plus Tron's
+EVM-flavored TVM) as variations of one chain template. Adding a new
+EVM chain takes five steps and writes **zero new code**: pick a slot,
+deploy `NeoExternalBridgeRouter.sol` with the foreign chain id as a
+constructor arg, run the existing daemon binary against the chain's
+RPC, register the committee on Neo.
+
+- `watchers/neo-bridge-watcher-eth/src/chains.rs` — canonical
+  foreign-namespace slot allocation. 16-slot family banks for each
+  chain: Eth `0xE000_0001..000F`, Tron `..0010..001F`, Solana
+  `..0020..002F`, BSC `..0030..003F`, Polygon `..0040..004F`,
+  Arbitrum `..0050..005F`, Optimism `..0060..006F`, Base
+  `..0070..007F`, Avalanche `..0080..008F`, Linea `..0090..009F`,
+  zkSync `..00A0..00AF`, Scroll `..00B0..00BF`, Mantle
+  `..00C0..00CF`, Fantom/Sonic `..00D0..00DF`, Celo `..00E0..00EF`.
+  Helpers: `name_for_chain_id` (human label for daemon startup logs),
+  `is_evm_family` (operator tooling decides whether the eth watcher
+  binary applies vs the sol watcher), `is_foreign_chain_id`
+  (namespace prefix check). 5 unit tests pin namespace prefix, id
+  uniqueness, name-table coverage, EVM-family classification, and
+  bank alignment — a typo'd constant at PR review surfaces here.
+
+- `watchers/neo-bridge-watcher-tron/src/lib.rs` +
+  `watchers/neo-bridge-watcher-sol/src/lib.rs` — re-export
+  `neo_bridge_watcher_eth::chains` so consumers can read EVM constants
+  without reaching into the Eth crate by name.
+
+- `docs/external-bridge-evm-chains.md` — operator runbook. 5-step
+  onboarding (pick slot → deploy router → run daemon → register
+  committee → smoke-test) with a concrete BSC mainnet example, full
+  slot-allocation table, and explicit non-guarantees (per-chain
+  finality semantics, MEV protection, per-chain gas models — all
+  operator concerns, not framework guarantees).
+
+The deployment story is the existing
+`external/foreign-contracts/eth/src/NeoExternalBridgeRouter.sol`
+unchanged — its constructor parameterizes `externalChainId`, so the
+same Solidity bytecode lands on any EVM chain. The watcher daemon
+(`neo-bridge-watcher-eth --features live-rpc`) is fully chain-id
+driven; same binary, different config.
+
 ### Added — Foreign-side router artifacts (Tron deploy notes + Solana Anchor program)
 
 Closes the three-chain coverage at the foreign-router layer.

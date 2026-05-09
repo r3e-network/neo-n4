@@ -1,0 +1,19 @@
+[package]
+name = "neo-bridge-watcher-tron"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Off-chain watcher daemon for Neo Elastic Network's Tron ↔ Neo external bridge. Same secp256k1 cryptography as Ethereum + same canonical wire format — this crate is a thin chain-id wrapper around `neo-bridge-watcher-eth` validating that the architecture transfers without modification."
+
+[lib]
+name = "neo_bridge_watcher_tron"
+path = "src/lib.rs"
+
+[dependencies]
+# Re-export the Eth watcher's types — same secp256k1 + same wire format means
+# the Tron daemon needs no separate messaging or signing core.
+neo-bridge-watcher-eth = { path = "../neo-bridge-watcher-eth" }
+hex = "0.4"
+
+[dev-dependencies]
+sha2 = "0.10"

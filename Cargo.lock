@@ -2193,6 +2193,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "neo-bridge-watcher-tron"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "neo-bridge-watcher-eth",
+ "sha2",
+]
+
+[[package]]
 name = "neo-n4-sdk"
 version = "0.1.0"
 dependencies = [

@@ -234,6 +234,37 @@ fn preflight_fails_when_eth_rpc_unreachable() {
 }
 
 #[test]
+fn preflight_fails_when_eth_router_is_zero_address() {
+    // No fakes needed — zero-address check fires before any RPC probe.
+    let tmp = tempdir::TempDir::new("preflight-zero-router").unwrap();
+    let key_path = tmp.path().join("watcher.priv");
+    std::fs::write(&key_path, [0x42u8; 32]).unwrap();
+    let cfg = tmp.path().join("watcher.toml");
+    let toml = format!(
+        r#"
+external_chain_id   = 0xE0000030
+eth_rpc_url         = "http://127.0.0.1:1"
+eth_router_address  = "0x0000000000000000000000000000000000000000"
+neo_rpc_url         = "http://127.0.0.1:1"
+neo_escrow_address  = "0x0000000000000000000000000000000000000001"
+neo_signer_address  = "0x0000000000000000000000000000000000000001"
+signer_key_path     = "{}"
+journal_dir         = "{}"
+"#,
+        key_path.display(),
+        tmp.path().join("journal").display()
+    );
+    std::fs::write(&cfg, toml).unwrap();
+
+    let (code, output) = run_preflight(&cfg);
+    assert_eq!(code, 1);
+    assert!(
+        output.contains("eth_router_address is the zero address"),
+        "expected zero-router rejection; got:\n{output}"
+    );
+}
+
+#[test]
 fn preflight_fails_when_neo_rpc_returns_jsonrpc_error() {
     let eth = FakeRpcServer::spawn(|_body: &str| {
         r#"{"jsonrpc":"2.0","id":1,"result":"0x10"}"#.to_string()

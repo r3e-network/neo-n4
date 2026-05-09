@@ -284,7 +284,34 @@ fn preflight(config: &Config) -> Result<(), String> {
         ),
     }
 
-    // 2. Confirmation buffer guidance.
+    // 2. All-zero address guards. A typo'd `eth_router_address =
+    //    "0x0000..."` deserializes successfully (it's a valid 20-byte
+    //    value) but every locked event would route to the zero
+    //    address, silently corrupting the bridge. Catching this at
+    //    preflight is much cheaper than catching it after deploy.
+    if config.eth_router_address == [0u8; 20] {
+        return Err("eth_router_address is the zero address — likely a config typo".into());
+    }
+    if config.neo_escrow_address == [0u8; 20] {
+        return Err("neo_escrow_address is the zero address — likely a config typo".into());
+    }
+    if config.neo_signer_address == [0u8; 20] {
+        return Err("neo_signer_address is the zero address — likely a config typo".into());
+    }
+    eprintln!(
+        "[ok]   eth_router_address  = 0x{}",
+        hex::encode(config.eth_router_address)
+    );
+    eprintln!(
+        "[ok]   neo_escrow_address  = 0x{}",
+        hex::encode(config.neo_escrow_address)
+    );
+    eprintln!(
+        "[ok]   neo_signer_address  = 0x{}",
+        hex::encode(config.neo_signer_address)
+    );
+
+    // 3. Confirmation buffer guidance.
     if config.poll.min_confirmations == 0 {
         if let Some(rec) = chains::recommended_confirmations(config.external_chain_id) {
             if rec > 0 {

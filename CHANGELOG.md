@@ -5,6 +5,111 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Watcher operator UX surface
+
+The watcher daemon now ships a complete CLI for operators:
+
+- **`--version` / `-V`** — prints `neo-bridge-watcher-eth X.Y.Z`
+  (CARGO_PKG_NAME + CARGO_PKG_VERSION baked at compile time;
+  format pinned for ops scripts).
+- **`--preflight`** — validates config + signer key + journal
+  flock + chain-id namespace + actual RPC reachability before the
+  watch loop starts. Walks 8 checks; exits 0/1; designed for
+  systemd ExecStartPre / kubectl apply gates. Probes:
+  - `eth_blockNumber` against `eth_rpc_url` (5s timeout)
+  - `eth_getCode` against the router (rejects EOA / wrong proxy /
+    empty bytecode — catches typo'd contract addresses)
+  - Neo `getversion` against `neo_rpc_url`
+  - Zero-address rejection on `eth_router_address` /
+    `neo_escrow_address` / `neo_signer_address` (guards against
+    typo'd `0x000...` configs that would silently route locked
+    events to the void).
+- **`--config-template`** — prints a fully-commented starter TOML
+  to stdout. Operator workflow: `... --config-template > watcher.toml`,
+  edit `REPLACE_WITH_*` placeholders, `--preflight`, run.
+- **`--journal-info`** — read-only journal inspection. Reads
+  `cursor.bin` + `consumed.log` directly (no flock acquisition —
+  safe to run while the daemon is also running). Output: cursor
+  + per-chain breakdown with human-readable names (via
+  `chains::name_for_chain_id`) + recent records.
+- **Improved `--help`** — lists all 6 flags + names every TOML
+  section + field. Updates "unexpected argument" error to list
+  the valid alternatives.
+
+### Added — Operational additions to the watcher
+
+- **`{chain_id="0x..."}` Prometheus label** — every metric line
+  now carries a chain-id label automatically (the daemon binary
+  calls `HealthState::with_chain_id(config.external_chain_id)`).
+  Multi-chain operator setups get cleanly disambiguated time
+  series without Prometheus relabel rules.
+- **`[poll].start_block`** — first-run cursor bootstrap. When
+  the journal cursor is below `start_block`, the daemon advances
+  on startup. Monotonic; restarts read the journal as normal.
+  Skips the genesis-to-N scan when deploying a watcher mid-stream.
+
+### Added — Integration test coverage for the operator UX + run loop
+
+- 10 subprocess-driven integration tests in `preflight_smoke.rs`
+  covering each operator flag (`--version` long + short form,
+  `--config-template` round-trips through preflight,
+  `--journal-info` decodes a hand-crafted journal, unknown-flag
+  rejection, and the 5 preflight failure cases including the
+  new zero-address + no-bytecode + JSON-RPC-error paths).
+- New `daemon_run_loop_smoke.rs` — end-to-end test: spawn the
+  binary, FakeRpcServer pair (Eth + Neo), let it run ~2.5s,
+  SIGTERM via `libc::kill`, assert clean exit (code 0) +
+  ≥2 RPC calls (loop iterated). unix + live-rpc only;
+  Rust's `Child::kill` is SIGKILL — testing graceful shutdown
+  required `libc::kill(pid, SIGTERM)`.
+
+### Changed — Architecture atlas (5 chapters, ~2050 lines, all ASCII)
+
+Comprehensive architecture documentation. All ASCII (no mermaid)
+so it renders in any UTF-8 editor (VS Code, Vim, GitHub, mdbook)
+without preprocessor plugins.
+
+- **`docs/architecture-atlas.md`** — front door. 5 reading paths
+  by role (overview / operator / SDK / auditor / contributor).
+  Cross-reference table for navigation between chapters.
+- **`docs/architecture-l2-lifecycle.md`** (741 lines, 12 ASCII
+  diagrams) — system topology + L2 creation/deployment/connection.
+  4-tier system map, NeoHub anatomy, plugin/native-contract
+  layout, creation lifecycle (sequence + 3-phase admission state
+  diagram), deployment (4-step contract registration), runtime
+  channels (settlement / bridge / messaging), cross-L2 messaging,
+  external-chain bridge, neo-stack subcommand cross-reference.
+- **`docs/architecture-wire-formats.md`** (361 lines) — byte-by-byte
+  canonical layouts for L2BatchCommitment (321+N), PublicInputs
+  (332), L2ChainConfig (91), ExternalCrossChainMessage (102+N),
+  DepositPayload (44+N). Per-field offset tables + visual byte
+  maps. 12-row implementation cross-reference. Byte offsets
+  pulled from actual serializer source.
+- **`docs/architecture-trust-boundaries.md`** (399 lines) —
+  architecture-from-trust view. 5-boundary system map, per-boundary
+  trust tables, 9-step deposit verification narrative across 4
+  trust boundaries, 6-flow defense-in-depth table, failure-mode
+  taxonomy (component + cryptographic), trust-minimization
+  gradient (solo-sequencer → ZK-validity).
+- **`docs/architecture-glossary.md`** (233 lines) — single-page
+  reference: 38-term glossary + 21 NeoHub contracts (grouped by
+  6 concerns) + 7 L2 natives + 8 plugins + 7 CLI tools + wire-
+  format quick index.
+
+### Changed — Documentation sync
+
+- Stale "15 NeoHub" / "20 NeoHub" / "6 L2 native" claims fixed
+  across 5 .md files — actual count from contracts/: 21 NeoHub +
+  7 L2 native = 28 smart contracts total.
+- README.md now points at `architecture-atlas.md` as the
+  documentation map's architecture front door.
+- `external-bridge-evm-chains.md` updated with start_block +
+  preflight examples; full [poll] schema (was using stale
+  `_ms`-suffix field names from an older schema).
+- Watcher daemon README has a CLI surface section + Operator
+  inspection commands section with concrete `--journal-info`
+  + `curl /healthz` / `/info` / `/metrics` examples.
+
 ### Added — Watcher daemon production-readiness sweep
 
 Operational features shipped iteratively that take the watcher daemon

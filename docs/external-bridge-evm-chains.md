@@ -55,26 +55,39 @@ use neo_bridge_watcher_eth::chains::BSC_MAINNET;
 cd external/foreign-contracts/eth
 forge build
 
-# Deploy with the foreign chain id from Step 1, plus an initial
-# committee threshold + signers (committee blob from the operator
-# CLI — see Step 4):
+# Deploy with the foreign chain id from Step 1 + an owner address
+# (typically the operator's deployer key; later transferred to a
+# multisig). Committee membership is set in a follow-up call (below).
 forge create src/NeoExternalBridgeRouter.sol:NeoExternalBridgeRouter \
     --rpc-url $BSC_RPC_URL \
     --private-key $DEPLOYER_KEY \
-    --constructor-args 0xE0000030 1000000000000000000 1099 0xCOMMITTEE_HASH
+    --constructor-args 0xE0000030 $OWNER_ADDRESS
 ```
 
 Constructor args (defined in
 [`NeoExternalBridgeRouter.sol`](../external/foreign-contracts/eth/src/NeoExternalBridgeRouter.sol)):
 
-| Arg                  | Type      | Meaning                                                       |
-|----------------------|-----------|---------------------------------------------------------------|
-| `_externalChainId`   | uint32    | Foreign chain id from Step 1 (`0xE0000030` for BSC)           |
-| `_minLockAmount`     | uint256   | Dust threshold (e.g., 1e18 wei = 1 native token)              |
-| `_neoChainId`        | uint16    | Neo-side chain id (1099 = Neo mainnet)                        |
-| `_committeeRootHash` | bytes32   | sha256 of the canonical committee blob (from `committee-blob`)|
+| Arg                | Type    | Meaning                                                                                       |
+|--------------------|---------|-----------------------------------------------------------------------------------------------|
+| `_externalChainId` | uint32  | Foreign chain id from Step 1 (`0xE0000030` for BSC). Required to carry the `0xE0_xx_xx_xx` namespace prefix; constructor reverts otherwise. |
+| `_owner`           | address | Initial contract owner. Authorized to call `setCommittee` + `transferOwnership`. Must be non-zero. |
 
 Capture the deployed router address — it's needed for Step 3 + Step 4.
+
+After deployment, register the committee via `setCommittee` (owner-only):
+
+```bash
+# committee = list of Eth addresses derived from the watchers' secp256k1
+# pubkeys via keccak256(pubkey)[12:]. The Neo side stores 33-byte
+# compressed pubkeys for the same identities — both sides reference the
+# same set of signers, just in different encodings.
+cast send $ROUTER_ADDRESS \
+    "setCommittee(address[],uint8)" \
+    "[$ADDR_0,$ADDR_1,$ADDR_2,$ADDR_3,$ADDR_4,$ADDR_5,$ADDR_6]" \
+    4 \
+    --rpc-url $BSC_RPC_URL \
+    --private-key $DEPLOYER_KEY
+```
 
 ### Step 3 — Run the watcher daemon
 
@@ -110,30 +123,44 @@ glance before letting it run.
 
 ### Step 4 — Register the committee + verifier on Neo
 
-```bash
-# Generate a canonical committee blob from the M signing keys:
-cargo run --release -p neo-external-bridge -- committee-blob \
-    --threshold 4 \
-    --signer @key0.pub --signer @key1.pub --signer @key2.pub \
-    --signer @key3.pub --signer @key4.pub --signer @key5.pub \
-    --signer @key6.pub \
-    --out committee-bsc.bin
+The operator CLI lives in `tools/Neo.External.Bridge.Cli/` (built as
+`neo-external-bridge` for short — invoked via `dotnet run --project
+tools/Neo.External.Bridge.Cli` or the published binary).
 
-# Generate a deploy bundle that registers the committee on
-# MpcCommitteeVerifier + binds the verifier to chain 0xE0000030
-# on ExternalBridgeRegistry:
-cargo run --release -p neo-external-bridge -- deploy-bundle \
+```bash
+# 4a — Convert the watchers' 33B compressed pubkeys into both encodings:
+#      a Neo-side `committeeBlob` (hex) + the matching Eth-side address[]
+#      that Step 2's setCommittee already accepted. The CLI cross-derives
+#      the addresses from the pubkeys, so they can't drift.
+dotnet run --project tools/Neo.External.Bridge.Cli -- committee-blob \
+    --pubs-file watchers.pubs   # one pub33 hex per line
+# Stdout: committee size, Neo blob (0x...), Eth address list per index.
+
+# 4b — Generate the on-chain deploy bundle. This emits a step-by-step
+#      runbook (printed to stdout) the operator's wallet executes; it does
+#      not invoke contracts directly.
+dotnet run --project tools/Neo.External.Bridge.Cli -- deploy-bundle \
     --external-chain-id 0xE0000030 \
-    --committee-blob committee-bsc.bin \
-    --mpc-verifier 0xMPC_VERIFIER_FROM_NEO_HUB_DEPLOY \
-    --registry      0xREGISTRY_FROM_NEO_HUB_DEPLOY \
-    --out bundle-bsc.json
+    --verifier 0xMPC_VERIFIER_FROM_NEO_HUB_DEPLOY \
+    --registry 0xREGISTRY_FROM_NEO_HUB_DEPLOY \
+    --escrow   0xESCROW_FROM_NEO_HUB_DEPLOY \
+    --eth-router 0xROUTER_FROM_STEP_2 \
+    --threshold 4 \
+    --committee-blob 0xBLOB_HEX_FROM_4A \
+    --eth-addresses 0xADDR0,0xADDR1,0xADDR2,0xADDR3,0xADDR4,0xADDR5,0xADDR6
 ```
 
-Apply the bundle on Neo via the Neo CLI / your wallet:
+The `deploy-bundle` output names each contract method + args in
+order. Apply via your Neo wallet — for instance, `neo-cli` invokes:
 
 ```bash
-neo-cli invoke --bundle bundle-bsc.json
+# Step 1 from the bundle:
+neo-cli invoke <verifier> RegisterCommittee \
+    0xE0000030 4 1 0xBLOB_HEX
+# Step 2 from the bundle:
+neo-cli invoke <registry> RegisterVerifier \
+    0xE0000030 <verifier> 1
+# ... (further steps printed by deploy-bundle)
 ```
 
 ### Step 5 — Smoke-test

@@ -5,6 +5,48 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Multi-chain Foundry test + runbook fix
+
+End-to-end Solidity validation that `NeoExternalBridgeRouter.sol`
+deploys + functions across the entire EVM-family chain-id space. Pins
+the load-bearing claim from `docs/external-bridge-evm-chains.md`
+("supports the entire EVM family with no per-chain code") on the
+contract side.
+
+- `external/foreign-contracts/eth/test/NeoExternalBridgeRouterMultiChain.t.sol`
+  — 7 tests:
+  - `test_AllFamilyBankMainnetsConstruct`: 14 canonical mainnet slots
+    (Eth, Tron, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche,
+    Linea, zkSync, Scroll, Mantle, Fantom, Celo) — all construct, all
+    record their externalChainId verbatim.
+  - `test_TestnetSlotsAlsoConstruct`: 6 testnet slots in different
+    family banks construct cleanly.
+  - `test_OutOfNamespaceIdsRejected`: 5 boundary cases (one below 0xE0,
+    one above, no prefix, wrong family byte, etc.) revert at construction.
+  - `test_EachRouterStampsItsOwnChainIdInLocked`: BSC + Polygon routers
+    emit `Locked` with their own externalChainId; each carries through
+    indexed topic[1].
+  - `test_BscRouterRejectsPolygonMessage`: a finalizeWithdrawal whose
+    canonical bytes claim externalChainId=POLYGON_MAINNET reverts on a
+    BSC router (chain-id mismatch).
+  - `test_NoncesAreIndependentPerRouter`: interleaved BSC + Polygon
+    locks; each has its own counter starting at 1.
+  - `test_PolygonCommitteeNotAuthorizedOnBscRouter`: a Polygon-committee
+    signature on a BSC-chain-id message reverts (committee state is
+    per-router-instance, not shared).
+
+  Combined Foundry suite: **20 tests** (13 original + 7 multi-chain).
+
+- `docs/external-bridge-evm-chains.md` — fixed the runbook: the
+  constructor takes `(uint32 _externalChainId, address _owner)`, NOT
+  the 4-arg form previously documented (`_minLockAmount`, `_neoChainId`,
+  `_committeeRootHash` were fictitious). Step 2 now shows the correct
+  `forge create` invocation + the `cast send setCommittee(...)`
+  follow-up. Step 4 corrected to use the operator CLI's actual flag
+  names (`--pubs-file` / `--verifier` / `--registry` / `--escrow` /
+  `--eth-router` / `--committee-blob` / `--eth-addresses`) — output
+  goes to stdout, not `--out`.
+
 ### Added — Generic EVM-chain support for the external bridge
 
 The watcher framework now treats the entire EVM family (Ethereum, BSC,

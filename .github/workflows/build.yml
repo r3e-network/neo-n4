@@ -220,7 +220,14 @@ jobs:
     timeout-minutes: 25
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v6
+        with:
+          # bridge/neo-zkvm-guest has a path dep on
+          # external/neo-zkvm/crates/neo-vm-guest. Without recursive
+          # submodule fetch, `cargo prove build` fails on missing
+          # Cargo.toml.
+          submodules: recursive
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable

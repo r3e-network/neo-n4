@@ -1,9 +1,12 @@
-//! Watcher signer abstraction. Production deployments plug in HSM /
-//! KMS-backed signers behind the [`Signer`] trait; the included
-//! [`FileSigner`] is for development only — it loads a 32-byte secp256k1
-//! private key from a file and uses `k256` to sign.
+//! Watcher signer abstraction. Curve-agnostic — both secp256k1
+//! (Eth/Tron) and ed25519 (Solana) plug in behind the same [`Signer`]
+//! trait. The included [`FileSigner`] is the secp256k1 dev impl; the
+//! Solana watcher crate provides the ed25519 dev impl.
+//!
+//! Production deployments plug in HSM/KMS-backed signers behind the
+//! trait — the crate never touches the actual key material.
 
-use k256::ecdsa::{signature::hazmat::PrehashSigner, SigningKey};
+use k256::ecdsa::SigningKey;
 use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
 use k256::elliptic_curve::sec1::ToEncodedPoint;
 use sha2::{Digest, Sha256};
@@ -16,7 +19,7 @@ pub enum SignerError {
     Io(#[from] std::io::Error),
     #[error("key file must be exactly 32 bytes (got {0})")]
     BadKeyLength(usize),
-    #[error("invalid secp256k1 private key bytes")]
+    #[error("invalid private key bytes")]
     InvalidKey,
     #[error("signing failed: {0}")]
     Signing(String),
@@ -24,40 +27,42 @@ pub enum SignerError {
     NoRecoveryId,
 }
 
-/// Anything that can sign a 32-byte digest with secp256k1 + ECDSA.
-/// The trait does NOT include the SHA256 step — callers pre-hash the
-/// canonical message bytes (because Neo and Eth verifiers both run
-/// `sha256(messageBytes)` and then ECDSA-verify against that digest).
-pub trait Signer {
-    /// Compressed 33-byte secp256k1 public key.
-    fn public_key_compressed(&self) -> [u8; 33];
-
-    /// Eth-style address: `keccak256(pubkey)[12:]`. NOT used for
-    /// verification (Eth uses the address; Neo uses the pubkey), just
-    /// emitted alongside so operators can register the same identity on
-    /// both sides without a separate address-derivation step.
-    fn eth_address(&self) -> [u8; 20];
-
-    /// Sign a 32-byte digest. Returns (r, s, v) where r||s is 64 bytes
-    /// and v is 27 or 28 (Ethereum-style recovery id).
-    fn sign_prehashed(&self, digest: [u8; 32]) -> Result<([u8; 32], [u8; 32], u8), SignerError>;
-
-    /// Convenience helper: sign canonical `ExternalCrossChainMessage`
-    /// bytes by computing `sha256(messageBytes)` first. This matches
-    /// what the Eth router's `ecrecover(sha256(messageBytes), v, r, s)`
-    /// and what Neo's `CryptoLib.VerifyWithECDsa(secp256k1SHA256)`
-    /// internally hash.
-    fn sign_canonical_bytes(
-        &self,
-        canonical_bytes: &[u8],
-    ) -> Result<([u8; 32], [u8; 32], u8), SignerError> {
-        let digest = Sha256::digest(canonical_bytes);
-        self.sign_prehashed(digest.into())
-    }
+/// Output of signing a canonical message.
+///
+/// `signature` is always 64 bytes regardless of curve:
+/// - secp256k1 → `r ‖ s` (raw 32 + 32)
+/// - ed25519 → `R ‖ s` (raw 32 + 32)
+///
+/// `recovery_id` is meaningful only for secp256k1 (`27` or `28`,
+/// Ethereum's `ecrecover` convention). ed25519 signers return `0`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SignerOutput {
+    pub signature: [u8; 64],
+    pub recovery_id: u8,
 }
 
-/// File-based signer for development. **NEVER use in production** — keys
-/// in the clear on disk are an exfiltration risk.
+/// Anything that can sign canonical `ExternalCrossChainMessage` bytes.
+/// The trait is curve-agnostic; concrete impls report which curve they
+/// produce via [`Signer::curve_tag`].
+pub trait Signer {
+    /// Curve identifier — must match what the on-chain
+    /// `MpcCommitteeVerifier.RegisterCommittee` call recorded for this
+    /// signer's slot:
+    /// - `1` = secp256k1+SHA256 (Eth/Tron). Pubkey is 33 bytes (compressed).
+    /// - `2` = ed25519 (Solana). Pubkey is 32 bytes.
+    fn curve_tag(&self) -> u8;
+
+    /// Public key in the canonical encoding the verifier expects:
+    /// 33 bytes (compressed secp256k1) or 32 bytes (raw ed25519).
+    fn public_key_bytes(&self) -> Vec<u8>;
+
+    /// Sign canonical bytes. Implementations apply the curve-specific
+    /// hash internally (SHA256 for secp256k1; ed25519 hashes natively).
+    fn sign_canonical_bytes(&self, canonical_bytes: &[u8]) -> Result<SignerOutput, SignerError>;
+}
+
+/// File-based secp256k1 signer for development. **NEVER use in
+/// production** — keys in the clear on disk are an exfiltration risk.
 pub struct FileSigner {
     sk: SigningKey,
     vk: VerifyingKey,
@@ -79,41 +84,42 @@ impl FileSigner {
         let vk = *sk.verifying_key();
         Ok(Self { sk, vk })
     }
+
+    /// Borrow the underlying verifying key — useful for tests and for
+    /// off-chain Eth-address derivation (`keccak256(uncompressed_pubkey[1..])[12..]`).
+    pub fn verifying_key(&self) -> &VerifyingKey {
+        &self.vk
+    }
 }
 
 impl Signer for FileSigner {
-    fn public_key_compressed(&self) -> [u8; 33] {
+    fn curve_tag(&self) -> u8 {
+        1 // secp256k1
+    }
+
+    fn public_key_bytes(&self) -> Vec<u8> {
         let point = self.vk.to_encoded_point(true);
         let bytes = point.as_bytes();
         debug_assert_eq!(bytes.len(), 33);
-        let mut out = [0u8; 33];
-        out.copy_from_slice(bytes);
-        out
+        bytes.to_vec()
     }
 
-    fn eth_address(&self) -> [u8; 20] {
-        // Eth address = keccak256(uncompressed_pubkey[1..])[12..32].
-        // We don't pull in the keccak crate here for v0 — production
-        // deployments derive the Eth address off-chain anyway. Return
-        // zeros and document that the operator computes this once at
-        // committee setup time. The compressed pubkey is the
-        // load-bearing identity; the address is just a UX field.
-        [0u8; 20]
-    }
-
-    fn sign_prehashed(&self, digest: [u8; 32]) -> Result<([u8; 32], [u8; 32], u8), SignerError> {
+    fn sign_canonical_bytes(&self, canonical_bytes: &[u8]) -> Result<SignerOutput, SignerError> {
+        // secp256k1+SHA256: hash internally, then sign the digest. Matches
+        // what the on-chain CryptoLib.VerifyWithECDsa(secp256k1SHA256) and
+        // Eth-side ecrecover(sha256(...), v, r, s) recompute.
+        let digest = Sha256::digest(canonical_bytes);
         let (sig, recid): (Signature, RecoveryId) = self
             .sk
             .sign_prehash_recoverable(&digest)
             .map_err(|e| SignerError::Signing(format!("{}", e)))?;
         let bytes = sig.to_bytes();
-        let mut r = [0u8; 32];
-        let mut s = [0u8; 32];
-        r.copy_from_slice(&bytes[..32]);
-        s.copy_from_slice(&bytes[32..]);
-        // Eth-style v = 27 + recid (0 or 1). Ethereum's ecrecover convention.
-        let v = 27 + u8::from(recid);
-        Ok((r, s, v))
+        let mut signature = [0u8; 64];
+        signature[..32].copy_from_slice(&bytes[..32]);
+        signature[32..].copy_from_slice(&bytes[32..]);
+        // Eth-style v = 27 + recid (0 or 1).
+        let recovery_id = 27 + u8::from(recid);
+        Ok(SignerOutput { signature, recovery_id })
     }
 }
 
@@ -131,21 +137,19 @@ mod tests {
             0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
         ];
         let signer = FileSigner::from_bytes(&priv_bytes).unwrap();
+        assert_eq!(signer.curve_tag(), 1);
 
         let canonical = b"hello, this is a test canonical message";
-        let (r, s, v) = signer.sign_canonical_bytes(canonical).unwrap();
+        let out = signer.sign_canonical_bytes(canonical).unwrap();
 
         // Verify the signature using k256 directly. This mirrors what the
         // Eth router will do via `ecrecover(sha256(canonical), v, r, s)`.
         let digest = Sha256::digest(canonical);
-        let mut sig_bytes = [0u8; 64];
-        sig_bytes[..32].copy_from_slice(&r);
-        sig_bytes[32..].copy_from_slice(&s);
-        let sig = Signature::from_bytes(&sig_bytes.into()).unwrap();
-        let recid = RecoveryId::from_byte(v - 27).unwrap();
+        let sig = Signature::from_bytes(&out.signature.into()).unwrap();
+        let recid = RecoveryId::from_byte(out.recovery_id - 27).unwrap();
         let recovered = VerifyingKey::recover_from_prehash(&digest, &sig, recid).unwrap();
-        assert_eq!(recovered, *signer.sk.verifying_key());
-        assert!(v == 27 || v == 28);
+        assert_eq!(recovered, *signer.verifying_key());
+        assert!(out.recovery_id == 27 || out.recovery_id == 28);
     }
 
     #[test]
@@ -157,9 +161,10 @@ mod tests {
     }
 
     #[test]
-    fn pubkey_compressed_is_33_bytes() {
+    fn pubkey_bytes_are_33_for_secp256k1() {
         let signer = FileSigner::from_bytes(&[0x42; 32]).unwrap();
-        let pk = signer.public_key_compressed();
+        let pk = signer.public_key_bytes();
+        assert_eq!(pk.len(), 33);
         // First byte is 0x02 or 0x03 (compression marker).
         assert!(pk[0] == 0x02 || pk[0] == 0x03);
     }

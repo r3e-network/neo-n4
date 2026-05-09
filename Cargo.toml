@@ -5,6 +5,7 @@ members = [
     "bridge/neo-zkvm-host",
     "sdk/rust",
     "watchers/neo-bridge-watcher-eth",
+    "watchers/neo-bridge-watcher-sol",
     "watchers/neo-bridge-watcher-tron",
 ]
 # Vendored Neo Rust crates live under external/ as git submodules. They keep

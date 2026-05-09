@@ -45,5 +45,5 @@ pub use messaging::{
     ExternalMessageType, ExternalCrossChainMessage,
 };
 pub use proof::{Curve, EthProofBytes, NeoProofBytes, ProofBuildError};
-pub use signer::{FileSigner, Signer, SignerError};
+pub use signer::{FileSigner, Signer, SignerError, SignerOutput};
 pub use submitter::{InboundSubmission, MockSubmitter, NeoSubmitter, SubmitterError};

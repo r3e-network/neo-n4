@@ -148,14 +148,24 @@ impl<S: Signer, ES: EventSource, NS: NeoSubmitter, J: Journal> WatcherCore<S, ES
 
         // Sign + encode the Neo-flavored proof bytes (single signer per
         // this watcher's contribution; M-of-N aggregation happens upstream).
-        let (r, s, _v) = self.signer.sign_canonical_bytes(&canonical)?;
-        let mut sig64 = [0u8; 64];
-        sig64[..32].copy_from_slice(&r);
-        sig64[32..].copy_from_slice(&s);
-        let pubkey = self.signer.public_key_compressed();
+        // Curve dispatch is driven by the signer — secp256k1 (Eth/Tron) or
+        // ed25519 (Solana). The on-chain MpcCommitteeVerifier reads the
+        // matching curveTag from its committee blob and dispatches to
+        // VerifyWithECDsa(secp256k1SHA256) or VerifyWithEd25519.
+        let signer_out = self.signer.sign_canonical_bytes(&canonical)?;
+        let curve = match self.signer.curve_tag() {
+            1 => Curve::Secp256k1,
+            2 => Curve::Ed25519,
+            other => {
+                return Err(CoreError::Build(BuildError::BadNamespace(other as u32)));
+            }
+        };
         let neo_proof = NeoProofBytes::encode(
-            Curve::Secp256k1,
-            &[PubkeySignature { pubkey: pubkey.to_vec(), signature: sig64 }],
+            curve,
+            &[PubkeySignature {
+                pubkey: self.signer.public_key_bytes(),
+                signature: signer_out.signature,
+            }],
         )?;
 
         let tx_hash = self.submitter.submit_inbound(InboundSubmission {

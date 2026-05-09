@@ -138,6 +138,16 @@ fn main() -> ExitCode {
         };
     }
 
+    if parsed.journal_info {
+        return match journal_info(&config) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("journal-info: {e}");
+                ExitCode::from(1)
+            }
+        };
+    }
+
     let chain_label = chains::name_for_chain_id(config.external_chain_id)
         .unwrap_or("(unknown chain — operator-allocated)");
     eprintln!(
@@ -188,6 +198,7 @@ fn main() -> ExitCode {
 struct ParsedArgs {
     config_path: PathBuf,
     preflight: bool,
+    journal_info: bool,
 }
 
 fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
@@ -210,10 +221,11 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
         std::process::exit(0);
     }
 
-    // Accept `--config <path>` and an optional `--preflight` flag in
-    // any position. Reject any other tokens to surface typos loudly.
+    // Accept `--config <path>` and optional flags in any position.
+    // Reject any other tokens to surface typos loudly.
     let mut config_path: Option<PathBuf> = None;
     let mut preflight = false;
+    let mut journal_info = false;
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
@@ -228,9 +240,13 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
                 preflight = true;
                 i += 1;
             }
+            "--journal-info" => {
+                journal_info = true;
+                i += 1;
+            }
             other => {
                 return Err(format!(
-                    "unexpected argument `{other}` (valid: --config <path>, --preflight, --config-template, --help, --version)"
+                    "unexpected argument `{other}` (valid: --config <path>, --preflight, --journal-info, --config-template, --help, --version)"
                 ));
             }
         }
@@ -238,7 +254,7 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
     let Some(config_path) = config_path else {
         return Err("expected `--config <path>` (or --help / --version)".into());
     };
-    Ok(ParsedArgs { config_path, preflight })
+    Ok(ParsedArgs { config_path, preflight, journal_info })
 }
 
 fn print_usage() {
@@ -249,6 +265,10 @@ fn print_usage() {
            --config <path>     Path to TOML config (required for normal runs).\n\
            --preflight         Validate config + RPC reachability + signer + journal,\n\
                                then exit. Does NOT start the watch loop.\n\
+           --journal-info      Print the journal's cursor + consumed-record\n\
+                               summary + recent records, then exit. Read-only;\n\
+                               does NOT acquire the journal flock (safe to run\n\
+                               while the watcher daemon is also running).\n\
            --config-template   Print a starter TOML config to stdout + exit.\n\
                                Pipe to a file: `... --config-template > watcher.toml`\n\
                                then edit placeholders + run --preflight.\n\
@@ -474,6 +494,88 @@ fn preflight(config: &Config) -> Result<(), String> {
         "[ok]   neo_rpc_url {} responsive (getversion succeeded)",
         config.neo_rpc_url
     );
+
+    Ok(())
+}
+
+/// Read-only journal inspection. Does NOT acquire the flock — safe to run
+/// while the watcher daemon is also running. Reads cursor.bin + consumed.log
+/// directly + prints a summary.
+fn journal_info(config: &Config) -> Result<(), String> {
+    let dir = &config.journal_dir;
+    if !dir.exists() {
+        return Err(format!("journal_dir {} does not exist", dir.display()));
+    }
+
+    // Read cursor.bin (8-byte LE u64). If absent, journal hasn't been
+    // written to yet — cursor is implicitly 0.
+    let cursor_path = dir.join("cursor.bin");
+    let cursor: u64 = if cursor_path.exists() {
+        let bytes = std::fs::read(&cursor_path)
+            .map_err(|e| format!("read cursor.bin: {e}"))?;
+        if bytes.len() != 8 {
+            return Err(format!(
+                "cursor.bin is {} bytes, expected 8 — journal corrupted",
+                bytes.len()
+            ));
+        }
+        u64::from_le_bytes(bytes.try_into().unwrap())
+    } else {
+        0
+    };
+
+    // Read consumed.log (12-byte records: 4B chainId LE + 8B nonce LE).
+    // Truncated trailing records are dropped (replay-safe; matches what
+    // FileJournal::open does on startup).
+    let consumed_path = dir.join("consumed.log");
+    let consumed_bytes = if consumed_path.exists() {
+        std::fs::read(&consumed_path).map_err(|e| format!("read consumed.log: {e}"))?
+    } else {
+        Vec::new()
+    };
+    let record_count = consumed_bytes.len() / 12;
+    let truncated = consumed_bytes.len() % 12 != 0;
+
+    // Group counts by chain id for the summary.
+    use std::collections::BTreeMap;
+    let mut per_chain: BTreeMap<u32, u64> = BTreeMap::new();
+    for chunk in consumed_bytes.chunks_exact(12) {
+        let chain_id =
+            u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+        *per_chain.entry(chain_id).or_insert(0) += 1;
+    }
+
+    println!("journal_dir:  {}", dir.display());
+    println!("cursor:       {cursor} (block height)");
+    println!(
+        "consumed:     {record_count} records{}",
+        if truncated { " (+ trailing partial record dropped on next reopen)" } else { "" }
+    );
+    if !per_chain.is_empty() {
+        println!("by chain:");
+        for (chain_id, count) in &per_chain {
+            let label = chains::name_for_chain_id(*chain_id)
+                .unwrap_or("(unknown)");
+            println!("  0x{chain_id:08X} ({label})  →  {count}");
+        }
+    }
+
+    // Print last 5 records for quick visual sanity-check.
+    let total = consumed_bytes.len() / 12;
+    if total > 0 {
+        let preview = total.min(5);
+        let start = (total - preview) * 12;
+        println!("recent (last {preview} records):");
+        for chunk in consumed_bytes[start..].chunks_exact(12) {
+            let chain_id =
+                u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+            let nonce = u64::from_le_bytes([
+                chunk[4], chunk[5], chunk[6], chunk[7], chunk[8], chunk[9],
+                chunk[10], chunk[11],
+            ]);
+            println!("  chain=0x{chain_id:08X}  nonce={nonce}");
+        }
+    }
 
     Ok(())
 }

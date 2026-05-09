@@ -31,59 +31,48 @@
 The Neo Elastic Network is **four tiers** of components plus the
 off-chain infrastructure that connects them:
 
-```mermaid
-flowchart TB
-    subgraph L1["TIER 1 · L1 anchor (Neo N3 / Neo 4)"]
-        direction LR
-        NH["<b>NeoHub</b><br/>20 contracts<br/>settlement · bridge · governance"]
-    end
-
-    subgraph GW["TIER 2 · Neo Gateway (optional)"]
-        direction LR
-        BTA["<b>BinaryTreeAggregator</b><br/>+ 3 IRoundProver impls<br/>(Multisig · MerklePath · PassThrough)"]
-    end
-
-    subgraph L2s["TIER 3 · Elastic L2 chains (N of them)"]
-        direction LR
-        L2A["<b>L2 chain A</b><br/>Neo 4 core<br/>+ 8 plugins<br/>+ 7 native contracts"]
-        L2B["<b>L2 chain B</b>"]
-        L2C["<b>L2 chain C</b>"]
-    end
-
-    subgraph OffChain["TIER 4 · Off-chain operators"]
-        direction LR
-        SEQ[Sequencer]
-        BAT[Batcher]
-        PRO[Prover daemon]
-        DA[DA writer]
-        WAT[External-chain<br/>watcher daemons]
-    end
-
-    L2A --> SEQ
-    L2A --> BAT
-    L2A --> PRO
-    L2A --> DA
-    BAT --"sealed batch"--> NH
-    PRO --"validity proof"--> NH
-    DA --"batch payload"--> NH
-    L2B --> SEQ
-    L2C --> SEQ
-
-    BAT -.optional.-> BTA
-    BTA --"aggregated proof"--> NH
-
-    WAT --"external→Neo bridge"--> NH
-
-    NH --"genesis config<br/>+ committee<br/>+ admission"--> L2A
-
-    classDef l1 fill:#1f77b4,stroke:#0a3a6e,color:#fff
-    classDef gw fill:#ff7f0e,stroke:#a04500,color:#fff
-    classDef l2 fill:#2ca02c,stroke:#0d5d0d,color:#fff
-    classDef oc fill:#9467bd,stroke:#4a2877,color:#fff
-    class NH l1
-    class BTA gw
-    class L2A,L2B,L2C l2
-    class SEQ,BAT,PRO,DA,WAT oc
+```text
+┌──────────────────────────────────────────────────────────────────────────┐
+│  TIER 1 · L1 anchor (Neo N3 / Neo 4)                                     │
+│  ┌────────────────────────────────────────────────────────────────────┐  │
+│  │  NeoHub — 20 contracts                                             │  │
+│  │  settlement · bridge · messaging · governance · external-bridge    │  │
+│  └────────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────────┘
+                              ▲
+                              │  sealed batches · proofs · deposits ·
+                              │  cross-L2 message routing · external bridge
+                              │
+┌──────────────────────────────────────────────────────────────────────────┐
+│  TIER 2 · Neo Gateway (optional, Phase 5)                                │
+│  ┌────────────────────────────────────────────────────────────────────┐  │
+│  │  BinaryTreeAggregator   +   3 production IRoundProver impls        │  │
+│  │  (log-N rounds)             (Multisig · MerklePath · PassThrough)  │  │
+│  └────────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────────┘
+                              ▲
+                              │  optional aggregation across multiple L2s
+                              │
+┌──────────────────────────────────────────────────────────────────────────┐
+│  TIER 3 · Elastic L2 chains (N of them)                                  │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐        │
+│  │  L2 chain A      │  │  L2 chain B      │  │  L2 chain C      │        │
+│  │  ──────────      │  │                  │  │                  │        │
+│  │  Neo 4 core      │  │                  │  │                  │   ...  │
+│  │  + 8 plugins     │  │                  │  │                  │        │
+│  │  + 7 natives     │  │                  │  │                  │        │
+│  └──────────────────┘  └──────────────────┘  └──────────────────┘        │
+└──────────────────────────────────────────────────────────────────────────┘
+                              ▲
+                              │  runs the L2 plugins; produces batches
+                              │
+┌──────────────────────────────────────────────────────────────────────────┐
+│  TIER 4 · Off-chain operators (per L2 + bridge daemons)                  │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌──────────────────┐   │
+│  │Sequencer│ │ Batcher │ │ Prover  │ │ DA writer│ │ External-chain   │   │
+│  │         │ │         │ │ daemon  │ │          │ │ watcher daemons  │   │
+│  └─────────┘ └─────────┘ └─────────┘ └──────────┘ └──────────────────┘   │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 **What flows where:**
@@ -106,54 +95,47 @@ flowchart TB
 
 The L1 anchor. **20 contracts** grouped by concern:
 
-```mermaid
-flowchart LR
-    subgraph Settlement
-        SM[SettlementManager]
-        VR[VerifierRegistry]
-    end
-    subgraph Bridge
-        SB[SharedBridge]
-        TR[TokenRegistry]
-        CR[ChainRegistry]
-    end
-    subgraph Messaging
-        MR[MessageRouter]
-        DR[DARegistry]
-    end
-    subgraph Security
-        SR[SequencerRegistry]
-        SBO[SequencerBond]
-        FI[ForcedInclusion]
-        OC[OptimisticChallenge]
-    end
-    subgraph Governance
-        GC[GovernanceController]
-        EM[EmergencyManager]
-    end
-    subgraph "External Bridge (Phase B/C)"
-        MCV[MpcCommitteeVerifier]
-        EBR[ExternalBridgeRegistry]
-        EBE[ExternalBridgeEscrow]
-        EBB[ExternalBridgeBond]
-        ESV[ExternalBridgeStubVerifier]
-        MFV[MpcCommitteeFraudVerifier]
-    end
+```text
+    ┌──────────────────────┐  ┌──────────────────────┐  ┌─────────────────┐
+    │  Settlement          │  │  Bridge              │  │  Messaging      │
+    │  ──────────          │  │  ──────              │  │  ─────────      │
+    │  SettlementManager   │  │  SharedBridge        │  │  MessageRouter  │
+    │  VerifierRegistry    │  │  TokenRegistry       │  │  DARegistry     │
+    │                      │  │  ChainRegistry       │  │                 │
+    └──────────────────────┘  └──────────────────────┘  └─────────────────┘
 
-    SM --> VR
-    SM --> SB
-    SB --> TR
-    SB --> CR
-    SM --> MR
-    OC --> GC
-    EBE --> EBR
-    EBR --> MCV
-    MFV --> EBB
+    ┌──────────────────────┐  ┌──────────────────────┐
+    │  Security            │  │  Governance          │
+    │  ────────            │  │  ──────────          │
+    │  SequencerRegistry   │  │  GovernanceController│
+    │  SequencerBond       │  │  EmergencyManager    │
+    │  ForcedInclusion     │  │                      │
+    │  OptimisticChallenge │  │                      │
+    └──────────────────────┘  └──────────────────────┘
+
+    ┌────────────────────────────────────────────────────────────────────┐
+    │  External Bridge (Phase B/C, doc.md §11.3)                         │
+    │  ─────────────                                                     │
+    │  MpcCommitteeVerifier   ExternalBridgeRegistry  ExternalBridgeBond │
+    │  ExternalBridgeEscrow   ExternalBridgeStubVerifier                 │
+    │  MpcCommitteeFraudVerifier                                         │
+    └────────────────────────────────────────────────────────────────────┘
 ```
 
 Lives at `contracts/NeoHub.*` — every contract type-checks via
 `Neo.SmartContract.Framework`; CI compiles each with `nccs` and
 verifies the `.nef` + `.manifest.json` artifacts.
+
+**Key relationships:**
+- `SettlementManager` consumes proofs validated by `VerifierRegistry`,
+  triggers `SharedBridge.ApplyWithdrawals` on each accepted batch.
+- `SharedBridge` looks up chain config via `ChainRegistry` + token
+  metadata via `TokenRegistry`.
+- `OptimisticChallenge` escalates to `GovernanceController` for
+  fraud-verifier upgrades behind multisig + timelock.
+- `ExternalBridgeEscrow` looks up the curve-tagged verifier via
+  `ExternalBridgeRegistry`; `MpcCommitteeFraudVerifier` slashes
+  bonds posted to `ExternalBridgeBond`.
 
 ### Tier 2: Neo Gateway (optional, Phase 5)
 
@@ -178,38 +160,38 @@ Each L2 = **Neo 4 core (the consensus + VM kernel) + 8 plugins +
 native contracts at `contracts/L2Native.*`. The Neo 4 core itself
 is vendored as a git submodule at `external/neo`.
 
-```mermaid
-flowchart TB
-    subgraph "Neo 4 core (external/neo)"
-        DBFT[dBFT 2.0 consensus]
-        NVM[NeoVM]
-        BLK[Blockchain]
-    end
-    subgraph "L2 plugins (src/Neo.Plugins.L2*)"
-        L2B[L2Batch]
-        L2S[L2Settlement]
-        L2BR[L2Bridge]
-        L2DA[L2DA]
-        L2P[L2Prover]
-        L2R[L2Rpc]
-        L2G[L2Gateway]
-        L2M[L2Metrics]
-    end
-    subgraph "L2 native contracts (contracts/L2Native.*)"
-        L2BC[L2BridgeContract]
-        L2MC[L2MessageContract]
-        L2BIC[L2BatchInfoContract]
-        L2FC[L2FeeContract]
-        L2EX[L2ExitWindow]
-        L2NB[L2NativeExternalBridge]
-        L2BS[L2BatchSeal]
-    end
-
-    BLK -- "Committed event" --> L2B
-    L2B -- "sealed batch" --> L2S
-    L2S -- "submit" --> L2BIC
-    L2BR --> L2BC
-    L2DA --> L2BIC
+```text
+    ┌─────────────────────────────────────────────────────────────┐
+    │  Neo 4 core (external/neo, vendored submodule)              │
+    │  ─────────                                                  │
+    │  dBFT 2.0 consensus · NeoVM · Blockchain · Mempool          │
+    └────────────────────────────┬────────────────────────────────┘
+                                 │
+                                 │  Block.Committed events,
+                                 │  ApplicationEngine.Run hooks
+                                 ▼
+    ┌─────────────────────────────────────────────────────────────┐
+    │  L2 plugins (src/Neo.Plugins.L2*)                           │
+    │  ──────────                                                 │
+    │  L2Batch  ─▶  L2Settlement  ─▶  L2Prover                    │
+    │     │              │                                        │
+    │     ▼              ▼                                        │
+    │  L2Bridge      L2DA                                         │
+    │     │              │                                        │
+    │     ▼              ▼                                        │
+    │  L2Rpc · L2Gateway · L2Metrics                              │
+    └────────────────────────────┬────────────────────────────────┘
+                                 │
+                                 │  invokes native contracts
+                                 ▼
+    ┌─────────────────────────────────────────────────────────────┐
+    │  L2 native contracts (contracts/L2Native.*)                 │
+    │  ─────────────────                                          │
+    │  L2BridgeContract       L2MessageContract                   │
+    │  L2BatchInfoContract    L2BatchSeal                         │
+    │  L2FeeContract          L2ExitWindow                        │
+    │  L2NativeExternalBridgeContract                             │
+    └─────────────────────────────────────────────────────────────┘
 ```
 
 The 8 plugins + 7 native contracts implement the `doc.md` §5–§13
@@ -234,18 +216,36 @@ Each L2 needs at least one of each:
 
 Every L2 chain is fully described by **four artifacts**:
 
-```mermaid
-flowchart TB
-    subgraph "What defines an L2 chain"
-        CFG["1. chain.config.json<br/>(91-byte canonical config<br/>+ JSON metadata)"]
-        EXEC["2. ITransactionExecutor impl<br/>(ApplicationEngine-based<br/>OR custom for app-specific chains)"]
-        REG["3. ChainRegistry entry on L1<br/>(operatorManager · verifier ·<br/>bridgeAdapter · messageAdapter ·<br/>securityLevel · daMode · etc.)"]
-        OPS["4. Off-chain operators<br/>(sequencer · batcher · prover · DA writer)"]
-    end
+```text
+    ┌─────────────────────────────────────────────────────────────────┐
+    │   What defines an L2 chain                                      │
+    └─────────────────────────────────────────────────────────────────┘
 
-    CFG -- "drives" --> EXEC
-    CFG -- "drives" --> REG
-    REG -- "permits" --> OPS
+    ┌──────────────────────────────────────┐
+    │  1. chain.config.json                │  drives the on-chain config
+    │     (91-byte canonical config        │  + the executor's behavior
+    │      + JSON metadata)                │
+    └────────────────┬─────────────────────┘
+                     │
+                     ▼
+    ┌──────────────────────────────────────┐
+    │  2. ITransactionExecutor impl        │  ApplicationEngine-based,
+    │     (compiled into the L2 plugin     │  OR custom for app-specific
+    │      set on each sequencer)          │  chains
+    └────────────────┬─────────────────────┘
+                     │
+                     ▼
+    ┌──────────────────────────────────────┐
+    │  3. ChainRegistry entry on L1        │  operatorManager · verifier
+    │     (24-byte UInt160 references      │  · bridgeAdapter · messageAdapter
+    │      + 91-byte configBytes)          │  · securityLevel · daMode · ...
+    └────────────────┬─────────────────────┘
+                     │
+                     ▼
+    ┌──────────────────────────────────────┐
+    │  4. Off-chain operators              │  sequencer · batcher
+    │     (running the L2 + reaching L1)   │  · prover · DA writer
+    └──────────────────────────────────────┘
 ```
 
 ### The §16.2 chain config dimensions
@@ -280,47 +280,46 @@ Encoded as a 91-byte canonical wire format via `L2ChainConfigSerializer`
 ## 4. Creation: from zero to registered
 
 The full lifecycle of a chain from `git clone` to its first sealed
-batch landing on L1:
+batch landing on L1, expressed as a numbered sequence between
+actors:
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Op as Operator
-    participant Stack as neo-stack CLI
-    participant FS as filesystem
-    participant Wallet as L1 wallet
-    participant Hub as NeoHub.ChainRegistry
-    participant L2 as L2 sequencer
-
-    Op->>Stack: neo-stack new-l2 --name MyChain<br/>--chain-id 1099 --template rollup
-    Stack->>FS: chain.config.json + executor scaffold + tests
-    Note over FS: Phase 1: scaffolding only
-
-    Op->>Stack: neo-stack validate ./MyChain/chain.config.json
-    Stack->>FS: pure JSON sanity-check (enums, ranges, cross-field)
-    Stack-->>Op: OK / errors
-
-    Op->>Stack: neo-stack register-chain --config ./MyChain/chain.config.json
-    Stack->>Op: 91-byte configBytes hex<br/>+ ChainRegistry.RegisterChain plan
-    Note over Stack: Plan-printer: does NOT submit
-
-    Op->>Wallet: paste configBytes hex<br/>+ multisig threshold etc.
-    Wallet->>Hub: RegisterChain(chainId, configBytes, ...)
-    Hub-->>Wallet: tx accepted
-
-    Op->>Stack: neo-stack deploy-bridge-adapter --chain-id 1099
-    Stack-->>Op: deploy plan for L2NativeBridge<br/>(operator's wallet submits)
-
-    Op->>Stack: neo-stack start-sequencer --config ./MyChain/chain.config.json
-    Stack-->>Op: preflight check<br/>+ "compose with neo-cli" instructions
-    Op->>L2: launch neo-cli with L2 plugins
-    L2->>L2: dBFT 2.0 starts producing blocks
-    Note over L2: Phase 2: chain is live
-
-    Op->>Stack: neo-stack start-batcher
-    L2->>Hub: BatchInfoContract → SettlementManager.SubmitBatch
-    Hub-->>L2: settlement accepted
-    Note over Hub: Phase 3: chain is connected
+```text
+          Operator        neo-stack     filesystem      L1 wallet      NeoHub.ChainRegistry      L2 sequencer
+              │              │              │              │                  │                        │
+              │              │              │              │                  │                        │
+   1.  ──── new-l2 ────▶     │              │              │                  │                        │
+   2.        │   ──── scaffold ────────▶    │              │                  │                        │
+              │              │              │              │                  │                        │
+            ─── Phase 1: scaffolding only — chain has identity but no on-chain presence ───
+              │              │              │              │                  │                        │
+   3.  ──── validate ────▶   │              │              │                  │                        │
+   4.        │   ──── JSON sanity-check ──▶ │              │                  │                        │
+   5.        │  ◀──── OK / errors ─────     │              │                  │                        │
+              │              │              │              │                  │                        │
+   6.  ──── register-chain ─▶│              │              │                  │                        │
+   7.        │  ◀── 91-byte configBytes hex + ChainRegistry.RegisterChain plan │                       │
+              │              │  (plan-printer; never holds keys)               │                        │
+   8.  ─── paste args ─────────────────────▶│                                  │                        │
+   9.        │              │              │  ─── RegisterChain(chainId, configBytes, ...) ─▶          │
+  10.        │              │              │  ◀───────── tx accepted ─────────                          │
+              │              │              │              │                  │                        │
+  11.  ─── deploy-bridge-adapter ▶         │              │                  │                        │
+  12.        │  ◀── L2NativeBridge deploy plan            │                  │                        │
+              │              │              │  ─── deploy ─▶ (operator wallet)                          │
+              │              │              │              │                  │                        │
+            ─── Phase 2: NeoHub knows the chain; bridges + messaging unlocked ───
+              │              │              │              │                  │                        │
+  13.  ─── start-sequencer ▶│              │              │                  │                        │
+  14.        │  ◀── preflight + "compose with neo-cli" instructions          │                        │
+  15.  ─── launch neo-cli + L2 plugins ─────────────────────────────────────────────▶                  │
+  16.        │              │              │              │                  │  ─── dBFT 2.0 starts ─▶│
+              │              │              │              │                  │                        │
+  17.  ─── start-batcher ──▶│              │              │                  │                        │
+  18.        │              │              │              │                  │  ◀── BatchInfoContract ┘
+  19.        │              │              │              │  ◀──── SettlementManager.SubmitBatch ───── │
+  20.        │              │              │              │                  │ ◀── settlement accepted │
+              │              │              │              │                  │                        │
+            ─── Phase 3: L2 batches land on L1; bridge + messaging work end-to-end ───
 ```
 
 Three phases:
@@ -336,20 +335,20 @@ Three phases:
 The `neo-stack new-l2 --name X --chain-id Y --template Z` command
 strings together three lower-level operations. What gets generated:
 
-```
-./MyChain/
-├── chain.config.json              ← 91-byte-encodable canonical config
-├── MyChainExecutor/
-│   ├── MyChainExecutor.csproj
-│   ├── src/
-│   │   ├── MyChainExecutor.cs     ← ITransactionExecutor stub
-│   │   ├── MyChainStateSeam.cs    ← state-store binding
-│   │   └── MyChainTxBuilder.cs    ← deposit/message tx helpers
-│   └── README.md
-├── MyChainExecutor.UnitTests/     ← --with-tests
-│   ├── MyChainExecutor.UnitTests.csproj
-│   └── *.Tests.cs                 ← 3 starter tests
-└── data/  logs/  Plugins/         ← node working dirs
+```text
+    ./MyChain/
+    ├── chain.config.json              ← 91-byte-encodable canonical config
+    ├── MyChainExecutor/
+    │   ├── MyChainExecutor.csproj
+    │   ├── src/
+    │   │   ├── MyChainExecutor.cs     ← ITransactionExecutor stub
+    │   │   ├── MyChainStateSeam.cs    ← state-store binding
+    │   │   └── MyChainTxBuilder.cs    ← deposit/message tx helpers
+    │   └── README.md
+    ├── MyChainExecutor.UnitTests/     ← --with-tests
+    │   ├── MyChainExecutor.UnitTests.csproj
+    │   └── *.Tests.cs                 ← 3 starter tests
+    └── data/  logs/  Plugins/         ← node working dirs
 ```
 
 The `MyChainExecutor` scaffold is a starting point for chains that
@@ -363,32 +362,18 @@ NeoVM + NEP-17 don't need to customize — they use the
 Permissionless chain registration is gated through `[plan: §16.1-admission]`
 — the L2 chain registry has 3 tiers:
 
-```mermaid
-stateDiagram-v2
-    [*] --> Approved
-    Approved --> Stamped : NeoHub validates<br/>configBytes signature
-    Stamped --> Active : SequencerRegistry<br/>bonds attached
-    Active --> [*]
-
-    note right of Approved
-        Phase 1
-        Operator-supplied
-        config + signature
-        accepted by ChainRegistry
-    end note
-    note right of Stamped
-        Phase 2
-        NeoHub stamps the config
-        with a deployment ID,
-        bridges + messaging
-        unlocked
-    end note
-    note right of Active
-        Phase 3
-        Sequencer bond posted,
-        batch submission
-        accepted by SettlementManager
-    end note
+```text
+    ┌──────────┐         ┌──────────┐         ┌──────────┐
+    │ Approved │ ──────▶ │ Stamped  │ ──────▶ │  Active  │
+    └────┬─────┘         └────┬─────┘         └────┬─────┘
+         │                    │                    │
+         │ Phase 1            │ Phase 2            │ Phase 3
+         │ ───────            │ ───────            │ ───────
+         │ Operator-supplied  │ NeoHub stamps the  │ Sequencer bond
+         │ config + signature │ config with a      │ posted; batch
+         │ accepted by        │ deployment ID;     │ submission
+         │ ChainRegistry.     │ bridges + messaging│ accepted by
+         │                    │ unlocked.          │ SettlementManager.
 ```
 
 ---
@@ -397,50 +382,46 @@ stateDiagram-v2
 
 Which contracts go where, in what order:
 
-```mermaid
-flowchart TB
-    subgraph "Step 1: Deploy NeoHub (one-time, per-network)"
-        direction TB
-        S1["neo-hub-deploy plan<br/>→ generates 20-step bundle"]
-        S2[Operator wallet submits each step]
-        S3["NeoHub fully deployed:<br/>SharedBridge · SettlementManager ·<br/>ChainRegistry · MessageRouter · etc."]
-        S1 --> S2 --> S3
-    end
-
-    subgraph "Step 2: Register one L2 chain (per-chain)"
-        direction TB
-        T1["neo-stack register-chain<br/>--config chain.config.json"]
-        T2[Operator submits<br/>ChainRegistry.RegisterChain]
-        T3["L2 has chainId,<br/>configBytes recorded"]
-        T1 --> T2 --> T3
-    end
-
-    subgraph "Step 3: Deploy L2 bridge adapter (per-chain)"
-        direction TB
-        U1["neo-stack deploy-bridge-adapter<br/>--chain-id 1099"]
-        U2[Operator submits<br/>L2NativeBridgeContract deployment]
-        U3["L2NativeBridge live;<br/>cross-tier transfers enabled"]
-        U1 --> U2 --> U3
-    end
-
-    subgraph "Step 4: Wire messaging adapter (optional, per-chain)"
-        direction TB
-        V1[Operator deploys<br/>L2MessageContract]
-        V2["MessageRouter.RegisterAdapter<br/>(chainId, l2MessageHash)"]
-        V3["Cross-L2 messaging enabled"]
-        V1 --> V2 --> V3
-    end
-
-    S3 --> T1
-    T3 --> U1
-    U3 --> V1
-
-    classDef hub fill:#1f77b4,stroke:#0a3a6e,color:#fff
-    classDef l2reg fill:#2ca02c,stroke:#0d5d0d,color:#fff
-    classDef msg fill:#ff7f0e,stroke:#a04500,color:#fff
-    class S1,S2,S3 hub
-    class T1,T2,T3,U1,U2,U3 l2reg
-    class V1,V2,V3 msg
+```text
+    ┌─────────────────────────────────────────────────────────────────┐
+    │  Step 1 — Deploy NeoHub (one-time, per network)                 │
+    │  ──────                                                         │
+    │  neo-hub-deploy plan                                            │
+    │      → 20-step ordered deploy bundle                            │
+    │  Operator wallet submits each step                              │
+    │      → NeoHub fully deployed:                                   │
+    │        SharedBridge · SettlementManager · ChainRegistry ·       │
+    │        MessageRouter · ... (20 contracts total)                 │
+    └────────────────────────────┬────────────────────────────────────┘
+                                 │
+                                 ▼
+    ┌─────────────────────────────────────────────────────────────────┐
+    │  Step 2 — Register one L2 chain (per chain)                     │
+    │  ──────                                                         │
+    │  neo-stack register-chain --config chain.config.json            │
+    │      → emits ChainRegistry.RegisterChain plan                   │
+    │  Operator wallet submits plan                                   │
+    │      → L2 has chainId, configBytes recorded                     │
+    └────────────────────────────┬────────────────────────────────────┘
+                                 │
+                                 ▼
+    ┌─────────────────────────────────────────────────────────────────┐
+    │  Step 3 — Deploy L2 bridge adapter (per chain)                  │
+    │  ──────                                                         │
+    │  neo-stack deploy-bridge-adapter --chain-id 1099                │
+    │      → emits L2NativeBridgeContract deploy plan                 │
+    │  Operator wallet submits                                        │
+    │      → L2NativeBridge live; cross-tier transfers enabled        │
+    └────────────────────────────┬────────────────────────────────────┘
+                                 │
+                                 ▼
+    ┌─────────────────────────────────────────────────────────────────┐
+    │  Step 4 — Wire messaging adapter (optional, per chain)          │
+    │  ──────                                                         │
+    │  Operator deploys L2MessageContract                             │
+    │  MessageRouter.RegisterAdapter(chainId, l2MessageHash)          │
+    │      → cross-L2 messaging enabled                               │
+    └─────────────────────────────────────────────────────────────────┘
 ```
 
 Every command emits a structured plan rather than submitting directly
@@ -476,69 +457,60 @@ l2_batch_info_hash          = 0x...  # this L2's L2BatchInfoContract
 Once deployed, an L2 chain is "connected" via three independent
 channels — each runs on its own cadence:
 
-```mermaid
-flowchart LR
-    subgraph "L2 chain (running)"
-        BLK[Blockchain]
-        BAT[Batcher plugin]
-        BR[Bridge plugin]
-        MSG[Message plugin]
-    end
-
-    subgraph "Off-chain services"
-        DA[DA writer]
-        PRO[Prover daemon]
-    end
-
-    subgraph "L1 NeoHub"
-        SM[SettlementManager]
-        SB[SharedBridge]
-        MR[MessageRouter]
-        DAR[DARegistry]
-    end
-
-    BLK -- "Committed event<br/>(every block)" --> BAT
-    BAT -- "sealed batch" --> DA
-    BAT -- "BatchPayload" --> PRO
-    PRO -- "validity proof" --> BAT
-    BAT -- "SubmitBatch(commitment, proof)" --> SM
-    DA -- "publish payload" --> DAR
-
-    BR -- "BridgeMessage" --> SB
-    SB -- "DepositReady" --> BR
-
-    MSG -- "OutboundMessage" --> MR
-    MR -- "InboundMessage" --> MSG
-
-    classDef l2 fill:#2ca02c,stroke:#0d5d0d,color:#fff
-    classDef oc fill:#9467bd,stroke:#4a2877,color:#fff
-    classDef l1 fill:#1f77b4,stroke:#0a3a6e,color:#fff
-    class BLK,BAT,BR,MSG l2
-    class DA,PRO oc
-    class SM,SB,MR,DAR l1
+```text
+    ┌──────────────────────────────┐                 ┌──────────────────────────────┐
+    │  L2 chain (running)          │                 │  L1 NeoHub                   │
+    │                              │                 │                              │
+    │   Blockchain                 │                 │                              │
+    │       │                      │                 │                              │
+    │       │ Block.Committed       │                 │                              │
+    │       ▼                      │                 │                              │
+    │   L2BatchPlugin ──seal──▶ ──┼──▶ off-chain     │                              │
+    │       │              │     │   prover daemon  │                              │
+    │       │              │     │   (SP1 zkVM)     │                              │
+    │       │              ▼     │                  │                              │
+    │       │           DA writer ──▶ NeoFS / L1 ──▶│  DARegistry                  │
+    │       │                    │                  │                              │
+    │       └─── SubmitBatch ───────────────────────▶│  SettlementManager           │
+    │                            │                  │  (verifies via               │
+    │                            │                  │   VerifierRegistry)          │
+    │                            │                  │                              │
+    │   L2BridgeContract ◀── DepositReady ─────────  │  SharedBridge                │
+    │                ─── WithdrawalReady ──────────▶ │                              │
+    │                            │                  │                              │
+    │   L2MessageContract ◀── InboundMessage ─────── │  MessageRouter               │
+    │                ─── OutboundMessage ──────────▶ │                              │
+    └──────────────────────────────┘                 └──────────────────────────────┘
 ```
 
 ### Channel 1 — Settlement (the hot path)
 
 For every L2 block:
 
-```mermaid
-sequenceDiagram
-    participant L2 as L2 Blockchain
-    participant Hook as L2BatchPlugin
-    participant Sealer as BatchSealer
-    participant Prov as Prover daemon
-    participant L1 as SettlementManager
-
-    L2->>Hook: Block.Committed event
-    Hook->>Sealer: tx batch + post-state-root
-    Sealer->>Sealer: build BatchCommitment<br/>(canonical 32B fields)
-    Sealer->>Prov: BatchPayload
-    Prov->>Prov: SP1 zkVM proves<br/>execute_batch(payload)
-    Prov-->>Sealer: validity_proof + verifying_key
-    Sealer->>L1: SubmitBatch(commitment, proof, vk)
-    L1->>L1: VerifierRegistry.Verify
-    L1-->>Sealer: SettlementAccepted event
+```text
+    L2 Blockchain   L2BatchPlugin    BatchSealer    Prover daemon    SettlementManager
+        │              │                  │              │                   │
+        │ Committed ───▶                  │              │                   │
+        │              │── tx batch + ───▶│              │                   │
+        │              │   post-state-root │              │                   │
+        │              │                  │              │                   │
+        │              │                  │ build       │                   │
+        │              │                  │ BatchCommitment                  │
+        │              │                  │ (canonical                       │
+        │              │                  │ 32-byte fields)                  │
+        │              │                  │              │                   │
+        │              │                  │── BatchPayload ─▶                │
+        │              │                  │              │                   │
+        │              │                  │              │ SP1 zkVM proves   │
+        │              │                  │              │ execute_batch(...)│
+        │              │                  │              │                   │
+        │              │                  │ ◀── validity_proof + vk ──       │
+        │              │                  │              │                   │
+        │              │                  │── SubmitBatch(commitment, proof, vk) ──▶
+        │              │                  │              │                   │
+        │              │                  │              │ ◀── VerifierRegistry.Verify
+        │              │                  │              │                   │
+        │              │                  │ ◀── SettlementAccepted event ────│
 ```
 
 Wire format: `BatchSerializer` (`Neo.L2.Batch/`) — 32-byte fields
@@ -547,28 +519,45 @@ lifecycle" for the per-tx zoom-in.
 
 ### Channel 2 — Bridge (asset transfers)
 
-```mermaid
-sequenceDiagram
-    participant U as L1 user
-    participant SB as NeoHub.SharedBridge
-    participant L2BR as L2BridgeContract
-    participant L2U as L2 user
+**L1 → L2 deposit:**
 
-    Note over U,L2U: L1 → L2 deposit
-    U->>SB: Deposit(chainId, asset, amount, recipient)
-    SB->>SB: Lock asset, emit DepositReady event
-    Note over SB: L2 batcher polls events
-    SB-->>L2BR: DepositReady picked up
-    L2BR->>L2BR: Mint wrapped asset, credit recipient
-    L2BR->>L2U: balance bump
+```text
+    L1 user         NeoHub.SharedBridge      L2BridgeContract        L2 user
+       │                    │                       │                   │
+       │── Deposit(chainId, asset, amount, recipient) ─▶                │
+       │                    │                       │                   │
+       │                    │ Lock asset, emit                          │
+       │                    │ DepositReady event                        │
+       │                    │                       │                   │
+       │            (L2 batcher polls events)       │                   │
+       │                    │── DepositReady ──────▶│                   │
+       │                    │                       │                   │
+       │                    │                       │ Mint wrapped      │
+       │                    │                       │ asset, credit     │
+       │                    │                       │ recipient         │
+       │                    │                       │                   │
+       │                    │                       │── balance bump ──▶│
+```
 
-    Note over U,L2U: L2 → L1 withdrawal
-    L2U->>L2BR: Withdraw(asset, amount, recipient)
-    L2BR->>L2BR: Burn wrapped asset, emit WithdrawalReady
-    Note over L2BR,SB: Withdrawal record sealed in next batch;<br/>after batch finalizes on L1, recipient claims
-    L2U->>SB: ClaimWithdrawal(batchId, leafIdx, merkleProof)
-    SB->>SB: VerifyWithdrawalLeafWithProof
-    SB->>U: release asset
+**L2 → L1 withdrawal:**
+
+```text
+    L2 user         L2BridgeContract        SharedBridge          L1 user
+       │                    │                       │                   │
+       │── Withdraw(asset, amount, recipient) ─────▶│                   │
+       │                    │                       │                   │
+       │                    │ Burn wrapped asset,                       │
+       │                    │ emit WithdrawalReady                      │
+       │                    │                       │                   │
+       │  (Withdrawal record sealed in next batch;                      │
+       │   after batch finalizes on L1, recipient claims)               │
+       │                    │                       │                   │
+       │                    │                       │◀─── ClaimWithdrawal(batchId, leafIdx, merkleProof)
+       │                    │                       │                   │
+       │                    │                       │ VerifyWithdrawal- │
+       │                    │                       │ LeafWithProof     │
+       │                    │                       │                   │
+       │                    │                       │── release asset ─▶│
 ```
 
 Wire format: `DepositPayload` for L1→L2, `WithdrawalRecord` +
@@ -585,22 +574,27 @@ See [§7](#7-cross-l2-messaging) below.
 When `gatewayEnabled = true` and `messageAdapter` is configured,
 L2-A can send a message to L2-B without touching L1 manually:
 
-```mermaid
-sequenceDiagram
-    participant U as User on L2-A
-    participant LMC_A as L2-A.L2MessageContract
-    participant MR as NeoHub.MessageRouter
-    participant LMC_B as L2-B.L2MessageContract
-    participant Recv as Recipient on L2-B
-
-    U->>LMC_A: SendMessage(targetChainId, payload)
-    LMC_A->>LMC_A: emit OutboundMessage event
-    Note over LMC_A: L2-A batcher includes msg<br/>in next sealed batch
-    LMC_A->>MR: (via batch settlement) RouteMessage(srcChainId, dstChainId, payload, hash)
-    Note over MR: L2-B batcher polls<br/>MessageRouter for inbounds
-    MR-->>LMC_B: InboundMessage
-    LMC_B->>LMC_B: VerifyMessageHash<br/>(against canonical encoder)
-    LMC_B->>Recv: deliver payload
+```text
+    User on L2-A    L2-A.L2MessageContract     NeoHub.MessageRouter     L2-B.L2MessageContract     Recipient on L2-B
+        │                       │                         │                         │                       │
+        │── SendMessage(targetChainId, payload) ─▶        │                         │                       │
+        │                       │                         │                         │                       │
+        │                       │ emit                                              │                       │
+        │                       │ OutboundMessage event                             │                       │
+        │                       │                         │                         │                       │
+        │     (L2-A batcher includes msg in next sealed batch)                      │                       │
+        │                       │                         │                         │                       │
+        │                       │── (via batch settlement) RouteMessage             │                       │
+        │                       │   (srcChainId, dstChainId, payload, hash) ──▶     │                       │
+        │                       │                         │                         │                       │
+        │                       │     (L2-B batcher polls MessageRouter for inbounds)                       │
+        │                       │                         │── InboundMessage ──────▶│                       │
+        │                       │                         │                         │                       │
+        │                       │                         │                         │ VerifyMessageHash     │
+        │                       │                         │                         │ (against canonical    │
+        │                       │                         │                         │  encoder)             │
+        │                       │                         │                         │                       │
+        │                       │                         │                         │── deliver payload ───▶│
 ```
 
 `MessageHasher` (`Neo.L2.Messaging/`) is the canonical encoder —
@@ -617,45 +611,49 @@ Cross-foreign-chain bridge (Phase B/C, `doc.md` §11.3) lets an
 external chain (Eth/EVM family / Solana / Tron) deposit + withdraw
 through the same SharedBridge surface. Architecturally:
 
-```mermaid
-flowchart LR
-    subgraph "External chain (e.g. BSC)"
-        EVMR["NeoExternalBridgeRouter.sol<br/>(deployed unchanged on<br/>any of 14 EVM-family chains)"]
-    end
-
-    subgraph "Off-chain"
-        WAT["neo-bridge-watcher-eth daemon<br/>(or -tron, or -sol)<br/>· secp256k1 / ed25519 sign<br/>· /healthz, /metrics<br/>· flock journal"]
-    end
-
-    subgraph "NeoHub L1"
-        EBR[ExternalBridgeRegistry]
-        EBE[ExternalBridgeEscrow]
-        MCV[MpcCommitteeVerifier]
-        EBB[ExternalBridgeBond]
-        MFV[MpcCommitteeFraudVerifier]
-    end
-
-    subgraph "L2 chain"
-        L2NB[L2NativeExternalBridgeContract]
-    end
-
-    EVMR -- "Locked event" --> WAT
-    WAT -- "ExternalCrossChainMessage<br/>(102B prefix + payload)" --> EBE
-    EBE -- "verify via" --> MCV
-    MCV -- "lookup verifier" --> EBR
-    EBE -- "burn/mint trigger" --> L2NB
-    L2NB -- "withdrawal seal" --> EVMR
-
-    MFV -.equivocation slash.-> EBB
-
-    classDef ext fill:#d62728,stroke:#7a1010,color:#fff
-    classDef oc fill:#9467bd,stroke:#4a2877,color:#fff
-    classDef l1 fill:#1f77b4,stroke:#0a3a6e,color:#fff
-    classDef l2 fill:#2ca02c,stroke:#0d5d0d,color:#fff
-    class EVMR ext
-    class WAT oc
-    class EBR,EBE,MCV,EBB,MFV l1
-    class L2NB l2
+```text
+    ┌─────────────────────────┐          ┌─────────────────────────────┐
+    │  External chain         │          │  Off-chain                  │
+    │  (e.g. BSC mainnet)     │          │                             │
+    │                         │          │  neo-bridge-watcher-eth     │
+    │  NeoExternalBridge-     │   Locked │  daemon                     │
+    │  Router.sol ────────────┼──event──▶│  · secp256k1/ed25519 sign  │
+    │  (deployed unchanged    │          │  · /healthz, /metrics       │
+    │   on any of 14 EVM-     │          │  · flock journal            │
+    │   family chains)        │          │  · min_confirmations buffer │
+    │                         │          │                             │
+    └─────────────────────────┘          └─────────────────────────────┘
+                ▲                                       │
+                │                                       │ ExternalCrossChainMessage
+                │                                       │ (102B prefix + payload)
+                │                                       │
+                │ withdrawal seal                       ▼
+                │                            ┌─────────────────────────┐
+                │                            │  NeoHub L1              │
+                │                            │                         │
+                │              ┌────────────│  ExternalBridgeEscrow   │
+                │              │  burn/mint  │      │                  │
+                │              │  trigger    │      │ verify via       │
+                │              │             │      ▼                  │
+                │              │             │  MpcCommitteeVerifier   │
+                │              │             │      │                  │
+                │              │             │      │ lookup verifier  │
+                │              │             │      ▼                  │
+                │              │             │  ExternalBridgeRegistry │
+                │              │             │                         │
+                │              │             │  (equivocation slash)   │
+                │              │             │  MpcCommitteeFraud-     │
+                │              │             │  Verifier ──slash──▶    │
+                │              │             │     ExternalBridgeBond  │
+                │              │             └─────────────────────────┘
+                │              │                                       
+                │              ▼
+    ┌─────────────────────────────────────┐
+    │  L2 chain                           │
+    │                                     │
+    │  L2NativeExternalBridgeContract     │
+    │                                     │
+    └─────────────────────────────────────┘
 ```
 
 **One contract serves the entire EVM family.** The same

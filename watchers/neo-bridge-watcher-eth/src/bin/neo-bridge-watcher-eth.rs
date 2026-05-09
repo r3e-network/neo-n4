@@ -164,7 +164,7 @@ struct Config {
     poll: PollConfig,
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize)]
 struct PollConfig {
     #[serde(default = "default_poll_interval")]
     poll_interval_secs: u64,
@@ -184,6 +184,25 @@ struct PollConfig {
     /// Operators MUST set a chain-appropriate value for production.
     #[serde(default)]
     min_confirmations: u64,
+}
+
+// Manual Default impl — `#[serde(default = "fn")]` only fires for fields
+// that are present-but-unset INSIDE an existing [poll] table. When
+// [poll] is omitted entirely, serde falls back to PollConfig::default()
+// for the whole struct; #[derive(Default)] would zero every field
+// (poll_interval=0 + backoff=0 = tight infinite spin). This impl
+// matches the per-field defaults instead.
+impl Default for PollConfig {
+    fn default() -> Self {
+        Self {
+            poll_interval_secs: default_poll_interval(),
+            backoff_initial_secs: default_backoff_initial(),
+            backoff_max_secs: default_backoff_max(),
+            eth_chunk_size: default_eth_chunk_size(),
+            request_timeout_secs: default_request_timeout(),
+            min_confirmations: 0,
+        }
+    }
 }
 
 fn default_poll_interval() -> u64 { 12 }

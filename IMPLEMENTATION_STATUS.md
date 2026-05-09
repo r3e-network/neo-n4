@@ -193,6 +193,14 @@ subcommands.
 | `neo-bridge-watcher-tron`   | Rust crate: thin re-export of `neo-bridge-watcher-eth` with Tron-specific chain-id constants (`TRON_MAINNET_CHAIN_ID = 0xE000_0010` + Nile/Shasta testnets). Tron uses the same secp256k1+SHA256 + Keccak256 address derivation as Ethereum, so no separate messaging or signing core is needed — confirmation that the Phase-B abstractions were chain-agnostic at the right level. 7 tests pin chain-id namespacing + cross-chain hash distinctness. |
 | `neo-bridge-watcher-sol`    | Rust crate: `Ed25519FileSigner` implementing `Signer` with `curve_tag = 2` (vs Eth/Tron's 1) — validates the curve-agnostic refactor. Solana chain-ids (`0xE000_0020..2F`). On-chain dispatch flows to `CryptoLib.VerifyWithEd25519` per the registered curveTag. Per `doc.md` §11.3.4, Solana stays MPC-committee-only (Tower BFT light client is too expensive on-chain); the committee model handles Solana via the same trait surface. 9 tests including real `ed25519-dalek` sign+verify and a `Vec<Box<dyn Signer>>` polymorphism check. |
 
+#### Foreign-side router artifacts (`external/foreign-contracts/`)
+
+| Path                        | Role                                             |
+| --------------------------- | ------------------------------------------------ |
+| `eth/`                      | `NeoExternalBridgeRouter.sol` (393 lines, solc 0.8.24, via_ir + optimizer). Locks ETH/ERC-20 bound for Neo, finalizes Neo → Eth withdrawals via committee-attested `ecrecover` proofs. **13 Foundry tests** with real `vm.sign` round-trips. Deployable today on Sepolia / Eth mainnet via `forge create`. |
+| `tron/`                     | README pointing at `eth/` since TVM is EVM-flavored — same Solidity, different `externalChainId` constructor arg (`0xE000_0010` mainnet / `0xE000_0011` Nile / `0xE000_0012` Shasta). Documents tronbox / tronweb deployment, Tron-specific energy/bandwidth budgeting, and TVM opcode caveats. |
+| `sol/`                      | Anchor program (~440 lines) implementing the same semantics on Solana: PDA-based state (`BridgeState` + `Vault` + per-`(chainId, nonce)` `ConsumedNonce` for replay protection), ed25519 verification via Solana's sigverify precompile (the canonical Wormhole/Neon pattern — saves ~30k CU/sig vs in-program ed25519), three instructions (`initialize` / `set_committee` / `lock_sol_and_send` / `finalize_withdrawal`). Source-only in this iteration; operators run `anchor build` + `anchor test` against `solana-test-validator`. v0 is SOL-only (SPL deferred), `MSG_TYPE_CALL` reverts, recipient zero-pads upper 12 bytes. Reviewed-needed flag in the README before mainnet. |
+
 ### neo-node plugins (`src/Neo.Plugins.L2*`)
 
 | Plugin                       | Role                                                  |

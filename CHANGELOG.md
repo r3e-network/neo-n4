@@ -5,6 +5,53 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Foreign-side router artifacts (Tron deploy notes + Solana Anchor program)
+
+Closes the three-chain coverage at the foreign-router layer.
+
+- `external/foreign-contracts/tron/README.md` — Tron's TVM is
+  EVM-flavored Solidity; the existing Eth router parameterizes
+  `externalChainId` via constructor, and the namespace check
+  `(externalChainId & 0xFF000000) == 0xE0000000` accepts both Eth
+  (`0xE0000001`/`02`) and Tron (`0xE0000010`/`11`/`12`). README
+  documents tronbox/tronweb deployment, energy/bandwidth budgeting,
+  and TVM-specific risk notes (post-Constantinople opcode
+  differences, block.timestamp granularity).
+
+- `external/foreign-contracts/sol/` — new Anchor program (Solana /
+  Rust). Real ~440-line implementation against Anchor 0.30 + Solana
+  1.18 conventions, mirroring the Eth router semantically:
+  - **Three instructions**: `initialize` / `set_committee` /
+    `lock_sol_and_send` / `finalize_withdrawal`.
+  - **State in PDAs** (Solana convention): `BridgeState` (committee
+    + threshold + outbound nonce counter), `Vault` (locked SOL
+    lamports), `ConsumedNonce` per-(chain_id, nonce) for replay
+    protection (init constraint = O(1) replay rejection without an
+    extra read).
+  - **ed25519 verification via Solana's sigverify precompile** — the
+    canonical pattern (Wormhole / Neon use the same). The watcher
+    submits one `ed25519_program::ID` instruction per signer BEFORE
+    the bridge instruction; `finalize_withdrawal` walks
+    `Sysvar<Instructions>` via `load_instruction_at_checked` to
+    confirm the precompile ran with `(committee[idx].pubkey, our
+    message_bytes)` tuples. Saves ~30k CU/sig vs in-program ed25519.
+  - **Wire format**: same canonical `ExternalCrossChainMessage`
+    (102B prefix + payload) the Neo + Eth verifiers parse — identical
+    offsets (chainId 0..4, nonce 8..16, direction 16..17, recipient
+    37..57, deadline 57..65, messageType 81..82, payload length
+    98..102, payload at 102+).
+
+  Build status: source-only in this iteration. The Anchor + Solana
+  toolchains are heavy (Solana CLI install + anchor-cli + a
+  solana-test-validator runtime for tests). Operators run
+  `anchor build` / `anchor test` against `solana-test-validator`.
+  README documents the toolchain install + deploy + acknowledges
+  this code should be reviewed by a Solana developer before mainnet.
+  v0 limitations spelled out: SOL-only (no SPL), `MSG_TYPE_CALL` /
+  `AssetAndCall` revert, recipient zero-pads upper 12 bytes
+  (full-32B extension is v1), Solana stays MPC-committee-only
+  through Phase 4.
+
 ### Added — Tron + Solana watcher variants (curve-agnostic Signer)
 
 Validates the Phase B trait abstractions transferred across both

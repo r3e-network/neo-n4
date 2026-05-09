@@ -13,6 +13,7 @@
 # Architecture
 
 - [Architecture walkthrough](./architecture-walkthrough.md)
+- [L2 chain lifecycle](./architecture-l2-lifecycle.md)
 - [Tech-stack coverage](./tech-stack-coverage.md)
 
 # External bridge

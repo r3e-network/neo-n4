@@ -33,7 +33,7 @@ any other project's source.
 | Fraud verifier (governance-arbitration mode reference) | ✅ | `contracts/NeoHub.GovernanceFraudVerifier/` |
 | Fraud verifier (trustless v3 — on-chain Merkle re-derivation) | ✅ | `contracts/NeoHub.RestrictedExecutionFraudVerifier/` |
 
-**15 NeoHub contracts.** All type-check via `Neo.SmartContract.Framework`; CI
+**21 NeoHub contracts.** All type-check via `Neo.SmartContract.Framework`; CI
 builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 
 | Component | Status | Code |

@@ -58,7 +58,7 @@ The architecture is three tiers:
   variants (SP1 Compress / Halo2 / Risc0) plug into the same seam when the operator
   brings the toolchain.
 - **L2 chains (elastic, N of them)** — Neo 4 core as execution kernel, 8 L2 plugins,
-  6 native L2 contracts per chain. Independent state, shared L1 anchor.
+  7 native L2 contracts per chain. Independent state, shared L1 anchor.
 
 For a full English distillation of the architecture, see [`ARCHITECTURE.md`](./ARCHITECTURE.md).
 For the formal technical document, see [`WHITEPAPER.md`](./WHITEPAPER.md).

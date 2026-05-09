@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 720" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">信任边界总图 —— 五个跨层验证</title>
+  <desc id="desc">Neo Elastic Network 的五个信任边界。边界 A：用户对 L1 交易签名，由 dBFT 2.0 终结性验证。边界 B：NeoHub 事件由 L2 批处理器读取，依赖终结性信任。边界 C：批处理器向 SettlementManager 提交 BatchCommitment 加证明 —— 这是承担信任的边界，VerifierRegistry 根据 RiscVZk、Multisig 或 Optimistic 派发。边界 D：已结算批次的 withdrawalRoot 让 L1 用户凭 Merkle 证明提款。边界 E（独立路径）：外链经中继器到 ExternalBridgeEscrow，由 M-of-N 委员会验证。</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .b-label   { font-size: 12.5px; font-weight: 700; letter-spacing: 0.5px; fill: #c4413e; }
+      .b-sub     { font-size: 10.5px; fill: #88312e; }
+      .actor-t   { font-size: 13px; font-weight: 600; }
+      .actor-s   { font-size: 11px; }
+      .header    { font-size: 14px; font-weight: 700; }
+      .subheader { font-size: 11.5px; fill: #525a64; }
+      .trust-lbl { font-size: 10.5px; fill: #525a64; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect width="960" height="720" fill="#ffffff"/>
+
+  <text x="480" y="32" text-anchor="middle" class="header" fill="#1e2a55">信任边界 —— 谁签 · 谁验 · 防御什么</text>
+  <text x="480" y="52" text-anchor="middle" class="subheader">5 个跨层验证 · 每个边界由下游独立重验证（纵深防御）</text>
+
+  <!-- L1 user -->
+  <g filter="url(#card)">
+    <rect x="180" y="80" width="600" height="50" rx="8" ry="8" fill="#ffffff" stroke="#7587c1" stroke-width="1.2"/>
+    <text x="480" y="100" text-anchor="middle" class="actor-t" fill="#1e2a55">L1 用户 · Neo 钱包（NeoLine / Neon / NEP-6 / Ledger）</text>
+    <text x="480" y="118" text-anchor="middle" class="actor-s" fill="#3a4a82">信任来源：自己的密钥保管</text>
+  </g>
+
+  <line x1="480" y1="130" x2="480" y2="172" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <rect x="40" y="148" width="900" height="22" rx="4" ry="4" fill="#fde8e8" stroke="#c4413e"/>
+  <text x="50" y="163" class="b-label">边界 A · 用户 → L1 NeoHub</text>
+  <text x="320" y="163" class="b-sub">强制方式：dBFT 2.0 终结性 + Secp256r1 签名验证</text>
+
+  <!-- NeoHub L1 -->
+  <g filter="url(#card)">
+    <rect x="180" y="180" width="600" height="60" rx="8" ry="8" fill="#eff3ff" stroke="#7587c1" stroke-width="1.2"/>
+    <text x="480" y="202" text-anchor="middle" class="actor-t" fill="#1e2a55">NeoHub L1 合约</text>
+    <text x="480" y="220" text-anchor="middle" class="actor-s" fill="#3a4a82">SharedBridge · MessageRouter · SettlementManager · ChainRegistry · ...</text>
+    <text x="480" y="234" text-anchor="middle" class="trust-lbl">触发 Block.Committed 事件 —— 由 L2 批处理器读取</text>
+  </g>
+
+  <line x1="480" y1="240" x2="480" y2="284" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <rect x="40" y="260" width="900" height="22" rx="4" ry="4" fill="#fde8e8" stroke="#c4413e"/>
+  <text x="50" y="275" class="b-label">边界 B · NeoHub → L2 批处理器（链下）</text>
+  <text x="375" y="275" class="b-sub">强制方式：dBFT 2/3 诚实多数假设</text>
+
+  <!-- L2 batcher -->
+  <g filter="url(#card)">
+    <rect x="180" y="294" width="600" height="60" rx="8" ry="8" fill="#f1ecf8" stroke="#7d59b3" stroke-width="1.2"/>
+    <text x="480" y="316" text-anchor="middle" class="actor-t" fill="#3e2865">L2 批处理器（链下运营者）</text>
+    <text x="480" y="334" text-anchor="middle" class="actor-s" fill="#5d4084">订阅 Block.Committed · 封装 BatchCommitment · 驱动证明守护进程</text>
+    <text x="480" y="348" text-anchor="middle" class="trust-lbl">将带证明的批次提交回 L1</text>
+  </g>
+
+  <line x1="480" y1="354" x2="480" y2="398" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <rect x="40" y="374" width="900" height="22" rx="4" ry="4" fill="#fde8e8" stroke="#c4413e" stroke-width="1.5"/>
+  <text x="50" y="389" class="b-label">边界 C · 批处理器 → SettlementManager（承担信任）</text>
+  <text x="475" y="389" class="b-sub">强制方式：VerifierRegistry → 按 proofType 派发的验证器（RiscVZk · Multisig · Optimistic）</text>
+
+  <!-- SettlementManager -->
+  <g filter="url(#card)">
+    <rect x="180" y="408" width="600" height="80" rx="8" ry="8" fill="#eff3ff" stroke="#7587c1" stroke-width="1.5"/>
+    <text x="480" y="430" text-anchor="middle" class="actor-t" fill="#1e2a55">SettlementManager + VerifierRegistry</text>
+    <text x="480" y="448" text-anchor="middle" class="actor-s" fill="#3a4a82">从链上承诺字段重新计算 publicInputHash</text>
+    <text x="480" y="464" text-anchor="middle" class="actor-s" fill="#3a4a82">按 proofType 派发 —— RiscVZk（数学）· Multisig（M-of-N）· Optimistic（博弈）</text>
+    <text x="480" y="481" text-anchor="middle" class="trust-lbl">已接受批次 = 此 L2 在 L1 上的最终状态根</text>
+  </g>
+
+  <line x1="480" y1="488" x2="480" y2="532" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <rect x="40" y="508" width="900" height="22" rx="4" ry="4" fill="#fde8e8" stroke="#c4413e"/>
+  <text x="50" y="523" class="b-label">边界 D · 已结算批次 → L2 用户（提款）</text>
+  <text x="430" y="523" class="b-sub">强制方式：相对批次 withdrawalRoot 的哈希抗碰撞</text>
+
+  <!-- L1 user claim -->
+  <g filter="url(#card)">
+    <rect x="180" y="542" width="600" height="50" rx="8" ry="8" fill="#ffffff" stroke="#7587c1" stroke-width="1.2"/>
+    <text x="480" y="562" text-anchor="middle" class="actor-t" fill="#1e2a55">L1 用户凭 Merkle 证明完成提款</text>
+    <text x="480" y="580" text-anchor="middle" class="actor-s" fill="#3a4a82">SharedBridge.VerifyWithdrawalLeafWithProof → 释放资产</text>
+  </g>
+
+  <!-- Boundary E -->
+  <line x1="40" y1="608" x2="920" y2="608" stroke="#cfd5dd" stroke-dasharray="3 3" stroke-width="1"/>
+
+  <text x="50" y="630" class="b-label" font-size="11.5">边界 E（独立路径）· 外链（Eth/Tron/Solana）→ 委员会 → ExternalBridgeEscrow</text>
+  <text x="50" y="648" class="b-sub" font-size="10.5">强制方式：M-of-N 委员会签署规范的 ExternalCrossChainMessage · MpcCommitteeVerifier · ExternalBridgeBond 双重签名罚没</text>
+  <text x="50" y="666" class="b-sub" font-size="10.5">信任 = M-of-N 委员会（可罚没保证金）· Phase D 用外链 ZK 轻客户端取代委员会</text>
+
+  <text x="480" y="700" text-anchor="middle" class="trust-lbl" fill="#525a64">同一组规范字节在每个边界被重新哈希 —— 字节自承诺；不存在线外信任。</text>
+
+</svg>

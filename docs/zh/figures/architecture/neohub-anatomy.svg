@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">NeoHub L1 合约组成</title>
+  <desc id="desc">21 个 NeoHub L1 合约，按六类职责分组：结算（SettlementManager、VerifierRegistry）、桥（SharedBridge、TokenRegistry、ChainRegistry）、消息传递（MessageRouter、DARegistry）、安全（SequencerRegistry、SequencerBond、ForcedInclusion、OptimisticChallenge、EmergencyManager）、治理（GovernanceController、GovernanceFraudVerifier、RestrictedExecutionFraudVerifier），以及 Phase B/C 外链桥（MpcCommitteeVerifier、ExternalBridgeRegistry、ExternalBridgeEscrow、ExternalBridgeBond、MpcCommitteeFraudVerifier、ExternalBridgeStubVerifier — 仅供测试）。</desc>
+
+  <defs>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .grp-title  { font-size: 13px; font-weight: 700; letter-spacing: 0.4px; }
+      .item       { font-size: 11.5px; fill: #2d3a48; }
+      .item-stub  { font-size: 11px; fill: #8a6a30; font-style: italic; }
+      .header     { font-size: 14px; font-weight: 700; }
+      .subheader  { font-size: 11.5px; fill: #525a64; }
+    </style>
+  </defs>
+
+  <rect width="960" height="540" fill="#ffffff"/>
+
+  <text x="480" y="38" text-anchor="middle" class="header" fill="#1e2a55">NeoHub L1 —— 21 个合约按职责分组</text>
+  <text x="480" y="58" text-anchor="middle" class="subheader">全部通过 Neo.SmartContract.Framework 类型检查 · CI 验证 .nef + .manifest.json 工件</text>
+
+  <!-- Row 1: Settlement · Bridge · Messaging -->
+  <g filter="url(#card)">
+    <rect x="40" y="84" width="280" height="116" rx="8" ry="8" fill="#eff3ff" stroke="#7587c1" stroke-width="1.2"/>
+    <text x="180" y="106" text-anchor="middle" class="grp-title" fill="#1e2a55">结算 SETTLEMENT</text>
+    <line x1="60" y1="118" x2="300" y2="118" stroke="#7587c1" stroke-width="0.5"/>
+    <text x="180" y="142" text-anchor="middle" class="item">SettlementManager</text>
+    <text x="180" y="162" text-anchor="middle" class="item">VerifierRegistry</text>
+    <text x="180" y="188" text-anchor="middle" class="item-stub">信任边界所在</text>
+  </g>
+
+  <g filter="url(#card)">
+    <rect x="340" y="84" width="280" height="116" rx="8" ry="8" fill="#eff3ff" stroke="#7587c1" stroke-width="1.2"/>
+    <text x="480" y="106" text-anchor="middle" class="grp-title" fill="#1e2a55">桥 BRIDGE</text>
+    <line x1="360" y1="118" x2="600" y2="118" stroke="#7587c1" stroke-width="0.5"/>
+    <text x="480" y="138" text-anchor="middle" class="item">SharedBridge</text>
+    <text x="480" y="156" text-anchor="middle" class="item">TokenRegistry</text>
+    <text x="480" y="174" text-anchor="middle" class="item">ChainRegistry</text>
+    <text x="480" y="194" text-anchor="middle" class="item-stub">L1 资产托管</text>
+  </g>
+
+  <g filter="url(#card)">
+    <rect x="640" y="84" width="280" height="116" rx="8" ry="8" fill="#eff3ff" stroke="#7587c1" stroke-width="1.2"/>
+    <text x="780" y="106" text-anchor="middle" class="grp-title" fill="#1e2a55">消息传递 MESSAGING</text>
+    <line x1="660" y1="118" x2="900" y2="118" stroke="#7587c1" stroke-width="0.5"/>
+    <text x="780" y="142" text-anchor="middle" class="item">MessageRouter</text>
+    <text x="780" y="162" text-anchor="middle" class="item">DARegistry</text>
+    <text x="780" y="188" text-anchor="middle" class="item-stub">跨 L2 路由</text>
+  </g>
+
+  <!-- Row 2: Security · Governance -->
+  <g filter="url(#card)">
+    <rect x="40" y="220" width="430" height="138" rx="8" ry="8" fill="#fff5f3" stroke="#c47461" stroke-width="1.2"/>
+    <text x="255" y="242" text-anchor="middle" class="grp-title" fill="#5e2814">安全 SECURITY</text>
+    <line x1="60" y1="254" x2="450" y2="254" stroke="#c47461" stroke-width="0.5"/>
+    <text x="135" y="276" text-anchor="middle" class="item">SequencerRegistry</text>
+    <text x="375" y="276" text-anchor="middle" class="item">SequencerBond</text>
+    <text x="135" y="296" text-anchor="middle" class="item">ForcedInclusion</text>
+    <text x="375" y="296" text-anchor="middle" class="item">OptimisticChallenge</text>
+    <text x="255" y="316" text-anchor="middle" class="item">EmergencyManager</text>
+    <text x="255" y="344" text-anchor="middle" class="item-stub" fill="#8a4a30">可罚没保证金 + 抗审查</text>
+  </g>
+
+  <g filter="url(#card)">
+    <rect x="490" y="220" width="430" height="138" rx="8" ry="8" fill="#f3f1eb" stroke="#a08454" stroke-width="1.2"/>
+    <text x="705" y="242" text-anchor="middle" class="grp-title" fill="#4a3818">治理 GOVERNANCE</text>
+    <line x1="510" y1="254" x2="900" y2="254" stroke="#a08454" stroke-width="0.5"/>
+    <text x="705" y="276" text-anchor="middle" class="item">GovernanceController</text>
+    <text x="705" y="296" text-anchor="middle" class="item">GovernanceFraudVerifier</text>
+    <text x="705" y="316" text-anchor="middle" class="item">RestrictedExecutionFraudVerifier (v3)</text>
+    <text x="705" y="344" text-anchor="middle" class="item-stub" fill="#7a5828">多签 + 时间锁 + 验证器槽位</text>
+  </g>
+
+  <!-- Row 3: External Bridge -->
+  <g filter="url(#card)">
+    <rect x="40" y="378" width="880" height="138" rx="8" ry="8" fill="#fde8e8" stroke="#b03d3d" stroke-width="1.2"/>
+    <text x="480" y="400" text-anchor="middle" class="grp-title" fill="#6c1e1e">外链桥 EXTERNAL BRIDGE（PHASE B/C — DOC.MD §11.3）</text>
+    <line x1="60" y1="412" x2="900" y2="412" stroke="#b03d3d" stroke-width="0.5"/>
+
+    <text x="160" y="438" text-anchor="middle" class="item">MpcCommitteeVerifier</text>
+    <text x="350" y="438" text-anchor="middle" class="item">ExternalBridgeRegistry</text>
+    <text x="540" y="438" text-anchor="middle" class="item">ExternalBridgeEscrow</text>
+    <text x="730" y="438" text-anchor="middle" class="item">ExternalBridgeBond</text>
+
+    <text x="350" y="462" text-anchor="middle" class="item">MpcCommitteeFraudVerifier</text>
+    <text x="730" y="462" text-anchor="middle" class="item-stub">ExternalBridgeStubVerifier（仅测试）</text>
+
+    <text x="480" y="498" text-anchor="middle" class="item-stub" fill="#8a2828">M-of-N 委员会验证 + 可罚没保证金 + Phase C 双重签名罚没</text>
+  </g>
+
+</svg>

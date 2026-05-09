@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">L1 ↔ L2 之间的桥 —— 三种跨层数据流</title>
+  <desc id="desc">三种数据流穿越 L1 ↔ L2 边界：SharedBridge 向 L2BridgeContract 发送 DepositReady 事件以铸造包装资产；L2 批次将 WithdrawalRoot 带回 L1 用于用户提款。MessageRouter 向 L2MessageContract 路由 InboundMessage 并重新计算哈希；OutboundMessage 在批次中流回。SettlementManager 接收来自 L2BatchInfoContract 的 BatchCommitment 加证明字节，提供每条 L2 的游标。</desc>
+
+  <defs>
+    <marker id="arrow-r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <marker id="arrow-l" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M10,0 L0,5 L10,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .panel-title { font-size: 13.5px; font-weight: 700; letter-spacing: 0.5px; }
+      .panel-sub   { font-size: 11px; }
+      .card-title  { font-size: 12.5px; font-weight: 600; }
+      .card-sub    { font-size: 10.5px; }
+      .flow-lbl    { font-size: 11px; font-style: italic; fill: #2d3a48; }
+      .wire        { font-size: 10px; fill: #525a64; font-family: 'SF Mono', Monaco, Consolas, monospace; }
+      .header      { font-size: 14.5px; font-weight: 700; }
+    </style>
+  </defs>
+
+  <rect width="960" height="520" fill="#ffffff"/>
+
+  <text x="480" y="32" text-anchor="middle" class="header" fill="#1e2a55">L1 ↔ L2 连接 —— 三个独立数据流 · 规范线格式</text>
+
+  <rect x="40" y="60" width="380" height="430" rx="12" ry="12" fill="#eff3ff" stroke="#7587c1" stroke-width="1.5"/>
+  <text x="230" y="84" text-anchor="middle" class="panel-title" fill="#1e2a55">L1 · NEOHUB</text>
+  <text x="230" y="100" text-anchor="middle" class="panel-sub" fill="#3f5193">规范协议 + 经济安全</text>
+
+  <rect x="540" y="60" width="380" height="430" rx="12" ry="12" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.5"/>
+  <text x="730" y="84" text-anchor="middle" class="panel-title" fill="#1d4d2c">L2 · 弹性链</text>
+  <text x="730" y="100" text-anchor="middle" class="panel-sub" fill="#2f5e3c">执行 + 状态 + 吞吐</text>
+
+  <!-- Row 1: Bridge -->
+  <g filter="url(#card)">
+    <rect x="60" y="120" width="340" height="80" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
+    <text x="230" y="144" text-anchor="middle" class="card-title" fill="#1e2a55">SharedBridge</text>
+    <text x="230" y="162" text-anchor="middle" class="card-sub" fill="#3a4a82">托管 L1 资产 · 凭 Merkle 证明放行</text>
+    <text x="230" y="180" text-anchor="middle" class="card-sub" fill="#3a4a82">+ TokenRegistry · ChainRegistry</text>
+  </g>
+
+  <g filter="url(#card)">
+    <rect x="560" y="120" width="340" height="80" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="730" y="144" text-anchor="middle" class="card-title" fill="#1d4d2c">L2BridgeContract</text>
+    <text x="730" y="162" text-anchor="middle" class="card-sub" fill="#2f5e3c">充值时铸造包装的 NEP-17</text>
+    <text x="730" y="180" text-anchor="middle" class="card-sub" fill="#2f5e3c">提款时销毁 + 记录叶子</text>
+  </g>
+
+  <line x1="400" y1="153" x2="560" y2="153" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow-r)"/>
+  <text x="480" y="146" text-anchor="middle" class="flow-lbl">DepositReady</text>
+  <text x="480" y="170" text-anchor="middle" class="wire">DepositPayload (44+N B)</text>
+
+  <line x1="560" y1="186" x2="400" y2="186" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow-l)"/>
+  <text x="480" y="200" text-anchor="middle" class="flow-lbl">WithdrawalRoot</text>
+
+  <!-- Row 2: Messaging -->
+  <g filter="url(#card)">
+    <rect x="60" y="232" width="340" height="80" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
+    <text x="230" y="256" text-anchor="middle" class="card-title" fill="#1e2a55">MessageRouter</text>
+    <text x="230" y="274" text-anchor="middle" class="card-sub" fill="#3a4a82">L2 之间消息路由 · 规范哈希</text>
+    <text x="230" y="292" text-anchor="middle" class="card-sub" fill="#3a4a82">+ DARegistry（承诺）</text>
+  </g>
+
+  <g filter="url(#card)">
+    <rect x="560" y="232" width="340" height="80" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="730" y="256" text-anchor="middle" class="card-title" fill="#1d4d2c">L2MessageContract</text>
+    <text x="730" y="274" text-anchor="middle" class="card-sub" fill="#2f5e3c">从规范字节重新计算哈希</text>
+    <text x="730" y="292" text-anchor="middle" class="card-sub" fill="#2f5e3c">向接收者投递 payload</text>
+  </g>
+
+  <line x1="400" y1="265" x2="560" y2="265" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow-r)"/>
+  <text x="480" y="258" text-anchor="middle" class="flow-lbl">InboundMessage</text>
+  <text x="480" y="282" text-anchor="middle" class="wire">MessageHasher 规范字节</text>
+
+  <line x1="560" y1="298" x2="400" y2="298" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow-l)"/>
+  <text x="480" y="312" text-anchor="middle" class="flow-lbl">OutboundMessage（在下个批次中）</text>
+
+  <!-- Row 3: Settlement -->
+  <g filter="url(#card)">
+    <rect x="60" y="344" width="340" height="80" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
+    <text x="230" y="368" text-anchor="middle" class="card-title" fill="#1e2a55">SettlementManager</text>
+    <text x="230" y="386" text-anchor="middle" class="card-sub" fill="#3a4a82">接收批次 · 经 VerifierRegistry 验证</text>
+    <text x="230" y="404" text-anchor="middle" class="card-sub" fill="#3a4a82">触发 SettlementAccepted 事件</text>
+  </g>
+
+  <g filter="url(#card)">
+    <rect x="560" y="344" width="340" height="80" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="730" y="368" text-anchor="middle" class="card-title" fill="#1d4d2c">L2BatchInfoContract</text>
+    <text x="730" y="386" text-anchor="middle" class="card-sub" fill="#2f5e3c">L2 本地游标 + 最近结算批次引用</text>
+    <text x="730" y="404" text-anchor="middle" class="card-sub" fill="#2f5e3c">L2 dApp 用于查询"L1 是否已同步？"</text>
+  </g>
+
+  <line x1="560" y1="385" x2="400" y2="385" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow-l)"/>
+  <text x="480" y="378" text-anchor="middle" class="flow-lbl">BatchCommitment + 证明</text>
+  <text x="480" y="400" text-anchor="middle" class="wire">BatchSerializer (321+N B)</text>
+
+  <text x="480" y="464" text-anchor="middle" class="flow-lbl" fill="#3f5193">每个数据流都有唯一的规范线格式 · 两端从字节重新计算哈希</text>
+  <text x="480" y="482" text-anchor="middle" class="flow-lbl" fill="#3f5193">—— 不存在线外信任。字节布局详见 architecture-wire-formats.md。</text>
+
+</svg>

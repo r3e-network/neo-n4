@@ -199,7 +199,7 @@ subcommands.
 | Crate                       | Role                                             |
 | --------------------------- | ------------------------------------------------ |
 | `neo-zkvm-host`             | Rust binary (sp1-sdk 6.0): `prove-batch daemon --watch <dir>` is the production prover. Also exposes lib API (`execute()` / `prove()` / `verify()`) for callers that want the proof inline. |
-| `neo-bridge-watcher-eth`    | Rust crate: messaging + signing core for the **entire EVM family** ↔ Neo external bridge. Same daemon binary serves Ethereum, Tron, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche, Linea, zkSync, Scroll, Mantle, Fantom, Celo — chain-id is a config field, not a code dimension. Canonical `ExternalCrossChainMessage` encoder (byte-for-byte parity with C# `Neo.L2.Messaging.ExternalMessageHasher`) + `NeoProofBytes` / `EthProofBytes` encoders (same signatures, two wire formats) + curve-agnostic `Signer` trait + `WatcherCore<S, ES, NS, J>` orchestration that pins the safety invariant *cursor MUST NOT advance on submit failure*. 29 tests including parity vectors, chain-id table validity, and end-to-end mock-driven failure-recovery scenarios. Live JSON-RPC adapters (`EthRpcEventSource` + `NeoRpcSubmitter` + `FileJournal`) ship behind the `live-rpc` feature; daemon binary `neo-bridge-watcher-eth` runs the wired-up loop with TOML config + exponential backoff. |
+| `neo-bridge-watcher-eth`    | Rust crate: messaging + signing core for the **entire EVM family** ↔ Neo external bridge. Same daemon binary serves Ethereum, Tron, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche, Linea, zkSync, Scroll, Mantle, Fantom, Celo — chain-id is a config field, not a code dimension. Canonical `ExternalCrossChainMessage` encoder (byte-for-byte parity with C# `Neo.L2.Messaging.ExternalMessageHasher`) + `NeoProofBytes` / `EthProofBytes` encoders (same signatures, two wire formats) + curve-agnostic `Signer` trait + `WatcherCore<S, ES, NS, J>` orchestration that pins the safety invariant *cursor MUST NOT advance on submit failure*. 32 base tests + 42 live-RPC integration tests = 74 with `--features live-rpc`. **Production daemon ships a complete operational story**: graceful SIGTERM/SIGINT shutdown (~100ms exit via `interruptible_sleep` + async-signal-safe handler), `flock(LOCK_EX | LOCK_NB)`-based concurrent-instance detection on the journal directory, per-chain `min_confirmations` reorg buffer with `chains::recommended_confirmations` operator-warning at startup, and an HTTP server exposing `/healthz` (200/503), `/info` (always 200), and `/metrics` (9 Prometheus-format gauges + counters). Reference k8s + systemd manifests in `watchers/neo-bridge-watcher-eth/deploy/` (Deployment + Service + ConfigMap + Secret + PVC; ClusterIP service so health/metrics don't leak chain id + journal cursor + last error to the public internet). |
 | `neo-bridge-watcher-tron`   | Rust crate: thin re-export of `neo-bridge-watcher-eth` with Tron-specific chain-id constants (`TRON_MAINNET_CHAIN_ID = 0xE000_0010` + Nile/Shasta testnets). Tron uses the same secp256k1+SHA256 + Keccak256 address derivation as Ethereum, so no separate messaging or signing core is needed — confirmation that the Phase-B abstractions were chain-agnostic at the right level. 7 tests pin chain-id namespacing + cross-chain hash distinctness. |
 | `neo-bridge-watcher-sol`    | Rust crate: `Ed25519FileSigner` implementing `Signer` with `curve_tag = 2` (vs Eth/Tron's 1) — validates the curve-agnostic refactor. Solana chain-ids (`0xE000_0020..2F`). On-chain dispatch flows to `CryptoLib.VerifyWithEd25519` per the registered curveTag. Per `doc.md` §11.3.4, Solana stays MPC-committee-only (Tower BFT light client is too expensive on-chain); the committee model handles Solana via the same trait surface. 9 tests including real `ed25519-dalek` sign+verify and a `Vec<Box<dyn Signer>>` polymorphism check. |
 
@@ -246,13 +246,20 @@ External-bridge stack (doc.md §11.3 — cross-foreign-chain to Eth/Tron/Sol):
 
 ### Tests
 
-**1362 .NET tests across 33 projects, plus 105 cross-language tests
-(15 TypeScript + 10 Rust SDK + 8 SP1 guest host-mode + 45 Rust bridge
-watcher core across 3 crates [eth: 29 incl. 5 chain-id-table tests,
-tron: 7, sol: 9] + 20 Foundry Solidity tests for
-`NeoExternalBridgeRouter` [13 single-chain + 7 multi-chain validating
-the router deploys unchanged across the entire EVM family]) —
-all green.** Phase-C
+**1362 .NET tests across 33 projects, plus 143 cross-language tests
+(15 TypeScript + 10 Rust SDK + 8 SP1 guest host-mode + 90 Rust bridge
+watcher core across 3 crates [eth: 74 with `live-rpc` — base 32 +
+11 live JSON-RPC integration tests against an in-process
+`FakeRpcServer` exercising `EthRpcEventSource`+`NeoRpcSubmitter`
+through real `reqwest::blocking` HTTP cycles, 9 stress + concurrency
+tests for `FileJournal` (large-volume replay, corrupt-cursor recovery,
+atomic-rename invariant, interleaved cursor+marks at scale,
+flock-based concurrent-instance detection), 9 tests for
+`HealthServer`+`/metrics` Prometheus exposition + per-chain
+confirmation-buffer tests; tron: 7; sol: 9] + 20 Foundry Solidity
+tests for `NeoExternalBridgeRouter` [13 single-chain + 7 multi-chain
+validating the router deploys unchanged across the entire EVM
+family]) — all green.** Phase-C
 real-crypto fraud-proof tests (7 of the 1362 .NET) pin the
 equivocation slash path's bytes-on-the-wire contract end-to-end with
 real secp256k1 signatures.

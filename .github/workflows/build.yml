@@ -256,8 +256,18 @@ jobs:
         id: cache-sp1
         uses: actions/cache@v4
         with:
-          path: ~/.sp1
-          key: sp1-toolchain-v6.0-${{ runner.os }}
+          # `~/.sp1/` holds the sp1up + cargo-prove binaries.
+          # `~/.rustup/toolchains/succinct/` holds the custom rustup
+          # toolchain sp1up installs (used by `cargo +succinct` /
+          # `cargo prove build`). Caching only ~/.sp1/ left the
+          # toolchain absent on cache hit, which produced
+          # 'override toolchain succinct is not installed' from
+          # cargo prove build.
+          path: |
+            ~/.sp1
+            ~/.rustup/toolchains/succinct
+            ~/.rustup/update-hashes/succinct
+          key: sp1-toolchain-v6.1-${{ runner.os }}
 
       - name: Install SP1 toolchain (sp1up + cargo-prove)
         if: steps.cache-sp1.outputs.cache-hit != 'true'

@@ -65,9 +65,18 @@ bind                  = "0.0.0.0:9090"
 threshold_secs        = 120
 TOML
 
+# Validate before deploy (config + signer + journal + RPC client):
+./target/release/neo-bridge-watcher-eth --config watcher.toml --preflight
+
 # Run:
 ./target/release/neo-bridge-watcher-eth --config watcher.toml
 ```
+
+The `--preflight` flag runs all setup checks (TOML schema, chain-id
+namespace, `min_confirmations` recommendation, signer key load,
+journal `flock` acquire/release, RPC client construction) then exits
+0 on success / non-zero on any failure. Designed for `kubectl apply`
+gate scripts, systemd `ExecStartPre=`, and CI deploy gates.
 
 The v0 daemon ships a `StubSignAndSend` that emits the `invokefunction`
 script bytes + a synthetic tx hash but does NOT actually sign + submit

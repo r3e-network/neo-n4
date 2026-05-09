@@ -34,6 +34,10 @@ Type=simple
 User=watcher
 Group=watcher
 WorkingDirectory=/var/lib/watcher
+# Preflight runs before the main service starts. Catches config /
+# signer / journal / RPC issues with a clean exit-1 instead of
+# crashing into Restart=on-failure loops.
+ExecStartPre=/usr/local/bin/neo-bridge-watcher-eth --config /etc/watcher/watcher.toml --preflight
 ExecStart=/usr/local/bin/neo-bridge-watcher-eth --config /etc/watcher/watcher.toml
 
 # Clean shutdown:

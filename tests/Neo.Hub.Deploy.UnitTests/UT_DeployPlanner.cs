@@ -204,9 +204,10 @@ public class UT_DeployPlanner
         var plan = ScaffoldPlan.Default();
         // 13 core NeoHub contracts + 2 fraud verifiers (Governance v1/v2 +
         // RestrictedExecution v3) + 4 external-bridge contracts (doc.md
-        // §11.3: MpcCommitteeVerifier, ExternalBridgeRegistry,
-        // ExternalBridgeEscrow, ExternalBridgeBond) = 19.
-        Assert.AreEqual(19, plan.Steps.Count);
+        // §11.3 Phase B: MpcCommitteeVerifier, ExternalBridgeRegistry,
+        // ExternalBridgeEscrow, ExternalBridgeBond) + 1 Phase-C
+        // (MpcCommitteeFraudVerifier — slashes equivocating members) = 20.
+        Assert.AreEqual(20, plan.Steps.Count);
         var names = plan.Steps.Select(s => s.Name).ToHashSet();
         Assert.IsTrue(names.Contains("GovernanceFraudVerifier"));
         Assert.IsTrue(names.Contains("RestrictedExecutionFraudVerifier"));
@@ -233,6 +234,7 @@ public class UT_DeployPlanner
         Assert.IsTrue(names.Contains("ExternalBridgeRegistry"));
         Assert.IsTrue(names.Contains("ExternalBridgeEscrow"));
         Assert.IsTrue(names.Contains("ExternalBridgeBond"));
+        Assert.IsTrue(names.Contains("MpcCommitteeFraudVerifier"));
     }
 
     [TestMethod]
@@ -367,8 +369,10 @@ public class UT_DeployPlanner
         var plan = ScaffoldPlan.Default();
         var bundle = DeployPlanner.Plan(plan, name => H((byte)(name.Length & 0xFF)));
         var actions = ScaffoldPlan.PostDeployActions(bundle).ToList();
-        // 5 original (Phase 0–3) + 4 external-bridge wiring hints = 9.
-        Assert.AreEqual(9, actions.Count);
+        // 5 original (Phase 0–3) + 3 external-bridge gov/setup hints +
+        // 2 Phase-C wiring hints (RegisterSlasher + RegisterCommitteeWithMembers
+        // pointer) = 10.
+        Assert.AreEqual(10, actions.Count);
 
         // 1. SequencerBond.RegisterSlasher(OptimisticChallenge) — Phase-3 cycle-break.
         StringAssert.Contains(actions[0], "SequencerBond.RegisterSlasher");
@@ -411,9 +415,13 @@ public class UT_DeployPlanner
         StringAssert.Contains(actions[7], "RegisterVerifier");
         StringAssert.Contains(actions[7], "0xE0000001");
 
-        // 9. Phase-C reminder for ExternalBridgeBond slasher.
+        // 9. Phase-C: ExternalBridgeBond.RegisterSlasher(MpcCommitteeFraudVerifier).
         StringAssert.Contains(actions[8], "ExternalBridgeBond.RegisterSlasher");
         StringAssert.Contains(actions[8], "MpcCommitteeFraudVerifier");
+
+        // 10. Phase-C: per-chain RegisterCommitteeWithMembers pointer.
+        StringAssert.Contains(actions[9], "RegisterCommitteeWithMembers");
+        StringAssert.Contains(actions[9], "MpcCommitteeFraudVerifier");
     }
 
     [TestMethod]

@@ -45,6 +45,11 @@ public class MpcCommitteeVerifierContract : SmartContract
     private const byte PrefixConsumedNonce = 0x02;
     private const byte KeyGovernanceController = 0x03;
     private const byte PrefixConsumedProposal = 0x04;
+    /// <summary>0x05 + externalChainId(4B LE) + signerIdx(1B) → UInt160 member.
+    /// Populated by <see cref="RegisterCommitteeWithMembers"/>; required for
+    /// the Phase-C <c>NeoHub.MpcCommitteeFraudVerifier</c> to slash a
+    /// specific committee member's bond on equivocation.</summary>
+    private const byte PrefixSignerMember = 0x05;
     private const byte KeyOwner = 0xFF;
 
     /// <summary>secp256k1 + SHA256 hashing — Ethereum / Tron watchers sign this curve.</summary>
@@ -114,6 +119,25 @@ public class MpcCommitteeVerifierContract : SmartContract
         WriteCommittee(externalChainId, threshold, curveTag, committeeBlob);
     }
 
+    /// <summary>
+    /// Same as <see cref="RegisterCommittee"/> but also binds each signer index
+    /// to a Neo-side bond-holder address. Required for the Phase-C
+    /// <c>NeoHub.MpcCommitteeFraudVerifier</c>: when proving equivocation, the
+    /// fraud verifier needs to know which Neo address holds the equivocator's
+    /// bond on <c>NeoHub.ExternalBridgeBond</c>. Without this binding, the
+    /// fraud verifier refuses to slash (bond holder is unknown).
+    /// </summary>
+    /// <param name="memberBlob">Concatenated 20-byte UInt160 member addresses,
+    /// in the same order as <paramref name="committeeBlob"/>'s pubkeys
+    /// (signerIdx 0 → first pubkey + first member, etc.).</param>
+    public static void RegisterCommitteeWithMembers(
+        uint externalChainId, byte threshold, byte curveTag,
+        byte[] committeeBlob, byte[] memberBlob)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        WriteCommitteeWithMembers(externalChainId, threshold, curveTag, committeeBlob, memberBlob);
+    }
+
     /// <summary>Governance-mediated committee registration with replay protection.</summary>
     public static void RegisterCommitteeViaProposal(
         uint externalChainId, byte threshold, byte curveTag, byte[] committeeBlob, ulong proposalId)
@@ -155,6 +179,17 @@ public class MpcCommitteeVerifierContract : SmartContract
         if (raw == null || raw.Length < 3) return new byte[0];
         var b = (byte[])raw;
         return new byte[] { b[0], b[1], b[2] };
+    }
+
+    /// <summary>Read the bond-holder member address bound to a signer slot,
+    /// or <see cref="UInt160.Zero"/> if no binding has been registered. The
+    /// Phase-C fraud verifier reads this to decide whose bond to slash on
+    /// proven equivocation; refuses to slash if zero.</summary>
+    [Safe]
+    public static UInt160 GetSignerMember(uint externalChainId, byte signerIdx)
+    {
+        var raw = Storage.Get(SignerMemberKey(externalChainId, signerIdx));
+        return raw == null ? UInt160.Zero : (UInt160)raw;
     }
 
     /// <summary>
@@ -311,6 +346,44 @@ public class MpcCommitteeVerifierContract : SmartContract
         for (var i = 0; i < committeeBlob.Length; i++) stored[3 + i] = committeeBlob[i];
         Storage.Put(CommitteeKey(externalChainId), stored);
         OnCommitteeRegistered(externalChainId, threshold, (byte)size, curveTag);
+    }
+
+    private static void WriteCommitteeWithMembers(
+        uint externalChainId, byte threshold, byte curveTag,
+        byte[] committeeBlob, byte[] memberBlob)
+    {
+        // Validate committee blob via the existing path first; size/curveTag
+        // checks set the invariants the member-blob validation relies on.
+        WriteCommittee(externalChainId, threshold, curveTag, committeeBlob);
+
+        var keyLen = curveTag == CurveSecp256k1 ? 33 : 32;
+        var size = committeeBlob.Length / keyLen;
+        ExecutionEngine.Assert(memberBlob != null, "memberBlob is null");
+        ExecutionEngine.Assert(memberBlob!.Length == size * 20,
+            "memberBlob length must be size × 20 (one 20-byte member per signer)");
+
+        // Write per-signer member binding. Slot i ↔ pubkey at committee
+        // offset (3 + i*keyLen) ↔ member at memberBlob offset (i*20).
+        for (var i = 0; i < size; i++)
+        {
+            var member = new byte[20];
+            for (var j = 0; j < 20; j++) member[j] = memberBlob[i * 20 + j];
+            ExecutionEngine.Assert(((UInt160)member).IsValid && !((UInt160)member).IsZero,
+                "memberBlob slot is invalid or zero address");
+            Storage.Put(SignerMemberKey(externalChainId, (byte)i), member);
+        }
+    }
+
+    private static byte[] SignerMemberKey(uint externalChainId, byte signerIdx)
+    {
+        var k = new byte[1 + 4 + 1];
+        k[0] = PrefixSignerMember;
+        k[1] = (byte)externalChainId;
+        k[2] = (byte)(externalChainId >> 8);
+        k[3] = (byte)(externalChainId >> 16);
+        k[4] = (byte)(externalChainId >> 24);
+        k[5] = signerIdx;
+        return k;
     }
 
     private static byte[] CommitteeKey(uint externalChainId)

@@ -146,8 +146,10 @@ public static class ScaffoldPlan
                 // ExternalBridgeBond mirrors SequencerBond — owner + bondAsset
                 // (canonical GAS hash on the target L1; operator-substituted
                 // exactly like SequencerBond's BOND_ASSET_REPLACE_ME). The
-                // slasher set defaults to GovernanceController; Phase C will
-                // add MpcCommitteeFraudVerifier as a slasher post-deploy.
+                // slasher set defaults to empty; the deploy bundle's
+                // post-deploy hint reminds the operator to call
+                // ExternalBridgeBond.RegisterSlasher(MpcCommitteeFraudVerifier)
+                // once that contract is deployed below.
                 Step("ExternalBridgeBond",
                     "contracts/NeoHub.ExternalBridgeBond/bin/Release/NeoHub.ExternalBridgeBond.nef",
                     new JArray
@@ -155,6 +157,27 @@ public static class ScaffoldPlan
                         "OWNER_REPLACE_ME",
                         "BOND_ASSET_REPLACE_ME",
                     }),
+
+                // MpcCommitteeFraudVerifier (Phase C) — slashes equivocating
+                // committee members. Depends on the verifier contract (to
+                // read committee + per-signer member binding) AND the bond
+                // contract (to call Slash). Deploy AFTER both. The operator
+                // also has to:
+                //   1. Call ExternalBridgeBond.RegisterSlasher(this) so
+                //      Slash calls from this contract are accepted.
+                //   2. Use MpcCommitteeVerifier.RegisterCommitteeWithMembers
+                //      (NOT plain RegisterCommittee) when wiring foreign
+                //      chains — the binding is required to identify which
+                //      member to slash.
+                Step("MpcCommitteeFraudVerifier",
+                    "contracts/NeoHub.MpcCommitteeFraudVerifier/bin/Release/NeoHub.MpcCommitteeFraudVerifier.nef",
+                    new JArray
+                    {
+                        "OWNER_REPLACE_ME",
+                        "$step:MpcCommitteeVerifier",
+                        "$step:ExternalBridgeBond",
+                    },
+                    "MpcCommitteeVerifier", "ExternalBridgeBond"),
             },
         };
     }
@@ -221,6 +244,7 @@ public static class ScaffoldPlan
         var extRegistry = bundle.Invocations.FirstOrDefault(i => i.Name == "ExternalBridgeRegistry");
         var extEscrow = bundle.Invocations.FirstOrDefault(i => i.Name == "ExternalBridgeEscrow");
         var extBond = bundle.Invocations.FirstOrDefault(i => i.Name == "ExternalBridgeBond");
+        var fraudVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "MpcCommitteeFraudVerifier");
 
         if (bond is not null && oc is not null)
         {
@@ -276,12 +300,26 @@ public static class ScaffoldPlan
             // registered for externalChainId" on first inbound message.
             yield return $"# Per supported foreign chain (e.g. Eth=0xE0000001, Sepolia=0xE0000002): run `neo-external-bridge committee-blob` + `neo-external-bridge deploy-bundle` to register the committee on {mpcVerifier.Name} and bind it to {extRegistry.Name} via RegisterVerifier(externalChainId, mpcVerifier.Hash, bridgeKindMpc=1).";
         }
-        if (extEscrow is not null && extBond is not null)
+        if (fraudVerifier is not null && extBond is not null)
         {
-            // Phase-C reminder. ExternalBridgeBond's slasher seam is
-            // currently owner-only; once MpcCommitteeFraudVerifier ships
-            // (Phase C) it goes here as a registered slasher.
-            yield return $"# Phase-C reminder: when MpcCommitteeFraudVerifier deploys, call {extBond.Name}.RegisterSlasher(MpcCommitteeFraudVerifier) so equivocation challenges can slash the bond.";
+            // Phase-C wiring step (replaces the deferred reminder from
+            // earlier iterations). The fraud verifier IS a contract now —
+            // operator MUST register it as a slasher or proven equivocations
+            // can't actually take the bond.
+            yield return $"{extBond.Name}.RegisterSlasher({fraudVerifier.Name})  # Phase-C: lets MpcCommitteeFraudVerifier.Slash() take the equivocator's bond after proving equivocation cryptographically";
+        }
+        else if (extEscrow is not null && extBond is not null)
+        {
+            // No fraud verifier in the bundle — bond is owner-only-slashable
+            // (devnet path). Surface so the operator knows the security model.
+            yield return $"# Note: {extBond.Name} is owner-only-slashable in this bundle (no MpcCommitteeFraudVerifier). For trust-minimized slashing of equivocating committee members, deploy MpcCommitteeFraudVerifier and call {extBond.Name}.RegisterSlasher(MpcCommitteeFraudVerifier).";
+        }
+        if (mpcVerifier is not null && fraudVerifier is not null)
+        {
+            // The fraud verifier reads per-signer member bindings to know
+            // whose bond to slash. Without RegisterCommitteeWithMembers, it
+            // refuses to slash even on valid equivocation proof.
+            yield return $"# Per supported foreign chain: use {mpcVerifier.Name}.RegisterCommitteeWithMembers (NOT plain RegisterCommittee) so {fraudVerifier.Name} can identify which bond holder to slash on proven equivocation.";
         }
     }
 

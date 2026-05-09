@@ -14,6 +14,28 @@ applying.
 
 ## Build the image
 
+### Pre-built image (CI-published)
+
+The CI pipeline at
+`.github/workflows/build-watcher-image.yml` builds + publishes the
+image on every master push (and on manual dispatch) to:
+
+```
+ghcr.io/r3e-network/neo-bridge-watcher-eth:latest      # master HEAD
+ghcr.io/r3e-network/neo-bridge-watcher-eth:master      # same as above
+ghcr.io/r3e-network/neo-bridge-watcher-eth:sha-abc1234 # 7-char short SHA
+```
+
+Operators with read access to the public registry just `docker pull`:
+
+```bash
+docker pull ghcr.io/r3e-network/neo-bridge-watcher-eth:latest
+```
+
+Update the k8s manifest's `image:` field to match.
+
+### Local build
+
 ```bash
 # From the workspace root (NOT from this directory — cargo workspace
 # resolution needs the root Cargo.toml + sibling crates).
@@ -21,16 +43,17 @@ docker build \
     -f watchers/neo-bridge-watcher-eth/Dockerfile \
     -t neo-bridge-watcher-eth:latest .
 
-# Tag for your registry (replace ghcr.io/r3e-network with yours):
+# Tag for your own registry:
 docker tag neo-bridge-watcher-eth:latest \
-    ghcr.io/r3e-network/neo-bridge-watcher-eth:latest
-docker push ghcr.io/r3e-network/neo-bridge-watcher-eth:latest
+    your-registry.example.com/neo-bridge-watcher-eth:latest
+docker push your-registry.example.com/neo-bridge-watcher-eth:latest
 ```
 
 The `.dockerignore` at the workspace root keeps the build context
-lean (excludes `target/`, `external/`, `.git/`, .NET artifacts, etc.).
-First build pulls Rust deps fresh — usually 8–15 minutes;
-subsequent builds use Docker layer caching.
+lean (excludes `target/`, most of `external/`, `.git/`, .NET artifacts,
+etc.; preserves `external/neo-zkvm` which a sibling workspace member
+has a path dep on). First build pulls Rust deps fresh — usually
+8–15 minutes; subsequent builds use Docker layer caching.
 
 ## Run with `docker`
 

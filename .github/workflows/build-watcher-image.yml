@@ -1,0 +1,116 @@
+# Build + publish the neo-bridge-watcher-eth Docker image to GHCR.
+#
+# Triggers:
+#   - push to master (only when watcher source / Dockerfile / lockfile
+#     change — the path filter keeps unrelated changes from rebuilding
+#     a 10+ minute image)
+#   - manual dispatch (operator-triggered rebuild without a code change)
+#
+# Tags published:
+#   - ghcr.io/r3e-network/neo-bridge-watcher-eth:latest (master only)
+#   - ghcr.io/r3e-network/neo-bridge-watcher-eth:<short-sha>
+#   - ghcr.io/r3e-network/neo-bridge-watcher-eth:master
+#
+# The image is multi-stage (rust:1.83-slim builder → distroless
+# cc-debian12 runtime, ~50 MB final). See
+# `watchers/neo-bridge-watcher-eth/Dockerfile` for the build details.
+
+name: build-watcher-image
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "watchers/neo-bridge-watcher-eth/**"
+      - "watchers/neo-bridge-watcher-tron/**"  # transitive (re-exports eth)
+      - "watchers/neo-bridge-watcher-sol/**"   # transitive (re-exports eth)
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".dockerignore"
+      - ".github/workflows/build-watcher-image.yml"
+  workflow_dispatch:
+
+# Only one image build at a time per ref — back-to-back commits skip
+# the older one's build instead of racing.
+concurrency:
+  group: build-watcher-image-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write   # ghcr.io publish
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/neo-bridge-watcher-eth
+
+jobs:
+  build-and-push:
+    name: build + push to ghcr
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v6
+        with:
+          # bridge/neo-zkvm-guest has a path dep on
+          # external/neo-zkvm/crates/neo-vm-guest, which lives in a
+          # submodule. Without it, cargo workspace metadata
+          # resolution fails inside the docker build. The
+          # .dockerignore preserves this submodule + excludes the
+          # rest.
+          submodules: recursive
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags + labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # `latest` only on master; the branch tag + sha tag always
+          # get published. Sha tag uses the 7-char short form.
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
+            type=ref,event=branch
+            type=sha,format=short
+          # OCI labels — match what's in the Dockerfile but with the
+          # actual git ref + revision substituted by the action.
+          labels: |
+            org.opencontainers.image.title=neo-bridge-watcher-eth
+            org.opencontainers.image.description=External-bridge watcher daemon for the Neo Elastic Network (Eth/EVM family ↔ Neo)
+            org.opencontainers.image.licenses=MIT
+
+      - name: Build + push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: watchers/neo-bridge-watcher-eth/Dockerfile
+          # Push only on master + dispatch; PRs validate the build
+          # without polluting the registry.
+          push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Layer cache via GitHub Actions cache. First build is full
+          # ~10 min Rust compile; subsequent builds reuse the deps
+          # layer (~1-2 min) unless Cargo.lock changes.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Single platform — operators run on amd64. arm64 can be
+          # added later by appending `linux/arm64` to platforms.
+          platforms: linux/amd64
+
+      - name: Echo published tags
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "Published tags:"
+          echo "${{ steps.meta.outputs.tags }}"

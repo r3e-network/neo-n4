@@ -212,28 +212,9 @@ touches L1.
 The L1↔L2 boundary is itself a designed surface. Three flows cross
 it:
 
-```text
-   ┌──────────────────────┐                  ┌──────────────────────┐
-   │   L1 (NeoHub)        │                  │   L2 (per chain)     │
-   │                      │                  │                      │
-   │   SharedBridge       │ ── DepositReady ▶│  L2BridgeContract    │
-   │   (escrow)           │   (mint wrapped) │  (NEP-17 wrapped)    │
-   │                      │                  │                      │
-   │                      │◀ WithdrawalRoot ─│  (in batch's leaf)   │
-   │                      │   (claim later)  │                      │
-   │   ─────────          │                  │  ─────────           │
-   │                      │                  │                      │
-   │   MessageRouter      │ ── InboundMessage▶  L2MessageContract   │
-   │                      │  (canonical bytes)  (recompute hash)    │
-   │                      │                  │                      │
-   │                      │◀ OutboundMessage ─│ (in batch's root)   │
-   │                      │   (in next batch)│                      │
-   │   ─────────          │                  │                      │
-   │                      │                  │                      │
-   │   SettlementManager  │◀ BatchCommitment─│  L2BatchInfoContract │
-   │   (accept + verify)  │   + proof bytes   │  (per-L2 cursor)    │
-   └──────────────────────┘                  └──────────────────────┘
-```
+<p align="center">
+  <img src="figures/architecture/l1-l2-bridge.svg" alt="Three flows cross the L1↔L2 boundary: bridge (deposit + withdrawal), messaging (inbound + outbound), and settlement (batch commitment plus proof)" width="900">
+</p>
 
 **Each flow has a single canonical wire format** ([wire-formats
 chapter](./architecture-wire-formats.md)). Both endpoints recompute

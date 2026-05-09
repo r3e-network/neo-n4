@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 720" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">Trust boundary map — five cross-tier verifications</title>
+  <desc id="desc">Five trust boundaries in the Neo Elastic Network. Boundary A: user signs L1 transactions verified by dBFT 2.0 finality. Boundary B: NeoHub events read by L2 batcher with finality trust. Boundary C: batcher submits BatchCommitment plus proof to SettlementManager — the load-bearing trust boundary, with VerifierRegistry dispatching to RiscVZk, Multisig, or Optimistic verifiers. Boundary D: settled batch withdrawalRoot lets L1 user claim via Merkle proof. Boundary E (separate path): external chain to watcher to ExternalBridgeEscrow with M-of-N committee verification.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .b-label   { font-size: 12.5px; font-weight: 700; letter-spacing: 0.5px; fill: #c4413e; }
+      .b-sub     { font-size: 10.5px; fill: #88312e; }
+      .actor-t   { font-size: 13px; font-weight: 600; }
+      .actor-s   { font-size: 11px; }
+      .header    { font-size: 14px; font-weight: 700; }
+      .subheader { font-size: 11.5px; fill: #525a64; }
+      .trust-lbl { font-size: 10.5px; fill: #525a64; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect width="960" height="720" fill="#ffffff"/>
+
+  <!-- header -->
+  <text x="480" y="32" text-anchor="middle" class="header" fill="#1e2a55">Trust boundaries — who signs · who verifies · what's defended</text>
+  <text x="480" y="52" text-anchor="middle" class="subheader">5 cross-tier verifications · each boundary independently re-checked downstream (defense-in-depth)</text>
+
+  <!-- ──────────── L1 user (top) ──────────── -->
+  <g filter="url(#card)">
+    <rect x="180" y="80" width="600" height="50" rx="8" ry="8" fill="#ffffff" stroke="#7587c1" stroke-width="1.2"/>
+    <text x="480" y="100" text-anchor="middle" class="actor-t" fill="#1e2a55">L1 user · Neo wallet (NeoLine / Neon / NEP-6 / Ledger)</text>
+    <text x="480" y="118" text-anchor="middle" class="actor-s" fill="#3a4a82">trusts: their own key custody</text>
+  </g>
+
+  <line x1="480" y1="130" x2="480" y2="172" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <!-- Boundary A label -->
+  <rect x="40" y="148" width="900" height="22" rx="4" ry="4" fill="#fde8e8" stroke="#c4413e"/>
+  <text x="50" y="163" class="b-label">Boundary A · user → L1 NeoHub</text>
+  <text x="320" y="163" class="b-sub">enforced: dBFT 2.0 finality + Secp256r1 sig verification</text>
+
+  <!-- ──────────── NeoHub L1 ──────────── -->
+  <g filter="url(#card)">
+    <rect x="180" y="180" width="600" height="60" rx="8" ry="8" fill="#eff3ff" stroke="#7587c1" stroke-width="1.2"/>
+    <text x="480" y="202" text-anchor="middle" class="actor-t" fill="#1e2a55">NeoHub L1 contracts</text>
+    <text x="480" y="220" text-anchor="middle" class="actor-s" fill="#3a4a82">SharedBridge · MessageRouter · SettlementManager · ChainRegistry · ...</text>
+    <text x="480" y="234" text-anchor="middle" class="trust-lbl">emits Block.Committed events — read by L2 batcher</text>
+  </g>
+
+  <line x1="480" y1="240" x2="480" y2="284" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <!-- Boundary B label -->
+  <rect x="40" y="260" width="900" height="22" rx="4" ry="4" fill="#fde8e8" stroke="#c4413e"/>
+  <text x="50" y="275" class="b-label">Boundary B · NeoHub → L2 batcher (off-chain)</text>
+  <text x="375" y="275" class="b-sub">enforced: dBFT 2/3 honest-majority assumption</text>
+
+  <!-- ──────────── L2 batcher ──────────── -->
+  <g filter="url(#card)">
+    <rect x="180" y="294" width="600" height="60" rx="8" ry="8" fill="#f1ecf8" stroke="#7d59b3" stroke-width="1.2"/>
+    <text x="480" y="316" text-anchor="middle" class="actor-t" fill="#3e2865">L2 batcher (off-chain operator)</text>
+    <text x="480" y="334" text-anchor="middle" class="actor-s" fill="#5d4084">subscribes to Block.Committed · seals BatchCommitment · drives prover daemon</text>
+    <text x="480" y="348" text-anchor="middle" class="trust-lbl">submits proven batch back to L1</text>
+  </g>
+
+  <line x1="480" y1="354" x2="480" y2="398" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <!-- Boundary C label (the load-bearing one) -->
+  <rect x="40" y="374" width="900" height="22" rx="4" ry="4" fill="#fde8e8" stroke="#c4413e" stroke-width="1.5"/>
+  <text x="50" y="389" class="b-label">Boundary C · batcher → SettlementManager (LOAD-BEARING)</text>
+  <text x="475" y="389" class="b-sub">enforced: VerifierRegistry → proofType-specific verifier (RiscVZk · Multisig · Optimistic)</text>
+
+  <!-- ──────────── SettlementManager + verifier dispatch ──────────── -->
+  <g filter="url(#card)">
+    <rect x="180" y="408" width="600" height="80" rx="8" ry="8" fill="#eff3ff" stroke="#7587c1" stroke-width="1.5"/>
+    <text x="480" y="430" text-anchor="middle" class="actor-t" fill="#1e2a55">SettlementManager + VerifierRegistry</text>
+    <text x="480" y="448" text-anchor="middle" class="actor-s" fill="#3a4a82">recomputes publicInputHash from on-chain commitment fields</text>
+    <text x="480" y="464" text-anchor="middle" class="actor-s" fill="#3a4a82">dispatches by proofType — RiscVZk (math) · Multisig (M-of-N) · Optimistic (game)</text>
+    <text x="480" y="481" text-anchor="middle" class="trust-lbl">accepted batch = L1-final state root for this L2</text>
+  </g>
+
+  <line x1="480" y1="488" x2="480" y2="532" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <!-- Boundary D label -->
+  <rect x="40" y="508" width="900" height="22" rx="4" ry="4" fill="#fde8e8" stroke="#c4413e"/>
+  <text x="50" y="523" class="b-label">Boundary D · settled batch → L2 user (withdrawal)</text>
+  <text x="430" y="523" class="b-sub">enforced: hash collision-resistance against the batch's withdrawalRoot</text>
+
+  <!-- ──────────── L1 user claim ──────────── -->
+  <g filter="url(#card)">
+    <rect x="180" y="542" width="600" height="50" rx="8" ry="8" fill="#ffffff" stroke="#7587c1" stroke-width="1.2"/>
+    <text x="480" y="562" text-anchor="middle" class="actor-t" fill="#1e2a55">L1 user claims withdrawal via Merkle proof</text>
+    <text x="480" y="580" text-anchor="middle" class="actor-s" fill="#3a4a82">SharedBridge.VerifyWithdrawalLeafWithProof → release asset</text>
+  </g>
+
+  <!-- ──────────── Boundary E (separate column / footer) ──────────── -->
+  <line x1="40" y1="608" x2="920" y2="608" stroke="#cfd5dd" stroke-dasharray="3 3" stroke-width="1"/>
+
+  <text x="50" y="630" class="b-label" font-size="11.5">Boundary E (separate path) · external chain (Eth/Tron/Solana) → committee → ExternalBridgeEscrow</text>
+  <text x="50" y="648" class="b-sub" font-size="10.5">enforced: M-of-N committee signed canonical ExternalCrossChainMessage · MpcCommitteeVerifier · ExternalBridgeBond slashing on equivocation</text>
+  <text x="50" y="666" class="b-sub" font-size="10.5">trust = M-of-N committee (slashable bonds) · Phase D replaces with ZK light client of the foreign chain</text>
+
+  <!-- footer note -->
+  <text x="480" y="700" text-anchor="middle" class="trust-lbl" fill="#525a64">Same canonical bytes get re-hashed at every boundary — bytes commit to themselves; no off-wire trust.</text>
+
+</svg>

@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 760" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">Neo Elastic Network — Four-tier system topology</title>
+  <desc id="desc">Four-tier topology: Tier 1 NeoHub L1 anchor with 21 contracts. Tier 2 optional Neo Gateway for proof aggregation. Tier 3 elastic L2 chains running Neo 4 core plus 8 plugins plus 7 native contracts. Tier 4 off-chain operators including sequencer, batcher, prover daemon, DA writer, and external-chain watchers.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .band-title { font-size: 12.5px; font-weight: 700; letter-spacing: 0.6px; }
+      .band-sub   { font-size: 11px; }
+      .card-title { font-size: 13px; font-weight: 600; }
+      .card-sub   { font-size: 10.5px; }
+      .edge-lbl   { font-size: 10.5px; font-style: italic; fill: #525a64; }
+      .ellipsis   { font-size: 16px; fill: #57606a; }
+    </style>
+  </defs>
+
+  <rect width="960" height="760" fill="#ffffff"/>
+
+  <!-- ============================================================== -->
+  <!--   TIER 1 · L1 NeoHub                                             -->
+  <!-- ============================================================== -->
+  <rect x="40" y="32" width="880" height="120" rx="10" ry="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.2"/>
+  <text x="58" y="56" class="band-title" fill="#1e2a55">TIER 1 · L1 ANCHOR (NEO N3 / NEO 4)</text>
+  <text x="58" y="74" class="band-sub" fill="#3f5193">Canonical agreement + economic security · settled batches · asset escrow · governance</text>
+
+  <g filter="url(#card)">
+    <rect x="62" y="92" width="836" height="46" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
+    <text x="480" y="113" text-anchor="middle" class="card-title" fill="#1e2a55">NeoHub — 20 production contracts (+ 1 testing stub)</text>
+    <text x="480" y="130" text-anchor="middle" class="card-sub" fill="#3a4a82">settlement · bridge · messaging · governance · security · external-bridge</text>
+  </g>
+
+  <!-- arrow tier 1 → tier 2 -->
+  <line x1="480" y1="152" x2="480" y2="184" stroke="#525a64" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="488" y="173" class="edge-lbl">sealed batches · proofs · cross-L2 routing · external bridge</text>
+
+  <!-- ============================================================== -->
+  <!--   TIER 2 · Neo Gateway (optional)                                -->
+  <!-- ============================================================== -->
+  <rect x="40" y="190" width="880" height="106" rx="10" ry="10" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.2"/>
+  <text x="58" y="214" class="band-title" fill="#7a4a14">TIER 2 · NEO GATEWAY (OPTIONAL — PHASE 5)</text>
+  <text x="58" y="232" class="band-sub" fill="#a96027">Proof aggregation across multiple L2s · single L1 settlement post per round</text>
+
+  <g filter="url(#card)">
+    <rect x="62" y="248" width="836" height="38" rx="6" ry="6" fill="#ffffff" stroke="#cd7c2e"/>
+    <text x="480" y="265" text-anchor="middle" class="card-title" fill="#7a4a14">BinaryTreeAggregator + 3 production IRoundProver impls</text>
+    <text x="480" y="280" text-anchor="middle" class="card-sub" fill="#a05a1a">log-N rounds · Multisig · MerklePath · PassThrough (recursive ZK plugs in)</text>
+  </g>
+
+  <!-- arrow tier 2 → tier 3 -->
+  <line x1="480" y1="296" x2="480" y2="332" stroke="#525a64" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="488" y="319" class="edge-lbl">runs the L2 plugins; produces batches</text>
+
+  <!-- ============================================================== -->
+  <!--   TIER 3 · L2 chains (N of them)                                 -->
+  <!-- ============================================================== -->
+  <rect x="40" y="338" width="880" height="208" rx="10" ry="10" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.2"/>
+  <text x="58" y="362" class="band-title" fill="#1d4d2c">TIER 3 · ELASTIC L2 CHAINS (N OF THEM)</text>
+  <text x="58" y="380" class="band-sub" fill="#2f5e3c">Neo 4 core (vendored) · 8 plugins · 7 native contracts — independent state, shared L1 anchor</text>
+
+  <!-- L2 chain A -->
+  <g filter="url(#card)">
+    <rect x="62" y="396" width="248" height="138" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="186" y="418" text-anchor="middle" class="card-title" fill="#1d4d2c">L2 chain A</text>
+    <line x1="86" y1="430" x2="286" y2="430" stroke="#9ec3ab" stroke-width="0.7"/>
+    <text x="186" y="450" text-anchor="middle" class="card-sub" fill="#2f5e3c">Neo 4 core (vendored)</text>
+    <text x="186" y="468" text-anchor="middle" class="card-sub" fill="#2f5e3c">+ 8 plugins (Batch · Settlement ·</text>
+    <text x="186" y="484" text-anchor="middle" class="card-sub" fill="#2f5e3c">Bridge · DA · Prover · Rpc ·</text>
+    <text x="186" y="500" text-anchor="middle" class="card-sub" fill="#2f5e3c">Gateway · Metrics)</text>
+    <text x="186" y="520" text-anchor="middle" class="card-sub" fill="#2f5e3c">+ 7 native contracts</text>
+  </g>
+
+  <!-- L2 chain B -->
+  <g filter="url(#card)">
+    <rect x="335" y="396" width="248" height="138" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="459" y="418" text-anchor="middle" class="card-title" fill="#1d4d2c">L2 chain B</text>
+    <line x1="359" y1="430" x2="559" y2="430" stroke="#9ec3ab" stroke-width="0.7"/>
+    <text x="459" y="468" text-anchor="middle" class="card-sub" fill="#2f5e3c" font-style="italic">(same shape; different</text>
+    <text x="459" y="484" text-anchor="middle" class="card-sub" fill="#2f5e3c" font-style="italic">chain config + executor)</text>
+  </g>
+
+  <!-- L2 chain C -->
+  <g filter="url(#card)">
+    <rect x="608" y="396" width="248" height="138" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="732" y="418" text-anchor="middle" class="card-title" fill="#1d4d2c">L2 chain C</text>
+    <line x1="632" y1="430" x2="832" y2="430" stroke="#9ec3ab" stroke-width="0.7"/>
+    <text x="732" y="468" text-anchor="middle" class="card-sub" fill="#2f5e3c" font-style="italic">(same shape; different</text>
+    <text x="732" y="484" text-anchor="middle" class="card-sub" fill="#2f5e3c" font-style="italic">chain config + executor)</text>
+  </g>
+
+  <text x="884" y="468" text-anchor="middle" class="ellipsis" fill="#57606a">...</text>
+
+  <!-- arrow tier 3 → tier 4 -->
+  <line x1="480" y1="546" x2="480" y2="580" stroke="#525a64" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="488" y="566" class="edge-lbl">subscribes to Block.Committed · seals batches · drives prover</text>
+
+  <!-- ============================================================== -->
+  <!--   TIER 4 · Off-chain operators                                   -->
+  <!-- ============================================================== -->
+  <rect x="40" y="586" width="880" height="148" rx="10" ry="10" fill="#f1ecf8" stroke="#7d59b3" stroke-width="1.2"/>
+  <text x="58" y="610" class="band-title" fill="#3e2865">TIER 4 · OFF-CHAIN OPERATORS (PER L2 + BRIDGE DAEMONS)</text>
+  <text x="58" y="628" class="band-sub" fill="#5d4084">Run the network · stateless except journals · pluggable trait surfaces (ITransactionExecutor / IDAWriter / IL2Prover / Signer)</text>
+
+  <!-- 5 op cards in a row -->
+  <g filter="url(#card)">
+    <rect x="62" y="644" width="158" height="74" rx="6" ry="6" fill="#ffffff" stroke="#7d59b3"/>
+    <text x="141" y="664" text-anchor="middle" class="card-title" fill="#3e2865">Sequencer</text>
+    <text x="141" y="684" text-anchor="middle" class="card-sub" fill="#5d4084">dBFT 2.0</text>
+    <text x="141" y="700" text-anchor="middle" class="card-sub" fill="#5d4084">consensus member</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="232" y="644" width="158" height="74" rx="6" ry="6" fill="#ffffff" stroke="#7d59b3"/>
+    <text x="311" y="664" text-anchor="middle" class="card-title" fill="#3e2865">Batcher</text>
+    <text x="311" y="684" text-anchor="middle" class="card-sub" fill="#5d4084">seals batches</text>
+    <text x="311" y="700" text-anchor="middle" class="card-sub" fill="#5d4084">+ submits to L1</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="402" y="644" width="158" height="74" rx="6" ry="6" fill="#ffffff" stroke="#7d59b3"/>
+    <text x="481" y="664" text-anchor="middle" class="card-title" fill="#3e2865">Prover daemon</text>
+    <text x="481" y="684" text-anchor="middle" class="card-sub" fill="#5d4084">SP1 zkVM</text>
+    <text x="481" y="700" text-anchor="middle" class="card-sub" fill="#5d4084">prove-batch</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="572" y="644" width="158" height="74" rx="6" ry="6" fill="#ffffff" stroke="#7d59b3"/>
+    <text x="651" y="664" text-anchor="middle" class="card-title" fill="#3e2865">DA writer</text>
+    <text x="651" y="684" text-anchor="middle" class="card-sub" fill="#5d4084">NeoFS · L1 · DAC</text>
+    <text x="651" y="700" text-anchor="middle" class="card-sub" fill="#5d4084">payload publish</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="742" y="644" width="158" height="74" rx="6" ry="6" fill="#ffffff" stroke="#7d59b3"/>
+    <text x="821" y="664" text-anchor="middle" class="card-title" fill="#3e2865">External watcher</text>
+    <text x="821" y="684" text-anchor="middle" class="card-sub" fill="#5d4084">Eth/EVM/Solana</text>
+    <text x="821" y="700" text-anchor="middle" class="card-sub" fill="#5d4084">→ Neo bridge</text>
+  </g>
+
+</svg>

@@ -31,49 +31,9 @@
 The Neo Elastic Network is **four tiers** of components plus the
 off-chain infrastructure that connects them:
 
-```text
-┌──────────────────────────────────────────────────────────────────────────┐
-│  TIER 1 · L1 anchor (Neo N3 / Neo 4)                                     │
-│  ┌────────────────────────────────────────────────────────────────────┐  │
-│  │  NeoHub — 20 contracts                                             │  │
-│  │  settlement · bridge · messaging · governance · external-bridge    │  │
-│  └────────────────────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────────────────┘
-                              ▲
-                              │  sealed batches · proofs · deposits ·
-                              │  cross-L2 message routing · external bridge
-                              │
-┌──────────────────────────────────────────────────────────────────────────┐
-│  TIER 2 · Neo Gateway (optional, Phase 5)                                │
-│  ┌────────────────────────────────────────────────────────────────────┐  │
-│  │  BinaryTreeAggregator   +   3 production IRoundProver impls        │  │
-│  │  (log-N rounds)             (Multisig · MerklePath · PassThrough)  │  │
-│  └────────────────────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────────────────┘
-                              ▲
-                              │  optional aggregation across multiple L2s
-                              │
-┌──────────────────────────────────────────────────────────────────────────┐
-│  TIER 3 · Elastic L2 chains (N of them)                                  │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐        │
-│  │  L2 chain A      │  │  L2 chain B      │  │  L2 chain C      │        │
-│  │  ──────────      │  │                  │  │                  │        │
-│  │  Neo 4 core      │  │                  │  │                  │   ...  │
-│  │  + 8 plugins     │  │                  │  │                  │        │
-│  │  + 7 natives     │  │                  │  │                  │        │
-│  └──────────────────┘  └──────────────────┘  └──────────────────┘        │
-└──────────────────────────────────────────────────────────────────────────┘
-                              ▲
-                              │  runs the L2 plugins; produces batches
-                              │
-┌──────────────────────────────────────────────────────────────────────────┐
-│  TIER 4 · Off-chain operators (per L2 + bridge daemons)                  │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌──────────────────┐   │
-│  │Sequencer│ │ Batcher │ │ Prover  │ │ DA writer│ │ External-chain   │   │
-│  │         │ │         │ │ daemon  │ │          │ │ watcher daemons  │   │
-│  └─────────┘ └─────────┘ └─────────┘ └──────────┘ └──────────────────┘   │
-└──────────────────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="figures/architecture/system-tiers.svg" alt="Four-tier topology: Tier 1 NeoHub L1 anchor, Tier 2 optional Neo Gateway, Tier 3 elastic L2 chains, Tier 4 off-chain operators" width="900">
+</p>
 
 **What flows where:**
 
@@ -95,32 +55,9 @@ off-chain infrastructure that connects them:
 
 The L1 anchor. **20 contracts** grouped by concern:
 
-```text
-    ┌──────────────────────┐  ┌──────────────────────┐  ┌─────────────────┐
-    │  Settlement          │  │  Bridge              │  │  Messaging      │
-    │  ──────────          │  │  ──────              │  │  ─────────      │
-    │  SettlementManager   │  │  SharedBridge        │  │  MessageRouter  │
-    │  VerifierRegistry    │  │  TokenRegistry       │  │  DARegistry     │
-    │                      │  │  ChainRegistry       │  │                 │
-    └──────────────────────┘  └──────────────────────┘  └─────────────────┘
-
-    ┌──────────────────────┐  ┌──────────────────────┐
-    │  Security            │  │  Governance          │
-    │  ────────            │  │  ──────────          │
-    │  SequencerRegistry   │  │  GovernanceController│
-    │  SequencerBond       │  │  EmergencyManager    │
-    │  ForcedInclusion     │  │                      │
-    │  OptimisticChallenge │  │                      │
-    └──────────────────────┘  └──────────────────────┘
-
-    ┌────────────────────────────────────────────────────────────────────┐
-    │  External Bridge (Phase B/C, doc.md §11.3)                         │
-    │  ─────────────                                                     │
-    │  MpcCommitteeVerifier   ExternalBridgeRegistry  ExternalBridgeBond │
-    │  ExternalBridgeEscrow   ExternalBridgeStubVerifier                 │
-    │  MpcCommitteeFraudVerifier                                         │
-    └────────────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="figures/architecture/neohub-anatomy.svg" alt="NeoHub L1 anatomy: contracts grouped into Settlement, Bridge, Messaging, Security, Governance, and External Bridge concerns" width="900">
+</p>
 
 Lives at `contracts/NeoHub.*` — every contract type-checks via
 `Neo.SmartContract.Framework`; CI compiles each with `nccs` and
@@ -463,7 +400,7 @@ channels — each runs on its own cadence:
     │                              │                 │                              │
     │   Blockchain                 │                 │                              │
     │       │                      │                 │                              │
-    │       │ Block.Committed       │                 │                              │
+    │       │ Block.Committed      │                 │                              │
     │       ▼                      │                 │                              │
     │   L2BatchPlugin ──seal──▶ ──┼──▶ off-chain     │                              │
     │       │              │     │   prover daemon  │                              │
@@ -492,9 +429,9 @@ For every L2 block:
         │              │                  │              │                   │
         │ Committed ───▶                  │              │                   │
         │              │── tx batch + ───▶│              │                   │
-        │              │   post-state-root │              │                   │
+        │              │   post-state-root │             │                   │
         │              │                  │              │                   │
-        │              │                  │ build       │                   │
+        │              │                  │ build        │                   │
         │              │                  │ BatchCommitment                  │
         │              │                  │ (canonical                       │
         │              │                  │ 32-byte fields)                  │
@@ -631,7 +568,7 @@ through the same SharedBridge surface. Architecturally:
                 │                            ┌─────────────────────────┐
                 │                            │  NeoHub L1              │
                 │                            │                         │
-                │              ┌────────────│  ExternalBridgeEscrow   │
+                │              ┌─────────────│  ExternalBridgeEscrow   │
                 │              │  burn/mint  │      │                  │
                 │              │  trigger    │      │ verify via       │
                 │              │             │      ▼                  │

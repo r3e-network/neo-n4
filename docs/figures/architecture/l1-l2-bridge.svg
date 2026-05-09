@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">The L1↔L2 bridge — three cross-tier flows</title>
+  <desc id="desc">Three flows cross the L1↔L2 boundary: SharedBridge sends DepositReady events to L2BridgeContract which mints wrapped assets, while L2 batches carry WithdrawalRoot back to L1 for user claims. MessageRouter routes InboundMessage to L2MessageContract which recomputes hashes; OutboundMessage flows in batches. SettlementManager accepts BatchCommitment plus proof bytes from L2BatchInfoContract, providing the per-L2 cursor.</desc>
+
+  <defs>
+    <marker id="arrow-r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <marker id="arrow-l" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M10,0 L0,5 L10,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .panel-title { font-size: 13.5px; font-weight: 700; letter-spacing: 0.5px; }
+      .panel-sub   { font-size: 11px; }
+      .card-title  { font-size: 12.5px; font-weight: 600; }
+      .card-sub    { font-size: 10.5px; }
+      .flow-lbl    { font-size: 11px; font-style: italic; fill: #2d3a48; }
+      .wire        { font-size: 10px; fill: #525a64; font-family: 'SF Mono', Monaco, Consolas, monospace; }
+      .header      { font-size: 14.5px; font-weight: 700; }
+    </style>
+  </defs>
+
+  <rect width="960" height="520" fill="#ffffff"/>
+
+  <!-- header -->
+  <text x="480" y="32" text-anchor="middle" class="header" fill="#1e2a55">L1 ↔ L2 connection — three independent flows · canonical wire formats</text>
+
+  <!-- L1 panel (left) -->
+  <rect x="40" y="60" width="380" height="430" rx="12" ry="12" fill="#eff3ff" stroke="#7587c1" stroke-width="1.5"/>
+  <text x="230" y="84" text-anchor="middle" class="panel-title" fill="#1e2a55">L1 · NEOHUB</text>
+  <text x="230" y="100" text-anchor="middle" class="panel-sub" fill="#3f5193">canonical agreement + economic security</text>
+
+  <!-- L2 panel (right) -->
+  <rect x="540" y="60" width="380" height="430" rx="12" ry="12" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.5"/>
+  <text x="730" y="84" text-anchor="middle" class="panel-title" fill="#1d4d2c">L2 · ELASTIC CHAIN</text>
+  <text x="730" y="100" text-anchor="middle" class="panel-sub" fill="#2f5e3c">execution + state + throughput</text>
+
+  <!-- ──── Row 1: Bridge (deposit/withdrawal) ──── -->
+  <g filter="url(#card)">
+    <rect x="60" y="120" width="340" height="80" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
+    <text x="230" y="144" text-anchor="middle" class="card-title" fill="#1e2a55">SharedBridge</text>
+    <text x="230" y="162" text-anchor="middle" class="card-sub" fill="#3a4a82">escrows L1 assets · releases on Merkle proof</text>
+    <text x="230" y="180" text-anchor="middle" class="card-sub" fill="#3a4a82">+ TokenRegistry · ChainRegistry</text>
+  </g>
+
+  <g filter="url(#card)">
+    <rect x="560" y="120" width="340" height="80" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="730" y="144" text-anchor="middle" class="card-title" fill="#1d4d2c">L2BridgeContract</text>
+    <text x="730" y="162" text-anchor="middle" class="card-sub" fill="#2f5e3c">mints wrapped NEP-17 on deposit</text>
+    <text x="730" y="180" text-anchor="middle" class="card-sub" fill="#2f5e3c">burns + records leaf on withdraw</text>
+  </g>
+
+  <!-- arrows row 1 -->
+  <line x1="400" y1="153" x2="560" y2="153" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow-r)"/>
+  <text x="480" y="146" text-anchor="middle" class="flow-lbl">DepositReady</text>
+  <text x="480" y="170" text-anchor="middle" class="wire">DepositPayload (44+N B)</text>
+
+  <line x1="560" y1="186" x2="400" y2="186" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow-l)"/>
+  <text x="480" y="200" text-anchor="middle" class="flow-lbl">WithdrawalRoot</text>
+
+  <!-- ──── Row 2: Messaging ──── -->
+  <g filter="url(#card)">
+    <rect x="60" y="232" width="340" height="80" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
+    <text x="230" y="256" text-anchor="middle" class="card-title" fill="#1e2a55">MessageRouter</text>
+    <text x="230" y="274" text-anchor="middle" class="card-sub" fill="#3a4a82">routes msgs between L2s · canonical hashes</text>
+    <text x="230" y="292" text-anchor="middle" class="card-sub" fill="#3a4a82">+ DARegistry (commitments)</text>
+  </g>
+
+  <g filter="url(#card)">
+    <rect x="560" y="232" width="340" height="80" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="730" y="256" text-anchor="middle" class="card-title" fill="#1d4d2c">L2MessageContract</text>
+    <text x="730" y="274" text-anchor="middle" class="card-sub" fill="#2f5e3c">recomputes hash from canonical bytes</text>
+    <text x="730" y="292" text-anchor="middle" class="card-sub" fill="#2f5e3c">delivers payload to recipient</text>
+  </g>
+
+  <!-- arrows row 2 -->
+  <line x1="400" y1="265" x2="560" y2="265" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow-r)"/>
+  <text x="480" y="258" text-anchor="middle" class="flow-lbl">InboundMessage</text>
+  <text x="480" y="282" text-anchor="middle" class="wire">MessageHasher canonical bytes</text>
+
+  <line x1="560" y1="298" x2="400" y2="298" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow-l)"/>
+  <text x="480" y="312" text-anchor="middle" class="flow-lbl">OutboundMessage (in next batch)</text>
+
+  <!-- ──── Row 3: Settlement ──── -->
+  <g filter="url(#card)">
+    <rect x="60" y="344" width="340" height="80" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
+    <text x="230" y="368" text-anchor="middle" class="card-title" fill="#1e2a55">SettlementManager</text>
+    <text x="230" y="386" text-anchor="middle" class="card-sub" fill="#3a4a82">accepts batches · verifies via VerifierRegistry</text>
+    <text x="230" y="404" text-anchor="middle" class="card-sub" fill="#3a4a82">emits SettlementAccepted</text>
+  </g>
+
+  <g filter="url(#card)">
+    <rect x="560" y="344" width="340" height="80" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="730" y="368" text-anchor="middle" class="card-title" fill="#1d4d2c">L2BatchInfoContract</text>
+    <text x="730" y="386" text-anchor="middle" class="card-sub" fill="#2f5e3c">L2-local cursor + last-settled batch ref</text>
+    <text x="730" y="404" text-anchor="middle" class="card-sub" fill="#2f5e3c">read by L2 dApps for "is L1 caught up?"</text>
+  </g>
+
+  <!-- arrow row 3 (only one direction; settlement is L2 → L1) -->
+  <line x1="560" y1="385" x2="400" y2="385" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow-l)"/>
+  <text x="480" y="378" text-anchor="middle" class="flow-lbl">BatchCommitment + proof</text>
+  <text x="480" y="400" text-anchor="middle" class="wire">BatchSerializer (321+N B)</text>
+
+  <!-- footer -->
+  <text x="480" y="464" text-anchor="middle" class="flow-lbl" fill="#3f5193">Each flow has a single canonical wire format · both endpoints recompute the hash from the bytes</text>
+  <text x="480" y="482" text-anchor="middle" class="flow-lbl" fill="#3f5193">— no off-wire trust. See architecture-wire-formats.md for the byte layouts.</text>
+
+</svg>

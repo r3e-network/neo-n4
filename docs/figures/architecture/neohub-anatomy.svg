@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">NeoHub L1 contract anatomy</title>
+  <desc id="desc">21 NeoHub L1 contracts grouped into six concerns: Settlement (SettlementManager, VerifierRegistry), Bridge (SharedBridge, TokenRegistry, ChainRegistry), Messaging (MessageRouter, DARegistry), Security (SequencerRegistry, SequencerBond, ForcedInclusion, OptimisticChallenge, EmergencyManager), Governance (GovernanceController, GovernanceFraudVerifier, RestrictedExecutionFraudVerifier), and External Bridge for Phase B/C (MpcCommitteeVerifier, ExternalBridgeRegistry, ExternalBridgeEscrow, ExternalBridgeBond, MpcCommitteeFraudVerifier, ExternalBridgeStubVerifier — testing only).</desc>
+
+  <defs>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .grp-title  { font-size: 13px; font-weight: 700; letter-spacing: 0.4px; }
+      .item       { font-size: 11.5px; fill: #2d3a48; }
+      .item-stub  { font-size: 11px; fill: #8a6a30; font-style: italic; }
+      .header     { font-size: 14px; font-weight: 700; }
+      .subheader  { font-size: 11.5px; fill: #525a64; }
+    </style>
+  </defs>
+
+  <rect width="960" height="540" fill="#ffffff"/>
+
+  <!-- header -->
+  <text x="480" y="38" text-anchor="middle" class="header" fill="#1e2a55">NeoHub L1 — 21 contracts grouped by concern</text>
+  <text x="480" y="58" text-anchor="middle" class="subheader">All compile via Neo.SmartContract.Framework · CI verifies .nef + .manifest.json artifacts</text>
+
+  <!-- ───────────────── Row 1: Settlement · Bridge · Messaging ───────────────── -->
+
+  <!-- Settlement -->
+  <g filter="url(#card)">
+    <rect x="40" y="84" width="280" height="116" rx="8" ry="8" fill="#eff3ff" stroke="#7587c1" stroke-width="1.2"/>
+    <text x="180" y="106" text-anchor="middle" class="grp-title" fill="#1e2a55">SETTLEMENT</text>
+    <line x1="60" y1="118" x2="300" y2="118" stroke="#7587c1" stroke-width="0.5"/>
+    <text x="180" y="142" text-anchor="middle" class="item">SettlementManager</text>
+    <text x="180" y="162" text-anchor="middle" class="item">VerifierRegistry</text>
+    <text x="180" y="188" text-anchor="middle" class="item-stub">the trust boundary</text>
+  </g>
+
+  <!-- Bridge -->
+  <g filter="url(#card)">
+    <rect x="340" y="84" width="280" height="116" rx="8" ry="8" fill="#eff3ff" stroke="#7587c1" stroke-width="1.2"/>
+    <text x="480" y="106" text-anchor="middle" class="grp-title" fill="#1e2a55">BRIDGE</text>
+    <line x1="360" y1="118" x2="600" y2="118" stroke="#7587c1" stroke-width="0.5"/>
+    <text x="480" y="138" text-anchor="middle" class="item">SharedBridge</text>
+    <text x="480" y="156" text-anchor="middle" class="item">TokenRegistry</text>
+    <text x="480" y="174" text-anchor="middle" class="item">ChainRegistry</text>
+    <text x="480" y="194" text-anchor="middle" class="item-stub">L1 asset escrow</text>
+  </g>
+
+  <!-- Messaging -->
+  <g filter="url(#card)">
+    <rect x="640" y="84" width="280" height="116" rx="8" ry="8" fill="#eff3ff" stroke="#7587c1" stroke-width="1.2"/>
+    <text x="780" y="106" text-anchor="middle" class="grp-title" fill="#1e2a55">MESSAGING</text>
+    <line x1="660" y1="118" x2="900" y2="118" stroke="#7587c1" stroke-width="0.5"/>
+    <text x="780" y="142" text-anchor="middle" class="item">MessageRouter</text>
+    <text x="780" y="162" text-anchor="middle" class="item">DARegistry</text>
+    <text x="780" y="188" text-anchor="middle" class="item-stub">cross-L2 routing</text>
+  </g>
+
+  <!-- ───────────────── Row 2: Security · Governance ───────────────── -->
+
+  <!-- Security -->
+  <g filter="url(#card)">
+    <rect x="40" y="220" width="430" height="138" rx="8" ry="8" fill="#fff5f3" stroke="#c47461" stroke-width="1.2"/>
+    <text x="255" y="242" text-anchor="middle" class="grp-title" fill="#5e2814">SECURITY</text>
+    <line x1="60" y1="254" x2="450" y2="254" stroke="#c47461" stroke-width="0.5"/>
+    <text x="135" y="276" text-anchor="middle" class="item">SequencerRegistry</text>
+    <text x="375" y="276" text-anchor="middle" class="item">SequencerBond</text>
+    <text x="135" y="296" text-anchor="middle" class="item">ForcedInclusion</text>
+    <text x="375" y="296" text-anchor="middle" class="item">OptimisticChallenge</text>
+    <text x="255" y="316" text-anchor="middle" class="item">EmergencyManager</text>
+    <text x="255" y="344" text-anchor="middle" class="item-stub" fill="#8a4a30">slashable bonds + anti-censorship</text>
+  </g>
+
+  <!-- Governance -->
+  <g filter="url(#card)">
+    <rect x="490" y="220" width="430" height="138" rx="8" ry="8" fill="#f3f1eb" stroke="#a08454" stroke-width="1.2"/>
+    <text x="705" y="242" text-anchor="middle" class="grp-title" fill="#4a3818">GOVERNANCE</text>
+    <line x1="510" y1="254" x2="900" y2="254" stroke="#a08454" stroke-width="0.5"/>
+    <text x="705" y="276" text-anchor="middle" class="item">GovernanceController</text>
+    <text x="705" y="296" text-anchor="middle" class="item">GovernanceFraudVerifier</text>
+    <text x="705" y="316" text-anchor="middle" class="item">RestrictedExecutionFraudVerifier (v3)</text>
+    <text x="705" y="344" text-anchor="middle" class="item-stub" fill="#7a5828">multisig + timelock + verifier slots</text>
+  </g>
+
+  <!-- ───────────────── Row 3: External Bridge ───────────────── -->
+
+  <g filter="url(#card)">
+    <rect x="40" y="378" width="880" height="138" rx="8" ry="8" fill="#fde8e8" stroke="#b03d3d" stroke-width="1.2"/>
+    <text x="480" y="400" text-anchor="middle" class="grp-title" fill="#6c1e1e">EXTERNAL BRIDGE (PHASE B/C — DOC.MD §11.3)</text>
+    <line x1="60" y1="412" x2="900" y2="412" stroke="#b03d3d" stroke-width="0.5"/>
+
+    <!-- 5 production contracts in a row -->
+    <text x="160" y="438" text-anchor="middle" class="item">MpcCommitteeVerifier</text>
+    <text x="350" y="438" text-anchor="middle" class="item">ExternalBridgeRegistry</text>
+    <text x="540" y="438" text-anchor="middle" class="item">ExternalBridgeEscrow</text>
+    <text x="730" y="438" text-anchor="middle" class="item">ExternalBridgeBond</text>
+
+    <text x="350" y="462" text-anchor="middle" class="item">MpcCommitteeFraudVerifier</text>
+    <text x="730" y="462" text-anchor="middle" class="item-stub">ExternalBridgeStubVerifier (testing)</text>
+
+    <text x="480" y="498" text-anchor="middle" class="item-stub" fill="#8a2828">M-of-N committee verification + slashable bonds + Phase-C equivocation slashing</text>
+  </g>
+
+</svg>

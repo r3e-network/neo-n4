@@ -31,86 +31,9 @@ bytes) and a **consumer** (verifies them). Defense-in-depth means
 multiple consumers re-verify independently — so a corrupt producer
 can't get a free pass.
 
-```text
-                    ┌───────────────────────────────────┐
-                    │  L1 user                          │
-                    │  (Neo wallet / NeoLine / Neon)    │
-                    └────────────────┬──────────────────┘
-                                     │  (1) signed L1 tx
-                                     │      [trust: user's wallet]
-                                     ▼
-   ────────────────  Boundary A: user → L1 NeoHub  ────────────────
-                                     │
-                                     ▼
-                    ┌───────────────────────────────────┐
-                    │  NeoHub L1 contracts              │
-                    │  ───────                          │
-                    │  · SharedBridge                   │
-                    │  · MessageRouter                  │
-                    │  · SettlementManager              │
-                    │  · ChainRegistry · ...            │
-                    └────────────────┬──────────────────┘
-                                     │  (2) committed events
-                                     │      [trust: dBFT 2.0 finality]
-                                     ▼
-   ────────────  Boundary B: NeoHub → L2 batcher (off-chain)  ─────
-                                     │
-                                     ▼
-                    ┌───────────────────────────────────┐
-                    │  L2 batcher (off-chain operator)  │
-                    │  ───────                          │
-                    │  · subscribes to Block.Committed  │
-                    │  · seals BatchCommitment          │
-                    │  · drives prover daemon           │
-                    └────────────────┬──────────────────┘
-                                     │  (3) BatchCommitment + proof
-                                     │      [trust: validity proof OR
-                                     │              optimistic challenge OR
-                                     │              committee threshold]
-                                     ▼
-   ─────────  Boundary C: batcher → L1 SettlementManager  ────────
-                                     │
-                                     ▼
-                    ┌───────────────────────────────────┐
-                    │  SettlementManager + VerifierRegistry │
-                    │  recomputes publicInputHash       │
-                    │  dispatches to proofType-specific │
-                    │  verifier                         │
-                    └────────────────┬──────────────────┘
-                                     │  (4) accepted batch =
-                                     │      L1-final state root
-                                     ▼
-   ──────  Boundary D: settled batch → L2 user (withdrawal)  ─────
-                                     │
-                                     ▼
-                    ┌───────────────────────────────────┐
-                    │  L1 user claims withdrawal        │
-                    │  via Merkle proof                 │
-                    └───────────────────────────────────┘
-
-   [Cross-foreign-chain bridge — separate trust path]
-
-   ┌──────────────────────┐                ┌────────────────────────────┐
-   │  Eth user            │                │  Watcher daemon (off-chain)│
-   │  (locks ETH/ERC-20)  │                │  · M-of-N committee member │
-   └──────────┬───────────┘                │  · signs canonical bytes   │
-              │                            └────────────┬───────────────┘
-              │  (E1) Locked event                      │
-              │       [trust: Eth dBFT/PoW finality +   │
-              │        confirmation buffer]             │
-              ▼                                         │
-        ────  Boundary E: external chain → watcher  ───┤
-                                                       │
-                                                       │  (E2) ExternalCrossChainMessage
-                                                       │       + secp256k1 signatures
-                                                       │       [trust: M-of-N committee]
-                                                       ▼
-                                          ┌────────────────────────────┐
-                                          │  ExternalBridgeEscrow on   │
-                                          │  Neo, verified by          │
-                                          │  MpcCommitteeVerifier      │
-                                          └────────────────────────────┘
-```
+<p align="center">
+  <img src="figures/architecture/trust-boundaries.svg" alt="Five trust boundaries in the Neo Elastic Network — A: user to L1 NeoHub; B: NeoHub to L2 batcher; C: batcher to SettlementManager (load-bearing); D: settled batch to user withdrawal; E: external chain via watcher to ExternalBridgeEscrow" width="900">
+</p>
 
 **5 cross-tier boundaries** in the system. Each has a different
 trust assumption (signed by whom, verified by what), and each is

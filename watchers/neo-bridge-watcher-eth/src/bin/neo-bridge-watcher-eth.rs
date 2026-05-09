@@ -51,9 +51,62 @@ use neo_bridge_watcher_eth::{CoreError, FileSigner, WatcherCore};
 use serde::Deserialize;
 use std::path::PathBuf;
 use std::process::ExitCode;
-use std::time::Duration;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
+
+/// Shutdown flag flipped by SIGTERM / SIGINT handlers. The run loop
+/// polls this between ticks + during interruptible sleeps so the
+/// daemon can exit cleanly within ~100ms of a kill signal — important
+/// for kubernetes / systemd graceful-shutdown windows (typically 30s
+/// before SIGKILL escalation).
+static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
+
+extern "C" fn handle_shutdown_signal(_: libc::c_int) {
+    // Signal handlers must be async-signal-safe. AtomicBool::store with
+    // Relaxed ordering is — it compiles to a single memory write on
+    // every platform we target. NO eprintln / String / heap allocations
+    // allowed here. The run loop notices the flag on its next poll.
+    SHUTDOWN_REQUESTED.store(true, Ordering::Relaxed);
+}
+
+/// Install signal handlers for SIGTERM (kubernetes / systemd shutdown)
+/// and SIGINT (Ctrl-C). Both flip `SHUTDOWN_REQUESTED`. Idempotent —
+/// re-registering would just no-op (libc::signal returns the previous
+/// handler).
+#[cfg(unix)]
+fn install_shutdown_handlers() {
+    // Form a function-pointer first then cast to libc's `sighandler_t`
+    // (which is just `usize`). The two-step keeps the new "direct cast
+    // of function item into an integer" lint quiet on Rust 2024+.
+    let handler: extern "C" fn(libc::c_int) = handle_shutdown_signal;
+    // SAFETY: libc::signal mutates a process-global table. Safe because
+    // we only call it once at startup before any concurrent code runs;
+    // the handler we install is async-signal-safe.
+    unsafe {
+        libc::signal(libc::SIGTERM, handler as libc::sighandler_t);
+        libc::signal(libc::SIGINT, handler as libc::sighandler_t);
+    }
+}
+
+/// Sleep for `duration`, but check the shutdown flag every 100ms and
+/// return early (true) if shutdown is requested. Lets the daemon
+/// respond to SIGTERM within ~100ms even if it was mid-poll-interval.
+fn interruptible_sleep(duration: Duration) -> bool {
+    let end = Instant::now() + duration;
+    while Instant::now() < end {
+        if SHUTDOWN_REQUESTED.load(Ordering::Relaxed) {
+            return true;
+        }
+        let remaining = end.saturating_duration_since(Instant::now());
+        std::thread::sleep(remaining.min(Duration::from_millis(100)));
+    }
+    SHUTDOWN_REQUESTED.load(Ordering::Relaxed)
+}
 
 fn main() -> ExitCode {
+    #[cfg(unix)]
+    install_shutdown_handlers();
+
     let args: Vec<String> = std::env::args().collect();
     let config_path = match parse_args(&args) {
         Ok(p) => p,
@@ -282,6 +335,13 @@ fn run(config: Config) -> Result<(), String> {
 
     let mut backoff_secs = config.poll.backoff_initial_secs;
     loop {
+        // Check shutdown at the top of every iteration. Any sleep below
+        // returns early when SHUTDOWN_REQUESTED is set; control falls
+        // through to the next iteration which exits cleanly here.
+        if SHUTDOWN_REQUESTED.load(Ordering::Relaxed) {
+            eprintln!("shutdown signal received — exiting cleanly");
+            return Ok(());
+        }
         match core.tick() {
             Ok(true) => {
                 // Processed an event — reset backoff, immediately try
@@ -292,7 +352,7 @@ fn run(config: Config) -> Result<(), String> {
             Ok(false) => {
                 // No new events — sleep one poll interval.
                 backoff_secs = config.poll.backoff_initial_secs;
-                std::thread::sleep(Duration::from_secs(config.poll.poll_interval_secs));
+                interruptible_sleep(Duration::from_secs(config.poll.poll_interval_secs));
             }
             Err(CoreError::AlreadySubmitted(nonce)) => {
                 // Local journal already had this nonce — usually means
@@ -302,12 +362,12 @@ fn run(config: Config) -> Result<(), String> {
             }
             Err(CoreError::Submit(submit_err)) => {
                 eprintln!("warn: submit failed: {submit_err:?} — backing off {backoff_secs}s");
-                std::thread::sleep(Duration::from_secs(backoff_secs));
+                interruptible_sleep(Duration::from_secs(backoff_secs));
                 backoff_secs = (backoff_secs * 2).min(config.poll.backoff_max_secs);
             }
             Err(CoreError::EventSource(es_err)) => {
                 eprintln!("warn: event source: {es_err:?} — backing off {backoff_secs}s");
-                std::thread::sleep(Duration::from_secs(backoff_secs));
+                interruptible_sleep(Duration::from_secs(backoff_secs));
                 backoff_secs = (backoff_secs * 2).min(config.poll.backoff_max_secs);
             }
             Err(other) => {
@@ -317,7 +377,7 @@ fn run(config: Config) -> Result<(), String> {
                 // human time to fix the config without losing the
                 // daemon process.
                 eprintln!("error: unrecoverable-looking: {other:?} — backing off {backoff_secs}s");
-                std::thread::sleep(Duration::from_secs(backoff_secs));
+                interruptible_sleep(Duration::from_secs(backoff_secs));
                 backoff_secs = (backoff_secs * 2).min(config.poll.backoff_max_secs);
             }
         }

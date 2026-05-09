@@ -36,6 +36,11 @@ serde_json = { version = "1", optional = true }
 tiny-keccak = { version = "2.0", features = ["keccak"], optional = true }
 # Daemon config format. Pulled in by the daemon binary only.
 toml = { version = "0.8", optional = true }
+# OS-level advisory file locking for FileJournal (flock on Unix). Prevents
+# two watcher processes from accidentally racing on the same journal
+# directory and corrupting consumed.log's 12-byte record alignment with
+# interleaved appends.
+libc = { version = "0.2", optional = true }
 
 [features]
 default = []
@@ -43,7 +48,7 @@ default = []
 # (for computing the Locked event topic) + TOML config parsing for the
 # daemon binary. Operators run `cargo build --features live-rpc` to
 # produce the runnable daemon.
-live-rpc = ["dep:reqwest", "dep:serde", "dep:serde_json", "dep:tiny-keccak", "dep:toml"]
+live-rpc = ["dep:reqwest", "dep:serde", "dep:serde_json", "dep:tiny-keccak", "dep:toml", "dep:libc"]
 
 [dev-dependencies]
 # Test-vector helpers.

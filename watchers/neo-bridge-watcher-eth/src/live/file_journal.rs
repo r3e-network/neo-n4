@@ -21,6 +21,7 @@ use std::path::{Path, PathBuf};
 
 const CURSOR_FILE: &str = "cursor.bin";
 const CONSUMED_FILE: &str = "consumed.log";
+const LOCK_FILE: &str = ".lock";
 
 pub struct FileJournal {
     dir: PathBuf,
@@ -29,14 +30,33 @@ pub struct FileJournal {
     /// Open append-only handle. Held for the journal's lifetime so
     /// every `mark_submitted` call appends without re-opening.
     consumed_log: File,
+    /// Exclusive-mode `flock`'d sentinel file held for the journal's
+    /// lifetime. The OS releases the flock on Drop or process exit
+    /// (so a crashed previous instance never blocks restart). Prevents
+    /// two watcher processes from racing on consumed.log — without
+    /// this, interleaved 12-byte appends would corrupt the record
+    /// alignment and invalidate every replay forever.
+    #[cfg(unix)]
+    _lock: File,
 }
 
 impl FileJournal {
     /// Open or create a journal directory. Replays `consumed.log` into
     /// the in-memory `submitted` set + reads the cursor.
+    ///
+    /// Acquires an exclusive advisory lock on `.lock` first; if another
+    /// process is already using this journal directory, returns
+    /// `JournalError::Io` immediately rather than racing on the
+    /// append-only log. The lock auto-releases on Drop (or process exit).
     pub fn open(dir: impl AsRef<Path>) -> Result<Self, JournalError> {
         let dir = dir.as_ref().to_path_buf();
         std::fs::create_dir_all(&dir).map_err(|e| JournalError::Io(format!("create_dir: {e}")))?;
+
+        // Acquire the inter-process lock BEFORE touching any journal
+        // file. If the lock acquisition fails — another instance has
+        // it — we want to bail out without having mutated anything.
+        #[cfg(unix)]
+        let lock_file = acquire_exclusive_lock(&dir.join(LOCK_FILE))?;
 
         // Replay consumed.log.
         let consumed_path = dir.join(CONSUMED_FILE);
@@ -80,8 +100,48 @@ impl FileJournal {
             .open(&consumed_path)
             .map_err(|e| JournalError::Io(format!("open consumed for append: {e}")))?;
 
-        Ok(Self { dir, cursor, submitted, consumed_log })
+        Ok(Self {
+            dir,
+            cursor,
+            submitted,
+            consumed_log,
+            #[cfg(unix)]
+            _lock: lock_file,
+        })
     }
+}
+
+/// Acquire an exclusive advisory `flock` on the lock-sentinel file.
+///
+/// Uses `LOCK_EX | LOCK_NB` so the call returns immediately rather than
+/// blocking — operators want fast feedback if another instance is already
+/// running, not a hang. The lock is released by the OS on FD close (Drop
+/// or process exit), so a crashed previous instance can never block a
+/// fresh start.
+#[cfg(unix)]
+fn acquire_exclusive_lock(lock_path: &Path) -> Result<File, JournalError> {
+    use std::os::fd::AsRawFd;
+    let lock_file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(false)
+        .open(lock_path)
+        .map_err(|e| JournalError::Io(format!("open .lock: {e}")))?;
+    let fd = lock_file.as_raw_fd();
+    // SAFETY: fd is a valid file descriptor we just obtained from a
+    // successful open + held alive by `lock_file`. flock is signal-safe
+    // and has no aliasing concerns. The flags are POSIX-defined constants.
+    let rc = unsafe { libc::flock(fd, libc::LOCK_EX | libc::LOCK_NB) };
+    if rc != 0 {
+        let err = std::io::Error::last_os_error();
+        return Err(JournalError::Io(format!(
+            "another watcher instance has this journal locked at {} \
+             (flock LOCK_EX|LOCK_NB: {})",
+            lock_path.display(),
+            err
+        )));
+    }
+    Ok(lock_file)
 }
 
 impl Journal for FileJournal {
@@ -348,6 +408,39 @@ mod tests {
             1000,
             "cursor.bin must hold the final cursor value"
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Concurrent-instance detection: two `FileJournal::open` calls on
+    /// the same directory cannot both succeed. Without this defense,
+    /// two watcher processes pointed at the same journal would
+    /// interleave 12-byte appends to consumed.log and corrupt every
+    /// future replay (records misaligned by 1+ bytes parse as garbage
+    /// chain ids / nonces).
+    #[cfg(unix)]
+    #[test]
+    fn second_open_on_same_dir_fails_with_lock_error() {
+        let dir = temp_dir("concurrent-open");
+        let first = FileJournal::open(&dir).expect("first open succeeds");
+
+        let result = FileJournal::open(&dir);
+        match result {
+            Err(JournalError::Io(msg)) => {
+                assert!(
+                    msg.contains("locked") || msg.contains("flock"),
+                    "lock-failure message must name the lock mechanism: got '{msg}'"
+                );
+            }
+            Err(other) => panic!("expected JournalError::Io, got {other:?}"),
+            Ok(_) => panic!(
+                "second open MUST fail while the first instance holds the lock"
+            ),
+        }
+
+        // After the first instance drops, the lock is released and a
+        // fresh open succeeds — operators can restart cleanly.
+        drop(first);
+        let _ = FileJournal::open(&dir).expect("reopen after first instance closes");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

@@ -5,6 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Concurrent-instance detection for FileJournal
+
+Two watcher processes pointed at the same journal directory used to
+silently race on `consumed.log`: 12-byte appends would interleave,
+corrupting every future replay (records misaligned by 1+ bytes parse
+as garbage chain ids / nonces). The dual-instance scenario is real —
+operators run dozens of watcher processes across chains; an accidental
+config typo pointing two at the same dir is plausible.
+
+`FileJournal::open` now acquires an OS-level advisory exclusive lock
+on a `.lock` sentinel file via `flock(LOCK_EX | LOCK_NB)`. The lock
+is held for the journal's lifetime; the OS releases it on Drop or
+process exit, so a crashed previous instance can never block restart.
+
+A second `open` while the first is alive returns `JournalError::Io`
+with a clear message naming the lock mechanism. Test:
+`second_open_on_same_dir_fails_with_lock_error` (Unix-only, gated
+behind `#[cfg(unix)]`). New optional dep: `libc = "0.2"` activated
+under `live-rpc`.
+
 ### Changed — README + docs sweep for EVM-chain support
 
 Sync docs to reflect generic EVM-chain support shipped in 28e85f3 +

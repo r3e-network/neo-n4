@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 660" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">PublicInputs 字节布局(332 字节定长)</title>
+  <desc id="desc">PublicInputs 的字节级规范线协议格式 —— 12 个字段共 332 字节(无变长后缀)。证明者把这些字节作为证明的 public input 承诺起来。验证器从链上承诺字段重算这个哈希,与证明声称的 public-input 比对。不一致 → 拒绝。与 L2BatchCommitment 共享 9 个字段(chainId、batchNumber、preStateRoot、postStateRoot、txRoot、receiptRoot、withdrawalRoot、l2ToL1MessageRoot、l2ToL2MessageRoot、daCommitment),但多了 2 个 PublicInputs 专有字段(偏移 236 的 l1MessageHash、偏移 300 的 blockContextHash)。</desc>
+
+  <defs>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .col-h      { font-size: 11.5px; font-weight: 700; fill: #525a64; letter-spacing: 0.4px; }
+      .offset     { font-size: 11px; fill: #1e2a55; font-weight: 700; font-family: ui-monospace, 'SF Mono', monospace; }
+      .size       { font-size: 11px; fill: #525a64; font-family: ui-monospace, 'SF Mono', monospace; }
+      .field      { font-size: 11.5px; fill: #1e2a55; font-weight: 700; font-family: ui-monospace, 'SF Mono', monospace; }
+      .desc       { font-size: 10.5px; fill: #2d3a48; }
+      .grp        { font-size: 11px; font-weight: 600; letter-spacing: 0.3px; }
+      .ftr        { font-size: 10.5px; fill: #525a64; font-style: italic; }
+      .pi-only    { font-size: 10.5px; fill: #c4413e; font-weight: 700; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect width="960" height="660" fill="#ffffff"/>
+
+  <text x="480" y="30" text-anchor="middle" class="header" fill="#1e2a55">PublicInputs 字节布局 —— 332 字节(定长;无变长后缀)</text>
+  <text x="480" y="50" text-anchor="middle" class="ftr">证明者承诺的字节 —— 验证器从链上承诺字段重算并比对</text>
+
+  <text x="60" y="86" class="col-h">偏移</text>
+  <text x="140" y="86" class="col-h">大小</text>
+  <text x="200" y="86" class="col-h">字段</text>
+  <text x="500" y="86" class="col-h">备注</text>
+  <line x1="40" y1="92" x2="920" y2="92" stroke="#cfd5dd" stroke-width="1"/>
+
+  <text x="20" y="116" class="grp" fill="#1e2a55">身份</text>
+  <rect x="40" y="100" width="880" height="28" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-width="0.8"/>
+  <text x="80" y="118" class="offset">0</text>
+  <text x="148" y="118" class="size">4 B</text>
+  <text x="200" y="118" class="field">chainId</text>
+  <text x="320" y="118" class="size">uint32 LE</text>
+
+  <rect x="40" y="130" width="880" height="28" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-width="0.8"/>
+  <text x="80" y="148" class="offset">4</text>
+  <text x="148" y="148" class="size">8 B</text>
+  <text x="200" y="148" class="field">batchNumber</text>
+  <text x="320" y="148" class="size">uint64 LE</text>
+
+  <text x="20" y="184" class="grp" fill="#1d4d2c">状态根</text>
+  <rect x="40" y="168" width="880" height="28" rx="4" ry="4" fill="#e7f4eb" stroke="#3a8454" stroke-width="0.8"/>
+  <text x="80" y="186" class="offset">12</text>
+  <text x="148" y="186" class="size">32 B</text>
+  <text x="200" y="186" class="field">preStateRoot</text>
+  <text x="320" y="186" class="size">UInt256</text>
+
+  <rect x="40" y="198" width="880" height="28" rx="4" ry="4" fill="#e7f4eb" stroke="#3a8454" stroke-width="0.8"/>
+  <text x="80" y="216" class="offset">44</text>
+  <text x="148" y="216" class="size">32 B</text>
+  <text x="200" y="216" class="field">postStateRoot</text>
+  <text x="320" y="216" class="size">UInt256</text>
+
+  <text x="20" y="252" class="grp" fill="#7a4a14">MERKLE 根</text>
+  <rect x="40" y="236" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
+  <text x="80" y="254" class="offset">76</text>
+  <text x="148" y="254" class="size">32 B</text>
+  <text x="200" y="254" class="field">txRoot</text>
+  <text x="320" y="254" class="size">UInt256</text>
+
+  <rect x="40" y="266" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
+  <text x="80" y="284" class="offset">108</text>
+  <text x="148" y="284" class="size">32 B</text>
+  <text x="200" y="284" class="field">receiptRoot</text>
+  <text x="320" y="284" class="size">UInt256</text>
+
+  <rect x="40" y="296" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
+  <text x="80" y="314" class="offset">140</text>
+  <text x="148" y="314" class="size">32 B</text>
+  <text x="200" y="314" class="field">withdrawalRoot</text>
+  <text x="320" y="314" class="size">UInt256</text>
+
+  <rect x="40" y="326" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
+  <text x="80" y="344" class="offset">172</text>
+  <text x="148" y="344" class="size">32 B</text>
+  <text x="200" y="344" class="field">l2ToL1MessageRoot</text>
+  <text x="320" y="344" class="size">UInt256</text>
+
+  <rect x="40" y="356" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
+  <text x="80" y="374" class="offset">204</text>
+  <text x="148" y="374" class="size">32 B</text>
+  <text x="200" y="374" class="field">l2ToL2MessageRoot</text>
+  <text x="320" y="374" class="size">UInt256</text>
+
+  <text x="20" y="410" class="grp" fill="#3e2865">DA + 上下文</text>
+  <rect x="40" y="394" width="880" height="28" rx="4" ry="4" fill="#f1ecf8" stroke="#7d59b3" stroke-width="0.8"/>
+  <text x="80" y="412" class="offset">236</text>
+  <text x="148" y="412" class="size">32 B</text>
+  <text x="200" y="412" class="field">l1MessageHash</text>
+  <text x="320" y="412" class="size">UInt256</text>
+  <text x="500" y="412" class="pi-only">★ 比 L2BatchCommitment 多</text>
+
+  <rect x="40" y="424" width="880" height="28" rx="4" ry="4" fill="#f1ecf8" stroke="#7d59b3" stroke-width="0.8"/>
+  <text x="80" y="442" class="offset">268</text>
+  <text x="148" y="442" class="size">32 B</text>
+  <text x="200" y="442" class="field">daCommitment</text>
+  <text x="320" y="442" class="size">UInt256</text>
+
+  <rect x="40" y="454" width="880" height="28" rx="4" ry="4" fill="#f1ecf8" stroke="#7d59b3" stroke-width="0.8"/>
+  <text x="80" y="472" class="offset">300</text>
+  <text x="148" y="472" class="size">32 B</text>
+  <text x="200" y="472" class="field">blockContextHash</text>
+  <text x="320" y="472" class="size">UInt256</text>
+  <text x="500" y="472" class="pi-only">★ 比 L2BatchCommitment 多</text>
+
+  <line x1="40" y1="496" x2="920" y2="496" stroke="#525a64" stroke-width="1"/>
+  <text x="148" y="514" class="size" font-weight="700" fill="#1e2a55">合计</text>
+  <text x="200" y="514" class="field" font-size="13">332 字节(定长)</text>
+  <text x="500" y="514" class="desc"><tspan font-style="italic">12 个字段 ×(主要是)32 字节哈希 —— 任何语言都能逐字节验证</tspan></text>
+
+  <line x1="40" y1="540" x2="920" y2="540" stroke="#cfd5dd" stroke-width="1"/>
+  <text x="60" y="566" class="ftr" font-weight="600" fill="#1e2a55">为什么有两种不同布局(vs L2BatchCommitment)?</text>
+  <text x="60" y="584" class="ftr">L2BatchCommitment 在面向公开字段里携带 firstBlock + lastBlock(块区间);PublicInputs 改成携带</text>
+  <text x="60" y="600" class="ftr">l1MessageHash + blockContextHash。块区间是给 L1 消费方的元数据;消息+上下文哈希是证明者真正</text>
+  <text x="60" y="616" class="ftr">承诺的内容。两者共享 chainId + batchNumber + 7 个相同的根哈希。</text>
+  <text x="60" y="640" class="ftr" font-weight="600" fill="#1e2a55">L1 上的 publicInputHash = 这 332 字节的 SHA256 —— 由 SettlementManager 从承诺字段重算。</text>
+</svg>

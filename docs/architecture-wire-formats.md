@@ -75,25 +75,9 @@ Mismatch → reject.
 
 Source: same file, `PublicInputs` section.
 
-```text
-   byte
-  offset  size  field
-  ──────  ────  ─────
-       0    4   chainId
-       4    8   batchNumber
-      12   32   preStateRoot
-      44   32   postStateRoot
-      76   32   txRoot
-     108   32   receiptRoot
-     140   32   withdrawalRoot
-     172   32   l2ToL1MessageRoot
-     204   32   l2ToL2MessageRoot
-     236   32   l1MessageHash       ← extra vs. L2BatchCommitment
-     268   32   daCommitment
-     300   32   blockContextHash    ← extra vs. L2BatchCommitment
-  ──────
-     332   total (no variable suffix)
-```
+<p align="center">
+  <img src="figures/architecture/byte-layout-publicinputs.svg" alt="PublicInputs byte layout: 12 fields totaling 332 bytes (fixed; no variable suffix). Shares 9 fields with L2BatchCommitment (chainId, batchNumber, preStateRoot, postStateRoot, txRoot, receiptRoot, withdrawalRoot, l2ToL1MessageRoot, l2ToL2MessageRoot, daCommitment) but adds 2 PublicInputs-only fields (l1MessageHash at offset 236 and blockContextHash at offset 300, both marked with star) — these are what the prover commits to instead of the firstBlock+lastBlock that L2BatchCommitment carries" width="900">
+</p>
 
 **Why two distinct layouts?**
 `L2BatchCommitment` carries `firstBlock` + `lastBlock` (block
@@ -119,43 +103,9 @@ passes it as the `configBytes` argument to
 
 Source: [`src/Neo.L2.Abstractions/Models/L2ChainConfigSerializer.cs`](../src/Neo.L2.Abstractions/Models/L2ChainConfigSerializer.cs).
 
-```text
-   byte
-  offset  size  field                    notes
-  ──────  ────  ─────                    ─────
-       0    4   chainId                  uint32 LE
-       4   20   operatorManager          UInt160 — multisig managing this chain
-      24   20   verifier                 UInt160 — VerifierRegistry slot
-      44   20   bridgeAdapter            UInt160 — L2NativeBridgeContract hash
-      64   20   messageAdapter           UInt160 — L2MessageContract hash
-                ── 84 bytes of identifiers above ──
-      84    1   securityLevel            byte 0..3
-      85    1   daMode                   byte 0=InMemory · 1=External · 2=L1 · 3=DAC
-      86    1   gatewayEnabled           byte 0=false · 1=true
-      87    1   permissionlessExit       byte 0=false · 1=true
-      88    1   sequencerModel           byte 0=Solo · 1=Committee · 2=Permissionless
-      89    1   exitModel                byte 0=Optimistic · 1=Permissionless · 2=ZkValidity
-      90    1   active                   byte 0=disabled · 1=active
-  ──────
-      91   total (fixed-size; no varbytes)
-
-  Total = 4 + 20×4 + 7 = 91. The 5 §16.2 dimensions span the last 7 bytes:
-
-  ┌────────────────────────────────────────────────────┐
-  │  identifiers (84 bytes)                            │
-  │  ┌────┬─────────┬─────────┬─────────┬─────────┐    │
-  │  │ ID │ operMgr │ verifier│  bridge │ message │    │
-  │  └────┴─────────┴─────────┴─────────┴─────────┘    │
-  └────────────────────────────────────────────────────┘
-  ┌────────────────────────────────────────────────────┐
-  │  §16.2 dimensions (7 bytes, 1 byte each)           │
-  │  ┌─┬─┬─┬─┬─┬─┬─┐                                   │
-  │  │S│D│G│P│Q│X│A│  S=securityLevel · D=daMode       │
-  │  └─┴─┴─┴─┴─┴─┴─┘  G=gatewayEnabled · P=permExit    │
-  │                   Q=sequencerModel · X=exitModel   │
-  │                   A=active                         │
-  └────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="figures/architecture/byte-layout-l2chainconfig.svg" alt="L2ChainConfig byte layout: 12 fields totaling 91 bytes (fixed; no varbytes). Top 84 bytes = identifiers (4-byte chainId + 4 × 20-byte UInt160 references for operatorManager, verifier, bridgeAdapter, messageAdapter). Bottom 7 bytes = §16.2 dimensions (securityLevel, daMode, gatewayEnabled, permissionlessExit, sequencerModel, exitModel, active). Includes a 4-template lookup table showing how rollup / zk-rollup / validium / sidechain populate the 7-byte tail" width="900">
+</p>
 
 **Why fixed-size?** Storage on L1 charges per byte. Fixed-size
 keeps the cost predictable — no operator can pad their chain
@@ -184,41 +134,9 @@ in the reverse direction with `direction` flipped.
 
 Source: [`src/Neo.L2.Messaging/ExternalMessageHasher.cs`](../src/Neo.L2.Messaging/ExternalMessageHasher.cs).
 
-```text
-   byte
-  offset  size  field                 notes
-  ──────  ────  ─────                 ─────
-       0    4   externalChainId       uint32 LE — must be 0xE0_xx_xx_xx (foreign namespace)
-       4    4   neoChainId            uint32 LE — Neo L2 chain receiving (or sending) the message
-       8    8   nonce                 uint64 LE — replay-protected per (externalChainId, nonce)
-      16    1   direction             byte 1=NeoToForeign · 2=ForeignToNeo
-      17   20   sender                20 bytes — last 20B of the source-side address
-      37   20   recipient             20 bytes — last 20B of the destination-side address
-      57    8   deadlineUnixSeconds   uint64 LE — 0 means no deadline
-      65   32   sourceTxRef           32 bytes — source-side tx hash (or 0 if not yet on-chain)
-      97    1   messageType           byte 0=AssetTransfer · 1=Call · 2=AssetAndCall
-      98    4   payloadLen            int32 LE — length of the payload bytes
-     102    N   payload               N = payloadLen bytes — type-specific encoding
-  ──────
-   102+N   total
-
-  ┌─────────────────────────────────────────────────────────────┐
-  │  fixed prefix (102 bytes)                                   │
-  │  ┌────┬────┬────┬─┬───────┬────────┬────┬─────────┬─┬────┐  │
-  │  │ext │neo │nonc│d│ sender│recipien│dlin│sourceTxR│m│pLen│  │
-  │  └────┴────┴────┴─┴───────┴────────┴────┴─────────┴─┴────┘  │
-  └─────────────────────────────────────────────────────────────┘
-              followed by:
-  ┌─────────────────────────────────────────────────────────────┐
-  │  variable payload (payloadLen bytes)                        │
-  │                                                             │
-  │  AssetTransfer (messageType=0):                             │
-  │    20  foreignAsset   |  4  amountLen  |  N  amount LE      │
-  │                                                             │
-  │  Call (messageType=1):     [reserved — v0 contract rejects] │
-  │  AssetAndCall (=2):        [reserved]                       │
-  └─────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="figures/architecture/byte-layout-externalcrosschainmessage.svg" alt="ExternalCrossChainMessage byte layout: 11 fields totaling 102 bytes fixed prefix plus N bytes variable payload. Routing fields (externalChainId, neoChainId, nonce, direction) at offset 0-16 highlighted red. Participants (sender, recipient) at 17-56 blue. Execution context (deadlineUnixSeconds, sourceTxRef) at 57-96 orange. Payload header (messageType, payloadLen) at 97-101 purple. Variable payload at 102 onwards (red dashed) carries type-specific encoding (AssetTransfer / Call / AssetAndCall)" width="900">
+</p>
 
 **Replay protection** is per `(externalChainId, nonce)`. The
 on-chain escrow keeps a `consumedInbound[chainId][nonce]` set;
@@ -250,17 +168,9 @@ travels from `NeoHub.SharedBridge` to `L2NativeBridgeContract`.
 
 Source: [`src/Neo.L2.Bridge/DepositPayload.cs`](../src/Neo.L2.Bridge/DepositPayload.cs).
 
-```text
-   byte
-  offset  size       field          notes
-  ──────  ────       ─────          ─────
-       0   20        l1Asset        UInt160 — L1 asset hash locked at SharedBridge
-      20   20        l2Recipient    UInt160 — L2 address that gets the wrapped asset
-      40    4        amountLen      int32 LE — length of the amount bytes
-      44    N        amount         N = amountLen bytes (BigInteger LE, isUnsigned: true)
-  ──────
-    44+N   total
-```
+<p align="center">
+  <img src="figures/architecture/byte-layout-depositpayload.svg" alt="DepositPayload byte layout: 4 fields totaling 44 bytes fixed prefix plus N bytes variable amount. Participants (l1Asset, l2Recipient) at 0-39 (blue UInt160 fields). Amount (amountLen, amount) at 40 onwards (orange + dashed orange for the variable amount which carries a BigInteger LE unsigned, capped at 64 bytes ≈ 10^154 minor units)" width="900">
+</p>
 
 **Why a varbytes amount?** Token amounts have wildly different
 ranges — micro-cents for stablecoins, billions for some governance

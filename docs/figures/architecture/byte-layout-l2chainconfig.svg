@@ -1,0 +1,183 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 760" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">L2ChainConfig byte layout (91 bytes fixed)</title>
+  <desc id="desc">Byte-by-byte canonical wire format for L2ChainConfig — 12 fields totaling 91 bytes. NeoHub.ChainRegistry stores this per registered chain; neo-stack register-chain emits the hex; operator wallet passes it as the configBytes argument to ChainRegistry.RegisterChain. Layout: 4-byte chainId (uint32 LE) + 4 × 20-byte UInt160 identifiers (operatorManager, verifier, bridgeAdapter, messageAdapter — total 84 bytes of identifiers) + 7 × 1-byte §16.2 dimensions (securityLevel, daMode, gatewayEnabled, permissionlessExit, sequencerModel, exitModel, active). Total 4 + 80 + 7 = 91 bytes.</desc>
+
+  <defs>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .col-h      { font-size: 11.5px; font-weight: 700; fill: #525a64; letter-spacing: 0.4px; }
+      .offset     { font-size: 11px; fill: #1e2a55; font-weight: 700; font-family: ui-monospace, 'SF Mono', monospace; }
+      .size       { font-size: 11px; fill: #525a64; font-family: ui-monospace, 'SF Mono', monospace; }
+      .field      { font-size: 11.5px; fill: #1e2a55; font-weight: 700; font-family: ui-monospace, 'SF Mono', monospace; }
+      .desc       { font-size: 10.5px; fill: #2d3a48; }
+      .grp        { font-size: 11px; font-weight: 600; letter-spacing: 0.3px; }
+      .ftr        { font-size: 10.5px; fill: #525a64; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect width="960" height="760" fill="#ffffff"/>
+
+  <text x="480" y="30" text-anchor="middle" class="header" fill="#1e2a55">L2ChainConfig byte layout — 91 bytes (fixed)</text>
+  <text x="480" y="50" text-anchor="middle" class="ftr">stored per chain in NeoHub.ChainRegistry — neo-stack register-chain emits this hex</text>
+
+  <text x="60" y="86" class="col-h">OFFSET</text>
+  <text x="140" y="86" class="col-h">SIZE</text>
+  <text x="200" y="86" class="col-h">FIELD</text>
+  <text x="500" y="86" class="col-h">NOTES</text>
+  <line x1="40" y1="92" x2="920" y2="92" stroke="#cfd5dd" stroke-width="1"/>
+
+  <!-- Identifiers (84 bytes): chainId + 4 UInt160 -->
+  <text x="20" y="116" class="grp" fill="#1e2a55">IDENTIFIERS · 84 B</text>
+
+  <rect x="40" y="100" width="880" height="28" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-width="0.8"/>
+  <text x="80" y="118" class="offset">0</text>
+  <text x="148" y="118" class="size">4 B</text>
+  <text x="200" y="118" class="field">chainId</text>
+  <text x="320" y="118" class="size">uint32 LE</text>
+
+  <rect x="40" y="130" width="880" height="28" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-width="0.8"/>
+  <text x="80" y="148" class="offset">4</text>
+  <text x="148" y="148" class="size">20 B</text>
+  <text x="200" y="148" class="field">operatorManager</text>
+  <text x="320" y="148" class="size">UInt160</text>
+  <text x="500" y="148" class="desc">multisig managing this chain</text>
+
+  <rect x="40" y="160" width="880" height="28" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-width="0.8"/>
+  <text x="80" y="178" class="offset">24</text>
+  <text x="148" y="178" class="size">20 B</text>
+  <text x="200" y="178" class="field">verifier</text>
+  <text x="320" y="178" class="size">UInt160</text>
+  <text x="500" y="178" class="desc">VerifierRegistry slot</text>
+
+  <rect x="40" y="190" width="880" height="28" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-width="0.8"/>
+  <text x="80" y="208" class="offset">44</text>
+  <text x="148" y="208" class="size">20 B</text>
+  <text x="200" y="208" class="field">bridgeAdapter</text>
+  <text x="320" y="208" class="size">UInt160</text>
+  <text x="500" y="208" class="desc">L2NativeBridgeContract hash</text>
+
+  <rect x="40" y="220" width="880" height="28" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-width="0.8"/>
+  <text x="80" y="238" class="offset">64</text>
+  <text x="148" y="238" class="size">20 B</text>
+  <text x="200" y="238" class="field">messageAdapter</text>
+  <text x="320" y="238" class="size">UInt160</text>
+  <text x="500" y="238" class="desc">L2MessageContract hash</text>
+
+  <!-- Divider -->
+  <line x1="40" y1="262" x2="920" y2="262" stroke="#cfd5dd" stroke-width="1" stroke-dasharray="4 2"/>
+  <text x="480" y="278" text-anchor="middle" class="grp" fill="#525a64">────── 84 bytes of identifiers above · §16.2 dimensions below ──────</text>
+
+  <!-- Dimensions (7 × 1 byte) -->
+  <text x="20" y="304" class="grp" fill="#7a4a14">§16.2 DIMENSIONS · 7 B</text>
+
+  <rect x="40" y="288" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
+  <text x="80" y="306" class="offset">84</text>
+  <text x="148" y="306" class="size">1 B</text>
+  <text x="200" y="306" class="field">securityLevel</text>
+  <text x="320" y="306" class="size">byte</text>
+  <text x="500" y="306" class="desc">0 sidechain · 1 settled · 2 optimistic · 3 ZK validity</text>
+
+  <rect x="40" y="318" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
+  <text x="80" y="336" class="offset">85</text>
+  <text x="148" y="336" class="size">1 B</text>
+  <text x="200" y="336" class="field">daMode</text>
+  <text x="320" y="336" class="size">byte</text>
+  <text x="500" y="336" class="desc">0 InMemory · 1 External · 2 L1 · 3 DAC</text>
+
+  <rect x="40" y="348" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
+  <text x="80" y="366" class="offset">86</text>
+  <text x="148" y="366" class="size">1 B</text>
+  <text x="200" y="366" class="field">gatewayEnabled</text>
+  <text x="320" y="366" class="size">byte</text>
+  <text x="500" y="366" class="desc">0 false · 1 true (Phase-5 multi-L2 aggregation)</text>
+
+  <rect x="40" y="378" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
+  <text x="80" y="396" class="offset">87</text>
+  <text x="148" y="396" class="size">1 B</text>
+  <text x="200" y="396" class="field">permissionlessExit</text>
+  <text x="320" y="396" class="size">byte</text>
+  <text x="500" y="396" class="desc">0 false · 1 true (escape-hatch via EmergencyManager)</text>
+
+  <rect x="40" y="408" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
+  <text x="80" y="426" class="offset">88</text>
+  <text x="148" y="426" class="size">1 B</text>
+  <text x="200" y="426" class="field">sequencerModel</text>
+  <text x="320" y="426" class="size">byte</text>
+  <text x="500" y="426" class="desc">0 Solo · 1 Committee · 2 Permissionless</text>
+
+  <rect x="40" y="438" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
+  <text x="80" y="456" class="offset">89</text>
+  <text x="148" y="456" class="size">1 B</text>
+  <text x="200" y="456" class="field">exitModel</text>
+  <text x="320" y="456" class="size">byte</text>
+  <text x="500" y="456" class="desc">0 Optimistic · 1 Permissionless · 2 ZkValidity</text>
+
+  <rect x="40" y="468" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
+  <text x="80" y="486" class="offset">90</text>
+  <text x="148" y="486" class="size">1 B</text>
+  <text x="200" y="486" class="field">active</text>
+  <text x="320" y="486" class="size">byte</text>
+  <text x="500" y="486" class="desc">0 disabled · 1 active</text>
+
+  <line x1="40" y1="510" x2="920" y2="510" stroke="#525a64" stroke-width="1"/>
+  <text x="148" y="528" class="size" font-weight="700" fill="#1e2a55">TOTAL</text>
+  <text x="200" y="528" class="field" font-size="13">91 bytes (fixed; no varbytes)</text>
+  <text x="500" y="528" class="desc"><tspan font-style="italic">4 + 20×4 + 7 = 91</tspan></text>
+
+  <!-- Templates table -->
+  <line x1="40" y1="554" x2="920" y2="554" stroke="#cfd5dd" stroke-width="1"/>
+  <text x="60" y="580" class="grp" fill="#1e2a55">Templates populate the §16.2 7-byte tail (from launching-an-l2.md):</text>
+
+  <text x="60" y="608" class="size" font-weight="700" fill="#525a64">Template</text>
+  <text x="200" y="608" class="size" font-weight="700" fill="#525a64">sec</text>
+  <text x="280" y="608" class="size" font-weight="700" fill="#525a64">da</text>
+  <text x="360" y="608" class="size" font-weight="700" fill="#525a64">gw</text>
+  <text x="440" y="608" class="size" font-weight="700" fill="#525a64">pex</text>
+  <text x="520" y="608" class="size" font-weight="700" fill="#525a64">seq</text>
+  <text x="600" y="608" class="size" font-weight="700" fill="#525a64">exit</text>
+  <text x="680" y="608" class="size" font-weight="700" fill="#525a64">act</text>
+
+  <line x1="60" y1="614" x2="900" y2="614" stroke="#cfd5dd" stroke-width="0.5"/>
+
+  <text x="60" y="630" class="size">rollup</text>
+  <text x="200" y="630" class="size">2</text>
+  <text x="280" y="630" class="size">2</text>
+  <text x="360" y="630" class="size">1</text>
+  <text x="440" y="630" class="size">0</text>
+  <text x="520" y="630" class="size">1</text>
+  <text x="600" y="630" class="size">0</text>
+  <text x="680" y="630" class="size">1</text>
+
+  <text x="60" y="650" class="size">zk-rollup</text>
+  <text x="200" y="650" class="size">3</text>
+  <text x="280" y="650" class="size">2</text>
+  <text x="360" y="650" class="size">1</text>
+  <text x="440" y="650" class="size">0</text>
+  <text x="520" y="650" class="size">1</text>
+  <text x="600" y="650" class="size">2</text>
+  <text x="680" y="650" class="size">1</text>
+
+  <text x="60" y="670" class="size">validium</text>
+  <text x="200" y="670" class="size">2</text>
+  <text x="280" y="670" class="size">3</text>
+  <text x="360" y="670" class="size">1</text>
+  <text x="440" y="670" class="size">0</text>
+  <text x="520" y="670" class="size">1</text>
+  <text x="600" y="670" class="size">0</text>
+  <text x="680" y="670" class="size">1</text>
+
+  <text x="60" y="690" class="size">sidechain</text>
+  <text x="200" y="690" class="size">1</text>
+  <text x="280" y="690" class="size">0</text>
+  <text x="360" y="690" class="size">0</text>
+  <text x="440" y="690" class="size">1</text>
+  <text x="520" y="690" class="size">0</text>
+  <text x="600" y="690" class="size">1</text>
+  <text x="680" y="690" class="size">1</text>
+
+  <text x="60" y="730" class="ftr" font-weight="600" fill="#1e2a55">Why fixed-size?</text>
+  <text x="180" y="730" class="ftr">Storage on L1 charges per byte. No operator can pad chain config to inflate the registry.</text>
+</svg>

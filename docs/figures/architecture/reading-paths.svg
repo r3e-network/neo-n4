@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 580" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">Reading paths by role</title>
+  <desc id="desc">Five reading paths through the architecture documentation, organized by reader role: (1) Quick sense of the system — read ARCHITECTURE.md then this atlas page (15 minutes total). (2) Operator deploying an L2 chain — read l2-lifecycle, then launching-an-l2, then external-bridge-evm-chains if connecting EVM chains, then security-model. (3) SDK / indexer / wallet developer — read l2-lifecycle, then wire-formats, then a language-specific SDK README. (4) Auditor / security reviewer — read trust-boundaries, then security-model, then wire-formats, then external-bridge-roadmap. (5) Contributor working on the codebase — read walkthrough, then l2-lifecycle, then wire-formats, then tech-stack-coverage.</desc>
+
+  <defs>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .role       { font-size: 13px; font-weight: 700; }
+      .step       { font-size: 11.5px; fill: #2d3a48; }
+      .step-num   { font-size: 11.5px; font-weight: 700; }
+      .when       { font-size: 10.5px; fill: #525a64; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect width="960" height="580" fill="#ffffff"/>
+
+  <text x="480" y="30" text-anchor="middle" class="header" fill="#1e2a55">Reading paths by role — pick yours</text>
+
+  <!-- Path 1: Quick sense -->
+  <g filter="url(#card)">
+    <rect x="40" y="56" width="880" height="86" rx="10" ry="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
+    <text x="60" y="80" class="role" fill="#1e2a55">Quick sense of the system?</text>
+    <text x="60" y="98" class="when">~15 min</text>
+    <text x="60" y="124" class="step"><tspan class="step-num" fill="#1e2a55">1.</tspan> ARCHITECTURE.md  <tspan class="when">(English summary — 10 min)</tspan>     <tspan class="step-num" fill="#1e2a55">2.</tspan> architecture-atlas.md  <tspan class="when">(this page — 5 min)</tspan></text>
+  </g>
+
+  <!-- Path 2: Operator -->
+  <g filter="url(#card)">
+    <rect x="40" y="158" width="880" height="86" rx="10" ry="10" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.4"/>
+    <text x="60" y="182" class="role" fill="#7a4a14">Operator deploying an L2 chain?</text>
+    <text x="60" y="200" class="when">~45 min</text>
+    <text x="60" y="226" class="step"><tspan class="step-num" fill="#7a4a14">1.</tspan> architecture-l2-lifecycle  <tspan class="step-num" fill="#7a4a14">2.</tspan> launching-an-l2  <tspan class="step-num" fill="#7a4a14">3.</tspan> external-bridge-evm-chains  <tspan class="step-num" fill="#7a4a14">4.</tspan> security-model</text>
+  </g>
+
+  <!-- Path 3: SDK developer -->
+  <g filter="url(#card)">
+    <rect x="40" y="260" width="880" height="86" rx="10" ry="10" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.4"/>
+    <text x="60" y="284" class="role" fill="#1d4d2c">SDK / indexer / wallet developer?</text>
+    <text x="60" y="302" class="when">~30 min</text>
+    <text x="60" y="328" class="step"><tspan class="step-num" fill="#1d4d2c">1.</tspan> architecture-l2-lifecycle  <tspan class="when">(esp. §6 runtime)</tspan>  <tspan class="step-num" fill="#1d4d2c">2.</tspan> architecture-wire-formats  <tspan class="step-num" fill="#1d4d2c">3.</tspan> sdk/typescript/ or sdk/rust/</text>
+  </g>
+
+  <!-- Path 4: Auditor -->
+  <g filter="url(#card)">
+    <rect x="40" y="362" width="880" height="86" rx="10" ry="10" fill="#fde8e8" stroke="#c4413e" stroke-width="1.4"/>
+    <text x="60" y="386" class="role" fill="#88312e">Auditor / security reviewer?</text>
+    <text x="60" y="404" class="when">~60 min</text>
+    <text x="60" y="430" class="step"><tspan class="step-num" fill="#88312e">1.</tspan> architecture-trust-boundaries  <tspan class="step-num" fill="#88312e">2.</tspan> security-model  <tspan class="step-num" fill="#88312e">3.</tspan> architecture-wire-formats  <tspan class="step-num" fill="#88312e">4.</tspan> external-bridge-roadmap</text>
+  </g>
+
+  <!-- Path 5: Contributor -->
+  <g filter="url(#card)">
+    <rect x="40" y="464" width="880" height="86" rx="10" ry="10" fill="#f1ecf8" stroke="#7d59b3" stroke-width="1.4"/>
+    <text x="60" y="488" class="role" fill="#3e2865">Contributor working on the codebase?</text>
+    <text x="60" y="506" class="when">~50 min</text>
+    <text x="60" y="532" class="step"><tspan class="step-num" fill="#3e2865">1.</tspan> architecture-walkthrough  <tspan class="when">(per-tx tour)</tspan>  <tspan class="step-num" fill="#3e2865">2.</tspan> architecture-l2-lifecycle  <tspan class="step-num" fill="#3e2865">3.</tspan> architecture-wire-formats  <tspan class="step-num" fill="#3e2865">4.</tspan> tech-stack-coverage</text>
+  </g>
+</svg>

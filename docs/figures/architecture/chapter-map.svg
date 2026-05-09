@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 480" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">Architecture chapter map</title>
+  <desc id="desc">Relationship between the five architecture chapters. Atlas (this index page) links out to walkthrough (per-tx narrative tour, 311 lines), l2-lifecycle (system topology, creation, deployment, runtime — 741 lines), and wire-formats (byte-by-byte canonical layouts — 361 lines). Both l2-lifecycle and wire-formats inform trust-boundaries (who signs / who verifies / what is defended at each boundary — 399 lines). Together with the glossary, these chapters total around 2,050 lines.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .ch-t       { font-size: 13px; font-weight: 700; }
+      .ch-s       { font-size: 11px; fill: #2d3a48; }
+      .ch-l       { font-size: 10.5px; fill: #525a64; font-style: italic; }
+      .ed-lbl     { font-size: 10.5px; fill: #525a64; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect width="960" height="480" fill="#ffffff"/>
+
+  <text x="480" y="30" text-anchor="middle" class="header" fill="#1e2a55">The 5 architecture chapters — how they relate</text>
+
+  <!-- Atlas (top center) -->
+  <g filter="url(#card)">
+    <rect x="370" y="56" width="220" height="80" rx="10" ry="10" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.5"/>
+    <text x="480" y="82" text-anchor="middle" class="ch-t" fill="#7a4a14">architecture-atlas</text>
+    <text x="480" y="100" text-anchor="middle" class="ch-s">(this page)</text>
+    <text x="480" y="118" text-anchor="middle" class="ch-l">reading order · chapter index</text>
+  </g>
+
+  <!-- Edges: atlas → walkthrough / lifecycle / wire-formats -->
+  <line x1="430" y1="136" x2="180" y2="186" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <line x1="480" y1="136" x2="480" y2="186" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <line x1="530" y1="136" x2="780" y2="186" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="480" y="160" text-anchor="middle" class="ed-lbl">links to:</text>
+
+  <!-- Walkthrough (left) -->
+  <g filter="url(#card)">
+    <rect x="60" y="190" width="240" height="120" rx="10" ry="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
+    <text x="180" y="214" text-anchor="middle" class="ch-t" fill="#1e2a55">walkthrough</text>
+    <line x1="80" y1="222" x2="280" y2="222" stroke="#7587c1" stroke-dasharray="2 2"/>
+    <text x="180" y="244" text-anchor="middle" class="ch-s">per-tx narrative tour</text>
+    <text x="180" y="262" text-anchor="middle" class="ch-s">through the codebase</text>
+    <text x="180" y="288" text-anchor="middle" class="ch-l">311 lines</text>
+  </g>
+
+  <!-- L2-lifecycle (center) -->
+  <g filter="url(#card)">
+    <rect x="370" y="190" width="220" height="120" rx="10" ry="10" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.5"/>
+    <text x="480" y="214" text-anchor="middle" class="ch-t" fill="#1d4d2c">l2-lifecycle</text>
+    <line x1="390" y1="222" x2="570" y2="222" stroke="#3a8454" stroke-dasharray="2 2"/>
+    <text x="480" y="244" text-anchor="middle" class="ch-s">system topology</text>
+    <text x="480" y="260" text-anchor="middle" class="ch-s">+ creation flow</text>
+    <text x="480" y="276" text-anchor="middle" class="ch-s">+ deployment + runtime</text>
+    <text x="480" y="298" text-anchor="middle" class="ch-l">741 lines</text>
+  </g>
+
+  <!-- Wire-formats (right) -->
+  <g filter="url(#card)">
+    <rect x="660" y="190" width="240" height="120" rx="10" ry="10" fill="#f1ecf8" stroke="#7d59b3" stroke-width="1.4"/>
+    <text x="780" y="214" text-anchor="middle" class="ch-t" fill="#3e2865">wire-formats</text>
+    <line x1="680" y1="222" x2="880" y2="222" stroke="#7d59b3" stroke-dasharray="2 2"/>
+    <text x="780" y="244" text-anchor="middle" class="ch-s">byte-by-byte canonical</text>
+    <text x="780" y="262" text-anchor="middle" class="ch-s">layouts for every</text>
+    <text x="780" y="278" text-anchor="middle" class="ch-s">cross-tier wire format</text>
+    <text x="780" y="298" text-anchor="middle" class="ch-l">361 lines</text>
+  </g>
+
+  <!-- Edges into trust-boundaries -->
+  <line x1="480" y1="310" x2="480" y2="346" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <line x1="780" y1="310" x2="540" y2="346" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="630" y="334" class="ed-lbl">informs</text>
+
+  <!-- Trust-boundaries (bottom) -->
+  <g filter="url(#card)">
+    <rect x="220" y="350" width="520" height="106" rx="10" ry="10" fill="#fde8e8" stroke="#c4413e" stroke-width="1.5"/>
+    <text x="480" y="376" text-anchor="middle" class="ch-t" fill="#88312e">trust-boundaries</text>
+    <line x1="240" y1="384" x2="720" y2="384" stroke="#c4413e" stroke-dasharray="2 2"/>
+    <text x="480" y="406" text-anchor="middle" class="ch-s">who signs · who verifies · what's defended at each boundary</text>
+    <text x="480" y="424" text-anchor="middle" class="ch-l">5-boundary system map · per-flow defense-in-depth · trust-minimization gradient</text>
+    <text x="480" y="446" text-anchor="middle" class="ch-l">399 lines</text>
+  </g>
+
+  <!-- Footer -->
+  <text x="480" y="476" text-anchor="middle" class="ed-lbl" fill="#525a64">+ glossary (233 lines) — total ~2,050 lines of architecture documentation.</text>
+</svg>

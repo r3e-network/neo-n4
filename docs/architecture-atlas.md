@@ -9,89 +9,15 @@ goal — or read all of them in order for a complete picture.
 
 ## Reading order by role
 
-```text
-   ┌─────────────────────────────────────────────────────────────────┐
-   │                                                                 │
-   │   Just want a quick sense of the system?                        │
-   │   ─────                                                         │
-   │   1. ARCHITECTURE.md            (English summary — 10 min)      │
-   │   2. architecture-atlas.md      (this page — 5 min)             │
-   │                                                                 │
-   ├─────────────────────────────────────────────────────────────────┤
-   │                                                                 │
-   │   Operator deploying an L2 chain?                               │
-   │   ─────                                                         │
-   │   1. architecture-l2-lifecycle.md  (the system + deploy flow)   │
-   │   2. launching-an-l2.md            (operator commands)          │
-   │   3. external-bridge-evm-chains.md (if connecting EVM chains)   │
-   │   4. security-model.md             (operator checklist)         │
-   │                                                                 │
-   ├─────────────────────────────────────────────────────────────────┤
-   │                                                                 │
-   │   SDK / indexer / wallet developer?                             │
-   │   ─────                                                         │
-   │   1. architecture-l2-lifecycle.md  (system overview, §6 runtime)│
-   │   2. architecture-wire-formats.md  (canonical byte layouts)     │
-   │   3. ../sdk/typescript/README.md   (or sdk/rust/README.md)      │
-   │                                                                 │
-   ├─────────────────────────────────────────────────────────────────┤
-   │                                                                 │
-   │   Auditor / security reviewer?                                  │
-   │   ─────                                                         │
-   │   1. architecture-trust-boundaries.md (architecture-from-trust) │
-   │   2. security-model.md                (threats + mitigations)   │
-   │   3. architecture-wire-formats.md     (cryptographic boundaries)│
-   │   4. external-bridge-roadmap.md       (Phase B/C/D progression) │
-   │                                                                 │
-   ├─────────────────────────────────────────────────────────────────┤
-   │                                                                 │
-   │   Contributor working on the codebase?                          │
-   │   ─────                                                         │
-   │   1. architecture-walkthrough.md   (per-tx narrative tour)      │
-   │   2. architecture-l2-lifecycle.md  (system topology)            │
-   │   3. architecture-wire-formats.md  (data boundaries you'll touch)│
-   │   4. tech-stack-coverage.md        (what's vendored vs ours)    │
-   │                                                                 │
-   └─────────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="figures/architecture/reading-paths.svg" alt="Five reading paths through the architecture documentation grouped by role: quick-sense reader, operator deploying an L2 chain, SDK/indexer/wallet developer, auditor/security reviewer, and codebase contributor. Each path lists the chapters in order with approximate reading time" width="900">
+</p>
 
 ## The 5 architecture chapters
 
-```text
-                         ┌──────────────────────────┐
-                         │  architecture atlas      │
-                         │  (this page)             │
-                         │  · reading order         │
-                         │  · chapter index         │
-                         └────────────┬─────────────┘
-                                      │
-                                      │  links to:
-              ┌───────────────────────┼───────────────────────┐
-              │                       │                       │
-              ▼                       ▼                       ▼
-   ┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐
-   │  walkthrough       │  │  l2-lifecycle      │  │  wire-formats      │
-   │  ──────────        │  │  ────────────      │  │  ────────────      │
-   │  per-tx narrative  │  │  system topology   │  │  byte-by-byte      │
-   │  tour through the  │  │  + creation flow   │  │  canonical layouts │
-   │  codebase          │  │  + deployment      │  │  for every cross-  │
-   │                    │  │  + runtime         │  │  tier wire format  │
-   │  311 lines         │  │  741 lines         │  │  361 lines         │
-   └────────────────────┘  └────────┬───────────┘  └────────┬───────────┘
-                                    │                       │
-                                    │     informs           │     informs
-                                    ▼                       ▼
-                         ┌────────────────────────────────────────┐
-                         │  trust-boundaries                      │
-                         │  ────────────────                      │
-                         │  who signs / who verifies /            │
-                         │  what's defended at each boundary      │
-                         │  · 5-boundary system map               │
-                         │  · per-flow defense-in-depth           │
-                         │  · trust-minimization gradient         │
-                         │  399 lines                             │
-                         └────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="figures/architecture/chapter-map.svg" alt="Chapter relationship diagram. Atlas (this page) links out to walkthrough, l2-lifecycle, and wire-formats. Both l2-lifecycle and wire-formats inform trust-boundaries. Total approximately 2,050 lines across the five chapters plus the glossary" width="900">
+</p>
 
 ### Chapter summaries
 

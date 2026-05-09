@@ -34,6 +34,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[derive(Clone)]
 pub struct HealthState {
     inner: Arc<Mutex<HealthInner>>,
+    /// Optional Prometheus label suffix (e.g. `{chain_id="0xE0000030"}`)
+    /// applied to every metric line. When None (`HealthState::new()`),
+    /// metrics are emitted unlabelled — same shape as v0. When set
+    /// (`HealthState::with_chain_id(...)`), every counter + gauge
+    /// carries the label so multi-chain operator setups get cleanly
+    /// tagged metrics out of the box without relabel rules.
+    metric_label_suffix: String,
 }
 
 #[derive(Default)]
@@ -57,7 +64,19 @@ impl HealthState {
                 started_at_unix,
                 ..Default::default()
             })),
+            metric_label_suffix: String::new(),
         }
+    }
+
+    /// Construct a HealthState that tags every Prometheus metric with
+    /// `{chain_id="0x..."}`. Use this when running multiple watcher
+    /// instances against different chains scraped by the same
+    /// Prometheus — the label disambiguates time series without
+    /// requiring per-pod relabel rules.
+    pub fn with_chain_id(chain_id: u32) -> Self {
+        let mut s = Self::new();
+        s.metric_label_suffix = format!(r#"{{chain_id="0x{chain_id:08X}"}}"#);
+        s
     }
 
     /// Record a successful tick — whether it processed an event or not.
@@ -152,34 +171,35 @@ impl HealthState {
         let now = unix_now();
         let reference = s.last_tick_success_unix.unwrap_or(s.started_at_unix);
         let healthy = if now.saturating_sub(reference) <= healthy_threshold_secs { 1 } else { 0 };
+        let lbl = &self.metric_label_suffix;
         format!(
             "# HELP watcher_started_at_unix_timestamp Watcher process start time (Unix seconds)\n\
              # TYPE watcher_started_at_unix_timestamp gauge\n\
-             watcher_started_at_unix_timestamp {}\n\
+             watcher_started_at_unix_timestamp{lbl} {}\n\
              # HELP watcher_last_tick_unix_timestamp Time of last run-loop iteration (success or error)\n\
              # TYPE watcher_last_tick_unix_timestamp gauge\n\
-             watcher_last_tick_unix_timestamp {}\n\
+             watcher_last_tick_unix_timestamp{lbl} {}\n\
              # HELP watcher_last_tick_success_unix_timestamp Time of last tick that completed without error\n\
              # TYPE watcher_last_tick_success_unix_timestamp gauge\n\
-             watcher_last_tick_success_unix_timestamp {}\n\
+             watcher_last_tick_success_unix_timestamp{lbl} {}\n\
              # HELP watcher_ticks_total Total run-loop iterations\n\
              # TYPE watcher_ticks_total counter\n\
-             watcher_ticks_total {}\n\
+             watcher_ticks_total{lbl} {}\n\
              # HELP watcher_events_processed_total Total Locked events the watcher has processed\n\
              # TYPE watcher_events_processed_total counter\n\
-             watcher_events_processed_total {}\n\
+             watcher_events_processed_total{lbl} {}\n\
              # HELP watcher_submissions_total Total successful submissions to NeoHub.ExternalBridgeEscrow.Receive\n\
              # TYPE watcher_submissions_total counter\n\
-             watcher_submissions_total {}\n\
+             watcher_submissions_total{lbl} {}\n\
              # HELP watcher_journal_cursor Current journal block cursor\n\
              # TYPE watcher_journal_cursor gauge\n\
-             watcher_journal_cursor {}\n\
+             watcher_journal_cursor{lbl} {}\n\
              # HELP watcher_last_error_unix_timestamp Time of last error in the run loop (0 = none)\n\
              # TYPE watcher_last_error_unix_timestamp gauge\n\
-             watcher_last_error_unix_timestamp {}\n\
+             watcher_last_error_unix_timestamp{lbl} {}\n\
              # HELP watcher_healthy 1 if last tick succeeded within the configured threshold, else 0\n\
              # TYPE watcher_healthy gauge\n\
-             watcher_healthy {}\n",
+             watcher_healthy{lbl} {}\n",
             s.started_at_unix,
             s.last_tick_at_unix.unwrap_or(0),
             s.last_tick_success_unix.unwrap_or(0),
@@ -513,6 +533,60 @@ mod tests {
         assert!(body.contains("watcher_healthy 1\n"));
         // No error recorded → 0 timestamp.
         assert!(body.contains("watcher_last_error_unix_timestamp 0\n"));
+    }
+
+    /// `HealthState::with_chain_id(...)` tags every Prometheus metric
+    /// with `{chain_id="0x..."}` so multi-chain operator setups don't
+    /// have to relabel. Pin: every metric line carries the suffix;
+    /// HELP / TYPE preambles do NOT (Prometheus requires those to be
+    /// label-free).
+    #[test]
+    fn metrics_carry_chain_id_label_when_set() {
+        let state = HealthState::with_chain_id(0xE000_0030); // BSC mainnet
+        state.record_tick(true);
+        state.record_submission();
+
+        let text = state.metrics_text(60);
+
+        // Value lines have the label suffix. Pick a few representatives.
+        for metric in [
+            "watcher_ticks_total",
+            "watcher_events_processed_total",
+            "watcher_submissions_total",
+            "watcher_journal_cursor",
+            "watcher_healthy",
+        ] {
+            let needle = format!("{metric}{{chain_id=\"0xE0000030\"}} ");
+            assert!(
+                text.contains(&needle),
+                "missing labelled value line for {metric} — full body:\n{text}"
+            );
+        }
+
+        // HELP/TYPE preambles must NOT carry the label — that would be
+        // invalid Prometheus exposition format.
+        assert!(text.contains("# HELP watcher_ticks_total Total"));
+        assert!(text.contains("# TYPE watcher_ticks_total counter\n"));
+        assert!(!text.contains("# HELP watcher_ticks_total{"));
+        assert!(!text.contains("# TYPE watcher_ticks_total{"));
+    }
+
+    /// Default `HealthState::new()` (no label) emits unlabelled metrics
+    /// — matches the v0 output shape so existing scrape configs don't
+    /// break for operators who haven't opted into the label.
+    #[test]
+    fn metrics_unlabelled_when_chain_id_not_set() {
+        let state = HealthState::new();
+        state.record_tick(true);
+        let text = state.metrics_text(60);
+
+        // No `{...}` between the metric name and the value. Pick one
+        // line and assert its shape directly.
+        assert!(
+            text.contains("watcher_ticks_total 1\n"),
+            "unlabelled metric should match `<name> <value>` shape"
+        );
+        assert!(!text.contains("watcher_ticks_total{"));
     }
 
     /// `/metrics` reports `watcher_healthy 0` when stale — same logic

@@ -348,8 +348,10 @@ fn run(config: Config) -> Result<(), String> {
 
     // Health server: started before the loop so probes work during
     // startup. Optional — operators running one-off CLI without
-    // kubernetes don't need it.
-    let health_state = HealthState::new();
+    // kubernetes don't need it. `with_chain_id` tags every emitted
+    // Prometheus metric with `{chain_id="0x..."}` so multi-chain
+    // operator setups get cleanly disambiguated time series.
+    let health_state = HealthState::with_chain_id(config.external_chain_id);
     let _health_server = if let Some(bind) = &config.health.bind {
         match HealthServer::spawn(bind, health_state.clone(), config.health.threshold_secs) {
             Ok(server) => {

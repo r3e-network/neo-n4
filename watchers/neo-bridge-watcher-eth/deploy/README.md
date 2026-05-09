@@ -127,6 +127,18 @@ exposition format. Metrics:
 | `watcher_last_error_unix_timestamp` | gauge | error recency |
 | `watcher_healthy` | gauge | 1/0 — same logic as `/healthz` 200/503 |
 
+**Every metric carries a `chain_id="0x..."` label automatically** —
+the daemon binary calls `HealthState::with_chain_id(config.external_chain_id)`
+at startup. So a multi-chain operator running, say, BSC + Polygon
+watchers gets time series like:
+
+```
+watcher_submissions_total{chain_id="0xE0000030"} 142   # BSC
+watcher_submissions_total{chain_id="0xE0000040"} 87    # Polygon
+```
+
+…without any Prometheus relabel rules needed.
+
 Scrape config (Prometheus side):
 ```yaml
 scrape_configs:
@@ -137,8 +149,6 @@ scrape_configs:
       - source_labels: [__meta_kubernetes_pod_label_app]
         action: keep
         regex: neo-bridge-watcher-eth
-      - source_labels: [__meta_kubernetes_pod_label_chain]
-        target_label: chain
       - target_label: __metrics_path__
         replacement: /metrics
       - source_labels: [__address__]
@@ -148,11 +158,10 @@ scrape_configs:
         target_label: __address__
 ```
 
-The `chain` label comes from the pod's `chain=bsc` label (set in the
-k8s manifest), so multi-chain operator setups get
-`watcher_submissions_total{chain="bsc"}` etc. for free.
+The `chain_id` label is part of the metric itself — no relabel rule
+is needed to derive it from pod metadata.
 
-Recommended alert rules:
+Recommended alert rules (fire per `chain_id` label):
 - `time() - watcher_last_tick_success_unix_timestamp > 300` —
   watcher hasn't made progress in 5 minutes.
 - `watcher_healthy == 0` — same alert, threshold-aware.

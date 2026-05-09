@@ -233,4 +233,165 @@ mod tests {
             "truncated record dropped silently — replay-safe");
         let _ = std::fs::remove_dir_all(&dir);
     }
+
+    /// Pin replay correctness + performance at production-realistic
+    /// scale. A busy bridge hits ~500 inbounds/day; over a year that's
+    /// ~180k records. The reopen scan must complete in well under a
+    /// second so a watcher restart is fast. 5000 records ≈ 60 KB,
+    /// representative without making the test slow.
+    #[test]
+    fn large_consumed_log_replays_correctly() {
+        let dir = temp_dir("large-replay");
+        const N: u64 = 5_000;
+
+        // Write phase: 5000 marks across 4 chains.
+        {
+            let mut j = FileJournal::open(&dir).unwrap();
+            for i in 0..N {
+                let chain = match i % 4 {
+                    0 => 0xE000_0001, // Eth
+                    1 => 0xE000_0010, // Tron
+                    2 => 0xE000_0030, // BSC
+                    _ => 0xE000_0040, // Polygon
+                };
+                assert!(
+                    j.mark_submitted(chain, i).unwrap(),
+                    "mark {i} on chain 0x{chain:08X} should be new"
+                );
+            }
+            j.set_cursor(N).unwrap();
+        }
+
+        // Replay phase: reopen + verify every record + cursor.
+        let start = std::time::Instant::now();
+        let j = FileJournal::open(&dir).unwrap();
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed.as_millis() < 500,
+            "replay of {N} records took {elapsed:?} — too slow"
+        );
+        assert_eq!(j.cursor().unwrap(), N);
+        for i in 0..N {
+            let chain = match i % 4 {
+                0 => 0xE000_0001,
+                1 => 0xE000_0010,
+                2 => 0xE000_0030,
+                _ => 0xE000_0040,
+            };
+            assert!(
+                j.is_submitted(chain, i).unwrap(),
+                "mark {i} on chain 0x{chain:08X} did not replay"
+            );
+        }
+        // Sanity: a record that was NEVER written stays unmarked.
+        assert!(!j.is_submitted(0xE000_0001, N + 100).unwrap());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A corrupt cursor.bin (less than 8 bytes — could happen if the
+    /// disk filled mid-write before the atomic rename, leaving a
+    /// partial cursor.bin from a previous deployment) must surface a
+    /// typed error at reopen — not silently fall back to 0, which
+    /// would re-process every event since genesis on the next tick.
+    #[test]
+    fn corrupt_short_cursor_returns_error() {
+        let dir = temp_dir("corrupt-cursor");
+        std::fs::create_dir_all(&dir).unwrap();
+        let cursor_path = dir.join(CURSOR_FILE);
+        // 4 bytes — too short for a u64.
+        std::fs::write(&cursor_path, [0xAA; 4]).unwrap();
+
+        let result = FileJournal::open(&dir);
+        match result {
+            Err(JournalError::Io(msg)) => assert!(
+                msg.contains("cursor"),
+                "error should name the cursor field, got: {msg}"
+            ),
+            Err(other) => panic!("expected JournalError::Io, got {other:?}"),
+            Ok(_) => panic!(
+                "must NOT silently succeed with a corrupt cursor.bin — \
+                 would re-process every event since genesis"
+            ),
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `set_cursor` uses an atomic rename; cursor.bin.tmp must NOT
+    /// remain in the directory after a successful set. A leak would
+    /// indicate the rename pattern was bypassed (and the next set
+    /// would race with the leftover handle).
+    #[test]
+    fn set_cursor_does_not_leak_tmp_file() {
+        let dir = temp_dir("no-tmp-leak");
+        let mut j = FileJournal::open(&dir).unwrap();
+        for n in 1..=10 {
+            j.set_cursor(n * 100).unwrap();
+        }
+        // Drop the journal so any held handles are released.
+        drop(j);
+
+        let tmp = dir.join(format!("{CURSOR_FILE}.tmp"));
+        assert!(
+            !tmp.exists(),
+            "cursor.bin.tmp should not survive successful set_cursor — atomic rename invariant"
+        );
+        let cursor = dir.join(CURSOR_FILE);
+        assert!(cursor.exists(), "cursor.bin should exist after writes");
+        let bytes = std::fs::read(&cursor).unwrap();
+        assert_eq!(
+            bytes.len(),
+            8,
+            "cursor.bin must be exactly 8 bytes (one u64 LE)"
+        );
+        assert_eq!(
+            u64::from_le_bytes(bytes[..8].try_into().unwrap()),
+            1000,
+            "cursor.bin must hold the final cursor value"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Stress test: interleave cursor advances with marks across
+    /// multiple chains. After drop + reopen, every mark replays AND
+    /// the cursor matches the highest set value. Pins that the
+    /// cursor.bin and consumed.log are independent (one's writes don't
+    /// stomp the other's).
+    #[test]
+    fn interleaved_cursor_and_marks_persist_independently() {
+        let dir = temp_dir("interleaved");
+        const STEPS: u64 = 100;
+
+        // Mixed sequence: at each step bump cursor, mark on chain A,
+        // then mark on chain B.
+        {
+            let mut j = FileJournal::open(&dir).unwrap();
+            for step in 1..=STEPS {
+                j.set_cursor(step * 10).unwrap();
+                assert!(j.mark_submitted(0xE000_0001, step).unwrap());
+                assert!(j.mark_submitted(0xE000_0030, step).unwrap());
+            }
+        }
+
+        // Reopen + verify both axes.
+        let j = FileJournal::open(&dir).unwrap();
+        assert_eq!(
+            j.cursor().unwrap(),
+            STEPS * 10,
+            "cursor must hold the final value across reopen"
+        );
+        for step in 1..=STEPS {
+            assert!(
+                j.is_submitted(0xE000_0001, step).unwrap(),
+                "Eth mark step {step} dropped"
+            );
+            assert!(
+                j.is_submitted(0xE000_0030, step).unwrap(),
+                "BSC mark step {step} dropped"
+            );
+        }
+        // Cross-chain isolation: BSC mark for step S doesn't show up as
+        // an Eth mark for the same nonce.
+        assert!(!j.is_submitted(0xE000_0040, 1).unwrap());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

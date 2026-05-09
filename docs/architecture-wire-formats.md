@@ -52,46 +52,9 @@ sealed L2 batch is encoded into this layout before submission.
 
 Source: [`src/Neo.L2.Batch/BatchSerializer.cs`](../src/Neo.L2.Batch/BatchSerializer.cs).
 
-```text
-   byte
-  offset  size       field                  notes
-  ──────  ────       ─────                  ─────
-       0    4        chainId                uint32 LE — which L2 produced this batch
-       4    8        batchNumber            uint64 LE — monotonic per-chain
-      12    8        firstBlock             uint64 LE — first L2 block in this batch
-      20    8        lastBlock              uint64 LE — last L2 block (inclusive)
-      28   32        preStateRoot           UInt256 — state root before the batch
-      60   32        postStateRoot          UInt256 — state root after the batch
-      92   32        txRoot                 UInt256 — Merkle root of the batch's txs
-     124   32        receiptRoot            UInt256 — Merkle root of receipts
-     156   32        withdrawalRoot         UInt256 — Merkle root of L2→L1 withdrawals
-     188   32        l2ToL1MessageRoot      UInt256 — Merkle root of L2→L1 messages
-     220   32        l2ToL2MessageRoot      UInt256 — Merkle root of L2→L2 messages
-     252   32        daCommitment           UInt256 — hash committing to the DA payload
-     284   32        publicInputHash        UInt256 — hash of PublicInputs (§3 below)
-     316    1        proofType              byte — Multisig=0, RiscVZk=1, Optimistic=2, ...
-     317    4        proofLen               int32 LE — length of the proof bytes
-     321    N        proof                  N = proofLen bytes (≤ 1 MiB cap)
-  ──────
-   321+N   total
-
-  ┌───────────────────────────────────────────────────────┐
-  │                  fixed prefix (321 bytes)             │
-  │                                                       │
-  │  ┌────┬────┬────┬────┬────┬────┬────┬────┬────┬────┐  │
-  │  │ ID │ #B │ FB │ LB │preR│posR│txR │recR│witR│m12 │  │
-  │  └────┴────┴────┴────┴────┴────┴────┴────┴────┴────┘  │
-  │  ┌────┬────┬────┬────┬────────────────────────────┐   │
-  │  │m22 │ daC│piH │type│       proofLen (4)         │   │
-  │  └────┴────┴────┴────┴────────────────────────────┘   │
-  └───────────────────────────────────────────────────────┘
-              followed by:
-  ┌───────────────────────────────────────────────────────┐
-  │  variable suffix (proofLen bytes, capped at 1 MiB)    │
-  │  proof bytes — opaque to BatchSerializer; meaning is  │
-  │  proofType-specific (see VerifierRegistry dispatch)   │
-  └───────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="figures/architecture/byte-layout-l2batchcommitment.svg" alt="L2BatchCommitment byte layout: 16 fields totaling 321 bytes fixed prefix plus N bytes variable proof. Color-grouped by concern: identity (chainId, batchNumber, firstBlock, lastBlock — blue), state roots (preStateRoot, postStateRoot — green), Merkle roots (txRoot, receiptRoot, withdrawalRoot, l2ToL1MessageRoot, l2ToL2MessageRoot — orange), DA + proof binding (daCommitment, publicInputHash — purple), proof header (proofType, proofLen — red), variable proof suffix (red dashed)" width="900">
+</p>
 
 **Defensive limits enforced at serialize:**
 - `proof.Length ≤ 1,048,576` (1 MiB) — matches NeoHub's defensive

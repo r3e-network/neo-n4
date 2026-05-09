@@ -1,0 +1,168 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 820" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">L2BatchCommitment 字节布局(321 + N 字节)</title>
+  <desc id="desc">L2BatchCommitment 的字节级规范线协议格式。321 字节定长前缀 + 变长 proof(封顶 1 MiB)。按偏移的字段:0-3 chainId(uint32 LE)、4-11 batchNumber(uint64 LE)、12-19 firstBlock(uint64 LE)、20-27 lastBlock(uint64 LE)、28-59 preStateRoot(UInt256)、60-91 postStateRoot(UInt256)、92-123 txRoot(UInt256)、124-155 receiptRoot(UInt256)、156-187 withdrawalRoot(UInt256)、188-219 l2ToL1MessageRoot(UInt256)、220-251 l2ToL2MessageRoot(UInt256)、252-283 daCommitment(UInt256)、284-315 publicInputHash(UInt256)、316 proofType(byte)、317-320 proofLen(int32 LE)、321 至 320+N proof(N 字节,≤ 1 MiB)。</desc>
+
+  <defs>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .col-h      { font-size: 11.5px; font-weight: 700; fill: #525a64; letter-spacing: 0.4px; }
+      .offset     { font-size: 11px; fill: #1e2a55; font-weight: 700; font-family: ui-monospace, 'SF Mono', monospace; }
+      .size       { font-size: 11px; fill: #525a64; font-family: ui-monospace, 'SF Mono', monospace; }
+      .field      { font-size: 11.5px; fill: #1e2a55; font-weight: 700; font-family: ui-monospace, 'SF Mono', monospace; }
+      .desc       { font-size: 10.5px; fill: #2d3a48; }
+      .grp        { font-size: 11px; font-weight: 600; letter-spacing: 0.3px; }
+      .ftr        { font-size: 10.5px; fill: #525a64; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect width="960" height="820" fill="#ffffff"/>
+
+  <text x="480" y="30" text-anchor="middle" class="header" fill="#1e2a55">L2BatchCommitment 字节布局 —— 321 + N 字节</text>
+  <text x="480" y="50" text-anchor="middle" class="ftr">NeoHub.SettlementManager 解码的规范线协议格式 —— 源码:src/Neo.L2.Batch/BatchSerializer.cs</text>
+
+  <text x="60" y="86" class="col-h">偏移</text>
+  <text x="140" y="86" class="col-h">大小</text>
+  <text x="200" y="86" class="col-h">字段</text>
+  <text x="500" y="86" class="col-h">备注</text>
+  <line x1="40" y1="92" x2="920" y2="92" stroke="#cfd5dd" stroke-width="1"/>
+
+  <text x="20" y="116" class="grp" fill="#1e2a55">身份</text>
+
+  <rect x="40" y="100" width="880" height="28" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-width="0.8"/>
+  <text x="80" y="118" class="offset">0</text>
+  <text x="148" y="118" class="size">4 B</text>
+  <text x="200" y="118" class="field">chainId</text>
+  <text x="320" y="118" class="size">uint32 LE</text>
+  <text x="500" y="118" class="desc">哪条 L2 出的此批次</text>
+
+  <rect x="40" y="130" width="880" height="28" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-width="0.8"/>
+  <text x="80" y="148" class="offset">4</text>
+  <text x="148" y="148" class="size">8 B</text>
+  <text x="200" y="148" class="field">batchNumber</text>
+  <text x="320" y="148" class="size">uint64 LE</text>
+  <text x="500" y="148" class="desc">按链单调递增</text>
+
+  <rect x="40" y="160" width="880" height="28" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-width="0.8"/>
+  <text x="80" y="178" class="offset">12</text>
+  <text x="148" y="178" class="size">8 B</text>
+  <text x="200" y="178" class="field">firstBlock</text>
+  <text x="320" y="178" class="size">uint64 LE</text>
+  <text x="500" y="178" class="desc">此批次首个 L2 块</text>
+
+  <rect x="40" y="190" width="880" height="28" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-width="0.8"/>
+  <text x="80" y="208" class="offset">20</text>
+  <text x="148" y="208" class="size">8 B</text>
+  <text x="200" y="208" class="field">lastBlock</text>
+  <text x="320" y="208" class="size">uint64 LE</text>
+  <text x="500" y="208" class="desc">末块(含)</text>
+
+  <text x="20" y="244" class="grp" fill="#1d4d2c">状态根</text>
+
+  <rect x="40" y="228" width="880" height="28" rx="4" ry="4" fill="#e7f4eb" stroke="#3a8454" stroke-width="0.8"/>
+  <text x="80" y="246" class="offset">28</text>
+  <text x="148" y="246" class="size">32 B</text>
+  <text x="200" y="246" class="field">preStateRoot</text>
+  <text x="320" y="246" class="size">UInt256</text>
+  <text x="500" y="246" class="desc">批次**前**状态根(== 上批次的 postStateRoot)</text>
+
+  <rect x="40" y="258" width="880" height="28" rx="4" ry="4" fill="#e7f4eb" stroke="#3a8454" stroke-width="0.8"/>
+  <text x="80" y="276" class="offset">60</text>
+  <text x="148" y="276" class="size">32 B</text>
+  <text x="200" y="276" class="field">postStateRoot</text>
+  <text x="320" y="276" class="size">UInt256</text>
+  <text x="500" y="276" class="desc">批次**后**状态根</text>
+
+  <text x="20" y="312" class="grp" fill="#7a4a14">MERKLE 根</text>
+
+  <rect x="40" y="296" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
+  <text x="80" y="314" class="offset">92</text>
+  <text x="148" y="314" class="size">32 B</text>
+  <text x="200" y="314" class="field">txRoot</text>
+  <text x="320" y="314" class="size">UInt256</text>
+  <text x="500" y="314" class="desc">批次内 tx 的 Merkle 根</text>
+
+  <rect x="40" y="326" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
+  <text x="80" y="344" class="offset">124</text>
+  <text x="148" y="344" class="size">32 B</text>
+  <text x="200" y="344" class="field">receiptRoot</text>
+  <text x="320" y="344" class="size">UInt256</text>
+  <text x="500" y="344" class="desc">receipts 的 Merkle 根</text>
+
+  <rect x="40" y="356" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
+  <text x="80" y="374" class="offset">156</text>
+  <text x="148" y="374" class="size">32 B</text>
+  <text x="200" y="374" class="field">withdrawalRoot</text>
+  <text x="320" y="374" class="size">UInt256</text>
+  <text x="500" y="374" class="desc">L2→L1 提款的 Merkle 根(用户领取时使用)</text>
+
+  <rect x="40" y="386" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
+  <text x="80" y="404" class="offset">188</text>
+  <text x="148" y="404" class="size">32 B</text>
+  <text x="200" y="404" class="field">l2ToL1MessageRoot</text>
+  <text x="320" y="404" class="size">UInt256</text>
+  <text x="500" y="404" class="desc">L2→L1 消息的 Merkle 根</text>
+
+  <rect x="40" y="416" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
+  <text x="80" y="434" class="offset">220</text>
+  <text x="148" y="434" class="size">32 B</text>
+  <text x="200" y="434" class="field">l2ToL2MessageRoot</text>
+  <text x="320" y="434" class="size">UInt256</text>
+  <text x="500" y="434" class="desc">L2→L2 消息的 Merkle 根(跨 L2 路由)</text>
+
+  <text x="20" y="470" class="grp" fill="#3e2865">DA + 证明绑定</text>
+
+  <rect x="40" y="454" width="880" height="28" rx="4" ry="4" fill="#f1ecf8" stroke="#7d59b3" stroke-width="0.8"/>
+  <text x="80" y="472" class="offset">252</text>
+  <text x="148" y="472" class="size">32 B</text>
+  <text x="200" y="472" class="field">daCommitment</text>
+  <text x="320" y="472" class="size">UInt256</text>
+  <text x="500" y="472" class="desc">承诺 DA payload 的哈希</text>
+
+  <rect x="40" y="484" width="880" height="28" rx="4" ry="4" fill="#f1ecf8" stroke="#7d59b3" stroke-width="0.8"/>
+  <text x="80" y="502" class="offset">284</text>
+  <text x="148" y="502" class="size">32 B</text>
+  <text x="200" y="502" class="field">publicInputHash</text>
+  <text x="320" y="502" class="size">UInt256</text>
+  <text x="500" y="502" class="desc">PublicInputs(332 B)的哈希 —— 验证器重算它</text>
+
+  <text x="20" y="538" class="grp" fill="#88312e">证明</text>
+
+  <rect x="40" y="522" width="880" height="28" rx="4" ry="4" fill="#fde8e8" stroke="#c4413e" stroke-width="0.8"/>
+  <text x="80" y="540" class="offset">316</text>
+  <text x="148" y="540" class="size">1 B</text>
+  <text x="200" y="540" class="field">proofType</text>
+  <text x="320" y="540" class="size">byte</text>
+  <text x="500" y="540" class="desc">0=Multisig · 1=RiscVZk · 2=Optimistic · ...</text>
+
+  <rect x="40" y="552" width="880" height="28" rx="4" ry="4" fill="#fde8e8" stroke="#c4413e" stroke-width="0.8"/>
+  <text x="80" y="570" class="offset">317</text>
+  <text x="148" y="570" class="size">4 B</text>
+  <text x="200" y="570" class="field">proofLen</text>
+  <text x="320" y="570" class="size">int32 LE</text>
+  <text x="500" y="570" class="desc">证明字节长度(≤ 1 MiB)</text>
+
+  <line x1="40" y1="594" x2="920" y2="594" stroke="#525a64" stroke-width="1.4" stroke-dasharray="6 3"/>
+  <text x="480" y="610" text-anchor="middle" class="grp" fill="#525a64">────── 321 字节定长前缀结束 ──────</text>
+
+  <rect x="40" y="620" width="880" height="40" rx="4" ry="4" fill="#fde8e8" stroke="#c4413e" stroke-width="1.4" stroke-dasharray="3 2"/>
+  <text x="80" y="638" class="offset">321</text>
+  <text x="148" y="638" class="size">N B</text>
+  <text x="200" y="638" class="field">proof</text>
+  <text x="320" y="638" class="size">N = proofLen 字节</text>
+  <text x="500" y="638" class="desc">proofType 特有的不透明负载</text>
+  <text x="500" y="654" class="desc" font-style="italic">由 VerifierRegistry 路由到对应验证器</text>
+
+  <line x1="40" y1="676" x2="920" y2="676" stroke="#525a64" stroke-width="1"/>
+  <text x="148" y="694" class="size" font-weight="700" fill="#1e2a55">合计</text>
+  <text x="200" y="694" class="field" font-size="13">321 + N 字节</text>
+  <text x="500" y="694" class="desc"><tspan font-style="italic">上限:proof.Length ≤ 1,048,576(1 MiB)—— 编码时拒绝过大证明</tspan></text>
+
+  <line x1="40" y1="716" x2="920" y2="716" stroke="#cfd5dd" stroke-width="1"/>
+  <text x="60" y="740" class="ftr" font-weight="600" fill="#1e2a55">编码时强制的防御限制:</text>
+  <text x="60" y="758" class="ftr">· proof.Length ≤ 1 MiB —— 对齐 NeoHub 防御限制;编码拒绝过大,而非落地一个往返时才会失败的 blob。</text>
+  <text x="60" y="774" class="ftr">· proofType 必须在已定义枚举范围内 —— 越界值在编码时被拒(不能经线协议偷渡未来类型)。</text>
+  <text x="60" y="800" class="ftr" font-weight="600" fill="#1e2a55">所有多字节整数都是小端序(对齐 Neo 链上约定)。UInt160/UInt256 是定宽原始字节。</text>
+</svg>

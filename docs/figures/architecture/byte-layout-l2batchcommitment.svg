@@ -1,0 +1,193 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 820" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">L2BatchCommitment byte layout (321 + N bytes)</title>
+  <desc id="desc">Byte-by-byte canonical wire format for L2BatchCommitment. 321-byte fixed prefix followed by a variable-length proof (capped at 1 MiB). Fields by offset: 0-3 chainId (uint32 LE), 4-11 batchNumber (uint64 LE), 12-19 firstBlock (uint64 LE), 20-27 lastBlock (uint64 LE), 28-59 preStateRoot (UInt256), 60-91 postStateRoot (UInt256), 92-123 txRoot (UInt256), 124-155 receiptRoot (UInt256), 156-187 withdrawalRoot (UInt256), 188-219 l2ToL1MessageRoot (UInt256), 220-251 l2ToL2MessageRoot (UInt256), 252-283 daCommitment (UInt256), 284-315 publicInputHash (UInt256), 316 proofType (byte), 317-320 proofLen (int32 LE), 321 to 320+N proof (N bytes, ≤ 1 MiB).</desc>
+
+  <defs>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .col-h      { font-size: 11.5px; font-weight: 700; fill: #525a64; letter-spacing: 0.4px; }
+      .offset     { font-size: 11px; fill: #1e2a55; font-weight: 700; font-family: ui-monospace, 'SF Mono', monospace; }
+      .size       { font-size: 11px; fill: #525a64; font-family: ui-monospace, 'SF Mono', monospace; }
+      .field      { font-size: 11.5px; fill: #1e2a55; font-weight: 700; font-family: ui-monospace, 'SF Mono', monospace; }
+      .desc       { font-size: 10.5px; fill: #2d3a48; }
+      .grp        { font-size: 11px; font-weight: 600; letter-spacing: 0.3px; }
+      .ftr        { font-size: 10.5px; fill: #525a64; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect width="960" height="820" fill="#ffffff"/>
+
+  <text x="480" y="30" text-anchor="middle" class="header" fill="#1e2a55">L2BatchCommitment byte layout — 321 + N bytes</text>
+  <text x="480" y="50" text-anchor="middle" class="ftr">canonical wire format that NeoHub.SettlementManager decodes — Source: src/Neo.L2.Batch/BatchSerializer.cs</text>
+
+  <!-- Column headers -->
+  <text x="60" y="86" class="col-h">OFFSET</text>
+  <text x="140" y="86" class="col-h">SIZE</text>
+  <text x="200" y="86" class="col-h">FIELD</text>
+  <text x="500" y="86" class="col-h">NOTES</text>
+  <line x1="40" y1="92" x2="920" y2="92" stroke="#cfd5dd" stroke-width="1"/>
+
+  <!-- Group label: Identity (4 rows) -->
+  <text x="20" y="116" class="grp" fill="#1e2a55">IDENTITY</text>
+
+  <!-- Field 1: chainId -->
+  <rect x="40" y="100" width="880" height="28" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-width="0.8"/>
+  <text x="80" y="118" class="offset">0</text>
+  <text x="148" y="118" class="size">4 B</text>
+  <text x="200" y="118" class="field">chainId</text>
+  <text x="320" y="118" class="size">uint32 LE</text>
+  <text x="500" y="118" class="desc">which L2 produced this batch</text>
+
+  <!-- Field 2: batchNumber -->
+  <rect x="40" y="130" width="880" height="28" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-width="0.8"/>
+  <text x="80" y="148" class="offset">4</text>
+  <text x="148" y="148" class="size">8 B</text>
+  <text x="200" y="148" class="field">batchNumber</text>
+  <text x="320" y="148" class="size">uint64 LE</text>
+  <text x="500" y="148" class="desc">monotonic per-chain</text>
+
+  <!-- Field 3: firstBlock -->
+  <rect x="40" y="160" width="880" height="28" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-width="0.8"/>
+  <text x="80" y="178" class="offset">12</text>
+  <text x="148" y="178" class="size">8 B</text>
+  <text x="200" y="178" class="field">firstBlock</text>
+  <text x="320" y="178" class="size">uint64 LE</text>
+  <text x="500" y="178" class="desc">first L2 block in this batch</text>
+
+  <!-- Field 4: lastBlock -->
+  <rect x="40" y="190" width="880" height="28" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-width="0.8"/>
+  <text x="80" y="208" class="offset">20</text>
+  <text x="148" y="208" class="size">8 B</text>
+  <text x="200" y="208" class="field">lastBlock</text>
+  <text x="320" y="208" class="size">uint64 LE</text>
+  <text x="500" y="208" class="desc">last L2 block (inclusive)</text>
+
+  <!-- Group label: State roots -->
+  <text x="20" y="244" class="grp" fill="#1d4d2c">STATE ROOTS</text>
+
+  <!-- Field 5: preStateRoot -->
+  <rect x="40" y="228" width="880" height="28" rx="4" ry="4" fill="#e7f4eb" stroke="#3a8454" stroke-width="0.8"/>
+  <text x="80" y="246" class="offset">28</text>
+  <text x="148" y="246" class="size">32 B</text>
+  <text x="200" y="246" class="field">preStateRoot</text>
+  <text x="320" y="246" class="size">UInt256</text>
+  <text x="500" y="246" class="desc">state root BEFORE the batch (== prev batch's postStateRoot)</text>
+
+  <!-- Field 6: postStateRoot -->
+  <rect x="40" y="258" width="880" height="28" rx="4" ry="4" fill="#e7f4eb" stroke="#3a8454" stroke-width="0.8"/>
+  <text x="80" y="276" class="offset">60</text>
+  <text x="148" y="276" class="size">32 B</text>
+  <text x="200" y="276" class="field">postStateRoot</text>
+  <text x="320" y="276" class="size">UInt256</text>
+  <text x="500" y="276" class="desc">state root AFTER the batch</text>
+
+  <!-- Group label: Merkle roots -->
+  <text x="20" y="312" class="grp" fill="#7a4a14">MERKLE ROOTS</text>
+
+  <!-- Field 7: txRoot -->
+  <rect x="40" y="296" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
+  <text x="80" y="314" class="offset">92</text>
+  <text x="148" y="314" class="size">32 B</text>
+  <text x="200" y="314" class="field">txRoot</text>
+  <text x="320" y="314" class="size">UInt256</text>
+  <text x="500" y="314" class="desc">Merkle root of the batch's txs</text>
+
+  <!-- Field 8: receiptRoot -->
+  <rect x="40" y="326" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
+  <text x="80" y="344" class="offset">124</text>
+  <text x="148" y="344" class="size">32 B</text>
+  <text x="200" y="344" class="field">receiptRoot</text>
+  <text x="320" y="344" class="size">UInt256</text>
+  <text x="500" y="344" class="desc">Merkle root of receipts</text>
+
+  <!-- Field 9: withdrawalRoot -->
+  <rect x="40" y="356" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
+  <text x="80" y="374" class="offset">156</text>
+  <text x="148" y="374" class="size">32 B</text>
+  <text x="200" y="374" class="field">withdrawalRoot</text>
+  <text x="320" y="374" class="size">UInt256</text>
+  <text x="500" y="374" class="desc">Merkle root of L2→L1 withdrawals (used by user claims)</text>
+
+  <!-- Field 10: l2ToL1MessageRoot -->
+  <rect x="40" y="386" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
+  <text x="80" y="404" class="offset">188</text>
+  <text x="148" y="404" class="size">32 B</text>
+  <text x="200" y="404" class="field">l2ToL1MessageRoot</text>
+  <text x="320" y="404" class="size">UInt256</text>
+  <text x="500" y="404" class="desc">Merkle root of L2→L1 messages</text>
+
+  <!-- Field 11: l2ToL2MessageRoot -->
+  <rect x="40" y="416" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
+  <text x="80" y="434" class="offset">220</text>
+  <text x="148" y="434" class="size">32 B</text>
+  <text x="200" y="434" class="field">l2ToL2MessageRoot</text>
+  <text x="320" y="434" class="size">UInt256</text>
+  <text x="500" y="434" class="desc">Merkle root of L2→L2 messages (cross-L2 routing)</text>
+
+  <!-- Group label: DA + proof binding -->
+  <text x="20" y="470" class="grp" fill="#3e2865">DA + PROOF BINDING</text>
+
+  <!-- Field 12: daCommitment -->
+  <rect x="40" y="454" width="880" height="28" rx="4" ry="4" fill="#f1ecf8" stroke="#7d59b3" stroke-width="0.8"/>
+  <text x="80" y="472" class="offset">252</text>
+  <text x="148" y="472" class="size">32 B</text>
+  <text x="200" y="472" class="field">daCommitment</text>
+  <text x="320" y="472" class="size">UInt256</text>
+  <text x="500" y="472" class="desc">hash committing to the DA payload</text>
+
+  <!-- Field 13: publicInputHash -->
+  <rect x="40" y="484" width="880" height="28" rx="4" ry="4" fill="#f1ecf8" stroke="#7d59b3" stroke-width="0.8"/>
+  <text x="80" y="502" class="offset">284</text>
+  <text x="148" y="502" class="size">32 B</text>
+  <text x="200" y="502" class="field">publicInputHash</text>
+  <text x="320" y="502" class="size">UInt256</text>
+  <text x="500" y="502" class="desc">hash of PublicInputs (332 B) — verifier recomputes this</text>
+
+  <!-- Group label: Proof header -->
+  <text x="20" y="538" class="grp" fill="#88312e">PROOF</text>
+
+  <!-- Field 14: proofType -->
+  <rect x="40" y="522" width="880" height="28" rx="4" ry="4" fill="#fde8e8" stroke="#c4413e" stroke-width="0.8"/>
+  <text x="80" y="540" class="offset">316</text>
+  <text x="148" y="540" class="size">1 B</text>
+  <text x="200" y="540" class="field">proofType</text>
+  <text x="320" y="540" class="size">byte</text>
+  <text x="500" y="540" class="desc">0=Multisig · 1=RiscVZk · 2=Optimistic · ...</text>
+
+  <!-- Field 15: proofLen -->
+  <rect x="40" y="552" width="880" height="28" rx="4" ry="4" fill="#fde8e8" stroke="#c4413e" stroke-width="0.8"/>
+  <text x="80" y="570" class="offset">317</text>
+  <text x="148" y="570" class="size">4 B</text>
+  <text x="200" y="570" class="field">proofLen</text>
+  <text x="320" y="570" class="size">int32 LE</text>
+  <text x="500" y="570" class="desc">length of the proof bytes (≤ 1 MiB)</text>
+
+  <!-- Divider: end of fixed prefix -->
+  <line x1="40" y1="594" x2="920" y2="594" stroke="#525a64" stroke-width="1.4" stroke-dasharray="6 3"/>
+  <text x="480" y="610" text-anchor="middle" class="grp" fill="#525a64">────── end of fixed 321-byte prefix ──────</text>
+
+  <!-- Field 16: proof (variable) -->
+  <rect x="40" y="620" width="880" height="40" rx="4" ry="4" fill="#fde8e8" stroke="#c4413e" stroke-width="1.4" stroke-dasharray="3 2"/>
+  <text x="80" y="638" class="offset">321</text>
+  <text x="148" y="638" class="size">N B</text>
+  <text x="200" y="638" class="field">proof</text>
+  <text x="320" y="638" class="size">N = proofLen bytes</text>
+  <text x="500" y="638" class="desc">proofType-specific opaque payload</text>
+  <text x="500" y="654" class="desc" font-style="italic">routed by VerifierRegistry to the right verifier</text>
+
+  <!-- Total -->
+  <line x1="40" y1="676" x2="920" y2="676" stroke="#525a64" stroke-width="1"/>
+  <text x="148" y="694" class="size" font-weight="700" fill="#1e2a55">TOTAL</text>
+  <text x="200" y="694" class="field" font-size="13">321 + N bytes</text>
+  <text x="500" y="694" class="desc"><tspan font-style="italic">cap: proof.Length ≤ 1,048,576 (1 MiB) — encode rejects oversized proofs</tspan></text>
+
+  <!-- Footer notes -->
+  <line x1="40" y1="716" x2="920" y2="716" stroke="#cfd5dd" stroke-width="1"/>
+  <text x="60" y="740" class="ftr" font-weight="600" fill="#1e2a55">Defensive limits enforced at serialize:</text>
+  <text x="60" y="758" class="ftr">· proof.Length ≤ 1 MiB — matches NeoHub's defensive limit; encode rejects oversized rather than landing a blob round-trip would fail on.</text>
+  <text x="60" y="774" class="ftr">· proofType must be in defined enum range — out-of-range values rejected at encode (no future proof types via the wire).</text>
+  <text x="60" y="800" class="ftr" font-weight="600" fill="#1e2a55">All multi-byte integers are little-endian (matches Neo's on-chain convention). UInt160/UInt256 are raw fixed-width.</text>
+</svg>

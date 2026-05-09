@@ -1,17 +1,60 @@
 # neo-bridge-watcher-eth
 
 Off-chain watcher daemon for Neo Elastic Network's Eth ↔ Neo external
-bridge. This crate ships the **messaging + signing core** that future
-iterations plug into a live daemon loop.
+bridge.
+
+Two build modes:
+
+- **Default** (`cargo build`): the messaging + signing + orchestration
+  core only — no networking deps. Tests + downstream watcher crates
+  (Tron / Solana) consume this. Lean dep tree.
+- **`--features live-rpc`** (`cargo build --release --features live-rpc`):
+  builds the runnable daemon binary `neo-bridge-watcher-eth`. Pulls
+  reqwest + serde + tiny-keccak + toml. Wires the four trait impls
+  (FileSigner + EthRpcEventSource + NeoRpcSubmitter + FileJournal) into
+  a continuous loop with exponential backoff on errors.
 
 The split is intentional. The cryptographically-load-bearing pieces —
-canonical wire-format encoding, ECDSA signing — sit alone here, with
-byte-for-byte parity tests against the C# implementations in
-`src/Neo.L2.Bridge/External/`. Once those are pinned, the daemon main
-loop is a thin layer on top: subscribe to events, build messages,
-sign, submit. We split it this way so the signing path can evolve
-independently of the RPC plumbing (and HSM integration becomes a
-trait swap, not a rewrite).
+canonical wire-format encoding, ECDSA signing — sit alone in the lib,
+with byte-for-byte parity tests against the C# implementations in
+`src/Neo.L2.Bridge/External/`. The daemon binary is a thin layer on
+top: load config, construct the four impls, run `WatcherCore::tick()`
+in a loop. Splitting this way lets the signing path evolve
+independently of the RPC plumbing (HSM integration becomes a trait
+swap, not a rewrite).
+
+## Run the daemon
+
+```bash
+# Build:
+CPATH=~/.local/include cargo build --release -p neo-bridge-watcher-eth --features live-rpc
+
+# Generate a watcher private key (one-time):
+cargo run --release -p neo-external-bridge --no-build -- genkey --out watcher.priv
+
+# Write a watcher.toml config (see src/bin/neo-bridge-watcher-eth.rs
+# header for the full schema):
+cat > watcher.toml <<TOML
+external_chain_id   = 0xE0000002             # Sepolia
+eth_rpc_url         = "https://rpc.sepolia.org"
+eth_router_address  = "0x..."                # NeoExternalBridgeRouter on Eth
+neo_rpc_url         = "https://rpc.testnet.neo.org"
+neo_escrow_address  = "0x..."                # NeoHub.ExternalBridgeEscrow on Neo
+neo_signer_address  = "0x..."                # operator's Neo account
+signer_key_path     = "watcher.priv"
+journal_dir         = "./journal"
+TOML
+
+# Run:
+./target/release/neo-bridge-watcher-eth --config watcher.toml
+```
+
+The v0 daemon ships a `StubSignAndSend` that emits the `invokefunction`
+script bytes + a synthetic tx hash but does NOT actually sign + submit
+a Neo transaction. Production deployments replace it with an HSM/KMS-
+backed `SignAndSend` impl that wraps the script in a signed Neo
+`Transaction` + POSTs `sendrawtransaction`. The watcher's pre-check
+against the Neo RPC catches verifier-rejection paths regardless.
 
 ## Position in the stack
 

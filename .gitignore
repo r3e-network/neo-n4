@@ -5,6 +5,8 @@ bin/
 !bridge/*/src/bin/**
 !sdk/*/src/bin/
 !sdk/*/src/bin/**
+!watchers/*/src/bin/
+!watchers/*/src/bin/**
 obj/
 out/
 *.user

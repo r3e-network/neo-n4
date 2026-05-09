@@ -143,11 +143,12 @@ is a valid endpoint.
 |-------|-----------:|--------:|--------------:|---------------:|
 | L1 protocol contracts | 13 | 13 | 0 | 0 |
 | L2 native contracts | 6 | 6 | 0 | 0 |
+| Cross-foreign-chain bridge | 8 | 8 | 0 | 0 |
 | Node infrastructure | 19 | 19 | 0 | 0 |
-| Operator tooling | 11 | 11 | 0 | 0 |
+| Operator tooling | 12 | 12 | 0 | 0 |
 | App development | 8 | 8 | 0 | 0 |
 | End-user UIs | 5 | 5 | 0 | 0 |
-| **Total** | **62** | **62** | **0** | **0** |
+| **Total** | **71** | **71** | **0** | **0** |
 
 **Phase 4 (SP1 ZK proving) is now end-to-end functional.** The
 `bridge/neo-zkvm-host/tests/end_to_end.rs` test loads the compiled
@@ -156,6 +157,25 @@ proving work), and verifies the public-input hash matches host-mode
 execution byte-for-byte. The toolchain (`sp1up` → `cargo prove build`)
 remains an operator install step but the integration is real, tested,
 and pinned in CI.
+
+**Cross-foreign-chain bridge to Eth/Tron/Sol (doc.md §11.3 Phase B)
+ships an MPC committee verifier as the first concrete implementation.**
+Five new on-chain contracts (`MpcCommitteeVerifier`,
+`ExternalBridgeRegistry`, `ExternalBridgeEscrow`, `ExternalBridgeBond`,
+`ExternalBridgeStubVerifier`) plus an L2-native counterpart
+(`L2NativeExternalBridgeContract`), an Eth-side router
+(`external/foreign-contracts/eth/NeoExternalBridgeRouter.sol`, 13
+Foundry tests with real `vm.sign` + `ecrecover`), a Rust watcher
+messaging core (`watchers/neo-bridge-watcher-eth/` — canonical
+ExternalCrossChainMessage encoder, byte-for-byte parity tests against
+the C# encoder, end-to-end orchestration with mockable trait
+abstractions, 24 tests), and an operator CLI
+(`tools/Neo.External.Bridge.Cli/` for genkey + committee-blob +
+deploy-bundle). `Neo.Hub.Deploy` now scaffolds the full bridge stack
+alongside NeoHub: 19 deploy steps + 9 post-deploy hints. Phase C
+(optimistic challenge slashing for equivocating committee members)
+and live RPC adapters (ethers-rs `EventSource`, JSON-RPC
+`NeoSubmitter`, RocksDB `Journal`) are next.
 
 All previously-out-of-repo Layer-4 + Layer-5 items now ship in the framework:
 typed SDKs in three languages (.NET / TS / Rust), a static-HTML web app

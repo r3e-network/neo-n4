@@ -5,6 +5,70 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Cross-foreign-chain bridge (Phase B — doc.md §11.3)
+
+A pluggable bridge to foreign chains (Ethereum, Tron, Solana). Distinct
+from `NeoHub.SharedBridge` (which serves Neo L1 ↔ Neo L2, single
+finality model) — this crosses into a foreign chain's finality model
+and so needs an explicit verifier. Same upgrade-via-governance shape
+as `NeoHub.VerifierRegistry`: dApps call one API; the verifier
+underneath swaps from MPC committee → optimistic challenge → ZK light
+client without breaking it.
+
+- **5 new on-chain contracts** + **1 L2 native** + **1 Eth-side router**.
+  - `NeoHub.MpcCommitteeVerifier` — M-of-N secp256k1/ed25519 over the
+    canonical message bytes; same shape as `AttestationVerifier` but
+    on-chain + indexed per-foreign-chain. Replay-protected per nonce.
+  - `NeoHub.ExternalBridgeRegistry` — verifier dispatch table keyed by
+    `externalChainId` (uint with the `0xE0_xx_xx_xx` foreign-namespace
+    prefix). Stores the wired verifier hash + a `bridgeKind` byte
+    (1=MPC, 2=Optimistic, 3=ZK). Owner-set + governance-mediated
+    upgrade path with replay protection (mirrors `VerifierRegistry`).
+  - `NeoHub.ExternalBridgeEscrow` — locks NEP-17 outbound + verifies
+    inbound through the registry; per-(chainId, asset) locked-balance
+    accounting so the escrow can't release more than was ever locked.
+  - `NeoHub.ExternalBridgeBond` — committee bonding mirroring
+    `SequencerBond`. Default `MinBond` 10 GAS.
+  - `NeoHub.ExternalBridgeStubVerifier` — Phase-A acceptance test
+    verifier returning `true`. `bridgeKind=0` to refuse production.
+  - `L2Native.ExternalBridgeContract` — L2-side counterpart: burn-on-
+    send, sequencer-injected mint-on-receive (same pattern as
+    `L2BridgeContract`).
+  - `external/foreign-contracts/eth/NeoExternalBridgeRouter.sol` (393
+    lines, solc 0.8.24, via_ir + optimizer; 13 Foundry tests with real
+    `vm.sign` + `ecrecover` round-trips).
+
+- **Off-chain codecs in C#** (`src/Neo.L2.Bridge/External/`):
+  `MpcCommitteePayload` (encoder/decoder for both Neo and Eth proof
+  formats); `ExternalAssetTransferPayload`; `IExternalBridgeSigner`
+  trait. Plus `Neo.L2.Messaging.ExternalMessageHasher` /
+  `ExternalMessageBuilder` and `Neo.L2.ExternalCrossChainMessage`.
+
+- **Rust watcher messaging core** (`watchers/neo-bridge-watcher-eth/`):
+  Cargo crate with `messaging` (byte-for-byte parity-tested against
+  the C# encoder), `proof`, `signer` (k256-based dev signer behind a
+  trait for HSM/KMS plug-in), `event_source` / `submitter` /
+  `journal` traits with mock impls, `core::WatcherCore` orchestration
+  pinning the safety invariant *cursor MUST NOT advance on submit
+  failure*. 24 tests. Live ethers-rs / Neo-RPC / RocksDB adapters
+  deferred.
+
+- **Operator CLI** (`tools/Neo.External.Bridge.Cli/` — `neo-external-bridge`):
+  `genkey` / `committee-blob` / `deploy-bundle`. Real secp256k1
+  keypair generation, dual-side identity encoding (Neo compressed
+  pubkey + Eth address), ordered Neo+Eth wire-up plan.
+
+- **Deploy planner integration** (`Neo.Hub.Deploy`): scaffold now
+  includes the 4 bridge contracts in dependency order (19 steps,
+  was 15) + 4 new post-deploy hints.
+
+- **Spec + roadmap**: `doc.md` §11.3 (authoritative spec) +
+  `docs/external-bridge-roadmap.md` (4-phase implementation plan).
+
+Cumulative: **1355 .NET tests** across **33 projects** + 70 cross-language
+tests (15 TS + 10 Rust SDK + 8 SP1 guest + 24 Rust bridge watcher + 13
+Foundry Solidity), all green.
+
 ### Added — `[plan: §16.1-admission]` `[plan: §16.1-approved-sets]` 3-phase L2 admission policy
 
 doc.md §16.1 specifies three admission phases — permissioned (owner approves),

@@ -26,9 +26,9 @@ component is mainnet-ready. Below is an honest readiness audit.
 
 These are real production-shape implementations with full test coverage:
 
-- **All 15 NeoHub L1 contracts** + **6 L2Native contracts** type-check via
+- **All 19 NeoHub L1 contracts** + **7 L2Native contracts** type-check via
   `Neo.SmartContract.Framework`; CI compiles each with `nccs` and verifies
-  the `.nef` + `.manifest.json` artifacts (23 contracts total incl. the 2
+  the `.nef` + `.manifest.json` artifacts (28 contracts total incl. the 2
   `samples/contracts/Sample.*` app-developer examples).
 - **Off-chain canonical encoders**, byte-layout-pinned + tested:
   `BatchSerializer`, `MessageHasher`, `MerkleProofSerializer`,
@@ -50,7 +50,26 @@ These are real production-shape implementations with full test coverage:
 - **Audit pipeline** — 6 invariant checks (continuity / proof-validity /
   public-input hash / no-zero-proof / DA availability / batch range).
 - **CLI tooling** — `neo-stack` plan-printers + `validate` subcommand;
-  `neo-hub-deploy` declarative L1 deploy planner.
+  `neo-hub-deploy` declarative L1 deploy planner (now scaffolds the
+  external-bridge stack alongside NeoHub: 19 steps + 9 post-deploy
+  hints); `neo-external-bridge` operator CLI for bridge committee
+  setup + dual-side deploy planning.
+- **Cross-foreign-chain bridge (Phase B — doc.md §11.3)** — pluggable
+  M-of-N committee verifier (`NeoHub.MpcCommitteeVerifier` with
+  secp256k1 + ed25519 dispatch, replay-protected per nonce) +
+  `NeoHub.ExternalBridgeRegistry` for verifier dispatch +
+  `NeoHub.ExternalBridgeEscrow` (locks NEP-17 outbound + verifies
+  inbound via registry; defense-in-depth replay tracking) +
+  `NeoHub.ExternalBridgeBond` (committee bonding mirroring
+  `SequencerBond`) + `L2Native.ExternalBridgeContract` (L2-side
+  burn/mint counterpart). Eth-side `NeoExternalBridgeRouter.sol` (393
+  lines, solc 0.8.24, 13 Foundry tests with real `vm.sign` +
+  `ecrecover`) ships in `external/foreign-contracts/eth/`. Off-chain
+  signing core lives in `watchers/neo-bridge-watcher-eth/` (Rust crate,
+  byte-for-byte parity tests against the C# encoder, end-to-end
+  orchestration with mockable trait abstractions). Phase C's
+  `MpcCommitteeFraudVerifier` (optimistic-challenge slashing for
+  equivocating committee members) is the next step.
 
 ### Optimistic-challenge fraud-proof game — partial
 
@@ -159,11 +178,12 @@ subcommands.
 | `Neo.L2.Persistence`      | **`IL2KeyValueStore` abstraction + `InMemoryKeyValueStore` + `RocksDbKeyValueStore` (RocksDbSharp 10.10.1, snappy compression default).** Wired into `KeyedStateStore`, `InMemoryL2RpcStore`, `InMemoryMessageRouter`, `InMemoryForcedInclusionSource`, `InMemorySequencerCommitteeProvider`, `PersistentDAWriter` so production data survives restart. Per-component reopen tests pin the durability story. |
 | `Neo.L2.Executor.RiscV`   | **Phase 4 RISC-V execution engine binding.** P/Invoke wrapper around `libneo_riscv_host` (PolkaVM-backed, vendored at `external/neo-riscv-vm`). `RiscVHost.IsAvailable` is a sticky-cached probe; `RiscVHost.Execute(script, trigger, network, timestamp, gasLeft)` thin-wraps the FFI and returns `RiscVExecutionResult` (state / fee / error). Native lib operator-deployed via `LD_LIBRARY_PATH` or alongside the C# binaries. |
 
-### Native FFI bridge (`bridge/`)
+### Native FFI bridge (`bridge/`) + watchers (`watchers/`)
 
-| Crate                | Role                                             |
-| -------------------- | ------------------------------------------------ |
-| `neo-zkvm-host`      | Rust binary (sp1-sdk 6.0): `prove-batch daemon --watch <dir>` is the production prover. Also exposes lib API (`execute()` / `prove()` / `verify()`) for callers that want the proof inline. |
+| Crate                       | Role                                             |
+| --------------------------- | ------------------------------------------------ |
+| `neo-zkvm-host`             | Rust binary (sp1-sdk 6.0): `prove-batch daemon --watch <dir>` is the production prover. Also exposes lib API (`execute()` / `prove()` / `verify()`) for callers that want the proof inline. |
+| `neo-bridge-watcher-eth`    | Rust crate: messaging + signing core for the Eth ↔ Neo external bridge. Canonical `ExternalCrossChainMessage` encoder (byte-for-byte parity with C# `Neo.L2.Messaging.ExternalMessageHasher`) + `NeoProofBytes` / `EthProofBytes` encoders (same signatures, two wire formats) + `Signer` trait + `WatcherCore<S, ES, NS, J>` orchestration that pins the safety invariant *cursor MUST NOT advance on submit failure*. 24 tests including parity vectors and end-to-end mock-driven failure-recovery scenarios. Live RPC adapters (ethers-rs `EventSource`, JSON-RPC `NeoSubmitter`, RocksDB `Journal`) deferred — operators plug into the trait surface. |
 
 ### neo-node plugins (`src/Neo.Plugins.L2*`)
 
@@ -178,26 +198,32 @@ subcommands.
 | `Neo.Plugins.L2Gateway`      | `BinaryTreeAggregator` with pluggable `IRoundProver` (default `PassThroughRoundProver`); `PassThroughAggregator` for flat aggregation; emits `l2.gateway.aggregations/batches_aggregated/aggregation_rounds/aggregation_latency_ms` |
 | `Neo.Plugins.L2Metrics`      | **Composition root**: hosts the shared `IL2Metrics` sink + `MetricsHttpServer`; other plugins call `metricsPlugin.Metrics` and pass to their `WithMetrics()` setters; configurable bind address + port + readiness predicate |
 
-### Smart contracts (`contracts/`) — 21 total, all type-check via devpack
+### Smart contracts (`contracts/`) — 26 total, all type-check via devpack
 
-**NeoHub L1 suite (15):**
-`ChainRegistry` · `SharedBridge` · `SettlementManager` · `VerifierRegistry` · `MessageRouter` · `TokenRegistry` · `DARegistry` · `GovernanceController` · `EmergencyManager` · `ForcedInclusion` · `SequencerBond` · `SequencerRegistry` · `OptimisticChallenge` · `GovernanceFraudVerifier` (structural v1/v2) · **`RestrictedExecutionFraudVerifier`** (trustless v3 — on-chain Merkle re-derivation)
+**NeoHub L1 suite (19):**
+Phase 0–3: `ChainRegistry` · `SharedBridge` · `SettlementManager` · `VerifierRegistry` · `MessageRouter` · `TokenRegistry` · `DARegistry` · `GovernanceController` · `EmergencyManager` · `ForcedInclusion` · `SequencerBond` · `SequencerRegistry` · `OptimisticChallenge` · `GovernanceFraudVerifier` (structural v1/v2) · **`RestrictedExecutionFraudVerifier`** (trustless v3 — on-chain Merkle re-derivation)
 
-**L2 native (6):**
-`L2BridgeContract` · `L2MessageContract` · `L2BatchInfoContract` · `L2FeeContract` · `L2PaymasterContract` · `L2SystemConfigContract`
+External-bridge stack (doc.md §11.3 — cross-foreign-chain to Eth/Tron/Sol):
+**`MpcCommitteeVerifier`** (M-of-N secp256k1/ed25519 over canonical message bytes — same shape as `AttestationVerifier` but on-chain + indexed per-foreign-chain) · **`ExternalBridgeRegistry`** (pluggable verifier dispatch; same upgrade-via-governance shape as `VerifierRegistry`) · **`ExternalBridgeEscrow`** (locks NEP-17 outbound + dispatches inbound through registry; defense-in-depth replay tracking) · **`ExternalBridgeBond`** (committee bonding + slashing-on-equivocation; mirrors `SequencerBond` 1:1) · **`ExternalBridgeStubVerifier`** (Phase-A devnet acceptance verifier; bridgeKind=0 to refuse production deployments)
+
+**L2 native (7):**
+`L2BridgeContract` · `L2MessageContract` · `L2BatchInfoContract` · `L2FeeContract` · `L2PaymasterContract` · `L2SystemConfigContract` · **`L2NativeExternalBridgeContract`** (L2-side counterpart to `ExternalBridgeEscrow` — burn-on-send / mint-on-receive, sequencer-injected inbound)
 
 ### Tools (`tools/`)
 
 | Tool                  | Role                                                  |
 | --------------------- | ----------------------------------------------------- |
+| `Neo.External.Bridge.Cli` | `neo-external-bridge` CLI: operator key-gen + dual-side committee setup + ordered deploy plan for the cross-foreign-chain bridge. `genkey` (real secp256k1 keypair → pub33 + ethAddr20 for the same identity; private key written to a file, 0600 on POSIX); `committee-blob` (validates each pubkey is a real secp256k1 point, rejects duplicates / oversize, emits Neo blob + matching Eth address list); `deploy-bundle` (cross-checks committee size + threshold, prints the ordered 4-step Neo+Eth wire-up checklist). Same plan-printer pattern as `neo-bridge` / `neo-l2-faucet` — no live RPC, no built-in signer. |
 | `Neo.Stack.Cli`       | `neo-stack` CLI: 12 subcommands all functional (create-chain, init-l2, register-chain, deploy-bridge-adapter, start-{sequencer,batcher,prover}, submit-batch, validate, scaffold-executor, new-l2, list-templates). The 3 commands that need L1/L2 wallet integration print structured operator plans (target contract + args + numbered next steps) instead of placeholder "would do X" text. `validate` is a pure JSON sanity-check (enum names, required fields, cross-field consistency warnings) that catches operator-edit typos before deploy/devnet. **`scaffold-executor`** emits a starter custom-`ITransactionExecutor` project (csproj + executor skeleton + state seam + tx builder + state-store adapter + README; with `--with-tests` also emits a sibling MSTest project with 3 starter tests) so an operator goes from "I want a custom L2" to a buildable + testable project in one command — output mirrors the working `samples/executors/Sample.CounterChainExecutor` reference. **`new-l2`** is the composite that strings `create-chain` + `init-l2` + `scaffold-executor --with-tests` together, so an operator goes from zero to "buildable + testable + devnet-previewable starter" in a single command. **`list-templates`** prints the four chain-config templates (rollup / zk-rollup / validium / sidechain) with their §16.2 dimensions + use-case descriptions so operators can evaluate which template fits their chain without reading source. |
 | `Neo.L2.Devnet`       | `neo-l2-devnet <N> [--metrics-port <P>] [--data-dir <path>] [--config <path>] [--executor <kind>]` — runs N batches end-to-end with real `KeyedStateStore` continuity + sequencer committee + DA publish per batch + post-run `ChainAuditor` pass; with `--metrics-port` stands up a live HTTP server + self-scrapes `/metrics`, `/healthz`, `/readyz`; with `--data-dir` wires `RocksDbKeyValueStore` instances under that path so committee + state + RPC proofs + DA payloads all survive restart; with `--config <path>` reads §16.2 dimensions (security/da/sequencer/exit/gateway) from a `chain.config.json`; with `--executor counter` wires `Sample.CounterChainExecutor` end-to-end (state mutation via `KeyedStateStoreAdapter`, real receipts/withdrawals/messages from CounterTxBuilder-built transactions) so an operator can preview a real custom executor through the same pipeline. |
 | `Neo.Hub.Deploy`      | `neo-hub-deploy` — declarative L1 deploy planner: scaffold / plan / verify |
 
 ### Tests
 
-**1344 .NET tests across 33 projects, plus 33 cross-language tests
-(15 TypeScript + 10 Rust SDK + 8 SP1 guest host-mode) — all green.**
+**1355 .NET tests across 33 projects, plus 57 cross-language tests
+(15 TypeScript + 10 Rust SDK + 8 SP1 guest host-mode + 24 Rust bridge
+watcher core + Foundry: 13 Solidity tests for `NeoExternalBridgeRouter`)
+— all green.**
 
 | Project                              | Tests | Coverage                                    |
 | ------------------------------------ | ----- | ------------------------------------------- |
@@ -225,7 +251,7 @@ subcommands.
 | `Neo.L2.Telemetry.UnitTests`         | 73    | counter/histogram/gauge accumulation, tag canonicalization, Prometheus exporter (counter/gauge/summary, labels, name sanitization, frozen-snapshot), request handler routing, TCP server round-trip + multi-request, catalog completeness vs MetricNames + Prometheus integration, **`/healthz` + `/readyz` (with predicate)** |
 | `Neo.L2.Persistence.UnitTests`       | 27    | **`InMemoryKeyValueStore` + `RocksDbKeyValueStore` parity (Put / Get / Delete / Contains / EnumeratePrefix / Count, lexicographic ordering, dispose semantics, defensive-copy on read)** |
 | `Neo.L2.Executor.RiscV.UnitTests`    | 6     | `RiscVHost` structural contracts (Neo VMState byte constants, default network = N3 mainnet, application trigger byte, IsAvailable doesn't throw on missing lib, empty-script rejection, RiscVExecutionResult.Halted property) |
-| `Neo.Hub.Deploy.UnitTests`           | 43    | topo sort, cycle detection, scaffold, **plan-version check, duplicate / empty step names, full 15-step scaffold pin (13 core NeoHub + GovernanceFraudVerifier v1/v2 + RestrictedExecutionFraudVerifier v3), SequencerBond slashers[] array shape, OptimisticChallenge dependency edges, no-cycle pin (bond → challenge but not back), both fraud verifiers have empty deploy data + no deps + parallel shape pin (peers, not asymmetric), PostDeployActions surfaces RegisterSlasher + ChainRegistry/VerifierRegistry SetGovernanceController wiring hints + per-verifier informational notes (v1/v2 GovernanceFraudVerifier + v3 RestrictedExecutionFraudVerifier — operators get one note per deployed verifier) / suppresses governance hints when GovernanceController absent / asymmetric (ChainRegistry-only-emits-one-hint) / asymmetric-only-v3 (v3 verifier without v1/v2 emits only the v3 note) / null-arg guard, **`VerifyCommand` exit codes — 0 (all artifacts present) / 1 (caller error: missing --rpc, missing plan file, malformed plan JSON) / 2 (at least one nef or manifest missing on disk); partial-missing also exits 2 (CI-script semantics: most-are-ok ≠ success); null-args rejected at boundary**.** |
+| `Neo.Hub.Deploy.UnitTests`           | 43    | topo sort, cycle detection, scaffold, **plan-version check, duplicate / empty step names, full 19-step scaffold pin (13 core NeoHub + GovernanceFraudVerifier v1/v2 + RestrictedExecutionFraudVerifier v3 + 4 external-bridge contracts), SequencerBond slashers[] array shape, OptimisticChallenge dependency edges, no-cycle pin (bond → challenge but not back), both fraud verifiers have empty deploy data + no deps + parallel shape pin (peers, not asymmetric), PostDeployActions surfaces RegisterSlasher + ChainRegistry/VerifierRegistry SetGovernanceController wiring hints + per-verifier informational notes (v1/v2 GovernanceFraudVerifier + v3 RestrictedExecutionFraudVerifier — operators get one note per deployed verifier) / suppresses governance hints when GovernanceController absent / asymmetric (ChainRegistry-only-emits-one-hint) / asymmetric-only-v3 (v3 verifier without v1/v2 emits only the v3 note) / null-arg guard, **`VerifyCommand` exit codes — 0 (all artifacts present) / 1 (caller error: missing --rpc, missing plan file, malformed plan JSON) / 2 (at least one nef or manifest missing on disk); partial-missing also exits 2 (CI-script semantics: most-are-ok ≠ success); null-args rejected at boundary**.** |
 | `Neo.L2.IntegrationTests`            | 21    | Phase 0 MVP + Phase 1 cross-component + Phase 2 full-stack + Phase 3 optimistic-challenge + all-phases stitch + e2e telemetry pipeline + **L2MetricsPlugin composition root (every instrumented component → one sink → HTTP scrape) + e2e RocksDB persistence (KeyedStateStore + InMemoryL2RpcStore + InMemorySequencerCommitteeProvider all rehydrate from one shared data dir on reopen) + e2e audit pipeline (all 6 checks pass on healthy chain + DA-dropped scenario specifically catches via `DAAvailabilityCheck` + broken-batch-range failure-detection metric counts) + **e2e custom-executor full-stack (Sample.CounterChainExecutor + KeyedStateStoreAdapter + ReferenceBatchExecutor + KeyedStateRootOracle + AttestationProver/Verifier all wire cleanly: 3-batch run with mixed Increment/Withdraw/Message txs → all 4 batch roots non-zero, state-root advances per batch + uniqueness pin across 4 distinct roots, multisig verifier accepts custom-executor commitments, BatchSerializer encode/decode round-trip is identity, final state has 6 expected counter entries; failed-tx batch → effects don't pollute withdrawal/message roots, gas accounting still correct, state from successful txs intact)** |
 | `Neo.Stack.Cli.UnitTests`            | 97    | **`scaffold-executor` subcommand** — happy path emits all 6 expected files (csproj + executor + state seam + tx builder + adapter + README); csproj has correct RootNamespace + AssemblyName + 3-up project refs; executor has expected skeleton + Opcode.NoOp dispatch + customization marker; README links to reference sample + 5-step checklist. **Argument validation**: invalid identifier (digit-first / hyphen / empty) → exit 1 + no output dir created; chainId=0 throws (L1 sentinel reject); non-numeric chainId → exit 1; non-empty output dir refused (no overwrite); default chainId 1001 surfaced in README; case preservation (MyDeFi → MyDeFiExecutor.cs); --path alias for --output. **`--with-tests` flag**: emits a sibling `<output>.UnitTests` project (csproj with MSTest + ProjectReference to main + Usings.cs + 3 starter tests for NoOp success / empty-tx Failed / unknown-opcode Failed); README mentions companion test project; default behavior (no flag) does NOT create the tests dir + README does NOT mention tests project; non-empty tests dir rejected atomically (main project not created either). **`new-l2` composite (4-step: create-chain + validate + init-l2 + scaffold-executor --with-tests)**: happy path produces all artifacts in one go (chain.config.json + data/logs/Plugins + executor + tests project); validate step runs against EVERY template (rollup / zk-rollup / validium / sidechain) — defense-in-depth catches template/serializer/validator drift; missing --name → exit 1 atomically before create-chain runs; chainId=0 throws atomically; non-numeric chainId → exit 1; invalid name surfaces from scaffold-executor mid-flow (earlier-step artifacts on disk are preserved for inspection); --path alias for --output; default-style ./chain-<id> output works; --template propagates through to chain.config.json's securityLevel. **`list-templates` + `TemplateCatalog`**: catalog has exactly 4 templates in canonical order (rollup default first, then zk-rollup / validium / sidechain); Resolve returns the right struct for known names + falls back to default for unknown; IsKnown is case-sensitive; ValidNames is comma-separated in order; list-templates with no args prints all 4 + default note + exits 0; --template <name> prints full per-template details (chainMode + daMode + use-case + sample command); unknown --template exits 1 with valid-names error; per-template detail round-trips through every supported name. |
 | `Sample.CounterChainExecutor.UnitTests` | 24 | **operator-facing reference for "how to plug in custom chain logic"**: 3-opcode custom executor (IncrementCounter / EmitWithdrawal / EmitMessage) demonstrates the `ITransactionExecutor` seam. Per-sender-counter happy-path + accumulation + ulong wraparound semantics; per-sender state isolation; truncated-tx → Failed-receipt path (not crash); withdrawal happy-path produces valid `WithdrawalRequest` with deterministic txHash-derived nonce; zero-amount withdrawal rejected; message happy-path produces routable `CrossChainMessage` via canonical `MessageBuilder.Build`; self-routed (source==target) rejected; oversized message body builder-rejected at MaxMessageBytes cap; unknown-opcode + empty-tx → Failed; SPEC.md determinism pin (two fresh executors + identical inputs → identical receipts + state); mixed-opcode batch smoke test; **executor ctor null-state / null-emittingContract guards; ExecuteAsync null-batchContext guard; cooperative-cancellation pin (cancelled token → OperationCanceledException, not a wasted receipt); `KeyedStateStoreAdapter` round-trip Put/Get + missing-key returns false + adapter writes flow through to `KeyedStateStore.ComputeRoot` parity vs direct writes; adapter ctor null-store + Put null-key/null-value + TryGet null-key all reject with ArgumentNullException at the call boundary so a misconfigured DI wiring fails at composition, not later with an unattributed NRE** |

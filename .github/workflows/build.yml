@@ -170,6 +170,38 @@ jobs:
           cargo build
           cargo test
 
+      # External-bridge watcher — messaging + signing core for the entire EVM
+      # family ↔ Neo external bridge. Default features test the cryptographic
+      # core (encoders, parity vectors, chains-table validity); --features
+      # live-rpc adds the production daemon code path (HTTP adapters, journal,
+      # health server, Prometheus /metrics).
+      - name: cargo build + test (neo-bridge-watcher-eth, default features)
+        working-directory: watchers/neo-bridge-watcher-eth
+        run: |
+          cargo build --release
+          cargo test --release
+
+      - name: cargo build + test (neo-bridge-watcher-eth, --features live-rpc)
+        working-directory: watchers/neo-bridge-watcher-eth
+        run: |
+          cargo build --release --features live-rpc
+          cargo test --release --features live-rpc
+
+      # Tron + Solana watchers re-export / extend the eth core. Build + test
+      # both so a refactor that breaks the cross-curve abstraction surfaces
+      # in CI immediately.
+      - name: cargo build + test (neo-bridge-watcher-tron)
+        working-directory: watchers/neo-bridge-watcher-tron
+        run: |
+          cargo build --release
+          cargo test --release
+
+      - name: cargo build + test (neo-bridge-watcher-sol)
+        working-directory: watchers/neo-bridge-watcher-sol
+        run: |
+          cargo build --release
+          cargo test --release
+
   # Real SP1 zkVM smoke test for bridge/neo-zkvm-host. Runs in its own job
   # because the SP1 toolchain install (sp1up) is heavy (~5 min wall + tens
   # of MB) — keeping it isolated stops slow toolchain bootstrapping from

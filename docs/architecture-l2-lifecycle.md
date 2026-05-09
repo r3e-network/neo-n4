@@ -162,44 +162,9 @@ The full lifecycle of a chain from `git clone` to its first sealed
 batch landing on L1, expressed as a numbered sequence between
 actors:
 
-```text
-          Operator        neo-stack     filesystem      L1 wallet      NeoHub.ChainRegistry      L2 sequencer
-              │              │              │              │                  │                        │
-              │              │              │              │                  │                        │
-   1.  ──── new-l2 ────▶     │              │              │                  │                        │
-   2.        │   ──── scaffold ────────▶    │              │                  │                        │
-              │              │              │              │                  │                        │
-            ─── Phase 1: scaffolding only — chain has identity but no on-chain presence ───
-              │              │              │              │                  │                        │
-   3.  ──── validate ────▶   │              │              │                  │                        │
-   4.        │   ──── JSON sanity-check ──▶ │              │                  │                        │
-   5.        │  ◀──── OK / errors ─────     │              │                  │                        │
-              │              │              │              │                  │                        │
-   6.  ──── register-chain ─▶│              │              │                  │                        │
-   7.        │  ◀── 91-byte configBytes hex + ChainRegistry.RegisterChain plan │                       │
-              │              │  (plan-printer; never holds keys)               │                        │
-   8.  ─── paste args ─────────────────────▶│                                  │                        │
-   9.        │              │              │  ─── RegisterChain(chainId, configBytes, ...) ─▶          │
-  10.        │              │              │  ◀───────── tx accepted ─────────                          │
-              │              │              │              │                  │                        │
-  11.  ─── deploy-bridge-adapter ▶         │              │                  │                        │
-  12.        │  ◀── L2NativeBridge deploy plan            │                  │                        │
-              │              │              │  ─── deploy ─▶ (operator wallet)                          │
-              │              │              │              │                  │                        │
-            ─── Phase 2: NeoHub knows the chain; bridges + messaging unlocked ───
-              │              │              │              │                  │                        │
-  13.  ─── start-sequencer ▶│              │              │                  │                        │
-  14.        │  ◀── preflight + "compose with neo-cli" instructions          │                        │
-  15.  ─── launch neo-cli + L2 plugins ─────────────────────────────────────────────▶                  │
-  16.        │              │              │              │                  │  ─── dBFT 2.0 starts ─▶│
-              │              │              │              │                  │                        │
-  17.  ─── start-batcher ──▶│              │              │                  │                        │
-  18.        │              │              │              │                  │  ◀── BatchInfoContract ┘
-  19.        │              │              │              │  ◀──── SettlementManager.SubmitBatch ───── │
-  20.        │              │              │              │                  │ ◀── settlement accepted │
-              │              │              │              │                  │                        │
-            ─── Phase 3: L2 batches land on L1; bridge + messaging work end-to-end ───
-```
+<p align="center">
+  <img src="figures/architecture/creation-lifecycle.svg" alt="20-step creation lifecycle swimlane across 6 actors (Operator, neo-stack CLI, filesystem, L1 wallet, NeoHub.ChainRegistry, L2 sequencer). Phase 1 (steps 1-5) scaffolding + JSON sanity-check. Phase 2 (steps 6-12) on-chain registration + bridge adapter deployment. Phase 3 (steps 13-20) sequencer + batcher running, first SettlementManager.SubmitBatch accepted on L1" width="900">
+</p>
 
 Three phases:
 

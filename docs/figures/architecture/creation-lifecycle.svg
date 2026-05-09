@@ -1,0 +1,194 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 1080" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">L2 chain creation lifecycle — from git clone to first sealed batch on L1</title>
+  <desc id="desc">Numbered swimlane sequence across 6 actors (Operator, neo-stack CLI, filesystem, L1 wallet, NeoHub.ChainRegistry on L1, L2 sequencer). Phase 1 (steps 1-5): operator runs new-l2, neo-stack scaffolds files, then validate runs a JSON sanity-check. Phase 2 (steps 6-12): operator runs register-chain, neo-stack returns 91-byte configBytes hex + ChainRegistry.RegisterChain plan; operator pastes args into wallet which submits RegisterChain to ChainRegistry on L1; tx accepted. Operator runs deploy-bridge-adapter; neo-stack returns L2NativeBridge deploy plan; wallet deploys. Phase 3 (steps 13-20): operator runs start-sequencer; neo-stack prints preflight + compose instructions; operator launches neo-cli with L2 plugins; dBFT 2.0 starts; operator runs start-batcher; BatchInfoContract on L2 mirrors L1 cursor; sequencer submits SubmitBatch; SettlementManager accepts the settlement.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .actor-t    { font-size: 11px; font-weight: 700; }
+      .actor-s    { font-size: 9.5px; fill: #525a64; font-style: italic; }
+      .lifeline   { stroke: #cfd5dd; stroke-width: 1; stroke-dasharray: 3 3; }
+      .step       { font-size: 11.5px; fill: #1e2a55; font-weight: 600; }
+      .step-n     { font-size: 11px; font-weight: 700; fill: #c4413e; }
+      .note       { font-size: 10.5px; fill: #525a64; font-style: italic; }
+      .phase-t    { font-size: 12px; font-weight: 700; letter-spacing: 0.4px; }
+      .phase-s    { font-size: 10.5px; fill: #2d3a48; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect width="960" height="1080" fill="#ffffff"/>
+
+  <text x="480" y="30" text-anchor="middle" class="header" fill="#1e2a55">L2 chain creation lifecycle — from git clone to first sealed batch on L1</text>
+
+  <!-- 6 actor headers at x = 80, 220, 360, 510, 680, 870 -->
+  <g filter="url(#card)">
+    <rect x="20" y="50" width="120" height="50" rx="6" ry="6" fill="#ffffff" stroke="#7d59b3" stroke-width="1.2"/>
+    <text x="80" y="72" text-anchor="middle" class="actor-t" fill="#3e2865">Operator</text>
+    <text x="80" y="88" text-anchor="middle" class="actor-s">human</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="160" y="50" width="120" height="50" rx="6" ry="6" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.4"/>
+    <text x="220" y="72" text-anchor="middle" class="actor-t" fill="#7a4a14">neo-stack CLI</text>
+    <text x="220" y="88" text-anchor="middle" class="actor-s">plan-printer</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="300" y="50" width="120" height="50" rx="6" ry="6" fill="#ffffff" stroke="#525a64" stroke-width="1.2"/>
+    <text x="360" y="72" text-anchor="middle" class="actor-t" fill="#525a64">filesystem</text>
+    <text x="360" y="88" text-anchor="middle" class="actor-s">local</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="440" y="50" width="140" height="50" rx="6" ry="6" fill="#ffffff" stroke="#7587c1" stroke-width="1.2"/>
+    <text x="510" y="72" text-anchor="middle" class="actor-t" fill="#1e2a55">L1 wallet</text>
+    <text x="510" y="88" text-anchor="middle" class="actor-s">NeoLine / Neon / KMS</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="600" y="50" width="160" height="50" rx="6" ry="6" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
+    <text x="680" y="68" text-anchor="middle" class="actor-t" fill="#1e2a55">NeoHub.</text>
+    <text x="680" y="80" text-anchor="middle" class="actor-t" fill="#1e2a55">ChainRegistry</text>
+    <text x="680" y="94" text-anchor="middle" class="actor-s">L1</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="800" y="50" width="140" height="50" rx="6" ry="6" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.4"/>
+    <text x="870" y="72" text-anchor="middle" class="actor-t" fill="#1d4d2c">L2 sequencer</text>
+    <text x="870" y="88" text-anchor="middle" class="actor-s">dBFT 2.0</text>
+  </g>
+
+  <!-- Lifelines -->
+  <line class="lifeline" x1="80" y1="100" x2="80" y2="1020"/>
+  <line class="lifeline" x1="220" y1="100" x2="220" y2="1020"/>
+  <line class="lifeline" x1="360" y1="100" x2="360" y2="1020"/>
+  <line class="lifeline" x1="510" y1="100" x2="510" y2="1020"/>
+  <line class="lifeline" x1="680" y1="100" x2="680" y2="1020"/>
+  <line class="lifeline" x1="870" y1="100" x2="870" y2="1020"/>
+
+  <!-- PHASE 1 BAND -->
+  <rect x="0" y="115" width="960" height="28" fill="#fde8e8" stroke="#c4413e" stroke-dasharray="3 2"/>
+  <text x="20" y="134" class="phase-t" fill="#88312e">PHASE 1 · Scaffolding only</text>
+  <text x="240" y="134" class="phase-s">chain has identity but no on-chain presence</text>
+
+  <!-- Step 1: new-l2 -->
+  <line x1="80" y1="166" x2="220" y2="166" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="32" y="160" class="step-n">1.</text>
+  <text x="50" y="160" class="step">new-l2</text>
+
+  <!-- Step 2: scaffold -->
+  <line x1="220" y1="194" x2="360" y2="194" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="160" y="188" class="step-n">2.</text>
+  <text x="178" y="188" class="step">scaffold</text>
+  <text x="290" y="188" text-anchor="middle" class="note">(chain.config.json + executor scaffold)</text>
+
+  <!-- Step 3: validate -->
+  <line x1="80" y1="226" x2="220" y2="226" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="32" y="220" class="step-n">3.</text>
+  <text x="50" y="220" class="step">validate</text>
+
+  <!-- Step 4: JSON sanity-check -->
+  <line x1="220" y1="252" x2="360" y2="252" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="160" y="246" class="step-n">4.</text>
+  <text x="178" y="246" class="step">JSON sanity-check</text>
+
+  <!-- Step 5: OK/errors back -->
+  <line x1="220" y1="280" x2="80" y2="280" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="160" y="274" class="step-n">5.</text>
+  <text x="178" y="274" class="step">OK / errors</text>
+
+  <!-- PHASE 2 BAND -->
+  <rect x="0" y="298" width="960" height="28" fill="#fff2e3" stroke="#cd7c2e" stroke-dasharray="3 2"/>
+  <text x="20" y="317" class="phase-t" fill="#7a4a14">PHASE 2 · Bridges + messaging unlocked on L1</text>
+
+  <!-- Step 6: register-chain -->
+  <line x1="80" y1="350" x2="220" y2="350" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="32" y="344" class="step-n">6.</text>
+  <text x="50" y="344" class="step">register-chain</text>
+
+  <!-- Step 7: 91-byte configBytes hex + plan back to operator -->
+  <line x1="220" y1="378" x2="80" y2="378" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="32" y="372" class="step-n">7.</text>
+  <text x="56" y="372" class="step">91-byte configBytes hex + RegisterChain plan</text>
+  <text x="60" y="392" class="note">(plan-printer; never holds keys)</text>
+
+  <!-- Step 8: paste args (operator → L1 wallet) -->
+  <line x1="80" y1="412" x2="510" y2="412" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="32" y="406" class="step-n">8.</text>
+  <text x="50" y="406" class="step">paste args into wallet</text>
+
+  <!-- Step 9: RegisterChain submitted to L1 -->
+  <line x1="510" y1="442" x2="680" y2="442" stroke="#c4413e" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="465" y="436" class="step-n">9.</text>
+  <text x="486" y="436" class="step" fill="#88312e">RegisterChain(chainId, configBytes, ...)</text>
+
+  <!-- Step 10: tx accepted (back) -->
+  <line x1="680" y1="468" x2="510" y2="468" stroke="#3a8454" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="465" y="462" class="step-n">10.</text>
+  <text x="490" y="462" class="step" fill="#1d4d2c">tx accepted</text>
+
+  <!-- Step 11: deploy-bridge-adapter -->
+  <line x1="80" y1="500" x2="220" y2="500" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="20" y="494" class="step-n">11.</text>
+  <text x="46" y="494" class="step">deploy-bridge-adapter</text>
+
+  <!-- Step 12: L2NativeBridge deploy plan -->
+  <line x1="220" y1="528" x2="80" y2="528" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="20" y="522" class="step-n">12.</text>
+  <text x="46" y="522" class="step">L2NativeBridge deploy plan → wallet executes</text>
+
+  <!-- PHASE 3 BAND -->
+  <rect x="0" y="546" width="960" height="28" fill="#e7f4eb" stroke="#3a8454" stroke-dasharray="3 2"/>
+  <text x="20" y="565" class="phase-t" fill="#1d4d2c">PHASE 3 · L2 batches land on L1; end-to-end works</text>
+
+  <!-- Step 13: start-sequencer -->
+  <line x1="80" y1="598" x2="220" y2="598" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="20" y="592" class="step-n">13.</text>
+  <text x="46" y="592" class="step">start-sequencer</text>
+
+  <!-- Step 14: preflight + compose instructions back -->
+  <line x1="220" y1="626" x2="80" y2="626" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="20" y="620" class="step-n">14.</text>
+  <text x="46" y="620" class="step">preflight + "compose with neo-cli" instructions</text>
+
+  <!-- Step 15: launch neo-cli + L2 plugins (operator → L2 sequencer) -->
+  <line x1="80" y1="658" x2="870" y2="658" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="20" y="652" class="step-n">15.</text>
+  <text x="46" y="652" class="step">launch neo-cli + L2 plugins</text>
+
+  <!-- Step 16: dBFT 2.0 starts (NeoHub→sequencer)... actually self loop on sequencer -->
+  <g>
+    <rect x="800" y="678" width="140" height="32" rx="4" ry="4" fill="#e7f4eb" stroke="#3a8454" stroke-dasharray="2 2"/>
+    <text x="20" y="694" class="step-n">16.</text>
+    <text x="870" y="699" text-anchor="middle" class="note">dBFT 2.0 starts</text>
+  </g>
+  <text x="46" y="694" class="step">L2 sequencer self-init (dBFT)</text>
+
+  <!-- Step 17: start-batcher -->
+  <line x1="80" y1="734" x2="220" y2="734" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="20" y="728" class="step-n">17.</text>
+  <text x="46" y="728" class="step">start-batcher</text>
+
+  <!-- Step 18: BatchInfoContract / sequencer mirror (sequencer → ChainRegistry) -->
+  <line x1="870" y1="762" x2="680" y2="762" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="20" y="756" class="step-n">18.</text>
+  <text x="46" y="756" class="step">L2 BatchInfoContract mirrors L1 cursor</text>
+
+  <!-- Step 19: SubmitBatch (sequencer → SettlementManager via L1 wallet) -->
+  <line x1="870" y1="794" x2="510" y2="794" stroke="#c4413e" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="20" y="788" class="step-n">19.</text>
+  <text x="46" y="788" class="step" fill="#88312e">SettlementManager.SubmitBatch (commitment + proof)</text>
+
+  <!-- Step 20: settlement accepted -->
+  <line x1="680" y1="826" x2="870" y2="826" stroke="#3a8454" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="20" y="820" class="step-n">20.</text>
+  <text x="46" y="820" class="step" fill="#1d4d2c">SettlementAccepted → end-to-end working</text>
+
+  <!-- Footer note -->
+  <line x1="0" y1="900" x2="960" y2="900" stroke="#cfd5dd" stroke-width="1"/>
+  <text x="480" y="930" text-anchor="middle" class="phase-t" fill="#1e2a55">3 phases:</text>
+  <text x="480" y="958" text-anchor="middle" class="note" fill="#525a64">P1: Local files exist; chain has identity but no on-chain presence.</text>
+  <text x="480" y="980" text-anchor="middle" class="note" fill="#525a64">P2: NeoHub knows the chain; sequencer producing L2 blocks.</text>
+  <text x="480" y="1002" text-anchor="middle" class="note" fill="#525a64">P3: L2 batches land on L1; bridge + messaging work end-to-end.</text>
+</svg>

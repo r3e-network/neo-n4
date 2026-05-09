@@ -148,44 +148,9 @@ DA / 证明 / RPC / gateway / metrics)。
 
 链从 `git clone` 到首个封装批次落到 L1 的完整生命周期,以编号序列在角色间表示:
 
-```text
-          运维者         neo-stack     文件系统      L1 钱包      NeoHub.ChainRegistry      L2 排序器
-              │              │              │              │                  │                        │
-              │              │              │              │                  │                        │
-   1.  ──── new-l2 ────▶     │              │              │                  │                        │
-   2.        │   ──── 脚手架 ────────▶    │              │                  │                        │
-              │              │              │              │                  │                        │
-            ─── 阶段 1:仅脚手架 —— 链有身份但无链上存在 ───
-              │              │              │              │                  │                        │
-   3.  ──── validate ────▶   │              │              │                  │                        │
-   4.        │   ──── JSON 健全性检查 ──▶ │              │                  │                        │
-   5.        │  ◀──── OK / 错误 ─────     │              │                  │                        │
-              │              │              │              │                  │                        │
-   6.  ──── register-chain ─▶│              │              │                  │                        │
-   7.        │  ◀── 91 字节 configBytes hex + ChainRegistry.RegisterChain 计划 │                       │
-              │              │  (计划打印器;永不持有密钥)                    │                        │
-   8.  ─── 粘贴参数 ─────────────────────▶│                                  │                        │
-   9.        │              │              │  ─── RegisterChain(chainId, configBytes, ...) ─▶          │
-  10.        │              │              │  ◀───────── tx 接受 ─────────                              │
-              │              │              │              │                  │                        │
-  11.  ─── deploy-bridge-adapter ▶         │              │                  │                        │
-  12.        │  ◀── L2NativeBridge 部署计划            │                  │                        │
-              │              │              │  ─── 部署 ─▶(运维钱包)                               │
-              │              │              │              │                  │                        │
-            ─── 阶段 2:NeoHub 知道该链;桥 + 消息传递解锁 ───
-              │              │              │              │                  │                        │
-  13.  ─── start-sequencer ▶│              │              │                  │                        │
-  14.        │  ◀── preflight + "用 neo-cli 组合" 说明 │                  │                        │
-  15.  ─── 启动 neo-cli + L2 插件 ─────────────────────────────────────────────▶                  │
-  16.        │              │              │              │                  │  ─── dBFT 2.0 启动 ─▶│
-              │              │              │              │                  │                        │
-  17.  ─── start-batcher ──▶│              │              │                  │                        │
-  18.        │              │              │              │                  │  ◀── BatchInfoContract ┘
-  19.        │              │              │              │  ◀──── SettlementManager.SubmitBatch ───── │
-  20.        │              │              │              │                  │ ◀── 结算被接受 ──────│
-              │              │              │              │                  │                        │
-            ─── 阶段 3:L2 批次落到 L1;桥 + 消息端到端工作 ───
-```
+<p align="center">
+  <img src="../figures/architecture/creation-lifecycle.svg" alt="跨 6 角色(运维者、neo-stack CLI、文件系统、L1 钱包、NeoHub.ChainRegistry、L2 排序器)的 20 步创建生命周期 swimlane。阶段 1(步骤 1-5)脚手架 + JSON 健全性检查。阶段 2(步骤 6-12)链上注册 + 桥 adapter 部署。阶段 3(步骤 13-20)排序器 + 批处理器运行,首次 SettlementManager.SubmitBatch 被 L1 接受" width="900">
+</p>
 
 3 个阶段:
 

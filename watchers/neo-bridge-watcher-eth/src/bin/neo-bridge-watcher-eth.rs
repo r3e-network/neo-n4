@@ -44,8 +44,8 @@
 
 use neo_bridge_watcher_eth::chains;
 use neo_bridge_watcher_eth::live::{
-    EthRpcEventSource, EthRpcEventSourceBuilder, FileJournal, NeoRpcError,
-    NeoRpcSubmitter, NeoRpcSubmitterBuilder,
+    EthRpcEventSource, EthRpcEventSourceBuilder, FileJournal, HealthServer, HealthState,
+    NeoRpcError, NeoRpcSubmitter, NeoRpcSubmitterBuilder,
 };
 use neo_bridge_watcher_eth::{CoreError, FileSigner, WatcherCore};
 use serde::Deserialize;
@@ -215,7 +215,27 @@ struct Config {
     journal_dir: PathBuf,
     #[serde(default)]
     poll: PollConfig,
+    #[serde(default)]
+    health: HealthConfig,
 }
+
+/// Optional health-check HTTP endpoint config. When `bind` is unset
+/// the daemon runs without a health server (suitable for one-off
+/// CLI runs); k8s/systemd deployments set `bind = "0.0.0.0:9090"`
+/// and probe `/healthz` for readiness/liveness.
+#[derive(Deserialize, Default)]
+struct HealthConfig {
+    /// Bind address (e.g. "0.0.0.0:9090" or "127.0.0.1:9090"). Unset
+    /// = no health server.
+    bind: Option<String>,
+    /// Seconds without a successful tick before /healthz returns 503.
+    /// Default 120 — covers a 12s poll interval + up to 60s backoff
+    /// with margin for one full retry cycle.
+    #[serde(default = "default_health_threshold")]
+    threshold_secs: u64,
+}
+
+fn default_health_threshold() -> u64 { 120 }
 
 #[derive(Deserialize)]
 struct PollConfig {
@@ -326,6 +346,27 @@ fn run(config: Config) -> Result<(), String> {
         journal,
     );
 
+    // Health server: started before the loop so probes work during
+    // startup. Optional — operators running one-off CLI without
+    // kubernetes don't need it.
+    let health_state = HealthState::new();
+    let _health_server = if let Some(bind) = &config.health.bind {
+        match HealthServer::spawn(bind, health_state.clone(), config.health.threshold_secs) {
+            Ok(server) => {
+                eprintln!(
+                    "health server listening on http://{} (threshold {}s)",
+                    server.bound_addr, config.health.threshold_secs
+                );
+                Some(server)
+            }
+            Err(e) => {
+                return Err(format!("bind health server on {bind}: {e}"));
+            }
+        }
+    } else {
+        None
+    };
+
     eprintln!(
         "watcher ready (poll {}s, backoff {}-{}s)",
         config.poll.poll_interval_secs,
@@ -346,11 +387,14 @@ fn run(config: Config) -> Result<(), String> {
             Ok(true) => {
                 // Processed an event — reset backoff, immediately try
                 // again to drain the queue.
+                health_state.record_tick(true);
+                health_state.record_submission();
                 backoff_secs = config.poll.backoff_initial_secs;
                 continue;
             }
             Ok(false) => {
                 // No new events — sleep one poll interval.
+                health_state.record_tick(false);
                 backoff_secs = config.poll.backoff_initial_secs;
                 interruptible_sleep(Duration::from_secs(config.poll.poll_interval_secs));
             }
@@ -359,14 +403,17 @@ fn run(config: Config) -> Result<(), String> {
                 // the daemon is replaying after a restart. Log + drop;
                 // continue without sleeping.
                 eprintln!("info: nonce {nonce} already submitted (journal hit, advancing)");
+                health_state.record_tick(false);
             }
             Err(CoreError::Submit(submit_err)) => {
                 eprintln!("warn: submit failed: {submit_err:?} — backing off {backoff_secs}s");
+                health_state.record_error(format!("submit: {submit_err:?}"));
                 interruptible_sleep(Duration::from_secs(backoff_secs));
                 backoff_secs = (backoff_secs * 2).min(config.poll.backoff_max_secs);
             }
             Err(CoreError::EventSource(es_err)) => {
                 eprintln!("warn: event source: {es_err:?} — backing off {backoff_secs}s");
+                health_state.record_error(format!("event_source: {es_err:?}"));
                 interruptible_sleep(Duration::from_secs(backoff_secs));
                 backoff_secs = (backoff_secs * 2).min(config.poll.backoff_max_secs);
             }
@@ -377,6 +424,7 @@ fn run(config: Config) -> Result<(), String> {
                 // human time to fix the config without losing the
                 // daemon process.
                 eprintln!("error: unrecoverable-looking: {other:?} — backing off {backoff_secs}s");
+                health_state.record_error(format!("{other:?}"));
                 interruptible_sleep(Duration::from_secs(backoff_secs));
                 backoff_secs = (backoff_secs * 2).min(config.poll.backoff_max_secs);
             }

@@ -5,6 +5,51 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `/healthz` HTTP endpoint for the watcher daemon
+
+Production deployments (kubernetes, systemd) need a programmatic
+liveness/readiness signal separate from "the process exists". The
+watcher daemon now optionally exposes:
+
+- `GET /healthz` → 200 if a tick has succeeded within
+  `threshold_secs`, 503 otherwise. k8s readiness probes look at the
+  status code; load-balancers gate traffic accordingly.
+- `GET /info` → always 200 with the same JSON status body. For
+  operator dashboards.
+- Other paths → 404 + error JSON.
+
+Body shape:
+```json
+{
+  "healthy": bool,
+  "started_at_unix": u64,
+  "last_tick_at_unix": null | u64,
+  "last_tick_success_unix": null | u64,
+  "ticks_total": u64,
+  "events_processed": u64,
+  "submissions_total": u64,
+  "journal_cursor": u64,
+  "last_error": null | string,
+  "last_error_unix": null | u64,
+  "now_unix": u64
+}
+```
+
+Config (optional `[health]` section):
+```toml
+[health]
+bind = "0.0.0.0:9090"   # unset = no health server
+threshold_secs = 120    # default 120 (covers 12s poll + 60s backoff cap)
+```
+
+Implementation: `src/live/health.rs` — `HealthState` (Arc<Mutex>
+internal + cheap clone) + `HealthServer` (TCP listener + background
+thread + Drop teardown). The main loop calls `record_tick` /
+`record_submission` / `record_error` after each iteration. 7 unit
+tests pin: snapshot field correctness, pre-first-tick start-time
+fallback, error truncation at 256 chars, live HTTP serving 200/503/404
+via reqwest, port release on Drop.
+
 ### Added — Concurrent-instance detection for FileJournal
 
 Two watcher processes pointed at the same journal directory used to

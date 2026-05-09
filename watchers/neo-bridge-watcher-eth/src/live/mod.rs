@@ -23,6 +23,7 @@
 
 pub mod eth_rpc;
 pub mod file_journal;
+pub mod health;
 pub mod neo_rpc;
 
 #[cfg(test)]
@@ -30,4 +31,5 @@ pub(crate) mod test_support;
 
 pub use eth_rpc::{EthRpcEventSource, EthRpcEventSourceBuilder, EthRpcError};
 pub use file_journal::FileJournal;
+pub use health::{HealthServer, HealthState};
 pub use neo_rpc::{NeoRpcError, NeoRpcSubmitter, NeoRpcSubmitterBuilder, SignAndSend};

@@ -22,5 +22,9 @@
 //!   subscription is an optimization).
 
 pub mod eth_rpc;
+pub mod file_journal;
+pub mod neo_rpc;
 
 pub use eth_rpc::{EthRpcEventSource, EthRpcEventSourceBuilder, EthRpcError};
+pub use file_journal::FileJournal;
+pub use neo_rpc::{NeoRpcError, NeoRpcSubmitter, NeoRpcSubmitterBuilder, SignAndSend};

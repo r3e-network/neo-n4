@@ -15,6 +15,11 @@
 - [Architecture walkthrough](./architecture-walkthrough.md)
 - [Tech-stack coverage](./tech-stack-coverage.md)
 
+# External bridge
+
+- [Cross-foreign-chain roadmap](./external-bridge-roadmap.md)
+- [Adding new EVM chains](./external-bridge-evm-chains.md)
+
 # Implementation plans
 
 - [Spec-gap plan](./spec-gap-plan.md)

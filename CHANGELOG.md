@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — README + docs sweep for EVM-chain support
+
+Sync docs to reflect generic EVM-chain support shipped in 28e85f3 +
+a2184ff. Changes are documentation-only (no source files touched).
+
+- `README.md` — bumped foreign-chain-integrations cell + cross-language
+  test count (86 → 105). Surfaces the full EVM family the bridge now
+  serves through a single daemon binary; links the canonical 16-slot
+  family-bank table + the 5-step onboarding runbook.
+- `IMPLEMENTATION_STATUS.md` — bridge section now describes per-instance
+  state isolation pinned by the multi-chain Foundry tests + the chains
+  module's role; bumped per-component test counts (eth: 24 → 29; foundry:
+  13 → 20; cross-language total: 86 → 105).
+- `external/foreign-contracts/eth/README.md` — title changed from
+  "Eth-side bridge contracts" to "EVM-side bridge contracts" (one
+  contract, every EVM chain). Added per-suite test breakdown + a
+  generic "Other EVM chains" deployment section using BSC as an example.
+- `external/foreign-contracts/tron/README.md` — references the chains
+  module + the full family-bank ordering for the 14 EVM chain families
+  Tron is a member of.
+- `docs/SUMMARY.md` — new "External bridge" mdBook section linking
+  the roadmap + the EVM-chain runbook (previously not in the docs
+  site nav).
+
 ### Added — Multi-chain Foundry test + runbook fix
 
 End-to-end Solidity validation that `NeoExternalBridgeRouter.sol`

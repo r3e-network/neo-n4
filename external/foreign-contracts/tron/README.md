@@ -3,7 +3,11 @@
 Tron's TVM is EVM-flavored Solidity, so this directory holds **deploy
 instructions** rather than separate contract source — operators deploy
 the same `NeoExternalBridgeRouter.sol` from `../eth/src/` with a
-Tron-specific `externalChainId` constructor argument.
+Tron-specific `externalChainId` constructor argument. Tron is one of
+14 chain families the EVM router supports — full table in
+[`watchers/neo-bridge-watcher-eth/src/chains.rs`](../../../watchers/neo-bridge-watcher-eth/src/chains.rs)
++ onboarding runbook in
+[`docs/external-bridge-evm-chains.md`](../../../docs/external-bridge-evm-chains.md).
 
 ## Why no separate contract source
 
@@ -14,10 +18,19 @@ its `externalChainId` via the constructor. Eth deployments pass
 (Shasta testnet). The contract namespace check `(externalChainId &
 0xFF000000) == 0xE0000000` accepts both — same code, different config.
 
-The 13 Foundry tests in `../eth/test/NeoExternalBridgeRouter.t.sol`
-cover the EVM semantics; TVM's Solidity execution is byte-identical for
-the opcodes this contract uses (`ecrecover`, `sha256`, `keccak256`,
-storage, calls, events).
+The 20 Foundry tests in `../eth/test/` cover the EVM semantics on
+both axes — single-chain happy-path + guards
+(`NeoExternalBridgeRouter.t.sol`, 13 tests) and multi-chain
+construction + per-instance state isolation across 14 canonical
+mainnet slots
+(`NeoExternalBridgeRouterMultiChain.t.sol`, 7 tests; the family-bank
+ordering is Eth `0x01..0F`, Tron `0x10..1F`, Solana `0x20..2F`, BSC
+`0x30..3F`, Polygon `0x40..4F`, Arbitrum `0x50..5F`, Optimism
+`0x60..6F`, Base `0x70..7F`, Avalanche `0x80..8F`, Linea
+`0x90..9F`, zkSync `0xA0..AF`, Scroll `0xB0..BF`, Mantle
+`0xC0..CF`, Fantom/Sonic `0xD0..DF`, Celo `0xE0..EF`). TVM's
+Solidity execution is byte-identical for the opcodes this contract
+uses (`ecrecover`, `sha256`, `keccak256`, storage, calls, events).
 
 ## Deploy on Tron Nile testnet (recommended for first-time wiring)
 

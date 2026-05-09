@@ -15,6 +15,7 @@
 - [Architecture atlas (start here)](./architecture-atlas.md)
 - [Architecture walkthrough](./architecture-walkthrough.md)
 - [L2 chain lifecycle](./architecture-l2-lifecycle.md)
+- [L1 vs L2 division](./architecture-l1-vs-l2.md)
 - [Wire formats](./architecture-wire-formats.md)
 - [Trust boundaries](./architecture-trust-boundaries.md)
 - [Glossary + component catalog](./architecture-glossary.md)

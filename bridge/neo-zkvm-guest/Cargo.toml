@@ -11,6 +11,16 @@ path = "src/lib.rs"
 [[bin]]
 name = "neo-zkvm-guest"
 path = "src/main.rs"
+# Skip the bin in `cargo test` host runs — it's the SP1 zkVM
+# entrypoint, and `sp1_zkvm::entrypoint!(main)` macro exits with a
+# non-zero status when invoked outside the zkVM (process exits 160
+# locally / 192 in CI; either way the test harness interprets
+# non-zero as failure even though main() returns normally). The
+# lib's unit tests cover the host-runnable logic; the bin gets
+# exercised by the real-zkVM job (`cargo build + test
+# (neo-zkvm-host, real SP1 zkVM)`) which cargo-prove-builds the
+# RISC-V ELF and runs it inside SP1.
+test = false
 
 [dependencies]
 sha2 = { version = "0.10", default-features = false }

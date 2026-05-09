@@ -302,28 +302,9 @@ l2_batch_info_hash          = 0x...  # 此 L2 的 L2BatchInfoContract
 当 `gatewayEnabled = true` 且 `messageAdapter` 已配置时,L2-A 可以无需手动触及
 L1 即可向 L2-B 发消息:
 
-```text
-    L2-A 上的用户   L2-A.L2MessageContract     NeoHub.MessageRouter     L2-B.L2MessageContract     L2-B 上的接收方
-        │                       │                         │                         │                       │
-        │── SendMessage(targetChainId, payload) ─▶        │                         │                       │
-        │                       │                         │                         │                       │
-        │                       │ 发出                                              │                       │
-        │                       │ OutboundMessage 事件                              │                       │
-        │                       │                         │                         │                       │
-        │     (L2-A 批处理器把消息纳入下一封装批次)                                  │                       │
-        │                       │                         │                         │                       │
-        │                       │── (经批次结算)RouteMessage                       │                       │
-        │                       │   (srcChainId, dstChainId, payload, hash) ──▶     │                       │
-        │                       │                         │                         │                       │
-        │                       │     (L2-B 批处理器从 MessageRouter poll 入站)                              │
-        │                       │                         │── InboundMessage ──────▶│                       │
-        │                       │                         │                         │                       │
-        │                       │                         │                         │ VerifyMessageHash     │
-        │                       │                         │                         │ (按规范 encoder      │
-        │                       │                         │                         │  比对)                │
-        │                       │                         │                         │                       │
-        │                       │                         │                         │── 投递 payload ──────▶│
-```
+<p align="center">
+  <img src="../figures/architecture/cross-l2-messaging-sequence.svg" alt="跨 L2 消息序列 —— 5 个角色(L2-A 上的用户、L2-A.L2MessageContract、NeoHub.MessageRouter、L2-B.L2MessageContract、L2-B 上的接收方)。SendMessage → OutboundMessage 事件 → 批处理器封装 → 经批次结算的 RouteMessage → 批处理器 poll 入站 → InboundMessage → VerifyMessageHash → 投递 payload。3 条信任边界(L2-A 共识、L1 结算、L2-B 共识)以色带横跨各 lifeline 显示" width="900">
+</p>
 
 `MessageHasher`(`Neo.L2.Messaging/`)是规范 encoder —— 两端从线字节重算哈希;
 合约从不信任线外哈希。端到端,消息跨 3 条信任边界(L2-A 共识 → L1 结算 → L2-B

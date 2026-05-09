@@ -324,28 +324,9 @@ See [§7](#7-cross-l2-messaging) below.
 When `gatewayEnabled = true` and `messageAdapter` is configured,
 L2-A can send a message to L2-B without touching L1 manually:
 
-```text
-    User on L2-A    L2-A.L2MessageContract     NeoHub.MessageRouter     L2-B.L2MessageContract     Recipient on L2-B
-        │                       │                         │                         │                       │
-        │── SendMessage(targetChainId, payload) ─▶        │                         │                       │
-        │                       │                         │                         │                       │
-        │                       │ emit                                              │                       │
-        │                       │ OutboundMessage event                             │                       │
-        │                       │                         │                         │                       │
-        │     (L2-A batcher includes msg in next sealed batch)                      │                       │
-        │                       │                         │                         │                       │
-        │                       │── (via batch settlement) RouteMessage             │                       │
-        │                       │   (srcChainId, dstChainId, payload, hash) ──▶     │                       │
-        │                       │                         │                         │                       │
-        │                       │     (L2-B batcher polls MessageRouter for inbounds)                       │
-        │                       │                         │── InboundMessage ──────▶│                       │
-        │                       │                         │                         │                       │
-        │                       │                         │                         │ VerifyMessageHash     │
-        │                       │                         │                         │ (against canonical    │
-        │                       │                         │                         │  encoder)             │
-        │                       │                         │                         │                       │
-        │                       │                         │                         │── deliver payload ───▶│
-```
+<p align="center">
+  <img src="figures/architecture/cross-l2-messaging-sequence.svg" alt="Cross-L2 messaging sequence — 5 actors (User on L2-A, L2-A.L2MessageContract, NeoHub.MessageRouter, L2-B.L2MessageContract, Recipient on L2-B). SendMessage → OutboundMessage event → batcher seals → RouteMessage via batch settlement → batcher polls inbounds → InboundMessage → VerifyMessageHash → deliver payload. The 3 trust boundaries (L2-A consensus, L1 settlement, L2-B consensus) are shown as colored bands across the lifelines" width="900">
+</p>
 
 `MessageHasher` (`Neo.L2.Messaging/`) is the canonical encoder —
 both endpoints recompute the hash from the wire bytes; the

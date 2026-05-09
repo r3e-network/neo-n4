@@ -228,27 +228,9 @@ lifting.
 
 When designing a new component, ask in order:
 
-```text
-   1. Does any other L2 need to read this state?
-        ├─ YES → it lives on L1 (e.g. ChainRegistry, MessageRouter)
-        └─ NO  → maybe L2; continue.
-
-   2. Is this state slashable / does it back economic security?
-        ├─ YES → L1 (e.g. SequencerBond, ExternalBridgeBond)
-        └─ NO  → maybe L2; continue.
-
-   3. Is this what *defines* what's valid on L1 (the trust boundary)?
-        ├─ YES → L1 (e.g. SettlementManager, VerifierRegistry)
-        └─ NO  → maybe L2; continue.
-
-   4. Does the throughput exceed what L1 can handle (txs/sec)?
-        ├─ YES → must be L2 (e.g. user transfers, DEX matching)
-        └─ NO  → either is fine; default to L2 to keep L1 lean.
-
-   5. Is this app-specific logic for one chain?
-        ├─ YES → L2 (e.g. RWA KYC checks, custom executor)
-        └─ NO  → re-evaluate the above.
-```
+<p align="center">
+  <img src="figures/architecture/l1-l2-decision-tree.svg" alt="Five-question decision tree for placing a new component on L1 or L2: Q1 cross-L2 read requirement, Q2 slashable / economic security, Q3 trust boundary, Q4 throughput exceeds L1 capacity, Q5 app-specific logic for one chain. Default falls through to L2 to keep L1 lean" width="900">
+</p>
 
 A useful sanity check: if you can answer *no* to all of (1), (2),
 (3), and the throughput is bounded — putting it on L1 is probably

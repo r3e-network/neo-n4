@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 380" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">Trust-minimization gradient — 5 tiers</title>
+  <desc id="desc">Five-tier spectrum from trust-maximizing (single sequencer) to trustless (ZK validity). Each tier shows what the user trusts, the typical phase, and which §16.2 dimensions match. Sequencer-only (Solo, Phase 0 PoC) trusts a single operator. Optimistic challenge (Phase 1+, default for rollups) trusts that at least one honest challenger exists. Multisig threshold (Phase 0+, external bridge) trusts an M-of-N committee. Permissionless exit (Phase 1+, optional) trusts permissionless withdrawal. ZK validity proof (Phase 4+, default for ZK rollups) trusts only mathematics.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#fde8e8"/>
+      <stop offset="50%" stop-color="#fff2e3"/>
+      <stop offset="100%" stop-color="#e7f4eb"/>
+    </linearGradient>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .axis       { font-size: 11.5px; font-style: italic; fill: #525a64; }
+      .tier-t     { font-size: 12.5px; font-weight: 700; }
+      .tier-s     { font-size: 10px; fill: #2d3a48; }
+      .trust      { font-size: 10px; font-style: italic; fill: #525a64; }
+      .phase      { font-size: 10px; font-weight: 600; fill: #88312e; }
+    </style>
+  </defs>
+
+  <rect width="960" height="380" fill="#ffffff"/>
+
+  <text x="480" y="32" text-anchor="middle" class="header" fill="#1e2a55">Trust-minimization gradient — operators choose</text>
+
+  <!-- Gradient bar -->
+  <rect x="60" y="58" width="840" height="14" rx="2" ry="2" fill="url(#grad)" stroke="#cfd5dd"/>
+  <text x="60" y="92" class="axis">trust-maximizing</text>
+  <text x="900" y="92" text-anchor="end" class="axis">trustless / math-only</text>
+  <line x1="60" y1="76" x2="900" y2="76" stroke="#525a64" stroke-width="1" marker-end="url(#arrow)"/>
+
+  <!-- 5 tiers -->
+  <g filter="url(#card)">
+    <rect x="60" y="110" width="155" height="190" rx="8" ry="8" fill="#fde8e8" stroke="#c4413e" stroke-width="1.3"/>
+    <text x="138" y="133" text-anchor="middle" class="tier-t" fill="#88312e">Sequencer-only</text>
+    <text x="138" y="150" text-anchor="middle" class="tier-s">(Solo)</text>
+    <line x1="76" y1="160" x2="200" y2="160" stroke="#c4413e" stroke-dasharray="2 2"/>
+    <text x="138" y="180" text-anchor="middle" class="trust">trust = solo</text>
+    <text x="138" y="194" text-anchor="middle" class="trust">operator</text>
+    <line x1="76" y1="208" x2="200" y2="208" stroke="#c4413e" stroke-dasharray="2 2"/>
+    <text x="138" y="228" text-anchor="middle" class="phase">Phase 0</text>
+    <text x="138" y="244" text-anchor="middle" class="tier-s">PoC</text>
+    <line x1="76" y1="258" x2="200" y2="258" stroke="#c4413e" stroke-dasharray="2 2"/>
+    <text x="138" y="278" text-anchor="middle" class="tier-s">securityLevel: 0</text>
+    <text x="138" y="292" text-anchor="middle" class="tier-s">exitModel: -</text>
+  </g>
+
+  <g filter="url(#card)">
+    <rect x="225" y="110" width="155" height="190" rx="8" ry="8" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.3"/>
+    <text x="303" y="133" text-anchor="middle" class="tier-t" fill="#7a4a14">Optimistic</text>
+    <text x="303" y="150" text-anchor="middle" class="tier-s">(challenge / bisection)</text>
+    <line x1="241" y1="160" x2="365" y2="160" stroke="#cd7c2e" stroke-dasharray="2 2"/>
+    <text x="303" y="180" text-anchor="middle" class="trust">trust = 1 honest</text>
+    <text x="303" y="194" text-anchor="middle" class="trust">challenger</text>
+    <line x1="241" y1="208" x2="365" y2="208" stroke="#cd7c2e" stroke-dasharray="2 2"/>
+    <text x="303" y="228" text-anchor="middle" class="phase">Phase 1+</text>
+    <text x="303" y="244" text-anchor="middle" class="tier-s">default (rollups)</text>
+    <line x1="241" y1="258" x2="365" y2="258" stroke="#cd7c2e" stroke-dasharray="2 2"/>
+    <text x="303" y="278" text-anchor="middle" class="tier-s">securityLevel: 1</text>
+    <text x="303" y="292" text-anchor="middle" class="tier-s">exitModel: Optim.</text>
+  </g>
+
+  <g filter="url(#card)">
+    <rect x="390" y="110" width="155" height="190" rx="8" ry="8" fill="#f4ece1" stroke="#cd9c5e" stroke-width="1.3"/>
+    <text x="468" y="133" text-anchor="middle" class="tier-t" fill="#7a5a14">Multisig</text>
+    <text x="468" y="150" text-anchor="middle" class="tier-s">(M-of-N threshold)</text>
+    <line x1="406" y1="160" x2="530" y2="160" stroke="#cd9c5e" stroke-dasharray="2 2"/>
+    <text x="468" y="180" text-anchor="middle" class="trust">trust = M-of-N</text>
+    <text x="468" y="194" text-anchor="middle" class="trust">committee</text>
+    <line x1="406" y1="208" x2="530" y2="208" stroke="#cd9c5e" stroke-dasharray="2 2"/>
+    <text x="468" y="228" text-anchor="middle" class="phase">Phase 0+</text>
+    <text x="468" y="244" text-anchor="middle" class="tier-s">external bridge</text>
+    <line x1="406" y1="258" x2="530" y2="258" stroke="#cd9c5e" stroke-dasharray="2 2"/>
+    <text x="468" y="278" text-anchor="middle" class="tier-s">securityLevel: 0</text>
+    <text x="468" y="292" text-anchor="middle" class="tier-s">exitModel: (varies)</text>
+  </g>
+
+  <g filter="url(#card)">
+    <rect x="555" y="110" width="155" height="190" rx="8" ry="8" fill="#ecf4e1" stroke="#7eaa54" stroke-width="1.3"/>
+    <text x="633" y="133" text-anchor="middle" class="tier-t" fill="#3f5e1c">Permissionless</text>
+    <text x="633" y="150" text-anchor="middle" class="tier-s">exit (escape hatch)</text>
+    <line x1="571" y1="160" x2="695" y2="160" stroke="#7eaa54" stroke-dasharray="2 2"/>
+    <text x="633" y="180" text-anchor="middle" class="trust">trust = anyone</text>
+    <text x="633" y="194" text-anchor="middle" class="trust">can exit</text>
+    <line x1="571" y1="208" x2="695" y2="208" stroke="#7eaa54" stroke-dasharray="2 2"/>
+    <text x="633" y="228" text-anchor="middle" class="phase">Phase 1+</text>
+    <text x="633" y="244" text-anchor="middle" class="tier-s">optional</text>
+    <line x1="571" y1="258" x2="695" y2="258" stroke="#7eaa54" stroke-dasharray="2 2"/>
+    <text x="633" y="278" text-anchor="middle" class="tier-s">securityLevel: 1</text>
+    <text x="633" y="292" text-anchor="middle" class="tier-s">exitModel: Permis.</text>
+  </g>
+
+  <g filter="url(#card)">
+    <rect x="720" y="110" width="180" height="190" rx="8" ry="8" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.5"/>
+    <text x="810" y="133" text-anchor="middle" class="tier-t" fill="#1d4d2c">ZK validity proof</text>
+    <text x="810" y="150" text-anchor="middle" class="tier-s">(SP1 zkVM)</text>
+    <line x1="736" y1="160" x2="884" y2="160" stroke="#3a8454" stroke-dasharray="2 2"/>
+    <text x="810" y="180" text-anchor="middle" class="trust">trust = math</text>
+    <text x="810" y="194" text-anchor="middle" class="trust">(provable validity)</text>
+    <line x1="736" y1="208" x2="884" y2="208" stroke="#3a8454" stroke-dasharray="2 2"/>
+    <text x="810" y="228" text-anchor="middle" class="phase">Phase 4+</text>
+    <text x="810" y="244" text-anchor="middle" class="tier-s">default for ZK rollups</text>
+    <line x1="736" y1="258" x2="884" y2="258" stroke="#3a8454" stroke-dasharray="2 2"/>
+    <text x="810" y="278" text-anchor="middle" class="tier-s">securityLevel: 2-3</text>
+    <text x="810" y="292" text-anchor="middle" class="tier-s">exitModel: ZkValidity</text>
+  </g>
+
+  <text x="480" y="338" text-anchor="middle" class="axis" fill="#525a64">Operator picks per chain via the §16.2 config dimensions; same NeoHub L1 supports all combinations.</text>
+  <text x="480" y="358" text-anchor="middle" class="axis" fill="#525a64">External bridge currently lives at Multisig; Phase D moves it to ZK validity (verifier swap, surface stable).</text>
+</svg>

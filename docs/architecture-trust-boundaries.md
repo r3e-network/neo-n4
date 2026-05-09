@@ -272,29 +272,9 @@ mitigations" for the full table.
 Different parts of the system live at different points on the
 trust-minimization spectrum. Operators can pick:
 
-```text
-   trust    ◀──────────────────────────────────────────▶  trustless
-   maximizing                                              math-only
-
-   ┌─────────┬────────────┬─────────────┬────────────┬────────────────┐
-   │ Sequen- │ Optimistic │ Multisig    │ Permission-│ ZK validity    │
-   │ cer-only│ challenge  │ threshold   │ less exit  │ proof          │
-   │ (Solo)  │ (bisection)│ (M-of-N)    │ (escape    │ (SP1 zkVM)     │
-   │         │            │             │  hatch)    │                │
-   ├─────────┼────────────┼─────────────┼────────────┼────────────────┤
-   │ trust   │ trust =    │ trust =     │ trust =    │ trust = math   │
-   │ = solo  │ 1 honest   │ M-of-N      │ permission-│ (provable      │
-   │ operator│ challenger │ committee   │ less       │  validity)     │
-   │         │ exists     │             │ withdrawal │                │
-   ├─────────┼────────────┼─────────────┼────────────┼────────────────┤
-   │ Phase 0 │ Phase 1+   │ Phase 0+    │ Phase 1+   │ Phase 4+       │
-   │ POC     │ default    │ external    │ optional   │ default for    │
-   │         │ (rollups)  │ bridge      │            │ ZK rollups     │
-   └─────────┴────────────┴─────────────┴────────────┴────────────────┘
-
-   securityLevel:    0           1              0           1            2-3
-   exitModel:        Optim.      Optim.         (varies)    Permis.      ZkValidity
-```
+<p align="center">
+  <img src="figures/architecture/trust-minimization-gradient.svg" alt="Five-tier trust-minimization gradient from trust-maximizing to trustless: Sequencer-only (Solo, Phase 0 PoC) | Optimistic challenge (Phase 1+, default for rollups) | Multisig threshold (Phase 0+, external bridge) | Permissionless exit (Phase 1+, optional) | ZK validity proof (Phase 4+, default for ZK rollups). Operator picks per chain via §16.2 dimensions" width="900">
+</p>
 
 **Operator's choice.** Each L2 chain picks its slot via the §16.2
 config dimensions (`securityLevel`, `exitModel`, etc., encoded in

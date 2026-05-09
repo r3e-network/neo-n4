@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">External-chain bridge architecture (Phase B/C)</title>
+  <desc id="desc">Architecture for the cross-foreign-chain bridge. External chain (e.g. BSC mainnet) hosts NeoExternalBridgeRouter.sol — the same contract bytecode deploys unchanged on any of 14 EVM-family chains plus Tron. The off-chain watcher daemon (neo-bridge-watcher-eth) observes Locked events, signs the canonical ExternalCrossChainMessage with secp256k1 (or ed25519 for Solana), and submits to NeoHub L1. On L1, ExternalBridgeEscrow looks up the curve-tagged verifier via ExternalBridgeRegistry, MpcCommitteeVerifier validates the M-of-N committee signatures, and MpcCommitteeFraudVerifier slashes equivocating committee members via ExternalBridgeBond. The L2 chain's L2NativeExternalBridgeContract receives the burned/minted asset.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .tier-t     { font-size: 13px; font-weight: 700; letter-spacing: 0.4px; }
+      .comp-t     { font-size: 11.5px; font-weight: 600; fill: #2d3a48; }
+      .comp-s     { font-size: 10.5px; fill: #525a64; }
+      .ed-lbl     { font-size: 10.5px; fill: #525a64; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect width="960" height="600" fill="#ffffff"/>
+
+  <text x="480" y="32" text-anchor="middle" class="header" fill="#1e2a55">External-chain bridge architecture (Phase B/C)</text>
+
+  <!-- External chain (top-left) -->
+  <rect x="40" y="60" width="290" height="200" rx="10" ry="10" fill="#fde8e8" stroke="#c4413e" stroke-width="1.4"/>
+  <text x="60" y="84" class="tier-t" fill="#88312e">External chain</text>
+  <text x="60" y="100" class="comp-s">e.g. BSC mainnet (any of 14 EVM-family chains)</text>
+
+  <g filter="url(#card)">
+    <rect x="60" y="118" width="250" height="124" rx="8" ry="8" fill="#ffffff" stroke="#c4413e" stroke-width="1.2"/>
+    <text x="185" y="140" text-anchor="middle" class="comp-t">NeoExternalBridgeRouter.sol</text>
+    <text x="185" y="158" text-anchor="middle" class="comp-s">deployed unchanged on any EVM chain</text>
+    <text x="185" y="176" text-anchor="middle" class="comp-s">(constructor arg: externalChainId)</text>
+    <line x1="76" y1="190" x2="294" y2="190" stroke="#c4413e" stroke-dasharray="2 2"/>
+    <text x="185" y="210" text-anchor="middle" class="comp-s" font-style="italic">emits Locked events on inbound</text>
+    <text x="185" y="226" text-anchor="middle" class="comp-s" font-style="italic">accepts withdrawal seal on outbound</text>
+  </g>
+
+  <!-- Off-chain watcher (top-right) -->
+  <rect x="630" y="60" width="290" height="200" rx="10" ry="10" fill="#f1ecf8" stroke="#7d59b3" stroke-width="1.4"/>
+  <text x="650" y="84" class="tier-t" fill="#3e2865">Off-chain watcher</text>
+  <text x="650" y="100" class="comp-s">long-running Rust daemon, k8s/systemd-managed</text>
+
+  <g filter="url(#card)">
+    <rect x="650" y="118" width="250" height="124" rx="8" ry="8" fill="#ffffff" stroke="#7d59b3" stroke-width="1.2"/>
+    <text x="775" y="140" text-anchor="middle" class="comp-t">neo-bridge-watcher-eth</text>
+    <text x="775" y="158" text-anchor="middle" class="comp-s">secp256k1 sign (Eth/EVM/Tron)</text>
+    <text x="775" y="174" text-anchor="middle" class="comp-s">ed25519 sign (Solana)</text>
+    <line x1="666" y1="186" x2="884" y2="186" stroke="#7d59b3" stroke-dasharray="2 2"/>
+    <text x="775" y="204" text-anchor="middle" class="comp-s">/healthz · /metrics · flock</text>
+    <text x="775" y="220" text-anchor="middle" class="comp-s">min_confirmations buffer</text>
+    <text x="775" y="236" text-anchor="middle" class="comp-s">--preflight validation</text>
+  </g>
+
+  <!-- Locked event arrow -->
+  <line x1="330" y1="180" x2="630" y2="180" stroke="#525a64" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="480" y="172" text-anchor="middle" class="ed-lbl">Locked event poll</text>
+
+  <!-- Withdrawal seal arrow (back) -->
+  <path d="M 630 220 Q 480 280 330 220" fill="none" stroke="#525a64" stroke-width="1.4" stroke-dasharray="3 2" marker-end="url(#arrow)"/>
+  <text x="480" y="280" text-anchor="middle" class="ed-lbl">withdrawal seal (committee co-sign)</text>
+
+  <!-- Vertical arrow watcher → L1 -->
+  <line x1="775" y1="260" x2="775" y2="300" stroke="#525a64" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="785" y="284" class="ed-lbl">ExternalCrossChainMessage</text>
+  <text x="785" y="297" class="ed-lbl">(102B prefix + payload)</text>
+
+  <!-- L1 NeoHub (middle) -->
+  <rect x="180" y="310" width="600" height="180" rx="10" ry="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
+  <text x="200" y="334" class="tier-t" fill="#1e2a55">NeoHub L1</text>
+
+  <g filter="url(#card)">
+    <rect x="200" y="346" width="180" height="60" rx="6" ry="6" fill="#ffffff" stroke="#7587c1" stroke-width="1.5"/>
+    <text x="290" y="368" text-anchor="middle" class="comp-t">ExternalBridgeEscrow</text>
+    <text x="290" y="386" text-anchor="middle" class="comp-s">mints/burns wrapped assets</text>
+    <text x="290" y="400" text-anchor="middle" class="comp-s">replay-protected</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="400" y="346" width="180" height="60" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
+    <text x="490" y="368" text-anchor="middle" class="comp-t">MpcCommitteeVerifier</text>
+    <text x="490" y="386" text-anchor="middle" class="comp-s">M-of-N committee sig check</text>
+    <text x="490" y="400" text-anchor="middle" class="comp-s">curve-agnostic (k1 / ed25519)</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="600" y="346" width="160" height="60" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
+    <text x="680" y="368" text-anchor="middle" class="comp-t">ExternalBridgeRegistry</text>
+    <text x="680" y="386" text-anchor="middle" class="comp-s">curve-tagged verifier</text>
+    <text x="680" y="400" text-anchor="middle" class="comp-s">lookup per chainId</text>
+  </g>
+
+  <g filter="url(#card)">
+    <rect x="200" y="416" width="280" height="60" rx="6" ry="6" fill="#fde8e8" stroke="#c4413e" stroke-width="1.3"/>
+    <text x="340" y="438" text-anchor="middle" class="comp-t" fill="#88312e">MpcCommitteeFraudVerifier</text>
+    <text x="340" y="456" text-anchor="middle" class="comp-s">proves equivocation cryptographically</text>
+    <text x="340" y="470" text-anchor="middle" class="comp-s">→ permissionless slashing</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="500" y="416" width="260" height="60" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
+    <text x="630" y="438" text-anchor="middle" class="comp-t">ExternalBridgeBond</text>
+    <text x="630" y="456" text-anchor="middle" class="comp-s">slashable bonds for committee</text>
+    <text x="630" y="470" text-anchor="middle" class="comp-s">(reporter takes the bond as reward)</text>
+  </g>
+
+  <!-- L1→L2 arrow -->
+  <line x1="290" y1="490" x2="290" y2="528" stroke="#525a64" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="300" y="514" class="ed-lbl">mint/burn trigger</text>
+
+  <!-- L2 chain (bottom) -->
+  <g filter="url(#card)">
+    <rect x="180" y="530" width="600" height="60" rx="10" ry="10" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.4"/>
+    <text x="480" y="554" text-anchor="middle" class="tier-t" fill="#1d4d2c">L2 chain</text>
+    <text x="480" y="574" text-anchor="middle" class="comp-t">L2NativeExternalBridgeContract  —  per-L2 wrapped foreign-asset state</text>
+  </g>
+</svg>

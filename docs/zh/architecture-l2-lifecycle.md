@@ -393,50 +393,9 @@ L1 即可向 L2-B 发消息:
 跨外链桥(Phase B/C,`doc.md` §11.3)让外链(Eth/EVM 家族 / Solana / Tron)经
 同一 SharedBridge 接口做充值 + 提款。架构上:
 
-```text
-    ┌─────────────────────────┐          ┌─────────────────────────────┐
-    │  外链                    │          │  链下                        │
-    │  (例如 BSC 主网)        │          │                             │
-    │                         │          │  neo-bridge-watcher-eth     │
-    │  NeoExternalBridge-     │   Locked │  守护进程                    │
-    │  Router.sol ────────────┼──事件──▶ │  · secp256k1/ed25519 签名  │
-    │  (在任何 14 个 EVM 家族  │          │  · /healthz、/metrics       │
-    │   链上原样部署)          │          │  · flock journal            │
-    │                         │          │  · min_confirmations buffer │
-    │                         │          │                             │
-    └─────────────────────────┘          └─────────────────────────────┘
-                ▲                                       │
-                │                                       │ ExternalCrossChainMessage
-                │                                       │ (102B 前缀 + payload)
-                │                                       │
-                │ 提款封装                               ▼
-                │                            ┌─────────────────────────┐
-                │                            │  NeoHub L1              │
-                │                            │                         │
-                │              ┌─────────────│  ExternalBridgeEscrow   │
-                │              │  burn/mint  │      │                  │
-                │              │  trigger    │      │ 经…验证            │
-                │              │             │      ▼                  │
-                │              │             │  MpcCommitteeVerifier   │
-                │              │             │      │                  │
-                │              │             │      │ 查 verifier       │
-                │              │             │      ▼                  │
-                │              │             │  ExternalBridgeRegistry │
-                │              │             │                         │
-                │              │             │  (等价签名罚没)        │
-                │              │             │  MpcCommitteeFraud-     │
-                │              │             │  Verifier ──slash──▶    │
-                │              │             │     ExternalBridgeBond  │
-                │              │             └─────────────────────────┘
-                │              │
-                │              ▼
-    ┌─────────────────────────────────────┐
-    │  L2 链                              │
-    │                                     │
-    │  L2NativeExternalBridgeContract     │
-    │                                     │
-    └─────────────────────────────────────┘
-```
+<p align="center">
+  <img src="../figures/architecture/external-bridge-architecture.svg" alt="外链桥架构:外链上的 NeoExternalBridgeRouter.sol(整个 EVM 家族共用一份合约),watcher 守护进程 poll Locked 事件并对规范 ExternalCrossChainMessage 签名,NeoHub L1 经 MpcCommitteeVerifier 验证、经 MpcCommitteeFraudVerifier + ExternalBridgeBond 罚没等价签名,L2 链在 L2NativeExternalBridgeContract 上接收包装的外链资产" width="900">
+</p>
 
 **一份合约服务整个 EVM 家族。** 同一份 `NeoExternalBridgeRouter.sol` 原样部署到
 Ethereum / BSC / Polygon / Arbitrum / Optimism / Base / Avalanche / Linea /

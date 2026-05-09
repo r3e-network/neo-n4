@@ -460,50 +460,9 @@ Cross-foreign-chain bridge (Phase B/C, `doc.md` §11.3) lets an
 external chain (Eth/EVM family / Solana / Tron) deposit + withdraw
 through the same SharedBridge surface. Architecturally:
 
-```text
-    ┌─────────────────────────┐          ┌─────────────────────────────┐
-    │  External chain         │          │  Off-chain                  │
-    │  (e.g. BSC mainnet)     │          │                             │
-    │                         │          │  neo-bridge-watcher-eth     │
-    │  NeoExternalBridge-     │   Locked │  daemon                     │
-    │  Router.sol ────────────┼──event──▶│  · secp256k1/ed25519 sign  │
-    │  (deployed unchanged    │          │  · /healthz, /metrics       │
-    │   on any of 14 EVM-     │          │  · flock journal            │
-    │   family chains)        │          │  · min_confirmations buffer │
-    │                         │          │                             │
-    └─────────────────────────┘          └─────────────────────────────┘
-                ▲                                       │
-                │                                       │ ExternalCrossChainMessage
-                │                                       │ (102B prefix + payload)
-                │                                       │
-                │ withdrawal seal                       ▼
-                │                            ┌─────────────────────────┐
-                │                            │  NeoHub L1              │
-                │                            │                         │
-                │              ┌─────────────│  ExternalBridgeEscrow   │
-                │              │  burn/mint  │      │                  │
-                │              │  trigger    │      │ verify via       │
-                │              │             │      ▼                  │
-                │              │             │  MpcCommitteeVerifier   │
-                │              │             │      │                  │
-                │              │             │      │ lookup verifier  │
-                │              │             │      ▼                  │
-                │              │             │  ExternalBridgeRegistry │
-                │              │             │                         │
-                │              │             │  (equivocation slash)   │
-                │              │             │  MpcCommitteeFraud-     │
-                │              │             │  Verifier ──slash──▶    │
-                │              │             │     ExternalBridgeBond  │
-                │              │             └─────────────────────────┘
-                │              │                                       
-                │              ▼
-    ┌─────────────────────────────────────┐
-    │  L2 chain                           │
-    │                                     │
-    │  L2NativeExternalBridgeContract     │
-    │                                     │
-    └─────────────────────────────────────┘
-```
+<p align="center">
+  <img src="figures/architecture/external-bridge-architecture.svg" alt="External-chain bridge architecture: external chain hosts NeoExternalBridgeRouter.sol (one contract for the EVM family), watcher daemon polls Locked events and signs canonical ExternalCrossChainMessage, NeoHub L1 verifies via MpcCommitteeVerifier and slashes equivocation via MpcCommitteeFraudVerifier and ExternalBridgeBond, L2 chain receives wrapped foreign asset on L2NativeExternalBridgeContract" width="900">
+</p>
 
 **One contract serves the entire EVM family.** The same
 `NeoExternalBridgeRouter.sol` deploys unchanged on Ethereum / BSC /

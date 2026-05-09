@@ -32,6 +32,26 @@ in a loop. Splitting this way lets the signing path evolve
 independently of the RPC plumbing (HSM integration becomes a trait
 swap, not a rewrite).
 
+## CLI surface
+
+```text
+Usage: neo-bridge-watcher-eth --config <watcher.toml> [--preflight]
+
+Flags:
+  --config <path>     Path to TOML config (required for normal runs).
+  --preflight         Validate config + RPC reachability + signer + journal,
+                      then exit. Does NOT start the watch loop.
+  --journal-info      Print the journal's cursor + consumed-record summary +
+                      recent records, then exit. Read-only; does NOT acquire
+                      the journal flock (safe to run while the watcher
+                      daemon is also running).
+  --config-template   Print a starter TOML config to stdout + exit.
+                      Pipe to a file: `... --config-template > watcher.toml`
+                      then edit placeholders + run --preflight.
+  --version, -V       Print version + exit.
+  --help, -h          Print this help + exit.
+```
+
 ## Run the daemon
 
 ```bash
@@ -39,9 +59,13 @@ swap, not a rewrite).
 CPATH=~/.local/include cargo build --release -p neo-bridge-watcher-eth --features live-rpc
 
 # Generate a watcher private key (one-time):
-cargo run --release -p neo-external-bridge --no-build -- genkey --out watcher.priv
+dotnet run --project tools/Neo.External.Bridge.Cli -- genkey --out watcher.priv
 
-# Write a watcher.toml config:
+# Bootstrap a config (replaces the hand-rolled TOML below):
+./target/release/neo-bridge-watcher-eth --config-template > watcher.toml
+$EDITOR watcher.toml      # fill in the REPLACE_WITH_* placeholders
+
+# Or write watcher.toml from scratch:
 cat > watcher.toml <<TOML
 external_chain_id   = 0xE0000002             # Sepolia (or any chain in chains.rs)
 eth_rpc_url         = "https://rpc.sepolia.org"
@@ -65,16 +89,44 @@ bind                  = "0.0.0.0:9090"
 threshold_secs        = 120
 TOML
 
-# Validate before deploy (config + signer + journal + RPC client):
+# Validate before deploy (config + signer + journal + RPC reachability):
 ./target/release/neo-bridge-watcher-eth --config watcher.toml --preflight
 
 # Run:
 ./target/release/neo-bridge-watcher-eth --config watcher.toml
 ```
 
+### Operator inspection commands
+
+While the daemon is running, you can inspect its state without
+disrupting it:
+
+```bash
+# Look at the journal: cursor + consumed records, grouped by chain.
+# Read-only — does NOT acquire the flock — safe alongside the live daemon.
+./target/release/neo-bridge-watcher-eth --config watcher.toml --journal-info
+
+# Output:
+#   journal_dir:  ./journal
+#   cursor:       38400156 (block height)
+#   consumed:     142 records
+#   by chain:
+#     0xE0000030 (BNB Smart Chain mainnet)  →  142
+#   recent (last 5 records):
+#     chain=0xE0000030  nonce=138
+#     chain=0xE0000030  nonce=139
+#     ...
+
+# Live HTTP probes (when [health].bind is configured):
+curl http://0.0.0.0:9090/healthz   # 200 (healthy) or 503 (stale)
+curl http://0.0.0.0:9090/info      # always 200, full JSON snapshot
+curl http://0.0.0.0:9090/metrics   # Prometheus exposition with chain_id label
+```
+
 The `--preflight` flag runs all setup checks (TOML schema, chain-id
-namespace, `min_confirmations` recommendation, signer key load,
-journal `flock` acquire/release, RPC client construction) then exits
+namespace, address-non-zero, `min_confirmations` recommendation,
+signer key load, journal `flock` acquire/release, `eth_blockNumber`
+probe, router `eth_getCode` probe, Neo `getversion` probe) then exits
 0 on success / non-zero on any failure. Designed for `kubectl apply`
 gate scripts, systemd `ExecStartPre=`, and CI deploy gates.
 

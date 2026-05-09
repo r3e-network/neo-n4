@@ -5,6 +5,82 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Tron + Solana watcher variants (curve-agnostic Signer)
+
+Validates the Phase B trait abstractions transferred across both
+secp256k1 (Eth/Tron) and ed25519 (Solana) curve families — the same
+`Signer` trait + same `WatcherCore` orchestrator handles all three.
+
+- **`watchers/neo-bridge-watcher-tron/`** — Cargo crate; thin re-export
+  of `neo-bridge-watcher-eth` with Tron-specific chain-id constants:
+
+      TRON_MAINNET_CHAIN_ID         = 0xE000_0010
+      TRON_NILE_TESTNET_CHAIN_ID    = 0xE000_0011
+      TRON_SHASTA_TESTNET_CHAIN_ID  = 0xE000_0012
+
+  Tron uses the same secp256k1+SHA256 + Keccak256 address derivation
+  as Ethereum, so no separate messaging or signing core is needed.
+  Constructing a Tron daemon: `WatcherCore::new(TRON_MAINNET_CHAIN_ID,
+  ...)` with the same trait impls an Eth daemon uses.
+
+  Tests (7): chain-id namespace + slot-disjointness pins;
+  `canonical_bytes_emit_tron_chain_id_at_offset_zero`;
+  `canonical_bytes_diverge_from_eth_only_at_chain_id_position` (only
+  bytes 0..4 differ between Tron and Eth — rest byte-identical);
+  `message_hash_differs_from_eth_for_same_other_fields` (cross-chain
+  replay protection); `fixed_prefix_still_102_bytes` invariant; doctest.
+
+- **`watchers/neo-bridge-watcher-sol/`** — Cargo crate adding
+  `Ed25519FileSigner` implementing `Signer` with `curve_tag = 2`. The
+  on-chain `MpcCommitteeVerifier` already supports ed25519 via
+  `CryptoLib.VerifyWithEd25519`; this crate plugs the off-chain side
+  in. Solana chain-ids:
+
+      SOLANA_MAINNET_CHAIN_ID  = 0xE000_0020
+      SOLANA_DEVNET_CHAIN_ID   = 0xE000_0021
+      SOLANA_TESTNET_CHAIN_ID  = 0xE000_0022
+
+  Per the roadmap (`docs/external-bridge-roadmap.md` § Phase 4 +
+  `doc.md` §11.3.4), Solana stays MPC-committee-only because Tower
+  BFT light-client verification is genuinely expensive on-chain — but
+  the committee model below works identically for Solana via the
+  same trait surface.
+
+  Tests (9): chain-id namespace + slot-disjointness pins; real ed25519
+  sign+verify round-trip via `ed25519_dalek::Verifier`; key-length +
+  pubkey-length pins; `signer_trait_dispatches_by_curve_tag` (a
+  `Vec<Box<dyn Signer>>` holds both curve families distinguished by
+  `curve_tag` + pubkey length); `watcher_core_drives_through_with_ed25519_signer`
+  (full orchestrator round-trip producing ed25519-flavored proof
+  bytes — 98B = 2 header + 32 pubkey + 64 sig, vs 99B for secp256k1's
+  33B compressed pubkey).
+
+- **`Signer` trait refactored to be curve-agnostic** in
+  `watchers/neo-bridge-watcher-eth/src/signer.rs`:
+
+      curve_tag(&self) -> u8                    # 1 secp256k1, 2 ed25519
+      public_key_bytes(&self) -> Vec<u8>        # 33B or 32B
+      sign_canonical_bytes(&self, ...)
+          -> Result<SignerOutput, SignerError>  # 64B sig + recovery byte
+
+  `SignerOutput { signature: [u8; 64], recovery_id: u8 }` holds both
+  curves' raw 64-byte sigs (r||s for secp256k1, R||s for ed25519);
+  `recovery_id` is meaningful only for secp256k1 (Eth-style 27/28),
+  ed25519 returns 0. Removed `eth_address` (was always-zero in the
+  default impl; address derivation lives outside the trait now).
+  Removed `sign_prehashed` (ed25519 has no prehash step — each curve
+  handles its own hash internally inside `sign_canonical_bytes`).
+
+  Existing `FileSigner` (secp256k1) adapts to the new trait shape;
+  all 24 existing eth-watcher tests still pass.
+
+`WatcherCore.process_event` now picks `Curve::Secp256k1` or
+`Curve::Ed25519` for `NeoProofBytes::encode` per the signer's
+`curve_tag()`.
+
+Cumulative: 40 tests across the three watcher crates (was 24 in just
+the Eth crate). All green.
+
 ### Added — External bridge Phase C (optimistic-challenge slashing for committee equivocation)
 
 Phase B's economic security model assumed an "owner-only-slashable"

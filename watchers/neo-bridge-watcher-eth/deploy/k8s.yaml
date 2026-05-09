@@ -1,0 +1,157 @@
+# Reference Kubernetes manifests for neo-bridge-watcher-eth.
+#
+# Wires the operational features the watcher daemon ships:
+#   - /healthz HTTP endpoint → readiness + liveness probes
+#   - SIGTERM → graceful shutdown (~100ms exit)
+#   - flock'd journal directory → ReadWriteOnce PVC (one pod at a time)
+#   - signer key + Neo escrow address → Secret + ConfigMap
+#
+# Apply:
+#   kubectl apply -f k8s.yaml
+#
+# Customize before deploying:
+#   1. Image: replace `neo-bridge-watcher-eth:latest` with your registry path.
+#   2. ConfigMap: fill in chain-id, RPC URLs, contract addresses, etc.
+#   3. Secret: replace the placeholder watcher.priv with a real 32-byte key
+#      (recommended: an external secret manager — Sealed Secrets, External
+#      Secrets Operator, Vault). The plaintext example below is for
+#      illustration only.
+#   4. PVC storageClass: match what your cluster provides.
+#
+# This is a Deployment with `replicas: 1` — the journal's flock-based
+# concurrent-instance detection makes a multi-replica deployment crash
+# the second pod by design (correct behavior, but not what you want
+# from a Deployment scheduler that's trying to keep pods running).
+# For HA, use a single-replica Deployment + a node-anti-affinity rule
+# OR run two daemons on disjoint chain id banks (separate journal_dir).
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: neo-bridge
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: watcher-config
+  namespace: neo-bridge
+data:
+  watcher.toml: |
+    # Replace placeholders before applying!
+    external_chain_id   = 0xE0000030                              # BSC mainnet — see chains.rs
+    eth_rpc_url         = "https://bsc-dataseed.binance.org"
+    eth_router_address  = "0xREPLACE_WITH_DEPLOYED_ROUTER_ADDR"
+    neo_rpc_url         = "https://rpc.testnet.neo.org"
+    neo_escrow_address  = "0xREPLACE_WITH_NEOHUB_ESCROW_ADDR"
+    neo_signer_address  = "0xREPLACE_WITH_OPERATOR_NEO_ACCOUNT"
+    signer_key_path     = "/var/lib/watcher/keys/watcher.priv"
+    journal_dir         = "/var/lib/watcher/journal"
+
+    [poll]
+    poll_interval_secs    = 6      # BSC ~3s blocks; 2-block cadence
+    backoff_initial_secs  = 5
+    backoff_max_secs      = 300
+    eth_chunk_size        = 5000
+    request_timeout_secs  = 30
+    min_confirmations     = 15     # BSC: see chains::recommended_confirmations
+
+    [health]
+    bind                  = "0.0.0.0:9090"
+    threshold_secs        = 120
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: watcher-key
+  namespace: neo-bridge
+type: Opaque
+data:
+  # 32 bytes of secp256k1 private key, base64-encoded.
+  # PLACEHOLDER — replace with the output of:
+  #   neo-external-bridge genkey --out watcher.priv
+  #   base64 -w0 watcher.priv
+  # In production, use a secret manager (Sealed Secrets / Vault / ESO)
+  # rather than committing this even encrypted.
+  watcher.priv: REPLACE_WITH_BASE64_OF_32_BYTE_KEY
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: watcher-journal
+  namespace: neo-bridge
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+  # storageClassName: standard   # uncomment + customize for your cluster
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neo-bridge-watcher-eth-bsc
+  namespace: neo-bridge
+spec:
+  replicas: 1
+  strategy:
+    # Recreate (not RollingUpdate) so the old pod releases the flock
+    # before the new pod tries to acquire it. RollingUpdate would
+    # briefly run two pods → second pod crashes on the flock check.
+    type: Recreate
+  selector:
+    matchLabels: {app: neo-bridge-watcher-eth, chain: bsc}
+  template:
+    metadata:
+      labels: {app: neo-bridge-watcher-eth, chain: bsc}
+    spec:
+      terminationGracePeriodSeconds: 30   # SIGTERM → ~100ms clean exit
+      containers:
+        - name: watcher
+          image: neo-bridge-watcher-eth:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/neo-bridge-watcher-eth"]
+          args: ["--config", "/etc/watcher/watcher.toml"]
+          ports:
+            - {name: health, containerPort: 9090, protocol: TCP}
+          # Readiness: 5s period, 24 failures = 120s without a tick → out of LB
+          readinessProbe:
+            httpGet: {path: /healthz, port: 9090}
+            periodSeconds: 5
+            failureThreshold: 24
+            initialDelaySeconds: 5
+          # Liveness: 30s period, 4 failures = 120s without a tick → restart pod
+          livenessProbe:
+            httpGet: {path: /healthz, port: 9090}
+            periodSeconds: 30
+            failureThreshold: 4
+            initialDelaySeconds: 30
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits:   {cpu: 500m, memory: 256Mi}
+          volumeMounts:
+            - {name: config,  mountPath: /etc/watcher,            readOnly: true}
+            - {name: keys,    mountPath: /var/lib/watcher/keys,   readOnly: true}
+            - {name: journal, mountPath: /var/lib/watcher/journal}
+      volumes:
+        - {name: config,  configMap: {name: watcher-config}}
+        - {name: keys,    secret:    {secretName: watcher-key, defaultMode: 0o400}}
+        - {name: journal, persistentVolumeClaim: {claimName: watcher-journal}}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neo-bridge-watcher-eth-bsc
+  namespace: neo-bridge
+spec:
+  selector: {app: neo-bridge-watcher-eth, chain: bsc}
+  ports:
+    - {name: health, port: 9090, targetPort: 9090, protocol: TCP}
+  # ClusterIP — health probes are cluster-internal. Exposing /healthz
+  # to the public internet is unnecessary and a low-grade information
+  # leak (chain id, journal cursor, last error visible to anyone).
+  type: ClusterIP

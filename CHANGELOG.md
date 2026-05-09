@@ -5,6 +5,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Production deployment manifests + watcher README sweep
+
+Documentation for the operational features shipped this session
+(graceful shutdown, /healthz, journal flock, min_confirmations,
+recommended_confirmations).
+
+- `watchers/neo-bridge-watcher-eth/deploy/k8s.yaml` — Kubernetes
+  reference: Namespace + ConfigMap + Secret + PersistentVolumeClaim +
+  Deployment + Service. Wires `/healthz` to readiness + liveness
+  probes (5s/30s periods, 24/4 failure thresholds = 120s stale);
+  `Recreate` strategy + `terminationGracePeriodSeconds=30` for clean
+  flock release across pod replacements; ClusterIP service so
+  `/healthz` doesn't leak chain id / journal cursor / last error to
+  the public internet. 6 valid YAML docs validated via `yaml.safe_load_all`.
+
+- `watchers/neo-bridge-watcher-eth/deploy/neo-bridge-watcher.service`
+  — systemd unit. SIGTERM-driven clean shutdown via `KillSignal=SIGTERM`
+  + `TimeoutStopSec=30`; hardened with `ProtectSystem=strict` /
+  `NoNewPrivileges=true` / `PrivateTmp=true`. Validated via
+  `systemd-analyze verify` (only warning is the absent placeholder
+  binary path — expected on a dev machine).
+
+- `watchers/neo-bridge-watcher-eth/deploy/README.md` — covers the
+  operational invariants the manifests assume (single-instance per
+  journal_dir / SIGTERM behavior / health-probe shape / key custody /
+  journal durability) + what the manifests don't cover yet (metrics
+  endpoint, multi-chain operator setups, HSM signer integration).
+
+- `watchers/neo-bridge-watcher-eth/README.md` — config example
+  expanded to include all three sections (top-level fields + `[poll]`
+  with `min_confirmations` + `[health]`); new "Operational features"
+  table cross-references graceful-shutdown / flock / confirmation
+  buffer / health endpoint to their source modules; new "Production
+  deployment" section pointing at `deploy/`.
+
 ### Added — `/healthz` HTTP endpoint for the watcher daemon
 
 Production deployments (kubernetes, systemd) need a programmatic

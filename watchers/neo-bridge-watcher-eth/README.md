@@ -41,17 +41,28 @@ CPATH=~/.local/include cargo build --release -p neo-bridge-watcher-eth --feature
 # Generate a watcher private key (one-time):
 cargo run --release -p neo-external-bridge --no-build -- genkey --out watcher.priv
 
-# Write a watcher.toml config (see src/bin/neo-bridge-watcher-eth.rs
-# header for the full schema):
+# Write a watcher.toml config:
 cat > watcher.toml <<TOML
-external_chain_id   = 0xE0000002             # Sepolia
+external_chain_id   = 0xE0000002             # Sepolia (or any chain in chains.rs)
 eth_rpc_url         = "https://rpc.sepolia.org"
-eth_router_address  = "0x..."                # NeoExternalBridgeRouter on Eth
+eth_router_address  = "0x..."                # NeoExternalBridgeRouter on the EVM chain
 neo_rpc_url         = "https://rpc.testnet.neo.org"
 neo_escrow_address  = "0x..."                # NeoHub.ExternalBridgeEscrow on Neo
 neo_signer_address  = "0x..."                # operator's Neo account
 signer_key_path     = "watcher.priv"
 journal_dir         = "./journal"
+
+[poll]
+poll_interval_secs    = 12     # ~target chain block time
+backoff_initial_secs  = 5
+backoff_max_secs      = 300
+eth_chunk_size        = 5000
+request_timeout_secs  = 30
+min_confirmations     = 12     # see chains::recommended_confirmations
+
+[health]                       # optional — for k8s readiness probes
+bind                  = "0.0.0.0:9090"
+threshold_secs        = 120
 TOML
 
 # Run:
@@ -64,6 +75,35 @@ a Neo transaction. Production deployments replace it with an HSM/KMS-
 backed `SignAndSend` impl that wraps the script in a signed Neo
 `Transaction` + POSTs `sendrawtransaction`. The watcher's pre-check
 against the Neo RPC catches verifier-rejection paths regardless.
+
+### Operational features
+
+| Feature | What it does | Where |
+|---------|--------------|-------|
+| **Graceful shutdown** | SIGTERM / SIGINT trigger clean exit within ~100ms (instead of being killed mid-tick or waiting for a long backoff to complete). Async-signal-safe handler flips an AtomicBool; the run loop polls it at top + during sleeps. Required for kubernetes shutdown grace periods. | `bin/.../main()` |
+| **Concurrent-instance detection** | Two daemons pointed at the same `journal_dir` is a recipe for corrupting `consumed.log`. The journal acquires a `flock(LOCK_EX | LOCK_NB)` on a `.lock` sentinel — second instance fails fast with a typed error. | `live::file_journal::FileJournal::open` |
+| **Per-chain confirmation buffer** | `[poll].min_confirmations = N` defends against short-reorg phantom mints. Source caps polling at `head - N`. The daemon WARNs at startup if `min_confirmations = 0` but the chain id has a non-zero recommendation in `chains::recommended_confirmations`. | `live::eth_rpc` + `chains` |
+| **Health endpoint** | `GET /healthz` → 200 (healthy) or 503 (no successful tick within `threshold_secs`); `GET /info` → always 200 with same JSON body. K8s readiness/liveness probes consume the status code; dashboards consume the body. | `live::health` |
+
+### Production deployment
+
+Reference manifests for k8s + systemd live in
+[`deploy/`](./deploy/). They cover the operational pieces above:
+SIGTERM passthrough, health-probe wiring, journal volume mount,
+key-file secret. Sketch:
+
+```yaml
+# k8s readinessProbe (full Deployment in deploy/k8s.yaml):
+readinessProbe:
+  httpGet: {path: /healthz, port: 9090}
+  periodSeconds: 5
+  failureThreshold: 24   # ~2 min stale → kick out of LB
+livenessProbe:
+  httpGet: {path: /healthz, port: 9090}
+  periodSeconds: 30
+  failureThreshold: 4    # ~2 min stale → restart pod
+terminationGracePeriodSeconds: 30   # SIGTERM → clean exit (~100ms)
+```
 
 ## Position in the stack
 

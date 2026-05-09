@@ -1,0 +1,65 @@
+# systemd unit for neo-bridge-watcher-eth.
+#
+# Install:
+#   sudo cp neo-bridge-watcher.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now neo-bridge-watcher.service
+#
+# Customize before installing:
+#   - User: replace `watcher` with the unprivileged service account.
+#   - ExecStart: point at the binary's actual path.
+#   - WorkingDirectory: where watcher.toml + journal/ live.
+#   - The unit assumes /etc/watcher/watcher.toml + /var/lib/watcher/.
+#
+# Operational notes:
+#   - KillSignal=SIGTERM + TimeoutStopSec=30 give the daemon up to 30s
+#     to exit cleanly; in practice it exits in ~100ms via the
+#     interruptible_sleep + shutdown-flag mechanism.
+#   - Restart=on-failure restarts ONLY on non-zero exit. SIGTERM-driven
+#     clean exits (status 0) don't trigger a restart, so `systemctl
+#     stop` actually stops the daemon.
+#   - LimitNOFILE keeps the daemon's open-files budget within reason
+#     (the journal + flock + 2 reqwest clients = ~10 FDs steady-state).
+#   - ProtectSystem / ProtectHome / NoNewPrivileges harden the unit
+#     against post-compromise file-system tampering.
+
+[Unit]
+Description=Neo Elastic Network — external-bridge watcher (Eth/EVM ↔ Neo)
+Documentation=https://github.com/r3e-network/neo-n4/tree/master/watchers/neo-bridge-watcher-eth
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=watcher
+Group=watcher
+WorkingDirectory=/var/lib/watcher
+ExecStart=/usr/local/bin/neo-bridge-watcher-eth --config /etc/watcher/watcher.toml
+
+# Clean shutdown:
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Restart policy: only on non-zero exit, with backoff to avoid hot-loop.
+Restart=on-failure
+RestartSec=5s
+
+# Resource limits — the watcher is a single-threaded poll loop with
+# modest memory needs (tens of MB steady-state, plus the in-memory
+# `submitted` HashSet that grows with the journal's lifetime).
+LimitNOFILE=4096
+MemoryMax=512M
+
+# Hardening:
+ProtectSystem=strict
+ProtectHome=true
+NoNewPrivileges=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/watcher
+
+# Environment (optional):
+#   Some operator scripts rely on RUST_BACKTRACE for debugging.
+# Environment=RUST_BACKTRACE=1
+
+[Install]
+WantedBy=multi-user.target

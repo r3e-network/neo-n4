@@ -146,13 +146,13 @@ request_timeout_secs = 5
 }
 
 fn run_preflight(config_path: &std::path::Path) -> (i32, String) {
+    run_with_args(&["--config", config_path.to_str().unwrap(), "--preflight"])
+}
+
+fn run_with_args(args: &[&str]) -> (i32, String) {
     let exe = env!("CARGO_BIN_EXE_neo-bridge-watcher-eth");
     let output = Command::new(exe)
-        .args([
-            "--config",
-            config_path.to_str().unwrap(),
-            "--preflight",
-        ])
+        .args(args)
         .output()
         .expect("failed to spawn watcher binary");
     let combined = format!(
@@ -326,5 +326,204 @@ fn preflight_fails_when_neo_rpc_returns_jsonrpc_error() {
     assert!(
         output.contains("preflight: FAILED") && output.contains("getversion"),
         "failure should name getversion + the rpc error; got:\n{output}"
+    );
+}
+
+// ─── operator-flag smoke tests ───────────────────────────────────────
+//
+// These pin the read-only operator UX (--version / --config-template /
+// --journal-info / --help) in CI. Each spawns the bin as a subprocess
+// + asserts on stdout/stderr + exit code; same pattern as the
+// preflight tests above.
+
+#[test]
+fn version_flag_prints_pkg_name_and_version() {
+    let (code, output) = run_with_args(&["--version"]);
+    assert_eq!(code, 0, "--version must exit 0; got {code}\n{output}");
+    // Format pinned: `<bin> <semver>`. Operators script around this.
+    let trimmed = output.trim();
+    assert!(
+        trimmed.starts_with("neo-bridge-watcher-eth "),
+        "expected 'neo-bridge-watcher-eth X.Y.Z'; got '{trimmed}'"
+    );
+    let version = trimmed.trim_start_matches("neo-bridge-watcher-eth ");
+    assert!(
+        version.split('.').count() == 3,
+        "expected semver X.Y.Z; got '{version}'"
+    );
+}
+
+#[test]
+fn version_short_form_is_equivalent() {
+    let (code1, out1) = run_with_args(&["--version"]);
+    let (code2, out2) = run_with_args(&["-V"]);
+    assert_eq!(code1, 0);
+    assert_eq!(code2, 0);
+    assert_eq!(
+        out1.trim(),
+        out2.trim(),
+        "--version and -V must print identical output"
+    );
+}
+
+#[test]
+fn config_template_emits_parseable_toml() {
+    // --config-template prints to stdout. Pipe to a file, replace
+    // placeholders, run --preflight against it. End-to-end pin that
+    // the template stays in sync with the Config / PollConfig /
+    // HealthConfig structs.
+    let (code, output) = run_with_args(&["--config-template"]);
+    assert_eq!(code, 0, "--config-template must exit 0");
+
+    // Sanity: every required field appears as a TOML assignment.
+    for field in [
+        "external_chain_id",
+        "eth_rpc_url",
+        "eth_router_address",
+        "neo_rpc_url",
+        "neo_escrow_address",
+        "neo_signer_address",
+        "signer_key_path",
+        "journal_dir",
+    ] {
+        assert!(
+            output.contains(&format!("{field}   ")) || output.contains(&format!("{field}  ")),
+            "template missing required field `{field}`:\n{output}"
+        );
+    }
+    // Both optional sections present + commented intro.
+    assert!(output.contains("[poll]"));
+    assert!(output.contains("[health]"));
+    assert!(output.contains("min_confirmations"));
+    assert!(output.contains("# start_block"), "start_block should be commented out by default");
+
+    // End-to-end: substitute placeholders, run preflight against
+    // unreachable URLs (should fail at the RPC probe, NOT at TOML
+    // parse — that's what we're verifying).
+    let tmp = tempdir::TempDir::new("template-test").unwrap();
+    let key_path = tmp.path().join("watcher.priv");
+    std::fs::write(&key_path, [0x42u8; 32]).unwrap();
+    let cfg_path = tmp.path().join("watcher.toml");
+
+    // Template uses REPLACE_WITH_* + relative paths; substitute them.
+    let mut toml = output.replace("\n\n", "\n").to_string();
+    // Strip the trailing stderr blob from run_with_args (it's empty here).
+    if let Some(idx) = toml.rfind('\n') {
+        if toml[idx..].trim().is_empty() {
+            toml.truncate(idx);
+        }
+    }
+    toml = toml
+        .replace(
+            "0xREPLACE_WITH_DEPLOYED_ROUTER_ADDR",
+            "0x0000000000000000000000000000000000000001",
+        )
+        .replace(
+            "0xREPLACE_WITH_NEOHUB_ESCROW_ADDR",
+            "0x0000000000000000000000000000000000000001",
+        )
+        .replace(
+            "0xREPLACE_WITH_WATCHER_NEO_ACCOUNT",
+            "0x0000000000000000000000000000000000000001",
+        )
+        .replace("./watcher.priv", key_path.to_str().unwrap())
+        .replace(
+            "./journal",
+            tmp.path().join("journal").to_str().unwrap(),
+        )
+        .replace(
+            "0.0.0.0:9090",
+            "127.0.0.1:0",
+        );
+    std::fs::write(&cfg_path, toml).unwrap();
+
+    // Now run --preflight: TOML parse should succeed; the RPC probe
+    // will fail (Sepolia URL is reachable but the router address
+    // 0x0000...01 won't have bytecode there). The relevant assertion
+    // is that we reach beyond the TOML parsing stage.
+    let (_pcode, poutput) = run_preflight(&cfg_path);
+    // We don't care about exit code (depends on Sepolia reachability
+    // from CI runners). What we DO care about: the TOML parsed,
+    // which we can verify by seeing the early "preflight: starting"
+    // line. A TOML-parse failure would say "config error: parse..."
+    // with no preflight line.
+    assert!(
+        poutput.contains("preflight: starting checks for chain"),
+        "expected the template's TOML to parse + preflight to start;\n{poutput}"
+    );
+}
+
+#[test]
+fn journal_info_reads_hand_crafted_journal() {
+    // Build a journal directory with cursor=42 + 3 records on 2
+    // chains, then run --journal-info + assert the output.
+    let tmp = tempdir::TempDir::new("journal-info-test").unwrap();
+    let key_path = tmp.path().join("watcher.priv");
+    std::fs::write(&key_path, [0x42u8; 32]).unwrap();
+    let journal_dir = tmp.path().join("journal");
+    std::fs::create_dir_all(&journal_dir).unwrap();
+    // cursor.bin: u64 LE = 42
+    std::fs::write(journal_dir.join("cursor.bin"), 42u64.to_le_bytes()).unwrap();
+    // consumed.log: 3 records (4B chain id LE + 8B nonce LE)
+    let mut log = Vec::new();
+    for (chain_id, nonce) in [(0xE000_0030u32, 1u64), (0xE000_0030, 2), (0xE000_0001, 99)] {
+        log.extend_from_slice(&chain_id.to_le_bytes());
+        log.extend_from_slice(&nonce.to_le_bytes());
+    }
+    std::fs::write(journal_dir.join("consumed.log"), &log).unwrap();
+
+    let cfg_path = tmp.path().join("watcher.toml");
+    let toml = format!(
+        r#"
+external_chain_id   = 0xE0000030
+eth_rpc_url         = "http://127.0.0.1:1"
+eth_router_address  = "0x0000000000000000000000000000000000000001"
+neo_rpc_url         = "http://127.0.0.1:1"
+neo_escrow_address  = "0x0000000000000000000000000000000000000001"
+neo_signer_address  = "0x0000000000000000000000000000000000000001"
+signer_key_path     = "{}"
+journal_dir         = "{}"
+"#,
+        key_path.display(),
+        journal_dir.display()
+    );
+    std::fs::write(&cfg_path, toml).unwrap();
+
+    let (code, output) = run_with_args(&[
+        "--config",
+        cfg_path.to_str().unwrap(),
+        "--journal-info",
+    ]);
+    assert_eq!(code, 0, "--journal-info must exit 0; output:\n{output}");
+
+    // Cursor printed.
+    assert!(
+        output.contains("cursor:       42"),
+        "expected cursor=42 in output:\n{output}"
+    );
+    // Per-chain breakdown — both chain ids appear with their counts.
+    assert!(
+        output.contains("0xE0000030 (BNB Smart Chain mainnet)") && output.contains("→  2"),
+        "expected BSC summary line:\n{output}"
+    );
+    assert!(
+        output.contains("0xE0000001 (Ethereum mainnet)") && output.contains("→  1"),
+        "expected Eth mainnet summary line:\n{output}"
+    );
+    // Recent records section.
+    assert!(
+        output.contains("recent (last 3 records):"),
+        "expected recent records header:\n{output}"
+    );
+    assert!(output.contains("nonce=99"), "expected nonce=99 in recent:\n{output}");
+}
+
+#[test]
+fn unknown_flag_surfaces_error_with_valid_list() {
+    let (code, output) = run_with_args(&["--bogus-flag"]);
+    assert_eq!(code, 1, "unknown flag must exit 1");
+    assert!(
+        output.contains("--bogus-flag") && output.contains("--journal-info"),
+        "error should name the bad flag + list valid flags:\n{output}"
     );
 }

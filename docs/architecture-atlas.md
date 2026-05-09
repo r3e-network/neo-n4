@@ -55,7 +55,7 @@ goal — or read all of them in order for a complete picture.
    └─────────────────────────────────────────────────────────────────┘
 ```
 
-## The 4 architecture chapters
+## The 5 architecture chapters
 
 ```text
                          ┌──────────────────────────┐
@@ -101,8 +101,9 @@ goal — or read all of them in order for a complete picture.
 | [architecture-l2-lifecycle.md](./architecture-l2-lifecycle.md)   | How does an L2 chain get created, deployed, and connected?   | 741   |
 | [architecture-wire-formats.md](./architecture-wire-formats.md)   | What bytes cross which boundaries, and why?                  | 361   |
 | [architecture-trust-boundaries.md](./architecture-trust-boundaries.md) | Who trusts what, and how is each trust assumption enforced? | 399   |
+| [architecture-glossary.md](./architecture-glossary.md)           | What does each term / contract / plugin / CLI tool mean?     | ~270  |
 
-Total: ~1800 lines of architecture documentation, plus the
+Total: ~2100 lines of architecture documentation, plus the
 `tech-stack-coverage.md` reference for what's vendored vs
 implemented and `security-model.md` for the threat-list view.
 

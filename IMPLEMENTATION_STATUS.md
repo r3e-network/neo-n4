@@ -7,7 +7,7 @@
 | Phase | Goal                                      | Status                                      |
 | ----- | ----------------------------------------- | ------------------------------------------- |
 | 0     | Sidechain PoC                             | ✅ MVP integration test passes              |
-| 1     | NeoHub v0 + Shared Bridge                 | ✅ All 15 NeoHub contracts compile + deploy planner emits 15-step bundle |
+| 1     | NeoHub v0 + Shared Bridge                 | ✅ All 21 NeoHub contracts compile + deploy planner emits 15-step bundle |
 | 2     | Batch Settlement                          | ✅ Off-chain green; real `KeyedStateStore` continuity verified across batches |
 | 3     | Optimistic Challenge Window               | ✅ `OptimisticChallenge` contract + `ChallengeOrchestrator` + `BisectionGame` (log-N narrowing) + `GovernanceFraudVerifier` reference (structural, governance-arbitration mode) all green |
 | 4     | NeoVM2 / RISC-V ZK Validity Proof         | ✅ **End-to-end ZK validity proofs of real Neo N3 VM execution.** `bridge/neo-zkvm-guest/` is the SP1 RISC-V guest — for every tx in the batch it calls `neo_vm_guest::execute` (vendored from `external/neo-zkvm`, the full Neo N3 VM in pure Rust: opcodes, eval stack, gas accounting, native contracts, storage). The proof attests that each tx halted or faulted at a specific gas count with a specific top-of-stack result — actual VM semantics, not a placeholder hash. `bridge/neo-zkvm-host/` (sp1-sdk 6.0) exposes `execute()` (zkVM run, no proof), `prove()` (real CPU proof generation — returns proof bytes + verifying-key bytes for on-chain submission), and `verify()` (pre-submission check). Operator CLI `prove-batch --prove <hex>` writes the artifact pair to disk. Verified end-to-end: the default `execute_guest_in_zkvm_matches_host_run` test (~45s) confirms zkVM execution agrees byte-for-byte with host-mode Neo VM execution; two `#[ignore]`-gated tests (~3.5 min combined) exercise real proof generation, real cryptographic verification, and tampered-hash rejection. The RISC-V execution path on the L1 side: `Neo.L2.Executor.RiscV` P/Invokes into `external/neo-riscv-vm`. Operator install: `sp1up` (one-time toolchain bootstrap). |
@@ -26,7 +26,7 @@ component is mainnet-ready. Below is an honest readiness audit.
 
 These are real production-shape implementations with full test coverage:
 
-- **All 20 NeoHub L1 contracts** + **7 L2Native contracts** type-check via
+- **All 21 NeoHub L1 contracts** + **7 L2Native contracts** type-check via
   `Neo.SmartContract.Framework`; CI compiles each with `nccs` and verifies
   the `.nef` + `.manifest.json` artifacts (29 contracts total incl. the 2
   `samples/contracts/Sample.*` app-developer examples).

@@ -143,12 +143,12 @@ is a valid endpoint.
 |-------|-----------:|--------:|--------------:|---------------:|
 | L1 protocol contracts | 13 | 13 | 0 | 0 |
 | L2 native contracts | 6 | 6 | 0 | 0 |
-| Cross-foreign-chain bridge | 11 | 11 | 0 | 0 |
+| Cross-foreign-chain bridge | 13 | 13 | 0 | 0 |
 | Node infrastructure | 19 | 19 | 0 | 0 |
 | Operator tooling | 12 | 12 | 0 | 0 |
 | App development | 8 | 8 | 0 | 0 |
 | End-user UIs | 5 | 5 | 0 | 0 |
-| **Total** | **74** | **74** | **0** | **0** |
+| **Total** | **76** | **76** | **0** | **0** |
 
 **Phase 4 (SP1 ZK proving) is now end-to-end functional.** The
 `bridge/neo-zkvm-host/tests/end_to_end.rs` test loads the compiled
@@ -162,15 +162,21 @@ and pinned in CI.
 Six on-chain contracts (`MpcCommitteeVerifier`, `ExternalBridgeRegistry`,
 `ExternalBridgeEscrow`, `ExternalBridgeBond`, `ExternalBridgeStubVerifier`,
 `MpcCommitteeFraudVerifier`) plus an L2-native counterpart
-(`L2NativeExternalBridgeContract`), an Eth-side router
-(`external/foreign-contracts/eth/NeoExternalBridgeRouter.sol`, 13
-Foundry tests with real `vm.sign` + `ecrecover`), three Rust watcher
-crates (`watchers/neo-bridge-watcher-{eth,tron,sol}/` — Eth: messaging
-+ signing core with byte-for-byte parity tests; Tron: thin re-export
+(`L2NativeExternalBridgeContract`), three Rust watcher crates
+(`watchers/neo-bridge-watcher-{eth,tron,sol}/` — Eth: messaging +
+signing core with byte-for-byte parity tests; Tron: thin re-export
 with Tron chain-ids; Sol: `Ed25519FileSigner` + Solana chain-ids
 0xE0000020..2F, exercises the curve-agnostic `Signer` trait that
-dispatches to `CryptoLib.VerifyWithEd25519` on-chain), and an operator
-CLI (`tools/Neo.External.Bridge.Cli/` for genkey + committee-blob +
+dispatches to `CryptoLib.VerifyWithEd25519` on-chain), foreign-side
+router artifacts for all three target chains
+(`external/foreign-contracts/eth/` — `NeoExternalBridgeRouter.sol` +
+13 Foundry tests with real `vm.sign` + `ecrecover`;
+`external/foreign-contracts/tron/` — README pointing at the Eth
+contract since TVM is EVM-flavored, deploy with the Tron chainId
+constructor arg; `external/foreign-contracts/sol/` — ~440-line Anchor
+program using Solana's ed25519 sigverify precompile, source-only
+pending operator `anchor build`), and an operator CLI
+(`tools/Neo.External.Bridge.Cli/` for genkey + committee-blob +
 deploy-bundle). `Neo.Hub.Deploy` scaffolds the full bridge stack
 alongside NeoHub: 20 deploy steps + 10 post-deploy hints. Phase C's
 `MpcCommitteeFraudVerifier` makes slashing of equivocating committee

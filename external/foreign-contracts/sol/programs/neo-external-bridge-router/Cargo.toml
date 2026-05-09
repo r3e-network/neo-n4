@@ -1,0 +1,19 @@
+[package]
+name = "neo-external-bridge-router"
+version = "0.1.0"
+description = "Solana-side router for the Neo Elastic Network cross-foreign-chain bridge. Locks SOL bound for Neo + finalizes Neo→Solana withdrawals via committee-attested proofs."
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "neo_external_bridge_router"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = "0.30"

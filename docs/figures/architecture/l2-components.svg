@@ -1,0 +1,151 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 580" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">L2 chain components — Neo 4 core + 8 plugins + 7 native contracts</title>
+  <desc id="desc">Each L2 chain consists of three layers. Bottom: Neo 4 core (vendored as a git submodule) provides dBFT 2.0 consensus, NeoVM execution, and the Blockchain mempool. Middle: 8 L2 plugins (L2Batch, L2Settlement, L2Prover, L2Bridge, L2DA, L2Rpc, L2Gateway, L2Metrics). Top: 7 L2 native contracts (L2BridgeContract, L2MessageContract, L2BatchInfoContract, L2BatchSeal, L2FeeContract, L2ExitWindow, L2NativeExternalBridgeContract).</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .layer-title { font-size: 13px; font-weight: 700; letter-spacing: 0.4px; }
+      .layer-sub   { font-size: 11px; }
+      .item        { font-size: 11.5px; fill: #2d3a48; }
+      .header      { font-size: 14.5px; font-weight: 700; }
+      .edge-lbl    { font-size: 10.5px; font-style: italic; fill: #525a64; }
+    </style>
+  </defs>
+
+  <rect width="960" height="580" fill="#ffffff"/>
+
+  <text x="480" y="32" text-anchor="middle" class="header" fill="#1d4d2c">每条 L2 链 — Neo 4 core + 8 个插件 + 7 个原生合约</text>
+  <text x="480" y="52" text-anchor="middle" class="edge-lbl" fill="#525a64">Each L2 chain — Neo 4 core + 8 plugins + 7 native contracts</text>
+
+  <!-- Layer 1: Neo 4 core (bottom) -->
+  <rect x="40" y="380" width="880" height="140" rx="10" ry="10" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.4"/>
+  <text x="58" y="404" class="layer-title" fill="#1d4d2c">NEO 4 CORE (vendored at external/neo as git submodule)</text>
+  <text x="58" y="422" class="layer-sub" fill="#2f5e3c">execution kernel — produces L2 blocks, runs txs, holds state</text>
+
+  <g filter="url(#card)">
+    <rect x="62" y="438" width="200" height="68" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="162" y="460" text-anchor="middle" class="item" font-weight="600">dBFT 2.0 consensus</text>
+    <text x="162" y="478" text-anchor="middle" class="item">produces L2 blocks</text>
+    <text x="162" y="494" text-anchor="middle" class="item">tolerates &lt;1/3 byzantine</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="282" y="438" width="200" height="68" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="382" y="460" text-anchor="middle" class="item" font-weight="600">NeoVM</text>
+    <text x="382" y="478" text-anchor="middle" class="item">executes transactions</text>
+    <text x="382" y="494" text-anchor="middle" class="item">opcodes + gas accounting</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="502" y="438" width="200" height="68" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="602" y="460" text-anchor="middle" class="item" font-weight="600">Blockchain</text>
+    <text x="602" y="478" text-anchor="middle" class="item">block + tx storage</text>
+    <text x="602" y="494" text-anchor="middle" class="item">RocksDB persistence</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="722" y="438" width="176" height="68" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="810" y="460" text-anchor="middle" class="item" font-weight="600">Mempool</text>
+    <text x="810" y="478" text-anchor="middle" class="item">pending tx queue</text>
+    <text x="810" y="494" text-anchor="middle" class="item">P2P propagation</text>
+  </g>
+
+  <!-- arrow from core up to plugins -->
+  <line x1="480" y1="380" x2="480" y2="354" stroke="#525a64" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="490" y="368" class="edge-lbl">Block.Committed events</text>
+
+  <!-- Layer 2: L2 plugins (middle) -->
+  <rect x="40" y="220" width="880" height="130" rx="10" ry="10" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.4"/>
+  <text x="58" y="244" class="layer-title" fill="#7a4a14">L2 PLUGINS (src/Neo.Plugins.L2*)</text>
+  <text x="58" y="262" class="layer-sub" fill="#a96027">runtime composition — wires the L2's executors, provers, settlement, observability</text>
+
+  <g filter="url(#card)">
+    <rect x="62" y="278" width="100" height="60" rx="5" ry="5" fill="#ffffff" stroke="#cd7c2e"/>
+    <text x="112" y="298" text-anchor="middle" class="item" font-weight="600">L2Batch</text>
+    <text x="112" y="316" text-anchor="middle" class="item" font-size="10">seals batches</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="170" y="278" width="100" height="60" rx="5" ry="5" fill="#ffffff" stroke="#cd7c2e"/>
+    <text x="220" y="298" text-anchor="middle" class="item" font-weight="600">L2Settlement</text>
+    <text x="220" y="316" text-anchor="middle" class="item" font-size="10">posts to L1</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="278" y="278" width="100" height="60" rx="5" ry="5" fill="#ffffff" stroke="#cd7c2e"/>
+    <text x="328" y="298" text-anchor="middle" class="item" font-weight="600">L2Prover</text>
+    <text x="328" y="316" text-anchor="middle" class="item" font-size="10">SP1 zkVM</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="386" y="278" width="100" height="60" rx="5" ry="5" fill="#ffffff" stroke="#cd7c2e"/>
+    <text x="436" y="298" text-anchor="middle" class="item" font-weight="600">L2Bridge</text>
+    <text x="436" y="316" text-anchor="middle" class="item" font-size="10">deposits/withdraws</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="494" y="278" width="100" height="60" rx="5" ry="5" fill="#ffffff" stroke="#cd7c2e"/>
+    <text x="544" y="298" text-anchor="middle" class="item" font-weight="600">L2DA</text>
+    <text x="544" y="316" text-anchor="middle" class="item" font-size="10">payload publish</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="602" y="278" width="100" height="60" rx="5" ry="5" fill="#ffffff" stroke="#cd7c2e"/>
+    <text x="652" y="298" text-anchor="middle" class="item" font-weight="600">L2Rpc</text>
+    <text x="652" y="316" text-anchor="middle" class="item" font-size="10">9 RPC handlers</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="710" y="278" width="100" height="60" rx="5" ry="5" fill="#ffffff" stroke="#cd7c2e"/>
+    <text x="760" y="298" text-anchor="middle" class="item" font-weight="600">L2Gateway</text>
+    <text x="760" y="316" text-anchor="middle" class="item" font-size="10">Phase-5 agg</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="818" y="278" width="80" height="60" rx="5" ry="5" fill="#ffffff" stroke="#cd7c2e"/>
+    <text x="858" y="298" text-anchor="middle" class="item" font-weight="600">L2Metrics</text>
+    <text x="858" y="316" text-anchor="middle" class="item" font-size="10">/metrics</text>
+  </g>
+
+  <!-- arrow from plugins up to native contracts -->
+  <line x1="480" y1="220" x2="480" y2="194" stroke="#525a64" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="490" y="208" class="edge-lbl">invokes native contracts</text>
+
+  <!-- Layer 3: L2 native contracts (top) -->
+  <rect x="40" y="76" width="880" height="116" rx="10" ry="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
+  <text x="58" y="100" class="layer-title" fill="#1e2a55">L2 NATIVE CONTRACTS (contracts/L2Native.*)</text>
+  <text x="58" y="118" class="layer-sub" fill="#3f5193">on-chain L2 state — wrapped assets, message inbox, batch info, fee config</text>
+
+  <g filter="url(#card)">
+    <rect x="62" y="134" width="120" height="48" rx="5" ry="5" fill="#ffffff" stroke="#7587c1"/>
+    <text x="122" y="153" text-anchor="middle" class="item" font-weight="600">L2BridgeContract</text>
+    <text x="122" y="170" text-anchor="middle" class="item" font-size="10">L1↔L2 NEP-17</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="190" y="134" width="120" height="48" rx="5" ry="5" fill="#ffffff" stroke="#7587c1"/>
+    <text x="250" y="153" text-anchor="middle" class="item" font-weight="600">L2MessageContract</text>
+    <text x="250" y="170" text-anchor="middle" class="item" font-size="10">cross-L2 inbox</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="318" y="134" width="120" height="48" rx="5" ry="5" fill="#ffffff" stroke="#7587c1"/>
+    <text x="378" y="153" text-anchor="middle" class="item" font-weight="600">L2BatchInfoContract</text>
+    <text x="378" y="170" text-anchor="middle" class="item" font-size="10">L1 cursor mirror</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="446" y="134" width="100" height="48" rx="5" ry="5" fill="#ffffff" stroke="#7587c1"/>
+    <text x="496" y="153" text-anchor="middle" class="item" font-weight="600">L2FeeContract</text>
+    <text x="496" y="170" text-anchor="middle" class="item" font-size="10">gas cfg</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="554" y="134" width="120" height="48" rx="5" ry="5" fill="#ffffff" stroke="#7587c1"/>
+    <text x="614" y="153" text-anchor="middle" class="item" font-weight="600">L2PaymasterContract</text>
+    <text x="614" y="170" text-anchor="middle" class="item" font-size="10">gas sponsorship</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="682" y="134" width="120" height="48" rx="5" ry="5" fill="#ffffff" stroke="#7587c1"/>
+    <text x="742" y="153" text-anchor="middle" class="item" font-weight="600">L2SystemConfig</text>
+    <text x="742" y="170" text-anchor="middle" class="item" font-size="10">chainCfg mirror</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="810" y="134" width="100" height="48" rx="5" ry="5" fill="#ffffff" stroke="#7587c1"/>
+    <text x="860" y="153" text-anchor="middle" class="item" font-weight="600" font-size="10.5">L2NativeExt-</text>
+    <text x="860" y="170" text-anchor="middle" class="item" font-size="10">Bridge</text>
+  </g>
+
+</svg>

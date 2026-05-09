@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 580" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">L2 链组件 —— Neo 4 core + 8 个插件 + 7 个原生合约</title>
+  <desc id="desc">每条 L2 链由三层组成。底层：Neo 4 core（作为 git submodule 引入）提供 dBFT 2.0 共识、NeoVM 执行和 Blockchain 内存池。中层：8 个 L2 插件（L2Batch、L2Settlement、L2Prover、L2Bridge、L2DA、L2Rpc、L2Gateway、L2Metrics）。顶层：7 个 L2 原生合约（L2BridgeContract、L2MessageContract、L2BatchInfoContract、L2BatchSeal、L2FeeContract、L2ExitWindow、L2NativeExternalBridgeContract）。</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .layer-title { font-size: 13px; font-weight: 700; letter-spacing: 0.4px; }
+      .layer-sub   { font-size: 11px; }
+      .item        { font-size: 11.5px; fill: #2d3a48; }
+      .header      { font-size: 14.5px; font-weight: 700; }
+      .edge-lbl    { font-size: 10.5px; font-style: italic; fill: #525a64; }
+    </style>
+  </defs>
+
+  <rect width="960" height="580" fill="#ffffff"/>
+
+  <text x="480" y="38" text-anchor="middle" class="header" fill="#1d4d2c">每条 L2 链 —— Neo 4 core + 8 个插件 + 7 个原生合约</text>
+
+  <!-- Neo 4 core (bottom) -->
+  <rect x="40" y="380" width="880" height="140" rx="10" ry="10" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.4"/>
+  <text x="58" y="404" class="layer-title" fill="#1d4d2c">NEO 4 CORE（external/neo 引入的 git submodule）</text>
+  <text x="58" y="422" class="layer-sub" fill="#2f5e3c">执行内核 —— 产出 L2 区块、运行交易、保存状态</text>
+
+  <g filter="url(#card)">
+    <rect x="62" y="438" width="200" height="68" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="162" y="460" text-anchor="middle" class="item" font-weight="600">dBFT 2.0 共识</text>
+    <text x="162" y="478" text-anchor="middle" class="item">产出 L2 区块</text>
+    <text x="162" y="494" text-anchor="middle" class="item">容忍 &lt;1/3 拜占庭</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="282" y="438" width="200" height="68" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="382" y="460" text-anchor="middle" class="item" font-weight="600">NeoVM</text>
+    <text x="382" y="478" text-anchor="middle" class="item">执行交易</text>
+    <text x="382" y="494" text-anchor="middle" class="item">操作码 + gas 计费</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="502" y="438" width="200" height="68" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="602" y="460" text-anchor="middle" class="item" font-weight="600">Blockchain</text>
+    <text x="602" y="478" text-anchor="middle" class="item">区块 + 交易存储</text>
+    <text x="602" y="494" text-anchor="middle" class="item">RocksDB 持久化</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="722" y="438" width="176" height="68" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
+    <text x="810" y="460" text-anchor="middle" class="item" font-weight="600">内存池</text>
+    <text x="810" y="478" text-anchor="middle" class="item">待打包交易队列</text>
+    <text x="810" y="494" text-anchor="middle" class="item">P2P 传播</text>
+  </g>
+
+  <line x1="480" y1="380" x2="480" y2="354" stroke="#525a64" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="490" y="368" class="edge-lbl">Block.Committed 事件</text>
+
+  <!-- L2 plugins (middle) -->
+  <rect x="40" y="220" width="880" height="130" rx="10" ry="10" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.4"/>
+  <text x="58" y="244" class="layer-title" fill="#7a4a14">L2 插件（src/Neo.Plugins.L2*）</text>
+  <text x="58" y="262" class="layer-sub" fill="#a96027">运行时组合 —— 串联 L2 的执行器、证明器、结算和可观测性</text>
+
+  <g filter="url(#card)">
+    <rect x="62" y="278" width="100" height="60" rx="5" ry="5" fill="#ffffff" stroke="#cd7c2e"/>
+    <text x="112" y="298" text-anchor="middle" class="item" font-weight="600">L2Batch</text>
+    <text x="112" y="316" text-anchor="middle" class="item" font-size="10">封装批次</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="170" y="278" width="100" height="60" rx="5" ry="5" fill="#ffffff" stroke="#cd7c2e"/>
+    <text x="220" y="298" text-anchor="middle" class="item" font-weight="600">L2Settlement</text>
+    <text x="220" y="316" text-anchor="middle" class="item" font-size="10">提交至 L1</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="278" y="278" width="100" height="60" rx="5" ry="5" fill="#ffffff" stroke="#cd7c2e"/>
+    <text x="328" y="298" text-anchor="middle" class="item" font-weight="600">L2Prover</text>
+    <text x="328" y="316" text-anchor="middle" class="item" font-size="10">SP1 zkVM</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="386" y="278" width="100" height="60" rx="5" ry="5" fill="#ffffff" stroke="#cd7c2e"/>
+    <text x="436" y="298" text-anchor="middle" class="item" font-weight="600">L2Bridge</text>
+    <text x="436" y="316" text-anchor="middle" class="item" font-size="10">充值/提款</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="494" y="278" width="100" height="60" rx="5" ry="5" fill="#ffffff" stroke="#cd7c2e"/>
+    <text x="544" y="298" text-anchor="middle" class="item" font-weight="600">L2DA</text>
+    <text x="544" y="316" text-anchor="middle" class="item" font-size="10">负载发布</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="602" y="278" width="100" height="60" rx="5" ry="5" fill="#ffffff" stroke="#cd7c2e"/>
+    <text x="652" y="298" text-anchor="middle" class="item" font-weight="600">L2Rpc</text>
+    <text x="652" y="316" text-anchor="middle" class="item" font-size="10">9 RPC 处理器</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="710" y="278" width="100" height="60" rx="5" ry="5" fill="#ffffff" stroke="#cd7c2e"/>
+    <text x="760" y="298" text-anchor="middle" class="item" font-weight="600">L2Gateway</text>
+    <text x="760" y="316" text-anchor="middle" class="item" font-size="10">Phase-5 聚合</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="818" y="278" width="80" height="60" rx="5" ry="5" fill="#ffffff" stroke="#cd7c2e"/>
+    <text x="858" y="298" text-anchor="middle" class="item" font-weight="600">L2Metrics</text>
+    <text x="858" y="316" text-anchor="middle" class="item" font-size="10">/metrics</text>
+  </g>
+
+  <line x1="480" y1="220" x2="480" y2="194" stroke="#525a64" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="490" y="208" class="edge-lbl">调用原生合约</text>
+
+  <!-- L2 native contracts (top) -->
+  <rect x="40" y="76" width="880" height="116" rx="10" ry="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
+  <text x="58" y="100" class="layer-title" fill="#1e2a55">L2 原生合约（contracts/L2Native.*）</text>
+  <text x="58" y="118" class="layer-sub" fill="#3f5193">链上 L2 状态 —— 包装资产、消息收件箱、批次信息、费用配置</text>
+
+  <g filter="url(#card)">
+    <rect x="62" y="134" width="120" height="48" rx="5" ry="5" fill="#ffffff" stroke="#7587c1"/>
+    <text x="122" y="153" text-anchor="middle" class="item" font-weight="600">L2BridgeContract</text>
+    <text x="122" y="170" text-anchor="middle" class="item" font-size="10">L1↔L2 NEP-17</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="190" y="134" width="120" height="48" rx="5" ry="5" fill="#ffffff" stroke="#7587c1"/>
+    <text x="250" y="153" text-anchor="middle" class="item" font-weight="600">L2MessageContract</text>
+    <text x="250" y="170" text-anchor="middle" class="item" font-size="10">跨 L2 收件箱</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="318" y="134" width="120" height="48" rx="5" ry="5" fill="#ffffff" stroke="#7587c1"/>
+    <text x="378" y="153" text-anchor="middle" class="item" font-weight="600">L2BatchInfoContract</text>
+    <text x="378" y="170" text-anchor="middle" class="item" font-size="10">L1 游标镜像</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="446" y="134" width="100" height="48" rx="5" ry="5" fill="#ffffff" stroke="#7587c1"/>
+    <text x="496" y="153" text-anchor="middle" class="item" font-weight="600">L2FeeContract</text>
+    <text x="496" y="170" text-anchor="middle" class="item" font-size="10">gas 配置</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="554" y="134" width="120" height="48" rx="5" ry="5" fill="#ffffff" stroke="#7587c1"/>
+    <text x="614" y="153" text-anchor="middle" class="item" font-weight="600">L2PaymasterContract</text>
+    <text x="614" y="170" text-anchor="middle" class="item" font-size="10">代付 gas</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="682" y="134" width="120" height="48" rx="5" ry="5" fill="#ffffff" stroke="#7587c1"/>
+    <text x="742" y="153" text-anchor="middle" class="item" font-weight="600">L2SystemConfig</text>
+    <text x="742" y="170" text-anchor="middle" class="item" font-size="10">chainCfg 镜像</text>
+  </g>
+  <g filter="url(#card)">
+    <rect x="810" y="134" width="100" height="48" rx="5" ry="5" fill="#ffffff" stroke="#7587c1"/>
+    <text x="860" y="153" text-anchor="middle" class="item" font-weight="600" font-size="10.5">L2NativeExt-</text>
+    <text x="860" y="170" text-anchor="middle" class="item" font-size="10">Bridge（外链）</text>
+  </g>
+
+</svg>

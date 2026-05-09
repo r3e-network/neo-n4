@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">3-phase L2 chain admission</title>
+  <desc id="desc">Three-phase L2 chain admission state machine: Approved (operator config + signature accepted by ChainRegistry) → Stamped (NeoHub stamps the config with a deployment ID; bridges + messaging unlocked) → Active (Sequencer bond posted; batch submission accepted by SettlementManager).</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .state-t    { font-size: 16px; font-weight: 700; letter-spacing: 0.4px; }
+      .phase-lbl  { font-size: 11.5px; font-weight: 600; fill: #c4413e; letter-spacing: 0.4px; }
+      .phase-desc { font-size: 11px; fill: #2d3a48; }
+      .arrow-lbl  { font-size: 10.5px; fill: #525a64; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect width="960" height="360" fill="#ffffff"/>
+
+  <text x="480" y="36" text-anchor="middle" class="header" fill="#1e2a55">L2 chain admission — three phases (`[plan: §16.1-admission]`)</text>
+
+  <!-- State 1: Approved -->
+  <g filter="url(#card)">
+    <rect x="60" y="86" width="240" height="74" rx="10" ry="10" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.5"/>
+    <text x="180" y="118" text-anchor="middle" class="state-t" fill="#7a4a14">Approved</text>
+    <text x="180" y="142" text-anchor="middle" class="arrow-lbl" fill="#a96027">operator config + sig accepted</text>
+  </g>
+
+  <!-- arrow -->
+  <line x1="304" y1="123" x2="356" y2="123" stroke="#525a64" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="330" y="115" text-anchor="middle" class="arrow-lbl">NeoHub stamps</text>
+
+  <!-- State 2: Stamped -->
+  <g filter="url(#card)">
+    <rect x="360" y="86" width="240" height="74" rx="10" ry="10" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.5"/>
+    <text x="480" y="118" text-anchor="middle" class="state-t" fill="#1d4d2c">Stamped</text>
+    <text x="480" y="142" text-anchor="middle" class="arrow-lbl" fill="#2f5e3c">deployment id assigned</text>
+  </g>
+
+  <!-- arrow -->
+  <line x1="604" y1="123" x2="656" y2="123" stroke="#525a64" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="630" y="115" text-anchor="middle" class="arrow-lbl">bond posted</text>
+
+  <!-- State 3: Active -->
+  <g filter="url(#card)">
+    <rect x="660" y="86" width="240" height="74" rx="10" ry="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.5"/>
+    <text x="780" y="118" text-anchor="middle" class="state-t" fill="#1e2a55">Active</text>
+    <text x="780" y="142" text-anchor="middle" class="arrow-lbl" fill="#3f5193">batch submission accepted</text>
+  </g>
+
+  <!-- Phase descriptions below -->
+  <g>
+    <text x="60" y="200" class="phase-lbl">PHASE 1</text>
+    <text x="60" y="222" class="phase-desc" font-weight="600">Local artifact</text>
+    <foreignObject x="60" y="232" width="240" height="120">
+      <p xmlns="http://www.w3.org/1999/xhtml" style="font: 11px -apple-system, sans-serif; margin: 0; color: #2d3a48; line-height: 1.4;">
+        Operator-supplied <code>chain.config.json</code> + signature
+        is parsed by <code>ChainRegistry.RegisterChain</code> and
+        accepted as a valid candidate. No L1 contracts have been
+        deployed for this chain yet.
+      </p>
+    </foreignObject>
+  </g>
+
+  <g>
+    <text x="360" y="200" class="phase-lbl">PHASE 2</text>
+    <text x="360" y="222" class="phase-desc" font-weight="600">L1 unlocked</text>
+    <foreignObject x="360" y="232" width="240" height="120">
+      <p xmlns="http://www.w3.org/1999/xhtml" style="font: 11px -apple-system, sans-serif; margin: 0; color: #2d3a48; line-height: 1.4;">
+        NeoHub stamps the config with a deployment ID. SharedBridge
+        + MessageRouter recognize the chain id; deposits + cross-L2
+        messages are routable. Sequencer not yet bonded.
+      </p>
+    </foreignObject>
+  </g>
+
+  <g>
+    <text x="660" y="200" class="phase-lbl">PHASE 3</text>
+    <text x="660" y="222" class="phase-desc" font-weight="600">Live + producing</text>
+    <foreignObject x="660" y="232" width="240" height="120">
+      <p xmlns="http://www.w3.org/1999/xhtml" style="font: 11px -apple-system, sans-serif; margin: 0; color: #2d3a48; line-height: 1.4;">
+        Sequencer bond posted to <code>SequencerBond</code>;
+        <code>SettlementManager.SubmitBatch</code> accepts batches.
+        L2 is fully connected to the elastic network.
+      </p>
+    </foreignObject>
+  </g>
+</svg>

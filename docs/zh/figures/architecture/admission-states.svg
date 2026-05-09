@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">L2 链三阶段准入</title>
+  <desc id="desc">L2 链准入的三阶段状态机：已批准（Approved，运维提供的配置 + 签名被 ChainRegistry 接受）→ 已盖章（Stamped，NeoHub 给配置打上部署 ID；桥 + 消息传递被解锁）→ 活跃（Active，排序器保证金已质押；SettlementManager 接受批次提交）。</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .header     { font-size: 14.5px; font-weight: 700; }
+      .state-t    { font-size: 16px; font-weight: 700; letter-spacing: 0.4px; }
+      .phase-lbl  { font-size: 11.5px; font-weight: 600; fill: #c4413e; letter-spacing: 0.4px; }
+      .phase-desc { font-size: 11px; fill: #2d3a48; }
+      .arrow-lbl  { font-size: 10.5px; fill: #525a64; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect width="960" height="360" fill="#ffffff"/>
+
+  <text x="480" y="36" text-anchor="middle" class="header" fill="#1e2a55">L2 链准入 —— 三阶段（`[plan: §16.1-admission]`）</text>
+
+  <g filter="url(#card)">
+    <rect x="60" y="86" width="240" height="74" rx="10" ry="10" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.5"/>
+    <text x="180" y="118" text-anchor="middle" class="state-t" fill="#7a4a14">已批准 Approved</text>
+    <text x="180" y="142" text-anchor="middle" class="arrow-lbl" fill="#a96027">运维配置 + 签名被接受</text>
+  </g>
+
+  <line x1="304" y1="123" x2="356" y2="123" stroke="#525a64" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="330" y="115" text-anchor="middle" class="arrow-lbl">NeoHub 盖章</text>
+
+  <g filter="url(#card)">
+    <rect x="360" y="86" width="240" height="74" rx="10" ry="10" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.5"/>
+    <text x="480" y="118" text-anchor="middle" class="state-t" fill="#1d4d2c">已盖章 Stamped</text>
+    <text x="480" y="142" text-anchor="middle" class="arrow-lbl" fill="#2f5e3c">分配部署 ID</text>
+  </g>
+
+  <line x1="604" y1="123" x2="656" y2="123" stroke="#525a64" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="630" y="115" text-anchor="middle" class="arrow-lbl">质押保证金</text>
+
+  <g filter="url(#card)">
+    <rect x="660" y="86" width="240" height="74" rx="10" ry="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.5"/>
+    <text x="780" y="118" text-anchor="middle" class="state-t" fill="#1e2a55">活跃 Active</text>
+    <text x="780" y="142" text-anchor="middle" class="arrow-lbl" fill="#3f5193">批次提交被接受</text>
+  </g>
+
+  <g>
+    <text x="60" y="200" class="phase-lbl">阶段 1</text>
+    <text x="60" y="222" class="phase-desc" font-weight="600">本地工件</text>
+    <foreignObject x="60" y="232" width="240" height="120">
+      <p xmlns="http://www.w3.org/1999/xhtml" style="font: 11px -apple-system, sans-serif; margin: 0; color: #2d3a48; line-height: 1.4;">
+        运维提供的 <code>chain.config.json</code> + 签名被
+        <code>ChainRegistry.RegisterChain</code> 解析并接受为合法
+        候选。本链尚未部署任何 L1 合约。
+      </p>
+    </foreignObject>
+  </g>
+
+  <g>
+    <text x="360" y="200" class="phase-lbl">阶段 2</text>
+    <text x="360" y="222" class="phase-desc" font-weight="600">L1 解锁</text>
+    <foreignObject x="360" y="232" width="240" height="120">
+      <p xmlns="http://www.w3.org/1999/xhtml" style="font: 11px -apple-system, sans-serif; margin: 0; color: #2d3a48; line-height: 1.4;">
+        NeoHub 给配置打上部署 ID。SharedBridge + MessageRouter
+        识别此链 ID；充值 + 跨 L2 消息可被路由。排序器尚未质押。
+      </p>
+    </foreignObject>
+  </g>
+
+  <g>
+    <text x="660" y="200" class="phase-lbl">阶段 3</text>
+    <text x="660" y="222" class="phase-desc" font-weight="600">运行 + 产出</text>
+    <foreignObject x="660" y="232" width="240" height="120">
+      <p xmlns="http://www.w3.org/1999/xhtml" style="font: 11px -apple-system, sans-serif; margin: 0; color: #2d3a48; line-height: 1.4;">
+        排序器保证金已质押到 <code>SequencerBond</code>；
+        <code>SettlementManager.SubmitBatch</code> 接受批次。
+        L2 已完全接入弹性网络。
+      </p>
+    </foreignObject>
+  </g>
+</svg>

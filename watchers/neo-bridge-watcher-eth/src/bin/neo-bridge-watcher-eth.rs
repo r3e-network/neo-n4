@@ -173,13 +173,20 @@ fn main() -> ExitCode {
 }
 
 fn parse_args(args: &[String]) -> Result<PathBuf, String> {
-    if args.len() == 2 && args[1] == "--help" || args.len() == 2 && args[1] == "-h" {
+    if args.len() == 2 && (args[1] == "--help" || args[1] == "-h") {
         print_usage();
+        std::process::exit(0);
+    }
+    if args.len() == 2 && (args[1] == "--version" || args[1] == "-V") {
+        // CARGO_PKG_VERSION is baked in at compile time from
+        // Cargo.toml's version field. Operators script around the
+        // exact text — keep it stable: `<bin> <version>`.
+        println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
         std::process::exit(0);
     }
     if args.len() != 3 || args[1] != "--config" {
         return Err(format!(
-            "expected `--config <path>`, got: {}",
+            "expected `--config <path>` (or --help / --version), got: {}",
             args.iter().skip(1).cloned().collect::<Vec<_>>().join(" ")
         ));
     }
@@ -190,13 +197,21 @@ fn print_usage() {
     eprintln!(
         "Usage: neo-bridge-watcher-eth --config <watcher.toml>\n\
          \n\
+         Flags:\n\
+           --config <path>   Path to TOML config (required for normal runs).\n\
+           --version, -V     Print version + exit.\n\
+           --help, -h        Print this help + exit.\n\
+         \n\
          See the source for the full TOML schema. Required fields:\n\
          external_chain_id, eth_rpc_url, eth_router_address,\n\
          neo_rpc_url, neo_escrow_address, neo_signer_address,\n\
          signer_key_path, journal_dir\n\
          \n\
          Optional [poll] section: poll_interval_secs, backoff_initial_secs,\n\
-         backoff_max_secs, eth_chunk_size, request_timeout_secs"
+         backoff_max_secs, eth_chunk_size, request_timeout_secs,\n\
+         min_confirmations\n\
+         \n\
+         Optional [health] section: bind, threshold_secs"
     );
 }
 

@@ -97,39 +97,9 @@ Each L2 = **Neo 4 core (the consensus + VM kernel) + 8 plugins +
 native contracts at `contracts/L2Native.*`. The Neo 4 core itself
 is vendored as a git submodule at `external/neo`.
 
-```text
-    ┌─────────────────────────────────────────────────────────────┐
-    │  Neo 4 core (external/neo, vendored submodule)              │
-    │  ─────────                                                  │
-    │  dBFT 2.0 consensus · NeoVM · Blockchain · Mempool          │
-    └────────────────────────────┬────────────────────────────────┘
-                                 │
-                                 │  Block.Committed events,
-                                 │  ApplicationEngine.Run hooks
-                                 ▼
-    ┌─────────────────────────────────────────────────────────────┐
-    │  L2 plugins (src/Neo.Plugins.L2*)                           │
-    │  ──────────                                                 │
-    │  L2Batch  ─▶  L2Settlement  ─▶  L2Prover                    │
-    │     │              │                                        │
-    │     ▼              ▼                                        │
-    │  L2Bridge      L2DA                                         │
-    │     │              │                                        │
-    │     ▼              ▼                                        │
-    │  L2Rpc · L2Gateway · L2Metrics                              │
-    └────────────────────────────┬────────────────────────────────┘
-                                 │
-                                 │  invokes native contracts
-                                 ▼
-    ┌─────────────────────────────────────────────────────────────┐
-    │  L2 native contracts (contracts/L2Native.*)                 │
-    │  ─────────────────                                          │
-    │  L2BridgeContract       L2MessageContract                   │
-    │  L2BatchInfoContract    L2BatchSeal                         │
-    │  L2FeeContract          L2ExitWindow                        │
-    │  L2NativeExternalBridgeContract                             │
-    └─────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="figures/architecture/l2-components.svg" alt="L2 chain components — Neo 4 core (consensus + VM kernel, vendored submodule) at the bottom, 8 L2 plugins (L2Batch, L2Settlement, L2Prover, L2Bridge, L2DA, L2Rpc, L2Gateway, L2Metrics) in the middle, 7 L2 native contracts (L2BridgeContract, L2MessageContract, L2BatchInfoContract, L2FeeContract, L2PaymasterContract, L2SystemConfigContract, L2NativeExternalBridgeContract) on top" width="900">
+</p>
 
 The 8 plugins + 7 native contracts implement the `doc.md` §5–§13
 layered architecture (batch sealing / settlement / bridge / DA /
@@ -271,19 +241,9 @@ NeoVM + NEP-17 don't need to customize — they use the
 Permissionless chain registration is gated through `[plan: §16.1-admission]`
 — the L2 chain registry has 3 tiers:
 
-```text
-    ┌──────────┐         ┌──────────┐         ┌──────────┐
-    │ Approved │ ──────▶ │ Stamped  │ ──────▶ │  Active  │
-    └────┬─────┘         └────┬─────┘         └────┬─────┘
-         │                    │                    │
-         │ Phase 1            │ Phase 2            │ Phase 3
-         │ ───────            │ ───────            │ ───────
-         │ Operator-supplied  │ NeoHub stamps the  │ Sequencer bond
-         │ config + signature │ config with a      │ posted; batch
-         │ accepted by        │ deployment ID;     │ submission
-         │ ChainRegistry.     │ bridges + messaging│ accepted by
-         │                    │ unlocked.          │ SettlementManager.
-```
+<p align="center">
+  <img src="figures/architecture/admission-states.svg" alt="Three-phase L2 chain admission state machine: Approved (operator config + signature accepted by ChainRegistry) → Stamped (NeoHub stamps the config with a deployment ID; bridges + messaging unlocked) → Active (Sequencer bond posted; batch submission accepted by SettlementManager)" width="900">
+</p>
 
 ---
 

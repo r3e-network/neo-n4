@@ -148,10 +148,13 @@ delegate.
 
 Each CLI's exact wallet-pastable output:
 
-| CLI | Output | Wallet step |
-|-----|--------|-------------|
-| `neo-bridge deposit` | `SharedBridge.Deposit` invocation hex | Paste into wallet → sign |
-| `neo-bridge withdraw` | `SharedBridge.FinalizeWithdrawalWithProof` invocation hex | Paste → sign |
-| `neo-l2-faucet drip` | `SharedBridge.Deposit` (rate-limited) | Paste → sign |
-| `neo-hub-deploy plan` | 13 sequential contract-deploy invocations | Sign each in order |
-| `neo-stack register-chain` | `ChainRegistry.Register` invocation + 91-byte configBytes hex | Paste → sign |
+- **`neo-bridge deposit`** — `SharedBridge.Deposit` invocation hex.
+  Paste into wallet → sign.
+- **`neo-bridge withdraw`** — `SharedBridge.FinalizeWithdrawalWithProof`
+  invocation hex. Paste → sign.
+- **`neo-l2-faucet drip`** — `SharedBridge.Deposit` (rate-limited).
+  Paste → sign.
+- **`neo-hub-deploy plan`** — 13 sequential contract-deploy invocations.
+  Sign each in order.
+- **`neo-stack register-chain`** — `ChainRegistry.Register` invocation
+  + 91-byte configBytes hex. Paste → sign.

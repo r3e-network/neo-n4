@@ -132,10 +132,12 @@ KMS 后备的密钥(AWS-KMS、GCP-KMS、Azure Key Vault、HashiCorp Vault)生产
 
 每个 CLI 的可粘贴输出:
 
-| CLI | 输出 | 钱包步骤 |
-|-----|------|----------|
-| `neo-bridge deposit` | `SharedBridge.Deposit` 调用 hex | 粘进钱包 → 签名 |
-| `neo-bridge withdraw` | `SharedBridge.FinalizeWithdrawalWithProof` 调用 hex | 粘 → 签名 |
-| `neo-l2-faucet drip` | `SharedBridge.Deposit`(限速版) | 粘 → 签名 |
-| `neo-hub-deploy plan` | 13 步顺序合约部署调用 | 按序逐一签名 |
-| `neo-stack register-chain` | `ChainRegistry.Register` 调用 + 91 字节 configBytes hex | 粘 → 签名 |
+- **`neo-bridge deposit`** —— `SharedBridge.Deposit` 调用 hex。
+  粘进钱包 → 签名。
+- **`neo-bridge withdraw`** —— `SharedBridge.FinalizeWithdrawalWithProof`
+  调用 hex。粘 → 签名。
+- **`neo-l2-faucet drip`** —— `SharedBridge.Deposit`(限速版)。
+  粘 → 签名。
+- **`neo-hub-deploy plan`** —— 13 步顺序合约部署调用。按序逐一签名。
+- **`neo-stack register-chain`** —— `ChainRegistry.Register` 调用 + 91
+  字节 configBytes hex。粘 → 签名。

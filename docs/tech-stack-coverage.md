@@ -16,34 +16,30 @@ any other project's source.
 
 ## Layer 1 — Protocol contracts
 
-| Component | Status | Code |
-|-----------|:------:|------|
-| Chain registry (admission policy + per-chain config) | ✅ | `contracts/NeoHub.ChainRegistry/` |
-| Shared L1↔L2 bridge (escrow, deposits, withdrawals) | ✅ | `contracts/NeoHub.SharedBridge/` |
-| Settlement manager (batch finalization, state-root anchoring) | ✅ | `contracts/NeoHub.SettlementManager/` |
-| Verifier registry (pluggable proof dispatch) | ✅ | `contracts/NeoHub.VerifierRegistry/` |
-| Token registry (canonical L1↔L2 asset mapping) | ✅ | `contracts/NeoHub.TokenRegistry/` |
-| Message router (L1↔L2 + L2↔L2 cross-chain delivery) | ✅ | `contracts/NeoHub.MessageRouter/` |
-| DA registry (per-batch DA commitment store) | ✅ | `contracts/NeoHub.DARegistry/` |
-| Sequencer registry + bonding | ✅ | `contracts/NeoHub.SequencerRegistry/`, `SequencerBond/` |
-| Forced-inclusion contract | ✅ | `contracts/NeoHub.ForcedInclusion/` |
-| Optimistic challenge game | ✅ | `contracts/NeoHub.OptimisticChallenge/` |
-| Governance + council + timelock | ✅ | `contracts/NeoHub.GovernanceController/` |
-| Emergency pause + escape hatch | ✅ | `contracts/NeoHub.EmergencyManager/` |
-| Fraud verifier (governance-arbitration mode reference) | ✅ | `contracts/NeoHub.GovernanceFraudVerifier/` |
-| Fraud verifier (trustless v3 — on-chain Merkle re-derivation) | ✅ | `contracts/NeoHub.RestrictedExecutionFraudVerifier/` |
+- **Chain registry (admission policy + per-chain config)** ✅ — `contracts/NeoHub.ChainRegistry/`
+- **Shared L1↔L2 bridge (escrow, deposits, withdrawals)** ✅ — `contracts/NeoHub.SharedBridge/`
+- **Settlement manager (batch finalization, state-root anchoring)** ✅ — `contracts/NeoHub.SettlementManager/`
+- **Verifier registry (pluggable proof dispatch)** ✅ — `contracts/NeoHub.VerifierRegistry/`
+- **Token registry (canonical L1↔L2 asset mapping)** ✅ — `contracts/NeoHub.TokenRegistry/`
+- **Message router (L1↔L2 + L2↔L2 cross-chain delivery)** ✅ — `contracts/NeoHub.MessageRouter/`
+- **DA registry (per-batch DA commitment store)** ✅ — `contracts/NeoHub.DARegistry/`
+- **Sequencer registry + bonding** ✅ — `contracts/NeoHub.SequencerRegistry/`, `SequencerBond/`
+- **Forced-inclusion contract** ✅ — `contracts/NeoHub.ForcedInclusion/`
+- **Optimistic challenge game** ✅ — `contracts/NeoHub.OptimisticChallenge/`
+- **Governance + council + timelock** ✅ — `contracts/NeoHub.GovernanceController/`
+- **Emergency pause + escape hatch** ✅ — `contracts/NeoHub.EmergencyManager/`
+- **Fraud verifier (governance-arbitration mode reference)** ✅ — `contracts/NeoHub.GovernanceFraudVerifier/`
+- **Fraud verifier (trustless v3 — on-chain Merkle re-derivation)** ✅ — `contracts/NeoHub.RestrictedExecutionFraudVerifier/`
 
 **21 NeoHub contracts.** All type-check via `Neo.SmartContract.Framework`; CI
 builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 
-| Component | Status | Code |
-|-----------|:------:|------|
-| L2 batch info (chainId, batch number, L1 height) | ✅ | `contracts/L2Native.L2BatchInfoContract/` |
-| L2 bridge (mint on deposit, burn on withdrawal) | ✅ | `contracts/L2Native.L2BridgeContract/` |
-| L2 message I/O (outbound emit + inbound apply) | ✅ | `contracts/L2Native.L2MessageContract/` |
-| L2 fee splitter (sequencer / prover / DA shares) | ✅ | `contracts/L2Native.L2FeeContract/` |
-| L2 paymaster (fee abstraction, sponsored assets) | ✅ | `contracts/L2Native.L2PaymasterContract/` |
-| L2 system-config cache | ✅ | `contracts/L2Native.L2SystemConfigContract/` |
+- **L2 batch info (chainId, batch number, L1 height)** ✅ — `contracts/L2Native.L2BatchInfoContract/`
+- **L2 bridge (mint on deposit, burn on withdrawal)** ✅ — `contracts/L2Native.L2BridgeContract/`
+- **L2 message I/O (outbound emit + inbound apply)** ✅ — `contracts/L2Native.L2MessageContract/`
+- **L2 fee splitter (sequencer / prover / DA shares)** ✅ — `contracts/L2Native.L2FeeContract/`
+- **L2 paymaster (fee abstraction, sponsored assets)** ✅ — `contracts/L2Native.L2PaymasterContract/`
+- **L2 system-config cache** ✅ — `contracts/L2Native.L2SystemConfigContract/`
 
 **6 L2-side native contracts.**
 
@@ -51,28 +47,26 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 
 ## Layer 2 — Node infrastructure
 
-| Component | Status | Code |
-|-----------|:------:|------|
-| Batch builder (block ↦ batch sealing) | ✅ | `src/Neo.L2.Batch/`, `Neo.Plugins.L2Batch/` |
-| State-root generator | ✅ | `src/Neo.L2.State/` |
-| Deterministic batch executor (the proving target) | ✅ | `src/Neo.L2.Executor/` |
-| RISC-V execution kernel (PolkaVM-backed) | ✅ | `src/Neo.L2.Executor.RiscV/` (P/Invoke binding) |
-| Persistence backends (in-memory + RocksDB) | ✅ | `src/Neo.L2.Persistence/` |
-| Sequencer committee provider | ✅ | `src/Neo.L2.Sequencer/` |
-| Censorship detection | ✅ | `src/Neo.L2.Censorship/` |
-| Forced-inclusion source | ✅ | `src/Neo.L2.ForcedInclusion/` |
-| Multisig (Stage 0) prover/verifier | ✅ | `src/Neo.L2.Proving.Attestation/` |
-| Optimistic (Stage 1) prover/verifier | ✅ | `src/Neo.L2.Proving.Optimistic/` |
-| RISC-V ZK (Stage 2) prover/verifier — full path | ✅ | C# `src/Neo.L2.Proving/RiscVZk/` is the in-process testing seam (mock prover for unit tests). Real Stage-2 proving runs out-of-process: `bridge/neo-zkvm-guest/` compiles to a RISC-V ELF via `cargo prove build` on sp1-zkvm 6.0 and **executes real Neo N3 VM** for every batch tx by depending on `external/neo-zkvm/crates/neo-vm-guest` (the proof attests to opcodes / gas accounting / halt-or-fault / top-of-stack result, not just hashed bytes). `bridge/neo-zkvm-host/` is the sp1-sdk 6.0 orchestrator with `execute()` / `prove()` / `verify()` API and a `prove-batch daemon --watch <dir>` CLI that turns into a production prover daemon (operator drops sealed batches in a queue dir, daemon emits `<name>.proof.bin` + `<name>.proof.vk` for L1 submission). End-to-end verified: zkVM execution agrees byte-for-byte with host-mode Neo VM execution (~42s default test); real CPU proof generation + verification + tampered-hash rejection covered by 2 `#[ignore]`-gated tests (~3.5 min combined, run pre-release); a queue → daemon → independent verifier round-trip was driven on real cryptography (87s prove, 2.78MB proof, 42s verify). |
-| DA writers (in-memory / NeoFS / L1 / DAC / RocksDB) | ✅ | `src/Neo.Plugins.L2DA/` (5 implementations) |
-| Settlement RPC client | ✅ | `src/Neo.L2.Settlement.Rpc/` |
-| Telemetry (Prometheus-shaped) | ✅ | `src/Neo.L2.Telemetry/`, `Neo.Plugins.L2Metrics/` |
-| Audit pipeline (6 invariant checks) | ✅ | `src/Neo.L2.Audit/` |
-| Bisection / fraud-proof game | ✅ | `src/Neo.L2.Challenge/` |
-| Cross-chain messaging | ✅ | `src/Neo.L2.Messaging/` |
-| Asset registry + deposit/withdrawal processors | ✅ | `src/Neo.L2.Bridge/` |
-| Per-L2 RPC method surface | ✅ | `src/Neo.Plugins.L2Rpc/` (10 methods) |
-| Phase-5 proof aggregation | ✅ | `src/Neo.Plugins.L2Gateway/` — `BinaryTreeAggregator` with three `IRoundProver` implementations: `MultisigRoundProver` (Secp256r1 threshold-attested), `MerklePathRoundProver` (per-leaf inclusion proofs), `PassThroughRoundProver` (minimal-cost reference). Recursive-ZK fold variants (SP1 Compress / Halo2 / Risc0) operator-supplied through the same seam |
+- **Batch builder (block ↦ batch sealing)** ✅ — `src/Neo.L2.Batch/`, `Neo.Plugins.L2Batch/`
+- **State-root generator** ✅ — `src/Neo.L2.State/`
+- **Deterministic batch executor (the proving target)** ✅ — `src/Neo.L2.Executor/`
+- **RISC-V execution kernel (PolkaVM-backed)** ✅ — `src/Neo.L2.Executor.RiscV/` (P/Invoke binding)
+- **Persistence backends (in-memory + RocksDB)** ✅ — `src/Neo.L2.Persistence/`
+- **Sequencer committee provider** ✅ — `src/Neo.L2.Sequencer/`
+- **Censorship detection** ✅ — `src/Neo.L2.Censorship/`
+- **Forced-inclusion source** ✅ — `src/Neo.L2.ForcedInclusion/`
+- **Multisig (Stage 0) prover/verifier** ✅ — `src/Neo.L2.Proving.Attestation/`
+- **Optimistic (Stage 1) prover/verifier** ✅ — `src/Neo.L2.Proving.Optimistic/`
+- **RISC-V ZK (Stage 2) prover/verifier — full path** ✅ — C# `src/Neo.L2.Proving/RiscVZk/` is the in-process testing seam (mock prover for unit tests). Real Stage-2 proving runs out-of-process: `bridge/neo-zkvm-guest/` compiles to a RISC-V ELF via `cargo prove build` on sp1-zkvm 6.0 and **executes real Neo N3 VM** for every batch tx by depending on `external/neo-zkvm/crates/neo-vm-guest` (the proof attests to opcodes / gas accounting / halt-or-fault / top-of-stack result, not just hashed bytes). `bridge/neo-zkvm-host/` is the sp1-sdk 6.0 orchestrator with `execute()` / `prove()` / `verify()` API and a `prove-batch daemon --watch <dir>` CLI that turns into a production prover daemon (operator drops sealed batches in a queue dir, daemon emits `<name>.proof.bin` + `<name>.proof.vk` for L1 submission). End-to-end verified: zkVM execution agrees byte-for-byte with host-mode Neo VM execution (~42s default test); real CPU proof generation + verification + tampered-hash rejection covered by 2 `#[ignore]`-gated tests (~3.5 min combined, run pre-release); a queue → daemon → independent verifier round-trip was driven on real cryptography (87s prove, 2.78MB proof, 42s verify).
+- **DA writers (in-memory / NeoFS / L1 / DAC / RocksDB)** ✅ — `src/Neo.Plugins.L2DA/` (5 implementations)
+- **Settlement RPC client** ✅ — `src/Neo.L2.Settlement.Rpc/`
+- **Telemetry (Prometheus-shaped)** ✅ — `src/Neo.L2.Telemetry/`, `Neo.Plugins.L2Metrics/`
+- **Audit pipeline (6 invariant checks)** ✅ — `src/Neo.L2.Audit/`
+- **Bisection / fraud-proof game** ✅ — `src/Neo.L2.Challenge/`
+- **Cross-chain messaging** ✅ — `src/Neo.L2.Messaging/`
+- **Asset registry + deposit/withdrawal processors** ✅ — `src/Neo.L2.Bridge/`
+- **Per-L2 RPC method surface** ✅ — `src/Neo.Plugins.L2Rpc/` (10 methods)
+- **Phase-5 proof aggregation** ✅ — `src/Neo.Plugins.L2Gateway/` — `BinaryTreeAggregator` with three `IRoundProver` implementations: `MultisigRoundProver` (Secp256r1 threshold-attested), `MerklePathRoundProver` (per-leaf inclusion proofs), `PassThroughRoundProver` (minimal-cost reference). Recursive-ZK fold variants (SP1 Compress / Halo2 / Risc0) operator-supplied through the same seam
 
 **16 off-chain libraries + 8 plugins.** All have `tests/Neo.*.UnitTests/` mirrors;
 1362 tests across 33 .NET projects pass. Rust workspace ships 21 default-CI
@@ -84,19 +78,17 @@ time). TypeScript SDK ships 15 vitest tests.
 
 ## Layer 3 — Operator tooling
 
-| Component | Status | Code |
-|-----------|:------:|------|
-| Chain creation CLI (templates, scaffolding) | ✅ | `tools/Neo.Stack.Cli/` (`create-chain`) |
-| Node-directory init | ✅ | `tools/Neo.Stack.Cli/` (`init-l2`) |
-| Chain registration (configBytes hex emit) | ✅ | `tools/Neo.Stack.Cli/` (`register-chain`) |
-| Bridge adapter deploy plan | ✅ | `tools/Neo.Stack.Cli/` (`deploy-bridge-adapter`) |
-| Sequencer / batcher / prover preflight | ✅ | `tools/Neo.Stack.Cli/` (`start-{sequencer,batcher,prover}`) |
-| Batch submission preflight | ✅ | `tools/Neo.Stack.Cli/` (`submit-batch`) |
-| Config sanity-checker | ✅ | `tools/Neo.Stack.Cli/` (`validate`) |
-| Declarative L1 deploy planner | ✅ | `tools/Neo.Hub.Deploy/` (`scaffold` / `plan` / `verify`) |
-| Post-deploy wiring hints | ✅ | `tools/Neo.Hub.Deploy/` (`PostDeployActions`) |
-| In-process devnet runner | ✅ | `tools/Neo.L2.Devnet/` (5 batches default; `--config`, `--data-dir`, `--metrics-port`) |
-| Sample chain configs | ✅ | `samples/` (4 templates verified end-to-end) |
+- **Chain creation CLI (templates, scaffolding)** ✅ — `tools/Neo.Stack.Cli/` (`create-chain`)
+- **Node-directory init** ✅ — `tools/Neo.Stack.Cli/` (`init-l2`)
+- **Chain registration (configBytes hex emit)** ✅ — `tools/Neo.Stack.Cli/` (`register-chain`)
+- **Bridge adapter deploy plan** ✅ — `tools/Neo.Stack.Cli/` (`deploy-bridge-adapter`)
+- **Sequencer / batcher / prover preflight** ✅ — `tools/Neo.Stack.Cli/` (`start-{sequencer,batcher,prover}`)
+- **Batch submission preflight** ✅ — `tools/Neo.Stack.Cli/` (`submit-batch`)
+- **Config sanity-checker** ✅ — `tools/Neo.Stack.Cli/` (`validate`)
+- **Declarative L1 deploy planner** ✅ — `tools/Neo.Hub.Deploy/` (`scaffold` / `plan` / `verify`)
+- **Post-deploy wiring hints** ✅ — `tools/Neo.Hub.Deploy/` (`PostDeployActions`)
+- **In-process devnet runner** ✅ — `tools/Neo.L2.Devnet/` (5 batches default; `--config`, `--data-dir`, `--metrics-port`)
+- **Sample chain configs** ✅ — `samples/` (4 templates verified end-to-end)
 
 **7 CLI tools, 9 + 3 + 1 + 4 + 4 + 2 + 5 = 28 subcommands across them** (counting the external-bridge CLI's genkey + committee-blob + deploy-bundle + chains-table + per-chain helpers).
 
@@ -112,16 +104,14 @@ is a valid endpoint.
 
 ## Layer 4 — Application development
 
-| Component | Status | Code |
-|-----------|:------:|------|
-| L2 contract framework (compile to NeoVM bytecode) | ✅ | Uses `Neo.SmartContract.Framework` from `external/neo-devpack-dotnet/` (vendored) |
-| L2-aware contract patterns documented | ✅ | `docs/launching-an-l2.md` (5 extension points + 3 worked examples) |
-| Custom IDAWriter / ISequencerCommitteeProvider / IL2Prover examples | ✅ | `docs/launching-an-l2.md` (worked examples) |
-| L2-side dApp examples | ✅ | `samples/contracts/` (cross-chain greeter + withdrawal demo) |
-| Sample chain configs (rollup / gaming / validium / sidechain) | ✅ | `samples/*.config.json` (4 templates verified end-to-end) |
-| App-developer SDK / client library (.NET) | ✅ | `src/Neo.L2.Sdk/` — typed `L2RpcClient` wrapping all 10 doc.md §14.1 RPC methods. Failure modes split across `L2RpcTransportException` / `L2RpcProtocolException` / `L2RpcServerException` / `L2RpcMismatchedChainIdException` so callers can write targeted retry policy. |
-| App-developer SDK (TypeScript) | ✅ | `sdk/typescript/` — `@neo-n4/sdk` typed wrapper around all 10 RPC methods. 15 vitest tests pass against an in-process stub fetch. Same wire shape + 4-class error taxonomy as the .NET SDK. |
-| App-developer SDK (Rust) | ✅ | `sdk/rust/` — `neo-n4-sdk` typed wrapper. 10 mockito-driven tests pass. Mirrors the .NET + TS SDKs. |
+- **L2 contract framework (compile to NeoVM bytecode)** ✅ — Uses `Neo.SmartContract.Framework` from `external/neo-devpack-dotnet/` (vendored)
+- **L2-aware contract patterns documented** ✅ — `docs/launching-an-l2.md` (5 extension points + 3 worked examples)
+- **Custom IDAWriter / ISequencerCommitteeProvider / IL2Prover examples** ✅ — `docs/launching-an-l2.md` (worked examples)
+- **L2-side dApp examples** ✅ — `samples/contracts/` (cross-chain greeter + withdrawal demo)
+- **Sample chain configs (rollup / gaming / validium / sidechain)** ✅ — `samples/*.config.json` (4 templates verified end-to-end)
+- **App-developer SDK / client library (.NET)** ✅ — `src/Neo.L2.Sdk/` — typed `L2RpcClient` wrapping all 10 doc.md §14.1 RPC methods. Failure modes split across `L2RpcTransportException` / `L2RpcProtocolException` / `L2RpcServerException` / `L2RpcMismatchedChainIdException` so callers can write targeted retry policy.
+- **App-developer SDK (TypeScript)** ✅ — `sdk/typescript/` — `@neo-n4/sdk` typed wrapper around all 10 RPC methods. 15 vitest tests pass against an in-process stub fetch. Same wire shape + 4-class error taxonomy as the .NET SDK.
+- **App-developer SDK (Rust)** ✅ — `sdk/rust/` — `neo-n4-sdk` typed wrapper. 10 mockito-driven tests pass. Mirrors the .NET + TS SDKs.
 
 ---
 

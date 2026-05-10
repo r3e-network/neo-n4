@@ -103,7 +103,10 @@ async ValueTask<UInt256> SignAndSend(UInt160 hash, byte[] script, CancellationTo
     var ctx = new ContractParametersContext(snapshot, tx, network);
     if (account.Sign(ctx)) tx.Witnesses = ctx.GetWitnesses();
     var rawTx = tx.ToArray();
-    return await rpc.CallAsync("sendrawtransaction", new JArray { Convert.ToBase64String(rawTx) }, ct);
+    return await rpc.CallAsync(
+        "sendrawtransaction",
+        new JArray { Convert.ToBase64String(rawTx) },
+        ct);
 }
 ```
 

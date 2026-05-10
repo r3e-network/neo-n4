@@ -1,0 +1,29 @@
+# Neo Elastic Network — Essentials manuscript chapter order (English)
+#
+# A focused subset for newcomers: what neo4 is, how it works, what modules
+# it has, and how data flows through the system. Skips operator how-tos,
+# external-bridge specialization, and implementation tracking — see the
+# full manuscript-en.pdf for those.
+#
+# Format: one path per line. Lines starting with # are comments.
+# Lines starting with ! introduce a part-level heading; the rest of the
+# line is the part title.
+
+! Overview
+docs/README.md
+docs/architecture-atlas.md
+
+! Quick Start
+docs/getting-started.md
+
+! Architecture and modules
+docs/architecture-walkthrough.md
+docs/architecture-l1-vs-l2.md
+docs/architecture-l2-lifecycle.md
+docs/architecture-trust-boundaries.md
+
+! Data flows
+docs/architecture-wire-formats.md
+
+! Reference
+docs/architecture-glossary.md

@@ -5,6 +5,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — "Essentials" manuscript variant (`tools/manuscript/build.sh essentials`)
+
+A focused, shorter companion to the full manuscript that answers four
+questions for newcomers without making them read 196 pages:
+
+1. **What is `neo4`?**
+2. **What does it look like running?** (devnet quick start)
+3. **What modules does it have, and how do they fit together?**
+4. **How does data flow between those modules?**
+
+8 chapters in 5 parts — roughly half the length of the full edition:
+
+- **Overview** (`docs/README.md` + `docs/architecture-atlas.md`)
+- **Quick Start** (`docs/getting-started.md`)
+- **Architecture and modules** (`docs/architecture-walkthrough.md`,
+  `docs/architecture-l1-vs-l2.md`, `docs/architecture-l2-lifecycle.md`,
+  `docs/architecture-trust-boundaries.md`)
+- **Data flows** (`docs/architecture-wire-formats.md`)
+- **Reference** (`docs/architecture-glossary.md`)
+
+Operator how-tos (persistence, telemetry, wallet integration, launching
+a chain), external-bridge specialization, and implementation tracking
+remain in the full manuscript.
+
+- **`tools/manuscript/manifest-{en,zh}-essentials.txt`** — chapter
+  ordering for the focused subset.
+- **`tools/manuscript/metadata-{en,zh}-essentials.yaml`** — pandoc
+  metadata with the "Essentials" subtitle and a 4-question abstract.
+- **`build.sh`** grew CLI verbs `en-essentials` / `zh-essentials` /
+  `essentials` (both languages) / `all` (full + essentials).
+- **Outputs**: `build/manuscript-en-essentials.pdf` (~1.3 MB, ~106
+  pages) and `build/manuscript-zh-essentials.pdf` (~22 MB, ~104 pages,
+  CJK font subsets account for the size). Same figure pipeline as the
+  full edition; same idiomatic Chinese terminology.
+
 ### Added — Manuscript-style PDF compilation (`tools/manuscript/`)
 
 The 20 markdown files under `docs/` (and their Chinese mirrors under

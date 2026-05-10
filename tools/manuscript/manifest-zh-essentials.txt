@@ -1,0 +1,27 @@
+# Neo Elastic Network —— 精要版 / 章节排序(简体中文)
+#
+# 面向新读者的聚焦子集:n4 是什么、怎么运作、有哪些模块、数据如何在系统里
+# 流动。略去运维 how-to、外链桥专题、实现进度跟踪 —— 这些去看完整的
+# manuscript-zh.pdf。
+#
+# 格式:每行一个路径。以 # 起头的行是注释。以 ! 起头的行引入一个 part
+# 级标题,其余即为 part 标题。
+
+! 概览
+docs/zh/README.md
+docs/zh/architecture-atlas.md
+
+! 快速上手
+docs/zh/getting-started.md
+
+! 架构与模块
+docs/zh/architecture-walkthrough.md
+docs/zh/architecture-l1-vs-l2.md
+docs/zh/architecture-l2-lifecycle.md
+docs/zh/architecture-trust-boundaries.md
+
+! 数据流
+docs/zh/architecture-wire-formats.md
+
+! 参考
+docs/zh/architecture-glossary.md

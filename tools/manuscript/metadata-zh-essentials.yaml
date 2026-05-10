@@ -1,0 +1,70 @@
+---
+title: "Neo Elastic Network —— 精要版"
+subtitle: "架构、模块、数据流 —— 一本聚焦的入门读本"
+author:
+  - "neo-n4 贡献者"
+date: \today
+documentclass: report
+classoption:
+  - 11pt
+  - openany
+  - oneside
+geometry:
+  - paper=a4paper
+  - margin=2.5cm
+  - bindingoffset=0.5cm
+  - includeheadfoot
+papersize: a4
+fontsize: 11pt
+linestretch: 1.4
+colorlinks: true
+linkcolor: "RoyalBlue"
+urlcolor: "BrickRed"
+toccolor: "Black"
+toc: true
+toc-depth: 2
+numbersections: true
+secnumdepth: 3
+CJKmainfont: "Noto Serif CJK SC"
+CJKsansfont: "Noto Sans CJK SC"
+CJKmonofont: "Noto Sans Mono CJK SC"
+mainfont: "DejaVu Sans"
+monofont: "DejaVu Sans Mono"
+listings: false
+highlight-style: tango
+header-includes:
+  - \usepackage{xeCJK}
+  - \usepackage{fancyhdr}
+  - \usepackage{graphicx}
+  - \usepackage{caption}
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \xeCJKsetup{CJKecglue={}}
+  - \pagestyle{fancy}
+  - \fancyhf{}
+  - \fancyhead[LE,RO]{\nouppercase{\leftmark}}
+  - \fancyhead[LO,RE]{\textit{Neo Elastic Network —— 精要版}}
+  - \fancyfoot[C]{\thepage}
+  - \renewcommand{\headrulewidth}{0.4pt}
+  - \captionsetup{font=small,labelfont=bf}
+abstract: |
+  完整 Neo Elastic Network 手稿的精要伴读本。本"精要版"为新读者
+  回答 4 个问题:
+
+  1. **\texttt{neo4} 是什么?**一个基于 Neo 4 core 的多 L2 网络,把每条
+     L2 链锚定到 Neo N3 / Neo 4 L1 上的统一 L1 合约套件(NeoHub),
+     并经可选的 Neo Gateway 层聚合证明与 L2 间消息。
+  2. **跑起来什么样?**一章简短的快速上手会拉起一个 devnet,你可以
+     端到端看到全生命周期。
+  3. **它有哪些模块,这些模块怎么拼到一起?**5 章架构内容自上而下
+     走一遍系统:L1 / L2 划分原则、一条 L2 链的生命周期、模块之间
+     的信任边界。
+  4. **数据如何在这些模块之间流动?**一章数据流(线协议格式)钉死
+     每个跨模块载荷的规范字节布局。
+
+  运维 how-to(持久化、遥测、钱包集成、上链)、外链桥专题、实现
+  跟踪 —— 这些移到完整版。
+
+  独立社区探索;**未受**Neo Global Development、Neo 基金会或
+  neo-project 组织背书。
+---

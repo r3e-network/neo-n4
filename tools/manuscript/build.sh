@@ -99,15 +99,21 @@ convert_svgs "$ROOT/docs/zh/figures"  "$FIG_ZH/figures"
 echo "  ZH figures: $(find $FIG_ZH -name '*.pdf' | wc -l)"
 
 # --- per-language build ---
+# Args: <lang> [<variant>]
+#   lang     en | zh
+#   variant  full (default) | essentials
 build_lang() {
-  local lang="$1"     # en | zh
-  local manifest="$ROOT/tools/manuscript/manifest-$lang.txt"
-  local metadata="$ROOT/tools/manuscript/metadata-$lang.yaml"
-  local out_md="$WORK/manuscript-$lang.md"
-  local out_pdf="$BUILD/manuscript-$lang.pdf"
+  local lang="$1"
+  local variant="${2:-full}"
+  local suffix=""
+  [[ "$variant" != "full" ]] && suffix="-$variant"
+  local manifest="$ROOT/tools/manuscript/manifest-$lang$suffix.txt"
+  local metadata="$ROOT/tools/manuscript/metadata-$lang$suffix.yaml"
+  local out_md="$WORK/manuscript-$lang$suffix.md"
+  local out_pdf="$BUILD/manuscript-$lang$suffix.pdf"
   local fig_dir="$BUILD/manuscript-figures-$lang"
 
-  echo "=== building manuscript-$lang.pdf ==="
+  echo "=== building manuscript-$lang$suffix.pdf ==="
 
   : > "$out_md"
   while IFS= read -r line; do
@@ -218,13 +224,20 @@ PY
 }
 
 case "${1:-both}" in
-  en)   build_lang en ;;
-  zh)   build_lang zh ;;
-  both) build_lang en; build_lang zh ;;
-  *)    echo "usage: $0 [en|zh|both]" >&2; exit 1 ;;
+  en)              build_lang en full ;;
+  zh)              build_lang zh full ;;
+  both)            build_lang en full; build_lang zh full ;;
+  en-essentials)   build_lang en essentials ;;
+  zh-essentials)   build_lang zh essentials ;;
+  essentials)      build_lang en essentials; build_lang zh essentials ;;
+  all)             build_lang en full; build_lang zh full;
+                   build_lang en essentials; build_lang zh essentials ;;
+  *)    echo "usage: $0 [en|zh|both|en-essentials|zh-essentials|essentials|all]" >&2; exit 1 ;;
 esac
 
 echo
 echo "Done."
-echo "  English: $BUILD/manuscript-en.pdf"
-echo "  Chinese: $BUILD/manuscript-zh.pdf"
+[[ -f "$BUILD/manuscript-en.pdf"            ]] && echo "  English (full):           $BUILD/manuscript-en.pdf"
+[[ -f "$BUILD/manuscript-zh.pdf"            ]] && echo "  Chinese (full):           $BUILD/manuscript-zh.pdf"
+[[ -f "$BUILD/manuscript-en-essentials.pdf" ]] && echo "  English (essentials):     $BUILD/manuscript-en-essentials.pdf"
+[[ -f "$BUILD/manuscript-zh-essentials.pdf" ]] && echo "  Chinese (essentials):     $BUILD/manuscript-zh-essentials.pdf"

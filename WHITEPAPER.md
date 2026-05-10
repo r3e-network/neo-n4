@@ -77,11 +77,11 @@ proof regime moves up the trust ladder one phase at a time without rewriting eit
 
 Three layers, each with one job:
 
-| Layer       | Owns                                                                          | What it does NOT own                  |
-| ----------- | ----------------------------------------------------------------------------- | ------------------------------------- |
-| **L1**      | Canonical assets, settlement, message routing, governance, verifier registry  | Per-chain execution                   |
-| **Gateway** | Proof aggregation, global message root                                        | Custody — assets stay locked in L1    |
-| **L2**      | Execution, batching, sequencing, local DA, proving                            | Independent gas issuance              |
+| Layer            | Owns                                                                          | Does NOT own                          |
+| ---------------- | ----------------------------------------------------------------------------- | ------------------------------------- |
+| **L1**           | Canonical assets, settlement, message routing, governance, verifier registry  | Per-chain execution                   |
+| **Gateway**      | Proof aggregation, global message root                                        | Custody — assets stay locked in L1    |
+| **L2**           | Execution, batching, sequencing, local DA, proving                            | Independent gas issuance              |
 
 The architectural invariant: **L2 chains can be many; assets, state verification, message
 routing, and governance must be unified.**
@@ -93,23 +93,44 @@ routing, and governance must be unified.**
 NeoHub is the L1 contract suite shared by every L2. Conceptually it combines ZKsync's
 BridgeHub, SharedBridge, VerifierRegistry, and MessageRouter into one suite. The 15 contracts:
 
-| Contract                | Responsibility                                                                                  |
-| ----------------------- | ----------------------------------------------------------------------------------------------- |
-| `ChainRegistry`         | Register / configure / pause L2 chains. Each entry: `{chainId, operatorManager, verifier, bridgeAdapter, messageAdapter, securityLevel(0-3), daMode(0-3), gatewayEnabled, permissionlessExit, active}` |
-| `SharedBridge`          | Escrow canonical GAS / NEO / NEP-17. Lock-mint and burn-unlock rules. Withdrawal finalization off finalized `withdrawalRoot`. |
-| `SettlementManager`     | Accept `L2BatchCommitment` (chainId, batchNumber, pre/postStateRoot, txRoot, receiptRoot, withdrawalRoot, l2ToL1MessageRoot, l2ToL2MessageRoot, daCommitment, publicInputHash, proofType, proof). Forward verification to `VerifierRegistry`. |
-| `VerifierRegistry`      | Pluggable verifier dispatch by `ProofType`: `Multisig`, `Optimistic`, `ZkRiscV`, `Aggregated`.  |
-| `MessageRouter`         | L1↔L2 and L2↔L2 message queues with `(chainId, nonce)` replay protection.                       |
-| `TokenRegistry`         | Canonical L1↔L2 asset mapping: `{l1Asset, l2ChainId, l2Asset, assetType, mintBurn|lockMint, active}`. |
-| `DARegistry`            | Record DA commitments per chain.                                                                |
-| `GovernanceController`  | L2 admission policy, verifier upgrade, bridge emergency control, DA security-level registry.    |
-| `EmergencyManager`      | Pause individual chains; expose escape hatch.                                                   |
-| `ForcedInclusion`       | Anti-censorship queue (see §10).                                                                |
-| `SequencerBond`         | Sequencer collateral; slashing target for missed forced-inclusion deadlines.                    |
-| `SequencerRegistry`     | Active sequencer committee per chain; admission / exit lifecycle.                               |
-| `OptimisticChallenge`   | Phase-3 challenge window; entry point for the bisection-game fraud-proof flow.                  |
-| `GovernanceFraudVerifier` | Reference fraud verifier for governance-arbitration optimistic chains. Decodes the canonical `FraudProofPayload` (v1 = 101 bytes fixed, v2 = 105+N bytes with disputed-tx witness), validates structural integrity, emits accept/reject events for council review. |
-| `RestrictedExecutionFraudVerifier` | Trustless v3 fraud verifier — re-derives pre/post Merkle state roots on-chain from each storage proof's leaf-hash + siblings + leafIndex and matches against the v1 header's `PreStateRoot` / `ReplayedPostStateRoot`. Accepted v3 payloads are credible without council arbitration. |
+- **`ChainRegistry`** — Register / configure / pause L2 chains. Each entry:
+  `{chainId, operatorManager, verifier, bridgeAdapter, messageAdapter,
+  securityLevel(0–3), daMode(0–3), gatewayEnabled, permissionlessExit,
+  active}`.
+- **`SharedBridge`** — Escrow canonical GAS / NEO / NEP-17. Lock-mint and
+  burn-unlock rules. Withdrawal finalization off finalized
+  `withdrawalRoot`.
+- **`SettlementManager`** — Accept `L2BatchCommitment` (chainId,
+  batchNumber, pre/postStateRoot, txRoot, receiptRoot, withdrawalRoot,
+  l2ToL1MessageRoot, l2ToL2MessageRoot, daCommitment, publicInputHash,
+  proofType, proof). Forward verification to `VerifierRegistry`.
+- **`VerifierRegistry`** — Pluggable verifier dispatch by `ProofType`:
+  `Multisig`, `Optimistic`, `ZkRiscV`, `Aggregated`.
+- **`MessageRouter`** — L1↔L2 and L2↔L2 message queues with
+  `(chainId, nonce)` replay protection.
+- **`TokenRegistry`** — Canonical L1↔L2 asset mapping:
+  `{l1Asset, l2ChainId, l2Asset, assetType, mintBurn|lockMint, active}`.
+- **`DARegistry`** — Record DA commitments per chain.
+- **`GovernanceController`** — L2 admission policy, verifier upgrade,
+  bridge emergency control, DA security-level registry.
+- **`EmergencyManager`** — Pause individual chains; expose escape hatch.
+- **`ForcedInclusion`** — Anti-censorship queue (see §10).
+- **`SequencerBond`** — Sequencer collateral; slashing target for missed
+  forced-inclusion deadlines.
+- **`SequencerRegistry`** — Active sequencer committee per chain;
+  admission / exit lifecycle.
+- **`OptimisticChallenge`** — Phase-3 challenge window; entry point for
+  the bisection-game fraud-proof flow.
+- **`GovernanceFraudVerifier`** — Reference fraud verifier for
+  governance-arbitration optimistic chains. Decodes the canonical
+  `FraudProofPayload` (v1 = 101 bytes fixed, v2 = 105+N bytes with
+  disputed-tx witness), validates structural integrity, emits
+  accept/reject events for council review.
+- **`RestrictedExecutionFraudVerifier`** — Trustless v3 fraud verifier
+  — re-derives pre/post Merkle state roots on-chain from each storage
+  proof's leaf-hash + siblings + leafIndex and matches against the v1
+  header's `PreStateRoot` / `ReplayedPostStateRoot`. Accepted v3
+  payloads are credible without council arbitration.
 
 All 15 contracts type-check against `Neo.SmartContract.Framework`. The
 `Neo.Hub.Deploy` tool emits a topologically-sorted, dependency-resolved deploy bundle.
@@ -128,16 +149,21 @@ Each L2 chain runs Neo 4 core plus a plugin suite and a small set of on-L2 nativ
 
 Eight node plugins extending `Neo.Plugins.Plugin`:
 
-| Plugin                  | Role                                                                                  |
-| ----------------------- | ------------------------------------------------------------------------------------- |
-| `Neo.Plugins.L2Batch`   | Hooks `Blockchain.Committed`; the sealing logic lives in a testable `BatchSealer`.    |
-| `Neo.Plugins.L2Settlement` | Wires prover + settlement client; signs and submits sealed batches.                |
-| `Neo.Plugins.L2Bridge`  | Hosts `AssetRegistry` + deposit / withdrawal processors.                              |
-| `Neo.Plugins.L2DA`      | Picks a DA writer by configured `DAMode` (in-memory, NeoFS-like, L1, External, DAC).  |
-| `Neo.Plugins.L2Prover`  | Hosts an `IL2Prover` for the configured `ProofType`.                                  |
-| `Neo.Plugins.L2Rpc`     | Implements 10 L2 RPC methods (see §6 of `doc.md`); incl. `getsecuritylabel` for the §16.2 5-dimension label. |
-| `Neo.Plugins.L2Gateway` | Phase-5 proof aggregation entry point.                                                |
-| `Neo.Plugins.L2Metrics` | Telemetry composition root: shared `IL2Metrics` sink + Prometheus HTTP endpoints.     |
+- **`Neo.Plugins.L2Batch`** — Hooks `Blockchain.Committed`; the sealing
+  logic lives in a testable `BatchSealer`.
+- **`Neo.Plugins.L2Settlement`** — Wires prover + settlement client;
+  signs and submits sealed batches.
+- **`Neo.Plugins.L2Bridge`** — Hosts `AssetRegistry` + deposit /
+  withdrawal processors.
+- **`Neo.Plugins.L2DA`** — Picks a DA writer by configured `DAMode`
+  (in-memory, NeoFS-like, L1, External, DAC).
+- **`Neo.Plugins.L2Prover`** — Hosts an `IL2Prover` for the configured
+  `ProofType`.
+- **`Neo.Plugins.L2Rpc`** — Implements 10 L2 RPC methods (see §6 of
+  `doc.md`); incl. `getsecuritylabel` for the §16.2 5-dimension label.
+- **`Neo.Plugins.L2Gateway`** — Phase-5 proof aggregation entry point.
+- **`Neo.Plugins.L2Metrics`** — Telemetry composition root: shared
+  `IL2Metrics` sink + Prometheus HTTP endpoints.
 
 ### 4.2 Native L2 contracts
 
@@ -158,12 +184,12 @@ bridge / security are NeoHub-controlled).
 
 Each L2 declares one of four modes via `ChainRegistry.securityLevel`:
 
-| Mode             | DA       | Proof              | Trust assumption                                 |
-| ---------------- | -------- | ------------------ | ------------------------------------------------ |
-| `SidechainMode`  | local    | none / multisig    | Trust the sequencer committee                    |
-| `L2RollupMode`   | L1 / NeoFS | optimistic / ZK  | Trust the verifier (and the challenge window)    |
-| `L2ValidiumMode` | DAC      | optimistic / ZK    | Trust the DAC + the verifier                     |
-| `L1Mode`         | self     | self               | Trust Neo N3 / Neo 4 L1 itself                   |
+| Mode                 | DA           | Proof             | Trust assumption                              |
+| -------------------- | ------------ | ----------------- | --------------------------------------------- |
+| `SidechainMode`      | local        | none / multisig   | Trust the sequencer committee                 |
+| `L2RollupMode`       | L1 / NeoFS   | optimistic / ZK   | Trust the verifier (and the challenge window) |
+| `L2ValidiumMode`     | DAC          | optimistic / ZK   | Trust the DAC + the verifier                  |
+| `L1Mode`             | self         | self              | Trust Neo N3 / Neo 4 L1 itself                |
 
 This is on-chain so users can read the chain's actual security level via the
 `getsecuritylevel` RPC (`§14.1` of `doc.md`).
@@ -248,11 +274,16 @@ The verifier registry on L1 dispatches by `ProofType`; the same `L2BatchCommitme
 carries any of the three. A chain progresses by changing its registered verifier — no L2
 plugin code or L2 contract changes required.
 
-| Stage | Verifier              | Producer                                    | Implementation status                                                  |
-| ----- | --------------------- | ------------------------------------------- | ---------------------------------------------------------------------- |
-| 0     | `AttestationVerifier` | `AttestationProver` + `ISignerSet`           | ✅ production-ready; M-of-N secp256r1 over canonical public-input bytes |
-| 1     | `OptimisticVerifier`  | `OptimisticProofPayload` + sequencer signature | ✅ Stage-1 verifier; `BisectionGame` for log-N narrowing of disputed tx |
-| 2     | `RiscVZkVerifier`     | `prove-batch daemon` (real, out-of-process) + `MockRiscVProver` (in-process test seam) | ✅ Real Neo N3 VM proven via SP1 6.0; end-to-end queue → daemon → verify pipeline validated     |
+- **Stage 0 — `AttestationVerifier`.** Producer: `AttestationProver` +
+  `ISignerSet`. Status: production-ready; M-of-N secp256r1 over
+  canonical public-input bytes.
+- **Stage 1 — `OptimisticVerifier`.** Producer: `OptimisticProofPayload`
+  + sequencer signature. Status: Stage-1 verifier; `BisectionGame` for
+  log-N narrowing of disputed tx.
+- **Stage 2 — `RiscVZkVerifier`.** Producer: `prove-batch daemon` (real,
+  out-of-process) + `MockRiscVProver` (in-process test seam). Status:
+  real Neo N3 VM proven via SP1 6.0; end-to-end queue → daemon → verify
+  pipeline validated.
 
 Aggregated proofs (Phase 5 Gateway) reuse the same registry — `ProofType.Aggregated` plus a
 backend tag identifies the recursive scheme used.
@@ -318,12 +349,12 @@ sign-flow. Detailed in `doc.md` §10.4.
 
 Three tiers, on-chain labeled in `ChainRegistry.daMode`:
 
-| DA mode  | Cost   | Security                                  | Recommended for                       |
-| -------- | ------ | ----------------------------------------- | ------------------------------------- |
-| `L1`     | high   | inherits L1 (Neo N3 / Neo 4)              | RWA, stablecoin, high-value DeFi      |
-| `NeoFS`  | low    | NeoFS replication + L1-recorded commitment | game, social, enterprise              |
-| `External` | low  | user-trusts external DA layer              | ecosystem-specific (e.g. Celestia)    |
-| `DAC`    | lowest | committee attestation only                | approved-list chains; visibly labeled |
+| DA mode      | Cost   | Security                                   | Recommended for                       |
+| ------------ | ------ | ------------------------------------------ | ------------------------------------- |
+| `L1`         | high   | inherits L1 (Neo N3 / Neo 4)               | RWA, stablecoin, high-value DeFi      |
+| `NeoFS`      | low    | NeoFS replication + L1-recorded commitment | game, social, enterprise              |
+| `External`   | low    | user-trusts external DA layer              | ecosystem-specific (e.g. Celestia)    |
+| `DAC`        | lowest | committee attestation only                 | approved-list chains; visibly labeled |
 
 `MetricsEmittingDAWriter` wraps each DA backend with `mode`-tagged Prometheus metrics
 (`l2.da.published`, `l2.da.publish_latency_ms`, `l2.da.publish_failures`) so operators can

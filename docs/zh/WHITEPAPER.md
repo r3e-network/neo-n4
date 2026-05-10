@@ -73,11 +73,11 @@ L1 合约和 L2 插件集 *在架构层面已经定型*;证明体系按一阶段
 
 三层,每层只干一件事:
 
-| 层级       | 拥有                                                                       | 不拥有                                |
-| ---------- | -------------------------------------------------------------------------- | ------------------------------------- |
-| **L1**     | 规范资产、结算、消息路由、治理、verifier registry                          | 按链执行                              |
-| **Gateway**| 证明聚合、全局消息根                                                        | 资产托管 —— 资产仍锁在 L1             |
-| **L2**     | 执行、批次、排序、本地 DA、证明                                            | 独立的 gas 增发                       |
+| 层级             | 拥有                                                                       | 不拥有                                |
+| ---------------- | -------------------------------------------------------------------------- | ------------------------------------- |
+| **L1**           | 规范资产、结算、消息路由、治理、verifier registry                          | 按链执行                              |
+| **Gateway**      | 证明聚合、全局消息根                                                        | 资产托管 —— 资产仍锁在 L1             |
+| **L2**           | 执行、批次、排序、本地 DA、证明                                            | 独立的 gas 增发                       |
 
 架构不变量:**L2 链可以多;资产、状态验证、消息路由、治理必须统一。**
 
@@ -88,23 +88,42 @@ L1 合约和 L2 插件集 *在架构层面已经定型*;证明体系按一阶段
 NeoHub 是每条 L2 共享的 L1 合约套件。概念上,它把 ZKsync 的 BridgeHub、
 SharedBridge、VerifierRegistry、MessageRouter 合并成一个套件。15 个合约:
 
-| 合约                    | 职责                                                                                            |
-| ----------------------- | ----------------------------------------------------------------------------------------------- |
-| `ChainRegistry`         | 注册 / 配置 / 暂停 L2 链。每条记录:`{chainId, operatorManager, verifier, bridgeAdapter, messageAdapter, securityLevel(0-3), daMode(0-3), gatewayEnabled, permissionlessExit, active}` |
-| `SharedBridge`          | 托管规范 GAS / NEO / NEP-17。lock-mint 与 burn-unlock 规则。提款基于已最终化的 `withdrawalRoot`。  |
-| `SettlementManager`     | 接受 `L2BatchCommitment`(chainId、batchNumber、pre/postStateRoot、txRoot、receiptRoot、withdrawalRoot、l2ToL1MessageRoot、l2ToL2MessageRoot、daCommitment、publicInputHash、proofType、proof)。把验证转发给 `VerifierRegistry`。 |
-| `VerifierRegistry`      | 按 `ProofType` 分发的可插拔 verifier:`Multisig`、`Optimistic`、`ZkRiscV`、`Aggregated`。       |
-| `MessageRouter`         | L1↔L2 与 L2↔L2 消息队列,带 `(chainId, nonce)` 防重放。                                          |
-| `TokenRegistry`         | 规范 L1↔L2 资产映射:`{l1Asset, l2ChainId, l2Asset, assetType, mintBurn|lockMint, active}`。     |
-| `DARegistry`            | 按链记录 DA 承诺。                                                                              |
-| `GovernanceController`  | L2 准入策略、verifier 升级、桥的紧急控制、DA 安全级 registry。                                  |
-| `EmergencyManager`      | 暂停单条链;暴露逃生通道。                                                                       |
-| `ForcedInclusion`       | 抗审查队列(见 §10)。                                                                          |
-| `SequencerBond`         | 排序器抵押;错过强制纳入 deadline 时被罚没的目标。                                              |
-| `SequencerRegistry`     | 每条链的活跃排序器委员会;准入 / 退出生命周期。                                                  |
-| `OptimisticChallenge`   | Phase-3 挑战窗口;二分挑战游戏 fraud-proof 流程的入口。                                          |
-| `GovernanceFraudVerifier` | 治理仲裁式乐观链的参照 fraud verifier。解码规范的 `FraudProofPayload`(v1 = 101 字节定长、v2 = 105+N 字节带争议 tx witness),校验结构完整性,发出 accept/reject 事件供 council 审议。 |
-| `RestrictedExecutionFraudVerifier` | 无信任的 v3 fraud verifier —— 在链上从每个 storage 证明的叶 hash + sibling + leafIndex 重建 pre/post Merkle 状态根,与 v1 header 的 `PreStateRoot` / `ReplayedPostStateRoot` 进行匹配。被接受的 v3 payload 不需 council 仲裁即可被采信。 |
+- **`ChainRegistry`** —— 注册 / 配置 / 暂停 L2 链。每条记录:
+  `{chainId, operatorManager, verifier, bridgeAdapter, messageAdapter,
+  securityLevel(0–3), daMode(0–3), gatewayEnabled, permissionlessExit,
+  active}`。
+- **`SharedBridge`** —— 托管规范 GAS / NEO / NEP-17。lock-mint 与
+  burn-unlock 规则。提款基于已最终化的 `withdrawalRoot`。
+- **`SettlementManager`** —— 接受 `L2BatchCommitment`(chainId、
+  batchNumber、pre/postStateRoot、txRoot、receiptRoot、withdrawalRoot、
+  l2ToL1MessageRoot、l2ToL2MessageRoot、daCommitment、publicInputHash、
+  proofType、proof)。把验证转发给 `VerifierRegistry`。
+- **`VerifierRegistry`** —— 按 `ProofType` 分发的可插拔 verifier:
+  `Multisig`、`Optimistic`、`ZkRiscV`、`Aggregated`。
+- **`MessageRouter`** —— L1↔L2 与 L2↔L2 消息队列,带
+  `(chainId, nonce)` 防重放。
+- **`TokenRegistry`** —— 规范 L1↔L2 资产映射:
+  `{l1Asset, l2ChainId, l2Asset, assetType, mintBurn|lockMint, active}`。
+- **`DARegistry`** —— 按链记录 DA 承诺。
+- **`GovernanceController`** —— L2 准入策略、verifier 升级、桥的紧急
+  控制、DA 安全级 registry。
+- **`EmergencyManager`** —— 暂停单条链;暴露逃生通道。
+- **`ForcedInclusion`** —— 抗审查队列(见 §10)。
+- **`SequencerBond`** —— 排序器抵押;错过强制纳入 deadline 时被罚没的
+  目标。
+- **`SequencerRegistry`** —— 每条链的活跃排序器委员会;准入 / 退出
+  生命周期。
+- **`OptimisticChallenge`** —— Phase-3 挑战窗口;二分挑战游戏
+  fraud-proof 流程的入口。
+- **`GovernanceFraudVerifier`** —— 治理仲裁式乐观链的参照
+  fraud verifier。解码规范的 `FraudProofPayload`(v1 = 101 字节定长、
+  v2 = 105+N 字节带争议 tx witness),校验结构完整性,发出
+  accept/reject 事件供 council 审议。
+- **`RestrictedExecutionFraudVerifier`** —— 无信任的 v3 fraud verifier
+  —— 在链上从每个 storage 证明的叶 hash + sibling + leafIndex 重建
+  pre/post Merkle 状态根,与 v1 header 的 `PreStateRoot` /
+  `ReplayedPostStateRoot` 进行匹配。被接受的 v3 payload 不需
+  council 仲裁即可被采信。
 
 15 个合约都对 `Neo.SmartContract.Framework` 类型检查通过。`Neo.Hub.Deploy`
 工具发出拓扑排序 + 依赖解析过的部署 bundle。
@@ -122,16 +141,21 @@ NeoHub 背后的原则是**所有 L2 共用一份 L1 信任根**。新加一条 
 
 8 个节点插件,均扩展 `Neo.Plugins.Plugin`:
 
-| 插件                       | 角色                                                                                  |
-| -------------------------- | ------------------------------------------------------------------------------------- |
-| `Neo.Plugins.L2Batch`      | 钩入 `Blockchain.Committed`;封装逻辑放在可测试的 `BatchSealer` 里。                  |
-| `Neo.Plugins.L2Settlement` | 接好 prover + 结算客户端;签名并提交已封装批次。                                       |
-| `Neo.Plugins.L2Bridge`     | 承载 `AssetRegistry` + 充值 / 提款处理器。                                             |
-| `Neo.Plugins.L2DA`         | 按配置好的 `DAMode` 选 DA writer(in-memory、NeoFS-like、L1、External、DAC)。         |
-| `Neo.Plugins.L2Prover`     | 为配好的 `ProofType` 承载一个 `IL2Prover`。                                            |
-| `Neo.Plugins.L2Rpc`        | 实现 10 个 L2 RPC 方法(见 `doc.md` §6);含 `getsecuritylabel` 用于 §16.2 5 维标签。  |
-| `Neo.Plugins.L2Gateway`    | Phase-5 证明聚合入口。                                                                |
-| `Neo.Plugins.L2Metrics`    | 遥测合并根:共享的 `IL2Metrics` 槽 + Prometheus HTTP 端点。                            |
+- **`Neo.Plugins.L2Batch`** —— 钩入 `Blockchain.Committed`;封装逻辑放在
+  可测试的 `BatchSealer` 里。
+- **`Neo.Plugins.L2Settlement`** —— 接好 prover + 结算客户端;签名并
+  提交已封装批次。
+- **`Neo.Plugins.L2Bridge`** —— 承载 `AssetRegistry` + 充值 / 提款
+  处理器。
+- **`Neo.Plugins.L2DA`** —— 按配置好的 `DAMode` 选 DA writer
+  (in-memory、NeoFS-like、L1、External、DAC)。
+- **`Neo.Plugins.L2Prover`** —— 为配好的 `ProofType` 承载一个
+  `IL2Prover`。
+- **`Neo.Plugins.L2Rpc`** —— 实现 10 个 L2 RPC 方法(见 `doc.md` §6);
+  含 `getsecuritylabel` 用于 §16.2 5 维标签。
+- **`Neo.Plugins.L2Gateway`** —— Phase-5 证明聚合入口。
+- **`Neo.Plugins.L2Metrics`** —— 遥测合并根:共享的 `IL2Metrics` 槽 +
+  Prometheus HTTP 端点。
 
 ### 4.2 L2 原生合约
 
@@ -151,12 +175,12 @@ NeoHub 背后的原则是**所有 L2 共用一份 L1 信任根**。新加一条 
 
 每条 L2 经 `ChainRegistry.securityLevel` 声明 4 种模式之一:
 
-| 模式             | DA          | 证明                | 信任假设                                             |
-| ---------------- | ----------- | ------------------- | ---------------------------------------------------- |
-| `SidechainMode`  | 本地        | 无 / 多签           | 信任排序器委员会                                     |
-| `L2RollupMode`   | L1 / NeoFS  | 乐观 / ZK           | 信任 verifier(以及挑战窗口)                        |
-| `L2ValidiumMode` | DAC         | 乐观 / ZK           | 信任 DAC + verifier                                  |
-| `L1Mode`         | 自身        | 自身                | 信任 Neo N3 / Neo 4 L1 自身                          |
+| 模式                 | DA          | 证明              | 信任假设                                |
+| -------------------- | ----------- | ----------------- | --------------------------------------- |
+| `SidechainMode`      | 本地        | 无 / 多签          | 信任排序器委员会                         |
+| `L2RollupMode`       | L1 / NeoFS  | 乐观 / ZK         | 信任 verifier(以及挑战窗口)            |
+| `L2ValidiumMode`     | DAC         | 乐观 / ZK         | 信任 DAC + verifier                     |
+| `L1Mode`             | 自身        | 自身              | 信任 Neo N3 / Neo 4 L1 自身             |
 
 这是链上的,所以用户能经 `getsecuritylevel` RPC(`doc.md` §14.1)读到链的
 真实安全级别。
@@ -235,11 +259,16 @@ L1 上的 verifier registry 按 `ProofType` 分发;同一份 `L2BatchCommitment`
 能承载三者中任一。一条链只通过更换注册 verifier 来演进 —— 不需要改 L2 插件
 代码,也不需要改 L2 合约。
 
-| 阶段 | Verifier              | 生产者                                               | 实现状态                                                     |
-| ---- | --------------------- | ---------------------------------------------------- | ------------------------------------------------------------ |
-| 0    | `AttestationVerifier` | `AttestationProver` + `ISignerSet`                   | ✓ 生产可用;在规范 public-input 字节上的 M-of-N secp256r1     |
-| 1    | `OptimisticVerifier`  | `OptimisticProofPayload` + 排序器签名                | ✓ Stage-1 verifier;`BisectionGame` 做 log-N 收敛到争议 tx     |
-| 2    | `RiscVZkVerifier`     | `prove-batch daemon`(真,跨进程)+ `MockRiscVProver`(进程内测试 seam) | ✓ 真实 Neo N3 VM 经 SP1 6.0 证明;端到端 queue → daemon → verify 流水线已验证 |
+- **Stage 0 —— `AttestationVerifier`。**生产者:`AttestationProver` +
+  `ISignerSet`。状态:生产可用;在规范 public-input 字节上的
+  M-of-N secp256r1。
+- **Stage 1 —— `OptimisticVerifier`。**生产者:`OptimisticProofPayload`
+  + 排序器签名。状态:Stage-1 verifier;`BisectionGame` 做 log-N
+  收敛到争议 tx。
+- **Stage 2 —— `RiscVZkVerifier`。**生产者:`prove-batch daemon`
+  (真,跨进程)+ `MockRiscVProver`(进程内测试 seam)。状态:真实
+  Neo N3 VM 经 SP1 6.0 证明;端到端 queue → daemon → verify 流水线
+  已验证。
 
 聚合证明(Phase 5 Gateway)复用同一 registry —— `ProofType.Aggregated` 加上
 backend tag 标识用了哪种递归方案。
@@ -304,12 +333,12 @@ L2 合约经 L2MessageContract 发出消息
 
 3 档,在 `ChainRegistry.daMode` 上链标注:
 
-| DA 模式  | 成本   | 安全                                       | 推荐用于                              |
-| -------- | ------ | ------------------------------------------ | ------------------------------------- |
-| `L1`     | 高     | 继承 L1(Neo N3 / Neo 4)                    | RWA、稳定币、高价值 DeFi              |
-| `NeoFS`  | 低     | NeoFS 复制 + L1 上记录的承诺                | 游戏、社交、企业                      |
-| `External` | 低   | 用户信任外部 DA 层                          | 生态特定(例如 Celestia)             |
-| `DAC`    | 最低   | 委员会 attestation                          | 准入名单制链;**必须**显式标注        |
+| DA 模式      | 成本   | 安全                                       | 推荐用于                              |
+| ------------ | ------ | ------------------------------------------ | ------------------------------------- |
+| `L1`         | 高     | 继承 L1(Neo N3 / Neo 4)                    | RWA、稳定币、高价值 DeFi              |
+| `NeoFS`      | 低     | NeoFS 复制 + L1 上记录的承诺                | 游戏、社交、企业                      |
+| `External`   | 低     | 用户信任外部 DA 层                          | 生态特定(例如 Celestia)             |
+| `DAC`        | 最低   | 委员会 attestation                          | 准入名单制链;**必须**显式标注        |
 
 `MetricsEmittingDAWriter` 用 `mode` 标签包裹每个 DA 后备,导出 Prometheus 指标
 (`l2.da.published`、`l2.da.publish_latency_ms`、`l2.da.publish_failures`),

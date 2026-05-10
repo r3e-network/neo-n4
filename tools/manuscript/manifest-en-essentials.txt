@@ -1,28 +1,30 @@
 # Neo Elastic Network — Essentials manuscript chapter order (English)
 #
-# A focused, design-only subset for newcomers. Five chapters, no
-# implementation tutorials and no byte-layout / wire-format detail —
-# just system design, architecture, and how the pieces fit together:
+# A whitepaper-style essentials edition: the formal technical write-up
+# of the design, structured for external review and integrator
+# onboarding. Single source: WHITEPAPER.md.
 #
-#   * Why this network exists, the layering, and key design tradeoffs
-#   * A narrative tour through how the modules work as a whole
-#   * The L1-vs-L2 dividing principle
-#   * The lifecycle and anatomy of an L2 chain
-#   * The trust boundaries between modules
+# Sections inside the whitepaper:
+#   1.  Motivation
+#   2.  System overview
+#   3.  L1 contract suite — NeoHub
+#   4.  L2 chain internals
+#   5.  Proof system
+#   6.  Asset model
+#   7.  Cross-chain messaging — Neo Connect
+#   8.  Data availability
+#   9.  Neo Gateway — proof aggregation
+#   10. Censorship resistance & forced inclusion
+#   11. Governance
+#   12. Threat model
+#   13. Phased rollout
+#   14. Comparison to other rollup stacks
+#   15. Glossary
 #
-# Operator how-tos, byte-level wire formats, and the component catalog
-# / glossary live in the full manuscript.
+# Pure design / architecture / workflows / dataflows. No tutorials,
+# no byte-layout detail. The full manuscript carries everything else.
 #
 # Format: one path per line. Lines starting with # are comments.
 # Lines starting with ! introduce a part-level heading.
 
-! Design overview
-ARCHITECTURE.md
-
-! System tour
-docs/architecture-walkthrough.md
-
-! Architectural principles
-docs/architecture-l1-vs-l2.md
-docs/architecture-l2-lifecycle.md
-docs/architecture-trust-boundaries.md
+WHITEPAPER.md

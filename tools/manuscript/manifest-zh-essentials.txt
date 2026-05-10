@@ -1,25 +1,28 @@
 # Neo Elastic Network —— 精要版 / 章节排序(简体中文)
 #
-# 面向新读者的"纯设计"聚焦子集。5 章,不含实现教程,也不含字节布局 /
-# 线协议细节 —— 只讲系统设计、架构、各部分如何拼到一起:
+# 白皮书风格的精要版:面向外部审阅与集成方上手的正式技术书写。
+# 单一来源:docs/zh/WHITEPAPER.md。
 #
-#   * 这张网络为什么存在、分层、关键的设计权衡
-#   * 模块作为整体如何运作的叙事式导览
-#   * L1 与 L2 的划分原则
-#   * 一条 L2 链的生命周期与解剖
-#   * 模块之间的信任边界
+# 白皮书内部章节:
+#   1.  立项动机
+#   2.  系统概览
+#   3.  L1 合约套件 —— NeoHub
+#   4.  L2 链内部
+#   5.  证明系统
+#   6.  资产模型
+#   7.  跨链消息 —— Neo Connect
+#   8.  数据可用性
+#   9.  Neo Gateway —— 证明聚合
+#   10. 抗审查与强制纳入
+#   11. 治理
+#   12. 威胁模型
+#   13. 分阶段上线
+#   14. 与其他 rollup 栈的对比
+#   15. 词汇表
 #
-# 运维 how-to、字节级的线协议格式、组件目录 / 词汇表 —— 这些在完整版。
+# 纯设计 / 架构 / 工作流 / 数据流。无教程、无字节布局细节。其余在
+# 完整版。
 #
 # 格式:每行一个路径。以 # 起头的行是注释。以 ! 起头的行引入 part 级标题。
 
-! 设计概览
-docs/zh/ARCHITECTURE.md
-
-! 系统导览
-docs/zh/architecture-walkthrough.md
-
-! 架构原则
-docs/zh/architecture-l1-vs-l2.md
-docs/zh/architecture-l2-lifecycle.md
-docs/zh/architecture-trust-boundaries.md
+docs/zh/WHITEPAPER.md

@@ -1,6 +1,6 @@
 ---
-title: "Neo Elastic Network —— 精要版"
-subtitle: "高层设计、架构、模块交互"
+title: "Neo Elastic Network —— 白皮书"
+subtitle: "基于 Neo 4 core 的多 L2 架构 —— 共享桥、证明聚合、原生跨链消息"
 author:
   - "neo-n4 贡献者"
 date: \today
@@ -23,8 +23,8 @@ urlcolor: "BrickRed"
 toccolor: "Black"
 toc: true
 toc-depth: 2
-numbersections: true
-secnumdepth: 3
+numbersections: false
+secnumdepth: 0
 CJKmainfont: "Noto Serif CJK SC"
 CJKsansfont: "Noto Sans CJK SC"
 CJKmonofont: "Noto Sans Mono CJK SC"
@@ -43,25 +43,25 @@ header-includes:
   - \pagestyle{fancy}
   - \fancyhf{}
   - \fancyhead[LE,RO]{\nouppercase{\leftmark}}
-  - \fancyhead[LO,RE]{\textit{Neo Elastic Network —— 精要版}}
+  - \fancyhead[LO,RE]{\textit{Neo Elastic Network —— 白皮书}}
   - \fancyfoot[C]{\thepage}
   - \renewcommand{\headrulewidth}{0.4pt}
   - \captionsetup{font=small,labelfont=bf}
 abstract: |
-  完整 Neo Elastic Network 手稿的"纯设计"伴读本。**不含实现教程,
-  也不含字节布局细节** —— 只讲架构,以及各部分如何拼到一起。5 章
-  为新读者回答 3 个问题:
+  Neo Elastic Network 是一个多 L2 栈,以 Neo 4 core 作为 L2 执行内核,
+  把多条 L2 链统一在共享的 L1 合约套件(NeoHub)之下,并支持经 Neo
+  Gateway 的可选证明聚合与 L2 间消息。设计借鉴 ZKsync Elastic Chain
+  的*共享桥 / 链注册表 / 证明聚合*模式,在 Neo 的原语之上重建 ——
+  dBFT 2.0 终结性、NEP-17 资产、NeoVM 2 / RISC-V 执行、NeoFS 数据
+  可用性。结算经三档可插拔证明体系演进 —— 多签 attestation、乐观
+  挑战、ZK 有效性 —— 因此每条链可以从最弱可接受门槛上线,并在不改
+  L2 栈或 L1 合约的前提下收紧到 ZK。
 
-  1. **\texttt{neo4} 是什么?为什么存在?**分层架构、每层的模块、
-     关键的设计权衡、威胁模型、分阶段路线图。(第 1 章。)
-  2. **模块作为整体如何运作?**叙事式导览:一笔 tx 在 L2 链上的
-     一生、经强制纳入抗审查、多 L2 证明聚合、遥测流水线。
-     (第 2 章。)
-  3. **把这一切串起来的架构原则是什么?**L1 / L2 划分原则、一条 L2
-     链的生命周期与解剖、模块之间的信任边界。(第 3--5 章。)
+  本白皮书是正式技术书写:立项动机、系统概览、L1 合约套件、L2 链
+  内部、证明系统、资产模型、跨链消息、数据可用性、Neo Gateway 聚合、
+  抗审查、治理、威胁模型、分阶段上线,以及与其他 rollup 栈的对比。
 
-  运维 how-to(持久化、遥测、钱包集成、上链)、字节级线协议格式、
-  组件目录 / 词汇表、外链桥专题、实现跟踪 —— 这些都在完整版。
+  运维 how-to、字节布局细节、外链桥专题、实现跟踪 —— 这些留在完整版。
 
   独立社区探索;**未受** Neo Global Development、Neo 基金会或
   neo-project 组织背书。

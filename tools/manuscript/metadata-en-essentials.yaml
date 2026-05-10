@@ -1,6 +1,6 @@
 ---
-title: "Neo Elastic Network --- Essentials"
-subtitle: "High-level design, architecture, and module interactions"
+title: "Neo Elastic Network --- Whitepaper"
+subtitle: "Multi-L2 architecture on Neo 4 core --- shared bridge, proof aggregation, native cross-chain messaging"
 author:
   - "neo-n4 contributors"
 date: \today
@@ -23,8 +23,8 @@ urlcolor: "BrickRed"
 toccolor: "Black"
 toc: true
 toc-depth: 2
-numbersections: true
-secnumdepth: 3
+numbersections: false
+secnumdepth: 0
 mainfont: "DejaVu Sans"
 monofont: "DejaVu Sans Mono"
 fontfamily: lmodern
@@ -39,32 +39,31 @@ header-includes:
   - \pagestyle{fancy}
   - \fancyhf{}
   - \fancyhead[LE,RO]{\nouppercase{\leftmark}}
-  - \fancyhead[LO,RE]{\textit{Neo Elastic Network --- Essentials}}
+  - \fancyhead[LO,RE]{\textit{Neo Elastic Network --- Whitepaper}}
   - \fancyfoot[C]{\thepage}
   - \renewcommand{\headrulewidth}{0.4pt}
   - \captionsetup{font=small,labelfont=bf}
 abstract: |
-  A focused, design-only companion to the full Neo Elastic Network
-  manuscript. **No implementation tutorials, no byte-layout detail** ---
-  just architecture and how the pieces fit together. Five chapters
-  answer three questions for newcomers:
+  Neo Elastic Network is a multi-L2 stack that uses Neo 4 core as the
+  L2 execution kernel, unifies L2 chains under a shared L1 contract
+  suite (NeoHub), and supports optional proof aggregation and
+  inter-L2 messaging through Neo Gateway. The design borrows ZKsync
+  Elastic Chain's *shared bridge / chain registry / proof aggregation*
+  pattern and rebuilds it on Neo's primitives --- dBFT 2.0 finality,
+  NEP-17 assets, NeoVM 2 / RISC-V execution, and NeoFS data
+  availability. Settlement progresses through three pluggable proof
+  regimes --- multisig attestation, optimistic challenge, ZK validity
+  --- so chains can launch on the weakest acceptable bar and tighten
+  to ZK without changing the L2 stack or the L1 contracts.
 
-  1. **What is `neo4` and why does it exist?** Layered architecture,
-     the modules at each layer, key design tradeoffs, threat model,
-     and the phased rollout. (Chapter 1.)
-  2. **How do the modules work as a whole?** Narrative tours through
-     a transaction's life on an L2 chain, anti-censorship via forced
-     inclusion, multi-L2 proof aggregation, and the telemetry
-     pipeline. (Chapter 2.)
-  3. **What are the architectural principles tying it together?**
-     The L1-vs-L2 dividing principle, the lifecycle and anatomy of
-     an L2 chain, and the trust boundaries between modules.
-     (Chapters 3--5.)
+  This whitepaper is the formal technical write-up: motivation,
+  system overview, the L1 contract suite, L2 chain internals, the
+  proof system, asset model, cross-chain messaging, data availability,
+  Neo Gateway aggregation, censorship resistance, governance, threat
+  model, phased rollout, and a comparison to other rollup stacks.
 
-  Operator how-tos (persistence, telemetry, wallet integration,
-  launching a chain), byte-level wire formats, the component catalog
-  / glossary, external-bridge specialization, and implementation
-  tracking are all deferred to the full manuscript.
+  Operator how-tos, byte-layout detail, external-bridge specialization,
+  and implementation tracking remain in the full manuscript.
 
   Independent community exploration; not endorsed by Neo Global
   Development, the Neo Foundation, or the neo-project organization.

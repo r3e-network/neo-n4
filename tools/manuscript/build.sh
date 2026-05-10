@@ -136,9 +136,13 @@ build_lang() {
 
   # Rewrite SVG references → PDF references so xelatex can embed them.
   # Matches both <img src="..."> and ![](...) markdown image syntax.
+  # Handles three reference styles used across docs:
+  #   figures/X.svg          (chapter-local, one-level docs/)
+  #   ../figures/X.svg       (chapter under docs/zh/, points up one)
+  #   docs/figures/X.svg     (top-level WHITEPAPER.md / README references)
   sed -i -E \
-    -e 's|src="(\.\./)*figures/([^"]+)\.svg"|src="figures/\2.pdf"|g' \
-    -e 's|\]\((\.\./)*figures/([^)]+)\.svg\)|](figures/\2.pdf)|g' \
+    -e 's|src="(\.\./)*(docs/)?figures/([^"]+)\.svg"|src="figures/\3.pdf"|g' \
+    -e 's|\]\((\.\./)*(docs/)?figures/([^)]+)\.svg\)|](figures/\3.pdf)|g' \
     "$out_md"
 
   # Convert HTML <p align="center"><img src=...></p> blocks to markdown
@@ -208,6 +212,12 @@ PY
 
   echo "  concatenated: $(wc -l < "$out_md") lines"
 
+  # Section auto-numbering: only for the full edition. The essentials
+  # variant is the whitepaper, whose source headings already carry
+  # "1.", "2.", ... — auto-numbering would double-number ("1.1 1. Foo").
+  local pandoc_number_flag="--number-sections"
+  [[ "$variant" == "essentials" ]] && pandoc_number_flag=""
+
   "$PANDOC" \
     "$metadata" \
     "$out_md" \
@@ -217,7 +227,7 @@ PY
     --top-level-division=chapter \
     --toc \
     --toc-depth=2 \
-    --number-sections \
+    $pandoc_number_flag \
     --output="$out_pdf"
 
   echo "  ✓ wrote $out_pdf  ($(du -h "$out_pdf" | cut -f1))"

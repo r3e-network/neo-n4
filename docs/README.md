@@ -123,7 +123,7 @@ Per [`doc.md` §18](./doc.md):
 | Phase | Goal                                | Status | Evidence                                                  |
 | ----- | ----------------------------------- | :----: | --------------------------------------------------------- |
 | 0     | Sidechain PoC                       | ✅     | MVP integration test passes end-to-end                    |
-| 1     | NeoHub v0 + Shared Bridge           | ✅     | All 21 NeoHub contracts compile; deploy planner emits 21-step bundle |
+| 1     | NeoHub v0 + Shared Bridge           | ✅     | All 21 NeoHub contracts compile; deploy planner emits 20-step bundle (13 core + 2 fraud verifiers + 5 external-bridge) |
 | 2     | Batch Settlement                    | ✅     | Real `KeyedStateStore` continuity verified across batches |
 | 3     | Optimistic Challenge Window         | ✅     | `OptimisticChallenge` contract + `BisectionGame` (log-N narrowing) |
 | 4     | NeoVM 2 / RISC-V ZK Validity Proof  | 🟡     | SP1 FFI bridge scaffolded; `--features real-prover` flips to native |

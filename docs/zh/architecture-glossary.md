@@ -144,7 +144,7 @@
 | `Neo.Plugins.L2Bridge`              | 托管 `AssetRegistry` + `DepositProcessor` + `WithdrawalProcessor`。                  |
 | `Neo.Plugins.L2DA`                  | 按 `DAMode` 选 DA writer;支持 InMemory / NeoFsLike / CommitteeAttested / L1。       |
 | `Neo.Plugins.L2Prover`              | 为配置的 `ProofType` 托管 `IL2Prover`。SP1 证明守护进程连接。                       |
-| `Neo.Plugins.L2Rpc`                 | 9 个 RPC handler(按 `doc.md` §14.1)。`IL2RpcStore` 后备(内存或 RocksDB)。        |
+| `Neo.Plugins.L2Rpc`                 | 10 个 RPC handler(按 `doc.md` §14.1)。`IL2RpcStore` 后备(内存或 RocksDB)。       |
 | `Neo.Plugins.L2Gateway`             | 经 `BinaryTreeAggregator` 做可选的 Phase-5 多 L2 聚合。                              |
 | `Neo.Plugins.L2Metrics`             | `IL2Metrics` + `MetricsHttpServer` 的组合根(`/metrics` + `/healthz` + `/readyz`)。 |
 

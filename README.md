@@ -70,7 +70,7 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 
 | Area              | Count     | Description                                                              |
 | ----------------- | --------- | ------------------------------------------------------------------------ |
-| Off-chain libraries | **15**  | `Neo.L2.{Abstractions,Audit,Batch,Bridge,Censorship,Challenge,Executor,ForcedInclusion,Messaging,Persistence,Proving,Sequencer,Settlement.Rpc,State,Telemetry}` |
+| Off-chain libraries | **16**  | `Neo.L2.{Abstractions,Audit,Batch,Bridge,Censorship,Challenge,Executor,Executor.RiscV,ForcedInclusion,Messaging,Persistence,Proving,Sequencer,Settlement.Rpc,State,Telemetry}` (App SDK in `Neo.L2.Sdk` is counted separately under App SDKs) |
 | Persistence backends | **2**  | `InMemoryKeyValueStore` (tests) · `RocksDbKeyValueStore` (production default) — see [`docs/persistence.md`](./docs/persistence.md) |
 | Node plugins      | **8**     | `Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}`  |
 | Smart contracts   | **28**    | 21 NeoHub L1 (Phase 0–3 + 6 cross-foreign-chain bridge contracts: `MpcCommitteeVerifier`, `ExternalBridgeRegistry`, `ExternalBridgeEscrow`, `ExternalBridgeBond`, `ExternalBridgeStubVerifier`, `MpcCommitteeFraudVerifier`) + 7 L2 native (incl. `L2NativeExternalBridgeContract`); all type-check via `Neo.SmartContract.Framework` |

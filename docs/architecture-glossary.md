@@ -146,7 +146,7 @@ Lives at `src/Neo.Plugins.L2*`. Loaded by neo-cli; subscribes to `Block.Committe
 | `Neo.Plugins.L2Bridge`                  | Hosts `AssetRegistry` + `DepositProcessor` + `WithdrawalProcessor`.                   |
 | `Neo.Plugins.L2DA`                      | Picks DA writer by `DAMode`; supports InMemory / NeoFsLike / CommitteeAttested / L1.  |
 | `Neo.Plugins.L2Prover`                  | Hosts `IL2Prover` for the configured `ProofType`. SP1 prover daemon connection.       |
-| `Neo.Plugins.L2Rpc`                     | 9 RPC handlers (per `doc.md` §14.1). `IL2RpcStore` backend (in-memory or RocksDB).    |
+| `Neo.Plugins.L2Rpc`                     | 10 RPC handlers (per `doc.md` §14.1). `IL2RpcStore` backend (in-memory or RocksDB).   |
 | `Neo.Plugins.L2Gateway`                 | Optional Phase-5 multi-L2 aggregation via `BinaryTreeAggregator`.                     |
 | `Neo.Plugins.L2Metrics`                 | Composition root for `IL2Metrics` + `MetricsHttpServer` (`/metrics` + `/healthz` + `/readyz`). |
 

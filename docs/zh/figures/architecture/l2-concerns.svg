@@ -68,7 +68,7 @@
     <text x="60" y="438" class="ctr-name" fill="#7a4a14">L2Prover</text>
     <text x="180" y="438" class="ctr-desc">→ SP1 zkVM(或 Stage-0 multisig)证明产生</text>
     <text x="60" y="460" class="ctr-name" fill="#7a4a14">L2Rpc</text>
-    <text x="180" y="460" class="ctr-desc">→ 9 个按链的 RPC handler</text>
+    <text x="180" y="460" class="ctr-desc">→ 10 个按链的 RPC handler</text>
     <text x="540" y="350" class="ctr-name" fill="#7a4a14">L2Gateway</text>
     <text x="660" y="350" class="ctr-desc">→ 可选 Phase-5 多 L2 聚合</text>
     <text x="540" y="372" class="ctr-name" fill="#7a4a14">L2Metrics</text>

@@ -98,7 +98,7 @@ time). TypeScript SDK ships 15 vitest tests.
 | In-process devnet runner | ✅ | `tools/Neo.L2.Devnet/` (5 batches default; `--config`, `--data-dir`, `--metrics-port`) |
 | Sample chain configs | ✅ | `samples/` (4 templates verified end-to-end) |
 
-**6 CLI tools, 9 + 3 + 1 + 4 + 4 + 2 = 23 subcommands across them.**
+**7 CLI tools, 9 + 3 + 1 + 4 + 4 + 2 + 5 = 28 subcommands across them** (counting the external-bridge CLI's genkey + committee-blob + deploy-bundle + chains-table + per-chain helpers).
 
 The `neo-l2-explore` CLI is the framework's terminal block explorer: `label`
 (prints the §16.2 5-dimension security label), `batch <n>` (full canonical

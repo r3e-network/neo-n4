@@ -5,10 +5,14 @@
 
 ## What we're replacing
 
-| Today | Target | Plug-in point |
-|-------|--------|---------------|
-| `ReferenceTransactionExecutor` (canned receipts) | `ApplicationEngineTransactionExecutor` (runs through Neo's real VM) | `ITransactionExecutor` |
-| `ReferenceBatchExecutor` (placeholder post-state root) | `MerkleStateBatchExecutor` (real cryptographic state root) | `IL2BatchExecutor` |
+- **`ITransactionExecutor`**
+  - *Today:* `ReferenceTransactionExecutor` — canned receipts.
+  - *Target:* `ApplicationEngineTransactionExecutor` — runs through
+    Neo's real VM.
+- **`IL2BatchExecutor`**
+  - *Today:* `ReferenceBatchExecutor` — placeholder post-state root.
+  - *Target:* `MerkleStateBatchExecutor` — real cryptographic state
+    root.
 
 Both interfaces already exist; both have in-process devnet-quality
 `Reference*` impls. This plan turns each into a real production one.

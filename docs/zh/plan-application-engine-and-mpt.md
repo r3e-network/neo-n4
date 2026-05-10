@@ -5,10 +5,12 @@
 
 ## 我们在替换什么
 
-| 当下 | 目标 | 接线点 |
-|------|------|--------|
-| `ReferenceTransactionExecutor`(罐头收据) | `ApplicationEngineTransactionExecutor`(真正跑 Neo VM) | `ITransactionExecutor` |
-| `ReferenceBatchExecutor`(占位的 post-state 根) | `MerkleStateBatchExecutor`(真正的密码学状态根) | `IL2BatchExecutor` |
+- **`ITransactionExecutor`**
+  - *当下:* `ReferenceTransactionExecutor` —— 罐头收据。
+  - *目标:* `ApplicationEngineTransactionExecutor` —— 真正跑 Neo VM。
+- **`IL2BatchExecutor`**
+  - *当下:* `ReferenceBatchExecutor` —— 占位的 post-state 根。
+  - *目标:* `MerkleStateBatchExecutor` —— 真正的密码学状态根。
 
 两个接口都已经存在;两个都已有进程内 devnet 级别的 `Reference*` 实现。本计划要把
 每一个变成真正的生产版本。

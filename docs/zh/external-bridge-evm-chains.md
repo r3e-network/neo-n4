@@ -188,24 +188,33 @@ watcher 把事件中继给 Neo 的 `ExternalBridgeEscrow.Receive`;接收方在 N
 `0xE0_00_FF_FF` 以下的 24 位外链 id 空间按 16 槽位家族 bank 组织。每个 bank 给该
 家族的主网 + 1–3 个测试网 + 未来变体留余量:
 
-| 槽位区间             | 家族               | 常量                                                          |
-|----------------------|--------------------|---------------------------------------------------------------|
-| `0xE000_0001..000F`  | Ethereum           | `ETH_MAINNET`、`ETH_SEPOLIA`、`ETH_HOLESKY`                   |
-| `0xE000_0010..001F`  | Tron               | `TRON_MAINNET`、`TRON_NILE_TESTNET`、`TRON_SHASTA_TESTNET`    |
-| `0xE000_0020..002F`  | Solana             | `SOLANA_MAINNET`、`SOLANA_DEVNET`、`SOLANA_TESTNET`           |
-| `0xE000_0030..003F`  | BSC                | `BSC_MAINNET`、`BSC_TESTNET`                                  |
-| `0xE000_0040..004F`  | Polygon            | `POLYGON_MAINNET`、`POLYGON_AMOY_TESTNET`、`POLYGON_ZKEVM`、`POLYGON_ZKEVM_CARDONA` |
-| `0xE000_0050..005F`  | Arbitrum           | `ARBITRUM_ONE`、`ARBITRUM_SEPOLIA`、`ARBITRUM_NOVA`           |
-| `0xE000_0060..006F`  | Optimism           | `OPTIMISM_MAINNET`、`OPTIMISM_SEPOLIA`                        |
-| `0xE000_0070..007F`  | Base               | `BASE_MAINNET`、`BASE_SEPOLIA`                                |
-| `0xE000_0080..008F`  | Avalanche          | `AVALANCHE_C_MAINNET`、`AVALANCHE_FUJI`                       |
-| `0xE000_0090..009F`  | Linea              | `LINEA_MAINNET`、`LINEA_SEPOLIA`                              |
-| `0xE000_00A0..00AF`  | zkSync Era         | `ZKSYNC_ERA_MAINNET`、`ZKSYNC_SEPOLIA`                        |
-| `0xE000_00B0..00BF`  | Scroll             | `SCROLL_MAINNET`、`SCROLL_SEPOLIA`                            |
-| `0xE000_00C0..00CF`  | Mantle             | `MANTLE_MAINNET`、`MANTLE_SEPOLIA`                            |
-| `0xE000_00D0..00DF`  | Fantom / Sonic     | `FANTOM_OPERA`、`SONIC_MAINNET`                               |
-| `0xE000_00E0..00EF`  | Celo               | `CELO_MAINNET`、`CELO_ALFAJORES`                              |
-| `0xE000_00F0..00FF`  | 保留               | 未使用(未来分配)                                            |
+- **`0xE000_0001..000F`** —— Ethereum:`ETH_MAINNET`、`ETH_SEPOLIA`、
+  `ETH_HOLESKY`。
+- **`0xE000_0010..001F`** —— Tron:`TRON_MAINNET`、
+  `TRON_NILE_TESTNET`、`TRON_SHASTA_TESTNET`。
+- **`0xE000_0020..002F`** —— Solana:`SOLANA_MAINNET`、`SOLANA_DEVNET`、
+  `SOLANA_TESTNET`。
+- **`0xE000_0030..003F`** —— BSC:`BSC_MAINNET`、`BSC_TESTNET`。
+- **`0xE000_0040..004F`** —— Polygon:`POLYGON_MAINNET`、
+  `POLYGON_AMOY_TESTNET`、`POLYGON_ZKEVM`、`POLYGON_ZKEVM_CARDONA`。
+- **`0xE000_0050..005F`** —— Arbitrum:`ARBITRUM_ONE`、
+  `ARBITRUM_SEPOLIA`、`ARBITRUM_NOVA`。
+- **`0xE000_0060..006F`** —— Optimism:`OPTIMISM_MAINNET`、
+  `OPTIMISM_SEPOLIA`。
+- **`0xE000_0070..007F`** —— Base:`BASE_MAINNET`、`BASE_SEPOLIA`。
+- **`0xE000_0080..008F`** —— Avalanche:`AVALANCHE_C_MAINNET`、
+  `AVALANCHE_FUJI`。
+- **`0xE000_0090..009F`** —— Linea:`LINEA_MAINNET`、`LINEA_SEPOLIA`。
+- **`0xE000_00A0..00AF`** —— zkSync Era:`ZKSYNC_ERA_MAINNET`、
+  `ZKSYNC_SEPOLIA`。
+- **`0xE000_00B0..00BF`** —— Scroll:`SCROLL_MAINNET`、
+  `SCROLL_SEPOLIA`。
+- **`0xE000_00C0..00CF`** —— Mantle:`MANTLE_MAINNET`、
+  `MANTLE_SEPOLIA`。
+- **`0xE000_00D0..00DF`** —— Fantom / Sonic:`FANTOM_OPERA`、
+  `SONIC_MAINNET`。
+- **`0xE000_00E0..00EF`** —— Celo:`CELO_MAINNET`、`CELO_ALFAJORES`。
+- **`0xE000_00F0..00FF`** —— 保留:未使用(未来分配)。
 
 超出此精选集合的链,在 `..F0..FF` 槽里取下一个空闲槽,或在 `0xE000_00FF` 之上的下
 一个空闲 16 槽位 bank 中安排。提 PR 加常量 + 一个 `name_for_chain_id` 分支。

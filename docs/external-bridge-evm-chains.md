@@ -209,24 +209,31 @@ The 24-bit foreign chain id space below `0xE0_00_FF_FF` is organized
 into 16-slot family banks. Each bank reserves room for that family's
 mainnet + 1–3 testnets + future variants:
 
-| Slot range           | Family             | Constants                                                    |
-|----------------------|--------------------|--------------------------------------------------------------|
-| `0xE000_0001..000F`  | Ethereum           | `ETH_MAINNET`, `ETH_SEPOLIA`, `ETH_HOLESKY`                  |
-| `0xE000_0010..001F`  | Tron               | `TRON_MAINNET`, `TRON_NILE_TESTNET`, `TRON_SHASTA_TESTNET`   |
-| `0xE000_0020..002F`  | Solana             | `SOLANA_MAINNET`, `SOLANA_DEVNET`, `SOLANA_TESTNET`          |
-| `0xE000_0030..003F`  | BSC                | `BSC_MAINNET`, `BSC_TESTNET`                                 |
-| `0xE000_0040..004F`  | Polygon            | `POLYGON_MAINNET`, `POLYGON_AMOY_TESTNET`, `POLYGON_ZKEVM`, `POLYGON_ZKEVM_CARDONA` |
-| `0xE000_0050..005F`  | Arbitrum           | `ARBITRUM_ONE`, `ARBITRUM_SEPOLIA`, `ARBITRUM_NOVA`          |
-| `0xE000_0060..006F`  | Optimism           | `OPTIMISM_MAINNET`, `OPTIMISM_SEPOLIA`                       |
-| `0xE000_0070..007F`  | Base               | `BASE_MAINNET`, `BASE_SEPOLIA`                               |
-| `0xE000_0080..008F`  | Avalanche          | `AVALANCHE_C_MAINNET`, `AVALANCHE_FUJI`                      |
-| `0xE000_0090..009F`  | Linea              | `LINEA_MAINNET`, `LINEA_SEPOLIA`                             |
-| `0xE000_00A0..00AF`  | zkSync Era         | `ZKSYNC_ERA_MAINNET`, `ZKSYNC_SEPOLIA`                       |
-| `0xE000_00B0..00BF`  | Scroll             | `SCROLL_MAINNET`, `SCROLL_SEPOLIA`                           |
-| `0xE000_00C0..00CF`  | Mantle             | `MANTLE_MAINNET`, `MANTLE_SEPOLIA`                           |
-| `0xE000_00D0..00DF`  | Fantom / Sonic     | `FANTOM_OPERA`, `SONIC_MAINNET`                              |
-| `0xE000_00E0..00EF`  | Celo               | `CELO_MAINNET`, `CELO_ALFAJORES`                             |
-| `0xE000_00F0..00FF`  | reserved           | unused (future allocations)                                  |
+- **`0xE000_0001..000F`** — Ethereum: `ETH_MAINNET`, `ETH_SEPOLIA`,
+  `ETH_HOLESKY`.
+- **`0xE000_0010..001F`** — Tron: `TRON_MAINNET`, `TRON_NILE_TESTNET`,
+  `TRON_SHASTA_TESTNET`.
+- **`0xE000_0020..002F`** — Solana: `SOLANA_MAINNET`, `SOLANA_DEVNET`,
+  `SOLANA_TESTNET`.
+- **`0xE000_0030..003F`** — BSC: `BSC_MAINNET`, `BSC_TESTNET`.
+- **`0xE000_0040..004F`** — Polygon: `POLYGON_MAINNET`,
+  `POLYGON_AMOY_TESTNET`, `POLYGON_ZKEVM`, `POLYGON_ZKEVM_CARDONA`.
+- **`0xE000_0050..005F`** — Arbitrum: `ARBITRUM_ONE`,
+  `ARBITRUM_SEPOLIA`, `ARBITRUM_NOVA`.
+- **`0xE000_0060..006F`** — Optimism: `OPTIMISM_MAINNET`,
+  `OPTIMISM_SEPOLIA`.
+- **`0xE000_0070..007F`** — Base: `BASE_MAINNET`, `BASE_SEPOLIA`.
+- **`0xE000_0080..008F`** — Avalanche: `AVALANCHE_C_MAINNET`,
+  `AVALANCHE_FUJI`.
+- **`0xE000_0090..009F`** — Linea: `LINEA_MAINNET`, `LINEA_SEPOLIA`.
+- **`0xE000_00A0..00AF`** — zkSync Era: `ZKSYNC_ERA_MAINNET`,
+  `ZKSYNC_SEPOLIA`.
+- **`0xE000_00B0..00BF`** — Scroll: `SCROLL_MAINNET`, `SCROLL_SEPOLIA`.
+- **`0xE000_00C0..00CF`** — Mantle: `MANTLE_MAINNET`, `MANTLE_SEPOLIA`.
+- **`0xE000_00D0..00DF`** — Fantom / Sonic: `FANTOM_OPERA`,
+  `SONIC_MAINNET`.
+- **`0xE000_00E0..00EF`** — Celo: `CELO_MAINNET`, `CELO_ALFAJORES`.
+- **`0xE000_00F0..00FF`** — reserved: unused (future allocations).
 
 For chains beyond this curated set, allocate the next free `..F0..FF`
 slot or the next free 16-slot bank above `0xE000_00FF`. Submit a PR

@@ -4,7 +4,7 @@ subtitle: "A multi-L2 network on Neo 4 core --- shared bridge, proof aggregation
 author:
   - "neo-n4 contributors"
 date: \today
-documentclass: book
+documentclass: report
 classoption:
   - 11pt
   - openany
@@ -32,7 +32,6 @@ listings: false
 highlight-style: tango
 header-includes:
   - \usepackage{fancyhdr}
-  - \usepackage{microtype}
   - \usepackage{graphicx}
   - \usepackage{caption}
   - \usepackage{booktabs}

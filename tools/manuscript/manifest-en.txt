@@ -9,7 +9,7 @@
 ! Front matter
 docs/README.md
 
-! Part I — Architecture
+! Architecture
 docs/architecture-atlas.md
 docs/architecture-walkthrough.md
 docs/architecture-l2-lifecycle.md
@@ -19,7 +19,7 @@ docs/architecture-trust-boundaries.md
 docs/architecture-glossary.md
 docs/tech-stack-coverage.md
 
-! Part II — Operator Guide
+! Operator Guide
 docs/getting-started.md
 docs/launching-an-l2.md
 docs/persistence.md
@@ -27,10 +27,10 @@ docs/telemetry.md
 docs/security-model.md
 docs/wallet-integration.md
 
-! Part III — External Bridge
+! External Bridge
 docs/external-bridge-roadmap.md
 docs/external-bridge-evm-chains.md
 
-! Part IV — Implementation Plans
+! Implementation Plans
 docs/spec-gap-plan.md
 docs/plan-application-engine-and-mpt.md

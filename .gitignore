@@ -34,3 +34,6 @@ coverage/
 *.log
 # mdBook generated static site (CI builds + deploys; not checked in).
 book/
+
+# Manuscript build artifacts (tools/manuscript/build.sh)
+build/

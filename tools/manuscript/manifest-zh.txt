@@ -8,7 +8,7 @@
 ! 前言
 docs/zh/README.md
 
-! 第一部分 —— 架构
+! 架构
 docs/zh/architecture-atlas.md
 docs/zh/architecture-walkthrough.md
 docs/zh/architecture-l2-lifecycle.md
@@ -18,7 +18,7 @@ docs/zh/architecture-trust-boundaries.md
 docs/zh/architecture-glossary.md
 docs/zh/tech-stack-coverage.md
 
-! 第二部分 —— 运维指南
+! 运维指南
 docs/zh/getting-started.md
 docs/zh/launching-an-l2.md
 docs/zh/persistence.md
@@ -26,10 +26,10 @@ docs/zh/telemetry.md
 docs/zh/security-model.md
 docs/zh/wallet-integration.md
 
-! 第三部分 —— 外链桥
+! 外链桥
 docs/zh/external-bridge-roadmap.md
 docs/zh/external-bridge-evm-chains.md
 
-! 第四部分 —— 实现计划
+! 实现计划
 docs/zh/spec-gap-plan.md
 docs/zh/plan-application-engine-and-mpt.md

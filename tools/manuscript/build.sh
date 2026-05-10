@@ -211,7 +211,7 @@ PY
   "$PANDOC" \
     "$metadata" \
     "$out_md" \
-    --from=markdown+pipe_tables+yaml_metadata_block+raw_tex+raw_html \
+    --from=markdown+pipe_tables+yaml_metadata_block+raw_tex+raw_html+gfm_auto_identifiers \
     --pdf-engine=xelatex \
     --resource-path="$fig_dir:$ROOT:$ROOT/docs:$ROOT/docs/zh" \
     --top-level-division=chapter \

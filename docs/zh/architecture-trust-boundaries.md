@@ -128,14 +128,12 @@
 
 每条跨层流动里,多个检查独立运行。单个作恶角色无法绕过全部检查:
 
-| 流动                       | 检查 1                                                     | 检查 2                                                  | 检查 3                                                    |
-|----------------------------|-----------------------------------------------------------|--------------------------------------------------------|----------------------------------------------------------|
-| L2 批次结算                 | `proofType` 在已定义枚举范围                              | `proof.length` ≤ 1 MiB                                  | `publicInputHash` 由链上承诺字段重算,与证明声称的一致     |
-| L1→L2 充值                  | `SharedBridge.Deposit` 要求资产已锁 + msg.value 匹配         | L2 批处理器重算规范消息哈希;不匹配则拒绝               | `L2NativeBridge` 校验消息中的 L2 chainId 与自己的一致      |
-| L2→L1 提款                  | 提款叶子在批次 `withdrawalRoot` 中                          | Merkle 证明哈希到 `withdrawalRoot`                      | `consumedWithdrawals[leafHash]` 已置;重放被拒              |
-| 跨 L2 消息                  | 源 L2 产出规范字节;`MessageRouter` 重算哈希                | 目标 L2 批处理器从线协议字节重算哈希                    | `consumedInboundMessages[srcChain][nonce]` 已置             |
-| 外链充值                    | watcher 在线下签规范字节                                   | M-of-N 委员会阈值在链上检查                             | `consumedInbound[chainId][nonce]` 已置;重放被拒            |
-| 外链提款                    | L2 把提款请求批入                                          | 委员会联签规范字节                                      | 外链 router 在字节上的 `ecrecover`(Eth)/ `verify_ed25519`(Solana) |
+- **L2 批次结算** — `proofType` 在已定义枚举范围 — `proof.length` ≤ 1 MiB — `publicInputHash` 由链上承诺字段重算,与证明声称的一致
+- **L1→L2 充值** — `SharedBridge.Deposit` 要求资产已锁 + msg.value 匹配 — L2 批处理器重算规范消息哈希;不匹配则拒绝 — `L2NativeBridge` 校验消息中的 L2 chainId 与自己的一致
+- **L2→L1 提款** — 提款叶子在批次 `withdrawalRoot` 中 — Merkle 证明哈希到 `withdrawalRoot` — `consumedWithdrawals[leafHash]` 已置;重放被拒
+- **跨 L2 消息** — 源 L2 产出规范字节;`MessageRouter` 重算哈希 — 目标 L2 批处理器从线协议字节重算哈希 — `consumedInboundMessages[srcChain][nonce]` 已置
+- **外链充值** — watcher 在线下签规范字节 — M-of-N 委员会阈值在链上检查 — `consumedInbound[chainId][nonce]` 已置;重放被拒
+- **外链提款** — L2 把提款请求批入 — 委员会联签规范字节 — 外链 router 在字节上的 `ecrecover`(Eth)/ `verify_ed25519`(Solana)
 
 每条检查相互独立 —— 一处的 bug 或被攻陷不会绕过其它的。(例如:如果证明者声称的
 `publicInputHash` 与链上承诺漂移,即使该证明对**别的** public-input 合法,验证器也
@@ -157,14 +155,12 @@
 
 ### 密码学 / 跨层故障
 
-| 故障                                | 在哪儿被检测                                  | 表现                                                |
-|-------------------------------------|-----------------------------------------------|------------------------------------------------------|
-| 证明被篡改                          | `VerifierRegistry.Verify`                     | `BatchRejected: invalid proof`                       |
-| `publicInputHash` 不匹配             | `SettlementManager`(从承诺重算)              | `BatchRejected: public-input mismatch`               |
-| 提款 Merkle 证明错                   | `SharedBridge.VerifyWithdrawalLeafWithProof`  | `WithdrawalRejected: bad merkle path`                |
-| 外链委员会阈值未达                   | `MpcCommitteeVerifier.VerifyInboundMessage`   | `Committee threshold not met (got M-1, need M)`      |
-| 外链 chainId 越界命名空间             | `ExternalBridgeEscrow.Receive`                | `Reject: externalChainId not in 0xE0_xx_xx_xx`       |
-| 重放尝试(deposit/withdrawal/message)| 按 (chainId, nonce) 的重放保护 map         | `Reject: nonce already consumed`                    |
+- **证明被篡改** — `VerifierRegistry.Verify` — `BatchRejected: invalid proof`
+- **`publicInputHash` 不匹配** — `SettlementManager`(从承诺重算) — `BatchRejected: public-input mismatch`
+- **提款 Merkle 证明错** — `SharedBridge.VerifyWithdrawalLeafWithProof` — `WithdrawalRejected: bad merkle path`
+- **外链委员会阈值未达** — `MpcCommitteeVerifier.VerifyInboundMessage` — `Committee threshold not met (got M-1, need M)`
+- **外链 chainId 越界命名空间** — `ExternalBridgeEscrow.Receive` — `Reject: externalChainId not in 0xE0_xx_xx_xx`
+- **重放尝试(deposit/withdrawal/message)** — 按 (chainId, nonce) 的重放保护 map — `Reject: nonce already consumed`
 
 ### 框架**无法**检测的事
 

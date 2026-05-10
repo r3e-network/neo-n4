@@ -93,6 +93,10 @@ routing, and governance must be unified.**
 NeoHub is the L1 contract suite shared by every L2. Conceptually it combines ZKsync's
 BridgeHub, SharedBridge, VerifierRegistry, and MessageRouter into one suite. The 15 contracts:
 
+<p align="center">
+  <img src="docs/figures/architecture/neohub-anatomy.svg" alt="NeoHub L1 anatomy: 15 contracts grouped by concern — Settlement (SettlementManager + VerifierRegistry), Bridge (SharedBridge + TokenRegistry + ChainRegistry), Messaging (MessageRouter + DARegistry), Security (SequencerRegistry + SequencerBond + ForcedInclusion + OptimisticChallenge), Governance + Emergency (GovernanceController + EmergencyManager), plus the two reference fraud verifiers (GovernanceFraudVerifier + RestrictedExecutionFraudVerifier)" width="900">
+</p>
+
 - **`ChainRegistry`** — Register / configure / pause L2 chains. Each entry:
   `{chainId, operatorManager, verifier, bridgeAdapter, messageAdapter,
   securityLevel(0–3), daMode(0–3), gatewayEnabled, permissionlessExit,
@@ -144,6 +148,18 @@ existing contracts.
 ## 4. L2 chain internals
 
 Each L2 chain runs Neo 4 core plus a plugin suite and a small set of on-L2 native contracts.
+
+<p align="center">
+  <img src="docs/figures/architecture/l2-components.svg" alt="L2 chain components — Neo 4 core (bottom) + 8 L2 plugins (middle) + 7 L2 native contracts (top)" width="900">
+</p>
+
+A transaction's life on an L2 chain — from user submission, through dBFT
+sequencing, batch execution, sealing, proving, L1 submission, and L1 finalization
+— follows a 9-stage pipeline:
+
+<p align="center">
+  <img src="docs/figures/tx-lifecycle.svg" alt="Transaction lifecycle on a Neo L2 chain: 9 stages from user submission to L1 finality and eventual withdrawal claim" width="900">
+</p>
 
 ### 4.1 Plugins (`Neo.Plugins.L2*`)
 
@@ -241,6 +257,14 @@ are rejected with `ArgumentException` upstream of the per-check pipeline.
 
 ## 5. Proof system
 
+The settlement hot path — from L2 batch execution through proof generation,
+L1 submission, and on-chain verification — is the canonical dataflow that
+binds a chain's L2 state to its L1 trust roots:
+
+<p align="center">
+  <img src="docs/figures/architecture/settlement-sequence.svg" alt="Settlement hot-path sequence — 5 actors (L2 Blockchain, L2BatchPlugin, BatchSealer, prover daemon, SettlementManager). Block.Committed → tx batch + post-state-root → BatchSealer constructs canonical BatchCommitment → BatchPayload to prover daemon → SP1 zkVM proves execute_batch → validity_proof + vk back → SubmitBatch to SettlementManager → VerifierRegistry.Verify dispatch → SettlementAccepted event" width="900">
+</p>
+
 ### 5.1 What gets proved
 
 Proof targets are **not** the C# node binary. They are the deterministic L2 state-transition
@@ -308,6 +332,10 @@ This is invariant across chains: there is no per-L2 fork of the asset model.
 
 Three flows, all routed through the same `MessageRouter` + `(chainId, nonce)` replay-protected envelope:
 
+<p align="center">
+  <img src="docs/figures/architecture/cross-l2-messaging-sequence.svg" alt="Cross-L2 messaging sequence — source L2 emits via L2MessageContract, batch is finalized on NeoHub or Gateway, globalMessageRoot updates, relayer submits inclusion proof to target L2, target L2 native contract executes the message" width="900">
+</p>
+
 ### 7.1 L1 → L2
 
 ```
@@ -349,6 +377,10 @@ sign-flow. Detailed in `doc.md` §10.4.
 
 Three tiers, on-chain labeled in `ChainRegistry.daMode`:
 
+<p align="center">
+  <img src="docs/figures/architecture/cross-tier-verification.svg" alt="Cross-tier verification chain — how data flows and is verified across L2 execution, sealing, DA layer, and L1 settlement, with the verification step at each tier boundary" width="900">
+</p>
+
 | DA mode      | Cost   | Security                                   | Recommended for                       |
 | ------------ | ------ | ------------------------------------------ | ------------------------------------- |
 | `L1`         | high   | inherits L1 (Neo N3 / Neo 4)               | RWA, stablecoin, high-value DeFi      |
@@ -369,6 +401,10 @@ implementation gets injected at plugin-configure time.
 
 Phase 5 introduces an optional aggregation layer mirroring ZKsync Gateway. The Gateway:
 
+<p align="center">
+  <img src="docs/figures/proof-aggregation.svg" alt="Multi-L2 proof aggregation — N L2 batch commitments reduced through log(N) pairwise rounds by the Neo Gateway's BinaryTreeAggregator. Each round invokes a pluggable IRoundProver.Combine. The single root commitment is then submitted to L1 SettlementManager in one call." width="900">
+</p>
+
 - Collects `L2BatchCommitment` plus proof from multiple L2 chains.
 - Aggregates them via `BinaryTreeAggregator` over `IRoundProver`-implemented combine
   rounds (log-N rounds; default `PassThroughRoundProver` is a hash combiner; production
@@ -384,6 +420,10 @@ NeoHub.SharedBridge throughout; the Gateway moves only proofs and message roots.
 ## 10. Censorship resistance & forced inclusion
 
 Sequencer censorship is the canonical L2 attack. Three layered defenses:
+
+<p align="center">
+  <img src="docs/figures/forced-inclusion.svg" alt="Forced inclusion + censorship slashing sequence — user posts forced tx on L1, L2 batcher polls and drains pending entries, sequencer censors past deadline, CensorshipDetector observes overdue, operator submits ReportCensorship, SequencerBond slashes responsible sequencer's bond and pays the reporter" width="900">
+</p>
 
 1. **Forced inclusion queue** (`NeoHub.ForcedInclusion`, `Neo.L2.ForcedInclusion`,
    `Neo.L2.Censorship`). A user can post a tx directly to L1 and assert a deadline. The
@@ -452,6 +492,15 @@ from network failures.
 ---
 
 ## 13. Phased rollout
+
+Each phase shifts a chain's *security label* one rung up the trust ladder
+— from sequencer-trusted sidechain through optimistic rollup to ZK
+validity. The L1 contracts and L2 plugin set are stable across phases;
+the *verifier* changes:
+
+<p align="center">
+  <img src="docs/figures/trust-spectrum.svg" alt="Per-chain security spectrum (ChainRegistry.securityLevel) — 4-position trust gradient from sidechain (full sequencer trust) through settled L2 (DA + state roots) and optimistic rollup (fraud-proof challenge window) to ZK validity (cryptographic finality)" width="900">
+</p>
 
 Per `doc.md` §18:
 

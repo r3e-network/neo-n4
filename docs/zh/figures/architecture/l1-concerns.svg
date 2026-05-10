@@ -10,7 +10,7 @@
       .header     { font-size: 14.5px; font-weight: 700; }
       .grp-t      { font-size: 13.5px; font-weight: 700; letter-spacing: 0.3px; }
       .grp-s      { font-size: 11px; fill: #525a64; font-style: italic; }
-      .ctr-name   { font-size: 11px; font-weight: 600; fill: #1e2a55; font-family: ui-monospace, 'SF Mono', monospace; }
+      .ctr-name   { font-size: 11px; font-weight: 600; fill: #1e2a55; font-family: 'Noto Sans Mono CJK SC', ui-monospace, 'SF Mono',monospace; }
       .ctr-desc   { font-size: 10.5px; fill: #2d3a48; }
       .why-t      { font-size: 10.5px; font-weight: 700; fill: #c4413e; }
       .why-s      { font-size: 10.5px; fill: #2d3a48; }

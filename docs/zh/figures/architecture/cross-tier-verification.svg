@@ -15,7 +15,7 @@
       .step-t     { font-size: 11.5px; fill: #2d3a48; }
       .actor-t    { font-size: 12.5px; font-weight: 700; }
       .actor-s    { font-size: 11px; fill: #2d3a48; }
-      .bytes-t    { font-size: 11.5px; font-weight: 700; fill: #1e2a55; font-family: ui-monospace, 'SF Mono', monospace; }
+      .bytes-t    { font-size: 11.5px; font-weight: 700; fill: #1e2a55; font-family: 'Noto Sans Mono CJK SC', ui-monospace, 'SF Mono',monospace; }
       .bytes-s    { font-size: 10.5px; fill: #525a64; font-style: italic; }
       .trust-t    { font-size: 11px; font-weight: 700; }
       .trust-s    { font-size: 10.5px; fill: #525a64; font-style: italic; }

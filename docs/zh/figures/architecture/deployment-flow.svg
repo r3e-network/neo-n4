@@ -16,7 +16,7 @@
       .step-cad   { font-size: 11px; fill: #525a64; font-style: italic; }
       .body       { font-size: 11.5px; fill: #2d3a48; }
       .caption    { font-size: 11px; fill: #525a64; }
-      .cli        { font-size: 10.5px; fill: #1e2a55; font-family: ui-monospace, 'SF Mono', monospace; }
+      .cli        { font-size: 10.5px; fill: #1e2a55; font-family: 'Noto Sans Mono CJK SC', ui-monospace, 'SF Mono',monospace; }
     </style>
   </defs>
 

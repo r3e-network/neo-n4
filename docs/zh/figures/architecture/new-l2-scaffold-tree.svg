@@ -8,9 +8,9 @@
     </filter>
     <style>
       .header     { font-size: 14.5px; font-weight: 700; }
-      .root       { font-size: 14px; font-weight: 700; fill: #1e2a55; font-family: ui-monospace, 'SF Mono', monospace; }
-      .dir        { font-size: 12.5px; font-weight: 700; fill: #1e2a55; font-family: ui-monospace, 'SF Mono', monospace; }
-      .file       { font-size: 12px; fill: #2d3a48; font-family: ui-monospace, 'SF Mono', monospace; }
+      .root       { font-size: 14px; font-weight: 700; fill: #1e2a55; font-family: 'Noto Sans Mono CJK SC', ui-monospace, 'SF Mono',monospace; }
+      .dir        { font-size: 12.5px; font-weight: 700; fill: #1e2a55; font-family: 'Noto Sans Mono CJK SC', ui-monospace, 'SF Mono',monospace; }
+      .file       { font-size: 12px; fill: #2d3a48; font-family: 'Noto Sans Mono CJK SC', ui-monospace, 'SF Mono',monospace; }
       .annot      { font-size: 11px; fill: #525a64; font-style: italic; }
       .opt        { font-size: 11px; fill: #c4413e; font-weight: 700; font-style: italic; }
       .branch     { stroke: #cfd5dd; stroke-width: 1.2; }

@@ -12,9 +12,9 @@
     <style>
       .header     { font-size: 14.5px; font-weight: 700; }
       .actor-t    { font-size: 12px; font-weight: 700; }
-      .call       { font-size: 12px; font-weight: 700; fill: #1e2a55; font-family: ui-monospace, 'SF Mono', monospace; }
+      .call       { font-size: 12px; font-weight: 700; fill: #1e2a55; font-family: 'Noto Sans Mono CJK SC', ui-monospace, 'SF Mono',monospace; }
       .effect-t   { font-size: 11.5px; font-weight: 700; }
-      .effect-d   { font-size: 11px; fill: #2d3a48; font-family: ui-monospace, 'SF Mono', monospace; }
+      .effect-d   { font-size: 11px; fill: #2d3a48; font-family: 'Noto Sans Mono CJK SC', ui-monospace, 'SF Mono',monospace; }
       .ftr        { font-size: 11px; fill: #525a64; font-style: italic; }
     </style>
   </defs>

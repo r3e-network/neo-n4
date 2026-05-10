@@ -62,18 +62,29 @@
 
 ## 仓里有什么
 
-| 区域              | 数量        | 说明                                                                      |
-| ----------------- | ----------- | ------------------------------------------------------------------------- |
-| 链下库             | **16**     | `Neo.L2.{Abstractions,Audit,Batch,Bridge,Censorship,Challenge,Executor,Executor.RiscV,ForcedInclusion,Messaging,Persistence,Proving,Sequencer,Settlement.Rpc,State,Telemetry}`(App SDK 在 `Neo.L2.Sdk`,单独计入下文 App SDK 行) |
-| 持久化后备         | **2**      | `InMemoryKeyValueStore`(测试)· `RocksDbKeyValueStore`(生产默认)—— 见 [`persistence.md`](./persistence.md) |
-| 节点插件          | **8**       | `Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}`   |
-| 智能合约          | **28**      | 21 个 NeoHub L1 + 7 个 L2 原生(均经 `Neo.SmartContract.Framework` 类型检查) |
-| CLI 工具          | **6**       | `neo-stack`、`neo-l2-devnet`、`neo-hub-deploy`、`neo-l2-explore`、`neo-bridge`、`neo-l2-faucet` |
-| 应用 SDK          | **3**       | `src/Neo.L2.Sdk/`(.NET)· `sdk/typescript/`(`@neo-n4/sdk`)· `sdk/rust/`(`neo-n4-sdk`) |
-| Web 应用          | **1**       | `sdk/web-explorer/index.html` —— 单文件静态 UI:Explore + Bridge + Faucet + Audit |
-| Rust 证明者        | **2**      | `bridge/neo-zkvm-host/`(sp1-sdk 6.0 证明者 + `prove-batch daemon`)· `bridge/neo-zkvm-guest/`(被证明的函数) |
-| Submodule         | **4**       | `external/neo`、`external/neo-devpack-dotnet`、`external/neo-riscv-vm`、`external/neo-zkvm` |
-| 测试              | **1362 .NET + 33 跨语言** | 33 个 .NET 工程的 1362 条测试;15 TS + 10 Rust SDK + 8 SP1 guest —— 全绿 |
+- **链下库(16)** —— `Neo.L2.{Abstractions, Audit, Batch, Bridge,
+  Censorship, Challenge, Executor, Executor.RiscV, ForcedInclusion,
+  Messaging, Persistence, Proving, Sequencer, Settlement.Rpc, State,
+  Telemetry}`(App SDK 在 `Neo.L2.Sdk`,单独计入下文 App SDK 行)。
+- **持久化后备(2)** —— `InMemoryKeyValueStore`(测试)·
+  `RocksDbKeyValueStore`(生产默认)—— 见
+  [`persistence.md`](./persistence.md)。
+- **节点插件(8)** —— `Neo.Plugins.L2{Batch, Bridge, DA, Gateway,
+  Metrics, Prover, Rpc, Settlement}`。
+- **智能合约(28)** —— 21 个 NeoHub L1 + 7 个 L2 原生(均经
+  `Neo.SmartContract.Framework` 类型检查)。
+- **CLI 工具(6)** —— `neo-stack`、`neo-l2-devnet`、`neo-hub-deploy`、
+  `neo-l2-explore`、`neo-bridge`、`neo-l2-faucet`。
+- **应用 SDK(3)** —— `src/Neo.L2.Sdk/`(.NET)· `sdk/typescript/`
+  (`@neo-n4/sdk`)· `sdk/rust/`(`neo-n4-sdk`)。
+- **Web 应用(1)** —— `sdk/web-explorer/index.html` —— 单文件静态 UI:
+  Explore + Bridge + Faucet + Audit。
+- **Rust 证明者(2)** —— `bridge/neo-zkvm-host/`(sp1-sdk 6.0 证明者 +
+  `prove-batch daemon`)· `bridge/neo-zkvm-guest/`(被证明的函数)。
+- **Submodule(4)** —— `external/neo`、`external/neo-devpack-dotnet`、
+  `external/neo-riscv-vm`、`external/neo-zkvm`。
+- **测试(1362 .NET + 33 跨语言)** —— 33 个 .NET 工程的 1362 条测试;
+  15 TS + 10 Rust SDK + 8 SP1 guest —— 全绿。
 
 ---
 

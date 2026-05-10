@@ -69,19 +69,43 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
 
 ## What's in the repo
 
-| Area              | Count     | Description                                                              |
-| ----------------- | --------- | ------------------------------------------------------------------------ |
-| Off-chain libraries | **16**  | `Neo.L2.{Abstractions,Audit,Batch,Bridge,Censorship,Challenge,Executor,Executor.RiscV,ForcedInclusion,Messaging,Persistence,Proving,Sequencer,Settlement.Rpc,State,Telemetry}` (App SDK in `Neo.L2.Sdk` counted separately under App SDKs) |
-| Persistence backends | **2**  | `InMemoryKeyValueStore` (tests) · `RocksDbKeyValueStore` (production default) — see [`docs/persistence.md`](./persistence.md) |
-| Node plugins      | **8**     | `Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}`  |
-| Smart contracts   | **28**    | 21 NeoHub L1 (incl. `GovernanceFraudVerifier`, `RestrictedExecutionFraudVerifier` v3 trustless verifier, and the 6 cross-foreign-chain bridge contracts: `MpcCommitteeVerifier` / `ExternalBridgeRegistry` / `ExternalBridgeEscrow` / `ExternalBridgeBond` / `ExternalBridgeStubVerifier` / `MpcCommitteeFraudVerifier`) + 7 L2 native (incl. `L2NativeExternalBridgeContract`); all type-check via `Neo.SmartContract.Framework` |
-| CLI tools         | **7**     | `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`, `neo-l2-explore`, `neo-bridge`, `neo-l2-faucet`, `neo-external-bridge` |
-| App SDKs          | **3**     | `src/Neo.L2.Sdk/` (.NET) · `sdk/typescript/` (`@neo-n4/sdk`) · `sdk/rust/` (`neo-n4-sdk`) — all 10 RPC methods, same wire shape, same 4-class error taxonomy |
-| Web app           | **1**     | `sdk/web-explorer/index.html` — single static-file UI: Explore + Bridge + Faucet + state-root continuity Audit |
-| Docs site config  | **1**     | `book.toml` + `docs/SUMMARY.md` (mdBook) |
-| Rust prover       | **2**     | `bridge/neo-zkvm-host/` (sp1-sdk 6.0 prover + `prove-batch daemon`) · `bridge/neo-zkvm-guest/` (the function being proved — RISC-V ELF, real Neo N3 VM via `neo_vm_guest::execute`) |
-| Submodules        | **4**     | `external/neo` (Neo 4 core) · `external/neo-devpack-dotnet` (smart-contract devpack + nccs) · `external/neo-riscv-vm` (PolkaVM-backed Neo RISC-V engine) · `external/neo-zkvm` (Neo VM in pure Rust + SP1 prover crates). None are released on NuGet/crates.io for the versions tracked here. |
-| Tests             | **1362 .NET + 33 cross-lang** | 1362 across 33 .NET projects; 15 TypeScript (vitest) + 10 Rust SDK (mockito) + 8 SP1 guest (host) — all green |
+- **Off-chain libraries (16)** — `Neo.L2.{Abstractions, Audit, Batch,
+  Bridge, Censorship, Challenge, Executor, Executor.RiscV,
+  ForcedInclusion, Messaging, Persistence, Proving, Sequencer,
+  Settlement.Rpc, State, Telemetry}`. App SDK in `Neo.L2.Sdk` counted
+  separately under App SDKs.
+- **Persistence backends (2)** — `InMemoryKeyValueStore` (tests) ·
+  `RocksDbKeyValueStore` (production default) — see
+  [`docs/persistence.md`](./persistence.md).
+- **Node plugins (8)** — `Neo.Plugins.L2{Batch, Bridge, DA, Gateway,
+  Metrics, Prover, Rpc, Settlement}`.
+- **Smart contracts (28)** — 21 NeoHub L1 (incl. `GovernanceFraudVerifier`,
+  `RestrictedExecutionFraudVerifier` v3 trustless verifier, and the 6
+  cross-foreign-chain bridge contracts: `MpcCommitteeVerifier` /
+  `ExternalBridgeRegistry` / `ExternalBridgeEscrow` /
+  `ExternalBridgeBond` / `ExternalBridgeStubVerifier` /
+  `MpcCommitteeFraudVerifier`) + 7 L2 native (incl.
+  `L2NativeExternalBridgeContract`); all type-check via
+  `Neo.SmartContract.Framework`.
+- **CLI tools (7)** — `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`,
+  `neo-l2-explore`, `neo-bridge`, `neo-l2-faucet`, `neo-external-bridge`.
+- **App SDKs (3)** — `src/Neo.L2.Sdk/` (.NET) · `sdk/typescript/`
+  (`@neo-n4/sdk`) · `sdk/rust/` (`neo-n4-sdk`) — all 10 RPC methods,
+  same wire shape, same 4-class error taxonomy.
+- **Web app (1)** — `sdk/web-explorer/index.html` — single static-file
+  UI: Explore + Bridge + Faucet + state-root continuity Audit.
+- **Docs site config (1)** — `book.toml` + `docs/SUMMARY.md` (mdBook).
+- **Rust prover (2)** — `bridge/neo-zkvm-host/` (sp1-sdk 6.0 prover +
+  `prove-batch daemon`) · `bridge/neo-zkvm-guest/` (the function being
+  proved — RISC-V ELF, real Neo N3 VM via `neo_vm_guest::execute`).
+- **Submodules (4)** — `external/neo` (Neo 4 core) ·
+  `external/neo-devpack-dotnet` (smart-contract devpack + nccs) ·
+  `external/neo-riscv-vm` (PolkaVM-backed Neo RISC-V engine) ·
+  `external/neo-zkvm` (Neo VM in pure Rust + SP1 prover crates). None
+  are released on NuGet/crates.io for the versions tracked here.
+- **Tests (1362 .NET + 33 cross-lang)** — 1362 across 33 .NET projects;
+  15 TypeScript (vitest) + 10 Rust SDK (mockito) + 8 SP1 guest (host) —
+  all green.
 
 ```
 neo4/

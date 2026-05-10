@@ -103,7 +103,7 @@ dotnet run --project tools/Neo.Hub.Deploy -- scaffold --output deploy-plan.json
 dotnet run --project tools/Neo.Hub.Deploy -- plan --plan deploy-plan.json --output bundle.json
 ```
 
-`bundle.json` is a topologically-sorted, dependency-resolved sequence of 13 contract
+`bundle.json` is a topologically-sorted, dependency-resolved sequence of 20 contract
 deploy invocations — every `$step:<name>` placeholder substituted with deterministic
 stub hashes. Production deployments feed the bundle to a wallet-equipped runner that
 signs + sends each invocation.

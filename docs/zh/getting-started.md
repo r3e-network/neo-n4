@@ -101,7 +101,7 @@ dotnet run --project tools/Neo.Hub.Deploy -- scaffold --output deploy-plan.json
 dotnet run --project tools/Neo.Hub.Deploy -- plan --plan deploy-plan.json --output bundle.json
 ```
 
-`bundle.json` 是一份拓扑排序、依赖已解析的合约部署调用序列(共 13 步)——每个
+`bundle.json` 是一份拓扑排序、依赖已解析的合约部署调用序列(共 20 步)——每个
 `$step:<name>` 占位符都替换成了确定性的 stub 哈希。生产部署会把 bundle 喂给一个带钱包
 的执行器,让它对每一步签名并广播。
 

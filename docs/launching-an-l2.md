@@ -190,7 +190,7 @@ batchNumber, challenger, fraudProofBytes, fraudVerifier)` delegates the
 actual cryptographic check to a contract identified by the
 `fraudVerifier` argument.
 
-Three paths, all in the default `neo-hub-deploy plan` 15-step bundle:
+Three paths, all in the default `neo-hub-deploy plan` 20-step bundle:
 
   1. **Governance-arbitration mode** (the simplest operator-friendly path):
      deploy `NeoHub.GovernanceFraudVerifier`. It does a structural check

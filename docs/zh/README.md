@@ -73,7 +73,7 @@
 | Web 应用          | **1**       | `sdk/web-explorer/index.html` —— 单文件静态 UI:Explore + Bridge + Faucet + Audit |
 | Rust 证明者        | **2**      | `bridge/neo-zkvm-host/`(sp1-sdk 6.0 证明者 + `prove-batch daemon`)· `bridge/neo-zkvm-guest/`(被证明的函数) |
 | Submodule         | **4**       | `external/neo`、`external/neo-devpack-dotnet`、`external/neo-riscv-vm`、`external/neo-zkvm` |
-| 测试              | **1344 .NET + 33 跨语言** | 33 个 .NET 工程的 1344 条测试;15 TS + 10 Rust SDK + 8 SP1 guest —— 全绿 |
+| 测试              | **1362 .NET + 33 跨语言** | 33 个 .NET 工程的 1362 条测试;15 TS + 10 Rust SDK + 8 SP1 guest —— 全绿 |
 
 ---
 
@@ -84,7 +84,7 @@
 | 阶段 | 目标                                | 状态  | 证据                                                       |
 | ---- | ----------------------------------- | :---: | ---------------------------------------------------------- |
 | 0    | 侧链 PoC                             | ✅   | MVP 集成测试端到端通过                                    |
-| 1    | NeoHub v0 + 共享桥                   | ✅   | 21 个 NeoHub 合约全部编译;部署计划器输出 21 步 bundle    |
+| 1    | NeoHub v0 + 共享桥                   | ✅   | 21 个 NeoHub 合约全部编译;部署计划器输出 20 步 bundle(13 核心 + 2 fraud verifier + 5 外链桥) |
 | 2    | 批次结算                             | ✅   | 真实 `KeyedStateStore` 在跨批次得到连续性验证             |
 | 3    | 乐观挑战窗口                         | ✅   | `OptimisticChallenge` 合约 + `BisectionGame`(log-N 收敛) |
 | 4    | NeoVM 2 / RISC-V ZK Validity 证明    | 🟡   | SP1 FFI 桥已搭好;`--features real-prover` 切到原生        |

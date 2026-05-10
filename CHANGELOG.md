@@ -5,6 +5,114 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Comprehensive Simplified Chinese documentation (`docs/zh/`)
+
+Every document under `docs/` now has a Simplified Chinese counterpart
+under `docs/zh/`, in addition to the English original. The Chinese
+master spec at `doc.md` remains authoritative when translations
+disagree, but for everyday reading both languages are now first-class.
+
+- **20 markdown files translated** covering operator guides
+  (getting-started, persistence, security-model, telemetry,
+  wallet-integration, launching-an-l2), architecture chapters
+  (atlas, walkthrough, l2-lifecycle, l1-vs-l2, wire-formats,
+  trust-boundaries, glossary), external bridge (roadmap,
+  evm-chains), implementation plans (spec-gap-plan,
+  plan-application-engine-and-mpt), and indexes (README, SUMMARY,
+  tech-stack-coverage). ~5,700 lines of new translation.
+- **Translation conventions** — proper nouns kept in English
+  (NeoHub, ChainRegistry, SettlementManager, RocksDB, etc.);
+  concept words translated (排序器/sequencer, 桥/bridge,
+  信任边界/trust boundary, 委员会/committee, 持久化/persistence,
+  准入/admission, 盖章/stamp); code blocks and config samples
+  unchanged; cross-doc links use `./` for sibling zh docs and
+  `../../` for paths outside `docs/`.
+- **Mirror conventions** — figure references point to
+  `../figures/architecture/...svg` so the docs/zh/ tree resolves
+  figures from the shared `docs/figures/` gallery without
+  duplication. Chinese SVG variants under
+  `docs/zh/figures/architecture/` use a font stack with CJK
+  fallbacks (`'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei'`).
+
+### Changed — Architecture figures: ASCII → hand-tuned SVG
+
+Every diagrammatic figure in the 7 architecture chapters has been
+converted from ASCII art to a hand-tuned SVG. The earlier "all
+ASCII" approach (taken because mermaid wouldn't render reliably in
+VS Code) is now replaced with a third option: SVG that ships in
+the repo and renders identically across VS Code, GitHub, mdBook,
+and any browser.
+
+**29 unique architecture SVGs × 2 languages = 58 files shipped:**
+
+- **System topology** — system-tiers, neohub-anatomy, l2-components,
+  l2-anatomy, runtime-channels, deployment-flow, admission-states,
+  creation-lifecycle (20-step swimlane).
+- **Cross-tier flows** — l1-l2-bridge, settlement-sequence,
+  bridge-sequences (deposit + withdrawal 2-panel),
+  cross-l2-messaging-sequence, external-bridge-architecture,
+  forced-inclusion-step1.
+- **Trust + security** — trust-boundaries (5-boundary system map),
+  cross-tier-verification (9-step verification chain across
+  3 trust assumptions), trust-minimization-gradient (5-tier
+  spectrum from sequencer-only to ZK validity).
+- **L1/L2 division** — dividing-principle (hero card),
+  l1-concerns (6 NeoHub concerns + verifier slot), l2-concerns
+  (3-layer per-chain stack), l1-l2-decision-tree (5-question
+  flowchart for component placement).
+- **Wire formats** — byte-layout-l2batchcommitment (321+N B),
+  byte-layout-publicinputs (332 B), byte-layout-l2chainconfig
+  (91 B + template lookup), byte-layout-externalcrosschainmessage
+  (102+N B), byte-layout-depositpayload (44+N B).
+- **Atlas + scaffold** — reading-paths (5 paths by reader role),
+  chapter-map (5-chapter relationship diagram),
+  new-l2-scaffold-tree (file-tree visualization).
+
+Style conventions: viewBox 960×N, Apple/system font stack with CJK
+fallbacks, drop-shadow card filter, color palette by tier (L1 blue
+#eff3ff/#7587c1, Gateway orange #fff2e3/#cd7c2e, L2 green
+#e7f4eb/#3a8454, off-chain purple #f1ecf8/#7d59b3, boundary red
+#fde8e8/#c4413e), rounded rects rx=6/8/10. All SVGs include
+`<title>` and `<desc>` for screen readers.
+
+### Changed — Source-truth consistency reconciliation
+
+Per "consistent to implementations" directive, audited the project's
+docs against the actual source tree and reconciled 5 categorical
+drifts spanning README.md, IMPLEMENTATION_STATUS.md, docs/README.md,
+docs/zh/README.md, getting-started.md (EN+ZH), launching-an-l2.md
+(EN+ZH), tech-stack-coverage.md (EN+ZH), architecture-glossary.md
+(EN+ZH), and the 2 affected SVG figures (EN+ZH):
+
+- **Test count**: 1332/1344 → 1362 (8 references reconciled to the
+  authoritative top-level README.md breakdown line 84).
+- **Component coverage**: "51 ✅, 2 🟡, 6 🔴" → "76 ✅, 0 🟡, 0 🔴"
+  (matching tech-stack-coverage.md actual matrix total now that
+  Phase 4 SP1 ZK is end-to-end functional and Layer-4/5 SDKs +
+  web app + mdBook are all in-tree).
+- **Off-chain library count**: 15 → 16 (added `Executor.RiscV` to
+  enumerated list; `Sdk` listed separately under App SDKs).
+- **CLI tool count**: 6 → 7 (`tech-stack-coverage.md` was missing
+  `neo-external-bridge` from the count; subcommand total bumped
+  23 → 28 to include genkey + committee-blob + deploy-bundle +
+  chains-table + per-chain helpers).
+- **Deploy-bundle step count**: 13/14/15/19/21 → **20** across 8
+  references (authoritative from `IMPLEMENTATION_STATUS.md` line
+  293's enumeration: "13 core NeoHub + GovernanceFraudVerifier
+  v1/v2 + RestrictedExecutionFraudVerifier v3 + 4 Phase-B + 1
+  Phase-C = 20"). Each reference now spells out the breakdown.
+- **RPC method count**: 9 → 10 (`getsecuritylabel` added with
+  §16.2 dimensions but glossary + `l2-concerns.svg` +
+  `l2-components.svg` still said 9).
+- **Project count**: 34 → 33 in `tech-stack-coverage.md` (matches
+  `dotnet test Neo.L2.sln` enumeration).
+
+Plus retagged 3 mistagged code listings in
+`external-bridge-roadmap.md` (EN+ZH) — the C# `IExternalBridgeVerifier`
+interface declaration changed from `text` to `csharp`; the file-tree
+listings changed from `text` to bare fence (they are listings, not
+figures).
+
 ### Added — Watcher operator UX surface
 
 The watcher daemon now ships a complete CLI for operators:

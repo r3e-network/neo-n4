@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 620" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 620" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">L1 vs L2 落点决策树</title>
   <desc id="desc">5 问决策树:Q1 别的 L2 需要读这段状态吗 —— 是则 L1。Q2 这段状态可罚没/承担经济安全吗 —— 是则 L1。Q3 这定义在 L1 上什么合法吗(信任边界)—— 是则 L1。Q4 吞吐量超过 L1 能处理的吗 —— 是则必须 L2。Q5 单条链的应用特定逻辑吗 —— 是则 L2;否则默认 L2 让 L1 苗条。</desc>
 

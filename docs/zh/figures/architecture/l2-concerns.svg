@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 700" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 700" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">L2 做什么 —— 每条链 3 层</title>
   <desc id="desc">每条 L2 链由三个关注点组成:7 个 L2 原生合约(按链状态 —— L2BridgeContract、L2NativeExternalBridge、L2MessageContract、L2BatchInfoContract、L2FeeContract、L2PaymasterContract、L2SystemConfigContract)、8 个 L2 插件(按链运行时 —— L2Batch、L2Settlement、L2Bridge、L2DA、L2Prover、L2Rpc、L2Gateway、L2Metrics)、L2 执行内核(Neo 4 core 引入的 submodule —— dBFT 2.0 共识、NeoVM、内存池、本地状态存储、receipt 生成)。</desc>
 

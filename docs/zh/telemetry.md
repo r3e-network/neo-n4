@@ -105,96 +105,74 @@ metrics.Start();
 
 ### Batch(`Neo.Plugins.L2Batch`)
 
-| 指标 | 类型 | 说明 |
-|------|------|------|
-| `l2.batch.sealed` | counter | 本地排序器封装的 L2 批次数 |
-| `l2.batch.seal_latency_ms` | histogram | 每个批次封装耗时(墙钟毫秒) |
-| `l2.batch.tx_count` | gauge | 最近一个封装批次的交易数 |
-| `l2.batch.subscriber_failures` | counter | 派发 `OnBatchSealed` 时各订阅者的失败数(一个有 bug 的监听者不会拖垮区块导入) |
+- `l2.batch.sealed` — counter — 本地排序器封装的 L2 批次数
+- `l2.batch.seal_latency_ms` — histogram — 每个批次封装耗时(墙钟毫秒)
+- `l2.batch.tx_count` — gauge — 最近一个封装批次的交易数
+- `l2.batch.subscriber_failures` — counter — 派发 `OnBatchSealed` 时各订阅者的失败数(一个有 bug 的监听者不会拖垮区块导入)
 
 ### Settlement(`Neo.Plugins.L2Settlement`)
 
-| 指标 | 类型 | 说明 |
-|------|------|------|
-| `l2.settlement.submitted` | counter | 成功提交到 NeoHub 的批次数 |
-| `l2.settlement.submit_failures` | counter | 提交抛错被重新入队的次数 |
-| `l2.settlement.submit_latency_ms` | histogram | SubmitBatch 往返耗时(墙钟毫秒) |
+- `l2.settlement.submitted` — counter — 成功提交到 NeoHub 的批次数
+- `l2.settlement.submit_failures` — counter — 提交抛错被重新入队的次数
+- `l2.settlement.submit_latency_ms` — histogram — SubmitBatch 往返耗时(墙钟毫秒)
 
 ### Proving(由 Settlement 插件发出)
 
-| 指标 | 类型 | 标签 | 说明 |
-|------|------|------|------|
-| `l2.proving.generated` | counter | `kind` | 为封装批次产生的证明数 |
-| `l2.proving.latency_ms` | histogram | `kind` | 每个证明的产生耗时(墙钟毫秒) |
-| `l2.proving.rejected` | counter | — | 提交前被本地验证器拒绝的证明数 |
+- `l2.proving.generated` — counter — `kind` — 为封装批次产生的证明数
+- `l2.proving.latency_ms` — histogram — `kind` — 每个证明的产生耗时(墙钟毫秒)
+- `l2.proving.rejected` — counter — — — 提交前被本地验证器拒绝的证明数
 
 ### Bridge(`Neo.L2.Bridge.{Deposit,Withdrawal}Processor`)
 
-| 指标 | 类型 | 说明 |
-|------|------|------|
-| `l2.bridge.deposits` | counter | 从 L1 桥 inbox 处理的充值数 |
-| `l2.bridge.deposits_rejected` | counter | 校验拒绝的充值(重放 / 未知资产 / 失活映射) |
-| `l2.bridge.withdrawals` | counter | 入 L2 outbox 的提款数 |
-| `l2.bridge.withdrawals_rejected` | counter | 校验拒绝的提款(未知资产 / 重复 nonce / 非正金额) |
+- `l2.bridge.deposits` — counter — 从 L1 桥 inbox 处理的充值数
+- `l2.bridge.deposits_rejected` — counter — 校验拒绝的充值(重放 / 未知资产 / 失活映射)
+- `l2.bridge.withdrawals` — counter — 入 L2 outbox 的提款数
+- `l2.bridge.withdrawals_rejected` — counter — 校验拒绝的提款(未知资产 / 重复 nonce / 非正金额)
 
 ### DA(`Neo.Plugins.L2DA`)
 
 `MetricsEmittingDAWriter` 装饰器套在每个 `IDAWriter` 外面,任何 DA 后备都自动参与
 统计。
 
-| 指标 | 类型 | 标签 | 说明 |
-|------|------|------|------|
-| `l2.da.published` | counter | `mode` | 成功发布的 DA payload 数 |
-| `l2.da.publish_latency_ms` | histogram | `mode` | 每次 DA 发布耗时(墙钟毫秒) |
-| `l2.da.publish_failures` | counter | `mode` | 抛错的 DA 发布数 |
+- `l2.da.published` — counter — `mode` — 成功发布的 DA payload 数
+- `l2.da.publish_latency_ms` — histogram — `mode` — 每次 DA 发布耗时(墙钟毫秒)
+- `l2.da.publish_failures` — counter — `mode` — 抛错的 DA 发布数
 
 ### RPC(`Neo.Plugins.L2Rpc.L2RpcMethods`)
 
-| 指标 | 类型 | 标签 | 说明 |
-|------|------|------|------|
-| `l2.rpc.calls` | counter | `method` | L2 RPC 方法调用数 |
-| `l2.rpc.latency_ms` | histogram | `method` | 每次 L2 RPC 调用耗时(墙钟毫秒) |
-| `l2.rpc.failures` | counter | `method` | 抛错的 L2 RPC 调用数 |
+- `l2.rpc.calls` — counter — `method` — L2 RPC 方法调用数
+- `l2.rpc.latency_ms` — histogram — `method` — 每次 L2 RPC 调用耗时(墙钟毫秒)
+- `l2.rpc.failures` — counter — `method` — 抛错的 L2 RPC 调用数
 
 ### Gateway(`Neo.Plugins.L2Gateway.BinaryTreeAggregator`)
 
-| 指标 | 类型 | 说明 |
-|------|------|------|
-| `l2.gateway.aggregations` | counter | 本地 gateway 完成的聚合次数 |
-| `l2.gateway.batches_aggregated` | counter | 折入聚合的成员批次数(每次 +N) |
-| `l2.gateway.aggregation_rounds` | histogram | 两两归约的轮数(= log₂ N) |
-| `l2.gateway.aggregation_latency_ms` | histogram | 每次聚合的耗时(墙钟毫秒) |
+- `l2.gateway.aggregations` — counter — 本地 gateway 完成的聚合次数
+- `l2.gateway.batches_aggregated` — counter — 折入聚合的成员批次数(每次 +N)
+- `l2.gateway.aggregation_rounds` — histogram — 两两归约的轮数(= log₂ N)
+- `l2.gateway.aggregation_latency_ms` — histogram — 每次聚合的耗时(墙钟毫秒)
 
 ### 强制纳入 / 审查 / 挑战
 
-| 指标 | 类型 | 说明 |
-|------|------|------|
-| `l2.forced_inclusion.observed` | counter | 本节点观察到的强制纳入条目数 |
-| `l2.censorship.reports` | counter | 检测器发出的审查报告数 |
-| `l2.challenge.fraud_proofs` | counter | 编排器发出的欺诈证明数 |
-| `l2.challenge.bisection_rounds` | histogram | 解决每次欺诈纠纷所用的二分轮数 |
+- `l2.forced_inclusion.observed` — counter — 本节点观察到的强制纳入条目数
+- `l2.censorship.reports` — counter — 检测器发出的审查报告数
+- `l2.challenge.fraud_proofs` — counter — 编排器发出的欺诈证明数
+- `l2.challenge.bisection_rounds` — histogram — 解决每次欺诈纠纷所用的二分轮数
 
 ### Sequencer(`Neo.L2.Sequencer.InMemorySequencerCommitteeProvider`)
 
-| 指标 | 类型 | 说明 |
-|------|------|------|
-| `l2.sequencer.registered` | counter | 加入委员会的排序器数 |
-| `l2.sequencer.exits_started` | counter | 进入退出窗口的次数 |
-| `l2.sequencer.exits_finalized` | counter | 窗口到期后被永久移除的次数 |
-| `l2.sequencer.committee_size` | gauge | 当前委员会成员数(变更后) |
+- `l2.sequencer.registered` — counter — 加入委员会的排序器数
+- `l2.sequencer.exits_started` — counter — 进入退出窗口的次数
+- `l2.sequencer.exits_finalized` — counter — 窗口到期后被永久移除的次数
+- `l2.sequencer.committee_size` — gauge — 当前委员会成员数(变更后)
 
 ### Messaging(`Neo.L2.Messaging.L2Outbox`)
 
-| 指标 | 类型 | 说明 |
-|------|------|------|
-| `l2.messaging.emitted` | counter | 本地 L2 发出的跨链消息数(按目标链打标签) |
+- `l2.messaging.emitted` — counter — 本地 L2 发出的跨链消息数(按目标链打标签)
 
 ### Audit
 
-| 指标 | 类型 | 说明 |
-|------|------|------|
-| `l2.audit.runs` | counter | 链审计器运行次数 |
-| `l2.audit.failures` | counter | 审计未通过的发现数 |
+- `l2.audit.runs` — counter — 链审计器运行次数
+- `l2.audit.failures` — counter — 审计未通过的发现数
 
 ## Prometheus 渲染
 

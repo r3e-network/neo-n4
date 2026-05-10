@@ -112,96 +112,74 @@ the test suite enforces this via reflection.
 
 ### Batch (`Neo.Plugins.L2Batch`)
 
-| Metric | Type | Description |
-|---|---|---|
-| `l2.batch.sealed` | counter | Number of L2 batches sealed by the local sequencer |
-| `l2.batch.seal_latency_ms` | histogram | Wall-clock milliseconds spent sealing each batch |
-| `l2.batch.tx_count` | gauge | Transactions in the most recently sealed batch |
-| `l2.batch.subscriber_failures` | counter | Per-subscriber failures dispatching `OnBatchSealed` (one buggy listener can't destabilize block import) |
+- `l2.batch.sealed` — counter — Number of L2 batches sealed by the local sequencer
+- `l2.batch.seal_latency_ms` — histogram — Wall-clock milliseconds spent sealing each batch
+- `l2.batch.tx_count` — gauge — Transactions in the most recently sealed batch
+- `l2.batch.subscriber_failures` — counter — Per-subscriber failures dispatching `OnBatchSealed` (one buggy listener can't destabilize block import)
 
 ### Settlement (`Neo.Plugins.L2Settlement`)
 
-| Metric | Type | Description |
-|---|---|---|
-| `l2.settlement.submitted` | counter | Batches submitted to NeoHub successfully |
-| `l2.settlement.submit_failures` | counter | Batch submissions that threw and were re-queued |
-| `l2.settlement.submit_latency_ms` | histogram | Round-trip wall-clock milliseconds for SubmitBatch |
+- `l2.settlement.submitted` — counter — Batches submitted to NeoHub successfully
+- `l2.settlement.submit_failures` — counter — Batch submissions that threw and were re-queued
+- `l2.settlement.submit_latency_ms` — histogram — Round-trip wall-clock milliseconds for SubmitBatch
 
 ### Proving (emitted by Settlement plugin)
 
-| Metric | Type | Tag | Description |
-|---|---|---|---|
-| `l2.proving.generated` | counter | `kind` | Proofs generated for sealed batches |
-| `l2.proving.latency_ms` | histogram | `kind` | Wall-clock milliseconds spent generating each proof |
-| `l2.proving.rejected` | counter | — | Proofs the local verifier rejected before submission |
+- `l2.proving.generated` — counter — `kind` — Proofs generated for sealed batches
+- `l2.proving.latency_ms` — histogram — `kind` — Wall-clock milliseconds spent generating each proof
+- `l2.proving.rejected` — counter — — — Proofs the local verifier rejected before submission
 
 ### Bridge (`Neo.L2.Bridge.{Deposit,Withdrawal}Processor`)
 
-| Metric | Type | Description |
-|---|---|---|
-| `l2.bridge.deposits` | counter | Deposits processed from the L1 bridge inbox |
-| `l2.bridge.deposits_rejected` | counter | Deposits rejected by validation (replay / unknown asset / inactive mapping) |
-| `l2.bridge.withdrawals` | counter | Withdrawals staged into the L2 outbox |
-| `l2.bridge.withdrawals_rejected` | counter | Withdrawals rejected by validation (unknown asset / duplicate nonce / non-positive amount) |
+- `l2.bridge.deposits` — counter — Deposits processed from the L1 bridge inbox
+- `l2.bridge.deposits_rejected` — counter — Deposits rejected by validation (replay / unknown asset / inactive mapping)
+- `l2.bridge.withdrawals` — counter — Withdrawals staged into the L2 outbox
+- `l2.bridge.withdrawals_rejected` — counter — Withdrawals rejected by validation (unknown asset / duplicate nonce / non-positive amount)
 
 ### DA (`Neo.Plugins.L2DA`)
 
 The `MetricsEmittingDAWriter` decorator wraps every `IDAWriter` so any DA
 backend automatically participates.
 
-| Metric | Type | Tag | Description |
-|---|---|---|---|
-| `l2.da.published` | counter | `mode` | DA payloads published successfully |
-| `l2.da.publish_latency_ms` | histogram | `mode` | Wall-clock milliseconds for each DA publish |
-| `l2.da.publish_failures` | counter | `mode` | DA publishes that threw |
+- `l2.da.published` — counter — `mode` — DA payloads published successfully
+- `l2.da.publish_latency_ms` — histogram — `mode` — Wall-clock milliseconds for each DA publish
+- `l2.da.publish_failures` — counter — `mode` — DA publishes that threw
 
 ### RPC (`Neo.Plugins.L2Rpc.L2RpcMethods`)
 
-| Metric | Type | Tag | Description |
-|---|---|---|---|
-| `l2.rpc.calls` | counter | `method` | L2 RPC method calls |
-| `l2.rpc.latency_ms` | histogram | `method` | Wall-clock milliseconds for each L2 RPC call |
-| `l2.rpc.failures` | counter | `method` | L2 RPC calls that threw |
+- `l2.rpc.calls` — counter — `method` — L2 RPC method calls
+- `l2.rpc.latency_ms` — histogram — `method` — Wall-clock milliseconds for each L2 RPC call
+- `l2.rpc.failures` — counter — `method` — L2 RPC calls that threw
 
 ### Gateway (`Neo.Plugins.L2Gateway.BinaryTreeAggregator`)
 
-| Metric | Type | Description |
-|---|---|---|
-| `l2.gateway.aggregations` | counter | Aggregations performed by the local gateway |
-| `l2.gateway.batches_aggregated` | counter | Constituent batches folded into aggregations (incremented by N) |
-| `l2.gateway.aggregation_rounds` | histogram | Rounds of pairwise reduction (= log₂ N) |
-| `l2.gateway.aggregation_latency_ms` | histogram | Wall-clock milliseconds spent in each aggregation |
+- `l2.gateway.aggregations` — counter — Aggregations performed by the local gateway
+- `l2.gateway.batches_aggregated` — counter — Constituent batches folded into aggregations (incremented by N)
+- `l2.gateway.aggregation_rounds` — histogram — Rounds of pairwise reduction (= log₂ N)
+- `l2.gateway.aggregation_latency_ms` — histogram — Wall-clock milliseconds spent in each aggregation
 
 ### Forced inclusion / censorship / challenge
 
-| Metric | Type | Description |
-|---|---|---|
-| `l2.forced_inclusion.observed` | counter | Forced-inclusion entries observed by this node |
-| `l2.censorship.reports` | counter | Censorship reports the detector emitted |
-| `l2.challenge.fraud_proofs` | counter | Fraud proofs the orchestrator emitted |
-| `l2.challenge.bisection_rounds` | histogram | Bisection rounds taken to settle each fraud dispute |
+- `l2.forced_inclusion.observed` — counter — Forced-inclusion entries observed by this node
+- `l2.censorship.reports` — counter — Censorship reports the detector emitted
+- `l2.challenge.fraud_proofs` — counter — Fraud proofs the orchestrator emitted
+- `l2.challenge.bisection_rounds` — histogram — Bisection rounds taken to settle each fraud dispute
 
 ### Sequencer (`Neo.L2.Sequencer.InMemorySequencerCommitteeProvider`)
 
-| Metric | Type | Description |
-|---|---|---|
-| `l2.sequencer.registered` | counter | Sequencers added to the committee |
-| `l2.sequencer.exits_started` | counter | Times a sequencer entered the exit window |
-| `l2.sequencer.exits_finalized` | counter | Times a sequencer was permanently removed after their window expired |
-| `l2.sequencer.committee_size` | gauge | Current number of committee members (post-mutation) |
+- `l2.sequencer.registered` — counter — Sequencers added to the committee
+- `l2.sequencer.exits_started` — counter — Times a sequencer entered the exit window
+- `l2.sequencer.exits_finalized` — counter — Times a sequencer was permanently removed after their window expired
+- `l2.sequencer.committee_size` — gauge — Current number of committee members (post-mutation)
 
 ### Messaging (`Neo.L2.Messaging.L2Outbox`)
 
-| Metric | Type | Description |
-|---|---|---|
-| `l2.messaging.emitted` | counter | Cross-chain messages emitted by the local L2 (target-chain-tagged) |
+- `l2.messaging.emitted` — counter — Cross-chain messages emitted by the local L2 (target-chain-tagged)
 
 ### Audit
 
-| Metric | Type | Description |
-|---|---|---|
-| `l2.audit.runs` | counter | Times the chain auditor ran |
-| `l2.audit.failures` | counter | Audit findings that failed the audit |
+- `l2.audit.runs` — counter — Times the chain auditor ran
+- `l2.audit.failures` — counter — Audit findings that failed the audit
 
 ## Prometheus rendering
 

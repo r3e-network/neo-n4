@@ -1,6 +1,6 @@
 ---
 title: "Neo Elastic Network --- Essentials"
-subtitle: "Architecture, modules, and dataflows --- a focused primer"
+subtitle: "High-level design, architecture, and module interactions"
 author:
   - "neo-n4 contributors"
 date: \today
@@ -44,27 +44,27 @@ header-includes:
   - \renewcommand{\headrulewidth}{0.4pt}
   - \captionsetup{font=small,labelfont=bf}
 abstract: |
-  A focused, shorter companion to the full Neo Elastic Network
-  manuscript. This Essentials edition answers four questions for
-  newcomers:
+  A focused, design-only companion to the full Neo Elastic Network
+  manuscript. **No implementation tutorials, no byte-layout detail** ---
+  just architecture and how the pieces fit together. Five chapters
+  answer three questions for newcomers:
 
-  1. **What is `neo4`?** A multi-L2 network on Neo 4 core that anchors
-     every L2 chain to a unified L1 contract suite (NeoHub) on Neo N3
-     / Neo 4 L1 and aggregates proofs and inter-L2 messages through
-     an optional Neo Gateway layer.
-  2. **What does it look like running?** A short Quick Start chapter
-     spins up a devnet so you can see the lifecycle end-to-end.
-  3. **What modules does it have, and how do they fit together?** Five
-     architecture chapters walk the system top-down: the L1 / L2
-     dividing principle, an L2 chain's lifecycle, and the trust
-     boundaries between modules.
-  4. **How does data flow between those modules?** A wire-formats
-     chapter pins the canonical byte layouts for every cross-module
-     payload.
+  1. **What is `neo4` and why does it exist?** Layered architecture,
+     the modules at each layer, key design tradeoffs, threat model,
+     and the phased rollout. (Chapter 1.)
+  2. **How do the modules work as a whole?** Narrative tours through
+     a transaction's life on an L2 chain, anti-censorship via forced
+     inclusion, multi-L2 proof aggregation, and the telemetry
+     pipeline. (Chapter 2.)
+  3. **What are the architectural principles tying it together?**
+     The L1-vs-L2 dividing principle, the lifecycle and anatomy of
+     an L2 chain, and the trust boundaries between modules.
+     (Chapters 3--5.)
 
   Operator how-tos (persistence, telemetry, wallet integration,
-  launching a chain), external-bridge specialization, and
-  implementation tracking are deferred to the full manuscript.
+  launching a chain), byte-level wire formats, the component catalog
+  / glossary, external-bridge specialization, and implementation
+  tracking are all deferred to the full manuscript.
 
   Independent community exploration; not endorsed by Neo Global
   Development, the Neo Foundation, or the neo-project organization.

@@ -68,54 +68,42 @@ Lives at `contracts/NeoHub.*`. Each is a compiled .nef + .manifest.json.
 
 ### Core 5 (touched on every batch)
 
-| Contract                      | Role                                                                                       |
-|-------------------------------|--------------------------------------------------------------------------------------------|
-| `SettlementManager`           | Verifies submitted batches; finalizes state root + withdrawals; dispatches to verifier.    |
-| `VerifierRegistry`            | Per-`proofType` verifier dispatch (Multisig / RiscVZk / Optimistic / ...).                 |
-| `ChainRegistry`               | Registers L2 chains; stores 91-byte `L2ChainConfig` per chain id.                          |
-| `SharedBridge`                | L1 deposits + withdrawals across all registered chains. Holds escrowed assets.             |
-| `MessageRouter`               | Routes cross-L2 messages by recomputing canonical hash; per-(srcChain, dstChain) inbox.    |
+- **`SettlementManager`** — Verifies submitted batches; finalizes state root + withdrawals; dispatches to verifier.
+- **`VerifierRegistry`** — Per-`proofType` verifier dispatch (Multisig / RiscVZk / Optimistic / ...).
+- **`ChainRegistry`** — Registers L2 chains; stores 91-byte `L2ChainConfig` per chain id.
+- **`SharedBridge`** — L1 deposits + withdrawals across all registered chains. Holds escrowed assets.
+- **`MessageRouter`** — Routes cross-L2 messages by recomputing canonical hash; per-(srcChain, dstChain) inbox.
 
 ### Bridge support (3)
 
-| Contract                      | Role                                                                                       |
-|-------------------------------|--------------------------------------------------------------------------------------------|
-| `TokenRegistry`               | Asset metadata (symbol, decimals, native chain). Used by `SharedBridge`.                   |
-| `DARegistry`                  | Records published `daCommitment` hashes; `L2DAPlugin` writes here on each batch.           |
+- **`TokenRegistry`** — Asset metadata (symbol, decimals, native chain). Used by `SharedBridge`.
+- **`DARegistry`** — Records published `daCommitment` hashes; `L2DAPlugin` writes here on each batch.
 
 ### Security (5)
 
-| Contract                      | Role                                                                                       |
-|-------------------------------|--------------------------------------------------------------------------------------------|
-| `SequencerRegistry`           | Lists registered sequencers per chain. Bonds attached.                                     |
-| `SequencerBond`               | Slashable bonds for sequencers. Slashed by `OptimisticChallenge` on accepted fraud.        |
-| `ForcedInclusion`             | Anti-censorship: user posts tx on L1; L2 must include before deadline or sequencer slashed. |
-| `OptimisticChallenge`         | Bisection-game-driven fraud-proof window. Settlements wait `challengeWindow` before final. |
-| `EmergencyManager`            | Operator-multisig pause for individual chains (e.g. while debugging a critical issue).     |
+- **`SequencerRegistry`** — Lists registered sequencers per chain. Bonds attached.
+- **`SequencerBond`** — Slashable bonds for sequencers. Slashed by `OptimisticChallenge` on accepted fraud.
+- **`ForcedInclusion`** — Anti-censorship: user posts tx on L1; L2 must include before deadline or sequencer slashed.
+- **`OptimisticChallenge`** — Bisection-game-driven fraud-proof window. Settlements wait `challengeWindow` before final.
+- **`EmergencyManager`** — Operator-multisig pause for individual chains (e.g. while debugging a critical issue).
 
 ### Governance (2)
 
-| Contract                      | Role                                                                                       |
-|-------------------------------|--------------------------------------------------------------------------------------------|
-| `GovernanceController`        | Multisig + timelock for verifier upgrades + protocol parameter changes.                    |
-| `GovernanceFraudVerifier`     | Reference fraud verifier — governance arbitrates challenged batches in v0.                 |
+- **`GovernanceController`** — Multisig + timelock for verifier upgrades + protocol parameter changes.
+- **`GovernanceFraudVerifier`** — Reference fraud verifier — governance arbitrates challenged batches in v0.
 
 ### Specialized fraud verifiers (1)
 
-| Contract                                | Role                                                                                  |
-|-----------------------------------------|---------------------------------------------------------------------------------------|
-| `RestrictedExecutionFraudVerifier`      | v3: re-derives pre/post state roots from storage proofs; accepts well-formed claims without governance arbitration. |
+- **`RestrictedExecutionFraudVerifier`** — v3: re-derives pre/post state roots from storage proofs; accepts well-formed claims without governance arbitration.
 
 ### External bridge — Phase B/C (6)
 
-| Contract                                | Role                                                                                  |
-|-----------------------------------------|---------------------------------------------------------------------------------------|
-| `MpcCommitteeVerifier`                  | Verifies M-of-N committee signatures over canonical `ExternalCrossChainMessage`.      |
-| `ExternalBridgeRegistry`                | Per-chain (verifier, bridgeKind) entries. Routes to MPC vs ZK light-client (Phase D). |
-| `ExternalBridgeEscrow`                  | Mints/burns wrapped assets for foreign-chain inbounds; replay-protected.              |
-| `ExternalBridgeBond`                    | Slashable bonds for external-bridge committee members.                                |
-| `ExternalBridgeStubVerifier`            | v0 stub for testing — auto-accepts any message. NOT for production.                   |
-| `MpcCommitteeFraudVerifier`             | Phase C: cryptographically proves committee equivocation; slashes via `ExternalBridgeBond`. |
+- **`MpcCommitteeVerifier`** — Verifies M-of-N committee signatures over canonical `ExternalCrossChainMessage`.
+- **`ExternalBridgeRegistry`** — Per-chain (verifier, bridgeKind) entries. Routes to MPC vs ZK light-client (Phase D).
+- **`ExternalBridgeEscrow`** — Mints/burns wrapped assets for foreign-chain inbounds; replay-protected.
+- **`ExternalBridgeBond`** — Slashable bonds for external-bridge committee members.
+- **`ExternalBridgeStubVerifier`** — v0 stub for testing — auto-accepts any message. NOT for production.
+- **`MpcCommitteeFraudVerifier`** — Phase C: cryptographically proves committee equivocation; slashes via `ExternalBridgeBond`.
 
 ---
 
@@ -123,15 +111,13 @@ Lives at `contracts/NeoHub.*`. Each is a compiled .nef + .manifest.json.
 
 Lives at `contracts/L2Native.*`. Deployed to each L2 chain.
 
-| Contract                                | Role                                                                                  |
-|-----------------------------------------|---------------------------------------------------------------------------------------|
-| `L2BridgeContract`                      | L2-side bridge (mint/burn wrapped assets). Counterpart to NeoHub.SharedBridge.        |
-| `L2MessageContract`                     | L2-side message inbox/outbox. Counterpart to NeoHub.MessageRouter.                    |
-| `L2BatchInfoContract`                   | Records per-batch metadata on the L2 itself (cursor / latest commitment).             |
-| `L2FeeContract`                         | L2 gas fee config (base / priority / op-cost map).                                    |
-| `L2PaymasterContract`                   | Optional gas sponsorship — third party covers fees for whitelisted txs.               |
-| `L2SystemConfigContract`                | L2-side mirror of select chainConfig fields, queryable by L2 contracts.               |
-| `L2NativeExternalBridgeContract`        | L2-side counterpart to NeoHub.ExternalBridgeEscrow for foreign-chain assets.          |
+- **`L2BridgeContract`** — L2-side bridge (mint/burn wrapped assets). Counterpart to NeoHub.SharedBridge.
+- **`L2MessageContract`** — L2-side message inbox/outbox. Counterpart to NeoHub.MessageRouter.
+- **`L2BatchInfoContract`** — Records per-batch metadata on the L2 itself (cursor / latest commitment).
+- **`L2FeeContract`** — L2 gas fee config (base / priority / op-cost map).
+- **`L2PaymasterContract`** — Optional gas sponsorship — third party covers fees for whitelisted txs.
+- **`L2SystemConfigContract`** — L2-side mirror of select chainConfig fields, queryable by L2 contracts.
+- **`L2NativeExternalBridgeContract`** — L2-side counterpart to NeoHub.ExternalBridgeEscrow for foreign-chain assets.
 
 ---
 
@@ -139,16 +125,14 @@ Lives at `contracts/L2Native.*`. Deployed to each L2 chain.
 
 Lives at `src/Neo.Plugins.L2*`. Loaded by neo-cli; subscribes to `Block.Committed`.
 
-| Plugin                                  | Role                                                                                  |
-|-----------------------------------------|---------------------------------------------------------------------------------------|
-| `Neo.Plugins.L2Batch`                   | Subscribes to `Blockchain.Committed`; seals txs into `BatchCommitment` via `BatchSealer`. |
-| `Neo.Plugins.L2Settlement`              | Wires prover + settlement client; submits sealed batches to L1.                       |
-| `Neo.Plugins.L2Bridge`                  | Hosts `AssetRegistry` + `DepositProcessor` + `WithdrawalProcessor`.                   |
-| `Neo.Plugins.L2DA`                      | Picks DA writer by `DAMode`; supports InMemory / NeoFsLike / CommitteeAttested / L1.  |
-| `Neo.Plugins.L2Prover`                  | Hosts `IL2Prover` for the configured `ProofType`. SP1 prover daemon connection.       |
-| `Neo.Plugins.L2Rpc`                     | 10 RPC handlers (per `doc.md` §14.1). `IL2RpcStore` backend (in-memory or RocksDB).   |
-| `Neo.Plugins.L2Gateway`                 | Optional Phase-5 multi-L2 aggregation via `BinaryTreeAggregator`.                     |
-| `Neo.Plugins.L2Metrics`                 | Composition root for `IL2Metrics` + `MetricsHttpServer` (`/metrics` + `/healthz` + `/readyz`). |
+- **`Neo.Plugins.L2Batch`** — Subscribes to `Blockchain.Committed`; seals txs into `BatchCommitment` via `BatchSealer`.
+- **`Neo.Plugins.L2Settlement`** — Wires prover + settlement client; submits sealed batches to L1.
+- **`Neo.Plugins.L2Bridge`** — Hosts `AssetRegistry` + `DepositProcessor` + `WithdrawalProcessor`.
+- **`Neo.Plugins.L2DA`** — Picks DA writer by `DAMode`; supports InMemory / NeoFsLike / CommitteeAttested / L1.
+- **`Neo.Plugins.L2Prover`** — Hosts `IL2Prover` for the configured `ProofType`. SP1 prover daemon connection.
+- **`Neo.Plugins.L2Rpc`** — 10 RPC handlers (per `doc.md` §14.1). `IL2RpcStore` backend (in-memory or RocksDB).
+- **`Neo.Plugins.L2Gateway`** — Optional Phase-5 multi-L2 aggregation via `BinaryTreeAggregator`.
+- **`Neo.Plugins.L2Metrics`** — Composition root for `IL2Metrics` + `MetricsHttpServer` (`/metrics` + `/healthz` + `/readyz`).
 
 ---
 

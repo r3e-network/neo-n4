@@ -66,54 +66,42 @@
 
 ### 核心 5 个(每个批次都触及)
 
-| 合约                          | 角色                                                                                       |
-|-------------------------------|--------------------------------------------------------------------------------------------|
-| `SettlementManager`           | 验证已提交批次;最终化状态根 + 提款;派发到验证器。                                       |
-| `VerifierRegistry`            | 按 `proofType` 派发验证器(Multisig / RiscVZk / Optimistic / …)。                          |
-| `ChainRegistry`               | 注册 L2 链;按 chain id 存储 91 字节 `L2ChainConfig`。                                    |
-| `SharedBridge`                | 跨所有已注册链的 L1 充值 + 提款。持有托管资产。                                         |
-| `MessageRouter`               | 经重算规范哈希路由跨 L2 消息;按 (源链, 目标链) 的 inbox。                              |
+- **`SettlementManager`** — 验证已提交批次;最终化状态根 + 提款;派发到验证器。
+- **`VerifierRegistry`** — 按 `proofType` 派发验证器(Multisig / RiscVZk / Optimistic / …)。
+- **`ChainRegistry`** — 注册 L2 链;按 chain id 存储 91 字节 `L2ChainConfig`。
+- **`SharedBridge`** — 跨所有已注册链的 L1 充值 + 提款。持有托管资产。
+- **`MessageRouter`** — 经重算规范哈希路由跨 L2 消息;按 (源链, 目标链) 的 inbox。
 
 ### 桥支持(3)
 
-| 合约                          | 角色                                                                                       |
-|-------------------------------|--------------------------------------------------------------------------------------------|
-| `TokenRegistry`               | 资产元信息(symbol、decimals、原生链)。`SharedBridge` 使用。                          |
-| `DARegistry`                  | 记录已发布的 `daCommitment` 哈希;`L2DAPlugin` 在每个批次写入此处。                      |
+- **`TokenRegistry`** — 资产元信息(symbol、decimals、原生链)。`SharedBridge` 使用。
+- **`DARegistry`** — 记录已发布的 `daCommitment` 哈希;`L2DAPlugin` 在每个批次写入此处。
 
 ### 安全(5)
 
-| 合约                          | 角色                                                                                       |
-|-------------------------------|--------------------------------------------------------------------------------------------|
-| `SequencerRegistry`           | 列出每条链已注册的排序器。带保证金。                                                    |
-| `SequencerBond`               | 排序器可罚没保证金。被 `OptimisticChallenge` 在欺诈被接受时罚没。                       |
-| `ForcedInclusion`             | 抗审查:用户在 L1 post tx;L2 必须在 deadline 前纳入,否则排序器被罚。                |
-| `OptimisticChallenge`         | 二分博弈驱动的欺诈证明窗口。结算等 `challengeWindow` 后才最终化。                       |
-| `EmergencyManager`            | 个别链的运维多签暂停(例如调试关键问题时)。                                            |
+- **`SequencerRegistry`** — 列出每条链已注册的排序器。带保证金。
+- **`SequencerBond`** — 排序器可罚没保证金。被 `OptimisticChallenge` 在欺诈被接受时罚没。
+- **`ForcedInclusion`** — 抗审查:用户在 L1 post tx;L2 必须在 deadline 前纳入,否则排序器被罚。
+- **`OptimisticChallenge`** — 二分博弈驱动的欺诈证明窗口。结算等 `challengeWindow` 后才最终化。
+- **`EmergencyManager`** — 个别链的运维多签暂停(例如调试关键问题时)。
 
 ### 治理(2)
 
-| 合约                          | 角色                                                                                       |
-|-------------------------------|--------------------------------------------------------------------------------------------|
-| `GovernanceController`        | 多签 + timelock,用于验证器升级 + 协议参数变更。                                          |
-| `GovernanceFraudVerifier`     | 参考 fraud verifier —— v0 由治理仲裁被挑战的批次。                                       |
+- **`GovernanceController`** — 多签 + timelock,用于验证器升级 + 协议参数变更。
+- **`GovernanceFraudVerifier`** — 参考 fraud verifier —— v0 由治理仲裁被挑战的批次。
 
 ### 专用 fraud verifier(1)
 
-| 合约                                | 角色                                                                                  |
-|-------------------------------------|---------------------------------------------------------------------------------------|
-| `RestrictedExecutionFraudVerifier`  | v3:从 storage 证明重新派生 pre/post 状态根;接受 well-formed 声明而无需治理仲裁。     |
+- **`RestrictedExecutionFraudVerifier`** — v3:从 storage 证明重新派生 pre/post 状态根;接受 well-formed 声明而无需治理仲裁。
 
 ### 外链桥 —— Phase B/C(6)
 
-| 合约                                | 角色                                                                                  |
-|-------------------------------------|---------------------------------------------------------------------------------------|
-| `MpcCommitteeVerifier`              | 在规范 `ExternalCrossChainMessage` 上验证 M-of-N 委员会签名。                        |
-| `ExternalBridgeRegistry`            | 按链的 (verifier、bridgeKind) 条目。路由到 MPC 或 ZK 轻客户端(Phase D)。           |
-| `ExternalBridgeEscrow`              | 为外链入站铸/销包装资产;带重放保护。                                                |
-| `ExternalBridgeBond`                | 外链桥委员会成员的可罚没保证金。                                                      |
-| `ExternalBridgeStubVerifier`        | v0 测试 stub —— 自动接受任何消息。**不**用于生产。                                  |
-| `MpcCommitteeFraudVerifier`         | Phase C:从密码学上证明委员会等价签名;经 `ExternalBridgeBond` 罚没。                |
+- **`MpcCommitteeVerifier`** — 在规范 `ExternalCrossChainMessage` 上验证 M-of-N 委员会签名。
+- **`ExternalBridgeRegistry`** — 按链的 (verifier、bridgeKind) 条目。路由到 MPC 或 ZK 轻客户端(Phase D)。
+- **`ExternalBridgeEscrow`** — 为外链入站铸/销包装资产;带重放保护。
+- **`ExternalBridgeBond`** — 外链桥委员会成员的可罚没保证金。
+- **`ExternalBridgeStubVerifier`** — v0 测试 stub —— 自动接受任何消息。**不**用于生产。
+- **`MpcCommitteeFraudVerifier`** — Phase C:从密码学上证明委员会等价签名;经 `ExternalBridgeBond` 罚没。
 
 ---
 
@@ -121,15 +109,13 @@
 
 位于 `contracts/L2Native.*`。部署到每条 L2 链上。
 
-| 合约                                | 角色                                                                                  |
-|-------------------------------------|---------------------------------------------------------------------------------------|
-| `L2BridgeContract`                  | L2 侧桥(铸/销包装资产)。NeoHub.SharedBridge 的对应件。                            |
-| `L2MessageContract`                 | L2 侧消息 inbox/outbox。NeoHub.MessageRouter 的对应件。                              |
-| `L2BatchInfoContract`               | 在 L2 自身上记录按批次的元信息(游标 / 最新承诺)。                                   |
-| `L2FeeContract`                     | L2 gas 费用配置(基础 / 优先 / op-cost map)。                                        |
-| `L2PaymasterContract`               | 可选 gas 代付 —— 第三方为白名单 tx 付费。                                            |
-| `L2SystemConfigContract`            | 选定 chainConfig 字段在 L2 侧的镜像,供 L2 合约查询。                                |
-| `L2NativeExternalBridgeContract`    | NeoHub.ExternalBridgeEscrow 在 L2 侧的对应件,服务外链资产。                          |
+- **`L2BridgeContract`** — L2 侧桥(铸/销包装资产)。NeoHub.SharedBridge 的对应件。
+- **`L2MessageContract`** — L2 侧消息 inbox/outbox。NeoHub.MessageRouter 的对应件。
+- **`L2BatchInfoContract`** — 在 L2 自身上记录按批次的元信息(游标 / 最新承诺)。
+- **`L2FeeContract`** — L2 gas 费用配置(基础 / 优先 / op-cost map)。
+- **`L2PaymasterContract`** — 可选 gas 代付 —— 第三方为白名单 tx 付费。
+- **`L2SystemConfigContract`** — 选定 chainConfig 字段在 L2 侧的镜像,供 L2 合约查询。
+- **`L2NativeExternalBridgeContract`** — NeoHub.ExternalBridgeEscrow 在 L2 侧的对应件,服务外链资产。
 
 ---
 
@@ -137,16 +123,14 @@
 
 位于 `src/Neo.Plugins.L2*`。由 neo-cli 加载;订阅 `Block.Committed`。
 
-| 插件                                | 角色                                                                                  |
-|-------------------------------------|---------------------------------------------------------------------------------------|
-| `Neo.Plugins.L2Batch`               | 订阅 `Blockchain.Committed`;经 `BatchSealer` 把 tx 封进 `BatchCommitment`。           |
-| `Neo.Plugins.L2Settlement`          | 接好证明者 + 结算客户端;把封好的批次提到 L1。                                       |
-| `Neo.Plugins.L2Bridge`              | 托管 `AssetRegistry` + `DepositProcessor` + `WithdrawalProcessor`。                  |
-| `Neo.Plugins.L2DA`                  | 按 `DAMode` 选 DA writer;支持 InMemory / NeoFsLike / CommitteeAttested / L1。       |
-| `Neo.Plugins.L2Prover`              | 为配置的 `ProofType` 托管 `IL2Prover`。SP1 证明守护进程连接。                       |
-| `Neo.Plugins.L2Rpc`                 | 10 个 RPC handler(按 `doc.md` §14.1)。`IL2RpcStore` 后备(内存或 RocksDB)。       |
-| `Neo.Plugins.L2Gateway`             | 经 `BinaryTreeAggregator` 做可选的 Phase-5 多 L2 聚合。                              |
-| `Neo.Plugins.L2Metrics`             | `IL2Metrics` + `MetricsHttpServer` 的组合根(`/metrics` + `/healthz` + `/readyz`)。 |
+- **`Neo.Plugins.L2Batch`** — 订阅 `Blockchain.Committed`;经 `BatchSealer` 把 tx 封进 `BatchCommitment`。
+- **`Neo.Plugins.L2Settlement`** — 接好证明者 + 结算客户端;把封好的批次提到 L1。
+- **`Neo.Plugins.L2Bridge`** — 托管 `AssetRegistry` + `DepositProcessor` + `WithdrawalProcessor`。
+- **`Neo.Plugins.L2DA`** — 按 `DAMode` 选 DA writer;支持 InMemory / NeoFsLike / CommitteeAttested / L1。
+- **`Neo.Plugins.L2Prover`** — 为配置的 `ProofType` 托管 `IL2Prover`。SP1 证明守护进程连接。
+- **`Neo.Plugins.L2Rpc`** — 10 个 RPC handler(按 `doc.md` §14.1)。`IL2RpcStore` 后备(内存或 RocksDB)。
+- **`Neo.Plugins.L2Gateway`** — 经 `BinaryTreeAggregator` 做可选的 Phase-5 多 L2 聚合。
+- **`Neo.Plugins.L2Metrics`** — `IL2Metrics` + `MetricsHttpServer` 的组合根(`/metrics` + `/healthz` + `/readyz`)。
 
 ---
 

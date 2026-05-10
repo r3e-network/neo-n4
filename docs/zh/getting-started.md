@@ -97,8 +97,10 @@ dotnet run --project tools/Neo.L2.Devnet -- 0 --data-dir /tmp/neo-l2-devnet1
 ## 第 4 步 —— 生成 NeoHub 部署 bundle
 
 ```bash
-dotnet run --project tools/Neo.Hub.Deploy -- scaffold --output deploy-plan.json
-dotnet run --project tools/Neo.Hub.Deploy -- plan --plan deploy-plan.json --output bundle.json
+dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
+    --output deploy-plan.json
+dotnet run --project tools/Neo.Hub.Deploy -- plan \
+    --plan deploy-plan.json --output bundle.json
 ```
 
 `bundle.json` 是一份拓扑排序、依赖已解析的合约部署调用序列(共 20 步)——每个
@@ -109,9 +111,12 @@ dotnet run --project tools/Neo.Hub.Deploy -- plan --plan deploy-plan.json --outp
 
 ```
 Required post-deploy actions:
-  - SequencerBond.RegisterSlasher(OptimisticChallenge)  # enable Phase-3 challenge slashing
-  - ChainRegistry.SetGovernanceController(GovernanceController)  # enable §16.1 admission policy
-  - VerifierRegistry.SetGovernanceController(GovernanceController)  # enable §16 council-veto path
+  - SequencerBond.RegisterSlasher(OptimisticChallenge)
+      # enable Phase-3 challenge slashing
+  - ChainRegistry.SetGovernanceController(GovernanceController)
+      # enable §16.1 admission policy
+  - VerifierRegistry.SetGovernanceController(GovernanceController)
+      # enable §16 council-veto path
 ```
 
 ## 第 5 步 —— 构建一个智能合约

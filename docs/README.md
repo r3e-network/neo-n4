@@ -212,8 +212,10 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --data-dir /tmp/neo-l2-devnet
 # --- L1 deploy (when ready) ---
 
 # Generate a NeoHub deploy bundle (20 contracts, declarative, dependency-resolved)
-dotnet run --project tools/Neo.Hub.Deploy -- scaffold --output deploy-plan.json
-dotnet run --project tools/Neo.Hub.Deploy -- plan     --plan deploy-plan.json --output bundle.json
+dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
+    --output deploy-plan.json
+dotnet run --project tools/Neo.Hub.Deploy -- plan \
+    --plan deploy-plan.json --output bundle.json
 
 # Type-check a smart contract (no nccs required)
 dotnet build contracts/NeoHub.ChainRegistry /p:NuGetAudit=false /p:DisableNccs=true

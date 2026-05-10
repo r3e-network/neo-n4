@@ -99,8 +99,10 @@ Layout under `<path>/`: `state/`, `rpc-proofs/`, `sequencer/`, `da/`. See
 ## Step 4 — Generate a NeoHub deploy bundle
 
 ```bash
-dotnet run --project tools/Neo.Hub.Deploy -- scaffold --output deploy-plan.json
-dotnet run --project tools/Neo.Hub.Deploy -- plan --plan deploy-plan.json --output bundle.json
+dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
+    --output deploy-plan.json
+dotnet run --project tools/Neo.Hub.Deploy -- plan \
+    --plan deploy-plan.json --output bundle.json
 ```
 
 `bundle.json` is a topologically-sorted, dependency-resolved sequence of 20 contract
@@ -113,9 +115,12 @@ fully wire the system on its own — e.g.:
 
 ```
 Required post-deploy actions:
-  - SequencerBond.RegisterSlasher(OptimisticChallenge)  # enable Phase-3 challenge slashing
-  - ChainRegistry.SetGovernanceController(GovernanceController)  # enable §16.1 admission policy
-  - VerifierRegistry.SetGovernanceController(GovernanceController)  # enable §16 council-veto path
+  - SequencerBond.RegisterSlasher(OptimisticChallenge)
+      # enable Phase-3 challenge slashing
+  - ChainRegistry.SetGovernanceController(GovernanceController)
+      # enable §16.1 admission policy
+  - VerifierRegistry.SetGovernanceController(GovernanceController)
+      # enable §16 council-veto path
 ```
 
 ## Step 5 — Build a smart contract

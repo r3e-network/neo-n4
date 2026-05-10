@@ -131,8 +131,10 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --metrics-port 9090
 dotnet run --project tools/Neo.L2.Devnet -- 5 --data-dir /tmp/neo-l2-devnet
 
 # 生成 NeoHub 部署 bundle
-dotnet run --project tools/Neo.Hub.Deploy -- scaffold --output deploy-plan.json
-dotnet run --project tools/Neo.Hub.Deploy -- plan     --plan deploy-plan.json --output bundle.json
+dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
+    --output deploy-plan.json
+dotnet run --project tools/Neo.Hub.Deploy -- plan \
+    --plan deploy-plan.json --output bundle.json
 ```
 
 5 分钟教程见 [`getting-started.md`](./getting-started.md);完整流程见

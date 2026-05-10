@@ -118,5 +118,5 @@
   <line x1="480" y1="148" x2="480" y2="94" stroke="#525a64" stroke-width="1.6" marker-end="url(#ah3)"/>
   <text x="490" y="124" class="edge-lbl">提交一份聚合证明</text>
 
-  <text x="480" y="558" text-anchor="middle" class="caption">图 3 · Phase 5 多 L2 证明聚合 —— N 条 L2 批次经 log(N) 轮 IRoundProver 归约,然后一次 L1 结算。</text>
+  <text x="480" y="558" text-anchor="middle" class="caption">Phase 5 多 L2 证明聚合 —— N 条 L2 批次经 log(N) 轮 IRoundProver 归约,然后一次 L1 结算。</text>
 </svg>

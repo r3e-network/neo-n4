@@ -92,5 +92,5 @@
   <text x="340" y="516" text-anchor="middle" class="note-text" fill="#991b1b">SequencerBond.Slash(sequencer)</text>
   <text x="340" y="532" text-anchor="middle" class="msg-sub" fill="#991b1b">保证金扣除 · 上报者得到支付</text>
 
-  <text x="480" y="600" text-anchor="middle" class="caption">图 4 · 强制纳入 + 审查罚没 —— 从用户提交到运维者驱动罚没的 9 步序列。</text>
+  <text x="480" y="600" text-anchor="middle" class="caption">强制纳入 + 审查罚没 —— 从用户提交到运维者驱动罚没的 9 步序列。</text>
 </svg>

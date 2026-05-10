@@ -97,5 +97,5 @@
     <text x="780" y="570" text-anchor="middle" class="card-sub" fill="#2f5e3c">N 条弹性链</text>
   </g>
 
-  <text x="480" y="612" text-anchor="middle" class="caption">图 1 · Neo Elastic Network —— 三层架构(L1 锚 · 可选 Gateway · N 条 L2 链)。</text>
+  <text x="480" y="612" text-anchor="middle" class="caption">Neo Elastic Network —— 三层架构(L1 锚 · 可选 Gateway · N 条 L2 链)。</text>
 </svg>

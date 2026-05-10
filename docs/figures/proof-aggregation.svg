@@ -140,5 +140,5 @@
   <text x="490" y="124" class="edge-lbl">submit one aggregated proof</text>
 
   <!-- caption -->
-  <text x="480" y="558" text-anchor="middle" class="caption">Figure 3 · Phase 5 multi-L2 proof aggregation — N L2 batches reduced in log(N) IRoundProver rounds, then one L1 settlement.</text>
+  <text x="480" y="558" text-anchor="middle" class="caption">Phase 5 multi-L2 proof aggregation — N L2 batches reduced in log(N) IRoundProver rounds, then one L1 settlement.</text>
 </svg>

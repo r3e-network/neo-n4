@@ -126,5 +126,5 @@
     <text x="746" y="374" class="row-val">支付 · DeFi · 机构</text>
   </g>
 
-  <text x="480" y="438" text-anchor="middle" class="caption">图 6 · 按链的安全光谱 —— 每条 L2 在 ChainRegistry 公布其 securityLevel;UI 必须把它呈现出来。</text>
+  <text x="480" y="438" text-anchor="middle" class="caption">按链的安全光谱 —— 每条 L2 在 ChainRegistry 公布其 securityLevel;UI 必须把它呈现出来。</text>
 </svg>

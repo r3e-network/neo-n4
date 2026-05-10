@@ -142,5 +142,5 @@
   <line x1="760" y1="572" x2="760" y2="592" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah2)"/>
 
   <!-- caption -->
-  <text x="480" y="704" text-anchor="middle" class="caption">Figure 2 · Transaction lifecycle on a Neo L2 chain — nine stages from user submission to L1 finality.</text>
+  <text x="480" y="704" text-anchor="middle" class="caption">Transaction lifecycle on a Neo L2 chain — nine stages from user submission to L1 finality.</text>
 </svg>

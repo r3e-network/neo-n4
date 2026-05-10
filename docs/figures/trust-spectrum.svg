@@ -137,5 +137,5 @@
   </g>
 
   <!-- caption -->
-  <text x="480" y="438" text-anchor="middle" class="caption">Figure 6 · Per-chain security spectrum — every L2 publishes its securityLevel in ChainRegistry; UIs MUST surface it.</text>
+  <text x="480" y="438" text-anchor="middle" class="caption">Per-chain security spectrum — every L2 publishes its securityLevel in ChainRegistry; UIs MUST surface it.</text>
 </svg>

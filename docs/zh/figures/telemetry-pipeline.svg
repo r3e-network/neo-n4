@@ -109,5 +109,5 @@
   <line x1="522" y1="304" x2="598" y2="304" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah5)"/>
   <text x="560" y="296" text-anchor="middle" class="edge-lbl">HTTP</text>
 
-  <text x="480" y="362" text-anchor="middle" class="caption">图 5 · 遥测流水线 —— 插件向共享 IL2Metrics 槽发出;一个 HTTP 端点为 Prometheus 抓取提供服务。</text>
+  <text x="480" y="362" text-anchor="middle" class="caption">遥测流水线 —— 插件向共享 IL2Metrics 槽发出;一个 HTTP 端点为 Prometheus 抓取提供服务。</text>
 </svg>

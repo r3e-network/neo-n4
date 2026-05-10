@@ -123,5 +123,5 @@
   <text x="560" y="296" text-anchor="middle" class="edge-lbl">HTTP</text>
 
   <!-- caption -->
-  <text x="480" y="362" text-anchor="middle" class="caption">Figure 5 · Telemetry pipeline — plugins emit to a shared IL2Metrics sink; one HTTP endpoint serves a Prometheus scrape.</text>
+  <text x="480" y="362" text-anchor="middle" class="caption">Telemetry pipeline — plugins emit to a shared IL2Metrics sink; one HTTP endpoint serves a Prometheus scrape.</text>
 </svg>

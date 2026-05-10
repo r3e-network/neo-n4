@@ -130,5 +130,5 @@
   <text x="340" y="532" text-anchor="middle" class="msg-sub" fill="#991b1b">bond debited · reporter paid</text>
 
   <!-- caption -->
-  <text x="480" y="600" text-anchor="middle" class="caption">Figure 4 · Forced inclusion + censorship slashing — 9-step sequence from user submission through operator-driven slashing.</text>
+  <text x="480" y="600" text-anchor="middle" class="caption">Forced inclusion + censorship slashing — 9-step sequence from user submission through operator-driven slashing.</text>
 </svg>

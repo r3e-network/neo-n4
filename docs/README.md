@@ -39,7 +39,7 @@ NeoFS data availability.
 ## Architecture at a glance
 
 <p align="center">
-  <img src="docs/figures/architecture.svg" alt="Neo Elastic Network — three-tier architecture: L1 (NeoHub) anchor, optional Phase 5 Neo Gateway, and N elastic L2 execution chains" width="900">
+  <img src="figures/architecture.svg" alt="Neo Elastic Network — three-tier architecture: L1 (NeoHub) anchor, optional Phase 5 Neo Gateway, and N elastic L2 execution chains" width="900">
 </p>
 
 The architecture is three tiers:

@@ -41,7 +41,7 @@ Phase 0–2 在多签之上叠加治理(Neo Council、排序器保证金)。
 ## 每条链的安全标签
 
 <p align="center">
-  <img src="figures/trust-spectrum.svg" alt="按链的安全光谱:0 侧链(完全信任排序器),1 已结算 L2(DA + 状态根承诺),2 乐观 rollup(欺诈证明挑战窗口),3 ZK validity(密码学终结性)。每张卡说明用户信任什么、L1 保证什么、提款时间、故障模式、范例部署。" width="900">
+  <img src="../figures/trust-spectrum.svg" alt="按链的安全光谱:0 侧链(完全信任排序器),1 已结算 L2(DA + 状态根承诺),2 乐观 rollup(欺诈证明挑战窗口),3 ZK validity(密码学终结性)。每张卡说明用户信任什么、L1 保证什么、提款时间、故障模式、范例部署。" width="900">
 </p>
 
 `ChainRegistry` 要求每条 L2 在链上公布自身的安全画像:

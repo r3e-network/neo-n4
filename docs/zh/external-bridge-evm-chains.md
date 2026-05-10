@@ -29,7 +29,7 @@ Base、Avalanche、Linea、zkSync、Scroll、Mantle、Fantom、Celo 等都视为
 ### 第 1 步 —— 选定外链 id
 
 在
-[`watchers/neo-bridge-watcher-eth/src/chains.rs`](../watchers/neo-bridge-watcher-eth/src/chains.rs)
+[`watchers/neo-bridge-watcher-eth/src/chains.rs`](../../watchers/neo-bridge-watcher-eth/src/chains.rs)
 里查你的链。完整精选表见下方 `槽位分配`。如果你的链还没列上,在对应的 16 槽位
 家族 bank 加常量并提 PR —— 测试 `family_banks_align_to_16_slots` 会钉死它的位置。
 
@@ -56,7 +56,7 @@ forge create src/NeoExternalBridgeRouter.sol:NeoExternalBridgeRouter \
 ```
 
 构造参数(定义在
-[`NeoExternalBridgeRouter.sol`](../external/foreign-contracts/eth/src/NeoExternalBridgeRouter.sol)):
+[`NeoExternalBridgeRouter.sol`](../../external/foreign-contracts/eth/src/NeoExternalBridgeRouter.sol)):
 
 | 参数               | 类型    | 含义                                                                                       |
 |--------------------|---------|--------------------------------------------------------------------------------------------|
@@ -269,7 +269,7 @@ assert!(!is_evm_family(SOLANA_MAINNET));     // ed25519 —— 另一个栈
 
 ## 另请参阅
 
-- [`watchers/neo-bridge-watcher-eth/src/chains.rs`](../watchers/neo-bridge-watcher-eth/src/chains.rs) —— 规范 chain-id 表。
-- [`external/foreign-contracts/eth/src/NeoExternalBridgeRouter.sol`](../external/foreign-contracts/eth/src/NeoExternalBridgeRouter.sol) —— EVM router 合约(原样部署到任何 EVM 链)。
-- [`watchers/neo-bridge-watcher-eth/README.md`](../watchers/neo-bridge-watcher-eth/README.md) —— 守护进程完整 config schema + 启动说明。
+- [`watchers/neo-bridge-watcher-eth/src/chains.rs`](../../watchers/neo-bridge-watcher-eth/src/chains.rs) —— 规范 chain-id 表。
+- [`external/foreign-contracts/eth/src/NeoExternalBridgeRouter.sol`](../../external/foreign-contracts/eth/src/NeoExternalBridgeRouter.sol) —— EVM router 合约(原样部署到任何 EVM 链)。
+- [`watchers/neo-bridge-watcher-eth/README.md`](../../watchers/neo-bridge-watcher-eth/README.md) —— 守护进程完整 config schema + 启动说明。
 - [`docs/external-bridge-roadmap.md`](external-bridge-roadmap.md) —— Phase A → B → C 交付计划 + 未来 zk 轻客户端 R&D。

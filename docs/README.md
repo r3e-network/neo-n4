@@ -44,11 +44,12 @@ NeoFS data availability.
 
 The architecture is three tiers:
 
-- **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 15 contracts grouped into
-  five concerns: *Settlement* (SettlementManager · VerifierRegistry), *Bridge*
+- **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 21 contracts grouped into
+  six concerns: *Settlement* (SettlementManager · VerifierRegistry), *Bridge*
   (SharedBridge · TokenRegistry · ChainRegistry), *Messaging* (MessageRouter · DARegistry),
   *Security* (SequencerRegistry · SequencerBond · ForcedInclusion · OptimisticChallenge),
-  and *Governance* (GovernanceController · EmergencyManager). Owns assets, settlement,
+  *Governance* (GovernanceController · EmergencyManager · GovernanceFraudVerifier · RestrictedExecutionFraudVerifier),
+  and *External Bridge* (MpcCommitteeVerifier · ExternalBridgeRegistry · ExternalBridgeEscrow · ExternalBridgeBond · MpcCommitteeFraudVerifier · ExternalBridgeStubVerifier). Owns assets, settlement,
   message routing, and governance.
 - **Neo Gateway (Phase 5, optional)** — aggregates many L2s' proofs into one settlement
   post on L1. `BinaryTreeAggregator` reduces in log-N rounds; `IRoundProver` ships in
@@ -60,9 +61,9 @@ The architecture is three tiers:
 - **L2 chains (elastic, N of them)** — Neo 4 core as execution kernel, 8 L2 plugins,
   7 native L2 contracts per chain. Independent state, shared L1 anchor.
 
-For a full English distillation of the architecture, see [`ARCHITECTURE.md`](./ARCHITECTURE.md).
-For the formal technical document, see [`WHITEPAPER.md`](./WHITEPAPER.md).
-For the master Chinese spec, see [`doc.md`](./doc.md).
+For a full English distillation of the architecture, see [`ARCHITECTURE.md`](../ARCHITECTURE.md).
+For the formal technical document, see [`WHITEPAPER.md`](../WHITEPAPER.md).
+For the master Chinese spec, see [`doc.md`](../doc.md).
 
 ---
 
@@ -71,10 +72,10 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 | Area              | Count     | Description                                                              |
 | ----------------- | --------- | ------------------------------------------------------------------------ |
 | Off-chain libraries | **16**  | `Neo.L2.{Abstractions,Audit,Batch,Bridge,Censorship,Challenge,Executor,Executor.RiscV,ForcedInclusion,Messaging,Persistence,Proving,Sequencer,Settlement.Rpc,State,Telemetry}` (App SDK in `Neo.L2.Sdk` counted separately under App SDKs) |
-| Persistence backends | **2**  | `InMemoryKeyValueStore` (tests) · `RocksDbKeyValueStore` (production default) — see [`docs/persistence.md`](./docs/persistence.md) |
+| Persistence backends | **2**  | `InMemoryKeyValueStore` (tests) · `RocksDbKeyValueStore` (production default) — see [`docs/persistence.md`](./persistence.md) |
 | Node plugins      | **8**     | `Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}`  |
 | Smart contracts   | **28**    | 21 NeoHub L1 (incl. `GovernanceFraudVerifier`, `RestrictedExecutionFraudVerifier` v3 trustless verifier, and the 6 cross-foreign-chain bridge contracts: `MpcCommitteeVerifier` / `ExternalBridgeRegistry` / `ExternalBridgeEscrow` / `ExternalBridgeBond` / `ExternalBridgeStubVerifier` / `MpcCommitteeFraudVerifier`) + 7 L2 native (incl. `L2NativeExternalBridgeContract`); all type-check via `Neo.SmartContract.Framework` |
-| CLI tools         | **6**     | `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`, `neo-l2-explore`, `neo-bridge`, `neo-l2-faucet` |
+| CLI tools         | **7**     | `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`, `neo-l2-explore`, `neo-bridge`, `neo-l2-faucet`, `neo-external-bridge` |
 | App SDKs          | **3**     | `src/Neo.L2.Sdk/` (.NET) · `sdk/typescript/` (`@neo-n4/sdk`) · `sdk/rust/` (`neo-n4-sdk`) — all 10 RPC methods, same wire shape, same 4-class error taxonomy |
 | Web app           | **1**     | `sdk/web-explorer/index.html` — single static-file UI: Explore + Bridge + Faucet + state-root continuity Audit |
 | Docs site config  | **1**     | `book.toml` + `docs/SUMMARY.md` (mdBook) |
@@ -118,7 +119,7 @@ neo4/
 
 ## Phased status
 
-Per [`doc.md` §18](./doc.md):
+Per [`doc.md` §18](../doc.md):
 
 | Phase | Goal                                | Status | Evidence                                                  |
 | ----- | ----------------------------------- | :----: | --------------------------------------------------------- |
@@ -132,7 +133,7 @@ Per [`doc.md` §18](./doc.md):
 
 Legend: ✅ done · 🟡 substantial scaffolding + tests · 🔴 stub.
 
-Detailed coverage per project: [`IMPLEMENTATION_STATUS.md`](./IMPLEMENTATION_STATUS.md).
+Detailed coverage per project: [`IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md).
 
 ---
 
@@ -186,7 +187,7 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --data-dir /tmp/neo-l2-devnet
 
 # --- L1 deploy (when ready) ---
 
-# Generate a NeoHub deploy bundle (15 contracts, declarative, dependency-resolved)
+# Generate a NeoHub deploy bundle (20 contracts, declarative, dependency-resolved)
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold --output deploy-plan.json
 dotnet run --project tools/Neo.Hub.Deploy -- plan     --plan deploy-plan.json --output bundle.json
 
@@ -194,7 +195,7 @@ dotnet run --project tools/Neo.Hub.Deploy -- plan     --plan deploy-plan.json --
 dotnet build contracts/NeoHub.ChainRegistry /p:NuGetAudit=false /p:DisableNccs=true
 ```
 
-A 5-minute walkthrough is in [`docs/getting-started.md`](./docs/getting-started.md).
+A 5-minute walkthrough is in [`docs/getting-started.md`](./getting-started.md).
 
 ---
 
@@ -203,23 +204,23 @@ A 5-minute walkthrough is in [`docs/getting-started.md`](./docs/getting-started.
 | Document                                                                | Audience              | Purpose                                                              |
 | ----------------------------------------------------------------------- | --------------------- | -------------------------------------------------------------------- |
 | [`README.md`](./README.md)                                              | everyone              | This file. What is `neo4`, how to run it.                            |
-| [`WHITEPAPER.md`](./WHITEPAPER.md)                                      | architects, reviewers | Formal technical document — design, security model, comparison.      |
-| [`ARCHITECTURE.md`](./ARCHITECTURE.md)                                  | engineers             | English distillation of `doc.md` §-by-§ for quick cross-reference.   |
-| [`doc.md`](./doc.md)                                                    | spec authors          | Master architecture spec (Chinese, authoritative).                   |
-| [`IMPLEMENTATION_STATUS.md`](./IMPLEMENTATION_STATUS.md)                | reviewers             | What's built vs deferred, per project.                               |
-| [`CHANGELOG.md`](./CHANGELOG.md)                                        | reviewers             | Per-iteration change log.                                            |
-| [`docs/getting-started.md`](./docs/getting-started.md)                  | new contributors      | Clone → test → run devnet in 5 minutes.                              |
-| [`docs/launching-an-l2.md`](./docs/launching-an-l2.md)                  | L2 operators          | 5-command path to a registered L2 chain + every plug-in point for custom logic (executor / DA / prover / sequencer). Templates: rollup / zk-rollup / validium / sidechain. |
-| [`samples/`](./samples/README.md)                                       | L2 operators          | 4 ready-to-run sample chain configs covering distinct use cases (general-rollup / gaming-rollup / exchange-validium / privacy-sidechain), each verified end-to-end via `neo-l2-devnet --config`. |
-| [`samples/contracts/`](./samples/contracts/README.md)                   | dApp developers       | Sample L2-aware app contracts (`CrossChainGreeter`, `WithdrawalDemo`) showing standard patterns for integrating with `L2Native.*`. |
-| [`docs/tech-stack-coverage.md`](./docs/tech-stack-coverage.md)          | reviewers             | Honest gap analysis of L2-stack coverage — 51 components ✅, 2 🟡 (Phase 4/5 ZK infra), 6 🔴 (out-of-repo: SDKs, explorer, portal, faucet, wallet integration). |
-| [`docs/architecture-walkthrough.md`](./docs/architecture-walkthrough.md) | engineers             | Narrative tour mapping every `doc.md` section to code.               |
-| [`docs/telemetry.md`](./docs/telemetry.md)                              | operators             | Metric catalog, wiring example, Prometheus exposition format.        |
-| [`docs/security-model.md`](./docs/security-model.md)                    | operators, reviewers  | What L1 guarantees, threat → mitigation table, operator checklist.   |
-| [`docs/persistence.md`](./docs/persistence.md)                          | operators             | RocksDB-backed durable state — IL2KeyValueStore, per-component wiring, operator checklist. |
-| [`docs/figures/`](./docs/figures/)                                      | everyone              | Figure gallery — 6 hand-tuned SVGs reused across README + walkthrough + whitepaper + security-model. |
-| [`CONTRIBUTING.md`](./CONTRIBUTING.md)                                  | contributors          | Layout, conventions, PR checklist.                                   |
-| [`AGENTS.md`](./AGENTS.md)                                              | AI tooling            | Guide for AI-assisted contributors.                                  |
+| [`WHITEPAPER.md`](../WHITEPAPER.md)                                      | architects, reviewers | Formal technical document — design, security model, comparison.      |
+| [`ARCHITECTURE.md`](../ARCHITECTURE.md)                                  | engineers             | English distillation of `doc.md` §-by-§ for quick cross-reference.   |
+| [`doc.md`](../doc.md)                                                    | spec authors          | Master architecture spec (Chinese, authoritative).                   |
+| [`IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md)                | reviewers             | What's built vs deferred, per project.                               |
+| [`CHANGELOG.md`](../CHANGELOG.md)                                        | reviewers             | Per-iteration change log.                                            |
+| [`docs/getting-started.md`](./getting-started.md)                  | new contributors      | Clone → test → run devnet in 5 minutes.                              |
+| [`docs/launching-an-l2.md`](./launching-an-l2.md)                  | L2 operators          | 5-command path to a registered L2 chain + every plug-in point for custom logic (executor / DA / prover / sequencer). Templates: rollup / zk-rollup / validium / sidechain. |
+| [`samples/`](../samples/README.md)                                       | L2 operators          | 4 ready-to-run sample chain configs covering distinct use cases (general-rollup / gaming-rollup / exchange-validium / privacy-sidechain), each verified end-to-end via `neo-l2-devnet --config`. |
+| [`samples/contracts/`](../samples/contracts/README.md)                   | dApp developers       | Sample L2-aware app contracts (`CrossChainGreeter`, `WithdrawalDemo`) showing standard patterns for integrating with `L2Native.*`. |
+| [`docs/tech-stack-coverage.md`](./tech-stack-coverage.md)          | reviewers             | Honest gap analysis of L2-stack coverage — 51 components ✅, 2 🟡 (Phase 4/5 ZK infra), 6 🔴 (out-of-repo: SDKs, explorer, portal, faucet, wallet integration). |
+| [`docs/architecture-walkthrough.md`](./architecture-walkthrough.md) | engineers             | Narrative tour mapping every `doc.md` section to code.               |
+| [`docs/telemetry.md`](./telemetry.md)                              | operators             | Metric catalog, wiring example, Prometheus exposition format.        |
+| [`docs/security-model.md`](./security-model.md)                    | operators, reviewers  | What L1 guarantees, threat → mitigation table, operator checklist.   |
+| [`docs/persistence.md`](./persistence.md)                          | operators             | RocksDB-backed durable state — IL2KeyValueStore, per-component wiring, operator checklist. |
+| [`docs/figures/`](./figures/)                                      | everyone              | Figure gallery — 6 hand-tuned SVGs reused across README + walkthrough + whitepaper + security-model. |
+| [`CONTRIBUTING.md`](../CONTRIBUTING.md)                                  | contributors          | Layout, conventions, PR checklist.                                   |
+| [`AGENTS.md`](../AGENTS.md)                                              | AI tooling            | Guide for AI-assisted contributors.                                  |
 
 ---
 

@@ -5,40 +5,71 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Added — "Essentials" manuscript variant (`tools/manuscript/build.sh essentials`)
+### Added — Whitepaper-style "Essentials" manuscript variant (`build.sh essentials`)
 
-A focused, shorter companion to the full manuscript that answers four
-questions for newcomers without making them read 196 pages:
+A focused, design-only companion to the full manuscript. Sole content:
+`WHITEPAPER.md` (and `docs/zh/WHITEPAPER.md`, newly created as the
+Chinese translation). 15 sections — motivation, system overview,
+NeoHub L1 contracts, L2 internals, proof system, asset model,
+cross-chain messaging, DA tiers, Neo Gateway, censorship resistance,
+governance, threat model, phased rollout, comparison to other rollup
+stacks, glossary. No tutorials, no byte-layout detail.
 
-1. **What is `neo4`?**
-2. **What does it look like running?** (devnet quick start)
-3. **What modules does it have, and how do they fit together?**
-4. **How does data flow between those modules?**
+Embeds **8 figures** to make architecture, modules, workflow, and
+dataflow visually concrete: `architecture.svg` (3-tier topology),
+`neohub-anatomy.svg` (15 L1 contracts grouped), `l2-components.svg`
+(Neo 4 + plugins + native contracts), `tx-lifecycle.svg` (9-stage
+pipeline), `settlement-sequence.svg` (proof hot path),
+`cross-l2-messaging-sequence.svg`, `cross-tier-verification.svg`,
+`proof-aggregation.svg` (binary-tree fold), `forced-inclusion.svg`
+(censorship-slashing sequence), `trust-spectrum.svg` (security-level
+gradient).
 
-8 chapters in 5 parts — roughly half the length of the full edition:
-
-- **Overview** (`docs/README.md` + `docs/architecture-atlas.md`)
-- **Quick Start** (`docs/getting-started.md`)
-- **Architecture and modules** (`docs/architecture-walkthrough.md`,
-  `docs/architecture-l1-vs-l2.md`, `docs/architecture-l2-lifecycle.md`,
-  `docs/architecture-trust-boundaries.md`)
-- **Data flows** (`docs/architecture-wire-formats.md`)
-- **Reference** (`docs/architecture-glossary.md`)
-
-Operator how-tos (persistence, telemetry, wallet integration, launching
-a chain), external-bridge specialization, and implementation tracking
-remain in the full manuscript.
-
-- **`tools/manuscript/manifest-{en,zh}-essentials.txt`** — chapter
-  ordering for the focused subset.
-- **`tools/manuscript/metadata-{en,zh}-essentials.yaml`** — pandoc
-  metadata with the "Essentials" subtitle and a 4-question abstract.
+- **`tools/manuscript/manifest-{en,zh}-essentials.txt`** and
+  `metadata-{en,zh}-essentials.yaml` carry the per-variant
+  configuration.
 - **`build.sh`** grew CLI verbs `en-essentials` / `zh-essentials` /
   `essentials` (both languages) / `all` (full + essentials).
-- **Outputs**: `build/manuscript-en-essentials.pdf` (~1.3 MB, ~106
-  pages) and `build/manuscript-zh-essentials.pdf` (~22 MB, ~104 pages,
-  CJK font subsets account for the size). Same figure pipeline as the
-  full edition; same idiomatic Chinese terminology.
+- **Outputs**: `build/manuscript-{en,zh}-essentials.pdf` — ≈27 / ≈28
+  pages. Same figure pipeline as the full edition; same idiomatic
+  Chinese terminology.
+
+### Fixed — Manuscript layout, font, and caption polish
+
+Iterative fixes after visual review revealed several issues:
+
+- **Header text overlap on the whitepaper**. Both `\fancyhead[LE,RO]`
+  and `\fancyhead[LO,RE]` resolved to "Neo Elastic Network —
+  Whitepaper" in `oneside` mode, causing the running title to visibly
+  overlap itself. Drop the custom LO/RE entry; `\leftmark` alone
+  shows the chapter title.
+- **Long contract / class names overflowing pandoc table columns**
+  ("SettlementManagAccept", "GovernanceFraudRefefoifeer",
+  "RestrictedExecutionFraud..."). Pandoc pipe-table column 1 was
+  too narrow for 24–32 char identifiers. Convert the contract list,
+  plugin list, and proof-stage table to definition-style bullet
+  lists; bump column 1 dashes on smaller tables.
+- **Tofu glyphs in figures** — Chinese characters in `docs/zh/figures/`
+  AND Unicode arrows (U+2192 →) in `docs/figures/` rendered as
+  `.notdef` boxes (□). Same root cause: cairo locks in the first
+  resolvable font-family per text element with no per-glyph fallback;
+  Linux fontconfig misroutes both the macOS-style `'PingFang SC'`
+  list and the basic `Helvetica` / `Arial` list to `NotoSans-Regular`
+  (Latin-only subset, no CJK and no arrow glyphs). Fix: prepend
+  `'Noto Sans CJK SC'` (or `'Noto Sans Mono CJK SC'` for monospace
+  classes) to all 35 EN + 35 ZH SVG `font-family` lists.
+- **Stale figure numbers in SVG captions**. The 6 top-level figures
+  carried internal captions like "Figure 3 · ..." with numbers baked
+  in from each figure's *original* source-doc context. Once embedded
+  across multiple manuscripts, those numbers were wrong. Strip the
+  `"Figure N · "` / `"图 N · "` prefix from every internal SVG
+  caption; pandoc owns the formal figure numbering for the manuscript
+  context.
+- **Broken internal TOC links in PDF**. ~80 `Hyper reference
+  undefined` warnings — pandoc's default identifier algorithm strips
+  leading numbers (heading `## 8. Foo` → anchor `#foo`, but TOC links
+  use `#8-foo`). Add `+gfm_auto_identifiers` to the pandoc reader;
+  GitHub-style slugs preserve leading numbers.
 
 ### Added — Manuscript-style PDF compilation (`tools/manuscript/`)
 

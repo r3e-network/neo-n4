@@ -269,41 +269,39 @@ specifically by `DAAvailabilityCheck` against a writer that never saw the payloa
 
 ## Where each `doc.md` section lives in code
 
-| `doc.md` § | What it specifies            | Code location                                                                  |
-| ---------- | ---------------------------- | ------------------------------------------------------------------------------ |
-| §3.2 ChainRegistry      | L2 admission registry         | `contracts/NeoHub.ChainRegistry/` + `Neo.L2.L2ChainConfig` model               |
-| §3.2 SharedBridge       | Asset escrow                  | `contracts/NeoHub.SharedBridge/` + `Neo.L2.Bridge.*`                           |
-| §3.2 SettlementManager  | Batch ↦ canonical state       | `contracts/NeoHub.SettlementManager/` + `Neo.L2.Settlement.Rpc`                |
-| §3.2 VerifierRegistry   | Pluggable proof dispatch      | `contracts/NeoHub.VerifierRegistry/` + `Neo.L2.Proving.VerifierRegistry`       |
-| §3.2 MessageRouter      | L1↔L2 / L2↔L2 messaging       | `contracts/NeoHub.MessageRouter/` + `Neo.L2.Messaging.*`                       |
-| §3.2 TokenRegistry      | L1↔L2 asset mapping           | `contracts/NeoHub.TokenRegistry/` + `Neo.L2.AssetMapping`                      |
-| §3.2 DARegistry         | DA commitment store           | `contracts/NeoHub.DARegistry/`                                                 |
-| §3.2 GovernanceController | Council + timelocks         | `contracts/NeoHub.GovernanceController/`                                       |
-| §3.2 EmergencyManager   | Pause + escape hatch          | `contracts/NeoHub.EmergencyManager/`                                           |
-| §4 Neo Gateway          | Proof aggregation             | `Neo.Plugins.L2Gateway` (incl. `BinaryTreeAggregator` + `IRoundProver`)        |
-| §5 L2 chain internals   | per-L2 plugin layout          | `Neo.Plugins.L2Batch / L2Settlement / L2Bridge / L2DA / L2Prover / L2Rpc`      |
-| §7.1 Sequencer / dBFT   | Committee selection           | `contracts/NeoHub.SequencerRegistry/` + `Neo.L2.Sequencer`                     |
-| §7.2 Batcher            | Block ↦ batch                 | `Neo.L2.Batch.BatchBuilder` + `Neo.Plugins.L2Batch.L2BatchPlugin`             |
-| §7.3 StateRootGenerator | Per-batch roots               | `Neo.L2.State.*` + `Neo.L2.Executor.State.KeyedStateStore`                     |
-| §7.4 DAWriter           | DA layer abstraction          | `Neo.L2.Abstractions.IDAWriter` + `Neo.Plugins.L2DA.*`                         |
-| §7.5 ProverAdapter      | 3-stage proving               | `Neo.L2.Proving.Attestation / Optimistic / RiscVZk` + `bridge/neo-zkvm-host/` (out-of-process Stage-2)     |
-| §8 Proof system         | Proving spec                  | `src/Neo.L2.Executor/SPEC.md`                                                  |
-| §9 Token / GAS model    | Bridged asset accounting      | `Neo.L2.Bridge.AssetRegistry` + `L2Native.L2BridgeContract`                    |
-| §10 Neo Connect         | Cross-chain messaging         | `Neo.L2.Messaging.*` + `L2Native.L2MessageContract`                            |
-| §11 Bridge              | SharedBridge design           | `contracts/NeoHub.SharedBridge/` + `Neo.L2.Bridge.*`                           |
-| §12 Data Availability   | DA tiers                      | `Neo.L2.DAMode` + `Neo.Plugins.L2DA.*` (incl. `NeoFsLikeDAWriter`)             |
-| §13 L2 native contracts | On-L2 system contracts        | `contracts/L2Native.*/` (6 contracts)                                          |
-| §14.1 L2 RPC            | RPC method surface            | `Neo.Plugins.L2Rpc.L2RpcMethods` (10 methods incl. `getsecuritylabel`)         |
-| §14.2 neo-stack CLI     | Launch framework              | `tools/Neo.Stack.Cli/`                                                          |
-| §15.1 Tx flow           | Hot path                       | This doc, Walk #1                                                              |
-| §15.2 Deposit           | L1→L2                          | `Neo.L2.Bridge.DepositProcessor` + `L2Native.L2BridgeContract.ApplyDeposit`    |
-| §15.3 Withdrawal        | L2→L1                          | `Neo.L2.Bridge.WithdrawalProcessor` + `NeoHub.SharedBridge.FinalizeWithdrawal` |
-| §15.4 Forced inclusion  | Anti-censorship                | `contracts/NeoHub.ForcedInclusion/` + `Neo.L2.ForcedInclusion` + `Neo.L2.Censorship` |
-| §15.5 Emergency exit    | Escape hatch                   | `contracts/NeoHub.EmergencyManager/`                                           |
-| §16 Governance          | 3-layer governance             | `contracts/NeoHub.GovernanceController/` (Council, timelock, admission policy) |
-| §17 Threat model        | Mitigations                    | Distributed across the codebase; bond + slashing live in `SequencerBond`       |
-| §18 Phased rollout      | Phase 0–6 plan                 | `IMPLEMENTATION_STATUS.md` (per-phase status matrix)                           |
-| §19 Module layout       | Recommended structure          | This repo's `src/`, `contracts/`, `tools/` layout                              |
-| §20 MVP                 | Phase-0 success criteria       | `tests/Neo.L2.IntegrationTests/UT_Mvp_Phase0_Sidechain`                        |
-| §22 Design tradeoffs    | Choices made                   | This doc + `ARCHITECTURE.md`                                                   |
-| Cross-cutting           | Telemetry / observability      | `Neo.L2.Telemetry` + `Neo.Plugins.L2Metrics`; operator catalog in [`docs/telemetry.md`](./telemetry.md) |
+- **§3.2 ChainRegistry** — L2 admission registry. `contracts/NeoHub.ChainRegistry/` + `Neo.L2.L2ChainConfig` model.
+- **§3.2 SharedBridge** — Asset escrow. `contracts/NeoHub.SharedBridge/` + `Neo.L2.Bridge.*`.
+- **§3.2 SettlementManager** — Batch ↦ canonical state. `contracts/NeoHub.SettlementManager/` + `Neo.L2.Settlement.Rpc`.
+- **§3.2 VerifierRegistry** — Pluggable proof dispatch. `contracts/NeoHub.VerifierRegistry/` + `Neo.L2.Proving.VerifierRegistry`.
+- **§3.2 MessageRouter** — L1↔L2 / L2↔L2 messaging. `contracts/NeoHub.MessageRouter/` + `Neo.L2.Messaging.*`.
+- **§3.2 TokenRegistry** — L1↔L2 asset mapping. `contracts/NeoHub.TokenRegistry/` + `Neo.L2.AssetMapping`.
+- **§3.2 DARegistry** — DA commitment store. `contracts/NeoHub.DARegistry/`.
+- **§3.2 GovernanceController** — Council + timelocks. `contracts/NeoHub.GovernanceController/`.
+- **§3.2 EmergencyManager** — Pause + escape hatch. `contracts/NeoHub.EmergencyManager/`.
+- **§4 Neo Gateway** — Proof aggregation. `Neo.Plugins.L2Gateway` (incl. `BinaryTreeAggregator` + `IRoundProver`).
+- **§5 L2 chain internals** — per-L2 plugin layout. `Neo.Plugins.L2Batch / L2Settlement / L2Bridge / L2DA / L2Prover / L2Rpc`.
+- **§7.1 Sequencer / dBFT** — Committee selection. `contracts/NeoHub.SequencerRegistry/` + `Neo.L2.Sequencer`.
+- **§7.2 Batcher** — Block ↦ batch. `Neo.L2.Batch.BatchBuilder` + `Neo.Plugins.L2Batch.L2BatchPlugin`.
+- **§7.3 StateRootGenerator** — Per-batch roots. `Neo.L2.State.*` + `Neo.L2.Executor.State.KeyedStateStore`.
+- **§7.4 DAWriter** — DA layer abstraction. `Neo.L2.Abstractions.IDAWriter` + `Neo.Plugins.L2DA.*`.
+- **§7.5 ProverAdapter** — 3-stage proving. `Neo.L2.Proving.Attestation / Optimistic / RiscVZk` + `bridge/neo-zkvm-host/` (out-of-process Stage-2).
+- **§8 Proof system** — Proving spec. `src/Neo.L2.Executor/SPEC.md`.
+- **§9 Token / GAS model** — Bridged asset accounting. `Neo.L2.Bridge.AssetRegistry` + `L2Native.L2BridgeContract`.
+- **§10 Neo Connect** — Cross-chain messaging. `Neo.L2.Messaging.*` + `L2Native.L2MessageContract`.
+- **§11 Bridge** — SharedBridge design. `contracts/NeoHub.SharedBridge/` + `Neo.L2.Bridge.*`.
+- **§12 Data Availability** — DA tiers. `Neo.L2.DAMode` + `Neo.Plugins.L2DA.*` (incl. `NeoFsLikeDAWriter`).
+- **§13 L2 native contracts** — On-L2 system contracts. `contracts/L2Native.*/` (6 contracts).
+- **§14.1 L2 RPC** — RPC method surface. `Neo.Plugins.L2Rpc.L2RpcMethods` (10 methods incl. `getsecuritylabel`).
+- **§14.2 neo-stack CLI** — Launch framework. `tools/Neo.Stack.Cli/`.
+- **§15.1 Tx flow** — Hot path. This doc, Walk #1.
+- **§15.2 Deposit** — L1→L2. `Neo.L2.Bridge.DepositProcessor` + `L2Native.L2BridgeContract.ApplyDeposit`.
+- **§15.3 Withdrawal** — L2→L1. `Neo.L2.Bridge.WithdrawalProcessor` + `NeoHub.SharedBridge.FinalizeWithdrawal`.
+- **§15.4 Forced inclusion** — Anti-censorship. `contracts/NeoHub.ForcedInclusion/` + `Neo.L2.ForcedInclusion` + `Neo.L2.Censorship`.
+- **§15.5 Emergency exit** — Escape hatch. `contracts/NeoHub.EmergencyManager/`.
+- **§16 Governance** — 3-layer governance. `contracts/NeoHub.GovernanceController/` (Council, timelock, admission policy).
+- **§17 Threat model** — Mitigations. Distributed across the codebase; bond + slashing live in `SequencerBond`.
+- **§18 Phased rollout** — Phase 0–6 plan. `IMPLEMENTATION_STATUS.md` (per-phase status matrix).
+- **§19 Module layout** — Recommended structure. This repo's `src/`, `contracts/`, `tools/` layout.
+- **§20 MVP** — Phase-0 success criteria. `tests/Neo.L2.IntegrationTests/UT_Mvp_Phase0_Sidechain`.
+- **§22 Design tradeoffs** — Choices made. This doc + `ARCHITECTURE.md`.
+- **Cross-cutting** — Telemetry / observability. `Neo.L2.Telemetry` + `Neo.Plugins.L2Metrics`; operator catalog in [`docs/telemetry.md`](./telemetry.md).

@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 460" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Helvetica, Arial, sans-serif" role="img" aria-labelledby="t6 d6">
+  <title id="t6">按链的安全光谱(ChainRegistry.securityLevel)</title>
+  <desc id="d6">4 档信任光谱,展示每条 L2 链在 NeoHub.ChainRegistry 中声明的 4 个 securityLevel 取值:0 侧链(完全信任排序器),1 已结算 L2(DA + 状态根承诺),2 乐观 rollup(欺诈证明挑战窗口),3 ZK 有效性(密码学终结性)。每档列出用户必须信任什么、提款时间,以及一个代表性部署。</desc>
+
+  <defs>
+    <marker id="ah6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <linearGradient id="trust-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#fee2e2"/>
+      <stop offset="33%"  stop-color="#fef3c7"/>
+      <stop offset="66%"  stop-color="#dbeafe"/>
+      <stop offset="100%" stop-color="#dcfce7"/>
+    </linearGradient>
+    <filter id="card6" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .axis-lbl    { font-size: 11px; font-weight: 700; letter-spacing: 0.7px; fill: #525a64; }
+      .level-num   { font-size: 24px; font-weight: 700; }
+      .level-name  { font-size: 13.5px; font-weight: 700; }
+      .row-key     { font-size: 10.5px; font-weight: 600; fill: #6e7781; letter-spacing: 0.4px; }
+      .row-val     { font-size: 10.5px; }
+      .caption     { font-size: 11.5px; fill: #57606a; }
+    </style>
+  </defs>
+
+  <rect width="960" height="460" fill="#ffffff"/>
+
+  <text x="40" y="48" class="axis-lbl">信任排序器</text>
+  <text x="920" y="48" text-anchor="end" class="axis-lbl">信任数学</text>
+
+  <rect x="40" y="56" width="880" height="14" rx="3" fill="url(#trust-gradient)" stroke="#9aa6b2" stroke-width="0.5"/>
+  <line x1="40" y1="80" x2="920" y2="80" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah6)"/>
+  <text x="480" y="98" text-anchor="middle" class="axis-lbl" fill="#1f2328">安全级别</text>
+
+  <g filter="url(#card6)">
+    <rect x="40" y="120" width="210" height="280" rx="8" fill="#fff" stroke="#dc2626" stroke-width="1.2"/>
+    <rect x="40" y="120" width="210" height="44" rx="8" fill="#fee2e2" stroke="none"/>
+    <text x="60" y="148" class="level-num" fill="#991b1b">0</text>
+    <text x="92" y="146" class="level-name" fill="#991b1b">侧链</text>
+    <text x="92" y="160" class="row-val" fill="#991b1b">独立链 · 无 L1 锚</text>
+
+    <text x="56" y="194" class="row-key">信任</text>
+    <text x="56" y="210" class="row-val">排序器 + DA 都信</text>
+
+    <text x="56" y="234" class="row-key">L1 保证</text>
+    <text x="56" y="250" class="row-val">无 · 仅信息</text>
+
+    <text x="56" y="274" class="row-key">提款</text>
+    <text x="56" y="290" class="row-val">受信桥合约</text>
+
+    <text x="56" y="314" class="row-key">故障模式</text>
+    <text x="56" y="330" class="row-val">排序器 rug · DA 消失</text>
+
+    <text x="56" y="358" class="row-key">范例</text>
+    <text x="56" y="374" class="row-val">应用专用开发链</text>
+  </g>
+
+  <g filter="url(#card6)">
+    <rect x="270" y="120" width="210" height="280" rx="8" fill="#fff" stroke="#d97706" stroke-width="1.2"/>
+    <rect x="270" y="120" width="210" height="44" rx="8" fill="#fef3c7" stroke="none"/>
+    <text x="290" y="148" class="level-num" fill="#92400e">1</text>
+    <text x="322" y="146" class="level-name" fill="#92400e">已结算 L2</text>
+    <text x="322" y="160" class="row-val" fill="#92400e">DA + 根上 L1</text>
+
+    <text x="286" y="194" class="row-key">信任</text>
+    <text x="286" y="210" class="row-val">排序器(无欺诈证明)</text>
+
+    <text x="286" y="234" class="row-key">L1 保证</text>
+    <text x="286" y="250" class="row-val">数据可用性 + 状态根</text>
+
+    <text x="286" y="274" class="row-key">提款</text>
+    <text x="286" y="290" class="row-val">经 SharedBridge · 短延迟</text>
+
+    <text x="286" y="314" class="row-key">故障模式</text>
+    <text x="286" y="330" class="row-val">排序器作恶不被发现</text>
+
+    <text x="286" y="358" class="row-key">范例</text>
+    <text x="286" y="374" class="row-val">公开 DA 的 app-chain</text>
+  </g>
+
+  <g filter="url(#card6)">
+    <rect x="500" y="120" width="210" height="280" rx="8" fill="#fff" stroke="#3f74cf" stroke-width="1.2"/>
+    <rect x="500" y="120" width="210" height="44" rx="8" fill="#dbeafe" stroke="none"/>
+    <text x="520" y="148" class="level-num" fill="#1e3a8a">2</text>
+    <text x="552" y="146" class="level-name" fill="#1e3a8a">乐观 ROLLUP</text>
+    <text x="552" y="160" class="row-val" fill="#1e3a8a">欺诈证明挑战窗口</text>
+
+    <text x="516" y="194" class="row-key">信任</text>
+    <text x="516" y="210" class="row-val">至少 1 个诚实挑战者</text>
+
+    <text x="516" y="234" class="row-key">L1 保证</text>
+    <text x="516" y="250" class="row-val">挑战窗口后的终结性</text>
+
+    <text x="516" y="274" class="row-key">提款</text>
+    <text x="516" y="290" class="row-val">7 天(挑战窗口)</text>
+
+    <text x="516" y="314" class="row-key">故障模式</text>
+    <text x="516" y="330" class="row-val">无挑战者 · 无效状态被接受</text>
+
+    <text x="516" y="358" class="row-key">范例</text>
+    <text x="516" y="374" class="row-val">通用应用 rollup</text>
+  </g>
+
+  <g filter="url(#card6)">
+    <rect x="730" y="120" width="190" height="280" rx="8" fill="#fff" stroke="#16a34a" stroke-width="1.2"/>
+    <rect x="730" y="120" width="190" height="44" rx="8" fill="#dcfce7" stroke="none"/>
+    <text x="750" y="148" class="level-num" fill="#166534">3</text>
+    <text x="782" y="146" class="level-name" fill="#166534">ZK 有效性</text>
+    <text x="782" y="160" class="row-val" fill="#166534">密码学终结性</text>
+
+    <text x="746" y="194" class="row-key">信任</text>
+    <text x="746" y="210" class="row-val">仅数学(vk · hash)</text>
+
+    <text x="746" y="234" class="row-key">L1 保证</text>
+    <text x="746" y="250" class="row-val">SP1 / Halo2 / Risc0 链上验证</text>
+
+    <text x="746" y="274" class="row-key">提款</text>
+    <text x="746" y="290" class="row-val">仅证明者延迟(~分钟)</text>
+
+    <text x="746" y="314" class="row-key">故障模式</text>
+    <text x="746" y="330" class="row-val">证明系统的健全性被攻破</text>
+
+    <text x="746" y="358" class="row-key">范例</text>
+    <text x="746" y="374" class="row-val">支付 · DeFi · 机构</text>
+  </g>
+
+  <text x="480" y="438" text-anchor="middle" class="caption">图 6 · 按链的安全光谱 —— 每条 L2 在 ChainRegistry 公布其 securityLevel;UI 必须把它呈现出来。</text>
+</svg>

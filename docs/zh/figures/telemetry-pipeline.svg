@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 380" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Helvetica, Arial, sans-serif" role="img" aria-labelledby="t5 d5">
+  <title id="t5">遥测流水线 —— 发出 · 快照 · 抓取</title>
+  <desc id="d5">线性数据流流水线展示:每个插件向共享的 IL2Metrics 槽(InMemoryMetrics)发出指标,被快照,经 PrometheusExporter 导出,由 MetricsRequestHandler 经 MetricsHttpServer 端点提供服务,最终由 Prometheus 抓取。</desc>
+
+  <defs>
+    <marker id="ah5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
+    </marker>
+    <filter id="card5" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .stage-title  { font-size: 12px; font-weight: 600; }
+      .stage-sub    { font-size: 10.5px; }
+      .stage-tag    { font-size: 9.5px; font-style: italic; fill: #6e7781; }
+      .lane-title   { font-size: 11px; font-weight: 700; letter-spacing: 0.7px; }
+      .edge-lbl     { font-size: 10.5px; font-style: italic; fill: #525a64; }
+      .caption      { font-size: 11.5px; fill: #57606a; }
+    </style>
+  </defs>
+
+  <rect width="960" height="380" fill="#ffffff"/>
+
+  <text x="40" y="42" class="lane-title" fill="#1c3d27">发出 · 插件调 IL2Metrics</text>
+
+  <g filter="url(#card5)">
+    <rect x="40" y="56" width="124" height="44" rx="6" fill="#ecf5ee" stroke="#6fa37b"/>
+    <text x="102" y="76" text-anchor="middle" class="stage-sub" fill="#1c3d27">L2BatchPlugin</text>
+    <text x="102" y="90" text-anchor="middle" class="stage-tag">l2.batch.*</text>
+
+    <rect x="172" y="56" width="124" height="44" rx="6" fill="#ecf5ee" stroke="#6fa37b"/>
+    <text x="234" y="76" text-anchor="middle" class="stage-sub" fill="#1c3d27">L2SettlementPlugin</text>
+    <text x="234" y="90" text-anchor="middle" class="stage-tag">l2.settlement.* · l2.proving.*</text>
+
+    <rect x="304" y="56" width="124" height="44" rx="6" fill="#ecf5ee" stroke="#6fa37b"/>
+    <text x="366" y="76" text-anchor="middle" class="stage-sub" fill="#1c3d27">L2DAPlugin</text>
+    <text x="366" y="90" text-anchor="middle" class="stage-tag">l2.da.*</text>
+
+    <rect x="436" y="56" width="124" height="44" rx="6" fill="#ecf5ee" stroke="#6fa37b"/>
+    <text x="498" y="76" text-anchor="middle" class="stage-sub" fill="#1c3d27">L2BridgePlugin</text>
+    <text x="498" y="90" text-anchor="middle" class="stage-tag">l2.bridge.* · l2.gateway.*</text>
+
+    <rect x="568" y="56" width="124" height="44" rx="6" fill="#ecf5ee" stroke="#6fa37b"/>
+    <text x="630" y="76" text-anchor="middle" class="stage-sub" fill="#1c3d27">L2RpcMethods</text>
+    <text x="630" y="90" text-anchor="middle" class="stage-tag">l2.rpc.*</text>
+
+    <rect x="700" y="56" width="124" height="44" rx="6" fill="#ecf5ee" stroke="#6fa37b"/>
+    <text x="762" y="76" text-anchor="middle" class="stage-sub" fill="#1c3d27">SequencerProvider</text>
+    <text x="762" y="90" text-anchor="middle" class="stage-tag">l2.sequencer.*</text>
+
+    <rect x="832" y="56" width="92" height="44" rx="6" fill="#ecf5ee" stroke="#6fa37b" stroke-dasharray="4 3"/>
+    <text x="878" y="76" text-anchor="middle" class="stage-sub" fill="#1c3d27">…</text>
+    <text x="878" y="90" text-anchor="middle" class="stage-tag">其他插件</text>
+  </g>
+
+  <line x1="102" y1="100" x2="382" y2="158" stroke="#525a64" stroke-width="1.1" stroke-opacity="0.55"/>
+  <line x1="234" y1="100" x2="402" y2="158" stroke="#525a64" stroke-width="1.1" stroke-opacity="0.55"/>
+  <line x1="366" y1="100" x2="430" y2="158" stroke="#525a64" stroke-width="1.1" stroke-opacity="0.55"/>
+  <line x1="498" y1="100" x2="490" y2="158" stroke="#525a64" stroke-width="1.1" stroke-opacity="0.55"/>
+  <line x1="630" y1="100" x2="510" y2="158" stroke="#525a64" stroke-width="1.1" stroke-opacity="0.55"/>
+  <line x1="762" y1="100" x2="540" y2="158" stroke="#525a64" stroke-width="1.1" stroke-opacity="0.55"/>
+  <line x1="878" y1="100" x2="560" y2="158" stroke="#525a64" stroke-width="1.1" stroke-opacity="0.55"/>
+
+  <text x="40" y="148" class="lane-title" fill="#1f2328">槽 · 快照 · 导出</text>
+
+  <g filter="url(#card5)">
+    <rect x="120" y="160" width="160" height="56" rx="6" fill="#fff" stroke="#6a737d"/>
+    <text x="200" y="184" text-anchor="middle" class="stage-title" fill="#1f2328">InMemoryMetrics</text>
+    <text x="200" y="200" text-anchor="middle" class="stage-sub" fill="#525a64">IL2Metrics 槽</text>
+    <text x="200" y="212" text-anchor="middle" class="stage-tag">counter · gauge · histogram</text>
+
+    <rect x="320" y="160" width="160" height="56" rx="6" fill="#fff" stroke="#6a737d"/>
+    <text x="400" y="184" text-anchor="middle" class="stage-title" fill="#1f2328">快照</text>
+    <text x="400" y="200" text-anchor="middle" class="stage-sub" fill="#525a64">时点拷贝</text>
+    <text x="400" y="212" text-anchor="middle" class="stage-tag">3 个只读字典</text>
+
+    <rect x="520" y="160" width="160" height="56" rx="6" fill="#fff" stroke="#6a737d"/>
+    <text x="600" y="184" text-anchor="middle" class="stage-title" fill="#1f2328">PrometheusExporter</text>
+    <text x="600" y="200" text-anchor="middle" class="stage-sub" fill="#525a64">格式 · text/plain</text>
+    <text x="600" y="212" text-anchor="middle" class="stage-tag"># HELP · # TYPE · sample</text>
+
+    <rect x="720" y="160" width="180" height="56" rx="6" fill="#fff" stroke="#6a737d"/>
+    <text x="810" y="184" text-anchor="middle" class="stage-title" fill="#1f2328">MetricsRequestHandler</text>
+    <text x="810" y="200" text-anchor="middle" class="stage-sub" fill="#525a64">/metrics · /healthz · /readyz</text>
+    <text x="810" y="212" text-anchor="middle" class="stage-tag">200 / 503 / 404</text>
+  </g>
+
+  <line x1="282" y1="188" x2="318" y2="188" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah5)"/>
+  <line x1="482" y1="188" x2="518" y2="188" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah5)"/>
+  <line x1="682" y1="188" x2="718" y2="188" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah5)"/>
+
+  <text x="40" y="262" class="lane-title" fill="#1e2a55">服务 · 抓取</text>
+
+  <g filter="url(#card5)">
+    <rect x="320" y="276" width="200" height="56" rx="6" fill="#eff3ff" stroke="#7587c1"/>
+    <text x="420" y="300" text-anchor="middle" class="stage-title" fill="#1e2a55">MetricsHttpServer</text>
+    <text x="420" y="316" text-anchor="middle" class="stage-sub" fill="#3a4a82">TcpListener · HTTP/1.0</text>
+    <text x="420" y="328" text-anchor="middle" class="stage-tag">localhost:9090</text>
+
+    <rect x="600" y="276" width="200" height="56" rx="6" fill="#eff3ff" stroke="#7587c1" stroke-dasharray="4 3"/>
+    <text x="700" y="300" text-anchor="middle" class="stage-title" fill="#1e2a55">Prometheus 抓取器</text>
+    <text x="700" y="316" text-anchor="middle" class="stage-sub" fill="#3a4a82">外部 · 运维侧</text>
+    <text x="700" y="328" text-anchor="middle" class="stage-tag">每 N 秒 GET /metrics</text>
+  </g>
+
+  <line x1="810" y1="218" x2="450" y2="274" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah5)"/>
+  <text x="600" y="252" text-anchor="middle" class="edge-lbl">Handle(path) → response</text>
+
+  <line x1="522" y1="304" x2="598" y2="304" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah5)"/>
+  <text x="560" y="296" text-anchor="middle" class="edge-lbl">HTTP</text>
+
+  <text x="480" y="362" text-anchor="middle" class="caption">图 5 · 遥测流水线 —— 插件向共享 IL2Metrics 槽发出;一个 HTTP 端点为 Prometheus 抓取提供服务。</text>
+</svg>

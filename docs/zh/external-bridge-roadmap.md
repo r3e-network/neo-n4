@@ -30,7 +30,7 @@ L1 ↔ Neo L2 服务)分开。一套应用 API;底下的验证器在 MPC → Opt
 
 ### 1.2 验证器接缝
 
-```text
+```csharp
 interface IExternalBridgeVerifier {
   bool VerifyInboundMessage(uint externalChainId, byte[] messageBytes, byte[] proofBytes);
   byte BridgeKind();   // 1=MPC, 2=Optimistic, 3=ZK
@@ -48,7 +48,7 @@ Phase 2 加 Optimistic 的方式是部署一个新验证器、经治理改 regis
 `ExternalCrossChainMessage`(对应 `Neo.L2.Messaging.CrossChainMessage`
 + `MessageHasher`):
 
-```text
+```
 4B  externalChainId       (Eth 主网=0xE0_00_00_01,Sepolia=0xE0_00_00_02,
                            Tron=0xE0_00_00_10,Solana=0xE0_00_00_20 —— 高位
                            前缀 0xE0 在与 Neo L2 chainId(从 1 起)互斥的命名
@@ -148,7 +148,7 @@ Solana 标记为只走委员会。
 
 ## 5. 仓库布局
 
-```text
+```
 contracts/
   NeoHub.ExternalBridgeRegistry/          # 阶段 A
   NeoHub.ExternalBridgeEscrow/            # 阶段 A

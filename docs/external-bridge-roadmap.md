@@ -35,7 +35,7 @@ Three new contracts plus an interface:
 
 ### 1.2 The verifier seam
 
-```text
+```csharp
 interface IExternalBridgeVerifier {
   bool VerifyInboundMessage(uint externalChainId, byte[] messageBytes, byte[] proofBytes);
   byte BridgeKind();   // 1=MPC, 2=Optimistic, 3=ZK
@@ -55,7 +55,7 @@ Multisig → Zk.
 `ExternalCrossChainMessage` (mirrors `Neo.L2.Messaging.CrossChainMessage`
 + `MessageHasher`):
 
-```text
+```
 4B  externalChainId       (Eth mainnet=0xE0_00_00_01, Sepolia=0xE0_00_00_02,
                            Tron=0xE0_00_00_10, Solana=0xE0_00_00_20 — high-bit
                            prefix 0xE0 reserves a namespace disjoint from Neo
@@ -170,7 +170,7 @@ signatures; gas cost <5 GAS per inbound proof.
 
 ## 5. Repository layout
 
-```text
+```
 contracts/
   NeoHub.ExternalBridgeRegistry/          # Phase A
   NeoHub.ExternalBridgeEscrow/            # Phase A

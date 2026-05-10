@@ -225,13 +225,21 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --executor counter
 
 ### 运维者常定制的 5 个扩展点
 
-| 接口                                          | 默认                              | 何时替换                                       |
-|----------------------------------------------|-----------------------------------|----------------------------------------------|
-| `ITransactionExecutor`                       | `ReferenceTransactionExecutor`    | 领域特定 opcode —— `neo-stack scaffold-executor` 输出起步,[`Sample.CounterChainExecutor`](../../samples/executors/Sample.CounterChainExecutor) 是工作参照 |
-| `IL2Prover` / `IL2ProofVerifier`             | Multisig / Optimistic / Mock-RiscV| Stage 2(ZK 有效性):`prove-batch daemon`(进程外 Rust 证明者,在 `bridge/neo-zkvm-host/`)|
-| `IDAWriter`                                  | InMemory / NeoFsLike / Persistent | 真实 NeoFS SDK / L1 sendrawtransaction       |
-| `ISequencerCommitteeProvider`                | `InMemorySequencerCommitteeProvider`| 接到 neo 的 `DBFTPlugin` 共识选择器          |
-| `IRoundProver`(仅 Phase 5)                  | `PassThroughRoundProver`          | SP1 Compress / Halo2 accumulator / Risc0 fold|
+- **`ITransactionExecutor`** —— 默认:`ReferenceTransactionExecutor`。
+  替换以加领域特定 opcode;`neo-stack scaffold-executor` 输出起步,
+  [`Sample.CounterChainExecutor`](../../samples/executors/Sample.CounterChainExecutor)
+  是工作参照。
+- **`IL2Prover`** / **`IL2ProofVerifier`** —— 默认:Multisig /
+  Optimistic / Mock-RiscV。替换以走 Stage 2(ZK 有效性):
+  `prove-batch daemon`(进程外 Rust 证明者,在
+  `bridge/neo-zkvm-host/`)。
+- **`IDAWriter`** —— 默认:InMemory / NeoFsLike / Persistent。替换
+  为真实 NeoFS SDK / L1 sendrawtransaction。
+- **`ISequencerCommitteeProvider`** —— 默认:
+  `InMemorySequencerCommitteeProvider`。替换以接到 neo 的
+  `DBFTPlugin` 共识选择器。
+- **`IRoundProver`**(仅 Phase 5)—— 默认:`PassThroughRoundProver`。
+  替换为 SP1 Compress / Halo2 accumulator / Risc0 fold。
 
 以上都接受 ctor 注入。插件 host 是单一组合根;`Neo.Plugins.L2Metrics.L2MetricsPlugin`
 是规范模式 —— "插件 A 暴露 sink,插件 B 经 `WithMetrics(plugin.Metrics)` 读取"。

@@ -255,13 +255,21 @@ classes at the same call sites.
 
 ### Five extension points operators commonly customize
 
-| Interface                                    | Default                           | When to swap                                 |
-|----------------------------------------------|-----------------------------------|----------------------------------------------|
-| `ITransactionExecutor`                       | `ReferenceTransactionExecutor`    | Domain-specific opcodes — `neo-stack scaffold-executor` emits a starter, [`Sample.CounterChainExecutor`](../samples/executors/Sample.CounterChainExecutor) is the working reference |
-| `IL2Prover` / `IL2ProofVerifier`             | Multisig / Optimistic / Mock-RiscV| Stage 2 (ZK validity): `prove-batch daemon` (out-of-process Rust prover at `bridge/neo-zkvm-host/`)     |
-| `IDAWriter`                                  | InMemory / NeoFsLike / Persistent | Real NeoFS SDK / L1 sendrawtransaction       |
-| `ISequencerCommitteeProvider`                | `InMemorySequencerCommitteeProvider`| Wire to neo's `DBFTPlugin` consensus selector|
-| `IRoundProver` (Phase 5 only)                | `PassThroughRoundProver`          | SP1 Compress / Halo2 accumulator / Risc0 fold|
+- **`ITransactionExecutor`** — Default: `ReferenceTransactionExecutor`.
+  Swap for domain-specific opcodes; `neo-stack scaffold-executor`
+  emits a starter, [`Sample.CounterChainExecutor`](../samples/executors/Sample.CounterChainExecutor)
+  is the working reference.
+- **`IL2Prover`** / **`IL2ProofVerifier`** — Default: Multisig /
+  Optimistic / Mock-RiscV. Swap for Stage 2 (ZK validity):
+  `prove-batch daemon` (out-of-process Rust prover at
+  `bridge/neo-zkvm-host/`).
+- **`IDAWriter`** — Default: InMemory / NeoFsLike / Persistent. Swap
+  for real NeoFS SDK / L1 sendrawtransaction.
+- **`ISequencerCommitteeProvider`** — Default:
+  `InMemorySequencerCommitteeProvider`. Swap to wire to neo's
+  `DBFTPlugin` consensus selector.
+- **`IRoundProver`** (Phase 5 only) — Default: `PassThroughRoundProver`.
+  Swap for SP1 Compress / Halo2 accumulator / Risc0 fold.
 
 All of these accept ctor injection. The plugin host is the single composition
 root; see `Neo.Plugins.L2Metrics.L2MetricsPlugin` for the canonical pattern of

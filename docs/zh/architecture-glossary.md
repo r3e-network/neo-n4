@@ -150,15 +150,20 @@
 
 位于 `tools/*`。
 
-| 工具                         | 二进制                  | 角色                                                                  |
-|------------------------------|-------------------------|------------------------------------------------------------------------|
-| `Neo.Stack.Cli`              | `neo-stack`             | 12 个子命令:create-chain、init-l2、register-chain、scaffold-executor、new-l2、… |
-| `Neo.Hub.Deploy`             | `neo-hub-deploy`        | NeoHub 部署的 plan/scaffold/verify(20 步有序 bundle)。                |
-| `Neo.L2.Devnet`              | `neo-l2-devnet`         | 进程内端到端 demo 运行器。`--executor counter` 接入样例执行器。       |
-| `Neo.L2.Explore`             | `neo-l2-explore`        | 终端区块浏览器 + 状态根连续性 audit。                                  |
-| `Neo.L2.Faucet.Cli`          | `neo-l2-faucet`         | 生产级 drip,带速率限制 + RocksDB 持久化 journal。                    |
-| `Neo.L2.Bridge.Cli`          | `neo-bridge`            | SharedBridge 调用 hex 的生产级 CLI。                                 |
-| `Neo.External.Bridge.Cli`    | `neo-external-bridge`   | 外链桥委员会 keygen + 双侧部署计划。                                   |
+- **`Neo.Stack.Cli`**(`neo-stack`)—— 12 个子命令:create-chain、
+  init-l2、register-chain、scaffold-executor、new-l2、…
+- **`Neo.Hub.Deploy`**(`neo-hub-deploy`)—— NeoHub 部署的
+  plan/scaffold/verify(20 步有序 bundle)。
+- **`Neo.L2.Devnet`**(`neo-l2-devnet`)—— 进程内端到端 demo 运行器。
+  `--executor counter` 接入样例执行器。
+- **`Neo.L2.Explore`**(`neo-l2-explore`)—— 终端区块浏览器 + 状态根
+  连续性 audit。
+- **`Neo.L2.Faucet.Cli`**(`neo-l2-faucet`)—— 生产级 drip,带速率
+  限制 + RocksDB 持久化 journal。
+- **`Neo.L2.Bridge.Cli`**(`neo-bridge`)—— SharedBridge 调用 hex 的
+  生产级 CLI。
+- **`Neo.External.Bridge.Cli`**(`neo-external-bridge`)—— 外链桥
+  委员会 keygen + 双侧部署计划。
 
 加上位于 `target/release/neo-bridge-watcher-eth`(Rust,需 `--features live-rpc`)
 的 watcher 守护进程二进制。

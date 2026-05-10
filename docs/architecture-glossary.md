@@ -152,15 +152,20 @@ Lives at `src/Neo.Plugins.L2*`. Loaded by neo-cli; subscribes to `Block.Committe
 
 Lives at `tools/*`.
 
-| Tool                         | Binary                  | Role                                                                  |
-|------------------------------|-------------------------|------------------------------------------------------------------------|
-| `Neo.Stack.Cli`              | `neo-stack`             | 12 subcommands: create-chain, init-l2, register-chain, scaffold-executor, new-l2, ... |
-| `Neo.Hub.Deploy`             | `neo-hub-deploy`        | Plan/scaffold/verify NeoHub deployment (20-step ordered bundle).        |
-| `Neo.L2.Devnet`              | `neo-l2-devnet`         | In-process end-to-end demo runner. `--executor counter` wires a sample executor.|
-| `Neo.L2.Explore`             | `neo-l2-explore`        | Terminal block explorer + state-root continuity audit.                  |
-| `Neo.L2.Faucet.Cli`          | `neo-l2-faucet`         | Production drip with rate limiting + RocksDB-persisted journal.         |
-| `Neo.L2.Bridge.Cli`          | `neo-bridge`            | Production CLI for SharedBridge invocation hex.                         |
-| `Neo.External.Bridge.Cli`    | `neo-external-bridge`   | External-bridge committee key gen + dual-side deploy planning.          |
+- **`Neo.Stack.Cli`** (`neo-stack`) — 12 subcommands: create-chain,
+  init-l2, register-chain, scaffold-executor, new-l2, ...
+- **`Neo.Hub.Deploy`** (`neo-hub-deploy`) — Plan/scaffold/verify NeoHub
+  deployment (20-step ordered bundle).
+- **`Neo.L2.Devnet`** (`neo-l2-devnet`) — In-process end-to-end demo
+  runner. `--executor counter` wires a sample executor.
+- **`Neo.L2.Explore`** (`neo-l2-explore`) — Terminal block explorer +
+  state-root continuity audit.
+- **`Neo.L2.Faucet.Cli`** (`neo-l2-faucet`) — Production drip with rate
+  limiting + RocksDB-persisted journal.
+- **`Neo.L2.Bridge.Cli`** (`neo-bridge`) — Production CLI for
+  SharedBridge invocation hex.
+- **`Neo.External.Bridge.Cli`** (`neo-external-bridge`) —
+  External-bridge committee key gen + dual-side deploy planning.
 
 Plus the watcher daemon binary at `target/release/neo-bridge-watcher-eth`
 (Rust, behind `--features live-rpc`).

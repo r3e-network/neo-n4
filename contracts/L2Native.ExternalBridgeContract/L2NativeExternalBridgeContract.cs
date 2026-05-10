@@ -132,7 +132,7 @@ public class L2NativeExternalBridgeContract : SmartContract
         // operator wires asset adapters per-asset, same as the existing
         // L2BridgeContract.)
         var ok = (bool)Contract.Call(l2Asset, "transfer", CallFlags.All,
-            new object[] { sender, UInt160.Zero, amount, null });
+            new object[] { sender, UInt160.Zero, amount, null! });
         ExecutionEngine.Assert(ok, "L2 asset transfer failed (burn)");
 
         // Allocate the next outbound nonce.
@@ -187,7 +187,7 @@ public class L2NativeExternalBridgeContract : SmartContract
         // Mint the L2 asset to the recipient. Same caveat as Send: per-asset
         // adapter handles real mint semantics; this is the canonical hook.
         var ok = (bool)Contract.Call(l2Asset, "transfer", CallFlags.All,
-            new object[] { Runtime.ExecutingScriptHash, l2Recipient, amount, null });
+            new object[] { Runtime.ExecutingScriptHash, l2Recipient, amount, null! });
         ExecutionEngine.Assert(ok, "L2 asset transfer failed (mint to recipient)");
 
         Storage.Put(consumedKey, new byte[] { 1 });

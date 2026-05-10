@@ -208,9 +208,9 @@ public class MpcCommitteeVerifierContract : SmartContract
     public static bool VerifyInboundMessage(
         uint externalChainId, byte[] messageBytes, byte[] proofBytes)
     {
-        ExecutionEngine.Assert(messageBytes != null && messageBytes.Length >= 102,
+        ExecutionEngine.Assert(messageBytes.Length >= 102,
             "messageBytes too short for ExternalCrossChainMessage layout");
-        ExecutionEngine.Assert(proofBytes != null && proofBytes.Length >= 2,
+        ExecutionEngine.Assert(proofBytes.Length >= 2,
             "proofBytes too short");
 
         // 1. Read committee. Storage.Get returns ByteString in contract context;
@@ -218,7 +218,7 @@ public class MpcCommitteeVerifierContract : SmartContract
         var committeeRaw = Storage.Get(CommitteeKey(externalChainId));
         ExecutionEngine.Assert(committeeRaw != null && committeeRaw.Length >= 3,
             "no committee registered for externalChainId");
-        var committee = (byte[])committeeRaw;
+        var committee = (byte[])committeeRaw!;
         var threshold = committee[0];
         var size = committee[1];
         var curveTag = committee[2];

@@ -139,7 +139,7 @@ public class ExternalBridgeBondContract : SmartContract
 
         var sender = (UInt160)Runtime.CallingScriptHash;
         var ok = (bool)Contract.Call(GetBondAsset(), "transfer", CallFlags.All,
-            new object[] { sender, Runtime.ExecutingScriptHash, amount, null });
+            new object[] { sender, Runtime.ExecutingScriptHash, amount, null! });
         ExecutionEngine.Assert(ok, "bond transfer failed");
 
         var k = BalanceKey(externalChainId, member);
@@ -189,7 +189,7 @@ public class ExternalBridgeBondContract : SmartContract
 
         // Pay the slashed amount to the recipient.
         var ok = (bool)Contract.Call(GetBondAsset(), "transfer", CallFlags.All,
-            new object[] { Runtime.ExecutingScriptHash, recipient, amount, null });
+            new object[] { Runtime.ExecutingScriptHash, recipient, amount, null! });
         ExecutionEngine.Assert(ok, "payout to recipient failed");
 
         OnBondSlashed(externalChainId, member, amount, recipient);
@@ -214,7 +214,7 @@ public class ExternalBridgeBondContract : SmartContract
 
         Storage.Put(k, bal - amount);
         var ok = (bool)Contract.Call(GetBondAsset(), "transfer", CallFlags.All,
-            new object[] { Runtime.ExecutingScriptHash, member, amount, null });
+            new object[] { Runtime.ExecutingScriptHash, member, amount, null! });
         ExecutionEngine.Assert(ok, "withdraw transfer failed");
 
         OnBondWithdrawn(externalChainId, member, amount);

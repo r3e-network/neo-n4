@@ -124,7 +124,7 @@ public class ExternalBridgeEscrowContract : SmartContract
         // Lock the asset by transferring it to this contract.
         var sender = (UInt160)Runtime.CallingScriptHash;
         var ok = (bool)Contract.Call(asset, "transfer", CallFlags.All,
-            new object[] { sender, Runtime.ExecutingScriptHash, amount, null });
+            new object[] { sender, Runtime.ExecutingScriptHash, amount, null! });
         ExecutionEngine.Assert(ok, "asset transfer failed (lock)");
 
         // Update locked-balance accounting. Storage.Get returns ByteString;
@@ -171,9 +171,8 @@ public class ExternalBridgeEscrowContract : SmartContract
     /// </summary>
     public static void Receive(uint externalChainId, byte[] messageBytes, byte[] proofBytes)
     {
-        ExecutionEngine.Assert(messageBytes != null && messageBytes.Length >= 102,
+        ExecutionEngine.Assert(messageBytes.Length >= 102,
             "messageBytes too short");
-        ExecutionEngine.Assert(proofBytes != null, "proofBytes is null");
 
         // Parse the nonce (offset 8, 8B LE) and direction (offset 16, 1B) from the
         // canonical ExternalCrossChainMessage layout — replay key + sanity check.

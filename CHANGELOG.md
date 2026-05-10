@@ -5,6 +5,64 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Manuscript-style PDF compilation (`tools/manuscript/`)
+
+The 20 markdown files under `docs/` (and their Chinese mirrors under
+`docs/zh/`) can now be compiled into a single manuscript-style PDF per
+language — chapter ordering, parts, TOC, numbered sections, embedded
+SVG figures, all rendered through pandoc + xelatex.
+
+- **`tools/manuscript/build.sh`** — orchestrator. Concatenates per a
+  manifest with `\part{}` dividers + `\newpage` between chapters,
+  rewrites `.svg` references to `.pdf` (via cairosvg or rsvg-convert),
+  strips GitHub badges, normalizes BMP-only emoji glyphs (✅→✓, ❌→✗,
+  🟡→○, 🔴→●, ⏭→→) for DejaVu Sans's coverage, and rewrites raw
+  `<p align="center"><img>` HTML to markdown image syntax (raw HTML
+  doesn't survive the LaTeX path; markdown images become
+  `\includegraphics`).
+- **`manifest-en.txt` / `manifest-zh.txt`** — chapter ordering with
+  5 parts: Front matter / Architecture / Operator Guide / External
+  Bridge / Implementation Plans (前言 / 架构 / 运维指南 / 外链桥 /
+  实现计划).
+- **`metadata-en.yaml` / `metadata-zh.yaml`** — pandoc YAML metadata.
+  EN uses DejaVu Sans + report class + 11pt; ZH adds xeCJK with
+  Noto Serif CJK SC, `\xeCJKsetup{CJKecglue={}}` to suppress space
+  injection between Chinese and ASCII tokens, `linestretch: 1.4`.
+- **Output**: `build/manuscript-en.pdf` (≈1.5MB, ≈197 pages) and
+  `build/manuscript-zh.pdf` (≈2.0MB, ≈194 pages). Build is
+  reproducible from a fresh checkout: `tools/manuscript/build.sh`
+  (no args → both languages).
+
+### Changed — Idiomatic Chinese blockchain terminology pass
+
+The Chinese translations under `docs/zh/` use industry-standard
+idiomatic blockchain terminology consistently rather than mechanical
+word-for-word renderings. 13 substitutions across 10 markdown files
++ 2 SVG figures resolve all remaining English-Chinese mixed phrases:
+
+- **"inclusion proof"** / **"inclusion 证明"** → **包含证明**
+- **"validity proof"** / **"validity 证明"** → **有效性证明**
+- **standalone "ZK validity"** → **"ZK 有效性"** (security-level
+  category name; "Stage 2 ZK validity" wherever it labels the
+  protocol phase)
+- **"Stage-2 validity"** → **"Stage-2 有效性"**
+- **"(可证明 validity)"** → **"(可证明的有效性)"**
+
+Code-literal `validity_proof` (the actual variable / data field name
+in alt-text and code blocks) is preserved as-is. `pdftotext` audit on
+the rebuilt manuscript confirms 0 mixed-language phrases remain.
+
+### Changed — `docs/spec-gap-plan.md` body now reflects closure status
+
+The plan's body had carried "Spec / Code today / Fix / Acceptance"
+sections for items 1–6 even after the work was done; the summary at
+the bottom already showed all 5 in-repo items as ✅ closed and item
+6 (`§8-witness-canonical`) as ⏭ deferred. Body and summary now
+agree. Each `### §X-name` heading carries its closure status; the
+content under it cites the actual implementation (file, contract,
+method, storage prefix) instead of restating planned changes. -66
+lines net. Same rewrite mirrored in `docs/zh/spec-gap-plan.md`.
+
 ### Added — Comprehensive Simplified Chinese documentation (`docs/zh/`)
 
 Every document under `docs/` now has a Simplified Chinese counterpart

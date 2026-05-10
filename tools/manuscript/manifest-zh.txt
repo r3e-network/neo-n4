@@ -1,0 +1,35 @@
+# Neo Elastic Network —— 手稿章节顺序(中文)
+#
+# 格式:每行一个路径;# 起头的行是注释;
+# ! 起头的行引入 Part 级标题,其后是 Part 标题。
+#
+# 路径相对仓库根。
+
+! 前言
+docs/zh/README.md
+
+! 第一部分 —— 架构
+docs/zh/architecture-atlas.md
+docs/zh/architecture-walkthrough.md
+docs/zh/architecture-l2-lifecycle.md
+docs/zh/architecture-l1-vs-l2.md
+docs/zh/architecture-wire-formats.md
+docs/zh/architecture-trust-boundaries.md
+docs/zh/architecture-glossary.md
+docs/zh/tech-stack-coverage.md
+
+! 第二部分 —— 运维指南
+docs/zh/getting-started.md
+docs/zh/launching-an-l2.md
+docs/zh/persistence.md
+docs/zh/telemetry.md
+docs/zh/security-model.md
+docs/zh/wallet-integration.md
+
+! 第三部分 —— 外链桥
+docs/zh/external-bridge-roadmap.md
+docs/zh/external-bridge-evm-chains.md
+
+! 第四部分 —— 实现计划
+docs/zh/spec-gap-plan.md
+docs/zh/plan-application-engine-and-mpt.md

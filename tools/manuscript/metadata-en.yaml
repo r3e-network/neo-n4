@@ -1,0 +1,60 @@
+---
+title: "Neo Elastic Network"
+subtitle: "A multi-L2 network on Neo 4 core --- shared bridge, proof aggregation, native cross-chain messaging"
+author:
+  - "neo-n4 contributors"
+date: \today
+documentclass: book
+classoption:
+  - 11pt
+  - openany
+  - oneside
+geometry:
+  - paper=a4paper
+  - margin=2.5cm
+  - bindingoffset=0.5cm
+  - includeheadfoot
+papersize: a4
+fontsize: 11pt
+linestretch: 1.15
+colorlinks: true
+linkcolor: "RoyalBlue"
+urlcolor: "BrickRed"
+toccolor: "Black"
+toc: true
+toc-depth: 2
+numbersections: true
+secnumdepth: 3
+mainfont: "DejaVu Sans"
+monofont: "DejaVu Sans Mono"
+fontfamily: lmodern
+listings: false
+highlight-style: tango
+header-includes:
+  - \usepackage{fancyhdr}
+  - \usepackage{microtype}
+  - \usepackage{graphicx}
+  - \usepackage{caption}
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \pagestyle{fancy}
+  - \fancyhf{}
+  - \fancyhead[LE,RO]{\nouppercase{\leftmark}}
+  - \fancyhead[LO,RE]{\textit{Neo Elastic Network}}
+  - \fancyfoot[C]{\thepage}
+  - \renewcommand{\headrulewidth}{0.4pt}
+  - \captionsetup{font=small,labelfont=bf}
+abstract: |
+  This manuscript collects the complete architecture, operator guide,
+  external-bridge protocol, and implementation plans for `neo4` ---
+  a multi-L2 network on Neo 4 core that anchors every L2 chain to a
+  unified L1 contract suite (NeoHub) on Neo N3 / Neo 4 L1 and aggregates
+  proofs and inter-L2 messages through an optional Neo Gateway layer.
+
+  The architecture borrows the shared-bridge / chain-registry / proof-
+  aggregation pattern from ZKsync Elastic Chain, rebuilt on Neo's stack:
+  dBFT 2.0 finality, NEP-17 assets, NeoVM, NeoFS data availability.
+  This document is an independent community exploration; it is not
+  endorsed by Neo Global Development, the Neo Foundation, or the
+  neo-project organization.
+---

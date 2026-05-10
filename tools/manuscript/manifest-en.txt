@@ -1,0 +1,36 @@
+# Neo Elastic Network — manuscript chapter order (English)
+#
+# Format: one path per line. Lines starting with # are comments.
+# Lines starting with ! introduce a part-level heading; the rest of
+# the line is the part title.
+#
+# Paths are relative to the repository root.
+
+! Front matter
+docs/README.md
+
+! Part I — Architecture
+docs/architecture-atlas.md
+docs/architecture-walkthrough.md
+docs/architecture-l2-lifecycle.md
+docs/architecture-l1-vs-l2.md
+docs/architecture-wire-formats.md
+docs/architecture-trust-boundaries.md
+docs/architecture-glossary.md
+docs/tech-stack-coverage.md
+
+! Part II — Operator Guide
+docs/getting-started.md
+docs/launching-an-l2.md
+docs/persistence.md
+docs/telemetry.md
+docs/security-model.md
+docs/wallet-integration.md
+
+! Part III — External Bridge
+docs/external-bridge-roadmap.md
+docs/external-bridge-evm-chains.md
+
+! Part IV — Implementation Plans
+docs/spec-gap-plan.md
+docs/plan-application-engine-and-mpt.md

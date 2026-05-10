@@ -1,0 +1,61 @@
+---
+title: "Neo Elastic Network"
+subtitle: "基于 Neo 4 core 的多 L2 网络 —— 共享桥、证明聚合、原生跨链消息传递"
+author:
+  - "neo-n4 贡献者"
+date: \today
+documentclass: book
+classoption:
+  - 11pt
+  - openany
+  - oneside
+geometry:
+  - paper=a4paper
+  - margin=2.5cm
+  - bindingoffset=0.5cm
+  - includeheadfoot
+papersize: a4
+fontsize: 11pt
+linestretch: 1.4
+colorlinks: true
+linkcolor: "RoyalBlue"
+urlcolor: "BrickRed"
+toccolor: "Black"
+toc: true
+toc-depth: 2
+numbersections: true
+secnumdepth: 3
+CJKmainfont: "Noto Serif CJK SC"
+CJKsansfont: "Noto Sans CJK SC"
+CJKmonofont: "Noto Sans Mono CJK SC"
+mainfont: "DejaVu Sans"
+monofont: "DejaVu Sans Mono"
+listings: false
+highlight-style: tango
+header-includes:
+  - \usepackage{xeCJK}
+  - \usepackage{fancyhdr}
+  - \usepackage{microtype}
+  - \usepackage{graphicx}
+  - \usepackage{caption}
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \xeCJKsetup{CJKecglue={}}
+  - \pagestyle{fancy}
+  - \fancyhf{}
+  - \fancyhead[LE,RO]{\nouppercase{\leftmark}}
+  - \fancyhead[LO,RE]{\textit{Neo Elastic Network}}
+  - \fancyfoot[C]{\thepage}
+  - \renewcommand{\headrulewidth}{0.4pt}
+  - \captionsetup{font=small,labelfont=bf}
+abstract: |
+  本手稿汇集 \texttt{neo4} 的完整架构、运维指南、外链桥协议与实现计划 ——
+  这是一个基于 Neo 4 core 的多 L2 网络,把每条 L2 链锚定到 Neo N3 / Neo 4 L1
+  上的统一 L1 合约套件(NeoHub),并通过可选的 Neo Gateway 层聚合证明与
+  L2 间消息。
+
+  架构借鉴 ZKsync Elastic Chain 的"共享桥 / 链注册表 / 证明聚合"模式,在 Neo
+  栈上重新构建:dBFT 2.0 终结性、NEP-17 资产、NeoVM、NeoFS 数据可用性。
+  本文档是独立社区探索,**未受**Neo Global Development、Neo 基金会或
+  neo-project 组织背书。
+---

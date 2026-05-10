@@ -9,6 +9,7 @@
 - [Persistence](./persistence.md)
 - [Telemetry](./telemetry.md)
 - [Security model](./security-model.md)
+- [Wallet integration](./wallet-integration.md)
 
 # Architecture
 

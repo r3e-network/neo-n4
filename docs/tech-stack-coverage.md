@@ -117,13 +117,31 @@ is a valid endpoint.
 
 ## Layer 5 — End-user interfaces
 
-| Component | Status | Notes |
-|-----------|:------:|-------|
-| Terminal block explorer (CLI) | ✅ | `tools/Neo.L2.Explore/` (`neo-l2-explore`) — `label` / `batch <n>` / `tail [N]` / `audit [N]` (state-root continuity check). Wraps `Neo.L2.Sdk.L2RpcClient` so it points at any endpoint running `Neo.Plugins.L2Rpc`. |
-| Web block explorer + bridge UI + faucet UI | ✅ | `sdk/web-explorer/index.html` — single static HTML page (zero build tooling) with inlined JS SDK. Tabs: Explore (label / latest root / batch), Bridge (deposit-status query + neo-bridge CLI handoff for L1 invocation hex), Faucet (localStorage-backed cooldown UI + neo-l2-faucet CLI handoff), Audit (state-root continuity across N batches). Drop on any static-file host. |
-| Testnet faucet (CLI) | ✅ | `tools/Neo.L2.Faucet.Cli/` (`neo-l2-faucet`) — production drip CLI (covered in Layer-3 / Operator tooling section). |
-| Documentation site (rendered) | ✅ | `book.toml` + `docs/SUMMARY.md` ship an mdBook config that renders the existing markdown docs into a searchable static site (`mdbook serve` for local preview, `mdbook build` for CI deploy to GitHub Pages / S3 / Netlify). |
-| Wallet integration patterns | ✅ | `docs/wallet-integration.md` — paste-into-wallet hex (cold-key flows) + delegate signing (hot-wallet automation). Worked examples for NeoLine / Neon / NEP-6 / Ledger / KMS. Every CLI emits canonical hex; framework never sees private keys. |
+- **Terminal block explorer (CLI)** ✅ — `tools/Neo.L2.Explore/`
+  (`neo-l2-explore`) — `label` / `batch <n>` / `tail [N]` /
+  `audit [N]` (state-root continuity check). Wraps
+  `Neo.L2.Sdk.L2RpcClient` so it points at any endpoint running
+  `Neo.Plugins.L2Rpc`.
+- **Web block explorer + bridge UI + faucet UI** ✅ —
+  `sdk/web-explorer/index.html` — single static HTML page (zero
+  build tooling) with inlined JS SDK. Tabs: Explore (label / latest
+  root / batch), Bridge (deposit-status query + neo-bridge CLI
+  handoff for L1 invocation hex), Faucet (localStorage-backed
+  cooldown UI + neo-l2-faucet CLI handoff), Audit (state-root
+  continuity across N batches). Drop on any static-file host.
+- **Testnet faucet (CLI)** ✅ — `tools/Neo.L2.Faucet.Cli/`
+  (`neo-l2-faucet`) — production drip CLI (covered in Layer-3 /
+  Operator tooling section).
+- **Documentation site (rendered)** ✅ — `book.toml` +
+  `docs/SUMMARY.md` ship an mdBook config that renders the existing
+  markdown docs into a searchable static site (`mdbook serve` for
+  local preview, `mdbook build` for CI deploy to GitHub Pages / S3 /
+  Netlify).
+- **Wallet integration patterns** ✅ — `docs/wallet-integration.md`
+  — paste-into-wallet hex (cold-key flows) + delegate signing
+  (hot-wallet automation). Worked examples for NeoLine / Neon /
+  NEP-6 / Ledger / KMS. Every CLI emits canonical hex; framework
+  never sees private keys.
 
 ---
 

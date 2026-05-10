@@ -9,132 +9,95 @@ the gap, (d) acceptance criteria.
 Tracking: each closed item gets a one-line `CHANGELOG.md` entry referencing this
 plan ID (e.g. `[plan: §16.1-admission]`) so reviewers can cross-check.
 
-## In-repo, fixable now (priority order)
+## In-repo (status by §)
 
-### §16.1-admission — ChainRegistry consults GovernanceController.GetAdmissionMode()
+### §16.1-admission ✅ closed
 
-**Spec.** §16.1 defines three admission phases — permissioned (owner approves),
-semi-permissionless (any caller if verifier+bridge are approved), permissionless
-(any caller). GovernanceController already stores the mode via
-`SetAdmissionMode(0..2)`.
+`ChainRegistryContract` exposes the §16.1 admission policy via
+`RegisterChainPublic(chainId, configBytes)`:
 
-**Code today.** `ChainRegistry.RegisterChain` requires `Runtime.CheckWitness(GetOwner())`
-unconditionally — i.e., always permissioned regardless of GovernanceController's
-configured mode.
+1. Reads the wired GovernanceController hash (set via owner-only
+   `SetGovernanceController`); rejects if unset with a clear "owner must wire
+   first" hint.
+2. Calls `GovernanceController.GetAdmissionMode()`.
+3. Mode 0 (permissioned) → reject with "use RegisterChain"; mode 1
+   (semi-permissionless) → enforce `IsApprovedVerifier` + `IsApprovedBridgeAdapter`
+   on the verifier (offset 24..43) and bridge (offset 44..63) bytes; mode 2
+   (permissionless) → any caller; falls through to the same
+   `WriteChainConfig` write path used by the owner-only path.
 
-**Fix.** Add `KeyGovernanceController` storage to ChainRegistry (set via owner-only
-`SetGovernanceController(hash)`). Add `RegisterChainPublic(chainId, configBytes)`
-that:
-  1. Reads the GovernanceController hash; rejects if unset.
-  2. Calls `GovernanceController.GetAdmissionMode()`.
-  3. Branches: mode 2 → any caller; mode 1 → defer (needs approved-set wiring,
-     filed below as §16.1-approved-sets); mode 0 → reject with "use RegisterChain".
+The owner-only `RegisterChain` stays as the §16.1 "permissioned" path.
 
-The original owner-only `RegisterChain` stays as the permissioned path for
-backwards compatibility.
+**Files.** `contracts/NeoHub.ChainRegistry/ChainRegistryContract.cs`.
+Tests cover modes 0/1/2 + the unwired-controller rejection.
 
-**Acceptance.** Type-check clean. Existing tests still green (no regressions).
-New tests pin mode 0 rejects on RegisterChainPublic; mode 2 accepts.
+### §16.1-approved-sets ✅ closed
 
-### §16.1-approved-sets — Approved verifier + bridge sets on GovernanceController
+`GovernanceControllerContract` carries the approved-verifier + approved-bridge
+sets used by `ChainRegistry.RegisterChainPublic` mode 1:
 
-**Spec.** Semi-permissionless admission requires the L2's verifier and
-bridgeAdapter to be in governance-approved sets.
+  - `PrefixApprovedVerifier = 0x0A` (`0x0A + verifierHash(20B) → 1`)
+  - `PrefixApprovedBridge = 0x0B` (`0x0B + bridgeHash(20B) → 1`)
+  - `[Safe] IsApprovedVerifier(UInt160)` / `[Safe] IsApprovedBridgeAdapter(UInt160)`
+  - `ApproveVerifier(UInt160)` / `RevokeVerifier(UInt160)` and the bridge
+    counterparts (owner-only mutators)
 
-**Code today.** No approved-set storage anywhere.
+ChainRegistry mode-1 path consults these via `Contract.Call(...,
+"isApprovedVerifier"/"isApprovedBridgeAdapter", CallFlags.ReadOnly, ...)`
+with assertion errors that name the failing dimension.
 
-**Fix.** Add to GovernanceController:
-  - `KeyApprovedVerifier = 0x0A` + `0x0A + verifierHash(20B) → 1`
-  - `KeyApprovedBridgeAdapter = 0x0B` + `0x0B + bridgeHash(20B) → 1`
-  - `[Safe] IsApprovedVerifier(UInt160)` / `IsApprovedBridgeAdapter(UInt160)`
-  - `ApproveVerifier(UInt160)` / `ApproveBridgeAdapter(UInt160)` (owner-only,
-    or M-of-N council if the council framework can be invoked)
-  - `RevokeVerifier(UInt160)` / `RevokeBridgeAdapter(UInt160)`
+**Files.** `contracts/NeoHub.GovernanceController/GovernanceControllerContract.cs`,
+integration through `ChainRegistryContract.RegisterChainPublic`.
 
-Then update `ChainRegistry.RegisterChainPublic` mode 1 path to call these.
+### §16.2-config-bytes ✅ closed
 
-**Acceptance.** Tests for approve/revoke/IsApproved + the integration through
-ChainRegistry.
+`ChainRegistry.ConfigSize` is now 91 bytes (4 + 20×4 + 7), carrying all 5
+§16.2 security-label dimensions in distinct byte fields:
 
-### §16.2-config-bytes — Encode SequencerModel + ExitModel into L2ChainConfig wire format
+  - `OffsetSecurityLevel = 84`, `OffsetDAMode = 85`, `OffsetGatewayEnabled = 86`,
+    `OffsetPermissionlessExit = 87`, `OffsetSequencerModel = 88`,
+    `OffsetExitModel = 89`, active flag at `ConfigSize - 1` (= 90).
+  - Single-purpose `[Safe] Get*` readers for each dimension.
+  - `Neo.L2.Abstractions` ships `SequencerModel` / `ExitModel` enums + a
+    canonical `L2ChainConfigSerializer` + `L2ChainConfigJsonReader`.
+  - Off-chain `getsecuritylabel` RPC exposes the full 5-dimension label
+    (existing `getsecuritylevel` preserved for back-compat).
 
-**Spec.** §16.2 says every L2 must publish 5 security label dimensions. Two
-dimensions (Sequencer, Exit) were added to the off-chain `L2ChainConfig` record
-in commit `340951a` but the on-chain encoding (89 bytes in
-`ChainRegistry.ConfigSize`) only carries 3 dimensions in its 5×1 byte fields.
+### §16-council-veto ✅ closed
 
-**Code today.** Off-chain record has the new fields with init-defaults.
-On-chain bytes don't carry them. RPC `getsecuritylevel` returns only the existing
-SecurityLevel byte.
+`GovernanceController` enforces the §16 council-multisig + timelock gate:
 
-**Fix.** Bump `ChainRegistry.ConfigSize` from 89 to 91. Document the layout:
-`[4B chainId][20B operator][20B verifier][20B bridge][20B msg]` plus
-`[1B securityLevel][1B daMode][1B gatewayEnabled][1B permissionlessExit]
-[1B sequencer][1B exit][1B active]` (7×1 byte fields). Update the deploy planner
-+ the 1 test that constructs configs. Add a new RPC `getsecuritylabel` that
-returns the full 5-dimension label.
+  - `Approve(proposalId, memberKey)` records each council vote; when the
+    threshold is first hit, the unix-timestamp is stored at `PrefixApprovedAt
+    = 0x0C`.
+  - `[Safe] IsApprovedAndTimelocked(proposalId)` returns true once
+    `approvalCount ≥ threshold` AND `now ≥ approvedAt + timelockSeconds`.
+  - `VerifierRegistry.SetGovernanceController` + `RegisterVerifierViaProposal`
+    consult this gate before applying verifier upgrades.
 
-**Acceptance.** Contract compiles; `getsecuritylabel` callable; existing
-`getsecuritylevel` still works.
+### §12-l1-da-default ✅ closed
 
-### §16-council-veto — Verifier/bridge upgrade behind council multisig
+`Neo.Plugins.L2DA.JsonRpcL1DAWriter` ships as the default L1-DA writer:
 
-**Spec.** §16 calls for "verifier upgrade" + "shared bridge upgrade" gated behind
-a security council with M-of-N approval and a timelock.
+  - Wraps a `JsonRpcClient` + a `SignAndSendAsync` delegate (same shape as
+    `RpcSettlementClient`).
+  - Implements `IDAWriter` by invoking the configured L1 contract method
+    (`NeoHub.DARegistry.RecordDACommitment` is the closest match by default).
+  - 13 unit tests against an in-process fake RPC client.
+  - `L2DAPlugin.BuildDefaultWriter(DAMode.L1, ...)` no longer throws when the
+    writer is wired.
 
-**Code today.** GovernanceController has council members + `Approve(proposalId)`
-+ a stored `KeyTimelockSeconds` value. But no contract reads the proposal-vote
-result to gate execution; the timelock isn't enforced anywhere. VerifierRegistry
-+ SharedBridge upgrade methods aren't gated.
+### §8-witness-canonical ⏭ deferred
 
-**Fix.**
-  1. Add `KeyExecutedAt` per proposal in GovernanceController; once threshold
-     hit, store the unix-timestamp of threshold-reaching.
-  2. Add `[Safe] IsApprovedAndTimelocked(proposalId)` returning true if approval
-     count ≥ threshold AND `now ≥ executedAt + timelock`.
-  3. VerifierRegistry.UpdateVerifier and SharedBridge.UpgradeAsset etc. consult
-     this method via Contract.Call before applying.
+Originally proposed `Neo.L2.Proving.WitnessRecord` to pin the §8.4 witness
+layout (ordered txs / bytecode / storage R/W / native state / L1 messages /
+DA data / trace).
 
-**Acceptance.** Type-check + a deploy-planner test scaffolding the wiring.
-
-### §12-l1-da-default — Provide a JsonRpc-backed L1 DA writer scaffold
-
-**Spec.** §12.1 lists L1 DA as one of three DA tiers. The bridge writer is
-operator-supplied today.
-
-**Code today.** `L2DAPlugin.BuildDefaultWriter(DAMode.L1, ...)` throws
-NotSupportedException unless the operator pre-injected a writer. NeoFS/External/
-DAC have built-in defaults; L1 doesn't.
-
-**Fix.** Add `Neo.Plugins.L2DA.JsonRpcL1DAWriter` that takes a `JsonRpcClient`
-+ a target contract hash + a sign-and-send delegate (same shape as
-`RpcSettlementClient.SignAndSendAsync`). Implements `IDAWriter` by calling
-`publishDABlob` (or whatever the L1 DA contract's method is — that's a separate
-spec point — `NeoHub.DARegistry.RecordDACommitment` is closest match). Wire as
-the `BuildDefaultWriter(DAMode.L1, ...)` default with a clear message that
-operators still need to configure the L1 RPC + signer.
-
-**Acceptance.** New writer compiles + has unit tests against an in-process fake
-RPC client. `BuildDefaultWriter(DAMode.L1, dataDir=null)` no longer throws when
-the writer is wired via `WithWriter()`.
-
-### §8-witness-canonical — Pin a canonical Witness wire format
-
-**Spec.** §8.4 lists witness contents (ordered txs, contract bytecode, storage
-read/write witness, native contract state witness, L1 messages consumed, DA data,
-execution trace).
-
-**Code today.** Witness in `ProofRequest.Witness` is opaque
-`ReadOnlyMemory<byte>`. No serializer pins the layout. Different prover backends
-(SP1, Halo2) might want different formats today.
-
-**Fix.** Add `Neo.L2.Proving.WitnessRecord` with the seven sections + a
-canonical encoder/decoder following the `BatchSerializer` pattern. Provers can
-opt into the canonical format or wrap their own. Tests pin the layout +
-round-trip + truncation rejection.
-
-**Acceptance.** WitnessRecord serializer + 3-5 tests; existing proof tests still
-green.
+**Decision.** Premature without a real prover targeting it — different
+backends (SP1, Halo2) want different formats. Re-evaluate when the SP1
+toolchain integration lands and the guest ELF defines its expected witness
+shape. `ProofRequest.Witness` stays as opaque `ReadOnlyMemory<byte>` until
+then.
 
 ## Upstream / out-of-repo (track but don't fix here)
 

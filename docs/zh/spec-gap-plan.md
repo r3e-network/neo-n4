@@ -7,118 +7,89 @@
 跟踪方式:每关掉一项,`CHANGELOG.md` 留一行,引用本计划 ID(例如
 `[plan: §16.1-admission]`),便于审稿人交叉对照。
 
-## 仓内可即修(优先级排序)
+## 仓内(按 § 分项的状态)
 
-### §16.1-admission —— ChainRegistry 咨询 GovernanceController.GetAdmissionMode()
+### §16.1-admission ✅ 已闭合
 
-**规格。** §16.1 定义了三种准入阶段 —— 许可制(owner 批准)、半许可制(只要
-verifier+bridge 在批准集合就允许任意调用方)、无许可制(任意调用方)。
-GovernanceController 已经经 `SetAdmissionMode(0..2)` 存储该模式。
+`ChainRegistryContract` 通过 `RegisterChainPublic(chainId, configBytes)` 实现
+§16.1 准入策略:
 
-**当前代码。** `ChainRegistry.RegisterChain` 无条件要求
-`Runtime.CheckWitness(GetOwner())` —— 即不论 GovernanceController 配的什么模式,
-始终是许可制。
+1. 读取已接线的 GovernanceController 哈希(由 owner-only 的
+   `SetGovernanceController` 设置);未接线则带"必须先由 owner 接线"的清晰
+   提示拒绝。
+2. 调用 `GovernanceController.GetAdmissionMode()`。
+3. 模式 0(许可制)→ 带 "use RegisterChain" 提示拒绝;模式 1(半许可制)→
+   对 verifier 字节(偏移 24..43)与 bridge 字节(偏移 44..63)强制
+   `IsApprovedVerifier` + `IsApprovedBridgeAdapter` 检查;模式 2(无许可制)→
+   任意调用方;均落入与 owner-only 路径相同的 `WriteChainConfig` 写入路径。
 
-**修法。** 给 ChainRegistry 加 `KeyGovernanceController` 存储(经 owner-only 的
-`SetGovernanceController(hash)` 设置)。新增
-`RegisterChainPublic(chainId, configBytes)`:
-  1. 读 GovernanceController 哈希;未设置则拒绝。
-  2. 调用 `GovernanceController.GetAdmissionMode()`。
-  3. 分支:模式 2 → 任意调用方;模式 1 → 推迟(需要批准集合接线,记在下面
-     §16.1-approved-sets);模式 0 → 拒绝并提示 "use RegisterChain"。
+owner-only 的 `RegisterChain` 保留为 §16.1 的"许可制"路径。
 
-原来的 owner-only `RegisterChain` 留作许可制路径,向后兼容。
+**文件。** `contracts/NeoHub.ChainRegistry/ChainRegistryContract.cs`。
+测试覆盖模式 0/1/2 + 未接线时的 controller 拒绝。
 
-**验收。** 类型检查干净。现有测试仍绿(无回退)。新增测试钉住模式 0 时
-RegisterChainPublic 拒绝、模式 2 时接受。
+### §16.1-approved-sets ✅ 已闭合
 
-### §16.1-approved-sets —— GovernanceController 上批准的 verifier + bridge 集合
+`GovernanceControllerContract` 承载已批准 verifier + 已批准 bridge 集合,
+被 `ChainRegistry.RegisterChainPublic` 模式 1 使用:
 
-**规格。** 半许可准入要求 L2 的 verifier 和 bridgeAdapter 都在治理批准集合里。
+  - `PrefixApprovedVerifier = 0x0A`(`0x0A + verifierHash(20B) → 1`)
+  - `PrefixApprovedBridge = 0x0B`(`0x0B + bridgeHash(20B) → 1`)
+  - `[Safe] IsApprovedVerifier(UInt160)` / `[Safe] IsApprovedBridgeAdapter(UInt160)`
+  - `ApproveVerifier(UInt160)` / `RevokeVerifier(UInt160)` 及 bridge 对应方法
+    (owner-only mutator)
 
-**当前代码。** 任何地方都没有批准集合的存储。
+ChainRegistry 模式 1 路径通过 `Contract.Call(...,
+"isApprovedVerifier"/"isApprovedBridgeAdapter", CallFlags.ReadOnly, ...)`
+咨询,断言错误中点出失败的具体维度。
 
-**修法。** 给 GovernanceController 加:
-  - `KeyApprovedVerifier = 0x0A` + `0x0A + verifierHash(20B) → 1`
-  - `KeyApprovedBridgeAdapter = 0x0B` + `0x0B + bridgeHash(20B) → 1`
-  - `[Safe] IsApprovedVerifier(UInt160)` / `IsApprovedBridgeAdapter(UInt160)`
-  - `ApproveVerifier(UInt160)` / `ApproveBridgeAdapter(UInt160)`(owner-only,
-    或在 council 框架可调用时走 M-of-N council)
-  - `RevokeVerifier(UInt160)` / `RevokeBridgeAdapter(UInt160)`
+**文件。** `contracts/NeoHub.GovernanceController/GovernanceControllerContract.cs`,
+经 `ChainRegistryContract.RegisterChainPublic` 集成。
 
-然后在 `ChainRegistry.RegisterChainPublic` 模式 1 路径调用这些方法。
+### §16.2-config-bytes ✅ 已闭合
 
-**验收。** approve/revoke/IsApproved 的测试 + 经 ChainRegistry 的集成测试。
+`ChainRegistry.ConfigSize` 现为 91 字节(4 + 20×4 + 7),在独立字节字段里
+携带全部 5 个 §16.2 安全标签维度:
 
-### §16.2-config-bytes —— L2ChainConfig 线协议格式编码 SequencerModel + ExitModel
+  - `OffsetSecurityLevel = 84`、`OffsetDAMode = 85`、`OffsetGatewayEnabled = 86`、
+    `OffsetPermissionlessExit = 87`、`OffsetSequencerModel = 88`、
+    `OffsetExitModel = 89`,active 标志位于 `ConfigSize - 1`(= 90)。
+  - 每个维度都有专用的 `[Safe] Get*` 读取器。
+  - `Neo.L2.Abstractions` 提供 `SequencerModel` / `ExitModel` 枚举 + 规范的
+    `L2ChainConfigSerializer` + `L2ChainConfigJsonReader`。
+  - 链下 `getsecuritylabel` RPC 暴露完整 5 维标签(原 `getsecuritylevel`
+    保留以向后兼容)。
 
-**规格。** §16.2 说每条 L2 必须公布 5 个安全标签维度。其中两个维度
-(Sequencer、Exit)在 commit `340951a` 加进了链下 `L2ChainConfig` 记录,但链上
-编码(`ChainRegistry.ConfigSize` 中的 89 字节)在其 5×1 字节字段里只携带 3 个维度。
+### §16-council-veto ✅ 已闭合
 
-**当前代码。** 链下记录已有这些新字段,带 init 默认值。链上字节没带。
-RPC `getsecuritylevel` 只返回现有的 SecurityLevel 字节。
+`GovernanceController` 强制 §16 的 council 多签 + timelock 把关:
 
-**修法。** `ChainRegistry.ConfigSize` 从 89 升到 91。布局文档化:
-`[4B chainId][20B operator][20B verifier][20B bridge][20B msg]` 加
-`[1B securityLevel][1B daMode][1B gatewayEnabled][1B permissionlessExit]
-[1B sequencer][1B exit][1B active]`(7×1 字节字段)。更新 deploy planner +
-1 条构造 config 的测试。新增 RPC `getsecuritylabel`,返回完整 5 维标签。
+  - `Approve(proposalId, memberKey)` 记录每位 council 成员投票;首次达到
+    阈值时,unix 时间戳存于 `PrefixApprovedAt = 0x0C`。
+  - `[Safe] IsApprovedAndTimelocked(proposalId)` 在 `approvalCount ≥ threshold`
+    且 `now ≥ approvedAt + timelockSeconds` 时返回 true。
+  - `VerifierRegistry.SetGovernanceController` + `RegisterVerifierViaProposal`
+    在执行 verifier 升级前咨询此把关。
 
-**验收。** 合约编译通过;`getsecuritylabel` 可调用;现有 `getsecuritylevel`
-仍工作。
+### §12-l1-da-default ✅ 已闭合
 
-### §16-council-veto —— Verifier/bridge 升级走 council 多签
+`Neo.Plugins.L2DA.JsonRpcL1DAWriter` 作为默认的 L1-DA writer 出货:
 
-**规格。** §16 要求"verifier 升级"+"shared bridge 升级"由安全委员会 M-of-N 批准
-+ timelock 把关。
+  - 包装 `JsonRpcClient` + `SignAndSendAsync` 委托(形态同 `RpcSettlementClient`)。
+  - 通过调用配置好的 L1 合约方法(默认最接近的是
+    `NeoHub.DARegistry.RecordDACommitment`)实现 `IDAWriter`。
+  - 13 条单测对进程内伪 RPC 客户端。
+  - 接好 writer 后,`L2DAPlugin.BuildDefaultWriter(DAMode.L1, ...)` 不再抛错。
 
-**当前代码。** GovernanceController 有 council 成员 + `Approve(proposalId)` + 已
-存储的 `KeyTimelockSeconds` 值。但没有合约去读 proposal 投票结果作为执行的门;
-timelock 在任何地方都未强制执行。VerifierRegistry + SharedBridge 的升级方法
-都没把关。
+### §8-witness-canonical ⏭ 推迟
 
-**修法。**
-  1. 给 GovernanceController 每个 proposal 加 `KeyExecutedAt`;一旦达到阈值,
-     存达到阈值时的 unix 时间戳。
-  2. 加 `[Safe] IsApprovedAndTimelocked(proposalId)`,如果批准数 ≥ 阈值且
-     `now ≥ executedAt + timelock` 则返回 true。
-  3. VerifierRegistry.UpdateVerifier、SharedBridge.UpgradeAsset 等,通过
-     Contract.Call 在执行前咨询此方法。
+原计划加 `Neo.L2.Proving.WitnessRecord` 钉死 §8.4 的 witness 布局
+(有序 tx / 字节码 / storage 读写 / 原生状态 / L1 消息 / DA 数据 / trace)。
 
-**验收。** 类型检查 + 一个 deploy-planner 测试搭起接线。
-
-### §12-l1-da-default —— 提供 JsonRpc 后备的 L1 DA writer 脚手架
-
-**规格。** §12.1 列出 L1 DA 是三层 DA 之一。当前 bridge writer 由运维者提供。
-
-**当前代码。** `L2DAPlugin.BuildDefaultWriter(DAMode.L1, ...)` 抛
-NotSupportedException,除非运维者预先注入 writer。NeoFS / External / DAC 都有
-内置默认;L1 没有。
-
-**修法。** 加 `Neo.Plugins.L2DA.JsonRpcL1DAWriter`,接受 `JsonRpcClient` + 目标
-合约哈希 + sign-and-send 委托(形态同 `RpcSettlementClient.SignAndSendAsync`)。
-通过调用 `publishDABlob`(或 L1 DA 合约的对应方法 —— 这是另一规格点 ——
-`NeoHub.DARegistry.RecordDACommitment` 是最接近的)实现 `IDAWriter`。接为
-`BuildDefaultWriter(DAMode.L1, ...)` 的默认,并清晰提示运维者仍需配 L1 RPC + 签名器。
-
-**验收。** 新 writer 编译通过 + 对进程内伪 RPC 客户端有单测。
-`BuildDefaultWriter(DAMode.L1, dataDir=null)` 在经 `WithWriter()` 接好 writer 之后
-不再抛错。
-
-### §8-witness-canonical —— 钉死规范 Witness 线协议格式
-
-**规格。** §8.4 列出 witness 内容(有序 tx、合约字节码、storage 读/写 witness、
-原生合约状态 witness、消耗的 L1 消息、DA 数据、执行 trace)。
-
-**当前代码。** `ProofRequest.Witness` 中的 witness 是不透明 `ReadOnlyMemory<byte>`。
-没有序列化器钉死布局。不同证明后备(SP1、Halo2)目前可能想要不同格式。
-
-**修法。** 加 `Neo.L2.Proving.WitnessRecord`,7 段 + 一个遵循 `BatchSerializer`
-模式的规范 encoder/decoder。证明者可选用规范格式或包装自家。测试钉布局 + 往返 +
-截断拒绝。
-
-**验收。** WitnessRecord 序列化器 + 3-5 条测试;现有证明测试仍绿。
+**决定。** 在没有真正的 prover 锁定它之前过早 —— 不同后备(SP1、Halo2)想要
+不同格式。等 SP1 工具链集成落地、guest ELF 定下它期望的 witness 形状之后再
+评估。在那之前,`ProofRequest.Witness` 仍保持不透明的
+`ReadOnlyMemory<byte>`。
 
 ## 上游 / 仓外(跟踪但此处不修)
 

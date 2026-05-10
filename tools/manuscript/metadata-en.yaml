@@ -38,8 +38,7 @@ header-includes:
   - \usepackage{longtable}
   - \pagestyle{fancy}
   - \fancyhf{}
-  - \fancyhead[LE,RO]{\nouppercase{\leftmark}}
-  - \fancyhead[LO,RE]{\textit{Neo Elastic Network}}
+  - \fancyhead[LO,RE]{\nouppercase{\leftmark}}
   - \fancyfoot[C]{\thepage}
   - \renewcommand{\headrulewidth}{0.4pt}
   - \captionsetup{font=small,labelfont=bf}

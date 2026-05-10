@@ -114,37 +114,35 @@ A useful sanity check: if you can answer *no* to all of (1), (2),
 Going through each NeoHub contract + each L2Native contract against
 the rules in §5:
 
-| Contract                                    | Tier  | Should be?  | Notes                                            |
-|---------------------------------------------|-------|-------------|--------------------------------------------------|
-| `NeoHub.ChainRegistry`                      | L1 ✅ | L1          | Cross-L2 invariant (rule 1)                      |
-| `NeoHub.SettlementManager`                  | L1 ✅ | L1          | Trust boundary (rule 3)                          |
-| `NeoHub.VerifierRegistry`                   | L1 ✅ | L1          | Trust boundary (rule 3)                          |
-| `NeoHub.SharedBridge`                       | L1 ✅ | L1          | Asset escrow (rule 2 — assets are on L1)         |
-| `NeoHub.TokenRegistry`                      | L1 ✅ | L1          | Cross-bridge invariant (rule 1)                  |
-| `NeoHub.MessageRouter`                      | L1 ✅ | L1          | Cross-L2 invariant (rule 1)                      |
-| `NeoHub.DARegistry`                         | L1 ✅ | L1          | Cross-L2 invariant (rule 1)                      |
-| `NeoHub.SequencerRegistry`                  | L1 ✅ | L1          | Cross-L2 invariant (rule 1)                      |
-| `NeoHub.SequencerBond`                      | L1 ✅ | L1          | Slashable economic security (rule 2)             |
-| `NeoHub.ForcedInclusion`                    | L1 ✅ | L1          | Anti-censorship gate (rule 3)                    |
-| `NeoHub.OptimisticChallenge`                | L1 ✅ | L1          | Trust boundary + slashing (rules 2+3)            |
-| `NeoHub.GovernanceController`               | L1 ✅ | L1          | Slow upgrade path (rule 3)                       |
-| `NeoHub.EmergencyManager`                   | L1 ✅ | L1          | Out-of-band pause (rule 3)                       |
-| `NeoHub.GovernanceFraudVerifier`            | L1 ✅ | L1          | Verifier slot — same as `VerifierRegistry`       |
-| `NeoHub.RestrictedExecutionFraudVerifier`   | L1 ✅ | L1          | Verifier slot                                    |
-| `NeoHub.MpcCommitteeVerifier`               | L1 ✅ | L1          | Trust boundary for foreign chains                |
-| `NeoHub.MpcCommitteeFraudVerifier`          | L1 ✅ | L1          | Slashing — same trust + economic argument        |
-| `NeoHub.ExternalBridgeRegistry`             | L1 ✅ | L1          | Cross-foreign-chain invariant                    |
-| `NeoHub.ExternalBridgeEscrow`               | L1 ✅ | L1          | Asset escrow                                     |
-| `NeoHub.ExternalBridgeBond`                 | L1 ✅ | L1          | Slashable economic security                      |
-| `NeoHub.ExternalBridgeStubVerifier`         | L1 🟡 | testing only| **Should be feature-gated for non-prod use only**|
-|                                             |       |             |                                                  |
-| `L2Native.L2BridgeContract`                 | L2 ✅ | L2          | Per-L2 NEP-17 wrapped state (rule 4)             |
-| `L2Native.L2MessageContract`                | L2 ✅ | L2          | Per-L2 inbox/outbox                              |
-| `L2Native.L2BatchInfoContract`              | L2 ✅ | L2          | L2-local view of L1's batch state                |
-| `L2Native.L2FeeContract`                    | L2 ✅ | L2          | L2-local fee config (rule 5)                     |
-| `L2Native.L2PaymasterContract`              | L2 ✅ | L2          | L2-app-specific (rule 5)                         |
-| `L2Native.L2SystemConfigContract`           | L2 ✅ | L2          | L2-local mirror of L1 chainConfig                |
-| `L2Native.ExternalBridgeContract`           | L2 ✅ | L2          | Per-L2 wrapped foreign-asset state (rule 4)      |
+- **`NeoHub.ChainRegistry`** L1 ✅ → L1 — Cross-L2 invariant (rule 1)
+- **`NeoHub.SettlementManager`** L1 ✅ → L1 — Trust boundary (rule 3)
+- **`NeoHub.VerifierRegistry`** L1 ✅ → L1 — Trust boundary (rule 3)
+- **`NeoHub.SharedBridge`** L1 ✅ → L1 — Asset escrow (rule 2 — assets are on L1)
+- **`NeoHub.TokenRegistry`** L1 ✅ → L1 — Cross-bridge invariant (rule 1)
+- **`NeoHub.MessageRouter`** L1 ✅ → L1 — Cross-L2 invariant (rule 1)
+- **`NeoHub.DARegistry`** L1 ✅ → L1 — Cross-L2 invariant (rule 1)
+- **`NeoHub.SequencerRegistry`** L1 ✅ → L1 — Cross-L2 invariant (rule 1)
+- **`NeoHub.SequencerBond`** L1 ✅ → L1 — Slashable economic security (rule 2)
+- **`NeoHub.ForcedInclusion`** L1 ✅ → L1 — Anti-censorship gate (rule 3)
+- **`NeoHub.OptimisticChallenge`** L1 ✅ → L1 — Trust boundary + slashing (rules 2+3)
+- **`NeoHub.GovernanceController`** L1 ✅ → L1 — Slow upgrade path (rule 3)
+- **`NeoHub.EmergencyManager`** L1 ✅ → L1 — Out-of-band pause (rule 3)
+- **`NeoHub.GovernanceFraudVerifier`** L1 ✅ → L1 — Verifier slot — same as `VerifierRegistry`
+- **`NeoHub.RestrictedExecutionFraudVerifier`** L1 ✅ → L1 — Verifier slot
+- **`NeoHub.MpcCommitteeVerifier`** L1 ✅ → L1 — Trust boundary for foreign chains
+- **`NeoHub.MpcCommitteeFraudVerifier`** L1 ✅ → L1 — Slashing — same trust + economic argument
+- **`NeoHub.ExternalBridgeRegistry`** L1 ✅ → L1 — Cross-foreign-chain invariant
+- **`NeoHub.ExternalBridgeEscrow`** L1 ✅ → L1 — Asset escrow
+- **`NeoHub.ExternalBridgeBond`** L1 ✅ → L1 — Slashable economic security
+- **`NeoHub.ExternalBridgeStubVerifier`** L1 🟡 → testing only — **Should be feature-gated for non-prod use only**
+
+- **`L2Native.L2BridgeContract`** L2 ✅ → L2 — Per-L2 NEP-17 wrapped state (rule 4)
+- **`L2Native.L2MessageContract`** L2 ✅ → L2 — Per-L2 inbox/outbox
+- **`L2Native.L2BatchInfoContract`** L2 ✅ → L2 — L2-local view of L1's batch state
+- **`L2Native.L2FeeContract`** L2 ✅ → L2 — L2-local fee config (rule 5)
+- **`L2Native.L2PaymasterContract`** L2 ✅ → L2 — L2-app-specific (rule 5)
+- **`L2Native.L2SystemConfigContract`** L2 ✅ → L2 — L2-local mirror of L1 chainConfig
+- **`L2Native.ExternalBridgeContract`** L2 ✅ → L2 — Per-L2 wrapped foreign-asset state (rule 4)
 
 **Findings:**
 

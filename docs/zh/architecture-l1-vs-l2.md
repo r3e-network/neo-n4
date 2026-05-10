@@ -98,37 +98,35 @@ L1 上多半是*过早中心化*。
 
 按 §5 的规则把每个 NeoHub 合约 + 每个 L2Native 合约过一遍:
 
-| 合约                                        | 层    | 应当?       | 备注                                              |
-|---------------------------------------------|-------|-------------|--------------------------------------------------|
-| `NeoHub.ChainRegistry`                      | L1 ✅ | L1          | 跨 L2 不变量(规则 1)                            |
-| `NeoHub.SettlementManager`                  | L1 ✅ | L1          | 信任边界(规则 3)                                |
-| `NeoHub.VerifierRegistry`                   | L1 ✅ | L1          | 信任边界(规则 3)                                |
-| `NeoHub.SharedBridge`                       | L1 ✅ | L1          | 资产托管(规则 2 —— 资产在 L1)                  |
-| `NeoHub.TokenRegistry`                      | L1 ✅ | L1          | 跨桥不变量(规则 1)                              |
-| `NeoHub.MessageRouter`                      | L1 ✅ | L1          | 跨 L2 不变量(规则 1)                            |
-| `NeoHub.DARegistry`                         | L1 ✅ | L1          | 跨 L2 不变量(规则 1)                            |
-| `NeoHub.SequencerRegistry`                  | L1 ✅ | L1          | 跨 L2 不变量(规则 1)                            |
-| `NeoHub.SequencerBond`                      | L1 ✅ | L1          | 可罚没经济安全(规则 2)                          |
-| `NeoHub.ForcedInclusion`                    | L1 ✅ | L1          | 抗审查门(规则 3)                                |
-| `NeoHub.OptimisticChallenge`                | L1 ✅ | L1          | 信任边界 + 罚没(规则 2+3)                       |
-| `NeoHub.GovernanceController`               | L1 ✅ | L1          | 慢升级路径(规则 3)                              |
-| `NeoHub.EmergencyManager`                   | L1 ✅ | L1          | 带外暂停(规则 3)                                |
-| `NeoHub.GovernanceFraudVerifier`            | L1 ✅ | L1          | Verifier 槽 —— 同 `VerifierRegistry`             |
-| `NeoHub.RestrictedExecutionFraudVerifier`   | L1 ✅ | L1          | Verifier 槽                                       |
-| `NeoHub.MpcCommitteeVerifier`               | L1 ✅ | L1          | 外链信任边界                                     |
-| `NeoHub.MpcCommitteeFraudVerifier`          | L1 ✅ | L1          | 罚没 —— 同信任 + 经济安全论据                    |
-| `NeoHub.ExternalBridgeRegistry`             | L1 ✅ | L1          | 跨外链不变量                                     |
-| `NeoHub.ExternalBridgeEscrow`               | L1 ✅ | L1          | 资产托管                                         |
-| `NeoHub.ExternalBridgeBond`                 | L1 ✅ | L1          | 可罚没经济安全                                   |
-| `NeoHub.ExternalBridgeStubVerifier`         | L1 🟡 | 仅测试       | **应被 feature gate 限制为非生产用**             |
-|                                             |       |             |                                                  |
-| `L2Native.L2BridgeContract`                 | L2 ✅ | L2          | 按 L2 的 NEP-17 包装资产状态(规则 4)             |
-| `L2Native.L2MessageContract`                | L2 ✅ | L2          | 按 L2 的 inbox/outbox                            |
-| `L2Native.L2BatchInfoContract`              | L2 ✅ | L2          | L1 批次状态在 L2 本地的视图                       |
-| `L2Native.L2FeeContract`                    | L2 ✅ | L2          | L2 本地费用 config(规则 5)                      |
-| `L2Native.L2PaymasterContract`              | L2 ✅ | L2          | L2 应用特定(规则 5)                             |
-| `L2Native.L2SystemConfigContract`           | L2 ✅ | L2          | L1 chainConfig 在 L2 本地的镜像                   |
-| `L2Native.ExternalBridgeContract`           | L2 ✅ | L2          | 按 L2 的外链包装资产状态(规则 4)                |
+- **`NeoHub.ChainRegistry`** L1 ✅ → L1 — 跨 L2 不变量(规则 1)
+- **`NeoHub.SettlementManager`** L1 ✅ → L1 — 信任边界(规则 3)
+- **`NeoHub.VerifierRegistry`** L1 ✅ → L1 — 信任边界(规则 3)
+- **`NeoHub.SharedBridge`** L1 ✅ → L1 — 资产托管(规则 2 —— 资产在 L1)
+- **`NeoHub.TokenRegistry`** L1 ✅ → L1 — 跨桥不变量(规则 1)
+- **`NeoHub.MessageRouter`** L1 ✅ → L1 — 跨 L2 不变量(规则 1)
+- **`NeoHub.DARegistry`** L1 ✅ → L1 — 跨 L2 不变量(规则 1)
+- **`NeoHub.SequencerRegistry`** L1 ✅ → L1 — 跨 L2 不变量(规则 1)
+- **`NeoHub.SequencerBond`** L1 ✅ → L1 — 可罚没经济安全(规则 2)
+- **`NeoHub.ForcedInclusion`** L1 ✅ → L1 — 抗审查门(规则 3)
+- **`NeoHub.OptimisticChallenge`** L1 ✅ → L1 — 信任边界 + 罚没(规则 2+3)
+- **`NeoHub.GovernanceController`** L1 ✅ → L1 — 慢升级路径(规则 3)
+- **`NeoHub.EmergencyManager`** L1 ✅ → L1 — 带外暂停(规则 3)
+- **`NeoHub.GovernanceFraudVerifier`** L1 ✅ → L1 — Verifier 槽 —— 同 `VerifierRegistry`
+- **`NeoHub.RestrictedExecutionFraudVerifier`** L1 ✅ → L1 — Verifier 槽
+- **`NeoHub.MpcCommitteeVerifier`** L1 ✅ → L1 — 外链信任边界
+- **`NeoHub.MpcCommitteeFraudVerifier`** L1 ✅ → L1 — 罚没 —— 同信任 + 经济安全论据
+- **`NeoHub.ExternalBridgeRegistry`** L1 ✅ → L1 — 跨外链不变量
+- **`NeoHub.ExternalBridgeEscrow`** L1 ✅ → L1 — 资产托管
+- **`NeoHub.ExternalBridgeBond`** L1 ✅ → L1 — 可罚没经济安全
+- **`NeoHub.ExternalBridgeStubVerifier`** L1 🟡 → 仅测试 — **应被 feature gate 限制为非生产用**
+
+- **`L2Native.L2BridgeContract`** L2 ✅ → L2 — 按 L2 的 NEP-17 包装资产状态(规则 4)
+- **`L2Native.L2MessageContract`** L2 ✅ → L2 — 按 L2 的 inbox/outbox
+- **`L2Native.L2BatchInfoContract`** L2 ✅ → L2 — L1 批次状态在 L2 本地的视图
+- **`L2Native.L2FeeContract`** L2 ✅ → L2 — L2 本地费用 config(规则 5)
+- **`L2Native.L2PaymasterContract`** L2 ✅ → L2 — L2 应用特定(规则 5)
+- **`L2Native.L2SystemConfigContract`** L2 ✅ → L2 — L1 chainConfig 在 L2 本地的镜像
+- **`L2Native.ExternalBridgeContract`** L2 ✅ → L2 — 按 L2 的外链包装资产状态(规则 4)
 
 **结论:**
 

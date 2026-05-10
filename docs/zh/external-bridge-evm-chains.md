@@ -7,12 +7,12 @@ Base、Avalanche、Linea、zkSync、Scroll、Mantle、Fantom、Celo 等都视为
 
 让这件事可行的两个架构选择:
 
-1. **以太侧 router 合约
-   (`external/foreign-contracts/eth/src/NeoExternalBridgeRouter.sol`)
-   通过构造函数参数化 `externalChainId`。** 同一份 Solidity 字节码原样部署到任何
-   EVM 链上 —— 以太坊主网、BSC、Polygon、Avalanche、L2,甚至 Tron(TVM 对这些原语
-   而言 EVM 风味足够)。构造时传入的 `externalChainId` 进入每个 `Locked` 事件,
-   并把 router 绑到 Neo 侧命名空间的对应槽位。
+1. **以太侧 router 合约通过构造函数参数化 `externalChainId`。**源码:
+   `external/foreign-contracts/eth/src/NeoExternalBridgeRouter.sol`。
+   同一份 Solidity 字节码原样部署到任何 EVM 链上 —— 以太坊主网、BSC、
+   Polygon、Avalanche、L2,甚至 Tron(TVM 对这些原语而言 EVM 风味足够)。
+   构造时传入的 `externalChainId` 进入每个 `Locked` 事件,并把 router
+   绑到 Neo 侧命名空间的对应槽位。
 
 2. **Watcher 守护进程(`neo-bridge-watcher-eth`)完全由 chain id 驱动。**
    `EthRpcEventSource` 在任何说标准 EVM API 的 JSON-RPC 端点上 poll

@@ -9,14 +9,14 @@ contract deployment + on-chain registration.
 
 The two architectural choices that make this possible:
 
-1. **The Eth-side router contract
-   (`external/foreign-contracts/eth/src/NeoExternalBridgeRouter.sol`)
-   parameterizes `externalChainId` via constructor.** The same Solidity
-   bytecode deploys unchanged on any EVM chain — Ethereum mainnet, BSC,
-   Polygon, Avalanche, an L2, even Tron (TVM is EVM-flavored enough
-   for these primitives). The constructor-passed `externalChainId`
-   becomes part of every emitted `Locked` event and binds the router
-   to its slot in the Neo-side namespace.
+1. **The Eth-side router contract parameterizes `externalChainId` via
+   constructor.** Source:
+   `external/foreign-contracts/eth/src/NeoExternalBridgeRouter.sol`.
+   The same Solidity bytecode deploys unchanged on any EVM chain —
+   Ethereum mainnet, BSC, Polygon, Avalanche, an L2, even Tron (TVM is
+   EVM-flavored enough for these primitives). The constructor-passed
+   `externalChainId` becomes part of every emitted `Locked` event and
+   binds the router to its slot in the Neo-side namespace.
 
 2. **The watcher daemon (`neo-bridge-watcher-eth`) is fully
    chain-id-driven.** `EthRpcEventSource` polls `eth_getLogs` on any

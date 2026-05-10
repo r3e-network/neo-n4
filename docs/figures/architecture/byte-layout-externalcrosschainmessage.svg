@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 720" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 720" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">ExternalCrossChainMessage byte layout (102 + N bytes)</title>
   <desc id="desc">Byte-by-byte canonical wire format for ExternalCrossChainMessage — 11 fields totaling 102 bytes fixed prefix plus N bytes variable payload. The wire format the off-chain watcher signs and the on-chain ExternalBridgeEscrow verifies. Foreign chain (Eth/EVM family / Tron / Solana) to Neo direction primarily; same shape works in reverse with direction flipped. Fields by offset: 0-3 externalChainId (must be 0xE0_xx_xx_xx foreign namespace), 4-7 neoChainId, 8-15 nonce (replay-protected per (externalChainId, nonce)), 16 direction, 17-36 sender (last 20B of source address), 37-56 recipient, 57-64 deadlineUnixSeconds, 65-96 sourceTxRef, 97 messageType, 98-101 payloadLen, 102 to 101+N payload (type-specific encoding).</desc>
 
@@ -9,9 +9,9 @@
     <style>
       .header     { font-size: 14.5px; font-weight: 700; }
       .col-h      { font-size: 11.5px; font-weight: 700; fill: #525a64; letter-spacing: 0.4px; }
-      .offset     { font-size: 11px; fill: #1e2a55; font-weight: 700; font-family: ui-monospace, 'SF Mono', monospace; }
-      .size       { font-size: 11px; fill: #525a64; font-family: ui-monospace, 'SF Mono', monospace; }
-      .field      { font-size: 11.5px; fill: #1e2a55; font-weight: 700; font-family: ui-monospace, 'SF Mono', monospace; }
+      .offset     { font-size: 11px; fill: #1e2a55; font-weight: 700; font-family: 'Noto Sans Mono CJK SC', ui-monospace, 'SF Mono', monospace; }
+      .size       { font-size: 11px; fill: #525a64; font-family: 'Noto Sans Mono CJK SC', ui-monospace, 'SF Mono', monospace; }
+      .field      { font-size: 11.5px; fill: #1e2a55; font-weight: 700; font-family: 'Noto Sans Mono CJK SC', ui-monospace, 'SF Mono', monospace; }
       .desc       { font-size: 10.5px; fill: #2d3a48; }
       .grp        { font-size: 11px; font-weight: 600; letter-spacing: 0.3px; }
       .ftr        { font-size: 10.5px; fill: #525a64; font-style: italic; }

@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 700" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 700" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">What L2 does — 3 layers per chain</title>
   <desc id="desc">Each L2 chain comprises three concerns: 7 native L2 contracts (per-chain state — L2BridgeContract, L2NativeExternalBridge, L2MessageContract, L2BatchInfoContract, L2FeeContract, L2PaymasterContract, L2SystemConfigContract), 8 L2 plugins (per-chain runtime — L2Batch, L2Settlement, L2Bridge, L2DA, L2Prover, L2Rpc, L2Gateway, L2Metrics), and the L2 execution kernel (Neo 4 core vendored as submodule — dBFT 2.0 consensus, NeoVM, Mempool, local state storage, receipt generation).</desc>
 
@@ -10,7 +10,7 @@
       .header     { font-size: 14.5px; font-weight: 700; }
       .grp-t      { font-size: 13.5px; font-weight: 700; letter-spacing: 0.3px; }
       .grp-s      { font-size: 11px; fill: #525a64; font-style: italic; }
-      .ctr-name   { font-size: 11px; font-weight: 600; fill: #1d4d2c; font-family: ui-monospace, 'SF Mono', monospace; }
+      .ctr-name   { font-size: 11px; font-weight: 600; fill: #1d4d2c; font-family: 'Noto Sans Mono CJK SC', ui-monospace, 'SF Mono', monospace; }
       .ctr-desc   { font-size: 10.5px; fill: #2d3a48; }
       .why-t      { font-size: 10.5px; font-weight: 700; fill: #c4413e; }
     </style>

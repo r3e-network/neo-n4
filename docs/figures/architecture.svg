@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 620" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 620" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">Neo Elastic Network — Architecture</title>
   <desc id="desc">Three-tier architecture: Neo N3/Neo 4 L1 anchor (NeoHub: 13 contracts grouped into Settlement, Bridge, Messaging, Security, Governance), an optional Phase 5 Neo Gateway aggregator, and N elastic L2 execution chains. Data flows upward via batch + proof submissions; settlement is via JSON-RPC submitBatch / verify on L1.</desc>
 

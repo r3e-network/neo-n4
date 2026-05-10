@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 380" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 380" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">What defines an L2 chain — 4 artifacts</title>
   <desc id="desc">Every L2 chain in the Neo Elastic Network is fully defined by 4 artifacts: (1) chain.config.json — the 91-byte canonical config + JSON metadata, (2) ITransactionExecutor implementation — ApplicationEngine-based or custom, compiled into the L2 plugin, (3) ChainRegistry entry on L1 — 24-byte UInt160 references for operatorManager, verifier, bridgeAdapter, messageAdapter, plus the 91-byte configBytes, (4) Off-chain operators — sequencer, batcher, prover daemon, DA writer.</desc>
 

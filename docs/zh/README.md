@@ -64,7 +64,7 @@
 
 | 区域              | 数量        | 说明                                                                      |
 | ----------------- | ----------- | ------------------------------------------------------------------------- |
-| 链下库             | **15**     | `Neo.L2.{Abstractions,Audit,Batch,Bridge,Censorship,Challenge,Executor,ForcedInclusion,Messaging,Persistence,Proving,Sequencer,Settlement.Rpc,State,Telemetry}` |
+| 链下库             | **16**     | `Neo.L2.{Abstractions,Audit,Batch,Bridge,Censorship,Challenge,Executor,Executor.RiscV,ForcedInclusion,Messaging,Persistence,Proving,Sequencer,Settlement.Rpc,State,Telemetry}`(App SDK 在 `Neo.L2.Sdk`,单独计入下文 App SDK 行) |
 | 持久化后备         | **2**      | `InMemoryKeyValueStore`(测试)· `RocksDbKeyValueStore`(生产默认)—— 见 [`persistence.md`](./persistence.md) |
 | 节点插件          | **8**       | `Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}`   |
 | 智能合约          | **28**      | 21 个 NeoHub L1 + 7 个 L2 原生(均经 `Neo.SmartContract.Framework` 类型检查) |

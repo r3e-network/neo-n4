@@ -37,15 +37,21 @@ off-chain infrastructure that connects them:
 
 **What flows where:**
 
-| Flow                         | From → To                                         | Wire format                                    |
-|------------------------------|---------------------------------------------------|------------------------------------------------|
-| Sealed batch + proof         | Batcher → NeoHub.SettlementManager                | `BatchSerializer` (canonical 32-byte fields)   |
-| DA payload                   | DA writer → NeoFS / L1 / committee                | `IDAWriter` impl-specific                      |
-| Cross-L2 message             | L2 sender → NeoHub.MessageRouter → L2 receiver    | `MessageHasher` canonical bytes                |
-| L1→L2 deposit                | User → NeoHub.SharedBridge → L2NativeBridge       | `DepositPayload`                               |
-| L2→L1 withdrawal             | L2 user → SettlementManager Merkle proof          | `WithdrawalRecord` + Merkle path               |
-| External chain → Neo         | EVM/Solana → Watcher → ExternalBridgeEscrow       | `ExternalCrossChainMessage` (102B + payload)   |
-| Aggregated proof (Phase 5)   | Gateway → SettlementManager                       | `BinaryTreeAggregator` round proofs            |
+- **Sealed batch + proof** — Batcher → NeoHub.SettlementManager.
+  Wire format: `BatchSerializer` (canonical 32-byte fields).
+- **DA payload** — DA writer → NeoFS / L1 / committee. Wire format:
+  `IDAWriter` impl-specific.
+- **Cross-L2 message** — L2 sender → NeoHub.MessageRouter → L2
+  receiver. Wire format: `MessageHasher` canonical bytes.
+- **L1→L2 deposit** — User → NeoHub.SharedBridge → L2NativeBridge.
+  Wire format: `DepositPayload`.
+- **L2→L1 withdrawal** — L2 user → SettlementManager Merkle proof.
+  Wire format: `WithdrawalRecord` + Merkle path.
+- **External chain → Neo** — EVM/Solana → Watcher →
+  ExternalBridgeEscrow. Wire format: `ExternalCrossChainMessage`
+  (102B + payload).
+- **Aggregated proof (Phase 5)** — Gateway → SettlementManager.
+  Wire format: `BinaryTreeAggregator` round proofs.
 
 ---
 

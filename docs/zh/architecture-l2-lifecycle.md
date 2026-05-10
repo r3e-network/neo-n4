@@ -32,15 +32,20 @@ Neo Elastic Network 由**4 层**组件 + 把它们连起来的链下基础设施
 
 **什么从哪里流向哪里:**
 
-| 流动                        | 从 → 到                                            | 线协议格式                                       |
-|-----------------------------|---------------------------------------------------|------------------------------------------------|
-| 已封装批次 + 证明           | 批处理器 → NeoHub.SettlementManager                | `BatchSerializer`(规范 32 字节字段)             |
-| DA payload                  | DA writer → NeoFS / L1 / 委员会                   | `IDAWriter` 实现特有                           |
-| 跨 L2 消息                  | L2 sender → NeoHub.MessageRouter → L2 receiver    | `MessageHasher` 规范字节                       |
-| L1→L2 充值                  | 用户 → NeoHub.SharedBridge → L2NativeBridge       | `DepositPayload`                               |
-| L2→L1 提款                  | L2 用户 → SettlementManager Merkle 证明            | `WithdrawalRecord` + Merkle 路径               |
-| 外链 → Neo                  | EVM/Solana → Watcher → ExternalBridgeEscrow       | `ExternalCrossChainMessage`(102B + payload)   |
-| 聚合证明(Phase 5)         | Gateway → SettlementManager                       | `BinaryTreeAggregator` 轮证明                  |
+- **已封装批次 + 证明** —— 批处理器 → NeoHub.SettlementManager。
+  线协议格式:`BatchSerializer`(规范 32 字节字段)。
+- **DA payload** —— DA writer → NeoFS / L1 / 委员会。线协议格式:
+  `IDAWriter` 实现特有。
+- **跨 L2 消息** —— L2 sender → NeoHub.MessageRouter → L2 receiver。
+  线协议格式:`MessageHasher` 规范字节。
+- **L1→L2 充值** —— 用户 → NeoHub.SharedBridge → L2NativeBridge。
+  线协议格式:`DepositPayload`。
+- **L2→L1 提款** —— L2 用户 → SettlementManager Merkle 证明。
+  线协议格式:`WithdrawalRecord` + Merkle 路径。
+- **外链 → Neo** —— EVM/Solana → Watcher → ExternalBridgeEscrow。
+  线协议格式:`ExternalCrossChainMessage`(102B + payload)。
+- **聚合证明(Phase 5)** —— Gateway → SettlementManager。
+  线协议格式:`BinaryTreeAggregator` 轮证明。
 
 ---
 

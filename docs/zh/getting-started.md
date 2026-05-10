@@ -150,7 +150,7 @@ neo-project/neo submodule 没初始化。在仓库根目录跑
 没有 `nccs` 时这是正常现象。从 `neo-project/neo-devpack-dotnet` 安装 nccs,然后去掉
 `DisableNccs=true` 重新 `dotnet build`。
 
-**想要真正的 ZK 证明(Stage-2 validity)?**
+**想要真正的 ZK 证明(Stage-2 有效性)?**
 构建 Rust 证明守护进程:`CPATH=~/.local/include cargo build --release -p neo-zkvm-host`
 (需要 SP1 工具链 —— 通过 `sp1up` 安装)。然后以
 `target/release/prove-batch daemon --watch <queue-dir>` 启动；.NET 排序器把封好的批次扔

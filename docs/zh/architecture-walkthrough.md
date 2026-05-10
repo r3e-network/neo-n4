@@ -149,7 +149,7 @@ recipient, amount)`。SharedBridge 回调 `SettlementManager.VerifyWithdrawalLea
 
 `AggregatedCommitment` 携带:
 - 全部成员 `L2BatchCommitment`。
-- L2→L2 消息根之上的 `GlobalMessageRoot`(用于 L2-to-L2 inclusion 证明)。
+- L2→L2 消息根之上的 `GlobalMessageRoot`(用于 L2-to-L2 包含证明)。
 - 聚合后的证明字节。
 - `BackendId`,以便 L1 端验证正确路由。
 

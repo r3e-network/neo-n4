@@ -68,7 +68,7 @@
 | 跨链消息传递 | ✅ | `src/Neo.L2.Messaging/` |
 | 资产注册表 + 充值/提款处理器 | ✅ | `src/Neo.L2.Bridge/` |
 | 按 L2 的 RPC 方法面 | ✅ | `src/Neo.Plugins.L2Rpc/`(10 个方法) |
-| Phase-5 证明聚合 | ✅ | `src/Neo.Plugins.L2Gateway/` —— `BinaryTreeAggregator`,带三种 `IRoundProver` 实现:`MultisigRoundProver`(Secp256r1 阈值证明)、`MerklePathRoundProver`(逐叶 inclusion 证明)、`PassThroughRoundProver`(最低成本参照)。递归 ZK fold 变体(SP1 Compress / Halo2 / Risc0)由运维者经同一接缝接入 |
+| Phase-5 证明聚合 | ✅ | `src/Neo.Plugins.L2Gateway/` —— `BinaryTreeAggregator`,带三种 `IRoundProver` 实现:`MultisigRoundProver`(Secp256r1 阈值证明)、`MerklePathRoundProver`(逐叶 包含证明)、`PassThroughRoundProver`(最低成本参照)。递归 ZK fold 变体(SP1 Compress / Halo2 / Risc0)由运维者经同一接缝接入 |
 
 **16 个链下库 + 8 个插件。** 都有 `tests/Neo.*.UnitTests/` 镜像;1362 条测试横跨 33
 个 .NET 工程通过。Rust workspace 出货 21 条默认 CI 测试(host-mode 密码学 + SDK +

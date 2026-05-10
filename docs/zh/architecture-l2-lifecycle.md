@@ -74,7 +74,7 @@ L1 锚。**20 个合约**按关注点分组:
 - `BinaryTreeAggregator` —— 在 N 个成员批次上做 log-N 轮收敛。
 - `IRoundProver` —— 3 份生产实现 + 一个递归-ZK 接缝:
   - `MultisigRoundProver` —— Secp256r1 阈值证明轮
-  - `MerklePathRoundProver` —— 逐成员 inclusion 证明
+  - `MerklePathRoundProver` —— 逐成员 包含证明
   - `PassThroughRoundProver` —— 最低成本参照
   - SP1 Compress / Halo2 / Risc0 fold 变体接进同一 trait
 

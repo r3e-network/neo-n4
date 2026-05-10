@@ -21,18 +21,18 @@
 - **重放安全。** 每条跨链消息都带 `(chainId, nonce)`,在 `NeoHub.MessageRouter`
   按 (来源,目标) 配对去重。
 - **提款终结性。** 资金离开 `SharedBridge` 必须基于*已最终化的* `withdrawalRoot`
-  的 inclusion 证明。最终化前的批次无法释放 L1 资产。
+  的 包含证明。最终化前的批次无法释放 L1 资产。
 - **逃生通道。** `EmergencyManager` 暴露一条治理把关的路径,L2 永久故障时用户可
   凭最后一个最终化状态根提款。
 
 ## L1 不保证什么(每条链在到达 Phase 4 前)
 
-- **Phase 0–2 链的状态根有效性。** 在 ZK validity 证明上线前:Phase 0(侧链)是
+- **Phase 0–2 链的状态根有效性。** 在 ZK 有效性证明上线前:Phase 0(侧链)是
   信任排序器;Phase 1–2 是信任多签;Phase 3 是信任挑战窗口。
 - **排序器活性。** 排序器可以让链停摆。强制纳入 + 保证金罚没让停摆代价高昂;
   逃生通道让停摆最终可解。
 
-正确的思考方式是:**L1 验证什么,取决于注册的验证器验证什么。** Phase 4(ZK validity)
+正确的思考方式是:**L1 验证什么,取决于注册的验证器验证什么。** Phase 4(ZK 有效性)
 让验证器无信任。Phase 3(乐观)让验证器信任程度等同于二分博弈的挑战窗口。
 Phase 0–2 在多签之上叠加治理(Neo Council、排序器保证金)。
 
@@ -41,14 +41,14 @@ Phase 0–2 在多签之上叠加治理(Neo Council、排序器保证金)。
 ## 每条链的安全标签
 
 <p align="center">
-  <img src="../figures/trust-spectrum.svg" alt="按链的安全光谱:0 侧链(完全信任排序器),1 已结算 L2(DA + 状态根承诺),2 乐观 rollup(欺诈证明挑战窗口),3 ZK validity(密码学终结性)。每张卡说明用户信任什么、L1 保证什么、提款时间、故障模式、范例部署。" width="900">
+  <img src="../figures/trust-spectrum.svg" alt="按链的安全光谱:0 侧链(完全信任排序器),1 已结算 L2(DA + 状态根承诺),2 乐观 rollup(欺诈证明挑战窗口),3 ZK 有效性(密码学终结性)。每张卡说明用户信任什么、L1 保证什么、提款时间、故障模式、范例部署。" width="900">
 </p>
 
 `ChainRegistry` 要求每条 L2 在链上公布自身的安全画像:
 
 | 字段             | 含义                                                                          |
 | ---------------- | ----------------------------------------------------------------------------- |
-| `securityLevel`   | `0` 侧链 · `1` 已结算 L2 · `2` 乐观 rollup · `3` ZK validity                 |
+| `securityLevel`   | `0` 侧链 · `1` 已结算 L2 · `2` 乐观 rollup · `3` ZK 有效性                 |
 | `daMode`          | `0` L1 DA · `1` NeoFS DA · `2` 外部 DA · `3` DAC                              |
 | `gatewayEnabled`  | 是否经 Neo Gateway 结算(Phase 5)                                            |
 | `permissionlessExit` | 用户能否单方面调用 `EmergencyManager`                                      |
@@ -65,7 +65,7 @@ DAC 链(就标 DAC,不要营销话术粉饰)。
 | #  | 威胁                          | 主缓解措施                                                       | 代码引用                                |
 | -- | ---------------------------- | --------------------------------------------------------------- | --------------------------------------- |
 | 1  | 排序器审查                    | 强制纳入 + 保证金罚没 + 逃生通道                                | `Neo.L2.ForcedInclusion`、`Neo.L2.Censorship` |
-| 2  | 非法状态根                    | ZK validity 证明(Phase 4)或乐观挑战(Phase 3)                | `Neo.L2.Proving.RiscVZk`、`Neo.L2.Challenge` |
+| 2  | 非法状态根                    | ZK 有效性证明(Phase 4)或乐观挑战(Phase 3)                | `Neo.L2.Proving.RiscVZk`、`Neo.L2.Challenge` |
 | 3  | 桥被攻破                      | 锁-铸 vs 销-解锁 不变量;速率限制;紧急暂停                     | `NeoHub.SharedBridge`、`EmergencyManager` |
 | 4  | 重放攻击(跨链)               | `(chainId, nonce)` 信封 + 按对去重                              | `NeoHub.MessageRouter`、`Neo.L2.Messaging.L1MessageInbox` |
 | 5  | DA 不可用                     | `ChainRegistry` 公布 DA 安全标签;不透明触发逃生通道             | `NeoHub.DARegistry`、`EmergencyManager` |

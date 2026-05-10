@@ -75,7 +75,7 @@
   <text x="148" y="306" class="size">1 B</text>
   <text x="200" y="306" class="field">securityLevel</text>
   <text x="320" y="306" class="size">byte</text>
-  <text x="500" y="306" class="desc">0 侧链 · 1 已结算 · 2 乐观 · 3 ZK validity</text>
+  <text x="500" y="306" class="desc">0 侧链 · 1 已结算 · 2 乐观 · 3 ZK 有效性</text>
 
   <rect x="40" y="318" width="880" height="28" rx="4" ry="4" fill="#fff2e3" stroke="#cd7c2e" stroke-width="0.8"/>
   <text x="80" y="336" class="offset">85</text>

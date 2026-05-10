@@ -186,7 +186,7 @@
 系统的不同部分位于信任最小化光谱的不同位置。运维者可选:
 
 <p align="center">
-  <img src="../figures/architecture/trust-minimization-gradient.svg" alt="从信任最大化到无信任的 5 层信任最小化梯度:仅排序器(Solo,Phase 0 PoC)| 乐观挑战(Phase 1+,rollup 默认)| 多签阈值(Phase 0+,外链桥)| 无许可退出(Phase 1+,可选)| ZK validity 证明(Phase 4+,ZK rollup 默认)。运维者按 §16.2 维度每条链自选" width="900">
+  <img src="../figures/architecture/trust-minimization-gradient.svg" alt="从信任最大化到无信任的 5 层信任最小化梯度:仅排序器(Solo,Phase 0 PoC)| 乐观挑战(Phase 1+,rollup 默认)| 多签阈值(Phase 0+,外链桥)| 无许可退出(Phase 1+,可选)| ZK 有效性证明(Phase 4+,ZK rollup 默认)。运维者按 §16.2 维度每条链自选" width="900">
 </p>
 
 **运维者的选择。** 每条 L2 链经 §16.2 config 维度(`securityLevel`、`exitModel`

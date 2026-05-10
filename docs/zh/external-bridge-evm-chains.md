@@ -222,7 +222,7 @@ watcher 把事件中继给 Neo 的 `ExternalBridgeEscrow.Receive`;接收方在 N
 | Ethereum 测试网        | 5                   | 加快开发反馈;testnet reorg 常见但代价小                            |
 | BSC 主网              | 15                  | Parlia 共识;~15 块跨验证人确认                                    |
 | Polygon PoS          | 256                 | 启发式终结性;CheckpointManager ~30 分钟终结一次                  |
-| Polygon zkEVM        | 0                   | ZK validity 证明在 L1 batch 提交时把 L2 终结性把住                 |
+| Polygon zkEVM        | 0                   | ZK 有效性证明在 L1 batch 提交时把 L2 终结性把住                 |
 | Arbitrum One/Nova    | 0                   | 运维者另行等待 L1 batch 终结信号                                   |
 | Optimism / Base      | 0                   | 同上 —— 在 L1 上结算                                              |
 | Avalanche C-Chain    | 1                   | Snowman++ 接近瞬时终结;1 个确认就够                              |

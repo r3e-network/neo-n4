@@ -139,7 +139,7 @@ NotSupportedException,除非运维者预先注入 writer。NeoFS / External / DA
 
 **状态更新**:Phase 5 聚合现已出货**两份生产级 `IRoundProver` 实现** ——
 `MultisigRoundProver`(Secp256r1 阈值证明轮)+ `MerklePathRoundProver`(逐成员
-对聚合根的 inclusion 证明)—— 与 `PassThroughRoundProver` 参照实现并存。真正的
+对聚合根的 包含证明)—— 与 `PassThroughRoundProver` 参照实现并存。真正的
 密码学,不带工具链依赖。剩下的递归-ZK fold 变体(SP1 Compress / Halo2
 accumulator / Risc0 STARK fold)在运维者带上 SP1 工具链时,接到同一
 `IRoundProver` 接缝。

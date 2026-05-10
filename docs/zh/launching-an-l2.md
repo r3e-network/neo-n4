@@ -228,7 +228,7 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --executor counter
 | 接口                                          | 默认                              | 何时替换                                       |
 |----------------------------------------------|-----------------------------------|----------------------------------------------|
 | `ITransactionExecutor`                       | `ReferenceTransactionExecutor`    | 领域特定 opcode —— `neo-stack scaffold-executor` 输出起步,[`Sample.CounterChainExecutor`](../../samples/executors/Sample.CounterChainExecutor) 是工作参照 |
-| `IL2Prover` / `IL2ProofVerifier`             | Multisig / Optimistic / Mock-RiscV| Stage 2(ZK validity):`prove-batch daemon`(进程外 Rust 证明者,在 `bridge/neo-zkvm-host/`)|
+| `IL2Prover` / `IL2ProofVerifier`             | Multisig / Optimistic / Mock-RiscV| Stage 2(ZK 有效性):`prove-batch daemon`(进程外 Rust 证明者,在 `bridge/neo-zkvm-host/`)|
 | `IDAWriter`                                  | InMemory / NeoFsLike / Persistent | 真实 NeoFS SDK / L1 sendrawtransaction       |
 | `ISequencerCommitteeProvider`                | `InMemorySequencerCommitteeProvider`| 接到 neo 的 `DBFTPlugin` 共识选择器          |
 | `IRoundProver`(仅 Phase 5)                  | `PassThroughRoundProver`          | SP1 Compress / Halo2 accumulator / Risc0 fold|
@@ -400,7 +400,7 @@ L2 节点的 dBFT 插件在每轮之前 poll 此接口,所以换 provider 是切
 
 ### 实操样例:写一个自定义 `IL2Prover` + `IL2ProofVerifier`
 
-Phase 4(ZK validity 证明)允许运维者带自家证明系统 —— SP1 作为参照出货,但
+Phase 4(ZK 有效性证明)允许运维者带自家证明系统 —— SP1 作为参照出货,但
 想要 Halo2、Plonky3 或 Risc0 的链只需实现 prover/verifier 对,并把 verifier
 注册到 L1 上的 `NeoHub.VerifierRegistry`。
 
@@ -492,7 +492,7 @@ public sealed class Halo2Verifier : IL2ProofVerifier
 }
 ```
 
-Stage-2 ZK validity 的参照是 `bridge/neo-zkvm-host/` —— 生产证明守护进程
+Stage-2 ZK 有效性 的参照是 `bridge/neo-zkvm-host/` —— 生产证明守护进程
 (`prove-batch daemon --watch <dir>`)。进程内测试用
 `Neo.L2.Proving.RiscVZk.MockRiscVProver`(确定性占位)。把 verifier 接到链的启动
 序列;经 `NeoHub.VerifierRegistry.RegisterVerifier(proofType, verifierHash)` 注册
@@ -633,9 +633,9 @@ neo-cli invoke <ChainRegistryHash> getPermissionlessExit <chainId>
 
 ---
 
-## 证明者部署(Stage 2 ZK validity)
+## 证明者部署(Stage 2 ZK 有效性)
 
-如果你的链跑 Stage-2(RISC-V ZK validity)模式,证明者应当是与排序器**分开的进
+如果你的链跑 Stage-2(RISC-V ZK 有效性)模式,证明者应当是与排序器**分开的进
 程** —— 这是所有主流 zk-rollup 的架构(Optimism 的 op-batcher/op-proposer
 拆分、Arbitrum 的 BoLD provers、ZKsync 的 prover 子系统)。证明者是多 GB、多
 CPU/GPU 的工作负载,自己有 SLA;把它耦合进排序器进程脆弱且不可扩展。

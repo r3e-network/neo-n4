@@ -30,6 +30,8 @@ CJKsansfont: "Noto Sans CJK SC"
 CJKmonofont: "Noto Sans Mono CJK SC"
 mainfont: "DejaVu Sans"
 monofont: "DejaVu Sans Mono"
+monofontoptions:
+  - Scale=0.85
 listings: false
 highlight-style: tango
 header-includes:

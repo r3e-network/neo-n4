@@ -27,6 +27,8 @@ numbersections: false
 secnumdepth: 0
 mainfont: "DejaVu Sans"
 monofont: "DejaVu Sans Mono"
+monofontoptions:
+  - Scale=0.85
 fontfamily: lmodern
 listings: false
 highlight-style: tango

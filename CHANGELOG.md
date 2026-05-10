@@ -70,6 +70,58 @@ Iterative fixes after visual review revealed several issues:
   leading numbers (heading `## 8. Foo` → anchor `#foo`, but TOC links
   use `#8-foo`). Add `+gfm_auto_identifiers` to the pandoc reader;
   GitHub-style slugs preserve leading numbers.
+- **Pandoc pipe-table overflow across many docs** — visual sweep of
+  the rebuilt full manuscript caught 14+ pipe tables where col 1
+  contained 24–41 char identifiers (contract, plugin, class, metric,
+  CLI-tool names) that pandoc compressed too narrow, producing
+  glued-together strings like "SettlementManagAccept",
+  "L2ValidiumModBAC", "ExternalCrossChainMessage102 + N bytes",
+  "MerkleStateBatchExecuIL2BatchExecutor". Convert each affected
+  table to a definition-style bullet list (each item bolds the name,
+  description on indented lines): contract list (3 §) + plugin list
+  (4.1 §) + proof-stage (5.2 §) + chain modes (4.3) in the
+  whitepaper; the doc.md-section-to-code locator (architecture-
+  walkthrough.md); 16 Contract/Plugin/Role tables in
+  architecture-glossary.md; 22 Metric/Type tables in telemetry.md
+  (covering all 8 plugin metric groups); the wallet-integration.md
+  CLI/Output/Wallet table; 5 Component/Status/Code tables in
+  tech-stack-coverage.md (Layers 1–5); the EVM-chains slot
+  allocation (16 rows); the L1-vs-L2 Contract/Tier/Should-be?/Notes
+  table (28 rows); the trust-boundaries §4 cross-tier verification +
+  §5 component-level + cryptographic failure tables (3 in EN, 3 in
+  ZH); the launching-an-l2 "Five extension points" 3-col table; the
+  l2-lifecycle "What flows where" 3-col table; the glossary's CLI
+  tools 3-col table and "Wire formats quick index" 3-col table; the
+  README's "What's in the repo" 3-col table; and the
+  plan-application-engine "What we're replacing" 3-col table. Each
+  listed contract / plugin / metric / wire format / CLI tool / etc.
+  retains the same information density but escapes pandoc's
+  fixed-width column allocation.
+- **Code blocks overflowing right margin** — long shell commands
+  (≥85 chars), C# rpc.CallAsync calls, and a few comment lines in
+  fenced code blocks ran past the right margin since the local
+  TeX install lacks fvextra (so fancyvrb breakanywhere is
+  unavailable). Two-pronged fix: (a) shrink the monospace font to
+  0.85 scale via `monofontoptions: [Scale=0.85]` in all 4 metadata
+  files — this saved ~10 pages off the full EN manuscript while
+  fitting more chars per line; (b) explicit shell `\` line
+  continuations in the few remaining commands that still exceeded
+  width at 0.85 scale (README quick-start, getting-started's plan
+  output, launching-an-l2's fraud-verifier comments,
+  wallet-integration's rpc.CallAsync).
+- **Long inline-code path overflowing prose** —
+  `external/foreign-contracts/eth/src/NeoExternalBridgeRouter.sol`
+  was a single inline-code monospace token too long for LaTeX to
+  break, running past the right margin as "NeoExternalB" with the
+  closing backtick truncated. Restructure the bullet to put the
+  path on its own "Source: <path>" continuation line.
+- **Full-manuscript header overlap on long chapter titles**. Same
+  pattern as the whitepaper-essentials fix already applied to the
+  essentials variant: drop the custom LO/RE manuscript-title
+  fancyhead entry from `metadata-{en,zh}.yaml`. With long chapter
+  titles like "Architecture: L1 vs L2 division of responsibilities",
+  the running title and the chapter-title were colliding on the
+  same line.
 
 ### Added — Manuscript-style PDF compilation (`tools/manuscript/`)
 

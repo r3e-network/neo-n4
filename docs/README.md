@@ -80,7 +80,7 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 | Docs site config  | **1**     | `book.toml` + `docs/SUMMARY.md` (mdBook) |
 | Rust prover       | **2**     | `bridge/neo-zkvm-host/` (sp1-sdk 6.0 prover + `prove-batch daemon`) · `bridge/neo-zkvm-guest/` (the function being proved — RISC-V ELF, real Neo N3 VM via `neo_vm_guest::execute`) |
 | Submodules        | **4**     | `external/neo` (Neo 4 core) · `external/neo-devpack-dotnet` (smart-contract devpack + nccs) · `external/neo-riscv-vm` (PolkaVM-backed Neo RISC-V engine) · `external/neo-zkvm` (Neo VM in pure Rust + SP1 prover crates). None are released on NuGet/crates.io for the versions tracked here. |
-| Tests             | **1332 .NET + 33 cross-lang** | 1332 across 33 .NET projects; 15 TypeScript (vitest) + 10 Rust SDK (mockito) + 8 SP1 guest (host) — all green |
+| Tests             | **1362 .NET + 33 cross-lang** | 1362 across 33 .NET projects; 15 TypeScript (vitest) + 10 Rust SDK (mockito) + 8 SP1 guest (host) — all green |
 
 ```
 neo4/
@@ -111,7 +111,7 @@ neo4/
 ├── bridge/
 │   ├── neo-zkvm-guest/                     # Rust → RISC-V ELF (real Neo VM, SP1-proven)
 │   └── neo-zkvm-host/                      # sp1-sdk 6.0 prover daemon (prove-batch)
-└── tests/                                  # 1332 tests / 33 projects
+└── tests/                                  # 1362 tests / 33 projects
 ```
 
 ---
@@ -150,7 +150,7 @@ cd neo-n4
 # If you forgot --recurse-submodules:
 # git submodule update --init --recursive
 
-# Type-check everything + run all 1344 tests (~10 seconds)
+# Type-check everything + run all 1362 tests (~10 seconds)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # --- Bootstrapping a new L2 chain (recommended path) ---

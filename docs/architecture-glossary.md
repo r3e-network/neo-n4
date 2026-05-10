@@ -176,20 +176,18 @@ Plus the watcher daemon binary at `target/release/neo-bridge-watcher-eth`
 
 For details, see [`architecture-wire-formats.md`](./architecture-wire-formats.md).
 
-| Wire format                      | Size                  | Crosses                                                  |
-|----------------------------------|-----------------------|----------------------------------------------------------|
-| `L2BatchCommitment`              | 321 + N bytes         | Batcher → SettlementManager                              |
-| `PublicInputs`                   | 332 bytes (fixed)     | Prover → Verifier (committed in proof)                   |
-| `L2ChainConfig`                  | 91 bytes (fixed)      | `register-chain` → `ChainRegistry`                       |
-| `ExternalCrossChainMessage`      | 102 + N bytes         | External chain → Watcher → ExternalBridgeEscrow          |
-| `DepositPayload`                 | 44 + amountLen bytes  | NeoHub.SharedBridge → L2BridgeContract                   |
-| `CrossChainMessage`              | (`MessageHasher`)     | L2 sender → NeoHub.MessageRouter → L2 receiver           |
-| `WithdrawalRecord`               | -                     | L2BridgeContract → SharedBridge (in batch withdrawalRoot)|
-| `MerkleProofSerializer`          | -                     | User claim → SharedBridge.VerifyWithdrawalLeafWithProof  |
-| `MultisigProofPayload`           | -                     | Stage-0 prover → VerifierRegistry                        |
-| `RiscVProofPayload`              | -                     | Phase-4 SP1 zkVM prover → VerifierRegistry               |
-| `OptimisticProofPayload`         | -                     | Stage-1 challenge bisection → OptimisticChallenge        |
-| `FraudProofPayload`              | -                     | Challenge winner → fraud verifier                        |
+- **`L2BatchCommitment`** (321 + N bytes) — Batcher → SettlementManager.
+- **`PublicInputs`** (332 bytes, fixed) — Prover → Verifier (committed in proof).
+- **`L2ChainConfig`** (91 bytes, fixed) — `register-chain` → `ChainRegistry`.
+- **`ExternalCrossChainMessage`** (102 + N bytes) — External chain → Watcher → ExternalBridgeEscrow.
+- **`DepositPayload`** (44 + amountLen bytes) — NeoHub.SharedBridge → L2BridgeContract.
+- **`CrossChainMessage`** (`MessageHasher`) — L2 sender → NeoHub.MessageRouter → L2 receiver.
+- **`WithdrawalRecord`** — L2BridgeContract → SharedBridge (in batch withdrawalRoot).
+- **`MerkleProofSerializer`** — User claim → SharedBridge.VerifyWithdrawalLeafWithProof.
+- **`MultisigProofPayload`** — Stage-0 prover → VerifierRegistry.
+- **`RiscVProofPayload`** — Phase-4 SP1 zkVM prover → VerifierRegistry.
+- **`OptimisticProofPayload`** — Stage-1 challenge bisection → OptimisticChallenge.
+- **`FraudProofPayload`** — Challenge winner → fraud verifier.
 
 ---
 

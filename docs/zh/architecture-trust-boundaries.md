@@ -147,15 +147,13 @@
 
 ### 组件级故障
 
-| 组件                       | 故障                                              | 检测                                                     | 恢复                                              |
-|----------------------------|--------------------------------------------------|----------------------------------------------------------|---------------------------------------------------|
-| 排序器(单)                 | 崩溃 / 不响应                                    | 出块卡住;`forced inclusion` deadline 报警                | 运维重启;dBFT 多数仍能不带它达成终结性             |
-| dBFT 多数                  | < 2/3 诚实                                       | 终结性卡住;无 `Block.Committed` 事件                     | 人工介入;可能走治理投票                          |
-| 批处理器                    | tick 中途崩溃                                    | `last_tick_success_unix` 过时                            | watcher journal flock 在进程退出时解锁;重启       |
-| 证明守护进程                | OOM / 崩溃                                       | `prove-batch` 非零退出;批次永不封装                     | 运维重启;对 journal 幂等                         |
-| DA writer                  | 存储后备宕                                        | `da.publish_failures` counter 飙升                       | 可插拔后备;回退到 L1 模式                        |
-| 外链 watcher                | RPC 提供方限流                                    | `watcher_last_error_unix` 近期 + retry backoff          | 守护进程重试;运维可换 RPC URL                    |
-| 外链委员会成员              | 等价签名(对同一 nonce 签了两条不同消息)         | `MpcCommitteeFraudVerifier` 接受等价签名证明             | 罚没保证金;reporter 拿奖励                       |
+- **排序器(单)** — 崩溃 / 不响应 — 出块卡住;`forced inclusion` deadline 报警 — 运维重启;dBFT 多数仍能不带它达成终结性
+- **dBFT 多数** — < 2/3 诚实 — 终结性卡住;无 `Block.Committed` 事件 — 人工介入;可能走治理投票
+- **批处理器** — tick 中途崩溃 — `last_tick_success_unix` 过时 — watcher journal flock 在进程退出时解锁;重启
+- **证明守护进程** — OOM / 崩溃 — `prove-batch` 非零退出;批次永不封装 — 运维重启;对 journal 幂等
+- **DA writer** — 存储后备宕 — `da.publish_failures` counter 飙升 — 可插拔后备;回退到 L1 模式
+- **外链 watcher** — RPC 提供方限流 — `watcher_last_error_unix` 近期 + retry backoff — 守护进程重试;运维可换 RPC URL
+- **外链委员会成员** — 等价签名(对同一 nonce 签了两条不同消息) — `MpcCommitteeFraudVerifier` 接受等价签名证明 — 罚没保证金;reporter 拿奖励
 
 ### 密码学 / 跨层故障
 

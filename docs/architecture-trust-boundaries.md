@@ -142,14 +142,12 @@ recompute the hash from scratch. This means you can't "unsign" or
 For each cross-tier flow, multiple checks run independently. A
 single corrupt actor can't get past all of them:
 
-| Flow                       | Check 1                                                  | Check 2                                                | Check 3                                                  |
-|----------------------------|----------------------------------------------------------|--------------------------------------------------------|----------------------------------------------------------|
-| L2 batch settlement        | `proofType` is in defined enum range                     | `proof.length` ≤ 1 MiB                                 | `publicInputHash` recomputed from on-chain commitment fields matches the proof's claim |
-| L1→L2 deposit              | `SharedBridge.Deposit` requires asset locked + msg.value matches | L2 batcher recomputes canonical message hash; rejects mismatch | `L2NativeBridge` checks the L2 chainId in the message matches its own |
-| L2→L1 withdrawal           | Withdrawal leaf in batch's `withdrawalRoot`              | Merkle proof hashes to `withdrawalRoot`                | `consumedWithdrawals[leafHash]` set; replay rejected      |
-| Cross-L2 message           | Source L2 produces canonical bytes; `MessageRouter` recomputes hash | Destination L2 batcher recomputes hash from wire bytes | `consumedInboundMessages[srcChain][nonce]` set            |
-| External-chain deposit     | Watcher signs canonical bytes (off-chain)                | M-of-N committee threshold checked on-chain            | `consumedInbound[chainId][nonce]` set; replay rejected    |
-| External-chain withdrawal  | L2 batches the withdrawal request                        | Committee co-signs the canonical bytes                 | Foreign-chain router's `ecrecover` (Eth) / `verify_ed25519` (Solana) of M signatures over the bytes |
+- **L2 batch settlement** — `proofType` is in defined enum range — `proof.length` ≤ 1 MiB — `publicInputHash` recomputed from on-chain commitment fields matches the proof's claim
+- **L1→L2 deposit** — `SharedBridge.Deposit` requires asset locked + msg.value matches — L2 batcher recomputes canonical message hash; rejects mismatch — `L2NativeBridge` checks the L2 chainId in the message matches its own
+- **L2→L1 withdrawal** — Withdrawal leaf in batch's `withdrawalRoot` — Merkle proof hashes to `withdrawalRoot` — `consumedWithdrawals[leafHash]` set; replay rejected
+- **Cross-L2 message** — Source L2 produces canonical bytes; `MessageRouter` recomputes hash — Destination L2 batcher recomputes hash from wire bytes — `consumedInboundMessages[srcChain][nonce]` set
+- **External-chain deposit** — Watcher signs canonical bytes (off-chain) — M-of-N committee threshold checked on-chain — `consumedInbound[chainId][nonce]` set; replay rejected
+- **External-chain withdrawal** — L2 batches the withdrawal request — Committee co-signs the canonical bytes — Foreign-chain router's `ecrecover` (Eth) / `verify_ed25519` (Solana) of M signatures over the bytes
 
 Each check is independent — a bug or compromise in one doesn't
 bypass the others. (E.g., if the prover's `publicInputHash` claim
@@ -162,26 +160,22 @@ the proof itself is valid for some OTHER public-input.)
 
 ### Component-level failures
 
-| Component                  | Failure                                          | Detection                                                | Recovery                                          |
-|----------------------------|--------------------------------------------------|----------------------------------------------------------|---------------------------------------------------|
-| Sequencer (single)         | Crashes / unresponsive                           | Block-producing stalls; alerts on `forced inclusion` deadline | Operator restart; dBFT majority reaches finality without it |
-| dBFT majority              | < 2/3 honest                                     | Finality stalls; no `Block.Committed` events             | Manual intervention; potentially governance vote  |
-| Batcher                    | Crashes mid-tick                                 | `last_tick_success_unix` ages out                        | Watcher's journal flock unlocks on process exit; restart |
-| Prover daemon              | OOM / crash                                      | `prove-batch` exits non-zero; batch never sealed         | Operator restart; idempotent against journal      |
-| DA writer                  | Storage backend down                             | `da.publish_failures` counter spikes                     | Pluggable backend; fall through to L1 mode        |
-| External-chain watcher     | RPC provider rate-limited                        | `watcher_last_error_unix` recent + retry backoff         | Daemon retries; operator can swap RPC URL         |
-| External committee member  | Equivocates (signs two different messages for same nonce) | `MpcCommitteeFraudVerifier` accepts the equivocation proof | Bond slashed; reporter rewarded                  |
+- **Sequencer (single)** — Crashes / unresponsive — Block-producing stalls; alerts on `forced inclusion` deadline — Operator restart; dBFT majority reaches finality without it
+- **dBFT majority** — < 2/3 honest — Finality stalls; no `Block.Committed` events — Manual intervention; potentially governance vote
+- **Batcher** — Crashes mid-tick — `last_tick_success_unix` ages out — Watcher's journal flock unlocks on process exit; restart
+- **Prover daemon** — OOM / crash — `prove-batch` exits non-zero; batch never sealed — Operator restart; idempotent against journal
+- **DA writer** — Storage backend down — `da.publish_failures` counter spikes — Pluggable backend; fall through to L1 mode
+- **External-chain watcher** — RPC provider rate-limited — `watcher_last_error_unix` recent + retry backoff — Daemon retries; operator can swap RPC URL
+- **External committee member** — Equivocates (signs two different messages for same nonce) — `MpcCommitteeFraudVerifier` accepts the equivocation proof — Bond slashed; reporter rewarded
 
 ### Cryptographic / cross-tier failures
 
-| Failure                                | Where detected                                | Symptom                                              |
-|----------------------------------------|-----------------------------------------------|------------------------------------------------------|
-| Proof tampered with                    | `VerifierRegistry.Verify`                     | `BatchRejected: invalid proof`                       |
-| `publicInputHash` doesn't match        | `SettlementManager` (recomputes from commitment) | `BatchRejected: public-input mismatch`              |
-| Withdrawal Merkle proof wrong          | `SharedBridge.VerifyWithdrawalLeafWithProof`  | `WithdrawalRejected: bad merkle path`                |
-| External committee threshold not met   | `MpcCommitteeVerifier.VerifyInboundMessage`   | `Committee threshold not met (got M-1, need M)`      |
-| External chain id outside namespace    | `ExternalBridgeEscrow.Receive`                | `Reject: externalChainId not in 0xE0_xx_xx_xx`       |
-| Replay attempt (deposit, withdrawal, message) | Replay-protection map per (chainId, nonce) | `Reject: nonce already consumed`                  |
+- **Proof tampered with** — `VerifierRegistry.Verify` — `BatchRejected: invalid proof`
+- **`publicInputHash` doesn't match** — `SettlementManager` (recomputes from commitment) — `BatchRejected: public-input mismatch`
+- **Withdrawal Merkle proof wrong** — `SharedBridge.VerifyWithdrawalLeafWithProof` — `WithdrawalRejected: bad merkle path`
+- **External committee threshold not met** — `MpcCommitteeVerifier.VerifyInboundMessage` — `Committee threshold not met (got M-1, need M)`
+- **External chain id outside namespace** — `ExternalBridgeEscrow.Receive` — `Reject: externalChainId not in 0xE0_xx_xx_xx`
+- **Replay attempt (deposit, withdrawal, message)** — Replay-protection map per (chainId, nonce) — `Reject: nonce already consumed`
 
 ### What CAN'T be detected by the framework
 

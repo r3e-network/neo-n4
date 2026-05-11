@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Stale per-suite test counts in IMPLEMENTATION_STATUS table (12 suites)
+
+Compared the per-suite "Tests" column in the IMPLEMENTATION_STATUS test
+table against actual `dotnet test Neo.L2.sln` output. Found 12 suites
+where tests had been added since the table was last refreshed:
+
+- `Neo.L2.Abstractions.UnitTests`: 47 → 52
+- `Neo.L2.State.UnitTests`: 66 → 83
+- `Neo.L2.Messaging.UnitTests`: 29 → 46
+- `Neo.L2.Bridge.UnitTests`: 47 → 71
+- `Neo.L2.Executor.UnitTests`: 38 → 56
+- `Neo.L2.ForcedInclusion.UnitTests`: 19 → 28
+- `Neo.L2.Sequencer.UnitTests`: 26 → 32
+- `Neo.L2.Persistence.UnitTests`: 27 → 35
+- `Neo.Plugins.L2Rpc.UnitTests`: 40 → 42
+- `Neo.Plugins.L2Gateway.UnitTests`: 39 → 55
+- `Neo.L2.IntegrationTests`: 21 → 25
+- `Neo.Stack.Cli.UnitTests`: 97 → 133
+
+Net: 162 new tests had landed across these 12 suites without updating
+the per-suite counts. Cross-suite total still totals 1362 (matches the
+table's header summary).
+
 ### Fixed — More stale numerical claims (Anchor LOC, instruction count, deploy steps)
 
 Caught via running `wc -l`, counting deploy steps in `ScaffoldPlan.cs`,

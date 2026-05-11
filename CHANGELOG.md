@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — More stale numerical claims (Anchor LOC, instruction count, deploy steps)
+
+Caught via running `wc -l`, counting deploy steps in `ScaffoldPlan.cs`,
+and cross-checking against pinned unit-test assertions:
+
+- README + IMPLEMENTATION_STATUS: Solana Anchor program `~440 lines`
+  → `~638 lines` (`wc -l external/foreign-contracts/sol/programs/.../lib.rs`).
+- IMPLEMENTATION_STATUS: Solana program "three instructions" → "four"
+  (initialize / set_committee / lock_sol_and_send / finalize_withdrawal —
+  the existing parenthetical already lists 4).
+- IMPLEMENTATION_STATUS: `neo-hub-deploy` "19 steps + 9 post-deploy hints"
+  → "20 steps + 10 post-deploy hints"
+  (pinned by `UT_ScaffoldCommand.Default_Roundtrip` at 20 steps and
+  `UT_DeployPlanner.PostDeployActions_DefaultPlan_EmitsAllWiringHints`
+  at 10 actions).
+
 ### Fixed — `test_AllFamilyBankMainnetsConstruct` missed 3 EVM mainnets
 
 The Foundry test claimed to iterate "every canonical mainnet slot in the

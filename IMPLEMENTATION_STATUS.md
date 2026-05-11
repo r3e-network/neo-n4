@@ -28,7 +28,7 @@ These are real production-shape implementations with full test coverage:
 
 - **All 21 NeoHub L1 contracts** + **7 L2Native contracts** type-check via
   `Neo.SmartContract.Framework`; CI compiles each with `nccs` and verifies
-  the `.nef` + `.manifest.json` artifacts (29 contracts total incl. the 2
+  the `.nef` + `.manifest.json` artifacts (30 contracts total incl. the 2
   `samples/contracts/Sample.*` app-developer examples).
 - **Off-chain canonical encoders**, byte-layout-pinned + tested:
   `BatchSerializer`, `MessageHasher`, `MerkleProofSerializer`,
@@ -224,9 +224,9 @@ subcommands.
 | `Neo.Plugins.L2Gateway`      | `BinaryTreeAggregator` with pluggable `IRoundProver` (default `PassThroughRoundProver`); `PassThroughAggregator` for flat aggregation; emits `l2.gateway.aggregations/batches_aggregated/aggregation_rounds/aggregation_latency_ms` |
 | `Neo.Plugins.L2Metrics`      | **Composition root**: hosts the shared `IL2Metrics` sink + `MetricsHttpServer`; other plugins call `metricsPlugin.Metrics` and pass to their `WithMetrics()` setters; configurable bind address + port + readiness predicate |
 
-### Smart contracts (`contracts/`) — 27 total, all type-check via devpack
+### Smart contracts (`contracts/`) — 28 total, all type-check via devpack
 
-**NeoHub L1 suite (20):**
+**NeoHub L1 suite (21):**
 Phase 0–3: `ChainRegistry` · `SharedBridge` · `SettlementManager` · `VerifierRegistry` · `MessageRouter` · `TokenRegistry` · `DARegistry` · `GovernanceController` · `EmergencyManager` · `ForcedInclusion` · `SequencerBond` · `SequencerRegistry` · `OptimisticChallenge` · `GovernanceFraudVerifier` (structural v1/v2) · **`RestrictedExecutionFraudVerifier`** (trustless v3 — on-chain Merkle re-derivation)
 
 External-bridge stack (doc.md §11.3 — cross-foreign-chain to Eth/Tron/Sol):
@@ -301,7 +301,7 @@ real secp256k1 signatures.
 ## What's not yet wired (out of MVP scope)
 
 - **Live L1 signer for `RpcSettlementClient.SubmitBatchAsync`** — interface in place; concrete wallet integration is operator-specific. For tests + devnets, `Neo.L2.Settlement.Rpc.InMemorySettlementClient` provides a fully-functional in-process `ISettlementClient` with deterministic tx hashes and an explicit `AdvanceStatus` lifecycle driver.
-- **`nccs` artifact generation** — `Directory.Build.props` calls `nccs` with `ContinueOnError=true` so dev builds without nccs still type-check. CI installs `Neo.Compiler.CSharp` on the runner and verifies all 19 contracts produce `.nef` + `.manifest.json` artifacts on every commit (catches NeoVM-specific compile errors that the C# type-check doesn't).
+- **`nccs` artifact generation** — `Directory.Build.props` calls `nccs` with `ContinueOnError=true` so dev builds without nccs still type-check. CI installs `Neo.Compiler.CSharp` on the runner and verifies all 28 contracts (21 NeoHub + 7 L2Native) produce `.nef` + `.manifest.json` artifacts on every commit (catches NeoVM-specific compile errors that the C# type-check doesn't).
 - **RpcServer plugin integration partial** — `L2RpcMethods` callable as plain methods; the `[RpcMethod]`-attributed wrapper for neo's `RpcServer` plugin needs the RpcServer source.
 - **Real SP1 prover** — `bridge/neo-zkvm-host/` (Rust, sp1-sdk 6.0). The framework's only production proving path: `prove()` returns proof + verifying-key bytes for on-chain submission, `verify()` confirms off-chain pre-settlement. The `prove-batch` CLI ships a `daemon --watch <dir> --archive <dir>` mode that polls a queue directory for `*.batch.bin` files and emits matching `*.proof.bin` + `*.proof.vk`, atomically renaming inputs so the loop is restart-safe. Verified end-to-end on a real proof: 87s prove time, 2.78MB proof artifact, 42s verify time, public-input hash matches host execute byte-for-byte. The prover lives in a separate process from the sequencer (matches Optimism / Arbitrum / ZKsync architecture) — see `docs/launching-an-l2.md` § "Prover deployment" for the operator runbook.
 - **Real recursive ZK round prover** — `BinaryTreeAggregator` has the right shape; production swaps `PassThroughRoundProver` for SP1 Compress / Halo2 accumulator / Risc0 fold.

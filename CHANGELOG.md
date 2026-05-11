@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Stale contract counts in AGENTS + IMPLEMENTATION_STATUS
+
+Various contract-count claims drifted as the external-bridge and MPC
+committee contracts landed:
+
+- AGENTS.md: "19 contracts" → "28 contracts" (total in `contracts/`)
+- AGENTS.md: "NeoHub.* (15 contracts)" → "(21 contracts)"
+- AGENTS.md: "L2Native.* (6 contracts)" → "(7 contracts)"
+- IMPLEMENTATION_STATUS.md: "27 total" → "28 total"
+- IMPLEMENTATION_STATUS.md: "NeoHub L1 suite (20)" → "(21)"
+- IMPLEMENTATION_STATUS.md: "29 contracts total incl. 2 samples" → "30"
+- IMPLEMENTATION_STATUS.md: "all 19 contracts" → "all 28 contracts"
+
+Counted via `ls -d contracts/NeoHub.*/ contracts/L2Native.*/`.
+
 ### Fixed — Stale test counts in README + IMPLEMENTATION_STATUS
 
 Eth bridge watcher grew from 74 → 87 tests with `--features live-rpc` (13

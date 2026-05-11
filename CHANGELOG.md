@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Cross-doc anchor audit (9 broken links)
+
+Ran a repo-wide markdown link audit (47 files, 1301 anchors). Found
+and fixed 9 broken refs:
+
+- `docs/README.md`: LICENSE link `./LICENSE` → `../LICENSE` (file is at
+  repo root, not under `docs/`).
+- `docs/zh/architecture-glossary.md`: 8 anchor refs pointed to **EN
+  slugs** of ZH-translated headings (e.g. `#1-system-at-a-glance` →
+  `#1-系统鸟瞰`). Each replaced with the correct ZH slug as produced
+  by GitHub / `gfm_auto_identifiers`.
+
+All 1301 anchors now resolve.
+
 ### Added — Whitepaper-style "Essentials" manuscript variant (`build.sh essentials`)
 
 A focused, design-only companion to the full manuscript. Sole content:

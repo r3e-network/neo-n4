@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — WHITEPAPER + README "15 contracts" claims drifted to 21
+
+After the external-bridge + MPC committee contracts landed, the NeoHub
+suite grew from 15 → 21, but several long-form references to
+"15 contracts" hadn't been refreshed:
+
+- WHITEPAPER.md "The 15 contracts:" → "The 21 contracts:" (intro)
+- WHITEPAPER.md "All 15 contracts type-check..." → "All 21 contracts..."
+- WHITEPAPER.md comparison table "NeoHub (15 contracts)" → "(21)"
+- README.md tree comment `NeoHub.* (15)` → `(21)` and `L2Native.* (6)` → `(7)`
+- WHITEPAPER.md `architecture.svg` alt-text: rewrote to acknowledge
+  it's a top-level view showing 13 of 21 (fraud verifiers + external
+  bridge stack live in NeoHub but are detailed in the
+  `neohub-anatomy` figure)
+- WHITEPAPER.md `neohub-anatomy.svg` alt-text: updated from "15 + 2
+  reference verifiers" → enumerate all 21 by concern group
+- ZH WHITEPAPER mirrors all four EN updates
+
 ### Fixed — `l1-concerns.svg` was missing GovernanceFraudVerifier
 
 The figure depicted 20 of the 21 NeoHub contracts in its visual: the

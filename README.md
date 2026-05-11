@@ -99,8 +99,8 @@ neo4/
 │   ├── Neo.L2.Telemetry/                   # IL2Metrics + PrometheusExporter
 │   └── Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}/
 ├── contracts/
-│   ├── NeoHub.* (15)                       # L1 contract suite
-│   └── L2Native.* (6)                      # on-L2 native contracts
+│   ├── NeoHub.* (21)                       # L1 contract suite
+│   └── L2Native.* (7)                      # on-L2 native contracts
 ├── tools/
 │   ├── Neo.Stack.Cli/                      # neo-stack CLI (12 subcommands)
 │   ├── Neo.L2.Devnet/                      # in-process end-to-end demo runner

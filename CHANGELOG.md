@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — spec-gap-plan "8 parity tests" → 13 (UT_GovernanceFraudVerifierParity)
+
+Verified the "closed gaps" claims in `docs/spec-gap-plan.md` against
+code state. All 6 declared-closed gaps actually have the listed
+code (`ChainRegistry.SetGovernanceController`,
+`GovernanceController.GetApprovedAt`/`IsApprovedAndTimelocked`,
+`VerifierRegistry.RegisterVerifierViaProposal`,
+`Neo.Plugins.L2DA.JsonRpcL1DAWriter` w/ 13 tests, etc.).
+
+Only one stale count: the second-order item under "additive
+gaps" claimed `UT_GovernanceFraudVerifierParity` had "8 parity
+tests" — actual count is 13. Refreshed EN + ZH.
+
 ### Fixed — Stale event names in architecture docs + figures
 
 Cross-checked event names referenced in docs against actual contract

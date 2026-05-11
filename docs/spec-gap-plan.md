@@ -202,7 +202,7 @@ honest "is everything correctly and completely implemented?" audit):
     accept/reject events with reason codes for council review. Closes
     the on-chain `fraudVerifier` callsite gap. Wired into
     `ScaffoldPlan.Default()` + `PostDeployActions` informational hint.
-  - 8 parity tests (`UT_GovernanceFraudVerifierParity`) simulate the
+  - 13 parity tests (`UT_GovernanceFraudVerifierParity`) simulate the
     contract's decision tree in C# so a refactor that changes constants
     / order / offsets is caught at unit-test time.
   - "MVP" comment label cleanup: `ChallengeOrchestrator.InspectAsync`

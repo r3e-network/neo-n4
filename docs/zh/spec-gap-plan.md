@@ -181,7 +181,7 @@ KMS 的实操样例。所有 CLI 都输出规范 hex;生产热路径
     accept/reject 事件(带原因码)供 council 审议。关掉链上
     `fraudVerifier` 调用点空白。已接进 `ScaffoldPlan.Default()` +
     `PostDeployActions` 信息提示。
-  - 8 条对等测试(`UT_GovernanceFraudVerifierParity`)在 C# 中模拟该合约
+  - 13 条对等测试(`UT_GovernanceFraudVerifierParity`)在 C# 中模拟该合约
     的判定树,让改常量 / 顺序 / 偏移的 refactor 在单测时即被抓住。
   - "MVP" 注释清理:`ChallengeOrchestrator.InspectAsync`(收敛路径已存于
     `*WithBisection`),`SettlementManager.VerifyWithdrawalLeaf{,At}` 和

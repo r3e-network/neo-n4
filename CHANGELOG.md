@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Stale test counts in README + IMPLEMENTATION_STATUS
+
+Eth bridge watcher grew from 74 → 87 tests with `--features live-rpc` (13
+new tests added across recent commits: the `preflight_smoke.rs` binary's
+10 operator-flag UX tests + 3 elsewhere). Cross-language total: 143 → 156.
+Updated both README and IMPLEMENTATION_STATUS to reflect current counts +
+new test category (preflight-smoke).
+
+Verified per-watcher via `cargo test --release --features live-rpc`:
+
+- eth: 87 (lib 72 + bin 1 + parity tests 4 + preflight smoke 10)
+- tron: 7
+- sol: 9
+
 ### Added — Foundry CI job (foreign EVM router)
 
 `external/foreign-contracts/eth` has 20 Foundry tests (13 single-chain +

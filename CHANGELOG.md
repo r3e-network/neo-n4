@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — tech-stack-coverage table: L1 protocol = 15, total = 78
+
+The Layer-1 row in `docs/tech-stack-coverage.md`'s coverage table showed
+"13" L1 protocol contracts but the bullet list above enumerated 15 (the
+13 Phase-0–3 core contracts plus `GovernanceFraudVerifier` and
+`RestrictedExecutionFraudVerifier`). Adjusted:
+
+- "L1 protocol contracts | 13 | 13" → "| 15 | 15"
+- Total "76 | 76" → "78 | 78"
+- README's "76 components ✅" pointer updated to match
+- Same edits applied to ZH counterpart
+- Bonus: tech-stack-coverage still had the old "~440-line Anchor"
+  reference even though README had been updated — bumped to ~638
+  (EN + ZH).
+
 ### Fixed — WHITEPAPER + README "15 contracts" claims drifted to 21
 
 After the external-bridge + MPC committee contracts landed, the NeoHub

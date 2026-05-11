@@ -149,14 +149,14 @@ is a valid endpoint.
 
 | Layer | Components | ✅ Done | 🟡 Scaffolded | 🔴 Out-of-repo |
 |-------|-----------:|--------:|--------------:|---------------:|
-| L1 protocol contracts | 13 | 13 | 0 | 0 |
+| L1 protocol contracts | 15 | 15 | 0 | 0 |
 | L2 native contracts | 6 | 6 | 0 | 0 |
 | Cross-foreign-chain bridge | 13 | 13 | 0 | 0 |
 | Node infrastructure | 19 | 19 | 0 | 0 |
 | Operator tooling | 12 | 12 | 0 | 0 |
 | App development | 8 | 8 | 0 | 0 |
 | End-user UIs | 5 | 5 | 0 | 0 |
-| **Total** | **76** | **76** | **0** | **0** |
+| **Total** | **78** | **78** | **0** | **0** |
 
 **Phase 4 (SP1 ZK proving) is now end-to-end functional.** The
 `bridge/neo-zkvm-host/tests/end_to_end.rs` test loads the compiled
@@ -181,7 +181,7 @@ router artifacts for all three target chains
 13 Foundry tests with real `vm.sign` + `ecrecover`;
 `external/foreign-contracts/tron/` — README pointing at the Eth
 contract since TVM is EVM-flavored, deploy with the Tron chainId
-constructor arg; `external/foreign-contracts/sol/` — ~440-line Anchor
+constructor arg; `external/foreign-contracts/sol/` — ~638-line Anchor
 program using Solana's ed25519 sigverify precompile, source-only
 pending operator `anchor build`), and an operator CLI
 (`tools/Neo.External.Bridge.Cli/` for genkey + committee-blob +

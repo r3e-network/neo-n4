@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 1080" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">跨层验证链 —— 同一字节,在每步重新哈希</title>
-  <desc id="desc">单笔 bridge 交易跨越的逐步验证链。第 1 步:用户用 Secp256r1 对 L1 tx 签名(用户持有密钥)。Neo L1 dBFT 验证并 commit,SharedBridge 锁资产,发出 DepositReady。CrossChainMessage 规范字节经 MessageHasher 哈希。第 2-4 步:L2 批处理器直接读 Blockchain 事件,NeoVM 在 L2 上 apply 该 deposit,L2 收据对其 commit(信任 = 直接读事件)。L2 批处理器封装批次,带 txRoot、receiptRoot、postStateRoot、publicInputHash。L2BatchCommitment 规范字节(321+N)流入第 5-6 步:SP1 zkVM 证明 execute_batch,证明的 public-input 与 SettlementManager 从承诺重算的 publicInputHash 一致(信任 = 数学)。Neo L1 SettlementManager 接受批次,发出 SettlementAccepted。第 7-9 步:L2 用户在某个晚些批次 B 上提款,B 的 withdrawalRoot 含用户提款叶子,用户在 L1 提交 Merkle 证明,SharedBridge.FinalizeWithdrawalWithProof 链式哈希到 withdrawalRoot(信任 = 哈希抗碰撞),资产被释放。</desc>
+  <desc id="desc">单笔 bridge 交易跨越的逐步验证链。第 1 步:用户用 Secp256r1 对 L1 tx 签名(用户持有密钥)。Neo L1 dBFT 验证并 commit,SharedBridge 锁资产,发出 DepositEnqueued。CrossChainMessage 规范字节经 MessageHasher 哈希。第 2-4 步:L2 批处理器直接读 Blockchain 事件,NeoVM 在 L2 上 apply 该 deposit,L2 收据对其 commit(信任 = 直接读事件)。L2 批处理器封装批次,带 txRoot、receiptRoot、postStateRoot、publicInputHash。L2BatchCommitment 规范字节(321+N)流入第 5-6 步:SP1 zkVM 证明 execute_batch,证明的 public-input 与 SettlementManager 从承诺重算的 publicInputHash 一致(信任 = 数学)。Neo L1 SettlementManager 接受批次,发出 BatchSubmitted。第 7-9 步:L2 用户在某个晚些批次 B 上提款,B 的 withdrawalRoot 含用户提款叶子,用户在 L1 提交 Merkle 证明,SharedBridge.FinalizeWithdrawalWithProof 链式哈希到 withdrawalRoot(信任 = 哈希抗碰撞),资产被释放。</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
@@ -43,7 +43,7 @@
     <rect x="200" y="150" width="380" height="74" rx="8" ry="8" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
     <text x="390" y="174" text-anchor="middle" class="actor-t" fill="#1e2a55">Neo L1 —— dBFT 验证并 commit</text>
     <text x="390" y="194" text-anchor="middle" class="actor-s">SharedBridge 锁资产</text>
-    <text x="390" y="210" text-anchor="middle" class="actor-s">发出 DepositReady 事件</text>
+    <text x="390" y="210" text-anchor="middle" class="actor-s">发出 DepositEnqueued 事件</text>
   </g>
   <line x1="390" y1="224" x2="390" y2="252" stroke="#525a64" stroke-width="1.4"/>
 
@@ -107,7 +107,7 @@
   <g filter="url(#card)">
     <rect x="200" y="820" width="380" height="60" rx="8" ry="8" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
     <text x="390" y="844" text-anchor="middle" class="actor-t" fill="#1e2a55">Neo L1 —— SettlementManager 接受批次</text>
-    <text x="390" y="864" text-anchor="middle" class="actor-s">发出 SettlementAccepted(规范状态根)</text>
+    <text x="390" y="864" text-anchor="middle" class="actor-s">发出 BatchSubmitted(规范状态根)</text>
   </g>
   <line x1="390" y1="880" x2="390" y2="908" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
 

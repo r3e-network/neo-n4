@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 760" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">Bridge sequences — channel 2 (deposit + withdrawal)</title>
-  <desc id="desc">Two paired sequence diagrams for the L1 to L2 bridge. Top panel L1 to L2 deposit: L1 user calls Deposit on NeoHub.SharedBridge with chainId, asset, amount, recipient. SharedBridge locks the asset and emits DepositReady. The L2 batcher polls events and forwards DepositReady to L2BridgeContract. L2BridgeContract mints the wrapped asset and credits the recipient; the L2 user sees a balance bump. Bottom panel L2 to L1 withdrawal: L2 user calls Withdraw on L2BridgeContract with asset, amount, recipient. L2BridgeContract burns the wrapped asset and emits WithdrawalReady. The withdrawal record is sealed in the next batch and finalized on L1; the L1 user then calls ClaimWithdrawal with batchId, leafIdx, and merkleProof. SharedBridge.FinalizeWithdrawalWithProof releases the asset.</desc>
+  <desc id="desc">Two paired sequence diagrams for the L1 to L2 bridge. Top panel L1 to L2 deposit: L1 user calls Deposit on NeoHub.SharedBridge with chainId, asset, amount, recipient. SharedBridge locks the asset and emits DepositEnqueued. The L2 batcher polls events and forwards DepositEnqueued to L2BridgeContract. L2BridgeContract mints the wrapped asset and credits the recipient; the L2 user sees a balance bump. Bottom panel L2 to L1 withdrawal: L2 user calls Withdraw on L2BridgeContract with asset, amount, recipient. L2BridgeContract burns the wrapped asset and emits WithdrawalEmitted. The withdrawal record is sealed in the next batch and finalized on L1; the L1 user then calls ClaimWithdrawal with batchId, leafIdx, and merkleProof. SharedBridge.FinalizeWithdrawalWithProof releases the asset.</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
@@ -60,11 +60,11 @@
   <line x1="120" y1="156" x2="360" y2="156" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
   <text x="240" y="150" text-anchor="middle" class="msg-t">Deposit(chainId, asset, amount, recipient)</text>
 
-  <!-- Note: Lock asset, emit DepositReady -->
+  <!-- Note: Lock asset, emit DepositEnqueued -->
   <g>
     <rect x="310" y="180" width="100" height="36" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-dasharray="2 2"/>
     <text x="360" y="196" text-anchor="middle" class="msg-s">Lock asset, emit</text>
-    <text x="360" y="210" text-anchor="middle" class="msg-s">DepositReady event</text>
+    <text x="360" y="210" text-anchor="middle" class="msg-s">DepositEnqueued event</text>
   </g>
 
   <!-- Note: L2 batcher polls events -->
@@ -73,9 +73,9 @@
     <text x="340" y="241" text-anchor="middle" class="msg-s">(L2 batcher polls L1 events on its own cadence)</text>
   </g>
 
-  <!-- Deposit msg 2: DepositReady (L1 batcher relays to L2BridgeContract) -->
+  <!-- Deposit msg 2: DepositEnqueued (L1 batcher relays to L2BridgeContract) -->
   <line x1="360" y1="270" x2="600" y2="270" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
-  <text x="480" y="264" text-anchor="middle" class="msg-t">DepositReady (relayed)</text>
+  <text x="480" y="264" text-anchor="middle" class="msg-t">DepositEnqueued (relayed)</text>
 
   <!-- Note: Mint wrapped asset -->
   <g>
@@ -125,11 +125,11 @@
   <line x1="120" y1="486" x2="360" y2="486" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
   <text x="240" y="480" text-anchor="middle" class="msg-t">Withdraw(asset, amount, recipient)</text>
 
-  <!-- Note: Burn wrapped, emit WithdrawalReady -->
+  <!-- Note: Burn wrapped, emit WithdrawalEmitted -->
   <g>
     <rect x="305" y="500" width="110" height="36" rx="4" ry="4" fill="#e7f4eb" stroke="#3a8454" stroke-dasharray="2 2"/>
     <text x="360" y="516" text-anchor="middle" class="msg-s">Burn wrapped asset</text>
-    <text x="360" y="530" text-anchor="middle" class="msg-s">emit WithdrawalReady</text>
+    <text x="360" y="530" text-anchor="middle" class="msg-s">emit WithdrawalEmitted</text>
   </g>
 
   <!-- Note: Withdrawal sealed in next batch + finalized on L1 -->

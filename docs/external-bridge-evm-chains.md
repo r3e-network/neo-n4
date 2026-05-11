@@ -200,7 +200,7 @@ End user calls `lockETHAndSend` (or `lockERC20AndSend`) on the
 deployed BSC router; the watcher relays the event to Neo's
 `ExternalBridgeEscrow.Receive`; the recipient's wrapped balance on
 Neo bumps. Reverse direction: Neo `ExternalBridgeEscrow` emits a
-`WithdrawalReady` event → committee co-signs → user calls
+`CrossChainSendInitiated` event → committee co-signs → user calls
 `finalizeWithdrawal` on the BSC router with the proof bytes.
 
 ## Slot allocation

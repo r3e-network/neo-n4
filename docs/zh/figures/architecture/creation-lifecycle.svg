@@ -158,7 +158,7 @@
 
   <line x1="680" y1="826" x2="870" y2="826" stroke="#3a8454" stroke-width="1.6" marker-end="url(#arrow)"/>
   <text x="20" y="820" class="step-n">20.</text>
-  <text x="46" y="820" class="step" fill="#1d4d2c">SettlementAccepted → 端到端贯通</text>
+  <text x="46" y="820" class="step" fill="#1d4d2c">BatchSubmitted → 端到端贯通</text>
 
   <line x1="0" y1="900" x2="960" y2="900" stroke="#cfd5dd" stroke-width="1"/>
   <text x="480" y="930" text-anchor="middle" class="phase-t" fill="#1e2a55">3 个阶段:</text>

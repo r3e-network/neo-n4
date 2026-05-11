@@ -115,7 +115,7 @@
 重新哈希 + 重新验证:
 
 <p align="center">
-  <img src="../figures/architecture/cross-tier-verification.svg" alt="跨层验证链。第 1 步:用户对 L1 tx 签名(信任 = 用户持有密钥)。Neo L1 dBFT commit,SharedBridge 锁资产,发出 DepositReady。CrossChainMessage 规范字节被哈希。第 2-4 步:L2 批处理器直接读事件,NeoVM apply deposit,收据 commit(信任 = 直接读 Blockchain 事件)。批处理器封装批次,带 txRoot、receiptRoot、postStateRoot、publicInputHash。L2BatchCommitment 规范字节 321+N。第 5-6 步:SP1 zkVM 证明 execute_batch,证明的 public-input 与链上 publicInputHash 一致(信任 = 数学)。SettlementManager 接受。第 7-9 步:用户在晚些的批次 B 提款,提交 Merkle 证明,SharedBridge.FinalizeWithdrawalWithProof 释放资产(信任 = 哈希抗碰撞)" width="900">
+  <img src="../figures/architecture/cross-tier-verification.svg" alt="跨层验证链。第 1 步:用户对 L1 tx 签名(信任 = 用户持有密钥)。Neo L1 dBFT commit,SharedBridge 锁资产,发出 DepositEnqueued。CrossChainMessage 规范字节被哈希。第 2-4 步:L2 批处理器直接读事件,NeoVM apply deposit,收据 commit(信任 = 直接读 Blockchain 事件)。批处理器封装批次,带 txRoot、receiptRoot、postStateRoot、publicInputHash。L2BatchCommitment 规范字节 321+N。第 5-6 步:SP1 zkVM 证明 execute_batch,证明的 public-input 与链上 publicInputHash 一致(信任 = 数学)。SettlementManager 接受。第 7-9 步:用户在晚些的批次 B 提款,提交 Merkle 证明,SharedBridge.FinalizeWithdrawalWithProof 释放资产(信任 = 哈希抗碰撞)" width="900">
 </p>
 
 **关键洞察:** 同一组 `canonical_bytes` 被不同位置的不同角色多次哈希。无论哪一方

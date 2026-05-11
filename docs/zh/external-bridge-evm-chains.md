@@ -180,7 +180,7 @@ neo-cli invoke <registry> RegisterVerifier \
 
 终端用户在已部署的 BSC router 上调 `lockETHAndSend`(或 `lockERC20AndSend`);
 watcher 把事件中继给 Neo 的 `ExternalBridgeEscrow.Receive`;接收方在 Neo 上的
-包装余额到账。反向:Neo `ExternalBridgeEscrow` 发出 `WithdrawalReady` 事件 →
+包装余额到账。反向:Neo `ExternalBridgeEscrow` 发出 `CrossChainSendInitiated` 事件 →
 委员会联签 → 用户带证明字节调 BSC router 的 `finalizeWithdrawal`。
 
 ## 槽位分配

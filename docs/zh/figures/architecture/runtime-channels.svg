@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">L2 ↔ L1 运行时连接 —— 3 条独立通道</title>
-  <desc id="desc">L2 链部署后,经 3 条独立通道与 L1 对话,各自按自己节奏运行。结算(热路径):L2BatchPlugin 在 Block.Committed 时封批,链下证明守护进程产生证明(SP1 zkVM),DA writer 把 payload 发到 NeoFS / L1 / 委员会,批处理器把 commitment + 证明提交给 NeoHub.SettlementManager,后者经 VerifierRegistry 验证。桥:SharedBridge 发出 DepositReady 到 L2 批处理器,L2BridgeContract 发出 WithdrawalReady 回 SharedBridge。消息传递:MessageRouter 把入站消息路由到 L2MessageContract,L2MessageContract 把出站消息路由回去。</desc>
+  <desc id="desc">L2 链部署后,经 3 条独立通道与 L1 对话,各自按自己节奏运行。结算(热路径):L2BatchPlugin 在 Block.Committed 时封批,链下证明守护进程产生证明(SP1 zkVM),DA writer 把 payload 发到 NeoFS / L1 / 委员会,批处理器把 commitment + 证明提交给 NeoHub.SettlementManager,后者经 VerifierRegistry 验证。桥:SharedBridge 发出 DepositEnqueued 到 L2 批处理器,L2BridgeContract 发出 WithdrawalEmitted 回 SharedBridge。消息传递:MessageRouter 把入站消息路由到 L2MessageContract,L2MessageContract 把出站消息路由回去。</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
@@ -96,9 +96,9 @@
   <text x="500" y="266" class="ch-lbl">DA payload + 承诺</text>
 
   <line x1="700" y1="338" x2="260" y2="338" stroke="#3a8454" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <text x="430" y="332" class="ch-t" fill="#1d4d2c">DepositReady</text>
+  <text x="430" y="332" class="ch-t" fill="#1d4d2c">DepositEnqueued</text>
   <line x1="260" y1="356" x2="700" y2="356" stroke="#3a8454" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <text x="430" y="350" class="ch-t" fill="#1d4d2c">WithdrawalReady</text>
+  <text x="430" y="350" class="ch-t" fill="#1d4d2c">WithdrawalEmitted</text>
   <text x="450" y="370" class="ch-s">通道 2 —— 桥(资产转移)</text>
 
   <line x1="700" y1="402" x2="260" y2="402" stroke="#7d59b3" stroke-width="1.6" marker-end="url(#arrow)"/>

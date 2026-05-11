@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">The L1↔L2 bridge — three cross-tier flows</title>
-  <desc id="desc">Three flows cross the L1↔L2 boundary: SharedBridge sends DepositReady events to L2BridgeContract which mints wrapped assets, while L2 batches carry WithdrawalRoot back to L1 for user claims. MessageRouter routes InboundMessage to L2MessageContract which recomputes hashes; OutboundMessage flows in batches. SettlementManager accepts BatchCommitment plus proof bytes from L2BatchInfoContract, providing the per-L2 cursor.</desc>
+  <desc id="desc">Three flows cross the L1↔L2 boundary: SharedBridge sends DepositEnqueued events to L2BridgeContract which mints wrapped assets, while L2 batches carry WithdrawalRoot back to L1 for user claims. MessageRouter routes InboundMessage to L2MessageContract which recomputes hashes; OutboundMessage flows in batches. SettlementManager accepts BatchCommitment plus proof bytes from L2BatchInfoContract, providing the per-L2 cursor.</desc>
 
   <defs>
     <marker id="arrow-r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
@@ -55,7 +55,7 @@
 
   <!-- arrows row 1 -->
   <line x1="400" y1="153" x2="560" y2="153" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow-r)"/>
-  <text x="480" y="146" text-anchor="middle" class="flow-lbl">DepositReady</text>
+  <text x="480" y="146" text-anchor="middle" class="flow-lbl">DepositEnqueued</text>
   <text x="480" y="170" text-anchor="middle" class="wire">DepositPayload (44+N B)</text>
 
   <line x1="560" y1="186" x2="400" y2="186" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow-l)"/>
@@ -89,7 +89,7 @@
     <rect x="60" y="344" width="340" height="80" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
     <text x="230" y="368" text-anchor="middle" class="card-title" fill="#1e2a55">SettlementManager</text>
     <text x="230" y="386" text-anchor="middle" class="card-sub" fill="#3a4a82">accepts batches · verifies via VerifierRegistry</text>
-    <text x="230" y="404" text-anchor="middle" class="card-sub" fill="#3a4a82">emits SettlementAccepted</text>
+    <text x="230" y="404" text-anchor="middle" class="card-sub" fill="#3a4a82">emits BatchSubmitted</text>
   </g>
 
   <g filter="url(#card)">

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">结算序列 —— 通道 1 热路径</title>
-  <desc id="desc">L2 结算热路径的序列图。每个 L2 块:Blockchain commit,L2BatchPlugin 收到 Block.Committed 并把 tx 批 + post-state-root 转给 BatchSealer。BatchSealer 构造规范 32 字节字段的 BatchCommitment,把 BatchPayload 发给链下证明守护进程。SP1 zkVM 证明 execute_batch,返回 validity_proof + vk。BatchSealer 调 SettlementManager.SubmitBatch(commitment, proof, vk),后者派发给 VerifierRegistry.VerifyCommitment,成功则发出 SettlementAccepted。</desc>
+  <desc id="desc">L2 结算热路径的序列图。每个 L2 块:Blockchain commit,L2BatchPlugin 收到 Block.Committed 并把 tx 批 + post-state-root 转给 BatchSealer。BatchSealer 构造规范 32 字节字段的 BatchCommitment,把 BatchPayload 发给链下证明守护进程。SP1 zkVM 证明 execute_batch,返回 validity_proof + vk。BatchSealer 调 SettlementManager.SubmitBatch(commitment, proof, vk),后者派发给 VerifierRegistry.VerifyCommitment,成功则发出 BatchSubmitted。</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
@@ -89,7 +89,7 @@
   </g>
 
   <line x1="840" y1="476" x2="460" y2="476" stroke="#3a8454" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <text x="650" y="470" text-anchor="middle" class="msg-t" fill="#1d4d2c">SettlementAccepted 事件</text>
+  <text x="650" y="470" text-anchor="middle" class="msg-t" fill="#1d4d2c">BatchSubmitted 事件</text>
 
   <text x="480" y="540" text-anchor="middle" class="msg-s" fill="#525a64">线协议格式:BatchSerializer(Neo.L2.Batch/)—— 规范顺序的 32 字节字段。</text>
 </svg>

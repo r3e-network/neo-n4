@@ -262,7 +262,7 @@ L1 submission, and on-chain verification — is the canonical dataflow that
 binds a chain's L2 state to its L1 trust roots:
 
 <p align="center">
-  <img src="docs/figures/architecture/settlement-sequence.svg" alt="Settlement hot-path sequence — 5 actors (L2 Blockchain, L2BatchPlugin, BatchSealer, prover daemon, SettlementManager). Block.Committed → tx batch + post-state-root → BatchSealer constructs canonical BatchCommitment → BatchPayload to prover daemon → SP1 zkVM proves execute_batch → validity_proof + vk back → SubmitBatch to SettlementManager → VerifierRegistry.VerifyCommitment dispatch → SettlementAccepted event" width="900">
+  <img src="docs/figures/architecture/settlement-sequence.svg" alt="Settlement hot-path sequence — 5 actors (L2 Blockchain, L2BatchPlugin, BatchSealer, prover daemon, SettlementManager). Block.Committed → tx batch + post-state-root → BatchSealer constructs canonical BatchCommitment → BatchPayload to prover daemon → SP1 zkVM proves execute_batch → validity_proof + vk back → SubmitBatch to SettlementManager → VerifierRegistry.VerifyCommitment dispatch → BatchSubmitted event" width="900">
 </p>
 
 ### 5.1 What gets proved

@@ -226,7 +226,7 @@ l2_batch_info_hash          = 0x...  # 此 L2 的 L2BatchInfoContract
 部署后,一条 L2 链经 3 条独立通道"接通"—— 各自按自己的节奏跑:
 
 <p align="center">
-  <img src="../figures/architecture/runtime-channels.svg" alt="L2 ↔ L1 运行时连接 —— 3 条独立通道:结算(热路径)、桥(经 DepositReady 和 WithdrawalReady 做资产转移)、跨 L2 消息(InboundMessage 和 OutboundMessage)。3 条通道独立运行,一条故障或延迟不阻塞另外两条" width="900">
+  <img src="../figures/architecture/runtime-channels.svg" alt="L2 ↔ L1 运行时连接 —— 3 条独立通道:结算(热路径)、桥(经 DepositEnqueued 和 WithdrawalEmitted 做资产转移)、跨 L2 消息(InboundMessage 和 OutboundMessage)。3 条通道独立运行,一条故障或延迟不阻塞另外两条" width="900">
 </p>
 
 ### 通道 1 —— 结算(热路径)
@@ -234,7 +234,7 @@ l2_batch_info_hash          = 0x...  # 此 L2 的 L2BatchInfoContract
 每个 L2 块:
 
 <p align="center">
-  <img src="../figures/architecture/settlement-sequence.svg" alt="结算热路径序列 —— 5 个角色 L2 Blockchain、L2BatchPlugin、BatchSealer、证明守护进程、SettlementManager。Block.Committed → tx 批 + post-state-root → BatchSealer 构造规范 BatchCommitment → BatchPayload 到证明守护进程 → SP1 zkVM 证明 execute_batch → validity_proof + vk 回传 → SubmitBatch 到 SettlementManager → VerifierRegistry.VerifyCommitment 派发 → SettlementAccepted 事件" width="900">
+  <img src="../figures/architecture/settlement-sequence.svg" alt="结算热路径序列 —— 5 个角色 L2 Blockchain、L2BatchPlugin、BatchSealer、证明守护进程、SettlementManager。Block.Committed → tx 批 + post-state-root → BatchSealer 构造规范 BatchCommitment → BatchPayload 到证明守护进程 → SP1 zkVM 证明 execute_batch → validity_proof + vk 回传 → SubmitBatch 到 SettlementManager → VerifierRegistry.VerifyCommitment 派发 → BatchSubmitted 事件" width="900">
 </p>
 
 线协议格式:`BatchSerializer`(`Neo.L2.Batch/`)—— 规范顺序的 32 字节字段。
@@ -243,7 +243,7 @@ l2_batch_info_hash          = 0x...  # 此 L2 的 L2BatchInfoContract
 ### 通道 2 —— 桥(资产转移)
 
 <p align="center">
-  <img src="../figures/architecture/bridge-sequences.svg" alt="桥的双面板序列图。上面板 L1→L2 充值:L1 用户在 SharedBridge 上调 Deposit → 资产被锁、发出 DepositReady → L2 批处理器中继到 L2BridgeContract → 铸包装资产 → L2 用户余额到账。下面板 L2→L1 提款:L2 用户在 L2BridgeContract 上调 Withdraw → 销包装资产、发出 WithdrawalReady → 提款记录在下一批次封装 → L1 用户带 Merkle 证明调 ClaimWithdrawal → SharedBridge.FinalizeWithdrawalWithProof 释放资产" width="900">
+  <img src="../figures/architecture/bridge-sequences.svg" alt="桥的双面板序列图。上面板 L1→L2 充值:L1 用户在 SharedBridge 上调 Deposit → 资产被锁、发出 DepositEnqueued → L2 批处理器中继到 L2BridgeContract → 铸包装资产 → L2 用户余额到账。下面板 L2→L1 提款:L2 用户在 L2BridgeContract 上调 Withdraw → 销包装资产、发出 WithdrawalEmitted → 提款记录在下一批次封装 → L1 用户带 Merkle 证明调 ClaimWithdrawal → SharedBridge.FinalizeWithdrawalWithProof 释放资产" width="900">
 </p>
 
 线协议格式:L1→L2 用 `DepositPayload`,L2→L1 用 `WithdrawalRecord` + Merkle 路径。

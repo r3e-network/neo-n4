@@ -5,6 +5,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Stale event names in architecture docs + figures
+
+Cross-checked event names referenced in docs against actual contract
+`OnEventName` declarations across all 28 contracts. Found 3 stale event
+names referenced in docs/figures that didn't match any emitted event:
+
+- `SettlementAccepted` (referenced in 6 SVG figures + 4 markdown
+  alt-texts) → `BatchSubmitted` (the actual event SettlementManager
+  emits when SubmitBatch succeeds).
+- `DepositReady` (in 5 SVG figures + 3 markdown alt-texts) →
+  `DepositEnqueued` (the actual event SharedBridge emits when a
+  deposit is accepted).
+- `WithdrawalReady` (in 5 figures + 4 markdown alt-texts) →
+  context-dependent:
+  - L1↔L2 bridge: `WithdrawalEmitted` (event L2BridgeContract emits
+    on `Withdraw`)
+  - External bridge: `CrossChainSendInitiated` (event
+    ExternalBridgeEscrow emits for Neo→Foreign sends, used by
+    docs/external-bridge-evm-chains.md)
+
+Discovered via the same Python audit shape: list every
+`OnEventName`-pattern across `contracts/*/*.cs`, then grep docs for
+event-name candidates and report unmatched ones. 8 SVGs + 6 markdown
+docs touched (EN + ZH each); all 8 SVGs still parse, 1312 anchors
+resolve, manuscripts build clean.
+
 ### Fixed — Stale contract method references in architecture docs
 
 Cross-checked every `ContractName.MethodName` reference in docs against

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">Settlement sequence — channel 1 hot path</title>
-  <desc id="desc">Sequence diagram of the L2 settlement hot path. For every L2 block: L2 Blockchain commits, L2BatchPlugin receives Block.Committed and forwards a tx batch with post-state-root to BatchSealer. BatchSealer constructs a canonical 32-byte-field BatchCommitment and sends a BatchPayload to the off-chain Prover daemon. SP1 zkVM proves execute_batch and returns validity_proof + vk. BatchSealer calls SubmitBatch(commitment, proof, vk) on SettlementManager, which dispatches to VerifierRegistry.VerifyCommitment and emits SettlementAccepted on success.</desc>
+  <desc id="desc">Sequence diagram of the L2 settlement hot path. For every L2 block: L2 Blockchain commits, L2BatchPlugin receives Block.Committed and forwards a tx batch with post-state-root to BatchSealer. BatchSealer constructs a canonical 32-byte-field BatchCommitment and sends a BatchPayload to the off-chain Prover daemon. SP1 zkVM proves execute_batch and returns validity_proof + vk. BatchSealer calls SubmitBatch(commitment, proof, vk) on SettlementManager, which dispatches to VerifierRegistry.VerifyCommitment and emits BatchSubmitted on success.</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
@@ -101,9 +101,9 @@
     <text x="840" y="436" text-anchor="middle" class="msg-s">VerifierRegistry.VerifyCommitment</text>
   </g>
 
-  <!-- Message 6: SettlementAccepted (back) -->
+  <!-- Message 6: BatchSubmitted (back) -->
   <line x1="840" y1="476" x2="460" y2="476" stroke="#3a8454" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <text x="650" y="470" text-anchor="middle" class="msg-t" fill="#1d4d2c">SettlementAccepted event</text>
+  <text x="650" y="470" text-anchor="middle" class="msg-t" fill="#1d4d2c">BatchSubmitted event</text>
 
   <!-- Footer note -->
   <text x="480" y="540" text-anchor="middle" class="msg-s" fill="#525a64">Wire format: BatchSerializer (Neo.L2.Batch/) — 32-byte fields in canonical order.</text>

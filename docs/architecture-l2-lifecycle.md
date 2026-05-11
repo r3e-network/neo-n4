@@ -250,7 +250,7 @@ Once deployed, an L2 chain is "connected" via three independent
 channels — each runs on its own cadence:
 
 <p align="center">
-  <img src="figures/architecture/runtime-channels.svg" alt="L2-to-L1 runtime connection — 3 independent channels: settlement (hot path), bridge (asset transfers via DepositReady and WithdrawalReady), and cross-L2 messaging (InboundMessage and OutboundMessage). Each channel runs on its own cadence; failure or delay in one does not block the others" width="900">
+  <img src="figures/architecture/runtime-channels.svg" alt="L2-to-L1 runtime connection — 3 independent channels: settlement (hot path), bridge (asset transfers via DepositEnqueued and WithdrawalEmitted), and cross-L2 messaging (InboundMessage and OutboundMessage). Each channel runs on its own cadence; failure or delay in one does not block the others" width="900">
 </p>
 
 ### Channel 1 — Settlement (the hot path)
@@ -258,7 +258,7 @@ channels — each runs on its own cadence:
 For every L2 block:
 
 <p align="center">
-  <img src="figures/architecture/settlement-sequence.svg" alt="Settlement hot-path sequence — 5 actors L2 Blockchain, L2BatchPlugin, BatchSealer, Prover daemon, SettlementManager. Block.Committed → tx batch + post-state-root → BatchSealer constructs canonical BatchCommitment → BatchPayload to Prover daemon → SP1 zkVM proves execute_batch → validity_proof + vk back → SubmitBatch on SettlementManager → VerifierRegistry.VerifyCommitment dispatch → SettlementAccepted event" width="900">
+  <img src="figures/architecture/settlement-sequence.svg" alt="Settlement hot-path sequence — 5 actors L2 Blockchain, L2BatchPlugin, BatchSealer, Prover daemon, SettlementManager. Block.Committed → tx batch + post-state-root → BatchSealer constructs canonical BatchCommitment → BatchPayload to Prover daemon → SP1 zkVM proves execute_batch → validity_proof + vk back → SubmitBatch on SettlementManager → VerifierRegistry.VerifyCommitment dispatch → BatchSubmitted event" width="900">
 </p>
 
 Wire format: `BatchSerializer` (`Neo.L2.Batch/`) — 32-byte fields
@@ -268,7 +268,7 @@ lifecycle" for the per-tx zoom-in.
 ### Channel 2 — Bridge (asset transfers)
 
 <p align="center">
-  <img src="figures/architecture/bridge-sequences.svg" alt="Two-panel bridge sequence diagram. Top panel L1→L2 deposit: L1 user calls Deposit on SharedBridge → asset locked + DepositReady emitted → L2 batcher relays to L2BridgeContract → wrapped asset minted → L2 user balance bumps. Bottom panel L2→L1 withdrawal: L2 user calls Withdraw on L2BridgeContract → wrapped asset burned + WithdrawalReady emitted → withdrawal record sealed in next batch → L1 user calls SharedBridge.FinalizeWithdrawalWithProof with Merkle proof → asset released" width="900">
+  <img src="figures/architecture/bridge-sequences.svg" alt="Two-panel bridge sequence diagram. Top panel L1→L2 deposit: L1 user calls Deposit on SharedBridge → asset locked + DepositEnqueued emitted → L2 batcher relays to L2BridgeContract → wrapped asset minted → L2 user balance bumps. Bottom panel L2→L1 withdrawal: L2 user calls Withdraw on L2BridgeContract → wrapped asset burned + WithdrawalEmitted emitted → withdrawal record sealed in next batch → L1 user calls SharedBridge.FinalizeWithdrawalWithProof with Merkle proof → asset released" width="900">
 </p>
 
 Wire format: `DepositPayload` for L1→L2, `WithdrawalRecord` +

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">L2 ↔ L1 runtime connection — 3 independent channels</title>
-  <desc id="desc">Once an L2 chain is deployed, it talks to L1 through three independent channels each running on its own cadence. Settlement (the hot path): L2BatchPlugin seals batches on Block.Committed, the off-chain prover daemon produces proofs (SP1 zkVM), DA writer publishes payload to NeoFS / L1 / committee, and the batcher submits commitment + proof to NeoHub.SettlementManager which verifies via VerifierRegistry. Bridge: SharedBridge emits DepositReady to the L2 batcher and L2BridgeContract emits WithdrawalReady back to SharedBridge. Messaging: MessageRouter routes inbound messages to L2MessageContract which routes outbound back.</desc>
+  <desc id="desc">Once an L2 chain is deployed, it talks to L1 through three independent channels each running on its own cadence. Settlement (the hot path): L2BatchPlugin seals batches on Block.Committed, the off-chain prover daemon produces proofs (SP1 zkVM), DA writer publishes payload to NeoFS / L1 / committee, and the batcher submits commitment + proof to NeoHub.SettlementManager which verifies via VerifierRegistry. Bridge: SharedBridge emits DepositEnqueued to the L2 batcher and L2BridgeContract emits WithdrawalEmitted back to SharedBridge. Messaging: MessageRouter routes inbound messages to L2MessageContract which routes outbound back.</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
@@ -102,9 +102,9 @@
 
   <!-- Bridge (green) -->
   <line x1="700" y1="338" x2="260" y2="338" stroke="#3a8454" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <text x="430" y="332" class="ch-t" fill="#1d4d2c">DepositReady</text>
+  <text x="430" y="332" class="ch-t" fill="#1d4d2c">DepositEnqueued</text>
   <line x1="260" y1="356" x2="700" y2="356" stroke="#3a8454" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <text x="430" y="350" class="ch-t" fill="#1d4d2c">WithdrawalReady</text>
+  <text x="430" y="350" class="ch-t" fill="#1d4d2c">WithdrawalEmitted</text>
   <text x="450" y="370" class="ch-s">channel 2 — bridge (asset transfers)</text>
 
   <!-- Messaging (purple) -->

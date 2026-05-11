@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">L1 ↔ L2 之间的桥 —— 三种跨层数据流</title>
-  <desc id="desc">三种数据流穿越 L1 ↔ L2 边界：SharedBridge 向 L2BridgeContract 发送 DepositReady 事件以铸造包装资产；L2 批次将 WithdrawalRoot 带回 L1 用于用户提款。MessageRouter 向 L2MessageContract 路由 InboundMessage 并重新计算哈希；OutboundMessage 在批次中流回。SettlementManager 接收来自 L2BatchInfoContract 的 BatchCommitment 加证明字节，提供每条 L2 的游标。</desc>
+  <desc id="desc">三种数据流穿越 L1 ↔ L2 边界：SharedBridge 向 L2BridgeContract 发送 DepositEnqueued 事件以铸造包装资产；L2 批次将 WithdrawalRoot 带回 L1 用于用户提款。MessageRouter 向 L2MessageContract 路由 InboundMessage 并重新计算哈希；OutboundMessage 在批次中流回。SettlementManager 接收来自 L2BatchInfoContract 的 BatchCommitment 加证明字节，提供每条 L2 的游标。</desc>
 
   <defs>
     <marker id="arrow-r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
@@ -51,7 +51,7 @@
   </g>
 
   <line x1="400" y1="153" x2="560" y2="153" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow-r)"/>
-  <text x="480" y="146" text-anchor="middle" class="flow-lbl">DepositReady</text>
+  <text x="480" y="146" text-anchor="middle" class="flow-lbl">DepositEnqueued</text>
   <text x="480" y="170" text-anchor="middle" class="wire">DepositPayload (44+N B)</text>
 
   <line x1="560" y1="186" x2="400" y2="186" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow-l)"/>
@@ -84,7 +84,7 @@
     <rect x="60" y="344" width="340" height="80" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
     <text x="230" y="368" text-anchor="middle" class="card-title" fill="#1e2a55">SettlementManager</text>
     <text x="230" y="386" text-anchor="middle" class="card-sub" fill="#3a4a82">接收批次 · 经 VerifierRegistry 验证</text>
-    <text x="230" y="404" text-anchor="middle" class="card-sub" fill="#3a4a82">触发 SettlementAccepted 事件</text>
+    <text x="230" y="404" text-anchor="middle" class="card-sub" fill="#3a4a82">触发 BatchSubmitted 事件</text>
   </g>
 
   <g filter="url(#card)">

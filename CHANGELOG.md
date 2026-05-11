@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Foundry CI job (foreign EVM router)
+
+`external/foreign-contracts/eth` has 20 Foundry tests (13 single-chain +
+7 multi-chain) covering the foreign side of every EVM bridge path. The
+README counted them in the test surface, but `build.yml` had no job
+running them — silent drift was possible. New `foreign-evm` job:
+
+- installs Foundry via `foundry-rs/foundry-toolchain@v1`
+- fetches `forge-std` via `forge install --no-git foundry-rs/forge-std`
+  (the dir's `.gitignore` excludes `lib/`)
+- runs `forge test -vv`
+
+Verified locally in a clean tree: 20/20 pass in ~30s.
+
 ### Fixed — Cross-doc anchor audit (9 broken links)
 
 Ran a repo-wide markdown link audit (47 files, 1301 anchors). Found

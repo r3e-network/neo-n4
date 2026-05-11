@@ -92,7 +92,7 @@ verification path. Every byte is checked.
 |------------------|----------------------------------------------------------------|
 | Trusts what?     | The Merkle proof for the user's withdrawal leaf                 |
 | Trust held by?   | Hash collision-resistance + the batch's `withdrawalRoot`        |
-| Enforced by      | `SharedBridge.VerifyWithdrawalLeafWithProof`                    |
+| Enforced by      | `SharedBridge.FinalizeWithdrawalWithProof`                      |
 | Failure mode     | User submits bad leafIdx + matching proof but wrong amount      |
 | Mitigation       | Merkle proof MUST hash to the recorded `withdrawalRoot`         |
 
@@ -126,7 +126,7 @@ accumulates verifications at each. The same canonical bytes get
 re-hashed + re-verified at every step:
 
 <p align="center">
-  <img src="figures/architecture/cross-tier-verification.svg" alt="Cross-tier verification chain. Step 1: user signs L1 tx (trust = user owns key). Neo L1 dBFT commits, SharedBridge locks asset, emits DepositReady. CrossChainMessage canonical bytes hashed. Steps 2-4: L2 batcher reads events directly, NeoVM applies deposit, receipt commits (trust = reads Blockchain events directly). Batcher seals batch with txRoot, receiptRoot, postStateRoot, publicInputHash. L2BatchCommitment canonical bytes (321+N). Steps 5-6: SP1 zkVM proves execute_batch and the proof's public-input matches the on-chain publicInputHash (trust = math). SettlementManager accepts. Steps 7-9: user withdraws at later batch B, submits Merkle proof, SharedBridge.VerifyWithdrawalLeafWithProof releases asset (trust = hash collision-resistance)" width="900">
+  <img src="figures/architecture/cross-tier-verification.svg" alt="Cross-tier verification chain. Step 1: user signs L1 tx (trust = user owns key). Neo L1 dBFT commits, SharedBridge locks asset, emits DepositReady. CrossChainMessage canonical bytes hashed. Steps 2-4: L2 batcher reads events directly, NeoVM applies deposit, receipt commits (trust = reads Blockchain events directly). Batcher seals batch with txRoot, receiptRoot, postStateRoot, publicInputHash. L2BatchCommitment canonical bytes (321+N). Steps 5-6: SP1 zkVM proves execute_batch and the proof's public-input matches the on-chain publicInputHash (trust = math). SettlementManager accepts. Steps 7-9: user withdraws at later batch B, submits Merkle proof to SharedBridge.FinalizeWithdrawalWithProof which releases the asset (trust = hash collision-resistance)" width="900">
 </p>
 
 **Key insight:** the same `canonical_bytes` get hashed multiple
@@ -170,9 +170,9 @@ the proof itself is valid for some OTHER public-input.)
 
 ### Cryptographic / cross-tier failures
 
-- **Proof tampered with** — `VerifierRegistry.Verify` — `BatchRejected: invalid proof`
+- **Proof tampered with** — `VerifierRegistry.VerifyCommitment` — `BatchRejected: invalid proof`
 - **`publicInputHash` doesn't match** — `SettlementManager` (recomputes from commitment) — `BatchRejected: public-input mismatch`
-- **Withdrawal Merkle proof wrong** — `SharedBridge.VerifyWithdrawalLeafWithProof` — `WithdrawalRejected: bad merkle path`
+- **Withdrawal Merkle proof wrong** — `SharedBridge.FinalizeWithdrawalWithProof` — `WithdrawalRejected: bad merkle path`
 - **External committee threshold not met** — `MpcCommitteeVerifier.VerifyInboundMessage` — `Committee threshold not met (got M-1, need M)`
 - **External chain id outside namespace** — `ExternalBridgeEscrow.Receive` — `Reject: externalChainId not in 0xE0_xx_xx_xx`
 - **Replay attempt (deposit, withdrawal, message)** — Replay-protection map per (chainId, nonce) — `Reject: nonce already consumed`

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 1080" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">跨层验证链 —— 同一字节,在每步重新哈希</title>
-  <desc id="desc">单笔 bridge 交易跨越的逐步验证链。第 1 步:用户用 Secp256r1 对 L1 tx 签名(用户持有密钥)。Neo L1 dBFT 验证并 commit,SharedBridge 锁资产,发出 DepositReady。CrossChainMessage 规范字节经 MessageHasher 哈希。第 2-4 步:L2 批处理器直接读 Blockchain 事件,NeoVM 在 L2 上 apply 该 deposit,L2 收据对其 commit(信任 = 直接读事件)。L2 批处理器封装批次,带 txRoot、receiptRoot、postStateRoot、publicInputHash。L2BatchCommitment 规范字节(321+N)流入第 5-6 步:SP1 zkVM 证明 execute_batch,证明的 public-input 与 SettlementManager 从承诺重算的 publicInputHash 一致(信任 = 数学)。Neo L1 SettlementManager 接受批次,发出 SettlementAccepted。第 7-9 步:L2 用户在某个晚些批次 B 上提款,B 的 withdrawalRoot 含用户提款叶子,用户在 L1 提交 Merkle 证明,SharedBridge.VerifyWithdrawalLeafWithProof 链式哈希到 withdrawalRoot(信任 = 哈希抗碰撞),资产被释放。</desc>
+  <desc id="desc">单笔 bridge 交易跨越的逐步验证链。第 1 步:用户用 Secp256r1 对 L1 tx 签名(用户持有密钥)。Neo L1 dBFT 验证并 commit,SharedBridge 锁资产,发出 DepositReady。CrossChainMessage 规范字节经 MessageHasher 哈希。第 2-4 步:L2 批处理器直接读 Blockchain 事件,NeoVM 在 L2 上 apply 该 deposit,L2 收据对其 commit(信任 = 直接读事件)。L2 批处理器封装批次,带 txRoot、receiptRoot、postStateRoot、publicInputHash。L2BatchCommitment 规范字节(321+N)流入第 5-6 步:SP1 zkVM 证明 execute_batch,证明的 public-input 与 SettlementManager 从承诺重算的 publicInputHash 一致(信任 = 数学)。Neo L1 SettlementManager 接受批次,发出 SettlementAccepted。第 7-9 步:L2 用户在某个晚些批次 B 上提款,B 的 withdrawalRoot 含用户提款叶子,用户在 L1 提交 Merkle 证明,SharedBridge.FinalizeWithdrawalWithProof 链式哈希到 withdrawalRoot(信任 = 哈希抗碰撞),资产被释放。</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
@@ -119,7 +119,7 @@
     <text x="220" y="970" class="step-num">8.</text>
     <text x="240" y="970" class="step-t" fill="#1d4d2c"><tspan font-weight="600">用户在 L1 上提交 Merkle 证明</tspan></text>
     <text x="220" y="988" class="step-num">9.</text>
-    <text x="240" y="988" class="step-t" fill="#1d4d2c"><tspan font-weight="600">SharedBridge.VerifyWithdrawalLeafWithProof → 释放资产</tspan></text>
+    <text x="240" y="988" class="step-t" fill="#1d4d2c"><tspan font-weight="600">SharedBridge.FinalizeWithdrawalWithProof → 释放资产</tspan></text>
   </g>
   <g>
     <rect x="610" y="934" width="190" height="62" rx="6" ry="6" fill="#fde8e8" stroke="#c4413e" stroke-width="1"/>

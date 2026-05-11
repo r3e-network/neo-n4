@@ -5,6 +5,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Stale contract method references in architecture docs
+
+Cross-checked every `ContractName.MethodName` reference in docs against
+actual `public static` methods in `contracts/NeoHub.*/*.cs`. Found 5
+real stale method names that didn't match the code:
+
+- `ChainRegistry.Register` → `ChainRegistry.RegisterChain`
+  (wallet-integration.md + ZH counterpart)
+- `VerifierRegistry.Verify` → `VerifierRegistry.VerifyCommitment`
+  (architecture-trust-boundaries.md, settlement-sequence.svg alt-texts in
+  WHITEPAPER.md, EN + ZH manuscripts; settlement-sequence.svg figure
+  text itself, EN + ZH)
+- `SharedBridge.VerifyWithdrawalLeafWithProof` →
+  `SharedBridge.FinalizeWithdrawalWithProof` (6 SVG figures + 3 MD docs,
+  EN + ZH each)
+- `SharedBridge.ApplyWithdrawals` (described an auto-apply withdrawals
+  flow that doesn't exist — withdrawals are user-pulled via
+  `FinalizeWithdrawalWithProof`) — rewrote the surrounding sentence in
+  architecture-l2-lifecycle.md + ZH counterpart to match the user-pull
+  reality.
+- `SharedBridge.RegisterAdapter` → split into
+  `TokenRegistry.RegisterMapping` (L1) +
+  `L2BridgeContract.RegisterMapping` (L2) per actual
+  `deploy-bridge-adapter` plan emitted by `StubCommands.cs`. Table in
+  `architecture-l2-lifecycle.md` updated EN + ZH.
+
+Discovered via a Python audit that:
+
+1. Lists every `public static` method in each contract file.
+2. Greps every `ContractName.MethodName` ref across all docs.
+3. Reports refs that don't exist in code.
+
+Verified all 8 modified SVGs parse cleanly + link integrity still
+checks (1311 anchors).
+
 ### Fixed — tech-stack-coverage table: L1 protocol = 15, total = 78
 
 The Layer-1 row in `docs/tech-stack-coverage.md`'s coverage table showed

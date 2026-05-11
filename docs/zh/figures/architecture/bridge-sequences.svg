@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 760" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">桥序列 —— 通道 2(充值 + 提款)</title>
-  <desc id="desc">L1↔L2 桥的两个配对序列图。上面板 L1→L2 充值:L1 用户在 NeoHub.SharedBridge 上调 Deposit(chainId、asset、amount、recipient);SharedBridge 锁资产并发出 DepositReady;L2 批处理器 poll 事件后转发给 L2BridgeContract;L2BridgeContract 铸包装资产并计入接收方,L2 用户余额到账。下面板 L2→L1 提款:L2 用户在 L2BridgeContract 上调 Withdraw(asset、amount、recipient);L2BridgeContract 销包装资产并发出 WithdrawalReady;提款记录在下一批次封装,L1 上最终化后,L1 用户调 ClaimWithdrawal(batchId、leafIdx、merkleProof);SharedBridge.VerifyWithdrawalLeafWithProof 释放资产。</desc>
+  <desc id="desc">L1↔L2 桥的两个配对序列图。上面板 L1→L2 充值:L1 用户在 NeoHub.SharedBridge 上调 Deposit(chainId、asset、amount、recipient);SharedBridge 锁资产并发出 DepositReady;L2 批处理器 poll 事件后转发给 L2BridgeContract;L2BridgeContract 铸包装资产并计入接收方,L2 用户余额到账。下面板 L2→L1 提款:L2 用户在 L2BridgeContract 上调 Withdraw(asset、amount、recipient);L2BridgeContract 销包装资产并发出 WithdrawalReady;提款记录在下一批次封装,L1 上最终化后,L1 用户调 ClaimWithdrawal(batchId、leafIdx、merkleProof);SharedBridge.FinalizeWithdrawalWithProof 释放资产。</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">

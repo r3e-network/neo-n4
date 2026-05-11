@@ -70,8 +70,10 @@ Lives at `contracts/NeoHub.*` — every contract type-checks via
 verifies the `.nef` + `.manifest.json` artifacts.
 
 **Key relationships:**
-- `SettlementManager` consumes proofs validated by `VerifierRegistry`,
-  triggers `SharedBridge.ApplyWithdrawals` on each accepted batch.
+- `SettlementManager` consumes proofs validated by `VerifierRegistry`;
+  withdrawals against accepted batches are user-pulled via
+  `SharedBridge.FinalizeWithdrawalWithProof` (Merkle proof against the
+  batch's `withdrawalRoot`), not auto-applied.
 - `SharedBridge` looks up chain config via `ChainRegistry` + token
   metadata via `TokenRegistry`.
 - `OptimisticChallenge` escalates to `GovernanceController` for
@@ -256,7 +258,7 @@ channels — each runs on its own cadence:
 For every L2 block:
 
 <p align="center">
-  <img src="figures/architecture/settlement-sequence.svg" alt="Settlement hot-path sequence — 5 actors L2 Blockchain, L2BatchPlugin, BatchSealer, Prover daemon, SettlementManager. Block.Committed → tx batch + post-state-root → BatchSealer constructs canonical BatchCommitment → BatchPayload to Prover daemon → SP1 zkVM proves execute_batch → validity_proof + vk back → SubmitBatch on SettlementManager → VerifierRegistry.Verify dispatch → SettlementAccepted event" width="900">
+  <img src="figures/architecture/settlement-sequence.svg" alt="Settlement hot-path sequence — 5 actors L2 Blockchain, L2BatchPlugin, BatchSealer, Prover daemon, SettlementManager. Block.Committed → tx batch + post-state-root → BatchSealer constructs canonical BatchCommitment → BatchPayload to Prover daemon → SP1 zkVM proves execute_batch → validity_proof + vk back → SubmitBatch on SettlementManager → VerifierRegistry.VerifyCommitment dispatch → SettlementAccepted event" width="900">
 </p>
 
 Wire format: `BatchSerializer` (`Neo.L2.Batch/`) — 32-byte fields
@@ -266,7 +268,7 @@ lifecycle" for the per-tx zoom-in.
 ### Channel 2 — Bridge (asset transfers)
 
 <p align="center">
-  <img src="figures/architecture/bridge-sequences.svg" alt="Two-panel bridge sequence diagram. Top panel L1→L2 deposit: L1 user calls Deposit on SharedBridge → asset locked + DepositReady emitted → L2 batcher relays to L2BridgeContract → wrapped asset minted → L2 user balance bumps. Bottom panel L2→L1 withdrawal: L2 user calls Withdraw on L2BridgeContract → wrapped asset burned + WithdrawalReady emitted → withdrawal record sealed in next batch → L1 user calls ClaimWithdrawal with Merkle proof → SharedBridge.VerifyWithdrawalLeafWithProof releases the asset" width="900">
+  <img src="figures/architecture/bridge-sequences.svg" alt="Two-panel bridge sequence diagram. Top panel L1→L2 deposit: L1 user calls Deposit on SharedBridge → asset locked + DepositReady emitted → L2 batcher relays to L2BridgeContract → wrapped asset minted → L2 user balance bumps. Bottom panel L2→L1 withdrawal: L2 user calls Withdraw on L2BridgeContract → wrapped asset burned + WithdrawalReady emitted → withdrawal record sealed in next batch → L1 user calls SharedBridge.FinalizeWithdrawalWithProof with Merkle proof → asset released" width="900">
 </p>
 
 Wire format: `DepositPayload` for L1→L2, `WithdrawalRecord` +
@@ -331,7 +333,7 @@ Which `neo-stack` subcommand touches which component:
 | `create-chain`           | —                                 | `chain.config.json`              | —                         |
 | `init-l2`                | —                                 | `data/`, `logs/`, `Plugins/`     | —                         |
 | `register-chain`         | `ChainRegistry.RegisterChain`     | —                                | —                         |
-| `deploy-bridge-adapter`  | `SharedBridge.RegisterAdapter`    | —                                | `L2NativeBridgeContract`  |
+| `deploy-bridge-adapter`  | `TokenRegistry.RegisterMapping`   | —                                | `L2BridgeContract.RegisterMapping` |
 | `start-sequencer`        | (preflight only)                  | reads config                     | dBFT 2.0 starts           |
 | `start-batcher`          | `SettlementManager.SubmitBatch`   | reads config                     | `L2BatchPlugin` runs      |
 | `start-prover`           | (no L1 contact)                   | reads config                     | `L2ProverPlugin` runs     |

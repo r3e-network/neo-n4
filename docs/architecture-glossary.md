@@ -183,7 +183,7 @@ For details, see [`architecture-wire-formats.md`](./architecture-wire-formats.md
 - **`DepositPayload`** (44 + amountLen bytes) — NeoHub.SharedBridge → L2BridgeContract.
 - **`CrossChainMessage`** (`MessageHasher`) — L2 sender → NeoHub.MessageRouter → L2 receiver.
 - **`WithdrawalRecord`** — L2BridgeContract → SharedBridge (in batch withdrawalRoot).
-- **`MerkleProofSerializer`** — User claim → SharedBridge.VerifyWithdrawalLeafWithProof.
+- **`MerkleProofSerializer`** — User claim → SharedBridge.FinalizeWithdrawalWithProof.
 - **`MultisigProofPayload`** — Stage-0 prover → VerifierRegistry.
 - **`RiscVProofPayload`** — Phase-4 SP1 zkVM prover → VerifierRegistry.
 - **`OptimisticProofPayload`** — Stage-1 challenge bisection → OptimisticChallenge.

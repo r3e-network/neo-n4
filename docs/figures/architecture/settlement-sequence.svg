@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">Settlement sequence — channel 1 hot path</title>
-  <desc id="desc">Sequence diagram of the L2 settlement hot path. For every L2 block: L2 Blockchain commits, L2BatchPlugin receives Block.Committed and forwards a tx batch with post-state-root to BatchSealer. BatchSealer constructs a canonical 32-byte-field BatchCommitment and sends a BatchPayload to the off-chain Prover daemon. SP1 zkVM proves execute_batch and returns validity_proof + vk. BatchSealer calls SubmitBatch(commitment, proof, vk) on SettlementManager, which dispatches to VerifierRegistry.Verify and emits SettlementAccepted on success.</desc>
+  <desc id="desc">Sequence diagram of the L2 settlement hot path. For every L2 block: L2 Blockchain commits, L2BatchPlugin receives Block.Committed and forwards a tx batch with post-state-root to BatchSealer. BatchSealer constructs a canonical 32-byte-field BatchCommitment and sends a BatchPayload to the off-chain Prover daemon. SP1 zkVM proves execute_batch and returns validity_proof + vk. BatchSealer calls SubmitBatch(commitment, proof, vk) on SettlementManager, which dispatches to VerifierRegistry.VerifyCommitment and emits SettlementAccepted on success.</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
@@ -95,10 +95,10 @@
   <line x1="460" y1="396" x2="840" y2="396" stroke="#c4413e" stroke-width="1.6" marker-end="url(#arrow)"/>
   <text x="650" y="390" text-anchor="middle" class="msg-t" fill="#88312e">SubmitBatch(commitment, proof, vk)</text>
 
-  <!-- Note: VerifierRegistry.Verify -->
+  <!-- Note: VerifierRegistry.VerifyCommitment -->
   <g>
     <rect x="770" y="416" width="140" height="32" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-dasharray="2 2"/>
-    <text x="840" y="436" text-anchor="middle" class="msg-s">VerifierRegistry.Verify</text>
+    <text x="840" y="436" text-anchor="middle" class="msg-s">VerifierRegistry.VerifyCommitment</text>
   </g>
 
   <!-- Message 6: SettlementAccepted (back) -->

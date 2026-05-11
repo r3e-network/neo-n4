@@ -159,5 +159,5 @@ Each CLI's exact wallet-pastable output:
   Paste → sign.
 - **`neo-hub-deploy plan`** — 13 sequential contract-deploy invocations.
   Sign each in order.
-- **`neo-stack register-chain`** — `ChainRegistry.Register` invocation
+- **`neo-stack register-chain`** — `ChainRegistry.RegisterChain` invocation
   + 91-byte configBytes hex. Paste → sign.

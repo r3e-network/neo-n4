@@ -181,7 +181,7 @@
 - **`DepositPayload`**(44 + amountLen 字节)—— NeoHub.SharedBridge → L2BridgeContract。
 - **`CrossChainMessage`**(`MessageHasher`)—— L2 sender → NeoHub.MessageRouter → L2 receiver。
 - **`WithdrawalRecord`** —— L2BridgeContract → SharedBridge(在批次 withdrawalRoot 中)。
-- **`MerkleProofSerializer`** —— 用户领取 → SharedBridge.VerifyWithdrawalLeafWithProof。
+- **`MerkleProofSerializer`** —— 用户领取 → SharedBridge.FinalizeWithdrawalWithProof。
 - **`MultisigProofPayload`** —— Stage-0 证明者 → VerifierRegistry。
 - **`RiscVProofPayload`** —— Phase-4 SP1 zkVM 证明者 → VerifierRegistry。
 - **`OptimisticProofPayload`** —— Stage-1 挑战二分 → OptimisticChallenge。

@@ -311,6 +311,39 @@ jobs:
           npm install --no-audit --no-fund
           npm test
 
+  # Foundry test pass for the foreign EVM router at
+  # external/foreign-contracts/eth — 13 single-chain + 7 multi-chain
+  # tests (= 20 total) that pin the Solidity side of every EVM bridge
+  # path. The contract deploys unchanged on the entire EVM family
+  # (Ethereum, Tron, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche,
+  # Linea, zkSync Era, Scroll, Mantle, Fantom, Celo) — drift here
+  # affects every operator running the foreign side of the bridge.
+  foreign-evm:
+    name: forge test (foreign EVM router)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      # lib/forge-std is gitignored in external/foreign-contracts/eth
+      # (see its .gitignore: "forge-std is cloned at setup time; never
+      # tracked"). Fetch it explicitly so tests can compile.
+      - name: forge install (forge-std)
+        working-directory: external/foreign-contracts/eth
+        # --no-git: plain clone into lib/forge-std rather than registering
+        # as a submodule of the parent neo4 repo (lib/ is gitignored).
+        run: forge install --no-git foundry-rs/forge-std
+
+      - name: forge test (single-chain + multi-chain)
+        working-directory: external/foreign-contracts/eth
+        run: forge test -vv
+
   docs-site:
     name: mdBook docs site
     runs-on: ubuntu-latest

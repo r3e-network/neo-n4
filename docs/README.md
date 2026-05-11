@@ -103,8 +103,9 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
   `external/neo-riscv-vm` (PolkaVM-backed Neo RISC-V engine) ·
   `external/neo-zkvm` (Neo VM in pure Rust + SP1 prover crates). None
   are released on NuGet/crates.io for the versions tracked here.
-- **Tests (1362 .NET + 33 cross-lang)** — 1362 across 33 .NET projects;
-  15 TypeScript (vitest) + 10 Rust SDK (mockito) + 8 SP1 guest (host) —
+- **Tests (1362 .NET + 156 cross-lang)** — 1362 across 33 .NET projects;
+  15 TypeScript (vitest) + 10 Rust SDK (mockito) + 8 SP1 guest (host)
+  + 103 Rust bridge watchers (eth 87 / tron 7 / sol 9) + 20 Foundry —
   all green.
 
 ```

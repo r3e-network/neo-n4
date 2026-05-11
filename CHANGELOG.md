@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `l1-concerns.svg` was missing GovernanceFraudVerifier
+
+The figure depicted 20 of the 21 NeoHub contracts in its visual: the
+specialized-verifier sidebar at the bottom only listed
+`RestrictedExecutionFraudVerifier` (v3 trustless) but the figure's
+header / `<desc>` / `<title>` all claimed "21 contracts".
+`GovernanceFraudVerifier` (v1/v2 structural) was a peer fraud verifier
+that had been omitted from the figure when the bridge stack landed.
+
+Split the bottom sidebar horizontally to fit both fraud verifiers
+side-by-side (with a vertical divider) — figure now visually depicts
+all 21 contracts. Updated alt-text in EN + ZH versions of both the
+`.svg` and `docs/architecture-l1-vs-l2.md` to match: "Plus 2 specialized
+fraud-verifier reference slots" instead of "Plus 1".
+
 ### Fixed — Stale per-suite test counts in IMPLEMENTATION_STATUS table (12 suites)
 
 Compared the per-suite "Tests" column in the IMPLEMENTATION_STATUS test

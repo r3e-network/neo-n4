@@ -44,7 +44,7 @@
 L1 的属性*:
 
 <p align="center">
-  <img src="../figures/architecture/l1-concerns.svg" alt="21 个 NeoHub L1 合约按 6 个关注点 + 1 个专用 verifier 槽位分组。Settlement(SettlementManager + VerifierRegistry)定义信任边界。Bridge(SharedBridge + TokenRegistry + ChainRegistry)托管资产。Messaging(MessageRouter + DARegistry)是跨 L2 路由仲裁。Security(SequencerRegistry + SequencerBond + ForcedInclusion + OptimisticChallenge)把关可罚没保证金与抗审查。Governance + Emergency(GovernanceController + EmergencyManager)负责慢升级 + 逃生通道。外链桥(6 个合约)。再加 RestrictedExecutionFraudVerifier 作为专用 verifier 槽位" width="900">
+  <img src="../figures/architecture/l1-concerns.svg" alt="21 个 NeoHub L1 合约按 6 个关注点 + 2 个专用 fraud-verifier 槽位分组。Settlement(SettlementManager + VerifierRegistry)定义信任边界。Bridge(SharedBridge + TokenRegistry + ChainRegistry)托管资产。Messaging(MessageRouter + DARegistry)是跨 L2 路由仲裁。Security(SequencerRegistry + SequencerBond + ForcedInclusion + OptimisticChallenge)把关可罚没保证金与抗审查。Governance + Emergency(GovernanceController + EmergencyManager)负责慢升级 + 逃生通道。外链桥(6 个合约)。再加 2 个 fraud-verifier 参照槽位:GovernanceFraudVerifier(v1/v2 治理仲裁)+ RestrictedExecutionFraudVerifier(v3 无信任的 on-chain 重派生)" width="900">
 </p>
 
 **关于 L1 合约的关键观察:** 它们持有的是*承诺*与*权限*,而非批量状态。NeoHub 的

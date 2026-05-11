@@ -51,7 +51,7 @@ six concerns. Each entry below names *the property that forces it
 onto L1*:
 
 <p align="center">
-  <img src="figures/architecture/l1-concerns.svg" alt="The 21 NeoHub L1 contracts grouped into 6 concerns plus 1 specialized verifier slot. Settlement (SettlementManager + VerifierRegistry) defines the trust boundary. Bridge (SharedBridge + TokenRegistry + ChainRegistry) escrows assets. Messaging (MessageRouter + DARegistry) is the cross-L2 routing arbiter. Security (SequencerRegistry + SequencerBond + ForcedInclusion + OptimisticChallenge) gates slashable bonds and anti-censorship. Governance + Emergency (GovernanceController + EmergencyManager) handle slow upgrades + escape hatch. External bridge (6 contracts) is the cross-foreign-chain bridge. Plus RestrictedExecutionFraudVerifier as a specialized verifier slot" width="900">
+  <img src="figures/architecture/l1-concerns.svg" alt="The 21 NeoHub L1 contracts grouped into 6 concerns plus 2 specialized verifier slots. Settlement (SettlementManager + VerifierRegistry) defines the trust boundary. Bridge (SharedBridge + TokenRegistry + ChainRegistry) escrows assets. Messaging (MessageRouter + DARegistry) is the cross-L2 routing arbiter. Security (SequencerRegistry + SequencerBond + ForcedInclusion + OptimisticChallenge) gates slashable bonds and anti-censorship. Governance + Emergency (GovernanceController + EmergencyManager) handle slow upgrades + escape hatch. External bridge (6 contracts) is the cross-foreign-chain bridge. Plus 2 fraud-verifier reference slots: GovernanceFraudVerifier (v1/v2 governance-arbitrated) + RestrictedExecutionFraudVerifier (v3 trustless on-chain re-derivation)" width="900">
 </p>
 
 **Key observation about L1 contracts:** they hold *commitments* and

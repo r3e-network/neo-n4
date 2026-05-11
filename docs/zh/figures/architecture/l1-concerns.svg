@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 920" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">L1 做什么 —— NeoHub 的 6 个关注点</title>
-  <desc id="desc">21 个 NeoHub L1 合约按 6 个关注点分组。Settlement(SettlementManager、VerifierRegistry —— 定义信任边界)。Bridge(SharedBridge、TokenRegistry、ChainRegistry —— 资产在 L1)。Messaging(MessageRouter、DARegistry —— 跨 L2 路由仲裁)。Security(SequencerRegistry、SequencerBond、ForcedInclusion、OptimisticChallenge —— 可罚没保证金 + 抗审查)。Governance + Emergency(GovernanceController、EmergencyManager —— 慢升级 + 逃生通道)。External bridge(6 个外链合约)。再加 1 个专用 fraud verifier 槽位(RestrictedExecutionFraudVerifier —— 从 storage 证明重新派生 pre/post 状态根)。</desc>
+  <desc id="desc">21 个 NeoHub L1 合约按 6 个关注点分组。Settlement(SettlementManager、VerifierRegistry —— 定义信任边界)。Bridge(SharedBridge、TokenRegistry、ChainRegistry —— 资产在 L1)。Messaging(MessageRouter、DARegistry —— 跨 L2 路由仲裁)。Security(SequencerRegistry、SequencerBond、ForcedInclusion、OptimisticChallenge —— 可罚没保证金 + 抗审查)。Governance + Emergency(GovernanceController、EmergencyManager —— 慢升级 + 逃生通道)。External bridge(6 个外链合约)。再加 2 个专用 fraud verifier 槽位:GovernanceFraudVerifier(结构性 v1/v2,治理仲裁)与 RestrictedExecutionFraudVerifier(无信任 v3,从 storage 证明重新派生 pre/post 状态根)。</desc>
 
   <defs>
     <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
@@ -140,11 +140,15 @@
 
   <g filter="url(#card)">
     <rect x="40" y="572" width="880" height="100" rx="10" ry="10" fill="#f4ece1" stroke="#cd9c5e" stroke-width="1.3"/>
-    <text x="60" y="596" class="grp-t" fill="#7a5a14">外加 1 个专用 verifier 槽位</text>
+    <text x="60" y="596" class="grp-t" fill="#7a5a14">外加 2 个专用 fraud-verifier 参照槽位</text>
     <line x1="56" y1="606" x2="904" y2="606" stroke="#cd9c5e" stroke-dasharray="3 2"/>
-    <text x="60" y="630" class="ctr-name">RestrictedExecutionFraudVerifier</text>
-    <text x="320" y="630" class="ctr-desc">→ 无信任 v3:从 storage 证明重新派生 pre/post 状态根</text>
-    <text x="60" y="650" class="grp-s">按 (chainId, proofType=v3) 注册到 VerifierRegistry;接受 well-formed 声明而无需治理仲裁。</text>
+    <line x1="480" y1="612" x2="480" y2="666" stroke="#cd9c5e" stroke-dasharray="2 2"/>
+    <text x="60" y="628" class="ctr-name">GovernanceFraudVerifier</text>
+    <text x="60" y="646" class="ctr-desc">→ v1/v2 结构性:治理仲裁</text>
+    <text x="60" y="662" class="grp-s">经 GovernanceController 投票接受。</text>
+    <text x="500" y="628" class="ctr-name">RestrictedExecutionFraudVerifier</text>
+    <text x="500" y="646" class="ctr-desc">→ v3 无信任:on-chain Merkle 重派生</text>
+    <text x="500" y="662" class="grp-s">接受 well-formed 声明而无需仲裁。</text>
   </g>
 
   <text x="480" y="708" text-anchor="middle" class="grp-s" fill="#525a64" font-style="normal" font-weight="600">关键观察:</text>

@@ -195,14 +195,14 @@
 
 | 术语                   | 首次定义于                                                                                 |
 |------------------------|--------------------------------------------------------------------------------------------|
-| 4 层系统                | [architecture-l2-lifecycle.md §1](./architecture-l2-lifecycle.md#1-system-at-a-glance)     |
-| §16.2 维度              | [architecture-l2-lifecycle.md §3](./architecture-l2-lifecycle.md#3-anatomy-of-an-l2-chain) |
-| 三阶段准入              | [architecture-l2-lifecycle.md §4](./architecture-l2-lifecycle.md#4-creation-from-zero-to-registered) |
-| 规范字节                | [architecture-wire-formats.md §1](./architecture-wire-formats.md#1-why-canonical-wire-formats) |
-| 跨层验证链              | [architecture-trust-boundaries.md §3](./architecture-trust-boundaries.md#3-cross-tier-verification-chain) |
-| 纵深防御                | [architecture-trust-boundaries.md §4](./architecture-trust-boundaries.md#4-defense-in-depth-per-flow) |
-| 信任最小化梯度          | [architecture-trust-boundaries.md §6](./architecture-trust-boundaries.md#6-the-trust-minimization-gradient) |
-| 外链命名空间前缀         | [architecture-wire-formats.md §5](./architecture-wire-formats.md#5-externalcrosschainmessage--external-bridge-102--n-bytes) |
+| 4 层系统                | [architecture-l2-lifecycle.md §1](./architecture-l2-lifecycle.md#1-系统鸟瞰)     |
+| §16.2 维度              | [architecture-l2-lifecycle.md §3](./architecture-l2-lifecycle.md#3-l2-链的解剖) |
+| 三阶段准入              | [architecture-l2-lifecycle.md §4](./architecture-l2-lifecycle.md#4-创建从零到已注册) |
+| 规范字节                | [architecture-wire-formats.md §1](./architecture-wire-formats.md#1-为什么需要规范线协议格式) |
+| 跨层验证链              | [architecture-trust-boundaries.md §3](./architecture-trust-boundaries.md#3-跨层验证链) |
+| 纵深防御                | [architecture-trust-boundaries.md §4](./architecture-trust-boundaries.md#4-按流动的纵深防御) |
+| 信任最小化梯度          | [architecture-trust-boundaries.md §6](./architecture-trust-boundaries.md#6-信任最小化梯度) |
+| 外链命名空间前缀         | [architecture-wire-formats.md §5](./architecture-wire-formats.md#5-externalcrosschainmessage--外链桥102--n-字节) |
 | 委员会模型(外链)       | [external-bridge-roadmap.md](./external-bridge-roadmap.md)                                |
 | 按链确认 buffer          | [external-bridge-evm-chains.md](./external-bridge-evm-chains.md)                          |
 

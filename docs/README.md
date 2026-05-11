@@ -252,4 +252,4 @@ A 5-minute walkthrough is in [`docs/getting-started.md`](./getting-started.md).
 
 ## License
 
-MIT — see [`LICENSE`](./LICENSE).
+MIT — see [`LICENSE`](../LICENSE).

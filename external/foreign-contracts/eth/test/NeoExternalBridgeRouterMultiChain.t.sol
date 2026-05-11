@@ -34,7 +34,9 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
     uint32 constant TRON_MAINNET = 0xE000_0010;     // EVM-flavored TVM
     uint32 constant BSC_MAINNET = 0xE000_0030;
     uint32 constant POLYGON_MAINNET = 0xE000_0040;
+    uint32 constant POLYGON_ZKEVM = 0xE000_0042;    // ZK rollup variant of Polygon
     uint32 constant ARBITRUM_ONE = 0xE000_0050;
+    uint32 constant ARBITRUM_NOVA = 0xE000_0052;    // AnyTrust data-sharing variant
     uint32 constant OPTIMISM_MAINNET = 0xE000_0060;
     uint32 constant BASE_MAINNET = 0xE000_0070;
     uint32 constant AVALANCHE_C_MAINNET = 0xE000_0080;
@@ -43,6 +45,7 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
     uint32 constant SCROLL_MAINNET = 0xE000_00B0;
     uint32 constant MANTLE_MAINNET = 0xE000_00C0;
     uint32 constant FANTOM_OPERA = 0xE000_00D0;
+    uint32 constant SONIC_MAINNET = 0xE000_00D1;    // Rebranded Fantom (separate chainId)
     uint32 constant CELO_MAINNET = 0xE000_00E0;
 
     uint32 constant NEO_L2 = 1099;
@@ -73,12 +76,14 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
     /// adding a new EVM chain takes 5 steps and writes ZERO new code.
     /// Solidity-side proof of that claim lives here.
     function test_AllFamilyBankMainnetsConstruct() public {
-        uint32[14] memory ids = [
+        uint32[17] memory ids = [
             ETH_MAINNET,
             TRON_MAINNET,
             BSC_MAINNET,
             POLYGON_MAINNET,
+            POLYGON_ZKEVM,
             ARBITRUM_ONE,
+            ARBITRUM_NOVA,
             OPTIMISM_MAINNET,
             BASE_MAINNET,
             AVALANCHE_C_MAINNET,
@@ -87,6 +92,7 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
             SCROLL_MAINNET,
             MANTLE_MAINNET,
             FANTOM_OPERA,
+            SONIC_MAINNET,
             CELO_MAINNET
         ];
         for (uint256 i = 0; i < ids.length; i++) {

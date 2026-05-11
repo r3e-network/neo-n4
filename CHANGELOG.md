@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — `test_AllFamilyBankMainnetsConstruct` missed 3 EVM mainnets
+
+The Foundry test claimed to iterate "every canonical mainnet slot in the
+EVM family" but only covered 14 of the 17 EVM mainnets registered in
+`watchers/neo-bridge-watcher-eth/src/chains.rs`. Missing:
+
+- `POLYGON_ZKEVM` (`0xE0000042`) — ZK rollup variant of Polygon
+- `ARBITRUM_NOVA` (`0xE0000052`) — AnyTrust data-sharing variant
+- `SONIC_MAINNET` (`0xE00000D1`) — rebranded Fantom (separate chainId)
+
+Test array bumped 14 → 17. All 20 Foundry tests still pass; the
+expanded coverage means a future router constructor change that breaks
+on any of these chain ids will now fail CI loud instead of silently.
+
+Updated dependent count claims in README + IMPLEMENTATION_STATUS:
+"14 canonical mainnet slots" → "17 canonical mainnet slots".
+
 ### Fixed — Stale contract counts in AGENTS + IMPLEMENTATION_STATUS
 
 Various contract-count claims drifted as the external-bridge and MPC

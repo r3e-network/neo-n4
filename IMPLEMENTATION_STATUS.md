@@ -68,7 +68,7 @@ These are real production-shape implementations with full test coverage:
   `L2Native.ExternalBridgeContract` (L2-side burn/mint counterpart).
   Eth-side `NeoExternalBridgeRouter.sol` (393 lines, solc 0.8.24,
   **20 Foundry tests** = 13 single-chain coverage + 7 multi-chain
-  pinning per-instance state isolation across 14 canonical mainnet
+  pinning per-instance state isolation across 17 canonical mainnet
   slots) ships in `external/foreign-contracts/eth/`. The same Solidity
   bytecode deploys unchanged on **any EVM chain** — constructor
   parameterizes `externalChainId`, `EthRpcEventSource` polls
@@ -207,7 +207,7 @@ subcommands.
 
 | Path                        | Role                                             |
 | --------------------------- | ------------------------------------------------ |
-| `eth/`                      | `NeoExternalBridgeRouter.sol` (393 lines, solc 0.8.24, via_ir + optimizer). Locks ETH/ERC-20 bound for Neo, finalizes Neo → Eth withdrawals via committee-attested `ecrecover` proofs. **20 Foundry tests** with real `vm.sign` round-trips: 13 single-chain (constructor + committee + lock + withdraw + every guard) + 7 multi-chain (14 canonical mainnet slots construct, out-of-namespace ids reject, per-router state isolation across nonces / committees / chain-id stamping, BSC router rejects Polygon-claiming messages). Deploys unchanged on Ethereum, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche, Linea, zkSync Era, Scroll, Mantle, Fantom, Celo, Tron via `forge create` with the right `externalChainId` constructor arg. |
+| `eth/`                      | `NeoExternalBridgeRouter.sol` (393 lines, solc 0.8.24, via_ir + optimizer). Locks ETH/ERC-20 bound for Neo, finalizes Neo → Eth withdrawals via committee-attested `ecrecover` proofs. **20 Foundry tests** with real `vm.sign` round-trips: 13 single-chain (constructor + committee + lock + withdraw + every guard) + 7 multi-chain (17 canonical mainnet slots construct, out-of-namespace ids reject, per-router state isolation across nonces / committees / chain-id stamping, BSC router rejects Polygon-claiming messages). Deploys unchanged on Ethereum, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche, Linea, zkSync Era, Scroll, Mantle, Fantom, Celo, Tron via `forge create` with the right `externalChainId` constructor arg. |
 | `tron/`                     | README pointing at `eth/` since TVM is EVM-flavored — same Solidity, different `externalChainId` constructor arg (`0xE000_0010` mainnet / `0xE000_0011` Nile / `0xE000_0012` Shasta). Documents tronbox / tronweb deployment, Tron-specific energy/bandwidth budgeting, and TVM opcode caveats. The full slot allocation table for *every* supported EVM chain lives in `watchers/neo-bridge-watcher-eth/src/chains.rs` — Tron is one of 14 chain families. |
 | `sol/`                      | Anchor program (~440 lines) implementing the same semantics on Solana: PDA-based state (`BridgeState` + `Vault` + per-`(chainId, nonce)` `ConsumedNonce` for replay protection), ed25519 verification via Solana's sigverify precompile (the canonical Wormhole/Neon pattern — saves ~30k CU/sig vs in-program ed25519), three instructions (`initialize` / `set_committee` / `lock_sol_and_send` / `finalize_withdrawal`). Source-only in this iteration; operators run `anchor build` + `anchor test` against `solana-test-validator`. v0 is SOL-only (SPL deferred), `MSG_TYPE_CALL` reverts, recipient zero-pads upper 12 bytes. Reviewed-needed flag in the README before mainnet. |
 

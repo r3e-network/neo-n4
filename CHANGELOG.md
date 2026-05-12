@@ -5,6 +5,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Final stragglers from the cross-doc consistency sweep
+
+A few isolated drifts surfaced after the big multi-axis sweep:
+
+- README quickstart comment: `Generate a NeoHub deploy bundle (21
+  contracts, ...)` → "20 contracts" (the 21st NeoHub contract
+  `ExternalBridgeStubVerifier` is excluded from production deploy;
+  `docs/README.md` already correctly said 20).
+- `docs/architecture-walkthrough.md` doc.md→code mapping row:
+  `contracts/L2Native.*/ (6 contracts)` → "(7 contracts)" since
+  `L2NativeExternalBridgeContract` landed (EN + ZH).
+- `AGENTS.md` Quick commands block: `# Type-check + run all 1344 tests`
+  → "1362 tests".
+- `CONTRIBUTING.md` Quick start block: same 1344 → 1362.
+- `docs/README.md` per-component bullets: `(1362 .NET + 33 cross-lang)`
+  → "(1362 .NET + 156 cross-lang)" with full breakdown (15 TS + 10
+  Rust SDK + 8 SP1 guest + 103 watcher + 20 Foundry). Same fix
+  applied to `docs/zh/README.md`.
+
 ### Fixed — spec-gap-plan "8 parity tests" → 13 (UT_GovernanceFraudVerifierParity)
 
 Verified the "closed gaps" claims in `docs/spec-gap-plan.md` against

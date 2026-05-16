@@ -5,6 +5,60 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — ZKsync-style invariant + fuzz test suites (+36 tests)
+
+`tests/Neo.L2.Bridge.UnitTests/UT_BridgeInvariants_PropertyBased.cs` (17 tests):
+mirrors ZKsync's Foundry `invariant_*` testing approach. Seeded random walks
+across 200 operations × 4-8 distinct seeds (1600-3200 transitions per
+invariant) — assert at every intermediate state:
+
+- `AssetRegistry_BidirectionalLookup_HoldsAcrossRandomOps` — for every known L2
+  asset, `TryGetByL2` and `TryGetByL1` resolve to the same mapping (no
+  orphaned indexes).
+- `WithdrawalProcessor_NonceUniqueness_HoldsAcrossRandomOps` — `(sender,
+  nonce)` is unique intra-batch and cross-batch; re-staging always throws,
+  including after SealBatch's intra-batch → cross-batch promotion.
+- `DepositProcessor_AcceptedSum_EqualsSuccessfulAmountsSum` — `DepositsProcessed`
+  metric counter exactly equals the count of `Process()` calls that did
+  not throw.
+
+`tests/Neo.L2.State.UnitTests/UT_WireFormat_Fuzz.cs` (19 tests): adopts
+ZKsync's wire-format fuzz pattern. 500 random byte sequences per seed,
+multiple seeds per decoder:
+
+- `MerkleProofSerializer_Decode_NeverCrashes` / `DepositPayload_Decode_NeverCrashes`
+  — random bytes must produce either a parsed record or a typed exception
+  (`ArgumentException` / `InvalidDataException`); any other exception
+  (NullRef, IndexOutOfRange, OverflowException) signals a missing bounds
+  check.
+- `MerkleProofSerializer_RoundTrip_IsIdentity_AcrossFuzzedTreeShapes` — for
+  every well-formed (leafIndex, leafCount ∈ [1, 16]) tuple, `encode(decode(x)) == x`.
+- `DepositPayload_RoundTrip_IsIdentity_AcrossFuzzedFields` — same for fuzzed
+  (l1Asset, l2Recipient, amount) records.
+- `DepositPayload_Decode_RejectsTruncations` — every valid encoding minus a
+  random suffix is rejected (mirrors ZKsync's "incomplete L1→L2 message
+  rejected" Foundry test).
+
+Seeded determinism: every regression is reproducible byte-for-byte.
+
+### Added — Testing-approach documentation
+
+`docs/testing-approach.md`: full methodology cribbed from ZKsync Era +
+adapted. Covers the 7 test tiers (unit / integration / property-based /
+fuzz / cross-language parity / on-chain↔off-chain parity / real-CPU ZK
+proof), the 7 testing principles, CI integration, and a how-to-add-a-test
+table for each kind of code. Adds to `docs/zksync-comparison.md`'s
+ecosystem-level mapping.
+
+### Refreshed — Test count consistency across all docs
+
+Bulk-updated stale .NET test count 1373 → 1409 across every tracked source
+doc (EN + zh): README, docs/README, docs/zh/README, TECH_STACK, TASKS,
+IMPLEMENTATION_STATUS, AGENTS, CONTRIBUTING, docs/getting-started,
+docs/tech-stack-coverage, docs/zh/getting-started, docs/zh/tech-stack-
+coverage. Per-project counts in IMPLEMENTATION_STATUS: Neo.L2.State.UnitTests
+94 → 113 (+19 fuzz); Neo.L2.Bridge.UnitTests 71 → 88 (+17 invariants).
+
 ### Added — ZKsync Elastic Chain comparison + 2 gap-closures
 
 Comprehensive comparison of neo4 against ZKsync's Elastic Chain (v29 era-contracts,

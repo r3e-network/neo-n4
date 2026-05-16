@@ -86,7 +86,7 @@
   `prove-batch daemon`)· `bridge/neo-zkvm-guest/`(被证明的函数)。
 - **Submodule(4)** —— `external/neo`、`external/neo-devpack-dotnet`、
   `external/neo-riscv-vm`、`external/neo-zkvm`。
-- **测试(1373 .NET + 156 跨语言)** —— 33 个 .NET 工程的 1373 条测试;
+- **测试(1409 .NET + 156 跨语言)** —— 33 个 .NET 工程的 1409 条测试;
   15 TS + 10 Rust SDK + 8 SP1 guest + 103 Rust 桥 watcher(eth 87 / tron 7 / sol 9)
   + 20 Foundry —— 全绿。
 

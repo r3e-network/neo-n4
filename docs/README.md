@@ -106,7 +106,7 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
   `external/neo-riscv-vm` (PolkaVM-backed Neo RISC-V engine) ·
   `external/neo-zkvm` (Neo VM in pure Rust + SP1 prover crates). None
   are released on NuGet/crates.io for the versions tracked here.
-- **Tests (1373 .NET + 156 cross-lang)** — 1373 across 33 .NET projects;
+- **Tests (1409 .NET + 156 cross-lang)** — 1409 across 33 .NET projects;
   15 TypeScript (vitest) + 10 Rust SDK (mockito) + 8 SP1 guest (host)
   + 103 Rust bridge watchers (eth 87 / tron 7 / sol 9) + 20 Foundry —
   all green.
@@ -140,7 +140,7 @@ neo4/
 ├── bridge/
 │   ├── neo-zkvm-guest/                     # Rust → RISC-V ELF (real Neo VM, SP1-proven)
 │   └── neo-zkvm-host/                      # sp1-sdk 6.0 prover daemon (prove-batch)
-└── tests/                                  # 1373 tests / 33 projects
+└── tests/                                  # 1409 tests / 33 projects
 ```
 
 ---
@@ -179,7 +179,7 @@ cd neo-n4
 # If you forgot --recurse-submodules:
 # git submodule update --init --recursive
 
-# Type-check everything + run all 1373 tests (~10 seconds)
+# Type-check everything + run all 1409 tests (~10 seconds)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # --- Bootstrapping a new L2 chain (recommended path) ---

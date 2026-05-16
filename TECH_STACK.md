@@ -75,7 +75,7 @@ Per-component detail lives in [`docs/tech-stack-coverage.md`](docs/tech-stack-co
 
 | Check | Result |
 |-------|--------|
-| .NET tests | **1373 passing across 33 projects, 0 failures** |
+| .NET tests | **1409 passing across 33 projects, 0 failures** |
 | Cross-language tests | **156 passing** (15 TS + 10 Rust SDK + 8 SP1 guest + 103 watcher with `--features live-rpc` + 20 Foundry) |
 | Real-CPU SP1 proof generation | **2 passing** (~40s prove, ~20s verify, 2.78 MB proof artifact) |
 | **Total tests green** | **1531** |
@@ -131,7 +131,7 @@ remaining gaps worth closing as the framework matures.
 # Build everything (~10s)
 dotnet build Neo.L2.sln /p:NuGetAudit=false
 
-# Run all .NET tests (1373 tests, ~30s)
+# Run all .NET tests (1409 tests, ~30s)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Run the in-process devnet (5 batches, full pipeline)

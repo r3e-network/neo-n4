@@ -31,3 +31,5 @@
 
 - [Spec-gap plan](./spec-gap-plan.md)
 - [Application Engine + MPT plan](./plan-application-engine-and-mpt.md)
+- [ZKsync Elastic Chain comparison](./zksync-comparison.md)
+- [Testing approach](./testing-approach.md)

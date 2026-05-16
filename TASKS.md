@@ -127,8 +127,8 @@ Anything touching **NeoVM execution semantics, native contracts, dBFT consensus,
 
 Reference state after the closed-iteration fixes:
 
-- Tests green: **1373 .NET + 156 cross-language base + 2 real-CPU SP1 = 1531** (the +11 delta from 1362 came from the new `UT_KeyedStateMerkleTree_NeoClassicParity` regression suite added with the state-tree Merkle convention fix; the 2 SP1 ignored tests are verified end-to-end via `cargo test --release --tests -- --ignored` in `bridge/neo-zkvm-host/`)
-  - 1373 .NET across 33 projects (1362 baseline + 11 new `UT_KeyedStateMerkleTree_NeoClassicParity` rows)
+- Tests green: **1409 .NET + 156 cross-language base + 2 real-CPU SP1 = 1531** (the +11 delta from 1362 came from the new `UT_KeyedStateMerkleTree_NeoClassicParity` regression suite added with the state-tree Merkle convention fix; the 2 SP1 ignored tests are verified end-to-end via `cargo test --release --tests -- --ignored` in `bridge/neo-zkvm-host/`)
+  - 1409 .NET across 33 projects (1362 baseline + 11 new `UT_KeyedStateMerkleTree_NeoClassicParity` rows)
   - 156 cross-language (15 TS + 10 Rust SDK + 8 SP1 guest + 103 watcher + 20 Foundry)
 - Build: 79 projects, 0 errors, 0 warnings (with `nccs` on PATH)
 - Smart contracts: 28 NeoHub/L2Native + 2 sample dApps + 1 sample executor → all compile fresh

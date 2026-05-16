@@ -34,3 +34,5 @@
 
 - [规格空白计划](./spec-gap-plan.md)
 - [Application Engine + MPT 计划](./plan-application-engine-and-mpt.md)
+- [ZKsync 弹性链对比](./zksync-comparison.md)
+- [测试方法论](./testing-approach.md)

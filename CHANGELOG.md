@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Cleaned — EN ↔ zh documentation parity restored
+
+The previous commit added two EN docs (`docs/zksync-comparison.md`,
+`docs/testing-approach.md`) but no zh translations — breaking the
+"every doc under docs/ has a zh counterpart" invariant noted in the
+project memory. This commit restores parity:
+
+- Added `docs/zh/zksync-comparison.md` — full Chinese translation of the
+  ZKsync v29 component map (parity / partial / missing / intentionally-
+  different status per row, gaps worth closing, intentional divergences).
+- Added `docs/zh/testing-approach.md` — full Chinese translation of the
+  7 test tiers / 7 testing principles / CI integration / how-to-add-a-test
+  table.
+- Added both new pages to `docs/zh/SUMMARY.md` under 实现计划.
+- Verified EN ⊆ zh: `comm -23 <(ls docs/*.md) <(ls docs/zh/*.md)` is empty.
+
+Build still clean: 79 projects, 0 errors, 0 warnings. 1409 .NET tests pass.
+
 ### Added — ZKsync-style invariant + fuzz test suites (+36 tests)
 
 `tests/Neo.L2.Bridge.UnitTests/UT_BridgeInvariants_PropertyBased.cs` (17 tests):

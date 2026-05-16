@@ -246,7 +246,7 @@ External-bridge stack (doc.md §11.3 — cross-foreign-chain to Eth/Tron/Sol):
 
 ### Tests
 
-**1362 .NET tests across 33 projects, plus 156 cross-language tests
+**1373 .NET tests across 33 projects, plus 156 cross-language tests
 (15 TypeScript + 10 Rust SDK + 8 SP1 guest host-mode + 103 Rust bridge
 watcher core across 3 crates [eth: 87 with `live-rpc` — base 32 +
 11 live JSON-RPC integration tests against an in-process
@@ -263,7 +263,7 @@ confirmation-buffer tests; tron: 7; sol: 9] + 20 Foundry Solidity
 tests for `NeoExternalBridgeRouter` [13 single-chain + 7 multi-chain
 validating the router deploys unchanged across the entire EVM
 family]) — all green.** Phase-C
-real-crypto fraud-proof tests (7 of the 1362 .NET) pin the
+real-crypto fraud-proof tests (7 of the 1373 .NET) pin the
 equivocation slash path's bytes-on-the-wire contract end-to-end with
 real secp256k1 signatures.
 
@@ -271,7 +271,7 @@ real secp256k1 signatures.
 | ------------------------------------ | ----- | ------------------------------------------- |
 | `Neo.L2.Abstractions.UnitTests`      | 52    | enum discriminants (ChainMode / SecurityLevel / DAMode / ProofType / MessageType / BatchStatus / AssetType / **SequencerModel / ExitModel** — closing doc.md §16.2 spec coverage), models, interface shape, **`ProofTypeExtensions.Resolve` boundary tests, `ChainIdValidator.ValidateL2` (zero-rejection / non-zero-acceptance / setting-name), record byte-content equality (DAPublishRequest / DAReceipt / ProofRequest / ProofResult / BatchExecutionRequest — overrides per AGENTS.md convention, including list-of-bytes element-wise comparison), `L2ChainConfigSerializer` 91-byte wire-format pin (layout + roundtrip + enum-extreme / wrong-length / out-of-range-byte / null rejection + chainId LE parity with the on-chain `ChainRegistry` parser), `L2ChainConfigJsonReader` (full population from create-chain JSON + 4 UInt160 hashes, named-error-message paths for unknown enum / missing field / malformed UInt160 / null inputs, validium-template shape pin, roundtrip through serializer)** |
 | `Neo.L2.Batch.UnitTests`             | 35    | builder lifecycle, serializer round-trip, **proof-length bounds, unknown-ProofType rejection, all-valid-ProofType round-trip, trailing-byte rejection** |
-| `Neo.L2.State.UnitTests`             | 83    | Merkle tree, proof verify, hashers, **canonical proof wire format (round-trip, layout, truncation, oversized depth, 7-leaf all-positions), `MessageHasher.HashMessage` + `HashWithdrawal` canonical-buffer layout pinned (independent assembly + Hash256 re-derivation), HashMessage field-order sensitivity, HashWithdrawal at-max 64-byte amount accepted (boundary partner of RejectsOversizedAmount), on-chain Merkle verifier parity (4-leaf / 5-leaf odd-card / 7-leaf all-positions / tampered-sibling rejection / state-tree pin via KeyedStateStore.HashEntry — guards against algorithmic divergence between off-chain proof generator and on-chain `SettlementManager.Verify*WithProof`)** |
+| `Neo.L2.State.UnitTests`             | 94    | Merkle tree, proof verify, hashers, **canonical proof wire format (round-trip, layout, truncation, oversized depth, 7-leaf all-positions), `MessageHasher.HashMessage` + `HashWithdrawal` canonical-buffer layout pinned (independent assembly + Hash256 re-derivation), HashMessage field-order sensitivity, HashWithdrawal at-max 64-byte amount accepted (boundary partner of RejectsOversizedAmount), on-chain Merkle verifier parity (4-leaf / 5-leaf odd-card / 7-leaf all-positions / tampered-sibling rejection / state-tree pin via KeyedStateStore.HashEntry — guards against algorithmic divergence between off-chain proof generator and on-chain `SettlementManager.Verify*WithProof`), `KeyedStateMerkleTree.ComputeRoot` ↔ `MerkleTree.ComputeRoot(HashEntry leaves)` cross-pin across 10 cardinalities incl. odd cases (1/2/3/4/5/7/8/9/15/16) + `HashLeaf` ↔ `KeyedStateStore.HashEntry` byte-identity (NeoClassicParity suite)** |
 | `Neo.L2.Messaging.UnitTests`         | 46    | inbox FIFO, replay protection, outbox split, **L2Outbox metric emission across destinations, persistence reopen pins, MessageBuilder rejects self-routed messages (incl. zero-to-zero)** |
 | `Neo.L2.Bridge.UnitTests`            | 71    | registry, deposit replay, withdrawal staging, **metric emission on success/replay/unknown-asset/duplicate-nonce/negative-amount paths, retryability after transient validation failure, registry orphan cleanup on L1/L2 repoint, DepositPayload trailing-byte rejection, `DepositPayload` byte-layout pinned at documented offsets ([20B l1Asset][20B l2Recipient][4B amountLen LE][amountBytes]), DepositPayload at-max 64-byte amount accepted (boundary partner of RejectsOversizedAmount)** |
 | `Neo.L2.Proving.UnitTests`           | 50    | Stage 0/1/2 prove+verify, registry dispatch, **proof-payload boundary tests (length, version, ProofSystem range), AttestationVerifier dedup-before-verify, `MultisigProofPayload` byte-layout pinned at documented offsets ([1B version][2B signerCount LE]·N×([33B pubkey][64B sig])), ProofSystem enum discriminants pinned (Unknown=0..Axiom=4 — wire byte at RiscVProofPayload offset 1)** |

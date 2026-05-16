@@ -294,11 +294,12 @@ internal static class Program
             var (wRoot, _) = withdrawalProcessor.SealBatch();
             execResult = execResult with { WithdrawalRoot = wRoot };
 
-            // 4. DA: publish the batch payload (the canonical-encoded commitment-stub
-            // is a stand-in for the real ordered tx blob) so the DA layer has a copy
-            // even if the L2 itself goes dark. With --data-dir the payload lands in
-            // RocksDB; without, it sits in an in-memory store. Either way the resulting
-            // commitment goes into PublicInputs so the proof binds to *this* DA layer.
+            // 4. DA: publish the batch payload — the devnet sends the canonical-encoded
+            // commitment as the payload (a real L2 deployment sends the ordered tx blob;
+            // the commitment-as-payload is sufficient for the devnet's content-addressing
+            // pin). With --data-dir the payload lands in RocksDB; without, it sits in an
+            // in-memory store. Either way the resulting DACommitment goes into PublicInputs
+            // so the proof binds to *this* DA layer.
             var daReceipt = await daWriter.PublishAsync(new DAPublishRequest
             {
                 ChainId = LocalChainId,

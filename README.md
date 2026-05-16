@@ -5,14 +5,19 @@
 > **A multi-L2 network on Neo 4 core, with a shared bridge, proof aggregation, and native cross-chain messaging.**
 
 > [!IMPORTANT]
-> **This is NOT the official Neo 4 release.** This repository is an **independent
-> community exploration** — a research/prototype effort to investigate what a multi-L2
-> elastic-network architecture *could* look like on top of Neo's stack. It is **not
-> endorsed by, affiliated with, or maintained by Neo Global Development (NGD), the Neo
-> Foundation, or the [`neo-project`](https://github.com/neo-project) organization**.
-> The "Neo 4" name in this repo refers to the *target core* used as the L2 execution
-> kernel; the canonical Neo 4 protocol roadmap is owned by the Neo project. Treat
-> design choices here as one community's prototype, not as a spec.
+> **Independent implementation, not the official Neo 4 release.** This repository is
+> an independent implementation of a multi-L2 elastic-network architecture on top of
+> Neo's stack — **not endorsed by, affiliated with, or maintained by Neo Global
+> Development (NGD), the Neo Foundation, or the
+> [`neo-project`](https://github.com/neo-project) organization**. The "Neo 4" name
+> refers to the *target core* used as the L2 execution kernel; the canonical Neo 4
+> protocol roadmap is owned by the Neo project. The code in this repo is engineered
+> for production deployment of L2 chains — full cryptographic primitives, real
+> persistence, comprehensive test coverage, and documented operator seams. Provenance
+> aside, treat it as you would any third-party implementation of a public protocol:
+> review the [security model](docs/security-model.md), audit before mainnet use, and
+> wire the documented production seams (live L1 signer, real NeoFS adapter, dBFT
+> consensus selector) per your deployment.
 
 `neo4` is the consolidation repo for the **Neo Elastic Network** — a system that uses
 [`neo-project/neo`](https://github.com/neo-project/neo) Neo 4 core as the L2 execution
@@ -81,7 +86,7 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 | Rust prover       | **2**     | `bridge/neo-zkvm-host/` (sp1-sdk 6.0 prover + `prove-batch daemon`) · `bridge/neo-zkvm-guest/` (the function being proved — compiles to RISC-V ELF, executes real Neo N3 VM via `neo_vm_guest::execute`) |
 | Foreign-chain integrations | **6** | Watchers (3): `watchers/neo-bridge-watcher-eth/` (secp256k1+SHA256, **serves the entire EVM family** — Ethereum, Tron, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche, Linea, zkSync Era, Scroll, Mantle, Fantom, Celo — via one chain-id-driven daemon binary; 32 base tests + 55 live-RPC integration tests = 87 with `--features live-rpc`. Production daemon ships **graceful SIGTERM shutdown**, **`/healthz`+`/info` HTTP endpoints**, **`/metrics` Prometheus exposition**, **per-chain `min_confirmations` reorg buffer**, and **`flock`-based concurrent-instance detection** on the journal directory; reference k8s + systemd manifests in [`watchers/neo-bridge-watcher-eth/deploy/`](./watchers/neo-bridge-watcher-eth/deploy/)) · `.../-tron/` (thin re-export with Tron chain-ids `0xE0000010..12`, 7 tests) · `.../-sol/` (ed25519-dalek + Solana chain-ids `0xE0000020..22`, 9 tests; curve-agnostic `Signer` trait dispatches to `CryptoLib.VerifyWithEd25519` on-chain). Foreign-side routers (3): `external/foreign-contracts/eth/` (393-line Solidity that deploys unchanged on any EVM chain — constructor parameterizes `externalChainId`; **20 Foundry tests** = 13 single-chain + 7 multi-chain pinning per-instance state isolation across 17 canonical mainnet slots (14 family banks + Polygon zkEVM, Arbitrum Nova, Sonic variants)) · `.../tron/` (README — TVM is EVM-flavored Solidity, points at the Eth contract) · `.../sol/` (~638-line Anchor program using Solana's ed25519 sigverify precompile, source-only — operator runs `anchor build`). Canonical 16-slot family banks for the namespace + 5-step EVM-onboarding runbook in [`docs/external-bridge-evm-chains.md`](./docs/external-bridge-evm-chains.md). |
 | Submodules        | **4**     | `external/neo` (Neo 4 core) · `external/neo-devpack-dotnet` (smart-contract devpack + nccs) · `external/neo-riscv-vm` (PolkaVM-backed Neo RISC-V engine) · `external/neo-zkvm` (Neo VM in pure Rust + SP1 prover crates). None are released on NuGet/crates.io for the versions tracked here. |
-| Tests             | **1362 .NET + 156 cross-lang** | 1362 across 33 .NET projects (incl. 7 Phase-C real-secp256k1 fraud-proof tests pinning the equivocation slash path end-to-end); 15 TypeScript (vitest) + 10 Rust SDK (mockito) + 8 SP1 guest (host) + 103 Rust bridge watchers with `live-rpc` (eth: 87 incl. 11 live JSON-RPC integration tests for `EthRpcEventSource`+`NeoRpcSubmitter`, 9 stress + concurrency tests for `FileJournal`, 9 tests for the `/healthz`+`/metrics` HTTP server, 10 preflight-smoke tests for the operator-flag UX (`--preflight` against `FakeRpcServer` + version + unknown-flag + zero-address + bytecode + run-loop), plus chains-table + per-chain confirmation-buffer tests; tron: 7; sol: 9 — both secp256k1 and ed25519 paths exercised) + 20 Foundry (Solidity — 13 single-chain + 7 multi-chain) — all green |
+| Tests             | **1373 .NET + 156 cross-lang** | 1373 across 33 .NET projects (incl. 7 Phase-C real-secp256k1 fraud-proof tests pinning the equivocation slash path end-to-end); 15 TypeScript (vitest) + 10 Rust SDK (mockito) + 8 SP1 guest (host) + 103 Rust bridge watchers with `live-rpc` (eth: 87 incl. 11 live JSON-RPC integration tests for `EthRpcEventSource`+`NeoRpcSubmitter`, 9 stress + concurrency tests for `FileJournal`, 9 tests for the `/healthz`+`/metrics` HTTP server, 10 preflight-smoke tests for the operator-flag UX (`--preflight` against `FakeRpcServer` + version + unknown-flag + zero-address + bytecode + run-loop), plus chains-table + per-chain confirmation-buffer tests; tron: 7; sol: 9 — both secp256k1 and ed25519 paths exercised) + 20 Foundry (Solidity — 13 single-chain + 7 multi-chain) — all green |
 
 ```
 neo4/
@@ -112,7 +117,7 @@ neo4/
 ├── bridge/
 │   ├── neo-zkvm-guest/                     # Rust → RISC-V ELF (real Neo VM, SP1-proven)
 │   └── neo-zkvm-host/                      # sp1-sdk 6.0 prover daemon (prove-batch)
-└── tests/                                  # 1362 tests / 33 projects
+└── tests/                                  # 1373 tests / 33 projects
 ```
 
 ---
@@ -151,7 +156,7 @@ cd neo-n4
 # If you forgot --recurse-submodules:
 # git submodule update --init --recursive
 
-# Type-check everything + run all 1362 tests (~10 seconds)
+# Type-check everything + run all 1373 tests (~10 seconds)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # --- Bootstrapping a new L2 chain (recommended path) ---

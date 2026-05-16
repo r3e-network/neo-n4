@@ -5,14 +5,17 @@
 > **A multi-L2 network on Neo 4 core, with a shared bridge, proof aggregation, and native cross-chain messaging.**
 
 > [!IMPORTANT]
-> **This is NOT the official Neo 4 release.** This repository is an **independent
-> community exploration** — a research/prototype effort to investigate what a multi-L2
-> elastic-network architecture *could* look like on top of Neo's stack. It is **not
-> endorsed by, affiliated with, or maintained by Neo Global Development (NGD), the Neo
-> Foundation, or the [`neo-project`](https://github.com/neo-project) organization**.
-> The "Neo 4" name in this repo refers to the *target core* used as the L2 execution
-> kernel; the canonical Neo 4 protocol roadmap is owned by the Neo project. Treat
-> design choices here as one community's prototype, not as a spec.
+> **Independent implementation, not the official Neo 4 release.** This repository is
+> an independent implementation of a multi-L2 elastic-network architecture on top of
+> Neo's stack — **not endorsed by, affiliated with, or maintained by Neo Global
+> Development (NGD), the Neo Foundation, or the
+> [`neo-project`](https://github.com/neo-project) organization**. The "Neo 4" name
+> refers to the *target core* used as the L2 execution kernel; the canonical Neo 4
+> protocol roadmap is owned by the Neo project. The code is engineered for production
+> L2 deployment — full cryptographic primitives, real persistence, comprehensive test
+> coverage, and documented operator seams. Audit before mainnet use and wire the
+> production seams (live L1 signer, real NeoFS adapter, dBFT consensus selector)
+> per your deployment.
 
 `neo4` is the consolidation repo for the **Neo Elastic Network** — a system that uses
 [`neo-project/neo`](https://github.com/neo-project/neo) Neo 4 core as the L2 execution
@@ -103,7 +106,7 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
   `external/neo-riscv-vm` (PolkaVM-backed Neo RISC-V engine) ·
   `external/neo-zkvm` (Neo VM in pure Rust + SP1 prover crates). None
   are released on NuGet/crates.io for the versions tracked here.
-- **Tests (1362 .NET + 156 cross-lang)** — 1362 across 33 .NET projects;
+- **Tests (1373 .NET + 156 cross-lang)** — 1373 across 33 .NET projects;
   15 TypeScript (vitest) + 10 Rust SDK (mockito) + 8 SP1 guest (host)
   + 103 Rust bridge watchers (eth 87 / tron 7 / sol 9) + 20 Foundry —
   all green.
@@ -137,7 +140,7 @@ neo4/
 ├── bridge/
 │   ├── neo-zkvm-guest/                     # Rust → RISC-V ELF (real Neo VM, SP1-proven)
 │   └── neo-zkvm-host/                      # sp1-sdk 6.0 prover daemon (prove-batch)
-└── tests/                                  # 1362 tests / 33 projects
+└── tests/                                  # 1373 tests / 33 projects
 ```
 
 ---
@@ -176,7 +179,7 @@ cd neo-n4
 # If you forgot --recurse-submodules:
 # git submodule update --init --recursive
 
-# Type-check everything + run all 1362 tests (~10 seconds)
+# Type-check everything + run all 1373 tests (~10 seconds)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # --- Bootstrapping a new L2 chain (recommended path) ---

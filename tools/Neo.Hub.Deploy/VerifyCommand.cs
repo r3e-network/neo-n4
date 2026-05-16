@@ -5,10 +5,12 @@ using System.Threading.Tasks;
 namespace Neo.Hub.Deploy;
 
 /// <summary>
-/// <c>neo-hub-deploy verify</c> — confirm planned contracts are deployed at expected
-/// hashes. MVP version verifies that each step's <c>.nef</c> + <c>.manifest.json</c>
-/// build artifacts exist on disk; production hook would also query the L1 RPC to
-/// confirm each contract is deployed and its manifest matches the planned ABI.
+/// <c>neo-hub-deploy verify</c> — confirm planned contracts have their build artifacts
+/// on disk before an operator pipes them to a Neo wallet's deploy flow. Each step's
+/// <c>.nef</c> + <c>.manifest.json</c> must exist; a missing artifact aborts the deploy
+/// with a non-zero exit so CI scripts treat it as a hard fail. Operators that also want
+/// post-deploy "is the contract live at the expected hash?" verification supply
+/// <c>--rpc &lt;l1-url&gt;</c> and chain that as a separate step against their L1 node.
 /// </summary>
 /// <remarks>
 /// <para>

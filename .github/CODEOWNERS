@@ -1,0 +1,65 @@
+# CODEOWNERS — review routing for `neo4` (Neo Elastic Network).
+#
+# Every PR that touches a path below requires review from the listed
+# owners. The default catch-all at the bottom ensures every change has
+# at least one designated reviewer.
+#
+# Syntax: <path> <owner>... — see GitHub docs for full pattern rules.
+
+# ─── Smart contracts (L1 + L2) ─────────────────────────────────────────
+# Changes here are consensus-affecting on any deployed chain. Require
+# review from contract-domain owners.
+/contracts/                  @r3e-network/contracts-reviewers
+/external/foreign-contracts/ @r3e-network/contracts-reviewers
+
+# ─── Cryptographic primitives + on-chain verifier parity ───────────────
+# Hash functions, Merkle trees, signature verification, proof-payload
+# wire formats. Drift here breaks settlement / fraud-proof / escape-hatch
+# flows.
+/src/Neo.L2.State/                                @r3e-network/crypto-reviewers
+/src/Neo.L2.Proving/                              @r3e-network/crypto-reviewers
+/src/Neo.L2.Challenge/                            @r3e-network/crypto-reviewers
+/bridge/                                          @r3e-network/crypto-reviewers
+/tests/Neo.L2.State.UnitTests/UT_OnChainMerkleVerifyParity.cs  @r3e-network/crypto-reviewers
+/tests/Neo.L2.Challenge.UnitTests/UT_RestrictedExecutionFraudVerifierParity.cs  @r3e-network/crypto-reviewers
+/tests/Neo.L2.Challenge.UnitTests/UT_GovernanceFraudVerifierParity.cs  @r3e-network/crypto-reviewers
+/tests/Neo.L2.Bridge.UnitTests/UT_MpcFraudProof_RealCrypto.cs  @r3e-network/crypto-reviewers
+
+# ─── Bridge + watcher daemons ──────────────────────────────────────────
+# Asset escrow, replay protection, foreign-chain RPC integration.
+/contracts/NeoHub.SharedBridge/         @r3e-network/bridge-reviewers
+/contracts/NeoHub.ExternalBridge*/      @r3e-network/bridge-reviewers
+/contracts/NeoHub.MpcCommittee*/        @r3e-network/bridge-reviewers
+/src/Neo.L2.Bridge/                     @r3e-network/bridge-reviewers
+/watchers/                              @r3e-network/bridge-reviewers
+
+# ─── Governance + emergency surfaces ───────────────────────────────────
+/contracts/NeoHub.GovernanceController/ @r3e-network/governance-reviewers
+/contracts/NeoHub.EmergencyManager/     @r3e-network/governance-reviewers
+/contracts/NeoHub.VerifierRegistry/     @r3e-network/governance-reviewers
+
+# ─── Deploy planner + operator tools ───────────────────────────────────
+/tools/Neo.Hub.Deploy/             @r3e-network/ops-reviewers
+/tools/Neo.External.Bridge.Cli/    @r3e-network/ops-reviewers
+/tools/Neo.Stack.Cli/              @r3e-network/ops-reviewers
+
+# ─── Persistence + telemetry ───────────────────────────────────────────
+/src/Neo.L2.Persistence/  @r3e-network/infra-reviewers
+/src/Neo.L2.Telemetry/    @r3e-network/infra-reviewers
+/src/Neo.Plugins.L2Metrics/  @r3e-network/infra-reviewers
+
+# ─── CI + release infrastructure ───────────────────────────────────────
+/.github/  @r3e-network/infra-reviewers
+
+# ─── Documentation ─────────────────────────────────────────────────────
+/docs/                @r3e-network/docs-reviewers
+/ARCHITECTURE.md      @r3e-network/docs-reviewers
+/IMPLEMENTATION_STATUS.md  @r3e-network/docs-reviewers
+/CHANGELOG.md         @r3e-network/docs-reviewers
+
+# ─── Security policy ───────────────────────────────────────────────────
+/SECURITY.md  @r3e-network/security-team
+
+# ─── Default catch-all ─────────────────────────────────────────────────
+# Anything not matched above goes through the core maintainer team.
+*  @r3e-network/maintainers

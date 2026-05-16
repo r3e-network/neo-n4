@@ -16,10 +16,12 @@ namespace Neo.Plugins.L2;
 /// (SettlementManager).
 /// </summary>
 /// <remarks>
-/// MVP scope: this plugin queues sealed batches and signs them with an in-process
-/// <see cref="AttestationProver"/>. The actual L1 RPC submission step is delegated to
-/// <see cref="ISettlementClient"/>, which production deployments wire to an
-/// <c>RpcClient</c>-backed implementation.
+/// The plugin queues sealed batches and signs them with the operator-supplied
+/// <see cref="IL2Prover"/> (in-process <see cref="AttestationProver"/> for the multisig
+/// path, or a remote prover daemon for ZK). L1 RPC submission is delegated to
+/// <see cref="ISettlementClient"/>; the operator's deployment wires an
+/// <c>RpcClient</c>-backed implementation with their preferred signing path (KMS / HSM /
+/// hot wallet — see <c>docs/wallet-integration.md</c>).
 /// </remarks>
 public sealed class L2SettlementPlugin : Plugin
 {

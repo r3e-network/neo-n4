@@ -99,6 +99,47 @@ toolchain integration lands and the guest ELF defines its expected witness
 shape. `ProofRequest.Witness` stays as opaque `ReadOnlyMemory<byte>` until
 then.
 
+### §state-tree-convention ✅ closed
+
+`KeyedStateMerkleTree.ComputeRoot` / `Prove` / `Verify` previously used a
+promote-unchanged convention for odd-cardinality state trees, while the
+canonical `MerkleTree` (used by `KeyedStateStore.ComputeRoot` and pinned by
+`UT_OnChainMerkleVerifyParity` against the on-chain
+`SettlementManager.VerifyStateLeafWithProof` verifier) used the Neo classic
+odd-leaf-duplication convention. The two produced different roots for any
+state tree with `N == odd > 1`, so an operator wiring the production
+`MerkleStatePostStateRootOracle` and following the parity-test code pattern
+to generate proofs would have hit failed escape-hatch verification.
+
+**Fix.** `KeyedStateMerkleTree` now delegates tree composition entirely to
+`MerkleTree` (Neo classic). `Prove` returns siblings in leaf-to-root order;
+`Verify` walks leaf-to-root using leaf-index bits, matching the on-chain
+fold loop byte-for-byte. New parity test
+(`UT_KeyedStateMerkleTree_NeoClassicParity`) pins `KeyedStateMerkleTree.ComputeRoot(pairs)`
+== `MerkleTree.ComputeRoot(pairs.Select(HashEntry).ToArray())` across
+cardinalities 1, 2, 3, 4, 5, 7, 8, 9, 15, 16 (including the previously-divergent
+odd cases), plus a `HashLeaf` ↔ `HashEntry` byte-identity pin.
+
+### §v4-fraud-verifier ⏭ deferred
+
+`NeoHub.RestrictedExecutionFraudVerifier` (v3) reconstructs pre/post state
+roots from storage proofs and checks them against the payload header — i.e.
+it proves "the challenger has supplied storage manifests that fold to the
+declared roots AND claims a real discrepancy." It does NOT prove that
+re-executing the disputed transaction on the pre-state actually produces the
+challenger's `ReplayedPostStateRoot`. A v4 verifier closing that gap would
+need to:
+
+  1. Seed an L1-side `ApplicationEngine` instance with a frozen view of the
+     pre-state restricted to the keys the storage proofs cover.
+  2. Execute the disputed transaction bytes (already present in the v2+ witness).
+  3. Compare the post-execution state root against `ReplayedPostStateRoot`.
+
+Blocked on upstream core exposing an `ApplicationEngine` restricted-snapshot
+mode (see "Upstream / out-of-repo" below). Until then, v3 acceptance means
+"structurally credible claim; a downstream re-execution service or council
+arbitrates correctness."
+
 ## Upstream / out-of-repo (track but don't fix here)
 
 ### §13.2-native-adjustments — GAS / NEO / Oracle / Policy adjustments at L2 mode

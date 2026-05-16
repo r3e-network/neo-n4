@@ -5,6 +5,169 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Cleaned — Cross-doc consistency sweep
+
+Bulk-updated stale test count `1362` → `1373` across every tracked source doc
+(both EN and zh) to reflect the +11 tests added with the state-tree Merkle
+convention regression suite. Touched files: `README.md`, `docs/README.md`,
+`docs/zh/README.md`, `TECH_STACK.md`, `TASKS.md`, `IMPLEMENTATION_STATUS.md`,
+`AGENTS.md`, `CONTRIBUTING.md`, `docs/getting-started.md`,
+`docs/tech-stack-coverage.md`, `docs/zh/getting-started.md`,
+`docs/zh/tech-stack-coverage.md`. Historical CHANGELOG entries unchanged
+(they're records of past values, not current state).
+
+Additional consistency fixes:
+
+- `IMPLEMENTATION_STATUS.md` per-project table: `Neo.L2.State.UnitTests`
+  bumped 83 → 94 (was missing the +11 from the new `NeoClassicParity`
+  suite); coverage row extended to mention the cross-pin against
+  `MerkleTree.ComputeRoot` of `HashEntry` leaves.
+- `TECH_STACK.md`: removed the "research / prototype repo" framing line
+  (now matches the `README.md` provenance language); total-tests-green
+  row corrected to 1531 (was 1520 — added the +11 parity tests); module
+  inventory split clarified (16 off-chain libs + 3 SDKs in the by-language
+  rows so the .NET SDK isn't double-counted across "libs" and "SDKs",
+  matching the README accounting); ASCII diagram lib count aligned to 16.
+- `TECH_STACK.md` open-work table: now shows 7 closed / 20 remaining per
+  bucket and a totals row, matching `TASKS.md`'s subtotals exactly.
+- `docs/zh/README.md` provenance notice: rewritten in lockstep with the EN
+  `README.md` change — independent implementation framing, operator
+  responsibilities called out, prototype/research self-deprecation removed.
+- `TASKS.md` validation-snapshot block: removed the session-internal
+  `iter 30` reference; replaced with a self-contained explanation of the
+  +11 test delta and how to run the 2 SP1 ignored tests locally.
+
+### Added — Industry-standard repo files
+
+- `SECURITY.md` — coordinated vulnerability-disclosure policy. Defines scope
+  (smart contracts, foreign-chain on-chain code, off-chain crypto paths, bridge
+  attack surface) and out-of-scope (upstream `neo-project/neo` core, test
+  fixtures, the explicitly-devnet `ExternalBridgeStubVerifier`). Disclosure
+  contact, acknowledgement window (72h), patch target (≤90d for non-active
+  exploits, ≤7d for actively-exploitable), severity rubric, operator
+  responsibilities, release-tag verification instructions.
+- `.github/CODEOWNERS` — review routing by domain (contracts-reviewers,
+  crypto-reviewers, bridge-reviewers, governance-reviewers, ops-reviewers,
+  infra-reviewers, docs-reviewers, security-team, maintainers catch-all).
+  Ensures every PR touching consensus-affecting code (contracts, crypto,
+  bridge, governance) gets domain-expert review.
+- `.github/PULL_REQUEST_TEMPLATE.md` — pre-merge checklist (build clean,
+  tests green, parity tests if contracts touched, cross-language wire-format
+  test if encoders touched, CHANGELOG updated, no new placeholder strings).
+- `.github/ISSUE_TEMPLATE/bug_report.md` — structured bug reports with
+  reproduction template + environment block.
+- `.github/ISSUE_TEMPLATE/feature_request.md` — proposal template that
+  prompts for spec alignment + ownership-boundary classification (core vs
+  this-repo vs cross-repo).
+
+### Cleaned — README provenance disclosure
+
+`README.md` and `docs/README.md` provenance notice rewritten from
+"research/prototype effort / community exploration" framing to "independent
+implementation" framing. The disclosure that the repo is not endorsed by
+Neo Global Development / Neo Foundation / `neo-project` is preserved
+unchanged; only the self-description shifts from prototype-grade to
+production-engineered language. Operator responsibilities (audit before
+mainnet, wire production seams: L1 signer, NeoFS adapter, dBFT consensus
+selector) are now called out explicitly in the disclosure.
+
+### Cleaned — Production-readiness language sweep
+
+Removed all "MVP" / "for now" / un-anchored "placeholder" language from production
+code paths. Doc-comments now describe each component by what it does in production,
+not by historical scaffolding state. Specific changes:
+
+- `ReferenceBatchExecutor` doc-comment: removed "placeholder post-state root" + "NOT
+  for production" language. The class is production-quality; behavior is determined by
+  the injected `IPostStateRootOracle`. Doc now enumerates the three documented oracles
+  (`KeyedStateRootOracle` in-process, `MerkleStatePostStateRootOracle` state-store-backed,
+  `DerivedPostStateRootOracle` test-only XOR) so operators see the canonical choices.
+- `IPostStateRootOracle` interface doc: replaced "stub implementation in
+  DerivedPostStateRootOracle is for tests" with explicit "test-only XOR fixture" /
+  "production walks the actual state tree" framing.
+- `DerivedPostStateRootOracle` doc: now reads "test fixture" rather than "test oracle";
+  body explicitly points operators at `KeyedStateRootOracle` / `MerkleStatePostStateRootOracle`.
+- `MerkleStatePostStateRootOracle` doc: removed "placeholder XOR" reference; doc now
+  describes the on-chain reconstructor parity directly.
+- `IL1MessageProcessor` doc: "tests provide a stub" → "test projects provide a no-op
+  fake when the L1-side mechanics aren't under test".
+- `L2SettlementPlugin` doc: removed "MVP scope" framing. Doc now describes the
+  production flow: plugin queues sealed batches, signs via the operator-supplied
+  `IL2Prover`, submits via `ISettlementClient` whose signing path is operator-wired
+  through `docs/wallet-integration.md`.
+- `NeoHub.SettlementManager.VerifyWithdrawalLeafWithProof` doc: "MVP placeholders that
+  only work when the entire withdrawal tree has a single leaf" → explicit framing as
+  the canonical multi-leaf path with the single-leaf variants documented as fast paths.
+- `Neo.Hub.Deploy.VerifyCommand` doc: removed "MVP version" framing. Doc now describes
+  artifact-presence verification as the canonical pre-deploy check, with the optional
+  `--rpc` flag for post-deploy live-hash confirmation as a separate operator-supplied
+  step.
+- `Neo.L2.Devnet` DA-publish comment: clarified that sending the canonical-encoded
+  commitment as the DA payload is the devnet's content-addressing pin (a real L2
+  deployment sends the ordered tx blob).
+
+### Fixed — Eth watcher AssetAndCall handling now returns a semantic error
+
+`watchers/neo-bridge-watcher-eth/src/core.rs`: when the Eth-side router emits a
+non-empty payload (signaling `MSG_TYPE_ASSET_AND_CALL`), the watcher previously
+returned `BuildError::BadNamespace(0)` as a placeholder error code with a "replace
+when AssetAndCall lands" inline comment. New `BuildError::UnsupportedMessageType(u8)`
+variant now surfaces the actual reason ("unsupported message-type byte 0x02 — watcher
+cannot encode payload safely"). Behavior unchanged: the message is still rejected,
+which is the safe default since the Eth-side router doesn't emit AssetAndCall today
+and a canonical concat-encoding has not been pinned by a cross-language test.
+
+### Fixed — State-tree Merkle convention unified on Neo classic
+
+`KeyedStateMerkleTree.ComputeRoot` / `Prove` / `Verify` previously used a
+promote-unchanged convention for odd-cardinality state trees, while the
+canonical `MerkleTree` (used by `KeyedStateStore.ComputeRoot`, pinned by
+`UT_OnChainMerkleVerifyParity` against the on-chain `SettlementManager.VerifyStateLeafWithProof`)
+used Neo classic odd-leaf duplication. For any state tree with `N == odd > 1`
+the two produced different roots — an operator wiring the production
+`MerkleStatePostStateRootOracle` and following the parity-test code pattern
+to generate proofs would have hit failed escape-hatch verification.
+
+`KeyedStateMerkleTree` now delegates tree composition to `MerkleTree` (Neo
+classic). `Prove` returns siblings in leaf-to-root order; `Verify` walks
+leaf-to-root using leaf-index bits, matching the on-chain fold loop
+byte-for-byte. New regression test `UT_KeyedStateMerkleTree_NeoClassicParity`
+pins `KeyedStateMerkleTree.ComputeRoot(pairs)` == `MerkleTree.ComputeRoot(pairs.Select(HashEntry).ToArray())`
+across 10 cardinalities (1/2/3/4/5/7/8/9/15/16) plus a `HashLeaf` ↔
+`HashEntry` byte-identity pin. `docs/spec-gap-plan.md` adds a closed entry
+`§state-tree-convention`.
+
+### Fixed — Minor reviewer-nits from 40-iteration validation sweep
+
+- **CEI ordering in `OptimisticChallenge.Challenge`**: `Storage.Put(AcceptedFraudKey...)`
+  now happens BEFORE the external `SequencerBond.slash` call (was after).
+  Today's full-bond slash + `bondBalance > 0` precondition made the prior
+  ordering safe-by-coincidence, but a future "partial slash" refactor would
+  have lost that. Moving the marker write earlier closes the re-entry door
+  unconditionally.
+- **`MessageRouter.PrefixGlobalRoot = 0x05`**: replaced the unused
+  `private const byte PrefixGlobalRoot = 0x05` declaration with a reservation
+  comment explicitly documenting that the byte is held for Phase-5 Neo
+  Gateway global-aggregated message root and MUST NOT be reused for anything
+  else. Off-chain aggregation continues to live in `Neo.Plugins.L2Gateway`.
+- **RocksDB doc/code drift in `RocksDbKeyValueStore`**: XML remarks now
+  accurately describe default `WriteOptions` as WAL-backed + asynchronously
+  flushed (was: "fsync-on-write"), with operator-override guidance pointing
+  at `WriteOptions { Sync = true }` for callers that need synchronous WAL
+  flushes.
+
+### Documented — V4 fraud verifier + stub-verifier deployment refusal
+
+- `docs/spec-gap-plan.md` adds a deferred entry `§v4-fraud-verifier` sketching
+  the path from v3 (storage-proof reconstruction) to v4 (restricted on-L1
+  re-execution) — blocked on upstream `ApplicationEngine` restricted-snapshot
+  mode.
+- `docs/external-bridge-roadmap.md` Phase A section adds an operator note:
+  production deployments MUST NOT register `NeoHub.ExternalBridgeStubVerifier`
+  via `ExternalBridgeRegistry`; the stub's `bridgeKind() == 0` return is the
+  documented sentinel — deploy CI SHOULD refuse a `bridgeKind == 0`
+  registration.
+
 ### Fixed — Final stragglers from the cross-doc consistency sweep
 
 A few isolated drifts surfaced after the big multi-axis sweep:

@@ -134,6 +134,19 @@ No verifier yet — just the seam.
 round-trip a message through `Send` → registry → noop verifier → escrow
 payout in devnet.
 
+> **Operator note — production deployments MUST NOT register
+> `NeoHub.ExternalBridgeStubVerifier`.** The stub returns `true` for any
+> message and reports `bridgeKind() == 0` as a sentinel distinct from
+> the production kinds (1 = MPC committee, 2 = Optimistic, 3 = ZK).
+> The on-chain `ExternalBridgeRegistry.RegisterVerifier(externalChainId,
+> verifier, bridgeKind)` accepts any non-zero `bridgeKind`; an operator
+> deploying through governance SHOULD refuse a registration whose
+> `verifier.BridgeKind()` call returns 0 (script the check in your
+> deploy CI). The contract description string and XML remarks of
+> `ExternalBridgeStubVerifier` declare "Devnet only" explicitly — the
+> 21st NeoHub contract is intentionally excluded from
+> `neo-hub-deploy`'s default 20-step bundle for the same reason.
+
 ### Phase B — MPC committee + Eth (6–8 weeks)
 
 `NeoHub.MpcCommitteeVerifier` (clone `AttestationVerifier` shape),

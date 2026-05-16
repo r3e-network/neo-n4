@@ -6,14 +6,26 @@ namespace Neo.L2.Executor;
 
 /// <summary>
 /// Reference batch executor: applies L1 messages, then transactions, then computes the four
-/// per-batch Merkle roots plus a placeholder post-state root. Implements
-/// <see cref="IL2BatchExecutor"/> exactly as the proving spec mandates.
+/// per-batch Merkle roots plus the post-state root resolved via the injected
+/// <see cref="IPostStateRootOracle"/>. Implements <see cref="IL2BatchExecutor"/> exactly as
+/// the proving spec mandates.
 /// </summary>
 /// <remarks>
-/// See SPEC.md for the full determinism contract. The post-state root produced here is
-/// derived from the pre-state root XORed with a hash of the receipt root — adequate for
-/// scaffolding tests but NOT for production. Production deployments inject a real MPT-backed
-/// state-root oracle.
+/// See SPEC.md for the full determinism contract. The class is production-quality; the
+/// behavior of <see cref="BatchExecutionResult.PostStateRoot"/> is determined entirely by
+/// the injected oracle:
+/// <list type="bullet">
+///   <item><description><see cref="State.KeyedStateRootOracle"/> — production in-process
+///     Neo-classic Merkle over the live <see cref="State.KeyedStateStore"/>. Used by the
+///     devnet, the Phase 0–2 integration tests, and the custom-executor end-to-end test.</description></item>
+///   <item><description><c>Neo.L2.Executor.MerkleStatePostStateRootOracle</c> — production
+///     state-root oracle over an <see cref="Persistence.IL2KeyValueStore"/>, used by
+///     <c>UT_E2E_RealVM_FullStack</c> and the production batch flow.</description></item>
+///   <item><description><see cref="DerivedPostStateRootOracle"/> — test fixture below
+///     (deterministic XOR of pre-state ⊕ receipt-root ⊕ block-context-hash). For tests
+///     that exercise the executor's plumbing without standing up a state store. NOT for
+///     production use; the production oracles above are the canonical implementations.</description></item>
+/// </list>
 /// </remarks>
 public sealed class ReferenceBatchExecutor : IL2BatchExecutor
 {
@@ -127,9 +139,11 @@ public sealed class ReferenceBatchExecutor : IL2BatchExecutor
 }
 
 /// <summary>
-/// Pluggable interface for resolving the post-batch state root. The real implementation walks
-/// the MPT after all writes have been applied; the stub implementation in
-/// <see cref="DerivedPostStateRootOracle"/> is for tests.
+/// Pluggable interface for resolving the post-batch state root. Production implementations
+/// (<see cref="State.KeyedStateRootOracle"/> in-process, <c>MerkleStatePostStateRootOracle</c>
+/// over an <see cref="Persistence.IL2KeyValueStore"/>) walk the actual state tree after
+/// all batch writes have been applied. <see cref="DerivedPostStateRootOracle"/> below is a
+/// test-only XOR fixture.
 /// </summary>
 public interface IPostStateRootOracle
 {
@@ -141,7 +155,16 @@ public interface IPostStateRootOracle
         CancellationToken cancellationToken = default);
 }
 
-/// <summary>Test oracle: derives postStateRoot deterministically from preStateRoot ⊕ receiptRoot ⊕ blockContextHash.</summary>
+/// <summary>
+/// Test fixture: derives postStateRoot deterministically from
+/// <c>preStateRoot ⊕ receiptRoot ⊕ blockContextHash</c>. Useful for
+/// <see cref="ReferenceBatchExecutor"/> plumbing tests that don't need to stand up a real
+/// <see cref="State.KeyedStateStore"/> / <see cref="Persistence.IL2KeyValueStore"/>.
+/// Production deployments inject <see cref="State.KeyedStateRootOracle"/> (in-process) or
+/// <c>MerkleStatePostStateRootOracle</c> (state-store-backed) — both produce real Merkle
+/// commitments over the live state and match the on-chain
+/// <c>SettlementManager.VerifyStateLeafWithProof</c> reconstructor byte-for-byte.
+/// </summary>
 public sealed class DerivedPostStateRootOracle : IPostStateRootOracle
 {
     /// <inheritdoc />
@@ -172,7 +195,8 @@ public sealed class DerivedPostStateRootOracle : IPostStateRootOracle
 
 /// <summary>
 /// Pluggable interface for applying inbound L1 messages on the L2 side. Production wires this
-/// to <c>L2MessageContract</c> + <c>L2BridgeContract</c>; tests provide a stub.
+/// to <c>L2MessageContract</c> + <c>L2BridgeContract</c>; test projects provide a no-op
+/// fake when the L1-side mechanics aren't under test.
 /// </summary>
 public interface IL1MessageProcessor
 {

@@ -11,9 +11,10 @@ namespace Neo.L2.Executor;
 /// <summary>
 /// Production <see cref="IPostStateRootOracle"/>: computes the post-batch state
 /// root as the canonical <see cref="KeyedStateMerkleTree"/> over every key-value
-/// pair in the L2's <see cref="IL2KeyValueStore"/> at batch-end time. Replaces
-/// <see cref="DerivedPostStateRootOracle"/>'s placeholder XOR for chains that
-/// want a real cryptographic state commitment.
+/// pair in the L2's <see cref="IL2KeyValueStore"/> at batch-end time. The tree
+/// composition matches the on-chain <c>SettlementManager.VerifyStateLeafWithProof</c>
+/// reconstructor byte-for-byte (Neo classic Hash256 with odd-leaf duplication).
+/// For tests that don't need a state store, see <see cref="DerivedPostStateRootOracle"/>.
 /// </summary>
 /// <remarks>
 /// <para>

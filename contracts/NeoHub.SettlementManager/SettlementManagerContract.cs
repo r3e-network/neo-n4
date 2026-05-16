@@ -225,8 +225,11 @@ public class SettlementManagerContract : SmartContract
     /// <summary>
     /// True if <paramref name="leafHash"/> is included in finalized batch
     /// <paramref name="batchNumber"/>'s <c>withdrawalRoot</c> via the supplied Merkle inclusion
-    /// proof. This is the production-shape check — the prior leaf-equals-root variants are
-    /// MVP placeholders that only work when the entire withdrawal tree has a single leaf.
+    /// proof. This is the canonical multi-leaf verification path; the
+    /// <c>VerifyWithdrawalLeaf</c> / <c>VerifyWithdrawalLeafAt</c> overloads above are
+    /// fast-path variants valid only when the withdrawal tree collapses to a single leaf
+    /// (root == leaf). Production deployments with multi-leaf batches MUST use this
+    /// <c>*WithProof</c> path.
     /// </summary>
     /// <param name="chainId">L2 chain identifier.</param>
     /// <param name="batchNumber">Finalized batch the user's withdrawal was sealed into.</param>
@@ -249,7 +252,7 @@ public class SettlementManagerContract : SmartContract
         byte[][] siblings,
         ulong leafIndex)
     {
-        // Same finalized-status precondition as the MVP path.
+        // Same finalized-status precondition as the single-leaf fast path above.
         var statusRaw = Storage.Get(StatusKey(chainId, batchNumber));
         if (statusRaw == null) return false;
         var status = ((byte[])statusRaw)[0];

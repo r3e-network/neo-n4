@@ -69,7 +69,7 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 - **Phase-5 proof aggregation** ✅ — `src/Neo.Plugins.L2Gateway/` — `BinaryTreeAggregator` with three `IRoundProver` implementations: `MultisigRoundProver` (Secp256r1 threshold-attested), `MerklePathRoundProver` (per-leaf inclusion proofs), `PassThroughRoundProver` (minimal-cost reference). Recursive-ZK fold variants (SP1 Compress / Halo2 / Risc0) operator-supplied through the same seam
 
 **16 off-chain libraries + 8 plugins.** All have `tests/Neo.*.UnitTests/` mirrors;
-1362 tests across 33 .NET projects pass. Rust workspace ships 21 default-CI
+1373 tests across 33 .NET projects pass. Rust workspace ships 21 default-CI
 tests (host-mode crypto + SDK + zkVM execute round-trip) plus 2 `#[ignore]`-gated
 tests that exercise real CPU proof generation + verification (~4 minutes wall
 time). TypeScript SDK ships 15 vitest tests.

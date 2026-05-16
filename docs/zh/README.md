@@ -6,12 +6,15 @@
 > 当两者发生冲突时,[`doc.md`](../../doc.md)(中文母版规范)为权威。
 
 > [!IMPORTANT]
-> **本仓库不是 Neo 4 官方版本。** 这是一份**独立的社区探索** —— 一个研究/原型项目,
-> 用以探索一个多 L2 弹性网络架构在 Neo 栈上**可能**的样子。**它未受 Neo Global
-> Development(NGD)、Neo 基金会或 [`neo-project`](https://github.com/neo-project)
-> 组织背书、关联或维护。** 本仓中的"Neo 4"指的是被用作 L2 执行内核的*目标 core*;
-> 权威的 Neo 4 协议路线图归 Neo 项目所有。请把此处的设计选择视为一份社区原型,
-> 而非规格。
+> **独立实现,不是 Neo 4 官方版本。** 本仓库是一份独立实现的多 L2 弹性网络架构,
+> 构建在 Neo 栈之上 —— **未受 Neo Global Development(NGD)、Neo 基金会或
+> [`neo-project`](https://github.com/neo-project) 组织背书、关联或维护。**
+> 本仓中的"Neo 4"指的是被用作 L2 执行内核的*目标 core*;权威的 Neo 4 协议
+> 路线图归 Neo 项目所有。代码面向生产部署 L2 链而工程化 —— 完整的密码学原语、
+> 真实的持久化、全面的测试覆盖、以及有文档的运维接缝。出身归出身,请像看待
+> 任何第三方公链协议实现那样对待它:阅读[安全模型](security-model.md)、
+> 主网使用前进行审计、并按你的部署需求接入有文档的生产接缝
+> (实时 L1 签名器、真实 NeoFS 适配器、dBFT 共识选择器)。
 
 `neo4` 是 **Neo Elastic Network** 的整合仓 —— 一个使用
 [`neo-project/neo`](https://github.com/neo-project/neo) Neo 4 core 作为 L2 执行
@@ -83,7 +86,7 @@
   `prove-batch daemon`)· `bridge/neo-zkvm-guest/`(被证明的函数)。
 - **Submodule(4)** —— `external/neo`、`external/neo-devpack-dotnet`、
   `external/neo-riscv-vm`、`external/neo-zkvm`。
-- **测试(1362 .NET + 156 跨语言)** —— 33 个 .NET 工程的 1362 条测试;
+- **测试(1373 .NET + 156 跨语言)** —— 33 个 .NET 工程的 1373 条测试;
   15 TS + 10 Rust SDK + 8 SP1 guest + 103 Rust 桥 watcher(eth 87 / tron 7 / sol 9)
   + 20 Foundry —— 全绿。
 

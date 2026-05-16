@@ -51,6 +51,13 @@ pub enum BuildError {
         "externalChainId 0x{0:08X} must use the 0xE0_xx_xx_xx foreign-namespace prefix"
     )]
     BadNamespace(u32),
+    /// The Eth-side router emitted a message-type byte whose handler isn't
+    /// implemented on the watcher side yet (e.g. `MSG_TYPE_ASSET_AND_CALL`).
+    /// The watcher rejects the message rather than guessing at the payload
+    /// layout — silently misinterpreting it would forge an inbound message
+    /// the Eth side never authorized.
+    #[error("unsupported message-type byte 0x{0:02X} — watcher cannot encode payload safely")]
+    UnsupportedMessageType(u8),
 }
 
 /// Build the canonical pre-image bytes (102-byte fixed prefix + payload).

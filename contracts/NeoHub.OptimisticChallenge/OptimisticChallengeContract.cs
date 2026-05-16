@@ -184,6 +184,14 @@ public class OptimisticChallengeContract : SmartContract
         var rewardBps = GetChallengerRewardBps();
         var challengerCut = bondBalance * rewardBps / BasisPointsTotal;
 
+        // CEI ordering: write the accepted-fraud marker BEFORE the external slash calls.
+        // The line-166 guard (`AcceptedFraudKey == null`) is the re-entry rail; setting it
+        // here closes the door before any out-of-contract call returns. Today's full-bond
+        // slash drains the balance and the line-182 `bondBalance > 0` precondition would
+        // reject a re-entrant Challenge, but a future "partial slash" refactor would lose
+        // that coincidental safety — this ordering future-proofs against it.
+        Storage.Put(AcceptedFraudKey(chainId, batchNumber), challenger);
+
         // Pay challenger first.
         Contract.Call(bondContract, "slash", CallFlags.All,
             new object[] { chainId, sequencer, challengerCut, challenger });
@@ -194,8 +202,6 @@ public class OptimisticChallengeContract : SmartContract
             Contract.Call(bondContract, "slash", CallFlags.All,
                 new object[] { chainId, sequencer, remaining, UInt160.Zero });
         }
-
-        Storage.Put(AcceptedFraudKey(chainId, batchNumber), challenger);
 
         // Tell SettlementManager the batch is reverted.
         var sm = (UInt160)(Storage.Get(new byte[] { KeySettlementManager }) ?? throw new Exception("sm unset"));

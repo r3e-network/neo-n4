@@ -25,7 +25,10 @@ public class MessageRouterContract : SmartContract
     private const byte PrefixL1ToL2Msg = 0x02;         // 0x02 + targetChainId(4B) + nonce(8B) → encoded msg
     private const byte PrefixL2ToL1Root = 0x03;        // 0x03 + chainId(4B) + batchNum(8B) → root
     private const byte PrefixL2ToL2Root = 0x04;        // 0x04 + chainId(4B) + batchNum(8B) → root
-    private const byte PrefixGlobalRoot = 0x05;        // 0x05 + batchEpoch(8B) → global agg root
+    // 0x05 — reserved for Phase-5 Neo Gateway global-aggregated message root
+    // (key shape: 0x05 + batchEpoch(8B) → global agg root). Intentionally unused
+    // today; off-chain aggregation lives in Neo.Plugins.L2Gateway. Do NOT reuse
+    // 0x05 for anything else — a future PublishGlobalRoot writer will adopt it.
     private const byte PrefixConsumed = 0x06;          // 0x06 + msgHash(32B) → 1
     private const byte PrefixSettlementManager = 0xFD;
     private const byte KeyOwner = 0xFF;

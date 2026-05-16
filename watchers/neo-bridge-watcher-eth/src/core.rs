@@ -121,14 +121,16 @@ impl<S: Signer, ES: EventSource, NS: NeoSubmitter, J: Journal> WatcherCore<S, ES
             // amount to the minimal-LE encoding C# BigInteger.ToByteArray
             // produces for unsigned values.
             true => encode_asset_transfer_payload(event.asset, &amount_be_to_le_minimal(&event.amount)),
-            // Non-empty payload → asset+call (we don't support pure call
-            // yet; the Eth-side router doesn't emit those today either).
+            // Non-empty payload → asset+call. The Eth-side router doesn't
+            // emit `MSG_TYPE_ASSET_AND_CALL` events today; until it does AND
+            // a canonical concat-encoding is pinned by a cross-language test,
+            // the watcher refuses rather than guessing at a layout the Neo
+            // verifier would never recognize. Silently mis-encoding would
+            // forge an inbound message the Eth side never authorized.
             false => {
-                // For asset+call, the payload is the asset-transfer
-                // header followed by the call data. v0 keeps it simple:
-                // bail until the Eth side ships AssetAndCall encoding.
-                // Once it does, this branch concatenates the two.
-                return Err(CoreError::Build(BuildError::BadNamespace(0))); // placeholder; replace when AssetAndCall lands
+                return Err(CoreError::Build(BuildError::UnsupportedMessageType(
+                    ExternalMessageType::AssetAndCall as u8,
+                )));
             }
         };
 

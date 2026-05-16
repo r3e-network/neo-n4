@@ -15,10 +15,14 @@ namespace Neo.L2.Persistence;
 /// share a single instance.
 /// </para>
 /// <para>
-/// Tunables: the default options enable compression, fsync-on-write, and a small write
-/// buffer suitable for a sequencer node's L2 traffic. Operators with different
-/// throughput/durability tradeoffs swap in their own <see cref="DbOptions"/> via the
-/// alternate constructor.
+/// Tunables: the default options enable Snappy compression and create-if-missing.
+/// Writes use RocksDB's default <c>WriteOptions</c> — WAL-backed but asynchronously
+/// flushed (no per-write <c>fsync</c>). This matches the standard L2-sequencer
+/// durability story: in-flight writes recoverable from WAL on restart; true finality
+/// comes from commit to L1. Operators who need per-write <c>fsync</c> (or different
+/// compression / compaction tradeoffs) supply their own <see cref="DbOptions"/> via
+/// the alternate constructor — wrap a <c>WriteOptions { Sync = true }</c> at the
+/// call site if synchronous WAL flushes are required.
 /// </para>
 /// </remarks>
 public sealed class RocksDbKeyValueStore : IL2KeyValueStore

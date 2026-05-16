@@ -33,6 +33,8 @@ public class GovernanceControllerContract : SmartContract
     private const byte PrefixApprovedVerifier = 0x0A;    // 0x0A + verifierHash(20B) → 1   (§16.1 semi-permissionless gate)
     private const byte PrefixApprovedBridge = 0x0B;      // 0x0B + bridgeHash(20B) → 1     (§16.1 semi-permissionless gate)
     private const byte PrefixApprovedAt = 0x0C;           // 0x0C + proposalId(8B) → BigInteger unix-seconds when threshold first hit
+    private const byte PrefixImmutableFlag = 0x0D;        // 0x0D + flagId(1B) → 1 (once set, never cleared — ZKsync PermanentRestriction equivalent)
+    private const byte PrefixConsumedSetImmutable = 0x0E; // 0x0E + proposalId(8B) → 1 (replay protection for SetImmutableFlagViaProposal)
     private const byte KeyOwner = 0xFF;
 
     /// <summary>Emitted whenever a proposal is registered.</summary>
@@ -42,6 +44,10 @@ public class GovernanceControllerContract : SmartContract
     /// <summary>Emitted whenever a council member approves a proposal.</summary>
     [DisplayName("ProposalApproved")]
     public static event Action<ulong, ECPoint> OnProposalApproved = default!;
+
+    /// <summary>Emitted the first time an immutable flag is set. Re-setting an already-set flag is a no-op and does not re-emit.</summary>
+    [DisplayName("ImmutableFlagSet")]
+    public static event Action<byte> OnImmutableFlagSet = default!;
 
     /// <summary>Set initial council + thresholds at deploy.</summary>
     public static void _deploy(object data, bool update)
@@ -345,6 +351,64 @@ public class GovernanceControllerContract : SmartContract
     public static bool IsApprovedBridgeAdapter(UInt160 bridge)
     {
         return Storage.Get(BridgeKey(bridge)) != null;
+    }
+
+    /// <summary>
+    /// Set a permanent restriction flag. Once set, the flag can NEVER be cleared — this
+    /// is the on-chain equivalent of ZKsync's <c>PermanentRestriction</c> mechanism. Use
+    /// for invariants that must hold for the lifetime of the chain (e.g. "this chain can
+    /// never switch DAMode away from Rollup" once published).
+    /// </summary>
+    /// <param name="flagId">Operator-defined 1-byte flag identifier. Storage layout pins
+    /// it as a single byte so the namespace is exhaustively enumerable on inspection.</param>
+    /// <remarks>
+    /// Idempotent — calling twice is allowed (no-op the second time). Storage is
+    /// write-only: there is no <c>ClearImmutableFlag</c> entry-point. Owner-witness
+    /// gated; the council-veto path is <see cref="SetImmutableFlagViaProposal"/>.
+    /// </remarks>
+    public static void SetImmutableFlag(byte flagId)
+    {
+        var owner = (UInt160)(Storage.Get(new byte[] { KeyOwner }) ?? throw new Exception("owner unset"));
+        ExecutionEngine.Assert(Runtime.CheckWitness(owner), "not authorized");
+        var key = ImmutableFlagKey(flagId);
+        if (Storage.Get(key) == null)
+        {
+            Storage.Put(key, new byte[] { 1 });
+            OnImmutableFlagSet(flagId);
+        }
+    }
+
+    /// <summary>
+    /// Council-veto path for setting a permanent restriction. Same shape as
+    /// <see cref="RegisterCommitteeViaProposal"/> in the external-bridge stack:
+    /// the proposalId must be approved + timelocked, then this call is replay-protected
+    /// per proposalId. For high-stakes immutability decisions (e.g. locking the
+    /// security model permanently) the council path is preferred over owner-only.
+    /// </summary>
+    public static void SetImmutableFlagViaProposal(byte flagId, ulong proposalId)
+    {
+        var consumedKey = ProposalIdKey(PrefixConsumedSetImmutable, proposalId);
+        ExecutionEngine.Assert(Storage.Get(consumedKey) == null, "proposal already consumed");
+        ExecutionEngine.Assert(IsApprovedAndTimelocked(proposalId), "proposal not approved + timelocked");
+        Storage.Put(consumedKey, new byte[] { 1 });
+        var key = ImmutableFlagKey(flagId);
+        if (Storage.Get(key) == null)
+        {
+            Storage.Put(key, new byte[] { 1 });
+            OnImmutableFlagSet(flagId);
+        }
+    }
+
+    /// <summary>True if <paramref name="flagId"/> has been set as a permanent restriction.</summary>
+    [Safe]
+    public static bool IsImmutable(byte flagId)
+    {
+        return Storage.Get(ImmutableFlagKey(flagId)) != null;
+    }
+
+    private static byte[] ImmutableFlagKey(byte flagId)
+    {
+        return new byte[] { PrefixImmutableFlag, flagId };
     }
 
     private static byte[] VerifierKey(UInt160 verifier)

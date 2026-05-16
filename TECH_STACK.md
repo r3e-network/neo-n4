@@ -87,14 +87,18 @@ Per-component detail lives in [`docs/tech-stack-coverage.md`](docs/tech-stack-co
 
 ## 5. Open development work
 
-**27 actionable tasks total, 7 closed, 20 remaining** — see [`TASKS.md`](TASKS.md) for the full checklist.
+**37 actionable tasks total, 9 closed, 28 remaining** — see [`TASKS.md`](TASKS.md) for the full checklist.
 
 | Repo | Total | Closed | Remaining | Remaining breakdown |
 |------|------:|-------:|----------:|---------------------|
 | Neo N4 Core (`neo-project/neo`) | 10 | 0 | 10 | 4 critical (ChainMode + GAS / NEO / Policy gating) · 3 high (RpcServer source, OnPersist hook, optional Oracle) · 3 medium (dBFT hook, restricted-state mode, RISC-V mode) |
-| This repo (`neo4`) | 14 | 7 | 7 | 4 production-readiness examples · 2 future features · 1 spec-gap deferred (§8-witness-canonical) |
+| This repo (`neo4`) | 24 | 9 | 15 | 4 production-readiness examples · 2 future features · 1 spec-gap deferred (§8-witness-canonical) · 8 ZKsync parity items (DAValidator, BridgedNep17, IAccount AA, staged-upgrade timer, TxFilterer, L2-side message verification, more samples, Python/Go SDKs) |
 | Cross-repo coordination | 3 | 0 | 3 | L2 bootstrap handoff · RpcServer migration · RISC-V mode promotion |
-| **Totals** | **27** | **7** | **20** | |
+| **Totals** | **37** | **9** | **28** | |
+
+ZKsync parity tracking comes from [`docs/zksync-comparison.md`](docs/zksync-comparison.md),
+which maps every ZKsync v29 component to its neo4 equivalent and identifies the
+remaining gaps worth closing as the framework matures.
 
 ---
 

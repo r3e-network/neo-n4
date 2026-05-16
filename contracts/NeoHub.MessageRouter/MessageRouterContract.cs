@@ -25,10 +25,7 @@ public class MessageRouterContract : SmartContract
     private const byte PrefixL1ToL2Msg = 0x02;         // 0x02 + targetChainId(4B) + nonce(8B) → encoded msg
     private const byte PrefixL2ToL1Root = 0x03;        // 0x03 + chainId(4B) + batchNum(8B) → root
     private const byte PrefixL2ToL2Root = 0x04;        // 0x04 + chainId(4B) + batchNum(8B) → root
-    // 0x05 — reserved for Phase-5 Neo Gateway global-aggregated message root
-    // (key shape: 0x05 + batchEpoch(8B) → global agg root). Intentionally unused
-    // today; off-chain aggregation lives in Neo.Plugins.L2Gateway. Do NOT reuse
-    // 0x05 for anything else — a future PublishGlobalRoot writer will adopt it.
+    private const byte PrefixGlobalRoot = 0x05;        // 0x05 + batchEpoch(8B) → 32B global aggregated message root (Phase-5 Neo Gateway commitment)
     private const byte PrefixConsumed = 0x06;          // 0x06 + msgHash(32B) → 1
     private const byte PrefixSettlementManager = 0xFD;
     private const byte KeyOwner = 0xFF;
@@ -40,6 +37,10 @@ public class MessageRouterContract : SmartContract
     /// <summary>Emitted when an L2→L1 message is consumed on L1.</summary>
     [DisplayName("L2ToL1Consumed")]
     public static event Action<uint, UInt256> OnL2ToL1Consumed = default!;
+
+    /// <summary>Emitted when the Neo Gateway publishes a global aggregated message root for an epoch.</summary>
+    [DisplayName("GlobalRootPublished")]
+    public static event Action<ulong, UInt256> OnGlobalRootPublished = default!;
 
     /// <summary>Set wiring on deploy.</summary>
     public static void _deploy(object data, bool update)
@@ -128,6 +129,46 @@ public class MessageRouterContract : SmartContract
     }
 
     /// <summary>
+    /// Settlement manager calls this when Phase-5 Neo Gateway aggregation finishes
+    /// for <paramref name="batchEpoch"/>. Commits the global aggregated message root
+    /// across all L2s in that epoch so any L2 can prove a peer's message via Merkle
+    /// inclusion against this single L1-anchored root — equivalent to ZKsync's
+    /// <c>BridgeHub.MessageRoot</c> aggregated commitment.
+    /// </summary>
+    /// <remarks>
+    /// Epoch numbering is operator-defined (typically unix-second-windowed); a given
+    /// <paramref name="batchEpoch"/> can be published only once — re-publication is
+    /// rejected so a buggy aggregator can't silently overwrite a published root.
+    /// </remarks>
+    public static void PublishGlobalRoot(ulong batchEpoch, UInt256 globalRoot)
+    {
+        var sm = (UInt160)(Storage.Get(new byte[] { PrefixSettlementManager }) ?? throw new Exception("sm unset"));
+        ExecutionEngine.Assert(Runtime.CheckWitness(sm), "not settlement manager");
+        // Without this guard, a zero global root would silently commit "no messages
+        // in this epoch" — semantically valid as a sentinel but confusing as a real
+        // commitment. Force the caller to be explicit.
+        ExecutionEngine.Assert(!globalRoot.Equals(UInt256.Zero), "global root must be non-zero");
+        var key = GlobalRootKey(batchEpoch);
+        // Strict "publish once per epoch" — replay protection at the storage layer.
+        // Without this guard, a buggy gateway could overwrite a previously-committed
+        // root and silently invalidate inclusion proofs already taken against it.
+        ExecutionEngine.Assert(Storage.Get(key) == null, "global root already published for this epoch");
+        Storage.Put(key, (byte[])globalRoot);
+        OnGlobalRootPublished(batchEpoch, globalRoot);
+    }
+
+    /// <summary>
+    /// Get the global aggregated message root committed for a Phase-5 Gateway epoch,
+    /// or <see cref="UInt256.Zero"/> if no root has been published for that epoch.
+    /// </summary>
+    [Safe]
+    public static UInt256 GetGlobalRoot(ulong batchEpoch)
+    {
+        var raw = Storage.Get(GlobalRootKey(batchEpoch));
+        return raw == null ? UInt256.Zero : (UInt256)raw;
+    }
+
+    /// <summary>
     /// Mark a message hash as consumed. The Merkle proof check happens off-chain (or via a
     /// separate proof helper) and is the caller's responsibility. Replay-protected.
     /// </summary>
@@ -165,6 +206,17 @@ public class MessageRouterContract : SmartContract
         k[0] = PrefixConsumed;
         var b = (byte[])hash;
         for (var i = 0; i < 32; i++) k[1 + i] = b[i];
+        return k;
+    }
+
+    private static byte[] GlobalRootKey(ulong batchEpoch)
+    {
+        var k = new byte[1 + 8];
+        k[0] = PrefixGlobalRoot;
+        k[1] = (byte)batchEpoch; k[2] = (byte)(batchEpoch >> 8);
+        k[3] = (byte)(batchEpoch >> 16); k[4] = (byte)(batchEpoch >> 24);
+        k[5] = (byte)(batchEpoch >> 32); k[6] = (byte)(batchEpoch >> 40);
+        k[7] = (byte)(batchEpoch >> 48); k[8] = (byte)(batchEpoch >> 56);
         return k;
     }
 

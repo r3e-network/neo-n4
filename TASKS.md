@@ -42,7 +42,7 @@ Items inside the Elastic Network consolidation. Owned here, not blocked on upstr
 ### Minor reviewer-nits
 
 - [x] ~~**CEI ordering in `OptimisticChallenge.Challenge`**~~ — `Storage.Put(AcceptedFraudKey...)` moved before the external slash calls.
-- [x] ~~**`MessageRouter.PrefixGlobalRoot = 0x05`**~~ — unused `const` replaced with explicit reservation comment that documents the byte as held for Phase-5 Gateway global root.
+- [x] ~~**`MessageRouter.PrefixGlobalRoot = 0x05`**~~ — fully wired as `PublishGlobalRoot` / `GetGlobalRoot` with settlement-manager-witness gate, publish-once-per-epoch replay protection, non-zero-root enforcement, and `OnGlobalRootPublished` event. ZKsync `MessageRoot.sol` equivalent.
 - [x] ~~**RocksDB doc/code drift**~~ — XML remarks now accurately describe default async-WAL behavior + operator override path.
 
 ### Spec-gap items
@@ -68,7 +68,23 @@ Items inside the Elastic Network consolidation. Owned here, not blocked on upstr
 - [ ] `SP1CompressRoundProver` once SP1 toolchain integration matures (`IRoundProver` seam is ready)
 - [ ] L1 restricted-state re-executor (blocked on the core `ApplicationEngine` item)
 
-**Subtotal: 14 (7 closed in this iteration, 7 remain — 4 operator examples + 2 future features + 1 spec-gap-deferred)**
+### ZKsync Elastic Chain parity (from `docs/zksync-comparison.md`)
+
+Gaps surfaced by the side-by-side ZKsync v29 comparison. See `docs/zksync-comparison.md`
+for full mapping + rationale. Each item names a concrete neo4 location.
+
+- [x] ~~On-chain global message root~~ — `MessageRouter.PublishGlobalRoot` (ZKsync `MessageRoot.sol` equivalent)
+- [x] ~~Permanent restriction mechanism~~ — `GovernanceController.SetImmutableFlag` (ZKsync `PermanentRestriction` equivalent)
+- [ ] `NeoHub.DAValidator` — L1 contract verifying DA inclusion proofs for `DAMode.Committee` (ZKsync `ValidiumL1DAValidator` equivalent). Wire into `SettlementManager.FinalizeBatch` for validium chains.
+- [ ] `L2Native.BridgedNep17Contract` — canonical mintable NEP-17 deployed per L1-asset mapping by `TokenRegistry` (ZKsync `BridgedStandardERC20` equivalent)
+- [ ] `L2Native.L2AccountAbstraction` — programmable AA contract with `validateTx` / `payForTx` / `executeTx` hooks (ZKsync `IAccount` equivalent, ported to Neo's signer model)
+- [ ] Staged-upgrade timer in `GovernanceController` — separate `propose → notice → execute → cool-down` phases via a new field in `PrefixProposal` (ZKsync `UpgradeStageValidator` equivalent)
+- [ ] Per-chain `IL1TxFilter` extension point — optional pre-enqueue hook in `MessageRouter` (ZKsync `TransactionFilterer` equivalent)
+- [ ] L2-side message verification helper — `L2Native.L2InteropVerifier` reads L1-committed `MessageRouter.GetGlobalRoot` via `L2BatchInfoContract` so dApps can verify peer messages without round-tripping L1 (ZKsync v29 `L2MessageVerification` equivalent)
+- [ ] Additional sample dApps — `Sample.Erc20PaymasterClient`, `Sample.MultisigAccount`, `Sample.GatedMint`, `Sample.CrossChainSwap`
+- [ ] Python + Go SDKs — community-tier, generated from the canonical `L2RpcClient` surface
+
+**Subtotal: 24 (9 closed in this iteration, 15 remain — 4 operator examples + 2 future features + 1 spec-gap-deferred + 8 ZKsync parity)**
 
 ---
 
@@ -84,14 +100,18 @@ Items that need work in both repos and PR coordination across them.
 
 ---
 
-## Total: 27 actionable tasks (7 closed)
+## Total: 37 actionable tasks (9 closed)
 
 | Bucket | Total | Closed | Remaining |
 |--------|------:|-------:|----------:|
 | Neo N4 Core | 10 | 0 | 10 |
-| This repo | 14 | 7 | 7 |
+| This repo | 24 | 9 | 15 |
 | Cross-repo | 3 | 0 | 3 |
-| **Total** | **27** | **7** | **20** |
+| **Total** | **37** | **9** | **28** |
+
+The +10 since the previous TASKS update came from the ZKsync Elastic Chain
+comparison (`docs/zksync-comparison.md`): 2 closed in this iteration (global
+message root + immutable flag) + 8 tracked for future work.
 
 The 7 closed items in this iteration are: 1 substantive (state-tree Merkle convention) + 3 minor nits (CEI ordering, PrefixGlobalRoot reservation, RocksDB doc) + 3 docs (state-tree note, stub-verifier note, v4 sketch). The 20 remaining are split between **0 in-repo behavior tasks**, 4 production-readiness *examples* (operator-supplied seams the framework already exposes), 2 future features (toolchain-blocked), 1 deferred spec-gap, 10 upstream core items, and 3 cross-repo coordination items.
 

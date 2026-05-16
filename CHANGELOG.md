@@ -5,6 +5,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — ZKsync Elastic Chain comparison + 2 gap-closures
+
+Comprehensive comparison of neo4 against ZKsync's Elastic Chain (v29 era-contracts,
+Q1 2026) — mapped every ZKsync component to its neo4 equivalent, called out
+intentional divergences (EraVM-specific contracts that NeoVM provides natively),
+and tracked 8 open gaps neo4 should close as the framework matures. Full map in
+`docs/zksync-comparison.md`. Two highest-leverage gaps closed in this iteration:
+
+- **`NeoHub.MessageRouter.PublishGlobalRoot` / `GetGlobalRoot`** — the 0x05
+  storage slot reserved for Phase-5 Gateway aggregation is now wired. ZKsync's
+  `BridgeHub.MessageRoot.sol` writes an aggregated message root on L1 so any L2
+  can prove a peer's message via Merkle inclusion against this single anchored
+  root; the new entry point exposes the equivalent commitment for neo4's
+  off-chain `BinaryTreeAggregator` output. Settlement-manager-witness-gated,
+  publish-once-per-epoch replay protection, non-zero-root enforcement,
+  `OnGlobalRootPublished(epoch, root)` event emitted on successful publish.
+  Storage prefix `PrefixGlobalRoot = 0x05` adopted from its previous
+  reserved-but-unused state. Closes the iter-9 minor finding logged in the
+  40-iteration validation sweep.
+- **`NeoHub.GovernanceController.SetImmutableFlag` / `IsImmutable`** —
+  permanent restriction mechanism mirroring ZKsync's `PermanentRestriction`.
+  Once a flag is set, storage write-protects it forever. Two entry points:
+  owner-only fast path (`SetImmutableFlag(flagId)`, idempotent) and
+  council-veto path (`SetImmutableFlagViaProposal(flagId, proposalId)`,
+  requires `IsApprovedAndTimelocked`, replay-protected via new
+  `PrefixConsumedSetImmutable = 0x0E`). `IsImmutable(flagId)` is the `[Safe]`
+  reader. `OnImmutableFlagSet(flagId)` event emitted on first set only.
+  New storage prefix `PrefixImmutableFlag = 0x0D`. Use for invariants that
+  must hold for chain lifetime (e.g. "this chain can never switch DAMode
+  away from Rollup" once published, or "this verifier hash is permanently
+  retired").
+
+Both contracts compile cleanly via `nccs 3.9.1`; new methods land in the
+canonical `.manifest.json` (`publishGlobalRoot`, `getGlobalRoot`,
+`setImmutableFlag`, `setImmutableFlagViaProposal`, `isImmutable`). Full build
+still 79 projects, 0 errors, 0 warnings. 1373 .NET tests pass, 0 failures.
+Devnet 5-batch E2E green.
+
 ### Cleaned — Cross-doc consistency sweep
 
 Bulk-updated stale test count `1362` → `1373` across every tracked source doc

@@ -251,7 +251,9 @@ Ready or close to ready:
 
 - Repository structure is coherent across contracts, src, tools, watchers, SDKs, docs, and tests.
 - Core build/test/dev documentation is now substantially consistent with the code.
-- The contract set emits deployable artifacts when built directly.
+- The contract set emits deployable artifacts through the explicit
+  `dotnet build` + `nccs` path validated in
+  [`deployment-rehearsal-2026-05-17`](./deployment-rehearsal-2026-05-17/).
 - Cross-chain watcher logic has meaningful tests for chain IDs, replay/cursor behavior, proof layout, message hash parity, signer handling, and health endpoints.
 - The SDKs and CLIs are covered by focused tests and package scans.
 - Documentation now includes architecture diagrams and a visual guide for user-friendly system understanding.
@@ -259,9 +261,9 @@ Ready or close to ready:
 
 Still not production-complete without the following gates:
 
-- Run public-network deployment rehearsals against a real Neo N4 devnet/testnet, including governance setup, verifier registry wiring, optimistic challenge windows, bridge deposits/withdrawals, watcher failover, replay attempts, and emergency paths. The in-process devnet runner now passes locally, but it does not replace funded public-network deployment evidence.
+- Run public-network deployment rehearsals against a real Neo N4 devnet/testnet, including governance setup, verifier registry wiring, optimistic challenge windows, bridge deposits/withdrawals, watcher failover, replay attempts, and emergency paths. The local Windows + WSL2 deployment rehearsal now passes and is documented, but it does not replace funded public-network deployment evidence.
 - Add or document production verifier contracts/operators for any verifier registry entries that are intentionally supplied out-of-tree.
-- Observe the expanded GitHub Actions workflow on the remote repository after push; the YAML parses locally, but it has not run in GitHub from this non-git checkout.
+- Observe the expanded GitHub Actions workflow on the remote repository after push; local validation passed, but the changed workflow still needs a remote GitHub Actions run.
 
 ## Recommended Release Gates
 

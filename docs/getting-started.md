@@ -126,13 +126,14 @@ Required post-deploy actions:
 ## Step 5 — Build a smart contract
 
 ```bash
-dotnet build contracts/NeoHub.ChainRegistry /p:NuGetAudit=false /p:DisableNccs=true
+dotnet build contracts/NeoHub.ChainRegistry/NeoHub.ChainRegistry.csproj /p:NuGetAudit=false
+nccs contracts/NeoHub.ChainRegistry/NeoHub.ChainRegistry.csproj \
+    --output contracts/NeoHub.ChainRegistry/bin/sc
 ```
 
-The `DisableNccs=true` toggle skips the `nccs`-based `.nef`/`.manifest.json` emission step
-and keeps just the C# type-check. Install
-[`nccs`](https://github.com/neo-project/neo-devpack-dotnet) on `PATH` to flip the toggle off
-and emit deployable bytecode.
+`dotnet build` type-checks the C# contract surface. `nccs` emits the deployable
+`.nef` and `.manifest.json` artifacts consumed by deploy tooling and CI. Keep
+the two steps explicit so a local rehearsal matches the production pipeline.
 
 ## Where to go next
 
@@ -157,8 +158,9 @@ The neo-project/neo submodule isn't initialized. Run
 command line: `dotnet build /p:NeoCorePath=/path/to/neo/src`.
 
 **Contracts don't emit `.nef` files.**
-That's expected without `nccs`. Install nccs from `neo-project/neo-devpack-dotnet` and run
-`dotnet build` without `DisableNccs=true`.
+Run `nccs <contract.csproj> --output <contract>/bin/sc` explicitly after the
+contract type-check. If `nccs` is unavailable, install it from
+`neo-project/neo-devpack-dotnet` or with `dotnet tool install -g Neo.Compiler.CSharp`.
 
 **Want real ZK proofs (Stage-2 validity)?**
 Build the Rust prover daemon: `CPATH=~/.local/include cargo build --release -p neo-zkvm-host`

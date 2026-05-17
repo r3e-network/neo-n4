@@ -100,14 +100,17 @@ jobs:
         run: dotnet tool install -g Neo.Compiler.CSharp
 
       - name: Type-check + compile NeoHub + L2Native + sample contracts
-        # `nccs <project>` runs automatically via the BeforeBuild target in
-        # contracts/Directory.Build.props once nccs is on PATH. The artifacts land
-        # in <project>/bin/sc/. samples/contracts/Sample.* are app-developer
-        # examples — same compile path, so a refactor that breaks the sample API
-        # surfaces here, not at an operator's terminal.
+        # dotnet build type-checks the C# surface; nccs explicitly emits the
+        # deployable .nef + .manifest.json artifacts into <project>/bin/sc/.
+        # samples/contracts/Sample.* are app-developer examples: same compile
+        # path, so a refactor that breaks the sample API surfaces here, not at
+        # an operator's terminal.
         run: |
           for d in contracts/NeoHub.* contracts/L2Native.* samples/contracts/Sample.*; do
-            dotnet build "$d" /p:NuGetAudit=false --nologo
+            name=$(basename "$d")
+            project="$d/$name.csproj"
+            dotnet build "$project" /p:NuGetAudit=false --nologo
+            nccs "$project" --output "$d/bin/sc"
           done
 
       - name: Verify .nef + .manifest.json artifacts produced

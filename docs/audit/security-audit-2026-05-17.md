@@ -136,11 +136,12 @@ No known exploitable issue remains in the reviewed bridge/CLI paths after these
 fixes and tests. The following items are not closed by source-only auditing and
 should remain tracked for production readiness:
 
-- Run a real Neo N4 devnet/testnet deployment rehearsal covering bridge
+- The local Windows + WSL2 deployment rehearsal is documented in
+  [`deployment-rehearsal-2026-05-17`](./deployment-rehearsal-2026-05-17/).
+  A funded public Neo N4 devnet/testnet rehearsal still needs to cover bridge
   registration, committee rotation, EVM lock/finalize, Solana lock/finalize,
   watcher restart, replay rejection, and failed-submission recovery.
 - Monitor SP1 and Anchor/Solana dependency releases for the RustSec warning-only
   items currently reported through transitive dependencies.
 - Consider adding a CI security lane that runs `cargo audit`, `npm audit`, the
   NuGet vulnerable package check, and a secret scanner on every pull request.
-

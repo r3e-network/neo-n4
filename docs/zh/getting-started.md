@@ -122,13 +122,13 @@ Required post-deploy actions:
 ## 第 5 步 —— 构建一个智能合约
 
 ```bash
-dotnet build contracts/NeoHub.ChainRegistry /p:NuGetAudit=false /p:DisableNccs=true
+dotnet build contracts/NeoHub.ChainRegistry/NeoHub.ChainRegistry.csproj /p:NuGetAudit=false
+nccs contracts/NeoHub.ChainRegistry/NeoHub.ChainRegistry.csproj \
+    --output contracts/NeoHub.ChainRegistry/bin/sc
 ```
 
-`DisableNccs=true` 会跳过基于 `nccs` 的 `.nef`/`.manifest.json` 输出阶段,只保留 C#
-类型检查。把
-[`nccs`](https://github.com/neo-project/neo-devpack-dotnet) 安装到 `PATH` 上即可关闭该
-开关、产出可部署字节码。
+`dotnet build` 负责 C# 合约类型检查。`nccs` 显式产出部署工具和 CI 使用的
+`.nef` 与 `.manifest.json` 工件。保持两步显式执行,本地演练才会和生产流水线一致。
 
 ## 接下来去哪儿
 
@@ -152,8 +152,9 @@ neo-project/neo submodule 没初始化。在仓库根目录跑
 `dotnet build /p:NeoCorePath=/path/to/neo/src`。
 
 **合约不输出 `.nef` 文件。**
-没有 `nccs` 时这是正常现象。从 `neo-project/neo-devpack-dotnet` 安装 nccs,然后去掉
-`DisableNccs=true` 重新 `dotnet build`。
+在合约类型检查后显式运行 `nccs <contract.csproj> --output <contract>/bin/sc`。
+如果本机没有 `nccs`,从 `neo-project/neo-devpack-dotnet` 安装,或执行
+`dotnet tool install -g Neo.Compiler.CSharp`。
 
 **想要真正的 ZK 证明(Stage-2 有效性)?**
 构建 Rust 证明守护进程:`CPATH=~/.local/include cargo build --release -p neo-zkvm-host`

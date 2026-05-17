@@ -1,0 +1,13 @@
+ÿþ# committee size = 3
+
+# Neo side   pass to MpcCommitteeVerifier.RegisterCommittee
+#   threshold     = <set this to your M-of-N quorum>
+#   curveTag      = 1   # 1 = secp256k1, 2 = ed25519
+#   committeeBlob = (next line, hex):
+0x02da022c86171bbad8799ea58c71a7cb1c42a975351ca64dc1e8576d464768eba102f7cab0d6865ae6f54e9b96940bb31721faccffc7d38ba812a62e81ccaf3e22bd02dea8dd9b7e953337f1b9e4ce5037f626de63ae5cf155ea6fe7976f3054ec7cdf
+
+# Eth side   pass to NeoExternalBridgeRouter.setCommittee
+#   address[]:
+#     [0] = 0x1ba6c6d6ce04a5b403a69fd6dbf3b0154bbed10e
+#     [1] = 0x2b1036849fdaa17d5bd1d9e1e8709f442c211f7d
+#     [2] = 0xbcc1b39b251d1e571c034348d659e55adb772b95

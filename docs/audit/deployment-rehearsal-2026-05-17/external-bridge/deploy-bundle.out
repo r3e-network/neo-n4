@@ -1,0 +1,47 @@
+ÿþ# Bridge deploy bundle for externalChainId 0xE0000002
+#   committee size = 3, threshold = 2
+#   Neo verifier  = 0x1111111111111111111111111111111111111111
+#   Neo registry  = 0x2222222222222222222222222222222222222222
+#   Neo escrow    = 0x3333333333333333333333333333333333333333
+#   Eth router    = 0x4444444444444444444444444444444444444444
+
+Pre-flight: contracts already deployed at the addresses above? Yes [ ]
+            (use neo-hub-deploy for Neo, forge create for Eth)
+
+Step 1   register the committee on the Neo verifier:
+  contract: 0x1111111111111111111111111111111111111111
+  method:   RegisterCommittee
+  args:
+    externalChainId = 0xE0000002
+    threshold       = 2
+    curveTag        = 1   # secp256k1
+    committeeBlob   = 0x02da022c86171bbad8799ea58c71a7cb1c42a975351ca64dc1e8576d464768eba102f7cab0d6865ae6f54e9b96940bb31721faccffc7d38ba812a62e81ccaf3e22bd02dea8dd9b7e953337f1b9e4ce5037f626de63ae5cf155ea6fe7976f3054ec7cdf
+
+Step 2   register the verifier on the Neo registry:
+  contract: 0x2222222222222222222222222222222222222222
+  method:   RegisterVerifier
+  args:
+    externalChainId = 0xE0000002
+    verifier        = 0x1111111111111111111111111111111111111111
+    bridgeKind      = 1   # MPC
+
+Step 3   wire the registry into the escrow:
+  contract: 0x3333333333333333333333333333333333333333
+  method:   SetRegistry
+  args:
+    registry = 0x2222222222222222222222222222222222222222
+
+Step 4   register the committee on the Eth router:
+  contract: 0x4444444444444444444444444444444444444444
+  method:   setCommittee
+  args:
+    members[] = [
+        0x1ba6c6d6ce04a5b403a69fd6dbf3b0154bbed10e,
+        0x2b1036849fdaa17d5bd1d9e1e8709f442c211f7d,
+        0xbcc1b39b251d1e571c034348d659e55adb772b95
+    ]
+    threshold = 2
+
+After step 4, the bridge is live. To verify, lock 1 wei from a test
+Eth account via NeoExternalBridgeRouter.lockETHAndSend and watch for
+CrossChainInboundFinalized on the Neo escrow within ~1 minute.

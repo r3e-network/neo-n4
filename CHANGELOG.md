@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Cleaned — repository audit artifacts and documentation drift
+
+- Moved curated audit evidence out of root-level `CODEX_*` scratch paths and
+  into `docs/audit/`.
+- Removed the root `CODEX_AUDIT_REPORT.md` pointer file; the mdBook summary now
+  links the tracked audit report and coverage ledger directly.
+- Added zh counterparts for the release-readiness checklist and Rust
+  supply-chain policy, and linked the existing zh visual guide / architecture
+  / whitepaper pages from `docs/zh/SUMMARY.md`.
+- Removed obsolete `book.toml` keys (`multilingual = false`, `copy-fonts = true`)
+  that current mdBook rejects.
+- Updated stale SP1 references from 6.0 to 6.2.1 and aligned test-count docs
+  to 1411 .NET + 155 cross-language base tests.
+
 ### Cleaned — EN ↔ zh documentation parity restored
 
 The previous commit added two EN docs (`docs/zksync-comparison.md`,
@@ -21,7 +35,7 @@ project memory. This commit restores parity:
 - Added both new pages to `docs/zh/SUMMARY.md` under 实现计划.
 - Verified EN ⊆ zh: `comm -23 <(ls docs/*.md) <(ls docs/zh/*.md)` is empty.
 
-Build still clean: 79 projects, 0 errors, 0 warnings. 1409 .NET tests pass.
+Build still clean: 101 solution projects, 0 errors, 0 warnings. 1411 .NET tests pass.
 
 ### Added — ZKsync-style invariant + fuzz test suites (+36 tests)
 

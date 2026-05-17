@@ -31,7 +31,7 @@ reference implementations the agent can read but does NOT need to extend in plac
   (never released on NuGet; project references resolve directly to the source tree via
   `Directory.Build.props` `NeoCorePath`).
 - `neo-zkvm`, `neo-axiom` — ZK proof systems. `bridge/neo-zkvm-host` (Rust prover daemon
-  in this repo) is the production prover, built on sp1-sdk 6.0; `bridge/neo-zkvm-guest`
+  in this repo) is the production prover, built on sp1-sdk 6.2.1; `bridge/neo-zkvm-guest`
   is the function it proves correct (compiled to RISC-V via `cargo prove build`, runs
   real Neo N3 VM via `neo-vm-guest`). neo-zkvm is vendored as a git submodule at
   `external/neo-zkvm`; the guest crate's path-dep is `crates/neo-vm-guest` (the full

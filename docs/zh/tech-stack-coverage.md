@@ -53,7 +53,7 @@
 - **强制纳入 source** ✅ — `src/Neo.L2.ForcedInclusion/`
 - **多签(Stage 0)证明者/验证器** ✅ — `src/Neo.L2.Proving.Attestation/`
 - **乐观(Stage 1)证明者/验证器** ✅ — `src/Neo.L2.Proving.Optimistic/`
-- **RISC-V ZK(Stage 2)证明者/验证器 —— 完整路径** ✅ — C# 的 `src/Neo.L2.Proving/RiscVZk/` 是进程内测试接缝(单测用 mock 证明者)。真正的 Stage-2 证明跑在进程外:`bridge/neo-zkvm-guest/` 经 `cargo prove build` 在 sp1-zkvm 6.0 上编译为 RISC-V ELF,**对每笔批次 tx 真正执行 Neo N3 VM**(依赖 `external/neo-zkvm/crates/neo-vm-guest`,证明对 opcode / gas 计费 / halt-or-fault / 栈顶结果做证明,不只是哈希字节)。`bridge/neo-zkvm-host/` 是 sp1-sdk 6.0 的编排器,带 `execute()` / `prove()` / `verify()` API 和 `prove-batch daemon --watch <dir>` CLI,变身成生产证明守护进程(运维者把封好的批次扔进队列目录,守护进程吐出 `<name>.proof.bin` + `<name>.proof.vk` 用于 L1 提交)。端到端已验证:zkVM 执行与 host-mode Neo VM 执行字节字节一致(默认测试约 42 秒);真正的 CPU 证明产生 + 验证 + 篡改 hash 拒绝由 2 条 `#[ignore]` 把关测试覆盖(合计约 3.5 分钟,发布前跑);queue → daemon → 独立验证器的真密码学往返已驱动过(87 秒证明、2.78MB 证明、42 秒验证)。
+- **RISC-V ZK(Stage 2)证明者/验证器 —— 完整路径** ✅ — C# 的 `src/Neo.L2.Proving/RiscVZk/` 是进程内测试接缝(单测用 mock 证明者)。真正的 Stage-2 证明跑在进程外:`bridge/neo-zkvm-guest/` 经 `cargo prove build` 在 sp1-zkvm 6.2.1 上编译为 RISC-V ELF,**对每笔批次 tx 真正执行 Neo N3 VM**(依赖 `external/neo-zkvm/crates/neo-vm-guest`,证明对 opcode / gas 计费 / halt-or-fault / 栈顶结果做证明,不只是哈希字节)。`bridge/neo-zkvm-host/` 是 sp1-sdk 6.2.1 的编排器,带 `execute()` / `prove()` / `verify()` API 和 `prove-batch daemon --watch <dir>` CLI,变身成生产证明守护进程(运维者把封好的批次扔进队列目录,守护进程吐出 `<name>.proof.bin` + `<name>.proof.vk` 用于 L1 提交)。端到端已验证:zkVM 执行与 host-mode Neo VM 执行字节字节一致(默认测试约 42 秒);真正的 CPU 证明产生 + 验证 + 篡改 hash 拒绝由 2 条 `#[ignore]` 把关测试覆盖(合计约 3.5 分钟,发布前跑);queue → daemon → 独立验证器的真密码学往返已驱动过(87 秒证明、2.78MB 证明、42 秒验证)。
 - **DA writer(in-memory / NeoFS / L1 / DAC / RocksDB)** ✅ — `src/Neo.Plugins.L2DA/`(5 种实现)
 - **结算 RPC 客户端** ✅ — `src/Neo.L2.Settlement.Rpc/`
 - **可观测性(Prometheus 形态)** ✅ — `src/Neo.L2.Telemetry/`、`Neo.Plugins.L2Metrics/`
@@ -64,7 +64,7 @@
 - **按 L2 的 RPC 方法面** ✅ — `src/Neo.Plugins.L2Rpc/`(10 个方法)
 - **Phase-5 证明聚合** ✅ — `src/Neo.Plugins.L2Gateway/` —— `BinaryTreeAggregator`,带三种 `IRoundProver` 实现:`MultisigRoundProver`(Secp256r1 阈值证明)、`MerklePathRoundProver`(逐叶 包含证明)、`PassThroughRoundProver`(最低成本参照)。递归 ZK fold 变体(SP1 Compress / Halo2 / Risc0)由运维者经同一接缝接入
 
-**16 个链下库 + 8 个插件。** 都有 `tests/Neo.*.UnitTests/` 镜像;1409 条测试横跨 33
+**16 个链下库 + 8 个插件。** 都有 `tests/Neo.*.UnitTests/` 镜像;1411 条测试横跨 33
 个 .NET 工程通过。Rust workspace 出货 21 条默认 CI 测试(host-mode 密码学 + SDK +
 zkVM execute 往返)加 2 条 `#[ignore]` 把关测试,演练真实 CPU 证明产生 + 验证(墙
 钟 ~4 分钟)。TypeScript SDK 出货 15 条 vitest 测试。

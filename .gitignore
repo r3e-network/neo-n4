@@ -38,9 +38,6 @@ book/
 # Manuscript build artifacts (tools/manuscript/build.sh)
 build/
 
-# Local Codex audit scratch. The curated report/ledger stay tracked; raw logs,
-# inventories, TRX files, and transient command outputs remain local.
-CODEX_DEEP_AUDIT/*
-!CODEX_DEEP_AUDIT/
-!CODEX_DEEP_AUDIT/deep-audit-report.md
-!CODEX_DEEP_AUDIT/repository_coverage_ledger.md
+# Local Codex audit scratch. Curated audit documents live under docs/audit/;
+# raw logs, inventories, TRX files, and transient command outputs stay local.
+CODEX_DEEP_AUDIT/

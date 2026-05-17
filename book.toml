@@ -4,7 +4,6 @@ authors = ["neo-n4 contributors"]
 description = "Multi-L2 network on Neo 4 core. Shared bridge, proof aggregation, native cross-chain messaging."
 src = "docs"
 language = "en"
-multilingual = false
 
 [output.html]
 default-theme = "light"
@@ -13,7 +12,6 @@ git-repository-url = "https://github.com/r3e-network/neo-n4"
 edit-url-template = "https://github.com/r3e-network/neo-n4/edit/master/{path}"
 additional-css = []
 mathjax-support = false
-copy-fonts = true
 no-section-label = false
 fold = { enable = true, level = 1 }
 

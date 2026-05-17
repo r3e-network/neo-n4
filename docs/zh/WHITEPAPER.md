@@ -289,7 +289,7 @@ L1 上的 verifier registry 按 `ProofType` 分发;同一份 `L2BatchCommitment`
   收敛到争议 tx。
 - **Stage 2 —— `RiscVZkVerifier`。**生产者:`prove-batch daemon`
   (真,跨进程)+ `MockRiscVProver`(进程内测试 seam)。状态:真实
-  Neo N3 VM 经 SP1 6.0 证明;端到端 queue → daemon → verify 流水线
+  Neo N3 VM 经 SP1 6.2.1 证明;端到端 queue → daemon → verify 流水线
   已验证。
 
 聚合证明(Phase 5 Gateway)复用同一 registry —— `ProofType.Aggregated` 加上

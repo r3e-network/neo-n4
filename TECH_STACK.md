@@ -1,6 +1,6 @@
 # Neo N4 — Tech Stack at a Glance
 
-One-page developer onboarding for the Neo Elastic Network repo. Counts verified against the codebase on 2026-05-16.
+One-page developer onboarding for the Neo Elastic Network repo. Counts verified against the codebase on 2026-05-17.
 
 ---
 
@@ -75,13 +75,13 @@ Per-component detail lives in [`docs/tech-stack-coverage.md`](docs/tech-stack-co
 
 | Check | Result |
 |-------|--------|
-| .NET tests | **1409 passing across 33 projects, 0 failures** |
-| Cross-language tests | **156 passing** (15 TS + 10 Rust SDK + 8 SP1 guest + 103 watcher with `--features live-rpc` + 20 Foundry) |
-| Real-CPU SP1 proof generation | **2 passing** (~40s prove, ~20s verify, 2.78 MB proof artifact) |
-| **Total tests green** | **1531** |
+| .NET tests | **1411 passing across 33 projects, 0 failures** |
+| Cross-language tests | **155 passing** (15 TS + 10 Rust SDK + 8 SP1 guest + 101 watcher with `--features live-rpc` + 20 Foundry + 1 Solana Anchor) |
+| Real-CPU SP1 proof generation | **2 ignored release-gate tests** (~40s prove, ~20s verify, 2.78 MB proof artifact) |
+| **Base tests green** | **1566** |
 | Smart contract artifacts | 30/30 `.nef` + `.manifest.json` compile cleanly via `nccs 3.9.1` |
 | Devnet 5-batch end-to-end | green (state-root continuity, multisig proofs, audit pass) |
-| `dotnet build Neo.L2.sln` | 79 projects, 0 errors, 0 warnings |
+| `dotnet build Neo.L2.sln` | 101 solution projects, 0 errors, 0 warnings |
 
 ---
 
@@ -131,7 +131,7 @@ remaining gaps worth closing as the framework matures.
 # Build everything (~10s)
 dotnet build Neo.L2.sln /p:NuGetAudit=false
 
-# Run all .NET tests (1409 tests, ~30s)
+# Run all .NET tests (1411 tests, ~30s)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Run the in-process devnet (5 batches, full pipeline)

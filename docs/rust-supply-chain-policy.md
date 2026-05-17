@@ -5,12 +5,14 @@ warnings. A production release must keep `cargo audit` vulnerability count at
 zero and must either remove, upgrade, or explicitly accept every informational
 warning that remains in `Cargo.lock`.
 
-Current audit evidence is stored in:
+Curated audit evidence is stored in:
 
-- `CODEX_DEEP_AUDIT/cargo-audit-after-sp1-6.2.1-online-proxy-final.json`
-- `CODEX_DEEP_AUDIT/wsl-rust-workspace-clippy-sp1-6.2.1-final.log`
-- `CODEX_DEEP_AUDIT/wsl-rust-workspace-test-release-sp1-6.2.1-final.log`
-- `CODEX_DEEP_AUDIT/wsl-cargo-update-sp1-6.2.1.log`
+- `docs/audit/production-readiness-audit.md`
+- `docs/audit/repository-coverage-ledger.md`
+
+Raw command logs and `cargo audit --json` output are local scratch artifacts,
+not tracked source files. Attach fresh raw logs to a release approval package
+rather than committing machine-local evidence to the repository.
 
 ## Current Status
 

@@ -68,7 +68,7 @@
 - **Stage 2(ZK):** 在 `bridge/neo-zkvm-host/` 跑的进程外 Rust 证明者
   (运行为 `prove-batch daemon --watch <queue-dir>`)。批次里每笔 tx 作为
   Neo N3 VM 脚本载入,由 `neo_vm_guest::execute` 执行(纯 Rust 的真实 NeoVM);
-  SP1 6.0 证明该执行。.NET 证明者插件用 `MockRiscVProver` 仅供进程内测试 ——
+  SP1 6.2.1 证明该执行。.NET 证明者插件用 `MockRiscVProver` 仅供进程内测试 ——
   生产证明在守护进程里。
 
 证明者输出进入 `L2BatchCommitment.Proof`,带匹配的 `ProofType`。

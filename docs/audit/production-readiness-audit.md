@@ -1,7 +1,7 @@
 # Neo N4 Deep Audit Report
 
 Generated: 2026-05-17 15:27 Asia/Shanghai
-Repository: D:\Git\neo-n4
+Repository: r3e-network/neo-n4
 
 ## Executive Assessment
 
@@ -11,20 +11,12 @@ The project is not yet a "mainnet-ready with no conditions" artifact. The remain
 
 ## Scope and Inventory
 
-The audit created machine-readable coverage artifacts under `CODEX_DEEP_AUDIT/`.
-
-| Area | Evidence |
-| --- | --- |
-| File inventory | `file-inventory.csv` |
-| Documentation inventory | `document-inventory.csv` |
-| Module summary | `module-summary.csv` |
-| Function index | `function-index.csv` |
-| Function summary by file | `function-summary-by-file.csv` |
-| Runtime checklist | `first-party-runtime-checklist.md` |
-| Documentation checklist | `documentation-checklist.md` |
-| Test/sample checklist | `test-and-sample-checklist.md` |
-| Static/security hotspots | `static-hotspots.csv`, `secret-scan.csv`, `cargo-audit.json`, `cargo-audit-after-sp1-6.2.1.json` |
-| Verification log | `verification-refresh.log`, `dotnet-test-summary.json`, `contract-artifact-verification.json` |
+The audit generated machine-readable inventories, checklists, vulnerability
+scan output, and command logs as local scratch artifacts. Those raw files are
+intentionally not tracked in the repository; the curated tracked evidence is
+this report plus [`repository-coverage-ledger.md`](./repository-coverage-ledger.md).
+Regenerate raw logs by re-running the verification commands in the release
+readiness checklist.
 
 Inventory snapshot:
 
@@ -177,11 +169,11 @@ Fresh verification artifacts were written on 2026-05-17.
 
 | Surface | Command/result | Status |
 | --- | --- | --- |
-| .NET solution build | `dotnet build D:\Git\neo-n4\Neo.L2.sln /p:NuGetAudit=false --nologo` | Pass |
+| .NET solution build | `dotnet build Neo.L2.sln /p:NuGetAudit=false --nologo` | Pass |
 | .NET tests | TRX summary: 33 files, 1,411 total, 1,411 passed, 0 failed | Pass |
 | .NET package advisories | `dotnet list ... package --vulnerable --include-transitive` | Pass, no vulnerable packages reported |
 | Contract artifacts | 30 contract projects, 0 build failures, 0 missing NEF/manifest artifacts | Pass |
-| Documentation build | `mdbook build D:\Git\neo-n4` | Pass; final log `mdbook-build-final.log` |
+| Documentation build | `mdbook build` | Pass |
 | TypeScript SDK | `npm test -- --run`, `npm run build`, `npm audit --audit-level=moderate` | Pass, 15 tests, 0 npm vulnerabilities |
 | Rust SDK | `cargo test`, `cargo build` | Pass, 10 integration tests |
 | Solidity external contracts | `forge test -vv` | Pass, 20 tests |
@@ -191,10 +183,10 @@ Fresh verification artifacts were written on 2026-05-17.
 | SOL watcher | `cargo test`, `cargo clippy --all-targets -- -D warnings` | Pass, 9 tests |
 | TRON watcher | `cargo test`, `cargo clippy --all-targets -- -D warnings` | Pass, 7 tests |
 | Rust formatting | `cargo fmt --all -- --check` under WSL2 | Pass |
-| Rust workspace clippy | `cargo clippy --workspace --all-targets --locked -- -D warnings` under WSL2 | Pass; final log `wsl-rust-workspace-clippy-sp1-6.2.1-final.log` |
+| Rust workspace clippy | `cargo clippy --workspace --all-targets --locked -- -D warnings` under WSL2 | Pass |
 | Rust workspace release tests | `cargo test --workspace --release --locked` under WSL2 | Pass; 67 tests passed, 2 ignored proof tests separately covered, 0 failed |
 | Rust cargo audit | `cargo audit --json` after SP1 6.2.1 update with Windows proxy for advisory DB refresh | No vulnerabilities; 5 unmaintained warnings and 1 unsound warning, all documented in `docs/rust-supply-chain-policy.md` |
-| ZK guest WSL2/SP1 build | `cargo prove build` | Pass; final log `wsl-sp1-cargo-prove-build-final.log` |
+| ZK guest WSL2/SP1 build | `cargo prove build` | Pass |
 | ZK host WSL2/SP1 default | `cargo test --release --locked` in `bridge/neo-zkvm-host` | Pass; guest ELF built, 1 default end-to-end zkVM execute test passed |
 | ZK host WSL2/SP1 real proof | `cargo test --release --locked -- --ignored --nocapture` in `bridge/neo-zkvm-host` | Pass; real proof generated in 38.7s, verified in 12.9s, and tampered public-input hash rejected |
 | GitHub Actions workflow syntax | Parsed `.github/workflows/build.yml` with PyYAML after CI expansion | Pass; 9 jobs detected |

@@ -1,6 +1,6 @@
 # Neo N4 — Task Split
 
-Open work between **Neo N4 Core** (upstream `neo-project/neo`) and **this Elastic Network repo** (`neo4`). Counts verified against the codebase on 2026-05-16.
+Open work between **Neo N4 Core** (upstream `neo-project/neo`) and **this Elastic Network repo** (`neo4`). Counts verified against the codebase on 2026-05-17.
 
 ---
 
@@ -127,10 +127,10 @@ Anything touching **NeoVM execution semantics, native contracts, dBFT consensus,
 
 Reference state after the closed-iteration fixes:
 
-- Tests green: **1409 .NET + 156 cross-language base + 2 real-CPU SP1 = 1531** (the +11 delta from 1362 came from the new `UT_KeyedStateMerkleTree_NeoClassicParity` regression suite added with the state-tree Merkle convention fix; the 2 SP1 ignored tests are verified end-to-end via `cargo test --release --tests -- --ignored` in `bridge/neo-zkvm-host/`)
-  - 1409 .NET across 33 projects (1362 baseline + 11 new `UT_KeyedStateMerkleTree_NeoClassicParity` rows)
-  - 156 cross-language (15 TS + 10 Rust SDK + 8 SP1 guest + 103 watcher + 20 Foundry)
-- Build: 79 projects, 0 errors, 0 warnings (with `nccs` on PATH)
+- Tests green: **1411 .NET + 155 cross-language base = 1566**, plus 2 real-CPU SP1 release-gate tests verified via `cargo test --release --locked -- --ignored --nocapture` in `bridge/neo-zkvm-host/`.
+  - 1411 .NET across 33 projects.
+  - 155 cross-language (15 TS + 10 Rust SDK + 8 SP1 guest + 101 watcher + 20 Foundry + 1 Solana Anchor).
+- Build: 101 solution projects, 0 errors, 0 warnings (with `nccs` on PATH)
 - Smart contracts: 28 NeoHub/L2Native + 2 sample dApps + 1 sample executor → all compile fresh
 - Devnet 5-batch E2E: green, state root unchanged (`KeyedStateRootOracle` path was already Neo classic)
 - Findings ledger: **0 substantive + 0 minor nits open** — all 4 findings from the 40-iteration sweep now closed

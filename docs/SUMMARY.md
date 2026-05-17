@@ -36,3 +36,8 @@
 - [Application Engine + MPT plan](./plan-application-engine-and-mpt.md)
 - [ZKsync Elastic Chain comparison](./zksync-comparison.md)
 - [Testing approach](./testing-approach.md)
+
+# Audit evidence
+
+- [Production readiness audit](./audit/production-readiness-audit.md)
+- [Repository coverage ledger](./audit/repository-coverage-ledger.md)

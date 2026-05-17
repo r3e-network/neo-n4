@@ -714,7 +714,7 @@ The framework ships **two** SP1 integrations. Pick one:
 
 ### Recommended: out-of-process Rust prover daemon
 
-**This is the production path.** Modern sp1-sdk 6.0, simpler dep graph,
+**This is the production path.** Modern sp1-sdk 6.2.1, simpler dep graph,
 matches industry-standard L2 layout.
 
 ```bash

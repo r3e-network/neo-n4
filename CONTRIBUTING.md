@@ -19,7 +19,7 @@
 ## Quick start
 
 ```bash
-# Type-check everything + run all 1409 tests
+# Type-check everything + run all 1411 tests
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Run the in-process devnet demo
@@ -57,7 +57,7 @@ neo4/
 │   └── Neo.Hub.Deploy/              # declarative deploy planner
 ├── bridge/
 │   ├── neo-zkvm-guest/              # Rust → RISC-V ELF, real Neo N3 VM
-│   └── neo-zkvm-host/               # sp1-sdk 6.0 prover daemon (prove-batch)
+│   └── neo-zkvm-host/               # sp1-sdk 6.2.1 prover daemon (prove-batch)
 ├── tests/                           # one *.UnitTests project per src/* and tools/* item
 └── docs/
     ├── getting-started.md

@@ -98,7 +98,7 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
 - **Web app (1)** — `sdk/web-explorer/index.html` — single static-file
   UI: Explore + Bridge + Faucet + state-root continuity Audit.
 - **Docs site config (1)** — `book.toml` + `docs/SUMMARY.md` (mdBook).
-- **Rust prover (2)** — `bridge/neo-zkvm-host/` (sp1-sdk 6.0 prover +
+- **Rust prover (2)** — `bridge/neo-zkvm-host/` (sp1-sdk 6.2.1 prover +
   `prove-batch daemon`) · `bridge/neo-zkvm-guest/` (the function being
   proved — RISC-V ELF, real Neo N3 VM via `neo_vm_guest::execute`).
 - **Submodules (4)** — `external/neo` (Neo 4 core) ·
@@ -139,7 +139,7 @@ neo4/
 │   └── executors/                          # Sample.CounterChainExecutor + scaffold target
 ├── bridge/
 │   ├── neo-zkvm-guest/                     # Rust → RISC-V ELF (real Neo VM, SP1-proven)
-│   └── neo-zkvm-host/                      # sp1-sdk 6.0 prover daemon (prove-batch)
+│   └── neo-zkvm-host/                      # sp1-sdk 6.2.1 prover daemon (prove-batch)
 └── tests/                                  # 1411 tests / 33 projects
 ```
 

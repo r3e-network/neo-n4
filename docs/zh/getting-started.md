@@ -31,7 +31,7 @@ git submodule update --init --recursive
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 ```
 
-预期:**1409 个测试通过、覆盖 33 个工程**,端到端约 10 秒。
+预期:**1411 个测试通过、覆盖 33 个工程**,端到端约 10 秒。
 
 如果机器没有外网,`/p:NuGetAudit=false` 会跳过对 nuget.org 的安全审计跳转。
 

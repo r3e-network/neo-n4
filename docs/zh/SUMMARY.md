@@ -9,10 +9,15 @@
 - [持久化](./persistence.md)
 - [可观测性](./telemetry.md)
 - [安全模型](./security-model.md)
+- [Rust 供应链策略](./rust-supply-chain-policy.md)
+- [发布就绪检查清单](./release-readiness-checklist.md)
 
 # 架构
 
 - [架构地图(从这开始)](./architecture-atlas.md)
+- [架构摘要](./ARCHITECTURE.md)
+- [白皮书](./WHITEPAPER.md)
+- [可视化导览](./visual-guide.md)
 - [架构导览](./architecture-walkthrough.md)
 - [L2 链生命周期](./architecture-l2-lifecycle.md)
 - [L1 与 L2 的分工](./architecture-l1-vs-l2.md)

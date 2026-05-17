@@ -306,7 +306,7 @@ plugin code or L2 contract changes required.
   log-N narrowing of disputed tx.
 - **Stage 2 — `RiscVZkVerifier`.** Producer: `prove-batch daemon` (real,
   out-of-process) + `MockRiscVProver` (in-process test seam). Status:
-  real Neo N3 VM proven via SP1 6.0; end-to-end queue → daemon → verify
+  real Neo N3 VM proven via SP1 6.2.1; end-to-end queue → daemon → verify
   pipeline validated.
 
 Aggregated proofs (Phase 5 Gateway) reuse the same registry — `ProofType.Aggregated` plus a

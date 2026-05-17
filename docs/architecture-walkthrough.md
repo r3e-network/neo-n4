@@ -72,7 +72,7 @@ hands it to the configured `IL2Prover`:
 - **Stage 2 (ZK):** Out-of-process Rust prover at `bridge/neo-zkvm-host/`
   (run as `prove-batch daemon --watch <queue-dir>`). Each tx in the batch is
   loaded as a Neo N3 VM script and executed by `neo_vm_guest::execute` (real
-  NeoVM in pure Rust); SP1 6.0 proves that execution. The .NET prover plugin
+  NeoVM in pure Rust); SP1 6.2.1 proves that execution. The .NET prover plugin
   uses `MockRiscVProver` for in-process testing only — production proving
   lives in the daemon.
 

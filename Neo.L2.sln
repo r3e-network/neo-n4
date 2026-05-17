@@ -225,6 +225,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sample.CrossChainGreeter", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sample.WithdrawalDemo", "samples\contracts\Sample.WithdrawalDemo\Sample.WithdrawalDemo.csproj", "{041C507C-3364-49C3-A5C7-BEFE1D82591C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.External.Bridge.Cli.UnitTests", "tests\Neo.External.Bridge.Cli.UnitTests\Neo.External.Bridge.Cli.UnitTests.csproj", "{9E01E6C6-285C-4922-AEB7-2C1329450172}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -1447,6 +1449,18 @@ Global
 		{041C507C-3364-49C3-A5C7-BEFE1D82591C}.Release|x64.Build.0 = Release|Any CPU
 		{041C507C-3364-49C3-A5C7-BEFE1D82591C}.Release|x86.ActiveCfg = Release|Any CPU
 		{041C507C-3364-49C3-A5C7-BEFE1D82591C}.Release|x86.Build.0 = Release|Any CPU
+		{9E01E6C6-285C-4922-AEB7-2C1329450172}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9E01E6C6-285C-4922-AEB7-2C1329450172}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9E01E6C6-285C-4922-AEB7-2C1329450172}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{9E01E6C6-285C-4922-AEB7-2C1329450172}.Debug|x64.Build.0 = Debug|Any CPU
+		{9E01E6C6-285C-4922-AEB7-2C1329450172}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{9E01E6C6-285C-4922-AEB7-2C1329450172}.Debug|x86.Build.0 = Debug|Any CPU
+		{9E01E6C6-285C-4922-AEB7-2C1329450172}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9E01E6C6-285C-4922-AEB7-2C1329450172}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9E01E6C6-285C-4922-AEB7-2C1329450172}.Release|x64.ActiveCfg = Release|Any CPU
+		{9E01E6C6-285C-4922-AEB7-2C1329450172}.Release|x64.Build.0 = Release|Any CPU
+		{9E01E6C6-285C-4922-AEB7-2C1329450172}.Release|x86.ActiveCfg = Release|Any CPU
+		{9E01E6C6-285C-4922-AEB7-2C1329450172}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -1553,5 +1567,6 @@ Global
 		{293069C8-924C-78F5-2116-CA0714F52B7E} = {5D20AA90-6969-D8BD-9DCD-8634F4692FDA}
 		{A58DF00C-A9A5-4120-866B-5F6AFC1B1357} = {293069C8-924C-78F5-2116-CA0714F52B7E}
 		{041C507C-3364-49C3-A5C7-BEFE1D82591C} = {293069C8-924C-78F5-2116-CA0714F52B7E}
+		{9E01E6C6-285C-4922-AEB7-2C1329450172} = {FEED0001-0000-0000-0000-000000000002}
 	EndGlobalSection
 EndGlobal

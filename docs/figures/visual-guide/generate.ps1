@@ -318,7 +318,7 @@ $(DashedArrow 600 545 600 412 'backoff')
 "@
 
 RenderSvg "testing-matrix.svg" 1200 720 "Verification Matrix" "Build, test, artifact, and dependency checks by runtime surface." @"
-$(Box 55 110 245 140 '.NET solution' '101 projects build|unit + integration tests|package vulnerability audit' $blue)
+$(Box 55 110 245 140 '.NET solution' '102 projects build|unit + integration tests|package vulnerability audit' $blue)
 $(Box 335 110 245 140 'Smart contracts' '28 product + 2 sample projects|direct nccs artifact generation|NEF + manifest completeness' $green)
 $(Box 615 110 245 140 'Rust watchers / SDK' 'ETH live-rpc tests + clippy|Solana / Tron parity|cargo audit' $orange)
 $(Box 895 110 245 140 'Foreign contracts' 'Foundry EVM tests|Solana Anchor tests|router state isolation' $purple)

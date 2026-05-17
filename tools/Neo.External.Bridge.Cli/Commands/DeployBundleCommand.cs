@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Neo.External.Bridge.Cli.Commands;
 
@@ -65,6 +66,10 @@ internal static class DeployBundleCommand
             || ethRouter is null || threshold is null
             || blobHex is null || ethAddrsRaw is null) return 1;
 
+        if (!TryDecodeHexBytes("--eth-router", ethRouter, "20-byte hex address", expectedBytes: 20, out var ethRouterBytes))
+            return 1;
+        var normalizedEthRouter = "0x" + GenKeyCommand.HexLower(ethRouterBytes);
+
         if (!byte.TryParse(threshold, out var thresholdByte) || thresholdByte == 0)
         {
             Console.Error.WriteLine($"❌ --threshold must be a positive byte (1..255), got '{threshold}'");
@@ -79,8 +84,19 @@ internal static class DeployBundleCommand
             return 1;
         }
 
+        var normalizedEthAddrs = new List<string>(ethAddrs.Length);
+        for (var i = 0; i < ethAddrs.Length; i++)
+        {
+            if (!TryDecodeHexBytes($"--eth-addresses[{i}]", ethAddrs[i], "20-byte hex address", expectedBytes: 20, out var addrBytes))
+                return 1;
+            normalizedEthAddrs.Add("0x" + GenKeyCommand.HexLower(addrBytes));
+        }
+
         // Cross-check the committee blob length matches the Eth-address count.
-        var blob = blobHex.StartsWith("0x") ? blobHex.Substring(2) : blobHex;
+        if (!TryDecodeHexBytes("--committee-blob", blobHex, "hex-encoded committee blob", expectedBytes: null, out var blobBytes))
+            return 1;
+        var normalizedBlob = GenKeyCommand.HexLower(blobBytes);
+        var blob = blobHex.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? blobHex.Substring(2) : blobHex;
         if (blob.Length % 66 != 0)
         {
             Console.Error.WriteLine($"❌ committee-blob hex length {blob.Length} is not a multiple of 66 (33B per pubkey × 2 hex chars)");
@@ -103,7 +119,7 @@ internal static class DeployBundleCommand
         Console.WriteLine($"#   Neo verifier  = {verifier}");
         Console.WriteLine($"#   Neo registry  = {registry}");
         Console.WriteLine($"#   Neo escrow    = {escrow}");
-        Console.WriteLine($"#   Eth router    = {ethRouter}");
+        Console.WriteLine($"#   Eth router    = {normalizedEthRouter}");
         Console.WriteLine();
         Console.WriteLine("Pre-flight: contracts already deployed at the addresses above? Yes [ ]");
         Console.WriteLine("            (use neo-hub-deploy for Neo, forge create for Eth)");
@@ -115,7 +131,7 @@ internal static class DeployBundleCommand
         Console.WriteLine($"    externalChainId = 0x{externalChainId:X8}");
         Console.WriteLine($"    threshold       = {thresholdByte}");
         Console.WriteLine($"    curveTag        = 1   # secp256k1");
-        Console.WriteLine($"    committeeBlob   = 0x{blob}");
+        Console.WriteLine($"    committeeBlob   = 0x{normalizedBlob}");
         Console.WriteLine();
         Console.WriteLine("Step 2 — register the verifier on the Neo registry:");
         Console.WriteLine($"  contract: {registry}");
@@ -132,14 +148,14 @@ internal static class DeployBundleCommand
         Console.WriteLine($"    registry = {registry}");
         Console.WriteLine();
         Console.WriteLine("Step 4 — register the committee on the Eth router:");
-        Console.WriteLine($"  contract: {ethRouter}");
+        Console.WriteLine($"  contract: {normalizedEthRouter}");
         Console.WriteLine($"  method:   setCommittee");
         Console.WriteLine($"  args:");
         Console.WriteLine($"    members[] = [");
-        for (var i = 0; i < ethAddrs.Length; i++)
+        for (var i = 0; i < normalizedEthAddrs.Count; i++)
         {
-            var sep = i + 1 < ethAddrs.Length ? "," : "";
-            Console.WriteLine($"        {ethAddrs[i]}{sep}");
+            var sep = i + 1 < normalizedEthAddrs.Count ? "," : "";
+            Console.WriteLine($"        {normalizedEthAddrs[i]}{sep}");
         }
         Console.WriteLine("    ]");
         Console.WriteLine($"    threshold = {thresholdByte}");
@@ -156,6 +172,39 @@ internal static class DeployBundleCommand
         if (uint.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out v)) return true;
         v = 0;
         return false;
+    }
+
+    private static bool TryDecodeHexBytes(string name, string raw, string valueDescription, int? expectedBytes, out byte[] bytes)
+    {
+        bytes = Array.Empty<byte>();
+        var hex = raw.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? raw.Substring(2) : raw;
+        if (hex.Length == 0)
+        {
+            Console.Error.WriteLine($"❌ {name} must be a non-empty {valueDescription}");
+            return false;
+        }
+        if (hex.Length % 2 != 0)
+        {
+            Console.Error.WriteLine($"❌ {name} must have even-length hex");
+            return false;
+        }
+        if (expectedBytes is not null && hex.Length != expectedBytes.Value * 2)
+        {
+            Console.Error.WriteLine($"❌ {name} must be a {valueDescription}, got {hex.Length / 2} bytes");
+            return false;
+        }
+
+        bytes = new byte[hex.Length / 2];
+        for (var i = 0; i < bytes.Length; i++)
+        {
+            if (!byte.TryParse(hex.AsSpan(2 * i, 2), System.Globalization.NumberStyles.HexNumber, null, out var v))
+            {
+                Console.Error.WriteLine($"❌ {name} invalid hex byte at offset {2 * i}");
+                return false;
+            }
+            bytes[i] = v;
+        }
+        return true;
     }
 
     private static void PrintUsage()

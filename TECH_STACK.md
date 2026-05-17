@@ -64,7 +64,7 @@ Per-component detail lives in [`docs/tech-stack-coverage.md`](docs/tech-stack-co
 | Rust crates — watchers | 3 | `watchers/neo-bridge-watcher-{eth,tron,sol}/` |
 | App SDKs (TS / Rust / .NET) | 3 | `sdk/typescript/`, `sdk/rust/`, `src/Neo.L2.Sdk/` — 11 RPC methods × 3 langs, parity-pinned |
 | Web explorer (static-file dApp) | 1 | `sdk/web-explorer/index.html` |
-| Test projects | 33 | `tests/Neo.L2.*.UnitTests/` + `tests/Neo.L2.IntegrationTests/` + sample test projects |
+| Test projects | 34 | `tests/Neo.L2.*.UnitTests/` + `tests/Neo.L2.IntegrationTests/` + sample test projects |
 | Documentation pages | 20 EN + 22 zh | `docs/*.md`, `docs/zh/*.md` |
 
 **Total runnable code modules: 73** (28 contracts + 2 samples + 1 executor + 2 foreign + 16 libs + 8 plugins + 7 tools + 2 bridge + 3 watchers + 3 SDKs + 1 web).
@@ -75,13 +75,13 @@ Per-component detail lives in [`docs/tech-stack-coverage.md`](docs/tech-stack-co
 
 | Check | Result |
 |-------|--------|
-| .NET tests | **1411 passing across 33 projects, 0 failures** |
+| .NET tests | **1423 passing across 34 projects, 0 failures** |
 | Cross-language tests | **155 passing** (15 TS + 10 Rust SDK + 8 SP1 guest + 101 watcher with `--features live-rpc` + 20 Foundry + 1 Solana Anchor) |
 | Real-CPU SP1 proof generation | **2 ignored release-gate tests** (~40s prove, ~20s verify, 2.78 MB proof artifact) |
-| **Base tests green** | **1566** |
+| **Base tests green** | **1578** |
 | Smart contract artifacts | 30/30 `.nef` + `.manifest.json` compile cleanly via `nccs 3.9.1` |
 | Devnet 5-batch end-to-end | green (state-root continuity, multisig proofs, audit pass) |
-| `dotnet build Neo.L2.sln` | 101 solution projects, 0 errors, 0 warnings |
+| `dotnet build Neo.L2.sln` | 102 solution projects, 0 errors, 0 warnings |
 
 ---
 
@@ -131,7 +131,7 @@ remaining gaps worth closing as the framework matures.
 # Build everything (~10s)
 dotnet build Neo.L2.sln /p:NuGetAudit=false
 
-# Run all .NET tests (1411 tests, ~30s)
+# Run all .NET tests (1423 tests, ~30s)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Run the in-process devnet (5 batches, full pipeline)

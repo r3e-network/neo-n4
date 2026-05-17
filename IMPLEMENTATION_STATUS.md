@@ -246,13 +246,13 @@ External-bridge stack (doc.md §11.3 — cross-foreign-chain to Eth/Tron/Sol):
 
 ### Tests
 
-**1411 .NET tests across 33 projects, plus 155 cross-language tests
+**1423 .NET tests across 34 projects, plus 155 cross-language tests
 (15 TypeScript + 10 Rust SDK + 8 SP1 guest host-mode + 101 Rust bridge
 watcher core across 3 crates [eth: 85 with `live-rpc`; tron: 7; sol: 9],
 20 Foundry Solidity tests for `NeoExternalBridgeRouter` [13 single-chain
 and 7 multi-chain validating the router deploys unchanged across the entire
 EVM family], and 1 Solana Anchor program test) — all green on the Windows audit
-matrix.** Phase-C real-crypto fraud-proof tests (7 of the 1411 .NET) pin the
+matrix.** Phase-C real-crypto fraud-proof tests (7 of the 1423 .NET) pin the
 equivocation slash path's bytes-on-the-wire contract end-to-end with
 real secp256k1 signatures.
 

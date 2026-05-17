@@ -132,7 +132,7 @@ The audit restored missing binary entrypoints required by the workspace:
 
 ### 6. Test and status documentation was synchronized
 
-The documented .NET test count was updated to the current 1,411 passing tests, and the optimistic sequencer account/signature binding coverage was documented.
+The documented .NET test count was updated to the current 1,423 passing tests, and the optimistic sequencer account/signature binding coverage was documented.
 
 Updated files include:
 
@@ -155,7 +155,24 @@ Key location:
 
 - `.github/workflows/build.yml`
 
-### 8. Release readiness checklist was added
+### 8. External bridge deploy bundle validation was hardened
+
+The systematic follow-up audit found that `neo-external-bridge deploy-bundle`
+validated committee size and threshold, but did not validate that the Eth router,
+Eth committee members, or committee blob were well-formed hex bytes before
+printing the operator runbook.
+
+Fixed in `tools/Neo.External.Bridge.Cli/Commands/DeployBundleCommand.cs`:
+
+- `--eth-router` must now be a 20-byte hex address.
+- each `--eth-addresses[N]` entry must now be a 20-byte hex address.
+- `--committee-blob` must now decode as non-empty hex bytes.
+- accepted EVM addresses and committee blobs are normalized in the printed plan.
+- `tests/Neo.External.Bridge.Cli.UnitTests` was added to pin the CLI route,
+  key generation file safety, committee duplicate/point validation, deploy
+  threshold checks, and malformed EVM/hex rejection.
+
+### 9. Release readiness checklist was added
 
 The remaining live-network production gate is now documented as an evidence-driven release checklist covering source freeze, local verification, contract artifact review, deployment plan review, real devnet/testnet rehearsal, CI approval, and production cutover controls.
 
@@ -170,7 +187,7 @@ Fresh verification artifacts were written on 2026-05-17.
 | Surface | Command/result | Status |
 | --- | --- | --- |
 | .NET solution build | `dotnet build Neo.L2.sln /p:NuGetAudit=false --nologo` | Pass |
-| .NET tests | TRX summary: 33 files, 1,411 total, 1,411 passed, 0 failed | Pass |
+| .NET tests | TRX summary: 34 files, 1,423 total, 1,423 passed, 0 failed | Pass |
 | .NET package advisories | `dotnet list ... package --vulnerable --include-transitive` | Pass, no vulnerable packages reported |
 | Contract artifacts | 30 contract projects, 0 build failures, 0 missing NEF/manifest artifacts | Pass |
 | Documentation build | `mdbook build` | Pass |

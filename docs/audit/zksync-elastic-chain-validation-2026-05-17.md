@@ -51,19 +51,18 @@ ZKsync. Its high-level shape is correct:
 - Real local rehearsal and remote CI have been run after the latest changes.
 
 The project is professionally structured and substantially complete as a
-framework/devnet stack. It should not be described as turnkey mainnet-equivalent
-to ZKsync Elastic Chain yet. The remaining gaps are concrete and tracked:
+framework/devnet stack. The latest implementation closes the major in-repo
+ZKsync parity gaps: DA validation, canonical bridged token template, L2 AA,
+staged governance, L1->L2 filtering, and L2-side interop verification.
 
-1. On-L1 DA inclusion verifier for validium/DAC modes.
-2. Canonical bridged NEP-17 template for L1 asset mappings.
-3. Programmable L2 account abstraction equivalent to ZKsync native AA.
-4. Staged upgrade timer with explicit notice/execution/cooldown windows.
-5. Optional per-chain L1->L2 transaction filter hook.
-6. L2-side interop message verifier equivalent to ZKsync Connect's L2 verifier.
-7. Production examples for NeoFS, L1 signer, KMS/HSM, and dBFT validator-set
+It should still not be described as turnkey mainnet-equivalent to ZKsync Elastic
+Chain yet. The remaining gaps are concrete and tracked:
+
+1. Production examples for NeoFS, L1 signer, KMS/HSM, and dBFT validator-set
    wiring.
-8. Public devnet/testnet deployment evidence with real RPC, funded accounts,
+2. Public devnet/testnet deployment evidence with real RPC, funded accounts,
    governance accounts, and foreign testnet routes.
+3. More application samples and Go/Python SDK coverage.
 
 ## System-Level Comparison
 
@@ -73,15 +72,15 @@ to ZKsync Elastic Chain yet. The remaining gaps are concrete and tracked:
 | L1 coordination hub | Bridgehub routes chain IDs, shared bridges, and chain contracts. | `NeoHub.ChainRegistry`, `MessageRouter`, `SharedBridge`, `SettlementManager`, `VerifierRegistry`, `TokenRegistry`, `DARegistry`. | Aligned, split by concern instead of one Bridgehub. |
 | Chain type management | CTM deploys/initializes chain contracts and coordinates shared upgrades. | `VerifierRegistry` + `GovernanceController` + `neo-hub-deploy` planner. | Partial. Correct abstraction, but no on-chain per-chain factory or staged CTM-style upgrade workflow. |
 | Shared bridge | Bridgehub/shared bridges lock assets once on L1 for all chains. | `NeoHub.SharedBridge` holds deposits and proof-based withdrawals; bridge CLI emits canonical invocation hex. | Strong functional parity. |
-| Canonical assets | ZKsync shared bridges deploy/verify canonical L2 token contracts. | `TokenRegistry` maps assets; L2 bridge exists, but no default `L2Native.BridgedNep17Contract`. | Gap. |
+| Canonical assets | ZKsync shared bridges deploy/verify canonical L2 token contracts. | `TokenRegistry` maps assets; `L2BridgeContract` mints/burns; `L2Native.BridgedNep17Contract` is the canonical template. | Substantially aligned; deterministic factory deployment remains tooling work. |
 | Batch settlement | ExecutorFacet commits/proves/executes batches and checks DA/proofs. | `SettlementManager`, proof payloads, verifier registry, SP1 prover host, optimistic challenge path. | Strong off-chain/devnet parity; public-network deployment still open. |
-| Data availability | Rollup and validium modes; Stage-2 validium verifies DA inclusion on L1 via validators. | `DARegistry`, `L2DAPlugin`, `JsonRpcL1DAWriter`, `CommitteeAttestedDAWriter`, `NeoFsLikeDAWriter`. | Partial. L1 DA validator contract is missing. |
+| Data availability | Rollup and validium modes; Stage-2 validium verifies DA inclusion on L1 via validators. | `DARegistry`, `DAValidator`, `L2DAPlugin`, `JsonRpcL1DAWriter`, `CommitteeAttestedDAWriter`, `NeoFsLikeDAWriter`. | Aligned for DAC attestation; richer external/NeoFS proof adapters remain operator-specific. |
 | Gateway/proof aggregation | Gateway aggregates proofs from multiple chains; assets remain locked on Ethereum, not Gateway. | `Neo.Plugins.L2Gateway.BinaryTreeAggregator`, `IRoundProver` implementations, `MessageRouter.PublishGlobalRoot`; assets remain in NeoHub. | Architecturally aligned. Recursive-ZK round prover remains operator-supplied. |
-| Interop | ZKsync Connect verifies messages via Gateway MessageRoot and L2 message verifier. | L1-side message router and global root exist; L2-side local verifier does not. | Partial. |
+| Interop | ZKsync Connect verifies messages via Gateway MessageRoot and L2 message verifier. | L1-side message router/global root plus `L2Native.L2InteropVerifier` for local proof verification. | Aligned at helper-contract level. |
 | Sequencing/censorship | Configurable sequencing; priority queue escape hatch. | `SequencerRegistry`, `SequencerBond`, `ForcedInclusion`, `CensorshipDetector`, RPC source abstractions. | Strong framework parity; production dBFT selector wiring is still operator-specific. |
-| Governance/security response | Shared governance, security council, freezing, permanent restrictions, ValidatorTimelock. | `GovernanceController`, `EmergencyManager`, immutable flags, timelock, challenge windows. | Strong but not complete; staged upgrade windows remain a gap. |
-| Account abstraction/paymasters | Native AA at protocol level; all accounts and EOAs can use paymasters. | `L2PaymasterContract` top-up/sponsor model; no programmable account abstraction contract. | Gap. |
-| Transaction filtering | Operators can filter L1->L2 and L2 transactions. | No per-chain `IL1TxFilter`; mempool/API filtering is not standardized. | Gap. |
+| Governance/security response | Shared governance, security council, freezing, permanent restrictions, ValidatorTimelock. | `GovernanceController`, `EmergencyManager`, immutable flags, timelock, challenge windows, staged proposal windows. | Strong; per-chain admin factory remains intentionally different. |
+| Account abstraction/paymasters | Native AA at protocol level; all accounts and EOAs can use paymasters. | `L2AccountAbstraction` validator/execute/paymaster hooks plus `L2PaymasterContract` top-up/sponsor model. | Functional AA pattern exists; not protocol-native like EraVM. |
+| Transaction filtering | Operators can filter L1->L2 and L2 transactions. | `MessageRouter.SetL1TxFilter` + `NeoHub.L1TxFilter` standardizes L1->L2 pre-enqueue filtering. | Aligned for L1->L2; L2 mempool filtering remains operator-specific. |
 | Tooling | `zkstack`, `zksync-cli`, Docker/local launch, Foundry deployment integration. | `Neo.Stack.Cli`, `Neo.Hub.Deploy`, `Neo.L2.Devnet`, bridge/faucet/explorer CLIs, local rehearsal script. | Good professional coverage; less turnkey than ZK Stack. |
 | SDKs/samples | EVM ecosystem tooling plus many tutorials. | .NET/TS/Rust SDKs and several samples. | Partial; Go/Python SDKs and more app samples are missing. |
 
@@ -114,8 +113,8 @@ Neo4 evidence:
 Verdict: complete at the framework layer. The split-contract design is more
 Neo-native and easier to audit than copying Diamond/Bridgehub literally.
 
-Remaining correctness issue: token canonicalization is incomplete until a
-default bridged NEP-17 template exists.
+Remaining correctness issue: deterministic default deployment of the bridged
+NEP-17 template is still a tooling/operator workflow, not an on-chain factory.
 
 ### 3. Chain Type / Upgrades / Governance
 
@@ -130,12 +129,12 @@ Neo4 evidence:
 - `contracts/NeoHub.EmergencyManager/`
 - `tools/Neo.Hub.Deploy/`
 
-Verdict: partially complete. Governance, verifier approval, immutable flags, and
-timelock exist, but the project lacks CTM-grade staged upgrade semantics:
-`propose -> notice -> execute -> cool-down -> freeze non-upgraded chain`.
+Verdict: substantially complete for shared governance. Governance, verifier
+approval, immutable flags, timelock, and staged windows exist:
+`propose -> notice -> execute -> cool-down`.
 
-Professional recommendation: track this as a production governance hardening
-task, not as an MVP blocker.
+Professional recommendation: treat freeze/non-upgraded-chain orchestration as
+operator policy unless neo4 later adds a per-chain factory/admin layer.
 
 ### 4. Batch Settlement And Proof Systems
 
@@ -168,15 +167,14 @@ ZKsync: validium has stages, with Stage 2 verifying DA inclusion on L1 through
 Neo4 evidence:
 
 - `contracts/NeoHub.DARegistry/`
+- `contracts/NeoHub.DAValidator/`
 - `src/Neo.Plugins.L2DA/`
 - `src/Neo.L2.Abstractions/IDAWriter.cs`
 - `src/Neo.Plugins.L2DA/CommitteeAttestedDAWriter.cs`
 
-Verdict: partial. DA modes and off-chain writers are real. The missing piece is
-an on-L1 `NeoHub.DAValidator` that verifies DAC/NeoFS/L1 inclusion proofs during
-settlement.
-
-This is a correctness gap for validium production claims.
+Verdict: aligned for DAC-style validium. DA modes, off-chain writers, on-chain
+DA recording, and DAC committee attestation validation are real. External/NeoFS
+proof adapters can still be specialized per operator.
 
 ### 6. Gateway And Interop
 
@@ -190,15 +188,13 @@ Neo4 evidence:
 - `src/Neo.Plugins.L2Gateway/MultisigRoundProver.cs`
 - `src/Neo.Plugins.L2Gateway/MerklePathRoundProver.cs`
 - `contracts/NeoHub.MessageRouter/MessageRouterContract.cs`
+- `contracts/L2Native.L2InteropVerifier/`
 - `tests/Neo.Plugins.L2Gateway.UnitTests/`
 - `tests/Neo.L2.IntegrationTests/UT_Mvp_Phase1_Cross_Component.cs`
 
-Verdict: architecturally correct. The global root publication and off-chain
-aggregation shape match the ZKsync Gateway model.
-
-Remaining gap: no `L2Native.L2InteropVerifier` equivalent for dApps to verify
-peer-chain messages locally using a published global root. Current verification
-is L1-side.
+Verdict: architecturally correct. The global root publication, off-chain
+aggregation, and L2-side inclusion verifier now match the ZKsync Gateway model
+at helper-contract level.
 
 ### 7. Sequencing And Censorship Resistance
 
@@ -224,13 +220,14 @@ ZKsync: native AA is protocol-level; all accounts and paymasters are first-class
 Neo4 evidence:
 
 - `contracts/L2Native.L2PaymasterContract/`
+- `contracts/L2Native.L2AccountAbstraction/`
 
-Verdict: incomplete relative to ZKsync. Neo4 has a paymaster-like contract, but
-not a full programmable account model with `validateTx`, `payForTx`, and
-`executeTx` semantics adapted to Neo's witness model.
+Verdict: functionally covered at contract level. Neo4 now has programmable
+validator and execute hooks, optional paymaster charging, and nonce consumption
+adapted to Neo's witness model.
 
-This is not fatal for L2 settlement correctness, but it is a major UX and
-developer-experience gap compared with ZKsync.
+This is still not protocol-native like EraVM AA, so wallets and SDKs need more
+integration work before the UX is comparable to ZKsync.
 
 ### 9. Operator Tooling
 
@@ -256,17 +253,17 @@ real wallet/signing path and funded networks.
 | Category | Score | Rationale |
 | --- | ---: | --- |
 | Architecture | 9/10 | Correct L1/L2/Gateway split and Neo-native replacements for ZKsync primitives. |
-| Core contracts | 8/10 | NeoHub suite is broad; DA validator and canonical bridged token remain missing. |
+| Core contracts | 9/10 | NeoHub/L2Native suite now includes DA validator, L1 filter, canonical bridged token, AA, and interop verifier. |
 | Proof system | 8/10 | SP1 zkVM, RISC-V host binding, optimistic path, and verifier registry exist; recursive-ZK Gateway round proof is not turnkey. |
 | Bridge/security | 8/10 | Shared bridge and external bridge are real; public-network route drills are still required. |
-| Data availability | 6/10 | Modes and writers exist; L1 inclusion verification is the missing production gate. |
-| Interop | 7/10 | Global root and message routing exist; L2-side verifier is missing. |
-| Governance | 7/10 | Timelock, immutable flags, emergency manager exist; staged upgrade process is incomplete. |
+| Data availability | 8/10 | Modes, writers, DARegistry, and DAC attestation validation exist; richer external DA proof adapters remain operator-specific. |
+| Interop | 9/10 | Global root, message routing, and L2-side verifier exist; live multi-chain drills remain. |
+| Governance | 8/10 | Timelock, immutable flags, emergency manager, and staged windows exist; no per-chain factory/admin freeze layer. |
 | DevEx/tooling | 7/10 | Strong CLIs and rehearsal; not yet as turnkey as `zkstack`/ZKsync portal ecosystem. |
 | Tests/CI | 9/10 | Broad unit/integration/cross-language/zkVM CI, plus local deployment rehearsal. |
 | Production readiness | 7/10 | Framework/devnet is strong; public deployment, operators, signers, DA validators, and live drills remain. |
 
-Overall: 7.8/10 for production readiness, 8.7/10 for architecture and
+Overall: 8.3/10 for production readiness, 9.0/10 for architecture and
 engineering professionalism.
 
 ## Professionalism Validation
@@ -304,8 +301,9 @@ Validated facts from this workspace:
   `NeoHub.SharedBridge`, `NeoHub.ChainRegistry`, `NeoHub.MessageRouter`,
   `NeoHub.SettlementManager`, `Neo.Plugins.L2Gateway`, `Neo.L2.Proving`,
   `Neo.L2.Executor.RiscV`, `Neo.Stack.Cli`, and the external bridge watchers.
-- The repository does not currently have the key gap contracts:
+- The repository now has the previously missing key contracts:
   `contracts/NeoHub.DAValidator`,
+  `contracts/NeoHub.L1TxFilter`,
   `contracts/L2Native.BridgedNep17Contract`,
   `contracts/L2Native.L2AccountAbstraction`,
   `contracts/L2Native.L2InteropVerifier`.
@@ -315,9 +313,10 @@ Correct statement to use externally:
 > Neo4 is an independent Neo-native implementation of the Elastic Chain pattern:
 > shared L1 hub, shared bridge, chain registry, settlement, proof verification,
 > data availability modes, and optional gateway aggregation. It is architecturally
-> mature and devnet-validated, but not yet equivalent to ZKsync Elastic Chain as a
-> production network until the remaining DA, bridged-token, AA, interop-verifier,
-> staged-governance, and public deployment gates are closed.
+> mature and devnet-validated, with the major in-repo ZKsync parity contracts now
+> implemented. It is still not turnkey mainnet-equivalent until public deployment,
+> funded testnet drills, production signer/DA examples, and broader SDK/sample
+> coverage are complete.
 
 Incorrect statement to avoid:
 
@@ -332,15 +331,10 @@ one-to-one.
 
 Priority order:
 
-1. Implement `NeoHub.DAValidator` and wire it into `SettlementManager` for
-   `DAMode.DAC` / validium-style chains.
-2. Add `L2Native.BridgedNep17Contract` and default deterministic asset
-   deployment from `TokenRegistry` or the operator deploy planner.
-3. Add staged governance windows to `GovernanceController`.
-4. Add an optional `IL1TxFilter` hook to `MessageRouter` / chain config.
-5. Add `L2Native.L2InteropVerifier` for Gateway-root-based L2-side message
-   verification.
-6. Add a minimal programmable AA contract and extend paymaster flows.
-7. Add public devnet/testnet deployment artifacts once real RPC/wallet/funds are
+1. Add public devnet/testnet deployment artifacts once real RPC/wallet/funds are
    available.
-8. Expand app samples and generate Go/Python SDKs from the canonical RPC model.
+2. Add worked production examples for NeoFS, JSON-RPC L1 DA, KMS/HSM signing,
+   and dBFT validator-set wiring.
+3. Add deterministic bridged-token deployment tooling around
+   `L2Native.BridgedNep17Contract`.
+4. Expand app samples and generate Go/Python SDKs from the canonical RPC model.

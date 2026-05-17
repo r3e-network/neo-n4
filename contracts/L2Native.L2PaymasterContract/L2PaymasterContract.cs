@@ -107,7 +107,7 @@ public class L2PaymasterContract : SmartContract
     public static void Charge(UInt160 user, UInt160 asset, BigInteger amount)
     {
         var feeContract = (UInt160)(Storage.Get(new byte[] { KeyFeeContract }) ?? throw new Exception("fee contract unset"));
-        ExecutionEngine.Assert(Runtime.CheckWitness(feeContract), "not fee contract");
+        ExecutionEngine.Assert(Runtime.CheckWitness(feeContract) || Runtime.CallingScriptHash.Equals(feeContract), "not fee contract");
         ExecutionEngine.Assert(amount > 0, "amount must be positive");
         ExecutionEngine.Assert(user.IsValid && !user.IsZero, "invalid user");
         ExecutionEngine.Assert(asset.IsValid && !asset.IsZero, "invalid asset");

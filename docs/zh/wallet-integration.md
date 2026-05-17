@@ -143,6 +143,6 @@ KMS 后备的密钥(AWS-KMS、GCP-KMS、Azure Key Vault、HashiCorp Vault)生产
   调用 hex。粘 → 签名。
 - **`neo-l2-faucet drip`** —— `SharedBridge.Deposit`(限速版)。
   粘 → 签名。
-- **`neo-hub-deploy plan`** —— 20 步生产合约部署调用。按拓扑顺序逐一签名。
+- **`neo-hub-deploy plan`** —— 22 步生产合约部署调用。按拓扑顺序逐一签名。
 - **`neo-stack register-chain`** —— `ChainRegistry.RegisterChain` 调用 + 91
   字节 configBytes hex。粘 → 签名。

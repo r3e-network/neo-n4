@@ -202,12 +202,12 @@ public class UT_DeployPlanner
     public void Scaffold_DefaultIncludesAllNeoHubContracts()
     {
         var plan = ScaffoldPlan.Default();
-        // 13 core NeoHub contracts + 2 fraud verifiers (Governance v1/v2 +
+        // 15 core NeoHub contracts + 2 fraud verifiers (Governance v1/v2 +
         // RestrictedExecution v3) + 4 external-bridge contracts (doc.md
         // §11.3 Phase B: MpcCommitteeVerifier, ExternalBridgeRegistry,
         // ExternalBridgeEscrow, ExternalBridgeBond) + 1 Phase-C
-        // (MpcCommitteeFraudVerifier — slashes equivocating members) = 20.
-        Assert.AreEqual(20, plan.Steps.Count);
+        // (MpcCommitteeFraudVerifier — slashes equivocating members) = 22.
+        Assert.AreEqual(22, plan.Steps.Count);
         var names = plan.Steps.Select(s => s.Name).ToHashSet();
         Assert.IsTrue(names.Contains("GovernanceFraudVerifier"));
         Assert.IsTrue(names.Contains("RestrictedExecutionFraudVerifier"));
@@ -218,7 +218,9 @@ public class UT_DeployPlanner
         Assert.IsTrue(names.Contains("VerifierRegistry"));
         Assert.IsTrue(names.Contains("TokenRegistry"));
         Assert.IsTrue(names.Contains("DARegistry"));
+        Assert.IsTrue(names.Contains("DAValidator"));
         Assert.IsTrue(names.Contains("MessageRouter"));
+        Assert.IsTrue(names.Contains("L1TxFilter"));
         Assert.IsTrue(names.Contains("EmergencyManager"));
         Assert.IsTrue(names.Contains("GovernanceController"));
         Assert.IsTrue(names.Contains("ForcedInclusion"));
@@ -383,8 +385,8 @@ public class UT_DeployPlanner
         var actions = ScaffoldPlan.PostDeployActions(bundle).ToList();
         // 5 original (Phase 0–3) + 3 external-bridge gov/setup hints +
         // 2 Phase-C wiring hints (RegisterSlasher + RegisterCommitteeWithMembers
-        // pointer) = 10.
-        Assert.AreEqual(10, actions.Count);
+        // pointer) + 3 DA/filter production wiring hints = 13.
+        Assert.AreEqual(13, actions.Count);
 
         // 1. SequencerBond.RegisterSlasher(OptimisticChallenge) — Phase-3 cycle-break.
         StringAssert.Contains(actions[0], "SequencerBond.RegisterSlasher");

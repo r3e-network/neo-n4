@@ -47,7 +47,7 @@ NeoFS data availability.
 
 The architecture is three tiers:
 
-- **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 21 contracts grouped into
+- **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 23 contracts grouped into
   six concerns: *Settlement* (SettlementManager · VerifierRegistry), *Bridge*
   (SharedBridge · TokenRegistry · ChainRegistry), *Messaging* (MessageRouter · DARegistry),
   *Security* (SequencerRegistry · SequencerBond · ForcedInclusion · OptimisticChallenge),
@@ -62,7 +62,7 @@ The architecture is three tiers:
   variants (SP1 Compress / Halo2 / Risc0) plug into the same seam when the operator
   brings the toolchain.
 - **L2 chains (elastic, N of them)** — Neo 4 core as execution kernel, 8 L2 plugins,
-  7 native L2 contracts per chain. Independent state, shared L1 anchor.
+  10 native L2 contracts per chain. Independent state, shared L1 anchor.
 
 For a full English distillation of the architecture, see [`ARCHITECTURE.md`](../ARCHITECTURE.md).
 For the formal technical document, see [`WHITEPAPER.md`](../WHITEPAPER.md).
@@ -82,13 +82,13 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
   [`docs/persistence.md`](./persistence.md).
 - **Node plugins (8)** — `Neo.Plugins.L2{Batch, Bridge, DA, Gateway,
   Metrics, Prover, Rpc, Settlement}`.
-- **Smart contracts (28)** — 21 NeoHub L1 (incl. `GovernanceFraudVerifier`,
+- **Smart contracts (33)** — 23 NeoHub L1 (incl. `DAValidator`, `L1TxFilter`, `GovernanceFraudVerifier`,
   `RestrictedExecutionFraudVerifier` v3 trustless verifier, and the 6
   cross-foreign-chain bridge contracts: `MpcCommitteeVerifier` /
   `ExternalBridgeRegistry` / `ExternalBridgeEscrow` /
   `ExternalBridgeBond` / `ExternalBridgeStubVerifier` /
-  `MpcCommitteeFraudVerifier`) + 7 L2 native (incl.
-  `L2NativeExternalBridgeContract`); all type-check via
+  `MpcCommitteeFraudVerifier`) + 10 L2 native (incl. bridged NEP-17, AA,
+  interop verifier, and `L2NativeExternalBridgeContract`); all type-check via
   `Neo.SmartContract.Framework`.
 - **CLI tools (7)** — `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`,
   `neo-l2-explore`, `neo-bridge`, `neo-l2-faucet`, `neo-external-bridge`.
@@ -106,7 +106,7 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
   `external/neo-riscv-vm` (PolkaVM-backed Neo RISC-V engine) ·
   `external/neo-zkvm` (Neo VM in pure Rust + SP1 prover crates). None
   are released on NuGet/crates.io for the versions tracked here.
-- **Tests (1423 .NET + 155 cross-lang)** — 1423 across 34 .NET projects;
+- **Tests (1426 .NET + 155 cross-lang)** — 1426 across 34 .NET projects;
   15 TypeScript (vitest) + 10 Rust SDK (mockito) + 8 SP1 guest (host)
   + 101 Rust bridge watchers (eth 85 / tron 7 / sol 9) + 20 Foundry + 1 Solana Anchor —
   all green.
@@ -127,8 +127,8 @@ neo4/
 │   ├── Neo.L2.Telemetry/                   # IL2Metrics + PrometheusExporter
 │   └── Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}/
 ├── contracts/
-│   ├── NeoHub.* (21)                       # L1 contract suite
-│   └── L2Native.* (7)                      # on-L2 native contracts
+│   ├── NeoHub.* (23)                       # L1 contract suite
+│   └── L2Native.* (10)                     # on-L2 native contracts
 ├── tools/
 │   ├── Neo.Stack.Cli/                      # neo-stack CLI (12 subcommands)
 │   ├── Neo.L2.Devnet/                      # in-process end-to-end demo runner
@@ -140,7 +140,7 @@ neo4/
 ├── bridge/
 │   ├── neo-zkvm-guest/                     # Rust → RISC-V ELF (real Neo VM, SP1-proven)
 │   └── neo-zkvm-host/                      # sp1-sdk 6.2.1 prover daemon (prove-batch)
-└── tests/                                  # 1423 tests / 34 projects
+└── tests/                                  # 1426 tests / 34 projects
 ```
 
 ---
@@ -152,7 +152,7 @@ Per [`doc.md` §18](../doc.md):
 | Phase | Goal                                | Status | Evidence                                                  |
 | ----- | ----------------------------------- | :----: | --------------------------------------------------------- |
 | 0     | Sidechain PoC                       | ✅     | MVP integration test passes end-to-end                    |
-| 1     | NeoHub v0 + Shared Bridge           | ✅     | All 21 NeoHub contracts compile; deploy planner emits 20-step bundle (13 core + 2 fraud verifiers + 5 external-bridge) |
+| 1     | NeoHub v0 + Shared Bridge           | ✅     | All 23 NeoHub contracts compile; deploy planner emits 22-step bundle (15 core + 2 fraud verifiers + 5 external-bridge) |
 | 2     | Batch Settlement                    | ✅     | Real `KeyedStateStore` continuity verified across batches |
 | 3     | Optimistic Challenge Window         | ✅     | `OptimisticChallenge` contract + `BisectionGame` (log-N narrowing) |
 | 4     | NeoVM 2 / RISC-V ZK Validity Proof  | 🟡     | SP1 FFI bridge scaffolded; `--features real-prover` flips to native |
@@ -179,7 +179,7 @@ cd neo-n4
 # If you forgot --recurse-submodules:
 # git submodule update --init --recursive
 
-# Type-check everything + run all 1423 tests (~10 seconds)
+# Type-check everything + run all 1426 tests (~10 seconds)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # --- Bootstrapping a new L2 chain (recommended path) ---

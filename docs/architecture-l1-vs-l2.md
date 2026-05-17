@@ -46,12 +46,12 @@ specific logic — runs on **L2** because L1 cannot scale to it.
 
 ## 2. What L1 does (and why it has to)
 
-The 20 production NeoHub contracts (plus 1 testing stub) cluster into
+The 22 production NeoHub contracts (plus 1 testing stub) cluster into
 six concerns. Each entry below names *the property that forces it
 onto L1*:
 
 <p align="center">
-  <img src="figures/architecture/l1-concerns.svg" alt="The 21 NeoHub L1 contracts grouped into 6 concerns plus 2 specialized verifier slots. Settlement (SettlementManager + VerifierRegistry) defines the trust boundary. Bridge (SharedBridge + TokenRegistry + ChainRegistry) escrows assets. Messaging (MessageRouter + DARegistry) is the cross-L2 routing arbiter. Security (SequencerRegistry + SequencerBond + ForcedInclusion + OptimisticChallenge) gates slashable bonds and anti-censorship. Governance + Emergency (GovernanceController + EmergencyManager) handle slow upgrades + escape hatch. External bridge (6 contracts) is the cross-foreign-chain bridge. Plus 2 fraud-verifier reference slots: GovernanceFraudVerifier (v1/v2 governance-arbitrated) + RestrictedExecutionFraudVerifier (v3 trustless on-chain re-derivation)" width="900">
+  <img src="figures/architecture/l1-concerns.svg" alt="The 23 NeoHub L1 contracts grouped into 6 concerns plus 2 specialized verifier slots. Settlement (SettlementManager + VerifierRegistry) defines the trust boundary. Bridge (SharedBridge + TokenRegistry + ChainRegistry) escrows assets. Messaging (MessageRouter + DARegistry + DAValidator + L1TxFilter) is the cross-L2 routing and data-availability arbiter. Security (SequencerRegistry + SequencerBond + ForcedInclusion + OptimisticChallenge) gates slashable bonds and anti-censorship. Governance + Emergency (GovernanceController + EmergencyManager) handle staged upgrades + escape hatch. External bridge (6 contracts) is the cross-foreign-chain bridge. Plus 2 fraud-verifier reference slots: GovernanceFraudVerifier (v1/v2 governance-arbitrated) + RestrictedExecutionFraudVerifier (v3 trustless on-chain re-derivation)" width="900">
 </p>
 
 **Key observation about L1 contracts:** they hold *commitments* and
@@ -64,11 +64,11 @@ trust model requires it.
 
 ## 3. What L2 does (and why it can)
 
-The 7 native L2 contracts + 8 plugins per L2 chain cluster around
+The 10 native L2 contracts + 8 plugins per L2 chain cluster around
 *execution* + *bulk state* + *throughput-bound work*:
 
 <p align="center">
-  <img src="figures/architecture/l2-concerns.svg" alt="What L2 does — 3 layers per chain. Top: 7 L2 native contracts (per-chain state — L2BridgeContract, L2NativeExternalBridge, L2MessageContract, L2BatchInfoContract, L2FeeContract, L2PaymasterContract, L2SystemConfigContract). Middle: 8 L2 plugins (per-chain runtime — L2Batch, L2Settlement, L2Bridge, L2DA, L2Prover, L2Rpc, L2Gateway, L2Metrics). Bottom: L2 execution kernel — Neo 4 core vendored as a git submodule, with dBFT 2.0 consensus, NeoVM, mempool, local state storage, and receipt generation" width="900">
+  <img src="figures/architecture/l2-concerns.svg" alt="What L2 does — 3 layers per chain. Top: 10 L2 native contracts (per-chain state — L2BridgeContract, L2NativeExternalBridge, BridgedNep17Contract, L2MessageContract, L2BatchInfoContract, L2FeeContract, L2PaymasterContract, L2AccountAbstraction, L2InteropVerifier, L2SystemConfigContract). Middle: 8 L2 plugins (per-chain runtime — L2Batch, L2Settlement, L2Bridge, L2DA, L2Prover, L2Rpc, L2Gateway, L2Metrics). Bottom: L2 execution kernel — Neo 4 core vendored as a git submodule, with dBFT 2.0 consensus, NeoVM, mempool, local state storage, and receipt generation" width="900">
 </p>
 
 **Key observation about L2:** L2 holds the **bulk state + the heavy
@@ -121,6 +121,8 @@ the rules in §5:
 - **`NeoHub.TokenRegistry`** L1 ✅ → L1 — Cross-bridge invariant (rule 1)
 - **`NeoHub.MessageRouter`** L1 ✅ → L1 — Cross-L2 invariant (rule 1)
 - **`NeoHub.DARegistry`** L1 ✅ → L1 — Cross-L2 invariant (rule 1)
+- **`NeoHub.DAValidator`** L1 ✅ → L1 — Data-availability trust boundary (rule 3)
+- **`NeoHub.L1TxFilter`** L1 ✅ → L1 — L1→L2 admission policy before canonical enqueue (rule 3)
 - **`NeoHub.SequencerRegistry`** L1 ✅ → L1 — Cross-L2 invariant (rule 1)
 - **`NeoHub.SequencerBond`** L1 ✅ → L1 — Slashable economic security (rule 2)
 - **`NeoHub.ForcedInclusion`** L1 ✅ → L1 — Anti-censorship gate (rule 3)
@@ -143,13 +145,16 @@ the rules in §5:
 - **`L2Native.L2PaymasterContract`** L2 ✅ → L2 — L2-app-specific (rule 5)
 - **`L2Native.L2SystemConfigContract`** L2 ✅ → L2 — L2-local mirror of L1 chainConfig
 - **`L2Native.ExternalBridgeContract`** L2 ✅ → L2 — Per-L2 wrapped foreign-asset state (rule 4)
+- **`L2Native.BridgedNep17Contract`** L2 ✅ → L2 — Per-L2 canonical token representation (rule 4)
+- **`L2Native.L2AccountAbstraction`** L2 ✅ → L2 — Per-chain validator/paymaster entry point (rule 5)
+- **`L2Native.L2InteropVerifier`** L2 ✅ → L2 — Local proof verification against mirrored global roots (rules 4+5)
 
 **Findings:**
 
-✅ **20 of 21 NeoHub contracts are correctly placed on L1** — each
+✅ **22 of 23 NeoHub contracts are correctly placed on L1** — each
 satisfies at least one of rules 1, 2, or 3.
 
-✅ **All 7 L2 native contracts are correctly placed on L2** — each is
+✅ **All 10 L2 native contracts are correctly placed on L2** — each is
 per-chain state with no cross-L2 read requirement.
 
 🟡 **`ExternalBridgeStubVerifier` is L1 but is testing-only.** A

@@ -169,7 +169,7 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --executor counter
 `Challenge(chainId, batchNumber, challenger, fraudProofBytes, fraudVerifier)`
 提交,把实际密码学校验委派给由 `fraudVerifier` 参数指定的合约。
 
-3 条路径,都在默认 `neo-hub-deploy plan` 的 20 步 bundle 中:
+3 条路径,都在默认 `neo-hub-deploy plan` 的 22 步 bundle 中:
 
   1. **治理仲裁模式**(最简单的运维友好路径):部署
      `NeoHub.GovernanceFraudVerifier`。它对规范 `FraudProofPayload` 做结构性
@@ -556,12 +556,12 @@ L1:      SettlementManager.SubmitBatch(commitment, publicInputs, proof)
 
 ## 上 L1:部署 NeoHub
 
-`register-chain` 起作用之前,20 个生产 NeoHub 合约必须部署到目标 L1。仅测试用的
-`ExternalBridgeStubVerifier` 不包含在默认 deploy bundle 中。`neo-hub-deploy`
+`register-chain` 起作用之前,22 个生产 NeoHub 合约必须部署到目标 L1。仅测试用的
+`ExternalBridgeStubVerifier` 不包含在默认 deploy bundle 中,也不得注册为生产 verifier。`neo-hub-deploy`
 工具输出一个 deploy bundle,把每个合约、它的依赖、拓扑排序后解析的哈希都列出:
 
 ```bash
-# 1. 脚手架一个起步 plan(20 个生产 NeoHub 部署步骤按依赖序,
+# 1. 脚手架一个起步 plan(22 个生产 NeoHub 部署步骤按依赖序,
 #    包含 v1/v2 与 v3 fraud verifier)。
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
     --output ./my-l2/deploy-plan.json
@@ -593,7 +593,7 @@ verifier 的信息提示,告知传给 `OptimisticChallenge.Challenge` 的 `fraud
 > `ContractManagement.Deploy` 之后才存在。钱包返回每个真实哈希;把这些捕获到
 > 下面的 `register-chain` 4 个 flag 里 —— **不要**用 bundle 中的 stub 哈希。
 
-所有 20 步部署 + post-deploy 接线完成后,把**真实链上**合约哈希(由你的钱包从
+所有 22 步部署 + post-deploy 接线完成后,把**真实链上**合约哈希(由你的钱包从
 每次 `ContractManagement.Deploy` 调用返回)捕获到 `register-chain` 的 4 个 flag:
 
 ```bash

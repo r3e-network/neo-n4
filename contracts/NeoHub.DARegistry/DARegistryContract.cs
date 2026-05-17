@@ -55,7 +55,7 @@ public class DARegistryContract : SmartContract
     public static void Record(uint chainId, ulong batchNumber, UInt256 commitment, byte daMode)
     {
         var sm = (UInt160)(Storage.Get(new byte[] { PrefixSettlementManager }) ?? throw new Exception("sm unset"));
-        ExecutionEngine.Assert(Runtime.CheckWitness(sm), "not settlement manager");
+        ExecutionEngine.Assert(Runtime.CheckWitness(sm) || Runtime.CallingScriptHash.Equals(sm), "not settlement manager");
         // DAMode enum: L1=0, NeoFS=1, External=2, DAC=3 (matches Neo.L2.DAMode).
         // Without this range guard a buggy SettlementManager refactor could write
         // daMode=99 here, which any later GetMode reader would interpret as garbage.

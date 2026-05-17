@@ -35,7 +35,18 @@ public class GovernanceControllerContract : SmartContract
     private const byte PrefixApprovedAt = 0x0C;           // 0x0C + proposalId(8B) → BigInteger unix-seconds when threshold first hit
     private const byte PrefixImmutableFlag = 0x0D;        // 0x0D + flagId(1B) → 1 (once set, never cleared — ZKsync PermanentRestriction equivalent)
     private const byte PrefixConsumedSetImmutable = 0x0E; // 0x0E + proposalId(8B) → 1 (replay protection for SetImmutableFlagViaProposal)
+    private const byte KeyUpgradeNoticeSeconds = 0x0F;
+    private const byte KeyUpgradeExecutionWindowSeconds = 0x10;
+    private const byte KeyUpgradeCooldownSeconds = 0x11;
+    private const byte PrefixProposalExecutedAt = 0x12;   // 0x12 + proposalId(8B) → Runtime.Time ms
     private const byte KeyOwner = 0xFF;
+
+    public const byte StagePending = 0;
+    public const byte StageNotice = 1;
+    public const byte StageExecutable = 2;
+    public const byte StageCooldown = 3;
+    public const byte StageComplete = 4;
+    public const byte StageExpired = 5;
 
     /// <summary>Emitted whenever a proposal is registered.</summary>
     [DisplayName("ProposalCreated")]
@@ -48,6 +59,14 @@ public class GovernanceControllerContract : SmartContract
     /// <summary>Emitted the first time an immutable flag is set. Re-setting an already-set flag is a no-op and does not re-emit.</summary>
     [DisplayName("ImmutableFlagSet")]
     public static event Action<byte> OnImmutableFlagSet = default!;
+
+    /// <summary>Emitted when staged-upgrade timing windows are changed.</summary>
+    [DisplayName("UpgradeWindowsSet")]
+    public static event Action<uint, uint, uint> OnUpgradeWindowsSet = default!;
+
+    /// <summary>Emitted when a proposal is marked executed and enters cool-down.</summary>
+    [DisplayName("ProposalExecuted")]
+    public static event Action<ulong, ulong> OnProposalExecuted = default!;
 
     /// <summary>Set initial council + thresholds at deploy.</summary>
     public static void _deploy(object data, bool update)
@@ -69,6 +88,9 @@ public class GovernanceControllerContract : SmartContract
         Storage.Put(new byte[] { KeyCouncilCount }, (BigInteger)members.Length);
         Storage.Put(new byte[] { KeyCouncilThreshold }, (BigInteger)threshold);
         Storage.Put(new byte[] { KeyTimelockSeconds }, (BigInteger)timelockSeconds);
+        Storage.Put(new byte[] { KeyUpgradeNoticeSeconds }, (BigInteger)timelockSeconds);
+        Storage.Put(new byte[] { KeyUpgradeExecutionWindowSeconds }, (BigInteger)timelockSeconds);
+        Storage.Put(new byte[] { KeyUpgradeCooldownSeconds }, (BigInteger)timelockSeconds);
         Storage.Put(new byte[] { KeyAdmissionMode }, new byte[] { 0 }); // start permissioned
         Storage.Put(new byte[] { KeyNextProposalId }, (BigInteger)1);
 
@@ -260,6 +282,98 @@ public class GovernanceControllerContract : SmartContract
         // Runtime.Time is ms; timelock is seconds → multiply to compare on the same scale.
         ulong timelockMs = (ulong)timelockSeconds * 1000UL;
         return Runtime.Time >= approvedAt + timelockMs;
+    }
+
+    /// <summary>Set staged-upgrade timing windows. Owner only.</summary>
+    public static void SetUpgradeWindows(uint noticeSeconds, uint executionWindowSeconds, uint cooldownSeconds)
+    {
+        var owner = (UInt160)(Storage.Get(new byte[] { KeyOwner }) ?? throw new Exception("owner unset"));
+        ExecutionEngine.Assert(Runtime.CheckWitness(owner), "not authorized");
+        ExecutionEngine.Assert(noticeSeconds > 0, "notice must be positive");
+        ExecutionEngine.Assert(executionWindowSeconds > 0, "execution window must be positive");
+        ExecutionEngine.Assert(cooldownSeconds > 0, "cooldown must be positive");
+        Storage.Put(new byte[] { KeyUpgradeNoticeSeconds }, (BigInteger)noticeSeconds);
+        Storage.Put(new byte[] { KeyUpgradeExecutionWindowSeconds }, (BigInteger)executionWindowSeconds);
+        Storage.Put(new byte[] { KeyUpgradeCooldownSeconds }, (BigInteger)cooldownSeconds);
+        OnUpgradeWindowsSet(noticeSeconds, executionWindowSeconds, cooldownSeconds);
+    }
+
+    /// <summary>Notice period, in seconds, after a proposal reaches threshold.</summary>
+    [Safe]
+    public static uint GetUpgradeNoticeSeconds()
+    {
+        var raw = Storage.Get(new byte[] { KeyUpgradeNoticeSeconds });
+        return raw == null ? GetTimelockSeconds() : (uint)(BigInteger)raw;
+    }
+
+    /// <summary>Execution window length, in seconds, after notice completes.</summary>
+    [Safe]
+    public static uint GetUpgradeExecutionWindowSeconds()
+    {
+        var raw = Storage.Get(new byte[] { KeyUpgradeExecutionWindowSeconds });
+        return raw == null ? GetTimelockSeconds() : (uint)(BigInteger)raw;
+    }
+
+    /// <summary>Post-execution cool-down window, in seconds.</summary>
+    [Safe]
+    public static uint GetUpgradeCooldownSeconds()
+    {
+        var raw = Storage.Get(new byte[] { KeyUpgradeCooldownSeconds });
+        return raw == null ? GetTimelockSeconds() : (uint)(BigInteger)raw;
+    }
+
+    /// <summary>Runtime.Time ms at which the proposal was marked executed, or 0.</summary>
+    [Safe]
+    public static ulong GetProposalExecutedAt(ulong proposalId)
+    {
+        var raw = Storage.Get(ProposalIdKey(PrefixProposalExecutedAt, proposalId));
+        return raw == null ? 0UL : (ulong)(BigInteger)raw;
+    }
+
+    /// <summary>
+    /// Current staged-upgrade phase:
+    /// 0=pending, 1=notice, 2=executable, 3=cooldown, 4=complete, 5=expired.
+    /// </summary>
+    [Safe]
+    public static byte GetProposalStage(ulong proposalId)
+    {
+        var approvedAt = GetApprovedAt(proposalId);
+        if (approvedAt == 0UL) return StagePending;
+
+        var noticeEnd = approvedAt + (ulong)GetUpgradeNoticeSeconds() * 1000UL;
+        if (Runtime.Time < noticeEnd) return StageNotice;
+
+        var executedAt = GetProposalExecutedAt(proposalId);
+        if (executedAt > 0UL)
+        {
+            var cooldownEnd = executedAt + (ulong)GetUpgradeCooldownSeconds() * 1000UL;
+            return Runtime.Time < cooldownEnd ? StageCooldown : StageComplete;
+        }
+
+        var executionEnd = noticeEnd + (ulong)GetUpgradeExecutionWindowSeconds() * 1000UL;
+        return Runtime.Time <= executionEnd ? StageExecutable : StageExpired;
+    }
+
+    /// <summary>True when a proposal is approved and currently inside its execution window.</summary>
+    [Safe]
+    public static bool IsInExecutionWindow(ulong proposalId)
+    {
+        return GetProposalStage(proposalId) == StageExecutable;
+    }
+
+    /// <summary>
+    /// Mark a proposal executed. Consumers should call this after applying an upgrade,
+    /// which starts the explicit cool-down phase and prevents duplicate execution.
+    /// </summary>
+    public static void MarkProposalExecuted(ulong proposalId)
+    {
+        var owner = (UInt160)(Storage.Get(new byte[] { KeyOwner }) ?? throw new Exception("owner unset"));
+        ExecutionEngine.Assert(Runtime.CheckWitness(owner), "not authorized");
+        ExecutionEngine.Assert(IsInExecutionWindow(proposalId), "proposal not executable");
+        var key = ProposalIdKey(PrefixProposalExecutedAt, proposalId);
+        ExecutionEngine.Assert(Storage.Get(key) == null, "proposal already executed");
+        Storage.Put(key, (BigInteger)Runtime.Time);
+        OnProposalExecuted(proposalId, Runtime.Time);
     }
 
     private static byte[] ProposalIdKey(byte prefix, ulong id)

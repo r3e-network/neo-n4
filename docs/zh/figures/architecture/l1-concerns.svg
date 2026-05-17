@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 920" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">L1 做什么 —— NeoHub 的 6 个关注点</title>
-  <desc id="desc">21 个 NeoHub L1 合约按 6 个关注点分组。Settlement(SettlementManager、VerifierRegistry —— 定义信任边界)。Bridge(SharedBridge、TokenRegistry、ChainRegistry —— 资产在 L1)。Messaging(MessageRouter、DARegistry —— 跨 L2 路由仲裁)。Security(SequencerRegistry、SequencerBond、ForcedInclusion、OptimisticChallenge —— 可罚没保证金 + 抗审查)。Governance + Emergency(GovernanceController、EmergencyManager —— 慢升级 + 逃生通道)。External bridge(6 个外链合约)。再加 2 个专用 fraud verifier 槽位:GovernanceFraudVerifier(结构性 v1/v2,治理仲裁)与 RestrictedExecutionFraudVerifier(无信任 v3,从 storage 证明重新派生 pre/post 状态根)。</desc>
+  <desc id="desc">23 个 NeoHub L1 合约按 6 个关注点分组。Settlement(SettlementManager、VerifierRegistry —— 定义信任边界)。Bridge(SharedBridge、TokenRegistry、ChainRegistry —— 资产在 L1)。Messaging(MessageRouter、DARegistry、DAValidator、L1TxFilter —— 跨 L2 路由与数据可用性仲裁)。Security(SequencerRegistry、SequencerBond、ForcedInclusion、OptimisticChallenge —— 可罚没保证金 + 抗审查)。Governance + Emergency(GovernanceController、EmergencyManager —— 分阶段升级 + 逃生通道)。External bridge(6 个外链合约)。再加 2 个专用 fraud verifier 槽位:GovernanceFraudVerifier(结构性 v1/v2,治理仲裁)与 RestrictedExecutionFraudVerifier(无信任 v3,从 storage 证明重新派生 pre/post 状态根)。</desc>
 
   <defs>
     <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
@@ -19,7 +19,7 @@
 
   <rect width="960" height="920" fill="#ffffff"/>
 
-  <text x="480" y="32" text-anchor="middle" class="header" fill="#1e2a55">L1 做什么 —— NeoHub 的 6 个关注点(21 个合约)</text>
+  <text x="480" y="32" text-anchor="middle" class="header" fill="#1e2a55">L1 做什么 —— NeoHub 的 6 个关注点(23 个合约)</text>
 
   <g filter="url(#card)">
     <rect x="40" y="58" width="440" height="170" rx="10" ry="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.5"/>

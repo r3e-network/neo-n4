@@ -49,14 +49,14 @@ public class UT_PlanCommand
         Assert.AreEqual(0, rc);
         Assert.IsTrue(File.Exists(bundlePath), "plan must produce the bundle file");
 
-        // Resolved bundle JSON should be parseable + carry 20 invocations
-        // (matching the scaffold's step count: 13 core + 2 fraud verifiers +
+        // Resolved bundle JSON should be parseable + carry 22 invocations
+        // (matching the scaffold's step count: 15 core + 2 fraud verifiers +
         // 4 Phase-B external-bridge + 1 Phase-C MpcCommitteeFraudVerifier).
         var json = File.ReadAllText(bundlePath);
         using var doc = System.Text.Json.JsonDocument.Parse(json);
         var invocations = doc.RootElement.GetProperty("invocations");
-        Assert.AreEqual(20, invocations.GetArrayLength(),
-            "default scaffold → 20 resolved invocations in the bundle");
+        Assert.AreEqual(22, invocations.GetArrayLength(),
+            "default scaffold -> 22 resolved invocations in the bundle");
 
         foreach (var invocation in invocations.EnumerateArray())
         {
@@ -111,6 +111,8 @@ public class UT_PlanCommand
         StringAssert.Contains(output, "Required post-deploy actions:");
         StringAssert.Contains(output, "SequencerBond.RegisterSlasher");
         StringAssert.Contains(output, "ChainRegistry.SetGovernanceController");
+        StringAssert.Contains(output, "SettlementManager.SetDAValidator");
+        StringAssert.Contains(output, "MessageRouter.SetL1TxFilter");
         StringAssert.Contains(output, "GovernanceFraudVerifier");
         StringAssert.Contains(output, "RestrictedExecutionFraudVerifier");
     }

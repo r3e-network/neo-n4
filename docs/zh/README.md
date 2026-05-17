@@ -46,13 +46,13 @@
 
 架构分三层:
 
-- **L1(Neo N3 / Neo 4 上的 NeoHub)** —— 规范锚。21 个合约分到 6 个关注点:
+- **L1(Neo N3 / Neo 4 上的 NeoHub)** —— 规范锚。23 个合约分到 6 个关注点:
   *Settlement*、*Bridge*、*Messaging*、*Security*、*Governance*、*External Bridge*。
   持有资产、负责结算、消息路由与治理。
 - **Neo Gateway(Phase 5,可选)** —— 把多条 L2 的证明聚合为 L1 上的单次结算
   提交。`BinaryTreeAggregator` 在 log-N 轮内归约;`IRoundProver` 出货 3 份生产级
   实现(`MultisigRoundProver`、`MerklePathRoundProver`、`PassThroughRoundProver`)。
-- **L2 链(弹性,N 条)** —— Neo 4 core 作执行内核,每条链 8 个 L2 插件,7 个 L2
+- **L2 链(弹性,N 条)** —— Neo 4 core 作执行内核,每条链 8 个 L2 插件,10 个 L2
   原生合约。状态独立、L1 锚共享。
 
 完整的英文架构精炼版见 [`ARCHITECTURE.md`](../../ARCHITECTURE.md);正式技术文档见
@@ -74,7 +74,7 @@
   [`persistence.md`](./persistence.md)。
 - **节点插件(8)** —— `Neo.Plugins.L2{Batch, Bridge, DA, Gateway,
   Metrics, Prover, Rpc, Settlement}`。
-- **智能合约(28)** —— 21 个 NeoHub L1 + 7 个 L2 原生(均经
+- **智能合约(33)** —— 23 个 NeoHub L1 + 10 个 L2 原生(均经
   `Neo.SmartContract.Framework` 类型检查)。
 - **CLI 工具(6)** —— `neo-stack`、`neo-l2-devnet`、`neo-hub-deploy`、
   `neo-l2-explore`、`neo-bridge`、`neo-l2-faucet`。
@@ -86,7 +86,7 @@
   `prove-batch daemon`)· `bridge/neo-zkvm-guest/`(被证明的函数)。
 - **Submodule(4)** —— `external/neo`、`external/neo-devpack-dotnet`、
   `external/neo-riscv-vm`、`external/neo-zkvm`。
-- **测试(1423 .NET + 155 跨语言)** —— 34 个 .NET 工程的 1423 条测试;
+- **测试(1426 .NET + 155 跨语言)** —— 34 个 .NET 工程的 1426 条测试;
   15 TS + 10 Rust SDK + 8 SP1 guest + 103 Rust 桥 watcher(eth 87 / tron 7 / sol 9)
   + 20 Foundry —— 全绿。
 
@@ -99,7 +99,7 @@
 | 阶段 | 目标                                | 状态  | 证据                                                       |
 | ---- | ----------------------------------- | :---: | ---------------------------------------------------------- |
 | 0    | 侧链 PoC                             | ✅   | MVP 集成测试端到端通过                                    |
-| 1    | NeoHub v0 + 共享桥                   | ✅   | 21 个 NeoHub 合约全部编译;部署计划器输出 20 步 bundle(13 核心 + 2 fraud verifier + 5 外链桥) |
+| 1    | NeoHub v0 + 共享桥                   | ✅   | 23 个 NeoHub 合约全部编译;部署计划器输出 22 步 bundle(15 核心 + 2 fraud verifier + 5 外链桥) |
 | 2    | 批次结算                             | ✅   | 真实 `KeyedStateStore` 在跨批次得到连续性验证             |
 | 3    | 乐观挑战窗口                         | ✅   | `OptimisticChallenge` 合约 + `BisectionGame`(log-N 收敛) |
 | 4    | NeoVM 2 / RISC-V ZK Validity 证明    | 🟡   | SP1 FFI 桥已搭好;`--features real-prover` 切到原生        |

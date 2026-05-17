@@ -27,6 +27,7 @@ public class MessageRouterContract : SmartContract
     private const byte PrefixL2ToL2Root = 0x04;        // 0x04 + chainId(4B) + batchNum(8B) → root
     private const byte PrefixGlobalRoot = 0x05;        // 0x05 + batchEpoch(8B) → 32B global aggregated message root (Phase-5 Neo Gateway commitment)
     private const byte PrefixConsumed = 0x06;          // 0x06 + msgHash(32B) → 1
+    private const byte PrefixL1TxFilter = 0x07;        // 0x07 + targetChainId(4B) → filter contract hash
     private const byte PrefixSettlementManager = 0xFD;
     private const byte KeyOwner = 0xFF;
 
@@ -41,6 +42,10 @@ public class MessageRouterContract : SmartContract
     /// <summary>Emitted when the Neo Gateway publishes a global aggregated message root for an epoch.</summary>
     [DisplayName("GlobalRootPublished")]
     public static event Action<ulong, UInt256> OnGlobalRootPublished = default!;
+
+    /// <summary>Emitted when a per-chain L1→L2 filter is installed or cleared.</summary>
+    [DisplayName("L1TxFilterSet")]
+    public static event Action<uint, UInt160> OnL1TxFilterSet = default!;
 
     /// <summary>Set wiring on deploy.</summary>
     public static void _deploy(object data, bool update)
@@ -79,12 +84,14 @@ public class MessageRouterContract : SmartContract
         // bloating L1 storage with no-op entries.
         ExecutionEngine.Assert(targetChainId > 0, "targetChainId 0 is reserved for L1");
 
+        var sender = Runtime.CallingScriptHash;
+        ApplyL1TxFilter(targetChainId, sender, receiver, messageType, payload);
+
         var nonceKey = NonceKey(targetChainId);
         var raw = Storage.Get(nonceKey);
         var nonce = raw == null ? 1UL : (ulong)(BigInteger)raw + 1UL;
         Storage.Put(nonceKey, (BigInteger)nonce);
 
-        var sender = Runtime.CallingScriptHash;
         var encoded = EncodeMessage(0u, targetChainId, nonce, sender, receiver, messageType, payload);
         Storage.Put(MessageKey(targetChainId, nonce), encoded);
 
@@ -98,6 +105,33 @@ public class MessageRouterContract : SmartContract
     {
         var raw = Storage.Get(MessageKey(chainId, nonce));
         return raw == null ? new byte[0] : (byte[])raw;
+    }
+
+    /// <summary>Install or replace a per-target-chain L1→L2 filter. Owner only.</summary>
+    public static void SetL1TxFilter(uint targetChainId, UInt160 filter)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(targetChainId > 0, "targetChainId 0 is reserved for L1");
+        ExecutionEngine.Assert(filter.IsValid && !filter.IsZero, "invalid filter");
+        Storage.Put(L1TxFilterKey(targetChainId), filter);
+        OnL1TxFilterSet(targetChainId, filter);
+    }
+
+    /// <summary>Clear the filter for a target chain. Owner only.</summary>
+    public static void ClearL1TxFilter(uint targetChainId)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(targetChainId > 0, "targetChainId 0 is reserved for L1");
+        Storage.Delete(L1TxFilterKey(targetChainId));
+        OnL1TxFilterSet(targetChainId, UInt160.Zero);
+    }
+
+    /// <summary>Read the filter for a target chain, or zero if none is configured.</summary>
+    [Safe]
+    public static UInt160 GetL1TxFilter(uint targetChainId)
+    {
+        var raw = Storage.Get(L1TxFilterKey(targetChainId));
+        return raw == null ? UInt160.Zero : (UInt160)raw;
     }
 
     /// <summary>
@@ -206,6 +240,34 @@ public class MessageRouterContract : SmartContract
         k[0] = PrefixConsumed;
         var b = (byte[])hash;
         for (var i = 0; i < 32; i++) k[1 + i] = b[i];
+        return k;
+    }
+
+    private static void ApplyL1TxFilter(
+        uint targetChainId,
+        UInt160 sender,
+        UInt160 receiver,
+        byte messageType,
+        byte[] payload)
+    {
+        var filter = GetL1TxFilter(targetChainId);
+        if (filter.IsZero) return;
+        var accepted = (bool)Contract.Call(
+            filter,
+            "acceptL1ToL2",
+            CallFlags.ReadOnly,
+            new object[] { targetChainId, sender, receiver, messageType, payload });
+        ExecutionEngine.Assert(accepted, "L1->L2 message rejected by filter");
+    }
+
+    private static byte[] L1TxFilterKey(uint chainId)
+    {
+        var k = new byte[5];
+        k[0] = PrefixL1TxFilter;
+        k[1] = (byte)chainId;
+        k[2] = (byte)(chainId >> 8);
+        k[3] = (byte)(chainId >> 16);
+        k[4] = (byte)(chainId >> 24);
         return k;
     }
 

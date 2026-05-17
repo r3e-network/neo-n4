@@ -139,13 +139,11 @@ payout in devnet.
 > message and reports `bridgeKind() == 0` as a sentinel distinct from
 > the production kinds (1 = MPC committee, 2 = Optimistic, 3 = ZK).
 > The on-chain `ExternalBridgeRegistry.RegisterVerifier(externalChainId,
-> verifier, bridgeKind)` accepts any non-zero `bridgeKind`; an operator
-> deploying through governance SHOULD refuse a registration whose
-> `verifier.BridgeKind()` call returns 0 (script the check in your
-> deploy CI). The contract description string and XML remarks of
-> `ExternalBridgeStubVerifier` declare "Devnet only" explicitly — the
-> 21st NeoHub contract is intentionally excluded from
-> `neo-hub-deploy`'s default 20-step bundle for the same reason.
+> verifier, bridgeKind)` rejects bridge kind 0. An operator deploying
+> through governance SHOULD still script a check that
+> `verifier.BridgeKind()` returns the intended production kind. The
+> contract description string and XML remarks of
+> `ExternalBridgeStubVerifier` declare "Devnet only" explicitly.
 
 ### Phase B — MPC committee + Eth (6–8 weeks)
 

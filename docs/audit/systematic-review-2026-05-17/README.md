@@ -84,7 +84,7 @@ Validation:
 | Operator tools | Direct test coverage exists for the major CLIs; the external bridge CLI gap found by this review is fixed. |
 | Watchers and foreign contracts | Treated as first-party where tracked outside upstream Neo; prior audit evidence covers watcher Rust tests/clippy and foreign contract tests. |
 | SDKs | TypeScript and Rust SDK surfaces remain covered by the cross-language test gates recorded in the production-readiness audit. |
-| Docs | Test/project counts were synchronized to 1,423 .NET tests across 34 projects and 102 solution projects; zh/en counterpart checks are recorded in `document-ledger.csv`. |
+| Docs | Test/project counts were synchronized to 1,426 .NET tests across 34 projects and 107 solution projects; zh/en counterpart checks are recorded in `document-ledger.csv`. |
 | Upstream Neo | `external/neo*` is a pinned upstream boundary. It is not counted as first-party function-review scope in this ledger. |
 
 ## Coverage Notes

@@ -101,15 +101,15 @@ in the chain config.
 ### Tier 3: L2 chains
 
 Each L2 = **Neo 4 core (the consensus + VM kernel) + 8 plugins +
-7 native contracts**. Plugins live at `src/Neo.Plugins.L2*/`,
+10 native contracts**. Plugins live at `src/Neo.Plugins.L2*/`,
 native contracts at `contracts/L2Native.*`. The Neo 4 core itself
 is vendored as a git submodule at `external/neo`.
 
 <p align="center">
-  <img src="figures/architecture/l2-components.svg" alt="L2 chain components — Neo 4 core (consensus + VM kernel, vendored submodule) at the bottom, 8 L2 plugins (L2Batch, L2Settlement, L2Prover, L2Bridge, L2DA, L2Rpc, L2Gateway, L2Metrics) in the middle, 7 L2 native contracts (L2BridgeContract, L2MessageContract, L2BatchInfoContract, L2FeeContract, L2PaymasterContract, L2SystemConfigContract, L2NativeExternalBridgeContract) on top" width="900">
+  <img src="figures/architecture/l2-components.svg" alt="L2 chain components — Neo 4 core (consensus + VM kernel, vendored submodule) at the bottom, 8 L2 plugins (L2Batch, L2Settlement, L2Prover, L2Bridge, L2DA, L2Rpc, L2Gateway, L2Metrics) in the middle, 10 L2 native contracts (L2BridgeContract, L2MessageContract, L2BatchInfoContract, L2FeeContract, L2PaymasterContract, L2SystemConfigContract, L2NativeExternalBridgeContract, BridgedNep17Contract, L2AccountAbstraction, L2InteropVerifier) on top" width="900">
 </p>
 
-The 8 plugins + 7 native contracts implement the `doc.md` §5–§13
+The 8 plugins + 10 native contracts implement the `doc.md` §5–§13
 layered architecture (batch sealing / settlement / bridge / DA /
 proving / RPC / gateway / metrics).
 
@@ -348,7 +348,7 @@ Which `neo-stack` subcommand touches which component:
 For NeoHub itself (one-time, per-network):
 
 ```bash
-# Generate the 20-step ordered bundle:
+# Generate the 22-step ordered bundle:
 dotnet run --project tools/Neo.Hub.Deploy -- plan
 
 # Verify the bundle's invariants:

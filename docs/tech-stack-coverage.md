@@ -23,6 +23,8 @@ any other project's source.
 - **Token registry (canonical L1↔L2 asset mapping)** ✅ — `contracts/NeoHub.TokenRegistry/`
 - **Message router (L1↔L2 + L2↔L2 cross-chain delivery)** ✅ — `contracts/NeoHub.MessageRouter/`
 - **DA registry (per-batch DA commitment store)** ✅ — `contracts/NeoHub.DARegistry/`
+- **DA validator (DAC attestation gate before finalization)** ✅ — `contracts/NeoHub.DAValidator/`
+- **L1 transaction filter (per-chain L1→L2 pre-enqueue policy)** ✅ — `contracts/NeoHub.L1TxFilter/`
 - **Sequencer registry + bonding** ✅ — `contracts/NeoHub.SequencerRegistry/`, `SequencerBond/`
 - **Forced-inclusion contract** ✅ — `contracts/NeoHub.ForcedInclusion/`
 - **Optimistic challenge game** ✅ — `contracts/NeoHub.OptimisticChallenge/`
@@ -31,7 +33,7 @@ any other project's source.
 - **Fraud verifier (governance-arbitration mode reference)** ✅ — `contracts/NeoHub.GovernanceFraudVerifier/`
 - **Fraud verifier (trustless v3 — on-chain Merkle re-derivation)** ✅ — `contracts/NeoHub.RestrictedExecutionFraudVerifier/`
 
-**21 NeoHub contracts.** All type-check via `Neo.SmartContract.Framework`; CI
+**23 NeoHub contracts.** All type-check via `Neo.SmartContract.Framework`; CI
 builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 
 - **L2 batch info (chainId, batch number, L1 height)** ✅ — `contracts/L2Native.L2BatchInfoContract/`
@@ -40,8 +42,12 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 - **L2 fee splitter (sequencer / prover / DA shares)** ✅ — `contracts/L2Native.L2FeeContract/`
 - **L2 paymaster (fee abstraction, sponsored assets)** ✅ — `contracts/L2Native.L2PaymasterContract/`
 - **L2 system-config cache** ✅ — `contracts/L2Native.L2SystemConfigContract/`
+- **L2 external-bridge counterpart** ✅ — `contracts/L2Native.ExternalBridgeContract/`
+- **L2 bridged NEP-17 template** ✅ — `contracts/L2Native.BridgedNep17Contract/`
+- **L2 account abstraction entry point** ✅ — `contracts/L2Native.L2AccountAbstraction/`
+- **L2 interop verifier** ✅ — `contracts/L2Native.L2InteropVerifier/`
 
-**6 L2-side native contracts.**
+**10 L2-side native contracts.**
 
 ---
 
@@ -69,7 +75,7 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 - **Phase-5 proof aggregation** ✅ — `src/Neo.Plugins.L2Gateway/` — `BinaryTreeAggregator` with three `IRoundProver` implementations: `MultisigRoundProver` (Secp256r1 threshold-attested), `MerklePathRoundProver` (per-leaf inclusion proofs), `PassThroughRoundProver` (minimal-cost reference). Recursive-ZK fold variants (SP1 Compress / Halo2 / Risc0) operator-supplied through the same seam
 
 **16 off-chain libraries + 8 plugins.** All have `tests/Neo.*.UnitTests/` mirrors;
-1423 tests across 34 .NET projects pass. Rust workspace ships 21 default-CI
+1426 tests across 34 .NET projects pass. Rust workspace ships 21 default-CI
 tests (host-mode crypto + SDK + zkVM execute round-trip) plus 2 `#[ignore]`-gated
 tests that exercise real CPU proof generation + verification (~4 minutes wall
 time). TypeScript SDK ships 15 vitest tests.
@@ -149,14 +155,14 @@ is a valid endpoint.
 
 | Layer | Components | ✅ Done | 🟡 Scaffolded | 🔴 Out-of-repo |
 |-------|-----------:|--------:|--------------:|---------------:|
-| L1 protocol contracts | 15 | 15 | 0 | 0 |
-| L2 native contracts | 6 | 6 | 0 | 0 |
+| L1 protocol contracts | 17 | 17 | 0 | 0 |
+| L2 native contracts | 10 | 10 | 0 | 0 |
 | Cross-foreign-chain bridge | 13 | 13 | 0 | 0 |
 | Node infrastructure | 19 | 19 | 0 | 0 |
 | Operator tooling | 12 | 12 | 0 | 0 |
 | App development | 8 | 8 | 0 | 0 |
 | End-user UIs | 5 | 5 | 0 | 0 |
-| **Total** | **78** | **78** | **0** | **0** |
+| **Total** | **83** | **83** | **0** | **0** |
 
 **Phase 4 (SP1 ZK proving) is now end-to-end functional.** The
 `bridge/neo-zkvm-host/tests/end_to_end.rs` test loads the compiled
@@ -186,7 +192,7 @@ program using Solana's ed25519 sigverify precompile, source-only
 pending operator `anchor build`), and an operator CLI
 (`tools/Neo.External.Bridge.Cli/` for genkey + committee-blob +
 deploy-bundle). `Neo.Hub.Deploy` scaffolds the full bridge stack
-alongside NeoHub: 20 deploy steps + 10 post-deploy hints. Phase C's
+alongside NeoHub: 22 deploy steps + 13 post-deploy hints. Phase C's
 `MpcCommitteeFraudVerifier` makes slashing of equivocating committee
 members permissionless (anyone can submit cryptographic proof of two
 byte-distinct messages signed for the same `(chainId, nonce)` and

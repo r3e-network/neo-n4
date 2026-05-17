@@ -190,7 +190,7 @@ batchNumber, challenger, fraudProofBytes, fraudVerifier)` delegates the
 actual cryptographic check to a contract identified by the
 `fraudVerifier` argument.
 
-Three paths, all in the default `neo-hub-deploy plan` 20-step bundle:
+Three paths, all in the default `neo-hub-deploy plan` 22-step bundle:
 
   1. **Governance-arbitration mode** (the simplest operator-friendly path):
      deploy `NeoHub.GovernanceFraudVerifier`. It does a structural check
@@ -604,14 +604,14 @@ be whatever the operator needs.
 
 ## Going to L1: deploying NeoHub
 
-Before `register-chain` works, the 20 production NeoHub contracts must be
+Before `register-chain` works, the 22 production NeoHub contracts must be
 deployed on the target L1. The test-only `ExternalBridgeStubVerifier` is not
 part of the default deploy bundle. The `neo-hub-deploy` tool emits a deploy
 bundle that names each contract, its dependencies, and the resolved hashes
 after a topological sort:
 
 ```bash
-# 1. Scaffold a starter plan (20 production NeoHub deploy steps in dependency
+# 1. Scaffold a starter plan (22 production NeoHub deploy steps in dependency
 #    order, including the v1/v2 and v3 fraud verifiers).
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
     --output ./my-l2/deploy-plan.json
@@ -649,7 +649,7 @@ naming which contract hash to pass as the `fraudVerifier` argument to
 > returns each real hash; capture those into the four `register-chain`
 > flags below — NOT the stub hashes from the bundle.
 
-After all 15 deploys + post-deploy wiring complete, capture the
+After all 22 deploys + post-deploy wiring complete, capture the
 **real on-chain** contract hashes (returned by your wallet from each
 `ContractManagement.Deploy` call) into the four `register-chain` flags:
 

@@ -40,11 +40,11 @@
 
 ## 2. L1 做什么(以及为什么必须由 L1 做)
 
-20 个生产 NeoHub 合约(加 1 个测试 stub)聚成 6 个关注点。每条都点出*把它强制放在
+22 个生产 NeoHub 合约(加 1 个测试 stub)聚成 6 个关注点。每条都点出*把它强制放在
 L1 的属性*:
 
 <p align="center">
-  <img src="../figures/architecture/l1-concerns.svg" alt="21 个 NeoHub L1 合约按 6 个关注点 + 2 个专用 fraud-verifier 槽位分组。Settlement(SettlementManager + VerifierRegistry)定义信任边界。Bridge(SharedBridge + TokenRegistry + ChainRegistry)托管资产。Messaging(MessageRouter + DARegistry)是跨 L2 路由仲裁。Security(SequencerRegistry + SequencerBond + ForcedInclusion + OptimisticChallenge)把关可罚没保证金与抗审查。Governance + Emergency(GovernanceController + EmergencyManager)负责慢升级 + 逃生通道。外链桥(6 个合约)。再加 2 个 fraud-verifier 参照槽位:GovernanceFraudVerifier(v1/v2 治理仲裁)+ RestrictedExecutionFraudVerifier(v3 无信任的 on-chain 重派生)" width="900">
+  <img src="../figures/architecture/l1-concerns.svg" alt="23 个 NeoHub L1 合约按 6 个关注点 + 2 个专用 fraud-verifier 槽位分组。Settlement(SettlementManager + VerifierRegistry)定义信任边界。Bridge(SharedBridge + TokenRegistry + ChainRegistry)托管资产。Messaging(MessageRouter + DARegistry + DAValidator + L1TxFilter)是跨 L2 路由与数据可用性仲裁。Security(SequencerRegistry + SequencerBond + ForcedInclusion + OptimisticChallenge)把关可罚没保证金与抗审查。Governance + Emergency(GovernanceController + EmergencyManager)负责分阶段升级 + 逃生通道。外链桥(6 个合约)。再加 2 个 fraud-verifier 参照槽位:GovernanceFraudVerifier(v1/v2 治理仲裁)+ RestrictedExecutionFraudVerifier(v3 无信任的 on-chain 重派生)" width="900">
 </p>
 
 **关于 L1 合约的关键观察:** 它们持有的是*承诺*与*权限*,而非批量状态。NeoHub 的
@@ -55,11 +55,11 @@ L1 的属性*:
 
 ## 3. L2 做什么(以及为什么可以)
 
-每条 L2 链的 7 个原生 L2 合约 + 8 个插件聚集在*执行* + *批量状态* + *吞吐量瓶颈
+每条 L2 链的 10 个原生 L2 合约 + 8 个插件聚集在*执行* + *批量状态* + *吞吐量瓶颈
 工作*周围:
 
 <p align="center">
-  <img src="../figures/architecture/l2-concerns.svg" alt="L2 做什么 —— 每条链 3 层。顶层:7 个 L2 原生合约(按链状态 —— L2BridgeContract、L2NativeExternalBridge、L2MessageContract、L2BatchInfoContract、L2FeeContract、L2PaymasterContract、L2SystemConfigContract)。中层:8 个 L2 插件(按链运行时 —— L2Batch、L2Settlement、L2Bridge、L2DA、L2Prover、L2Rpc、L2Gateway、L2Metrics)。底层:L2 执行内核 —— Neo 4 core 作为 git submodule 引入,含 dBFT 2.0 共识、NeoVM、内存池、本地状态存储、receipt 生成" width="900">
+  <img src="../figures/architecture/l2-concerns.svg" alt="L2 做什么 —— 每条链 3 层。顶层:10 个 L2 原生合约(按链状态 —— L2BridgeContract、L2NativeExternalBridge、BridgedNep17Contract、L2MessageContract、L2BatchInfoContract、L2FeeContract、L2PaymasterContract、L2AccountAbstraction、L2InteropVerifier、L2SystemConfigContract)。中层:8 个 L2 插件(按链运行时 —— L2Batch、L2Settlement、L2Bridge、L2DA、L2Prover、L2Rpc、L2Gateway、L2Metrics)。底层:L2 执行内核 —— Neo 4 core 作为 git submodule 引入,含 dBFT 2.0 共识、NeoVM、内存池、本地状态存储、receipt 生成" width="900">
 </p>
 
 **关于 L2 的关键观察:** L2 持有**批量状态 + 重型执行**。桥 + 消息是 L2 上发生的事
@@ -105,6 +105,8 @@ L1 上多半是*过早中心化*。
 - **`NeoHub.TokenRegistry`** L1 ✅ → L1 — 跨桥不变量(规则 1)
 - **`NeoHub.MessageRouter`** L1 ✅ → L1 — 跨 L2 不变量(规则 1)
 - **`NeoHub.DARegistry`** L1 ✅ → L1 — 跨 L2 不变量(规则 1)
+- **`NeoHub.DAValidator`** L1 ✅ → L1 — 数据可用性信任边界(规则 3)
+- **`NeoHub.L1TxFilter`** L1 ✅ → L1 — L1→L2 入站准入策略(规则 3)
 - **`NeoHub.SequencerRegistry`** L1 ✅ → L1 — 跨 L2 不变量(规则 1)
 - **`NeoHub.SequencerBond`** L1 ✅ → L1 — 可罚没经济安全(规则 2)
 - **`NeoHub.ForcedInclusion`** L1 ✅ → L1 — 抗审查门(规则 3)
@@ -127,13 +129,16 @@ L1 上多半是*过早中心化*。
 - **`L2Native.L2PaymasterContract`** L2 ✅ → L2 — L2 应用特定(规则 5)
 - **`L2Native.L2SystemConfigContract`** L2 ✅ → L2 — L1 chainConfig 在 L2 本地的镜像
 - **`L2Native.ExternalBridgeContract`** L2 ✅ → L2 — 按 L2 的外链包装资产状态(规则 4)
+- **`L2Native.BridgedNep17Contract`** L2 ✅ → L2 — 按 L2 的规范桥接代币表示(规则 4)
+- **`L2Native.L2AccountAbstraction`** L2 ✅ → L2 — 按链 validator/paymaster 入口(规则 5)
+- **`L2Native.L2InteropVerifier`** L2 ✅ → L2 — 基于镜像 global root 的本地包含证明校验(规则 4+5)
 
 **结论:**
 
-✅ **21 个 NeoHub 合约中的 20 个被正确放到 L1** —— 每个都满足规则 1、2 或 3 至少
+✅ **23 个 NeoHub 合约中的 22 个被正确放到 L1** —— 每个都满足规则 1、2 或 3 至少
 其一。
 
-✅ **7 个 L2 原生合约都被正确放到 L2** —— 每个都是按链状态、无跨 L2 读需求。
+✅ **10 个 L2 原生合约都被正确放到 L2** —— 每个都是按链状态、无跨 L2 读需求。
 
 🟡 **`ExternalBridgeStubVerifier` 在 L1 但仅供测试。** 生产 NeoHub 部署不得在
 `ExternalBridgeRegistry` 中注册它;现在已经由代码强制:registry 只接受

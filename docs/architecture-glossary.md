@@ -155,7 +155,7 @@ Lives at `tools/*`.
 - **`Neo.Stack.Cli`** (`neo-stack`) — 12 subcommands: create-chain,
   init-l2, register-chain, scaffold-executor, new-l2, ...
 - **`Neo.Hub.Deploy`** (`neo-hub-deploy`) — Plan/scaffold/verify NeoHub
-  deployment (20-step ordered bundle).
+  deployment (22-step ordered bundle).
 - **`Neo.L2.Devnet`** (`neo-l2-devnet`) — In-process end-to-end demo
   runner. `--executor counter` wires a sample executor.
 - **`Neo.L2.Explore`** (`neo-l2-explore`) — Terminal block explorer +

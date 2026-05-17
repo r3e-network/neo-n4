@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NeoHub.DAValidator</RootNamespace>
+    <AssemblyName>NeoHub.DAValidator</AssemblyName>
+  </PropertyGroup>
+
+</Project>

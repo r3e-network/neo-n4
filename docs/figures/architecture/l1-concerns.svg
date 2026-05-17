@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 920" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">What L1 does — the 6 concerns of NeoHub</title>
-  <desc id="desc">The 21 NeoHub L1 contracts grouped into six concerns. Settlement (SettlementManager, VerifierRegistry — defines the trust boundary). Bridge (SharedBridge, TokenRegistry, ChainRegistry — assets are on L1). Messaging (MessageRouter, DARegistry — cross-L2 routing arbiter). Security (SequencerRegistry, SequencerBond, ForcedInclusion, OptimisticChallenge — slashable bonds + anti-censorship). Governance and emergency (GovernanceController, EmergencyManager — slow upgrade + escape hatch). External bridge (MpcCommitteeVerifier, ExternalBridgeRegistry, ExternalBridgeEscrow, ExternalBridgeBond, MpcCommitteeFraudVerifier, ExternalBridgeStubVerifier). Plus two specialized fraud verifier slots: GovernanceFraudVerifier (structural v1/v2, governance-arbitrated) and RestrictedExecutionFraudVerifier (trustless v3, re-derives pre/post state roots from storage proofs).</desc>
+  <desc id="desc">The 23 NeoHub L1 contracts grouped into six concerns. Settlement (SettlementManager, VerifierRegistry — defines the trust boundary). Bridge (SharedBridge, TokenRegistry, ChainRegistry — assets are on L1). Messaging (MessageRouter, DARegistry, DAValidator, L1TxFilter — cross-L2 routing and data-availability arbiter). Security (SequencerRegistry, SequencerBond, ForcedInclusion, OptimisticChallenge — slashable bonds + anti-censorship). Governance and emergency (GovernanceController, EmergencyManager — staged upgrade + escape hatch). External bridge (MpcCommitteeVerifier, ExternalBridgeRegistry, ExternalBridgeEscrow, ExternalBridgeBond, MpcCommitteeFraudVerifier, ExternalBridgeStubVerifier). Plus two specialized fraud verifier slots: GovernanceFraudVerifier (structural v1/v2, governance-arbitrated) and RestrictedExecutionFraudVerifier (trustless v3, re-derives pre/post state roots from storage proofs).</desc>
 
   <defs>
     <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
@@ -19,7 +19,7 @@
 
   <rect width="960" height="920" fill="#ffffff"/>
 
-  <text x="480" y="32" text-anchor="middle" class="header" fill="#1e2a55">What L1 does — the 6 concerns of NeoHub (21 contracts)</text>
+  <text x="480" y="32" text-anchor="middle" class="header" fill="#1e2a55">What L1 does — the 6 concerns of NeoHub (23 contracts)</text>
 
   <!-- Row 1 left: Settlement -->
   <g filter="url(#card)">
@@ -67,15 +67,17 @@
   <g filter="url(#card)">
     <rect x="40" y="244" width="440" height="146" rx="10" ry="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.5"/>
     <text x="60" y="268" class="grp-t" fill="#1e2a55">Messaging</text>
-    <text x="170" y="268" class="grp-s">— cross-L2 routing</text>
+    <text x="170" y="268" class="grp-s">— cross-L2 routing + DA policy</text>
     <line x1="56" y1="278" x2="464" y2="278" stroke="#7587c1" stroke-dasharray="3 2"/>
     <text x="60" y="302" class="ctr-name">MessageRouter</text>
     <text x="220" y="302" class="ctr-desc">→ routes msgs between L2s; canonical hashes</text>
     <text x="60" y="324" class="ctr-name">DARegistry</text>
     <text x="220" y="324" class="ctr-desc">→ records published daCommitment hashes</text>
-    <line x1="56" y1="338" x2="464" y2="338" stroke="#cfd5dd"/>
-    <text x="60" y="360" class="why-t">WHY L1:</text>
-    <foreignObject x="120" y="346" width="350" height="40">
+    <text x="60" y="346" class="ctr-name">DAValidator / L1TxFilter</text>
+    <text x="220" y="346" class="ctr-desc">→ validates DA + gates inbound txs</text>
+    <line x1="56" y1="356" x2="464" y2="356" stroke="#cfd5dd"/>
+    <text x="60" y="378" class="why-t">WHY L1:</text>
+    <foreignObject x="120" y="364" width="350" height="24">
       <p xmlns="http://www.w3.org/1999/xhtml" style="font: 10.5px -apple-system, sans-serif; margin: 0; color: #2d3a48; line-height: 1.45;">
         L2-A → L2-B has no other trust anchor. Both endpoints share
         L1 as the routing arbiter.

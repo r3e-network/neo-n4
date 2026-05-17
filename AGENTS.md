@@ -45,14 +45,14 @@ reference implementations the agent can read but does NOT need to extend in plac
   generally NOT what to extend.
 
 **Before writing a new component, search this repo's existing libs first** (the per-component
-table in `IMPLEMENTATION_STATUS.md` has 16 off-chain libs + 8 plugins + 28 contracts; many
+table in `IMPLEMENTATION_STATUS.md` has 16 off-chain libs + 8 plugins + 33 NeoHub/L2Native contracts; many
 features that look missing are already there).
 
 ## Mapping `doc.md` to code (current state)
 
 | `doc.md` § | Topic                       | Code location |
 | ---------- | --------------------------- | ------------- |
-| §3.2 NeoHub                | L1 contract suite          | `contracts/NeoHub.*` (21 contracts: Phase 0–3 core + external-bridge stack incl. `GovernanceFraudVerifier` (structural v1/v2), `RestrictedExecutionFraudVerifier` (trustless v3), `MpcCommitteeVerifier` + `MpcCommitteeFraudVerifier`) |
+| §3.2 NeoHub                | L1 contract suite          | `contracts/NeoHub.*` (23 contracts: Phase 0–3 core + DA validator/filter + external-bridge stack incl. `GovernanceFraudVerifier` (structural v1/v2), `RestrictedExecutionFraudVerifier` (trustless v3), `MpcCommitteeVerifier` + `MpcCommitteeFraudVerifier`) |
 | §4 Neo Gateway             | Phase-5 aggregation        | `src/Neo.Plugins.L2Gateway` (`BinaryTreeAggregator` + `IRoundProver`) |
 | §5 L2 node internals       | Per-L2 plugin layout       | `src/Neo.Plugins.L2{Batch,Settlement,Bridge,DA,Prover,Rpc,Gateway,Metrics}` |
 | §7.1 Sequencer / dBFT      | Committee selection        | `contracts/NeoHub.SequencerRegistry` + `src/Neo.L2.Sequencer` |

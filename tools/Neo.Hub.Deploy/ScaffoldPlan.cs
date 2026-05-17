@@ -4,7 +4,7 @@ namespace Neo.Hub.Deploy;
 
 /// <summary>
 /// Generates the canonical default <see cref="DeployPlan"/> that matches the layout in
-/// doc.md §3.2 and §13.1. The 13 core NeoHub contracts deploy in dependency order, plus
+/// doc.md §3.2 and §13.1. The 15 core NeoHub contracts deploy in dependency order, plus
 /// two stateless fraud-verifier reference contracts (<c>GovernanceFraudVerifier</c> for
 /// v1/v2 structural verification and <c>RestrictedExecutionFraudVerifier</c> for
 /// trustless v3 storage-proof verification). L2 native contracts are listed but
@@ -38,6 +38,11 @@ public static class ScaffoldPlan
                     OwnerAndDep("SettlementManager"),
                     "SettlementManager"),
 
+                Step("DAValidator",
+                    "contracts/NeoHub.DAValidator/bin/sc/NeoHub.DAValidator.nef",
+                    OwnerAndDep("DARegistry"),
+                    "DARegistry"),
+
                 Step("EmergencyManager",
                     "contracts/NeoHub.EmergencyManager/bin/sc/NeoHub.EmergencyManager.nef",
                     OwnerAndDeps("GovernanceController", "SettlementManager"),
@@ -51,6 +56,10 @@ public static class ScaffoldPlan
                     "contracts/NeoHub.MessageRouter/bin/sc/NeoHub.MessageRouter.nef",
                     OwnerAndDep("SettlementManager"),
                     "SettlementManager"),
+
+                Step("L1TxFilter",
+                    "contracts/NeoHub.L1TxFilter/bin/sc/NeoHub.L1TxFilter.nef",
+                    OwnerOnly()),
 
                 Step("SettlementManager",
                     "contracts/NeoHub.SettlementManager/bin/sc/NeoHub.SettlementManager.nef",
@@ -238,6 +247,11 @@ public static class ScaffoldPlan
         var chainReg = bundle.Invocations.FirstOrDefault(i => i.Name == "ChainRegistry");
         var verifierReg = bundle.Invocations.FirstOrDefault(i => i.Name == "VerifierRegistry");
         var gc = bundle.Invocations.FirstOrDefault(i => i.Name == "GovernanceController");
+        var sm = bundle.Invocations.FirstOrDefault(i => i.Name == "SettlementManager");
+        var daRegistry = bundle.Invocations.FirstOrDefault(i => i.Name == "DARegistry");
+        var daValidator = bundle.Invocations.FirstOrDefault(i => i.Name == "DAValidator");
+        var messageRouter = bundle.Invocations.FirstOrDefault(i => i.Name == "MessageRouter");
+        var l1TxFilter = bundle.Invocations.FirstOrDefault(i => i.Name == "L1TxFilter");
         var govFraudVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "GovernanceFraudVerifier");
         var rexFraudVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "RestrictedExecutionFraudVerifier");
         var mpcVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "MpcCommitteeVerifier");
@@ -320,6 +334,18 @@ public static class ScaffoldPlan
             // whose bond to slash. Without RegisterCommitteeWithMembers, it
             // refuses to slash even on valid equivocation proof.
             yield return $"# Per supported foreign chain: use {mpcVerifier.Name}.RegisterCommitteeWithMembers (NOT plain RegisterCommittee) so {fraudVerifier.Name} can identify which bond holder to slash on proven equivocation.";
+        }
+        if (sm is not null && daRegistry is not null)
+        {
+            yield return $"{sm.Name}.SetDARegistry({daRegistry.Name})  # record every accepted batch's DA commitment + active DAMode";
+        }
+        if (sm is not null && daValidator is not null)
+        {
+            yield return $"{sm.Name}.SetDAValidator({daValidator.Name})  # enforce DA validation before FinalizeBatch, including DAC attestation checks";
+        }
+        if (messageRouter is not null && l1TxFilter is not null)
+        {
+            yield return $"# Per L2 chain: call {messageRouter.Name}.SetL1TxFilter(<chainId>, {l1TxFilter.Name}) to enable sender/receiver/message-type filtering before L1->L2 enqueue.";
         }
     }
 

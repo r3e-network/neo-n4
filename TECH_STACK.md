@@ -33,7 +33,7 @@ Independent implementation — not the official Neo 4 release, not endorsed by N
 |   Bridge crates (zkvm-host / guest) | Watchers (eth / tron / sol)        |
 +--------------------------------------------------------------------------+
 | Layer 1 - Protocol contracts (on-chain)                                  |
-|   NeoHub L1 suite (21 contracts) | L2 native contracts (7 contracts)     |
+|   NeoHub L1 suite (23 contracts) | L2 native contracts (10 contracts)    |
 |   Foreign-side routers (EVM family Solidity | Solana Anchor program)     |
 +--------------------------------------------------------------------------+
                                     |
@@ -52,8 +52,8 @@ Per-component detail lives in [`docs/tech-stack-coverage.md`](docs/tech-stack-co
 
 | Category | Count | Where |
 |----------|------:|-------|
-| Smart contracts — NeoHub L1 suite | 21 | `contracts/NeoHub.*/` |
-| Smart contracts — L2 native | 7 | `contracts/L2Native.*/` |
+| Smart contracts — NeoHub L1 suite | 23 | `contracts/NeoHub.*/` |
+| Smart contracts — L2 native | 10 | `contracts/L2Native.*/` |
 | Smart contracts — sample dApps | 2 | `samples/contracts/Sample.*/` |
 | Sample executor (reference) | 1 | `samples/executors/Sample.CounterChainExecutor/` |
 | Foreign-side on-chain programs | 2 | `external/foreign-contracts/eth/` (Solidity, deploys to 14 EVM chains) + `external/foreign-contracts/sol/` (Solana Anchor) |
@@ -67,7 +67,7 @@ Per-component detail lives in [`docs/tech-stack-coverage.md`](docs/tech-stack-co
 | Test projects | 34 | `tests/Neo.L2.*.UnitTests/` + `tests/Neo.L2.IntegrationTests/` + sample test projects |
 | Documentation pages | 20 EN + 22 zh | `docs/*.md`, `docs/zh/*.md` |
 
-**Total runnable code modules: 73** (28 contracts + 2 samples + 1 executor + 2 foreign + 16 libs + 8 plugins + 7 tools + 2 bridge + 3 watchers + 3 SDKs + 1 web).
+**Total runnable code modules: 78** (33 contracts + 2 samples + 1 executor + 2 foreign + 16 libs + 8 plugins + 7 tools + 2 bridge + 3 watchers + 3 SDKs + 1 web).
 
 ---
 
@@ -75,26 +75,26 @@ Per-component detail lives in [`docs/tech-stack-coverage.md`](docs/tech-stack-co
 
 | Check | Result |
 |-------|--------|
-| .NET tests | **1423 passing across 34 projects, 0 failures** |
+| .NET tests | **1426 passing across 34 projects, 0 failures** |
 | Cross-language tests | **155 passing** (15 TS + 10 Rust SDK + 8 SP1 guest + 101 watcher with `--features live-rpc` + 20 Foundry + 1 Solana Anchor) |
 | Real-CPU SP1 proof generation | **2 ignored release-gate tests** (~40s prove, ~20s verify, 2.78 MB proof artifact) |
-| **Base tests green** | **1578** |
-| Smart contract artifacts | 30/30 `.nef` + `.manifest.json` compile cleanly via `nccs 3.9.1` |
+| **Base tests green** | **1581** |
+| Smart contract artifacts | 35/35 `.nef` + `.manifest.json` compile cleanly via `nccs 3.9.1` |
 | Devnet 5-batch end-to-end | green (state-root continuity, multisig proofs, audit pass) |
-| `dotnet build Neo.L2.sln` | 102 solution projects, 0 errors, 0 warnings |
+| `dotnet build Neo.L2.sln` | 107 solution projects, 0 errors, 0 warnings |
 
 ---
 
 ## 5. Open development work
 
-**37 actionable tasks total, 9 closed, 28 remaining** — see [`TASKS.md`](TASKS.md) for the full checklist.
+**37 actionable tasks total, 15 closed, 22 remaining** — see [`TASKS.md`](TASKS.md) for the full checklist.
 
 | Repo | Total | Closed | Remaining | Remaining breakdown |
 |------|------:|-------:|----------:|---------------------|
 | Neo N4 Core (`neo-project/neo`) | 10 | 0 | 10 | 4 critical (ChainMode + GAS / NEO / Policy gating) · 3 high (RpcServer source, OnPersist hook, optional Oracle) · 3 medium (dBFT hook, restricted-state mode, RISC-V mode) |
-| This repo (`neo4`) | 24 | 9 | 15 | 4 production-readiness examples · 2 future features · 1 spec-gap deferred (§8-witness-canonical) · 8 ZKsync parity items (DAValidator, BridgedNep17, IAccount AA, staged-upgrade timer, TxFilterer, L2-side message verification, more samples, Python/Go SDKs) |
+| This repo (`neo4`) | 24 | 15 | 9 | 4 production-readiness examples · 2 future features · 1 spec-gap deferred (§8-witness-canonical) · 2 ecosystem items (more samples, Python/Go SDKs) |
 | Cross-repo coordination | 3 | 0 | 3 | L2 bootstrap handoff · RpcServer migration · RISC-V mode promotion |
-| **Totals** | **37** | **9** | **28** | |
+| **Totals** | **37** | **15** | **22** | |
 
 ZKsync parity tracking comes from [`docs/zksync-comparison.md`](docs/zksync-comparison.md),
 which maps every ZKsync v29 component to its neo4 equivalent and identifies the
@@ -108,8 +108,8 @@ remaining gaps worth closing as the framework matures.
 |--------------------------|-----------|-----|
 | NeoVM opcodes / native contracts | **Core** (`neo-project/neo`) | L1 execution kernel — this repo does not fork core |
 | dBFT consensus / RpcServer plugin | **Core** | Same |
-| L1 contracts (NeoHub) | This repo → `contracts/NeoHub.*/` | All 21 L1 contracts live here |
-| L2 native contracts | This repo → `contracts/L2Native.*/` | 7 L2-specific natives |
+| L1 contracts (NeoHub) | This repo → `contracts/NeoHub.*/` | All 23 L1 contracts live here |
+| L2 native contracts | This repo → `contracts/L2Native.*/` | 10 L2-specific natives |
 | Batch / state / messaging logic | This repo → `src/Neo.L2.{Batch,State,Messaging}/` | Pure off-chain libraries |
 | Sequencer / batcher / prover runtime | This repo → `src/Neo.L2.{Sequencer,Batch,Proving}/` + `src/Neo.Plugins.L2*/` | Plugin-based runtime |
 | Off-chain fraud-proof generation | This repo → `src/Neo.L2.Challenge/` | Bisection game + payload encoding |
@@ -131,7 +131,7 @@ remaining gaps worth closing as the framework matures.
 # Build everything (~10s)
 dotnet build Neo.L2.sln /p:NuGetAudit=false
 
-# Run all .NET tests (1423 tests, ~30s)
+# Run all .NET tests (1426 tests, ~30s)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Run the in-process devnet (5 batches, full pipeline)

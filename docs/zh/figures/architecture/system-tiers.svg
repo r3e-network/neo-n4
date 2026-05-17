@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 760" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">Neo Elastic Network — 四层系统拓扑</title>
-  <desc id="desc">四层拓扑：第 1 层为 NeoHub L1 锚定层，包含 21 个合约。第 2 层为可选的 Neo Gateway，用于证明聚合。第 3 层为弹性 L2 链，运行 Neo 4 core 加 8 个插件加 7 个原生合约。第 4 层为链下运营者，包括排序器、批处理器、证明守护进程、DA 写入器和外链中继器。</desc>
+  <desc id="desc">四层拓扑：第 1 层为 NeoHub L1 锚定层，包含 23 个合约。第 2 层为可选的 Neo Gateway，用于证明聚合。第 3 层为弹性 L2 链，运行 Neo 4 core 加 8 个插件加 10 个原生合约。第 4 层为链下运营者，包括排序器、批处理器、证明守护进程、DA 写入器和外链中继器。</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -28,7 +28,7 @@
 
   <g filter="url(#card)">
     <rect x="62" y="92" width="836" height="46" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
-    <text x="480" y="113" text-anchor="middle" class="card-title" fill="#1e2a55">NeoHub —— 20 个生产合约（+ 1 个测试桩）</text>
+    <text x="480" y="113" text-anchor="middle" class="card-title" fill="#1e2a55">NeoHub —— 22 个生产合约（+ 1 个测试桩）</text>
     <text x="480" y="130" text-anchor="middle" class="card-sub" fill="#3a4a82">结算 · 桥 · 消息传递 · 治理 · 安全 · 外链桥</text>
   </g>
 
@@ -52,7 +52,7 @@
   <!-- TIER 3 · L2 chains -->
   <rect x="40" y="338" width="880" height="208" rx="10" ry="10" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.2"/>
   <text x="58" y="362" class="band-title" fill="#1d4d2c">第 3 层 · 弹性 L2 链（N 条）</text>
-  <text x="58" y="380" class="band-sub" fill="#2f5e3c">Neo 4 core（引入）· 8 个插件 · 7 个原生合约 —— 各自独立状态，共享 L1 锚定</text>
+  <text x="58" y="380" class="band-sub" fill="#2f5e3c">Neo 4 core（引入）· 8 个插件 · 10 个原生合约 —— 各自独立状态，共享 L1 锚定</text>
 
   <g filter="url(#card)">
     <rect x="62" y="396" width="248" height="138" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
@@ -62,7 +62,7 @@
     <text x="186" y="468" text-anchor="middle" class="card-sub" fill="#2f5e3c">+ 8 个插件（Batch · Settlement ·</text>
     <text x="186" y="484" text-anchor="middle" class="card-sub" fill="#2f5e3c">Bridge · DA · Prover · Rpc ·</text>
     <text x="186" y="500" text-anchor="middle" class="card-sub" fill="#2f5e3c">Gateway · Metrics）</text>
-    <text x="186" y="520" text-anchor="middle" class="card-sub" fill="#2f5e3c">+ 7 个原生合约</text>
+    <text x="186" y="520" text-anchor="middle" class="card-sub" fill="#2f5e3c">+ 10 个原生合约</text>
   </g>
 
   <g filter="url(#card)">

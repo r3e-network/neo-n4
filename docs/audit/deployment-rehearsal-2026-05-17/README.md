@@ -45,7 +45,7 @@ The latest local run in this workspace completed with `status: passed` at
 
 | Artifact | Purpose |
 | --- | --- |
-| `hub/deploy-plan.json` | 20-step NeoHub production deploy scaffold. |
+| `hub/deploy-plan.json` | 22-step NeoHub production deploy scaffold. |
 | `hub/deploy-bundle.json` | Resolved deploy bundle with post-deploy actions. |
 | `external-bridge/watchers.pubs` | Public watcher keys used for the rehearsal committee. |
 | `external-bridge/watchers.eth-addresses.txt` | EVM addresses derived from the watcher public keys. |

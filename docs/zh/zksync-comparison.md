@@ -165,7 +165,7 @@ gated NFT mint、L1→L2 deposit)。neo4 总共 3 个样例模块。
   `ContractManagement`、原生 NEP-17 GAS、原生密码学、隐式签名者 nonce。
 - **Diamond proxy + facet 模式**(`DiamondProxy.sol`、`Admin.sol`、
   `Executor.sol`、`Getters.sol`、`Mailbox.sol`)—— 为绕过以太坊 24KB 合约
-  大小限制而存在。NeoVM 无 24KB 上限;NeoHub 在 21 个合约间按职责切分等效。
+  大小限制而存在。NeoVM 无 24KB 上限;NeoHub 在 23 个合约间按职责切分等效。
 - **`CTMDeploymentTracker` + `ChainAssetHandler`** —— ZKsync 用来支持
   *竞争性* 链类型与第三方资产路由器。neo4 只有一个规范 Hub。
 - **`L2BaseToken` + `L2WrappedBaseToken` / `L2WrappedBaseTokenStore`** ——

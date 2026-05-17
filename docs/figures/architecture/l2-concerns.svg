@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 700" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">What L2 does — 3 layers per chain</title>
-  <desc id="desc">Each L2 chain comprises three concerns: 7 native L2 contracts (per-chain state — L2BridgeContract, L2NativeExternalBridge, L2MessageContract, L2BatchInfoContract, L2FeeContract, L2PaymasterContract, L2SystemConfigContract), 8 L2 plugins (per-chain runtime — L2Batch, L2Settlement, L2Bridge, L2DA, L2Prover, L2Rpc, L2Gateway, L2Metrics), and the L2 execution kernel (Neo 4 core vendored as submodule — dBFT 2.0 consensus, NeoVM, Mempool, local state storage, receipt generation).</desc>
+  <desc id="desc">Each L2 chain comprises three concerns: 10 native L2 contracts (per-chain state — L2BridgeContract, L2NativeExternalBridge, BridgedNep17Contract, L2MessageContract, L2BatchInfoContract, L2FeeContract, L2PaymasterContract, L2AccountAbstraction, L2InteropVerifier, L2SystemConfigContract), 8 L2 plugins (per-chain runtime — L2Batch, L2Settlement, L2Bridge, L2DA, L2Prover, L2Rpc, L2Gateway, L2Metrics), and the L2 execution kernel (Neo 4 core vendored as submodule — dBFT 2.0 consensus, NeoVM, Mempool, local state storage, receipt generation).</desc>
 
   <defs>
     <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
@@ -24,7 +24,7 @@
   <g filter="url(#card)">
     <rect x="40" y="58" width="880" height="216" rx="10" ry="10" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.5"/>
     <text x="60" y="82" class="grp-t" fill="#1d4d2c">L2 native contracts</text>
-    <text x="220" y="82" class="grp-s">— deployed to each L2 chain (7 contracts)</text>
+    <text x="220" y="82" class="grp-s">— deployed to each L2 chain (10 contracts)</text>
     <line x1="56" y1="92" x2="904" y2="92" stroke="#3a8454" stroke-dasharray="3 2"/>
 
     <text x="60" y="118" class="ctr-name">L2BridgeContract</text>

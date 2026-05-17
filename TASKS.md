@@ -75,16 +75,16 @@ for full mapping + rationale. Each item names a concrete neo4 location.
 
 - [x] ~~On-chain global message root~~ — `MessageRouter.PublishGlobalRoot` (ZKsync `MessageRoot.sol` equivalent)
 - [x] ~~Permanent restriction mechanism~~ — `GovernanceController.SetImmutableFlag` (ZKsync `PermanentRestriction` equivalent)
-- [ ] `NeoHub.DAValidator` — L1 contract verifying DA inclusion proofs for `DAMode.Committee` (ZKsync `ValidiumL1DAValidator` equivalent). Wire into `SettlementManager.FinalizeBatch` for validium chains.
-- [ ] `L2Native.BridgedNep17Contract` — canonical mintable NEP-17 deployed per L1-asset mapping by `TokenRegistry` (ZKsync `BridgedStandardERC20` equivalent)
-- [ ] `L2Native.L2AccountAbstraction` — programmable AA contract with `validateTx` / `payForTx` / `executeTx` hooks (ZKsync `IAccount` equivalent, ported to Neo's signer model)
-- [ ] Staged-upgrade timer in `GovernanceController` — separate `propose → notice → execute → cool-down` phases via a new field in `PrefixProposal` (ZKsync `UpgradeStageValidator` equivalent)
-- [ ] Per-chain `IL1TxFilter` extension point — optional pre-enqueue hook in `MessageRouter` (ZKsync `TransactionFilterer` equivalent)
-- [ ] L2-side message verification helper — `L2Native.L2InteropVerifier` reads L1-committed `MessageRouter.GetGlobalRoot` via `L2BatchInfoContract` so dApps can verify peer messages without round-tripping L1 (ZKsync v29 `L2MessageVerification` equivalent)
+- [x] ~~`NeoHub.DAValidator`~~ — L1 DAC attestation validator implemented and wired into `SettlementManager` through `SetDARegistry` / `SetDAValidator`; `SubmitBatch` records DA tuples and `FinalizeBatch` enforces validation.
+- [x] ~~`L2Native.BridgedNep17Contract`~~ — canonical bridge-controlled NEP-17 mint/burn template implemented for L1-asset mappings.
+- [x] ~~`L2Native.L2AccountAbstraction`~~ — programmable AA entry point implemented with validator binding, nonce checks, magic-value `validateTransaction`, paymaster charge, and `executeTx`.
+- [x] ~~Staged-upgrade timer in `GovernanceController`~~ — notice / execution / cool-down windows implemented with `GetProposalStage`, `IsInExecutionWindow`, and `MarkProposalExecuted`.
+- [x] ~~Per-chain `IL1TxFilter` extension point~~ — `MessageRouter.SetL1TxFilter` and `NeoHub.L1TxFilter` implemented for sender/receiver/message-type pre-enqueue filtering.
+- [x] ~~L2-side message verification helper~~ — `L2Native.L2InteropVerifier` implemented with mirrored global roots, L1 finalized-height check, Merkle proof verification, and local replay protection.
 - [ ] Additional sample dApps — `Sample.Erc20PaymasterClient`, `Sample.MultisigAccount`, `Sample.GatedMint`, `Sample.CrossChainSwap`
 - [ ] Python + Go SDKs — community-tier, generated from the canonical `L2RpcClient` surface
 
-**Subtotal: 24 (9 closed in this iteration, 15 remain — 4 operator examples + 2 future features + 1 spec-gap-deferred + 8 ZKsync parity)**
+**Subtotal: 24 (15 closed, 9 remain — 4 operator examples + 2 future features + 1 spec-gap-deferred + 2 ecosystem items)**
 
 ---
 
@@ -105,15 +105,19 @@ Items that need work in both repos and PR coordination across them.
 | Bucket | Total | Closed | Remaining |
 |--------|------:|-------:|----------:|
 | Neo N4 Core | 10 | 0 | 10 |
-| This repo | 24 | 9 | 15 |
+| This repo | 24 | 15 | 9 |
 | Cross-repo | 3 | 0 | 3 |
-| **Total** | **37** | **9** | **28** |
+| **Total** | **37** | **15** | **22** |
 
-The +10 since the previous TASKS update came from the ZKsync Elastic Chain
-comparison (`docs/zksync-comparison.md`): 2 closed in this iteration (global
-message root + immutable flag) + 8 tracked for future work.
+The ZKsync Elastic Chain comparison (`docs/zksync-comparison.md`) originally
+added 8 in-repo parity tasks. The high-value contract gaps are now closed:
+global message root, immutable flags, DA validator, canonical bridged token,
+AA, staged governance, L1 transaction filter, and L2 interop verifier.
 
-The 7 closed items in this iteration are: 1 substantive (state-tree Merkle convention) + 3 minor nits (CEI ordering, PrefixGlobalRoot reservation, RocksDB doc) + 3 docs (state-tree note, stub-verifier note, v4 sketch). The 20 remaining are split between **0 in-repo behavior tasks**, 4 production-readiness *examples* (operator-supplied seams the framework already exposes), 2 future features (toolchain-blocked), 1 deferred spec-gap, 10 upstream core items, and 3 cross-repo coordination items.
+The 22 remaining items are split between 4 production-readiness examples
+(operator-supplied seams the framework already exposes), 2 future features
+(toolchain-blocked), 1 deferred spec-gap, 2 ecosystem items (samples + Go/Python
+SDKs), 10 upstream core items, and 3 cross-repo coordination items.
 
 ---
 
@@ -127,10 +131,10 @@ Anything touching **NeoVM execution semantics, native contracts, dBFT consensus,
 
 Reference state after the closed-iteration fixes:
 
-- Tests green: **1423 .NET + 155 cross-language base = 1578**, plus 2 real-CPU SP1 release-gate tests verified via `cargo test --release --locked -- --ignored --nocapture` in `bridge/neo-zkvm-host/`.
-  - 1423 .NET across 34 projects.
+- Tests green: **1426 .NET + 155 cross-language base = 1581**, plus 2 real-CPU SP1 release-gate tests verified via `cargo test --release --locked -- --ignored --nocapture` in `bridge/neo-zkvm-host/`.
+  - 1426 .NET across 34 projects.
   - 155 cross-language (15 TS + 10 Rust SDK + 8 SP1 guest + 101 watcher + 20 Foundry + 1 Solana Anchor).
-- Build: 102 solution projects, 0 errors, 0 warnings (with `nccs` on PATH)
-- Smart contracts: 28 NeoHub/L2Native + 2 sample dApps + 1 sample executor → all compile fresh
+- Build: 107 solution projects, 0 errors, 0 warnings (with `nccs` on PATH)
+- Smart contracts: 33 NeoHub/L2Native + 2 sample dApps + 1 sample executor → all compile fresh
 - Devnet 5-batch E2E: green, state root unchanged (`KeyedStateRootOracle` path was already Neo classic)
 - Findings ledger: **0 substantive + 0 minor nits open** — all 4 findings from the 40-iteration sweep now closed

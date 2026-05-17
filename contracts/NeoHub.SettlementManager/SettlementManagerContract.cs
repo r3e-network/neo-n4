@@ -26,10 +26,13 @@ public class SettlementManagerContract : SmartContract
     private const byte PrefixLatestBatch = 0x04;          // 0x04 + chainId(4B) → ulong latest finalized batch
     private const byte PrefixWithdrawalRoot = 0x05;       // 0x05 + chainId(4B) + batchNum(8B) → 32B withdrawalRoot
     private const byte PrefixOptimisticChallenge = 0x06;
+    private const byte PrefixDARegistry = 0x07;
+    private const byte PrefixDAValidator = 0x08;
     private const byte PrefixChainRegistry = 0xFC;
     private const byte PrefixVerifierRegistry = 0xFD;
     private const byte KeyOwner = 0xFF;
 
+    private const int DACommitmentOffset = 252;
     private const int ProofTypeOffset = 316;
     private const int ProofLenOffset = 317;
     private const int ProofBytesOffset = 321;
@@ -108,6 +111,38 @@ public class SettlementManagerContract : SmartContract
         Storage.Put(new byte[] { PrefixOptimisticChallenge }, optimisticChallenge);
     }
 
+    /// <summary>DARegistry contract called when a batch is accepted.</summary>
+    [Safe]
+    public static UInt160 GetDARegistry()
+    {
+        var raw = Storage.Get(new byte[] { PrefixDARegistry });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Wire the DARegistry contract. Owner only; required before SubmitBatch.</summary>
+    public static void SetDARegistry(UInt160 daRegistry)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(daRegistry.IsValid && !daRegistry.IsZero, "invalid DA registry");
+        Storage.Put(new byte[] { PrefixDARegistry }, daRegistry);
+    }
+
+    /// <summary>DAValidator contract called before a batch is finalized.</summary>
+    [Safe]
+    public static UInt160 GetDAValidator()
+    {
+        var raw = Storage.Get(new byte[] { PrefixDAValidator });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Wire the DAValidator contract. Owner only; required before FinalizeBatch.</summary>
+    public static void SetDAValidator(UInt160 daValidator)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(daValidator.IsValid && !daValidator.IsZero, "invalid DA validator");
+        Storage.Put(new byte[] { PrefixDAValidator }, daValidator);
+    }
+
     /// <summary>
     /// Submit an L2BatchCommitment. The chain must be registered + active; the batch number
     /// must equal <c>latestFinalized + 1</c>; the verifier dispatches by ProofType.
@@ -136,6 +171,10 @@ public class SettlementManagerContract : SmartContract
         var verifierRegistry = (UInt160)(Storage.Get(new byte[] { PrefixVerifierRegistry }) ?? throw new Exception("verifier registry unset"));
         var verified = (bool)Contract.Call(verifierRegistry, "verifyCommitment", CallFlags.ReadOnly, new object[] { commitmentBytes });
         ExecutionEngine.Assert(verified, "verifier rejected commitment");
+
+        var daCommitment = ReadUInt256(commitmentBytes, DACommitmentOffset);
+        var daMode = GetChainDAMode(chainRegistry, chainId);
+        RecordDataAvailability(chainId, batchNumber, daCommitment, daMode);
 
         var proofType = commitmentBytes[ProofTypeOffset];
         var status = proofType == ProofTypeOptimistic ? StatusChallengeable : StatusPending;
@@ -183,6 +222,7 @@ public class SettlementManagerContract : SmartContract
         }
 
         var header = (byte[])(Storage.Get(BatchHeaderKey(chainId, batchNumber)) ?? throw new Exception("header missing"));
+        ValidateDataAvailability(chainId, batchNumber, header);
         var postStateRoot = ReadUInt256(header, 4 + 8 + 8 + 8 + 32);
 
         Storage.Put(key, new byte[] { StatusFinalized });
@@ -361,6 +401,41 @@ public class SettlementManagerContract : SmartContract
 
     /// <summary>Maximum tree depth the on-chain verifier will accept (2^64 leaves).</summary>
     public const int MaxProofDepth = 64;
+
+    private static void RecordDataAvailability(
+        uint chainId,
+        ulong batchNumber,
+        UInt256 daCommitment,
+        byte daMode)
+    {
+        ExecutionEngine.Assert(!daCommitment.Equals(UInt256.Zero), "DA commitment must be non-zero");
+        ExecutionEngine.Assert(daMode <= 3, "daMode must be 0..3");
+        var daRegistry = GetDARegistry();
+        ExecutionEngine.Assert(daRegistry.IsValid && !daRegistry.IsZero, "DA registry not wired");
+        Contract.Call(daRegistry, "record", CallFlags.All,
+            new object[] { chainId, batchNumber, daCommitment, daMode });
+    }
+
+    private static void ValidateDataAvailability(uint chainId, ulong batchNumber, byte[] header)
+    {
+        var chainRegistry = (UInt160)(Storage.Get(new byte[] { PrefixChainRegistry }) ?? throw new Exception("registry unset"));
+        var daMode = GetChainDAMode(chainRegistry, chainId);
+        var daCommitment = ReadUInt256(header, DACommitmentOffset);
+        var validator = GetDAValidator();
+        ExecutionEngine.Assert(validator.IsValid && !validator.IsZero, "DA validator not wired");
+        var ok = (bool)Contract.Call(validator, "validate", CallFlags.ReadOnly,
+            new object[] { chainId, batchNumber, daCommitment, daMode });
+        ExecutionEngine.Assert(ok, "DA validator rejected commitment");
+    }
+
+    private static byte GetChainDAMode(UInt160 chainRegistry, uint chainId)
+    {
+        return (byte)(BigInteger)Contract.Call(
+            chainRegistry,
+            "getDAMode",
+            CallFlags.ReadOnly,
+            new object[] { chainId });
+    }
 
     /// <summary>
     /// True if <paramref name="leafHash"/> is included in <paramref name="chainId"/>'s

@@ -31,7 +31,7 @@ git submodule update --init --recursive
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 ```
 
-预期:**1423 个测试通过、覆盖 34 个工程**,端到端约 10 秒。
+预期:**1426 个测试通过、覆盖 34 个工程**,端到端约 10 秒。
 
 如果机器没有外网,`/p:NuGetAudit=false` 会跳过对 nuget.org 的安全审计跳转。
 
@@ -103,7 +103,7 @@ dotnet run --project tools/Neo.Hub.Deploy -- plan \
     --plan deploy-plan.json --output bundle.json
 ```
 
-`bundle.json` 是一份拓扑排序、依赖已解析的合约部署调用序列(共 20 步)——每个
+`bundle.json` 是一份拓扑排序、依赖已解析的合约部署调用序列(共 22 步)——每个
 `$step:<name>` 占位符都替换成了确定性的 stub 哈希。生产部署会把 bundle 喂给一个带钱包
 的执行器,让它对每一步签名并广播。
 

@@ -7,6 +7,9 @@ and tracks the gaps neo4 still needs to close.
 
 The map is current as of ZKsync's v29 era-contracts release (Q1 2026).
 
+For the 2026-05-17 official-doc revalidation and production-readiness verdict,
+see [`docs/audit/zksync-elastic-chain-validation-2026-05-17.md`](audit/zksync-elastic-chain-validation-2026-05-17.md).
+
 ---
 
 ## Component map

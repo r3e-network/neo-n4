@@ -9,11 +9,14 @@
 - [Persistence](./persistence.md)
 - [Telemetry](./telemetry.md)
 - [Security model](./security-model.md)
+- [Rust supply-chain policy](./rust-supply-chain-policy.md)
+- [Release readiness checklist](./release-readiness-checklist.md)
 - [Wallet integration](./wallet-integration.md)
 
 # Architecture
 
 - [Architecture atlas (start here)](./architecture-atlas.md)
+- [Visual guide](./visual-guide.md)
 - [Architecture walkthrough](./architecture-walkthrough.md)
 - [L2 chain lifecycle](./architecture-l2-lifecycle.md)
 - [L1 vs L2 division](./architecture-l1-vs-l2.md)

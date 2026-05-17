@@ -246,24 +246,13 @@ External-bridge stack (doc.md §11.3 — cross-foreign-chain to Eth/Tron/Sol):
 
 ### Tests
 
-**1409 .NET tests across 33 projects, plus 156 cross-language tests
-(15 TypeScript + 10 Rust SDK + 8 SP1 guest host-mode + 103 Rust bridge
-watcher core across 3 crates [eth: 87 with `live-rpc` — base 32 +
-11 live JSON-RPC integration tests against an in-process
-`FakeRpcServer` exercising `EthRpcEventSource`+`NeoRpcSubmitter`
-through real `reqwest::blocking` HTTP cycles, 9 stress + concurrency
-tests for `FileJournal` (large-volume replay, corrupt-cursor recovery,
-atomic-rename invariant, interleaved cursor+marks at scale,
-flock-based concurrent-instance detection), 9 tests for
-`HealthServer`+`/metrics` Prometheus exposition, 10 preflight-smoke
-tests for the operator-flag UX (`--preflight` against `FakeRpcServer`
-covering zero-address rejection, missing-bytecode rejection, unreachable
-RPC, JSON-RPC errors, plus `--version` / unknown-flag UX) + per-chain
-confirmation-buffer tests; tron: 7; sol: 9] + 20 Foundry Solidity
-tests for `NeoExternalBridgeRouter` [13 single-chain + 7 multi-chain
-validating the router deploys unchanged across the entire EVM
-family]) — all green.** Phase-C
-real-crypto fraud-proof tests (7 of the 1409 .NET) pin the
+**1411 .NET tests across 33 projects, plus 155 cross-language tests
+(15 TypeScript + 10 Rust SDK + 8 SP1 guest host-mode + 101 Rust bridge
+watcher core across 3 crates [eth: 85 with `live-rpc`; tron: 7; sol: 9],
+20 Foundry Solidity tests for `NeoExternalBridgeRouter` [13 single-chain
+and 7 multi-chain validating the router deploys unchanged across the entire
+EVM family], and 1 Solana Anchor program test) — all green on the Windows audit
+matrix.** Phase-C real-crypto fraud-proof tests (7 of the 1411 .NET) pin the
 equivocation slash path's bytes-on-the-wire contract end-to-end with
 real secp256k1 signatures.
 
@@ -274,7 +263,7 @@ real secp256k1 signatures.
 | `Neo.L2.State.UnitTests`             | 113   | Merkle tree, proof verify, hashers, **canonical proof wire format (round-trip, layout, truncation, oversized depth, 7-leaf all-positions), `MessageHasher.HashMessage` + `HashWithdrawal` canonical-buffer layout pinned, HashMessage field-order sensitivity, HashWithdrawal at-max 64-byte amount accepted, on-chain Merkle verifier parity (4-leaf / 5-leaf odd-card / 7-leaf all-positions / tampered-sibling rejection / state-tree pin), `KeyedStateMerkleTree.ComputeRoot` ↔ `MerkleTree.ComputeRoot(HashEntry leaves)` cross-pin across 10 cardinalities incl. odd cases + `HashLeaf` ↔ `KeyedStateStore.HashEntry` byte-identity (NeoClassicParity suite), **wire-format fuzz suite** (`UT_WireFormat_Fuzz`, 19 ZKsync-style tests): random byte sequences through `MerkleProofSerializer.Decode` + `DepositPayload.Decode` (must reject with typed exception, never crash); differential round-trip across fuzzed tree shapes (1..16 leaves) + fuzzed (l1Asset, l2Recipient, amount) tuples; suffix-truncation rejection** |
 | `Neo.L2.Messaging.UnitTests`         | 46    | inbox FIFO, replay protection, outbox split, **L2Outbox metric emission across destinations, persistence reopen pins, MessageBuilder rejects self-routed messages (incl. zero-to-zero)** |
 | `Neo.L2.Bridge.UnitTests`            | 88    | registry, deposit replay, withdrawal staging, **metric emission on all paths, retryability after transient validation failure, registry orphan cleanup, `DepositPayload` byte-layout pinned at documented offsets, at-max 64-byte amount boundary, **property-based invariant suite** (`UT_BridgeInvariants_PropertyBased`, 17 ZKsync-style tests): seeded random walks (200 ops × 4-8 seeds) asserting AssetRegistry bidirectional consistency, WithdrawalProcessor nonce-uniqueness across SealBatch promotion, DepositProcessor accepted-sum ↔ DepositsProcessed counter equality** |
-| `Neo.L2.Proving.UnitTests`           | 50    | Stage 0/1/2 prove+verify, registry dispatch, **proof-payload boundary tests (length, version, ProofSystem range), AttestationVerifier dedup-before-verify, `MultisigProofPayload` byte-layout pinned at documented offsets ([1B version][2B signerCount LE]·N×([33B pubkey][64B sig])), ProofSystem enum discriminants pinned (Unknown=0..Axiom=4 — wire byte at RiscVProofPayload offset 1)** |
+| `Neo.L2.Proving.UnitTests`           | 51    | Stage 0/1/2 prove+verify, registry dispatch, **optimistic sequencer account/signature binding, proof-payload boundary tests (length, version, ProofSystem range), AttestationVerifier dedup-before-verify, `MultisigProofPayload` byte-layout pinned at documented offsets ([1B version][2B signerCount LE]·N×([33B pubkey][64B sig])), ProofSystem enum discriminants pinned (Unknown=0..Axiom=4 — wire byte at RiscVProofPayload offset 1)** |
 | `Neo.L2.Executor.UnitTests`          | 56    | empty/single/many, ordering, determinism, **KeyedStateStore + oracle, persistence reopen pins** |
 | `Neo.L2.ForcedInclusion.UnitTests`   | 28    | nonce ordering, replay, overdue detection, **persistence reopen pins**   |
 | `Neo.L2.Sequencer.UnitTests`         | 32    | register/exit/finalize lifecycle, **metric emission for all three lifecycle ops + committee-size gauge, `SetMaxCommitteeSize` shrink-below-count rejection, persistence reopen pins (incl. exit-window survives restart)** |

@@ -11,7 +11,7 @@ description = "Real SP1 host that loads neo-zkvm-guest's RISC-V ELF, runs it via
 build = "build.rs"
 
 [dependencies]
-sp1-sdk = { version = "6.0", features = ["blocking"] }
+sp1-sdk = { version = "6.2.1", features = ["blocking"] }
 bincode = "1.3"
 
 [dev-dependencies]

@@ -3,10 +3,10 @@ seeds = false
 skip-lint = false
 
 [programs.localnet]
-neo_external_bridge_router = "NeoBR111111111111111111111111111111111111"
+neo_external_bridge_router = "34B8qwavepu4eY3KiCwNeLL5kJNu3aZJcSb1xv48s7eu"
 
 [programs.devnet]
-neo_external_bridge_router = "NeoBR111111111111111111111111111111111111"
+neo_external_bridge_router = "34B8qwavepu4eY3KiCwNeLL5kJNu3aZJcSb1xv48s7eu"
 
 [registry]
 url = "https://api.apr.dev"

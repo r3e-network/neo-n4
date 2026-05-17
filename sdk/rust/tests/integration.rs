@@ -116,7 +116,7 @@ async fn get_withdrawal_proof_null_returns_none() {
         .await;
 
     let client = L2RpcClient::new(server.url(), 1099).unwrap();
-    let got = client.get_withdrawal_proof("0x" ).await.unwrap();
+    let got = client.get_withdrawal_proof("0x").await.unwrap();
     assert_eq!(got, None);
 }
 

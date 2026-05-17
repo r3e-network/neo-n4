@@ -41,8 +41,7 @@ impl FakeRpcServer {
                         let mut buf = vec![0u8; 8192];
                         let n = stream.read(&mut buf).unwrap_or(0);
                         let req = String::from_utf8_lossy(&buf[..n]).to_string();
-                        let body =
-                            req.split("\r\n\r\n").nth(1).unwrap_or("").to_string();
+                        let body = req.split("\r\n\r\n").nth(1).unwrap_or("").to_string();
                         let resp = handler(&body);
                         let http = format!(
                             "HTTP/1.1 200 OK\r\n\

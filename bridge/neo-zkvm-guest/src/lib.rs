@@ -85,61 +85,96 @@ struct L1Message {
 fn parse_batch_request(bytes: &[u8]) -> Result<BatchRequest, ExecutionError> {
     let mut p = 0;
     let read_byte = |p: &mut usize, b: &[u8]| -> Result<u8, ExecutionError> {
-        if *p >= b.len() { return Err(ExecutionError::Truncated); }
-        let v = b[*p]; *p += 1; Ok(v)
+        if *p >= b.len() {
+            return Err(ExecutionError::Truncated);
+        }
+        let v = b[*p];
+        *p += 1;
+        Ok(v)
     };
     let read_u32 = |p: &mut usize, b: &[u8]| -> Result<u32, ExecutionError> {
-        if *p + 4 > b.len() { return Err(ExecutionError::Truncated); }
-        let v = u32::from_le_bytes(b[*p..*p+4].try_into().unwrap()); *p += 4; Ok(v)
+        if *p + 4 > b.len() {
+            return Err(ExecutionError::Truncated);
+        }
+        let v = u32::from_le_bytes(b[*p..*p + 4].try_into().unwrap());
+        *p += 4;
+        Ok(v)
     };
     let read_u64 = |p: &mut usize, b: &[u8]| -> Result<u64, ExecutionError> {
-        if *p + 8 > b.len() { return Err(ExecutionError::Truncated); }
-        let v = u64::from_le_bytes(b[*p..*p+8].try_into().unwrap()); *p += 8; Ok(v)
+        if *p + 8 > b.len() {
+            return Err(ExecutionError::Truncated);
+        }
+        let v = u64::from_le_bytes(b[*p..*p + 8].try_into().unwrap());
+        *p += 8;
+        Ok(v)
     };
     let read_32b = |p: &mut usize, b: &[u8]| -> Result<[u8; 32], ExecutionError> {
-        if *p + 32 > b.len() { return Err(ExecutionError::Truncated); }
-        let v: [u8; 32] = b[*p..*p+32].try_into().unwrap(); *p += 32; Ok(v)
+        if *p + 32 > b.len() {
+            return Err(ExecutionError::Truncated);
+        }
+        let v: [u8; 32] = b[*p..*p + 32].try_into().unwrap();
+        *p += 32;
+        Ok(v)
     };
 
     let version = read_byte(&mut p, bytes)?;
-    if version != 1 { return Err(ExecutionError::InvalidVersion(version)); }
+    if version != 1 {
+        return Err(ExecutionError::InvalidVersion(version));
+    }
     let chain_id = read_u32(&mut p, bytes)?;
     let batch_number = read_u64(&mut p, bytes)?;
     let pre_state_root = read_32b(&mut p, bytes)?;
     let da_commitment = read_32b(&mut p, bytes)?;
 
     let l1_count = read_u32(&mut p, bytes)? as usize;
-    if l1_count > 1024 { return Err(ExecutionError::OversizedField("l1_messages")); }
+    if l1_count > 1024 {
+        return Err(ExecutionError::OversizedField("l1_messages"));
+    }
     let mut l1_messages = Vec::with_capacity(l1_count);
     for _ in 0..l1_count {
         let len = read_u32(&mut p, bytes)? as usize;
-        if p + len > bytes.len() { return Err(ExecutionError::Truncated); }
-        l1_messages.push(L1Message { bytes: bytes[p..p+len].to_vec() });
+        if p + len > bytes.len() {
+            return Err(ExecutionError::Truncated);
+        }
+        l1_messages.push(L1Message {
+            bytes: bytes[p..p + len].to_vec(),
+        });
         p += len;
     }
 
     let tx_count = read_u32(&mut p, bytes)? as usize;
-    if tx_count > 65536 { return Err(ExecutionError::OversizedField("transactions")); }
+    if tx_count > 65536 {
+        return Err(ExecutionError::OversizedField("transactions"));
+    }
     let mut transactions = Vec::with_capacity(tx_count);
     for _ in 0..tx_count {
         let len = read_u32(&mut p, bytes)? as usize;
-        if p + len > bytes.len() { return Err(ExecutionError::Truncated); }
-        transactions.push(bytes[p..p+len].to_vec());
+        if p + len > bytes.len() {
+            return Err(ExecutionError::Truncated);
+        }
+        transactions.push(bytes[p..p + len].to_vec());
         p += len;
     }
 
-    Ok(BatchRequest { chain_id, batch_number, pre_state_root, da_commitment, l1_messages, transactions })
+    Ok(BatchRequest {
+        chain_id,
+        batch_number,
+        pre_state_root,
+        da_commitment,
+        l1_messages,
+        transactions,
+    })
 }
 
 fn apply_l1_message(prev_root: &[u8; 32], msg: &L1Message) -> [u8; 32] {
     let mut h = Sha256::new();
     h.update(prev_root);
     h.update(b"L1MSG");
-    h.update(&(msg.bytes.len() as u32).to_le_bytes());
+    h.update((msg.bytes.len() as u32).to_le_bytes());
     h.update(&msg.bytes);
     let first = h.finalize();
     let mut h2 = Sha256::new();
-    h2.update(&first);
+    h2.update(first);
     let final_hash = h2.finalize();
     let mut out = [0u8; 32];
     out.copy_from_slice(&final_hash);
@@ -204,11 +239,15 @@ pub fn merkle_root(leaves: &[[u8; 32]]) -> [u8; 32] {
     }
     let mut current: Vec<[u8; 32]> = leaves.to_vec();
     while current.len() > 1 {
-        let mut next = Vec::with_capacity((current.len() + 1) / 2);
+        let mut next = Vec::with_capacity(current.len().div_ceil(2));
         let mut i = 0;
         while i < current.len() {
             let left = current[i];
-            let right = if i + 1 < current.len() { current[i + 1] } else { left };
+            let right = if i + 1 < current.len() {
+                current[i + 1]
+            } else {
+                left
+            };
             let mut buf = [0u8; 64];
             buf[..32].copy_from_slice(&left);
             buf[32..].copy_from_slice(&right);
@@ -222,7 +261,7 @@ pub fn merkle_root(leaves: &[[u8; 32]]) -> [u8; 32] {
 
 pub fn hash256(input: &[u8]) -> [u8; 32] {
     let h1 = Sha256::digest(input);
-    let h2 = Sha256::digest(&h1);
+    let h2 = Sha256::digest(h1);
     let mut out = [0u8; 32];
     out.copy_from_slice(&h2);
     out
@@ -238,8 +277,8 @@ fn hash_public_inputs(
     da_commitment: &[u8; 32],
 ) -> [u8; 32] {
     let mut h = Sha256::new();
-    h.update(&chain_id.to_le_bytes());
-    h.update(&batch_number.to_le_bytes());
+    h.update(chain_id.to_le_bytes());
+    h.update(batch_number.to_le_bytes());
     h.update(pre_state_root);
     h.update(post_state_root);
     h.update(tx_root);
@@ -247,7 +286,7 @@ fn hash_public_inputs(
     h.update(da_commitment);
     let first = h.finalize();
     let mut h2 = Sha256::new();
-    h2.update(&first);
+    h2.update(first);
     let final_hash = h2.finalize();
     let mut out = [0u8; 32];
     out.copy_from_slice(&final_hash);
@@ -290,7 +329,10 @@ mod tests {
 
     #[test]
     fn truncated_input_rejected() {
-        assert!(matches!(execute_batch(&[1u8]), Err(ExecutionError::Truncated)));
+        assert!(matches!(
+            execute_batch(&[1u8]),
+            Err(ExecutionError::Truncated)
+        ));
     }
 
     #[test]
@@ -326,7 +368,7 @@ mod tests {
         let input = b"neo";
         let manual = {
             let h1 = sha2::Sha256::digest(input);
-            let h2 = sha2::Sha256::digest(&h1);
+            let h2 = sha2::Sha256::digest(h1);
             let mut o = [0u8; 32];
             o.copy_from_slice(&h2);
             o

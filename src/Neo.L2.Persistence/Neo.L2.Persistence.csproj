@@ -7,7 +7,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="RocksDB" Version="10.10.1.649" />
+    <PackageReference Include="RocksDB" Version="10.10.1.649" GeneratePathProperty="true" />
+    <Content Include="$(PkgRocksDB)\runtimes\win-x64\native\rocksdb.dll"
+             Link="runtimes\win-x64\native\rocksdb.dll"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest"
+             Pack="false"
+             Condition="'$(OS)' == 'Windows_NT' and Exists('$(PkgRocksDB)\runtimes\win-x64\native\rocksdb.dll')" />
   </ItemGroup>
 
   <ItemGroup>

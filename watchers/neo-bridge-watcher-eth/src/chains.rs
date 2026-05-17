@@ -405,8 +405,10 @@ mod tests {
         }
         // Solana ids are also distinct from EVM family.
         for id in [SOLANA_MAINNET, SOLANA_DEVNET, SOLANA_TESTNET] {
-            assert!(seen.insert(id),
-                "Solana id 0x{id:08X} collides with an EVM-family id");
+            assert!(
+                seen.insert(id),
+                "Solana id 0x{id:08X} collides with an EVM-family id"
+            );
         }
     }
 
@@ -522,12 +524,18 @@ mod tests {
         assert!(is_evm_family(ETH_MAINNET));
         assert!(is_evm_family(BSC_MAINNET));
         assert!(is_evm_family(POLYGON_MAINNET));
-        assert!(is_evm_family(TRON_MAINNET),
-            "Tron is EVM-flavored secp256k1; must classify as EVM-family");
-        assert!(!is_evm_family(SOLANA_MAINNET),
-            "Solana is ed25519; the eth watcher stack doesn't apply");
-        assert!(!is_evm_family(0xE000_FFFF),
-            "unknown id rejects (operator must add it explicitly)");
+        assert!(
+            is_evm_family(TRON_MAINNET),
+            "Tron is EVM-flavored secp256k1; must classify as EVM-family"
+        );
+        assert!(
+            !is_evm_family(SOLANA_MAINNET),
+            "Solana is ed25519; the eth watcher stack doesn't apply"
+        );
+        assert!(
+            !is_evm_family(0xE000_FFFF),
+            "unknown id rejects (operator must add it explicitly)"
+        );
     }
 
     /// Pin the slot allocation: each chain family lives in a 16-slot
@@ -537,17 +545,54 @@ mod tests {
     fn family_banks_align_to_16_slots() {
         // (start, end, chain_ids)
         let banks: &[(u32, u32, &[u32])] = &[
-            (0xE000_0000, 0xE000_000F, &[ETH_MAINNET, ETH_SEPOLIA, ETH_HOLESKY]),
-            (0xE000_0010, 0xE000_001F, &[TRON_MAINNET, TRON_NILE_TESTNET, TRON_SHASTA_TESTNET]),
-            (0xE000_0020, 0xE000_002F, &[SOLANA_MAINNET, SOLANA_DEVNET, SOLANA_TESTNET]),
+            (
+                0xE000_0000,
+                0xE000_000F,
+                &[ETH_MAINNET, ETH_SEPOLIA, ETH_HOLESKY],
+            ),
+            (
+                0xE000_0010,
+                0xE000_001F,
+                &[TRON_MAINNET, TRON_NILE_TESTNET, TRON_SHASTA_TESTNET],
+            ),
+            (
+                0xE000_0020,
+                0xE000_002F,
+                &[SOLANA_MAINNET, SOLANA_DEVNET, SOLANA_TESTNET],
+            ),
             (0xE000_0030, 0xE000_003F, &[BSC_MAINNET, BSC_TESTNET]),
-            (0xE000_0040, 0xE000_004F, &[POLYGON_MAINNET, POLYGON_AMOY_TESTNET, POLYGON_ZKEVM, POLYGON_ZKEVM_CARDONA]),
-            (0xE000_0050, 0xE000_005F, &[ARBITRUM_ONE, ARBITRUM_SEPOLIA, ARBITRUM_NOVA]),
-            (0xE000_0060, 0xE000_006F, &[OPTIMISM_MAINNET, OPTIMISM_SEPOLIA]),
+            (
+                0xE000_0040,
+                0xE000_004F,
+                &[
+                    POLYGON_MAINNET,
+                    POLYGON_AMOY_TESTNET,
+                    POLYGON_ZKEVM,
+                    POLYGON_ZKEVM_CARDONA,
+                ],
+            ),
+            (
+                0xE000_0050,
+                0xE000_005F,
+                &[ARBITRUM_ONE, ARBITRUM_SEPOLIA, ARBITRUM_NOVA],
+            ),
+            (
+                0xE000_0060,
+                0xE000_006F,
+                &[OPTIMISM_MAINNET, OPTIMISM_SEPOLIA],
+            ),
             (0xE000_0070, 0xE000_007F, &[BASE_MAINNET, BASE_SEPOLIA]),
-            (0xE000_0080, 0xE000_008F, &[AVALANCHE_C_MAINNET, AVALANCHE_FUJI]),
+            (
+                0xE000_0080,
+                0xE000_008F,
+                &[AVALANCHE_C_MAINNET, AVALANCHE_FUJI],
+            ),
             (0xE000_0090, 0xE000_009F, &[LINEA_MAINNET, LINEA_SEPOLIA]),
-            (0xE000_00A0, 0xE000_00AF, &[ZKSYNC_ERA_MAINNET, ZKSYNC_SEPOLIA]),
+            (
+                0xE000_00A0,
+                0xE000_00AF,
+                &[ZKSYNC_ERA_MAINNET, ZKSYNC_SEPOLIA],
+            ),
             (0xE000_00B0, 0xE000_00BF, &[SCROLL_MAINNET, SCROLL_SEPOLIA]),
             (0xE000_00C0, 0xE000_00CF, &[MANTLE_MAINNET, MANTLE_SEPOLIA]),
             (0xE000_00D0, 0xE000_00DF, &[FANTOM_OPERA, SONIC_MAINNET]),
@@ -558,7 +603,9 @@ mod tests {
                 assert!(
                     *id >= *start && *id <= *end,
                     "chain id 0x{:08X} outside its family bank [0x{:08X}, 0x{:08X}]",
-                    id, start, end
+                    id,
+                    start,
+                    end
                 );
             }
         }

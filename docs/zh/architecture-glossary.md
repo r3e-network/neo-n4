@@ -184,7 +184,7 @@
 - **`MerkleProofSerializer`** —— 用户领取 → SharedBridge.FinalizeWithdrawalWithProof。
 - **`MultisigProofPayload`** —— Stage-0 证明者 → VerifierRegistry。
 - **`RiscVProofPayload`** —— Phase-4 SP1 zkVM 证明者 → VerifierRegistry。
-- **`OptimisticProofPayload`** —— Stage-1 挑战二分 → OptimisticChallenge。
+- **`OptimisticProofPayload`** —— Stage-1 排序器账户 + 签名 + bond 引用 → OptimisticChallenge。
 - **`FraudProofPayload`** —— 挑战胜方 → fraud verifier。
 
 ---

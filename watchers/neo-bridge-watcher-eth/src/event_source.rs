@@ -121,7 +121,11 @@ impl Default for MockEventSource {
 impl EventSource for MockEventSource {
     fn next_event(&mut self, start_block: u64) -> Result<Option<LockedEvent>, EventSourceError> {
         // Find the first event ≥ start_block; pop it (FIFO over qualifying events).
-        if let Some(idx) = self.events.iter().position(|e| e.block_number >= start_block) {
+        if let Some(idx) = self
+            .events
+            .iter()
+            .position(|e| e.block_number >= start_block)
+        {
             Ok(Some(self.events.remove(idx)))
         } else {
             Ok(None)

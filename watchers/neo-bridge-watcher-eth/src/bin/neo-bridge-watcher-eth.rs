@@ -61,6 +61,7 @@ use std::time::{Duration, Instant};
 /// before SIGKILL escalation).
 static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
 
+#[cfg(unix)]
 extern "C" fn handle_shutdown_signal(_: libc::c_int) {
     // Signal handlers must be async-signal-safe. AtomicBool::store with
     // Relaxed ordering is — it compiles to a single memory write on
@@ -254,7 +255,11 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
     let Some(config_path) = config_path else {
         return Err("expected `--config <path>` (or --help / --version)".into());
     };
-    Ok(ParsedArgs { config_path, preflight, journal_info })
+    Ok(ParsedArgs {
+        config_path,
+        preflight,
+        journal_info,
+    })
 }
 
 fn print_usage() {
@@ -368,7 +373,10 @@ threshold_secs        = 120              # /healthz returns 503 after this many
 /// fail. Designed for `kubectl apply` / systemd ExecStartPre / CI
 /// gate flows: exit 0 = safe to start, non-zero = config issue.
 fn preflight(config: &Config) -> Result<(), String> {
-    eprintln!("preflight: starting checks for chain 0x{:08X}", config.external_chain_id);
+    eprintln!(
+        "preflight: starting checks for chain 0x{:08X}",
+        config.external_chain_id
+    );
 
     // 1. external_chain_id namespace + chain table.
     if config.external_chain_id & 0xFF00_0000 != 0xE000_0000 {
@@ -378,7 +386,10 @@ fn preflight(config: &Config) -> Result<(), String> {
         ));
     }
     match chains::name_for_chain_id(config.external_chain_id) {
-        Some(name) => eprintln!("[ok]   chain id 0x{:08X} ({name})", config.external_chain_id),
+        Some(name) => eprintln!(
+            "[ok]   chain id 0x{:08X} ({name})",
+            config.external_chain_id
+        ),
         None => eprintln!(
             "[warn] chain id 0x{:08X} not in curated chains.rs table — verify finality assumptions",
             config.external_chain_id
@@ -424,7 +435,10 @@ fn preflight(config: &Config) -> Result<(), String> {
             }
         }
     } else {
-        eprintln!("[ok]   min_confirmations = {}", config.poll.min_confirmations);
+        eprintln!(
+            "[ok]   min_confirmations = {}",
+            config.poll.min_confirmations
+        );
     }
 
     // 3. Signer key file.
@@ -455,13 +469,11 @@ fn preflight(config: &Config) -> Result<(), String> {
     //    request_timeout — preflight is a quick sanity check, not
     //    a long-running poll.
     let preflight_timeout = Duration::from_secs(5);
-    let source = EthRpcEventSourceBuilder::new(
-        config.eth_rpc_url.clone(),
-        config.eth_router_address,
-    )
-    .request_timeout(preflight_timeout)
-    .build()
-    .map_err(|e| format!("build EthRpcEventSource: {e:?}"))?;
+    let source =
+        EthRpcEventSourceBuilder::new(config.eth_rpc_url.clone(), config.eth_router_address)
+            .request_timeout(preflight_timeout)
+            .build()
+            .map_err(|e| format!("build EthRpcEventSource: {e:?}"))?;
     let head = source
         .fetch_block_number()
         .map_err(|e| format!("eth_blockNumber on {}: {e:?}", config.eth_rpc_url))?;
@@ -479,10 +491,13 @@ fn preflight(config: &Config) -> Result<(), String> {
         config.eth_router_address,
         preflight_timeout,
     )
-    .map_err(|e| format!("eth_getCode on router {}: {e}", hex::encode(config.eth_router_address)))?;
-    eprintln!(
-        "[ok]   eth_router_address has bytecode (eth_getCode returned > 0 bytes)"
-    );
+    .map_err(|e| {
+        format!(
+            "eth_getCode on router {}: {e}",
+            hex::encode(config.eth_router_address)
+        )
+    })?;
+    eprintln!("[ok]   eth_router_address has bytecode (eth_getCode returned > 0 bytes)");
 
     // 6. Neo RPC reachability — direct reqwest probe of `getversion`,
     //    which every Neo node implements. Avoids needing a public
@@ -511,8 +526,7 @@ fn journal_info(config: &Config) -> Result<(), String> {
     // written to yet — cursor is implicitly 0.
     let cursor_path = dir.join("cursor.bin");
     let cursor: u64 = if cursor_path.exists() {
-        let bytes = std::fs::read(&cursor_path)
-            .map_err(|e| format!("read cursor.bin: {e}"))?;
+        let bytes = std::fs::read(&cursor_path).map_err(|e| format!("read cursor.bin: {e}"))?;
         if bytes.len() != 8 {
             return Err(format!(
                 "cursor.bin is {} bytes, expected 8 — journal corrupted",
@@ -540,8 +554,7 @@ fn journal_info(config: &Config) -> Result<(), String> {
     use std::collections::BTreeMap;
     let mut per_chain: BTreeMap<u32, u64> = BTreeMap::new();
     for chunk in consumed_bytes.chunks_exact(12) {
-        let chain_id =
-            u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+        let chain_id = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
         *per_chain.entry(chain_id).or_insert(0) += 1;
     }
 
@@ -549,13 +562,16 @@ fn journal_info(config: &Config) -> Result<(), String> {
     println!("cursor:       {cursor} (block height)");
     println!(
         "consumed:     {record_count} records{}",
-        if truncated { " (+ trailing partial record dropped on next reopen)" } else { "" }
+        if truncated {
+            " (+ trailing partial record dropped on next reopen)"
+        } else {
+            ""
+        }
     );
     if !per_chain.is_empty() {
         println!("by chain:");
         for (chain_id, count) in &per_chain {
-            let label = chains::name_for_chain_id(*chain_id)
-                .unwrap_or("(unknown)");
+            let label = chains::name_for_chain_id(*chain_id).unwrap_or("(unknown)");
             println!("  0x{chain_id:08X} ({label})  →  {count}");
         }
     }
@@ -567,11 +583,9 @@ fn journal_info(config: &Config) -> Result<(), String> {
         let start = (total - preview) * 12;
         println!("recent (last {preview} records):");
         for chunk in consumed_bytes[start..].chunks_exact(12) {
-            let chain_id =
-                u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+            let chain_id = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
             let nonce = u64::from_le_bytes([
-                chunk[4], chunk[5], chunk[6], chunk[7], chunk[8], chunk[9],
-                chunk[10], chunk[11],
+                chunk[4], chunk[5], chunk[6], chunk[7], chunk[8], chunk[9], chunk[10], chunk[11],
             ]);
             println!("  chain=0x{chain_id:08X}  nonce={nonce}");
         }
@@ -585,11 +599,7 @@ fn journal_info(config: &Config) -> Result<(), String> {
 /// alone). "0x" with no bytecode means the address is either an EOA
 /// or non-existent — in either case the watcher would never see
 /// Locked events from it, so we hard-fail at preflight.
-fn probe_eth_get_code(
-    rpc_url: &str,
-    address: [u8; 20],
-    timeout: Duration,
-) -> Result<(), String> {
+fn probe_eth_get_code(rpc_url: &str, address: [u8; 20], timeout: Duration) -> Result<(), String> {
     let client = reqwest::blocking::Client::builder()
         .timeout(timeout)
         .build()
@@ -690,7 +700,9 @@ struct HealthConfig {
     threshold_secs: u64,
 }
 
-fn default_health_threshold() -> u64 { 120 }
+fn default_health_threshold() -> u64 {
+    120
+}
 
 #[derive(Deserialize)]
 struct PollConfig {
@@ -747,11 +759,21 @@ impl Default for PollConfig {
     }
 }
 
-fn default_poll_interval() -> u64 { 12 }
-fn default_backoff_initial() -> u64 { 5 }
-fn default_backoff_max() -> u64 { 300 }
-fn default_eth_chunk_size() -> u64 { 5_000 }
-fn default_request_timeout() -> u64 { 30 }
+fn default_poll_interval() -> u64 {
+    12
+}
+fn default_backoff_initial() -> u64 {
+    5
+}
+fn default_backoff_max() -> u64 {
+    300
+}
+fn default_eth_chunk_size() -> u64 {
+    5_000
+}
+fn default_request_timeout() -> u64 {
+    30
+}
 
 fn deserialize_addr20<'de, D: serde::Deserializer<'de>>(d: D) -> Result<[u8; 20], D::Error> {
     use serde::de::Error;
@@ -770,22 +792,21 @@ fn deserialize_addr20<'de, D: serde::Deserializer<'de>>(d: D) -> Result<[u8; 20]
 }
 
 fn load_config(path: &PathBuf) -> Result<Config, String> {
-    let text = std::fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    let text =
+        std::fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
     toml::from_str(&text).map_err(|e| format!("parse {}: {e}", path.display()))
 }
 
 fn run(config: Config) -> Result<(), String> {
     let signer = FileSigner::from_file(&config.signer_key_path)
         .map_err(|e| format!("load signer key: {e:?}"))?;
-    let event_source = EthRpcEventSourceBuilder::new(
-        config.eth_rpc_url.clone(),
-        config.eth_router_address,
-    )
-    .chunk_size(config.poll.eth_chunk_size)
-    .min_confirmations(config.poll.min_confirmations)
-    .request_timeout(Duration::from_secs(config.poll.request_timeout_secs))
-    .build()
-    .map_err(|e| format!("build EthRpcEventSource: {e:?}"))?;
+    let event_source =
+        EthRpcEventSourceBuilder::new(config.eth_rpc_url.clone(), config.eth_router_address)
+            .chunk_size(config.poll.eth_chunk_size)
+            .min_confirmations(config.poll.min_confirmations)
+            .request_timeout(Duration::from_secs(config.poll.request_timeout_secs))
+            .build()
+            .map_err(|e| format!("build EthRpcEventSource: {e:?}"))?;
 
     // The sign-and-send callback. v0 emits a stable warning + returns a
     // synthetic tx hash derived from the script bytes — operators run
@@ -804,8 +825,8 @@ fn run(config: Config) -> Result<(), String> {
     .build()
     .map_err(|e| format!("build NeoRpcSubmitter: {e:?}"))?;
 
-    let mut journal = FileJournal::open(&config.journal_dir)
-        .map_err(|e| format!("open FileJournal: {e:?}"))?;
+    let mut journal =
+        FileJournal::open(&config.journal_dir).map_err(|e| format!("open FileJournal: {e:?}"))?;
 
     // First-run cursor bootstrap: if start_block is set + the journal's
     // cursor is below it, advance. set_cursor is monotonic, so calling

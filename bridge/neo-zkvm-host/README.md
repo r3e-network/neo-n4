@@ -37,15 +37,24 @@ input bytes.
 
 ## Build
 
-Requires the SP1 toolchain (`sp1up` → installs `cargo prove` and the
-RISC-V succinct target). `build.rs` invokes `cargo prove build` against
-the sibling guest crate on every build, so the embedded ELF stays
-synced with the guest source.
+Requires Linux or macOS with the SP1 toolchain (`sp1up` → installs
+`cargo prove` and the RISC-V succinct target). SP1 does not currently
+ship native Windows support; on Windows, run the prover under WSL2 or a
+Linux/macOS prover host. `build.rs` invokes `cargo prove build` against
+the sibling guest crate on every build, so the embedded ELF stays synced
+with the guest source.
 
 ```bash
-# 1. Install SP1 (one-time):
-curl -L https://sp1.succinct.xyz | bash
+# 1. Install SP1 (one-time, Linux/macOS or WSL2):
+curl -L https://sp1up.succinct.xyz | bash
 sp1up
+
+# If WSL2 cannot reach GitHub because Windows is using a localhost
+# proxy, point WSL at the Windows host gateway first. Replace 7890 with
+# the local proxy port shown in Windows Internet Settings.
+HOST_IP=$(ip route | awk '/default/ {print $3}')
+export http_proxy=http://$HOST_IP:7890
+export https_proxy=http://$HOST_IP:7890
 
 # 2. protoc is required by sp1-sdk's transitive deps. Some Linux distros
 #    ship an outdated version missing `google/protobuf/empty.proto`. If
@@ -58,6 +67,7 @@ sp1up
 #    export CPATH=~/.local/include
 
 # 3. Build:
+cargo prove build
 cargo build --release -p neo-zkvm-host
 ```
 
@@ -118,9 +128,15 @@ cargo test --release -p neo-zkvm-host
 # Slow tests (real proof generation + verification + tampered-hash
 # negative test — ~4 min wall time, gated behind --ignored so the
 # default loop stays fast):
-cargo test --release -p neo-zkvm-host -- --ignored
+cargo test --release -p neo-zkvm-host -- --ignored --nocapture
 ```
 
 Both tests use the same minimal `BatchExecutionRequest` builder so any
 divergence between zkVM execution, host execution, and proven
 execution is caught.
+
+The 2026-05-17 WSL2 audit run with SP1 `6.2.1` completed the default
+release test in about 14 seconds after dependencies were built. The
+ignored proof tests generated a real proof in about 42 seconds, verified
+it in about 14 seconds, and finished the proof-positive plus tampered-hash
+negative suite in about 96 seconds on the audit host.

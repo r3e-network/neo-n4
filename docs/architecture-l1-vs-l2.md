@@ -134,7 +134,7 @@ the rules in §5:
 - **`NeoHub.ExternalBridgeRegistry`** L1 ✅ → L1 — Cross-foreign-chain invariant
 - **`NeoHub.ExternalBridgeEscrow`** L1 ✅ → L1 — Asset escrow
 - **`NeoHub.ExternalBridgeBond`** L1 ✅ → L1 — Slashable economic security
-- **`NeoHub.ExternalBridgeStubVerifier`** L1 🟡 → testing only — **Should be feature-gated for non-prod use only**
+- **`NeoHub.ExternalBridgeStubVerifier`** L1 🟡 → testing only — **not registrable through `ExternalBridgeRegistry` production bridge kinds**
 
 - **`L2Native.L2BridgeContract`** L2 ✅ → L2 — Per-L2 NEP-17 wrapped state (rule 4)
 - **`L2Native.L2MessageContract`** L2 ✅ → L2 — Per-L2 inbox/outbox
@@ -153,9 +153,10 @@ satisfies at least one of rules 1, 2, or 3.
 per-chain state with no cross-L2 read requirement.
 
 🟡 **`ExternalBridgeStubVerifier` is L1 but is testing-only.** A
-production NeoHub deployment should not register this verifier in
-`ExternalBridgeRegistry`. Today this is enforced by operator
-discipline, not code.
+production NeoHub deployment must not register this verifier in
+`ExternalBridgeRegistry`; this is now code-enforced because the registry
+accepts only bridge kinds `1` (MPC), `2` (Optimistic), and `3` (ZK), while
+the stub reports bridge kind `0`.
 
 ---
 
@@ -166,11 +167,11 @@ roughly by impact.
 
 ### High priority
 
-- [ ] **Gate `ExternalBridgeStubVerifier` against production deploys.**
-  Add a deploy-bundle assertion (`tools/Neo.Hub.Deploy/`) that refuses
-  to register the stub verifier on a non-test network. Today operators
-  could accidentally register it; the only thing stopping them is
-  reading the contract's source comment.
+- [x] **Gate `ExternalBridgeStubVerifier` against production deploys.**
+  `NeoHub.ExternalBridgeRegistry.WriteVerifier` refuses bridge kind `0`,
+  so the devnet stub cannot be registered through the production verifier
+  registry path. Deploy tooling also documents registering the MPC verifier
+  with `bridgeKindMpc=1` instead of the stub.
 
 - [ ] **Document each NeoHub contract's storage budget.** Per-contract
   README naming the storage keys + their max sizes + amortized

@@ -25,9 +25,18 @@ public class SettlementManagerContract : SmartContract
     private const byte PrefixCanonicalRoot = 0x03;        // 0x03 + chainId(4B) → 32B canonical state root
     private const byte PrefixLatestBatch = 0x04;          // 0x04 + chainId(4B) → ulong latest finalized batch
     private const byte PrefixWithdrawalRoot = 0x05;       // 0x05 + chainId(4B) + batchNum(8B) → 32B withdrawalRoot
+    private const byte PrefixOptimisticChallenge = 0x06;
     private const byte PrefixChainRegistry = 0xFC;
     private const byte PrefixVerifierRegistry = 0xFD;
     private const byte KeyOwner = 0xFF;
+
+    private const int ProofTypeOffset = 316;
+    private const int ProofLenOffset = 317;
+    private const int ProofBytesOffset = 321;
+    private const int OptimisticSequencerOffsetInProof = 61;
+    private const int OptimisticMinProofBytes = 85;
+    private const int OptimisticMaxProofBytes = 1 * 1024 * 1024;
+    private const byte ProofTypeOptimistic = 2;
 
     /// <summary>Status byte values match Neo.L2.BatchStatus.</summary>
     public const byte StatusUnknown = 0;
@@ -56,6 +65,7 @@ public class SettlementManagerContract : SmartContract
         var owner = (UInt160)arr[0];
         var chainRegistry = (UInt160)arr[1];
         var verifierRegistry = (UInt160)arr[2];
+        var optimisticChallenge = arr.Length > 3 ? (UInt160)arr[3] : UInt160.Zero;
         ExecutionEngine.Assert(owner.IsValid && !owner.IsZero, "invalid owner");
         // SettlementManager is the load-bearing contract — chainRegistry + verifierRegistry
         // hashes feed into every SubmitBatch call. A typo'd zero here would deploy
@@ -66,6 +76,11 @@ public class SettlementManagerContract : SmartContract
         Storage.Put(new byte[] { KeyOwner }, owner);
         Storage.Put(new byte[] { PrefixChainRegistry }, chainRegistry);
         Storage.Put(new byte[] { PrefixVerifierRegistry }, verifierRegistry);
+        if (!optimisticChallenge.IsZero)
+        {
+            ExecutionEngine.Assert(optimisticChallenge.IsValid, "invalid optimistic challenge");
+            Storage.Put(new byte[] { PrefixOptimisticChallenge }, optimisticChallenge);
+        }
     }
 
     /// <summary>Governance owner.</summary>
@@ -74,6 +89,23 @@ public class SettlementManagerContract : SmartContract
     {
         var raw = Storage.Get(new byte[] { KeyOwner });
         return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Contract authorized to open/finalize/revert optimistic challenge windows.</summary>
+    [Safe]
+    public static UInt160 GetOptimisticChallenge()
+    {
+        var raw = Storage.Get(new byte[] { PrefixOptimisticChallenge });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Wire the OptimisticChallenge contract. Owner only.</summary>
+    public static void SetOptimisticChallenge(UInt160 optimisticChallenge)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(optimisticChallenge.IsValid && !optimisticChallenge.IsZero,
+            "invalid optimistic challenge");
+        Storage.Put(new byte[] { PrefixOptimisticChallenge }, optimisticChallenge);
     }
 
     /// <summary>
@@ -105,15 +137,24 @@ public class SettlementManagerContract : SmartContract
         var verified = (bool)Contract.Call(verifierRegistry, "verifyCommitment", CallFlags.ReadOnly, new object[] { commitmentBytes });
         ExecutionEngine.Assert(verified, "verifier rejected commitment");
 
-        // Stage the batch as Pending. Whether it transitions to Finalized immediately or waits
-        // out a challenge window depends on the chain's SecurityLevel; we leave that decision
-        // to the verifier registry's response (it sets the appropriate next status).
-        Storage.Put(statusKey, new byte[] { StatusPending });
+        var proofType = commitmentBytes[ProofTypeOffset];
+        var status = proofType == ProofTypeOptimistic ? StatusChallengeable : StatusPending;
+        Storage.Put(statusKey, new byte[] { status });
         Storage.Put(BatchHeaderKey(chainId, batchNumber), commitmentBytes);
 
         // Capture the per-batch withdrawalRoot so the SharedBridge can consult it.
         var withdrawalRoot = ReadUInt256(commitmentBytes, 4 + 8 + 8 + 8 + 4 * 32);
         Storage.Put(WithdrawalRootKey(chainId, batchNumber), (byte[])withdrawalRoot);
+
+        if (proofType == ProofTypeOptimistic)
+        {
+            var optimisticChallenge = GetOptimisticChallenge();
+            ExecutionEngine.Assert(optimisticChallenge.IsValid && !optimisticChallenge.IsZero,
+                "optimistic challenge not wired");
+            var sequencer = ReadOptimisticSequencer(commitmentBytes);
+            Contract.Call(optimisticChallenge, "openWindow", CallFlags.All,
+                new object[] { chainId, batchNumber, sequencer });
+        }
 
         var postStateRoot = ReadUInt256(commitmentBytes, 4 + 8 + 8 + 8 + 32);
         OnBatchSubmitted(chainId, batchNumber, postStateRoot);
@@ -132,6 +173,14 @@ public class SettlementManagerContract : SmartContract
         var status = ((byte[])rawStatus!)[0];
         ExecutionEngine.Assert(status == StatusPending || status == StatusChallengeable,
             "batch not finalizable");
+        if (status == StatusChallengeable)
+        {
+            var optimisticChallenge = GetOptimisticChallenge();
+            ExecutionEngine.Assert(optimisticChallenge.IsValid && !optimisticChallenge.IsZero,
+                "optimistic challenge not wired");
+            ExecutionEngine.Assert(Runtime.CheckWitness(optimisticChallenge),
+                "challengeable batch finalization must come from OptimisticChallenge");
+        }
 
         var header = (byte[])(Storage.Get(BatchHeaderKey(chainId, batchNumber)) ?? throw new Exception("header missing"));
         var postStateRoot = ReadUInt256(header, 4 + 8 + 8 + 8 + 32);
@@ -143,10 +192,23 @@ public class SettlementManagerContract : SmartContract
         OnBatchFinalized(chainId, batchNumber, postStateRoot);
     }
 
-    /// <summary>Mark a batch reverted (governance / successful fraud proof). Owner only.</summary>
+    /// <summary>Mark a batch reverted (governance / successful optimistic fraud proof).</summary>
     public static void RevertBatch(uint chainId, ulong batchNumber)
     {
-        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        var ownerAuthorized = Runtime.CheckWitness(GetOwner());
+        var optimisticChallenge = GetOptimisticChallenge();
+        var challengeAuthorized = optimisticChallenge.IsValid
+            && !optimisticChallenge.IsZero
+            && Runtime.CheckWitness(optimisticChallenge);
+        ExecutionEngine.Assert(ownerAuthorized || challengeAuthorized, "not authorized");
+        if (challengeAuthorized && !ownerAuthorized)
+        {
+            var rawStatus = Storage.Get(StatusKey(chainId, batchNumber));
+            ExecutionEngine.Assert(rawStatus != null, "batch unknown");
+            var status = ((byte[])rawStatus!)[0];
+            ExecutionEngine.Assert(status == StatusChallengeable,
+                "OptimisticChallenge can only revert challengeable batches");
+        }
         Storage.Put(StatusKey(chainId, batchNumber), new byte[] { StatusReverted });
         OnBatchReverted(chainId, batchNumber);
     }
@@ -265,14 +327,15 @@ public class SettlementManagerContract : SmartContract
         // Bound the proof depth so a malicious caller can't force unbounded work.
         // 64 levels = 2^64 leaves, well past any plausible batch size.
         ExecutionEngine.Assert(siblings != null, "siblings required");
-        ExecutionEngine.Assert(siblings.Length <= MaxProofDepth, "proof too deep");
+        var proofSiblings = siblings!;
+        ExecutionEngine.Assert(proofSiblings.Length <= MaxProofDepth, "proof too deep");
 
         // Empty siblings → leaf is itself the root (single-leaf tree).
         var current = (byte[])leafHash;
         var index = leafIndex;
-        for (var i = 0; i < siblings.Length; i++)
+        for (var i = 0; i < proofSiblings.Length; i++)
         {
-            var sibling = siblings[i];
+            var sibling = proofSiblings[i];
             ExecutionEngine.Assert(sibling.Length == 32, "sibling must be 32 bytes");
             // Concat 64-byte buffer in left/right order driven by index's low bit.
             var combined = new byte[64];
@@ -322,13 +385,14 @@ public class SettlementManagerContract : SmartContract
         if (canonicalRoot.Equals(UInt256.Zero)) return false;
 
         ExecutionEngine.Assert(siblings != null, "siblings required");
-        ExecutionEngine.Assert(siblings.Length <= MaxProofDepth, "proof too deep");
+        var proofSiblings = siblings!;
+        ExecutionEngine.Assert(proofSiblings.Length <= MaxProofDepth, "proof too deep");
 
         var current = (byte[])leafHash;
         var index = leafIndex;
-        for (var i = 0; i < siblings.Length; i++)
+        for (var i = 0; i < proofSiblings.Length; i++)
         {
-            var sibling = siblings[i];
+            var sibling = proofSiblings[i];
             ExecutionEngine.Assert(sibling.Length == 32, "sibling must be 32 bytes");
             var combined = new byte[64];
             if ((index & 1UL) == 0UL)
@@ -411,5 +475,31 @@ public class SettlementManagerContract : SmartContract
         var slice = new byte[32];
         for (var i = 0; i < 32; i++) slice[i] = data[offset + i];
         return (UInt256)slice;
+    }
+
+    private static UInt160 ReadUInt160(byte[] data, int offset)
+    {
+        var slice = new byte[20];
+        for (var i = 0; i < 20; i++) slice[i] = data[offset + i];
+        return (UInt160)slice;
+    }
+
+    private static UInt160 ReadOptimisticSequencer(byte[] commitmentBytes)
+    {
+        ExecutionEngine.Assert(commitmentBytes.Length >= ProofBytesOffset, "commitment missing proof length");
+        var proofLen = (int)ReadUInt32(commitmentBytes, ProofLenOffset);
+        ExecutionEngine.Assert(proofLen >= OptimisticMinProofBytes, "optimistic proof too small");
+        ExecutionEngine.Assert(proofLen <= OptimisticMaxProofBytes, "optimistic proof too large");
+        ExecutionEngine.Assert(ProofBytesOffset + proofLen == commitmentBytes.Length,
+            "commitment proof length mismatch");
+        ExecutionEngine.Assert(commitmentBytes[ProofBytesOffset] == 2,
+            "unsupported optimistic proof version");
+
+        var sequencer = ReadUInt160(
+            commitmentBytes,
+            ProofBytesOffset + OptimisticSequencerOffsetInProof);
+        ExecutionEngine.Assert(sequencer.IsValid && !sequencer.IsZero,
+            "invalid optimistic sequencer");
+        return sequencer;
     }
 }

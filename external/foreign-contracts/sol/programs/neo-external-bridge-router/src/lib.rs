@@ -29,13 +29,15 @@
 //! source has been written carefully but should be reviewed by a Solana
 //! developer before mainnet deploy.
 
+#![allow(unexpected_cfgs)]
+
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{
     instruction::Instruction,
     sysvar::instructions::{load_current_index_checked, load_instruction_at_checked},
 };
 
-declare_id!("NeoBR111111111111111111111111111111111111");
+declare_id!("34B8qwavepu4eY3KiCwNeLL5kJNu3aZJcSb1xv48s7eu");
 
 /// 0xE0_xx_xx_xx foreign-namespace prefix any `external_chain_id`
 /// passed in must carry. Mirrors C# / Rust off-chain validators.
@@ -58,7 +60,6 @@ const DIRECTION_OFFSET: usize = 16;
 const MESSAGE_TYPE_OFFSET: usize = 81;
 
 const DIR_NEO_TO_FOREIGN: u8 = 1;
-const DIR_FOREIGN_TO_NEO: u8 = 2;
 const MSG_TYPE_ASSET_TRANSFER: u8 = 0;
 
 #[program]
@@ -346,9 +347,9 @@ pub struct FinalizeWithdrawal<'info> {
         payer = payer,
         space = ConsumedNonce::SPACE,
         seeds = [
-            b"consumed",
-            &read_u32_le_for_seeds(&message_bytes, 4).to_le_bytes(),
-            &read_u64_le_for_seeds(&message_bytes, NONCE_OFFSET).to_le_bytes(),
+            b"consumed".as_ref(),
+            read_u32_le_for_seeds(&message_bytes, 4).to_le_bytes().as_ref(),
+            read_u64_le_for_seeds(&message_bytes, NONCE_OFFSET).to_le_bytes().as_ref(),
         ],
         bump,
     )]

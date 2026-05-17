@@ -47,9 +47,7 @@ pub struct ExternalCrossChainMessage {
 
 #[derive(Debug, Error)]
 pub enum BuildError {
-    #[error(
-        "externalChainId 0x{0:08X} must use the 0xE0_xx_xx_xx foreign-namespace prefix"
-    )]
+    #[error("externalChainId 0x{0:08X} must use the 0xE0_xx_xx_xx foreign-namespace prefix")]
     BadNamespace(u32),
     /// The Eth-side router emitted a message-type byte whose handler isn't
     /// implemented on the watcher side yet (e.g. `MSG_TYPE_ASSET_AND_CALL`).
@@ -64,9 +62,7 @@ pub enum BuildError {
 /// The watcher signs THESE bytes; the verifier hashes them with secp256k1
 /// + SHA256 (Eth `ecrecover(sha256(messageBytes))` and Neo
 ///   `CryptoLib.VerifyWithECDsa(secp256k1SHA256)` are the same operation).
-pub fn canonical_message_bytes(
-    msg: &ExternalCrossChainMessage,
-) -> Result<Vec<u8>, BuildError> {
+pub fn canonical_message_bytes(msg: &ExternalCrossChainMessage) -> Result<Vec<u8>, BuildError> {
     if msg.external_chain_id & 0xFF00_0000 != 0xE000_0000 {
         return Err(BuildError::BadNamespace(msg.external_chain_id));
     }
@@ -124,9 +120,9 @@ mod tests {
 
     fn sample_msg() -> ExternalCrossChainMessage {
         // 1_000_000 = 0x0F4240, encoded as the 3-byte minimal LE representation
-// (matches BigInteger.ToByteArray() in C# for unsigned values that don't
-// need a sign byte).
-let payload = encode_asset_transfer_payload([0xee; 20], &[0x40, 0x42, 0x0F]);
+        // (matches BigInteger.ToByteArray() in C# for unsigned values that don't
+        // need a sign byte).
+        let payload = encode_asset_transfer_payload([0xee; 20], &[0x40, 0x42, 0x0F]);
         ExternalCrossChainMessage {
             external_chain_id: 0xE000_0001,
             neo_chain_id: 1099,
@@ -174,7 +170,7 @@ let payload = encode_asset_transfer_payload([0xee; 20], &[0x40, 0x42, 0x0F]);
     #[test]
     fn rejects_non_namespaced_external_chain_id() {
         let mut msg = sample_msg();
-        msg.external_chain_id = 1099;       // Neo L2 id, NOT 0xE0_xx
+        msg.external_chain_id = 1099; // Neo L2 id, NOT 0xE0_xx
         assert!(matches!(
             canonical_message_bytes(&msg),
             Err(BuildError::BadNamespace(1099))

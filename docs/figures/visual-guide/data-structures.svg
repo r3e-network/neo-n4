@@ -1,0 +1,73 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 770" width="1200" height="770" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">Core Data Structures</title>
+  <desc id="desc">The bridge, settlement, deployment, and watcher records that carry consensus-relevant data.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#526173"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.0" flood-color="#000000" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .bg { fill: #fbfcfe; }
+      .page-title { font-size: 22px; font-weight: 750; fill: #1e2a55; }
+      .page-subtitle { font-size: 12.5px; fill: #526173; }
+      .box-title { font-size: 14px; font-weight: 750; fill: #1e2a55; }
+      .small-title { font-size: 12px; font-weight: 700; fill: #1e2a55; }
+      .lane-title { font-size: 13px; font-weight: 750; fill: #1e2a55; }
+      .body { font-size: 11.5px; fill: #2d3a48; }
+      .body-strong { font-size: 11.5px; font-weight: 700; fill: #1e2a55; }
+      .caption { font-size: 11px; fill: #526173; font-style: italic; }
+      .arrow { stroke: #526173; stroke-width: 1.7; }
+      .dashed { stroke-dasharray: 6 5; }
+      .arrow-label { font-size: 10.5px; fill: #526173; font-weight: 650; }
+      .lifeline { stroke: #c7d0dc; stroke-width: 1.1; stroke-dasharray: 4 4; }
+      .zone-title { font-size: 13px; font-weight: 750; fill: #526173; letter-spacing: .2px; }
+      .mono { font-family: 'Noto Sans Mono CJK SC', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10.5px; fill: #1e2a55; }
+    </style>
+  </defs>
+  <rect class="bg" width="1200" height="770"/>
+  <text x="36" y="40" class="page-title">Core Data Structures</text>
+  <text x="36" y="63" class="page-subtitle">The bridge, settlement, deployment, and watcher records that carry consensus-relevant data.</text>
+<g>
+  <rect x="45" y="110" width="250" height="150" rx="8" fill="#ffecec" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="61" y="137" class="box-title">WithdrawalLeaf</text>
+  <text x="61" y="162" class="body" text-anchor="start"><tspan x="61" dy="0">emittingContract: UInt160</tspan><tspan x="61" dy="18">l2Sender: UInt160</tspan><tspan x="61" dy="18">l1Recipient: UInt160</tspan><tspan x="61" dy="18">l2Asset: UInt160</tspan><tspan x="61" dy="18">amount: BigInteger LE</tspan><tspan x="61" dy="18">nonce: UInt64 LE</tspan></text>
+</g>
+<g>
+  <rect x="335" y="110" width="250" height="150" rx="8" fill="#f7ecff" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="351" y="137" class="box-title">ExternalCrossChainMessage</text>
+  <text x="351" y="162" class="body" text-anchor="start"><tspan x="351" dy="0">externalChainId: UInt32</tspan><tspan x="351" dy="18">direction + messageType</tspan><tspan x="351" dy="18">nonce: UInt64</tspan><tspan x="351" dy="18">sender / recipient</tspan><tspan x="351" dy="18">payload bytes</tspan></text>
+</g>
+<g>
+  <rect x="625" y="110" width="250" height="150" rx="8" fill="#fff9d9" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="641" y="137" class="box-title">L2BatchCommitment</text>
+  <text x="641" y="162" class="body" text-anchor="start"><tspan x="641" dy="0">batchId</tspan><tspan x="641" dy="18">prevStateRoot / newStateRoot</tspan><tspan x="641" dy="18">withdrawalRoot</tspan><tspan x="641" dy="18">messageRoot</tspan><tspan x="641" dy="18">txRoot / timestamp</tspan></text>
+</g>
+<g>
+  <rect x="915" y="110" width="240" height="150" rx="8" fill="#eaf2ff" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="931" y="137" class="box-title">L2ChainConfig</text>
+  <text x="931" y="162" class="body" text-anchor="start"><tspan x="931" dy="0">chainId</tspan><tspan x="931" dy="18">rollup mode</tspan><tspan x="931" dy="18">sequencer policy</tspan><tspan x="931" dy="18">DA mode</tspan><tspan x="931" dy="18">verifier set</tspan></text>
+</g>
+<g>
+  <rect x="185" y="410" width="260" height="150" rx="8" fill="#e7f8fb" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="201" y="437" class="box-title">PublicInputs</text>
+  <text x="201" y="462" class="body" text-anchor="start"><tspan x="201" dy="0">batch commitment hash</tspan><tspan x="201" dy="18">pre / post roots</tspan><tspan x="201" dy="18">DA reference</tspan><tspan x="201" dy="18">proof version</tspan><tspan x="201" dy="18">chain identity</tspan></text>
+</g>
+<g>
+  <rect x="520" y="410" width="265" height="150" rx="8" fill="#eaf7f0" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="536" y="437" class="box-title">DeployInvocation</text>
+  <text x="536" y="462" class="body" text-anchor="start"><tspan x="536" dy="0">name</tspan><tspan x="536" dy="18">nefPath</tspan><tspan x="536" dy="18">manifestPath</tspan><tspan x="536" dy="18">resolvedDeployData</tspan><tspan x="536" dy="18">topological order</tspan></text>
+</g>
+<g>
+  <rect x="860" y="410" width="250" height="150" rx="8" fill="#fff5e6" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="876" y="437" class="box-title">JournalRecord</text>
+  <text x="876" y="462" class="body" text-anchor="start"><tspan x="876" dy="0">cursor block</tspan><tspan x="876" dy="18">externalChainId</tspan><tspan x="876" dy="18">nonce</tspan><tspan x="876" dy="18">consumed log</tspan><tspan x="876" dy="18">idempotent replay guard</tspan></text>
+</g>
+<line x1="295" y1="185" x2="335" y2="185" class="arrow" marker-end="url(#arrow)"/><text x="315" y="177" text-anchor="middle" class="arrow-label">hash</text>
+<line x1="585" y1="185" x2="625" y2="185" class="arrow" marker-end="url(#arrow)"/><text x="605" y="177" text-anchor="middle" class="arrow-label">batch</text>
+<line x1="750" y1="260" x2="315" y2="410" class="arrow" marker-end="url(#arrow)"/><text x="532" y="327" text-anchor="middle" class="arrow-label">proof input</text>
+<line x1="1035" y1="260" x2="652" y2="410" class="arrow" marker-end="url(#arrow)"/><text x="844" y="327" text-anchor="middle" class="arrow-label">deploy config</text>
+<line x1="585" y1="485" x2="520" y2="485" class="arrow" marker-end="url(#arrow)"/><text x="552" y="477" text-anchor="middle" class="arrow-label">bundle</text>
+<line x1="985" y1="410" x2="460" y2="185" class="arrow dashed" marker-end="url(#arrow)"/><text x="722" y="290" text-anchor="middle" class="arrow-label">watcher replay protection</text>
+</svg>

@@ -604,14 +604,15 @@ be whatever the operator needs.
 
 ## Going to L1: deploying NeoHub
 
-Before `register-chain` works, the 21 NeoHub contracts must be deployed on
-the target L1. The `neo-hub-deploy` tool emits a deploy bundle that names
-each contract, its dependencies, and the resolved hashes after a topological
-sort:
+Before `register-chain` works, the 20 production NeoHub contracts must be
+deployed on the target L1. The test-only `ExternalBridgeStubVerifier` is not
+part of the default deploy bundle. The `neo-hub-deploy` tool emits a deploy
+bundle that names each contract, its dependencies, and the resolved hashes
+after a topological sort:
 
 ```bash
-# 1. Scaffold a starter plan (21 NeoHub contracts in dependency order +
-#    GovernanceFraudVerifier v1/v2 + RestrictedExecutionFraudVerifier v3).
+# 1. Scaffold a starter plan (20 production NeoHub deploy steps in dependency
+#    order, including the v1/v2 and v3 fraud verifiers).
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
     --output ./my-l2/deploy-plan.json
 

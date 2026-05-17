@@ -16,6 +16,7 @@ using Neo.L2.Messaging;
 using Neo.L2.Proving.Attestation;
 using Neo.L2.Sequencer;
 using Neo.L2.Settlement.Rpc;
+using Neo.L2.State;
 
 namespace Neo.L2.IntegrationTests;
 
@@ -119,7 +120,19 @@ public class UT_E2E_L1RpcPollers_FullStack
 
         // ── Stage 4: the L2 batcher emits an outbound L2→L1 withdrawal message ──
 
-        var withdrawalLeaf = UInt256.Parse("0x" + new string('5', 64));
+        var l2EmittingContract = UInt160.Parse("0x" + new string('5', 40));
+        var l2Asset = UInt160.Parse("0x" + new string('8', 40));
+        const ulong withdrawalNonce = 1;
+        const long withdrawalAmount = 1000;
+        var withdrawalLeaf = MessageHasher.HashWithdrawal(new WithdrawalRequest
+        {
+            EmittingContract = l2EmittingContract,
+            L2Sender = l2Receiver,
+            L1Recipient = l1Sender,
+            L2Asset = l2Asset,
+            Amount = withdrawalAmount,
+            Nonce = withdrawalNonce,
+        });
         var withdrawal = new CrossChainMessage
         {
             SourceChainId = TestChainId,
@@ -144,9 +157,13 @@ public class UT_E2E_L1RpcPollers_FullStack
         var script = InvocationBuilder.BuildFinalizeWithdrawalWithProof(
             SharedBridgeHash, TestChainId, batchNumber: 1,
             withdrawalLeaf, siblings, leafIndex: 0,
+            emittingContract: l2EmittingContract,
+            l2Sender: l2Receiver,
+            l2Asset: l2Asset,
+            withdrawalNonce: withdrawalNonce,
             asset: UInt160.Parse("0x" + new string('8', 40)),
             recipient: l1Sender,
-            amount: 1000);
+            amount: withdrawalAmount);
         Assert.IsTrue(script.Length > 0);
 
         // ── Stage 6: closing flow — L1 marks one forced-inclusion entry consumed,

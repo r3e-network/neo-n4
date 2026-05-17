@@ -21,6 +21,7 @@ use std::path::{Path, PathBuf};
 
 const CURSOR_FILE: &str = "cursor.bin";
 const CONSUMED_FILE: &str = "consumed.log";
+#[cfg(unix)]
 const LOCK_FILE: &str = ".lock";
 
 pub struct FileJournal {
@@ -287,10 +288,14 @@ mod tests {
         drop(f);
 
         let j = FileJournal::open(&dir).unwrap();
-        assert!(j.is_submitted(0xE0000001, 7).unwrap(),
-            "first complete record must replay");
-        assert!(!j.is_submitted(0xE0000001, 8).unwrap(),
-            "truncated record dropped silently — replay-safe");
+        assert!(
+            j.is_submitted(0xE0000001, 7).unwrap(),
+            "first complete record must replay"
+        );
+        assert!(
+            !j.is_submitted(0xE0000001, 8).unwrap(),
+            "truncated record dropped silently — replay-safe"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -430,9 +435,7 @@ mod tests {
                     "lock-failure message must name the lock mechanism: got '{msg}'"
                 );
             }
-            Ok(_) => panic!(
-                "second open MUST fail while the first instance holds the lock"
-            ),
+            Ok(_) => panic!("second open MUST fail while the first instance holds the lock"),
         }
 
         // After the first instance drops, the lock is released and a

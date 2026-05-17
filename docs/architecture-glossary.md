@@ -186,7 +186,7 @@ For details, see [`architecture-wire-formats.md`](./architecture-wire-formats.md
 - **`MerkleProofSerializer`** — User claim → SharedBridge.FinalizeWithdrawalWithProof.
 - **`MultisigProofPayload`** — Stage-0 prover → VerifierRegistry.
 - **`RiscVProofPayload`** — Phase-4 SP1 zkVM prover → VerifierRegistry.
-- **`OptimisticProofPayload`** — Stage-1 challenge bisection → OptimisticChallenge.
+- **`OptimisticProofPayload`** — Stage-1 sequencer account + signature + bond reference → OptimisticChallenge.
 - **`FraudProofPayload`** — Challenge winner → fraud verifier.
 
 ---

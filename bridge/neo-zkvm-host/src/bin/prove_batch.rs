@@ -91,7 +91,10 @@ fn run_oneshot(args: &[String]) {
     } else {
         match neo_zkvm_host::execute(&bytes) {
             Ok(result) => {
-                println!("public_input_hash = 0x{}", hex_encode(&result.public_input_hash));
+                println!(
+                    "public_input_hash = 0x{}",
+                    hex_encode(&result.public_input_hash)
+                );
                 println!("cycles            = {}", result.cycles);
             }
             Err(e) => {
@@ -118,7 +121,10 @@ fn run_daemon(args: &[String]) {
     });
 
     if !cfg.watch.is_dir() {
-        eprintln!("--watch dir does not exist or is not a directory: {}", cfg.watch.display());
+        eprintln!(
+            "--watch dir does not exist or is not a directory: {}",
+            cfg.watch.display()
+        );
         std::process::exit(1);
     }
     if let Some(a) = &cfg.archive {
@@ -193,15 +199,19 @@ fn parse_daemon_args(args: &[String]) -> Result<DaemonConfig, String> {
         i += 1;
     }
     let watch = watch.ok_or_else(|| "daemon: --watch <dir> is required".to_string())?;
-    Ok(DaemonConfig { watch, archive, poll_secs })
+    Ok(DaemonConfig {
+        watch,
+        archive,
+        poll_secs,
+    })
 }
 
 /// One pass over the watch dir: prove every `*.batch.bin` we find and
 /// atomically rename it so we don't re-pick it up next tick.
 fn scan_once(cfg: &DaemonConfig) -> Result<usize, String> {
     let mut processed = 0usize;
-    let entries =
-        std::fs::read_dir(&cfg.watch).map_err(|e| format!("read_dir {}: {}", cfg.watch.display(), e))?;
+    let entries = std::fs::read_dir(&cfg.watch)
+        .map_err(|e| format!("read_dir {}: {}", cfg.watch.display(), e))?;
     let mut batches: Vec<PathBuf> = entries
         .filter_map(|e| e.ok().map(|d| d.path()))
         .filter(|p| {
@@ -243,7 +253,11 @@ fn scan_once(cfg: &DaemonConfig) -> Result<usize, String> {
                     t0.elapsed()
                 );
                 if let Err(e) = finalize_input(&path, cfg) {
-                    eprintln!("  WARNING: failed to archive/rename {}: {}", path.display(), e);
+                    eprintln!(
+                        "  WARNING: failed to archive/rename {}: {}",
+                        path.display(),
+                        e
+                    );
                 }
                 processed += 1;
             }
@@ -263,14 +277,15 @@ fn finalize_input(path: &Path, cfg: &DaemonConfig) -> Result<(), String> {
     let name = path.file_name().ok_or("input path has no file name")?;
     if let Some(archive) = &cfg.archive {
         let dest = archive.join(name);
-        std::fs::rename(path, &dest)
-            .map_err(|e| format!("rename to {}: {}", dest.display(), e))?;
+        std::fs::rename(path, &dest).map_err(|e| format!("rename to {}: {}", dest.display(), e))?;
     } else {
         let mut dest = path.to_path_buf();
-        let new_name = format!("{}.done", path.file_name().and_then(OsStr::to_str).unwrap_or(""));
+        let new_name = format!(
+            "{}.done",
+            path.file_name().and_then(OsStr::to_str).unwrap_or("")
+        );
         dest.set_file_name(new_name);
-        std::fs::rename(path, &dest)
-            .map_err(|e| format!("rename to {}: {}", dest.display(), e))?;
+        std::fs::rename(path, &dest).map_err(|e| format!("rename to {}: {}", dest.display(), e))?;
     }
     Ok(())
 }
@@ -306,7 +321,9 @@ fn prove_one(
 
 fn print_usage() {
     eprintln!("usage:");
-    eprintln!("  prove-batch <hex>                                     # one-shot execute (no proof)");
+    eprintln!(
+        "  prove-batch <hex>                                     # one-shot execute (no proof)"
+    );
     eprintln!("  prove-batch --prove <hex> [--out proof.bin]           # one-shot prove + verify-key emit");
     eprintln!("  prove-batch daemon --watch <dir> [--archive <dir>]    # production prover daemon");
     eprintln!("              [--poll-secs N]");
@@ -321,7 +338,7 @@ fn print_usage() {
 
 fn hex_decode(s: &str) -> Result<Vec<u8>, String> {
     let s = s.strip_prefix("0x").unwrap_or(s);
-    if s.len() % 2 != 0 {
+    if !s.len().is_multiple_of(2) {
         return Err(format!("odd-length hex: {}", s.len()));
     }
     let mut out = Vec::with_capacity(s.len() / 2);

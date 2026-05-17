@@ -208,7 +208,7 @@ realistic supply).
 | `MerkleProofSerializer`   | `src/Neo.L2.State/MerkleProofSerializer.cs`                           |
 | `MultisigProofPayload`    | `src/Neo.L2.Proving/MultisigProofPayload.cs`                          |
 | `RiscVProofPayload`       | `src/Neo.L2.Proving/RiscVProofPayload.cs`                             |
-| `OptimisticProofPayload`  | `src/Neo.L2.Challenge/OptimisticProofPayload.cs`                      |
+| `OptimisticProofPayload`  | `src/Neo.L2.Proving/Optimistic/OptimisticProofPayload.cs`             |
 | `FraudProofPayload`       | `src/Neo.L2.Challenge/FraudProofPayload.cs`                           |
 
 Each has matching parity tests:

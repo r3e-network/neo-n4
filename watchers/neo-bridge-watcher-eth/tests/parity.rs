@@ -6,17 +6,17 @@
 //! suites simultaneously, forcing both implementations to update
 //! together.
 
+use neo_bridge_watcher_eth::messaging::encode_asset_transfer_payload;
+use neo_bridge_watcher_eth::proof::{IndexedRsv, PubkeySignature};
 use neo_bridge_watcher_eth::{
     canonical_message_bytes, message_hash, ExternalBridgeDirection, ExternalCrossChainMessage,
     ExternalMessageType,
 };
-use neo_bridge_watcher_eth::messaging::encode_asset_transfer_payload;
 use neo_bridge_watcher_eth::{Curve, EthProofBytes, NeoProofBytes};
-use neo_bridge_watcher_eth::proof::{IndexedRsv, PubkeySignature};
 
 fn sample_eth_deposit() -> ExternalCrossChainMessage {
     // 1_000_000 = 0x0F4240, 3-byte minimal LE (matches C# BigInteger.ToByteArray).
-let payload = encode_asset_transfer_payload([0xee; 20], &[0x40, 0x42, 0x0F]);
+    let payload = encode_asset_transfer_payload([0xee; 20], &[0x40, 0x42, 0x0F]);
     ExternalCrossChainMessage {
         external_chain_id: 0xE000_0001,
         neo_chain_id: 1099,
@@ -60,9 +60,18 @@ fn neo_proof_bytes_layout_matches_csharp() {
     // MpcCommitteeVerifier and confirm it matches the contract's
     // expected (header + sigCount × (keyLen + 64)).
     let sigs = vec![
-        PubkeySignature { pubkey: vec![0x01; 33], signature: [0xA1; 64] },
-        PubkeySignature { pubkey: vec![0x02; 33], signature: [0xA2; 64] },
-        PubkeySignature { pubkey: vec![0x03; 33], signature: [0xA3; 64] },
+        PubkeySignature {
+            pubkey: vec![0x01; 33],
+            signature: [0xA1; 64],
+        },
+        PubkeySignature {
+            pubkey: vec![0x02; 33],
+            signature: [0xA2; 64],
+        },
+        PubkeySignature {
+            pubkey: vec![0x03; 33],
+            signature: [0xA3; 64],
+        },
     ];
     let neo_bytes = NeoProofBytes::encode(Curve::Secp256k1, &sigs).unwrap();
     assert_eq!(neo_bytes.len(), 2 + 3 * (33 + 64));
@@ -75,8 +84,18 @@ fn eth_proof_bytes_layout_matches_solidity() {
     // the same layout; here we confirm we produce 2 + N × 66 with the
     // right interleaving of (idx, r, s, v).
     let sigs = vec![
-        IndexedRsv { signer_idx: 0, r: [0x11; 32], s: [0x22; 32], v: 27 },
-        IndexedRsv { signer_idx: 2, r: [0x33; 32], s: [0x44; 32], v: 28 },
+        IndexedRsv {
+            signer_idx: 0,
+            r: [0x11; 32],
+            s: [0x22; 32],
+            v: 27,
+        },
+        IndexedRsv {
+            signer_idx: 2,
+            r: [0x33; 32],
+            s: [0x44; 32],
+            v: 28,
+        },
     ];
     let eth_bytes = EthProofBytes::encode(&sigs).unwrap();
     assert_eq!(eth_bytes.len(), 2 + 2 * 66);

@@ -86,8 +86,8 @@ pub fn prove(request_bytes: &[u8]) -> Result<ProofResult, String> {
     let mut public_values = proof.public_values.clone();
     let public_input_hash: [u8; 32] = public_values.read::<[u8; 32]>();
 
-    let proof_bytes = bincode::serialize(&proof)
-        .map_err(|e| format!("proof serialization failed: {}", e))?;
+    let proof_bytes =
+        bincode::serialize(&proof).map_err(|e| format!("proof serialization failed: {}", e))?;
 
     Ok(ProofResult {
         public_input_hash,

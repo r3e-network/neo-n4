@@ -13,6 +13,17 @@ across browsers, fonts, and zoom levels.
 | **5** — Telemetry pipeline | [`telemetry-pipeline.svg`](telemetry-pipeline.svg) | [`architecture-walkthrough.md`](../architecture-walkthrough.md#walk-4-telemetry--emit-snapshot-scrape) (Walk #4) |
 | **6** — Trust spectrum (security levels) | [`trust-spectrum.svg`](trust-spectrum.svg) | [`security-model.md`](../security-model.md#per-chain-security-labels) |
 
+## Visual guide pack
+
+The `visual-guide/` directory contains generated SVGs used by
+[`visual-guide.md`](../visual-guide.md). They cover system context, module maps,
+bridge flows, deployment pipeline, data structures, trust boundaries, watcher
+state, verification matrix, and operator runbook views. Regenerate with:
+
+```powershell
+docs/figures/visual-guide/generate.ps1
+```
+
 ## Visual conventions
 
 All figures share a common shape language so they read as a single set:

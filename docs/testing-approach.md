@@ -6,7 +6,7 @@ where each piece of the system lives.
 
 ---
 
-## Test surface (1409 .NET + 156 cross-language base + 2 SP1)
+## Test surface (1411 .NET + 155 cross-language base + SP1 host E2E on Linux/macOS)
 
 | Tier | Framework | Where | What |
 |------|-----------|-------|------|
@@ -128,7 +128,7 @@ Rust prover, and their TS SDK. neo4 has equivalent pin tests:
 
 `.github/workflows/build.yml` runs the full suite on every push + PR:
 
-1. `test` — `dotnet test Neo.L2.sln` (1409 tests, 33 projects)
+1. `test` — `dotnet test Neo.L2.sln` (1411 tests, 33 projects)
 2. `contracts` — installs `Neo.Compiler.CSharp`, type-checks all 28 NeoHub +
    L2Native contracts, asserts 28 `.nef` + 28 `.manifest.json` artifacts
 3. `bridge` — `cargo check` on Rust workspace

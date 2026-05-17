@@ -32,7 +32,9 @@
     <ProjectReference Include="$(NeoDevpackPath)\Neo.SmartContract.Framework\Neo.SmartContract.Framework.csproj" />
   </ItemGroup>
 
-  <Target Name="GenerateNef" BeforeTargets="PreBuildEvent" Condition="'$(IsTestProject)' != 'true' AND '$(DisableNccs)' != 'true'">
+  <!-- Solution builds skip nccs to keep parallel all-contract builds warning-free.
+       Direct project builds and the CI contract loop still generate NEF/manifest artifacts. -->
+  <Target Name="GenerateNef" BeforeTargets="PreBuildEvent" Condition="'$(IsTestProject)' != 'true' AND '$(DisableNccs)' != 'true' AND '$(SolutionExt)' == ''">
     <Exec Command="nccs &quot;$(MSBuildProjectFile)&quot;" ContinueOnError="true" />
   </Target>
 

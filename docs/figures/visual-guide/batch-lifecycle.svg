@@ -1,0 +1,80 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" width="1200" height="700" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">Batch Settlement Lifecycle</title>
+  <desc id="desc">From L2 transaction ordering to L1 roots, proof verification, challenge windows, and finality.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#526173"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.0" flood-color="#000000" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .bg { fill: #fbfcfe; }
+      .page-title { font-size: 22px; font-weight: 750; fill: #1e2a55; }
+      .page-subtitle { font-size: 12.5px; fill: #526173; }
+      .box-title { font-size: 14px; font-weight: 750; fill: #1e2a55; }
+      .small-title { font-size: 12px; font-weight: 700; fill: #1e2a55; }
+      .lane-title { font-size: 13px; font-weight: 750; fill: #1e2a55; }
+      .body { font-size: 11.5px; fill: #2d3a48; }
+      .body-strong { font-size: 11.5px; font-weight: 700; fill: #1e2a55; }
+      .caption { font-size: 11px; fill: #526173; font-style: italic; }
+      .arrow { stroke: #526173; stroke-width: 1.7; }
+      .dashed { stroke-dasharray: 6 5; }
+      .arrow-label { font-size: 10.5px; fill: #526173; font-weight: 650; }
+      .lifeline { stroke: #c7d0dc; stroke-width: 1.1; stroke-dasharray: 4 4; }
+      .zone-title { font-size: 13px; font-weight: 750; fill: #526173; letter-spacing: .2px; }
+      .mono { font-family: 'Noto Sans Mono CJK SC', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10.5px; fill: #1e2a55; }
+    </style>
+  </defs>
+  <rect class="bg" width="1200" height="700"/>
+  <text x="36" y="40" class="page-title">Batch Settlement Lifecycle</text>
+  <text x="36" y="63" class="page-subtitle">From L2 transaction ordering to L1 roots, proof verification, challenge windows, and finality.</text>
+<g>
+  <rect x="50" y="120" width="185" height="105" rx="8" fill="#eaf2ff" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="66" y="147" class="box-title">Tx pool</text>
+  <text x="66" y="172" class="body" text-anchor="start"><tspan x="66" dy="0">user txs</tspan><tspan x="66" dy="18">cross-chain messages</tspan><tspan x="66" dy="18">forced inclusion</tspan></text>
+</g>
+<g>
+  <rect x="280" y="120" width="185" height="105" rx="8" fill="#fff5e6" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="296" y="147" class="box-title">Sequencer</text>
+  <text x="296" y="172" class="body" text-anchor="start"><tspan x="296" dy="0">ordering</tspan><tspan x="296" dy="18">timestamps</tspan><tspan x="296" dy="18">batch boundary</tspan></text>
+</g>
+<g>
+  <rect x="510" y="120" width="185" height="105" rx="8" fill="#e7f8fb" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="526" y="147" class="box-title">Executor</text>
+  <text x="526" y="172" class="body" text-anchor="start"><tspan x="526" dy="0">Neo VM execution</tspan><tspan x="526" dy="18">state transition</tspan><tspan x="526" dy="18">receipts</tspan></text>
+</g>
+<g>
+  <rect x="740" y="120" width="185" height="105" rx="8" fill="#fff9d9" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="756" y="147" class="box-title">Batch commitment</text>
+  <text x="756" y="172" class="body" text-anchor="start"><tspan x="756" dy="0">prevRoot -&gt; newRoot</tspan><tspan x="756" dy="18">message roots</tspan><tspan x="756" dy="18">public inputs</tspan></text>
+</g>
+<g>
+  <rect x="970" y="120" width="175" height="105" rx="8" fill="#f7ecff" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="986" y="147" class="box-title">DA writer</text>
+  <text x="986" y="172" class="body" text-anchor="start"><tspan x="986" dy="0">publish payload</tspan><tspan x="986" dy="18">DARegistry ref</tspan><tspan x="986" dy="18">availability proof</tspan></text>
+</g>
+<g>
+  <rect x="165" y="380" width="200" height="115" rx="8" fill="#eaf7f0" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="181" y="407" class="box-title">SettlementManager</text>
+  <text x="181" y="432" class="body" text-anchor="start"><tspan x="181" dy="0">submitBatch</tspan><tspan x="181" dy="18">batch metadata</tspan><tspan x="181" dy="18">finality status</tspan></text>
+</g>
+<g>
+  <rect x="455" y="380" width="210" height="115" rx="8" fill="#eaf7f0" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="471" y="407" class="box-title">VerifierRegistry</text>
+  <text x="471" y="432" class="body" text-anchor="start"><tspan x="471" dy="0">validity / fraud verifier</tspan><tspan x="471" dy="18">proof dispatch</tspan><tspan x="471" dy="18">versioned policy</tspan></text>
+</g>
+<g>
+  <rect x="755" y="380" width="220" height="115" rx="8" fill="#ffecec" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="771" y="407" class="box-title">OptimisticChallenge</text>
+  <text x="771" y="432" class="body" text-anchor="start"><tspan x="771" dy="0">challenge window</tspan><tspan x="771" dy="18">fraud proof</tspan><tspan x="771" dy="18">SequencerBond slash</tspan></text>
+</g>
+<line x1="235" y1="172" x2="280" y2="172" class="arrow" marker-end="url(#arrow)"/><text x="258" y="164" text-anchor="middle" class="arrow-label">1</text>
+<line x1="465" y1="172" x2="510" y2="172" class="arrow" marker-end="url(#arrow)"/><text x="488" y="164" text-anchor="middle" class="arrow-label">2</text>
+<line x1="695" y1="172" x2="740" y2="172" class="arrow" marker-end="url(#arrow)"/><text x="718" y="164" text-anchor="middle" class="arrow-label">3</text>
+<line x1="925" y1="172" x2="970" y2="172" class="arrow" marker-end="url(#arrow)"/><text x="948" y="164" text-anchor="middle" class="arrow-label">4</text>
+<line x1="830" y1="225" x2="265" y2="380" class="arrow dashed" marker-end="url(#arrow)"/><text x="548" y="294" text-anchor="middle" class="arrow-label">5. submit to L1</text>
+<line x1="365" y1="438" x2="455" y2="438" class="arrow" marker-end="url(#arrow)"/><text x="410" y="430" text-anchor="middle" class="arrow-label">verify</text>
+<line x1="665" y1="438" x2="755" y2="438" class="arrow" marker-end="url(#arrow)"/><text x="710" y="430" text-anchor="middle" class="arrow-label">challenge</text>
+<line x1="865" y1="380" x2="865" y2="225" class="arrow dashed" marker-end="url(#arrow)"/><text x="865" y="294" text-anchor="middle" class="arrow-label">slash / finality feedback</text>
+</svg>

@@ -74,7 +74,11 @@ impl FakeRpcServer {
                 }
             }
         });
-        Self { url, stop, _handle: handle }
+        Self {
+            url,
+            stop,
+            _handle: handle,
+        }
     }
 }
 
@@ -117,6 +121,25 @@ mod tempdir {
     }
 }
 
+fn toml_basic_string(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for ch in value.chars() {
+        match ch {
+            '\\' => escaped.push_str("\\\\"),
+            '"' => escaped.push_str("\\\""),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\t' => escaped.push_str("\\t"),
+            _ => escaped.push(ch),
+        }
+    }
+    escaped
+}
+
+fn toml_path(path: &std::path::Path) -> String {
+    toml_basic_string(path.to_string_lossy().as_ref())
+}
+
 fn build_fixture(eth_url: &str, neo_url: &str) -> PreflightFixture {
     let tmp = tempdir::TempDir::new("preflight-test").unwrap();
     let key_path = tmp.path().join("watcher.priv");
@@ -138,11 +161,14 @@ journal_dir         = "{jrn}"
 min_confirmations = 15
 request_timeout_secs = 5
 "#,
-        key = key_path.display(),
-        jrn = journal_dir.display(),
+        key = toml_path(&key_path),
+        jrn = toml_path(&journal_dir),
     );
     std::fs::write(&config_path, toml).unwrap();
-    PreflightFixture { _tmp: tmp, config_path }
+    PreflightFixture {
+        _tmp: tmp,
+        config_path,
+    }
 }
 
 fn run_preflight(config_path: &std::path::Path) -> (i32, String) {
@@ -263,7 +289,10 @@ fn preflight_fails_when_eth_rpc_unreachable() {
     let fix = build_fixture(&eth_url, &neo.url);
     let (code, output) = run_preflight(&fix.config_path);
 
-    assert_eq!(code, 1, "preflight against unreachable eth_rpc should exit 1");
+    assert_eq!(
+        code, 1,
+        "preflight against unreachable eth_rpc should exit 1"
+    );
     assert!(
         output.contains("preflight: FAILED") && output.contains("eth_blockNumber"),
         "failure should name eth_blockNumber; got:\n{output}"
@@ -288,8 +317,8 @@ neo_signer_address  = "0x0000000000000000000000000000000000000001"
 signer_key_path     = "{}"
 journal_dir         = "{}"
 "#,
-        key_path.display(),
-        tmp.path().join("journal").display()
+        toml_path(&key_path),
+        toml_path(&tmp.path().join("journal"))
     );
     std::fs::write(&cfg, toml).unwrap();
 
@@ -315,8 +344,7 @@ fn preflight_fails_when_neo_rpc_returns_jsonrpc_error() {
     let neo = FakeRpcServer::spawn(|_body: &str| {
         // Server is reachable but returns a JSON-RPC error — operator
         // probably has the wrong URL (e.g. a generic web server).
-        r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"unknown method"}}"#
-            .to_string()
+        r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"unknown method"}}"#.to_string()
     });
 
     let fix = build_fixture(&eth.url, &neo.url);
@@ -395,7 +423,10 @@ fn config_template_emits_parseable_toml() {
     assert!(output.contains("[poll]"));
     assert!(output.contains("[health]"));
     assert!(output.contains("min_confirmations"));
-    assert!(output.contains("# start_block"), "start_block should be commented out by default");
+    assert!(
+        output.contains("# start_block"),
+        "start_block should be commented out by default"
+    );
 
     // End-to-end: substitute placeholders, run preflight against
     // unreachable URLs (should fail at the RPC probe, NOT at TOML
@@ -426,15 +457,9 @@ fn config_template_emits_parseable_toml() {
             "0xREPLACE_WITH_WATCHER_NEO_ACCOUNT",
             "0x0000000000000000000000000000000000000001",
         )
-        .replace("./watcher.priv", key_path.to_str().unwrap())
-        .replace(
-            "./journal",
-            tmp.path().join("journal").to_str().unwrap(),
-        )
-        .replace(
-            "0.0.0.0:9090",
-            "127.0.0.1:0",
-        );
+        .replace("./watcher.priv", &toml_path(&key_path))
+        .replace("./journal", &toml_path(&tmp.path().join("journal")))
+        .replace("0.0.0.0:9090", "127.0.0.1:0");
     std::fs::write(&cfg_path, toml).unwrap();
 
     // Now run --preflight: TOML parse should succeed; the RPC probe
@@ -484,16 +509,12 @@ neo_signer_address  = "0x0000000000000000000000000000000000000001"
 signer_key_path     = "{}"
 journal_dir         = "{}"
 "#,
-        key_path.display(),
-        journal_dir.display()
+        toml_path(&key_path),
+        toml_path(&journal_dir)
     );
     std::fs::write(&cfg_path, toml).unwrap();
 
-    let (code, output) = run_with_args(&[
-        "--config",
-        cfg_path.to_str().unwrap(),
-        "--journal-info",
-    ]);
+    let (code, output) = run_with_args(&["--config", cfg_path.to_str().unwrap(), "--journal-info"]);
     assert_eq!(code, 0, "--journal-info must exit 0; output:\n{output}");
 
     // Cursor printed.
@@ -515,7 +536,10 @@ journal_dir         = "{}"
         output.contains("recent (last 3 records):"),
         "expected recent records header:\n{output}"
     );
-    assert!(output.contains("nonce=99"), "expected nonce=99 in recent:\n{output}");
+    assert!(
+        output.contains("nonce=99"),
+        "expected nonce=99 in recent:\n{output}"
+    );
 }
 
 #[test]

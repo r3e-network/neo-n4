@@ -1,0 +1,73 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">Source to Artifact Map</title>
+  <desc id="desc">Where source, tests, docs, deploy artifacts, and audit evidence connect.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#526173"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.0" flood-color="#000000" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .bg { fill: #fbfcfe; }
+      .page-title { font-size: 22px; font-weight: 750; fill: #1e2a55; }
+      .page-subtitle { font-size: 12.5px; fill: #526173; }
+      .box-title { font-size: 14px; font-weight: 750; fill: #1e2a55; }
+      .small-title { font-size: 12px; font-weight: 700; fill: #1e2a55; }
+      .lane-title { font-size: 13px; font-weight: 750; fill: #1e2a55; }
+      .body { font-size: 11.5px; fill: #2d3a48; }
+      .body-strong { font-size: 11.5px; font-weight: 700; fill: #1e2a55; }
+      .caption { font-size: 11px; fill: #526173; font-style: italic; }
+      .arrow { stroke: #526173; stroke-width: 1.7; }
+      .dashed { stroke-dasharray: 6 5; }
+      .arrow-label { font-size: 10.5px; fill: #526173; font-weight: 650; }
+      .lifeline { stroke: #c7d0dc; stroke-width: 1.1; stroke-dasharray: 4 4; }
+      .zone-title { font-size: 13px; font-weight: 750; fill: #526173; letter-spacing: .2px; }
+      .mono { font-family: 'Noto Sans Mono CJK SC', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10.5px; fill: #1e2a55; }
+    </style>
+  </defs>
+  <rect class="bg" width="1200" height="720"/>
+  <text x="36" y="40" class="page-title">Source to Artifact Map</text>
+  <text x="36" y="63" class="page-subtitle">Where source, tests, docs, deploy artifacts, and audit evidence connect.</text>
+<g>
+  <rect x="65" y="120" width="215" height="120" rx="8" fill="#eaf2ff" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="81" y="147" class="box-title">Source</text>
+  <text x="81" y="172" class="body" text-anchor="start"><tspan x="81" dy="0">contracts/</tspan><tspan x="81" dy="18">src/</tspan><tspan x="81" dy="18">watchers/</tspan><tspan x="81" dy="18">sdk/</tspan></text>
+</g>
+<g>
+  <rect x="350" y="120" width="215" height="120" rx="8" fill="#fff5e6" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="366" y="147" class="box-title">Build</text>
+  <text x="366" y="172" class="body" text-anchor="start"><tspan x="366" dy="0">dotnet build</tspan><tspan x="366" dy="18">cargo test/clippy</tspan><tspan x="366" dy="18">npm build</tspan><tspan x="366" dy="18">forge / anchor</tspan></text>
+</g>
+<g>
+  <rect x="635" y="120" width="215" height="120" rx="8" fill="#eaf7f0" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="651" y="147" class="box-title">Artifacts</text>
+  <text x="651" y="172" class="body" text-anchor="start"><tspan x="651" dy="0">*.dll</tspan><tspan x="651" dy="18">*.nef</tspan><tspan x="651" dy="18">*.manifest.json</tspan><tspan x="651" dy="18">deploy-bundle.json</tspan></text>
+</g>
+<g>
+  <rect x="920" y="120" width="215" height="120" rx="8" fill="#f7ecff" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="936" y="147" class="box-title">Runtime</text>
+  <text x="936" y="172" class="body" text-anchor="start"><tspan x="936" dy="0">Neo node plugins</tspan><tspan x="936" dy="18">NeoHub contracts</tspan><tspan x="936" dy="18">watcher daemons</tspan><tspan x="936" dy="18">client SDKs</tspan></text>
+</g>
+<g>
+  <rect x="190" y="390" width="240" height="120" rx="8" fill="#f4f6f8" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="206" y="417" class="box-title">Tests</text>
+  <text x="206" y="442" class="body" text-anchor="start"><tspan x="206" dy="0">tests/</tspan><tspan x="206" dy="18">parity vectors</tspan><tspan x="206" dy="18">integration smoke</tspan><tspan x="206" dy="18">CLI checks</tspan></text>
+</g>
+<g>
+  <rect x="520" y="390" width="240" height="120" rx="8" fill="#fff9d9" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="536" y="417" class="box-title">Docs</text>
+  <text x="536" y="442" class="body" text-anchor="start"><tspan x="536" dy="0">mdBook pages</tspan><tspan x="536" dy="18">architecture atlas</tspan><tspan x="536" dy="18">visual guide</tspan><tspan x="536" dy="18">operator runbooks</tspan></text>
+</g>
+<g>
+  <rect x="850" y="390" width="240" height="120" rx="8" fill="#ffecec" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="866" y="417" class="box-title">Audit evidence</text>
+  <text x="866" y="442" class="body" text-anchor="start"><tspan x="866" dy="0">package audits</tspan><tspan x="866" dy="18">secret scan</tspan><tspan x="866" dy="18">verification report</tspan><tspan x="866" dy="18">residual notes</tspan></text>
+</g>
+<line x1="280" y1="180" x2="350" y2="180" class="arrow" marker-end="url(#arrow)"/><text x="315" y="172" text-anchor="middle" class="arrow-label">compile</text>
+<line x1="565" y1="180" x2="635" y2="180" class="arrow" marker-end="url(#arrow)"/><text x="600" y="172" text-anchor="middle" class="arrow-label">emit</text>
+<line x1="850" y1="180" x2="920" y2="180" class="arrow" marker-end="url(#arrow)"/><text x="885" y="172" text-anchor="middle" class="arrow-label">deploy</text>
+<line x1="458" y1="240" x2="310" y2="390" class="arrow dashed" marker-end="url(#arrow)"/><text x="384" y="307" text-anchor="middle" class="arrow-label">assert</text>
+<line x1="742" y1="240" x2="640" y2="390" class="arrow dashed" marker-end="url(#arrow)"/><text x="691" y="307" text-anchor="middle" class="arrow-label">explain</text>
+<line x1="1028" y1="240" x2="970" y2="390" class="arrow dashed" marker-end="url(#arrow)"/><text x="999" y="307" text-anchor="middle" class="arrow-label">prove</text>
+</svg>

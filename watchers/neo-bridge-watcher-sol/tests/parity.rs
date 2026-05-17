@@ -62,7 +62,10 @@ fn watcher_core_drives_through_with_ed25519_signer() {
     assert_eq!(subs[0].proof_bytes.len(), 98,
         "ed25519 single-signer Neo proof = 2 + 32 + 64 = 98 bytes (was 99 for secp256k1's 33B pubkey)");
     // Header is sigCount LE.
-    assert_eq!(u16::from_le_bytes([subs[0].proof_bytes[0], subs[0].proof_bytes[1]]), 1);
+    assert_eq!(
+        u16::from_le_bytes([subs[0].proof_bytes[0], subs[0].proof_bytes[1]]),
+        1
+    );
     // First sig: pubkey at offset 2 (32B), signature at offset 34 (64B).
     let pubkey_in_proof = &subs[0].proof_bytes[2..2 + 32];
     let signer = Ed25519FileSigner::from_bytes(&[0x42; 32]).unwrap();

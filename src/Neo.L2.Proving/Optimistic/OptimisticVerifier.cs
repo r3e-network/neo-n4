@@ -1,6 +1,7 @@
 using Neo.Cryptography;
 using Neo.Cryptography.ECC;
 using Neo.L2.Batch;
+using Neo.SmartContract;
 
 namespace Neo.L2.Proving.Optimistic;
 
@@ -49,6 +50,14 @@ public sealed class OptimisticVerifier : IL2ProofVerifier
         if (payload.SequencerSignature.Length != 64)
             return new ValueTask<ProofVerificationResult>(
                 ProofVerificationResult.Fail($"sequencer signature length {payload.SequencerSignature.Length} != 64"));
+        if (payload.Sequencer.Equals(UInt160.Zero))
+            return new ValueTask<ProofVerificationResult>(
+                ProofVerificationResult.Fail("sequencer account is zero"));
+
+        var expectedSequencer = Contract.CreateSignatureRedeemScript(_sequencerKey).ToScriptHash();
+        if (!payload.Sequencer.Equals(expectedSequencer))
+            return new ValueTask<ProofVerificationResult>(
+                ProofVerificationResult.Fail("sequencer account does not match registered sequencer key"));
 
         var canonicalBytes = BatchSerializer.EncodePublicInputs(publicInputs);
         if (!Crypto.VerifySignature(canonicalBytes, payload.SequencerSignature.Span, _sequencerKey))

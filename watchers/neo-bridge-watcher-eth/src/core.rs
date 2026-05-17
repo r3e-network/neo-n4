@@ -28,8 +28,8 @@ use thiserror::Error;
 use crate::event_source::{EventSource, EventSourceError, LockedEvent};
 use crate::journal::{Journal, JournalError};
 use crate::messaging::{
-    canonical_message_bytes, encode_asset_transfer_payload, BuildError,
-    ExternalBridgeDirection, ExternalCrossChainMessage, ExternalMessageType,
+    canonical_message_bytes, encode_asset_transfer_payload, BuildError, ExternalBridgeDirection,
+    ExternalCrossChainMessage, ExternalMessageType,
 };
 use crate::proof::{Curve, NeoProofBytes, ProofBuildError, PubkeySignature};
 use crate::signer::{Signer, SignerError};
@@ -70,10 +70,20 @@ where
 }
 
 impl<S: Signer, ES: EventSource, NS: NeoSubmitter, J: Journal> WatcherCore<S, ES, NS, J> {
-    pub fn new(external_chain_id: u32, signer: S, event_source: ES, submitter: NS, journal: J)
-        -> Self
-    {
-        Self { external_chain_id, signer, event_source, submitter, journal }
+    pub fn new(
+        external_chain_id: u32,
+        signer: S,
+        event_source: ES,
+        submitter: NS,
+        journal: J,
+    ) -> Self {
+        Self {
+            external_chain_id,
+            signer,
+            event_source,
+            submitter,
+            journal,
+        }
     }
 
     /// Run one tick: pull the next event, process if any, advance the
@@ -109,7 +119,10 @@ impl<S: Signer, ES: EventSource, NS: NeoSubmitter, J: Journal> WatcherCore<S, ES
                 expected: self.external_chain_id,
             });
         }
-        if self.journal.is_submitted(event.external_chain_id, event.nonce)? {
+        if self
+            .journal
+            .is_submitted(event.external_chain_id, event.nonce)?
+        {
             return Err(CoreError::AlreadySubmitted(event.nonce));
         }
 
@@ -120,7 +133,9 @@ impl<S: Signer, ES: EventSource, NS: NeoSubmitter, J: Journal> WatcherCore<S, ES
             // No call data → pure asset transfer. Convert the BE uint256
             // amount to the minimal-LE encoding C# BigInteger.ToByteArray
             // produces for unsigned values.
-            true => encode_asset_transfer_payload(event.asset, &amount_be_to_le_minimal(&event.amount)),
+            true => {
+                encode_asset_transfer_payload(event.asset, &amount_be_to_le_minimal(&event.amount))
+            }
             // Non-empty payload → asset+call. The Eth-side router doesn't
             // emit `MSG_TYPE_ASSET_AND_CALL` events today; until it does AND
             // a canonical concat-encoding is pinned by a cross-language test,
@@ -177,7 +192,8 @@ impl<S: Signer, ES: EventSource, NS: NeoSubmitter, J: Journal> WatcherCore<S, ES
         })?;
 
         // Successful submit → mark + advance cursor.
-        self.journal.mark_submitted(event.external_chain_id, event.nonce)?;
+        self.journal
+            .mark_submitted(event.external_chain_id, event.nonce)?;
         self.journal.set_cursor(event.block_number)?;
         Ok(tx_hash)
     }
@@ -285,9 +301,15 @@ mod tests {
             InMemoryJournal::new(),
         );
         let mut evt = sample_event(1, 1000);
-        evt.external_chain_id = 0xE000_0010;       // Tron, not Eth
+        evt.external_chain_id = 0xE000_0010; // Tron, not Eth
         let err = core.process_event(evt).unwrap_err();
-        assert!(matches!(err, CoreError::ChainIdMismatch { got: 0xE000_0010, expected: 0xE000_0001 }));
+        assert!(matches!(
+            err,
+            CoreError::ChainIdMismatch {
+                got: 0xE000_0010,
+                expected: 0xE000_0001
+            }
+        ));
         assert_eq!(core.submitter.submissions().len(), 0);
     }
 
@@ -349,11 +371,17 @@ mod tests {
         // Cursor advances to the last block processed.
         assert_eq!(core.journal.cursor().unwrap(), 300);
         // Nonces in submission order: 1, 2, 3.
-        assert_eq!(core.submitter.submissions()[0].external_chain_id, 0xE000_0001);
+        assert_eq!(
+            core.submitter.submissions()[0].external_chain_id,
+            0xE000_0001
+        );
         // All three nonces marked.
         for nonce in [1u64, 2, 3] {
-            assert!(core.journal.is_submitted(0xE000_0001, nonce).unwrap(),
-                "nonce {} should be marked submitted", nonce);
+            assert!(
+                core.journal.is_submitted(0xE000_0001, nonce).unwrap(),
+                "nonce {} should be marked submitted",
+                nonce
+            );
         }
     }
 
@@ -381,7 +409,11 @@ mod tests {
         core.submitter.next_error = Some(SubmitterError::Rpc("transient".into()));
         let err = core.tick().unwrap_err();
         assert!(matches!(err, CoreError::Submit(_)));
-        assert_eq!(core.journal.cursor().unwrap(), 100, "cursor must NOT advance on submit failure");
+        assert_eq!(
+            core.journal.cursor().unwrap(),
+            100,
+            "cursor must NOT advance on submit failure"
+        );
 
         // Recovery: clear the error, retry. The next_event call still
         // returns the second event because it wasn't removed from the

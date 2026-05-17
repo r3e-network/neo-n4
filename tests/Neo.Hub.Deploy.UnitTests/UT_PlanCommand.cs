@@ -57,6 +57,19 @@ public class UT_PlanCommand
         var invocations = doc.RootElement.GetProperty("invocations");
         Assert.AreEqual(20, invocations.GetArrayLength(),
             "default scaffold → 20 resolved invocations in the bundle");
+
+        foreach (var invocation in invocations.EnumerateArray())
+        {
+            var name = invocation.GetProperty("name").GetString();
+            var nefPath = invocation.GetProperty("nefPath").GetString()!.Replace('\\', '/');
+            var manifestPath = invocation.GetProperty("manifestPath").GetString()!.Replace('\\', '/');
+            StringAssert.Contains(nefPath, "/bin/sc/");
+            StringAssert.Contains(manifestPath, "/bin/sc/");
+            Assert.IsFalse(nefPath.Contains("/bin/Release/", StringComparison.Ordinal),
+                $"{name} NEF path must point at nccs output under bin/sc");
+            Assert.IsFalse(manifestPath.Contains("/bin/Release/", StringComparison.Ordinal),
+                $"{name} manifest path must point at nccs output under bin/sc");
+        }
     }
 
     [TestMethod]

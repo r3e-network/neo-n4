@@ -170,7 +170,11 @@ impl HealthState {
         let s = self.inner.lock().unwrap();
         let now = unix_now();
         let reference = s.last_tick_success_unix.unwrap_or(s.started_at_unix);
-        let healthy = if now.saturating_sub(reference) <= healthy_threshold_secs { 1 } else { 0 };
+        let healthy = if now.saturating_sub(reference) <= healthy_threshold_secs {
+            1
+        } else {
+            0
+        };
         let lbl = &self.metric_label_suffix;
         format!(
             "# HELP watcher_started_at_unix_timestamp Watcher process start time (Unix seconds)\n\
@@ -370,7 +374,10 @@ mod tests {
     fn snapshot_pre_first_tick_uses_start_time() {
         let state = HealthState::new();
         let (healthy, json) = state.snapshot(60);
-        assert!(healthy, "just-started daemon within 60s threshold = healthy");
+        assert!(
+            healthy,
+            "just-started daemon within 60s threshold = healthy"
+        );
         // Both timestamps null because no tick has run yet.
         assert!(json.contains(r#""last_tick_at_unix":null"#));
         assert!(json.contains(r#""last_tick_success_unix":null"#));
@@ -489,7 +496,12 @@ mod tests {
 
         let resp = client.get(format!("{url}/metrics")).send().unwrap();
         assert_eq!(resp.status(), 200);
-        let ct = resp.headers().get("content-type").unwrap().to_str().unwrap();
+        let ct = resp
+            .headers()
+            .get("content-type")
+            .unwrap()
+            .to_str()
+            .unwrap();
         assert!(
             ct.starts_with("text/plain") && ct.contains("version=0.0.4"),
             "Prometheus expects 'text/plain; version=0.0.4'; got '{ct}'"
@@ -604,9 +616,16 @@ mod tests {
             .build()
             .unwrap();
 
-        let body = client.get(format!("{url}/metrics")).send().unwrap().text().unwrap();
-        assert!(body.contains("watcher_healthy 0\n"),
-            "stale daemon must report watcher_healthy 0 in /metrics: {body}");
+        let body = client
+            .get(format!("{url}/metrics"))
+            .send()
+            .unwrap()
+            .text()
+            .unwrap();
+        assert!(
+            body.contains("watcher_healthy 0\n"),
+            "stale daemon must report watcher_healthy 0 in /metrics: {body}"
+        );
     }
 
     /// Server cleans up on Drop — port is reusable immediately.

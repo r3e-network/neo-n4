@@ -29,11 +29,13 @@ fault, gas consumed, top-of-stack result — not a hash of the input bytes.
 
 ## Build
 
-Requires the SP1 toolchain (`cargo prove`):
+Requires Linux or macOS with the SP1 toolchain (`cargo prove`). SP1 does
+not currently ship native Windows support; on Windows, build the guest
+under WSL2 or on a Linux/macOS prover host:
 
 ```bash
-# 1. Install SP1 (one-time):
-curl -L https://sp1.succinct.xyz | bash
+# 1. Install SP1 (one-time, Linux/macOS):
+curl -L https://sp1up.succinct.xyz | bash
 sp1up
 
 # 2. Build the guest ELF:

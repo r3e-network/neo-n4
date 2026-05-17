@@ -28,7 +28,8 @@ pub trait NeoSubmitter {
     /// Post the submission to NeoHub.ExternalBridgeEscrow.Receive. On
     /// success, returns the Neo tx hash; on failure, surfaces a typed
     /// error the daemon's retry policy can branch on.
-    fn submit_inbound(&mut self, submission: InboundSubmission) -> Result<[u8; 32], SubmitterError>;
+    fn submit_inbound(&mut self, submission: InboundSubmission)
+        -> Result<[u8; 32], SubmitterError>;
 }
 
 /// Test fixture: records every submission. Returns deterministic tx
@@ -42,7 +43,10 @@ pub struct MockSubmitter {
 
 impl MockSubmitter {
     pub fn new() -> Self {
-        Self { submissions: Vec::new(), next_error: None }
+        Self {
+            submissions: Vec::new(),
+            next_error: None,
+        }
     }
 
     pub fn submissions(&self) -> &[InboundSubmission] {
@@ -57,7 +61,10 @@ impl Default for MockSubmitter {
 }
 
 impl NeoSubmitter for MockSubmitter {
-    fn submit_inbound(&mut self, submission: InboundSubmission) -> Result<[u8; 32], SubmitterError> {
+    fn submit_inbound(
+        &mut self,
+        submission: InboundSubmission,
+    ) -> Result<[u8; 32], SubmitterError> {
         if let Some(err) = self.next_error.take() {
             return Err(err);
         }

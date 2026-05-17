@@ -76,7 +76,11 @@ impl FakeRpcServer {
                 }
             }
         });
-        Self { url, stop, _handle: handle }
+        Self {
+            url,
+            stop,
+            _handle: handle,
+        }
     }
 }
 
@@ -113,7 +117,11 @@ mod tempdir {
     }
 }
 
-fn build_test_config(eth_url: &str, neo_url: &str, journal_dir: &Path) -> (tempdir::TempDir, PathBuf) {
+fn build_test_config(
+    eth_url: &str,
+    neo_url: &str,
+    journal_dir: &Path,
+) -> (tempdir::TempDir, PathBuf) {
     let tmp = tempdir::TempDir::new("daemon-run-loop").unwrap();
     let key_path = tmp.path().join("watcher.priv");
     std::fs::write(&key_path, [0x42u8; 32]).unwrap();
@@ -262,8 +270,7 @@ fn daemon_run_loop_starts_polls_and_shuts_down_on_sigterm() {
     );
 
     assert!(
-        stderr_text.contains("shutdown signal received") ||
-        stderr_text.contains("watcher ready"),
+        stderr_text.contains("shutdown signal received") || stderr_text.contains("watcher ready"),
         "stderr should show either 'watcher ready' or 'shutdown signal received'; \
          got:\n{stderr_text}"
     );

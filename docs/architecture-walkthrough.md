@@ -65,9 +65,10 @@ hands it to the configured `IL2Prover`:
 
 - **Stage 0 (default):** `Neo.L2.Proving.Attestation.AttestationProver` collects validator
   signatures over `BatchSerializer.EncodePublicInputs(...)`. Production-usable today.
-- **Stage 1 (challenge window):** `OptimisticProofPayload` carries a sequencer signature
-  + bond reference. Verifier accepts immediately; the actual challenge logic lives in
-  `NeoHub.SettlementManager`.
+- **Stage 1 (challenge window):** `OptimisticProofPayload` carries the sequencer
+  account, sequencer signature, and bond reference. The verifier checks the
+  signature and key/account binding; `NeoHub.SettlementManager` marks the batch
+  `Challengeable` and opens `NeoHub.OptimisticChallenge`.
 - **Stage 2 (ZK):** Out-of-process Rust prover at `bridge/neo-zkvm-host/`
   (run as `prove-batch daemon --watch <queue-dir>`). Each tx in the batch is
   loaded as a Neo N3 VM script and executed by `neo_vm_guest::execute` (real
@@ -93,10 +94,13 @@ delegates to the operator-supplied `SignAndSendAsync` to build + sign + post a
   `proofType` byte and routes to the right verifier (multisig / optimistic / zk).
 - Captures `withdrawalRoot` so `SharedBridge.FinalizeWithdrawal` can later prove
   individual user withdrawals.
-- Marks the batch `Pending`.
+- Marks multisig/ZK batches `Pending`; marks optimistic batches `Challengeable`
+  and opens the configured `OptimisticChallenge` window.
 
 `NeoHub.SettlementManager.FinalizeBatch` later moves the batch to `Finalized`, sets the
-canonical state root, and bumps `latestFinalizedBatch[chainId]`.
+canonical state root, and bumps `latestFinalizedBatch[chainId]`. Challengeable
+optimistic batches can reach this path only through `OptimisticChallenge` after
+the window expires.
 
 ### 9. Withdrawal claim (much later)
 

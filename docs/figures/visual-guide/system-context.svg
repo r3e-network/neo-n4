@@ -1,0 +1,70 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">Neo N4 System Context</title>
+  <desc id="desc">Users, NeoHub L1, elastic L2 chains, foreign chains, and operator services in one view.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#526173"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.0" flood-color="#000000" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .bg { fill: #fbfcfe; }
+      .page-title { font-size: 22px; font-weight: 750; fill: #1e2a55; }
+      .page-subtitle { font-size: 12.5px; fill: #526173; }
+      .box-title { font-size: 14px; font-weight: 750; fill: #1e2a55; }
+      .small-title { font-size: 12px; font-weight: 700; fill: #1e2a55; }
+      .lane-title { font-size: 13px; font-weight: 750; fill: #1e2a55; }
+      .body { font-size: 11.5px; fill: #2d3a48; }
+      .body-strong { font-size: 11.5px; font-weight: 700; fill: #1e2a55; }
+      .caption { font-size: 11px; fill: #526173; font-style: italic; }
+      .arrow { stroke: #526173; stroke-width: 1.7; }
+      .dashed { stroke-dasharray: 6 5; }
+      .arrow-label { font-size: 10.5px; fill: #526173; font-weight: 650; }
+      .lifeline { stroke: #c7d0dc; stroke-width: 1.1; stroke-dasharray: 4 4; }
+      .zone-title { font-size: 13px; font-weight: 750; fill: #526173; letter-spacing: .2px; }
+      .mono { font-family: 'Noto Sans Mono CJK SC', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10.5px; fill: #1e2a55; }
+    </style>
+  </defs>
+  <rect class="bg" width="1200" height="720"/>
+  <text x="36" y="40" class="page-title">Neo N4 System Context</text>
+  <text x="36" y="63" class="page-subtitle">Users, NeoHub L1, elastic L2 chains, foreign chains, and operator services in one view.</text>
+<g>
+  <rect x="55" y="105" width="210" height="125" rx="8" fill="#eaf2ff" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="71" y="132" class="box-title">Users and wallets</text>
+  <text x="71" y="157" class="body" text-anchor="start"><tspan x="71" dy="0">Deposit and withdraw</tspan><tspan x="71" dy="18">Sign governance tx</tspan><tspan x="71" dy="18">Read SDK/RPC state</tspan></text>
+</g>
+<g>
+  <rect x="360" y="105" width="250" height="165" rx="8" fill="#eaf7f0" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="376" y="132" class="box-title">NeoHub L1 anchor</text>
+  <text x="376" y="157" class="body" text-anchor="start"><tspan x="376" dy="0">SharedBridge / SettlementManager</tspan><tspan x="376" dy="18">ChainRegistry / TokenRegistry</tspan><tspan x="376" dy="18">VerifierRegistry / Governance</tspan><tspan x="376" dy="18">ExternalBridgeEscrow</tspan></text>
+</g>
+<g>
+  <rect x="725" y="105" width="220" height="145" rx="8" fill="#e7f8fb" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="741" y="132" class="box-title">Elastic L2 chain</text>
+  <text x="741" y="157" class="body" text-anchor="start"><tspan x="741" dy="0">Neo 4 core + L2 plugins</tspan><tspan x="741" dy="18">L2 native contracts</tspan><tspan x="741" dy="18">Execution, batches, state roots</tspan></text>
+</g>
+<g>
+  <rect x="55" y="390" width="245" height="135" rx="8" fill="#f7ecff" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="71" y="417" class="box-title">Foreign networks</text>
+  <text x="71" y="442" class="body" text-anchor="start"><tspan x="71" dy="0">EVM family / Tron / Solana</tspan><tspan x="71" dy="18">Foreign router contracts</tspan><tspan x="71" dy="18">Lock, release, emit events</tspan></text>
+</g>
+<g>
+  <rect x="405" y="405" width="250" height="145" rx="8" fill="#fff5e6" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="421" y="432" class="box-title">Off-chain runtime</text>
+  <text x="421" y="457" class="body" text-anchor="start"><tspan x="421" dy="0">Sequencer / Batcher / Prover</tspan><tspan x="421" dy="18">DA writer / Bridge watcher</tspan><tspan x="421" dy="18">Telemetry + health checks</tspan></text>
+</g>
+<g>
+  <rect x="770" y="405" width="250" height="135" rx="8" fill="#f4f6f8" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="786" y="432" class="box-title">Developer entrypoints</text>
+  <text x="786" y="457" class="body" text-anchor="start"><tspan x="786" dy="0">C# / TypeScript / Rust SDK</tspan><tspan x="786" dy="18">neo-stack / neo-bridge CLI</tspan><tspan x="786" dy="18">docs + generated artifacts</tspan></text>
+</g>
+<line x1="265" y1="168" x2="360" y2="168" class="arrow" marker-end="url(#arrow)"/><text x="312" y="160" text-anchor="middle" class="arrow-label">signed tx</text>
+<line x1="610" y1="168" x2="725" y2="168" class="arrow" marker-end="url(#arrow)"/><text x="668" y="160" text-anchor="middle" class="arrow-label">messages / roots</text>
+<line x1="835" y1="250" x2="530" y2="405" class="arrow dashed" marker-end="url(#arrow)"/><text x="682" y="320" text-anchor="middle" class="arrow-label">batches + proofs</text>
+<line x1="300" y1="458" x2="405" y2="458" class="arrow" marker-end="url(#arrow)"/><text x="352" y="450" text-anchor="middle" class="arrow-label">foreign events</text>
+<line x1="655" y1="458" x2="770" y2="458" class="arrow" marker-end="url(#arrow)"/><text x="712" y="450" text-anchor="middle" class="arrow-label">operator APIs</text>
+<line x1="176" y1="390" x2="176" y2="230" class="arrow dashed" marker-end="url(#arrow)"/><text x="176" y="302" text-anchor="middle" class="arrow-label">wallet bridge</text>
+<line x1="495" y1="405" x2="495" y2="270" class="arrow dashed" marker-end="url(#arrow)"/><text x="495" y="330" text-anchor="middle" class="arrow-label">settlement tx</text>
+<text x="55" y="650" class="caption">Solid lines mean on-chain state changes; dashed lines mean off-chain proofs, event watching, or operator control flow.</text>
+</svg>

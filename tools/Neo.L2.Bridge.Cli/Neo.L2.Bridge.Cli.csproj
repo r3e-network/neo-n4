@@ -11,6 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Sdk\Neo.L2.Sdk.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.State\Neo.L2.State.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -42,7 +42,10 @@ pub struct InMemoryJournal {
 
 impl InMemoryJournal {
     pub fn new() -> Self {
-        Self { cursor: 0, submitted: HashSet::new() }
+        Self {
+            cursor: 0,
+            submitted: HashSet::new(),
+        }
     }
 }
 

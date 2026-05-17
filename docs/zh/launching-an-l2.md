@@ -556,12 +556,13 @@ L1:      SettlementManager.SubmitBatch(commitment, publicInputs, proof)
 
 ## 上 L1:部署 NeoHub
 
-`register-chain` 起作用之前,21 个 NeoHub 合约必须部署到目标 L1。`neo-hub-deploy`
+`register-chain` 起作用之前,20 个生产 NeoHub 合约必须部署到目标 L1。仅测试用的
+`ExternalBridgeStubVerifier` 不包含在默认 deploy bundle 中。`neo-hub-deploy`
 工具输出一个 deploy bundle,把每个合约、它的依赖、拓扑排序后解析的哈希都列出:
 
 ```bash
-# 1. 脚手架一个起步 plan(21 个 NeoHub 合约按依赖序 + GovernanceFraudVerifier
-#    v1/v2 + RestrictedExecutionFraudVerifier v3)。
+# 1. 脚手架一个起步 plan(20 个生产 NeoHub 部署步骤按依赖序,
+#    包含 v1/v2 与 v3 fraud verifier)。
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
     --output ./my-l2/deploy-plan.json
 

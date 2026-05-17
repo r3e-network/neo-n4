@@ -198,7 +198,10 @@ impl EventSource for EthRpcEventSource {
 }
 
 impl EthRpcEventSource {
-    pub fn builder(rpc_url: impl Into<String>, router_address: [u8; 20]) -> EthRpcEventSourceBuilder {
+    pub fn builder(
+        rpc_url: impl Into<String>,
+        router_address: [u8; 20],
+    ) -> EthRpcEventSourceBuilder {
         EthRpcEventSourceBuilder::new(rpc_url, router_address)
     }
 
@@ -309,8 +312,7 @@ struct RawLog {
 /// bytes20,address,uint256,bytes,uint64)")`. Hand-compute via tiny-keccak so we
 /// don't pull a contract-binding crate.
 fn locked_event_topic_hash() -> [u8; 32] {
-    let sig =
-        b"Locked(uint32,uint32,uint64,address,bytes20,address,uint256,bytes,uint64)";
+    let sig = b"Locked(uint32,uint32,uint64,address,bytes20,address,uint256,bytes,uint64)";
     let mut hasher = Keccak::v256();
     hasher.update(sig);
     let mut out = [0u8; 32];
@@ -331,8 +333,8 @@ fn decode_locked_event(log: &RawLog) -> Result<LockedEvent, EthRpcError> {
         )));
     }
     let topic_locked = locked_event_topic_hash();
-    let topic0 = decode_hex32(&log.topics[0])
-        .map_err(|e| EthRpcError::BadLog(format!("topic0: {e}")))?;
+    let topic0 =
+        decode_hex32(&log.topics[0]).map_err(|e| EthRpcError::BadLog(format!("topic0: {e}")))?;
     if topic0 != topic_locked {
         return Err(EthRpcError::BadLog(format!(
             "topic0 0x{} != Locked sig 0x{}",
@@ -355,8 +357,8 @@ fn decode_locked_event(log: &RawLog) -> Result<LockedEvent, EthRpcError> {
     //   [128..160] payload offset (32B BE — points into the dynamic region)
     //   [160..192] deadline (uint64, right-padded to 32B)
     //   [dynamic] payload length (32B BE) + payload bytes (32-aligned)
-    let data = decode_hex_bytes(&log.data)
-        .map_err(|e| EthRpcError::BadLog(format!("data: {e}")))?;
+    let data =
+        decode_hex_bytes(&log.data).map_err(|e| EthRpcError::BadLog(format!("data: {e}")))?;
     if data.len() < 192 {
         return Err(EthRpcError::BadLog(format!(
             "data length {} < 192 (6 head args)",
@@ -365,7 +367,7 @@ fn decode_locked_event(log: &RawLog) -> Result<LockedEvent, EthRpcError> {
     }
     let mut sender = [0u8; 20];
     sender.copy_from_slice(&data[12..32]); // address right-padded
-    // bytes20 stored as 20 bytes left-padded with 12 zeros.
+                                           // bytes20 stored as 20 bytes left-padded with 12 zeros.
     let mut neo_recipient = [0u8; 20];
     neo_recipient.copy_from_slice(&data[32..52]);
     let mut asset = [0u8; 20];
@@ -464,14 +466,15 @@ fn decode_hex_bytes(s: &str) -> Result<Vec<u8>, String> {
 
 fn decode_topic_u32(s: &str) -> Result<u32, EthRpcError> {
     let bytes = decode_hex32(s).map_err(|e| EthRpcError::BadLog(format!("topic u32: {e}")))?;
-    Ok(u32::from_be_bytes([bytes[28], bytes[29], bytes[30], bytes[31]]))
+    Ok(u32::from_be_bytes([
+        bytes[28], bytes[29], bytes[30], bytes[31],
+    ]))
 }
 
 fn decode_topic_u64(s: &str) -> Result<u64, EthRpcError> {
     let bytes = decode_hex32(s).map_err(|e| EthRpcError::BadLog(format!("topic u64: {e}")))?;
     Ok(u64::from_be_bytes([
-        bytes[24], bytes[25], bytes[26], bytes[27],
-        bytes[28], bytes[29], bytes[30], bytes[31],
+        bytes[24], bytes[25], bytes[26], bytes[27], bytes[28], bytes[29], bytes[30], bytes[31],
     ]))
 }
 
@@ -792,8 +795,7 @@ mod tests {
     #[test]
     fn live_propagates_rpc_error_response() {
         let server = FakeRpcServer::spawn(|_body: &str| {
-            r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"node sync"}}"#
-                .to_string()
+            r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"node sync"}}"#.to_string()
         });
 
         let mut source = EthRpcEventSource::builder(server.url.clone(), [0u8; 20])
@@ -821,8 +823,7 @@ mod tests {
     #[test]
     fn live_min_confirmations_caps_polling_window_below_head() {
         // Capture the toBlock parameter the source sends.
-        let captured_to: Arc<std::sync::Mutex<Option<u64>>> =
-            Arc::new(std::sync::Mutex::new(None));
+        let captured_to: Arc<std::sync::Mutex<Option<u64>>> = Arc::new(std::sync::Mutex::new(None));
         let captured = captured_to.clone();
         let server = FakeRpcServer::spawn(move |body: &str| {
             if body.contains("eth_blockNumber") {
@@ -942,8 +943,7 @@ mod tests {
     /// silently change the polling window for callers that don't opt in.
     #[test]
     fn live_default_min_confirmations_is_zero() {
-        let captured_to: Arc<std::sync::Mutex<Option<u64>>> =
-            Arc::new(std::sync::Mutex::new(None));
+        let captured_to: Arc<std::sync::Mutex<Option<u64>>> = Arc::new(std::sync::Mutex::new(None));
         let captured = captured_to.clone();
         let server = FakeRpcServer::spawn(move |body: &str| {
             if body.contains("eth_blockNumber") {
@@ -999,7 +999,9 @@ mod tests {
             .build()
             .unwrap();
 
-        let err = source.next_event(0).expect_err("transport failure must surface");
+        let err = source
+            .next_event(0)
+            .expect_err("transport failure must surface");
         match err {
             crate::event_source::EventSourceError::Rpc(_) => { /* expected */ }
             other => panic!("expected EventSourceError::Rpc, got {other:?}"),

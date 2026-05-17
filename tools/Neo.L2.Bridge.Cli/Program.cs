@@ -81,8 +81,12 @@ public static class Program
         Console.WriteLine("Common withdraw options (in addition to --bridge):");
         Console.WriteLine("  --chain-id <id>           Source L2 chainId.");
         Console.WriteLine("  --batch <N>               Finalized batch number containing the withdrawal.");
-        Console.WriteLine("  --leaf <hex>              Withdrawal leaf hash (UInt256).");
+        Console.WriteLine("  --leaf <hex>              Optional expected withdrawal leaf hash (UInt256).");
         Console.WriteLine("  --leaf-index <N>          Leaf's 0-based index in the batch's withdrawal Merkle tree.");
+        Console.WriteLine("  --emitting-contract <h>   L2 contract that emitted the withdrawal (UInt160).");
+        Console.WriteLine("  --l2-sender <hash>        L2 address that initiated the withdrawal (UInt160).");
+        Console.WriteLine("  --l2-asset <hash>         L2-side asset being withdrawn (UInt160).");
+        Console.WriteLine("  --withdrawal-nonce <N>    Per-(chain,sender) L2 withdrawal nonce.");
         Console.WriteLine("  --asset <hash>            L1-side asset (UInt160).");
         Console.WriteLine("  --recipient <addr>        L1-side recipient (UInt160).");
         Console.WriteLine("  --amount <N>              Amount (BigInteger).");

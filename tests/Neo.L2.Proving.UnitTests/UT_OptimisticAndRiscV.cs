@@ -3,6 +3,7 @@ using Neo.Cryptography.ECC;
 using Neo.L2.Batch;
 using Neo.L2.Proving.Optimistic;
 using Neo.L2.Proving.RiscVZk;
+using Neo.SmartContract;
 
 namespace Neo.L2.Proving.UnitTests;
 
@@ -25,6 +26,11 @@ public class UT_OptimisticAndRiscV
         BlockContextHash = UInt256.Parse("0x" + new string('a', 64)),
     };
 
+    private static UInt160 SampleSequencer() => UInt160.Parse("0x" + new string('d', 40));
+
+    private static UInt160 SequencerAccount(ECPoint pubKey) =>
+        Contract.CreateSignatureRedeemScript(pubKey).ToScriptHash();
+
     [TestMethod]
     public async Task Optimistic_VerifierAcceptsValidSequencerSig()
     {
@@ -41,6 +47,7 @@ public class UT_OptimisticAndRiscV
             BondContract = UInt160.Parse("0x" + new string('b', 40)),
             BondTxHash = UInt256.Parse("0x" + new string('c', 64)),
             SubmittedAt = 1_700_000_000_000,
+            Sequencer = SequencerAccount(pub),
             SequencerSignature = sig,
         };
 
@@ -65,11 +72,36 @@ public class UT_OptimisticAndRiscV
             BondContract = UInt160.Zero,
             BondTxHash = UInt256.Zero,
             SubmittedAt = 0,
+            Sequencer = SequencerAccount(realPub),
             SequencerSignature = sig,
         };
 
         var result = await new OptimisticVerifier(realPub).VerifyAsync(inputs, payload.Encode());
         Assert.IsFalse(result.Valid);
+    }
+
+    [TestMethod]
+    public async Task Optimistic_VerifierRejectsSequencerAccountMismatch()
+    {
+        var priv = new byte[32]; priv[0] = 1;
+        var pub = ECCurve.Secp256r1.G * priv;
+
+        var inputs = SamplePublicInputs();
+        var canonical = BatchSerializer.EncodePublicInputs(inputs);
+        var sig = Crypto.Sign(canonical, new Neo.Wallets.KeyPair(priv));
+
+        var payload = new OptimisticProofPayload
+        {
+            BondContract = UInt160.Parse("0x" + new string('b', 40)),
+            BondTxHash = UInt256.Parse("0x" + new string('c', 64)),
+            SubmittedAt = 1_700_000_000_000,
+            Sequencer = UInt160.Parse("0x" + new string('e', 40)),
+            SequencerSignature = sig,
+        };
+
+        var result = await new OptimisticVerifier(pub).VerifyAsync(inputs, payload.Encode());
+        Assert.IsFalse(result.Valid);
+        StringAssert.Contains(result.FailureReason ?? "", "sequencer account");
     }
 
     [TestMethod]
@@ -226,17 +258,19 @@ public class UT_OptimisticAndRiscV
             BondContract = bond,
             BondTxHash = bondTx,
             SubmittedAt = 0x1122334455667788,
+            Sequencer = SampleSequencer(),
             SequencerSignature = sig,
         };
         var bytes = payload.Encode();
 
-        Assert.AreEqual(65 + sig.Length, bytes.Length);
+        Assert.AreEqual(85 + sig.Length, bytes.Length);
         Assert.AreEqual(OptimisticProofPayload.Version, bytes[0]);
         CollectionAssert.AreEqual(bond.GetSpan().ToArray(), bytes[1..21]);
         CollectionAssert.AreEqual(bondTx.GetSpan().ToArray(), bytes[21..53]);
         Assert.AreEqual(0x1122334455667788UL, System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(bytes.AsSpan(53, 8)));
-        Assert.AreEqual(sig.Length, System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(61, 4)));
-        CollectionAssert.AreEqual(sig, bytes[65..]);
+        CollectionAssert.AreEqual(SampleSequencer().GetSpan().ToArray(), bytes[61..81]);
+        Assert.AreEqual(sig.Length, System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(81, 4)));
+        CollectionAssert.AreEqual(sig, bytes[85..]);
     }
 
     [TestMethod]
@@ -245,13 +279,13 @@ public class UT_OptimisticAndRiscV
         var inner = new OptimisticProofPayload
         {
             BondContract = UInt160.Zero, BondTxHash = UInt256.Zero,
-            SubmittedAt = 0, SequencerSignature = new byte[64],
+            SubmittedAt = 0, Sequencer = SampleSequencer(), SequencerSignature = new byte[64],
         };
         var bytes = inner.Encode();
         var oversized = OptimisticProofPayload.MaxSignatureBytes + 1;
-        var bigBuf = new byte[65 + oversized];
-        Array.Copy(bytes, bigBuf, 65);
-        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(bigBuf.AsSpan(61, 4), oversized);
+        var bigBuf = new byte[85 + oversized];
+        Array.Copy(bytes, bigBuf, 85);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(bigBuf.AsSpan(81, 4), oversized);
 
         Assert.ThrowsExactly<InvalidDataException>(() => OptimisticProofPayload.Decode(bigBuf));
     }
@@ -314,7 +348,7 @@ public class UT_OptimisticAndRiscV
         var inner = new OptimisticProofPayload
         {
             BondContract = UInt160.Zero, BondTxHash = UInt256.Zero,
-            SubmittedAt = 0, SequencerSignature = sig,
+            SubmittedAt = 0, Sequencer = SampleSequencer(), SequencerSignature = sig,
         };
         var bytes = inner.Encode();
         var decoded = OptimisticProofPayload.Decode(bytes);
@@ -343,7 +377,7 @@ public class UT_OptimisticAndRiscV
         var payload = new OptimisticProofPayload
         {
             BondContract = null!, BondTxHash = UInt256.Zero,
-            SubmittedAt = 0, SequencerSignature = new byte[64],
+            SubmittedAt = 0, Sequencer = SampleSequencer(), SequencerSignature = new byte[64],
         };
         Assert.ThrowsExactly<ArgumentNullException>(() => payload.Encode());
     }
@@ -354,7 +388,7 @@ public class UT_OptimisticAndRiscV
         var payload = new OptimisticProofPayload
         {
             BondContract = UInt160.Zero, BondTxHash = null!,
-            SubmittedAt = 0, SequencerSignature = new byte[64],
+            SubmittedAt = 0, Sequencer = SampleSequencer(), SequencerSignature = new byte[64],
         };
         Assert.ThrowsExactly<ArgumentNullException>(() => payload.Encode());
     }
@@ -385,7 +419,7 @@ public class UT_OptimisticAndRiscV
         var payload = new OptimisticProofPayload
         {
             BondContract = UInt160.Zero, BondTxHash = UInt256.Zero,
-            SubmittedAt = 0, SequencerSignature = oversized,
+            SubmittedAt = 0, Sequencer = SampleSequencer(), SequencerSignature = oversized,
         };
         var ex = Assert.ThrowsExactly<InvalidOperationException>(() => payload.Encode());
         StringAssert.Contains(ex.Message, "MaxSignatureBytes");

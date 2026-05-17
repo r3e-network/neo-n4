@@ -62,8 +62,9 @@
 
 - **Stage 0(默认):** `Neo.L2.Proving.Attestation.AttestationProver` 对
   `BatchSerializer.EncodePublicInputs(...)` 收集验证人签名。今天即可生产用。
-- **Stage 1(挑战窗口):** `OptimisticProofPayload` 携带排序器签名 + bond 引用。
-  验证器立刻接受;真正的挑战逻辑在 `NeoHub.SettlementManager` 里。
+- **Stage 1(挑战窗口):** `OptimisticProofPayload` 携带排序器账户、排序器签名
+  + bond 引用。验证器校验签名和 key/account 绑定;`NeoHub.SettlementManager`
+  把批次标记为 `Challengeable` 并打开 `NeoHub.OptimisticChallenge`。
 - **Stage 2(ZK):** 在 `bridge/neo-zkvm-host/` 跑的进程外 Rust 证明者
   (运行为 `prove-batch daemon --watch <queue-dir>`)。批次里每笔 tx 作为
   Neo N3 VM 脚本载入,由 `neo_vm_guest::execute` 执行(纯 Rust 的真实 NeoVM);
@@ -88,10 +89,12 @@
   路由到正确的验证器(multisig / optimistic / zk)。
 - 捕获 `withdrawalRoot`,以便 `SharedBridge.FinalizeWithdrawal` 后续证明个人
   提款。
-- 把批次标记为 `Pending`。
+- 把 multisig/ZK 批次标记为 `Pending`;把 optimistic 批次标记为
+  `Challengeable` 并打开已配置的 `OptimisticChallenge` 窗口。
 
 `NeoHub.SettlementManager.FinalizeBatch` 之后把批次推到 `Finalized`,设规范状态根,
-并 bump `latestFinalizedBatch[chainId]`。
+并 bump `latestFinalizedBatch[chainId]`。`Challengeable` optimistic 批次只能在
+挑战窗口过期后由 `OptimisticChallenge` 进入该路径。
 
 ### 9. 提款领取(很久之后)
 

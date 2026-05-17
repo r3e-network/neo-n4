@@ -33,7 +33,9 @@ neo-bridge deposit \
 # Bridge: 用 Merkle 证明完成提款。
 neo-bridge withdraw \
   --bridge ... --chain-id 1099 --batch 7 \
-  --leaf 0x...... --leaf-index 3 \
+  --leaf-index 3 \
+  --emitting-contract 0x.... --l2-sender 0x.... \
+  --l2-asset 0x.... --withdrawal-nonce 42 \
   --asset 0x.... --recipient 0x.... --amount 50000000 \
   --proof-endpoint http://l2-rpc:30332
 
@@ -141,6 +143,6 @@ KMS 后备的密钥(AWS-KMS、GCP-KMS、Azure Key Vault、HashiCorp Vault)生产
   调用 hex。粘 → 签名。
 - **`neo-l2-faucet drip`** —— `SharedBridge.Deposit`(限速版)。
   粘 → 签名。
-- **`neo-hub-deploy plan`** —— 13 步顺序合约部署调用。按序逐一签名。
+- **`neo-hub-deploy plan`** —— 20 步生产合约部署调用。按拓扑顺序逐一签名。
 - **`neo-stack register-chain`** —— `ChainRegistry.RegisterChain` 调用 + 91
   字节 configBytes hex。粘 → 签名。

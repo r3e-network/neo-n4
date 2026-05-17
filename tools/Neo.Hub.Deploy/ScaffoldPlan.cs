@@ -22,48 +22,48 @@ public static class ScaffoldPlan
             Steps = new[]
             {
                 Step("ChainRegistry",
-                    "contracts/NeoHub.ChainRegistry/bin/Release/NeoHub.ChainRegistry.nef",
+                    "contracts/NeoHub.ChainRegistry/bin/sc/NeoHub.ChainRegistry.nef",
                     OwnerOnly()),
 
                 Step("VerifierRegistry",
-                    "contracts/NeoHub.VerifierRegistry/bin/Release/NeoHub.VerifierRegistry.nef",
+                    "contracts/NeoHub.VerifierRegistry/bin/sc/NeoHub.VerifierRegistry.nef",
                     OwnerOnly()),
 
                 Step("TokenRegistry",
-                    "contracts/NeoHub.TokenRegistry/bin/Release/NeoHub.TokenRegistry.nef",
+                    "contracts/NeoHub.TokenRegistry/bin/sc/NeoHub.TokenRegistry.nef",
                     OwnerOnly()),
 
                 Step("DARegistry",
-                    "contracts/NeoHub.DARegistry/bin/Release/NeoHub.DARegistry.nef",
+                    "contracts/NeoHub.DARegistry/bin/sc/NeoHub.DARegistry.nef",
                     OwnerAndDep("SettlementManager"),
                     "SettlementManager"),
 
                 Step("EmergencyManager",
-                    "contracts/NeoHub.EmergencyManager/bin/Release/NeoHub.EmergencyManager.nef",
+                    "contracts/NeoHub.EmergencyManager/bin/sc/NeoHub.EmergencyManager.nef",
                     OwnerAndDeps("GovernanceController", "SettlementManager"),
                     "GovernanceController", "SettlementManager"),
 
                 Step("GovernanceController",
-                    "contracts/NeoHub.GovernanceController/bin/Release/NeoHub.GovernanceController.nef",
+                    "contracts/NeoHub.GovernanceController/bin/sc/NeoHub.GovernanceController.nef",
                     OwnerOnly()),
 
                 Step("MessageRouter",
-                    "contracts/NeoHub.MessageRouter/bin/Release/NeoHub.MessageRouter.nef",
+                    "contracts/NeoHub.MessageRouter/bin/sc/NeoHub.MessageRouter.nef",
                     OwnerAndDep("SettlementManager"),
                     "SettlementManager"),
 
                 Step("SettlementManager",
-                    "contracts/NeoHub.SettlementManager/bin/Release/NeoHub.SettlementManager.nef",
+                    "contracts/NeoHub.SettlementManager/bin/sc/NeoHub.SettlementManager.nef",
                     OwnerAndDeps("ChainRegistry", "VerifierRegistry"),
                     "ChainRegistry", "VerifierRegistry"),
 
                 Step("SharedBridge",
-                    "contracts/NeoHub.SharedBridge/bin/Release/NeoHub.SharedBridge.nef",
+                    "contracts/NeoHub.SharedBridge/bin/sc/NeoHub.SharedBridge.nef",
                     OwnerAndDeps("SettlementManager", "TokenRegistry"),
                     "SettlementManager", "TokenRegistry"),
 
                 Step("ForcedInclusion",
-                    "contracts/NeoHub.ForcedInclusion/bin/Release/NeoHub.ForcedInclusion.nef",
+                    "contracts/NeoHub.ForcedInclusion/bin/sc/NeoHub.ForcedInclusion.nef",
                     OwnerAndDep("SettlementManager"),
                     "SettlementManager"),
 
@@ -73,14 +73,14 @@ public static class ScaffoldPlan
                 // is up the operator calls SequencerBond.RegisterSlasher(optChallenge) to
                 // enable Phase-3 challenge slashing.
                 Step("SequencerBond",
-                    "contracts/NeoHub.SequencerBond/bin/Release/NeoHub.SequencerBond.nef",
+                    "contracts/NeoHub.SequencerBond/bin/sc/NeoHub.SequencerBond.nef",
                     BondDeployData(),
                     "GovernanceController"),
 
                 // SequencerRegistry tracks the live committee + exit windows. Bonds are
                 // checked against SequencerBond before a register goes through.
                 Step("SequencerRegistry",
-                    "contracts/NeoHub.SequencerRegistry/bin/Release/NeoHub.SequencerRegistry.nef",
+                    "contracts/NeoHub.SequencerRegistry/bin/sc/NeoHub.SequencerRegistry.nef",
                     OwnerAndDep("SequencerBond"),
                     "SequencerBond"),
 
@@ -88,7 +88,7 @@ public static class ScaffoldPlan
                 // payout requires both SettlementManager (for batch lookups) + SequencerBond
                 // (to deduct on a successful challenge).
                 Step("OptimisticChallenge",
-                    "contracts/NeoHub.OptimisticChallenge/bin/Release/NeoHub.OptimisticChallenge.nef",
+                    "contracts/NeoHub.OptimisticChallenge/bin/sc/NeoHub.OptimisticChallenge.nef",
                     OwnerAndDeps("SettlementManager", "SequencerBond"),
                     "SettlementManager", "SequencerBond"),
 
@@ -98,7 +98,7 @@ public static class ScaffoldPlan
                 // verifies a static wire format (v1/v2). Skip this step entirely if the
                 // chain ships its own (re-execution-capable) fraud verifier.
                 Step("GovernanceFraudVerifier",
-                    "contracts/NeoHub.GovernanceFraudVerifier/bin/Release/NeoHub.GovernanceFraudVerifier.nef",
+                    "contracts/NeoHub.GovernanceFraudVerifier/bin/sc/NeoHub.GovernanceFraudVerifier.nef",
                     new JArray()),
 
                 // RestrictedExecutionFraudVerifier is the trustless v3 verifier — re-derives
@@ -110,7 +110,7 @@ public static class ScaffoldPlan
                 // GovernanceFraudVerifier instead. Both can be deployed simultaneously
                 // — the OptimisticChallenge.Challenge caller picks which to invoke.
                 Step("RestrictedExecutionFraudVerifier",
-                    "contracts/NeoHub.RestrictedExecutionFraudVerifier/bin/Release/NeoHub.RestrictedExecutionFraudVerifier.nef",
+                    "contracts/NeoHub.RestrictedExecutionFraudVerifier/bin/sc/NeoHub.RestrictedExecutionFraudVerifier.nef",
                     new JArray()),
 
                 // ─── External-bridge stack (doc.md §11.3) ────────────────
@@ -129,17 +129,17 @@ public static class ScaffoldPlan
                 // deploy-bundle to assemble the calls).
 
                 Step("MpcCommitteeVerifier",
-                    "contracts/NeoHub.MpcCommitteeVerifier/bin/Release/NeoHub.MpcCommitteeVerifier.nef",
+                    "contracts/NeoHub.MpcCommitteeVerifier/bin/sc/NeoHub.MpcCommitteeVerifier.nef",
                     OwnerOnly()),
 
                 Step("ExternalBridgeRegistry",
-                    "contracts/NeoHub.ExternalBridgeRegistry/bin/Release/NeoHub.ExternalBridgeRegistry.nef",
+                    "contracts/NeoHub.ExternalBridgeRegistry/bin/sc/NeoHub.ExternalBridgeRegistry.nef",
                     OwnerOnly()),
 
                 // ExternalBridgeEscrow's _deploy takes (owner, registry).
                 // The registry hash is resolved via $step:ExternalBridgeRegistry.
                 Step("ExternalBridgeEscrow",
-                    "contracts/NeoHub.ExternalBridgeEscrow/bin/Release/NeoHub.ExternalBridgeEscrow.nef",
+                    "contracts/NeoHub.ExternalBridgeEscrow/bin/sc/NeoHub.ExternalBridgeEscrow.nef",
                     OwnerAndDep("ExternalBridgeRegistry"),
                     "ExternalBridgeRegistry"),
 
@@ -151,7 +151,7 @@ public static class ScaffoldPlan
                 // ExternalBridgeBond.RegisterSlasher(MpcCommitteeFraudVerifier)
                 // once that contract is deployed below.
                 Step("ExternalBridgeBond",
-                    "contracts/NeoHub.ExternalBridgeBond/bin/Release/NeoHub.ExternalBridgeBond.nef",
+                    "contracts/NeoHub.ExternalBridgeBond/bin/sc/NeoHub.ExternalBridgeBond.nef",
                     new JArray
                     {
                         "OWNER_REPLACE_ME",
@@ -170,7 +170,7 @@ public static class ScaffoldPlan
                 //      chains — the binding is required to identify which
                 //      member to slash.
                 Step("MpcCommitteeFraudVerifier",
-                    "contracts/NeoHub.MpcCommitteeFraudVerifier/bin/Release/NeoHub.MpcCommitteeFraudVerifier.nef",
+                    "contracts/NeoHub.MpcCommitteeFraudVerifier/bin/sc/NeoHub.MpcCommitteeFraudVerifier.nef",
                     new JArray
                     {
                         "OWNER_REPLACE_ME",

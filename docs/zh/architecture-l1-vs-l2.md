@@ -118,7 +118,7 @@ L1 上多半是*过早中心化*。
 - **`NeoHub.ExternalBridgeRegistry`** L1 ✅ → L1 — 跨外链不变量
 - **`NeoHub.ExternalBridgeEscrow`** L1 ✅ → L1 — 资产托管
 - **`NeoHub.ExternalBridgeBond`** L1 ✅ → L1 — 可罚没经济安全
-- **`NeoHub.ExternalBridgeStubVerifier`** L1 🟡 → 仅测试 — **应被 feature gate 限制为非生产用**
+- **`NeoHub.ExternalBridgeStubVerifier`** L1 🟡 → 仅测试 — **不能通过 `ExternalBridgeRegistry` 的生产 bridge kind 注册**
 
 - **`L2Native.L2BridgeContract`** L2 ✅ → L2 — 按 L2 的 NEP-17 包装资产状态(规则 4)
 - **`L2Native.L2MessageContract`** L2 ✅ → L2 — 按 L2 的 inbox/outbox
@@ -135,8 +135,9 @@ L1 上多半是*过早中心化*。
 
 ✅ **7 个 L2 原生合约都被正确放到 L2** —— 每个都是按链状态、无跨 L2 读需求。
 
-🟡 **`ExternalBridgeStubVerifier` 在 L1 但仅供测试。** 生产 NeoHub 部署不应在
-`ExternalBridgeRegistry` 中注册它。今天靠运维者自律,而非代码强制。
+🟡 **`ExternalBridgeStubVerifier` 在 L1 但仅供测试。** 生产 NeoHub 部署不得在
+`ExternalBridgeRegistry` 中注册它;现在已经由代码强制:registry 只接受
+`1`(MPC)、`2`(Optimistic)、`3`(ZK) 三种 bridge kind,而 stub 返回 `0`。
 
 ---
 
@@ -146,9 +147,10 @@ L1 上多半是*过早中心化*。
 
 ### 高优先级
 
-- [ ] **把 `ExternalBridgeStubVerifier` gate 在生产部署之外。**
-  在 `tools/Neo.Hub.Deploy/` 加 deploy-bundle 断言,拒绝在非测试网上注册 stub
-  verifier。今天运维者可能误注册;唯一拦阻的是合约源码注释。
+- [x] **把 `ExternalBridgeStubVerifier` gate 在生产部署之外。**
+  `NeoHub.ExternalBridgeRegistry.WriteVerifier` 会拒绝 bridge kind `0`,所以
+  devnet stub 无法通过生产 verifier registry 路径注册。部署工具也明确记录
+  使用 `bridgeKindMpc=1` 注册 MPC verifier,而不是注册 stub。
 
 - [ ] **记录每个 NeoHub 合约的存储预算。** 按合约的 README 列出 storage key + 各
   自最大尺寸 + 摊到每 L2 批次的成本。L1 存储是稀缺资源;让按合约的预算可见,运维

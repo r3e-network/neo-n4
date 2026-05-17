@@ -235,6 +235,18 @@ public class UT_DeployPlanner
         Assert.IsTrue(names.Contains("ExternalBridgeEscrow"));
         Assert.IsTrue(names.Contains("ExternalBridgeBond"));
         Assert.IsTrue(names.Contains("MpcCommitteeFraudVerifier"));
+
+        foreach (var step in plan.Steps)
+        {
+            var nefPath = step.NefPath.Replace('\\', '/');
+            var manifestPath = step.ManifestPath.Replace('\\', '/');
+            StringAssert.Contains(nefPath, "/bin/sc/");
+            StringAssert.Contains(manifestPath, "/bin/sc/");
+            Assert.IsFalse(nefPath.Contains("/bin/Release/", StringComparison.Ordinal),
+                $"{step.Name} NEF path must point at nccs output under bin/sc");
+            Assert.IsFalse(manifestPath.Contains("/bin/Release/", StringComparison.Ordinal),
+                $"{step.Name} manifest path must point at nccs output under bin/sc");
+        }
     }
 
     [TestMethod]

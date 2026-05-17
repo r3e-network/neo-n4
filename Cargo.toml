@@ -16,8 +16,7 @@ exclude = [
     "external",
 ]
 
-# Defaults shared by every workspace member. Override in member crates as
-# needed (e.g. the SP1 guest needs `panic = "abort"` for the zkVM target).
+# Defaults shared by every workspace member.
 [workspace.package]
 edition = "2021"
 license = "MIT"

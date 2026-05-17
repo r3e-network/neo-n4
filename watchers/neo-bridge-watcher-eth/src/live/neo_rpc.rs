@@ -139,15 +139,19 @@ pub struct NeoRpcSubmitter<S: SignAndSend> {
 }
 
 impl<S: SignAndSend> NeoSubmitter for NeoRpcSubmitter<S> {
-    fn submit_inbound(&mut self, submission: InboundSubmission) -> Result<[u8; 32], SubmitterError> {
+    fn submit_inbound(
+        &mut self,
+        submission: InboundSubmission,
+    ) -> Result<[u8; 32], SubmitterError> {
         // 1. Pre-check: build invokefunction request, verify HALT,
         //    extract the constructed script.
         let req = self.build_invokefunction(&submission)?;
         let resp: InvokeFunctionResult = self.send_rpc("invokefunction", req)?;
         if resp.state != "HALT" {
-            return Err(NeoRpcError::Fault(resp.exception.unwrap_or_else(|| {
-                format!("VM state {} (no exception detail)", resp.state)
-            }))
+            return Err(NeoRpcError::Fault(
+                resp.exception
+                    .unwrap_or_else(|| format!("VM state {} (no exception detail)", resp.state)),
+            )
             .into());
         }
         let script_bytes = decode_hex_bytes(&resp.script)
@@ -169,7 +173,10 @@ impl<S: SignAndSend> NeoRpcSubmitter<S> {
         NeoRpcSubmitterBuilder::new(rpc_url, escrow_address, signer, sign_and_send)
     }
 
-    fn build_invokefunction(&self, submission: &InboundSubmission) -> Result<serde_json::Value, NeoRpcError> {
+    fn build_invokefunction(
+        &self,
+        submission: &InboundSubmission,
+    ) -> Result<serde_json::Value, NeoRpcError> {
         // Neo addresses in JSON-RPC are little-endian hex, prefixed with
         // 0x. The escrow ContractParameter is a UInt160 (20 bytes BE in
         // protocol but Neo's RPC convention prints LE).
@@ -291,9 +298,16 @@ mod tests {
             })
             .unwrap();
         let arr = req.as_array().unwrap();
-        assert_eq!(arr.len(), 4, "params: [contract, method, callargs, signers]");
+        assert_eq!(
+            arr.len(),
+            4,
+            "params: [contract, method, callargs, signers]"
+        );
         // Contract hash is LE-hex with 0x prefix (20 bytes = 40 hex chars).
-        assert_eq!(arr[0].as_str().unwrap(), "0xabababababababababababababababababababab");
+        assert_eq!(
+            arr[0].as_str().unwrap(),
+            "0xabababababababababababababababababababab"
+        );
         assert_eq!(arr[1].as_str().unwrap(), "receive");
         // Three call args: Integer chainId, ByteArray message, ByteArray proof.
         let call_args = arr[2].as_array().unwrap();
@@ -310,7 +324,7 @@ mod tests {
         assert_eq!(signers[0]["scopes"].as_str().unwrap(), "CalledByEntry");
         assert_eq!(
             signers[0]["account"].as_str().unwrap(),
-            "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"   // 20 bytes = 40 hex chars
+            "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd" // 20 bytes = 40 hex chars
         );
     }
 
@@ -330,8 +344,7 @@ mod tests {
             other => panic!("expected VerifierRejected, got {other:?}"),
         }
 
-        let translated: SubmitterError =
-            NeoRpcError::Http("connection refused".into()).into();
+        let translated: SubmitterError = NeoRpcError::Http("connection refused".into()).into();
         match translated {
             SubmitterError::Rpc(m) => assert!(m.contains("connection")),
             other => panic!("expected Rpc, got {other:?}"),
@@ -412,7 +425,10 @@ mod tests {
                 proof_bytes: vec![0x33, 0x44],
             })
             .expect("submit succeeded");
-        assert_eq!(tx_hash, [0xAB; 32], "callback's tx hash bubbles up unchanged");
+        assert_eq!(
+            tx_hash, [0xAB; 32],
+            "callback's tx hash bubbles up unchanged"
+        );
 
         let received = received_script.lock().unwrap().clone();
         assert_eq!(
@@ -449,15 +465,11 @@ mod tests {
             Ok([0u8; 32])
         };
 
-        let mut submitter = NeoRpcSubmitter::builder(
-            server.url.clone(),
-            [0xCC; 20],
-            [0xDD; 20],
-            callback,
-        )
-        .request_timeout(Duration::from_secs(5))
-        .build()
-        .unwrap();
+        let mut submitter =
+            NeoRpcSubmitter::builder(server.url.clone(), [0xCC; 20], [0xDD; 20], callback)
+                .request_timeout(Duration::from_secs(5))
+                .build()
+                .unwrap();
 
         let err = submitter
             .submit_inbound(InboundSubmission {
@@ -468,7 +480,10 @@ mod tests {
             .expect_err("FAULT must surface as error");
         match err {
             SubmitterError::VerifierRejected(msg) => {
-                assert!(msg.contains("verifier rejected"), "carries server-side detail");
+                assert!(
+                    msg.contains("verifier rejected"),
+                    "carries server-side detail"
+                );
             }
             other => panic!("expected VerifierRejected, got {other:?}"),
         }
@@ -500,15 +515,11 @@ mod tests {
         });
 
         let callback = |_: &[u8]| -> Result<[u8; 32], NeoRpcError> { Ok([0u8; 32]) };
-        let mut submitter = NeoRpcSubmitter::builder(
-            server.url.clone(),
-            [0xCC; 20],
-            [0xDD; 20],
-            callback,
-        )
-        .request_timeout(Duration::from_secs(5))
-        .build()
-        .unwrap();
+        let mut submitter =
+            NeoRpcSubmitter::builder(server.url.clone(), [0xCC; 20], [0xDD; 20], callback)
+                .request_timeout(Duration::from_secs(5))
+                .build()
+                .unwrap();
 
         let err = submitter
             .submit_inbound(InboundSubmission {
@@ -544,15 +555,11 @@ mod tests {
             cb.fetch_add(1, Ordering::Relaxed);
             Ok([0u8; 32])
         };
-        let mut submitter = NeoRpcSubmitter::builder(
-            server.url.clone(),
-            [0xCC; 20],
-            [0xDD; 20],
-            callback,
-        )
-        .request_timeout(Duration::from_secs(5))
-        .build()
-        .unwrap();
+        let mut submitter =
+            NeoRpcSubmitter::builder(server.url.clone(), [0xCC; 20], [0xDD; 20], callback)
+                .request_timeout(Duration::from_secs(5))
+                .build()
+                .unwrap();
 
         let err = submitter
             .submit_inbound(InboundSubmission {
@@ -599,15 +606,11 @@ mod tests {
         let callback = |_: &[u8]| -> Result<[u8; 32], NeoRpcError> {
             Err(NeoRpcError::SignAndSend("HSM unavailable".into()))
         };
-        let mut submitter = NeoRpcSubmitter::builder(
-            server.url.clone(),
-            [0xCC; 20],
-            [0xDD; 20],
-            callback,
-        )
-        .request_timeout(Duration::from_secs(5))
-        .build()
-        .unwrap();
+        let mut submitter =
+            NeoRpcSubmitter::builder(server.url.clone(), [0xCC; 20], [0xDD; 20], callback)
+                .request_timeout(Duration::from_secs(5))
+                .build()
+                .unwrap();
 
         let err = submitter
             .submit_inbound(InboundSubmission {
@@ -640,15 +643,10 @@ mod tests {
             cb.fetch_add(1, Ordering::Relaxed);
             Ok([0u8; 32])
         };
-        let mut submitter = NeoRpcSubmitter::builder(
-            url,
-            [0xCC; 20],
-            [0xDD; 20],
-            callback,
-        )
-        .request_timeout(Duration::from_secs(1))
-        .build()
-        .unwrap();
+        let mut submitter = NeoRpcSubmitter::builder(url, [0xCC; 20], [0xDD; 20], callback)
+            .request_timeout(Duration::from_secs(1))
+            .build()
+            .unwrap();
 
         let err = submitter
             .submit_inbound(InboundSubmission {

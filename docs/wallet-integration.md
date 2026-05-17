@@ -37,7 +37,9 @@ neo-bridge deposit \
 # Bridge: finalize a withdrawal with a Merkle proof.
 neo-bridge withdraw \
   --bridge ... --chain-id 1099 --batch 7 \
-  --leaf 0x...... --leaf-index 3 \
+  --leaf-index 3 \
+  --emitting-contract 0x.... --l2-sender 0x.... \
+  --l2-asset 0x.... --withdrawal-nonce 42 \
   --asset 0x.... --recipient 0x.... --amount 50000000 \
   --proof-endpoint http://l2-rpc:30332
 
@@ -157,7 +159,7 @@ Each CLI's exact wallet-pastable output:
   invocation hex. Paste → sign.
 - **`neo-l2-faucet drip`** — `SharedBridge.Deposit` (rate-limited).
   Paste → sign.
-- **`neo-hub-deploy plan`** — 13 sequential contract-deploy invocations.
-  Sign each in order.
+- **`neo-hub-deploy plan`** — 20 sequential production contract-deploy
+  invocations. Sign each in topological order.
 - **`neo-stack register-chain`** — `ChainRegistry.RegisterChain` invocation
   + 91-byte configBytes hex. Paste → sign.

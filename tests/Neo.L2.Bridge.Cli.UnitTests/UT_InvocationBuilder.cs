@@ -1,7 +1,9 @@
 using System;
 using System.Numerics;
 using Neo;
+using Neo.L2;
 using Neo.L2.Bridge.Cli.Commands;
+using Neo.L2.State;
 using Neo.SmartContract;
 using Neo.VM;
 
@@ -21,7 +23,10 @@ public class UT_InvocationBuilder
     private static readonly UInt160 BridgeHash = UInt160.Parse("0x" + new string('a', 40));
     private static readonly UInt160 AssetHash = UInt160.Parse("0x" + new string('b', 40));
     private static readonly UInt160 RecipientHash = UInt160.Parse("0x" + new string('c', 40));
-    private static readonly UInt256 LeafHash = UInt256.Parse("0x" + new string('d', 64));
+    private static readonly UInt160 EmittingContractHash = UInt160.Parse("0x" + new string('e', 40));
+    private static readonly UInt160 L2SenderHash = UInt160.Parse("0x" + new string('f', 40));
+    private static readonly UInt160 L2AssetHash = UInt160.Parse("0x" + new string('1', 40));
+    private const ulong WithdrawalNonce = 9;
     private const uint TestChainId = 1099;
 
     [TestMethod]
@@ -77,11 +82,14 @@ public class UT_InvocationBuilder
             UInt256.Parse("0x" + new string('1', 64)),
             UInt256.Parse("0x" + new string('2', 64)),
         };
+        var leafHash = LeafFor(amount: 12345);
         var s1 = InvocationBuilder.BuildFinalizeWithdrawalWithProof(
-            BridgeHash, TestChainId, batchNumber: 5, LeafHash, siblings, leafIndex: 1,
+            BridgeHash, TestChainId, batchNumber: 5, leafHash, siblings, leafIndex: 1,
+            EmittingContractHash, L2SenderHash, L2AssetHash, WithdrawalNonce,
             AssetHash, RecipientHash, amount: 12345);
         var s2 = InvocationBuilder.BuildFinalizeWithdrawalWithProof(
-            BridgeHash, TestChainId, batchNumber: 5, LeafHash, siblings, leafIndex: 1,
+            BridgeHash, TestChainId, batchNumber: 5, leafHash, siblings, leafIndex: 1,
+            EmittingContractHash, L2SenderHash, L2AssetHash, WithdrawalNonce,
             AssetHash, RecipientHash, amount: 12345);
         Assert.IsTrue(s1.Length > 0);
         CollectionAssert.AreEqual(s1, s2);
@@ -99,10 +107,15 @@ public class UT_InvocationBuilder
             UInt256.Parse("0x" + new string('2', 64)),
             UInt256.Parse("0x" + new string('3', 64)),
         };
+        var leafHash = LeafFor(amount: 1);
         var s1 = InvocationBuilder.BuildFinalizeWithdrawalWithProof(
-            BridgeHash, TestChainId, 5, LeafHash, depth1, 0, AssetHash, RecipientHash, 1);
+            BridgeHash, TestChainId, 5, leafHash, depth1, 0,
+            EmittingContractHash, L2SenderHash, L2AssetHash, WithdrawalNonce,
+            AssetHash, RecipientHash, 1);
         var s3 = InvocationBuilder.BuildFinalizeWithdrawalWithProof(
-            BridgeHash, TestChainId, 5, LeafHash, depth3, 0, AssetHash, RecipientHash, 1);
+            BridgeHash, TestChainId, 5, leafHash, depth3, 0,
+            EmittingContractHash, L2SenderHash, L2AssetHash, WithdrawalNonce,
+            AssetHash, RecipientHash, 1);
         CollectionAssert.AreNotEqual(s1, s3);
     }
 
@@ -112,7 +125,9 @@ public class UT_InvocationBuilder
         var siblings = new[] { UInt256.Parse("0x" + new string('1', 64)) };
         Assert.ThrowsExactly<ArgumentException>(() =>
             InvocationBuilder.BuildFinalizeWithdrawalWithProof(
-                BridgeHash, chainId: 0, 5, LeafHash, siblings, 0, AssetHash, RecipientHash, 1));
+                BridgeHash, chainId: 0, 5, LeafFor(amount: 1), siblings, 0,
+                EmittingContractHash, L2SenderHash, L2AssetHash, WithdrawalNonce,
+                AssetHash, RecipientHash, 1));
     }
 
     [TestMethod]
@@ -121,8 +136,32 @@ public class UT_InvocationBuilder
         var siblings = new[] { UInt256.Parse("0x" + new string('1', 64)) };
         Assert.ThrowsExactly<ArgumentException>(() =>
             InvocationBuilder.BuildFinalizeWithdrawalWithProof(
-                BridgeHash, TestChainId, 5, LeafHash, siblings, 0, AssetHash, RecipientHash, amount: 0));
+                BridgeHash, TestChainId, 5, LeafFor(amount: 1), siblings, 0,
+                EmittingContractHash, L2SenderHash, L2AssetHash, WithdrawalNonce,
+                AssetHash, RecipientHash, amount: 0));
     }
+
+    [TestMethod]
+    public void FinalizeWithdrawalWithProof_RejectsLeafPreimageMismatch()
+    {
+        var siblings = new[] { UInt256.Parse("0x" + new string('1', 64)) };
+        var wrongLeaf = UInt256.Parse("0x" + new string('9', 64));
+        Assert.ThrowsExactly<ArgumentException>(() =>
+            InvocationBuilder.BuildFinalizeWithdrawalWithProof(
+                BridgeHash, TestChainId, 5, wrongLeaf, siblings, 0,
+                EmittingContractHash, L2SenderHash, L2AssetHash, WithdrawalNonce,
+                AssetHash, RecipientHash, amount: 12345));
+    }
+
+    private static UInt256 LeafFor(BigInteger amount) => MessageHasher.HashWithdrawal(new WithdrawalRequest
+    {
+        EmittingContract = EmittingContractHash,
+        L2Sender = L2SenderHash,
+        L1Recipient = RecipientHash,
+        L2Asset = L2AssetHash,
+        Amount = amount,
+        Nonce = WithdrawalNonce,
+    });
 
     /// <summary>Search for the exact ASCII method name embedded in the script as PUSHDATA bytes.</summary>
     private static bool ContainsMethodName(byte[] script, string name)

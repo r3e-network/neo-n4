@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Neo;
 using Neo.Extensions.VM;
+using Neo.L2;
+using Neo.L2.State;
 using Neo.SmartContract;
 using Neo.VM;
 
@@ -40,7 +43,7 @@ internal static class InvocationBuilder
 
     /// <summary>
     /// Build the canonical invocation script for
-    /// <c>SharedBridge.FinalizeWithdrawalWithProof(chainId, batchNumber, withdrawalLeafHash, siblings, leafIndex, asset, recipient, amount)</c>.
+    /// <c>SharedBridge.FinalizeWithdrawalWithProof(chainId, batchNumber, withdrawalLeafHash, siblings, leafIndex, emittingContract, l2Sender, l2Asset, withdrawalNonce, asset, recipient, amount)</c>.
     /// </summary>
     public static byte[] BuildFinalizeWithdrawalWithProof(
         UInt160 bridge,
@@ -49,6 +52,10 @@ internal static class InvocationBuilder
         UInt256 withdrawalLeafHash,
         IReadOnlyList<UInt256> siblings,
         ulong leafIndex,
+        UInt160 emittingContract,
+        UInt160 l2Sender,
+        UInt160 l2Asset,
+        ulong withdrawalNonce,
         UInt160 asset,
         UInt160 recipient,
         BigInteger amount)
@@ -56,10 +63,24 @@ internal static class InvocationBuilder
         ArgumentNullException.ThrowIfNull(bridge);
         ArgumentNullException.ThrowIfNull(withdrawalLeafHash);
         ArgumentNullException.ThrowIfNull(siblings);
+        ArgumentNullException.ThrowIfNull(emittingContract);
+        ArgumentNullException.ThrowIfNull(l2Sender);
+        ArgumentNullException.ThrowIfNull(l2Asset);
         ArgumentNullException.ThrowIfNull(asset);
         ArgumentNullException.ThrowIfNull(recipient);
         if (chainId == 0) throw new ArgumentException("chainId 0 is reserved for L1", nameof(chainId));
         if (amount <= 0) throw new ArgumentException("amount must be positive", nameof(amount));
+        var expectedLeaf = MessageHasher.HashWithdrawal(new WithdrawalRequest
+        {
+            EmittingContract = emittingContract,
+            L2Sender = l2Sender,
+            L1Recipient = recipient,
+            L2Asset = l2Asset,
+            Amount = amount,
+            Nonce = withdrawalNonce,
+        });
+        if (!expectedLeaf.Equals(withdrawalLeafHash))
+            throw new ArgumentException("withdrawal leaf hash does not match the supplied withdrawal preimage", nameof(withdrawalLeafHash));
 
         // The contract's `byte[][] siblings` parameter requires an array-of-byte-arrays
         // pushed via the ContractParameter wrapper (Neo's EmitPush(object) doesn't have a
@@ -90,6 +111,10 @@ internal static class InvocationBuilder
                 withdrawalLeafHash,
                 siblingsArrayParam,
                 leafIndex,
+                emittingContract,
+                l2Sender,
+                l2Asset,
+                withdrawalNonce,
                 asset,
                 recipient,
                 amount,

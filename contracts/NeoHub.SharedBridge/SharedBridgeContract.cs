@@ -67,6 +67,14 @@ public class SharedBridgeContract : SmartContract
         return raw == null ? UInt160.Zero : (UInt160)raw;
     }
 
+    /// <summary>Hash of the TokenRegistry contract used to bind L1 payout assets to L2 withdrawal assets.</summary>
+    [Safe]
+    public static UInt160 GetTokenRegistry()
+    {
+        var raw = Storage.Get(new byte[] { PrefixTokenRegistry });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
     /// <summary>
     /// Lock <paramref name="amount"/> of <paramref name="asset"/> from <see cref="Runtime.CallingScriptHash"/>'s
     /// allowance, allocate a deposit nonce for <paramref name="targetChainId"/>, and emit the
@@ -113,11 +121,18 @@ public class SharedBridgeContract : SmartContract
     public static void FinalizeWithdrawal(
         uint chainId,
         UInt256 withdrawalLeafHash,
+        UInt160 emittingContract,
+        UInt160 l2Sender,
+        UInt160 l2Asset,
+        ulong withdrawalNonce,
         UInt160 asset,
         UInt160 recipient,
         BigInteger amount)
     {
         ValidateWithdrawalArgs(chainId, asset, recipient, amount);
+        ValidateWithdrawalLeafBinding(
+            chainId, withdrawalLeafHash, emittingContract, l2Sender,
+            l2Asset, withdrawalNonce, asset, recipient, amount);
         var consumedKey = WithdrawalKey(chainId, withdrawalLeafHash);
         ExecutionEngine.Assert(Storage.Get(consumedKey) == null, "withdrawal already consumed");
 
@@ -141,11 +156,18 @@ public class SharedBridgeContract : SmartContract
         uint chainId,
         ulong batchNumber,
         UInt256 withdrawalLeafHash,
+        UInt160 emittingContract,
+        UInt160 l2Sender,
+        UInt160 l2Asset,
+        ulong withdrawalNonce,
         UInt160 asset,
         UInt160 recipient,
         BigInteger amount)
     {
         ValidateWithdrawalArgs(chainId, asset, recipient, amount);
+        ValidateWithdrawalLeafBinding(
+            chainId, withdrawalLeafHash, emittingContract, l2Sender,
+            l2Asset, withdrawalNonce, asset, recipient, amount);
         var consumedKey = WithdrawalKey(chainId, withdrawalLeafHash);
         ExecutionEngine.Assert(Storage.Get(consumedKey) == null, "withdrawal already consumed");
 
@@ -177,11 +199,18 @@ public class SharedBridgeContract : SmartContract
         UInt256 withdrawalLeafHash,
         byte[][] siblings,
         ulong leafIndex,
+        UInt160 emittingContract,
+        UInt160 l2Sender,
+        UInt160 l2Asset,
+        ulong withdrawalNonce,
         UInt160 asset,
         UInt160 recipient,
         BigInteger amount)
     {
         ValidateWithdrawalArgs(chainId, asset, recipient, amount);
+        ValidateWithdrawalLeafBinding(
+            chainId, withdrawalLeafHash, emittingContract, l2Sender,
+            l2Asset, withdrawalNonce, asset, recipient, amount);
         var consumedKey = WithdrawalKey(chainId, withdrawalLeafHash);
         ExecutionEngine.Assert(Storage.Get(consumedKey) == null, "withdrawal already consumed");
 
@@ -201,6 +230,104 @@ public class SharedBridgeContract : SmartContract
         ExecutionEngine.Assert(amount > 0, "amount must be positive");
         ExecutionEngine.Assert(asset.IsValid && !asset.IsZero, "invalid asset");
         ExecutionEngine.Assert(recipient.IsValid && !recipient.IsZero, "invalid recipient");
+    }
+
+    private static void ValidateWithdrawalLeafBinding(
+        uint chainId,
+        UInt256 withdrawalLeafHash,
+        UInt160 emittingContract,
+        UInt160 l2Sender,
+        UInt160 l2Asset,
+        ulong withdrawalNonce,
+        UInt160 asset,
+        UInt160 recipient,
+        BigInteger amount)
+    {
+        ExecutionEngine.Assert(emittingContract.IsValid && !emittingContract.IsZero, "invalid emitting contract");
+        ExecutionEngine.Assert(l2Sender.IsValid && !l2Sender.IsZero, "invalid L2 sender");
+        ExecutionEngine.Assert(l2Asset.IsValid && !l2Asset.IsZero, "invalid L2 asset");
+
+        var expected = ComputeWithdrawalLeafHash(
+            emittingContract, l2Sender, recipient, l2Asset, amount, withdrawalNonce);
+        ExecutionEngine.Assert(expected.Equals(withdrawalLeafHash), "withdrawal leaf preimage mismatch");
+
+        var registry = GetTokenRegistry();
+        ExecutionEngine.Assert(registry.IsValid && !registry.IsZero, "token registry not wired");
+        var mappedL2Asset = (UInt160)Contract.Call(
+            registry,
+            "getL2Asset",
+            CallFlags.ReadOnly,
+            new object[] { asset, chainId });
+        ExecutionEngine.Assert(mappedL2Asset.Equals(l2Asset), "L1 asset does not map to withdrawal L2 asset");
+
+        var active = (bool)Contract.Call(
+            registry,
+            "isActive",
+            CallFlags.ReadOnly,
+            new object[] { asset, chainId });
+        ExecutionEngine.Assert(active, "asset mapping inactive");
+    }
+
+    private static UInt256 ComputeWithdrawalLeafHash(
+        UInt160 emittingContract,
+        UInt160 l2Sender,
+        UInt160 l1Recipient,
+        UInt160 l2Asset,
+        BigInteger amount,
+        ulong nonce)
+    {
+        var amountBytes = ToUnsignedLittleEndian(amount);
+        ExecutionEngine.Assert(amountBytes.Length <= 64, "amount too large");
+
+        var totalLen = 20 + 20 + 20 + 20 + 4 + amountBytes.Length + 8;
+        var buf = new byte[totalLen];
+        var pos = 0;
+
+        WriteUInt160(buf, pos, emittingContract);
+        pos += 20;
+        WriteUInt160(buf, pos, l2Sender);
+        pos += 20;
+        WriteUInt160(buf, pos, l1Recipient);
+        pos += 20;
+        WriteUInt160(buf, pos, l2Asset);
+        pos += 20;
+
+        var amountLen = amountBytes.Length;
+        buf[pos++] = (byte)amountLen;
+        buf[pos++] = (byte)(amountLen >> 8);
+        buf[pos++] = (byte)(amountLen >> 16);
+        buf[pos++] = (byte)(amountLen >> 24);
+        for (var i = 0; i < amountLen; i++) buf[pos + i] = amountBytes[i];
+        pos += amountLen;
+
+        buf[pos++] = (byte)nonce;
+        buf[pos++] = (byte)(nonce >> 8);
+        buf[pos++] = (byte)(nonce >> 16);
+        buf[pos++] = (byte)(nonce >> 24);
+        buf[pos++] = (byte)(nonce >> 32);
+        buf[pos++] = (byte)(nonce >> 40);
+        buf[pos++] = (byte)(nonce >> 48);
+        buf[pos++] = (byte)(nonce >> 56);
+
+        var h1 = CryptoLib.Sha256((ByteString)buf);
+        return (UInt256)(byte[])CryptoLib.Sha256(h1);
+    }
+
+    private static byte[] ToUnsignedLittleEndian(BigInteger value)
+    {
+        var raw = value.ToByteArray();
+        var len = raw.Length;
+        while (len > 1 && raw[len - 1] == 0) len--;
+
+        var trimmed = new byte[len];
+        for (var i = 0; i < len; i++) trimmed[i] = raw[i];
+        return trimmed;
+    }
+
+    private static void WriteUInt160(byte[] destination, int offset, UInt160 value)
+    {
+        var bytes = (byte[])value;
+        for (var i = 0; i < 20; i++) destination[offset + i] = bytes[i];
     }
 
     private static void ConsumeAndPayout(byte[] consumedKey, uint chainId, UInt160 asset, UInt160 recipient, BigInteger amount)

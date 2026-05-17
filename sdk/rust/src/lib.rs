@@ -266,7 +266,11 @@ pub enum L2RpcError {
 
     /// Server returned a JSON-RPC error response.
     #[error("server: {method}: code {code}: {message}")]
-    Server { method: String, code: i32, message: String },
+    Server {
+        method: String,
+        code: i32,
+        message: String,
+    },
 
     /// Server's chainId differs from the client's. Config error — don't retry.
     #[error("mismatched chainId: {method}: expected {expected}, got {got}")]
@@ -332,15 +336,19 @@ impl L2RpcClient {
 
     pub async fn get_batch(&self, batch_number: u64) -> Result<Option<L2BatchView>> {
         let value = self
-            .call("getl2batch", serde_json::json!([self.chain_id, batch_number]))
+            .call(
+                "getl2batch",
+                serde_json::json!([self.chain_id, batch_number]),
+            )
             .await?;
         if value.is_null() {
             return Ok(None);
         }
-        let batch: L2BatchView = serde_json::from_value(value).map_err(|e| L2RpcError::Protocol {
-            method: "getl2batch".to_string(),
-            message: format!("decode failed: {}", e),
-        })?;
+        let batch: L2BatchView =
+            serde_json::from_value(value).map_err(|e| L2RpcError::Protocol {
+                method: "getl2batch".to_string(),
+                message: format!("decode failed: {}", e),
+            })?;
         if batch.chain_id != self.chain_id {
             return Err(L2RpcError::MismatchedChainId {
                 method: "getl2batch".to_string(),
@@ -558,7 +566,11 @@ impl L2RpcClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "<no body>".to_string());
-            let snippet = if text.len() > 200 { &text[..200] } else { &text };
+            let snippet = if text.len() > 200 {
+                &text[..200]
+            } else {
+                &text
+            };
             return Err(L2RpcError::Transport {
                 method: method.to_string(),
                 message: format!("http {}: {}", status, snippet),
@@ -581,10 +593,7 @@ impl L2RpcClient {
             });
         }
         if let Some(error) = envelope.get("error").filter(|v| !v.is_null()) {
-            let code = error
-                .get("code")
-                .and_then(|v| v.as_i64())
-                .unwrap_or(-32603) as i32;
+            let code = error.get("code").and_then(|v| v.as_i64()).unwrap_or(-32603) as i32;
             let msg = error
                 .get("message")
                 .and_then(|v| v.as_str())
@@ -596,13 +605,16 @@ impl L2RpcClient {
                 message: msg,
             });
         }
-        Ok(envelope.get("result").cloned().unwrap_or(serde_json::Value::Null))
+        Ok(envelope
+            .get("result")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null))
     }
 }
 
 fn hex_decode(s: &str) -> std::result::Result<Vec<u8>, String> {
     let s = s.strip_prefix("0x").unwrap_or(s);
-    if s.len() % 2 != 0 {
+    if !s.len().is_multiple_of(2) {
         return Err(format!("odd-length hex string: {}", s.len()));
     }
     let mut out = Vec::with_capacity(s.len() / 2);

@@ -26,6 +26,9 @@ executed by `neo_vm_guest::execute` (vendored from
 VM in pure Rust — opcodes, eval stack, gas accounting, native contracts,
 storage). The proof attests to actual VM execution outcomes — halt or
 fault, gas consumed, top-of-stack result — not a hash of the input bytes.
+Canonical batch parsing, L1 message folding, tx/receipt Merkle roots,
+state-root folding, and public-input hashing live in
+`bridge/neo-execution-core`, which has no SP1 or PolkaVM dependency.
 
 ## Build
 
@@ -50,7 +53,7 @@ functions on the host:
 
 ```bash
 cargo test
-# → 8 tests passed (parse + execute + Merkle determinism + version/truncation rejection)
+# → 7 guest tests + 5 shared-core tests in the top-level workspace
 ```
 
 ## Wire format
@@ -75,13 +78,11 @@ verifier compares against `L2BatchCommitment.PublicInputHash`.
 
 ## What this crate does
 
-1. Parses the canonical wire-format batch request.
-2. Applies any L1→L2 messages to the state (hashing each into the state root).
-3. **Executes each tx through real Neo N3 VM** via `neo_vm_guest::execute`,
+1. Delegates canonical batch parsing and root folding to `neo-execution-core`.
+2. **Executes each tx through real Neo N3 VM** via `neo_vm_guest::execute`,
    folding the resulting `ProofOutput` (state, gas, top-of-stack, error)
-   into the receipt digest and state root.
-4. Computes Merkle roots over per-tx hashes + per-receipt hashes.
-5. Commits a public-input bundle hash to the SP1 output stream.
+   into a backend-neutral `VmExecutionReceipt`.
+3. Commits the shared core's public-input bundle hash to the SP1 output stream.
 
 ## End-to-end proving
 

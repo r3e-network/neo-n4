@@ -5,7 +5,7 @@
 
 ---
 
-## 测试面(1426 .NET + 155 跨语言 + 2 SP1 发布关口)
+## 测试面(1426 .NET + 159 跨语言 + 2 SP1 发布关口)
 
 | 层 | 框架 | 位置 | 内容 |
 |---|---|---|---|
@@ -20,7 +20,8 @@
 | Live-RPC | Rust `--features live-rpc` | `watchers/neo-bridge-watcher-eth/tests/`(55 测试) | 进程内 `FakeRpcServer` —— 通过真实 `reqwest::blocking` HTTP 周期演练 `EthRpcEventSource`+`NeoRpcSubmitter` |
 | TS SDK | vitest | `sdk/typescript/`(15 测试) | RPC client 表面;.NET / Rust / TS 错误分类对等 |
 | Rust SDK | cargo test + mockito | `sdk/rust/`(10 测试) | RPC client;与 TS + .NET 表面相同 |
-| zkvm-guest | cargo test | `bridge/neo-zkvm-guest/`(8 测试) | 纯 Rust 主机模式执行 Neo N3 VM |
+| execution-core | cargo test | `bridge/neo-execution-core/`(5 测试) | 后端无关的批次解析、receipt/state 折叠、Merkle 确定性、后端依赖守卫 |
+| zkvm-guest | cargo test | `bridge/neo-zkvm-guest/`(7 测试) | 通过共享 batch core 在主机模式执行 Neo N3 VM |
 
 ---
 

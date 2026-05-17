@@ -82,13 +82,15 @@
   (`@neo-n4/sdk`)· `sdk/rust/`(`neo-n4-sdk`)。
 - **Web 应用(1)** —— `sdk/web-explorer/index.html` —— 单文件静态 UI:
   Explore + Bridge + Faucet + Audit。
-- **Rust 证明者(2)** —— `bridge/neo-zkvm-host/`(sp1-sdk 6.2.1 证明者 +
-  `prove-batch daemon`)· `bridge/neo-zkvm-guest/`(被证明的函数)。
+- **Rust 证明者/核心(3)** —— `bridge/neo-execution-core/`(后端无关的批次解析、
+  receipt/state 折叠、Merkle root、public-input hash, 无 SP1/PolkaVM 依赖)·
+  `bridge/neo-zkvm-host/`(sp1-sdk 6.2.1 证明者 + `prove-batch daemon`)·
+  `bridge/neo-zkvm-guest/`(被证明的函数)。
 - **Submodule(4)** —— `external/neo`、`external/neo-devpack-dotnet`、
   `external/neo-riscv-vm`、`external/neo-zkvm`。
-- **测试(1426 .NET + 155 跨语言)** —— 34 个 .NET 工程的 1426 条测试;
-  15 TS + 10 Rust SDK + 8 SP1 guest + 103 Rust 桥 watcher(eth 87 / tron 7 / sol 9)
-  + 20 Foundry —— 全绿。
+- **测试(1426 .NET + 159 跨语言)** —— 34 个 .NET 工程的 1426 条测试;
+  15 TS + 10 Rust SDK + 5 shared execution-core + 7 SP1 guest +
+  101 Rust 桥 watcher(eth 85 / tron 7 / sol 9) + 20 Foundry + 1 Solana Anchor —— 全绿。
 
 ---
 

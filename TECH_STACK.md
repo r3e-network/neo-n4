@@ -76,9 +76,9 @@ Per-component detail lives in [`docs/tech-stack-coverage.md`](docs/tech-stack-co
 | Check | Result |
 |-------|--------|
 | .NET tests | **1426 passing across 34 projects, 0 failures** |
-| Cross-language tests | **155 passing** (15 TS + 10 Rust SDK + 8 SP1 guest + 101 watcher with `--features live-rpc` + 20 Foundry + 1 Solana Anchor) |
+| Cross-language tests | **159 passing** (15 TS + 10 Rust SDK + 5 shared execution-core + 7 SP1 guest + 101 watcher with `--features live-rpc` + 20 Foundry + 1 Solana Anchor) |
 | Real-CPU SP1 proof generation | **2 ignored release-gate tests** (~40s prove, ~20s verify, 2.78 MB proof artifact) |
-| **Base tests green** | **1581** |
+| **Base tests green** | **1585** |
 | Smart contract artifacts | 35/35 `.nef` + `.manifest.json` compile cleanly via `nccs 3.9.1` |
 | Devnet 5-batch end-to-end | green (state-root continuity, multisig proofs, audit pass) |
 | `dotnet build Neo.L2.sln` | 107 solution projects, 0 errors, 0 warnings |

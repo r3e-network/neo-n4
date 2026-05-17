@@ -98,7 +98,9 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
 - **Web app (1)** — `sdk/web-explorer/index.html` — single static-file
   UI: Explore + Bridge + Faucet + state-root continuity Audit.
 - **Docs site config (1)** — `book.toml` + `docs/SUMMARY.md` (mdBook).
-- **Rust prover (2)** — `bridge/neo-zkvm-host/` (sp1-sdk 6.2.1 prover +
+- **Rust prover/core (3)** — `bridge/neo-execution-core/` (backend-neutral
+  batch parsing, receipt/state folding, Merkle roots, public-input hash; no
+  SP1/PolkaVM dependency) · `bridge/neo-zkvm-host/` (sp1-sdk 6.2.1 prover +
   `prove-batch daemon`) · `bridge/neo-zkvm-guest/` (the function being
   proved — RISC-V ELF, real Neo N3 VM via `neo_vm_guest::execute`).
 - **Submodules (4)** — `external/neo` (Neo 4 core) ·
@@ -106,8 +108,9 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
   `external/neo-riscv-vm` (PolkaVM-backed Neo RISC-V engine) ·
   `external/neo-zkvm` (Neo VM in pure Rust + SP1 prover crates). None
   are released on NuGet/crates.io for the versions tracked here.
-- **Tests (1426 .NET + 155 cross-lang)** — 1426 across 34 .NET projects;
-  15 TypeScript (vitest) + 10 Rust SDK (mockito) + 8 SP1 guest (host)
+- **Tests (1426 .NET + 159 cross-lang)** — 1426 across 34 .NET projects;
+  15 TypeScript (vitest) + 10 Rust SDK (mockito) + 5 shared execution-core
+  + 7 SP1 guest (host)
   + 101 Rust bridge watchers (eth 85 / tron 7 / sol 9) + 20 Foundry + 1 Solana Anchor —
   all green.
 
@@ -138,6 +141,7 @@ neo4/
 │   ├── contracts/                          # Sample.CrossChainGreeter, Sample.WithdrawalDemo
 │   └── executors/                          # Sample.CounterChainExecutor + scaffold target
 ├── bridge/
+│   ├── neo-execution-core/                 # backend-neutral batch fold + public input hash
 │   ├── neo-zkvm-guest/                     # Rust → RISC-V ELF (real Neo VM, SP1-proven)
 │   └── neo-zkvm-host/                      # sp1-sdk 6.2.1 prover daemon (prove-batch)
 └── tests/                                  # 1426 tests / 34 projects

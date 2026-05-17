@@ -1,0 +1,9 @@
+[package]
+name = "neo-execution-core"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Backend-agnostic Neo L2 batch execution primitives shared by fast RISC-V runners and zkVM guests."
+
+[dependencies]
+sha2 = { version = "0.11", default-features = false }

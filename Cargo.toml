@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "bridge/neo-execution-core",
     "bridge/neo-zkvm-guest",
     "bridge/neo-zkvm-host",
     "sdk/rust",

@@ -6,7 +6,7 @@ where each piece of the system lives.
 
 ---
 
-## Test surface (1426 .NET + 155 cross-language base + SP1 host E2E on Linux/macOS)
+## Test surface (1426 .NET + 159 cross-language base + SP1 host E2E on Linux/macOS)
 
 | Tier | Framework | Where | What |
 |------|-----------|-------|------|
@@ -21,7 +21,8 @@ where each piece of the system lives.
 | Live-RPC | Rust `--features live-rpc` | `watchers/neo-bridge-watcher-eth/tests/` (55 tests) | `FakeRpcServer` in-process — exercises `EthRpcEventSource`+`NeoRpcSubmitter` through real `reqwest::blocking` HTTP cycles |
 | TS SDK | vitest | `sdk/typescript/` (15 tests) | RPC client surface; error-taxonomy parity across .NET / Rust / TS |
 | Rust SDK | cargo test + mockito | `sdk/rust/` (10 tests) | RPC client; same surface as TS + .NET |
-| zkvm-guest | cargo test | `bridge/neo-zkvm-guest/` (8 tests) | Host-mode execution of the Neo N3 VM in pure Rust |
+| execution-core | cargo test | `bridge/neo-execution-core/` (5 tests) | Backend-neutral batch parsing, receipt/state folding, Merkle determinism, backend-dependency guard |
+| zkvm-guest | cargo test | `bridge/neo-zkvm-guest/` (7 tests) | Host-mode execution of the Neo N3 VM through the shared batch core |
 
 ---
 

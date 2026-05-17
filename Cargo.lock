@@ -2137,6 +2137,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "neo-execution-core"
+version = "0.1.0"
+dependencies = [
+ "sha2 0.11.0",
+]
+
+[[package]]
 name = "neo-n4-sdk"
 version = "0.1.0"
 dependencies = [
@@ -2176,8 +2183,8 @@ dependencies = [
 name = "neo-zkvm-guest"
 version = "0.1.0"
 dependencies = [
+ "neo-execution-core",
  "neo-vm-guest",
- "sha2 0.11.0",
  "sp1-zkvm",
 ]
 

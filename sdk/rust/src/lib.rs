@@ -304,11 +304,10 @@ impl L2RpcClient {
         }
         // Validate URL via reqwest's parsing — keeps the dep tree minimal vs
         // adding a top-level `url` crate.
-        let _ = reqwest::Url::parse(&endpoint).map_err(|e| L2RpcError::Protocol {
+        let parsed = reqwest::Url::parse(&endpoint).map_err(|e| L2RpcError::Protocol {
             method: "<ctor>".to_string(),
             message: format!("invalid endpoint URL: {}", e),
         })?;
-        let parsed = reqwest::Url::parse(&endpoint).unwrap();
         if parsed.scheme() != "http" && parsed.scheme() != "https" {
             return Err(L2RpcError::Protocol {
                 method: "<ctor>".to_string(),

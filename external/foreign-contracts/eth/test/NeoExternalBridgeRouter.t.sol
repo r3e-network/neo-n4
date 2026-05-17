@@ -93,7 +93,7 @@ contract NeoExternalBridgeRouterTest is Test {
     function test_SetCommittee_RejectsDuplicates() public {
         address[] memory members = new address[](3);
         members[0] = signer0;
-        members[1] = signer0;     // dup
+        members[1] = signer0; // dup
         members[2] = signer2;
         vm.expectRevert("duplicate member");
         router.setCommittee(members, 2);
@@ -121,7 +121,8 @@ contract NeoExternalBridgeRouterTest is Test {
         token.approve(address(router), 1000);
         bytes20 recipient = bytes20(uint160(0xCAFEBABE));
 
-        uint64 nonce = router.lockERC20AndSend(NEO_L2, recipient, address(token), 1000, hex"AABBCC", 0);
+        uint64 nonce =
+            router.lockERC20AndSend(NEO_L2, recipient, address(token), 1000, hex"AABBCC", 0);
         assertEq(nonce, 1);
         assertEq(router.lockedBalances(address(token)), 1000);
         assertEq(token.balanceOf(address(router)), 1000);
@@ -135,7 +136,7 @@ contract NeoExternalBridgeRouterTest is Test {
 
     function test_BareETHTransfer_Reverts() public {
         vm.deal(address(this), 1 ether);
-        (bool sent, ) = address(router).call{value: 0.5 ether}("");
+        (bool sent,) = address(router).call{value: 0.5 ether}("");
         assertFalse(sent, "bare transfer must revert");
     }
 
@@ -149,25 +150,22 @@ contract NeoExternalBridgeRouterTest is Test {
         address asset,
         uint256 amount,
         uint64 deadline
-    ) internal view returns (bytes memory) {
+    ) internal pure returns (bytes memory) {
         // Asset-transfer payload: [20B foreignAsset][4B amountLen][amountLen B amount LE]
         bytes memory amountBytes = _amountToLE(amount);
-        bytes memory payload = abi.encodePacked(
-            asset,
-            uint32_LE(uint32(amountBytes.length)),
-            amountBytes
-        );
+        bytes memory payload =
+            abi.encodePacked(asset, uint32_LE(uint32(amountBytes.length)), amountBytes);
 
         return abi.encodePacked(
-            uint32_LE(ETH_SEPOLIA),     // externalChainId  4B
-            uint32_LE(NEO_L2),           // neoChainId        4B
-            uint64_LE(nonce),            // nonce             8B
-            uint8(1),                    // direction=NeoToForeign  1B
-            bytes20(0),                  // sender            20B (zero on Neo side)
+            uint32_LE(ETH_SEPOLIA), // externalChainId  4B
+            uint32_LE(NEO_L2), // neoChainId        4B
+            uint64_LE(nonce), // nonce             8B
+            uint8(1), // direction=NeoToForeign  1B
+            bytes20(0), // sender            20B (zero on Neo side)
             bytes20(uint160(recipient)), // recipient         20B
-            uint64_LE(deadline),         // deadline          8B
-            bytes32(0),                  // sourceTxRef       32B
-            uint8(0),                    // messageType=AssetTransfer  1B
+            uint64_LE(deadline), // deadline          8B
+            bytes32(0), // sourceTxRef       32B
+            uint8(0), // messageType=AssetTransfer  1B
             uint32_LE(uint32(payload.length)),
             payload
         );
@@ -179,7 +177,10 @@ contract NeoExternalBridgeRouterTest is Test {
         uint256 v = amount;
         uint256 len = 0;
         uint256 tmp = v;
-        while (tmp > 0) { len++; tmp >>= 8; }
+        while (tmp > 0) {
+            len++;
+            tmp >>= 8;
+        }
         bytes memory b = new bytes(len);
         for (uint256 i = 0; i < len; i++) {
             b[i] = bytes1(uint8(v >> (i * 8)));
@@ -193,7 +194,9 @@ contract NeoExternalBridgeRouterTest is Test {
 
     function uint64_LE(uint64 v) internal pure returns (bytes memory) {
         bytes memory b = new bytes(8);
-        for (uint256 i = 0; i < 8; i++) b[i] = bytes1(uint8(v >> (i * 8)));
+        for (uint256 i = 0; i < 8; i++) {
+            b[i] = bytes1(uint8(v >> (i * 8)));
+        }
         return b;
     }
 
@@ -221,8 +224,12 @@ contract NeoExternalBridgeRouterTest is Test {
         for (uint256 i = 0; i < indices.length; i++) {
             uint256 base = 2 + i * 66;
             out[base] = bytes1(indices[i]);
-            for (uint256 j = 0; j < 32; j++) out[base + 1 + j] = rs[i][j];
-            for (uint256 j = 0; j < 32; j++) out[base + 33 + j] = ss[i][j];
+            for (uint256 j = 0; j < 32; j++) {
+                out[base + 1 + j] = rs[i][j];
+            }
+            for (uint256 j = 0; j < 32; j++) {
+                out[base + 33 + j] = ss[i][j];
+            }
             out[base + 65] = bytes1(vs[i]);
         }
         return out;
@@ -240,16 +247,36 @@ contract NeoExternalBridgeRouterTest is Test {
         (uint8 v0, bytes32 r0, bytes32 s0) = _signBy(priv0, msgBytes);
         (uint8 v1, bytes32 r1, bytes32 s1) = _signBy(priv1, msgBytes);
 
-        uint8[] memory idx = new uint8[](2); idx[0] = 0; idx[1] = 1;
-        uint8[] memory vs = new uint8[](2); vs[0] = v0; vs[1] = v1;
-        bytes32[] memory rs = new bytes32[](2); rs[0] = r0; rs[1] = r1;
-        bytes32[] memory ss = new bytes32[](2); ss[0] = s0; ss[1] = s1;
+        uint8[] memory idx = new uint8[](2);
+        idx[0] = 0;
+        idx[1] = 1;
+        uint8[] memory vs = new uint8[](2);
+        vs[0] = v0;
+        vs[1] = v1;
+        bytes32[] memory rs = new bytes32[](2);
+        rs[0] = r0;
+        rs[1] = r1;
+        bytes32[] memory ss = new bytes32[](2);
+        ss[0] = s0;
+        ss[1] = s1;
         bytes memory proof = _buildProof(idx, vs, rs, ss);
 
         router.finalizeWithdrawal(msgBytes, proof);
         assertEq(recipient.balance, 1 ether);
         assertEq(router.lockedBalances(address(0)), 0);
         assertTrue(router.consumedInbound(NEO_L2, 42));
+    }
+
+    function test_FinalizeWithdrawal_RejectsBeforeCommitteeRegistered() public {
+        NeoExternalBridgeRouter fresh = new NeoExternalBridgeRouter(ETH_SEPOLIA, address(this));
+        vm.deal(address(this), 1 ether);
+        fresh.lockETHAndSend{value: 1 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
+
+        bytes memory msgBytes = _buildTransferMessage(41, address(0xBEEF), address(0), 1 ether, 0);
+        bytes memory emptyProof = hex"0000";
+
+        vm.expectRevert("committee not registered");
+        fresh.finalizeWithdrawal(msgBytes, emptyProof);
     }
 
     function test_FinalizeWithdrawal_RejectsReplay() public {
@@ -260,10 +287,18 @@ contract NeoExternalBridgeRouterTest is Test {
         bytes memory msgBytes = _buildTransferMessage(42, recipient, address(0), 0.5 ether, 0);
         (uint8 v0, bytes32 r0, bytes32 s0) = _signBy(priv0, msgBytes);
         (uint8 v1, bytes32 r1, bytes32 s1) = _signBy(priv1, msgBytes);
-        uint8[] memory idx = new uint8[](2); idx[0] = 0; idx[1] = 1;
-        uint8[] memory vs = new uint8[](2); vs[0] = v0; vs[1] = v1;
-        bytes32[] memory rs = new bytes32[](2); rs[0] = r0; rs[1] = r1;
-        bytes32[] memory ss = new bytes32[](2); ss[0] = s0; ss[1] = s1;
+        uint8[] memory idx = new uint8[](2);
+        idx[0] = 0;
+        idx[1] = 1;
+        uint8[] memory vs = new uint8[](2);
+        vs[0] = v0;
+        vs[1] = v1;
+        bytes32[] memory rs = new bytes32[](2);
+        rs[0] = r0;
+        rs[1] = r1;
+        bytes32[] memory ss = new bytes32[](2);
+        ss[0] = s0;
+        ss[1] = s1;
         bytes memory proof = _buildProof(idx, vs, rs, ss);
 
         router.finalizeWithdrawal(msgBytes, proof);
@@ -278,10 +313,14 @@ contract NeoExternalBridgeRouterTest is Test {
         bytes memory msgBytes = _buildTransferMessage(43, address(0xBEEF), address(0), 0.5 ether, 0);
         (uint8 v0, bytes32 r0, bytes32 s0) = _signBy(priv0, msgBytes);
         // Only 1 sig but threshold is 2.
-        uint8[] memory idx = new uint8[](1); idx[0] = 0;
-        uint8[] memory vs = new uint8[](1); vs[0] = v0;
-        bytes32[] memory rs = new bytes32[](1); rs[0] = r0;
-        bytes32[] memory ss = new bytes32[](1); ss[0] = s0;
+        uint8[] memory idx = new uint8[](1);
+        idx[0] = 0;
+        uint8[] memory vs = new uint8[](1);
+        vs[0] = v0;
+        bytes32[] memory rs = new bytes32[](1);
+        rs[0] = r0;
+        bytes32[] memory ss = new bytes32[](1);
+        ss[0] = s0;
         bytes memory proof = _buildProof(idx, vs, rs, ss);
 
         vm.expectRevert("below threshold");
@@ -296,10 +335,18 @@ contract NeoExternalBridgeRouterTest is Test {
         (uint8 v0, bytes32 r0, bytes32 s0) = _signBy(priv0, msgBytes);
         // Same signer twice claiming different indices is caught by pubkey
         // check; same signer twice claiming the same index is the bitmap dup.
-        uint8[] memory idx = new uint8[](2); idx[0] = 0; idx[1] = 0;
-        uint8[] memory vs = new uint8[](2); vs[0] = v0; vs[1] = v0;
-        bytes32[] memory rs = new bytes32[](2); rs[0] = r0; rs[1] = r0;
-        bytes32[] memory ss = new bytes32[](2); ss[0] = s0; ss[1] = s0;
+        uint8[] memory idx = new uint8[](2);
+        idx[0] = 0;
+        idx[1] = 0;
+        uint8[] memory vs = new uint8[](2);
+        vs[0] = v0;
+        vs[1] = v0;
+        bytes32[] memory rs = new bytes32[](2);
+        rs[0] = r0;
+        rs[1] = r0;
+        bytes32[] memory ss = new bytes32[](2);
+        ss[0] = s0;
+        ss[1] = s0;
         bytes memory proof = _buildProof(idx, vs, rs, ss);
 
         vm.expectRevert("duplicate signer");
@@ -315,10 +362,18 @@ contract NeoExternalBridgeRouterTest is Test {
         bytes memory msgBytes = _buildTransferMessage(45, address(0xBEEF), address(0), 0.5 ether, 1);
         (uint8 v0, bytes32 r0, bytes32 s0) = _signBy(priv0, msgBytes);
         (uint8 v1, bytes32 r1, bytes32 s1) = _signBy(priv1, msgBytes);
-        uint8[] memory idx = new uint8[](2); idx[0] = 0; idx[1] = 1;
-        uint8[] memory vs = new uint8[](2); vs[0] = v0; vs[1] = v1;
-        bytes32[] memory rs = new bytes32[](2); rs[0] = r0; rs[1] = r1;
-        bytes32[] memory ss = new bytes32[](2); ss[0] = s0; ss[1] = s1;
+        uint8[] memory idx = new uint8[](2);
+        idx[0] = 0;
+        idx[1] = 1;
+        uint8[] memory vs = new uint8[](2);
+        vs[0] = v0;
+        vs[1] = v1;
+        bytes32[] memory rs = new bytes32[](2);
+        rs[0] = r0;
+        rs[1] = r1;
+        bytes32[] memory ss = new bytes32[](2);
+        ss[0] = s0;
+        ss[1] = s1;
         bytes memory proof = _buildProof(idx, vs, rs, ss);
 
         vm.expectRevert("message past deadline");
@@ -332,7 +387,7 @@ contract NeoExternalBridgeRouterTest is Test {
         // Build a message claiming a DIFFERENT externalChainId (Tron) — the
         // router for Eth must reject.
         bytes memory msgBytes = abi.encodePacked(
-            uint32_LE(0xE0000010),       // Tron, not Sepolia
+            uint32_LE(0xE0000010), // Tron, not Sepolia
             uint32_LE(NEO_L2),
             uint64_LE(46),
             uint8(1),
@@ -343,7 +398,7 @@ contract NeoExternalBridgeRouterTest is Test {
             uint8(0),
             uint32_LE(0)
         );
-        bytes memory proof = hex"0000";  // empty proof — won't get there
+        bytes memory proof = hex"0000"; // empty proof — won't get there
         vm.expectRevert("externalChainId mismatch");
         router.finalizeWithdrawal(msgBytes, proof);
     }

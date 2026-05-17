@@ -133,7 +133,10 @@ contract NeoExternalBridgeRouter {
     // ─── constructor ──────────────────────────────────────────────────────
 
     constructor(uint32 _externalChainId, address _owner) {
-        require(_externalChainId & 0xFF000000 == 0xE0000000, "externalChainId not in 0xE0_xx_xx_xx namespace");
+        require(
+            _externalChainId & 0xFF000000 == 0xE0000000,
+            "externalChainId not in 0xE0_xx_xx_xx namespace"
+        );
         require(_owner != address(0), "zero owner");
         externalChainId = _externalChainId;
         owner = _owner;
@@ -198,7 +201,17 @@ contract NeoExternalBridgeRouter {
 
         lockedBalances[asset] += amount;
         nonce = _allocateNonce(neoChainId);
-        emit Locked(externalChainId, neoChainId, nonce, msg.sender, neoRecipient, asset, amount, payload, deadline);
+        emit Locked(
+            externalChainId,
+            neoChainId,
+            nonce,
+            msg.sender,
+            neoRecipient,
+            asset,
+            amount,
+            payload,
+            deadline
+        );
     }
 
     /// @notice Lock native ETH bound for a Neo chain. Pass `amount` ETH as
@@ -214,7 +227,17 @@ contract NeoExternalBridgeRouter {
 
         lockedBalances[address(0)] += msg.value;
         nonce = _allocateNonce(neoChainId);
-        emit Locked(externalChainId, neoChainId, nonce, msg.sender, neoRecipient, address(0), msg.value, payload, deadline);
+        emit Locked(
+            externalChainId,
+            neoChainId,
+            nonce,
+            msg.sender,
+            neoRecipient,
+            address(0),
+            msg.value,
+            payload,
+            deadline
+        );
     }
 
     function _allocateNonce(uint32 neoChainId) private returns (uint64) {
@@ -290,7 +313,7 @@ contract NeoExternalBridgeRouter {
             consumedInbound[srcNeoChainId][nonce] = true;
 
             if (asset == address(0)) {
-                (bool sent, ) = recipient.call{value: amount}("");
+                (bool sent,) = recipient.call{value: amount}("");
                 require(sent, "ETH transfer failed");
             } else {
                 bool ok = IERC20(asset).transfer(recipient, amount);
@@ -309,14 +332,18 @@ contract NeoExternalBridgeRouter {
     /// @dev    Reverts on any failure (below threshold, duplicate signer,
     ///         signature recovers to non-committee address, etc.).
     function _verifyQuorum(bytes32 digest, bytes calldata proofBytes) private view {
+        uint256 committeeLen = committee.length;
+        require(committeeLen > 0, "committee not registered");
+        require(threshold > 0 && threshold <= committeeLen, "invalid threshold");
+
         require(proofBytes.length >= 2, "proofBytes too short");
         uint16 sigCount = uint16(uint8(proofBytes[0])) | (uint16(uint8(proofBytes[1])) << 8);
         require(sigCount >= threshold, "below threshold");
+        require(sigCount <= committeeLen, "too many signatures");
         // 1B signerIdx + 32B r + 32B s + 1B v = 66 bytes per sig.
         require(proofBytes.length == 2 + uint256(sigCount) * 66, "proofBytes length mismatch");
 
-        uint256 seenBitmap = 0;     // bit i set iff committee[i] has signed
-        uint256 committeeLen = committee.length;
+        uint256 seenBitmap = 0; // bit i set iff committee[i] has signed
 
         for (uint256 i = 0; i < sigCount; i++) {
             uint256 base = 2 + i * 66;
@@ -337,18 +364,17 @@ contract NeoExternalBridgeRouter {
 
             address signer = ecrecover(digest, v, r, s);
             require(signer != address(0), "ecrecover failed (malformed sig)");
-            require(signer == committee[idx],
-                "signer != committee[idx] (sig not from claimed member)");
+            require(
+                signer == committee[idx], "signer != committee[idx] (sig not from claimed member)"
+            );
         }
     }
 
     // ─── byte-readers ─────────────────────────────────────────────────────
 
     function _readUint32LE(bytes calldata data, uint256 offset) private pure returns (uint32) {
-        return uint32(uint8(data[offset]))
-            | (uint32(uint8(data[offset + 1])) << 8)
-            | (uint32(uint8(data[offset + 2])) << 16)
-            | (uint32(uint8(data[offset + 3])) << 24);
+        return uint32(uint8(data[offset])) | (uint32(uint8(data[offset + 1])) << 8)
+            | (uint32(uint8(data[offset + 2])) << 16) | (uint32(uint8(data[offset + 3])) << 24);
     }
 
     function _readUint64LE(bytes calldata data, uint256 offset) private pure returns (uint64) {

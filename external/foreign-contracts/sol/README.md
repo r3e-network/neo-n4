@@ -38,16 +38,15 @@ anchor build                                        # produces target/deploy/*.s
 anchor test                                         # spins up solana-test-validator
 ```
 
-The source has been written carefully against Anchor 0.30 + Solana SDK
+The source has been written carefully against Anchor 1.0 + the current Solana SDK
 1.18 conventions but should be reviewed by a Solana developer before
 mainnet deploy. Specifically:
 
-- The `verify_sigverify_ix_matches` parser checks the ed25519 sigverify
-  instruction's pubkey + message fields match what we expect, but
-  trusts the runtime has already validated the cryptographic check. A
-  v1 review pass should additionally validate the `sig_offset`/`pubkey_offset`/
-  `message_data_offset` headers strictly to defend against malformed
-  sigverify instructions.
+- The `verify_sigverify_ix_matches` parser checks that the ed25519
+  sigverify instruction verified the same in-instruction signature,
+  pubkey, and message tuple that the bridge inspects. Cross-instruction
+  offset references are rejected so a precompile cannot validate one
+  message while the bridge compares another.
 - The recipient address mapping from the canonical 20-byte format to a
   full Solana 32-byte `Pubkey` zero-pads the upper 12 bytes. Operators
   bridging to a Solana account whose pubkey doesn't fit this 20-byte

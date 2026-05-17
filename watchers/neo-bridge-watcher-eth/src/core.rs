@@ -209,7 +209,7 @@ impl<S: Signer, ES: EventSource, NS: NeoSubmitter, J: Journal> WatcherCore<S, ES
 /// - 2^255 → `[0x00, 0x00, ..., 0x00, 0x80]` (32 bytes ending 0x80)
 fn amount_be_to_le_minimal(be: &[u8; 32]) -> Vec<u8> {
     let mut le: Vec<u8> = be.iter().rev().copied().collect();
-    while le.len() > 1 && *le.last().unwrap() == 0 {
+    while le.len() > 1 && le.last().copied() == Some(0) {
         le.pop();
     }
     le

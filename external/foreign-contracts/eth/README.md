@@ -22,8 +22,8 @@ and `doc.md` § 11.3 for the protocol spec.
 ## Files
 
 ```
-src/NeoExternalBridgeRouter.sol            # the contract (393 lines)
-test/NeoExternalBridgeRouter.t.sol         # 13 single-chain Foundry tests
+src/NeoExternalBridgeRouter.sol            # the contract
+test/NeoExternalBridgeRouter.t.sol         # 14 single-chain Foundry tests
 test/NeoExternalBridgeRouterMultiChain.t.sol  # 7 multi-chain Foundry tests
 foundry.toml                                # solc 0.8.24, via_ir, optimizer-on
 ```
@@ -43,11 +43,11 @@ forge build
 forge test -vv
 ```
 
-**20 tests** total:
+**21 tests** total:
 
 | Suite | What it covers |
 |-------|----------------|
-| `NeoExternalBridgeRouter.t.sol` (13) | Constructor namespace check, committee management, ETH + ERC-20 lock paths, full withdrawal happy path with real secp256k1 signatures, and every guard (replay, below-threshold, duplicate signer, past-deadline, wrong-chainId). |
+| `NeoExternalBridgeRouter.t.sol` (14) | Constructor namespace check, committee management, ETH + ERC-20 lock paths, full withdrawal happy path with real secp256k1 signatures, and every guard (unregistered committee, replay, below-threshold, duplicate signer, past-deadline, wrong-chainId). |
 | `NeoExternalBridgeRouterMultiChain.t.sol` (7) | The router really deploys + functions across the EVM family: 14 canonical mainnet slots construct cleanly, 6 testnet slots also construct, 5 boundary cases (ids outside the `0xE0_xx_xx_xx` namespace) revert at construction, BSC + Polygon routers each emit `Locked` with their own externalChainId, a finalizeWithdrawal claiming a different chainId reverts on the wrong router, nonces are per-instance independent, committees are per-instance independent (a Polygon committee signer cannot satisfy BSC's quorum). |
 
 ## Deployment to any EVM chain
@@ -171,6 +171,10 @@ array per signature.
   the verifier with a ZK light client. The router contract surface
   doesn't change across phases — only `setCommittee` becomes inert
   if the deployment moves to ZK verifier mode.
+- **Registered-committee gate**: `finalizeWithdrawal` refuses to verify
+  proofs until `setCommittee` has installed a non-empty committee with a
+  positive threshold. Empty proofs are never valid, even during deployment
+  sequencing.
 - **Replay**: per-(neoChainId, nonce). Inbound nonces are recorded in
   `consumedInbound`; outbound counts up via `outboundNonces`.
 - **Asset accounting**: `lockedBalances[asset]` tracks how much was

@@ -533,7 +533,9 @@ fn journal_info(config: &Config) -> Result<(), String> {
                 bytes.len()
             ));
         }
-        u64::from_le_bytes(bytes.try_into().unwrap())
+        let mut cursor_bytes = [0u8; 8];
+        cursor_bytes.copy_from_slice(&bytes);
+        u64::from_le_bytes(cursor_bytes)
     } else {
         0
     };

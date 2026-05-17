@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using Neo.Cryptography;
+using Neo.Cryptography.ECC;
 
 namespace Neo.External.Bridge.Cli.Commands;
 
@@ -85,24 +87,30 @@ internal static class DeployBundleCommand
         }
 
         var normalizedEthAddrs = new List<string>(ethAddrs.Length);
+        var seenEthAddrs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < ethAddrs.Length; i++)
         {
             if (!TryDecodeHexBytes($"--eth-addresses[{i}]", ethAddrs[i], "20-byte hex address", expectedBytes: 20, out var addrBytes))
                 return 1;
-            normalizedEthAddrs.Add("0x" + GenKeyCommand.HexLower(addrBytes));
+            var normalizedEthAddress = "0x" + GenKeyCommand.HexLower(addrBytes);
+            if (!seenEthAddrs.Add(normalizedEthAddress))
+            {
+                Console.Error.WriteLine($"❌ --eth-addresses[{i}] duplicates an earlier committee address");
+                return 1;
+            }
+            normalizedEthAddrs.Add(normalizedEthAddress);
         }
 
         // Cross-check the committee blob length matches the Eth-address count.
         if (!TryDecodeHexBytes("--committee-blob", blobHex, "hex-encoded committee blob", expectedBytes: null, out var blobBytes))
             return 1;
         var normalizedBlob = GenKeyCommand.HexLower(blobBytes);
-        var blob = blobHex.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? blobHex.Substring(2) : blobHex;
-        if (blob.Length % 66 != 0)
+        if (blobBytes.Length % 33 != 0)
         {
-            Console.Error.WriteLine($"❌ committee-blob hex length {blob.Length} is not a multiple of 66 (33B per pubkey × 2 hex chars)");
+            Console.Error.WriteLine($"❌ committee-blob byte length {blobBytes.Length} is not a multiple of 33 (one compressed secp256k1 pubkey per signer)");
             return 1;
         }
-        var blobCount = blob.Length / 66;
+        var blobCount = blobBytes.Length / 33;
         if (blobCount != ethAddrs.Length)
         {
             Console.Error.WriteLine($"❌ committee-blob has {blobCount} pubkeys but --eth-addresses lists {ethAddrs.Length} — they must agree");
@@ -112,6 +120,17 @@ internal static class DeployBundleCommand
         {
             Console.Error.WriteLine($"❌ --threshold {thresholdByte} > committee size {blobCount}");
             return 1;
+        }
+        if (!TryDeriveCommitteeAddresses(blobBytes, out var derivedEthAddrs))
+            return 1;
+        for (var i = 0; i < normalizedEthAddrs.Count; i++)
+        {
+            if (!StringComparer.OrdinalIgnoreCase.Equals(normalizedEthAddrs[i], derivedEthAddrs[i]))
+            {
+                Console.Error.WriteLine(
+                    $"❌ --eth-addresses[{i}] {normalizedEthAddrs[i]} does not match committee pubkey {i} (expected {derivedEthAddrs[i]})");
+                return 1;
+            }
         }
 
         Console.WriteLine($"# Bridge deploy bundle for externalChainId 0x{externalChainId:X8}");
@@ -207,6 +226,42 @@ internal static class DeployBundleCommand
         return true;
     }
 
+    private static bool TryDeriveCommitteeAddresses(byte[] committeeBlob, out List<string> ethAddresses)
+    {
+        ethAddresses = new List<string>(committeeBlob.Length / 33);
+        var seenPubkeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        for (var i = 0; i < committeeBlob.Length / 33; i++)
+        {
+            var pubBytes = new byte[33];
+            Array.Copy(committeeBlob, i * 33, pubBytes, 0, pubBytes.Length);
+
+            var pubHex = GenKeyCommand.HexLower(pubBytes);
+            if (!seenPubkeys.Add(pubHex))
+            {
+                Console.Error.WriteLine($"❌ committee-blob pubkey at index {i} duplicates an earlier committee member");
+                return false;
+            }
+
+            ECPoint pubkey;
+            try
+            {
+                pubkey = ECPoint.DecodePoint(pubBytes, ECCurve.Secp256k1);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"❌ committee-blob pubkey at index {i} is not a valid secp256k1 point: {ex.Message}");
+                return false;
+            }
+
+            var uncompressed = pubkey.EncodePoint(false);
+            var hash = uncompressed.AsSpan(1).ToArray().Keccak256();
+            ethAddresses.Add("0x" + GenKeyCommand.HexLower(hash.AsSpan(12, 20).ToArray()));
+        }
+
+        return true;
+    }
+
     private static void PrintUsage()
     {
         Console.WriteLine("""
@@ -222,7 +277,9 @@ internal static class DeployBundleCommand
 
             Prints the ordered dual-side wire-up call sequence the operator's
             wallet executes to make the bridge live. Cross-checks that
-            committee-blob and eth-addresses agree on size + threshold ≤ size.
+            committee-blob and eth-addresses agree on size + threshold ≤ size,
+            that committee pubkeys are valid and distinct, and that every Eth
+            address is derived from the pubkey at the same committee index.
 
             The bundle is printed as a checklist, not wallet-ready hex —
             wallet integration is operator-specific.

@@ -1,3 +1,4 @@
+using Neo.Cryptography;
 using Neo.External.Bridge.Cli.Commands;
 using Neo.Wallets;
 using NeoECCurve = Neo.Cryptography.ECC.ECCurve;
@@ -151,6 +152,60 @@ public sealed class UT_ExternalBridgeCli
         StringAssert.Contains(r.Stderr, "invalid hex byte");
     }
 
+    [TestMethod]
+    public void DeployBundle_RejectsInvalidCommitteeBlobPoint()
+    {
+        var invalidPoint = "0x05" + new string('0', 64);
+
+        var r = Capture(() => DeployBundleCommand.Run(DeployArgs(committeeBlob: invalidPoint)));
+
+        Assert.AreEqual(1, r.Code);
+        StringAssert.Contains(r.Stderr, "valid secp256k1 point");
+    }
+
+    [TestMethod]
+    public void DeployBundle_RejectsDuplicateCommitteePubkeys()
+    {
+        var pub = PubHex(seed: 1);
+        var blob = pub + pub[2..];
+        var ethAddresses = $"{EthAddressHex(seed: 1)},{EthAddressHex(seed: 2)}";
+
+        var r = Capture(() => DeployBundleCommand.Run(DeployArgs(
+            threshold: "1",
+            committeeBlob: blob,
+            ethAddresses: ethAddresses)));
+
+        Assert.AreEqual(1, r.Code);
+        StringAssert.Contains(r.Stderr, "duplicates an earlier committee member");
+    }
+
+    [TestMethod]
+    public void DeployBundle_RejectsDuplicateEthCommitteeAddresses()
+    {
+        var blob = PubHex(seed: 1) + PubHex(seed: 2)[2..];
+        var eth = EthAddressHex(seed: 1);
+
+        var r = Capture(() => DeployBundleCommand.Run(DeployArgs(
+            threshold: "1",
+            committeeBlob: blob,
+            ethAddresses: $"{eth},{eth}")));
+
+        Assert.AreEqual(1, r.Code);
+        StringAssert.Contains(r.Stderr, "duplicates an earlier committee address");
+    }
+
+    [TestMethod]
+    public void DeployBundle_RejectsMismatchedCommitteeIdentity()
+    {
+        var r = Capture(() => DeployBundleCommand.Run(DeployArgs(
+            committeeBlob: PubHex(seed: 1),
+            ethAddresses: EthAddressHex(seed: 2))));
+
+        Assert.AreEqual(1, r.Code);
+        StringAssert.Contains(r.Stderr, "does not match committee pubkey");
+        StringAssert.Contains(r.Stderr, EthAddressHex(seed: 1));
+    }
+
     private static string[] DeployArgs(
         string externalChainId = "0xE0000002",
         string verifier = "0x1111111111111111111111111111111111111111",
@@ -158,9 +213,12 @@ public sealed class UT_ExternalBridgeCli
         string escrow = "0x3333333333333333333333333333333333333333",
         string ethRouter = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         string threshold = "1",
-        string committeeBlob = "0x111111111111111111111111111111111111111111111111111111111111111111",
-        string ethAddresses = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+        string? committeeBlob = null,
+        string? ethAddresses = null)
     {
+        committeeBlob ??= PubHex(seed: 1);
+        ethAddresses ??= EthAddressHex(seed: 1);
+
         return new[]
         {
             "--external-chain-id", externalChainId,
@@ -180,6 +238,16 @@ public sealed class UT_ExternalBridgeCli
         priv[^1] = seed;
         var key = new KeyPair(priv, NeoECCurve.Secp256k1);
         return "0x" + GenKeyCommand.HexLower(key.PublicKey.EncodePoint(true));
+    }
+
+    private static string EthAddressHex(byte seed)
+    {
+        var priv = new byte[32];
+        priv[^1] = seed;
+        var key = new KeyPair(priv, NeoECCurve.Secp256k1);
+        var pubUncompressed = key.PublicKey.EncodePoint(false);
+        var hash = pubUncompressed.AsSpan(1).ToArray().Keccak256();
+        return "0x" + GenKeyCommand.HexLower(hash.AsSpan(12, 20).ToArray());
     }
 
     private static string ExtractAssignedHex(string stdout, string label)

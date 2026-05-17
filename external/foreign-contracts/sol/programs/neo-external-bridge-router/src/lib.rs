@@ -32,10 +32,8 @@
 #![allow(unexpected_cfgs)]
 
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::{
-    instruction::Instruction,
-    sysvar::instructions::{load_current_index_checked, load_instruction_at_checked},
-};
+use anchor_lang::solana_program::instruction::Instruction;
+use solana_instructions_sysvar::{load_current_index_checked, load_instruction_at_checked};
 
 declare_id!("34B8qwavepu4eY3KiCwNeLL5kJNu3aZJcSb1xv48s7eu");
 
@@ -99,7 +97,10 @@ pub mod neo_external_bridge_router {
         committee: Vec<[u8; ED25519_PUBKEY_LEN]>,
     ) -> Result<()> {
         let state = &mut ctx.accounts.bridge_state;
-        require!(state.owner == ctx.accounts.owner.key(), BridgeError::NotOwner);
+        require!(
+            state.owner == ctx.accounts.owner.key(),
+            BridgeError::NotOwner
+        );
         validate_committee(&committee, threshold)?;
         state.committee = committee;
         state.threshold = threshold;
@@ -122,7 +123,7 @@ pub mod neo_external_bridge_router {
 
         // Transfer lamports caller → vault.
         let cpi_ctx = CpiContext::new(
-            ctx.accounts.system_program.to_account_info(),
+            ctx.accounts.system_program.key(),
             anchor_lang::system_program::Transfer {
                 from: ctx.accounts.sender.to_account_info(),
                 to: ctx.accounts.vault.to_account_info(),
@@ -177,10 +178,7 @@ pub mod neo_external_bridge_router {
         let src_neo_chain_id = read_u32_le(&message_bytes, 4);
         let nonce = read_u64_le(&message_bytes, NONCE_OFFSET);
         let direction = message_bytes[DIRECTION_OFFSET];
-        require!(
-            direction == DIR_NEO_TO_FOREIGN,
-            BridgeError::WrongDirection
-        );
+        require!(direction == DIR_NEO_TO_FOREIGN, BridgeError::WrongDirection);
 
         // Replay protection: the consumed_nonce account is a PDA
         // derived from `(src_neo_chain_id, nonce)`. Anchor's `init`
@@ -221,7 +219,7 @@ pub mod neo_external_bridge_router {
         //   4. each message matches our `message_bytes`
         //   5. distinct signer indices (no duplicates)
         verify_ed25519_quorum_precompile(
-            &ctx.accounts.instructions_sysvar,
+            ctx.accounts.instructions_sysvar.as_ref(),
             &state.committee,
             state.threshold,
             &message_bytes,
@@ -260,10 +258,7 @@ pub mod neo_external_bridge_router {
         // Vault → recipient. The vault PDA is owned by the program;
         // direct lamport-mutation works because we control the vault.
         let vault_lamports = ctx.accounts.vault.lamports();
-        require!(
-            vault_lamports >= amount_u64,
-            BridgeError::InsufficientVault
-        );
+        require!(vault_lamports >= amount_u64, BridgeError::InsufficientVault);
         **ctx.accounts.vault.try_borrow_mut_lamports()? -= amount_u64;
         **recipient_account.try_borrow_mut_lamports()? += amount_u64;
 
@@ -316,7 +311,7 @@ pub struct LockSolAndSend<'info> {
     /// SOL vault PDA — receives lamports from `sender`.
     /// CHECK: lamport-only PDA owned by this program; no data layout.
     #[account(mut, seeds = [b"vault"], bump)]
-    pub vault: AccountInfo<'info>,
+    pub vault: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
 }
@@ -332,12 +327,12 @@ pub struct FinalizeWithdrawal<'info> {
 
     /// CHECK: lamport-only PDA owned by this program.
     #[account(mut, seeds = [b"vault"], bump)]
-    pub vault: AccountInfo<'info>,
+    pub vault: UncheckedAccount<'info>,
 
     /// CHECK: validated against the recipient bytes embedded in
     /// `message_bytes` inside the instruction handler.
     #[account(mut)]
-    pub recipient: AccountInfo<'info>,
+    pub recipient: UncheckedAccount<'info>,
 
     /// Replay-protection PDA. `init` here forces creation; if a
     /// previous `finalize_withdrawal` already created it for the same
@@ -359,8 +354,8 @@ pub struct FinalizeWithdrawal<'info> {
     /// required to inspect the ed25519 sigverify precompile calls
     /// that precede this instruction.
     /// CHECK: this is the well-known Instructions sysvar address.
-    #[account(address = anchor_lang::solana_program::sysvar::instructions::ID)]
-    pub instructions_sysvar: AccountInfo<'info>,
+    #[account(address = solana_instructions_sysvar::ID)]
+    pub instructions_sysvar: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
 }
@@ -473,10 +468,7 @@ pub enum BridgeError {
 
 // ─── helpers ─────────────────────────────────────────────────────────
 
-fn validate_committee(
-    committee: &[[u8; ED25519_PUBKEY_LEN]],
-    threshold: u8,
-) -> Result<()> {
+fn validate_committee(committee: &[[u8; ED25519_PUBKEY_LEN]], threshold: u8) -> Result<()> {
     require!(
         !committee.is_empty() && committee.len() <= MAX_COMMITTEE_SIZE,
         BridgeError::BadCommitteeSize
@@ -498,15 +490,26 @@ fn validate_committee(
 }
 
 fn read_u32_le(data: &[u8], offset: usize) -> u32 {
-    u32::from_le_bytes(data[offset..offset + 4].try_into().unwrap())
+    let mut bytes = [0u8; 4];
+    if let Some(slice) = data.get(offset..offset.saturating_add(bytes.len())) {
+        bytes.copy_from_slice(slice);
+    }
+    u32::from_le_bytes(bytes)
 }
 
 fn read_u64_le(data: &[u8], offset: usize) -> u64 {
-    u64::from_le_bytes(data[offset..offset + 8].try_into().unwrap())
+    let mut bytes = [0u8; 8];
+    if let Some(slice) = data.get(offset..offset.saturating_add(bytes.len())) {
+        bytes.copy_from_slice(slice);
+    }
+    u64::from_le_bytes(bytes)
 }
 
 fn read_uint_le(data: &[u8], offset: usize, length: usize) -> u128 {
     let mut v: u128 = 0;
+    if data.len() < offset.saturating_add(length) {
+        return v;
+    }
     for i in 0..length {
         v |= (data[offset + i] as u128) << (8 * i);
     }
@@ -518,10 +521,18 @@ fn read_uint_le(data: &[u8], offset: usize, length: usize) -> u128 {
 // been validated for length, so guard against under-length with a
 // fallback rather than panicking inside the seed expression.
 fn read_u32_le_for_seeds(data: &[u8], offset: usize) -> u32 {
-    if data.len() < offset + 4 { 0 } else { read_u32_le(data, offset) }
+    if data.len() < offset + 4 {
+        0
+    } else {
+        read_u32_le(data, offset)
+    }
 }
 fn read_u64_le_for_seeds(data: &[u8], offset: usize) -> u64 {
-    if data.len() < offset + 8 { 0 } else { read_u64_le(data, offset) }
+    if data.len() < offset + 8 {
+        0
+    } else {
+        read_u64_le(data, offset)
+    }
 }
 
 /// Walk the current transaction's pre-instructions to confirm a quorum
@@ -575,20 +586,14 @@ fn verify_ed25519_quorum_precompile(
         let ix: Instruction = load_instruction_at_checked(ix_pos, instructions_sysvar)?;
         // Sanity: program id must be the ed25519 sigverify program.
         require!(
-            ix.program_id == anchor_lang::solana_program::ed25519_program::ID,
+            ix.program_id == solana_sdk_ids::ed25519_program::ID,
             BridgeError::SigVerifyMismatch
         );
-        // The data layout is documented in solana-program. For v0 we
-        // do a structural check: extract the pubkey + message slices
-        // and assert they match committee[idx] + expected_message.
-        // Production code should parse the offsets header strictly;
-        // this v0 trusts that runtime sigverify has validated the
-        // crypto and we're just authenticating the bound (pubkey, msg).
-        verify_sigverify_ix_matches(
-            &ix.data,
-            &committee[idx as usize],
-            expected_message,
-        )?;
+        // The data layout is documented in solana-program. We require the
+        // signature, pubkey, and message offsets to point into the same
+        // ed25519 instruction whose data we inspect, then compare the
+        // pubkey + message slices against the committee and canonical bytes.
+        verify_sigverify_ix_matches(&ix.data, &committee[idx as usize], expected_message)?;
     }
     Ok(())
 }
@@ -614,9 +619,28 @@ fn verify_sigverify_ix_matches(
 ) -> Result<()> {
     require!(data.len() >= 16, BridgeError::SigVerifyMismatch);
     require!(data[0] == 1, BridgeError::SigVerifyMismatch); // exactly 1 signature
+    let sig_offset = u16::from_le_bytes([data[2], data[3]]) as usize;
+    let sig_instruction_index = u16::from_le_bytes([data[4], data[5]]);
     let pubkey_offset = u16::from_le_bytes([data[6], data[7]]) as usize;
+    let pubkey_instruction_index = u16::from_le_bytes([data[8], data[9]]);
     let message_data_offset = u16::from_le_bytes([data[10], data[11]]) as usize;
     let message_data_size = u16::from_le_bytes([data[12], data[13]]) as usize;
+    let message_instruction_index = u16::from_le_bytes([data[14], data[15]]);
+
+    // The Solana ed25519 program can verify signature/pubkey/message bytes
+    // loaded from another instruction when these indices are not u16::MAX.
+    // The bridge's parser compares slices in this instruction, so require the
+    // precompile to have verified the same in-instruction tuple we inspect.
+    require!(
+        sig_instruction_index == u16::MAX
+            && pubkey_instruction_index == u16::MAX
+            && message_instruction_index == u16::MAX,
+        BridgeError::SigVerifyMismatch
+    );
+    require!(
+        sig_offset + 64 <= data.len(),
+        BridgeError::SigVerifyMismatch
+    );
     require!(
         pubkey_offset + ED25519_PUBKEY_LEN <= data.len(),
         BridgeError::SigVerifyMismatch
@@ -636,4 +660,62 @@ fn verify_sigverify_ix_matches(
         BridgeError::SigVerifyMismatch
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sigverify_ix_data(
+        pubkey: &[u8; ED25519_PUBKEY_LEN],
+        message: &[u8],
+        sig_instruction_index: u16,
+        pubkey_instruction_index: u16,
+        message_instruction_index: u16,
+    ) -> Vec<u8> {
+        let sig_offset = 16u16;
+        let pubkey_offset = sig_offset + 64;
+        let message_offset = pubkey_offset + ED25519_PUBKEY_LEN as u16;
+        let mut data = Vec::with_capacity(message_offset as usize + message.len());
+        data.push(1); // num_signatures
+        data.push(0); // padding
+        data.extend_from_slice(&sig_offset.to_le_bytes());
+        data.extend_from_slice(&sig_instruction_index.to_le_bytes());
+        data.extend_from_slice(&pubkey_offset.to_le_bytes());
+        data.extend_from_slice(&pubkey_instruction_index.to_le_bytes());
+        data.extend_from_slice(&message_offset.to_le_bytes());
+        data.extend_from_slice(&(message.len() as u16).to_le_bytes());
+        data.extend_from_slice(&message_instruction_index.to_le_bytes());
+        data.extend_from_slice(&[0xAA; 64]);
+        data.extend_from_slice(pubkey);
+        data.extend_from_slice(message);
+        data
+    }
+
+    #[test]
+    fn sigverify_parser_accepts_same_instruction_offsets() {
+        let pubkey = [0x42u8; ED25519_PUBKEY_LEN];
+        let message = b"canonical message";
+        let data = sigverify_ix_data(&pubkey, message, u16::MAX, u16::MAX, u16::MAX);
+
+        assert!(verify_sigverify_ix_matches(&data, &pubkey, message).is_ok());
+    }
+
+    #[test]
+    fn sigverify_parser_rejects_cross_instruction_message_offset() {
+        let pubkey = [0x42u8; ED25519_PUBKEY_LEN];
+        let message = b"canonical message";
+        let data = sigverify_ix_data(&pubkey, message, u16::MAX, u16::MAX, 0);
+
+        assert!(verify_sigverify_ix_matches(&data, &pubkey, message).is_err());
+    }
+
+    #[test]
+    fn sigverify_parser_rejects_cross_instruction_pubkey_offset() {
+        let pubkey = [0x42u8; ED25519_PUBKEY_LEN];
+        let message = b"canonical message";
+        let data = sigverify_ix_data(&pubkey, message, u16::MAX, 0, u16::MAX);
+
+        assert!(verify_sigverify_ix_matches(&data, &pubkey, message).is_err());
+    }
 }

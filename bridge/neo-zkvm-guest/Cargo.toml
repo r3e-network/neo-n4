@@ -23,7 +23,7 @@ path = "src/main.rs"
 test = false
 
 [dependencies]
-sha2 = { version = "0.10", default-features = false }
+sha2 = { version = "0.11", default-features = false }
 sp1-zkvm = "6.2.1"
 # Real Neo N3 VM in Rust — vendored via the external/neo-zkvm submodule.
 # Each tx in a batch becomes a ProofInput that gets executed by neo_vm_guest::execute,

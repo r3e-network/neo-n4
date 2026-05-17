@@ -15,6 +15,24 @@ real RPC endpoints, operator wallets, governance/multisig accounts, and foreign
 testnet routes. Those credentials and funded accounts were not present in the
 workspace, so this rehearsal did not claim public-network finality.
 
+## One-command Local Rehearsal
+
+The repeatable no-credential rehearsal is automated in:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\deployment\run-local-rehearsal.ps1
+```
+
+The script writes ignored scratch output under
+`artifacts/local-deployment-rehearsal/<timestamp>` by default. It generates
+local watcher keys, deploy-plan artifacts, compiled contract artifacts, EVM
+Anvil router state, raw logs, and a machine-readable `summary.json` without
+requiring public RPC endpoints, funded wallets, faucet access, or governance
+accounts.
+
+The latest local run in this workspace completed with `status: passed` at
+`D:\Git\neo-n4\artifacts\local-deployment-rehearsal\20260517-200257`.
+
 ## Environment
 
 - Host: Windows PowerShell, repo at `D:\Git\neo-n4`.

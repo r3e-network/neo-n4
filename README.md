@@ -32,12 +32,136 @@ NeoFS data availability.
 
 ## Table of contents
 
-1. [Architecture at a glance](#architecture-at-a-glance)
-2. [What's in the repo](#whats-in-the-repo)
-3. [Phased status](#phased-status)
-4. [Quick start](#quick-start)
-5. [Documentation map](#documentation-map)
-6. [License](#license)
+1. [Visual system tour](#visual-system-tour)
+2. [Architecture at a glance](#architecture-at-a-glance)
+3. [What's in the repo](#whats-in-the-repo)
+4. [Phased status](#phased-status)
+5. [Quick start](#quick-start)
+6. [Documentation map](#documentation-map)
+7. [License](#license)
+
+---
+
+## Visual system tour
+
+This section is the fastest way to understand what the project looks like, what
+runs where, and how data moves. The complete diagram set lives in
+[`docs/visual-guide.md`](./docs/visual-guide.md).
+
+### System context
+
+<p align="center">
+  <img src="docs/figures/visual-guide/system-context.svg" alt="Neo N4 system context: users, wallets, SDKs, L2 nodes, NeoHub L1 contracts, optional gateway, external-chain watchers, and foreign contracts" width="920">
+</p>
+
+At a high level, Neo N4 is an elastic multi-L2 stack:
+
+- users and applications talk through SDKs, CLIs, wallets, or the static web explorer;
+- each L2 runs Neo 4 execution with L2 plugins, persistence, batching, proving, and RPC;
+- NeoHub on L1 owns the canonical settlement, shared bridge, chain registry, token registry, message routing, and governance state;
+- the optional gateway aggregates many L2 proofs before they hit L1;
+- external-chain watchers connect EVM-family chains, Tron, and Solana into the same bridge and message model.
+
+### One-minute flow
+
+```mermaid
+flowchart LR
+    users["Users, wallets, dApps"] --> sdk["SDKs, CLI tools, web explorer"]
+    sdk --> l2rpc["L2 RPC and node plugins"]
+    l2rpc --> exec["Neo 4 execution kernel and L2 native contracts"]
+    exec --> state["State roots, batches, withdrawals, messages"]
+    state --> prover["Prover seam: optimistic, multisig, RISC-V, SP1"]
+    prover --> gateway["Optional Neo Gateway proof aggregation"]
+    gateway --> neohub["NeoHub L1 contracts"]
+    state --> neohub
+    neohub --> bridge["Shared bridge and message router"]
+    bridge --> l2rpc
+    foreign["Foreign chains: EVM, Tron, Solana"] --> watchers["Bridge watchers and committee proofs"]
+    watchers --> neohub
+    neohub --> foreign
+```
+
+### Code module map
+
+<p align="center">
+  <img src="docs/figures/visual-guide/module-map.svg" alt="Code module map showing contracts, runtime libraries, node plugins, tools, SDKs, zkVM bridge, watchers, tests, and docs" width="920">
+</p>
+
+Use this map when you are trying to find code. The repo is organized around a
+few stable surfaces:
+
+| Surface | Where to look | What it owns |
+| --- | --- | --- |
+| L1 contracts | `contracts/NeoHub.*` | Settlement, bridge, registries, governance, security controls, external bridge verification. |
+| L2 native contracts | `contracts/L2Native.*` | Per-L2 bridge, fee, message, paymaster, system config, and external-bridge surfaces. |
+| Runtime libraries | `src/Neo.L2.*` | Batch building, state, executor seams, proving, messaging, bridge logic, persistence, telemetry, audit, and SDK types. |
+| Node plugins | `src/Neo.Plugins.L2*` | RPC, batch, bridge, DA, gateway, metrics, prover, and settlement plugin integration. |
+| Operator tools | `tools/*` | Stack scaffolding, devnet, deploy planning, bridge/faucet/explorer CLIs, and external bridge setup. |
+| Prover and watchers | `bridge/*`, `watchers/*` | SP1/RISC-V proof path plus external-chain event ingestion and committee proof construction. |
+| SDKs and UI | `sdk/*` | TypeScript, Rust, .NET SDKs and a static web explorer. |
+
+### Core lifecycle diagrams
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <strong>L1 to L2 deposit</strong><br>
+      <img src="docs/figures/visual-guide/deposit-flow.svg" alt="L1 to L2 deposit flow" width="440">
+    </td>
+    <td width="50%" align="center">
+      <strong>L2 to L1 withdrawal</strong><br>
+      <img src="docs/figures/visual-guide/withdrawal-flow.svg" alt="L2 to L1 withdrawal flow" width="440">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <strong>Batch settlement lifecycle</strong><br>
+      <img src="docs/figures/visual-guide/batch-lifecycle.svg" alt="Batch settlement lifecycle from L2 execution to L1 settlement" width="440">
+    </td>
+    <td width="50%" align="center">
+      <strong>External bridge data flow</strong><br>
+      <img src="docs/figures/visual-guide/external-bridge-flow.svg" alt="External bridge data flow through watchers, committee proofs, NeoHub, and foreign contracts" width="440">
+    </td>
+  </tr>
+</table>
+
+These are the main production flows:
+
+- **Deposits** lock assets on L1, emit canonical payloads, and mint or credit on the target L2.
+- **Withdrawals** burn or lock on L2, enter the batch/withdrawal root, and finalize on L1 after the configured proof path succeeds.
+- **Batch settlement** turns ordered L2 execution into state roots, public inputs, proof artifacts, and NeoHub finality.
+- **External bridging** converts foreign-chain lock events into NeoHub messages through watcher journals, committee signatures, and registered verifiers.
+
+### Deployment, artifacts, and verification
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <strong>Production deployment pipeline</strong><br>
+      <img src="docs/figures/visual-guide/deployment-pipeline.svg" alt="Production deployment pipeline from source freeze through local verification, contract deploy, devnet rehearsal, CI, and cutover" width="440">
+    </td>
+    <td width="50%" align="center">
+      <strong>Source to artifact map</strong><br>
+      <img src="docs/figures/visual-guide/project-artifact-map.svg" alt="Source to artifact map for .NET projects, contracts, Rust crates, SDKs, watchers, docs, and deployment outputs" width="440">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <strong>Trust boundary map</strong><br>
+      <img src="docs/figures/visual-guide/trust-boundaries-map.svg" alt="Trust boundary map showing external input, operator, cryptographic proof, and governance boundaries" width="440">
+    </td>
+    <td width="50%" align="center">
+      <strong>Verification matrix</strong><br>
+      <img src="docs/figures/visual-guide/testing-matrix.svg" alt="Verification matrix for .NET, Rust, TypeScript, contracts, docs, and supply-chain checks" width="440">
+    </td>
+  </tr>
+</table>
+
+For deeper diagrams, see:
+[`architecture figures`](./docs/figures/architecture/),
+[`visual guide`](./docs/visual-guide.md),
+[`architecture lifecycle`](./docs/architecture-l2-lifecycle.md), and
+[`wire formats`](./docs/architecture-wire-formats.md).
 
 ---
 

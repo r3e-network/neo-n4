@@ -6,6 +6,7 @@
 
 - [Getting started](./getting-started.md)
 - [Launching an L2](./launching-an-l2.md)
+- [Private network testing](./private-network-testing.md)
 - [Persistence](./persistence.md)
 - [Telemetry](./telemetry.md)
 - [Security model](./security-model.md)

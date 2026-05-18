@@ -95,9 +95,8 @@ NeoHub L1 contracts 属于另一条边界：它们是对标 ZKsync L1 Bridgehub/
   `NeoHubL1TxFilterContract`、`NeoHubVerifierRegistryContract`、
   `NeoHubMessageRouterContract`、`NeoHubSettlementManagerContract`、
   `NeoHubDAValidatorContract`、`NeoHubSharedBridgeContract`、
-  `NeoHubEmergencyManagerContract`。
-- 在声称 NeoHub 已完全 L1-native 之前仍需迁移：`GovernanceController`、
-  `SequencerBond`、
+  `NeoHubEmergencyManagerContract`、`NeoHubGovernanceControllerContract`。
+- 在声称 NeoHub 已完全 L1-native 之前仍需迁移：`SequencerBond`、
   `SequencerRegistry`、`ForcedInclusion`、`OptimisticChallenge`、
   `GovernanceFraudVerifier`、`RestrictedExecutionFraudVerifier`、
   `MpcCommitteeVerifier`、`MpcCommitteeFraudVerifier`、

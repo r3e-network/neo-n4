@@ -8,7 +8,7 @@ namespace NeoHub.ExternalBridgeStubVerifier;
 /// <summary>
 /// Phase-A acceptance-test verifier: implements the <c>verifyInboundMessage</c> /
 /// <c>bridgeKind</c> ABI but always returns <c>true</c>. Lets devnet exercise
-/// the full <c>L2Native.ExternalBridge → ExternalBridgeRegistry → verifier →
+/// the full <c>L2NativeExternalBridgeContract → ExternalBridgeRegistry → verifier →
 /// ExternalBridgeEscrow</c> round-trip before any real verifier is wired.
 /// </summary>
 /// <remarks>

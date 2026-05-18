@@ -30,12 +30,12 @@
 **23 个 NeoHub 合约。** 全部经 `Neo.SmartContract.Framework` 通过类型检查;CI 用
 `nccs` 编译每一个并校验 `.nef` + `.manifest.json` 工件。
 
-- **L2 批次信息(chainId、批次号、L1 高度)** ✅ — `contracts/L2Native.L2BatchInfoContract/`
-- **L2 桥(充值时铸造,提款时销毁)** ✅ — `contracts/L2Native.L2BridgeContract/`
-- **L2 消息 I/O(出站发出 + 入站应用)** ✅ — `contracts/L2Native.L2MessageContract/`
-- **L2 费用分摊(排序器 / 证明者 / DA 占比)** ✅ — `contracts/L2Native.L2FeeContract/`
-- **L2 paymaster(费用抽象、赞助资产)** ✅ — `contracts/L2Native.L2PaymasterContract/`
-- **L2 system-config 缓存** ✅ — `contracts/L2Native.L2SystemConfigContract/`
+- **L2 批次信息(chainId、批次号、L1 高度)** ✅ — `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`
+- **L2 桥(充值时铸造,提款时销毁)** ✅ — `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`
+- **L2 消息 I/O(出站发出 + 入站应用)** ✅ — `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`
+- **L2 费用分摊(排序器 / 证明者 / DA 占比)** ✅ — `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`
+- **L2 paymaster(费用抽象、赞助资产)** ✅ — `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`
+- **L2 system-config 缓存** ✅ — `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`
 
 **6 个 L2 侧原生合约。**
 
@@ -64,7 +64,7 @@
 - **按 L2 的 RPC 方法面** ✅ — `src/Neo.Plugins.L2Rpc/`(10 个方法)
 - **Phase-5 证明聚合** ✅ — `src/Neo.Plugins.L2Gateway/` —— `BinaryTreeAggregator`,带三种 `IRoundProver` 实现:`MultisigRoundProver`(Secp256r1 阈值证明)、`MerklePathRoundProver`(逐叶 包含证明)、`PassThroughRoundProver`(最低成本参照)。递归 ZK fold 变体(SP1 Compress / Halo2 / Risc0)由运维者经同一接缝接入
 
-**16 个链下库 + 8 个插件。** 都有 `tests/Neo.*.UnitTests/` 镜像;1426 条测试横跨 34
+**16 个链下库 + 8 个插件。** 都有 `tests/Neo.*.UnitTests/` 镜像;1430 条测试横跨 34
 个 .NET 工程通过。Rust workspace 出货 21 条默认 CI 测试(host-mode 密码学 + SDK +
 zkVM execute 往返)加 2 条 `#[ignore]` 把关测试,演练真实 CPU 证明产生 + 验证(墙
 钟 ~4 分钟)。TypeScript SDK 出货 15 条 vitest 测试。

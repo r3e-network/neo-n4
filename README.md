@@ -95,7 +95,7 @@ few stable surfaces:
 | Surface | Where to look | What it owns |
 | --- | --- | --- |
 | L1 contracts | `contracts/NeoHub.*` | Settlement, bridge, registries, governance, security controls, external bridge verification. |
-| L2 native contracts | `contracts/L2Native.*` | Per-L2 bridge, fee, message, paymaster, AA, interop, system config, bridged-token, and external-bridge surfaces. |
+| L2 native contracts | `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs` | Per-L2 bridge, fee, message, paymaster, AA, interop, system config, bridged-token, and external-bridge surfaces registered in Neo core at genesis. |
 | Runtime libraries | `src/Neo.L2.*` | Batch building, state, executor seams, proving, messaging, bridge logic, persistence, telemetry, audit, and SDK types. |
 | Node plugins | `src/Neo.Plugins.L2*` | RPC, batch, bridge, DA, gateway, metrics, prover, and settlement plugin integration. |
 | Operator tools | `tools/*` | Stack scaffolding, devnet, deploy planning, bridge/faucet/explorer CLIs, and external bridge setup. |
@@ -204,7 +204,7 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 | Off-chain libraries | **16**  | `Neo.L2.{Abstractions,Audit,Batch,Bridge,Censorship,Challenge,Executor,Executor.RiscV,ForcedInclusion,Messaging,Persistence,Proving,Sequencer,Settlement.Rpc,State,Telemetry}` (App SDK in `Neo.L2.Sdk` is counted separately under App SDKs) |
 | Persistence backends | **2**  | `InMemoryKeyValueStore` (tests) · `RocksDbKeyValueStore` (production default) — see [`docs/persistence.md`](./docs/persistence.md) |
 | Node plugins      | **8**     | `Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}`  |
-| Smart contracts   | **33**    | 23 NeoHub L1 (Phase 0–3 + DA validator + L1 tx filter + 6 cross-foreign-chain bridge contracts: `MpcCommitteeVerifier`, `ExternalBridgeRegistry`, `ExternalBridgeEscrow`, `ExternalBridgeBond`, `ExternalBridgeStubVerifier`, `MpcCommitteeFraudVerifier`) + 10 L2 native (incl. bridged NEP-17, AA, interop verifier, and `L2NativeExternalBridgeContract`); all type-check via `Neo.SmartContract.Framework` |
+| Smart contracts   | **23 deployable + 10 native** | 23 NeoHub L1 deployable contracts (Phase 0–3 + DA validator + L1 tx filter + 6 cross-foreign-chain bridge contracts) type-check via `Neo.SmartContract.Framework`; 10 L2 system contracts are Neo core native contracts in the r3e `external/neo` fork. |
 | CLI tools         | **7**     | `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`, `neo-l2-explore`, `neo-bridge`, `neo-l2-faucet`, `neo-external-bridge` |
 | App SDKs          | **3**     | `src/Neo.L2.Sdk/` (.NET) · `sdk/typescript/` (`@neo-n4/sdk`) · `sdk/rust/` (`neo-n4-sdk`) — all 10 RPC methods, same wire shape, same 4-class error taxonomy |
 | Web app           | **1**     | `sdk/web-explorer/index.html` — single static-file UI: Explore + Bridge + Faucet + state-root continuity Audit |
@@ -212,7 +212,7 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 | Rust prover/core  | **3**     | `bridge/neo-execution-core/` (backend-agnostic batch parsing, receipt/state folding, Merkle roots, public-input hash; no SP1/PolkaVM dependency) · `bridge/neo-zkvm-host/` (sp1-sdk 6.2.1 prover + `prove-batch daemon`) · `bridge/neo-zkvm-guest/` (the function being proved — compiles to RISC-V ELF, executes real Neo N3 VM via `neo_vm_guest::execute`) |
 | Foreign-chain integrations | **6** | Watchers (3): `watchers/neo-bridge-watcher-eth/` (secp256k1+SHA256, **serves the entire EVM family** — Ethereum, Tron, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche, Linea, zkSync Era, Scroll, Mantle, Fantom, Celo — via one chain-id-driven daemon binary; 32 base tests + 55 live-RPC integration tests = 87 with `--features live-rpc`. Production daemon ships **graceful SIGTERM shutdown**, **`/healthz`+`/info` HTTP endpoints**, **`/metrics` Prometheus exposition**, **per-chain `min_confirmations` reorg buffer**, and **`flock`-based concurrent-instance detection** on the journal directory; reference k8s + systemd manifests in [`watchers/neo-bridge-watcher-eth/deploy/`](./watchers/neo-bridge-watcher-eth/deploy/)) · `.../-tron/` (thin re-export with Tron chain-ids `0xE0000010..12`, 7 tests) · `.../-sol/` (ed25519-dalek + Solana chain-ids `0xE0000020..22`, 9 tests; curve-agnostic `Signer` trait dispatches to `CryptoLib.VerifyWithEd25519` on-chain). Foreign-side routers (3): `external/foreign-contracts/eth/` (393-line Solidity that deploys unchanged on any EVM chain — constructor parameterizes `externalChainId`; **20 Foundry tests** = 13 single-chain + 7 multi-chain pinning per-instance state isolation across 17 canonical mainnet slots (14 family banks + Polygon zkEVM, Arbitrum Nova, Sonic variants)) · `.../tron/` (README — TVM is EVM-flavored Solidity, points at the Eth contract) · `.../sol/` (~638-line Anchor program using Solana's ed25519 sigverify precompile, source-only — operator runs `anchor build`). Canonical 16-slot family banks for the namespace + 5-step EVM-onboarding runbook in [`docs/external-bridge-evm-chains.md`](./docs/external-bridge-evm-chains.md). |
 | Submodules        | **4**     | `external/neo` (`r3e-network/neo` fork, branch `r3e/neo-n4-core`) · `external/neo-devpack-dotnet` (smart-contract devpack + nccs) · `external/neo-riscv-vm` (PolkaVM-backed Neo RISC-V engine) · `external/neo-zkvm` (Neo VM in pure Rust + SP1 prover crates). None are released on NuGet/crates.io for the versions tracked here. |
-| Tests             | **1426 .NET + 159 cross-lang** | 1426 across 34 .NET projects (incl. 7 Phase-C real-secp256k1 fraud-proof tests pinning the equivocation slash path end-to-end, plus optimistic sequencer account/signature binding); 15 TypeScript (vitest) + 10 Rust SDK (mockito) + 5 shared execution-core + 7 SP1 guest (host) + 101 Rust bridge watchers with `live-rpc` (eth: 85, tron: 7, sol: 9 — both secp256k1 and ed25519 paths exercised) + 20 Foundry (Solidity — 13 single-chain + 7 multi-chain) + 1 Solana Anchor program test — all green on the Windows audit matrix; `neo-zkvm-host` SP1 E2E requires Linux/macOS |
+| Tests             | **1430 .NET + 159 cross-lang** | 1430 across 34 .NET projects (incl. 7 Phase-C real-secp256k1 fraud-proof tests pinning the equivocation slash path end-to-end, plus optimistic sequencer account/signature binding); 15 TypeScript (vitest) + 10 Rust SDK (mockito) + 5 shared execution-core + 7 SP1 guest (host) + 101 Rust bridge watchers with `live-rpc` (eth: 85, tron: 7, sol: 9 — both secp256k1 and ed25519 paths exercised) + 20 Foundry (Solidity — 13 single-chain + 7 multi-chain) + 1 Solana Anchor program test — all green on the Windows audit matrix; `neo-zkvm-host` SP1 E2E requires Linux/macOS |
 
 ```
 neo4/
@@ -231,7 +231,7 @@ neo4/
 │   └── Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}/
 ├── contracts/
 │   ├── NeoHub.* (23)                       # L1 contract suite
-│   └── L2Native.* (10)                     # on-L2 native contracts
+├── external/neo/                            # r3e Neo fork with N4 L2 native contracts
 ├── tools/
 │   ├── Neo.Stack.Cli/                      # neo-stack CLI (12 subcommands)
 │   ├── Neo.L2.Devnet/                      # in-process end-to-end demo runner
@@ -244,7 +244,7 @@ neo4/
 │   ├── neo-execution-core/                 # backend-neutral batch fold, roots, public input hash
 │   ├── neo-zkvm-guest/                     # Rust → RISC-V ELF (real Neo VM, SP1-proven)
 │   └── neo-zkvm-host/                      # sp1-sdk 6.2.1 prover daemon (prove-batch)
-└── tests/                                  # 1426 tests / 34 projects
+└── tests/                                  # 1430 tests / 34 projects
 ```
 
 ---
@@ -284,7 +284,7 @@ cd neo-n4
 # If you forgot --recurse-submodules:
 # git submodule update --init --recursive
 
-# Type-check everything + run all 1426 tests (~10 seconds)
+# Type-check everything + run all 1430 tests (~10 seconds)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # --- Bootstrapping a new L2 chain (recommended path) ---
@@ -345,7 +345,7 @@ A 5-minute walkthrough is in [`docs/getting-started.md`](./docs/getting-started.
 | [`docs/getting-started.md`](./docs/getting-started.md)                  | new contributors      | Clone → test → run devnet in 5 minutes.                              |
 | [`docs/launching-an-l2.md`](./docs/launching-an-l2.md)                  | L2 operators          | 5-command path to a registered L2 chain + every plug-in point for custom logic (executor / DA / prover / sequencer). Templates: rollup / zk-rollup / validium / sidechain. |
 | [`samples/`](./samples/README.md)                                       | L2 operators          | 4 ready-to-run sample chain configs covering distinct use cases (general-rollup / gaming-rollup / exchange-validium / privacy-sidechain), each verified end-to-end via `neo-l2-devnet --config`. |
-| [`samples/contracts/`](./samples/contracts/README.md)                   | dApp developers       | Sample L2-aware app contracts (`CrossChainGreeter`, `WithdrawalDemo`) showing standard patterns for integrating with `L2Native.*`. |
+| [`samples/contracts/`](./samples/contracts/README.md)                   | dApp developers       | Sample L2-aware app contracts (`CrossChainGreeter`, `WithdrawalDemo`) showing standard patterns for integrating with N4 L2 native contracts. |
 | [`docs/tech-stack-coverage.md`](./docs/tech-stack-coverage.md)          | reviewers             | Honest gap analysis of L2-stack coverage — 83 components ✅, 0 🟡, 0 🔴 (Phase 4 SP1 ZK end-to-end functional; cross-foreign-chain bridge Phase B/C complete; DA/AA/interop/filter parity contracts in-tree; Layer-4/5 SDKs + web app + mdBook all in-tree). |
 | [`docs/architecture-atlas.md`](./docs/architecture-atlas.md) | everyone              | **Front door for the architecture docs.** Reading order by role + cross-reference between the 5 chapters: walkthrough (per-tx tour) · l2-lifecycle (system flow) · wire-formats (canonical bytes) · trust-boundaries (security view) · glossary (term + component catalog). ~2100 lines total, with 29 hand-tuned SVG figures (mirrored under `docs/zh/figures/architecture/`). |
 | [`docs/architecture-walkthrough.md`](./docs/architecture-walkthrough.md) | engineers             | Narrative tour mapping every `doc.md` section to code.               |

@@ -23,9 +23,9 @@ L1 ↔ Neo L2 服务)分开。一套应用 API;底下的验证器在 MPC → Opt
   入站证明通过验证后付款。形态对应 `SharedBridge.Deposit` /
   `FinalizeWithdrawalWithProof`,但按 `externalChainId` 索引,且证明验证路由到
   registry 而非 `SettlementManager`。
-- **`L2Native.ExternalBridgeContract`** —— L2 原生对应件,让 L2 dApp 可以直接
+- **Neo Core 原生 `L2NativeExternalBridgeContract`** —— L2 原生对应件,让 L2 dApp 可以直接
   `Send(externalChainId, recipient, asset, amount, calldata)`。形态对应
-  `L2Native.L2BridgeContract`,但其提款被发到一个独立的"外部 withdrawal root",
+  Neo Core 原生 `L2BridgeContract`,但其提款被发到一个独立的"外部 withdrawal root",
   与现有批次根并列提交。
 
 ### 1.2 验证器接缝
@@ -157,7 +157,7 @@ contracts/
   NeoHub.MpcCommitteeFraudVerifier/       # 阶段 C
   NeoHub.ExternalOptimisticChallenge/     # 阶段 C
   NeoHub.EthSyncCommitteeVerifier/        # 阶段 D
-  L2Native.ExternalBridgeContract/        # 阶段 A
+  external/neo native L2NativeExternalBridgeContract  # 阶段 A
 src/
   Neo.L2.Messaging/ExternalMessageBuilder.cs        # 阶段 A
   Neo.L2.Messaging/ExternalMessageHasher.cs         # 阶段 A

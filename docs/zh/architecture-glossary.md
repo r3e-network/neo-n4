@@ -37,7 +37,7 @@
 | **family bank(家族 bank)**    | 外链命名空间中分给一个链家族(Eth / BSC / Polygon 等)的连续 16 槽。                              |
 | **forced inclusion(强制纳入)**| L1 驱动、绕过审查排序器的机制;用户在 L1 上 post tx → L2 必须纳入。                                |
 | **gatewayEnabled**            | bool —— 该 L2 是否批入可选的共享 `BinaryTreeAggregator`(Phase 5)。                              |
-| **L2NativeBridge**            | NeoHub `SharedBridge` 在 L2 一侧的对应件。按 (chainId, asset) 铸造/销毁包装资产。                  |
+| **Neo Core 原生 L2BridgeContract** | NeoHub `SharedBridge` 在 L2 一侧的对应件。按 (chainId, asset) 铸造/销毁包装资产。                  |
 | **MerkleProofSerializer**     | Merkle 证明的规范编码器(用于提款 + 跨 L2 消息)。                                                |
 | **MessageHasher**             | `CrossChainMessage`(跨 L2)的规范编码器。两端都重算哈希。                                        |
 | **min_confirmations**         | watcher config 字段:不从距外链头不足 N 确认的浅块发出事件。                                       |
@@ -107,7 +107,7 @@
 
 ## 3. L2 原生合约(7)
 
-位于 `contracts/L2Native.*`。部署到每条 L2 链上。
+实现在 `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`。它们由 Neo core 在 genesis 注册为 native contracts，不再从 `contracts/` 后期部署。
 
 - **`L2BridgeContract`** — L2 侧桥(铸/销包装资产)。NeoHub.SharedBridge 的对应件。
 - **`L2MessageContract`** — L2 侧消息 inbox/outbox。NeoHub.MessageRouter 的对应件。

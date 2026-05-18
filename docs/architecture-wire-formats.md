@@ -164,7 +164,7 @@ takes the digest directly. Same bytes → same digest on both sides.
 ## 6. `DepositPayload` — L1→L2 bridge (44 + amountLen bytes)
 
 Embedded in the `payload` field of the `CrossChainMessage` that
-travels from `NeoHub.SharedBridge` to `L2NativeBridgeContract`.
+travels from `NeoHub.SharedBridge` to Neo Core native `L2BridgeContract`.
 
 Source: [`src/Neo.L2.Bridge/DepositPayload.cs`](../src/Neo.L2.Bridge/DepositPayload.cs).
 

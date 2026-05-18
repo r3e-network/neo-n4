@@ -143,7 +143,7 @@ For each cross-tier flow, multiple checks run independently. A
 single corrupt actor can't get past all of them:
 
 - **L2 batch settlement** — `proofType` is in defined enum range — `proof.length` ≤ 1 MiB — `publicInputHash` recomputed from on-chain commitment fields matches the proof's claim
-- **L1→L2 deposit** — `SharedBridge.Deposit` requires asset locked + msg.value matches — L2 batcher recomputes canonical message hash; rejects mismatch — `L2NativeBridge` checks the L2 chainId in the message matches its own
+- **L1→L2 deposit** — `SharedBridge.Deposit` requires asset locked + msg.value matches — L2 batcher recomputes canonical message hash; rejects mismatch — Neo Core native `L2BridgeContract` checks the L2 chainId in the message matches its own
 - **L2→L1 withdrawal** — Withdrawal leaf in batch's `withdrawalRoot` — Merkle proof hashes to `withdrawalRoot` — `consumedWithdrawals[leafHash]` set; replay rejected
 - **Cross-L2 message** — Source L2 produces canonical bytes; `MessageRouter` recomputes hash — Destination L2 batcher recomputes hash from wire bytes — `consumedInboundMessages[srcChain][nonce]` set
 - **External-chain deposit** — Watcher signs canonical bytes (off-chain) — M-of-N committee threshold checked on-chain — `consumedInbound[chainId][nonce]` set; replay rejected

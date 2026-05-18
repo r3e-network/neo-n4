@@ -9,7 +9,7 @@
 
 1. [Glossary of terms](#1-glossary-of-terms)
 2. [NeoHub L1 contracts](#2-neohub-l1-contracts-21)
-3. [L2 native contracts](#3-l2-native-contracts-7)
+3. [L2 native contracts](#3-l2-native-contracts-10)
 4. [L2 plugins](#4-l2-plugins-8)
 5. [Off-chain operators](#5-off-chain-operators)
 6. [CLI tools](#6-cli-tools-7)
@@ -39,7 +39,7 @@
 | **family bank**               | 16 contiguous slots in the foreign-namespace allocated to one chain family (Eth / BSC / Polygon / etc.).       |
 | **forced inclusion**          | L1-driven mechanism to bypass a censoring sequencer; user posts a tx on L1 → L2 must include it.               |
 | **gatewayEnabled**            | bool — whether this L2 batches into the optional shared `BinaryTreeAggregator` (Phase 5).                      |
-| **L2NativeBridge**            | The L2-side counterpart to NeoHub's `SharedBridge`. Mints/burns wrapped assets per (chainId, asset).           |
+| **Neo Core native L2BridgeContract** | The L2-side counterpart to NeoHub's `SharedBridge`. Mints/burns wrapped assets per (chainId, asset).           |
 | **MerkleProofSerializer**     | Canonical encoder for Merkle proofs (used by withdrawals + cross-L2 messages).                                 |
 | **MessageHasher**             | Canonical encoder for `CrossChainMessage` (cross-L2). Both endpoints recompute the hash.                       |
 | **min_confirmations**         | Watcher-config field: refuse to emit events from blocks shallower than N confirmations from foreign-chain head. |
@@ -107,9 +107,12 @@ Lives at `contracts/NeoHub.*`. Each is a compiled .nef + .manifest.json.
 
 ---
 
-## 3. L2 native contracts (7)
+## 3. L2 native contracts (10)
 
-Lives at `contracts/L2Native.*`. Deployed to each L2 chain.
+Implemented in `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`
+on the r3e `external/neo` fork. They are registered by Neo core as native
+contracts and exist at genesis on every N4 L2 chain; they are not deployed
+later from `contracts/`.
 
 - **`L2BridgeContract`** — L2-side bridge (mint/burn wrapped assets). Counterpart to NeoHub.SharedBridge.
 - **`L2MessageContract`** — L2-side message inbox/outbox. Counterpart to NeoHub.MessageRouter.
@@ -118,6 +121,9 @@ Lives at `contracts/L2Native.*`. Deployed to each L2 chain.
 - **`L2PaymasterContract`** — Optional gas sponsorship — third party covers fees for whitelisted txs.
 - **`L2SystemConfigContract`** — L2-side mirror of select chainConfig fields, queryable by L2 contracts.
 - **`L2NativeExternalBridgeContract`** — L2-side counterpart to NeoHub.ExternalBridgeEscrow for foreign-chain assets.
+- **`BridgedNep17Contract`** — Canonical bridged NEP-17 representation.
+- **`L2AccountAbstraction`** — Validator/paymaster/nonce entry point.
+- **`L2InteropVerifier`** — Mirrors global roots and verifies inclusion locally.
 
 ---
 

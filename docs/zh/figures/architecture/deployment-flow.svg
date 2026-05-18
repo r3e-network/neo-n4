@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">L2 部署流 —— 4 步有序</title>
-  <desc id="desc">部署一条新 L2 的 4 步:第 1 步部署 NeoHub(每网络一次性)—— neo-hub-deploy plan 输出 22 步 bundle,运维钱包提交后整套 L1 合约上线。第 2 步注册一条 L2 链 —— neo-stack register-chain 输出 ChainRegistry.RegisterChain 计划;提交后 L2 在 L1 上有 chainId 与 configBytes。第 3 步部署 L2 桥 adapter —— neo-stack deploy-bridge-adapter 输出 L2NativeBridgeContract 部署计划。第 4 步接好消息传递 adapter(可选)—— 运维者部署 L2MessageContract 并调用 MessageRouter.RegisterAdapter,启用跨 L2 消息传递。</desc>
+  <desc id="desc">部署一条新 L2 的 4 步:第 1 步部署 NeoHub(每网络一次性)—— neo-hub-deploy plan 输出 22 步 bundle,运维钱包提交后整套 L1 合约上线。第 2 步注册一条 L2 链 —— neo-stack register-chain 输出 ChainRegistry.RegisterChain 计划;提交后 L2 在 L1 上有 chainId 与 configBytes。第 3 步配置 L2 桥 adapter —— neo-stack deploy-bridge-adapter 输出 TokenRegistry 映射与 Neo Core 原生 L2BridgeContract 配置计划。第 4 步接好消息传递 adapter(可选)—— 运维者把 Neo Core 原生 L2MessageContract hash 注册到 MessageRouter.RegisterAdapter,启用跨 L2 消息传递。</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
@@ -47,10 +47,10 @@
   <g filter="url(#card)">
     <rect x="60" y="360" width="840" height="100" rx="10" ry="10" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.4"/>
     <text x="92" y="400" class="step-num" fill="#2f5e3c">3</text>
-    <text x="138" y="390" class="step-t" fill="#1d4d2c">部署 L2 桥 adapter</text>
+    <text x="138" y="390" class="step-t" fill="#1d4d2c">配置 L2 桥 adapter</text>
     <text x="138" y="408" class="step-cad">每条链</text>
     <text x="138" y="432" class="cli">$ neo-stack deploy-bridge-adapter --chain-id 1099</text>
-    <text x="138" y="448" class="body">→ L2NativeBridgeContract 部署计划;钱包提交后,跨层(L1↔L2)转账启用</text>
+    <text x="138" y="448" class="body">-> 原生 L2Bridge 配置计划;钱包提交后,跨层(L1↔L2)转账启用</text>
   </g>
   <line x1="480" y1="460" x2="480" y2="492" stroke="#525a64" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
 
@@ -58,6 +58,6 @@
     <rect x="60" y="494" width="840" height="38" rx="8" ry="8" fill="#f1ecf8" stroke="#7d59b3" stroke-width="1.2" stroke-dasharray="3 2"/>
     <text x="92" y="520" class="step-num" fill="#5d4084" font-size="20px">4</text>
     <text x="138" y="514" class="step-t" fill="#3e2865" font-size="13px">接好消息传递 adapter <tspan font-style="italic" font-size="11px" fill="#525a64">(可选,每条链)</tspan></text>
-    <text x="138" y="528" class="cli">部署 L2MessageContract;调用 MessageRouter.RegisterAdapter(chainId, l2MessageHash) → 跨 L2 消息启用</text>
+    <text x="138" y="528" class="cli">注册原生 L2MessageContract hash;调用 MessageRouter.RegisterAdapter(chainId, l2MessageHash) -> 跨 L2 消息启用</text>
   </g>
 </svg>

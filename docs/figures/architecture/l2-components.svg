@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 580" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
-  <title id="title">L2 chain components — Neo 4 core + 8 plugins + 10 native contracts</title>
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 580" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">L2 chain components â€” Neo 4 core + 8 plugins + 10 native contracts</title>
   <desc id="desc">Each L2 chain consists of three layers. Bottom: Neo 4 core (vendored as a git submodule) provides dBFT 2.0 consensus, NeoVM execution, and the Blockchain mempool. Middle: 8 L2 plugins (L2Batch, L2Settlement, L2Prover, L2Bridge, L2DA, L2Rpc, L2Gateway, L2Metrics). Top: 10 L2 native contracts (L2BridgeContract, L2MessageContract, L2BatchInfoContract, L2FeeContract, L2PaymasterContract, L2SystemConfigContract, L2NativeExternalBridgeContract, BridgedNep17Contract, L2AccountAbstraction, L2InteropVerifier).</desc>
 
   <defs>
@@ -20,13 +20,13 @@
 
   <rect width="960" height="580" fill="#ffffff"/>
 
-  <text x="480" y="32" text-anchor="middle" class="header" fill="#1d4d2c">每条 L2 链 — Neo 4 core + 8 个插件 + 10 个原生合约</text>
-  <text x="480" y="52" text-anchor="middle" class="edge-lbl" fill="#525a64">Each L2 chain — Neo 4 core + 8 plugins + 10 native contracts</text>
+  <text x="480" y="32" text-anchor="middle" class="header" fill="#1d4d2c">æ¯æ¡ L2 é“¾ â€” Neo 4 core + 8 ä¸ªæ’ä»¶ + 10 ä¸ªåŽŸç”Ÿåˆçº¦</text>
+  <text x="480" y="52" text-anchor="middle" class="edge-lbl" fill="#525a64">Each L2 chain â€” Neo 4 core + 8 plugins + 10 native contracts</text>
 
   <!-- Layer 1: Neo 4 core (bottom) -->
   <rect x="40" y="380" width="880" height="140" rx="10" ry="10" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.4"/>
   <text x="58" y="404" class="layer-title" fill="#1d4d2c">NEO 4 CORE (vendored at external/neo as git submodule)</text>
-  <text x="58" y="422" class="layer-sub" fill="#2f5e3c">execution kernel — produces L2 blocks, runs txs, holds state</text>
+  <text x="58" y="422" class="layer-sub" fill="#2f5e3c">execution kernel â€” produces L2 blocks, runs txs, holds state</text>
 
   <g filter="url(#card)">
     <rect x="62" y="438" width="200" height="68" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
@@ -60,7 +60,7 @@
   <!-- Layer 2: L2 plugins (middle) -->
   <rect x="40" y="220" width="880" height="130" rx="10" ry="10" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.4"/>
   <text x="58" y="244" class="layer-title" fill="#7a4a14">L2 PLUGINS (src/Neo.Plugins.L2*)</text>
-  <text x="58" y="262" class="layer-sub" fill="#a96027">runtime composition — wires the L2's executors, provers, settlement, observability</text>
+  <text x="58" y="262" class="layer-sub" fill="#a96027">runtime composition â€” wires the L2's executors, provers, settlement, observability</text>
 
   <g filter="url(#card)">
     <rect x="62" y="278" width="100" height="60" rx="5" ry="5" fill="#ffffff" stroke="#cd7c2e"/>
@@ -109,13 +109,13 @@
 
   <!-- Layer 3: L2 native contracts (top) -->
   <rect x="40" y="76" width="880" height="116" rx="10" ry="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
-  <text x="58" y="100" class="layer-title" fill="#1e2a55">L2 NATIVE CONTRACTS (contracts/L2Native.*)</text>
-  <text x="58" y="118" class="layer-sub" fill="#3f5193">on-chain L2 state — wrapped assets, message inbox, batch info, fee config</text>
+  <text x="58" y="100" class="layer-title" fill="#1e2a55">L2 NATIVE CONTRACTS (Neo core native)</text>
+  <text x="58" y="118" class="layer-sub" fill="#3f5193">on-chain L2 state â€” wrapped assets, message inbox, batch info, fee config</text>
 
   <g filter="url(#card)">
     <rect x="62" y="134" width="120" height="48" rx="5" ry="5" fill="#ffffff" stroke="#7587c1"/>
     <text x="122" y="153" text-anchor="middle" class="item" font-weight="600">L2BridgeContract</text>
-    <text x="122" y="170" text-anchor="middle" class="item" font-size="10">L1↔L2 NEP-17</text>
+    <text x="122" y="170" text-anchor="middle" class="item" font-size="10">L1â†”L2 NEP-17</text>
   </g>
   <g filter="url(#card)">
     <rect x="190" y="134" width="120" height="48" rx="5" ry="5" fill="#ffffff" stroke="#7587c1"/>
@@ -148,6 +148,5 @@
     <text x="860" y="170" text-anchor="middle" class="item" font-size="10">Bridge</text>
   </g>
 
-  <text x="480" y="190" text-anchor="middle" class="edge-lbl">plus BridgedNep17 · AccountAbstraction · InteropVerifier</text>
-
+  <text x="480" y="190" text-anchor="middle" class="edge-lbl">plus BridgedNep17 - AccountAbstraction - InteropVerifier</text>
 </svg>

@@ -20,7 +20,7 @@ see [`docs/audit/zksync-elastic-chain-validation-2026-05-17.md`](audit/zksync-el
 | **`ChainTypeManager`** (formerly STM) — chain factory + upgrade orchestrator | `NeoHub.VerifierRegistry` + `NeoHub.GovernanceController` staged proposal windows | partial — no per-chain factory contract or DiamondProxy pattern |
 | **`SharedBridge`** — L1 escrow (legacy) | `NeoHub.SharedBridge` | parity |
 | **`L1AssetRouter` + `L2AssetRouter`** (v24+) — chain-agnostic asset routing | absent — single `SharedBridge` does both jobs | intentionally different (one Hub) |
-| **`L1/L2NativeTokenVault`** — assetId derivation, bridged-token deploy | `NeoHub.TokenRegistry` + `L2Native.L2BridgeContract` + `L2Native.BridgedNep17Contract` | partial — canonical token template exists; deterministic factory deployment is still operator/tooling work |
+| **`L1/L2NativeTokenVault`** — assetId derivation, bridged-token deploy | `NeoHub.TokenRegistry` + Neo Core native `L2BridgeContract` + native `BridgedNep17Contract` | parity for N4's design — L2 token accounting lives in the core native layer, not operator-deployed templates |
 | **`L1Nullifier`** — withdrawal replay protection | `SharedBridge.PrefixWithdrawalConsumed` + `MessageRouter.PrefixConsumed` | parity |
 | **`MessageRoot.sol`** — aggregated L2→L1 root across all chains | `MessageRouter.PublishGlobalRoot` (0x05 slot) + off-chain `Neo.Plugins.L2Gateway.BinaryTreeAggregator` | parity |
 | **`ChainAssetHandler`** (per-asset routing rules) | absent | intentionally different (single trust model) |
@@ -28,19 +28,19 @@ see [`docs/audit/zksync-elastic-chain-validation-2026-05-17.md`](audit/zksync-el
 | **Governance / `ChainAdmin` / `PermanentRestriction` / `AccessControlRestriction`** | `NeoHub.GovernanceController` (immutable flags + staged proposal windows) | parity for shared governance; no ZKsync-style per-chain admin factory |
 | **`TransactionFilterer`** (per-chain L1→L2 tx hook) | `MessageRouter.SetL1TxFilter` + `NeoHub.L1TxFilter` | parity for L1→L2 enqueue filtering; L2 mempool filtering remains operator-specific |
 | **`L2AdminFactory` / per-chain `ChainAdmin`** | absent — chain-admin is hub-side `operatorManager` in `ChainRegistry.L2ChainConfig` | intentionally different |
-| **`BridgedStandardERC20`** — canonical L2 token | `L2Native.BridgedNep17Contract` | parity at token-template level |
+| **`BridgedStandardERC20`** — canonical L2 token | Neo Core native `BridgedNep17Contract` | parity at the canonical bridged-token level |
 | **Boojum / Plonk verifier contracts** | `NeoHub.{MpcCommittee,Governance,RestrictedExecution,ExternalBridgeStub}*Verifier` + pluggable via `VerifierRegistry` | parity |
 | **`CalldataDA` / `ValidiumL1DAValidator` / `RollupDAManager` / `RelayedSLDAValidator`** | `NeoHub.DARegistry` + `NeoHub.DAValidator` + off-chain writers in `Neo.Plugins.L2DA` | partial — DAC attestation gate exists; richer NeoFS/external inclusion adapters remain operator-specific |
 | **`BytecodesSupplier` / `*Upgrade` family / `UpgradeStageValidator`** | `GovernanceController` proposal pipeline with notice/execution/cooldown windows | parity for staged timing; no bytecode supplier because NeoVM uses ContractManagement |
 | **L2 `Bootloader`** | absent — NeoVM provides native dispatch | intentionally different |
 | **L2 `ContractDeployer` / `KnownCodesStorage` / `AccountCodeStorage`** | absent — Neo's `ContractManagement` native handles this | intentionally different |
-| **L2 `SystemContext`** (chainId, baseFee, blockhash) | `L2Native.L2BatchInfoContract` + `L2Native.L2SystemConfigContract` | parity |
+| **L2 `SystemContext`** (chainId, baseFee, blockhash) | Neo Core native `L2BatchInfoContract` + `L2SystemConfigContract` | parity |
 | **L2 `L2BaseToken`** (ETH balance accounting) | NEP-17 GAS native | intentionally different |
-| **L2 `L1Messenger`** (outbox) | `L2Native.L2MessageContract` | parity |
+| **L2 `L1Messenger`** (outbox) | Neo Core native `L2MessageContract` | parity |
 | **L2 `NonceHolder`** | absent — per-tx-signer nonce is implicit in Neo's witness model | intentionally different |
-| **L2 `DefaultAccount` + `IAccount` AA** | `L2Native.L2AccountAbstraction` | partial — validate/execute/paymaster hooks exist; not protocol-native like EraVM |
-| **L2 `TestnetPaymaster` + `IPaymasterFlow`** | `L2Native.L2PaymasterContract` (top-up model only) | partial — no `approvalBased` flow selector |
-| **L2 `L2InteropRootStorage` / `L2MessageVerification` (v29)** | `L2Native.L2InteropVerifier` mirrors global roots and verifies Merkle inclusion locally | parity at helper-contract level |
+| **L2 `DefaultAccount` + `IAccount` AA** | Neo Core native `L2AccountAbstraction` | partial — validate/execute/paymaster hooks exist; not protocol-native like EraVM |
+| **L2 `TestnetPaymaster` + `IPaymasterFlow`** | Neo Core native `L2PaymasterContract` (top-up model only) | partial — no `approvalBased` flow selector |
+| **L2 `L2InteropRootStorage` / `L2MessageVerification` (v29)** | Neo Core native `L2InteropVerifier` mirrors global roots and verifies Merkle inclusion locally | parity at helper-contract level |
 | **L2 `L2V29Upgrade` / `ComplexUpgrader` / `L2GenesisUpgrade`** | scaffolded by `Neo.Hub.Deploy` (off-chain) but no on-chain orchestrator | partial |
 | **L2 `GasBoundCaller`** | absent — NeoVM gas is per-instruction | intentionally different |
 | **ZK Gateway** (settlement-layer proof aggregator) | `Neo.Plugins.L2Gateway` (off-chain) + on-chain `MessageRouter.PublishGlobalRoot` (this release) | parity |
@@ -95,7 +95,7 @@ emitted on first set only (idempotent re-sets are silent).
 canonicalizing a batch. DAC mode requires a prior M-of-N secp256r1 committee
 attestation submitted through `DAValidator.SubmitAttestation`.
 
-### `L2Native.BridgedNep17Contract`
+### Neo Core native `BridgedNep17Contract`
 
 The repo now ships a canonical mint/burn NEP-17 template for bridged L1 assets.
 `L2BridgeContract.ApplyDeposit` can mint it and `InitiateWithdrawal` can burn it
@@ -114,13 +114,13 @@ compatibility.
 before allocating the nonce or writing the message. The default filter supports
 sender, receiver, message-type, default allow/deny, and payload-size policy.
 
-### `L2Native.L2AccountAbstraction`
+### Neo Core native `L2AccountAbstraction`
 
 The L2 now has a programmable AA entry contract with per-account validator and
 paymaster binding, nonce checks, `validateTx`, `validateTransaction` magic return,
 `executeTx`, and system-account nonce consumption.
 
-### `L2Native.L2InteropVerifier`
+### Neo Core native `L2InteropVerifier`
 
 L2 dApps can now verify peer-chain messages locally against mirrored Gateway
 global roots. The helper stores publish-once roots, checks the mirrored L1

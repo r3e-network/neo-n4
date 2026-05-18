@@ -36,16 +36,16 @@ any other project's source.
 **23 NeoHub contracts.** All type-check via `Neo.SmartContract.Framework`; CI
 builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 
-- **L2 batch info (chainId, batch number, L1 height)** ✅ — `contracts/L2Native.L2BatchInfoContract/`
-- **L2 bridge (mint on deposit, burn on withdrawal)** ✅ — `contracts/L2Native.L2BridgeContract/`
-- **L2 message I/O (outbound emit + inbound apply)** ✅ — `contracts/L2Native.L2MessageContract/`
-- **L2 fee splitter (sequencer / prover / DA shares)** ✅ — `contracts/L2Native.L2FeeContract/`
-- **L2 paymaster (fee abstraction, sponsored assets)** ✅ — `contracts/L2Native.L2PaymasterContract/`
-- **L2 system-config cache** ✅ — `contracts/L2Native.L2SystemConfigContract/`
-- **L2 external-bridge counterpart** ✅ — `contracts/L2Native.ExternalBridgeContract/`
-- **L2 bridged NEP-17 template** ✅ — `contracts/L2Native.BridgedNep17Contract/`
-- **L2 account abstraction entry point** ✅ — `contracts/L2Native.L2AccountAbstraction/`
-- **L2 interop verifier** ✅ — `contracts/L2Native.L2InteropVerifier/`
+- **L2 batch info (chainId, batch number, L1 height)** ✅ — Neo core native `L2BatchInfoContract`.
+- **L2 bridge (mint on deposit, burn on withdrawal)** ✅ — Neo core native `L2BridgeContract`.
+- **L2 message I/O (outbound emit + inbound apply)** ✅ — Neo core native `L2MessageContract`.
+- **L2 fee splitter (sequencer / prover / DA shares)** ✅ — Neo core native `L2FeeContract`.
+- **L2 paymaster (fee abstraction, sponsored assets)** ✅ — Neo core native `L2PaymasterContract`.
+- **L2 system-config cache** ✅ — Neo core native `L2SystemConfigContract`.
+- **L2 external-bridge counterpart** ✅ — Neo core native `L2NativeExternalBridgeContract`.
+- **L2 bridged NEP-17 template** ✅ — Neo core native `BridgedNep17Contract`.
+- **L2 account abstraction entry point** ✅ — Neo core native `L2AccountAbstraction`.
+- **L2 interop verifier** ✅ — Neo core native `L2InteropVerifier`.
 
 **10 L2-side native contracts.**
 
@@ -75,7 +75,7 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 - **Phase-5 proof aggregation** ✅ — `src/Neo.Plugins.L2Gateway/` — `BinaryTreeAggregator` with three `IRoundProver` implementations: `MultisigRoundProver` (Secp256r1 threshold-attested), `MerklePathRoundProver` (per-leaf inclusion proofs), `PassThroughRoundProver` (minimal-cost reference). Recursive-ZK fold variants (SP1 Compress / Halo2 / Risc0) operator-supplied through the same seam
 
 **16 off-chain libraries + 8 plugins.** All have `tests/Neo.*.UnitTests/` mirrors;
-1426 tests across 34 .NET projects pass. Rust workspace ships 25 default-CI
+1430 tests across 34 .NET projects pass. Rust workspace ships 25 default-CI
 tests (host-mode crypto + SDK + zkVM execute round-trip) plus 2 `#[ignore]`-gated
 tests that exercise real CPU proof generation + verification (~4 minutes wall
 time). TypeScript SDK ships 15 vitest tests.

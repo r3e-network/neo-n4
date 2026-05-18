@@ -41,23 +41,19 @@ public class UT_ProductionGapClosure
     }
 
     [TestMethod]
-    public void Repository_IncludesL2NativeParityClosureContracts()
+    public void Repository_UsesNeoCoreForkForL2NativeContracts()
     {
         var root = FindRepositoryRoot();
         var sln = File.ReadAllText(Path.Combine(root, "Neo.L2.sln"));
+        var nativeContractSource = Path.Combine(root, "external", "neo", "src", "Neo", "SmartContract", "Native", "L2NativeContracts.cs");
 
-        foreach (var project in new[]
-        {
-            "contracts/L2Native.BridgedNep17Contract/L2Native.BridgedNep17Contract.csproj",
-            "contracts/L2Native.L2AccountAbstraction/L2Native.L2AccountAbstraction.csproj",
-            "contracts/L2Native.L2InteropVerifier/L2Native.L2InteropVerifier.csproj",
-        })
-        {
-            Assert.IsTrue(File.Exists(Path.Combine(root, project.Replace('/', Path.DirectorySeparatorChar))),
-                $"{project} must exist");
-            StringAssert.Contains(sln, project.Replace('/', '\\'),
-                $"{project} must be included in Neo.L2.sln so build/test gates compile it");
-        }
+        Assert.IsTrue(File.Exists(nativeContractSource),
+            "N4 L2 system contracts must live in the r3e Neo core fork as native contracts.");
+        StringAssert.Contains(File.ReadAllText(nativeContractSource), "public sealed class L2BridgeContract : L2NativeContract");
+        Assert.IsFalse(Directory.EnumerateDirectories(Path.Combine(root, "contracts"), "L2Native.*").Any(),
+            "L2Native DevPack projects must not remain as later-deployed contracts.");
+        Assert.IsFalse(sln.Contains("contracts\\L2Native.", StringComparison.OrdinalIgnoreCase),
+            "Neo.L2.sln must not include later-deployed L2Native projects.");
     }
 
     private static UInt160 H(byte b)

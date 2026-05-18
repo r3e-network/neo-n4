@@ -164,7 +164,7 @@ internal static class DeployBridgeAdapterCommand
 
         Console.WriteLine($"Bridge adapter deployment plan for chain {chainId}:");
         Console.WriteLine();
-        Console.WriteLine("  L2-side native contract   : L2Native.L2BridgeContract");
+        Console.WriteLine("  L2-side native contract   : L2BridgeContract (built into r3e-network/neo branch r3e/neo-n4-core)");
         Console.WriteLine("  L1-side anchor contract   : NeoHub.SharedBridge");
         Console.WriteLine();
         Console.WriteLine("  Required asset mappings   :");
@@ -172,11 +172,12 @@ internal static class DeployBridgeAdapterCommand
         Console.WriteLine("    NeoHub.TokenRegistry.RegisterMapping(<encoded L1+chainId+L2 mapping>)");
         Console.WriteLine();
         Console.WriteLine($"Next steps for production deploy:");
-        Console.WriteLine($"  1. Deploy L2Native.L2BridgeContract on chain {chainId} via the L2 sequencer");
-        Console.WriteLine($"  2. Register the L1↔L2 GAS mapping on both sides (asymmetric — L1 calls TokenRegistry, L2 calls L2BridgeContract)");
-        Console.WriteLine($"  3. Verify bidirectional lookup: TokenRegistry.GetL2Asset(L1_GAS, {chainId}) and L2BridgeContract.GetL2Asset(L1_GAS)");
+        Console.WriteLine($"  1. Start chain {chainId} from the r3e Neo core fork so L2BridgeContract exists at genesis as a native contract");
+        Console.WriteLine($"  2. Configure native L2BridgeContract owner/system account through the L2 governance signer");
+        Console.WriteLine($"  3. Register the L1-L2 GAS mapping on both sides (asymmetric - L1 calls TokenRegistry, L2 calls L2BridgeContract)");
+        Console.WriteLine($"  4. Verify bidirectional lookup: TokenRegistry.GetL2Asset(L1_GAS, {chainId}) and L2BridgeContract.GetL2Asset(L1_GAS)");
         Console.WriteLine();
-        Console.WriteLine($"(L2 deploy needs a sequencer-controlled signer; L1 deploy needs the contract owner — both operator-specific.)");
+        Console.WriteLine($"(No L2Native contract is deployed after genesis; L1 setup still needs the contract owner and operator-specific signing.)");
         return Task.FromResult(0);
     }
 }
@@ -314,7 +315,7 @@ internal static class SubmitBatchCommand
         Console.WriteLine($"Decoded batch from {batchFile} ({bytes.Length} bytes):");
         Console.WriteLine($"  chainId       : {commitment.ChainId}");
         Console.WriteLine($"  batchNumber   : {commitment.BatchNumber}");
-        Console.WriteLine($"  blocks        : {commitment.FirstBlock}–{commitment.LastBlock}");
+        Console.WriteLine($"  blocks        : {commitment.FirstBlock}-{commitment.LastBlock}");
         Console.WriteLine($"  preStateRoot  : {commitment.PreStateRoot}");
         Console.WriteLine($"  postStateRoot : {commitment.PostStateRoot}");
         Console.WriteLine($"  proofType     : {commitment.ProofType} ({commitment.Proof.Length} bytes)");

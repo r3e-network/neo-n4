@@ -257,7 +257,6 @@ function Invoke-ContractCompilation {
         Ensure-Nccs
         $dirs = @()
         $dirs += Get-ChildItem -Path (Join-Path $RepoRoot "contracts") -Directory -Filter "NeoHub.*" | Sort-Object Name
-        $dirs += Get-ChildItem -Path (Join-Path $RepoRoot "contracts") -Directory -Filter "L2Native.*" | Sort-Object Name
         $dirs += Get-ChildItem -Path (Join-Path $RepoRoot "samples\contracts") -Directory -Filter "Sample.*" | Sort-Object Name
 
         foreach ($dir in $dirs) {
@@ -281,7 +280,9 @@ function Invoke-ContractCompilation {
             }
         }
 
-        Write-Host "Compiled $($dirs.Count) contracts and verified $($dirs.Count * 2) artifacts."
+        Write-Host "Compiled $($dirs.Count) deployable contracts and verified $($dirs.Count * 2) artifacts."
+        & dotnet test (Join-Path $RepoRoot "external\neo\tests\Neo.UnitTests\Neo.UnitTests.csproj") --filter "FullyQualifiedName~UT_L2NativeContracts" /p:NuGetAudit=false --nologo
+        if ($LASTEXITCODE -ne 0) { throw "N4 L2 native contract verification failed" }
     }
 }
 

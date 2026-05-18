@@ -11,7 +11,7 @@ namespace Sample.CrossChainGreeter;
 /// <summary>
 /// Minimal example dApp that emits an L2 → L1 cross-chain message containing a
 /// caller-supplied greeting. Demonstrates how an app contract integrates with
-/// <c>L2Native.L2MessageContract</c>: hold a reference to the L2 message contract's
+/// Neo Core native <c>L2MessageContract</c>: hold a reference to the L2 message contract's
 /// hash, call <c>EmitMessage(targetChainId, receiver, type, payload)</c>, get back
 /// the assigned outbound nonce. The next sealed batch's L2→L1 message Merkle tree
 /// commits to the message; on L1, <c>NeoHub.MessageRouter</c> delivers it to the

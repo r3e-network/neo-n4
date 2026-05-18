@@ -50,9 +50,9 @@ neo4/
 │   ├── Neo.L2.{ForcedInclusion,Sequencer,Censorship}/
 │   ├── Neo.L2.Settlement.Rpc/       # JSON-RPC client for L1
 │   └── Neo.Plugins.L2*/             # neo-node Plugin subclasses
-├── contracts/                       # 21 Neo SmartContract.Framework projects
-│   ├── NeoHub.*/                    # 15 L1 contracts
-│   └── L2Native.*/                  # 6 on-L2 native contracts
+├── contracts/                       # deployable NeoHub SmartContract.Framework projects
+│   └── NeoHub.*/                    # 23 L1 contracts
+├── external/neo/                    # r3e Neo fork with N4 L2 native contracts
 ├── tools/
 │   ├── Neo.Stack.Cli/               # neo-stack CLI
 │   ├── Neo.L2.Devnet/               # neo-l2-devnet runnable demo

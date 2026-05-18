@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">L2 deployment flow — 4 ordered steps</title>
-  <desc id="desc">Four-step deployment of a new L2: Step 1 deploy NeoHub (one-time, per network) — neo-hub-deploy plan emits a 22-step bundle that operator wallet submits, leaving the full L1 contract suite live. Step 2 register a single L2 chain — neo-stack register-chain emits a ChainRegistry.RegisterChain plan; once submitted, the L2 has a chainId and configBytes on L1. Step 3 deploy the L2 bridge adapter — neo-stack deploy-bridge-adapter emits an L2NativeBridgeContract deploy plan. Step 4 wire the messaging adapter (optional) — operator deploys L2MessageContract and calls MessageRouter.RegisterAdapter to enable cross-L2 messaging.</desc>
+  <desc id="desc">Four-step deployment of a new L2: Step 1 deploy NeoHub (one-time, per network) — neo-hub-deploy plan emits a 22-step bundle that operator wallet submits, leaving the full L1 contract suite live. Step 2 register a single L2 chain — neo-stack register-chain emits a ChainRegistry.RegisterChain plan; once submitted, the L2 has a chainId and configBytes on L1. Step 3 configure the L2 bridge adapter — neo-stack deploy-bridge-adapter emits a TokenRegistry mapping and native L2BridgeContract configuration plan. Step 4 wire the messaging adapter (optional) — operator registers the Neo Core native L2MessageContract hash with MessageRouter.RegisterAdapter to enable cross-L2 messaging.</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
@@ -53,7 +53,7 @@
     <text x="138" y="390" class="step-t" fill="#1d4d2c">Deploy L2 bridge adapter</text>
     <text x="138" y="408" class="step-cad">per chain</text>
     <text x="138" y="432" class="cli">$ neo-stack deploy-bridge-adapter --chain-id 1099</text>
-    <text x="138" y="448" class="body">→ L2NativeBridgeContract deploy plan; once wallet submits, cross-tier (L1↔L2) transfers are enabled</text>
+    <text x="138" y="448" class="body">-> native L2Bridge config plan; once wallet submits, cross-tier (L1↔L2) transfers are enabled</text>
   </g>
   <line x1="480" y1="460" x2="480" y2="492" stroke="#525a64" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
 

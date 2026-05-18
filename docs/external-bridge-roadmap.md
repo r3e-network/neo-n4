@@ -27,9 +27,9 @@ Three new contracts plus an interface:
   `SharedBridge.Deposit` / `FinalizeWithdrawalWithProof` but indexed by
   `externalChainId` and routes proof verification to the registry rather
   than `SettlementManager`.
-- **`L2Native.ExternalBridgeContract`** — L2-native counterpart so an L2
+- **`L2NativeExternalBridgeContract`** — Neo core native L2 counterpart so an L2
   dApp can `Send(externalChainId, recipient, asset, amount, calldata)`
-  directly. Mirrors `L2Native.L2BridgeContract` but its withdrawals are
+  directly. Mirrors `L2BridgeContract` but its withdrawals are
   emitted to a separate "external withdrawal root" that's committed
   alongside the existing batch roots.
 
@@ -190,7 +190,7 @@ contracts/
   NeoHub.MpcCommitteeFraudVerifier/       # Phase C
   NeoHub.ExternalOptimisticChallenge/     # Phase C
   NeoHub.EthSyncCommitteeVerifier/        # Phase D
-  L2Native.ExternalBridgeContract/        # Phase A
+  external/neo/.../L2NativeContracts.cs   # Phase A L2 native bridge
 src/
   Neo.L2.Messaging/ExternalMessageBuilder.cs        # Phase A
   Neo.L2.Messaging/ExternalMessageHasher.cs         # Phase A

@@ -129,7 +129,7 @@
 每条跨层流动里,多个检查独立运行。单个作恶角色无法绕过全部检查:
 
 - **L2 批次结算** — `proofType` 在已定义枚举范围 — `proof.length` ≤ 1 MiB — `publicInputHash` 由链上承诺字段重算,与证明声称的一致
-- **L1→L2 充值** — `SharedBridge.Deposit` 要求资产已锁 + msg.value 匹配 — L2 批处理器重算规范消息哈希;不匹配则拒绝 — `L2NativeBridge` 校验消息中的 L2 chainId 与自己的一致
+- **L1→L2 充值** — `SharedBridge.Deposit` 要求资产已锁 + msg.value 匹配 — L2 批处理器重算规范消息哈希;不匹配则拒绝 — Neo Core 原生 `L2BridgeContract` 校验消息中的 L2 chainId 与自己的一致
 - **L2→L1 提款** — 提款叶子在批次 `withdrawalRoot` 中 — Merkle 证明哈希到 `withdrawalRoot` — `consumedWithdrawals[leafHash]` 已置;重放被拒
 - **跨 L2 消息** — 源 L2 产出规范字节;`MessageRouter` 重算哈希 — 目标 L2 批处理器从线协议字节重算哈希 — `consumedInboundMessages[srcChain][nonce]` 已置
 - **外链充值** — watcher 在线下签规范字节 — M-of-N 委员会阈值在链上检查 — `consumedInbound[chainId][nonce]` 已置;重放被拒

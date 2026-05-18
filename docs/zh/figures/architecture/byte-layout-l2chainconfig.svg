@@ -56,7 +56,7 @@
   <text x="148" y="208" class="size">20 B</text>
   <text x="200" y="208" class="field">bridgeAdapter</text>
   <text x="320" y="208" class="size">UInt160</text>
-  <text x="500" y="208" class="desc">L2NativeBridgeContract 哈希</text>
+  <text x="500" y="208" class="desc">Neo Core 原生 L2BridgeContract 哈希</text>
 
   <rect x="40" y="220" width="880" height="28" rx="4" ry="4" fill="#eff3ff" stroke="#7587c1" stroke-width="0.8"/>
   <text x="80" y="238" class="offset">64</text>

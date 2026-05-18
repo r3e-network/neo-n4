@@ -62,7 +62,7 @@ Each run writes:
 | Layer | Commands |
 | --- | --- |
 | .NET build/test | `dotnet build Neo.L2.sln`, `dotnet test Neo.L2.sln --no-build` |
-| Neo contracts | `dotnet build` + `nccs` for every `NeoHub.*`, `L2Native.*`, and `Sample.*` contract; verifies `.nef` and `.manifest.json` |
+| Neo contracts | `dotnet build` + `nccs` for every deployable `NeoHub.*` and `Sample.*` contract; verifies `.nef` and `.manifest.json`; runs Neo core tests for N4 L2 native contracts in `external/neo` |
 | Operator CLI | `neo-stack create-chain`, `validate`, `init-l2`, `register-chain`, `deploy-bridge-adapter`, `start-sequencer`, `start-batcher`, `start-prover` |
 | Private devnet | reference executor, counter executor with persistence and metrics, 0-batch rehydration, Neo VM executor |
 | Rust bridge | PolkaVM RISC-V host, zkVM guest, Rust SDK, ETH/Tron/Solana watchers, clippy |

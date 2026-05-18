@@ -1,8 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <RootNamespace>L2Native.L2BridgeContract</RootNamespace>
-    <AssemblyName>L2Native.L2BridgeContract</AssemblyName>
-  </PropertyGroup>
-
-</Project>

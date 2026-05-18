@@ -133,7 +133,7 @@ $(DashedArrow 495 405 495 270 'settlement tx')
 "@
 
 RenderSvg "module-map.svg" 1200 760 "Code Module Map" "Repository directories mapped to runtime responsibilities and deployable artifacts." @"
-$(Box 45 105 230 140 'contracts/' '28 product smart contracts|NeoHub L1 + L2Native|nccs -> bin/sc artifacts' $green)
+$(Box 45 105 230 140 'contracts/' '23 deployable L1 contracts|NeoHub suite|nccs -> bin/sc artifacts' $green)
 $(Box 330 105 235 140 'src/' 'L2 libraries and plugins|Batch / State / Bridge / DA|RPC, proving, telemetry' $blue)
 $(Box 620 105 230 140 'tools/' 'neo-hub-deploy|neo-stack / neo-bridge|faucet / explorer / devnet' $orange)
 $(Box 905 105 225 140 'tests/' 'unit + integration coverage|CLI and plugin assertions|Windows runtime checks' $gray)

@@ -49,7 +49,7 @@ but does NOT need to extend in place.
   generally NOT what to extend.
 
 **Before writing a new component, search this repo's existing libs first** (the per-component
-table in `IMPLEMENTATION_STATUS.md` has 16 off-chain libs + 8 plugins + 33 NeoHub/L2Native contracts; many
+table in `IMPLEMENTATION_STATUS.md` has 16 off-chain libs + 8 plugins + 23 deployable NeoHub contracts + 10 Neo core native L2 contracts; many
 features that look missing are already there).
 
 ## Mapping `doc.md` to code (current state)
@@ -65,11 +65,11 @@ features that look missing are already there).
 | §7.4 DAWriter              | DA layer abstraction       | `src/Neo.L2.Abstractions.IDAWriter` + `src/Neo.Plugins.L2DA` |
 | §7.5 ProverAdapter         | 3-stage proving            | `src/Neo.L2.Proving/{Attestation,Optimistic,RiscVZk}` (Stage 0/1/mock-2 in-process) + `bridge/neo-zkvm-host/` (real Stage-2 ZK out-of-process via `prove-batch daemon`) |
 | §8 Proof system            | Proving spec               | `src/Neo.L2.Executor/SPEC.md` |
-| §9 Token / GAS model       | Bridged accounting         | `src/Neo.L2.Bridge.AssetRegistry` + `contracts/L2Native.L2BridgeContract` |
-| §10 Neo Connect            | Cross-chain messaging      | `src/Neo.L2.Messaging` + `contracts/L2Native.L2MessageContract` |
+| §9 Token / GAS model       | Bridged accounting         | `src/Neo.L2.Bridge.AssetRegistry` + `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs` (`L2BridgeContract`) |
+| §10 Neo Connect            | Cross-chain messaging      | `src/Neo.L2.Messaging` + `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs` (`L2MessageContract`) |
 | §11 SharedBridge           | Asset escrow               | `contracts/NeoHub.SharedBridge` + `src/Neo.L2.Bridge` |
 | §12 Data Availability      | DA tiers                   | `src/Neo.L2.Abstractions.DAMode` + `src/Neo.Plugins.L2DA` (incl. `NeoFsLikeDAWriter`) |
-| §13 L2 native contracts    | On-L2 system contracts     | `contracts/L2Native.*` (7 contracts) |
+| §13 L2 native contracts    | On-L2 system contracts     | `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs` (10 native contracts) |
 | §3 / §7.1 Custom chain logic | Operator-provided executor seam | `src/Neo.L2.Executor/ITransactionExecutor.cs` (interface), `samples/executors/Sample.CounterChainExecutor/` (runnable reference: 3-opcode custom tx format + state seam + withdrawal/message emission + 24 tests) |
 | §14.1 L2 RPC               | RPC method surface         | `src/Neo.Plugins.L2Rpc.L2RpcMethods` |
 | §14.2 neo-stack CLI        | Launch framework           | `tools/Neo.Stack.Cli` |

@@ -290,15 +290,15 @@ specifically by `DAAvailabilityCheck` against a writer that never saw the payloa
 - **§7.4 DAWriter** — DA layer abstraction. `Neo.L2.Abstractions.IDAWriter` + `Neo.Plugins.L2DA.*`.
 - **§7.5 ProverAdapter** — 3-stage proving. `Neo.L2.Proving.Attestation / Optimistic / RiscVZk` + `bridge/neo-zkvm-host/` (out-of-process Stage-2).
 - **§8 Proof system** — Proving spec. `src/Neo.L2.Executor/SPEC.md`.
-- **§9 Token / GAS model** — Bridged asset accounting. `Neo.L2.Bridge.AssetRegistry` + `L2Native.L2BridgeContract`.
-- **§10 Neo Connect** — Cross-chain messaging. `Neo.L2.Messaging.*` + `L2Native.L2MessageContract`.
+- **§9 Token / GAS model** — Bridged asset accounting. `Neo.L2.Bridge.AssetRegistry` + Neo Core native `L2BridgeContract`.
+- **§10 Neo Connect** — Cross-chain messaging. `Neo.L2.Messaging.*` + Neo Core native `L2MessageContract`.
 - **§11 Bridge** — SharedBridge design. `contracts/NeoHub.SharedBridge/` + `Neo.L2.Bridge.*`.
 - **§12 Data Availability** — DA tiers. `Neo.L2.DAMode` + `Neo.Plugins.L2DA.*` (incl. `NeoFsLikeDAWriter`).
-- **§13 L2 native contracts** — On-L2 system contracts. `contracts/L2Native.*/` (7 contracts).
+- **§13 L2 native contracts** — On-L2 system contracts. `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs` (10 native contracts).
 - **§14.1 L2 RPC** — RPC method surface. `Neo.Plugins.L2Rpc.L2RpcMethods` (10 methods incl. `getsecuritylabel`).
 - **§14.2 neo-stack CLI** — Launch framework. `tools/Neo.Stack.Cli/`.
 - **§15.1 Tx flow** — Hot path. This doc, Walk #1.
-- **§15.2 Deposit** — L1→L2. `Neo.L2.Bridge.DepositProcessor` + `L2Native.L2BridgeContract.ApplyDeposit`.
+- **§15.2 Deposit** — L1→L2. `Neo.L2.Bridge.DepositProcessor` + Neo Core native `L2BridgeContract.ApplyDeposit`.
 - **§15.3 Withdrawal** — L2→L1. `Neo.L2.Bridge.WithdrawalProcessor` + `NeoHub.SharedBridge.FinalizeWithdrawal`.
 - **§15.4 Forced inclusion** — Anti-censorship. `contracts/NeoHub.ForcedInclusion/` + `Neo.L2.ForcedInclusion` + `Neo.L2.Censorship`.
 - **§15.5 Emergency exit** — Escape hatch. `contracts/NeoHub.EmergencyManager/`.

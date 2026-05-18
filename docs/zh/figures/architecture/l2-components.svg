@@ -106,7 +106,7 @@
 
   <!-- L2 native contracts (top) -->
   <rect x="40" y="76" width="880" height="116" rx="10" ry="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
-  <text x="58" y="100" class="layer-title" fill="#1e2a55">L2 原生合约（contracts/L2Native.*）</text>
+  <text x="58" y="100" class="layer-title" fill="#1e2a55">L2 原生合约（external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs）</text>
   <text x="58" y="118" class="layer-sub" fill="#3f5193">链上 L2 状态 —— 包装资产、消息收件箱、批次信息、费用配置</text>
 
   <g filter="url(#card)">

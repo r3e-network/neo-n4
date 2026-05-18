@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 460" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">DepositPayload byte layout (44 + amountLen bytes)</title>
-  <desc id="desc">Byte-by-byte canonical wire format for DepositPayload — 4 fields totaling 44 bytes fixed prefix plus N bytes variable amount. Embedded in the payload field of the CrossChainMessage that travels from NeoHub.SharedBridge to L2NativeBridgeContract. Fields by offset: 0-19 l1Asset (UInt160 — L1 asset hash locked at SharedBridge), 20-39 l2Recipient (UInt160 — L2 address that gets the wrapped asset), 40-43 amountLen (int32 LE — length of amount bytes), 44 to 43+N amount (BigInteger LE, isUnsigned: true).</desc>
+  <desc id="desc">Byte-by-byte canonical wire format for DepositPayload — 4 fields totaling 44 bytes fixed prefix plus N bytes variable amount. Embedded in the payload field of the CrossChainMessage that travels from NeoHub.SharedBridge to Neo Core native L2BridgeContract. Fields by offset: 0-19 l1Asset (UInt160 — L1 asset hash locked at SharedBridge), 20-39 l2Recipient (UInt160 — L2 address that gets the wrapped asset), 40-43 amountLen (int32 LE — length of amount bytes), 44 to 43+N amount (BigInteger LE, isUnsigned: true).</desc>
 
   <defs>
     <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
@@ -21,7 +21,7 @@
   <rect width="960" height="460" fill="#ffffff"/>
 
   <text x="480" y="30" text-anchor="middle" class="header" fill="#1e2a55">DepositPayload byte layout — 44 + amountLen bytes</text>
-  <text x="480" y="50" text-anchor="middle" class="ftr">embedded in CrossChainMessage payload from NeoHub.SharedBridge → L2NativeBridgeContract</text>
+  <text x="480" y="50" text-anchor="middle" class="ftr">embedded in CrossChainMessage payload from NeoHub.SharedBridge to native L2BridgeContract</text>
 
   <text x="60" y="86" class="col-h">OFFSET</text>
   <text x="140" y="86" class="col-h">SIZE</text>

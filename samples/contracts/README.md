@@ -2,14 +2,14 @@
 
 Original Neo smart contracts demonstrating common L2-aware patterns. Each is a
 short, copy-friendly example showing how an app contract integrates with the
-`L2Native.*` system contracts already in `contracts/`.
+N4 L2 native system contracts registered in Neo core.
 
 ## What's here
 
 | Sample | What it demonstrates |
 |--------|----------------------|
-| [`Sample.CrossChainGreeter`](./Sample.CrossChainGreeter/) | Emit an L2 → L1 (or L2 → L2) cross-chain message via `L2Native.L2MessageContract.EmitMessage`. App-defined messageType byte; receiver dispatches on it. |
-| [`Sample.WithdrawalDemo`](./Sample.WithdrawalDemo/) | Initiate a bridged-asset withdrawal via `L2Native.L2BridgeContract.InitiateWithdrawal`. Burn-on-L2 + emit a withdrawal record into the next batch's Merkle tree. |
+| [`Sample.CrossChainGreeter`](./Sample.CrossChainGreeter/) | Emit an L2 → L1 (or L2 → L2) cross-chain message via Neo Core native `L2MessageContract.EmitMessage`. App-defined messageType byte; receiver dispatches on it. |
+| [`Sample.WithdrawalDemo`](./Sample.WithdrawalDemo/) | Initiate a bridged-asset withdrawal via Neo Core native `L2BridgeContract.InitiateWithdrawal`. Burn-on-L2 + emit a withdrawal record into the next batch's Merkle tree. |
 
 ## Building
 
@@ -28,12 +28,12 @@ dotnet build samples/contracts/Sample.CrossChainGreeter /p:NuGetAudit=false
 
 ## Wiring after deploy
 
-Each sample takes its `L2Native.*` partner hash as deploy data. The deploy flow:
+Each sample takes its L2 native partner hash as deploy data. The deploy flow:
 
-1. Deploy the L2 native suite as part of an L2's genesis (the chain operator's
-   responsibility — happens once per L2).
-2. Discover the deployed L2Native hashes from your L2 node's chain-state cache
-   (or from the deploy bundle if you ran `neo-stack init-l2`).
+1. Start the L2 from the r3e Neo core fork; the L2 native suite is present at
+   genesis and is not deployed later.
+2. Discover the native contract hashes from your L2 node chain-state cache or
+   from `NativeContract` metadata in the r3e Neo fork.
 3. Deploy this sample with `(owner, <l2NativeHash>)` as the deploy data tuple
    — exactly what `_deploy(object data, bool update)` parses.
 4. Call the sample's user-facing method (`SendGreeting` / `WithdrawTo`) from
@@ -45,7 +45,7 @@ sample as a step alongside the L2Native ones.
 
 ## Adding your own sample
 
-The recipe mirrors `contracts/L2Native.*` exactly:
+The recipe mirrors the deployable NeoHub contract project shape:
 
 1. Create `samples/contracts/Sample.<Name>/Sample.<Name>.csproj` — a one-line
    wrapper that `<Import>`s `..\..\..\contracts\Directory.Build.props`.
@@ -59,6 +59,6 @@ The recipe mirrors `contracts/L2Native.*` exactly:
 
 ## Reference
 
-- L2Native contracts the samples integrate with: [`contracts/L2Native.*`](../../contracts/)
+- L2 native contracts the samples integrate with: [`external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`](../../external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs)
 - Operator wiring guide: [`docs/launching-an-l2.md`](../../docs/launching-an-l2.md)
 - Tech-stack coverage: [`docs/tech-stack-coverage.md`](../../docs/tech-stack-coverage.md)

@@ -43,7 +43,7 @@ off-chain infrastructure that connects them:
   `IDAWriter` impl-specific.
 - **Cross-L2 message** — L2 sender → NeoHub.MessageRouter → L2
   receiver. Wire format: `MessageHasher` canonical bytes.
-- **L1→L2 deposit** — User → NeoHub.SharedBridge → L2NativeBridge.
+- **L1→L2 deposit** — User → NeoHub.SharedBridge → Neo Core native `L2BridgeContract`.
   Wire format: `DepositPayload`.
 - **L2→L1 withdrawal** — L2 user → SettlementManager Merkle proof.
   Wire format: `WithdrawalRecord` + Merkle path.
@@ -101,9 +101,10 @@ in the chain config.
 ### Tier 3: L2 chains
 
 Each L2 = **Neo 4 core (the consensus + VM kernel) + 8 plugins +
-10 native contracts**. Plugins live at `src/Neo.Plugins.L2*/`,
-native contracts at `contracts/L2Native.*`. The Neo 4 core itself
-is vendored as a git submodule at `external/neo`.
+10 native contracts**. Plugins live at `src/Neo.Plugins.L2*/`.
+The native contracts live inside the r3e Neo core fork at
+`external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`, so
+they exist at genesis and are not deployed later from `contracts/`.
 
 <p align="center">
   <img src="figures/architecture/l2-components.svg" alt="L2 chain components — Neo 4 core (consensus + VM kernel, vendored submodule) at the bottom, 8 L2 plugins (L2Batch, L2Settlement, L2Prover, L2Bridge, L2DA, L2Rpc, L2Gateway, L2Metrics) in the middle, 10 L2 native contracts (L2BridgeContract, L2MessageContract, L2BatchInfoContract, L2FeeContract, L2PaymasterContract, L2SystemConfigContract, L2NativeExternalBridgeContract, BridgedNep17Contract, L2AccountAbstraction, L2InteropVerifier) on top" width="900">
@@ -237,7 +238,7 @@ neo_hub_message_router      = 0x...  # MessageRouter (if cross-L2 enabled)
 
 Plus its own L2-side contracts:
 ```toml
-l2_native_bridge_hash       = 0x...  # this L2's L2NativeBridgeContract
+l2_native_bridge_hash       = 0x...  # this L2's Neo Core native L2BridgeContract
 l2_native_message_hash      = 0x...  # this L2's L2MessageContract
 l2_batch_info_hash          = 0x...  # this L2's L2BatchInfoContract
 ```

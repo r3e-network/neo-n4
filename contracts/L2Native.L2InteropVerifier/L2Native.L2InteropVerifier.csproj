@@ -1,8 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <RootNamespace>L2Native.L2InteropVerifier</RootNamespace>
-    <AssemblyName>L2Native.L2InteropVerifier</AssemblyName>
-  </PropertyGroup>
-
-</Project>

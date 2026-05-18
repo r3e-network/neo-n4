@@ -26,10 +26,11 @@ component is mainnet-ready. Below is an honest readiness audit.
 
 These are real production-shape implementations with full test coverage:
 
-- **All 23 NeoHub L1 contracts** + **10 L2Native contracts** type-check via
+- **All 23 NeoHub L1 deployable contracts** type-check via
   `Neo.SmartContract.Framework`; CI compiles each with `nccs` and verifies
-  the `.nef` + `.manifest.json` artifacts (35 contracts total incl. the 2
-  `samples/contracts/Sample.*` app-developer examples).
+  the `.nef` + `.manifest.json` artifacts. **All 10 N4 L2 system contracts**
+  are Neo core native contracts in `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`
+  and are verified by `external/neo/tests/Neo.UnitTests/SmartContract/Native/UT_L2NativeContracts.cs`.
 - **Off-chain canonical encoders**, byte-layout-pinned + tested:
   `BatchSerializer`, `MessageHasher`, `MerkleProofSerializer`,
   `L2ChainConfigSerializer`, `DepositPayload`, `MultisigProofPayload`,
@@ -65,7 +66,7 @@ These are real production-shape implementations with full test coverage:
   `SequencerBond`) + `NeoHub.MpcCommitteeFraudVerifier` (Phase C —
   proves equivocation cryptographically + slashes the full bond +
   pays the reporter; replay-protected per `(chainId, signerIdx)`) +
-  `L2Native.ExternalBridgeContract` (L2-side burn/mint counterpart).
+  `L2NativeExternalBridgeContract` (Neo core native L2-side burn/mint counterpart).
   Eth-side `NeoExternalBridgeRouter.sol` (393 lines, solc 0.8.24,
   **20 Foundry tests** = 13 single-chain coverage + 7 multi-chain
   pinning per-instance state isolation across 17 canonical mainnet
@@ -224,7 +225,7 @@ subcommands.
 | `Neo.Plugins.L2Gateway`      | `BinaryTreeAggregator` with pluggable `IRoundProver` (default `PassThroughRoundProver`); `PassThroughAggregator` for flat aggregation; emits `l2.gateway.aggregations/batches_aggregated/aggregation_rounds/aggregation_latency_ms` |
 | `Neo.Plugins.L2Metrics`      | **Composition root**: hosts the shared `IL2Metrics` sink + `MetricsHttpServer`; other plugins call `metricsPlugin.Metrics` and pass to their `WithMetrics()` setters; configurable bind address + port + readiness predicate |
 
-### Smart contracts (`contracts/`) — 33 NeoHub/L2Native total, all type-check via devpack
+### Smart contracts - 23 deployable NeoHub + 10 Neo core native L2 contracts
 
 **NeoHub L1 suite (23):**
 Phase 0–3: `ChainRegistry` · `SharedBridge` · `SettlementManager` · `VerifierRegistry` · `MessageRouter` · `TokenRegistry` · `DARegistry` · **`DAValidator`** · **`L1TxFilter`** · `GovernanceController` · `EmergencyManager` · `ForcedInclusion` · `SequencerBond` · `SequencerRegistry` · `OptimisticChallenge` · `GovernanceFraudVerifier` (structural v1/v2) · **`RestrictedExecutionFraudVerifier`** (trustless v3 — on-chain Merkle re-derivation)
@@ -246,13 +247,13 @@ External-bridge stack (doc.md §11.3 — cross-foreign-chain to Eth/Tron/Sol):
 
 ### Tests
 
-**1426 .NET tests across 34 projects, plus 159 cross-language tests
+**1430 .NET tests across 34 projects, plus 159 cross-language tests
 (15 TypeScript + 10 Rust SDK + 5 shared execution-core + 7 SP1 guest host-mode + 101 Rust bridge
 watcher core across 3 crates [eth: 85 with `live-rpc`; tron: 7; sol: 9],
 20 Foundry Solidity tests for `NeoExternalBridgeRouter` [13 single-chain
 and 7 multi-chain validating the router deploys unchanged across the entire
 EVM family], and 1 Solana Anchor program test) — all green on the Windows audit
-matrix.** Phase-C real-crypto fraud-proof tests (7 of the 1426 .NET) pin the
+matrix.** Phase-C real-crypto fraud-proof tests (7 of the 1430 .NET) pin the
 equivocation slash path's bytes-on-the-wire contract end-to-end with
 real secp256k1 signatures.
 
@@ -290,7 +291,7 @@ real secp256k1 signatures.
 ## What's not yet wired (out of MVP scope)
 
 - **Live L1 signer for `RpcSettlementClient.SubmitBatchAsync`** — interface in place; concrete wallet integration is operator-specific. For tests + devnets, `Neo.L2.Settlement.Rpc.InMemorySettlementClient` provides a fully-functional in-process `ISettlementClient` with deterministic tx hashes and an explicit `AdvanceStatus` lifecycle driver.
-- **`nccs` artifact generation** — `Directory.Build.props` calls `nccs` with `ContinueOnError=true` so dev builds without nccs still type-check. CI installs `Neo.Compiler.CSharp` on the runner and verifies all 33 NeoHub/L2Native contracts (23 NeoHub + 10 L2Native) plus the 2 sample contracts produce `.nef` + `.manifest.json` artifacts on every commit (catches NeoVM-specific compile errors that the C# type-check doesn't).
+- **`nccs` artifact generation** - `Directory.Build.props` calls `nccs` with `ContinueOnError=true` so dev builds without nccs still type-check. CI installs `Neo.Compiler.CSharp` on the runner and verifies all 23 deployable NeoHub contracts plus the 2 sample contracts produce `.nef` + `.manifest.json` artifacts on every commit. L2 system contracts are not deployable artifacts; CI verifies them through the Neo core native-contract tests in `external/neo`.
 - **RpcServer plugin integration partial** — `L2RpcMethods` callable as plain methods; the `[RpcMethod]`-attributed wrapper for neo's `RpcServer` plugin needs the RpcServer source.
 - **Real SP1 prover** — `bridge/neo-zkvm-host/` (Rust, sp1-sdk 6.2.1). The framework's only production proving path: `prove()` returns proof + verifying-key bytes for on-chain submission, `verify()` confirms off-chain pre-settlement. The `prove-batch` CLI ships a `daemon --watch <dir> --archive <dir>` mode that polls a queue directory for `*.batch.bin` files and emits matching `*.proof.bin` + `*.proof.vk`, atomically renaming inputs so the loop is restart-safe. Verified end-to-end on a real proof: 87s prove time, 2.78MB proof artifact, 42s verify time, public-input hash matches host execute byte-for-byte. The prover lives in a separate process from the sequencer (matches Optimism / Arbitrum / ZKsync architecture) — see `docs/launching-an-l2.md` § "Prover deployment" for the operator runbook.
 - **Real recursive ZK round prover** — `BinaryTreeAggregator` has the right shape; production swaps `PassThroughRoundProver` for SP1 Compress / Halo2 accumulator / Risc0 fold.

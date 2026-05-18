@@ -76,7 +76,7 @@ public class UT_SubmitBatchCommand
         Assert.AreEqual(0, rc);
         StringAssert.Contains(output, "chainId       : 1099");
         StringAssert.Contains(output, "batchNumber   : 42");
-        StringAssert.Contains(output, "blocks        : 100–150");
+        StringAssert.Contains(output, "blocks        : 100-150");
         StringAssert.Contains(output, "proofType     : Multisig");
         StringAssert.Contains(output, "Validation passed");
     }

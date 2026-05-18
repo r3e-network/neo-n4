@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 1080" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">L2 链创建生命周期 —— 从 git clone 到首批次落到 L1</title>
-  <desc id="desc">跨 6 个角色(运维者、neo-stack CLI、文件系统、L1 钱包、L1 上的 NeoHub.ChainRegistry、L2 排序器)的编号 swimlane 序列。阶段 1(步骤 1-5):运维者跑 new-l2,neo-stack 脚手架文件,validate 做 JSON 健全性检查。阶段 2(步骤 6-12):运维者跑 register-chain,neo-stack 返回 91 字节 configBytes hex + RegisterChain 计划;运维者把参数粘进钱包,钱包向 L1 上的 ChainRegistry 提交 RegisterChain;tx 被接受。运维者跑 deploy-bridge-adapter,neo-stack 返回 L2NativeBridge 部署计划,钱包部署。阶段 3(步骤 13-20):运维者跑 start-sequencer,neo-stack 打印 preflight + compose 说明;运维者启动 neo-cli + L2 插件;dBFT 2.0 起跑;运维者跑 start-batcher;L2 上的 BatchInfoContract 镜像 L1 游标;排序器提交 SubmitBatch;SettlementManager 接受结算。</desc>
+  <desc id="desc">跨 6 个角色(运维者、neo-stack CLI、文件系统、L1 钱包、L1 上的 NeoHub.ChainRegistry、L2 排序器)的编号 swimlane 序列。阶段 1(步骤 1-5):运维者跑 new-l2,neo-stack 脚手架文件,validate 做 JSON 健全性检查。阶段 2(步骤 6-12):运维者跑 register-chain,neo-stack 返回 91 字节 configBytes hex + RegisterChain 计划;运维者把参数粘进钱包,钱包向 L1 上的 ChainRegistry 提交 RegisterChain;tx 被接受。运维者跑 deploy-bridge-adapter,neo-stack 返回 Neo Core 原生 L2BridgeContract 的配置计划,钱包注册映射。阶段 3(步骤 13-20):运维者跑 start-sequencer,neo-stack 打印 preflight + compose 说明;运维者启动 neo-cli + L2 插件;dBFT 2.0 起跑;运维者跑 start-batcher;L2 上的 BatchInfoContract 镜像 L1 游标;排序器提交 SubmitBatch;SettlementManager 接受结算。</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
@@ -120,7 +120,7 @@
 
   <line x1="220" y1="528" x2="80" y2="528" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
   <text x="20" y="522" class="step-n">12.</text>
-  <text x="46" y="522" class="step">L2NativeBridge 部署计划 → 钱包执行</text>
+  <text x="46" y="522" class="step">原生 L2Bridge 配置计划 -> 钱包执行</text>
 
   <rect x="0" y="546" width="960" height="28" fill="#e7f4eb" stroke="#3a8454" stroke-dasharray="3 2"/>
   <text x="20" y="565" class="phase-t" fill="#1d4d2c">阶段 3 · L2 批次落到 L1;端到端工作</text>

@@ -84,14 +84,14 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
   [`docs/persistence.md`](./persistence.md).
 - **Node plugins (8)** — `Neo.Plugins.L2{Batch, Bridge, DA, Gateway,
   Metrics, Prover, Rpc, Settlement}`.
-- **Smart contracts (33)** — 23 NeoHub L1 (incl. `DAValidator`, `L1TxFilter`, `GovernanceFraudVerifier`,
+- **Smart contracts (23 deployable + 10 native)** — 23 NeoHub L1 (incl. `DAValidator`, `L1TxFilter`, `GovernanceFraudVerifier`,
   `RestrictedExecutionFraudVerifier` v3 trustless verifier, and the 6
   cross-foreign-chain bridge contracts: `MpcCommitteeVerifier` /
   `ExternalBridgeRegistry` / `ExternalBridgeEscrow` /
   `ExternalBridgeBond` / `ExternalBridgeStubVerifier` /
-  `MpcCommitteeFraudVerifier`) + 10 L2 native (incl. bridged NEP-17, AA,
-  interop verifier, and `L2NativeExternalBridgeContract`); all type-check via
-  `Neo.SmartContract.Framework`.
+  `MpcCommitteeFraudVerifier`) type-check via `Neo.SmartContract.Framework`.
+  The 10 L2 system contracts are Neo core native contracts in
+  `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`.
 - **CLI tools (7)** — `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`,
   `neo-l2-explore`, `neo-bridge`, `neo-l2-faucet`, `neo-external-bridge`.
 - **App SDKs (3)** — `src/Neo.L2.Sdk/` (.NET) · `sdk/typescript/`
@@ -110,7 +110,7 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
   `external/neo-riscv-vm` (PolkaVM-backed Neo RISC-V engine) ·
   `external/neo-zkvm` (Neo VM in pure Rust + SP1 prover crates). None
   are released on NuGet/crates.io for the versions tracked here.
-- **Tests (1426 .NET + 159 cross-lang)** — 1426 across 34 .NET projects;
+- **Tests (1430 .NET + 159 cross-lang)** — 1430 across 34 .NET projects;
   15 TypeScript (vitest) + 10 Rust SDK (mockito) + 5 shared execution-core
   + 7 SP1 guest (host)
   + 101 Rust bridge watchers (eth 85 / tron 7 / sol 9) + 20 Foundry + 1 Solana Anchor —
@@ -133,7 +133,7 @@ neo4/
 │   └── Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}/
 ├── contracts/
 │   ├── NeoHub.* (23)                       # L1 contract suite
-│   └── L2Native.* (10)                     # on-L2 native contracts
+├── external/neo/                            # r3e Neo fork with N4 L2 native contracts
 ├── tools/
 │   ├── Neo.Stack.Cli/                      # neo-stack CLI (12 subcommands)
 │   ├── Neo.L2.Devnet/                      # in-process end-to-end demo runner
@@ -146,7 +146,7 @@ neo4/
 │   ├── neo-execution-core/                 # backend-neutral batch fold + public input hash
 │   ├── neo-zkvm-guest/                     # Rust → RISC-V ELF (real Neo VM, SP1-proven)
 │   └── neo-zkvm-host/                      # sp1-sdk 6.2.1 prover daemon (prove-batch)
-└── tests/                                  # 1426 tests / 34 projects
+└── tests/                                  # 1430 tests / 34 projects
 ```
 
 ---
@@ -186,7 +186,7 @@ cd neo-n4
 # If you forgot --recurse-submodules:
 # git submodule update --init --recursive
 
-# Type-check everything + run all 1426 tests (~10 seconds)
+# Type-check everything + run all 1430 tests (~10 seconds)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # --- Bootstrapping a new L2 chain (recommended path) ---
@@ -249,7 +249,7 @@ A 5-minute walkthrough is in [`docs/getting-started.md`](./getting-started.md).
 | [`docs/getting-started.md`](./getting-started.md)                  | new contributors      | Clone → test → run devnet in 5 minutes.                              |
 | [`docs/launching-an-l2.md`](./launching-an-l2.md)                  | L2 operators          | 5-command path to a registered L2 chain + every plug-in point for custom logic (executor / DA / prover / sequencer). Templates: rollup / zk-rollup / validium / sidechain. |
 | [`samples/`](../samples/README.md)                                       | L2 operators          | 4 ready-to-run sample chain configs covering distinct use cases (general-rollup / gaming-rollup / exchange-validium / privacy-sidechain), each verified end-to-end via `neo-l2-devnet --config`. |
-| [`samples/contracts/`](../samples/contracts/README.md)                   | dApp developers       | Sample L2-aware app contracts (`CrossChainGreeter`, `WithdrawalDemo`) showing standard patterns for integrating with `L2Native.*`. |
+| [`samples/contracts/`](../samples/contracts/README.md)                   | dApp developers       | Sample L2-aware app contracts (`CrossChainGreeter`, `WithdrawalDemo`) showing standard patterns for integrating with N4 L2 native contracts. |
 | [`docs/tech-stack-coverage.md`](./tech-stack-coverage.md)          | reviewers             | Honest gap analysis of L2-stack coverage — 51 components ✅, 2 🟡 (Phase 4/5 ZK infra), 6 🔴 (out-of-repo: SDKs, explorer, portal, faucet, wallet integration). |
 | [`docs/architecture-walkthrough.md`](./architecture-walkthrough.md) | engineers             | Narrative tour mapping every `doc.md` section to code.               |
 | [`docs/core-fork-policy.md`](./core-fork-policy.md)                | maintainers           | How `external/neo` tracks the `r3e-network/neo` fork and where N4 core/native-contract changes land. |

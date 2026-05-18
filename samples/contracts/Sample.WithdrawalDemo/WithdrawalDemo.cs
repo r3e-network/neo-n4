@@ -11,7 +11,7 @@ namespace Sample.WithdrawalDemo;
 
 /// <summary>
 /// Minimal example dApp that initiates an L2 → L1 withdrawal on behalf of the caller
-/// via <c>L2Native.L2BridgeContract.InitiateWithdrawal</c>. Demonstrates the
+/// via Neo Core native <c>L2BridgeContract.InitiateWithdrawal</c>. Demonstrates the
 /// user-initiated burn path: caller holds a balance of <c>l2Asset</c> on this L2,
 /// the contract calls <c>L2BridgeContract</c> which burns the amount and emits a
 /// withdrawal record into the next batch's withdrawal Merkle tree. Once the batch

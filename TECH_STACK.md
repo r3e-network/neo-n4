@@ -53,7 +53,7 @@ Per-component detail lives in [`docs/tech-stack-coverage.md`](docs/tech-stack-co
 | Category | Count | Where |
 |----------|------:|-------|
 | Smart contracts — NeoHub L1 suite | 23 | `contracts/NeoHub.*/` |
-| Smart contracts — L2 native | 10 | `contracts/L2Native.*/` |
+| Smart contracts — L2 native | 10 | `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs` |
 | Smart contracts — sample dApps | 2 | `samples/contracts/Sample.*/` |
 | Sample executor (reference) | 1 | `samples/executors/Sample.CounterChainExecutor/` |
 | Foreign-side on-chain programs | 2 | `external/foreign-contracts/eth/` (Solidity, deploys to 14 EVM chains) + `external/foreign-contracts/sol/` (Solana Anchor) |
@@ -67,7 +67,7 @@ Per-component detail lives in [`docs/tech-stack-coverage.md`](docs/tech-stack-co
 | Test projects | 34 | `tests/Neo.L2.*.UnitTests/` + `tests/Neo.L2.IntegrationTests/` + sample test projects |
 | Documentation pages | 20 EN + 22 zh | `docs/*.md`, `docs/zh/*.md` |
 
-**Total runnable code modules: 78** (33 contracts + 2 samples + 1 executor + 2 foreign + 16 libs + 8 plugins + 7 tools + 2 bridge + 3 watchers + 3 SDKs + 1 web).
+**Total runnable code modules: 78** (23 deployable NeoHub contracts + 10 Neo core native L2 contracts + 2 samples + 1 executor + 2 foreign + 16 libs + 8 plugins + 7 tools + 2 bridge + 3 watchers + 3 SDKs + 1 web).
 
 ---
 
@@ -75,13 +75,13 @@ Per-component detail lives in [`docs/tech-stack-coverage.md`](docs/tech-stack-co
 
 | Check | Result |
 |-------|--------|
-| .NET tests | **1426 passing across 34 projects, 0 failures** |
+| .NET tests | **1430 passing across 34 projects, 0 failures** |
 | Cross-language tests | **159 passing** (15 TS + 10 Rust SDK + 5 shared execution-core + 7 SP1 guest + 101 watcher with `--features live-rpc` + 20 Foundry + 1 Solana Anchor) |
 | Real-CPU SP1 proof generation | **2 ignored release-gate tests** (~40s prove, ~20s verify, 2.78 MB proof artifact) |
-| **Base tests green** | **1585** |
-| Smart contract artifacts | 35/35 `.nef` + `.manifest.json` compile cleanly via `nccs 3.9.1` |
+| **Base tests green** | **1589** |
+| Smart contract artifacts | 25/25 deployable `.nef` + `.manifest.json` compile cleanly via `nccs 3.9.1`; 10 L2 native contracts pass Neo core native tests |
 | Devnet 5-batch end-to-end | green (state-root continuity, multisig proofs, audit pass) |
-| `dotnet build Neo.L2.sln` | 107 solution projects, 0 errors, 0 warnings |
+| `dotnet build Neo.L2.sln` | 97 solution projects, 0 errors, 0 warnings |
 
 ---
 
@@ -109,7 +109,7 @@ remaining gaps worth closing as the framework matures.
 | NeoVM opcodes / native contracts | **Core fork** (`r3e-network/neo`) | L1 execution kernel plus N4-native deltas tracked on `r3e/neo-n4-core` |
 | dBFT consensus / RpcServer plugin | **Core** | Same |
 | L1 contracts (NeoHub) | This repo → `contracts/NeoHub.*/` | All 23 L1 contracts live here |
-| L2 native contracts | This repo → `contracts/L2Native.*/` | 10 L2-specific natives |
+| L2 native contracts | **Core fork** (`external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`) | Native contracts registered by Neo core at genesis |
 | Batch / state / messaging logic | This repo → `src/Neo.L2.{Batch,State,Messaging}/` | Pure off-chain libraries |
 | Sequencer / batcher / prover runtime | This repo → `src/Neo.L2.{Sequencer,Batch,Proving}/` + `src/Neo.Plugins.L2*/` | Plugin-based runtime |
 | Off-chain fraud-proof generation | This repo → `src/Neo.L2.Challenge/` | Bisection game + payload encoding |
@@ -131,7 +131,7 @@ remaining gaps worth closing as the framework matures.
 # Build everything (~10s)
 dotnet build Neo.L2.sln /p:NuGetAudit=false
 
-# Run all .NET tests (1426 tests, ~30s)
+# Run all .NET tests (1430 tests, ~30s)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Run the in-process devnet (5 batches, full pipeline)

@@ -99,14 +99,14 @@ jobs:
         # every commit gets the .nef + .manifest.json artifacts validated.
         run: dotnet tool install -g Neo.Compiler.CSharp
 
-      - name: Type-check + compile NeoHub + L2Native + sample contracts
+      - name: Type-check + compile deployable NeoHub + sample contracts
         # dotnet build type-checks the C# surface; nccs explicitly emits the
         # deployable .nef + .manifest.json artifacts into <project>/bin/sc/.
         # samples/contracts/Sample.* are app-developer examples: same compile
         # path, so a refactor that breaks the sample API surfaces here, not at
         # an operator's terminal.
         run: |
-          for d in contracts/NeoHub.* contracts/L2Native.* samples/contracts/Sample.*; do
+          for d in contracts/NeoHub.* samples/contracts/Sample.*; do
             name=$(basename "$d")
             project="$d/$name.csproj"
             dotnet build "$project" /p:NuGetAudit=false --nologo
@@ -116,7 +116,7 @@ jobs:
       - name: Verify .nef + .manifest.json artifacts produced
         run: |
           missing=0
-          for d in contracts/NeoHub.* contracts/L2Native.* samples/contracts/Sample.*; do
+          for d in contracts/NeoHub.* samples/contracts/Sample.*; do
             name=$(basename "$d")
             for ext in nef manifest.json; do
               if [ ! -f "$d/bin/sc/$name.$ext" ]; then
@@ -132,10 +132,15 @@ jobs:
           # Count is logged dynamically so the message can't drift from reality
           # when a contract is added (matches the loop above + the verification loop).
           neo_count=$(ls -d contracts/NeoHub.* 2>/dev/null | wc -l)
-          native_count=$(ls -d contracts/L2Native.* 2>/dev/null | wc -l)
           sample_count=$(ls -d samples/contracts/Sample.* 2>/dev/null | wc -l)
-          total=$((neo_count + native_count + sample_count))
-          echo "All $total contracts ($neo_count NeoHub + $native_count L2Native + $sample_count samples) produced .nef + .manifest.json artifacts"
+          total=$((neo_count + sample_count))
+          echo "All $total deployable contracts ($neo_count NeoHub + $sample_count samples) produced .nef + .manifest.json artifacts"
+
+      - name: Verify N4 L2 native contracts in r3e Neo core
+        run: |
+          dotnet test external/neo/tests/Neo.UnitTests/Neo.UnitTests.csproj \
+            --filter FullyQualifiedName~UT_L2NativeContracts \
+            /p:NuGetAudit=false --nologo
 
   bridge:
     name: cargo check (Rust bridge)

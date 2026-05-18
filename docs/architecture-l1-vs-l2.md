@@ -138,24 +138,26 @@ the rules in §5:
 - **`NeoHub.ExternalBridgeBond`** L1 ✅ → L1 — Slashable economic security
 - **`NeoHub.ExternalBridgeStubVerifier`** L1 🟡 → testing only — **not registrable through `ExternalBridgeRegistry` production bridge kinds**
 
-- **`L2Native.L2BridgeContract`** L2 ✅ → L2 — Per-L2 NEP-17 wrapped state (rule 4)
-- **`L2Native.L2MessageContract`** L2 ✅ → L2 — Per-L2 inbox/outbox
-- **`L2Native.L2BatchInfoContract`** L2 ✅ → L2 — L2-local view of L1's batch state
-- **`L2Native.L2FeeContract`** L2 ✅ → L2 — L2-local fee config (rule 5)
-- **`L2Native.L2PaymasterContract`** L2 ✅ → L2 — L2-app-specific (rule 5)
-- **`L2Native.L2SystemConfigContract`** L2 ✅ → L2 — L2-local mirror of L1 chainConfig
-- **`L2Native.ExternalBridgeContract`** L2 ✅ → L2 — Per-L2 wrapped foreign-asset state (rule 4)
-- **`L2Native.BridgedNep17Contract`** L2 ✅ → L2 — Per-L2 canonical token representation (rule 4)
-- **`L2Native.L2AccountAbstraction`** L2 ✅ → L2 — Per-chain validator/paymaster entry point (rule 5)
-- **`L2Native.L2InteropVerifier`** L2 ✅ → L2 — Local proof verification against mirrored global roots (rules 4+5)
+- **Neo Core native `L2BridgeContract`** L2 ✅ → L2 — Per-L2 NEP-17 wrapped state (rule 4)
+- **Neo Core native `L2MessageContract`** L2 ✅ → L2 — Per-L2 inbox/outbox
+- **Neo Core native `L2BatchInfoContract`** L2 ✅ → L2 — L2-local view of L1's batch state
+- **Neo Core native `L2FeeContract`** L2 ✅ → L2 — L2-local fee config (rule 5)
+- **Neo Core native `L2PaymasterContract`** L2 ✅ → L2 — L2-app-specific (rule 5)
+- **Neo Core native `L2SystemConfigContract`** L2 ✅ → L2 — L2-local mirror of L1 chainConfig
+- **Neo Core native `L2NativeExternalBridgeContract`** L2 ✅ → L2 — Per-L2 wrapped foreign-asset state (rule 4)
+- **Neo Core native `BridgedNep17Contract`** L2 ✅ → L2 — Per-L2 canonical token representation (rule 4)
+- **Neo Core native `L2AccountAbstraction`** L2 ✅ → L2 — Per-chain validator/paymaster entry point (rule 5)
+- **Neo Core native `L2InteropVerifier`** L2 ✅ → L2 — Local proof verification against mirrored global roots (rules 4+5)
 
 **Findings:**
 
 ✅ **22 of 23 NeoHub contracts are correctly placed on L1** — each
 satisfies at least one of rules 1, 2, or 3.
 
-✅ **All 10 L2 native contracts are correctly placed on L2** — each is
-per-chain state with no cross-L2 read requirement.
+✅ **All 10 L2 native contracts are correctly placed in L2 Neo core** — each is
+per-chain state with no cross-L2 read requirement and is registered from
+`external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`, not deployed
+after genesis.
 
 🟡 **`ExternalBridgeStubVerifier` is L1 but is testing-only.** A
 production NeoHub deployment must not register this verifier in

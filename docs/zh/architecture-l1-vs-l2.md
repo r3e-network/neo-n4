@@ -122,16 +122,16 @@ L1 上多半是*过早中心化*。
 - **`NeoHub.ExternalBridgeBond`** L1 ✅ → L1 — 可罚没经济安全
 - **`NeoHub.ExternalBridgeStubVerifier`** L1 🟡 → 仅测试 — **不能通过 `ExternalBridgeRegistry` 的生产 bridge kind 注册**
 
-- **`L2Native.L2BridgeContract`** L2 ✅ → L2 — 按 L2 的 NEP-17 包装资产状态(规则 4)
-- **`L2Native.L2MessageContract`** L2 ✅ → L2 — 按 L2 的 inbox/outbox
-- **`L2Native.L2BatchInfoContract`** L2 ✅ → L2 — L1 批次状态在 L2 本地的视图
-- **`L2Native.L2FeeContract`** L2 ✅ → L2 — L2 本地费用 config(规则 5)
-- **`L2Native.L2PaymasterContract`** L2 ✅ → L2 — L2 应用特定(规则 5)
-- **`L2Native.L2SystemConfigContract`** L2 ✅ → L2 — L1 chainConfig 在 L2 本地的镜像
-- **`L2Native.ExternalBridgeContract`** L2 ✅ → L2 — 按 L2 的外链包装资产状态(规则 4)
-- **`L2Native.BridgedNep17Contract`** L2 ✅ → L2 — 按 L2 的规范桥接代币表示(规则 4)
-- **`L2Native.L2AccountAbstraction`** L2 ✅ → L2 — 按链 validator/paymaster 入口(规则 5)
-- **`L2Native.L2InteropVerifier`** L2 ✅ → L2 — 基于镜像 global root 的本地包含证明校验(规则 4+5)
+- **Neo Core 原生 `L2BridgeContract`** L2 ✅ → L2 — 按 L2 的 NEP-17 包装资产状态(规则 4)
+- **Neo Core 原生 `L2MessageContract`** L2 ✅ → L2 — 按 L2 的 inbox/outbox
+- **Neo Core 原生 `L2BatchInfoContract`** L2 ✅ → L2 — L1 批次状态在 L2 本地的视图
+- **Neo Core 原生 `L2FeeContract`** L2 ✅ → L2 — L2 本地费用 config(规则 5)
+- **Neo Core 原生 `L2PaymasterContract`** L2 ✅ → L2 — L2 应用特定(规则 5)
+- **Neo Core 原生 `L2SystemConfigContract`** L2 ✅ → L2 — L1 chainConfig 在 L2 本地的镜像
+- **Neo Core 原生 `L2NativeExternalBridgeContract`** L2 ✅ → L2 — 按 L2 的外链包装资产状态(规则 4)
+- **Neo Core 原生 `BridgedNep17Contract`** L2 ✅ → L2 — 按 L2 的规范桥接代币表示(规则 4)
+- **Neo Core 原生 `L2AccountAbstraction`** L2 ✅ → L2 — 按链 validator/paymaster 入口(规则 5)
+- **Neo Core 原生 `L2InteropVerifier`** L2 ✅ → L2 — 基于镜像 global root 的本地包含证明校验(规则 4+5)
 
 **结论:**
 

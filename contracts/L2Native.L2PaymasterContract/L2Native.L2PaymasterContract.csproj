@@ -1,6 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <RootNamespace>L2Native.L2PaymasterContract</RootNamespace>
-    <AssemblyName>L2Native.L2PaymasterContract</AssemblyName>
-  </PropertyGroup>
-</Project>

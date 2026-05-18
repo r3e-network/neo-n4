@@ -39,8 +39,9 @@ cargo test --release --locked -- --ignored --nocapture
 
 ## 3. Contract Artifact Review
 
-- Build every `contracts/NeoHub.*`, `contracts/L2Native.*`, and
+- Build every deployable `contracts/NeoHub.*` and
   `samples/contracts/Sample.*` project directly.
+- Run `external/neo` native-contract tests for the N4 L2 native contracts.
 - Record each `.nef` hash, manifest hash, compiler version, and project path.
 - Review manifest permissions, groups, supported standards, and safe methods.
 - Confirm devnet-only stubs are not registered in production registries.

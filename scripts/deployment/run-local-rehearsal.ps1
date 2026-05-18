@@ -146,8 +146,7 @@ try {
     foreach ($step in $plan.steps) {
         [void]$contractProjects.Add((Get-ProjectFromArtifact $step.nefPath))
     }
-    foreach ($dir in @(Get-ChildItem -Directory (Join-Path $RepoRoot "contracts\L2Native.*")) +
-                      @(Get-ChildItem -Directory (Join-Path $RepoRoot "samples\contracts\Sample.*"))) {
+    foreach ($dir in @(Get-ChildItem -Directory (Join-Path $RepoRoot "samples\contracts\Sample.*"))) {
         [void]$contractProjects.Add((Join-Path $dir.FullName "$($dir.Name).csproj"))
     }
 
@@ -163,6 +162,13 @@ try {
         if (-not (Test-Path -LiteralPath $manifest)) { throw "Missing manifest after nccs: $manifest" }
     }
     Add-StepResult "Contract artifacts" "passed" "Built and nccs-compiled $($contractProjects.Count) smart-contract projects."
+
+    Invoke-Logged "l2-native-contracts" "dotnet" @(
+        "test", "external\neo\tests\Neo.UnitTests\Neo.UnitTests.csproj",
+        "--filter", "FullyQualifiedName~UT_L2NativeContracts",
+        "/p:NuGetAudit=false", "--nologo"
+    )
+    Add-StepResult "L2 native contracts" "passed" "Verified N4 L2 native contracts are registered in the r3e Neo core fork."
 
     Invoke-Logged "hub-verify-artifacts" "dotnet" @(
         "run", "--project", "tools\Neo.Hub.Deploy", "--",

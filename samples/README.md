@@ -119,7 +119,7 @@ three opcodes: `IncrementCounter` (per-sender u64 counter), `EmitWithdrawal`
 
 - [`contracts/`](./contracts/README.md) — sample L2-aware app contracts
   (`Sample.CrossChainGreeter`, `Sample.WithdrawalDemo`) showing standard
-  patterns for integrating with the `L2Native.*` system contracts.
+  patterns for integrating with N4 L2 native system contracts.
 
 ## Reference
 

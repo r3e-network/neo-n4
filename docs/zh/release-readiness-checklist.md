@@ -38,7 +38,7 @@ cargo test --release --locked -- --ignored --nocapture
 
 ## 3. 合约工件复核
 
-- 直接构建所有 `contracts/NeoHub.*`、`contracts/L2Native.*` 和
+- 直接构建所有 `contracts/NeoHub.*`、`external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs` 和
   `samples/contracts/Sample.*` 项目。
 - 记录每个 `.nef` 哈希、manifest 哈希、编译器版本和项目路径。
 - 复核 manifest permissions、groups、supported standards 和 safe methods。

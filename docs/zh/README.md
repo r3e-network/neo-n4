@@ -90,7 +90,7 @@ Neo N3 / Neo 4 L1 上的统一 L1 合约套件(**NeoHub**),并通过可选的
   `bridge/neo-zkvm-guest/`(被证明的函数)。
 - **Submodule(4)** —— `external/neo`(`r3e-network/neo` fork, branch `r3e/neo-n4-core`)、`external/neo-devpack-dotnet`、
   `external/neo-riscv-vm`、`external/neo-zkvm`。
-- **测试(1426 .NET + 159 跨语言)** —— 34 个 .NET 工程的 1426 条测试;
+- **测试(1430 .NET + 159 跨语言)** —— 34 个 .NET 工程的 1430 条测试;
   15 TS + 10 Rust SDK + 5 shared execution-core + 7 SP1 guest +
   101 Rust 桥 watcher(eth 85 / tron 7 / sol 9) + 20 Foundry + 1 Solana Anchor —— 全绿。
 

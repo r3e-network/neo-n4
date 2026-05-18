@@ -1,8 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <RootNamespace>L2Native.BridgedNep17Contract</RootNamespace>
-    <AssemblyName>L2Native.BridgedNep17Contract</AssemblyName>
-  </PropertyGroup>
-
-</Project>

@@ -32,7 +32,7 @@
 <g>
   <rect x="45" y="105" width="230" height="140" rx="8" fill="#eaf7f0" stroke="#d8dee8" filter="url(#card)"/>
   <text x="61" y="132" class="box-title">contracts/</text>
-  <text x="61" y="157" class="body" text-anchor="start"><tspan x="61" dy="0">28 product smart contracts</tspan><tspan x="61" dy="18">NeoHub L1 + L2Native</tspan><tspan x="61" dy="18">nccs -&gt; bin/sc artifacts</tspan></text>
+  <text x="61" y="157" class="body" text-anchor="start"><tspan x="61" dy="0">23 deployable L1 contracts</tspan><tspan x="61" dy="18">NeoHub suite</tspan><tspan x="61" dy="18">nccs -&gt; bin/sc artifacts</tspan></text>
 </g>
 <g>
   <rect x="330" y="105" width="235" height="140" rx="8" fill="#eaf2ff" stroke="#d8dee8" filter="url(#card)"/>

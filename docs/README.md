@@ -22,8 +22,10 @@ the [`r3e-network/neo`](https://github.com/r3e-network/neo) Neo core fork as the
 execution kernel. The fork has two maintained r3e branches: `r3e/neo-n3-core` tracks
 upstream `master-n3` for L1 core work, while `r3e/neo-n4-core` tracks upstream `master`
 for L2 execution-kernel and native-contract changes. Every L2 chain anchors to a
-unified L1 contract suite (**NeoHub**) on Neo N3 / Neo 4 L1, and proofs and inter-L2
-messages aggregate through an optional **Neo Gateway** layer.
+unified deployable L1 contract suite (**NeoHub**) on Neo N3 / Neo 4 L1, and proofs and
+inter-L2 messages aggregate through an optional **Neo Gateway** layer. NeoHub is deployed
+as contracts and extended through plugins/services where needed; it is not registered as
+an L1 native-contract set.
 
 The architecture borrows the *shared-bridge / chain-registry / proof-aggregation* pattern
 from ZKsync Elastic Chain, rebuilt on Neo's stack: dBFT 2.0 finality, NEP-17 assets,
@@ -85,7 +87,7 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
   [`docs/persistence.md`](./persistence.md).
 - **Node plugins (8)** — `Neo.Plugins.L2{Batch, Bridge, DA, Gateway,
   Metrics, Prover, Rpc, Settlement}`.
-- **Smart contracts (23 deployable + 10 native)** — 23 NeoHub L1 (incl. `DAValidator`, `L1TxFilter`, `GovernanceFraudVerifier`,
+- **Smart contracts (23 deployable + 10 L2 native)** — 23 NeoHub L1 deployable contracts (incl. `DAValidator`, `L1TxFilter`, `GovernanceFraudVerifier`,
   `RestrictedExecutionFraudVerifier` v3 trustless verifier, and the 6
   cross-foreign-chain bridge contracts: `MpcCommitteeVerifier` /
   `ExternalBridgeRegistry` / `ExternalBridgeEscrow` /

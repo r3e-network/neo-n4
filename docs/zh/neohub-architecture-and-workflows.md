@@ -9,11 +9,12 @@ NeoHub 是 Neo Elastic Network 的 L1 锚定层。它负责让一条 L2 链在 L
 
 ## 1. 生产边界
 
-本仓库中的 `contracts/NeoHub.*` 项目是参考实现、parity 来源和部署演练夹具。
-生产目标是在 `r3e-network/neo` fork 中由 L1 core 原生承载：
+本仓库中的 `contracts/NeoHub.*` 项目是规范的 L1 可部署合约包。NeoHub 不是
+L1 native-contract 集合；生产目标是“可部署合约 + 可选节点插件”，只有在能力无法通过
+合约或插件实现时，才在 `r3e-network/neo` fork 里加入最小 L1 core hook：
 
-- `r3e/neo-n3-core`：L1 core 分支，基于 upstream `master-n3`。NeoHub L1
-  原生合约放在这里。
+- `r3e/neo-n3-core`：L1 core 分支，基于 upstream `master-n3`。它应尽量贴近
+  upstream，不应把 NeoHub 业务合约注册为 `NativeContract`。
 - `r3e/neo-n4-core`：L2 执行内核分支，基于 upstream `master`。L2 原生合约
   和 NeoVM2/RISC-V 执行 profile 放在这里。
 
@@ -21,8 +22,9 @@ NeoHub 是 Neo Elastic Network 的 L1 锚定层。它负责让一条 L2 链在 L
 
 - `neo-n4` 中有 23 个 `contracts/NeoHub.*` 项目。
 - 其中 22 个是生产 NeoHub 合约；`ExternalBridgeStubVerifier` 只用于测试。
-- 17 个 NeoHub 合约已经在 `r3e/neo-n3-core` 中有 native counterpart。
-- 外部桥和 MPC 相关合约仍需迁移，迁移完成前不能声称 NeoHub 已完全 L1-native。
+- 生产 NeoHub deploy plan 部署其中 22 个合约。
+- L1 集成优先通过可部署合约、节点插件、SDK、CLI、watcher、relayer 和运维服务完成，
+  只有无法通过这些方式完成时才考虑 L1 core hook。
 
 ## 2. 系统视图
 
@@ -33,7 +35,7 @@ flowchart TB
     l2 --> batcher["Batcher / prover / DA writer"]
     l2 --> l2native["L2 原生合约"]
 
-    subgraph l1["Neo L1 core: NeoHub"]
+    subgraph l1["Neo L1 可部署合约: NeoHub"]
         chain["ChainRegistry"]
         token["TokenRegistry"]
         bridge["SharedBridge"]
@@ -398,5 +400,5 @@ sequenceDiagram
 
 字节级 layout 见
 [`architecture-wire-formats.md`](../architecture-wire-formats.md)。信任假设见
-[`architecture-trust-boundaries.md`](../architecture-trust-boundaries.md)。native
-迁移状态见 [`core-fork-policy.md`](../core-fork-policy.md)。
+[`architecture-trust-boundaries.md`](../architecture-trust-boundaries.md)。core fork 与
+可部署合约边界见 [`core-fork-policy.md`](../core-fork-policy.md)。

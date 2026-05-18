@@ -46,7 +46,8 @@ specific logic — runs on **L2** because L1 cannot scale to it.
 
 ## 2. What L1 does (and why it has to)
 
-The 22 production NeoHub contracts (plus 1 testing stub) cluster into
+The 22 production NeoHub contracts (plus 1 testing stub) are deployed L1
+contracts, not L1 native contracts. They cluster into
 six concerns. Each entry below names *the property that forces it
 onto L1*:
 
@@ -151,7 +152,7 @@ the rules in §5:
 
 **Findings:**
 
-✅ **22 of 23 NeoHub contracts are correctly placed on L1** — each
+✅ **22 of 23 NeoHub contracts are correctly placed as deployable L1 contracts** — each
 satisfies at least one of rules 1, 2, or 3.
 
 ✅ **All 10 L2 native contracts are correctly placed in L2 Neo core** — each is

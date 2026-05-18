@@ -18,8 +18,9 @@
 ## 核心分支策略
 
 - 技术栈中的 Neo core fork 是 `r3e-network/neo`，不是直接依赖 `neo-project/neo`。
-- L1 core 基于上游 `master-n3`，维护分支为 `r3e/neo-n3-core`。
+- L1 core 基于上游 `master-n3`，维护分支为 `r3e/neo-n3-core`；只承载不能由可部署合约或插件实现的最小 hook。
 - L2 core 基于上游 `master`，维护分支为 `r3e/neo-n4-core`；本仓库 `external/neo` submodule 使用该分支。
+- NeoHub 是 `contracts/NeoHub.*` 中的可部署 L1 合约套件，不是 L1 原生合约集合。
 
 ## 维护检查清单
 

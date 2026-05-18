@@ -6,9 +6,10 @@ Open work between **Neo core forks** (`r3e-network/neo`, L1 branch `r3e/neo-n3-c
 
 ## Neo Core — `r3e-network/neo`
 
-Items that require Neo core/native-contract changes. Implement them in the
-correct branch of `r3e-network/neo`: `r3e/neo-n3-core` for Neo N3 L1 core
-behavior and `r3e/neo-n4-core` for Neo 4 L2 core behavior. Update the
+Items that require unavoidable Neo core changes. Implement them in the
+correct branch of `r3e-network/neo`: `r3e/neo-n3-core` only for Neo N3 L1 node
+behavior that cannot be a deployed contract or plugin, and `r3e/neo-n4-core`
+for Neo 4 L2 core/native-contract behavior. Update the
 `external/neo` submodule pointer in this repo only after L2-core integration
 tests pass.
 

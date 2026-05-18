@@ -24,8 +24,10 @@ the [`r3e-network/neo`](https://github.com/r3e-network/neo) Neo core fork as the
 execution kernel. The fork now has two maintained r3e branches: `r3e/neo-n3-core`
 tracks upstream `master-n3` for L1 core work, while `r3e/neo-n4-core` tracks upstream
 `master` for L2 execution-kernel and native-contract changes. Every L2 chain anchors to
-a unified L1 contract suite (**NeoHub**) on Neo N3 / Neo 4 L1, and proofs and inter-L2
-messages aggregate through an optional **Neo Gateway** layer.
+a unified deployable L1 contract suite (**NeoHub**) on Neo N3 / Neo 4 L1, and proofs and
+inter-L2 messages aggregate through an optional **Neo Gateway** layer. NeoHub is deployed
+as contracts and extended through plugins/services where needed; it is not registered as
+an L1 native-contract set.
 
 The architecture borrows the *shared-bridge / chain-registry / proof-aggregation* pattern
 from ZKsync Elastic Chain, rebuilt on Neo's stack: dBFT 2.0 finality, NEP-17 assets,
@@ -211,7 +213,7 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 | Off-chain libraries | **16**  | `Neo.L2.{Abstractions,Audit,Batch,Bridge,Censorship,Challenge,Executor,Executor.RiscV,ForcedInclusion,Messaging,Persistence,Proving,Sequencer,Settlement.Rpc,State,Telemetry}` (App SDK in `Neo.L2.Sdk` is counted separately under App SDKs) |
 | Persistence backends | **2**  | `InMemoryKeyValueStore` (tests) · `RocksDbKeyValueStore` (production default) — see [`docs/persistence.md`](./docs/persistence.md) |
 | Node plugins      | **8**     | `Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}`  |
-| Smart contracts   | **23 deployable + 10 native** | 23 NeoHub L1 deployable contracts (Phase 0–3 + DA validator + L1 tx filter + 6 cross-foreign-chain bridge contracts) type-check via `Neo.SmartContract.Framework`; 10 L2 system contracts are Neo core native contracts in the r3e `external/neo` fork. |
+| Smart contracts   | **23 deployable + 10 L2 native** | 23 NeoHub L1 deployable contracts (Phase 0–3 + DA validator + L1 tx filter + 6 cross-foreign-chain bridge contracts) type-check via `Neo.SmartContract.Framework`; 10 L2 system contracts are Neo core native contracts in the r3e `external/neo` fork. |
 | CLI tools         | **7**     | `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`, `neo-l2-explore`, `neo-bridge`, `neo-l2-faucet`, `neo-external-bridge` |
 | App SDKs          | **3**     | `src/Neo.L2.Sdk/` (.NET) · `sdk/typescript/` (`@neo-n4/sdk`) · `sdk/rust/` (`neo-n4-sdk`) — all 10 RPC methods, same wire shape, same 4-class error taxonomy |
 | Web apps          | **2**     | `sdk/web-explorer/index.html` — single static-file UI: Explore + Bridge + Faucet + state-root continuity Audit · `docs/interactive-runtime/index.html` — static runtime theater for learning architecture/data-flow/business-flow scenarios |

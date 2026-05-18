@@ -7,7 +7,8 @@ how to disclose vulnerabilities in **Neo Elastic Network (`neo4`)** responsibly.
 
 In scope:
 
-- Smart contracts in `contracts/` (NeoHub L1 suite, L2 native contracts).
+- Smart contracts in `contracts/` (the deployable NeoHub L1 suite) and N4 L2
+  native contracts maintained in the r3e Neo core fork.
 - Foreign-side on-chain code in `external/foreign-contracts/` (Solidity router,
   Solana Anchor program).
 - Off-chain `.NET` libraries in `src/Neo.L2.*/` and plugins in `src/Neo.Plugins.L2*/`.

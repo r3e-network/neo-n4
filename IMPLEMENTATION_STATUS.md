@@ -28,7 +28,9 @@ These are real production-shape implementations with full test coverage:
 
 - **All 23 NeoHub L1 deployable contracts** type-check via
   `Neo.SmartContract.Framework`; CI compiles each with `nccs` and verifies
-  the `.nef` + `.manifest.json` artifacts. **All 10 N4 L2 system contracts**
+  the `.nef` + `.manifest.json` artifacts. NeoHub is intentionally shipped as
+  deployed contracts plus plugin/service integration, not as L1 Neo core native
+  contracts. **All 10 N4 L2 system contracts**
   are Neo core native contracts in `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`
   and are verified by `external/neo/tests/Neo.UnitTests/SmartContract/Native/UT_L2NativeContracts.cs`.
 - **Off-chain canonical encoders**, byte-layout-pinned + tested:

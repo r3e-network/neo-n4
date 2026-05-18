@@ -21,8 +21,9 @@
 内核的系统。该 fork 现在维护两条 r3e 分支：`r3e/neo-n3-core` 跟踪上游
 `master-n3`，用于 L1 core 工作；`r3e/neo-n4-core` 跟踪上游 `master`，用于
 L2 执行内核与 native contract 改动。每条 L2 链都会锚定到
-Neo N3 / Neo 4 L1 上的统一 L1 合约套件(**NeoHub**),并通过可选的
-**Neo Gateway** 层聚合证明与 L2 间消息。
+Neo N3 / Neo 4 L1 上的统一可部署 L1 合约套件(**NeoHub**),并通过可选的
+**Neo Gateway** 层聚合证明与 L2 间消息。NeoHub 以合约部署，并在需要时通过
+插件/服务扩展；它不是 L1 原生合约集合。
 
 本架构借鉴了 ZKsync Elastic Chain 的*共享桥 / 链注册表 / 证明聚合*模式,在 Neo 栈
 上重新构建:dBFT 2.0 终结性、NEP-17 资产、NeoVM2/RISC-V 执行、NeoFS 数据可用性。
@@ -49,7 +50,7 @@ Neo N3 / Neo 4 L1 上的统一 L1 合约套件(**NeoHub**),并通过可选的
 
 架构分三层:
 
-- **L1(Neo N3 / Neo 4 上的 NeoHub)** —— 规范锚。23 个合约分到 6 个关注点:
+- **L1(Neo N3 / Neo 4 上的 NeoHub)** —— 规范锚。23 个可部署合约分到 6 个关注点:
   *Settlement*、*Bridge*、*Messaging*、*Security*、*Governance*、*External Bridge*。
   持有资产、负责结算、消息路由与治理。
 - **Neo Gateway(Phase 5,可选)** —— 把多条 L2 的证明聚合为 L1 上的单次结算
@@ -77,7 +78,7 @@ Neo N3 / Neo 4 L1 上的统一 L1 合约套件(**NeoHub**),并通过可选的
   [`persistence.md`](./persistence.md)。
 - **节点插件(8)** —— `Neo.Plugins.L2{Batch, Bridge, DA, Gateway,
   Metrics, Prover, Rpc, Settlement}`。
-- **智能合约(33)** —— 23 个 NeoHub L1 + 10 个 L2 原生(均经
+- **智能合约(23 个可部署 + 10 个 L2 原生)** —— 23 个 NeoHub L1 可部署合约 + 10 个 L2 原生合约(均经
   `Neo.SmartContract.Framework` 类型检查)。
 - **CLI 工具(6)** —— `neo-stack`、`neo-l2-devnet`、`neo-hub-deploy`、
   `neo-l2-explore`、`neo-bridge`、`neo-l2-faucet`。

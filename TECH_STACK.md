@@ -6,7 +6,7 @@ One-page developer onboarding for the Neo Elastic Network repo. Counts verified 
 
 ## 1. What is Neo N4?
 
-**Neo N4 (a.k.a. Neo Elastic Network)** is a multi-L2 network built on top of the [`r3e-network/neo`](https://github.com/r3e-network/neo) Neo core fork. The fork reserves `r3e/neo-n3-core` for L1 core work based on upstream `master-n3`, and `r3e/neo-n4-core` for L2 core work based on upstream `master`. Many L2 chains anchor to one shared L1 contract suite (**NeoHub**) on Neo N3 / Neo 4 L1, with NeoVM2/RISC-V as the standard L2 execution target, legacy NeoVM compatibility only for N3-era checks, pluggable proofs (multisig / optimistic / ZK), pluggable data availability (L1 / NeoFS / DAC), and optional cross-L2 proof aggregation (**Neo Gateway**).
+**Neo N4 (a.k.a. Neo Elastic Network)** is a multi-L2 network built on top of the [`r3e-network/neo`](https://github.com/r3e-network/neo) Neo core fork. The fork reserves `r3e/neo-n3-core` for minimal L1 core hooks based on upstream `master-n3`, and `r3e/neo-n4-core` for L2 core work based on upstream `master`. Many L2 chains anchor to one shared deployable L1 contract suite (**NeoHub**) on Neo N3 / Neo 4 L1, with NeoVM2/RISC-V as the standard L2 execution target, legacy NeoVM compatibility only for N3-era checks, pluggable proofs (multisig / optimistic / ZK), pluggable data availability (L1 / NeoFS / DAC), and optional cross-L2 proof aggregation (**Neo Gateway**).
 
 Independent implementation — not the official Neo 4 release, not endorsed by Neo Global Development, Neo Foundation, or the `neo-project` organization. Architecture borrows the *shared-bridge + chain-registry + proof-aggregation* pattern from ZKsync Elastic Chain, rebuilt on Neo's stack (dBFT 2.0, NEP-17, NeoVM2/RISC-V, NeoFS). See [`README.md`](README.md) for the full provenance disclosure and operator responsibilities; [`SECURITY.md`](SECURITY.md) for the vulnerability-disclosure process.
 
@@ -33,7 +33,7 @@ Independent implementation — not the official Neo 4 release, not endorsed by N
 |   Bridge crates (zkvm-host / guest) | Watchers (eth / tron / sol)        |
 +--------------------------------------------------------------------------+
 | Layer 1 - Protocol contracts (on-chain)                                  |
-|   NeoHub L1 suite (23 contracts) | L2 native contracts (10 contracts)    |
+|   NeoHub L1 deployable suite (23 contracts) | L2 native contracts (10)      |
 |   Foreign-side routers (EVM family Solidity | Solana Anchor program)     |
 +--------------------------------------------------------------------------+
                                     |

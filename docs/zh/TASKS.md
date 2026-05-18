@@ -17,7 +17,7 @@
 
 ## 核心分支策略
 
-- 需要 Neo N3 L1 core 或 L1 native-contract 行为的任务，归入 `r3e-network/neo` 的 `r3e/neo-n3-core`。
+- 需要 Neo N3 L1 节点行为且不能由可部署合约或插件实现的任务，才归入 `r3e-network/neo` 的 `r3e/neo-n3-core`。
 - 需要 Neo 4 L2 core、L2 mode 或 L2 native contracts 的任务，归入 `r3e-network/neo` 的 `r3e/neo-n4-core`。
 - 只有 L2 core 指针变化时，才需要更新本仓库的 `external/neo` submodule。
 

@@ -10,12 +10,15 @@ and how each NeoHub contract participates in the main workflows.
 
 ## 1. Production boundary
 
-The repository contains `contracts/NeoHub.*` projects as reference/parity
-contracts and deployment-rehearsal fixtures. The production target is native L1
-core ownership in the `r3e-network/neo` fork:
+The repository contains `contracts/NeoHub.*` projects as the canonical
+deployable L1 contract bundle. NeoHub is not an L1 native-contract set; the
+production target is deployed contracts plus optional node plugins, with only
+minimal L1 core hooks in the `r3e-network/neo` fork when a hook cannot be
+implemented as a contract or plugin:
 
-- `r3e/neo-n3-core`: L1 core branch, based on upstream `master-n3`. NeoHub L1
-  native contracts live here.
+- `r3e/neo-n3-core`: L1 core branch, based on upstream `master-n3`. It should
+  stay close to upstream and must not register NeoHub business contracts as
+  `NativeContract` instances.
 - `r3e/neo-n4-core`: L2 execution-kernel branch, based on upstream `master`.
   L2 native contracts and the NeoVM2/RISC-V execution profile live here.
 
@@ -23,9 +26,9 @@ Current status:
 
 - 23 `contracts/NeoHub.*` projects exist in `neo-n4`.
 - 22 are production NeoHub contracts; `ExternalBridgeStubVerifier` is test-only.
-- 17 NeoHub contracts have native counterparts in `r3e/neo-n3-core`.
-- The remaining external-bridge/MPC contracts must be migrated before NeoHub is
-  described as fully L1-native.
+- 22 are deployed by the production NeoHub deploy plan.
+- L1 integration is through deployed contracts, node plugins, SDKs, CLIs,
+  watchers, relayers, and operator services before considering any L1 core hook.
 
 ## 2. System view
 
@@ -36,7 +39,7 @@ flowchart TB
     l2 --> batcher["Batcher / prover / DA writer"]
     l2 --> l2native["L2 native contracts"]
 
-    subgraph l1["Neo L1 core: NeoHub"]
+    subgraph l1["Neo L1 deployed contracts: NeoHub"]
         chain["ChainRegistry"]
         token["TokenRegistry"]
         bridge["SharedBridge"]
@@ -416,5 +419,5 @@ For byte-level layouts, cross-check
 [`architecture-wire-formats.md`](./architecture-wire-formats.md). For trust
 assumptions, cross-check
 [`architecture-trust-boundaries.md`](./architecture-trust-boundaries.md). For
-native-contract migration status, cross-check
+core fork and deployed-contract boundary rules, cross-check
 [`core-fork-policy.md`](./core-fork-policy.md).

@@ -9,14 +9,14 @@ anchor core and the L2 execution core.
 | Repository | Role |
 | --- | --- |
 | `r3e-network/neo-n4` | Elastic-network integration repo. Owns contracts, L2 libraries, plugins, tools, SDKs, docs, and tests. |
-| `r3e-network/neo` | Maintained Neo core fork. Owns N4-required native contracts, ChainMode, execution-kernel hooks, and consensus/RPC core deltas. |
+| `r3e-network/neo` | Maintained Neo core fork. Owns unavoidable core deltas such as L2 native contracts, ChainMode, execution-kernel hooks, and consensus/RPC changes. |
 | `neo-project/neo` | Read-only upstream source. Used for review and controlled syncs only. Do not push here. |
 
 ## Core Branch Matrix
 
 | Layer | Upstream base | r3e maintained branch | Used for |
 | --- | --- | --- | --- |
-| L1 core | `neo-project/neo` `master-n3` | `r3e/neo-n3-core` | Neo N3 L1 anchor behavior, L1 native-contract work, and any future NeoHub-in-core experiment. |
+| L1 core | `neo-project/neo` `master-n3` | `r3e/neo-n3-core` | Neo N3 L1 anchor node behavior and minimal core hooks that cannot be implemented as deployed contracts or plugins. |
 | L2 core | `neo-project/neo` `master` | `r3e/neo-n4-core` | Neo 4 L2 execution kernel, L2 mode, L2 native contracts, execution hooks, RPC/consensus deltas. |
 
 The `external/neo` submodule in this repo intentionally points at the L2 core
@@ -40,14 +40,14 @@ flowchart LR
     l2Fork --> submodule["neo-n4/external/neo\npinned L2 core commit"]
     submodule --> build["Neo.L2.sln\nproject references"]
     build --> tests["unit, integration,\nprivate-network verification"]
-    l1Fork --> neohubBoundary["NeoHub L1 anchor\ncore-level changes only"]
+    l1Fork --> neohubBoundary["L1 core fork\nminimal hooks only"]
 ```
 
 ## Change Placement
 
 ```mermaid
 flowchart TD
-    change["Requested N4 change"] --> l1{"Needs Neo N3 L1 core\nor L1 native-contract behavior?"}
+    change["Requested N4 change"] --> l1{"Needs Neo N3 L1 node behavior\nthat cannot be a contract or plugin?"}
     l1 -- "yes" --> l1Fork["Implement in r3e-network/neo\nr3e/neo-n3-core"]
     l1 -- "no" --> l2{"Needs Neo 4 L2 core,\nL2 mode, or L2 native contracts?"}
     l2 -- "yes" --> l2Fork["Implement in r3e-network/neo\nr3e/neo-n4-core"]
@@ -80,38 +80,32 @@ The current L2 native set is:
 - `BridgedNep17Contract`
 - `L2InteropVerifier`
 
-NeoHub L1 contracts are a different boundary: they are the L1 anchor contracts
-that mirror ZKsync's L1 Bridgehub/shared-bridge ecosystem. The production
-target is now native L1 core ownership on `r3e/neo-n3-core`. The
-`contracts/NeoHub.*` DevPack projects in `neo-n4` remain as parity/reference
-sources and deployment-rehearsal fixtures until their full behavior has been
-ported into the L1 core fork and covered by Neo core tests.
+NeoHub L1 contracts are a different boundary: they are deployed L1 contracts,
+not Neo core native contracts. They mirror ZKsync's L1
+Bridgehub/shared-bridge ecosystem while keeping the Neo N3 L1 node as close to
+upstream as possible. The canonical NeoHub implementation lives in
+`contracts/NeoHub.*` in `r3e-network/neo-n4`; `neo-hub-deploy` emits the
+production deployment bundle and post-deploy wiring hints.
 
-Current L1 native migration status in `r3e/neo-n3-core`:
+`r3e/neo-n3-core` must not register NeoHub business contracts under
+`NativeContract` or keep a `src/Neo/SmartContract/Native/NeoHub` implementation.
+Use the L1 core fork only for behavior that cannot be expressed as:
 
-- Native and tested: `NeoHubChainRegistryContract`, `NeoHubTokenRegistryContract`,
-  `NeoHubDARegistryContract`, `NeoHubL1TxFilterContract`,
-  `NeoHubVerifierRegistryContract`, `NeoHubMessageRouterContract`,
-  `NeoHubSettlementManagerContract`, `NeoHubDAValidatorContract`,
-  `NeoHubSharedBridgeContract`, `NeoHubEmergencyManagerContract`,
-  `NeoHubGovernanceControllerContract`, `NeoHubSequencerBondContract`,
-  `NeoHubSequencerRegistryContract`, `NeoHubForcedInclusionContract`,
-  `NeoHubOptimisticChallengeContract`, `NeoHubGovernanceFraudVerifierContract`,
-  `NeoHubRestrictedExecutionFraudVerifierContract`.
-- Still to migrate before claiming full L1-native NeoHub: `MpcCommitteeVerifier`,
-  `MpcCommitteeFraudVerifier`, `ExternalBridgeRegistry`, `ExternalBridgeEscrow`,
-  `ExternalBridgeBond`.
+- a deployable NeoHub contract;
+- a Neo node plugin;
+- an SDK, CLI, watcher, relayer, or operator service;
+- a controlled configuration or RPC extension.
 
-Do not remove the DevPack `contracts/NeoHub.*` projects or rewrite operator
-docs to say "fully native" until every production NeoHub contract has a native
-counterpart, registration tests, behavior tests, and neo-n4 parity/integration
-coverage.
+If a future requirement appears to need L1 core support, first design the
+contract/plugin version. Only move a narrow hook into `r3e/neo-n3-core` after
+documenting why a deployed contract or plugin cannot satisfy the requirement.
 
 Use the fork for changes that cannot be implemented cleanly as a plugin,
 library, contract, SDK, or operator tool in `neo-n4`. Typical fork-owned work
 includes:
 
-- L1 core/native-contract behavior that must exist inside the Neo N3 L1 node.
+- Minimal L1 node behavior that must exist inside the Neo N3 L1 node and cannot
+  be implemented as a deployed contract or plugin.
 - L2-aware native contracts and native-contract policy gates.
 - `ChainMode` and activation hooks.
 - Core execution-kernel hooks needed by deterministic L2 state transition.

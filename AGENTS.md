@@ -23,9 +23,10 @@ silently diverging.
 
 `neo4` is a **consolidation layer plus an r3e-maintained Neo core fork policy**.
 It adds L2 / NeoHub / Gateway / Stack components on top of pre-existing Neo
-ecosystem repos, and it tracks Neo core changes through `r3e-network/neo` when
-native contracts, ChainMode, or execution-kernel changes are required. L1 core
-changes use `r3e/neo-n3-core` (based on upstream `master-n3`); L2 core changes
+ecosystem repos, and it tracks Neo core changes through `r3e-network/neo` only when
+contracts, plugins, SDKs, CLIs, watchers, relayers, or operator services are not
+sufficient. L1 core changes use `r3e/neo-n3-core` (based on upstream `master-n3`);
+L2 core changes
 use `r3e/neo-n4-core` (based on upstream `master`). The
 critical build dependencies are vendored as git submodules under `external/`;
 other repos in `/home/neo/git/` are reference implementations the agent can read
@@ -161,10 +162,12 @@ operator plans rather than performing the wallet-side submission.
 
 ## Don'ts
 
-- **Don't push to `neo-project/neo`**. L1 core/native-contract changes belong in
+- **Don't push to `neo-project/neo`**. Minimal L1 core hooks belong in
   `r3e-network/neo` on `r3e/neo-n3-core`; L2 core/native-contract changes belong
-  on `r3e/neo-n4-core`. `neo-project/neo` stays as read-only upstream for review
-  and controlled syncs.
+  on `r3e/neo-n4-core`. NeoHub business logic belongs in deployable
+  `contracts/NeoHub.*` contracts and plugin/service surfaces, not in L1 native
+  contracts. `neo-project/neo` stays as read-only upstream for review and
+  controlled syncs.
 - **Don't issue canonical GAS on L2** outside the bridge mint path.
 - **Don't bypass `ChainRegistry`** — every L2 must register before submitting batches.
 - **Don't write `// added for X` or `// TODO once Y` style comments**. Track followups in

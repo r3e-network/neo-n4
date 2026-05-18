@@ -101,6 +101,32 @@ public class UT_ProductionGapClosure
     }
 
     [TestMethod]
+    public void Repository_DocumentsNeoHubAsDeployableContractsNotL1NativeContracts()
+    {
+        var root = FindRepositoryRoot();
+        var l2NativeRegistry = Path.Combine(root, "external", "neo", "src", "Neo", "SmartContract", "Native", "NativeContract.cs");
+        var l2NativeNeoHubPath = Path.Combine(root, "external", "neo", "src", "Neo", "SmartContract", "Native", "NeoHub");
+        var policy = File.ReadAllText(Path.Combine(root, "docs", "core-fork-policy.md"));
+        var neohub = File.ReadAllText(Path.Combine(root, "docs", "neohub-architecture-and-workflows.md"));
+        var zhPolicy = File.ReadAllText(Path.Combine(root, "docs", "zh", "core-fork-policy.md"));
+        var zhNeoHub = File.ReadAllText(Path.Combine(root, "docs", "zh", "neohub-architecture-and-workflows.md"));
+        var readme = File.ReadAllText(Path.Combine(root, "README.md"));
+
+        Assert.IsFalse(File.ReadAllText(l2NativeRegistry).Contains("NeoHub", StringComparison.Ordinal),
+            "The vendored L2 core NativeContract registry must not register NeoHub business contracts.");
+        Assert.IsFalse(Directory.Exists(l2NativeNeoHubPath),
+            "NeoHub must not be reintroduced under the Neo core Native/NeoHub folder.");
+
+        StringAssert.Contains(policy, "NeoHub L1 contracts are a different boundary: they are deployed L1 contracts");
+        StringAssert.Contains(policy, "must not register NeoHub business contracts under");
+        StringAssert.Contains(neohub, "NeoHub is not an L1 native-contract set");
+        StringAssert.Contains(readme, "NeoHub is deployed");
+
+        StringAssert.Contains(zhPolicy, "不应在 `NativeContract` 中注册 NeoHub 业务合约");
+        StringAssert.Contains(zhNeoHub, "NeoHub 不是");
+    }
+
+    [TestMethod]
     public void Repository_DeployPlanMatchesNeoHubContractInventory()
     {
         var root = FindRepositoryRoot();

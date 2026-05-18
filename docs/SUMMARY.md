@@ -19,6 +19,7 @@
 - [Architecture atlas (start here)](./architecture-atlas.md)
 - [Visual guide](./visual-guide.md)
 - [Interactive Runtime Theater](./interactive-runtime.md)
+- [NeoHub architecture and workflows](./neohub-architecture-and-workflows.md)
 - [Architecture walkthrough](./architecture-walkthrough.md)
 - [L2 chain lifecycle](./architecture-l2-lifecycle.md)
 - [L1 vs L2 division](./architecture-l1-vs-l2.md)

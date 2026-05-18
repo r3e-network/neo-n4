@@ -24,12 +24,13 @@ goal — or read all of them in order for a complete picture.
 | Chapter                                                          | What it answers                                              | Lines |
 |------------------------------------------------------------------|--------------------------------------------------------------|-------|
 | [architecture-walkthrough.md](./architecture-walkthrough.md)     | How does a single transaction flow through the system?       | 311   |
+| [neohub-architecture-and-workflows.md](./neohub-architecture-and-workflows.md) | How does NeoHub work, and what does each contract do? | 330+  |
 | [architecture-l2-lifecycle.md](./architecture-l2-lifecycle.md)   | How does an L2 chain get created, deployed, and connected?   | 741   |
 | [architecture-wire-formats.md](./architecture-wire-formats.md)   | What bytes cross which boundaries, and why?                  | 361   |
 | [architecture-trust-boundaries.md](./architecture-trust-boundaries.md) | Who trusts what, and how is each trust assumption enforced? | 399   |
 | [architecture-glossary.md](./architecture-glossary.md)           | What does each term / contract / plugin / CLI tool mean?     | 233   |
 
-Total: ~2050 lines of architecture documentation, plus the
+Total: ~2400 lines of architecture documentation, plus the
 `tech-stack-coverage.md` reference for what's vendored vs
 implemented and `security-model.md` for the threat-list view.
 
@@ -42,6 +43,7 @@ in one chapter can be cross-checked against the others:
 | If you read this chapter and want more detail on...      | Look at this chapter                                            |
 |----------------------------------------------------------|-----------------------------------------------------------------|
 | The byte layout of a `BatchCommitment` mentioned in *l2-lifecycle* | [wire-formats §2](./architecture-wire-formats.md#2-l2batchcommitment--sealed-batch-321--n-bytes) |
+| The NeoHub contract touched by a deposit, settlement, withdrawal, or challenge | [neohub-architecture-and-workflows.md](./neohub-architecture-and-workflows.md) |
 | Who verifies the proof submitted in *l2-lifecycle* §6    | [trust-boundaries §2](./architecture-trust-boundaries.md#boundary-c-batcher--l1-settlementmanager-the-load-bearing-boundary) |
 | The exact sequence of cross-tier hash recomputation      | [trust-boundaries §3](./architecture-trust-boundaries.md#3-cross-tier-verification-chain) |
 | Why a particular wire format has a specific shape        | [wire-formats §1 + §7](./architecture-wire-formats.md#1-why-canonical-wire-formats) |

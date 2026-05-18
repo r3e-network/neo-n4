@@ -22,12 +22,13 @@
 | 章节                                                             | 解答的问题                                                   | 行数 |
 |------------------------------------------------------------------|--------------------------------------------------------------|------|
 | [architecture-walkthrough.md](../architecture-walkthrough.md)    | 一笔交易在系统里如何流动？                                   | 311  |
+| [neohub-architecture-and-workflows.md](./neohub-architecture-and-workflows.md) | NeoHub 如何工作？每个 NeoHub 合约做什么？             | 330+ |
 | [architecture-l2-lifecycle.md](../architecture-l2-lifecycle.md)  | L2 链如何创建、部署和连接？                                  | 741  |
 | [architecture-wire-formats.md](../architecture-wire-formats.md)  | 哪些字节跨越哪些边界，为什么这么设计？                       | 361  |
 | [architecture-trust-boundaries.md](../architecture-trust-boundaries.md) | 谁信任什么？每个信任假设如何被强制？                  | 399  |
 | [architecture-glossary.md](../architecture-glossary.md)          | 每个术语 / 合约 / 插件 / CLI 工具是什么意思？                | 233  |
 
-总计：约 2050 行架构文档，加上 `tech-stack-coverage.md`
+总计：约 2400 行架构文档，加上 `tech-stack-coverage.md`
 （说明哪些是引入的、哪些是自研的）和 `security-model.md`
 （威胁清单视角）作为参考。
 
@@ -39,6 +40,7 @@
 | 当你读完某章并想深入了解……                                        | 翻到这章                                                              |
 |-------------------------------------------------------------------|-----------------------------------------------------------------------|
 | *l2-lifecycle* 提到的 `BatchCommitment` 字节布局                   | [wire-formats §2](../architecture-wire-formats.md#2-l2batchcommitment--sealed-batch-321--n-bytes) |
+| deposit、settlement、withdrawal 或 challenge 会触碰哪个 NeoHub 合约 | [neohub-architecture-and-workflows.md](./neohub-architecture-and-workflows.md) |
 | *l2-lifecycle* §6 提到的证明的验证者                              | [trust-boundaries §2](../architecture-trust-boundaries.md#boundary-c-batcher--l1-settlementmanager-the-load-bearing-boundary) |
 | 跨层哈希重计算的精确序列                                          | [trust-boundaries §3](../architecture-trust-boundaries.md#3-cross-tier-verification-chain) |
 | 某个数据线格式为什么是这种形状                                    | [wire-formats §1 + §7](../architecture-wire-formats.md#1-why-canonical-wire-formats) |

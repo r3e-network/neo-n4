@@ -1,5 +1,10 @@
 # Deployment Rehearsal Report - 2026-05-17
 
+> Superseded implementation note, 2026-05-18: L2 system contracts now live in
+> the r3e Neo core fork as native contracts registered at genesis. Current CI
+> compiles deployable `NeoHub.*` and `Sample.*` contracts, and verifies the 10
+> L2 native contracts through `external/neo` unit tests.
+
 This report records the Windows + WSL2 deployment rehearsal performed on
 2026-05-17. It is a local, reproducible rehearsal of the Neo N4 operator path:
 devnet execution, NeoHub deploy-plan generation, contract artifact generation,
@@ -107,8 +112,9 @@ Follow-up fixed in this commit:
 
 - Removed the stale automatic `nccs` MSBuild hook from
   `contracts/Directory.Build.props`.
-- Updated CI to run `dotnet build` and `nccs` explicitly for every NeoHub,
-  L2Native, and sample contract.
+- Updated CI at the time to run `dotnet build` and `nccs` explicitly for every
+  deployable contract project. The current pipeline compiles `NeoHub.*` and
+  `Sample.*`, then verifies native contracts through `external/neo` tests.
 - Updated English and Chinese getting-started docs to describe the explicit
   artifact pipeline.
 
@@ -199,9 +205,9 @@ Observed results:
 - L2 bridge unit tests: 88 passed.
 - Foundry EVM router tests: 21 passed.
 - Solana foreign-router cargo tests: 4 passed.
-- Explicit `dotnet build` + `nccs` pipeline verified for 30 smart-contract
-  projects: NeoHub, L2Native, and sample contracts all produced both `.nef`
-  and `.manifest.json`.
+- Explicit `dotnet build` + `nccs` pipeline verified deployable contract
+  artifacts. Current native-contract verification is handled by the r3e Neo
+  core unit tests because N4 L2 system contracts are built in at genesis.
 
 ## Public-Network Gate
 

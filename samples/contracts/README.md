@@ -41,7 +41,8 @@ Each sample takes its L2 native partner hash as deploy data. The deploy flow:
 
 The samples don't ship their own deploy plan; an operator wiring them into a
 real L2 typically extends `tools/Neo.Hub.Deploy/ScaffoldPlan.cs` to add the
-sample as a step alongside the L2Native ones.
+sample as an application deployment step after the Neo core native contracts
+are already present at genesis.
 
 ## Adding your own sample
 
@@ -55,7 +56,7 @@ The recipe mirrors the deployable NeoHub contract project shape:
    `[ContractVersion]`, `[ContractSourceCode]`, `[ContractPermission(Permission.Any, Method.Any)]`.
 4. Storage prefixes per logical map; `_deploy(object data, bool update)` for
    one-shot wiring; `[Safe]` on read-only methods; `Contract.Call` to invoke
-   the L2Native partners.
+   the Neo core native partners.
 
 ## Reference
 

@@ -8,7 +8,7 @@
 ## Table of contents
 
 1. [Glossary of terms](#1-glossary-of-terms)
-2. [NeoHub L1 contracts](#2-neohub-l1-contracts-21)
+2. [NeoHub L1 contracts](#2-neohub-l1-contracts-23)
 3. [L2 native contracts](#3-l2-native-contracts-10)
 4. [L2 plugins](#4-l2-plugins-8)
 5. [Off-chain operators](#5-off-chain-operators)
@@ -43,7 +43,7 @@
 | **MerkleProofSerializer**     | Canonical encoder for Merkle proofs (used by withdrawals + cross-L2 messages).                                 |
 | **MessageHasher**             | Canonical encoder for `CrossChainMessage` (cross-L2). Both endpoints recompute the hash.                       |
 | **min_confirmations**         | Watcher-config field: refuse to emit events from blocks shallower than N confirmations from foreign-chain head. |
-| **NeoHub**                    | The 21-contract L1 suite that anchors the network. See §2 below.                                               |
+| **NeoHub**                    | The 23-contract L1 suite that anchors the network. See §2 below.                                               |
 | **nonce** (deposit/message)   | Per-(srcChain, direction) monotonic counter. Replay-protected.                                                 |
 | **operatorManager**           | UInt160. Multisig that manages a registered L2 (set-verifier, pause, etc.). In the chain config.               |
 | **postStateRoot**             | UInt256. State root after a batch's last tx. Carried in `BatchCommitment`.                                     |
@@ -62,7 +62,7 @@
 
 ---
 
-## 2. NeoHub L1 contracts (21)
+## 2. NeoHub L1 contracts (23)
 
 Lives at `contracts/NeoHub.*`. Each is a compiled .nef + .manifest.json.
 
@@ -74,10 +74,12 @@ Lives at `contracts/NeoHub.*`. Each is a compiled .nef + .manifest.json.
 - **`SharedBridge`** — L1 deposits + withdrawals across all registered chains. Holds escrowed assets.
 - **`MessageRouter`** — Routes cross-L2 messages by recomputing canonical hash; per-(srcChain, dstChain) inbox.
 
-### Bridge support (3)
+### Bridge and message support (5)
 
 - **`TokenRegistry`** — Asset metadata (symbol, decimals, native chain). Used by `SharedBridge`.
 - **`DARegistry`** — Records published `daCommitment` hashes; `L2DAPlugin` writes here on each batch.
+- **`DAValidator`** — Validates DA commitments and DAC attestations before batch finalization.
+- **`L1TxFilter`** — Optional per-chain L1-to-L2 enqueue policy hook used by `MessageRouter`.
 
 ### Security (5)
 

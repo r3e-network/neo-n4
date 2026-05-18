@@ -7,8 +7,8 @@ and tracks the gaps neo4 still needs to close.
 
 The map is current as of ZKsync's v29 era-contracts release (Q1 2026).
 
-For the 2026-05-17 official-doc revalidation and production-readiness verdict,
-see [`docs/audit/zksync-elastic-chain-validation-2026-05-17.md`](audit/zksync-elastic-chain-validation-2026-05-17.md).
+For the latest 2026-05-18 official-doc revalidation and production-readiness verdict,
+see [`docs/audit/zksync-elastic-chain-validation-2026-05-18.md`](audit/zksync-elastic-chain-validation-2026-05-18.md).
 
 ---
 
@@ -162,7 +162,7 @@ makes them moot or provides native equivalents:
   nonces.
 - **Diamond proxy + facet pattern** (`DiamondProxy.sol`, `Admin.sol`, `Executor.sol`,
   `Getters.sol`, `Mailbox.sol`) — exists to work around Ethereum's 24KB contract
-  size limit. NeoVM has no 24KB bound; the per-concern split in NeoHub's 21
+  size limit. NeoVM has no 24KB bound; the per-concern split in NeoHub's 23
   contracts is equivalent in effect.
 - **`CTMDeploymentTracker` + `ChainAssetHandler`** — ZKsync needs these to support
   *competing* chain types and asset routers run by third parties. neo4 has one

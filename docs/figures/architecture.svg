@@ -106,7 +106,7 @@
   <!-- ============================================================== -->
   <rect x="40" y="476" width="880" height="120" rx="10" ry="10" fill="#ecf5ee" stroke="#6fa37b" stroke-width="1.2"/>
   <text x="58" y="500" class="band-title" fill="#1c3d27">L2 · ELASTIC EXECUTION CHAINS</text>
-  <text x="58" y="518" class="band-sub" fill="#2f5e3c">Neo 4 core · 8 plugins · 6 native contracts — independent state, shared L1 anchor</text>
+  <text x="58" y="518" class="band-sub" fill="#2f5e3c">Neo 4 core - 8 plugins - 10 native contracts - independent state, shared L1 anchor</text>
 
   <g filter="url(#card)">
     <rect x="80" y="528" width="200" height="56" rx="6" ry="6" fill="#ffffff" stroke="#6fa37b"/>

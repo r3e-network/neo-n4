@@ -6,7 +6,7 @@ where each piece of the system lives.
 
 ---
 
-## Test surface (1430 .NET + 159 cross-language base + SP1 host E2E on Linux/macOS)
+## Test surface (1430 .NET + 165 cross-language base + SP1 host E2E)
 
 | Tier | Framework | Where | What |
 |------|-----------|-------|------|
@@ -16,7 +16,7 @@ where each piece of the system lives.
 | Fuzz | MSTest + seeded `System.Random` | `UT_WireFormat_Fuzz.cs` (19 tests) | Random byte sequences to every decoder — must round-trip or reject with typed exception, never crash |
 | Cross-language parity | byte-vector pins + canonical-bytes-match-csharp | Rust watcher tests + Foundry tests | Wire format byte-identical across C# encoder + Rust + Solidity verifier |
 | On-chain ↔ off-chain parity | C# replicas of on-chain decision trees | `UT_OnChainMerkleVerifyParity`, `UT_RestrictedExecutionFraudVerifierParity`, `UT_GovernanceFraudVerifierParity`, `UT_MpcFraudProof_RealCrypto` | Off-chain algorithm replicates the on-chain verifier and produces identical roots/decisions; drift surfaces in unit tests rather than at L1 settlement time |
-| Foundry | Solidity invariant + multi-chain | `external/foreign-contracts/eth/test/` (20 tests) | EVM-family Solidity router — 13 single-chain + 7 multi-chain pinning per-instance state isolation across 17 mainnet slots |
+| Foundry | Solidity invariant + multi-chain | `external/foreign-contracts/eth/test/` (21 tests) | EVM-family Solidity router — 14 single-chain + 7 multi-chain pinning per-instance state isolation across 17 mainnet slots |
 | Real-CPU SP1 prover | Rust `#[ignore]`-gated | `bridge/neo-zkvm-host/tests/end_to_end.rs` (2 tests) | Real ZK proof generation (~40s prove, ~20s verify, 2.78 MB proof) + tampered-hash-rejection negative test |
 | Live-RPC | Rust `--features live-rpc` | `watchers/neo-bridge-watcher-eth/tests/` (55 tests) | `FakeRpcServer` in-process — exercises `EthRpcEventSource`+`NeoRpcSubmitter` through real `reqwest::blocking` HTTP cycles |
 | TS SDK | vitest | `sdk/typescript/` (15 tests) | RPC client surface; error-taxonomy parity across .NET / Rust / TS |
@@ -120,7 +120,7 @@ Rust prover, and their TS SDK. neo4 has equivalent pin tests:
   parity vs C# `Neo.L2.Messaging.ExternalMessageHasher`
 - `message_hash_matches_csharp_vector` (Rust watcher) — same for the
   hash computation
-- 20 Foundry tests in `external/foreign-contracts/eth/` — the same Solidity
+- 21 Foundry tests in `external/foreign-contracts/eth/` — the same Solidity
   router deploys unchanged across 14 EVM chain families and 17 mainnet slots
 
 ---

@@ -126,7 +126,7 @@ jobs:
             done
           done
           if [ $missing -gt 0 ]; then
-            echo "$missing artifacts missing — nccs did not run for some contracts"
+            echo "$missing artifacts missing - nccs did not run for some contracts"
             exit 1
           fi
           # Count is logged dynamically so the message can't drift from reality
@@ -159,7 +159,7 @@ jobs:
       # neo-riscv-host: PolkaVM-backed Neo RISC-V execution engine vendored at
       # external/neo-riscv-vm. C# project Neo.L2.Executor.RiscV P/Invokes into
       # the produced libneo_riscv_host.so. cargo check (not build) keeps CI
-      # fast — the actual cdylib is operator-built when deploying.
+      # fast - the actual cdylib is operator-built when deploying.
       - name: cargo check (neo-riscv-host)
         working-directory: external/neo-riscv-vm
         run: cargo check -p neo-riscv-host
@@ -167,7 +167,7 @@ jobs:
       # neo-zkvm-guest: the Rust crate that compiles to RISC-V ELF inside SP1's
       # zkVM. Host-side compilation + tests pin the deterministic execution
       # contract (parse, Merkle root, hash256). The actual `cargo prove build`
-      # that produces the RISC-V ELF requires the SP1 toolchain — operator-supplied
+      # that produces the RISC-V ELF requires the SP1 toolchain - operator-supplied
       # at deploy time per bridge/neo-zkvm-guest/README.md.
       - name: cargo build + test (neo-zkvm-guest, host mode)
         working-directory: bridge/neo-zkvm-guest
@@ -175,7 +175,7 @@ jobs:
           cargo build
           cargo test
 
-      # Rust app-developer SDK — the typed-client mirror of src/Neo.L2.Sdk
+      # Rust app-developer SDK - the typed-client mirror of src/Neo.L2.Sdk
       # for Rust dApps. Mockito-driven integration tests exercise every method
       # against canned JSON-RPC responses.
       - name: cargo build + test (sdk/rust)

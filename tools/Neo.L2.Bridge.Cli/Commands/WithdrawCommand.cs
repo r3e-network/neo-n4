@@ -9,7 +9,7 @@ using Neo.L2.State;
 namespace Neo.L2.Bridge.Cli.Commands;
 
 /// <summary>
-/// <c>neo-bridge withdraw</c> — emits the canonical
+/// <c>neo-bridge withdraw</c> emits the canonical
 /// <c>SharedBridge.FinalizeWithdrawalWithProof</c> invocation script, automatically
 /// fetching the per-leaf Merkle proof from the L2 RPC endpoint.
 /// </summary>
@@ -49,12 +49,12 @@ internal static class WithdrawCommand
             try { parsedLeaf = UInt256.Parse(suppliedLeaf); }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"âŒ --leaf '{suppliedLeaf}' is not a valid UInt256: {ex.Message}");
+                Console.Error.WriteLine($"ERROR: --leaf '{suppliedLeaf}' is not a valid UInt256: {ex.Message}");
                 return 1;
             }
             if (!parsedLeaf.Equals(leaf))
             {
-                Console.Error.WriteLine($"âŒ --leaf does not match the canonical withdrawal preimage hash");
+                Console.Error.WriteLine("ERROR: --leaf does not match the canonical withdrawal preimage hash");
                 Console.Error.WriteLine($"   computed leaf: {leaf}");
                 return 1;
             }
@@ -68,7 +68,7 @@ internal static class WithdrawCommand
             var proofBytes = await sdk.GetWithdrawalProofAsync(leaf);
             if (proofBytes is null)
             {
-                Console.Error.WriteLine($"❌ no withdrawal proof returned by L2 RPC for leaf {leaf}");
+                Console.Error.WriteLine($"ERROR: no withdrawal proof returned by L2 RPC for leaf {leaf}");
                 Console.Error.WriteLine($"   (the leaf may not be in a finalized batch yet, or the L2 endpoint isn't tracking proofs)");
                 return 2;
             }
@@ -76,7 +76,7 @@ internal static class WithdrawCommand
         }
         catch (L2RpcException ex)
         {
-            Console.Error.WriteLine($"❌ L2 RPC failure ({ex.GetType().Name}): {ex.Message}");
+            Console.Error.WriteLine($"ERROR: L2 RPC failure ({ex.GetType().Name}): {ex.Message}");
             return 3;
         }
 
@@ -90,7 +90,7 @@ internal static class WithdrawCommand
         }
         catch (ArgumentException ex)
         {
-            Console.Error.WriteLine($"❌ {ex.Message}");
+            Console.Error.WriteLine($"ERROR: {ex.Message}");
             return 1;
         }
 

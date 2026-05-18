@@ -132,7 +132,7 @@ The audit restored missing binary entrypoints required by the workspace:
 
 ### 6. Test and status documentation was synchronized
 
-The documented .NET test count was updated to the current 1,423 passing tests, and the optimistic sequencer account/signature binding coverage was documented.
+The documented .NET test count was updated to the current 1,430 passing tests, and the optimistic sequencer account/signature binding coverage was documented.
 
 Updated files include:
 
@@ -187,14 +187,14 @@ Fresh verification artifacts were written on 2026-05-17.
 | Surface | Command/result | Status |
 | --- | --- | --- |
 | .NET solution build | `dotnet build Neo.L2.sln /p:NuGetAudit=false --nologo` | Pass |
-| .NET tests | TRX summary: 34 files, 1,423 total, 1,423 passed, 0 failed | Pass |
+| .NET tests | TRX summary: 34 files, 1,430 total, 1,430 passed, 0 failed | Pass |
 | .NET package advisories | `dotnet list ... package --vulnerable --include-transitive` | Pass, no vulnerable packages reported |
 | Contract artifacts | 30 contract projects, 0 build failures, 0 missing NEF/manifest artifacts | Pass |
 | Documentation build | `mdbook build` | Pass |
 | TypeScript SDK | `npm test -- --run`, `npm run build`, `npm audit --audit-level=moderate` | Pass, 15 tests, 0 npm vulnerabilities |
 | Rust SDK | `cargo test`, `cargo build` | Pass, 10 integration tests |
 | Solidity external contracts | `forge test -vv` | Pass, 20 tests |
-| Solana external program | `cargo test` | Pass, 1 test |
+| Solana external program | `cargo test` | Pass, 4 tests |
 | ZK guest | `cargo test` | Pass, 8 tests |
 | ETH watcher | `cargo test --release --features live-rpc`, `cargo clippy --release --all-targets --features live-rpc -- -D warnings` | Pass, 85 tests across unit/parity/preflight/doc surfaces |
 | SOL watcher | `cargo test`, `cargo clippy --all-targets -- -D warnings` | Pass, 9 tests |

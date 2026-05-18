@@ -6,8 +6,8 @@
 ## 目录
 
 1. [术语表](#1-术语表)
-2. [NeoHub L1 合约](#2-neohub-l1-合约21)
-3. [L2 原生合约](#3-l2-原生合约7)
+2. [NeoHub L1 合约](#2-neohub-l1-合约23)
+3. [L2 原生合约](#3-l2-原生合约10)
 4. [L2 插件](#4-l2-插件8)
 5. [链下运营者](#5-链下运营者)
 6. [CLI 工具](#6-cli-工具7)
@@ -41,7 +41,7 @@
 | **MerkleProofSerializer**     | Merkle 证明的规范编码器(用于提款 + 跨 L2 消息)。                                                |
 | **MessageHasher**             | `CrossChainMessage`(跨 L2)的规范编码器。两端都重算哈希。                                        |
 | **min_confirmations**         | watcher config 字段:不从距外链头不足 N 确认的浅块发出事件。                                       |
-| **NeoHub**                    | 锚定整个网络的 21 合约 L1 套件。见下文 §2。                                                       |
+| **NeoHub**                    | 锚定整个网络的 23 合约 L1 套件。见下文 §2。                                                       |
 | **nonce(deposit/message)**   | 按 (源链、方向) 单调递增的计数器。带重放保护。                                                    |
 | **operatorManager**           | UInt160。管理一条已注册 L2 的多签(set-verifier、pause 等)。在链 config 里。                      |
 | **postStateRoot**             | UInt256。批次最后一笔 tx 之后的状态根。携带于 `BatchCommitment`。                                  |
@@ -60,7 +60,7 @@
 
 ---
 
-## 2. NeoHub L1 合约(21)
+## 2. NeoHub L1 合约(23)
 
 位于 `contracts/NeoHub.*`。每个都是已编译的 .nef + .manifest.json。
 
@@ -72,10 +72,12 @@
 - **`SharedBridge`** — 跨所有已注册链的 L1 充值 + 提款。持有托管资产。
 - **`MessageRouter`** — 经重算规范哈希路由跨 L2 消息;按 (源链, 目标链) 的 inbox。
 
-### 桥支持(3)
+### 桥与消息支持(5)
 
 - **`TokenRegistry`** — 资产元信息(symbol、decimals、原生链)。`SharedBridge` 使用。
 - **`DARegistry`** — 记录已发布的 `daCommitment` 哈希;`L2DAPlugin` 在每个批次写入此处。
+- **`DAValidator`** — 在批次最终化前验证 DA commitment 与 DAC 委员会 attestations。
+- **`L1TxFilter`** — `MessageRouter` 使用的可选逐链 L1-to-L2 入队策略钩子。
 
 ### 安全(5)
 
@@ -105,7 +107,7 @@
 
 ---
 
-## 3. L2 原生合约(7)
+## 3. L2 原生合约(10)
 
 实现在 `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`。它们由 Neo core 在 genesis 注册为 native contracts，不再从 `contracts/` 后期部署。
 
@@ -116,6 +118,9 @@
 - **`L2PaymasterContract`** — 可选 gas 代付 —— 第三方为白名单 tx 付费。
 - **`L2SystemConfigContract`** — 选定 chainConfig 字段在 L2 侧的镜像,供 L2 合约查询。
 - **`L2NativeExternalBridgeContract`** — NeoHub.ExternalBridgeEscrow 在 L2 侧的对应件,服务外链资产。
+- **`BridgedNep17Contract`** — 标准桥接 NEP-17 资产表示,由授权桥原生 mint/burn。
+- **`L2AccountAbstraction`** — 账户验证器、paymaster、nonce 与执行入口。
+- **`L2InteropVerifier`** — 镜像 Gateway 全局根,并在 L2 本地验证跨链消息 inclusion。
 
 ---
 

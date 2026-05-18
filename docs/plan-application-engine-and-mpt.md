@@ -7,8 +7,10 @@
 
 - **`ITransactionExecutor`**
   - *Today:* `ReferenceTransactionExecutor` — canned receipts.
-  - *Target:* `ApplicationEngineTransactionExecutor` — runs through
-    Neo's real VM.
+  - *Target at the time:* `ApplicationEngineTransactionExecutor` — runs
+    legacy NeoVM through Neo's real `ApplicationEngine`. The current Neo N4
+    L2 target is `RiscVTransactionExecutor` / NeoVM2-RISC-V; this plan is
+    retained as the legacy NeoVM compatibility work log.
 - **`IL2BatchExecutor`**
   - *Today:* `ReferenceBatchExecutor` — placeholder post-state root.
   - *Target:* `MerkleStateBatchExecutor` — real cryptographic state
@@ -36,7 +38,7 @@ simpler to verify.
 
 ## Phases (each one is a clean, mergeable PR)
 
-### Phase A — ApplicationEngine-backed transaction executor
+### Phase A — ApplicationEngine-backed legacy transaction executor
 
 **A1. `L2DataCacheAdapter`** (new file in `Neo.L2.Persistence`)
 - Implements Neo's abstract `DataCache` over `IL2KeyValueStore`.
@@ -118,7 +120,9 @@ simpler to verify.
 
 **C1. Devnet wiring** — `tools/Neo.L2.Devnet`
 - Add `--executor neovm` flag to swap from `ReferenceTransactionExecutor`
-  to `ApplicationEngineTransactionExecutor`.
+  to `ApplicationEngineTransactionExecutor` for legacy compatibility.
+- Add `--executor riscv` / `--executor neovm2-riscv` as the Neo N4 L2 path
+  backed by `RiscVTransactionExecutor`.
 - Add `--state-root merkle` flag to swap from `ReferenceBatchExecutor`
   to `MerkleStateBatchExecutor`.
 - The two flags are independent — operators can mix and match.
@@ -151,8 +155,8 @@ simpler to verify.
   L2 execution. The framework already has L1 RPC pollers; wiring them
   into ApplicationEngine's interop service is a separate phase.
 - **Custom executor support via Sample.CounterChainExecutor** — already
-  shipped; the new `ApplicationEngineTransactionExecutor` is the
-  default-NeoVM path, not a replacement for the per-chain custom path.
+  shipped; `ApplicationEngineTransactionExecutor` is now a legacy NeoVM
+  compatibility path, while Neo N4 L2 defaults to NeoVM2/RISC-V.
 
 ## LOC estimate
 

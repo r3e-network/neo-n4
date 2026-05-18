@@ -42,14 +42,14 @@ The executor MUST NOT write:
 ## Execution order
 
 1. **Apply L1 messages first.** For each `l1Messages[i]`, in the order given, the executor calls into the on-L2 bridge / message contracts as if the message came from a trusted source. Replay protection is enforced by the contracts via per-(sourceChain, nonce) bitmaps. The executor MUST NOT skip or reorder.
-2. **Apply transactions next.** For each `orderedTxs[i]`, in the order given, the executor decodes the transaction (Neo's standard `Transaction.DeserializeFrom` path), validates it, and runs it through `ApplicationEngine`. Failed transactions still update fees (matches Neo L1).
+2. **Apply transactions next.** For each `orderedTxs[i]`, in the order given, the executor decodes the transaction, validates it, and runs it through the configured deterministic VM. Neo N4 L2 production uses NeoVM2/RISC-V; the legacy NeoVM compatibility executor uses Neo's standard `Transaction.DeserializeFrom` + `ApplicationEngine` path. Failed transactions still update fees (matches Neo L1).
 3. **Seal outboxes.** After all transactions complete, the executor computes:
    - `txRoot` = MerkleTree(txHash[0], …, txHash[N-1])
    - `receiptRoot` = MerkleTree(receiptHash[0], …, receiptHash[N-1])
    - `withdrawalRoot` = batch-level `WithdrawalTree.Root`
    - `l2ToL1MessageRoot` = batch-level `MessageTree.Root` for messages with `targetChainId == 0`
    - `l2ToL2MessageRoot` = batch-level `MessageTree.Root` for messages with `targetChainId != 0`
-4. **Compute postStateRoot.** From the underlying MPT after applying all storage writes.
+4. **Compute postStateRoot.** From the deterministic keyed-state Merkle tree after applying all storage writes.
 
 ## Hashing rules
 

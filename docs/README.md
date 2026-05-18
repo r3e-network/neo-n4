@@ -26,8 +26,8 @@ unified L1 contract suite (**NeoHub**) on Neo N3 / Neo 4 L1, and proofs and inte
 messages aggregate through an optional **Neo Gateway** layer.
 
 The architecture borrows the *shared-bridge / chain-registry / proof-aggregation* pattern
-from ZKsync Elastic Chain, rebuilt on Neo's stack: dBFT 2.0 finality, NEP-17 assets, NeoVM,
-NeoFS data availability.
+from ZKsync Elastic Chain, rebuilt on Neo's stack: dBFT 2.0 finality, NEP-17 assets,
+NeoVM2/RISC-V execution, and NeoFS data availability.
 
 ---
 
@@ -109,7 +109,7 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
 - **Submodules (4)** — `external/neo` (`r3e-network/neo` fork, L2 branch `r3e/neo-n4-core`; L1 core branch is `r3e/neo-n3-core` in the same fork) ·
   `external/neo-devpack-dotnet` (smart-contract devpack + nccs) ·
   `external/neo-riscv-vm` (PolkaVM-backed Neo RISC-V engine) ·
-  `external/neo-zkvm` (Neo VM in pure Rust + SP1 prover crates). None
+  `external/neo-zkvm` (SP1 prover crates and legacy Neo VM compatibility guest). None
   are released on NuGet/crates.io for the versions tracked here.
 - **Tests (1430 .NET + 165 cross-lang)** — 1430 across 34 .NET projects;
   15 TypeScript (vitest) + 10 Rust SDK (mockito) + 5 shared execution-core
@@ -145,7 +145,7 @@ neo4/
 │   └── executors/                          # Sample.CounterChainExecutor + scaffold target
 ├── bridge/
 │   ├── neo-execution-core/                 # backend-neutral batch fold + public input hash
-│   ├── neo-zkvm-guest/                     # Rust → RISC-V ELF (real Neo VM, SP1-proven)
+│   ├── neo-zkvm-guest/                     # Rust → RISC-V ELF (SP1-proven execution guest)
 │   └── neo-zkvm-host/                      # sp1-sdk 6.2.1 prover daemon (prove-batch)
 └── tests/                                  # 1430 tests / 34 projects
 ```

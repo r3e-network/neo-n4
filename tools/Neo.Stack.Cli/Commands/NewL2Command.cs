@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using Neo.L2;
 
 namespace Neo.Stack.Cli.Commands;
 
@@ -67,7 +68,7 @@ internal static class NewL2Command
         var chainId = Neo.L2.ChainIdValidator.ValidateL2(parsedChainId, "--chain-id");
 
         var template = ArgUtil.Get(args, "--template", "rollup");
-        var vm = ArgUtil.Get(args, "--vm", "neovm");
+        var vm = ArgUtil.Get(args, "--vm", L2ExecutionVms.NeoVm2RiscV);
         var da = ArgUtil.Get(args, "--da", "neofs");
 
         var pathFlag = ArgUtil.Get(args, "--path", "");

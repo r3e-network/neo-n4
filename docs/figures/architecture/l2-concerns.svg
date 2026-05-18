@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 700" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">What L2 does — 3 layers per chain</title>
-  <desc id="desc">Each L2 chain comprises three concerns: 10 native L2 contracts (per-chain state — L2BridgeContract, L2NativeExternalBridge, BridgedNep17Contract, L2MessageContract, L2BatchInfoContract, L2FeeContract, L2PaymasterContract, L2AccountAbstraction, L2InteropVerifier, L2SystemConfigContract), 8 L2 plugins (per-chain runtime — L2Batch, L2Settlement, L2Bridge, L2DA, L2Prover, L2Rpc, L2Gateway, L2Metrics), and the L2 execution kernel (Neo 4 core vendored as submodule — dBFT 2.0 consensus, NeoVM, Mempool, local state storage, receipt generation).</desc>
+  <desc id="desc">Each L2 chain comprises three concerns: 10 native L2 contracts (per-chain state — L2BridgeContract, L2NativeExternalBridge, BridgedNep17Contract, L2MessageContract, L2BatchInfoContract, L2FeeContract, L2PaymasterContract, L2AccountAbstraction, L2InteropVerifier, L2SystemConfigContract), 8 L2 plugins (per-chain runtime — L2Batch, L2Settlement, L2Bridge, L2DA, L2Prover, L2Rpc, L2Gateway, L2Metrics), and the L2 execution kernel (Neo 4 core vendored as submodule — dBFT 2.0 consensus, NeoVM2/RISC-V execution, Mempool, local state storage, receipt generation).</desc>
 
   <defs>
     <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
@@ -97,7 +97,7 @@
 
     <text x="60" y="566" class="ctr-name" fill="#1e2a55">dBFT 2.0 consensus</text>
     <text x="220" y="566" class="ctr-desc">— produces L2 blocks</text>
-    <text x="60" y="588" class="ctr-name" fill="#1e2a55">NeoVM execution</text>
+    <text x="60" y="588" class="ctr-name" fill="#1e2a55">NeoVM2/RISC-V execution</text>
     <text x="220" y="588" class="ctr-desc">— runs txs</text>
     <text x="60" y="610" class="ctr-name" fill="#1e2a55">Mempool</text>
     <text x="220" y="610" class="ctr-desc">— pending tx queue</text>

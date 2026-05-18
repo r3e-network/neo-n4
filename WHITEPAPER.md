@@ -523,7 +523,7 @@ the L2 plugin set are stable across phases; the *verifier* changes.
 
 | Aspect                  | Neo Elastic Network              | ZKsync Elastic Chain    | OP Stack                      | Arbitrum Orbit                  |
 | ----------------------- | -------------------------------- | ----------------------- | ----------------------------- | ------------------------------- |
-| Execution kernel        | Neo 4 (NeoVM / NeoVM 2)          | EraVM (zkEVM)           | EVM (op-geth)                 | EVM (Nitro)                     |
+| Execution kernel        | Neo 4 (NeoVM2 / RISC-V for L2; NeoVM only for legacy compatibility) | EraVM (zkEVM) | EVM (op-geth) | EVM (Nitro) |
 | L1 settlement contracts | NeoHub (23 contracts)            | BridgeHub + SharedBridge + V.R. | OptimismPortal etc.    | RollupCore + Inbox              |
 | Sequencer               | dBFT 2.0 committee (M-of-N)      | Centralized (with FCFS) | Centralized (decentralizing)  | Centralized (decentralizing)    |
 | Proof regimes           | Multisig → Optimistic → ZK       | ZK (production)         | Optimistic (Cannon)           | Optimistic (BOLD challenge game) |

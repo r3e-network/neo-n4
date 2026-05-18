@@ -53,7 +53,7 @@
 - **强制纳入 source** ✅ — `src/Neo.L2.ForcedInclusion/`
 - **多签(Stage 0)证明者/验证器** ✅ — `src/Neo.L2.Proving.Attestation/`
 - **乐观(Stage 1)证明者/验证器** ✅ — `src/Neo.L2.Proving.Optimistic/`
-- **RISC-V ZK(Stage 2)证明者/验证器 —— 完整路径** ✅ — C# 的 `src/Neo.L2.Proving/RiscVZk/` 是进程内测试接缝(单测用 mock 证明者)。真正的 Stage-2 证明跑在进程外:`bridge/neo-zkvm-guest/` 经 `cargo prove build` 在 sp1-zkvm 6.2.1 上编译为 RISC-V ELF,**对每笔批次 tx 真正执行 Neo N3 VM**(依赖 `external/neo-zkvm/crates/neo-vm-guest`,证明对 opcode / gas 计费 / halt-or-fault / 栈顶结果做证明,不只是哈希字节)。`bridge/neo-zkvm-host/` 是 sp1-sdk 6.2.1 的编排器,带 `execute()` / `prove()` / `verify()` API 和 `prove-batch daemon --watch <dir>` CLI,变身成生产证明守护进程(运维者把封好的批次扔进队列目录,守护进程吐出 `<name>.proof.bin` + `<name>.proof.vk` 用于 L1 提交)。端到端已验证:zkVM 执行与 host-mode Neo VM 执行字节字节一致(默认测试约 42 秒);真正的 CPU 证明产生 + 验证 + 篡改 hash 拒绝由 2 条 `#[ignore]` 把关测试覆盖(合计约 3.5 分钟,发布前跑);queue → daemon → 独立验证器的真密码学往返已驱动过(87 秒证明、2.78MB 证明、42 秒验证)。
+- **RISC-V ZK(Stage 2)证明者/验证器 —— 完整路径** ✅ — C# 的 `src/Neo.L2.Proving/RiscVZk/` 是进程内测试接缝(单测用 mock 证明者)。N4 L2 的规范执行目标是 PolkaVM-backed NeoVM2/RISC-V 路径:`external/neo-riscv-vm` + `src/Neo.L2.Executor.RiscV/` + `RiscVTransactionExecutor`。真正的 Stage-2 证明跑在进程外,由 `bridge/neo-zkvm-host/` 编排;当前 legacy Neo N3 VM guest 只作为兼容桥,目标是把 RISC-V execution receipt 边界作为 N4 parity testing 的统一接口。`bridge/neo-zkvm-host/` 带 `execute()` / `prove()` / `verify()` API 和 `prove-batch daemon --watch <dir>` CLI,可作为生产证明守护进程(运维者把封好的批次扔进队列目录,守护进程吐出 `<name>.proof.bin` + `<name>.proof.vk` 用于 L1 提交)。真正 CPU proof 生成 + 验证 + 篡改 hash 拒绝由 `#[ignore]` 测试覆盖,普通 CI 覆盖确定性的 C# RISC-V 证明接缝。
 - **DA writer(in-memory / NeoFS / L1 / DAC / RocksDB)** ✅ — `src/Neo.Plugins.L2DA/`(5 种实现)
 - **结算 RPC 客户端** ✅ — `src/Neo.L2.Settlement.Rpc/`
 - **可观测性(Prometheus 形态)** ✅ — `src/Neo.L2.Telemetry/`、`Neo.Plugins.L2Metrics/`

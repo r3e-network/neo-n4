@@ -76,4 +76,72 @@ public class UT_RiscVHost
         var none = new RiscVExecutionResult { State = RiscVHost.StateNone, FeeConsumed = 0 };
         Assert.IsFalse(none.Halted);
     }
+
+    [TestMethod]
+    public async Task RiscVTransactionExecutor_HaltedProgram_ProducesSuccessfulReceipt()
+    {
+        var executor = new RiscVTransactionExecutor((_, _) => new RiscVExecutionResult
+        {
+            State = RiscVHost.StateHalt,
+            FeeConsumed = 123,
+        });
+
+        var result = await executor.ExecuteAsync(
+            new byte[] { 1, 2, 3 },
+            Context());
+
+        Assert.IsTrue(result.Receipt.Success);
+        Assert.AreEqual(123, result.Receipt.GasConsumed);
+        Assert.AreEqual(0, result.Withdrawals.Count);
+        Assert.AreEqual(0, result.Messages.Count);
+    }
+
+    [TestMethod]
+    public async Task RiscVTransactionExecutor_FaultedProgram_ProducesFailedReceipt()
+    {
+        var executor = new RiscVTransactionExecutor((_, _) => new RiscVExecutionResult
+        {
+            State = RiscVHost.StateFault,
+            FeeConsumed = 77,
+            ErrorMessage = "fault",
+        });
+
+        var result = await executor.ExecuteAsync(
+            new byte[] { 9, 9 },
+            Context());
+
+        Assert.IsFalse(result.Receipt.Success);
+        Assert.AreEqual(77, result.Receipt.GasConsumed);
+    }
+
+    [TestMethod]
+    public async Task RiscVTransactionExecutor_MissingNativeHost_Throws()
+    {
+        var executor = new RiscVTransactionExecutor((_, _) =>
+            throw new InvalidOperationException("neo_riscv_host is unavailable"));
+
+        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+            executor.ExecuteAsync(new byte[] { 0x40 }, Context()).AsTask());
+
+        StringAssert.Contains(ex.Message, "neo_riscv_host");
+    }
+
+    [TestMethod]
+    public async Task RiscVTransactionExecutor_Cancellation_Propagates()
+    {
+        var executor = new RiscVTransactionExecutor((_, _) =>
+            throw new OperationCanceledException());
+
+        await Assert.ThrowsExactlyAsync<OperationCanceledException>(() =>
+            executor.ExecuteAsync(new byte[] { 0x40 }, Context()).AsTask());
+    }
+
+    private static BatchBlockContext Context() => new()
+    {
+        L1FinalizedHeight = 1,
+        FirstBlockTimestamp = 10,
+        LastBlockTimestamp = 20,
+        SequencerCommitteeHash = UInt256.Zero,
+        Network = RiscVHost.DefaultNetwork,
+    };
 }

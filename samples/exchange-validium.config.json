@@ -1,7 +1,7 @@
 {
   "chainId": 1300,
   "template": "validium",
-  "vm": "neovm",
+  "vm": "neovm2-riscv",
   "chainMode": "L2ValidiumMode",
   "daMode": "NeoFS",
   "proofType": "Zk",

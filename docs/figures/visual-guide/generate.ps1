@@ -196,7 +196,7 @@ $(Arrow 792 447 1035 447 '4. FinalizeWithdrawalWithProof')
 RenderSvg "batch-lifecycle.svg" 1200 700 "Batch Settlement Lifecycle" "From L2 transaction ordering to L1 roots, proof verification, challenge windows, and finality." @"
 $(Box 50 120 185 105 'Tx pool' 'user txs|cross-chain messages|forced inclusion' $blue)
 $(Box 280 120 185 105 'Sequencer' 'ordering|timestamps|batch boundary' $orange)
-$(Box 510 120 185 105 'Executor' 'Neo VM execution|state transition|receipts' $cyan)
+$(Box 510 120 185 105 'Executor' 'NeoVM2/RISC-V execution|state transition|receipts' $cyan)
 $(Box 740 120 185 105 'Batch commitment' 'prevRoot -> newRoot|message roots|public inputs' $yellow)
 $(Box 970 120 175 105 'DA writer' 'publish payload|DARegistry ref|availability proof' $purple)
 $(Box 165 380 200 115 'SettlementManager' 'submitBatch|batch metadata|finality status' $green)

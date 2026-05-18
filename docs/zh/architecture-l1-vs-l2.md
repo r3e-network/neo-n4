@@ -59,7 +59,7 @@ L1 的属性*:
 工作*周围:
 
 <p align="center">
-  <img src="../figures/architecture/l2-concerns.svg" alt="L2 做什么 —— 每条链 3 层。顶层:10 个 L2 原生合约(按链状态 —— L2BridgeContract、L2NativeExternalBridge、BridgedNep17Contract、L2MessageContract、L2BatchInfoContract、L2FeeContract、L2PaymasterContract、L2AccountAbstraction、L2InteropVerifier、L2SystemConfigContract)。中层:8 个 L2 插件(按链运行时 —— L2Batch、L2Settlement、L2Bridge、L2DA、L2Prover、L2Rpc、L2Gateway、L2Metrics)。底层:L2 执行内核 —— Neo 4 core 作为 git submodule 引入,含 dBFT 2.0 共识、NeoVM、内存池、本地状态存储、receipt 生成" width="900">
+  <img src="../figures/architecture/l2-concerns.svg" alt="L2 做什么 —— 每条链 3 层。顶层:10 个 L2 原生合约(按链状态 —— L2BridgeContract、L2NativeExternalBridge、BridgedNep17Contract、L2MessageContract、L2BatchInfoContract、L2FeeContract、L2PaymasterContract、L2AccountAbstraction、L2InteropVerifier、L2SystemConfigContract)。中层:8 个 L2 插件(按链运行时 —— L2Batch、L2Settlement、L2Bridge、L2DA、L2Prover、L2Rpc、L2Gateway、L2Metrics)。底层:L2 执行内核 —— Neo 4 core 作为 git submodule 引入,含 dBFT 2.0 共识、NeoVM2/RISC-V 执行、内存池、本地状态存储、receipt 生成" width="900">
 </p>
 
 **关于 L2 的关键观察:** L2 持有**批量状态 + 重型执行**。桥 + 消息是 L2 上发生的事

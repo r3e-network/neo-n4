@@ -6,9 +6,9 @@ One-page developer onboarding for the Neo Elastic Network repo. Counts verified 
 
 ## 1. What is Neo N4?
 
-**Neo N4 (a.k.a. Neo Elastic Network)** is a multi-L2 network built on top of the [`r3e-network/neo`](https://github.com/r3e-network/neo) Neo core fork. The fork reserves `r3e/neo-n3-core` for L1 core work based on upstream `master-n3`, and `r3e/neo-n4-core` for L2 core work based on upstream `master`. Many L2 chains anchor to one shared L1 contract suite (**NeoHub**) on Neo N3 / Neo 4 L1, with pluggable execution (NeoVM or RISC-V), pluggable proofs (multisig / optimistic / ZK), pluggable data availability (L1 / NeoFS / DAC), and optional cross-L2 proof aggregation (**Neo Gateway**).
+**Neo N4 (a.k.a. Neo Elastic Network)** is a multi-L2 network built on top of the [`r3e-network/neo`](https://github.com/r3e-network/neo) Neo core fork. The fork reserves `r3e/neo-n3-core` for L1 core work based on upstream `master-n3`, and `r3e/neo-n4-core` for L2 core work based on upstream `master`. Many L2 chains anchor to one shared L1 contract suite (**NeoHub**) on Neo N3 / Neo 4 L1, with NeoVM2/RISC-V as the standard L2 execution target, legacy NeoVM compatibility only for N3-era checks, pluggable proofs (multisig / optimistic / ZK), pluggable data availability (L1 / NeoFS / DAC), and optional cross-L2 proof aggregation (**Neo Gateway**).
 
-Independent implementation — not the official Neo 4 release, not endorsed by Neo Global Development, Neo Foundation, or the `neo-project` organization. Architecture borrows the *shared-bridge + chain-registry + proof-aggregation* pattern from ZKsync Elastic Chain, rebuilt on Neo's stack (dBFT 2.0, NEP-17, NeoVM, NeoFS). See [`README.md`](README.md) for the full provenance disclosure and operator responsibilities; [`SECURITY.md`](SECURITY.md) for the vulnerability-disclosure process.
+Independent implementation — not the official Neo 4 release, not endorsed by Neo Global Development, Neo Foundation, or the `neo-project` organization. Architecture borrows the *shared-bridge + chain-registry + proof-aggregation* pattern from ZKsync Elastic Chain, rebuilt on Neo's stack (dBFT 2.0, NEP-17, NeoVM2/RISC-V, NeoFS). See [`README.md`](README.md) for the full provenance disclosure and operator responsibilities; [`SECURITY.md`](SECURITY.md) for the vulnerability-disclosure process.
 
 ---
 
@@ -40,7 +40,7 @@ Independent implementation — not the official Neo 4 release, not endorsed by N
                                     v
 +--------------------------------------------------------------------------+
 | Maintained dependency - Neo core fork (r3e-network/neo)                  |
-|   NeoVM | Native contracts | dBFT | RpcServer | ApplicationEngine        |
+|   NeoVM2/RISC-V | Native contracts | dBFT | RpcServer | ApplicationEngine        |
 +--------------------------------------------------------------------------+
 ```
 
@@ -106,7 +106,7 @@ remaining gaps worth closing as the framework matures.
 
 | If you want to change... | Goes in... | Why |
 |--------------------------|-----------|-----|
-| NeoVM opcodes / native contracts | **Core fork** (`r3e-network/neo`) | L1 core deltas tracked on `r3e/neo-n3-core`; L2 execution-kernel and N4-native deltas tracked on `r3e/neo-n4-core` |
+| NeoVM2/RISC-V execution / native contracts | **Core fork** (`r3e-network/neo`) | L1 core deltas tracked on `r3e/neo-n3-core`; L2 execution-kernel and N4-native deltas tracked on `r3e/neo-n4-core` |
 | dBFT consensus / RpcServer plugin | **Core** | Same |
 | L1 contracts (NeoHub) | This repo → `contracts/NeoHub.*/` | All 23 L1 contracts live here |
 | L2 native contracts | **Core fork** (`external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`) | Native contracts registered by Neo core at genesis |
@@ -121,7 +121,7 @@ remaining gaps worth closing as the framework matures.
 
 ### Ownership rule (one sentence)
 
-> Anything touching **NeoVM execution semantics, native contracts, dBFT consensus, or `RpcServer` plugin internals** belongs in **core**. Everything else belongs in **this repo**.
+> Anything touching **NeoVM2/RISC-V execution semantics, native contracts, dBFT consensus, or `RpcServer` plugin internals** belongs in **core**. Everything else belongs in **this repo**.
 
 ---
 

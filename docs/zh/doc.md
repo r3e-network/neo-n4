@@ -1631,7 +1631,7 @@ Neo 4 L2 Core
 
 | 问题      | 推荐选择                          | 原因                                       |
 | ------- | ----------------------------- | ---------------------------------------- |
-| L2 执行内核 | Neo 4 core                    | 复用 Neo 生态、NeoVM、native contracts、tooling |
+| L2 执行内核 | Neo 4 core                    | 运行 NeoVM2/RISC-V,复用 native contracts、tooling |
 | 排序机制    | dBFT committee                | 符合 Neo，提供快速 local finality               |
 | L1 结算   | NeoHub                        | 统一状态、资产、消息和治理                            |
 | 桥       | SharedBridge                  | 避免每条 L2 自己建桥导致碎片化                        |

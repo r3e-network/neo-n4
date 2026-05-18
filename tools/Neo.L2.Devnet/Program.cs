@@ -9,6 +9,7 @@ using Neo.L2.Batch;
 using Neo.L2.Bridge;
 using Neo.L2.Executor;
 using Neo.L2.Executor.Receipts;
+using Neo.L2.Executor.RiscV;
 using Neo.L2.Executor.State;
 using Neo.L2.Messaging;
 using Neo.L2.Persistence;
@@ -162,11 +163,9 @@ internal static class Program
         Console.WriteLine($"[wire] DA writer = {daWriter.GetType().Name} (mode={daWriter.Mode})");
 
         // Pick the per-tx executor based on --executor flag. Default `reference` keeps
-        // the legacy devnet behavior (no-op tx executor + 8-byte dummy tx). `counter`
-        // wires the Sample.CounterChainExecutor end-to-end so an operator can preview
-        // a real custom executor through the same pipeline (real opcodes, real state
-        // mutation via KeyedStateStoreAdapter, real receipt + withdrawal + message
-        // roots from CounterTxBuilder-built transactions).
+        // the deterministic smoke-test path (no-op tx executor + 8-byte dummy tx).
+        // `riscv` is the Neo N4 / NeoVM2 path through the PolkaVM-backed RISC-V host.
+        // `counter` remains the sample custom-executor demo.
         ITransactionExecutor txExec;
         // neovm-mode also needs a dedicated NeoVM state store (separate from the L2's
         // domain stateStore — native-contract storage layout differs from KeyedStateStore's).
@@ -182,19 +181,29 @@ internal static class Program
                 Console.WriteLine($"[wire] tx executor = CounterChainExecutor (chainId={LocalChainId}, --executor counter)");
                 break;
             case "neovm":
-                // Real Neo VM execution: bootstrap a fresh store with native-contract
-                // genesis state, then wire ApplicationEngineTransactionExecutor against
-                // it. Operator-supplied scripts run through the production VM path.
+                // Legacy NeoVM compatibility: useful for N3-era script checks, but not
+                // the canonical Neo N4 L2 execution target.
                 var neovmBacking = MaybeRocks(dataDir, "neovm-state");
                 neovmStore = neovmBacking ?? new InMemoryKeyValueStore();
                 NeoVMGenesisBootstrap.Run(neovmStore, NeoVMGenesisBootstrap.DefaultBootstrapSettings);
                 txExec = new ApplicationEngineTransactionExecutor(
                     neovmStore, settings: NeoVMGenesisBootstrap.DefaultBootstrapSettings);
-                Console.WriteLine($"[wire] tx executor = ApplicationEngineTransactionExecutor (real Neo VM, --executor neovm; bootstrapped {neovmStore.Count} native-contract keys)");
+                Console.WriteLine($"[wire] tx executor = ApplicationEngineTransactionExecutor (legacy NeoVM compatibility, --executor neovm; bootstrapped {neovmStore.Count} native-contract keys)");
+                break;
+            case "riscv":
+                if (!RiscVHost.IsAvailable)
+                {
+                    Console.Error.WriteLine("[wire] NeoVM2/RISC-V executor requested but neo_riscv_host is unavailable.");
+                    Console.Error.WriteLine("       Build external/neo-riscv-vm and place neo_riscv_host.dll (Windows) or libneo_riscv_host.so (Linux/WSL)");
+                    Console.Error.WriteLine("       on PATH/LD_LIBRARY_PATH, or use --executor reference for a smoke test.");
+                    return 1;
+                }
+                txExec = new RiscVTransactionExecutor();
+                Console.WriteLine("[wire] tx executor = RiscVTransactionExecutor (NeoVM2/RISC-V via PolkaVM, --executor riscv)");
                 break;
             default:
                 txExec = new ReferenceTransactionExecutor();
-                Console.WriteLine($"[wire] tx executor = ReferenceTransactionExecutor (no-op default — pass --executor counter for the sample custom-executor demo, or --executor neovm for real Neo VM)");
+                Console.WriteLine("[wire] tx executor = ReferenceTransactionExecutor (no-op smoke-test default — pass --executor riscv for NeoVM2/RISC-V, --executor counter for the sample custom-executor demo, or --executor neovm for legacy NeoVM compatibility)");
                 break;
         }
         var executor = new ReferenceBatchExecutor(txExec, stateRootOracle);
@@ -260,6 +269,12 @@ internal static class Program
                     t.Span.CopyTo(daPayload.AsSpan(dst));
                     dst += t.Length;
                 }
+            }
+            else if (executorMode == "riscv")
+            {
+                var haltProgram = new byte[] { 0x40 };
+                txList = new ReadOnlyMemory<byte>[] { haltProgram };
+                daPayload = haltProgram;
             }
             else
             {
@@ -534,10 +549,12 @@ internal static class Program
         Console.WriteLine("                       ReferenceTransactionExecutor. 'counter' wires the");
         Console.WriteLine("                       Sample.CounterChainExecutor end-to-end (state mutation via");
         Console.WriteLine("                       KeyedStateStoreAdapter, real receipts/withdrawals/messages");
-        Console.WriteLine("                       from CounterTxBuilder-built transactions). 'neovm' wires");
+        Console.WriteLine("                       from CounterTxBuilder-built transactions). 'riscv' /");
+        Console.WriteLine("                       'neovm2-riscv' wires the canonical Neo N4 L2 execution");
+        Console.WriteLine("                       target through RiscVTransactionExecutor and neo_riscv_host.");
+        Console.WriteLine("                       'neovm' wires the legacy compatibility path via");
         Console.WriteLine("                       ApplicationEngineTransactionExecutor against a fresh KV store");
-        Console.WriteLine("                       bootstrapped via NeoVMGenesisBootstrap (real Neo VM execution");
-        Console.WriteLine("                       — operator-supplied scripts run through the production VM path).");
+        Console.WriteLine("                       bootstrapped via NeoVMGenesisBootstrap.");
         Console.WriteLine();
         Console.WriteLine("Examples:");
         Console.WriteLine("  neo-l2-devnet 5                         # 5 batches, in-memory, default Optimistic label");

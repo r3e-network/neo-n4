@@ -5,8 +5,9 @@ namespace Neo.L2.Executor;
 /// <summary>
 /// Pluggable per-transaction executor. The reference implementation
 /// (<see cref="ReferenceTransactionExecutor"/>) is a no-op stand-in that simply records the
-/// transaction hash and produces a synthetic empty receipt; production deployments wire this
-/// to <c>Neo.SmartContract.ApplicationEngine</c>.
+/// transaction hash and produces a synthetic empty receipt. Production Neo N4 L2 deployments
+/// wire this to the NeoVM2/RISC-V executor; legacy NeoVM compatibility can still use
+/// <c>Neo.SmartContract.ApplicationEngine</c>.
 /// </summary>
 /// <remarks>
 /// The split lives here so the batch-level Merkle / sealing logic can be exhaustively tested

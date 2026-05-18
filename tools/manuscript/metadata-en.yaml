@@ -53,7 +53,7 @@ abstract: |
 
   The architecture borrows the shared-bridge / chain-registry / proof-
   aggregation pattern from ZKsync Elastic Chain, rebuilt on Neo's stack:
-  dBFT 2.0 finality, NEP-17 assets, NeoVM, NeoFS data availability.
+  dBFT 2.0 finality, NEP-17 assets, NeoVM2/RISC-V execution, and NeoFS data availability.
   This document is an independent community exploration; it is not
   endorsed by Neo Global Development, the Neo Foundation, or the
   neo-project organization.

@@ -9,7 +9,8 @@ using Neo.VM;
 namespace Neo.L2.Executor;
 
 /// <summary>
-/// Genesis bootstrap for L2 chains using <see cref="ApplicationEngineTransactionExecutor"/>.
+/// Genesis bootstrap for legacy NeoVM compatibility chains using
+/// <see cref="ApplicationEngineTransactionExecutor"/>.
 /// Runs the canonical Neo native-contract <c>OnPersist</c> + <c>PostPersist</c> flow once
 /// against the L2's <see cref="IL2KeyValueStore"/> so subsequent transaction execution
 /// has the native-contract state (PolicyContract, Ledger, etc.) it requires.
@@ -32,7 +33,7 @@ public static class NeoVMGenesisBootstrap
 {
     /// <summary>
     /// Minimal single-validator settings for genesis bootstrap in tests / devnets.
-    /// Production L2 chains supply their own <see cref="ProtocolSettings"/>.
+    /// Legacy NeoVM compatibility chains supply their own <see cref="ProtocolSettings"/>.
     /// </summary>
     public static readonly ProtocolSettings DefaultBootstrapSettings = ProtocolSettings.Default with
     {

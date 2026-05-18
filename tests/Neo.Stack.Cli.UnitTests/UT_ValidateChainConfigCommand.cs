@@ -39,7 +39,7 @@ public class UT_ValidateChainConfigCommand
     private static string ValidRollupConfig(uint chainId = 1099) => $@"{{
         ""chainId"": {chainId},
         ""template"": ""rollup"",
-        ""vm"": ""neovm"",
+        ""vm"": ""neovm2-riscv"",
         ""chainMode"": ""L2RollupMode"",
         ""daMode"": ""L1"",
         ""proofType"": ""Optimistic"",
@@ -234,6 +234,27 @@ public class UT_ValidateChainConfigCommand
         var path = WriteConfig(typo);
         var (rc, _, _) = CaptureBoth(() => ValidateChainConfigCommand.Run(new[] { path }));
         Assert.AreEqual(2, rc);
+    }
+
+    [TestMethod]
+    public void Validate_UnknownVm_ExitsTwo()
+    {
+        var typo = ValidRollupConfig().Replace("\"vm\": \"neovm2-riscv\"", "\"vm\": \"neovm3\"");
+        var path = WriteConfig(typo);
+        var (rc, _, stderr) = CaptureBoth(() => ValidateChainConfigCommand.Run(new[] { path }));
+        Assert.AreEqual(2, rc);
+        StringAssert.Contains(stderr, "'vm'='neovm3'");
+    }
+
+    [TestMethod]
+    public void Validate_LegacyNeoVm_ExitsZero_WithWarning()
+    {
+        var legacy = ValidRollupConfig().Replace("\"vm\": \"neovm2-riscv\"", "\"vm\": \"neovm\"");
+        var path = WriteConfig(legacy);
+        var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
+        Assert.AreEqual(0, rc);
+        StringAssert.Contains(output, "legacy compatibility");
+        StringAssert.Contains(output, "neovm2-riscv");
     }
 
     [TestMethod]

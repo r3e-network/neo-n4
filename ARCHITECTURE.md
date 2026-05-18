@@ -4,7 +4,7 @@
 
 ## §0 Goal
 
-Build the **Neo Elastic Network** — multiple Neo 4 L2 chains anchored to Neo N3 / Neo 4 L1, sharing a unified bridge, settlement contract suite, proof aggregation layer, and cross-chain message protocol. Borrows from ZKsync Elastic Chain (shared bridge, chain registry, proof aggregation, native interop) but rebuilt on Neo's tech stack: dBFT 2.0 finality, NEP-17, NeoVM, NeoFS.
+Build the **Neo Elastic Network** — multiple Neo 4 L2 chains anchored to Neo N3 / Neo 4 L1, sharing a unified bridge, settlement contract suite, proof aggregation layer, and cross-chain message protocol. Borrows from ZKsync Elastic Chain (shared bridge, chain registry, proof aggregation, native interop) but rebuilt on Neo's tech stack: dBFT 2.0 finality, NEP-17, NeoVM2/RISC-V execution, NeoFS.
 
 ## §1 Layered architecture
 
@@ -155,7 +155,7 @@ Smallest deliverable that proves the architecture works:
 
 | Question                | Choice                            | Reason                                |
 | ----------------------- | --------------------------------- | ------------------------------------- |
-| L2 execution kernel     | Neo 4 core                        | Reuse Neo VM, native contracts, tools |
+| L2 execution kernel     | Neo 4 core                        | Run NeoVM2/RISC-V with native contracts and Neo tooling |
 | Sequencer               | dBFT committee                    | Native one-block finality             |
 | L1 settlement           | NeoHub                            | One state/asset/message/governance root |
 | Bridge                  | SharedBridge                      | Avoid per-chain bridge fragmentation  |

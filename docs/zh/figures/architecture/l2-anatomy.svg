@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 380" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">一条 L2 链由什么定义 —— 4 个工件</title>
-  <desc id="desc">Neo Elastic Network 中每条 L2 链由 4 个工件完整定义:(1)chain.config.json —— 91 字节规范 config + JSON 元数据;(2)ITransactionExecutor 实现 —— 基于 ApplicationEngine 或自定义,编进 L2 插件;(3)L1 上的 ChainRegistry 条目 —— 4 个 24 字节 UInt160 引用(operatorManager、verifier、bridgeAdapter、messageAdapter)加 91 字节 configBytes;(4)链下运营者 —— 排序器、批处理器、证明守护进程、DA writer。</desc>
+  <desc id="desc">Neo Elastic Network 中每条 L2 链由 4 个工件完整定义:(1)chain.config.json —— 91 字节规范 config + JSON 元数据;(2)ITransactionExecutor 实现 —— 默认 NeoVM2/RISC-V,legacy NeoVM 兼容或自定义 executor 需要显式选择并编进 L2 插件;(3)L1 上的 ChainRegistry 条目 —— 4 个 24 字节 UInt160 引用(operatorManager、verifier、bridgeAdapter、messageAdapter)加 91 字节 configBytes;(4)链下运营者 —— 排序器、批处理器、证明守护进程、DA writer。</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
@@ -43,9 +43,9 @@
     <text x="353" y="120" class="caption">运行时行为</text>
     <foreignObject x="311" y="140" width="188" height="160">
       <p xmlns="http://www.w3.org/1999/xhtml" style="font: 11.5px -apple-system, sans-serif; margin: 0; color: #2d3a48; line-height: 1.5;">
-        基于 ApplicationEngine <em>或</em>自定义。编进每个排序器的 L2
-        插件集合。决定每笔 tx 的语义。见 <code>scaffold-executor</code>
-        CLI。
+        默认 NeoVM2/RISC-V。legacy NeoVM 兼容与自定义 executor
+        都是显式插件选择。决定每笔 tx 的语义。见
+        <code>scaffold-executor</code> CLI。
       </p>
     </foreignObject>
   </g>

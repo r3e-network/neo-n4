@@ -12,9 +12,9 @@ using Neo.VM;
 namespace Neo.L2.Executor.UnitTests;
 
 /// <summary>
-/// Production-grade tests for the <see cref="ApplicationEngineTransactionExecutor"/>:
-/// real Neo VM execution against a real <see cref="L2DataCacheAdapter"/>, real
-/// transaction round-trip via <see cref="ISerializable"/> wire format.
+/// Legacy-compatibility tests for the <see cref="ApplicationEngineTransactionExecutor"/>:
+/// real NeoVM execution against a real <see cref="L2DataCacheAdapter"/>, real transaction
+/// round-trip via <see cref="ISerializable"/> wire format.
 /// </summary>
 [TestClass]
 public class UT_ApplicationEngineTransactionExecutor
@@ -53,8 +53,8 @@ public class UT_ApplicationEngineTransactionExecutor
     {
         // Documents the genesis-bootstrap requirement: ApplicationEngine.Run against
         // a fresh, un-bootstrapped DataCache FAULTs because PolicyContract reads from
-        // native-contract state that hasn't been initialized. Production L2 chains
-        // run the genesis OnPersist flow once at chain genesis to seed this state.
+        // native-contract state that hasn't been initialized. Legacy NeoVM compatibility
+        // runs the genesis OnPersist flow once at chain genesis to seed this state.
         // This test pins that invariant — if a future Neo VM change makes it work
         // against an empty cache, this assertion fails and the operator-facing
         // bootstrap docs need updating.

@@ -14,8 +14,8 @@ using Neo.VM;
 namespace Neo.L2.IntegrationTests;
 
 /// <summary>
-/// Phase C2 capstone: drives N batches end-to-end with the
-/// <strong>real Neo VM</strong> via <see cref="ApplicationEngineTransactionExecutor"/>
+/// Legacy Phase C2 capstone: drives N batches end-to-end with the
+/// <strong>real NeoVM compatibility path</strong> via <see cref="ApplicationEngineTransactionExecutor"/>
 /// + <see cref="MerkleStatePostStateRootOracle"/>, on top of the existing
 /// <see cref="ReferenceBatchExecutor"/> orchestration.
 /// </summary>

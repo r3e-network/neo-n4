@@ -356,6 +356,40 @@ function Invoke-DevnetRun {
     Invoke-LoggedNative -Name "neo-l2-devnet $Name" -FilePath "dotnet" -Arguments $args
 }
 
+function Invoke-RiscVDevnetRun {
+    param(
+        [string]$Name,
+        [int]$BatchCount,
+        [string]$ConfigPath
+    )
+
+    $publishDir = Join-Path $RunDir "devnet-linux-x64"
+    Invoke-LoggedNative -Name "publish neo-l2-devnet linux-x64" -FilePath "dotnet" -Arguments @(
+        "publish", "tools\Neo.L2.Devnet\Neo.L2.Devnet.csproj",
+        "-c", "Release", "-r", "linux-x64", "--self-contained", "true",
+        "/p:NuGetAudit=false", "/p:PublishSingleFile=false", "--nologo",
+        "-o", $publishDir
+    )
+
+    $wslRepo = Get-WslPath $RepoRoot
+    $wslPublish = Get-WslPath $publishDir
+    $wslConfig = Get-WslPath $ConfigPath
+    Invoke-WslBash -Name "cargo build neo-riscv-host release" -Command @"
+set -euo pipefail
+export PATH="`$HOME/.cargo/bin:`$PATH"
+cd $(Quote-Bash (Join-WslPath $wslRepo "external" "neo-riscv-vm"))
+cargo build -p neo-riscv-host --release
+"@
+
+    Invoke-WslBash -Name "neo-l2-devnet $Name" -Command @"
+set -euo pipefail
+cd $(Quote-Bash $wslRepo)
+chmod +x $(Quote-Bash (Join-WslPath $wslPublish "neo-l2-devnet"))
+export LD_LIBRARY_PATH=$(Quote-Bash (Join-WslPath $wslRepo "external" "neo-riscv-vm" "target" "release")):$(Quote-Bash $wslPublish)
+$(Quote-Bash (Join-WslPath $wslPublish "neo-l2-devnet")) $BatchCount --config $(Quote-Bash $wslConfig) --executor riscv
+"@
+}
+
 function Ensure-RustSecDb {
     foreach ($name in @("advisory-db-main", "rustsec-advisory-db-main")) {
         $candidate = Join-Path $ArtifactsRoot $name
@@ -414,8 +448,14 @@ try {
         -DataDir $validiumData
 
     $zkDir = New-PrivateChain -Name "private-zk-rollup" -ChainId 1102 -Template "zk-rollup"
-    Invoke-DevnetRun -Name "zk-rollup neovm memory" -BatchCount 1 `
-        -ConfigPath (Join-Path $zkDir "chain.config.json") -Executor "neovm"
+    if (-not $SkipRust) {
+        Invoke-RiscVDevnetRun -Name "zk-rollup riscv memory" -BatchCount 1 `
+            -ConfigPath (Join-Path $zkDir "chain.config.json")
+    }
+    else {
+        Invoke-DevnetRun -Name "zk-rollup reference memory (SkipRust)" -BatchCount 1 `
+            -ConfigPath (Join-Path $zkDir "chain.config.json") -Executor "reference"
+    }
 
     $sidechainDir = New-PrivateChain -Name "private-sidechain" -ChainId 1103 -Template "sidechain"
     Invoke-LoggedNative -Name "neo-stack validate sidechain" -FilePath "dotnet" -Arguments @(

@@ -110,12 +110,19 @@ public class UT_DevnetArgs
     [TestMethod]
     public void Executor_RecognizesNeovm()
     {
-        // Pin: 'neovm' is a recognized executor mode (wires the real Neo VM via
-        // ApplicationEngineTransactionExecutor + NeoVMGenesisBootstrap). A
+        // Pin: 'neovm' stays recognized as a legacy compatibility mode via
+        // ApplicationEngineTransactionExecutor + NeoVMGenesisBootstrap. A
         // regression that drops it from the allowlist would silently fall back
-        // to ReferenceTransactionExecutor — the operator wouldn't know they're
-        // not actually running Neo VM.
+        // to ReferenceTransactionExecutor.
         Assert.AreEqual("neovm", DevnetArgs.ParseExecutor(new[] { "--executor", "neovm" }));
+    }
+
+    [TestMethod]
+    public void Executor_RecognizesNeoVm2RiscV()
+    {
+        Assert.AreEqual("riscv", DevnetArgs.ParseExecutor(new[] { "--executor", "riscv" }));
+        Assert.AreEqual("riscv", DevnetArgs.ParseExecutor(new[] { "--executor", "neovm2-riscv" }));
+        Assert.AreEqual("riscv", DevnetArgs.ParseExecutor(new[] { "--executor", "riscv2" }));
     }
 
     [TestMethod]
@@ -132,7 +139,7 @@ public class UT_DevnetArgs
             Assert.AreEqual("reference", result, "unknown values fall back to 'reference'");
             var stderr = sw.ToString();
             StringAssert.Contains(stderr, "--executor 'counte' not recognized");
-            StringAssert.Contains(stderr, "Valid values: reference, counter, neovm");
+            StringAssert.Contains(stderr, "Valid values: reference, counter, riscv, neovm2-riscv, neovm");
         }
         finally
         {

@@ -10,7 +10,7 @@
 | 层 | 框架 | 位置 | 内容 |
 |---|---|---|---|
 | 单元 | MSTest(xUnit 风) | `tests/Neo.L2.*.UnitTests/`(34 个工程) | 每类不变量、边界、空参 + 空字段守卫、指标 emission 钉 |
-| 集成 | MSTest | `tests/Neo.L2.IntegrationTests/` | E2E 分阶段缝合(Phase 0 → 5)、审计管线、持久化恢复、真实 Neo VM、自定义 executor 全栈 |
+| 集成 | MSTest | `tests/Neo.L2.IntegrationTests/` | E2E 分阶段缝合(Phase 0 → 5)、审计管线、持久化恢复、NeoVM2/RISC-V 接缝、legacy NeoVM 兼容、自定义 executor 全栈 |
 | 属性 / 不变量 | MSTest + seeded `System.Random` | `UT_BridgeInvariants_PropertyBased.cs`(17 测试) | 200 次操作的随机序列 × 4-8 种子 —— 每个不变量 1600-3200 次状态转移。在每个中间态断言桥账面 + nonce 唯一性 + 双向注册表的不变量 |
 | 模糊 | MSTest + seeded `System.Random` | `UT_WireFormat_Fuzz.cs`(19 测试) | 随机字节序列喂给每个 decoder —— 必须 round-trip 或以类型化异常拒绝,永不崩溃 |
 | 跨语言对等 | byte-vector 钉 + canonical-bytes-match-csharp | Rust watcher 测试 + Foundry 测试 | C# encoder + Rust + Solidity verifier 间字节相同 |
@@ -82,7 +82,7 @@ ZKsync 的 `era-test-node` 起一条本地实链,跑脚本场景。neo4 在
 - `UT_Mvp_Phase2_FullStack` —— Phase-2 batch settlement + Gateway 聚合
 - `UT_Mvp_Phase3_OptimisticChallenge` —— Phase-3 挑战窗口 + 欺诈证明
 - `UT_Mvp_AllPhases_FullStack` —— 全阶段缝合
-- `UT_E2E_RealVM_FullStack` —— 5 个批次通过真实 Neo VM,状态根连续性
+- `UT_E2E_RealVM_FullStack` —— legacy NeoVM 兼容路径,验证状态根连续性
 - `UT_E2E_CustomExecutor_FullStack` —— `Sample.CounterChainExecutor` 端到端
 - `UT_E2E_AuditPipeline` —— `ChainAuditor` 对健康 + 损坏场景
 - `UT_E2E_Persistence_FullStack` —— 4 个 RocksDB store 从一个根目录恢复

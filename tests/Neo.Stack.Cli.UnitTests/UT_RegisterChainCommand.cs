@@ -32,7 +32,7 @@ public class UT_RegisterChainCommand
     private static string MinimalConfigJson(uint chainId) => $@"{{
         ""chainId"": {chainId},
         ""template"": ""rollup"",
-        ""vm"": ""neovm"",
+        ""vm"": ""neovm2-riscv"",
         ""chainMode"": ""L2RollupMode"",
         ""daMode"": ""L1"",
         ""proofType"": ""Optimistic"",

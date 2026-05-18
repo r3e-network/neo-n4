@@ -5,7 +5,8 @@ namespace Neo.L2.Executor;
 
 /// <summary>
 /// Test / scaffolding executor: hashes the transaction bytes and returns an empty-effect
-/// receipt. Replace with the real <c>ApplicationEngine</c>-backed executor for production.
+/// receipt. Production Neo N4 L2s use the NeoVM2/RISC-V executor; the
+/// <c>ApplicationEngine</c>-backed executor is retained for legacy NeoVM compatibility.
 /// </summary>
 /// <remarks>
 /// Because this executor produces no withdrawals or messages on its own, the

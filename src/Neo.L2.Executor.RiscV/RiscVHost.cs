@@ -12,11 +12,10 @@ namespace Neo.L2.Executor.RiscV;
 /// (<c>LD_LIBRARY_PATH</c> or alongside the C# binaries).
 /// macOS: <c>libneo_riscv_host.dylib</c>. Windows: <c>neo_riscv_host.dll</c>.
 /// <para>
-/// This project targets the off-chain L2 batch executor — a future
-/// <c>RiscVTransactionExecutor</c> can implement <c>ITransactionExecutor</c> backed by this
-/// VM, providing the Phase 4 NeoVM2/RISC-V execution path the spec calls for. The current
-/// scope is the binding itself plus an availability gate so callers can fall back gracefully
-/// when the native library is not deployed.
+/// This project targets the off-chain L2 batch executor. <c>RiscVTransactionExecutor</c>
+/// implements <c>ITransactionExecutor</c> on top of this VM, providing the NeoVM2/RISC-V
+/// execution path the spec calls for. The binding keeps an availability gate so callers
+/// can fail clearly when the native library is not deployed.
 /// </para>
 /// </remarks>
 public static class RiscVHost

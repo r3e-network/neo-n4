@@ -500,7 +500,7 @@ exitModel(Permissionless / Delayed / OperatorAssisted)。用户经
 
 | 维度                  | Neo Elastic Network              | ZKsync Elastic Chain    | OP Stack                      | Arbitrum Orbit                  |
 | --------------------- | -------------------------------- | ----------------------- | ----------------------------- | ------------------------------- |
-| 执行内核              | Neo 4(NeoVM / NeoVM 2)          | EraVM(zkEVM)           | EVM(op-geth)                  | EVM(Nitro)                      |
+| 执行内核              | Neo 4(NeoVM2 / RISC-V 作为 L2; NeoVM 仅作兼容路径) | EraVM(zkEVM) | EVM(op-geth) | EVM(Nitro) |
 | L1 结算合约           | NeoHub(23 个合约)              | BridgeHub + SharedBridge + V.R. | OptimismPortal 等             | RollupCore + Inbox              |
 | 排序器                | dBFT 2.0 委员会(M-of-N)         | 中心化(带 FCFS)         | 中心化(去中心化中)            | 中心化(去中心化中)              |
 | 证明体系              | 多签 → 乐观 → ZK                  | ZK(生产)                | 乐观(Cannon)                  | 乐观(BOLD 挑战游戏)             |

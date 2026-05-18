@@ -25,7 +25,7 @@ Neo N3 / Neo 4 L1 上的统一 L1 合约套件(**NeoHub**),并通过可选的
 **Neo Gateway** 层聚合证明与 L2 间消息。
 
 本架构借鉴了 ZKsync Elastic Chain 的*共享桥 / 链注册表 / 证明聚合*模式,在 Neo 栈
-上重新构建:dBFT 2.0 终结性、NEP-17 资产、NeoVM、NeoFS 数据可用性。
+上重新构建:dBFT 2.0 终结性、NEP-17 资产、NeoVM2/RISC-V 执行、NeoFS 数据可用性。
 
 ---
 

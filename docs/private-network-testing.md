@@ -17,7 +17,7 @@ It exercises four local private-chain templates:
 | --- | --- | --- |
 | `rollup` | Optimistic rollup default | `create-chain`, `validate`, `init-l2`, register/deploy plan, sequencer/batcher/prover preflights, reference devnet |
 | `validium` | NeoFS-style DA + gateway label | persistent `--executor counter` devnet, live `/metrics`, 0-batch rehydration |
-| `zk-rollup` | Validity-proof label | real Neo VM executor devnet smoke |
+| `zk-rollup` | Validity-proof label | NeoVM2/RISC-V executor gate plus devnet smoke |
 | `sidechain` | External DA / no-proof label | config generation and validation |
 
 The devnet path is in-process by design: it wires the same framework
@@ -64,7 +64,7 @@ Each run writes:
 | .NET build/test | `dotnet build Neo.L2.sln`, `dotnet test Neo.L2.sln --no-build` |
 | Neo contracts | `dotnet build` + `nccs` for every deployable `NeoHub.*` and `Sample.*` contract; verifies `.nef` and `.manifest.json`; runs Neo core tests for N4 L2 native contracts in `external/neo` |
 | Operator CLI | `neo-stack create-chain`, `validate`, `init-l2`, `register-chain`, `deploy-bridge-adapter`, `start-sequencer`, `start-batcher`, `start-prover` |
-| Private devnet | reference executor, counter executor with persistence and metrics, 0-batch rehydration, Neo VM executor |
+| Private devnet | reference executor, counter executor with persistence and metrics, 0-batch rehydration, NeoVM2/RISC-V gate, legacy NeoVM compatibility executor |
 | Rust bridge | PolkaVM RISC-V host, zkVM guest, Rust SDK, ETH/Tron/Solana watchers, clippy |
 | SP1 zkVM | `cargo prove build`, workspace clippy/tests, optional real SP1 proof tests |
 | Supply chain | RustSec `cargo audit`, TypeScript `npm audit` |

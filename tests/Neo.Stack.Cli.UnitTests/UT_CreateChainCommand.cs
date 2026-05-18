@@ -43,7 +43,7 @@ public class UT_CreateChainCommand
         var config = File.ReadAllText(configPath);
         StringAssert.Contains(config, "\"chainId\": 1099");
         StringAssert.Contains(config, "\"template\": \"rollup\"");
-        StringAssert.Contains(config, "\"vm\": \"neovm\"");
+        StringAssert.Contains(config, "\"vm\": \"neovm2-riscv\"");
         StringAssert.Contains(config, "\"securityLevel\": \"Optimistic\"");  // rollup default
     }
 

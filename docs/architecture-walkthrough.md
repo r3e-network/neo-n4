@@ -70,11 +70,12 @@ hands it to the configured `IL2Prover`:
   signature and key/account binding; `NeoHub.SettlementManager` marks the batch
   `Challengeable` and opens `NeoHub.OptimisticChallenge`.
 - **Stage 2 (ZK):** Out-of-process Rust prover at `bridge/neo-zkvm-host/`
-  (run as `prove-batch daemon --watch <queue-dir>`). Each tx in the batch is
-  loaded as a Neo N3 VM script and executed by `neo_vm_guest::execute` (real
-  NeoVM in pure Rust); SP1 6.2.1 proves that execution. The .NET prover plugin
-  uses `MockRiscVProver` for in-process testing only — production proving
-  lives in the daemon.
+  (run as `prove-batch daemon --watch <queue-dir>`). The N4 target is
+  NeoVM2/RISC-V execution: batches are reduced to canonical public inputs and
+  proved as RISC-V execution artifacts. The legacy Neo N3 VM guest remains a
+  compatibility bridge while the PolkaVM-backed `external/neo-riscv-vm` path is
+  the L2 execution target. The .NET prover plugin uses `MockRiscVProver` for
+  in-process testing only — production proving lives in the daemon.
 
 The prover output goes into `L2BatchCommitment.Proof` with the matching `ProofType`.
 

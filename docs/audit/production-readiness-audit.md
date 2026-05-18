@@ -209,7 +209,8 @@ Fresh verification artifacts were written on 2026-05-17.
 | GitHub Actions workflow syntax | Parsed `.github/workflows/build.yml` with PyYAML after CI expansion | Pass; 9 jobs detected |
 | In-process devnet, persistent default executor | `dotnet run --project tools\Neo.L2.Devnet -- 5 --data-dir <scratch>` followed by `-- 0 --data-dir <same>` | Pass; 5 batches sealed/audited, state/DA continuity passed, restart rehydrated persisted state |
 | In-process devnet, Counter executor | `dotnet run --project tools\Neo.L2.Devnet -- 3 --executor counter --data-dir <scratch>` | Pass; 3 batches sealed/audited, custom executor tx roots and L2 message roots generated |
-| In-process devnet, NeoVM executor | `dotnet run --project tools\Neo.L2.Devnet -- 3 --executor neovm --data-dir <scratch>` | Pass; real NeoVM executor bootstrapped 45 native-contract keys and sealed/audited 3 batches |
+| In-process devnet, NeoVM2/RISC-V executor | Publish `tools\Neo.L2.Devnet` for `linux-x64`, build `external/neo-riscv-vm` with Cargo, then run `neo-l2-devnet 1 --executor riscv` in WSL2 with `LD_LIBRARY_PATH` pointing at `libneo_riscv_host.so` | Pass; `RiscVTransactionExecutor` sealed/audited 1 batch through the PolkaVM-backed host |
+| In-process devnet, legacy NeoVM executor | `dotnet run --project tools\Neo.L2.Devnet -- 3 --executor neovm --data-dir <scratch>` | Pass; compatibility executor bootstrapped 45 native-contract keys and sealed/audited 3 batches |
 | ZK host native Windows | `cargo test --release` | Expected platform failure in `sp1-jit` POSIX imports; WSL2 path is the supported Windows workflow |
 
 ## Security Scan Result

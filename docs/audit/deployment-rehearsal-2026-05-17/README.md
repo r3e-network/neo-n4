@@ -127,7 +127,12 @@ dotnet run --project tools/Neo.L2.Devnet -- 5
 dotnet run --project tools/Neo.L2.Devnet -- 5 --data-dir <scratch>/persistent-default
 dotnet run --project tools/Neo.L2.Devnet -- 0 --data-dir <scratch>/persistent-default
 dotnet run --project tools/Neo.L2.Devnet -- 3 --executor counter --data-dir <scratch>/counter
-dotnet run --project tools/Neo.L2.Devnet -- 3 --executor neovm --data-dir <scratch>/neovm
+dotnet publish tools/Neo.L2.Devnet/Neo.L2.Devnet.csproj -c Release -r linux-x64 --self-contained true \
+    /p:NuGetAudit=false /p:PublishSingleFile=false -o <scratch>/devnet-linux-x64
+cd external/neo-riscv-vm && cargo build -p neo-riscv-host --release
+LD_LIBRARY_PATH=<repo>/external/neo-riscv-vm/target/release:<scratch>/devnet-linux-x64 \
+    <scratch>/devnet-linux-x64/neo-l2-devnet 1 --executor riscv
+dotnet run --project tools/Neo.L2.Devnet -- 3 --executor neovm --data-dir <scratch>/neovm  # legacy compatibility
 dotnet run --project tools/Neo.L2.Devnet -- 2 \
     --config samples/general-rollup.config.json \
     --data-dir <scratch>/general-rollup-config
@@ -141,7 +146,8 @@ Outcome:
 | Persistent default, 5 batches | Audit passed and state survived to disk. |
 | Persistent rehydrate, 0 batches | State store rehydrated with 1 initial entry; committee active. |
 | Counter executor, 3 batches | Audit passed, 3 state entries, `alice balance` matched `5940000`. |
-| NeoVM executor, 3 batches | Native-contract bootstrap succeeded, audit passed. |
+| NeoVM2/RISC-V executor, 1 batch | WSL2 loaded `libneo_riscv_host.so`; audit passed through `RiscVTransactionExecutor`. |
+| Legacy NeoVM executor, 3 batches | Native-contract bootstrap succeeded for compatibility coverage. |
 | Sample general-rollup config, 2 batches | Config label reflected `Optimistic`, `L1` DA, delayed exit; audit passed. |
 
 ## External Bridge and EVM Router

@@ -49,6 +49,11 @@ function Join-ProcessArguments {
     }) -join " "
 }
 
+function Quote-BashLiteral {
+    param([string]$Value)
+    return "'" + ($Value -replace "'", "'\''") + "'"
+}
+
 function Invoke-Logged {
     param(
         [string]$Name,
@@ -180,9 +185,27 @@ try {
     Invoke-Logged "devnet-persistent-5" "dotnet" @("run", "--project", "tools\Neo.L2.Devnet", "--", "5", "--data-dir", (Join-Path $devnetScratch "persistent-default"))
     Invoke-Logged "devnet-rehydrate-0" "dotnet" @("run", "--project", "tools\Neo.L2.Devnet", "--", "0", "--data-dir", (Join-Path $devnetScratch "persistent-default"))
     Invoke-Logged "devnet-counter-3" "dotnet" @("run", "--project", "tools\Neo.L2.Devnet", "--", "3", "--executor", "counter", "--data-dir", (Join-Path $devnetScratch "counter"))
-    Invoke-Logged "devnet-neovm-3" "dotnet" @("run", "--project", "tools\Neo.L2.Devnet", "--", "3", "--executor", "neovm", "--data-dir", (Join-Path $devnetScratch "neovm"))
+    Assert-Command "wsl.exe"
+    $linuxDevnetDir = Join-Path $OutputRoot "devnet-linux-x64"
+    Invoke-Logged "devnet-linux-publish" "dotnet" @(
+        "publish", "tools\Neo.L2.Devnet\Neo.L2.Devnet.csproj",
+        "-c", "Release", "-r", "linux-x64", "--self-contained", "true",
+        "/p:NuGetAudit=false", "/p:PublishSingleFile=false", "--nologo",
+        "-o", $linuxDevnetDir
+    )
+    $wslRepo = Convert-ToWslPath $RepoRoot
+    $wslLinuxDevnetDir = Convert-ToWslPath $linuxDevnetDir
+    Invoke-Logged "riscv-host-release" "wsl.exe" @(
+        "bash", "-lc",
+        "cd $(Quote-BashLiteral "$wslRepo/external/neo-riscv-vm") && export PATH=`"`$HOME/.cargo/bin:`$PATH`" && cargo build -p neo-riscv-host --release"
+    )
+    Invoke-Logged "devnet-riscv-1-wsl" "wsl.exe" @(
+        "bash", "-lc",
+        "cd $(Quote-BashLiteral $wslRepo) && chmod +x $(Quote-BashLiteral "$wslLinuxDevnetDir/neo-l2-devnet") && export LD_LIBRARY_PATH=$(Quote-BashLiteral "$wslRepo/external/neo-riscv-vm/target/release"):$(Quote-BashLiteral $wslLinuxDevnetDir) && $(Quote-BashLiteral "$wslLinuxDevnetDir/neo-l2-devnet") 1 --executor riscv"
+    )
+    Invoke-Logged "devnet-neovm-3-legacy" "dotnet" @("run", "--project", "tools\Neo.L2.Devnet", "--", "3", "--executor", "neovm", "--data-dir", (Join-Path $devnetScratch "neovm"))
     Invoke-Logged "devnet-general-rollup-2" "dotnet" @("run", "--project", "tools\Neo.L2.Devnet", "--", "2", "--config", "samples\general-rollup.config.json", "--data-dir", (Join-Path $devnetScratch "general-rollup"))
-    Add-StepResult "Local devnet flows" "passed" "Default, persistent, rehydrate, counter, neovm, and sample-config runs passed."
+    Add-StepResult "Local devnet flows" "passed" "Default, persistent, rehydrate, counter, NeoVM2/RISC-V, legacy NeoVM compatibility, and sample-config runs passed."
 
     $keyDir = Join-Path $DataDir "external-bridge-keys"
     New-Item -ItemType Directory -Force -Path $keyDir | Out-Null

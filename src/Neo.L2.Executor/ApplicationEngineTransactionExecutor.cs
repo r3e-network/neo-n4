@@ -16,19 +16,18 @@ using Neo.VM;
 namespace Neo.L2.Executor;
 
 /// <summary>
-/// Production <see cref="ITransactionExecutor"/> that runs each L2 transaction's script
-/// through Neo's real <see cref="ApplicationEngine"/>. Replaces
-/// <see cref="ReferenceTransactionExecutor"/>'s synthetic-receipt scaffolding for
-/// chains that want NeoVM-equivalent execution semantics on L2.
+/// Legacy compatibility <see cref="ITransactionExecutor"/> that runs each transaction's
+/// script through Neo's real <see cref="ApplicationEngine"/>. Neo N4 L2 production
+/// execution uses NeoVM2/RISC-V; this executor is retained for N3-era NeoVM checks.
 /// </summary>
 /// <remarks>
 /// <para>
 /// <strong>Genesis bootstrap requirement</strong>: <see cref="ApplicationEngine"/>'s
 /// constructor reads <c>PolicyContract.GetExecFeeFactor</c> from the snapshot, which
 /// requires the Neo native contracts to be initialized via the genesis-block
-/// <c>OnPersist</c> flow. Production L2 chains do this once at chain genesis
-/// (running an empty block through <c>NeoSystem</c>'s <c>Blockchain.Initialize</c>
-/// path) and then persist the resulting state to the chain's
+/// <c>OnPersist</c> flow. Legacy NeoVM compatibility chains do this once at
+/// chain genesis (running an empty block through <c>NeoSystem</c>'s
+/// <c>Blockchain.Initialize</c> path) and then persist the resulting state to the chain's
 /// <see cref="IL2KeyValueStore"/>; subsequent batch executions reuse that state.
 /// Operators wiring this executor MUST ensure their state store has gone through
 /// genesis bootstrap before the first transaction runs.

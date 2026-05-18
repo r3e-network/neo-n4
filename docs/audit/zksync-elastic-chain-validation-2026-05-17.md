@@ -2,7 +2,7 @@
 
 This audit compares Neo Elastic Network (`neo4`) with ZKsync Elastic Chain / ZK
 Stack as documented by ZKsync on 2026-05-17. The goal is not source-level
-equivalence. ZKsync is Ethereum/EraVM/zkEVM based; neo4 is NeoVM/NEP-17/NeoFS
+equivalence. ZKsync is Ethereum/EraVM/zkEVM based; neo4 is NeoVM2-RISC-V/NEP-17/NeoFS
 based. The validation target is functional parity: whether neo4 provides the
 same security and operator properties, intentionally diverges for a sound Neo
 reason, or still has a production gap.
@@ -153,7 +153,8 @@ Neo4 evidence:
 - `src/Neo.L2.Executor.RiscV/`
 
 Verdict: strong and credible. Neo4 has real proof seams and a real SP1 zkVM path
-for Neo VM execution, plus an optimistic challenge path.
+for NeoVM2/RISC-V execution, plus an optimistic challenge path. Legacy NeoVM remains
+only as a compatibility executor.
 
 Correctness caveat: public testnet/mainnet finality has not been proven without
 real RPC endpoints and funded governance/operator accounts. Local rehearsal is

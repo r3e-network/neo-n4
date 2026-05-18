@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 580" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">L2 chain components - Neo 4 core + 8 plugins + 10 native contracts</title>
-  <desc id="desc">Each L2 chain consists of three layers. Bottom: Neo 4 core (vendored as a git submodule) provides dBFT 2.0 consensus, NeoVM execution, and the Blockchain mempool. Middle: 8 L2 plugins (L2Batch, L2Settlement, L2Prover, L2Bridge, L2DA, L2Rpc, L2Gateway, L2Metrics). Top: 10 L2 native contracts (L2BridgeContract, L2MessageContract, L2BatchInfoContract, L2FeeContract, L2PaymasterContract, L2SystemConfigContract, L2NativeExternalBridgeContract, BridgedNep17Contract, L2AccountAbstraction, L2InteropVerifier).</desc>
+  <desc id="desc">Each L2 chain consists of three layers. Bottom: Neo 4 core (vendored as a git submodule) provides dBFT 2.0 consensus, NeoVM2/RISC-V execution, and the Blockchain mempool. Middle: 8 L2 plugins (L2Batch, L2Settlement, L2Prover, L2Bridge, L2DA, L2Rpc, L2Gateway, L2Metrics). Top: 10 L2 native contracts (L2BridgeContract, L2MessageContract, L2BatchInfoContract, L2FeeContract, L2PaymasterContract, L2SystemConfigContract, L2NativeExternalBridgeContract, BridgedNep17Contract, L2AccountAbstraction, L2InteropVerifier).</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
@@ -36,7 +36,7 @@
   </g>
   <g filter="url(#card)">
     <rect x="282" y="438" width="200" height="68" rx="6" ry="6" fill="#ffffff" stroke="#3a8454"/>
-    <text x="382" y="460" text-anchor="middle" class="item" font-weight="600">NeoVM</text>
+    <text x="382" y="460" text-anchor="middle" class="item" font-weight="600">NeoVM2/RISC-V</text>
     <text x="382" y="478" text-anchor="middle" class="item">executes transactions</text>
     <text x="382" y="494" text-anchor="middle" class="item">opcodes + gas accounting</text>
   </g>

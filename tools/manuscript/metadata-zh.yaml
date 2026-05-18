@@ -55,7 +55,7 @@ abstract: |
   L2 间消息。
 
   架构借鉴 ZKsync Elastic Chain 的"共享桥 / 链注册表 / 证明聚合"模式,在 Neo
-  栈上重新构建:dBFT 2.0 终结性、NEP-17 资产、NeoVM、NeoFS 数据可用性。
+  栈上重新构建:dBFT 2.0 终结性、NEP-17 资产、NeoVM2/RISC-V 执行、NeoFS 数据可用性。
   本文档是独立社区探索,**未受**Neo Global Development、Neo 基金会或
   neo-project 组织背书。
 ---

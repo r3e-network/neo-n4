@@ -253,7 +253,8 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --executor counter
 //
 //      neo-stack scaffold-executor --name MyChain --chain-id 1099
 //
-//    要做 NeoVM 后备的真实链,改包装 ApplicationEngine。
+//    N4 的标准路径应接 RiscVTransactionExecutor / NeoVM2-RISC-V。
+//    ApplicationEngine 只作为 legacy NeoVM 兼容路径。
 var stateStore = new KeyedStateStore();              // 生产:RocksDB 后备
 var stateAdapter = new MyChainKeyedStateStoreAdapter(stateStore);
 var myExecutor = new MyChainExecutor(

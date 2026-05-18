@@ -143,8 +143,9 @@ public sealed class BatchSealer
         // observe block commits, group transactions into batches by the configured triggers
         // (max-blocks / max-txs / max-age), and produce a "soft" commitment that pins which
         // transactions went into the batch (TxRoot is real). The deterministic executor
-        // (`IL2BatchExecutor` — `ReferenceBatchExecutor` for tests, an `ApplicationEngine`-
-        // backed implementation for production) runs separately and produces the real
+        // (`IL2BatchExecutor` — `ReferenceBatchExecutor` for tests, NeoVM2/RISC-V for
+        // Neo N4 production, or `ApplicationEngine` for legacy compatibility) runs
+        // separately and produces the real
         // post-state / receipts / withdrawals / messages roots, then the L2SettlementPlugin
         // re-seals the batch with the executor's outputs before submitting to L1.
         //

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 700" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">L2 做什么 —— 每条链 3 层</title>
-  <desc id="desc">每条 L2 链由三个关注点组成:10 个 L2 原生合约(按链状态 —— L2BridgeContract、L2NativeExternalBridge、BridgedNep17Contract、L2MessageContract、L2BatchInfoContract、L2FeeContract、L2PaymasterContract、L2AccountAbstraction、L2InteropVerifier、L2SystemConfigContract)、8 个 L2 插件(按链运行时 —— L2Batch、L2Settlement、L2Bridge、L2DA、L2Prover、L2Rpc、L2Gateway、L2Metrics)、L2 执行内核(Neo 4 core 引入的 submodule —— dBFT 2.0 共识、NeoVM、内存池、本地状态存储、receipt 生成)。</desc>
+  <desc id="desc">每条 L2 链由三个关注点组成:10 个 L2 原生合约(按链状态 —— L2BridgeContract、L2NativeExternalBridge、BridgedNep17Contract、L2MessageContract、L2BatchInfoContract、L2FeeContract、L2PaymasterContract、L2AccountAbstraction、L2InteropVerifier、L2SystemConfigContract)、8 个 L2 插件(按链运行时 —— L2Batch、L2Settlement、L2Bridge、L2DA、L2Prover、L2Rpc、L2Gateway、L2Metrics)、L2 执行内核(Neo 4 core 引入的 submodule —— dBFT 2.0 共识、NeoVM2/RISC-V 执行、内存池、本地状态存储、receipt 生成)。</desc>
 
   <defs>
     <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
@@ -91,7 +91,7 @@
 
     <text x="60" y="566" class="ctr-name" fill="#1e2a55">dBFT 2.0 共识</text>
     <text x="220" y="566" class="ctr-desc">—— 产出 L2 区块</text>
-    <text x="60" y="588" class="ctr-name" fill="#1e2a55">NeoVM 执行</text>
+    <text x="60" y="588" class="ctr-name" fill="#1e2a55">NeoVM2/RISC-V 执行</text>
     <text x="220" y="588" class="ctr-desc">—— 跑 tx</text>
     <text x="60" y="610" class="ctr-name" fill="#1e2a55">内存池</text>
     <text x="220" y="610" class="ctr-desc">—— 待打包 tx 队列</text>

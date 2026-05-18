@@ -284,7 +284,8 @@ root; see `Neo.Plugins.L2Metrics.L2MetricsPlugin` for the canonical pattern of
 //
 //      neo-stack scaffold-executor --name MyChain --chain-id 1099
 //
-//    For a NeoVM-backed real chain, wrap ApplicationEngine instead.
+//    For the canonical N4 path, wire RiscVTransactionExecutor / NeoVM2-RISC-V.
+//    ApplicationEngine is only the legacy NeoVM compatibility path.
 var stateStore = new KeyedStateStore();              // production: rocksdb-backed
 var stateAdapter = new MyChainKeyedStateStoreAdapter(stateStore);
 var myExecutor = new MyChainExecutor(

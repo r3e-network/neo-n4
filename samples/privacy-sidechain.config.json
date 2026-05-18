@@ -1,7 +1,7 @@
 {
   "chainId": 1400,
   "template": "sidechain",
-  "vm": "neovm",
+  "vm": "neovm2-riscv",
   "chainMode": "SidechainMode",
   "daMode": "External",
   "proofType": "None",

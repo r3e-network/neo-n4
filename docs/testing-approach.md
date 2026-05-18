@@ -11,7 +11,7 @@ where each piece of the system lives.
 | Tier | Framework | Where | What |
 |------|-----------|-------|------|
 | Unit | MSTest (xUnit-style) | `tests/Neo.L2.*.UnitTests/` (34 projects) | Per-class invariants, edge cases, null-arg + null-field guards, metric-emission pins |
-| Integration | MSTest | `tests/Neo.L2.IntegrationTests/` | E2E phase stitches (Phase 0 → 5), audit pipeline, persistence rehydration, real Neo VM, custom executor full-stack |
+| Integration | MSTest | `tests/Neo.L2.IntegrationTests/` | E2E phase stitches (Phase 0 → 5), audit pipeline, persistence rehydration, NeoVM2/RISC-V seam, legacy NeoVM compatibility, custom executor full-stack |
 | Property-based / invariant | MSTest + seeded `System.Random` | `UT_BridgeInvariants_PropertyBased.cs` (17 tests) | Random sequences of 200 ops × 4-8 seeds — 1600-3200 transitions per invariant. Asserts bridge accounting + nonce uniqueness + bidirectional registry holds at every intermediate state |
 | Fuzz | MSTest + seeded `System.Random` | `UT_WireFormat_Fuzz.cs` (19 tests) | Random byte sequences to every decoder — must round-trip or reject with typed exception, never crash |
 | Cross-language parity | byte-vector pins + canonical-bytes-match-csharp | Rust watcher tests + Foundry tests | Wire format byte-identical across C# encoder + Rust + Solidity verifier |
@@ -92,7 +92,7 @@ scenarios. neo4 has equivalent integration tests in `tests/Neo.L2.IntegrationTes
 - `UT_Mvp_Phase2_FullStack` — Phase-2 batch settlement + Gateway aggregation
 - `UT_Mvp_Phase3_OptimisticChallenge` — Phase-3 challenge window + fraud proofs
 - `UT_Mvp_AllPhases_FullStack` — every phase stitched together
-- `UT_E2E_RealVM_FullStack` — 5 batches through real Neo VM with state-root continuity
+- `UT_E2E_RealVM_FullStack` — legacy NeoVM compatibility path with state-root continuity
 - `UT_E2E_CustomExecutor_FullStack` — `Sample.CounterChainExecutor` end-to-end
 - `UT_E2E_AuditPipeline` — `ChainAuditor` against healthy + broken scenarios
 - `UT_E2E_Persistence_FullStack` — 4 RocksDB stores rehydrate from one root dir

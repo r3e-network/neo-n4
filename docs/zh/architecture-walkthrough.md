@@ -66,8 +66,9 @@
   + bond 引用。验证器校验签名和 key/account 绑定;`NeoHub.SettlementManager`
   把批次标记为 `Challengeable` 并打开 `NeoHub.OptimisticChallenge`。
 - **Stage 2(ZK):** 在 `bridge/neo-zkvm-host/` 跑的进程外 Rust 证明者
-  (运行为 `prove-batch daemon --watch <queue-dir>`)。批次里每笔 tx 作为
-  Neo N3 VM 脚本载入,由 `neo_vm_guest::execute` 执行(纯 Rust 的真实 NeoVM);
+  (运行为 `prove-batch daemon --watch <queue-dir>`)。N4 的目标是
+  NeoVM2/RISC-V 执行;legacy Neo N3 VM guest 仅作为兼容桥,
+  PolkaVM-backed `external/neo-riscv-vm` 路径才是 L2 执行目标;
   SP1 6.2.1 证明该执行。.NET 证明者插件用 `MockRiscVProver` 仅供进程内测试 ——
   生产证明在守护进程里。
 

@@ -17,6 +17,7 @@
     <ProjectReference Include="..\..\src\Neo.L2.Persistence\Neo.L2.Persistence.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Proving\Neo.L2.Proving.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Executor\Neo.L2.Executor.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Executor.RiscV\Neo.L2.Executor.RiscV.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Sequencer\Neo.L2.Sequencer.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Audit\Neo.L2.Audit.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Telemetry\Neo.L2.Telemetry.csproj" />

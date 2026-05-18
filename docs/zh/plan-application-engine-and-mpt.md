@@ -7,7 +7,10 @@
 
 - **`ITransactionExecutor`**
   - *当下:* `ReferenceTransactionExecutor` —— 罐头收据。
-  - *目标:* `ApplicationEngineTransactionExecutor` —— 真正跑 Neo VM。
+  - *当时目标:* `ApplicationEngineTransactionExecutor` —— 通过 Neo 的
+    `ApplicationEngine` 跑 legacy NeoVM。当前 Neo N4 L2 的标准目标是
+    `RiscVTransactionExecutor` / NeoVM2-RISC-V；本文保留为 legacy NeoVM
+    兼容路径的工作记录。
 - **`IL2BatchExecutor`**
   - *当下:* `ReferenceBatchExecutor` —— 占位的 post-state 根。
   - *目标:* `MerkleStateBatchExecutor` —— 真正的密码学状态根。
@@ -102,7 +105,9 @@ Polygon zkEVM、Optimism)用的是**对 (key, value) 对按键排序的二叉 Me
 
 **C1. Devnet 接线** —— `tools/Neo.L2.Devnet`
 - 加 `--executor neovm` 标志,把 `ReferenceTransactionExecutor` 切到
-  `ApplicationEngineTransactionExecutor`。
+  `ApplicationEngineTransactionExecutor`,仅用于 legacy 兼容。
+- 加 `--executor riscv` / `--executor neovm2-riscv`,作为 Neo N4 L2 的
+  标准 NeoVM2/RISC-V 路径。
 - 加 `--state-root merkle` 标志,把 `ReferenceBatchExecutor` 切到
   `MerkleStateBatchExecutor`。
 - 两个标志互不依赖 —— 运维者可以混搭。
@@ -131,8 +136,8 @@ Polygon zkEVM、Optimism)用的是**对 (key, value) 对按键排序的二叉 Me
 - **跨分片状态读** —— L2 执行期间与 NeoHub L1 合约的互操作。框架已经有 L1 RPC
   poller;把它们接进 ApplicationEngine 的 interop service 是另一个阶段。
 - **经 Sample.CounterChainExecutor 的自定义执行器** —— 已经出货;新的
-  `ApplicationEngineTransactionExecutor` 是默认 NeoVM 路径,不是按链自定义路径
-  的替代品。
+  `ApplicationEngineTransactionExecutor` 现在是 legacy NeoVM 兼容路径；
+  Neo N4 L2 默认走 NeoVM2/RISC-V。
 
 ## LOC 估算
 

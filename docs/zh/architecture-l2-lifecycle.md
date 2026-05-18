@@ -175,8 +175,9 @@ DA / 证明 / RPC / gateway / metrics)。
 </p>
 
 `MyChainExecutor` 脚手架是给需要自定义交易语义的链(例如 RWA 链带 KYC 检查、
-DEX 链内置撮合)的起步点。只需要标准 NeoVM + NEP-17 的链不用定制 —— 它们用
-`src/Neo.L2.Executor/` 出货的 `ApplicationEngineTransactionExecutor`。
+DEX 链内置撮合)的起步点。只需要标准 NeoVM2/RISC-V + NEP-17 的链不用定制 —— 它们用
+`src/Neo.L2.Executor.RiscV/` 里的 `RiscVTransactionExecutor`。
+`ApplicationEngineTransactionExecutor` 只保留给 legacy NeoVM 兼容检查。
 
 ### 三阶段准入策略
 

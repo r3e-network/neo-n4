@@ -54,8 +54,8 @@ internal static class ValidateChainConfigCommand
         //   { chainId, template, vm, chainMode, daMode, proofType, securityLevel,
         //     sequencerModel, exitModel, gatewayEnabled, permissionlessExit,
         //     milestonePerBlockMs, validators }
-        // We validate the §16.2 + chainMode + proofType + chainId fields. The
-        // metadata fields (template, vm, milestonePerBlockMs, validators) are
+        // We validate the §16.2 + chainMode + proofType + chainId + vm fields. The
+        // remaining metadata fields (template, milestonePerBlockMs, validators) are
         // operator-property — their format isn't pinned by the framework.
         try
         {
@@ -71,6 +71,12 @@ internal static class ValidateChainConfigCommand
             var da = RequireEnum<DAMode>(root, "daMode");
             var seq = RequireEnum<SequencerModel>(root, "sequencerModel");
             var exit = RequireEnum<ExitModel>(root, "exitModel");
+            var vm = RequireString(root, "vm");
+            if (!L2ExecutionVms.IsKnown(vm))
+            {
+                throw new ArgumentException(
+                    $"'vm'='{vm}' is not a valid L2 execution VM (expected one of: {L2ExecutionVms.NeoVm2RiscV}, {L2ExecutionVms.RiscV2}, {L2ExecutionVms.LegacyNeoVm})");
+            }
 
             // §6 ChainMode (drives consensus + settlement + DA semantics). Required
             // so an unparseable value surfaces here, not at L1-registration time.
@@ -116,6 +122,11 @@ internal static class ValidateChainConfigCommand
             if (chainMode == ChainMode.L1Mode)
             {
                 Console.WriteLine($"⚠ chainMode=L1Mode is reserved for the actual Neo L1; an L2 chain config should use L2RollupMode / L2ValidiumMode / SidechainMode");
+            }
+
+            if (L2ExecutionVms.IsLegacy(vm))
+            {
+                Console.WriteLine($"⚠ vm=neovm is legacy compatibility; Neo N4 L2 production configs should use {L2ExecutionVms.NeoVm2RiscV}");
             }
 
             // ChainMode vs DAMode: L2ValidiumMode means "transaction data lives
@@ -165,7 +176,7 @@ internal static class ValidateChainConfigCommand
                 Console.WriteLine($"⚠ exitModel=OperatorAssisted contradicts permissionlessExit=true; OperatorAssisted means user exit requires operator co-sign — flip permissionlessExit to false or change exitModel");
             }
 
-            Console.WriteLine($"✅ valid: chainId={chainId} chainMode={chainMode} securityLevel={sec} daMode={da} " +
+            Console.WriteLine($"✅ valid: chainId={chainId} vm={vm} chainMode={chainMode} securityLevel={sec} daMode={da} " +
                 $"sequencer={seq} exit={exit} proofType={proof} gateway={gateway} permExit={permExit}");
             return 0;
         }
@@ -196,6 +207,16 @@ internal static class ValidateChainConfigCommand
             throw new ArgumentException(
                 $"'{field}'='{name}' is not a valid {typeof(T).Name} (expected one of: {names})");
         }
+        return value;
+    }
+
+    private static string RequireString(JsonElement root, string field)
+    {
+        if (!root.TryGetProperty(field, out var prop))
+            throw new ArgumentException($"missing '{field}'");
+        var value = prop.GetString();
+        if (string.IsNullOrWhiteSpace(value))
+            throw new ArgumentException($"'{field}' must be a non-empty string");
         return value;
     }
 

@@ -16,7 +16,7 @@ public class UT_L2ChainConfigJsonReader
         {
           "chainId": 4242,
           "template": "rollup",
-          "vm": "neovm",
+          "vm": "neovm2-riscv",
           "chainMode": "L2RollupMode",
           "daMode": "L1",
           "proofType": "Optimistic",

@@ -32,7 +32,7 @@ see [`docs/audit/zksync-elastic-chain-validation-2026-05-18.md`](audit/zksync-el
 | **Boojum / Plonk verifier contracts** | `NeoHub.{MpcCommittee,Governance,RestrictedExecution,ExternalBridgeStub}*Verifier` + pluggable via `VerifierRegistry` | parity |
 | **`CalldataDA` / `ValidiumL1DAValidator` / `RollupDAManager` / `RelayedSLDAValidator`** | `NeoHub.DARegistry` + `NeoHub.DAValidator` + off-chain writers in `Neo.Plugins.L2DA` | partial — DAC attestation gate exists; richer NeoFS/external inclusion adapters remain operator-specific |
 | **`BytecodesSupplier` / `*Upgrade` family / `UpgradeStageValidator`** | `GovernanceController` proposal pipeline with notice/execution/cooldown windows | parity for staged timing; no bytecode supplier because NeoVM uses ContractManagement |
-| **L2 `Bootloader`** | absent — NeoVM provides native dispatch | intentionally different |
+| **L2 `Bootloader`** | absent — NeoVM2/RISC-V runtime provides native dispatch | intentionally different |
 | **L2 `ContractDeployer` / `KnownCodesStorage` / `AccountCodeStorage`** | absent — Neo's `ContractManagement` native handles this | intentionally different |
 | **L2 `SystemContext`** (chainId, baseFee, blockhash) | Neo Core native `L2BatchInfoContract` + `L2SystemConfigContract` | parity |
 | **L2 `L2BaseToken`** (ETH balance accounting) | NEP-17 GAS native | intentionally different |
@@ -42,7 +42,7 @@ see [`docs/audit/zksync-elastic-chain-validation-2026-05-18.md`](audit/zksync-el
 | **L2 `TestnetPaymaster` + `IPaymasterFlow`** | Neo Core native `L2PaymasterContract` (top-up model only) | partial — no `approvalBased` flow selector |
 | **L2 `L2InteropRootStorage` / `L2MessageVerification` (v29)** | Neo Core native `L2InteropVerifier` mirrors global roots and verifies Merkle inclusion locally | parity at helper-contract level |
 | **L2 `L2V29Upgrade` / `ComplexUpgrader` / `L2GenesisUpgrade`** | scaffolded by `Neo.Hub.Deploy` (off-chain) but no on-chain orchestrator | partial |
-| **L2 `GasBoundCaller`** | absent — NeoVM gas is per-instruction | intentionally different |
+| **L2 `GasBoundCaller`** | absent — NeoVM2/RISC-V gas is instruction/runtime-metered | intentionally different |
 | **ZK Gateway** (settlement-layer proof aggregator) | `Neo.Plugins.L2Gateway` (off-chain) + on-chain `MessageRouter.PublishGlobalRoot` (this release) | parity |
 | **Forced inclusion / priority queue** | `NeoHub.ForcedInclusion` + `Neo.L2.ForcedInclusion` | parity |
 | **Sequencer staking / slashing** | `NeoHub.SequencerRegistry` + `NeoHub.SequencerBond` | parity |
@@ -151,25 +151,25 @@ surface.
 
 ## Intentional divergences (not gaps)
 
-These exist in ZKsync because of EVM/EraVM peculiarities. NeoVM's design either
+These exist in ZKsync because of EVM/EraVM peculiarities. NeoVM2/RISC-V's design either
 makes them moot or provides native equivalents:
 
 - **EraVM L2 system contracts** (`Bootloader`, `ContractDeployer`, `KnownCodesStorage`,
   `AccountCodeStorage`, `NonceHolder`, `MsgValueSimulator`, `Compressor`,
   `EvmEmulator.yul`, `EvmGasManager.yul`, `EventWriter.yul`, precompiles like
-  `EcAdd.yul` / `EcPairing.yul` / `Modexp.yul` / `P256Verify.yul`) — NeoVM provides
+  `EcAdd.yul` / `EcPairing.yul` / `Modexp.yul` / `P256Verify.yul`) — NeoVM2/RISC-V provides
   `ContractManagement`, native NEP-17 GAS, native cryptography, and implicit signer
   nonces.
 - **Diamond proxy + facet pattern** (`DiamondProxy.sol`, `Admin.sol`, `Executor.sol`,
   `Getters.sol`, `Mailbox.sol`) — exists to work around Ethereum's 24KB contract
-  size limit. NeoVM has no 24KB bound; the per-concern split in NeoHub's 23
+  size limit. NeoVM2/RISC-V has no 24KB bound; the per-concern split in NeoHub's 23
   contracts is equivalent in effect.
 - **`CTMDeploymentTracker` + `ChainAssetHandler`** — ZKsync needs these to support
   *competing* chain types and asset routers run by third parties. neo4 has one
   canonical Hub.
 - **`L2BaseToken` + `L2WrappedBaseToken` / `L2WrappedBaseTokenStore`** — solves the
   ETH/WETH non-NEP-17 unwrap dance. GAS is already NEP-17 in Neo.
-- **`GasBoundCaller`** — EraVM gas semantics differ from EVM. NeoVM gas is
+- **`GasBoundCaller`** — EraVM gas semantics differ from EVM. NeoVM2/RISC-V gas is
   per-instruction and deterministic.
 - **`zksolc` / `zkvyper` compilers** — neo4 reuses upstream `neo-devpack-dotnet` +
   `Neo.SmartContract.Framework`; no need for an EVM-to-zkVM transpiler.

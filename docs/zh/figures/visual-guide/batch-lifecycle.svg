@@ -42,7 +42,7 @@
 <g>
   <rect x="510" y="120" width="185" height="105" rx="8" fill="#e7f8fb" stroke="#d8dee8" filter="url(#card)"/>
   <text x="526" y="147" class="box-title">执行器</text>
-  <text x="526" y="172" class="body" text-anchor="start"><tspan x="526" dy="0">Neo VM 执行</tspan><tspan x="526" dy="18">状态转换</tspan><tspan x="526" dy="18">回执</tspan></text>
+  <text x="526" y="172" class="body" text-anchor="start"><tspan x="526" dy="0">NeoVM2/RISC-V 执行</tspan><tspan x="526" dy="18">状态转换</tspan><tspan x="526" dy="18">回执</tspan></text>
 </g>
 <g>
   <rect x="740" y="120" width="185" height="105" rx="8" fill="#fff9d9" stroke="#d8dee8" filter="url(#card)"/>

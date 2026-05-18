@@ -196,8 +196,10 @@ strings together three lower-level operations. What gets generated:
 The `MyChainExecutor` scaffold is a starting point for chains that
 need custom transaction semantics (e.g., RWA chain with KYC checks,
 DEX chain with built-in matching). Chains that just need standard
-NeoVM + NEP-17 don't need to customize — they use the
-`ApplicationEngineTransactionExecutor` shipped in `src/Neo.L2.Executor/`.
+NeoVM2/RISC-V + NEP-17 don't need to customize — they use the
+`RiscVTransactionExecutor` shipped in `src/Neo.L2.Executor.RiscV/`.
+`ApplicationEngineTransactionExecutor` remains available only for legacy
+NeoVM compatibility checks.
 
 ### The 3-phase admission policy
 

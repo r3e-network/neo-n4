@@ -3,7 +3,7 @@ export const nodes = [
   { id: 'neohub', label: 'NeoHub L1', zh: 'NeoHub L1', x: 27, y: 46, zone: 'l1', note: 'Settlement, shared bridge, registries, governance.' },
   { id: 'gateway', label: 'Neo Gateway', zh: 'Neo Gateway', x: 47, y: 28, zone: 'gateway', note: 'Optional proof aggregation layer.' },
   { id: 'prover', label: 'Prover / DA', zh: '证明者 / DA', x: 48, y: 67, zone: 'proof', note: 'Multisig, optimistic, RISC-V, SP1, and DA publication.' },
-  { id: 'l2node', label: 'L2 node', zh: 'L2 节点', x: 70, y: 34, zone: 'l2', note: 'Neo 4 execution kernel plus L2 plugins.' },
+  { id: 'l2node', label: 'L2 node', zh: 'L2 节点', x: 70, y: 34, zone: 'l2', note: 'NeoVM2/RISC-V execution kernel plus L2 plugins.' },
   { id: 'native', label: 'L2 native contracts', shortLabel: 'L2 native', zh: 'L2 原生合约', shortZh: '原生合约', x: 84, y: 58, zone: 'l2', note: 'Genesis-registered bridge, fee, message, paymaster, AA, interop.' },
   { id: 'watcher', label: 'Bridge watcher', shortLabel: 'Watcher', zh: '桥中继器', shortZh: '中继器', x: 23, y: 78, zone: 'watcher', note: 'Observed external-chain events, journals, committee proofs.' },
   { id: 'foreign', label: 'Foreign chain', shortLabel: 'External', zh: '外部链', shortZh: '外链', x: 8, y: 72, zone: 'foreign', note: 'EVM-family, Tron, or Solana router.' },
@@ -69,7 +69,7 @@ const scenarios = [
     objective: 'Turn an open L2 batch into a sealed batch with a deterministic post-state root.',
     events: [
       event('batch-order', 'Sequencer orders L2 transactions', 'wallet', 'l2node', 'Tx list', '12 txs ordered', { batch: { txs: 12, status: 'executing' } }),
-      event('batch-execute', 'Neo 4 execution kernel applies txs', 'l2node', 'native', 'Execution', 'native hooks + plugins', { counters: { messages: 3 } }),
+      event('batch-execute', 'NeoVM2/RISC-V execution kernel applies txs', 'l2node', 'native', 'Execution', 'native hooks + plugins', { counters: { messages: 3 } }),
       event('batch-da', 'Batch data is published to DA', 'l2node', 'prover', 'DA blob', 'calldata / NeoFS / DAC', { proof: { artifacts: 1 } }),
       event('batch-seal', 'Batch is sealed with post-state root', 'prover', 'l2node', 'State root', '0x43b7...9f22', { batch: { number: 43, stateRoot: '0x43b7...9f22', status: 'sealed' }, security: { finality: 'awaiting L1 settlement' } }),
     ],

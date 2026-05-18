@@ -68,7 +68,7 @@ The 10 native L2 contracts + 8 plugins per L2 chain cluster around
 *execution* + *bulk state* + *throughput-bound work*:
 
 <p align="center">
-  <img src="figures/architecture/l2-concerns.svg" alt="What L2 does — 3 layers per chain. Top: 10 L2 native contracts (per-chain state — L2BridgeContract, L2NativeExternalBridge, BridgedNep17Contract, L2MessageContract, L2BatchInfoContract, L2FeeContract, L2PaymasterContract, L2AccountAbstraction, L2InteropVerifier, L2SystemConfigContract). Middle: 8 L2 plugins (per-chain runtime — L2Batch, L2Settlement, L2Bridge, L2DA, L2Prover, L2Rpc, L2Gateway, L2Metrics). Bottom: L2 execution kernel — Neo 4 core vendored as a git submodule, with dBFT 2.0 consensus, NeoVM, mempool, local state storage, and receipt generation" width="900">
+  <img src="figures/architecture/l2-concerns.svg" alt="What L2 does — 3 layers per chain. Top: 10 L2 native contracts (per-chain state — L2BridgeContract, L2NativeExternalBridge, BridgedNep17Contract, L2MessageContract, L2BatchInfoContract, L2FeeContract, L2PaymasterContract, L2AccountAbstraction, L2InteropVerifier, L2SystemConfigContract). Middle: 8 L2 plugins (per-chain runtime — L2Batch, L2Settlement, L2Bridge, L2DA, L2Prover, L2Rpc, L2Gateway, L2Metrics). Bottom: L2 execution kernel — Neo 4 core vendored as a git submodule, with dBFT 2.0 consensus, NeoVM2/RISC-V execution, mempool, local state storage, and receipt generation" width="900">
 </p>
 
 **Key observation about L2:** L2 holds the **bulk state + the heavy

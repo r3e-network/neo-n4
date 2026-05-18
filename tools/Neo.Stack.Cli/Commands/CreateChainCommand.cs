@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using Neo.L2;
 
 namespace Neo.Stack.Cli.Commands;
 
@@ -15,7 +16,7 @@ internal static class CreateChainCommand
     public static int Run(string[] args)
     {
         var templateName = ArgUtil.Get(args, "--template", "rollup");
-        var vm = ArgUtil.Get(args, "--vm", "neovm");
+        var vm = ArgUtil.Get(args, "--vm", L2ExecutionVms.NeoVm2RiscV);
         var rawChainId = ArgUtil.Get(args, "--chain-id", "1001");
         if (!uint.TryParse(rawChainId, out var parsedChainId))
         {

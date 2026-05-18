@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 380" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">What defines an L2 chain — 4 artifacts</title>
-  <desc id="desc">Every L2 chain in the Neo Elastic Network is fully defined by 4 artifacts: (1) chain.config.json — the 91-byte canonical config + JSON metadata, (2) ITransactionExecutor implementation — ApplicationEngine-based or custom, compiled into the L2 plugin, (3) ChainRegistry entry on L1 — 24-byte UInt160 references for operatorManager, verifier, bridgeAdapter, messageAdapter, plus the 91-byte configBytes, (4) Off-chain operators — sequencer, batcher, prover daemon, DA writer.</desc>
+  <desc id="desc">Every L2 chain in the Neo Elastic Network is fully defined by 4 artifacts: (1) chain.config.json — the 91-byte canonical config + JSON metadata, (2) ITransactionExecutor implementation — NeoVM2/RISC-V by default, with legacy NeoVM or custom executors compiled into the L2 plugin when explicitly selected, (3) ChainRegistry entry on L1 — 24-byte UInt160 references for operatorManager, verifier, bridgeAdapter, messageAdapter, plus the 91-byte configBytes, (4) Off-chain operators — sequencer, batcher, prover daemon, DA writer.</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
@@ -46,9 +46,9 @@
     <text x="353" y="120" class="caption">runtime behavior</text>
     <foreignObject x="311" y="140" width="188" height="160">
       <p xmlns="http://www.w3.org/1999/xhtml" style="font: 11.5px -apple-system, sans-serif; margin: 0; color: #2d3a48; line-height: 1.5;">
-        ApplicationEngine-based <em>or</em> custom. Compiled into the L2
-        plugin set on each sequencer. Decides per-tx semantics. See
-        <code>scaffold-executor</code> CLI.
+        NeoVM2/RISC-V by default. Legacy NeoVM compatibility and custom
+        executors are explicit plugin choices. Decides per-tx semantics.
+        See <code>scaffold-executor</code> CLI.
       </p>
     </foreignObject>
   </g>

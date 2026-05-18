@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Neo N4 Runtime Theater</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <h1>Neo N4 Runtime Theater</h1>
+        <p>Interactive learning simulator for NeoHub, L2 native contracts, Gateway proof aggregation, external-chain watchers, and challenge recovery.</p>
+      </div>
+      <div class="toolbar" aria-label="Runtime controls">
+        <button class="control-button primary" type="button" data-action="play" aria-pressed="false">Play</button>
+        <button class="control-button" type="button" data-action="step">Step</button>
+        <button class="control-button" type="button" data-action="reset">Reset</button>
+        <label class="range-wrap">Speed <input type="range" min="0.6" max="2.2" step="0.2" value="1" data-speed></label>
+        <select class="select" data-language aria-label="Language">
+          <option value="en">English</option>
+          <option value="zh">中文</option>
+        </select>
+        <label class="toggle"><input type="checkbox" data-reduced> Reduced motion</label>
+      </div>
+    </header>
+
+    <section class="runtime-layout">
+      <aside class="rail" aria-label="Scenarios">
+        <div data-scenario-list></div>
+      </aside>
+
+      <section class="stage">
+        <div class="scenario-heading">
+          <div>
+            <h2 data-scenario-title></h2>
+            <p data-scenario-summary></p>
+          </div>
+          <div class="objective" data-scenario-objective></div>
+        </div>
+
+        <div class="scene" data-scene aria-label="Neo N4 animated runtime map">
+          <div class="zone-band zone-l1"></div>
+          <div class="zone-band zone-proof"></div>
+          <div class="zone-band zone-l2"></div>
+          <div class="zone-label l1">L1 anchor</div>
+          <div class="zone-label proof">Proof / DA</div>
+          <div class="zone-label l2">L2 runtime</div>
+          <svg class="scene-map" viewBox="0 0 100 100" role="img" aria-label="Neo N4 architecture graph">
+            <g data-path-layer></g>
+            <g data-node-layer></g>
+          </svg>
+          <div class="packet" data-packet>
+            <strong></strong>
+            <span></span>
+          </div>
+        </div>
+
+        <div class="timeline-panel" aria-label="Scenario timeline">
+          <ol data-timeline></ol>
+        </div>
+      </section>
+
+      <aside class="inspector" aria-label="State inspector">
+        <div class="event-card">
+          <h3 data-event-title></h3>
+          <p data-event-body></p>
+        </div>
+        <div class="state-card">
+          <h3>Runtime state</h3>
+          <dl class="state-grid" data-state-grid></dl>
+        </div>
+        <div class="state-card">
+          <h3>Legend</h3>
+          <div class="legend">
+            <div class="legend-item"><span class="legend-dot green"></span>L1 / entry state</div>
+            <div class="legend-item"><span class="legend-dot blue"></span>L2 execution and native contracts</div>
+            <div class="legend-item"><span class="legend-dot amber"></span>Proof, DA, and aggregation</div>
+            <div class="legend-item"><span class="legend-dot violet"></span>Foreign-chain bridge path</div>
+          </div>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

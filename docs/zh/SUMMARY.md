@@ -18,6 +18,7 @@
 - [架构摘要](./ARCHITECTURE.md)
 - [白皮书](./WHITEPAPER.md)
 - [可视化导览](./visual-guide.md)
+- [交互式运行剧场](./interactive-runtime.md)
 - [架构导览](./architecture-walkthrough.md)
 - [L2 链生命周期](./architecture-l2-lifecycle.md)
 - [L1 与 L2 的分工](./architecture-l1-vs-l2.md)

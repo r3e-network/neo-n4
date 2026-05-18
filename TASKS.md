@@ -1,14 +1,16 @@
 # Neo N4 — Task Split
 
-Open work between **Neo N4 Core** (`r3e-network/neo`, branch `r3e/neo-n4-core`) and **this Elastic Network repo** (`neo4`). Counts verified against the codebase on 2026-05-17.
+Open work between **Neo core forks** (`r3e-network/neo`, L1 branch `r3e/neo-n3-core`, L2 branch `r3e/neo-n4-core`) and **this Elastic Network repo** (`neo4`). Counts verified against the codebase on 2026-05-17.
 
 ---
 
-## Neo N4 Core — `r3e-network/neo`
+## Neo Core — `r3e-network/neo`
 
 Items that require Neo core/native-contract changes. Implement them in the
-`r3e/neo-n4-core` branch of `r3e-network/neo`, then update the `external/neo`
-submodule pointer in this repo after integration tests pass.
+correct branch of `r3e-network/neo`: `r3e/neo-n3-core` for Neo N3 L1 core
+behavior and `r3e/neo-n4-core` for Neo 4 L2 core behavior. Update the
+`external/neo` submodule pointer in this repo only after L2-core integration
+tests pass.
 
 ### Critical — required for any L2 to function
 

@@ -8,6 +8,9 @@
 - The [`r3e-network/neo`](https://github.com/r3e-network/neo) Neo core fork, vendored
   as a git submodule at `external/neo` on branch `r3e/neo-n4-core` (the
   `NeoCorePath` property in `Directory.Build.props` defaults to the submodule path).
+  L1 core work uses the same fork's `r3e/neo-n3-core` branch, based on upstream
+  `master-n3`; do not replace the default L2 submodule pointer for normal `neo-n4`
+  builds.
   Run `git clone --recurse-submodules` or `git submodule update --init --recursive`
   after a regular clone.
 

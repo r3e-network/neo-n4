@@ -15,6 +15,12 @@
 - 一致性要求：术语、项目路径、命令、合约名称、模块名称、测试名称和安全结论必须与英文源文件保持一致。
 - 生产完备要求：如果英文源文件声明某模块已完成、已验证、已部署演练或已通过测试，中文版本不能降低或扩大该结论；必须同步记录同样的前提和限制。
 
+## 核心分支策略
+
+- 需要 Neo N3 L1 core 或 L1 native-contract 行为的任务，归入 `r3e-network/neo` 的 `r3e/neo-n3-core`。
+- 需要 Neo 4 L2 core、L2 mode 或 L2 native contracts 的任务，归入 `r3e-network/neo` 的 `r3e/neo-n4-core`。
+- 只有 L2 core 指针变化时，才需要更新本仓库的 `external/neo` submodule。
+
 ## 维护检查清单
 
 - 英文源文件新增章节时，在这里补充对应中文章节或中文摘要。

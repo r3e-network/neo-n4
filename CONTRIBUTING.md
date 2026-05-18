@@ -9,9 +9,11 @@
 - **Rust toolchain** (stable) — only required if you touch `bridge/neo-zkvm-{guest,host}` or `sdk/rust`. The SP1 toolchain (`sp1up`) is needed only when compiling the guest ELF or running the prover daemon.
 - The [`r3e-network/neo`](https://github.com/r3e-network/neo) Neo core fork,
   vendored as a git submodule at `external/neo` and tracked on branch
-  `r3e/neo-n4-core`. Run `git submodule update --init --recursive` after
-  cloning (or use `git clone --recurse-submodules`). `Directory.Build.props`
-  defaults `NeoCorePath` to the submodule path; override with
+  `r3e/neo-n4-core` for L2 core work. The same fork also maintains
+  `r3e/neo-n3-core`, based on upstream `master-n3`, for L1 core work. Run
+  `git submodule update --init --recursive` after cloning (or use
+  `git clone --recurse-submodules`). `Directory.Build.props` defaults
+  `NeoCorePath` to the submodule path; override with
   `dotnet build /p:NeoCorePath=/path/to/neo/src` if you want to point at a
   different local checkout.
 - (Optional) [`nccs`](https://github.com/neo-project/neo-devpack-dotnet) on `PATH` if you want
@@ -52,7 +54,7 @@ neo4/
 │   └── Neo.Plugins.L2*/             # neo-node Plugin subclasses
 ├── contracts/                       # deployable NeoHub SmartContract.Framework projects
 │   └── NeoHub.*/                    # 23 L1 contracts
-├── external/neo/                    # r3e Neo fork with N4 L2 native contracts
+├── external/neo/                    # r3e Neo fork, L2 branch r3e/neo-n4-core
 ├── tools/
 │   ├── Neo.Stack.Cli/               # neo-stack CLI
 │   ├── Neo.L2.Devnet/               # neo-l2-devnet runnable demo

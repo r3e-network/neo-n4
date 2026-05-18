@@ -11,9 +11,11 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591;NU1900;NU1901;NU1902;NU1903;NU1904</NoWarn>
     <!--
-      Path to the r3e-network/neo Neo core fork checkout. Default points at the
+      Path to the r3e-network/neo Neo L2 core fork checkout. Default points at the
       external/neo git submodule on the r3e/neo-n4-core branch so a fresh clone
-      needs nothing more than `git submodule update [init] [recursive]`.
+      needs nothing more than `git submodule update [init] [recursive]`. L1 core
+      work uses the same fork's r3e/neo-n3-core branch and should not replace this
+      L2 submodule pointer unless the build intentionally targets L1 core tests.
       Operators who want a different local checkout can override on the command
       line: dotnet build /p:NeoCorePath=/path/to/neo/src
     -->

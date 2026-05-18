@@ -79,6 +79,28 @@ public class UT_ProductionGapClosure
     }
 
     [TestMethod]
+    public void Repository_DocumentsSeparateL1AndL2NeoCoreBranches()
+    {
+        var root = FindRepositoryRoot();
+        var gitmodules = File.ReadAllText(Path.Combine(root, ".gitmodules"));
+        var policy = File.ReadAllText(Path.Combine(root, "docs", "core-fork-policy.md"));
+        var zhPolicy = File.ReadAllText(Path.Combine(root, "docs", "zh", "core-fork-policy.md"));
+
+        StringAssert.Contains(gitmodules, "branch = r3e/neo-n4-core",
+            "external/neo must keep tracking the L2 core branch by default.");
+        Assert.IsFalse(gitmodules.Contains("r3e/neo-n3-core", StringComparison.Ordinal),
+            "The L1 core branch must not replace the default external/neo L2 submodule pointer.");
+
+        foreach (var doc in new[] { policy, zhPolicy })
+        {
+            StringAssert.Contains(doc, "master-n3");
+            StringAssert.Contains(doc, "r3e/neo-n3-core");
+            StringAssert.Contains(doc, "master");
+            StringAssert.Contains(doc, "r3e/neo-n4-core");
+        }
+    }
+
+    [TestMethod]
     public void Repository_DeployPlanMatchesNeoHubContractInventory()
     {
         var root = FindRepositoryRoot();

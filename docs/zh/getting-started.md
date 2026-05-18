@@ -7,8 +7,9 @@
 - .NET 10 SDK（`dotnet --version` ≥ `10.0.0`）。
 - [`r3e-network/neo`](https://github.com/r3e-network/neo) Neo core fork 已作为 git
   submodule 引入到 `external/neo`,并跟踪 `r3e/neo-n4-core` 分支（`Directory.Build.props`
-  中的 `NeoCorePath` 默认指向该 submodule 路径）。请使用 `git clone --recurse-submodules`,
-  或在普通 clone 之后运行
+  中的 `NeoCorePath` 默认指向该 submodule 路径）。L1 core 工作使用同一 fork 中基于
+  上游 `master-n3` 的 `r3e/neo-n3-core`；正常 `neo-n4` 构建不要替换默认 L2
+  submodule 指针。请使用 `git clone --recurse-submodules`,或在普通 clone 之后运行
   `git submodule update --init --recursive`。
 
 ## 第 1 步 —— 拉取代码并校验工具链

@@ -98,10 +98,11 @@ NeoHub L1 contracts 属于另一条边界：它们是对标 ZKsync L1 Bridgehub/
   `NeoHubEmergencyManagerContract`、`NeoHubGovernanceControllerContract`、
   `NeoHubSequencerBondContract`、`NeoHubSequencerRegistryContract`、
   `NeoHubForcedInclusionContract`、`NeoHubOptimisticChallengeContract`、
-  `NeoHubGovernanceFraudVerifierContract`。
-- 在声称 NeoHub 已完全 L1-native 之前仍需迁移：`RestrictedExecutionFraudVerifier`、
-  `MpcCommitteeVerifier`、`MpcCommitteeFraudVerifier`、
-  `ExternalBridgeRegistry`、`ExternalBridgeEscrow`、`ExternalBridgeBond`。
+  `NeoHubGovernanceFraudVerifierContract`、
+  `NeoHubRestrictedExecutionFraudVerifierContract`。
+- 在声称 NeoHub 已完全 L1-native 之前仍需迁移：`MpcCommitteeVerifier`、
+  `MpcCommitteeFraudVerifier`、`ExternalBridgeRegistry`、`ExternalBridgeEscrow`、
+  `ExternalBridgeBond`。
 
 在所有生产 NeoHub 合约都有 native counterpart、注册测试、行为测试以及
 `neo-n4` parity/integration 覆盖之前，不要删除 `contracts/NeoHub.*`，也不要把

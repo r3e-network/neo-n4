@@ -96,10 +96,11 @@ Current L1 native migration status in `r3e/neo-n3-core`:
   `NeoHubSharedBridgeContract`, `NeoHubEmergencyManagerContract`,
   `NeoHubGovernanceControllerContract`, `NeoHubSequencerBondContract`,
   `NeoHubSequencerRegistryContract`, `NeoHubForcedInclusionContract`,
-  `NeoHubOptimisticChallengeContract`, `NeoHubGovernanceFraudVerifierContract`.
-- Still to migrate before claiming full L1-native NeoHub: `RestrictedExecutionFraudVerifier`,
-  `MpcCommitteeVerifier`, `MpcCommitteeFraudVerifier`,
-  `ExternalBridgeRegistry`, `ExternalBridgeEscrow`, `ExternalBridgeBond`.
+  `NeoHubOptimisticChallengeContract`, `NeoHubGovernanceFraudVerifierContract`,
+  `NeoHubRestrictedExecutionFraudVerifierContract`.
+- Still to migrate before claiming full L1-native NeoHub: `MpcCommitteeVerifier`,
+  `MpcCommitteeFraudVerifier`, `ExternalBridgeRegistry`, `ExternalBridgeEscrow`,
+  `ExternalBridgeBond`.
 
 Do not remove the DevPack `contracts/NeoHub.*` projects or rewrite operator
 docs to say "fully native" until every production NeoHub contract has a native

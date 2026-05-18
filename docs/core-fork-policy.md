@@ -81,10 +81,28 @@ The current L2 native set is:
 - `L2InteropVerifier`
 
 NeoHub L1 contracts are a different boundary: they are the L1 anchor contracts
-that mirror ZKsync's L1 Bridgehub/shared-bridge ecosystem. They remain
-deployable L1 contracts in this repo unless the Neo N3 L1 core itself is
-intentionally forked and the full NeoHub surface is migrated into
-`r3e/neo-n3-core`.
+that mirror ZKsync's L1 Bridgehub/shared-bridge ecosystem. The production
+target is now native L1 core ownership on `r3e/neo-n3-core`. The
+`contracts/NeoHub.*` DevPack projects in `neo-n4` remain as parity/reference
+sources and deployment-rehearsal fixtures until their full behavior has been
+ported into the L1 core fork and covered by Neo core tests.
+
+Current L1 native migration status in `r3e/neo-n3-core`:
+
+- Native and tested: `NeoHubChainRegistryContract`, `NeoHubTokenRegistryContract`,
+  `NeoHubDARegistryContract`, `NeoHubL1TxFilterContract`.
+- Still to migrate before claiming full L1-native NeoHub: `VerifierRegistry`,
+  `SettlementManager`, `SharedBridge`, `MessageRouter`, `DAValidator`,
+  `EmergencyManager`, `GovernanceController`, `SequencerBond`,
+  `SequencerRegistry`, `ForcedInclusion`, `OptimisticChallenge`,
+  `GovernanceFraudVerifier`, `RestrictedExecutionFraudVerifier`,
+  `MpcCommitteeVerifier`, `MpcCommitteeFraudVerifier`,
+  `ExternalBridgeRegistry`, `ExternalBridgeEscrow`, `ExternalBridgeBond`.
+
+Do not remove the DevPack `contracts/NeoHub.*` projects or rewrite operator
+docs to say "fully native" until every production NeoHub contract has a native
+counterpart, registration tests, behavior tests, and neo-n4 parity/integration
+coverage.
 
 Use the fork for changes that cannot be implemented cleanly as a plugin,
 library, contract, SDK, or operator tool in `neo-n4`. Typical fork-owned work

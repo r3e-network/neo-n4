@@ -83,9 +83,27 @@ external/neo/src/Neo/SmartContract/Native/
 - `L2InteropVerifier`
 
 NeoHub L1 contracts 属于另一条边界：它们是对标 ZKsync L1 Bridgehub/shared-bridge
-生态的 L1 锚定合约。在当前仓库里它们保持为可部署 L1 contracts。只有在明确决定
-fork Neo N3 L1 core，并把 NeoHub 完整迁入 L1 core 时，才把对应改动放入
-`r3e/neo-n3-core`。
+生态的 L1 锚定合约。现在的生产目标已经调整为：把 NeoHub L1 生产面迁入
+`r3e/neo-n3-core`，作为 L1 core native contracts 维护。`neo-n4` 里的
+`contracts/NeoHub.*` DevPack 项目在迁移完成前继续保留，作用是 parity/reference
+源码、部署演练夹具和行为对照，不再作为最终生产形态。
+
+当前 `r3e/neo-n3-core` 的 L1 native 迁移状态：
+
+- 已 native 化并通过 Neo core 测试：`NeoHubChainRegistryContract`、
+  `NeoHubTokenRegistryContract`、`NeoHubDARegistryContract`、
+  `NeoHubL1TxFilterContract`。
+- 在声称 NeoHub 已完全 L1-native 之前仍需迁移：`VerifierRegistry`、
+  `SettlementManager`、`SharedBridge`、`MessageRouter`、`DAValidator`、
+  `EmergencyManager`、`GovernanceController`、`SequencerBond`、
+  `SequencerRegistry`、`ForcedInclusion`、`OptimisticChallenge`、
+  `GovernanceFraudVerifier`、`RestrictedExecutionFraudVerifier`、
+  `MpcCommitteeVerifier`、`MpcCommitteeFraudVerifier`、
+  `ExternalBridgeRegistry`、`ExternalBridgeEscrow`、`ExternalBridgeBond`。
+
+在所有生产 NeoHub 合约都有 native counterpart、注册测试、行为测试以及
+`neo-n4` parity/integration 覆盖之前，不要删除 `contracts/NeoHub.*`，也不要把
+运维文档改成“已经全量 native”。
 
 必须进入 fork 的典型改动包括：
 

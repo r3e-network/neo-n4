@@ -18,7 +18,7 @@ It exercises four local private-chain templates:
 | `rollup` | Optimistic rollup default | `create-chain`, `validate`, `init-l2`, register/deploy plan, sequencer/batcher/prover preflights, reference devnet |
 | `validium` | NeoFS-style DA + gateway label | persistent `--executor counter` devnet, live `/metrics`, 0-batch rehydration |
 | `zk-rollup` | Validity-proof label | NeoVM2/RISC-V executor gate plus devnet smoke |
-| `sidechain` | External DA / no-proof label | config generation and validation |
+| `sidechain` | NeoFS DA / no-proof label | config generation and validation |
 
 The devnet path is in-process by design: it wires the same framework
 components operators use, without requiring funded L1 accounts or public RPC

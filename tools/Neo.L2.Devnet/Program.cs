@@ -53,8 +53,8 @@ internal static class Program
         var executorMode = DevnetArgs.ParseExecutor(args);
         // Pull §16.2 security label from operator config so e.g. `neo-stack create-chain
         // --template validium` flows into the devnet preview without re-typing. Defaults
-        // (Optimistic / External / DbftCommittee / Permissionless / gateway=off) preserve
-        // the legacy devnet behavior when no --config is supplied.
+        // (Optimistic / NeoFS / DbftCommittee / Permissionless / gateway=off) match
+        // the repository's canonical N4 DA policy when no --config is supplied.
         var labelOverrides = DevnetLabelOverrides.ReadFromConfig(configPath);
 
         Console.WriteLine("┌─────────────────────────────────────────────┐");
@@ -157,8 +157,8 @@ internal static class Program
         // all implement IDisposable. If a future writer doesn't, IDisposable becomes
         // optional and `daWriter as IDisposable` returns null which `using` tolerates.
         IDAWriter daWriter = dataDir is null
-            ? L2DAPlugin.BuildDefaultWriter(DAMode.External, dataDir: null)
-            : L2DAPlugin.BuildDefaultWriter(DAMode.External, Path.Combine(dataDir, "da"));
+            ? L2DAPlugin.BuildDefaultWriter(DAMode.NeoFS, dataDir: null)
+            : L2DAPlugin.BuildDefaultWriter(DAMode.NeoFS, Path.Combine(dataDir, "da"));
         using var daWriterDispose = daWriter as IDisposable;
         Console.WriteLine($"[wire] DA writer = {daWriter.GetType().Name} (mode={daWriter.Mode})");
 
@@ -216,6 +216,7 @@ internal static class Program
         var preStateRoot = stateStore.ComputeRoot(); // start from empty store root = Zero
         var allCommitments = new List<L2BatchCommitment>();
         var publicInputsByBatch = new Dictionary<ulong, PublicInputs>();
+        var daReceiptsByBatch = new Dictionary<ulong, DAReceipt>();
         for (var batchNum = 1; batchNum <= batches; batchNum++)
         {
             Console.WriteLine($"────── batch #{batchNum} ──────");
@@ -390,6 +391,7 @@ internal static class Program
 
             allCommitments.Add(commitment);
             publicInputsByBatch[(ulong)batchNum] = publicInputs;
+            daReceiptsByBatch[(ulong)batchNum] = daReceipt;
 
             // Continuity: next batch's pre = this batch's post.
             preStateRoot = commitment.PostStateRoot;
@@ -419,7 +421,11 @@ internal static class Program
             .Register(new BatchRangeCheck())
             // Catches "DA layer dropped the payload" — relevant only when --data-dir is
             // set, but cheap enough to always run (in-memory writer never drops).
-            .Register(new DAAvailabilityCheck(daWriter));
+            .Register(new DAAvailabilityCheck(
+                daWriter,
+                batch => daReceiptsByBatch.TryGetValue(batch.BatchNumber, out var receipt)
+                    ? receipt
+                    : null));
         var report = await auditor.AuditAsync(allCommitments);
         Console.WriteLine(report.Summarize());
         if (!report.Passed)

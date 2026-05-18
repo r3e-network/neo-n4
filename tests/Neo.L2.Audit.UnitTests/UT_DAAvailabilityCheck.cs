@@ -41,6 +41,24 @@ public class UT_DAAvailabilityCheck
             => new(_available.Contains(receipt.Commitment));
     }
 
+    private sealed class PointerAwareNeoFsStubDA : IDAWriter
+    {
+        private readonly UInt256 _commitment;
+        private readonly byte[] _pointer;
+
+        public PointerAwareNeoFsStubDA(UInt256 commitment, byte[] pointer)
+        {
+            _commitment = commitment;
+            _pointer = pointer;
+        }
+
+        public DAMode Mode => DAMode.NeoFS;
+        public ValueTask<DAReceipt> PublishAsync(DAPublishRequest request, CancellationToken ct = default)
+            => throw new NotSupportedException();
+        public ValueTask<bool> IsAvailableAsync(DAReceipt receipt, CancellationToken ct = default)
+            => new(receipt.Commitment.Equals(_commitment) && receipt.Pointer.Span.SequenceEqual(_pointer));
+    }
+
     private static UInt256 Commit(byte b)
     {
         var bytes = new byte[32];
@@ -108,6 +126,51 @@ public class UT_DAAvailabilityCheck
         Assert.IsTrue(findings[0].Passed);
         StringAssert.Contains(findings[0].Detail, "1 batches");
         StringAssert.Contains(findings[0].Detail, "skipped");
+    }
+
+    [TestMethod]
+    public async Task NeoFsReceiptResolver_PreservesPointerForAvailability()
+    {
+        // NeoFS availability requires the object pointer returned by PublishAsync, not
+        // just the content commitment. The auditor accepts an optional resolver so a
+        // live pipeline can pass the stored DA receipt and avoid false negatives.
+        var commitment = Commit(7);
+        var pointer = new byte[] { 0x01, 0x02, 0x03 };
+        var writer = new PointerAwareNeoFsStubDA(commitment, pointer);
+        var receipt = new DAReceipt
+        {
+            Commitment = commitment,
+            Pointer = pointer,
+            Layer = DAMode.NeoFS,
+        };
+        var check = new DAAvailabilityCheck(
+            writer,
+            batch => batch.BatchNumber == 1 ? receipt : null);
+
+        var findings = await check.RunAsync(new[] { Mk(1, commitment) });
+
+        Assert.AreEqual(1, findings.Count);
+        Assert.IsTrue(findings[0].Passed);
+        StringAssert.Contains(findings[0].Detail, "NeoFS");
+    }
+
+    [TestMethod]
+    public async Task ReceiptResolverCommitmentMismatch_FailsClearly()
+    {
+        var c1 = Commit(1);
+        var wrong = new DAReceipt
+        {
+            Commitment = Commit(9),
+            Pointer = ReadOnlyMemory<byte>.Empty,
+            Layer = DAMode.External,
+        };
+        var check = new DAAvailabilityCheck(new StubDA(c1), _ => wrong);
+
+        var findings = await check.RunAsync(new[] { Mk(1, c1) });
+
+        Assert.AreEqual(1, findings.Count);
+        Assert.IsFalse(findings[0].Passed);
+        StringAssert.Contains(findings[0].Detail, "does not match");
     }
 
     [TestMethod]

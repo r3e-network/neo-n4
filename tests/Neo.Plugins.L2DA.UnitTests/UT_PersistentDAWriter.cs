@@ -19,7 +19,7 @@ public class UT_PersistentDAWriter
             ChainId = 1001, BatchNumber = 1, Payload = new byte[] { 0xAA, 0xBB, 0xCC },
         });
 
-        Assert.AreEqual(DAMode.External, receipt.Layer);
+        Assert.AreEqual(DAMode.NeoFS, receipt.Layer);
         Assert.IsTrue(await writer.IsAvailableAsync(receipt));
     }
 
@@ -27,12 +27,12 @@ public class UT_PersistentDAWriter
     public async Task ConfiguredMode_FlowsToReceipt()
     {
         using var store = new InMemoryKeyValueStore();
-        var writer = new PersistentDAWriter(store, DAMode.NeoFS);
+        var writer = new PersistentDAWriter(store, DAMode.External);
         var receipt = await writer.PublishAsync(new DAPublishRequest
         {
             ChainId = 1001, BatchNumber = 1, Payload = new byte[] { 0x01 },
         });
-        Assert.AreEqual(DAMode.NeoFS, receipt.Layer);
+        Assert.AreEqual(DAMode.External, receipt.Layer);
     }
 
     [TestMethod]
@@ -155,10 +155,10 @@ public class UT_PersistentDAWriter
     }
 
     [TestMethod]
-    public void Mode_Default_IsExternal()
+    public void Mode_Default_IsNeoFS()
     {
         using var store = new InMemoryKeyValueStore();
         var writer = new PersistentDAWriter(store);
-        Assert.AreEqual(DAMode.External, writer.Mode);
+        Assert.AreEqual(DAMode.NeoFS, writer.Mode);
     }
 }

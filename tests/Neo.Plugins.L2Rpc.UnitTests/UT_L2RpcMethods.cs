@@ -128,8 +128,8 @@ public class UT_L2RpcMethods
         Assert.AreEqual(1001U, (uint)obj["chainId"]!.AsNumber());
         Assert.AreEqual((byte)SecurityLevel.Optimistic, (byte)obj["securityLevel"]!.AsNumber());
         Assert.AreEqual("Optimistic", obj["securityLevelName"]!.AsString());
-        Assert.AreEqual((byte)DAMode.External, (byte)obj["daMode"]!.AsNumber());
-        Assert.AreEqual("External", obj["daModeName"]!.AsString());
+        Assert.AreEqual((byte)DAMode.NeoFS, (byte)obj["daMode"]!.AsNumber());
+        Assert.AreEqual("NeoFS", obj["daModeName"]!.AsString());
         Assert.IsFalse(obj["gatewayEnabled"]!.AsBoolean());
         Assert.AreEqual((byte)SequencerModel.DbftCommittee, (byte)obj["sequencer"]!.AsNumber());
         Assert.AreEqual("DbftCommittee", obj["sequencerName"]!.AsString());
@@ -389,7 +389,7 @@ public class UT_L2RpcMethods
     /// the required interface members — the §16.2 dimension properties (DAMode /
     /// GatewayEnabled / Sequencer / Exit) are covered by the interface's default-method
     /// bodies. Pinning these defaults explicitly catches a refactor that changes the
-    /// "strongest-default" (e.g. flipping DAMode default to L1, which would mislead
+    /// "NeoFS-default" (e.g. flipping DAMode default away from NeoFS, which would mislead
     /// every third-party implementation that didn't override).
     /// </summary>
     private sealed class MinimalRpcStore : IL2RpcStore
@@ -412,11 +412,11 @@ public class UT_L2RpcMethods
     {
         // Pin the §16.2 dimension default values exposed via IL2RpcStore default-method
         // bodies. Third-party stores that don't override see these — a future change to
-        // any default would silently shift every external operator's getsecuritylabel
+        // any default would silently shift every operator's getsecuritylabel
         // output. Defaults match L2ChainConfig record's init defaults.
         IL2RpcStore store = new MinimalRpcStore();
 
-        Assert.AreEqual(DAMode.External, store.DAMode);
+        Assert.AreEqual(DAMode.NeoFS, store.DAMode);
         Assert.IsFalse(store.GatewayEnabled);
         Assert.AreEqual(SequencerModel.DbftCommittee, store.Sequencer);
         Assert.AreEqual(ExitModel.Permissionless, store.Exit);
@@ -455,7 +455,7 @@ public class UT_L2RpcMethods
         var obj = (JObject)methods.GetSecurityLabel(new JArray { 1001 })!;
 
         Assert.AreEqual("Optimistic", obj["securityLevelName"]!.AsString());
-        Assert.AreEqual("External", obj["daModeName"]!.AsString());
+        Assert.AreEqual("NeoFS", obj["daModeName"]!.AsString());
         Assert.IsFalse(obj["gatewayEnabled"]!.AsBoolean());
         Assert.AreEqual("DbftCommittee", obj["sequencerName"]!.AsString());
         Assert.AreEqual("Permissionless", obj["exitName"]!.AsString());

@@ -33,7 +33,7 @@ public sealed class PersistentDAWriter : IDAWriter, IDisposable
     /// store unless <paramref name="ownsStore"/> is true (in which case Dispose flows
     /// through to the store).
     /// </summary>
-    public PersistentDAWriter(IL2KeyValueStore store, DAMode mode = DAMode.External, bool ownsStore = false)
+    public PersistentDAWriter(IL2KeyValueStore store, DAMode mode = DAMode.NeoFS, bool ownsStore = false)
     {
         ArgumentNullException.ThrowIfNull(store);
         _store = store;

@@ -41,7 +41,7 @@ public class UT_ValidateChainConfigCommand
         ""template"": ""rollup"",
         ""vm"": ""neovm2-riscv"",
         ""chainMode"": ""L2RollupMode"",
-        ""daMode"": ""L1"",
+        ""daMode"": ""NeoFS"",
         ""proofType"": ""Optimistic"",
         ""securityLevel"": ""Optimistic"",
         ""sequencerModel"": ""DbftCommittee"",
@@ -61,7 +61,7 @@ public class UT_ValidateChainConfigCommand
         StringAssert.Contains(output, "✅ valid:");
         StringAssert.Contains(output, "chainId=1099");
         StringAssert.Contains(output, "securityLevel=Optimistic");
-        StringAssert.Contains(output, "daMode=L1");
+        StringAssert.Contains(output, "daMode=NeoFS");
     }
 
     [TestMethod]
@@ -153,8 +153,9 @@ public class UT_ValidateChainConfigCommand
         // chainMode=L2ValidiumMode + daMode=L1 is a spec contradiction (validium
         // means OFF-chain DA by definition, per doc.md §6 + §12). Pin the warning.
         var contradiction = ValidRollupConfig()
-            .Replace("\"chainMode\": \"L2RollupMode\"", "\"chainMode\": \"L2ValidiumMode\"");
-        // daMode still "L1" → contradiction
+            .Replace("\"chainMode\": \"L2RollupMode\"", "\"chainMode\": \"L2ValidiumMode\"")
+            .Replace("\"daMode\": \"NeoFS\"", "\"daMode\": \"L1\"");
+        // daMode explicitly changed to "L1" → contradiction
         var path = WriteConfig(contradiction);
         var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
         Assert.AreEqual(0, rc, "cross-field warning is informational, not fatal");
@@ -217,7 +218,6 @@ public class UT_ValidateChainConfigCommand
         // Canonical validium template: L2ValidiumMode + NeoFS DA — no contradiction.
         var validium = ValidRollupConfig()
             .Replace("\"chainMode\": \"L2RollupMode\"", "\"chainMode\": \"L2ValidiumMode\"")
-            .Replace("\"daMode\": \"L1\"", "\"daMode\": \"NeoFS\"")
             .Replace("\"securityLevel\": \"Optimistic\"", "\"securityLevel\": \"Validium\"")
             .Replace("\"proofType\": \"Optimistic\"", "\"proofType\": \"Zk\"");
         var path = WriteConfig(validium);
@@ -230,7 +230,7 @@ public class UT_ValidateChainConfigCommand
     [TestMethod]
     public void Validate_UnknownDaMode_ExitsTwo()
     {
-        var typo = ValidRollupConfig().Replace("\"daMode\": \"L1\"", "\"daMode\": \"L99\"");
+        var typo = ValidRollupConfig().Replace("\"daMode\": \"NeoFS\"", "\"daMode\": \"L99\"");
         var path = WriteConfig(typo);
         var (rc, _, _) = CaptureBoth(() => ValidateChainConfigCommand.Run(new[] { path }));
         Assert.AreEqual(2, rc);
@@ -314,8 +314,7 @@ public class UT_ValidateChainConfigCommand
         // Pin so operators who type a validium template + accidentally non-Zk proofType
         // see the warning instead of silently shipping a misconfigured chain.
         var validiumWithOptimistic = ValidRollupConfig()
-            .Replace("\"securityLevel\": \"Optimistic\"", "\"securityLevel\": \"Validium\"")
-            .Replace("\"daMode\": \"L1\"", "\"daMode\": \"NeoFS\"");
+            .Replace("\"securityLevel\": \"Optimistic\"", "\"securityLevel\": \"Validium\"");
         // proofType still "Optimistic" → mismatch
         var path = WriteConfig(validiumWithOptimistic);
         var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
@@ -333,7 +332,6 @@ public class UT_ValidateChainConfigCommand
         var sidechainWithZk = ValidRollupConfig()
             .Replace("\"securityLevel\": \"Optimistic\"", "\"securityLevel\": \"Sidechain\"")
             .Replace("\"chainMode\": \"L2RollupMode\"", "\"chainMode\": \"SidechainMode\"")
-            .Replace("\"daMode\": \"L1\"", "\"daMode\": \"External\"")
             .Replace("\"proofType\": \"Optimistic\"", "\"proofType\": \"Zk\"");
         var path = WriteConfig(sidechainWithZk);
         var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
@@ -351,7 +349,6 @@ public class UT_ValidateChainConfigCommand
         var validiumZk = ValidRollupConfig()
             .Replace("\"chainMode\": \"L2RollupMode\"", "\"chainMode\": \"L2ValidiumMode\"")
             .Replace("\"securityLevel\": \"Optimistic\"", "\"securityLevel\": \"Validium\"")
-            .Replace("\"daMode\": \"L1\"", "\"daMode\": \"NeoFS\"")
             .Replace("\"proofType\": \"Optimistic\"", "\"proofType\": \"Zk\"");
         var path = WriteConfig(validiumZk);
         var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
@@ -418,8 +415,7 @@ public class UT_ValidateChainConfigCommand
         // L1 ZK proof + off-chain DA). Optimistic implies a challenge window with
         // on-chain DA — contradictory with validium's off-chain-DA premise.
         var contradictory = ValidRollupConfig()
-            .Replace("\"chainMode\": \"L2RollupMode\"", "\"chainMode\": \"L2ValidiumMode\"")
-            .Replace("\"daMode\": \"L1\"", "\"daMode\": \"NeoFS\"");
+            .Replace("\"chainMode\": \"L2RollupMode\"", "\"chainMode\": \"L2ValidiumMode\"");
         // securityLevel stays "Optimistic" from base config
         var path = WriteConfig(contradictory);
         var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));

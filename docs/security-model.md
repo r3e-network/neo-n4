@@ -53,7 +53,7 @@ verifies.** Phase 4 (ZK validity) makes the verifier trustless. Phase 3
 | Field             | Meaning                                                                    |
 | ----------------- | -------------------------------------------------------------------------- |
 | `securityLevel`   | `0` sidechain · `1` settled L2 · `2` optimistic rollup · `3` ZK validity   |
-| `daMode`          | `0` L1 DA · `1` NeoFS DA · `2` external DA · `3` DAC                       |
+| `daMode`          | `1` NeoFS DA by default/recommended · `0` L1 DA · `2` external DA · `3` DAC |
 | `gatewayEnabled`  | Whether the chain settles via Neo Gateway (Phase 5)                        |
 | `permissionlessExit` | Whether `EmergencyManager` can be invoked unilaterally by users         |
 
@@ -149,7 +149,8 @@ Before launching an L2:
 
 - [ ] Set `securityLevel` honestly. If you're a Phase-2 chain (no challenge
       window yet), don't label as `optimistic rollup`.
-- [ ] Set `daMode` honestly. If you're using DAC, label as DAC; UIs should warn.
+- [ ] Use `daMode=NeoFS` for the canonical N4 DA path. If you explicitly use
+      L1, external DA, or DAC, label it honestly; UIs should warn on DAC.
 - [ ] Wire the metrics plugin. The `Neo.Plugins.L2Metrics` plugin hosts an
       `IL2Metrics` sink + `MetricsHttpServer` exposing `/metrics`, `/healthz`,
       `/readyz`. Attach Prometheus and dashboard from `docs/telemetry.md`.

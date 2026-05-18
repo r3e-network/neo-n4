@@ -15,9 +15,9 @@ public interface IL2RpcStore
     SecurityLevel SecurityLevel { get; }
 
     /// <summary>The chain's published DA mode (doc.md §16.2 dimension 2).</summary>
-    /// <remarks>Default <c>External</c> keeps existing implementations source-compatible;
-    /// production stores override.</remarks>
-    DAMode DAMode => DAMode.External;
+    /// <remarks>Default <c>NeoFS</c> reflects N4's canonical DA policy; production
+    /// stores may override for explicit non-NeoFS deployments.</remarks>
+    DAMode DAMode => DAMode.NeoFS;
 
     /// <summary>True if the chain participates in Neo Gateway proof aggregation
     /// (doc.md §4 + §16.2).</summary>

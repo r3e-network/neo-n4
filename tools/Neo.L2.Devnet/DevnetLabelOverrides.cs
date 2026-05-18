@@ -7,7 +7,7 @@ namespace Neo.L2.Devnet;
 /// §16.2 security-label dimensions read from an operator's <c>chain.config.json</c>
 /// (typically a <c>neo-stack create-chain --template &lt;X&gt;</c> output) and applied
 /// to the devnet's <c>Neo.Plugins.L2.InMemoryL2RpcStore</c>. Defaults match the
-/// legacy hardcoded values; operators supply <c>--config</c> to preview a
+/// NeoFS-backed defaults; operators supply <c>--config</c> to preview a
 /// template-specific label end-to-end.
 /// </summary>
 public readonly record struct DevnetLabelOverrides(
@@ -17,9 +17,9 @@ public readonly record struct DevnetLabelOverrides(
     SequencerModel Sequencer,
     ExitModel Exit)
 {
-    /// <summary>Devnet defaults (matches <c>InMemoryL2RpcStore</c> sane defaults — Optimistic / External / DbftCommittee / Permissionless / gateway off).</summary>
+    /// <summary>Devnet defaults (matches <c>InMemoryL2RpcStore</c> sane defaults — Optimistic / NeoFS / DbftCommittee / Permissionless / gateway off).</summary>
     public static DevnetLabelOverrides Defaults { get; } = new(
-        SecurityLevel.Optimistic, DAMode.External, false,
+        SecurityLevel.Optimistic, DAMode.NeoFS, false,
         SequencerModel.DbftCommittee, ExitModel.Permissionless);
 
     /// <summary>

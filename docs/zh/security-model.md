@@ -49,7 +49,7 @@ Phase 0–2 在多签之上叠加治理(Neo Council、排序器保证金)。
 | 字段             | 含义                                                                          |
 | ---------------- | ----------------------------------------------------------------------------- |
 | `securityLevel`   | `0` 侧链 · `1` 已结算 L2 · `2` 乐观 rollup · `3` ZK 有效性                 |
-| `daMode`          | `0` L1 DA · `1` NeoFS DA · `2` 外部 DA · `3` DAC                              |
+| `daMode`          | `1` NeoFS DA（默认/推荐）· `0` L1 DA · `2` 外部 DA · `3` DAC                   |
 | `gatewayEnabled`  | 是否经 Neo Gateway 结算(Phase 5)                                            |
 | `permissionlessExit` | 用户能否单方面调用 `EmergencyManager`                                      |
 

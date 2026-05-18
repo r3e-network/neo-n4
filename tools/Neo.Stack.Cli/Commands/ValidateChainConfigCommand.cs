@@ -132,17 +132,17 @@ internal static class ValidateChainConfigCommand
             // ChainMode vs DAMode: L2ValidiumMode means "transaction data lives
             // off L1" by definition (per doc.md §6 + §12). DAMode=L1 contradicts
             // that. This is a spec-level contradiction worth surfacing — operator
-            // probably meant to choose either L2RollupMode (with L1 DA) or change
-            // daMode to NeoFS / External / DAC.
+            // probably meant to choose either L2RollupMode or change daMode to the
+            // canonical NeoFS tier.
             if (chainMode == ChainMode.L2ValidiumMode && da == DAMode.L1)
             {
-                Console.WriteLine($"⚠ chainMode=L2ValidiumMode contradicts daMode=L1; validium chains by definition have off-chain DA (NeoFS / External / DAC)");
+                Console.WriteLine($"⚠ chainMode=L2ValidiumMode contradicts daMode=L1; validium chains by definition have off-chain DA (NeoFS / External / DAC), and NeoFS is the recommended N4 DA tier");
             }
 
             // ChainMode vs SecurityLevel: each chainMode has a canonical set of
             // SecurityLevels that match its consensus + DA semantics (per doc.md §6).
             //  - SidechainMode: {Sidechain, Settled} — no L1 proof verification
-            //  - L2RollupMode:  {Optimistic, Validity} — L1 proof + on-chain DA
+            //  - L2RollupMode:  {Optimistic, Validity} — L1 proof/challenge + NeoHub-registered DA
             //  - L2ValidiumMode:{Validium} — L1 ZK proof + off-chain DA
             // Any deviation is internally contradictory: e.g. a SidechainMode chain
             // claiming SecurityLevel=Validity promises ZK verification on L1 it never
@@ -157,7 +157,7 @@ internal static class ValidateChainConfigCommand
             else if (chainMode == ChainMode.L2RollupMode &&
                 sec != SecurityLevel.Optimistic && sec != SecurityLevel.Validity)
             {
-                Console.WriteLine($"⚠ chainMode=L2RollupMode pairs with securityLevel ∈ {{Optimistic, Validity}} (L1 proof + on-chain DA); got {sec}");
+                Console.WriteLine($"⚠ chainMode=L2RollupMode pairs with securityLevel ∈ {{Optimistic, Validity}} (L1 proof/challenge + NeoHub-registered DA); got {sec}");
             }
             else if (chainMode == ChainMode.L2ValidiumMode &&
                 sec != SecurityLevel.Validium)

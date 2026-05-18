@@ -39,7 +39,7 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore, IDisposable
     public SecurityLevel SecurityLevel { get; }
 
     /// <inheritdoc />
-    public DAMode DAMode { get; init; } = DAMode.External;
+    public DAMode DAMode { get; init; } = DAMode.NeoFS;
 
     /// <inheritdoc />
     public bool GatewayEnabled { get; init; }

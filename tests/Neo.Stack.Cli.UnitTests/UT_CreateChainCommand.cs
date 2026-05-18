@@ -45,6 +45,7 @@ public class UT_CreateChainCommand
         StringAssert.Contains(config, "\"template\": \"rollup\"");
         StringAssert.Contains(config, "\"vm\": \"neovm2-riscv\"");
         StringAssert.Contains(config, "\"securityLevel\": \"Optimistic\"");  // rollup default
+        StringAssert.Contains(config, "\"daMode\": \"NeoFS\"");
     }
 
     [TestMethod]
@@ -87,7 +88,7 @@ public class UT_CreateChainCommand
         StringAssert.Contains(config, "\"template\": \"zk-rollup\"");
         StringAssert.Contains(config, "\"securityLevel\": \"Validity\"");
         StringAssert.Contains(config, "\"proofType\": \"Zk\"");
-        StringAssert.Contains(config, "\"daMode\": \"L1\"");
+        StringAssert.Contains(config, "\"daMode\": \"NeoFS\"");
         StringAssert.Contains(config, "\"exitModel\": \"Permissionless\"");
         StringAssert.Contains(config, "\"gatewayEnabled\": true");
     }
@@ -124,7 +125,7 @@ public class UT_CreateChainCommand
         StringAssert.Contains(config, "\"chainMode\": \"SidechainMode\"");
         StringAssert.Contains(config, "\"securityLevel\": \"Sidechain\"");
         StringAssert.Contains(config, "\"proofType\": \"None\"");
-        StringAssert.Contains(config, "\"daMode\": \"External\"");
+        StringAssert.Contains(config, "\"daMode\": \"NeoFS\"");
     }
 
     [TestMethod]
@@ -146,7 +147,7 @@ public class UT_CreateChainCommand
         StringAssert.Contains(config, "\"template\": \"not-a-real-template\"");
         // But the dimensions fall back to rollup defaults.
         StringAssert.Contains(config, "\"securityLevel\": \"Optimistic\"");
-        StringAssert.Contains(config, "\"daMode\": \"L1\"");
+        StringAssert.Contains(config, "\"daMode\": \"NeoFS\"");
     }
 
     [TestMethod]
@@ -219,7 +220,7 @@ public class UT_CreateChainCommand
         var root = doc.RootElement;
         Assert.AreEqual(1099u, root.GetProperty("chainId").GetUInt32());
         Assert.AreEqual("rollup", root.GetProperty("template").GetString());
-        Assert.AreEqual("L1", root.GetProperty("daMode").GetString());
+        Assert.AreEqual("NeoFS", root.GetProperty("daMode").GetString());
     }
 
     [TestMethod]

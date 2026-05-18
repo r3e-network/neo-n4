@@ -56,7 +56,7 @@ LevelDB / SQLite / 云端后备,只需新加一个 TestClass + `Create()` 工厂
 
 ```csharp
 using var rocks = new RocksDbKeyValueStore("/var/lib/neo-l2/da");
-plugin.WithWriter(new PersistentDAWriter(rocks, DAMode.External, ownsStore: true));
+plugin.WithWriter(new PersistentDAWriter(rocks, DAMode.NeoFS, ownsStore: true));
 ```
 
 或者更简单 —— 在插件配置段里设置 `DataDirectory`,`L2DAPlugin` 会自动在该路径打开
@@ -65,7 +65,7 @@ RocksDB:
 ```json
 {
   "PluginConfiguration": {
-    "DAMode": 2,
+    "DAMode": 1,
     "DataDirectory": "/var/lib/neo-l2/da"
   }
 }
@@ -173,7 +173,7 @@ dotnet run --project tools/Neo.L2.Devnet -- 0 --data-dir /tmp/devnet1
 ├── state/        # KeyedStateStore
 ├── rpc-proofs/   # InMemoryL2RpcStore(提款 + 消息证明)
 ├── sequencer/    # InMemorySequencerCommitteeProvider
-└── da/           # PersistentDAWriter(DAMode.External + dataDir)
+└── da/           # PersistentDAWriter(DAMode.NeoFS + dataDir)
 ```
 
 不带 `--data-dir` 时,所有 store 都是内存版 —— 测试无妨,但重启即丢。生产部署一律

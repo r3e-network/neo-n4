@@ -211,13 +211,13 @@ public class UT_DAWriters
     }
 
     [TestMethod]
-    public void L2DAPlugin_DefaultWriter_IsInMemory()
+    public void L2DAPlugin_DefaultWriter_IsNeoFS()
     {
         // Pre-Configure default — pinned so a refactor that changes the field initializer
         // doesn't silently break tests / devnet that construct the plugin and immediately
         // call GetWriter() without a config section.
         using var plugin = new L2DAPlugin();
-        Assert.IsInstanceOfType(plugin.GetWriter(), typeof(InMemoryDAWriter));
+        Assert.IsInstanceOfType(plugin.GetWriter(), typeof(NeoFsLikeDAWriter));
     }
 
     [TestMethod]
@@ -268,7 +268,7 @@ public class UT_DAWriters
             Payload = new byte[] { 0x01, 0x02 },
         });
 
-        Assert.AreEqual(1, captured.GetCounter(MetricNames.DAPublished, ("mode", "External")),
+        Assert.AreEqual(1, captured.GetCounter(MetricNames.DAPublished, ("mode", "NeoFS")),
             "plugin's WithMetrics must wire the captured sink onto the active writer");
     }
 

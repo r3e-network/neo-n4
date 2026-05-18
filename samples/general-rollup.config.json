@@ -3,7 +3,7 @@
   "template": "rollup",
   "vm": "neovm2-riscv",
   "chainMode": "L2RollupMode",
-  "daMode": "L1",
+  "daMode": "NeoFS",
   "proofType": "Optimistic",
   "securityLevel": "Optimistic",
   "sequencerModel": "DbftCommittee",
@@ -12,5 +12,5 @@
   "permissionlessExit": true,
   "milestonePerBlockMs": 5000,
   "validators": [],
-  "_comment": "General-purpose Neo L2 — the safe default. Optimistic challenge window guards against faulty proofs (doc.md §17 mitigation #2); L1 DA = strongest data-availability tier (everyone can re-derive state); dBFT committee for finality; delayed exit gives the operator a settlement window. See samples/README.md."
+  "_comment": "General-purpose Neo L2 — the safe default. Optimistic challenge window guards against faulty proofs (doc.md §17 mitigation #2); NeoFS DA is the canonical N4 data-availability tier (Neo-native, retrievable, content-addressed); dBFT committee for finality; delayed exit gives the operator a settlement window. See samples/README.md."
 }

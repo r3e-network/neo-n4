@@ -3,7 +3,7 @@
   "template": "sidechain",
   "vm": "neovm2-riscv",
   "chainMode": "SidechainMode",
-  "daMode": "External",
+  "daMode": "NeoFS",
   "proofType": "None",
   "securityLevel": "Sidechain",
   "sequencerModel": "DbftCommittee",
@@ -12,5 +12,5 @@
   "permissionlessExit": true,
   "milestonePerBlockMs": 5000,
   "validators": [],
-  "_comment": "Permissioned consortium / privacy chain. SidechainMode + proofType=None = the L1 anchor is a discovery + asset-bridge endpoint, NOT a settlement trust anchor; the chain's operators run their own trust model (committee multisig, KYC list, enterprise governance). External DA matches the lightest-touch storage tier; gateway off because cross-L2 messaging isn't the use case. permissionlessExit=true so participating users always have an L1 unbridge path even when consortium membership ends. See samples/README.md."
+  "_comment": "Permissioned consortium / privacy chain. SidechainMode + proofType=None = the L1 anchor is a discovery + asset-bridge endpoint, NOT a settlement trust anchor; the chain's operators run their own trust model (committee multisig, KYC list, enterprise governance). NeoFS remains the canonical DA tier so sidechain batches are still Neo-native and retrievable. gateway off because cross-L2 messaging isn't the use case. permissionlessExit=true so participating users always have an L1 unbridge path even when consortium membership ends. See samples/README.md."
 }

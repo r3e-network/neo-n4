@@ -78,7 +78,7 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --config ./my-l2/chain.config.json
 
 # Sanity-check the JSON before running anything against L1:
 neo-stack validate ./my-l2/chain.config.json
-# ✅ valid: chainId=1099 securityLevel=Optimistic daMode=L1 ...
+# ✅ valid: chainId=1099 securityLevel=Optimistic daMode=NeoFS ...
 # (or ❌ pointing at exactly the field that's wrong)
 ```
 

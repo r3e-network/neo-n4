@@ -47,7 +47,7 @@ public class UT_Samples
 
         Assert.AreEqual(1100U, config.ChainId);
         Assert.AreEqual(SecurityLevel.Optimistic, config.SecurityLevel);
-        Assert.AreEqual(DAMode.L1, config.DAMode);
+        Assert.AreEqual(DAMode.NeoFS, config.DAMode);
         Assert.AreEqual(SequencerModel.DbftCommittee, config.Sequencer);
         Assert.AreEqual(ExitModel.Delayed, config.Exit);
         Assert.IsFalse(config.GatewayEnabled);
@@ -59,17 +59,16 @@ public class UT_Samples
     }
 
     [TestMethod]
-    public void GamingRollup_HasCentralizedSequencer_ExternalDA()
+    public void GamingRollup_HasCentralizedSequencer_NeoFSDA()
     {
         var json = ReadSample("gaming-rollup");
         var config = L2ChainConfigJsonReader.FromJson(1200, json,
             OpHash, VerifierHash, BridgeHash, MessageHash);
 
         // The gaming chain's distinguishing parameters (vs the default rollup) — pin so
-        // a future edit that flips one of these surfaces here, since the whole point of
-        // the sample is the centralized-sequencer + External-DA combination.
+        // a future edit that flips one of these surfaces here, while DA stays NeoFS.
         Assert.AreEqual(SequencerModel.Centralized, config.Sequencer);
-        Assert.AreEqual(DAMode.External, config.DAMode);
+        Assert.AreEqual(DAMode.NeoFS, config.DAMode);
         Assert.IsTrue(config.PermissionlessExit,
             "gaming chain MUST keep permissionlessExit so users can escape a malicious centralized sequencer");
     }

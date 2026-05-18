@@ -71,7 +71,7 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --config ./my-l2/chain.config.json
 
 # 把任何东西打到 L1 之前,做 JSON 健全性检查:
 neo-stack validate ./my-l2/chain.config.json
-# ✅ valid: chainId=1099 securityLevel=Optimistic daMode=L1 ...
+# ✅ valid: chainId=1099 securityLevel=Optimistic daMode=NeoFS ...
 # (或 ❌ 直接指向出错的字段)
 ```
 

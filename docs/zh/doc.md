@@ -964,6 +964,9 @@ DAMode:
   3 = DAC
 ```
 
+Neo N4 的默认 / 推荐 DA 路径是 `DAMode.NeoFS`。`L1`、`External`、`DAC`
+仍保留为显式覆盖项，必须在 `ChainRegistry` 中如实标注。
+
 ## 12.1 L1 DA
 
 ```text

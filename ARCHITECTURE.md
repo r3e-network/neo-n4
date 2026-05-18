@@ -48,7 +48,7 @@ Each L2 = `Neo 4 core` + L2 extensions:
 - **Sequencer** — dBFT committee preferred over centralized sequencer (one-block finality is a Neo strength)
 - **Batcher** — packs L2 blocks into `L2BatchCommitment`
 - **StateRootGenerator** — produces `preStateRoot`, `postStateRoot`, `txRoot`, `receiptRoot`, `withdrawalRoot`, `l2ToL1MessageRoot`, `l2ToL2MessageRoot`
-- **DAWriter** — writes batch data to L1 DA, NeoFS DA, or DAC
+- **DAWriter** — writes batch data to NeoFS DA by default; L1, external DA, and DAC are explicit overrides
 - **ProverAdapter** — Stage 0 (multisig attestation) → Stage 1 (optimistic) → Stage 2 (ZK validity)
 - **SettlementSubmitter** — submits batch to NeoHub or Gateway
 - **BridgeAdapter** — L2-side handler for deposits / withdrawals
@@ -93,8 +93,8 @@ VM proving target: NeoVM2 / RISC-V (compatible with RISC-V instruction set per N
 
 ## §12 Data Availability tiers
 
-- **L1 DA** — highest cost, highest security; for high-value chains (DeFi, RWA, stablecoin).
-- **NeoFS DA** — low cost, Neo-ecosystem-native; for game, social, enterprise.
+- **NeoFS DA** — canonical default; Neo-ecosystem-native, content-addressed, and retrievable.
+- **L1 DA** — explicit high-cost override for chains that need every byte on L1.
 - **DAC** — lowest cost, highest risk; must be visibly labeled in `ChainRegistry`.
 
 ## §13 L2 native contracts

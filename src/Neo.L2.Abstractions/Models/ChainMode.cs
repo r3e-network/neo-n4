@@ -14,7 +14,7 @@ public enum ChainMode : byte
     /// <summary>App-chain with independent state and validators. May bridge to NeoHub but L1 does not verify state transitions.</summary>
     SidechainMode = 1,
 
-    /// <summary>Rollup L2: local sequencer/dBFT, batches submitted to NeoHub, L1 verifies proof or challenge.</summary>
+    /// <summary>Rollup L2: local sequencer/dBFT, batches submitted to NeoHub, L1 verifies proof or challenge while DA is recorded separately (NeoFS by default).</summary>
     L2RollupMode = 2,
 
     /// <summary>Validium L2: like rollup but transaction data lives off L1 (NeoFS, DAC, external DA).</summary>

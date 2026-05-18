@@ -12,15 +12,15 @@ namespace Neo.Plugins.L2;
 /// </summary>
 public sealed class L2DAPlugin : Plugin
 {
-    private DAMode _mode = DAMode.External;
-    private IDAWriter _writer = new InMemoryDAWriter();
+    private DAMode _mode = DAMode.NeoFS;
+    private IDAWriter _writer = new NeoFsLikeDAWriter();
     private IL2Metrics _metrics = NoOpMetrics.Instance;
 
     /// <inheritdoc />
     public override string Name => "L2DAPlugin";
 
     /// <inheritdoc />
-    public override string Description => "Selects the DA writer (L1 / NeoFS / External / DAC) per chain configuration.";
+    public override string Description => "Selects the DA writer (NeoFS default; L1 / External / DAC override) per chain configuration.";
 
     /// <summary>
     /// The currently active writer (already wrapped in <see cref="MetricsEmittingDAWriter"/>
@@ -44,15 +44,15 @@ public sealed class L2DAPlugin : Plugin
     /// <remarks>
     /// Mode → writer wiring:
     /// <list type="bullet">
-    /// <item><description><see cref="DAMode.External"/> → <see cref="InMemoryDAWriter"/> — content-addressed in-process store; the operator-defined "external DA" is the host process itself, suitable for tests, dev-nets, and single-node demos.</description></item>
     /// <item><description><see cref="DAMode.NeoFS"/> → <see cref="NeoFsLikeDAWriter"/> — chain-scoped object store with per-call defensive copies; production swaps this for a real NeoFS SDK by re-implementing <see cref="IDAWriter"/> against the SDK and registering it before <see cref="Configure"/> runs.</description></item>
+    /// <item><description><see cref="DAMode.External"/> → <see cref="InMemoryDAWriter"/> — content-addressed in-process store for explicitly configured third-party DA tests and demos.</description></item>
     /// <item><description><see cref="DAMode.L1"/> and <see cref="DAMode.DAC"/> have no first-class default — both require external clients (L1 RPC + signing wallet; DAC committee key set + attestation aggregation) the plugin can't materialize alone. Configuring either without first calling <see cref="WithWriter"/> throws <see cref="NotSupportedException"/> with a clear operator message.</description></item>
     /// </list>
     /// </remarks>
     protected override void Configure()
     {
         var section = GetConfiguration();
-        var rawMode = section.GetValue<byte>("DAMode", (byte)DAMode.External);
+        var rawMode = section.GetValue<byte>("DAMode", (byte)DAMode.NeoFS);
         _mode = ResolveDAMode(rawMode);
         // If the operator already provided a writer via WithWriter (e.g. an L1 RPC-backed
         // implementation or a real NeoFS SDK adapter), respect it. Otherwise pick the

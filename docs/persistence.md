@@ -59,7 +59,7 @@ Six components currently delegate their durability-critical state to
 
 ```csharp
 using var rocks = new RocksDbKeyValueStore("/var/lib/neo-l2/da");
-plugin.WithWriter(new PersistentDAWriter(rocks, DAMode.External, ownsStore: true));
+plugin.WithWriter(new PersistentDAWriter(rocks, DAMode.NeoFS, ownsStore: true));
 ```
 
 Or, simpler — set `DataDirectory` in the plugin's config section and the
@@ -68,7 +68,7 @@ Or, simpler — set `DataDirectory` in the plugin's config section and the
 ```json
 {
   "PluginConfiguration": {
-    "DAMode": 2,
+    "DAMode": 1,
     "DataDirectory": "/var/lib/neo-l2/da"
   }
 }
@@ -186,7 +186,7 @@ When `--data-dir <path>` is passed, the devnet creates these subdirectories:
 ├── state/        # KeyedStateStore
 ├── rpc-proofs/   # InMemoryL2RpcStore (withdrawal + message proofs)
 ├── sequencer/    # InMemorySequencerCommitteeProvider
-└── da/           # PersistentDAWriter (DAMode.External + dataDir)
+└── da/           # PersistentDAWriter (DAMode.NeoFS + dataDir)
 ```
 
 Without `--data-dir`, every store is in-memory — fine for tests, but everything

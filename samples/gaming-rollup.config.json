@@ -3,7 +3,7 @@
   "template": "rollup",
   "vm": "neovm2-riscv",
   "chainMode": "L2RollupMode",
-  "daMode": "External",
+  "daMode": "NeoFS",
   "proofType": "Optimistic",
   "securityLevel": "Optimistic",
   "sequencerModel": "Centralized",
@@ -12,5 +12,5 @@
   "permissionlessExit": true,
   "milestonePerBlockMs": 1000,
   "validators": [],
-  "_comment": "High-frequency gaming chain. Centralized sequencer = sub-second seal (no committee round-trip latency); External DA = cheap blob storage (gaming state updates are too frequent for L1 DA to amortize); permissionlessExit stays true so users can always escape if the centralized sequencer goes rogue. milestonePerBlockMs=1000 favors throughput over batch density. Trades sequencer-trust for speed — pick when asset-loss radius is bounded (e.g. in-game items, not custodied assets). See samples/README.md."
+  "_comment": "High-frequency gaming chain. Centralized sequencer = sub-second seal (no committee round-trip latency); NeoFS DA keeps frequent state updates in the canonical N4 data-availability layer without L1 calldata cost; permissionlessExit stays true so users can always escape if the centralized sequencer goes rogue. milestonePerBlockMs=1000 favors throughput over batch density. Trades sequencer-trust for speed — pick when asset-loss radius is bounded (e.g. in-game items, not custodied assets). See samples/README.md."
 }

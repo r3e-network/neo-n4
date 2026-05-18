@@ -13,8 +13,8 @@ label end-to-end before deploying to L1.
 
 | Sample | Template | chainId | Use case | Distinguishing parameters |
 |--------|----------|--------:|----------|---------------------------|
-| [`general-rollup`](./general-rollup.config.json) | `rollup` | 1100 | General-purpose Neo L2 (DeFi, dApp hosting) — the "safe default" | SecurityLevel=Optimistic, daMode=L1, sequencer=DbftCommittee, exit=Delayed |
-| [`gaming-rollup`](./gaming-rollup.config.json) | `rollup` | 1200 | High-frequency gaming chain (frequent state updates, low-value txs) | sequencer=Centralized for sub-second seal, daMode=External (cheap blob DA) |
+| [`general-rollup`](./general-rollup.config.json) | `rollup` | 1100 | General-purpose Neo L2 (DeFi, dApp hosting) — the "safe default" | SecurityLevel=Optimistic, daMode=NeoFS, sequencer=DbftCommittee, exit=Delayed |
+| [`gaming-rollup`](./gaming-rollup.config.json) | `rollup` | 1200 | High-frequency gaming chain (frequent state updates, low-value txs) | sequencer=Centralized for sub-second seal, daMode=NeoFS |
 | [`exchange-validium`](./exchange-validium.config.json) | `validium` | 1300 | DEX / orderbook / matching engine — ZK validity + off-chain DA | SecurityLevel=Validium, daMode=NeoFS, exit=Delayed, gateway=true |
 | [`privacy-sidechain`](./privacy-sidechain.config.json) | `sidechain` | 1400 | Permissioned enterprise / privacy chain — minimal L1 footprint | SecurityLevel=Sidechain, proofType=None, exit=Permissionless |
 
@@ -27,7 +27,7 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 \
 
 # Look for the post-run RPC snapshot's getsecuritylabel line — it should match
 # the sample's §16.2 dimensions:
-#   getsecuritylabel: securityLevel=Optimistic daMode=External
+#   getsecuritylabel: securityLevel=Optimistic daMode=NeoFS
 #                     sequencer=Centralized exit=Delayed gateway=False
 ```
 
@@ -40,13 +40,13 @@ depend on which L1 the operator is targeting.
 ## When to start from each
 
 **`general-rollup`** is the default. Inherits the Optimistic challenge window
-(§17 mitigation #2) so a faulty proof is contestable. L1 DA matches the
-strongest data-availability tier; everyone can independently re-derive the
-state by replaying batches from L1. Pick this unless one of the others
-specifically applies.
+(§17 mitigation #2) so a faulty proof is contestable. NeoFS is the canonical
+N4 data-availability tier: batches stay Neo-native, retrievable, and
+content-addressed without pushing every byte through L1. Pick this unless one
+of the others specifically applies.
 
 **`gaming-rollup`** trades off: centralized sequencer (faster seal cadence,
-no committee round-trip) + External DA (cheaper than L1, slightly weaker).
+no committee round-trip) while still using NeoFS DA.
 Good for a gaming loop where state updates are too frequent to amortize
 against L1 fees and the asset-loss radius is low. `permissionlessExit` stays
 true so users can always escape if the centralized sequencer goes rogue.

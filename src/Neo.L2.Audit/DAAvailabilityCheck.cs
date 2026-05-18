@@ -23,15 +23,29 @@ namespace Neo.L2.Audit;
 public sealed class DAAvailabilityCheck : IAuditCheck
 {
     private readonly IDAWriter _da;
+    private readonly Func<L2BatchCommitment, DAReceipt?>? _receiptResolver;
 
     /// <summary>Wire the DA writer whose <c>IsAvailableAsync</c> will be queried.</summary>
     public DAAvailabilityCheck(IDAWriter da)
+        : this(da, receiptResolver: null) { }
+
+    /// <summary>
+    /// Wire the DA writer and, optionally, a resolver that returns the original DA
+    /// receipt for a batch. Pointer-bearing DA layers such as NeoFS need the pointer
+    /// returned by <see cref="IDAWriter.PublishAsync"/> to perform an availability
+    /// check; commitment-only fallbacks remain useful for content-addressed test
+    /// writers.
+    /// </summary>
+    public DAAvailabilityCheck(
+        IDAWriter da,
+        Func<L2BatchCommitment, DAReceipt?>? receiptResolver)
     {
         // Without this guard a null _da NREs deep inside RunAsync's IsAvailable call,
         // surfacing as an unrelated stack trace far from the wiring bug. Same iter-156
         // pattern as the other audit checks.
         ArgumentNullException.ThrowIfNull(da);
         _da = da;
+        _receiptResolver = receiptResolver;
     }
 
     /// <inheritdoc />
@@ -61,18 +75,26 @@ public sealed class DAAvailabilityCheck : IAuditCheck
                 continue;
             }
 
-            // Build a minimal receipt — IsAvailableAsync only consumes Commitment,
-            // Pointer, and Layer. We use the DA writer's mode since the original
-            // pointer isn't available in the commitment alone (this is content-
-            // addressed, so commitment alone is enough for in-memory / RocksDB
-            // writers; real L1-DA / NeoFS writers may need the original pointer
-            // re-derived from another source).
-            var receipt = new DAReceipt
+            var receipt = _receiptResolver?.Invoke(batch) ?? new DAReceipt
             {
                 Commitment = batch.DACommitment,
                 Pointer = ReadOnlyMemory<byte>.Empty,
                 Layer = _da.Mode,
             };
+
+            if (!receipt.Commitment.Equals(batch.DACommitment))
+            {
+                findings.Add(new AuditFinding
+                {
+                    Check = Name,
+                    Passed = false,
+                    BatchNumber = batch.BatchNumber,
+                    Detail = $"batch {batch.BatchNumber} DA receipt commitment {receipt.Commitment} does not match commitment {batch.DACommitment}",
+                });
+                failed++;
+                continue;
+            }
+
             var available = await _da.IsAvailableAsync(receipt, cancellationToken)
                 .ConfigureAwait(false);
             if (!available)

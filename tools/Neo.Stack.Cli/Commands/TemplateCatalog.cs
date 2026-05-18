@@ -29,18 +29,18 @@ internal static class TemplateCatalog
     {
         new Template(
             Name: "rollup",
-            ChainMode: "L2RollupMode", DaMode: "L1", ProofType: "Optimistic",
+            ChainMode: "L2RollupMode", DaMode: "NeoFS", ProofType: "Optimistic",
             SecurityLevel: "Optimistic", SequencerModel: "DbftCommittee",
             ExitModel: "Delayed", GatewayEnabled: false, PermissionlessExit: true,
-            TagLine: "Optimistic L1 DA + dBFT committee + delayed exit (the safe default).",
-            UseCase: "General-purpose Neo L2 — DeFi, dApp hosting. Inherits the §17 mitigation #2 optimistic challenge window so a faulty proof is contestable. L1 DA matches the strongest data-availability tier; everyone can independently re-derive the state by replaying batches from L1. Pick this unless one of the others specifically applies."),
+            TagLine: "Optimistic settlement + NeoFS DA + dBFT committee + delayed exit (the safe default).",
+            UseCase: "General-purpose Neo L2 — DeFi, dApp hosting. Inherits the §17 mitigation #2 optimistic challenge window so a faulty proof is contestable. NeoFS is the canonical N4 DA layer: batches remain Neo-native, content-addressed, and retrievable without forcing every byte into L1 calldata. Pick this unless one of the others specifically applies."),
         new Template(
             Name: "zk-rollup",
-            ChainMode: "L2RollupMode", DaMode: "L1", ProofType: "Zk",
+            ChainMode: "L2RollupMode", DaMode: "NeoFS", ProofType: "Zk",
             SecurityLevel: "Validity", SequencerModel: "DbftCommittee",
             ExitModel: "Permissionless", GatewayEnabled: true, PermissionlessExit: true,
-            TagLine: "ZK validity + L1 DA + permissionless exit. Strongest trust assumption.",
-            UseCase: "Validity-proof rollup. No challenge window — finalization is the proof. L1 DA + permissionless exit gives users the strongest exit guarantee. Gateway-enabled so the chain participates in Phase-5 cross-L2 messaging. Use when the chain warrants ZK proving cost (high TVL, regulatory rigor)."),
+            TagLine: "ZK validity + NeoFS DA + permissionless exit. Strong proof, Neo-native DA.",
+            UseCase: "Validity-proof rollup. No challenge window — finalization is the proof. NeoFS DA + permissionless exit gives users a Neo-native data-retrieval path while keeping L1 settlement focused on commitments and proofs. Gateway-enabled so the chain participates in Phase-5 cross-L2 messaging. Use when the chain warrants ZK proving cost (high TVL, regulatory rigor)."),
         new Template(
             Name: "validium",
             ChainMode: "L2ValidiumMode", DaMode: "NeoFS", ProofType: "Zk",
@@ -50,11 +50,11 @@ internal static class TemplateCatalog
             UseCase: "Validity-proof + off-chain DA. Cheaper than L1 DA + still retrievable via NeoFS. Delayed exit lets the operator drain orderbook on shutdown without users front-running. Gateway-enabled so DEX users can move assets between this and other Elastic Network L2s without round-tripping L1."),
         new Template(
             Name: "sidechain",
-            ChainMode: "SidechainMode", DaMode: "External", ProofType: "None",
+            ChainMode: "SidechainMode", DaMode: "NeoFS", ProofType: "None",
             SecurityLevel: "Sidechain", SequencerModel: "DbftCommittee",
             ExitModel: "Permissionless", GatewayEnabled: false, PermissionlessExit: true,
-            TagLine: "No L1 settlement, attestation only. Permissioned consortia, enterprise.",
-            UseCase: "Lightest-touch variant. SidechainMode + ProofType=None + permissionlessExit. Useful for permissioned consortia or enterprise networks where the L1 anchor isn't a trust anchor — it's just a discovery + asset-bridge endpoint. No prover plugin needed; settlement happens via attestation alone."),
+            TagLine: "No L1 settlement, NeoFS DA, attestation only. Permissioned consortia, enterprise.",
+            UseCase: "Lightest-touch variant. SidechainMode + ProofType=None + permissionlessExit. Useful for permissioned consortia or enterprise networks where the L1 anchor isn't a trust anchor — it's just a discovery + asset-bridge endpoint. NeoFS remains the canonical data-availability store even when the proof model is sidechain-style attestation."),
     };
 
     /// <summary>Resolve a template by name (case-sensitive). Falls back to <c>"rollup"</c> on unknown name.</summary>

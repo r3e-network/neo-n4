@@ -18,7 +18,7 @@ public class UT_L2ChainConfigJsonReader
           "template": "rollup",
           "vm": "neovm2-riscv",
           "chainMode": "L2RollupMode",
-          "daMode": "L1",
+          "daMode": "NeoFS",
           "proofType": "Optimistic",
           "securityLevel": "Optimistic",
           "sequencerModel": "DbftCommittee",
@@ -47,7 +47,7 @@ public class UT_L2ChainConfigJsonReader
         Assert.AreEqual(UInt160.Parse(BridgeHash), config.BridgeAdapter);
         Assert.AreEqual(UInt160.Parse(MessageHash), config.MessageAdapter);
         Assert.AreEqual(SecurityLevel.Optimistic, config.SecurityLevel);
-        Assert.AreEqual(DAMode.L1, config.DAMode);
+        Assert.AreEqual(DAMode.NeoFS, config.DAMode);
         Assert.AreEqual(SequencerModel.DbftCommittee, config.Sequencer);
         Assert.AreEqual(ExitModel.Delayed, config.Exit);
         Assert.IsFalse(config.GatewayEnabled);
@@ -93,7 +93,7 @@ public class UT_L2ChainConfigJsonReader
     {
         // If a future create-chain template forgets a field, surface that here so the
         // operator sees "chain.config.json missing 'daMode'" not a sub-property NRE.
-        var withoutDaMode = SampleJson.Replace("\"daMode\": \"L1\",\n", "");
+        var withoutDaMode = SampleJson.Replace("\"daMode\": \"NeoFS\",\n", "");
         var ex = Assert.ThrowsExactly<ArgumentException>(
             () => L2ChainConfigJsonReader.FromJson(4242, withoutDaMode,
                 OpHash, VerifierHash, BridgeHash, MessageHash));
@@ -136,7 +136,6 @@ public class UT_L2ChainConfigJsonReader
         // Pin the validium template's distinct shape — sequencerModel = DbftCommittee
         // but exitModel = Delayed (off-chain DA so the user can't trivially exit).
         var validiumJson = SampleJson
-            .Replace("\"daMode\": \"L1\"", "\"daMode\": \"NeoFS\"")
             .Replace("\"securityLevel\": \"Optimistic\"", "\"securityLevel\": \"Validium\"")
             .Replace("\"exitModel\": \"Delayed\"", "\"exitModel\": \"Delayed\"")
             .Replace("\"gatewayEnabled\": false", "\"gatewayEnabled\": true")

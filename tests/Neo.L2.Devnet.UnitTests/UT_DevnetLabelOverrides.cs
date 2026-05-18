@@ -37,7 +37,7 @@ public class UT_DevnetLabelOverrides
         // when an operator without --config sees a different label in the RPC.
         var d = DevnetLabelOverrides.Defaults;
         Assert.AreEqual(SecurityLevel.Optimistic, d.SecurityLevel);
-        Assert.AreEqual(DAMode.External, d.DAMode);
+        Assert.AreEqual(DAMode.NeoFS, d.DAMode);
         Assert.IsFalse(d.GatewayEnabled);
         Assert.AreEqual(SequencerModel.DbftCommittee, d.Sequencer);
         Assert.AreEqual(ExitModel.Permissionless, d.Exit);
@@ -151,7 +151,7 @@ public class UT_DevnetLabelOverrides
         var result = DevnetLabelOverrides.ReadFromConfig(path);
         Assert.AreEqual(SecurityLevel.Optimistic, result.SecurityLevel,
             "valid field still applies");
-        Assert.AreEqual(DAMode.External, result.DAMode,
+        Assert.AreEqual(DAMode.NeoFS, result.DAMode,
             "invalid enum value falls back to that field's default");
     }
 

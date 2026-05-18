@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">信任边界图</title>
+  <desc id="desc">按信任域分组组件；每个跨域动作都需要证明、签名阈值、治理或注册表绑定。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#526173"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.0" flood-color="#000000" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .bg { fill: #fbfcfe; }
+      .page-title { font-size: 22px; font-weight: 750; fill: #1e2a55; }
+      .page-subtitle { font-size: 12.5px; fill: #526173; }
+      .box-title { font-size: 14px; font-weight: 750; fill: #1e2a55; }
+      .small-title { font-size: 12px; font-weight: 700; fill: #1e2a55; }
+      .lane-title { font-size: 13px; font-weight: 750; fill: #1e2a55; }
+      .body { font-size: 11.5px; fill: #2d3a48; }
+      .body-strong { font-size: 11.5px; font-weight: 700; fill: #1e2a55; }
+      .caption { font-size: 11px; fill: #526173; font-style: italic; }
+      .arrow { stroke: #526173; stroke-width: 1.7; }
+      .dashed { stroke-dasharray: 6 5; }
+      .arrow-label { font-size: 10.5px; fill: #526173; font-weight: 650; }
+      .lifeline { stroke: #c7d0dc; stroke-width: 1.1; stroke-dasharray: 4 4; }
+      .zone-title { font-size: 13px; font-weight: 750; fill: #526173; letter-spacing: .2px; }
+      .mono { font-family: 'Noto Sans Mono CJK SC', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10.5px; fill: #1e2a55; }
+    </style>
+  </defs>
+  <rect class="bg" width="1200" height="720"/>
+  <text x="36" y="40" class="page-title">信任边界图</text>
+  <text x="36" y="63" class="page-subtitle">按信任域分组组件；每个跨域动作都需要证明、签名阈值、治理或注册表绑定。</text>
+<rect x="45" y="110" width="250" height="500" rx="12" fill="#eaf2ff" stroke="#a9bce1"/>
+<text x="65" y="140" class="zone-title">用户控制域</text>
+<rect x="75" y="175" width="190" height="44" rx="7" fill="#ffffff" stroke="#d8dee8"/><text x="170" y="202" text-anchor="middle" class="small-title">钱包 / SDK</text>
+<rect x="75" y="245" width="190" height="44" rx="7" fill="#ffffff" stroke="#d8dee8"/><text x="170" y="272" text-anchor="middle" class="small-title">用户资金</text>
+<rect x="75" y="315" width="190" height="44" rx="7" fill="#ffffff" stroke="#d8dee8"/><text x="170" y="342" text-anchor="middle" class="small-title">已签名交易意图</text>
+<rect x="330" y="110" width="265" height="500" rx="12" fill="#fff5e6" stroke="#e4c17d"/>
+<text x="350" y="140" class="zone-title">运营方控制域</text>
+<rect x="365" y="175" width="195" height="44" rx="7" fill="#ffffff" stroke="#d8dee8"/><text x="462.5" y="202" text-anchor="middle" class="small-title">排序器 / Batcher</text>
+<rect x="365" y="245" width="195" height="44" rx="7" fill="#ffffff" stroke="#d8dee8"/><text x="462.5" y="272" text-anchor="middle" class="small-title">Watcher 守护进程</text>
+<rect x="365" y="315" width="195" height="44" rx="7" fill="#ffffff" stroke="#d8dee8"/><text x="462.5" y="342" text-anchor="middle" class="small-title">证明器 / DA 写入器</text>
+<rect x="630" y="110" width="245" height="500" rx="12" fill="#eaf7f0" stroke="#9fd3b1"/>
+<text x="650" y="140" class="zone-title">链上验证域</text>
+<rect x="665" y="175" width="175" height="44" rx="7" fill="#ffffff" stroke="#d8dee8"/><text x="752.5" y="202" text-anchor="middle" class="small-title">NeoHub 合约</text>
+<rect x="665" y="245" width="175" height="44" rx="7" fill="#ffffff" stroke="#d8dee8"/><text x="752.5" y="272" text-anchor="middle" class="small-title">Token 注册表</text>
+<rect x="665" y="315" width="175" height="44" rx="7" fill="#ffffff" stroke="#d8dee8"/><text x="752.5" y="342" text-anchor="middle" class="small-title">Verifier 注册表</text>
+<rect x="910" y="110" width="245" height="500" rx="12" fill="#f7ecff" stroke="#c4a1dd"/>
+<text x="930" y="140" class="zone-title">外链域</text>
+<rect x="945" y="175" width="175" height="44" rx="7" fill="#ffffff" stroke="#d8dee8"/><text x="1032.5" y="202" text-anchor="middle" class="small-title">外链路由器</text>
+<rect x="945" y="245" width="175" height="44" rx="7" fill="#ffffff" stroke="#d8dee8"/><text x="1032.5" y="272" text-anchor="middle" class="small-title">MPC 委员会</text>
+<rect x="945" y="315" width="175" height="44" rx="7" fill="#ffffff" stroke="#d8dee8"/><text x="1032.5" y="342" text-anchor="middle" class="small-title">外部 RPC</text>
+<line x1="265" y1="197" x2="365" y2="197" class="arrow" marker-end="url(#arrow)"/><text x="315" y="189" text-anchor="middle" class="arrow-label">签名操作</text>
+<line x1="560" y1="267" x2="665" y2="267" class="arrow" marker-end="url(#arrow)"/><text x="612" y="259" text-anchor="middle" class="arrow-label">证明 / 根</text>
+<line x1="840" y1="197" x2="945" y2="197" class="arrow" marker-end="url(#arrow)"/><text x="892" y="189" text-anchor="middle" class="arrow-label">消息证明</text>
+<line x1="460" y1="359" x2="752" y2="359" class="arrow dashed" marker-end="url(#arrow)"/><text x="606" y="351" text-anchor="middle" class="arrow-label">治理 + 罚没控制</text>
+<line x1="1032" y1="315" x2="462" y2="315" class="arrow dashed" marker-end="url(#arrow)"/><text x="747" y="307" text-anchor="middle" class="arrow-label">RPC 数据在验证前不可信</text>
+<text x="55" y="660" class="caption">链下组件可以产生数据，但会计状态跨域变更只能通过链上检查。</text>
+</svg>

@@ -41,3 +41,7 @@
 - [Application Engine + MPT 计划](./plan-application-engine-and-mpt.md)
 - [ZKsync 弹性链对比](./zksync-comparison.md)
 - [测试方法论](./testing-approach.md)
+
+# 审计证据
+
+- [仓库级一致性 / 本地化 / 安全审计](./audit/repository-wide-consistency-localization-security-2026-05-18.md)

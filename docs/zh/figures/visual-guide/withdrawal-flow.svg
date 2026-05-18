@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 690" width="1200" height="690" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">L2 到 L1 提款流程</title>
+  <desc id="desc">SharedBridge 释放 L1 资产前，提款叶子必须绑定完整原像。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#526173"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.0" flood-color="#000000" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .bg { fill: #fbfcfe; }
+      .page-title { font-size: 22px; font-weight: 750; fill: #1e2a55; }
+      .page-subtitle { font-size: 12.5px; fill: #526173; }
+      .box-title { font-size: 14px; font-weight: 750; fill: #1e2a55; }
+      .small-title { font-size: 12px; font-weight: 700; fill: #1e2a55; }
+      .lane-title { font-size: 13px; font-weight: 750; fill: #1e2a55; }
+      .body { font-size: 11.5px; fill: #2d3a48; }
+      .body-strong { font-size: 11.5px; font-weight: 700; fill: #1e2a55; }
+      .caption { font-size: 11px; fill: #526173; font-style: italic; }
+      .arrow { stroke: #526173; stroke-width: 1.7; }
+      .dashed { stroke-dasharray: 6 5; }
+      .arrow-label { font-size: 10.5px; fill: #526173; font-weight: 650; }
+      .lifeline { stroke: #c7d0dc; stroke-width: 1.1; stroke-dasharray: 4 4; }
+      .zone-title { font-size: 13px; font-weight: 750; fill: #526173; letter-spacing: .2px; }
+      .mono { font-family: 'Noto Sans Mono CJK SC', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10.5px; fill: #1e2a55; }
+    </style>
+  </defs>
+  <rect class="bg" width="1200" height="690"/>
+  <text x="36" y="40" class="page-title">L2 到 L1 提款流程</text>
+  <text x="36" y="63" class="page-subtitle">SharedBridge 释放 L1 资产前，提款叶子必须绑定完整原像。</text>
+<g>
+  <rect x="45" y="115" width="165" height="500" rx="8" fill="#eaf2ff" stroke="#d8dee8"/>
+  <text x="127.5" y="145" text-anchor="middle" class="lane-title">L2 用户</text>
+  <line x1="127.5" y1="163" x2="127.5" y2="597" class="lifeline"/>
+</g>
+<g>
+  <rect x="250" y="115" width="180" height="500" rx="8" fill="#e7f8fb" stroke="#d8dee8"/>
+  <text x="340" y="145" text-anchor="middle" class="lane-title">L2BridgeContract</text>
+  <line x1="340" y1="163" x2="340" y2="597" class="lifeline"/>
+</g>
+<g>
+  <rect x="470" y="115" width="190" height="500" rx="8" fill="#fff5e6" stroke="#d8dee8"/>
+  <text x="565" y="145" text-anchor="middle" class="lane-title">批次 / 状态根</text>
+  <line x1="565" y1="163" x2="565" y2="597" class="lifeline"/>
+</g>
+<g>
+  <rect x="700" y="115" width="185" height="500" rx="8" fill="#eaf7f0" stroke="#d8dee8"/>
+  <text x="792.5" y="145" text-anchor="middle" class="lane-title">SettlementManager</text>
+  <line x1="792.5" y1="163" x2="792.5" y2="597" class="lifeline"/>
+</g>
+<g>
+  <rect x="925" y="115" width="220" height="500" rx="8" fill="#eaf7f0" stroke="#d8dee8"/>
+  <text x="1035" y="145" text-anchor="middle" class="lane-title">SharedBridge + TokenRegistry</text>
+  <line x1="1035" y1="163" x2="1035" y2="597" class="lifeline"/>
+</g>
+<line x1="128" y1="175" x2="340" y2="175" class="arrow" marker-end="url(#arrow)"/><text x="234" y="167" text-anchor="middle" class="arrow-label">1. Withdraw(l2Asset, amount, l1Recipient)</text>
+<rect x="270" y="215" width="140" height="42" rx="7" fill="#e7f8fb" stroke="#d8dee8"/><text x="340" y="241" text-anchor="middle" class="small-title">销毁封装资产</text>
+<line x1="340" y1="265" x2="565" y2="265" class="arrow" marker-end="url(#arrow)"/><text x="452" y="257" text-anchor="middle" class="arrow-label">2. WithdrawalEmitted 叶子</text>
+<rect x="492" y="305" width="150" height="46" rx="7" fill="#fff5e6" stroke="#d8dee8"/><text x="567" y="333" text-anchor="middle" class="small-title">封入批次根</text>
+<line x1="565" y1="355" x2="792" y2="355" class="arrow" marker-end="url(#arrow)"/><text x="678" y="347" text-anchor="middle" class="arrow-label">3. 提交并终结批次</text>
+<rect x="715" y="395" width="155" height="46" rx="7" fill="#eaf7f0" stroke="#d8dee8"/><text x="792.5" y="423" text-anchor="middle" class="small-title">根进入终局</text>
+<line x1="792" y1="447" x2="1035" y2="447" class="arrow" marker-end="url(#arrow)"/><text x="914" y="439" text-anchor="middle" class="arrow-label">4. FinalizeWithdrawalWithProof</text>
+<rect x="930" y="490" width="210" height="78" rx="8" fill="#ffecec" stroke="#e8a6a6"/>
+<text x="948" y="518" class="body-strong">安全绑定</text>
+<text x="948" y="540" class="body">重新计算提款叶子</text>
+<text x="948" y="558" class="body">检查 TokenRegistry 映射</text>
+<text x="70" y="642" class="caption">审计修复：仅证明叶子包含还不够；付款参数必须是规范叶子原像。</text>
+</svg>

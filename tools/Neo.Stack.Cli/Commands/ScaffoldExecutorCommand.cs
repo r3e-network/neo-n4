@@ -217,7 +217,7 @@ internal static class ScaffoldExecutorCommand
                     return op switch
                     {
                         Opcode.NoOp => ExecuteNoOp(txHash),
-                        // TODO: add your chain's opcodes here.
+                        // Add your chain's opcode handlers here.
                         _ => Failed(txHash, gas: 0),
                     };
                 }
@@ -334,7 +334,7 @@ internal static class ScaffoldExecutorCommand
                 /// <summary>Build a NoOp transaction: <c>[0x01]</c> (no payload).</summary>
                 public static byte[] NoOp() => new[] { (byte){{projectName}}.Opcode.NoOp };
 
-                // TODO: add builders for your chain's opcodes here.
+                // Add builders for your chain's opcodes here.
             }
             """);
     }

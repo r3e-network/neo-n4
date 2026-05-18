@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" width="1200" height="700" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">运营手册流程</title>
+  <desc id="desc">从工具链设置到 NeoHub 部署、L2 注册、桥适配器、监听er 和遥测的端到端上线路径。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#526173"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.0" flood-color="#000000" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .bg { fill: #fbfcfe; }
+      .page-title { font-size: 22px; font-weight: 750; fill: #1e2a55; }
+      .page-subtitle { font-size: 12.5px; fill: #526173; }
+      .box-title { font-size: 14px; font-weight: 750; fill: #1e2a55; }
+      .small-title { font-size: 12px; font-weight: 700; fill: #1e2a55; }
+      .lane-title { font-size: 13px; font-weight: 750; fill: #1e2a55; }
+      .body { font-size: 11.5px; fill: #2d3a48; }
+      .body-strong { font-size: 11.5px; font-weight: 700; fill: #1e2a55; }
+      .caption { font-size: 11px; fill: #526173; font-style: italic; }
+      .arrow { stroke: #526173; stroke-width: 1.7; }
+      .dashed { stroke-dasharray: 6 5; }
+      .arrow-label { font-size: 10.5px; fill: #526173; font-weight: 650; }
+      .lifeline { stroke: #c7d0dc; stroke-width: 1.1; stroke-dasharray: 4 4; }
+      .zone-title { font-size: 13px; font-weight: 750; fill: #526173; letter-spacing: .2px; }
+      .mono { font-family: 'Noto Sans Mono CJK SC', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10.5px; fill: #1e2a55; }
+    </style>
+  </defs>
+  <rect class="bg" width="1200" height="700"/>
+  <text x="36" y="40" class="page-title">运营手册流程</text>
+  <text x="36" y="63" class="page-subtitle">从工具链设置到 NeoHub 部署、L2 注册、桥适配器、监听er 和遥测的端到端上线路径。</text>
+<rect x="65" y="130" width="185" height="52" rx="7" fill="#eaf2ff" stroke="#d8dee8"/><text x="157.5" y="161" text-anchor="middle" class="small-title">1. 安装工具链</text>
+<rect x="315" y="130" width="185" height="52" rx="7" fill="#eaf7f0" stroke="#d8dee8"/><text x="407.5" y="161" text-anchor="middle" class="small-title">2. 构建 + 测试</text>
+<rect x="565" y="130" width="185" height="52" rx="7" fill="#fff5e6" stroke="#d8dee8"/><text x="657.5" y="161" text-anchor="middle" class="small-title">3. 生成产物</text>
+<rect x="815" y="130" width="220" height="52" rx="7" fill="#eaf7f0" stroke="#d8dee8"/><text x="925" y="161" text-anchor="middle" class="small-title">4. 部署 NeoHub 包</text>
+<rect x="185" y="335" width="200" height="52" rx="7" fill="#e7f8fb" stroke="#d8dee8"/><text x="285" y="366" text-anchor="middle" class="small-title">5. 注册 L2 链</text>
+<rect x="455" y="335" width="220" height="52" rx="7" fill="#e7f8fb" stroke="#d8dee8"/><text x="565" y="366" text-anchor="middle" class="small-title">6. 部署 L2 适配器</text>
+<rect x="745" y="335" width="220" height="52" rx="7" fill="#f7ecff" stroke="#d8dee8"/><text x="855" y="366" text-anchor="middle" class="small-title">7. 配置 监听er</text>
+<rect x="455" y="535" width="220" height="52" rx="7" fill="#fff9d9" stroke="#d8dee8"/><text x="565" y="566" text-anchor="middle" class="small-title">8. 启用遥测</text>
+<line x1="250" y1="156" x2="315" y2="156" class="arrow" marker-end="url(#arrow)"/>
+<line x1="500" y1="156" x2="565" y2="156" class="arrow" marker-end="url(#arrow)"/>
+<line x1="750" y1="156" x2="815" y2="156" class="arrow" marker-end="url(#arrow)"/>
+<line x1="925" y1="182" x2="285" y2="335" class="arrow" marker-end="url(#arrow)"/>
+<line x1="385" y1="361" x2="455" y2="361" class="arrow" marker-end="url(#arrow)"/>
+<line x1="675" y1="361" x2="745" y2="361" class="arrow" marker-end="url(#arrow)"/>
+<line x1="855" y1="387" x2="565" y2="535" class="arrow" marker-end="url(#arrow)"/>
+<rect x="210" y="610" width="760" height="46" rx="8" fill="#ffffff" stroke="#d8dee8"/>
+<text x="230" y="638" class="body">上线门槛：部署后接线、注册表绑定、监听er 预检和健康检查全部通过前，不开放存款。</text>
+</svg>

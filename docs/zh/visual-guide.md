@@ -12,55 +12,55 @@
 
 ## System Context
 
-![Neo N4 system context](../figures/visual-guide/system-context.svg)
+![Neo N4 system context](figures/visual-guide/system-context.svg)
 
 ## Code Module Map
 
-![Neo N4 code module map](../figures/visual-guide/module-map.svg)
+![Neo N4 code module map](figures/visual-guide/module-map.svg)
 
 ## L1 To L2 Deposit Flow
 
-![L1 to L2 deposit flow](../figures/visual-guide/deposit-flow.svg)
+![L1 to L2 deposit flow](figures/visual-guide/deposit-flow.svg)
 
 ## L2 To L1 Withdrawal Flow
 
-![L2 to L1 withdrawal flow](../figures/visual-guide/withdrawal-flow.svg)
+![L2 to L1 withdrawal flow](figures/visual-guide/withdrawal-flow.svg)
 
 ## Batch Settlement Lifecycle
 
-![Batch settlement lifecycle](../figures/visual-guide/batch-lifecycle.svg)
+![Batch settlement lifecycle](figures/visual-guide/batch-lifecycle.svg)
 
 ## External Bridge Data Flow
 
-![External bridge data flow](../figures/visual-guide/external-bridge-flow.svg)
+![External bridge data flow](figures/visual-guide/external-bridge-flow.svg)
 
 ## Production Deployment Pipeline
 
-![Production deployment pipeline](../figures/visual-guide/deployment-pipeline.svg)
+![Production deployment pipeline](figures/visual-guide/deployment-pipeline.svg)
 
 ## Core Data Structures
 
-![Core data structures](../figures/visual-guide/data-structures.svg)
+![Core data structures](figures/visual-guide/data-structures.svg)
 
 ## Trust Boundary Map
 
-![Trust boundary map](../figures/visual-guide/trust-boundaries-map.svg)
+![Trust boundary map](figures/visual-guide/trust-boundaries-map.svg)
 
 ## Watcher Daemon State Machine
 
-![Watcher daemon state machine](../figures/visual-guide/watcher-state-machine.svg)
+![Watcher daemon state machine](figures/visual-guide/watcher-state-machine.svg)
 
 ## Verification Matrix
 
-![Verification matrix](../figures/visual-guide/testing-matrix.svg)
+![Verification matrix](figures/visual-guide/testing-matrix.svg)
 
 ## Operator Runbook Flow
 
-![Operator runbook flow](../figures/visual-guide/operator-runbook.svg)
+![Operator runbook flow](figures/visual-guide/operator-runbook.svg)
 
 ## Source To Artifact Map
 
-![Source to artifact map](../figures/visual-guide/project-artifact-map.svg)
+![Source to artifact map](figures/visual-guide/project-artifact-map.svg)
 
 ## 重新生成
 

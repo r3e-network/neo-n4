@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">Neo N4 系统上下文</title>
+  <desc id="desc">一图展示用户、NeoHub L1、弹性 L2 链、外链和运营服务。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#526173"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.0" flood-color="#000000" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .bg { fill: #fbfcfe; }
+      .page-title { font-size: 22px; font-weight: 750; fill: #1e2a55; }
+      .page-subtitle { font-size: 12.5px; fill: #526173; }
+      .box-title { font-size: 14px; font-weight: 750; fill: #1e2a55; }
+      .small-title { font-size: 12px; font-weight: 700; fill: #1e2a55; }
+      .lane-title { font-size: 13px; font-weight: 750; fill: #1e2a55; }
+      .body { font-size: 11.5px; fill: #2d3a48; }
+      .body-strong { font-size: 11.5px; font-weight: 700; fill: #1e2a55; }
+      .caption { font-size: 11px; fill: #526173; font-style: italic; }
+      .arrow { stroke: #526173; stroke-width: 1.7; }
+      .dashed { stroke-dasharray: 6 5; }
+      .arrow-label { font-size: 10.5px; fill: #526173; font-weight: 650; }
+      .lifeline { stroke: #c7d0dc; stroke-width: 1.1; stroke-dasharray: 4 4; }
+      .zone-title { font-size: 13px; font-weight: 750; fill: #526173; letter-spacing: .2px; }
+      .mono { font-family: 'Noto Sans Mono CJK SC', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10.5px; fill: #1e2a55; }
+    </style>
+  </defs>
+  <rect class="bg" width="1200" height="720"/>
+  <text x="36" y="40" class="page-title">Neo N4 系统上下文</text>
+  <text x="36" y="63" class="page-subtitle">一图展示用户、NeoHub L1、弹性 L2 链、外链和运营服务。</text>
+<g>
+  <rect x="55" y="105" width="210" height="125" rx="8" fill="#eaf2ff" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="71" y="132" class="box-title">用户和钱包</text>
+  <text x="71" y="157" class="body" text-anchor="start"><tspan x="71" dy="0">存入和提取</tspan><tspan x="71" dy="18">签署治理交易</tspan><tspan x="71" dy="18">读取 SDK/RPC 状态</tspan></text>
+</g>
+<g>
+  <rect x="360" y="105" width="250" height="165" rx="8" fill="#eaf7f0" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="376" y="132" class="box-title">NeoHub L1 锚定层</text>
+  <text x="376" y="157" class="body" text-anchor="start"><tspan x="376" dy="0">SharedBridge / SettlementManager</tspan><tspan x="376" dy="18">ChainRegistry / TokenRegistry</tspan><tspan x="376" dy="18">VerifierRegistry / Governance</tspan><tspan x="376" dy="18">ExternalBridgeEscrow</tspan></text>
+</g>
+<g>
+  <rect x="725" y="105" width="220" height="145" rx="8" fill="#e7f8fb" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="741" y="132" class="box-title">弹性 L2 链</text>
+  <text x="741" y="157" class="body" text-anchor="start"><tspan x="741" dy="0">Neo 4 core + L2 插件</tspan><tspan x="741" dy="18">L2 原生合约</tspan><tspan x="741" dy="18">执行、批次、状态根</tspan></text>
+</g>
+<g>
+  <rect x="55" y="390" width="245" height="135" rx="8" fill="#f7ecff" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="71" y="417" class="box-title">外部网络</text>
+  <text x="71" y="442" class="body" text-anchor="start"><tspan x="71" dy="0">EVM family / Tron / Solana</tspan><tspan x="71" dy="18">外链路由合约</tspan><tspan x="71" dy="18">锁定、释放、发出事件</tspan></text>
+</g>
+<g>
+  <rect x="405" y="405" width="250" height="145" rx="8" fill="#fff5e6" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="421" y="432" class="box-title">链下运行时</text>
+  <text x="421" y="457" class="body" text-anchor="start"><tspan x="421" dy="0">排序器 / 批处理器 / 证明器</tspan><tspan x="421" dy="18">DA 写入器 / 桥 监听er</tspan><tspan x="421" dy="18">遥测 + 健康检查</tspan></text>
+</g>
+<g>
+  <rect x="770" y="405" width="250" height="135" rx="8" fill="#f4f6f8" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="786" y="432" class="box-title">开发者入口</text>
+  <text x="786" y="457" class="body" text-anchor="start"><tspan x="786" dy="0">C# / TypeScript / Rust SDK</tspan><tspan x="786" dy="18">neo-stack / neo-bridge CLI</tspan><tspan x="786" dy="18">文档 + 生成产物</tspan></text>
+</g>
+<line x1="265" y1="168" x2="360" y2="168" class="arrow" marker-end="url(#arrow)"/><text x="312" y="160" text-anchor="middle" class="arrow-label">签名交易</text>
+<line x1="610" y1="168" x2="725" y2="168" class="arrow" marker-end="url(#arrow)"/><text x="668" y="160" text-anchor="middle" class="arrow-label">消息 / 根</text>
+<line x1="835" y1="250" x2="530" y2="405" class="arrow dashed" marker-end="url(#arrow)"/><text x="682" y="320" text-anchor="middle" class="arrow-label">批次 + 证明</text>
+<line x1="300" y1="458" x2="405" y2="458" class="arrow" marker-end="url(#arrow)"/><text x="352" y="450" text-anchor="middle" class="arrow-label">外链事件</text>
+<line x1="655" y1="458" x2="770" y2="458" class="arrow" marker-end="url(#arrow)"/><text x="712" y="450" text-anchor="middle" class="arrow-label">运营 API</text>
+<line x1="176" y1="390" x2="176" y2="230" class="arrow dashed" marker-end="url(#arrow)"/><text x="176" y="302" text-anchor="middle" class="arrow-label">钱包桥接</text>
+<line x1="495" y1="405" x2="495" y2="270" class="arrow dashed" marker-end="url(#arrow)"/><text x="495" y="330" text-anchor="middle" class="arrow-label">结算交易</text>
+<text x="55" y="650" class="caption">实线表示链上状态变更；虚线表示链下证明、事件监听或运营控制流。</text>
+</svg>

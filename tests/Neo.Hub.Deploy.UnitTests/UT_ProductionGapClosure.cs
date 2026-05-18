@@ -136,6 +136,77 @@ public class UT_ProductionGapClosure
         StringAssert.Contains(readme, "22 production");
     }
 
+    [TestMethod]
+    public void CurrentDocumentation_EveryEnglishMarkdownHasChineseCounterpart()
+    {
+        var root = FindRepositoryRoot();
+        var missing = Directory
+            .EnumerateFiles(root, "*.*", SearchOption.AllDirectories)
+            .Where(path => IsMarkdown(path) && !IsSkippedPath(root, path) && !IsChinesePath(root, path))
+            .Select(path => Relative(root, path))
+            .Select(relative => new { English = relative, Chinese = ExpectedChineseMarkdown(relative) })
+            .Where(pair => !File.Exists(Path.Combine(root, pair.Chinese)))
+            .Select(pair => $"{pair.English} -> {pair.Chinese}")
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.AreEqual(0, missing.Length,
+            "Every English Markdown document must have a Chinese counterpart:\n" + string.Join('\n', missing));
+    }
+
+    [TestMethod]
+    public void CurrentDocumentation_EveryEnglishFigureHasChineseCounterpart()
+    {
+        var root = FindRepositoryRoot();
+        var missing = Directory
+            .EnumerateFiles(root, "*.*", SearchOption.AllDirectories)
+            .Where(path => IsFigure(path) && !IsSkippedPath(root, path) && !IsChinesePath(root, path))
+            .Select(path => Relative(root, path))
+            .Select(relative => new { English = relative, Chinese = ExpectedChineseFigure(relative) })
+            .Where(pair => !File.Exists(Path.Combine(root, pair.Chinese)))
+            .Select(pair => $"{pair.English} -> {pair.Chinese}")
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.AreEqual(0, missing.Length,
+            "Every English figure/diagram asset must have a Chinese counterpart:\n" + string.Join('\n', missing));
+    }
+
+    [TestMethod]
+    public void CurrentDocumentation_ChineseMarkdownCounterpartsContainChineseText()
+    {
+        var root = FindRepositoryRoot();
+        var missingChineseText = Directory
+            .EnumerateFiles(root, "*.*", SearchOption.AllDirectories)
+            .Where(path => IsMarkdown(path) && !IsSkippedPath(root, path) && !IsChinesePath(root, path))
+            .Select(path => ExpectedChineseMarkdown(Relative(root, path)))
+            .Where(relative =>
+            {
+                var zhPath = Path.Combine(root, relative);
+                return File.Exists(zhPath) && !File.ReadAllText(zhPath).Any(IsChineseCharacter);
+            })
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.AreEqual(0, missingChineseText.Length,
+            "Chinese Markdown counterparts must contain localized Chinese text:\n" + string.Join('\n', missingChineseText));
+    }
+
+    [TestMethod]
+    public void CurrentDocumentation_ChineseSvgFiguresContainChineseText()
+    {
+        var root = FindRepositoryRoot();
+        var missingChineseText = Directory
+            .EnumerateFiles(Path.Combine(root, "docs", "zh", "figures"), "*.svg", SearchOption.AllDirectories)
+            .Where(path => !File.ReadAllText(path).Any(IsChineseCharacter))
+            .Select(path => Relative(root, path))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.AreEqual(0, missingChineseText.Length,
+            "Chinese SVG counterparts must contain localized Chinese text:\n" + string.Join('\n', missingChineseText));
+    }
+
     private static UInt160 H(byte b)
     {
         var bytes = new byte[20];
@@ -158,4 +229,59 @@ public class UT_ProductionGapClosure
 
         throw new DirectoryNotFoundException("Could not find repository root containing Neo.L2.sln");
     }
+
+    private static bool IsMarkdown(string path)
+    {
+        var ext = Path.GetExtension(path);
+        return ext.Equals(".md", StringComparison.OrdinalIgnoreCase)
+            || ext.Equals(".mdx", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsFigure(string path)
+    {
+        var ext = Path.GetExtension(path);
+        return ext.Equals(".svg", StringComparison.OrdinalIgnoreCase)
+            || ext.Equals(".png", StringComparison.OrdinalIgnoreCase)
+            || ext.Equals(".jpg", StringComparison.OrdinalIgnoreCase)
+            || ext.Equals(".jpeg", StringComparison.OrdinalIgnoreCase)
+            || ext.Equals(".webp", StringComparison.OrdinalIgnoreCase)
+            || ext.Equals(".mermaid", StringComparison.OrdinalIgnoreCase)
+            || ext.Equals(".mmd", StringComparison.OrdinalIgnoreCase)
+            || ext.Equals(".drawio", StringComparison.OrdinalIgnoreCase)
+            || ext.Equals(".puml", StringComparison.OrdinalIgnoreCase)
+            || ext.Equals(".dot", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSkippedPath(string root, string path)
+    {
+        var relative = Relative(root, path);
+        var parts = relative.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Any(part => part is ".git" or "bin" or "obj" or "target" or "book" or "node_modules"))
+            return true;
+
+        return relative.StartsWith("artifacts/", StringComparison.OrdinalIgnoreCase)
+            || relative.StartsWith("external/neo/", StringComparison.OrdinalIgnoreCase)
+            || relative.StartsWith("external/neo-devpack-dotnet/", StringComparison.OrdinalIgnoreCase)
+            || relative.StartsWith("external/neo-riscv-vm/", StringComparison.OrdinalIgnoreCase)
+            || relative.StartsWith("external/neo-zkvm/", StringComparison.OrdinalIgnoreCase)
+            || relative.StartsWith("external/foreign-contracts/eth/lib/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsChinesePath(string root, string path)
+        => Relative(root, path).StartsWith("docs/zh/", StringComparison.OrdinalIgnoreCase);
+
+    private static string ExpectedChineseMarkdown(string relative)
+        => relative.StartsWith("docs/", StringComparison.OrdinalIgnoreCase)
+            ? "docs/zh/" + relative["docs/".Length..]
+            : "docs/zh/" + relative;
+
+    private static string ExpectedChineseFigure(string relative)
+        => relative.StartsWith("docs/figures/", StringComparison.OrdinalIgnoreCase)
+            ? "docs/zh/figures/" + relative["docs/figures/".Length..]
+            : "docs/zh/" + relative;
+
+    private static string Relative(string root, string path)
+        => Path.GetRelativePath(root, path).Replace(Path.DirectorySeparatorChar, '/');
+
+    private static bool IsChineseCharacter(char c) => c is >= '\u4e00' and <= '\u9fff';
 }

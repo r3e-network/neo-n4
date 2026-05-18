@@ -70,7 +70,7 @@ public class UT_ScaffoldExecutorCommand
         StringAssert.Contains(src, "public sealed class FooExecutor : ITransactionExecutor");
         StringAssert.Contains(src, "public ValueTask<TransactionExecutionResult> ExecuteAsync");
         StringAssert.Contains(src, "Opcode.NoOp", "must contain the placeholder NoOp dispatch");
-        StringAssert.Contains(src, "// TODO: add your chain's opcodes here.",
+        StringAssert.Contains(src, "// Add your chain's opcode handlers here.",
             "must contain the customization marker");
     }
 

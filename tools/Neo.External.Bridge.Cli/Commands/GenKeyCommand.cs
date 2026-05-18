@@ -79,7 +79,8 @@ internal static class GenKeyCommand
             Console.Error.WriteLine($"   delete it first or pass --out <new-path>");
             return 1;
         }
-        File.WriteAllBytes(outPath, priv);
+        if (!TryWritePrivateKey(outPath, priv))
+            return 1;
         // Best-effort: tighten file permissions so a fresh-install umask (often
         // 022) doesn't leave the priv key world-readable. Skip on Windows where
         // File.SetUnixFileMode isn't supported (and POSIX modes don't apply).
@@ -121,6 +122,27 @@ internal static class GenKeyCommand
     }
 
     private static char HexChar(byte n) => (char)(n < 10 ? '0' + n : 'a' + n - 10);
+
+    private static bool TryWritePrivateKey(string outPath, byte[] priv)
+    {
+        try
+        {
+            using var output = new FileStream(outPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            output.Write(priv);
+            return true;
+        }
+        catch (IOException) when (File.Exists(outPath))
+        {
+            Console.Error.WriteLine($"refusing to overwrite existing file: {outPath}");
+            Console.Error.WriteLine("delete it first or pass --out <new-path>");
+            return false;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            Console.Error.WriteLine($"failed to create private key file '{outPath}': {ex.Message}");
+            return false;
+        }
+    }
 
     private static bool HasFlag(string[] args, string flag)
     {

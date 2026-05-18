@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">验证矩阵</title>
+  <desc id="desc">按运行时表面列出构建、测试、产物和依赖检查。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#526173"/>
+    </marker>
+    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.0" flood-color="#000000" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .bg { fill: #fbfcfe; }
+      .page-title { font-size: 22px; font-weight: 750; fill: #1e2a55; }
+      .page-subtitle { font-size: 12.5px; fill: #526173; }
+      .box-title { font-size: 14px; font-weight: 750; fill: #1e2a55; }
+      .small-title { font-size: 12px; font-weight: 700; fill: #1e2a55; }
+      .lane-title { font-size: 13px; font-weight: 750; fill: #1e2a55; }
+      .body { font-size: 11.5px; fill: #2d3a48; }
+      .body-strong { font-size: 11.5px; font-weight: 700; fill: #1e2a55; }
+      .caption { font-size: 11px; fill: #526173; font-style: italic; }
+      .arrow { stroke: #526173; stroke-width: 1.7; }
+      .dashed { stroke-dasharray: 6 5; }
+      .arrow-label { font-size: 10.5px; fill: #526173; font-weight: 650; }
+      .lifeline { stroke: #c7d0dc; stroke-width: 1.1; stroke-dasharray: 4 4; }
+      .zone-title { font-size: 13px; font-weight: 750; fill: #526173; letter-spacing: .2px; }
+      .mono { font-family: 'Noto Sans Mono CJK SC', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10.5px; fill: #1e2a55; }
+    </style>
+  </defs>
+  <rect class="bg" width="1200" height="720"/>
+  <text x="36" y="40" class="page-title">验证矩阵</text>
+  <text x="36" y="63" class="page-subtitle">按运行时表面列出构建、测试、产物和依赖检查。</text>
+<g>
+  <rect x="55" y="110" width="245" height="140" rx="8" fill="#eaf2ff" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="71" y="137" class="box-title">.NET 解决方案</text>
+  <text x="71" y="162" class="body" text-anchor="start"><tspan x="71" dy="0">102 个项目构建</tspan><tspan x="71" dy="18">单元 + 集成测试</tspan><tspan x="71" dy="18">包漏洞审计</tspan></text>
+</g>
+<g>
+  <rect x="335" y="110" width="245" height="140" rx="8" fill="#eaf7f0" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="351" y="137" class="box-title">智能合约</text>
+  <text x="351" y="162" class="body" text-anchor="start"><tspan x="351" dy="0">28 个产品 + 2 个样例项目</tspan><tspan x="351" dy="18">直接 nccs 产物生成</tspan><tspan x="351" dy="18">NEF + manifest 完整性</tspan></text>
+</g>
+<g>
+  <rect x="615" y="110" width="245" height="140" rx="8" fill="#fff5e6" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="631" y="137" class="box-title">Rust 监听er / SDK</text>
+  <text x="631" y="162" class="body" text-anchor="start"><tspan x="631" dy="0">ETH live-rpc 测试 + clippy</tspan><tspan x="631" dy="18">Solana / Tron 等价性</tspan><tspan x="631" dy="18">cargo audit</tspan></text>
+</g>
+<g>
+  <rect x="895" y="110" width="245" height="140" rx="8" fill="#f7ecff" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="911" y="137" class="box-title">外链合约</text>
+  <text x="911" y="162" class="body" text-anchor="start"><tspan x="911" dy="0">Foundry EVM 测试</tspan><tspan x="911" dy="18">Solana Anchor 测试</tspan><tspan x="911" dy="18">路由器状态隔离</tspan></text>
+</g>
+<g>
+  <rect x="195" y="355" width="245" height="140" rx="8" fill="#e7f8fb" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="211" y="382" class="box-title">TypeScript SDK</text>
+  <text x="211" y="407" class="body" text-anchor="start"><tspan x="211" dy="0">vitest</tspan><tspan x="211" dy="18">tsc</tspan><tspan x="211" dy="18">npm audit</tspan></text>
+</g>
+<g>
+  <rect x="475" y="355" width="245" height="140" rx="8" fill="#fff9d9" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="491" y="382" class="box-title">文档</text>
+  <text x="491" y="407" class="body" text-anchor="start"><tspan x="491" dy="0">mdBook 构建</tspan><tspan x="491" dy="18">SVG 可视化资产</tspan><tspan x="491" dy="18">运营文档一致性</tspan></text>
+</g>
+<g>
+  <rect x="755" y="355" width="245" height="140" rx="8" fill="#ffecec" stroke="#d8dee8" filter="url(#card)"/>
+  <text x="771" y="382" class="box-title">安全卫生</text>
+  <text x="771" y="407" class="body" text-anchor="start"><tspan x="771" dy="0">提款原像绑定</tspan><tspan x="771" dy="18">密钥扫描</tspan><tspan x="771" dy="18">依赖公告跟踪</tspan></text>
+</g>
+<line x1="300" y1="180" x2="335" y2="180" class="arrow" marker-end="url(#arrow)"/><text x="318" y="172" text-anchor="middle" class="arrow-label">构建</text>
+<line x1="580" y1="180" x2="615" y2="180" class="arrow" marker-end="url(#arrow)"/><text x="598" y="172" text-anchor="middle" class="arrow-label">交叉检查</text>
+<line x1="860" y1="180" x2="895" y2="180" class="arrow" marker-end="url(#arrow)"/><text x="878" y="172" text-anchor="middle" class="arrow-label">等价性</text>
+<line x1="615" y1="250" x2="315" y2="355" class="arrow dashed" marker-end="url(#arrow)"/><text x="465" y="294" text-anchor="middle" class="arrow-label">SDK 文档</text>
+<line x1="735" y1="250" x2="595" y2="355" class="arrow dashed" marker-end="url(#arrow)"/><text x="665" y="294" text-anchor="middle" class="arrow-label">可视化文档</text>
+<line x1="895" y1="355" x2="1018" y2="250" class="arrow dashed" marker-end="url(#arrow)"/><text x="956" y="294" text-anchor="middle" class="arrow-label">桥测试</text>
+<text x="55" y="645" class="caption">生产就绪意味着每个运行时表面都有构建、测试、依赖审计或产物完整性检查。</text>
+</svg>

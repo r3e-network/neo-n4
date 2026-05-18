@@ -5,6 +5,16 @@ Local path: `D:\Git\neo-n4`
 Inventory rule: excludes this generated audit directory; treats `external/neo*`
 as upstream/submodule boundary rather than first-party implementation.
 
+## Current Native Contract Note
+
+This directory is a historical audit snapshot from 2026-05-17. Some generated
+CSV rows record the pre-cleanup `contracts/L2Native.*` DevPack projects that
+existed at the time of that review. The current N4 L2 system contract boundary
+is enforced by `docs/core-fork-policy.md`, `contracts/README.md`, and
+`UT_ProductionGapClosure`: L2 system contracts live as Neo core native
+contracts in `external/neo/src/Neo/SmartContract/Native/` and must not be
+reintroduced as deployable contract projects.
+
 ## Executive Result
 
 The follow-up audit found one concrete production-readiness gap in the

@@ -301,8 +301,9 @@ A few isolated drifts surfaced after the big multi-axis sweep:
   `ExternalBridgeStubVerifier` is excluded from production deploy;
   `docs/README.md` already correctly said 20).
 - `docs/architecture-walkthrough.md` doc.md→code mapping row:
-  `contracts/L2Native.*/ (6 contracts)` → "(7 contracts)" since
-  `L2NativeExternalBridgeContract` landed (EN + ZH).
+  legacy deployable L2-native count "(6 contracts)" → "(7 contracts)" since
+  `L2NativeExternalBridgeContract` landed (EN + ZH). The current architecture
+  has since moved N4 L2 system contracts into Neo core native contracts.
 - `AGENTS.md` Quick commands block: `# Type-check + run all 1344 tests`
   → "1362 tests".
 - `CONTRIBUTING.md` Quick start block: same 1344 → 1362.
@@ -409,7 +410,8 @@ suite grew from 15 → 21, but several long-form references to
 - WHITEPAPER.md "The 15 contracts:" → "The 21 contracts:" (intro)
 - WHITEPAPER.md "All 15 contracts type-check..." → "All 21 contracts..."
 - WHITEPAPER.md comparison table "NeoHub (15 contracts)" → "(21)"
-- README.md tree comment `NeoHub.* (15)` → `(21)` and `L2Native.* (6)` → `(7)`
+- README.md tree comment `NeoHub.* (15)` → `(21)` and the legacy
+  L2-native project count `(6)` → `(7)`
 - WHITEPAPER.md `architecture.svg` alt-text: rewrote to acknowledge
   it's a top-level view showing 13 of 21 (fraud verifiers + external
   bridge stack live in NeoHub but are detailed in the
@@ -496,13 +498,14 @@ committee contracts landed:
 
 - AGENTS.md: "19 contracts" → "28 contracts" (total in `contracts/`)
 - AGENTS.md: "NeoHub.* (15 contracts)" → "(21 contracts)"
-- AGENTS.md: "L2Native.* (6 contracts)" → "(7 contracts)"
+- AGENTS.md: legacy L2-native project count "(6 contracts)" → "(7 contracts)"
 - IMPLEMENTATION_STATUS.md: "27 total" → "28 total"
 - IMPLEMENTATION_STATUS.md: "NeoHub L1 suite (20)" → "(21)"
 - IMPLEMENTATION_STATUS.md: "29 contracts total incl. 2 samples" → "30"
 - IMPLEMENTATION_STATUS.md: "all 19 contracts" → "all 28 contracts"
 
-Counted via `ls -d contracts/NeoHub.*/ contracts/L2Native.*/`.
+Counted via the deployable NeoHub directories plus the then-existing legacy
+L2-native contract directories.
 
 ### Fixed — Stale test counts in README + IMPLEMENTATION_STATUS
 
@@ -1471,7 +1474,7 @@ client without breaking it.
     `SequencerBond`. Default `MinBond` 10 GAS.
   - `NeoHub.ExternalBridgeStubVerifier` — Phase-A acceptance test
     verifier returning `true`. `bridgeKind=0` to refuse production.
-  - `L2Native.ExternalBridgeContract` — L2-side counterpart: burn-on-
+  - `L2NativeExternalBridgeContract` — Neo core native L2 counterpart: burn-on-
     send, sequencer-injected mint-on-receive (same pattern as
     `L2BridgeContract`).
   - `external/foreign-contracts/eth/NeoExternalBridgeRouter.sol` (393
@@ -3560,17 +3563,17 @@ bridge UI, doc site, faucet, wallet integration — all deployment-specific).
 ### Added — `samples/contracts/`: 2 sample L2-aware dApp contracts
 
 Original Neo smart contracts demonstrating standard patterns for app
-contracts integrating with the `L2Native.*` system suite. Each compiles
+contracts integrating with the Neo core L2 native system suite. Each compiles
 under `nccs` to `.nef` + `.manifest.json` exactly like the production
 contracts.
 
   - `Sample.CrossChainGreeter` — emit an L2 → L1 / L2 → L2 message via
-    `L2Native.L2MessageContract.EmitMessage`. Shows the standard pattern:
+    `L2MessageContract.EmitMessage`. Shows the standard pattern:
     take the L2Native hash at deploy, expose owner-gated update path,
     `Contract.Call` the partner with the operator-supplied (target,
     receiver, type, payload) tuple.
   - `Sample.WithdrawalDemo` — initiate an L2 → L1 withdrawal via
-    `L2Native.L2BridgeContract.InitiateWithdrawal`. Shows the burn-on-L2 +
+    `L2BridgeContract.InitiateWithdrawal`. Shows the burn-on-L2 +
     enqueue-into-batch-tree pattern users follow when claiming back to L1.
 
 `samples/contracts/README.md` documents the wiring + the recipe for

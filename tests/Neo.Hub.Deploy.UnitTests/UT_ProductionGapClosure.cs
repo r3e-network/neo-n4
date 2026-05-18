@@ -46,10 +46,32 @@ public class UT_ProductionGapClosure
         var root = FindRepositoryRoot();
         var sln = File.ReadAllText(Path.Combine(root, "Neo.L2.sln"));
         var nativeContractSource = Path.Combine(root, "external", "neo", "src", "Neo", "SmartContract", "Native", "L2NativeContracts.cs");
+        var nativeRegistrySource = Path.Combine(root, "external", "neo", "src", "Neo", "SmartContract", "Native", "NativeContract.cs");
+        var nativeSourceText = File.ReadAllText(nativeContractSource);
+        var nativeRegistryText = File.ReadAllText(nativeRegistrySource);
+        string[] nativeContracts =
+        [
+            "L2SystemConfigContract",
+            "L2BatchInfoContract",
+            "L2MessageContract",
+            "L2BridgeContract",
+            "L2FeeContract",
+            "L2PaymasterContract",
+            "L2NativeExternalBridgeContract",
+            "L2AccountAbstraction",
+            "BridgedNep17Contract",
+            "L2InteropVerifier"
+        ];
 
         Assert.IsTrue(File.Exists(nativeContractSource),
             "N4 L2 system contracts must live in the r3e Neo core fork as native contracts.");
-        StringAssert.Contains(File.ReadAllText(nativeContractSource), "public sealed class L2BridgeContract : L2NativeContract");
+        Assert.IsTrue(File.Exists(nativeRegistrySource),
+            "N4 L2 native contracts must be registered by Neo core NativeContract.");
+        foreach (var nativeContract in nativeContracts)
+        {
+            StringAssert.Contains(nativeSourceText, $"public sealed class {nativeContract} : L2NativeContract");
+            StringAssert.Contains(nativeRegistryText, $"public static {nativeContract}");
+        }
         Assert.IsFalse(Directory.EnumerateDirectories(Path.Combine(root, "contracts"), "L2Native.*").Any(),
             "L2Native DevPack projects must not remain as later-deployed contracts.");
         Assert.IsFalse(sln.Contains("contracts\\L2Native.", StringComparison.OrdinalIgnoreCase),

@@ -1,6 +1,7 @@
 # Neo Elastic Network Smart Contracts
 
-This directory contains the deployable **NeoHub** L1 contract suite.
+This directory contains the deployable **NeoHub** L1 contract suite. It must
+not contain N4 L2 system contracts.
 
 N4 L2 system contracts are not deployed from this directory. They are
 registered as Neo core native contracts in the r3e Neo fork at
@@ -22,9 +23,8 @@ dotnet build contracts/
 nccs contracts/NeoHub.ChainRegistry/
 ```
 
-The `Directory.Build.props` here also wires `nccs` into the `BeforeBuild`
-target with `ContinueOnError=true`. When `nccs` is not on `PATH`,
-type-checking still succeeds and only bytecode artifact emission is skipped.
+`dotnet build` type-checks the C# contract surface. CI and deployment
+rehearsals run `nccs` explicitly to emit deployable bytecode artifacts.
 
 ## Layout
 

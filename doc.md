@@ -881,7 +881,7 @@ struct AssetMapping {
 NeoHub.ExternalBridgeRegistry      # externalChainId → IExternalBridgeVerifier 路由
 NeoHub.ExternalBridgeEscrow        # 锁仓 + 入站验证 + 凭证派发
 NeoHub.ExternalBridgeBond          # 委员会绑定 + 切片
-L2Native.ExternalBridgeContract    # L2 侧入口（Send / Receive）
+Neo Core native L2NativeExternalBridgeContract  # L2 侧入口（Send / Receive）
 ```
 
 ### 11.3.2 Verifier 抽象

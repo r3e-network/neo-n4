@@ -40,6 +40,33 @@ flowchart TD
     n4Repo --> verify
 ```
 
+## Native Contract Boundary
+
+N4 L2 system contracts are core protocol surfaces and must live in
+`r3e-network/neo` under `external/neo/src/Neo/SmartContract/Native/`.
+They are registered by `NativeContract` and exist at genesis on every N4 L2
+chain. They must not be reintroduced as DevPack projects under
+`contracts/L2Native.*`, added to `Neo.L2.sln`, or deployed later through
+`Neo.Hub.Deploy`.
+
+The current native set is:
+
+- `L2SystemConfigContract`
+- `L2BatchInfoContract`
+- `L2MessageContract`
+- `L2BridgeContract`
+- `L2FeeContract`
+- `L2PaymasterContract`
+- `L2NativeExternalBridgeContract`
+- `L2AccountAbstraction`
+- `BridgedNep17Contract`
+- `L2InteropVerifier`
+
+NeoHub L1 contracts are a different boundary: they are the L1 anchor contracts
+that mirror ZKsync's L1 Bridgehub/shared-bridge ecosystem. They remain
+deployable L1 contracts unless the Neo L1 itself is intentionally forked and
+the full NeoHub surface is migrated into that L1 core.
+
 Use the fork for changes that cannot be implemented cleanly as a plugin, library,
 contract, SDK, or operator tool in `neo-n4`. Typical fork-owned work includes:
 

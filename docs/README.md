@@ -18,9 +18,11 @@
 > per your deployment.
 
 `neo4` is the consolidation repo for the **Neo Elastic Network** — a system that uses
-[`neo-project/neo`](https://github.com/neo-project/neo) Neo 4 core as the L2 execution
-kernel, anchors every L2 chain to a unified L1 contract suite (**NeoHub**) on Neo N3 / Neo 4
-L1, and aggregates proofs and inter-L2 messages through an optional **Neo Gateway** layer.
+the [`r3e-network/neo`](https://github.com/r3e-network/neo) Neo core fork as the L2
+execution kernel. The fork tracks upstream `neo-project/neo` but gives N4 a dedicated
+branch for native contracts and execution-kernel changes. Every L2 chain anchors to a
+unified L1 contract suite (**NeoHub**) on Neo N3 / Neo 4 L1, and proofs and inter-L2
+messages aggregate through an optional **Neo Gateway** layer.
 
 The architecture borrows the *shared-bridge / chain-registry / proof-aggregation* pattern
 from ZKsync Elastic Chain, rebuilt on Neo's stack: dBFT 2.0 finality, NEP-17 assets, NeoVM,
@@ -103,7 +105,7 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
   SP1/PolkaVM dependency) · `bridge/neo-zkvm-host/` (sp1-sdk 6.2.1 prover +
   `prove-batch daemon`) · `bridge/neo-zkvm-guest/` (the function being
   proved — RISC-V ELF, real Neo N3 VM via `neo_vm_guest::execute`).
-- **Submodules (4)** — `external/neo` (Neo 4 core) ·
+- **Submodules (4)** — `external/neo` (`r3e-network/neo` fork, branch `r3e/neo-n4-core`) ·
   `external/neo-devpack-dotnet` (smart-contract devpack + nccs) ·
   `external/neo-riscv-vm` (PolkaVM-backed Neo RISC-V engine) ·
   `external/neo-zkvm` (Neo VM in pure Rust + SP1 prover crates). None
@@ -172,9 +174,10 @@ Detailed coverage per project: [`IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_ST
 ## Quick start
 
 **Requires** .NET 10 SDK (`dotnet --version` must report `10.0.x`). The
-[`neo-project/neo`](https://github.com/neo-project/neo) Neo 4 core is vendored as a
-git submodule at `external/neo` (it is never released on NuGet; project references
-go directly at the source tree).
+[`r3e-network/neo`](https://github.com/r3e-network/neo) Neo core fork is vendored as a
+git submodule at `external/neo` on branch `r3e/neo-n4-core` (it is never released on
+NuGet; project references go directly at the source tree). `neo-project/neo` is kept as
+the read-only upstream source for controlled syncs, not as this repo's build dependency.
 
 ```bash
 git clone --recurse-submodules https://github.com/r3e-network/neo-n4
@@ -249,6 +252,7 @@ A 5-minute walkthrough is in [`docs/getting-started.md`](./getting-started.md).
 | [`samples/contracts/`](../samples/contracts/README.md)                   | dApp developers       | Sample L2-aware app contracts (`CrossChainGreeter`, `WithdrawalDemo`) showing standard patterns for integrating with `L2Native.*`. |
 | [`docs/tech-stack-coverage.md`](./tech-stack-coverage.md)          | reviewers             | Honest gap analysis of L2-stack coverage — 51 components ✅, 2 🟡 (Phase 4/5 ZK infra), 6 🔴 (out-of-repo: SDKs, explorer, portal, faucet, wallet integration). |
 | [`docs/architecture-walkthrough.md`](./architecture-walkthrough.md) | engineers             | Narrative tour mapping every `doc.md` section to code.               |
+| [`docs/core-fork-policy.md`](./core-fork-policy.md)                | maintainers           | How `external/neo` tracks the `r3e-network/neo` fork and where N4 core/native-contract changes land. |
 | [`docs/telemetry.md`](./telemetry.md)                              | operators             | Metric catalog, wiring example, Prometheus exposition format.        |
 | [`docs/security-model.md`](./security-model.md)                    | operators, reviewers  | What L1 guarantees, threat → mitigation table, operator checklist.   |
 | [`docs/persistence.md`](./persistence.md)                          | operators             | RocksDB-backed durable state — IL2KeyValueStore, per-component wiring, operator checklist. |

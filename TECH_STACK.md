@@ -6,7 +6,7 @@ One-page developer onboarding for the Neo Elastic Network repo. Counts verified 
 
 ## 1. What is Neo N4?
 
-**Neo N4 (a.k.a. Neo Elastic Network)** is a multi-L2 network built on top of [Neo](https://github.com/neo-project/neo)'s Neo 4 core. Many L2 chains anchor to one shared L1 contract suite (**NeoHub**) on Neo N3 / Neo 4 L1, with pluggable execution (NeoVM or RISC-V), pluggable proofs (multisig / optimistic / ZK), pluggable data availability (L1 / NeoFS / DAC), and optional cross-L2 proof aggregation (**Neo Gateway**).
+**Neo N4 (a.k.a. Neo Elastic Network)** is a multi-L2 network built on top of the [`r3e-network/neo`](https://github.com/r3e-network/neo) Neo core fork, which tracks upstream [`neo-project/neo`](https://github.com/neo-project/neo) while reserving `r3e/neo-n4-core` for N4-native core changes. Many L2 chains anchor to one shared L1 contract suite (**NeoHub**) on Neo N3 / Neo 4 L1, with pluggable execution (NeoVM or RISC-V), pluggable proofs (multisig / optimistic / ZK), pluggable data availability (L1 / NeoFS / DAC), and optional cross-L2 proof aggregation (**Neo Gateway**).
 
 Independent implementation — not the official Neo 4 release, not endorsed by Neo Global Development, Neo Foundation, or the `neo-project` organization. Architecture borrows the *shared-bridge + chain-registry + proof-aggregation* pattern from ZKsync Elastic Chain, rebuilt on Neo's stack (dBFT 2.0, NEP-17, NeoVM, NeoFS). See [`README.md`](README.md) for the full provenance disclosure and operator responsibilities; [`SECURITY.md`](SECURITY.md) for the vulnerability-disclosure process.
 
@@ -39,7 +39,7 @@ Independent implementation — not the official Neo 4 release, not endorsed by N
                                     |
                                     v
 +--------------------------------------------------------------------------+
-| Upstream dependency - Neo N4 Core (neo-project/neo)                      |
+| Maintained dependency - Neo N4 Core (r3e-network/neo)                    |
 |   NeoVM | Native contracts | dBFT | RpcServer | ApplicationEngine        |
 +--------------------------------------------------------------------------+
 ```
@@ -91,7 +91,7 @@ Per-component detail lives in [`docs/tech-stack-coverage.md`](docs/tech-stack-co
 
 | Repo | Total | Closed | Remaining | Remaining breakdown |
 |------|------:|-------:|----------:|---------------------|
-| Neo N4 Core (`neo-project/neo`) | 10 | 0 | 10 | 4 critical (ChainMode + GAS / NEO / Policy gating) · 3 high (RpcServer source, OnPersist hook, optional Oracle) · 3 medium (dBFT hook, restricted-state mode, RISC-V mode) |
+| Neo N4 Core (`r3e-network/neo`, branch `r3e/neo-n4-core`) | 10 | 0 | 10 | 4 critical (ChainMode + GAS / NEO / Policy gating) · 3 high (RpcServer source, OnPersist hook, optional Oracle) · 3 medium (dBFT hook, restricted-state mode, RISC-V mode) |
 | This repo (`neo4`) | 24 | 15 | 9 | 4 production-readiness examples · 2 future features · 1 spec-gap deferred (§8-witness-canonical) · 2 ecosystem items (more samples, Python/Go SDKs) |
 | Cross-repo coordination | 3 | 0 | 3 | L2 bootstrap handoff · RpcServer migration · RISC-V mode promotion |
 | **Totals** | **37** | **15** | **22** | |
@@ -106,7 +106,7 @@ remaining gaps worth closing as the framework matures.
 
 | If you want to change... | Goes in... | Why |
 |--------------------------|-----------|-----|
-| NeoVM opcodes / native contracts | **Core** (`neo-project/neo`) | L1 execution kernel — this repo does not fork core |
+| NeoVM opcodes / native contracts | **Core fork** (`r3e-network/neo`) | L1 execution kernel plus N4-native deltas tracked on `r3e/neo-n4-core` |
 | dBFT consensus / RpcServer plugin | **Core** | Same |
 | L1 contracts (NeoHub) | This repo → `contracts/NeoHub.*/` | All 23 L1 contracts live here |
 | L2 native contracts | This repo → `contracts/L2Native.*/` | 10 L2-specific natives |

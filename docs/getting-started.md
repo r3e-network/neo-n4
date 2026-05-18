@@ -5,10 +5,11 @@
 ## Prerequisites
 
 - .NET 10 SDK (`dotnet --version` ≥ `10.0.0`).
-- The [`neo-project/neo`](https://github.com/neo-project/neo) Neo 4 core, vendored as a git
-  submodule at `external/neo` (the `NeoCorePath` property in `Directory.Build.props` defaults
-  to the submodule path). Run `git clone --recurse-submodules` or
-  `git submodule update --init --recursive` after a regular clone.
+- The [`r3e-network/neo`](https://github.com/r3e-network/neo) Neo core fork, vendored
+  as a git submodule at `external/neo` on branch `r3e/neo-n4-core` (the
+  `NeoCorePath` property in `Directory.Build.props` defaults to the submodule path).
+  Run `git clone --recurse-submodules` or `git submodule update --init --recursive`
+  after a regular clone.
 
 ## Step 1 — Clone and check the toolchain
 
@@ -16,7 +17,7 @@
 git clone --recurse-submodules https://github.com/r3e-network/neo-n4
 cd neo-n4
 dotnet --version            # expect 10.0.x
-ls external/neo/src/Neo     # confirm the neo-project/neo submodule
+ls external/neo/src/Neo     # confirm the r3e-network/neo submodule
 ```
 
 If you forgot `--recurse-submodules` at clone time:
@@ -152,7 +153,7 @@ Add `/p:NuGetAudit=false` to your build command. The repo's `Directory.Build.pro
 sets `NuGetAudit=false`, but some restore code paths re-evaluate the property.
 
 **`dotnet test` reports `Could not find external/neo/src/Neo/Neo.csproj`.**
-The neo-project/neo submodule isn't initialized. Run
+The r3e-network/neo submodule isn't initialized. Run
 `git submodule update --init --recursive` from the repo root, or re-clone with
 `git clone --recurse-submodules`. To point at a different checkout, override on the
 command line: `dotnet build /p:NeoCorePath=/path/to/neo/src`.

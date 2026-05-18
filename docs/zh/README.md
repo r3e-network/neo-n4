@@ -17,9 +17,11 @@
 > (实时 L1 签名器、真实 NeoFS 适配器、dBFT 共识选择器)。
 
 `neo4` 是 **Neo Elastic Network** 的整合仓 —— 一个使用
-[`neo-project/neo`](https://github.com/neo-project/neo) Neo 4 core 作为 L2 执行
-内核、把每条 L2 链锚定到 Neo N3 / Neo 4 L1 上的统一 L1 合约套件(**NeoHub**)、
-并通过可选的 **Neo Gateway** 层聚合证明与 L2 间消息的系统。
+[`r3e-network/neo`](https://github.com/r3e-network/neo) Neo core fork 作为 L2 执行
+内核的系统。该 fork 跟踪上游 `neo-project/neo`,并通过 `r3e/neo-n4-core`
+分支承载 N4 所需的 native contract 与执行内核改动。每条 L2 链都会锚定到
+Neo N3 / Neo 4 L1 上的统一 L1 合约套件(**NeoHub**),并通过可选的
+**Neo Gateway** 层聚合证明与 L2 间消息。
 
 本架构借鉴了 ZKsync Elastic Chain 的*共享桥 / 链注册表 / 证明聚合*模式,在 Neo 栈
 上重新构建:dBFT 2.0 终结性、NEP-17 资产、NeoVM、NeoFS 数据可用性。
@@ -86,7 +88,7 @@
   receipt/state 折叠、Merkle root、public-input hash, 无 SP1/PolkaVM 依赖)·
   `bridge/neo-zkvm-host/`(sp1-sdk 6.2.1 证明者 + `prove-batch daemon`)·
   `bridge/neo-zkvm-guest/`(被证明的函数)。
-- **Submodule(4)** —— `external/neo`、`external/neo-devpack-dotnet`、
+- **Submodule(4)** —— `external/neo`(`r3e-network/neo` fork, branch `r3e/neo-n4-core`)、`external/neo-devpack-dotnet`、
   `external/neo-riscv-vm`、`external/neo-zkvm`。
 - **测试(1426 .NET + 159 跨语言)** —— 34 个 .NET 工程的 1426 条测试;
   15 TS + 10 Rust SDK + 5 shared execution-core + 7 SP1 guest +
@@ -117,8 +119,9 @@
 ## 快速上手
 
 **要求** .NET 10 SDK(`dotnet --version` 必须报 `10.0.x`)。
-[`neo-project/neo`](https://github.com/neo-project/neo) Neo 4 core 作为 git
-submodule 引入到 `external/neo`。
+[`r3e-network/neo`](https://github.com/r3e-network/neo) Neo core fork 作为 git
+submodule 引入到 `external/neo`,并跟踪 `r3e/neo-n4-core` 分支。`neo-project/neo`
+作为只读上游用于受控同步,不是本仓库的直接构建依赖。
 
 ```bash
 git clone --recurse-submodules https://github.com/r3e-network/neo-n4

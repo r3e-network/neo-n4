@@ -11,10 +11,11 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591;NU1900;NU1901;NU1902;NU1903;NU1904</NoWarn>
     <!--
-      Path to the neo-project/neo (Neo 4 core) checkout. Default points at the
-      external/neo git submodule so a fresh clone needs nothing more than
-      `git submodule update [init] [recursive]`. Operators who want a local fork
-      can override on the command line: dotnet build /p:NeoCorePath=/path/to/neo/src
+      Path to the r3e-network/neo Neo core fork checkout. Default points at the
+      external/neo git submodule on the r3e/neo-n4-core branch so a fresh clone
+      needs nothing more than `git submodule update [init] [recursive]`.
+      Operators who want a different local checkout can override on the command
+      line: dotnet build /p:NeoCorePath=/path/to/neo/src
     -->
     <NeoCorePath>$(MSBuildThisFileDirectory)external$([System.IO.Path]::DirectorySeparatorChar)neo$([System.IO.Path]::DirectorySeparatorChar)src</NeoCorePath>
     <Authors>Neo Project</Authors>

@@ -21,15 +21,19 @@ silently diverging.
 
 ## Working scope
 
-`neo4` is a **consolidation layer**, not a fork. It adds L2 / NeoHub / Gateway / Stack
-components on top of pre-existing Neo ecosystem repos. The three critical build-dep
-upstreams are vendored as git submodules under `external/` (see
-`project_submodule_layout.md` in memory); other repos in `/home/neo/git/` are
-reference implementations the agent can read but does NOT need to extend in place.
+`neo4` is a **consolidation layer plus an r3e-maintained Neo core fork policy**.
+It adds L2 / NeoHub / Gateway / Stack components on top of pre-existing Neo
+ecosystem repos, and it tracks Neo core changes through `r3e-network/neo` when
+native contracts, ChainMode, or execution-kernel changes are required. The
+critical build dependencies are vendored as git submodules under `external/`;
+other repos in `/home/neo/git/` are reference implementations the agent can read
+but does NOT need to extend in place.
 
-- `neo` — official Neo 4 core (net10.0). Vendored as a git submodule at `external/neo`
-  (never released on NuGet; project references resolve directly to the source tree via
-  `Directory.Build.props` `NeoCorePath`).
+- `neo` — r3e-maintained Neo core fork (net10.0) at
+  `https://github.com/r3e-network/neo`, branch `r3e/neo-n4-core`. Vendored as a
+  git submodule at `external/neo` (never released on NuGet; project references
+  resolve directly to the source tree via `Directory.Build.props` `NeoCorePath`).
+  `neo-project/neo` is the read-only upstream source; do not push there.
 - `neo-zkvm`, `neo-axiom` — ZK proof systems. `bridge/neo-zkvm-host` (Rust prover daemon
   in this repo) is the production prover, built on sp1-sdk 6.2.1; `bridge/neo-zkvm-guest`
   is the function it proves correct (compiled to RISC-V via `cargo prove build`, runs
@@ -153,7 +157,9 @@ operator plans rather than performing the wallet-side submission.
 
 ## Don'ts
 
-- **Don't fork** `neo-project/neo`. Extend via plugins and references.
+- **Don't push to `neo-project/neo`**. Core/native-contract changes belong in
+  `r3e-network/neo` on `r3e/neo-n4-core`; `neo-project/neo` stays as read-only
+  upstream for review and controlled syncs.
 - **Don't issue canonical GAS on L2** outside the bridge mint path.
 - **Don't bypass `ChainRegistry`** — every L2 must register before submitting batches.
 - **Don't write `// added for X` or `// TODO once Y` style comments**. Track followups in

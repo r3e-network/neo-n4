@@ -28,7 +28,7 @@ spec rather than implementing it, say so explicitly. -->
 
 <!-- Does this change live in:
 - This repo (`neo4`) — L1 contracts, off-chain libs, plugins, tools, SDKs
-- Upstream `neo-project/neo` core — NeoVM, native contracts, dBFT, RpcServer
-- Cross-repo coordination — handoff once core ships X
+- `r3e-network/neo` core fork — NeoVM, native contracts, dBFT, RpcServer
+- Cross-repo coordination — update `external/neo` once the fork branch ships X
 
 See `TECH_STACK.md` § "Where to implement what" for the ownership rule. -->

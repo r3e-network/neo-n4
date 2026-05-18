@@ -20,9 +20,11 @@
 > consensus selector) per your deployment.
 
 `neo4` is the consolidation repo for the **Neo Elastic Network** — a system that uses
-[`neo-project/neo`](https://github.com/neo-project/neo) Neo 4 core as the L2 execution
-kernel, anchors every L2 chain to a unified L1 contract suite (**NeoHub**) on Neo N3 / Neo 4
-L1, and aggregates proofs and inter-L2 messages through an optional **Neo Gateway** layer.
+the [`r3e-network/neo`](https://github.com/r3e-network/neo) Neo core fork as the L2
+execution kernel. The fork tracks upstream `neo-project/neo` but gives N4 a dedicated
+branch for native contracts and execution-kernel changes. Every L2 chain anchors to a
+unified L1 contract suite (**NeoHub**) on Neo N3 / Neo 4 L1, and proofs and inter-L2
+messages aggregate through an optional **Neo Gateway** layer.
 
 The architecture borrows the *shared-bridge / chain-registry / proof-aggregation* pattern
 from ZKsync Elastic Chain, rebuilt on Neo's stack: dBFT 2.0 finality, NEP-17 assets, NeoVM,
@@ -209,7 +211,7 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 | Docs site config  | **1**     | `book.toml` + `docs/SUMMARY.md` (mdBook) |
 | Rust prover/core  | **3**     | `bridge/neo-execution-core/` (backend-agnostic batch parsing, receipt/state folding, Merkle roots, public-input hash; no SP1/PolkaVM dependency) · `bridge/neo-zkvm-host/` (sp1-sdk 6.2.1 prover + `prove-batch daemon`) · `bridge/neo-zkvm-guest/` (the function being proved — compiles to RISC-V ELF, executes real Neo N3 VM via `neo_vm_guest::execute`) |
 | Foreign-chain integrations | **6** | Watchers (3): `watchers/neo-bridge-watcher-eth/` (secp256k1+SHA256, **serves the entire EVM family** — Ethereum, Tron, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche, Linea, zkSync Era, Scroll, Mantle, Fantom, Celo — via one chain-id-driven daemon binary; 32 base tests + 55 live-RPC integration tests = 87 with `--features live-rpc`. Production daemon ships **graceful SIGTERM shutdown**, **`/healthz`+`/info` HTTP endpoints**, **`/metrics` Prometheus exposition**, **per-chain `min_confirmations` reorg buffer**, and **`flock`-based concurrent-instance detection** on the journal directory; reference k8s + systemd manifests in [`watchers/neo-bridge-watcher-eth/deploy/`](./watchers/neo-bridge-watcher-eth/deploy/)) · `.../-tron/` (thin re-export with Tron chain-ids `0xE0000010..12`, 7 tests) · `.../-sol/` (ed25519-dalek + Solana chain-ids `0xE0000020..22`, 9 tests; curve-agnostic `Signer` trait dispatches to `CryptoLib.VerifyWithEd25519` on-chain). Foreign-side routers (3): `external/foreign-contracts/eth/` (393-line Solidity that deploys unchanged on any EVM chain — constructor parameterizes `externalChainId`; **20 Foundry tests** = 13 single-chain + 7 multi-chain pinning per-instance state isolation across 17 canonical mainnet slots (14 family banks + Polygon zkEVM, Arbitrum Nova, Sonic variants)) · `.../tron/` (README — TVM is EVM-flavored Solidity, points at the Eth contract) · `.../sol/` (~638-line Anchor program using Solana's ed25519 sigverify precompile, source-only — operator runs `anchor build`). Canonical 16-slot family banks for the namespace + 5-step EVM-onboarding runbook in [`docs/external-bridge-evm-chains.md`](./docs/external-bridge-evm-chains.md). |
-| Submodules        | **4**     | `external/neo` (Neo 4 core) · `external/neo-devpack-dotnet` (smart-contract devpack + nccs) · `external/neo-riscv-vm` (PolkaVM-backed Neo RISC-V engine) · `external/neo-zkvm` (Neo VM in pure Rust + SP1 prover crates). None are released on NuGet/crates.io for the versions tracked here. |
+| Submodules        | **4**     | `external/neo` (`r3e-network/neo` fork, branch `r3e/neo-n4-core`) · `external/neo-devpack-dotnet` (smart-contract devpack + nccs) · `external/neo-riscv-vm` (PolkaVM-backed Neo RISC-V engine) · `external/neo-zkvm` (Neo VM in pure Rust + SP1 prover crates). None are released on NuGet/crates.io for the versions tracked here. |
 | Tests             | **1426 .NET + 159 cross-lang** | 1426 across 34 .NET projects (incl. 7 Phase-C real-secp256k1 fraud-proof tests pinning the equivocation slash path end-to-end, plus optimistic sequencer account/signature binding); 15 TypeScript (vitest) + 10 Rust SDK (mockito) + 5 shared execution-core + 7 SP1 guest (host) + 101 Rust bridge watchers with `live-rpc` (eth: 85, tron: 7, sol: 9 — both secp256k1 and ed25519 paths exercised) + 20 Foundry (Solidity — 13 single-chain + 7 multi-chain) + 1 Solana Anchor program test — all green on the Windows audit matrix; `neo-zkvm-host` SP1 E2E requires Linux/macOS |
 
 ```
@@ -270,9 +272,10 @@ Detailed coverage per project: [`IMPLEMENTATION_STATUS.md`](./IMPLEMENTATION_STA
 ## Quick start
 
 **Requires** .NET 10 SDK (`dotnet --version` must report `10.0.x`). The
-[`neo-project/neo`](https://github.com/neo-project/neo) Neo 4 core is vendored as a
-git submodule at `external/neo` (it is never released on NuGet; project references
-go directly at the source tree).
+[`r3e-network/neo`](https://github.com/r3e-network/neo) Neo core fork is vendored as a
+git submodule at `external/neo` on branch `r3e/neo-n4-core` (it is never released on
+NuGet; project references go directly at the source tree). `neo-project/neo` is kept as
+the read-only upstream source for controlled syncs, not as this repo's build dependency.
 
 ```bash
 git clone --recurse-submodules https://github.com/r3e-network/neo-n4
@@ -346,6 +349,7 @@ A 5-minute walkthrough is in [`docs/getting-started.md`](./docs/getting-started.
 | [`docs/tech-stack-coverage.md`](./docs/tech-stack-coverage.md)          | reviewers             | Honest gap analysis of L2-stack coverage — 83 components ✅, 0 🟡, 0 🔴 (Phase 4 SP1 ZK end-to-end functional; cross-foreign-chain bridge Phase B/C complete; DA/AA/interop/filter parity contracts in-tree; Layer-4/5 SDKs + web app + mdBook all in-tree). |
 | [`docs/architecture-atlas.md`](./docs/architecture-atlas.md) | everyone              | **Front door for the architecture docs.** Reading order by role + cross-reference between the 5 chapters: walkthrough (per-tx tour) · l2-lifecycle (system flow) · wire-formats (canonical bytes) · trust-boundaries (security view) · glossary (term + component catalog). ~2100 lines total, with 29 hand-tuned SVG figures (mirrored under `docs/zh/figures/architecture/`). |
 | [`docs/architecture-walkthrough.md`](./docs/architecture-walkthrough.md) | engineers             | Narrative tour mapping every `doc.md` section to code.               |
+| [`docs/core-fork-policy.md`](./docs/core-fork-policy.md)                  | maintainers           | How `external/neo` tracks the `r3e-network/neo` fork and where N4 core/native-contract changes land. |
 | [`docs/telemetry.md`](./docs/telemetry.md)                              | operators             | Metric catalog, wiring example, Prometheus exposition format.        |
 | [`docs/security-model.md`](./docs/security-model.md)                    | operators, reviewers  | What L1 guarantees, threat → mitigation table, operator checklist.   |
 | [`docs/persistence.md`](./docs/persistence.md)                          | operators             | RocksDB-backed durable state — IL2KeyValueStore, per-component wiring, operator checklist. |

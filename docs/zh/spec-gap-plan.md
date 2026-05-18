@@ -95,9 +95,9 @@ ChainRegistry 模式 1 路径通过 `Contract.Call(...,
 
 ### §13.2-native-adjustments —— L2 模式下 GAS / NEO / Oracle / Policy 调整
 
-属于 neo-project/neo Neo 4 core。L2 模式(按 §6 ChainMode)需要 core 改:GAS 供应
-由 bridge 把关、NEO 治理仍在 L1、Oracle 可选。作为上游协调工作跟踪;在 Neo 4 core
-出 ChainMode 钩子之前,本仓库无可执行项。
+属于 `r3e-network/neo` fork 的 `r3e/neo-n4-core` 分支。L2 模式(按 §6 ChainMode)
+需要 core 改:GAS 供应由 bridge 把关、NEO 治理仍在 L1、Oracle 可选。作为 core-fork
+协调工作跟踪;在 Neo 4 core 出 ChainMode 钩子之前,本仓库无可执行项。
 
 ### §14.1-rpcserver-wrapper —— `[RpcMethod]` 装饰的包装类
 

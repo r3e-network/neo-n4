@@ -144,8 +144,9 @@ arbitrates correctness."
 
 ### §13.2-native-adjustments — GAS / NEO / Oracle / Policy adjustments at L2 mode
 
-Lives in neo-project/neo Neo 4 core. The L2 mode (per §6 ChainMode) needs core
-changes: GAS supply gated by bridge, NEO governance still on L1, optional Oracle.
+Lives in the `r3e-network/neo` core fork on branch `r3e/neo-n4-core`. The L2 mode
+(per §6 ChainMode) needs core changes: GAS supply gated by bridge, NEO governance
+still on L1, optional Oracle.
 Track as upstream coordination work; nothing actionable in this repo until Neo 4
 core ships ChainMode hooks.
 

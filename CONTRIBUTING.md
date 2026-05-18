@@ -7,11 +7,13 @@
 
 - **.NET 10 SDK** (`dotnet --version` must report `10.0.x`).
 - **Rust toolchain** (stable) — only required if you touch `bridge/neo-zkvm-{guest,host}` or `sdk/rust`. The SP1 toolchain (`sp1up`) is needed only when compiling the guest ELF or running the prover daemon.
-- The [`neo-project/neo`](https://github.com/neo-project/neo) Neo 4 core, vendored as a git
-  submodule at `external/neo`. Run `git submodule update --init --recursive` after cloning
-  (or use `git clone --recurse-submodules`). `Directory.Build.props` defaults `NeoCorePath`
-  to the submodule path; override with `dotnet build /p:NeoCorePath=/path/to/neo/src` if
-  you want to point at a local fork.
+- The [`r3e-network/neo`](https://github.com/r3e-network/neo) Neo core fork,
+  vendored as a git submodule at `external/neo` and tracked on branch
+  `r3e/neo-n4-core`. Run `git submodule update --init --recursive` after
+  cloning (or use `git clone --recurse-submodules`). `Directory.Build.props`
+  defaults `NeoCorePath` to the submodule path; override with
+  `dotnet build /p:NeoCorePath=/path/to/neo/src` if you want to point at a
+  different local checkout.
 - (Optional) [`nccs`](https://github.com/neo-project/neo-devpack-dotnet) on `PATH` if you want
   the contract build step to emit `.nef` + `.manifest.json`. Without it, contracts still
   type-check.

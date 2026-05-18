@@ -19,8 +19,10 @@ In scope:
 
 Out of scope:
 
-- The upstream [`neo-project/neo`](https://github.com/neo-project/neo) Neo 4
-  core (report there directly).
+- Unmodified upstream behavior inherited from
+  [`neo-project/neo`](https://github.com/neo-project/neo) (report there
+  directly). N4-specific deltas maintained in the
+  [`r3e-network/neo`](https://github.com/r3e-network/neo) fork are in scope.
 - Test fixtures (`tests/`, `samples/`) — these are not run in production paths.
 - Third-party dependencies. Report upstream first; we'll bump after a fix lands.
 - DoS via excessive resource consumption when the operator has disabled

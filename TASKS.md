@@ -1,12 +1,14 @@
 # Neo N4 — Task Split
 
-Open work between **Neo N4 Core** (upstream `neo-project/neo`) and **this Elastic Network repo** (`neo4`). Counts verified against the codebase on 2026-05-17.
+Open work between **Neo N4 Core** (`r3e-network/neo`, branch `r3e/neo-n4-core`) and **this Elastic Network repo** (`neo4`). Counts verified against the codebase on 2026-05-17.
 
 ---
 
-## Neo N4 Core — `neo-project/neo`
+## Neo N4 Core — `r3e-network/neo`
 
-Items that require modifications to the canonical Neo 4 protocol. Cannot be solved in this repo.
+Items that require Neo core/native-contract changes. Implement them in the
+`r3e/neo-n4-core` branch of `r3e-network/neo`, then update the `external/neo`
+submodule pointer in this repo after integration tests pass.
 
 ### Critical — required for any L2 to function
 

@@ -5,9 +5,10 @@
 ## 准备
 
 - .NET 10 SDK（`dotnet --version` ≥ `10.0.0`）。
-- [`neo-project/neo`](https://github.com/neo-project/neo) Neo 4 core 已作为 git submodule
-  引入到 `external/neo`（`Directory.Build.props` 中的 `NeoCorePath` 默认指向该 submodule
-  路径）。请使用 `git clone --recurse-submodules`,或在普通 clone 之后运行
+- [`r3e-network/neo`](https://github.com/r3e-network/neo) Neo core fork 已作为 git
+  submodule 引入到 `external/neo`,并跟踪 `r3e/neo-n4-core` 分支（`Directory.Build.props`
+  中的 `NeoCorePath` 默认指向该 submodule 路径）。请使用 `git clone --recurse-submodules`,
+  或在普通 clone 之后运行
   `git submodule update --init --recursive`。
 
 ## 第 1 步 —— 拉取代码并校验工具链
@@ -16,7 +17,7 @@
 git clone --recurse-submodules https://github.com/r3e-network/neo-n4
 cd neo-n4
 dotnet --version            # 期望 10.0.x
-ls external/neo/src/Neo     # 确认 neo-project/neo submodule 已就位
+ls external/neo/src/Neo     # 确认 r3e-network/neo submodule 已就位
 ```
 
 如果 clone 时忘了带 `--recurse-submodules`：
@@ -146,7 +147,7 @@ nccs contracts/NeoHub.ChainRegistry/NeoHub.ChainRegistry.csproj \
 `NuGetAudit=false`,但少数 restore 路径会重新求值该属性。
 
 **`dotnet test` 报 `Could not find external/neo/src/Neo/Neo.csproj`。**
-neo-project/neo submodule 没初始化。在仓库根目录跑
+r3e-network/neo submodule 没初始化。在仓库根目录跑
 `git submodule update --init --recursive`,或者重新带
 `git clone --recurse-submodules` clone。如要指向另一处 checkout,可在命令行覆盖:
 `dotnet build /p:NeoCorePath=/path/to/neo/src`。

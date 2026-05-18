@@ -26,7 +26,7 @@ jobs:
       - name: Checkout (with submodules)
         uses: actions/checkout@v6
         with:
-          # neo-project/neo and neo-project/neo-devpack-dotnet are vendored as
+          # r3e-network/neo and neo-project/neo-devpack-dotnet are vendored as
           # submodules at external/neo and external/neo-devpack-dotnet (see
           # Directory.Build.props NeoCorePath / contracts/Directory.Build.props
           # NeoDevpackPath). Both are never released on NuGet for the versions

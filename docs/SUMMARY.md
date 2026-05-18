@@ -25,6 +25,7 @@
 - [Trust boundaries](./architecture-trust-boundaries.md)
 - [Glossary + component catalog](./architecture-glossary.md)
 - [Tech-stack coverage](./tech-stack-coverage.md)
+- [Neo core fork policy](./core-fork-policy.md)
 
 # External bridge
 

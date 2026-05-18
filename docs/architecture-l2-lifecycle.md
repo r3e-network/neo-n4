@@ -59,7 +59,8 @@ off-chain infrastructure that connects them:
 
 ### Tier 1: NeoHub (L1)
 
-The L1 anchor. **20 contracts** grouped by concern:
+The L1 anchor. **22 production contracts plus 1 test-only stub** grouped by
+concern:
 
 <p align="center">
   <img src="figures/architecture/neohub-anatomy.svg" alt="NeoHub L1 anatomy: contracts grouped into Settlement, Bridge, Messaging, Security, Governance, and External Bridge concerns" width="900">

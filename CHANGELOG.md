@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed - ZKsync alignment and NeoHub count drift
+
+- Revalidated the ZKsync Elastic Chain comparison against the current native
+  N4 implementation and synchronized the Chinese comparison page with the
+  English status for `L1TxFilter`, `DAValidator`, staged governance,
+  `BridgedNep17Contract`, `L2AccountAbstraction`, and `L2InteropVerifier`.
+- Corrected stale NeoHub deploy-count docs from 20 to the current 22
+  production deploy steps, with 23 total `NeoHub.*` projects including the
+  test-only `ExternalBridgeStubVerifier`.
+- Added unit-test guards that compare the `contracts/NeoHub.*` inventory
+  against `ScaffoldPlan.Default()` and reject stale current-doc counts.
+
 ### Cleaned — repository audit artifacts and documentation drift
 
 - Moved curated audit evidence out of root-level `CODEX_*` scratch paths and

@@ -79,7 +79,7 @@ dotnet run --project tools/Neo.Hub.Deploy -- plan \
 
 Outcome:
 
-- 20 NeoHub deployment steps resolved.
+- 22 NeoHub production deployment steps resolved.
 - Post-deploy actions were surfaced for slasher registration, governance
   controller wiring, verifier registry setup, MPC committee verifier setup,
   external bridge registry setup, and external bridge slashing identity.
@@ -97,11 +97,11 @@ dotnet build <contract.csproj> /p:NuGetAudit=false --nologo
 nccs <contract.csproj> --output <contract>/bin/sc
 ```
 
-All 20 contracts in the NeoHub deploy plan were type-checked and compiled with
+All 22 production contracts in the NeoHub deploy plan were type-checked and compiled with
 `nccs`. `neo-hub-deploy verify` then reported:
 
 ```text
-Contract artifact check: 20 ok / 0 missing of 20 total.
+Contract artifact check: 22 ok / 0 missing of 22 total.
 ```
 
 Note: `neo-hub-deploy verify --rpc http://127.0.0.1:20332` was used as an

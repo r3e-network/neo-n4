@@ -78,6 +78,64 @@ public class UT_ProductionGapClosure
             "Neo.L2.sln must not include later-deployed L2Native projects.");
     }
 
+    [TestMethod]
+    public void Repository_DeployPlanMatchesNeoHubContractInventory()
+    {
+        var root = FindRepositoryRoot();
+        var neoHubContracts = Directory
+            .EnumerateDirectories(Path.Combine(root, "contracts"), "NeoHub.*")
+            .Select(Path.GetFileName)
+            .Select(name => name!["NeoHub.".Length..])
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var productionSteps = ScaffoldPlan.Default().Steps
+            .Select(s => s.Name)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var expectedProductionContracts = neoHubContracts
+            .Where(name => name != "ExternalBridgeStubVerifier")
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.AreEqual(23, neoHubContracts.Length,
+            "contracts/NeoHub.* must contain the 22 production contracts plus the test-only ExternalBridgeStubVerifier.");
+        Assert.AreEqual(22, productionSteps.Length,
+            "The default NeoHub deploy plan must emit only the 22 production contracts.");
+        CollectionAssert.Contains(neoHubContracts, "ExternalBridgeStubVerifier");
+        CollectionAssert.DoesNotContain(productionSteps, "ExternalBridgeStubVerifier",
+            "ExternalBridgeStubVerifier is a dev/test helper and must not ship in the production NeoHub deploy bundle.");
+        CollectionAssert.AreEqual(expectedProductionContracts, productionSteps,
+            "The production deploy bundle must include every NeoHub contract except the test-only stub.");
+    }
+
+    [TestMethod]
+    public void CurrentDocumentation_UsesCurrentNeoHubCounts()
+    {
+        var root = FindRepositoryRoot();
+        string[] currentDocs =
+        [
+            "README.md",
+            Path.Combine("docs", "README.md"),
+            Path.Combine("docs", "architecture-l2-lifecycle.md"),
+            Path.Combine("docs", "zh", "architecture-l2-lifecycle.md"),
+            Path.Combine("contracts", "README.md"),
+            "IMPLEMENTATION_STATUS.md"
+        ];
+
+        foreach (var relativePath in currentDocs)
+        {
+            var text = File.ReadAllText(Path.Combine(root, relativePath));
+            Assert.IsFalse(text.Contains("20 contracts", StringComparison.OrdinalIgnoreCase),
+                $"{relativePath} must not carry the obsolete 20-contract NeoHub count.");
+            Assert.IsFalse(text.Contains("20 个合约", StringComparison.Ordinal),
+                $"{relativePath} must not carry the obsolete Chinese 20-contract NeoHub count.");
+        }
+
+        var readme = File.ReadAllText(Path.Combine(root, "README.md"));
+        StringAssert.Contains(readme, "23 NeoHub L1 deployable contracts");
+        StringAssert.Contains(readme, "22 production");
+    }
+
     private static UInt160 H(byte b)
     {
         var bytes = new byte[20];

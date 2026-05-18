@@ -30,20 +30,33 @@ rehearsals run `nccs` explicitly to emit deployable bytecode artifacts.
 
 ```text
 contracts/
-|-- NeoHub.ChainRegistry/        # L2 chain admission + config registry
-|-- NeoHub.SharedBridge/         # canonical asset escrow + deposit/withdraw
-|-- NeoHub.SettlementManager/    # batch submission + finalization + state-root canon
-|-- NeoHub.VerifierRegistry/     # pluggable proof verifier dispatch
-|-- NeoHub.MessageRouter/        # L1<->L2 / L2<->L2 message queues
-|-- NeoHub.TokenRegistry/        # canonical L1<->L2 asset mappings
-|-- NeoHub.DARegistry/           # DA layer commitment store
-|-- NeoHub.SequencerRegistry/    # per-chain validator set / committee membership
-|-- NeoHub.SequencerBond/        # bonded stake + slashing for sequencer misbehavior
-|-- NeoHub.ForcedInclusion/      # anti-censorship forced-tx queue
-|-- NeoHub.OptimisticChallenge/  # Phase-3 fraud-proof challenge window + bisection
-|-- NeoHub.GovernanceController/ # L2 admission policy / verifier upgrades
-`-- NeoHub.EmergencyManager/     # pause / escape hatch
+|-- NeoHub.ChainRegistry/                       # L2 chain admission + config registry
+|-- NeoHub.SharedBridge/                        # canonical asset escrow + deposit/withdraw
+|-- NeoHub.SettlementManager/                   # batch submission + finalization
+|-- NeoHub.VerifierRegistry/                    # pluggable proof verifier dispatch
+|-- NeoHub.MessageRouter/                       # L1<->L2 / L2<->L2 message queues
+|-- NeoHub.TokenRegistry/                       # canonical L1<->L2 asset mappings
+|-- NeoHub.DARegistry/                          # DA layer commitment store
+|-- NeoHub.DAValidator/                         # DA attestation / validation gate
+|-- NeoHub.L1TxFilter/                          # optional L1->L2 admission filter
+|-- NeoHub.SequencerRegistry/                   # per-chain committee membership
+|-- NeoHub.SequencerBond/                       # bonded stake + slashing
+|-- NeoHub.ForcedInclusion/                     # anti-censorship forced-tx queue
+|-- NeoHub.OptimisticChallenge/                 # Phase-3 fraud-proof challenge window
+|-- NeoHub.GovernanceController/                # L2 admission policy / verifier upgrades
+|-- NeoHub.GovernanceFraudVerifier/             # v1/v2 structural fraud verifier
+|-- NeoHub.RestrictedExecutionFraudVerifier/    # v3 restricted re-execution verifier
+|-- NeoHub.EmergencyManager/                    # pause / escape hatch
+|-- NeoHub.MpcCommitteeVerifier/                # foreign-chain committee verifier
+|-- NeoHub.MpcCommitteeFraudVerifier/           # external-bridge equivocation slasher
+|-- NeoHub.ExternalBridgeRegistry/              # externalChainId -> verifier routing
+|-- NeoHub.ExternalBridgeEscrow/                # foreign-chain asset escrow
+|-- NeoHub.ExternalBridgeBond/                  # foreign-chain committee bonds
+`-- NeoHub.ExternalBridgeStubVerifier/          # dev/test only; excluded from production bundle
 ```
+
+There are 23 `NeoHub.*` projects in this directory. `neo-hub-deploy` emits a
+22-step production bundle that excludes `NeoHub.ExternalBridgeStubVerifier`.
 
 The L2 native contract set lives in Neo core under
 `../external/neo/src/Neo/SmartContract/Native/`:

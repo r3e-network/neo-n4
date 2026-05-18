@@ -43,3 +43,4 @@
 
 - [Production readiness audit](./audit/production-readiness-audit.md)
 - [Repository coverage ledger](./audit/repository-coverage-ledger.md)
+- [ZKsync alignment consistency security pass](./audit/zksync-alignment-consistency-security-2026-05-18.md)

@@ -53,7 +53,7 @@ Neo Elastic Network 由**4 层**组件 + 把它们连起来的链下基础设施
 
 ### 第 1 层:NeoHub(L1)
 
-L1 锚。**20 个合约**按关注点分组:
+L1 锚。**22 个生产合约 + 1 个仅测试 stub** 按关注点分组:
 
 <p align="center">
   <img src="../figures/architecture/neohub-anatomy.svg" alt="NeoHub L1 解剖:合约按 Settlement、Bridge、Messaging、Security、Governance、External Bridge 6 个关注点分组" width="900">

@@ -94,9 +94,9 @@ Current L1 native migration status in `r3e/neo-n3-core`:
   `NeoHubVerifierRegistryContract`, `NeoHubMessageRouterContract`,
   `NeoHubSettlementManagerContract`, `NeoHubDAValidatorContract`,
   `NeoHubSharedBridgeContract`, `NeoHubEmergencyManagerContract`,
-  `NeoHubGovernanceControllerContract`.
-- Still to migrate before claiming full L1-native NeoHub: `SequencerBond`,
-  `SequencerRegistry`, `ForcedInclusion`, `OptimisticChallenge`,
+  `NeoHubGovernanceControllerContract`, `NeoHubSequencerBondContract`.
+- Still to migrate before claiming full L1-native NeoHub: `SequencerRegistry`,
+  `ForcedInclusion`, `OptimisticChallenge`,
   `GovernanceFraudVerifier`, `RestrictedExecutionFraudVerifier`,
   `MpcCommitteeVerifier`, `MpcCommitteeFraudVerifier`,
   `ExternalBridgeRegistry`, `ExternalBridgeEscrow`, `ExternalBridgeBond`.

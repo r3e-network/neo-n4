@@ -5,6 +5,78 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security — comprehensive audit cycle 2026-05-19
+
+Multi-agent audit team surfaced + closed two CRITICAL exploit paths and
+~15 HIGH-tier correctness gaps. All 13 previously-deferred items resolved
+this cycle. Highlights:
+
+**Critical contract-level fixes:**
+- **Foreign-bridge `MESSAGE_TYPE_OFFSET` 81 → 97** (Solidity + Solana router).
+  Buggy offset landed mid-`sourceTxRef`; production watchers (non-zero tx
+  hashes) would mis-dispatch ~255/256 of the time. Hidden by tests using
+  zeroed sourceTxRef. New regression test pins offset 97 with byte-varying
+  ref.
+- **`OptimisticChallenge` fraud-verifier allowlist.** `Challenge()` previously
+  accepted any caller-supplied verifier contract — an attacker could deploy a
+  yes-verifier and drain any sequencer's bond + revert any pending batch. Added
+  owner-gated `RegisterFraudVerifier` / `RevokeFraudVerifier` /
+  `IsApprovedFraudVerifier` and a "fraud verifier not approved" guard before
+  the verifier dispatch. Deploy planner now emits the register-step.
+- **C3 governance proposal payload binding.** Every `*ViaProposal` method now
+  canonically encodes its action args and asserts byte-equality against the
+  stored proposal payload via `GovernanceController.MatchesProposalPayload`.
+  Council members vote on the EXACT bytes the execution call will reproduce.
+  Closes the "approved proposal becomes a blank check" attack surface.
+- **C4 L2MessageContract event payload.** `MessageEmitted` event now carries
+  the full `payload` byte-array so light clients + cross-chain indexers can
+  reconstruct the canonical message hash from event stream alone. (Submodule
+  push to `r3e-network/neo` on `r3e/neo-n4-core`.)
+- **H1 SharedBridge chainId in withdrawal-leaf preimage.** Prepended 4B
+  chainId LE domain-separator to both on-chain `ComputeWithdrawalLeafHash`
+  and off-chain `MessageHasher.HashWithdrawal`. Cross-L2 inclusion-proof
+  replay is now closed at the hash layer (operational consumed-key + per-chain
+  Merkle root remain as defense-in-depth).
+- **SequencerBond `Slash`/`Withdraw`** capture NEP-17 transfer bool (was
+  silent on paused/frozen assets — funds vanished from accounting).
+- **MpcCommitteeFraudVerifier `Slash`** now writes replay flag BEFORE
+  external `bond.slash` (CEI).
+
+**Operator UX + crypto hardening:**
+- Watcher daemon `--allow-stub-signer` flag required (refuses to silently
+  no-op submissions in production).
+- Watcher `record_cursor` wired into run loop (broken `watcher_journal_cursor`
+  gauge fixed).
+- Watcher backoff ±25% jitter (anti-herd on shared RPC failures).
+- Watcher signer Zeroize on file-read buffer + explicit secp256k1 low-S
+  normalization (defense across any future HSM/KMS backend swap).
+- `prove-batch` daemon SIGTERM/SIGINT graceful shutdown + single-instance
+  flock on `<watch>/.prove-batch.lock`.
+- Foreign-bridge Ownable2Step (pendingOwner + acceptOwnership) + 30k gas
+  cap on ETH push (DoS defense).
+- Solana router vault preserves rent-exempt minimum + enforces v0
+  canonical 32B recipient (upper 12 bytes must be zero, no near-collision
+  attacks).
+- TypeScript SDK serializes u64 batch numbers / nonces as JSON strings
+  (was `Number(bigint)` truncating > 2^53 — parity break with .NET / Rust).
+- 3-SDK `chainId` guard on `getl1depositstatus` (was the only chainId-bearing
+  response without the cross-check).
+- RocksDB dual-instance now throws actionable `InvalidOperationException`
+  with the data dir + remediation hint.
+
+**Test coverage:**
+- Foundry router: 21 → 39 (+18: messageType-offset regression with non-zero
+  sourceTxRef, Ownable2Step accept/overwrite, 14 revert-path tests for
+  access/payload/sig-framing/reentrancy via BadERC20 mock).
+- Solana router: 4 → 22 (+18: validate_committee variants, LE-reader bounds,
+  canonical-message-offset pinning regression, layout round-trip,
+  direction/messageType constants).
+- TypeScript SDK: 15 → 16 (u64-precision regression).
+- .NET: 1411 → 1453 (RocksDB dual-instance friendly-error regression +
+  cumulative bumps).
+- All-surface base total: 1655 (1453 .NET + 202 cross-lang).
+- `dotnet format --verify-no-changes` passes clean across all 99 projects.
+
 ### Fixed - ZKsync alignment and NeoHub count drift
 
 - Revalidated the ZKsync Elastic Chain comparison against the current native

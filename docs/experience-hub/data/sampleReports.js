@@ -1,0 +1,137 @@
+export const sampleReports = Object.freeze({
+  'chain-config-report': envelope(
+    'chain-config-report',
+    'Neo.Stack.Cli validate',
+    'N4 private chain configuration uses NeoFS DA, NativeZkVerifier, and the canonical NeoVM2/RISC-V execution profile.',
+    {
+      chainId: 1099,
+      proofMode: 'zk',
+      daMode: 'NeoFS',
+      gatewayMode: 'optional-aggregation',
+      vmProfile: 'NeoVM2/RISC-V',
+      securityLabels: ['private-devnet', 'native-zk-accelerated', 'neofs-da'],
+      assetCatalog: [
+        { symbol: 'NEO', l1Decimals: 0, l2Decimals: 8, route: 'platform-built-in' },
+        { symbol: 'GAS', l1Decimals: 8, l2Decimals: 8, route: 'platform-built-in' },
+        { symbol: 'USDT', l1Decimals: 6, l2Decimals: 6, route: 'well-known-platform-asset' },
+        { symbol: 'USDC', l1Decimals: 6, l2Decimals: 6, route: 'well-known-platform-asset' },
+        { symbol: 'BTC', l1Decimals: 8, l2Decimals: 8, route: 'well-known-platform-asset' },
+      ],
+    },
+  ),
+  'deployment-plan': envelope(
+    'deployment-plan',
+    'Neo.Hub.Deploy plan',
+    'NeoHub remains a deployable L1 contract bundle with a narrow native ZK accelerator dependency.',
+    {
+      contracts: [
+        'NeoHub.ChainRegistry',
+        'NeoHub.TokenRegistry',
+        'NeoHub.SharedBridge',
+        'NeoHub.SettlementManager',
+        'NeoHub.VerifierRegistry',
+        'NeoHub.NativeZkVerifier',
+        'NeoHub.DARegistry',
+        'NeoHub.DAValidator',
+      ],
+      requiresWitnesses: ['operator', 'governance-council'],
+      nativeAccelerator: {
+        name: 'L1 Native ZK Accelerator',
+        abi: 'verifyZkProof(proofSystem,vkId,publicInputHash,proofBytes)',
+      },
+    },
+  ),
+  'deployment-receipt': envelope(
+    'deployment-receipt',
+    'Neo.Hub.Deploy verify',
+    'Private rehearsal receipt for deployed NeoHub contracts and post-deploy wiring checks.',
+    {
+      network: 'devnet-n4',
+      receipts: [
+        { contract: 'NeoHub.SharedBridge', hash: '0x8f7ae5d4b9c1a6506d8a93aee8da8a70f9e2c9e2', blockHeight: 12820 },
+        { contract: 'NeoHub.NativeZkVerifier', hash: '0x7c124506aa2210edc40a11e873a6951b5f09e4d5', blockHeight: 12824 },
+        { contract: 'NeoHub.DARegistry', hash: '0x93ce7a6f1d8ee9180f353bbd09ac211055ac4b50', blockHeight: 12825 },
+      ],
+      postDeployChecks: ['verifier-route', 'bridge-route', 'da-route'],
+    },
+  ),
+  'devnet-report': envelope(
+    'devnet-report',
+    'Neo.L2.Devnet',
+    'Private devnet services are running with NeoFS DA and local proof generation.',
+    {
+      services: [
+        { name: 'Neo L1 private node', status: 'healthy', endpoint: 'http://localhost:20332' },
+        { name: 'N4 L2 private node', status: 'healthy', endpoint: 'http://localhost:30332' },
+        { name: 'NeoFS DA service', status: 'healthy', endpoint: 'http://localhost:8080' },
+        { name: 'Batcher', status: 'healthy' },
+        { name: 'Prover', status: 'healthy' },
+        { name: 'Gateway', status: 'online' },
+        { name: 'Bridge relayer', status: 'synced' },
+      ],
+      latestL2Block: 12842,
+      latestBatch: 43,
+    },
+  ),
+  'neofs-da-report': envelope(
+    'neofs-da-report',
+    'Neo.L2.Devnet da-check',
+    'Batch data is available through NeoFS and matches the DA commitment registered on L1.',
+    {
+      provider: 'NeoFS',
+      objectId: 'bafybeihubdevnetbatch000043',
+      commitment: '0x3a47f5bc0ddfc7a2359b8df45d6e0a9cbe2d7f0990d1c4a02a12c62f63fadb91',
+      writeCheck: 'passed',
+      readCheck: 'passed',
+      retention: 'private-devnet-retained',
+      replication: '3/3',
+    },
+  ),
+  'bridge-drill-report': envelope(
+    'bridge-drill-report',
+    'Neo.L2.Bridge.Cli drill',
+    'Deposit, settlement, withdrawal, and replay-protection drills completed on private devnet fixtures.',
+    {
+      deposit: 'passed',
+      inclusion: 'passed',
+      settlement: 'passed',
+      withdrawal: 'passed',
+      replayProtection: 'passed',
+      txIds: [
+        '0x84a60f04894ef98f91ab121c77f678c1e7da1a3024d38f3b2ef1fd0b92a3b680',
+        '0x2f02c0c4a47b8c1f6a79ba047a86151fb34e6d363f59036527e58bf900f4369d',
+      ],
+    },
+  ),
+  'validation-report': envelope(
+    'validation-report',
+    'test harness',
+    'Focused local evidence is available for the runtime theater and Experience Hub foundation.',
+    {
+      total: 128,
+      passed: 126,
+      failed: 2,
+      skipped: 0,
+      successRate: 98.44,
+      status: 'attention',
+      evidencePaths: [
+        'tests/interactive-runtime/simulator.test.mjs',
+        'tests/experience-hub/report-schemas.test.mjs',
+      ],
+    },
+  ),
+});
+
+function envelope(type, tool, summary, payload) {
+  return {
+    type,
+    schemaVersion: '1.0.0',
+    repoCommit: '966f4ac',
+    generatedAt: '2026-05-19T00:00:00Z',
+    tool,
+    network: { name: 'devnet-n4', kind: 'private' },
+    redaction: { secrets: 'removed', credentials: 'omitted' },
+    summary,
+    payload,
+  };
+}

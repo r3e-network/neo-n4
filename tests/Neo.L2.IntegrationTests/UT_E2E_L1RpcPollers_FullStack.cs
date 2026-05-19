@@ -126,6 +126,9 @@ public class UT_E2E_L1RpcPollers_FullStack
         const long withdrawalAmount = 1000;
         var withdrawalLeaf = MessageHasher.HashWithdrawal(new WithdrawalRequest
         {
+            // Must match the chainId passed to BuildFinalizeWithdrawalWithProof — leaf
+            // hash includes chainId as a 4B LE domain-separator.
+            ChainId = TestChainId,
             EmittingContract = l2EmittingContract,
             L2Sender = l2Receiver,
             L1Recipient = l1Sender,

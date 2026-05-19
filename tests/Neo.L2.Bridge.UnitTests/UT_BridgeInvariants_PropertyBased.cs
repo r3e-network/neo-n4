@@ -291,6 +291,7 @@ public class UT_BridgeInvariants_PropertyBased
     {
         return new WithdrawalRequest
         {
+            ChainId = 1U,
             EmittingContract = sender,
             L2Sender = sender,
             L1Recipient = sender,

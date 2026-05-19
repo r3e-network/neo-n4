@@ -155,6 +155,9 @@ public class UT_InvocationBuilder
 
     private static UInt256 LeafFor(BigInteger amount) => MessageHasher.HashWithdrawal(new WithdrawalRequest
     {
+        // Must match the chainId passed to BuildFinalizeWithdrawalWithProof — the leaf
+        // hash now includes chainId as a 4B LE domain-separator.
+        ChainId = TestChainId,
         EmittingContract = EmittingContractHash,
         L2Sender = L2SenderHash,
         L1Recipient = RecipientHash,

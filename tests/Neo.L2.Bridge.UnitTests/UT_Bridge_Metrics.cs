@@ -179,6 +179,7 @@ public class UT_Bridge_Metrics
 
     private static WithdrawalRequest BuildWithdrawalRequest(ulong nonce, long amount = 100) => new()
     {
+        ChainId = 1U,
         EmittingContract = UInt160.Zero,
         L2Sender = Sender,
         L1Recipient = Recipient,

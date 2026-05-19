@@ -241,6 +241,7 @@ internal static class Program
             var withdrawalAmount = new BigInteger(10_000 * batchNum);
             var withdrawal = new WithdrawalRequest
             {
+                ChainId = LocalChainId,
                 EmittingContract = UInt160.Zero,
                 L2Sender = Alice,
                 L1Recipient = Bob,

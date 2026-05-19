@@ -47,6 +47,14 @@ public static class MessageHasher
     }
 
     /// <summary>Compute the leaf hash for a <see cref="WithdrawalRequest"/>.</summary>
+    /// <remarks>
+    /// Wire format MUST match <c>NeoHub.SharedBridge.ComputeWithdrawalLeafHash</c>:
+    /// <c>4B chainId LE | 20B emittingContract | 20B l2Sender | 20B l1Recipient |
+    /// 20B l2Asset | 4B amountLen LE | N amountBytes LE | 8B nonce LE</c>, then
+    /// Hash256 (double-SHA256). The chainId domain-separator is load-bearing
+    /// against cross-L2 inclusion-proof replay — see
+    /// <see cref="WithdrawalRequest.ChainId"/>.
+    /// </remarks>
     public static UInt256 HashWithdrawal(WithdrawalRequest withdrawal)
     {
         ArgumentNullException.ThrowIfNull(withdrawal);
@@ -63,10 +71,11 @@ public static class MessageHasher
         if (amountBytes.Length > 64)
             throw new ArgumentException("Withdrawal amount exceeds 64 bytes", nameof(withdrawal));
 
-        var size = 20 + 20 + 20 + 20 + 4 + amountBytes.Length + 8;
+        var size = 4 + 20 + 20 + 20 + 20 + 4 + amountBytes.Length + 8;
         Span<byte> buffer = size <= 256 ? stackalloc byte[size] : new byte[size];
 
         var pos = 0;
+        BinaryPrimitives.WriteUInt32LittleEndian(buffer.Slice(pos, 4), withdrawal.ChainId); pos += 4;
         withdrawal.EmittingContract.GetSpan().CopyTo(buffer.Slice(pos, 20)); pos += 20;
         withdrawal.L2Sender.GetSpan().CopyTo(buffer.Slice(pos, 20)); pos += 20;
         withdrawal.L1Recipient.GetSpan().CopyTo(buffer.Slice(pos, 20)); pos += 20;

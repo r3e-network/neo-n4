@@ -121,6 +121,7 @@ public class UT_L2BridgePlugin
 
         var withdrawal = new Neo.L2.WithdrawalRequest
         {
+            ChainId = 1U,
             EmittingContract = UInt160.Parse("0x" + new string('e', 40)),
             L2Sender = UInt160.Parse("0x" + new string('a', 40)),
             L1Recipient = UInt160.Parse("0x" + new string('b', 40)),

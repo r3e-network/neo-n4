@@ -173,6 +173,7 @@ public class UT_Models
     {
         var w = new WithdrawalRequest
         {
+            ChainId = 1U,
             EmittingContract = UInt160.Zero,
             L2Sender = UInt160.Zero,
             L1Recipient = UInt160.Zero,

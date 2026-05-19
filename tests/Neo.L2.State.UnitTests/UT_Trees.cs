@@ -7,6 +7,7 @@ public class UT_Trees
 {
     private static WithdrawalRequest Withdrawal(ulong nonce) => new()
     {
+        ChainId = 1U,
         EmittingContract = UInt160.Parse("0x" + new string('a', 40)),
         L2Sender = UInt160.Parse("0x" + new string('b', 40)),
         L1Recipient = UInt160.Parse("0x" + new string('c', 40)),

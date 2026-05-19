@@ -72,6 +72,7 @@ internal static class InvocationBuilder
         if (amount <= 0) throw new ArgumentException("amount must be positive", nameof(amount));
         var expectedLeaf = MessageHasher.HashWithdrawal(new WithdrawalRequest
         {
+            ChainId = chainId,
             EmittingContract = emittingContract,
             L2Sender = l2Sender,
             L1Recipient = recipient,

@@ -60,4 +60,13 @@ public sealed record WithdrawalRequest
 
     /// <summary>Per-(chain, sender) monotonic nonce for replay protection.</summary>
     public required ulong Nonce { get; init; }
+
+    /// <summary>
+    /// L2 chain id that emitted this withdrawal. Bound into the leaf hash
+    /// preimage as a 4-byte LE domain separator so an inclusion proof from
+    /// one L2's withdrawal root can never replay against another L2 — even
+    /// if the rest of the tuple coincidentally matches. Match the L1
+    /// <c>NeoHub.SharedBridge.ComputeWithdrawalLeafHash</c> wire format.
+    /// </summary>
+    public required uint ChainId { get; init; }
 }

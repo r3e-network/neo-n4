@@ -276,6 +276,7 @@ public class UT_Bridge
 
         WithdrawalRequest Mk(ulong nonce) => new()
         {
+            ChainId = LocalChain,
             EmittingContract = UInt160.Zero,
             L2Sender = Sender,
             L1Recipient = Recipient,
@@ -301,6 +302,7 @@ public class UT_Bridge
         var proc = new WithdrawalProcessor(LocalChain, RegistryWithGas());
         var bad = new WithdrawalRequest
         {
+            ChainId = 1U,
             EmittingContract = UInt160.Zero,
             L2Sender = null!,  // ← null
             L1Recipient = Recipient,
@@ -317,6 +319,7 @@ public class UT_Bridge
         var proc = new WithdrawalProcessor(LocalChain, RegistryWithGas());
         var bad = new WithdrawalRequest
         {
+            ChainId = 1U,
             EmittingContract = UInt160.Zero,
             L2Sender = Sender,
             L1Recipient = null!,  // ← null
@@ -341,6 +344,7 @@ public class UT_Bridge
         var proc = new WithdrawalProcessor(LocalChain, RegistryWithGas());
         var bad = new WithdrawalRequest
         {
+            ChainId = 1U,
             EmittingContract = null!,
             L2Sender = Sender, L1Recipient = Recipient, L2Asset = GasL2,
             Amount = new BigInteger(100), Nonce = 1,
@@ -358,6 +362,7 @@ public class UT_Bridge
         var proc = new WithdrawalProcessor(LocalChain, RegistryWithGas());
         var bad = new WithdrawalRequest
         {
+            ChainId = 1U,
             EmittingContract = UInt160.Zero, L2Sender = Sender, L1Recipient = Recipient,
             L2Asset = null!,
             Amount = new BigInteger(100), Nonce = 1,
@@ -585,6 +590,7 @@ public class UT_Bridge
 
         WithdrawalRequest Mk(ulong nonce) => new()
         {
+            ChainId = LocalChain,
             EmittingContract = UInt160.Zero,
             L2Sender = Sender,
             L1Recipient = Recipient,
@@ -620,6 +626,7 @@ public class UT_Bridge
 
         var req = new WithdrawalRequest
         {
+            ChainId = 1U,
             EmittingContract = UInt160.Zero,
             L2Sender = Sender,
             L1Recipient = Recipient,

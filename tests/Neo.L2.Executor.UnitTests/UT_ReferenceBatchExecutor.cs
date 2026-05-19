@@ -120,6 +120,7 @@ public class UT_ReferenceBatchExecutor
 
         var withdrawal = new WithdrawalRequest
         {
+            ChainId = 1U,
             EmittingContract = UInt160.Zero,
             L2Sender = UInt160.Parse("0x" + new string('a', 40)),
             L1Recipient = UInt160.Parse("0x" + new string('b', 40)),
@@ -203,6 +204,7 @@ public class UT_ReferenceBatchExecutor
         var receiptTx = UInt256.Parse("0x" + new string('5', 64));
         var withdrawal = new WithdrawalRequest
         {
+            ChainId = 1U,
             EmittingContract = UInt160.Zero,
             L2Sender = UInt160.Parse("0x" + new string('a', 40)),
             L1Recipient = UInt160.Parse("0x" + new string('b', 40)),

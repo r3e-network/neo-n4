@@ -249,7 +249,7 @@ public class SharedBridgeContract : SmartContract
         ExecutionEngine.Assert(l2Asset.IsValid && !l2Asset.IsZero, "invalid L2 asset");
 
         var expected = ComputeWithdrawalLeafHash(
-            emittingContract, l2Sender, recipient, l2Asset, amount, withdrawalNonce);
+            chainId, emittingContract, l2Sender, recipient, l2Asset, amount, withdrawalNonce);
         ExecutionEngine.Assert(expected.Equals(withdrawalLeafHash), "withdrawal leaf preimage mismatch");
 
         var registry = GetTokenRegistry();
@@ -270,6 +270,7 @@ public class SharedBridgeContract : SmartContract
     }
 
     private static UInt256 ComputeWithdrawalLeafHash(
+        uint chainId,
         UInt160 emittingContract,
         UInt160 l2Sender,
         UInt160 l1Recipient,
@@ -280,9 +281,19 @@ public class SharedBridgeContract : SmartContract
         var amountBytes = ToUnsignedLittleEndian(amount);
         ExecutionEngine.Assert(amountBytes.Length <= 64, "amount too large");
 
-        var totalLen = 20 + 20 + 20 + 20 + 4 + amountBytes.Length + 8;
+        // 4B chainId domain-separator first so an inclusion proof from one
+        // L2's withdrawal root can never replay against another L2 — even if
+        // the rest of the tuple coincidentally matches. Operational consumed-
+        // key + per-chain Merkle root already block exploitation today; this
+        // hash-level separation closes the defense-in-depth gap.
+        var totalLen = 4 + 20 + 20 + 20 + 20 + 4 + amountBytes.Length + 8;
         var buf = new byte[totalLen];
         var pos = 0;
+
+        buf[pos++] = (byte)chainId;
+        buf[pos++] = (byte)(chainId >> 8);
+        buf[pos++] = (byte)(chainId >> 16);
+        buf[pos++] = (byte)(chainId >> 24);
 
         WriteUInt160(buf, pos, emittingContract);
         pos += 20;

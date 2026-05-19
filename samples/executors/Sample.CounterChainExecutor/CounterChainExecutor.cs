@@ -151,6 +151,7 @@ public sealed class CounterChainExecutor : ITransactionExecutor
 
         var withdrawal = new WithdrawalRequest
         {
+            ChainId = _chainId,
             EmittingContract = _emittingContract,
             L2Sender = recipient,
             L1Recipient = recipient,

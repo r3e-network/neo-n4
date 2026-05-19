@@ -35,6 +35,7 @@ internal static class WithdrawCommand
 
         var leaf = MessageHasher.HashWithdrawal(new WithdrawalRequest
         {
+            ChainId = chainId.Value,
             EmittingContract = emittingContract,
             L2Sender = l2Sender,
             L1Recipient = recipient,

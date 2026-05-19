@@ -109,6 +109,7 @@ public class UT_E2E_L2MetricsPlugin_CompositionRoot
 
     private static WithdrawalRequest BuildWithdrawal(ulong nonce) => new()
     {
+        ChainId = 1U,
         EmittingContract = UInt160.Zero,
         L2Sender = UInt160.Parse("0x" + new string('a', 40)),
         L1Recipient = UInt160.Parse("0x" + new string('b', 40)),

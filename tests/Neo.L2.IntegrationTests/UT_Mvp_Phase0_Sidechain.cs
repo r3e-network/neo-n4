@@ -84,6 +84,7 @@ public class UT_Mvp_Phase0_Sidechain
         var withdrawalProcessor = new WithdrawalProcessor(LocalChainId, registry);
         var withdrawal = new WithdrawalRequest
         {
+            ChainId = 1U,
             EmittingContract = UInt160.Zero,
             L2Sender = Alice,
             L1Recipient = Bob,

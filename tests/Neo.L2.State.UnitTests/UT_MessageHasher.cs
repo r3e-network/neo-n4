@@ -37,6 +37,7 @@ public class UT_MessageHasher
         UInt160? emitting = null, UInt160? l2sender = null,
         UInt160? l1recipient = null, UInt160? l2asset = null) => new()
     {
+        ChainId = 1U,
         EmittingContract = emitting!,
         L2Sender = l2sender!,
         L1Recipient = l1recipient!,
@@ -151,14 +152,18 @@ public class UT_MessageHasher
     public void HashWithdrawal_CanonicalBufferLayout_MatchesDocumented()
     {
         // Pins the canonical hash-input layout claimed in MessageHasher.cs:66-76:
+        //   [4B chainId LE]
         //   [20B emittingContract][20B l2Sender][20B l1Recipient][20B l2Asset]
         //   [4B amountLen][amountLen B unsigned-LE-amount][8B nonce]
         //   → Hash256
         // The L1 SharedBridge verifies withdrawal-leaf inclusion against this hash.
+        // The leading chainId is a domain-separator so an inclusion proof from one
+        // L2's withdrawal root can't replay against another L2.
         var amount = new BigInteger(0x1122334455667788UL);
         var amountBytes = amount.ToByteArray(isUnsigned: true, isBigEndian: false);
         var wd = new WithdrawalRequest
         {
+            ChainId = 1U,
             EmittingContract = A(),
             L2Sender = B(),
             L1Recipient = C(),
@@ -167,10 +172,11 @@ public class UT_MessageHasher
             Nonce = 0xCAFEBABEDEADBEEFUL,
         };
 
-        var size = 20 + 20 + 20 + 20 + 4 + amountBytes.Length + 8;
+        var size = 4 + 20 + 20 + 20 + 20 + 4 + amountBytes.Length + 8;
         var buf = new byte[size];
         var span = buf.AsSpan();
         var pos = 0;
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(pos, 4), wd.ChainId); pos += 4;
         wd.EmittingContract.GetSpan().CopyTo(span.Slice(pos, 20)); pos += 20;
         wd.L2Sender.GetSpan().CopyTo(span.Slice(pos, 20)); pos += 20;
         wd.L1Recipient.GetSpan().CopyTo(span.Slice(pos, 20)); pos += 20;
@@ -217,6 +223,7 @@ public class UT_MessageHasher
         var huge = BigInteger.One << 600; // ~75 bytes when serialized
         var bad = new WithdrawalRequest
         {
+            ChainId = 1U,
             EmittingContract = A(),
             L2Sender = B(),
             L1Recipient = C(),
@@ -236,6 +243,7 @@ public class UT_MessageHasher
         var atMax = BigInteger.One << 504;
         var w = new WithdrawalRequest
         {
+            ChainId = 1U,
             EmittingContract = A(), L2Sender = B(),
             L1Recipient = C(), L2Asset = D(),
             Amount = atMax, Nonce = 1,

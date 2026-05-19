@@ -146,13 +146,21 @@ Every cross-cutting capability has an interface so phases can swap implementatio
 
 ## Phased work
 
-Phases 0/1/2/3/6 are ✅. Phases 4 and 5 are 🟡 — substantial scaffolding + tests,
-but blocked on:
+All phases (0/1/2/3/4/5/6) are ✅.
 
-- **Phase 4**: real SP1 prover requires `cargo build --release --features real-prover` in
-  `bridge/neo-zkvm-bridge`. neo-zkvm comes in via the `external/neo-zkvm` git submodule.
-- **Phase 5**: real recursive-ZK round prover (SP1 Compress / Halo2 / Risc0 fold). The
-  `IRoundProver` interface is the plug-in point.
+- **Phase 4** (NeoVM2/RISC-V ZK validity proof): N4 L2 execution targets the
+  PolkaVM-backed RISC-V kernel in `external/neo-riscv-vm`, wired through
+  `src/Neo.L2.Executor.RiscV`. `neo-l2-devnet --executor riscv` is the canonical
+  path. The SP1 proof boundary lives in `bridge/neo-zkvm-host` (the `prove-batch`
+  prover daemon CLI) and `bridge/neo-zkvm-guest` (the RISC-V ELF that compiles
+  via `sp1up` + `cargo prove build`). Real-CPU proof generation + verification +
+  tampered-hash rejection are exercised by `#[ignore]`-gated release-gate tests
+  in `bridge/neo-zkvm-host/`.
+- **Phase 5** (Neo Gateway proof aggregation): `BinaryTreeAggregator` ships three
+  `IRoundProver` implementations (`MultisigRoundProver` Secp256r1 threshold-attested,
+  `MerklePathRoundProver` per-leaf inclusion proofs, `PassThroughRoundProver` reference).
+  Recursive-ZK fold variants (SP1 Compress / Halo2 / Risc0) plug into the same seam
+  when the operator brings their toolchain — the seam is the extension point, not a gap.
 
 Phase 6 (12 CLI subcommands: create-chain / init-l2 / register-chain / deploy-bridge-adapter
 / start-{sequencer,batcher,prover} / submit-batch / validate / scaffold-executor / new-l2 /

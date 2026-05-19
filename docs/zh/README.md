@@ -117,9 +117,9 @@ accelerator、NeoVM2/RISC-V L2 执行、可选 N4 L2 execution profile,以及作
   `bridge/neo-zkvm-guest/`(被证明的函数)。
 - **Submodule(4)** —— `external/neo`(`r3e-network/neo` fork，L2 分支 `r3e/neo-n4-core`；同一 fork 内的 L1 core 分支为 `r3e/neo-n3-core`)、`external/neo-devpack-dotnet`、
   `external/neo-riscv-vm`、`external/neo-zkvm`。
-- **测试(1453 .NET + 165 跨语言)** —— 34 个 .NET 工程的 1453 条测试;
+- **测试(1453 .NET + 166 跨语言)** —— 34 个 .NET 工程的 1453 条测试;
   15 TS + 10 Rust SDK + 5 shared execution-core + 7 SP1 guest +
-  103 Rust 桥 watcher(eth 87 / tron 7 / sol 9) + 21 Foundry + 4 Solana router —— 全绿。
+  103 Rust 桥 watcher(eth 87 / tron 7 / sol 9) + 22 Foundry + 4 Solana router —— 全绿。
 
 ---
 
@@ -133,7 +133,7 @@ accelerator、NeoVM2/RISC-V L2 执行、可选 N4 L2 execution profile,以及作
 | 1    | NeoHub v0 + 共享桥                   | ✅   | 24 个 NeoHub 合约全部编译;部署计划器输出 23 个生产步骤(15 核心 + NativeZkVerifier + 2 fraud verifier + 5 外链桥) |
 | 2    | 批次结算                             | ✅   | 真实 `KeyedStateStore` 在跨批次得到连续性验证             |
 | 3    | 乐观挑战窗口                         | ✅   | `OptimisticChallenge` 合约 + `BisectionGame`(log-N 收敛) |
-| 4    | NeoVM 2 / RISC-V ZK Validity 证明    | 🟡   | SP1 FFI 桥已搭好;`--features real-prover` 切到原生        |
+| 4    | NeoVM 2 / RISC-V ZK Validity 证明    | ✅   | N4 L2 执行已落在 NeoVM2/RISC-V:`src/Neo.L2.Executor.RiscV` 绑定 `external/neo-riscv-vm` 的 PolkaVM 宿主;`neo-l2-devnet --executor riscv` 即标准路径。SP1 证明守护进程见 `bridge/neo-zkvm-host`(`prove-batch` CLI),真实 CPU 证明由 `#[ignore]` 发布关口测试验证。 |
 | 5    | Neo Gateway 证明聚合                 | ✅   | `BinaryTreeAggregator` + 3 份 `IRoundProver`             |
 | 6    | Neo Stack CLI / 模板                 | ✅   | 12 个子命令可用                                          |
 

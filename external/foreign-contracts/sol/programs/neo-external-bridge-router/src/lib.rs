@@ -55,11 +55,14 @@ const MAX_COMMITTEE_SIZE: usize = 64;
 const ED25519_PUBKEY_LEN: usize = 32;
 
 /// Wire-format constants for the canonical `ExternalCrossChainMessage`.
-/// Pinned to the same offsets the Neo-side encoder uses.
+/// Pinned to the same offsets the Neo-side encoder uses. Cumulative fixed-prefix
+/// offsets, in order: ecid 0, ncid 4, nonce 8, direction 16, sender 17,
+/// recipient 37, deadline 57, sourceTxRef 65, messageType 97, payloadLen 98,
+/// payload 102 → fixed prefix = 102 bytes.
 const FIXED_PREFIX_LEN: usize = 102;
 const NONCE_OFFSET: usize = 8;
 const DIRECTION_OFFSET: usize = 16;
-const MESSAGE_TYPE_OFFSET: usize = 81;
+const MESSAGE_TYPE_OFFSET: usize = 97;
 
 const DIR_NEO_TO_FOREIGN: u8 = 1;
 const MSG_TYPE_ASSET_TRANSFER: u8 = 0;

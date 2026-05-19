@@ -547,7 +547,7 @@ Create `docs/experience-hub.md` with:
 
 Open the local-first Experience Hub:
 
-[Launch the Neo N4 Experience Hub](./experience-hub/index.html)
+[Launch the Neo N4 Experience Hub](../../experience-hub/index.html)
 
 The hub is a read-only product surface for understanding, building, operating,
 and verifying Neo N4. It visualizes NeoHub deployed L1 contracts, NeoFS DA,
@@ -567,7 +567,7 @@ Create `docs/zh/experience-hub.md` with:
 
 打开本地优先的体验中心：
 
-[启动 Neo N4 统一体验中心](./experience-hub/index.html)
+[启动 Neo N4 统一体验中心](../../experience-hub/index.html)
 
 体验中心是一个只读产品界面，用于理解、构建、运维和验证 Neo N4。它可视化
 NeoHub 可部署 L1 合约、NeoFS DA、NativeZkVerifier、L1 原生 ZK 加速器、
@@ -582,13 +582,13 @@ Gateway、SharedBridge、L2 NeoVM2/RISC-V 执行、可选 N4 L2 VM profile，
 Add to `docs/SUMMARY.md` under Architecture:
 
 ```md
-- [Neo N4 Experience Hub](./experience-hub.md)
+- [Neo N4 Experience Hub](../../experience-hub.md)
 ```
 
 Add to `docs/zh/SUMMARY.md` under Architecture:
 
 ```md
-- [Neo N4 统一体验中心](./experience-hub.md)
+- [Neo N4 统一体验中心](../../experience-hub.md)
 ```
 
 - [ ] **Step 4: Commit**

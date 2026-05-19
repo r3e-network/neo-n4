@@ -6,6 +6,7 @@
 
 - [快速上手](./getting-started.md)
 - [上线一条 L2](./launching-an-l2.md)
+- [私网测试](./private-network-testing.md)
 - [持久化](./persistence.md)
 - [可观测性](./telemetry.md)
 - [安全模型](./security-model.md)
@@ -28,6 +29,7 @@
 - [信任边界](./architecture-trust-boundaries.md)
 - [术语表 + 组件目录](./architecture-glossary.md)
 - [技术栈覆盖矩阵](./tech-stack-coverage.md)
+- [Neo 核心 fork 策略](./core-fork-policy.md)
 
 # 外链桥
 
@@ -49,5 +51,8 @@
 
 # 审计证据
 
+- [生产就绪审计](./audit/production-readiness-audit.md)
+- [仓库覆盖率账本](./audit/repository-coverage-ledger.md)
 - [Neo 4 系统保证审计](./audit/neo4-system-assurance-audit-2026-05-19.md)
+- [ZKsync 对齐 / 一致性 / 安全 审计](./audit/zksync-alignment-consistency-security-2026-05-18.md)
 - [仓库级一致性 / 本地化 / 安全审计](./audit/repository-wide-consistency-localization-security-2026-05-18.md)

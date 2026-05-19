@@ -151,6 +151,21 @@ contract NeoExternalBridgeRouterTest is Test {
         uint256 amount,
         uint64 deadline
     ) internal pure returns (bytes memory) {
+        return _buildTransferMessageWithTxRef(nonce, recipient, asset, amount, deadline, bytes32(0));
+    }
+
+    /// Same as _buildTransferMessage but accepts an explicit sourceTxRef. Used by the
+    /// regression test that pins MESSAGE_TYPE_OFFSET = 97 (a buggy value of 81 would
+    /// read messageType out of the middle of sourceTxRef and silently mis-dispatch or
+    /// revert on non-zero tx refs — exactly what production watchers always emit).
+    function _buildTransferMessageWithTxRef(
+        uint64 nonce,
+        address recipient,
+        address asset,
+        uint256 amount,
+        uint64 deadline,
+        bytes32 sourceTxRef
+    ) internal pure returns (bytes memory) {
         // Asset-transfer payload: [20B foreignAsset][4B amountLen][amountLen B amount LE]
         bytes memory amountBytes = _amountToLE(amount);
         bytes memory payload =
@@ -164,7 +179,7 @@ contract NeoExternalBridgeRouterTest is Test {
             bytes20(0), // sender            20B (zero on Neo side)
             bytes20(uint160(recipient)), // recipient         20B
             uint64_LE(deadline), // deadline          8B
-            bytes32(0), // sourceTxRef       32B
+            sourceTxRef, // sourceTxRef       32B
             uint8(0), // messageType=AssetTransfer  1B
             uint32_LE(uint32(payload.length)),
             payload
@@ -264,6 +279,58 @@ contract NeoExternalBridgeRouterTest is Test {
         router.finalizeWithdrawal(msgBytes, proof);
         assertEq(recipient.balance, 1 ether);
         assertEq(router.lockedBalances(address(0)), 0);
+        assertTrue(router.consumedInbound(NEO_L2, 42));
+    }
+
+    /// Regression for the MESSAGE_TYPE_OFFSET = 97 invariant. Production watchers always
+    /// emit a real Neo tx hash in sourceTxRef (offset 65..97). If MESSAGE_TYPE_OFFSET ever
+    /// drifts back to a buggy value like 81, the contract would read messageType out of the
+    /// middle of sourceTxRef — non-zero refs would then either revert ("not yet supported"
+    /// when byte = 1/2) or fall through the unreachable `else` branch (when byte > 2),
+    /// silently breaking legitimate withdrawals. The happy-path tests use bytes32(0) for
+    /// sourceTxRef so they don't catch this; this one uses a maximally byte-varying ref
+    /// to surface the drift on offset miscalculations.
+    function test_FinalizeWithdrawal_HappyPath_WithNonZeroSourceTxRef() public {
+        vm.deal(address(this), 1 ether);
+        router.lockETHAndSend{value: 1 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
+        address recipient = address(0xBEEF);
+
+        // Every byte non-zero; in particular byte 81 (mid sourceTxRef, what a regressed
+        // offset would read) differs visibly from byte 97 (the canonical messageType).
+        // sourceTxRef bytes are 0x01..0x32 sequentially; sourceTxRef[16] = 0x17 lands at
+        // absolute offset 81; messageType=AssetTransfer=0x00 lands at absolute offset 97.
+        bytes32 nonTrivialTxRef = bytes32(
+            uint256(0x0102030405060708091011121314151617181920212223242526272829303132)
+        );
+
+        bytes memory msgBytes = _buildTransferMessageWithTxRef(
+            42, recipient, address(0), 1 ether, 0, nonTrivialTxRef
+        );
+
+        // Sanity-check the offset arithmetic so the test is self-explanatory.
+        assertEq(uint8(msgBytes[65]), 0x01, "sourceTxRef starts at offset 65");
+        assertEq(uint8(msgBytes[81]), 0x17, "byte 81 lives inside sourceTxRef (=23)");
+        assertEq(uint8(msgBytes[97]), 0x00, "messageType at offset 97 (AssetTransfer)");
+
+        (uint8 v0, bytes32 r0, bytes32 s0) = _signBy(priv0, msgBytes);
+        (uint8 v1, bytes32 r1, bytes32 s1) = _signBy(priv1, msgBytes);
+
+        uint8[] memory idx = new uint8[](2);
+        idx[0] = 0;
+        idx[1] = 1;
+        uint8[] memory vs = new uint8[](2);
+        vs[0] = v0;
+        vs[1] = v1;
+        bytes32[] memory rs = new bytes32[](2);
+        rs[0] = r0;
+        rs[1] = r1;
+        bytes32[] memory ss = new bytes32[](2);
+        ss[0] = s0;
+        ss[1] = s1;
+        bytes memory proof = _buildProof(idx, vs, rs, ss);
+
+        router.finalizeWithdrawal(msgBytes, proof);
+        assertEq(recipient.balance, 1 ether);
         assertTrue(router.consumedInbound(NEO_L2, 42));
     }
 

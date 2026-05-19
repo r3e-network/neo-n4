@@ -184,7 +184,7 @@ with Tron chain-ids; Sol: `Ed25519FileSigner` + Solana chain-ids
 dispatches to `CryptoLib.VerifyWithEd25519` on-chain), foreign-side
 router artifacts for all three target chains
 (`external/foreign-contracts/eth/` — `NeoExternalBridgeRouter.sol` +
-13 Foundry tests with real `vm.sign` + `ecrecover`;
+22 Foundry tests with real `vm.sign` + `ecrecover` (incl. messageType-offset regression with non-zero sourceTxRef);
 `external/foreign-contracts/tron/` — README pointing at the Eth
 contract since TVM is EVM-flavored, deploy with the Tron chainId
 constructor arg; `external/foreign-contracts/sol/` — ~638-line Anchor
@@ -192,7 +192,7 @@ program using Solana's ed25519 sigverify precompile, source-only
 pending operator `anchor build`), and an operator CLI
 (`tools/Neo.External.Bridge.Cli/` for genkey + committee-blob +
 deploy-bundle). `Neo.Hub.Deploy` scaffolds the full bridge stack
-alongside NeoHub: 22 deploy steps + 13 post-deploy hints. Phase C's
+alongside NeoHub: 23 deploy steps + 17 post-deploy hints. Phase C's
 `MpcCommitteeFraudVerifier` makes slashing of equivocating committee
 members permissionless (anyone can submit cryptographic proof of two
 byte-distinct messages signed for the same `(chainId, nonce)` and

@@ -31,11 +31,14 @@ contract NeoExternalBridgeRouter {
     uint8 public constant MAX_COMMITTEE_SIZE = 64;
 
     /// @notice Wire-format constants for the canonical ExternalCrossChainMessage
-    ///         (matches Neo.L2.Messaging.ExternalMessageHasher).
+    ///         (matches Neo.L2.Messaging.ExternalMessageHasher). Cumulative fixed-prefix
+    ///         offsets, in order: ecid 0, ncid 4, nonce 8, direction 16, sender 17,
+    ///         recipient 37, deadline 57, sourceTxRef 65, messageType 97, payloadLen 98,
+    ///         payload 102 → fixed prefix = 102 bytes.
     uint16 private constant FIXED_PREFIX_LEN = 102;
     uint16 private constant NONCE_OFFSET = 8;
     uint16 private constant DIRECTION_OFFSET = 16;
-    uint16 private constant MESSAGE_TYPE_OFFSET = 81;
+    uint16 private constant MESSAGE_TYPE_OFFSET = 97;
 
     /// @notice Direction values.
     uint8 private constant DIR_NEO_TO_FOREIGN = 1;

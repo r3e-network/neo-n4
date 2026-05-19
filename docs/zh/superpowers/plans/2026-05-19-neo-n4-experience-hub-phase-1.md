@@ -304,13 +304,13 @@ git commit -m "feat: add static experience hub shell"
 在 `docs/SUMMARY.md` 的 Architecture 下添加：
 
 ```md
-- [Neo N4 Experience Hub](./experience-hub.md)
+- [Neo N4 Experience Hub](../../experience-hub.md)
 ```
 
 在 `docs/zh/SUMMARY.md` 的架构下添加：
 
 ```md
-- [Neo N4 统一体验中心](./experience-hub.md)
+- [Neo N4 统一体验中心](../../experience-hub.md)
 ```
 
 - [ ] **步骤 4：提交**

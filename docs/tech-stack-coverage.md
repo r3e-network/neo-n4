@@ -78,7 +78,7 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 1453 tests across 34 .NET projects pass. Rust workspace ships 25 default-CI
 tests (host-mode crypto + SDK + zkVM execute round-trip) plus 2 `#[ignore]`-gated
 tests that exercise real CPU proof generation + verification (~4 minutes wall
-time). TypeScript SDK ships 15 vitest tests.
+time). TypeScript SDK ships 16 vitest tests.
 
 ---
 
@@ -116,7 +116,7 @@ is a valid endpoint.
 - **L2-side dApp examples** ✅ — `samples/contracts/` (cross-chain greeter + withdrawal demo)
 - **Sample chain configs (rollup / gaming / validium / sidechain)** ✅ — `samples/*.config.json` (4 templates verified end-to-end)
 - **App-developer SDK / client library (.NET)** ✅ — `src/Neo.L2.Sdk/` — typed `L2RpcClient` wrapping all 10 doc.md §14.1 RPC methods. Failure modes split across `L2RpcTransportException` / `L2RpcProtocolException` / `L2RpcServerException` / `L2RpcMismatchedChainIdException` so callers can write targeted retry policy.
-- **App-developer SDK (TypeScript)** ✅ — `sdk/typescript/` — `@neo-n4/sdk` typed wrapper around all 10 RPC methods. 15 vitest tests pass against an in-process stub fetch. Same wire shape + 4-class error taxonomy as the .NET SDK.
+- **App-developer SDK (TypeScript)** ✅ — `sdk/typescript/` — `@neo-n4/sdk` typed wrapper around all 10 RPC methods. 16 vitest tests pass against an in-process stub fetch. Same wire shape + 4-class error taxonomy as the .NET SDK.
 - **App-developer SDK (Rust)** ✅ — `sdk/rust/` — `neo-n4-sdk` typed wrapper. 10 mockito-driven tests pass. Mirrors the .NET + TS SDKs.
 
 ---

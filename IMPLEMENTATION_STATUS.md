@@ -251,7 +251,7 @@ External-bridge stack (doc.md §11.3 — cross-foreign-chain to Eth/Tron/Sol):
 
 ### Tests
 
-**1453 .NET tests across 34 projects, plus 166 cross-language tests
+**1453 .NET tests across 34 projects, plus 167 cross-language tests
 (15 TypeScript + 10 Rust SDK + 5 shared execution-core + 7 SP1 guest host-mode + 103 Rust bridge
 watcher core across 3 crates [eth: 87 with `live-rpc`; tron: 7; sol: 9],
 22 Foundry Solidity tests for `NeoExternalBridgeRouter` [15 single-chain

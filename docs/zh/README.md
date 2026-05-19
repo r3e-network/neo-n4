@@ -117,8 +117,8 @@ accelerator、NeoVM2/RISC-V L2 执行、可选 N4 L2 execution profile,以及作
   `bridge/neo-zkvm-guest/`(被证明的函数)。
 - **Submodule(4)** —— `external/neo`(`r3e-network/neo` fork，L2 分支 `r3e/neo-n4-core`；同一 fork 内的 L1 core 分支为 `r3e/neo-n3-core`)、`external/neo-devpack-dotnet`、
   `external/neo-riscv-vm`、`external/neo-zkvm`。
-- **测试(1453 .NET + 166 跨语言)** —— 34 个 .NET 工程的 1453 条测试;
-  15 TS + 10 Rust SDK + 5 shared execution-core + 7 SP1 guest +
+- **测试(1453 .NET + 167 跨语言)** —— 34 个 .NET 工程的 1453 条测试;
+  16 TS + 10 Rust SDK + 5 shared execution-core + 7 SP1 guest +
   103 Rust 桥 watcher(eth 87 / tron 7 / sol 9) + 22 Foundry + 4 Solana router —— 全绿。
 
 ---

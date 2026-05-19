@@ -236,10 +236,18 @@ public class MpcCommitteeFraudVerifierContract : SmartContract
             "equivocator has zero bond balance — nothing to slash (still record the slash to prevent replay)");
 
         var reporter = (UInt160)Runtime.CallingScriptHash;
+
+        // CEI: record the replay flag BEFORE the external bond.slash call. The current
+        // ExternalBridgeBond.Slash is benign (just decrements storage + transfers), but if
+        // the bond contract were ever replaced with one that re-entered Slash on this
+        // contract — e.g. via a hostile NEP-17 hook called during payout — the line-156
+        // replay guard wouldn't yet be set. Writing first closes the door before any
+        // external code runs.
+        Storage.Put(slashedKey, new byte[] { 1 });
+
         Contract.Call(bond, "slash", CallFlags.All,
             new object[] { externalChainId, member, balance, reporter });
 
-        Storage.Put(slashedKey, new byte[] { 1 });
         OnCommitteeMemberSlashed(externalChainId, signerIdx, member, balance, reporter);
     }
 

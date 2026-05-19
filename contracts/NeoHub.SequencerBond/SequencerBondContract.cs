@@ -186,8 +186,13 @@ public class SequencerBondContract : SmartContract
         if (recipient.IsValid && !recipient.IsZero)
         {
             var asset = GetBondAsset();
-            Contract.Call(asset, "transfer", CallFlags.All,
+            // Check the NEP-17 transfer return — a paused/frozen bond asset would return false
+            // and silently leave the accounting decremented without any actual movement. Match
+            // ExternalBridgeBond.Slash which captures the bool. recipient == zero burns
+            // (no transfer needed) and falls through.
+            var ok = (bool)Contract.Call(asset, "transfer", CallFlags.All,
                 new object[] { Runtime.ExecutingScriptHash, recipient, amount, null! });
+            ExecutionEngine.Assert(ok, "slash payout to recipient failed");
         }
 
         OnBondSlashed(chainId, sequencer, amount, recipient);
@@ -209,8 +214,11 @@ public class SequencerBondContract : SmartContract
 
         Storage.Put(key, current - amount);
         var asset = GetBondAsset();
-        Contract.Call(asset, "transfer", CallFlags.All,
+        // Capture the NEP-17 transfer return — a paused/frozen asset returns false and
+        // we'd otherwise silently lose the sequencer's withdrawn balance from accounting.
+        var ok = (bool)Contract.Call(asset, "transfer", CallFlags.All,
             new object[] { Runtime.ExecutingScriptHash, sequencer, amount, null! });
+        ExecutionEngine.Assert(ok, "withdrawal transfer failed");
 
         OnBondWithdrawn(chainId, sequencer, amount);
     }

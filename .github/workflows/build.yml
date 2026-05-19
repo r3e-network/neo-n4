@@ -59,6 +59,12 @@ jobs:
       - name: Build
         run: dotnet build Neo.L2.sln /p:NuGetAudit=false --nologo
 
+      # dotnet format pass — verifies whitespace/style consistency across all
+      # 99 projects. Catches the kind of drift that `dotnet format` would
+      # normally rewrite (and that PR reviewers shouldn't be auto-fixing).
+      - name: dotnet format --verify-no-changes
+        run: dotnet format Neo.L2.sln --verify-no-changes
+
       - name: Test
         run: dotnet test Neo.L2.sln /p:NuGetAudit=false --nologo --no-build
 
@@ -380,6 +386,13 @@ jobs:
         # --no-git: plain clone into lib/forge-std rather than registering
         # as a submodule of the parent neo4 repo (lib/ is gitignored).
         run: forge install --no-git foundry-rs/forge-std
+
+      # forge fmt pass — verifies Solidity formatting consistency. The router
+      # contract + its 39 Foundry tests must stay in the standard style so
+      # auditors can review without style-noise distraction.
+      - name: forge fmt --check
+        working-directory: external/foreign-contracts/eth
+        run: forge fmt --check
 
       - name: forge test (single-chain + multi-chain)
         working-directory: external/foreign-contracts/eth

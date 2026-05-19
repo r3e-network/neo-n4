@@ -48,5 +48,6 @@
 
 - [Production readiness audit](./audit/production-readiness-audit.md)
 - [Repository coverage ledger](./audit/repository-coverage-ledger.md)
+- [Neo 4 system assurance audit](./audit/neo4-system-assurance-audit-2026-05-19.md)
 - [ZKsync alignment consistency security pass](./audit/zksync-alignment-consistency-security-2026-05-18.md)
 - [Repository-wide consistency/localization/security pass](./audit/repository-wide-consistency-localization-security-2026-05-18.md)

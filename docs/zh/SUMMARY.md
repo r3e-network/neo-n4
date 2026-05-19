@@ -49,4 +49,5 @@
 
 # 审计证据
 
+- [Neo 4 系统保证审计](./audit/neo4-system-assurance-audit-2026-05-19.md)
 - [仓库级一致性 / 本地化 / 安全审计](./audit/repository-wide-consistency-localization-security-2026-05-18.md)

@@ -58,7 +58,7 @@ accelerator、NeoVM2/RISC-V L2 执行、可选 N4 L2 execution profile,以及作
 数据可用性层的 NeoFS。
 
 <p align="center">
-  <img src="../figures/experience-hub/neo-n4-experience-hub.png" alt="Neo N4 体验中心:展示 NeoHub、NeoFS DA、NativeZkVerifier、NeoVM2/RISC-V L2 执行、可选 VM profile 与验证证据" width="920">
+  <img src="figures/experience-hub/neo-n4-experience-hub.png" alt="Neo N4 体验中心:展示 NeoHub、NeoFS DA、NativeZkVerifier、NeoVM2/RISC-V L2 执行、可选 VM profile 与验证证据" width="920">
 </p>
 
 该预览刻意采用本地优先边界:私有 devnet 证据会和公开 testnet/mainnet 证据分开标记,

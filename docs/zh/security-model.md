@@ -92,6 +92,27 @@ DAC 链(就标 DAC,不要营销话术粉饰)。
 - **Native ZK verifier adapter。** `NativeZkVerifier` 会在委托给
   `verifyZkProof(...)` 前拒绝非 ZK commitment、畸形 `RiscVProofPayload` envelope、
   未登记 verification key、以及未设置 native accelerator hash 的配置。
+- **`OptimisticChallenge.Challenge` 的 fraud-verifier 白名单。** 关闭一次
+  bond-drain 攻击窗口:`Challenge` 只会调用 owner 经 `RegisterFraudVerifier`
+  显式登记过的 `fraudVerifier` 合约哈希。否则攻击者可以部署"yes-verifier"
+  并把任何 sequencer 的保证金抽干。部署计划器会把对应的
+  `RegisterFraudVerifier` 步骤作为 post-deploy 自动列出
+  (`GovernanceFraudVerifier`、`RestrictedExecutionFraudVerifier`)。
+- **治理 proposal payload 绑定。** 每个 `*ViaProposal` 方法
+  (`SetImmutableFlagViaProposal`、`RegisterVerifierViaProposal`、
+  `UpgradeVerifierViaProposal`、`RegisterCommitteeViaProposal`)都会把
+  action args 做规范字节编码,并通过 `GovernanceController.MatchesProposalPayload`
+  与存储的 proposal payload 做按字节相等性比较。council 成员投票的就是执行
+  调用实际还原出的同一段字节 —— 已通过的 proposal 不能被改写成不同的 action
+  args 重新触发。
+- **提款 leaf 中的 chainId 域分隔。** `SharedBridge.ComputeWithdrawalLeafHash`
+  和链下 `MessageHasher.HashWithdrawal` 的 preimage 都会先拼 4 字节小端 chainId,
+  这样某条 L2 的 withdrawal root 上的 inclusion proof 即便其它字段恰好相同也
+  绝不能在另一条 L2 上回放。
+- **MPC 委员会重复签名拒绝。** `MpcCommitteeVerifier` 用 seenBitmap 追踪
+  signer index,攻击者无法让同一个委员会成员被计入阈值两次(同时也是抵御 ECDSA
+  签名延展性的关键防线 —— 同一签名者的 low-S/high-S 重签名会在 Neo CryptoLib
+  验证之前就被 duplicate-signer 断言拒绝)。
 - **证明阶段拒绝空证明。** 非 `None` 的 `ProofType` 配上空 `Proof` 字节会在证明
   边界被拒,而不是审计阶段才被发现。
 - **解码器严格长度匹配。** 文档化负载之后的尾随字节会被拒;否则攻击者可以追加

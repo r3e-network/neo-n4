@@ -102,6 +102,32 @@ pinning regression test):
 - **Native ZK verifier adapter.** `NativeZkVerifier` refuses non-ZK commitments,
   malformed `RiscVProofPayload` envelopes, unregistered verification keys, and
   unset native accelerator hashes before delegating to `verifyZkProof(...)`.
+- **Fraud-verifier allowlist on `OptimisticChallenge.Challenge`.** Closes a
+  bond-drain attack window: `Challenge` will only invoke a `fraudVerifier`
+  contract hash that the owner has explicitly registered via
+  `RegisterFraudVerifier`. Without this gate, an attacker could deploy a
+  yes-verifier and drain any sequencer's bond. The deploy planner emits the
+  required `RegisterFraudVerifier` step for every shipped verifier
+  (`GovernanceFraudVerifier`, `RestrictedExecutionFraudVerifier`) as part of
+  post-deploy wiring.
+- **Governance proposal payload binding.** Every `*ViaProposal` method
+  (`SetImmutableFlagViaProposal`, `RegisterVerifierViaProposal`,
+  `UpgradeVerifierViaProposal`, `RegisterCommitteeViaProposal`) canonically
+  encodes its action args and asserts byte-equality against the stored
+  proposal payload via `GovernanceController.MatchesProposalPayload`. Council
+  members vote on the EXACT bytes the execution call will reproduce — an
+  approved proposal can NOT be repurposed with different action args.
+- **Withdrawal-leaf chainId domain separation.** The
+  `SharedBridge.ComputeWithdrawalLeafHash` and off-chain
+  `MessageHasher.HashWithdrawal` preimages both prepend a 4-byte LE chainId
+  so an inclusion proof from one L2's withdrawal root can never replay
+  against another L2 — even if the rest of the tuple coincidentally matches.
+- **MPC committee duplicate-signer rejection.** `MpcCommitteeVerifier`
+  tracks signer indices in a seenBitmap so an attacker cannot count the
+  same committee member twice toward the threshold (also the load-bearing
+  defense against ECDSA signature malleability — any low-S/high-S
+  re-signature from the same signer hits the duplicate-signer assert
+  before Neo's CryptoLib verifier is even called).
 - **Empty-proof rejection at prove time.** A non-`None` `ProofType` paired with
   empty `Proof` bytes is rejected at the prove boundary, not waited-for at audit
   time.

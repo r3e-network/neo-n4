@@ -101,7 +101,7 @@ BridgeHub, SharedBridge, VerifierRegistry, and MessageRouter into one suite. The
   `{chainId, operatorManager, verifier, bridgeAdapter, messageAdapter,
   securityLevel(0–3), daMode(0–3), gatewayEnabled, permissionlessExit,
   active}`.
-- **`SharedBridge`** — Escrow canonical GAS / NEO / NEP-17. Lock-mint and
+- **`SharedBridge`** — Escrow canonical GAS / NEO / USDT / USDC / BTC / NEP-17. Lock-mint and
   burn-unlock rules. Withdrawal finalization off finalized
   `withdrawalRoot`.
 - **`SettlementManager`** — Accept `L2BatchCommitment` (chainId,

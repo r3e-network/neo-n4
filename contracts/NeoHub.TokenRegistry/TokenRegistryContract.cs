@@ -21,6 +21,11 @@ public class TokenRegistryContract : SmartContract
 {
     private const byte PrefixMapping = 0x01;   // 0x01 + l1Asset(20B) + l2ChainId(4B) → encoded mapping
     private const byte KeyOwner = 0xFF;
+    private const byte AssetTypeGas = 0;
+    private const byte AssetTypeNeo = 1;
+    private const byte AssetTypePlatformUsdt = 5;
+    private const byte AssetTypePlatformUsdc = 6;
+    private const byte AssetTypePlatformBtc = 7;
 
     /// <summary>
     /// Encoded mapping: 20B l1Asset + 4B chainId + 20B l2Asset + 1B assetType +
@@ -69,14 +74,26 @@ public class TokenRegistryContract : SmartContract
         ExecutionEngine.Assert(l2Asset.IsValid && !l2Asset.IsZero, "invalid L2 asset");
         ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         ExecutionEngine.Assert(l1Decimals <= 18 && l2Decimals <= 18, "invalid decimals");
-        if (assetType == 1)
+        if (assetType == AssetTypeNeo)
         {
             ExecutionEngine.Assert(l1Decimals == 0, "L1 NEO decimals must be 0");
-            ExecutionEngine.Assert(l2Decimals > 0, "L2 NEO must be decimalized");
+            ExecutionEngine.Assert(l2Decimals == 8, "L2 NEO decimals must be 8");
         }
-        if (assetType == 0)
+        if (assetType == AssetTypeGas)
         {
             ExecutionEngine.Assert(l1Decimals == 8 && l2Decimals == 8, "GAS decimals must be 8");
+        }
+        if (assetType == AssetTypePlatformUsdt)
+        {
+            ExecutionEngine.Assert(l1Decimals == 6 && l2Decimals == 6, "USDT decimals must be 6");
+        }
+        if (assetType == AssetTypePlatformUsdc)
+        {
+            ExecutionEngine.Assert(l1Decimals == 6 && l2Decimals == 6, "USDC decimals must be 6");
+        }
+        if (assetType == AssetTypePlatformBtc)
+        {
+            ExecutionEngine.Assert(l1Decimals == 8 && l2Decimals == 8, "BTC decimals must be 8");
         }
 
         Storage.Put(MappingKey(l1Asset, chainId), mappingBytes);

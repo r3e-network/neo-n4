@@ -170,12 +170,15 @@ internal static class DeployBridgeAdapterCommand
         Console.WriteLine("  Required asset mappings   :");
         Console.WriteLine("    L2BridgeContract.RegisterMapping(<L1 NEO>, <L2 NEO>, l1Decimals=0, l2Decimals=8)");
         Console.WriteLine("    L2BridgeContract.RegisterMapping(<L1 GAS>, <L2 GAS>, l1Decimals=8, l2Decimals=8)");
+        Console.WriteLine("    L2BridgeContract.RegisterMapping(<L1 USDT>, <L2 USDT>, l1Decimals=6, l2Decimals=6)");
+        Console.WriteLine("    L2BridgeContract.RegisterMapping(<L1 USDC>, <L2 USDC>, l1Decimals=6, l2Decimals=6)");
+        Console.WriteLine("    L2BridgeContract.RegisterMapping(<L1 BTC>,  <L2 BTC>,  l1Decimals=8, l2Decimals=8)");
         Console.WriteLine("    NeoHub.TokenRegistry.RegisterMapping(<encoded L1+chainId+L2 mapping with decimals>)");
         Console.WriteLine();
         Console.WriteLine($"Next steps for production deploy:");
         Console.WriteLine($"  1. Start chain {chainId} from the r3e Neo core fork so L2BridgeContract exists at genesis as a native contract");
         Console.WriteLine($"  2. Configure native L2BridgeContract owner/system account through the L2 governance signer");
-        Console.WriteLine($"  3. Register the L1-L2 NEO and GAS mappings on both sides (asymmetric - L1 calls TokenRegistry, L2 calls L2BridgeContract)");
+        Console.WriteLine($"  3. Register the L1-L2 NEO, GAS, USDT, USDC, and BTC mappings on both sides (asymmetric - L1 calls TokenRegistry, L2 calls L2BridgeContract)");
         Console.WriteLine($"  4. Verify lookup + decimals: TokenRegistry.GetL2Asset/GetL1Decimals/GetL2Decimals and L2BridgeContract.GetL2Asset/GetL1Decimals/GetL2Decimals");
         Console.WriteLine();
         Console.WriteLine($"(No L2Native contract is deployed after genesis; L1 setup still needs the contract owner and operator-specific signing.)");

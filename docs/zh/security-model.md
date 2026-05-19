@@ -10,7 +10,7 @@
 
 对每一条注册到 `NeoHub.ChainRegistry` 的 L2 链:
 
-- **资产托管完整性。** 规范资产(GAS / NEO / NEP-17)托管在
+- **资产托管完整性。** 规范资产(GAS / NEO / USDT / USDC / BTC / NEP-17)托管在
   `NeoHub.SharedBridge` 内。任何 L2 都不能铸造、销毁或挪动被托管资产,除非通过
   注册的验证器最终确认一个 `withdrawalRoot`。
 - **结算确定性。** 一个被 `SettlementManager` 接受的 `L2BatchCommitment`,意味着

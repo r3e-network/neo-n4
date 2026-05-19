@@ -56,7 +56,7 @@ L1 = settlement root + canonical asset root + governance root + final verificati
 │  │ NeoHub                                                │  │
 │  │ - L2 chain registry                                  │  │
 │  │ - shared bridge                                      │  │
-│  │ - canonical GAS / NEO / NEP-17 asset escrow          │  │
+│  │ - canonical GAS / NEO / USDT / USDC / BTC / NEP-17   │  │
 │  │ - L2 batch settlement                                │  │
 │  │ - state root registry                                │  │
 │  │ - proof verifier registry                            │  │
@@ -122,7 +122,7 @@ L1 不是只做桥，而是整个 L2 网络的安全根。
 ```text
 L1 responsibilities:
 1. 注册所有 Neo L2 chain
-2. 锁定 canonical GAS / NEO / NEP-17 资产
+2. 锁定 canonical GAS / NEO / USDT / USDC / BTC / NEP-17 资产
 3. 接收 L2 batch commitment
 4. 验证 L2 validity proof 或 optimistic challenge result
 5. 记录 canonical L2 state root
@@ -189,7 +189,7 @@ getChainConfig(chainId)
 
 ```text
 SharedBridge responsibilities:
-1. L1 GAS / NEO / NEP-17 escrow
+1. L1 GAS / NEO / USDT / USDC / BTC / NEP-17 escrow
 2. L1 -> L2 deposit
 3. L2 -> L1 withdrawal finalization
 4. L2 asset mapping registry
@@ -203,10 +203,13 @@ Neo N3 GAS = canonical GAS
 Neo L2 GAS = bridged GAS representation
 Neo N3 NEO = indivisible canonical NEO (decimals = 0)
 Neo L2 NEO = built-in decimal bridged NEO representation (decimals = 8)
+Neo L2 USDT / USDC = built-in platform stablecoin representations (decimals = 6)
+Neo L2 BTC = built-in platform BTC representation (decimals = 8)
 ```
 
 也就是说，L2 上的 GAS 不应该无约束发行。L2 可以把 bridged GAS 作为 fee token，但 supply 必须由 L1 SharedBridge 约束。
 同理，L1 NEO 不改变不可分割属性；每条 L2 内置的 NEO 是由桥映射出来的 decimal 表示，充值按 `10^8` 放大，提款必须能按 `10^8` 精确缩回 L1 整数 NEO。
+USDT、USDC、BTC 作为全平台目录资产处理；每条 L2 使用同一套 L2 asset id 与 decimals，方便 L1↔L2 与 L2↔L2 转移在用户和应用层保持无感。
 
 ### SettlementManager
 
@@ -877,8 +880,11 @@ struct AssetMapping {
 平台资产规则:
 
 ```text
-GAS: l1Decimals = 8, l2Decimals = 8
 NEO: l1Decimals = 0, l2Decimals = 8
+GAS: l1Decimals = 8, l2Decimals = 8
+USDT: l1Decimals = 6, l2Decimals = 6
+USDC: l1Decimals = 6, l2Decimals = 6
+BTC: l1Decimals = 8, l2Decimals = 8
 ```
 
 ## 11.3 跨外链桥 ExternalBridge

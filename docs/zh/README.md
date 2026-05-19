@@ -29,9 +29,10 @@ Neo N3 / Neo 4 L1 上的统一可部署 L1 合约套件(**NeoHub**),并通过可
 上重新构建:dBFT 2.0 终结性、NEP-17 资产、NeoVM2/RISC-V 执行、NeoFS 数据可用性。
 
 平台资产在 L2 边界做规范化。L1 NEO 保持不可分割(`decimals = 0`),L1 GAS 保持
-8 位小数；每条 N4 L2 都内置带 decimal 的 NEO 和 GAS 表示。L2 原生桥会在
+8 位小数；每条 N4 L2 都内置同一套 NEO、GAS、USDT、USDC、BTC 目录资产。USDT/USDC
+固定为 6 位小数，BTC 固定为 8 位小数，NEO 在 L2 上使用 8 位小数表示。L2 原生桥会在
 `TokenRegistry` 映射里记录 L1/L2 两侧 decimals,对充值/提款做精确缩放,并拒绝无法
-精确回到 L1 的零碎 NEO 提款。
+精确回到 L1 的零碎提款，例如非整数 L1 NEO 退出。
 
 ---
 

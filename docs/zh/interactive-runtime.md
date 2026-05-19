@@ -7,6 +7,7 @@
 该页面动态展示 Neo N4 的主要运行流程：
 
 - L1 到 L2 充值
+- 平台资产目录与 decimal 策略(NEO/GAS/USDT/USDC/BTC)
 - 批次生命周期
 - 通过 Neo Gateway 进行证明聚合
 - L2 到 L1 提现

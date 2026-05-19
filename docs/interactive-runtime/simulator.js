@@ -18,6 +18,10 @@ const baseState = Object.freeze({
     withdrawalQueue: 0,
     foreignEscrow: 0,
   },
+  assets: {
+    platform: ['NEO', 'GAS', 'USDT', 'USDC', 'BTC'],
+    decimals: { NEO: '0->8', GAS: '8->8', USDT: '6->6', USDC: '6->6', BTC: '8->8' },
+  },
   batch: {
     number: 42,
     txs: 0,
@@ -50,14 +54,14 @@ const scenarios = [
     id: 'deposit',
     title: 'L1 to L2 deposit',
     zhTitle: 'L1 到 L2 充值',
-    summary: 'A user locks value in NeoHub, a canonical message enters the L2 inbox, and the L2 native bridge mints credit at genesis-level contract state.',
-    zhSummary: '用户在 NeoHub 锁定资产，规范消息进入 L2 inbox，L2 原生桥在 genesis 级合约状态里铸造信用。',
-    objective: 'Move 100 units from L1 escrow to L2 credit without deploying an L2 contract.',
+    summary: 'A user locks a platform asset in NeoHub, a canonical message enters the L2 inbox, and the L2 native bridge mints the same NEO/GAS/USDT/USDC/BTC catalog entry on the target L2.',
+    zhSummary: '用户在 NeoHub 锁定平台资产，规范消息进入 L2 inbox，L2 原生桥在目标 L2 铸造同一套 NEO/GAS/USDT/USDC/BTC 目录资产。',
+    objective: 'Move 100 USDT minor units from L1 escrow to L2 credit without deploying an L2 contract.',
     events: [
-      event('deposit-sign', 'Wallet signs deposit intent', 'wallet', 'neohub', 'Intent', 'NEP-17 amount=100', { counters: { messages: 1 } }),
-      event('deposit-lock', 'SharedBridge locks asset', 'neohub', 'neohub', 'Escrow', 'l1Escrow +100', { ledger: { l1Escrow: 100 } }),
+      event('deposit-sign', 'Wallet signs deposit intent', 'wallet', 'neohub', 'Intent', 'USDT amount=100 decimals=6', { counters: { messages: 1 } }),
+      event('deposit-lock', 'SharedBridge locks platform asset', 'neohub', 'neohub', 'Escrow', 'USDT l1Escrow +100', { ledger: { l1Escrow: 100 } }),
       event('deposit-inbox', 'MessageRouter emits L2 inbox payload', 'neohub', 'l2node', 'Inbox', 'chainId=1099 nonce=77', { counters: { messages: 2 } }),
-      event('deposit-mint', 'L2BridgeContract mints wrapped asset', 'l2node', 'native', 'Mint', 'l2Credit +100', { ledger: { l2Credit: 100 }, batch: { txs: 1 } }),
+      event('deposit-mint', 'L2BridgeContract mints wrapped asset', 'l2node', 'native', 'Mint', 'USDT l2Credit +100 using same L2 asset id on every chain', { ledger: { l2Credit: 100 }, batch: { txs: 1 } }),
     ],
   },
   {

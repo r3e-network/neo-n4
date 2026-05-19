@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Reflection;
 
 namespace Neo.L2.UnitTests;
 
@@ -305,6 +306,9 @@ public class UT_Models
         Assert.AreEqual(2, (byte)AssetType.Nep17);
         Assert.AreEqual(3, (byte)AssetType.Stablecoin);
         Assert.AreEqual(4, (byte)AssetType.Rwa);
+        Assert.AreEqual("PlatformUsdt", Enum.GetName(typeof(AssetType), (byte)5));
+        Assert.AreEqual("PlatformUsdc", Enum.GetName(typeof(AssetType), (byte)6));
+        Assert.AreEqual("PlatformBtc", Enum.GetName(typeof(AssetType), (byte)7));
     }
 
     [TestMethod]
@@ -316,6 +320,73 @@ public class UT_Models
         Assert.AreEqual((byte)8, PlatformAssets.L2GasDecimals);
         Assert.AreEqual(AssetType.Neo, PlatformAssets.CreateNeoMapping(UInt160.Zero, 1001).AssetType);
         Assert.AreEqual(AssetType.Gas, PlatformAssets.CreateGasMapping(UInt160.Zero, 1001).AssetType);
+
+        Assert.AreEqual("USDT", StaticConst<string>("L2UsdtName"));
+        Assert.AreEqual("USDC", StaticConst<string>("L2UsdcName"));
+        Assert.AreEqual("BTC", StaticConst<string>("L2BtcName"));
+        Assert.AreEqual((byte)6, StaticConst<byte>("L1UsdtDecimals"));
+        Assert.AreEqual((byte)6, StaticConst<byte>("L2UsdtDecimals"));
+        Assert.AreEqual((byte)6, StaticConst<byte>("L1UsdcDecimals"));
+        Assert.AreEqual((byte)6, StaticConst<byte>("L2UsdcDecimals"));
+        Assert.AreEqual((byte)8, StaticConst<byte>("L1BtcDecimals"));
+        Assert.AreEqual((byte)8, StaticConst<byte>("L2BtcDecimals"));
+
+        var usdt = StaticProperty<UInt160>("L2UsdtAsset");
+        var usdc = StaticProperty<UInt160>("L2UsdcAsset");
+        var btc = StaticProperty<UInt160>("L2BtcAsset");
+        Assert.AreNotEqual(UInt160.Zero, usdt);
+        Assert.AreNotEqual(UInt160.Zero, usdc);
+        Assert.AreNotEqual(UInt160.Zero, btc);
+        Assert.AreEqual(5, new HashSet<UInt160>
+        {
+            PlatformAssets.L2NeoAsset,
+            PlatformAssets.L2GasAsset,
+            usdt,
+            usdc,
+            btc,
+        }.Count, "Every platform asset must have a stable, distinct L2 asset id.");
+
+        AssertPlatformMapping("CreateUsdtMapping", "PlatformUsdt", usdt, 6, 6);
+        AssertPlatformMapping("CreateUsdcMapping", "PlatformUsdc", usdc, 6, 6);
+        AssertPlatformMapping("CreateBtcMapping", "PlatformBtc", btc, 8, 8);
+
+        static T StaticConst<T>(string name)
+        {
+            var field = typeof(PlatformAssets).GetField(name, BindingFlags.Public | BindingFlags.Static);
+            Assert.IsNotNull(field, $"PlatformAssets.{name} must be part of the public platform token catalog.");
+            return (T)field.GetRawConstantValue()!;
+        }
+
+        static T StaticProperty<T>(string name)
+        {
+            var property = typeof(PlatformAssets).GetProperty(name, BindingFlags.Public | BindingFlags.Static);
+            Assert.IsNotNull(property, $"PlatformAssets.{name} must expose the canonical L2 token id.");
+            return (T)property.GetValue(null)!;
+        }
+
+        static void AssertPlatformMapping(string methodName, string assetTypeName, UInt160 l2Asset, byte l1Decimals, byte l2Decimals)
+        {
+            var method = typeof(PlatformAssets).GetMethod(
+                methodName,
+                BindingFlags.Public | BindingFlags.Static,
+                binder: null,
+                types: [typeof(UInt160), typeof(uint), typeof(bool)],
+                modifiers: null);
+            Assert.IsNotNull(method, $"PlatformAssets.{methodName} must create canonical platform mappings.");
+
+            var l1Asset = UInt160.Parse("0x1234567890abcdef1234567890abcdef12345678");
+            var mapping = (AssetMapping)method.Invoke(null, [l1Asset, 1001u, true])!;
+            var expectedType = (AssetType)Enum.Parse(typeof(AssetType), assetTypeName);
+            Assert.AreEqual(l1Asset, mapping.L1Asset);
+            Assert.AreEqual(1001u, mapping.L2ChainId);
+            Assert.AreEqual(l2Asset, mapping.L2Asset);
+            Assert.AreEqual(l1Decimals, mapping.L1Decimals);
+            Assert.AreEqual(l2Decimals, mapping.L2Decimals);
+            Assert.AreEqual(expectedType, mapping.AssetType);
+            Assert.IsTrue(mapping.MintBurn);
+            Assert.IsTrue(mapping.LockMint);
+            Assert.IsTrue(mapping.Active);
+        }
     }
 
     [TestMethod]

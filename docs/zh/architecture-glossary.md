@@ -75,8 +75,8 @@
 ### 桥与消息支持(5)
 
 - **`TokenRegistry`** — 规范 L1↔L2 资产映射元信息,包括两侧 decimals。
-  `SharedBridge` 使用,并镜像到 L2 `L2BridgeContract`;NEO 固定为 L1 0 decimals
-  → L2 8 decimals,GAS 两侧都是 8 decimals。
+  `SharedBridge` 使用,并镜像到 L2 `L2BridgeContract`;平台资产固定为 NEO 0→8、
+  GAS 8→8、USDT/USDC 6→6、BTC 8→8。
 - **`DARegistry`** — 记录已发布的 `daCommitment` 哈希;`L2DAPlugin` 在每个批次写入此处。
 - **`DAValidator`** — 在批次最终化前验证 DA commitment 与 DAC 委员会 attestations。
 - **`L1TxFilter`** — `MessageRouter` 使用的可选逐链 L1-to-L2 入队策略钩子。

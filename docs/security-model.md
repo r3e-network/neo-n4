@@ -11,7 +11,8 @@
 
 For any L2 chain registered in `NeoHub.ChainRegistry`:
 
-- **Asset escrow integrity.** Canonical assets (GAS / NEO / NEP-17) live in
+- **Asset escrow integrity.** Canonical assets (GAS / NEO / USDT / USDC /
+  BTC / NEP-17) live in
   `NeoHub.SharedBridge`. No L2 can mint, burn, or move escrowed assets except by
   finalizing a `withdrawalRoot` through the registered verifier.
 - **Settlement determinism.** A `L2BatchCommitment` accepted by `SettlementManager`

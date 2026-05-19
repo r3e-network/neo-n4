@@ -38,6 +38,12 @@ internal static class Program
     private static readonly UInt160 NeoL2 = PlatformAssets.L2NeoAsset;
     private static readonly UInt160 GasL1 = UInt160.Parse("0x" + new string('1', 40));
     private static readonly UInt160 GasL2 = PlatformAssets.L2GasAsset;
+    private static readonly UInt160 UsdtL1 = UInt160.Parse("0x" + new string('2', 40));
+    private static readonly UInt160 UsdtL2 = PlatformAssets.L2UsdtAsset;
+    private static readonly UInt160 UsdcL1 = UInt160.Parse("0x" + new string('3', 40));
+    private static readonly UInt160 UsdcL2 = PlatformAssets.L2UsdcAsset;
+    private static readonly UInt160 BtcL1 = UInt160.Parse("0x" + new string('4', 40));
+    private static readonly UInt160 BtcL2 = PlatformAssets.L2BtcAsset;
     private static readonly UInt160 Alice = UInt160.Parse("0x" + new string('a', 40));
     private static readonly UInt160 Bob = UInt160.Parse("0x" + new string('b', 40));
 
@@ -79,7 +85,10 @@ internal static class Program
         var registry = new AssetRegistry();
         registry.Register(PlatformAssets.CreateGasMapping(GasL1, LocalChainId) with { L2Asset = GasL2 });
         registry.Register(PlatformAssets.CreateNeoMapping(NeoL1, LocalChainId) with { L2Asset = NeoL2 });
-        Console.WriteLine($"[wire] asset registry: 2 platform mappings (GAS L1={Truncate160(GasL1)} → L2={Truncate160(GasL2)}, NEO L1={Truncate160(NeoL1)} → L2={Truncate160(NeoL2)}; NEO L1 decimals=0, L2 decimals=8)");
+        registry.Register(PlatformAssets.CreateUsdtMapping(UsdtL1, LocalChainId) with { L2Asset = UsdtL2 });
+        registry.Register(PlatformAssets.CreateUsdcMapping(UsdcL1, LocalChainId) with { L2Asset = UsdcL2 });
+        registry.Register(PlatformAssets.CreateBtcMapping(BtcL1, LocalChainId) with { L2Asset = BtcL2 });
+        Console.WriteLine($"[wire] asset registry: 5 platform mappings (NEO 0→8, GAS/USDT/USDC/BTC fixed decimals; sample GAS L1={Truncate160(GasL1)} → L2={Truncate160(GasL2)})");
 
         var depositProcessor = new DepositProcessor(LocalChainId, registry);
         var withdrawalProcessor = new WithdrawalProcessor(LocalChainId, registry);
@@ -142,6 +151,9 @@ internal static class Program
             };
         rpcStore.RegisterAsset(GasL1, GasL2);
         rpcStore.RegisterAsset(NeoL1, NeoL2);
+        rpcStore.RegisterAsset(UsdtL1, UsdtL2);
+        rpcStore.RegisterAsset(UsdcL1, UsdcL2);
+        rpcStore.RegisterAsset(BtcL1, BtcL2);
         var rpc = new L2RpcMethods(rpcStore);
 
         // DA writer. With --data-dir, payloads are content-addressed in RocksDB so a

@@ -20,6 +20,8 @@ test('deposit scenario locks L1 value before minting L2 credit', () => {
 
   assert.equal(result.ledger.l1Escrow, 100);
   assert.equal(result.ledger.l2Credit, 100);
+  assert.deepEqual(result.assets.platform, ['NEO', 'GAS', 'USDT', 'USDC', 'BTC']);
+  assert.deepEqual(result.assets.decimals, { NEO: '0->8', GAS: '8->8', USDT: '6->6', USDC: '6->6', BTC: '8->8' });
   assert.equal(result.timeline.at(-1).label, 'L2BridgeContract mints wrapped asset');
   assert.equal(result.timeline.at(-1).packet.to, 'L2 native contracts');
 });

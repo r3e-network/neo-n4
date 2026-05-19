@@ -53,16 +53,16 @@ dotnet run --project tools/Neo.L2.Devnet -- 5
 
 [persist] in-memory stores (devnet default — data lost on restart)
 
-[wire] asset registry: 2 platform mappings (GAS L1=0x11111111…1111 → L2=0xf684fdbd…ee28, NEO L1=0x99999999…9999 → L2=0x8b28b3f6…06d5; NEO L1 decimals=0, L2 decimals=8)
+[wire] asset registry: 5 platform mappings (NEO 0→8, GAS/USDT/USDC/BTC fixed decimals; sample GAS L1=0x11111111…1111 → L2=0xf684fdbd…ee28)
 [wire] 4 validators, attestation threshold = 3
 [wire] sequencer committee: 3 active members
 [wire] keyed state store + oracle (0 initial entries)
-[wire] DA writer = InMemoryDAWriter (mode=External)
+[wire] DA writer = NeoFsLikeDAWriter (mode=NeoFS)
 
 ────── batch #1 ──────
   [deposit] minted 1000000 → Alice (nonce=1)
   [withdraw] staged 10000 from Alice → Bob (nonce=1)
-  [DA]   layer=External commitment=0xc7a1cb54…7819b6
+  [DA]   layer=NeoFS commitment=0xc7a1cb54…7819b6
   [seal] preRoot=0x00000000…000000 postRoot=0xe863d100…d70776 verify=True
 […]
 ✅ devnet run complete.
@@ -72,8 +72,9 @@ dotnet run --project tools/Neo.L2.Devnet -- 5
 
 - **3 个排序器**注册进委员会（`NeoHub.SequencerRegistry` 的内存后备）。
 - **5 个批次**依次跑过 `ReferenceBatchExecutor`,每个批次包含一笔充值 + 一笔提款。
-- **2 个平台资产映射**已经注册:GAS 是 8→8,L1 上不可分割的 NEO 映射到
-  L2 内置 decimal NEO 表示(0→8)。
+- **5 个平台资产映射**已经注册:NEO 是 0→8,GAS 是 8→8,USDT/USDC 是 6→6,
+  BTC 是 8→8。这套目录资产的 L2 asset id 内置在 r3e N4 core fork 里,
+  因此 L1↔L2 和 L2↔L2 路由使用同一套 symbol 与 decimal 策略。
 - **`KeyedStateStore`** 存放真实的 (asset, holder) → 余额映射；每个批次的
   `preStateRoot` 等于上一个批次的 `postStateRoot`(状态根连续性得到保证)。
 - 每个批次将其负载发布给 **DA writer**,产生的承诺被绑入证明的 public inputs。

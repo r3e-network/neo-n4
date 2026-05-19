@@ -186,6 +186,10 @@ mapped L2 NEO representation (`l2Decimals = 8`) after resolving
 `TokenRegistry`/`L2BridgeContract` metadata. For withdrawals, the
 `WithdrawalRecord` amount is already the canonical L1 payout amount, so lossy
 downscaling is rejected before the withdrawal record is emitted.
+For the platform catalog, USDT/USDC remain 6-decimal on both sides, BTC remains
+8-decimal on both sides, and the chain-invariant L2 asset id lets cross-L2
+routes carry the same token identity without an application-specific remapping
+table.
 
 ---
 

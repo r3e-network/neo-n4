@@ -68,7 +68,7 @@ L1 锚。**22 个生产合约 + 1 个仅测试 stub** 按关注点分组:
 - `SharedBridge` 经 `ChainRegistry` 查链 config,经 `TokenRegistry` 查 token
   元信息。
 - `TokenRegistry` 同时存储 L1/L2 两侧 decimals。平台资产映射固定为:
-  L1 NEO 0 decimals、L2 NEO 8 decimals,GAS 两侧都是 8 decimals。
+  NEO 0→8、GAS 8→8、USDT/USDC 6→6、BTC 8→8。
 - `OptimisticChallenge` 把 fraud-verifier 升级上提到带多签 + timelock 的
   `GovernanceController`。
 - `ExternalBridgeEscrow` 经 `ExternalBridgeRegistry` 查带曲线 tag 的 verifier;
@@ -254,7 +254,10 @@ l2_batch_info_hash          = 0x...  # 此 L2 的 L2BatchInfoContract
 
 对平台资产而言,桥同时也是 decimals 边界。L1 的整枚 NEO 充值会先按 `10^8` 缩放,
 再记入 L2 内置 NEO 表示；提款时做反向换算,金额必须能被 `10^8` 精确整除,否则
-L2 bridge 会拒绝 burn,不会产生无法在 L1 表示的零碎 NEO 提款记录。GAS 保持 8→8。
+L2 bridge 会拒绝 burn,不会产生无法在 L1 表示的零碎 NEO 提款记录。GAS 保持 8→8,
+USDT/USDC 保持 6→6,BTC 保持 8→8。由于这些平台 L2 asset id 在所有 L2 上保持一致,
+跨 L2 转移可以在源 L2 burn/lock,经 NeoHub 或 Gateway 消息路径路由,再在目标 L2 铸造
+同一目录资产,不需要应用层再做 symbol 重映射。
 
 ### 通道 3 —— 跨 L2 消息传递(可选)
 

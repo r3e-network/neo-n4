@@ -9,8 +9,9 @@ using Neo.SmartContract.Framework.Services;
 namespace NeoHub.SharedBridge;
 
 /// <summary>
-/// Canonical asset escrow shared across all Neo Elastic Network L2 chains. Locks GAS / NEO /
-/// NEP-17 on deposit, releases against finalized <c>withdrawalRoot</c> proofs. See doc.md §11.
+/// Canonical asset escrow shared across all Neo Elastic Network L2 chains. Locks platform assets
+/// (GAS / NEO / USDT / USDC / BTC) and NEP-17 tokens on deposit, releases against finalized
+/// <c>withdrawalRoot</c> proofs. See doc.md §11.
 /// </summary>
 [DisplayName("NeoHub.SharedBridge")]
 [ContractAuthor("Neo Project", "dev@neo.org")]

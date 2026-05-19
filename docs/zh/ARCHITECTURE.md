@@ -32,7 +32,7 @@ L2 链的应用方向:RWA、稳定币、DEX、游戏、企业、隐私。
 L1 核心合约套件:
 
 - **ChainRegistry** —— 注册 L2 链;每条记录 = `{chainId, operatorManager, verifier, bridgeAdapter, messageAdapter, securityLevel(0-3), daMode(0-3), gatewayEnabled, permissionlessExit, active}`
-- **SharedBridge** —— 托管规范 GAS / NEO / NEP-17;铸销规则;充值 + 提款最终化
+- **SharedBridge** —— 托管规范 GAS / NEO / USDT / USDC / BTC / NEP-17;铸销规则;充值 + 提款最终化
 - **SettlementManager** —— 接受 `L2BatchCommitment`(chainId、batchNumber、pre/postStateRoot、txRoot、receiptRoot、withdrawalRoot、l2ToL1MessageRoot、l2ToL2MessageRoot、daCommitment、publicInputHash、proofType、proof)
 - **VerifierRegistry** —— 可插拔验证器:Multisig、Optimistic、ZkRiscV、Aggregated
 - **MessageRouter** —— L1↔L2 与 L2↔L2 消息队列,带防重放

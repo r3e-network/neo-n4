@@ -26,7 +26,7 @@ public sealed record AssetMapping
     /// <summary>Decimals used by the L2 representation's smallest unit.</summary>
     public required byte L2Decimals { get; init; }
 
-    /// <summary>Asset category (GAS / NEO / NEP-17 / stablecoin / RWA / …).</summary>
+    /// <summary>Asset category (GAS / NEO / NEP-17 / stablecoin / platform catalog / RWA / …).</summary>
     public required AssetType AssetType { get; init; }
 
     /// <summary>If true, L2 supply is mint/burn against the bridge.</summary>
@@ -64,6 +64,15 @@ public enum AssetType : byte
 
     /// <summary>Real-world-asset representation (bond, equity, etc.).</summary>
     Rwa = 4,
+
+    /// <summary>Platform-wide canonical USDT mapping.</summary>
+    PlatformUsdt = 5,
+
+    /// <summary>Platform-wide canonical USDC mapping.</summary>
+    PlatformUsdc = 6,
+
+    /// <summary>Platform-wide canonical BTC mapping.</summary>
+    PlatformBtc = 7,
 }
 
 /// <summary>Shared amount-scaling rules for assets whose L1 and L2 decimals differ.</summary>
@@ -103,7 +112,7 @@ public static class AssetAmount
 }
 
 /// <summary>
-/// Platform-wide built-in NEO/GAS token policy for N4 L2 chains.
+/// Platform-wide built-in token policy for N4 L2 chains.
 /// L1 asset hashes are supplied by the caller because mainnet, testnet, and local
 /// L1 forks can differ; L2 asset identifiers are native to the r3e N4 core fork.
 /// </summary>
@@ -127,11 +136,56 @@ public static class PlatformAssets
     /// <summary>N4 L2 native GAS uses 8 decimals across all L2 chains.</summary>
     public const byte L2GasDecimals = 8;
 
+    /// <summary>Canonical L2 mapped USDT token name.</summary>
+    public const string L2UsdtName = "USDT";
+
+    /// <summary>Canonical L2 mapped USDT token symbol.</summary>
+    public const string L2UsdtSymbol = "USDT";
+
+    /// <summary>Canonical L1 USDT uses 6 decimals.</summary>
+    public const byte L1UsdtDecimals = 6;
+
+    /// <summary>N4 L2 platform USDT uses 6 decimals across all L2 chains.</summary>
+    public const byte L2UsdtDecimals = 6;
+
+    /// <summary>Canonical L2 mapped USDC token name.</summary>
+    public const string L2UsdcName = "USDC";
+
+    /// <summary>Canonical L2 mapped USDC token symbol.</summary>
+    public const string L2UsdcSymbol = "USDC";
+
+    /// <summary>Canonical L1 USDC uses 6 decimals.</summary>
+    public const byte L1UsdcDecimals = 6;
+
+    /// <summary>N4 L2 platform USDC uses 6 decimals across all L2 chains.</summary>
+    public const byte L2UsdcDecimals = 6;
+
+    /// <summary>Canonical L2 mapped BTC token name.</summary>
+    public const string L2BtcName = "BTC";
+
+    /// <summary>Canonical L2 mapped BTC token symbol.</summary>
+    public const string L2BtcSymbol = "BTC";
+
+    /// <summary>Canonical BTC representations use 8 decimals.</summary>
+    public const byte L1BtcDecimals = 8;
+
+    /// <summary>N4 L2 platform BTC uses 8 decimals across all L2 chains.</summary>
+    public const byte L2BtcDecimals = 8;
+
     /// <summary>Native-bridge-managed N4 L2 NEO asset id from the L2 core fork.</summary>
     public static UInt160 L2NeoAsset => NativeContract.BridgedNep17.L2NeoTokenId;
 
     /// <summary>Native N4 L2 GAS asset id from the L2 core fork.</summary>
     public static UInt160 L2GasAsset => NativeContract.Governance.GasTokenId;
+
+    /// <summary>Native-bridge-managed N4 L2 USDT asset id from the L2 core fork.</summary>
+    public static UInt160 L2UsdtAsset => NativeContract.BridgedNep17.L2UsdtTokenId;
+
+    /// <summary>Native-bridge-managed N4 L2 USDC asset id from the L2 core fork.</summary>
+    public static UInt160 L2UsdcAsset => NativeContract.BridgedNep17.L2UsdcTokenId;
+
+    /// <summary>Native-bridge-managed N4 L2 BTC asset id from the L2 core fork.</summary>
+    public static UInt160 L2BtcAsset => NativeContract.BridgedNep17.L2BtcTokenId;
 
     /// <summary>Create the canonical NEO mapping for a given L1 asset hash and L2 chain.</summary>
     public static AssetMapping CreateNeoMapping(UInt160 l1Asset, uint l2ChainId, bool active = true) => new()
@@ -160,4 +214,36 @@ public static class PlatformAssets
         LockMint = true,
         Active = active,
     };
+
+    /// <summary>Create the canonical USDT mapping for a given L1 asset hash and L2 chain.</summary>
+    public static AssetMapping CreateUsdtMapping(UInt160 l1Asset, uint l2ChainId, bool active = true) =>
+        CreateFixedDecimalsMapping(l1Asset, l2ChainId, L2UsdtAsset, L1UsdtDecimals, L2UsdtDecimals, AssetType.PlatformUsdt, active);
+
+    /// <summary>Create the canonical USDC mapping for a given L1 asset hash and L2 chain.</summary>
+    public static AssetMapping CreateUsdcMapping(UInt160 l1Asset, uint l2ChainId, bool active = true) =>
+        CreateFixedDecimalsMapping(l1Asset, l2ChainId, L2UsdcAsset, L1UsdcDecimals, L2UsdcDecimals, AssetType.PlatformUsdc, active);
+
+    /// <summary>Create the canonical BTC mapping for a given L1 asset hash and L2 chain.</summary>
+    public static AssetMapping CreateBtcMapping(UInt160 l1Asset, uint l2ChainId, bool active = true) =>
+        CreateFixedDecimalsMapping(l1Asset, l2ChainId, L2BtcAsset, L1BtcDecimals, L2BtcDecimals, AssetType.PlatformBtc, active);
+
+    private static AssetMapping CreateFixedDecimalsMapping(
+        UInt160 l1Asset,
+        uint l2ChainId,
+        UInt160 l2Asset,
+        byte l1Decimals,
+        byte l2Decimals,
+        AssetType assetType,
+        bool active) => new()
+        {
+            L1Asset = l1Asset,
+            L2ChainId = l2ChainId,
+            L2Asset = l2Asset,
+            L1Decimals = l1Decimals,
+            L2Decimals = l2Decimals,
+            AssetType = assetType,
+            MintBurn = true,
+            LockMint = true,
+            Active = active,
+        };
 }

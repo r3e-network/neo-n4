@@ -7,6 +7,7 @@ Open the interactive simulator:
 The page animates the main Neo N4 operating flows:
 
 - L1 to L2 deposit
+- Platform asset catalog and decimal policy (NEO/GAS/USDT/USDC/BTC)
 - Batch lifecycle
 - Proof aggregation through Neo Gateway
 - L2 to L1 withdrawal

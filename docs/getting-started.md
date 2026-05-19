@@ -56,16 +56,16 @@ You should see:
 
 [persist] in-memory stores (devnet default — data lost on restart)
 
-[wire] asset registry: 2 platform mappings (GAS L1=0x11111111…1111 → L2=0xf684fdbd…ee28, NEO L1=0x99999999…9999 → L2=0x8b28b3f6…06d5; NEO L1 decimals=0, L2 decimals=8)
+[wire] asset registry: 5 platform mappings (NEO 0→8, GAS/USDT/USDC/BTC fixed decimals; sample GAS L1=0x11111111…1111 → L2=0xf684fdbd…ee28)
 [wire] 4 validators, attestation threshold = 3
 [wire] sequencer committee: 3 active members
 [wire] keyed state store + oracle (0 initial entries)
-[wire] DA writer = InMemoryDAWriter (mode=External)
+[wire] DA writer = NeoFsLikeDAWriter (mode=NeoFS)
 
 ────── batch #1 ──────
   [deposit] minted 1000000 → Alice (nonce=1)
   [withdraw] staged 10000 from Alice → Bob (nonce=1)
-  [DA]   layer=External commitment=0xc7a1cb54…7819b6
+  [DA]   layer=NeoFS commitment=0xc7a1cb54…7819b6
   [seal] preRoot=0x00000000…000000 postRoot=0xe863d100…d70776 verify=True
 […]
 ✅ devnet run complete.
@@ -75,8 +75,10 @@ What just happened:
 
 - **3 sequencers** registered into a committee (in-memory backing for `NeoHub.SequencerRegistry`).
 - **5 batches** ran — each containing a deposit + withdrawal — through `ReferenceBatchExecutor`.
-- **2 platform asset mappings** were registered: GAS maps 8→8, and L1's indivisible
-  NEO maps into the L2 built-in decimal NEO representation (0→8).
+- **5 platform asset mappings** were registered: NEO maps 0→8, GAS maps 8→8,
+  USDT/USDC map 6→6, and BTC maps 8→8. The L2 asset ids for this catalog are
+  built into the r3e N4 core fork so L1↔L2 and L2↔L2 routes use the same symbols
+  and decimal policy.
 - The **`KeyedStateStore`** held real (asset, holder) → balance entries; each batch's
   `preStateRoot` equals the previous `postStateRoot` (state-root continuity guaranteed).
 - Each batch published its payload to the **DA writer**; the resulting commitment was

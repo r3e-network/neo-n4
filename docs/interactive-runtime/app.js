@@ -202,6 +202,8 @@ function renderState() {
     ['L2 credit', `${state.ledger.l2Credit}`],
     ['Withdrawal queue', `${state.ledger.withdrawalQueue}`],
     ['Foreign escrow', `${state.ledger.foreignEscrow}`],
+    ['Platform assets', state.assets.platform.join(', ')],
+    ['Decimal policy', Object.entries(state.assets.decimals).map(([asset, policy]) => `${asset} ${policy}`).join(' / ')],
     ['Batch', `#${state.batch.number} / ${state.batch.status}`],
     ['State root', state.batch.stateRoot],
     ['Proof', `${state.proof.status} (${state.proof.artifacts} artifacts)`],

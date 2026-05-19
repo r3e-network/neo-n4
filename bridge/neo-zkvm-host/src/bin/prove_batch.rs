@@ -187,6 +187,20 @@ fn run_daemon(args: &[String]) {
     // sees the flag and exits.
     install_shutdown_signal_handlers();
 
+    // Single-instance guard: acquire an exclusive advisory flock on a sentinel
+    // file inside --watch. Without this, two prove-batch daemons pointed at the
+    // same dir would both pick up the same *.batch.bin and double-prove (the
+    // rename-on-success is the only existing dedup; it races between the two
+    // daemons). On Linux the OS releases the flock when the process exits, so
+    // we just need to hold the File alive for the daemon lifetime.
+    let _lock = match acquire_watch_lock(&cfg.watch) {
+        Ok(file) => file,
+        Err(e) => {
+            eprintln!("{}", e);
+            std::process::exit(1);
+        }
+    };
+
     loop {
         if SHUTDOWN_REQUESTED.load(Ordering::Relaxed) {
             eprintln!("prove-batch daemon: shutdown signal received — exiting cleanly");
@@ -204,6 +218,43 @@ fn run_daemon(args: &[String]) {
         }
         interruptible_sleep(Duration::from_secs(cfg.poll_secs));
     }
+}
+
+/// Acquire an exclusive advisory `flock` on `watch_dir/.prove-batch.lock`.
+/// Returns the held `File` (released on Drop = process exit). Errors with a
+/// clear message if another daemon already holds the lock.
+#[cfg(unix)]
+fn acquire_watch_lock(watch_dir: &Path) -> Result<std::fs::File, String> {
+    use std::fs::OpenOptions;
+    use std::os::fd::AsRawFd;
+    let lock_path = watch_dir.join(".prove-batch.lock");
+    let lock_file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(false)
+        .open(&lock_path)
+        .map_err(|e| format!("open {} for flock: {}", lock_path.display(), e))?;
+    let fd = lock_file.as_raw_fd();
+    // SAFETY: fd is a valid file descriptor we just obtained from a successful
+    // open + held alive by `lock_file`. flock is signal-safe.
+    let rc = unsafe { libc::flock(fd, libc::LOCK_EX | libc::LOCK_NB) };
+    if rc != 0 {
+        let err = std::io::Error::last_os_error();
+        return Err(format!(
+            "another prove-batch daemon already holds the lock on {} ({}). \
+             Stop the other instance or pick a different --watch.",
+            watch_dir.display(),
+            err,
+        ));
+    }
+    Ok(lock_file)
+}
+
+#[cfg(not(unix))]
+fn acquire_watch_lock(_watch_dir: &Path) -> Result<std::fs::File, String> {
+    // Non-Unix: skip the flock. Caller is responsible for not running two
+    // daemons. (The watch loop's rename-on-success is best-effort dedup.)
+    Err("prove-batch single-instance lock is currently Unix-only".into())
 }
 
 fn parse_daemon_args(args: &[String]) -> Result<DaemonConfig, String> {

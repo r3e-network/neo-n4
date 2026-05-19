@@ -258,15 +258,33 @@ pub mod neo_external_bridge_router {
 
         // Transfer SOL from vault to recipient.
         let recipient_account = &ctx.accounts.recipient;
+        // Enforce the wire-format invariant that v0 Solana recipients zero-pad
+        // the upper 12 bytes of the 32B address (the canonical message format
+        // truncates to 20B). Without this check, an attacker who controls the
+        // tx submission can bind any of ~2^96 "near-collision" 32-byte pubkeys
+        // to the same 20-byte attested recipient — receiving funds intended
+        // for someone else.
+        let recipient_bytes = recipient_account.key().to_bytes();
         require!(
-            recipient_account.key().to_bytes()[..20] == recipient_b20[..],
+            recipient_bytes[..20] == recipient_b20[..],
             BridgeError::RecipientMismatch
         );
-        // Vault → recipient. The vault PDA is owned by the program;
-        // direct lamport-mutation works because we control the vault.
-        let vault_lamports = ctx.accounts.vault.lamports();
-        require!(vault_lamports >= amount_u64, BridgeError::InsufficientVault);
-        **ctx.accounts.vault.try_borrow_mut_lamports()? -= amount_u64;
+        require!(
+            recipient_bytes[20..] == [0u8; 12],
+            BridgeError::RecipientNotSolanaCanonical
+        );
+        // Vault → recipient. The vault PDA is owned by the program; direct
+        // lamport-mutation works because we control the vault. Preserve the
+        // vault's rent-exempt minimum so the runtime can't garbage-collect the
+        // vault account out from under us (which would drop all bookkeeping
+        // state with it).
+        let vault_account_info = ctx.accounts.vault.to_account_info();
+        let vault_data_len = vault_account_info.data_len();
+        let rent_min = Rent::get()?.minimum_balance(vault_data_len);
+        let vault_lamports = vault_account_info.lamports();
+        let withdrawable = vault_lamports.saturating_sub(rent_min);
+        require!(amount_u64 <= withdrawable, BridgeError::InsufficientVault);
+        **vault_account_info.try_borrow_mut_lamports()? -= amount_u64;
         **recipient_account.try_borrow_mut_lamports()? += amount_u64;
 
         emit!(WithdrawalFinalizedEvent {
@@ -457,9 +475,11 @@ pub enum BridgeError {
     AmountOverflowU64,
     #[msg("recipient account doesn't match recipient bytes in messageBytes")]
     RecipientMismatch,
+    #[msg("recipient pubkey is not in canonical Solana form (upper 12 bytes must be zero in v0)")]
+    RecipientNotSolanaCanonical,
     #[msg("malformed recipient bytes")]
     MalformedRecipient,
-    #[msg("vault has insufficient lamports for this withdrawal")]
+    #[msg("vault has insufficient lamports for this withdrawal (preserving rent-exempt minimum)")]
     InsufficientVault,
     #[msg("message past deadline")]
     PastDeadline,

@@ -75,18 +75,36 @@ describe("L2RpcClient", () => {
   });
 
   describe("getStateRootAt", () => {
-    it("includes the batch number in params", async () => {
+    it("includes the batch number in params as a string (u64 precision-safe)", async () => {
       const expected = "0x" + "b".repeat(64);
       const client = new L2RpcClient({
         endpoint: ENDPOINT,
         chainId: CHAIN_ID,
         fetch: stubFetch((method, params) => {
           expect(method).toBe("getl2stateroot");
-          expect(params).toEqual([CHAIN_ID, 42]);
+          // Wire-format: the SDK serializes the u64 batch number as a JSON string so
+          // that values above 2^53 are not silently truncated by JS Number. Server's
+          // L2RpcMethods.ReadULong accepts JString via ulong.Parse.
+          expect(params).toEqual([CHAIN_ID, "42"]);
           return expected;
         }),
       });
       expect(await client.getStateRootAt(42n)).toBe(expected);
+    });
+
+    it("preserves precision for batch numbers above 2^53", async () => {
+      const expected = "0x" + "c".repeat(64);
+      const big = (1n << 60n) + 17n; // > 2^53; Number(big) would silently truncate
+      const client = new L2RpcClient({
+        endpoint: ENDPOINT,
+        chainId: CHAIN_ID,
+        fetch: stubFetch((method, params) => {
+          expect(method).toBe("getl2stateroot");
+          expect(params).toEqual([CHAIN_ID, big.toString()]);
+          return expected;
+        }),
+      });
+      expect(await client.getStateRootAt(big)).toBe(expected);
     });
   });
 

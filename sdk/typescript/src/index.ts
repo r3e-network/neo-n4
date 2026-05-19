@@ -178,7 +178,10 @@ export class L2RpcClient {
 
   /** getl2batch — full batch commitment for batchNumber; null if not yet sealed. */
   async getBatch(batchNumber: bigint): Promise<L2BatchView | null> {
-    const result = await this.call("getl2batch", [this.chainId, Number(batchNumber)]);
+    // Send as JSON string to preserve full u64 precision — `Number(bigint)` silently
+    // truncates above 2^53-1. Server's L2RpcMethods.ReadULong accepts JString via
+    // ulong.Parse, matching the Rust + .NET SDKs which pass full 64-bit unsigned.
+    const result = await this.call("getl2batch", [this.chainId, batchNumber.toString()]);
     if (result === null) return null;
     if (typeof result !== "object" || result === null)
       throw new L2RpcProtocolError("getl2batch", "expected object response");
@@ -188,7 +191,7 @@ export class L2RpcClient {
 
   /** getl2batchstatus — pending / finalized / challenged / etc. */
   async getBatchStatus(batchNumber: bigint): Promise<BatchStatusResponse> {
-    const result = await this.call("getl2batchstatus", [this.chainId, Number(batchNumber)]);
+    const result = await this.call("getl2batchstatus", [this.chainId, batchNumber.toString()]);
     if (typeof result !== "object" || result === null)
       throw new L2RpcProtocolError("getl2batchstatus", "expected object response");
     this.assertChainId(result, "getl2batchstatus");
@@ -211,7 +214,7 @@ export class L2RpcClient {
 
   /** getl2stateroot at a specific batch height. */
   async getStateRootAt(batchNumber: bigint): Promise<string> {
-    const result = await this.call("getl2stateroot", [this.chainId, Number(batchNumber)]);
+    const result = await this.call("getl2stateroot", [this.chainId, batchNumber.toString()]);
     if (typeof result !== "string")
       throw new L2RpcProtocolError("getl2stateroot", "expected string");
     return result;
@@ -237,13 +240,18 @@ export class L2RpcClient {
 
   /** getl1depositstatus — has an L1 deposit (sourceChain, nonce) been consumed? null if untracked. */
   async getDepositStatus(sourceChainId: number, nonce: bigint): Promise<DepositStatusResponse | null> {
-    const result = await this.call("getl1depositstatus", [sourceChainId, Number(nonce)]);
+    const result = await this.call("getl1depositstatus", [sourceChainId, nonce.toString()]);
     if (result === null) return null;
     if (typeof result !== "object")
       throw new L2RpcProtocolError("getl1depositstatus", "expected object response");
     const r = result as Record<string, unknown>;
+    // Cross-check the requested sourceChainId matches what the server returned — a
+    // misbehaving server returning another chain's deposit would otherwise sail through.
+    const respChain = Number(r.sourceChainId);
+    if (respChain !== sourceChainId)
+      throw new L2RpcMismatchedChainIdError("getl1depositstatus", sourceChainId, respChain);
     return {
-      sourceChainId: Number(r.sourceChainId),
+      sourceChainId: respChain,
       nonce: BigInt(r.nonce as number | string),
       consumedOnL2: Boolean(r.consumedOnL2),
       includedInBatch: r.includedInBatch === null || r.includedInBatch === undefined

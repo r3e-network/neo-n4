@@ -174,9 +174,15 @@ public sealed class L2RpcClient : IDisposable
         if (result is null) return null;
         if (result is not JObject obj)
             throw new L2RpcProtocolException("getl1depositstatus", "expected object response");
+        var serverSourceChainId = (uint)(double)((JNumber)obj["sourceChainId"]!).AsNumber();
+        // Cross-check the requested source-chain matches what came back — a misbehaving
+        // server returning another L1's deposit would otherwise sail through and the caller
+        // would consume the wrong consumed/included status.
+        if (serverSourceChainId != sourceChainId)
+            throw new L2RpcMismatchedChainIdException("getl1depositstatus", sourceChainId, serverSourceChainId);
         ulong? includedInBatch = obj["includedInBatch"] is JNumber inb ? (ulong)(double)inb.AsNumber() : null;
         return new DepositStatusResponse(
-            SourceChainId: (uint)(double)((JNumber)obj["sourceChainId"]!).AsNumber(),
+            SourceChainId: serverSourceChainId,
             Nonce: (ulong)(double)((JNumber)obj["nonce"]!).AsNumber(),
             ConsumedOnL2: ((JBoolean)obj["consumedOnL2"]!).AsBoolean(),
             IncludedInBatch: includedInBatch);

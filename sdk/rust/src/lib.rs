@@ -468,6 +468,16 @@ impl L2RpcClient {
                 method: "getl1depositstatus".to_string(),
                 message: format!("decode failed: {}", e),
             })?;
+        // Cross-check the requested source-chain matches what came back. A misbehaving
+        // server returning another L1's deposit would otherwise sail through and the
+        // caller would consume the wrong consumed/included status.
+        if resp.source_chain_id != source_chain_id {
+            return Err(L2RpcError::MismatchedChainId {
+                method: "getl1depositstatus".to_string(),
+                expected: source_chain_id,
+                got: resp.source_chain_id,
+            });
+        }
         Ok(Some(resp))
     }
 

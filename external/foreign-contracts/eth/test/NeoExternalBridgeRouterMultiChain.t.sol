@@ -31,12 +31,12 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
     // unit test there pins uniqueness on the Rust side; this test pins
     // construction-time validity on the Solidity side.
     uint32 constant ETH_MAINNET = 0xE000_0001;
-    uint32 constant TRON_MAINNET = 0xE000_0010;     // EVM-flavored TVM
+    uint32 constant TRON_MAINNET = 0xE000_0010; // EVM-flavored TVM
     uint32 constant BSC_MAINNET = 0xE000_0030;
     uint32 constant POLYGON_MAINNET = 0xE000_0040;
-    uint32 constant POLYGON_ZKEVM = 0xE000_0042;    // ZK rollup variant of Polygon
+    uint32 constant POLYGON_ZKEVM = 0xE000_0042; // ZK rollup variant of Polygon
     uint32 constant ARBITRUM_ONE = 0xE000_0050;
-    uint32 constant ARBITRUM_NOVA = 0xE000_0052;    // AnyTrust data-sharing variant
+    uint32 constant ARBITRUM_NOVA = 0xE000_0052; // AnyTrust data-sharing variant
     uint32 constant OPTIMISM_MAINNET = 0xE000_0060;
     uint32 constant BASE_MAINNET = 0xE000_0070;
     uint32 constant AVALANCHE_C_MAINNET = 0xE000_0080;
@@ -45,7 +45,7 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
     uint32 constant SCROLL_MAINNET = 0xE000_00B0;
     uint32 constant MANTLE_MAINNET = 0xE000_00C0;
     uint32 constant FANTOM_OPERA = 0xE000_00D0;
-    uint32 constant SONIC_MAINNET = 0xE000_00D1;    // Rebranded Fantom (separate chainId)
+    uint32 constant SONIC_MAINNET = 0xE000_00D1; // Rebranded Fantom (separate chainId)
     uint32 constant CELO_MAINNET = 0xE000_00E0;
 
     uint32 constant NEO_L2 = 1099;
@@ -53,8 +53,10 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
     // Watcher private keys for the cross-committee test.
     uint256 constant priv_bsc_a = 0xAAAA1111111111111111111111111111111111111111111111111111111111;
     uint256 constant priv_bsc_b = 0xBBBB2222222222222222222222222222222222222222222222222222222222;
-    uint256 constant priv_polygon_a = 0xCCCC3333333333333333333333333333333333333333333333333333333333;
-    uint256 constant priv_polygon_b = 0xDDDD4444444444444444444444444444444444444444444444444444444444;
+    uint256 constant priv_polygon_a =
+        0xCCCC3333333333333333333333333333333333333333333333333333333333;
+    uint256 constant priv_polygon_b =
+        0xDDDD4444444444444444444444444444444444444444444444444444444444;
 
     address bscSignerA;
     address bscSignerB;
@@ -117,7 +119,7 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
             uint32(0xE000_0031), // BSC_TESTNET
             uint32(0xE000_0041), // POLYGON_AMOY_TESTNET
             uint32(0xE000_0051), // ARBITRUM_SEPOLIA
-            uint32(0xE000_0071)  // BASE_SEPOLIA
+            uint32(0xE000_0071) // BASE_SEPOLIA
         ];
         for (uint256 i = 0; i < testnetIds.length; i++) {
             NeoExternalBridgeRouter r = new NeoExternalBridgeRouter(testnetIds[i], address(this));
@@ -134,11 +136,11 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
     /// won't accept.
     function test_OutOfNamespaceIdsRejected() public {
         uint32[5] memory bad = [
-            uint32(0x00000001),                  // no prefix
-            uint32(0xDF000001),                  // one below 0xE0
-            uint32(0xE100_0001),                 // one above 0xE0
-            uint32(0xF0_00_00_30),               // BSC slot but wrong family byte
-            uint32(0x99000001)                   // arbitrary non-prefix
+            uint32(0x00000001), // no prefix
+            uint32(0xDF000001), // one below 0xE0
+            uint32(0xE100_0001), // one above 0xE0
+            uint32(0xF0_00_00_30), // BSC slot but wrong family byte
+            uint32(0x99000001) // arbitrary non-prefix
         ];
         for (uint256 i = 0; i < bad.length; i++) {
             vm.expectRevert("externalChainId not in 0xE0_xx_xx_xx namespace");
@@ -153,7 +155,8 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
     /// id somewhere would surface as a wrong topic[1] here.
     function test_EachRouterStampsItsOwnChainIdInLocked() public {
         NeoExternalBridgeRouter bsc = new NeoExternalBridgeRouter(BSC_MAINNET, address(this));
-        NeoExternalBridgeRouter polygon = new NeoExternalBridgeRouter(POLYGON_MAINNET, address(this));
+        NeoExternalBridgeRouter polygon =
+            new NeoExternalBridgeRouter(POLYGON_MAINNET, address(this));
 
         // Provide some ETH; both routers share the test contract balance.
         vm.deal(address(this), 4 ether);
@@ -193,9 +196,8 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
         // Build a message claiming externalChainId = POLYGON_MAINNET.
         // We never reach signature verification — chain-id mismatch
         // reverts first.
-        bytes memory polyMsg = _buildAssetTransferMessage(
-            POLYGON_MAINNET, NEO_L2, 99, address(0xDEAD), 1 ether, 0
-        );
+        bytes memory polyMsg =
+            _buildAssetTransferMessage(POLYGON_MAINNET, NEO_L2, 99, address(0xDEAD), 1 ether, 0);
         bytes memory dummyProof = hex"0000"; // sigCount = 0 (won't be checked)
 
         vm.expectRevert("externalChainId mismatch");
@@ -209,7 +211,8 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
     /// location would interleave them.
     function test_NoncesAreIndependentPerRouter() public {
         NeoExternalBridgeRouter bsc = new NeoExternalBridgeRouter(BSC_MAINNET, address(this));
-        NeoExternalBridgeRouter polygon = new NeoExternalBridgeRouter(POLYGON_MAINNET, address(this));
+        NeoExternalBridgeRouter polygon =
+            new NeoExternalBridgeRouter(POLYGON_MAINNET, address(this));
 
         vm.deal(address(this), 6 ether);
         bytes20 recipient = bytes20(uint160(0xBEEF));
@@ -243,7 +246,8 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
     function test_PolygonCommitteeNotAuthorizedOnBscRouter() public {
         // Two routers, two committees.
         NeoExternalBridgeRouter bsc = new NeoExternalBridgeRouter(BSC_MAINNET, address(this));
-        NeoExternalBridgeRouter polygon = new NeoExternalBridgeRouter(POLYGON_MAINNET, address(this));
+        NeoExternalBridgeRouter polygon =
+            new NeoExternalBridgeRouter(POLYGON_MAINNET, address(this));
 
         address[] memory bscCommittee = new address[](2);
         bscCommittee[0] = bscSignerA;
@@ -263,9 +267,8 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
         // the chain-id check), sign with POLYGON signers — which are
         // not on BSC's committee.
         address recipient = address(0xBEEF);
-        bytes memory msgBytes = _buildAssetTransferMessage(
-            BSC_MAINNET, NEO_L2, 7, recipient, 1 ether, 0
-        );
+        bytes memory msgBytes =
+            _buildAssetTransferMessage(BSC_MAINNET, NEO_L2, 7, recipient, 1 ether, 0);
         (uint8 v0, bytes32 r0, bytes32 s0) = vm.sign(priv_polygon_a, sha256(msgBytes));
         (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(priv_polygon_b, sha256(msgBytes));
 
@@ -283,9 +286,8 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
         vm.deal(address(this), 1 ether);
         polygon.lockETHAndSend{value: 1 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
 
-        bytes memory polyMsg = _buildAssetTransferMessage(
-            POLYGON_MAINNET, NEO_L2, 7, recipient, 1 ether, 0
-        );
+        bytes memory polyMsg =
+            _buildAssetTransferMessage(POLYGON_MAINNET, NEO_L2, 7, recipient, 1 ether, 0);
         (uint8 vp0, bytes32 rp0, bytes32 sp0) = vm.sign(priv_polygon_a, sha256(polyMsg));
         (uint8 vp1, bytes32 rp1, bytes32 sp1) = vm.sign(priv_polygon_b, sha256(polyMsg));
         bytes memory polyProof = _buildProof(0, vp0, rp0, sp0, 1, vp1, rp1, sp1);
@@ -308,20 +310,20 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
     ) internal pure returns (bytes memory) {
         bytes memory amountBytes = _amountToLE(amount);
         bytes memory payload = abi.encodePacked(
-            address(0),                               // foreignAsset = native
+            address(0), // foreignAsset = native
             uint32_LE(uint32(amountBytes.length)),
             amountBytes
         );
         return abi.encodePacked(
-            uint32_LE(externalChainId),       // 4B
-            uint32_LE(neoChainId),            // 4B
-            uint64_LE(nonce),                 // 8B
-            uint8(1),                         // direction = NeoToForeign
-            bytes20(0),                       // sender
-            bytes20(uint160(recipient)),      // recipient
-            uint64_LE(deadline),              // 8B
-            bytes32(0),                       // sourceTxRef
-            uint8(0),                         // messageType = AssetTransfer
+            uint32_LE(externalChainId), // 4B
+            uint32_LE(neoChainId), // 4B
+            uint64_LE(nonce), // 8B
+            uint8(1), // direction = NeoToForeign
+            bytes20(0), // sender
+            bytes20(uint160(recipient)), // recipient
+            uint64_LE(deadline), // 8B
+            bytes32(0), // sourceTxRef
+            uint8(0), // messageType = AssetTransfer
             uint32_LE(uint32(payload.length)),
             payload
         );
@@ -332,7 +334,10 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
         uint256 v = amount;
         uint256 len = 0;
         uint256 tmp = v;
-        while (tmp > 0) { len++; tmp >>= 8; }
+        while (tmp > 0) {
+            len++;
+            tmp >>= 8;
+        }
         bytes memory b = new bytes(len);
         for (uint256 i = 0; i < len; i++) {
             b[i] = bytes1(uint8(v >> (i * 8)));
@@ -346,14 +351,22 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
 
     function uint64_LE(uint64 v) internal pure returns (bytes memory) {
         bytes memory b = new bytes(8);
-        for (uint256 i = 0; i < 8; i++) b[i] = bytes1(uint8(v >> (i * 8)));
+        for (uint256 i = 0; i < 8; i++) {
+            b[i] = bytes1(uint8(v >> (i * 8)));
+        }
         return b;
     }
 
     /// Build a 2-signer proof (sigCount=2 + 2×66B sig records).
     function _buildProof(
-        uint8 idx0, uint8 v0, bytes32 r0, bytes32 s0,
-        uint8 idx1, uint8 v1, bytes32 r1, bytes32 s1
+        uint8 idx0,
+        uint8 v0,
+        bytes32 r0,
+        bytes32 s0,
+        uint8 idx1,
+        uint8 v1,
+        bytes32 r1,
+        bytes32 s1
     ) internal pure returns (bytes memory) {
         bytes memory out = new bytes(2 + 2 * 66);
         out[0] = bytes1(uint8(2));
@@ -361,14 +374,22 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
 
         // sig 0 at offset 2..67
         out[2] = bytes1(idx0);
-        for (uint256 j = 0; j < 32; j++) out[3 + j] = r0[j];
-        for (uint256 j = 0; j < 32; j++) out[35 + j] = s0[j];
+        for (uint256 j = 0; j < 32; j++) {
+            out[3 + j] = r0[j];
+        }
+        for (uint256 j = 0; j < 32; j++) {
+            out[35 + j] = s0[j];
+        }
         out[67] = bytes1(v0);
 
         // sig 1 at offset 68..133
         out[68] = bytes1(idx1);
-        for (uint256 j = 0; j < 32; j++) out[69 + j] = r1[j];
-        for (uint256 j = 0; j < 32; j++) out[101 + j] = s1[j];
+        for (uint256 j = 0; j < 32; j++) {
+            out[69 + j] = r1[j];
+        }
+        for (uint256 j = 0; j < 32; j++) {
+            out[101 + j] = s1[j];
+        }
         out[133] = bytes1(v1);
 
         return out;

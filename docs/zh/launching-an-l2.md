@@ -233,8 +233,10 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --executor counter
   Optimistic / Mock-RiscV。替换以走 Stage 2(ZK 有效性):
   `prove-batch daemon`(进程外 Rust 证明者,在
   `bridge/neo-zkvm-host/`)。
-- **`IDAWriter`** —— 默认:InMemory / NeoFsLike / Persistent。替换
-  为真实 NeoFS SDK / L1 sendrawtransaction。
+- **`IDAWriter`** —— 默认:NeoFS(`NeoFsLikeDAWriter`),或在设置
+  `--data-dir` 时使用持久化 NeoFS-like 存储;`External` 只用
+  `InMemoryDAWriter` 支撑测试/演示。可替换为真实 NeoFS SDK /
+  L1 `sendrawtransaction`。
 - **`ISequencerCommitteeProvider`** —— 默认:
   `InMemorySequencerCommitteeProvider`。替换以接到 neo 的
   `DBFTPlugin` 共识选择器。

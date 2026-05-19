@@ -263,8 +263,10 @@ classes at the same call sites.
   Optimistic / Mock-RiscV. Swap for Stage 2 (ZK validity):
   `prove-batch daemon` (out-of-process Rust prover at
   `bridge/neo-zkvm-host/`).
-- **`IDAWriter`** — Default: InMemory / NeoFsLike / Persistent. Swap
-  for real NeoFS SDK / L1 sendrawtransaction.
+- **`IDAWriter`** — Default: NeoFS (`NeoFsLikeDAWriter`) or a
+  persistent NeoFS-like store when `--data-dir` is set; `External`
+  uses `InMemoryDAWriter` for tests/demos. Swap for a real NeoFS SDK /
+  L1 `sendrawtransaction`.
 - **`ISequencerCommitteeProvider`** — Default:
   `InMemorySequencerCommitteeProvider`. Swap to wire to neo's
   `DBFTPlugin` consensus selector.

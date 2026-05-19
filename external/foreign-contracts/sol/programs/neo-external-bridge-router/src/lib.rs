@@ -30,6 +30,10 @@
 //! developer before mainnet deploy.
 
 #![allow(unexpected_cfgs)]
+// Anchor's `#[program]` macro currently expands to code that trips this
+// Clippy lint under Rust 1.95; keep the allowance at crate scope until the
+// generated code no longer needs it.
+#![allow(clippy::diverging_sub_expression)]
 
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::instruction::Instruction;

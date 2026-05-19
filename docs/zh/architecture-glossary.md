@@ -29,7 +29,7 @@
 | **committee(外链桥)**        | 对外链事件做证明的 M-of-N 签名者集合。经 `ExternalBridgeBond` 质押。                              |
 | **CommittedEvent**            | Neo `Blockchain` 在 dBFT 终结后发出的 `Block.Committed` 事件。驱动 L2 批处理器。                   |
 | **daCommitment**              | 承诺批次数据可用性负载的哈希。存储于 `BatchCommitment` + `PublicInputs`。                          |
-| **daMode**                    | 批次负载去哪儿:0=InMemory、1=External、2=L1、3=DAC。                                              |
+| **daMode**                    | 批次负载去哪儿:0=L1、1=NeoFS、2=External、3=DAC。                                                 |
 | **dBFT 2.0**                  | Neo 的 BFT 共识;最多容忍 1/3 拜占庭排序器。                                                      |
 | **direction(方向)**          | 外链消息方向:1=NeoToForeign、2=ForeignToNeo。                                                    |
 | **exitModel**                 | 提款怎么结算:0=Optimistic、1=Permissionless、2=ZkValidity。                                       |
@@ -131,7 +131,7 @@
 - **`Neo.Plugins.L2Batch`** — 订阅 `Blockchain.Committed`;经 `BatchSealer` 把 tx 封进 `BatchCommitment`。
 - **`Neo.Plugins.L2Settlement`** — 接好证明者 + 结算客户端;把封好的批次提到 L1。
 - **`Neo.Plugins.L2Bridge`** — 托管 `AssetRegistry` + `DepositProcessor` + `WithdrawalProcessor`。
-- **`Neo.Plugins.L2DA`** — 按 `DAMode` 选 DA writer;支持 InMemory / NeoFsLike / CommitteeAttested / L1。
+- **`Neo.Plugins.L2DA`** — 按 `DAMode` 选 DA writer;支持 L1 / NeoFS / External 测试存储 / 委员会证明 writer。
 - **`Neo.Plugins.L2Prover`** — 为配置的 `ProofType` 托管 `IL2Prover`。SP1 证明守护进程连接。
 - **`Neo.Plugins.L2Rpc`** — 10 个 RPC handler(按 `doc.md` §14.1)。`IL2RpcStore` 后备(内存或 RocksDB)。
 - **`Neo.Plugins.L2Gateway`** — 经 `BinaryTreeAggregator` 做可选的 Phase-5 多 L2 聚合。

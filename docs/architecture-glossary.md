@@ -31,7 +31,7 @@
 | **committee** (external bridge) | M-of-N signers attesting to foreign-chain events. Bonded via `ExternalBridgeBond`.                           |
 | **CommittedEvent**            | The `Block.Committed` event Neo's `Blockchain` raises after dBFT finality. Drives L2 batchers.                 |
 | **daCommitment**              | Hash committing to the batch's data-availability payload. Stored in `BatchCommitment` + `PublicInputs`.        |
-| **daMode**                    | Where the batch payload goes: 0=InMemory, 1=External, 2=L1, 3=DAC.                                             |
+| **daMode**                    | Where the batch payload goes: 0=L1, 1=NeoFS, 2=External, 3=DAC.                                                |
 | **dBFT 2.0**                  | Neo's BFT consensus algorithm; tolerates up to 1/3 byzantine sequencers.                                       |
 | **direction**                 | External-bridge message direction: 1=NeoToForeign, 2=ForeignToNeo.                                             |
 | **exitModel**                 | How withdrawals settle: 0=Optimistic, 1=Permissionless, 2=ZkValidity.                                          |
@@ -136,7 +136,7 @@ Lives at `src/Neo.Plugins.L2*`. Loaded by neo-cli; subscribes to `Block.Committe
 - **`Neo.Plugins.L2Batch`** — Subscribes to `Blockchain.Committed`; seals txs into `BatchCommitment` via `BatchSealer`.
 - **`Neo.Plugins.L2Settlement`** — Wires prover + settlement client; submits sealed batches to L1.
 - **`Neo.Plugins.L2Bridge`** — Hosts `AssetRegistry` + `DepositProcessor` + `WithdrawalProcessor`.
-- **`Neo.Plugins.L2DA`** — Picks DA writer by `DAMode`; supports InMemory / NeoFsLike / CommitteeAttested / L1.
+- **`Neo.Plugins.L2DA`** — Picks DA writer by `DAMode`; supports L1 / NeoFS / External test-store / CommitteeAttested writers.
 - **`Neo.Plugins.L2Prover`** — Hosts `IL2Prover` for the configured `ProofType`. SP1 prover daemon connection.
 - **`Neo.Plugins.L2Rpc`** — 10 RPC handlers (per `doc.md` §14.1). `IL2RpcStore` backend (in-memory or RocksDB).
 - **`Neo.Plugins.L2Gateway`** — Optional Phase-5 multi-L2 aggregation via `BinaryTreeAggregator`.

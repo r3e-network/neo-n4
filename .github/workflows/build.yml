@@ -385,6 +385,37 @@ jobs:
         working-directory: external/foreign-contracts/eth
         run: forge test -vv
 
+  experience-hub:
+    name: node --test (experience hub)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # The Experience Hub (docs/experience-hub/) is a static, local-first
+      # HTML/JS surface that renders the canonical phase-1 report schemas
+      # (devnet, deployment plan, bridge drill, NeoFS DA, etc.). The Node
+      # test suite under tests/experience-hub/ exercises:
+      #   - hub-state.test.mjs (5 tests): workspace state machine + evidence
+      #     summary + private-vs-public devnet partition
+      #   - manifest-generator.test.mjs (2 tests): the tools/experience-hub
+      #     generator that scaffolds the canonical neo-n4.manifest.json
+      #   - report-schemas.test.mjs (3 tests): per-report-type envelope
+      #     validation + redaction guard
+      # Catches drift between the manifest generator + the report-schema
+      # invariants the static UI assumes.
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: node --test (experience-hub suites)
+        run: |
+          for f in tests/experience-hub/*.test.mjs; do
+            node --test "$f"
+          done
+
   foreign-solana:
     name: cargo test (foreign Solana program)
     runs-on: ubuntu-latest

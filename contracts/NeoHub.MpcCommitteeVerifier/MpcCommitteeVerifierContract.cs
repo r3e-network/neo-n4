@@ -159,9 +159,54 @@ public class MpcCommitteeVerifierContract : SmartContract
         ExecutionEngine.Assert(ok,
             "proposal not approved + timelocked");
 
+        // Bind proposal payload to (externalChainId, threshold, curveTag, committeeBlob).
+        // Without this, an approved proposal could install ANY committee on ANY chain
+        // — the council vote becomes a one-time blank check at the bridge-committee
+        // boundary. Defense matters: a malicious committee rotation here lets attackers
+        // attest fraudulent inbound external-chain messages with reporter-rewarded slashes
+        // unable to catch them (the attacker IS the committee).
+        var expectedAction = BuildRegisterCommitteeAction(externalChainId, threshold, curveTag, committeeBlob);
+        var bound = (bool)Contract.Call(gc, "matchesProposalPayload",
+            CallFlags.ReadOnly, new object[] { proposalId, expectedAction });
+        ExecutionEngine.Assert(bound,
+            "proposal payload does not match (externalChainId, threshold, curveTag, committeeBlob) action args (council voted on different bytes)");
+
         Storage.Put(consumedKey, new byte[] { 1 });
         WriteCommittee(externalChainId, threshold, curveTag, committeeBlob);
     }
+
+    /// <summary>
+    /// Canonical encoding for a "register committee" action. Layout:
+    /// <c>"neo4-gov:registerCommittee" || externalChainId(4B LE) || threshold(1B) ||
+    /// curveTag(1B) || committeeBlob(NB)</c>. Variable-length because the blob carries
+    /// the per-signer pubkeys.
+    /// </summary>
+    [Safe]
+    public static byte[] BuildRegisterCommitteeAction(
+        uint externalChainId, byte threshold, byte curveTag, byte[] committeeBlob)
+    {
+        var tag = ActionTagRegisterCommittee;
+        var blobLen = committeeBlob.Length;
+        var buf = new byte[tag.Length + 4 + 1 + 1 + blobLen];
+        for (var i = 0; i < tag.Length; i++) buf[i] = tag[i];
+        var pos = tag.Length;
+        buf[pos++] = (byte)externalChainId;
+        buf[pos++] = (byte)(externalChainId >> 8);
+        buf[pos++] = (byte)(externalChainId >> 16);
+        buf[pos++] = (byte)(externalChainId >> 24);
+        buf[pos++] = threshold;
+        buf[pos++] = curveTag;
+        for (var i = 0; i < blobLen; i++) buf[pos + i] = committeeBlob[i];
+        return buf;
+    }
+
+    private static readonly byte[] ActionTagRegisterCommittee = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'g', (byte)'o', (byte)'v', (byte)':',
+        (byte)'r', (byte)'e', (byte)'g', (byte)'i', (byte)'s', (byte)'t', (byte)'e', (byte)'r',
+        (byte)'C', (byte)'o', (byte)'m', (byte)'m', (byte)'i', (byte)'t', (byte)'t', (byte)'e', (byte)'e'
+    };
 
     /// <summary>Read the raw committee blob for a chain (header + concatenated pubkeys).</summary>
     [Safe]

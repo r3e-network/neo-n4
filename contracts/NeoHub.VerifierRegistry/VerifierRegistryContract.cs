@@ -87,10 +87,10 @@ public class VerifierRegistryContract : SmartContract
     /// </summary>
     /// <remarks>
     /// Replay-protected per <paramref name="proposalId"/>: a single approved proposal can
-    /// be applied at most once. The (proofType, verifier) pair is supplied as args rather
-    /// than decoded from the proposal payload — payload format is operator-specific. The
-    /// off-chain side ensures the args match what the council voted on; this contract just
-    /// gates execution on "the proposal is approved + timelocked".
+    /// be applied at most once. The (proofType, verifier) pair is canonically encoded into
+    /// the proposal payload via <see cref="BuildRegisterVerifierAction"/> and bound at
+    /// execution time — council members vote on the EXACT args this call uses, not on
+    /// opaque bytes that could be repurposed.
     /// </remarks>
     public static void RegisterVerifierViaProposal(byte proofType, UInt160 verifier, ulong proposalId)
     {
@@ -112,9 +112,45 @@ public class VerifierRegistryContract : SmartContract
         ExecutionEngine.Assert(ok,
             "proposal not approved + timelocked (council multisig + timelock not satisfied)");
 
+        // Bind the proposal payload to the action args. Without this, an approved
+        // proposal could be applied with ANY (proofType, verifier) — the council
+        // vote becomes a one-time blank check at the verifier-dispatch level.
+        var expectedAction = BuildRegisterVerifierAction(proofType, verifier);
+        var bound = (bool)Contract.Call(gc, "matchesProposalPayload",
+            CallFlags.ReadOnly, new object[] { proposalId, expectedAction });
+        ExecutionEngine.Assert(bound,
+            "proposal payload does not match (proofType, verifier) action args (council voted on different bytes)");
+
         Storage.Put(consumedKey, new byte[] { 1 });
         WriteVerifier(proofType, verifier);
     }
+
+    /// <summary>
+    /// Canonical encoding for a "register verifier" action. The council submits this as
+    /// the proposal payload via <see cref="NeoHub.GovernanceController"/>
+    /// <c>CreateProposal</c>; <see cref="RegisterVerifierViaProposal"/> re-derives it
+    /// from the runtime args and asserts byte-equality. Layout:
+    /// <c>"neo4-gov:registerVerifier" || proofType(1B) || verifier(20B)</c> = 46 bytes.
+    /// </summary>
+    [Safe]
+    public static byte[] BuildRegisterVerifierAction(byte proofType, UInt160 verifier)
+    {
+        var tag = ActionTagRegisterVerifier;
+        var buf = new byte[tag.Length + 1 + 20];
+        for (var i = 0; i < tag.Length; i++) buf[i] = tag[i];
+        buf[tag.Length] = proofType;
+        var vk = (byte[])verifier;
+        for (var i = 0; i < 20; i++) buf[tag.Length + 1 + i] = vk[i];
+        return buf;
+    }
+
+    private static readonly byte[] ActionTagRegisterVerifier = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'g', (byte)'o', (byte)'v', (byte)':',
+        (byte)'r', (byte)'e', (byte)'g', (byte)'i', (byte)'s', (byte)'t', (byte)'e', (byte)'r',
+        (byte)'V', (byte)'e', (byte)'r', (byte)'i', (byte)'f', (byte)'i', (byte)'e', (byte)'r'
+    };
 
     private static void WriteVerifier(byte proofType, UInt160 verifier)
     {

@@ -504,6 +504,13 @@ public class GovernanceControllerContract : SmartContract
         var consumedKey = ProposalIdKey(PrefixConsumedSetImmutable, proposalId);
         ExecutionEngine.Assert(Storage.Get(consumedKey) == null, "proposal already consumed");
         ExecutionEngine.Assert(IsApprovedAndTimelocked(proposalId), "proposal not approved + timelocked");
+        // Bind the proposal payload to the action args. Without this, an approved
+        // proposal could be executed with ANY flagId — the council vote becomes
+        // a one-time blank check. The payload format is domain-separated by an
+        // action-id prefix so the same byte sequence can't be repurposed across
+        // *ViaProposal methods (e.g. registerVerifier proposal accidentally executed
+        // as setImmutableFlag because the byte tails coincidentally match).
+        AssertProposalBinding(proposalId, BuildSetImmutableFlagAction(flagId));
         Storage.Put(consumedKey, new byte[] { 1 });
         var key = ImmutableFlagKey(flagId);
         if (Storage.Get(key) == null)
@@ -512,6 +519,69 @@ public class GovernanceControllerContract : SmartContract
             OnImmutableFlagSet(flagId);
         }
     }
+
+    /// <summary>
+    /// Canonical encoding for a "set immutable flag" action — what the council votes on
+    /// when they create a proposal that <see cref="SetImmutableFlagViaProposal"/> will
+    /// execute. Off-chain tooling computes this and submits it as the proposal payload
+    /// via <see cref="CreateProposal"/>. The execution call then re-derives the same
+    /// bytes from its args and asserts they match the stored payload — so council
+    /// members can't be tricked into "approving" a payload that's actually some other
+    /// action's args.
+    /// </summary>
+    /// <remarks>
+    /// Layout: <c>"neo4-gov:setImmutableFlag\x01" || flagId(1B)</c> = 26 bytes.
+    /// The "neo4-gov:" prefix prevents collisions with payloads from other *ViaProposal
+    /// methods (each uses a distinct method id) and with arbitrary payloads council
+    /// members might paste from elsewhere.
+    /// </remarks>
+    [Safe]
+    public static byte[] BuildSetImmutableFlagAction(byte flagId)
+    {
+        // 25-byte prefix tag + 1-byte arg. Tag is the literal ASCII of
+        // "neo4-gov:setImmutableFlag" (no terminating null in the contract bytes).
+        // Length is fixed so equality compare is O(1) for the most common path.
+        var buf = new byte[ActionTagSetImmutableFlag.Length + 1];
+        for (var i = 0; i < ActionTagSetImmutableFlag.Length; i++) buf[i] = ActionTagSetImmutableFlag[i];
+        buf[ActionTagSetImmutableFlag.Length] = flagId;
+        return buf;
+    }
+
+    /// <summary>
+    /// Read the stored payload for <paramref name="proposalId"/> and assert it equals
+    /// <paramref name="expectedAction"/> byte-for-byte. Each *ViaProposal method calls
+    /// this with its locally-canonicalized action bytes; mismatched length / content
+    /// reverts before any state mutation happens.
+    /// </summary>
+    [Safe]
+    public static bool MatchesProposalPayload(ulong proposalId, byte[] expectedAction)
+    {
+        var stored = Storage.Get(ProposalKey(proposalId));
+        if (stored == null) return false;
+        var bytes = (byte[])stored;
+        if (bytes.Length != expectedAction.Length) return false;
+        for (var i = 0; i < bytes.Length; i++)
+            if (bytes[i] != expectedAction[i]) return false;
+        return true;
+    }
+
+    private static void AssertProposalBinding(ulong proposalId, byte[] expectedAction)
+    {
+        ExecutionEngine.Assert(MatchesProposalPayload(proposalId, expectedAction),
+            "proposal payload does not match action args (council voted on different bytes)");
+    }
+
+    // ASCII bytes for the "neo4-gov:setImmutableFlag" action tag. Kept as a const
+    // byte[] (not a string) so the on-chain bytecode is the literal byte sequence
+    // and reads avoid string-encoding nuances. Length must match the comment in
+    // BuildSetImmutableFlagAction's Layout note.
+    private static readonly byte[] ActionTagSetImmutableFlag = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'g', (byte)'o', (byte)'v', (byte)':',
+        (byte)'s', (byte)'e', (byte)'t', (byte)'I', (byte)'m', (byte)'m', (byte)'u', (byte)'t', (byte)'a', (byte)'b', (byte)'l', (byte)'e',
+        (byte)'F', (byte)'l', (byte)'a', (byte)'g'
+    };
 
     /// <summary>True if <paramref name="flagId"/> has been set as a permanent restriction.</summary>
     [Safe]

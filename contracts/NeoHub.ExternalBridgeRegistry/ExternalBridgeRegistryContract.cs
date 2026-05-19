@@ -130,9 +130,51 @@ public class ExternalBridgeRegistryContract : SmartContract
         ExecutionEngine.Assert(ok,
             "proposal not approved + timelocked (council multisig + timelock not satisfied)");
 
+        // Bind proposal payload to (externalChainId, verifier, bridgeKind). Without this,
+        // an approved proposal could route to ANY foreign chain or replace the verifier
+        // with anything — the council vote becomes a one-time blank check.
+        var expectedAction = BuildUpgradeVerifierAction(externalChainId, verifier, bridgeKind);
+        var bound = (bool)Contract.Call(gc, "matchesProposalPayload",
+            CallFlags.ReadOnly, new object[] { proposalId, expectedAction });
+        ExecutionEngine.Assert(bound,
+            "proposal payload does not match (externalChainId, verifier, bridgeKind) action args (council voted on different bytes)");
+
         Storage.Put(consumedKey, new byte[] { 1 });
         WriteVerifier(externalChainId, verifier, bridgeKind);
     }
+
+    /// <summary>
+    /// Canonical encoding for an "upgrade verifier" action. Council submits this as the
+    /// proposal payload; <see cref="UpgradeVerifierViaProposal"/> rebuilds it from
+    /// runtime args and asserts byte-equality. Layout:
+    /// <c>"neo4-gov:upgradeVerifier" || externalChainId(4B LE) || verifier(20B) || bridgeKind(1B)</c>
+    /// = 49 bytes.
+    /// </summary>
+    [Safe]
+    public static byte[] BuildUpgradeVerifierAction(uint externalChainId, UInt160 verifier, byte bridgeKind)
+    {
+        var tag = ActionTagUpgradeVerifier;
+        var buf = new byte[tag.Length + 4 + 20 + 1];
+        for (var i = 0; i < tag.Length; i++) buf[i] = tag[i];
+        var pos = tag.Length;
+        buf[pos++] = (byte)externalChainId;
+        buf[pos++] = (byte)(externalChainId >> 8);
+        buf[pos++] = (byte)(externalChainId >> 16);
+        buf[pos++] = (byte)(externalChainId >> 24);
+        var vk = (byte[])verifier;
+        for (var i = 0; i < 20; i++) buf[pos + i] = vk[i];
+        pos += 20;
+        buf[pos] = bridgeKind;
+        return buf;
+    }
+
+    private static readonly byte[] ActionTagUpgradeVerifier = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'g', (byte)'o', (byte)'v', (byte)':',
+        (byte)'u', (byte)'p', (byte)'g', (byte)'r', (byte)'a', (byte)'d', (byte)'e',
+        (byte)'V', (byte)'e', (byte)'r', (byte)'i', (byte)'f', (byte)'i', (byte)'e', (byte)'r'
+    };
 
     /// <summary>Convenience alias retained for symmetry with
     /// <c>VerifierRegistry.RegisterVerifierViaProposal</c>.</summary>

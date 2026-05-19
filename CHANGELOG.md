@@ -77,6 +77,52 @@ this cycle. Highlights:
 - All-surface base total: 1655 (1453 .NET + 202 cross-lang).
 - `dotnet format --verify-no-changes` passes clean across all 99 projects.
 
+### Polish iteration — 2026-05-20
+
+Continued systematic review + refactor + polish pass on top of the
+2026-05-19 audit cycle.
+
+**Submodule realignment:**
+- `external/neo-devpack-dotnet` moved from upstream `neo-project/neo-devpack-dotnet`
+  to a `r3e-network/neo-devpack-dotnet` fork (matches the existing r3e-network
+  ownership pattern of `external/neo`, `external/neo-zkvm`, `external/neo-riscv-vm`).
+  Currently in-sync with upstream; gives a place to push neo4-specific changes
+  without disturbing upstream.
+- `external/neo-devpack-dotnet` bumped to `5eef41be` — picks up ~12 upstream
+  Neo DevPack bug fixes (numeric `TryParse`, nullable char `ToString`,
+  `StringBuilder` primitive append, `Math.Abs` min-value overflow,
+  `BitOperations.PopCount`, string case-conversion receiver, char `IsSymbol`
+  non-ASCII, numeric `CreateTruncating`, BigInteger leading-zero-count width,
+  enum `TryParse` ignoreCase, plus extensive SmartContract.Testing additions).
+- `external/neo-riscv-vm` bumped to `df1e46f` — picks up 8 commits from the
+  `codex/mainnet-stateroot-recovery-fixes` branch (NeoVM mainnet stateroot
+  recovery, transient RPC fault tolerance, expanded oracle validation matrix,
+  bitwise mixed-primitive parity, macOS native-host package signing,
+  pre-mainnet validation gates, + 3 new tooling binaries:
+  `LevelDbProbe`, `NeoVmDisasm`, `NeoVmProbe`).
+
+**Lint + format gates:**
+- `forge fmt --check` clean across `external/foreign-contracts/eth/` (two
+  test-file style adjustments applied).
+- `cargo clippy` clean across all 8 Rust crates including
+  `--features live-rpc` and strict `-D warnings` mode.
+- `cargo audit` reports 6 unmaintained-transitive-dep warnings, all via
+  sp1-sdk's dep tree (not actionable without upstream sp1 upgrade); 0
+  vulnerabilities.
+- `npm audit` reports 0 vulnerabilities in the TypeScript SDK.
+- TypeScript `tsc --noEmit --strict` passes clean.
+
+**Documentation:**
+- `docs/security-model.md` (EN + ZH) gained 5 new defensive-invariant entries
+  for the protections added in the 2026-05-19 audit cycle: fraud-verifier
+  allowlist, governance proposal payload binding, withdrawal-leaf chainId
+  separation, MPC duplicate-signer rejection (documented as the ECDSA
+  malleability defense).
+- 6 doc/config references updated from `neo-project/neo-devpack-dotnet`
+  to `r3e-network/neo-devpack-dotnet`: `.gitmodules`, `Directory.Build.props`,
+  `contracts/README.md`, `CONTRIBUTING.md`, `docs/getting-started.md`,
+  `docs/zh/getting-started.md`, `.github/workflows/build.yml`.
+
 ### Fixed - ZKsync alignment and NeoHub count drift
 
 - Revalidated the ZKsync Elastic Chain comparison against the current native

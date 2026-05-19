@@ -107,6 +107,9 @@ public class MpcCommitteeFraudVerifierContract : SmartContract
         Storage.Put(new byte[] { KeyBond }, bond);
     }
 
+    /// <summary>The governance owner — typically the <c>GovernanceController</c>
+    /// contract hash. Returns <c>UInt160.Zero</c> if the contract is not yet
+    /// configured (<see cref="_deploy"/> hasn't run).</summary>
     [Safe]
     public static UInt160 GetOwner()
     {

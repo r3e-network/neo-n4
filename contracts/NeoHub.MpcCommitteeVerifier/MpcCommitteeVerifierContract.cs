@@ -267,7 +267,8 @@ public class MpcCommitteeVerifierContract : SmartContract
         var threshold = committee[0];
         var size = committee[1];
         var curveTag = committee[2];
-        ExecutionEngine.Assert(threshold > 0 && threshold <= size, "invalid threshold");
+        ExecutionEngine.Assert(threshold > 0, "threshold must be positive");
+        ExecutionEngine.Assert(threshold <= size, "threshold exceeds committee size");
 
         var keyLen = curveTag == CurveSecp256k1 ? 33 : 32;
         ExecutionEngine.Assert(committee.Length == 3 + size * keyLen, "committee blob length mismatch");
@@ -386,7 +387,7 @@ public class MpcCommitteeVerifierContract : SmartContract
             "committeeBlob length must be a multiple of pubkey length for the curve");
         var size = committeeBlob.Length / keyLen;
         ExecutionEngine.Assert(size <= MaxCommitteeSize, "committee size exceeds MaxCommitteeSize");
-        ExecutionEngine.Assert(threshold <= size, "threshold > committee size");
+        ExecutionEngine.Assert(threshold <= size, "threshold exceeds committee size");
 
         var stored = new byte[3 + committeeBlob.Length];
         stored[0] = threshold;

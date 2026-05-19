@@ -25,6 +25,8 @@ namespace Neo.L2.Bridge.Cli;
 /// </remarks>
 public static class Program
 {
+    /// <summary>Process-entry. Returns a process exit code: 0 on success, non-zero
+    /// on usage error / failure. See class remarks for subcommand listing.</summary>
     public static async Task<int> Main(string[] args)
     {
         if (args.Length == 0 || args[0] is "--help" or "-h" or "help")

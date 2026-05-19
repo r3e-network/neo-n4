@@ -21,6 +21,9 @@ namespace Neo.L2.Explore;
 /// </remarks>
 public static class Program
 {
+    /// <summary>Process-entry. Returns a process exit code: 0 on success, non-zero
+    /// on usage error / RPC failure / continuity violation. See class remarks
+    /// for subcommand listing and exit-code semantics.</summary>
     public static async Task<int> Main(string[] args)
     {
         if (args.Length == 0 || args[0] is "--help" or "-h" or "help")

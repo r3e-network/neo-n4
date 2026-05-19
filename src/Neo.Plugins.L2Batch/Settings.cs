@@ -53,7 +53,7 @@ public sealed class L2BatchSettings
     /// <summary>
     /// Reject zero or negative thresholds at config-parse time. Without this, a misconfigured
     /// <c>MaxBlocksPerBatch: 0</c> (or any other Max* set to 0/negative) makes
-    /// <see cref="BatchSealer.ShouldSeal"/> return <c>true</c> on every block — every block
+    /// <c>BatchSealer.ShouldSeal</c> (private) return <c>true</c> on every block — every block
     /// becomes its own batch, producing degenerate per-block batches that each carry full
     /// settlement / proving overhead. The operator's misconfig surfaces as a runaway L1
     /// submission rate hours later instead of at plugin load.

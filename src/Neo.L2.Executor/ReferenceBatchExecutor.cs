@@ -1,5 +1,6 @@
 using Neo.L2.Executor.Receipts;
 using Neo.L2.Messaging;
+using Neo.L2.Persistence;
 using Neo.L2.State;
 
 namespace Neo.L2.Executor;
@@ -19,7 +20,7 @@ namespace Neo.L2.Executor;
 ///     Neo-classic Merkle over the live <see cref="State.KeyedStateStore"/>. Used by the
 ///     devnet, the Phase 0–2 integration tests, and the custom-executor end-to-end test.</description></item>
 ///   <item><description><c>Neo.L2.Executor.MerkleStatePostStateRootOracle</c> — production
-///     state-root oracle over an <see cref="Persistence.IL2KeyValueStore"/>, used by
+///     state-root oracle over an <see cref="IL2KeyValueStore"/>, used by
 ///     <c>UT_E2E_RealVM_FullStack</c> and the production batch flow.</description></item>
 ///   <item><description><see cref="DerivedPostStateRootOracle"/> — test fixture below
 ///     (deterministic XOR of pre-state ⊕ receipt-root ⊕ block-context-hash). For tests
@@ -141,7 +142,7 @@ public sealed class ReferenceBatchExecutor : IL2BatchExecutor
 /// <summary>
 /// Pluggable interface for resolving the post-batch state root. Production implementations
 /// (<see cref="State.KeyedStateRootOracle"/> in-process, <c>MerkleStatePostStateRootOracle</c>
-/// over an <see cref="Persistence.IL2KeyValueStore"/>) walk the actual state tree after
+/// over an <see cref="IL2KeyValueStore"/>) walk the actual state tree after
 /// all batch writes have been applied. <see cref="DerivedPostStateRootOracle"/> below is a
 /// test-only XOR fixture.
 /// </summary>
@@ -159,7 +160,7 @@ public interface IPostStateRootOracle
 /// Test fixture: derives postStateRoot deterministically from
 /// <c>preStateRoot ⊕ receiptRoot ⊕ blockContextHash</c>. Useful for
 /// <see cref="ReferenceBatchExecutor"/> plumbing tests that don't need to stand up a real
-/// <see cref="State.KeyedStateStore"/> / <see cref="Persistence.IL2KeyValueStore"/>.
+/// <see cref="State.KeyedStateStore"/> / <see cref="IL2KeyValueStore"/>.
 /// Production deployments inject <see cref="State.KeyedStateRootOracle"/> (in-process) or
 /// <c>MerkleStatePostStateRootOracle</c> (state-store-backed) — both produce real Merkle
 /// commitments over the live state and match the on-chain

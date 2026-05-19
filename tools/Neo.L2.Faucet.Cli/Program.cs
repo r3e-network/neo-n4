@@ -25,6 +25,9 @@ namespace Neo.L2.Faucet.Cli;
 /// </remarks>
 public static class Program
 {
+    /// <summary>Process-entry. Returns a process exit code: 0 on success, non-zero
+    /// on usage error / cooldown / cap rejection. See class remarks for
+    /// subcommand listing and rate-limit semantics.</summary>
     public static int Main(string[] args)
     {
         if (args.Length == 0 || args[0] is "--help" or "-h" or "help")

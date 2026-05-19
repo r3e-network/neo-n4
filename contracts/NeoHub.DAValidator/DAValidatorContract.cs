@@ -176,7 +176,8 @@ public class DAValidatorContract : SmartContract
         ExecutionEngine.Assert(committee.Length >= 2, "committee malformed");
         var threshold = committee[0];
         var size = committee[1];
-        ExecutionEngine.Assert(threshold > 0 && threshold <= size, "committee threshold invalid");
+        ExecutionEngine.Assert(threshold > 0, "threshold must be positive");
+        ExecutionEngine.Assert(threshold <= size, "threshold exceeds committee size");
         ExecutionEngine.Assert(committee.Length == 2 + size * PublicKeyLength, "committee length mismatch");
 
         var sigCount = (int)proofBytes[0] | ((int)proofBytes[1] << 8);

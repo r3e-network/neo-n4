@@ -1,0 +1,354 @@
+{
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2026-05-19T08:04:20.023Z",
+  "contracts": [
+    {
+      "name": "NeoHub.ChainRegistry",
+      "path": "contracts/NeoHub.ChainRegistry"
+    },
+    {
+      "name": "NeoHub.DARegistry",
+      "path": "contracts/NeoHub.DARegistry"
+    },
+    {
+      "name": "NeoHub.DAValidator",
+      "path": "contracts/NeoHub.DAValidator"
+    },
+    {
+      "name": "NeoHub.EmergencyManager",
+      "path": "contracts/NeoHub.EmergencyManager"
+    },
+    {
+      "name": "NeoHub.ExternalBridgeBond",
+      "path": "contracts/NeoHub.ExternalBridgeBond"
+    },
+    {
+      "name": "NeoHub.ExternalBridgeEscrow",
+      "path": "contracts/NeoHub.ExternalBridgeEscrow"
+    },
+    {
+      "name": "NeoHub.ExternalBridgeRegistry",
+      "path": "contracts/NeoHub.ExternalBridgeRegistry"
+    },
+    {
+      "name": "NeoHub.ExternalBridgeStubVerifier",
+      "path": "contracts/NeoHub.ExternalBridgeStubVerifier"
+    },
+    {
+      "name": "NeoHub.ForcedInclusion",
+      "path": "contracts/NeoHub.ForcedInclusion"
+    },
+    {
+      "name": "NeoHub.GovernanceController",
+      "path": "contracts/NeoHub.GovernanceController"
+    },
+    {
+      "name": "NeoHub.GovernanceFraudVerifier",
+      "path": "contracts/NeoHub.GovernanceFraudVerifier"
+    },
+    {
+      "name": "NeoHub.L1TxFilter",
+      "path": "contracts/NeoHub.L1TxFilter"
+    },
+    {
+      "name": "NeoHub.MessageRouter",
+      "path": "contracts/NeoHub.MessageRouter"
+    },
+    {
+      "name": "NeoHub.MpcCommitteeFraudVerifier",
+      "path": "contracts/NeoHub.MpcCommitteeFraudVerifier"
+    },
+    {
+      "name": "NeoHub.MpcCommitteeVerifier",
+      "path": "contracts/NeoHub.MpcCommitteeVerifier"
+    },
+    {
+      "name": "NeoHub.NativeZkVerifier",
+      "path": "contracts/NeoHub.NativeZkVerifier"
+    },
+    {
+      "name": "NeoHub.OptimisticChallenge",
+      "path": "contracts/NeoHub.OptimisticChallenge"
+    },
+    {
+      "name": "NeoHub.RestrictedExecutionFraudVerifier",
+      "path": "contracts/NeoHub.RestrictedExecutionFraudVerifier"
+    },
+    {
+      "name": "NeoHub.SequencerBond",
+      "path": "contracts/NeoHub.SequencerBond"
+    },
+    {
+      "name": "NeoHub.SequencerRegistry",
+      "path": "contracts/NeoHub.SequencerRegistry"
+    },
+    {
+      "name": "NeoHub.SettlementManager",
+      "path": "contracts/NeoHub.SettlementManager"
+    },
+    {
+      "name": "NeoHub.SharedBridge",
+      "path": "contracts/NeoHub.SharedBridge"
+    },
+    {
+      "name": "NeoHub.TokenRegistry",
+      "path": "contracts/NeoHub.TokenRegistry"
+    },
+    {
+      "name": "NeoHub.VerifierRegistry",
+      "path": "contracts/NeoHub.VerifierRegistry"
+    }
+  ],
+  "tools": [
+    {
+      "name": "experience-hub",
+      "path": "tools/experience-hub"
+    },
+    {
+      "name": "manuscript",
+      "path": "tools/manuscript"
+    },
+    {
+      "name": "Neo.External.Bridge.Cli",
+      "path": "tools/Neo.External.Bridge.Cli"
+    },
+    {
+      "name": "Neo.Hub.Deploy",
+      "path": "tools/Neo.Hub.Deploy"
+    },
+    {
+      "name": "Neo.L2.Bridge.Cli",
+      "path": "tools/Neo.L2.Bridge.Cli"
+    },
+    {
+      "name": "Neo.L2.Devnet",
+      "path": "tools/Neo.L2.Devnet"
+    },
+    {
+      "name": "Neo.L2.Explore",
+      "path": "tools/Neo.L2.Explore"
+    },
+    {
+      "name": "Neo.L2.Faucet.Cli",
+      "path": "tools/Neo.L2.Faucet.Cli"
+    },
+    {
+      "name": "Neo.Stack.Cli",
+      "path": "tools/Neo.Stack.Cli"
+    }
+  ],
+  "docs": [
+    {
+      "title": "Architecture atlas",
+      "path": "docs/architecture-atlas.md"
+    },
+    {
+      "title": "Architecture: Glossary + component catalog",
+      "path": "docs/architecture-glossary.md"
+    },
+    {
+      "title": "Architecture: L1 vs L2 division of responsibilities",
+      "path": "docs/architecture-l1-vs-l2.md"
+    },
+    {
+      "title": "Architecture: L2 chain lifecycle",
+      "path": "docs/architecture-l2-lifecycle.md"
+    },
+    {
+      "title": "Architecture: Trust boundaries",
+      "path": "docs/architecture-trust-boundaries.md"
+    },
+    {
+      "title": "Architecture Walkthrough",
+      "path": "docs/architecture-walkthrough.md"
+    },
+    {
+      "title": "Architecture: Wire formats",
+      "path": "docs/architecture-wire-formats.md"
+    },
+    {
+      "title": "Deployment Rehearsal Report - 2026-05-17",
+      "path": "docs/audit/deployment-rehearsal-2026-05-17/README.md"
+    },
+    {
+      "title": "Neo N4 Deep Audit Report",
+      "path": "docs/audit/production-readiness-audit.md"
+    },
+    {
+      "title": "Repository Coverage Ledger",
+      "path": "docs/audit/repository-coverage-ledger.md"
+    },
+    {
+      "title": "Repository-wide consistency, localization, and security pass",
+      "path": "docs/audit/repository-wide-consistency-localization-security-2026-05-18.md"
+    },
+    {
+      "title": "Security Audit Report - 2026-05-17",
+      "path": "docs/audit/security-audit-2026-05-17.md"
+    },
+    {
+      "title": "Systematic Review - 2026-05-17",
+      "path": "docs/audit/systematic-review-2026-05-17/README.md"
+    },
+    {
+      "title": "ZKsync Alignment, Consistency, and Security Pass - 2026-05-18",
+      "path": "docs/audit/zksync-alignment-consistency-security-2026-05-18.md"
+    },
+    {
+      "title": "ZKsync Elastic Chain Comparison Validation - 2026-05-17",
+      "path": "docs/audit/zksync-elastic-chain-validation-2026-05-17.md"
+    },
+    {
+      "title": "ZKsync Elastic Chain Alignment Validation - 2026-05-18",
+      "path": "docs/audit/zksync-elastic-chain-validation-2026-05-18.md"
+    },
+    {
+      "title": "Neo Core Fork Policy",
+      "path": "docs/core-fork-policy.md"
+    },
+    {
+      "title": "EVM-chain onboarding for the external bridge",
+      "path": "docs/external-bridge-evm-chains.md"
+    },
+    {
+      "title": "External Bridge Roadmap",
+      "path": "docs/external-bridge-roadmap.md"
+    },
+    {
+      "title": "Figures",
+      "path": "docs/figures/README.md"
+    },
+    {
+      "title": "README.md",
+      "path": "docs/figures/visual-guide/README.md"
+    },
+    {
+      "title": "Getting Started",
+      "path": "docs/getting-started.md"
+    },
+    {
+      "title": "Interactive Neo N4 Runtime Theater",
+      "path": "docs/interactive-runtime.md"
+    },
+    {
+      "title": "Launching a new L2 chain on Neo Elastic Network",
+      "path": "docs/launching-an-l2.md"
+    },
+    {
+      "title": "NeoHub architecture and workflows",
+      "path": "docs/neohub-architecture-and-workflows.md"
+    },
+    {
+      "title": "Persistence",
+      "path": "docs/persistence.md"
+    },
+    {
+      "title": "Plan: ApplicationEngine integration + real state-root batch executor",
+      "path": "docs/plan-application-engine-and-mpt.md"
+    },
+    {
+      "title": "Private Network Testing",
+      "path": "docs/private-network-testing.md"
+    },
+    {
+      "title": "Neo Elastic Network (`neo4`)",
+      "path": "docs/README.md"
+    },
+    {
+      "title": "Release Readiness Checklist",
+      "path": "docs/release-readiness-checklist.md"
+    },
+    {
+      "title": "Rust Supply-Chain Policy",
+      "path": "docs/rust-supply-chain-policy.md"
+    },
+    {
+      "title": "Security Model",
+      "path": "docs/security-model.md"
+    },
+    {
+      "title": "Spec-gap fix plan",
+      "path": "docs/spec-gap-plan.md"
+    },
+    {
+      "title": "Summary",
+      "path": "docs/SUMMARY.md"
+    },
+    {
+      "title": "Neo N4 Experience Hub Phase 1 Implementation Plan",
+      "path": "docs/superpowers/plans/2026-05-19-neo-n4-experience-hub-phase-1.md"
+    },
+    {
+      "title": "Neo N4 Unified Experience Hub Design",
+      "path": "docs/superpowers/specs/2026-05-19-neo-n4-unified-experience-hub-design.md"
+    },
+    {
+      "title": "Tech-stack coverage",
+      "path": "docs/tech-stack-coverage.md"
+    },
+    {
+      "title": "Telemetry",
+      "path": "docs/telemetry.md"
+    },
+    {
+      "title": "Testing approach — Neo Elastic Network",
+      "path": "docs/testing-approach.md"
+    },
+    {
+      "title": "Visual guide / 可视化导览",
+      "path": "docs/visual-guide.md"
+    },
+    {
+      "title": "Wallet integration patterns",
+      "path": "docs/wallet-integration.md"
+    },
+    {
+      "title": "ZKsync Elastic Chain ↔ neo4 component map",
+      "path": "docs/zksync-comparison.md"
+    }
+  ],
+  "workflows": [
+    {
+      "id": "deposit",
+      "label": "L1 to L2 deposit"
+    },
+    {
+      "id": "batch",
+      "label": "Batch settlement"
+    },
+    {
+      "id": "proof",
+      "label": "ZK proof and native accelerator"
+    },
+    {
+      "id": "withdrawal",
+      "label": "L2 to L1 withdrawal"
+    },
+    {
+      "id": "external",
+      "label": "External bridge"
+    },
+    {
+      "id": "challenge",
+      "label": "Challenge and recovery"
+    }
+  ],
+  "da": {
+    "defaultProvider": "NeoFS",
+    "commitmentPath": "NeoHub.DARegistry + NeoHub.DAValidator"
+  },
+  "vm": {
+    "defaultProfile": "NeoVM2/RISC-V",
+    "optionalProfiles": [
+      "EVM",
+      "WASM",
+      "Move",
+      "Custom"
+    ]
+  },
+  "boundaries": {
+    "neohub": "deployable L1 contracts",
+    "browser": "read-only",
+    "signing": "wallets, CLIs, node processes, and contracts"
+  }
+}

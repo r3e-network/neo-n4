@@ -266,7 +266,11 @@ public class MpcCommitteeVerifierContract : SmartContract
             var memberIdx = FindCommitteeIndex(committee, size, keyLen, pubkey);
             ExecutionEngine.Assert(memberIdx >= 0, "signature from non-committee key");
 
-            // Dedup.
+            // Dedup by committee-member index, not by signature bytes. This is the
+            // load-bearing defense against ECDSA signature malleability: even if an
+            // attacker submits two valid signatures (low-S and high-S variants) from the
+            // same signer for the same message, the second one hits this assert and is
+            // rejected — they can't count the same signer twice toward the threshold.
             var byteIdx = memberIdx / 8;
             var bitIdx = (byte)(1 << (memberIdx % 8));
             ExecutionEngine.Assert((seenBitmap[byteIdx] & bitIdx) == 0, "duplicate signer");

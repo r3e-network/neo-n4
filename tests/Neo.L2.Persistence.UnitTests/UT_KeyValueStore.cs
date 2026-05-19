@@ -68,6 +68,30 @@ public class UT_RocksDbKeyValueStore : KeyValueStoreContractTests
     }
 
     [TestMethod]
+    public void Constructor_ReportsFriendlyMessageWhenAnotherProcessHoldsTheLock()
+    {
+        // RocksDB enforces a single-writer LOCK on dataDirectory. The wrapper translates
+        // RocksDb's opaque "IO error: While lock file ..." into an actionable
+        // InvalidOperationException so misconfigured operators (two daemons sharing one
+        // --data-dir) can find the cause in a log line.
+        var dir = Path.Combine(Path.GetTempPath(), "neo-l2-rocks-lock-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var first = new RocksDbKeyValueStore(dir);
+            var ex = Assert.ThrowsExactly<InvalidOperationException>(() => new RocksDbKeyValueStore(dir));
+            StringAssert.Contains(ex.Message, "already in use",
+                "wrapper must call out the dual-instance scenario in the message");
+            StringAssert.Contains(ex.Message, dir,
+                "wrapper must include the offending data directory");
+            Assert.IsNotNull(ex.InnerException, "underlying RocksDB exception must be preserved as InnerException");
+        }
+        finally
+        {
+            if (Directory.Exists(dir)) try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
+
+    [TestMethod]
     public void DataDirectory_ExposesConfiguredPath()
     {
         var dir = Path.Combine(Path.GetTempPath(), "neo-l2-rocks-path-" + Guid.NewGuid().ToString("N"));

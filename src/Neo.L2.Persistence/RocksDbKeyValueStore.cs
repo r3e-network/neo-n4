@@ -45,8 +45,28 @@ public sealed class RocksDbKeyValueStore : IL2KeyValueStore
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
         ArgumentNullException.ThrowIfNull(options);
         DataDirectory = dataDirectory;
-        _db = RocksDb.Open(options, dataDirectory);
+        try
+        {
+            _db = RocksDb.Open(options, dataDirectory);
+        }
+        catch (RocksDbException ex) when (LooksLikeLockHeld(ex.Message))
+        {
+            // RocksDB holds a single-writer LOCK file in dataDirectory; any second
+            // open returns an opaque "IO error: While lock file ..." message.
+            // Translate to a clearer operator-facing error so misconfigured deployments
+            // (two daemons sharing one --data-dir) are debuggable from the log line.
+            throw new InvalidOperationException(
+                $"RocksDB data directory '{dataDirectory}' is already in use by another " +
+                "process. Stop the other instance, or point this one at a different " +
+                "--data-dir / DataDirectory.", ex);
+        }
     }
+
+    private static bool LooksLikeLockHeld(string message)
+        => message.Contains("lock", StringComparison.OrdinalIgnoreCase)
+            && (message.Contains("LOCK", StringComparison.Ordinal)
+                || message.Contains("Resource temporarily unavailable", StringComparison.Ordinal)
+                || message.Contains("already held", StringComparison.OrdinalIgnoreCase));
 
     private static DbOptions DefaultOptions() => new DbOptions()
         .SetCreateIfMissing(true)

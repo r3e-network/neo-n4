@@ -325,7 +325,7 @@ public class UT_ProductionGapClosure
     {
         var relative = Relative(root, path);
         var parts = relative.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Any(part => part is ".git" or "bin" or "obj" or "target" or "book" or "node_modules"))
+        if (parts.Any(part => part is ".git" or "bin" or "obj" or "target" or "book" or "build" or "node_modules"))
             return true;
 
         return relative.StartsWith("artifacts/", StringComparison.OrdinalIgnoreCase)

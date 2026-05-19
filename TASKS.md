@@ -1,6 +1,6 @@
 # Neo N4 — Task Split
 
-Open work between **Neo core forks** (`r3e-network/neo`, L1 branch `r3e/neo-n3-core`, L2 branch `r3e/neo-n4-core`) and **this Elastic Network repo** (`neo4`). Counts verified against the codebase on 2026-05-17.
+Open work between **Neo core forks** (`r3e-network/neo`, L1 branch `r3e/neo-n3-core`, L2 branch `r3e/neo-n4-core`) and **this Elastic Network repo** (`neo4`). Counts verified against the codebase on 2026-05-19.
 
 ---
 
@@ -136,10 +136,10 @@ Anything touching **NeoVM execution semantics, native contracts, dBFT consensus,
 
 Reference state after the closed-iteration fixes:
 
-- Tests green: **1426 .NET + 159 cross-language base = 1585**, plus 2 real-CPU SP1 release-gate tests verified via `cargo test --release --locked -- --ignored --nocapture` in `bridge/neo-zkvm-host/`.
-  - 1426 .NET across 34 projects.
-  - 159 cross-language (15 TS + 10 Rust SDK + 5 shared execution-core + 7 SP1 guest + 101 watcher + 20 Foundry + 1 Solana Anchor).
-- Build: 107 solution projects, 0 errors, 0 warnings (with `nccs` on PATH)
-- Smart contracts: 33 NeoHub/L2Native + 2 sample dApps + 1 sample executor → all compile fresh
+- Tests green: **1452 .NET + 165 cross-language base = 1617**, plus 2 real-CPU SP1 release-gate tests verified via `cargo test --release --locked -- --ignored --nocapture` in `bridge/neo-zkvm-host/`.
+  - 1452 .NET across 34 projects.
+  - 165 cross-language (15 TS + 10 Rust SDK + 5 shared execution-core + 7 SP1 guest + 103 watcher (87 eth + 7 tron + 9 sol) + 21 Foundry (14 single + 7 multi) + 4 Solana router).
+- Build: 99 solution projects, 0 errors, 0 warnings (with `nccs` on PATH)
+- Smart contracts: 31 NeoHub/L2Native (24 NeoHub deployable + 7 L2 native) + 2 sample dApps + 1 sample executor → all compile fresh
 - Devnet 5-batch E2E: green, state root unchanged (`KeyedStateRootOracle` path was already Neo classic)
 - Findings ledger: **0 substantive + 0 minor nits open** — all 4 findings from the 40-iteration sweep now closed

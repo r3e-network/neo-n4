@@ -33,7 +33,7 @@ any other project's source.
 - **Fraud verifier (governance-arbitration mode reference)** ✅ — `contracts/NeoHub.GovernanceFraudVerifier/`
 - **Fraud verifier (trustless v3 — on-chain Merkle re-derivation)** ✅ — `contracts/NeoHub.RestrictedExecutionFraudVerifier/`
 
-**23 NeoHub contracts.** All type-check via `Neo.SmartContract.Framework`; CI
+**24 NeoHub contracts** (23 production + 1 test-only `ExternalBridgeStubVerifier`). All type-check via `Neo.SmartContract.Framework`; CI
 builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 
 - **L2 batch info (chainId, batch number, L1 height)** ✅ — Neo core native `L2BatchInfoContract`.

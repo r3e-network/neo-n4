@@ -1,6 +1,6 @@
 # Neo N4 — Tech Stack at a Glance
 
-One-page developer onboarding for the Neo Elastic Network repo. Counts verified against the codebase on 2026-05-17.
+One-page developer onboarding for the Neo Elastic Network repo. Counts verified against the codebase on 2026-05-19.
 
 ---
 
@@ -33,7 +33,7 @@ Independent implementation — not the official Neo 4 release, not endorsed by N
 |   Bridge crates (zkvm-host / guest) | Watchers (eth / tron / sol)        |
 +--------------------------------------------------------------------------+
 | Layer 1 - Protocol contracts (on-chain)                                  |
-|   NeoHub L1 deployable suite (23 contracts) | L2 native contracts (10)      |
+|   NeoHub L1 deployable suite (24: 23 prod + 1 stub) | L2 native contracts (10) |
 |   Foreign-side routers (EVM family Solidity | Solana Anchor program)     |
 +--------------------------------------------------------------------------+
                                     |
@@ -67,7 +67,7 @@ Per-component detail lives in [`docs/tech-stack-coverage.md`](docs/tech-stack-co
 | Test projects | 34 | `tests/Neo.L2.*.UnitTests/` + `tests/Neo.L2.IntegrationTests/` + sample test projects |
 | Documentation pages | 20 EN + 22 zh | `docs/*.md`, `docs/zh/*.md` |
 
-**Total runnable code modules: 78** (23 deployable NeoHub contracts + 10 Neo core native L2 contracts + 2 samples + 1 executor + 2 foreign + 16 libs + 8 plugins + 7 tools + 2 bridge + 3 watchers + 3 SDKs + 1 web).
+**Total runnable code modules: 80** (24 deployable NeoHub contracts — 23 production + 1 test-only stub — + 10 Neo core native L2 contracts + 2 samples + 1 executor + 2 foreign + 16 libs + 8 plugins + 7 tools + 3 bridge crates + 3 watchers + 3 SDKs + 1 web).
 
 ---
 
@@ -75,13 +75,13 @@ Per-component detail lives in [`docs/tech-stack-coverage.md`](docs/tech-stack-co
 
 | Check | Result |
 |-------|--------|
-| .NET tests | **1430 passing across 34 projects, 0 failures** |
-| Cross-language tests | **159 passing** (15 TS + 10 Rust SDK + 5 shared execution-core + 7 SP1 guest + 101 watcher with `--features live-rpc` + 20 Foundry + 1 Solana Anchor) |
+| .NET tests | **1452 passing across 34 projects, 0 failures** |
+| Cross-language tests | **165 passing** (15 TS + 10 Rust SDK + 5 shared execution-core + 7 SP1 guest + 103 watcher with `--features live-rpc` (87 eth + 7 tron + 9 sol) + 21 Foundry (14 single + 7 multi) + 4 Solana router) |
 | Real-CPU SP1 proof generation | **2 ignored release-gate tests** (~40s prove, ~20s verify, 2.78 MB proof artifact) |
-| **Base tests green** | **1589** |
-| Smart contract artifacts | 25/25 deployable `.nef` + `.manifest.json` compile cleanly via `nccs 3.9.1`; 10 L2 native contracts pass Neo core native tests |
+| **Base tests green** | **1617** |
+| Smart contract artifacts | 24/24 deployable `.nef` + `.manifest.json` compile cleanly via `nccs 3.9.1`; 10 L2 native contracts pass Neo core native tests |
 | Devnet 5-batch end-to-end | green (state-root continuity, multisig proofs, audit pass) |
-| `dotnet build Neo.L2.sln` | 97 solution projects, 0 errors, 0 warnings |
+| `dotnet build Neo.L2.sln` | 99 solution projects, 0 errors, 0 warnings |
 
 ---
 
@@ -108,7 +108,7 @@ remaining gaps worth closing as the framework matures.
 |--------------------------|-----------|-----|
 | NeoVM2/RISC-V execution / native contracts | **Core fork** (`r3e-network/neo`) | L1 core deltas tracked on `r3e/neo-n3-core`; L2 execution-kernel and N4-native deltas tracked on `r3e/neo-n4-core` |
 | dBFT consensus / RpcServer plugin | **Core** | Same |
-| L1 contracts (NeoHub) | This repo → `contracts/NeoHub.*/` | All 23 L1 contracts live here |
+| L1 contracts (NeoHub) | This repo → `contracts/NeoHub.*/` | All 24 L1 contracts live here (23 production + 1 test-only stub) |
 | L2 native contracts | **Core fork** (`external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`) | Native contracts registered by Neo core at genesis |
 | Batch / state / messaging logic | This repo → `src/Neo.L2.{Batch,State,Messaging}/` | Pure off-chain libraries |
 | Sequencer / batcher / prover runtime | This repo → `src/Neo.L2.{Sequencer,Batch,Proving}/` + `src/Neo.Plugins.L2*/` | Plugin-based runtime |
@@ -131,7 +131,7 @@ remaining gaps worth closing as the framework matures.
 # Build everything (~10s)
 dotnet build Neo.L2.sln /p:NuGetAudit=false
 
-# Run all .NET tests (1430 tests, ~30s)
+# Run all .NET tests (1452 tests, ~30s)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Run the in-process devnet (5 batches, full pipeline)

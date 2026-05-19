@@ -23,7 +23,7 @@
 ## Quick start
 
 ```bash
-# Type-check everything + run all 1411 tests
+# Type-check everything + run all 1452 tests
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Run the in-process devnet demo
@@ -53,7 +53,7 @@ neo4/
 │   ├── Neo.L2.Settlement.Rpc/       # JSON-RPC client for L1
 │   └── Neo.Plugins.L2*/             # neo-node Plugin subclasses
 ├── contracts/                       # deployable NeoHub SmartContract.Framework projects
-│   └── NeoHub.*/                    # 23 L1 contracts
+│   └── NeoHub.*/                    # 24 L1 contracts (23 production + 1 test-only stub)
 ├── external/neo/                    # r3e Neo fork, L2 branch r3e/neo-n4-core
 ├── tools/
 │   ├── Neo.Stack.Cli/               # neo-stack CLI

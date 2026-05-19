@@ -204,7 +204,9 @@ Deposit invariants:
 - Chain id and nonce are part of the message hash, so deposits cannot replay on
   another L2.
 - `TokenRegistry` controls whether the asset is canonical, bridged, active, and
-  mapped to the target L2 asset representation.
+  mapped to the target L2 asset representation, including exact L1/L2 decimal
+  metadata. NEO is the special platform mapping: L1 NEO stays indivisible
+  (`decimals = 0`), while each L2 receives built-in decimal NEO (`decimals = 8`).
 - `L1TxFilter` can restrict which L1-to-L2 messages are accepted for a chain.
 
 ## 8. Batch settlement data flow

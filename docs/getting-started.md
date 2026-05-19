@@ -56,7 +56,7 @@ You should see:
 
 [persist] in-memory stores (devnet default — data lost on restart)
 
-[wire] asset registry: 1 mapping (GAS L1=0x11111111…1111 → L2=0x22222222…2222)
+[wire] asset registry: 2 platform mappings (GAS L1=0x11111111…1111 → L2=0xf684fdbd…ee28, NEO L1=0x99999999…9999 → L2=0x8b28b3f6…06d5; NEO L1 decimals=0, L2 decimals=8)
 [wire] 4 validators, attestation threshold = 3
 [wire] sequencer committee: 3 active members
 [wire] keyed state store + oracle (0 initial entries)
@@ -75,6 +75,8 @@ What just happened:
 
 - **3 sequencers** registered into a committee (in-memory backing for `NeoHub.SequencerRegistry`).
 - **5 batches** ran — each containing a deposit + withdrawal — through `ReferenceBatchExecutor`.
+- **2 platform asset mappings** were registered: GAS maps 8→8, and L1's indivisible
+  NEO maps into the L2 built-in decimal NEO representation (0→8).
 - The **`KeyedStateStore`** held real (asset, holder) → balance entries; each batch's
   `preStateRoot` equals the previous `postStateRoot` (state-root continuity guaranteed).
 - Each batch published its payload to the **DA writer**; the resulting commitment was

@@ -180,6 +180,13 @@ amounts or (b) underflow on whales. Cap is `amountLen ≤ 64 bytes`
 (supports tokens with up to ~10^154 minor units; way past any
 realistic supply).
 
+The amount is expressed in the source-domain minor unit. For NEO deposits this
+means whole L1 NEO units (`l1Decimals = 0`); the native L2 bridge scales to the
+mapped L2 NEO representation (`l2Decimals = 8`) after resolving
+`TokenRegistry`/`L2BridgeContract` metadata. For withdrawals, the
+`WithdrawalRecord` amount is already the canonical L1 payout amount, so lossy
+downscaling is rejected before the withdrawal record is emitted.
+
 ---
 
 ## 7. Common conventions

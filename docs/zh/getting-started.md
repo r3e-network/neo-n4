@@ -53,7 +53,7 @@ dotnet run --project tools/Neo.L2.Devnet -- 5
 
 [persist] in-memory stores (devnet default — data lost on restart)
 
-[wire] asset registry: 1 mapping (GAS L1=0x11111111…1111 → L2=0x22222222…2222)
+[wire] asset registry: 2 platform mappings (GAS L1=0x11111111…1111 → L2=0xf684fdbd…ee28, NEO L1=0x99999999…9999 → L2=0x8b28b3f6…06d5; NEO L1 decimals=0, L2 decimals=8)
 [wire] 4 validators, attestation threshold = 3
 [wire] sequencer committee: 3 active members
 [wire] keyed state store + oracle (0 initial entries)
@@ -72,6 +72,8 @@ dotnet run --project tools/Neo.L2.Devnet -- 5
 
 - **3 个排序器**注册进委员会（`NeoHub.SequencerRegistry` 的内存后备）。
 - **5 个批次**依次跑过 `ReferenceBatchExecutor`,每个批次包含一笔充值 + 一笔提款。
+- **2 个平台资产映射**已经注册:GAS 是 8→8,L1 上不可分割的 NEO 映射到
+  L2 内置 decimal NEO 表示(0→8)。
 - **`KeyedStateStore`** 存放真实的 (asset, holder) → 余额映射；每个批次的
   `preStateRoot` 等于上一个批次的 `postStateRoot`(状态根连续性得到保证)。
 - 每个批次将其负载发布给 **DA writer**,产生的承诺被绑入证明的 public inputs。

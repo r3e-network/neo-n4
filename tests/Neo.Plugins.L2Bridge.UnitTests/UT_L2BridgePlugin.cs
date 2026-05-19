@@ -112,6 +112,7 @@ public class UT_L2BridgePlugin
         {
             L1Asset = l1Asset, L2Asset = l2Asset,
             L2ChainId = 0u, AssetType = Neo.L2.AssetType.Gas,
+            L1Decimals = 8, L2Decimals = 8,
             MintBurn = true, LockMint = false, Active = true,
         });
 
@@ -149,6 +150,7 @@ public class UT_L2BridgePlugin
         {
             L1Asset = l1Asset, L2Asset = l2Asset,
             L2ChainId = 0u, AssetType = Neo.L2.AssetType.Gas,
+            L1Decimals = 8, L2Decimals = 8,
             MintBurn = true, LockMint = false, Active = true,
         });
 

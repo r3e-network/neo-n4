@@ -196,7 +196,9 @@ Deposit 不变量：
 
 - 资产托管保留在 L1 的 `SharedBridge`。
 - chain id 和 nonce 是 message hash 的一部分，deposit 不能在另一条 L2 上重放。
-- `TokenRegistry` 控制资产是否 canonical、是否 active、以及目标 L2 表示。
+- `TokenRegistry` 控制资产是否 canonical、是否 active、以及目标 L2 表示,并携带
+  精确的 L1/L2 decimals 元数据。NEO 是特殊平台映射:L1 NEO 保持不可分割
+  (`decimals = 0`),每条 L2 获得内置 decimal NEO(`decimals = 8`)。
 - `L1TxFilter` 可以限制某条链接受哪些 L1-to-L2 message。
 
 ## 8. 批次结算数据流

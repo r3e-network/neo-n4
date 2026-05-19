@@ -31,6 +31,12 @@ The architecture borrows the *shared-bridge / chain-registry / proof-aggregation
 from ZKsync Elastic Chain, rebuilt on Neo's stack: dBFT 2.0 finality, NEP-17 assets,
 NeoVM2/RISC-V execution, and NeoFS data availability.
 
+Platform assets are normalized at the L2 boundary. L1 NEO remains indivisible
+(`decimals = 0`) and L1 GAS remains 8-decimal, while every N4 L2 exposes built-in
+NEO and GAS representations with decimal accounting. The native L2 bridge records
+both L1 and L2 decimals per `TokenRegistry` mapping, scales deposits/withdrawals
+exactly, and rejects lossy fractional NEO withdrawals back to L1.
+
 ---
 
 ## Table of contents

@@ -28,6 +28,11 @@ Neo N3 / Neo 4 L1 上的统一可部署 L1 合约套件(**NeoHub**),并通过可
 本架构借鉴了 ZKsync Elastic Chain 的*共享桥 / 链注册表 / 证明聚合*模式,在 Neo 栈
 上重新构建:dBFT 2.0 终结性、NEP-17 资产、NeoVM2/RISC-V 执行、NeoFS 数据可用性。
 
+平台资产在 L2 边界做规范化。L1 NEO 保持不可分割(`decimals = 0`),L1 GAS 保持
+8 位小数；每条 N4 L2 都内置带 decimal 的 NEO 和 GAS 表示。L2 原生桥会在
+`TokenRegistry` 映射里记录 L1/L2 两侧 decimals,对充值/提款做精确缩放,并拒绝无法
+精确回到 L1 的零碎 NEO 提款。
+
 ---
 
 ## 目录

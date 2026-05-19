@@ -47,6 +47,8 @@ public class UT_Mvp_Phase0_Sidechain
             L1Asset = GasL1,
             L2ChainId = LocalChainId,
             L2Asset = GasL2,
+            L1Decimals = 8,
+            L2Decimals = 8,
             AssetType = AssetType.Gas,
             MintBurn = true,
             LockMint = true,

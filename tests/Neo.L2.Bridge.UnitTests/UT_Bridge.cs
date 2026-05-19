@@ -6,6 +6,8 @@ namespace Neo.L2.Bridge.UnitTests;
 public class UT_Bridge
 {
     private const uint LocalChain = 1001;
+    private static readonly UInt160 NeoL1 = UInt160.Parse("0x" + new string('9', 40));
+    private static readonly UInt160 NeoL2 = UInt160.Parse("0x" + new string('8', 40));
     private static readonly UInt160 GasL1 = UInt160.Parse("0x" + new string('1', 40));
     private static readonly UInt160 GasL2 = UInt160.Parse("0x" + new string('2', 40));
     private static readonly UInt160 Recipient = UInt160.Parse("0x" + new string('3', 40));
@@ -16,6 +18,8 @@ public class UT_Bridge
         L1Asset = GasL1,
         L2ChainId = LocalChain,
         L2Asset = GasL2,
+        L1Decimals = 8,
+        L2Decimals = 8,
         AssetType = AssetType.Gas,
         MintBurn = true,
         LockMint = true,
@@ -73,6 +77,7 @@ public class UT_Bridge
         r.Register(new AssetMapping
         {
             L1Asset = aL1, L2ChainId = LocalChain, L2Asset = aL2,
+            L1Decimals = 8, L2Decimals = 8,
             AssetType = AssetType.Nep17, MintBurn = true, LockMint = true, Active = true,
         });
 
@@ -85,6 +90,7 @@ public class UT_Bridge
         r.Register(new AssetMapping
         {
             L1Asset = bL1, L2ChainId = LocalChain, L2Asset = bL2,
+            L1Decimals = 8, L2Decimals = 8,
             AssetType = AssetType.Nep17, MintBurn = true, LockMint = true, Active = true,
         });
 
@@ -208,6 +214,36 @@ public class UT_Bridge
         Assert.AreEqual(Recipient, instr.Recipient);
         Assert.AreEqual(new BigInteger(1_000_000), instr.Amount);
         Assert.IsTrue(proc.HasConsumed(0, 7));
+    }
+
+    [TestMethod]
+    public void DepositProcessor_ScalesL1NeoWholeUnitsToDecimalizedL2Neo()
+    {
+        var registry = new AssetRegistry();
+        registry.Register(PlatformAssets.CreateNeoMapping(NeoL1, LocalChain) with { L2Asset = NeoL2 });
+        var proc = new DepositProcessor(LocalChain, registry);
+        var payload = new DepositPayload
+        {
+            L1Asset = NeoL1,
+            L2Recipient = Recipient,
+            Amount = new BigInteger(2),
+        };
+        var msg = new CrossChainMessage
+        {
+            SourceChainId = 0,
+            TargetChainId = LocalChain,
+            Nonce = 8,
+            Sender = Sender,
+            Receiver = Recipient,
+            MessageType = MessageType.Deposit,
+            Payload = payload.Encode(),
+            MessageHash = UInt256.Zero,
+        };
+
+        var instr = proc.Process(msg);
+
+        Assert.AreEqual(NeoL2, instr.L2Asset);
+        Assert.AreEqual(new BigInteger(200_000_000), instr.Amount);
     }
 
     [TestMethod]
@@ -356,6 +392,8 @@ public class UT_Bridge
             L1Asset = null!,  // ← null
             L2ChainId = LocalChain,
             L2Asset = GasL2,
+            L1Decimals = 8,
+            L2Decimals = 8,
             AssetType = AssetType.Gas,
             MintBurn = true, LockMint = true, Active = true,
         };
@@ -371,6 +409,8 @@ public class UT_Bridge
             L1Asset = GasL1,
             L2ChainId = LocalChain,
             L2Asset = null!,  // ← null
+            L1Decimals = 8,
+            L2Decimals = 8,
             AssetType = AssetType.Gas,
             MintBurn = true, LockMint = true, Active = true,
         };

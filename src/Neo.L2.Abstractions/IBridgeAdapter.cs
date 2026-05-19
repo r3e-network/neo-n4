@@ -51,7 +51,11 @@ public sealed record WithdrawalRequest
     /// <summary>L2-side asset hash being withdrawn.</summary>
     public required UInt160 L2Asset { get; init; }
 
-    /// <summary>Smallest-unit amount of the asset.</summary>
+    /// <summary>
+    /// Canonical L1 payout amount in the L1 asset's smallest unit. For assets whose
+    /// L2 decimals differ from L1, the L2 native bridge converts the burned L2 amount
+    /// before emitting the withdrawal record.
+    /// </summary>
     public required System.Numerics.BigInteger Amount { get; init; }
 
     /// <summary>Per-(chain, sender) monotonic nonce for replay protection.</summary>

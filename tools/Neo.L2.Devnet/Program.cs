@@ -34,8 +34,10 @@ namespace Neo.L2.Devnet;
 internal static class Program
 {
     private const uint LocalChainId = 1001;
+    private static readonly UInt160 NeoL1 = UInt160.Parse("0x" + new string('9', 40));
+    private static readonly UInt160 NeoL2 = PlatformAssets.L2NeoAsset;
     private static readonly UInt160 GasL1 = UInt160.Parse("0x" + new string('1', 40));
-    private static readonly UInt160 GasL2 = UInt160.Parse("0x" + new string('2', 40));
+    private static readonly UInt160 GasL2 = PlatformAssets.L2GasAsset;
     private static readonly UInt160 Alice = UInt160.Parse("0x" + new string('a', 40));
     private static readonly UInt160 Bob = UInt160.Parse("0x" + new string('b', 40));
 
@@ -75,17 +77,9 @@ internal static class Program
 
         // ---- Wire components ----
         var registry = new AssetRegistry();
-        registry.Register(new AssetMapping
-        {
-            L1Asset = GasL1,
-            L2ChainId = LocalChainId,
-            L2Asset = GasL2,
-            AssetType = AssetType.Gas,
-            MintBurn = true,
-            LockMint = true,
-            Active = true,
-        });
-        Console.WriteLine($"[wire] asset registry: 1 mapping (GAS L1={Truncate160(GasL1)} → L2={Truncate160(GasL2)})");
+        registry.Register(PlatformAssets.CreateGasMapping(GasL1, LocalChainId) with { L2Asset = GasL2 });
+        registry.Register(PlatformAssets.CreateNeoMapping(NeoL1, LocalChainId) with { L2Asset = NeoL2 });
+        Console.WriteLine($"[wire] asset registry: 2 platform mappings (GAS L1={Truncate160(GasL1)} → L2={Truncate160(GasL2)}, NEO L1={Truncate160(NeoL1)} → L2={Truncate160(NeoL2)}; NEO L1 decimals=0, L2 decimals=8)");
 
         var depositProcessor = new DepositProcessor(LocalChainId, registry);
         var withdrawalProcessor = new WithdrawalProcessor(LocalChainId, registry);
@@ -147,6 +141,7 @@ internal static class Program
                 Exit = labelOverrides.Exit,
             };
         rpcStore.RegisterAsset(GasL1, GasL2);
+        rpcStore.RegisterAsset(NeoL1, NeoL2);
         var rpc = new L2RpcMethods(rpcStore);
 
         // DA writer. With --data-dir, payloads are content-addressed in RocksDB so a

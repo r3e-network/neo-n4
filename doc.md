@@ -201,9 +201,12 @@ SharedBridge responsibilities:
 ```text
 Neo N3 GAS = canonical GAS
 Neo L2 GAS = bridged GAS representation
+Neo N3 NEO = indivisible canonical NEO (decimals = 0)
+Neo L2 NEO = built-in decimal bridged NEO representation (decimals = 8)
 ```
 
 也就是说，L2 上的 GAS 不应该无约束发行。L2 可以把 bridged GAS 作为 fee token，但 supply 必须由 L1 SharedBridge 约束。
+同理，L1 NEO 不改变不可分割属性；每条 L2 内置的 NEO 是由桥映射出来的 decimal 表示，充值按 `10^8` 放大，提款必须能按 `10^8` 精确缩回 L1 整数 NEO。
 
 ### SettlementManager
 
@@ -692,7 +695,11 @@ L2 fee:
   可支持 paymaster 用 stablecoin 代付
 
 NEO:
-  可桥接到 L2，但治理权默认仍锚定 L1
+  L1 NEO 保持 decimals=0、不可分割
+  每条 L2 内置 decimal NEO 表示(decimals=8)
+  充值 1 L1 NEO -> 100000000 L2 NEO 最小单位
+  提款必须能精确缩回 L1 整数 NEO
+  治理权默认仍锚定 L1
 
 NEP-17:
   通过 TokenRegistry 建立 canonical mapping
@@ -861,8 +868,17 @@ struct AssetMapping {
     byte assetType;       // GAS, NEO, NEP17, stablecoin, RWA
     bool mintBurn;
     bool lockMint;
+    byte l1Decimals;
+    byte l2Decimals;
     bool active;
 }
+```
+
+平台资产规则:
+
+```text
+GAS: l1Decimals = 8, l2Decimals = 8
+NEO: l1Decimals = 0, l2Decimals = 8
 ```
 
 ## 11.3 跨外链桥 ExternalBridge

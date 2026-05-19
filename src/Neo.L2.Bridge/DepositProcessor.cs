@@ -84,7 +84,7 @@ public sealed class DepositProcessor
             {
                 L2Asset = mapping.L2Asset,
                 Recipient = payload.L2Recipient,
-                Amount = payload.Amount,
+                Amount = mapping.ToL2Amount(payload.Amount),
                 SourceChainId = message.SourceChainId,
                 SourceNonce = message.Nonce,
             };

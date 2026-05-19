@@ -67,6 +67,8 @@ L1 锚。**22 个生产合约 + 1 个仅测试 stub** 按关注点分组:
   上触发 `SharedBridge.FinalizeWithdrawalWithProof`。
 - `SharedBridge` 经 `ChainRegistry` 查链 config,经 `TokenRegistry` 查 token
   元信息。
+- `TokenRegistry` 同时存储 L1/L2 两侧 decimals。平台资产映射固定为:
+  L1 NEO 0 decimals、L2 NEO 8 decimals,GAS 两侧都是 8 decimals。
 - `OptimisticChallenge` 把 fraud-verifier 升级上提到带多签 + timelock 的
   `GovernanceController`。
 - `ExternalBridgeEscrow` 经 `ExternalBridgeRegistry` 查带曲线 tag 的 verifier;
@@ -249,6 +251,10 @@ l2_batch_info_hash          = 0x...  # 此 L2 的 L2BatchInfoContract
 
 线协议格式:L1→L2 用 `DepositPayload`,L2→L1 用 `WithdrawalRecord` + Merkle 路径。
 两个 encoder 都在 `Neo.L2.Bridge/`。
+
+对平台资产而言,桥同时也是 decimals 边界。L1 的整枚 NEO 充值会先按 `10^8` 缩放,
+再记入 L2 内置 NEO 表示；提款时做反向换算,金额必须能被 `10^8` 精确整除,否则
+L2 bridge 会拒绝 burn,不会产生无法在 L1 表示的零碎 NEO 提款记录。GAS 保持 8→8。
 
 ### 通道 3 —— 跨 L2 消息传递(可选)
 

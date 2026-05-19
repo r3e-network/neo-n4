@@ -40,6 +40,8 @@ public sealed class AssetRegistry
         // Catch them at the API boundary so the operator sees the bad field directly.
         ArgumentNullException.ThrowIfNull(mapping.L1Asset);
         ArgumentNullException.ThrowIfNull(mapping.L2Asset);
+        AssetAmount.ValidateDecimals(mapping.L1Decimals, nameof(mapping.L1Decimals));
+        AssetAmount.ValidateDecimals(mapping.L2Decimals, nameof(mapping.L2Decimals));
         lock (_gate)
         {
             var l1Key = (mapping.L1Asset, mapping.L2ChainId);

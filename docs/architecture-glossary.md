@@ -76,7 +76,10 @@ Lives at `contracts/NeoHub.*`. Each is a compiled .nef + .manifest.json.
 
 ### Bridge and message support (5)
 
-- **`TokenRegistry`** — Asset metadata (symbol, decimals, native chain). Used by `SharedBridge`.
+- **`TokenRegistry`** — Canonical L1↔L2 asset mapping metadata, including
+  per-side decimals. Used by `SharedBridge` and mirrored into L2
+  `L2BridgeContract`; NEO is pinned as L1 0 decimals → L2 8 decimals, while
+  GAS is 8 decimals on both sides.
 - **`DARegistry`** — Records published `daCommitment` hashes; `L2DAPlugin` writes here on each batch.
 - **`DAValidator`** — Validates DA commitments and DAC attestations before batch finalization.
 - **`L1TxFilter`** — Optional per-chain L1-to-L2 enqueue policy hook used by `MessageRouter`.

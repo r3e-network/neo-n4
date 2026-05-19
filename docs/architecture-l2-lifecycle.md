@@ -77,6 +77,8 @@ verifies the `.nef` + `.manifest.json` artifacts.
   batch's `withdrawalRoot`), not auto-applied.
 - `SharedBridge` looks up chain config via `ChainRegistry` + token
   metadata via `TokenRegistry`.
+- `TokenRegistry` stores both L1 and L2 decimals. Platform mappings pin L1 NEO
+  at 0 decimals, L2 NEO at 8 decimals, and GAS at 8 decimals on both sides.
 - `OptimisticChallenge` escalates to `GovernanceController` for
   fraud-verifier upgrades behind multisig + timelock.
 - `ExternalBridgeEscrow` looks up the curve-tagged verifier via
@@ -277,6 +279,12 @@ lifecycle" for the per-tx zoom-in.
 
 Wire format: `DepositPayload` for L1→L2, `WithdrawalRecord` +
 Merkle path for L2→L1. Both encoders live in `Neo.L2.Bridge/`.
+
+For platform assets the bridge is also a decimal boundary. A whole-number L1 NEO
+deposit is scaled by `10^8` before crediting the L2 built-in NEO representation.
+Withdrawals perform the inverse conversion and must be exactly divisible by
+`10^8`; otherwise the L2 bridge rejects the burn instead of producing an
+unrepresentable fractional L1 NEO payout. GAS stays 8→8.
 
 ### Channel 3 — Cross-L2 messaging (optional)
 

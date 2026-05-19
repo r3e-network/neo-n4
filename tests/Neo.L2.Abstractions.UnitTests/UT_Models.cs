@@ -308,6 +308,25 @@ public class UT_Models
     }
 
     [TestMethod]
+    public void PlatformAssets_PinNeoAndGasDecimalPolicy()
+    {
+        Assert.AreEqual((byte)0, PlatformAssets.L1NeoDecimals, "Neo L1 NEO remains indivisible.");
+        Assert.AreEqual((byte)8, PlatformAssets.L2NeoDecimals, "Every N4 L2 exposes decimalized native NEO.");
+        Assert.AreEqual((byte)8, PlatformAssets.L1GasDecimals);
+        Assert.AreEqual((byte)8, PlatformAssets.L2GasDecimals);
+        Assert.AreEqual(AssetType.Neo, PlatformAssets.CreateNeoMapping(UInt160.Zero, 1001).AssetType);
+        Assert.AreEqual(AssetType.Gas, PlatformAssets.CreateGasMapping(UInt160.Zero, 1001).AssetType);
+    }
+
+    [TestMethod]
+    public void AssetAmount_ScalesBetweenL1AndL2Decimals_AndRejectsLossyDownscale()
+    {
+        Assert.AreEqual(new BigInteger(100_000_000), AssetAmount.Scale(1, fromDecimals: 0, toDecimals: 8));
+        Assert.AreEqual(BigInteger.One, AssetAmount.Scale(100_000_000, fromDecimals: 8, toDecimals: 0));
+        Assert.ThrowsExactly<InvalidOperationException>(() => AssetAmount.Scale(1, fromDecimals: 8, toDecimals: 0));
+    }
+
+    [TestMethod]
     public void BatchExecutionRequest_DistinguishesByTransactionListContent()
     {
         // BatchExecutionRequest holds IReadOnlyList<ReadOnlyMemory<byte>> and

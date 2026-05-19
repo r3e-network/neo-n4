@@ -20,6 +20,8 @@ public class UT_Bridge_Metrics
         L1Asset = GasL1,
         L2ChainId = LocalChain,
         L2Asset = GasL2,
+        L1Decimals = 8,
+        L2Decimals = 8,
         AssetType = AssetType.Gas,
         MintBurn = true,
         LockMint = true,

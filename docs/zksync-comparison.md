@@ -20,7 +20,7 @@ see [`docs/audit/zksync-elastic-chain-validation-2026-05-18.md`](audit/zksync-el
 | **`ChainTypeManager`** (formerly STM) — chain factory + upgrade orchestrator | `NeoHub.VerifierRegistry` + `NeoHub.GovernanceController` staged proposal windows | partial — no per-chain factory contract or DiamondProxy pattern |
 | **`SharedBridge`** — L1 escrow (legacy) | `NeoHub.SharedBridge` | parity |
 | **`L1AssetRouter` + `L2AssetRouter`** (v24+) — chain-agnostic asset routing | absent — single `SharedBridge` does both jobs | intentionally different (one Hub) |
-| **`L1/L2NativeTokenVault`** — assetId derivation, bridged-token deploy | `NeoHub.TokenRegistry` + Neo Core native `L2BridgeContract` + native `BridgedNep17Contract` | parity for N4's design — L2 token accounting lives in the core native layer, not operator-deployed templates |
+| **`L1/L2NativeTokenVault`** — assetId derivation, bridged-token deploy | `NeoHub.TokenRegistry` + Neo Core native `L2BridgeContract` + native `BridgedNep17Contract` | parity for N4's design — L2 token accounting lives in the core native layer, not operator-deployed templates; NEO explicitly maps from indivisible L1 units (`0` decimals) to decimal L2 units (`8` decimals) |
 | **`L1Nullifier`** — withdrawal replay protection | `SharedBridge.PrefixWithdrawalConsumed` + `MessageRouter.PrefixConsumed` | parity |
 | **`MessageRoot.sol`** — aggregated L2→L1 root across all chains | `MessageRouter.PublishGlobalRoot` (0x05 slot) + off-chain `Neo.Plugins.L2Gateway.BinaryTreeAggregator` | parity |
 | **`ChainAssetHandler`** (per-asset routing rules) | absent | intentionally different (single trust model) |

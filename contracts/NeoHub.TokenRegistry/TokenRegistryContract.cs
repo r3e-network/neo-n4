@@ -24,9 +24,9 @@ public class TokenRegistryContract : SmartContract
 
     /// <summary>
     /// Encoded mapping: 20B l1Asset + 4B chainId + 20B l2Asset + 1B assetType +
-    /// 1B mintBurn + 1B lockMint + 1B active = 48B.
+    /// 1B mintBurn + 1B lockMint + 1B l1Decimals + 1B l2Decimals + 1B active = 50B.
     /// </summary>
-    public const int MappingSize = 20 + 4 + 20 + 4;
+    public const int MappingSize = 20 + 4 + 20 + 6;
 
     /// <summary>Emitted when a new mapping is registered or replaced.</summary>
     [DisplayName("MappingRegistered")]
@@ -58,6 +58,9 @@ public class TokenRegistryContract : SmartContract
         var l1Asset = ReadUInt160(mappingBytes, 0);
         var chainId = ReadUInt32(mappingBytes, 20);
         var l2Asset = ReadUInt160(mappingBytes, 24);
+        var assetType = mappingBytes[44];
+        var l1Decimals = mappingBytes[47];
+        var l2Decimals = mappingBytes[48];
 
         // Surface corrupt deployment data here. A zero asset on either side would
         // silently route every bridge transfer of that asset to a dead-letter; a
@@ -65,6 +68,16 @@ public class TokenRegistryContract : SmartContract
         ExecutionEngine.Assert(l1Asset.IsValid && !l1Asset.IsZero, "invalid L1 asset");
         ExecutionEngine.Assert(l2Asset.IsValid && !l2Asset.IsZero, "invalid L2 asset");
         ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
+        ExecutionEngine.Assert(l1Decimals <= 18 && l2Decimals <= 18, "invalid decimals");
+        if (assetType == 1)
+        {
+            ExecutionEngine.Assert(l1Decimals == 0, "L1 NEO decimals must be 0");
+            ExecutionEngine.Assert(l2Decimals > 0, "L2 NEO must be decimalized");
+        }
+        if (assetType == 0)
+        {
+            ExecutionEngine.Assert(l1Decimals == 8 && l2Decimals == 8, "GAS decimals must be 8");
+        }
 
         Storage.Put(MappingKey(l1Asset, chainId), mappingBytes);
         OnMappingRegistered(l1Asset, chainId, l2Asset);
@@ -96,6 +109,26 @@ public class TokenRegistryContract : SmartContract
         if (raw == null) return false;
         var bytes = (byte[])raw;
         return bytes[MappingSize - 1] == 1;
+    }
+
+    /// <summary>L1 decimals recorded for a mapping, or 0 if the mapping is missing.</summary>
+    [Safe]
+    public static byte GetL1Decimals(UInt160 l1Asset, uint chainId)
+    {
+        var raw = Storage.Get(MappingKey(l1Asset, chainId));
+        if (raw == null) return 0;
+        var bytes = (byte[])raw;
+        return bytes[47];
+    }
+
+    /// <summary>L2 decimals recorded for a mapping, or 0 if the mapping is missing.</summary>
+    [Safe]
+    public static byte GetL2Decimals(UInt160 l1Asset, uint chainId)
+    {
+        var raw = Storage.Get(MappingKey(l1Asset, chainId));
+        if (raw == null) return 0;
+        var bytes = (byte[])raw;
+        return bytes[48];
     }
 
     private static byte[] MappingKey(UInt160 l1Asset, uint chainId)

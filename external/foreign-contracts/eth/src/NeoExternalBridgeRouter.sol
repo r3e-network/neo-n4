@@ -53,6 +53,13 @@ contract NeoExternalBridgeRouter {
 
     address public owner;
 
+    /// @notice Pending owner — set by `transferOwnership`, finalized by the
+    ///         pending address itself calling `acceptOwnership`. Two-step
+    ///         transfer prevents a typo or compromised wallet from
+    ///         instantly + irrevocably losing admin (compare OpenZeppelin's
+    ///         Ownable2Step).
+    address public pendingOwner;
+
     /// @notice Per-(neoChainId) outbound nonce counter.
     mapping(uint32 => uint64) public outboundNonces;
 
@@ -116,6 +123,11 @@ contract NeoExternalBridgeRouter {
     /// @notice Emitted when ownership is transferred.
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
+    /// @notice Emitted when `transferOwnership` records a pending new owner.
+    ///         The transfer is NOT effective until `pendingOwner` calls
+    ///         `acceptOwnership`.
+    event OwnershipTransferInitiated(address indexed currentOwner, address indexed pendingOwner);
+
     // ─── modifiers ────────────────────────────────────────────────────────
 
     modifier onlyOwner() {
@@ -148,11 +160,24 @@ contract NeoExternalBridgeRouter {
 
     // ─── owner ────────────────────────────────────────────────────────────
 
-    /// @notice Transfer contract ownership.
+    /// @notice Initiate ownership transfer. Two-step: this records `pendingOwner`,
+    ///         and `acceptOwnership` (called by the new owner from their own wallet)
+    ///         finalizes it. A typo or compromised current owner can't lock the
+    ///         contract because the pending address has to prove control by
+    ///         calling acceptOwnership themselves.
     function transferOwnership(address newOwner) external onlyOwner {
         require(newOwner != address(0), "zero newOwner");
-        emit OwnershipTransferred(owner, newOwner);
-        owner = newOwner;
+        pendingOwner = newOwner;
+        emit OwnershipTransferInitiated(owner, newOwner);
+    }
+
+    /// @notice Finalize a pending ownership transfer initiated by `transferOwnership`.
+    ///         Only callable by the address recorded as `pendingOwner`.
+    function acceptOwnership() external {
+        require(msg.sender == pendingOwner, "not pending owner");
+        emit OwnershipTransferred(owner, pendingOwner);
+        owner = pendingOwner;
+        pendingOwner = address(0);
     }
 
     /// @notice Register (or replace) the committee. The watchers' addresses
@@ -316,7 +341,13 @@ contract NeoExternalBridgeRouter {
             consumedInbound[srcNeoChainId][nonce] = true;
 
             if (asset == address(0)) {
-                (bool sent,) = recipient.call{value: amount}("");
+                // Cap forwarded gas to a small budget so a hostile recipient with a
+                // gas-burning fallback can't grief the relayer (who pays gas for
+                // permissionless `finalizeWithdrawal`). 30_000 is enough for a
+                // normal EOA transfer + a simple contract receiver; complex
+                // hooks should use the ERC-20 path which is bounded by the token
+                // contract's transfer cost.
+                (bool sent,) = recipient.call{value: amount, gas: 30_000}("");
                 require(sent, "ETH transfer failed");
             } else {
                 bool ok = IERC20(asset).transfer(recipient, amount);

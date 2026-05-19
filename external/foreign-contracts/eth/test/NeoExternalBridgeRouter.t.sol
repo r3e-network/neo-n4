@@ -99,6 +99,46 @@ contract NeoExternalBridgeRouterTest is Test {
         router.setCommittee(members, 2);
     }
 
+    // ─── ownership transfer (two-step) ───────────────────────────────────
+
+    function test_TransferOwnership_TwoStep_RequiresAccept() public {
+        address newOwner = address(0xC0FFEE);
+        // Step 1: current owner initiates — does NOT change `owner`.
+        router.transferOwnership(newOwner);
+        assertEq(router.owner(), address(this), "owner must not change on initiate");
+        assertEq(router.pendingOwner(), newOwner, "pendingOwner recorded");
+        // Step 2: new owner finalizes from their own wallet.
+        vm.prank(newOwner);
+        router.acceptOwnership();
+        assertEq(router.owner(), newOwner, "owner flips on accept");
+        assertEq(router.pendingOwner(), address(0), "pendingOwner cleared on accept");
+    }
+
+    function test_AcceptOwnership_RejectsNonPending() public {
+        router.transferOwnership(address(0xC0FFEE));
+        // A third party can't claim the pending transfer.
+        vm.prank(address(0xBAD));
+        vm.expectRevert("not pending owner");
+        router.acceptOwnership();
+        // Old owner can't accept either — only `pendingOwner` can.
+        vm.expectRevert("not pending owner");
+        router.acceptOwnership();
+    }
+
+    function test_TransferOwnership_OverwritesPending() public {
+        // Initiating twice replaces the pending address — typo recovery while still
+        // unchanged-owner. Old `pendingOwner` loses its right to accept.
+        router.transferOwnership(address(0xC0FFEE));
+        router.transferOwnership(address(0xBEEF));
+        assertEq(router.pendingOwner(), address(0xBEEF));
+        vm.prank(address(0xC0FFEE));
+        vm.expectRevert("not pending owner");
+        router.acceptOwnership();
+        vm.prank(address(0xBEEF));
+        router.acceptOwnership();
+        assertEq(router.owner(), address(0xBEEF));
+    }
+
     // ─── outbound (Eth → Neo) ────────────────────────────────────────────
 
     function test_LockETHAndSend_EmitsLocked() public {

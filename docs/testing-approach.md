@@ -6,7 +6,7 @@ where each piece of the system lives.
 
 ---
 
-## Test surface (1453 .NET + 167 cross-language base + SP1 host E2E)
+## Test surface (1453 .NET + 170 cross-language base + SP1 host E2E)
 
 | Tier | Framework | Where | What |
 |------|-----------|-------|------|

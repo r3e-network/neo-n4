@@ -149,8 +149,10 @@ public class UT_MerkleProofSerializer
         // proof.Leaf.GetSpan(). Same iter-154+ defense pattern.
         var bad = new MerkleProof
         {
-            Leaf = null!, LeafIndex = 0,
-            Siblings = new[] { UInt256.Zero }, PathBitmap = 0,
+            Leaf = null!,
+            LeafIndex = 0,
+            Siblings = new[] { UInt256.Zero },
+            PathBitmap = 0,
         };
         Assert.ThrowsExactly<ArgumentNullException>(() => MerkleProofSerializer.Encode(bad));
     }
@@ -161,8 +163,10 @@ public class UT_MerkleProofSerializer
         // Pin MerkleProofSerializer.cs:37.
         var bad = new MerkleProof
         {
-            Leaf = UInt256.Zero, LeafIndex = 0,
-            Siblings = null!, PathBitmap = 0,
+            Leaf = UInt256.Zero,
+            LeafIndex = 0,
+            Siblings = null!,
+            PathBitmap = 0,
         };
         Assert.ThrowsExactly<ArgumentNullException>(() => MerkleProofSerializer.Encode(bad));
     }

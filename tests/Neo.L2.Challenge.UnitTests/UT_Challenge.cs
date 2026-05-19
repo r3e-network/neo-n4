@@ -519,8 +519,10 @@ public class UT_Challenge
         // hashing-primitive defense pattern as the L2BatchCommitment Encode pins.
         var bad = new FraudProofPayload
         {
-            PreStateRoot = null!, ClaimedPostStateRoot = UInt256.Zero,
-            ReplayedPostStateRoot = UInt256.Zero, DisputedTxIndex = 0,
+            PreStateRoot = null!,
+            ClaimedPostStateRoot = UInt256.Zero,
+            ReplayedPostStateRoot = UInt256.Zero,
+            DisputedTxIndex = 0,
         };
         Assert.ThrowsExactly<ArgumentNullException>(() => bad.Encode());
     }
@@ -530,8 +532,10 @@ public class UT_Challenge
     {
         var bad = new FraudProofPayload
         {
-            PreStateRoot = UInt256.Zero, ClaimedPostStateRoot = null!,
-            ReplayedPostStateRoot = UInt256.Zero, DisputedTxIndex = 0,
+            PreStateRoot = UInt256.Zero,
+            ClaimedPostStateRoot = null!,
+            ReplayedPostStateRoot = UInt256.Zero,
+            DisputedTxIndex = 0,
         };
         Assert.ThrowsExactly<ArgumentNullException>(() => bad.Encode());
     }
@@ -541,8 +545,10 @@ public class UT_Challenge
     {
         var bad = new FraudProofPayload
         {
-            PreStateRoot = UInt256.Zero, ClaimedPostStateRoot = UInt256.Zero,
-            ReplayedPostStateRoot = null!, DisputedTxIndex = 0,
+            PreStateRoot = UInt256.Zero,
+            ClaimedPostStateRoot = UInt256.Zero,
+            ReplayedPostStateRoot = null!,
+            DisputedTxIndex = 0,
         };
         Assert.ThrowsExactly<ArgumentNullException>(() => bad.Encode());
     }

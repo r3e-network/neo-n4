@@ -189,10 +189,12 @@ public class UT_OptimisticAndRiscV
         {
             ChainId = inputs.ChainId,
             BatchNumber = 999,           // mismatch
-            FirstBlock = 100, LastBlock = 200,
+            FirstBlock = 100,
+            LastBlock = 200,
             PreStateRoot = inputs.PreStateRoot,
             PostStateRoot = inputs.PostStateRoot,
-            TxRoot = inputs.TxRoot, ReceiptRoot = inputs.ReceiptRoot,
+            TxRoot = inputs.TxRoot,
+            ReceiptRoot = inputs.ReceiptRoot,
             WithdrawalRoot = inputs.WithdrawalRoot,
             L2ToL1MessageRoot = inputs.L2ToL1MessageRoot,
             L2ToL2MessageRoot = inputs.L2ToL2MessageRoot,
@@ -227,10 +229,12 @@ public class UT_OptimisticAndRiscV
         {
             ChainId = inputs.ChainId,
             BatchNumber = inputs.BatchNumber,
-            FirstBlock = 100, LastBlock = 200,
+            FirstBlock = 100,
+            LastBlock = 200,
             PreStateRoot = inputs.PreStateRoot,
             PostStateRoot = inputs.PostStateRoot,
-            TxRoot = inputs.TxRoot, ReceiptRoot = inputs.ReceiptRoot,
+            TxRoot = inputs.TxRoot,
+            ReceiptRoot = inputs.ReceiptRoot,
             WithdrawalRoot = inputs.WithdrawalRoot,
             L2ToL1MessageRoot = inputs.L2ToL1MessageRoot,
             L2ToL2MessageRoot = inputs.L2ToL2MessageRoot,
@@ -278,8 +282,11 @@ public class UT_OptimisticAndRiscV
     {
         var inner = new OptimisticProofPayload
         {
-            BondContract = UInt160.Zero, BondTxHash = UInt256.Zero,
-            SubmittedAt = 0, Sequencer = SampleSequencer(), SequencerSignature = new byte[64],
+            BondContract = UInt160.Zero,
+            BondTxHash = UInt256.Zero,
+            SubmittedAt = 0,
+            Sequencer = SampleSequencer(),
+            SequencerSignature = new byte[64],
         };
         var bytes = inner.Encode();
         var oversized = OptimisticProofPayload.MaxSignatureBytes + 1;
@@ -299,7 +306,9 @@ public class UT_OptimisticAndRiscV
         // `==` comparison would silently treat it as "not the expected one".
         var inner = new RiscVProofPayload
         {
-            ProofSystem = ProofSystem.Sp1, VerificationKeyId = UInt256.Zero, ProofBytes = new byte[8],
+            ProofSystem = ProofSystem.Sp1,
+            VerificationKeyId = UInt256.Zero,
+            ProofBytes = new byte[8],
         };
         var bytes = inner.Encode();
         bytes[1] = 99; // overwrite ProofSystem byte with an out-of-range value
@@ -315,7 +324,9 @@ public class UT_OptimisticAndRiscV
         {
             var inner = new RiscVProofPayload
             {
-                ProofSystem = ps, VerificationKeyId = UInt256.Zero, ProofBytes = new byte[8],
+                ProofSystem = ps,
+                VerificationKeyId = UInt256.Zero,
+                ProofBytes = new byte[8],
             };
             var bytes = inner.Encode();
             var decoded = RiscVProofPayload.Decode(bytes);
@@ -328,7 +339,9 @@ public class UT_OptimisticAndRiscV
     {
         var inner = new RiscVProofPayload
         {
-            ProofSystem = ProofSystem.Sp1, VerificationKeyId = UInt256.Zero, ProofBytes = new byte[8],
+            ProofSystem = ProofSystem.Sp1,
+            VerificationKeyId = UInt256.Zero,
+            ProofBytes = new byte[8],
         };
         var bytes = inner.Encode();
         var oversized = RiscVProofPayload.MaxProofBytes + 1;
@@ -347,8 +360,11 @@ public class UT_OptimisticAndRiscV
         var sig = new byte[OptimisticProofPayload.MaxSignatureBytes];
         var inner = new OptimisticProofPayload
         {
-            BondContract = UInt160.Zero, BondTxHash = UInt256.Zero,
-            SubmittedAt = 0, Sequencer = SampleSequencer(), SequencerSignature = sig,
+            BondContract = UInt160.Zero,
+            BondTxHash = UInt256.Zero,
+            SubmittedAt = 0,
+            Sequencer = SampleSequencer(),
+            SequencerSignature = sig,
         };
         var bytes = inner.Encode();
         var decoded = OptimisticProofPayload.Decode(bytes);
@@ -361,7 +377,9 @@ public class UT_OptimisticAndRiscV
         var proof = new byte[RiscVProofPayload.MaxProofBytes];
         var inner = new RiscVProofPayload
         {
-            ProofSystem = ProofSystem.Sp1, VerificationKeyId = UInt256.Zero, ProofBytes = proof,
+            ProofSystem = ProofSystem.Sp1,
+            VerificationKeyId = UInt256.Zero,
+            ProofBytes = proof,
         };
         var bytes = inner.Encode();
         var decoded = RiscVProofPayload.Decode(bytes);
@@ -376,8 +394,11 @@ public class UT_OptimisticAndRiscV
         // ArgumentNullException.ThrowIfNull, Encode would NRE inside BondContract.GetSpan().
         var payload = new OptimisticProofPayload
         {
-            BondContract = null!, BondTxHash = UInt256.Zero,
-            SubmittedAt = 0, Sequencer = SampleSequencer(), SequencerSignature = new byte[64],
+            BondContract = null!,
+            BondTxHash = UInt256.Zero,
+            SubmittedAt = 0,
+            Sequencer = SampleSequencer(),
+            SequencerSignature = new byte[64],
         };
         Assert.ThrowsExactly<ArgumentNullException>(() => payload.Encode());
     }
@@ -387,8 +408,11 @@ public class UT_OptimisticAndRiscV
     {
         var payload = new OptimisticProofPayload
         {
-            BondContract = UInt160.Zero, BondTxHash = null!,
-            SubmittedAt = 0, Sequencer = SampleSequencer(), SequencerSignature = new byte[64],
+            BondContract = UInt160.Zero,
+            BondTxHash = null!,
+            SubmittedAt = 0,
+            Sequencer = SampleSequencer(),
+            SequencerSignature = new byte[64],
         };
         Assert.ThrowsExactly<ArgumentNullException>(() => payload.Encode());
     }
@@ -403,7 +427,9 @@ public class UT_OptimisticAndRiscV
         // those, so the per-field guard at the payload level still earns its keep.)
         var payload = new RiscVProofPayload
         {
-            ProofSystem = ProofSystem.Sp1, VerificationKeyId = null!, ProofBytes = new byte[1],
+            ProofSystem = ProofSystem.Sp1,
+            VerificationKeyId = null!,
+            ProofBytes = new byte[1],
         };
         Assert.ThrowsExactly<ArgumentNullException>(() => payload.Encode());
     }
@@ -418,8 +444,11 @@ public class UT_OptimisticAndRiscV
         var oversized = new byte[OptimisticProofPayload.MaxSignatureBytes + 1];
         var payload = new OptimisticProofPayload
         {
-            BondContract = UInt160.Zero, BondTxHash = UInt256.Zero,
-            SubmittedAt = 0, Sequencer = SampleSequencer(), SequencerSignature = oversized,
+            BondContract = UInt160.Zero,
+            BondTxHash = UInt256.Zero,
+            SubmittedAt = 0,
+            Sequencer = SampleSequencer(),
+            SequencerSignature = oversized,
         };
         var ex = Assert.ThrowsExactly<InvalidOperationException>(() => payload.Encode());
         StringAssert.Contains(ex.Message, "MaxSignatureBytes");
@@ -432,7 +461,9 @@ public class UT_OptimisticAndRiscV
         var oversized = new byte[RiscVProofPayload.MaxProofBytes + 1];
         var payload = new RiscVProofPayload
         {
-            ProofSystem = ProofSystem.Sp1, VerificationKeyId = UInt256.Zero, ProofBytes = oversized,
+            ProofSystem = ProofSystem.Sp1,
+            VerificationKeyId = UInt256.Zero,
+            ProofBytes = oversized,
         };
         var ex = Assert.ThrowsExactly<InvalidOperationException>(() => payload.Encode());
         StringAssert.Contains(ex.Message, "MaxProofBytes");
@@ -502,12 +533,20 @@ public class UT_OptimisticAndRiscV
         var registry = new VerifierRegistry();
         var sample = new L2BatchCommitment
         {
-            ChainId = 1001, BatchNumber = 1, FirstBlock = 0, LastBlock = 0,
-            PreStateRoot = UInt256.Zero, PostStateRoot = UInt256.Zero,
-            TxRoot = UInt256.Zero, ReceiptRoot = UInt256.Zero,
-            WithdrawalRoot = UInt256.Zero, L2ToL1MessageRoot = UInt256.Zero,
-            L2ToL2MessageRoot = UInt256.Zero, DACommitment = UInt256.Zero,
-            PublicInputHash = UInt256.Zero, ProofType = ProofType.None,
+            ChainId = 1001,
+            BatchNumber = 1,
+            FirstBlock = 0,
+            LastBlock = 0,
+            PreStateRoot = UInt256.Zero,
+            PostStateRoot = UInt256.Zero,
+            TxRoot = UInt256.Zero,
+            ReceiptRoot = UInt256.Zero,
+            WithdrawalRoot = UInt256.Zero,
+            L2ToL1MessageRoot = UInt256.Zero,
+            L2ToL2MessageRoot = UInt256.Zero,
+            DACommitment = UInt256.Zero,
+            PublicInputHash = UInt256.Zero,
+            ProofType = ProofType.None,
             Proof = ReadOnlyMemory<byte>.Empty,
         };
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(

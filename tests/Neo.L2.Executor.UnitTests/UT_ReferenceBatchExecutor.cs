@@ -130,8 +130,11 @@ public class UT_ReferenceBatchExecutor
         };
         var msgL1 = new CrossChainMessage
         {
-            SourceChainId = 1001, TargetChainId = 0, Nonce = 1,
-            Sender = UInt160.Zero, Receiver = UInt160.Zero,
+            SourceChainId = 1001,
+            TargetChainId = 0,
+            Nonce = 1,
+            Sender = UInt160.Zero,
+            Receiver = UInt160.Zero,
             MessageType = MessageType.Withdraw,
             Payload = ReadOnlyMemory<byte>.Empty,
             MessageHash = UInt256.Parse("0x" + new string('5', 64)),
@@ -219,7 +222,9 @@ public class UT_ReferenceBatchExecutor
 
         var result = await executor.ApplyBatchAsync(new BatchExecutionRequest
         {
-            ChainId = 1001, BatchNumber = 1, PreStateRoot = UInt256.Zero,
+            ChainId = 1001,
+            BatchNumber = 1,
+            PreStateRoot = UInt256.Zero,
             Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 0x00 } },
             L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
             BlockContext = SampleContext(),
@@ -267,7 +272,9 @@ public class UT_ReferenceBatchExecutor
         var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(async () =>
             await executor.ApplyBatchAsync(new BatchExecutionRequest
             {
-                ChainId = 1001, BatchNumber = 1, PreStateRoot = UInt256.Zero,
+                ChainId = 1001,
+                BatchNumber = 1,
+                PreStateRoot = UInt256.Zero,
                 Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 0x01 } },
                 L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
                 BlockContext = SampleContext(),
@@ -287,7 +294,9 @@ public class UT_ReferenceBatchExecutor
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(async () =>
             await executor.ApplyBatchAsync(new BatchExecutionRequest
             {
-                ChainId = 1001, BatchNumber = 1, PreStateRoot = UInt256.Zero,
+                ChainId = 1001,
+                BatchNumber = 1,
+                PreStateRoot = UInt256.Zero,
                 Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 0x01 } },
                 L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
                 BlockContext = SampleContext(),
@@ -304,7 +313,9 @@ public class UT_ReferenceBatchExecutor
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(async () =>
             await executor.ApplyBatchAsync(new BatchExecutionRequest
             {
-                ChainId = 1001, BatchNumber = 1, PreStateRoot = UInt256.Zero,
+                ChainId = 1001,
+                BatchNumber = 1,
+                PreStateRoot = UInt256.Zero,
                 Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 0x01 } },
                 L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
                 BlockContext = SampleContext(),
@@ -317,7 +328,8 @@ public class UT_ReferenceBatchExecutor
             ReadOnlyMemory<byte> serializedTx, BatchBlockContext batchContext, CancellationToken cancellationToken = default)
             => new ValueTask<TransactionExecutionResult>(new TransactionExecutionResult
             {
-                TxHash = UInt256.Zero, Receipt = null!,
+                TxHash = UInt256.Zero,
+                Receipt = null!,
                 Withdrawals = Array.Empty<WithdrawalRequest>(),
                 Messages = Array.Empty<CrossChainMessage>(),
             });
@@ -332,8 +344,11 @@ public class UT_ReferenceBatchExecutor
                 TxHash = null!,
                 Receipt = new Neo.L2.Executor.Receipts.Receipt
                 {
-                    TxHash = UInt256.Zero, Success = true, GasConsumed = 1,
-                    StorageDeltaHash = UInt256.Zero, EventsHash = UInt256.Zero,
+                    TxHash = UInt256.Zero,
+                    Success = true,
+                    GasConsumed = 1,
+                    StorageDeltaHash = UInt256.Zero,
+                    EventsHash = UInt256.Zero,
                 },
                 Withdrawals = Array.Empty<WithdrawalRequest>(),
                 Messages = Array.Empty<CrossChainMessage>(),
@@ -416,7 +431,9 @@ public class UT_ReferenceBatchExecutor
         var ex = await Assert.ThrowsExactlyAsync<ArgumentException>(async () =>
             await executor.ApplyBatchAsync(new BatchExecutionRequest
             {
-                ChainId = 1001, BatchNumber = 1, PreStateRoot = UInt256.Zero,
+                ChainId = 1001,
+                BatchNumber = 1,
+                PreStateRoot = UInt256.Zero,
                 Transactions = Array.Empty<ReadOnlyMemory<byte>>(),
                 L1MessagesConsumed = new CrossChainMessage?[] { null }!,
                 BlockContext = SampleContext(),
@@ -451,8 +468,11 @@ public class UT_ReferenceBatchExecutor
         // the guard Hash() NREs inside TxHash.GetSpan().
         var bad = new Receipt
         {
-            TxHash = null!, Success = true, GasConsumed = 1,
-            StorageDeltaHash = UInt256.Zero, EventsHash = UInt256.Zero,
+            TxHash = null!,
+            Success = true,
+            GasConsumed = 1,
+            StorageDeltaHash = UInt256.Zero,
+            EventsHash = UInt256.Zero,
         };
         Assert.ThrowsExactly<ArgumentNullException>(() => bad.Hash());
     }
@@ -462,8 +482,11 @@ public class UT_ReferenceBatchExecutor
     {
         var bad = new Receipt
         {
-            TxHash = UInt256.Zero, Success = true, GasConsumed = 1,
-            StorageDeltaHash = null!, EventsHash = UInt256.Zero,
+            TxHash = UInt256.Zero,
+            Success = true,
+            GasConsumed = 1,
+            StorageDeltaHash = null!,
+            EventsHash = UInt256.Zero,
         };
         Assert.ThrowsExactly<ArgumentNullException>(() => bad.Hash());
     }
@@ -473,8 +496,11 @@ public class UT_ReferenceBatchExecutor
     {
         var bad = new Receipt
         {
-            TxHash = UInt256.Zero, Success = true, GasConsumed = 1,
-            StorageDeltaHash = UInt256.Zero, EventsHash = null!,
+            TxHash = UInt256.Zero,
+            Success = true,
+            GasConsumed = 1,
+            StorageDeltaHash = UInt256.Zero,
+            EventsHash = null!,
         };
         Assert.ThrowsExactly<ArgumentNullException>(() => bad.Hash());
     }

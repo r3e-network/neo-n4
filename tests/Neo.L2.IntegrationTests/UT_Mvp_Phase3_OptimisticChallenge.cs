@@ -104,19 +104,26 @@ public class UT_Mvp_Phase3_OptimisticChallenge
         // ---- Step 1: ChallengeOrchestrator detects the mismatch via fraud-proof generator ----
         var commitment = new L2BatchCommitment
         {
-            ChainId = LocalChainId, BatchNumber = 1,
-            FirstBlock = 100, LastBlock = 200,
+            ChainId = LocalChainId,
+            BatchNumber = 1,
+            FirstBlock = 100,
+            LastBlock = 200,
             PreStateRoot = preStateRoot,
             PostStateRoot = sequencerClaimedPostRoot,
-            TxRoot = UInt256.Zero, ReceiptRoot = UInt256.Zero, WithdrawalRoot = UInt256.Zero,
-            L2ToL1MessageRoot = UInt256.Zero, L2ToL2MessageRoot = UInt256.Zero,
-            DACommitment = UInt256.Zero, PublicInputHash = UInt256.Zero,
+            TxRoot = UInt256.Zero,
+            ReceiptRoot = UInt256.Zero,
+            WithdrawalRoot = UInt256.Zero,
+            L2ToL1MessageRoot = UInt256.Zero,
+            L2ToL2MessageRoot = UInt256.Zero,
+            DACommitment = UInt256.Zero,
+            PublicInputHash = UInt256.Zero,
             ProofType = ProofType.Optimistic,
             Proof = ReadOnlyMemory<byte>.Empty,
         };
         var inputs = new BatchExecutionRequest
         {
-            ChainId = LocalChainId, BatchNumber = 1,
+            ChainId = LocalChainId,
+            BatchNumber = 1,
             PreStateRoot = preStateRoot,
             Transactions = txs,
             L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
@@ -156,19 +163,26 @@ public class UT_Mvp_Phase3_OptimisticChallenge
 
         var commitment = new L2BatchCommitment
         {
-            ChainId = LocalChainId, BatchNumber = 1,
-            FirstBlock = 100, LastBlock = 200,
+            ChainId = LocalChainId,
+            BatchNumber = 1,
+            FirstBlock = 100,
+            LastBlock = 200,
             PreStateRoot = preStateRoot,
             PostStateRoot = honestPostRoot,
-            TxRoot = UInt256.Zero, ReceiptRoot = UInt256.Zero, WithdrawalRoot = UInt256.Zero,
-            L2ToL1MessageRoot = UInt256.Zero, L2ToL2MessageRoot = UInt256.Zero,
-            DACommitment = UInt256.Zero, PublicInputHash = UInt256.Zero,
+            TxRoot = UInt256.Zero,
+            ReceiptRoot = UInt256.Zero,
+            WithdrawalRoot = UInt256.Zero,
+            L2ToL1MessageRoot = UInt256.Zero,
+            L2ToL2MessageRoot = UInt256.Zero,
+            DACommitment = UInt256.Zero,
+            PublicInputHash = UInt256.Zero,
             ProofType = ProofType.Optimistic,
             Proof = ReadOnlyMemory<byte>.Empty,
         };
         var inputs = new BatchExecutionRequest
         {
-            ChainId = LocalChainId, BatchNumber = 1,
+            ChainId = LocalChainId,
+            BatchNumber = 1,
             PreStateRoot = preStateRoot,
             Transactions = txs,
             L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
@@ -192,19 +206,26 @@ public class UT_Mvp_Phase3_OptimisticChallenge
 
         var commitment = new L2BatchCommitment
         {
-            ChainId = LocalChainId, BatchNumber = 1,
-            FirstBlock = 100, LastBlock = 200,
+            ChainId = LocalChainId,
+            BatchNumber = 1,
+            FirstBlock = 100,
+            LastBlock = 200,
             PreStateRoot = honest[0],
             PostStateRoot = lying[^1],
-            TxRoot = UInt256.Zero, ReceiptRoot = UInt256.Zero, WithdrawalRoot = UInt256.Zero,
-            L2ToL1MessageRoot = UInt256.Zero, L2ToL2MessageRoot = UInt256.Zero,
-            DACommitment = UInt256.Zero, PublicInputHash = UInt256.Zero,
+            TxRoot = UInt256.Zero,
+            ReceiptRoot = UInt256.Zero,
+            WithdrawalRoot = UInt256.Zero,
+            L2ToL1MessageRoot = UInt256.Zero,
+            L2ToL2MessageRoot = UInt256.Zero,
+            DACommitment = UInt256.Zero,
+            PublicInputHash = UInt256.Zero,
             ProofType = ProofType.Optimistic,
             Proof = ReadOnlyMemory<byte>.Empty,
         };
         var inputs = new BatchExecutionRequest
         {
-            ChainId = LocalChainId, BatchNumber = 1,
+            ChainId = LocalChainId,
+            BatchNumber = 1,
             PreStateRoot = honest[0],
             Transactions = txs,
             L1MessagesConsumed = Array.Empty<CrossChainMessage>(),

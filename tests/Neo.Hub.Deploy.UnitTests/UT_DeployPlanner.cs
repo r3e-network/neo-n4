@@ -370,7 +370,8 @@ public class UT_DeployPlanner
         // the step. Same iter-171/172 callee-contract pattern.
         var plan = new DeployPlan
         {
-            Version = 1, Network = "test",
+            Version = 1,
+            Network = "test",
             Steps = new[]
             {
                 Step("A", new JArray()),

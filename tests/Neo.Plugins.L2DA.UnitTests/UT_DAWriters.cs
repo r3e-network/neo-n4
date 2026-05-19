@@ -373,7 +373,9 @@ public class UT_DAWriters
         var w = new NeoFsLikeDAWriter();
         var receipt = await w.PublishAsync(new DAPublishRequest
         {
-            ChainId = 1001, BatchNumber = 1, Payload = new byte[] { 0x11, 0x22, 0x33 },
+            ChainId = 1001,
+            BatchNumber = 1,
+            Payload = new byte[] { 0x11, 0x22, 0x33 },
         });
 
         var first = w.TryGet(1001, receipt.Commitment)!.Value.ToArray();

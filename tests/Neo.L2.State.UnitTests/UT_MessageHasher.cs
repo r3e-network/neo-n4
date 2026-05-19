@@ -36,15 +36,15 @@ public class UT_MessageHasher
     private static WithdrawalRequest Wd(
         UInt160? emitting = null, UInt160? l2sender = null,
         UInt160? l1recipient = null, UInt160? l2asset = null) => new()
-    {
-        ChainId = 1U,
-        EmittingContract = emitting!,
-        L2Sender = l2sender!,
-        L1Recipient = l1recipient!,
-        L2Asset = l2asset!,
-        Amount = 1000,
-        Nonce = 1,
-    };
+        {
+            ChainId = 1U,
+            EmittingContract = emitting!,
+            L2Sender = l2sender!,
+            L1Recipient = l1recipient!,
+            L2Asset = l2asset!,
+            Amount = 1000,
+            Nonce = 1,
+        };
 
     [TestMethod]
     public void HashMessage_RejectsNullMessage()
@@ -199,16 +199,24 @@ public class UT_MessageHasher
         var receiver = B();
         var h1 = MessageHasher.HashMessage(new CrossChainMessage
         {
-            SourceChainId = 1001, TargetChainId = 2002, Nonce = 1,
-            Sender = sender, Receiver = receiver,
-            MessageType = MessageType.Call, Payload = new byte[0],
+            SourceChainId = 1001,
+            TargetChainId = 2002,
+            Nonce = 1,
+            Sender = sender,
+            Receiver = receiver,
+            MessageType = MessageType.Call,
+            Payload = new byte[0],
             MessageHash = UInt256.Zero,
         });
         var h2 = MessageHasher.HashMessage(new CrossChainMessage
         {
-            SourceChainId = 2002, TargetChainId = 1001, Nonce = 1,
-            Sender = sender, Receiver = receiver,
-            MessageType = MessageType.Call, Payload = new byte[0],
+            SourceChainId = 2002,
+            TargetChainId = 1001,
+            Nonce = 1,
+            Sender = sender,
+            Receiver = receiver,
+            MessageType = MessageType.Call,
+            Payload = new byte[0],
             MessageHash = UInt256.Zero,
         });
         Assert.AreNotEqual(h1, h2);
@@ -244,9 +252,12 @@ public class UT_MessageHasher
         var w = new WithdrawalRequest
         {
             ChainId = 1U,
-            EmittingContract = A(), L2Sender = B(),
-            L1Recipient = C(), L2Asset = D(),
-            Amount = atMax, Nonce = 1,
+            EmittingContract = A(),
+            L2Sender = B(),
+            L1Recipient = C(),
+            L2Asset = D(),
+            Amount = atMax,
+            Nonce = 1,
         };
         var hash = MessageHasher.HashWithdrawal(w);
         Assert.AreNotEqual(UInt256.Zero, hash);

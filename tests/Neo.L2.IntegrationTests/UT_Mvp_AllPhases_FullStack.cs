@@ -138,15 +138,21 @@ public class UT_Mvp_AllPhases_FullStack
             });
             var commitment = new L2BatchCommitment
             {
-                ChainId = ChainA, BatchNumber = (ulong)batchNum,
-                FirstBlock = (ulong)(100 * batchNum), LastBlock = (ulong)(100 * batchNum + 50),
-                PreStateRoot = preStateRoot, PostStateRoot = execResult.PostStateRoot,
-                TxRoot = execResult.TxRoot, ReceiptRoot = execResult.ReceiptRoot,
+                ChainId = ChainA,
+                BatchNumber = (ulong)batchNum,
+                FirstBlock = (ulong)(100 * batchNum),
+                LastBlock = (ulong)(100 * batchNum + 50),
+                PreStateRoot = preStateRoot,
+                PostStateRoot = execResult.PostStateRoot,
+                TxRoot = execResult.TxRoot,
+                ReceiptRoot = execResult.ReceiptRoot,
                 WithdrawalRoot = execResult.WithdrawalRoot,
                 L2ToL1MessageRoot = execResult.L2ToL1MessageRoot,
                 L2ToL2MessageRoot = execResult.L2ToL2MessageRoot,
-                DACommitment = UInt256.Zero, PublicInputHash = proofResult.PublicInputHash,
-                ProofType = ProofType.Multisig, Proof = proofResult.Proof,
+                DACommitment = UInt256.Zero,
+                PublicInputHash = proofResult.PublicInputHash,
+                ProofType = ProofType.Multisig,
+                Proof = proofResult.Proof,
             };
 
             var verify = await verifierRegistry.VerifyAsync(commitment, publicInputs);

@@ -72,7 +72,7 @@ These are real production-shape implementations with full test coverage:
   pays the reporter; replay-protected per `(chainId, signerIdx)`) +
   `L2NativeExternalBridgeContract` (Neo core native L2-side burn/mint counterpart).
   Eth-side `NeoExternalBridgeRouter.sol` (393 lines, solc 0.8.24,
-  **25 Foundry tests** = 18 single-chain coverage + 7 multi-chain
+  **39 Foundry tests** = 32 single-chain coverage + 7 multi-chain
   pinning per-instance state isolation across 17 canonical mainnet
   slots) ships in `external/foreign-contracts/eth/`. The same Solidity
   bytecode deploys unchanged on **any EVM chain** — constructor
@@ -212,7 +212,7 @@ subcommands.
 
 | Path                        | Role                                             |
 | --------------------------- | ------------------------------------------------ |
-| `eth/`                      | `NeoExternalBridgeRouter.sol` (393 lines, solc 0.8.24, via_ir + optimizer). Locks ETH/ERC-20 bound for Neo, finalizes Neo → Eth withdrawals via committee-attested `ecrecover` proofs. **25 Foundry tests** with real `vm.sign` round-trips: 18 single-chain (constructor + committee + lock + withdraw + every guard incl. messageType-offset regression + Ownable2Step accept/overwrite) + 7 multi-chain (17 canonical mainnet slots construct, out-of-namespace ids reject, per-router state isolation across nonces / committees / chain-id stamping, BSC router rejects Polygon-claiming messages). Deploys unchanged on Ethereum, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche, Linea, zkSync Era, Scroll, Mantle, Fantom, Celo, Tron via `forge create` with the right `externalChainId` constructor arg. |
+| `eth/`                      | `NeoExternalBridgeRouter.sol` (393 lines, solc 0.8.24, via_ir + optimizer). Locks ETH/ERC-20 bound for Neo, finalizes Neo → Eth withdrawals via committee-attested `ecrecover` proofs. **39 Foundry tests** with real `vm.sign` round-trips: 32 single-chain (constructor + committee + lock + withdraw + every guard incl. messageType-offset regression + Ownable2Step accept/overwrite + 14 revert-path tests for access/payload/sig framing/reentrancy) + 7 multi-chain (17 canonical mainnet slots construct, out-of-namespace ids reject, per-router state isolation across nonces / committees / chain-id stamping, BSC router rejects Polygon-claiming messages). Deploys unchanged on Ethereum, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche, Linea, zkSync Era, Scroll, Mantle, Fantom, Celo, Tron via `forge create` with the right `externalChainId` constructor arg. |
 | `tron/`                     | README pointing at `eth/` since TVM is EVM-flavored — same Solidity, different `externalChainId` constructor arg (`0xE000_0010` mainnet / `0xE000_0011` Nile / `0xE000_0012` Shasta). Documents tronbox / tronweb deployment, Tron-specific energy/bandwidth budgeting, and TVM opcode caveats. The full slot allocation table for *every* supported EVM chain lives in `watchers/neo-bridge-watcher-eth/src/chains.rs` — Tron is one of 14 chain families. |
 | `sol/`                      | Anchor program (~638 lines) implementing the same semantics on Solana: PDA-based state (`BridgeState` + `Vault` + per-`(chainId, nonce)` `ConsumedNonce` for replay protection), ed25519 verification via Solana's sigverify precompile (the canonical Wormhole/Neon pattern — saves ~30k CU/sig vs in-program ed25519), four instructions (`initialize` / `set_committee` / `lock_sol_and_send` / `finalize_withdrawal`). Source-only in this iteration; operators run `anchor build` + `anchor test` against `solana-test-validator`. v0 is SOL-only (SPL deferred), `MSG_TYPE_CALL` reverts, recipient zero-pads upper 12 bytes. Reviewed-needed flag in the README before mainnet. |
 
@@ -251,10 +251,10 @@ External-bridge stack (doc.md §11.3 — cross-foreign-chain to Eth/Tron/Sol):
 
 ### Tests
 
-**1453 .NET tests across 34 projects, plus 188 cross-language tests
+**1453 .NET tests across 34 projects, plus 202 cross-language tests
 (15 TypeScript + 10 Rust SDK + 5 shared execution-core + 7 SP1 guest host-mode + 103 Rust bridge
 watcher core across 3 crates [eth: 87 with `live-rpc`; tron: 7; sol: 9],
-25 Foundry Solidity tests for `NeoExternalBridgeRouter` [18 single-chain
+39 Foundry Solidity tests for `NeoExternalBridgeRouter` [32 single-chain
 and 7 multi-chain validating the router deploys unchanged across the entire
 EVM family], and 22 Solana router tests) — all green on the Windows audit
 matrix.** Phase-C real-crypto fraud-proof tests (7 of the 1453 .NET) pin the

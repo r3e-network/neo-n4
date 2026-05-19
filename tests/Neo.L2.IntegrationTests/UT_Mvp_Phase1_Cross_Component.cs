@@ -165,13 +165,17 @@ public class UT_Mvp_Phase1_Cross_Component
             {
                 ChainId = chainId,
                 BatchNumber = 1,
-                FirstBlock = 100, LastBlock = 200,
+                FirstBlock = 100,
+                LastBlock = 200,
                 PreStateRoot = z,
                 PostStateRoot = UInt256.Parse("0x" + new string((char)('a' + (int)(chainId % 10)), 64)),
-                TxRoot = z, ReceiptRoot = z, WithdrawalRoot = z,
+                TxRoot = z,
+                ReceiptRoot = z,
+                WithdrawalRoot = z,
                 L2ToL1MessageRoot = z,
                 L2ToL2MessageRoot = UInt256.Parse("0x" + new string((char)('1' + (int)(chainId % 10)), 64)),
-                DACommitment = z, PublicInputHash = z,
+                DACommitment = z,
+                PublicInputHash = z,
                 ProofType = ProofType.Multisig,
                 Proof = new byte[] { (byte)chainId },
             };
@@ -228,9 +232,12 @@ public class UT_Mvp_Phase1_Cross_Component
         var prover = new MockRiscVProver(vkId);
         var publicInputs = new PublicInputs
         {
-            ChainId = 1001, BatchNumber = 1,
-            PreStateRoot = UInt256.Zero, PostStateRoot = execResult.PostStateRoot,
-            TxRoot = execResult.TxRoot, ReceiptRoot = execResult.ReceiptRoot,
+            ChainId = 1001,
+            BatchNumber = 1,
+            PreStateRoot = UInt256.Zero,
+            PostStateRoot = execResult.PostStateRoot,
+            TxRoot = execResult.TxRoot,
+            ReceiptRoot = execResult.ReceiptRoot,
             WithdrawalRoot = execResult.WithdrawalRoot,
             L2ToL1MessageRoot = execResult.L2ToL1MessageRoot,
             L2ToL2MessageRoot = execResult.L2ToL2MessageRoot,

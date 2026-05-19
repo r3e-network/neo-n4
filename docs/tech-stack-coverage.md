@@ -184,7 +184,7 @@ with Tron chain-ids; Sol: `Ed25519FileSigner` + Solana chain-ids
 dispatches to `CryptoLib.VerifyWithEd25519` on-chain), foreign-side
 router artifacts for all three target chains
 (`external/foreign-contracts/eth/` — `NeoExternalBridgeRouter.sol` +
-25 Foundry tests with real `vm.sign` + `ecrecover` (incl. messageType-offset regression with non-zero sourceTxRef);
+39 Foundry tests with real `vm.sign` + `ecrecover` (incl. messageType-offset regression with non-zero sourceTxRef);
 `external/foreign-contracts/tron/` — README pointing at the Eth
 contract since TVM is EVM-flavored, deploy with the Tron chainId
 constructor arg; `external/foreign-contracts/sol/` — ~638-line Anchor

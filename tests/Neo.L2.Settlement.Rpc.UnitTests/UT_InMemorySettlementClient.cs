@@ -39,12 +39,18 @@ public class UT_InMemorySettlementClient
 
     private static PublicInputs SamplePublicInputs() => new()
     {
-        ChainId = 1001, BatchNumber = 1,
-        PreStateRoot = UInt256.Zero, PostStateRoot = UInt256.Zero,
-        TxRoot = UInt256.Zero, ReceiptRoot = UInt256.Zero,
-        WithdrawalRoot = UInt256.Zero, L2ToL1MessageRoot = UInt256.Zero,
-        L2ToL2MessageRoot = UInt256.Zero, L1MessageHash = UInt256.Zero,
-        DACommitment = UInt256.Zero, BlockContextHash = UInt256.Zero,
+        ChainId = 1001,
+        BatchNumber = 1,
+        PreStateRoot = UInt256.Zero,
+        PostStateRoot = UInt256.Zero,
+        TxRoot = UInt256.Zero,
+        ReceiptRoot = UInt256.Zero,
+        WithdrawalRoot = UInt256.Zero,
+        L2ToL1MessageRoot = UInt256.Zero,
+        L2ToL2MessageRoot = UInt256.Zero,
+        L1MessageHash = UInt256.Zero,
+        DACommitment = UInt256.Zero,
+        BlockContextHash = UInt256.Zero,
     };
 
     [TestMethod]

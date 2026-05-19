@@ -212,23 +212,36 @@ public class UT_RpcSettlementClient
 
         var commitment = new L2BatchCommitment
         {
-            ChainId = 1001, BatchNumber = 5,
-            FirstBlock = 100, LastBlock = 200,
-            PreStateRoot = UInt256.Zero, PostStateRoot = UInt256.Parse("0x" + new string('a', 64)),
-            TxRoot = UInt256.Zero, ReceiptRoot = UInt256.Zero,
+            ChainId = 1001,
+            BatchNumber = 5,
+            FirstBlock = 100,
+            LastBlock = 200,
+            PreStateRoot = UInt256.Zero,
+            PostStateRoot = UInt256.Parse("0x" + new string('a', 64)),
+            TxRoot = UInt256.Zero,
+            ReceiptRoot = UInt256.Zero,
             WithdrawalRoot = UInt256.Zero,
-            L2ToL1MessageRoot = UInt256.Zero, L2ToL2MessageRoot = UInt256.Zero,
-            DACommitment = UInt256.Zero, PublicInputHash = UInt256.Zero,
-            ProofType = ProofType.Multisig, Proof = new byte[] { 0xAB },
+            L2ToL1MessageRoot = UInt256.Zero,
+            L2ToL2MessageRoot = UInt256.Zero,
+            DACommitment = UInt256.Zero,
+            PublicInputHash = UInt256.Zero,
+            ProofType = ProofType.Multisig,
+            Proof = new byte[] { 0xAB },
         };
         var publicInputs = new PublicInputs
         {
-            ChainId = 1001, BatchNumber = 5,
-            PreStateRoot = UInt256.Zero, PostStateRoot = commitment.PostStateRoot,
-            TxRoot = UInt256.Zero, ReceiptRoot = UInt256.Zero,
+            ChainId = 1001,
+            BatchNumber = 5,
+            PreStateRoot = UInt256.Zero,
+            PostStateRoot = commitment.PostStateRoot,
+            TxRoot = UInt256.Zero,
+            ReceiptRoot = UInt256.Zero,
             WithdrawalRoot = UInt256.Zero,
-            L2ToL1MessageRoot = UInt256.Zero, L2ToL2MessageRoot = UInt256.Zero,
-            L1MessageHash = UInt256.Zero, DACommitment = UInt256.Zero, BlockContextHash = UInt256.Zero,
+            L2ToL1MessageRoot = UInt256.Zero,
+            L2ToL2MessageRoot = UInt256.Zero,
+            L1MessageHash = UInt256.Zero,
+            DACommitment = UInt256.Zero,
+            BlockContextHash = UInt256.Zero,
         };
 
         var txHash = await settlement.SubmitBatchAsync(commitment, publicInputs);
@@ -272,12 +285,18 @@ public class UT_RpcSettlementClient
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(
             async () => await client.SubmitBatchAsync(null!, new PublicInputs
             {
-                ChainId = 1, BatchNumber = 1,
-                PreStateRoot = UInt256.Zero, PostStateRoot = UInt256.Zero,
-                TxRoot = UInt256.Zero, ReceiptRoot = UInt256.Zero,
-                WithdrawalRoot = UInt256.Zero, L2ToL1MessageRoot = UInt256.Zero,
-                L2ToL2MessageRoot = UInt256.Zero, L1MessageHash = UInt256.Zero,
-                DACommitment = UInt256.Zero, BlockContextHash = UInt256.Zero,
+                ChainId = 1,
+                BatchNumber = 1,
+                PreStateRoot = UInt256.Zero,
+                PostStateRoot = UInt256.Zero,
+                TxRoot = UInt256.Zero,
+                ReceiptRoot = UInt256.Zero,
+                WithdrawalRoot = UInt256.Zero,
+                L2ToL1MessageRoot = UInt256.Zero,
+                L2ToL2MessageRoot = UInt256.Zero,
+                L1MessageHash = UInt256.Zero,
+                DACommitment = UInt256.Zero,
+                BlockContextHash = UInt256.Zero,
             }));
     }
 
@@ -362,23 +381,36 @@ public class UT_RpcSettlementClient
 
         var commitment = new L2BatchCommitment
         {
-            ChainId = 1001, BatchNumber = 5,
-            FirstBlock = 100, LastBlock = 200,
-            PreStateRoot = UInt256.Zero, PostStateRoot = UInt256.Zero,
-            TxRoot = UInt256.Zero, ReceiptRoot = UInt256.Zero,
+            ChainId = 1001,
+            BatchNumber = 5,
+            FirstBlock = 100,
+            LastBlock = 200,
+            PreStateRoot = UInt256.Zero,
+            PostStateRoot = UInt256.Zero,
+            TxRoot = UInt256.Zero,
+            ReceiptRoot = UInt256.Zero,
             WithdrawalRoot = UInt256.Zero,
-            L2ToL1MessageRoot = UInt256.Zero, L2ToL2MessageRoot = UInt256.Zero,
-            DACommitment = UInt256.Zero, PublicInputHash = UInt256.Zero,
-            ProofType = ProofType.Multisig, Proof = new byte[] { 0xAB },
+            L2ToL1MessageRoot = UInt256.Zero,
+            L2ToL2MessageRoot = UInt256.Zero,
+            DACommitment = UInt256.Zero,
+            PublicInputHash = UInt256.Zero,
+            ProofType = ProofType.Multisig,
+            Proof = new byte[] { 0xAB },
         };
         var publicInputs = new PublicInputs
         {
-            ChainId = 1001, BatchNumber = 5,
-            PreStateRoot = UInt256.Zero, PostStateRoot = UInt256.Zero,
-            TxRoot = UInt256.Zero, ReceiptRoot = UInt256.Zero,
+            ChainId = 1001,
+            BatchNumber = 5,
+            PreStateRoot = UInt256.Zero,
+            PostStateRoot = UInt256.Zero,
+            TxRoot = UInt256.Zero,
+            ReceiptRoot = UInt256.Zero,
             WithdrawalRoot = UInt256.Zero,
-            L2ToL1MessageRoot = UInt256.Zero, L2ToL2MessageRoot = UInt256.Zero,
-            L1MessageHash = UInt256.Zero, DACommitment = UInt256.Zero, BlockContextHash = UInt256.Zero,
+            L2ToL1MessageRoot = UInt256.Zero,
+            L2ToL2MessageRoot = UInt256.Zero,
+            L1MessageHash = UInt256.Zero,
+            DACommitment = UInt256.Zero,
+            BlockContextHash = UInt256.Zero,
         };
         var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             async () => await settlement.SubmitBatchAsync(commitment, publicInputs));

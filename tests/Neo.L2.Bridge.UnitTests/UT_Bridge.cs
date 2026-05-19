@@ -76,9 +76,15 @@ public class UT_Bridge
         var aL2 = UInt160.Parse("0x" + new string('b', 40));
         r.Register(new AssetMapping
         {
-            L1Asset = aL1, L2ChainId = LocalChain, L2Asset = aL2,
-            L1Decimals = 8, L2Decimals = 8,
-            AssetType = AssetType.Nep17, MintBurn = true, LockMint = true, Active = true,
+            L1Asset = aL1,
+            L2ChainId = LocalChain,
+            L2Asset = aL2,
+            L1Decimals = 8,
+            L2Decimals = 8,
+            AssetType = AssetType.Nep17,
+            MintBurn = true,
+            LockMint = true,
+            Active = true,
         });
 
         var snapshot1 = r.Snapshot();
@@ -89,9 +95,15 @@ public class UT_Bridge
         var bL2 = UInt160.Parse("0x" + new string('d', 40));
         r.Register(new AssetMapping
         {
-            L1Asset = bL1, L2ChainId = LocalChain, L2Asset = bL2,
-            L1Decimals = 8, L2Decimals = 8,
-            AssetType = AssetType.Nep17, MintBurn = true, LockMint = true, Active = true,
+            L1Asset = bL1,
+            L2ChainId = LocalChain,
+            L2Asset = bL2,
+            L1Decimals = 8,
+            L2Decimals = 8,
+            AssetType = AssetType.Nep17,
+            MintBurn = true,
+            LockMint = true,
+            Active = true,
         });
 
         Assert.AreEqual(1, snapshot1.Count, "prior snapshot is frozen");
@@ -254,9 +266,13 @@ public class UT_Bridge
         var payload = new DepositPayload { L1Asset = GasL1, L2Recipient = Recipient, Amount = 1 };
         var msg = new CrossChainMessage
         {
-            SourceChainId = 0, TargetChainId = LocalChain, Nonce = 1,
-            Sender = Sender, Receiver = Recipient,
-            MessageType = MessageType.Deposit, Payload = payload.Encode(),
+            SourceChainId = 0,
+            TargetChainId = LocalChain,
+            Nonce = 1,
+            Sender = Sender,
+            Receiver = Recipient,
+            MessageType = MessageType.Deposit,
+            Payload = payload.Encode(),
             MessageHash = UInt256.Zero,
         };
         proc.Process(msg);
@@ -346,8 +362,11 @@ public class UT_Bridge
         {
             ChainId = 1U,
             EmittingContract = null!,
-            L2Sender = Sender, L1Recipient = Recipient, L2Asset = GasL2,
-            Amount = new BigInteger(100), Nonce = 1,
+            L2Sender = Sender,
+            L1Recipient = Recipient,
+            L2Asset = GasL2,
+            Amount = new BigInteger(100),
+            Nonce = 1,
         };
         Assert.ThrowsExactly<ArgumentNullException>(() => proc.Stage(bad));
     }
@@ -363,9 +382,12 @@ public class UT_Bridge
         var bad = new WithdrawalRequest
         {
             ChainId = 1U,
-            EmittingContract = UInt160.Zero, L2Sender = Sender, L1Recipient = Recipient,
+            EmittingContract = UInt160.Zero,
+            L2Sender = Sender,
+            L1Recipient = Recipient,
             L2Asset = null!,
-            Amount = new BigInteger(100), Nonce = 1,
+            Amount = new BigInteger(100),
+            Nonce = 1,
         };
         Assert.ThrowsExactly<ArgumentNullException>(() => proc.Stage(bad));
     }
@@ -400,7 +422,9 @@ public class UT_Bridge
             L1Decimals = 8,
             L2Decimals = 8,
             AssetType = AssetType.Gas,
-            MintBurn = true, LockMint = true, Active = true,
+            MintBurn = true,
+            LockMint = true,
+            Active = true,
         };
         Assert.ThrowsExactly<ArgumentNullException>(() => r.Register(bad));
     }
@@ -417,7 +441,9 @@ public class UT_Bridge
             L1Decimals = 8,
             L2Decimals = 8,
             AssetType = AssetType.Gas,
-            MintBurn = true, LockMint = true, Active = true,
+            MintBurn = true,
+            LockMint = true,
+            Active = true,
         };
         Assert.ThrowsExactly<ArgumentNullException>(() => r.Register(bad));
     }
@@ -506,8 +532,11 @@ public class UT_Bridge
         var payload = new DepositPayload { L1Asset = GasL1, L2Recipient = Recipient, Amount = 1 };
         var msg = new CrossChainMessage
         {
-            SourceChainId = 0, TargetChainId = LocalChain, Nonce = 1,
-            Sender = Sender, Receiver = Recipient,
+            SourceChainId = 0,
+            TargetChainId = LocalChain,
+            Nonce = 1,
+            Sender = Sender,
+            Receiver = Recipient,
             MessageType = MessageType.Withdraw,  // ← wrong type
             Payload = payload.Encode(),
             MessageHash = UInt256.Zero,
@@ -526,9 +555,13 @@ public class UT_Bridge
         var payload = new DepositPayload { L1Asset = GasL1, L2Recipient = Recipient, Amount = 1 };
         var msg = new CrossChainMessage
         {
-            SourceChainId = 0, TargetChainId = 9999,  // ← not local
-            Nonce = 1, Sender = Sender, Receiver = Recipient,
-            MessageType = MessageType.Deposit, Payload = payload.Encode(),
+            SourceChainId = 0,
+            TargetChainId = 9999,  // ← not local
+            Nonce = 1,
+            Sender = Sender,
+            Receiver = Recipient,
+            MessageType = MessageType.Deposit,
+            Payload = payload.Encode(),
             MessageHash = UInt256.Zero,
         };
         var ex = Assert.ThrowsExactly<ArgumentException>(() => proc.Process(msg));
@@ -542,9 +575,13 @@ public class UT_Bridge
         var payload = new DepositPayload { L1Asset = GasL1, L2Recipient = Recipient, Amount = 1 };
         var msg = new CrossChainMessage
         {
-            SourceChainId = 0, TargetChainId = LocalChain, Nonce = 1,
-            Sender = Sender, Receiver = Recipient,
-            MessageType = MessageType.Deposit, Payload = payload.Encode(),
+            SourceChainId = 0,
+            TargetChainId = LocalChain,
+            Nonce = 1,
+            Sender = Sender,
+            Receiver = Recipient,
+            MessageType = MessageType.Deposit,
+            Payload = payload.Encode(),
             MessageHash = UInt256.Zero,
         };
         Assert.ThrowsExactly<InvalidOperationException>(() => proc.Process(msg));
@@ -563,9 +600,13 @@ public class UT_Bridge
         var payload = new DepositPayload { L1Asset = GasL1, L2Recipient = Recipient, Amount = 1 };
         var msg = new CrossChainMessage
         {
-            SourceChainId = 0, TargetChainId = LocalChain, Nonce = 42,
-            Sender = Sender, Receiver = Recipient,
-            MessageType = MessageType.Deposit, Payload = payload.Encode(),
+            SourceChainId = 0,
+            TargetChainId = LocalChain,
+            Nonce = 42,
+            Sender = Sender,
+            Receiver = Recipient,
+            MessageType = MessageType.Deposit,
+            Payload = payload.Encode(),
             MessageHash = UInt256.Zero,
         };
 

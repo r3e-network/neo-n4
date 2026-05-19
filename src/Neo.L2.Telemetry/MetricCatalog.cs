@@ -29,56 +29,56 @@ public static class MetricCatalog
     public static IReadOnlyDictionary<string, string> Descriptions { get; } = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         // Batch
-        [MetricNames.BatchesSealed]        = "Number of L2 batches sealed by the local sequencer",
-        [MetricNames.BatchSealLatencyMs]   = "Wall-clock milliseconds spent sealing each batch",
-        [MetricNames.BatchTxCount]         = "Transactions in the most recently sealed batch",
+        [MetricNames.BatchesSealed] = "Number of L2 batches sealed by the local sequencer",
+        [MetricNames.BatchSealLatencyMs] = "Wall-clock milliseconds spent sealing each batch",
+        [MetricNames.BatchTxCount] = "Transactions in the most recently sealed batch",
         [MetricNames.BatchSealedSubscriberFailures] = "OnBatchSealed event subscribers that threw an exception",
 
         // Settlement
-        [MetricNames.BatchesSubmitted]     = "Batches submitted to NeoHub successfully",
-        [MetricNames.SubmitFailures]       = "Batch submissions that threw and were re-queued",
-        [MetricNames.SubmitLatencyMs]      = "Round-trip wall-clock milliseconds for SubmitBatch",
+        [MetricNames.BatchesSubmitted] = "Batches submitted to NeoHub successfully",
+        [MetricNames.SubmitFailures] = "Batch submissions that threw and were re-queued",
+        [MetricNames.SubmitLatencyMs] = "Round-trip wall-clock milliseconds for SubmitBatch",
 
         // Proving
-        [MetricNames.ProofsGenerated]      = "Proofs generated for sealed batches, tagged by proof kind",
-        [MetricNames.ProveLatencyMs]       = "Wall-clock milliseconds spent generating each proof, tagged by proof kind",
-        [MetricNames.ProofsRejected]       = "Proofs the local verifier rejected before submission",
+        [MetricNames.ProofsGenerated] = "Proofs generated for sealed batches, tagged by proof kind",
+        [MetricNames.ProveLatencyMs] = "Wall-clock milliseconds spent generating each proof, tagged by proof kind",
+        [MetricNames.ProofsRejected] = "Proofs the local verifier rejected before submission",
 
         // Bridge / DA / messaging
-        [MetricNames.DepositsProcessed]    = "Deposits processed from the L1 bridge inbox",
-        [MetricNames.DepositsRejected]     = "Deposits rejected by validation (replay, unknown asset, inactive mapping)",
-        [MetricNames.WithdrawalsStaged]    = "Withdrawals staged into the L2 outbox",
-        [MetricNames.WithdrawalsRejected]  = "Withdrawals rejected by validation (unknown asset, duplicate nonce, non-positive amount)",
-        [MetricNames.MessagesEmitted]      = "Cross-chain messages emitted from this L2",
-        [MetricNames.DAPublished]          = "DA payloads published successfully, tagged by DA mode",
-        [MetricNames.DAPublishLatencyMs]   = "Wall-clock milliseconds for each DA publish, tagged by DA mode",
-        [MetricNames.DAPublishFailures]    = "DA publishes that threw, tagged by DA mode",
+        [MetricNames.DepositsProcessed] = "Deposits processed from the L1 bridge inbox",
+        [MetricNames.DepositsRejected] = "Deposits rejected by validation (replay, unknown asset, inactive mapping)",
+        [MetricNames.WithdrawalsStaged] = "Withdrawals staged into the L2 outbox",
+        [MetricNames.WithdrawalsRejected] = "Withdrawals rejected by validation (unknown asset, duplicate nonce, non-positive amount)",
+        [MetricNames.MessagesEmitted] = "Cross-chain messages emitted from this L2",
+        [MetricNames.DAPublished] = "DA payloads published successfully, tagged by DA mode",
+        [MetricNames.DAPublishLatencyMs] = "Wall-clock milliseconds for each DA publish, tagged by DA mode",
+        [MetricNames.DAPublishFailures] = "DA publishes that threw, tagged by DA mode",
 
         // Sequencer registry
-        [MetricNames.SequencersRegistered]      = "Sequencers registered to the local committee",
-        [MetricNames.SequencerExitsStarted]     = "Sequencer exit windows started",
-        [MetricNames.SequencerExitsFinalized]   = "Sequencer exits that finalized (removed from committee)",
-        [MetricNames.SequencerCommitteeSize]    = "Current committee size (active + exiting members)",
+        [MetricNames.SequencersRegistered] = "Sequencers registered to the local committee",
+        [MetricNames.SequencerExitsStarted] = "Sequencer exit windows started",
+        [MetricNames.SequencerExitsFinalized] = "Sequencer exits that finalized (removed from committee)",
+        [MetricNames.SequencerCommitteeSize] = "Current committee size (active + exiting members)",
 
         // Forced inclusion / censorship / challenge
         [MetricNames.ForcedInclusionObserved] = "Forced-inclusion entries observed by this node",
-        [MetricNames.CensorshipReports]    = "Censorship reports the detector emitted",
-        [MetricNames.FraudProofsEmitted]   = "Fraud proofs the orchestrator emitted",
-        [MetricNames.BisectionRounds]      = "Bisection rounds taken to settle each fraud dispute",
+        [MetricNames.CensorshipReports] = "Censorship reports the detector emitted",
+        [MetricNames.FraudProofsEmitted] = "Fraud proofs the orchestrator emitted",
+        [MetricNames.BisectionRounds] = "Bisection rounds taken to settle each fraud dispute",
 
         // Gateway (Phase 5)
-        [MetricNames.GatewayAggregations]            = "Aggregations performed by the local gateway",
-        [MetricNames.GatewayAggregationRounds]       = "Rounds of pairwise reduction taken by each aggregation",
-        [MetricNames.GatewayAggregationLatencyMs]    = "Wall-clock milliseconds spent in each aggregation",
-        [MetricNames.GatewayBatchesAggregated]       = "Constituent batches folded into aggregations (incremented by N each time)",
+        [MetricNames.GatewayAggregations] = "Aggregations performed by the local gateway",
+        [MetricNames.GatewayAggregationRounds] = "Rounds of pairwise reduction taken by each aggregation",
+        [MetricNames.GatewayAggregationLatencyMs] = "Wall-clock milliseconds spent in each aggregation",
+        [MetricNames.GatewayBatchesAggregated] = "Constituent batches folded into aggregations (incremented by N each time)",
 
         // RPC
-        [MetricNames.RpcCalls]             = "L2 RPC method calls, tagged by method name",
-        [MetricNames.RpcLatencyMs]         = "Wall-clock milliseconds for each L2 RPC call, tagged by method name",
-        [MetricNames.RpcFailures]          = "L2 RPC calls that threw, tagged by method name",
+        [MetricNames.RpcCalls] = "L2 RPC method calls, tagged by method name",
+        [MetricNames.RpcLatencyMs] = "Wall-clock milliseconds for each L2 RPC call, tagged by method name",
+        [MetricNames.RpcFailures] = "L2 RPC calls that threw, tagged by method name",
 
         // Audit
-        [MetricNames.AuditsRun]            = "Times the chain auditor ran",
-        [MetricNames.AuditFailures]        = "Audit findings that failed the audit",
+        [MetricNames.AuditsRun] = "Times the chain auditor ran",
+        [MetricNames.AuditFailures] = "Audit findings that failed the audit",
     };
 }

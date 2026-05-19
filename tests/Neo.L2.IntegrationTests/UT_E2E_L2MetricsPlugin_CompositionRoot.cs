@@ -40,7 +40,10 @@ public class UT_E2E_L2MetricsPlugin_CompositionRoot
             L2Asset = UInt160.Parse("0x" + new string('2', 40)),
             L1Decimals = 8,
             L2Decimals = 8,
-            AssetType = AssetType.Gas, MintBurn = true, LockMint = true, Active = true,
+            AssetType = AssetType.Gas,
+            MintBurn = true,
+            LockMint = true,
+            Active = true,
         });
         var deposits = new DepositProcessor(1001, registry, metricsPlugin.Metrics);
         var withdrawals = new WithdrawalProcessor(1001, registry, metricsPlugin.Metrics);

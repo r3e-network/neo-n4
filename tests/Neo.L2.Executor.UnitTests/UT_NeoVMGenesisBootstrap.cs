@@ -57,7 +57,11 @@ public class UT_NeoVMGenesisBootstrap
         var script = new byte[] { (byte)OpCode.PUSH1 };
         var tx = new Transaction
         {
-            Version = 0, Nonce = 1, SystemFee = 0, NetworkFee = 0, ValidUntilBlock = 100,
+            Version = 0,
+            Nonce = 1,
+            SystemFee = 0,
+            NetworkFee = 0,
+            ValidUntilBlock = 100,
             Script = script,
             Signers = new[] { new Signer { Account = UInt160.Zero, Scopes = WitnessScope.None } },
             Attributes = Array.Empty<TransactionAttribute>(),

@@ -145,7 +145,8 @@ public class UT_E2E_AuditPipeline
         {
             ChainId = chainId,
             BatchNumber = 1,
-            FirstBlock = 0, LastBlock = 9,
+            FirstBlock = 0,
+            LastBlock = 9,
             PreStateRoot = UInt256.Zero,
             PostStateRoot = HashWithSeed(1),
             TxRoot = UInt256.Zero,

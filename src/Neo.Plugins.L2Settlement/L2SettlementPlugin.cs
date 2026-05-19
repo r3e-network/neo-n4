@@ -141,95 +141,95 @@ public sealed class L2SettlementPlugin : Plugin
         try
         {
 
-        L2BatchCommitment? next;
-        lock (_pending)
-        {
-            if (_pending.Count == 0) return;
-            next = _pending.Dequeue();
-        }
-
-        try
-        {
-            var publicInputs = BuildPublicInputs(next);
-            var hash = StateRootCalculator.HashPublicInputs(publicInputs);
-
-            var requestedKind = (ProofType)_settings.ProofType;
-            var proveSw = System.Diagnostics.Stopwatch.StartNew();
-            var proofResult = await _prover.ProveAsync(new ProofRequest
-            {
-                PublicInputs = publicInputs,
-                Witness = ReadOnlyMemory<byte>.Empty,
-                Kind = requestedKind,
-            }) ?? throw new InvalidOperationException("IL2Prover.ProveAsync returned null");
-            // Defensive: ProofResult fields are reference types; required doesn't prevent
-            // null. Surface bad fields as a clear contract violation instead of NREing
-            // inside the .Kind / .PublicInputHash / .Equals(hash) checks below. Same
-            // iter-171/172/173/174 callee-contract pattern.
-            ArgumentNullException.ThrowIfNull(proofResult.PublicInputHash);
-            proveSw.Stop();
-            // Sanity-check the prover's contract: the returned Kind must match what we
-            // asked for. A buggy prover that returns ProofType.None would silently produce
-            // a commitment that fails NoZeroProofCheck at audit time hours later, with no
-            // direct link back to the prover bug — better to surface the mismatch here.
-            if (proofResult.Kind != requestedKind)
-                throw new InvalidOperationException(
-                    $"prover returned ProofType {proofResult.Kind}, expected {requestedKind}");
-            // Same defense for the public-input hash: if the prover signed a different set
-            // of inputs than we built, the verifier's iter-128 PublicInputHash check would
-            // catch it on submission, but we'd waste a SubmitBatch round-trip and surface
-            // the failure deep in the stack. Catch the disagreement here at the prove
-            // boundary so the operator sees "prover's hash differs from settlement's"
-            // directly.
-            if (!proofResult.PublicInputHash.Equals(hash))
-                throw new InvalidOperationException(
-                    "prover's PublicInputHash differs from settlement's — prover proved different inputs");
-            // Defensive: a non-None ProofType must carry actual bytes. Empty would slip
-            // through here, get assembled into the commitment, and only be flagged hours
-            // later by NoZeroProofCheck at audit time. Fail fast so the operator sees the
-            // prover bug at the prove boundary instead of inheriting a "soft-sealed" batch.
-            if (proofResult.Proof.IsEmpty)
-                throw new InvalidOperationException(
-                    $"prover returned empty Proof bytes for ProofType={proofResult.Kind} — would be flagged later by NoZeroProofCheck");
-            var kindTag = ("kind", proofResult.Kind.ToString());
-            // Safe* wrappers throughout: a metric throw caught by the broad `catch
-            // (Exception)` below would re-queue the batch — and after SubmitBatchAsync,
-            // re-queuing means re-submitting an already-on-L1 commitment. The L1 contract
-            // would reject the duplicate, the plugin would treat that rejection as
-            // another submit failure, and the batch would loop indefinitely. Worst-case
-            // metric-induced bug found in iter 164.
-            _metrics.SafeIncrementCounter(MetricNames.ProofsGenerated, 1, kindTag);
-            _metrics.SafeRecordHistogram(MetricNames.ProveLatencyMs, proveSw.Elapsed.TotalMilliseconds, kindTag);
-
-            var finalCommitment = next with
-            {
-                ProofType = proofResult.Kind,
-                Proof = proofResult.Proof,
-                PublicInputHash = hash,
-            };
-
-            var submitSw = System.Diagnostics.Stopwatch.StartNew();
-            await _client.SubmitBatchAsync(finalCommitment, publicInputs);
-            submitSw.Stop();
-            _metrics.SafeIncrementCounter(MetricNames.BatchesSubmitted);
-            _metrics.SafeRecordHistogram(MetricNames.SubmitLatencyMs, submitSw.Elapsed.TotalMilliseconds);
-        }
-        catch (Exception ex)
-        {
-            // Tag the failure metric with the exception type so a dashboard can
-            // separate contract violations (InvalidOperationException) from network
-            // (HttpRequestException) from L1-side rejections. Without this tag the
-            // SubmitFailures counter is a single number that hides the failure mode.
-            _metrics.SafeIncrementCounter(
-                MetricNames.SubmitFailures, 1, ("exception", ex.GetType().Name));
-            // Re-queue at the head so we retry. Production handler logs and bumps a metric.
+            L2BatchCommitment? next;
             lock (_pending)
             {
-                var rest = _pending.ToArray();
-                _pending.Clear();
-                _pending.Enqueue(next);
-                foreach (var b in rest) _pending.Enqueue(b);
+                if (_pending.Count == 0) return;
+                next = _pending.Dequeue();
             }
-        }
+
+            try
+            {
+                var publicInputs = BuildPublicInputs(next);
+                var hash = StateRootCalculator.HashPublicInputs(publicInputs);
+
+                var requestedKind = (ProofType)_settings.ProofType;
+                var proveSw = System.Diagnostics.Stopwatch.StartNew();
+                var proofResult = await _prover.ProveAsync(new ProofRequest
+                {
+                    PublicInputs = publicInputs,
+                    Witness = ReadOnlyMemory<byte>.Empty,
+                    Kind = requestedKind,
+                }) ?? throw new InvalidOperationException("IL2Prover.ProveAsync returned null");
+                // Defensive: ProofResult fields are reference types; required doesn't prevent
+                // null. Surface bad fields as a clear contract violation instead of NREing
+                // inside the .Kind / .PublicInputHash / .Equals(hash) checks below. Same
+                // iter-171/172/173/174 callee-contract pattern.
+                ArgumentNullException.ThrowIfNull(proofResult.PublicInputHash);
+                proveSw.Stop();
+                // Sanity-check the prover's contract: the returned Kind must match what we
+                // asked for. A buggy prover that returns ProofType.None would silently produce
+                // a commitment that fails NoZeroProofCheck at audit time hours later, with no
+                // direct link back to the prover bug — better to surface the mismatch here.
+                if (proofResult.Kind != requestedKind)
+                    throw new InvalidOperationException(
+                        $"prover returned ProofType {proofResult.Kind}, expected {requestedKind}");
+                // Same defense for the public-input hash: if the prover signed a different set
+                // of inputs than we built, the verifier's iter-128 PublicInputHash check would
+                // catch it on submission, but we'd waste a SubmitBatch round-trip and surface
+                // the failure deep in the stack. Catch the disagreement here at the prove
+                // boundary so the operator sees "prover's hash differs from settlement's"
+                // directly.
+                if (!proofResult.PublicInputHash.Equals(hash))
+                    throw new InvalidOperationException(
+                        "prover's PublicInputHash differs from settlement's — prover proved different inputs");
+                // Defensive: a non-None ProofType must carry actual bytes. Empty would slip
+                // through here, get assembled into the commitment, and only be flagged hours
+                // later by NoZeroProofCheck at audit time. Fail fast so the operator sees the
+                // prover bug at the prove boundary instead of inheriting a "soft-sealed" batch.
+                if (proofResult.Proof.IsEmpty)
+                    throw new InvalidOperationException(
+                        $"prover returned empty Proof bytes for ProofType={proofResult.Kind} — would be flagged later by NoZeroProofCheck");
+                var kindTag = ("kind", proofResult.Kind.ToString());
+                // Safe* wrappers throughout: a metric throw caught by the broad `catch
+                // (Exception)` below would re-queue the batch — and after SubmitBatchAsync,
+                // re-queuing means re-submitting an already-on-L1 commitment. The L1 contract
+                // would reject the duplicate, the plugin would treat that rejection as
+                // another submit failure, and the batch would loop indefinitely. Worst-case
+                // metric-induced bug found in iter 164.
+                _metrics.SafeIncrementCounter(MetricNames.ProofsGenerated, 1, kindTag);
+                _metrics.SafeRecordHistogram(MetricNames.ProveLatencyMs, proveSw.Elapsed.TotalMilliseconds, kindTag);
+
+                var finalCommitment = next with
+                {
+                    ProofType = proofResult.Kind,
+                    Proof = proofResult.Proof,
+                    PublicInputHash = hash,
+                };
+
+                var submitSw = System.Diagnostics.Stopwatch.StartNew();
+                await _client.SubmitBatchAsync(finalCommitment, publicInputs);
+                submitSw.Stop();
+                _metrics.SafeIncrementCounter(MetricNames.BatchesSubmitted);
+                _metrics.SafeRecordHistogram(MetricNames.SubmitLatencyMs, submitSw.Elapsed.TotalMilliseconds);
+            }
+            catch (Exception ex)
+            {
+                // Tag the failure metric with the exception type so a dashboard can
+                // separate contract violations (InvalidOperationException) from network
+                // (HttpRequestException) from L1-side rejections. Without this tag the
+                // SubmitFailures counter is a single number that hides the failure mode.
+                _metrics.SafeIncrementCounter(
+                    MetricNames.SubmitFailures, 1, ("exception", ex.GetType().Name));
+                // Re-queue at the head so we retry. Production handler logs and bumps a metric.
+                lock (_pending)
+                {
+                    var rest = _pending.ToArray();
+                    _pending.Clear();
+                    _pending.Enqueue(next);
+                    foreach (var b in rest) _pending.Enqueue(b);
+                }
+            }
 
         }
         finally

@@ -124,10 +124,15 @@ public class UT_PublicInputHashConsistencyCheck
         var nonZeroCtx = H(0x88);
         var hashedInputs = new PublicInputs
         {
-            ChainId = 1001, BatchNumber = 1,
-            PreStateRoot = H(0), PostStateRoot = H(1), TxRoot = H(2),
-            ReceiptRoot = H(3), WithdrawalRoot = H(4),
-            L2ToL1MessageRoot = H(5), L2ToL2MessageRoot = H(6),
+            ChainId = 1001,
+            BatchNumber = 1,
+            PreStateRoot = H(0),
+            PostStateRoot = H(1),
+            TxRoot = H(2),
+            ReceiptRoot = H(3),
+            WithdrawalRoot = H(4),
+            L2ToL1MessageRoot = H(5),
+            L2ToL2MessageRoot = H(6),
             L1MessageHash = nonZeroL1,
             DACommitment = H(7),
             BlockContextHash = nonZeroCtx,

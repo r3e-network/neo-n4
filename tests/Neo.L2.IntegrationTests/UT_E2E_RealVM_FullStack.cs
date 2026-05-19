@@ -55,7 +55,11 @@ public class UT_E2E_RealVM_FullStack
     {
         var tx = new Transaction
         {
-            Version = 0, Nonce = (uint)Random.Shared.Next(), SystemFee = 0, NetworkFee = 0, ValidUntilBlock = 100,
+            Version = 0,
+            Nonce = (uint)Random.Shared.Next(),
+            SystemFee = 0,
+            NetworkFee = 0,
+            ValidUntilBlock = 100,
             Script = script,
             Signers = new[] { new Signer { Account = UInt160.Zero, Scopes = WitnessScope.None } },
             Attributes = Array.Empty<TransactionAttribute>(),

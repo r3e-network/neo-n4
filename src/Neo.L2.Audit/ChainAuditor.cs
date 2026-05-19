@@ -92,7 +92,9 @@ public sealed class ChainAuditor
             // than silently passing.
             allFindings.Add(new AuditFinding
             {
-                Check = "input", Passed = false, BatchNumber = 0,
+                Check = "input",
+                Passed = false,
+                BatchNumber = 0,
                 Detail = "no audit checks registered — call Register() before Audit",
             });
         }

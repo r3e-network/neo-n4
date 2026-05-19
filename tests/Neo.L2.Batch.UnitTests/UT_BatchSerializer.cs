@@ -147,11 +147,18 @@ public class UT_BatchSerializer
         // guards pinned in iter 219. PreStateRoot is the representative.
         var bad = new PublicInputs
         {
-            ChainId = 1001, BatchNumber = 1,
+            ChainId = 1001,
+            BatchNumber = 1,
             PreStateRoot = null!,
-            PostStateRoot = H('1'), TxRoot = H('2'), ReceiptRoot = H('3'),
-            WithdrawalRoot = H('4'), L2ToL1MessageRoot = H('5'), L2ToL2MessageRoot = H('6'),
-            L1MessageHash = H('7'), DACommitment = H('8'), BlockContextHash = H('9'),
+            PostStateRoot = H('1'),
+            TxRoot = H('2'),
+            ReceiptRoot = H('3'),
+            WithdrawalRoot = H('4'),
+            L2ToL1MessageRoot = H('5'),
+            L2ToL2MessageRoot = H('6'),
+            L1MessageHash = H('7'),
+            DACommitment = H('8'),
+            BlockContextHash = H('9'),
         };
         Assert.ThrowsExactly<ArgumentNullException>(() => BatchSerializer.EncodePublicInputs(bad));
     }

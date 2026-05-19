@@ -166,8 +166,10 @@ public class UT_MerkleTree
         // proof.Siblings.Count.
         var bad = new MerkleProof
         {
-            Leaf = UInt256.Zero, LeafIndex = 0,
-            Siblings = null!, PathBitmap = 0,
+            Leaf = UInt256.Zero,
+            LeafIndex = 0,
+            Siblings = null!,
+            PathBitmap = 0,
         };
         Assert.ThrowsExactly<ArgumentNullException>(
             () => MerkleTree.Verify(bad, UInt256.Zero));

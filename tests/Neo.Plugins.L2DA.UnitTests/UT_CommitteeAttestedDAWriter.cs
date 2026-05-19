@@ -36,7 +36,9 @@ public class UT_CommitteeAttestedDAWriter
 
         var receipt = await writer.PublishAsync(new DAPublishRequest
         {
-            ChainId = 1001, BatchNumber = 1, Payload = new byte[] { 0xAA, 0xBB, 0xCC },
+            ChainId = 1001,
+            BatchNumber = 1,
+            Payload = new byte[] { 0xAA, 0xBB, 0xCC },
         });
 
         Assert.AreEqual(DAMode.DAC, receipt.Layer);
@@ -53,7 +55,9 @@ public class UT_CommitteeAttestedDAWriter
 
         var receipt = await writer.PublishAsync(new DAPublishRequest
         {
-            ChainId = 1001, BatchNumber = 1, Payload = new byte[] { 0x01 },
+            ChainId = 1001,
+            BatchNumber = 1,
+            Payload = new byte[] { 0x01 },
         });
 
         // Flip a byte in the second signature; verification must fail.
@@ -72,7 +76,9 @@ public class UT_CommitteeAttestedDAWriter
 
         var receipt = await writer.PublishAsync(new DAPublishRequest
         {
-            ChainId = 1001, BatchNumber = 1, Payload = new byte[] { 0x01 },
+            ChainId = 1001,
+            BatchNumber = 1,
+            Payload = new byte[] { 0x01 },
         });
 
         var wrongLen = receipt with { Pointer = receipt.Pointer.Slice(0, 64) };
@@ -138,7 +144,9 @@ public class UT_CommitteeAttestedDAWriter
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             async () => await writer.PublishAsync(new DAPublishRequest
             {
-                ChainId = 1001, BatchNumber = 1, Payload = ReadOnlyMemory<byte>.Empty,
+                ChainId = 1001,
+                BatchNumber = 1,
+                Payload = ReadOnlyMemory<byte>.Empty,
             }));
     }
 
@@ -152,7 +160,9 @@ public class UT_CommitteeAttestedDAWriter
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             async () => await writer.PublishAsync(new DAPublishRequest
             {
-                ChainId = 1001, BatchNumber = 1, Payload = ReadOnlyMemory<byte>.Empty,
+                ChainId = 1001,
+                BatchNumber = 1,
+                Payload = ReadOnlyMemory<byte>.Empty,
             }));
     }
 
@@ -166,7 +176,9 @@ public class UT_CommitteeAttestedDAWriter
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             async () => await writer.PublishAsync(new DAPublishRequest
             {
-                ChainId = 1001, BatchNumber = 1, Payload = ReadOnlyMemory<byte>.Empty,
+                ChainId = 1001,
+                BatchNumber = 1,
+                Payload = ReadOnlyMemory<byte>.Empty,
             }));
     }
 
@@ -186,7 +198,9 @@ public class UT_CommitteeAttestedDAWriter
         var payload = new byte[] { 0x11, 0x22, 0x33 };
         var receipt1 = await writer.PublishAsync(new DAPublishRequest
         {
-            ChainId = 1001, BatchNumber = 1, Payload = payload,
+            ChainId = 1001,
+            BatchNumber = 1,
+            Payload = payload,
         });
 
         payload[0] = 0xFF;  // mutate after publish

@@ -236,7 +236,9 @@ public class UT_RestrictedExecutionFraudVerifierParity
         // GovernanceFraudVerifier handles v1/v2).
         var p = new FraudProofPayload
         {
-            PreStateRoot = H(1), ClaimedPostStateRoot = H(2), ReplayedPostStateRoot = H(3),
+            PreStateRoot = H(1),
+            ClaimedPostStateRoot = H(2),
+            ReplayedPostStateRoot = H(3),
             DisputedTxIndex = 0,
         };
         var bytes = p.Encode();
@@ -347,7 +349,9 @@ public class UT_RestrictedExecutionFraudVerifierParity
         // the GovernanceFraudVerifier's job; this verifier only handles v3.
         var p = new FraudProofPayload
         {
-            PreStateRoot = H(1), ClaimedPostStateRoot = H(2), ReplayedPostStateRoot = H(3),
+            PreStateRoot = H(1),
+            ClaimedPostStateRoot = H(2),
+            ReplayedPostStateRoot = H(3),
             DisputedTxIndex = 0,
             DisputedTxBytes = new byte[] { 0xDE, 0xAD, 0xBE, 0xEF },
         };

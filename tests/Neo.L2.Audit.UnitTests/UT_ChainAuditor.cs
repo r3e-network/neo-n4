@@ -131,11 +131,18 @@ public class UT_ChainAuditor
 
         var inputs = new PublicInputs
         {
-            ChainId = 1001, BatchNumber = 1,
-            PreStateRoot = UInt256.Zero, PostStateRoot = H(1),
-            TxRoot = UInt256.Zero, ReceiptRoot = UInt256.Zero, WithdrawalRoot = UInt256.Zero,
-            L2ToL1MessageRoot = UInt256.Zero, L2ToL2MessageRoot = UInt256.Zero,
-            L1MessageHash = UInt256.Zero, DACommitment = UInt256.Zero, BlockContextHash = UInt256.Zero,
+            ChainId = 1001,
+            BatchNumber = 1,
+            PreStateRoot = UInt256.Zero,
+            PostStateRoot = H(1),
+            TxRoot = UInt256.Zero,
+            ReceiptRoot = UInt256.Zero,
+            WithdrawalRoot = UInt256.Zero,
+            L2ToL1MessageRoot = UInt256.Zero,
+            L2ToL2MessageRoot = UInt256.Zero,
+            L1MessageHash = UInt256.Zero,
+            DACommitment = UInt256.Zero,
+            BlockContextHash = UInt256.Zero,
         };
         var proof = await prover.ProveAsync(new ProofRequest { PublicInputs = inputs, Witness = ReadOnlyMemory<byte>.Empty, Kind = ProofType.Zk });
 
@@ -157,11 +164,18 @@ public class UT_ChainAuditor
 
         var inputs = new PublicInputs
         {
-            ChainId = 1001, BatchNumber = 1,
-            PreStateRoot = UInt256.Zero, PostStateRoot = H(1),
-            TxRoot = UInt256.Zero, ReceiptRoot = UInt256.Zero, WithdrawalRoot = UInt256.Zero,
-            L2ToL1MessageRoot = UInt256.Zero, L2ToL2MessageRoot = UInt256.Zero,
-            L1MessageHash = UInt256.Zero, DACommitment = UInt256.Zero, BlockContextHash = UInt256.Zero,
+            ChainId = 1001,
+            BatchNumber = 1,
+            PreStateRoot = UInt256.Zero,
+            PostStateRoot = H(1),
+            TxRoot = UInt256.Zero,
+            ReceiptRoot = UInt256.Zero,
+            WithdrawalRoot = UInt256.Zero,
+            L2ToL1MessageRoot = UInt256.Zero,
+            L2ToL2MessageRoot = UInt256.Zero,
+            L1MessageHash = UInt256.Zero,
+            DACommitment = UInt256.Zero,
+            BlockContextHash = UInt256.Zero,
         };
         // Garbage proof bytes.
         var batch = Mk(1001, 1, UInt256.Zero, H(1), 100, 200) with { ProofType = ProofType.Zk, Proof = new byte[] { 0x01, 0x02 } };
@@ -228,12 +242,18 @@ public class UT_ChainAuditor
         var registry = new VerifierRegistry();
         var check = new ProofValidityCheck(registry, _ => new PublicInputs
         {
-            ChainId = 1, BatchNumber = 1,
-            PreStateRoot = UInt256.Zero, PostStateRoot = UInt256.Zero,
-            TxRoot = UInt256.Zero, ReceiptRoot = UInt256.Zero,
-            WithdrawalRoot = UInt256.Zero, L2ToL1MessageRoot = UInt256.Zero,
-            L2ToL2MessageRoot = UInt256.Zero, L1MessageHash = UInt256.Zero,
-            DACommitment = UInt256.Zero, BlockContextHash = UInt256.Zero,
+            ChainId = 1,
+            BatchNumber = 1,
+            PreStateRoot = UInt256.Zero,
+            PostStateRoot = UInt256.Zero,
+            TxRoot = UInt256.Zero,
+            ReceiptRoot = UInt256.Zero,
+            WithdrawalRoot = UInt256.Zero,
+            L2ToL1MessageRoot = UInt256.Zero,
+            L2ToL2MessageRoot = UInt256.Zero,
+            L1MessageHash = UInt256.Zero,
+            DACommitment = UInt256.Zero,
+            BlockContextHash = UInt256.Zero,
         });
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(async () =>
             await check.RunAsync(null!));

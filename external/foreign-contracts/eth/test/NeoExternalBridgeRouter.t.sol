@@ -43,6 +43,47 @@ contract MockERC20 {
     }
 }
 
+/// Malicious ERC-20 whose `transfer` re-enters NeoExternalBridgeRouter.finalizeWithdrawal
+/// mid-call. The router's nonReentrant guard must catch the inner call with "reentrant".
+/// We capture the inner call's revert with try/catch and re-revert with the captured
+/// reason so vm.expectRevert("reentrant") on the OUTER finalize sees it — finalize
+/// itself otherwise returns success after `transfer` claims success.
+contract BadERC20 {
+    NeoExternalBridgeRouter public router;
+    bytes public reentryMessage;
+    bytes public reentryProof;
+    bool public attacked;
+
+    function arm(NeoExternalBridgeRouter _router, bytes memory _msg, bytes memory _proof)
+        external
+    {
+        router = _router;
+        reentryMessage = _msg;
+        reentryProof = _proof;
+    }
+
+    function transfer(address, uint256) external returns (bool) {
+        if (!attacked) {
+            attacked = true;
+            // Try to re-enter finalize from inside finalize. Outer router's nonReentrant
+            // must reject with "reentrant". We bubble the revert reason out so the outer
+            // call observably fails — otherwise transfer would silently succeed and the
+            // outer finalize would continue past the asset-transfer path.
+            try router.finalizeWithdrawal(reentryMessage, reentryProof) {
+                revert("reentry unexpectedly succeeded");
+            } catch Error(string memory reason) {
+                // Bubble the inner revert reason up so the outer finalize aborts with it.
+                revert(reason);
+            }
+        }
+        return true;
+    }
+
+    function transferFrom(address, address, uint256) external pure returns (bool) {
+        return true;
+    }
+}
+
 contract NeoExternalBridgeRouterTest is Test {
     uint32 constant ETH_SEPOLIA = 0xE0000002;
     uint32 constant NEO_L2 = 1099;
@@ -507,6 +548,300 @@ contract NeoExternalBridgeRouterTest is Test {
         );
         bytes memory proof = hex"0000"; // empty proof — won't get there
         vm.expectRevert("externalChainId mismatch");
+        router.finalizeWithdrawal(msgBytes, proof);
+    }
+
+    // ─── revert-path coverage (H1 audit finding) ──────────────────────────
+    //
+    // The block below closes the H1 gaps identified by the pre-prod contract
+    // audit. Each test pins one require() / revert() string so any future
+    // refactor that drops the check will turn red in CI.
+
+    /// Helper: build a message whose `messageType` byte is set to an arbitrary value.
+    /// Used by the v0-dispatch-rejection tests for Call / AssetAndCall / unknown types.
+    /// Payload stays the canonical asset-transfer layout so we hit the dispatch switch
+    /// rather than failing earlier on prefix parsing.
+    function _buildMessageWithType(
+        uint64 nonce,
+        address recipient,
+        address asset,
+        uint256 amount,
+        uint8 messageType
+    ) internal pure returns (bytes memory) {
+        bytes memory amountBytes = _amountToLE(amount);
+        bytes memory payload =
+            abi.encodePacked(asset, uint32_LE(uint32(amountBytes.length)), amountBytes);
+
+        return abi.encodePacked(
+            uint32_LE(ETH_SEPOLIA),
+            uint32_LE(NEO_L2),
+            uint64_LE(nonce),
+            uint8(1), // direction=NeoToForeign
+            bytes20(0),
+            bytes20(uint160(recipient)),
+            uint64_LE(0), // deadline
+            bytes32(0), // sourceTxRef
+            messageType, // ← variable
+            uint32_LE(uint32(payload.length)),
+            payload
+        );
+    }
+
+    /// Helper: sign with two committee members (0 and 1, matching the default 2-of-3
+    /// threshold) and pack the proofBytes. Keeps the tests below from re-stating the
+    /// same 12-line vs/rs/ss/idx boilerplate.
+    function _proofFromTwo(bytes memory msgBytes) internal view returns (bytes memory) {
+        (uint8 v0, bytes32 r0, bytes32 s0) = _signBy(priv0, msgBytes);
+        (uint8 v1, bytes32 r1, bytes32 s1) = _signBy(priv1, msgBytes);
+        uint8[] memory idx = new uint8[](2);
+        idx[0] = 0;
+        idx[1] = 1;
+        uint8[] memory vs = new uint8[](2);
+        vs[0] = v0;
+        vs[1] = v1;
+        bytes32[] memory rs = new bytes32[](2);
+        rs[0] = r0;
+        rs[1] = r1;
+        bytes32[] memory ss = new bytes32[](2);
+        ss[0] = s0;
+        ss[1] = s1;
+        return _buildProof(idx, vs, rs, ss);
+    }
+
+    // ─── access control ──────────────────────────────────────────────────
+
+    function test_SetCommittee_RejectsNonOwner() public {
+        address[] memory members = new address[](2);
+        members[0] = signer0;
+        members[1] = signer1;
+        vm.prank(address(0xBAD));
+        vm.expectRevert("not owner");
+        router.setCommittee(members, 2);
+    }
+
+    function test_TransferOwnership_RejectsZeroAddress() public {
+        vm.expectRevert("zero newOwner");
+        router.transferOwnership(address(0));
+    }
+
+    function test_SetCommittee_RejectsAboveMaxSize() public {
+        // MAX_COMMITTEE_SIZE = 64. 65 unique members trips the cap.
+        address[] memory members = new address[](65);
+        for (uint160 i = 0; i < 65; i++) {
+            members[i] = address(uint160(0x1000) + i);
+        }
+        vm.expectRevert("committee too large");
+        router.setCommittee(members, 33);
+    }
+
+    // ─── messageType dispatch (v0 only supports AssetTransfer) ───────────
+
+    function test_FinalizeWithdrawal_RejectsMessageTypeCall() public {
+        bytes memory msgBytes =
+            _buildMessageWithType(50, address(0xBEEF), address(0), 0.5 ether, 1); // Call
+        bytes memory proof = _proofFromTwo(msgBytes);
+        vm.expectRevert("messageType not yet supported");
+        router.finalizeWithdrawal(msgBytes, proof);
+    }
+
+    function test_FinalizeWithdrawal_RejectsMessageTypeAssetAndCall() public {
+        bytes memory msgBytes =
+            _buildMessageWithType(51, address(0xBEEF), address(0), 0.5 ether, 2); // AssetAndCall
+        bytes memory proof = _proofFromTwo(msgBytes);
+        vm.expectRevert("messageType not yet supported");
+        router.finalizeWithdrawal(msgBytes, proof);
+    }
+
+    function test_FinalizeWithdrawal_RejectsUnknownMessageType() public {
+        // Type > 2: the unreachable `else` branch. Same revert string — defense in depth
+        // ensures a future enum extension that forgets to add a dispatch arm still aborts.
+        bytes memory msgBytes =
+            _buildMessageWithType(52, address(0xBEEF), address(0), 0.5 ether, 7);
+        bytes memory proof = _proofFromTwo(msgBytes);
+        vm.expectRevert("messageType not yet supported");
+        router.finalizeWithdrawal(msgBytes, proof);
+    }
+
+    // ─── payload framing ─────────────────────────────────────────────────
+
+    function test_FinalizeWithdrawal_RejectsPayloadLengthMismatch() public {
+        vm.deal(address(this), 1 ether);
+        router.lockETHAndSend{value: 1 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
+
+        // Build a valid 102-byte prefix that declares payloadLen=99 but ship a 1-byte
+        // payload — the dispatch arm checks messageBytes.length == FIXED_PREFIX_LEN + payloadLen.
+        bytes memory msgBytes = abi.encodePacked(
+            uint32_LE(ETH_SEPOLIA),
+            uint32_LE(NEO_L2),
+            uint64_LE(53),
+            uint8(1), // direction
+            bytes20(0),
+            bytes20(uint160(0xBEEF)),
+            uint64_LE(0),
+            bytes32(0),
+            uint8(0), // messageType=AssetTransfer
+            uint32_LE(99), // payloadLen lies
+            hex"AA" // only 1 byte
+        );
+        bytes memory proof = _proofFromTwo(msgBytes);
+        vm.expectRevert("payload length mismatch");
+        router.finalizeWithdrawal(msgBytes, proof);
+    }
+
+    function test_FinalizeWithdrawal_RejectsMessageTooShort() public {
+        // Less than FIXED_PREFIX_LEN = 102 bytes — fails the first guard.
+        bytes memory shortMsg = new bytes(50);
+        bytes memory proof = hex"0000";
+        vm.expectRevert("messageBytes too short");
+        router.finalizeWithdrawal(shortMsg, proof);
+    }
+
+    function test_FinalizeWithdrawal_RejectsAmountExceedsLocked() public {
+        // Lock 0.5 ETH; try to withdraw 1 ETH.
+        vm.deal(address(this), 0.5 ether);
+        router.lockETHAndSend{value: 0.5 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
+
+        bytes memory msgBytes =
+            _buildTransferMessage(54, address(0xBEEF), address(0), 1 ether, 0);
+        bytes memory proof = _proofFromTwo(msgBytes);
+        vm.expectRevert("amount exceeds locked balance");
+        router.finalizeWithdrawal(msgBytes, proof);
+    }
+
+    // ─── signature / proof framing ───────────────────────────────────────
+
+    function test_FinalizeWithdrawal_RejectsEcrecoverZero() public {
+        vm.deal(address(this), 1 ether);
+        router.lockETHAndSend{value: 1 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
+
+        bytes memory msgBytes =
+            _buildTransferMessage(55, address(0xBEEF), address(0), 0.5 ether, 0);
+
+        // Build a proof with v=27, r=0, s=0 — ecrecover returns address(0) on these
+        // sentinel "malformed" inputs, which the contract must reject.
+        uint8[] memory idx = new uint8[](2);
+        idx[0] = 0;
+        idx[1] = 1;
+        uint8[] memory vs = new uint8[](2);
+        vs[0] = 27;
+        vs[1] = 27;
+        bytes32[] memory rs = new bytes32[](2);
+        rs[0] = bytes32(0);
+        rs[1] = bytes32(0);
+        bytes32[] memory ss = new bytes32[](2);
+        ss[0] = bytes32(0);
+        ss[1] = bytes32(0);
+        bytes memory proof = _buildProof(idx, vs, rs, ss);
+
+        vm.expectRevert("ecrecover failed (malformed sig)");
+        router.finalizeWithdrawal(msgBytes, proof);
+    }
+
+    function test_FinalizeWithdrawal_RejectsSignerIdxOutOfRange() public {
+        vm.deal(address(this), 1 ether);
+        router.lockETHAndSend{value: 1 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
+
+        bytes memory msgBytes =
+            _buildTransferMessage(56, address(0xBEEF), address(0), 0.5 ether, 0);
+        // committee.length = 3; claim idx 99.
+        (uint8 v0, bytes32 r0, bytes32 s0) = _signBy(priv0, msgBytes);
+        (uint8 v1, bytes32 r1, bytes32 s1) = _signBy(priv1, msgBytes);
+        uint8[] memory idx = new uint8[](2);
+        idx[0] = 0;
+        idx[1] = 99; // out of range
+        uint8[] memory vs = new uint8[](2);
+        vs[0] = v0;
+        vs[1] = v1;
+        bytes32[] memory rs = new bytes32[](2);
+        rs[0] = r0;
+        rs[1] = r1;
+        bytes32[] memory ss = new bytes32[](2);
+        ss[0] = s0;
+        ss[1] = s1;
+        bytes memory proof = _buildProof(idx, vs, rs, ss);
+
+        vm.expectRevert("signerIdx out of range");
+        router.finalizeWithdrawal(msgBytes, proof);
+    }
+
+    function test_FinalizeWithdrawal_RejectsTooManySignatures() public {
+        vm.deal(address(this), 1 ether);
+        router.lockETHAndSend{value: 1 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
+
+        bytes memory msgBytes =
+            _buildTransferMessage(57, address(0xBEEF), address(0), 0.5 ether, 0);
+        // committee.length = 3; claim 4 sigs (one over). _verifyQuorum requires
+        // sigCount <= committeeLen.
+        (uint8 v0, bytes32 r0, bytes32 s0) = _signBy(priv0, msgBytes);
+        (uint8 v1, bytes32 r1, bytes32 s1) = _signBy(priv1, msgBytes);
+        (uint8 v2, bytes32 r2, bytes32 s2) = _signBy(priv2, msgBytes);
+
+        uint8[] memory idx = new uint8[](4);
+        idx[0] = 0;
+        idx[1] = 1;
+        idx[2] = 2;
+        idx[3] = 0;
+        uint8[] memory vs = new uint8[](4);
+        vs[0] = v0;
+        vs[1] = v1;
+        vs[2] = v2;
+        vs[3] = v0;
+        bytes32[] memory rs = new bytes32[](4);
+        rs[0] = r0;
+        rs[1] = r1;
+        rs[2] = r2;
+        rs[3] = r0;
+        bytes32[] memory ss = new bytes32[](4);
+        ss[0] = s0;
+        ss[1] = s1;
+        ss[2] = s2;
+        ss[3] = s0;
+        bytes memory proof = _buildProof(idx, vs, rs, ss);
+
+        vm.expectRevert("too many signatures");
+        router.finalizeWithdrawal(msgBytes, proof);
+    }
+
+    function test_FinalizeWithdrawal_RejectsProofLengthMismatch() public {
+        vm.deal(address(this), 1 ether);
+        router.lockETHAndSend{value: 1 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
+
+        bytes memory msgBytes =
+            _buildTransferMessage(58, address(0xBEEF), address(0), 0.5 ether, 0);
+
+        // Declare sigCount=2 (LE) but only ship 1 signature worth of data
+        // (66 bytes instead of 2 × 66). _verifyQuorum requires the framing to match.
+        bytes memory truncated = new bytes(2 + 66);
+        truncated[0] = bytes1(uint8(2)); // sigCount lo
+        truncated[1] = bytes1(uint8(0)); // sigCount hi
+        // Bytes 2..68 left as zero — we never reach ecrecover.
+        vm.expectRevert("proofBytes length mismatch");
+        router.finalizeWithdrawal(msgBytes, truncated);
+    }
+
+    // ─── reentrancy ──────────────────────────────────────────────────────
+
+    function test_FinalizeWithdrawal_RejectsReentry() public {
+        // Deploy the malicious token, register it on this router, and lock supply
+        // so the first finalize advances past lockedBalances check.
+        BadERC20 bad = new BadERC20();
+        // The router only ever tracks the asset address against its own bookkeeping;
+        // we don't need a real balance because BadERC20.transfer always returns true.
+        // Bump locked balance by simulating a deposit through lockERC20AndSend.
+        // BadERC20.transferFrom also returns true unconditionally, so no need to mint.
+        router.lockERC20AndSend(NEO_L2, bytes20(uint160(0xDEAD)), address(bad), 1, "", 0);
+
+        // Build the inbound message that finalize will execute.
+        bytes memory msgBytes = _buildTransferMessage(59, address(0xBEEF), address(bad), 1, 0);
+        bytes memory proof = _proofFromTwo(msgBytes);
+
+        // Arm the bad token: when its `transfer` runs inside finalize, it re-enters
+        // finalize. The router's nonReentrant guard must abort the inner call with
+        // "reentrant"; BadERC20 bubbles that string back out so the outer finalize
+        // observes it as the revert reason from its `transfer(recipient, amount)` call.
+        bad.arm(router, msgBytes, proof);
+
+        vm.expectRevert("reentrant");
         router.finalizeWithdrawal(msgBytes, proof);
     }
 }

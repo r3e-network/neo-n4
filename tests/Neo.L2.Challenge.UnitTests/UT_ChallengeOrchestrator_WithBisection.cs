@@ -48,8 +48,10 @@ public class UT_ChallengeOrchestrator_WithBisection
             BlockContext = new BatchBlockContext
             {
                 L1FinalizedHeight = 100,
-                FirstBlockTimestamp = 1000, LastBlockTimestamp = 1000,
-                SequencerCommitteeHash = UInt256.Zero, Network = 11,
+                FirstBlockTimestamp = 1000,
+                LastBlockTimestamp = 1000,
+                SequencerCommitteeHash = UInt256.Zero,
+                Network = 11,
             },
         };
     }
@@ -73,7 +75,7 @@ public class UT_ChallengeOrchestrator_WithBisection
         // Disagreement starts at index 5 — the bisection should narrow to disputed index 4 or 5
         // depending on the exact bisection algorithm. Just assert it's in the right region.
         var honest = new[] { pre, H(1), H(2), H(3), H(4), H(5), H(6), H(7), H(8) };
-        var lying  = new[] { pre, H(1), H(2), H(3), H(4), H(99), H(99), H(99), H(99) };
+        var lying = new[] { pre, H(1), H(2), H(3), H(4), H(99), H(99), H(99), H(99) };
 
         var payload = await orch.InspectWithBisectionAsync(
             MkCommit(pre, H(99)), MkInputs(pre), honest, lying);
@@ -245,8 +247,10 @@ public class UT_ChallengeOrchestrator_WithBisection
             BlockContext = new BatchBlockContext
             {
                 L1FinalizedHeight = 100,
-                FirstBlockTimestamp = 1000, LastBlockTimestamp = 1000,
-                SequencerCommitteeHash = UInt256.Zero, Network = 11,
+                FirstBlockTimestamp = 1000,
+                LastBlockTimestamp = 1000,
+                SequencerCommitteeHash = UInt256.Zero,
+                Network = 11,
             },
         };
     }

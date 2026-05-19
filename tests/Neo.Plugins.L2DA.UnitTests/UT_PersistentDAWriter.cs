@@ -16,7 +16,9 @@ public class UT_PersistentDAWriter
 
         var receipt = await writer.PublishAsync(new DAPublishRequest
         {
-            ChainId = 1001, BatchNumber = 1, Payload = new byte[] { 0xAA, 0xBB, 0xCC },
+            ChainId = 1001,
+            BatchNumber = 1,
+            Payload = new byte[] { 0xAA, 0xBB, 0xCC },
         });
 
         Assert.AreEqual(DAMode.NeoFS, receipt.Layer);
@@ -30,7 +32,9 @@ public class UT_PersistentDAWriter
         var writer = new PersistentDAWriter(store, DAMode.External);
         var receipt = await writer.PublishAsync(new DAPublishRequest
         {
-            ChainId = 1001, BatchNumber = 1, Payload = new byte[] { 0x01 },
+            ChainId = 1001,
+            BatchNumber = 1,
+            Payload = new byte[] { 0x01 },
         });
         Assert.AreEqual(DAMode.External, receipt.Layer);
     }
@@ -45,7 +49,9 @@ public class UT_PersistentDAWriter
         var writer1 = new PersistentDAWriter(store);
         var receipt = await writer1.PublishAsync(new DAPublishRequest
         {
-            ChainId = 1001, BatchNumber = 1, Payload = new byte[] { 0xDE, 0xAD, 0xBE, 0xEF },
+            ChainId = 1001,
+            BatchNumber = 1,
+            Payload = new byte[] { 0xDE, 0xAD, 0xBE, 0xEF },
         });
 
         var writer2 = new PersistentDAWriter(store);
@@ -109,7 +115,9 @@ public class UT_PersistentDAWriter
         var payload = new byte[] { 0x11, 0x22, 0x33 };
         var receipt = await writer.PublishAsync(new DAPublishRequest
         {
-            ChainId = 1001, BatchNumber = 1, Payload = payload,
+            ChainId = 1001,
+            BatchNumber = 1,
+            Payload = payload,
         });
         payload[0] = 0xFF;
         // Re-publishing the same un-mutated content should still produce the same
@@ -127,13 +135,17 @@ public class UT_PersistentDAWriter
         var writer = new PersistentDAWriter(store, DAMode.External, ownsStore: true);
         await writer.PublishAsync(new DAPublishRequest
         {
-            ChainId = 1001, BatchNumber = 1, Payload = new byte[] { 0x01 },
+            ChainId = 1001,
+            BatchNumber = 1,
+            Payload = new byte[] { 0x01 },
         });
         writer.Dispose();
         await Assert.ThrowsExactlyAsync<ObjectDisposedException>(
             async () => await writer.PublishAsync(new DAPublishRequest
             {
-                ChainId = 1001, BatchNumber = 2, Payload = new byte[] { 0x02 },
+                ChainId = 1001,
+                BatchNumber = 2,
+                Payload = new byte[] { 0x02 },
             }));
     }
 
@@ -146,7 +158,9 @@ public class UT_PersistentDAWriter
         var writer = new PersistentDAWriter(store);
         await writer.PublishAsync(new DAPublishRequest
         {
-            ChainId = 1001, BatchNumber = 1, Payload = new byte[] { 0x01 },
+            ChainId = 1001,
+            BatchNumber = 1,
+            Payload = new byte[] { 0x01 },
         });
         writer.Dispose();
         // Store still works.

@@ -61,40 +61,40 @@ public class UT_BridgeInvariants_PropertyBased
                 case 0: // register fresh
                 case 1: // register fresh
                 case 2: // register fresh (weighted toward register)
-                {
-                    var mapping = MakeMapping(rng);
-                    reg.Register(mapping);
-                    known.Add(mapping.L2Asset);
-                    break;
-                }
-                case 3: // re-register existing L2Asset with new L1
-                {
-                    if (known.Count == 0) continue;
-                    var existing = known.ElementAt(rng.Next(known.Count));
-                    if (!reg.TryGetByL2(existing, out var oldMapping) || oldMapping is null) continue;
-                    var newL1 = RandomAddress(rng);
-                    var fresh = new AssetMapping
                     {
-                        L1Asset = newL1,
-                        L2ChainId = oldMapping.L2ChainId,
-                        L2Asset = existing,
-                        L1Decimals = oldMapping.L1Decimals,
-                        L2Decimals = oldMapping.L2Decimals,
-                        Active = true,
-                        AssetType = oldMapping.AssetType,
-                        LockMint = oldMapping.LockMint,
-                        MintBurn = oldMapping.MintBurn,
-                    };
-                    reg.Register(fresh);
-                    break;
-                }
+                        var mapping = MakeMapping(rng);
+                        reg.Register(mapping);
+                        known.Add(mapping.L2Asset);
+                        break;
+                    }
+                case 3: // re-register existing L2Asset with new L1
+                    {
+                        if (known.Count == 0) continue;
+                        var existing = known.ElementAt(rng.Next(known.Count));
+                        if (!reg.TryGetByL2(existing, out var oldMapping) || oldMapping is null) continue;
+                        var newL1 = RandomAddress(rng);
+                        var fresh = new AssetMapping
+                        {
+                            L1Asset = newL1,
+                            L2ChainId = oldMapping.L2ChainId,
+                            L2Asset = existing,
+                            L1Decimals = oldMapping.L1Decimals,
+                            L2Decimals = oldMapping.L2Decimals,
+                            Active = true,
+                            AssetType = oldMapping.AssetType,
+                            LockMint = oldMapping.LockMint,
+                            MintBurn = oldMapping.MintBurn,
+                        };
+                        reg.Register(fresh);
+                        break;
+                    }
                 case 4: // toggle Active
-                {
-                    if (known.Count == 0) continue;
-                    var l2 = known.ElementAt(rng.Next(known.Count));
-                    reg.SetActive(l2, rng.Next(2) == 1);
-                    break;
-                }
+                    {
+                        if (known.Count == 0) continue;
+                        var l2 = known.ElementAt(rng.Next(known.Count));
+                        reg.SetActive(l2, rng.Next(2) == 1);
+                        break;
+                    }
             }
 
             // Invariant check at every step.
@@ -142,36 +142,36 @@ public class UT_BridgeInvariants_PropertyBased
                 case 0: // fresh (sender, nonce)
                 case 1:
                 case 2: // weighted toward fresh
-                {
-                    var sender = RandomAddress(rng);
-                    var nonce = (ulong)rng.NextInt64(1, long.MaxValue);
-                    TryStage(proc, asset, sender, nonce, attemptedKeys, stagedKeys, step, seed);
-                    break;
-                }
+                    {
+                        var sender = RandomAddress(rng);
+                        var nonce = (ulong)rng.NextInt64(1, long.MaxValue);
+                        TryStage(proc, asset, sender, nonce, attemptedKeys, stagedKeys, step, seed);
+                        break;
+                    }
                 case 3: // replay an already-staged (sender, nonce)
-                {
-                    if (stagedKeys.Count == 0) continue;
-                    var (sender, nonce) = stagedKeys.ElementAt(rng.Next(stagedKeys.Count));
-                    var caught = false;
-                    try
                     {
-                        proc.Stage(BuildWithdrawal(asset, sender, nonce, amount: 1));
+                        if (stagedKeys.Count == 0) continue;
+                        var (sender, nonce) = stagedKeys.ElementAt(rng.Next(stagedKeys.Count));
+                        var caught = false;
+                        try
+                        {
+                            proc.Stage(BuildWithdrawal(asset, sender, nonce, amount: 1));
+                        }
+                        catch (InvalidOperationException)
+                        {
+                            caught = true;
+                        }
+                        Assert.IsTrue(caught,
+                            $"step {step} seed 0x{seed:X8}: re-staging (sender={sender}, nonce={nonce}) must throw");
+                        break;
                     }
-                    catch (InvalidOperationException)
-                    {
-                        caught = true;
-                    }
-                    Assert.IsTrue(caught,
-                        $"step {step} seed 0x{seed:X8}: re-staging (sender={sender}, nonce={nonce}) must throw");
-                    break;
-                }
                 case 4: // seal batch — promotes intra-batch nonces to cross-batch consumed
-                {
-                    proc.SealBatch();
-                    // After seal, every previously-staged nonce is in cross-batch consumed.
-                    // attemptedKeys retains them; further staging of those MUST fail.
-                    break;
-                }
+                    {
+                        proc.SealBatch();
+                        // After seal, every previously-staged nonce is in cross-batch consumed.
+                        // attemptedKeys retains them; further staging of those MUST fail.
+                        break;
+                    }
             }
 
             // Spot-check: 3 random previously-staged keys must reject on re-stage.
@@ -221,38 +221,38 @@ public class UT_BridgeInvariants_PropertyBased
             {
                 case 0: // fresh deposit
                 case 1:
-                {
-                    var nonce = (ulong)rng.NextInt64(1, long.MaxValue);
-                    while (seenNonces.Contains(nonce))
-                        nonce = (ulong)rng.NextInt64(1, long.MaxValue);
-                    var amount = new BigInteger(rng.NextInt64(1, 1_000_000));
-                    var msg = BuildDeposit(L1ChainId, L2ChainId, nonce, asset.L1Asset, RandomAddress(rng), amount);
-                    try
                     {
-                        proc.Process(msg);
-                        expectedAcceptedCount++;
-                        expectedAcceptedSum += amount;
-                        seenNonces.Add(nonce);
+                        var nonce = (ulong)rng.NextInt64(1, long.MaxValue);
+                        while (seenNonces.Contains(nonce))
+                            nonce = (ulong)rng.NextInt64(1, long.MaxValue);
+                        var amount = new BigInteger(rng.NextInt64(1, 1_000_000));
+                        var msg = BuildDeposit(L1ChainId, L2ChainId, nonce, asset.L1Asset, RandomAddress(rng), amount);
+                        try
+                        {
+                            proc.Process(msg);
+                            expectedAcceptedCount++;
+                            expectedAcceptedSum += amount;
+                            seenNonces.Add(nonce);
+                        }
+                        catch
+                        {
+                            // Should not happen for fresh, well-formed deposits — but if it does,
+                            // the invariants below still hold (we just don't increment expected).
+                        }
+                        break;
                     }
-                    catch
-                    {
-                        // Should not happen for fresh, well-formed deposits — but if it does,
-                        // the invariants below still hold (we just don't increment expected).
-                    }
-                    break;
-                }
                 case 2: // replay a previously-accepted nonce — MUST reject without changing sum
-                {
-                    if (seenNonces.Count == 0) continue;
-                    var nonce = seenNonces.ElementAt(rng.Next(seenNonces.Count));
-                    var msg = BuildDeposit(L1ChainId, L2ChainId, nonce, asset.L1Asset, RandomAddress(rng), 999);
-                    var caught = false;
-                    try { proc.Process(msg); }
-                    catch (InvalidOperationException) { caught = true; }
-                    Assert.IsTrue(caught,
-                        $"step {step} seed 0x{seed:X8}: replay of nonce={nonce} must throw");
-                    break;
-                }
+                    {
+                        if (seenNonces.Count == 0) continue;
+                        var nonce = seenNonces.ElementAt(rng.Next(seenNonces.Count));
+                        var msg = BuildDeposit(L1ChainId, L2ChainId, nonce, asset.L1Asset, RandomAddress(rng), 999);
+                        var caught = false;
+                        try { proc.Process(msg); }
+                        catch (InvalidOperationException) { caught = true; }
+                        Assert.IsTrue(caught,
+                            $"step {step} seed 0x{seed:X8}: replay of nonce={nonce} must throw");
+                        break;
+                    }
             }
         }
 

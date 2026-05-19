@@ -127,8 +127,11 @@ public class UT_Trees
         var tree = new MessageTree();
         var bad = new CrossChainMessage
         {
-            SourceChainId = 1, TargetChainId = 2, Nonce = 1,
-            Sender = UInt160.Zero, Receiver = UInt160.Zero,
+            SourceChainId = 1,
+            TargetChainId = 2,
+            Nonce = 1,
+            Sender = UInt160.Zero,
+            Receiver = UInt160.Zero,
             MessageType = MessageType.Call,
             Payload = ReadOnlyMemory<byte>.Empty,
             MessageHash = null!,
@@ -194,7 +197,8 @@ public class UT_Trees
         var bad = new BatchBlockContext
         {
             L1FinalizedHeight = 1,
-            FirstBlockTimestamp = 1, LastBlockTimestamp = 2,
+            FirstBlockTimestamp = 1,
+            LastBlockTimestamp = 2,
             SequencerCommitteeHash = null!,
             Network = 0,
         };
@@ -224,11 +228,18 @@ public class UT_Trees
         // 219). PreStateRoot is the representative.
         var bad = new PublicInputs
         {
-            ChainId = 1001, BatchNumber = 1,
+            ChainId = 1001,
+            BatchNumber = 1,
             PreStateRoot = null!,
-            PostStateRoot = UInt256.Zero, TxRoot = UInt256.Zero, ReceiptRoot = UInt256.Zero,
-            WithdrawalRoot = UInt256.Zero, L2ToL1MessageRoot = UInt256.Zero, L2ToL2MessageRoot = UInt256.Zero,
-            L1MessageHash = UInt256.Zero, DACommitment = UInt256.Zero, BlockContextHash = UInt256.Zero,
+            PostStateRoot = UInt256.Zero,
+            TxRoot = UInt256.Zero,
+            ReceiptRoot = UInt256.Zero,
+            WithdrawalRoot = UInt256.Zero,
+            L2ToL1MessageRoot = UInt256.Zero,
+            L2ToL2MessageRoot = UInt256.Zero,
+            L1MessageHash = UInt256.Zero,
+            DACommitment = UInt256.Zero,
+            BlockContextHash = UInt256.Zero,
         };
         Assert.ThrowsExactly<ArgumentNullException>(
             () => StateRootCalculator.HashPublicInputs(bad));

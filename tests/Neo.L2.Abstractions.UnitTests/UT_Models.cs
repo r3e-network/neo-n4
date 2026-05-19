@@ -205,7 +205,9 @@ public class UT_Models
         // identical bytes (constructed independently) compare unequal.
         DAPublishRequest Mk(byte[] payload) => new()
         {
-            ChainId = 1001, BatchNumber = 7, Payload = payload,
+            ChainId = 1001,
+            BatchNumber = 7,
+            Payload = payload,
         };
         var a = Mk([0x01, 0x02, 0x03]);
         var b = Mk([0x01, 0x02, 0x03]);
@@ -219,7 +221,9 @@ public class UT_Models
     {
         DAReceipt Mk(byte[] pointer) => new()
         {
-            Commitment = UInt256.Zero, Pointer = pointer, Layer = DAMode.NeoFS,
+            Commitment = UInt256.Zero,
+            Pointer = pointer,
+            Layer = DAMode.NeoFS,
         };
         var a = Mk([0xCA, 0xFE]);
         var b = Mk([0xCA, 0xFE]);
@@ -233,16 +237,24 @@ public class UT_Models
     {
         var inputs = new PublicInputs
         {
-            ChainId = 1001, BatchNumber = 1,
-            PreStateRoot = UInt256.Zero, PostStateRoot = UInt256.Zero, TxRoot = UInt256.Zero,
-            ReceiptRoot = UInt256.Zero, WithdrawalRoot = UInt256.Zero,
-            L2ToL1MessageRoot = UInt256.Zero, L2ToL2MessageRoot = UInt256.Zero,
-            L1MessageHash = UInt256.Zero, DACommitment = UInt256.Zero,
+            ChainId = 1001,
+            BatchNumber = 1,
+            PreStateRoot = UInt256.Zero,
+            PostStateRoot = UInt256.Zero,
+            TxRoot = UInt256.Zero,
+            ReceiptRoot = UInt256.Zero,
+            WithdrawalRoot = UInt256.Zero,
+            L2ToL1MessageRoot = UInt256.Zero,
+            L2ToL2MessageRoot = UInt256.Zero,
+            L1MessageHash = UInt256.Zero,
+            DACommitment = UInt256.Zero,
             BlockContextHash = UInt256.Zero,
         };
         ProofRequest Mk(byte[] witness) => new()
         {
-            PublicInputs = inputs, Witness = witness, Kind = ProofType.Multisig,
+            PublicInputs = inputs,
+            Witness = witness,
+            Kind = ProofType.Multisig,
         };
         var a = Mk([0x10, 0x20]);
         var b = Mk([0x10, 0x20]);
@@ -256,7 +268,9 @@ public class UT_Models
     {
         ProofResult Mk(byte[] proof) => new()
         {
-            Proof = proof, Kind = ProofType.Multisig, PublicInputHash = UInt256.Zero,
+            Proof = proof,
+            Kind = ProofType.Multisig,
+            PublicInputHash = UInt256.Zero,
         };
         var a = Mk([0xAA, 0xBB]);
         var b = Mk([0xAA, 0xBB]);
@@ -408,12 +422,16 @@ public class UT_Models
         var ctx = new BatchBlockContext
         {
             L1FinalizedHeight = 42,
-            FirstBlockTimestamp = 100, LastBlockTimestamp = 200,
-            SequencerCommitteeHash = UInt256.Zero, Network = 5195086u,
+            FirstBlockTimestamp = 100,
+            LastBlockTimestamp = 200,
+            SequencerCommitteeHash = UInt256.Zero,
+            Network = 5195086u,
         };
         BatchExecutionRequest Mk(byte[][] txs) => new()
         {
-            ChainId = 1001, BatchNumber = 7, PreStateRoot = UInt256.Zero,
+            ChainId = 1001,
+            BatchNumber = 7,
+            PreStateRoot = UInt256.Zero,
             Transactions = txs.Select(t => (ReadOnlyMemory<byte>)t).ToArray(),
             L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
             BlockContext = ctx,

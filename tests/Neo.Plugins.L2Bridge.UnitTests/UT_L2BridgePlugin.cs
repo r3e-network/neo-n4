@@ -110,10 +110,15 @@ public class UT_L2BridgePlugin
         var l2Asset = UInt160.Parse("0x" + new string('2', 40));
         plugin.Registry.Register(new Neo.L2.AssetMapping
         {
-            L1Asset = l1Asset, L2Asset = l2Asset,
-            L2ChainId = 0u, AssetType = Neo.L2.AssetType.Gas,
-            L1Decimals = 8, L2Decimals = 8,
-            MintBurn = true, LockMint = false, Active = true,
+            L1Asset = l1Asset,
+            L2Asset = l2Asset,
+            L2ChainId = 0u,
+            AssetType = Neo.L2.AssetType.Gas,
+            L1Decimals = 8,
+            L2Decimals = 8,
+            MintBurn = true,
+            LockMint = false,
+            Active = true,
         });
 
         var captured = new InMemoryMetrics();
@@ -149,10 +154,15 @@ public class UT_L2BridgePlugin
         var l2Asset = UInt160.Parse("0x" + new string('4', 40));
         plugin.Registry.Register(new Neo.L2.AssetMapping
         {
-            L1Asset = l1Asset, L2Asset = l2Asset,
-            L2ChainId = 0u, AssetType = Neo.L2.AssetType.Gas,
-            L1Decimals = 8, L2Decimals = 8,
-            MintBurn = true, LockMint = false, Active = true,
+            L1Asset = l1Asset,
+            L2Asset = l2Asset,
+            L2ChainId = 0u,
+            AssetType = Neo.L2.AssetType.Gas,
+            L1Decimals = 8,
+            L2Decimals = 8,
+            MintBurn = true,
+            LockMint = false,
+            Active = true,
         });
 
         var captured = new InMemoryMetrics();

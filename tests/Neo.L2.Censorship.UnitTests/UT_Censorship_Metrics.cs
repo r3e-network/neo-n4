@@ -28,7 +28,11 @@ public class UT_Censorship_Metrics
         for (ulong i = 1; i <= 3; i++)
             src.Enqueue(new ForcedInclusionEntry
             {
-                Nonce = i, Sender = A(0xAA), TxHash = UInt256.Zero, SerializedTx = new byte[] { (byte)i }, DeadlineUnixSeconds = 1_000_000,
+                Nonce = i,
+                Sender = A(0xAA),
+                TxHash = UInt256.Zero,
+                SerializedTx = new byte[] { (byte)i },
+                DeadlineUnixSeconds = 1_000_000,
             });
 
         var committee = new InMemorySequencerCommitteeProvider(1001);
@@ -49,7 +53,11 @@ public class UT_Censorship_Metrics
         var src = new InMemoryForcedInclusionSource(1001);
         src.Enqueue(new ForcedInclusionEntry
         {
-            Nonce = 1, Sender = A(0xAA), TxHash = UInt256.Zero, SerializedTx = new byte[] { 1 }, DeadlineUnixSeconds = 1_000_000,
+            Nonce = 1,
+            Sender = A(0xAA),
+            TxHash = UInt256.Zero,
+            SerializedTx = new byte[] { 1 },
+            DeadlineUnixSeconds = 1_000_000,
         });
 
         var committee = new InMemorySequencerCommitteeProvider(1001);

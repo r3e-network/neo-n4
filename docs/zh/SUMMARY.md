@@ -43,6 +43,7 @@
 - [Application Engine + MPT 计划](./plan-application-engine-and-mpt.md)
 - [ZKsync 弹性链对比](./zksync-comparison.md)
 - [测试方法论](./testing-approach.md)
+- [Neo N4 统一体验中心设计](./superpowers/specs/2026-05-19-neo-n4-unified-experience-hub-design.md)
 
 # 审计证据
 

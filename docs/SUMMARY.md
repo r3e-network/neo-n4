@@ -40,6 +40,7 @@
 - [Application Engine + MPT plan](./plan-application-engine-and-mpt.md)
 - [ZKsync Elastic Chain comparison](./zksync-comparison.md)
 - [Testing approach](./testing-approach.md)
+- [Neo N4 Unified Experience Hub design](./superpowers/specs/2026-05-19-neo-n4-unified-experience-hub-design.md)
 
 # Audit evidence
 

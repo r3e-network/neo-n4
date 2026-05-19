@@ -29,6 +29,10 @@ public static class ScaffoldPlan
                     "contracts/NeoHub.VerifierRegistry/bin/sc/NeoHub.VerifierRegistry.nef",
                     OwnerOnly()),
 
+                Step("NativeZkVerifier",
+                    "contracts/NeoHub.NativeZkVerifier/bin/sc/NeoHub.NativeZkVerifier.nef",
+                    OwnerOnly()),
+
                 Step("TokenRegistry",
                     "contracts/NeoHub.TokenRegistry/bin/sc/NeoHub.TokenRegistry.nef",
                     OwnerOnly()),
@@ -246,6 +250,7 @@ public static class ScaffoldPlan
         var oc = bundle.Invocations.FirstOrDefault(i => i.Name == "OptimisticChallenge");
         var chainReg = bundle.Invocations.FirstOrDefault(i => i.Name == "ChainRegistry");
         var verifierReg = bundle.Invocations.FirstOrDefault(i => i.Name == "VerifierRegistry");
+        var nativeZkVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "NativeZkVerifier");
         var gc = bundle.Invocations.FirstOrDefault(i => i.Name == "GovernanceController");
         var sm = bundle.Invocations.FirstOrDefault(i => i.Name == "SettlementManager");
         var daRegistry = bundle.Invocations.FirstOrDefault(i => i.Name == "DARegistry");
@@ -271,6 +276,15 @@ public static class ScaffoldPlan
         if (verifierReg is not null && gc is not null)
         {
             yield return $"VerifierRegistry.SetGovernanceController({gc.Name})  # enable §16 council-veto path (RegisterVerifierViaProposal depends on this wiring)";
+        }
+        if (nativeZkVerifier is not null)
+        {
+            yield return $"{nativeZkVerifier.Name}.SetNativeAccelerator(L1_NATIVE_ZK_VERIFIER_HASH)  # required for ProofType.Zk: heavy SNARK/STARK math runs through the L1 native accelerator, not ordinary NeoHub contract bytecode";
+            yield return $"{nativeZkVerifier.Name}.RegisterVerificationKey(proofSystem, vkId, allowed=true)  # allow each production RISC-V/SP1/Risc0/Halo2/Axiom verification key before accepting ZK batches";
+        }
+        if (verifierReg is not null && nativeZkVerifier is not null)
+        {
+            yield return $"{verifierReg.Name}.RegisterVerifier(ProofType.Zk=3, {nativeZkVerifier.Name})  # route ZK settlement commitments to NativeZkVerifier; use RegisterVerifierViaProposal after governance is live";
         }
         if (govFraudVerifier is not null && oc is not null)
         {

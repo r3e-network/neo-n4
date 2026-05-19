@@ -127,6 +127,27 @@ public class UT_ProductionGapClosure
     }
 
     [TestMethod]
+    public void Repository_DocumentsNativeAcceleratedZkVerifierBoundary()
+    {
+        var root = FindRepositoryRoot();
+        string[] docs =
+        [
+            "README.md",
+            Path.Combine("docs", "neohub-architecture-and-workflows.md"),
+            Path.Combine("docs", "security-model.md"),
+            Path.Combine("docs", "zh", "neohub-architecture-and-workflows.md"),
+            Path.Combine("docs", "zh", "security-model.md"),
+        ];
+
+        foreach (var relativePath in docs)
+        {
+            var text = File.ReadAllText(Path.Combine(root, relativePath));
+            StringAssert.Contains(text, "NativeZkVerifier");
+            StringAssert.Contains(text, "native accelerator");
+        }
+    }
+
+    [TestMethod]
     public void Repository_DeployPlanMatchesNeoHubContractInventory()
     {
         var root = FindRepositoryRoot();
@@ -145,10 +166,10 @@ public class UT_ProductionGapClosure
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.AreEqual(23, neoHubContracts.Length,
-            "contracts/NeoHub.* must contain the 22 production contracts plus the test-only ExternalBridgeStubVerifier.");
-        Assert.AreEqual(22, productionSteps.Length,
-            "The default NeoHub deploy plan must emit only the 22 production contracts.");
+        Assert.AreEqual(24, neoHubContracts.Length,
+            "contracts/NeoHub.* must contain the 23 production contracts plus the test-only ExternalBridgeStubVerifier.");
+        Assert.AreEqual(23, productionSteps.Length,
+            "The default NeoHub deploy plan must emit only the 23 production contracts.");
         CollectionAssert.Contains(neoHubContracts, "ExternalBridgeStubVerifier");
         CollectionAssert.DoesNotContain(productionSteps, "ExternalBridgeStubVerifier",
             "ExternalBridgeStubVerifier is a dev/test helper and must not ship in the production NeoHub deploy bundle.");
@@ -180,8 +201,8 @@ public class UT_ProductionGapClosure
         }
 
         var readme = File.ReadAllText(Path.Combine(root, "README.md"));
-        StringAssert.Contains(readme, "23 NeoHub L1 deployable contracts");
-        StringAssert.Contains(readme, "22 production");
+        StringAssert.Contains(readme, "24 NeoHub L1 deployable contracts");
+        StringAssert.Contains(readme, "23 production");
     }
 
     [TestMethod]

@@ -56,9 +56,10 @@ Neo N3 / Neo 4 L1 上的统一可部署 L1 合约套件(**NeoHub**),并通过可
 
 架构分三层:
 
-- **L1(Neo N3 / Neo 4 上的 NeoHub)** —— 规范锚。23 个可部署合约分到 6 个关注点:
+- **L1(Neo N3 / Neo 4 上的 NeoHub)** —— 规范锚。24 个可部署合约分到 6 个关注点:
   *Settlement*、*Bridge*、*Messaging*、*Security*、*Governance*、*External Bridge*。
-  持有资产、负责结算、消息路由与治理。
+  持有资产、负责结算、消息路由与治理。`NativeZkVerifier` 仍是可部署 NeoHub 合约,
+  但会把重型 ZK 证明数学交给 L1 native accelerator。
 - **Neo Gateway(Phase 5,可选)** —— 把多条 L2 的证明聚合为 L1 上的单次结算
   提交。`BinaryTreeAggregator` 在 log-N 轮内归约;`IRoundProver` 出货 3 份生产级
   实现(`MultisigRoundProver`、`MerklePathRoundProver`、`PassThroughRoundProver`)。
@@ -84,7 +85,7 @@ Neo N3 / Neo 4 L1 上的统一可部署 L1 合约套件(**NeoHub**),并通过可
   [`persistence.md`](./persistence.md)。
 - **节点插件(8)** —— `Neo.Plugins.L2{Batch, Bridge, DA, Gateway,
   Metrics, Prover, Rpc, Settlement}`。
-- **智能合约(23 个可部署 + 10 个 L2 原生)** —— 23 个 NeoHub L1 可部署合约 + 10 个 L2 原生合约(均经
+- **智能合约(24 个可部署 + 10 个 L2 原生)** —— 24 个 NeoHub L1 可部署合约(23 个生产合约 + 1 个测试 stub,包含 `NativeZkVerifier`) + 10 个 L2 原生合约(均经
   `Neo.SmartContract.Framework` 类型检查)。
 - **CLI 工具(6)** —— `neo-stack`、`neo-l2-devnet`、`neo-hub-deploy`、
   `neo-l2-explore`、`neo-bridge`、`neo-l2-faucet`。
@@ -98,7 +99,7 @@ Neo N3 / Neo 4 L1 上的统一可部署 L1 合约套件(**NeoHub**),并通过可
   `bridge/neo-zkvm-guest/`(被证明的函数)。
 - **Submodule(4)** —— `external/neo`(`r3e-network/neo` fork，L2 分支 `r3e/neo-n4-core`；同一 fork 内的 L1 core 分支为 `r3e/neo-n3-core`)、`external/neo-devpack-dotnet`、
   `external/neo-riscv-vm`、`external/neo-zkvm`。
-- **测试(1430 .NET + 165 跨语言)** —— 34 个 .NET 工程的 1430 条测试;
+- **测试(1452 .NET + 165 跨语言)** —— 34 个 .NET 工程的 1452 条测试;
   15 TS + 10 Rust SDK + 5 shared execution-core + 7 SP1 guest +
   103 Rust 桥 watcher(eth 87 / tron 7 / sol 9) + 21 Foundry + 4 Solana router —— 全绿。
 
@@ -111,7 +112,7 @@ Neo N3 / Neo 4 L1 上的统一可部署 L1 合约套件(**NeoHub**),并通过可
 | 阶段 | 目标                                | 状态  | 证据                                                       |
 | ---- | ----------------------------------- | :---: | ---------------------------------------------------------- |
 | 0    | 侧链 PoC                             | ✅   | MVP 集成测试端到端通过                                    |
-| 1    | NeoHub v0 + 共享桥                   | ✅   | 23 个 NeoHub 合约全部编译;部署计划器输出 22 步 bundle(15 核心 + 2 fraud verifier + 5 外链桥) |
+| 1    | NeoHub v0 + 共享桥                   | ✅   | 24 个 NeoHub 合约全部编译;部署计划器输出 23 个生产步骤(15 核心 + NativeZkVerifier + 2 fraud verifier + 5 外链桥) |
 | 2    | 批次结算                             | ✅   | 真实 `KeyedStateStore` 在跨批次得到连续性验证             |
 | 3    | 乐观挑战窗口                         | ✅   | `OptimisticChallenge` 合约 + `BisectionGame`(log-N 收敛) |
 | 4    | NeoVM 2 / RISC-V ZK Validity 证明    | 🟡   | SP1 FFI 桥已搭好;`--features real-prover` 切到原生        |

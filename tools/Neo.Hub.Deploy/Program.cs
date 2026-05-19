@@ -38,7 +38,7 @@ internal static class Program
               neo-hub-deploy <subcommand> [options]
 
             Subcommands:
-              scaffold --output <path>            Write a starter DeployPlan covering the 22-step NeoHub production bundle.
+              scaffold --output <path>            Write a starter DeployPlan covering the 23-step NeoHub production bundle.
               plan --plan <path> --output <path>  Topologically sort + resolve a plan; emit a deploy bundle.
               verify --plan <path> --rpc <url>    Confirm each plan step's nef + manifest exist on disk (exit 2 on any missing).
               help                                Show this message.

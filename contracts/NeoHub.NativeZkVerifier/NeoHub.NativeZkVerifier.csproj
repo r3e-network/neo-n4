@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NeoHub.NativeZkVerifier</RootNamespace>
+    <AssemblyName>NeoHub.NativeZkVerifier</AssemblyName>
+  </PropertyGroup>
+
+</Project>

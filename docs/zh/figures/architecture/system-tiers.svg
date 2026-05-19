@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 760" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">Neo Elastic Network — 四层系统拓扑</title>
-  <desc id="desc">四层拓扑：第 1 层为 NeoHub L1 锚定层，包含 23 个合约。第 2 层为可选的 Neo Gateway，用于证明聚合。第 3 层为弹性 L2 链，运行 Neo 4 core 加 8 个插件加 10 个原生合约。第 4 层为链下运营者，包括排序器、批处理器、证明守护进程、DA 写入器和外链中继器。</desc>
+  <desc id="desc">四层拓扑：第 1 层为 NeoHub L1 锚定层，包含 24 个可部署项目：23 个生产合约加 1 个测试桩。第 2 层为可选的 Neo Gateway，用于证明聚合。第 3 层为弹性 L2 链，运行 Neo 4 core 加 8 个插件加 10 个原生合约。第 4 层为链下运营者，包括排序器、批处理器、证明守护进程、DA 写入器和外链中继器。</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -28,7 +28,7 @@
 
   <g filter="url(#card)">
     <rect x="62" y="92" width="836" height="46" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
-    <text x="480" y="113" text-anchor="middle" class="card-title" fill="#1e2a55">NeoHub —— 22 个生产合约（+ 1 个测试桩）</text>
+    <text x="480" y="113" text-anchor="middle" class="card-title" fill="#1e2a55">NeoHub —— 23 个生产合约（+ 1 个测试桩）</text>
     <text x="480" y="130" text-anchor="middle" class="card-sub" fill="#3a4a82">结算 · 桥 · 消息传递 · 治理 · 安全 · 外链桥</text>
   </g>
 

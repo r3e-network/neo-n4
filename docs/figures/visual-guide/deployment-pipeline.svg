@@ -57,7 +57,7 @@
 <g>
   <rect x="505" y="395" width="230" height="115" rx="8" fill="#fff9d9" stroke="#d8dee8" filter="url(#card)"/>
   <text x="521" y="422" class="box-title">deploy-bundle.json</text>
-  <text x="521" y="447" class="body" text-anchor="start"><tspan x="521" dy="0">22 production invocations</tspan><tspan x="521" dy="18">nefPath / manifestPath</tspan><tspan x="521" dy="18">resolved deploy data</tspan></text>
+  <text x="521" y="447" class="body" text-anchor="start"><tspan x="521" dy="0">23 production invocations</tspan><tspan x="521" dy="18">nefPath / manifestPath</tspan><tspan x="521" dy="18">resolved deploy data</tspan></text>
 </g>
 <g>
   <rect x="805" y="395" width="235" height="115" rx="8" fill="#eaf7f0" stroke="#d8dee8" filter="url(#card)"/>

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">NeoHub L1 合约组成</title>
-  <desc id="desc">23 个 NeoHub L1 合约，按六类职责分组：结算（SettlementManager、VerifierRegistry）、桥（SharedBridge、TokenRegistry、ChainRegistry）、消息传递（MessageRouter、DARegistry、DAValidator、L1TxFilter）、安全（SequencerRegistry、SequencerBond、ForcedInclusion、OptimisticChallenge、EmergencyManager）、治理（GovernanceController、GovernanceFraudVerifier、RestrictedExecutionFraudVerifier），以及 Phase B/C 外链桥（MpcCommitteeVerifier、ExternalBridgeRegistry、ExternalBridgeEscrow、ExternalBridgeBond、MpcCommitteeFraudVerifier、ExternalBridgeStubVerifier — 仅供测试）。</desc>
+  <desc id="desc">24 个 NeoHub L1 可部署项目，按六类职责分组：结算（SettlementManager、VerifierRegistry、NativeZkVerifier）、桥（SharedBridge、TokenRegistry、ChainRegistry）、消息传递（MessageRouter、DARegistry、DAValidator、L1TxFilter）、安全（SequencerRegistry、SequencerBond、ForcedInclusion、OptimisticChallenge、EmergencyManager）、治理（GovernanceController、GovernanceFraudVerifier、RestrictedExecutionFraudVerifier），以及 Phase B/C 外链桥（MpcCommitteeVerifier、ExternalBridgeRegistry、ExternalBridgeEscrow、ExternalBridgeBond、MpcCommitteeFraudVerifier、ExternalBridgeStubVerifier — 仅供测试）。</desc>
 
   <defs>
     <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
@@ -17,7 +17,7 @@
 
   <rect width="960" height="540" fill="#ffffff"/>
 
-  <text x="480" y="38" text-anchor="middle" class="header" fill="#1e2a55">NeoHub L1 —— 23 个合约按职责分组</text>
+  <text x="480" y="38" text-anchor="middle" class="header" fill="#1e2a55">NeoHub L1 —— 24 个可部署项目按职责分组</text>
   <text x="480" y="58" text-anchor="middle" class="subheader">全部通过 Neo.SmartContract.Framework 类型检查 · CI 验证 .nef + .manifest.json 工件</text>
 
   <!-- Row 1: Settlement · Bridge · Messaging -->
@@ -27,7 +27,8 @@
     <line x1="60" y1="118" x2="300" y2="118" stroke="#7587c1" stroke-width="0.5"/>
     <text x="180" y="142" text-anchor="middle" class="item">SettlementManager</text>
     <text x="180" y="162" text-anchor="middle" class="item">VerifierRegistry</text>
-    <text x="180" y="188" text-anchor="middle" class="item-stub">信任边界所在</text>
+    <text x="180" y="182" text-anchor="middle" class="item">NativeZkVerifier</text>
+    <text x="180" y="196" text-anchor="middle" class="item-stub">native accelerator 边界</text>
   </g>
 
   <g filter="url(#card)">

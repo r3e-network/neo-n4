@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">NeoHub L1 contract anatomy</title>
-  <desc id="desc">23 NeoHub L1 contracts grouped into six concerns: Settlement (SettlementManager, VerifierRegistry), Bridge (SharedBridge, TokenRegistry, ChainRegistry), Messaging (MessageRouter, DARegistry, DAValidator, L1TxFilter), Security (SequencerRegistry, SequencerBond, ForcedInclusion, OptimisticChallenge, EmergencyManager), Governance (GovernanceController, GovernanceFraudVerifier, RestrictedExecutionFraudVerifier), and External Bridge for Phase B/C (MpcCommitteeVerifier, ExternalBridgeRegistry, ExternalBridgeEscrow, ExternalBridgeBond, MpcCommitteeFraudVerifier, ExternalBridgeStubVerifier — testing only).</desc>
+  <desc id="desc">24 NeoHub L1 deployable projects grouped into six concerns: Settlement (SettlementManager, VerifierRegistry, NativeZkVerifier), Bridge (SharedBridge, TokenRegistry, ChainRegistry), Messaging (MessageRouter, DARegistry, DAValidator, L1TxFilter), Security (SequencerRegistry, SequencerBond, ForcedInclusion, OptimisticChallenge, EmergencyManager), Governance (GovernanceController, GovernanceFraudVerifier, RestrictedExecutionFraudVerifier), and External Bridge for Phase B/C (MpcCommitteeVerifier, ExternalBridgeRegistry, ExternalBridgeEscrow, ExternalBridgeBond, MpcCommitteeFraudVerifier, ExternalBridgeStubVerifier — testing only).</desc>
 
   <defs>
     <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
@@ -18,7 +18,7 @@
   <rect width="960" height="540" fill="#ffffff"/>
 
   <!-- header -->
-  <text x="480" y="38" text-anchor="middle" class="header" fill="#1e2a55">NeoHub L1 — 23 contracts grouped by concern</text>
+  <text x="480" y="38" text-anchor="middle" class="header" fill="#1e2a55">NeoHub L1 — 24 deployable projects grouped by concern</text>
   <text x="480" y="58" text-anchor="middle" class="subheader">All compile via Neo.SmartContract.Framework · CI verifies .nef + .manifest.json artifacts</text>
 
   <!-- ───────────────── Row 1: Settlement · Bridge · Messaging ───────────────── -->
@@ -30,7 +30,8 @@
     <line x1="60" y1="118" x2="300" y2="118" stroke="#7587c1" stroke-width="0.5"/>
     <text x="180" y="142" text-anchor="middle" class="item">SettlementManager</text>
     <text x="180" y="162" text-anchor="middle" class="item">VerifierRegistry</text>
-    <text x="180" y="188" text-anchor="middle" class="item-stub">the trust boundary</text>
+    <text x="180" y="182" text-anchor="middle" class="item">NativeZkVerifier</text>
+    <text x="180" y="196" text-anchor="middle" class="item-stub">native accelerator seam</text>
   </g>
 
   <!-- Bridge -->

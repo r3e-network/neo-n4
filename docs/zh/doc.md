@@ -147,6 +147,7 @@ NeoHub
 ├── SharedBridge
 ├── SettlementManager
 ├── VerifierRegistry
+├── NativeZkVerifier
 ├── MessageRouter
 ├── TokenRegistry
 ├── DARegistry
@@ -256,12 +257,15 @@ getCanonicalStateRoot(chainId)
 VerifierRegistry:
   - MultisigVerifier
   - OptimisticVerifier
-  - ZkRiscVVerifier
+  - NativeZkVerifier  # ProofType.Zk adapter -> L1 native accelerator
   - AggregatedProofVerifier
   - FutureProofSystemVerifier
 ```
 
 不要把 verifier 写死。Neo 4 L2 早期可能先用 multisig / optimistic，后续再升级到 RISC-V zk validity proof。
+ZK 路径不应在普通合约中硬算证明系统数学：`NativeZkVerifier` 先校验 batch commitment、
+RISC-V proof payload、verification-key id 和 publicInputHash 边界，再调用 L1 native accelerator
+的 `verifyZkProof(...)`。
 
 ### MessageRouter
 
@@ -579,7 +583,8 @@ Stage 1: Optimistic proof
 
 Stage 2: ZK validity proof
   - 证明 oldRoot + txs + messages -> newRoot
-  - NeoHub verifier 验证 proof
+  - NeoHub.NativeZkVerifier 验证 envelope/VK/publicInputHash
+  - L1 native accelerator 验证 proof-system math
   - 安全性最高
 ```
 

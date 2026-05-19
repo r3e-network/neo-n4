@@ -34,6 +34,7 @@ contracts/
 |-- NeoHub.SharedBridge/                        # canonical asset escrow + deposit/withdraw
 |-- NeoHub.SettlementManager/                   # batch submission + finalization
 |-- NeoHub.VerifierRegistry/                    # pluggable proof verifier dispatch
+|-- NeoHub.NativeZkVerifier/                    # ProofType.Zk adapter -> L1 native accelerator
 |-- NeoHub.MessageRouter/                       # L1<->L2 / L2<->L2 message queues
 |-- NeoHub.TokenRegistry/                       # canonical L1<->L2 asset mappings
 |-- NeoHub.DARegistry/                          # DA layer commitment store
@@ -55,8 +56,11 @@ contracts/
 `-- NeoHub.ExternalBridgeStubVerifier/          # dev/test only; excluded from production bundle
 ```
 
-There are 23 `NeoHub.*` projects in this directory. `neo-hub-deploy` emits a
-22-step production bundle that excludes `NeoHub.ExternalBridgeStubVerifier`.
+There are 24 `NeoHub.*` projects in this directory. `neo-hub-deploy` emits a
+23-step production bundle that excludes `NeoHub.ExternalBridgeStubVerifier`.
+`NeoHub.NativeZkVerifier` is part of that production bundle: it validates
+`ProofType.Zk` envelopes and registered verification-key ids, then calls the
+configured L1 native accelerator for `verifyZkProof(...)`.
 
 The L2 native contract set lives in Neo core under
 `../external/neo/src/Neo/SmartContract/Native/`:

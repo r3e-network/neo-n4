@@ -160,7 +160,7 @@
 - **`Neo.Stack.Cli`**(`neo-stack`)—— 12 个子命令:create-chain、
   init-l2、register-chain、scaffold-executor、new-l2、…
 - **`Neo.Hub.Deploy`**(`neo-hub-deploy`)—— NeoHub 部署的
-  plan/scaffold/verify(22 步有序 bundle)。
+  plan/scaffold/verify(23 步有序生产 bundle)。
 - **`Neo.L2.Devnet`**(`neo-l2-devnet`)—— 进程内端到端 demo 运行器。
   `--executor counter` 接入样例执行器。
 - **`Neo.L2.Explore`**(`neo-l2-explore`)—— 终端区块浏览器 + 状态根

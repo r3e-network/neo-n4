@@ -24,9 +24,12 @@ implemented as a contract or plugin:
 
 Current status:
 
-- 23 `contracts/NeoHub.*` projects exist in `neo-n4`.
-- 22 are production NeoHub contracts; `ExternalBridgeStubVerifier` is test-only.
-- 22 are deployed by the production NeoHub deploy plan.
+- 24 `contracts/NeoHub.*` projects exist in `neo-n4`.
+- 23 are production NeoHub contracts; `ExternalBridgeStubVerifier` is test-only.
+- 23 are deployed by the production NeoHub deploy plan.
+- `NativeZkVerifier` is a deployable NeoHub contract, but it uses an L1
+  native accelerator for heavy ZK proof math instead of implementing a
+  proof-system verifier in ordinary contract bytecode.
 - L1 integration is through deployed contracts, node plugins, SDKs, CLIs,
   watchers, relayers, and operator services before considering any L1 core hook.
 
@@ -45,6 +48,7 @@ flowchart TB
         bridge["SharedBridge"]
         settle["SettlementManager"]
         verifier["VerifierRegistry"]
+        nativezk["NativeZkVerifier"]
         msg["MessageRouter"]
         da["DARegistry + DAValidator"]
         seq["SequencerRegistry + SequencerBond"]
@@ -57,6 +61,8 @@ flowchart TB
     batcher --> da
     batcher --> settle
     settle --> verifier
+    verifier --> nativezk
+    nativezk --> nativeacc["L1 native accelerator"]
     settle --> da
     settle --> seq
     bridge --> token
@@ -90,7 +96,7 @@ roots as final.
 | Chain identity | `ChainRegistry` | L2 admission, chain config, active/paused status, gateway flag, DA/security labels. |
 | Asset registry | `TokenRegistry` | Canonical L1 asset to L2 asset mappings and token metadata. |
 | Bridge custody | `SharedBridge` | L1 escrow, deposit messages, withdrawal finalization, withdrawal proof checks. |
-| Settlement | `SettlementManager`, `VerifierRegistry` | Batch commitment validation, proof dispatch, root finalization, batch status. |
+| Settlement | `SettlementManager`, `VerifierRegistry`, `NativeZkVerifier` | Batch commitment validation, proof dispatch, ZK verifier-adapter dispatch to an L1 native accelerator, root finalization, batch status. |
 | Data availability | `DARegistry`, `DAValidator` | DA commitments, DA mode validation, committee/DAC attestations. |
 | Messaging | `MessageRouter`, `L1TxFilter` | L1-to-L2 queues, L2-to-L1 consumption, global roots, optional enqueue filtering. |
 | Sequencer security | `SequencerRegistry`, `SequencerBond` | Active sequencers, bond accounting, slashing, exit windows. |
@@ -129,6 +135,8 @@ flowchart LR
     daReg["DARegistry"] --> daVal["DAValidator"]
     daVal --> settle
     verifiers --> settle
+    verifiers --> nativeZk["NativeZkVerifier"]
+    nativeZk --> nativeAcc["L1 native accelerator"]
 
     seqReg["SequencerRegistry"] --> bond["SequencerBond"]
     bond --> challenge["OptimisticChallenge"]
@@ -219,6 +227,8 @@ sequenceDiagram
     participant DAVal as DAValidator
     participant Settle as SettlementManager
     participant Verifier as VerifierRegistry
+    participant NativeZk as NativeZkVerifier
+    participant Native as L1 native accelerator
     participant Chain as ChainRegistry
 
     L2->>Batcher: ordered blocks, txs, receipts, state updates
@@ -228,6 +238,9 @@ sequenceDiagram
     Settle->>Chain: validate chain active + security config
     Settle->>DAVal: validate DA mode and commitment
     Settle->>Verifier: verify proofType + proof payload
+    Verifier->>NativeZk: ProofType.Zk commitment
+    NativeZk->>Native: verifyZkProof(proofSystem, vkId, publicInputHash, proofBytes)
+    Native-->>NativeZk: accepted or rejected
     Verifier-->>Settle: accepted or rejected
     Settle-->>L2: finalized / pending / rejected batch status
 ```
@@ -237,6 +250,14 @@ the L2 batch. It enforces that the batch was produced by an admitted chain,
 uses the configured DA/proof mode, and has a proof path that NeoHub accepts.
 Once accepted, the post-state root, withdrawal root, and message roots become
 the L1 source of truth for bridge and messaging claims.
+
+For `ProofType.Zk`, the proof path is deliberately split. `VerifierRegistry`
+routes the commitment to `NativeZkVerifier`, which checks the N4 batch
+commitment layout, the RISC-V proof payload envelope, the registered
+verification-key id, and the public-input hash boundary. It then calls the L1
+native accelerator ABI `verifyZkProof(...)` for proof-system math. This keeps
+NeoHub deployable and upgradeable while avoiding expensive pure-contract ZK
+verification.
 
 ## 9. Withdrawal data flow
 
@@ -379,7 +400,8 @@ be visible through events and operator runbooks.
 | `DARegistry` | Record DA commitments by chain and batch. | `chainId`, `batchNumber`, `daCommitment`, DA mode. | Commitment recorded; commitment queryable during settlement/audit. | Batcher/DA writer, `SettlementManager`. |
 | `DAValidator` | Validate DA mode-specific attestations and commitment shape. | DA committee metadata, commitment, batch context. | DA accepted/rejected. | `SettlementManager`, operator setup. |
 | `L1TxFilter` | Optional per-chain policy hook for L1-to-L2 enqueues. | Sender, receiver, message type, payload, chain config. | Accepted/rejected enqueue decision. | `MessageRouter`. |
-| `VerifierRegistry` | Map proof types to verifier contracts or native verifier paths. | `proofType`, verifier hash, governance owner. | Verifier registered/updated; proof dispatch result. | `SettlementManager`, governance. |
+| `VerifierRegistry` | Map proof types to verifier contracts. | `proofType`, verifier hash, governance owner. | Verifier registered/updated; proof dispatch result. | `SettlementManager`, governance. |
+| `NativeZkVerifier` | Validate `ProofType.Zk` commitment/proof envelopes and delegate heavy math to the L1 native accelerator. | Batch commitment bytes, proof-system tag, verification-key id, public-input hash, accelerator hash. | ZK proof accepted/rejected; verification keys registered/removed. | `VerifierRegistry`, governance/operator. |
 | `SettlementManager` | Validate and finalize L2 batch commitments. | `BatchCommitment`, DA commitment, proof payload, chain config. | Batch committed/finalized/reverted; roots stored for bridge/message proofs. | Batcher, gateway, challenge system. |
 | `SharedBridge` | Custody L1 assets and finalize withdrawals. | Deposits, withdrawal records, Merkle proofs, asset mappings. | Deposit enqueued; withdrawal finalized; consumed proof marker. | Users, relayers, L2 bridge adapters. |
 | `MessageRouter` | Route replay-protected L1/L2 messages. | Message envelope, source/target chain ids, nonce, roots/proofs. | L1-to-L2 enqueued; L2-to-L1 consumed; global root published. | Users, L2 nodes, relayers, settlement/gateway. |

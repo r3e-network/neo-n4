@@ -30,7 +30,8 @@ Core L1 contract suite:
 - **ChainRegistry** — register L2 chains; each entry = `{chainId, operatorManager, verifier, bridgeAdapter, messageAdapter, securityLevel(0-3), daMode(0-3), gatewayEnabled, permissionlessExit, active}`
 - **SharedBridge** — escrow canonical GAS / NEO / USDT / USDC / BTC / NEP-17; mint/burn rules; deposit + withdrawal finalization
 - **SettlementManager** — accept `L2BatchCommitment` (chainId, batchNumber, pre/postStateRoot, txRoot, receiptRoot, withdrawalRoot, l2ToL1MessageRoot, l2ToL2MessageRoot, daCommitment, publicInputHash, proofType, proof)
-- **VerifierRegistry** — pluggable verifiers: Multisig, Optimistic, ZkRiscV, Aggregated
+- **VerifierRegistry** — pluggable verifiers: Multisig, Optimistic, NativeZkVerifier, Aggregated
+- **NativeZkVerifier** — deployable `ProofType.Zk` adapter; validates the commitment/proof envelope and calls an L1 native accelerator for heavy ZK proof math
 - **MessageRouter** — L1↔L2 and L2↔L2 message queues with replay protection
 - **TokenRegistry** — canonical L1↔L2 asset mapping
 - **DARegistry** — record DA commitments per chain

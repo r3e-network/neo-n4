@@ -20,6 +20,11 @@ For any L2 chain registered in `NeoHub.ChainRegistry`:
   that chain's `ProofType`. The verifier additionally checks
   `commitment.PublicInputHash == hash(publicInputs)` — preventing a malicious
   prover from signing different inputs than the commitment claims.
+- **ZK verifier efficiency boundary.** `ProofType.Zk` routes through the deployable
+  `NeoHub.NativeZkVerifier` adapter. The adapter validates the commitment/proof
+  envelope and registered verification-key id, then calls the configured L1
+  native accelerator for `verifyZkProof(...)`; heavy SNARK/STARK math is not
+  executed as ordinary NeoHub contract bytecode.
 - **Replay safety.** Every cross-chain message carries `(chainId, nonce)` and is
   deduped per-pair in `NeoHub.MessageRouter`.
 - **Withdrawal finality.** Funds leave `SharedBridge` only on inclusion proofs
@@ -40,6 +45,8 @@ The right way to think about this: **L1 verifies what the registered verifier
 verifies.** Phase 4 (ZK validity) makes the verifier trustless. Phase 3
 (optimistic) makes it as trusted as the bisection-game challenge window. Phase
 0–2 stack governance (Neo Council, sequencer bonds) on top of multisig.
+For Phase 4 chains, the registered verifier is `NativeZkVerifier`, and the
+native accelerator it points at is part of the L1 trusted computing base.
 
 ---
 
@@ -92,6 +99,9 @@ pinning regression test):
 - **Public-input hash equality at the prover boundary.** `L2SettlementPlugin`
   rejects a proof whose `publicInputHash` differs from the settler's computed
   hash, before submitting to L1 — preventing wasted L1 round-trips.
+- **Native ZK verifier adapter.** `NativeZkVerifier` refuses non-ZK commitments,
+  malformed `RiscVProofPayload` envelopes, unregistered verification keys, and
+  unset native accelerator hashes before delegating to `verifyZkProof(...)`.
 - **Empty-proof rejection at prove time.** A non-`None` `ProofType` paired with
   empty `Proof` bytes is rejected at the prove boundary, not waited-for at audit
   time.

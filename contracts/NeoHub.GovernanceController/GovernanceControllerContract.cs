@@ -160,7 +160,7 @@ public class GovernanceControllerContract : SmartContract
     public static ulong CreateProposal(ECPoint signer, byte[] payload)
     {
         ExecutionEngine.Assert(IsCouncilMember(signer), "not a council member");
-        ExecutionEngine.Assert(Runtime.CheckWitness(signer), "no witness");
+        ExecutionEngine.Assert(Runtime.CheckWitness(signer), "not authorized");
         // An empty payload is meaningless — Approve() can't tell what's being voted on.
         // Without this guard, a council member typo could waste a proposal id and
         // collect approvals for "vote on nothing".
@@ -177,7 +177,7 @@ public class GovernanceControllerContract : SmartContract
     public static uint Approve(ulong proposalId, ECPoint memberKey)
     {
         ExecutionEngine.Assert(IsCouncilMember(memberKey), "not a council member");
-        ExecutionEngine.Assert(Runtime.CheckWitness(memberKey), "no witness");
+        ExecutionEngine.Assert(Runtime.CheckWitness(memberKey), "not authorized");
         ExecutionEngine.Assert(Storage.Get(ProposalKey(proposalId)) != null, "unknown proposal");
 
         var aKey = ApprovalKey(proposalId, memberKey);

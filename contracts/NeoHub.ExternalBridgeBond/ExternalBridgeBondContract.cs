@@ -67,7 +67,7 @@ public class ExternalBridgeBondContract : SmartContract
         var owner = (UInt160)arr[0];
         var bondAsset = (UInt160)arr[1];
         ExecutionEngine.Assert(owner.IsValid && !owner.IsZero, "invalid owner");
-        ExecutionEngine.Assert(bondAsset.IsValid && !bondAsset.IsZero, "invalid bondAsset");
+        ExecutionEngine.Assert(bondAsset.IsValid && !bondAsset.IsZero, "invalid bond asset");
         Storage.Put(new byte[] { KeyOwner }, owner);
         Storage.Put(new byte[] { KeyBondAsset }, bondAsset);
         Storage.Put(new byte[] { KeyMinBond }, (BigInteger)DefaultMinBond);

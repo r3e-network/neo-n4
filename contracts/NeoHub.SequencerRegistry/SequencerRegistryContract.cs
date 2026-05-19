@@ -153,7 +153,7 @@ public class SequencerRegistryContract : SmartContract
     /// </summary>
     public static uint Unregister(uint chainId, ECPoint sequencerKey)
     {
-        ExecutionEngine.Assert(Runtime.CheckWitness(sequencerKey), "no witness");
+        ExecutionEngine.Assert(Runtime.CheckWitness(sequencerKey), "not authorized");
         var key = SequencerKey(chainId, sequencerKey);
         var raw = Storage.Get(key);
         ExecutionEngine.Assert(raw != null, "not registered");

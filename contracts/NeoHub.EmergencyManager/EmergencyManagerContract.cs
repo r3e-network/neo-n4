@@ -106,7 +106,7 @@ public class EmergencyManagerContract : SmartContract
     public static void EscapeHatchExit(uint chainId, UInt160 sender, UInt256 leafHash)
     {
         ExecutionEngine.Assert(IsPaused(), "escape hatch only valid while paused");
-        ExecutionEngine.Assert(Runtime.CheckWitness(sender), "no witness");
+        ExecutionEngine.Assert(Runtime.CheckWitness(sender), "not authorized");
         var key = EscapeKey(chainId, leafHash);
         ExecutionEngine.Assert(Storage.Get(key) == null, "escape leaf already consumed");
 
@@ -150,7 +150,7 @@ public class EmergencyManagerContract : SmartContract
         ulong leafIndex)
     {
         ExecutionEngine.Assert(IsPaused(), "escape hatch only valid while paused");
-        ExecutionEngine.Assert(Runtime.CheckWitness(sender), "no witness");
+        ExecutionEngine.Assert(Runtime.CheckWitness(sender), "not authorized");
         var key = EscapeKey(chainId, leafHash);
         ExecutionEngine.Assert(Storage.Get(key) == null, "escape leaf already consumed");
 

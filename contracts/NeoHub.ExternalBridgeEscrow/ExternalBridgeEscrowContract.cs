@@ -186,7 +186,7 @@ public class ExternalBridgeEscrowContract : SmartContract
             | ((ulong)messageBytes[14] << 48)
             | ((ulong)messageBytes[15] << 56);
         var direction = messageBytes[16];
-        ExecutionEngine.Assert(direction == 2, "Receive expects direction=2 (ForeignToNeo)");
+        ExecutionEngine.Assert(direction == 2, "direction must be 2 (ForeignToNeo)");
 
         // Replay protection at the escrow layer (the verifier ALSO replay-protects;
         // this catches a verifier that's been swapped to one without nonce tracking).

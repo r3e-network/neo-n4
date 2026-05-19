@@ -379,9 +379,9 @@ public class MpcCommitteeVerifierContract : SmartContract
             "curveTag must be 1 (secp256k1) or 2 (ed25519)");
 
         var keyLen = curveTag == CurveSecp256k1 ? 33 : 32;
-        ExecutionEngine.Assert(committeeBlob != null, "committeeBlob is null");
+        ExecutionEngine.Assert(committeeBlob != null, "committee blob is null");
         // Null-checked above; this dereference is safe.
-        ExecutionEngine.Assert(committeeBlob!.Length > 0, "committeeBlob is empty");
+        ExecutionEngine.Assert(committeeBlob!.Length > 0, "committee blob is empty");
         ExecutionEngine.Assert(committeeBlob.Length % keyLen == 0,
             "committeeBlob length must be a multiple of pubkey length for the curve");
         var size = committeeBlob.Length / keyLen;

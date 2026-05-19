@@ -257,7 +257,7 @@ public class MessageRouterContract : SmartContract
             "acceptL1ToL2",
             CallFlags.ReadOnly,
             new object[] { targetChainId, sender, receiver, messageType, payload });
-        ExecutionEngine.Assert(accepted, "L1->L2 message rejected by filter");
+        ExecutionEngine.Assert(accepted, "l1 to l2 message rejected by filter");
     }
 
     private static byte[] L1TxFilterKey(uint chainId)

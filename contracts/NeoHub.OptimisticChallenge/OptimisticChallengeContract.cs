@@ -31,6 +31,7 @@ public class OptimisticChallengeContract : SmartContract
     private const byte PrefixSequencer = 0x03;       // 0x03 + chainId(4B) + batchNum(8B) → 20B sequencer address
     private const byte KeyChallengeWindowSeconds = 0x04;
     private const byte KeyChallengerRewardBps = 0x05;
+    private const byte PrefixApprovedVerifier = 0x06; // 0x06 + verifier(20B) → 1 (allowlist gate)
     private const byte KeySettlementManager = 0xFC;
     private const byte KeySequencerBond = 0xFD;
     private const byte KeyOwner = 0xFF;
@@ -55,6 +56,14 @@ public class OptimisticChallengeContract : SmartContract
     /// <summary>Emitted when the window expires unchallenged.</summary>
     [DisplayName("WindowFinalized")]
     public static event Action<uint, ulong> OnWindowFinalized = default!;
+
+    /// <summary>Emitted when governance adds a fraud-verifier to the allowlist.</summary>
+    [DisplayName("FraudVerifierApproved")]
+    public static event Action<UInt160> OnFraudVerifierApproved = default!;
+
+    /// <summary>Emitted when governance removes a fraud-verifier from the allowlist.</summary>
+    [DisplayName("FraudVerifierRevoked")]
+    public static event Action<UInt160> OnFraudVerifierRevoked = default!;
 
     /// <summary>Set wiring on deploy. <c>data</c> = [owner, settlementManager, sequencerBond].</summary>
     public static void _deploy(object data, bool update)
@@ -118,6 +127,44 @@ public class OptimisticChallengeContract : SmartContract
     }
 
     /// <summary>
+    /// Add a fraud-verifier contract to the allowlist. Only allowlisted verifiers may be
+    /// passed to <see cref="Challenge"/>. Owner-gated so an attacker can't drain bonds by
+    /// deploying their own "yes-verifier" and feeding it through Challenge — the verifier
+    /// answer is trusted by this contract, so the verifier itself must be trusted.
+    /// </summary>
+    /// <remarks>
+    /// At deploy time the operator should register every shipped fraud verifier
+    /// (<c>GovernanceFraudVerifier</c>, <c>RestrictedExecutionFraudVerifier</c>, …) and
+    /// continue to register new ones as the protocol adds verifier shapes. Revoking a
+    /// verifier disables it for future challenges but does not undo past challenges that
+    /// it accepted.
+    /// </remarks>
+    public static void RegisterFraudVerifier(UInt160 verifier)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero, "invalid verifier");
+        Storage.Put(ApprovedVerifierKey(verifier), new byte[] { 1 });
+        OnFraudVerifierApproved(verifier);
+    }
+
+    /// <summary>Remove a fraud-verifier from the allowlist. Owner-gated.</summary>
+    public static void RevokeFraudVerifier(UInt160 verifier)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero, "invalid verifier");
+        Storage.Delete(ApprovedVerifierKey(verifier));
+        OnFraudVerifierRevoked(verifier);
+    }
+
+    /// <summary>True iff <paramref name="verifier"/> is on the fraud-verifier allowlist.</summary>
+    [Safe]
+    public static bool IsApprovedFraudVerifier(UInt160 verifier)
+    {
+        if (!verifier.IsValid || verifier.IsZero) return false;
+        return Storage.Get(ApprovedVerifierKey(verifier)) != null;
+    }
+
+    /// <summary>
     /// SettlementManager calls this when a batch lands with <c>ProofType.Optimistic</c>.
     /// Records the deadline + responsible sequencer for later challenge dispatch.
     /// </summary>
@@ -154,8 +201,15 @@ public class OptimisticChallengeContract : SmartContract
         // Without these guards, a zero challenger would reach the bond payout step
         // and silently pay the reward to address 0; a zero fraudVerifier would NRE
         // inside Contract.Call instead of surfacing the misconfig clearly.
+
         ExecutionEngine.Assert(challenger.IsValid && !challenger.IsZero, "invalid challenger");
         ExecutionEngine.Assert(fraudVerifier.IsValid && !fraudVerifier.IsZero, "invalid fraud verifier");
+        // CRITICAL: only call into allowlisted verifier contracts. Without this gate, anyone
+        // could deploy a yes-verifier that returns true on verifyFraud and drain any
+        // sequencer's bond + revert any pending batch. Operator must call
+        // RegisterFraudVerifier post-deploy for every shipped verifier
+        // (GovernanceFraudVerifier, RestrictedExecutionFraudVerifier, …).
+        ExecutionEngine.Assert(IsApprovedFraudVerifier(fraudVerifier), "fraud verifier not approved");
 
         var deadlineKey = DeadlineKey(chainId, batchNumber);
         var rawDeadline = Storage.Get(deadlineKey);
@@ -252,6 +306,15 @@ public class OptimisticChallengeContract : SmartContract
     private static byte[] DeadlineKey(uint chainId, ulong batchNumber) => BuildKey(PrefixDeadline, chainId, batchNumber);
     private static byte[] AcceptedFraudKey(uint chainId, ulong batchNumber) => BuildKey(PrefixAcceptedFraud, chainId, batchNumber);
     private static byte[] SequencerKey(uint chainId, ulong batchNumber) => BuildKey(PrefixSequencer, chainId, batchNumber);
+
+    private static byte[] ApprovedVerifierKey(UInt160 verifier)
+    {
+        var k = new byte[1 + 20];
+        k[0] = PrefixApprovedVerifier;
+        var b = (byte[])verifier;
+        for (var i = 0; i < 20; i++) k[1 + i] = b[i];
+        return k;
+    }
 
     private static byte[] BuildKey(byte prefix, uint chainId, ulong number)
     {

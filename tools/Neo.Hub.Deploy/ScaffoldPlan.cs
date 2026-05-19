@@ -288,20 +288,19 @@ public static class ScaffoldPlan
         }
         if (govFraudVerifier is not null && oc is not null)
         {
-            // Informational only — no on-chain wiring step. Challengers pass
-            // GovernanceFraudVerifier.Hash as the fraudVerifier argument when calling
-            // OptimisticChallenge.Challenge. Surface so operators know which hash to
-            // hand to challengers (or to embed in their CLI / front-end).
-            yield return $"# Note: for v1/v2 fraud proofs (governance arbitration), pass {govFraudVerifier.Name}.Hash as the `fraudVerifier` argument to OptimisticChallenge.Challenge.";
+            // REQUIRED — OptimisticChallenge gates Challenge() on an owner-managed
+            // verifier allowlist (added to defend against bond-drain by caller-supplied
+            // yes-verifiers). Operator MUST call RegisterFraudVerifier before any
+            // legitimate challenge against this verifier shape is accepted.
+            yield return $"{oc.Name}.RegisterFraudVerifier({govFraudVerifier.Name})  # allowlist v1/v2 governance-arbitration verifier";
+            yield return $"# Note: challengers pass {govFraudVerifier.Name}.Hash as the `fraudVerifier` argument to {oc.Name}.Challenge for v1/v2 fraud proofs (governance arbitration).";
         }
         if (rexFraudVerifier is not null && oc is not null)
         {
-            // Same informational shape as GovernanceFraudVerifier above. The two
-            // verifiers are peers — operators pick which to invoke per-challenge
-            // based on whether they're filing a v1/v2 (governance) or v3 (trustless)
-            // FraudProofPayload. Both can be deployed simultaneously since
-            // OptimisticChallenge.Challenge takes the verifier hash as a parameter.
-            yield return $"# Note: for v3 fraud proofs (trustless storage-proof re-derivation), pass {rexFraudVerifier.Name}.Hash as the `fraudVerifier` argument to OptimisticChallenge.Challenge.";
+            // Same shape as GovernanceFraudVerifier above — both verifiers are peers
+            // and both must be allowlisted before they can be invoked through Challenge.
+            yield return $"{oc.Name}.RegisterFraudVerifier({rexFraudVerifier.Name})  # allowlist v3 trustless storage-proof verifier";
+            yield return $"# Note: challengers pass {rexFraudVerifier.Name}.Hash as the `fraudVerifier` argument to {oc.Name}.Challenge for v3 fraud proofs (trustless storage-proof re-derivation).";
         }
 
         // ─── External-bridge wiring ──────────────────────────────────────

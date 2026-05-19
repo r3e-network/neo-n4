@@ -398,10 +398,10 @@ public class UT_DeployPlanner
         var bundle = DeployPlanner.Plan(plan, name => H((byte)(name.Length & 0xFF)));
         var actions = ScaffoldPlan.PostDeployActions(bundle).ToList();
         // 5 original (Phase 0-3) + 3 ZK native-verifier wiring hints +
+        // 2 RegisterFraudVerifier wiring + 2 fraud-verifier informational notes +
         // 3 external-bridge gov/setup hints +
-        // 2 Phase-C wiring hints (RegisterSlasher + RegisterCommitteeWithMembers
-        // pointer) + 3 DA/filter production wiring hints = 16.
-        Assert.AreEqual(16, actions.Count);
+        // 2 Phase-C wiring hints + 3 DA/filter production wiring hints = 18.
+        Assert.AreEqual(18, actions.Count);
 
         // 1. SequencerBond.RegisterSlasher(OptimisticChallenge) — Phase-3 cycle-break.
         StringAssert.Contains(actions[0], "SequencerBond.RegisterSlasher");
@@ -427,40 +427,48 @@ public class UT_DeployPlanner
         StringAssert.Contains(actions[5], "ProofType.Zk");
         StringAssert.Contains(actions[5], "NativeZkVerifier");
 
-        // 4. Informational: pass GovernanceFraudVerifier hash to OptimisticChallenge.Challenge (v1/v2).
+        // 7. OptimisticChallenge.RegisterFraudVerifier(GovernanceFraudVerifier) — allowlist gate.
+        StringAssert.Contains(actions[6], "OptimisticChallenge.RegisterFraudVerifier");
         StringAssert.Contains(actions[6], "GovernanceFraudVerifier");
-        StringAssert.Contains(actions[6], "fraudVerifier");
-        StringAssert.Contains(actions[6], "OptimisticChallenge.Challenge");
-        StringAssert.Contains(actions[6], "v1/v2");
 
-        // 5. Informational: pass RestrictedExecutionFraudVerifier hash to OptimisticChallenge.Challenge (v3 trustless).
-        StringAssert.Contains(actions[7], "RestrictedExecutionFraudVerifier");
+        // 8. Informational: pass GovernanceFraudVerifier hash to OptimisticChallenge.Challenge (v1/v2).
+        StringAssert.Contains(actions[7], "GovernanceFraudVerifier");
         StringAssert.Contains(actions[7], "fraudVerifier");
         StringAssert.Contains(actions[7], "OptimisticChallenge.Challenge");
-        StringAssert.Contains(actions[7], "v3");
+        StringAssert.Contains(actions[7], "v1/v2");
 
-        // 6. MpcCommitteeVerifier.SetGovernanceController(GovernanceController) — bridge committee gov.
-        StringAssert.Contains(actions[8], "MpcCommitteeVerifier.SetGovernanceController");
-        StringAssert.Contains(actions[8], "GovernanceController");
-        StringAssert.Contains(actions[8], "RegisterCommitteeViaProposal");
+        // 9. OptimisticChallenge.RegisterFraudVerifier(RestrictedExecutionFraudVerifier) — allowlist gate.
+        StringAssert.Contains(actions[8], "OptimisticChallenge.RegisterFraudVerifier");
+        StringAssert.Contains(actions[8], "RestrictedExecutionFraudVerifier");
 
-        // 7. ExternalBridgeRegistry.SetGovernanceController(GovernanceController) — bridge verifier upgrade gov.
-        StringAssert.Contains(actions[9], "ExternalBridgeRegistry.SetGovernanceController");
-        StringAssert.Contains(actions[9], "GovernanceController");
-        StringAssert.Contains(actions[9], "UpgradeVerifierViaProposal");
+        // 10. Informational: pass RestrictedExecutionFraudVerifier hash to OptimisticChallenge.Challenge (v3 trustless).
+        StringAssert.Contains(actions[9], "RestrictedExecutionFraudVerifier");
+        StringAssert.Contains(actions[9], "fraudVerifier");
+        StringAssert.Contains(actions[9], "OptimisticChallenge.Challenge");
+        StringAssert.Contains(actions[9], "v3");
 
-        // 8. Per-foreign-chain committee setup pointer.
-        StringAssert.Contains(actions[10], "neo-external-bridge");
-        StringAssert.Contains(actions[10], "RegisterVerifier");
-        StringAssert.Contains(actions[10], "0xE0000001");
+        // 11. MpcCommitteeVerifier.SetGovernanceController(GovernanceController) — bridge committee gov.
+        StringAssert.Contains(actions[10], "MpcCommitteeVerifier.SetGovernanceController");
+        StringAssert.Contains(actions[10], "GovernanceController");
+        StringAssert.Contains(actions[10], "RegisterCommitteeViaProposal");
 
-        // 9. Phase-C: ExternalBridgeBond.RegisterSlasher(MpcCommitteeFraudVerifier).
-        StringAssert.Contains(actions[11], "ExternalBridgeBond.RegisterSlasher");
-        StringAssert.Contains(actions[11], "MpcCommitteeFraudVerifier");
+        // 12. ExternalBridgeRegistry.SetGovernanceController(GovernanceController) — bridge verifier upgrade gov.
+        StringAssert.Contains(actions[11], "ExternalBridgeRegistry.SetGovernanceController");
+        StringAssert.Contains(actions[11], "GovernanceController");
+        StringAssert.Contains(actions[11], "UpgradeVerifierViaProposal");
 
-        // 10. Phase-C: per-chain RegisterCommitteeWithMembers pointer.
-        StringAssert.Contains(actions[12], "RegisterCommitteeWithMembers");
-        StringAssert.Contains(actions[12], "MpcCommitteeFraudVerifier");
+        // 13. Per-foreign-chain committee setup pointer.
+        StringAssert.Contains(actions[12], "neo-external-bridge");
+        StringAssert.Contains(actions[12], "RegisterVerifier");
+        StringAssert.Contains(actions[12], "0xE0000001");
+
+        // 14. Phase-C: ExternalBridgeBond.RegisterSlasher(MpcCommitteeFraudVerifier).
+        StringAssert.Contains(actions[13], "ExternalBridgeBond.RegisterSlasher");
+        StringAssert.Contains(actions[13], "MpcCommitteeFraudVerifier");
+
+        // 15. Phase-C: per-chain RegisterCommitteeWithMembers pointer.
+        StringAssert.Contains(actions[14], "RegisterCommitteeWithMembers");
+        StringAssert.Contains(actions[14], "MpcCommitteeFraudVerifier");
     }
 
     [TestMethod]
@@ -482,12 +490,19 @@ public class UT_DeployPlanner
         };
         var bundle = DeployPlanner.Plan(custom, name => H(0xAA));
         var actions = ScaffoldPlan.PostDeployActions(bundle).ToList();
-        Assert.AreEqual(1, actions.Count);
+        // 2 actions: allowlist register + informational note. Both reference the v3 verifier;
+        // neither references the v1/v2 GovernanceFraudVerifier (which is not in this plan).
+        Assert.AreEqual(2, actions.Count);
+        StringAssert.Contains(actions[0], "OptimisticChallenge.RegisterFraudVerifier");
         StringAssert.Contains(actions[0], "RestrictedExecutionFraudVerifier");
-        StringAssert.Contains(actions[0], "v3");
-        // v1/v2 note must NOT be present.
-        Assert.IsFalse(actions[0].Contains("GovernanceFraudVerifier"),
-            "v1/v2 note must not be emitted when only v3 verifier is in the bundle");
+        StringAssert.Contains(actions[1], "RestrictedExecutionFraudVerifier");
+        StringAssert.Contains(actions[1], "v3");
+        // v1/v2 note must NOT be present in either action.
+        foreach (var action in actions)
+        {
+            Assert.IsFalse(action.Contains("GovernanceFraudVerifier"),
+                "v1/v2 verifier must not appear when only v3 verifier is in the bundle");
+        }
     }
 
     [TestMethod]

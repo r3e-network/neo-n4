@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Neo N4 Experience Hub</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="hub-shell">
+    <aside class="side-rail" aria-label="Experience navigation">
+      <a class="brand" href="./index.html" aria-label="Neo N4 Experience Hub">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>Neo N4 Experience Hub</span>
+      </a>
+      <nav class="workspace-nav" data-workspace-nav></nav>
+      <div class="rail-footer">
+        <a href="../interactive-runtime/index.html">Runtime Theater</a>
+        <a href="../neohub-architecture-and-workflows.md">NeoHub workflows</a>
+        <a href="../core-fork-policy.md">Core fork policy</a>
+      </div>
+    </aside>
+
+    <section class="main-area">
+      <header class="top-status" data-top-status></header>
+
+      <section class="workspace-strip">
+        <div>
+          <h1 data-workspace-title></h1>
+          <p data-workspace-summary></p>
+        </div>
+        <div class="boundary-pill" data-public-boundary></div>
+      </section>
+
+      <section class="content-grid">
+        <section class="architecture-panel" aria-label="N4 architecture and dataflow">
+          <div class="panel-heading">
+            <div>
+              <h2>N4 Layer-2 Stack Architecture & Dataflow</h2>
+              <p>End-to-end flow from L1 to L2 with data availability and verification.</p>
+            </div>
+            <button class="secondary-button" type="button" data-action="reset-node">View NeoHub</button>
+          </div>
+          <div class="architecture-map" data-architecture-map></div>
+        </section>
+
+        <aside class="inspector-panel" aria-label="Validation evidence">
+          <div class="panel-heading">
+            <div>
+              <h2>Validation Evidence</h2>
+              <p data-evidence-scope></p>
+            </div>
+            <span class="status-badge" data-evidence-status></span>
+          </div>
+          <div class="node-inspector" data-node-inspector></div>
+          <div class="evidence-list" data-evidence-list></div>
+        </aside>
+      </section>
+
+      <section class="bottom-grid">
+        <section class="timeline-panel" aria-label="Report timeline">
+          <div class="panel-heading compact">
+            <h2>Report Timeline</h2>
+            <span>v1 report schemas</span>
+          </div>
+          <ol data-report-timeline></ol>
+        </section>
+
+        <section class="summary-panel">
+          <div class="panel-heading compact">
+            <h2>Report Schema Status</h2>
+            <span>redacted local data</span>
+          </div>
+          <dl data-schema-summary></dl>
+        </section>
+
+        <section class="summary-panel">
+          <div class="panel-heading compact">
+            <h2>Test Evidence Summary</h2>
+            <span>private devnet sample</span>
+          </div>
+          <dl data-test-summary></dl>
+        </section>
+      </section>
+    </section>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

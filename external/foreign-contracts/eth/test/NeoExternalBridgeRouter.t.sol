@@ -54,9 +54,7 @@ contract BadERC20 {
     bytes public reentryProof;
     bool public attacked;
 
-    function arm(NeoExternalBridgeRouter _router, bytes memory _msg, bytes memory _proof)
-        external
-    {
+    function arm(NeoExternalBridgeRouter _router, bytes memory _msg, bytes memory _proof) external {
         router = _router;
         reentryMessage = _msg;
         reentryProof = _proof;
@@ -380,13 +378,11 @@ contract NeoExternalBridgeRouterTest is Test {
         // offset would read) differs visibly from byte 97 (the canonical messageType).
         // sourceTxRef bytes are 0x01..0x32 sequentially; sourceTxRef[16] = 0x17 lands at
         // absolute offset 81; messageType=AssetTransfer=0x00 lands at absolute offset 97.
-        bytes32 nonTrivialTxRef = bytes32(
-            uint256(0x0102030405060708091011121314151617181920212223242526272829303132)
-        );
+        bytes32 nonTrivialTxRef =
+            bytes32(uint256(0x0102030405060708091011121314151617181920212223242526272829303132));
 
-        bytes memory msgBytes = _buildTransferMessageWithTxRef(
-            42, recipient, address(0), 1 ether, 0, nonTrivialTxRef
-        );
+        bytes memory msgBytes =
+            _buildTransferMessageWithTxRef(42, recipient, address(0), 1 ether, 0, nonTrivialTxRef);
 
         // Sanity-check the offset arithmetic so the test is self-explanatory.
         assertEq(uint8(msgBytes[65]), 0x01, "sourceTxRef starts at offset 65");
@@ -637,16 +633,14 @@ contract NeoExternalBridgeRouterTest is Test {
     // ─── messageType dispatch (v0 only supports AssetTransfer) ───────────
 
     function test_FinalizeWithdrawal_RejectsMessageTypeCall() public {
-        bytes memory msgBytes =
-            _buildMessageWithType(50, address(0xBEEF), address(0), 0.5 ether, 1); // Call
+        bytes memory msgBytes = _buildMessageWithType(50, address(0xBEEF), address(0), 0.5 ether, 1); // Call
         bytes memory proof = _proofFromTwo(msgBytes);
         vm.expectRevert("messageType not yet supported");
         router.finalizeWithdrawal(msgBytes, proof);
     }
 
     function test_FinalizeWithdrawal_RejectsMessageTypeAssetAndCall() public {
-        bytes memory msgBytes =
-            _buildMessageWithType(51, address(0xBEEF), address(0), 0.5 ether, 2); // AssetAndCall
+        bytes memory msgBytes = _buildMessageWithType(51, address(0xBEEF), address(0), 0.5 ether, 2); // AssetAndCall
         bytes memory proof = _proofFromTwo(msgBytes);
         vm.expectRevert("messageType not yet supported");
         router.finalizeWithdrawal(msgBytes, proof);
@@ -655,8 +649,7 @@ contract NeoExternalBridgeRouterTest is Test {
     function test_FinalizeWithdrawal_RejectsUnknownMessageType() public {
         // Type > 2: the unreachable `else` branch. Same revert string — defense in depth
         // ensures a future enum extension that forgets to add a dispatch arm still aborts.
-        bytes memory msgBytes =
-            _buildMessageWithType(52, address(0xBEEF), address(0), 0.5 ether, 7);
+        bytes memory msgBytes = _buildMessageWithType(52, address(0xBEEF), address(0), 0.5 ether, 7);
         bytes memory proof = _proofFromTwo(msgBytes);
         vm.expectRevert("messageType not yet supported");
         router.finalizeWithdrawal(msgBytes, proof);
@@ -701,8 +694,7 @@ contract NeoExternalBridgeRouterTest is Test {
         vm.deal(address(this), 0.5 ether);
         router.lockETHAndSend{value: 0.5 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
 
-        bytes memory msgBytes =
-            _buildTransferMessage(54, address(0xBEEF), address(0), 1 ether, 0);
+        bytes memory msgBytes = _buildTransferMessage(54, address(0xBEEF), address(0), 1 ether, 0);
         bytes memory proof = _proofFromTwo(msgBytes);
         vm.expectRevert("amount exceeds locked balance");
         router.finalizeWithdrawal(msgBytes, proof);
@@ -714,8 +706,7 @@ contract NeoExternalBridgeRouterTest is Test {
         vm.deal(address(this), 1 ether);
         router.lockETHAndSend{value: 1 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
 
-        bytes memory msgBytes =
-            _buildTransferMessage(55, address(0xBEEF), address(0), 0.5 ether, 0);
+        bytes memory msgBytes = _buildTransferMessage(55, address(0xBEEF), address(0), 0.5 ether, 0);
 
         // Build a proof with v=27, r=0, s=0 — ecrecover returns address(0) on these
         // sentinel "malformed" inputs, which the contract must reject.
@@ -741,8 +732,7 @@ contract NeoExternalBridgeRouterTest is Test {
         vm.deal(address(this), 1 ether);
         router.lockETHAndSend{value: 1 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
 
-        bytes memory msgBytes =
-            _buildTransferMessage(56, address(0xBEEF), address(0), 0.5 ether, 0);
+        bytes memory msgBytes = _buildTransferMessage(56, address(0xBEEF), address(0), 0.5 ether, 0);
         // committee.length = 3; claim idx 99.
         (uint8 v0, bytes32 r0, bytes32 s0) = _signBy(priv0, msgBytes);
         (uint8 v1, bytes32 r1, bytes32 s1) = _signBy(priv1, msgBytes);
@@ -768,8 +758,7 @@ contract NeoExternalBridgeRouterTest is Test {
         vm.deal(address(this), 1 ether);
         router.lockETHAndSend{value: 1 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
 
-        bytes memory msgBytes =
-            _buildTransferMessage(57, address(0xBEEF), address(0), 0.5 ether, 0);
+        bytes memory msgBytes = _buildTransferMessage(57, address(0xBEEF), address(0), 0.5 ether, 0);
         // committee.length = 3; claim 4 sigs (one over). _verifyQuorum requires
         // sigCount <= committeeLen.
         (uint8 v0, bytes32 r0, bytes32 s0) = _signBy(priv0, msgBytes);
@@ -806,8 +795,7 @@ contract NeoExternalBridgeRouterTest is Test {
         vm.deal(address(this), 1 ether);
         router.lockETHAndSend{value: 1 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
 
-        bytes memory msgBytes =
-            _buildTransferMessage(58, address(0xBEEF), address(0), 0.5 ether, 0);
+        bytes memory msgBytes = _buildTransferMessage(58, address(0xBEEF), address(0), 0.5 ether, 0);
 
         // Declare sigCount=2 (LE) but only ship 1 signature worth of data
         // (66 bytes instead of 2 × 66). _verifyQuorum requires the framing to match.

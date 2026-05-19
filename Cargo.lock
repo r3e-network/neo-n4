@@ -2194,6 +2194,7 @@ name = "neo-zkvm-host"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "libc",
  "neo-zkvm-guest",
  "serial_test",
  "sp1-sdk",

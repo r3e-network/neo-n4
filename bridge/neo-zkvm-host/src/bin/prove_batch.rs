@@ -18,7 +18,44 @@
 
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
+
+/// Set by the SIGTERM/SIGINT handler. The daemon loop checks this at the
+/// top of every iteration and inside `interruptible_sleep` so a shutdown
+/// signal lands cleanly even mid-poll. Proofs in progress are NOT interrupted
+/// — they complete first (proof time is bounded), and then the loop exits.
+static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
+
+extern "C" fn shutdown_signal_handler(_sig: i32) {
+    SHUTDOWN_REQUESTED.store(true, Ordering::Relaxed);
+}
+
+fn install_shutdown_signal_handlers() {
+    // SAFETY: libc::signal is the standard POSIX shape; the handler is
+    // marked `extern "C"` and only touches an AtomicBool (signal-safe).
+    // The `as *const () as libc::sighandler_t` two-step is the rustc-recommended
+    // cast (a direct function-item-as-integer cast is a `function_casts_as_integer`
+    // warning).
+    unsafe {
+        libc::signal(libc::SIGTERM, shutdown_signal_handler as *const () as libc::sighandler_t);
+        libc::signal(libc::SIGINT, shutdown_signal_handler as *const () as libc::sighandler_t);
+    }
+}
+
+/// Sleep up to `dur`, but wake every 100ms to check for shutdown.
+fn interruptible_sleep(dur: Duration) {
+    let step = Duration::from_millis(100);
+    let mut remaining = dur;
+    while remaining > Duration::ZERO {
+        if SHUTDOWN_REQUESTED.load(Ordering::Relaxed) {
+            return;
+        }
+        let slice = remaining.min(step);
+        std::thread::sleep(slice);
+        remaining = remaining.saturating_sub(slice);
+    }
+}
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -144,7 +181,17 @@ fn run_daemon(args: &[String]) {
             .unwrap_or_else(|| "<rename in place>".to_string())
     );
 
+    // Install SIGTERM/SIGINT handlers so a k8s/systemd shutdown lands
+    // cleanly. An in-flight proof completes first (sp1 prove is bounded
+    // wall-time, no interrupt point inside it); the next loop iteration
+    // sees the flag and exits.
+    install_shutdown_signal_handlers();
+
     loop {
+        if SHUTDOWN_REQUESTED.load(Ordering::Relaxed) {
+            eprintln!("prove-batch daemon: shutdown signal received — exiting cleanly");
+            return;
+        }
         match scan_once(&cfg) {
             Ok(processed) => {
                 if processed > 0 {
@@ -155,7 +202,7 @@ fn run_daemon(args: &[String]) {
                 eprintln!("scan error: {}", e);
             }
         }
-        std::thread::sleep(Duration::from_secs(cfg.poll_secs));
+        interruptible_sleep(Duration::from_secs(cfg.poll_secs));
     }
 }
 

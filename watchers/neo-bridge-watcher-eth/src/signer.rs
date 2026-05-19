@@ -11,6 +11,7 @@ use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
 use sha2::{Digest, Sha256};
 use std::path::Path;
 use thiserror::Error;
+use zeroize::Zeroizing;
 
 #[derive(Debug, Error)]
 pub enum SignerError {
@@ -70,7 +71,10 @@ pub struct FileSigner {
 impl FileSigner {
     /// Load a 32-byte raw private key from `path`.
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, SignerError> {
-        let bytes = std::fs::read(path)?;
+        // Wrap the read buffer in Zeroizing so the raw key bytes get wiped from
+        // the call frame's memory after construction — only the parsed SigningKey
+        // (which has its own ZeroizeOnDrop semantics) holds the secret afterwards.
+        let bytes = Zeroizing::new(std::fs::read(path)?);
         Self::from_bytes(&bytes)
     }
 
@@ -112,6 +116,16 @@ impl Signer for FileSigner {
             .sk
             .sign_prehash_recoverable(&digest)
             .map_err(|e| SignerError::Signing(format!("{}", e)))?;
+        // Defensive low-S normalization. k256's `sign_prehash_recoverable` already
+        // returns the low-S form per its post-EIP-2 default; we re-normalize so
+        // any future signer-backend swap (HSM/KMS adapters that route through the
+        // same trait) inherits the canonical-S guarantee on this side rather than
+        // depending on the backend's policy. The recovery id is flipped if S was
+        // already high (it never is for k256, but this keeps the invariant tight).
+        let (sig, recid) = match sig.normalize_s() {
+            Some(normalized) => (normalized, RecoveryId::from_byte(u8::from(recid) ^ 1).unwrap_or(recid)),
+            None => (sig, recid),
+        };
         let bytes = sig.to_bytes();
         let mut signature = [0u8; 64];
         signature[..32].copy_from_slice(&bytes[..32]);

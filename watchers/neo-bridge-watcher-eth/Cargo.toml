@@ -22,6 +22,11 @@ required-features = ["live-rpc"]
 # secp256k1 ECDSA (used by both Eth and Neo verifiers — same curve, same hash).
 k256 = { version = "0.13", features = ["ecdsa", "sha2"] }
 sha2 = "0.10"
+# Zero the read-buffer + signing-key bytes after use so a core dump or
+# memory-disclosure bug can't leak the signing key. k256's SigningKey is
+# already ZeroizeOnDrop internally; the wrapper here is for the read buffer
+# in FileSigner::from_file and any in-flight key material on the call frame.
+zeroize = { version = "1.8", features = ["derive"] }
 # Compact error types for the watcher's failure modes.
 thiserror = "2.0"
 hex = "0.4"

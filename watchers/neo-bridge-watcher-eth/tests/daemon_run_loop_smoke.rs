@@ -210,10 +210,13 @@ fn daemon_run_loop_starts_polls_and_shuts_down_on_sigterm() {
     let _ = std::fs::remove_dir_all(&journal_dir);
     let (_tmp, cfg_path) = build_test_config(&eth.url, &neo.url, &journal_dir);
 
-    // Spawn the daemon binary.
+    // Spawn the daemon binary. --allow-stub-signer is required: the daemon refuses
+    // to start with the built-in stub signer otherwise (so production deployments
+    // can't silently no-op submissions). The smoke test only exercises the run-loop
+    // signal-handling shape, so the stub is fine here.
     let exe = env!("CARGO_BIN_EXE_neo-bridge-watcher-eth");
     let mut child = Command::new(exe)
-        .args(["--config", cfg_path.to_str().unwrap()])
+        .args(["--config", cfg_path.to_str().unwrap(), "--allow-stub-signer"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()

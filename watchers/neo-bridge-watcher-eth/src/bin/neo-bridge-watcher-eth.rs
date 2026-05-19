@@ -187,7 +187,7 @@ fn main() -> ExitCode {
         }
     }
 
-    match run(config) {
+    match run(config, parsed.allow_stub_signer) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("fatal: {e}");
@@ -200,6 +200,7 @@ struct ParsedArgs {
     config_path: PathBuf,
     preflight: bool,
     journal_info: bool,
+    allow_stub_signer: bool,
 }
 
 fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
@@ -227,6 +228,7 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
     let mut config_path: Option<PathBuf> = None;
     let mut preflight = false;
     let mut journal_info = false;
+    let mut allow_stub_signer = false;
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
@@ -245,9 +247,13 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
                 journal_info = true;
                 i += 1;
             }
+            "--allow-stub-signer" => {
+                allow_stub_signer = true;
+                i += 1;
+            }
             other => {
                 return Err(format!(
-                    "unexpected argument `{other}` (valid: --config <path>, --preflight, --journal-info, --config-template, --help, --version)"
+                    "unexpected argument `{other}` (valid: --config <path>, --preflight, --journal-info, --allow-stub-signer, --config-template, --help, --version)"
                 ));
             }
         }
@@ -259,6 +265,7 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
         config_path,
         preflight,
         journal_info,
+        allow_stub_signer,
     })
 }
 
@@ -277,6 +284,12 @@ fn print_usage() {
            --config-template   Print a starter TOML config to stdout + exit.\n\
                                Pipe to a file: `... --config-template > watcher.toml`\n\
                                then edit placeholders + run --preflight.\n\
+           --allow-stub-signer Run with the built-in stub signer (DOES NOT submit\n\
+                               real Neo transactions — emits the script hex for\n\
+                               an external signed-tx flow). Required to start the\n\
+                               daemon without a production HSM/KMS-backed signer;\n\
+                               the daemon refuses to start otherwise so an operator\n\
+                               can't silently no-op submissions in production.\n\
            --version, -V       Print version + exit.\n\
            --help, -h          Print this help + exit.\n\
          \n\
@@ -799,7 +812,25 @@ fn load_config(path: &PathBuf) -> Result<Config, String> {
     toml::from_str(&text).map_err(|e| format!("parse {}: {e}", path.display()))
 }
 
-fn run(config: Config) -> Result<(), String> {
+fn run(config: Config, allow_stub_signer: bool) -> Result<(), String> {
+    // Refuse to start with the built-in stub signer unless the operator explicitly
+    // opted in with --allow-stub-signer. Otherwise an operator who forgets to wire a
+    // real HSM/KMS-backed signer would silently no-op every "submission" (the stub
+    // emits the script hex but never actually sends the Neo tx), and the journal
+    // would advance as if everything was fine. Force a loud, hard fail at startup
+    // instead. See the StubSignAndSend definition below for the v0 stub shape.
+    if !allow_stub_signer {
+        return Err(
+            "this binary ships with a STUB signer that does NOT submit real Neo \
+             transactions — refusing to start. Either replace the signer wiring in \
+             src/bin/neo-bridge-watcher-eth.rs with a real HSM/KMS impl, or pass \
+             --allow-stub-signer to acknowledge the no-op submission flow (operator \
+             runs their own signed-tx submission against the script hex from the \
+             stub log lines)."
+                .into(),
+        );
+    }
+
     let signer = FileSigner::from_file(&config.signer_key_path)
         .map_err(|e| format!("load signer key: {e:?}"))?;
     let event_source =
@@ -901,12 +932,22 @@ fn run(config: Config) -> Result<(), String> {
                 // again to drain the queue.
                 health_state.record_tick(true);
                 health_state.record_submission();
+                // Surface the freshly-advanced journal cursor on the /metrics gauge
+                // so operators can alert on "watcher fell behind" against a known-good
+                // last value. Best-effort read — a journal IO error here is a far
+                // bigger problem already surfaced through the tick's main path.
+                if let Ok(cursor) = core.journal.cursor() {
+                    health_state.record_cursor(cursor);
+                }
                 backoff_secs = config.poll.backoff_initial_secs;
                 continue;
             }
             Ok(false) => {
                 // No new events — sleep one poll interval.
                 health_state.record_tick(false);
+                if let Ok(cursor) = core.journal.cursor() {
+                    health_state.record_cursor(cursor);
+                }
                 backoff_secs = config.poll.backoff_initial_secs;
                 interruptible_sleep(Duration::from_secs(config.poll.poll_interval_secs));
             }
@@ -916,17 +957,28 @@ fn run(config: Config) -> Result<(), String> {
                 // continue without sleeping.
                 eprintln!("info: nonce {nonce} already submitted (journal hit, advancing)");
                 health_state.record_tick(false);
+                if let Ok(cursor) = core.journal.cursor() {
+                    health_state.record_cursor(cursor);
+                }
             }
             Err(CoreError::Submit(submit_err)) => {
-                eprintln!("warn: submit failed: {submit_err:?} — backing off {backoff_secs}s");
+                let delay = jittered_backoff(backoff_secs);
+                eprintln!(
+                    "warn: submit failed: {submit_err:?} — backing off {}s",
+                    delay.as_secs()
+                );
                 health_state.record_error(format!("submit: {submit_err:?}"));
-                interruptible_sleep(Duration::from_secs(backoff_secs));
+                interruptible_sleep(delay);
                 backoff_secs = (backoff_secs * 2).min(config.poll.backoff_max_secs);
             }
             Err(CoreError::EventSource(es_err)) => {
-                eprintln!("warn: event source: {es_err:?} — backing off {backoff_secs}s");
+                let delay = jittered_backoff(backoff_secs);
+                eprintln!(
+                    "warn: event source: {es_err:?} — backing off {}s",
+                    delay.as_secs()
+                );
                 health_state.record_error(format!("event_source: {es_err:?}"));
-                interruptible_sleep(Duration::from_secs(backoff_secs));
+                interruptible_sleep(delay);
                 backoff_secs = (backoff_secs * 2).min(config.poll.backoff_max_secs);
             }
             Err(other) => {
@@ -935,13 +987,38 @@ fn run(config: Config) -> Result<(), String> {
                 // wrong. Log loudly but DON'T crash; retrying gives a
                 // human time to fix the config without losing the
                 // daemon process.
-                eprintln!("error: unrecoverable-looking: {other:?} — backing off {backoff_secs}s");
+                let delay = jittered_backoff(backoff_secs);
+                eprintln!(
+                    "error: unrecoverable-looking: {other:?} — backing off {}s",
+                    delay.as_secs()
+                );
                 health_state.record_error(format!("{other:?}"));
-                interruptible_sleep(Duration::from_secs(backoff_secs));
+                interruptible_sleep(delay);
                 backoff_secs = (backoff_secs * 2).min(config.poll.backoff_max_secs);
             }
         }
     }
+}
+
+/// Returns the backoff duration with ±25% jitter applied (uniform). Multiple watchers
+/// hitting the same RPC endpoint would otherwise herd: simultaneous failure → all double
+/// their backoff identically → simultaneous retry → re-thunder. The jitter spreads
+/// retry attempts across a ~half-width-of-the-backoff window, breaking the herd.
+/// Pseudo-randomness is sourced from the system clock's nanosecond fraction, which is
+/// sufficient operational entropy — no crypto here, just back-off scheduling.
+fn jittered_backoff(secs: u64) -> Duration {
+    if secs == 0 {
+        return Duration::ZERO;
+    }
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0) as u64;
+    // Window [secs*3/4, secs*5/4]; saturating-arithmetic so a giant `secs` doesn't wrap.
+    let lo = secs.saturating_mul(3) / 4;
+    let hi = secs.saturating_mul(5) / 4;
+    let range = hi.saturating_sub(lo).max(1);
+    Duration::from_secs(lo + (nanos % range))
 }
 
 /// v0 stub: emits a clear warning + returns a synthetic tx hash so the

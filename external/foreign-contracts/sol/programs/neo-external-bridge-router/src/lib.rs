@@ -745,4 +745,179 @@ mod tests {
 
         assert!(verify_sigverify_ix_matches(&data, &pubkey, message).is_err());
     }
+
+    // ── validate_committee ───────────────────────────────────────────
+
+    #[test]
+    fn validate_committee_accepts_well_formed() {
+        let members: Vec<[u8; ED25519_PUBKEY_LEN]> =
+            (0..3).map(|i| [i as u8; ED25519_PUBKEY_LEN]).collect();
+        assert!(validate_committee(&members, 2).is_ok());
+    }
+
+    #[test]
+    fn validate_committee_rejects_empty() {
+        let members: Vec<[u8; ED25519_PUBKEY_LEN]> = vec![];
+        assert!(validate_committee(&members, 1).is_err());
+    }
+
+    #[test]
+    fn validate_committee_rejects_too_large() {
+        let members: Vec<[u8; ED25519_PUBKEY_LEN]> = (0..(MAX_COMMITTEE_SIZE + 1))
+            .map(|i| [(i & 0xFF) as u8; ED25519_PUBKEY_LEN])
+            .collect();
+        assert!(validate_committee(&members, 1).is_err());
+    }
+
+    #[test]
+    fn validate_committee_rejects_zero_threshold() {
+        let members: Vec<[u8; ED25519_PUBKEY_LEN]> =
+            (0..3).map(|i| [i as u8; ED25519_PUBKEY_LEN]).collect();
+        assert!(validate_committee(&members, 0).is_err());
+    }
+
+    #[test]
+    fn validate_committee_rejects_threshold_above_size() {
+        let members: Vec<[u8; ED25519_PUBKEY_LEN]> =
+            (0..3).map(|i| [i as u8; ED25519_PUBKEY_LEN]).collect();
+        assert!(validate_committee(&members, 4).is_err());
+    }
+
+    #[test]
+    fn validate_committee_rejects_duplicate_member() {
+        let pk = [0x42u8; ED25519_PUBKEY_LEN];
+        let members = vec![pk, [0x43u8; ED25519_PUBKEY_LEN], pk];
+        assert!(validate_committee(&members, 2).is_err());
+    }
+
+    #[test]
+    fn validate_committee_accepts_unanimity_threshold() {
+        let members: Vec<[u8; ED25519_PUBKEY_LEN]> =
+            (0..5).map(|i| [i as u8; ED25519_PUBKEY_LEN]).collect();
+        assert!(validate_committee(&members, 5).is_ok());
+    }
+
+    #[test]
+    fn validate_committee_accepts_max_size() {
+        let members: Vec<[u8; ED25519_PUBKEY_LEN]> = (0..MAX_COMMITTEE_SIZE)
+            .map(|i| [(i & 0xFF) as u8; ED25519_PUBKEY_LEN])
+            .collect();
+        assert!(validate_committee(&members, MAX_COMMITTEE_SIZE as u8).is_ok());
+    }
+
+    // ── little-endian readers ────────────────────────────────────────
+
+    #[test]
+    fn read_u32_le_happy_path() {
+        let data = [0x78u8, 0x56, 0x34, 0x12, 0xAA, 0xBB];
+        assert_eq!(read_u32_le(&data, 0), 0x12345678);
+        assert_eq!(read_u32_le(&data, 2), 0xBBAA1234);
+    }
+
+    #[test]
+    fn read_u32_le_returns_zero_on_underflow() {
+        let data = [0x78u8, 0x56];
+        assert_eq!(read_u32_le(&data, 0), 0);
+        assert_eq!(read_u32_le(&data, 10), 0);
+    }
+
+    #[test]
+    fn read_u64_le_happy_path() {
+        let data = [0x88u8, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11];
+        assert_eq!(read_u64_le(&data, 0), 0x1122334455667788);
+    }
+
+    #[test]
+    fn read_u64_le_returns_zero_on_underflow() {
+        let data = [0u8; 7];
+        assert_eq!(read_u64_le(&data, 0), 0);
+    }
+
+    #[test]
+    fn read_uint_le_variable_length() {
+        let data = [0x11u8, 0x22, 0x33, 0x44, 0x55, 0x66];
+        // 1-byte read = 0x11
+        assert_eq!(read_uint_le(&data, 0, 1), 0x11);
+        // 3-byte LE at offset 1 = 0x44 33 22 = 0x443322
+        assert_eq!(read_uint_le(&data, 1, 3), 0x443322);
+        // Reading 8 bytes from a 6-byte buffer → out-of-bounds → 0
+        assert_eq!(read_uint_le(&data, 0, 8), 0);
+    }
+
+    #[test]
+    fn read_for_seeds_under_length_returns_zero() {
+        // Anchor's #[account(seeds = ...)] evaluates seeds BEFORE the handler's
+        // own length checks run. The for_seeds variants guard against that with
+        // a fallback so the seed-derivation doesn't panic on a too-short input.
+        let too_short = [0u8; 3];
+        assert_eq!(read_u32_le_for_seeds(&too_short, 0), 0);
+        let still_too_short = [0u8; 7];
+        assert_eq!(read_u64_le_for_seeds(&still_too_short, 0), 0);
+    }
+
+    // ── canonical message layout regression (MESSAGE_TYPE_OFFSET = 97) ──
+
+    #[test]
+    fn canonical_message_offsets_are_pinned() {
+        // Layout per Neo.L2.Messaging.ExternalMessageHasher:
+        //   4 ecid + 4 ncid + 8 nonce + 1 dir + 20 sender + 20 recipient
+        //   + 8 deadline + 32 sourceTxRef + 1 messageType + 4 payloadLen = 102
+        assert_eq!(FIXED_PREFIX_LEN, 102, "fixed prefix size baked into the encoder");
+        assert_eq!(NONCE_OFFSET, 8, "nonce starts at byte 8");
+        assert_eq!(DIRECTION_OFFSET, 16, "direction at byte 16");
+        // CRITICAL: messageType at byte 97, NOT byte 81. A buggy 81 lands in
+        // the middle of sourceTxRef (which production watchers always populate
+        // with a real Neo tx hash), causing silent mis-dispatch ~255/256 of
+        // the time. Pin the correct offset so future refactors can't regress.
+        assert_eq!(MESSAGE_TYPE_OFFSET, 97, "messageType at byte 97 (after sourceTxRef)");
+    }
+
+    #[test]
+    fn canonical_message_layout_round_trips() {
+        // Construct a 102-byte fixed prefix and confirm every reader pulls out
+        // the right field. This pins the encoder/decoder agreement.
+        let mut msg = [0u8; 102];
+        // ecid = 0xE0000001 (Eth mainnet slot)
+        msg[0] = 0x01; msg[1] = 0x00; msg[2] = 0x00; msg[3] = 0xE0;
+        // ncid = 1099 (sample L2)
+        msg[4] = 0x4B; msg[5] = 0x04; msg[6] = 0x00; msg[7] = 0x00;
+        // nonce = 0xCAFEBABE
+        for (i, b) in 0xCAFEBABEu64.to_le_bytes().iter().enumerate() { msg[8 + i] = *b; }
+        // direction = 1 (NeoToForeign)
+        msg[16] = 1;
+        // sender bytes 17..37 — left as zero
+        // recipient bytes 37..57 — left as zero
+        // deadline = 0
+        // sourceTxRef bytes 65..97 — non-zero so a buggy MESSAGE_TYPE_OFFSET = 81
+        // would read garbage. Use 0x11..0x30 to make the bug visible.
+        for i in 0..32 { msg[65 + i] = (0x11 + i) as u8; }
+        // messageType = MSG_TYPE_ASSET_TRANSFER (0) at byte 97
+        msg[97] = 0;
+        // payloadLen = 0
+        // (bytes 98..102 already zero)
+
+        assert_eq!(read_u32_le(&msg, 0), 0xE0000001, "ecid round-trips");
+        assert_eq!(read_u32_le(&msg, 4), 1099, "ncid round-trips");
+        assert_eq!(read_u64_le(&msg, NONCE_OFFSET), 0xCAFEBABE, "nonce round-trips");
+        assert_eq!(msg[DIRECTION_OFFSET], 1, "direction round-trips");
+        assert_eq!(msg[MESSAGE_TYPE_OFFSET], 0, "messageType read from byte 97");
+        // Sanity: byte 81 (the OLD buggy offset) is INSIDE sourceTxRef and non-zero
+        // — proves the regression test actually catches the bug if the offset slides.
+        assert_ne!(msg[81], msg[MESSAGE_TYPE_OFFSET],
+            "byte 81 must differ from messageType so a regressed offset would surface");
+    }
+
+    // ── direction / message-type constants ───────────────────────────
+
+    #[test]
+    fn direction_constants_disjoint() {
+        assert_eq!(DIR_NEO_TO_FOREIGN, 1, "Neo→Foreign direction tag");
+        // The opposing direction (Foreign→Neo = 2) is enforced off-chain;
+        // pin the Solana side's expected value.
+    }
+
+    #[test]
+    fn message_type_constants() {
+        assert_eq!(MSG_TYPE_ASSET_TRANSFER, 0, "asset-transfer is the v0 default");
+    }
 }

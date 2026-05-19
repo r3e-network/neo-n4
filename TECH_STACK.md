@@ -76,7 +76,7 @@ Per-component detail lives in [`docs/tech-stack-coverage.md`](docs/tech-stack-co
 | Check | Result |
 |-------|--------|
 | .NET tests | **1453 passing across 34 projects, 0 failures** |
-| Cross-language tests | **170 passing** (16 TS + 10 Rust SDK + 5 shared execution-core + 7 SP1 guest + 103 watcher with `--features live-rpc` (87 eth + 7 tron + 9 sol) + 25 Foundry (18 single + 7 multi) + 4 Solana router) |
+| Cross-language tests | **188 passing** (16 TS + 10 Rust SDK + 5 shared execution-core + 7 SP1 guest + 103 watcher with `--features live-rpc` (87 eth + 7 tron + 9 sol) + 25 Foundry (18 single + 7 multi) + 22 Solana router) |
 | Real-CPU SP1 proof generation | **2 ignored release-gate tests** (~40s prove, ~20s verify, 2.78 MB proof artifact) |
 | **Base tests green** | **1617** |
 | Smart contract artifacts | 24/24 deployable `.nef` + `.manifest.json` compile cleanly via `nccs 3.9.1`; 10 L2 native contracts pass Neo core native tests |

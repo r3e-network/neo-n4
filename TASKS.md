@@ -136,9 +136,9 @@ Anything touching **NeoVM execution semantics, native contracts, dBFT consensus,
 
 Reference state after the closed-iteration fixes:
 
-- Tests green: **1453 .NET + 170 cross-language base = 1623**, plus 2 real-CPU SP1 release-gate tests verified via `cargo test --release --locked -- --ignored --nocapture` in `bridge/neo-zkvm-host/`.
+- Tests green: **1453 .NET + 188 cross-language base = 1641**, plus 2 real-CPU SP1 release-gate tests verified via `cargo test --release --locked -- --ignored --nocapture` in `bridge/neo-zkvm-host/`.
   - 1453 .NET across 34 projects.
-  - 170 cross-language (16 TS + 10 Rust SDK + 5 shared execution-core + 7 SP1 guest + 103 watcher (87 eth + 7 tron + 9 sol) + 25 Foundry (18 single + 7 multi) + 4 Solana router).
+  - 188 cross-language (16 TS + 10 Rust SDK + 5 shared execution-core + 7 SP1 guest + 103 watcher (87 eth + 7 tron + 9 sol) + 25 Foundry (18 single + 7 multi) + 22 Solana router).
 - Build: 99 solution projects, 0 errors, 0 warnings (with `nccs` on PATH)
 - Smart contracts: 31 NeoHub/L2Native (24 NeoHub deployable + 7 L2 native) + 2 sample dApps + 1 sample executor → all compile fresh
 - Devnet 5-batch E2E: green, state root unchanged (`KeyedStateRootOracle` path was already Neo classic)

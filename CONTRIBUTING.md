@@ -16,7 +16,7 @@
   `NeoCorePath` to the submodule path; override with
   `dotnet build /p:NeoCorePath=/path/to/neo/src` if you want to point at a
   different local checkout.
-- (Optional) [`nccs`](https://github.com/neo-project/neo-devpack-dotnet) on `PATH` if you want
+- (Optional) [`nccs`](https://github.com/r3e-network/neo-devpack-dotnet) on `PATH` if you want
   the contract build step to emit `.nef` + `.manifest.json`. Without it, contracts still
   type-check.
 

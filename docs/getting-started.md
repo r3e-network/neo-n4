@@ -168,7 +168,7 @@ command line: `dotnet build /p:NeoCorePath=/path/to/neo/src`.
 **Contracts don't emit `.nef` files.**
 Run `nccs <contract.csproj> --output <contract>/bin/sc` explicitly after the
 contract type-check. If `nccs` is unavailable, install it from
-`neo-project/neo-devpack-dotnet` or with `dotnet tool install -g Neo.Compiler.CSharp`.
+`r3e-network/neo-devpack-dotnet` or with `dotnet tool install -g Neo.Compiler.CSharp`.
 
 **Want real ZK proofs (Stage-2 validity)?**
 Build the Rust prover daemon: `CPATH=~/.local/include cargo build --release -p neo-zkvm-host`

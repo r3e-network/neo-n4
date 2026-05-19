@@ -158,7 +158,7 @@ r3e-network/neo submodule 没初始化。在仓库根目录跑
 
 **合约不输出 `.nef` 文件。**
 在合约类型检查后显式运行 `nccs <contract.csproj> --output <contract>/bin/sc`。
-如果本机没有 `nccs`,从 `neo-project/neo-devpack-dotnet` 安装,或执行
+如果本机没有 `nccs`,从 `r3e-network/neo-devpack-dotnet` 安装,或执行
 `dotnet tool install -g Neo.Compiler.CSharp`。
 
 **想要真正的 ZK 证明(Stage-2 有效性)?**

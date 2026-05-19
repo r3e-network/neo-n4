@@ -11,7 +11,7 @@ available from genesis on an N4 L2 chain.
 ## Build
 
 Each deployable contract is a plain `Microsoft.NET.Sdk` class library that
-references [`Neo.SmartContract.Framework`](https://github.com/neo-project/neo-devpack-dotnet)
+references [`Neo.SmartContract.Framework`](https://github.com/r3e-network/neo-devpack-dotnet)
 via `ProjectReference`. The framework is vendored as a git submodule at
 `external/neo-devpack-dotnet/src/Neo.SmartContract.Framework/` (init via
 `git submodule update --init --recursive` after cloning). Override

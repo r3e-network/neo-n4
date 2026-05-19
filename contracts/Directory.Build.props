@@ -16,7 +16,7 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <!--
-      Path to neo-project/neo-devpack-dotnet. Default points at the
+      Path to r3e-network/neo-devpack-dotnet. Default points at the
       external/neo-devpack-dotnet git submodule (never released on NuGet,
       same shape as Neo 4 core). Override with `dotnet build /p:NeoDevpackPath=...`
       to point at a local fork.

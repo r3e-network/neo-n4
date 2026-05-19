@@ -3,6 +3,7 @@ import {
   activeWorkspace,
   architectureLinks,
   architectureNodes,
+  bottomStatus,
   createHubState,
   reportTimeline,
   selectNode,
@@ -10,6 +11,7 @@ import {
   selectedNode,
   summarizeEvidence,
   topMetrics,
+  validationEvidence,
   workspaces,
 } from './hubState.js';
 
@@ -27,6 +29,7 @@ const els = {
   reportTimeline: document.querySelector('[data-report-timeline]'),
   schemaSummary: document.querySelector('[data-schema-summary]'),
   testSummary: document.querySelector('[data-test-summary]'),
+  bottomStatus: document.querySelector('[data-bottom-status]'),
   resetNode: document.querySelector('[data-action="reset-node"]'),
 };
 
@@ -61,20 +64,23 @@ function render() {
   renderInspector();
   renderTimeline();
   renderSummaries();
+  renderBottomStatus();
 }
 
 function renderNavigation() {
   els.nav.replaceChildren(...workspaces.map((workspace) => {
+    const group = document.createElement('section');
+    group.className = 'workspace-group';
+
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'workspace-button';
     button.dataset.workspaceId = workspace.id;
     button.setAttribute('aria-pressed', String(workspace.id === state.activeWorkspace));
     button.innerHTML = `
-      <span class="workspace-key">${workspace.label.slice(0, 1)}</span>
+      <span class="workspace-key" aria-hidden="true">${workspace.label.slice(0, 1)}</span>
       <span>
         <strong>${workspace.label}</strong>
-        <small>${workspace.title}</small>
       </span>
     `;
     button.addEventListener('click', () => {
@@ -82,7 +88,18 @@ function renderNavigation() {
       renderNavigation();
       renderWorkspace();
     });
-    return button;
+
+    const subnav = document.createElement('div');
+    subnav.className = 'workspace-subnav';
+    subnav.replaceChildren(...workspace.subItems.map((item, index) => {
+      const span = document.createElement('span');
+      span.textContent = item;
+      if (workspace.id === state.activeWorkspace && index === 0) span.className = 'active';
+      return span;
+    }));
+
+    group.replaceChildren(button, subnav);
+    return group;
   }));
 }
 
@@ -106,22 +123,41 @@ function renderWorkspace() {
 }
 
 function renderArchitecture() {
-  const linkLayer = document.createElement('svg');
-  linkLayer.className = 'link-layer';
-  linkLayer.setAttribute('viewBox', '0 0 100 100');
-  linkLayer.setAttribute('aria-hidden', 'true');
-  linkLayer.append(...architectureLinks.map(([fromId, toId, label]) => {
+  const linkLayer = svg('svg', {
+    class: 'link-layer',
+    viewBox: '0 0 100 100',
+    'aria-hidden': 'true',
+  });
+  const defs = svg('defs');
+  const marker = svg('marker', {
+    id: 'arrowhead',
+    markerWidth: '5',
+    markerHeight: '5',
+    refX: '4',
+    refY: '2.5',
+    orient: 'auto',
+  });
+  marker.append(svg('path', { d: 'M0,0 L5,2.5 L0,5 Z', class: 'arrowhead' }));
+  defs.append(marker);
+  linkLayer.append(defs, ...architectureLinks.flatMap(([fromId, toId, label]) => {
     const from = architectureNodes.find((node) => node.id === fromId);
     const to = architectureNodes.find((node) => node.id === toId);
+    const [x1, y1, x2, y2] = linkEndpoint(from, to);
     const line = svg('line', {
-      x1: from.x + 7,
-      y1: from.y + 6,
-      x2: to.x + 7,
-      y2: to.y + 6,
+      x1,
+      y1,
+      x2,
+      y2,
       class: `data-link ${from.kind} ${to.kind}`,
+      'marker-end': 'url(#arrowhead)',
     });
     line.append(svg('title', {}, label));
-    return line;
+    const text = svg('text', {
+      x: (x1 + x2) / 2,
+      y: (y1 + y2) / 2 - 1,
+      class: 'link-label',
+    }, label);
+    return [line, text];
   }));
 
   const nodes = architectureNodes.map((node) => {
@@ -135,6 +171,7 @@ function renderArchitecture() {
     button.innerHTML = `
       <strong>${node.label}</strong>
       <span>${node.subtitle}</span>
+      <ul>${node.details.map((item) => `<li>${item}</li>`).join('')}</ul>
     `;
     button.addEventListener('click', () => {
       state = selectNode(state, node.id);
@@ -147,6 +184,27 @@ function renderArchitecture() {
   els.architectureMap.replaceChildren(linkLayer, ...nodes);
 }
 
+function linkEndpoint(from, to) {
+  const nodeWidth = 16;
+  const nodeHeight = 13;
+  const fromCenterX = from.x + nodeWidth / 2;
+  const fromCenterY = from.y + nodeHeight / 2;
+  const toCenterX = to.x + nodeWidth / 2;
+  const toCenterY = to.y + nodeHeight / 2;
+  const dx = toCenterX - fromCenterX;
+  const dy = toCenterY - fromCenterY;
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    return dx > 0
+      ? [from.x + nodeWidth, fromCenterY, to.x, toCenterY]
+      : [from.x, fromCenterY, to.x + nodeWidth, toCenterY];
+  }
+
+  return dy > 0
+    ? [fromCenterX, from.y + nodeHeight, toCenterX, to.y]
+    : [fromCenterX, from.y, toCenterX, to.y + nodeHeight];
+}
+
 function renderInspector() {
   const node = selectedNode(state);
   const evidence = summarizeEvidence(state.reports);
@@ -157,30 +215,34 @@ function renderInspector() {
   els.evidenceStatus.className = `status-badge ${evidence.validationStatus}`;
 
   els.nodeInspector.innerHTML = `
-    <h3>${node.label}</h3>
-    <p>${node.boundary}</p>
-    <ul>${node.details.map((item) => `<li>${item}</li>`).join('')}</ul>
+    <span>Selected node</span>
+    <strong>${node.label}</strong>
+    <small>${node.boundary}</small>
   `;
 
-  const reports = [
-    ['Latest proof', 'NativeZkVerifier path through L1 native accelerator'],
-    ['Data Availability (NeoFS)', `${state.reports['neofs-da-report'].payload.readCheck} read, ${state.reports['neofs-da-report'].payload.writeCheck} write`],
-    ['Deployment boundary', 'NeoHub is represented as deployed L1 contracts'],
-    ['Browser boundary', 'Read-only report and RPC surface'],
-  ];
-
-  els.evidenceList.replaceChildren(...reports.map(([label, value]) => {
-    const item = document.createElement('div');
-    item.className = 'evidence-item';
-    item.innerHTML = `<span>${label}</span><strong>${value}</strong>`;
-    return item;
+  els.evidenceList.replaceChildren(...validationEvidence(state.reports).map((group) => {
+    const section = document.createElement('section');
+    section.className = 'evidence-group';
+    section.innerHTML = `<h3>${group.title}</h3>`;
+    const list = document.createElement('dl');
+    list.replaceChildren(...group.rows.flatMap(([label, value]) => {
+      const dt = document.createElement('dt');
+      dt.textContent = label;
+      const dd = document.createElement('dd');
+      dd.textContent = value;
+      if (/success|valid|verified|healthy|online|synced/i.test(String(value))) dd.className = 'good-value';
+      return [dt, dd];
+    }));
+    section.append(list);
+    return section;
   }));
 }
 
 function renderTimeline() {
   els.reportTimeline.replaceChildren(...reportTimeline(state.reports).map((item) => {
     const row = document.createElement('li');
-    row.innerHTML = `<strong>${item.label}</strong><span>${item.detail}</span>`;
+    row.className = item.tone ?? '';
+    row.innerHTML = `<strong>${item.label}</strong><span>${item.detail}</span><small>${item.time}</small>`;
     return row;
   }));
 }
@@ -203,6 +265,15 @@ function renderSummaries() {
     ['Failed', String(evidence.testsFailed)],
     ['Success rate', `${evidence.successRate}%`],
   ]);
+}
+
+function renderBottomStatus() {
+  els.bottomStatus.replaceChildren(...bottomStatus(state.reports).map((item) => {
+    const row = document.createElement('span');
+    row.className = `footer-status-item ${item.tone ?? ''}`;
+    row.innerHTML = `<span>${item.label}</span><strong>${item.value}</strong>`;
+    return row;
+  }));
 }
 
 function renderDefinitionList(target, rows) {

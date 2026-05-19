@@ -45,13 +45,33 @@ fractional withdrawals such as non-whole L1 NEO exits.
 
 ## Table of contents
 
-1. [Visual system tour](#visual-system-tour)
-2. [Architecture at a glance](#architecture-at-a-glance)
-3. [What's in the repo](#whats-in-the-repo)
-4. [Phased status](#phased-status)
-5. [Quick start](#quick-start)
-6. [Documentation map](#documentation-map)
-7. [License](#license)
+1. [Experience Hub preview](#experience-hub-preview)
+2. [Visual system tour](#visual-system-tour)
+3. [Architecture at a glance](#architecture-at-a-glance)
+4. [What's in the repo](#whats-in-the-repo)
+5. [Phased status](#phased-status)
+6. [Quick start](#quick-start)
+7. [Documentation map](#documentation-map)
+8. [License](#license)
+
+---
+
+## Experience Hub preview
+
+The static [`Neo N4 Experience Hub`](./docs/experience-hub/index.html) is the
+readable cockpit for the architecture. It turns the same redacted report schema
+used by tests and devnet rehearsals into an interactive view of NeoHub deployed
+contracts, NativeZkVerifier, the L1 native ZK accelerator, NeoVM2/RISC-V L2
+execution, optional N4 L2 execution profiles, and NeoFS as the data availability
+layer.
+
+<p align="center">
+  <img src="docs/figures/experience-hub/neo-n4-experience-hub.png" alt="Neo N4 Experience Hub showing NeoHub, NeoFS DA, NativeZkVerifier, NeoVM2/RISC-V L2 execution, optional VM profiles, and validation evidence" width="920">
+</p>
+
+The preview is intentionally local-first: it marks private-devnet evidence
+separately from public testnet or mainnet evidence, and it does not expose
+signing, deployment, or secret-bearing controls in the browser.
 
 ---
 

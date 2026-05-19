@@ -38,13 +38,31 @@ Neo N3 / Neo 4 L1 上的统一可部署 L1 合约套件(**NeoHub**),并通过可
 
 ## 目录
 
-1. [架构鸟瞰](#架构鸟瞰)
-2. [仓里有什么](#仓里有什么)
-3. [分阶段状态](#分阶段状态)
-4. [快速上手](#快速上手)
-5. [文档地图(中文)](#文档地图中文)
-6. [术语对照](#术语对照)
-7. [License](#license)
+1. [体验中心预览](#体验中心预览)
+2. [架构鸟瞰](#架构鸟瞰)
+3. [仓里有什么](#仓里有什么)
+4. [分阶段状态](#分阶段状态)
+5. [快速上手](#快速上手)
+6. [文档地图(中文)](#文档地图中文)
+7. [术语对照](#术语对照)
+8. [License](#license)
+
+---
+
+## 体验中心预览
+
+静态版 [`Neo N4 Experience Hub`](../experience-hub/index.html) 是理解架构的
+可视化驾驶舱。它把测试和私有 devnet 演练使用的同一套脱敏 report schema
+渲染成可交互视图,覆盖 NeoHub 可部署合约、`NativeZkVerifier`、L1 native ZK
+accelerator、NeoVM2/RISC-V L2 执行、可选 N4 L2 execution profile,以及作为
+数据可用性层的 NeoFS。
+
+<p align="center">
+  <img src="../figures/experience-hub/neo-n4-experience-hub.png" alt="Neo N4 体验中心:展示 NeoHub、NeoFS DA、NativeZkVerifier、NeoVM2/RISC-V L2 执行、可选 VM profile 与验证证据" width="920">
+</p>
+
+该预览刻意采用本地优先边界:私有 devnet 证据会和公开 testnet/mainnet 证据分开标记,
+浏览器界面不暴露签名、部署或任何带敏感信息的控制面。
 
 ---
 

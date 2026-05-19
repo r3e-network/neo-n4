@@ -18,6 +18,7 @@
 
 - [Architecture atlas (start here)](./architecture-atlas.md)
 - [Visual guide](./visual-guide.md)
+- [Neo N4 Experience Hub](./experience-hub.md)
 - [Interactive Runtime Theater](./interactive-runtime.md)
 - [NeoHub architecture and workflows](./neohub-architecture-and-workflows.md)
 - [Architecture walkthrough](./architecture-walkthrough.md)

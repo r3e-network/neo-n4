@@ -18,6 +18,7 @@
 - [架构摘要](./ARCHITECTURE.md)
 - [白皮书](./WHITEPAPER.md)
 - [可视化导览](./visual-guide.md)
+- [Neo N4 统一体验中心](./experience-hub.md)
 - [交互式运行剧场](./interactive-runtime.md)
 - [NeoHub 架构与工作流](./neohub-architecture-and-workflows.md)
 - [架构导览](./architecture-walkthrough.md)

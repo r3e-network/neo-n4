@@ -72,8 +72,8 @@ verifies the `.nef` + `.manifest.json` artifacts.
 
 **Key relationships:**
 - `SettlementManager` consumes proofs validated by `VerifierRegistry`;
-  `ProofType.Zk` routes to `NativeZkVerifier`, which uses an L1 native accelerator
-  for heavy proof-system math;
+  `ProofType.Zk` routes to `ContractZkVerifier`, which dispatches to
+  governance-registered deployable verifier contracts for proof-system work;
   withdrawals against accepted batches are user-pulled via
   `SharedBridge.FinalizeWithdrawalWithProof` (Merkle proof against the
   batch's `withdrawalRoot`), not auto-applied.

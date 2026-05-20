@@ -53,6 +53,16 @@ public class UT_RiscVHost
     }
 
     [TestMethod]
+    public void ResetAvailabilityCache_ClearsLastAvailabilityError()
+    {
+        _ = RiscVHost.IsAvailable;
+
+        RiscVHost.ResetAvailabilityCache();
+
+        Assert.IsNull(RiscVHost.LastAvailabilityError);
+    }
+
+    [TestMethod]
     public void Execute_RejectsEmptyScript()
     {
         // Defense at the API boundary — empty script is meaningless. Without this guard
@@ -97,6 +107,38 @@ public class UT_RiscVHost
     }
 
     [TestMethod]
+    public async Task RiscVTransactionExecutor_EmptyProgram_FailsWithoutCallingRunner()
+    {
+        var called = false;
+        var executor = new RiscVTransactionExecutor((_, _) =>
+        {
+            called = true;
+            return new RiscVExecutionResult { State = RiscVHost.StateHalt, FeeConsumed = 1 };
+        });
+
+        var result = await executor.ExecuteAsync(Array.Empty<byte>(), Context());
+
+        Assert.IsFalse(called);
+        Assert.IsFalse(result.Receipt.Success);
+        Assert.AreEqual(0, result.Receipt.GasConsumed);
+    }
+
+    [TestMethod]
+    public async Task RiscVTransactionExecutor_NegativeFee_ClampsReceiptGasToZero()
+    {
+        var executor = new RiscVTransactionExecutor((_, _) => new RiscVExecutionResult
+        {
+            State = RiscVHost.StateHalt,
+            FeeConsumed = -123,
+        });
+
+        var result = await executor.ExecuteAsync(new byte[] { 0x01 }, Context());
+
+        Assert.IsTrue(result.Receipt.Success);
+        Assert.AreEqual(0, result.Receipt.GasConsumed);
+    }
+
+    [TestMethod]
     public async Task RiscVTransactionExecutor_FaultedProgram_ProducesFailedReceipt()
     {
         var executor = new RiscVTransactionExecutor((_, _) => new RiscVExecutionResult
@@ -115,6 +157,18 @@ public class UT_RiscVHost
     }
 
     [TestMethod]
+    public async Task RiscVTransactionExecutor_GenericRunnerFailure_ProducesFailedReceipt()
+    {
+        var executor = new RiscVTransactionExecutor((_, _) =>
+            throw new FormatException("bad guest payload"));
+
+        var result = await executor.ExecuteAsync(new byte[] { 0x01, 0x02 }, Context());
+
+        Assert.IsFalse(result.Receipt.Success);
+        Assert.AreEqual(0, result.Receipt.GasConsumed);
+    }
+
+    [TestMethod]
     public async Task RiscVTransactionExecutor_MissingNativeHost_Throws()
     {
         var executor = new RiscVTransactionExecutor((_, _) =>
@@ -127,6 +181,26 @@ public class UT_RiscVHost
     }
 
     [TestMethod]
+    public async Task RiscVTransactionExecutor_DllNotFound_Propagates()
+    {
+        var executor = new RiscVTransactionExecutor((_, _) =>
+            throw new DllNotFoundException("native host missing"));
+
+        await Assert.ThrowsExactlyAsync<DllNotFoundException>(() =>
+            executor.ExecuteAsync(new byte[] { 0x40 }, Context()).AsTask());
+    }
+
+    [TestMethod]
+    public async Task RiscVTransactionExecutor_EntryPointNotFound_Propagates()
+    {
+        var executor = new RiscVTransactionExecutor((_, _) =>
+            throw new EntryPointNotFoundException("ffi mismatch"));
+
+        await Assert.ThrowsExactlyAsync<EntryPointNotFoundException>(() =>
+            executor.ExecuteAsync(new byte[] { 0x40 }, Context()).AsTask());
+    }
+
+    [TestMethod]
     public async Task RiscVTransactionExecutor_Cancellation_Propagates()
     {
         var executor = new RiscVTransactionExecutor((_, _) =>
@@ -134,6 +208,22 @@ public class UT_RiscVHost
 
         await Assert.ThrowsExactlyAsync<OperationCanceledException>(() =>
             executor.ExecuteAsync(new byte[] { 0x40 }, Context()).AsTask());
+    }
+
+    [TestMethod]
+    public void RiscVTransactionExecutor_RejectsNullRunner()
+    {
+        Assert.ThrowsExactly<ArgumentNullException>(() => new RiscVTransactionExecutor(null!));
+    }
+
+    [TestMethod]
+    public async Task RiscVTransactionExecutor_RejectsNullBatchContext()
+    {
+        var executor = new RiscVTransactionExecutor((_, _) =>
+            new RiscVExecutionResult { State = RiscVHost.StateHalt, FeeConsumed = 1 });
+
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(() =>
+            executor.ExecuteAsync(new byte[] { 0x01 }, null!).AsTask());
     }
 
     private static BatchBlockContext Context() => new()

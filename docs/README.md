@@ -61,12 +61,12 @@ fractional withdrawals such as non-whole L1 NEO exits.
 The architecture is three tiers:
 
 - **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 24 deployable contracts grouped into
-  six concerns: *Settlement* (SettlementManager · VerifierRegistry · NativeZkVerifier), *Bridge*
+  six concerns: *Settlement* (SettlementManager · VerifierRegistry · ContractZkVerifier), *Bridge*
   (SharedBridge · TokenRegistry · ChainRegistry), *Messaging* (MessageRouter · DARegistry),
   *Security* (SequencerRegistry · SequencerBond · ForcedInclusion · OptimisticChallenge),
   *Governance* (GovernanceController · EmergencyManager · GovernanceFraudVerifier · RestrictedExecutionFraudVerifier),
   and *External Bridge* (MpcCommitteeVerifier · ExternalBridgeRegistry · ExternalBridgeEscrow · ExternalBridgeBond · MpcCommitteeFraudVerifier · ExternalBridgeStubVerifier). Owns assets, settlement,
-  message routing, and governance. `NativeZkVerifier` keeps ZK settlement in the deployable NeoHub path while using an L1 native accelerator for proof-system math.
+  message routing, and governance. `ContractZkVerifier` keeps ZK settlement in the deployable NeoHub path while routing proof-system work to governance-registered deployable verifier contracts.
 - **Neo Gateway (Phase 5, optional)** — aggregates many L2s' proofs into one settlement
   post on L1. `BinaryTreeAggregator` reduces in log-N rounds; `IRoundProver` ships in
   three production-grade implementations (`MultisigRoundProver` for committee-attested
@@ -95,7 +95,7 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
   [`docs/persistence.md`](./persistence.md).
 - **Node plugins (8)** — `Neo.Plugins.L2{Batch, Bridge, DA, Gateway,
   Metrics, Prover, Rpc, Settlement}`.
-- **Smart contracts (24 deployable + 10 L2 native)** — 24 NeoHub L1 deployable contracts (23 production plus the test-only `ExternalBridgeStubVerifier`, incl. `DAValidator`, `L1TxFilter`, `NativeZkVerifier`, `GovernanceFraudVerifier`,
+- **Smart contracts (24 deployable + 10 L2 native)** — 24 NeoHub L1 deployable contracts (23 production plus the test-only `ExternalBridgeStubVerifier`, incl. `DAValidator`, `L1TxFilter`, `ContractZkVerifier`, `GovernanceFraudVerifier`,
   `RestrictedExecutionFraudVerifier` v3 trustless verifier, and the 6
   cross-foreign-chain bridge contracts: `MpcCommitteeVerifier` /
   `ExternalBridgeRegistry` / `ExternalBridgeEscrow` /
@@ -169,7 +169,7 @@ Per [`doc.md` §18](../doc.md):
 | Phase | Goal                                | Status | Evidence                                                  |
 | ----- | ----------------------------------- | :----: | --------------------------------------------------------- |
 | 0     | Sidechain PoC                       | ✅     | MVP integration test passes end-to-end                    |
-| 1     | NeoHub v0 + Shared Bridge           | ✅     | All 24 NeoHub contracts compile; deploy planner emits 23 production steps (15 core + NativeZkVerifier + 2 fraud verifiers + 5 external-bridge) |
+| 1     | NeoHub v0 + Shared Bridge           | ✅     | All 24 NeoHub contracts compile; deploy planner emits 23 production steps (15 core + ContractZkVerifier + 2 fraud verifiers + 5 external-bridge) |
 | 2     | Batch Settlement                    | ✅     | Real `KeyedStateStore` continuity verified across batches |
 | 3     | Optimistic Challenge Window         | ✅     | `OptimisticChallenge` contract + `BisectionGame` (log-N narrowing) |
 | 4     | NeoVM 2 / RISC-V ZK Validity Proof  | ✅     | Neo N4 L2 execution targets NeoVM2/RISC-V via `src/Neo.L2.Executor.RiscV` + PolkaVM host in `external/neo-riscv-vm`; `neo-l2-devnet --executor riscv` runs the canonical path. SP1 prover daemon lives in `bridge/neo-zkvm-host` (`prove-batch` CLI); real CPU proofs verified by `#[ignore]`-gated release-gate tests. |
@@ -260,6 +260,7 @@ A 5-minute walkthrough is in [`docs/getting-started.md`](./getting-started.md).
 | [`IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md)                | reviewers             | What's built vs deferred, per project.                               |
 | [`CHANGELOG.md`](../CHANGELOG.md)                                        | reviewers             | Per-iteration change log.                                            |
 | [`docs/getting-started.md`](./getting-started.md)                  | new contributors      | Clone → test → run devnet in 5 minutes.                              |
+| [`docs/technical-roadmap.md`](./technical-roadmap.md)              | architects, reviewers | Contract-first roadmap for NeoHub, ZK verifier routing, NeoFS DA, VM profiles, assets, and interoperability. |
 | [`docs/launching-an-l2.md`](./launching-an-l2.md)                  | L2 operators          | 5-command path to a registered L2 chain + every plug-in point for custom logic (executor / DA / prover / sequencer). Templates: rollup / zk-rollup / validium / sidechain. |
 | [`samples/`](../samples/README.md)                                       | L2 operators          | 4 ready-to-run sample chain configs covering distinct use cases (general-rollup / gaming-rollup / exchange-validium / privacy-sidechain), each verified end-to-end via `neo-l2-devnet --config`. |
 | [`samples/contracts/`](../samples/contracts/README.md)                   | dApp developers       | Sample L2-aware app contracts (`CrossChainGreeter`, `WithdrawalDemo`) showing standard patterns for integrating with N4 L2 native contracts. |

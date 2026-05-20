@@ -68,7 +68,7 @@ L1 合约和 L2 插件集 *在架构层面已经定型*;证明体系按一阶段
 ## 2. 系统概览
 
 <p align="center">
-  <img src="figures/architecture.svg" alt="Neo Elastic Network —— 三层架构:L1 NeoHub 锚(顶层视图:24 个可部署项目按 Settlement、Bridge、Messaging、Security、Governance 分组;NativeZkVerifier 把 ZK 证明路由到 native accelerator)、可选的 Phase 5 Neo Gateway 聚合器、N 条弹性 L2 链" width="900">
+  <img src="figures/architecture.svg" alt="Neo Elastic Network —— 三层架构:L1 NeoHub 锚(顶层视图:24 个可部署项目按 Settlement、Bridge、Messaging、Security、Governance 分组;ContractZkVerifier 把 ZK 证明路由到 可部署验证器合约)、可选的 Phase 5 Neo Gateway 聚合器、N 条弹性 L2 链" width="900">
 </p>
 
 三层,每层只干一件事:
@@ -287,10 +287,10 @@ L1 上的 verifier registry 按 `ProofType` 分发;同一份 `L2BatchCommitment`
 - **Stage 1 —— `OptimisticVerifier`。**生产者:`OptimisticProofPayload`
   + 排序器签名。状态:Stage-1 verifier;`BisectionGame` 做 log-N
   收敛到争议 tx。
-- **Stage 2 —— `NativeZkVerifier`。**生产者:`prove-batch daemon`
+- **Stage 2 —— `ContractZkVerifier`。**生产者:`prove-batch daemon`
   (真,跨进程)+ `MockRiscVProver`(进程内测试 seam)。状态:真实
   Neo N3 VM 经 SP1 6.2.1 证明;NeoHub 合约校验 envelope / VK / publicInputHash,
-  再由 L1 native accelerator 完成重型证明数学。
+  再由 L1 可部署验证器合约 完成proof-system 验证工作。
 
 聚合证明(Phase 5 Gateway)复用同一 registry —— `ProofType.Aggregated` 加上
 backend tag 标识用了哪种递归方案。

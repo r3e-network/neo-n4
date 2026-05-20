@@ -127,7 +127,7 @@ public class UT_ProductionGapClosure
     }
 
     [TestMethod]
-    public void Repository_DocumentsNativeAcceleratedZkVerifierBoundary()
+    public void Repository_DocumentsContractDeployedZkVerifierBoundary()
     {
         var root = FindRepositoryRoot();
         string[] docs =
@@ -142,8 +142,16 @@ public class UT_ProductionGapClosure
         foreach (var relativePath in docs)
         {
             var text = File.ReadAllText(Path.Combine(root, relativePath));
-            StringAssert.Contains(text, "NativeZkVerifier");
-            StringAssert.Contains(text, "native accelerator");
+            StringAssert.Contains(text, "ContractZkVerifier");
+            if (relativePath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                .Any(part => part.Equals("zh", StringComparison.OrdinalIgnoreCase)))
+            {
+                StringAssert.Contains(text, "可部署验证器合约");
+            }
+            else
+            {
+                StringAssert.Contains(text, "deployable verifier contract");
+            }
         }
     }
 
@@ -274,6 +282,60 @@ public class UT_ProductionGapClosure
 
         Assert.AreEqual(0, missingChineseText.Length,
             "Chinese SVG counterparts must contain localized Chinese text:\n" + string.Join('\n', missingChineseText));
+    }
+
+    [TestMethod]
+    public void Repository_KeepsOnlyCuratedAuditEvidenceInDocs()
+    {
+        var root = FindRepositoryRoot();
+        var auditRoot = Path.Combine(root, "docs", "audit");
+        var rawAuditOutputs = Directory.Exists(auditRoot)
+            ? Directory.EnumerateFiles(auditRoot, "*.log", SearchOption.AllDirectories)
+                .Where(path => !IsSkippedPath(root, path))
+                .Select(path => Relative(root, path))
+                .Order(StringComparer.Ordinal)
+                .ToArray()
+            : Array.Empty<string>();
+
+        Assert.AreEqual(0, rawAuditOutputs.Length,
+            "docs/audit must keep curated Markdown/JSON evidence only; raw command output stays local:\n"
+            + string.Join('\n', rawAuditOutputs));
+
+        string[] fullStackReports =
+        [
+            Path.Combine(root, "docs", "audit", "full-stack-validation-2026-05-20", "README.md"),
+            Path.Combine(root, "docs", "zh", "audit", "full-stack-validation-2026-05-20", "README.md")
+        ];
+        foreach (var fullStackReport in fullStackReports.Where(File.Exists))
+        {
+            Assert.IsFalse(File.ReadAllText(fullStackReport).Contains(".log", StringComparison.OrdinalIgnoreCase),
+                "The full-stack validation report must reference curated evidence, not transient command-output filenames.");
+        }
+    }
+
+    [TestMethod]
+    public void Repository_DoesNotKeepRetiredNativeZkVerifierCurrentEvidence()
+    {
+        var root = FindRepositoryRoot();
+        var auditRoot = Path.Combine(root, "docs", "audit");
+        var staleEvidence = Directory.Exists(auditRoot)
+            ? Directory.EnumerateFiles(auditRoot, "*.json", SearchOption.AllDirectories)
+                .Where(path => !IsSkippedPath(root, path))
+                .Where(path =>
+                {
+                    var relative = Relative(root, path);
+                    return relative.Contains("testnet-deployment-2026-05-20", StringComparison.OrdinalIgnoreCase)
+                        || relative.Contains("full-stack-validation-2026-05-20", StringComparison.OrdinalIgnoreCase);
+                })
+                .Where(path => File.ReadAllText(path).Contains("NativeZkVerifier", StringComparison.Ordinal))
+                .Select(path => Relative(root, path))
+                .Order(StringComparer.Ordinal)
+                .ToArray()
+            : Array.Empty<string>();
+
+        Assert.AreEqual(0, staleEvidence.Length,
+            "Current deployment evidence must use the contract-first ContractZkVerifier route:\n"
+            + string.Join('\n', staleEvidence));
     }
 
     private static UInt160 H(byte b)

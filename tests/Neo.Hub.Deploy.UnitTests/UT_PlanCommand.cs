@@ -114,8 +114,8 @@ public class UT_PlanCommand
         StringAssert.Contains(output, "ChainRegistry.SetGovernanceController");
         StringAssert.Contains(output, "SettlementManager.SetDAValidator");
         StringAssert.Contains(output, "MessageRouter.SetL1TxFilter");
-        StringAssert.Contains(output, "NativeZkVerifier.SetNativeAccelerator");
-        StringAssert.Contains(output, "VerifierRegistry.RegisterVerifier(ProofType.Zk=3, NativeZkVerifier)");
+        StringAssert.Contains(output, "ContractZkVerifier.RegisterProofVerifier");
+        StringAssert.Contains(output, "VerifierRegistry.RegisterVerifier(ProofType.Zk=3, ContractZkVerifier)");
         StringAssert.Contains(output, "GovernanceFraudVerifier");
         StringAssert.Contains(output, "RestrictedExecutionFraudVerifier");
     }

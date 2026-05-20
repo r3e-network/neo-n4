@@ -9,12 +9,12 @@ namespace Neo.Stack.Cli.Commands;
 /// against L1/L2 directly. Each one validates inputs, reads the chain config it would
 /// act on, and prints the deterministic plan (target contract + args + numbered next
 /// steps) so an operator can audit before signing. Production wiring (signed L1
-/// transactions, running plugin processes) is operator-supplied — these subcommands
-/// are the deterministic, auditable preflight side. The filename ("StubCommands") is
-/// historical; per IMPLEMENTATION_STATUS Phase 6 status, all 12 neo-stack subcommands
-/// are functional (this file hosts register-chain / deploy-bridge-adapter / submit-batch
-/// / start-{sequencer,batcher,prover}; create-chain / init-l2 / validate /
-/// scaffold-executor / new-l2 / list-templates have their own files).
+/// transactions, running plugin processes) is operator-supplied; these subcommands
+/// are the deterministic, auditable preflight side. Per IMPLEMENTATION_STATUS Phase 6,
+/// all 12 neo-stack subcommands are functional. This file hosts register-chain,
+/// deploy-bridge-adapter, submit-batch, and start-{sequencer,batcher,prover};
+/// create-chain, init-l2, validate, scaffold-executor, new-l2, and list-templates
+/// have their own files.
 /// </summary>
 internal static class RegisterChainCommand
 {

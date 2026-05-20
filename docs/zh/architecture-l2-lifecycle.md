@@ -64,7 +64,7 @@ L1 锚。**23 个生产合约 + 1 个仅测试 stub** 按关注点分组:
 
 **关键关系:**
 - `SettlementManager` 消费由 `VerifierRegistry` 校验过的证明;`ProofType.Zk`
-  会路由到 `NativeZkVerifier`,并通过 L1 native accelerator 执行重型证明数学;
+  会路由到 `ContractZkVerifier`,并通过 L1 可部署验证器合约 执行proof-system 验证工作;
   在每个被接受的批次上触发 `SharedBridge.FinalizeWithdrawalWithProof`。
 - `SharedBridge` 经 `ChainRegistry` 查链 config,经 `TokenRegistry` 查 token
   元信息。

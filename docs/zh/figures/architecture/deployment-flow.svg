@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">L2 部署流 —— 4 步有序</title>
-  <desc id="desc">部署一条新 L2 的 4 步:第 1 步部署 NeoHub(每网络一次性)—— neo-hub-deploy plan 输出 23 步生产 bundle,运维钱包提交后整套 L1 合约上线,其中 NativeZkVerifier 负责把 ZK 证明路由到 native accelerator。第 2 步注册一条 L2 链 —— neo-stack register-chain 输出 ChainRegistry.RegisterChain 计划;提交后 L2 在 L1 上有 chainId 与 configBytes。第 3 步配置 L2 桥 adapter —— neo-stack deploy-bridge-adapter 输出 TokenRegistry 映射与 Neo Core 原生 L2BridgeContract 配置计划。第 4 步接好消息传递 adapter(可选)—— 运维者把 Neo Core 原生 L2MessageContract hash 注册到 MessageRouter.RegisterAdapter,启用跨 L2 消息传递。</desc>
+  <desc id="desc">部署一条新 L2 的 4 步:第 1 步部署 NeoHub(每网络一次性)—— neo-hub-deploy plan 输出 23 步生产 bundle,运维钱包提交后整套 L1 合约上线,其中 ContractZkVerifier 负责把 ZK 证明路由到 可部署验证器合约。第 2 步注册一条 L2 链 —— neo-stack register-chain 输出 ChainRegistry.RegisterChain 计划;提交后 L2 在 L1 上有 chainId 与 configBytes。第 3 步配置 L2 桥 adapter —— neo-stack deploy-bridge-adapter 输出 TokenRegistry 映射与 Neo Core 原生 L2BridgeContract 配置计划。第 4 步接好消息传递 adapter(可选)—— 运维者把 Neo Core 原生 L2MessageContract hash 注册到 MessageRouter.RegisterAdapter,启用跨 L2 消息传递。</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
@@ -30,7 +30,7 @@
     <text x="138" y="106" class="step-t" fill="#1e2a55">部署 NeoHub</text>
     <text x="138" y="124" class="step-cad">每网络一次性</text>
     <text x="138" y="148" class="cli">$ dotnet run --project tools/Neo.Hub.Deploy -- plan</text>
-    <text x="138" y="164" class="body">→ 23 步有序 bundle(SharedBridge · SettlementManager · NativeZkVerifier · ...)</text>
+    <text x="138" y="164" class="body">→ 23 步有序 bundle(SharedBridge · SettlementManager · ContractZkVerifier · ...)</text>
   </g>
   <line x1="480" y1="176" x2="480" y2="216" stroke="#525a64" stroke-width="1.6" marker-end="url(#arrow)"/>
 

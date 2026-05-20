@@ -310,7 +310,7 @@ Create `tools/experience-hub/generate-manifest.mjs`. It must export `buildManife
 const workflows = Object.freeze([
   { id: 'deposit', label: 'L1 to L2 deposit' },
   { id: 'batch', label: 'Batch settlement' },
-  { id: 'proof', label: 'ZK proof and native accelerator' },
+  { id: 'proof', label: 'ZK proof and deployable verifier contract' },
   { id: 'withdrawal', label: 'L2 to L1 withdrawal' },
   { id: 'external', label: 'External bridge' },
   { id: 'challenge', label: 'Challenge and recovery' },
@@ -395,8 +395,8 @@ test('architecture nodes preserve approved protocol boundaries', () => {
   const ids = architectureNodes.map((node) => node.id);
   assert.deepEqual(ids, [
     'neohub',
-    'native-zk',
-    'zk-accelerator',
+    'contract-zk',
+    'proof-verifier',
     'shared-bridge',
     'gateway',
     'neofs-da',
@@ -435,8 +435,8 @@ export const workspaceIds = Object.freeze(['learn', 'build', 'operate', 'verify'
 
 export const architectureNodes = Object.freeze([
   { id: 'neohub', label: 'NeoHub L1', kind: 'l1', boundary: 'deployable L1 contracts' },
-  { id: 'native-zk', label: 'NativeZkVerifier', kind: 'verifier', boundary: 'deployable verifier adapter' },
-  { id: 'zk-accelerator', label: 'L1 Native ZK Accelerator', kind: 'accelerator', boundary: 'native accelerator hook' },
+  { id: 'contract-zk', label: 'ContractZkVerifier', kind: 'verifier', boundary: 'deployable ZK verifier router' },
+  { id: 'proof-verifier', label: 'Deployable Proof Verifier Contract', kind: 'verifier', boundary: 'optional verifier contract' },
   { id: 'shared-bridge', label: 'SharedBridge', kind: 'bridge', boundary: 'L1 asset custody' },
   { id: 'gateway', label: 'Gateway', kind: 'gateway', boundary: 'optional proof aggregation' },
   { id: 'neofs-da', label: 'NeoFS DA', kind: 'da', boundary: 'data availability' },
@@ -519,7 +519,7 @@ http://localhost:8088/docs/experience-hub/
 Expected:
 
 - Learn/Build/Operate/Verify navigation changes visible content.
-- Architecture canvas includes NeoHub, NativeZkVerifier, L1 Native ZK Accelerator, NeoFS DA, and NeoVM2/RISC-V.
+- Architecture canvas includes NeoHub, ContractZkVerifier, Deployable Proof Verifier Contract, NeoFS DA, and NeoVM2/RISC-V.
 - The page states that public network evidence is not present when sample reports are private devnet reports.
 
 - [ ] **Step 7: Commit**
@@ -551,7 +551,7 @@ Open the local-first Experience Hub:
 
 The hub is a read-only product surface for understanding, building, operating,
 and verifying Neo N4. It visualizes NeoHub deployed L1 contracts, NeoFS DA,
-NativeZkVerifier, the L1 native ZK accelerator, Gateway, SharedBridge, L2
+ContractZkVerifier, the deployable L1 ZK verifier contract, Gateway, SharedBridge, L2
 NeoVM2/RISC-V execution, optional N4 L2 VM profiles, and validation evidence.
 
 The browser does not hold private keys or sign deployment/governance actions.
@@ -570,7 +570,7 @@ Create `docs/zh/experience-hub.md` with:
 [启动 Neo N4 统一体验中心](../../experience-hub/index.html)
 
 体验中心是一个只读产品界面，用于理解、构建、运维和验证 Neo N4。它可视化
-NeoHub 可部署 L1 合约、NeoFS DA、NativeZkVerifier、L1 原生 ZK 加速器、
+NeoHub 可部署 L1 合约、NeoFS DA、ContractZkVerifier、L1 可部署 ZK 验证器合约、
 Gateway、SharedBridge、L2 NeoVM2/RISC-V 执行、可选 N4 L2 VM profile，
 以及验证证据。
 

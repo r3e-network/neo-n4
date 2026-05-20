@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 700" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">Neo N4 合约优先技术路线图</title>
+  <desc id="desc">Neo N4 合约优先路线图：NeoHub 作为 L1 可部署合约上线，ContractZkVerifier 路由到可部署验证器合约，NeoFS 是默认 DA，NeoVM2/RISC-V 是默认 L2 执行 profile，其他 VM profile 与异构链桥围绕核心栈插入。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#47648f"/>
+    </marker>
+    <style>
+      .bg { fill: #f8fafc; }
+      .title { font-size: 24px; font-weight: 750; fill: #132238; }
+      .subtitle { font-size: 13px; fill: #536174; }
+      .lane { fill: #ffffff; stroke: #c9d4e4; stroke-width: 1.5; rx: 12; }
+      .card { fill: #eef6ff; stroke: #5f8fc7; stroke-width: 1.5; rx: 10; }
+      .card2 { fill: #eefbf3; stroke: #39a46a; stroke-width: 1.5; rx: 10; }
+      .card3 { fill: #fff7e8; stroke: #d99421; stroke-width: 1.5; rx: 10; }
+      .card4 { fill: #f5f0ff; stroke: #8b6bd6; stroke-width: 1.5; rx: 10; }
+      .label { font-size: 15px; font-weight: 700; fill: #172336; }
+      .small { font-size: 11.5px; fill: #44546a; }
+      .chip { font-size: 11px; font-weight: 650; fill: #172336; }
+      .line { stroke: #47648f; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+      .dashed { stroke-dasharray: 6 5; }
+    </style>
+  </defs>
+  <rect width="1120" height="700" class="bg"/>
+  <text x="560" y="42" text-anchor="middle" class="title">Neo N4 合约优先技术路线图</text>
+  <text x="560" y="66" text-anchor="middle" class="subtitle">最小 L1 core 修改，可部署 NeoHub 合约，NeoFS DA，NeoVM2/RISC-V 默认执行，可插拔 VM 与桥接 profile。</text>
+
+  <rect x="40" y="100" width="1040" height="100" class="lane"/>
+  <text x="64" y="128" class="label">L1 锚定层：NeoHub 作为可部署合约</text>
+  <rect x="64" y="146" width="190" height="34" class="card2"/>
+  <text x="159" y="168" text-anchor="middle" class="chip">SharedBridge</text>
+  <rect x="282" y="146" width="190" height="34" class="card2"/>
+  <text x="377" y="168" text-anchor="middle" class="chip">SettlementManager</text>
+  <rect x="500" y="146" width="190" height="34" class="card2"/>
+  <text x="595" y="168" text-anchor="middle" class="chip">VerifierRegistry</text>
+  <rect x="718" y="146" width="190" height="34" class="card2"/>
+  <text x="813" y="168" text-anchor="middle" class="chip">治理 / 紧急控制</text>
+
+  <rect x="40" y="245" width="1040" height="135" class="lane"/>
+  <text x="64" y="273" class="label">ZK 路径：可部署 router 与验证器合约</text>
+  <rect x="64" y="300" width="220" height="52" class="card"/>
+  <text x="174" y="322" text-anchor="middle" class="label">ContractZkVerifier</text>
+  <text x="174" y="342" text-anchor="middle" class="small">Envelope + VK + dispatch</text>
+  <rect x="382" y="300" width="220" height="52" class="card"/>
+  <text x="492" y="322" text-anchor="middle" class="label">证明验证器合约</text>
+  <text x="492" y="342" text-anchor="middle" class="small">SP1 / Risc0 / Halo2 / Axiom ABI</text>
+  <rect x="700" y="300" width="260" height="52" class="card4"/>
+  <text x="830" y="322" text-anchor="middle" class="label">可选 native 插件适配器</text>
+  <text x="830" y="342" text-anchor="middle" class="small">同一 ABI，不是必需 L1 依赖</text>
+  <path d="M284 326 H374" class="line"/>
+  <path d="M602 326 H692" class="line dashed"/>
+
+  <rect x="40" y="425" width="500" height="190" class="lane"/>
+  <text x="64" y="453" class="label">L2 执行 profile 路线</text>
+  <rect x="64" y="480" width="205" height="50" class="card3"/>
+  <text x="166" y="501" text-anchor="middle" class="label">NeoVM2 / RISC-V</text>
+  <text x="166" y="520" text-anchor="middle" class="small">基于 PolkaVM 的默认路径</text>
+  <rect x="305" y="480" width="205" height="50" class="card4"/>
+  <text x="408" y="501" text-anchor="middle" class="label">可选 VM Profiles</text>
+  <text x="408" y="520" text-anchor="middle" class="small">EVM、WASM、Move、自定义</text>
+  <rect x="64" y="552" width="446" height="38" class="card2"/>
+  <text x="287" y="576" text-anchor="middle" class="chip">内置 L2 NEO/GAS + USDT/USDC/BTC 小数资产目录</text>
+
+  <rect x="580" y="425" width="500" height="190" class="lane"/>
+  <text x="604" y="453" class="label">数据可用性与互操作</text>
+  <rect x="604" y="480" width="205" height="50" class="card2"/>
+  <text x="706" y="501" text-anchor="middle" class="label">NeoFS DA</text>
+  <text x="706" y="520" text-anchor="middle" class="small">默认 DA，内容寻址</text>
+  <rect x="845" y="480" width="205" height="50" class="card"/>
+  <text x="948" y="501" text-anchor="middle" class="label">通用异构桥</text>
+  <text x="948" y="520" text-anchor="middle" class="small">EVM family、Tron、Solana、Avalanche</text>
+  <rect x="604" y="552" width="446" height="38" class="card3"/>
+  <text x="827" y="576" text-anchor="middle" class="chip">启用 Gateway 时聚合证明与全局消息根</text>
+
+  <path d="M595 180 V292" class="line"/>
+  <path d="M174 352 C174 400 166 410 166 470" class="line"/>
+  <path d="M492 352 C492 395 706 400 706 470" class="line"/>
+</svg>

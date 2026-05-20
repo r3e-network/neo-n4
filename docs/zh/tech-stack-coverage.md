@@ -26,8 +26,8 @@
 - **紧急暂停 + 逃生通道** ✅ — `contracts/NeoHub.EmergencyManager/`
 - **欺诈验证器(治理仲裁模式参照)** ✅ — `contracts/NeoHub.GovernanceFraudVerifier/`
 - **欺诈验证器(无信任 v3 —— 链上 Merkle 重派生)** ✅ — `contracts/NeoHub.RestrictedExecutionFraudVerifier/`
-- **ZK verifier adapter** ✅ — `contracts/NeoHub.NativeZkVerifier/` 校验 `ProofType.Zk`
-  envelope / VK id,并把重型证明数学交给 L1 native accelerator。
+- **ZK verifier router** ✅ — `contracts/NeoHub.ContractZkVerifier/` 校验 `ProofType.Zk`
+  envelope / VK id,并把proof-system 验证工作交给 L1 可部署验证器合约。
 
 **24 个 NeoHub 可部署项目。** 23 个生产合约 + 1 个测试 stub 全部经 `Neo.SmartContract.Framework` 通过类型检查;CI 用
 `nccs` 编译每一个并校验 `.nef` + `.manifest.json` 工件。

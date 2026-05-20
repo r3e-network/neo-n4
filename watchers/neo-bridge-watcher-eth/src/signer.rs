@@ -123,7 +123,10 @@ impl Signer for FileSigner {
         // depending on the backend's policy. The recovery id is flipped if S was
         // already high (it never is for k256, but this keeps the invariant tight).
         let (sig, recid) = match sig.normalize_s() {
-            Some(normalized) => (normalized, RecoveryId::from_byte(u8::from(recid) ^ 1).unwrap_or(recid)),
+            Some(normalized) => (
+                normalized,
+                RecoveryId::from_byte(u8::from(recid) ^ 1).unwrap_or(recid),
+            ),
             None => (sig, recid),
         };
         let bytes = sig.to_bytes();

@@ -4,32 +4,34 @@ using Neo.SmartContract.Framework;
 using Neo.SmartContract.Framework.Attributes;
 using Neo.SmartContract.Framework.Services;
 
-namespace NeoHub.NativeZkVerifier;
+namespace NeoHub.ContractZkVerifier;
 
 /// <summary>
-/// Deployable NeoHub verifier adapter for <c>ProofType.Zk</c> settlement.
+/// Deployable NeoHub verifier router for <c>ProofType.Zk</c> settlement.
 /// </summary>
 /// <remarks>
-/// This contract intentionally does not implement a SNARK/STARK verifier in ordinary
-/// NeoVM bytecode. It validates the canonical N4 batch-commitment and RISC-V proof
-/// payload envelope, checks that the verification key is governance-registered, then
-/// delegates the heavy proof-system math to a native accelerator contract exposed by
-/// the target L1 core. NeoHub stays deployable and minimally invasive, while ZK
-/// verification remains efficient and explicit.
+/// The default N4 L1 path is contract-deployed, not a native Neo core change.
+/// This router validates the canonical N4 batch-commitment and RISC-V proof
+/// payload envelope, checks that the verification key is governance-registered,
+/// then dispatches proof-system math to a governance-registered deployable
+/// verifier contract when one is configured. Development networks may explicitly
+/// enable envelope-only mode per proof system; production networks should register
+/// a verifier contract for each proof system they accept.
 ///
-/// Native accelerator ABI:
+/// Verifier contract ABI:
 /// <c>verifyZkProof(byte proofSystem, byte[] verificationKeyId, byte[] publicInputHash, byte[] proofBytes) : bool</c>.
 /// </remarks>
-[DisplayName("NeoHub.NativeZkVerifier")]
+[DisplayName("NeoHub.ContractZkVerifier")]
 [ContractAuthor("Neo Project", "dev@neo.org")]
-[ContractDescription("Deployable ProofType.Zk verifier adapter backed by a native ZK accelerator.")]
+[ContractDescription("Deployable ProofType.Zk verifier router backed by ordinary verifier contracts.")]
 [ContractVersion("0.1.0")]
-[ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.NativeZkVerifier")]
+[ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.ContractZkVerifier")]
 [ContractPermission(Permission.Any, Method.Any)]
-public class NativeZkVerifierContract : SmartContract
+public class ContractZkVerifierContract : SmartContract
 {
-    private const byte KeyNativeAccelerator = 0x01;
     private const byte PrefixVerificationKey = 0x02;
+    private const byte PrefixProofVerifier = 0x03;
+    private const byte PrefixEnvelopeOnly = 0x04;
     private const byte KeyOwner = 0xFF;
 
     private const int PublicInputHashOffset = 284;
@@ -53,13 +55,17 @@ public class NativeZkVerifierContract : SmartContract
     /// <summary>Axiom proof-system tag used by <c>RiscVProofPayload</c>.</summary>
     public const byte ProofSystemAxiom = 4;
 
-    /// <summary>Emitted when the native accelerator hash changes.</summary>
-    [DisplayName("NativeAcceleratorSet")]
-    public static event Action<UInt160> OnNativeAcceleratorSet = default!;
-
     /// <summary>Emitted when a verification key is allowed or removed.</summary>
     [DisplayName("VerificationKeyRegistered")]
     public static event Action<byte, UInt256, bool> OnVerificationKeyRegistered = default!;
+
+    /// <summary>Emitted when a proof-system verifier contract is allowed or removed.</summary>
+    [DisplayName("ProofVerifierRegistered")]
+    public static event Action<byte, UInt160, bool> OnProofVerifierRegistered = default!;
+
+    /// <summary>Emitted when envelope-only verification is enabled or disabled.</summary>
+    [DisplayName("EnvelopeOnlyModeSet")]
+    public static event Action<byte, bool> OnEnvelopeOnlyModeSet = default!;
 
     /// <summary>Set the initial owner.</summary>
     public static void _deploy(object data, bool update)
@@ -75,25 +81,6 @@ public class NativeZkVerifierContract : SmartContract
     public static UInt160 GetOwner()
     {
         var raw = Storage.Get(new byte[] { KeyOwner });
-        return raw == null ? UInt160.Zero : (UInt160)raw;
-    }
-
-    /// <summary>
-    /// Wire the L1 native accelerator. Owner only.
-    /// </summary>
-    public static void SetNativeAccelerator(UInt160 accelerator)
-    {
-        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
-        ExecutionEngine.Assert(accelerator.IsValid && !accelerator.IsZero, "invalid native accelerator");
-        Storage.Put(new byte[] { KeyNativeAccelerator }, accelerator);
-        OnNativeAcceleratorSet(accelerator);
-    }
-
-    /// <summary>Read the configured native accelerator hash, or zero if unset.</summary>
-    [Safe]
-    public static UInt160 GetNativeAccelerator()
-    {
-        var raw = Storage.Get(new byte[] { KeyNativeAccelerator });
         return raw == null ? UInt160.Zero : (UInt160)raw;
     }
 
@@ -117,6 +104,67 @@ public class NativeZkVerifierContract : SmartContract
         }
 
         OnVerificationKeyRegistered(proofSystem, verificationKeyId, allowed);
+    }
+
+    /// <summary>
+    /// Allow or remove the deployable verifier contract for a supported proof system.
+    /// </summary>
+    public static void RegisterProofVerifier(byte proofSystem, UInt160 verifier, bool allowed)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ValidateProofSystem(proofSystem);
+        if (allowed)
+        {
+            ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero, "invalid proof verifier");
+            Storage.Put(ProofVerifierStorageKey(proofSystem), verifier);
+        }
+        else
+        {
+            Storage.Delete(ProofVerifierStorageKey(proofSystem));
+        }
+
+        OnProofVerifierRegistered(proofSystem, verifier, allowed);
+    }
+
+    /// <summary>Read the deployable verifier contract hash for a proof system, or zero if unset.</summary>
+    [Safe]
+    public static UInt160 GetProofVerifier(byte proofSystem)
+    {
+        if (!IsSupportedProofSystem(proofSystem)) return UInt160.Zero;
+        var raw = Storage.Get(ProofVerifierStorageKey(proofSystem));
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>
+    /// Enable or disable envelope-only acceptance for a supported proof system.
+    /// </summary>
+    /// <remarks>
+    /// Envelope-only mode is intended for private devnets, test fixtures, and staged
+    /// integrations before a proof-system verifier contract is deployed. Production
+    /// chains should leave this disabled and register proof verifiers instead.
+    /// </remarks>
+    public static void SetEnvelopeOnlyAllowed(byte proofSystem, bool allowed)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ValidateProofSystem(proofSystem);
+        if (allowed)
+        {
+            Storage.Put(EnvelopeOnlyStorageKey(proofSystem), new byte[] { 1 });
+        }
+        else
+        {
+            Storage.Delete(EnvelopeOnlyStorageKey(proofSystem));
+        }
+
+        OnEnvelopeOnlyModeSet(proofSystem, allowed);
+    }
+
+    /// <summary>True when envelope-only acceptance is explicitly enabled for a proof system.</summary>
+    [Safe]
+    public static bool IsEnvelopeOnlyAllowed(byte proofSystem)
+    {
+        if (!IsSupportedProofSystem(proofSystem)) return false;
+        return Storage.Get(EnvelopeOnlyStorageKey(proofSystem)) != null;
     }
 
     /// <summary>True when the proof-system/VK pair is governance-allowed.</summary>
@@ -164,15 +212,19 @@ public class NativeZkVerifierContract : SmartContract
             "ZK payload proof length mismatch");
         var proofBytes = ReadFixedBytes(payload, ZkPayloadProofBytesOffset, proofSize);
 
-        var accelerator = GetNativeAccelerator();
-        ExecutionEngine.Assert(accelerator.IsValid && !accelerator.IsZero,
-            "native accelerator not wired");
+        var verifier = GetProofVerifier(proofSystem);
+        if (verifier.IsValid && !verifier.IsZero)
+        {
+            return (bool)Contract.Call(
+                verifier,
+                "verifyZkProof",
+                CallFlags.ReadOnly,
+                new object[] { proofSystem, (byte[])verificationKeyId, publicInputHash, proofBytes });
+        }
 
-        return (bool)Contract.Call(
-            accelerator,
-            "verifyZkProof",
-            CallFlags.ReadOnly,
-            new object[] { proofSystem, (byte[])verificationKeyId, publicInputHash, proofBytes });
+        ExecutionEngine.Assert(IsEnvelopeOnlyAllowed(proofSystem),
+            "proof verifier not configured");
+        return true;
     }
 
     private static void ValidateProofSystem(byte proofSystem)
@@ -215,5 +267,15 @@ public class NativeZkVerifierContract : SmartContract
         key[1] = proofSystem;
         for (var i = 0; i < 32; i++) key[2 + i] = vk[i];
         return key;
+    }
+
+    private static byte[] ProofVerifierStorageKey(byte proofSystem)
+    {
+        return new[] { PrefixProofVerifier, proofSystem };
+    }
+
+    private static byte[] EnvelopeOnlyStorageKey(byte proofSystem)
+    {
+        return new[] { PrefixEnvelopeOnly, proofSystem };
     }
 }

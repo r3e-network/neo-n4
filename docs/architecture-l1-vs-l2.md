@@ -47,14 +47,15 @@ specific logic — runs on **L2** because L1 cannot scale to it.
 ## 2. What L1 does (and why it has to)
 
 The 23 production NeoHub contracts (plus 1 testing stub) are deployed L1
-contracts, not L1 native contracts. `NativeZkVerifier` is one of those
-deployed contracts: it validates ZK proof envelopes and routes heavy math to
-an L1 native accelerator instead of becoming a NeoHub native contract. They cluster into
+contracts, not L1 native contracts. `ContractZkVerifier` is one of those
+deployed contracts: it validates ZK proof envelopes and routes proof-system
+work to governance-registered deployable verifier contracts instead of becoming
+a NeoHub native contract. They cluster into
 six concerns. Each entry below names *the property that forces it
 onto L1*:
 
 <p align="center">
-  <img src="figures/architecture/l1-concerns.svg" alt="The 24 NeoHub L1 deployable projects grouped into 6 concerns plus 2 specialized verifier slots. Settlement (SettlementManager + VerifierRegistry + NativeZkVerifier) defines the trust boundary and routes ZK proofs to a native accelerator. Bridge (SharedBridge + TokenRegistry + ChainRegistry) escrows assets. Messaging (MessageRouter + DARegistry + DAValidator + L1TxFilter) is the cross-L2 routing and data-availability arbiter. Security (SequencerRegistry + SequencerBond + ForcedInclusion + OptimisticChallenge) gates slashable bonds and anti-censorship. Governance + Emergency (GovernanceController + EmergencyManager) handle staged upgrades + escape hatch. External bridge (6 contracts) is the cross-foreign-chain bridge. Plus 2 fraud-verifier reference slots: GovernanceFraudVerifier (v1/v2 governance-arbitrated) + RestrictedExecutionFraudVerifier (v3 trustless on-chain re-derivation)" width="900">
+  <img src="figures/architecture/l1-concerns.svg" alt="The 24 NeoHub L1 deployable projects grouped into 6 concerns plus 2 specialized verifier slots. Settlement (SettlementManager + VerifierRegistry + ContractZkVerifier) defines the trust boundary and routes ZK proofs to a deployable verifier contract. Bridge (SharedBridge + TokenRegistry + ChainRegistry) escrows assets. Messaging (MessageRouter + DARegistry + DAValidator + L1TxFilter) is the cross-L2 routing and data-availability arbiter. Security (SequencerRegistry + SequencerBond + ForcedInclusion + OptimisticChallenge) gates slashable bonds and anti-censorship. Governance + Emergency (GovernanceController + EmergencyManager) handle staged upgrades + escape hatch. External bridge (6 contracts) is the cross-foreign-chain bridge. Plus 2 fraud-verifier reference slots: GovernanceFraudVerifier (v1/v2 governance-arbitrated) + RestrictedExecutionFraudVerifier (v3 trustless on-chain re-derivation)" width="900">
 </p>
 
 **Key observation about L1 contracts:** they hold *commitments* and
@@ -120,7 +121,7 @@ the rules in §5:
 - **`NeoHub.ChainRegistry`** L1 ✅ → L1 — Cross-L2 invariant (rule 1)
 - **`NeoHub.SettlementManager`** L1 ✅ → L1 — Trust boundary (rule 3)
 - **`NeoHub.VerifierRegistry`** L1 ✅ → L1 — Trust boundary (rule 3)
-- **`NeoHub.NativeZkVerifier`** L1 ✅ → L1 — ZK proof envelope/VK boundary; delegates proof-system math to an L1 native accelerator (rules 2+3)
+- **`NeoHub.ContractZkVerifier`** L1 ✅ → L1 — ZK proof envelope/VK boundary; delegates proof-system work to deployable verifier contracts (rules 2+3)
 - **`NeoHub.SharedBridge`** L1 ✅ → L1 — Asset escrow (rule 2 — assets are on L1)
 - **`NeoHub.TokenRegistry`** L1 ✅ → L1 — Cross-bridge invariant (rule 1)
 - **`NeoHub.MessageRouter`** L1 ✅ → L1 — Cross-L2 invariant (rule 1)

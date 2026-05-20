@@ -216,7 +216,11 @@ fn daemon_run_loop_starts_polls_and_shuts_down_on_sigterm() {
     // signal-handling shape, so the stub is fine here.
     let exe = env!("CARGO_BIN_EXE_neo-bridge-watcher-eth");
     let mut child = Command::new(exe)
-        .args(["--config", cfg_path.to_str().unwrap(), "--allow-stub-signer"])
+        .args([
+            "--config",
+            cfg_path.to_str().unwrap(),
+            "--allow-stub-signer",
+        ])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()

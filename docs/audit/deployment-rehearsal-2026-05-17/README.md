@@ -57,9 +57,9 @@ The latest local run in this workspace completed with `status: passed` at
 | `external-bridge/committee-blob.out` | Neo-side committee blob and EVM-side member list. |
 | `external-bridge/deploy-bundle.out` | Dual-side Neo + EVM external-bridge registration checklist. |
 
-Local raw logs were retained in the working tree under `logs/*.log` and
-`external-bridge/anvil-*.log`, but `.gitignore` intentionally excludes raw logs
-from commits. This report copies the relevant pass/fail evidence instead.
+Raw command output is intentionally kept out of `docs/audit` and reproduced
+through ignored scratch artifacts when the rehearsal is rerun. This report
+copies the relevant pass/fail evidence instead.
 
 Private watcher keys were generated only under the scratch directory outside the
 repo and are not committed.

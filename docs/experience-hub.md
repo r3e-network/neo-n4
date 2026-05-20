@@ -6,7 +6,7 @@ Open the local-first Experience Hub:
 
 The hub is a read-only product surface for understanding, building, operating,
 and verifying Neo N4. It visualizes NeoHub deployed L1 contracts, NeoFS DA,
-NativeZkVerifier, the L1 native ZK accelerator, Gateway, SharedBridge, L2
+ContractZkVerifier, the deployable L1 ZK verifier contract, Gateway, SharedBridge, L2
 NeoVM2/RISC-V execution, optional N4 L2 VM profiles, and validation evidence.
 
 The browser does not hold private keys or sign deployment/governance actions.

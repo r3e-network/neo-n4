@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const workflows = Object.freeze([
   { id: 'deposit', label: 'L1 to L2 deposit' },
   { id: 'batch', label: 'Batch settlement' },
-  { id: 'proof', label: 'ZK proof and native accelerator' },
+  { id: 'proof', label: 'ZK proof and contract verifier route' },
   { id: 'withdrawal', label: 'L2 to L1 withdrawal' },
   { id: 'external', label: 'External bridge' },
   { id: 'challenge', label: 'Challenge and recovery' },

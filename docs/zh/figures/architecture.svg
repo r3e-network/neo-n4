@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 620" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">Neo Elastic Network —— 架构</title>
-  <desc id="desc">三层架构:Neo N3 / Neo 4 L1 锚(NeoHub:24 个可部署项目,按 Settlement、Bridge、Messaging、Security、Governance 5 个关注点分组;NativeZkVerifier 把 ZK 证明路由到 native accelerator)、可选的 Phase 5 Neo Gateway 聚合器,以及 N 条弹性 L2 执行链。数据经批次 + 证明提交向上流;结算经 L1 上的 JSON-RPC submitBatch / verify 完成。</desc>
+  <desc id="desc">三层架构:Neo N3 / Neo 4 L1 锚(NeoHub:24 个可部署项目,按 Settlement、Bridge、Messaging、Security、Governance 5 个关注点分组;ContractZkVerifier 把 ZK 证明路由到 可部署验证器合约)、可选的 Phase 5 Neo Gateway 聚合器,以及 N 条弹性 L2 执行链。数据经批次 + 证明提交向上流;结算经 L1 上的 JSON-RPC submitBatch / verify 完成。</desc>
 
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
@@ -30,7 +30,7 @@
     <text x="145" y="114" text-anchor="middle" class="card-title" fill="#1e2a55">结算</text>
     <text x="145" y="138" text-anchor="middle" class="card-sub" fill="#3a4a82">SettlementManager</text>
     <text x="145" y="156" text-anchor="middle" class="card-sub" fill="#3a4a82">VerifierRegistry</text>
-    <text x="145" y="174" text-anchor="middle" class="card-sub" fill="#3a4a82">NativeZkVerifier</text>
+    <text x="145" y="174" text-anchor="middle" class="card-sub" fill="#3a4a82">ContractZkVerifier</text>
 
     <rect x="240" y="92" width="166" height="98" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
     <text x="323" y="114" text-anchor="middle" class="card-title" fill="#1e2a55">桥</text>

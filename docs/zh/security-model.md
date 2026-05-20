@@ -19,8 +19,8 @@
   `commitment.PublicInputHash == hash(publicInputs)` —— 阻止恶意证明者用与承诺
   不一致的 inputs 签名。
 - **ZK verifier 效率边界。** `ProofType.Zk` 通过可部署的
-  `NeoHub.NativeZkVerifier` adapter 路由。该合约先校验 commitment/proof envelope
-  和已登记 verification-key id,再调用配置的 L1 native accelerator 执行
+  `NeoHub.ContractZkVerifier` adapter 路由。该合约先校验 commitment/proof envelope
+  和已登记 verification-key id,再调用配置的 L1 可部署验证器合约 执行
   `verifyZkProof(...)`;重型 SNARK/STARK 数学不会作为普通 NeoHub 合约字节码执行。
 - **重放安全。** 每条跨链消息都带 `(chainId, nonce)`,在 `NeoHub.MessageRouter`
   按 (来源,目标) 配对去重。
@@ -39,7 +39,7 @@
 正确的思考方式是:**L1 验证什么,取决于注册的验证器验证什么。** Phase 4(ZK 有效性)
 让验证器无信任。Phase 3(乐观)让验证器信任程度等同于二分博弈的挑战窗口。
 Phase 0–2 在多签之上叠加治理(Neo Council、排序器保证金)。
-对 Phase 4 链,注册的验证器是 `NativeZkVerifier`,它指向的 native accelerator
+对 Phase 4 链,注册的验证器是 `ContractZkVerifier`,它指向的 可部署验证器合约
 属于 L1 trusted computing base。
 
 ---
@@ -89,9 +89,9 @@ DAC 链(就标 DAC,不要营销话术粉饰)。
 - **证明者边界处的 public-input 哈希等价性。** `L2SettlementPlugin` 在提交到 L1
   之前就拒绝 `publicInputHash` 与结算者计算的哈希不一致的证明 —— 避免无谓的 L1
   往返。
-- **Native ZK verifier adapter。** `NativeZkVerifier` 会在委托给
+- **Contract ZK verifier router。** `ContractZkVerifier` 会在委托给
   `verifyZkProof(...)` 前拒绝非 ZK commitment、畸形 `RiscVProofPayload` envelope、
-  未登记 verification key、以及未设置 native accelerator hash 的配置。
+  未登记 verification key、以及未设置 可部署验证器合约 hash 的配置。
 - **`OptimisticChallenge.Challenge` 的 fraud-verifier 白名单。** 关闭一次
   bond-drain 攻击窗口:`Challenge` 只会调用 owner 经 `RegisterFraudVerifier`
   显式登记过的 `fraudVerifier` 合约哈希。否则攻击者可以部署"yes-verifier"

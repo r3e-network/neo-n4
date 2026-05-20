@@ -2,14 +2,14 @@ export const sampleReports = Object.freeze({
   'chain-config-report': envelope(
     'chain-config-report',
     'Neo.Stack.Cli validate',
-    'N4 private chain configuration uses NeoFS DA, NativeZkVerifier, and the canonical NeoVM2/RISC-V execution profile.',
+    'N4 private chain configuration uses NeoFS DA, ContractZkVerifier, and the canonical NeoVM2/RISC-V execution profile.',
     {
       chainId: 1099,
       proofMode: 'zk',
       daMode: 'NeoFS',
       gatewayMode: 'optional-aggregation',
       vmProfile: 'NeoVM2/RISC-V',
-      securityLabels: ['private-devnet', 'native-zk-accelerated', 'neofs-da'],
+      securityLabels: ['private-devnet', 'contract-zk-verifier', 'neofs-da'],
       assetCatalog: [
         { symbol: 'NEO', l1Decimals: 0, l2Decimals: 8, route: 'platform-built-in' },
         { symbol: 'GAS', l1Decimals: 8, l2Decimals: 8, route: 'platform-built-in' },
@@ -22,7 +22,7 @@ export const sampleReports = Object.freeze({
   'deployment-plan': envelope(
     'deployment-plan',
     'Neo.Hub.Deploy plan',
-    'NeoHub remains a deployable L1 contract bundle with a narrow native ZK accelerator dependency.',
+    'NeoHub remains a deployable L1 contract bundle with a narrow deployable ZK verifier contract dependency.',
     {
       contracts: [
         'NeoHub.ChainRegistry',
@@ -30,13 +30,13 @@ export const sampleReports = Object.freeze({
         'NeoHub.SharedBridge',
         'NeoHub.SettlementManager',
         'NeoHub.VerifierRegistry',
-        'NeoHub.NativeZkVerifier',
+        'NeoHub.ContractZkVerifier',
         'NeoHub.DARegistry',
         'NeoHub.DAValidator',
       ],
       requiresWitnesses: ['operator', 'governance-council'],
-      nativeAccelerator: {
-        name: 'L1 Native ZK Accelerator',
+      proofVerifier: {
+        name: 'Deployable Proof Verifier Contract',
         abi: 'verifyZkProof(proofSystem,vkId,publicInputHash,proofBytes)',
       },
     },
@@ -49,7 +49,7 @@ export const sampleReports = Object.freeze({
       network: 'devnet-n4',
       receipts: [
         { contract: 'NeoHub.SharedBridge', hash: '0x8f7ae5d4b9c1a6506d8a93aee8da8a70f9e2c9e2', blockHeight: 12820 },
-        { contract: 'NeoHub.NativeZkVerifier', hash: '0x7c124506aa2210edc40a11e873a6951b5f09e4d5', blockHeight: 12824 },
+        { contract: 'NeoHub.ContractZkVerifier', hash: '0x7c124506aa2210edc40a11e873a6951b5f09e4d5', blockHeight: 12824 },
         { contract: 'NeoHub.DARegistry', hash: '0x93ce7a6f1d8ee9180f353bbd09ac211055ac4b50', blockHeight: 12825 },
       ],
       postDeployChecks: ['verifier-route', 'bridge-route', 'da-route'],

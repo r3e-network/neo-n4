@@ -203,6 +203,9 @@ internal static class Program
                     Console.Error.WriteLine("[wire] NeoVM2/RISC-V executor requested but neo_riscv_host is unavailable.");
                     Console.Error.WriteLine("       Build external/neo-riscv-vm and place neo_riscv_host.dll (Windows) or libneo_riscv_host.so (Linux/WSL)");
                     Console.Error.WriteLine("       on PATH/LD_LIBRARY_PATH, or use --executor reference for a smoke test.");
+                    Console.Error.WriteLine("       On Windows, also put dependent runtime DLLs such as libunwind.dll on PATH.");
+                    if (!string.IsNullOrWhiteSpace(RiscVHost.LastAvailabilityError))
+                        Console.Error.WriteLine($"       Native load error: {RiscVHost.LastAvailabilityError}");
                     return 1;
                 }
                 txExec = new RiscVTransactionExecutor();

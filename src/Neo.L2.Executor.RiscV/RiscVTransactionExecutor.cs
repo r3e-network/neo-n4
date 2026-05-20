@@ -92,10 +92,15 @@ public sealed class RiscVTransactionExecutor : ITransactionExecutor
     {
         if (!RiscVHost.IsAvailable)
         {
+            var detail = string.IsNullOrWhiteSpace(RiscVHost.LastAvailabilityError)
+                ? string.Empty
+                : $" Last native load error: {RiscVHost.LastAvailabilityError}";
             throw new InvalidOperationException(
                 "NeoVM2/RISC-V executor requested but neo_riscv_host is unavailable. " +
                 "Build external/neo-riscv-vm and place neo_riscv_host.dll (Windows) " +
-                "or libneo_riscv_host.so (Linux/WSL) on PATH/LD_LIBRARY_PATH.");
+                "or libneo_riscv_host.so (Linux/WSL) on PATH/LD_LIBRARY_PATH. " +
+                "On Windows, also ensure dependent runtime DLLs such as libunwind.dll " +
+                $"are on PATH.{detail}");
         }
 
         var network = batchContext.Network == 0 ? RiscVHost.DefaultNetwork : batchContext.Network;

@@ -147,7 +147,7 @@ NeoHub
 ├── SharedBridge
 ├── SettlementManager
 ├── VerifierRegistry
-├── NativeZkVerifier
+├── ContractZkVerifier
 ├── MessageRouter
 ├── TokenRegistry
 ├── DARegistry
@@ -257,14 +257,14 @@ getCanonicalStateRoot(chainId)
 VerifierRegistry:
   - MultisigVerifier
   - OptimisticVerifier
-  - NativeZkVerifier  # ProofType.Zk adapter -> L1 native accelerator
+  - ContractZkVerifier  # ProofType.Zk router -> L1 可部署验证器合约
   - AggregatedProofVerifier
   - FutureProofSystemVerifier
 ```
 
 不要把 verifier 写死。Neo 4 L2 早期可能先用 multisig / optimistic，后续再升级到 RISC-V zk validity proof。
-ZK 路径不应在普通合约中硬算证明系统数学：`NativeZkVerifier` 先校验 batch commitment、
-RISC-V proof payload、verification-key id 和 publicInputHash 边界，再调用 L1 native accelerator
+ZK 路径不应在普通合约中硬算证明系统数学：`ContractZkVerifier` 先校验 batch commitment、
+RISC-V proof payload、verification-key id 和 publicInputHash 边界，再调用 L1 可部署验证器合约
 的 `verifyZkProof(...)`。
 
 ### MessageRouter
@@ -583,8 +583,8 @@ Stage 1: Optimistic proof
 
 Stage 2: ZK validity proof
   - 证明 oldRoot + txs + messages -> newRoot
-  - NeoHub.NativeZkVerifier 验证 envelope/VK/publicInputHash
-  - L1 native accelerator 验证 proof-system math
+  - NeoHub.ContractZkVerifier 验证 envelope/VK/publicInputHash
+  - L1 可部署验证器合约 验证 proof-system math
   - 安全性最高
 ```
 
@@ -847,9 +847,7 @@ System:
 
 # 11. Bridge 设计
 
-现有 Neo X 已经给出一个生态参考：Neo X 是 EVM-compatible sidechain，采用 dBFT，并有从 Neo N3 到 Neo X 的 native bridge；官方 Neo X 页面也写到它支持 Bridge to Neo N3 和 dBFT consensus。([Neo X][11])
-
-但 Neo 4 L2 网络不能为每条 L2 各自做一套孤立桥。应该统一为：
+Neo 4 L2 网络不能为每条 L2 各自做一套孤立桥。桥接系统必须基于 Neo Stack 的共享结算、统一资产映射、统一消息根和统一治理，而不是把每条执行链做成互不兼容的独立网络。应该统一为：
 
 ```text
 NeoHub SharedBridge
@@ -1727,4 +1725,3 @@ Neo Stack
 [8]: https://docs.neo.org/docs/n3/node/cli/config.html "Configuring and Starting Neo-CLI"
 [9]: https://docs.neo.org/docs/n3/reference/rpc/getproof.html "getproof Method"
 [10]: https://developers.neo.org/n3 "NEO Developer Resource"
-[11]: https://x.neo.org/?utm_source=chatgpt.com "Neo X | Neo's EVM-based sidechain"

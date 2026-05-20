@@ -5,7 +5,7 @@ namespace Neo.Hub.Deploy;
 
 /// <summary>
 /// <c>neo-hub-deploy scaffold</c> — write a starter <see cref="DeployPlan"/> JSON
-/// covering the 23-step NeoHub production bundle (15 core, NativeZkVerifier,
+/// covering the 23-step NeoHub production bundle (15 core, ContractZkVerifier,
 /// 2 fraud verifiers, and 5 external-bridge contracts). The output is operator-editable JSON;
 /// operators replace the placeholder bond owner / asset hashes before piping it
 /// through <c>plan</c>.
@@ -19,7 +19,7 @@ public static class ScaffoldCommand
     public static int Run(string[] args)
     {
         ArgumentNullException.ThrowIfNull(args);
-        var output = ArgUtilLocal.Get(args, "--output", "deploy-plan.json");
+        var output = ArgUtil.Get(args, "--output", "deploy-plan.json");
         DeployPlan plan;
         try
         {
@@ -44,17 +44,5 @@ public static class ScaffoldCommand
         Console.WriteLine($"Wrote starter plan to {output}");
         Console.WriteLine($"  steps: {plan.Steps.Count}");
         return 0;
-    }
-
-    private static class ArgUtilLocal
-    {
-        public static string Get(string[] args, string name, string defaultValue)
-        {
-            for (var i = 0; i < args.Length - 1; i++)
-            {
-                if (args[i] == name) return args[i + 1];
-            }
-            return defaultValue;
-        }
     }
 }

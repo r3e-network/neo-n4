@@ -74,6 +74,7 @@ public static class RiscVHost
     // doesn't re-pay the DllNotFoundException cost on dev environments where the lib is
     // intentionally absent.
     private static bool? _isAvailableCache;
+    private static string? _lastAvailabilityError;
 
     /// <summary>True if <c>libneo_riscv_host</c> is loadable.</summary>
     public static bool IsAvailable
@@ -100,28 +101,39 @@ public static class RiscVHost
                         // Free whatever the native side allocated, regardless of ok.
                         NativeFreeExecutionResult(&output);
                         _isAvailableCache = true;
+                        _lastAvailabilityError = null;
                         return true;
                     }
                 }
             }
-            catch (DllNotFoundException)
+            catch (DllNotFoundException ex)
             {
+                _lastAvailabilityError = $"{ex.GetType().Name}: {ex.Message}";
                 _isAvailableCache = false;
                 return false;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 // Any other exception (e.g. EntryPointNotFoundException for the wrong .so)
                 // also counts as unavailable — the wrapper can't proceed safely.
+                _lastAvailabilityError = $"{ex.GetType().Name}: {ex.Message}";
                 _isAvailableCache = false;
                 return false;
             }
         }
     }
 
+    /// <summary>Most recent native library load/probe error, when <see cref="IsAvailable"/>
+    /// returned false.</summary>
+    public static string? LastAvailabilityError => _lastAvailabilityError;
+
     /// <summary>Reset the cached availability flag (test-only — production callers see a
     /// stable value over process lifetime).</summary>
-    public static void ResetAvailabilityCache() => _isAvailableCache = null;
+    public static void ResetAvailabilityCache()
+    {
+        _isAvailableCache = null;
+        _lastAvailabilityError = null;
+    }
 
     /// <summary>
     /// Execute a RISC-V program on the PolkaVM-backed engine. Returns the execution outcome

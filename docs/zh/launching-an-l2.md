@@ -565,7 +565,7 @@ L1:      SettlementManager.SubmitBatch(commitment, publicInputs, proof)
 
 ```bash
 # 1. 脚手架一个起步 plan(23 个生产 NeoHub 部署步骤按依赖序,
-#    包含 NativeZkVerifier 以及 v1/v2 与 v3 fraud verifier)。
+#    包含 ContractZkVerifier 以及 v1/v2 与 v3 fraud verifier)。
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
     --output ./my-l2/deploy-plan.json
 

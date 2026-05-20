@@ -15,8 +15,8 @@ The pass covers:
 - N4 Layer-2 runtime modules, native L2 contracts in the r3e Neo core fork, and
   the NeoVM2/RISC-V execution boundary.
 - NeoFS data-availability integration points and validation evidence.
-- ZK verification routing through deployable NeoHub contracts plus L1 native
-  accelerator hooks.
+- ZK verification routing through deployable NeoHub contracts and
+  governance-registered verifier contracts.
 - SDKs, CLIs, samples, watchers, external bridge adapters, and test evidence.
 
 Out of scope for a local-only assurance pass:
@@ -64,19 +64,19 @@ Fix:
 This closes the active localization regression found by the full .NET solution
 test run.
 
-### Reviewed: historical `StubCommands.cs` filename is misleading but functional
+### Reviewed: operator-plan command file naming
 
 The broad placeholder scan flagged
-`tools/Neo.Stack.Cli/Commands/StubCommands.cs`. Manual review found that the
-file is not an empty or fake implementation: it contains functional command
-handlers for chain registration, bridge adapter deployment planning, service
-preflights, and batch submission validation. The filename is historical.
+`tools/Neo.Stack.Cli/Commands/OperatorPlanCommands.cs`. Manual review found
+that the file is not an empty or fake implementation: it contains functional
+command handlers for chain registration, bridge adapter deployment planning,
+service preflights, and batch submission validation.
 
 Disposition:
 
 - No correctness fix is required for this checkpoint.
-- A future hygiene-only rename would reduce audit noise, but it should be done
-  separately to avoid mixing cosmetic churn into assurance evidence.
+- The old `StubCommands.cs` filename was removed in a hygiene pass and replaced
+  with `OperatorPlanCommands.cs`.
 
 ### Reviewed: test-only stub contracts and handlers are contained
 
@@ -96,7 +96,7 @@ Disposition:
 | Module family | Assessment | Evidence / rationale |
 | ------------- | ---------- | -------------------- |
 | NeoHub L1 contracts | Structurally complete for deployable-contract architecture. | Contracts are split by responsibility; deployment tooling and tests cover plan generation and production-step boundaries. NeoHub remains deployable contract code instead of invasive L1 native-contract code. |
-| L1 native ZK accelerator | Correct architectural boundary. | Heavy ZK math belongs in native accelerator hooks, while `NativeZkVerifier` remains the deployable adapter exposed to NeoHub governance and settlement flows. |
+| Contract-deployed ZK verifier route | Correct architectural boundary. | ZK proof-system work belongs behind governance-registered deployable verifier contracts, while `ContractZkVerifier` remains the deployable router exposed to NeoHub governance and settlement flows. |
 | L2 native contracts | Correct place for N4 chain-internal system behavior. | L2-specific native contracts live in the r3e Neo core fork, not in ad hoc post-deploy contracts. |
 | Execution | Advanced and appropriately layered. | NeoVM2/RISC-V is the default execution model; shared Rust execution core keeps proof input logic backend-neutral; optional VM profiles are extension points. |
 | Data availability | Design is aligned with the stated requirement to use NeoFS as DA. | Documentation and Experience Hub now describe NeoFS DA as a first-class layer with content addressing, replication, and proof-of-storage validation. |

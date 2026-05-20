@@ -19,6 +19,8 @@ namespace Neo.Hub.Deploy.UnitTests;
 ///   without <c>nccs</c> on <c>PATH</c>. Pass-through; the CI <c>contracts</c>
 ///   job (which runs <c>nccs</c>) is the authoritative gate.</description></item>
 /// </list>
+/// Set <c>NEO_N4_REQUIRE_FRESH_MANIFESTS=1</c> in that authoritative gate to
+/// turn missing/stale manifests into hard failures instead of local-dev skips.
 /// </summary>
 internal static class ManifestTestHelper
 {
@@ -29,6 +31,7 @@ internal static class ManifestTestHelper
     /// when stale).</returns>
     public static JObject? LoadFreshManifest(string contractName)
     {
+        var requireFresh = Environment.GetEnvironmentVariable("NEO_N4_REQUIRE_FRESH_MANIFESTS") == "1";
         var manifestRel = $"contracts/{contractName}/bin/sc/{contractName}.manifest.json";
         var srcDirRel = $"contracts/{contractName}";
         var dir = AppContext.BaseDirectory;
@@ -41,16 +44,21 @@ internal static class ManifestTestHelper
                 var staleSrc = FindStaleSource(manifestPath, srcDir);
                 if (staleSrc is not null)
                 {
-                    Console.WriteLine(
+                    var message =
                         $"[manifest-stale] {contractName}: source '{Path.GetFileName(staleSrc)}' " +
-                        $"is newer than .manifest.json — re-run nccs in '{srcDirRel}' to refresh. " +
-                        $"Skipping invariant check until then.");
+                        $"is newer than .manifest.json — re-run nccs in '{srcDirRel}' to refresh.";
+                    Console.WriteLine(requireFresh ? message : $"{message} Skipping invariant check until then.");
+                    if (requireFresh) throw new InvalidOperationException(message);
                     return null;
                 }
                 return (JObject)JToken.Parse(File.ReadAllText(manifestPath))!;
             }
             dir = Path.GetDirectoryName(dir);
         }
+        if (requireFresh)
+            throw new FileNotFoundException(
+                $"Fresh manifest is required but was not found: {manifestRel}",
+                manifestRel);
         return null;
     }
 

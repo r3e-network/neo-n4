@@ -14,7 +14,7 @@ Chinese version: `docs/zh/superpowers/specs/2026-05-19-neo-n4-unified-experience
 
 Neo N4 already contains the major architecture pieces: NeoHub deployable L1
 contracts, L2 native contracts in the r3e Neo core fork, a NeoFS data
-availability path, a native-accelerated ZK verifier adapter, bridge tooling,
+availability path, a contract-deployed ZK verifier adapter, bridge tooling,
 devnet tooling, SDKs, tests, architecture documents, and a static interactive
 runtime theater.
 
@@ -27,7 +27,7 @@ the production architecture or moving privileged actions into a browser.
 
 - Provide one coherent local-first experience for learning, building,
   operating, and verifying Neo N4.
-- Make the architecture visible: L1 NeoHub contracts, L1 native ZK accelerator,
+- Make the architecture visible: L1 NeoHub contracts, deployable L1 ZK verifier contract,
   NeoFS DA, Gateway, bridge, L2 execution, native L2 contracts, and optional VM
   profiles.
 - Guide operators through private-network setup, deployment rehearsal, bridge
@@ -108,7 +108,7 @@ Learn explains the system before asking users to run commands.
 
 Required views:
 
-- Architecture map: L1, L2, NeoFS DA, bridge, Gateway, native ZK accelerator,
+- Architecture map: L1, L2, NeoFS DA, bridge, Gateway, deployable ZK verifier contract,
   SDKs, watchers, and optional VM profiles.
 - Workflow theater: deposit, batch settlement, DA publication, ZK proof,
   withdrawal, L2-to-L2 messaging, external-chain bridge, challenge and
@@ -159,8 +159,8 @@ Required views:
 - Unit, integration, smoke, contract compile, SDK, and frontend test results.
 - Private-network deployment rehearsal report.
 - Security checklist and threat-model evidence.
-- ZK verifier path evidence: `NativeZkVerifier` envelope checks plus L1 native
-  accelerator dispatch status.
+- ZK verifier path evidence: `ContractZkVerifier` envelope checks plus
+  deployable verifier contract dispatch status.
 - Documentation consistency checks: English/Chinese doc parity and diagram
   coverage.
 - CI readiness panel that distinguishes local evidence from real GitHub Actions

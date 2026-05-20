@@ -25,8 +25,8 @@ test('architecture nodes preserve approved protocol boundaries', () => {
   const ids = architectureNodes.map((node) => node.id);
   assert.deepEqual(ids, [
     'neohub',
-    'native-zk',
-    'zk-accelerator',
+    'contract-zk',
+    'proof-verifier',
     'shared-bridge',
     'gateway',
     'neofs-da',

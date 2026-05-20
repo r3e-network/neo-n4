@@ -20,11 +20,12 @@ For any L2 chain registered in `NeoHub.ChainRegistry`:
   that chain's `ProofType`. The verifier additionally checks
   `commitment.PublicInputHash == hash(publicInputs)` — preventing a malicious
   prover from signing different inputs than the commitment claims.
-- **ZK verifier efficiency boundary.** `ProofType.Zk` routes through the deployable
-  `NeoHub.NativeZkVerifier` adapter. The adapter validates the commitment/proof
-  envelope and registered verification-key id, then calls the configured L1
-  native accelerator for `verifyZkProof(...)`; heavy SNARK/STARK math is not
-  executed as ordinary NeoHub contract bytecode.
+- **ZK verifier boundary.** `ProofType.Zk` routes through the deployable
+  `NeoHub.ContractZkVerifier` router. The router validates the commitment/proof
+  envelope and registered verification-key id, then calls the configured
+  deployable verifier contract for `verifyZkProof(...)`. Native/precompile
+  acceleration can implement that verifier ABI as an optional optimization, but
+  it is not required for the default NeoHub deployment.
 - **Replay safety.** Every cross-chain message carries `(chainId, nonce)` and is
   deduped per-pair in `NeoHub.MessageRouter`.
 - **Withdrawal finality.** Funds leave `SharedBridge` only on inclusion proofs
@@ -45,8 +46,9 @@ The right way to think about this: **L1 verifies what the registered verifier
 verifies.** Phase 4 (ZK validity) makes the verifier trustless. Phase 3
 (optimistic) makes it as trusted as the bisection-game challenge window. Phase
 0–2 stack governance (Neo Council, sequencer bonds) on top of multisig.
-For Phase 4 chains, the registered verifier is `NativeZkVerifier`, and the
-native accelerator it points at is part of the L1 trusted computing base.
+For Phase 4 chains, the registered verifier is `ContractZkVerifier`, and each
+deployable verifier contract it points at is part of that chain's L1 trusted
+computing base.
 
 ---
 
@@ -99,9 +101,11 @@ pinning regression test):
 - **Public-input hash equality at the prover boundary.** `L2SettlementPlugin`
   rejects a proof whose `publicInputHash` differs from the settler's computed
   hash, before submitting to L1 — preventing wasted L1 round-trips.
-- **Native ZK verifier adapter.** `NativeZkVerifier` refuses non-ZK commitments,
+- **Contract ZK verifier router.** `ContractZkVerifier` refuses non-ZK commitments,
   malformed `RiscVProofPayload` envelopes, unregistered verification keys, and
-  unset native accelerator hashes before delegating to `verifyZkProof(...)`.
+  missing deployable verifier contracts before delegating to `verifyZkProof(...)`.
+  Envelope-only mode is explicit per proof system and should be confined to
+  private devnets or staged integration tests.
 - **Fraud-verifier allowlist on `OptimisticChallenge.Challenge`.** Closes a
   bond-drain attack window: `Challenge` will only invoke a `fraudVerifier`
   contract hash that the owner has explicitly registered via

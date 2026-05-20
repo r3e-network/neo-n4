@@ -206,12 +206,12 @@ public class UT_DeployPlanner
         // RestrictedExecution v3) + 4 external-bridge contracts (doc.md
         // §11.3 Phase B: MpcCommitteeVerifier, ExternalBridgeRegistry,
         // ExternalBridgeEscrow, ExternalBridgeBond) + 1 Phase-C
-        // (MpcCommitteeFraudVerifier) + 1 ZK native-accelerator adapter = 23.
+        // (MpcCommitteeFraudVerifier) + 1 contract-deployed ZK verifier router = 23.
         Assert.AreEqual(23, plan.Steps.Count);
         var names = plan.Steps.Select(s => s.Name).ToHashSet();
         Assert.IsTrue(names.Contains("GovernanceFraudVerifier"));
         Assert.IsTrue(names.Contains("RestrictedExecutionFraudVerifier"));
-        Assert.IsTrue(names.Contains("NativeZkVerifier"));
+        Assert.IsTrue(names.Contains("ContractZkVerifier"));
         // Phase 0/1/2 contracts
         Assert.IsTrue(names.Contains("ChainRegistry"));
         Assert.IsTrue(names.Contains("SharedBridge"));
@@ -253,16 +253,44 @@ public class UT_DeployPlanner
     }
 
     [TestMethod]
-    public void Scaffold_NativeZkVerifierHasOwnerOnlyDeployData()
+    public void Scaffold_ContractZkVerifierHasOwnerOnlyDeployData()
     {
         var plan = ScaffoldPlan.Default();
-        var verifier = plan.Steps.Single(s => s.Name == "NativeZkVerifier");
+        var verifier = plan.Steps.Single(s => s.Name == "ContractZkVerifier");
 
         Assert.AreEqual(1, verifier.DeployData.Count,
-            "NativeZkVerifier deploys as a normal NeoHub L1 contract with an owner; accelerator/VK wiring is post-deploy.");
+            "ContractZkVerifier deploys as a normal NeoHub L1 contract with an owner; VK/verifier-profile wiring is post-deploy.");
         Assert.AreEqual("OWNER_REPLACE_ME", verifier.DeployData[0]!.AsString());
         Assert.AreEqual(0, verifier.DependsOn.Count,
-            "NativeZkVerifier is a registry target; it must not create a deploy-time cycle with VerifierRegistry.");
+            "ContractZkVerifier is a registry target; it must not create a deploy-time cycle with VerifierRegistry.");
+    }
+
+    [TestMethod]
+    public void Scaffold_GovernanceControllerHasCouncilDeployData()
+    {
+        var plan = ScaffoldPlan.Default();
+        var governance = plan.Steps.Single(s => s.Name == "GovernanceController");
+
+        Assert.AreEqual(4, governance.DeployData.Count,
+            "GovernanceController _deploy needs (owner, councilMembers[], threshold, timelockSeconds).");
+        Assert.AreEqual("OWNER_REPLACE_ME", governance.DeployData[0]!.AsString());
+        var council = governance.DeployData[1] as Neo.Json.JArray;
+        Assert.IsNotNull(council, "2nd arg must be a council public-key array");
+        Assert.AreEqual("GOVERNANCE_COUNCIL_MEMBER_REPLACE_ME", council[0]!.AsString());
+        Assert.AreEqual(1, (int)governance.DeployData[2]!.AsNumber());
+        Assert.AreEqual(3600, (int)governance.DeployData[3]!.AsNumber());
+    }
+
+    [TestMethod]
+    public void Scaffold_PostDeployActionsWireSettlementManagerToOptimisticChallenge()
+    {
+        var plan = ScaffoldPlan.Default();
+        var bundle = DeployPlanner.Plan(plan, _ => H(0x42));
+
+        var actions = ScaffoldPlan.PostDeployActions(bundle).ToArray();
+
+        Assert.IsTrue(actions.Any(a => a.Contains("SettlementManager.SetOptimisticChallenge(OptimisticChallenge)", StringComparison.Ordinal)),
+            "SettlementManager deploys before OptimisticChallenge to avoid a cycle, so the post-deploy wiring must be explicit.");
     }
 
     [TestMethod]
@@ -401,8 +429,8 @@ public class UT_DeployPlanner
         // 5 original (Phase 0-3) + 3 ZK native-verifier wiring hints +
         // 2 RegisterFraudVerifier wiring + 2 fraud-verifier informational notes +
         // 3 external-bridge gov/setup hints +
-        // 2 Phase-C wiring hints + 3 DA/filter production wiring hints = 18.
-        Assert.AreEqual(18, actions.Count);
+        // 2 Phase-C wiring hints + 4 DA/optimistic/filter production wiring hints = 19.
+        Assert.AreEqual(19, actions.Count);
 
         // 1. SequencerBond.RegisterSlasher(OptimisticChallenge) — Phase-3 cycle-break.
         StringAssert.Contains(actions[0], "SequencerBond.RegisterSlasher");
@@ -418,15 +446,15 @@ public class UT_DeployPlanner
         StringAssert.Contains(actions[2], "GovernanceController");
         StringAssert.Contains(actions[2], "§16");
 
-        // 4-6. ZK settlement must use the NativeZkVerifier adapter and native accelerator.
-        StringAssert.Contains(actions[3], "NativeZkVerifier.SetNativeAccelerator");
-        StringAssert.Contains(actions[3], "L1_NATIVE_ZK_VERIFIER_HASH");
-        StringAssert.Contains(actions[4], "NativeZkVerifier.RegisterVerificationKey");
-        StringAssert.Contains(actions[4], "proofSystem");
-        StringAssert.Contains(actions[4], "vkId");
+        // 4-6. ZK settlement must use the contract-deployed verifier router.
+        StringAssert.Contains(actions[3], "ContractZkVerifier.RegisterVerificationKey");
+        StringAssert.Contains(actions[3], "proofSystem");
+        StringAssert.Contains(actions[3], "vkId");
+        StringAssert.Contains(actions[4], "ContractZkVerifier.RegisterProofVerifier");
+        StringAssert.Contains(actions[4], "verifierContract");
         StringAssert.Contains(actions[5], "VerifierRegistry.RegisterVerifier");
         StringAssert.Contains(actions[5], "ProofType.Zk");
-        StringAssert.Contains(actions[5], "NativeZkVerifier");
+        StringAssert.Contains(actions[5], "ContractZkVerifier");
 
         // 7. OptimisticChallenge.RegisterFraudVerifier(GovernanceFraudVerifier) — allowlist gate.
         StringAssert.Contains(actions[6], "OptimisticChallenge.RegisterFraudVerifier");

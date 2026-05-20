@@ -230,8 +230,8 @@ node --test tests\experience-hub\hub-state.test.mjs
 `architectureNodes` 必须包含：
 
 - `neohub`
-- `native-zk`
-- `zk-accelerator`
+- `contract-zk`
+- `proof-verifier`
 - `shared-bridge`
 - `gateway`
 - `neofs-da`
@@ -272,7 +272,7 @@ http://localhost:8088/docs/experience-hub/
 期望：
 
 - Learn/Build/Operate/Verify 导航会改变可见内容。
-- 架构 canvas 包含 NeoHub、NativeZkVerifier、L1 Native ZK Accelerator、NeoFS DA 和 NeoVM2/RISC-V。
+- 架构 canvas 包含 NeoHub、ContractZkVerifier、可部署 L1 ZK 验证器合约、NeoFS DA 和 NeoVM2/RISC-V。
 - 页面明确说明 sample report 是 private devnet evidence，不是 public network evidence。
 
 - [ ] **步骤 7：提交**

@@ -145,7 +145,7 @@ public class UT_Models
     {
         var z = UInt256.Zero;
 
-        L2BatchCommitment Mk(uint chainId) => new()
+        L2BatchCommitment Mk(uint chainId, byte[]? proof = null) => new()
         {
             ChainId = chainId,
             BatchNumber = 1,
@@ -161,11 +161,63 @@ public class UT_Models
             DACommitment = z,
             PublicInputHash = z,
             ProofType = ProofType.Multisig,
-            Proof = ReadOnlyMemory<byte>.Empty,
+            Proof = proof ?? Array.Empty<byte>(),
         };
 
         Assert.AreNotEqual(Mk(1001), Mk(1002));
         Assert.AreEqual(Mk(1001), Mk(1001));
+        Assert.AreEqual(Mk(1001, [0x01, 0x02]), Mk(1001, [0x01, 0x02]));
+        Assert.AreEqual(Mk(1001, [0x01, 0x02]).GetHashCode(), Mk(1001, [0x01, 0x02]).GetHashCode());
+        Assert.AreNotEqual(Mk(1001, [0x01, 0x02]), Mk(1001, [0x01, 0x03]));
+    }
+
+    [TestMethod]
+    public void CrossChainMessage_DistinguishesByPayloadContent()
+    {
+        CrossChainMessage Mk(byte[] payload) => new()
+        {
+            SourceChainId = 1001,
+            TargetChainId = 1002,
+            Nonce = 7,
+            Sender = UInt160.Parse("0x0000000000000000000000000000000000000001"),
+            Receiver = UInt160.Parse("0x0000000000000000000000000000000000000002"),
+            MessageType = MessageType.Call,
+            Payload = payload,
+            MessageHash = UInt256.Parse("0x1111111111111111111111111111111111111111111111111111111111111111"),
+        };
+
+        var a = Mk([0x01, 0x02, 0x03]);
+        var b = Mk([0x01, 0x02, 0x03]);
+        Assert.AreEqual(a, b);
+        Assert.AreEqual(a.GetHashCode(), b.GetHashCode());
+        Assert.AreNotEqual(a, Mk([0x01, 0x02, 0x04]));
+        Assert.IsFalse(a.Equals(null));
+    }
+
+    [TestMethod]
+    public void ExternalCrossChainMessage_DistinguishesByPayloadContent()
+    {
+        ExternalCrossChainMessage Mk(byte[] payload) => new()
+        {
+            ExternalChainId = 0xE0000001,
+            NeoChainId = 1001,
+            Nonce = 9,
+            Direction = ExternalBridgeDirection.ForeignToNeo,
+            Sender = UInt160.Parse("0x0000000000000000000000000000000000000003"),
+            Recipient = UInt160.Parse("0x0000000000000000000000000000000000000004"),
+            DeadlineUnixSeconds = 1_710_000_000,
+            SourceTxRef = UInt256.Parse("0x2222222222222222222222222222222222222222222222222222222222222222"),
+            MessageType = ExternalMessageType.AssetAndCall,
+            Payload = payload,
+            MessageHash = UInt256.Parse("0x3333333333333333333333333333333333333333333333333333333333333333"),
+        };
+
+        var a = Mk([0xAA, 0xBB]);
+        var b = Mk([0xAA, 0xBB]);
+        Assert.AreEqual(a, b);
+        Assert.AreEqual(a.GetHashCode(), b.GetHashCode());
+        Assert.AreNotEqual(a, Mk([0xAA, 0xBC]));
+        Assert.IsFalse(a.Equals(null));
     }
 
     [TestMethod]

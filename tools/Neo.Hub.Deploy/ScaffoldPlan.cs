@@ -5,7 +5,7 @@ namespace Neo.Hub.Deploy;
 /// <summary>
 /// Generates the canonical default <see cref="DeployPlan"/> that matches the layout in
 /// doc.md §3.2 and §13.1. The 15 core NeoHub contracts deploy in dependency order, plus
-/// two stateless fraud-verifier reference contracts (<c>GovernanceFraudVerifier</c> for
+/// one contract-deployed ZK verifier router and two stateless fraud-verifier reference contracts (<c>GovernanceFraudVerifier</c> for
 /// v1/v2 structural verification and <c>RestrictedExecutionFraudVerifier</c> for
 /// trustless v3 storage-proof verification). L2 native contracts are listed but
 /// commented as "deploy on the L2", not the L1.
@@ -29,8 +29,8 @@ public static class ScaffoldPlan
                     "contracts/NeoHub.VerifierRegistry/bin/sc/NeoHub.VerifierRegistry.nef",
                     OwnerOnly()),
 
-                Step("NativeZkVerifier",
-                    "contracts/NeoHub.NativeZkVerifier/bin/sc/NeoHub.NativeZkVerifier.nef",
+                Step("ContractZkVerifier",
+                    "contracts/NeoHub.ContractZkVerifier/bin/sc/NeoHub.ContractZkVerifier.nef",
                     OwnerOnly()),
 
                 Step("TokenRegistry",
@@ -54,7 +54,7 @@ public static class ScaffoldPlan
 
                 Step("GovernanceController",
                     "contracts/NeoHub.GovernanceController/bin/sc/NeoHub.GovernanceController.nef",
-                    OwnerOnly()),
+                    GovernanceControllerDeployData()),
 
                 Step("MessageRouter",
                     "contracts/NeoHub.MessageRouter/bin/sc/NeoHub.MessageRouter.nef",
@@ -250,7 +250,7 @@ public static class ScaffoldPlan
         var oc = bundle.Invocations.FirstOrDefault(i => i.Name == "OptimisticChallenge");
         var chainReg = bundle.Invocations.FirstOrDefault(i => i.Name == "ChainRegistry");
         var verifierReg = bundle.Invocations.FirstOrDefault(i => i.Name == "VerifierRegistry");
-        var nativeZkVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "NativeZkVerifier");
+        var contractZkVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "ContractZkVerifier");
         var gc = bundle.Invocations.FirstOrDefault(i => i.Name == "GovernanceController");
         var sm = bundle.Invocations.FirstOrDefault(i => i.Name == "SettlementManager");
         var daRegistry = bundle.Invocations.FirstOrDefault(i => i.Name == "DARegistry");
@@ -277,14 +277,14 @@ public static class ScaffoldPlan
         {
             yield return $"VerifierRegistry.SetGovernanceController({gc.Name})  # enable §16 council-veto path (RegisterVerifierViaProposal depends on this wiring)";
         }
-        if (nativeZkVerifier is not null)
+        if (contractZkVerifier is not null)
         {
-            yield return $"{nativeZkVerifier.Name}.SetNativeAccelerator(L1_NATIVE_ZK_VERIFIER_HASH)  # required for ProofType.Zk: heavy SNARK/STARK math runs through the L1 native accelerator, not ordinary NeoHub contract bytecode";
-            yield return $"{nativeZkVerifier.Name}.RegisterVerificationKey(proofSystem, vkId, allowed=true)  # allow each production RISC-V/SP1/Risc0/Halo2/Axiom verification key before accepting ZK batches";
+            yield return $"{contractZkVerifier.Name}.RegisterVerificationKey(proofSystem, vkId, allowed=true)  # allow each production RISC-V/SP1/Risc0/Halo2/Axiom verification key before accepting ZK batches";
+            yield return $"{contractZkVerifier.Name}.RegisterProofVerifier(proofSystem, verifierContract, allowed=true)  # production path: route proof-system math to a deployable verifier contract; devnets may explicitly use SetEnvelopeOnlyAllowed";
         }
-        if (verifierReg is not null && nativeZkVerifier is not null)
+        if (verifierReg is not null && contractZkVerifier is not null)
         {
-            yield return $"{verifierReg.Name}.RegisterVerifier(ProofType.Zk=3, {nativeZkVerifier.Name})  # route ZK settlement commitments to NativeZkVerifier; use RegisterVerifierViaProposal after governance is live";
+            yield return $"{verifierReg.Name}.RegisterVerifier(ProofType.Zk=3, {contractZkVerifier.Name})  # route ZK settlement commitments to the contract-deployed verifier router; use RegisterVerifierViaProposal after governance is live";
         }
         if (govFraudVerifier is not null && oc is not null)
         {
@@ -356,6 +356,10 @@ public static class ScaffoldPlan
         {
             yield return $"{sm.Name}.SetDAValidator({daValidator.Name})  # enforce DA validation before FinalizeBatch, including DAC attestation checks";
         }
+        if (sm is not null && oc is not null)
+        {
+            yield return $"{sm.Name}.SetOptimisticChallenge({oc.Name})  # complete the SettlementManager -> OptimisticChallenge cycle after both contracts exist";
+        }
         if (messageRouter is not null && l1TxFilter is not null)
         {
             yield return $"# Per L2 chain: call {messageRouter.Name}.SetL1TxFilter(<chainId>, {l1TxFilter.Name}) to enable sender/receiver/message-type filtering before L1->L2 enqueue.";
@@ -377,5 +381,19 @@ public static class ScaffoldPlan
         var arr = new JArray { "OWNER_REPLACE_ME" };
         foreach (var d in depNames) arr.Add($"$step:{d}");
         return arr;
+    }
+
+    private static JArray GovernanceControllerDeployData()
+    {
+        return new JArray
+        {
+            "OWNER_REPLACE_ME",
+            new JArray
+            {
+                "GOVERNANCE_COUNCIL_MEMBER_REPLACE_ME",
+            },
+            1,
+            3600,
+        };
     }
 }

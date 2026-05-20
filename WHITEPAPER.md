@@ -95,7 +95,7 @@ BridgeHub, SharedBridge, VerifierRegistry, and MessageRouter into one suite. The
 contain 23 production contracts plus one test-only external-bridge stub:
 
 <p align="center">
-  <img src="docs/figures/architecture/neohub-anatomy.svg" alt="NeoHub L1 anatomy: all 24 deployable projects grouped by concern — Settlement (SettlementManager + VerifierRegistry + NativeZkVerifier), Bridge (SharedBridge + TokenRegistry + ChainRegistry), Messaging (MessageRouter + DARegistry + DAValidator + L1TxFilter), Security (SequencerRegistry + SequencerBond + ForcedInclusion + OptimisticChallenge + EmergencyManager), Governance (GovernanceController + GovernanceFraudVerifier + RestrictedExecutionFraudVerifier), and External Bridge for Phase B/C (MpcCommitteeVerifier + ExternalBridgeRegistry + ExternalBridgeEscrow + ExternalBridgeBond + MpcCommitteeFraudVerifier + ExternalBridgeStubVerifier — test-only)" width="900">
+  <img src="docs/figures/architecture/neohub-anatomy.svg" alt="NeoHub L1 anatomy: all 24 deployable projects grouped by concern — Settlement (SettlementManager + VerifierRegistry + ContractZkVerifier), Bridge (SharedBridge + TokenRegistry + ChainRegistry), Messaging (MessageRouter + DARegistry + DAValidator + L1TxFilter), Security (SequencerRegistry + SequencerBond + ForcedInclusion + OptimisticChallenge + EmergencyManager), Governance (GovernanceController + GovernanceFraudVerifier + RestrictedExecutionFraudVerifier), and External Bridge for Phase B/C (MpcCommitteeVerifier + ExternalBridgeRegistry + ExternalBridgeEscrow + ExternalBridgeBond + MpcCommitteeFraudVerifier + ExternalBridgeStubVerifier — test-only)" width="900">
 </p>
 
 - **`ChainRegistry`** — Register / configure / pause L2 chains. Each entry:
@@ -110,10 +110,11 @@ contain 23 production contracts plus one test-only external-bridge stub:
   l2ToL1MessageRoot, l2ToL2MessageRoot, daCommitment, publicInputHash,
   proofType, proof). Forward verification to `VerifierRegistry`.
 - **`VerifierRegistry`** — Pluggable verifier dispatch by `ProofType`:
-  `Multisig`, `Optimistic`, `NativeZkVerifier`, `Aggregated`.
-- **`NativeZkVerifier`** — Deployable `ProofType.Zk` adapter. It validates
+  `Multisig`, `Optimistic`, `ContractZkVerifier`, `Aggregated`.
+- **`ContractZkVerifier`** — Deployable `ProofType.Zk` router. It validates
   the N4 commitment/proof envelope, verification-key id, and public-input hash
-  boundary, then calls an L1 native accelerator for `verifyZkProof(...)`.
+  boundary, then calls a governance-registered deployable verifier contract for
+  `verifyZkProof(...)`.
 - **`MessageRouter`** — L1↔L2 and L2↔L2 message queues with
   `(chainId, nonce)` replay protection.
 - **`TokenRegistry`** — Canonical L1↔L2 asset mapping:
@@ -308,9 +309,9 @@ plugin code or L2 contract changes required.
 - **Stage 1 — `OptimisticVerifier`.** Producer: `OptimisticProofPayload`
   + sequencer signature. Status: Stage-1 verifier; `BisectionGame` for
   log-N narrowing of disputed tx.
-- **Stage 2 — `NativeZkVerifier`.** Producer: `prove-batch daemon` (real,
+- **Stage 2 — `ContractZkVerifier`.** Producer: `prove-batch daemon` (real,
   out-of-process) + `MockRiscVProver` (in-process test seam). Status:
-  real proof payloads route through a deployable adapter and L1 native accelerator;
+  real proof payloads route through a deployable router and verifier contract;
   end-to-end queue → daemon → verify pipeline validated off-chain.
 
 Aggregated proofs (Phase 5 Gateway) reuse the same registry — `ProofType.Aggregated` plus a

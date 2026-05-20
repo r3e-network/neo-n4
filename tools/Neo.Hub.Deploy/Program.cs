@@ -18,6 +18,7 @@ internal static class Program
                 "plan" => PlanCommand.Run(args[1..]),
                 "verify" => await VerifyCommand.RunAsync(args[1..]),
                 "scaffold" => ScaffoldCommand.Run(args[1..]),
+                "deploy-testnet" => await LiveDeployCommand.RunAsync(args[1..]),
                 "help" or "--help" or "-h" => PrintHelp(),
                 _ => Unknown(args[0]),
             };
@@ -41,6 +42,7 @@ internal static class Program
               scaffold --output <path>            Write a starter DeployPlan covering the 23-step NeoHub production bundle.
               plan --plan <path> --output <path>  Topologically sort + resolve a plan; emit a deploy bundle.
               verify --plan <path> --rpc <url>    Confirm each plan step's nef + manifest exist on disk (exit 2 on any missing).
+              deploy-testnet --rpc <url>          Sign and send the NeoHub bundle to a live Neo N3 testnet RPC.
               help                                Show this message.
 
             See doc.md §3.2 (NeoHub) for the contract suite layout.
@@ -54,14 +56,4 @@ internal static class Program
         return PrintHelp();
     }
 
-}
-
-internal static class ArgUtil
-{
-    public static string Get(string[] args, string name, string defaultValue)
-    {
-        for (var i = 0; i < args.Length - 1; i++)
-            if (args[i] == name) return args[i + 1];
-        return defaultValue;
-    }
 }

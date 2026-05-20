@@ -23,8 +23,8 @@ public static class PlanCommand
     public static int Run(string[] args)
     {
         ArgumentNullException.ThrowIfNull(args);
-        var planPath = ArgUtilLocal.Get(args, "--plan", "deploy-plan.json");
-        var output = ArgUtilLocal.Get(args, "--output", "deploy-bundle.json");
+        var planPath = ArgUtil.Get(args, "--plan", "deploy-plan.json");
+        var output = ArgUtil.Get(args, "--output", "deploy-bundle.json");
 
         if (!File.Exists(planPath))
         {
@@ -90,17 +90,5 @@ public static class PlanCommand
         var nameBytes = System.Text.Encoding.UTF8.GetBytes(stepName);
         Array.Copy(nameBytes, bytes, Math.Min(nameBytes.Length, 20));
         return new UInt160(bytes);
-    }
-
-    private static class ArgUtilLocal
-    {
-        public static string Get(string[] args, string name, string defaultValue)
-        {
-            for (var i = 0; i < args.Length - 1; i++)
-            {
-                if (args[i] == name) return args[i + 1];
-            }
-            return defaultValue;
-        }
     }
 }

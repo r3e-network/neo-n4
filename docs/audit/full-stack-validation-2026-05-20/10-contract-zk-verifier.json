@@ -1,0 +1,62 @@
+﻿{
+    "rpc":  "https://testnet1.neo.coz.io:443",
+    "checkedAtUtc":  "2026-05-20T11:40:04.0282490Z",
+    "contractZkVerifier":  "0xd52484a842b97555c56bd93ecf919df3f78366f7",
+    "verifierRegistry":  "0x3b96ba201a2ef32f98da7b72e14acb0329b6e017",
+    "manifestName":  "NeoHub.ContractZkVerifier",
+    "requiredAbiPresent":  true,
+    "nativeAcceleratorAbiAbsent":  true,
+    "safeDefaults":  [
+                         {
+                             "proofSystem":  1,
+                             "proofVerifierState":  "HALT",
+                             "proofVerifierStack":  [
+                                                        {
+                                                            "type":  "ByteString",
+                                                            "value":  "AAAAAAAAAAAAAAAAAAAAAAAAAAA="
+                                                        }
+                                                    ],
+                             "envelopeOnlyAllowed":  false,
+                             "sampleVkRegistered":  false
+                         },
+                         {
+                             "proofSystem":  2,
+                             "proofVerifierState":  "HALT",
+                             "proofVerifierStack":  [
+                                                        {
+                                                            "type":  "ByteString",
+                                                            "value":  "AAAAAAAAAAAAAAAAAAAAAAAAAAA="
+                                                        }
+                                                    ],
+                             "envelopeOnlyAllowed":  false,
+                             "sampleVkRegistered":  false
+                         },
+                         {
+                             "proofSystem":  3,
+                             "proofVerifierState":  "HALT",
+                             "proofVerifierStack":  [
+                                                        {
+                                                            "type":  "ByteString",
+                                                            "value":  "AAAAAAAAAAAAAAAAAAAAAAAAAAA="
+                                                        }
+                                                    ],
+                             "envelopeOnlyAllowed":  false,
+                             "sampleVkRegistered":  false
+                         },
+                         {
+                             "proofSystem":  4,
+                             "proofVerifierState":  "HALT",
+                             "proofVerifierStack":  [
+                                                        {
+                                                            "type":  "ByteString",
+                                                            "value":  "AAAAAAAAAAAAAAAAAAAAAAAAAAA="
+                                                        }
+                                                    ],
+                             "envelopeOnlyAllowed":  false,
+                             "sampleVkRegistered":  false
+                         }
+                     ],
+    "malformedVerifyState":  "FAULT",
+    "malformedVerifyException":  "at instruction 1200 (ABORTMSG): ABORTMSG is executed. Reason: commitment missing proof length",
+    "verifierRegistryProofTypeZkHash":  "0xd52484a842b97555c56bd93ecf919df3f78366f7"
+}

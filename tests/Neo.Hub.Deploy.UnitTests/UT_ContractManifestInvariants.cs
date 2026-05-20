@@ -31,6 +31,33 @@ public class UT_ContractManifestInvariants
     private static bool HasMethod(JArray methods, string name) =>
         methods.Any(m => ((JObject?)m)?["name"]?.AsString() == name);
 
+    // ─── ContractZkVerifier: contract-deployed proof route ───────────────────
+
+    [TestMethod]
+    public void ContractZkVerifier_Exposes_ContractVerifierRoute_AndNoNativeAccelerator()
+    {
+        var methods = LoadMethods("NeoHub.ContractZkVerifier");
+        if (methods is null) return;
+
+        Assert.IsTrue(HasMethod(methods, "registerVerificationKey"),
+            "ContractZkVerifier must expose registerVerificationKey");
+        Assert.IsTrue(HasMethod(methods, "registerProofVerifier"),
+            "ContractZkVerifier must expose registerProofVerifier for deployable verifier contracts");
+        Assert.IsTrue(HasMethod(methods, "getProofVerifier"),
+            "ContractZkVerifier must expose getProofVerifier for operator/audit introspection");
+        Assert.IsTrue(HasMethod(methods, "setEnvelopeOnlyAllowed"),
+            "ContractZkVerifier must expose explicit devnet-only envelope mode");
+        Assert.IsTrue(HasMethod(methods, "isEnvelopeOnlyAllowed"),
+            "ContractZkVerifier must expose isEnvelopeOnlyAllowed");
+        Assert.IsTrue(HasMethod(methods, "verify"),
+            "ContractZkVerifier must expose verify for VerifierRegistry dispatch");
+
+        Assert.IsFalse(HasMethod(methods, "setNativeAccelerator"),
+            "REGRESSION: ContractZkVerifier must not require an L1 native accelerator");
+        Assert.IsFalse(HasMethod(methods, "getNativeAccelerator"),
+            "REGRESSION: ContractZkVerifier must not expose native-accelerator state");
+    }
+
     // ─── GovernanceController: SetImmutableFlag is permanent ──────────
 
     [TestMethod]

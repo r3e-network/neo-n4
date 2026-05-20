@@ -35,7 +35,7 @@
     <text x="145" y="114" text-anchor="middle" class="card-title" fill="#1e2a55">Settlement</text>
     <text x="145" y="138" text-anchor="middle" class="card-sub" fill="#3a4a82">SettlementManager</text>
     <text x="145" y="156" text-anchor="middle" class="card-sub" fill="#3a4a82">VerifierRegistry</text>
-    <text x="145" y="174" text-anchor="middle" class="card-sub" fill="#3a4a82">NativeZkVerifier</text>
+    <text x="145" y="174" text-anchor="middle" class="card-sub" fill="#3a4a82">ContractZkVerifier</text>
 
     <!-- Bridge -->
     <rect x="240" y="92" width="166" height="98" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>

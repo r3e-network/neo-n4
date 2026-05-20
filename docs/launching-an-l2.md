@@ -615,7 +615,7 @@ after a topological sort:
 
 ```bash
 # 1. Scaffold a starter plan (23 production NeoHub deploy steps in dependency
-#    order, including NativeZkVerifier and the v1/v2 and v3 fraud verifiers).
+#    order, including ContractZkVerifier and the v1/v2 and v3 fraud verifiers).
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
     --output ./my-l2/deploy-plan.json
 

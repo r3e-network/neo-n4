@@ -68,7 +68,7 @@ All agent output transcripts persisted under `.claude/projects/.../subagents/`.
 | 4-way threshold-wording inconsistency | **FIXED** — collapsed to canonical 2 strings |
 | XML docs: 4 missing CLI Main + 1 NeoHub Safe getter + 2 broken crefs | **FIXED** — all 7 closed |
 | 10+ simplifier opportunities (Span APIs, stdlib helpers, deduplication) | **FIXED** — 11 wins applied (-84 lines total across rounds 2+3); 4 left intentional (intentional patterns documented inline) |
-| L2 SDK MessageEmitted decoder needs new `payload` field | **TODO follow-up** — submodule already shipped; off-chain decoders update on next API consumption (not blocking) |
+| L2 SDK MessageEmitted decoder needs new `payload` field | **VERIFIED CLOSED** — `external/neo` now emits `payload` as the 7th `MessageEmitted` argument, and the first-party .NET/TS/Rust SDKs expose RPC proof APIs rather than a stale event decoder surface. |
 | 11 untested-on-chain-contract invariants | **PARTIALLY FIXED** — 7 pinned via manifest-integrity tests + 1 added as proper unit test (ascending-nonce); 3 deferred behind Neo.SmartContract.Testing harness (out of scope this cycle) |
 
 ### Defense-in-depth additions (not from a finding, added during polish)

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 920" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
   <title id="title">What L1 does — the 6 concerns of NeoHub</title>
-  <desc id="desc">The 24 NeoHub L1 deployable projects grouped into six concerns. Settlement (SettlementManager, VerifierRegistry, NativeZkVerifier — defines the trust boundary and routes ZK proofs to a native accelerator). Bridge (SharedBridge, TokenRegistry, ChainRegistry — assets are on L1). Messaging (MessageRouter, DARegistry, DAValidator, L1TxFilter — cross-L2 routing and data-availability arbiter). Security (SequencerRegistry, SequencerBond, ForcedInclusion, OptimisticChallenge — slashable bonds + anti-censorship). Governance and emergency (GovernanceController, EmergencyManager — staged upgrade + escape hatch). External bridge (MpcCommitteeVerifier, ExternalBridgeRegistry, ExternalBridgeEscrow, ExternalBridgeBond, MpcCommitteeFraudVerifier, ExternalBridgeStubVerifier). Plus two specialized fraud verifier slots: GovernanceFraudVerifier (structural v1/v2, governance-arbitrated) and RestrictedExecutionFraudVerifier (trustless v3, re-derives pre/post state roots from storage proofs).</desc>
+  <desc id="desc">The 24 NeoHub L1 deployable projects grouped into six concerns. Settlement (SettlementManager, VerifierRegistry, ContractZkVerifier — defines the trust boundary and routes ZK proofs to a deployable verifier contract). Bridge (SharedBridge, TokenRegistry, ChainRegistry — assets are on L1). Messaging (MessageRouter, DARegistry, DAValidator, L1TxFilter — cross-L2 routing and data-availability arbiter). Security (SequencerRegistry, SequencerBond, ForcedInclusion, OptimisticChallenge — slashable bonds + anti-censorship). Governance and emergency (GovernanceController, EmergencyManager — staged upgrade + escape hatch). External bridge (MpcCommitteeVerifier, ExternalBridgeRegistry, ExternalBridgeEscrow, ExternalBridgeBond, MpcCommitteeFraudVerifier, ExternalBridgeStubVerifier). Plus two specialized fraud verifier slots: GovernanceFraudVerifier (structural v1/v2, governance-arbitrated) and RestrictedExecutionFraudVerifier (trustless v3, re-derives pre/post state roots from storage proofs).</desc>
 
   <defs>
     <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
@@ -31,13 +31,13 @@
     <text x="220" y="116" class="ctr-desc">→ accepts L2 batches; emits canonical state</text>
     <text x="60" y="138" class="ctr-name">VerifierRegistry</text>
     <text x="220" y="138" class="ctr-desc">→ dispatches by proofType; protocol-versioned</text>
-    <text x="60" y="160" class="ctr-name">NativeZkVerifier</text>
-    <text x="220" y="160" class="ctr-desc">→ calls native accelerator for ZK math</text>
+    <text x="60" y="160" class="ctr-name">ContractZkVerifier</text>
+    <text x="220" y="160" class="ctr-desc">→ calls deployable verifier contract for ZK math</text>
     <line x1="56" y1="178" x2="464" y2="178" stroke="#cfd5dd"/>
     <text x="60" y="200" class="why-t">WHY L1:</text>
     <foreignObject x="120" y="186" width="350" height="38">
       <p xmlns="http://www.w3.org/1999/xhtml" style="font: 10.5px -apple-system, sans-serif; margin: 0; color: #2d3a48; line-height: 1.45;">
-        defines what "L2 finalized" means; ZK proof math is explicit native acceleration.
+        defines what "L2 finalized" means; ZK proof math is routed through deployable verifier contracts.
       </p>
     </foreignObject>
   </g>

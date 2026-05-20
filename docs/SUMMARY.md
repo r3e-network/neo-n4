@@ -20,6 +20,7 @@
 - [Visual guide](./visual-guide.md)
 - [Neo N4 Experience Hub](./experience-hub.md)
 - [Interactive Runtime Theater](./interactive-runtime.md)
+- [Technical roadmap](./technical-roadmap.md)
 - [NeoHub architecture and workflows](./neohub-architecture-and-workflows.md)
 - [Architecture walkthrough](./architecture-walkthrough.md)
 - [L2 chain lifecycle](./architecture-l2-lifecycle.md)
@@ -41,6 +42,7 @@
 - [Application Engine + MPT plan](./plan-application-engine-and-mpt.md)
 - [ZKsync Elastic Chain comparison](./zksync-comparison.md)
 - [Testing approach](./testing-approach.md)
+- [Test coverage](./test-coverage.md)
 - [Neo N4 Unified Experience Hub design](./superpowers/specs/2026-05-19-neo-n4-unified-experience-hub-design.md)
 - [Neo N4 Experience Hub phase 1 plan](./superpowers/plans/2026-05-19-neo-n4-experience-hub-phase-1.md)
 

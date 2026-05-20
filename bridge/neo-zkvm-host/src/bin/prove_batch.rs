@@ -38,8 +38,14 @@ fn install_shutdown_signal_handlers() {
     // cast (a direct function-item-as-integer cast is a `function_casts_as_integer`
     // warning).
     unsafe {
-        libc::signal(libc::SIGTERM, shutdown_signal_handler as *const () as libc::sighandler_t);
-        libc::signal(libc::SIGINT, shutdown_signal_handler as *const () as libc::sighandler_t);
+        libc::signal(
+            libc::SIGTERM,
+            shutdown_signal_handler as *const () as libc::sighandler_t,
+        );
+        libc::signal(
+            libc::SIGINT,
+            shutdown_signal_handler as *const () as libc::sighandler_t,
+        );
     }
 }
 

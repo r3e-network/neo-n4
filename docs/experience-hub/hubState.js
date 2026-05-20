@@ -13,7 +13,7 @@ export const workspaces = Object.freeze([
     id: 'build',
     label: 'Build',
     title: 'Developer integration surface',
-    summary: 'Use shared report schemas, asset routes, wire formats, and SDK examples without confusing Neo Stack execution profiles with NeoX.',
+    summary: 'Use shared report schemas, asset routes, wire formats, and SDK examples while keeping Neo Stack execution profiles clearly scoped.',
     actions: ['Review asset catalog', 'Check VM profile model', 'Open SDK examples'],
     subItems: ['Contracts', 'Toolchain', 'SDKs & APIs', 'Templates', 'Local Dev'],
   },
@@ -47,24 +47,24 @@ export const architectureNodes = Object.freeze([
     details: ['System contracts', 'Gas & asset registry', 'Governance', 'Bridge contracts'],
   },
   {
-    id: 'native-zk',
-    label: 'NativeZkVerifier',
-    subtitle: 'Verifier adapter',
+    id: 'contract-zk',
+    label: 'ContractZkVerifier',
+    subtitle: 'Verifier router',
     kind: 'proof',
-    boundary: 'deployable verifier adapter',
+    boundary: 'deployable ZK verifier router',
     x: 39,
     y: 7,
-    details: ['Verify proof', 'Verify state transition', 'Update L2 state root'],
+    details: ['Validate envelope', 'Check registered VK', 'Dispatch proof verifier'],
   },
   {
-    id: 'zk-accelerator',
-    label: 'L1 Native ZK Accelerator',
-    subtitle: 'Native proof math',
+    id: 'proof-verifier',
+    label: 'Deployable Proof Verifier Contract',
+    subtitle: 'Proof-system profile',
     kind: 'proof',
-    boundary: 'native accelerator hook',
+    boundary: 'optional verifier contract',
     x: 62,
     y: 7,
-    details: ['BN254 / BLS12-381', 'Pairing checks', 'Curve ops', 'Optimized verifier'],
+    details: ['SP1 / Risc0 / Halo2 / Axiom', 'VK scoped dispatch', 'Upgradeable by governance', 'Optional native plugin adapter'],
   },
   {
     id: 'shared-bridge',
@@ -119,9 +119,9 @@ export const architectureNodes = Object.freeze([
 ]);
 
 export const architectureLinks = Object.freeze([
-  ['neohub', 'native-zk', 'State root commitment'],
-  ['native-zk', 'zk-accelerator', 'Proof dispatch'],
-  ['zk-accelerator', 'l2-riscv', 'Verified proof'],
+  ['neohub', 'contract-zk', 'State root commitment'],
+  ['contract-zk', 'proof-verifier', 'Contract verifier call'],
+  ['proof-verifier', 'l2-riscv', 'Proof accepted'],
   ['neohub', 'shared-bridge', 'Messages and events'],
   ['shared-bridge', 'gateway', 'Bridge route'],
   ['gateway', 'l2-riscv', 'Transactions and queries'],
@@ -224,7 +224,7 @@ export function validationEvidence(reports) {
   const devnet = reports['devnet-report']?.payload ?? {};
   const da = reports['neofs-da-report']?.payload ?? {};
   const validation = summarizeEvidence(reports);
-  const latestReceipt = receipt.receipts?.find((item) => item.contract === 'NeoHub.NativeZkVerifier') ?? receipt.receipts?.[0] ?? {};
+  const latestReceipt = receipt.receipts?.find((item) => item.contract === 'NeoHub.ContractZkVerifier') ?? receipt.receipts?.[0] ?? {};
   return [
     {
       title: 'Latest Proof',
@@ -242,7 +242,7 @@ export function validationEvidence(reports) {
     {
       title: 'Onchain Verification',
       rows: [
-        ['Verifier Contract', 'NativeZkVerifier'],
+        ['Verifier Contract', 'ContractZkVerifier'],
         ['Tx Hash', shorten(latestReceipt.hash)],
         ['Block Height', formatNumber(latestReceipt.blockHeight)],
         ['Result', validation.validationStatus === 'valid' ? 'Success' : 'Review required'],

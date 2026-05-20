@@ -53,12 +53,11 @@ Neo N3 / Neo 4 L1 上的统一可部署 L1 合约套件(**NeoHub**),并通过可
 
 静态版 [`Neo N4 Experience Hub`](../experience-hub/index.html) 是理解架构的
 可视化驾驶舱。它把测试和私有 devnet 演练使用的同一套脱敏 report schema
-渲染成可交互视图,覆盖 NeoHub 可部署合约、`NativeZkVerifier`、L1 native ZK
-accelerator、NeoVM2/RISC-V L2 执行、可选 N4 L2 execution profile,以及作为
+渲染成可交互视图,覆盖 NeoHub 可部署合约、`ContractZkVerifier`、L1 可部署 ZK 验证器合约、NeoVM2/RISC-V L2 执行、可选 N4 L2 execution profile,以及作为
 数据可用性层的 NeoFS。
 
 <p align="center">
-  <img src="figures/experience-hub/neo-n4-experience-hub.png" alt="Neo N4 体验中心:展示 NeoHub、NeoFS DA、NativeZkVerifier、NeoVM2/RISC-V L2 执行、可选 VM profile 与验证证据" width="920">
+  <img src="figures/experience-hub/neo-n4-experience-hub.png" alt="Neo N4 体验中心:展示 NeoHub、NeoFS DA、ContractZkVerifier、NeoVM2/RISC-V L2 执行、可选 VM profile 与验证证据" width="920">
 </p>
 
 该预览刻意采用本地优先边界:私有 devnet 证据会和公开 testnet/mainnet 证据分开标记,
@@ -76,8 +75,8 @@ accelerator、NeoVM2/RISC-V L2 执行、可选 N4 L2 execution profile,以及作
 
 - **L1(Neo N3 / Neo 4 上的 NeoHub)** —— 规范锚。24 个可部署合约分到 6 个关注点:
   *Settlement*、*Bridge*、*Messaging*、*Security*、*Governance*、*External Bridge*。
-  持有资产、负责结算、消息路由与治理。`NativeZkVerifier` 仍是可部署 NeoHub 合约,
-  但会把重型 ZK 证明数学交给 L1 native accelerator。
+  持有资产、负责结算、消息路由与治理。`ContractZkVerifier` 仍是可部署 NeoHub 合约,
+  但会把proof-system 验证工作交给 L1 可部署验证器合约。
 - **Neo Gateway(Phase 5,可选)** —— 把多条 L2 的证明聚合为 L1 上的单次结算
   提交。`BinaryTreeAggregator` 在 log-N 轮内归约;`IRoundProver` 出货 3 份生产级
   实现(`MultisigRoundProver`、`MerklePathRoundProver`、`PassThroughRoundProver`)。
@@ -103,7 +102,7 @@ accelerator、NeoVM2/RISC-V L2 执行、可选 N4 L2 execution profile,以及作
   [`persistence.md`](./persistence.md)。
 - **节点插件(8)** —— `Neo.Plugins.L2{Batch, Bridge, DA, Gateway,
   Metrics, Prover, Rpc, Settlement}`。
-- **智能合约(24 个可部署 + 10 个 L2 原生)** —— 24 个 NeoHub L1 可部署合约(23 个生产合约 + 1 个测试 stub,包含 `NativeZkVerifier`) + 10 个 L2 原生合约(均经
+- **智能合约(24 个可部署 + 10 个 L2 原生)** —— 24 个 NeoHub L1 可部署合约(23 个生产合约 + 1 个测试 stub,包含 `ContractZkVerifier`) + 10 个 L2 原生合约(均经
   `Neo.SmartContract.Framework` 类型检查)。
 - **CLI 工具(6)** —— `neo-stack`、`neo-l2-devnet`、`neo-hub-deploy`、
   `neo-l2-explore`、`neo-bridge`、`neo-l2-faucet`。
@@ -130,7 +129,7 @@ accelerator、NeoVM2/RISC-V L2 执行、可选 N4 L2 execution profile,以及作
 | 阶段 | 目标                                | 状态  | 证据                                                       |
 | ---- | ----------------------------------- | :---: | ---------------------------------------------------------- |
 | 0    | 侧链 PoC                             | ✅   | MVP 集成测试端到端通过                                    |
-| 1    | NeoHub v0 + 共享桥                   | ✅   | 24 个 NeoHub 合约全部编译;部署计划器输出 23 个生产步骤(15 核心 + NativeZkVerifier + 2 fraud verifier + 5 外链桥) |
+| 1    | NeoHub v0 + 共享桥                   | ✅   | 24 个 NeoHub 合约全部编译;部署计划器输出 23 个生产步骤(15 核心 + ContractZkVerifier + 2 fraud verifier + 5 外链桥) |
 | 2    | 批次结算                             | ✅   | 真实 `KeyedStateStore` 在跨批次得到连续性验证             |
 | 3    | 乐观挑战窗口                         | ✅   | `OptimisticChallenge` 合约 + `BisectionGame`(log-N 收敛) |
 | 4    | NeoVM 2 / RISC-V ZK Validity 证明    | ✅   | N4 L2 执行已落在 NeoVM2/RISC-V:`src/Neo.L2.Executor.RiscV` 绑定 `external/neo-riscv-vm` 的 PolkaVM 宿主;`neo-l2-devnet --executor riscv` 即标准路径。SP1 证明守护进程见 `bridge/neo-zkvm-host`(`prove-batch` CLI),真实 CPU 证明由 `#[ignore]` 发布关口测试验证。 |
@@ -187,6 +186,7 @@ dotnet run --project tools/Neo.Hub.Deploy -- plan \
 | [`README.md`](./README.md)(本文)                                       | 所有人              | `neo4` 是什么、怎么跑。                                              |
 | [`SUMMARY.md`](./SUMMARY.md)                                            | 所有人              | mdBook 用的目录索引。                                                |
 | [`getting-started.md`](./getting-started.md)                            | 新贡献者            | clone → 测试 → 跑 devnet,5 分钟。                                  |
+| [`technical-roadmap.md`](./technical-roadmap.md)                        | 架构师、审稿人      | 合约优先路线：NeoHub、ZK 验证路由、NeoFS DA、VM profile、资产与互操作。 |
 | [`launching-an-l2.md`](./launching-an-l2.md)                            | L2 运维者           | 5 步上线一条 L2 链。                                                |
 | [`architecture-atlas.md`](./architecture-atlas.md)                       | 所有人              | 架构地图,从角色推荐阅读路径。                                       |
 | [`neohub-architecture-and-workflows.md`](./neohub-architecture-and-workflows.md) | 工程师、运维、审计者 | NeoHub 架构、数据流、工作流图以及每个 NeoHub 合约的职责矩阵。 |

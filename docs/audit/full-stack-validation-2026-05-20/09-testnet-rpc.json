@@ -1,0 +1,230 @@
+﻿{
+    "rpc":  "https://testnet1.neo.coz.io:443",
+    "sourceReport":  "docs\\audit\\testnet-deployment-2026-05-20-contract-first.json",
+    "checkedAtUtc":  "2026-05-20T11:37:16.0233260Z",
+    "txCount":  13,
+    "contractCount":  23,
+    "allTxHalt":  true,
+    "allContractsPresent":  true,
+    "txChecks":  [
+                     {
+                         "name":  "ContractZkVerifier",
+                         "category":  "deploy",
+                         "txHash":  "0xf60c5a54c65e38673ba4d16b4ec3c91aa03266e9ffef8590cf84d4a75b8fa34f",
+                         "vmstate":  "HALT"
+                     },
+                     {
+                         "name":  "SequencerBond.RegisterSlasher",
+                         "category":  "postdeploy",
+                         "txHash":  "0xe253b1aea7f18a2fe0745514b100fd98a636921a5efa54cafe9b774f6c0089f8",
+                         "vmstate":  "HALT"
+                     },
+                     {
+                         "name":  "ChainRegistry.SetGovernanceController",
+                         "category":  "postdeploy",
+                         "txHash":  "0x83dcd144c0f3f35669b2ca14643ec98d4aabfa9a19574fee9be1cd0bd631aa06",
+                         "vmstate":  "HALT"
+                     },
+                     {
+                         "name":  "VerifierRegistry.SetGovernanceController",
+                         "category":  "postdeploy",
+                         "txHash":  "0x5c74e100ab34bb7ac5caf5fbd7d8374d7f5cf1bf5c8b4e2a88b8a9d441a04143",
+                         "vmstate":  "HALT"
+                     },
+                     {
+                         "name":  "VerifierRegistry.RegisterVerifier.Zk",
+                         "category":  "postdeploy",
+                         "txHash":  "0x0a34501ffbf6c3c597611c367559210ba6ab5faf0cf68ae22eb04fc3a91398cd",
+                         "vmstate":  "HALT"
+                     },
+                     {
+                         "name":  "OptimisticChallenge.RegisterFraudVerifier.Governance",
+                         "category":  "postdeploy",
+                         "txHash":  "0x85f6cfdaad768f856200332bd3dcc384a3c3d9390cda2d4d516ccd1621f360e8",
+                         "vmstate":  "HALT"
+                     },
+                     {
+                         "name":  "OptimisticChallenge.RegisterFraudVerifier.RestrictedExecution",
+                         "category":  "postdeploy",
+                         "txHash":  "0x35740356fc17f7bfd16ecf1ab5d18b8f14bf3bf02d6781cd3190688aa48569f4",
+                         "vmstate":  "HALT"
+                     },
+                     {
+                         "name":  "MpcCommitteeVerifier.SetGovernanceController",
+                         "category":  "postdeploy",
+                         "txHash":  "0xaf325b17dc9f5640c9e646db36b6777558e31a40ee197f2dc6a69dd71d8db25b",
+                         "vmstate":  "HALT"
+                     },
+                     {
+                         "name":  "ExternalBridgeRegistry.SetGovernanceController",
+                         "category":  "postdeploy",
+                         "txHash":  "0x3531b5f41c4dcf82723f03b05af3d8e056c3aa1f44612ff9f180ff599f4cd9af",
+                         "vmstate":  "HALT"
+                     },
+                     {
+                         "name":  "ExternalBridgeBond.RegisterSlasher",
+                         "category":  "postdeploy",
+                         "txHash":  "0x742d3bdf7b807f919c62a25da9ea4440426bb422bbf3138afd01b0c0fe555b04",
+                         "vmstate":  "HALT"
+                     },
+                     {
+                         "name":  "SettlementManager.SetDARegistry",
+                         "category":  "postdeploy",
+                         "txHash":  "0xca224dd1650c47208c5f8db76b0495b07748d617b7ef316aa0bdb78a297da282",
+                         "vmstate":  "HALT"
+                     },
+                     {
+                         "name":  "SettlementManager.SetDAValidator",
+                         "category":  "postdeploy",
+                         "txHash":  "0x0d159b88b3a6997bac81ec813e782193b8df35f06dc4871a8d62419d835a7dfa",
+                         "vmstate":  "HALT"
+                     },
+                     {
+                         "name":  "SettlementManager.SetOptimisticChallenge",
+                         "category":  "postdeploy",
+                         "txHash":  "0x67752905b738f575d75bcf3fed55400317723f90eaf9cc7e2185d9d0b1c1fb89",
+                         "vmstate":  "HALT"
+                     }
+                 ],
+    "contractChecks":  [
+                           {
+                               "name":  "ChainRegistry",
+                               "hash":  "0xa780bc23e3956de35151742453b250c7d13c7f46",
+                               "manifestName":  "NeoHub.ChainRegistry",
+                               "nefChecksum":  3413473588
+                           },
+                           {
+                               "name":  "VerifierRegistry",
+                               "hash":  "0x3b96ba201a2ef32f98da7b72e14acb0329b6e017",
+                               "manifestName":  "NeoHub.VerifierRegistry",
+                               "nefChecksum":  4208121923
+                           },
+                           {
+                               "name":  "ContractZkVerifier",
+                               "hash":  "0xd52484a842b97555c56bd93ecf919df3f78366f7",
+                               "manifestName":  "NeoHub.ContractZkVerifier",
+                               "nefChecksum":  1283006123
+                           },
+                           {
+                               "name":  "TokenRegistry",
+                               "hash":  "0x8b58efde729ef2cf350b205174a040948a2e5c6a",
+                               "manifestName":  "NeoHub.TokenRegistry",
+                               "nefChecksum":  1551735868
+                           },
+                           {
+                               "name":  "SettlementManager",
+                               "hash":  "0x97af8cb41381b4b1a42c87785dffd15b4061a76e",
+                               "manifestName":  "NeoHub.SettlementManager",
+                               "nefChecksum":  3579079692
+                           },
+                           {
+                               "name":  "DARegistry",
+                               "hash":  "0xe6fa59c73ea93fca6d5dc784424abbcc106adba7",
+                               "manifestName":  "NeoHub.DARegistry",
+                               "nefChecksum":  4070313119
+                           },
+                           {
+                               "name":  "DAValidator",
+                               "hash":  "0xefc007384d6bfb4f06af5c02a8e350bfc8021ac4",
+                               "manifestName":  "NeoHub.DAValidator",
+                               "nefChecksum":  1040961857
+                           },
+                           {
+                               "name":  "GovernanceController",
+                               "hash":  "0x9cec5b2ecc25a11e082fd7bd3e3ad1d982fd529d",
+                               "manifestName":  "NeoHub.GovernanceController",
+                               "nefChecksum":  3132129678
+                           },
+                           {
+                               "name":  "EmergencyManager",
+                               "hash":  "0x4b20ccc0a49b632c312aa00373fc8e5e11f05038",
+                               "manifestName":  "NeoHub.EmergencyManager",
+                               "nefChecksum":  698038662
+                           },
+                           {
+                               "name":  "MessageRouter",
+                               "hash":  "0xa44604438b08af469931607d06cd5beffe7cf201",
+                               "manifestName":  "NeoHub.MessageRouter",
+                               "nefChecksum":  1767925678
+                           },
+                           {
+                               "name":  "L1TxFilter",
+                               "hash":  "0x6ef26e34474d475f297cd2a0297f3b6f2231a9c3",
+                               "manifestName":  "NeoHub.L1TxFilter",
+                               "nefChecksum":  3851953948
+                           },
+                           {
+                               "name":  "SharedBridge",
+                               "hash":  "0x0baf803466e6849c31fd2960f59ea5fe18d4384d",
+                               "manifestName":  "NeoHub.SharedBridge",
+                               "nefChecksum":  3682846058
+                           },
+                           {
+                               "name":  "ForcedInclusion",
+                               "hash":  "0xecd695c228792102206b0acef48b2df7ce120ca5",
+                               "manifestName":  "NeoHub.ForcedInclusion",
+                               "nefChecksum":  2832757895
+                           },
+                           {
+                               "name":  "SequencerBond",
+                               "hash":  "0xb4e41b46d1b5e28d3e8c1efdd754c005165e9f5a",
+                               "manifestName":  "NeoHub.SequencerBond",
+                               "nefChecksum":  976017181
+                           },
+                           {
+                               "name":  "SequencerRegistry",
+                               "hash":  "0x963f276ff7f11f96115832ca8d56a65ce5be2b9a",
+                               "manifestName":  "NeoHub.SequencerRegistry",
+                               "nefChecksum":  1541202907
+                           },
+                           {
+                               "name":  "OptimisticChallenge",
+                               "hash":  "0x5d90c2f8152c110e515195d69f35a1cf1553264b",
+                               "manifestName":  "NeoHub.OptimisticChallenge",
+                               "nefChecksum":  847787303
+                           },
+                           {
+                               "name":  "GovernanceFraudVerifier",
+                               "hash":  "0x4852a22986b2f4940155f97276eefb01db520cbd",
+                               "manifestName":  "NeoHub.GovernanceFraudVerifier",
+                               "nefChecksum":  3533166296
+                           },
+                           {
+                               "name":  "RestrictedExecutionFraudVerifier",
+                               "hash":  "0xcdcaea352429b2fb6b4577252fc0694c9aa2f187",
+                               "manifestName":  "NeoHub.RestrictedExecutionFraudVerifier",
+                               "nefChecksum":  3248221305
+                           },
+                           {
+                               "name":  "MpcCommitteeVerifier",
+                               "hash":  "0xc4418fa9d9a99f5c3ea4877bdf8be64715571740",
+                               "manifestName":  "NeoHub.MpcCommitteeVerifier",
+                               "nefChecksum":  2862957696
+                           },
+                           {
+                               "name":  "ExternalBridgeRegistry",
+                               "hash":  "0xc93da0a1793d92282441c4d995d36c0f57d7646e",
+                               "manifestName":  "NeoHub.ExternalBridgeRegistry",
+                               "nefChecksum":  1489739603
+                           },
+                           {
+                               "name":  "ExternalBridgeEscrow",
+                               "hash":  "0x2bcdbb316a58c7b2afac9cfa6359858393e04e15",
+                               "manifestName":  "NeoHub.ExternalBridgeEscrow",
+                               "nefChecksum":  1619572145
+                           },
+                           {
+                               "name":  "ExternalBridgeBond",
+                               "hash":  "0xb911165983b56ddc48b4bdd967640ce6537ed1c0",
+                               "manifestName":  "NeoHub.ExternalBridgeBond",
+                               "nefChecksum":  1982900491
+                           },
+                           {
+                               "name":  "MpcCommitteeFraudVerifier",
+                               "hash":  "0xe5d3692cc14bf1c3af67280e6928224407c85dd6",
+                               "manifestName":  "NeoHub.MpcCommitteeFraudVerifier",
+                               "nefChecksum":  4129090349
+                           }
+                       ],
+    "liveDeploymentAction":  "skipped-existing-report-verified"
+}

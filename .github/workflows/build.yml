@@ -75,6 +75,10 @@ jobs:
       - name: Test
         run: dotnet test Neo.L2.sln /p:NuGetAudit=false --nologo --no-build
 
+      - name: Coverage gate
+        shell: pwsh
+        run: ./scripts/test-coverage.ps1 -Configuration Release -ResultsDirectory coverage/dotnet-ci -Threshold 90 -OverallThreshold 80
+
       # End-to-end smoke: run each of the 4 published sample chain configs
       # through the in-process devnet. Catches regressions where a config
       # template diverges from what the devnet runner can actually consume —
@@ -166,6 +170,16 @@ jobs:
           sample_count=$(ls -d samples/contracts/Sample.* 2>/dev/null | wc -l)
           total=$((neo_count + sample_count))
           echo "All $total deployable contracts ($neo_count NeoHub + $sample_count samples) produced .nef + .manifest.json artifacts"
+
+      - name: Verify NeoHub manifest invariants against fresh nccs artifacts
+        env:
+          NEO_N4_REQUIRE_FRESH_MANIFESTS: "1"
+        run: >
+          dotnet test tests/Neo.Hub.Deploy.UnitTests/Neo.Hub.Deploy.UnitTests.csproj
+          --filter
+          "FullyQualifiedName~UT_ContractManifestInvariants|FullyQualifiedName~UT_OptimisticChallengeAllowlist"
+          /p:NuGetAudit=false
+          --nologo
 
       - name: Verify N4 L2 native contracts in r3e Neo core
         run: |

@@ -21,6 +21,7 @@
 - [可视化导览](./visual-guide.md)
 - [Neo N4 统一体验中心](./experience-hub.md)
 - [交互式运行剧场](./interactive-runtime.md)
+- [技术路线图](./technical-roadmap.md)
 - [NeoHub 架构与工作流](./neohub-architecture-and-workflows.md)
 - [架构导览](./architecture-walkthrough.md)
 - [L2 链生命周期](./architecture-l2-lifecycle.md)
@@ -46,6 +47,7 @@
 - [Application Engine + MPT 计划](./plan-application-engine-and-mpt.md)
 - [ZKsync 弹性链对比](./zksync-comparison.md)
 - [测试方法论](./testing-approach.md)
+- [测试覆盖](./test-coverage.md)
 - [Neo N4 统一体验中心设计](./superpowers/specs/2026-05-19-neo-n4-unified-experience-hub-design.md)
 - [Neo N4 统一体验中心第一期计划](./superpowers/plans/2026-05-19-neo-n4-experience-hub-phase-1.md)
 

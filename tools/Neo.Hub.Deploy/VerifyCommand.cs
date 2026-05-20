@@ -29,8 +29,8 @@ public static class VerifyCommand
     public static async Task<int> RunAsync(string[] args)
     {
         ArgumentNullException.ThrowIfNull(args);
-        var planPath = ArgUtilLocal.Get(args, "--plan", "deploy-plan.json");
-        var rpcUrl = ArgUtilLocal.Get(args, "--rpc", "");
+        var planPath = ArgUtil.Get(args, "--plan", "deploy-plan.json");
+        var rpcUrl = ArgUtil.Get(args, "--rpc", "");
         if (string.IsNullOrEmpty(rpcUrl))
         {
             Console.Error.WriteLine("--rpc <url> is required");
@@ -68,20 +68,5 @@ public static class VerifyCommand
         Console.WriteLine($"  {plan.Steps.Count - missing} ok / {missing} missing of {plan.Steps.Count} total");
         await Task.Yield();
         return missing == 0 ? 0 : 2;
-    }
-
-    // Local --flag <value> parser. Same shape as the Program.cs ArgUtil helper, kept
-    // here so this class doesn't depend on Program.cs's internal ArgUtil. (Public Run
-    // method needs to compile without InternalsVisibleTo gymnastics.)
-    private static class ArgUtilLocal
-    {
-        public static string Get(string[] args, string name, string defaultValue)
-        {
-            for (var i = 0; i < args.Length - 1; i++)
-            {
-                if (args[i] == name) return args[i + 1];
-            }
-            return defaultValue;
-        }
     }
 }

@@ -77,6 +77,62 @@ this cycle. Highlights:
 - All-surface base total: 1655 (1453 .NET + 202 cross-lang).
 - `dotnet format --verify-no-changes` passes clean across all 99 projects.
 
+### Polish iteration round 3-4 — 2026-05-20 afternoon/evening
+
+Two more polish rounds on top of the morning iteration. Both rounds
+follow a "find finding via agent → close gap → verify with re-run"
+pattern.
+
+**Round 3 — invariant pinning + simplifier cleanup**
+- +2 `MessageHasher` H1 regression tests (chainId-different = different
+  leaf hash; same input = deterministic).
+- +4 `UT_OptimisticChallengeAllowlist` manifest-integrity tests
+  (registerFraudVerifier exists with right shape; isApprovedFraudVerifier
+  is Safe; revokeFraudVerifier exists; FraudVerifierApproved event declared).
+- +7 `UT_ContractManifestInvariants` tests covering GovernanceController
+  permanent-restriction invariant (no clearImmutableFlag), MessageRouter
+  publishGlobalRoot, ExternalBridgeEscrow Send/Receive/onNEP17Payment,
+  SettlementManager verifyWithdrawalLeafAt + status getter, EmergencyManager
+  escape-hatch + pause/resume, MpcCommitteeVerifier verifyInboundMessage,
+  ForcedInclusion enqueue/consume/reportCensorship.
+- 5 simplifier wins applied: hand-rolled `StartsWith`/`ByteArrayComparer`
+  in InMemoryKeyValueStore + L2DataCacheAdapter → `Span.SequenceCompareTo`,
+  manual hex builder in GenKeyCommand → `Convert.ToHexStringLower`,
+  StringBuilder in `PrometheusExporter.ToPromName` → `string.Replace`,
+  redundant `.OrderBy(...)` on already-ordered EnumeratePrefix in
+  L2DataCacheAdapter, two intermediate `ConcurrentDictionary.ToArray()`
+  in InMemoryMetrics snapshot.
+- Master audit closure report written:
+  `docs/audit/comprehensive-audit-2026-05-20.md` + ZH counterpart, both
+  linked from `docs/SUMMARY.md` and `docs/zh/SUMMARY.md`. Documents every
+  CRITICAL / HIGH / MEDIUM finding from the 5-cycle audit run with
+  Fixed / False-Positive / Documented-as-Intentional / Deferred disposition.
+
+**Round 4 — architecture-vs-code drift + remaining simplifier**
+- 5 doc-vs-code drift items closed (agent-identified):
+  2 HIGH (BatchSerializer fixed prefix 317-byte → 321-byte; round prover
+  list reframed — 3 actually-shipped + operator-supplied recursive ZK
+  seam, NOT 3 fictional implementations), 3 MEDIUM (ARCHITECTURE.md §13
+  L2 native contracts list grew 6 → 10; §16.2 label dimensions named
+  explicitly + collapsed-axis notes; RocksDB package coordinate corrected).
+- ZH counterpart `docs/zh/architecture-walkthrough.md` mirrored.
+- 1 final simplifier win: `ApplicationEngineTransactionExecutor` storage-
+  delta + events-hash refactored from `SHA256.Create + MemoryStream +
+  BitConverter.GetBytes` to `IncrementalHash.CreateHash +
+  BinaryPrimitives.WriteInt32LittleEndian`. Same canonical byte stream
+  into the hash (verified — all executor tests still green); fewer
+  allocations per change-set entry.
+- 6 contract error-message outliers fixed in one pass + 4-way
+  threshold-wording inconsistency collapsed into 2 canonical strings
+  shared across DAValidator / MpcCommitteeVerifier / GovernanceController.
+- +1 `RpcMessageRouter` ascending-nonce invariant test.
+
+**Net across rounds 3-4:** 1455 → 1467 .NET tests (+12). Architecture
+docs (EN + ZH) re-checked against code; 5 drift items closed; remaining
+4 LOW-severity drift items deferred (cosmetic — `Multisig` naming,
+new-contract cross-refs in §17 + §9, dual-branch fork-model clarification
+in doc.md §0 — none operator-path-breaking).
+
 ### Polish iteration — 2026-05-20
 
 Continued systematic review + refactor + polish pass on top of the

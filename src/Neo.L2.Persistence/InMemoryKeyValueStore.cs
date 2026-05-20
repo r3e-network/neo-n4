@@ -78,13 +78,7 @@ public sealed class InMemoryKeyValueStore : IL2KeyValueStore
     public void Dispose() { /* no-op for the in-memory backend */ }
 
     private static bool StartsWith(byte[] key, byte[] prefix)
-    {
-        if (prefix.Length == 0) return true;
-        if (key.Length < prefix.Length) return false;
-        for (var i = 0; i < prefix.Length; i++)
-            if (key[i] != prefix[i]) return false;
-        return true;
-    }
+        => key.AsSpan().StartsWith(prefix);
 
     private sealed class ByteArrayComparer : IComparer<byte[]>
     {
@@ -94,13 +88,7 @@ public sealed class InMemoryKeyValueStore : IL2KeyValueStore
         {
             if (x is null) return y is null ? 0 : -1;
             if (y is null) return 1;
-            var n = Math.Min(x.Length, y.Length);
-            for (var i = 0; i < n; i++)
-            {
-                var c = x[i].CompareTo(y[i]);
-                if (c != 0) return c;
-            }
-            return x.Length.CompareTo(y.Length);
+            return x.AsSpan().SequenceCompareTo(y);
         }
     }
 }

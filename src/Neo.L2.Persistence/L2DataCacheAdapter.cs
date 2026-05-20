@@ -110,9 +110,9 @@ public sealed class L2DataCacheAdapter : DataCache
         //   matching prefix), filter to keys <= keyOrPrefix, return descending.
         // Neo VM's interop almost always seeks forward; backward seeks come
         // from native-contract enumerators that snapshot then iterate.
-        var snapshot = _store.EnumeratePrefix(ReadOnlySpan<byte>.Empty)
-            .OrderBy(kv => kv.Key, ByteArrayComparer.Instance)
-            .ToList();
+        // EnumeratePrefix already delivers in lex order per the IL2KeyValueStore
+        // contract (both InMemory and RocksDB backends honor it); no OrderBy needed.
+        var snapshot = _store.EnumeratePrefix(ReadOnlySpan<byte>.Empty).ToList();
 
         IEnumerable<(byte[] Key, byte[] Value)> filtered = direction == SeekDirection.Forward
             ? snapshot.Where(kv => ByteArrayComparer.Instance.Compare(kv.Key, keyOrPrefix) >= 0)
@@ -135,13 +135,7 @@ public sealed class L2DataCacheAdapter : DataCache
         public int Compare(byte[]? x, byte[]? y)
         {
             if (x is null || y is null) return (x is null ? 0 : 1) - (y is null ? 0 : 1);
-            var min = Math.Min(x.Length, y.Length);
-            for (var i = 0; i < min; i++)
-            {
-                var diff = x[i] - y[i];
-                if (diff != 0) return diff;
-            }
-            return x.Length - y.Length;
+            return x.AsSpan().SequenceCompareTo(y);
         }
     }
 }

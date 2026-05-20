@@ -126,15 +126,7 @@ public static class PrometheusExporter
         return (key[..brace], key[brace..]); // labels include the surrounding braces
     }
 
-    private static string ToPromName(string s)
-    {
-        var sb = new StringBuilder(s.Length);
-        foreach (var c in s)
-        {
-            sb.Append(c == '.' || c == '-' ? '_' : c);
-        }
-        return sb.ToString();
-    }
+    private static string ToPromName(string s) => s.Replace('.', '_').Replace('-', '_');
 
     private static void AppendLine(StringBuilder sb, string name, string labels, string value)
     {

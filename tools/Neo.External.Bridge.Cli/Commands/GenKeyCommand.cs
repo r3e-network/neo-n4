@@ -109,19 +109,7 @@ internal static class GenKeyCommand
         return 0;
     }
 
-    internal static string HexLower(byte[] b)
-    {
-        var s = new char[b.Length * 2];
-        for (var i = 0; i < b.Length; i++)
-        {
-            var v = b[i];
-            s[2 * i] = HexChar((byte)(v >> 4));
-            s[2 * i + 1] = HexChar((byte)(v & 0x0F));
-        }
-        return new string(s);
-    }
-
-    private static char HexChar(byte n) => (char)(n < 10 ? '0' + n : 'a' + n - 10);
+    internal static string HexLower(byte[] b) => Convert.ToHexStringLower(b);
 
     private static bool TryWritePrivateKey(string outPath, byte[] priv)
     {

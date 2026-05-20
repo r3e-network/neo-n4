@@ -59,11 +59,18 @@ jobs:
       - name: Build
         run: dotnet build Neo.L2.sln /p:NuGetAudit=false --nologo
 
-      # dotnet format pass — verifies whitespace/style consistency across all
-      # 99 projects. Catches the kind of drift that `dotnet format` would
-      # normally rewrite (and that PR reviewers shouldn't be auto-fixing).
+      # dotnet format pass — verifies whitespace/style consistency across
+      # first-party projects only. We must `--exclude external/` because
+      # Neo.L2.sln directly references 5 vendored submodule projects under
+      # `external/neo/` and `external/neo-devpack-dotnet/` (so contracts can
+      # ProjectReference Neo.SmartContract.Framework). Those submodules
+      # carry their own (sometimes divergent) format conventions that we
+      # neither own nor want to rewrite from neo-n4. Excluding the path
+      # keeps the gate honest for code we control without coupling our CI
+      # to upstream formatting drift. (CRLF/whitespace failures on Windows
+      # without this exclusion were the trigger for this scope narrowing.)
       - name: dotnet format --verify-no-changes
-        run: dotnet format Neo.L2.sln --verify-no-changes
+        run: dotnet format Neo.L2.sln --verify-no-changes --exclude external/
 
       - name: Test
         run: dotnet test Neo.L2.sln /p:NuGetAudit=false --nologo --no-build

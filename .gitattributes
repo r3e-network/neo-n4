@@ -1,0 +1,102 @@
+# Line-ending policy
+# ──────────────────────────────────────────────────────────────────
+# Force LF for ALL text in the repo and in the working tree, regardless of
+# the local `core.autocrlf` setting. Reason: tools that hash file content
+# (forge fmt --check on *.sol, dotnet format on *.cs, rustfmt, prettier)
+# treat CRLF as a diff against the LF that's actually committed, producing
+# false "format drift" failures on Windows/WSL2 checkouts where autocrlf
+# converts on the way out. Pinning eol=lf here neutralizes that.
+#
+# `text=auto` detects text vs binary on first commit; `eol=lf` overrides
+# any user-side autocrlf for everything matched. Per-extension lines below
+# are explicit pins for source we know is text — they short-circuit the
+# auto-detection and survive future tools that ignore `text=auto`.
+
+* text=auto eol=lf
+
+# ─── C# / .NET ─────────────────────────────────────────────────────
+*.cs            text eol=lf
+*.csproj        text eol=lf
+*.props         text eol=lf
+*.targets       text eol=lf
+*.sln           text eol=lf
+*.runsettings   text eol=lf
+*.editorconfig  text eol=lf
+*.config        text eol=lf
+
+# ─── Rust ──────────────────────────────────────────────────────────
+*.rs            text eol=lf
+*.toml          text eol=lf
+Cargo.lock      text eol=lf
+
+# ─── TypeScript / JavaScript ───────────────────────────────────────
+*.ts            text eol=lf
+*.tsx           text eol=lf
+*.js            text eol=lf
+*.mjs           text eol=lf
+*.cjs           text eol=lf
+*.jsx           text eol=lf
+package.json    text eol=lf
+package-lock.json text eol=lf
+
+# ─── Solidity (Foundry) — the trigger case for this file ───────────
+*.sol           text eol=lf
+
+# ─── Solana / Anchor ───────────────────────────────────────────────
+Anchor.toml     text eol=lf
+
+# ─── Config + docs ─────────────────────────────────────────────────
+*.json          text eol=lf
+*.json5         text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.md            text eol=lf
+*.txt           text eol=lf
+*.html          text eol=lf
+*.css           text eol=lf
+*.svg           text eol=lf
+
+# ─── Shell scripts MUST be LF (CRLF breaks #!/bin/sh on Linux) ─────
+*.sh            text eol=lf
+*.bash          text eol=lf
+*.fish          text eol=lf
+
+# ─── Python / Go / Proto (if anything lands later) ─────────────────
+*.py            text eol=lf
+*.go            text eol=lf
+*.proto         text eol=lf
+
+# ─── Windows-only batch files keep CRLF ────────────────────────────
+*.bat           text eol=crlf
+*.cmd           text eol=crlf
+*.ps1           text eol=crlf
+
+# ─── Binary files — never touch ────────────────────────────────────
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.ico           binary
+*.pdf           binary
+*.zip           binary
+*.gz            binary
+*.bz2           binary
+*.xz            binary
+*.7z            binary
+*.tar           binary
+*.exe           binary
+*.dll           binary
+*.so            binary
+*.dylib         binary
+*.bin           binary
+*.wasm          binary
+*.nef           binary
+*.woff          binary
+*.woff2         binary
+*.ttf           binary
+*.otf           binary
+*.eot           binary
+*.mp3           binary
+*.mp4           binary
+*.mov           binary
+*.wav           binary

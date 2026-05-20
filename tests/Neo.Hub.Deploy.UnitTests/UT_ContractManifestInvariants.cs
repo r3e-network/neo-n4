@@ -1,4 +1,3 @@
-using System.IO;
 using Neo.Json;
 
 namespace Neo.Hub.Deploy.UnitTests;
@@ -11,32 +10,20 @@ namespace Neo.Hub.Deploy.UnitTests;
 /// post-deployment audit.
 /// </summary>
 /// <remarks>
-/// Reads `contracts/NeoHub.*/bin/sc/*.manifest.json` — produced by the CI
-/// <c>contracts</c> job's nccs invocation. Skips with a pass when the manifest
-/// isn't present (local dev without <c>nccs</c> on PATH) so the suite stays
-/// green for code-only changes.
+/// Manifest is loaded via <see cref="ManifestTestHelper.LoadFreshManifest"/>,
+/// which pass-throughs (returns <c>null</c>) for both missing-manifest (local
+/// dev without <c>nccs</c>) and stale-manifest (source <c>*.cs</c> newer than
+/// the cached <c>bin/sc/*.manifest.json</c>). Stale-case prints a
+/// <c>[manifest-stale]</c> hint so the developer knows to re-run nccs.
+/// The authoritative gate is the CI <c>contracts</c> job which rebuilds.
 /// </remarks>
 [TestClass]
 public class UT_ContractManifestInvariants
 {
-    private static string? FindManifest(string contractName)
-    {
-        var rel = $"contracts/{contractName}/bin/sc/{contractName}.manifest.json";
-        var dir = AppContext.BaseDirectory;
-        for (var i = 0; i < 8 && dir != null; i++)
-        {
-            var candidate = Path.Combine(dir, rel);
-            if (File.Exists(candidate)) return candidate;
-            dir = Path.GetDirectoryName(dir);
-        }
-        return null;
-    }
-
     private static JArray? LoadMethods(string contract)
     {
-        var path = FindManifest(contract);
-        if (path is null) return null;
-        var manifest = (JObject)JToken.Parse(File.ReadAllText(path))!;
+        var manifest = ManifestTestHelper.LoadFreshManifest(contract);
+        if (manifest is null) return null;
         var abi = (JObject)manifest["abi"]!;
         return (JArray)abi["methods"]!;
     }

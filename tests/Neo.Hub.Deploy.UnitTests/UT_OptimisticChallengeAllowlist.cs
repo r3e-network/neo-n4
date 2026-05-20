@@ -1,4 +1,3 @@
-using System.IO;
 using Neo.Json;
 
 namespace Neo.Hub.Deploy.UnitTests;
@@ -13,39 +12,24 @@ namespace Neo.Hub.Deploy.UnitTests;
 /// CI contract-compile job, where it's free to fix.
 /// </summary>
 /// <remarks>
-/// Reads <c>contracts/NeoHub.OptimisticChallenge/bin/sc/NeoHub.OptimisticChallenge.manifest.json</c>
-/// — produced by the CI <c>contracts</c> job's nccs invocation. Skips with a
-/// pass-through when the manifest isn't present (local dev without <c>nccs</c>
-/// on <c>PATH</c>) so the suite stays green for code-only changes.
+/// Manifest is loaded via <see cref="ManifestTestHelper.LoadFreshManifest"/>,
+/// which returns <c>null</c> for both missing-manifest (local dev without
+/// <c>nccs</c>) and stale-manifest (source <c>*.cs</c> newer than the cached
+/// manifest) — in both cases we pass through, letting the CI contracts job's
+/// fresh nccs build be the authoritative gate. The stale path prints a
+/// <c>[manifest-stale]</c> hint to test output so the developer sees the
+/// "re-run nccs" guidance.
 /// </remarks>
 [TestClass]
 public class UT_OptimisticChallengeAllowlist
 {
-    private const string ManifestRel =
-        "contracts/NeoHub.OptimisticChallenge/bin/sc/NeoHub.OptimisticChallenge.manifest.json";
-
-    private static string? FindManifest()
-    {
-        var dir = AppContext.BaseDirectory;
-        for (var i = 0; i < 8 && dir != null; i++)
-        {
-            var candidate = Path.Combine(dir, ManifestRel);
-            if (File.Exists(candidate)) return candidate;
-            dir = Path.GetDirectoryName(dir);
-        }
-        return null;
-    }
+    private const string ContractName = "NeoHub.OptimisticChallenge";
 
     [TestMethod]
     public void Manifest_Exposes_RegisterFraudVerifier_WithUInt160Param()
     {
-        var path = FindManifest();
-        if (path is null)
-        {
-            // nccs not on PATH for this build — let the CI gate catch the gap.
-            return;
-        }
-        var manifest = (JObject)JToken.Parse(File.ReadAllText(path))!;
+        var manifest = ManifestTestHelper.LoadFreshManifest(ContractName);
+        if (manifest is null) return;
         var abi = (JObject)manifest["abi"]!;
         var methods = (JArray)abi["methods"]!;
         var registerFraudVerifier = methods.FirstOrDefault(m =>
@@ -67,9 +51,8 @@ public class UT_OptimisticChallengeAllowlist
     [TestMethod]
     public void Manifest_Exposes_IsApprovedFraudVerifier_AsSafe()
     {
-        var path = FindManifest();
-        if (path is null) return;
-        var manifest = (JObject)JToken.Parse(File.ReadAllText(path))!;
+        var manifest = ManifestTestHelper.LoadFreshManifest(ContractName);
+        if (manifest is null) return;
         var abi = (JObject)manifest["abi"]!;
         var methods = (JArray)abi["methods"]!;
         var isApproved = methods.FirstOrDefault(m =>
@@ -86,9 +69,8 @@ public class UT_OptimisticChallengeAllowlist
     [TestMethod]
     public void Manifest_Exposes_RevokeFraudVerifier_WithUInt160Param()
     {
-        var path = FindManifest();
-        if (path is null) return;
-        var manifest = (JObject)JToken.Parse(File.ReadAllText(path))!;
+        var manifest = ManifestTestHelper.LoadFreshManifest(ContractName);
+        if (manifest is null) return;
         var abi = (JObject)manifest["abi"]!;
         var methods = (JArray)abi["methods"]!;
         var revoke = methods.FirstOrDefault(m =>
@@ -108,9 +90,8 @@ public class UT_OptimisticChallengeAllowlist
     [TestMethod]
     public void Manifest_Declares_FraudVerifierApproved_Event()
     {
-        var path = FindManifest();
-        if (path is null) return;
-        var manifest = (JObject)JToken.Parse(File.ReadAllText(path))!;
+        var manifest = ManifestTestHelper.LoadFreshManifest(ContractName);
+        if (manifest is null) return;
         var abi = (JObject)manifest["abi"]!;
         var events = (JArray)abi["events"]!;
         var ev = events.FirstOrDefault(e =>

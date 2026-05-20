@@ -68,6 +68,24 @@ jobs:
       - name: Test
         run: dotnet test Neo.L2.sln /p:NuGetAudit=false --nologo --no-build
 
+      # End-to-end smoke: run each of the 4 published sample chain configs
+      # through the in-process devnet. Catches regressions where a config
+      # template diverges from what the devnet runner can actually consume —
+      # e.g. a new required field added to L2ChainConfig that the sample
+      # forgot to set. The 3-batch run completes in <10s per config.
+      - name: Sample chain configs (devnet smoke)
+        run: |
+          for cfg in samples/general-rollup.config.json \
+                    samples/gaming-rollup.config.json \
+                    samples/exchange-validium.config.json \
+                    samples/privacy-sidechain.config.json; do
+            echo "── $cfg ──"
+            dotnet run --project tools/Neo.L2.Devnet --no-build -- 3 --config "$cfg" \
+              | tee /tmp/devnet-out.log
+            grep -q '^✅ devnet run complete\.' /tmp/devnet-out.log \
+              || { echo "FAIL: $cfg did not complete cleanly"; exit 1; }
+          done
+
   contracts:
     name: type-check contracts
     runs-on: ubuntu-latest

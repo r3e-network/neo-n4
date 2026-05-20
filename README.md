@@ -251,7 +251,7 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 | Rust prover/core  | **3**     | `bridge/neo-execution-core/` (backend-agnostic batch parsing, receipt/state folding, Merkle roots, public-input hash; no SP1/PolkaVM dependency) · `bridge/neo-zkvm-host/` (sp1-sdk 6.2.1 prover + `prove-batch daemon`) · `bridge/neo-zkvm-guest/` (the function being proved — compiles to RISC-V ELF, executes real Neo N3 VM via `neo_vm_guest::execute`) |
 | Foreign-chain integrations | **6** | Watchers (3): `watchers/neo-bridge-watcher-eth/` (secp256k1+SHA256, **serves the entire EVM family** — Ethereum, Tron, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche, Linea, zkSync Era, Scroll, Mantle, Fantom, Celo — via one chain-id-driven daemon binary; 32 base tests + 55 live-RPC integration tests = 87 with `--features live-rpc`. Production daemon ships **graceful SIGTERM shutdown**, **`/healthz`+`/info` HTTP endpoints**, **`/metrics` Prometheus exposition**, **per-chain `min_confirmations` reorg buffer**, and **`flock`-based concurrent-instance detection** on the journal directory; reference k8s + systemd manifests in [`watchers/neo-bridge-watcher-eth/deploy/`](./watchers/neo-bridge-watcher-eth/deploy/)) · `.../-tron/` (thin re-export with Tron chain-ids `0xE0000010..12`, 7 tests) · `.../-sol/` (ed25519-dalek + Solana chain-ids `0xE0000020..22`, 9 tests; curve-agnostic `Signer` trait dispatches to `CryptoLib.VerifyWithEd25519` on-chain). Foreign-side routers (3): `external/foreign-contracts/eth/` (393-line Solidity that deploys unchanged on any EVM chain — constructor parameterizes `externalChainId`; **39 Foundry tests** = 14 single-chain + 7 multi-chain pinning per-instance state isolation across 17 canonical mainnet slots (14 family banks + Polygon zkEVM, Arbitrum Nova, Sonic variants)) · `.../tron/` (README — TVM is EVM-flavored Solidity, points at the Eth contract) · `.../sol/` (~638-line Anchor program using Solana's ed25519 sigverify precompile, source-only — operator runs `anchor build`). Canonical 16-slot family banks for the namespace + 5-step EVM-onboarding runbook in [`docs/external-bridge-evm-chains.md`](./docs/external-bridge-evm-chains.md). |
 | Submodules        | **4**     | `external/neo` (`r3e-network/neo` fork, L2 branch `r3e/neo-n4-core`; L1 core branch is `r3e/neo-n3-core` in the same fork) · `external/neo-devpack-dotnet` (smart-contract devpack + nccs) · `external/neo-riscv-vm` (PolkaVM-backed NeoVM2/RISC-V L2 engine) · `external/neo-zkvm` (SP1 prover crates and legacy Neo VM compatibility guest). None are released on NuGet/crates.io for the versions tracked here. |
-| Tests             | **1455 .NET + 202 cross-lang** | 1455 across 34 .NET projects (incl. 7 Phase-C real-secp256k1 fraud-proof tests pinning the equivocation slash path end-to-end, plus optimistic sequencer account/signature binding); 16 TypeScript (vitest) + 10 Rust SDK (mockito) + 5 shared execution-core + 7 SP1 guest (host) + 103 Rust bridge watchers with `live-rpc` (eth: 87, tron: 7, sol: 9 — both secp256k1 and ed25519 paths exercised) + 39 Foundry (Solidity — 32 single-chain + 7 multi-chain) + 22 Solana router tests — all green on the Windows + WSL2 private-network matrix; `neo-zkvm-host` real SP1 E2E is also covered by the private-network script when SP1 is installed |
+| Tests             | **1459 .NET + 202 cross-lang** | 1459 across 34 .NET projects (incl. 7 Phase-C real-secp256k1 fraud-proof tests pinning the equivocation slash path end-to-end, plus optimistic sequencer account/signature binding); 16 TypeScript (vitest) + 10 Rust SDK (mockito) + 5 shared execution-core + 7 SP1 guest (host) + 103 Rust bridge watchers with `live-rpc` (eth: 87, tron: 7, sol: 9 — both secp256k1 and ed25519 paths exercised) + 39 Foundry (Solidity — 32 single-chain + 7 multi-chain) + 22 Solana router tests — all green on the Windows + WSL2 private-network matrix; `neo-zkvm-host` real SP1 E2E is also covered by the private-network script when SP1 is installed |
 
 ```
 neo4/
@@ -283,7 +283,7 @@ neo4/
 │   ├── neo-execution-core/                 # backend-neutral batch fold, roots, public input hash
 │   ├── neo-zkvm-guest/                     # Rust → RISC-V ELF (SP1-proven execution guest)
 │   └── neo-zkvm-host/                      # sp1-sdk 6.2.1 prover daemon (prove-batch)
-└── tests/                                  # 1455 tests / 34 projects
+└── tests/                                  # 1459 tests / 34 projects
 ```
 
 ---
@@ -325,7 +325,7 @@ cd neo-n4
 # If you forgot --recurse-submodules:
 # git submodule update --init --recursive
 
-# Type-check everything + run all 1455 tests (~10 seconds)
+# Type-check everything + run all 1459 tests (~10 seconds)
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # --- Bootstrapping a new L2 chain (recommended path) ---

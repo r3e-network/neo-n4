@@ -195,38 +195,49 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
 
         if (changes.Length == 0) return UInt256.Zero;
 
-        using var sha = System.Security.Cryptography.SHA256.Create();
-        var ms = new System.IO.MemoryStream();
+        // Stream into IncrementalHash instead of MemoryStream → drop the orphan
+        // SHA256.Create() handle, the intermediate MemoryStream buffer, and the
+        // three BitConverter.GetBytes(int) allocations per iteration. The
+        // canonical byte order (key.Length LE, key, val.Length LE, val,
+        // state byte) is unchanged.
+        using var hash = System.Security.Cryptography.IncrementalHash.CreateHash(
+            System.Security.Cryptography.HashAlgorithmName.SHA256);
+        Span<byte> lenBuf = stackalloc byte[4];
+        Span<byte> stateBuf = stackalloc byte[1];
         foreach (var c in changes)
         {
-            // c is KeyValuePair<StorageKey, DataCache.Trackable>; the value side
-            // exposes .Item (StorageItem) + .State (TrackState).
             var keyBytes = c.Key.ToArray();
             var valBytes = c.Value.Item is null ? Array.Empty<byte>() : c.Value.Item.Value.ToArray();
-            ms.Write(BitConverter.GetBytes(keyBytes.Length));
-            ms.Write(keyBytes);
-            ms.Write(BitConverter.GetBytes(valBytes.Length));
-            ms.Write(valBytes);
-            ms.WriteByte((byte)c.Value.State);
+            System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(lenBuf, keyBytes.Length);
+            hash.AppendData(lenBuf);
+            hash.AppendData(keyBytes);
+            System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(lenBuf, valBytes.Length);
+            hash.AppendData(lenBuf);
+            hash.AppendData(valBytes);
+            stateBuf[0] = (byte)c.Value.State;
+            hash.AppendData(stateBuf);
         }
-        return new UInt256(Crypto.Hash256(ms.ToArray()));
+        // Crypto.Hash256 is double-SHA256 (sha256(sha256(x))); IncrementalHash
+        // gives us the inner sha256, then we run the second pass on that 32B digest.
+        return new UInt256(System.Security.Cryptography.SHA256.HashData(hash.GetHashAndReset()));
     }
 
     private static UInt256 ComputeEventsHash(IReadOnlyCollection<NotifyEventArgs> notifications)
     {
         if (notifications.Count == 0) return UInt256.Zero;
-        var ms = new System.IO.MemoryStream();
+        // Same IncrementalHash refactor as ComputeStorageDeltaHash above.
+        using var hash = System.Security.Cryptography.IncrementalHash.CreateHash(
+            System.Security.Cryptography.HashAlgorithmName.SHA256);
+        Span<byte> lenBuf = stackalloc byte[4];
         foreach (var n in notifications)
         {
-            var hashBytes = n.ScriptHash.GetSpan().ToArray();
-            ms.Write(hashBytes);
-            // Event-name string contributes; Neo's Notify accepts a name as the first
-            // state-stack item so we hash the canonical name + the state JSON repr.
+            hash.AppendData(n.ScriptHash.GetSpan());
             var nameBytes = System.Text.Encoding.UTF8.GetBytes(n.EventName ?? string.Empty);
-            ms.Write(BitConverter.GetBytes(nameBytes.Length));
-            ms.Write(nameBytes);
+            System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(lenBuf, nameBytes.Length);
+            hash.AppendData(lenBuf);
+            hash.AppendData(nameBytes);
         }
-        return new UInt256(Crypto.Hash256(ms.ToArray()));
+        return new UInt256(System.Security.Cryptography.SHA256.HashData(hash.GetHashAndReset()));
     }
 
     private Block BuildPersistingBlock(BatchBlockContext ctx)

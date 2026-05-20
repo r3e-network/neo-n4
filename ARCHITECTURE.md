@@ -100,19 +100,25 @@ VM proving target: NeoVM2 / RISC-V (compatible with RISC-V instruction set per N
 
 ## §13 L2 native contracts
 
-New native contracts on L2:
+Ten native contracts on L2 (all registered by Neo core at genesis in
+`external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`):
+
 - `L2BridgeContract` — mint/burn bridged assets
-- `L2MessageContract` — emit/consume cross-chain messages
+- `L2MessageContract` — emit/consume cross-chain messages (event now carries `payload`)
 - `L2BatchInfoContract` — expose `chainId`, `batchNumber`, L1 finalized height
 - `L2FeeContract` — sequencer/prover/DA fee management
 - `L2PaymasterContract` — stablecoin / sponsored fees
 - `L2SystemConfigContract` — config synced from NeoHub
+- `L2NativeExternalBridgeContract` — L2-side burn/mint counterpart of `NeoHub.ExternalBridgeEscrow`
+- `BridgedNep17Contract` — canonical bridge-controlled NEP-17 template (USDT/USDC/BTC/NEO mappings)
+- `L2AccountAbstraction` — programmable AA entry point (validator binding, nonce, magic value)
+- `L2InteropVerifier` — mirrored-global-roots check + Merkle proof verification + local replay protection
 
 Adjusted contracts: `GAS` (bridge-controlled supply), `NEO` (bridged but governance L1), `Oracle` (local or via L1), `Policy` (local fee, bridge/security via NeoHub).
 
 ## §14 RPC / SDK / Tooling
 
-L2 RPC additions: `getl2batch`, `getl2batchstatus`, `getl2stateroot`, `getl2withdrawalproof`, `getl2messageproof`, `getl1depositstatus`, `getcanonicalasset`, `getbridgedasset`, `getsecuritylevel`, `getsecuritylabel` (full 5-dimension §16.2 label).
+L2 RPC additions: `getl2batch`, `getl2batchstatus`, `getl2stateroot`, `getl2withdrawalproof`, `getl2messageproof`, `getl1depositstatus`, `getcanonicalasset`, `getbridgedasset`, `getsecuritylevel`, `getsecuritylabel` (§16.2 label — five base dimensions: `securityLevel`, `daMode`, `sequencer`, `exit`, `gateway`. Proof-mode is collapsed into `securityLevel`; bridge-mode is operator-described in chain registry metadata rather than published on the label).
 
 `neo-stack` CLI: `create-chain`, `init-l2`, `register-chain`, `deploy-bridge-adapter`, `start-{sequencer,batcher,prover}`, `submit-batch`.
 

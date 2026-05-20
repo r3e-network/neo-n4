@@ -154,9 +154,15 @@ each round invokes the swappable `IRoundProver.Combine` on adjacent siblings.
 
 `IRoundProver.Combine` is the swappable hot path:
 
-- `PassThroughRoundProver` (default): Hash256 + length-prefixed proof concat.
-- Production: `Sp1CompressRoundProver` / `Halo2AccumulatorProver` / `Risc0FoldRoundProver`
-  — wraps the actual recursive ZK backend.
+- `PassThroughRoundProver`: reference Hash256 + length-prefixed proof concat
+  (minimal cost; valid production choice for chains that don't need recursive ZK).
+- `MultisigRoundProver`: Secp256r1 threshold-attested rounds (production, ships
+  in `src/Neo.Plugins.L2Gateway/MultisigRoundProver.cs`).
+- `MerklePathRoundProver`: per-constituent inclusion proofs against the aggregate
+  root (production, ships in the same folder).
+- Operator-supplied via the same `IRoundProver` seam: recursive-ZK fold variants
+  (SP1 Compress / Halo2 accumulator / Risc0 fold). The seam is the extension point;
+  these aren't bundled because they pull large prover toolchains as deps.
 
 The `AggregatedCommitment` carries:
 - All constituent `L2BatchCommitment`s.
@@ -211,7 +217,8 @@ implementations:
 
 - `InMemoryKeyValueStore` — a `SortedDictionary<byte[], byte[]>` with
   `ByteArrayComparer.Lexicographic`. Devnet / test default.
-- `RocksDbKeyValueStore` — `RocksDbSharp 10.10.1` with snappy compression. Production default.
+- `RocksDbKeyValueStore` — backed by the `RocksDB` NuGet package (v10.10.1.649,
+  namespace `RocksDbSharp`) with snappy compression. Production default.
 
 Six L2 components take an `IL2KeyValueStore` ctor argument with a backwards-compatible
 default ctor that wires `InMemoryKeyValueStore`:

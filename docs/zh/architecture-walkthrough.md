@@ -52,7 +52,7 @@
 
 `Neo.L2.Batch.BatchBuilder.Seal` 把 `BatchExecutionResult` 加上证明字节打包为
 `L2BatchCommitment` 记录。`Neo.L2.Batch.BatchSerializer.Encode` 产出
-`NeoHub.SettlementManager` 将解码的规范 317 字节定长前缀 + 变长证明字节
+`NeoHub.SettlementManager` 将解码的规范 321 字节定长前缀 + 变长证明字节
 (字节格式记在 `BatchSerializer` 的 XML 文档)。
 
 ### 6. 证明(今天是多签,Phase 4 是 ZK)
@@ -147,9 +147,14 @@ recipient, amount)`。SharedBridge 回调 `SettlementManager.VerifyWithdrawalLea
 
 `IRoundProver.Combine` 是可替换的热路径:
 
-- `PassThroughRoundProver`(默认):Hash256 + 长度前缀的证明拼接。
-- 生产:`Sp1CompressRoundProver` / `Halo2AccumulatorProver` /
-  `Risc0FoldRoundProver` —— 包装实际的递归 ZK 后备。
+- `PassThroughRoundProver`:参考实现 Hash256 + 长度前缀拼接(最小成本;对不需要
+  递归 ZK 的链是有效的生产选择)。
+- `MultisigRoundProver`:Secp256r1 阈值证明轮次(生产实现,见
+  `src/Neo.Plugins.L2Gateway/MultisigRoundProver.cs`)。
+- `MerklePathRoundProver`:针对聚合 root 的逐成员包含证明(生产实现,同目录)。
+- 通过同一个 `IRoundProver` 接缝由运维方提供:递归 ZK 折叠变体
+  (SP1 Compress / Halo2 accumulator / Risc0 fold)。接缝是扩展点;
+  这些没有内置因为会引入大型 prover 工具链依赖。
 
 `AggregatedCommitment` 携带:
 - 全部成员 `L2BatchCommitment`。
@@ -200,7 +205,8 @@ Neo Elastic Network 的"L2 组件持有内存字典"模式在测试 + devnet 没
 
 - `InMemoryKeyValueStore` —— 带 `ByteArrayComparer.Lexicographic` 的
   `SortedDictionary<byte[], byte[]>`。devnet / 测试默认。
-- `RocksDbKeyValueStore` —— `RocksDbSharp 10.10.1`,Snappy 压缩。生产默认。
+- `RocksDbKeyValueStore` —— 基于 `RocksDB` NuGet 包(v10.10.1.649,
+  命名空间 `RocksDbSharp`),Snappy 压缩。生产默认。
 
 6 个 L2 组件接受 `IL2KeyValueStore` ctor 参数,带向后兼容的、把
 `InMemoryKeyValueStore` 接好的默认 ctor:

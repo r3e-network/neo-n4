@@ -78,10 +78,12 @@ public sealed class InMemoryMetrics : IL2Metrics, IMetricsSource
         {
             histos = _histograms.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<double>)kv.Value.ToArray());
         }
+        // ConcurrentDictionary.ToDictionary already enumerates a thread-safe
+        // snapshot; the intermediate ToArray() was a wasted KeyValuePair[] alloc.
         return new MetricsSnapshot
         {
-            Counters = _counters.ToArray().ToDictionary(kv => kv.Key, kv => kv.Value),
-            Gauges = _gauges.ToArray().ToDictionary(kv => kv.Key, kv => kv.Value),
+            Counters = _counters.ToDictionary(kv => kv.Key, kv => kv.Value),
+            Gauges = _gauges.ToDictionary(kv => kv.Key, kv => kv.Value),
             Histograms = histos,
         };
     }

@@ -238,8 +238,8 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
         var sourceChainId = BinaryPrimitives.ReadUInt32LittleEndian(bytes.Slice(0, 4));
         var targetChainId = BinaryPrimitives.ReadUInt32LittleEndian(bytes.Slice(4, 4));
         var nonce = BinaryPrimitives.ReadUInt64LittleEndian(bytes.Slice(8, 8));
-        var sender = new UInt160(bytes.Slice(16, 20).ToArray());
-        var receiver = new UInt160(bytes.Slice(36, 20).ToArray());
+        var sender = new UInt160(bytes.Slice(16, 20));
+        var receiver = new UInt160(bytes.Slice(36, 20));
         var messageType = (MessageType)bytes[56];
         var payloadLen = BinaryPrimitives.ReadInt32LittleEndian(bytes.Slice(57, 4));
         if (payloadLen < 0)

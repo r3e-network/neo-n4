@@ -79,9 +79,5 @@ public sealed class ContinuityCheck : IAuditCheck
         return new ValueTask<IReadOnlyList<AuditFinding>>(findings);
     }
 
-    private static string Truncate(UInt256 root)
-    {
-        var s = root.ToString();
-        return s.Length <= 18 ? s : s[..10] + "…" + s[^6..];
-    }
+    private static string Truncate(UInt256 root) => AuditFormatting.Truncate(root);
 }

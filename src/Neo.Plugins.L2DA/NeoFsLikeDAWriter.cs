@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using Neo.Cryptography;
 using Neo.L2;
@@ -39,10 +40,7 @@ public sealed class NeoFsLikeDAWriter : IDAWriter
         // Pointer encodes (4B chainId LE) + 32B objectId — what the real NeoFS would surface
         // as a "container/object" composite address.
         var pointer = new byte[4 + 32];
-        pointer[0] = (byte)request.ChainId;
-        pointer[1] = (byte)(request.ChainId >> 8);
-        pointer[2] = (byte)(request.ChainId >> 16);
-        pointer[3] = (byte)(request.ChainId >> 24);
+        BinaryPrimitives.WriteUInt32LittleEndian(pointer.AsSpan(0, 4), request.ChainId);
         objectId.GetSpan().CopyTo(pointer.AsSpan(4));
 
         return new ValueTask<DAReceipt>(new DAReceipt
@@ -63,11 +61,7 @@ public sealed class NeoFsLikeDAWriter : IDAWriter
         if (receipt.Pointer.Length != 36)
             return new ValueTask<bool>(false);
 
-        var span = receipt.Pointer.Span;
-        var chainId = (uint)span[0]
-            | ((uint)span[1] << 8)
-            | ((uint)span[2] << 16)
-            | ((uint)span[3] << 24);
+        var chainId = BinaryPrimitives.ReadUInt32LittleEndian(receipt.Pointer.Span[..4]);
         return new ValueTask<bool>(_store.ContainsKey((chainId, receipt.Commitment)));
     }
 

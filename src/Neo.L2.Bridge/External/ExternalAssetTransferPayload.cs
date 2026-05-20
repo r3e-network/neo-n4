@@ -61,7 +61,7 @@ public sealed record ExternalAssetTransferPayload
             throw new ArgumentException(
                 $"payload length {bytes.Length} < 24 (header)", nameof(bytes));
 
-        var foreignAsset = new UInt160(bytes.Slice(0, 20).ToArray());
+        var foreignAsset = new UInt160(bytes.Slice(0, 20));
         var amountLen = BinaryPrimitives.ReadInt32LittleEndian(bytes.Slice(20, 4));
         if (amountLen < 0 || amountLen > MaxAmountBytes)
             throw new ArgumentException(
@@ -70,7 +70,7 @@ public sealed record ExternalAssetTransferPayload
             throw new ArgumentException(
                 $"payload length {bytes.Length} != 24 + amountLen {amountLen}", nameof(bytes));
 
-        var amount = new BigInteger(bytes.Slice(24, amountLen).ToArray());
+        var amount = new BigInteger(bytes.Slice(24, amountLen));
         return new ExternalAssetTransferPayload
         {
             ForeignAsset = foreignAsset,

@@ -120,24 +120,26 @@ public static class V3StorageProofVerifier
         ArgumentNullException.ThrowIfNull(leafHash);
         ArgumentNullException.ThrowIfNull(siblings);
 
-        var current = leafHash.GetSpan().ToArray();  // 32 bytes
+        Span<byte> current = stackalloc byte[32];
+        leafHash.GetSpan().CopyTo(current);
+        Span<byte> combined = stackalloc byte[64];
         var index = leafIndex;
         for (var i = 0; i < siblings.Count; i++)
         {
             ArgumentNullException.ThrowIfNull(siblings[i]);
-            var sibling = siblings[i].GetSpan().ToArray();
-            var combined = new byte[64];
+            var sibling = siblings[i].GetSpan();
             if ((index & 1UL) == 0UL)
             {
-                Array.Copy(current, 0, combined, 0, 32);
-                Array.Copy(sibling, 0, combined, 32, 32);
+                current.CopyTo(combined[..32]);
+                sibling.CopyTo(combined[32..]);
             }
             else
             {
-                Array.Copy(sibling, 0, combined, 0, 32);
-                Array.Copy(current, 0, combined, 32, 32);
+                sibling.CopyTo(combined[..32]);
+                current.CopyTo(combined[32..]);
             }
-            current = Crypto.Hash256(combined);
+            // Crypto.Hash256 returns byte[]; copy back into the reusable current span.
+            Crypto.Hash256(combined).AsSpan().CopyTo(current);
             index >>= 1;
         }
         return new UInt256(current);

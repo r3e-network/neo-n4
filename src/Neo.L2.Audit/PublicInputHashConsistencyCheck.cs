@@ -100,9 +100,5 @@ public sealed class PublicInputHashConsistencyCheck : IAuditCheck
         BlockContextHash = UInt256.Zero,
     };
 
-    private static string Truncate(UInt256 root)
-    {
-        var s = root.ToString();
-        return s.Length <= 18 ? s : s[..10] + "…" + s[^6..];
-    }
+    private static string Truncate(UInt256 root) => AuditFormatting.Truncate(root);
 }

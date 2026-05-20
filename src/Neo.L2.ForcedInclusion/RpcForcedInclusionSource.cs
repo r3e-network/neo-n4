@@ -185,8 +185,8 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
         const int FixedTrailer = 4;
         if (bytes.Length < FixedHeader + FixedTrailer)
             throw new InvalidDataException($"forced-tx entry too short ({bytes.Length} < {FixedHeader + FixedTrailer})");
-        var sender = new UInt160(bytes.Slice(0, 20).ToArray());
-        var txHash = new UInt256(bytes.Slice(20, 32).ToArray());
+        var sender = new UInt160(bytes.Slice(0, 20));
+        var txHash = new UInt256(bytes.Slice(20, 32));
         var txLen = BinaryPrimitives.ReadInt32LittleEndian(bytes.Slice(52, 4));
         if (txLen < 0)
             throw new InvalidDataException($"forced-tx entry txLen {txLen} negative");

@@ -75,6 +75,42 @@ public class UT_RpcMessageRouter
     }
 
     [TestMethod]
+    public async Task DequeueL1Messages_ReturnsAscendingNonce_GivenOutOfOrderInput()
+    {
+        // Pins the documented invariant at RpcMessageRouter.cs:167 — the dequeue
+        // returns nonces in strict ascending order. If the L2 batcher consumed
+        // nonce 7 before 3, the L1 replay-protection state (which assumes
+        // per-source-chain monotonic processing) could permanently brick nonce 3.
+        // Input genesisNonces deliberately scrambled so the test fails for the
+        // right reason if the OrderBy(m => m.Nonce) ever regresses to "natural
+        // dictionary order" or "first-emitted".
+        var sender = UInt160.Parse("0x" + new string('1', 40));
+        var receiver = UInt160.Parse("0x" + new string('2', 40));
+        var (router, stub, rpc) = Build(genesisNonces: new ulong[] { 5, 3, 8, 1, 7 });
+        using var _ = rpc;
+
+        stub.Register((m, h, p) =>
+        {
+            if (m == "isConsumed") return StubRpcHandler.Boolean(false);
+            if (m == "getL1ToL2")
+            {
+                var nonce = ulong.Parse(p[1]!["value"]!.AsString());
+                return StubRpcHandler.ByteArrayBase64(EncodeMessage(
+                    0, TestChainId, nonce, sender, receiver,
+                    (byte)MessageType.Call, new byte[] { (byte)nonce }));
+            }
+            return null;
+        });
+
+        var dequeued = await router.DequeueL1MessagesAsync(TestChainId, maxMessages: 10);
+        Assert.AreEqual(5, dequeued.Count, "all 5 nonces should come through (none are L1-consumed)");
+        CollectionAssert.AreEqual(
+            new ulong[] { 1, 3, 5, 7, 8 },
+            dequeued.Select(m => m.Nonce).ToArray(),
+            "DequeueL1MessagesAsync must return nonces in strict ascending order");
+    }
+
+    [TestMethod]
     public async Task DequeueL1Messages_DropsL1ConsumedEntries()
     {
         var sender = UInt160.Parse("0x" + new string('1', 40));

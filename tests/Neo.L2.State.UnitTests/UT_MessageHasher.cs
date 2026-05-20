@@ -223,6 +223,56 @@ public class UT_MessageHasher
     }
 
     [TestMethod]
+    public void HashWithdrawal_DifferentChainId_ProducesDifferentHash()
+    {
+        // Regression for the H1 fix: chainId is part of the leaf-hash preimage as
+        // a 4-byte LE domain-separator. Two withdrawals with IDENTICAL emittingContract,
+        // l2Sender, l1Recipient, l2Asset, amount, and nonce MUST hash to different
+        // leaves when their chainId differs — otherwise an inclusion proof from one
+        // L2's withdrawal root could be replayed against another L2 with a coincidentally
+        // matching tuple. Operational defense (per-chain Merkle root + chainId-scoped
+        // consumed key) remains as defense-in-depth, but the hash domain itself is now
+        // chain-separated so this scenario can never reach those gates.
+        var wd1099 = new WithdrawalRequest
+        {
+            ChainId = 1099U,
+            EmittingContract = A(),
+            L2Sender = B(),
+            L1Recipient = C(),
+            L2Asset = D(),
+            Amount = 1_000_000UL,
+            Nonce = 7,
+        };
+        var wd2099 = wd1099 with { ChainId = 2099U };
+        Assert.AreNotEqual(MessageHasher.HashWithdrawal(wd1099), MessageHasher.HashWithdrawal(wd2099),
+            "chainId must domain-separate the withdrawal-leaf hash (H1)");
+        // Sanity: chainId is the ONLY change between the two; everything else equal.
+        Assert.AreEqual(wd1099.EmittingContract, wd2099.EmittingContract);
+        Assert.AreEqual(wd1099.Nonce, wd2099.Nonce);
+        Assert.AreEqual(wd1099.Amount, wd2099.Amount);
+    }
+
+    [TestMethod]
+    public void HashWithdrawal_SameInputs_Deterministic()
+    {
+        // Companion to the chainId-separation test: same WithdrawalRequest hashed
+        // twice must produce the same leaf. Without this, the H1 fix's chainId-LE
+        // encoding (or any future preimage refactor) could non-deterministically
+        // permute fields and silently break inclusion proofs for *all* withdrawals.
+        var wd = new WithdrawalRequest
+        {
+            ChainId = 1099U,
+            EmittingContract = A(),
+            L2Sender = B(),
+            L1Recipient = C(),
+            L2Asset = D(),
+            Amount = 1_000_000UL,
+            Nonce = 42,
+        };
+        Assert.AreEqual(MessageHasher.HashWithdrawal(wd), MessageHasher.HashWithdrawal(wd));
+    }
+
+    [TestMethod]
     public void HashWithdrawal_RejectsOversizedAmount()
     {
         // Pinning MessageHasher.cs:63-64 — amount serialization caps at 64 bytes

@@ -51,6 +51,7 @@
 
 # 审计证据
 
+- [综合审计闭环报告(2026-05-20)](./audit/comprehensive-audit-2026-05-20.md)
 - [生产就绪审计](./audit/production-readiness-audit.md)
 - [仓库覆盖率账本](./audit/repository-coverage-ledger.md)
 - [Neo 4 系统保证审计](./audit/neo4-system-assurance-audit-2026-05-19.md)

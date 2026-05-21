@@ -66,6 +66,7 @@
 
 权威定义的来源：
 
+- [`specification/README.md`](./specification/README.md) —— 面向读者的 Neo N4 中文规格书与学习手册，推荐作为系统性长读入口。
 - [`doc.md`](../../doc.md) —— 中文母版规范（权威）。
 - [`ARCHITECTURE.md`](../../ARCHITECTURE.md) —— 英文 §-by-§ 摘要。
 - [`WHITEPAPER.md`](../../WHITEPAPER.md) —— 正式白皮书。

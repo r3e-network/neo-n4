@@ -2,6 +2,29 @@
 
 [Introduction](./README.md)
 
+# Chinese Specification Book
+
+- [Neo N4 Specification: from design to implementation](./zh/specification/README.md)
+  - [System model](./zh/specification/01-system-model.md)
+  - [Architecture](./zh/specification/02-architecture.md)
+  - [Protocol and data structures](./zh/specification/03-protocol-data.md)
+  - [Implementation guide](./zh/specification/04-implementation.md)
+  - [Operations and deployment](./zh/specification/05-operations.md)
+  - [Security and testing](./zh/specification/06-security-testing.md)
+  - [Reading paths](./zh/specification/07-reading-path.md)
+  - [NeoHub contract reference](./zh/specification/08-neohub-contracts.md)
+  - [L2 core and native contracts](./zh/specification/09-l2-core-native.md)
+  - [Batching and state](./zh/specification/10-batching-state.md)
+  - [NeoFS data availability](./zh/specification/11-data-availability-neofs.md)
+  - [Proof systems and zkVM](./zh/specification/12-proving-zkvm.md)
+  - [Bridge assets](./zh/specification/13-bridge-assets.md)
+  - [External bridge](./zh/specification/14-external-bridge.md)
+  - [SDK and applications](./zh/specification/15-sdk-and-apps.md)
+  - [Labs](./zh/specification/16-labs.md)
+  - [Production readiness](./zh/specification/17-production-readiness.md)
+  - [Source tour](./zh/specification/18-source-tour.md)
+  - [Reference](./zh/specification/19-reference.md)
+
 # Operator guide
 
 - [Getting started](./getting-started.md)

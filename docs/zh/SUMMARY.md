@@ -2,6 +2,29 @@
 
 [简介](./README.md)
 
+# Neo N4 规格书
+
+- [Neo N4 规格书：从设计到实现](./specification/README.md)
+  - [系统模型](./specification/01-system-model.md)
+  - [总体架构](./specification/02-architecture.md)
+  - [协议与数据结构](./specification/03-protocol-data.md)
+  - [实现导读](./specification/04-implementation.md)
+  - [运维、部署与运行](./specification/05-operations.md)
+  - [安全、测试与审计](./specification/06-security-testing.md)
+  - [学习路径](./specification/07-reading-path.md)
+  - [NeoHub 逐合约参考](./specification/08-neohub-contracts.md)
+  - [L2 Core 与原生合约](./specification/09-l2-core-native.md)
+  - [批次、状态与执行](./specification/10-batching-state.md)
+  - [NeoFS 数据可用性](./specification/11-data-availability-neofs.md)
+  - [证明系统与 zkVM](./specification/12-proving-zkvm.md)
+  - [资产桥与平台资产](./specification/13-bridge-assets.md)
+  - [异构链与外部桥](./specification/14-external-bridge.md)
+  - [SDK、应用与用户体验](./specification/15-sdk-and-apps.md)
+  - [实验课](./specification/16-labs.md)
+  - [生产完备性](./specification/17-production-readiness.md)
+  - [源码阅读路线](./specification/18-source-tour.md)
+  - [参考表](./specification/19-reference.md)
+
 # 运维指南
 
 - [快速上手](./getting-started.md)

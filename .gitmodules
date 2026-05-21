@@ -11,3 +11,6 @@
 [submodule "external/neo-riscv-vm"]
 	path = external/neo-riscv-vm
 	url = https://github.com/r3e-network/neo-riscv-vm.git
+[submodule "external/neo-vm-rs"]
+	path = external/neo-vm-rs
+	url = https://github.com/r3e-network/neo-vm-rs.git

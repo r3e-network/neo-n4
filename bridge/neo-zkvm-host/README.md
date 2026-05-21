@@ -42,7 +42,9 @@ Requires Linux or macOS with the SP1 toolchain (`sp1up` → installs
 ship native Windows support; on Windows, run the prover under WSL2 or a
 Linux/macOS prover host. `build.rs` invokes `cargo prove build` against
 the sibling guest crate on every build, so the embedded ELF stays synced
-with the guest source.
+with the guest source. Cached ELFs are disabled by default; set
+`NEO_ZKVM_ALLOW_CACHED_ELF=1` only for host-only development that
+intentionally does not execute or prove the guest.
 
 ```bash
 # 1. Install SP1 (one-time, Linux/macOS or WSL2):

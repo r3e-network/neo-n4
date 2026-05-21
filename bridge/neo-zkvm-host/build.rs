@@ -1,7 +1,6 @@
 //! Build script: invokes `cargo prove build` on bridge/neo-zkvm-guest so
-//! the guest ELF is fresh at compile time. Falls back to the cached ELF if
-//! the SP1 toolchain isn't available (host-only test runs that don't need
-//! the live guest).
+//! the guest ELF is fresh at compile time. A cached ELF may only be used when
+//! `NEO_ZKVM_ALLOW_CACHED_ELF=1` is set explicitly for host-only development.
 
 use std::env;
 use std::path::PathBuf;
@@ -11,9 +10,17 @@ fn main() {
     println!("cargo:rerun-if-changed=../neo-zkvm-guest/src/main.rs");
     println!("cargo:rerun-if-changed=../neo-zkvm-guest/src/lib.rs");
     println!("cargo:rerun-if-changed=../neo-zkvm-guest/Cargo.toml");
+    println!("cargo:rerun-if-changed=../neo-execution-core/Cargo.toml");
+    println!("cargo:rerun-if-changed=../neo-execution-core/src");
+    println!("cargo:rerun-if-changed=../../external/neo-zkvm/crates/neo-vm-guest/Cargo.toml");
+    println!("cargo:rerun-if-changed=../../external/neo-zkvm/crates/neo-vm-guest/src");
+    println!("cargo:rerun-if-changed=../../external/neo-vm-rs/Cargo.toml");
+    println!("cargo:rerun-if-changed=../../external/neo-vm-rs/src");
+    println!("cargo:rerun-if-env-changed=NEO_ZKVM_ALLOW_CACHED_ELF");
 
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let guest_dir = manifest_dir.join("../neo-zkvm-guest");
+    let allow_cached_elf = allow_cached_elf();
 
     // Prefer building fresh via `cargo prove build` if the SP1 toolchain is on
     // PATH. This guarantees the bundled ELF tracks the guest source.
@@ -35,15 +42,29 @@ fn main() {
             // Built fresh.
         }
         Ok(o) => {
+            let detail = output_excerpt(&o.stdout, &o.stderr);
+            if !allow_cached_elf {
+                panic!(
+                    "cargo prove build failed (exit {}) while building {}; install the SP1 toolchain or set NEO_ZKVM_ALLOW_CACHED_ELF=1 only for host-only development{}",
+                    o.status,
+                    guest_dir.display(),
+                    detail
+                );
+            }
             println!(
-                "cargo:warning=cargo prove build failed (exit {}), falling back to cached ELF{}",
-                o.status,
-                output_excerpt(&o.stdout, &o.stderr)
+                "cargo:warning=cargo prove build failed (exit {}), using cached ELF because NEO_ZKVM_ALLOW_CACHED_ELF=1{}",
+                o.status, detail
             );
         }
         Err(e) => {
+            if !allow_cached_elf {
+                panic!(
+                    "cargo prove is not available on PATH ({}); install SP1 with sp1up or set NEO_ZKVM_ALLOW_CACHED_ELF=1 only for host-only development",
+                    e
+                );
+            }
             println!(
-                "cargo:warning=cargo prove not on PATH ({}), assuming cached ELF at {}",
+                "cargo:warning=cargo prove not on PATH ({}), using cached ELF because NEO_ZKVM_ALLOW_CACHED_ELF=1 at {}",
                 e,
                 elf_path.display()
             );
@@ -72,6 +93,13 @@ fn output_excerpt(stdout: &[u8], stderr: &[u8]) -> String {
     } else {
         format!("; {}", lines.join(" | "))
     }
+}
+
+fn allow_cached_elf() -> bool {
+    matches!(
+        env::var("NEO_ZKVM_ALLOW_CACHED_ELF").as_deref(),
+        Ok("1") | Ok("true") | Ok("TRUE") | Ok("yes") | Ok("YES")
+    )
 }
 
 fn which_or_default() -> String {

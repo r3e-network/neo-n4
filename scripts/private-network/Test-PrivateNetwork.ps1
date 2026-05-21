@@ -549,15 +549,33 @@ cargo audit --db $(Quote-Bash $wslRustSecDb) --no-fetch --stale --json > $(Quote
     }
 
     if (-not $SkipTypeScript) {
-        Invoke-LoggedNative -Name "npm install typescript sdk" -FilePath "npm" -Arguments @(
-            "install", "--no-audit", "--no-fund"
+        Invoke-LoggedNative -Name "npm ci typescript sdk" -FilePath "npm" -Arguments @(
+            "ci", "--no-audit", "--no-fund"
         ) -WorkingDirectory (Join-Path $RepoRoot "sdk\typescript")
         Invoke-LoggedNative -Name "npm test typescript sdk" -FilePath "npm" -Arguments @("test") `
             -WorkingDirectory (Join-Path $RepoRoot "sdk\typescript")
         Invoke-LoggedNative -Name "npm build typescript sdk" -FilePath "npm" -Arguments @("run", "build") `
             -WorkingDirectory (Join-Path $RepoRoot "sdk\typescript")
-        Invoke-LoggedNative -Name "npm audit typescript sdk" -FilePath "npm" -Arguments @("audit", "--audit-level=moderate") `
-            -WorkingDirectory (Join-Path $RepoRoot "sdk\typescript")
+        Invoke-LoggedScript -Name "npm audit typescript sdk" -WorkingDirectory (Join-Path $RepoRoot "sdk\typescript") -Body {
+            for ($attempt = 1; $attempt -le 5; $attempt++) {
+                & npx -y npm@11.15.0 `
+                    --fetch-retries=5 `
+                    --fetch-retry-mintimeout=20000 `
+                    --fetch-retry-maxtimeout=120000 `
+                    audit `
+                    --audit-level=moderate
+                $exitCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+                if ($exitCode -eq 0) {
+                    return
+                }
+
+                if ($attempt -lt 5) {
+                    Start-Sleep -Seconds (10 * $attempt)
+                }
+            }
+
+            throw "npm audit failed after 5 attempts"
+        }
     }
 
     if (-not $SkipForeignContracts) {

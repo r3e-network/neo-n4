@@ -27,10 +27,12 @@ use std::time::Duration;
 /// — they complete first (proof time is bounded), and then the loop exits.
 static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
 
+#[cfg(unix)]
 extern "C" fn shutdown_signal_handler(_sig: i32) {
     SHUTDOWN_REQUESTED.store(true, Ordering::Relaxed);
 }
 
+#[cfg(unix)]
 fn install_shutdown_signal_handlers() {
     // SAFETY: libc::signal is the standard POSIX shape; the handler is
     // marked `extern "C"` and only touches an AtomicBool (signal-safe).
@@ -48,6 +50,9 @@ fn install_shutdown_signal_handlers() {
         );
     }
 }
+
+#[cfg(not(unix))]
+fn install_shutdown_signal_handlers() {}
 
 /// Sleep up to `dur`, but wake every 100ms to check for shutdown.
 fn interruptible_sleep(dur: Duration) {

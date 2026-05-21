@@ -18,6 +18,13 @@ fn main() {
     println!("cargo:rerun-if-changed=../../external/neo-vm-rs/src");
     println!("cargo:rerun-if-env-changed=NEO_ZKVM_ALLOW_CACHED_ELF");
 
+    if env::var("CARGO_CFG_TARGET_FAMILY").as_deref() != Ok("unix") {
+        println!(
+            "cargo:warning=neo-zkvm-host SP1 proving is Unix/WSL2-only; compiling unsupported-platform stubs"
+        );
+        return;
+    }
+
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let guest_dir = manifest_dir.join("../neo-zkvm-guest");
     let allow_cached_elf = allow_cached_elf();

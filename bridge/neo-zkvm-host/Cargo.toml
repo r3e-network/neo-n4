@@ -11,6 +11,8 @@ description = "Real SP1 host that loads neo-zkvm-guest's RISC-V ELF, runs it via
 build = "build.rs"
 
 [dependencies]
+
+[target.'cfg(unix)'.dependencies]
 sp1-sdk = { version = "6.2.1", features = ["blocking"] }
 bincode = "1.3"
 # Unix signal handling for the prove-batch daemon's SIGTERM/SIGINT graceful

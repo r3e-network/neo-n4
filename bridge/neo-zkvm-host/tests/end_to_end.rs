@@ -3,6 +3,8 @@
 //! public-input hash against what `neo_zkvm_guest::execute_batch` produces
 //! on the host. Pin: zkVM execution and host execution agree byte-for-byte.
 
+#![cfg(unix)]
+
 fn build_minimal_request() -> Vec<u8> {
     let mut buf = Vec::new();
     buf.push(1u8); // version

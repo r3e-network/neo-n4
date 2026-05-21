@@ -8,11 +8,18 @@
 //! a real batch through the SP1 zkVM and checks the public-input commitment
 //! matches what `neo_zkvm_guest::execute_batch` produces on the host.
 
+#[cfg(unix)]
 use sp1_sdk::blocking::{Elf, ProveRequest, Prover, ProverClient};
+#[cfg(unix)]
 use sp1_sdk::{ProvingKey, SP1Stdin};
 
 /// Embedded guest ELF — wired by build.rs from `cargo prove build`.
+#[cfg(unix)]
 pub const NEO_ZKVM_GUEST_ELF: &[u8] = include_bytes!(env!("NEO_ZKVM_GUEST_ELF"));
+
+/// Empty placeholder on platforms where SP1's JIT/prover stack is unavailable.
+#[cfg(not(unix))]
+pub const NEO_ZKVM_GUEST_ELF: &[u8] = &[];
 
 /// Result of a successful end-to-end zkVM execution.
 pub struct ExecutionResult {
@@ -37,6 +44,7 @@ pub struct ProofResult {
 
 /// Execute the guest inside SP1's zkVM (no proving — just the deterministic
 /// run). Cheap; suitable for development + the "did the script HALT" check.
+#[cfg(unix)]
 pub fn execute(request_bytes: &[u8]) -> Result<ExecutionResult, String> {
     // SP1 6.x API: build a CPU prover, call execute(elf, stdin).
     let prover = ProverClient::builder().cpu().build();
@@ -66,6 +74,7 @@ pub fn execute(request_bytes: &[u8]) -> Result<ExecutionResult, String> {
 /// Substantially slower than `execute` (proving ≫ executing — typically
 /// 30-300 seconds per batch on a beefy CPU; minutes on a small one). For
 /// development / debug, prefer `execute`.
+#[cfg(unix)]
 pub fn prove(request_bytes: &[u8]) -> Result<ProofResult, String> {
     let prover = ProverClient::builder().cpu().build();
     let mut stdin = SP1Stdin::new();
@@ -102,6 +111,7 @@ pub fn prove(request_bytes: &[u8]) -> Result<ProofResult, String> {
 /// the proof + vk, run SP1's verifier, and confirm the public-input hash matches
 /// the expected commitment for this batch. Off-chain prover infrastructure can
 /// call this before submission to catch bad proofs without paying L1 gas.
+#[cfg(unix)]
 pub fn verify(
     proof_bytes: &[u8],
     vk_bytes: &[u8],
@@ -128,4 +138,31 @@ pub fn verify(
         .verify(&proof, &vk, None)
         .map_err(|e| format!("proof verification failed: {:?}", e))?;
     Ok(())
+}
+
+/// Execute the guest inside SP1's zkVM.
+#[cfg(not(unix))]
+pub fn execute(_request_bytes: &[u8]) -> Result<ExecutionResult, String> {
+    Err(unsupported_platform())
+}
+
+/// Generate a real ZK proof for the batch.
+#[cfg(not(unix))]
+pub fn prove(_request_bytes: &[u8]) -> Result<ProofResult, String> {
+    Err(unsupported_platform())
+}
+
+/// Verify a previously-generated proof against the canonical guest verifying key.
+#[cfg(not(unix))]
+pub fn verify(
+    _proof_bytes: &[u8],
+    _vk_bytes: &[u8],
+    _expected_public_input_hash: &[u8; 32],
+) -> Result<(), String> {
+    Err(unsupported_platform())
+}
+
+#[cfg(not(unix))]
+fn unsupported_platform() -> String {
+    "neo-zkvm-host requires a Unix/WSL2/Linux target because SP1's JIT/prover stack uses POSIX file descriptors and shared memory".to_string()
 }

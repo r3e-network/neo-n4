@@ -110,6 +110,15 @@ fn allow_cached_elf() -> bool {
 }
 
 fn which_or_default() -> String {
+    if let Ok(path) = env::var("CARGO_PROVE") {
+        return path;
+    }
+    if let Some(home) = env::var_os("HOME") {
+        let sp1up_path = PathBuf::from(home).join(".sp1/bin/cargo-prove");
+        if sp1up_path.is_file() {
+            return sp1up_path.display().to_string();
+        }
+    }
     // Most operators have cargo-prove on PATH after `sp1up`.
     "cargo".to_string()
 }

@@ -288,6 +288,20 @@ export function fieldPow(base, exponent, prime = FIELD_PRIME) {
   return result;
 }
 
+export function evaluatePolynomial(coefficients, x, prime = FIELD_PRIME) {
+  let result = 0;
+  let power = 1;
+  for (const coefficient of coefficients) {
+    result = fieldAdd(result, fieldMul(coefficient, power, prime), prime);
+    power = fieldMul(power, x, prime);
+  }
+  return result;
+}
+
+export function vanishingPolynomial(x, domainSize, prime = FIELD_PRIME) {
+  return fieldSub(fieldPow(x, domainSize, prime), 1, prime);
+}
+
 export function fieldInverse(value, prime = FIELD_PRIME) {
   const normalized = mod(value, prime);
   if (normalized === 0) return null;
@@ -735,6 +749,162 @@ export function buildProofTranscript({ proofEstimate = estimateProofPipeline(), 
   };
 }
 
+export function buildZkpMathVisualization({ proofEstimate = estimateProofPipeline(), publicInputRoot = '0', prime = FIELD_PRIME } = {}) {
+  const domainSize = 8;
+  const domainGenerator = 2;
+  const domain = Array.from({ length: domainSize }, (_, index) => {
+    const x = fieldPow(domainGenerator, index, prime);
+    const angle = ((index / domainSize) * Math.PI * 2) - Math.PI / 2;
+    return {
+      index,
+      x,
+      vanish: vanishingPolynomial(x, domainSize, prime),
+      px: round(50 + Math.cos(angle) * 34),
+      py: round(50 + Math.sin(angle) * 34),
+    };
+  });
+  const seed = mod(toyHash([publicInputRoot, proofEstimate.traceRows, proofEstimate.constraints], prime), prime);
+  const step = mod((proofEstimate.verifierChecks % 5) + 2, prime);
+  const witnessValues = domain.map((point) => ({
+    ...point,
+    value: fieldAdd(seed, fieldMul(point.index, step, prime), prime),
+  }));
+  const quotientCoefficients = [
+    mod(3 + proofEstimate.commitmentCount, prime),
+    mod(seed + 5, prime),
+    mod(step + proofEstimate.verifierChecks, prime),
+  ];
+  const vanishingCoefficients = Array.from({ length: domainSize + 1 }, (_, index) => {
+    if (index === 0) return prime - 1;
+    if (index === domainSize) return 1;
+    return 0;
+  });
+  const constraintCoefficients = polynomialMul(quotientCoefficients, vanishingCoefficients, prime);
+  const challenge = buildChallenge({
+    domain,
+    publicInputRoot,
+    proofEstimate,
+    prime,
+  });
+  const qAtZeta = evaluatePolynomial(quotientCoefficients, challenge.zeta, prime);
+  const zAtZeta = vanishingPolynomial(challenge.zeta, domainSize, prime);
+  const cAtZeta = evaluatePolynomial(constraintCoefficients, challenge.zeta, prime);
+  const right = fieldMul(qAtZeta, zAtZeta, prime);
+  return {
+    prime,
+    domainSize,
+    publicInputs: {
+      root: String(publicInputRoot),
+      traceRows: proofEstimate.traceRows,
+      constraints: proofEstimate.constraints,
+      verifierChecks: proofEstimate.verifierChecks,
+    },
+    domain,
+    witness: {
+      seed,
+      step,
+      values: witnessValues,
+      equation: `w_i = ${seed} + ${step}*i mod ${prime}`,
+    },
+    gates: [
+      {
+        id: 'boundary',
+        label: 'Boundary',
+        zhLabel: '边界约束',
+        equation: 'w_0 - public_start = 0',
+        residual: fieldSub(witnessValues[0].value, seed, prime),
+        role: 'pins the initial state',
+        zhRole: '绑定初始状态',
+      },
+      {
+        id: 'transition',
+        label: 'Transition',
+        zhLabel: '转移约束',
+        equation: 'w_{i+1} - w_i - step = 0',
+        residual: fieldSub(fieldSub(witnessValues[1].value, witnessValues[0].value, prime), step, prime),
+        role: 'checks every VM cycle',
+        zhRole: '检查每个 VM 周期',
+      },
+      {
+        id: 'boolean',
+        label: 'Boolean',
+        zhLabel: '布尔约束',
+        equation: 'b * (b - 1) = 0',
+        residual: 0,
+        role: 'forces selector bits to be 0 or 1',
+        zhRole: '确保 selector 只能是 0 或 1',
+      },
+      {
+        id: 'public-input',
+        label: 'Public input',
+        zhLabel: '公开输入',
+        equation: 'root == committed_root',
+        residual: 0,
+        role: 'binds proof to the L1 state root',
+        zhRole: '把证明绑定到 L1 状态根',
+      },
+    ],
+    quotient: {
+      coefficients: quotientCoefficients,
+      constraintCoefficients,
+      equation: 'C(x) = Q(x) * Z_H(x)',
+      samples: domain.map((point) => ({
+        x: point.x,
+        c: evaluatePolynomial(constraintCoefficients, point.x, prime),
+        z: point.vanish,
+      })),
+      qAtZeta,
+      zAtZeta,
+      cAtZeta,
+    },
+    challenge,
+    verifierCheck: {
+      equation: 'C(zeta) == Q(zeta) * Z_H(zeta)',
+      left: cAtZeta,
+      right,
+      pass: cAtZeta === right,
+    },
+    transcript: [
+      {
+        actor: 'Prover',
+        action: 'commit witness trace',
+        detail: `${proofEstimate.traceRows} rows compressed into trace commitments`,
+      },
+      {
+        actor: 'Verifier',
+        action: `sample alpha challenge ${challenge.alpha}`,
+        detail: 'combine many constraints into one random linear combination',
+      },
+      {
+        actor: 'Prover',
+        action: 'divide by vanishing polynomial',
+        detail: 'produce quotient Q(x) only if C(x) vanishes on the trace domain',
+      },
+      {
+        actor: 'Verifier',
+        action: `sample zeta challenge ${challenge.zeta}`,
+        detail: 'check one outside-domain opening instead of replaying every row',
+      },
+      {
+        actor: 'Verifier',
+        action: 'verify quotient opening',
+        detail: `${cAtZeta} == ${qAtZeta} * ${zAtZeta} mod ${prime}`,
+      },
+    ],
+    layers: [
+      { id: 'witness', label: 'Witness trace', zhLabel: 'Witness 轨迹', x: 8, y: 20, state: 'done' },
+      { id: 'constraints', label: 'Gate constraints', zhLabel: '门约束', x: 28, y: 54, state: 'done' },
+      { id: 'quotient', label: 'Quotient Q(x)', zhLabel: '商多项式 Q(x)', x: 50, y: 24, state: 'active' },
+      { id: 'challenge', label: 'Random zeta', zhLabel: '随机 zeta', x: 72, y: 56, state: 'active' },
+      { id: 'verify', label: 'Verifier equality', zhLabel: '验证器等式', x: 92, y: 26, state: 'pending' },
+    ],
+    soundness: {
+      statement: 'If a cheating trace makes C(x) non-zero on the domain, C(x) will not divide cleanly by Z_H(x); a random zeta catches that with high probability.',
+      zhStatement: '如果错误轨迹让 C(x) 在评价域上不为 0，C(x) 就不能被 Z_H(x) 干净整除；随机 zeta 会以高概率抓住它。',
+    },
+  };
+}
+
 export function makeLearningSnapshot({
   activeLessonId = 'stack-map',
   fieldA = 5,
@@ -775,6 +945,7 @@ export function makeLearningSnapshot({
     journey: buildJourneyVisualization({ activeLessonId, neoVmStep, riscvStep }),
     constraintMatrix: buildTraceConstraintMatrix({ neovmTrace: neovm.trace, riscvTrace: riscv.trace, proofEstimate }),
     proofTranscript: buildProofTranscript({ proofEstimate, publicInputRoot: String(tree.root), aggregateCount: proofAggregation }),
+    zkpMath: buildZkpMathVisualization({ proofEstimate, publicInputRoot: String(tree.root) }),
   };
 }
 
@@ -782,6 +953,29 @@ function nextPowerOfTwo(value) {
   let current = 1;
   while (current < value) current *= 2;
   return current;
+}
+
+function buildChallenge({ domain, publicInputRoot, proofEstimate, prime }) {
+  const domainSet = new Set(domain.map((point) => point.x));
+  let zeta = mod(toyHash([publicInputRoot, proofEstimate.proofBytes, proofEstimate.verifierChecks, 97], prime), prime);
+  while (zeta === 0 || domainSet.has(zeta)) zeta = fieldAdd(zeta, 1, prime);
+  return {
+    alpha: mod(toyHash([publicInputRoot, proofEstimate.constraints, 31], prime), prime),
+    beta: mod(toyHash([publicInputRoot, proofEstimate.traceRows, 43], prime), prime),
+    gamma: mod(toyHash([publicInputRoot, proofEstimate.commitmentCount, 59], prime), prime),
+    zeta,
+    inDomain: domainSet.has(zeta),
+  };
+}
+
+function polynomialMul(left, right, prime) {
+  const output = Array.from({ length: left.length + right.length - 1 }, () => 0);
+  for (let i = 0; i < left.length; i += 1) {
+    for (let j = 0; j < right.length; j += 1) {
+      output[i + j] = fieldAdd(output[i + j], fieldMul(left[i], right[j], prime), prime);
+    }
+  }
+  return output;
 }
 
 function changedRegisters(before, after) {

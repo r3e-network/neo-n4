@@ -10,7 +10,9 @@ import {
   buildMerkleVisualization,
   buildProofTranscript,
   buildTraceConstraintMatrix,
+  buildZkpMathVisualization,
   estimateProofPipeline,
+  evaluatePolynomial,
   fieldInverse,
   fieldMul,
   lessonOrder,
@@ -21,6 +23,7 @@ import {
   runRiscVTrace,
   sampleNeoVmProgram,
   sampleRiscVProgram,
+  vanishingPolynomial,
   verifyMerkleProof,
 } from '../../docs/interactive-math/mathModel.js';
 
@@ -139,4 +142,27 @@ test('trace constraint matrix and proof transcript explain arithmetization and v
   assert.ok(matrix.rows.some((row) => row.status === 'active'));
   assert.deepEqual(transcript.steps.map((step) => step.actor), ['L2 executor', 'Prover', 'Verifier', 'NeoHub']);
   assert.equal(transcript.publicInputs.root, '52');
+});
+
+test('ZKP math visualization explains domain vanishing, quotient checks, and transcript challenges', () => {
+  const proofEstimate = estimateProofPipeline({ cycles: 96, memoryOps: 16, publicInputs: 5, aggregation: 3 });
+  const visual = buildZkpMathVisualization({ proofEstimate, publicInputRoot: '52', prime: FIELD_PRIME });
+
+  assert.equal(visual.domain.length, 8);
+  assert.equal(new Set(visual.domain.map((point) => point.x)).size, visual.domain.length);
+  assert.ok(visual.domain.every((point) => vanishingPolynomial(point.x, visual.domainSize, FIELD_PRIME) === 0));
+  assert.ok(visual.gates.length >= 4);
+  assert.ok(visual.gates.every((gate) => gate.residual === 0));
+  assert.equal(visual.challenge.inDomain, false);
+  assert.equal(visual.verifierCheck.pass, true);
+  assert.equal(
+    visual.verifierCheck.left,
+    fieldMul(
+      evaluatePolynomial(visual.quotient.coefficients, visual.challenge.zeta, FIELD_PRIME),
+      vanishingPolynomial(visual.challenge.zeta, visual.domainSize, FIELD_PRIME),
+      FIELD_PRIME,
+    ),
+  );
+  assert.ok(visual.transcript.some((step) => step.action.includes('challenge')));
+  assert.ok(visual.publicInputs.root === '52');
 });

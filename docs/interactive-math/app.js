@@ -35,6 +35,8 @@ const copy = {
     proofBody: '这不是 benchmark，而是教学模型：trace 越长、memory access 越多，约束和证明工作越多。',
     constraintMatrixTitle: 'Trace -> Constraint Matrix',
     proofTranscriptTitle: 'Prover / Verifier 对话',
+    zkpMathTitle: 'ZKP 数学原理动画',
+    zkpMathBody: '把 witness、评价域、约束多项式、vanishing polynomial、quotient 和随机挑战连成一个可观察的验证流程。',
     principleTitle: '本章技术原则',
     conceptNote: '阅读方式：先看左侧章节，再拖动实验控件；每个数字都是为了说明结构，不代表生产参数。',
     stepAll: '全部前进一步',
@@ -83,6 +85,8 @@ const copy = {
     proofBody: 'This is a teaching model, not a benchmark: longer traces and more memory accesses increase constraints and proving work.',
     constraintMatrixTitle: 'Trace -> Constraint Matrix',
     proofTranscriptTitle: 'Prover / Verifier Dialogue',
+    zkpMathTitle: 'ZKP Math Animation',
+    zkpMathBody: 'Connect witness values, the evaluation domain, constraint polynomials, the vanishing polynomial, quotient openings, and random challenges in one verifier flow.',
     principleTitle: 'Technical principle',
     conceptNote: 'How to read this page: pick a lesson, then move the controls. Numbers are structural teaching values, not production parameters.',
     stepAll: 'Step all',
@@ -142,6 +146,10 @@ const els = {
   constraintMatrix: document.querySelector('[data-constraint-matrix]'),
   proofTranscript: document.querySelector('[data-proof-transcript]'),
   proofOutput: document.querySelector('[data-proof-output]'),
+  zkpCanvas: document.querySelector('[data-zkp-canvas]'),
+  zkpEquation: document.querySelector('[data-zkp-equation]'),
+  zkpGates: document.querySelector('[data-zkp-gates]'),
+  zkpTranscript: document.querySelector('[data-zkp-transcript]'),
 };
 
 let state = {
@@ -304,6 +312,7 @@ function renderDynamic() {
   renderNeoVm(snapshot);
   renderRiscV(snapshot);
   renderProof(snapshot);
+  renderZkpMath(snapshot.zkpMath);
   renderPipeline();
   renderStaticPrograms();
 }
@@ -557,6 +566,124 @@ function renderProof(snapshot) {
   ]);
 }
 
+function renderZkpMath(zkp) {
+  const isZh = state.language === 'zh';
+  const svgEl = svg('svg', {
+    viewBox: '0 0 100 70',
+    role: 'img',
+    'aria-label': 'ZKP polynomial and quotient animation',
+  });
+  const defs = svg('defs');
+  const marker = svg('marker', {
+    id: 'zkp-arrow',
+    markerWidth: '7',
+    markerHeight: '7',
+    refX: '6',
+    refY: '3.5',
+    orient: 'auto',
+  });
+  marker.append(svg('path', { d: 'M0,0 L7,3.5 L0,7 Z', class: 'zkp-arrow' }));
+  defs.append(marker);
+  svgEl.append(defs);
+
+  for (let index = 0; index < zkp.layers.length - 1; index += 1) {
+    const from = zkp.layers[index];
+    const to = zkp.layers[index + 1];
+    svgEl.append(svg('path', {
+      class: 'zkp-flow-link',
+      d: `M ${from.x + 3.8} ${from.y} C ${from.x + 11} ${from.y - 10}, ${to.x - 11} ${to.y + 10}, ${to.x - 3.8} ${to.y}`,
+      'marker-end': 'url(#zkp-arrow)',
+    }));
+  }
+
+  for (const layer of zkp.layers) {
+    const group = svg('g', {
+      class: `zkp-layer-node ${layer.state}`,
+      transform: `translate(${layer.x} ${layer.y})`,
+    });
+    group.append(
+      svg('circle', { r: layer.state === 'active' ? 4.9 : 4.1 }),
+      svg('text', { x: 0, y: -7.2, 'text-anchor': 'middle' }, isZh ? layer.zhLabel : layer.label),
+    );
+    svgEl.append(group);
+  }
+
+  const domainGroup = svg('g', { class: 'zkp-domain' });
+  domainGroup.append(
+    svg('circle', { cx: 22, cy: 50, r: 13.8, class: 'zkp-domain-ring' }),
+    svg('text', { x: 22, y: 31, 'text-anchor': 'middle', class: 'zkp-svg-title' }, 'H: Z_H(x)=0'),
+  );
+  for (const point of zkp.domain) {
+    const x = 22 + (point.px - 50) * 0.34;
+    const y = 50 + (point.py - 50) * 0.34;
+    domainGroup.append(
+      svg('circle', { cx: roundSvg(x), cy: roundSvg(y), r: 1.7, class: 'zkp-domain-point' }),
+      svg('text', { x: roundSvg(x), y: roundSvg(y + 4.4), 'text-anchor': 'middle' }, String(point.x)),
+    );
+  }
+  svgEl.append(domainGroup);
+
+  const sampleGroup = svg('g', { class: 'zkp-samples' });
+  const sampleBaseY = 58;
+  zkp.quotient.samples.slice(0, 8).forEach((sample, index) => {
+    const x = 43 + index * 3.3;
+    sampleGroup.append(svg('line', {
+      x1: roundSvg(x),
+      y1: sampleBaseY,
+      x2: roundSvg(x),
+      y2: roundSvg(sampleBaseY - Math.max(1.8, sample.c + 1)),
+      class: 'zkp-zero-bar',
+    }));
+  });
+  sampleGroup.append(
+    svg('text', { x: 55, y: 64, 'text-anchor': 'middle', class: 'zkp-svg-note' }, 'C(x)=0 on H'),
+    svg('circle', { cx: 78, cy: 51, r: 3.1, class: 'zkp-zeta-point' }),
+    svg('text', { x: 78, y: 44, 'text-anchor': 'middle', class: 'zkp-svg-title' }, `ζ=${zkp.challenge.zeta}`),
+    svg('text', { x: 78, y: 58, 'text-anchor': 'middle', class: 'zkp-svg-note' }, `C(ζ)=${zkp.quotient.cAtZeta}`),
+  );
+  svgEl.append(sampleGroup);
+
+  svgEl.append(
+    svg('rect', { x: 40, y: 3.5, width: 45, height: 8.8, rx: 2.8, class: 'zkp-equation-ribbon' }),
+    svg('text', { x: 62.5, y: 9.6, 'text-anchor': 'middle', class: 'zkp-equation-text' }, zkp.verifierCheck.equation),
+  );
+  els.zkpCanvas.replaceChildren(svgEl);
+
+  renderDefinitionList(els.zkpEquation, [
+    ['public root', zkp.publicInputs.root],
+    ['domain', `|H| = ${zkp.domainSize}, F_${zkp.prime}`],
+    ['Z_H(ζ)', String(zkp.quotient.zAtZeta)],
+    ['Q(ζ)', String(zkp.quotient.qAtZeta)],
+    ['C(ζ)', String(zkp.quotient.cAtZeta)],
+    ['verifier', `${zkp.verifierCheck.left} == ${zkp.verifierCheck.right} (${zkp.verifierCheck.pass ? 'pass' : 'fail'})`],
+  ]);
+
+  els.zkpGates.replaceChildren(...zkp.gates.map((gate) => {
+    const item = document.createElement('section');
+    item.className = `zkp-gate ${gate.residual === 0 ? 'valid' : 'invalid'}`;
+    item.innerHTML = `
+      <strong>${isZh ? gate.zhLabel : gate.label}</strong>
+      <code>${gate.equation}</code>
+      <small>${isZh ? gate.zhRole : gate.role}; residual = ${gate.residual}</small>
+    `;
+    return item;
+  }));
+
+  els.zkpTranscript.replaceChildren(...zkp.transcript.map((step, index) => {
+    const item = document.createElement('section');
+    item.className = 'zkp-transcript-step';
+    item.innerHTML = `
+      <span>${String(index + 1).padStart(2, '0')}</span>
+      <div>
+        <strong>${step.actor}</strong>
+        <em>${step.action}</em>
+        <small>${step.detail}</small>
+      </div>
+    `;
+    return item;
+  }), createSoundnessNote(isZh ? zkp.soundness.zhStatement : zkp.soundness.statement));
+}
+
 function renderConstraintMatrix(matrix) {
   const rows = matrix.rows.length === 0
     ? [
@@ -627,8 +754,19 @@ function createMetricBlock(label, value) {
   return block;
 }
 
+function createSoundnessNote(text) {
+  const note = document.createElement('section');
+  note.className = 'zkp-soundness-note';
+  note.textContent = text;
+  return note;
+}
+
 function formatArray(values) {
   return `[${values.join(', ')}]`;
+}
+
+function roundSvg(value) {
+  return Math.round(value * 10) / 10;
 }
 
 function journeyCanvasLabel(stage) {

@@ -589,6 +589,10 @@ dd {
   grid-column: span 6;
 }
 
+.zkp-panel {
+  grid-column: span 12;
+}
+
 .field-controls,
 .proof-controls {
   display: grid;
@@ -1081,6 +1085,251 @@ input[type="range"] {
   font-size: 11px;
 }
 
+.zkp-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.zkp-canvas {
+  min-height: 390px;
+  border: 1px solid rgba(77, 141, 255, 0.28);
+  border-radius: 7px;
+  background:
+    linear-gradient(rgba(77, 141, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(77, 141, 255, 0.055) 1px, transparent 1px),
+    rgba(7, 15, 19, 0.72);
+  background-size: 32px 32px;
+  overflow: hidden;
+}
+
+.zkp-canvas svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 390px;
+}
+
+.zkp-arrow {
+  fill: rgba(156, 173, 180, 0.84);
+}
+
+.zkp-flow-link {
+  fill: none;
+  stroke: rgba(156, 173, 180, 0.62);
+  stroke-width: 0.7;
+  stroke-dasharray: 4 3;
+  animation: dash 2.8s linear infinite;
+}
+
+.zkp-layer-node circle {
+  fill: rgba(17, 27, 32, 0.96);
+  stroke: rgba(156, 173, 180, 0.5);
+  stroke-width: 0.7;
+}
+
+.zkp-layer-node.done circle {
+  stroke: var(--green);
+}
+
+.zkp-layer-node.active circle {
+  stroke: var(--amber);
+  filter: drop-shadow(0 0 8px rgba(240, 173, 53, 0.55));
+}
+
+.zkp-layer-node text,
+.zkp-domain text,
+.zkp-samples text {
+  fill: var(--ink);
+  font-size: 2.2px;
+  font-weight: 760;
+}
+
+.zkp-domain-ring {
+  fill: rgba(39, 209, 127, 0.04);
+  stroke: rgba(39, 209, 127, 0.5);
+  stroke-width: 0.65;
+}
+
+.zkp-domain-point {
+  fill: var(--green);
+  filter: drop-shadow(0 0 5px rgba(39, 209, 127, 0.55));
+}
+
+.zkp-zero-bar {
+  stroke: rgba(78, 221, 211, 0.7);
+  stroke-width: 0.9;
+}
+
+.zkp-zeta-point {
+  fill: var(--amber);
+  stroke: rgba(255, 239, 200, 0.86);
+  stroke-width: 0.45;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.zkp-svg-title {
+  fill: var(--cyan) !important;
+}
+
+.zkp-svg-note {
+  fill: var(--muted) !important;
+  font-size: 1.9px !important;
+}
+
+.zkp-equation-ribbon {
+  fill: rgba(240, 173, 53, 0.12);
+  stroke: rgba(240, 173, 53, 0.55);
+  stroke-width: 0.45;
+}
+
+.zkp-equation-text {
+  fill: #f6d89f;
+  font-size: 2.1px;
+  font-weight: 760;
+}
+
+.zkp-side {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.zkp-equation {
+  display: grid;
+  grid-template-columns: minmax(92px, 0.45fr) minmax(0, 1fr);
+  gap: 8px 10px;
+  padding: 12px;
+  border: 1px solid rgba(240, 173, 53, 0.34);
+  border-radius: 7px;
+  background: rgba(240, 173, 53, 0.075);
+}
+
+.zkp-equation dt,
+.zkp-equation dd {
+  margin: 0;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.zkp-equation dt {
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.zkp-equation dd {
+  color: var(--ink);
+  font-weight: 760;
+}
+
+.zkp-gates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.zkp-gate {
+  min-height: 98px;
+  display: grid;
+  gap: 7px;
+  align-content: start;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.zkp-gate.valid {
+  border-color: rgba(39, 209, 127, 0.36);
+  background: rgba(39, 209, 127, 0.07);
+}
+
+.zkp-gate strong {
+  font-size: 13px;
+}
+
+.zkp-gate code {
+  color: var(--cyan);
+  font-size: 12px;
+  white-space: normal;
+}
+
+.zkp-gate small {
+  color: var(--muted);
+  line-height: 1.35;
+  font-size: 11px;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.zkp-transcript {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.zkp-transcript-step {
+  min-height: 118px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid rgba(77, 141, 255, 0.28);
+  border-radius: 7px;
+  background: rgba(77, 141, 255, 0.07);
+}
+
+.zkp-transcript-step span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(77, 141, 255, 0.18);
+  color: #cfe1ff;
+  font-size: 11px;
+  font-weight: 780;
+}
+
+.zkp-transcript-step strong,
+.zkp-transcript-step em,
+.zkp-transcript-step small {
+  display: block;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.zkp-transcript-step strong {
+  font-size: 13px;
+}
+
+.zkp-transcript-step em {
+  margin-top: 3px;
+  color: var(--amber);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.zkp-transcript-step small {
+  margin-top: 5px;
+  color: var(--muted);
+  line-height: 1.35;
+  font-size: 11px;
+}
+
+.zkp-soundness-note {
+  grid-column: 1 / -1;
+  padding: 12px;
+  border: 1px solid rgba(240, 173, 53, 0.35);
+  border-radius: 7px;
+  background: rgba(240, 173, 53, 0.085);
+  color: #f6d89f;
+  line-height: 1.45;
+  font-size: 13px;
+}
+
 .proof-metrics {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -1140,8 +1389,13 @@ input[type="range"] {
   }
 
   .journey-layout,
-  .proof-explainers {
+  .proof-explainers,
+  .zkp-layout {
     grid-template-columns: 1fr;
+  }
+
+  .zkp-transcript {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .field-panel,
@@ -1200,9 +1454,21 @@ input[type="range"] {
   .pipeline,
   .proof-controls,
   .proof-explainers,
+  .zkp-layout,
+  .zkp-gates,
+  .zkp-transcript,
   .metric-grid,
   .proof-metrics,
   .checkpoint-list {
+    grid-template-columns: 1fr;
+  }
+
+  .zkp-canvas,
+  .zkp-canvas svg {
+    min-height: 300px;
+  }
+
+  .zkp-equation {
     grid-template-columns: 1fr;
   }
 

@@ -24,6 +24,12 @@ NeoVM 语义进入 RISC-V 周期、执行轨迹、约束、承诺、证明生成
 包含有限域圆环、Merkle 证明路径、trace 到 constraint 的矩阵，以及 prover /
 verifier 对话转录，帮助读者把每个数学对象和它在 N4 架构里的职责对应起来。
 
+ZKP 动画面板把证明步骤展开成一个具体的教学模型：witness 值被放到有限域评价
+域上，约束以必须在评价域上归零的 gate 展示，vanishing polynomial `Z_H(x)`
+解释为什么“可整除”重要，而 quotient check
+`C(zeta) = Q(zeta) * Z_H(zeta)` 展示验证器如何使用 Fiat-Shamir 随机挑战，
+避免重放完整 trace。
+
 该页面是静态页面：不需要构建步骤，不依赖外部网络，也不会连接钱包。数学模型
 位于 `docs/interactive-math/mathModel.js`，并由
 `node --test tests/interactive-math/math-model.test.mjs` 覆盖。

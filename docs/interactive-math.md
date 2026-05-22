@@ -27,6 +27,13 @@ field clock, a Merkle proof path view, a trace-to-constraint matrix, and a
 prover/verifier transcript so readers can connect each mathematical object to
 its role in the N4 architecture.
 
+The ZKP animation panel expands the proof step into a concrete teaching model:
+witness values are placed on a finite-field evaluation domain, constraints are
+shown as gates that must vanish on that domain, the vanishing polynomial
+`Z_H(x)` explains why divisibility matters, and the quotient check
+`C(zeta) = Q(zeta) * Z_H(zeta)` shows how a verifier can use a random
+Fiat-Shamir challenge instead of replaying the full trace.
+
 The page is intentionally static: no build step, no external network dependency,
 and no wallet connection. The mathematical model lives in
 `docs/interactive-math/mathModel.js` and is covered by

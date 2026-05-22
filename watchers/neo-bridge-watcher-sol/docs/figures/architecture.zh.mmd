@@ -1,0 +1,14 @@
+flowchart LR
+    N1["Project layer: 跨链监听器"]
+    N2["Inputs: SOL RPC/log 流 | 桥合约事件 | 检查点游标"]
+    N3["neo-bridge-watcher-sol: 监听 SOL 桥事件，并转换为标准化 Neo N4 relay 消息。"]
+    N4["Responsibilities: 过滤桥事件 | 规范化 payload | 保护重放与游标状态"]
+    N5["Outputs: relay 任务 | 审计日志 | 健康指标"]
+    N6["Consumers: 网关 | 共享桥 | 运维面板"]
+    N1 --> N2
+    N2 --> N3
+    N3 --> N4
+    N4 --> N5
+    N5 --> N6
+    classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
+    class N3 crate

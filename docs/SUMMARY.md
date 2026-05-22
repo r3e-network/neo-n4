@@ -41,6 +41,7 @@
 
 - [Architecture atlas (start here)](./architecture-atlas.md)
 - [Visual guide](./visual-guide.md)
+- [Crate visual guide](./crate-visual-guide.md)
 - [Neo N4 Experience Hub](./experience-hub.md)
 - [Interactive Runtime Theater](./interactive-runtime.md)
 - [Technical roadmap](./technical-roadmap.md)

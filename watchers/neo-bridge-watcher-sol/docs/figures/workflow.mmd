@@ -1,0 +1,12 @@
+flowchart LR
+    N1["Step 1: Poll source chain"]
+    N2["Step 2: Decode logs"]
+    N3["Step 3: Validate confirmations"]
+    N4["Step 4: Emit relay job"]
+    N5["Step 5: Persist cursor"]
+    N1 --> N2
+    N2 --> N3
+    N3 --> N4
+    N4 --> N5
+    classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
+    class N2 crate

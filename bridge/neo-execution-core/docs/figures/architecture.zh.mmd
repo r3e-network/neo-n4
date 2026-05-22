@@ -1,0 +1,14 @@
+flowchart LR
+    N1["Project layer: N4 批处理执行核心"]
+    N2["Inputs: L2 批次 | 前序状态根 | 执行参数"]
+    N3["neo-execution-core: 后端无关的 L2 批处理状态转换核心，供快速执行和证明生成复用。"]
+    N4["Responsibilities: 校验批次结构 | 执行确定性状态转换 | 提交新状态根"]
+    N5["Outputs: 执行轨迹 | 新状态根 | 公开证明输入"]
+    N6["Consumers: neo-zkvm-guest | neo-zkvm-host | 网关服务"]
+    N1 --> N2
+    N2 --> N3
+    N3 --> N4
+    N4 --> N5
+    N5 --> N6
+    classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
+    class N3 crate

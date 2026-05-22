@@ -189,6 +189,7 @@ dotnet run --project tools/Neo.Hub.Deploy -- plan \
 | [`technical-roadmap.md`](./technical-roadmap.md)                        | 架构师、审稿人      | 合约优先路线：NeoHub、ZK 验证路由、NeoFS DA、VM profile、资产与互操作。 |
 | [`launching-an-l2.md`](./launching-an-l2.md)                            | L2 运维者           | 5 步上线一条 L2 链。                                                |
 | [`architecture-atlas.md`](./architecture-atlas.md)                       | 所有人              | 架构地图,从角色推荐阅读路径。                                       |
+| [`crate-visual-guide.md`](./crate-visual-guide.md)                       | ???????        | ?? Rust crate ????????,????????????????       |
 | [`neohub-architecture-and-workflows.md`](./neohub-architecture-and-workflows.md) | 工程师、运维、审计者 | NeoHub 架构、数据流、工作流图以及每个 NeoHub 合约的职责矩阵。 |
 | [`architecture-walkthrough.md`](./architecture-walkthrough.md)          | 工程师              | 把 `doc.md` 每节映射到代码的叙事导览。                              |
 | [`architecture-l2-lifecycle.md`](./architecture-l2-lifecycle.md)        | 工程师              | L2 链生命周期(创建 → 部署 → 运行 → 退出)。                       |

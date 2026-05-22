@@ -266,6 +266,7 @@ A 5-minute walkthrough is in [`docs/getting-started.md`](./getting-started.md).
 | [`samples/contracts/`](../samples/contracts/README.md)                   | dApp developers       | Sample L2-aware app contracts (`CrossChainGreeter`, `WithdrawalDemo`) showing standard patterns for integrating with N4 L2 native contracts. |
 | [`docs/tech-stack-coverage.md`](./tech-stack-coverage.md)          | reviewers             | Honest gap analysis of L2-stack coverage — 51 components ✅, 2 🟡 (Phase 4/5 ZK infra), 6 🔴 (out-of-repo: SDKs, explorer, portal, faucet, wallet integration). |
 | [`docs/neohub-architecture-and-workflows.md`](./neohub-architecture-and-workflows.md) | engineers, operators, reviewers | Detailed NeoHub architecture, dataflow, workflow diagrams, and per-contract responsibility matrix for all NeoHub contracts. |
+| [`docs/crate-visual-guide.md`](./crate-visual-guide.md) | developers, reviewers | Crate-by-crate visual learning index with architecture, workflow, and dataflow diagrams for every Rust crate. |
 | [`docs/architecture-walkthrough.md`](./architecture-walkthrough.md) | engineers             | Narrative tour mapping every `doc.md` section to code.               |
 | [`docs/core-fork-policy.md`](./core-fork-policy.md)                | maintainers           | How `external/neo` tracks the `r3e-network/neo` fork and where N4 core/native-contract changes land. |
 | [`docs/telemetry.md`](./telemetry.md)                              | operators             | Metric catalog, wiring example, Prometheus exposition format.        |

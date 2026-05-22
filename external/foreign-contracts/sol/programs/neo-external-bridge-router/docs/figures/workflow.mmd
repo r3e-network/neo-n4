@@ -1,0 +1,12 @@
+flowchart LR
+    N1["Step 1: Receive instruction"]
+    N2["Step 2: Check accounts"]
+    N3["Step 3: Update escrow"]
+    N4["Step 4: Emit event"]
+    N5["Step 5: Watcher relays"]
+    N1 --> N2
+    N2 --> N3
+    N3 --> N4
+    N4 --> N5
+    classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
+    class N2 crate

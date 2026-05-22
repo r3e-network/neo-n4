@@ -99,3 +99,32 @@ their prover infrastructure to produce the matching guest ELF, then run
 `prove-batch daemon --watch <queue-dir>` to consume sealed batches as
 they arrive. See `docs/launching-an-l2.md` § "Prover deployment" for the
 operator runbook.
+
+<!-- N4-CRATE-VISUAL-GUIDE:START -->
+
+## Visual Architecture Guide
+
+These diagrams explain where `neo-zkvm-guest` sits in the Neo N4 stack, how its main workflow runs, and how data moves through it.
+
+| View | Diagram | Source |
+| --- | --- | --- |
+| Architecture | ![Architecture](docs/figures/architecture.svg) | [Mermaid](docs/figures/architecture.mmd) |
+| Workflow | ![Workflow](docs/figures/workflow.svg) | [Mermaid](docs/figures/workflow.mmd) |
+| Dataflow | ![Dataflow](docs/figures/dataflow.svg) | [Mermaid](docs/figures/dataflow.mmd) |
+
+### Role in Neo N4
+
+- **Layer:** N4 zk guest
+- **Purpose:** SP1 guest program that runs deterministic Neo L2 batch execution inside the proof circuit.
+- **Primary inputs:** public batch input, private witness, shared execution core
+- **Primary outputs:** SP1 public output, state root, execution digest
+- **Downstream consumers:** neo-zkvm-host, NativeZkVerifier adapter, audit tooling
+
+### Learning Path
+
+1. Start with the architecture diagram to understand the crate boundary.
+2. Follow the workflow diagram to see the normal execution path.
+3. Use the dataflow diagram to connect inputs, state changes, and outputs.
+4. Read the crate source after the diagrams so module-level details have context.
+
+<!-- N4-CRATE-VISUAL-GUIDE:END -->

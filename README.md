@@ -81,6 +81,8 @@ This section is the fastest way to understand what the project looks like, what
 runs where, and how data moves. The complete diagram set lives in
 [`docs/visual-guide.md`](./docs/visual-guide.md).
 
+For crate-by-crate learning, use the new [`Crate Visual Guide`](./docs/crate-visual-guide.md). It links every Rust crate to local architecture, workflow, and dataflow diagrams with matching Chinese versions.
+
 For a dynamic walkthrough, open the static
 [`Neo N4 Runtime Theater`](./docs/interactive-runtime.md). It animates deposits,
 batch sealing, proof aggregation, withdrawals, external-chain bridge routing, and
@@ -391,6 +393,7 @@ A 5-minute walkthrough is in [`docs/getting-started.md`](./docs/getting-started.
 | [`samples/contracts/`](./samples/contracts/README.md)                   | dApp developers       | Sample L2-aware app contracts (`CrossChainGreeter`, `WithdrawalDemo`) showing standard patterns for integrating with N4 L2 native contracts. |
 | [`docs/tech-stack-coverage.md`](./docs/tech-stack-coverage.md)          | reviewers             | Honest gap analysis of L2-stack coverage — 83 components ✅, 0 🟡, 0 🔴 (Phase 4 SP1 ZK end-to-end functional; cross-foreign-chain bridge Phase B/C complete; DA/AA/interop/filter parity contracts in-tree; Layer-4/5 SDKs + web app + mdBook all in-tree). |
 | [`docs/architecture-atlas.md`](./docs/architecture-atlas.md) | everyone              | **Front door for the architecture docs.** Reading order by role + cross-reference between the 6 chapters: NeoHub workflows · walkthrough (per-tx tour) · l2-lifecycle (system flow) · wire-formats (canonical bytes) · trust-boundaries (security view) · glossary (term + component catalog). ~2400 lines total, with 29 hand-tuned SVG figures (mirrored under `docs/zh/figures/architecture/`). |
+| [`docs/crate-visual-guide.md`](./docs/crate-visual-guide.md) | developers, reviewers | Crate-by-crate visual learning index. Links every Rust crate to local architecture, workflow, and dataflow SVGs plus Chinese mirrors. |
 | [`docs/neohub-architecture-and-workflows.md`](./docs/neohub-architecture-and-workflows.md) | engineers, operators, reviewers | Detailed NeoHub architecture, dataflow, workflow diagrams, and per-contract responsibility matrix for all NeoHub contracts. |
 | [`docs/architecture-walkthrough.md`](./docs/architecture-walkthrough.md) | engineers             | Narrative tour mapping every `doc.md` section to code.               |
 | [`docs/core-fork-policy.md`](./docs/core-fork-policy.md)                  | maintainers           | How `external/neo` tracks the `r3e-network/neo` fork and where N4 core/native-contract changes land. |

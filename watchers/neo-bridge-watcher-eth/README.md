@@ -259,3 +259,32 @@ canonical_message_bytes (129 B):
 raw Hash256 = ce681e5ecb3eaf452d1834fd94c397271a6556736a4ecfa1e66e4d67e9e1bfac
             (C# UInt256.ToString reverses for display: acbfe1e9...)
 ```
+
+<!-- N4-CRATE-VISUAL-GUIDE:START -->
+
+## Visual Architecture Guide
+
+These diagrams explain where `neo-bridge-watcher-eth` sits in the Neo N4 stack, how its main workflow runs, and how data moves through it.
+
+| View | Diagram | Source |
+| --- | --- | --- |
+| Architecture | ![Architecture](docs/figures/architecture.svg) | [Mermaid](docs/figures/architecture.mmd) |
+| Workflow | ![Workflow](docs/figures/workflow.svg) | [Mermaid](docs/figures/workflow.mmd) |
+| Dataflow | ![Dataflow](docs/figures/dataflow.svg) | [Mermaid](docs/figures/dataflow.mmd) |
+
+### Role in Neo N4
+
+- **Layer:** Cross-chain watcher
+- **Purpose:** Observes ETH bridge events and turns them into normalized Neo N4 relay messages.
+- **Primary inputs:** ETH RPC/log stream, bridge contract events, checkpoint cursor
+- **Primary outputs:** relay job, audit log, health metric
+- **Downstream consumers:** gateway, shared bridge, operator dashboard
+
+### Learning Path
+
+1. Start with the architecture diagram to understand the crate boundary.
+2. Follow the workflow diagram to see the normal execution path.
+3. Use the dataflow diagram to connect inputs, state changes, and outputs.
+4. Read the crate source after the diagrams so module-level details have context.
+
+<!-- N4-CRATE-VISUAL-GUIDE:END -->

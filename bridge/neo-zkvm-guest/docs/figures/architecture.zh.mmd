@@ -1,0 +1,14 @@
+flowchart LR
+    N1["Project layer: N4 零知识 guest"]
+    N2["Inputs: 公开批次输入 | 私有见证 | 共享执行核心"]
+    N3["neo-zkvm-guest: 在 SP1 证明环境中运行确定性 Neo L2 批处理执行的 guest 程序。"]
+    N4["Responsibilities: 运行可验证状态转换 | 输出公开值 | 拒绝非确定性行为"]
+    N5["Outputs: SP1 公开输出 | 状态根 | 执行摘要"]
+    N6["Consumers: neo-zkvm-host | NativeZkVerifier 适配器 | 审计工具"]
+    N1 --> N2
+    N2 --> N3
+    N3 --> N4
+    N4 --> N5
+    N5 --> N6
+    classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
+    class N3 crate

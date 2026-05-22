@@ -1,0 +1,10 @@
+flowchart LR
+    N1["Data 1: witness + batch"]
+    N2["Data 2: guest executor"]
+    N3["Data 3: public values"]
+    N4["Data 4: proof artifact"]
+    N1 --> N2
+    N2 --> N3
+    N3 --> N4
+    classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
+    class N2 crate

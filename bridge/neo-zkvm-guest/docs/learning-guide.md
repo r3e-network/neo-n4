@@ -1,81 +1,75 @@
-# neo-zkvm-guest Source-Level Learning Guide
+# neo-zkvm-guest Technical Learning Guide
 
-This guide is generated from the crate's actual `Cargo.toml`, Rust source files, public symbols, and test functions. It is meant to help a reader understand what this crate owns before reading implementation details.
+This guide explains `neo-zkvm-guest` as a Neo N4 technical unit. It is written for architecture learning: what the unit is responsible for, which assumptions make it correct, how data moves, how state changes, how evidence is checked, and where it plugs into the wider Neo N4 stack.
 
-## What This Crate Is
+## Technical Contract
 
-| Topic | Detail |
+| Aspect | Meaning |
 | --- | --- |
 | Layer | N4 zk guest |
 | Purpose | SP1 guest program that runs deterministic Neo L2 batch execution inside the proof circuit. |
-| Inputs | public batch input, private witness, shared execution core |
-| Responsibilities | Run verifiable transition, Emit public values, Reject nondeterminism |
-| Outputs | SP1 public output, state root, execution digest |
-| Consumers | neo-zkvm-host, NativeZkVerifier adapter, audit tooling |
+| Inputs | public batch input <br> private witness <br> shared execution core |
+| Responsibilities | Run verifiable transition <br> Emit public values <br> Reject nondeterminism |
+| Outputs | SP1 public output <br> state root <br> execution digest |
+| Consumers | neo-zkvm-host <br> NativeZkVerifier adapter <br> audit tooling |
 
-## Visual Reading Order
+## Diagram Set
 
-| Step | Diagram | Use it to learn |
-| ---: | --- | --- |
-| 1 | [Position](figures/position.svg) | Why this crate exists and where it sits in Neo N4. |
-| 2 | [Principles](figures/principles.svg) | The invariants and boundaries this crate must protect. |
-| 3 | [Module map](figures/module-map.svg) | Which files are the best entry points. |
-| 4 | [Public API surface](figures/api-surface.svg) | Which exported symbols form the crate contract. |
-| 5 | [Architecture](figures/architecture.svg) | How inputs, internal components, dependencies, and outputs connect. |
-| 6 | [Workflow](figures/workflow.svg) | The normal execution path. |
-| 7 | [Dataflow](figures/dataflow.svg) | How data is transformed across the crate boundary. |
-| 8 | [Test evidence](figures/test-map.svg) | Which tests protect the behavior. |
-| 9 | [Dependency map](figures/dependency-map.svg) | Which dependencies are runtime, test, or build-only. |
-| 10 | [Implementation atlas](figures/implementation-atlas.svg) | A dense one-page map of purpose, source entrypoints, API, workflow, dataflow, dependencies, tests, and change checks. |
+| # | Diagram | What to learn |
+| --- | --- | --- |
+| 1 | [System Position](figures/position.svg) | where this crate sits in Neo N4. |
+| 2 | [Technical Principles](figures/principles.svg) | the rules that make the design correct. |
+| 3 | [Conceptual Architecture](figures/architecture.svg) | major technical blocks and boundaries. |
+| 4 | [Workflow](figures/workflow.svg) | the ordered runtime process. |
+| 5 | [Data Flow](figures/dataflow.svg) | how information, commitments, and evidence move. |
+| 6 | [State Model](figures/state-model.svg) | state ownership, transitions, and finality. |
+| 7 | [Proof and Evidence Flow](figures/proof-flow.svg) | how claims become verifiable evidence. |
+| 8 | [Trust Boundaries](figures/trust-boundaries.svg) | what is trusted, checked, rejected, or observed. |
+| 9 | [Integration Map](figures/integration-map.svg) | how this unit connects to the wider N4 stack. |
+| 10 | [Runtime Lifecycle](figures/lifecycle.svg) | from configuration through execution, evidence, and operation. |
 
-## Source File Map
+## Architecture Model
 
-| File | Role | Public symbols | Tests |
-| --- | --- | ---: | ---: |
-| `src/lib.rs` | crate root, public exports, and top-level documentation | 1 | 7 |
-| `src/main.rs` | binary or CLI entrypoint | 1 | 0 |
+`neo-zkvm-guest` receives public batch input | private witness | shared execution core and owns this boundary: Run verifiable transition | Emit public values | Reject nondeterminism. It emits SP1 public output | state root | execution digest, which are consumed by neo-zkvm-host | NativeZkVerifier adapter | audit tooling.
 
-## Public API Surface
+Layering rule: guest proves computation, host orchestrates, L1 verifies compact results.
 
-| Symbol | File |
-| --- | --- |
-| `fn execute_batch` | `src/lib.rs` |
-| `fn main` | `src/main.rs` |
+## Workflow
 
-## Module and Re-Export Signals
+1. Deserialize input
+2. Execute batch
+3. Commit public values
+4. Exit guest
 
-| Signal |
-| --- |
-| `src/lib.rs: pub use neo_execution_core::{     execute_batch_with, hash256, merkle_root, BatchResult, ExecutionError, DEFAULT_PER_TX_GAS_LIMIT, }` |
+Failure path: proving fails, local verification fails, public output mismatches, or verifier rejects.
 
-## Test Evidence
+## Data Flow
 
-| Test | File |
-| --- | --- |
-| `parse_then_execute_minimal` | `src/lib.rs` |
-| `determinism_same_input_same_output` | `src/lib.rs` |
-| `truncated_input_rejected` | `src/lib.rs` |
-| `unsupported_version_rejected` | `src/lib.rs` |
-| `merkle_root_single_leaf_is_leaf` | `src/lib.rs` |
-| `merkle_root_empty_is_zero` | `src/lib.rs` |
-| `merkle_root_changes_with_leaf_order` | `src/lib.rs` |
+1. witness + batch
+2. guest executor
+3. public values
+4. proof artifact
 
-## Dependency Boundary
+Commitment signal: state root, public values, verification key, and proof digest.
 
-| Dependency | Kind |
-| --- | --- |
-| `neo-execution-core` | runtime |
-| `neo-vm-guest` | runtime |
-| `sp1-zkvm` | runtime |
+## State, Proof, and Trust
 
-## Suggested Reading Path
+- State transition: guest execution is constrained by public values and verifier rules.
+- Finality: verifier accepts proof and public output matches target state.
+- Trust model: trust verification keys and verifiers, not prover runtime environments.
+- Validation boundary: public input, proof envelope, verification key, and public output must match.
+- Replay and ordering: proof binds batch range and state root to prevent cross-batch reuse.
 
-1. Read `src/lib.rs`: crate root, public exports, and top-level documentation.
-2. Read `src/main.rs`: binary or CLI entrypoint.
+## Integration and Operation
 
-## Change Safety Checklist
+- NeoFS DA: NeoFS stores batch data, witness or trace summaries, and retrievable evidence.
+- Proof system: The proof system compresses L2 execution claims into verifiable evidence.
+- Gateway/API: Gateway handles user routing, queries, submission, and health aggregation.
+- Bridge and heterogeneous chains: Bridge rules unify L1-L2, L2-L2, and heterogeneous-chain messages and assets.
+- Observable evidence: proof id, public output, verification result, duration, and failure reason.
 
-- Keep the stated responsibility boundary intact: Run verifiable transition, Emit public values, Reject nondeterminism.
-- Update the workflow and dataflow diagrams when adding or removing major execution steps.
-- Add or update tests in the files listed under Test Evidence when public API or state-transition behavior changes.
-- Re-run `python tools/docs/generate_crate_visual_docs.py` from the Neo N4 repository root after source layout changes.
+Regenerate these technical diagrams from the Neo N4 repository root with:
+
+```powershell
+python tools/docs/generate_crate_visual_docs.py
+```

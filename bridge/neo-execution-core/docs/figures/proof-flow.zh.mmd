@@ -1,0 +1,20 @@
+flowchart TB
+    N1["1. neo-execution-core: 证明与证据流说明技术声明如何变成可检查结果。"]
+    N2["2. 声明: 本单元完成了：校验批次结构 | 执行确定性状态转换 | 提交新状态根。"]
+    N3["3. 见证或输入: L2 批次 | 前序状态根 | 执行参数"]
+    N4["4. 执行或检查: 执行确定性规则并产生可检查输出"]
+    N5["5. 公开承诺: 输入摘要、转换摘要和输出摘要"]
+    N6["6. 验证者: neo-zkvm-guest | neo-zkvm-host | 网关服务"]
+    N7["7. 接受结果: 执行轨迹 | 新状态根 | 公开证明输入"]
+    N8["8. 拒绝结果: 拒绝输出并保留诊断"]
+    N1 --> N2
+    N2 --> N3
+    N3 --> N4
+    N4 --> N5
+    N5 --> N6
+    N6 --> N7
+    N7 --> N8
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#e5f2ff,stroke-width:2px;
+    classDef support fill:#111827,stroke:#64748b,color:#f8fafc;
+    class N1 core;
+    class N2,N3,N4,N5,N6,N7,N8 support;

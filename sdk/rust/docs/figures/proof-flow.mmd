@@ -1,0 +1,20 @@
+flowchart TB
+    N1["1. neo-n4-sdk: Proof/evidence flow shows how a claim becomes checkable."]
+    N2["2. Claim: This unit performed: Encode API requests | Handle bridge/proof models | Return typed results."]
+    N3["3. Witness or input: developer app | gateway endpoint | wallet/config"]
+    N4["4. Execution or check: validate config, encoded result, signing policy, and target response"]
+    N5["5. Public commitment: request digest, network profile, and output artifact hash"]
+    N6["6. Verifier: apps | operators | integration tests"]
+    N7["7. Accepted result: typed client result | transaction request | query response"]
+    N8["8. Rejected result: return diagnostics; do not sign, submit, or publish"]
+    N1 --> N2
+    N2 --> N3
+    N3 --> N4
+    N4 --> N5
+    N5 --> N6
+    N6 --> N7
+    N7 --> N8
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#e5f2ff,stroke-width:2px;
+    classDef support fill:#111827,stroke:#64748b,color:#f8fafc;
+    class N1 core;
+    class N2,N3,N4,N5,N6,N7,N8 support;

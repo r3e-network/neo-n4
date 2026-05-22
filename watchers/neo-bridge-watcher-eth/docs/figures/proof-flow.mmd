@@ -1,0 +1,20 @@
+flowchart TB
+    N1["1. neo-bridge-watcher-eth: Proof/evidence flow shows how a claim becomes checkable."]
+    N2["2. Claim: This unit performed: Filter bridge events | Normalize payloads | Protect replay/cursor state."]
+    N3["3. Witness or input: ETH RPC/log stream | bridge contract events | checkpoint cursor"]
+    N4["4. Execution or check: verify source event, confirmations, nonce, asset action, and target message"]
+    N5["5. Public commitment: message hash, nonce, source height, and asset action"]
+    N6["6. Verifier: gateway | shared bridge | operator dashboard"]
+    N7["7. Accepted result: relay job | audit log | health metric"]
+    N8["8. Rejected result: drop or quarantine message; nonce and asset state do not advance"]
+    N1 --> N2
+    N2 --> N3
+    N3 --> N4
+    N4 --> N5
+    N5 --> N6
+    N6 --> N7
+    N7 --> N8
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#e5f2ff,stroke-width:2px;
+    classDef support fill:#111827,stroke:#64748b,color:#f8fafc;
+    class N1 core;
+    class N2,N3,N4,N5,N6,N7,N8 support;

@@ -1,0 +1,20 @@
+flowchart TB
+    N1["1. neo-execution-core: 生命周期图说明技术单元如何进入可观测运行。"]
+    N2["2. 配置: 输入模型、输出模型、边界策略"]
+    N3["3. 输入接收: L2 批次 | 前序状态根 | 执行参数"]
+    N4["4. 规范化: 把外部输入整理成可验证领域模型"]
+    N5["5. 执行或验证: 校验批次结构 | 执行确定性状态转换 | 提交新状态根"]
+    N6["6. 提交或输出: 执行轨迹 | 新状态根 | 公开证明输入"]
+    N7["7. 消费联动: neo-zkvm-guest | neo-zkvm-host | 网关服务"]
+    N8["8. 运维观测: 输入摘要、输出摘要、状态变化和拒绝原因"]
+    N1 --> N2
+    N2 --> N3
+    N3 --> N4
+    N4 --> N5
+    N5 --> N6
+    N6 --> N7
+    N7 --> N8
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#e5f2ff,stroke-width:2px;
+    classDef support fill:#111827,stroke:#64748b,color:#f8fafc;
+    class N1 core;
+    class N2,N3,N4,N5,N6,N7,N8 support;

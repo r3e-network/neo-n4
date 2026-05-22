@@ -1,0 +1,20 @@
+flowchart TB
+    N1["1. neo-bridge-watcher-tron: 生命周期图说明技术单元如何进入可观测运行。"]
+    N2["2. 配置: chain id、确认数、资产映射、消息路由、权限策略"]
+    N3["3. 输入接收: TRON RPC/log 流 | 桥合约事件 | 检查点游标"]
+    N4["4. 规范化: 把异构事件整理成链无关、可哈希、可防重放消息"]
+    N5["5. 执行或验证: 过滤桥事件 | 规范化 payload | 保护重放与游标状态"]
+    N6["6. 提交或输出: relay 任务 | 审计日志 | 健康指标"]
+    N7["7. 消费联动: 网关 | 共享桥 | 运维面板"]
+    N8["8. 运维观测: 源事件、确认数、消息哈希、游标、提交哈希和最终状态"]
+    N1 --> N2
+    N2 --> N3
+    N3 --> N4
+    N4 --> N5
+    N5 --> N6
+    N6 --> N7
+    N7 --> N8
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#e5f2ff,stroke-width:2px;
+    classDef support fill:#111827,stroke:#64748b,color:#f8fafc;
+    class N1 core;
+    class N2,N3,N4,N5,N6,N7,N8 support;

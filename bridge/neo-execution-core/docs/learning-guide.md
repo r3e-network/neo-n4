@@ -1,105 +1,76 @@
-# neo-execution-core Source-Level Learning Guide
+# neo-execution-core Technical Learning Guide
 
-This guide is generated from the crate's actual `Cargo.toml`, Rust source files, public symbols, and test functions. It is meant to help a reader understand what this crate owns before reading implementation details.
+This guide explains `neo-execution-core` as a Neo N4 technical unit. It is written for architecture learning: what the unit is responsible for, which assumptions make it correct, how data moves, how state changes, how evidence is checked, and where it plugs into the wider Neo N4 stack.
 
-## What This Crate Is
+## Technical Contract
 
-| Topic | Detail |
+| Aspect | Meaning |
 | --- | --- |
 | Layer | N4 batch execution core |
 | Purpose | Backend-neutral L2 batch transition primitives shared by fast execution and proof generation. |
-| Inputs | L2 batch, previous state root, execution parameters |
-| Responsibilities | Validate batch shape, Apply deterministic transition, Commit new state root |
-| Outputs | execution trace, new state root, public proof inputs |
-| Consumers | neo-zkvm-guest, neo-zkvm-host, gateway services |
+| Inputs | L2 batch <br> previous state root <br> execution parameters |
+| Responsibilities | Validate batch shape <br> Apply deterministic transition <br> Commit new state root |
+| Outputs | execution trace <br> new state root <br> public proof inputs |
+| Consumers | neo-zkvm-guest <br> neo-zkvm-host <br> gateway services |
 
-## Visual Reading Order
+## Diagram Set
 
-| Step | Diagram | Use it to learn |
-| ---: | --- | --- |
-| 1 | [Position](figures/position.svg) | Why this crate exists and where it sits in Neo N4. |
-| 2 | [Principles](figures/principles.svg) | The invariants and boundaries this crate must protect. |
-| 3 | [Module map](figures/module-map.svg) | Which files are the best entry points. |
-| 4 | [Public API surface](figures/api-surface.svg) | Which exported symbols form the crate contract. |
-| 5 | [Architecture](figures/architecture.svg) | How inputs, internal components, dependencies, and outputs connect. |
-| 6 | [Workflow](figures/workflow.svg) | The normal execution path. |
-| 7 | [Dataflow](figures/dataflow.svg) | How data is transformed across the crate boundary. |
-| 8 | [Test evidence](figures/test-map.svg) | Which tests protect the behavior. |
-| 9 | [Dependency map](figures/dependency-map.svg) | Which dependencies are runtime, test, or build-only. |
-| 10 | [Implementation atlas](figures/implementation-atlas.svg) | A dense one-page map of purpose, source entrypoints, API, workflow, dataflow, dependencies, tests, and change checks. |
+| # | Diagram | What to learn |
+| --- | --- | --- |
+| 1 | [System Position](figures/position.svg) | where this crate sits in Neo N4. |
+| 2 | [Technical Principles](figures/principles.svg) | the rules that make the design correct. |
+| 3 | [Conceptual Architecture](figures/architecture.svg) | major technical blocks and boundaries. |
+| 4 | [Workflow](figures/workflow.svg) | the ordered runtime process. |
+| 5 | [Data Flow](figures/dataflow.svg) | how information, commitments, and evidence move. |
+| 6 | [State Model](figures/state-model.svg) | state ownership, transitions, and finality. |
+| 7 | [Proof and Evidence Flow](figures/proof-flow.svg) | how claims become verifiable evidence. |
+| 8 | [Trust Boundaries](figures/trust-boundaries.svg) | what is trusted, checked, rejected, or observed. |
+| 9 | [Integration Map](figures/integration-map.svg) | how this unit connects to the wider N4 stack. |
+| 10 | [Runtime Lifecycle](figures/lifecycle.svg) | from configuration through execution, evidence, and operation. |
 
-## Source File Map
+## Architecture Model
 
-| File | Role | Public symbols | Tests |
-| --- | --- | ---: | ---: |
-| `src/lib.rs` | crate root, public exports, and top-level documentation | 0 | 0 |
-| `src/types.rs` | implementation detail or helper module | 7 | 0 |
-| `src/hashing.rs` | implementation detail or helper module | 6 | 0 |
-| `tests/batch_core.rs` | external behavior or integration test | 0 | 5 |
-| `src/batch.rs` | implementation detail or helper module | 1 | 0 |
-| `src/wire.rs` | implementation detail or helper module | 1 | 0 |
+`neo-execution-core` receives L2 batch | previous state root | execution parameters and owns this boundary: Validate batch shape | Apply deterministic transition | Commit new state root. It emits execution trace | new state root | public proof inputs, which are consumed by neo-zkvm-guest | neo-zkvm-host | gateway services.
 
-## Public API Surface
+Layering rule: each layer carries one clear technical responsibility.
 
-| Symbol | File |
-| --- | --- |
-| `fn execute_batch_with` | `src/batch.rs` |
-| `fn merkle_root` | `src/hashing.rs` |
-| `fn hash256` | `src/hashing.rs` |
-| `fn hash_receipt` | `src/hashing.rs` |
-| `fn fold_state_root` | `src/hashing.rs` |
-| `fn apply_l1_message` | `src/hashing.rs` |
-| `fn hash_public_inputs` | `src/hashing.rs` |
-| `const BATCH_WIRE_VERSION` | `src/types.rs` |
-| `const DEFAULT_PER_TX_GAS_LIMIT` | `src/types.rs` |
-| `struct BatchResult` | `src/types.rs` |
-| `struct VmExecutionReceipt` | `src/types.rs` |
-| `enum ExecutionError` | `src/types.rs` |
-| `struct BatchRequest` | `src/types.rs` |
-| `struct L1Message` | `src/types.rs` |
-| `fn parse_batch_request` | `src/wire.rs` |
+## Workflow
 
-## Module and Re-Export Signals
+1. Accept batch
+2. Normalize inputs
+3. Run transition
+4. Hash outputs
+5. Publish evidence
 
-| Signal |
-| --- |
-| `src/lib.rs: mod batch` |
-| `src/lib.rs: mod hashing` |
-| `src/lib.rs: mod types` |
-| `src/lib.rs: mod wire` |
-| `src/lib.rs: pub use batch::execute_batch_with` |
-| `src/lib.rs: pub use hashing::{     apply_l1_message, fold_state_root, hash256, hash_public_inputs, hash_receipt, merkle_root, }` |
-| `src/lib.rs: pub use types::{     BatchRequest, BatchResult, ExecutionError, L1Message, VmExecutionReceipt, BATCH_WIRE_VERSION,     DEFAULT_PER_TX_GAS_LIMIT, }` |
-| `src/lib.rs: pub use wire::parse_batch_request` |
+Failure path: input violates constraints or output cannot be verified.
 
-## Test Evidence
+## Data Flow
 
-| Test | File |
-| --- | --- |
-| `executes_batch_through_backend_agnostic_receipts` | `tests/batch_core.rs` |
-| `deterministic_for_same_input_and_executor` | `tests/batch_core.rs` |
-| `rejects_bad_wire_inputs` | `tests/batch_core.rs` |
-| `merkle_root_is_stable_and_ordered` | `tests/batch_core.rs` |
-| `manifest_stays_backend_agnostic` | `tests/batch_core.rs` |
+1. transactions
+2. execution core
+3. trace + commitments
+4. proof/public output
 
-## Dependency Boundary
+Commitment signal: input digest, transition digest, and output digest.
 
-| Dependency | Kind |
-| --- | --- |
-| `sha2` | runtime |
+## State, Proof, and Trust
 
-## Suggested Reading Path
+- State transition: explicit rules turn accepted input into checkable output.
+- Finality: consumer accepts the output.
+- Trust model: trust only data that crossed validation boundaries.
+- Validation boundary: all inputs cross explicit validation boundaries.
+- Replay and ordering: input and output digests bind the same context.
 
-1. Read `src/lib.rs`: crate root, public exports, and top-level documentation.
-2. Read `src/types.rs`: implementation detail or helper module.
-3. Read `src/hashing.rs`: implementation detail or helper module.
-4. Read `tests/batch_core.rs`: external behavior or integration test.
-5. Read `src/batch.rs`: implementation detail or helper module.
-6. Read `src/wire.rs`: implementation detail or helper module.
+## Integration and Operation
 
-## Change Safety Checklist
+- NeoFS DA: NeoFS stores batch data, witness or trace summaries, and retrievable evidence.
+- Proof system: The proof system compresses L2 execution claims into verifiable evidence.
+- Gateway/API: Gateway handles user routing, queries, submission, and health aggregation.
+- Bridge and heterogeneous chains: Bridge rules unify L1-L2, L2-L2, and heterogeneous-chain messages and assets.
+- Observable evidence: input digest, output digest, state change, and rejection reason.
 
-- Keep the stated responsibility boundary intact: Validate batch shape, Apply deterministic transition, Commit new state root.
-- Update the workflow and dataflow diagrams when adding or removing major execution steps.
-- Add or update tests in the files listed under Test Evidence when public API or state-transition behavior changes.
-- Re-run `python tools/docs/generate_crate_visual_docs.py` from the Neo N4 repository root after source layout changes.
+Regenerate these technical diagrams from the Neo N4 repository root with:
+
+```powershell
+python tools/docs/generate_crate_visual_docs.py
+```

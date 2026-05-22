@@ -1,13 +1,12 @@
 flowchart TB
-    N1["1. neo-n4-sdk: 数据流跨越输入、类型模型、核心函数、输出和测试；2 个源码文件，40 个公开符号，10 个测试，7 个依赖"]
-    N2["2. 数据 1: 应用意图"]
-    N3["3. 数据 2: SDK 模型"]
-    N4["4. 数据 3: RPC payload"]
-    N5["5. 数据 4: Neo N4 服务响应"]
-    N6["6. 关键类型: SecurityLevel | DAMode | SequencerModel | ExitModel +10"]
-    N7["7. 关键函数: from_u8 | proof_type | status | level +17"]
-    N8["8. 边界校验: tests/integration.rs（10 个测试）"]
-    N9["9. 消费者: 应用 | 运维工具 | 集成测试"]
+    N1["1. neo-n4-sdk: 数据流表达信息、承诺、证据和控制信号如何移动。"]
+    N2["2. 数据段 1: 应用意图"]
+    N3["3. 数据段 2: SDK 模型"]
+    N4["4. 数据段 3: RPC payload"]
+    N5["5. 数据段 4: Neo N4 服务响应"]
+    N6["6. 承诺信号: 请求摘要、网络 profile 和输出产物哈希"]
+    N7["7. 控制信号: 准备、校验、签名、提交、报告"]
+    N8["8. 后续消费方: 应用 | 运维工具 | 集成测试"]
     N1 --> N2
     N2 --> N3
     N3 --> N4
@@ -15,6 +14,7 @@ flowchart TB
     N5 --> N6
     N6 --> N7
     N7 --> N8
-    N8 --> N9
-    classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
-    class N1 crate
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#e5f2ff,stroke-width:2px;
+    classDef support fill:#111827,stroke:#64748b,color:#f8fafc;
+    class N1 core;
+    class N2,N3,N4,N5,N6,N7,N8 support;

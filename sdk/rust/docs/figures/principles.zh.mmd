@@ -1,12 +1,12 @@
 flowchart TB
-    N1["1. 职责边界: 用于构建访问 Neo N4 API 的工具和服务的 Rust SDK。"]
-    N2["2. 核心不变量: 编码 API 请求 | 处理桥/证明模型 | 返回强类型结果"]
-    N3["3. 输入必须被约束: 开发者应用 | 网关端点 | 钱包/配置"]
-    N4["4. 输出必须可验证: 强类型客户端结果 | 交易请求 | 查询响应"]
-    N5["5. 源码证据: 2 个源码文件，40 个公开符号，10 个测试，7 个依赖"]
-    N6["6. 测试证据: tests/integration.rs（10 个测试）"]
-    N7["7. 依赖原则: 运行时 5，测试 2，构建 0，内部 0，外部运行时 5"]
-    N8["8. 维护规则: 边界要小，语义要确定，测试要可复现，图和文档要随源码更新。"]
+    N1["1. 技术目标: 用于构建访问 Neo N4 API 的工具和服务的 Rust SDK。"]
+    N2["2. 确定性: 同一配置和用户意图产生同一请求或包"]
+    N3["3. 输入约束: 开发者应用 | 网关端点 | 钱包/配置"]
+    N4["4. 状态转换规则: 请求、配置、包或报告通过校验阶段推进"]
+    N5["5. 可验证输出: 强类型客户端结果 | 交易请求 | 查询响应"]
+    N6["6. 最小信任: 信任校验和签名策略，不信任未校验用户输入"]
+    N7["7. 分层边界: 界面、编码、网络提交和诊断分层"]
+    N8["8. 可观测证据: 命令、配置摘要、网络、输出产物和诊断"]
     N1 --> N2
     N1 --> N3
     N1 --> N4
@@ -14,11 +14,10 @@ flowchart TB
     N1 --> N6
     N1 --> N7
     N1 --> N8
-    N2 -. related .-> N3
-    N3 -. related .-> N4
-    N4 -. related .-> N5
-    N5 -. related .-> N6
-    N6 -. related .-> N7
-    N7 -. related .-> N8
-    classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
-    class N4 crate
+    N2 -. constrains .-> N4
+    N4 -. produces .-> N5
+    N5 -. consumed by .-> N6
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#e5f2ff,stroke-width:2px;
+    classDef support fill:#111827,stroke:#64748b,color:#f8fafc;
+    class N1 core;
+    class N2,N3,N4,N5,N6,N7,N8 support;

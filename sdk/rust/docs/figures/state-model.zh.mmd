@@ -1,0 +1,23 @@
+flowchart TB
+    N1["1. neo-n4-sdk: 状态模型说明什么会被记住、提交、验证或丢弃。"]
+    N2["2. 输入状态: 开发者应用 | 网关端点 | 钱包/配置"]
+    N3["3. 工作状态: 命令上下文、未签名请求、临时产物"]
+    N4["4. 持久状态: 配置、包、报告、已提交交易 id"]
+    N5["5. 状态转换: 请求、配置、包或报告通过校验阶段推进"]
+    N6["6. 承诺: 请求摘要、网络 profile 和输出产物哈希"]
+    N7["7. 终局条件: 目标服务接受请求并返回可追踪结果"]
+    N8["8. 回滚或拒绝: 返回诊断；不签名、不提交、不发布"]
+    N1 --> N2
+    N1 --> N3
+    N1 --> N4
+    N1 --> N5
+    N1 --> N6
+    N1 --> N7
+    N1 --> N8
+    N2 -. constrains .-> N4
+    N4 -. produces .-> N5
+    N5 -. consumed by .-> N6
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#e5f2ff,stroke-width:2px;
+    classDef support fill:#111827,stroke:#64748b,color:#f8fafc;
+    class N1 core;
+    class N2,N3,N4,N5,N6,N7,N8 support;

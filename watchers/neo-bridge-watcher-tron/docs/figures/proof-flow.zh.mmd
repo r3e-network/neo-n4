@@ -1,0 +1,20 @@
+flowchart TB
+    N1["1. neo-bridge-watcher-tron: 证明与证据流说明技术声明如何变成可检查结果。"]
+    N2["2. 声明: 本单元完成了：过滤桥事件 | 规范化 payload | 保护重放与游标状态。"]
+    N3["3. 见证或输入: TRON RPC/log 流 | 桥合约事件 | 检查点游标"]
+    N4["4. 执行或检查: 验证源事件、确认数、nonce、资产动作和目标消息"]
+    N5["5. 公开承诺: 消息哈希、nonce、源链高度和资产动作"]
+    N6["6. 验证者: 网关 | 共享桥 | 运维面板"]
+    N7["7. 接受结果: relay 任务 | 审计日志 | 健康指标"]
+    N8["8. 拒绝结果: 丢弃或隔离消息；nonce 和资产状态不推进"]
+    N1 --> N2
+    N2 --> N3
+    N3 --> N4
+    N4 --> N5
+    N5 --> N6
+    N6 --> N7
+    N7 --> N8
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#e5f2ff,stroke-width:2px;
+    classDef support fill:#111827,stroke:#64748b,color:#f8fafc;
+    class N1 core;
+    class N2,N3,N4,N5,N6,N7,N8 support;

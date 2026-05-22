@@ -1,18 +1,27 @@
 {
   "generated_crates": 29,
+  "diagram_count_per_crate": 10,
+  "diagram_kind": "concept-first technical architecture diagrams",
   "diagrams_per_crate": [
     "position",
     "principles",
     "architecture",
     "workflow",
     "dataflow",
+    "state-model",
+    "proof-flow",
+    "trust-boundaries",
+    "integration-map",
+    "lifecycle"
+  ],
+  "obsolete_implementation_diagrams_removed": [
     "module-map",
     "api-surface",
     "test-map",
     "dependency-map",
     "implementation-atlas"
   ],
-  "deep_guides_per_crate": [
+  "learning_guides_per_crate": [
     "docs/learning-guide.md",
     "docs/learning-guide.zh.md"
   ],

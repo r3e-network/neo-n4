@@ -1,12 +1,12 @@
 flowchart TB
-    N1["1. 职责边界: 监听 SOL 桥事件，并转换为标准化 Neo N4 relay 消息。"]
-    N2["2. 核心不变量: 过滤桥事件 | 规范化 payload | 保护重放与游标状态"]
-    N3["3. 输入必须被约束: SOL RPC/log 流 | 桥合约事件 | 检查点游标"]
-    N4["4. 输出必须可验证: relay 任务 | 审计日志 | 健康指标"]
-    N5["5. 源码证据: 2 个源码文件，7 个公开符号，9 个测试，4 个依赖"]
-    N6["6. 测试证据: src/lib.rs（6 个测试） | tests/parity.rs（3 个测试）"]
-    N7["7. 依赖原则: 运行时 3，测试 1，构建 0，内部 1，外部运行时 2"]
-    N8["8. 维护规则: 边界要小，语义要确定，测试要可复现，图和文档要随源码更新。"]
+    N1["1. 技术目标: 监听 SOL 桥事件，并转换为标准化 Neo N4 relay 消息。"]
+    N2["2. 确定性: 同一源链事件映射到唯一、可重放保护的桥消息"]
+    N3["3. 输入约束: SOL RPC/log 流 | 桥合约事件 | 检查点游标"]
+    N4["4. 状态转换规则: 事件变成标准消息，再变成资产或状态动作"]
+    N5["5. 可验证输出: relay 任务 | 审计日志 | 健康指标"]
+    N6["6. 最小信任: 信任确认与验证规则，不信任单个 watcher 或 RPC 端点"]
+    N7["7. 分层边界: 监听、消息规范化、资产状态和最终验证分层"]
+    N8["8. 可观测证据: 源事件、确认数、消息哈希、游标、提交哈希和最终状态"]
     N1 --> N2
     N1 --> N3
     N1 --> N4
@@ -14,11 +14,10 @@ flowchart TB
     N1 --> N6
     N1 --> N7
     N1 --> N8
-    N2 -. related .-> N3
-    N3 -. related .-> N4
-    N4 -. related .-> N5
-    N5 -. related .-> N6
-    N6 -. related .-> N7
-    N7 -. related .-> N8
-    classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
-    class N4 crate
+    N2 -. constrains .-> N4
+    N4 -. produces .-> N5
+    N5 -. consumed by .-> N6
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#e5f2ff,stroke-width:2px;
+    classDef support fill:#111827,stroke:#64748b,color:#f8fafc;
+    class N1 core;
+    class N2,N3,N4,N5,N6,N7,N8 support;

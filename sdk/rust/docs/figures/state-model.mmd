@@ -1,0 +1,23 @@
+flowchart TB
+    N1["1. neo-n4-sdk: State model explains what is remembered, committed, verified, or discarded."]
+    N2["2. Input state: developer app | gateway endpoint | wallet/config"]
+    N3["3. Working state: command context, unsigned request, temporary artifact"]
+    N4["4. Persistent state: configuration, package, report, submitted transaction id"]
+    N5["5. Transition: requests, configs, packages, or reports advance through checked stages"]
+    N6["6. Commitment: request digest, network profile, and output artifact hash"]
+    N7["7. Finality: target service accepts request and returns traceable result"]
+    N8["8. Rollback or reject: return diagnostics; do not sign, submit, or publish"]
+    N1 --> N2
+    N1 --> N3
+    N1 --> N4
+    N1 --> N5
+    N1 --> N6
+    N1 --> N7
+    N1 --> N8
+    N2 -. constrains .-> N4
+    N4 -. produces .-> N5
+    N5 -. consumed by .-> N6
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#e5f2ff,stroke-width:2px;
+    classDef support fill:#111827,stroke:#64748b,color:#f8fafc;
+    class N1 core;
+    class N2,N3,N4,N5,N6,N7,N8 support;

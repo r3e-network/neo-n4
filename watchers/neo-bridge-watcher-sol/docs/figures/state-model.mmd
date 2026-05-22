@@ -1,0 +1,23 @@
+flowchart TB
+    N1["1. neo-bridge-watcher-sol: State model explains what is remembered, committed, verified, or discarded."]
+    N2["2. Input state: SOL RPC/log stream | bridge contract events | checkpoint cursor"]
+    N3["3. Working state: pending log, confirmation window, relay job"]
+    N4["4. Persistent state: cursor, consumed nonce, escrow or mint state"]
+    N5["5. Transition: events become normalized messages and then asset/state actions"]
+    N6["6. Commitment: message hash, nonce, source height, and asset action"]
+    N7["7. Finality: message is consumed and nonce is marked used"]
+    N8["8. Rollback or reject: drop or quarantine message; nonce and asset state do not advance"]
+    N1 --> N2
+    N1 --> N3
+    N1 --> N4
+    N1 --> N5
+    N1 --> N6
+    N1 --> N7
+    N1 --> N8
+    N2 -. constrains .-> N4
+    N4 -. produces .-> N5
+    N5 -. consumed by .-> N6
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#e5f2ff,stroke-width:2px;
+    classDef support fill:#111827,stroke:#64748b,color:#f8fafc;
+    class N1 core;
+    class N2,N3,N4,N5,N6,N7,N8 support;

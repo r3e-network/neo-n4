@@ -1,0 +1,20 @@
+flowchart TB
+    N1["1. neo-n4-sdk: Lifecycle shows how the unit reaches observable runtime operation."]
+    N2["2. Configuration: network, account, endpoint, output format, safety policy"]
+    N3["3. Input intake: developer app | gateway endpoint | wallet/config"]
+    N4["4. Normalization: shape commands, config, and files into typed operations"]
+    N5["5. Execution or verification: Encode API requests | Handle bridge/proof models | Return typed results"]
+    N6["6. Commit or output: typed client result | transaction request | query response"]
+    N7["7. Consumption: apps | operators | integration tests"]
+    N8["8. Operation: command, config digest, network, output artifacts, and diagnostics"]
+    N1 --> N2
+    N2 --> N3
+    N3 --> N4
+    N4 --> N5
+    N5 --> N6
+    N6 --> N7
+    N7 --> N8
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#e5f2ff,stroke-width:2px;
+    classDef support fill:#111827,stroke:#64748b,color:#f8fafc;
+    class N1 core;
+    class N2,N3,N4,N5,N6,N7,N8 support;

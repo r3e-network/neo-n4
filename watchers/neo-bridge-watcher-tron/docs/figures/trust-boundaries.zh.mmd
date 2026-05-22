@@ -1,0 +1,23 @@
+flowchart TB
+    N1["1. neo-bridge-watcher-tron: 信任边界说明哪些假设必须被证明，而不是被相信。"]
+    N2["2. 可信基: 确认策略、消息格式、nonce 规则、资产映射"]
+    N3["3. 不可信输入: TRON RPC/log 流 | 桥合约事件 | 检查点游标"]
+    N4["4. 验证边界: 事件、确认数、消息哈希、nonce 和资产状态同时通过"]
+    N5["5. 重放与顺序: nonce、源链高度和消息哈希提供顺序与重放保护"]
+    N6["6. 权限模型: 资产动作需要桥规则、消息证据和治理策略"]
+    N7["7. 外部系统: L1/L2 RPC、异构链、watcher、gateway、资产合约"]
+    N8["8. 观测证据: 源事件、确认数、消息哈希、游标、提交哈希和最终状态"]
+    N1 --> N2
+    N1 --> N3
+    N1 --> N4
+    N1 --> N5
+    N1 --> N6
+    N1 --> N7
+    N1 --> N8
+    N2 -. constrains .-> N4
+    N4 -. produces .-> N5
+    N5 -. consumed by .-> N6
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#e5f2ff,stroke-width:2px;
+    classDef support fill:#111827,stroke:#64748b,color:#f8fafc;
+    class N1 core;
+    class N2,N3,N4,N5,N6,N7,N8 support;

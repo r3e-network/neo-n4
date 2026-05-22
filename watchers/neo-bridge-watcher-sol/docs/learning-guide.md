@@ -1,90 +1,76 @@
-# neo-bridge-watcher-sol Source-Level Learning Guide
+# neo-bridge-watcher-sol Technical Learning Guide
 
-This guide is generated from the crate's actual `Cargo.toml`, Rust source files, public symbols, and test functions. It is meant to help a reader understand what this crate owns before reading implementation details.
+This guide explains `neo-bridge-watcher-sol` as a Neo N4 technical unit. It is written for architecture learning: what the unit is responsible for, which assumptions make it correct, how data moves, how state changes, how evidence is checked, and where it plugs into the wider Neo N4 stack.
 
-## What This Crate Is
+## Technical Contract
 
-| Topic | Detail |
+| Aspect | Meaning |
 | --- | --- |
 | Layer | Cross-chain watcher |
 | Purpose | Observes SOL bridge events and turns them into normalized Neo N4 relay messages. |
-| Inputs | SOL RPC/log stream, bridge contract events, checkpoint cursor |
-| Responsibilities | Filter bridge events, Normalize payloads, Protect replay/cursor state |
-| Outputs | relay job, audit log, health metric |
-| Consumers | gateway, shared bridge, operator dashboard |
+| Inputs | SOL RPC/log stream <br> bridge contract events <br> checkpoint cursor |
+| Responsibilities | Filter bridge events <br> Normalize payloads <br> Protect replay/cursor state |
+| Outputs | relay job <br> audit log <br> health metric |
+| Consumers | gateway <br> shared bridge <br> operator dashboard |
 
-## Visual Reading Order
+## Diagram Set
 
-| Step | Diagram | Use it to learn |
-| ---: | --- | --- |
-| 1 | [Position](figures/position.svg) | Why this crate exists and where it sits in Neo N4. |
-| 2 | [Principles](figures/principles.svg) | The invariants and boundaries this crate must protect. |
-| 3 | [Module map](figures/module-map.svg) | Which files are the best entry points. |
-| 4 | [Public API surface](figures/api-surface.svg) | Which exported symbols form the crate contract. |
-| 5 | [Architecture](figures/architecture.svg) | How inputs, internal components, dependencies, and outputs connect. |
-| 6 | [Workflow](figures/workflow.svg) | The normal execution path. |
-| 7 | [Dataflow](figures/dataflow.svg) | How data is transformed across the crate boundary. |
-| 8 | [Test evidence](figures/test-map.svg) | Which tests protect the behavior. |
-| 9 | [Dependency map](figures/dependency-map.svg) | Which dependencies are runtime, test, or build-only. |
-| 10 | [Implementation atlas](figures/implementation-atlas.svg) | A dense one-page map of purpose, source entrypoints, API, workflow, dataflow, dependencies, tests, and change checks. |
+| # | Diagram | What to learn |
+| --- | --- | --- |
+| 1 | [System Position](figures/position.svg) | where this crate sits in Neo N4. |
+| 2 | [Technical Principles](figures/principles.svg) | the rules that make the design correct. |
+| 3 | [Conceptual Architecture](figures/architecture.svg) | major technical blocks and boundaries. |
+| 4 | [Workflow](figures/workflow.svg) | the ordered runtime process. |
+| 5 | [Data Flow](figures/dataflow.svg) | how information, commitments, and evidence move. |
+| 6 | [State Model](figures/state-model.svg) | state ownership, transitions, and finality. |
+| 7 | [Proof and Evidence Flow](figures/proof-flow.svg) | how claims become verifiable evidence. |
+| 8 | [Trust Boundaries](figures/trust-boundaries.svg) | what is trusted, checked, rejected, or observed. |
+| 9 | [Integration Map](figures/integration-map.svg) | how this unit connects to the wider N4 stack. |
+| 10 | [Runtime Lifecycle](figures/lifecycle.svg) | from configuration through execution, evidence, and operation. |
 
-## Source File Map
+## Architecture Model
 
-| File | Role | Public symbols | Tests |
-| --- | --- | ---: | ---: |
-| `src/lib.rs` | crate root, public exports, and top-level documentation | 7 | 6 |
-| `tests/parity.rs` | external behavior or integration test | 0 | 3 |
+`neo-bridge-watcher-sol` receives SOL RPC/log stream | bridge contract events | checkpoint cursor and owns this boundary: Filter bridge events | Normalize payloads | Protect replay/cursor state. It emits relay job | audit log | health metric, which are consumed by gateway | shared bridge | operator dashboard.
 
-## Public API Surface
+Layering rule: watching, message normalization, asset state, and final verification are separated.
 
-| Symbol | File |
-| --- | --- |
-| `const SOLANA_MAINNET_CHAIN_ID` | `src/lib.rs` |
-| `const SOLANA_DEVNET_CHAIN_ID` | `src/lib.rs` |
-| `const SOLANA_TESTNET_CHAIN_ID` | `src/lib.rs` |
-| `struct Ed25519FileSigner` | `src/lib.rs` |
-| `fn from_file` | `src/lib.rs` |
-| `fn from_bytes` | `src/lib.rs` |
-| `fn verifying_key` | `src/lib.rs` |
+## Workflow
 
-## Module and Re-Export Signals
+1. Poll source chain
+2. Decode logs
+3. Validate confirmations
+4. Emit relay job
+5. Persist cursor
 
-| Signal |
-| --- |
-| `src/lib.rs: pub use neo_bridge_watcher_eth::chains` |
-| `src/lib.rs: pub use neo_bridge_watcher_eth::*` |
+Failure path: insufficient confirmations, nonce replay, message mismatch, or invalid asset state.
 
-## Test Evidence
+## Data Flow
 
-| Test | File |
-| --- | --- |
-| `solana_chain_ids_have_foreign_namespace_prefix` | `src/lib.rs` |
-| `solana_chain_ids_disjoint_from_eth_and_tron` | `src/lib.rs` |
-| `ed25519_signer_signs_and_verifies` | `src/lib.rs` |
-| `ed25519_signer_rejects_wrong_key_length` | `src/lib.rs` |
-| `ed25519_pubkey_is_exactly_32_bytes` | `src/lib.rs` |
-| `signer_trait_dispatches_by_curve_tag` | `src/lib.rs` |
-| `watcher_core_drives_through_with_ed25519_signer` | `tests/parity.rs` |
-| `solana_canonical_bytes_use_solana_chain_id` | `tests/parity.rs` |
-| `solana_message_hash_distinct_from_eth_and_tron` | `tests/parity.rs` |
+1. source log
+2. watcher
+3. normalized event
+4. bridge message
 
-## Dependency Boundary
+Commitment signal: message hash, nonce, source height, and asset action.
 
-| Dependency | Kind |
-| --- | --- |
-| `ed25519-dalek` | runtime |
-| `neo-bridge-watcher-eth` | runtime |
-| `thiserror` | runtime |
-| `hex` | test |
+## State, Proof, and Trust
 
-## Suggested Reading Path
+- State transition: events become normalized messages and then asset/state actions.
+- Finality: message is consumed and nonce is marked used.
+- Trust model: trust confirmation and verification rules, not one watcher or RPC endpoint.
+- Validation boundary: event, confirmations, message hash, nonce, and asset state all pass.
+- Replay and ordering: nonce, source height, and message hash provide ordering and replay protection.
 
-1. Read `src/lib.rs`: crate root, public exports, and top-level documentation.
-2. Read `tests/parity.rs`: external behavior or integration test.
+## Integration and Operation
 
-## Change Safety Checklist
+- NeoFS DA: NeoFS stores batch data, witness or trace summaries, and retrievable evidence.
+- Proof system: The proof system compresses L2 execution claims into verifiable evidence.
+- Gateway/API: Gateway handles user routing, queries, submission, and health aggregation.
+- Bridge and heterogeneous chains: Bridge rules unify L1-L2, L2-L2, and heterogeneous-chain messages and assets.
+- Observable evidence: source event, confirmations, message hash, cursor, submit hash, and final state.
 
-- Keep the stated responsibility boundary intact: Filter bridge events, Normalize payloads, Protect replay/cursor state.
-- Update the workflow and dataflow diagrams when adding or removing major execution steps.
-- Add or update tests in the files listed under Test Evidence when public API or state-transition behavior changes.
-- Re-run `python tools/docs/generate_crate_visual_docs.py` from the Neo N4 repository root after source layout changes.
+Regenerate these technical diagrams from the Neo N4 repository root with:
+
+```powershell
+python tools/docs/generate_crate_visual_docs.py
+```

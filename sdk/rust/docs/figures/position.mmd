@@ -1,30 +1,21 @@
 flowchart TB
     N1["1. Neo N4 layer: Developer SDK"]
-    N2["2. Upstream inputs: developer app | gateway endpoint | wallet/config"]
+    N2["2. Upstream domains: developer app | gateway endpoint | wallet/config"]
     N3["3. neo-n4-sdk: Rust client SDK for building tools and services that talk to Neo N4 APIs."]
-    N4["4. Downstream users: apps | operators | integration tests"]
-    N5["5. Source scale: 2 source files, 40 public symbols, 10 tests, 7 deps"]
-    N6["6. Source entrypoints: src/lib.rs (40 API/0 tests) | tests/integration.rs (0 API/10 tests)"]
-    N7["7. Core API: from_u8 | proof_type | status | level +17"]
-    N8["8. Test guardrails: tests/integration.rs (10 tests)"]
-    N9["9. Direct dependencies: mockito | reqwest | serde | serde_json | thiserror"]
-    N10["10. Learning focus: Locate upstream and downstream first, then read this crate boundary, core data structures, and tests."]
-    N3 --> N1
-    N3 --> N2
-    N3 --> N4
-    N3 --> N5
-    N3 --> N6
-    N3 --> N7
-    N3 --> N8
-    N3 --> N9
-    N3 --> N10
-    N2 -. related .-> N3
-    N3 -. related .-> N4
-    N4 -. related .-> N5
-    N5 -. related .-> N6
-    N6 -. related .-> N7
-    N7 -. related .-> N8
-    N8 -. related .-> N9
-    N9 -. related .-> N10
-    classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
-    class N3 crate
+    N4["4. Downstream domains: apps | operators | integration tests"]
+    N5["5. Owned boundary: Encode API requests | Handle bridge/proof models | Return typed results"]
+    N6["6. Outside boundary: does not own chain state; translates intent into safe operations"]
+    N7["7. Learning focus: Understand accepted facts, produced evidence, and next consumer."]
+    N1 --> N2
+    N1 --> N3
+    N1 --> N4
+    N1 --> N5
+    N1 --> N6
+    N1 --> N7
+    N2 -. constrains .-> N4
+    N4 -. produces .-> N5
+    N5 -. consumed by .-> N6
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#e5f2ff,stroke-width:2px;
+    classDef support fill:#111827,stroke:#64748b,color:#f8fafc;
+    class N1 core;
+    class N2,N3,N4,N5,N6,N7 support;

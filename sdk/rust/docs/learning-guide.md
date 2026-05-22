@@ -1,124 +1,76 @@
-# neo-n4-sdk Source-Level Learning Guide
+# neo-n4-sdk Technical Learning Guide
 
-This guide is generated from the crate's actual `Cargo.toml`, Rust source files, public symbols, and test functions. It is meant to help a reader understand what this crate owns before reading implementation details.
+This guide explains `neo-n4-sdk` as a Neo N4 technical unit. It is written for architecture learning: what the unit is responsible for, which assumptions make it correct, how data moves, how state changes, how evidence is checked, and where it plugs into the wider Neo N4 stack.
 
-## What This Crate Is
+## Technical Contract
 
-| Topic | Detail |
+| Aspect | Meaning |
 | --- | --- |
 | Layer | Developer SDK |
 | Purpose | Rust client SDK for building tools and services that talk to Neo N4 APIs. |
-| Inputs | developer app, gateway endpoint, wallet/config |
-| Responsibilities | Encode API requests, Handle bridge/proof models, Return typed results |
-| Outputs | typed client result, transaction request, query response |
-| Consumers | apps, operators, integration tests |
+| Inputs | developer app <br> gateway endpoint <br> wallet/config |
+| Responsibilities | Encode API requests <br> Handle bridge/proof models <br> Return typed results |
+| Outputs | typed client result <br> transaction request <br> query response |
+| Consumers | apps <br> operators <br> integration tests |
 
-## Visual Reading Order
+## Diagram Set
 
-| Step | Diagram | Use it to learn |
-| ---: | --- | --- |
-| 1 | [Position](figures/position.svg) | Why this crate exists and where it sits in Neo N4. |
-| 2 | [Principles](figures/principles.svg) | The invariants and boundaries this crate must protect. |
-| 3 | [Module map](figures/module-map.svg) | Which files are the best entry points. |
-| 4 | [Public API surface](figures/api-surface.svg) | Which exported symbols form the crate contract. |
-| 5 | [Architecture](figures/architecture.svg) | How inputs, internal components, dependencies, and outputs connect. |
-| 6 | [Workflow](figures/workflow.svg) | The normal execution path. |
-| 7 | [Dataflow](figures/dataflow.svg) | How data is transformed across the crate boundary. |
-| 8 | [Test evidence](figures/test-map.svg) | Which tests protect the behavior. |
-| 9 | [Dependency map](figures/dependency-map.svg) | Which dependencies are runtime, test, or build-only. |
-| 10 | [Implementation atlas](figures/implementation-atlas.svg) | A dense one-page map of purpose, source entrypoints, API, workflow, dataflow, dependencies, tests, and change checks. |
+| # | Diagram | What to learn |
+| --- | --- | --- |
+| 1 | [System Position](figures/position.svg) | where this crate sits in Neo N4. |
+| 2 | [Technical Principles](figures/principles.svg) | the rules that make the design correct. |
+| 3 | [Conceptual Architecture](figures/architecture.svg) | major technical blocks and boundaries. |
+| 4 | [Workflow](figures/workflow.svg) | the ordered runtime process. |
+| 5 | [Data Flow](figures/dataflow.svg) | how information, commitments, and evidence move. |
+| 6 | [State Model](figures/state-model.svg) | state ownership, transitions, and finality. |
+| 7 | [Proof and Evidence Flow](figures/proof-flow.svg) | how claims become verifiable evidence. |
+| 8 | [Trust Boundaries](figures/trust-boundaries.svg) | what is trusted, checked, rejected, or observed. |
+| 9 | [Integration Map](figures/integration-map.svg) | how this unit connects to the wider N4 stack. |
+| 10 | [Runtime Lifecycle](figures/lifecycle.svg) | from configuration through execution, evidence, and operation. |
 
-## Source File Map
+## Architecture Model
 
-| File | Role | Public symbols | Tests |
-| --- | --- | ---: | ---: |
-| `src/lib.rs` | crate root, public exports, and top-level documentation | 40 | 0 |
-| `tests/integration.rs` | external behavior or integration test | 0 | 10 |
+`neo-n4-sdk` receives developer app | gateway endpoint | wallet/config and owns this boundary: Encode API requests | Handle bridge/proof models | Return typed results. It emits typed client result | transaction request | query response, which are consumed by apps | operators | integration tests.
 
-## Public API Surface
+Layering rule: interface, encoding, network submission, and diagnostics are separated.
 
-| Symbol | File |
-| --- | --- |
-| `enum SecurityLevel` | `src/lib.rs` |
-| `fn from_u8` | `src/lib.rs` |
-| `enum DAMode` | `src/lib.rs` |
-| `fn from_u8` | `src/lib.rs` |
-| `enum SequencerModel` | `src/lib.rs` |
-| `fn from_u8` | `src/lib.rs` |
-| `enum ExitModel` | `src/lib.rs` |
-| `fn from_u8` | `src/lib.rs` |
-| `enum ProofType` | `src/lib.rs` |
-| `fn from_u8` | `src/lib.rs` |
-| `enum BatchStatus` | `src/lib.rs` |
-| `fn from_u8` | `src/lib.rs` |
-| `struct L2BatchView` | `src/lib.rs` |
-| `fn proof_type` | `src/lib.rs` |
-| `struct BatchStatusResponse` | `src/lib.rs` |
-| `fn status` | `src/lib.rs` |
-| `struct DepositStatusResponse` | `src/lib.rs` |
-| `struct SecurityLevelResponse` | `src/lib.rs` |
-| `fn level` | `src/lib.rs` |
-| `struct SecurityLabelResponse` | `src/lib.rs` |
-| `fn security_level` | `src/lib.rs` |
-| `fn da_mode` | `src/lib.rs` |
-| `fn sequencer` | `src/lib.rs` |
-| `fn exit` | `src/lib.rs` |
-| `enum L2RpcError` | `src/lib.rs` |
-| `type Result` | `src/lib.rs` |
-| `struct L2RpcClient` | `src/lib.rs` |
-| `fn new` | `src/lib.rs` |
-| `fn chain_id` | `src/lib.rs` |
-| `fn get_batch` | `src/lib.rs` |
-| `fn get_batch_status` | `src/lib.rs` |
-| `fn get_latest_state_root` | `src/lib.rs` |
-| `fn get_state_root_at` | `src/lib.rs` |
-| `fn get_withdrawal_proof` | `src/lib.rs` |
-| `fn get_message_proof` | `src/lib.rs` |
-| `fn get_deposit_status` | `src/lib.rs` |
-| `fn get_canonical_asset` | `src/lib.rs` |
-| `fn get_bridged_asset` | `src/lib.rs` |
-| `fn get_security_level` | `src/lib.rs` |
-| `fn get_security_label` | `src/lib.rs` |
+## Workflow
 
-## Module and Re-Export Signals
+1. Create client
+2. Build request
+3. Sign or query
+4. Submit to gateway
+5. Decode response
 
-No `mod` or `pub use` declarations were scanned.
+Failure path: invalid config, signing-policy failure, network rejection, or output validation failure.
 
-## Test Evidence
+## Data Flow
 
-| Test | File |
-| --- | --- |
-| `ctor_rejects_zero_chain_id` | `tests/integration.rs` |
-| `ctor_rejects_non_http_scheme` | `tests/integration.rs` |
-| `ctor_rejects_invalid_url` | `tests/integration.rs` |
-| `get_latest_state_root_returns_string` | `tests/integration.rs` |
-| `get_security_label_decodes_all_dimensions` | `tests/integration.rs` |
-| `get_withdrawal_proof_decodes_hex` | `tests/integration.rs` |
-| `get_withdrawal_proof_null_returns_none` | `tests/integration.rs` |
-| `server_error_surfaces_with_code` | `tests/integration.rs` |
-| `http_502_surfaces_as_transport_error` | `tests/integration.rs` |
-| `mismatched_chain_id_surfaces_as_mismatch_error` | `tests/integration.rs` |
+1. app intent
+2. SDK model
+3. RPC payload
+4. Neo N4 service response
 
-## Dependency Boundary
+Commitment signal: request digest, network profile, and output artifact hash.
 
-| Dependency | Kind |
-| --- | --- |
-| `reqwest` | runtime |
-| `serde` | runtime |
-| `serde_json` | runtime |
-| `thiserror` | runtime |
-| `tokio` | runtime |
-| `mockito` | test |
-| `tokio` | test |
+## State, Proof, and Trust
 
-## Suggested Reading Path
+- State transition: requests, configs, packages, or reports advance through checked stages.
+- Finality: target service accepts request and returns traceable result.
+- Trust model: trust validation and signing policy, not unchecked user input.
+- Validation boundary: config, params, signing, network, and output format validate.
+- Replay and ordering: request id, network id, and signing domain prevent duplicate or cross-network use.
 
-1. Read `src/lib.rs`: crate root, public exports, and top-level documentation.
-2. Read `tests/integration.rs`: external behavior or integration test.
+## Integration and Operation
 
-## Change Safety Checklist
+- NeoFS DA: NeoFS stores batch data, witness or trace summaries, and retrievable evidence.
+- Proof system: The proof system compresses L2 execution claims into verifiable evidence.
+- Gateway/API: Gateway handles user routing, queries, submission, and health aggregation.
+- Bridge and heterogeneous chains: Bridge rules unify L1-L2, L2-L2, and heterogeneous-chain messages and assets.
+- Observable evidence: command, config digest, network, output artifacts, and diagnostics.
 
-- Keep the stated responsibility boundary intact: Encode API requests, Handle bridge/proof models, Return typed results.
-- Update the workflow and dataflow diagrams when adding or removing major execution steps.
-- Add or update tests in the files listed under Test Evidence when public API or state-transition behavior changes.
-- Re-run `python tools/docs/generate_crate_visual_docs.py` from the Neo N4 repository root after source layout changes.
+Regenerate these technical diagrams from the Neo N4 repository root with:
+
+```powershell
+python tools/docs/generate_crate_visual_docs.py
+```

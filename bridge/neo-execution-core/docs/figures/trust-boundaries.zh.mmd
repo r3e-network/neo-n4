@@ -1,0 +1,23 @@
+flowchart TB
+    N1["1. neo-execution-core: 信任边界说明哪些假设必须被证明，而不是被相信。"]
+    N2["2. 可信基: 明确输入约束、转换规则和输出检查"]
+    N3["3. 不可信输入: L2 批次 | 前序状态根 | 执行参数"]
+    N4["4. 验证边界: 所有输入进入显式校验边界"]
+    N5["5. 重放与顺序: 输入摘要和输出摘要绑定同一上下文"]
+    N6["6. 权限模型: 权限来自边界契约，不来自调用者声明"]
+    N7["7. 外部系统: 调用方、消费方、监控和持久化层"]
+    N8["8. 观测证据: 输入摘要、输出摘要、状态变化和拒绝原因"]
+    N1 --> N2
+    N1 --> N3
+    N1 --> N4
+    N1 --> N5
+    N1 --> N6
+    N1 --> N7
+    N1 --> N8
+    N2 -. constrains .-> N4
+    N4 -. produces .-> N5
+    N5 -. consumed by .-> N6
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#e5f2ff,stroke-width:2px;
+    classDef support fill:#111827,stroke:#64748b,color:#f8fafc;
+    class N1 core;
+    class N2,N3,N4,N5,N6,N7,N8 support;

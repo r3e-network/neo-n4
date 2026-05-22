@@ -1,13 +1,12 @@
 flowchart TB
-    N1["1. neo-n4-sdk: Data crosses inputs, type models, core functions, outputs, and tests; 2 source files, 40 public symbols, 10 tests, 7 deps"]
-    N2["2. Data 1: app intent"]
-    N3["3. Data 2: SDK model"]
-    N4["4. Data 3: RPC payload"]
-    N5["5. Data 4: Neo N4 service response"]
-    N6["6. Key types: SecurityLevel | DAMode | SequencerModel | ExitModel +10"]
-    N7["7. Key functions: from_u8 | proof_type | status | level +17"]
-    N8["8. Boundary checks: tests/integration.rs (10 tests)"]
-    N9["9. Consumers: apps | operators | integration tests"]
+    N1["1. neo-n4-sdk: Dataflow shows information, commitments, evidence, and control signals."]
+    N2["2. Data segment 1: app intent"]
+    N3["3. Data segment 2: SDK model"]
+    N4["4. Data segment 3: RPC payload"]
+    N5["5. Data segment 4: Neo N4 service response"]
+    N6["6. Commitment signal: request digest, network profile, and output artifact hash"]
+    N7["7. Control signal: prepare, validate, sign, submit, report"]
+    N8["8. Next consumer: apps | operators | integration tests"]
     N1 --> N2
     N2 --> N3
     N3 --> N4
@@ -15,6 +14,7 @@ flowchart TB
     N5 --> N6
     N6 --> N7
     N7 --> N8
-    N8 --> N9
-    classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
-    class N1 crate
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#e5f2ff,stroke-width:2px;
+    classDef support fill:#111827,stroke:#64748b,color:#f8fafc;
+    class N1 core;
+    class N2,N3,N4,N5,N6,N7,N8 support;

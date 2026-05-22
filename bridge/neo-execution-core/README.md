@@ -52,70 +52,38 @@ cargo test -p neo-execution-core
 ```
 
 <!-- N4-CRATE-VISUAL-GUIDE:START -->
+## Technical Visual Guide
 
-## Crate Visual Learning Guide
+These diagrams are local to this crate and explain `neo-execution-core` at the technical architecture level. They focus on system role, principles, data movement, workflow, state, proof/evidence, trust boundaries, integration, and runtime lifecycle.
 
-These diagrams are local to this crate. They explain `neo-execution-core` as an independent unit: where it sits in the Neo N4 stack, which boundary it owns, how its internal workflow runs, and how data moves through it.
+Full technical explanation: [docs/learning-guide.md](docs/learning-guide.md).
 
-For the full source-level explanation, read [docs/learning-guide.md](docs/learning-guide.md).
-
-| View | Diagram | Source |
+| View | Diagram | Mermaid |
 | --- | --- | --- |
-| Position in Neo N4 | ![Position](docs/figures/position.svg) | [Mermaid](docs/figures/position.mmd) |
-| Technical principles | ![Principles](docs/figures/principles.svg) | [Mermaid](docs/figures/principles.mmd) |
-| Architecture | ![Architecture](docs/figures/architecture.svg) | [Mermaid](docs/figures/architecture.mmd) |
+| System Position | ![System Position](docs/figures/position.svg) | [Mermaid](docs/figures/position.mmd) |
+| Technical Principles | ![Technical Principles](docs/figures/principles.svg) | [Mermaid](docs/figures/principles.mmd) |
+| Conceptual Architecture | ![Conceptual Architecture](docs/figures/architecture.svg) | [Mermaid](docs/figures/architecture.mmd) |
 | Workflow | ![Workflow](docs/figures/workflow.svg) | [Mermaid](docs/figures/workflow.mmd) |
-| Dataflow | ![Dataflow](docs/figures/dataflow.svg) | [Mermaid](docs/figures/dataflow.mmd) |
-| Module map | ![Module map](docs/figures/module-map.svg) | [Mermaid](docs/figures/module-map.mmd) |
-| Public API surface | ![Public API surface](docs/figures/api-surface.svg) | [Mermaid](docs/figures/api-surface.mmd) |
-| Test evidence | ![Test evidence](docs/figures/test-map.svg) | [Mermaid](docs/figures/test-map.mmd) |
-| Dependency map | ![Dependency map](docs/figures/dependency-map.svg) | [Mermaid](docs/figures/dependency-map.mmd) |
-| Implementation atlas | ![Implementation atlas](docs/figures/implementation-atlas.svg) | [Mermaid](docs/figures/implementation-atlas.mmd) |
+| Data Flow | ![Data Flow](docs/figures/dataflow.svg) | [Mermaid](docs/figures/dataflow.mmd) |
+| State Model | ![State Model](docs/figures/state-model.svg) | [Mermaid](docs/figures/state-model.mmd) |
+| Proof and Evidence Flow | ![Proof and Evidence Flow](docs/figures/proof-flow.svg) | [Mermaid](docs/figures/proof-flow.mmd) |
+| Trust Boundaries | ![Trust Boundaries](docs/figures/trust-boundaries.svg) | [Mermaid](docs/figures/trust-boundaries.mmd) |
+| Integration Map | ![Integration Map](docs/figures/integration-map.svg) | [Mermaid](docs/figures/integration-map.mmd) |
+| Runtime Lifecycle | ![Runtime Lifecycle](docs/figures/lifecycle.svg) | [Mermaid](docs/figures/lifecycle.mmd) |
 
-### Role in Neo N4
+### Technical Role
 
 - **Layer:** N4 batch execution core
 - **Purpose:** Backend-neutral L2 batch transition primitives shared by fast execution and proof generation.
-- **Primary inputs:** L2 batch, previous state root, execution parameters
-- **Primary outputs:** execution trace, new state root, public proof inputs
-- **Downstream consumers:** neo-zkvm-guest, neo-zkvm-host, gateway services
-- **Source files scanned:** 6
-- **Public symbols scanned:** 15
-- **Rust tests scanned:** 5
+- **Inputs:** L2 batch | previous state root | execution parameters
+- **Responsibilities:** Validate batch shape | Apply deterministic transition | Commit new state root
+- **Outputs:** execution trace | new state root | public proof inputs
+- **Consumers:** neo-zkvm-guest | neo-zkvm-host | gateway services
 
-### Boundary and Responsibilities
+### Reading Order
 
-- **Owns:** Validate batch shape, Apply deterministic transition, Commit new state root
-- **Consumes:** L2 batch, previous state root, execution parameters
-- **Produces:** execution trace, new state root, public proof inputs
-- **Used by:** neo-zkvm-guest, neo-zkvm-host, gateway services
-
-### Source Map Snapshot
-
-| File | Why it matters | Public API | Tests |
-| --- | --- | ---: | ---: |
-| `src/lib.rs` | crate root, public exports, and top-level documentation | 0 | 0 |
-| `src/types.rs` | implementation detail or helper module | 7 | 0 |
-| `src/hashing.rs` | implementation detail or helper module | 6 | 0 |
-| `tests/batch_core.rs` | external behavior or integration test | 0 | 5 |
-| `src/batch.rs` | implementation detail or helper module | 1 | 0 |
-| `src/wire.rs` | implementation detail or helper module | 1 | 0 |
-
-### API Snapshot
-
-| Kind | Representative symbols |
-| --- | --- |
-| Types | BatchResult <br> VmExecutionReceipt <br> ExecutionError <br> BatchRequest +1 |
-| Functions | execute_batch_with <br> merkle_root <br> hash256 <br> hash_receipt +4 |
-| Trait | no public symbols scanned |
-| Constants | BATCH_WIRE_VERSION <br> DEFAULT_PER_TX_GAS_LIMIT |
-
-### Learning Path
-
-1. Start with the position diagram to understand why this crate exists and who calls it.
-2. Read the technical principles diagram to identify the invariants and responsibility boundary.
-3. Use the module map and API surface to identify the files and symbols to read first.
-4. Follow the workflow, dataflow, test, and dependency diagrams before changing code.
-5. Use the implementation atlas as the compact source-reading map when you want one dense view instead of separate technical views.
-
+1. Start with system position and conceptual architecture.
+2. Read technical principles, trust boundaries, and state model to understand correctness.
+3. Follow workflow and dataflow to see runtime movement.
+4. Use proof/evidence flow, integration map, and lifecycle for operational understanding.
 <!-- N4-CRATE-VISUAL-GUIDE:END -->

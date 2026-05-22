@@ -1,12 +1,12 @@
 flowchart TB
-    N1["1. Responsibility boundary: Rust client SDK for building tools and services that talk to Neo N4 APIs."]
-    N2["2. Core principles: Encode API requests | Handle bridge/proof models | Return typed results"]
-    N3["3. Input contract: developer app | gateway endpoint | wallet/config"]
-    N4["4. State and artifacts: typed client result | transaction request | query response"]
-    N5["5. Source evidence: 2 source files, 40 public symbols, 10 tests, 7 deps"]
-    N6["6. Test evidence: tests/integration.rs (10 tests)"]
-    N7["7. Dependency discipline: runtime 5, test 2, build 0, internal 0, external runtime 5"]
-    N8["8. Maintenance rule: Keep the boundary small, deterministic, and reproducible under tests."]
+    N1["1. Technical objective: Rust client SDK for building tools and services that talk to Neo N4 APIs."]
+    N2["2. Determinism: same configuration and user intent produce the same request or package"]
+    N3["3. Input constraints: developer app | gateway endpoint | wallet/config"]
+    N4["4. Transition rule: requests, configs, packages, or reports advance through checked stages"]
+    N5["5. Verifiable output: typed client result | transaction request | query response"]
+    N6["6. Minimal trust: trust validation and signing policy, not unchecked user input"]
+    N7["7. Layer separation: interface, encoding, network submission, and diagnostics are separated"]
+    N8["8. Observable evidence: command, config digest, network, output artifacts, and diagnostics"]
     N1 --> N2
     N1 --> N3
     N1 --> N4
@@ -14,11 +14,10 @@ flowchart TB
     N1 --> N6
     N1 --> N7
     N1 --> N8
-    N2 -. related .-> N3
-    N3 -. related .-> N4
-    N4 -. related .-> N5
-    N5 -. related .-> N6
-    N6 -. related .-> N7
-    N7 -. related .-> N8
-    classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
-    class N4 crate
+    N2 -. constrains .-> N4
+    N4 -. produces .-> N5
+    N5 -. consumed by .-> N6
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#e5f2ff,stroke-width:2px;
+    classDef support fill:#111827,stroke:#64748b,color:#f8fafc;
+    class N1 core;
+    class N2,N3,N4,N5,N6,N7,N8 support;

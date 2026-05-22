@@ -1,6 +1,6 @@
-# Neo N4 Crate Visual Guide
+# Neo N4 Crate Technical Visual Guide
 
-This index links every Rust crate to its own local visual learning guide. Each crate directory contains position, principles, architecture, workflow, dataflow, module, API, test, dependency, and implementation-atlas diagrams in English and Chinese, plus a source-level learning guide.
+This index links every Rust crate to its own local technical visual guide. Each crate directory contains these concept-first diagrams in English and Chinese: System Position, Technical Principles, Conceptual Architecture, Workflow, Data Flow, State Model, Proof and Evidence Flow, Trust Boundaries, Integration Map, Runtime Lifecycle. The diagrams explain architecture, principles, workflow, dataflow, state, evidence, trust, integration, and lifecycle rather than source-code implementation.
 
 | Crate | Path | Layer | Purpose |
 | --- | --- | --- | --- |

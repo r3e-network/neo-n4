@@ -1,13 +1,12 @@
 flowchart TB
-    N1["1. Architecture overview: neo-execution-core: 6 source files, 15 public symbols, 5 tests, 1 deps"]
-    N2["2. Entry contract: L2 batch | previous state root | execution parameters"]
-    N3["3. Public API layer: types 5 | functions 8 | traits 0 | constants 2"]
-    N4["4. Core implementation files: src/lib.rs (0 API/0 tests) | src/types.rs (7 API/0 tests) | src/hashing.rs (6 API/0 tests) | tests/batch_core.rs (0 API/5 tests) | src/batch.rs (1 API/0 tests)"]
-    N5["5. Modules and re-exports: src/lib.rs: mod batch | src/lib.rs: mod hashing | src/lib.rs: mod types | src/lib.rs: mod wire | src/lib.rs: pub use batch::execute_batch_with | +3"]
-    N6["6. Dependency boundary: sha2"]
-    N7["7. Output artifacts: execution trace | new state root | public proof inputs"]
-    N8["8. Test guardrails: tests/batch_core.rs (5 tests)"]
-    N9["9. System position: N4 batch execution core -> neo-zkvm-guest | neo-zkvm-host | gateway services"]
+    N1["1. Entry domain: L2 batch | previous state root | execution parameters"]
+    N2["2. Normalization: shape external inputs into a verifiable domain model"]
+    N3["3. Core mechanism: Validate batch shape | Apply deterministic transition | Commit new state root"]
+    N4["4. State and commitment: input digest, transition digest, and output digest"]
+    N5["5. Evidence or result: execution trace | new state root | public proof inputs"]
+    N6["6. Consumer boundary: neo-zkvm-guest | neo-zkvm-host | gateway services"]
+    N7["7. Failure path: input violates constraints or output cannot be verified"]
+    N8["8. Extension point: input adapters, output adapters, and monitoring surfaces"]
     N1 --> N2
     N1 --> N3
     N1 --> N4
@@ -15,13 +14,10 @@ flowchart TB
     N1 --> N6
     N1 --> N7
     N1 --> N8
-    N1 --> N9
-    N2 -. related .-> N3
-    N3 -. related .-> N4
-    N4 -. related .-> N5
-    N5 -. related .-> N6
-    N6 -. related .-> N7
-    N7 -. related .-> N8
-    N8 -. related .-> N9
-    classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
-    class N1 crate
+    N2 -. constrains .-> N4
+    N4 -. produces .-> N5
+    N5 -. consumed by .-> N6
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#e5f2ff,stroke-width:2px;
+    classDef support fill:#111827,stroke:#64748b,color:#f8fafc;
+    class N1 core;
+    class N2,N3,N4,N5,N6,N7,N8 support;

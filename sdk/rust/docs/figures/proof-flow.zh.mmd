@@ -1,0 +1,20 @@
+flowchart TB
+    N1["1. neo-n4-sdk: 证明与证据流说明技术声明如何变成可检查结果。"]
+    N2["2. 声明: 本单元完成了：编码 API 请求 | 处理桥/证明模型 | 返回强类型结果。"]
+    N3["3. 见证或输入: 开发者应用 | 网关端点 | 钱包/配置"]
+    N4["4. 执行或检查: 校验配置、编码结果、签名策略和目标响应"]
+    N5["5. 公开承诺: 请求摘要、网络 profile 和输出产物哈希"]
+    N6["6. 验证者: 应用 | 运维工具 | 集成测试"]
+    N7["7. 接受结果: 强类型客户端结果 | 交易请求 | 查询响应"]
+    N8["8. 拒绝结果: 返回诊断；不签名、不提交、不发布"]
+    N1 --> N2
+    N2 --> N3
+    N3 --> N4
+    N4 --> N5
+    N5 --> N6
+    N6 --> N7
+    N7 --> N8
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#e5f2ff,stroke-width:2px;
+    classDef support fill:#111827,stroke:#64748b,color:#f8fafc;
+    class N1 core;
+    class N2,N3,N4,N5,N6,N7,N8 support;

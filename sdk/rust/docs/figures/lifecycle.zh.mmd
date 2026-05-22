@@ -1,0 +1,20 @@
+flowchart TB
+    N1["1. neo-n4-sdk: 生命周期图说明技术单元如何进入可观测运行。"]
+    N2["2. 配置: 网络、账户、端点、输出格式、安全策略"]
+    N3["3. 输入接收: 开发者应用 | 网关端点 | 钱包/配置"]
+    N4["4. 规范化: 把命令、配置和文件整理成强类型操作"]
+    N5["5. 执行或验证: 编码 API 请求 | 处理桥/证明模型 | 返回强类型结果"]
+    N6["6. 提交或输出: 强类型客户端结果 | 交易请求 | 查询响应"]
+    N7["7. 消费联动: 应用 | 运维工具 | 集成测试"]
+    N8["8. 运维观测: 命令、配置摘要、网络、输出产物和诊断"]
+    N1 --> N2
+    N2 --> N3
+    N3 --> N4
+    N4 --> N5
+    N5 --> N6
+    N6 --> N7
+    N7 --> N8
+    classDef core fill:#0f172a,stroke:#38bdf8,color:#e5f2ff,stroke-width:2px;
+    classDef support fill:#111827,stroke:#64748b,color:#f8fafc;
+    class N1 core;
+    class N2,N3,N4,N5,N6,N7,N8 support;

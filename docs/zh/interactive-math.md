@@ -19,6 +19,11 @@ Neo N4 到底证明了什么、为什么这个证明边界可信的读者。
 - 证明聚合与 L1 结算策略；
 - NeoFS DA、桥资产记账和防重放 N4 安全检查。
 
+当前可视化模型包含一个 Proof Journey 动态剧场，用来跟踪一个执行声明如何从
+NeoVM 语义进入 RISC-V 周期、执行轨迹、约束、承诺、证明生成和 L1 验证。它还
+包含有限域圆环、Merkle 证明路径、trace 到 constraint 的矩阵，以及 prover /
+verifier 对话转录，帮助读者把每个数学对象和它在 N4 架构里的职责对应起来。
+
 该页面是静态页面：不需要构建步骤，不依赖外部网络，也不会连接钱包。数学模型
 位于 `docs/interactive-math/mathModel.js`，并由
 `node --test tests/interactive-math/math-model.test.mjs` 覆盖。

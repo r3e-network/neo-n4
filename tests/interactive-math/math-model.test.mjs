@@ -4,7 +4,12 @@ import assert from 'node:assert/strict';
 import {
   FIELD_PRIME,
   buildFieldSnapshot,
+  buildFieldVisualization,
+  buildJourneyVisualization,
   buildMerkleTree,
+  buildMerkleVisualization,
+  buildProofTranscript,
+  buildTraceConstraintMatrix,
   estimateProofPipeline,
   fieldInverse,
   fieldMul,
@@ -84,4 +89,54 @@ test('learning snapshot joins all interactive models into one stable state objec
   assert.equal(snapshot.neovm.result, 1);
   assert.equal(snapshot.riscv.result, 12);
   assert.ok(snapshot.proofEstimate.constraints > 0);
+});
+
+test('journey visualization maps the full execution proof route with active stages', () => {
+  const journey = buildJourneyVisualization({ activeLessonId: 'arithmetization', neoVmStep: 3, riscvStep: 2 });
+
+  assert.deepEqual(
+    journey.stages.map((stage) => stage.id),
+    ['neovm', 'riscv', 'trace', 'constraints', 'commitment', 'proof', 'settlement'],
+  );
+  assert.equal(journey.activeStageId, 'constraints');
+  assert.equal(journey.packet.stageId, 'constraints');
+  assert.ok(journey.stages.filter((stage) => stage.state === 'done').length >= 3);
+  assert.match(journey.packet.payload, /trace|constraint/i);
+});
+
+test('field visualization exposes ring coordinates, addition arc, multiplication hops, and inverse link', () => {
+  const visual = buildFieldVisualization(5, 9, FIELD_PRIME);
+
+  assert.equal(visual.points.length, FIELD_PRIME);
+  assert.equal(visual.addition.start, 5);
+  assert.equal(visual.addition.end, 14);
+  assert.equal(visual.multiplication.end, 11);
+  assert.equal(visual.inverse.value, 7);
+  assert.equal(visual.inverse.check, 1);
+  assert.ok(visual.points.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y)));
+});
+
+test('Merkle visualization marks selected leaf, sibling proof path, and root path', () => {
+  const visual = buildMerkleVisualization(['tx:deposit', 'tx:mint', 'tx:swap', 'tx:withdraw'], 2);
+
+  assert.equal(visual.root.hash, visual.levels.at(-1)[0].hash);
+  assert.equal(visual.selectedLeaf.leaf, 'tx:swap');
+  assert.equal(visual.path.length, 3);
+  assert.equal(visual.path.at(-1).role, 'root');
+  assert.ok(visual.edges.some((edge) => edge.kind === 'proof'));
+  assert.equal(visual.verifies, true);
+});
+
+test('trace constraint matrix and proof transcript explain arithmetization and verifier dialogue', () => {
+  const neovm = runNeoVmTrace(sampleNeoVmProgram, 4);
+  const riscv = runRiscVTrace(sampleRiscVProgram, 3);
+  const proofEstimate = estimateProofPipeline({ cycles: 64, memoryOps: 12, publicInputs: 6, aggregation: 2 });
+  const matrix = buildTraceConstraintMatrix({ neovmTrace: neovm.trace, riscvTrace: riscv.trace, proofEstimate });
+  const transcript = buildProofTranscript({ proofEstimate, publicInputRoot: '52', aggregateCount: 2 });
+
+  assert.deepEqual(matrix.columns, ['row', 'pc', 'operation', 'state delta', 'constraint', 'status']);
+  assert.ok(matrix.rows.some((row) => row.constraint.includes('pc')));
+  assert.ok(matrix.rows.some((row) => row.status === 'active'));
+  assert.deepEqual(transcript.steps.map((step) => step.actor), ['L2 executor', 'Prover', 'Verifier', 'NeoHub']);
+  assert.equal(transcript.publicInputs.root, '52');
 });

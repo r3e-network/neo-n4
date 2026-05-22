@@ -21,6 +21,8 @@ const copy = {
     coreClaim: '核心声明',
     pipelineTitle: '从执行到证明的完整链路',
     pipelineBody: '这条链路展示 Neo N4 如何把 L2 状态转换变成 L1 可验证的 public inputs。',
+    mathTheaterTitle: 'Proof Journey 动态剧场',
+    mathTheaterBody: '观察一个执行声明如何从 opcode 和 RISC-V 周期，逐步变成 trace、约束、承诺、证明和 L1 验证。',
     fieldTitle: '有限域算术实验',
     fieldBody: 'ZK 约束通常工作在质数域上。拖动 a 和 b，观察加法、乘法和逆元如何取模。',
     commitTitle: '承诺与 Merkle Root',
@@ -31,6 +33,8 @@ const copy = {
     riscvBody: 'RISC-V 把执行拆成寄存器、内存和 pc 的小步转换，适合 zkVM 和 PolkaVM 类宿主处理。',
     proofTitle: 'zkVM 证明成本直觉',
     proofBody: '这不是 benchmark，而是教学模型：trace 越长、memory access 越多，约束和证明工作越多。',
+    constraintMatrixTitle: 'Trace -> Constraint Matrix',
+    proofTranscriptTitle: 'Prover / Verifier 对话',
     principleTitle: '本章技术原则',
     conceptNote: '阅读方式：先看左侧章节，再拖动实验控件；每个数字都是为了说明结构，不代表生产参数。',
     stepAll: '全部前进一步',
@@ -65,6 +69,8 @@ const copy = {
     coreClaim: 'Core claim',
     pipelineTitle: 'Execution-to-proof pipeline',
     pipelineBody: 'This pipeline shows how Neo N4 turns an L2 transition into L1-verifiable public inputs.',
+    mathTheaterTitle: 'Proof Journey Theater',
+    mathTheaterBody: 'Watch an execution claim move from opcode and RISC-V cycles into traces, constraints, commitments, proofs, and L1 verification.',
     fieldTitle: 'Finite-field arithmetic lab',
     fieldBody: 'ZK constraints usually live over a prime field. Move a and b to see modular addition, multiplication, and inverse checks.',
     commitTitle: 'Commitments and Merkle roots',
@@ -75,6 +81,8 @@ const copy = {
     riscvBody: 'RISC-V execution decomposes into register, memory, and pc transitions that zkVMs and PolkaVM-style hosts can handle.',
     proofTitle: 'zkVM proof cost intuition',
     proofBody: 'This is a teaching model, not a benchmark: longer traces and more memory accesses increase constraints and proving work.',
+    constraintMatrixTitle: 'Trace -> Constraint Matrix',
+    proofTranscriptTitle: 'Prover / Verifier Dialogue',
     principleTitle: 'Technical principle',
     conceptNote: 'How to read this page: pick a lesson, then move the controls. Numbers are structural teaching values, not production parameters.',
     stepAll: 'Step all',
@@ -111,12 +119,16 @@ const els = {
   lessonPrinciple: document.querySelector('[data-lesson-principle]'),
   checkpoints: document.querySelector('[data-checkpoints]'),
   pipeline: document.querySelector('[data-pipeline]'),
+  journeyCanvas: document.querySelector('[data-journey-canvas]'),
+  journeyNarration: document.querySelector('[data-journey-narration]'),
   fieldA: document.querySelector('[data-field-a]'),
   fieldB: document.querySelector('[data-field-b]'),
   fieldPrime: document.querySelector('[data-field-prime]'),
+  fieldClock: document.querySelector('[data-field-clock]'),
   fieldRuler: document.querySelector('[data-field-ruler]'),
   fieldOutput: document.querySelector('[data-field-output]'),
   merkleTree: document.querySelector('[data-merkle-tree]'),
+  merkleProofPath: document.querySelector('[data-merkle-proof-path]'),
   merkleOutput: document.querySelector('[data-merkle-output]'),
   neovmProgram: document.querySelector('[data-neovm-program]'),
   neovmStack: document.querySelector('[data-neovm-stack]'),
@@ -127,6 +139,8 @@ const els = {
   proofMemory: document.querySelector('[data-proof-memory]'),
   proofInputs: document.querySelector('[data-proof-inputs]'),
   proofAggregation: document.querySelector('[data-proof-aggregation]'),
+  constraintMatrix: document.querySelector('[data-constraint-matrix]'),
+  proofTranscript: document.querySelector('[data-proof-transcript]'),
   proofOutput: document.querySelector('[data-proof-output]'),
 };
 
@@ -284,6 +298,7 @@ function renderDynamic() {
     return li;
   }));
 
+  renderJourney(snapshot);
   renderField(snapshot);
   renderMerkle(snapshot);
   renderNeoVm(snapshot);
@@ -293,8 +308,78 @@ function renderDynamic() {
   renderStaticPrograms();
 }
 
+function renderJourney(snapshot) {
+  const { journey } = snapshot;
+  const stageById = Object.fromEntries(journey.stages.map((stage) => [stage.id, stage]));
+  const svgEl = svg('svg', {
+    viewBox: '0 0 100 100',
+    role: 'img',
+    'aria-label': 'Execution to proof journey',
+  });
+  const defs = svg('defs');
+  const marker = svg('marker', {
+    id: 'journey-arrow',
+    markerWidth: '7',
+    markerHeight: '7',
+    refX: '6',
+    refY: '3.5',
+    orient: 'auto',
+  });
+  marker.append(svg('path', { d: 'M0,0 L7,3.5 L0,7 Z', class: 'journey-arrow' }));
+  defs.append(marker);
+  svgEl.append(defs);
+
+  for (const link of journey.links) {
+    const from = stageById[link.from].position;
+    const to = stageById[link.to].position;
+    const midX = (from.x + to.x) / 2;
+    const midY = (from.y + to.y) / 2 - 12;
+    svgEl.append(svg('path', {
+      class: `journey-link ${link.state}`,
+      d: `M ${from.x} ${from.y} Q ${midX} ${midY} ${to.x} ${to.y}`,
+      'marker-end': 'url(#journey-arrow)',
+    }));
+  }
+
+  for (const stage of journey.stages) {
+    const group = svg('g', {
+      class: `journey-node ${stage.state}`,
+      transform: `translate(${stage.position.x} ${stage.position.y})`,
+    });
+    group.append(
+      svg('circle', { r: stage.state === 'active' ? 5.9 : 4.9 }),
+      svg('text', { x: 0, y: -8.2, 'text-anchor': 'middle' }, journeyCanvasLabel(stage)),
+    );
+    svgEl.append(group);
+  }
+
+  const packet = journey.packet;
+  const packetGroup = svg('g', {
+    class: 'journey-packet',
+    transform: `translate(${packet.x} ${packet.y})`,
+  });
+  packetGroup.append(
+    svg('circle', { r: 2.7 }),
+    svg('text', { x: 0, y: 5.8, 'text-anchor': 'middle' }, 'claim'),
+  );
+  svgEl.append(packetGroup);
+  els.journeyCanvas.replaceChildren(svgEl);
+
+  els.journeyNarration.replaceChildren(...journey.stages.map((stage, index) => {
+    const item = document.createElement('section');
+    item.className = `journey-note ${stage.state}`;
+    item.innerHTML = `
+      <span>${String(index + 1).padStart(2, '0')}</span>
+      <strong>${state.language === 'zh' ? stage.zhLabel : stage.label}</strong>
+      <small>${stage.payload}</small>
+    `;
+    return item;
+  }));
+}
+
 function renderField(snapshot) {
   const dict = copy[state.language];
+  renderFieldClock(snapshot.fieldVisual);
   els.fieldPrime.textContent = `F_${FIELD_PRIME}`;
   els.fieldRuler.replaceChildren(...snapshot.field.ruler.map((value) => {
     const item = document.createElement('span');
@@ -314,8 +399,61 @@ function renderField(snapshot) {
   ]);
 }
 
+function renderFieldClock(fieldVisual) {
+  const pointByValue = Object.fromEntries(fieldVisual.points.map((point) => [point.value, point]));
+  const svgEl = svg('svg', {
+    viewBox: '0 0 100 100',
+    role: 'img',
+    'aria-label': 'Finite-field modular arithmetic clock',
+  });
+  svgEl.append(svg('circle', {
+    cx: fieldVisual.center.x,
+    cy: fieldVisual.center.y,
+    r: fieldVisual.radius,
+    class: 'field-ring',
+  }));
+  for (const hop of fieldVisual.multiplication.hops) {
+    const from = pointByValue[hop.from];
+    const to = pointByValue[hop.to];
+    svgEl.append(svg('line', {
+      x1: from.x,
+      y1: from.y,
+      x2: to.x,
+      y2: to.y,
+      class: 'field-hop',
+    }));
+  }
+  const start = pointByValue[fieldVisual.addition.start];
+  const end = pointByValue[fieldVisual.addition.end];
+  svgEl.append(svg('path', {
+    d: `M ${start.x} ${start.y} A ${fieldVisual.radius} ${fieldVisual.radius} 0 0 1 ${end.x} ${end.y}`,
+    class: 'field-add-arc',
+  }));
+  if (fieldVisual.inverse.value !== null) {
+    const inverse = pointByValue[fieldVisual.inverse.value];
+    svgEl.append(svg('line', {
+      x1: start.x,
+      y1: start.y,
+      x2: inverse.x,
+      y2: inverse.y,
+      class: 'field-inverse-link',
+    }));
+  }
+  for (const point of fieldVisual.points) {
+    const group = svg('g', { class: `field-point ${point.role}`, transform: `translate(${point.x} ${point.y})` });
+    group.append(svg('circle', { r: point.role === 'field' ? 2 : 3.5 }), svg('text', { y: 0.9, 'text-anchor': 'middle' }, String(point.value)));
+    svgEl.append(group);
+  }
+  svgEl.append(
+    svg('text', { x: 50, y: 51, 'text-anchor': 'middle', class: 'field-clock-label' }, fieldVisual.addition.equation),
+    svg('text', { x: 50, y: 58, 'text-anchor': 'middle', class: 'field-clock-label muted' }, fieldVisual.inverse.equation),
+  );
+  els.fieldClock.replaceChildren(svgEl);
+}
+
 function renderMerkle(snapshot) {
-  const { tree } = snapshot.merkle;
+  const { tree, visual } = snapshot.merkle;
+  const pathKeys = new Set(visual.path.map((node) => `${node.level}:${node.index}`));
   const rows = tree.levels.map((level, levelIndex) => {
     const group = document.createElement('div');
     group.className = 'merkle-level';
@@ -323,7 +461,10 @@ function renderMerkle(snapshot) {
     group.replaceChildren(...level.map((hash, index) => {
       const node = document.createElement('button');
       node.type = 'button';
-      node.className = levelIndex === 0 && index === state.merkleIndex ? 'is-selected' : '';
+      node.className = [
+        levelIndex === 0 && index === state.merkleIndex ? 'is-selected' : '',
+        pathKeys.has(`${levelIndex}:${index}`) ? 'is-proof-path' : '',
+      ].filter(Boolean).join(' ');
       node.textContent = String(hash);
       if (levelIndex === 0) {
         node.title = tree.leaves[index];
@@ -337,6 +478,12 @@ function renderMerkle(snapshot) {
     return group;
   });
   els.merkleTree.replaceChildren(...rows);
+  els.merkleProofPath.replaceChildren(...visual.path.map((node) => {
+    const item = document.createElement('span');
+    item.className = node.role;
+    item.textContent = `${node.role}: ${node.hash}`;
+    return item;
+  }));
 
   const proof = merkleProof(buildMerkleTree(state.merkleLeaves), state.merkleIndex);
   const verifies = verifyMerkleProof(state.merkleLeaves[state.merkleIndex], proof, tree.root, tree.prime);
@@ -398,6 +545,8 @@ function renderRiscV(snapshot) {
 function renderProof(snapshot) {
   const dict = copy[state.language];
   const estimate = snapshot.proofEstimate;
+  renderConstraintMatrix(snapshot.constraintMatrix);
+  renderProofTranscript(snapshot.proofTranscript);
   renderDefinitionList(els.proofOutput, [
     [dict.traceRows, String(estimate.traceRows)],
     [dict.constraints, String(estimate.constraints)],
@@ -406,6 +555,41 @@ function renderProof(snapshot) {
     [dict.proofBytes, `${estimate.proofBytes} B`],
     ['note', estimate.note],
   ]);
+}
+
+function renderConstraintMatrix(matrix) {
+  const rows = matrix.rows.length === 0
+    ? [
+      { row: 'N0', operation: 'NeoVM step', constraint: 'Step NeoVM to materialize opcode constraints.', status: 'pending' },
+      { row: 'R0', operation: 'RISC-V cycle', constraint: 'Step RISC-V to materialize register and memory constraints.', status: 'pending' },
+    ]
+    : matrix.rows.slice(-6);
+  els.constraintMatrix.replaceChildren(...rows.map((row) => {
+    const item = document.createElement('div');
+    item.className = `constraint-row ${row.status}`;
+    item.innerHTML = `
+      <span>${row.row}</span>
+      <strong>${row.operation}</strong>
+      <small>${row.constraint}</small>
+    `;
+    return item;
+  }));
+}
+
+function renderProofTranscript(transcript) {
+  els.proofTranscript.replaceChildren(...transcript.steps.map((step, index) => {
+    const item = document.createElement('section');
+    item.className = 'proof-step';
+    item.innerHTML = `
+      <span>${String(index + 1).padStart(2, '0')}</span>
+      <div>
+        <strong>${step.actor}</strong>
+        <em>${step.action}</em>
+        <small>${step.payload}</small>
+      </div>
+    `;
+    return item;
+  }));
 }
 
 function syncStateFromInputs() {
@@ -445,4 +629,33 @@ function createMetricBlock(label, value) {
 
 function formatArray(values) {
   return `[${values.join(', ')}]`;
+}
+
+function journeyCanvasLabel(stage) {
+  const zh = {
+    neovm: 'NeoVM',
+    riscv: 'RISC-V',
+    trace: 'Trace',
+    constraints: '约束',
+    commitment: '承诺',
+    proof: 'Proof',
+    settlement: 'L1',
+  };
+  const en = {
+    neovm: 'NeoVM',
+    riscv: 'RISC-V',
+    trace: 'Trace',
+    constraints: 'Constraints',
+    commitment: 'Commit',
+    proof: 'Proof',
+    settlement: 'L1',
+  };
+  return state.language === 'zh' ? zh[stage.id] : en[stage.id];
+}
+
+function svg(name, attrs = {}, text = undefined) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', name);
+  for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value);
+  if (text !== undefined) el.textContent = text;
+  return el;
 }

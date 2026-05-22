@@ -168,6 +168,70 @@ export const pipelineStages = [
   },
 ];
 
+export const journeyStages = [
+  {
+    id: 'neovm',
+    label: 'NeoVM semantics',
+    zhLabel: 'NeoVM 语义',
+    position: { x: 9, y: 46 },
+    payload: 'opcode transition',
+  },
+  {
+    id: 'riscv',
+    label: 'NeoVM2/RISC-V cycles',
+    zhLabel: 'NeoVM2/RISC-V 周期',
+    position: { x: 24, y: 28 },
+    payload: 'pc + registers + memory',
+  },
+  {
+    id: 'trace',
+    label: 'Execution trace',
+    zhLabel: '执行轨迹',
+    position: { x: 39, y: 58 },
+    payload: 'ordered trace rows',
+  },
+  {
+    id: 'constraints',
+    label: 'Field constraints',
+    zhLabel: '有限域约束',
+    position: { x: 54, y: 30 },
+    payload: 'trace constraints = 0',
+  },
+  {
+    id: 'commitment',
+    label: 'Commitments',
+    zhLabel: '承诺',
+    position: { x: 68, y: 60 },
+    payload: 'root + public inputs',
+  },
+  {
+    id: 'proof',
+    label: 'zkVM proof',
+    zhLabel: 'zkVM 证明',
+    position: { x: 82, y: 34 },
+    payload: 'succinct proof bytes',
+  },
+  {
+    id: 'settlement',
+    label: 'L1 verify',
+    zhLabel: 'L1 验证',
+    position: { x: 94, y: 52 },
+    payload: 'accept state root',
+  },
+];
+
+const lessonToJourneyStage = {
+  'stack-map': 'neovm',
+  'finite-fields': 'constraints',
+  commitments: 'commitment',
+  neovm: 'neovm',
+  riscv: 'riscv',
+  arithmetization: 'constraints',
+  'zk-proofs': 'proof',
+  aggregation: 'proof',
+  'n4-security': 'settlement',
+};
+
 export const sampleNeoVmProgram = [
   { op: 'PUSH', value: 2, doc: 'Push first operand.' },
   { op: 'PUSH', value: 3, doc: 'Push second operand.' },
@@ -248,6 +312,79 @@ export function buildFieldSnapshot(a, b, prime = FIELD_PRIME) {
   };
 }
 
+export function buildJourneyVisualization({ activeLessonId = 'stack-map', neoVmStep = 0, riscvStep = 0 } = {}) {
+  const activeStageId = lessonToJourneyStage[activeLessonId] ?? 'neovm';
+  const activeIndex = journeyStages.findIndex((stage) => stage.id === activeStageId);
+  const stages = journeyStages.map((stage, index) => ({
+    ...stage,
+    state: index < activeIndex ? 'done' : index === activeIndex ? 'active' : 'pending',
+  }));
+  const packetStage = stages[activeIndex] ?? stages[0];
+  return {
+    stages,
+    links: stages.slice(0, -1).map((stage, index) => ({
+      from: stage.id,
+      to: stages[index + 1].id,
+      state: index < activeIndex ? 'done' : index === activeIndex ? 'active' : 'pending',
+    })),
+    activeStageId: packetStage.id,
+    packet: {
+      stageId: packetStage.id,
+      payload: `${packetStage.payload}; NeoVM step ${neoVmStep}; RISC-V cycle ${riscvStep}`,
+      x: packetStage.position.x,
+      y: packetStage.position.y,
+    },
+  };
+}
+
+export function buildFieldVisualization(a, b, prime = FIELD_PRIME) {
+  const field = buildFieldSnapshot(a, b, prime);
+  const center = { x: 50, y: 50 };
+  const radius = 42;
+  const points = field.ruler.map((value) => {
+    const angle = ((value / prime) * Math.PI * 2) - Math.PI / 2;
+    return {
+      value,
+      x: round(center.x + Math.cos(angle) * radius),
+      y: round(center.y + Math.sin(angle) * radius),
+      angle,
+      role: value === field.a ? 'a' : value === field.b ? 'b' : value === field.add ? 'sum' : value === field.mul ? 'product' : 'field',
+    };
+  });
+  const multiplicationHops = [];
+  let cursor = 0;
+  for (let i = 0; i < field.b; i += 1) {
+    const next = fieldAdd(cursor, field.a, prime);
+    multiplicationHops.push({ from: cursor, to: next, addend: field.a });
+    cursor = next;
+  }
+  return {
+    prime,
+    center,
+    radius,
+    points,
+    addition: {
+      start: field.a,
+      addend: field.b,
+      end: field.add,
+      equation: `${field.a} + ${field.b} = ${field.add} mod ${prime}`,
+    },
+    multiplication: {
+      start: 0,
+      addend: field.a,
+      times: field.b,
+      end: field.mul,
+      hops: multiplicationHops,
+      equation: `${field.a} * ${field.b} = ${field.mul} mod ${prime}`,
+    },
+    inverse: {
+      value: field.inverse,
+      check: field.inverseCheck,
+      equation: field.inverse === null ? '0 has no inverse' : `${field.a} * ${field.inverse} = ${field.inverseCheck} mod ${prime}`,
+    },
+  };
+}
+
 export function toyHash(values, prime = 257) {
   const bytes = Array.isArray(values) ? values : String(values).split('').map((char) => char.charCodeAt(0));
   let acc = 73;
@@ -307,6 +444,49 @@ export function verifyMerkleProof(leaf, proof, expectedRoot, prime = 257) {
       : toyHashPair(item.sibling, hash, prime);
   }
   return hash === expectedRoot;
+}
+
+export function buildMerkleVisualization(leaves, leafIndex, prime = 257) {
+  const tree = buildMerkleTree(leaves, prime);
+  const proof = merkleProof(tree, leafIndex);
+  const levels = tree.levels.map((level, levelIndex) => level.map((hash, index) => ({
+    hash,
+    index,
+    level: levelIndex,
+    leaf: levelIndex === 0 ? tree.leaves[index] : undefined,
+    x: round(((index + 1) / (level.length + 1)) * 100),
+    y: round(88 - levelIndex * 34),
+    role: 'node',
+  })));
+  const path = [{ ...levels[0][leafIndex], role: 'selected' }];
+  let cursor = leafIndex;
+  for (let levelIndex = 0; levelIndex < tree.levels.length - 1; levelIndex += 1) {
+    const siblingIndex = cursor % 2 === 0 ? cursor + 1 : cursor - 1;
+    const sibling = levels[levelIndex][siblingIndex] ?? levels[levelIndex][cursor];
+    path.push({ ...sibling, role: 'sibling' });
+    cursor = Math.floor(cursor / 2);
+  }
+  path[path.length - 1] = { ...levels.at(-1)[0], role: 'root' };
+  const pathKeys = new Set(path.map((node) => `${node.level}:${node.index}`));
+  const edges = [];
+  for (let levelIndex = 0; levelIndex < levels.length - 1; levelIndex += 1) {
+    for (const child of levels[levelIndex]) {
+      const parent = levels[levelIndex + 1][Math.floor(child.index / 2)];
+      edges.push({
+        from: `${child.level}:${child.index}`,
+        to: `${parent.level}:${parent.index}`,
+        kind: pathKeys.has(`${child.level}:${child.index}`) || pathKeys.has(`${parent.level}:${parent.index}`) ? 'proof' : 'tree',
+      });
+    }
+  }
+  return {
+    levels,
+    edges,
+    path,
+    selectedLeaf: levels[0][leafIndex],
+    root: levels.at(-1)[0],
+    verifies: verifyMerkleProof(tree.leaves[leafIndex], proof, tree.root, tree.prime),
+  };
 }
 
 export function runNeoVmTrace(program = sampleNeoVmProgram, until = program.length, prime = FIELD_PRIME) {
@@ -494,6 +674,67 @@ export function estimateProofPipeline({ cycles = 64, memoryOps = 12, publicInput
   };
 }
 
+export function buildTraceConstraintMatrix({ neovmTrace = [], riscvTrace = [], proofEstimate = estimateProofPipeline() } = {}) {
+  const neovmRows = neovmTrace.map((row) => ({
+    row: `N${row.step}`,
+    pc: row.pc,
+    operation: row.value === undefined ? row.op : `${row.op} ${row.value}`,
+    'state delta': `${formatStack(row.before)} -> ${formatStack(row.after)}`,
+    constraint: row.constraint,
+    status: row.step === neovmTrace.length - 1 ? 'active' : 'satisfied',
+  }));
+  const riscvRows = riscvTrace.map((row) => ({
+    row: `R${row.cycle}`,
+    pc: row.pc,
+    operation: row.instruction,
+    'state delta': changedRegisters(row.before.regs, row.after.regs).join(', ') || `pc ${row.before.pc}->${row.after.pc}`,
+    constraint: row.constraint,
+    status: row.cycle === riscvTrace.length - 1 ? 'active' : 'satisfied',
+  }));
+  return {
+    columns: ['row', 'pc', 'operation', 'state delta', 'constraint', 'status'],
+    rows: [...neovmRows, ...riscvRows],
+    summary: {
+      traceRows: proofEstimate.traceRows,
+      constraints: proofEstimate.constraints,
+      activeRows: [...neovmRows, ...riscvRows].filter((row) => row.status === 'active').length,
+    },
+  };
+}
+
+export function buildProofTranscript({ proofEstimate = estimateProofPipeline(), publicInputRoot = '0', aggregateCount = 1 } = {}) {
+  return {
+    publicInputs: {
+      root: String(publicInputRoot),
+      traceRows: proofEstimate.traceRows,
+      constraints: proofEstimate.constraints,
+      aggregateCount,
+    },
+    steps: [
+      {
+        actor: 'L2 executor',
+        action: 'Commit public inputs',
+        payload: `state root ${publicInputRoot}; ${proofEstimate.traceRows} trace rows`,
+      },
+      {
+        actor: 'Prover',
+        action: 'Prove witness satisfies constraints',
+        payload: `${proofEstimate.constraints} constraints -> ${proofEstimate.proofBytes} bytes`,
+      },
+      {
+        actor: 'Verifier',
+        action: 'Check proof against vk and inputs',
+        payload: `${proofEstimate.verifierChecks} verifier checks`,
+      },
+      {
+        actor: 'NeoHub',
+        action: 'Accept or reject settlement update',
+        payload: aggregateCount > 1 ? `${aggregateCount} proofs aggregated before L1` : 'single L2 proof submitted',
+      },
+    ],
+  };
+}
+
 export function makeLearningSnapshot({
   activeLessonId = 'stack-map',
   fieldA = 5,
@@ -509,23 +750,31 @@ export function makeLearningSnapshot({
 } = {}) {
   const tree = buildMerkleTree(merkleLeaves);
   const proof = merkleProof(tree, merkleIndex);
+  const neovm = runNeoVmTrace(sampleNeoVmProgram, neoVmStep);
+  const riscv = runRiscVTrace(sampleRiscVProgram, riscvStep);
+  const proofEstimate = estimateProofPipeline({
+    cycles: proofCycles,
+    memoryOps: proofMemoryOps,
+    publicInputs: proofPublicInputs,
+    aggregation: proofAggregation,
+  });
   return {
     activeLesson: getLesson(activeLessonId),
     field: buildFieldSnapshot(fieldA, fieldB),
+    fieldVisual: buildFieldVisualization(fieldA, fieldB),
     merkle: {
       tree,
       proof,
       verifies: verifyMerkleProof(merkleLeaves[merkleIndex], proof, tree.root, tree.prime),
       selectedLeaf: merkleLeaves[merkleIndex],
+      visual: buildMerkleVisualization(merkleLeaves, merkleIndex),
     },
-    neovm: runNeoVmTrace(sampleNeoVmProgram, neoVmStep),
-    riscv: runRiscVTrace(sampleRiscVProgram, riscvStep),
-    proofEstimate: estimateProofPipeline({
-      cycles: proofCycles,
-      memoryOps: proofMemoryOps,
-      publicInputs: proofPublicInputs,
-      aggregation: proofAggregation,
-    }),
+    neovm,
+    riscv,
+    proofEstimate,
+    journey: buildJourneyVisualization({ activeLessonId, neoVmStep, riscvStep }),
+    constraintMatrix: buildTraceConstraintMatrix({ neovmTrace: neovm.trace, riscvTrace: riscv.trace, proofEstimate }),
+    proofTranscript: buildProofTranscript({ proofEstimate, publicInputRoot: String(tree.root), aggregateCount: proofAggregation }),
   };
 }
 
@@ -533,4 +782,18 @@ function nextPowerOfTwo(value) {
   let current = 1;
   while (current < value) current *= 2;
   return current;
+}
+
+function changedRegisters(before, after) {
+  return Object.keys(after)
+    .filter((name) => before[name] !== after[name])
+    .map((name) => `${name}: ${before[name]}->${after[name]}`);
+}
+
+function formatStack(values) {
+  return `[${values.join(',')}]`;
+}
+
+function round(value) {
+  return Math.round(value * 100) / 100;
 }

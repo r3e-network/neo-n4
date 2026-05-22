@@ -943,64 +943,309 @@ def sentence(en: str, zh: str, lang: str) -> str:
     return zh if lang == "zh" else en
 
 
-def write_svg(path: Path, crate_name: str, spec: DiagramSpec, nodes: list[tuple[str, str]], lang: str) -> None:
-    width = 1760
-    columns = 3
-    gap_x = 38
-    gap_y = 30
-    box_w = 500
-    box_h = 168
-    rows_count = max(1, (len(nodes) + columns - 1) // columns)
-    height = 210 + rows_count * box_h + (rows_count - 1) * gap_y + 96
-    panel_h = height - 68
-    title = spec.title_zh if lang == "zh" else spec.title_en
-    subtitle = "Neo N4 技术原理学习图" if lang == "zh" else "Neo N4 technical learning diagram"
-    palette = {
-        "position": ("#22c55e", "#052e1a"),
-        "principles": ("#f59e0b", "#3a2500"),
-        "architecture": ("#38bdf8", "#082f49"),
-        "workflow": ("#a78bfa", "#2e1065"),
-        "dataflow": ("#14b8a6", "#042f2e"),
-        "state-model": ("#60a5fa", "#0b2451"),
-        "proof-flow": ("#f97316", "#3b1700"),
-        "trust-boundaries": ("#fb7185", "#4c0519"),
-        "integration-map": ("#34d399", "#052e2b"),
-        "lifecycle": ("#c084fc", "#341455"),
+def localized_figure_terms(lang: str) -> dict[str, str]:
+    if lang == "zh":
+        return {
+            "read_as": "读图方式：",
+            "not_impl": "技术原理图，不是实现图",
+            "boundary": "边界",
+            "outside": "不负责",
+            "boundary_model": "边界模型",
+            "boundary_sub": "谁可以输入、谁被信任、谁消费结果",
+            "formal_model": "形式化技术模型",
+            "formal_sub": "把组件看成可验证状态转换",
+            "protocol_path": "协议 / 数据 / 证明路径",
+            "protocol_sub": "关键对象如何穿过执行、提交、证明和消费边界",
+            "review_table": "正确性与运维检查表",
+            "review_sub": "读者审计这张图时应检查的条件",
+            "inputs": "输入域",
+            "consumers": "消费方",
+            "trust_boundary": "信任边界",
+            "commit_boundary": "承诺边界",
+            "boundary_note": "中间区域只接受规范输入，并只输出可复核的承诺或证据。",
+            "evidence": "证据",
+            "step": "步骤",
+            "proof_path_note": "虚线路径表示证明、见证、审计或可观测证据",
+            "extension": "扩展点",
+            "determinism": "确定性",
+            "authorization": "授权",
+            "faults": "拒绝路径",
+            "observability": "可观测性",
+            "solid": "实线：数据 / 状态转移",
+            "dashed": "虚线：证明 / 观测",
+            "fault": "红线：拒绝 / 故障",
+        }
+    return {
+        "read_as": "Read as:",
+        "not_impl": "technical-principle figure, not implementation inventory",
+        "boundary": "Boundary",
+        "outside": "Out of scope",
+        "boundary_model": "Boundary Model",
+        "boundary_sub": "who may input, who is trusted, and who consumes the result",
+        "formal_model": "Formal Technical Model",
+        "formal_sub": "treat the component as a verifiable state transition",
+        "protocol_path": "Protocol / Data / Proof Path",
+        "protocol_sub": "how objects cross execution, commitment, proof, and consumption boundaries",
+        "review_table": "Correctness and Operations Checklist",
+        "review_sub": "conditions a reader should verify while reading the figure",
+        "inputs": "Input domain",
+        "consumers": "Consumers",
+        "trust_boundary": "trust boundary",
+        "commit_boundary": "commitment boundary",
+        "boundary_note": "The center accepts canonical input and emits independently checkable commitments or evidence.",
+        "evidence": "Evidence",
+        "step": "step",
+        "proof_path_note": "Dashed path denotes proof, witness, audit, or observable evidence",
+        "extension": "Extension point",
+        "determinism": "Determinism",
+        "authorization": "Authorization",
+        "faults": "Rejection path",
+        "observability": "Observability",
+        "solid": "solid: data / state transition",
+        "dashed": "dashed: proof / observation",
+        "fault": "red: rejection / fault",
     }
-    accent, fill = palette[spec.slug]
+
+
+def panel_shell(x: int, y: int, w: int, h: int, letter: str, title: str, subtitle: str, accent: str, light: str) -> list[str]:
+    return [
+        f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="10" class="panel"/>',
+        f'<rect x="{x}" y="{y}" width="{w}" height="54" rx="10" fill="{light}" stroke="#cbd5e1" stroke-width="0"/>',
+        f'<circle cx="{x + 30}" cy="{y + 28}" r="16" fill="{accent}"/>',
+        f'<text x="{x + 30}" y="{y + 33}" text-anchor="middle" class="label">{escape(letter)}</text>',
+        f'<text x="{x + 58}" y="{y + 32}" class="panelTitle">{escape(title)}</text>',
+        f'<text x="{x + 58}" y="{y + 52}" class="panelSub">{escape(subtitle)}</text>',
+    ]
+
+
+def svg_box(
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+    title: str,
+    body: str,
+    fill: str,
+    stroke: str,
+    eyebrow: str = "",
+    *,
+    max_lines: int = 4,
+    wrap: int = 28,
+) -> list[str]:
+    lines = wrap_text(body, wrap)[:max_lines]
+    parts = [
+        f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="8" fill="{fill}" stroke="{stroke}" stroke-width="1.5"/>',
+        f'<text x="{x + 14}" y="{y + 26}" class="bodyStrong">{escape(title)}</text>',
+    ]
+    if eyebrow:
+        parts.append(f'<text x="{x + 14}" y="{y + 48}" class="small">{escape(eyebrow)}</text>')
+        line_y = y + 76
+    else:
+        line_y = y + 58
+    for idx, line in enumerate(lines):
+        parts.append(f'<text x="{x + 14}" y="{line_y + idx * 19}" class="body">{escape(line)}</text>')
+    return parts
+
+
+def svg_formula_strip(x: int, y: int, w: int, h: int, formula: str, accent: str, fill: str) -> list[str]:
+    return [
+        f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="8" fill="{fill}" stroke="{accent}" stroke-width="1.5"/>',
+        f'<text x="{x + 20}" y="{y + 42}" class="mono">{escape(formula)}</text>',
+    ]
+
+
+def numbered_band(x: int, y: int, w: int, h: int, idx: int, title: str, body: str, accent: str, fill: str) -> list[str]:
+    body_line = wrap_text(body, 58)[0] if body else ""
+    return [
+        f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>',
+        f'<circle cx="{x + 25}" cy="{y + 26}" r="15" fill="{accent}"/>',
+        f'<text x="{x + 25}" y="{y + 31}" text-anchor="middle" class="label">{idx}</text>',
+        f'<text x="{x + 50}" y="{y + 22}" class="bodyStrong">{escape(title)}</text>',
+        f'<text x="{x + 50}" y="{y + 42}" class="small">{escape(body_line)}</text>',
+    ]
+
+
+def protocol_node(
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+    idx: int | str,
+    title: str,
+    body: str,
+    accent: str,
+    fill: str,
+    *,
+    max_lines: int = 4,
+) -> list[str]:
+    lines = wrap_text(body, 17)[:max_lines]
+    parts = [
+        f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="8" fill="{fill}" stroke="{accent}" stroke-width="1.5"/>',
+        f'<rect x="{x + 10}" y="{y + 10}" width="30" height="24" rx="5" fill="{accent}"/>',
+        f'<text x="{x + 25}" y="{y + 27}" text-anchor="middle" class="label">{escape(str(idx))}</text>',
+        f'<text x="{x + 48}" y="{y + 28}" class="bodyStrong">{escape(wrap_text(title, 12)[0])}</text>',
+    ]
+    for line_idx, line in enumerate(lines):
+        parts.append(f'<text x="{x + 12}" y="{y + 58 + line_idx * 17}" class="small">{escape(line)}</text>')
+    return parts
+
+
+def check_table(x: int, y: int, w: int, rows: list[tuple[str, str]], accent: str, fill: str) -> list[str]:
+    parts = [
+        f'<rect x="{x}" y="{y}" width="{w}" height="{len(rows) * 58 + 20}" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>',
+    ]
+    for idx, (name, detail) in enumerate(rows):
+        row_y = y + 10 + idx * 58
+        parts.append(f'<rect x="{x + 10}" y="{row_y}" width="{w - 20}" height="48" rx="6" fill="{fill if idx % 2 == 0 else "#ffffff"}"/>')
+        parts.append(f'<text x="{x + 22}" y="{row_y + 20}" class="bodyStrong">{escape(name)}</text>')
+        for line_idx, line in enumerate(wrap_text(detail, 42)[:2]):
+            parts.append(f'<text x="{x + 150}" y="{row_y + 18 + line_idx * 17}" class="small">{escape(line)}</text>')
+    parts.append(f'<line x1="{x + 136}" y1="{y + 14}" x2="{x + 136}" y2="{y + len(rows) * 58}" stroke="{accent}" stroke-width="1.2" stroke-dasharray="4 5"/>')
+    return parts
+
+
+def legend(x: int, y: int, accent: str, ui: dict[str, str]) -> list[str]:
+    return [
+        f'<rect x="{x}" y="{y}" width="462" height="58" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2"/>',
+        f'<line x1="{x + 18}" y1="{y + 18}" x2="{x + 64}" y2="{y + 18}" stroke="{accent}" stroke-width="2.6" marker-end="url(#arrowAccent)"/>',
+        f'<text x="{x + 78}" y="{y + 22}" class="small">{escape(ui["solid"])}</text>',
+        f'<line x1="{x + 18}" y1="{y + 40}" x2="{x + 64}" y2="{y + 40}" stroke="#64748b" stroke-width="2" stroke-dasharray="7 6" marker-end="url(#arrow)"/>',
+        f'<text x="{x + 78}" y="{y + 44}" class="small">{escape(ui["dashed"])}</text>',
+        f'<line x1="{x + 292}" y1="{y + 40}" x2="{x + 336}" y2="{y + 40}" stroke="#dc2626" stroke-width="2.2" stroke-dasharray="5 5" marker-end="url(#arrowFault)"/>',
+        f'<text x="{x + 350}" y="{y + 44}" class="small">{escape(ui["fault"])}</text>',
+    ]
+
+
+def write_svg(path: Path, crate_name: str, spec: DiagramSpec, nodes: list[tuple[str, str]], lang: str) -> None:
+    """Render a paper-style learning figure, not a source-code map."""
+    width = 1920
+    height = 1180
+    title = spec.title_zh if lang == "zh" else spec.title_en
+    lens = spec.lens_zh if lang == "zh" else spec.lens_en
+    p = profile(crate_name)
+    accent = {
+        "position": "#16803a",
+        "principles": "#b45309",
+        "architecture": "#0369a1",
+        "workflow": "#6d28d9",
+        "dataflow": "#0f766e",
+        "state-model": "#1d4ed8",
+        "proof-flow": "#c2410c",
+        "trust-boundaries": "#be123c",
+        "integration-map": "#047857",
+        "lifecycle": "#7e22ce",
+    }[spec.slug]
+    light = {
+        "position": "#edfdf3",
+        "principles": "#fff7ed",
+        "architecture": "#eef7ff",
+        "workflow": "#f5f3ff",
+        "dataflow": "#ecfdf5",
+        "state-model": "#eff6ff",
+        "proof-flow": "#fff3e7",
+        "trust-boundaries": "#fff1f2",
+        "integration-map": "#ecfdf3",
+        "lifecycle": "#faf5ff",
+    }[spec.slug]
+    node_items = list(nodes)
+    while len(node_items) < 8:
+        node_items.append(node_items[-1] if node_items else ("Concept", "Technical role"))
+
+    ui = localized_figure_terms(lang)
+    equation = "δ(S, I, W) → (S′, E, R)" if lang == "en" else "δ(状态, 输入, 见证) → (新状态, 证据, 拒绝)"
+    proof_equation = "H(batch) || stateRoot' || proof(E)" if lang == "en" else "H(批次) || 新状态根 || 证明(证据)"
+    gate_equation = "accept ⇔ deterministic ∧ authorized ∧ verifiable" if lang == "en" else "接受 ⇔ 确定性 ∧ 已授权 ∧ 可验证"
+    subtitle = "paper-style technical figure" if lang == "en" else "论文风格技术学习图"
+
     parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img" aria-label="{escape(crate_name)} {escape(title)}">',
         "<defs>",
-        '<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#08111f"/><stop offset="100%" stop-color="#111827"/></linearGradient>',
-        '<filter id="shadow" x="-15%" y="-15%" width="130%" height="130%"><feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#020617" flood-opacity="0.42"/></filter>',
+        '<marker id="arrow" viewBox="0 0 10 10" refX="9.4" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#475569"/></marker>',
+        '<marker id="arrowAccent" viewBox="0 0 10 10" refX="9.4" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="' + accent + '"/></marker>',
+        '<marker id="arrowFault" viewBox="0 0 10 10" refX="9.4" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#dc2626"/></marker>',
+        '<filter id="paperShadow" x="-3%" y="-4%" width="106%" height="108%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.10"/></filter>',
+        "<style>",
+        ".bg{fill:#f8fafc}.panel{fill:#ffffff;stroke:#cbd5e1;stroke-width:1.5;filter:url(#paperShadow)}",
+        ".panelTitle{font:700 22px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.panelSub{font:500 15px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}",
+        ".title{font:800 36px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.subtitle{font:500 17px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}",
+        ".small{font:500 13px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}.body{font:500 15px 'Inter','Segoe UI',Arial,sans-serif;fill:#334155}",
+        ".bodyStrong{font:750 15px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.mono{font:650 14px 'Cascadia Mono','SFMono-Regular',Consolas,monospace;fill:#0f172a}",
+        ".label{font:800 14px 'Inter','Segoe UI',Arial,sans-serif;fill:#ffffff}.caption{font:500 13px 'Inter','Segoe UI',Arial,sans-serif;fill:#64748b}",
+        ".arrow{stroke:#475569;stroke-width:2.2;fill:none;marker-end:url(#arrow)}.arrowAccent{stroke:" + accent + ";stroke-width:2.6;fill:none;marker-end:url(#arrowAccent)}.arrowDash{stroke:#64748b;stroke-width:2;fill:none;stroke-dasharray:7 6;marker-end:url(#arrow)}.arrowFault{stroke:#dc2626;stroke-width:2.2;fill:none;stroke-dasharray:5 5;marker-end:url(#arrowFault)}",
+        "</style>",
         "</defs>",
-        '<rect width="1760" height="100%" fill="url(#bg)"/>',
-        f'<rect x="34" y="34" width="1692" height="{panel_h}" rx="10" fill="#0f172a" stroke="#334155" stroke-width="2"/>',
-        f'<text x="72" y="92" fill="#f8fafc" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="34" font-weight="700">{escape(crate_name)}: {escape(title)}</text>',
-        f'<text x="72" y="132" fill="#cbd5e1" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19">{escape(subtitle)} - {escape(spec.lens_zh if lang == "zh" else spec.lens_en)}</text>',
+        '<rect class="bg" width="1920" height="1180"/>',
+        f'<text x="56" y="66" class="title">{escape(crate_name)}: {escape(title)}</text>',
+        f'<text x="56" y="98" class="subtitle">Neo N4 {escape(subtitle)} - {escape(lens)}</text>',
+        f'<rect x="56" y="118" width="1808" height="38" rx="6" fill="{light}" stroke="{accent}" stroke-width="1.2"/>',
+        f'<text x="76" y="143" class="small">{escape(ui["read_as"])} <tspan class="bodyStrong">{escape(ui["not_impl"])}</tspan> · {escape(ui["boundary"])}: {escape(tech("authority", p, lang))} · {escape(ui["outside"])}: {escape(tech("outside", p, lang))}</text>',
     ]
-    start_x = 92
-    start_y = 178
-    for index, (node_title, body) in enumerate(nodes, start=1):
-        col = (index - 1) % columns
-        row = (index - 1) // columns
-        x = start_x + col * (box_w + gap_x)
-        y = start_y + row * (box_h + gap_y)
-        parts.append(f'<rect x="{x}" y="{y}" width="{box_w}" height="{box_h}" rx="8" fill="{fill}" stroke="{accent}" stroke-width="2" filter="url(#shadow)"/>')
-        parts.append(f'<rect x="{x + 18}" y="{y + 18}" width="42" height="32" rx="6" fill="#020617" stroke="{accent}" stroke-width="1"/>')
-        parts.append(f'<text x="{x + 39}" y="{y + 41}" text-anchor="middle" fill="{accent}" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="700">{index}</text>')
-        title_lines = wrap_text(node_title, 34)
-        body_lines = wrap_text(body, 58)
-        text_y = y + 34
-        for line_index, line in enumerate(title_lines[:2]):
-            parts.append(f'<text x="{x + 76}" y="{text_y + line_index * 24}" fill="#f8fafc" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="21" font-weight="700">{escape(line)}</text>')
-        body_start = text_y + 42 + max(0, len(title_lines[:2]) - 1) * 12
-        for line_index, line in enumerate(body_lines[:5]):
-            parts.append(f'<text x="{x + 26}" y="{body_start + line_index * 22}" fill="#dbeafe" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17">{escape(line)}</text>')
-    footer = "Conceptual diagram generated from crate role metadata; not a source-code reading map."
+
+    parts.extend(panel_shell(56, 178, 870, 390, "a", ui["boundary_model"], ui["boundary_sub"], accent, light))
+    parts.extend(panel_shell(966, 178, 898, 390, "b", ui["formal_model"], ui["formal_sub"], accent, light))
+    parts.extend(panel_shell(56, 606, 1240, 494, "c", ui["protocol_path"], ui["protocol_sub"], accent, light))
+    parts.extend(panel_shell(1334, 606, 530, 494, "d", ui["review_table"], ui["review_sub"], accent, light))
+
+    # Panel (a): boundary model.
+    parts.extend(svg_box(92, 276, 220, 190, ui["inputs"], node_items[0][1], "#ffffff", "#94a3b8", node_items[0][0], max_lines=5))
+    parts.append('<line x1="354" y1="232" x2="354" y2="530" stroke="#94a3b8" stroke-width="1.4" stroke-dasharray="7 7"/>')
+    parts.append(f'<text x="354" y="252" class="small" text-anchor="middle" transform="rotate(-90 354 252)">{escape(ui["trust_boundary"])}</text>')
+    parts.extend(svg_box(392, 246, 292, 250, crate_name, node_items[2][1], light, accent, node_items[2][0], max_lines=6))
+    parts.append('<line x1="728" y1="232" x2="728" y2="530" stroke="#94a3b8" stroke-width="1.4" stroke-dasharray="7 7"/>')
+    parts.append(f'<text x="728" y="252" class="small" text-anchor="middle" transform="rotate(-90 728 252)">{escape(ui["commit_boundary"])}</text>')
+    parts.extend(svg_box(764, 276, 132, 190, ui["consumers"], node_items[5][1], "#ffffff", "#94a3b8", node_items[5][0], max_lines=5, wrap=16))
+    parts.append('<path class="arrowAccent" d="M312 371 C338 371 358 371 392 371"/>')
+    parts.append('<path class="arrowAccent" d="M684 371 C706 371 730 371 764 371"/>')
+    for line_idx, line in enumerate(wrap_text(ui["boundary_note"], 72)[:2]):
+        parts.append(f'<text x="392" y="{516 + line_idx * 17}" class="caption">{escape(line)}</text>')
+
+    # Panel (b): formal technical model.
+    parts.extend(svg_formula_strip(1000, 246, 828, 68, equation, accent, light))
+    model_steps = [
+        (node_items[1][0], node_items[1][1]),
+        (node_items[2][0], node_items[2][1]),
+        (node_items[3][0], node_items[3][1]),
+    ]
+    x0 = 1012
+    for idx, (step_title, step_body) in enumerate(model_steps):
+        y = 340 + idx * 70
+        parts.extend(numbered_band(x0, y, 610, 52, idx + 1, step_title, step_body, accent, light))
+        if idx < len(model_steps) - 1:
+            parts.append(f'<path class="arrowAccent" d="M1318 {y + 52} L1318 {y + 70}"/>')
+    parts.extend(svg_box(1660, 340, 150, 190, ui["evidence"], proof_equation, "#ffffff", accent, node_items[4][0], max_lines=6, wrap=16))
+    parts.append('<path class="arrowDash" d="M1622 436 C1642 436 1648 436 1660 436"/>')
+    parts.append(f'<text x="1012" y="555" class="mono">{escape(gate_equation)}</text>')
+
+    # Panel (c): protocol/data/proof path.
+    path_nodes = node_items[:6] if spec.slug in SEQUENTIAL_DIAGRAMS else [node_items[0], node_items[1], node_items[2], node_items[3], node_items[4], node_items[5]]
+    px = [92, 290, 488, 686, 884, 1082]
+    for idx, (x, item) in enumerate(zip(px, path_nodes), start=1):
+        parts.extend(protocol_node(x, 730, 150, 120, idx, item[0], item[1], accent, light))
+        if idx < len(path_nodes):
+            parts.append(f'<path class="arrowAccent" d="M{x + 150} 790 L{px[idx]} 790"/>')
+            parts.append(f'<text x="{x + 174}" y="778" class="small">{escape(ui["step"])} {idx}</text>')
+    parts.append('<path class="arrowDash" d="M182 896 C372 964 832 964 1116 896"/>')
+    parts.extend(protocol_node(488, 904, 190, 128, "R", node_items[6][0], node_items[6][1], "#dc2626", "#fff1f2", max_lines=4))
+    parts.append('<path class="arrowFault" d="M560 850 L560 908"/>')
+    parts.extend(svg_box(880, 904, 300, 128, ui["extension"], node_items[7][1], "#ffffff", "#94a3b8", node_items[7][0], max_lines=4, wrap=34))
+    for line_idx, line in enumerate(wrap_text(f'{ui["proof_path_note"]}: {tech("commit", p, lang)}', 118)[:2]):
+        parts.append(f'<text x="92" y="{1060 + line_idx * 18}" class="caption">{escape(line)}</text>')
+
+    # Panel (d): correctness and operations table.
+    table_rows = [
+        (ui["determinism"], tech("determinism", p, lang)),
+        (ui["authorization"], tech("authority", p, lang)),
+        (ui["evidence"], tech("commit", p, lang)),
+        (ui["faults"], node_items[6][1]),
+        (ui["observability"], tech("observe", p, lang)),
+    ]
+    parts.extend(check_table(1368, 708, 462, table_rows, accent, light))
+    parts.extend(legend(1368, 1012, accent, ui))
+
+    footer = "Figure style: panelized architecture, formal transition model, protocol path, and correctness checklist; no source-file or API inventory."
     if lang == "zh":
-        footer = "本图根据 crate 技术角色元数据生成；不是源码阅读图，也不是实现全景图。"
-    parts.append(f'<text x="72" y="{height - 44}" fill="#94a3b8" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16">{escape(footer)}</text>')
+        footer = "图表风格：分面架构、形式化状态转换、协议路径、正确性检查表；不展示源码文件或 API 清单。"
+    parts.append(f'<text x="56" y="1146" class="caption">{escape(footer)}</text>')
     parts.append("</svg>")
     path.write_text("\n".join(parts) + "\n", encoding="utf-8")
 

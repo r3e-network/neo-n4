@@ -10,6 +10,19 @@
 - 准备上线：**Deployment pipeline**、**Operator runbook flow**。
 - 做审计：**Core data structures**、**Trust boundary map**、**Verification matrix**。
 
+## 论文式核心图
+
+如果你想先学习协议架构，而不是先找源码位置，建议从这里开始。这组图采用论文式 panel 结构：
+系统拓扑、形式化模型、编号路径、审计检查点。
+
+| 架构 | 技术原理 |
+| --- | --- |
+| ![Neo N4 论文式架构图](figures/paper/neo-n4-architecture.svg) | ![Neo N4 技术原理图](figures/paper/neo-n4-technical-principles.svg) |
+
+| 数据流 | 工作流 |
+| --- | --- |
+| ![Neo N4 数据流图](figures/paper/neo-n4-dataflow.svg) | ![Neo N4 工作流图](figures/paper/neo-n4-workflow.svg) |
+
 ## System Context
 
 ![Neo N4 system context](figures/visual-guide/system-context.svg)
@@ -67,5 +80,6 @@
 架构变化后，从仓库根目录运行：
 
 ```powershell
+python tools/docs/generate_paper_figures.py
 docs/figures/visual-guide/generate.ps1
 ```

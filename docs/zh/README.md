@@ -39,13 +39,14 @@ Neo N3 / Neo 4 L1 上的统一可部署 L1 合约套件(**NeoHub**),并通过可
 ## 目录
 
 1. [体验中心预览](#体验中心预览)
-2. [架构鸟瞰](#架构鸟瞰)
-3. [仓里有什么](#仓里有什么)
-4. [分阶段状态](#分阶段状态)
-5. [快速上手](#快速上手)
-6. [文档地图(中文)](#文档地图中文)
-7. [术语对照](#术语对照)
-8. [License](#license)
+2. [论文式核心图](#论文式核心图)
+3. [架构鸟瞰](#架构鸟瞰)
+4. [仓里有什么](#仓里有什么)
+5. [分阶段状态](#分阶段状态)
+6. [快速上手](#快速上手)
+7. [文档地图(中文)](#文档地图中文)
+8. [术语对照](#术语对照)
+9. [License](#license)
 
 ---
 
@@ -62,6 +63,35 @@ Neo N3 / Neo 4 L1 上的统一可部署 L1 合约套件(**NeoHub**),并通过可
 
 该预览刻意采用本地优先边界:私有 devnet 证据会和公开 testnet/mainnet 证据分开标记,
 浏览器界面不暴露签名、部署或任何带敏感信息的控制面。
+
+---
+
+## 论文式核心图
+
+这四张图是建议的新读者入口：先把 Neo N4 当作协议架构理解，而不是先按源码目录理解。
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <strong>架构</strong><br>
+      <img src="figures/paper/neo-n4-architecture.svg" alt="Neo N4 论文式架构图：L1 结算、Gateway 聚合、L2 执行和 NeoFS 数据可用性" width="440">
+    </td>
+    <td width="50%" align="center">
+      <strong>技术原理</strong><br>
+      <img src="figures/paper/neo-n4-technical-principles.svg" alt="Neo N4 技术原理图：确定性执行、规范承诺、数据可用性和可验证结算" width="440">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <strong>数据流</strong><br>
+      <img src="figures/paper/neo-n4-dataflow.svg" alt="Neo N4 端到端数据流图：从用户意图到 L2 执行、NeoFS、证明生成和 NeoHub 结算" width="440">
+    </td>
+    <td width="50%" align="center">
+      <strong>工作流</strong><br>
+      <img src="figures/paper/neo-n4-workflow.svg" alt="Neo N4 生产工作流图：链准入、运行、结算、用户服务和恢复" width="440">
+    </td>
+  </tr>
+</table>
 
 ---
 

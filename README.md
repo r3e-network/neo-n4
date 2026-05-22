@@ -81,6 +81,34 @@ This section is the fastest way to understand what the project looks like, what
 runs where, and how data moves. The complete diagram set lives in
 [`docs/visual-guide.md`](./docs/visual-guide.md).
 
+### Paper-style core figures
+
+These four figures are the recommended starting point for learning the system
+as a protocol architecture rather than as a source tree.
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <strong>Architecture</strong><br>
+      <img src="docs/figures/paper/neo-n4-architecture.svg" alt="Neo N4 paper-style architecture figure covering L1 settlement, gateway aggregation, L2 execution, and NeoFS data availability" width="440">
+    </td>
+    <td width="50%" align="center">
+      <strong>Technical principles</strong><br>
+      <img src="docs/figures/paper/neo-n4-technical-principles.svg" alt="Neo N4 technical principles figure covering deterministic execution, canonical commitments, data availability, and verifiable settlement" width="440">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <strong>Data flow</strong><br>
+      <img src="docs/figures/paper/neo-n4-dataflow.svg" alt="Neo N4 end-to-end data flow figure from user intent through L2 execution, NeoFS, proof generation, and NeoHub settlement" width="440">
+    </td>
+    <td width="50%" align="center">
+      <strong>Workflow</strong><br>
+      <img src="docs/figures/paper/neo-n4-workflow.svg" alt="Neo N4 production workflow figure from chain admission through operation, settlement, user service, and recovery" width="440">
+    </td>
+  </tr>
+</table>
+
 For crate-by-crate learning, use the new [`Crate Visual Guide`](./docs/crate-visual-guide.md). It links every Rust crate to local architecture, workflow, and dataflow diagrams with matching Chinese versions.
 
 For a dynamic walkthrough, open the static

@@ -10,6 +10,20 @@
 - 想上线：看 **Deployment pipeline** 和 **Operator runbook flow**。
 - 想审计：看 **Core data structures**、**Trust boundary map**、**Verification matrix**。
 
+## Paper-Style Core Figures
+
+Start here if you want the protocol architecture rather than the source layout.
+These figures use a paper-style panel structure: topology, formal model,
+numbered path, and audit checkpoints.
+
+| Architecture | Technical principles |
+| --- | --- |
+| ![Neo N4 paper architecture](figures/paper/neo-n4-architecture.svg) | ![Neo N4 technical principles](figures/paper/neo-n4-technical-principles.svg) |
+
+| Data flow | Workflow |
+| --- | --- |
+| ![Neo N4 data flow](figures/paper/neo-n4-dataflow.svg) | ![Neo N4 workflow](figures/paper/neo-n4-workflow.svg) |
+
 ## System Context
 
 ![Neo N4 system context](figures/visual-guide/system-context.svg)
@@ -67,6 +81,7 @@
 The figures are generated from:
 
 ```powershell
+python tools/docs/generate_paper_figures.py
 docs/figures/visual-guide/generate.ps1
 ```
 

@@ -1,14 +1,30 @@
-flowchart LR
-    N1["Neo N4 layer: Foreign-chain bridge program"]
-    N2["Upstream inputs: Solana instruction | token account state | bridge authority"]
-    N3["neo-external-bridge-router: Solana-side bridge router that represents Neo N4 cross-chain lock, mint, burn, and unlock flows."]
-    N4["Direct dependencies: anchor-lang | solana-instructions-sysvar | solana-sdk-ids"]
-    N5["Downstream users: watcher-sol | gateway | shared bridge"]
-    N6["Learning focus: Locate upstream and downstream first, then read this crate boundary, core data structures, and tests."]
-    N1 --> N2
-    N2 --> N3
+flowchart TB
+    N1["1. Neo N4 layer: Foreign-chain bridge program"]
+    N2["2. Upstream inputs: Solana instruction | token account state | bridge authority"]
+    N3["3. neo-external-bridge-router: Solana-side bridge router that represents Neo N4 cross-chain lock, mint, burn, and unlock flows."]
+    N4["4. Downstream users: watcher-sol | gateway | shared bridge"]
+    N5["5. Source scale: 1 source files, 15 public symbols, 21 tests, 3 deps"]
+    N6["6. Source entrypoints: src/lib.rs (15 API/21 tests)"]
+    N7["7. Core API: initialize | set_committee | lock_sol_and_send | finalize_withdrawal +1"]
+    N8["8. Test guardrails: src/lib.rs (21 tests)"]
+    N9["9. Direct dependencies: anchor-lang | solana-instructions-sysvar | solana-sdk-ids"]
+    N10["10. Learning focus: Locate upstream and downstream first, then read this crate boundary, core data structures, and tests."]
+    N3 --> N1
+    N3 --> N2
     N3 --> N4
-    N4 --> N5
-    N5 --> N6
+    N3 --> N5
+    N3 --> N6
+    N3 --> N7
+    N3 --> N8
+    N3 --> N9
+    N3 --> N10
+    N2 -. related .-> N3
+    N3 -. related .-> N4
+    N4 -. related .-> N5
+    N5 -. related .-> N6
+    N6 -. related .-> N7
+    N7 -. related .-> N8
+    N8 -. related .-> N9
+    N9 -. related .-> N10
     classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
     class N3 crate

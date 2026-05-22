@@ -1,6 +1,6 @@
 # Neo N4 Crate Visual Guide
 
-This index links every Rust crate to its own local visual learning guide. Each crate directory contains position, principles, architecture, workflow, dataflow, module, API, test, and dependency diagrams in English and Chinese, plus a source-level learning guide.
+This index links every Rust crate to its own local visual learning guide. Each crate directory contains position, principles, architecture, workflow, dataflow, module, API, test, dependency, and implementation-atlas diagrams in English and Chinese, plus a source-level learning guide.
 
 | Crate | Path | Layer | Purpose |
 | --- | --- | --- | --- |

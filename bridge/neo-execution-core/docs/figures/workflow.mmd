@@ -1,12 +1,18 @@
-flowchart LR
-    N1["Step 1: Accept batch"]
-    N2["Step 2: Normalize inputs"]
-    N3["Step 3: Run transition"]
-    N4["Step 4: Hash outputs"]
-    N5["Step 5: Publish evidence"]
+flowchart TB
+    N1["1. neo-execution-core: Workflow has 5 stages; start source reading at src/lib.rs."]
+    N2["2. Stage 1: Accept batch; likely source: src/lib.rs (crate root, public exports, and top-level documentation)"]
+    N3["3. Stage 2: Normalize inputs; likely source: src/types.rs (implementation detail or helper module)"]
+    N4["4. Stage 3: Run transition; likely source: src/hashing.rs (implementation detail or helper module)"]
+    N5["5. Stage 4: Hash outputs; likely source: tests/batch_core.rs (external behavior or integration test)"]
+    N6["6. Stage 5: Publish evidence; likely source: src/batch.rs (implementation detail or helper module)"]
+    N7["7. Verification: tests/batch_core.rs (5 tests)"]
+    N8["8. Output checks: execution trace | new state root | public proof inputs"]
     N1 --> N2
     N2 --> N3
     N3 --> N4
     N4 --> N5
+    N5 --> N6
+    N6 --> N7
+    N7 --> N8
     classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
-    class N3 crate
+    class N1 crate

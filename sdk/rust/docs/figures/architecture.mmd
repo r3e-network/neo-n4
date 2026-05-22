@@ -1,14 +1,27 @@
-flowchart LR
-    N1["Public entrypoints: developer app | gateway endpoint | wallet/config"]
-    N2["neo-n4-sdk: Rust client SDK for building tools and services that talk to Neo N4 APIs."]
-    N3["Internal components: Encode API requests | Handle bridge/proof models | Return typed results"]
-    N4["Dependency boundary: mockito | reqwest | serde | serde_json | thiserror"]
-    N5["Output artifacts: typed client result | transaction request | query response"]
-    N6["System position: Developer SDK -> apps | operators | integration tests"]
+flowchart TB
+    N1["1. Architecture overview: neo-n4-sdk: 2 source files, 40 public symbols, 10 tests, 7 deps"]
+    N2["2. Entry contract: developer app | gateway endpoint | wallet/config"]
+    N3["3. Public API layer: types 14 | functions 26 | traits 0 | constants 0"]
+    N4["4. Core implementation files: src/lib.rs (40 API/0 tests) | tests/integration.rs (0 API/10 tests)"]
+    N5["5. Modules and re-exports: no mod/pub use declarations scanned"]
+    N6["6. Dependency boundary: mockito | reqwest | serde | serde_json | thiserror"]
+    N7["7. Output artifacts: typed client result | transaction request | query response"]
+    N8["8. Test guardrails: tests/integration.rs (10 tests)"]
+    N9["9. System position: Developer SDK -> apps | operators | integration tests"]
     N1 --> N2
-    N2 --> N3
-    N3 --> N4
-    N4 --> N5
-    N5 --> N6
+    N1 --> N3
+    N1 --> N4
+    N1 --> N5
+    N1 --> N6
+    N1 --> N7
+    N1 --> N8
+    N1 --> N9
+    N2 -. related .-> N3
+    N3 -. related .-> N4
+    N4 -. related .-> N5
+    N5 -. related .-> N6
+    N6 -. related .-> N7
+    N7 -. related .-> N8
+    N8 -. related .-> N9
     classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
-    class N2 crate
+    class N1 crate

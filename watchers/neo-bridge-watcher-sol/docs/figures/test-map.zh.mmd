@@ -1,8 +1,27 @@
-flowchart LR
-    N1["neo-bridge-watcher-sol: 测试函数 9 个，测试文件 2 个"]
-    N2["src/lib.rs: solana_chain_ids_have_foreign_namespace_prefix | solana_chain_ids_disjoint_from_eth_and_tron | ed25519_signer_signs_and_verifies | ed25519_signer_rejects_wrong_key_length +2"]
-    N3["tests/parity.rs: watcher_core_drives_through_with_ed25519_signer | solana_canonical_bytes_use_solana_chain_id | solana_message_hash_distinct_from_eth_and_tron"]
+flowchart TB
+    N1["1. neo-bridge-watcher-sol: 测试函数 9 个，测试文件 2 个"]
+    N2["2. src/lib.rs: 6 个测试；solana_chain_ids_have_foreign_namespace_prefix | solana_chain_ids_disjoint_from_eth_and_tron | ed25519_signer_signs_and_verifies | ed25519_signer_rejects_wrong_key_length +2"]
+    N3["3. tests/parity.rs: 3 个测试；watcher_core_drives_through_with_ed25519_signer | solana_canonical_bytes_use_solana_chain_id | solana_message_hash_distinct_from_eth_and_tron"]
+    N4["4. 被测源码: src/lib.rs (7 API/6 测试) | tests/parity.rs (0 API/3 测试)"]
+    N5["5. 被测 API 面: 类型 1 | 函数 3 | Trait 0 | 常量 3"]
+    N6["6. 覆盖缺口: 公开符号 7，测试 9；继续保持测试和 API 同步。"]
+    N7["7. 依赖测试范围: 运行时 3，测试 1，构建 0，内部 1，外部运行时 2"]
+    N8["8. 学习方式: 先读测试名理解行为，再回到对应源码文件和公开 API。"]
+    N9["9. 验证命令: cargo test --workspace --locked；外部子仓库分别 cargo test --locked"]
     N1 --> N2
-    N2 --> N3
+    N1 --> N3
+    N1 --> N4
+    N1 --> N5
+    N1 --> N6
+    N1 --> N7
+    N1 --> N8
+    N1 --> N9
+    N2 -. related .-> N3
+    N3 -. related .-> N4
+    N4 -. related .-> N5
+    N5 -. related .-> N6
+    N6 -. related .-> N7
+    N7 -. related .-> N8
+    N8 -. related .-> N9
     classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
     class N1 crate

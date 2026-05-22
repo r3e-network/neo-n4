@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Generate crate-level visual learning guides for the Neo N4 workspace.
 
-The generated files are intentionally simple, static assets:
+The generated files are source-aware learning assets:
 - README.md / README.zh.md visual guide sections per crate
 - per-crate position, principles, architecture, workflow, and dataflow diagrams
 - source-aware module, public API, test evidence, and dependency diagrams
+- dense implementation atlas diagrams for code-reading orientation
 - deep per-crate learning guides under docs/learning-guide*.md
 - English and Chinese Mermaid source diagrams
 - English and Chinese SVG diagrams
@@ -679,24 +680,24 @@ def write_crate_assets(crate: CrateInfo, guide: Guide, profile: SourceProfile) -
 
     diagrams = {
         "position": (
-            position_nodes(crate, guide, "en"),
-            position_nodes(crate, guide, "zh"),
+            position_nodes(crate, guide, profile, "en"),
+            position_nodes(crate, guide, profile, "zh"),
         ),
         "principles": (
-            principles_nodes(crate, guide, "en"),
-            principles_nodes(crate, guide, "zh"),
+            principles_nodes(crate, guide, profile, "en"),
+            principles_nodes(crate, guide, profile, "zh"),
         ),
         "architecture": (
-            architecture_nodes(crate, guide, "en"),
-            architecture_nodes(crate, guide, "zh"),
+            architecture_nodes(crate, guide, profile, "en"),
+            architecture_nodes(crate, guide, profile, "zh"),
         ),
         "workflow": (
-            workflow_nodes(crate.name, guide, "en"),
-            workflow_nodes(crate.name, guide, "zh"),
+            workflow_nodes(crate.name, guide, profile, "en"),
+            workflow_nodes(crate.name, guide, profile, "zh"),
         ),
         "dataflow": (
-            dataflow_nodes(crate.name, guide, "en"),
-            dataflow_nodes(crate.name, guide, "zh"),
+            dataflow_nodes(crate.name, guide, profile, "en"),
+            dataflow_nodes(crate.name, guide, profile, "zh"),
         ),
         "module-map": (
             module_nodes(crate.name, profile, "en"),
@@ -714,6 +715,10 @@ def write_crate_assets(crate: CrateInfo, guide: Guide, profile: SourceProfile) -
             dependency_nodes(crate.name, profile, "en"),
             dependency_nodes(crate.name, profile, "zh"),
         ),
+        "implementation-atlas": (
+            implementation_atlas_nodes(crate, guide, profile, "en"),
+            implementation_atlas_nodes(crate, guide, profile, "zh"),
+        ),
     }
 
     for diagram, (nodes_en, nodes_zh) in diagrams.items():
@@ -727,129 +732,219 @@ def write_crate_assets(crate: CrateInfo, guide: Guide, profile: SourceProfile) -
     write_readme(crate, guide, profile, "zh")
 
 
-def position_nodes(crate: CrateInfo, guide: Guide, lang: str) -> list[tuple[str, str]]:
+def position_nodes(crate: CrateInfo, guide: Guide, profile: SourceProfile, lang: str) -> list[tuple[str, str]]:
     deps = short_dependencies(crate, lang)
+    grouped = group_public_symbols(profile.public_symbols)
     if lang == "zh":
         return [
             ("Neo N4 层级", guide.layer_zh),
             ("上游输入", join_items(guide.inputs_zh)),
             (crate.name, guide.role_zh),
-            ("直接依赖", join_items(deps)),
             ("下游使用者", join_items(guide.consumers_zh)),
-            ("学习重点", "先定位上下游，再阅读本 crate 的边界、核心数据结构和测试。"),
+            ("源码规模", crate_metrics(profile, "zh")),
+            ("读源码入口", summarize_files(rank_files(profile)[:3], "zh")),
+            ("核心 API", summarize_symbols(grouped.get("fn", ()), "zh")),
+            ("测试护栏", summarize_tests_by_file(profile, "zh")),
+            ("直接依赖", join_items(deps)),
+            ("学习重点", "先定位上下游，再阅读源码地图、公开 API、测试证据和依赖边界。"),
         ]
     return [
         ("Neo N4 layer", guide.layer_en),
         ("Upstream inputs", join_items(guide.inputs_en)),
         (crate.name, guide.role_en),
-        ("Direct dependencies", join_items(deps)),
         ("Downstream users", join_items(guide.consumers_en)),
+        ("Source scale", crate_metrics(profile, "en")),
+        ("Source entrypoints", summarize_files(rank_files(profile)[:3], "en")),
+        ("Core API", summarize_symbols(grouped.get("fn", ()), "en")),
+        ("Test guardrails", summarize_tests_by_file(profile, "en")),
+        ("Direct dependencies", join_items(deps)),
         ("Learning focus", "Locate upstream and downstream first, then read this crate boundary, core data structures, and tests."),
     ]
 
 
-def principles_nodes(crate: CrateInfo, guide: Guide, lang: str) -> list[tuple[str, str]]:
+def principles_nodes(crate: CrateInfo, guide: Guide, profile: SourceProfile, lang: str) -> list[tuple[str, str]]:
     if lang == "zh":
         return [
             ("职责边界", guide.role_zh),
-            ("核心原则", join_items(guide.responsibilities_zh)),
-            ("输入契约", join_items(guide.inputs_zh)),
-            ("状态与产物", join_items(guide.outputs_zh)),
-            ("集成方式", join_items(guide.consumers_zh)),
-            ("维护规则", "保持边界小、语义确定、测试可复现。"),
+            ("核心不变量", join_items(guide.responsibilities_zh)),
+            ("输入必须被约束", join_items(guide.inputs_zh)),
+            ("输出必须可验证", join_items(guide.outputs_zh)),
+            ("源码证据", crate_metrics(profile, "zh")),
+            ("测试证据", summarize_tests_by_file(profile, "zh")),
+            ("依赖原则", dependency_risk_summary(profile, "zh")),
+            ("维护规则", "边界要小，语义要确定，测试要可复现，图和文档要随源码更新。"),
         ]
     return [
         ("Responsibility boundary", guide.role_en),
         ("Core principles", join_items(guide.responsibilities_en)),
         ("Input contract", join_items(guide.inputs_en)),
         ("State and artifacts", join_items(guide.outputs_en)),
-        ("Integration contract", join_items(guide.consumers_en)),
+        ("Source evidence", crate_metrics(profile, "en")),
+        ("Test evidence", summarize_tests_by_file(profile, "en")),
+        ("Dependency discipline", dependency_risk_summary(profile, "en")),
         ("Maintenance rule", "Keep the boundary small, deterministic, and reproducible under tests."),
     ]
 
 
-def architecture_nodes(crate: CrateInfo, guide: Guide, lang: str) -> list[tuple[str, str]]:
+def architecture_nodes(crate: CrateInfo, guide: Guide, profile: SourceProfile, lang: str) -> list[tuple[str, str]]:
     deps = short_dependencies(crate, lang)
     crate_name = crate.name
     if lang == "zh":
         return [
-            ("公开入口", join_items(guide.inputs_zh)),
-            (crate_name, guide.role_zh),
-            ("内部组件", join_items(guide.responsibilities_zh)),
+            ("架构总览", f"{crate_name}: {crate_metrics(profile, 'zh')}"),
+            ("入口契约", join_items(guide.inputs_zh)),
+            ("公开 API 层", summarize_api_groups(profile, "zh")),
+            ("核心实现文件", summarize_files(rank_files(profile)[:5], "zh")),
+            ("模块/重导出", summarize_module_signals(profile, "zh")),
             ("依赖边界", join_items(deps)),
             ("输出产物", join_items(guide.outputs_zh)),
+            ("测试护栏", summarize_tests_by_file(profile, "zh")),
             ("系统位置", f"{guide.layer_zh} -> {join_items(guide.consumers_zh)}"),
         ]
     return [
-        ("Public entrypoints", join_items(guide.inputs_en)),
-        (crate_name, guide.role_en),
-        ("Internal components", join_items(guide.responsibilities_en)),
+        ("Architecture overview", f"{crate_name}: {crate_metrics(profile, 'en')}"),
+        ("Entry contract", join_items(guide.inputs_en)),
+        ("Public API layer", summarize_api_groups(profile, "en")),
+        ("Core implementation files", summarize_files(rank_files(profile)[:5], "en")),
+        ("Modules and re-exports", summarize_module_signals(profile, "en")),
         ("Dependency boundary", join_items(deps)),
         ("Output artifacts", join_items(guide.outputs_en)),
+        ("Test guardrails", summarize_tests_by_file(profile, "en")),
         ("System position", f"{guide.layer_en} -> {join_items(guide.consumers_en)}"),
     ]
 
 
-def workflow_nodes(crate_name: str, guide: Guide, lang: str) -> list[tuple[str, str]]:
+def workflow_nodes(crate_name: str, guide: Guide, profile: SourceProfile, lang: str) -> list[tuple[str, str]]:
     steps = guide.workflow_zh if lang == "zh" else guide.workflow_en
-    return [(f"Step {idx}", step) for idx, step in enumerate(steps, start=1)]
+    ranked = rank_files(profile)
+    if lang == "zh":
+        nodes = [(crate_name, f"工作流由 {len(steps)} 个阶段组成；源码入口优先看 {first_file_name(ranked)}。")]
+        nodes.extend(
+            (f"阶段 {idx}", f"{step}；相关源码：{workflow_file_hint(ranked, idx, 'zh')}")
+            for idx, step in enumerate(steps, start=1)
+        )
+        nodes.append(("验证方式", summarize_tests_by_file(profile, "zh")))
+        nodes.append(("输出检查", join_items(guide.outputs_zh)))
+        return nodes
+    nodes = [(crate_name, f"Workflow has {len(steps)} stages; start source reading at {first_file_name(ranked)}.")]
+    nodes.extend(
+        (f"Stage {idx}", f"{step}; likely source: {workflow_file_hint(ranked, idx, 'en')}")
+        for idx, step in enumerate(steps, start=1)
+    )
+    nodes.append(("Verification", summarize_tests_by_file(profile, "en")))
+    nodes.append(("Output checks", join_items(guide.outputs_en)))
+    return nodes
 
 
-def dataflow_nodes(crate_name: str, guide: Guide, lang: str) -> list[tuple[str, str]]:
+def dataflow_nodes(crate_name: str, guide: Guide, profile: SourceProfile, lang: str) -> list[tuple[str, str]]:
     steps = guide.dataflow_zh if lang == "zh" else guide.dataflow_en
-    return [(f"Data {idx}", step) for idx, step in enumerate(steps, start=1)]
+    grouped = group_public_symbols(profile.public_symbols)
+    type_summary = summarize_symbols(grouped.get("type", ()), lang)
+    fn_summary = summarize_symbols(grouped.get("fn", ()), lang)
+    if lang == "zh":
+        nodes = [(crate_name, f"数据流跨越输入、类型模型、核心函数、输出和测试；{crate_metrics(profile, 'zh')}")]
+        nodes.extend((f"数据 {idx}", step) for idx, step in enumerate(steps, start=1))
+        nodes.extend(
+            [
+                ("关键类型", type_summary),
+                ("关键函数", fn_summary),
+                ("边界校验", summarize_tests_by_file(profile, "zh")),
+                ("消费者", join_items(guide.consumers_zh)),
+            ]
+        )
+        return nodes
+    nodes = [(crate_name, f"Data crosses inputs, type models, core functions, outputs, and tests; {crate_metrics(profile, 'en')}")]
+    nodes.extend((f"Data {idx}", step) for idx, step in enumerate(steps, start=1))
+    nodes.extend(
+        [
+            ("Key types", type_summary),
+            ("Key functions", fn_summary),
+            ("Boundary checks", summarize_tests_by_file(profile, "en")),
+            ("Consumers", join_items(guide.consumers_en)),
+        ]
+    )
+    return nodes
 
 
 def module_nodes(crate_name: str, profile: SourceProfile, lang: str) -> list[tuple[str, str]]:
-    top_files = rank_files(profile)[:5]
+    top_files = rank_files(profile)[:9]
     if lang == "zh":
-        nodes = [(crate_name, f"源码文件 {len(profile.files)} 个，公开符号 {len(profile.public_symbols)} 个")]
-        nodes.extend((file.path, file.role_zh) for file in top_files)
+        nodes = [(crate_name, crate_metrics(profile, "zh"))]
+        nodes.extend((file.path, file_detail(file, "zh")) for file in top_files)
         if len(profile.files) > len(top_files):
-            nodes.append(("其他源码", f"还有 {len(profile.files) - len(top_files)} 个文件在详细学习指南中列出"))
-        return nodes[:6]
-    nodes = [(crate_name, f"{len(profile.files)} source files, {len(profile.public_symbols)} public symbols")]
-    nodes.extend((file.path, file.role_en) for file in top_files)
+            nodes.append(("其他源码", f"还有 {len(profile.files) - len(top_files)} 个文件在 learning-guide.zh.md 中完整列出"))
+        nodes.append(("模块信号", summarize_module_signals(profile, "zh")))
+        nodes.append(("API 集中度", summarize_api_owners(profile, "zh")))
+        nodes.append(("测试集中度", summarize_tests_by_file(profile, "zh")))
+        nodes.append(("依赖上下文", dependency_risk_summary(profile, "zh")))
+        nodes.append(("阅读路径", summarize_files(rank_files(profile)[:4], "zh")))
+        nodes.append(("修改热点", module_change_hotspot(profile, "zh")))
+        return nodes
+    nodes = [(crate_name, crate_metrics(profile, "en"))]
+    nodes.extend((file.path, file_detail(file, "en")) for file in top_files)
     if len(profile.files) > len(top_files):
-        nodes.append(("Other source", f"{len(profile.files) - len(top_files)} more files are listed in the detailed learning guide"))
-    return nodes[:6]
+        nodes.append(("Other source", f"{len(profile.files) - len(top_files)} more files are fully listed in learning-guide.md"))
+    nodes.append(("Module signals", summarize_module_signals(profile, "en")))
+    nodes.append(("API concentration", summarize_api_owners(profile, "en")))
+    nodes.append(("Test concentration", summarize_tests_by_file(profile, "en")))
+    nodes.append(("Dependency context", dependency_risk_summary(profile, "en")))
+    nodes.append(("Reading path", summarize_files(rank_files(profile)[:4], "en")))
+    nodes.append(("Change hotspot", module_change_hotspot(profile, "en")))
+    return nodes
 
 
 def api_nodes(crate_name: str, profile: SourceProfile, lang: str) -> list[tuple[str, str]]:
     grouped = group_public_symbols(profile.public_symbols)
+    owner_summary = summarize_api_owners(profile, lang)
     if lang == "zh":
         return [
-            (crate_name, "公开 API 面由源码扫描生成"),
+            (crate_name, f"公开 API 面由源码扫描生成；{len(profile.public_symbols)} 个符号"),
             ("类型", summarize_symbols(grouped.get("type", ()), "zh")),
             ("函数", summarize_symbols(grouped.get("fn", ()), "zh")),
             ("Trait", summarize_symbols(grouped.get("trait", ()), "zh")),
             ("常量", summarize_symbols(grouped.get("const", ()), "zh")),
+            ("主要定义文件", owner_summary),
+            ("使用方式", "先读类型，再读构造/解析函数，再读执行/验证函数，最后读测试向量。"),
             ("详细列表", "见 docs/learning-guide.zh.md 的 API 表"),
         ]
     return [
-        (crate_name, "public API surface generated from source scan"),
+        (crate_name, f"public API surface generated from source scan; {len(profile.public_symbols)} symbols"),
         ("Types", summarize_symbols(grouped.get("type", ()), "en")),
         ("Functions", summarize_symbols(grouped.get("fn", ()), "en")),
         ("Traits", summarize_symbols(grouped.get("trait", ()), "en")),
         ("Constants", summarize_symbols(grouped.get("const", ()), "en")),
+        ("Main owner files", owner_summary),
+        ("How to read it", "Read types first, then constructors/parsers, execution/verification functions, and test vectors."),
         ("Detailed list", "see docs/learning-guide.md API table"),
     ]
 
 
 def test_nodes(crate_name: str, profile: SourceProfile, lang: str) -> list[tuple[str, str]]:
     test_files = [file for file in profile.files if file.tests or file.path.startswith("tests/")]
-    top = sorted(test_files, key=lambda file: (len(file.tests), file.path), reverse=True)[:5]
+    top = sorted(test_files, key=lambda file: (len(file.tests), file.path), reverse=True)[:8]
     if lang == "zh":
         nodes = [(crate_name, f"测试函数 {len(profile.tests)} 个，测试文件 {len(test_files)} 个")]
-        nodes.extend((file.path, summarize_tests(file.tests, "zh")) for file in top)
+        nodes.extend((file.path, test_file_detail(file, "zh")) for file in top)
         if not top:
             nodes.append(("测试证据", "未扫描到 Rust #[test]；请查看 workspace 级测试或外部验证"))
-        return nodes[:6]
+        nodes.append(("被测源码", summarize_files(rank_files(profile)[:4], "zh")))
+        nodes.append(("被测 API 面", summarize_api_groups(profile, "zh")))
+        nodes.append(("覆盖缺口", test_gap_summary(profile, "zh")))
+        nodes.append(("依赖测试范围", dependency_risk_summary(profile, "zh")))
+        nodes.append(("学习方式", "先读测试名理解行为，再回到对应源码文件和公开 API。"))
+        nodes.append(("验证命令", "cargo test --workspace --locked；外部子仓库分别 cargo test --locked"))
+        return nodes
     nodes = [(crate_name, f"{len(profile.tests)} test functions across {len(test_files)} test files")]
-    nodes.extend((file.path, summarize_tests(file.tests, "en")) for file in top)
+    nodes.extend((file.path, test_file_detail(file, "en")) for file in top)
     if not top:
         nodes.append(("Test evidence", "No Rust #[test] scanned; check workspace-level or external verification"))
-    return nodes[:6]
+    nodes.append(("Source under test", summarize_files(rank_files(profile)[:4], "en")))
+    nodes.append(("API under test", summarize_api_groups(profile, "en")))
+    nodes.append(("Coverage gap", test_gap_summary(profile, "en")))
+    nodes.append(("Dependency test scope", dependency_risk_summary(profile, "en")))
+    nodes.append(("How to learn from tests", "Read test names for behavior, then jump back to the matching source files and public API."))
+    nodes.append(("Validation command", "cargo test --workspace --locked; external repos use cargo test --locked"))
+    return nodes
 
 
 def dependency_nodes(crate_name: str, profile: SourceProfile, lang: str) -> list[tuple[str, str]]:
@@ -857,6 +952,7 @@ def dependency_nodes(crate_name: str, profile: SourceProfile, lang: str) -> list
     test = [dep.name for dep in profile.dependencies if dep.kind == "test"]
     build = [dep.name for dep in profile.dependencies if dep.kind == "build"]
     internal = [dep.name for dep in profile.dependencies if dep.name.startswith(("neo-", "r3e", "n4"))]
+    external = [dep.name for dep in profile.dependencies if dep.name not in internal]
     if lang == "zh":
         return [
             (crate_name, "Cargo.toml 依赖边界"),
@@ -864,7 +960,9 @@ def dependency_nodes(crate_name: str, profile: SourceProfile, lang: str) -> list
             ("测试依赖", summarize_list(test, "无测试依赖")),
             ("构建依赖", summarize_list(build, "无构建依赖")),
             ("Neo 内部依赖", summarize_list(internal, "无内部 crate 依赖")),
-            ("边界检查", "依赖越少，crate 越容易独立理解和测试"),
+            ("外部依赖", summarize_list(external, "无外部依赖")),
+            ("风险检查", dependency_risk_summary(profile, "zh")),
+            ("边界检查", "依赖越少，crate 越容易独立理解、审计和测试。新增依赖要解释运行时必要性。"),
         ]
     return [
         (crate_name, "Cargo.toml dependency boundary"),
@@ -872,8 +970,179 @@ def dependency_nodes(crate_name: str, profile: SourceProfile, lang: str) -> list
         ("Test deps", summarize_list(test, "no test deps")),
         ("Build deps", summarize_list(build, "no build deps")),
         ("Neo internal deps", summarize_list(internal, "no internal crate deps")),
-        ("Boundary check", "fewer dependencies make the crate easier to understand and test"),
+        ("External deps", summarize_list(external, "no external deps")),
+        ("Risk check", dependency_risk_summary(profile, "en")),
+        ("Boundary check", "Fewer dependencies make the crate easier to understand, audit, and test. New deps must justify runtime necessity."),
     ]
+
+
+def implementation_atlas_nodes(crate: CrateInfo, guide: Guide, profile: SourceProfile, lang: str) -> list[tuple[str, str]]:
+    grouped = group_public_symbols(profile.public_symbols)
+    if lang == "zh":
+        return [
+            (crate.name, f"{guide.layer_zh}；{crate_metrics(profile, 'zh')}"),
+            ("为什么存在", guide.role_zh),
+            ("读源码入口", summarize_files(rank_files(profile)[:4], "zh")),
+            ("核心类型", summarize_symbols(grouped.get("type", ()), "zh")),
+            ("核心函数", summarize_symbols(grouped.get("fn", ()), "zh")),
+            ("模块/导出", summarize_module_signals(profile, "zh")),
+            ("运行路径", join_items(guide.workflow_zh)),
+            ("数据路径", join_items(guide.dataflow_zh)),
+            ("依赖边界", dependency_risk_summary(profile, "zh")),
+            ("测试证据", summarize_tests_by_file(profile, "zh")),
+            ("输出/消费者", f"{join_items(guide.outputs_zh)} -> {join_items(guide.consumers_zh)}"),
+            ("修改前检查", "API 表、测试表、依赖表、工作流/数据流图必须和源码一起更新。"),
+        ]
+    return [
+        (crate.name, f"{guide.layer_en}; {crate_metrics(profile, 'en')}"),
+        ("Why it exists", guide.role_en),
+        ("Source entrypoints", summarize_files(rank_files(profile)[:4], "en")),
+        ("Core types", summarize_symbols(grouped.get("type", ()), "en")),
+        ("Core functions", summarize_symbols(grouped.get("fn", ()), "en")),
+        ("Modules/exports", summarize_module_signals(profile, "en")),
+        ("Runtime path", join_items(guide.workflow_en)),
+        ("Data path", join_items(guide.dataflow_en)),
+        ("Dependency boundary", dependency_risk_summary(profile, "en")),
+        ("Test evidence", summarize_tests_by_file(profile, "en")),
+        ("Outputs/consumers", f"{join_items(guide.outputs_en)} -> {join_items(guide.consumers_en)}"),
+        ("Before changing it", "Keep the API table, test table, dependency table, workflow, and dataflow diagrams aligned with source."),
+    ]
+
+
+def crate_metrics(profile: SourceProfile, lang: str) -> str:
+    test_files = len([file for file in profile.files if file.tests or file.path.startswith("tests/")])
+    if lang == "zh":
+        return f"{len(profile.files)} 个源码文件，{len(profile.public_symbols)} 个公开符号，{len(profile.tests)} 个测试，{len(profile.dependencies)} 个依赖"
+    return f"{len(profile.files)} source files, {len(profile.public_symbols)} public symbols, {len(profile.tests)} tests, {len(profile.dependencies)} deps"
+
+
+def summarize_files(files: Iterable[SourceFileInfo], lang: str) -> str:
+    items = []
+    for file in files:
+        marker = f"{len(file.public_symbols)} API/{len(file.tests)} tests"
+        if lang == "zh":
+            marker = f"{len(file.public_symbols)} API/{len(file.tests)} 测试"
+        items.append(f"{file.path} ({marker})")
+    if not items:
+        return "未扫描到源码文件" if lang == "zh" else "no source files scanned"
+    return summarize_list(items, "")
+
+
+def summarize_api_groups(profile: SourceProfile, lang: str) -> str:
+    grouped = group_public_symbols(profile.public_symbols)
+    if lang == "zh":
+        parts = [
+            f"类型 {len(grouped.get('type', ()))}",
+            f"函数 {len(grouped.get('fn', ()))}",
+            f"Trait {len(grouped.get('trait', ()))}",
+            f"常量 {len(grouped.get('const', ()))}",
+        ]
+    else:
+        parts = [
+            f"types {len(grouped.get('type', ()))}",
+            f"functions {len(grouped.get('fn', ()))}",
+            f"traits {len(grouped.get('trait', ()))}",
+            f"constants {len(grouped.get('const', ()))}",
+        ]
+    return " | ".join(parts)
+
+
+def summarize_module_signals(profile: SourceProfile, lang: str) -> str:
+    if not profile.module_declarations:
+        return "未扫描到 mod/pub use 声明" if lang == "zh" else "no mod/pub use declarations scanned"
+    return summarize_list(profile.module_declarations, "")
+
+
+def summarize_tests_by_file(profile: SourceProfile, lang: str) -> str:
+    test_files = [file for file in profile.files if file.tests or file.path.startswith("tests/")]
+    if not test_files:
+        return "未扫描到 Rust #[test]" if lang == "zh" else "no Rust #[test] scanned"
+    ranked = sorted(test_files, key=lambda file: (len(file.tests), file.path), reverse=True)
+    items = []
+    for file in ranked[:5]:
+        label = f"{file.path} ({len(file.tests)} tests)"
+        if lang == "zh":
+            label = f"{file.path}（{len(file.tests)} 个测试）"
+        items.append(label)
+    suffix = ""
+    if len(ranked) > 5:
+        suffix = f" | +{len(ranked) - 5}"
+    return " | ".join(items) + suffix
+
+
+def dependency_risk_summary(profile: SourceProfile, lang: str) -> str:
+    runtime = [dep.name for dep in profile.dependencies if dep.kind == "runtime"]
+    test = [dep.name for dep in profile.dependencies if dep.kind == "test"]
+    build = [dep.name for dep in profile.dependencies if dep.kind == "build"]
+    internal = [dep for dep in runtime if dep.startswith(("neo-", "r3e", "n4"))]
+    external_runtime = [dep for dep in runtime if dep not in internal]
+    if lang == "zh":
+        return f"运行时 {len(runtime)}，测试 {len(test)}，构建 {len(build)}，内部 {len(internal)}，外部运行时 {len(external_runtime)}"
+    return f"runtime {len(runtime)}, test {len(test)}, build {len(build)}, internal {len(internal)}, external runtime {len(external_runtime)}"
+
+
+def first_file_name(files: list[SourceFileInfo]) -> str:
+    return files[0].path if files else "no source file"
+
+
+def workflow_file_hint(files: list[SourceFileInfo], idx: int, lang: str) -> str:
+    if not files:
+        return "未扫描到源码文件" if lang == "zh" else "no source file scanned"
+    file = files[min(idx - 1, len(files) - 1)]
+    return f"{file.path} ({file.role_zh if lang == 'zh' else file.role_en})"
+
+
+def file_detail(file: SourceFileInfo, lang: str) -> str:
+    role = file.role_zh if lang == "zh" else file.role_en
+    if lang == "zh":
+        return f"{role}；公开符号 {len(file.public_symbols)}；测试 {len(file.tests)}"
+    return f"{role}; {len(file.public_symbols)} public symbols; {len(file.tests)} tests"
+
+
+def summarize_api_owners(profile: SourceProfile, lang: str) -> str:
+    counts: dict[str, int] = {}
+    for item in profile.public_symbols:
+        file, _ = item.split(": ", 1)
+        counts[file] = counts.get(file, 0) + 1
+    if not counts:
+        return "未扫描到公开 API 定义文件" if lang == "zh" else "no public API owner files scanned"
+    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:5]
+    if lang == "zh":
+        return " | ".join(f"{file}（{count} 个）" for file, count in ranked)
+    return " | ".join(f"{file} ({count})" for file, count in ranked)
+
+
+def test_file_detail(file: SourceFileInfo, lang: str) -> str:
+    summary = summarize_tests(file.tests, lang)
+    if lang == "zh":
+        return f"{len(file.tests)} 个测试；{summary}"
+    return f"{len(file.tests)} tests; {summary}"
+
+
+def module_change_hotspot(profile: SourceProfile, lang: str) -> str:
+    ranked = rank_files(profile)
+    if not ranked:
+        return "未扫描到源码文件" if lang == "zh" else "no source file scanned"
+    top = ranked[0]
+    if lang == "zh":
+        return f"优先审查 {top.path}；它有 {len(top.public_symbols)} 个公开符号、{len(top.tests)} 个测试。"
+    return f"Review {top.path} first; it owns {len(top.public_symbols)} public symbols and {len(top.tests)} tests."
+
+
+def test_gap_summary(profile: SourceProfile, lang: str) -> str:
+    public_count = len(profile.public_symbols)
+    test_count = len(profile.tests)
+    if lang == "zh":
+        if public_count and not test_count:
+            return f"有 {public_count} 个公开符号但未扫描到本地 Rust 测试；需要依赖外部验证或补测试。"
+        if test_count < max(1, public_count // 10):
+            return f"公开符号 {public_count}，测试 {test_count}；修改 API 时应补行为测试。"
+        return f"公开符号 {public_count}，测试 {test_count}；继续保持测试和 API 同步。"
+    if public_count and not test_count:
+        return f"{public_count} public symbols but no local Rust tests scanned; rely on external validation or add tests."
+    if test_count < max(1, public_count // 10):
+        return f"{public_count} public symbols, {test_count} tests; add behavior tests when changing API."
+    return f"{public_count} public symbols, {test_count} tests; keep tests aligned with API."
 
 
 def rank_files(profile: SourceProfile) -> list[SourceFileInfo]:
@@ -940,16 +1209,20 @@ def join_items(items: Iterable[str]) -> str:
 
 
 def write_svg(path: Path, crate_name: str, diagram: str, nodes: list[tuple[str, str]], lang: str) -> None:
-    width = 1280
-    height = 760
-    margin_x = 70
-    gap = 26
-    box_w = 340
-    box_h = 130
+    width = 1760
+    columns = 3
+    gap_x = 38
+    gap_y = 30
+    box_w = 500
+    box_h = 168
+    rows_count = max(1, (len(nodes) + columns - 1) // columns)
+    height = 210 + rows_count * box_h + (rows_count - 1) * gap_y + 96
+    panel_h = height - 68
     title = f"{crate_name} {diagram.title()}"
-    subtitle = "Neo N4 crate visual learning guide" if lang == "en" else "Neo N4 crate 可视化学习图"
-    rows = [nodes[:3], nodes[3:]]
-    y_positions = [155, 415]
+    subtitle = "Source-aware Neo N4 crate learning diagram" if lang == "en" else "Neo N4 crate 源码感知学习图"
+    grid_width = columns * box_w + (columns - 1) * gap_x
+    start_x = (width - grid_width) / 2
+    start_y = 150
 
     parts = [
         '<?xml version="1.0" encoding="UTF-8"?>',
@@ -958,35 +1231,42 @@ def write_svg(path: Path, crate_name: str, diagram: str, nodes: list[tuple[str, 
         '<linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#071018"/><stop offset="1" stop-color="#102033"/></linearGradient>',
         '<marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M2,2 L10,6 L2,10 Z" fill="#38d978"/></marker>',
         "</defs>",
-        '<rect x="0" y="0" width="1280" height="760" fill="url(#bg)"/>',
-        '<rect x="34" y="34" width="1212" height="692" rx="18" fill="#0c1722" stroke="#1e3a4d" stroke-width="2"/>',
+        f'<rect x="0" y="0" width="{width}" height="{height}" fill="url(#bg)"/>',
+        f'<rect x="34" y="34" width="{width - 68}" height="{panel_h}" rx="18" fill="#0c1722" stroke="#1e3a4d" stroke-width="2"/>',
         f'<text x="70" y="82" fill="#f6fbff" font-size="30" font-family="Segoe UI, Arial, sans-serif" font-weight="700">{html.escape(title)}</text>',
         f'<text x="70" y="114" fill="#aebdcc" font-size="17" font-family="Segoe UI, Arial, sans-serif">{html.escape(subtitle)}</text>',
+        f'<text x="{width - 520}" y="82" fill="#6f8194" font-size="14" font-family="Segoe UI, Arial, sans-serif">Generated from Cargo.toml, Rust files, public symbols, tests</text>',
     ]
 
-    node_centers: list[tuple[float, float]] = []
-    for row_idx, row in enumerate(rows):
-        row_width = len(row) * box_w + (len(row) - 1) * gap
-        start_x = (width - row_width) / 2
-        y = y_positions[row_idx]
-        for col_idx, (label, body) in enumerate(row):
-            x = start_x + col_idx * (box_w + gap)
-            node_centers.append((x + box_w, y + box_h / 2))
-            parts.extend(svg_box(x, y, box_w, box_h, label, body, col_idx + row_idx))
-            if col_idx > 0:
-                x1 = start_x + (col_idx - 1) * (box_w + gap) + box_w
-                y1 = y + box_h / 2
-                x2 = x - 8
-                parts.append(
-                    f'<line x1="{x1 + 8:.0f}" y1="{y1:.0f}" x2="{x2:.0f}" y2="{y1:.0f}" stroke="#38d978" stroke-width="2.5" marker-end="url(#arrow)" opacity="0.9"/>'
-                )
-    if len(rows[0]) and len(rows[1]):
+    centers: list[tuple[float, float]] = []
+    for idx, (label, body) in enumerate(nodes):
+        row = idx // columns
+        col = idx % columns
+        x = start_x + col * (box_w + gap_x)
+        y = start_y + row * (box_h + gap_y)
+        centers.append((x + box_w / 2, y + box_h / 2))
+        parts.extend(svg_box(x, y, box_w, box_h, label, body, idx))
+
+    for idx in range(len(centers) - 1):
+        x1, y1 = centers[idx]
+        x2, y2 = centers[idx + 1]
+        if (idx + 1) % columns == 0:
+            continue
         parts.append(
-            '<path d="M640 300 C640 350 640 370 640 412" stroke="#52a6ff" stroke-width="2.5" fill="none" marker-end="url(#arrow)" opacity="0.85"/>'
+            f'<line x1="{x1 + box_w / 2 - 18:.0f}" y1="{y1:.0f}" x2="{x2 - box_w / 2 + 18:.0f}" y2="{y2:.0f}" stroke="#38d978" stroke-width="2.2" marker-end="url(#arrow)" opacity="0.75"/>'
         )
+    for row in range(rows_count - 1):
+        upper_idx = row * columns + min(columns - 1, len(nodes) - row * columns - 1)
+        lower_idx = (row + 1) * columns
+        if upper_idx < len(centers) and lower_idx < len(centers):
+            x1, y1 = centers[upper_idx]
+            x2, y2 = centers[lower_idx]
+            parts.append(
+                f'<path d="M{x1:.0f} {y1 + box_h / 2 - 12:.0f} C{x1:.0f} {y1 + box_h / 2 + 40:.0f}, {x2:.0f} {y2 - box_h / 2 - 40:.0f}, {x2:.0f} {y2 - box_h / 2 + 12:.0f}" stroke="#52a6ff" stroke-width="2.1" fill="none" marker-end="url(#arrow)" opacity="0.7"/>'
+            )
 
     parts.append(
-        '<text x="70" y="704" fill="#6f8194" font-size="14" font-family="Segoe UI, Arial, sans-serif">Generated from Cargo package metadata and Neo N4 architecture roles. Edit the companion .mmd source or rerun tools/docs/generate_crate_visual_docs.py.</text>'
+        f'<text x="70" y="{height - 38}" fill="#6f8194" font-size="14" font-family="Segoe UI, Arial, sans-serif">Generated by tools/docs/generate_crate_visual_docs.py. The SVG and Mermaid files are regenerated from source layout, API symbols, tests, dependencies, and Neo N4 architecture roles.</text>'
     )
     parts.append("</svg>")
     path.write_text("\n".join(parts) + "\n", encoding="utf-8")
@@ -994,14 +1274,21 @@ def write_svg(path: Path, crate_name: str, diagram: str, nodes: list[tuple[str, 
 
 def svg_box(x: float, y: float, w: int, h: int, label: str, body: str, idx: int) -> list[str]:
     stroke = ["#38d978", "#52a6ff", "#ffca3a", "#38d978", "#52a6ff", "#a855f7"][idx % 6]
-    body_lines = wrap_text(body, 34)
+    label_lines = wrap_text(label, 34)[:2]
+    body_lines = wrap_text(body, 48)
+    body_start = y + 48 + len(label_lines) * 20
     parts = [
-        f'<rect x="{x:.0f}" y="{y:.0f}" width="{w}" height="{h}" rx="12" fill="#101f2d" stroke="{stroke}" stroke-width="2"/>',
-        f'<text x="{x + 22:.0f}" y="{y + 34:.0f}" fill="{stroke}" font-size="18" font-family="Segoe UI, Arial, sans-serif" font-weight="700">{html.escape(label)}</text>',
+        f'<rect x="{x:.0f}" y="{y:.0f}" width="{w}" height="{h}" rx="10" fill="#101f2d" stroke="{stroke}" stroke-width="2"/>',
+        f'<circle cx="{x + w - 28:.0f}" cy="{y + 28:.0f}" r="13" fill="#0c1722" stroke="{stroke}" stroke-width="1.5"/>',
+        f'<text x="{x + w - 28:.0f}" y="{y + 33:.0f}" text-anchor="middle" fill="{stroke}" font-size="13" font-family="Segoe UI, Arial, sans-serif" font-weight="700">{idx + 1}</text>',
     ]
-    for line_idx, line in enumerate(body_lines[:4]):
+    for line_idx, line in enumerate(label_lines):
         parts.append(
-            f'<text x="{x + 22:.0f}" y="{y + 66 + line_idx * 22:.0f}" fill="#d9e6f2" font-size="15" font-family="Segoe UI, Arial, sans-serif">{html.escape(line)}</text>'
+            f'<text x="{x + 22:.0f}" y="{y + 32 + line_idx * 20:.0f}" fill="{stroke}" font-size="17" font-family="Segoe UI, Arial, sans-serif" font-weight="700">{html.escape(line)}</text>'
+        )
+    for line_idx, line in enumerate(body_lines[:5]):
+        parts.append(
+            f'<text x="{x + 22:.0f}" y="{body_start + line_idx * 20:.0f}" fill="#d9e6f2" font-size="14" font-family="Segoe UI, Arial, sans-serif">{html.escape(line)}</text>'
         )
     return parts
 
@@ -1016,7 +1303,7 @@ def wrap_text(value: str, width: int) -> list[str]:
 
 
 def write_mermaid(path: Path, crate_name: str, diagram: str, nodes: list[tuple[str, str]]) -> None:
-    lines = ["flowchart LR"]
+    lines = ["flowchart TB"]
     ids = []
     focus_id = ""
     for idx, (label, body) in enumerate(nodes, start=1):
@@ -1024,10 +1311,18 @@ def write_mermaid(path: Path, crate_name: str, diagram: str, nodes: list[tuple[s
         ids.append(node_id)
         if not focus_id and (label == crate_name or crate_name in body):
             focus_id = node_id
-        safe = f"{label}: {body}".replace('"', "'")
+        safe = f"{idx}. {label}: {body}".replace('"', "'")
         lines.append(f'    {node_id}["{safe}"]')
-    for left, right in zip(ids, ids[1:]):
-        lines.append(f"    {left} --> {right}")
+    if diagram in {"workflow", "dataflow"}:
+        for left, right in zip(ids, ids[1:]):
+            lines.append(f"    {left} --> {right}")
+    elif ids:
+        hub = focus_id or ids[0]
+        for node_id in ids:
+            if node_id != hub:
+                lines.append(f"    {hub} --> {node_id}")
+        for left, right in zip(ids[1:], ids[2:]):
+            lines.append(f"    {left} -. related .-> {right}")
     lines.append(f'    classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff')
     lines.append(f"    class {focus_id or 'N' + str(max(1, (len(ids) + 1) // 2))} crate")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -1072,6 +1367,7 @@ For the full source-level explanation, read [docs/learning-guide.md](docs/learni
 | Public API surface | ![Public API surface](docs/figures/api-surface.svg) | [Mermaid](docs/figures/api-surface.mmd) |
 | Test evidence | ![Test evidence](docs/figures/test-map.svg) | [Mermaid](docs/figures/test-map.mmd) |
 | Dependency map | ![Dependency map](docs/figures/dependency-map.svg) | [Mermaid](docs/figures/dependency-map.mmd) |
+| Implementation atlas | ![Implementation atlas](docs/figures/implementation-atlas.svg) | [Mermaid](docs/figures/implementation-atlas.mmd) |
 
 ### Role in Neo N4
 
@@ -1109,6 +1405,7 @@ For the full source-level explanation, read [docs/learning-guide.md](docs/learni
 2. Read the technical principles diagram to identify the invariants and responsibility boundary.
 3. Use the module map and API surface to identify the files and symbols to read first.
 4. Follow the workflow, dataflow, test, and dependency diagrams before changing code.
+5. Use the implementation atlas as the compact source-reading map when you want one dense view instead of separate technical views.
 
 {MARKER_EN[1]}
 """
@@ -1136,6 +1433,7 @@ def readme_section_zh(crate: CrateInfo, guide: Guide, profile: SourceProfile) ->
 | 公开 API 图 | ![公开 API 图](docs/figures/api-surface.zh.svg) | [Mermaid](docs/figures/api-surface.zh.mmd) |
 | 测试证据图 | ![测试证据图](docs/figures/test-map.zh.svg) | [Mermaid](docs/figures/test-map.zh.mmd) |
 | 依赖图 | ![依赖图](docs/figures/dependency-map.zh.svg) | [Mermaid](docs/figures/dependency-map.zh.mmd) |
+| 实现全景图 | ![实现全景图](docs/figures/implementation-atlas.zh.svg) | [Mermaid](docs/figures/implementation-atlas.zh.mmd) |
 
 ### 在 Neo N4 中的作用
 
@@ -1173,6 +1471,7 @@ def readme_section_zh(crate: CrateInfo, guide: Guide, profile: SourceProfile) ->
 2. 再看技术原理图，理解它的核心不变量、职责边界和维护规则。
 3. 然后看模块图和 API 图，确定先读哪些文件、哪些符号。
 4. 最后看工作流、数据流、测试证据图和依赖图，再进入源码会更容易理解。
+5. 如果希望一张图看完整体，就看实现全景图；它把源码入口、API、数据流、测试、依赖和修改检查点放在一起。
 
 {MARKER_ZH[1]}
 """
@@ -1247,6 +1546,7 @@ This guide is generated from the crate's actual `Cargo.toml`, Rust source files,
 | 7 | [Dataflow](figures/dataflow.svg) | How data is transformed across the crate boundary. |
 | 8 | [Test evidence](figures/test-map.svg) | Which tests protect the behavior. |
 | 9 | [Dependency map](figures/dependency-map.svg) | Which dependencies are runtime, test, or build-only. |
+| 10 | [Implementation atlas](figures/implementation-atlas.svg) | A dense one-page map of purpose, source entrypoints, API, workflow, dataflow, dependencies, tests, and change checks. |
 
 ## Source File Map
 
@@ -1310,6 +1610,7 @@ def learning_guide_zh(crate: CrateInfo, guide: Guide, profile: SourceProfile) ->
 | 7 | [数据流图](figures/dataflow.zh.svg) | 数据如何跨越 crate 边界并被转换。 |
 | 8 | [测试证据图](figures/test-map.zh.svg) | 哪些测试保护行为。 |
 | 9 | [依赖图](figures/dependency-map.zh.svg) | 哪些依赖是运行时、测试或构建期依赖。 |
+| 10 | [实现全景图](figures/implementation-atlas.zh.svg) | 用一张高密度图同时理解用途、源码入口、API、工作流、数据流、依赖、测试和修改检查点。 |
 
 ## 源码文件地图
 
@@ -1432,7 +1733,7 @@ def write_index(rows_en: list[str], rows_zh: list[str]) -> None:
     (docs / "crate-visual-guide.md").write_text(
         "# Neo N4 Crate Visual Guide\n\n"
         "This index links every Rust crate to its own local visual learning guide. "
-        "Each crate directory contains position, principles, architecture, workflow, dataflow, module, API, test, and dependency diagrams in English and Chinese, plus a source-level learning guide.\n\n"
+        "Each crate directory contains position, principles, architecture, workflow, dataflow, module, API, test, dependency, and implementation-atlas diagrams in English and Chinese, plus a source-level learning guide.\n\n"
         "| Crate | Path | Layer | Purpose |\n"
         "| --- | --- | --- | --- |\n"
         + "\n".join(rows_en)
@@ -1442,7 +1743,7 @@ def write_index(rows_en: list[str], rows_zh: list[str]) -> None:
     (zh_docs / "crate-visual-guide.md").write_text(
         "# Neo N4 Crate 可视化指南\n\n"
         "这个索引把每个 Rust crate 链接到它自己目录下的本地可视化学习文档。"
-        "每个 crate 目录都包含位置、技术原理、架构、工作流、数据流、模块、API、测试、依赖九类中英文图，并包含源码级学习指南。\n\n"
+        "每个 crate 目录都包含位置、技术原理、架构、工作流、数据流、模块、API、测试、依赖、实现全景十类中英文图，并包含源码级学习指南。\n\n"
         "| Crate | 路径 | 层级 | 目的 |\n"
         "| --- | --- | --- | --- |\n"
         + "\n".join(rows_zh)
@@ -1462,6 +1763,7 @@ def write_index(rows_en: list[str], rows_zh: list[str]) -> None:
             "api-surface",
             "test-map",
             "dependency-map",
+            "implementation-atlas",
         ],
         "deep_guides_per_crate": ["docs/learning-guide.md", "docs/learning-guide.zh.md"],
         "english_index": "docs/crate-visual-guide.md",

@@ -1,8 +1,27 @@
-flowchart LR
-    N1["neo-n4-sdk: 2 source files, 40 public symbols"]
-    N2["src/lib.rs: crate root, public exports, and top-level documentation"]
-    N3["tests/integration.rs: external behavior or integration test"]
+flowchart TB
+    N1["1. neo-n4-sdk: 2 source files, 40 public symbols, 10 tests, 7 deps"]
+    N2["2. src/lib.rs: crate root, public exports, and top-level documentation; 40 public symbols; 0 tests"]
+    N3["3. tests/integration.rs: external behavior or integration test; 0 public symbols; 10 tests"]
+    N4["4. Module signals: no mod/pub use declarations scanned"]
+    N5["5. API concentration: src/lib.rs (40)"]
+    N6["6. Test concentration: tests/integration.rs (10 tests)"]
+    N7["7. Dependency context: runtime 5, test 2, build 0, internal 0, external runtime 5"]
+    N8["8. Reading path: src/lib.rs (40 API/0 tests) | tests/integration.rs (0 API/10 tests)"]
+    N9["9. Change hotspot: Review src/lib.rs first; it owns 40 public symbols and 0 tests."]
     N1 --> N2
-    N2 --> N3
+    N1 --> N3
+    N1 --> N4
+    N1 --> N5
+    N1 --> N6
+    N1 --> N7
+    N1 --> N8
+    N1 --> N9
+    N2 -. related .-> N3
+    N3 -. related .-> N4
+    N4 -. related .-> N5
+    N5 -. related .-> N6
+    N6 -. related .-> N7
+    N7 -. related .-> N8
+    N8 -. related .-> N9
     classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
     class N1 crate

@@ -1,14 +1,30 @@
-flowchart LR
-    N1["Neo N4 layer: N4 zk host"]
-    N2["Upstream inputs: L2 batch | guest ELF | prover configuration"]
-    N3["neo-zkvm-host: Host-side SP1 prover orchestration for creating and checking L2 batch proofs."]
-    N4["Direct dependencies: neo-zkvm-guest | serial_test"]
-    N5["Downstream users: bridge relayer | L1 verifier adapter | devnet scripts"]
-    N6["Learning focus: Locate upstream and downstream first, then read this crate boundary, core data structures, and tests."]
-    N1 --> N2
-    N2 --> N3
+flowchart TB
+    N1["1. Neo N4 layer: N4 zk host"]
+    N2["2. Upstream inputs: L2 batch | guest ELF | prover configuration"]
+    N3["3. neo-zkvm-host: Host-side SP1 prover orchestration for creating and checking L2 batch proofs."]
+    N4["4. Downstream users: bridge relayer | L1 verifier adapter | devnet scripts"]
+    N5["5. Source scale: 4 source files, 10 public symbols, 3 tests, 2 deps"]
+    N6["6. Source entrypoints: src/lib.rs (10 API/0 tests) | tests/end_to_end.rs (0 API/3 tests) | build.rs (0 API/0 tests)"]
+    N7["7. Core API: execute | prove | verify"]
+    N8["8. Test guardrails: tests/end_to_end.rs (3 tests)"]
+    N9["9. Direct dependencies: neo-zkvm-guest | serial_test"]
+    N10["10. Learning focus: Locate upstream and downstream first, then read this crate boundary, core data structures, and tests."]
+    N3 --> N1
+    N3 --> N2
     N3 --> N4
-    N4 --> N5
-    N5 --> N6
+    N3 --> N5
+    N3 --> N6
+    N3 --> N7
+    N3 --> N8
+    N3 --> N9
+    N3 --> N10
+    N2 -. related .-> N3
+    N3 -. related .-> N4
+    N4 -. related .-> N5
+    N5 -. related .-> N6
+    N6 -. related .-> N7
+    N7 -. related .-> N8
+    N8 -. related .-> N9
+    N9 -. related .-> N10
     classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
     class N3 crate

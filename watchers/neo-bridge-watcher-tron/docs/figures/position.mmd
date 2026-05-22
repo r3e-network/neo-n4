@@ -1,14 +1,30 @@
-flowchart LR
-    N1["Neo N4 layer: Cross-chain watcher"]
-    N2["Upstream inputs: TRON RPC/log stream | bridge contract events | checkpoint cursor"]
-    N3["neo-bridge-watcher-tron: Observes TRON bridge events and turns them into normalized Neo N4 relay messages."]
-    N4["Direct dependencies: hex | neo-bridge-watcher-eth | sha2"]
-    N5["Downstream users: gateway | shared bridge | operator dashboard"]
-    N6["Learning focus: Locate upstream and downstream first, then read this crate boundary, core data structures, and tests."]
-    N1 --> N2
-    N2 --> N3
+flowchart TB
+    N1["1. Neo N4 layer: Cross-chain watcher"]
+    N2["2. Upstream inputs: TRON RPC/log stream | bridge contract events | checkpoint cursor"]
+    N3["3. neo-bridge-watcher-tron: Observes TRON bridge events and turns them into normalized Neo N4 relay messages."]
+    N4["4. Downstream users: gateway | shared bridge | operator dashboard"]
+    N5["5. Source scale: 2 source files, 3 public symbols, 6 tests, 3 deps"]
+    N6["6. Source entrypoints: src/lib.rs (3 API/2 tests) | tests/parity.rs (0 API/4 tests)"]
+    N7["7. Core API: no public symbols scanned"]
+    N8["8. Test guardrails: tests/parity.rs (4 tests) | src/lib.rs (2 tests)"]
+    N9["9. Direct dependencies: hex | neo-bridge-watcher-eth | sha2"]
+    N10["10. Learning focus: Locate upstream and downstream first, then read this crate boundary, core data structures, and tests."]
+    N3 --> N1
+    N3 --> N2
     N3 --> N4
-    N4 --> N5
-    N5 --> N6
+    N3 --> N5
+    N3 --> N6
+    N3 --> N7
+    N3 --> N8
+    N3 --> N9
+    N3 --> N10
+    N2 -. related .-> N3
+    N3 -. related .-> N4
+    N4 -. related .-> N5
+    N5 -. related .-> N6
+    N6 -. related .-> N7
+    N7 -. related .-> N8
+    N8 -. related .-> N9
+    N9 -. related .-> N10
     classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
     class N3 crate

@@ -1,14 +1,30 @@
-flowchart LR
-    N1["Neo N4 layer: N4 batch execution core"]
-    N2["Upstream inputs: L2 batch | previous state root | execution parameters"]
-    N3["neo-execution-core: Backend-neutral L2 batch transition primitives shared by fast execution and proof generation."]
-    N4["Direct dependencies: sha2"]
-    N5["Downstream users: neo-zkvm-guest | neo-zkvm-host | gateway services"]
-    N6["Learning focus: Locate upstream and downstream first, then read this crate boundary, core data structures, and tests."]
-    N1 --> N2
-    N2 --> N3
+flowchart TB
+    N1["1. Neo N4 layer: N4 batch execution core"]
+    N2["2. Upstream inputs: L2 batch | previous state root | execution parameters"]
+    N3["3. neo-execution-core: Backend-neutral L2 batch transition primitives shared by fast execution and proof generation."]
+    N4["4. Downstream users: neo-zkvm-guest | neo-zkvm-host | gateway services"]
+    N5["5. Source scale: 6 source files, 15 public symbols, 5 tests, 1 deps"]
+    N6["6. Source entrypoints: src/lib.rs (0 API/0 tests) | src/types.rs (7 API/0 tests) | src/hashing.rs (6 API/0 tests)"]
+    N7["7. Core API: execute_batch_with | merkle_root | hash256 | hash_receipt +4"]
+    N8["8. Test guardrails: tests/batch_core.rs (5 tests)"]
+    N9["9. Direct dependencies: sha2"]
+    N10["10. Learning focus: Locate upstream and downstream first, then read this crate boundary, core data structures, and tests."]
+    N3 --> N1
+    N3 --> N2
     N3 --> N4
-    N4 --> N5
-    N5 --> N6
+    N3 --> N5
+    N3 --> N6
+    N3 --> N7
+    N3 --> N8
+    N3 --> N9
+    N3 --> N10
+    N2 -. related .-> N3
+    N3 -. related .-> N4
+    N4 -. related .-> N5
+    N5 -. related .-> N6
+    N6 -. related .-> N7
+    N7 -. related .-> N8
+    N8 -. related .-> N9
+    N9 -. related .-> N10
     classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
     class N3 crate

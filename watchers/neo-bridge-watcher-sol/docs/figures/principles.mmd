@@ -1,14 +1,24 @@
-flowchart LR
-    N1["Responsibility boundary: Observes SOL bridge events and turns them into normalized Neo N4 relay messages."]
-    N2["Core principles: Filter bridge events | Normalize payloads | Protect replay/cursor state"]
-    N3["Input contract: SOL RPC/log stream | bridge contract events | checkpoint cursor"]
-    N4["State and artifacts: relay job | audit log | health metric"]
-    N5["Integration contract: gateway | shared bridge | operator dashboard"]
-    N6["Maintenance rule: Keep the boundary small, deterministic, and reproducible under tests."]
+flowchart TB
+    N1["1. Responsibility boundary: Observes SOL bridge events and turns them into normalized Neo N4 relay messages."]
+    N2["2. Core principles: Filter bridge events | Normalize payloads | Protect replay/cursor state"]
+    N3["3. Input contract: SOL RPC/log stream | bridge contract events | checkpoint cursor"]
+    N4["4. State and artifacts: relay job | audit log | health metric"]
+    N5["5. Source evidence: 2 source files, 7 public symbols, 9 tests, 4 deps"]
+    N6["6. Test evidence: src/lib.rs (6 tests) | tests/parity.rs (3 tests)"]
+    N7["7. Dependency discipline: runtime 3, test 1, build 0, internal 1, external runtime 2"]
+    N8["8. Maintenance rule: Keep the boundary small, deterministic, and reproducible under tests."]
     N1 --> N2
-    N2 --> N3
-    N3 --> N4
-    N4 --> N5
-    N5 --> N6
+    N1 --> N3
+    N1 --> N4
+    N1 --> N5
+    N1 --> N6
+    N1 --> N7
+    N1 --> N8
+    N2 -. related .-> N3
+    N3 -. related .-> N4
+    N4 -. related .-> N5
+    N5 -. related .-> N6
+    N6 -. related .-> N7
+    N7 -. related .-> N8
     classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
-    class N3 crate
+    class N4 crate

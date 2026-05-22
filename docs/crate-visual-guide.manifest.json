@@ -9,7 +9,8 @@
     "module-map",
     "api-surface",
     "test-map",
-    "dependency-map"
+    "dependency-map",
+    "implementation-atlas"
   ],
   "deep_guides_per_crate": [
     "docs/learning-guide.md",

@@ -5,7 +5,15 @@
     "principles",
     "architecture",
     "workflow",
-    "dataflow"
+    "dataflow",
+    "module-map",
+    "api-surface",
+    "test-map",
+    "dependency-map"
+  ],
+  "deep_guides_per_crate": [
+    "docs/learning-guide.md",
+    "docs/learning-guide.zh.md"
   ],
   "english_index": "docs/crate-visual-guide.md",
   "chinese_index": "docs/zh/crate-visual-guide.md"

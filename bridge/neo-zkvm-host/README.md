@@ -149,6 +149,8 @@ negative suite in about 96 seconds on the audit host.
 
 These diagrams are local to this crate. They explain `neo-zkvm-host` as an independent unit: where it sits in the Neo N4 stack, which boundary it owns, how its internal workflow runs, and how data moves through it.
 
+For the full source-level explanation, read [docs/learning-guide.md](docs/learning-guide.md).
+
 | View | Diagram | Source |
 | --- | --- | --- |
 | Position in Neo N4 | ![Position](docs/figures/position.svg) | [Mermaid](docs/figures/position.mmd) |
@@ -156,6 +158,10 @@ These diagrams are local to this crate. They explain `neo-zkvm-host` as an indep
 | Architecture | ![Architecture](docs/figures/architecture.svg) | [Mermaid](docs/figures/architecture.mmd) |
 | Workflow | ![Workflow](docs/figures/workflow.svg) | [Mermaid](docs/figures/workflow.mmd) |
 | Dataflow | ![Dataflow](docs/figures/dataflow.svg) | [Mermaid](docs/figures/dataflow.mmd) |
+| Module map | ![Module map](docs/figures/module-map.svg) | [Mermaid](docs/figures/module-map.mmd) |
+| Public API surface | ![Public API surface](docs/figures/api-surface.svg) | [Mermaid](docs/figures/api-surface.mmd) |
+| Test evidence | ![Test evidence](docs/figures/test-map.svg) | [Mermaid](docs/figures/test-map.mmd) |
+| Dependency map | ![Dependency map](docs/figures/dependency-map.svg) | [Mermaid](docs/figures/dependency-map.mmd) |
 
 ### Role in Neo N4
 
@@ -164,6 +170,9 @@ These diagrams are local to this crate. They explain `neo-zkvm-host` as an indep
 - **Primary inputs:** L2 batch, guest ELF, prover configuration
 - **Primary outputs:** proof bytes, verification report, state commitment
 - **Downstream consumers:** bridge relayer, L1 verifier adapter, devnet scripts
+- **Source files scanned:** 4
+- **Public symbols scanned:** 10
+- **Rust tests scanned:** 3
 
 ### Boundary and Responsibilities
 
@@ -172,11 +181,29 @@ These diagrams are local to this crate. They explain `neo-zkvm-host` as an indep
 - **Produces:** proof bytes, verification report, state commitment
 - **Used by:** bridge relayer, L1 verifier adapter, devnet scripts
 
+### Source Map Snapshot
+
+| File | Why it matters | Public API | Tests |
+| --- | --- | ---: | ---: |
+| `src/lib.rs` | crate root, public exports, and top-level documentation | 10 | 0 |
+| `tests/end_to_end.rs` | external behavior or integration test | 0 | 3 |
+| `build.rs` | implementation detail or helper module | 0 | 0 |
+| `src/bin/prove_batch.rs` | additional binary entrypoint | 0 | 0 |
+
+### API Snapshot
+
+| Kind | Representative symbols |
+| --- | --- |
+| Types | ExecutionResult <br> ProofResult |
+| Functions | execute <br> prove <br> verify |
+| Trait | no public symbols scanned |
+| Constants | NEO_ZKVM_GUEST_ELF |
+
 ### Learning Path
 
 1. Start with the position diagram to understand why this crate exists and who calls it.
 2. Read the technical principles diagram to identify the invariants and responsibility boundary.
-3. Use the architecture diagram to connect public inputs, internal components, dependencies, and outputs.
-4. Follow the workflow and dataflow diagrams before reading source files or tests.
+3. Use the module map and API surface to identify the files and symbols to read first.
+4. Follow the workflow, dataflow, test, and dependency diagrams before changing code.
 
 <!-- N4-CRATE-VISUAL-GUIDE:END -->

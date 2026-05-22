@@ -1,0 +1,8 @@
+flowchart LR
+    N1["neo-bridge-watcher-sol: 测试函数 9 个，测试文件 2 个"]
+    N2["src/lib.rs: solana_chain_ids_have_foreign_namespace_prefix | solana_chain_ids_disjoint_from_eth_and_tron | ed25519_signer_signs_and_verifies | ed25519_signer_rejects_wrong_key_length +2"]
+    N3["tests/parity.rs: watcher_core_drives_through_with_ed25519_signer | solana_canonical_bytes_use_solana_chain_id | solana_message_hash_distinct_from_eth_and_tron"]
+    N1 --> N2
+    N2 --> N3
+    classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
+    class N1 crate

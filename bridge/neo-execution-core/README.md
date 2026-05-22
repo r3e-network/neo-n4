@@ -57,6 +57,8 @@ cargo test -p neo-execution-core
 
 These diagrams are local to this crate. They explain `neo-execution-core` as an independent unit: where it sits in the Neo N4 stack, which boundary it owns, how its internal workflow runs, and how data moves through it.
 
+For the full source-level explanation, read [docs/learning-guide.md](docs/learning-guide.md).
+
 | View | Diagram | Source |
 | --- | --- | --- |
 | Position in Neo N4 | ![Position](docs/figures/position.svg) | [Mermaid](docs/figures/position.mmd) |
@@ -64,6 +66,10 @@ These diagrams are local to this crate. They explain `neo-execution-core` as an 
 | Architecture | ![Architecture](docs/figures/architecture.svg) | [Mermaid](docs/figures/architecture.mmd) |
 | Workflow | ![Workflow](docs/figures/workflow.svg) | [Mermaid](docs/figures/workflow.mmd) |
 | Dataflow | ![Dataflow](docs/figures/dataflow.svg) | [Mermaid](docs/figures/dataflow.mmd) |
+| Module map | ![Module map](docs/figures/module-map.svg) | [Mermaid](docs/figures/module-map.mmd) |
+| Public API surface | ![Public API surface](docs/figures/api-surface.svg) | [Mermaid](docs/figures/api-surface.mmd) |
+| Test evidence | ![Test evidence](docs/figures/test-map.svg) | [Mermaid](docs/figures/test-map.mmd) |
+| Dependency map | ![Dependency map](docs/figures/dependency-map.svg) | [Mermaid](docs/figures/dependency-map.mmd) |
 
 ### Role in Neo N4
 
@@ -72,6 +78,9 @@ These diagrams are local to this crate. They explain `neo-execution-core` as an 
 - **Primary inputs:** L2 batch, previous state root, execution parameters
 - **Primary outputs:** execution trace, new state root, public proof inputs
 - **Downstream consumers:** neo-zkvm-guest, neo-zkvm-host, gateway services
+- **Source files scanned:** 6
+- **Public symbols scanned:** 15
+- **Rust tests scanned:** 5
 
 ### Boundary and Responsibilities
 
@@ -80,11 +89,31 @@ These diagrams are local to this crate. They explain `neo-execution-core` as an 
 - **Produces:** execution trace, new state root, public proof inputs
 - **Used by:** neo-zkvm-guest, neo-zkvm-host, gateway services
 
+### Source Map Snapshot
+
+| File | Why it matters | Public API | Tests |
+| --- | --- | ---: | ---: |
+| `src/lib.rs` | crate root, public exports, and top-level documentation | 0 | 0 |
+| `src/types.rs` | implementation detail or helper module | 7 | 0 |
+| `src/hashing.rs` | implementation detail or helper module | 6 | 0 |
+| `tests/batch_core.rs` | external behavior or integration test | 0 | 5 |
+| `src/batch.rs` | implementation detail or helper module | 1 | 0 |
+| `src/wire.rs` | implementation detail or helper module | 1 | 0 |
+
+### API Snapshot
+
+| Kind | Representative symbols |
+| --- | --- |
+| Types | BatchResult <br> VmExecutionReceipt <br> ExecutionError <br> BatchRequest +1 |
+| Functions | execute_batch_with <br> merkle_root <br> hash256 <br> hash_receipt +4 |
+| Trait | no public symbols scanned |
+| Constants | BATCH_WIRE_VERSION <br> DEFAULT_PER_TX_GAS_LIMIT |
+
 ### Learning Path
 
 1. Start with the position diagram to understand why this crate exists and who calls it.
 2. Read the technical principles diagram to identify the invariants and responsibility boundary.
-3. Use the architecture diagram to connect public inputs, internal components, dependencies, and outputs.
-4. Follow the workflow and dataflow diagrams before reading source files or tests.
+3. Use the module map and API surface to identify the files and symbols to read first.
+4. Follow the workflow, dataflow, test, and dependency diagrams before changing code.
 
 <!-- N4-CRATE-VISUAL-GUIDE:END -->

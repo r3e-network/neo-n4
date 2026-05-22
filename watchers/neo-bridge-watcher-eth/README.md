@@ -266,6 +266,8 @@ raw Hash256 = ce681e5ecb3eaf452d1834fd94c397271a6556736a4ecfa1e66e4d67e9e1bfac
 
 These diagrams are local to this crate. They explain `neo-bridge-watcher-eth` as an independent unit: where it sits in the Neo N4 stack, which boundary it owns, how its internal workflow runs, and how data moves through it.
 
+For the full source-level explanation, read [docs/learning-guide.md](docs/learning-guide.md).
+
 | View | Diagram | Source |
 | --- | --- | --- |
 | Position in Neo N4 | ![Position](docs/figures/position.svg) | [Mermaid](docs/figures/position.mmd) |
@@ -273,6 +275,10 @@ These diagrams are local to this crate. They explain `neo-bridge-watcher-eth` as
 | Architecture | ![Architecture](docs/figures/architecture.svg) | [Mermaid](docs/figures/architecture.mmd) |
 | Workflow | ![Workflow](docs/figures/workflow.svg) | [Mermaid](docs/figures/workflow.mmd) |
 | Dataflow | ![Dataflow](docs/figures/dataflow.svg) | [Mermaid](docs/figures/dataflow.mmd) |
+| Module map | ![Module map](docs/figures/module-map.svg) | [Mermaid](docs/figures/module-map.mmd) |
+| Public API surface | ![Public API surface](docs/figures/api-surface.svg) | [Mermaid](docs/figures/api-surface.mmd) |
+| Test evidence | ![Test evidence](docs/figures/test-map.svg) | [Mermaid](docs/figures/test-map.mmd) |
+| Dependency map | ![Dependency map](docs/figures/dependency-map.svg) | [Mermaid](docs/figures/dependency-map.mmd) |
 
 ### Role in Neo N4
 
@@ -281,6 +287,9 @@ These diagrams are local to this crate. They explain `neo-bridge-watcher-eth` as
 - **Primary inputs:** ETH RPC/log stream, bridge contract events, checkpoint cursor
 - **Primary outputs:** relay job, audit log, health metric
 - **Downstream consumers:** gateway, shared bridge, operator dashboard
+- **Source files scanned:** 19
+- **Public symbols scanned:** 127
+- **Rust tests scanned:** 87
 
 ### Boundary and Responsibilities
 
@@ -289,11 +298,33 @@ These diagrams are local to this crate. They explain `neo-bridge-watcher-eth` as
 - **Produces:** relay job, audit log, health metric
 - **Used by:** gateway, shared bridge, operator dashboard
 
+### Source Map Snapshot
+
+| File | Why it matters | Public API | Tests |
+| --- | --- | ---: | ---: |
+| `src/lib.rs` | crate root, public exports, and top-level documentation | 0 | 0 |
+| `src/chains.rs` | implementation detail or helper module | 41 | 8 |
+| `src/live/eth_rpc.rs` | implementation detail or helper module | 10 | 15 |
+| `src/live/health.rs` | implementation detail or helper module | 11 | 11 |
+| `src/proof.rs` | proof object, layout, and verification evidence | 10 | 5 |
+| `src/live/neo_rpc.rs` | implementation detail or helper module | 8 | 8 |
+| `src/messaging.rs` | implementation detail or helper module | 7 | 5 |
+| `src/core.rs` | implementation detail or helper module | 6 | 7 |
+
+### API Snapshot
+
+| Kind | Representative symbols |
+| --- | --- |
+| Types | CoreError <br> WatcherCore <br> LockedEvent <br> EventSourceError +30 |
+| Functions | name_for_chain_id <br> is_evm_family <br> recommended_confirmations <br> new +30 |
+| Trait | EventSource <br> Journal <br> SignAndSend <br> Signer +1 |
+| Constants | ETH_MAINNET <br> ETH_SEPOLIA <br> ETH_HOLESKY <br> TRON_MAINNET +35 |
+
 ### Learning Path
 
 1. Start with the position diagram to understand why this crate exists and who calls it.
 2. Read the technical principles diagram to identify the invariants and responsibility boundary.
-3. Use the architecture diagram to connect public inputs, internal components, dependencies, and outputs.
-4. Follow the workflow and dataflow diagrams before reading source files or tests.
+3. Use the module map and API surface to identify the files and symbols to read first.
+4. Follow the workflow, dataflow, test, and dependency diagrams before changing code.
 
 <!-- N4-CRATE-VISUAL-GUIDE:END -->

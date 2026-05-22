@@ -1,0 +1,12 @@
+flowchart LR
+    N1["neo-zkvm-host: 4 source files, 10 public symbols"]
+    N2["src/lib.rs: crate root, public exports, and top-level documentation"]
+    N3["tests/end_to_end.rs: external behavior or integration test"]
+    N4["build.rs: implementation detail or helper module"]
+    N5["src/bin/prove_batch.rs: additional binary entrypoint"]
+    N1 --> N2
+    N2 --> N3
+    N3 --> N4
+    N4 --> N5
+    classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
+    class N1 crate

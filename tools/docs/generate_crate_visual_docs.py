@@ -4,6 +4,8 @@
 The generated files are intentionally simple, static assets:
 - README.md / README.zh.md visual guide sections per crate
 - per-crate position, principles, architecture, workflow, and dataflow diagrams
+- source-aware module, public API, test evidence, and dependency diagrams
+- deep per-crate learning guides under docs/learning-guide*.md
 - English and Chinese Mermaid source diagrams
 - English and Chinese SVG diagrams
 
@@ -62,6 +64,30 @@ class Guide:
     dataflow_zh: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class DependencyInfo:
+    name: str
+    kind: str
+
+
+@dataclass(frozen=True)
+class SourceFileInfo:
+    path: str
+    role_en: str
+    role_zh: str
+    public_symbols: tuple[str, ...]
+    tests: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class SourceProfile:
+    files: tuple[SourceFileInfo, ...]
+    public_symbols: tuple[str, ...]
+    tests: tuple[str, ...]
+    dependencies: tuple[DependencyInfo, ...]
+    module_declarations: tuple[str, ...]
+
+
 def main() -> None:
     crates = discover_crates()
     index_rows_en: list[str] = []
@@ -69,7 +95,8 @@ def main() -> None:
 
     for crate in crates:
         guide = guide_for(crate)
-        write_crate_assets(crate, guide)
+        profile = analyze_crate(crate)
+        write_crate_assets(crate, guide, profile)
         rel = crate.path.relative_to(ROOT).as_posix()
         readme_link_en = f"../{rel}/README.md"
         readme_link_zh = f"../../{rel}/README.zh.md"
@@ -105,6 +132,102 @@ def discover_crates() -> list[CrateInfo]:
             )
         )
     return crates
+
+
+PUBLIC_SYMBOL_RE = re.compile(
+    r"(?m)^\s*pub(?:\([^)]*\))?\s+(?:async\s+|unsafe\s+|extern\s+\"[^\"]+\"\s+)?"
+    r"(struct|enum|trait|fn|type|const|static)\s+([A-Za-z_][A-Za-z0-9_]*)"
+)
+TEST_RE = re.compile(r"(?m)^\s*(?:#\[[^\]]*test[^\]]*\]\s*)+(?:async\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)")
+MOD_RE = re.compile(r"(?m)^\s*(?:pub\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;")
+PUB_USE_RE = re.compile(r"(?m)^\s*pub\s+use\s+([^;]+);")
+
+
+def analyze_crate(crate: CrateInfo) -> SourceProfile:
+    source_files = sorted(
+        file
+        for file in crate.path.rglob("*.rs")
+        if not any(part in {"target", ".git"} for part in file.parts)
+    )
+    file_infos: list[SourceFileInfo] = []
+    public_symbols: list[str] = []
+    tests: list[str] = []
+    module_declarations: list[str] = []
+
+    for file in source_files:
+        rel = file.relative_to(crate.path).as_posix()
+        text = file.read_text(encoding="utf-8", errors="replace")
+        symbols = tuple(f"{kind} {name}" for kind, name in PUBLIC_SYMBOL_RE.findall(text))
+        file_tests = tuple(TEST_RE.findall(text))
+        mods = tuple(MOD_RE.findall(text))
+        pub_uses = tuple(item.strip() for item in PUB_USE_RE.findall(text))
+        public_symbols.extend(f"{rel}: {symbol}" for symbol in symbols)
+        tests.extend(f"{rel}: {name}" for name in file_tests)
+        module_declarations.extend(f"{rel}: mod {name}" for name in mods)
+        module_declarations.extend(f"{rel}: pub use {name}" for name in pub_uses[:6])
+        file_infos.append(
+            SourceFileInfo(
+                path=rel,
+                role_en=file_role(rel, "en"),
+                role_zh=file_role(rel, "zh"),
+                public_symbols=symbols,
+                tests=file_tests,
+            )
+        )
+
+    dependencies: list[DependencyInfo] = []
+    cargo = crate.path / "Cargo.toml"
+    data = tomllib.loads(cargo.read_text(encoding="utf-8"))
+    for section, label in (
+        ("dependencies", "runtime"),
+        ("dev-dependencies", "test"),
+        ("build-dependencies", "build"),
+    ):
+        for dep in sorted(data.get(section, {}).keys()):
+            dependencies.append(DependencyInfo(dep, label))
+
+    return SourceProfile(
+        files=tuple(file_infos),
+        public_symbols=tuple(public_symbols),
+        tests=tuple(tests),
+        dependencies=tuple(dependencies),
+        module_declarations=tuple(module_declarations),
+    )
+
+
+def file_role(path: str, lang: str) -> str:
+    lowered = path.lower()
+    role_en = "implementation detail or helper module"
+    role_zh = "实现细节或辅助模块"
+    hints = [
+        ("src/lib.rs", "crate root, public exports, and top-level documentation", "crate 根、公开导出和顶层文档"),
+        ("src/main.rs", "binary or CLI entrypoint", "二进制或 CLI 入口"),
+        ("src/bin/", "additional binary entrypoint", "额外二进制入口"),
+        ("tests/", "external behavior or integration test", "外部行为或集成测试"),
+        ("examples/", "runnable example or tutorial fixture", "可运行示例或教程 fixture"),
+        ("fuzz", "fuzzing harness and adversarial input exploration", "fuzz harness 与对抗输入探索"),
+        ("template", "developer template and scaffold artifact", "开发者模板与脚手架产物"),
+        ("abi", "wire format, stack value, or host/guest boundary type", "线格式、栈值或 host/guest 边界类型"),
+        ("runtime", "execution runtime, state transition, or gas behavior", "执行 runtime、状态转换或 gas 行为"),
+        ("interpreter", "VM interpreter and opcode semantics", "VM 解释器和 opcode 语义"),
+        ("opcode", "opcode metadata, pricing, or canonical decode rules", "opcode 元数据、定价或标准解码规则"),
+        ("syscall", "host syscall contract and dispatch boundary", "宿主 syscall 契约与分发边界"),
+        ("host", "host-side orchestration and native integration", "host 侧编排与原生集成"),
+        ("guest", "guest-side no_std facade or proof/runtime entry", "guest 侧 no_std 外观或证明/runtime 入口"),
+        ("prover", "proof generation logic and proof envelope construction", "证明生成逻辑和证明封装"),
+        ("verifier", "proof verification and public output checking", "证明验证和公开输出检查"),
+        ("assembler", "developer assembly and script construction", "开发者汇编和脚本构造"),
+        ("disassembler", "script inspection and opcode decoding", "脚本检查和 opcode 解码"),
+        ("bridge", "bridge message, relay, or cross-chain boundary logic", "桥消息、relay 或跨链边界逻辑"),
+        ("watcher", "source-chain event scanner and relay job creation", "源链事件扫描与 relay 任务创建"),
+        ("client", "client-facing API wrapper", "面向客户端的 API 包装"),
+        ("proof", "proof object, layout, and verification evidence", "证明对象、布局和验证证据"),
+    ]
+    for token, en, zh in hints:
+        if token in lowered:
+            role_en, role_zh = en, zh
+            break
+    return role_zh if lang == "zh" else role_en
 
 
 def guide_for(crate: CrateInfo) -> Guide:
@@ -550,7 +673,7 @@ def guide(
     )
 
 
-def write_crate_assets(crate: CrateInfo, guide: Guide) -> None:
+def write_crate_assets(crate: CrateInfo, guide: Guide, profile: SourceProfile) -> None:
     figures = crate.path / "docs" / "figures"
     figures.mkdir(parents=True, exist_ok=True)
 
@@ -575,6 +698,22 @@ def write_crate_assets(crate: CrateInfo, guide: Guide) -> None:
             dataflow_nodes(crate.name, guide, "en"),
             dataflow_nodes(crate.name, guide, "zh"),
         ),
+        "module-map": (
+            module_nodes(crate.name, profile, "en"),
+            module_nodes(crate.name, profile, "zh"),
+        ),
+        "api-surface": (
+            api_nodes(crate.name, profile, "en"),
+            api_nodes(crate.name, profile, "zh"),
+        ),
+        "test-map": (
+            test_nodes(crate.name, profile, "en"),
+            test_nodes(crate.name, profile, "zh"),
+        ),
+        "dependency-map": (
+            dependency_nodes(crate.name, profile, "en"),
+            dependency_nodes(crate.name, profile, "zh"),
+        ),
     }
 
     for diagram, (nodes_en, nodes_zh) in diagrams.items():
@@ -583,8 +722,9 @@ def write_crate_assets(crate: CrateInfo, guide: Guide) -> None:
         write_mermaid(figures / f"{diagram}.mmd", crate.name, diagram, nodes_en)
         write_mermaid(figures / f"{diagram}.zh.mmd", crate.name, diagram, nodes_zh)
 
-    write_readme(crate, guide, "en")
-    write_readme(crate, guide, "zh")
+    write_learning_guides(crate, guide, profile)
+    write_readme(crate, guide, profile, "en")
+    write_readme(crate, guide, profile, "zh")
 
 
 def position_nodes(crate: CrateInfo, guide: Guide, lang: str) -> list[tuple[str, str]]:
@@ -658,6 +798,134 @@ def workflow_nodes(crate_name: str, guide: Guide, lang: str) -> list[tuple[str, 
 def dataflow_nodes(crate_name: str, guide: Guide, lang: str) -> list[tuple[str, str]]:
     steps = guide.dataflow_zh if lang == "zh" else guide.dataflow_en
     return [(f"Data {idx}", step) for idx, step in enumerate(steps, start=1)]
+
+
+def module_nodes(crate_name: str, profile: SourceProfile, lang: str) -> list[tuple[str, str]]:
+    top_files = rank_files(profile)[:5]
+    if lang == "zh":
+        nodes = [(crate_name, f"源码文件 {len(profile.files)} 个，公开符号 {len(profile.public_symbols)} 个")]
+        nodes.extend((file.path, file.role_zh) for file in top_files)
+        if len(profile.files) > len(top_files):
+            nodes.append(("其他源码", f"还有 {len(profile.files) - len(top_files)} 个文件在详细学习指南中列出"))
+        return nodes[:6]
+    nodes = [(crate_name, f"{len(profile.files)} source files, {len(profile.public_symbols)} public symbols")]
+    nodes.extend((file.path, file.role_en) for file in top_files)
+    if len(profile.files) > len(top_files):
+        nodes.append(("Other source", f"{len(profile.files) - len(top_files)} more files are listed in the detailed learning guide"))
+    return nodes[:6]
+
+
+def api_nodes(crate_name: str, profile: SourceProfile, lang: str) -> list[tuple[str, str]]:
+    grouped = group_public_symbols(profile.public_symbols)
+    if lang == "zh":
+        return [
+            (crate_name, "公开 API 面由源码扫描生成"),
+            ("类型", summarize_symbols(grouped.get("type", ()), "zh")),
+            ("函数", summarize_symbols(grouped.get("fn", ()), "zh")),
+            ("Trait", summarize_symbols(grouped.get("trait", ()), "zh")),
+            ("常量", summarize_symbols(grouped.get("const", ()), "zh")),
+            ("详细列表", "见 docs/learning-guide.zh.md 的 API 表"),
+        ]
+    return [
+        (crate_name, "public API surface generated from source scan"),
+        ("Types", summarize_symbols(grouped.get("type", ()), "en")),
+        ("Functions", summarize_symbols(grouped.get("fn", ()), "en")),
+        ("Traits", summarize_symbols(grouped.get("trait", ()), "en")),
+        ("Constants", summarize_symbols(grouped.get("const", ()), "en")),
+        ("Detailed list", "see docs/learning-guide.md API table"),
+    ]
+
+
+def test_nodes(crate_name: str, profile: SourceProfile, lang: str) -> list[tuple[str, str]]:
+    test_files = [file for file in profile.files if file.tests or file.path.startswith("tests/")]
+    top = sorted(test_files, key=lambda file: (len(file.tests), file.path), reverse=True)[:5]
+    if lang == "zh":
+        nodes = [(crate_name, f"测试函数 {len(profile.tests)} 个，测试文件 {len(test_files)} 个")]
+        nodes.extend((file.path, summarize_tests(file.tests, "zh")) for file in top)
+        if not top:
+            nodes.append(("测试证据", "未扫描到 Rust #[test]；请查看 workspace 级测试或外部验证"))
+        return nodes[:6]
+    nodes = [(crate_name, f"{len(profile.tests)} test functions across {len(test_files)} test files")]
+    nodes.extend((file.path, summarize_tests(file.tests, "en")) for file in top)
+    if not top:
+        nodes.append(("Test evidence", "No Rust #[test] scanned; check workspace-level or external verification"))
+    return nodes[:6]
+
+
+def dependency_nodes(crate_name: str, profile: SourceProfile, lang: str) -> list[tuple[str, str]]:
+    runtime = [dep.name for dep in profile.dependencies if dep.kind == "runtime"]
+    test = [dep.name for dep in profile.dependencies if dep.kind == "test"]
+    build = [dep.name for dep in profile.dependencies if dep.kind == "build"]
+    internal = [dep.name for dep in profile.dependencies if dep.name.startswith(("neo-", "r3e", "n4"))]
+    if lang == "zh":
+        return [
+            (crate_name, "Cargo.toml 依赖边界"),
+            ("运行时依赖", summarize_list(runtime, "无运行时依赖")),
+            ("测试依赖", summarize_list(test, "无测试依赖")),
+            ("构建依赖", summarize_list(build, "无构建依赖")),
+            ("Neo 内部依赖", summarize_list(internal, "无内部 crate 依赖")),
+            ("边界检查", "依赖越少，crate 越容易独立理解和测试"),
+        ]
+    return [
+        (crate_name, "Cargo.toml dependency boundary"),
+        ("Runtime deps", summarize_list(runtime, "no runtime deps")),
+        ("Test deps", summarize_list(test, "no test deps")),
+        ("Build deps", summarize_list(build, "no build deps")),
+        ("Neo internal deps", summarize_list(internal, "no internal crate deps")),
+        ("Boundary check", "fewer dependencies make the crate easier to understand and test"),
+    ]
+
+
+def rank_files(profile: SourceProfile) -> list[SourceFileInfo]:
+    return sorted(
+        profile.files,
+        key=lambda file: (
+            file.path != "src/lib.rs",
+            file.path != "src/main.rs",
+            -(len(file.public_symbols) * 3 + len(file.tests)),
+            file.path,
+        ),
+    )
+
+
+def group_public_symbols(symbols: Iterable[str]) -> dict[str, tuple[str, ...]]:
+    grouped: dict[str, list[str]] = {"type": [], "fn": [], "trait": [], "const": []}
+    for symbol in symbols:
+        short = symbol.split(": ", 1)[-1]
+        kind, _, name = short.partition(" ")
+        if kind in {"struct", "enum", "type"}:
+            grouped["type"].append(name)
+        elif kind == "fn":
+            grouped["fn"].append(name)
+        elif kind == "trait":
+            grouped["trait"].append(name)
+        elif kind in {"const", "static"}:
+            grouped["const"].append(name)
+    return {key: tuple(values) for key, values in grouped.items()}
+
+
+def summarize_symbols(symbols: Iterable[str], lang: str) -> str:
+    values = list(dict.fromkeys(symbols))
+    if not values:
+        return "未扫描到公开符号" if lang == "zh" else "no public symbols scanned"
+    suffix = f" +{len(values) - 4}" if len(values) > 4 else ""
+    return " | ".join(values[:4]) + suffix
+
+
+def summarize_tests(tests: Iterable[str], lang: str) -> str:
+    values = list(tests)
+    if not values:
+        return "测试文件或外部验证入口" if lang == "zh" else "test file or external verification entry"
+    suffix = f" +{len(values) - 4}" if len(values) > 4 else ""
+    return " | ".join(values[:4]) + suffix
+
+
+def summarize_list(values: Iterable[str], empty: str) -> str:
+    items = list(dict.fromkeys(values))
+    if not items:
+        return empty
+    suffix = f" | +{len(items) - 5}" if len(items) > 5 else ""
+    return " | ".join(items[:5]) + suffix
 
 
 def short_dependencies(crate: CrateInfo, lang: str) -> tuple[str, ...]:
@@ -765,16 +1033,16 @@ def write_mermaid(path: Path, crate_name: str, diagram: str, nodes: list[tuple[s
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def write_readme(crate: CrateInfo, guide: Guide, lang: str) -> None:
+def write_readme(crate: CrateInfo, guide: Guide, profile: SourceProfile, lang: str) -> None:
     if lang == "zh":
         readme = crate.path / "README.zh.md"
         start, end = MARKER_ZH
-        section = readme_section_zh(crate, guide)
+        section = readme_section_zh(crate, guide, profile)
         title = f"# {crate.name}\n\n"
     else:
         readme = crate.path / "README.md"
         start, end = MARKER_EN
-        section = readme_section_en(crate, guide)
+        section = readme_section_en(crate, guide, profile)
         title = f"# {crate.name}\n\n"
 
     existing = readme.read_text(encoding="utf-8") if readme.exists() else title
@@ -782,12 +1050,16 @@ def write_readme(crate: CrateInfo, guide: Guide, lang: str) -> None:
     readme.write_text(updated, encoding="utf-8")
 
 
-def readme_section_en(crate: CrateInfo, guide: Guide) -> str:
+def readme_section_en(crate: CrateInfo, guide: Guide, profile: SourceProfile) -> str:
+    file_rows = readme_file_rows(profile, "en")
+    api_rows = readme_api_rows(profile, "en")
     return f"""{MARKER_EN[0]}
 
 ## Crate Visual Learning Guide
 
 These diagrams are local to this crate. They explain `{crate.name}` as an independent unit: where it sits in the Neo N4 stack, which boundary it owns, how its internal workflow runs, and how data moves through it.
+
+For the full source-level explanation, read [docs/learning-guide.md](docs/learning-guide.md).
 
 | View | Diagram | Source |
 | --- | --- | --- |
@@ -796,6 +1068,10 @@ These diagrams are local to this crate. They explain `{crate.name}` as an indepe
 | Architecture | ![Architecture](docs/figures/architecture.svg) | [Mermaid](docs/figures/architecture.mmd) |
 | Workflow | ![Workflow](docs/figures/workflow.svg) | [Mermaid](docs/figures/workflow.mmd) |
 | Dataflow | ![Dataflow](docs/figures/dataflow.svg) | [Mermaid](docs/figures/dataflow.mmd) |
+| Module map | ![Module map](docs/figures/module-map.svg) | [Mermaid](docs/figures/module-map.mmd) |
+| Public API surface | ![Public API surface](docs/figures/api-surface.svg) | [Mermaid](docs/figures/api-surface.mmd) |
+| Test evidence | ![Test evidence](docs/figures/test-map.svg) | [Mermaid](docs/figures/test-map.mmd) |
+| Dependency map | ![Dependency map](docs/figures/dependency-map.svg) | [Mermaid](docs/figures/dependency-map.mmd) |
 
 ### Role in Neo N4
 
@@ -804,6 +1080,9 @@ These diagrams are local to this crate. They explain `{crate.name}` as an indepe
 - **Primary inputs:** {', '.join(guide.inputs_en)}
 - **Primary outputs:** {', '.join(guide.outputs_en)}
 - **Downstream consumers:** {', '.join(guide.consumers_en)}
+- **Source files scanned:** {len(profile.files)}
+- **Public symbols scanned:** {len(profile.public_symbols)}
+- **Rust tests scanned:** {len(profile.tests)}
 
 ### Boundary and Responsibilities
 
@@ -812,23 +1091,39 @@ These diagrams are local to this crate. They explain `{crate.name}` as an indepe
 - **Produces:** {', '.join(guide.outputs_en)}
 - **Used by:** {', '.join(guide.consumers_en)}
 
+### Source Map Snapshot
+
+| File | Why it matters | Public API | Tests |
+| --- | --- | ---: | ---: |
+{file_rows}
+
+### API Snapshot
+
+| Kind | Representative symbols |
+| --- | --- |
+{api_rows}
+
 ### Learning Path
 
 1. Start with the position diagram to understand why this crate exists and who calls it.
 2. Read the technical principles diagram to identify the invariants and responsibility boundary.
-3. Use the architecture diagram to connect public inputs, internal components, dependencies, and outputs.
-4. Follow the workflow and dataflow diagrams before reading source files or tests.
+3. Use the module map and API surface to identify the files and symbols to read first.
+4. Follow the workflow, dataflow, test, and dependency diagrams before changing code.
 
 {MARKER_EN[1]}
 """
 
 
-def readme_section_zh(crate: CrateInfo, guide: Guide) -> str:
+def readme_section_zh(crate: CrateInfo, guide: Guide, profile: SourceProfile) -> str:
+    file_rows = readme_file_rows(profile, "zh")
+    api_rows = readme_api_rows(profile, "zh")
     return f"""{MARKER_ZH[0]}
 
 ## 可视化学习指南
 
 这些图是 `{crate.name}` 自己目录下的 crate 专属学习资料，用来说明它在 Neo N4 中的位置、自己负责的技术边界、内部工作流，以及数据如何流经它。
+
+完整的源码级解释见 [docs/learning-guide.zh.md](docs/learning-guide.zh.md)。
 
 | 视图 | 图片 | 源文件 |
 | --- | --- | --- |
@@ -837,6 +1132,10 @@ def readme_section_zh(crate: CrateInfo, guide: Guide) -> str:
 | 架构 | ![架构](docs/figures/architecture.zh.svg) | [Mermaid](docs/figures/architecture.zh.mmd) |
 | 工作流 | ![工作流](docs/figures/workflow.zh.svg) | [Mermaid](docs/figures/workflow.zh.mmd) |
 | 数据流 | ![数据流](docs/figures/dataflow.zh.svg) | [Mermaid](docs/figures/dataflow.zh.mmd) |
+| 模块图 | ![模块图](docs/figures/module-map.zh.svg) | [Mermaid](docs/figures/module-map.zh.mmd) |
+| 公开 API 图 | ![公开 API 图](docs/figures/api-surface.zh.svg) | [Mermaid](docs/figures/api-surface.zh.mmd) |
+| 测试证据图 | ![测试证据图](docs/figures/test-map.zh.svg) | [Mermaid](docs/figures/test-map.zh.mmd) |
+| 依赖图 | ![依赖图](docs/figures/dependency-map.zh.svg) | [Mermaid](docs/figures/dependency-map.zh.mmd) |
 
 ### 在 Neo N4 中的作用
 
@@ -845,6 +1144,9 @@ def readme_section_zh(crate: CrateInfo, guide: Guide) -> str:
 - **主要输入:** {'、'.join(guide.inputs_zh)}
 - **主要输出:** {'、'.join(guide.outputs_zh)}
 - **下游使用者:** {'、'.join(guide.consumers_zh)}
+- **扫描到的源码文件:** {len(profile.files)}
+- **扫描到的公开符号:** {len(profile.public_symbols)}
+- **扫描到的 Rust 测试:** {len(profile.tests)}
 
 ### 边界与职责
 
@@ -853,15 +1155,265 @@ def readme_section_zh(crate: CrateInfo, guide: Guide) -> str:
 - **本 crate 产出:** {'、'.join(guide.outputs_zh)}
 - **主要被谁使用:** {'、'.join(guide.consumers_zh)}
 
+### 源码地图快照
+
+| 文件 | 为什么重要 | 公开 API | 测试 |
+| --- | --- | ---: | ---: |
+{file_rows}
+
+### API 快照
+
+| 类型 | 代表符号 |
+| --- | --- |
+{api_rows}
+
 ### 学习路径
 
 1. 先看位置图，明确这个 crate 为什么存在、上游是谁、下游是谁。
 2. 再看技术原理图，理解它的核心不变量、职责边界和维护规则。
-3. 然后看架构图，把公开入口、内部组件、依赖边界和输出产物串起来。
-4. 最后看工作流和数据流，再进入源码和测试文件会更容易理解。
+3. 然后看模块图和 API 图，确定先读哪些文件、哪些符号。
+4. 最后看工作流、数据流、测试证据图和依赖图，再进入源码会更容易理解。
 
 {MARKER_ZH[1]}
 """
+
+
+def readme_file_rows(profile: SourceProfile, lang: str) -> str:
+    rows: list[str] = []
+    for file in rank_files(profile)[:8]:
+        role = file.role_zh if lang == "zh" else file.role_en
+        rows.append(
+            f"| `{file.path}` | {md_cell(role)} | {len(file.public_symbols)} | {len(file.tests)} |"
+        )
+    if not rows:
+        empty = "未扫描到 Rust 源文件" if lang == "zh" else "No Rust source files scanned"
+        rows.append(f"| - | {empty} | 0 | 0 |")
+    return "\n".join(rows)
+
+
+def readme_api_rows(profile: SourceProfile, lang: str) -> str:
+    grouped = group_public_symbols(profile.public_symbols)
+    labels = {
+        "type": "类型" if lang == "zh" else "Types",
+        "fn": "函数" if lang == "zh" else "Functions",
+        "trait": "Trait",
+        "const": "常量" if lang == "zh" else "Constants",
+    }
+    return "\n".join(
+        f"| {labels[key]} | {md_cell(summarize_symbols(grouped.get(key, ()), lang))} |"
+        for key in ("type", "fn", "trait", "const")
+    )
+
+
+def write_learning_guides(crate: CrateInfo, guide: Guide, profile: SourceProfile) -> None:
+    docs = crate.path / "docs"
+    docs.mkdir(parents=True, exist_ok=True)
+    (docs / "learning-guide.md").write_text(
+        learning_guide_en(crate, guide, profile),
+        encoding="utf-8",
+    )
+    (docs / "learning-guide.zh.md").write_text(
+        learning_guide_zh(crate, guide, profile),
+        encoding="utf-8",
+    )
+
+
+def learning_guide_en(crate: CrateInfo, guide: Guide, profile: SourceProfile) -> str:
+    return f"""# {crate.name} Source-Level Learning Guide
+
+This guide is generated from the crate's actual `Cargo.toml`, Rust source files, public symbols, and test functions. It is meant to help a reader understand what this crate owns before reading implementation details.
+
+## What This Crate Is
+
+| Topic | Detail |
+| --- | --- |
+| Layer | {guide.layer_en} |
+| Purpose | {guide.role_en} |
+| Inputs | {', '.join(guide.inputs_en)} |
+| Responsibilities | {', '.join(guide.responsibilities_en)} |
+| Outputs | {', '.join(guide.outputs_en)} |
+| Consumers | {', '.join(guide.consumers_en)} |
+
+## Visual Reading Order
+
+| Step | Diagram | Use it to learn |
+| ---: | --- | --- |
+| 1 | [Position](figures/position.svg) | Why this crate exists and where it sits in Neo N4. |
+| 2 | [Principles](figures/principles.svg) | The invariants and boundaries this crate must protect. |
+| 3 | [Module map](figures/module-map.svg) | Which files are the best entry points. |
+| 4 | [Public API surface](figures/api-surface.svg) | Which exported symbols form the crate contract. |
+| 5 | [Architecture](figures/architecture.svg) | How inputs, internal components, dependencies, and outputs connect. |
+| 6 | [Workflow](figures/workflow.svg) | The normal execution path. |
+| 7 | [Dataflow](figures/dataflow.svg) | How data is transformed across the crate boundary. |
+| 8 | [Test evidence](figures/test-map.svg) | Which tests protect the behavior. |
+| 9 | [Dependency map](figures/dependency-map.svg) | Which dependencies are runtime, test, or build-only. |
+
+## Source File Map
+
+{source_file_table(profile, "en")}
+
+## Public API Surface
+
+{public_api_table(profile, "en")}
+
+## Module and Re-Export Signals
+
+{module_signal_table(profile, "en")}
+
+## Test Evidence
+
+{test_evidence_table(profile, "en")}
+
+## Dependency Boundary
+
+{dependency_table(profile, "en")}
+
+## Suggested Reading Path
+
+{reading_path(profile, "en")}
+
+## Change Safety Checklist
+
+- Keep the stated responsibility boundary intact: {', '.join(guide.responsibilities_en)}.
+- Update the workflow and dataflow diagrams when adding or removing major execution steps.
+- Add or update tests in the files listed under Test Evidence when public API or state-transition behavior changes.
+- Re-run `python tools/docs/generate_crate_visual_docs.py` from the Neo N4 repository root after source layout changes.
+"""
+
+
+def learning_guide_zh(crate: CrateInfo, guide: Guide, profile: SourceProfile) -> str:
+    return f"""# {crate.name} 源码级学习指南
+
+这份文档从 crate 的真实 `Cargo.toml`、Rust 源码文件、公开符号和测试函数生成。目标是在读实现细节之前，先弄清楚这个 crate 自己负责什么、边界在哪里、应该从哪些文件开始读。
+
+## 这个 Crate 是什么
+
+| 主题 | 说明 |
+| --- | --- |
+| 层级 | {guide.layer_zh} |
+| 目的 | {guide.role_zh} |
+| 输入 | {'、'.join(guide.inputs_zh)} |
+| 职责 | {'、'.join(guide.responsibilities_zh)} |
+| 输出 | {'、'.join(guide.outputs_zh)} |
+| 使用者 | {'、'.join(guide.consumers_zh)} |
+
+## 可视化阅读顺序
+
+| 步骤 | 图 | 用它学习什么 |
+| ---: | --- | --- |
+| 1 | [位置图](figures/position.zh.svg) | 这个 crate 为什么存在、在 Neo N4 中处于哪里。 |
+| 2 | [技术原理图](figures/principles.zh.svg) | 这个 crate 必须保护的不变量和职责边界。 |
+| 3 | [模块图](figures/module-map.zh.svg) | 哪些源码文件是最好的入口。 |
+| 4 | [公开 API 图](figures/api-surface.zh.svg) | 哪些导出符号构成 crate 契约。 |
+| 5 | [架构图](figures/architecture.zh.svg) | 输入、内部组件、依赖和输出如何连接。 |
+| 6 | [工作流图](figures/workflow.zh.svg) | 正常执行路径。 |
+| 7 | [数据流图](figures/dataflow.zh.svg) | 数据如何跨越 crate 边界并被转换。 |
+| 8 | [测试证据图](figures/test-map.zh.svg) | 哪些测试保护行为。 |
+| 9 | [依赖图](figures/dependency-map.zh.svg) | 哪些依赖是运行时、测试或构建期依赖。 |
+
+## 源码文件地图
+
+{source_file_table(profile, "zh")}
+
+## 公开 API 面
+
+{public_api_table(profile, "zh")}
+
+## 模块与重导出信号
+
+{module_signal_table(profile, "zh")}
+
+## 测试证据
+
+{test_evidence_table(profile, "zh")}
+
+## 依赖边界
+
+{dependency_table(profile, "zh")}
+
+## 建议阅读路径
+
+{reading_path(profile, "zh")}
+
+## 修改安全清单
+
+- 保持职责边界不变：{'、'.join(guide.responsibilities_zh)}。
+- 增加或删除主要执行步骤时，同步更新工作流图和数据流图。
+- 修改公开 API 或状态转换行为时，更新“测试证据”中对应的测试。
+- 源码结构变化后，在 Neo N4 仓库根目录重新运行 `python tools/docs/generate_crate_visual_docs.py`。
+"""
+
+
+def source_file_table(profile: SourceProfile, lang: str) -> str:
+    header = "| File | Role | Public symbols | Tests |\n| --- | --- | ---: | ---: |"
+    if lang == "zh":
+        header = "| 文件 | 作用 | 公开符号 | 测试 |\n| --- | --- | ---: | ---: |"
+    rows = [
+        f"| `{file.path}` | {md_cell(file.role_zh if lang == 'zh' else file.role_en)} | {len(file.public_symbols)} | {len(file.tests)} |"
+        for file in rank_files(profile)
+    ]
+    return header + "\n" + ("\n".join(rows) if rows else "| - | No source files scanned | 0 | 0 |")
+
+
+def public_api_table(profile: SourceProfile, lang: str) -> str:
+    if not profile.public_symbols:
+        return "No public Rust symbols were scanned." if lang == "en" else "未扫描到公开 Rust 符号。"
+    header = "| Symbol | File |\n| --- | --- |" if lang == "en" else "| 符号 | 文件 |\n| --- | --- |"
+    rows = []
+    for item in profile.public_symbols:
+        file, symbol = item.split(": ", 1)
+        rows.append(f"| `{md_cell(symbol)}` | `{md_cell(file)}` |")
+    return header + "\n" + "\n".join(rows)
+
+
+def module_signal_table(profile: SourceProfile, lang: str) -> str:
+    if not profile.module_declarations:
+        return "No `mod` or `pub use` declarations were scanned." if lang == "en" else "未扫描到 `mod` 或 `pub use` 声明。"
+    header = "| Signal |\n| --- |" if lang == "en" else "| 信号 |\n| --- |"
+    rows = [f"| `{md_cell(item)}` |" for item in profile.module_declarations]
+    return header + "\n" + "\n".join(rows)
+
+
+def test_evidence_table(profile: SourceProfile, lang: str) -> str:
+    if not profile.tests:
+        return "No Rust `#[test]` functions were scanned in this crate." if lang == "en" else "这个 crate 中未扫描到 Rust `#[test]` 函数。"
+    header = "| Test | File |\n| --- | --- |" if lang == "en" else "| 测试 | 文件 |\n| --- | --- |"
+    rows = []
+    for item in profile.tests:
+        file, test = item.split(": ", 1)
+        rows.append(f"| `{md_cell(test)}` | `{md_cell(file)}` |")
+    return header + "\n" + "\n".join(rows)
+
+
+def dependency_table(profile: SourceProfile, lang: str) -> str:
+    if not profile.dependencies:
+        return "No direct Cargo dependencies." if lang == "en" else "没有直接 Cargo 依赖。"
+    header = "| Dependency | Kind |\n| --- | --- |" if lang == "en" else "| 依赖 | 类型 |\n| --- | --- |"
+    labels = {"runtime": "运行时", "test": "测试", "build": "构建"}
+    rows = [
+        f"| `{md_cell(dep.name)}` | {md_cell(labels.get(dep.kind, dep.kind) if lang == 'zh' else dep.kind)} |"
+        for dep in profile.dependencies
+    ]
+    return header + "\n" + "\n".join(rows)
+
+
+def md_cell(value: str) -> str:
+    return value.replace("\n", " ").replace("|", "<br>").strip()
+
+
+def reading_path(profile: SourceProfile, lang: str) -> str:
+    files = rank_files(profile)[:6]
+    if not files:
+        return "No source files were scanned." if lang == "en" else "未扫描到源码文件。"
+    if lang == "zh":
+        return "\n".join(
+            f"{idx}. 读 `{file.path}`：{file.role_zh}。"
+            for idx, file in enumerate(files, start=1)
+        )
+    return "\n".join(
+        f"{idx}. Read `{file.path}`: {file.role_en}."
+        for idx, file in enumerate(files, start=1)
+    )
 
 
 def replace_marked_section(existing: str, start: str, end: str, section: str) -> str:
@@ -880,7 +1432,7 @@ def write_index(rows_en: list[str], rows_zh: list[str]) -> None:
     (docs / "crate-visual-guide.md").write_text(
         "# Neo N4 Crate Visual Guide\n\n"
         "This index links every Rust crate to its own local visual learning guide. "
-        "Each crate directory contains position, technical principles, architecture, workflow, and dataflow diagrams in English and Chinese.\n\n"
+        "Each crate directory contains position, principles, architecture, workflow, dataflow, module, API, test, and dependency diagrams in English and Chinese, plus a source-level learning guide.\n\n"
         "| Crate | Path | Layer | Purpose |\n"
         "| --- | --- | --- | --- |\n"
         + "\n".join(rows_en)
@@ -890,7 +1442,7 @@ def write_index(rows_en: list[str], rows_zh: list[str]) -> None:
     (zh_docs / "crate-visual-guide.md").write_text(
         "# Neo N4 Crate 可视化指南\n\n"
         "这个索引把每个 Rust crate 链接到它自己目录下的本地可视化学习文档。"
-        "每个 crate 目录都包含位置、技术原理、架构、工作流、数据流五类中英文图。\n\n"
+        "每个 crate 目录都包含位置、技术原理、架构、工作流、数据流、模块、API、测试、依赖九类中英文图，并包含源码级学习指南。\n\n"
         "| Crate | 路径 | 层级 | 目的 |\n"
         "| --- | --- | --- | --- |\n"
         + "\n".join(rows_zh)
@@ -900,7 +1452,18 @@ def write_index(rows_en: list[str], rows_zh: list[str]) -> None:
 
     manifest = {
         "generated_crates": len(rows_en),
-        "diagrams_per_crate": ["position", "principles", "architecture", "workflow", "dataflow"],
+        "diagrams_per_crate": [
+            "position",
+            "principles",
+            "architecture",
+            "workflow",
+            "dataflow",
+            "module-map",
+            "api-surface",
+            "test-map",
+            "dependency-map",
+        ],
+        "deep_guides_per_crate": ["docs/learning-guide.md", "docs/learning-guide.zh.md"],
         "english_index": "docs/crate-visual-guide.md",
         "chinese_index": "docs/zh/crate-visual-guide.md",
     }

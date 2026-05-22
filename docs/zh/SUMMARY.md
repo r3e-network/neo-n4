@@ -44,6 +44,7 @@
 - [可视化导览](./visual-guide.md)
 - [Neo N4 统一体验中心](./experience-hub.md)
 - [交互式运行剧场](./interactive-runtime.md)
+- [Neo N4 数学动态教程](./interactive-math.md)
 - [技术路线图](./technical-roadmap.md)
 - [NeoHub 架构与工作流](./neohub-architecture-and-workflows.md)
 - [架构导览](./architecture-walkthrough.md)

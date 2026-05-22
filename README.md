@@ -116,6 +116,16 @@ For a dynamic walkthrough, open the static
 batch sealing, proof aggregation, withdrawals, external-chain bridge routing, and
 challenge recovery with step/play controls and a live state inspector.
 
+For the mathematical foundation, open the static
+[`Neo N4 Math Lab`](./docs/interactive-math.md). It teaches finite fields,
+commitments, NeoVM stack transitions, NeoVM2/RISC-V cycles, zkVM
+arithmetization, proof verification, aggregation, and N4 security checks with
+interactive controls.
+
+<p align="center">
+  <img src="docs/figures/experience-hub/neo-n4-math-lab.png" alt="Neo N4 Math Lab interactive tutorial for finite fields, commitments, NeoVM transitions, RISC-V cycles, and zkVM proof flow" width="920">
+</p>
+
 ### System context
 
 <p align="center">

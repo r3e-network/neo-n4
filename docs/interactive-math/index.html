@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Neo N4 Math Lab</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="math-shell">
+    <aside class="lesson-rail" aria-label="Math tutorial navigation">
+      <a class="brand" href="../experience-hub/index.html" aria-label="Back to Neo N4 Experience Hub">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>
+          <strong>Neo N4 Math Lab</strong>
+          <small>NeoVM -> zkVM -> RISC-V</small>
+        </span>
+      </a>
+      <nav class="lesson-nav" data-lesson-nav></nav>
+      <div class="rail-note">
+        <strong data-i18n="railTitle"></strong>
+        <span data-i18n="railBody"></span>
+      </div>
+    </aside>
+
+    <section class="lab-main">
+      <header class="lab-topbar">
+        <div>
+          <h1 data-i18n="title"></h1>
+          <p data-i18n="subtitle"></p>
+        </div>
+        <div class="toolbar" aria-label="Tutorial controls">
+          <button class="control-button primary" type="button" data-action="step-all" data-i18n="stepAll"></button>
+          <button class="control-button" type="button" data-action="reset" data-i18n="reset"></button>
+          <select class="select" data-language aria-label="Language">
+            <option value="zh">中文</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+      </header>
+
+      <section class="lesson-hero">
+        <div>
+          <span class="eyebrow" data-i18n="lessonEyebrow"></span>
+          <h2 data-lesson-title></h2>
+          <p data-lesson-summary></p>
+        </div>
+        <div class="formula-panel">
+          <span data-i18n="coreClaim"></span>
+          <code data-lesson-formula></code>
+        </div>
+      </section>
+
+      <section class="pipeline-panel" aria-label="Neo N4 proof pipeline">
+        <div class="panel-heading">
+          <div>
+            <h2 data-i18n="pipelineTitle"></h2>
+            <p data-i18n="pipelineBody"></p>
+          </div>
+          <span class="status-pill">NeoVM2/RISC-V</span>
+        </div>
+        <div class="pipeline" data-pipeline></div>
+      </section>
+
+      <section class="lab-grid">
+        <section class="lab-panel field-panel" aria-label="Finite field simulator">
+          <div class="panel-heading">
+            <div>
+              <h2 data-i18n="fieldTitle"></h2>
+              <p data-i18n="fieldBody"></p>
+            </div>
+            <span class="field-prime" data-field-prime></span>
+          </div>
+          <div class="field-controls">
+            <label><span>a</span><input type="range" min="0" max="16" value="5" data-field-a></label>
+            <label><span>b</span><input type="range" min="0" max="16" value="9" data-field-b></label>
+          </div>
+          <div class="field-ruler" data-field-ruler></div>
+          <dl class="metric-grid" data-field-output></dl>
+        </section>
+
+        <section class="lab-panel merkle-panel" aria-label="Commitment simulator">
+          <div class="panel-heading">
+            <div>
+              <h2 data-i18n="commitTitle"></h2>
+              <p data-i18n="commitBody"></p>
+            </div>
+            <button class="mini-button" type="button" data-action="tamper" data-i18n="tamper"></button>
+          </div>
+          <div class="merkle-tree" data-merkle-tree></div>
+          <dl class="metric-grid" data-merkle-output></dl>
+        </section>
+
+        <section class="lab-panel vm-panel" aria-label="NeoVM trace stepper">
+          <div class="panel-heading">
+            <div>
+              <h2 data-i18n="neovmTitle"></h2>
+              <p data-i18n="neovmBody"></p>
+            </div>
+            <div class="button-row">
+              <button class="mini-button" type="button" data-action="step-neovm" data-i18n="step"></button>
+              <button class="mini-button" type="button" data-action="reset-neovm" data-i18n="resetShort"></button>
+            </div>
+          </div>
+          <div class="trace-layout">
+            <ol class="program-list" data-neovm-program></ol>
+            <div class="stack-view" data-neovm-stack></div>
+          </div>
+          <div class="trace-table-wrap">
+            <table class="trace-table">
+              <thead><tr><th>pc</th><th>op</th><th>before</th><th>after</th><th>constraint</th></tr></thead>
+              <tbody data-neovm-trace></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="lab-panel riscv-panel" aria-label="RISC-V cycle simulator">
+          <div class="panel-heading">
+            <div>
+              <h2 data-i18n="riscvTitle"></h2>
+              <p data-i18n="riscvBody"></p>
+            </div>
+            <div class="button-row">
+              <button class="mini-button" type="button" data-action="step-riscv" data-i18n="cycle"></button>
+              <button class="mini-button" type="button" data-action="reset-riscv" data-i18n="resetShort"></button>
+            </div>
+          </div>
+          <div class="register-grid" data-riscv-registers></div>
+          <div class="trace-table-wrap">
+            <table class="trace-table">
+              <thead><tr><th>cycle</th><th>pc</th><th>inst</th><th>constraint</th></tr></thead>
+              <tbody data-riscv-trace></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="lab-panel proof-panel" aria-label="Proof pipeline estimator">
+          <div class="panel-heading">
+            <div>
+              <h2 data-i18n="proofTitle"></h2>
+              <p data-i18n="proofBody"></p>
+            </div>
+            <span class="status-pill amber" data-i18n="teachingModel"></span>
+          </div>
+          <div class="proof-controls">
+            <label><span data-i18n="cycles"></span><input type="range" min="16" max="256" step="16" value="64" data-proof-cycles></label>
+            <label><span data-i18n="memoryOps"></span><input type="range" min="0" max="64" step="4" value="12" data-proof-memory></label>
+            <label><span data-i18n="publicInputs"></span><input type="range" min="1" max="16" step="1" value="6" data-proof-inputs></label>
+            <label><span data-i18n="aggregation"></span><input type="range" min="1" max="8" step="1" value="2" data-proof-aggregation></label>
+          </div>
+          <dl class="metric-grid proof-metrics" data-proof-output></dl>
+        </section>
+
+        <section class="lab-panel principle-panel" aria-label="Lesson checkpoints">
+          <div class="panel-heading">
+            <div>
+              <h2 data-i18n="principleTitle"></h2>
+              <p data-lesson-principle></p>
+            </div>
+          </div>
+          <ul class="checkpoint-list" data-checkpoints></ul>
+          <div class="concept-note" data-i18n="conceptNote"></div>
+        </section>
+      </section>
+    </section>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

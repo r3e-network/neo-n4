@@ -64,6 +64,14 @@ Neo N3 / Neo 4 L1 上的统一可部署 L1 合约套件(**NeoHub**),并通过可
 该预览刻意采用本地优先边界:私有 devnet 证据会和公开 testnet/mainnet 证据分开标记,
 浏览器界面不暴露签名、部署或任何带敏感信息的控制面。
 
+如果需要学习执行和证明背后的数学基础，可以打开静态
+[`Neo N4 Math Lab`](./interactive-math.md)。它用交互控件解释有限域、承诺、
+NeoVM 栈转换、NeoVM2/RISC-V 周期、zkVM 算术化、证明验证、聚合和 N4 安全检查。
+
+<p align="center">
+  <img src="figures/experience-hub/neo-n4-math-lab.png" alt="Neo N4 Math Lab：有限域、承诺、NeoVM 转换、RISC-V 周期和 zkVM 证明流交互教程" width="920">
+</p>
+
 ---
 
 ## 论文式核心图

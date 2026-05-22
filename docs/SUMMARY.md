@@ -44,6 +44,7 @@
 - [Crate visual guide](./crate-visual-guide.md)
 - [Neo N4 Experience Hub](./experience-hub.md)
 - [Interactive Runtime Theater](./interactive-runtime.md)
+- [Interactive Math Lab](./interactive-math.md)
 - [Technical roadmap](./technical-roadmap.md)
 - [NeoHub architecture and workflows](./neohub-architecture-and-workflows.md)
 - [Architecture walkthrough](./architecture-walkthrough.md)

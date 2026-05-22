@@ -10,7 +10,7 @@ import {
   sampleNeoVmProgram,
   sampleRiscVProgram,
   verifyMerkleProof,
-} from './mathModel.js';
+} from './mathModel.js?v=20260522-clickable';
 
 const copy = {
   zh: {

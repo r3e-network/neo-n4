@@ -1,143 +1,173 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 1080" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
-  <title id="title">Cross-tier verification chain — same bytes, hashed multiple times</title>
-  <desc id="desc">Step-by-step verification chain a single bridge transaction crosses. Step 1: user signs L1 tx with Secp256r1 — user owns key. Neo L1 dBFT verifies and commits, SharedBridge locks asset, emits DepositEnqueued. The CrossChainMessage canonical bytes are hashed by MessageHasher. Step 2-4: L2 batcher reads Blockchain events directly, NeoVM2/RISC-V execution applies the deposit on L2, L2 receipt commits to it (trust = reads events directly). L2 batcher seals batch with txRoot, receiptRoot, postStateRoot, publicInputHash. The L2BatchCommitment canonical bytes (321+N) flow into Step 5-6: SP1 zkVM proves execute_batch and the proof's public-input matches the on-chain publicInputHash recomputed by SettlementManager (trust = math). Neo L1 SettlementManager accepts the batch as canonical and emits BatchSubmitted. Step 7-9: L2 user later makes a withdrawal at batch B, batch B's withdrawalRoot contains the user's withdrawal leaf, user submits Merkle proof on L1, SharedBridge.FinalizeWithdrawalWithProof keccak/sha256-chains the leaf to the withdrawalRoot (trust = hash collision-resistance), and the asset is released.</desc>
-
-  <defs>
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
-      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
-    </marker>
-    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
-      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
-    </filter>
-    <style>
-      .header     { font-size: 14.5px; font-weight: 700; }
-      .step-num   { font-size: 11.5px; font-weight: 700; fill: #c4413e; }
-      .step-t     { font-size: 11.5px; fill: #2d3a48; }
-      .actor-t    { font-size: 12.5px; font-weight: 700; }
-      .actor-s    { font-size: 11px; fill: #2d3a48; }
-      .bytes-t    { font-size: 11.5px; font-weight: 700; fill: #1e2a55; font-family: 'Noto Sans Mono CJK SC', ui-monospace, 'SF Mono', monospace; }
-      .bytes-s    { font-size: 10.5px; fill: #525a64; font-style: italic; }
-      .trust-t    { font-size: 11px; font-weight: 700; }
-      .trust-s    { font-size: 10.5px; fill: #525a64; font-style: italic; }
-    </style>
-  </defs>
-
-  <rect width="960" height="1080" fill="#ffffff"/>
-
-  <text x="480" y="32" text-anchor="middle" class="header" fill="#1e2a55">Cross-tier verification chain — same bytes, hashed at every step</text>
-
-  <!-- Step 1: User signs L1 tx -->
-  <g filter="url(#card)">
-    <rect x="200" y="60" width="380" height="60" rx="8" ry="8" fill="#ffffff" stroke="#7587c1" stroke-width="1.2"/>
-    <text x="220" y="84" class="step-num">1.</text>
-    <text x="240" y="84" class="actor-t" fill="#1e2a55">User signs L1 tx</text>
-    <text x="240" y="104" class="step-t">Secp256r1 signature over canonical L1 transaction bytes</text>
-  </g>
-  <g>
-    <rect x="610" y="68" width="190" height="44" rx="6" ry="6" fill="#fde8e8" stroke="#c4413e" stroke-width="1"/>
-    <text x="705" y="86" text-anchor="middle" class="trust-t" fill="#88312e">trust:</text>
-    <text x="705" y="104" text-anchor="middle" class="trust-s">user owns key</text>
-  </g>
-  <line x1="390" y1="120" x2="390" y2="148" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
-
-  <!-- Box: Neo L1 dBFT verifies + commits -->
-  <g filter="url(#card)">
-    <rect x="200" y="150" width="380" height="74" rx="8" ry="8" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
-    <text x="390" y="174" text-anchor="middle" class="actor-t" fill="#1e2a55">Neo L1 — dBFT verifies + commits</text>
-    <text x="390" y="194" text-anchor="middle" class="actor-s">SharedBridge locks asset</text>
-    <text x="390" y="210" text-anchor="middle" class="actor-s">emits DepositEnqueued event</text>
-  </g>
-  <line x1="390" y1="224" x2="390" y2="252" stroke="#525a64" stroke-width="1.4"/>
-
-  <!-- Bytes: CrossChainMessage -->
-  <g filter="url(#card)">
-    <rect x="280" y="252" width="220" height="56" rx="8" ry="8" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.3"/>
-    <text x="390" y="274" text-anchor="middle" class="bytes-t">CrossChainMessage</text>
-    <text x="390" y="292" text-anchor="middle" class="bytes-s">canonical bytes (MessageHasher)</text>
-  </g>
-  <text x="610" y="280" class="bytes-s" fill="#cd7c2e">hash = sha256(canonical_bytes)</text>
-  <line x1="390" y1="308" x2="390" y2="336" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
-
-  <!-- Step 2-4: L2 batcher reads + replays -->
-  <g filter="url(#card)">
-    <rect x="200" y="338" width="380" height="116" rx="8" ry="8" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.3"/>
-    <text x="220" y="362" class="step-num">2.</text>
-    <text x="240" y="362" class="step-t" fill="#1d4d2c"><tspan font-weight="600">L2 batcher reads + replays</tspan></text>
-    <text x="220" y="386" class="step-num">3.</text>
-    <text x="240" y="386" class="step-t" fill="#1d4d2c"><tspan font-weight="600">NeoVM2/RISC-V applies deposit</tspan></text>
-    <text x="220" y="410" class="step-num">4.</text>
-    <text x="240" y="410" class="step-t" fill="#1d4d2c"><tspan font-weight="600">L2 receipt commits to it</tspan></text>
-    <text x="240" y="432" class="actor-s">(deposit minted into L2 user's wrapped balance)</text>
-  </g>
-  <g>
-    <rect x="610" y="362" width="190" height="62" rx="6" ry="6" fill="#fde8e8" stroke="#c4413e" stroke-width="1"/>
-    <text x="705" y="382" text-anchor="middle" class="trust-t" fill="#88312e">trust:</text>
-    <text x="705" y="400" text-anchor="middle" class="trust-s">reads Blockchain</text>
-    <text x="705" y="416" text-anchor="middle" class="trust-s">events directly</text>
-  </g>
-  <line x1="390" y1="454" x2="390" y2="482" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
-
-  <!-- Box: L2 batcher seals batch -->
-  <g filter="url(#card)">
-    <rect x="200" y="484" width="380" height="100" rx="8" ry="8" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.4"/>
-    <text x="390" y="508" text-anchor="middle" class="actor-t" fill="#1d4d2c">L2 batcher seals batch</text>
-    <text x="390" y="528" text-anchor="middle" class="actor-s">· txRoot      (Merkle of txs)</text>
-    <text x="390" y="544" text-anchor="middle" class="actor-s">· receiptRoot (Merkle of recs)</text>
-    <text x="390" y="560" text-anchor="middle" class="actor-s">· postStateRoot · publicInputHash</text>
-  </g>
-  <line x1="390" y1="584" x2="390" y2="612" stroke="#525a64" stroke-width="1.4"/>
-
-  <!-- Bytes: L2BatchCommitment -->
-  <g filter="url(#card)">
-    <rect x="280" y="612" width="220" height="56" rx="8" ry="8" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.3"/>
-    <text x="390" y="634" text-anchor="middle" class="bytes-t">L2BatchCommitment</text>
-    <text x="390" y="652" text-anchor="middle" class="bytes-s">BatchSerializer · 321+N bytes</text>
-  </g>
-  <line x1="390" y1="668" x2="390" y2="696" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
-
-  <!-- Step 5-6: SP1 zkVM proves -->
-  <g filter="url(#card)">
-    <rect x="200" y="698" width="380" height="92" rx="8" ry="8" fill="#f1ecf8" stroke="#7d59b3" stroke-width="1.3"/>
-    <text x="220" y="722" class="step-num">5.</text>
-    <text x="240" y="722" class="step-t" fill="#3e2865"><tspan font-weight="600">SP1 zkVM proves execute_batch(payload)</tspan></text>
-    <text x="220" y="748" class="step-num">6.</text>
-    <text x="240" y="748" class="step-t" fill="#3e2865"><tspan font-weight="600">Proof's public-input == on-chain publicInputHash</tspan></text>
-    <text x="240" y="768" class="actor-s">(recomputed by SettlementManager from commitment fields)</text>
-  </g>
-  <g>
-    <rect x="610" y="722" width="190" height="46" rx="6" ry="6" fill="#fde8e8" stroke="#c4413e" stroke-width="1"/>
-    <text x="705" y="740" text-anchor="middle" class="trust-t" fill="#88312e">trust: math</text>
-    <text x="705" y="758" text-anchor="middle" class="trust-s">(proof IS verification)</text>
-  </g>
-  <line x1="390" y1="790" x2="390" y2="818" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
-
-  <!-- Box: SettlementManager accepts -->
-  <g filter="url(#card)">
-    <rect x="200" y="820" width="380" height="60" rx="8" ry="8" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
-    <text x="390" y="844" text-anchor="middle" class="actor-t" fill="#1e2a55">Neo L1 — SettlementManager accepts batch</text>
-    <text x="390" y="864" text-anchor="middle" class="actor-s">emits BatchSubmitted (canonical state root)</text>
-  </g>
-  <line x1="390" y1="880" x2="390" y2="908" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
-
-  <!-- Step 7-8 + 9: withdrawal -->
-  <g filter="url(#card)">
-    <rect x="200" y="910" width="380" height="92" rx="8" ry="8" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.3"/>
-    <text x="220" y="934" class="step-num">7.</text>
-    <text x="240" y="934" class="step-t" fill="#1d4d2c"><tspan font-weight="600">L2 user withdraws at later batch B</tspan></text>
-    <text x="240" y="952" class="actor-s">batch B's withdrawalRoot contains user's withdrawal leaf</text>
-    <text x="220" y="970" class="step-num">8.</text>
-    <text x="240" y="970" class="step-t" fill="#1d4d2c"><tspan font-weight="600">User submits Merkle proof on L1</tspan></text>
-    <text x="220" y="988" class="step-num">9.</text>
-    <text x="240" y="988" class="step-t" fill="#1d4d2c"><tspan font-weight="600">SharedBridge.FinalizeWithdrawalWithProof → asset released</tspan></text>
-  </g>
-  <g>
-    <rect x="610" y="934" width="190" height="62" rx="6" ry="6" fill="#fde8e8" stroke="#c4413e" stroke-width="1"/>
-    <text x="705" y="954" text-anchor="middle" class="trust-t" fill="#88312e">trust:</text>
-    <text x="705" y="972" text-anchor="middle" class="trust-s">hash collision-</text>
-    <text x="705" y="988" text-anchor="middle" class="trust-s">resistance</text>
-  </g>
-
-  <!-- Footer note -->
-  <text x="480" y="1040" text-anchor="middle" class="bytes-s" fill="#525a64">Same canonical bytes get hashed by different actors in different places.</text>
-  <text x="480" y="1060" text-anchor="middle" class="bytes-s" fill="#525a64">No party can "unsign" or "re-sign" — the bytes commit to themselves.</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1180" viewBox="0 0 1920 1180" role="img" aria-label="Cross-Tier Verification Chain">
+<defs>
+<marker id="arrowAccent" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#c2410c"/></marker>
+<marker id="arrowGray" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#475569"/></marker>
+<marker id="arrowFault" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#dc2626"/></marker>
+<filter id="shadow" x="-3%" y="-4%" width="106%" height="108%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.10"/></filter>
+<style>
+.bg{fill:#f8fafc}.panel{fill:#ffffff;stroke:#cbd5e1;stroke-width:1.5;filter:url(#shadow)}
+.title{font:800 36px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.subtitle{font:500 17px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.panelTitle{font:750 22px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.panelSub{font:500 15px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.strong{font:760 15px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.body{font:500 14px 'Inter','Segoe UI',Arial,sans-serif;fill:#334155}.small{font:500 13px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.mono{font:650 14px 'Cascadia Mono','SFMono-Regular',Consolas,monospace;fill:#0f172a}.label{font:800 14px 'Inter','Segoe UI',Arial,sans-serif;fill:#ffffff}.caption{font:500 13px 'Inter','Segoe UI',Arial,sans-serif;fill:#64748b}
+.accentArrow{stroke:#c2410c;stroke-width:2.6;fill:none;marker-end:url(#arrowAccent)}.dashArrow{stroke:#64748b;stroke-width:2.0;fill:none;stroke-dasharray:7 6;marker-end:url(#arrowGray)}.faultArrow{stroke:#dc2626;stroke-width:2.2;fill:none;stroke-dasharray:5 5;marker-end:url(#arrowFault)}
+</style>
+</defs>
+<rect class="bg" width="1920" height="1180"/>
+<text x="56" y="66" class="title">Cross-Tier Verification Chain</text>
+<text x="56" y="98" class="subtitle">How L2 execution, NeoFS DA, proofs, and L1 settlement verify the same statement.</text>
+<rect x="56" y="118" width="1808" height="38" rx="6" fill="#fff3e7" stroke="#c2410c" stroke-width="1.2"/>
+<text x="76" y="143" class="small">Read as: <tspan class="strong">paper-style technical figure focused on architecture, principles, data flow, workflow, and audit conditions.</tspan></text>
+<rect x="56" y="178" width="870" height="392" rx="10" class="panel"/>
+<rect x="56" y="178" width="870" height="54" rx="10" fill="#fff3e7"/>
+<circle cx="86" cy="206" r="16" fill="#c2410c"/>
+<text x="86" y="211" text-anchor="middle" class="label">a</text>
+<text x="114" y="210" class="panelTitle">Technical Topology</text>
+<text x="114" y="230" class="panelSub">planes, boundaries, and responsibilities</text>
+<rect x="966" y="178" width="898" height="392" rx="10" class="panel"/>
+<rect x="966" y="178" width="898" height="54" rx="10" fill="#fff3e7"/>
+<circle cx="996" cy="206" r="16" fill="#c2410c"/>
+<text x="996" y="211" text-anchor="middle" class="label">b</text>
+<text x="1024" y="210" class="panelTitle">Technical Model</text>
+<text x="1024" y="230" class="panelSub">formal rules and acceptance conditions</text>
+<rect x="56" y="606" width="1240" height="494" rx="10" class="panel"/>
+<rect x="56" y="606" width="1240" height="54" rx="10" fill="#fff3e7"/>
+<circle cx="86" cy="634" r="16" fill="#c2410c"/>
+<text x="86" y="639" text-anchor="middle" class="label">c</text>
+<text x="114" y="638" class="panelTitle">Numbered Protocol Path</text>
+<text x="114" y="658" class="panelSub">how key objects advance</text>
+<rect x="1334" y="606" width="530" height="494" rx="10" class="panel"/>
+<rect x="1334" y="606" width="530" height="54" rx="10" fill="#fff3e7"/>
+<circle cx="1364" cy="634" r="16" fill="#c2410c"/>
+<text x="1364" y="639" text-anchor="middle" class="label">d</text>
+<text x="1392" y="638" class="panelTitle">Audit Checkpoints</text>
+<text x="1392" y="658" class="panelSub">conditions readers should verify</text>
+<rect x="92" y="270" width="180" height="208" rx="8" fill="#fff3e7" stroke="#c2410c" stroke-width="1.4"/>
+<text x="106" y="298" class="strong">L2 execution</text>
+<text x="106" y="328" class="body">ordered transactions</text>
+<text x="106" y="346" class="body">produce pre/post</text>
+<text x="106" y="364" class="body">roots, receipts, and</text>
+<text x="106" y="382" class="body">public inputs.</text>
+<path class="accentArrow" d="M272 374 C284 374 282 428 300 428"/>
+<rect x="300" y="324" width="180" height="208" rx="8" fill="#fff3e7" stroke="#c2410c" stroke-width="1.4"/>
+<text x="314" y="352" class="strong">DA publication</text>
+<text x="314" y="382" class="body">batch payload and</text>
+<text x="314" y="400" class="body">witness material are</text>
+<text x="314" y="418" class="body">pinned to NeoFS and</text>
+<text x="314" y="436" class="body">referenced by CID.</text>
+<path class="accentArrow" d="M480 428 C492 428 490 374 508 374"/>
+<rect x="508" y="270" width="180" height="208" rx="8" fill="#fff3e7" stroke="#c2410c" stroke-width="1.4"/>
+<text x="522" y="298" class="strong">Proof system</text>
+<text x="522" y="328" class="body">prover produces</text>
+<text x="522" y="346" class="body">configured validity or</text>
+<text x="522" y="364" class="body">evidence envelope.</text>
+<path class="accentArrow" d="M688 374 C700 374 698 428 716 428"/>
+<rect x="716" y="324" width="180" height="208" rx="8" fill="#fff3e7" stroke="#c2410c" stroke-width="1.4"/>
+<text x="730" y="352" class="strong">L1 verification</text>
+<text x="730" y="382" class="body">NeoHub routes</text>
+<text x="730" y="400" class="body">verification and</text>
+<text x="730" y="418" class="body">accepts only matching</text>
+<text x="730" y="436" class="body">roots.</text>
+<line x1="296" y1="528" x2="752" y2="528" stroke="#c2410c" stroke-width="1.4" stroke-dasharray="6 6"/>
+<text x="522" y="552" class="caption" text-anchor="middle">canonical boundary: hashes, roots, events, proofs, DA references</text>
+<rect x="1000" y="252" width="828" height="62" rx="8" fill="#fff3e7" stroke="#c2410c" stroke-width="1.5"/>
+<text x="1020" y="290" class="mono">accept_root iff verify(proof, public_inputs) &amp;&amp; DA_available</text>
+<rect x="1012" y="342" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="369" r="15" fill="#c2410c"/>
+<text x="1038" y="374" text-anchor="middle" class="label">1</text>
+<text x="1066" y="365" class="strong">Statement</text>
+<text x="1066" y="385" class="small">batch range, pre-root, post-root, DA root, proof mode, and</text>
+<path class="accentArrow" d="M1328 396 L1328 414"/>
+<rect x="1012" y="414" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="441" r="15" fill="#c2410c"/>
+<text x="1038" y="446" text-anchor="middle" class="label">2</text>
+<text x="1066" y="437" class="strong">Acceptance</text>
+<text x="1066" y="457" class="small">root advances only if proof verifies and public inputs match</text>
+<path class="accentArrow" d="M1328 468 L1328 486"/>
+<rect x="1012" y="486" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="513" r="15" fill="#c2410c"/>
+<text x="1038" y="518" text-anchor="middle" class="label">3</text>
+<text x="1066" y="509" class="strong">Failure</text>
+<text x="1066" y="529" class="small">bad proof, missing DA, or mismatched root leaves canonical state</text>
+<rect x="1672" y="358" width="146" height="174" rx="8" fill="#ffffff" stroke="#c2410c" stroke-width="1.4"/>
+<text x="1686" y="386" class="strong">Acceptance</text>
+<text x="1686" y="416" class="body">proof verifies and</text>
+<text x="1686" y="434" class="body">public inputs</text>
+<text x="1686" y="452" class="body">match committed</text>
+<text x="1686" y="470" class="body">roots</text>
+<path class="dashArrow" d="M1642 460 L1672 460"/>
+<text x="1014" y="562" class="mono">proof verifies and public inputs match committed roots</text>
+<rect x="92" y="730" width="150" height="120" rx="8" fill="#fff3e7" stroke="#c2410c" stroke-width="1.5"/>
+<rect x="102" y="740" width="30" height="24" rx="5" fill="#c2410c"/>
+<text x="117" y="757" text-anchor="middle" class="label">1</text>
+<text x="140" y="758" class="strong">Seal</text>
+<text x="104" y="788" class="small">batch commitment</text>
+<text x="104" y="805" class="small">is computed</text>
+<path class="accentArrow" d="M242 790 L290 790"/>
+<rect x="290" y="730" width="150" height="120" rx="8" fill="#fff3e7" stroke="#c2410c" stroke-width="1.5"/>
+<rect x="300" y="740" width="30" height="24" rx="5" fill="#c2410c"/>
+<text x="315" y="757" text-anchor="middle" class="label">2</text>
+<text x="338" y="758" class="strong">Publish DA</text>
+<text x="302" y="788" class="small">payload and</text>
+<text x="302" y="805" class="small">witness are pinned</text>
+<path class="accentArrow" d="M440 790 L488 790"/>
+<rect x="488" y="730" width="150" height="120" rx="8" fill="#fff3e7" stroke="#c2410c" stroke-width="1.5"/>
+<rect x="498" y="740" width="30" height="24" rx="5" fill="#c2410c"/>
+<text x="513" y="757" text-anchor="middle" class="label">3</text>
+<text x="536" y="758" class="strong">Prove</text>
+<text x="500" y="788" class="small">proof envelope is</text>
+<text x="500" y="805" class="small">generated</text>
+<path class="accentArrow" d="M638 790 L686 790"/>
+<rect x="686" y="730" width="150" height="120" rx="8" fill="#fff3e7" stroke="#c2410c" stroke-width="1.5"/>
+<rect x="696" y="740" width="30" height="24" rx="5" fill="#c2410c"/>
+<text x="711" y="757" text-anchor="middle" class="label">4</text>
+<text x="734" y="758" class="strong">Verify</text>
+<text x="698" y="788" class="small">local and L1</text>
+<text x="698" y="805" class="small">checks run</text>
+<path class="accentArrow" d="M836 790 L884 790"/>
+<rect x="884" y="730" width="150" height="120" rx="8" fill="#fff3e7" stroke="#c2410c" stroke-width="1.5"/>
+<rect x="894" y="740" width="30" height="24" rx="5" fill="#c2410c"/>
+<text x="909" y="757" text-anchor="middle" class="label">5</text>
+<text x="932" y="758" class="strong">Accept</text>
+<text x="896" y="788" class="small">state root</text>
+<text x="896" y="805" class="small">advances</text>
+<path class="accentArrow" d="M1034 790 L1082 790"/>
+<rect x="1082" y="730" width="150" height="120" rx="8" fill="#fff3e7" stroke="#c2410c" stroke-width="1.5"/>
+<rect x="1092" y="740" width="30" height="24" rx="5" fill="#c2410c"/>
+<text x="1107" y="757" text-anchor="middle" class="label">6</text>
+<text x="1130" y="758" class="strong">Report</text>
+<text x="1094" y="788" class="small">evidence and tx</text>
+<text x="1094" y="805" class="small">hash are recorded</text>
+<path class="dashArrow" d="M182 900 C412 974 852 974 1132 900"/>
+<rect x="482" y="914" width="210" height="120" rx="8" fill="#fff1f2" stroke="#dc2626" stroke-width="1.4"/>
+<text x="496" y="942" class="strong">Reject / Recover</text>
+<text x="496" y="972" class="body">bad evidence, replay,</text>
+<text x="496" y="990" class="body">missing data, timeout,</text>
+<text x="496" y="1008" class="body">policy mismatch</text>
+<path class="faultArrow" d="M562 850 L562 914"/>
+<text x="92" y="1070" class="caption">solid: state / data · dashed: proof / observation · red: reject / recover</text>
+<rect x="1368" y="710" width="462" height="294" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<rect x="1378" y="720" width="442" height="58" rx="6" fill="#fff3e7"/>
+<text x="1390" y="743" class="strong">Public inputs</text>
+<text x="1518" y="740" class="small">hashes and roots match committed data</text>
+<rect x="1378" y="788" width="442" height="58" rx="6" fill="#ffffff"/>
+<text x="1390" y="811" class="strong">Verifier</text>
+<text x="1518" y="808" class="small">registry points to the expected</text>
+<text x="1518" y="825" class="small">verifier</text>
+<rect x="1378" y="856" width="442" height="58" rx="6" fill="#fff3e7"/>
+<text x="1390" y="879" class="strong">DA</text>
+<text x="1518" y="876" class="small">payload is retrievable</text>
+<rect x="1378" y="924" width="442" height="58" rx="6" fill="#ffffff"/>
+<text x="1390" y="947" class="strong">Result</text>
+<text x="1518" y="944" class="small">accepted root is observable and</text>
+<text x="1518" y="961" class="small">auditable</text>
+<line x1="1504" y1="724" x2="1504" y2="992" stroke="#c2410c" stroke-width="1.2" stroke-dasharray="4 5"/>
+<rect x="1368" y="1026" width="462" height="74" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2"/>
+<line x1="1388" y1="1050" x2="1434" y2="1050" stroke="#c2410c" stroke-width="2.6" marker-end="url(#arrowAccent)"/>
+<text x="1450" y="1054" class="small">solid: state / data</text>
+<line x1="1388" y1="1074" x2="1434" y2="1074" stroke="#64748b" stroke-width="2.0" stroke-dasharray="7 6" marker-end="url(#arrowGray)"/>
+<text x="1450" y="1078" class="small">dashed: proof / observation</text>
+<line x1="1660" y1="1074" x2="1704" y2="1074" stroke="#dc2626" stroke-width="2.2" stroke-dasharray="5 5" marker-end="url(#arrowFault)"/>
+<text x="1718" y="1078" class="small">red: reject / recover</text>
+<text x="56" y="1146" class="caption">Generated by the legacy paper figure generator; original filename preserved so documentation links stay stable · architecture/cross-tier-verification.svg</text>
 </svg>

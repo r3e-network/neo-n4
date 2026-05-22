@@ -1,78 +1,177 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 700" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
-  <title id="title">Neo N4 contract-first technical roadmap</title>
-  <desc id="desc">Contract-first Neo N4 roadmap: NeoHub is deployed as L1 contracts, ContractZkVerifier routes to deployable verifier contracts, NeoFS is the default DA layer, NeoVM2/RISC-V is the canonical L2 execution profile, optional VM profiles and heterogeneous bridges plug in around the core stack.</desc>
-  <defs>
-    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L0,6 L9,3 z" fill="#47648f"/>
-    </marker>
-    <style>
-      .bg { fill: #f8fafc; }
-      .title { font-size: 24px; font-weight: 750; fill: #132238; }
-      .subtitle { font-size: 13px; fill: #536174; }
-      .lane { fill: #ffffff; stroke: #c9d4e4; stroke-width: 1.5; rx: 12; }
-      .card { fill: #eef6ff; stroke: #5f8fc7; stroke-width: 1.5; rx: 10; }
-      .card2 { fill: #eefbf3; stroke: #39a46a; stroke-width: 1.5; rx: 10; }
-      .card3 { fill: #fff7e8; stroke: #d99421; stroke-width: 1.5; rx: 10; }
-      .card4 { fill: #f5f0ff; stroke: #8b6bd6; stroke-width: 1.5; rx: 10; }
-      .label { font-size: 15px; font-weight: 700; fill: #172336; }
-      .small { font-size: 11.5px; fill: #44546a; }
-      .chip { font-size: 11px; font-weight: 650; fill: #172336; }
-      .line { stroke: #47648f; stroke-width: 2; fill: none; marker-end: url(#arrow); }
-      .dashed { stroke-dasharray: 6 5; }
-    </style>
-  </defs>
-  <rect width="1120" height="700" class="bg"/>
-  <text x="560" y="42" text-anchor="middle" class="title">Neo N4 Contract-First Technical Roadmap</text>
-  <text x="560" y="66" text-anchor="middle" class="subtitle">Minimal L1 core changes, deployable NeoHub contracts, NeoFS DA, NeoVM2/RISC-V default execution, pluggable VM and bridge profiles.</text>
-
-  <rect x="40" y="100" width="1040" height="100" class="lane"/>
-  <text x="64" y="128" class="label">L1 Anchor: NeoHub as deployed contracts</text>
-  <rect x="64" y="146" width="190" height="34" class="card2"/>
-  <text x="159" y="168" text-anchor="middle" class="chip">SharedBridge</text>
-  <rect x="282" y="146" width="190" height="34" class="card2"/>
-  <text x="377" y="168" text-anchor="middle" class="chip">SettlementManager</text>
-  <rect x="500" y="146" width="190" height="34" class="card2"/>
-  <text x="595" y="168" text-anchor="middle" class="chip">VerifierRegistry</text>
-  <rect x="718" y="146" width="190" height="34" class="card2"/>
-  <text x="813" y="168" text-anchor="middle" class="chip">Governance / Emergency</text>
-
-  <rect x="40" y="245" width="1040" height="135" class="lane"/>
-  <text x="64" y="273" class="label">ZK route: deployable router and verifier contracts</text>
-  <rect x="64" y="300" width="220" height="52" class="card"/>
-  <text x="174" y="322" text-anchor="middle" class="label">ContractZkVerifier</text>
-  <text x="174" y="342" text-anchor="middle" class="small">Envelope + VK + dispatch</text>
-  <rect x="382" y="300" width="220" height="52" class="card"/>
-  <text x="492" y="322" text-anchor="middle" class="label">Proof Verifier Contract</text>
-  <text x="492" y="342" text-anchor="middle" class="small">SP1 / Risc0 / Halo2 / Axiom ABI</text>
-  <rect x="700" y="300" width="260" height="52" class="card4"/>
-  <text x="830" y="322" text-anchor="middle" class="label">Optional Native Plugin Adapter</text>
-  <text x="830" y="342" text-anchor="middle" class="small">Same ABI, not a required L1 dependency</text>
-  <path d="M284 326 H374" class="line"/>
-  <path d="M602 326 H692" class="line dashed"/>
-
-  <rect x="40" y="425" width="500" height="190" class="lane"/>
-  <text x="64" y="453" class="label">L2 execution profile roadmap</text>
-  <rect x="64" y="480" width="205" height="50" class="card3"/>
-  <text x="166" y="501" text-anchor="middle" class="label">NeoVM2 / RISC-V</text>
-  <text x="166" y="520" text-anchor="middle" class="small">Canonical default via PolkaVM</text>
-  <rect x="305" y="480" width="205" height="50" class="card4"/>
-  <text x="408" y="501" text-anchor="middle" class="label">Optional VM Profiles</text>
-  <text x="408" y="520" text-anchor="middle" class="small">EVM, WASM, Move, custom</text>
-  <rect x="64" y="552" width="446" height="38" class="card2"/>
-  <text x="287" y="576" text-anchor="middle" class="chip">Built-in L2 NEO/GAS + USDT/USDC/BTC asset catalog with decimals</text>
-
-  <rect x="580" y="425" width="500" height="190" class="lane"/>
-  <text x="604" y="453" class="label">Data availability and interoperability</text>
-  <rect x="604" y="480" width="205" height="50" class="card2"/>
-  <text x="706" y="501" text-anchor="middle" class="label">NeoFS DA</text>
-  <text x="706" y="520" text-anchor="middle" class="small">Default DA, content addressed</text>
-  <rect x="845" y="480" width="205" height="50" class="card"/>
-  <text x="948" y="501" text-anchor="middle" class="label">Generic Bridge</text>
-  <text x="948" y="520" text-anchor="middle" class="small">EVM family, Tron, Solana, Avalanche</text>
-  <rect x="604" y="552" width="446" height="38" class="card3"/>
-  <text x="827" y="576" text-anchor="middle" class="chip">Gateway aggregates proofs and global message roots when enabled</text>
-
-  <path d="M595 180 V292" class="line"/>
-  <path d="M174 352 C174 400 166 410 166 470" class="line"/>
-  <path d="M492 352 C492 395 706 400 706 470" class="line"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1180" viewBox="0 0 1920 1180" role="img" aria-label="Contract-First Roadmap">
+<defs>
+<marker id="arrowAccent" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#b45309"/></marker>
+<marker id="arrowGray" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#475569"/></marker>
+<marker id="arrowFault" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#dc2626"/></marker>
+<filter id="shadow" x="-3%" y="-4%" width="106%" height="108%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.10"/></filter>
+<style>
+.bg{fill:#f8fafc}.panel{fill:#ffffff;stroke:#cbd5e1;stroke-width:1.5;filter:url(#shadow)}
+.title{font:800 36px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.subtitle{font:500 17px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.panelTitle{font:750 22px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.panelSub{font:500 15px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.strong{font:760 15px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.body{font:500 14px 'Inter','Segoe UI',Arial,sans-serif;fill:#334155}.small{font:500 13px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.mono{font:650 14px 'Cascadia Mono','SFMono-Regular',Consolas,monospace;fill:#0f172a}.label{font:800 14px 'Inter','Segoe UI',Arial,sans-serif;fill:#ffffff}.caption{font:500 13px 'Inter','Segoe UI',Arial,sans-serif;fill:#64748b}
+.accentArrow{stroke:#b45309;stroke-width:2.6;fill:none;marker-end:url(#arrowAccent)}.dashArrow{stroke:#64748b;stroke-width:2.0;fill:none;stroke-dasharray:7 6;marker-end:url(#arrowGray)}.faultArrow{stroke:#dc2626;stroke-width:2.2;fill:none;stroke-dasharray:5 5;marker-end:url(#arrowFault)}
+</style>
+</defs>
+<rect class="bg" width="1920" height="1180"/>
+<text x="56" y="66" class="title">Contract-First Roadmap</text>
+<text x="56" y="98" class="subtitle">Why NeoHub stays deployable-contract first while L2 evolves through profiles and plugins.</text>
+<rect x="56" y="118" width="1808" height="38" rx="6" fill="#fff7ed" stroke="#b45309" stroke-width="1.2"/>
+<text x="76" y="143" class="small">Read as: <tspan class="strong">paper-style technical figure focused on architecture, principles, data flow, workflow, and audit conditions.</tspan></text>
+<rect x="56" y="178" width="870" height="392" rx="10" class="panel"/>
+<rect x="56" y="178" width="870" height="54" rx="10" fill="#fff7ed"/>
+<circle cx="86" cy="206" r="16" fill="#b45309"/>
+<text x="86" y="211" text-anchor="middle" class="label">a</text>
+<text x="114" y="210" class="panelTitle">Technical Topology</text>
+<text x="114" y="230" class="panelSub">planes, boundaries, and responsibilities</text>
+<rect x="966" y="178" width="898" height="392" rx="10" class="panel"/>
+<rect x="966" y="178" width="898" height="54" rx="10" fill="#fff7ed"/>
+<circle cx="996" cy="206" r="16" fill="#b45309"/>
+<text x="996" y="211" text-anchor="middle" class="label">b</text>
+<text x="1024" y="210" class="panelTitle">Technical Model</text>
+<text x="1024" y="230" class="panelSub">formal rules and acceptance conditions</text>
+<rect x="56" y="606" width="1240" height="494" rx="10" class="panel"/>
+<rect x="56" y="606" width="1240" height="54" rx="10" fill="#fff7ed"/>
+<circle cx="86" cy="634" r="16" fill="#b45309"/>
+<text x="86" y="639" text-anchor="middle" class="label">c</text>
+<text x="114" y="638" class="panelTitle">Numbered Protocol Path</text>
+<text x="114" y="658" class="panelSub">how key objects advance</text>
+<rect x="1334" y="606" width="530" height="494" rx="10" class="panel"/>
+<rect x="1334" y="606" width="530" height="54" rx="10" fill="#fff7ed"/>
+<circle cx="1364" cy="634" r="16" fill="#b45309"/>
+<text x="1364" y="639" text-anchor="middle" class="label">d</text>
+<text x="1392" y="638" class="panelTitle">Audit Checkpoints</text>
+<text x="1392" y="658" class="panelSub">conditions readers should verify</text>
+<rect x="92" y="270" width="180" height="208" rx="8" fill="#fff7ed" stroke="#b45309" stroke-width="1.4"/>
+<text x="106" y="298" class="strong">L1 contract-first</text>
+<text x="106" y="328" class="body">NeoHub remains</text>
+<text x="106" y="346" class="body">deployable and</text>
+<text x="106" y="364" class="body">minimizes core</text>
+<text x="106" y="382" class="body">changes.</text>
+<path class="accentArrow" d="M272 374 C284 374 282 428 300 428"/>
+<rect x="300" y="324" width="180" height="208" rx="8" fill="#fff7ed" stroke="#b45309" stroke-width="1.4"/>
+<text x="314" y="352" class="strong">L2 execution</text>
+<text x="314" y="382" class="body">N4 L2 uses</text>
+<text x="314" y="400" class="body">NeoVM2/RISC-V by</text>
+<text x="314" y="418" class="body">default and evolves</text>
+<text x="314" y="436" class="body">through profiles.</text>
+<path class="accentArrow" d="M480 428 C492 428 490 374 508 374"/>
+<rect x="508" y="270" width="180" height="208" rx="8" fill="#fff7ed" stroke="#b45309" stroke-width="1.4"/>
+<text x="522" y="298" class="strong">Data availability</text>
+<text x="522" y="328" class="body">NeoFS is the DA layer</text>
+<text x="522" y="346" class="body">for payloads,</text>
+<text x="522" y="364" class="body">witnesses, and</text>
+<text x="522" y="382" class="body">reports.</text>
+<path class="accentArrow" d="M688 374 C700 374 698 428 716 428"/>
+<rect x="716" y="324" width="180" height="208" rx="8" fill="#fff7ed" stroke="#b45309" stroke-width="1.4"/>
+<text x="730" y="352" class="strong">Interoperability</text>
+<text x="730" y="382" class="body">shared bridge and</text>
+<text x="730" y="400" class="body">heterogeneous watchers</text>
+<text x="730" y="418" class="body">grow through adapters.</text>
+<line x1="296" y1="528" x2="752" y2="528" stroke="#b45309" stroke-width="1.4" stroke-dasharray="6 6"/>
+<text x="522" y="552" class="caption" text-anchor="middle">canonical boundary: hashes, roots, events, proofs, DA references</text>
+<rect x="1000" y="252" width="828" height="62" rx="8" fill="#fff7ed" stroke="#b45309" stroke-width="1.5"/>
+<text x="1020" y="290" class="mono">capability -&gt; narrowest_responsible_layer -&gt; evidence</text>
+<rect x="1012" y="342" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="369" r="15" fill="#b45309"/>
+<text x="1038" y="374" text-anchor="middle" class="label">1</text>
+<text x="1066" y="365" class="strong">Principle</text>
+<text x="1066" y="385" class="small">add capabilities at the narrowest layer that owns the</text>
+<path class="accentArrow" d="M1328 396 L1328 414"/>
+<rect x="1012" y="414" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="441" r="15" fill="#b45309"/>
+<text x="1038" y="446" text-anchor="middle" class="label">2</text>
+<text x="1066" y="437" class="strong">Compatibility</text>
+<text x="1066" y="457" class="small">new execution profiles must preserve settlement and bridge</text>
+<path class="accentArrow" d="M1328 468 L1328 486"/>
+<rect x="1012" y="486" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="513" r="15" fill="#b45309"/>
+<text x="1038" y="518" text-anchor="middle" class="label">3</text>
+<text x="1066" y="509" class="strong">Evidence</text>
+<text x="1066" y="529" class="small">roadmap items graduate only with tests, docs, and deployment</text>
+<rect x="1672" y="358" width="146" height="174" rx="8" fill="#ffffff" stroke="#b45309" stroke-width="1.4"/>
+<text x="1686" y="386" class="strong">Acceptance</text>
+<text x="1686" y="416" class="body">capability has</text>
+<text x="1686" y="434" class="body">tests, docs, and</text>
+<text x="1686" y="452" class="body">deployment</text>
+<text x="1686" y="470" class="body">rehearsal</text>
+<path class="dashArrow" d="M1642 460 L1672 460"/>
+<text x="1014" y="562" class="mono">capability has tests, docs, and deployment rehearsal</text>
+<rect x="92" y="730" width="150" height="120" rx="8" fill="#fff7ed" stroke="#b45309" stroke-width="1.5"/>
+<rect x="102" y="740" width="30" height="24" rx="5" fill="#b45309"/>
+<text x="117" y="757" text-anchor="middle" class="label">1</text>
+<text x="140" y="758" class="strong">Principle</text>
+<text x="104" y="788" class="small">choose the</text>
+<text x="104" y="805" class="small">narrowest</text>
+<text x="104" y="822" class="small">responsible layer</text>
+<path class="accentArrow" d="M242 790 L290 790"/>
+<rect x="290" y="730" width="150" height="120" rx="8" fill="#fff7ed" stroke="#b45309" stroke-width="1.5"/>
+<rect x="300" y="740" width="30" height="24" rx="5" fill="#b45309"/>
+<text x="315" y="757" text-anchor="middle" class="label">2</text>
+<text x="338" y="758" class="strong">Contract</text>
+<text x="302" y="788" class="small">keep L1 support</text>
+<text x="302" y="805" class="small">deployable-first</text>
+<path class="accentArrow" d="M440 790 L488 790"/>
+<rect x="488" y="730" width="150" height="120" rx="8" fill="#fff7ed" stroke="#b45309" stroke-width="1.5"/>
+<rect x="498" y="740" width="30" height="24" rx="5" fill="#b45309"/>
+<text x="513" y="757" text-anchor="middle" class="label">3</text>
+<text x="536" y="758" class="strong">Profile</text>
+<text x="500" y="788" class="small">extend L2 through</text>
+<text x="500" y="805" class="small">N4 execution</text>
+<text x="500" y="822" class="small">profiles</text>
+<path class="accentArrow" d="M638 790 L686 790"/>
+<rect x="686" y="730" width="150" height="120" rx="8" fill="#fff7ed" stroke="#b45309" stroke-width="1.5"/>
+<rect x="696" y="740" width="30" height="24" rx="5" fill="#b45309"/>
+<text x="711" y="757" text-anchor="middle" class="label">4</text>
+<text x="734" y="758" class="strong">DA</text>
+<text x="698" y="788" class="small">bind data through</text>
+<text x="698" y="805" class="small">NeoFS</text>
+<path class="accentArrow" d="M836 790 L884 790"/>
+<rect x="884" y="730" width="150" height="120" rx="8" fill="#fff7ed" stroke="#b45309" stroke-width="1.5"/>
+<rect x="894" y="740" width="30" height="24" rx="5" fill="#b45309"/>
+<text x="909" y="757" text-anchor="middle" class="label">5</text>
+<text x="932" y="758" class="strong">Bridge</text>
+<text x="896" y="788" class="small">normalize</text>
+<text x="896" y="805" class="small">heterogeneous</text>
+<text x="896" y="822" class="small">messages</text>
+<path class="accentArrow" d="M1034 790 L1082 790"/>
+<rect x="1082" y="730" width="150" height="120" rx="8" fill="#fff7ed" stroke="#b45309" stroke-width="1.5"/>
+<rect x="1092" y="740" width="30" height="24" rx="5" fill="#b45309"/>
+<text x="1107" y="757" text-anchor="middle" class="label">6</text>
+<text x="1130" y="758" class="strong">Graduate</text>
+<text x="1094" y="788" class="small">require tests,</text>
+<text x="1094" y="805" class="small">docs, and</text>
+<text x="1094" y="822" class="small">rehearsal</text>
+<path class="dashArrow" d="M182 900 C412 974 852 974 1132 900"/>
+<rect x="482" y="914" width="210" height="120" rx="8" fill="#fff1f2" stroke="#dc2626" stroke-width="1.4"/>
+<text x="496" y="942" class="strong">Reject / Recover</text>
+<text x="496" y="972" class="body">bad evidence, replay,</text>
+<text x="496" y="990" class="body">missing data, timeout,</text>
+<text x="496" y="1008" class="body">policy mismatch</text>
+<path class="faultArrow" d="M562 850 L562 914"/>
+<text x="92" y="1070" class="caption">solid: state / data · dashed: proof / observation · red: reject / recover</text>
+<rect x="1368" y="710" width="462" height="294" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<rect x="1378" y="720" width="442" height="58" rx="6" fill="#fff7ed"/>
+<text x="1390" y="743" class="strong">L1 scope</text>
+<text x="1518" y="740" class="small">no unnecessary native-contract or core</text>
+<text x="1518" y="757" class="small">dependency</text>
+<rect x="1378" y="788" width="442" height="58" rx="6" fill="#ffffff"/>
+<text x="1390" y="811" class="strong">VM scope</text>
+<text x="1518" y="808" class="small">profile model stays N4-specific</text>
+<rect x="1378" y="856" width="442" height="58" rx="6" fill="#fff7ed"/>
+<text x="1390" y="879" class="strong">Bridge scope</text>
+<text x="1518" y="876" class="small">heterogeneous chains use normalized</text>
+<text x="1518" y="893" class="small">messages</text>
+<rect x="1378" y="924" width="442" height="58" rx="6" fill="#ffffff"/>
+<text x="1390" y="947" class="strong">Release</text>
+<text x="1518" y="944" class="small">evidence exists before production claim</text>
+<line x1="1504" y1="724" x2="1504" y2="992" stroke="#b45309" stroke-width="1.2" stroke-dasharray="4 5"/>
+<rect x="1368" y="1026" width="462" height="74" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2"/>
+<line x1="1388" y1="1050" x2="1434" y2="1050" stroke="#b45309" stroke-width="2.6" marker-end="url(#arrowAccent)"/>
+<text x="1450" y="1054" class="small">solid: state / data</text>
+<line x1="1388" y1="1074" x2="1434" y2="1074" stroke="#64748b" stroke-width="2.0" stroke-dasharray="7 6" marker-end="url(#arrowGray)"/>
+<text x="1450" y="1078" class="small">dashed: proof / observation</text>
+<line x1="1660" y1="1074" x2="1704" y2="1074" stroke="#dc2626" stroke-width="2.2" stroke-dasharray="5 5" marker-end="url(#arrowFault)"/>
+<text x="1718" y="1078" class="small">red: reject / recover</text>
+<text x="56" y="1146" class="caption">Generated by the legacy paper figure generator; original filename preserved so documentation links stay stable · architecture/contract-first-roadmap.svg</text>
 </svg>

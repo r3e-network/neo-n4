@@ -80,6 +80,7 @@
 架构变化后，从仓库根目录运行：
 
 ```powershell
+python tools/docs/generate_legacy_paper_figures.py
 python tools/docs/generate_paper_figures.py
 docs/figures/visual-guide/generate.ps1
 ```

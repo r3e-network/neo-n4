@@ -1,70 +1,156 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
-  <title id="title">Neo N4 系统上下文</title>
-  <desc id="desc">一图展示用户、NeoHub L1、弹性 L2 链、外链和运营服务。</desc>
-  <defs>
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
-      <path d="M0,0 L10,5 L0,10 Z" fill="#526173"/>
-    </marker>
-    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
-      <feDropShadow dx="0" dy="1" stdDeviation="1.0" flood-color="#000000" flood-opacity="0.08"/>
-    </filter>
-    <style>
-      .bg { fill: #fbfcfe; }
-      .page-title { font-size: 22px; font-weight: 750; fill: #1e2a55; }
-      .page-subtitle { font-size: 12.5px; fill: #526173; }
-      .box-title { font-size: 14px; font-weight: 750; fill: #1e2a55; }
-      .small-title { font-size: 12px; font-weight: 700; fill: #1e2a55; }
-      .lane-title { font-size: 13px; font-weight: 750; fill: #1e2a55; }
-      .body { font-size: 11.5px; fill: #2d3a48; }
-      .body-strong { font-size: 11.5px; font-weight: 700; fill: #1e2a55; }
-      .caption { font-size: 11px; fill: #526173; font-style: italic; }
-      .arrow { stroke: #526173; stroke-width: 1.7; }
-      .dashed { stroke-dasharray: 6 5; }
-      .arrow-label { font-size: 10.5px; fill: #526173; font-weight: 650; }
-      .lifeline { stroke: #c7d0dc; stroke-width: 1.1; stroke-dasharray: 4 4; }
-      .zone-title { font-size: 13px; font-weight: 750; fill: #526173; letter-spacing: .2px; }
-      .mono { font-family: 'Noto Sans Mono CJK SC', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10.5px; fill: #1e2a55; }
-    </style>
-  </defs>
-  <rect class="bg" width="1200" height="720"/>
-  <text x="36" y="40" class="page-title">Neo N4 系统上下文</text>
-  <text x="36" y="63" class="page-subtitle">一图展示用户、NeoHub L1、弹性 L2 链、外链和运营服务。</text>
-<g>
-  <rect x="55" y="105" width="210" height="125" rx="8" fill="#eaf2ff" stroke="#d8dee8" filter="url(#card)"/>
-  <text x="71" y="132" class="box-title">用户和钱包</text>
-  <text x="71" y="157" class="body" text-anchor="start"><tspan x="71" dy="0">存入和提取</tspan><tspan x="71" dy="18">签署治理交易</tspan><tspan x="71" dy="18">读取 SDK/RPC 状态</tspan></text>
-</g>
-<g>
-  <rect x="360" y="105" width="250" height="165" rx="8" fill="#eaf7f0" stroke="#d8dee8" filter="url(#card)"/>
-  <text x="376" y="132" class="box-title">NeoHub L1 锚定层</text>
-  <text x="376" y="157" class="body" text-anchor="start"><tspan x="376" dy="0">SharedBridge / SettlementManager</tspan><tspan x="376" dy="18">ChainRegistry / TokenRegistry</tspan><tspan x="376" dy="18">VerifierRegistry / Governance</tspan><tspan x="376" dy="18">ExternalBridgeEscrow</tspan></text>
-</g>
-<g>
-  <rect x="725" y="105" width="220" height="145" rx="8" fill="#e7f8fb" stroke="#d8dee8" filter="url(#card)"/>
-  <text x="741" y="132" class="box-title">弹性 L2 链</text>
-  <text x="741" y="157" class="body" text-anchor="start"><tspan x="741" dy="0">Neo 4 core + L2 插件</tspan><tspan x="741" dy="18">L2 原生合约</tspan><tspan x="741" dy="18">执行、批次、状态根</tspan></text>
-</g>
-<g>
-  <rect x="55" y="390" width="245" height="135" rx="8" fill="#f7ecff" stroke="#d8dee8" filter="url(#card)"/>
-  <text x="71" y="417" class="box-title">外部网络</text>
-  <text x="71" y="442" class="body" text-anchor="start"><tspan x="71" dy="0">EVM family / Tron / Solana</tspan><tspan x="71" dy="18">外链路由合约</tspan><tspan x="71" dy="18">锁定、释放、发出事件</tspan></text>
-</g>
-<g>
-  <rect x="405" y="405" width="250" height="145" rx="8" fill="#fff5e6" stroke="#d8dee8" filter="url(#card)"/>
-  <text x="421" y="432" class="box-title">链下运行时</text>
-  <text x="421" y="457" class="body" text-anchor="start"><tspan x="421" dy="0">排序器 / 批处理器 / 证明器</tspan><tspan x="421" dy="18">DA 写入器 / 桥 监听er</tspan><tspan x="421" dy="18">遥测 + 健康检查</tspan></text>
-</g>
-<g>
-  <rect x="770" y="405" width="250" height="135" rx="8" fill="#f4f6f8" stroke="#d8dee8" filter="url(#card)"/>
-  <text x="786" y="432" class="box-title">开发者入口</text>
-  <text x="786" y="457" class="body" text-anchor="start"><tspan x="786" dy="0">C# / TypeScript / Rust SDK</tspan><tspan x="786" dy="18">neo-stack / neo-bridge CLI</tspan><tspan x="786" dy="18">文档 + 生成产物</tspan></text>
-</g>
-<line x1="265" y1="168" x2="360" y2="168" class="arrow" marker-end="url(#arrow)"/><text x="312" y="160" text-anchor="middle" class="arrow-label">签名交易</text>
-<line x1="610" y1="168" x2="725" y2="168" class="arrow" marker-end="url(#arrow)"/><text x="668" y="160" text-anchor="middle" class="arrow-label">消息 / 根</text>
-<line x1="835" y1="250" x2="530" y2="405" class="arrow dashed" marker-end="url(#arrow)"/><text x="682" y="320" text-anchor="middle" class="arrow-label">批次 + 证明</text>
-<line x1="300" y1="458" x2="405" y2="458" class="arrow" marker-end="url(#arrow)"/><text x="352" y="450" text-anchor="middle" class="arrow-label">外链事件</text>
-<line x1="655" y1="458" x2="770" y2="458" class="arrow" marker-end="url(#arrow)"/><text x="712" y="450" text-anchor="middle" class="arrow-label">运营 API</text>
-<line x1="176" y1="390" x2="176" y2="230" class="arrow dashed" marker-end="url(#arrow)"/><text x="176" y="302" text-anchor="middle" class="arrow-label">钱包桥接</text>
-<line x1="495" y1="405" x2="495" y2="270" class="arrow dashed" marker-end="url(#arrow)"/><text x="495" y="330" text-anchor="middle" class="arrow-label">结算交易</text>
-<text x="55" y="650" class="caption">实线表示链上状态变更；虚线表示链下证明、事件监听或运营控制流。</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1180" viewBox="0 0 1920 1180" role="img" aria-label="系统上下文">
+<defs>
+<marker id="arrowAccent" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#0369a1"/></marker>
+<marker id="arrowGray" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#475569"/></marker>
+<marker id="arrowFault" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#dc2626"/></marker>
+<filter id="shadow" x="-3%" y="-4%" width="106%" height="108%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.10"/></filter>
+<style>
+.bg{fill:#f8fafc}.panel{fill:#ffffff;stroke:#cbd5e1;stroke-width:1.5;filter:url(#shadow)}
+.title{font:800 36px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.subtitle{font:500 17px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.panelTitle{font:750 22px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.panelSub{font:500 15px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.strong{font:760 15px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.body{font:500 14px 'Inter','Segoe UI',Arial,sans-serif;fill:#334155}.small{font:500 13px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.mono{font:650 14px 'Cascadia Mono','SFMono-Regular',Consolas,monospace;fill:#0f172a}.label{font:800 14px 'Inter','Segoe UI',Arial,sans-serif;fill:#ffffff}.caption{font:500 13px 'Inter','Segoe UI',Arial,sans-serif;fill:#64748b}
+.accentArrow{stroke:#0369a1;stroke-width:2.6;fill:none;marker-end:url(#arrowAccent)}.dashArrow{stroke:#64748b;stroke-width:2.0;fill:none;stroke-dasharray:7 6;marker-end:url(#arrowGray)}.faultArrow{stroke:#dc2626;stroke-width:2.2;fill:none;stroke-dasharray:5 5;marker-end:url(#arrowFault)}
+</style>
+</defs>
+<rect class="bg" width="1920" height="1180"/>
+<text x="56" y="66" class="title">系统上下文</text>
+<text x="56" y="98" class="subtitle">参与者、服务、合约、链和证据表面的一图视图。</text>
+<rect x="56" y="118" width="1808" height="38" rx="6" fill="#eef7ff" stroke="#0369a1" stroke-width="1.2"/>
+<text x="76" y="143" class="small">读图方式： <tspan class="strong">论文式技术图；强调架构、原理、数据流、工作流和审计条件。</tspan></text>
+<rect x="56" y="178" width="870" height="392" rx="10" class="panel"/>
+<rect x="56" y="178" width="870" height="54" rx="10" fill="#eef7ff"/>
+<circle cx="86" cy="206" r="16" fill="#0369a1"/>
+<text x="86" y="211" text-anchor="middle" class="label">a</text>
+<text x="114" y="210" class="panelTitle">技术拓扑</text>
+<text x="114" y="230" class="panelSub">参与平面、边界和职责</text>
+<rect x="966" y="178" width="898" height="392" rx="10" class="panel"/>
+<rect x="966" y="178" width="898" height="54" rx="10" fill="#eef7ff"/>
+<circle cx="996" cy="206" r="16" fill="#0369a1"/>
+<text x="996" y="211" text-anchor="middle" class="label">b</text>
+<text x="1024" y="210" class="panelTitle">技术模型</text>
+<text x="1024" y="230" class="panelSub">形式化规则和接受条件</text>
+<rect x="56" y="606" width="1240" height="494" rx="10" class="panel"/>
+<rect x="56" y="606" width="1240" height="54" rx="10" fill="#eef7ff"/>
+<circle cx="86" cy="634" r="16" fill="#0369a1"/>
+<text x="86" y="639" text-anchor="middle" class="label">c</text>
+<text x="114" y="638" class="panelTitle">编号协议路径</text>
+<text x="114" y="658" class="panelSub">关键对象如何推进</text>
+<rect x="1334" y="606" width="530" height="494" rx="10" class="panel"/>
+<rect x="1334" y="606" width="530" height="54" rx="10" fill="#eef7ff"/>
+<circle cx="1364" cy="634" r="16" fill="#0369a1"/>
+<text x="1364" y="639" text-anchor="middle" class="label">d</text>
+<text x="1392" y="638" class="panelTitle">审计检查点</text>
+<text x="1392" y="658" class="panelSub">读者应验证的条件</text>
+<rect x="92" y="270" width="180" height="208" rx="8" fill="#eef7ff" stroke="#0369a1" stroke-width="1.4"/>
+<text x="106" y="298" class="strong">规范层</text>
+<text x="106" y="328" class="body">NeoHub</text>
+<text x="106" y="346" class="body">负责共享事实、注册表、托管、验证策略和治理。</text>
+<path class="accentArrow" d="M272 374 C284 374 282 428 300 428"/>
+<rect x="300" y="324" width="180" height="208" rx="8" fill="#eef7ff" stroke="#0369a1" stroke-width="1.4"/>
+<text x="314" y="352" class="strong">执行层</text>
+<text x="314" y="382" class="body">N4 L2</text>
+<text x="314" y="400" class="body">链执行交易，NeoVM2/RISC-V</text>
+<text x="314" y="418" class="body">是默认 canonical profile。</text>
+<path class="accentArrow" d="M480 428 C492 428 490 374 508 374"/>
+<rect x="508" y="270" width="180" height="208" rx="8" fill="#eef7ff" stroke="#0369a1" stroke-width="1.4"/>
+<text x="522" y="298" class="strong">证据层</text>
+<text x="522" y="328" class="body">Gateway、prover 和 NeoFS</text>
+<text x="522" y="346" class="body">把执行结果绑定到紧凑且可取回的证据。</text>
+<path class="accentArrow" d="M688 374 C700 374 698 428 716 428"/>
+<rect x="716" y="324" width="180" height="208" rx="8" fill="#eef7ff" stroke="#0369a1" stroke-width="1.4"/>
+<text x="730" y="352" class="strong">消费层</text>
+<text x="730" y="382" class="body">钱包、SDK、relayer、审计者和运维者消费已接受根和事件。</text>
+<line x1="296" y1="528" x2="752" y2="528" stroke="#0369a1" stroke-width="1.4" stroke-dasharray="6 6"/>
+<text x="522" y="552" class="caption" text-anchor="middle">canonical boundary: hashes, roots, events, proofs, DA references</text>
+<rect x="1000" y="252" width="828" height="62" rx="8" fill="#eef7ff" stroke="#0369a1" stroke-width="1.5"/>
+<text x="1020" y="290" class="mono">accepted_fact = registered &amp;&amp; executed &amp;&amp; DA_bound &amp;&amp; verified</text>
+<rect x="1012" y="342" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="369" r="15" fill="#0369a1"/>
+<text x="1038" y="374" text-anchor="middle" class="label">1</text>
+<text x="1066" y="365" class="strong">分离</text>
+<text x="1066" y="385" class="small">权限、执行、证据和数据可用性保持独立平面</text>
+<path class="accentArrow" d="M1328 396 L1328 414"/>
+<rect x="1012" y="414" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="441" r="15" fill="#0369a1"/>
+<text x="1038" y="446" text-anchor="middle" class="label">2</text>
+<text x="1066" y="437" class="strong">承诺</text>
+<text x="1066" y="457" class="small">跨平面通信使用根、哈希、回执、报告和注册表条目</text>
+<path class="accentArrow" d="M1328 468 L1328 486"/>
+<rect x="1012" y="486" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="513" r="15" fill="#0369a1"/>
+<text x="1038" y="518" text-anchor="middle" class="label">3</text>
+<text x="1066" y="509" class="strong">可扩展</text>
+<text x="1066" y="529" class="small">额外 VM 是 N4 execution profile，不是 NeoX 或另一条产品线</text>
+<rect x="1672" y="358" width="146" height="174" rx="8" fill="#ffffff" stroke="#0369a1" stroke-width="1.4"/>
+<text x="1686" y="386" class="strong">接受</text>
+<text x="1686" y="416" class="body">只有注册、DA、证明和根匹配时成为共享事实</text>
+<path class="dashArrow" d="M1642 460 L1672 460"/>
+<text x="1014" y="562" class="mono">只有注册、DA、证明和根匹配时成为共享事实</text>
+<rect x="92" y="730" width="150" height="120" rx="8" fill="#eef7ff" stroke="#0369a1" stroke-width="1.5"/>
+<rect x="102" y="740" width="30" height="24" rx="5" fill="#0369a1"/>
+<text x="117" y="757" text-anchor="middle" class="label">1</text>
+<text x="140" y="758" class="strong">注册</text>
+<text x="104" y="788" class="small">链配置和策略进入 NeoHub</text>
+<path class="accentArrow" d="M242 790 L290 790"/>
+<rect x="290" y="730" width="150" height="120" rx="8" fill="#eef7ff" stroke="#0369a1" stroke-width="1.5"/>
+<rect x="300" y="740" width="30" height="24" rx="5" fill="#0369a1"/>
+<text x="315" y="757" text-anchor="middle" class="label">2</text>
+<text x="338" y="758" class="strong">执行</text>
+<text x="302" y="788" class="small">L2 产生有序状态转换</text>
+<path class="accentArrow" d="M440 790 L488 790"/>
+<rect x="488" y="730" width="150" height="120" rx="8" fill="#eef7ff" stroke="#0369a1" stroke-width="1.5"/>
+<rect x="498" y="740" width="30" height="24" rx="5" fill="#0369a1"/>
+<text x="513" y="757" text-anchor="middle" class="label">3</text>
+<text x="536" y="758" class="strong">发布</text>
+<text x="500" y="788" class="small">NeoFS 存储数据和见证</text>
+<path class="accentArrow" d="M638 790 L686 790"/>
+<rect x="686" y="730" width="150" height="120" rx="8" fill="#eef7ff" stroke="#0369a1" stroke-width="1.5"/>
+<rect x="696" y="740" width="30" height="24" rx="5" fill="#0369a1"/>
+<text x="711" y="757" text-anchor="middle" class="label">4</text>
+<text x="734" y="758" class="strong">证明</text>
+<text x="698" y="788" class="small">配置的证明路径生成证据</text>
+<path class="accentArrow" d="M836 790 L884 790"/>
+<rect x="884" y="730" width="150" height="120" rx="8" fill="#eef7ff" stroke="#0369a1" stroke-width="1.5"/>
+<rect x="894" y="740" width="30" height="24" rx="5" fill="#0369a1"/>
+<text x="909" y="757" text-anchor="middle" class="label">5</text>
+<text x="932" y="758" class="strong">结算</text>
+<text x="896" y="788" class="small">NeoHub 接受已验证根</text>
+<path class="accentArrow" d="M1034 790 L1082 790"/>
+<rect x="1082" y="730" width="150" height="120" rx="8" fill="#eef7ff" stroke="#0369a1" stroke-width="1.5"/>
+<rect x="1092" y="740" width="30" height="24" rx="5" fill="#0369a1"/>
+<text x="1107" y="757" text-anchor="middle" class="label">6</text>
+<text x="1130" y="758" class="strong">消费</text>
+<text x="1094" y="788" class="small">用户、relayer</text>
+<text x="1094" y="805" class="small">和应用消费终局事实</text>
+<path class="dashArrow" d="M182 900 C412 974 852 974 1132 900"/>
+<rect x="482" y="914" width="210" height="120" rx="8" fill="#fff1f2" stroke="#dc2626" stroke-width="1.4"/>
+<text x="496" y="942" class="strong">Reject / Recover</text>
+<text x="496" y="972" class="body">bad evidence, replay,</text>
+<text x="496" y="990" class="body">missing data, timeout,</text>
+<text x="496" y="1008" class="body">policy mismatch</text>
+<path class="faultArrow" d="M562 850 L562 914"/>
+<text x="92" y="1070" class="caption">实线：状态 / 数据 · 虚线：证明 / 观测 · 红线：拒绝 / 恢复</text>
+<rect x="1368" y="710" width="462" height="294" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<rect x="1378" y="720" width="442" height="58" rx="6" fill="#eef7ff"/>
+<text x="1390" y="743" class="strong">边界</text>
+<text x="1518" y="740" class="small">每层只负责一个明确职责</text>
+<rect x="1378" y="788" width="442" height="58" rx="6" fill="#ffffff"/>
+<text x="1390" y="811" class="strong">终局</text>
+<text x="1518" y="808" class="small">L1 接受是共享事实源</text>
+<rect x="1378" y="856" width="442" height="58" rx="6" fill="#eef7ff"/>
+<text x="1390" y="879" class="strong">DA</text>
+<text x="1518" y="876" class="small">被接受根引用可取回数据</text>
+<rect x="1378" y="924" width="442" height="58" rx="6" fill="#ffffff"/>
+<text x="1390" y="947" class="strong">一致性</text>
+<text x="1518" y="944" class="small">文档、配置和图描述同一架构</text>
+<line x1="1504" y1="724" x2="1504" y2="992" stroke="#0369a1" stroke-width="1.2" stroke-dasharray="4 5"/>
+<rect x="1368" y="1026" width="462" height="74" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2"/>
+<line x1="1388" y1="1050" x2="1434" y2="1050" stroke="#0369a1" stroke-width="2.6" marker-end="url(#arrowAccent)"/>
+<text x="1450" y="1054" class="small">实线：状态 / 数据</text>
+<line x1="1388" y1="1074" x2="1434" y2="1074" stroke="#64748b" stroke-width="2.0" stroke-dasharray="7 6" marker-end="url(#arrowGray)"/>
+<text x="1450" y="1078" class="small">虚线：证明 / 观测</text>
+<line x1="1660" y1="1074" x2="1704" y2="1074" stroke="#dc2626" stroke-width="2.2" stroke-dasharray="5 5" marker-end="url(#arrowFault)"/>
+<text x="1718" y="1078" class="small">红线：拒绝 / 恢复</text>
+<text x="56" y="1146" class="caption">由 legacy paper figure generator 生成；保留原文件名，避免文档链接失效 · visual-guide/system-context.svg</text>
 </svg>

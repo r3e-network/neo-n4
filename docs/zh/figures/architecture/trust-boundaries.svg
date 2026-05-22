@@ -1,100 +1,153 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 720" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif" role="img" aria-labelledby="title desc">
-  <title id="title">信任边界总图 —— 五个跨层验证</title>
-  <desc id="desc">Neo Elastic Network 的五个信任边界。边界 A：用户对 L1 交易签名，由 dBFT 2.0 终结性验证。边界 B：NeoHub 事件由 L2 批处理器读取，依赖终结性信任。边界 C：批处理器向 SettlementManager 提交 BatchCommitment 加证明 —— 这是承担信任的边界，VerifierRegistry 根据 RiscVZk、Multisig 或 Optimistic 派发。边界 D：已结算批次的 withdrawalRoot 让 L1 用户凭 Merkle 证明提款。边界 E（独立路径）：外链经中继器到 ExternalBridgeEscrow，由 M-of-N 委员会验证。</desc>
-
-  <defs>
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
-      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
-    </marker>
-    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
-      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
-    </filter>
-    <style>
-      .b-label   { font-size: 12.5px; font-weight: 700; letter-spacing: 0.5px; fill: #c4413e; }
-      .b-sub     { font-size: 10.5px; fill: #88312e; }
-      .actor-t   { font-size: 13px; font-weight: 600; }
-      .actor-s   { font-size: 11px; }
-      .header    { font-size: 14px; font-weight: 700; }
-      .subheader { font-size: 11.5px; fill: #525a64; }
-      .trust-lbl { font-size: 10.5px; fill: #525a64; font-style: italic; }
-    </style>
-  </defs>
-
-  <rect width="960" height="720" fill="#ffffff"/>
-
-  <text x="480" y="32" text-anchor="middle" class="header" fill="#1e2a55">信任边界 —— 谁签 · 谁验 · 防御什么</text>
-  <text x="480" y="52" text-anchor="middle" class="subheader">5 个跨层验证 · 每个边界由下游独立重验证（纵深防御）</text>
-
-  <!-- L1 user -->
-  <g filter="url(#card)">
-    <rect x="180" y="80" width="600" height="50" rx="8" ry="8" fill="#ffffff" stroke="#7587c1" stroke-width="1.2"/>
-    <text x="480" y="100" text-anchor="middle" class="actor-t" fill="#1e2a55">L1 用户 · Neo 钱包（NeoLine / Neon / NEP-6 / Ledger）</text>
-    <text x="480" y="118" text-anchor="middle" class="actor-s" fill="#3a4a82">信任来源：自己的密钥保管</text>
-  </g>
-
-  <line x1="480" y1="130" x2="480" y2="172" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
-
-  <rect x="40" y="148" width="900" height="22" rx="4" ry="4" fill="#fde8e8" stroke="#c4413e"/>
-  <text x="50" y="163" class="b-label">边界 A · 用户 → L1 NeoHub</text>
-  <text x="320" y="163" class="b-sub">强制方式：dBFT 2.0 终结性 + Secp256r1 签名验证</text>
-
-  <!-- NeoHub L1 -->
-  <g filter="url(#card)">
-    <rect x="180" y="180" width="600" height="60" rx="8" ry="8" fill="#eff3ff" stroke="#7587c1" stroke-width="1.2"/>
-    <text x="480" y="202" text-anchor="middle" class="actor-t" fill="#1e2a55">NeoHub L1 合约</text>
-    <text x="480" y="220" text-anchor="middle" class="actor-s" fill="#3a4a82">SharedBridge · MessageRouter · SettlementManager · ChainRegistry · ...</text>
-    <text x="480" y="234" text-anchor="middle" class="trust-lbl">触发 Block.Committed 事件 —— 由 L2 批处理器读取</text>
-  </g>
-
-  <line x1="480" y1="240" x2="480" y2="284" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
-
-  <rect x="40" y="260" width="900" height="22" rx="4" ry="4" fill="#fde8e8" stroke="#c4413e"/>
-  <text x="50" y="275" class="b-label">边界 B · NeoHub → L2 批处理器（链下）</text>
-  <text x="375" y="275" class="b-sub">强制方式：dBFT 2/3 诚实多数假设</text>
-
-  <!-- L2 batcher -->
-  <g filter="url(#card)">
-    <rect x="180" y="294" width="600" height="60" rx="8" ry="8" fill="#f1ecf8" stroke="#7d59b3" stroke-width="1.2"/>
-    <text x="480" y="316" text-anchor="middle" class="actor-t" fill="#3e2865">L2 批处理器（链下运营者）</text>
-    <text x="480" y="334" text-anchor="middle" class="actor-s" fill="#5d4084">订阅 Block.Committed · 封装 BatchCommitment · 驱动证明守护进程</text>
-    <text x="480" y="348" text-anchor="middle" class="trust-lbl">将带证明的批次提交回 L1</text>
-  </g>
-
-  <line x1="480" y1="354" x2="480" y2="398" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
-
-  <rect x="40" y="374" width="900" height="22" rx="4" ry="4" fill="#fde8e8" stroke="#c4413e" stroke-width="1.5"/>
-  <text x="50" y="389" class="b-label">边界 C · 批处理器 → SettlementManager（承担信任）</text>
-  <text x="475" y="389" class="b-sub">强制方式：VerifierRegistry → 按 proofType 派发的验证器（RiscVZk · Multisig · Optimistic）</text>
-
-  <!-- SettlementManager -->
-  <g filter="url(#card)">
-    <rect x="180" y="408" width="600" height="80" rx="8" ry="8" fill="#eff3ff" stroke="#7587c1" stroke-width="1.5"/>
-    <text x="480" y="430" text-anchor="middle" class="actor-t" fill="#1e2a55">SettlementManager + VerifierRegistry</text>
-    <text x="480" y="448" text-anchor="middle" class="actor-s" fill="#3a4a82">从链上承诺字段重新计算 publicInputHash</text>
-    <text x="480" y="464" text-anchor="middle" class="actor-s" fill="#3a4a82">按 proofType 派发 —— RiscVZk（数学）· Multisig（M-of-N）· Optimistic（博弈）</text>
-    <text x="480" y="481" text-anchor="middle" class="trust-lbl">已接受批次 = 此 L2 在 L1 上的最终状态根</text>
-  </g>
-
-  <line x1="480" y1="488" x2="480" y2="532" stroke="#525a64" stroke-width="1.4" marker-end="url(#arrow)"/>
-
-  <rect x="40" y="508" width="900" height="22" rx="4" ry="4" fill="#fde8e8" stroke="#c4413e"/>
-  <text x="50" y="523" class="b-label">边界 D · 已结算批次 → L2 用户（提款）</text>
-  <text x="430" y="523" class="b-sub">强制方式：相对批次 withdrawalRoot 的哈希抗碰撞</text>
-
-  <!-- L1 user claim -->
-  <g filter="url(#card)">
-    <rect x="180" y="542" width="600" height="50" rx="8" ry="8" fill="#ffffff" stroke="#7587c1" stroke-width="1.2"/>
-    <text x="480" y="562" text-anchor="middle" class="actor-t" fill="#1e2a55">L1 用户凭 Merkle 证明完成提款</text>
-    <text x="480" y="580" text-anchor="middle" class="actor-s" fill="#3a4a82">SharedBridge.FinalizeWithdrawalWithProof → 释放资产</text>
-  </g>
-
-  <!-- Boundary E -->
-  <line x1="40" y1="608" x2="920" y2="608" stroke="#cfd5dd" stroke-dasharray="3 3" stroke-width="1"/>
-
-  <text x="50" y="630" class="b-label" font-size="11.5">边界 E（独立路径）· 外链（Eth/Tron/Solana）→ 委员会 → ExternalBridgeEscrow</text>
-  <text x="50" y="648" class="b-sub" font-size="10.5">强制方式：M-of-N 委员会签署规范的 ExternalCrossChainMessage · MpcCommitteeVerifier · ExternalBridgeBond 双重签名罚没</text>
-  <text x="50" y="666" class="b-sub" font-size="10.5">信任 = M-of-N 委员会（可罚没保证金）· Phase D 用外链 ZK 轻客户端取代委员会</text>
-
-  <text x="480" y="700" text-anchor="middle" class="trust-lbl" fill="#525a64">同一组规范字节在每个边界被重新哈希 —— 字节自承诺；不存在线外信任。</text>
-
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1180" viewBox="0 0 1920 1180" role="img" aria-label="架构信任边界">
+<defs>
+<marker id="arrowAccent" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#be123c"/></marker>
+<marker id="arrowGray" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#475569"/></marker>
+<marker id="arrowFault" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#dc2626"/></marker>
+<filter id="shadow" x="-3%" y="-4%" width="106%" height="108%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.10"/></filter>
+<style>
+.bg{fill:#f8fafc}.panel{fill:#ffffff;stroke:#cbd5e1;stroke-width:1.5;filter:url(#shadow)}
+.title{font:800 36px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.subtitle{font:500 17px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.panelTitle{font:750 22px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.panelSub{font:500 15px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.strong{font:760 15px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.body{font:500 14px 'Inter','Segoe UI',Arial,sans-serif;fill:#334155}.small{font:500 13px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.mono{font:650 14px 'Cascadia Mono','SFMono-Regular',Consolas,monospace;fill:#0f172a}.label{font:800 14px 'Inter','Segoe UI',Arial,sans-serif;fill:#ffffff}.caption{font:500 13px 'Inter','Segoe UI',Arial,sans-serif;fill:#64748b}
+.accentArrow{stroke:#be123c;stroke-width:2.6;fill:none;marker-end:url(#arrowAccent)}.dashArrow{stroke:#64748b;stroke-width:2.0;fill:none;stroke-dasharray:7 6;marker-end:url(#arrowGray)}.faultArrow{stroke:#dc2626;stroke-width:2.2;fill:none;stroke-dasharray:5 5;marker-end:url(#arrowFault)}
+</style>
+</defs>
+<rect class="bg" width="1920" height="1180"/>
+<text x="56" y="66" class="title">架构信任边界</text>
+<text x="56" y="98" class="subtitle">未信任输入在 N4 栈中在哪里变成已验证事实。</text>
+<rect x="56" y="118" width="1808" height="38" rx="6" fill="#fff1f2" stroke="#be123c" stroke-width="1.2"/>
+<text x="76" y="143" class="small">读图方式： <tspan class="strong">论文式技术图；强调架构、原理、数据流、工作流和审计条件。</tspan></text>
+<rect x="56" y="178" width="870" height="392" rx="10" class="panel"/>
+<rect x="56" y="178" width="870" height="54" rx="10" fill="#fff1f2"/>
+<circle cx="86" cy="206" r="16" fill="#be123c"/>
+<text x="86" y="211" text-anchor="middle" class="label">a</text>
+<text x="114" y="210" class="panelTitle">技术拓扑</text>
+<text x="114" y="230" class="panelSub">参与平面、边界和职责</text>
+<rect x="966" y="178" width="898" height="392" rx="10" class="panel"/>
+<rect x="966" y="178" width="898" height="54" rx="10" fill="#fff1f2"/>
+<circle cx="996" cy="206" r="16" fill="#be123c"/>
+<text x="996" y="211" text-anchor="middle" class="label">b</text>
+<text x="1024" y="210" class="panelTitle">技术模型</text>
+<text x="1024" y="230" class="panelSub">形式化规则和接受条件</text>
+<rect x="56" y="606" width="1240" height="494" rx="10" class="panel"/>
+<rect x="56" y="606" width="1240" height="54" rx="10" fill="#fff1f2"/>
+<circle cx="86" cy="634" r="16" fill="#be123c"/>
+<text x="86" y="639" text-anchor="middle" class="label">c</text>
+<text x="114" y="638" class="panelTitle">编号协议路径</text>
+<text x="114" y="658" class="panelSub">关键对象如何推进</text>
+<rect x="1334" y="606" width="530" height="494" rx="10" class="panel"/>
+<rect x="1334" y="606" width="530" height="54" rx="10" fill="#fff1f2"/>
+<circle cx="1364" cy="634" r="16" fill="#be123c"/>
+<text x="1364" y="639" text-anchor="middle" class="label">d</text>
+<text x="1392" y="638" class="panelTitle">审计检查点</text>
+<text x="1392" y="658" class="panelSub">读者应验证的条件</text>
+<rect x="92" y="270" width="180" height="208" rx="8" fill="#fff1f2" stroke="#be123c" stroke-width="1.4"/>
+<text x="106" y="298" class="strong">未信任输入</text>
+<text x="106" y="328" class="body">用户、RPC 端点、watcher、运维者和</text>
+<text x="106" y="346" class="body">prover 都可能错误或恶意。</text>
+<path class="accentArrow" d="M272 374 C284 374 282 428 300 428"/>
+<rect x="300" y="324" width="180" height="208" rx="8" fill="#fff1f2" stroke="#be123c" stroke-width="1.4"/>
+<text x="314" y="352" class="strong">验证边界</text>
+<text x="314" y="382" class="body">规范编码、注册表、DA 引用和</text>
+<text x="314" y="400" class="body">verifier 策略检查声明。</text>
+<path class="accentArrow" d="M480 428 C492 428 490 374 508 374"/>
+<rect x="508" y="270" width="180" height="208" rx="8" fill="#fff1f2" stroke="#be123c" stroke-width="1.4"/>
+<text x="522" y="298" class="strong">已接受事实</text>
+<text x="522" y="328" class="body">只有已验证根、消息和注册表条目成为共享事实。</text>
+<path class="accentArrow" d="M688 374 C700 374 698 428 716 428"/>
+<rect x="716" y="324" width="180" height="208" rx="8" fill="#fff1f2" stroke="#be123c" stroke-width="1.4"/>
+<text x="730" y="352" class="strong">恢复</text>
+<text x="730" y="382" class="body">挑战、强制纳入、暂停和退出路径处理故障。</text>
+<line x1="296" y1="528" x2="752" y2="528" stroke="#be123c" stroke-width="1.4" stroke-dasharray="6 6"/>
+<text x="522" y="552" class="caption" text-anchor="middle">canonical boundary: hashes, roots, events, proofs, DA references</text>
+<rect x="1000" y="252" width="828" height="62" rx="8" fill="#fff1f2" stroke="#be123c" stroke-width="1.5"/>
+<text x="1020" y="290" class="mono">trust_minimized ⇔ claim is independently checkable</text>
+<rect x="1012" y="342" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="369" r="15" fill="#be123c"/>
+<text x="1038" y="374" text-anchor="middle" class="label">1</text>
+<text x="1066" y="365" class="strong">最小化</text>
+<text x="1066" y="385" class="small">从运维者信任移动到可验证证据</text>
+<path class="accentArrow" d="M1328 396 L1328 414"/>
+<rect x="1012" y="414" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="441" r="15" fill="#be123c"/>
+<text x="1038" y="446" text-anchor="middle" class="label">2</text>
+<text x="1066" y="437" class="strong">隔离</text>
+<text x="1066" y="457" class="small">单链或 watcher 故障不应污染全局状态</text>
+<path class="accentArrow" d="M1328 468 L1328 486"/>
+<rect x="1012" y="486" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="513" r="15" fill="#be123c"/>
+<text x="1038" y="518" text-anchor="middle" class="label">3</text>
+<text x="1066" y="509" class="strong">审计</text>
+<text x="1066" y="529" class="small">每个已接受声明都需要可重放输入或可取回证据</text>
+<rect x="1672" y="358" width="146" height="174" rx="8" fill="#ffffff" stroke="#be123c" stroke-width="1.4"/>
+<text x="1686" y="386" class="strong">接受</text>
+<text x="1686" y="416" class="body">声明可独立验证且故障影响有界</text>
+<path class="dashArrow" d="M1642 460 L1672 460"/>
+<text x="1014" y="562" class="mono">声明可独立验证且故障影响有界</text>
+<rect x="92" y="730" width="150" height="120" rx="8" fill="#fff1f2" stroke="#be123c" stroke-width="1.5"/>
+<rect x="102" y="740" width="30" height="24" rx="5" fill="#be123c"/>
+<text x="117" y="757" text-anchor="middle" class="label">1</text>
+<text x="140" y="758" class="strong">声明</text>
+<text x="104" y="788" class="small">未信任参与方提交声明</text>
+<path class="accentArrow" d="M242 790 L290 790"/>
+<rect x="290" y="730" width="150" height="120" rx="8" fill="#fff1f2" stroke="#be123c" stroke-width="1.5"/>
+<rect x="300" y="740" width="30" height="24" rx="5" fill="#be123c"/>
+<text x="315" y="757" text-anchor="middle" class="label">2</text>
+<text x="338" y="758" class="strong">检查</text>
+<text x="302" y="788" class="small">消费者验证编码、策略和证据</text>
+<path class="accentArrow" d="M440 790 L488 790"/>
+<rect x="488" y="730" width="150" height="120" rx="8" fill="#fff1f2" stroke="#be123c" stroke-width="1.5"/>
+<rect x="498" y="740" width="30" height="24" rx="5" fill="#be123c"/>
+<text x="513" y="757" text-anchor="middle" class="label">3</text>
+<text x="536" y="758" class="strong">限制</text>
+<text x="500" y="788" class="small">影响范围按链/路由/注册表限制</text>
+<path class="accentArrow" d="M638 790 L686 790"/>
+<rect x="686" y="730" width="150" height="120" rx="8" fill="#fff1f2" stroke="#be123c" stroke-width="1.5"/>
+<rect x="696" y="740" width="30" height="24" rx="5" fill="#be123c"/>
+<text x="711" y="757" text-anchor="middle" class="label">4</text>
+<text x="734" y="758" class="strong">接受</text>
+<text x="698" y="788" class="small">只有验证后才成为共享事实</text>
+<path class="accentArrow" d="M836 790 L884 790"/>
+<rect x="884" y="730" width="150" height="120" rx="8" fill="#fff1f2" stroke="#be123c" stroke-width="1.5"/>
+<rect x="894" y="740" width="30" height="24" rx="5" fill="#be123c"/>
+<text x="909" y="757" text-anchor="middle" class="label">5</text>
+<text x="932" y="758" class="strong">拒绝</text>
+<text x="896" y="788" class="small">坏声明不能推进规范状态</text>
+<path class="accentArrow" d="M1034 790 L1082 790"/>
+<rect x="1082" y="730" width="150" height="120" rx="8" fill="#fff1f2" stroke="#be123c" stroke-width="1.5"/>
+<rect x="1092" y="740" width="30" height="24" rx="5" fill="#be123c"/>
+<text x="1107" y="757" text-anchor="middle" class="label">6</text>
+<text x="1130" y="758" class="strong">恢复</text>
+<text x="1094" y="788" class="small">挑战、强制、暂停或退出路径可用</text>
+<path class="dashArrow" d="M182 900 C412 974 852 974 1132 900"/>
+<rect x="482" y="914" width="210" height="120" rx="8" fill="#fff1f2" stroke="#dc2626" stroke-width="1.4"/>
+<text x="496" y="942" class="strong">Reject / Recover</text>
+<text x="496" y="972" class="body">bad evidence, replay,</text>
+<text x="496" y="990" class="body">missing data, timeout,</text>
+<text x="496" y="1008" class="body">policy mismatch</text>
+<path class="faultArrow" d="M562 850 L562 914"/>
+<text x="92" y="1070" class="caption">实线：状态 / 数据 · 虚线：证明 / 观测 · 红线：拒绝 / 恢复</text>
+<rect x="1368" y="710" width="462" height="294" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<rect x="1378" y="720" width="442" height="58" rx="6" fill="#fff1f2"/>
+<text x="1390" y="743" class="strong">假设</text>
+<text x="1518" y="740" class="small">明确命名信任什么</text>
+<rect x="1378" y="788" width="442" height="58" rx="6" fill="#ffffff"/>
+<text x="1390" y="811" class="strong">验证</text>
+<text x="1518" y="808" class="small">说明消费者为什么能检查</text>
+<rect x="1378" y="856" width="442" height="58" rx="6" fill="#fff1f2"/>
+<text x="1390" y="879" class="strong">影响范围</text>
+<text x="1518" y="876" class="small">故障保持有界</text>
+<rect x="1378" y="924" width="442" height="58" rx="6" fill="#ffffff"/>
+<text x="1390" y="947" class="strong">恢复</text>
+<text x="1518" y="944" class="small">用户或运维者有文档动作</text>
+<line x1="1504" y1="724" x2="1504" y2="992" stroke="#be123c" stroke-width="1.2" stroke-dasharray="4 5"/>
+<rect x="1368" y="1026" width="462" height="74" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2"/>
+<line x1="1388" y1="1050" x2="1434" y2="1050" stroke="#be123c" stroke-width="2.6" marker-end="url(#arrowAccent)"/>
+<text x="1450" y="1054" class="small">实线：状态 / 数据</text>
+<line x1="1388" y1="1074" x2="1434" y2="1074" stroke="#64748b" stroke-width="2.0" stroke-dasharray="7 6" marker-end="url(#arrowGray)"/>
+<text x="1450" y="1078" class="small">虚线：证明 / 观测</text>
+<line x1="1660" y1="1074" x2="1704" y2="1074" stroke="#dc2626" stroke-width="2.2" stroke-dasharray="5 5" marker-end="url(#arrowFault)"/>
+<text x="1718" y="1078" class="small">红线：拒绝 / 恢复</text>
+<text x="56" y="1146" class="caption">由 legacy paper figure generator 生成；保留原文件名，避免文档链接失效 · architecture/trust-boundaries.svg</text>
 </svg>

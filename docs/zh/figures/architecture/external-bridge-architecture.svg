@@ -1,107 +1,153 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif" role="img" aria-labelledby="title desc">
-  <title id="title">外链桥架构(Phase B/C)</title>
-  <desc id="desc">跨外链桥的架构。外链(例如 BSC 主网)上的 NeoExternalBridgeRouter.sol —— 同一份合约字节码原样部署到 14 条 EVM 家族链与 Tron。链下 watcher 守护进程(neo-bridge-watcher-eth)观察 Locked 事件,用 secp256k1(或 Solana 的 ed25519)对规范 ExternalCrossChainMessage 签名,提交到 NeoHub L1。L1 上,ExternalBridgeEscrow 经 ExternalBridgeRegistry 查曲线 tag 的 verifier;MpcCommitteeVerifier 校验 M-of-N 委员会签名;MpcCommitteeFraudVerifier 通过 ExternalBridgeBond 罚没等价签名委员会成员。L2 链的 L2NativeExternalBridgeContract 接收已铸/销资产。</desc>
-
-  <defs>
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
-      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
-    </marker>
-    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
-      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
-    </filter>
-    <style>
-      .header     { font-size: 14.5px; font-weight: 700; }
-      .tier-t     { font-size: 13px; font-weight: 700; letter-spacing: 0.4px; }
-      .comp-t     { font-size: 11.5px; font-weight: 600; fill: #2d3a48; }
-      .comp-s     { font-size: 10.5px; fill: #525a64; }
-      .ed-lbl     { font-size: 10.5px; fill: #525a64; font-style: italic; }
-    </style>
-  </defs>
-
-  <rect width="960" height="600" fill="#ffffff"/>
-
-  <text x="480" y="32" text-anchor="middle" class="header" fill="#1e2a55">外链桥架构(Phase B/C)</text>
-
-  <rect x="40" y="60" width="290" height="200" rx="10" ry="10" fill="#fde8e8" stroke="#c4413e" stroke-width="1.4"/>
-  <text x="60" y="84" class="tier-t" fill="#88312e">外链</text>
-  <text x="60" y="100" class="comp-s">例如 BSC 主网(14 条 EVM 家族链之一)</text>
-
-  <g filter="url(#card)">
-    <rect x="60" y="118" width="250" height="124" rx="8" ry="8" fill="#ffffff" stroke="#c4413e" stroke-width="1.2"/>
-    <text x="185" y="140" text-anchor="middle" class="comp-t">NeoExternalBridgeRouter.sol</text>
-    <text x="185" y="158" text-anchor="middle" class="comp-s">在任何 EVM 链上原样部署</text>
-    <text x="185" y="176" text-anchor="middle" class="comp-s">(构造参数:externalChainId)</text>
-    <line x1="76" y1="190" x2="294" y2="190" stroke="#c4413e" stroke-dasharray="2 2"/>
-    <text x="185" y="210" text-anchor="middle" class="comp-s" font-style="italic">入站时发出 Locked 事件</text>
-    <text x="185" y="226" text-anchor="middle" class="comp-s" font-style="italic">出站时接受提款封装</text>
-  </g>
-
-  <rect x="630" y="60" width="290" height="200" rx="10" ry="10" fill="#f1ecf8" stroke="#7d59b3" stroke-width="1.4"/>
-  <text x="650" y="84" class="tier-t" fill="#3e2865">链下 watcher</text>
-  <text x="650" y="100" class="comp-s">长跑 Rust 守护进程,k8s/systemd 管理</text>
-
-  <g filter="url(#card)">
-    <rect x="650" y="118" width="250" height="124" rx="8" ry="8" fill="#ffffff" stroke="#7d59b3" stroke-width="1.2"/>
-    <text x="775" y="140" text-anchor="middle" class="comp-t">neo-bridge-watcher-eth</text>
-    <text x="775" y="158" text-anchor="middle" class="comp-s">secp256k1 签名(Eth/EVM/Tron)</text>
-    <text x="775" y="174" text-anchor="middle" class="comp-s">ed25519 签名(Solana)</text>
-    <line x1="666" y1="186" x2="884" y2="186" stroke="#7d59b3" stroke-dasharray="2 2"/>
-    <text x="775" y="204" text-anchor="middle" class="comp-s">/healthz · /metrics · flock</text>
-    <text x="775" y="220" text-anchor="middle" class="comp-s">min_confirmations 缓冲</text>
-    <text x="775" y="236" text-anchor="middle" class="comp-s">--preflight 校验</text>
-  </g>
-
-  <line x1="330" y1="180" x2="630" y2="180" stroke="#525a64" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <text x="480" y="172" text-anchor="middle" class="ed-lbl">poll Locked 事件</text>
-
-  <path d="M 630 220 Q 480 280 330 220" fill="none" stroke="#525a64" stroke-width="1.4" stroke-dasharray="3 2" marker-end="url(#arrow)"/>
-  <text x="480" y="280" text-anchor="middle" class="ed-lbl">提款封装(委员会联签)</text>
-
-  <line x1="775" y1="260" x2="775" y2="300" stroke="#525a64" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <text x="785" y="284" class="ed-lbl">ExternalCrossChainMessage</text>
-  <text x="785" y="297" class="ed-lbl">(102B 前缀 + payload)</text>
-
-  <rect x="180" y="310" width="600" height="180" rx="10" ry="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
-  <text x="200" y="334" class="tier-t" fill="#1e2a55">NeoHub L1</text>
-
-  <g filter="url(#card)">
-    <rect x="200" y="346" width="180" height="60" rx="6" ry="6" fill="#ffffff" stroke="#7587c1" stroke-width="1.5"/>
-    <text x="290" y="368" text-anchor="middle" class="comp-t">ExternalBridgeEscrow</text>
-    <text x="290" y="386" text-anchor="middle" class="comp-s">铸/销包装资产</text>
-    <text x="290" y="400" text-anchor="middle" class="comp-s">带重放保护</text>
-  </g>
-  <g filter="url(#card)">
-    <rect x="400" y="346" width="180" height="60" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
-    <text x="490" y="368" text-anchor="middle" class="comp-t">MpcCommitteeVerifier</text>
-    <text x="490" y="386" text-anchor="middle" class="comp-s">M-of-N 委员会签名校验</text>
-    <text x="490" y="400" text-anchor="middle" class="comp-s">曲线无关(k1 / ed25519)</text>
-  </g>
-  <g filter="url(#card)">
-    <rect x="600" y="346" width="160" height="60" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
-    <text x="680" y="368" text-anchor="middle" class="comp-t">ExternalBridgeRegistry</text>
-    <text x="680" y="386" text-anchor="middle" class="comp-s">曲线 tag verifier</text>
-    <text x="680" y="400" text-anchor="middle" class="comp-s">按 chainId 查找</text>
-  </g>
-
-  <g filter="url(#card)">
-    <rect x="200" y="416" width="280" height="60" rx="6" ry="6" fill="#fde8e8" stroke="#c4413e" stroke-width="1.3"/>
-    <text x="340" y="438" text-anchor="middle" class="comp-t" fill="#88312e">MpcCommitteeFraudVerifier</text>
-    <text x="340" y="456" text-anchor="middle" class="comp-s">从密码学上证明等价签名</text>
-    <text x="340" y="470" text-anchor="middle" class="comp-s">→ 无许可罚没</text>
-  </g>
-  <g filter="url(#card)">
-    <rect x="500" y="416" width="260" height="60" rx="6" ry="6" fill="#ffffff" stroke="#7587c1"/>
-    <text x="630" y="438" text-anchor="middle" class="comp-t">ExternalBridgeBond</text>
-    <text x="630" y="456" text-anchor="middle" class="comp-s">委员会可罚没保证金</text>
-    <text x="630" y="470" text-anchor="middle" class="comp-s">(reporter 拿保证金当奖励)</text>
-  </g>
-
-  <line x1="290" y1="490" x2="290" y2="528" stroke="#525a64" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <text x="300" y="514" class="ed-lbl">铸/销触发</text>
-
-  <g filter="url(#card)">
-    <rect x="180" y="530" width="600" height="60" rx="10" ry="10" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.4"/>
-    <text x="480" y="554" text-anchor="middle" class="tier-t" fill="#1d4d2c">L2 链</text>
-    <text x="480" y="574" text-anchor="middle" class="comp-t">L2NativeExternalBridgeContract  —  按 L2 的外链包装资产状态</text>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1180" viewBox="0 0 1920 1180" role="img" aria-label="外链桥架构">
+<defs>
+<marker id="arrowAccent" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#0f766e"/></marker>
+<marker id="arrowGray" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#475569"/></marker>
+<marker id="arrowFault" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#dc2626"/></marker>
+<filter id="shadow" x="-3%" y="-4%" width="106%" height="108%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.10"/></filter>
+<style>
+.bg{fill:#f8fafc}.panel{fill:#ffffff;stroke:#cbd5e1;stroke-width:1.5;filter:url(#shadow)}
+.title{font:800 36px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.subtitle{font:500 17px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.panelTitle{font:750 22px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.panelSub{font:500 15px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.strong{font:760 15px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.body{font:500 14px 'Inter','Segoe UI',Arial,sans-serif;fill:#334155}.small{font:500 13px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.mono{font:650 14px 'Cascadia Mono','SFMono-Regular',Consolas,monospace;fill:#0f172a}.label{font:800 14px 'Inter','Segoe UI',Arial,sans-serif;fill:#ffffff}.caption{font:500 13px 'Inter','Segoe UI',Arial,sans-serif;fill:#64748b}
+.accentArrow{stroke:#0f766e;stroke-width:2.6;fill:none;marker-end:url(#arrowAccent)}.dashArrow{stroke:#64748b;stroke-width:2.0;fill:none;stroke-dasharray:7 6;marker-end:url(#arrowGray)}.faultArrow{stroke:#dc2626;stroke-width:2.2;fill:none;stroke-dasharray:5 5;marker-end:url(#arrowFault)}
+</style>
+</defs>
+<rect class="bg" width="1920" height="1180"/>
+<text x="56" y="66" class="title">外链桥架构</text>
+<text x="56" y="98" class="subtitle">异构链如何进入同一 NeoHub 消息和资产模型。</text>
+<rect x="56" y="118" width="1808" height="38" rx="6" fill="#ecfdf5" stroke="#0f766e" stroke-width="1.2"/>
+<text x="76" y="143" class="small">读图方式： <tspan class="strong">论文式技术图；强调架构、原理、数据流、工作流和审计条件。</tspan></text>
+<rect x="56" y="178" width="870" height="392" rx="10" class="panel"/>
+<rect x="56" y="178" width="870" height="54" rx="10" fill="#ecfdf5"/>
+<circle cx="86" cy="206" r="16" fill="#0f766e"/>
+<text x="86" y="211" text-anchor="middle" class="label">a</text>
+<text x="114" y="210" class="panelTitle">技术拓扑</text>
+<text x="114" y="230" class="panelSub">参与平面、边界和职责</text>
+<rect x="966" y="178" width="898" height="392" rx="10" class="panel"/>
+<rect x="966" y="178" width="898" height="54" rx="10" fill="#ecfdf5"/>
+<circle cx="996" cy="206" r="16" fill="#0f766e"/>
+<text x="996" y="211" text-anchor="middle" class="label">b</text>
+<text x="1024" y="210" class="panelTitle">技术模型</text>
+<text x="1024" y="230" class="panelSub">形式化规则和接受条件</text>
+<rect x="56" y="606" width="1240" height="494" rx="10" class="panel"/>
+<rect x="56" y="606" width="1240" height="54" rx="10" fill="#ecfdf5"/>
+<circle cx="86" cy="634" r="16" fill="#0f766e"/>
+<text x="86" y="639" text-anchor="middle" class="label">c</text>
+<text x="114" y="638" class="panelTitle">编号协议路径</text>
+<text x="114" y="658" class="panelSub">关键对象如何推进</text>
+<rect x="1334" y="606" width="530" height="494" rx="10" class="panel"/>
+<rect x="1334" y="606" width="530" height="54" rx="10" fill="#ecfdf5"/>
+<circle cx="1364" cy="634" r="16" fill="#0f766e"/>
+<text x="1364" y="639" text-anchor="middle" class="label">d</text>
+<text x="1392" y="638" class="panelTitle">审计检查点</text>
+<text x="1392" y="658" class="panelSub">读者应验证的条件</text>
+<rect x="92" y="270" width="180" height="208" rx="8" fill="#ecfdf5" stroke="#0f766e" stroke-width="1.4"/>
+<text x="106" y="298" class="strong">源域</text>
+<text x="106" y="328" class="body">L1、L2 或异构链事件产生桥意图。</text>
+<path class="accentArrow" d="M272 374 C284 374 282 428 300 428"/>
+<rect x="300" y="324" width="180" height="208" rx="8" fill="#ecfdf5" stroke="#0f766e" stroke-width="1.4"/>
+<text x="314" y="352" class="strong">规范化</text>
+<text x="314" y="382" class="body">watcher</text>
+<text x="314" y="400" class="body">或合约把事件编码成规范消息字节。</text>
+<path class="accentArrow" d="M480 428 C492 428 490 374 508 374"/>
+<rect x="508" y="270" width="180" height="208" rx="8" fill="#ecfdf5" stroke="#0f766e" stroke-width="1.4"/>
+<text x="522" y="298" class="strong">验证</text>
+<text x="522" y="328" class="body">NeoHub</text>
+<text x="522" y="346" class="body">在消费前检查注册表、nonce、证明和资产策略。</text>
+<path class="accentArrow" d="M688 374 C700 374 698 428 716 428"/>
+<rect x="716" y="324" width="180" height="208" rx="8" fill="#ecfdf5" stroke="#0f766e" stroke-width="1.4"/>
+<text x="730" y="352" class="strong">目标域</text>
+<text x="730" y="382" class="body">目标链精确一次地记账、释放、铸造、销毁或路由消息。</text>
+<line x1="296" y1="528" x2="752" y2="528" stroke="#0f766e" stroke-width="1.4" stroke-dasharray="6 6"/>
+<text x="522" y="552" class="caption" text-anchor="middle">canonical boundary: hashes, roots, events, proofs, DA references</text>
+<rect x="1000" y="252" width="828" height="62" rx="8" fill="#ecfdf5" stroke="#0f766e" stroke-width="1.5"/>
+<text x="1020" y="290" class="mono">message_id = H(source || target || nonce || asset || payload)</text>
+<rect x="1012" y="342" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="369" r="15" fill="#0f766e"/>
+<text x="1038" y="374" text-anchor="middle" class="label">1</text>
+<text x="1066" y="365" class="strong">消息身份</text>
+<text x="1066" y="385" class="small">源链、目标链、nonce、资产 id、数量和 payload 哈希定义唯一性</text>
+<path class="accentArrow" d="M1328 396 L1328 414"/>
+<rect x="1012" y="414" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="441" r="15" fill="#0f766e"/>
+<text x="1038" y="446" text-anchor="middle" class="label">2</text>
+<text x="1066" y="437" class="strong">防重放</text>
+<text x="1066" y="457" class="small">已消费 nonce 和消息哈希不能重复使用</text>
+<path class="accentArrow" d="M1328 468 L1328 486"/>
+<rect x="1012" y="486" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="513" r="15" fill="#0f766e"/>
+<text x="1038" y="518" text-anchor="middle" class="label">3</text>
+<text x="1066" y="509" class="strong">资产规则</text>
+<text x="1066" y="529" class="small">decimal 缩放和托管状态必须无损且可审计</text>
+<rect x="1672" y="358" width="146" height="174" rx="8" fill="#ffffff" stroke="#0f766e" stroke-width="1.4"/>
+<text x="1686" y="386" class="strong">接受</text>
+<text x="1686" y="416" class="body">注册策略、nonce、资产映射和证据同时通过</text>
+<path class="dashArrow" d="M1642 460 L1672 460"/>
+<text x="1014" y="562" class="mono">注册策略、nonce、资产映射和证据同时通过</text>
+<rect x="92" y="730" width="150" height="120" rx="8" fill="#ecfdf5" stroke="#0f766e" stroke-width="1.5"/>
+<rect x="102" y="740" width="30" height="24" rx="5" fill="#0f766e"/>
+<text x="117" y="757" text-anchor="middle" class="label">1</text>
+<text x="140" y="758" class="strong">观测</text>
+<text x="104" y="788" class="small">源事件或交易被观测</text>
+<path class="accentArrow" d="M242 790 L290 790"/>
+<rect x="290" y="730" width="150" height="120" rx="8" fill="#ecfdf5" stroke="#0f766e" stroke-width="1.5"/>
+<rect x="300" y="740" width="30" height="24" rx="5" fill="#0f766e"/>
+<text x="315" y="757" text-anchor="middle" class="label">2</text>
+<text x="338" y="758" class="strong">规范化</text>
+<text x="302" y="788" class="small">构造规范消息字节</text>
+<path class="accentArrow" d="M440 790 L488 790"/>
+<rect x="488" y="730" width="150" height="120" rx="8" fill="#ecfdf5" stroke="#0f766e" stroke-width="1.5"/>
+<rect x="498" y="740" width="30" height="24" rx="5" fill="#0f766e"/>
+<text x="513" y="757" text-anchor="middle" class="label">3</text>
+<text x="536" y="758" class="strong">验证</text>
+<text x="500" y="788" class="small">注册表、nonce 和证据通过</text>
+<path class="accentArrow" d="M638 790 L686 790"/>
+<rect x="686" y="730" width="150" height="120" rx="8" fill="#ecfdf5" stroke="#0f766e" stroke-width="1.5"/>
+<rect x="696" y="740" width="30" height="24" rx="5" fill="#0f766e"/>
+<text x="711" y="757" text-anchor="middle" class="label">4</text>
+<text x="734" y="758" class="strong">提交</text>
+<text x="698" y="788" class="small">消息或资产状态推进</text>
+<path class="accentArrow" d="M836 790 L884 790"/>
+<rect x="884" y="730" width="150" height="120" rx="8" fill="#ecfdf5" stroke="#0f766e" stroke-width="1.5"/>
+<rect x="894" y="740" width="30" height="24" rx="5" fill="#0f766e"/>
+<text x="909" y="757" text-anchor="middle" class="label">5</text>
+<text x="932" y="758" class="strong">中继</text>
+<text x="896" y="788" class="small">目标收到 inclusion 证据</text>
+<path class="accentArrow" d="M1034 790 L1082 790"/>
+<rect x="1082" y="730" width="150" height="120" rx="8" fill="#ecfdf5" stroke="#0f766e" stroke-width="1.5"/>
+<rect x="1092" y="740" width="30" height="24" rx="5" fill="#0f766e"/>
+<text x="1107" y="757" text-anchor="middle" class="label">6</text>
+<text x="1130" y="758" class="strong">消费</text>
+<text x="1094" y="788" class="small">目标动作精确执行一次</text>
+<path class="dashArrow" d="M182 900 C412 974 852 974 1132 900"/>
+<rect x="482" y="914" width="210" height="120" rx="8" fill="#fff1f2" stroke="#dc2626" stroke-width="1.4"/>
+<text x="496" y="942" class="strong">Reject / Recover</text>
+<text x="496" y="972" class="body">bad evidence, replay,</text>
+<text x="496" y="990" class="body">missing data, timeout,</text>
+<text x="496" y="1008" class="body">policy mismatch</text>
+<path class="faultArrow" d="M562 850 L562 914"/>
+<text x="92" y="1070" class="caption">实线：状态 / 数据 · 虚线：证明 / 观测 · 红线：拒绝 / 恢复</text>
+<rect x="1368" y="710" width="462" height="294" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<rect x="1378" y="720" width="442" height="58" rx="6" fill="#ecfdf5"/>
+<text x="1390" y="743" class="strong">确认数</text>
+<text x="1518" y="740" class="small">源链终局阈值已满足</text>
+<rect x="1378" y="788" width="442" height="58" rx="6" fill="#ffffff"/>
+<text x="1390" y="811" class="strong">Nonce</text>
+<text x="1518" y="808" class="small">消息没有重放</text>
+<rect x="1378" y="856" width="442" height="58" rx="6" fill="#ecfdf5"/>
+<text x="1390" y="879" class="strong">资产映射</text>
+<text x="1518" y="876" class="small">token id 和 decimals 匹配注册策略</text>
+<rect x="1378" y="924" width="442" height="58" rx="6" fill="#ffffff"/>
+<text x="1390" y="947" class="strong">证据</text>
+<text x="1518" y="944" class="small">证明或委员会证据绑定事件</text>
+<line x1="1504" y1="724" x2="1504" y2="992" stroke="#0f766e" stroke-width="1.2" stroke-dasharray="4 5"/>
+<rect x="1368" y="1026" width="462" height="74" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2"/>
+<line x1="1388" y1="1050" x2="1434" y2="1050" stroke="#0f766e" stroke-width="2.6" marker-end="url(#arrowAccent)"/>
+<text x="1450" y="1054" class="small">实线：状态 / 数据</text>
+<line x1="1388" y1="1074" x2="1434" y2="1074" stroke="#64748b" stroke-width="2.0" stroke-dasharray="7 6" marker-end="url(#arrowGray)"/>
+<text x="1450" y="1078" class="small">虚线：证明 / 观测</text>
+<line x1="1660" y1="1074" x2="1704" y2="1074" stroke="#dc2626" stroke-width="2.2" stroke-dasharray="5 5" marker-end="url(#arrowFault)"/>
+<text x="1718" y="1078" class="small">红线：拒绝 / 恢复</text>
+<text x="56" y="1146" class="caption">由 legacy paper figure generator 生成；保留原文件名，避免文档链接失效 · architecture/external-bridge-architecture.svg</text>
 </svg>

@@ -1,61 +1,179 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 580" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
-  <title id="title">Reading paths by role</title>
-  <desc id="desc">Five reading paths through the architecture documentation, organized by reader role: (1) Quick sense of the system — read ARCHITECTURE.md then this atlas page (15 minutes total). (2) Operator deploying an L2 chain — read l2-lifecycle, then launching-an-l2, then external-bridge-evm-chains if connecting EVM chains, then security-model. (3) SDK / indexer / wallet developer — read l2-lifecycle, then wire-formats, then a language-specific SDK README. (4) Auditor / security reviewer — read trust-boundaries, then security-model, then wire-formats, then external-bridge-roadmap. (5) Contributor working on the codebase — read walkthrough, then l2-lifecycle, then wire-formats, then tech-stack-coverage.</desc>
-
-  <defs>
-    <filter id="card" x="-2%" y="-3%" width="104%" height="106%">
-      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000000" flood-opacity="0.07"/>
-    </filter>
-    <style>
-      .header     { font-size: 14.5px; font-weight: 700; }
-      .role       { font-size: 13px; font-weight: 700; }
-      .step       { font-size: 11.5px; fill: #2d3a48; }
-      .step-num   { font-size: 11.5px; font-weight: 700; }
-      .when       { font-size: 10.5px; fill: #525a64; font-style: italic; }
-    </style>
-  </defs>
-
-  <rect width="960" height="580" fill="#ffffff"/>
-
-  <text x="480" y="30" text-anchor="middle" class="header" fill="#1e2a55">Reading paths by role — pick yours</text>
-
-  <!-- Path 1: Quick sense -->
-  <g filter="url(#card)">
-    <rect x="40" y="56" width="880" height="86" rx="10" ry="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.4"/>
-    <text x="60" y="80" class="role" fill="#1e2a55">Quick sense of the system?</text>
-    <text x="60" y="98" class="when">~15 min</text>
-    <text x="60" y="124" class="step"><tspan class="step-num" fill="#1e2a55">1.</tspan> ARCHITECTURE.md  <tspan class="when">(English summary — 10 min)</tspan>     <tspan class="step-num" fill="#1e2a55">2.</tspan> architecture-atlas.md  <tspan class="when">(this page — 5 min)</tspan></text>
-  </g>
-
-  <!-- Path 2: Operator -->
-  <g filter="url(#card)">
-    <rect x="40" y="158" width="880" height="86" rx="10" ry="10" fill="#fff2e3" stroke="#cd7c2e" stroke-width="1.4"/>
-    <text x="60" y="182" class="role" fill="#7a4a14">Operator deploying an L2 chain?</text>
-    <text x="60" y="200" class="when">~45 min</text>
-    <text x="60" y="226" class="step"><tspan class="step-num" fill="#7a4a14">1.</tspan> architecture-l2-lifecycle  <tspan class="step-num" fill="#7a4a14">2.</tspan> launching-an-l2  <tspan class="step-num" fill="#7a4a14">3.</tspan> external-bridge-evm-chains  <tspan class="step-num" fill="#7a4a14">4.</tspan> security-model</text>
-  </g>
-
-  <!-- Path 3: SDK developer -->
-  <g filter="url(#card)">
-    <rect x="40" y="260" width="880" height="86" rx="10" ry="10" fill="#e7f4eb" stroke="#3a8454" stroke-width="1.4"/>
-    <text x="60" y="284" class="role" fill="#1d4d2c">SDK / indexer / wallet developer?</text>
-    <text x="60" y="302" class="when">~30 min</text>
-    <text x="60" y="328" class="step"><tspan class="step-num" fill="#1d4d2c">1.</tspan> architecture-l2-lifecycle  <tspan class="when">(esp. §6 runtime)</tspan>  <tspan class="step-num" fill="#1d4d2c">2.</tspan> architecture-wire-formats  <tspan class="step-num" fill="#1d4d2c">3.</tspan> sdk/typescript/ or sdk/rust/</text>
-  </g>
-
-  <!-- Path 4: Auditor -->
-  <g filter="url(#card)">
-    <rect x="40" y="362" width="880" height="86" rx="10" ry="10" fill="#fde8e8" stroke="#c4413e" stroke-width="1.4"/>
-    <text x="60" y="386" class="role" fill="#88312e">Auditor / security reviewer?</text>
-    <text x="60" y="404" class="when">~60 min</text>
-    <text x="60" y="430" class="step"><tspan class="step-num" fill="#88312e">1.</tspan> architecture-trust-boundaries  <tspan class="step-num" fill="#88312e">2.</tspan> security-model  <tspan class="step-num" fill="#88312e">3.</tspan> architecture-wire-formats  <tspan class="step-num" fill="#88312e">4.</tspan> external-bridge-roadmap</text>
-  </g>
-
-  <!-- Path 5: Contributor -->
-  <g filter="url(#card)">
-    <rect x="40" y="464" width="880" height="86" rx="10" ry="10" fill="#f1ecf8" stroke="#7d59b3" stroke-width="1.4"/>
-    <text x="60" y="488" class="role" fill="#3e2865">Contributor working on the codebase?</text>
-    <text x="60" y="506" class="when">~50 min</text>
-    <text x="60" y="532" class="step"><tspan class="step-num" fill="#3e2865">1.</tspan> architecture-walkthrough  <tspan class="when">(per-tx tour)</tspan>  <tspan class="step-num" fill="#3e2865">2.</tspan> architecture-l2-lifecycle  <tspan class="step-num" fill="#3e2865">3.</tspan> architecture-wire-formats  <tspan class="step-num" fill="#3e2865">4.</tspan> tech-stack-coverage</text>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1180" viewBox="0 0 1920 1180" role="img" aria-label="Architecture Reading Paths">
+<defs>
+<marker id="arrowAccent" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#475569"/></marker>
+<marker id="arrowGray" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#475569"/></marker>
+<marker id="arrowFault" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#dc2626"/></marker>
+<filter id="shadow" x="-3%" y="-4%" width="106%" height="108%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.10"/></filter>
+<style>
+.bg{fill:#f8fafc}.panel{fill:#ffffff;stroke:#cbd5e1;stroke-width:1.5;filter:url(#shadow)}
+.title{font:800 36px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.subtitle{font:500 17px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.panelTitle{font:750 22px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.panelSub{font:500 15px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.strong{font:760 15px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.body{font:500 14px 'Inter','Segoe UI',Arial,sans-serif;fill:#334155}.small{font:500 13px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.mono{font:650 14px 'Cascadia Mono','SFMono-Regular',Consolas,monospace;fill:#0f172a}.label{font:800 14px 'Inter','Segoe UI',Arial,sans-serif;fill:#ffffff}.caption{font:500 13px 'Inter','Segoe UI',Arial,sans-serif;fill:#64748b}
+.accentArrow{stroke:#475569;stroke-width:2.6;fill:none;marker-end:url(#arrowAccent)}.dashArrow{stroke:#64748b;stroke-width:2.0;fill:none;stroke-dasharray:7 6;marker-end:url(#arrowGray)}.faultArrow{stroke:#dc2626;stroke-width:2.2;fill:none;stroke-dasharray:5 5;marker-end:url(#arrowFault)}
+</style>
+</defs>
+<rect class="bg" width="1920" height="1180"/>
+<text x="56" y="66" class="title">Architecture Reading Paths</text>
+<text x="56" y="98" class="subtitle">Recommended reading orders for users, operators, auditors, and contributors.</text>
+<rect x="56" y="118" width="1808" height="38" rx="6" fill="#f8fafc" stroke="#475569" stroke-width="1.2"/>
+<text x="76" y="143" class="small">Read as: <tspan class="strong">paper-style technical figure focused on architecture, principles, data flow, workflow, and audit conditions.</tspan></text>
+<rect x="56" y="178" width="870" height="392" rx="10" class="panel"/>
+<rect x="56" y="178" width="870" height="54" rx="10" fill="#f8fafc"/>
+<circle cx="86" cy="206" r="16" fill="#475569"/>
+<text x="86" y="211" text-anchor="middle" class="label">a</text>
+<text x="114" y="210" class="panelTitle">Technical Topology</text>
+<text x="114" y="230" class="panelSub">planes, boundaries, and responsibilities</text>
+<rect x="966" y="178" width="898" height="392" rx="10" class="panel"/>
+<rect x="966" y="178" width="898" height="54" rx="10" fill="#f8fafc"/>
+<circle cx="996" cy="206" r="16" fill="#475569"/>
+<text x="996" y="211" text-anchor="middle" class="label">b</text>
+<text x="1024" y="210" class="panelTitle">Technical Model</text>
+<text x="1024" y="230" class="panelSub">formal rules and acceptance conditions</text>
+<rect x="56" y="606" width="1240" height="494" rx="10" class="panel"/>
+<rect x="56" y="606" width="1240" height="54" rx="10" fill="#f8fafc"/>
+<circle cx="86" cy="634" r="16" fill="#475569"/>
+<text x="86" y="639" text-anchor="middle" class="label">c</text>
+<text x="114" y="638" class="panelTitle">Numbered Protocol Path</text>
+<text x="114" y="658" class="panelSub">how key objects advance</text>
+<rect x="1334" y="606" width="530" height="494" rx="10" class="panel"/>
+<rect x="1334" y="606" width="530" height="54" rx="10" fill="#f8fafc"/>
+<circle cx="1364" cy="634" r="16" fill="#475569"/>
+<text x="1364" y="639" text-anchor="middle" class="label">d</text>
+<text x="1392" y="638" class="panelTitle">Audit Checkpoints</text>
+<text x="1392" y="658" class="panelSub">conditions readers should verify</text>
+<rect x="92" y="270" width="180" height="208" rx="8" fill="#f8fafc" stroke="#475569" stroke-width="1.4"/>
+<text x="106" y="298" class="strong">Reader role</text>
+<text x="106" y="328" class="body">user, operator,</text>
+<text x="106" y="346" class="body">auditor, SDK</text>
+<text x="106" y="364" class="body">developer, or</text>
+<text x="106" y="382" class="body">contributor enters</text>
+<text x="106" y="400" class="body">with a different</text>
+<text x="106" y="418" class="body">question.</text>
+<path class="accentArrow" d="M272 374 C284 374 282 428 300 428"/>
+<rect x="300" y="324" width="180" height="208" rx="8" fill="#f8fafc" stroke="#475569" stroke-width="1.4"/>
+<text x="314" y="352" class="strong">Concept layer</text>
+<text x="314" y="382" class="body">architecture, trust,</text>
+<text x="314" y="400" class="body">byte format, workflow,</text>
+<text x="314" y="418" class="body">and runbook chapters</text>
+<text x="314" y="436" class="body">answer protocol</text>
+<text x="314" y="454" class="body">questions.</text>
+<path class="accentArrow" d="M480 428 C492 428 490 374 508 374"/>
+<rect x="508" y="270" width="180" height="208" rx="8" fill="#f8fafc" stroke="#475569" stroke-width="1.4"/>
+<text x="522" y="298" class="strong">Artifact layer</text>
+<text x="522" y="328" class="body">figures, examples,</text>
+<text x="522" y="346" class="body">generated reports, and</text>
+<text x="522" y="364" class="body">tests provide</text>
+<text x="522" y="382" class="body">evidence.</text>
+<path class="accentArrow" d="M688 374 C700 374 698 428 716 428"/>
+<rect x="716" y="324" width="180" height="208" rx="8" fill="#f8fafc" stroke="#475569" stroke-width="1.4"/>
+<text x="730" y="352" class="strong">Maintenance layer</text>
+<text x="730" y="382" class="body">English and Chinese</text>
+<text x="730" y="400" class="body">mirrors evolve</text>
+<text x="730" y="418" class="body">together.</text>
+<line x1="296" y1="528" x2="752" y2="528" stroke="#475569" stroke-width="1.4" stroke-dasharray="6 6"/>
+<text x="522" y="552" class="caption" text-anchor="middle">canonical boundary: hashes, roots, events, proofs, DA references</text>
+<rect x="1000" y="252" width="828" height="62" rx="8" fill="#f8fafc" stroke="#475569" stroke-width="1.5"/>
+<text x="1020" y="290" class="mono">reader_question -&gt; concept -&gt; figure -&gt; evidence</text>
+<rect x="1012" y="342" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="369" r="15" fill="#475569"/>
+<text x="1038" y="374" text-anchor="middle" class="label">1</text>
+<text x="1066" y="365" class="strong">Reading path</text>
+<text x="1066" y="385" class="small">start from architecture, then follow data, trust, byte, and</text>
+<path class="accentArrow" d="M1328 396 L1328 414"/>
+<rect x="1012" y="414" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="441" r="15" fill="#475569"/>
+<text x="1038" y="446" text-anchor="middle" class="label">2</text>
+<text x="1066" y="437" class="strong">Traceability</text>
+<text x="1066" y="457" class="small">each diagram points to a protocol concept and evidence surface</text>
+<path class="accentArrow" d="M1328 468 L1328 486"/>
+<rect x="1012" y="486" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="513" r="15" fill="#475569"/>
+<text x="1038" y="518" text-anchor="middle" class="label">3</text>
+<text x="1066" y="509" class="strong">Consistency</text>
+<text x="1066" y="529" class="small">generated figures keep English and Chinese versions aligned</text>
+<rect x="1672" y="358" width="146" height="174" rx="8" fill="#ffffff" stroke="#475569" stroke-width="1.4"/>
+<text x="1686" y="386" class="strong">Acceptance</text>
+<text x="1686" y="416" class="body">figure answers a</text>
+<text x="1686" y="434" class="body">clear question and</text>
+<text x="1686" y="452" class="body">has a Chinese</text>
+<text x="1686" y="470" class="body">mirror</text>
+<path class="dashArrow" d="M1642 460 L1672 460"/>
+<text x="1014" y="562" class="mono">figure answers a clear question and has a Chinese mirror</text>
+<rect x="92" y="730" width="150" height="120" rx="8" fill="#f8fafc" stroke="#475569" stroke-width="1.5"/>
+<rect x="102" y="740" width="30" height="24" rx="5" fill="#475569"/>
+<text x="117" y="757" text-anchor="middle" class="label">1</text>
+<text x="140" y="758" class="strong">Question</text>
+<text x="104" y="788" class="small">reader chooses a</text>
+<text x="104" y="805" class="small">role and goal</text>
+<path class="accentArrow" d="M242 790 L290 790"/>
+<rect x="290" y="730" width="150" height="120" rx="8" fill="#f8fafc" stroke="#475569" stroke-width="1.5"/>
+<rect x="300" y="740" width="30" height="24" rx="5" fill="#475569"/>
+<text x="315" y="757" text-anchor="middle" class="label">2</text>
+<text x="338" y="758" class="strong">Map</text>
+<text x="302" y="788" class="small">figure points to</text>
+<text x="302" y="805" class="small">the relevant</text>
+<text x="302" y="822" class="small">concept</text>
+<path class="accentArrow" d="M440 790 L488 790"/>
+<rect x="488" y="730" width="150" height="120" rx="8" fill="#f8fafc" stroke="#475569" stroke-width="1.5"/>
+<rect x="498" y="740" width="30" height="24" rx="5" fill="#475569"/>
+<text x="513" y="757" text-anchor="middle" class="label">3</text>
+<text x="536" y="758" class="strong">Read</text>
+<text x="500" y="788" class="small">chapter explains</text>
+<text x="500" y="805" class="small">the protocol rule</text>
+<path class="accentArrow" d="M638 790 L686 790"/>
+<rect x="686" y="730" width="150" height="120" rx="8" fill="#f8fafc" stroke="#475569" stroke-width="1.5"/>
+<rect x="696" y="740" width="30" height="24" rx="5" fill="#475569"/>
+<text x="711" y="757" text-anchor="middle" class="label">4</text>
+<text x="734" y="758" class="strong">Trace</text>
+<text x="698" y="788" class="small">evidence links to</text>
+<text x="698" y="805" class="small">artifacts and</text>
+<text x="698" y="822" class="small">tests</text>
+<path class="accentArrow" d="M836 790 L884 790"/>
+<rect x="884" y="730" width="150" height="120" rx="8" fill="#f8fafc" stroke="#475569" stroke-width="1.5"/>
+<rect x="894" y="740" width="30" height="24" rx="5" fill="#475569"/>
+<text x="909" y="757" text-anchor="middle" class="label">5</text>
+<text x="932" y="758" class="strong">Mirror</text>
+<text x="896" y="788" class="small">Chinese and</text>
+<text x="896" y="805" class="small">English stay</text>
+<text x="896" y="822" class="small">aligned</text>
+<path class="accentArrow" d="M1034 790 L1082 790"/>
+<rect x="1082" y="730" width="150" height="120" rx="8" fill="#f8fafc" stroke="#475569" stroke-width="1.5"/>
+<rect x="1092" y="740" width="30" height="24" rx="5" fill="#475569"/>
+<text x="1107" y="757" text-anchor="middle" class="label">6</text>
+<text x="1130" y="758" class="strong">Regenerate</text>
+<text x="1094" y="788" class="small">script updates</text>
+<text x="1094" y="805" class="small">figures</text>
+<text x="1094" y="822" class="small">consistently</text>
+<path class="dashArrow" d="M182 900 C412 974 852 974 1132 900"/>
+<rect x="482" y="914" width="210" height="120" rx="8" fill="#fff1f2" stroke="#dc2626" stroke-width="1.4"/>
+<text x="496" y="942" class="strong">Reject / Recover</text>
+<text x="496" y="972" class="body">bad evidence, replay,</text>
+<text x="496" y="990" class="body">missing data, timeout,</text>
+<text x="496" y="1008" class="body">policy mismatch</text>
+<path class="faultArrow" d="M562 850 L562 914"/>
+<text x="92" y="1070" class="caption">solid: state / data · dashed: proof / observation · red: reject / recover</text>
+<rect x="1368" y="710" width="462" height="294" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<rect x="1378" y="720" width="442" height="58" rx="6" fill="#f8fafc"/>
+<text x="1390" y="743" class="strong">Audience</text>
+<text x="1518" y="740" class="small">figure answers a reader question</text>
+<rect x="1378" y="788" width="442" height="58" rx="6" fill="#ffffff"/>
+<text x="1390" y="811" class="strong">Mirror</text>
+<text x="1518" y="808" class="small">Chinese equivalent exists</text>
+<rect x="1378" y="856" width="442" height="58" rx="6" fill="#f8fafc"/>
+<text x="1390" y="879" class="strong">Evidence</text>
+<text x="1518" y="876" class="small">links to tests or artifacts are</text>
+<text x="1518" y="893" class="small">available</text>
+<rect x="1378" y="924" width="442" height="58" rx="6" fill="#ffffff"/>
+<text x="1390" y="947" class="strong">Freshness</text>
+<text x="1518" y="944" class="small">diagram generator is committed</text>
+<line x1="1504" y1="724" x2="1504" y2="992" stroke="#475569" stroke-width="1.2" stroke-dasharray="4 5"/>
+<rect x="1368" y="1026" width="462" height="74" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2"/>
+<line x1="1388" y1="1050" x2="1434" y2="1050" stroke="#475569" stroke-width="2.6" marker-end="url(#arrowAccent)"/>
+<text x="1450" y="1054" class="small">solid: state / data</text>
+<line x1="1388" y1="1074" x2="1434" y2="1074" stroke="#64748b" stroke-width="2.0" stroke-dasharray="7 6" marker-end="url(#arrowGray)"/>
+<text x="1450" y="1078" class="small">dashed: proof / observation</text>
+<line x1="1660" y1="1074" x2="1704" y2="1074" stroke="#dc2626" stroke-width="2.2" stroke-dasharray="5 5" marker-end="url(#arrowFault)"/>
+<text x="1718" y="1078" class="small">red: reject / recover</text>
+<text x="56" y="1146" class="caption">Generated by the legacy paper figure generator; original filename preserved so documentation links stay stable · architecture/reading-paths.svg</text>
 </svg>

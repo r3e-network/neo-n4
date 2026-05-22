@@ -1,134 +1,184 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 620" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="t4 d4">
-  <title id="t4">Anti-censorship via forced inclusion (Walk #2)</title>
-  <desc id="d4">Sequence diagram: user posts a forced transaction to L1 with a 2-hour deadline. The L2 batcher polls and drains pending entries. If the sequencer censors the tx past its deadline, CensorshipDetector observes the overdue state, the operator submits ReportCensorship to L1, and SequencerBond slashes the responsible sequencer's bond and pays the reporter.</desc>
-
-  <defs>
-    <marker id="ah4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
-      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
-    </marker>
-    <filter id="card4" x="-2%" y="-3%" width="104%" height="106%">
-      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000" flood-opacity="0.07"/>
-    </filter>
-    <style>
-      .actor-name  { font-size: 12.5px; font-weight: 700; letter-spacing: 0.6px; }
-      .actor-sub   { font-size: 10.5px; }
-      .msg-lbl     { font-size: 11px; font-weight: 500; }
-      .msg-sub     { font-size: 10px; font-style: italic; fill: #525a64; }
-      .step-num    { font-size: 10.5px; font-weight: 700; fill: #57606a; }
-      .note-text   { font-size: 10.5px; }
-      .caption     { font-size: 11.5px; fill: #57606a; }
-    </style>
-  </defs>
-
-  <rect width="960" height="620" fill="#ffffff"/>
-
-  <!-- ============================================================== -->
-  <!--   Actor headers                                                 -->
-  <!-- ============================================================== -->
-  <!-- USER -->
-  <g filter="url(#card4)">
-    <rect x="40" y="32" width="148" height="48" rx="6" fill="#fff" stroke="#6a737d"/>
-    <text x="114" y="54" text-anchor="middle" class="actor-name" fill="#1f2328">USER</text>
-    <text x="114" y="70" text-anchor="middle" class="actor-sub" fill="#57606a">L2 chain participant</text>
-  </g>
-
-  <!-- L1 NeoHub -->
-  <g filter="url(#card4)">
-    <rect x="240" y="32" width="200" height="48" rx="6" fill="#eff3ff" stroke="#7587c1"/>
-    <text x="340" y="54" text-anchor="middle" class="actor-name" fill="#1e2a55">L1 · NEOHUB</text>
-    <text x="340" y="70" text-anchor="middle" class="actor-sub" fill="#3a4a82">ForcedInclusion · SequencerBond</text>
-  </g>
-
-  <!-- L2 Sequencer -->
-  <g filter="url(#card4)">
-    <rect x="500" y="32" width="200" height="48" rx="6" fill="#ecf5ee" stroke="#6fa37b"/>
-    <text x="600" y="54" text-anchor="middle" class="actor-name" fill="#1c3d27">L2 · SEQUENCER + BATCHER</text>
-    <text x="600" y="70" text-anchor="middle" class="actor-sub" fill="#2f5e3c">DrainAsync · MarkConsumed</text>
-  </g>
-
-  <!-- Detector + Operator -->
-  <g filter="url(#card4)">
-    <rect x="760" y="32" width="160" height="48" rx="6" fill="#fff7ed" stroke="#d97706"/>
-    <text x="840" y="54" text-anchor="middle" class="actor-name" fill="#92400e">DETECTOR + OPERATOR</text>
-    <text x="840" y="70" text-anchor="middle" class="actor-sub" fill="#a16207">CensorshipDetector</text>
-  </g>
-
-  <!-- ============================================================== -->
-  <!--   Lifelines (dashed vertical)                                   -->
-  <!-- ============================================================== -->
-  <line x1="114" y1="80" x2="114" y2="560" stroke="#9aa6b2" stroke-width="1" stroke-dasharray="3 3"/>
-  <line x1="340" y1="80" x2="340" y2="560" stroke="#9aa6b2" stroke-width="1" stroke-dasharray="3 3"/>
-  <line x1="600" y1="80" x2="600" y2="560" stroke="#9aa6b2" stroke-width="1" stroke-dasharray="3 3"/>
-  <line x1="840" y1="80" x2="840" y2="560" stroke="#9aa6b2" stroke-width="1" stroke-dasharray="3 3"/>
-
-  <!-- ============================================================== -->
-  <!--   Step 1: User → L1 EnqueueForcedTransaction                    -->
-  <!-- ============================================================== -->
-  <text x="56" y="118" class="step-num">①</text>
-  <line x1="118" y1="118" x2="336" y2="118" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah4)"/>
-  <text x="227" y="112" text-anchor="middle" class="msg-lbl" fill="#1f2328">EnqueueForcedTransaction(chainId, encodedTx, txHash)</text>
-  <text x="227" y="132" text-anchor="middle" class="msg-sub">deadline = now + 2 h · returns nonce</text>
-
-  <!-- ============================================================== -->
-  <!--   Step 2: L1 stores entry (self-loop annotation)                -->
-  <!-- ============================================================== -->
-  <text x="56" y="172" class="step-num">②</text>
-  <rect x="278" y="158" width="124" height="28" rx="4" fill="#eff3ff" stroke="#7587c1" stroke-width="1"/>
-  <text x="340" y="176" text-anchor="middle" class="note-text" fill="#1e2a55">stores (sender, txHash, deadline)</text>
-
-  <!-- ============================================================== -->
-  <!--   Step 3: L2 → L1 DrainAsync (poll)                             -->
-  <!-- ============================================================== -->
-  <text x="56" y="218" class="step-num">③</text>
-  <line x1="596" y1="218" x2="346" y2="218" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah4)"/>
-  <text x="471" y="212" text-anchor="middle" class="msg-lbl" fill="#1f2328">DrainAsync(max)</text>
-  <text x="471" y="232" text-anchor="middle" class="msg-sub">L2 batcher polls L1 for forced txs</text>
-
-  <!-- ============================================================== -->
-  <!--   Step 4: L1 → L2 pending entries                                -->
-  <!-- ============================================================== -->
-  <text x="56" y="266" class="step-num">④</text>
-  <line x1="344" y1="266" x2="594" y2="266" stroke="#525a64" stroke-width="1.4" stroke-dasharray="5 3" marker-end="url(#ah4)"/>
-  <text x="469" y="260" text-anchor="middle" class="msg-lbl" fill="#1f2328">pending forced-tx entries</text>
-
-  <!-- ============================================================== -->
-  <!--   Step 5: censorship event (annotation on L2 lifeline)          -->
-  <!-- ============================================================== -->
-  <text x="56" y="318" class="step-num">⑤</text>
-  <rect x="510" y="304" width="180" height="36" rx="4" fill="#fee2e2" stroke="#dc2626" stroke-width="1.2"/>
-  <text x="600" y="320" text-anchor="middle" class="note-text" fill="#991b1b">SEQUENCER CENSORS</text>
-  <text x="600" y="334" text-anchor="middle" class="msg-sub" fill="#991b1b">deadline passes · tx not included</text>
-
-  <!-- ============================================================== -->
-  <!--   Step 6: Detector polls L1 (HasOverdueEntryAsync)              -->
-  <!-- ============================================================== -->
-  <text x="56" y="374" class="step-num">⑥</text>
-  <line x1="836" y1="374" x2="346" y2="374" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah4)"/>
-  <text x="591" y="368" text-anchor="middle" class="msg-lbl" fill="#1f2328">HasOverdueEntryAsync(now)</text>
-  <text x="591" y="388" text-anchor="middle" class="msg-sub">CensorshipDetector polls source</text>
-
-  <!-- ============================================================== -->
-  <!--   Step 7: L1 → Detector: yes, overdue                           -->
-  <!-- ============================================================== -->
-  <text x="56" y="420" class="step-num">⑦</text>
-  <line x1="344" y1="420" x2="834" y2="420" stroke="#525a64" stroke-width="1.4" stroke-dasharray="5 3" marker-end="url(#ah4)"/>
-  <text x="589" y="414" text-anchor="middle" class="msg-lbl" fill="#1f2328">overdue entries · nonce + responsible sequencer</text>
-
-  <!-- ============================================================== -->
-  <!--   Step 8: Operator → L1 ReportCensorship                        -->
-  <!-- ============================================================== -->
-  <text x="56" y="468" class="step-num">⑧</text>
-  <line x1="836" y1="468" x2="346" y2="468" stroke="#dc2626" stroke-width="1.6" marker-end="url(#ah4)"/>
-  <text x="591" y="462" text-anchor="middle" class="msg-lbl" fill="#991b1b">ReportCensorship(chainId, nonce, sequencerAddr)</text>
-
-  <!-- ============================================================== -->
-  <!--   Step 9: L1 slashes (self-loop note)                           -->
-  <!-- ============================================================== -->
-  <text x="56" y="514" class="step-num">⑨</text>
-  <rect x="244" y="500" width="192" height="42" rx="4" fill="#fee2e2" stroke="#dc2626" stroke-width="1.2"/>
-  <text x="340" y="516" text-anchor="middle" class="note-text" fill="#991b1b">SequencerBond.Slash(sequencer)</text>
-  <text x="340" y="532" text-anchor="middle" class="msg-sub" fill="#991b1b">bond debited · reporter paid</text>
-
-  <!-- caption -->
-  <text x="480" y="600" text-anchor="middle" class="caption">Forced inclusion + censorship slashing — 9-step sequence from user submission through operator-driven slashing.</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1180" viewBox="0 0 1920 1180" role="img" aria-label="Forced Inclusion">
+<defs>
+<marker id="arrowAccent" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#be123c"/></marker>
+<marker id="arrowGray" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#475569"/></marker>
+<marker id="arrowFault" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#dc2626"/></marker>
+<filter id="shadow" x="-3%" y="-4%" width="106%" height="108%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.10"/></filter>
+<style>
+.bg{fill:#f8fafc}.panel{fill:#ffffff;stroke:#cbd5e1;stroke-width:1.5;filter:url(#shadow)}
+.title{font:800 36px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.subtitle{font:500 17px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.panelTitle{font:750 22px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.panelSub{font:500 15px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.strong{font:760 15px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.body{font:500 14px 'Inter','Segoe UI',Arial,sans-serif;fill:#334155}.small{font:500 13px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.mono{font:650 14px 'Cascadia Mono','SFMono-Regular',Consolas,monospace;fill:#0f172a}.label{font:800 14px 'Inter','Segoe UI',Arial,sans-serif;fill:#ffffff}.caption{font:500 13px 'Inter','Segoe UI',Arial,sans-serif;fill:#64748b}
+.accentArrow{stroke:#be123c;stroke-width:2.6;fill:none;marker-end:url(#arrowAccent)}.dashArrow{stroke:#64748b;stroke-width:2.0;fill:none;stroke-dasharray:7 6;marker-end:url(#arrowGray)}.faultArrow{stroke:#dc2626;stroke-width:2.2;fill:none;stroke-dasharray:5 5;marker-end:url(#arrowFault)}
+</style>
+</defs>
+<rect class="bg" width="1920" height="1180"/>
+<text x="56" y="66" class="title">Forced Inclusion</text>
+<text x="56" y="98" class="subtitle">Anti-censorship path from L1 request to L2 inclusion or sequencer accountability.</text>
+<rect x="56" y="118" width="1808" height="38" rx="6" fill="#fff1f2" stroke="#be123c" stroke-width="1.2"/>
+<text x="76" y="143" class="small">Read as: <tspan class="strong">paper-style technical figure focused on architecture, principles, data flow, workflow, and audit conditions.</tspan></text>
+<rect x="56" y="178" width="870" height="392" rx="10" class="panel"/>
+<rect x="56" y="178" width="870" height="54" rx="10" fill="#fff1f2"/>
+<circle cx="86" cy="206" r="16" fill="#be123c"/>
+<text x="86" y="211" text-anchor="middle" class="label">a</text>
+<text x="114" y="210" class="panelTitle">Technical Topology</text>
+<text x="114" y="230" class="panelSub">planes, boundaries, and responsibilities</text>
+<rect x="966" y="178" width="898" height="392" rx="10" class="panel"/>
+<rect x="966" y="178" width="898" height="54" rx="10" fill="#fff1f2"/>
+<circle cx="996" cy="206" r="16" fill="#be123c"/>
+<text x="996" y="211" text-anchor="middle" class="label">b</text>
+<text x="1024" y="210" class="panelTitle">Technical Model</text>
+<text x="1024" y="230" class="panelSub">formal rules and acceptance conditions</text>
+<rect x="56" y="606" width="1240" height="494" rx="10" class="panel"/>
+<rect x="56" y="606" width="1240" height="54" rx="10" fill="#fff1f2"/>
+<circle cx="86" cy="634" r="16" fill="#be123c"/>
+<text x="86" y="639" text-anchor="middle" class="label">c</text>
+<text x="114" y="638" class="panelTitle">Numbered Protocol Path</text>
+<text x="114" y="658" class="panelSub">how key objects advance</text>
+<rect x="1334" y="606" width="530" height="494" rx="10" class="panel"/>
+<rect x="1334" y="606" width="530" height="54" rx="10" fill="#fff1f2"/>
+<circle cx="1364" cy="634" r="16" fill="#be123c"/>
+<text x="1364" y="639" text-anchor="middle" class="label">d</text>
+<text x="1392" y="638" class="panelTitle">Audit Checkpoints</text>
+<text x="1392" y="658" class="panelSub">conditions readers should verify</text>
+<rect x="92" y="270" width="180" height="208" rx="8" fill="#fff1f2" stroke="#be123c" stroke-width="1.4"/>
+<text x="106" y="298" class="strong">User protection</text>
+<text x="106" y="328" class="body">users can force</text>
+<text x="106" y="346" class="body">inclusion, withdraw,</text>
+<text x="106" y="364" class="body">or rely on challenge</text>
+<text x="106" y="382" class="body">paths.</text>
+<path class="accentArrow" d="M272 374 C284 374 282 428 300 428"/>
+<rect x="300" y="324" width="180" height="208" rx="8" fill="#fff1f2" stroke="#be123c" stroke-width="1.4"/>
+<text x="314" y="352" class="strong">Operator duty</text>
+<text x="314" y="382" class="body">sequencers, batchers,</text>
+<text x="314" y="400" class="body">and provers must</text>
+<text x="314" y="418" class="body">satisfy deadlines and</text>
+<text x="314" y="436" class="body">evidence gates.</text>
+<path class="accentArrow" d="M480 428 C492 428 490 374 508 374"/>
+<rect x="508" y="270" width="180" height="208" rx="8" fill="#fff1f2" stroke="#be123c" stroke-width="1.4"/>
+<text x="522" y="298" class="strong">Detection</text>
+<text x="522" y="328" class="body">watchers and monitors</text>
+<text x="522" y="346" class="body">detect censorship,</text>
+<text x="522" y="364" class="body">timeout, mismatch, and</text>
+<text x="522" y="382" class="body">missing data.</text>
+<path class="accentArrow" d="M688 374 C700 374 698 428 716 428"/>
+<rect x="716" y="324" width="180" height="208" rx="8" fill="#fff1f2" stroke="#be123c" stroke-width="1.4"/>
+<text x="730" y="352" class="strong">Enforcement</text>
+<text x="730" y="382" class="body">NeoHub governance,</text>
+<text x="730" y="400" class="body">bonds, pause, and</text>
+<text x="730" y="418" class="body">challenge logic</text>
+<text x="730" y="436" class="body">enforce recovery.</text>
+<line x1="296" y1="528" x2="752" y2="528" stroke="#be123c" stroke-width="1.4" stroke-dasharray="6 6"/>
+<text x="522" y="552" class="caption" text-anchor="middle">canonical boundary: hashes, roots, events, proofs, DA references</text>
+<rect x="1000" y="252" width="828" height="62" rx="8" fill="#fff1f2" stroke="#be123c" stroke-width="1.5"/>
+<text x="1020" y="290" class="mono">recover iff deadline_expired || invalid_claim || missing_DA</text>
+<rect x="1012" y="342" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="369" r="15" fill="#be123c"/>
+<text x="1038" y="374" text-anchor="middle" class="label">1</text>
+<text x="1066" y="365" class="strong">Safety</text>
+<text x="1066" y="385" class="small">invalid or censored state cannot silently become final</text>
+<path class="accentArrow" d="M1328 396 L1328 414"/>
+<rect x="1012" y="414" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="441" r="15" fill="#be123c"/>
+<text x="1038" y="446" text-anchor="middle" class="label">2</text>
+<text x="1066" y="437" class="strong">Liveness</text>
+<text x="1066" y="457" class="small">forced paths give users a way around stalled operators</text>
+<path class="accentArrow" d="M1328 468 L1328 486"/>
+<rect x="1012" y="486" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="513" r="15" fill="#be123c"/>
+<text x="1038" y="518" text-anchor="middle" class="label">3</text>
+<text x="1066" y="509" class="strong">Accountability</text>
+<text x="1066" y="529" class="small">evidence maps failures to responsible actors</text>
+<rect x="1672" y="358" width="146" height="174" rx="8" fill="#ffffff" stroke="#be123c" stroke-width="1.4"/>
+<text x="1686" y="386" class="strong">Acceptance</text>
+<text x="1686" y="416" class="body">failure evidence</text>
+<text x="1686" y="434" class="body">is valid and</text>
+<text x="1686" y="452" class="body">action is</text>
+<text x="1686" y="470" class="body">protocol-</text>
+<text x="1686" y="488" class="body">authorized</text>
+<path class="dashArrow" d="M1642 460 L1672 460"/>
+<text x="1014" y="562" class="mono">failure evidence is valid and action is protocol-authorized</text>
+<rect x="92" y="730" width="150" height="120" rx="8" fill="#fff1f2" stroke="#be123c" stroke-width="1.5"/>
+<rect x="102" y="740" width="30" height="24" rx="5" fill="#be123c"/>
+<text x="117" y="757" text-anchor="middle" class="label">1</text>
+<text x="140" y="758" class="strong">Request</text>
+<text x="104" y="788" class="small">user or monitor</text>
+<text x="104" y="805" class="small">submits protected</text>
+<text x="104" y="822" class="small">action</text>
+<path class="accentArrow" d="M242 790 L290 790"/>
+<rect x="290" y="730" width="150" height="120" rx="8" fill="#fff1f2" stroke="#be123c" stroke-width="1.5"/>
+<rect x="300" y="740" width="30" height="24" rx="5" fill="#be123c"/>
+<text x="315" y="757" text-anchor="middle" class="label">2</text>
+<text x="338" y="758" class="strong">Queue</text>
+<text x="302" y="788" class="small">L1 records</text>
+<text x="302" y="805" class="small">obligation or</text>
+<text x="302" y="822" class="small">report</text>
+<path class="accentArrow" d="M440 790 L488 790"/>
+<rect x="488" y="730" width="150" height="120" rx="8" fill="#fff1f2" stroke="#be123c" stroke-width="1.5"/>
+<rect x="498" y="740" width="30" height="24" rx="5" fill="#be123c"/>
+<text x="513" y="757" text-anchor="middle" class="label">3</text>
+<text x="536" y="758" class="strong">Deadline</text>
+<text x="500" y="788" class="small">operator must</text>
+<text x="500" y="805" class="small">satisfy</text>
+<text x="500" y="822" class="small">inclusion/proof</text>
+<text x="500" y="839" class="small">window</text>
+<path class="accentArrow" d="M638 790 L686 790"/>
+<rect x="686" y="730" width="150" height="120" rx="8" fill="#fff1f2" stroke="#be123c" stroke-width="1.5"/>
+<rect x="696" y="740" width="30" height="24" rx="5" fill="#be123c"/>
+<text x="711" y="757" text-anchor="middle" class="label">4</text>
+<text x="734" y="758" class="strong">Detect</text>
+<text x="698" y="788" class="small">censorship or</text>
+<text x="698" y="805" class="small">timeout is</text>
+<text x="698" y="822" class="small">observed</text>
+<path class="accentArrow" d="M836 790 L884 790"/>
+<rect x="884" y="730" width="150" height="120" rx="8" fill="#fff1f2" stroke="#be123c" stroke-width="1.5"/>
+<rect x="894" y="740" width="30" height="24" rx="5" fill="#be123c"/>
+<text x="909" y="757" text-anchor="middle" class="label">5</text>
+<text x="932" y="758" class="strong">Enforce</text>
+<text x="896" y="788" class="small">challenge, slash,</text>
+<text x="896" y="805" class="small">pause, or force</text>
+<text x="896" y="822" class="small">path runs</text>
+<path class="accentArrow" d="M1034 790 L1082 790"/>
+<rect x="1082" y="730" width="150" height="120" rx="8" fill="#fff1f2" stroke="#be123c" stroke-width="1.5"/>
+<rect x="1092" y="740" width="30" height="24" rx="5" fill="#be123c"/>
+<text x="1107" y="757" text-anchor="middle" class="label">6</text>
+<text x="1130" y="758" class="strong">Recover</text>
+<text x="1094" y="788" class="small">user or chain</text>
+<text x="1094" y="805" class="small">returns to safe</text>
+<text x="1094" y="822" class="small">path</text>
+<path class="dashArrow" d="M182 900 C412 974 852 974 1132 900"/>
+<rect x="482" y="914" width="210" height="120" rx="8" fill="#fff1f2" stroke="#dc2626" stroke-width="1.4"/>
+<text x="496" y="942" class="strong">Reject / Recover</text>
+<text x="496" y="972" class="body">bad evidence, replay,</text>
+<text x="496" y="990" class="body">missing data, timeout,</text>
+<text x="496" y="1008" class="body">policy mismatch</text>
+<path class="faultArrow" d="M562 850 L562 914"/>
+<text x="92" y="1070" class="caption">solid: state / data · dashed: proof / observation · red: reject / recover</text>
+<rect x="1368" y="710" width="462" height="294" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<rect x="1378" y="720" width="442" height="58" rx="6" fill="#fff1f2"/>
+<text x="1390" y="743" class="strong">Deadline</text>
+<text x="1518" y="740" class="small">timeout is measured against canonical</text>
+<text x="1518" y="757" class="small">height/time</text>
+<rect x="1378" y="788" width="442" height="58" rx="6" fill="#ffffff"/>
+<text x="1390" y="811" class="strong">Evidence</text>
+<text x="1518" y="808" class="small">report includes queue item, root,</text>
+<text x="1518" y="825" class="small">message, or proof</text>
+<rect x="1378" y="856" width="442" height="58" rx="6" fill="#fff1f2"/>
+<text x="1390" y="879" class="strong">Action</text>
+<text x="1518" y="876" class="small">slash, pause, challenge, or force path</text>
+<text x="1518" y="893" class="small">is explicit</text>
+<rect x="1378" y="924" width="442" height="58" rx="6" fill="#ffffff"/>
+<text x="1390" y="947" class="strong">Exit</text>
+<text x="1518" y="944" class="small">users retain a documented recovery</text>
+<text x="1518" y="961" class="small">route</text>
+<line x1="1504" y1="724" x2="1504" y2="992" stroke="#be123c" stroke-width="1.2" stroke-dasharray="4 5"/>
+<rect x="1368" y="1026" width="462" height="74" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2"/>
+<line x1="1388" y1="1050" x2="1434" y2="1050" stroke="#be123c" stroke-width="2.6" marker-end="url(#arrowAccent)"/>
+<text x="1450" y="1054" class="small">solid: state / data</text>
+<line x1="1388" y1="1074" x2="1434" y2="1074" stroke="#64748b" stroke-width="2.0" stroke-dasharray="7 6" marker-end="url(#arrowGray)"/>
+<text x="1450" y="1078" class="small">dashed: proof / observation</text>
+<line x1="1660" y1="1074" x2="1704" y2="1074" stroke="#dc2626" stroke-width="2.2" stroke-dasharray="5 5" marker-end="url(#arrowFault)"/>
+<text x="1718" y="1078" class="small">red: reject / recover</text>
+<text x="56" y="1146" class="caption">Generated by the legacy paper figure generator; original filename preserved so documentation links stay stable · forced-inclusion.svg</text>
 </svg>

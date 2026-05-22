@@ -1,121 +1,154 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 720" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', sans-serif" role="img" aria-labelledby="title desc">
-  <title id="title">一笔 tx 在 Neo L2 链上的生命周期</title>
-  <desc id="desc">单笔 tx 从用户提交、经 dBFT 排序、区块提交、批次执行、封装、证明、L1 提交、最终化、最终的 L1 侧提款领取的 9 个编号阶段。</desc>
-
-  <defs>
-    <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
-      <path d="M0,0 L10,5 L0,10 Z" fill="#525a64"/>
-    </marker>
-    <filter id="card2" x="-2%" y="-3%" width="104%" height="106%">
-      <feDropShadow dx="0" dy="1" stdDeviation="0.9" flood-color="#000" flood-opacity="0.07"/>
-    </filter>
-    <style>
-      .step-num     { font-size: 11px; font-weight: 700; letter-spacing: 0.6px; }
-      .step-title   { font-size: 13px; font-weight: 600; }
-      .step-sub     { font-size: 10.5px; }
-      .step-tag     { font-size: 9.5px; font-style: italic; fill: #6e7781; }
-      .lane-title   { font-size: 12px; font-weight: 700; letter-spacing: 0.7px; }
-      .caption      { font-size: 11.5px; fill: #57606a; }
-    </style>
-  </defs>
-
-  <rect width="960" height="720" fill="#ffffff"/>
-
-  <rect x="40" y="40" width="540" height="600" rx="10" fill="#ecf5ee" stroke="#6fa37b" stroke-width="1.2"/>
-  <text x="58" y="62" class="lane-title" fill="#1c3d27">L2 侧 —— 执行 + 封装 + 证明</text>
-
-  <rect x="600" y="40" width="320" height="600" rx="10" fill="#eff3ff" stroke="#7587c1" stroke-width="1.2"/>
-  <text x="618" y="62" class="lane-title" fill="#1e2a55">L1 侧 —— 结算 + 终结性</text>
-
-  <g filter="url(#card2)">
-    <rect x="60" y="84" width="200" height="62" rx="6" fill="#fff" stroke="#6fa37b"/>
-    <circle cx="78" cy="100" r="9" fill="#1c3d27"/>
-    <text x="78" y="104" text-anchor="middle" class="step-num" fill="#fff">1</text>
-    <text x="92" y="106" class="step-title" fill="#1c3d27">用户提交 tx</text>
-    <text x="92" y="124" class="step-sub" fill="#2f5e3c">RPC → mempool</text>
-    <text x="92" y="138" class="step-tag">Neo RpcServer(上游)</text>
-  </g>
-
-  <g filter="url(#card2)">
-    <rect x="60" y="166" width="200" height="62" rx="6" fill="#fff" stroke="#6fa37b"/>
-    <circle cx="78" cy="182" r="9" fill="#1c3d27"/>
-    <text x="78" y="186" class="step-num" fill="#fff">2</text>
-    <text x="92" y="188" class="step-title" fill="#1c3d27">dBFT 排序</text>
-    <text x="92" y="206" class="step-sub" fill="#2f5e3c">委员会来自 SequencerRegistry</text>
-    <text x="92" y="220" class="step-tag">Neo.Plugins.DBFTPlugin</text>
-  </g>
-
-  <g filter="url(#card2)">
-    <rect x="60" y="248" width="200" height="62" rx="6" fill="#fff" stroke="#6fa37b"/>
-    <circle cx="78" cy="264" r="9" fill="#1c3d27"/>
-    <text x="78" y="268" class="step-num" fill="#fff">3</text>
-    <text x="92" y="270" class="step-title" fill="#1c3d27">区块提交钩子</text>
-    <text x="92" y="288" class="step-sub" fill="#2f5e3c">累积 · 达阈值时封装</text>
-    <text x="92" y="302" class="step-tag">L2BatchPlugin → BatchSealer</text>
-  </g>
-
-  <g filter="url(#card2)">
-    <rect x="60" y="330" width="200" height="78" rx="6" fill="#fff" stroke="#6fa37b"/>
-    <circle cx="78" cy="346" r="9" fill="#1c3d27"/>
-    <text x="78" y="350" class="step-num" fill="#fff">4</text>
-    <text x="92" y="352" class="step-title" fill="#1c3d27">批次执行</text>
-    <text x="92" y="370" class="step-sub" fill="#2f5e3c">L1 消息 → tx → 根</text>
-    <text x="92" y="384" class="step-sub" fill="#2f5e3c">postStateRoot 经 oracle</text>
-    <text x="92" y="400" class="step-tag">ReferenceBatchExecutor</text>
-  </g>
-
-  <g filter="url(#card2)">
-    <rect x="60" y="428" width="200" height="62" rx="6" fill="#fff" stroke="#6fa37b"/>
-    <circle cx="78" cy="444" r="9" fill="#1c3d27"/>
-    <text x="78" y="448" class="step-num" fill="#fff">5</text>
-    <text x="92" y="450" class="step-title" fill="#1c3d27">封装承诺</text>
-    <text x="92" y="468" class="step-sub" fill="#2f5e3c">317 B header + 证明字节</text>
-    <text x="92" y="482" class="step-tag">BatchBuilder · BatchSerializer</text>
-  </g>
-
-  <g filter="url(#card2)">
-    <rect x="320" y="428" width="240" height="62" rx="6" fill="#fff" stroke="#6fa37b"/>
-    <circle cx="338" cy="444" r="9" fill="#1c3d27"/>
-    <text x="338" y="448" class="step-num" fill="#fff">6</text>
-    <text x="352" y="450" class="step-title" fill="#1c3d27">证明批次</text>
-    <text x="352" y="468" class="step-sub" fill="#2f5e3c">多签(今)· ZK / SP1(Phase 4)</text>
-    <text x="352" y="482" class="step-tag">IL2Prover · L2SettlementPlugin</text>
-  </g>
-
-  <g filter="url(#card2)">
-    <rect x="320" y="510" width="240" height="62" rx="6" fill="#fff" stroke="#6fa37b"/>
-    <circle cx="338" cy="526" r="9" fill="#1c3d27"/>
-    <text x="338" y="530" class="step-num" fill="#fff">7</text>
-    <text x="352" y="532" class="step-title" fill="#1c3d27">提交到 L1</text>
-    <text x="352" y="550" class="step-sub" fill="#2f5e3c">JSON-RPC submitBatch</text>
-    <text x="352" y="564" class="step-tag">RpcSettlementClient</text>
-  </g>
-
-  <g filter="url(#card2)">
-    <rect x="620" y="510" width="280" height="62" rx="6" fill="#fff" stroke="#7587c1"/>
-    <circle cx="638" cy="526" r="9" fill="#1e2a55"/>
-    <text x="638" y="530" class="step-num" fill="#fff">8</text>
-    <text x="652" y="532" class="step-title" fill="#1e2a55">L1 验证 + 最终化</text>
-    <text x="652" y="550" class="step-sub" fill="#3a4a82">VerifierRegistry 按 ProofType 派发</text>
-    <text x="652" y="564" class="step-tag">SettlementManager · NeoHub</text>
-  </g>
-
-  <g filter="url(#card2)">
-    <rect x="620" y="592" width="280" height="42" rx="6" fill="#fff" stroke="#7587c1" stroke-dasharray="4 3"/>
-    <circle cx="638" cy="608" r="9" fill="#1e2a55"/>
-    <text x="638" y="612" class="step-num" fill="#fff">9</text>
-    <text x="652" y="614" class="step-title" fill="#1e2a55">提款领取(稍后)</text>
-    <text x="652" y="628" class="step-tag">SharedBridge —— 批次最终化后</text>
-  </g>
-
-  <line x1="160" y1="146" x2="160" y2="166" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah2)"/>
-  <line x1="160" y1="228" x2="160" y2="248" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah2)"/>
-  <line x1="160" y1="310" x2="160" y2="330" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah2)"/>
-  <line x1="160" y1="408" x2="160" y2="428" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah2)"/>
-  <line x1="260" y1="459" x2="320" y2="459" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah2)"/>
-  <line x1="440" y1="490" x2="440" y2="510" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah2)"/>
-  <line x1="560" y1="541" x2="620" y2="541" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah2)"/>
-  <line x1="760" y1="572" x2="760" y2="592" stroke="#525a64" stroke-width="1.4" marker-end="url(#ah2)"/>
-
-  <text x="480" y="704" text-anchor="middle" class="caption">Neo L2 链上的 tx 生命周期 —— 从用户提交到 L1 终结性的 9 个阶段。</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1180" viewBox="0 0 1920 1180" role="img" aria-label="交易生命周期">
+<defs>
+<marker id="arrowAccent" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#047857"/></marker>
+<marker id="arrowGray" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#475569"/></marker>
+<marker id="arrowFault" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#dc2626"/></marker>
+<filter id="shadow" x="-3%" y="-4%" width="106%" height="108%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.10"/></filter>
+<style>
+.bg{fill:#f8fafc}.panel{fill:#ffffff;stroke:#cbd5e1;stroke-width:1.5;filter:url(#shadow)}
+.title{font:800 36px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.subtitle{font:500 17px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.panelTitle{font:750 22px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.panelSub{font:500 15px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.strong{font:760 15px 'Inter','Segoe UI',Arial,sans-serif;fill:#0f172a}.body{font:500 14px 'Inter','Segoe UI',Arial,sans-serif;fill:#334155}.small{font:500 13px 'Inter','Segoe UI',Arial,sans-serif;fill:#475569}
+.mono{font:650 14px 'Cascadia Mono','SFMono-Regular',Consolas,monospace;fill:#0f172a}.label{font:800 14px 'Inter','Segoe UI',Arial,sans-serif;fill:#ffffff}.caption{font:500 13px 'Inter','Segoe UI',Arial,sans-serif;fill:#64748b}
+.accentArrow{stroke:#047857;stroke-width:2.6;fill:none;marker-end:url(#arrowAccent)}.dashArrow{stroke:#64748b;stroke-width:2.0;fill:none;stroke-dasharray:7 6;marker-end:url(#arrowGray)}.faultArrow{stroke:#dc2626;stroke-width:2.2;fill:none;stroke-dasharray:5 5;marker-end:url(#arrowFault)}
+</style>
+</defs>
+<rect class="bg" width="1920" height="1180"/>
+<text x="56" y="66" class="title">交易生命周期</text>
+<text x="56" y="98" class="subtitle">用户交易如何变成 L2 状态、证据和 L1 终局效果。</text>
+<rect x="56" y="118" width="1808" height="38" rx="6" fill="#ecfdf3" stroke="#047857" stroke-width="1.2"/>
+<text x="76" y="143" class="small">读图方式： <tspan class="strong">论文式技术图；强调架构、原理、数据流、工作流和审计条件。</tspan></text>
+<rect x="56" y="178" width="870" height="392" rx="10" class="panel"/>
+<rect x="56" y="178" width="870" height="54" rx="10" fill="#ecfdf3"/>
+<circle cx="86" cy="206" r="16" fill="#047857"/>
+<text x="86" y="211" text-anchor="middle" class="label">a</text>
+<text x="114" y="210" class="panelTitle">技术拓扑</text>
+<text x="114" y="230" class="panelSub">参与平面、边界和职责</text>
+<rect x="966" y="178" width="898" height="392" rx="10" class="panel"/>
+<rect x="966" y="178" width="898" height="54" rx="10" fill="#ecfdf3"/>
+<circle cx="996" cy="206" r="16" fill="#047857"/>
+<text x="996" y="211" text-anchor="middle" class="label">b</text>
+<text x="1024" y="210" class="panelTitle">技术模型</text>
+<text x="1024" y="230" class="panelSub">形式化规则和接受条件</text>
+<rect x="56" y="606" width="1240" height="494" rx="10" class="panel"/>
+<rect x="56" y="606" width="1240" height="54" rx="10" fill="#ecfdf3"/>
+<circle cx="86" cy="634" r="16" fill="#047857"/>
+<text x="86" y="639" text-anchor="middle" class="label">c</text>
+<text x="114" y="638" class="panelTitle">编号协议路径</text>
+<text x="114" y="658" class="panelSub">关键对象如何推进</text>
+<rect x="1334" y="606" width="530" height="494" rx="10" class="panel"/>
+<rect x="1334" y="606" width="530" height="54" rx="10" fill="#ecfdf3"/>
+<circle cx="1364" cy="634" r="16" fill="#047857"/>
+<text x="1364" y="639" text-anchor="middle" class="label">d</text>
+<text x="1392" y="638" class="panelTitle">审计检查点</text>
+<text x="1392" y="658" class="panelSub">读者应验证的条件</text>
+<rect x="92" y="270" width="180" height="208" rx="8" fill="#ecfdf3" stroke="#047857" stroke-width="1.4"/>
+<text x="106" y="298" class="strong">意图</text>
+<text x="106" y="328" class="body">已签名交易或系统消息进入 L2 执行边界。</text>
+<path class="accentArrow" d="M272 374 C284 374 282 428 300 428"/>
+<rect x="300" y="324" width="180" height="208" rx="8" fill="#ecfdf3" stroke="#047857" stroke-width="1.4"/>
+<text x="314" y="352" class="strong">执行</text>
+<text x="314" y="382" class="body">NeoVM2/RISC-V profile</text>
+<text x="314" y="400" class="body">应用确定性状态转换规则。</text>
+<path class="accentArrow" d="M480 428 C492 428 490 374 508 374"/>
+<rect x="508" y="270" width="180" height="208" rx="8" fill="#ecfdf3" stroke="#047857" stroke-width="1.4"/>
+<text x="522" y="298" class="strong">回执</text>
+<text x="522" y="328" class="body">执行输出变成回执、日志、根和</text>
+<text x="522" y="346" class="body">gas/计费证据。</text>
+<path class="accentArrow" d="M688 374 C700 374 698 428 716 428"/>
+<rect x="716" y="324" width="180" height="208" rx="8" fill="#ecfdf3" stroke="#047857" stroke-width="1.4"/>
+<text x="730" y="352" class="strong">结算输入</text>
+<text x="730" y="382" class="body">batcher 把回执折叠为 DA</text>
+<text x="730" y="400" class="body">和证明系统消费的承诺。</text>
+<line x1="296" y1="528" x2="752" y2="528" stroke="#047857" stroke-width="1.4" stroke-dasharray="6 6"/>
+<text x="522" y="552" class="caption" text-anchor="middle">canonical boundary: hashes, roots, events, proofs, DA references</text>
+<rect x="1000" y="252" width="828" height="62" rx="8" fill="#ecfdf3" stroke="#047857" stroke-width="1.5"/>
+<text x="1020" y="290" class="mono">S&#x27; = execute(profile, S, ordered_tx)</text>
+<rect x="1012" y="342" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="369" r="15" fill="#047857"/>
+<text x="1038" y="374" text-anchor="middle" class="label">1</text>
+<text x="1066" y="365" class="strong">确定性</text>
+<text x="1066" y="385" class="small">同一有序输入和状态产生同一输出根</text>
+<path class="accentArrow" d="M1328 396 L1328 414"/>
+<rect x="1012" y="414" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="441" r="15" fill="#047857"/>
+<text x="1038" y="446" text-anchor="middle" class="label">2</text>
+<text x="1066" y="437" class="strong">隔离</text>
+<text x="1066" y="457" class="small">VM 副作用由 host 和原生/系统合约授权</text>
+<path class="accentArrow" d="M1328 468 L1328 486"/>
+<rect x="1012" y="486" width="630" height="54" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<circle cx="1038" cy="513" r="15" fill="#047857"/>
+<text x="1038" y="518" text-anchor="middle" class="label">3</text>
+<text x="1066" y="509" class="strong">计费</text>
+<text x="1066" y="529" class="small">gas、失败和副作用在结算前记录</text>
+<rect x="1672" y="358" width="146" height="174" rx="8" fill="#ffffff" stroke="#047857" stroke-width="1.4"/>
+<text x="1686" y="386" class="strong">接受</text>
+<text x="1686" y="416" class="body">执行确定、授权且回执匹配状态变化</text>
+<path class="dashArrow" d="M1642 460 L1672 460"/>
+<text x="1014" y="562" class="mono">执行确定、授权且回执匹配状态变化</text>
+<rect x="92" y="730" width="150" height="120" rx="8" fill="#ecfdf3" stroke="#047857" stroke-width="1.5"/>
+<rect x="102" y="740" width="30" height="24" rx="5" fill="#047857"/>
+<text x="117" y="757" text-anchor="middle" class="label">1</text>
+<text x="140" y="758" class="strong">提交</text>
+<text x="104" y="788" class="small">已签名交易进入 L2</text>
+<path class="accentArrow" d="M242 790 L290 790"/>
+<rect x="290" y="730" width="150" height="120" rx="8" fill="#ecfdf3" stroke="#047857" stroke-width="1.5"/>
+<rect x="300" y="740" width="30" height="24" rx="5" fill="#047857"/>
+<text x="315" y="757" text-anchor="middle" class="label">2</text>
+<text x="338" y="758" class="strong">排序</text>
+<text x="302" y="788" class="small">sequencer 固定交易位置</text>
+<path class="accentArrow" d="M440 790 L488 790"/>
+<rect x="488" y="730" width="150" height="120" rx="8" fill="#ecfdf3" stroke="#047857" stroke-width="1.5"/>
+<rect x="498" y="740" width="30" height="24" rx="5" fill="#047857"/>
+<text x="513" y="757" text-anchor="middle" class="label">3</text>
+<text x="536" y="758" class="strong">执行</text>
+<text x="500" y="788" class="small">VM profile 应用确定性规则</text>
+<path class="accentArrow" d="M638 790 L686 790"/>
+<rect x="686" y="730" width="150" height="120" rx="8" fill="#ecfdf3" stroke="#047857" stroke-width="1.5"/>
+<rect x="696" y="740" width="30" height="24" rx="5" fill="#047857"/>
+<text x="711" y="757" text-anchor="middle" class="label">4</text>
+<text x="734" y="758" class="strong">回执</text>
+<text x="698" y="788" class="small">记录日志、gas 和副作用</text>
+<path class="accentArrow" d="M836 790 L884 790"/>
+<rect x="884" y="730" width="150" height="120" rx="8" fill="#ecfdf3" stroke="#047857" stroke-width="1.5"/>
+<rect x="894" y="740" width="30" height="24" rx="5" fill="#047857"/>
+<text x="909" y="757" text-anchor="middle" class="label">5</text>
+<text x="932" y="758" class="strong">批次</text>
+<text x="896" y="788" class="small">batcher 把输出折叠成根</text>
+<path class="accentArrow" d="M1034 790 L1082 790"/>
+<rect x="1082" y="730" width="150" height="120" rx="8" fill="#ecfdf3" stroke="#047857" stroke-width="1.5"/>
+<rect x="1092" y="740" width="30" height="24" rx="5" fill="#047857"/>
+<text x="1107" y="757" text-anchor="middle" class="label">6</text>
+<text x="1130" y="758" class="strong">结算</text>
+<text x="1094" y="788" class="small">证明路径让结果终局</text>
+<path class="dashArrow" d="M182 900 C412 974 852 974 1132 900"/>
+<rect x="482" y="914" width="210" height="120" rx="8" fill="#fff1f2" stroke="#dc2626" stroke-width="1.4"/>
+<text x="496" y="942" class="strong">Reject / Recover</text>
+<text x="496" y="972" class="body">bad evidence, replay,</text>
+<text x="496" y="990" class="body">missing data, timeout,</text>
+<text x="496" y="1008" class="body">policy mismatch</text>
+<path class="faultArrow" d="M562 850 L562 914"/>
+<text x="92" y="1070" class="caption">实线：状态 / 数据 · 虚线：证明 / 观测 · 红线：拒绝 / 恢复</text>
+<rect x="1368" y="710" width="462" height="294" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>
+<rect x="1378" y="720" width="442" height="58" rx="6" fill="#ecfdf3"/>
+<text x="1390" y="743" class="strong">排序</text>
+<text x="1518" y="740" class="small">交易顺序明确</text>
+<rect x="1378" y="788" width="442" height="58" rx="6" fill="#ffffff"/>
+<text x="1390" y="811" class="strong">VM</text>
+<text x="1518" y="808" class="small">execution profile 已声明</text>
+<rect x="1378" y="856" width="442" height="58" rx="6" fill="#ecfdf3"/>
+<text x="1390" y="879" class="strong">副作用</text>
+<text x="1518" y="876" class="small">回执匹配状态变化</text>
+<rect x="1378" y="924" width="442" height="58" rx="6" fill="#ffffff"/>
+<text x="1390" y="947" class="strong">失败</text>
+<text x="1518" y="944" class="small">fault 不提交未授权副作用</text>
+<line x1="1504" y1="724" x2="1504" y2="992" stroke="#047857" stroke-width="1.2" stroke-dasharray="4 5"/>
+<rect x="1368" y="1026" width="462" height="74" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2"/>
+<line x1="1388" y1="1050" x2="1434" y2="1050" stroke="#047857" stroke-width="2.6" marker-end="url(#arrowAccent)"/>
+<text x="1450" y="1054" class="small">实线：状态 / 数据</text>
+<line x1="1388" y1="1074" x2="1434" y2="1074" stroke="#64748b" stroke-width="2.0" stroke-dasharray="7 6" marker-end="url(#arrowGray)"/>
+<text x="1450" y="1078" class="small">虚线：证明 / 观测</text>
+<line x1="1660" y1="1074" x2="1704" y2="1074" stroke="#dc2626" stroke-width="2.2" stroke-dasharray="5 5" marker-end="url(#arrowFault)"/>
+<text x="1718" y="1078" class="small">红线：拒绝 / 恢复</text>
+<text x="56" y="1146" class="caption">由 legacy paper figure generator 生成；保留原文件名，避免文档链接失效 · tx-lifecycle.svg</text>
 </svg>

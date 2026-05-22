@@ -81,6 +81,7 @@ numbered path, and audit checkpoints.
 The figures are generated from:
 
 ```powershell
+python tools/docs/generate_legacy_paper_figures.py
 python tools/docs/generate_paper_figures.py
 docs/figures/visual-guide/generate.ps1
 ```

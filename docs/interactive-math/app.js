@@ -1,6 +1,7 @@
 import {
   FIELD_PRIME,
   buildMerkleTree,
+  getLessonIdForJourneyStage,
   lessonOrder,
   listLessons,
   makeLearningSnapshot,
@@ -37,6 +38,9 @@ const copy = {
     proofTranscriptTitle: 'Prover / Verifier 对话',
     zkpMathTitle: 'ZKP 数学原理动画',
     zkpMathBody: '把 witness、评价域、约束多项式、vanishing polynomial、quotient 和随机挑战连成一个可观察的验证流程。',
+    clickToExplore: '点击图中的节点、卡片或步骤可以切换讲解焦点。',
+    fieldPickA: '点击圆环上的数字来设置 a。',
+    fieldPickB: '点击圆环上的数字来设置 b。',
     principleTitle: '本章技术原则',
     conceptNote: '阅读方式：先看左侧章节，再拖动实验控件；每个数字都是为了说明结构，不代表生产参数。',
     stepAll: '全部前进一步',
@@ -87,6 +91,9 @@ const copy = {
     proofTranscriptTitle: 'Prover / Verifier Dialogue',
     zkpMathTitle: 'ZKP Math Animation',
     zkpMathBody: 'Connect witness values, the evaluation domain, constraint polynomials, the vanishing polynomial, quotient openings, and random challenges in one verifier flow.',
+    clickToExplore: 'Click diagram nodes, cards, or steps to change the explanation focus.',
+    fieldPickA: 'Click a number on the field clock to set a.',
+    fieldPickB: 'Click a number on the field clock to set b.',
     principleTitle: 'Technical principle',
     conceptNote: 'How to read this page: pick a lesson, then move the controls. Numbers are structural teaching values, not production parameters.',
     stepAll: 'Step all',
@@ -127,6 +134,7 @@ const els = {
   journeyNarration: document.querySelector('[data-journey-narration]'),
   fieldA: document.querySelector('[data-field-a]'),
   fieldB: document.querySelector('[data-field-b]'),
+  fieldPickState: document.querySelector('[data-field-pick-state]'),
   fieldPrime: document.querySelector('[data-field-prime]'),
   fieldClock: document.querySelector('[data-field-clock]'),
   fieldRuler: document.querySelector('[data-field-ruler]'),
@@ -146,8 +154,10 @@ const els = {
   constraintMatrix: document.querySelector('[data-constraint-matrix]'),
   proofTranscript: document.querySelector('[data-proof-transcript]'),
   proofOutput: document.querySelector('[data-proof-output]'),
+  proofLiveValues: document.querySelector('[data-proof-live-values]'),
   zkpCanvas: document.querySelector('[data-zkp-canvas]'),
   zkpEquation: document.querySelector('[data-zkp-equation]'),
+  zkpFocus: document.querySelector('[data-zkp-focus]'),
   zkpGates: document.querySelector('[data-zkp-gates]'),
   zkpTranscript: document.querySelector('[data-zkp-transcript]'),
 };
@@ -165,6 +175,8 @@ let state = {
   proofMemoryOps: 12,
   proofPublicInputs: 6,
   proofAggregation: 2,
+  nextFieldTarget: 'a',
+  zkpFocusId: 'layer:quotient',
 };
 
 renderAll();
@@ -201,6 +213,8 @@ document.querySelector('[data-action="reset"]').addEventListener('click', () => 
     proofMemoryOps: 12,
     proofPublicInputs: 6,
     proofAggregation: 2,
+    nextFieldTarget: 'a',
+    zkpFocusId: 'layer:quotient',
   };
   syncInputsFromState();
   renderAll();
@@ -289,6 +303,11 @@ function renderStaticPrograms() {
     const row = document.createElement('li');
     row.className = index < state.neoVmStep ? 'is-done' : index === state.neoVmStep ? 'is-active' : '';
     row.innerHTML = `<code>${index}: ${instruction.op}${instruction.value === undefined ? '' : ` ${instruction.value}`}</code><span>${instruction.doc}</span>`;
+    makeClickable(row, () => {
+      state.activeLessonId = 'neovm';
+      state.neoVmStep = index + 1;
+      renderDynamic();
+    });
     return row;
   }));
 }
@@ -354,11 +373,16 @@ function renderJourney(snapshot) {
     const group = svg('g', {
       class: `journey-node ${stage.state}`,
       transform: `translate(${stage.position.x} ${stage.position.y})`,
+      'data-journey-stage': stage.id,
     });
     group.append(
       svg('circle', { r: stage.state === 'active' ? 5.9 : 4.9 }),
       svg('text', { x: 0, y: -8.2, 'text-anchor': 'middle' }, journeyCanvasLabel(stage)),
     );
+    makeClickable(group, () => {
+      state.activeLessonId = getLessonIdForJourneyStage(stage.id);
+      renderAll();
+    });
     svgEl.append(group);
   }
 
@@ -382,12 +406,17 @@ function renderJourney(snapshot) {
       <strong>${state.language === 'zh' ? stage.zhLabel : stage.label}</strong>
       <small>${stage.payload}</small>
     `;
+    makeClickable(item, () => {
+      state.activeLessonId = getLessonIdForJourneyStage(stage.id);
+      renderAll();
+    });
     return item;
   }));
 }
 
 function renderField(snapshot) {
   const dict = copy[state.language];
+  els.fieldPickState.textContent = state.nextFieldTarget === 'a' ? dict.fieldPickA : dict.fieldPickB;
   renderFieldClock(snapshot.fieldVisual);
   els.fieldPrime.textContent = `F_${FIELD_PRIME}`;
   els.fieldRuler.replaceChildren(...snapshot.field.ruler.map((value) => {
@@ -451,6 +480,17 @@ function renderFieldClock(fieldVisual) {
   for (const point of fieldVisual.points) {
     const group = svg('g', { class: `field-point ${point.role}`, transform: `translate(${point.x} ${point.y})` });
     group.append(svg('circle', { r: point.role === 'field' ? 2 : 3.5 }), svg('text', { y: 0.9, 'text-anchor': 'middle' }, String(point.value)));
+    makeClickable(group, () => {
+      if (state.nextFieldTarget === 'a') {
+        state.fieldA = point.value;
+        state.nextFieldTarget = 'b';
+      } else {
+        state.fieldB = point.value;
+        state.nextFieldTarget = 'a';
+      }
+      syncInputsFromState();
+      renderDynamic();
+    });
     svgEl.append(group);
   }
   svgEl.append(
@@ -556,6 +596,16 @@ function renderProof(snapshot) {
   const estimate = snapshot.proofEstimate;
   renderConstraintMatrix(snapshot.constraintMatrix);
   renderProofTranscript(snapshot.proofTranscript);
+  els.proofLiveValues.replaceChildren(...[
+    [dict.cycles, state.proofCycles],
+    [dict.memoryOps, state.proofMemoryOps],
+    [dict.publicInputs, state.proofPublicInputs],
+    [dict.aggregation, state.proofAggregation],
+  ].map(([label, value]) => {
+    const item = document.createElement('span');
+    item.textContent = `${label}: ${value}`;
+    return item;
+  }));
   renderDefinitionList(els.proofOutput, [
     [dict.traceRows, String(estimate.traceRows)],
     [dict.constraints, String(estimate.constraints)],
@@ -600,11 +650,17 @@ function renderZkpMath(zkp) {
     const group = svg('g', {
       class: `zkp-layer-node ${layer.state}`,
       transform: `translate(${layer.x} ${layer.y})`,
+      'data-zkp-focus-target': `layer:${layer.id}`,
     });
     group.append(
       svg('circle', { r: layer.state === 'active' ? 4.9 : 4.1 }),
       svg('text', { x: 0, y: -7.2, 'text-anchor': 'middle' }, isZh ? layer.zhLabel : layer.label),
     );
+    makeClickable(group, () => {
+      state.zkpFocusId = `layer:${layer.id}`;
+      state.activeLessonId = layer.id === 'constraints' ? 'arithmetization' : 'zk-proofs';
+      renderDynamic();
+    });
     svgEl.append(group);
   }
 
@@ -657,21 +713,32 @@ function renderZkpMath(zkp) {
     ['C(ζ)', String(zkp.quotient.cAtZeta)],
     ['verifier', `${zkp.verifierCheck.left} == ${zkp.verifierCheck.right} (${zkp.verifierCheck.pass ? 'pass' : 'fail'})`],
   ]);
+  els.zkpFocus.innerHTML = `
+    <strong>${isZh ? zkp.focus.zhLabel : zkp.focus.label}</strong>
+    ${zkp.focus.equation ? `<code>${zkp.focus.equation}</code>` : ''}
+    <small>${isZh ? zkp.focus.zhDetail : zkp.focus.detail}</small>
+    <em>${copy[state.language].clickToExplore}</em>
+  `;
 
   els.zkpGates.replaceChildren(...zkp.gates.map((gate) => {
     const item = document.createElement('section');
-    item.className = `zkp-gate ${gate.residual === 0 ? 'valid' : 'invalid'}`;
+    item.className = `zkp-gate ${gate.residual === 0 ? 'valid' : 'invalid'} ${gate.state}`;
     item.innerHTML = `
       <strong>${isZh ? gate.zhLabel : gate.label}</strong>
       <code>${gate.equation}</code>
       <small>${isZh ? gate.zhRole : gate.role}; residual = ${gate.residual}</small>
     `;
+    makeClickable(item, () => {
+      state.zkpFocusId = `gate:${gate.id}`;
+      state.activeLessonId = gate.id === 'public-input' ? 'n4-security' : 'arithmetization';
+      renderDynamic();
+    });
     return item;
   }));
 
   els.zkpTranscript.replaceChildren(...zkp.transcript.map((step, index) => {
     const item = document.createElement('section');
-    item.className = 'zkp-transcript-step';
+    item.className = `zkp-transcript-step ${step.state}`;
     item.innerHTML = `
       <span>${String(index + 1).padStart(2, '0')}</span>
       <div>
@@ -680,6 +747,11 @@ function renderZkpMath(zkp) {
         <small>${step.detail}</small>
       </div>
     `;
+    makeClickable(item, () => {
+      state.zkpFocusId = `transcript:${step.id}`;
+      state.activeLessonId = 'zk-proofs';
+      renderDynamic();
+    });
     return item;
   }), createSoundnessNote(isZh ? zkp.soundness.zhStatement : zkp.soundness.statement));
 }
@@ -759,6 +831,19 @@ function createSoundnessNote(text) {
   note.className = 'zkp-soundness-note';
   note.textContent = text;
   return note;
+}
+
+function makeClickable(el, handler) {
+  el.setAttribute('role', 'button');
+  el.setAttribute('tabindex', '0');
+  el.addEventListener('click', handler);
+  el.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      handler(event);
+    }
+  });
+  return el;
 }
 
 function formatArray(values) {

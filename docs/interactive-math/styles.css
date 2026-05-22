@@ -464,6 +464,16 @@ button {
   stroke-width: 0.7;
 }
 
+.journey-node {
+  cursor: pointer;
+}
+
+.journey-node:hover circle,
+.journey-node:focus-visible circle {
+  stroke: var(--cyan);
+  filter: drop-shadow(0 0 7px rgba(78, 221, 211, 0.62));
+}
+
 .journey-node.done circle {
   stroke: var(--green);
 }
@@ -512,6 +522,13 @@ button {
   border: 1px solid var(--line);
   border-radius: 7px;
   background: rgba(255, 255, 255, 0.035);
+  cursor: pointer;
+}
+
+.journey-note:hover,
+.journey-note:focus-visible {
+  border-color: rgba(78, 221, 211, 0.58);
+  background: rgba(78, 221, 211, 0.06);
 }
 
 .journey-note.active {
@@ -600,6 +617,25 @@ dd {
   margin-bottom: 12px;
 }
 
+.interaction-hint,
+.proof-live-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -2px 0 10px;
+  color: var(--cyan);
+  font-size: 12px;
+}
+
+.proof-live-values span {
+  padding: 5px 8px;
+  border: 1px solid rgba(78, 221, 211, 0.26);
+  border-radius: 999px;
+  background: rgba(78, 221, 211, 0.07);
+  color: #bdf3ef;
+  font-weight: 700;
+}
+
 .proof-controls {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -664,6 +700,17 @@ input[type="range"] {
   fill: rgba(20, 34, 41, 0.96);
   stroke: rgba(156, 173, 180, 0.45);
   stroke-width: 0.45;
+}
+
+.field-point {
+  cursor: pointer;
+}
+
+.field-point:hover circle,
+.field-point:focus-visible circle {
+  stroke: var(--cyan);
+  stroke-width: 0.8;
+  filter: drop-shadow(0 0 6px rgba(78, 221, 211, 0.62));
 }
 
 .field-point.a circle,
@@ -846,6 +893,14 @@ input[type="range"] {
   background: rgba(255, 255, 255, 0.035);
   color: var(--muted);
   font-size: 12px;
+  cursor: pointer;
+}
+
+.program-list li:hover,
+.program-list li:focus-visible {
+  border-color: rgba(78, 221, 211, 0.55);
+  background: rgba(78, 221, 211, 0.06);
+  color: var(--ink);
 }
 
 .program-list li.is-active {
@@ -1129,6 +1184,17 @@ input[type="range"] {
   stroke-width: 0.7;
 }
 
+.zkp-layer-node {
+  cursor: pointer;
+}
+
+.zkp-layer-node:hover circle,
+.zkp-layer-node:focus-visible circle,
+.zkp-layer-node.selected circle {
+  stroke: var(--cyan);
+  filter: drop-shadow(0 0 8px rgba(78, 221, 211, 0.58));
+}
+
 .zkp-layer-node.done circle {
   stroke: var(--green);
 }
@@ -1136,6 +1202,11 @@ input[type="range"] {
 .zkp-layer-node.active circle {
   stroke: var(--amber);
   filter: drop-shadow(0 0 8px rgba(240, 173, 53, 0.55));
+}
+
+.zkp-layer-node.selected circle {
+  stroke: var(--cyan);
+  filter: drop-shadow(0 0 8px rgba(78, 221, 211, 0.62));
 }
 
 .zkp-layer-node text,
@@ -1223,6 +1294,47 @@ input[type="range"] {
   font-weight: 760;
 }
 
+.zkp-focus-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(78, 221, 211, 0.34);
+  border-radius: 7px;
+  background: rgba(78, 221, 211, 0.065);
+}
+
+.zkp-focus-card strong,
+.zkp-focus-card code,
+.zkp-focus-card small,
+.zkp-focus-card em {
+  display: block;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.zkp-focus-card strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.zkp-focus-card code {
+  color: var(--cyan);
+  white-space: normal;
+  font-size: 12px;
+}
+
+.zkp-focus-card small {
+  color: var(--muted);
+  line-height: 1.4;
+  font-size: 12px;
+}
+
+.zkp-focus-card em {
+  color: var(--amber);
+  font-size: 11px;
+  font-style: normal;
+}
+
 .zkp-gates {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1238,6 +1350,14 @@ input[type="range"] {
   border: 1px solid var(--line);
   border-radius: 7px;
   background: rgba(255, 255, 255, 0.035);
+  cursor: pointer;
+}
+
+.zkp-gate:hover,
+.zkp-gate:focus-visible,
+.zkp-gate.selected {
+  border-color: rgba(78, 221, 211, 0.58);
+  background: rgba(78, 221, 211, 0.075);
 }
 
 .zkp-gate.valid {
@@ -1279,6 +1399,14 @@ input[type="range"] {
   border: 1px solid rgba(77, 141, 255, 0.28);
   border-radius: 7px;
   background: rgba(77, 141, 255, 0.07);
+  cursor: pointer;
+}
+
+.zkp-transcript-step:hover,
+.zkp-transcript-step:focus-visible,
+.zkp-transcript-step.selected {
+  border-color: rgba(78, 221, 211, 0.55);
+  background: rgba(78, 221, 211, 0.075);
 }
 
 .zkp-transcript-step span {

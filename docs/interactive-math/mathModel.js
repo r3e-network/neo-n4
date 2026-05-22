@@ -232,6 +232,20 @@ const lessonToJourneyStage = {
   'n4-security': 'settlement',
 };
 
+const journeyStageToLesson = {
+  neovm: 'neovm',
+  riscv: 'riscv',
+  trace: 'arithmetization',
+  constraints: 'arithmetization',
+  commitment: 'commitments',
+  proof: 'zk-proofs',
+  settlement: 'aggregation',
+};
+
+export function getLessonIdForJourneyStage(stageId) {
+  return journeyStageToLesson[stageId] ?? 'stack-map';
+}
+
 export const sampleNeoVmProgram = [
   { op: 'PUSH', value: 2, doc: 'Push first operand.' },
   { op: 'PUSH', value: 3, doc: 'Push second operand.' },
@@ -749,7 +763,7 @@ export function buildProofTranscript({ proofEstimate = estimateProofPipeline(), 
   };
 }
 
-export function buildZkpMathVisualization({ proofEstimate = estimateProofPipeline(), publicInputRoot = '0', prime = FIELD_PRIME } = {}) {
+export function buildZkpMathVisualization({ proofEstimate = estimateProofPipeline(), publicInputRoot = '0', prime = FIELD_PRIME, focusId = 'layer:quotient' } = {}) {
   const domainSize = 8;
   const domainGenerator = 2;
   const domain = Array.from({ length: domainSize }, (_, index) => {
@@ -790,6 +804,92 @@ export function buildZkpMathVisualization({ proofEstimate = estimateProofPipelin
   const zAtZeta = vanishingPolynomial(challenge.zeta, domainSize, prime);
   const cAtZeta = evaluatePolynomial(constraintCoefficients, challenge.zeta, prime);
   const right = fieldMul(qAtZeta, zAtZeta, prime);
+  const gates = [
+    {
+      id: 'boundary',
+      label: 'Boundary',
+      zhLabel: '边界约束',
+      equation: 'w_0 - public_start = 0',
+      residual: fieldSub(witnessValues[0].value, seed, prime),
+      role: 'pins the initial state',
+      zhRole: '绑定初始状态',
+      detail: 'Boundary gates keep the first and last trace rows tied to public state commitments.',
+      zhDetail: '边界约束把 trace 的第一行和最后一行绑定到公开状态承诺。',
+    },
+    {
+      id: 'transition',
+      label: 'Transition',
+      zhLabel: '转移约束',
+      equation: 'w_{i+1} - w_i - step = 0',
+      residual: fieldSub(fieldSub(witnessValues[1].value, witnessValues[0].value, prime), step, prime),
+      role: 'checks every VM cycle',
+      zhRole: '检查每个 VM 周期',
+      detail: 'Transition gates prove that every VM cycle follows the allowed next-state rule.',
+      zhDetail: '转移约束证明每个 VM 周期都遵守允许的下一状态规则。',
+    },
+    {
+      id: 'boolean',
+      label: 'Boolean',
+      zhLabel: '布尔约束',
+      equation: 'b * (b - 1) = 0',
+      residual: 0,
+      role: 'forces selector bits to be 0 or 1',
+      zhRole: '确保 selector 只能是 0 或 1',
+      detail: 'Boolean gates prevent selectors and flags from taking invalid field values.',
+      zhDetail: '布尔约束防止 selector 和 flag 取到非法的有限域数值。',
+    },
+    {
+      id: 'public-input',
+      label: 'Public input',
+      zhLabel: '公开输入',
+      equation: 'root == committed_root',
+      residual: 0,
+      role: 'binds proof to the L1 state root',
+      zhRole: '把证明绑定到 L1 状态根',
+      detail: 'Public-input gates make the proof inseparable from the L1-visible state root.',
+      zhDetail: '公开输入约束让证明无法脱离 L1 可见的状态根。',
+    },
+  ];
+  const transcript = [
+    {
+      id: 'commit',
+      actor: 'Prover',
+      action: 'commit witness trace',
+      detail: `${proofEstimate.traceRows} rows compressed into trace commitments`,
+    },
+    {
+      id: 'alpha',
+      actor: 'Verifier',
+      action: `sample alpha challenge ${challenge.alpha}`,
+      detail: 'combine many constraints into one random linear combination',
+    },
+    {
+      id: 'quotient',
+      actor: 'Prover',
+      action: 'divide by vanishing polynomial',
+      detail: 'produce quotient Q(x) only if C(x) vanishes on the trace domain',
+    },
+    {
+      id: 'zeta',
+      actor: 'Verifier',
+      action: `sample zeta challenge ${challenge.zeta}`,
+      detail: 'check one outside-domain opening instead of replaying every row',
+    },
+    {
+      id: 'opening',
+      actor: 'Verifier',
+      action: 'verify quotient opening',
+      detail: `${cAtZeta} == ${qAtZeta} * ${zAtZeta} mod ${prime}`,
+    },
+  ];
+  const layers = [
+    { id: 'witness', label: 'Witness trace', zhLabel: 'Witness 轨迹', x: 8, y: 20, state: 'done', detail: 'The private witness is the full execution trace that should not be replayed on L1.', zhDetail: '私有 witness 是完整执行轨迹，L1 不应该重放它。' },
+    { id: 'constraints', label: 'Gate constraints', zhLabel: '门约束', x: 28, y: 54, state: 'done', detail: 'Gate equations translate valid VM execution into finite-field equalities.', zhDetail: '门约束把有效 VM 执行翻译成有限域等式。' },
+    { id: 'quotient', label: 'Quotient Q(x)', zhLabel: '商多项式 Q(x)', x: 50, y: 24, state: 'active', detail: 'A clean quotient means the combined constraint vanishes over the whole evaluation domain.', zhDetail: '能干净得到商多项式，说明组合约束在整个评价域上归零。' },
+    { id: 'challenge', label: 'Random zeta', zhLabel: '随机 zeta', x: 72, y: 56, state: 'active', detail: 'Fiat-Shamir turns commitments into random verifier challenges without interaction.', zhDetail: 'Fiat-Shamir 把承诺变成无需交互的随机验证挑战。' },
+    { id: 'verify', label: 'Verifier equality', zhLabel: '验证器等式', x: 92, y: 26, state: 'pending', detail: 'The verifier checks one outside-domain equation instead of every trace row.', zhDetail: '验证器检查一个评价域外等式，而不是检查每一行 trace。' },
+  ];
+  const focus = resolveZkpFocus(focusId, { gates, transcript, layers });
   return {
     prime,
     domainSize,
@@ -806,44 +906,7 @@ export function buildZkpMathVisualization({ proofEstimate = estimateProofPipelin
       values: witnessValues,
       equation: `w_i = ${seed} + ${step}*i mod ${prime}`,
     },
-    gates: [
-      {
-        id: 'boundary',
-        label: 'Boundary',
-        zhLabel: '边界约束',
-        equation: 'w_0 - public_start = 0',
-        residual: fieldSub(witnessValues[0].value, seed, prime),
-        role: 'pins the initial state',
-        zhRole: '绑定初始状态',
-      },
-      {
-        id: 'transition',
-        label: 'Transition',
-        zhLabel: '转移约束',
-        equation: 'w_{i+1} - w_i - step = 0',
-        residual: fieldSub(fieldSub(witnessValues[1].value, witnessValues[0].value, prime), step, prime),
-        role: 'checks every VM cycle',
-        zhRole: '检查每个 VM 周期',
-      },
-      {
-        id: 'boolean',
-        label: 'Boolean',
-        zhLabel: '布尔约束',
-        equation: 'b * (b - 1) = 0',
-        residual: 0,
-        role: 'forces selector bits to be 0 or 1',
-        zhRole: '确保 selector 只能是 0 或 1',
-      },
-      {
-        id: 'public-input',
-        label: 'Public input',
-        zhLabel: '公开输入',
-        equation: 'root == committed_root',
-        residual: 0,
-        role: 'binds proof to the L1 state root',
-        zhRole: '把证明绑定到 L1 状态根',
-      },
-    ],
+    gates: gates.map((gate) => ({ ...gate, state: focus.id === `gate:${gate.id}` ? 'selected' : 'idle' })),
     quotient: {
       coefficients: quotientCoefficients,
       constraintCoefficients,
@@ -864,40 +927,9 @@ export function buildZkpMathVisualization({ proofEstimate = estimateProofPipelin
       right,
       pass: cAtZeta === right,
     },
-    transcript: [
-      {
-        actor: 'Prover',
-        action: 'commit witness trace',
-        detail: `${proofEstimate.traceRows} rows compressed into trace commitments`,
-      },
-      {
-        actor: 'Verifier',
-        action: `sample alpha challenge ${challenge.alpha}`,
-        detail: 'combine many constraints into one random linear combination',
-      },
-      {
-        actor: 'Prover',
-        action: 'divide by vanishing polynomial',
-        detail: 'produce quotient Q(x) only if C(x) vanishes on the trace domain',
-      },
-      {
-        actor: 'Verifier',
-        action: `sample zeta challenge ${challenge.zeta}`,
-        detail: 'check one outside-domain opening instead of replaying every row',
-      },
-      {
-        actor: 'Verifier',
-        action: 'verify quotient opening',
-        detail: `${cAtZeta} == ${qAtZeta} * ${zAtZeta} mod ${prime}`,
-      },
-    ],
-    layers: [
-      { id: 'witness', label: 'Witness trace', zhLabel: 'Witness 轨迹', x: 8, y: 20, state: 'done' },
-      { id: 'constraints', label: 'Gate constraints', zhLabel: '门约束', x: 28, y: 54, state: 'done' },
-      { id: 'quotient', label: 'Quotient Q(x)', zhLabel: '商多项式 Q(x)', x: 50, y: 24, state: 'active' },
-      { id: 'challenge', label: 'Random zeta', zhLabel: '随机 zeta', x: 72, y: 56, state: 'active' },
-      { id: 'verify', label: 'Verifier equality', zhLabel: '验证器等式', x: 92, y: 26, state: 'pending' },
-    ],
+    transcript: transcript.map((step) => ({ ...step, state: focus.id === `transcript:${step.id}` ? 'selected' : 'idle' })),
+    layers: layers.map((layer) => ({ ...layer, state: focus.id === `layer:${layer.id}` ? 'selected' : layer.state })),
+    focus,
     soundness: {
       statement: 'If a cheating trace makes C(x) non-zero on the domain, C(x) will not divide cleanly by Z_H(x); a random zeta catches that with high probability.',
       zhStatement: '如果错误轨迹让 C(x) 在评价域上不为 0，C(x) 就不能被 Z_H(x) 干净整除；随机 zeta 会以高概率抓住它。',
@@ -917,6 +949,7 @@ export function makeLearningSnapshot({
   proofMemoryOps = 12,
   proofPublicInputs = 6,
   proofAggregation = 2,
+  zkpFocusId = 'layer:quotient',
 } = {}) {
   const tree = buildMerkleTree(merkleLeaves);
   const proof = merkleProof(tree, merkleIndex);
@@ -945,7 +978,7 @@ export function makeLearningSnapshot({
     journey: buildJourneyVisualization({ activeLessonId, neoVmStep, riscvStep }),
     constraintMatrix: buildTraceConstraintMatrix({ neovmTrace: neovm.trace, riscvTrace: riscv.trace, proofEstimate }),
     proofTranscript: buildProofTranscript({ proofEstimate, publicInputRoot: String(tree.root), aggregateCount: proofAggregation }),
-    zkpMath: buildZkpMathVisualization({ proofEstimate, publicInputRoot: String(tree.root) }),
+    zkpMath: buildZkpMathVisualization({ proofEstimate, publicInputRoot: String(tree.root), focusId: zkpFocusId }),
   };
 }
 
@@ -965,6 +998,44 @@ function buildChallenge({ domain, publicInputRoot, proofEstimate, prime }) {
     gamma: mod(toyHash([publicInputRoot, proofEstimate.commitmentCount, 59], prime), prime),
     zeta,
     inDomain: domainSet.has(zeta),
+  };
+}
+
+function resolveZkpFocus(focusId, { gates, transcript, layers }) {
+  const [kind, id] = String(focusId || 'layer:quotient').split(':');
+  if (kind === 'gate') {
+    const gate = gates.find((item) => item.id === id) ?? gates[0];
+    return {
+      id: `gate:${gate.id}`,
+      kind: 'gate',
+      label: gate.label,
+      zhLabel: gate.zhLabel,
+      detail: gate.detail,
+      zhDetail: gate.zhDetail,
+      equation: gate.equation,
+    };
+  }
+  if (kind === 'transcript') {
+    const step = transcript.find((item) => item.id === id) ?? transcript[0];
+    return {
+      id: `transcript:${step.id}`,
+      kind: 'transcript',
+      label: `${step.actor}: ${step.action}`,
+      zhLabel: `${step.actor}: ${step.action}`,
+      detail: step.detail,
+      zhDetail: step.detail,
+      equation: '',
+    };
+  }
+  const layer = layers.find((item) => item.id === id) ?? layers.find((item) => item.id === 'quotient') ?? layers[0];
+  return {
+    id: `layer:${layer.id}`,
+    kind: 'layer',
+    label: layer.label,
+    zhLabel: layer.zhLabel,
+    detail: layer.detail,
+    zhDetail: layer.zhDetail,
+    equation: '',
   };
 }
 

@@ -15,6 +15,7 @@ import {
   evaluatePolynomial,
   fieldInverse,
   fieldMul,
+  getLessonIdForJourneyStage,
   lessonOrder,
   listLessons,
   makeLearningSnapshot,
@@ -32,6 +33,18 @@ test('lesson map covers the full NeoVM to zkVM to RISC-V learning path', () => {
   assert.ok(lessonOrder.includes('neovm'));
   assert.ok(lessonOrder.includes('riscv'));
   assert.ok(lessonOrder.includes('zk-proofs'));
+});
+
+test('visual models expose focus targets for clickable learning diagrams', () => {
+  assert.equal(getLessonIdForJourneyStage('proof'), 'zk-proofs');
+  assert.equal(getLessonIdForJourneyStage('settlement'), 'aggregation');
+
+  const visual = buildZkpMathVisualization({ publicInputRoot: '52', focusId: 'gate:transition' });
+
+  assert.equal(visual.focus.id, 'gate:transition');
+  assert.equal(visual.focus.kind, 'gate');
+  assert.equal(visual.gates.find((gate) => gate.id === 'transition').state, 'selected');
+  assert.ok(visual.focus.detail.includes('VM cycle'));
 });
 
 test('finite-field snapshot keeps arithmetic closed and exposes inverse checks', () => {

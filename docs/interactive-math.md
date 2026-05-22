@@ -34,6 +34,10 @@ shown as gates that must vanish on that domain, the vanishing polynomial
 `C(zeta) = Q(zeta) * Z_H(zeta)` shows how a verifier can use a random
 Fiat-Shamir challenge instead of replaying the full trace.
 
+Most visual elements are interactive: click or keyboard-focus journey nodes,
+finite-field points, NeoVM instructions, ZKP gates, and transcript steps to move
+the lesson state and explanation focus.
+
 The page is intentionally static: no build step, no external network dependency,
 and no wallet connection. The mathematical model lives in
 `docs/interactive-math/mathModel.js` and is covered by

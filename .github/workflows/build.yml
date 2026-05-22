@@ -20,7 +20,7 @@ jobs:
   test:
     name: dotnet test
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
 
     steps:
       - name: Checkout (with submodules)
@@ -286,7 +286,7 @@ jobs:
   sp1-host:
     name: cargo build + test (neo-zkvm-host, real SP1 zkVM)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 15
 
     steps:
       - name: Checkout (with submodules)
@@ -355,7 +355,7 @@ jobs:
   rust-audit:
     name: cargo audit
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
 
     steps:
       - name: Checkout (with submodules)

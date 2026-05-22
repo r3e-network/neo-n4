@@ -1,0 +1,14 @@
+flowchart LR
+    N1["Responsibility boundary: SP1 guest program that runs deterministic Neo L2 batch execution inside the proof circuit."]
+    N2["Core principles: Run verifiable transition | Emit public values | Reject nondeterminism"]
+    N3["Input contract: public batch input | private witness | shared execution core"]
+    N4["State and artifacts: SP1 public output | state root | execution digest"]
+    N5["Integration contract: neo-zkvm-host | NativeZkVerifier adapter | audit tooling"]
+    N6["Maintenance rule: Keep the boundary small, deterministic, and reproducible under tests."]
+    N1 --> N2
+    N2 --> N3
+    N3 --> N4
+    N4 --> N5
+    N5 --> N6
+    classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
+    class N3 crate

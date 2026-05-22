@@ -1,5 +1,12 @@
 {
   "generated_crates": 29,
+  "diagrams_per_crate": [
+    "position",
+    "principles",
+    "architecture",
+    "workflow",
+    "dataflow"
+  ],
   "english_index": "docs/crate-visual-guide.md",
   "chinese_index": "docs/zh/crate-visual-guide.md"
 }

@@ -1,6 +1,6 @@
 # Neo N4 Crate Visual Guide
 
-This index links every Rust crate to its local visual architecture guide.
+This index links every Rust crate to its own local visual learning guide. Each crate directory contains position, technical principles, architecture, workflow, and dataflow diagrams in English and Chinese.
 
 | Crate | Path | Layer | Purpose |
 | --- | --- | --- | --- |

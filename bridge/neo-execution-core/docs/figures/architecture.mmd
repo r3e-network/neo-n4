@@ -1,14 +1,14 @@
 flowchart LR
-    N1["Project layer: N4 batch execution core"]
-    N2["Inputs: L2 batch | previous state root | execution parameters"]
-    N3["neo-execution-core: Backend-neutral L2 batch transition primitives shared by fast execution and proof generation."]
-    N4["Responsibilities: Validate batch shape | Apply deterministic transition | Commit new state root"]
-    N5["Outputs: execution trace | new state root | public proof inputs"]
-    N6["Consumers: neo-zkvm-guest | neo-zkvm-host | gateway services"]
+    N1["Public entrypoints: L2 batch | previous state root | execution parameters"]
+    N2["neo-execution-core: Backend-neutral L2 batch transition primitives shared by fast execution and proof generation."]
+    N3["Internal components: Validate batch shape | Apply deterministic transition | Commit new state root"]
+    N4["Dependency boundary: sha2"]
+    N5["Output artifacts: execution trace | new state root | public proof inputs"]
+    N6["System position: N4 batch execution core -> neo-zkvm-guest | neo-zkvm-host | gateway services"]
     N1 --> N2
     N2 --> N3
     N3 --> N4
     N4 --> N5
     N5 --> N6
     classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
-    class N3 crate
+    class N2 crate

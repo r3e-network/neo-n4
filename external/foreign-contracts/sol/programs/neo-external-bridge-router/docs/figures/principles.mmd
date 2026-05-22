@@ -1,0 +1,14 @@
+flowchart LR
+    N1["Responsibility boundary: Solana-side bridge router that represents Neo N4 cross-chain lock, mint, burn, and unlock flows."]
+    N2["Core principles: Validate route | Move escrowed assets | Emit bridge event"]
+    N3["Input contract: Solana instruction | token account state | bridge authority"]
+    N4["State and artifacts: bridge event | escrow mutation | relay evidence"]
+    N5["Integration contract: watcher-sol | gateway | shared bridge"]
+    N6["Maintenance rule: Keep the boundary small, deterministic, and reproducible under tests."]
+    N1 --> N2
+    N2 --> N3
+    N3 --> N4
+    N4 --> N5
+    N5 --> N6
+    classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
+    class N3 crate

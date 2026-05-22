@@ -1,14 +1,14 @@
 flowchart LR
-    N1["Project layer: Foreign-chain bridge program"]
-    N2["Inputs: Solana instruction | token account state | bridge authority"]
-    N3["neo-external-bridge-router: Solana-side bridge router that represents Neo N4 cross-chain lock, mint, burn, and unlock flows."]
-    N4["Responsibilities: Validate route | Move escrowed assets | Emit bridge event"]
-    N5["Outputs: bridge event | escrow mutation | relay evidence"]
-    N6["Consumers: watcher-sol | gateway | shared bridge"]
+    N1["Public entrypoints: Solana instruction | token account state | bridge authority"]
+    N2["neo-external-bridge-router: Solana-side bridge router that represents Neo N4 cross-chain lock, mint, burn, and unlock flows."]
+    N3["Internal components: Validate route | Move escrowed assets | Emit bridge event"]
+    N4["Dependency boundary: anchor-lang | solana-instructions-sysvar | solana-sdk-ids"]
+    N5["Output artifacts: bridge event | escrow mutation | relay evidence"]
+    N6["System position: Foreign-chain bridge program -> watcher-sol | gateway | shared bridge"]
     N1 --> N2
     N2 --> N3
     N3 --> N4
     N4 --> N5
     N5 --> N6
     classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
-    class N3 crate
+    class N2 crate

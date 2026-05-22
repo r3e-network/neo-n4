@@ -1,0 +1,14 @@
+flowchart LR
+    N1["Neo N4 layer: N4 zk guest"]
+    N2["Upstream inputs: public batch input | private witness | shared execution core"]
+    N3["neo-zkvm-guest: SP1 guest program that runs deterministic Neo L2 batch execution inside the proof circuit."]
+    N4["Direct dependencies: neo-execution-core | neo-vm-guest | sp1-zkvm"]
+    N5["Downstream users: neo-zkvm-host | NativeZkVerifier adapter | audit tooling"]
+    N6["Learning focus: Locate upstream and downstream first, then read this crate boundary, core data structures, and tests."]
+    N1 --> N2
+    N2 --> N3
+    N3 --> N4
+    N4 --> N5
+    N5 --> N6
+    classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
+    class N3 crate

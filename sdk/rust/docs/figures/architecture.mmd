@@ -1,14 +1,14 @@
 flowchart LR
-    N1["Project layer: Developer SDK"]
-    N2["Inputs: developer app | gateway endpoint | wallet/config"]
-    N3["neo-n4-sdk: Rust client SDK for building tools and services that talk to Neo N4 APIs."]
-    N4["Responsibilities: Encode API requests | Handle bridge/proof models | Return typed results"]
-    N5["Outputs: typed client result | transaction request | query response"]
-    N6["Consumers: apps | operators | integration tests"]
+    N1["Public entrypoints: developer app | gateway endpoint | wallet/config"]
+    N2["neo-n4-sdk: Rust client SDK for building tools and services that talk to Neo N4 APIs."]
+    N3["Internal components: Encode API requests | Handle bridge/proof models | Return typed results"]
+    N4["Dependency boundary: mockito | reqwest | serde | serde_json | thiserror"]
+    N5["Output artifacts: typed client result | transaction request | query response"]
+    N6["System position: Developer SDK -> apps | operators | integration tests"]
     N1 --> N2
     N2 --> N3
     N3 --> N4
     N4 --> N5
     N5 --> N6
     classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
-    class N3 crate
+    class N2 crate

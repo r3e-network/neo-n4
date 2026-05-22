@@ -3,6 +3,7 @@
 
 The generated files are intentionally simple, static assets:
 - README.md / README.zh.md visual guide sections per crate
+- per-crate position, principles, architecture, workflow, and dataflow diagrams
 - English and Chinese Mermaid source diagrams
 - English and Chinese SVG diagrams
 
@@ -554,9 +555,17 @@ def write_crate_assets(crate: CrateInfo, guide: Guide) -> None:
     figures.mkdir(parents=True, exist_ok=True)
 
     diagrams = {
+        "position": (
+            position_nodes(crate, guide, "en"),
+            position_nodes(crate, guide, "zh"),
+        ),
+        "principles": (
+            principles_nodes(crate, guide, "en"),
+            principles_nodes(crate, guide, "zh"),
+        ),
         "architecture": (
-            architecture_nodes(crate.name, guide, "en"),
-            architecture_nodes(crate.name, guide, "zh"),
+            architecture_nodes(crate, guide, "en"),
+            architecture_nodes(crate, guide, "zh"),
         ),
         "workflow": (
             workflow_nodes(crate.name, guide, "en"),
@@ -578,23 +587,66 @@ def write_crate_assets(crate: CrateInfo, guide: Guide) -> None:
     write_readme(crate, guide, "zh")
 
 
-def architecture_nodes(crate_name: str, guide: Guide, lang: str) -> list[tuple[str, str]]:
+def position_nodes(crate: CrateInfo, guide: Guide, lang: str) -> list[tuple[str, str]]:
+    deps = short_dependencies(crate, lang)
     if lang == "zh":
         return [
-            ("Project layer", guide.layer_zh),
-            ("Inputs", join_items(guide.inputs_zh)),
-            (crate_name, guide.role_zh),
-            ("Responsibilities", join_items(guide.responsibilities_zh)),
-            ("Outputs", join_items(guide.outputs_zh)),
-            ("Consumers", join_items(guide.consumers_zh)),
+            ("Neo N4 层级", guide.layer_zh),
+            ("上游输入", join_items(guide.inputs_zh)),
+            (crate.name, guide.role_zh),
+            ("直接依赖", join_items(deps)),
+            ("下游使用者", join_items(guide.consumers_zh)),
+            ("学习重点", "先定位上下游，再阅读本 crate 的边界、核心数据结构和测试。"),
         ]
     return [
-        ("Project layer", guide.layer_en),
-        ("Inputs", join_items(guide.inputs_en)),
+        ("Neo N4 layer", guide.layer_en),
+        ("Upstream inputs", join_items(guide.inputs_en)),
+        (crate.name, guide.role_en),
+        ("Direct dependencies", join_items(deps)),
+        ("Downstream users", join_items(guide.consumers_en)),
+        ("Learning focus", "Locate upstream and downstream first, then read this crate boundary, core data structures, and tests."),
+    ]
+
+
+def principles_nodes(crate: CrateInfo, guide: Guide, lang: str) -> list[tuple[str, str]]:
+    if lang == "zh":
+        return [
+            ("职责边界", guide.role_zh),
+            ("核心原则", join_items(guide.responsibilities_zh)),
+            ("输入契约", join_items(guide.inputs_zh)),
+            ("状态与产物", join_items(guide.outputs_zh)),
+            ("集成方式", join_items(guide.consumers_zh)),
+            ("维护规则", "保持边界小、语义确定、测试可复现。"),
+        ]
+    return [
+        ("Responsibility boundary", guide.role_en),
+        ("Core principles", join_items(guide.responsibilities_en)),
+        ("Input contract", join_items(guide.inputs_en)),
+        ("State and artifacts", join_items(guide.outputs_en)),
+        ("Integration contract", join_items(guide.consumers_en)),
+        ("Maintenance rule", "Keep the boundary small, deterministic, and reproducible under tests."),
+    ]
+
+
+def architecture_nodes(crate: CrateInfo, guide: Guide, lang: str) -> list[tuple[str, str]]:
+    deps = short_dependencies(crate, lang)
+    crate_name = crate.name
+    if lang == "zh":
+        return [
+            ("公开入口", join_items(guide.inputs_zh)),
+            (crate_name, guide.role_zh),
+            ("内部组件", join_items(guide.responsibilities_zh)),
+            ("依赖边界", join_items(deps)),
+            ("输出产物", join_items(guide.outputs_zh)),
+            ("系统位置", f"{guide.layer_zh} -> {join_items(guide.consumers_zh)}"),
+        ]
+    return [
+        ("Public entrypoints", join_items(guide.inputs_en)),
         (crate_name, guide.role_en),
-        ("Responsibilities", join_items(guide.responsibilities_en)),
-        ("Outputs", join_items(guide.outputs_en)),
-        ("Consumers", join_items(guide.consumers_en)),
+        ("Internal components", join_items(guide.responsibilities_en)),
+        ("Dependency boundary", join_items(deps)),
+        ("Output artifacts", join_items(guide.outputs_en)),
+        ("System position", f"{guide.layer_en} -> {join_items(guide.consumers_en)}"),
     ]
 
 
@@ -606,6 +658,13 @@ def workflow_nodes(crate_name: str, guide: Guide, lang: str) -> list[tuple[str, 
 def dataflow_nodes(crate_name: str, guide: Guide, lang: str) -> list[tuple[str, str]]:
     steps = guide.dataflow_zh if lang == "zh" else guide.dataflow_en
     return [(f"Data {idx}", step) for idx, step in enumerate(steps, start=1)]
+
+
+def short_dependencies(crate: CrateInfo, lang: str) -> tuple[str, ...]:
+    deps = tuple(dep for dep in crate.dependencies if not dep.startswith("pretty_assertions"))[:5]
+    if deps:
+        return deps
+    return ("无直接 Cargo 依赖",) if lang == "zh" else ("no direct Cargo dependencies",)
 
 
 def join_items(items: Iterable[str]) -> str:
@@ -691,15 +750,18 @@ def wrap_text(value: str, width: int) -> list[str]:
 def write_mermaid(path: Path, crate_name: str, diagram: str, nodes: list[tuple[str, str]]) -> None:
     lines = ["flowchart LR"]
     ids = []
+    focus_id = ""
     for idx, (label, body) in enumerate(nodes, start=1):
         node_id = f"N{idx}"
         ids.append(node_id)
+        if not focus_id and (label == crate_name or crate_name in body):
+            focus_id = node_id
         safe = f"{label}: {body}".replace('"', "'")
         lines.append(f'    {node_id}["{safe}"]')
     for left, right in zip(ids, ids[1:]):
         lines.append(f"    {left} --> {right}")
     lines.append(f'    classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff')
-    lines.append(f"    class N{max(1, len(ids) // 2)} crate")
+    lines.append(f"    class {focus_id or 'N' + str(max(1, (len(ids) + 1) // 2))} crate")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -723,12 +785,14 @@ def write_readme(crate: CrateInfo, guide: Guide, lang: str) -> None:
 def readme_section_en(crate: CrateInfo, guide: Guide) -> str:
     return f"""{MARKER_EN[0]}
 
-## Visual Architecture Guide
+## Crate Visual Learning Guide
 
-These diagrams explain where `{crate.name}` sits in the Neo N4 stack, how its main workflow runs, and how data moves through it.
+These diagrams are local to this crate. They explain `{crate.name}` as an independent unit: where it sits in the Neo N4 stack, which boundary it owns, how its internal workflow runs, and how data moves through it.
 
 | View | Diagram | Source |
 | --- | --- | --- |
+| Position in Neo N4 | ![Position](docs/figures/position.svg) | [Mermaid](docs/figures/position.mmd) |
+| Technical principles | ![Principles](docs/figures/principles.svg) | [Mermaid](docs/figures/principles.mmd) |
 | Architecture | ![Architecture](docs/figures/architecture.svg) | [Mermaid](docs/figures/architecture.mmd) |
 | Workflow | ![Workflow](docs/figures/workflow.svg) | [Mermaid](docs/figures/workflow.mmd) |
 | Dataflow | ![Dataflow](docs/figures/dataflow.svg) | [Mermaid](docs/figures/dataflow.mmd) |
@@ -741,12 +805,19 @@ These diagrams explain where `{crate.name}` sits in the Neo N4 stack, how its ma
 - **Primary outputs:** {', '.join(guide.outputs_en)}
 - **Downstream consumers:** {', '.join(guide.consumers_en)}
 
+### Boundary and Responsibilities
+
+- **Owns:** {', '.join(guide.responsibilities_en)}
+- **Consumes:** {', '.join(guide.inputs_en)}
+- **Produces:** {', '.join(guide.outputs_en)}
+- **Used by:** {', '.join(guide.consumers_en)}
+
 ### Learning Path
 
-1. Start with the architecture diagram to understand the crate boundary.
-2. Follow the workflow diagram to see the normal execution path.
-3. Use the dataflow diagram to connect inputs, state changes, and outputs.
-4. Read the crate source after the diagrams so module-level details have context.
+1. Start with the position diagram to understand why this crate exists and who calls it.
+2. Read the technical principles diagram to identify the invariants and responsibility boundary.
+3. Use the architecture diagram to connect public inputs, internal components, dependencies, and outputs.
+4. Follow the workflow and dataflow diagrams before reading source files or tests.
 
 {MARKER_EN[1]}
 """
@@ -755,12 +826,14 @@ These diagrams explain where `{crate.name}` sits in the Neo N4 stack, how its ma
 def readme_section_zh(crate: CrateInfo, guide: Guide) -> str:
     return f"""{MARKER_ZH[0]}
 
-## 可视化架构学习指南
+## 可视化学习指南
 
-这些图用于说明 `{crate.name}` 在 Neo N4 栈中的位置、主要工作流，以及数据如何流经该 crate。
+这些图是 `{crate.name}` 自己目录下的 crate 专属学习资料，用来说明它在 Neo N4 中的位置、自己负责的技术边界、内部工作流，以及数据如何流经它。
 
 | 视图 | 图片 | 源文件 |
 | --- | --- | --- |
+| 在 Neo N4 中的位置 | ![位置](docs/figures/position.zh.svg) | [Mermaid](docs/figures/position.zh.mmd) |
+| 技术原理 | ![技术原理](docs/figures/principles.zh.svg) | [Mermaid](docs/figures/principles.zh.mmd) |
 | 架构 | ![架构](docs/figures/architecture.zh.svg) | [Mermaid](docs/figures/architecture.zh.mmd) |
 | 工作流 | ![工作流](docs/figures/workflow.zh.svg) | [Mermaid](docs/figures/workflow.zh.mmd) |
 | 数据流 | ![数据流](docs/figures/dataflow.zh.svg) | [Mermaid](docs/figures/dataflow.zh.mmd) |
@@ -771,14 +844,21 @@ def readme_section_zh(crate: CrateInfo, guide: Guide) -> str:
 - **目的:** {guide.role_zh}
 - **主要输入:** {'、'.join(guide.inputs_zh)}
 - **主要输出:** {'、'.join(guide.outputs_zh)}
-- **下游消费者:** {'、'.join(guide.consumers_zh)}
+- **下游使用者:** {'、'.join(guide.consumers_zh)}
+
+### 边界与职责
+
+- **本 crate 负责:** {'、'.join(guide.responsibilities_zh)}
+- **本 crate 消费:** {'、'.join(guide.inputs_zh)}
+- **本 crate 产出:** {'、'.join(guide.outputs_zh)}
+- **主要被谁使用:** {'、'.join(guide.consumers_zh)}
 
 ### 学习路径
 
-1. 先看架构图，理解 crate 的边界和所在层级。
-2. 再看工作流图，理解正常执行路径。
-3. 最后看数据流图，把输入、状态变化和输出串起来。
-4. 带着图中的上下文阅读源码，会更容易理解模块职责。
+1. 先看位置图，明确这个 crate 为什么存在、上游是谁、下游是谁。
+2. 再看技术原理图，理解它的核心不变量、职责边界和维护规则。
+3. 然后看架构图，把公开入口、内部组件、依赖边界和输出产物串起来。
+4. 最后看工作流和数据流，再进入源码和测试文件会更容易理解。
 
 {MARKER_ZH[1]}
 """
@@ -799,7 +879,8 @@ def write_index(rows_en: list[str], rows_zh: list[str]) -> None:
     zh_docs.mkdir(parents=True, exist_ok=True)
     (docs / "crate-visual-guide.md").write_text(
         "# Neo N4 Crate Visual Guide\n\n"
-        "This index links every Rust crate to its local visual architecture guide.\n\n"
+        "This index links every Rust crate to its own local visual learning guide. "
+        "Each crate directory contains position, technical principles, architecture, workflow, and dataflow diagrams in English and Chinese.\n\n"
         "| Crate | Path | Layer | Purpose |\n"
         "| --- | --- | --- | --- |\n"
         + "\n".join(rows_en)
@@ -808,7 +889,8 @@ def write_index(rows_en: list[str], rows_zh: list[str]) -> None:
     )
     (zh_docs / "crate-visual-guide.md").write_text(
         "# Neo N4 Crate 可视化指南\n\n"
-        "这个索引把每个 Rust crate 链接到其本地可视化架构学习文档。\n\n"
+        "这个索引把每个 Rust crate 链接到它自己目录下的本地可视化学习文档。"
+        "每个 crate 目录都包含位置、技术原理、架构、工作流、数据流五类中英文图。\n\n"
         "| Crate | 路径 | 层级 | 目的 |\n"
         "| --- | --- | --- | --- |\n"
         + "\n".join(rows_zh)
@@ -818,6 +900,7 @@ def write_index(rows_en: list[str], rows_zh: list[str]) -> None:
 
     manifest = {
         "generated_crates": len(rows_en),
+        "diagrams_per_crate": ["position", "principles", "architecture", "workflow", "dataflow"],
         "english_index": "docs/crate-visual-guide.md",
         "chinese_index": "docs/zh/crate-visual-guide.md",
     }

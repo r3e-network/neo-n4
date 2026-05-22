@@ -1,14 +1,14 @@
 flowchart LR
-    N1["Project layer: N4 zk host"]
-    N2["Inputs: L2 batch | guest ELF | prover configuration"]
-    N3["neo-zkvm-host: Host-side SP1 prover orchestration for creating and checking L2 batch proofs."]
-    N4["Responsibilities: Prepare SP1 stdin | Run prover | Verify proof envelope"]
-    N5["Outputs: proof bytes | verification report | state commitment"]
-    N6["Consumers: bridge relayer | L1 verifier adapter | devnet scripts"]
+    N1["Public entrypoints: L2 batch | guest ELF | prover configuration"]
+    N2["neo-zkvm-host: Host-side SP1 prover orchestration for creating and checking L2 batch proofs."]
+    N3["Internal components: Prepare SP1 stdin | Run prover | Verify proof envelope"]
+    N4["Dependency boundary: neo-zkvm-guest | serial_test"]
+    N5["Output artifacts: proof bytes | verification report | state commitment"]
+    N6["System position: N4 zk host -> bridge relayer | L1 verifier adapter | devnet scripts"]
     N1 --> N2
     N2 --> N3
     N3 --> N4
     N4 --> N5
     N5 --> N6
     classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
-    class N3 crate
+    class N2 crate

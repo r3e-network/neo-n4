@@ -1,0 +1,14 @@
+flowchart LR
+    N1["Responsibility boundary: Rust client SDK for building tools and services that talk to Neo N4 APIs."]
+    N2["Core principles: Encode API requests | Handle bridge/proof models | Return typed results"]
+    N3["Input contract: developer app | gateway endpoint | wallet/config"]
+    N4["State and artifacts: typed client result | transaction request | query response"]
+    N5["Integration contract: apps | operators | integration tests"]
+    N6["Maintenance rule: Keep the boundary small, deterministic, and reproducible under tests."]
+    N1 --> N2
+    N2 --> N3
+    N3 --> N4
+    N4 --> N5
+    N5 --> N6
+    classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
+    class N3 crate

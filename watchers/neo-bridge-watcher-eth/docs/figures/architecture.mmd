@@ -1,14 +1,14 @@
 flowchart LR
-    N1["Project layer: Cross-chain watcher"]
-    N2["Inputs: ETH RPC/log stream | bridge contract events | checkpoint cursor"]
-    N3["neo-bridge-watcher-eth: Observes ETH bridge events and turns them into normalized Neo N4 relay messages."]
-    N4["Responsibilities: Filter bridge events | Normalize payloads | Protect replay/cursor state"]
-    N5["Outputs: relay job | audit log | health metric"]
-    N6["Consumers: gateway | shared bridge | operator dashboard"]
+    N1["Public entrypoints: ETH RPC/log stream | bridge contract events | checkpoint cursor"]
+    N2["neo-bridge-watcher-eth: Observes ETH bridge events and turns them into normalized Neo N4 relay messages."]
+    N3["Internal components: Filter bridge events | Normalize payloads | Protect replay/cursor state"]
+    N4["Dependency boundary: hex | k256 | libc | rand | reqwest"]
+    N5["Output artifacts: relay job | audit log | health metric"]
+    N6["System position: Cross-chain watcher -> gateway | shared bridge | operator dashboard"]
     N1 --> N2
     N2 --> N3
     N3 --> N4
     N4 --> N5
     N5 --> N6
     classDef crate fill:#101f2d,stroke:#38d978,color:#f6fbff
-    class N3 crate
+    class N2 crate

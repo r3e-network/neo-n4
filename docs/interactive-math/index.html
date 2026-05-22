@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Neo N4 Math Lab</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles.css?v=20260522-clickable">
+  <link rel="stylesheet" href="./styles.css?v=20260522-zkp-playbook">
 </head>
 <body>
   <main class="math-shell">
@@ -188,6 +188,12 @@
             </div>
             <span class="status-pill" data-i18n="teachingModel"></span>
           </div>
+          <div class="zkp-controls">
+            <button class="mini-button" type="button" data-action="toggle-zkp-witness" data-zkp-witness-mode></button>
+            <button class="mini-button" type="button" data-action="play-zkp-proof" data-zkp-play-state></button>
+            <label><span data-i18n="zkpPhase"></span><input type="range" min="0" max="4" step="1" value="2" data-zkp-proof-phase></label>
+          </div>
+          <div class="zkp-phase-card" data-zkp-phase></div>
           <div class="zkp-layout">
             <div class="zkp-canvas" data-zkp-canvas></div>
             <div class="zkp-side">
@@ -213,6 +219,6 @@
     </section>
   </main>
 
-  <script type="module" src="./app.js?v=20260522-clickable"></script>
+  <script type="module" src="./app.js?v=20260522-zkp-playbook"></script>
 </body>
 </html>

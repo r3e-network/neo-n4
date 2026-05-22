@@ -10,7 +10,7 @@ import {
   sampleNeoVmProgram,
   sampleRiscVProgram,
   verifyMerkleProof,
-} from './mathModel.js?v=20260522-clickable';
+} from './mathModel.js?v=20260522-zkp-playbook';
 
 const copy = {
   zh: {
@@ -41,6 +41,11 @@ const copy = {
     clickToExplore: '点击图中的节点、卡片或步骤可以切换讲解焦点。',
     fieldPickA: '点击圆环上的数字来设置 a。',
     fieldPickB: '点击圆环上的数字来设置 b。',
+    zkpPhase: '证明阶段',
+    zkpModeValid: '切换到错误 witness',
+    zkpModeInvalid: '恢复有效 witness',
+    zkpPlay: '播放证明流程',
+    zkpPause: '暂停动画',
     principleTitle: '本章技术原则',
     conceptNote: '阅读方式：先看左侧章节，再拖动实验控件；每个数字都是为了说明结构，不代表生产参数。',
     stepAll: '全部前进一步',
@@ -94,6 +99,11 @@ const copy = {
     clickToExplore: 'Click diagram nodes, cards, or steps to change the explanation focus.',
     fieldPickA: 'Click a number on the field clock to set a.',
     fieldPickB: 'Click a number on the field clock to set b.',
+    zkpPhase: 'Proof phase',
+    zkpModeValid: 'Switch to bad witness',
+    zkpModeInvalid: 'Restore valid witness',
+    zkpPlay: 'Play proof flow',
+    zkpPause: 'Pause animation',
     principleTitle: 'Technical principle',
     conceptNote: 'How to read this page: pick a lesson, then move the controls. Numbers are structural teaching values, not production parameters.',
     stepAll: 'Step all',
@@ -156,6 +166,10 @@ const els = {
   proofOutput: document.querySelector('[data-proof-output]'),
   proofLiveValues: document.querySelector('[data-proof-live-values]'),
   zkpCanvas: document.querySelector('[data-zkp-canvas]'),
+  zkpWitnessMode: document.querySelector('[data-zkp-witness-mode]'),
+  zkpPlayState: document.querySelector('[data-zkp-play-state]'),
+  zkpProofPhase: document.querySelector('[data-zkp-proof-phase]'),
+  zkpPhase: document.querySelector('[data-zkp-phase]'),
   zkpEquation: document.querySelector('[data-zkp-equation]'),
   zkpFocus: document.querySelector('[data-zkp-focus]'),
   zkpGates: document.querySelector('[data-zkp-gates]'),
@@ -177,7 +191,11 @@ let state = {
   proofAggregation: 2,
   nextFieldTarget: 'a',
   zkpFocusId: 'layer:quotient',
+  zkpWitnessMode: 'valid',
+  zkpProofPhase: 2,
 };
+
+let zkpPlaybackTimer = null;
 
 renderAll();
 
@@ -194,6 +212,25 @@ for (const input of [els.fieldA, els.fieldB, els.proofCycles, els.proofMemory, e
   });
 }
 
+els.zkpProofPhase.addEventListener('input', () => {
+  setZkpPlaying(false);
+  state.zkpProofPhase = Number(els.zkpProofPhase.value);
+  state.zkpFocusId = undefined;
+  renderDynamic();
+});
+
+document.querySelector('[data-action="toggle-zkp-witness"]').addEventListener('click', () => {
+  state.zkpWitnessMode = state.zkpWitnessMode === 'valid' ? 'invalid' : 'valid';
+  state.zkpFocusId = undefined;
+  state.zkpProofPhase = state.zkpWitnessMode === 'invalid' ? 4 : 2;
+  syncInputsFromState();
+  renderDynamic();
+});
+
+document.querySelector('[data-action="play-zkp-proof"]').addEventListener('click', () => {
+  setZkpPlaying(zkpPlaybackTimer === null);
+});
+
 document.querySelector('[data-action="step-all"]').addEventListener('click', () => {
   state.neoVmStep = Math.min(sampleNeoVmProgram.length, state.neoVmStep + 1);
   state.riscvStep = Math.min(sampleRiscVProgram.length, state.riscvStep + 1);
@@ -201,6 +238,7 @@ document.querySelector('[data-action="step-all"]').addEventListener('click', () 
 });
 
 document.querySelector('[data-action="reset"]').addEventListener('click', () => {
+  setZkpPlaying(false);
   state = {
     ...state,
     fieldA: 5,
@@ -215,6 +253,8 @@ document.querySelector('[data-action="reset"]').addEventListener('click', () => 
     proofAggregation: 2,
     nextFieldTarget: 'a',
     zkpFocusId: 'layer:quotient',
+    zkpWitnessMode: 'valid',
+    zkpProofPhase: 2,
   };
   syncInputsFromState();
   renderAll();
@@ -618,6 +658,33 @@ function renderProof(snapshot) {
 
 function renderZkpMath(zkp) {
   const isZh = state.language === 'zh';
+  els.zkpWitnessMode.textContent = state.zkpWitnessMode === 'valid'
+    ? copy[state.language].zkpModeValid
+    : copy[state.language].zkpModeInvalid;
+  els.zkpWitnessMode.classList.toggle('danger', state.zkpWitnessMode === 'invalid');
+  updateZkpPlaybackControl();
+  const phaseLabels = isZh
+    ? ['直觉', '数学', '观察']
+    : ['Intuition', 'Math', 'Watch'];
+  els.zkpPhase.innerHTML = `
+    <span>${String(zkp.phase.index + 1).padStart(2, '0')} / ${zkp.phase.count}</span>
+    <strong>${isZh ? zkp.phase.zhLabel : zkp.phase.label}</strong>
+    <small>${isZh ? zkp.phase.zhDetail : zkp.phase.detail}</small>
+    <div class="zkp-phase-explainers">
+      <section>
+        <em>${phaseLabels[0]}</em>
+        <p>${isZh ? zkp.phase.zhPlain : zkp.phase.plain}</p>
+      </section>
+      <section>
+        <em>${phaseLabels[1]}</em>
+        <code>${zkp.phase.math}</code>
+      </section>
+      <section>
+        <em>${phaseLabels[2]}</em>
+        <p>${isZh ? zkp.phase.zhObservable : zkp.phase.observable}</p>
+      </section>
+    </div>
+  `;
   const svgEl = svg('svg', {
     viewBox: '0 0 100 70',
     role: 'img',
@@ -648,7 +715,7 @@ function renderZkpMath(zkp) {
 
   for (const layer of zkp.layers) {
     const group = svg('g', {
-      class: `zkp-layer-node ${layer.state}`,
+      class: `zkp-layer-node ${layer.state} ${layer.id === zkp.phase.id ? 'phase-active' : ''}`,
       transform: `translate(${layer.x} ${layer.y})`,
       'data-zkp-focus-target': `layer:${layer.id}`,
     });
@@ -658,7 +725,9 @@ function renderZkpMath(zkp) {
     );
     makeClickable(group, () => {
       state.zkpFocusId = `layer:${layer.id}`;
+      state.zkpProofPhase = Math.max(0, zkp.layers.findIndex((item) => item.id === layer.id));
       state.activeLessonId = layer.id === 'constraints' ? 'arithmetization' : 'zk-proofs';
+      syncInputsFromState();
       renderDynamic();
     });
     svgEl.append(group);
@@ -688,14 +757,14 @@ function renderZkpMath(zkp) {
       y1: sampleBaseY,
       x2: roundSvg(x),
       y2: roundSvg(sampleBaseY - Math.max(1.8, sample.c + 1)),
-      class: 'zkp-zero-bar',
+      class: `zkp-zero-bar ${sample.state}`,
     }));
   });
   sampleGroup.append(
-    svg('text', { x: 55, y: 64, 'text-anchor': 'middle', class: 'zkp-svg-note' }, 'C(x)=0 on H'),
+    svg('text', { x: 55, y: 64, 'text-anchor': 'middle', class: `zkp-svg-note ${state.zkpWitnessMode}` }, state.zkpWitnessMode === 'invalid' ? 'C(x)!=0 on H' : 'C(x)=0 on H'),
     svg('circle', { cx: 78, cy: 51, r: 3.1, class: 'zkp-zeta-point' }),
     svg('text', { x: 78, y: 44, 'text-anchor': 'middle', class: 'zkp-svg-title' }, `ζ=${zkp.challenge.zeta}`),
-    svg('text', { x: 78, y: 58, 'text-anchor': 'middle', class: 'zkp-svg-note' }, `C(ζ)=${zkp.quotient.cAtZeta}`),
+    svg('text', { x: 78, y: 58, 'text-anchor': 'middle', class: `zkp-svg-note ${state.zkpWitnessMode}` }, `C(ζ)=${zkp.quotient.cAtZeta}`),
   );
   svgEl.append(sampleGroup);
 
@@ -711,7 +780,7 @@ function renderZkpMath(zkp) {
     ['Z_H(ζ)', String(zkp.quotient.zAtZeta)],
     ['Q(ζ)', String(zkp.quotient.qAtZeta)],
     ['C(ζ)', String(zkp.quotient.cAtZeta)],
-    ['verifier', `${zkp.verifierCheck.left} == ${zkp.verifierCheck.right} (${zkp.verifierCheck.pass ? 'pass' : 'fail'})`],
+    ['verifier', `${zkp.verifierCheck.left} ${zkp.verifierCheck.pass ? '==' : '!='} ${zkp.verifierCheck.right} (${zkp.verifierCheck.pass ? 'pass' : 'fail'})`],
   ]);
   els.zkpFocus.innerHTML = `
     <strong>${isZh ? zkp.focus.zhLabel : zkp.focus.label}</strong>
@@ -730,7 +799,9 @@ function renderZkpMath(zkp) {
     `;
     makeClickable(item, () => {
       state.zkpFocusId = `gate:${gate.id}`;
+      state.zkpProofPhase = 1;
       state.activeLessonId = gate.id === 'public-input' ? 'n4-security' : 'arithmetization';
+      syncInputsFromState();
       renderDynamic();
     });
     return item;
@@ -738,7 +809,7 @@ function renderZkpMath(zkp) {
 
   els.zkpTranscript.replaceChildren(...zkp.transcript.map((step, index) => {
     const item = document.createElement('section');
-    item.className = `zkp-transcript-step ${step.state}`;
+    item.className = `zkp-transcript-step ${step.state} ${step.phaseId === zkp.phase.id ? 'phase-active' : ''}`;
     item.innerHTML = `
       <span>${String(index + 1).padStart(2, '0')}</span>
       <div>
@@ -749,7 +820,9 @@ function renderZkpMath(zkp) {
     `;
     makeClickable(item, () => {
       state.zkpFocusId = `transcript:${step.id}`;
+      state.zkpProofPhase = index;
       state.activeLessonId = 'zk-proofs';
+      syncInputsFromState();
       renderDynamic();
     });
     return item;
@@ -807,6 +880,31 @@ function syncInputsFromState() {
   els.proofMemory.value = String(state.proofMemoryOps);
   els.proofInputs.value = String(state.proofPublicInputs);
   els.proofAggregation.value = String(state.proofAggregation);
+  els.zkpProofPhase.value = String(state.zkpProofPhase);
+}
+
+function setZkpPlaying(playing) {
+  if (playing) {
+    if (zkpPlaybackTimer !== null) return;
+    zkpPlaybackTimer = window.setInterval(() => {
+      state.zkpProofPhase = (state.zkpProofPhase + 1) % 5;
+      state.zkpFocusId = undefined;
+      syncInputsFromState();
+      renderDynamic();
+    }, 1100);
+  } else if (zkpPlaybackTimer !== null) {
+    window.clearInterval(zkpPlaybackTimer);
+    zkpPlaybackTimer = null;
+  }
+  updateZkpPlaybackControl();
+}
+
+function updateZkpPlaybackControl() {
+  if (!els.zkpPlayState) return;
+  const playing = zkpPlaybackTimer !== null;
+  els.zkpPlayState.textContent = playing ? copy[state.language].zkpPause : copy[state.language].zkpPlay;
+  els.zkpPlayState.classList.toggle('danger', playing);
+  els.zkpPlayState.setAttribute('aria-pressed', String(playing));
 }
 
 function renderDefinitionList(target, rows) {

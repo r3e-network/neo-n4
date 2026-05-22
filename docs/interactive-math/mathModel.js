@@ -763,9 +763,17 @@ export function buildProofTranscript({ proofEstimate = estimateProofPipeline(), 
   };
 }
 
-export function buildZkpMathVisualization({ proofEstimate = estimateProofPipeline(), publicInputRoot = '0', prime = FIELD_PRIME, focusId = 'layer:quotient' } = {}) {
+export function buildZkpMathVisualization({
+  proofEstimate = estimateProofPipeline(),
+  publicInputRoot = '0',
+  prime = FIELD_PRIME,
+  focusId,
+  witnessMode = 'valid',
+  proofPhase = 2,
+} = {}) {
   const domainSize = 8;
   const domainGenerator = 2;
+  const mode = witnessMode === 'invalid' ? 'invalid' : 'valid';
   const domain = Array.from({ length: domainSize }, (_, index) => {
     const x = fieldPow(domainGenerator, index, prime);
     const angle = ((index / domainSize) * Math.PI * 2) - Math.PI / 2;
@@ -793,7 +801,15 @@ export function buildZkpMathVisualization({ proofEstimate = estimateProofPipelin
     if (index === domainSize) return 1;
     return 0;
   });
-  const constraintCoefficients = polynomialMul(quotientCoefficients, vanishingCoefficients, prime);
+  const cleanConstraintCoefficients = polynomialMul(quotientCoefficients, vanishingCoefficients, prime);
+  const invalidRow = 1;
+  const invalidResidual = mode === 'invalid' ? nonZero(fieldAdd(step, 3, prime), prime) : 0;
+  const invalidBasis = mode === 'invalid'
+    ? lagrangeBasis(domain.map((point) => point.x), invalidRow, prime)
+    : [0];
+  const constraintCoefficients = mode === 'invalid'
+    ? polynomialAdd(cleanConstraintCoefficients, polynomialScale(invalidBasis, invalidResidual, prime), prime)
+    : cleanConstraintCoefficients;
   const challenge = buildChallenge({
     domain,
     publicInputRoot,
@@ -804,6 +820,7 @@ export function buildZkpMathVisualization({ proofEstimate = estimateProofPipelin
   const zAtZeta = vanishingPolynomial(challenge.zeta, domainSize, prime);
   const cAtZeta = evaluatePolynomial(constraintCoefficients, challenge.zeta, prime);
   const right = fieldMul(qAtZeta, zAtZeta, prime);
+  const phase = buildZkpPhase(proofPhase, mode, cAtZeta === right);
   const gates = [
     {
       id: 'boundary',
@@ -821,11 +838,15 @@ export function buildZkpMathVisualization({ proofEstimate = estimateProofPipelin
       label: 'Transition',
       zhLabel: '转移约束',
       equation: 'w_{i+1} - w_i - step = 0',
-      residual: fieldSub(fieldSub(witnessValues[1].value, witnessValues[0].value, prime), step, prime),
+      residual: mode === 'invalid' ? invalidResidual : fieldSub(fieldSub(witnessValues[1].value, witnessValues[0].value, prime), step, prime),
       role: 'checks every VM cycle',
       zhRole: '检查每个 VM 周期',
-      detail: 'Transition gates prove that every VM cycle follows the allowed next-state rule.',
-      zhDetail: '转移约束证明每个 VM 周期都遵守允许的下一状态规则。',
+      detail: mode === 'invalid'
+        ? 'This VM cycle was tampered: the transition equation leaves a non-zero residual.'
+        : 'Transition gates prove that every VM cycle follows the allowed next-state rule.',
+      zhDetail: mode === 'invalid'
+        ? '这个 VM 周期被篡改了：转移方程留下了非零 residual。'
+        : '转移约束证明每个 VM 周期都遵守允许的下一状态规则。',
     },
     {
       id: 'boolean',
@@ -853,33 +874,38 @@ export function buildZkpMathVisualization({ proofEstimate = estimateProofPipelin
   const transcript = [
     {
       id: 'commit',
+      phaseId: 'witness',
       actor: 'Prover',
       action: 'commit witness trace',
       detail: `${proofEstimate.traceRows} rows compressed into trace commitments`,
     },
     {
       id: 'alpha',
+      phaseId: 'constraints',
       actor: 'Verifier',
       action: `sample alpha challenge ${challenge.alpha}`,
       detail: 'combine many constraints into one random linear combination',
     },
     {
       id: 'quotient',
+      phaseId: 'quotient',
       actor: 'Prover',
       action: 'divide by vanishing polynomial',
       detail: 'produce quotient Q(x) only if C(x) vanishes on the trace domain',
     },
     {
       id: 'zeta',
+      phaseId: 'challenge',
       actor: 'Verifier',
       action: `sample zeta challenge ${challenge.zeta}`,
       detail: 'check one outside-domain opening instead of replaying every row',
     },
     {
       id: 'opening',
+      phaseId: 'verify',
       actor: 'Verifier',
       action: 'verify quotient opening',
-      detail: `${cAtZeta} == ${qAtZeta} * ${zAtZeta} mod ${prime}`,
+      detail: `${cAtZeta} ${cAtZeta === right ? '==' : '!='} ${qAtZeta} * ${zAtZeta} = ${right} mod ${prime}`,
     },
   ];
   const layers = [
@@ -889,7 +915,8 @@ export function buildZkpMathVisualization({ proofEstimate = estimateProofPipelin
     { id: 'challenge', label: 'Random zeta', zhLabel: '随机 zeta', x: 72, y: 56, state: 'active', detail: 'Fiat-Shamir turns commitments into random verifier challenges without interaction.', zhDetail: 'Fiat-Shamir 把承诺变成无需交互的随机验证挑战。' },
     { id: 'verify', label: 'Verifier equality', zhLabel: '验证器等式', x: 92, y: 26, state: 'pending', detail: 'The verifier checks one outside-domain equation instead of every trace row.', zhDetail: '验证器检查一个评价域外等式，而不是检查每一行 trace。' },
   ];
-  const focus = resolveZkpFocus(focusId, { gates, transcript, layers });
+  const effectiveFocusId = focusId ?? (mode === 'invalid' ? 'gate:transition' : `layer:${phase.id}`);
+  const focus = resolveZkpFocus(effectiveFocusId, { gates, transcript, layers });
   return {
     prime,
     domainSize,
@@ -901,8 +928,11 @@ export function buildZkpMathVisualization({ proofEstimate = estimateProofPipelin
     },
     domain,
     witness: {
+      mode,
       seed,
       step,
+      invalidRow: mode === 'invalid' ? invalidRow : null,
+      invalidResidual,
       values: witnessValues,
       equation: `w_i = ${seed} + ${step}*i mod ${prime}`,
     },
@@ -915,11 +945,13 @@ export function buildZkpMathVisualization({ proofEstimate = estimateProofPipelin
         x: point.x,
         c: evaluatePolynomial(constraintCoefficients, point.x, prime),
         z: point.vanish,
+        state: evaluatePolynomial(constraintCoefficients, point.x, prime) === 0 ? 'zero' : 'broken',
       })),
       qAtZeta,
       zAtZeta,
       cAtZeta,
     },
+    phase,
     challenge,
     verifierCheck: {
       equation: 'C(zeta) == Q(zeta) * Z_H(zeta)',
@@ -949,7 +981,9 @@ export function makeLearningSnapshot({
   proofMemoryOps = 12,
   proofPublicInputs = 6,
   proofAggregation = 2,
-  zkpFocusId = 'layer:quotient',
+  zkpFocusId = undefined,
+  zkpWitnessMode = 'valid',
+  zkpProofPhase = 2,
 } = {}) {
   const tree = buildMerkleTree(merkleLeaves);
   const proof = merkleProof(tree, merkleIndex);
@@ -978,7 +1012,13 @@ export function makeLearningSnapshot({
     journey: buildJourneyVisualization({ activeLessonId, neoVmStep, riscvStep }),
     constraintMatrix: buildTraceConstraintMatrix({ neovmTrace: neovm.trace, riscvTrace: riscv.trace, proofEstimate }),
     proofTranscript: buildProofTranscript({ proofEstimate, publicInputRoot: String(tree.root), aggregateCount: proofAggregation }),
-    zkpMath: buildZkpMathVisualization({ proofEstimate, publicInputRoot: String(tree.root), focusId: zkpFocusId }),
+    zkpMath: buildZkpMathVisualization({
+      proofEstimate,
+      publicInputRoot: String(tree.root),
+      focusId: zkpFocusId,
+      witnessMode: zkpWitnessMode,
+      proofPhase: zkpProofPhase,
+    }),
   };
 }
 
@@ -998,6 +1038,109 @@ function buildChallenge({ domain, publicInputRoot, proofEstimate, prime }) {
     gamma: mod(toyHash([publicInputRoot, proofEstimate.commitmentCount, 59], prime), prime),
     zeta,
     inDomain: domainSet.has(zeta),
+  };
+}
+
+function buildZkpPhase(proofPhase, mode, verifierPass) {
+  const phases = [
+    {
+      id: 'witness',
+      label: 'Witness',
+      zhLabel: 'Witness',
+      detail: 'Start with private execution rows: stack/register/memory values are the witness.',
+      zhDetail: '从私有执行行开始：stack、register、memory 的值就是 witness。',
+      plain: 'The prover starts with the full execution table. L1 should not replay it, but the proof must still bind to it.',
+      zhPlain: '证明者先拿到完整执行表。L1 不应该重放它，但证明必须和这张表绑定。',
+      math: 'w_i = seed + step*i mod p',
+      observable: 'Follow the green witness node: those private rows become the values checked by later gates.',
+      zhObservable: '先看绿色 witness 节点：这些私有行会变成后续 gate 要检查的值。',
+    },
+    {
+      id: 'constraints',
+      label: 'Constraints',
+      zhLabel: '约束',
+      detail: mode === 'invalid'
+        ? 'A tampered row leaves a non-zero residual, so the constraint polynomial no longer vanishes on H.'
+        : 'Every gate residual is zero, so the combined constraint vanishes on the evaluation domain H.',
+      zhDetail: mode === 'invalid'
+        ? '被篡改的行留下非零 residual，所以约束多项式不再在 H 上归零。'
+        : '每个 gate residual 都为 0，所以组合约束在评价域 H 上归零。',
+      plain: mode === 'invalid'
+        ? 'A bad execution row cannot hide: one gate leaves a visible non-zero residual.'
+        : 'Each valid VM step becomes an equation whose residual is zero.',
+      zhPlain: mode === 'invalid'
+        ? '错误执行行藏不住：至少一个 gate 会留下非零 residual。'
+        : '每个有效 VM step 都会变成 residual 为 0 的方程。',
+      math: 'C(trace_i, trace_{i+1}, public_input) = 0 on H',
+      observable: mode === 'invalid'
+        ? 'The transition gate turns red and one domain sample rises above zero.'
+        : 'All gate cards stay green and every domain sample stays at zero.',
+      zhObservable: mode === 'invalid'
+        ? '转移约束卡片会变红，并且有一个域采样柱抬离 0。'
+        : '所有 gate 卡片保持绿色，所有域采样都停在 0。',
+    },
+    {
+      id: 'quotient',
+      label: 'Quotient',
+      zhLabel: '商多项式',
+      detail: mode === 'invalid'
+        ? 'The prover can still claim a quotient, but a leftover remainder will surface at a random opening.'
+        : 'Because C(x) vanishes on H, C(x) can be represented as Q(x) * Z_H(x).',
+      zhDetail: mode === 'invalid'
+        ? '证明者仍可声称有商多项式，但剩余项会在随机 opening 中暴露。'
+        : '因为 C(x) 在 H 上归零，所以 C(x) 可以表示为 Q(x) * Z_H(x)。',
+      plain: mode === 'invalid'
+        ? 'A fake quotient may look plausible locally, but it leaves a remainder.'
+        : 'If C(x) is zero on every point in H, it is divisible by the vanishing polynomial.',
+      zhPlain: mode === 'invalid'
+        ? '假的 quotient 局部看起来也许像真的，但会留下 remainder。'
+        : '如果 C(x) 在 H 的每个点上都是 0，它就可以被 vanishing polynomial 整除。',
+      math: 'C(x) = Q(x) * Z_H(x), where Z_H(x)=0 for every x in H',
+      observable: 'The middle bars explain whether C(x) vanishes cleanly before the verifier samples zeta.',
+      zhObservable: '中间的柱状采样展示 C(x) 在验证器抽 zeta 前是否干净归零。',
+    },
+    {
+      id: 'challenge',
+      label: 'Challenge',
+      zhLabel: '随机挑战',
+      detail: 'Fiat-Shamir samples zeta outside H, forcing the prover to open the committed polynomials at an unpredictable point.',
+      zhDetail: 'Fiat-Shamir 在 H 外采样 zeta，迫使证明者在不可预测点打开承诺多项式。',
+      plain: 'The verifier chooses an unpredictable outside-domain point so the prover cannot tune the proof after seeing the test.',
+      zhPlain: '验证器选择一个不可预测的域外点，让证明者无法看见考题后再改证明。',
+      math: 'zeta notin H; open C(zeta), Q(zeta), and Z_H(zeta)',
+      observable: 'The orange zeta dot is the random audit point used instead of replaying every row.',
+      zhObservable: '橙色 zeta 点就是随机抽查点，用它代替逐行重放。',
+    },
+    {
+      id: 'verify',
+      label: 'Verify',
+      zhLabel: '验证',
+      detail: verifierPass
+        ? 'The equality holds at zeta, so this teaching verifier accepts the quotient relation.'
+        : 'The equality fails at zeta, so the verifier catches the bad witness and rejects.',
+      zhDetail: verifierPass
+        ? 'zeta 点上的等式成立，所以这个教学验证器接受 quotient 关系。'
+        : 'zeta 点上的等式失败，所以验证器抓住错误 witness 并拒绝。',
+      plain: verifierPass
+        ? 'The compact proof is accepted because the opened values agree with the quotient relation.'
+        : 'The compact proof is rejected because the opened values contradict the quotient relation.',
+      zhPlain: verifierPass
+        ? '打开值符合 quotient 关系，所以这个紧凑证明被接受。'
+        : '打开值和 quotient 关系矛盾，所以这个紧凑证明被拒绝。',
+      math: 'Verify: C(zeta) == Q(zeta) * Z_H(zeta)',
+      observable: verifierPass
+        ? 'The verifier row shows pass and the final equality uses ==.'
+        : 'The verifier row shows fail and the final equality uses !=.',
+      zhObservable: verifierPass
+        ? '验证器行显示 pass，最终等式使用 ==。'
+        : '验证器行显示 fail，最终等式使用 !=。',
+    },
+  ];
+  const index = Math.max(0, Math.min(phases.length - 1, Number(proofPhase)));
+  return {
+    index,
+    count: phases.length,
+    ...phases[index],
   };
 }
 
@@ -1037,6 +1180,32 @@ function resolveZkpFocus(focusId, { gates, transcript, layers }) {
     zhDetail: layer.zhDetail,
     equation: '',
   };
+}
+
+function nonZero(value, prime) {
+  const normalized = mod(value, prime);
+  return normalized === 0 ? 1 : normalized;
+}
+
+function lagrangeBasis(domain, targetIndex, prime) {
+  let numerator = [1];
+  let denominator = 1;
+  const target = domain[targetIndex];
+  for (let index = 0; index < domain.length; index += 1) {
+    if (index === targetIndex) continue;
+    numerator = polynomialMul(numerator, [fieldSub(0, domain[index], prime), 1], prime);
+    denominator = fieldMul(denominator, fieldSub(target, domain[index], prime), prime);
+  }
+  return polynomialScale(numerator, fieldInverse(denominator, prime), prime);
+}
+
+function polynomialAdd(left, right, prime) {
+  const length = Math.max(left.length, right.length);
+  return Array.from({ length }, (_, index) => fieldAdd(left[index] ?? 0, right[index] ?? 0, prime));
+}
+
+function polynomialScale(coefficients, scalar, prime) {
+  return coefficients.map((coefficient) => fieldMul(coefficient, scalar, prime));
 }
 
 function polynomialMul(left, right, prime) {

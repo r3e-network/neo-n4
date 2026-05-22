@@ -179,3 +179,37 @@ test('ZKP math visualization explains domain vanishing, quotient checks, and tra
   assert.ok(visual.transcript.some((step) => step.action.includes('challenge')));
   assert.ok(visual.publicInputs.root === '52');
 });
+
+test('ZKP math visualization makes invalid witnesses visibly fail quotient verification', () => {
+  const visual = buildZkpMathVisualization({
+    publicInputRoot: '52',
+    prime: FIELD_PRIME,
+    witnessMode: 'invalid',
+    proofPhase: 4,
+  });
+
+  assert.equal(visual.witness.mode, 'invalid');
+  assert.equal(visual.verifierCheck.pass, false);
+  assert.notEqual(visual.verifierCheck.left, visual.verifierCheck.right);
+  assert.ok(visual.gates.some((gate) => gate.residual !== 0 && gate.state === 'selected'));
+  assert.ok(visual.quotient.samples.some((sample) => sample.c !== 0));
+  assert.equal(visual.phase.id, 'verify');
+  assert.match(visual.phase.detail, /reject|fail|catch/i);
+  assert.match(visual.transcript.at(-1).detail, /!=/);
+});
+
+test('ZKP math phases expose beginner-friendly narration and phase-mapped transcript steps', () => {
+  const expectedPhaseIds = ['witness', 'constraints', 'quotient', 'challenge', 'verify'];
+
+  for (const [proofPhase, expectedId] of expectedPhaseIds.entries()) {
+    const visual = buildZkpMathVisualization({ publicInputRoot: '52', prime: FIELD_PRIME, proofPhase });
+
+    assert.equal(visual.phase.id, expectedId);
+    assert.equal(visual.transcript[proofPhase].phaseId, expectedId);
+    assert.match(visual.phase.plain, /\w/);
+    assert.match(visual.phase.zhPlain, /[\u4e00-\u9fff]|witness|zeta/i);
+    assert.match(visual.phase.math, /=|C\(x\)|zeta|Z_H|Verify/i);
+    assert.match(visual.phase.observable, /\w/);
+    assert.match(visual.phase.zhObservable, /[\u4e00-\u9fff]|residual|proof/i);
+  }
+});

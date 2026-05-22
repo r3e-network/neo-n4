@@ -227,6 +227,12 @@ button {
   white-space: nowrap;
 }
 
+.mini-button.danger {
+  border-color: rgba(255, 104, 104, 0.55);
+  background: rgba(255, 104, 104, 0.12);
+  color: #ffd0d0;
+}
+
 .control-button.primary {
   border-color: rgba(39, 209, 127, 0.58);
   background: var(--green);
@@ -1147,6 +1153,105 @@ input[type="range"] {
   align-items: stretch;
 }
 
+.zkp-controls {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(260px, 420px);
+  gap: 12px;
+  align-items: center;
+  margin: 0 0 12px;
+}
+
+.zkp-controls label {
+  display: grid;
+  grid-template-columns: 98px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.zkp-phase-card {
+  display: grid;
+  grid-template-columns: 54px minmax(120px, 0.26fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(78, 221, 211, 0.32);
+  border-radius: 7px;
+  background: rgba(78, 221, 211, 0.06);
+}
+
+.zkp-phase-card span {
+  display: grid;
+  place-items: center;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(78, 221, 211, 0.12);
+  color: var(--cyan);
+  font-size: 11px;
+  font-weight: 780;
+}
+
+.zkp-phase-card strong,
+.zkp-phase-card small {
+  display: block;
+}
+
+.zkp-phase-card strong {
+  font-size: 13px;
+}
+
+.zkp-phase-card small {
+  color: var(--muted);
+  line-height: 1.35;
+  font-size: 12px;
+}
+
+.zkp-phase-explainers {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr 1.1fr;
+  gap: 8px;
+}
+
+.zkp-phase-explainers section {
+  min-height: 74px;
+  padding: 9px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.zkp-phase-explainers em,
+.zkp-phase-explainers p,
+.zkp-phase-explainers code {
+  display: block;
+}
+
+.zkp-phase-explainers em {
+  margin-bottom: 6px;
+  color: var(--gold);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.zkp-phase-explainers p,
+.zkp-phase-explainers code {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.35;
+  font-size: 12px;
+}
+
+.zkp-phase-explainers code {
+  color: var(--cyan);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .zkp-canvas {
   min-height: 390px;
   border: 1px solid rgba(77, 141, 255, 0.28);
@@ -1204,6 +1309,12 @@ input[type="range"] {
   filter: drop-shadow(0 0 8px rgba(240, 173, 53, 0.55));
 }
 
+.zkp-layer-node.phase-active circle {
+  stroke: var(--cyan);
+  stroke-width: 1.05;
+  filter: drop-shadow(0 0 10px rgba(78, 221, 211, 0.65));
+}
+
 .zkp-layer-node.selected circle {
   stroke: var(--cyan);
   filter: drop-shadow(0 0 8px rgba(78, 221, 211, 0.62));
@@ -1233,6 +1344,12 @@ input[type="range"] {
   stroke-width: 0.9;
 }
 
+.zkp-zero-bar.broken {
+  stroke: rgba(255, 104, 104, 0.9);
+  stroke-width: 1.2;
+  filter: drop-shadow(0 0 6px rgba(255, 104, 104, 0.7));
+}
+
 .zkp-zeta-point {
   fill: var(--amber);
   stroke: rgba(255, 239, 200, 0.86);
@@ -1247,6 +1364,11 @@ input[type="range"] {
 .zkp-svg-note {
   fill: var(--muted) !important;
   font-size: 1.9px !important;
+}
+
+.zkp-svg-note.invalid {
+  fill: #ff9f9f !important;
+  font-weight: 780;
 }
 
 .zkp-equation-ribbon {
@@ -1365,6 +1487,11 @@ input[type="range"] {
   background: rgba(39, 209, 127, 0.07);
 }
 
+.zkp-gate.invalid {
+  border-color: rgba(255, 104, 104, 0.58);
+  background: rgba(255, 104, 104, 0.1);
+}
+
 .zkp-gate strong {
   font-size: 13px;
 }
@@ -1407,6 +1534,11 @@ input[type="range"] {
 .zkp-transcript-step.selected {
   border-color: rgba(78, 221, 211, 0.55);
   background: rgba(78, 221, 211, 0.075);
+}
+
+.zkp-transcript-step.phase-active {
+  border-color: rgba(240, 173, 53, 0.58);
+  background: rgba(240, 173, 53, 0.08);
 }
 
 .zkp-transcript-step span {
@@ -1582,6 +1714,8 @@ input[type="range"] {
   .pipeline,
   .proof-controls,
   .proof-explainers,
+  .zkp-controls,
+  .zkp-phase-explainers,
   .zkp-layout,
   .zkp-gates,
   .zkp-transcript,
@@ -1600,6 +1734,10 @@ input[type="range"] {
     grid-template-columns: 1fr;
   }
 
+  .zkp-phase-card {
+    grid-template-columns: 1fr;
+  }
+
   .lesson-nav {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1615,7 +1753,8 @@ input[type="range"] {
   }
 
   .field-controls label,
-  .proof-controls label {
+  .proof-controls label,
+  .zkp-controls label {
     grid-template-columns: 1fr;
   }
 

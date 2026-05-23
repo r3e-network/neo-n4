@@ -222,8 +222,8 @@ public class UT_ProductionGapClosure
             .Where(path => IsMarkdown(path) && !IsSkippedPath(root, path) && !IsChinesePath(root, path))
             .Select(path => Relative(root, path))
             .Select(relative => new { English = relative, Chinese = ExpectedChineseMarkdown(relative) })
-            .Where(pair => !File.Exists(Path.Combine(root, pair.Chinese)))
-            .Select(pair => $"{pair.English} -> {pair.Chinese}")
+            .Where(pair => !pair.Chinese.Any(candidate => File.Exists(Path.Combine(root, candidate))))
+            .Select(pair => $"{pair.English} -> {string.Join(" or ", pair.Chinese)}")
             .Order(StringComparer.Ordinal)
             .ToArray();
 
@@ -239,9 +239,9 @@ public class UT_ProductionGapClosure
             .EnumerateFiles(root, "*.*", SearchOption.AllDirectories)
             .Where(path => IsFigure(path) && !IsSkippedPath(root, path) && !IsChinesePath(root, path))
             .Select(path => Relative(root, path))
-            .Select(relative => new { English = relative, Chinese = ExpectedChineseFigure(relative) })
-            .Where(pair => !File.Exists(Path.Combine(root, pair.Chinese)))
-            .Select(pair => $"{pair.English} -> {pair.Chinese}")
+            .Select(relative => new { English = relative, Chinese = ExpectedChineseFigures(relative) })
+            .Where(pair => !pair.Chinese.Any(candidate => File.Exists(Path.Combine(root, candidate))))
+            .Select(pair => $"{pair.English} -> {string.Join(" or ", pair.Chinese)}")
             .Order(StringComparer.Ordinal)
             .ToArray();
 
@@ -256,11 +256,13 @@ public class UT_ProductionGapClosure
         var missingChineseText = Directory
             .EnumerateFiles(root, "*.*", SearchOption.AllDirectories)
             .Where(path => IsMarkdown(path) && !IsSkippedPath(root, path) && !IsChinesePath(root, path))
-            .Select(path => ExpectedChineseMarkdown(Relative(root, path)))
+            .SelectMany(path => ExpectedChineseMarkdown(Relative(root, path)))
+            .Where(relative => File.Exists(Path.Combine(root, relative)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .Where(relative =>
             {
                 var zhPath = Path.Combine(root, relative);
-                return File.Exists(zhPath) && !File.ReadAllText(zhPath).Any(IsChineseCharacter);
+                return !File.ReadAllText(zhPath).Any(IsChineseCharacter);
             })
             .Order(StringComparer.Ordinal)
             .ToArray();
@@ -399,17 +401,38 @@ public class UT_ProductionGapClosure
     }
 
     private static bool IsChinesePath(string root, string path)
-        => Relative(root, path).StartsWith("docs/zh/", StringComparison.OrdinalIgnoreCase);
+    {
+        var relative = Relative(root, path);
+        var fileName = Path.GetFileName(relative);
+        return relative.StartsWith("docs/zh/", StringComparison.OrdinalIgnoreCase)
+            || fileName.Contains(".zh.", StringComparison.OrdinalIgnoreCase);
+    }
 
-    private static string ExpectedChineseMarkdown(string relative)
-        => relative.StartsWith("docs/", StringComparison.OrdinalIgnoreCase)
+    private static string[] ExpectedChineseMarkdown(string relative)
+    {
+        var extension = Path.GetExtension(relative);
+        var withoutExtension = relative[..^extension.Length];
+        var sibling = $"{withoutExtension}.zh{extension}";
+        var mirrored = relative.StartsWith("docs/", StringComparison.OrdinalIgnoreCase)
             ? "docs/zh/" + relative["docs/".Length..]
             : "docs/zh/" + relative;
+        return sibling.Equals(mirrored, StringComparison.OrdinalIgnoreCase)
+            ? [sibling]
+            : [sibling, mirrored];
+    }
 
-    private static string ExpectedChineseFigure(string relative)
-        => relative.StartsWith("docs/figures/", StringComparison.OrdinalIgnoreCase)
+    private static string[] ExpectedChineseFigures(string relative)
+    {
+        var extension = Path.GetExtension(relative);
+        var withoutExtension = relative[..^extension.Length];
+        var sibling = $"{withoutExtension}.zh{extension}";
+        var mirrored = relative.StartsWith("docs/figures/", StringComparison.OrdinalIgnoreCase)
             ? "docs/zh/figures/" + relative["docs/figures/".Length..]
             : "docs/zh/" + relative;
+        return sibling.Equals(mirrored, StringComparison.OrdinalIgnoreCase)
+            ? [sibling]
+            : [sibling, mirrored];
+    }
 
     private static string Relative(string root, string path)
         => Path.GetRelativePath(root, path).Replace(Path.DirectorySeparatorChar, '/');

@@ -13,11 +13,11 @@ use sp1_sdk::blocking::{Elf, ProveRequest, Prover, ProverClient};
 #[cfg(unix)]
 use sp1_sdk::{ProvingKey, SP1Stdin};
 
-mod execution_result;
 mod proof_result;
+mod zk_execution_result;
 
-pub use execution_result::ExecutionResult;
 pub use proof_result::ProofResult;
+pub use zk_execution_result::ZkExecutionResult;
 
 /// Embedded guest ELF — wired by build.rs from `cargo prove build`.
 #[cfg(unix)]
@@ -30,7 +30,7 @@ pub const NEO_ZKVM_GUEST_ELF: &[u8] = &[];
 /// Execute the guest inside SP1's zkVM (no proving — just the deterministic
 /// run). Cheap; suitable for development + the "did the script HALT" check.
 #[cfg(unix)]
-pub fn execute(request_bytes: &[u8]) -> Result<ExecutionResult, String> {
+pub fn execute(request_bytes: &[u8]) -> Result<ZkExecutionResult, String> {
     // SP1 6.x API: build a CPU prover, call execute(elf, stdin).
     let prover = ProverClient::builder().cpu().build();
     let mut stdin = SP1Stdin::new();
@@ -43,7 +43,7 @@ pub fn execute(request_bytes: &[u8]) -> Result<ExecutionResult, String> {
 
     let public_input_hash: [u8; 32] = public_values.read::<[u8; 32]>();
 
-    Ok(ExecutionResult {
+    Ok(ZkExecutionResult {
         public_input_hash,
         cycles: report.total_instruction_count(),
     })
@@ -127,7 +127,7 @@ pub fn verify(
 
 /// Execute the guest inside SP1's zkVM.
 #[cfg(not(unix))]
-pub fn execute(_request_bytes: &[u8]) -> Result<ExecutionResult, String> {
+pub fn execute(_request_bytes: &[u8]) -> Result<ZkExecutionResult, String> {
     Err(unsupported_platform())
 }
 

@@ -76,7 +76,7 @@ cargo build --release -p neo-zkvm-host
 ## Library API (`src/lib.rs`)
 
 ```rust
-pub fn execute(request_bytes: &[u8]) -> Result<ExecutionResult, String>
+pub fn execute(request_bytes: &[u8]) -> Result<ZkExecutionResult, String>
 ```
 
 Runs the guest inside SP1's zkVM (no proving — just deterministic

@@ -42,13 +42,26 @@
 //! min_confirmations     = 12                   # Eth: 12 = ~99.9% finality
 //! ```
 
+#[path = "neo_bridge_watcher_eth/config.rs"]
+mod config;
+#[path = "neo_bridge_watcher_eth/health_config.rs"]
+mod health_config;
+#[path = "neo_bridge_watcher_eth/parsed_args.rs"]
+mod parsed_args;
+#[path = "neo_bridge_watcher_eth/poll_config.rs"]
+mod poll_config;
+#[path = "neo_bridge_watcher_eth/stub_sign_and_send.rs"]
+mod stub_sign_and_send;
+
+use config::Config;
+use parsed_args::ParsedArgs;
+use stub_sign_and_send::StubSignAndSend;
+
 use neo_bridge_watcher_eth::chains;
 use neo_bridge_watcher_eth::live::{
-    EthRpcEventSourceBuilder, FileJournal, HealthServer, HealthState, NeoRpcError,
-    NeoRpcSubmitterBuilder,
+    EthRpcEventSourceBuilder, FileJournal, HealthServer, HealthState, NeoRpcSubmitterBuilder,
 };
 use neo_bridge_watcher_eth::{CoreError, FileSigner, Journal, Signer, WatcherCore};
-use serde::Deserialize;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -194,13 +207,6 @@ fn main() -> ExitCode {
             ExitCode::from(1)
         }
     }
-}
-
-struct ParsedArgs {
-    config_path: PathBuf,
-    preflight: bool,
-    journal_info: bool,
-    allow_stub_signer: bool,
 }
 
 fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
@@ -680,132 +686,6 @@ fn probe_neo_rpc(rpc_url: &str, timeout: Duration) -> Result<(), String> {
     Ok(())
 }
 
-#[derive(Deserialize)]
-struct Config {
-    external_chain_id: u32,
-    eth_rpc_url: String,
-    #[serde(deserialize_with = "deserialize_addr20")]
-    eth_router_address: [u8; 20],
-    neo_rpc_url: String,
-    #[serde(deserialize_with = "deserialize_addr20")]
-    neo_escrow_address: [u8; 20],
-    #[serde(deserialize_with = "deserialize_addr20")]
-    neo_signer_address: [u8; 20],
-    signer_key_path: PathBuf,
-    journal_dir: PathBuf,
-    #[serde(default)]
-    poll: PollConfig,
-    #[serde(default)]
-    health: HealthConfig,
-}
-
-/// Optional health-check HTTP endpoint config. When `bind` is unset
-/// the daemon runs without a health server (suitable for one-off
-/// CLI runs); k8s/systemd deployments set `bind = "0.0.0.0:9090"`
-/// and probe `/healthz` for readiness/liveness.
-#[derive(Deserialize, Default)]
-struct HealthConfig {
-    /// Bind address (e.g. "0.0.0.0:9090" or "127.0.0.1:9090"). Unset
-    /// = no health server.
-    bind: Option<String>,
-    /// Seconds without a successful tick before /healthz returns 503.
-    /// Default 120 — covers a 12s poll interval + up to 60s backoff
-    /// with margin for one full retry cycle.
-    #[serde(default = "default_health_threshold")]
-    threshold_secs: u64,
-}
-
-fn default_health_threshold() -> u64 {
-    120
-}
-
-#[derive(Deserialize)]
-struct PollConfig {
-    #[serde(default = "default_poll_interval")]
-    poll_interval_secs: u64,
-    #[serde(default = "default_backoff_initial")]
-    backoff_initial_secs: u64,
-    #[serde(default = "default_backoff_max")]
-    backoff_max_secs: u64,
-    #[serde(default = "default_eth_chunk_size")]
-    eth_chunk_size: u64,
-    #[serde(default = "default_request_timeout")]
-    request_timeout_secs: u64,
-    /// Block-finality buffer. The watcher will not emit events from
-    /// blocks less than this many confirmations deep — guards against
-    /// short-reorg phantom mints. Per-chain guidance lives in
-    /// `neo_bridge_watcher_eth::chains` doc + `min_confirmations`
-    /// builder method docs. Default 0 (no buffer, testnet-only).
-    /// Operators MUST set a chain-appropriate value for production.
-    #[serde(default)]
-    min_confirmations: u64,
-    /// First-run cursor bootstrap. When the journal's cursor is
-    /// strictly less than `start_block`, the daemon advances the
-    /// cursor to `start_block` at startup — useful when deploying
-    /// a watcher mid-stream against a chain that's been running for
-    /// months (default behavior would re-scan from genesis, hammering
-    /// the operator's RPC budget). Default 0 (start at genesis).
-    ///
-    /// Important: this advances the cursor MONOTONICALLY (only forward).
-    /// It cannot rewind a journal that's already past `start_block`.
-    /// To rewind, the operator manually clears the journal directory
-    /// — opt-in destructive behavior, not a config knob.
-    #[serde(default)]
-    start_block: u64,
-}
-
-// Manual Default impl — `#[serde(default = "fn")]` only fires for fields
-// that are present-but-unset INSIDE an existing [poll] table. When
-// [poll] is omitted entirely, serde falls back to PollConfig::default()
-// for the whole struct; #[derive(Default)] would zero every field
-// (poll_interval=0 + backoff=0 = tight infinite spin). This impl
-// matches the per-field defaults instead.
-impl Default for PollConfig {
-    fn default() -> Self {
-        Self {
-            poll_interval_secs: default_poll_interval(),
-            backoff_initial_secs: default_backoff_initial(),
-            backoff_max_secs: default_backoff_max(),
-            eth_chunk_size: default_eth_chunk_size(),
-            request_timeout_secs: default_request_timeout(),
-            min_confirmations: 0,
-            start_block: 0,
-        }
-    }
-}
-
-fn default_poll_interval() -> u64 {
-    12
-}
-fn default_backoff_initial() -> u64 {
-    5
-}
-fn default_backoff_max() -> u64 {
-    300
-}
-fn default_eth_chunk_size() -> u64 {
-    5_000
-}
-fn default_request_timeout() -> u64 {
-    30
-}
-
-fn deserialize_addr20<'de, D: serde::Deserializer<'de>>(d: D) -> Result<[u8; 20], D::Error> {
-    use serde::de::Error;
-    let s: String = Deserialize::deserialize(d)?;
-    let s = s.strip_prefix("0x").unwrap_or(&s);
-    let bytes = hex::decode(s).map_err(D::Error::custom)?;
-    if bytes.len() != 20 {
-        return Err(D::Error::custom(format!(
-            "address must be 20 bytes (got {})",
-            bytes.len()
-        )));
-    }
-    let mut out = [0u8; 20];
-    out.copy_from_slice(&bytes);
-    Ok(out)
-}
-
 fn load_config(path: &PathBuf) -> Result<Config, String> {
     let text =
         std::fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
@@ -1019,32 +899,4 @@ fn jittered_backoff(secs: u64) -> Duration {
     let hi = secs.saturating_mul(5) / 4;
     let range = hi.saturating_sub(lo).max(1);
     Duration::from_secs(lo + (nanos % range))
-}
-
-/// v0 stub: emits a clear warning + returns a synthetic tx hash so the
-/// watcher's journal advances, but does NOT actually sign + submit a
-/// Neo transaction. Operators replace with a real HSM/KMS-backed signer
-/// in production.
-struct StubSignAndSend;
-
-impl neo_bridge_watcher_eth::live::SignAndSend for StubSignAndSend {
-    fn sign_and_send(&mut self, script: &[u8]) -> Result<[u8; 32], NeoRpcError> {
-        eprintln!(
-            "STUB: would submit Neo tx with script ({} bytes): 0x{}",
-            script.len(),
-            hex::encode(script),
-        );
-        eprintln!(
-            "      Replace StubSignAndSend with an HSM/KMS-backed impl that wraps the script in a signed Neo Transaction + POSTs `sendrawtransaction`. The watcher journals as if submission succeeded so the cursor advances; an operator must externally confirm the tx landed on Neo before relying on the journal state."
-        );
-        // Synthetic tx hash: SHA256 of the script. Stable + identifiable
-        // in operator logs; collisions are a non-issue for v0.
-        use sha2::{Digest, Sha256};
-        let mut hasher = Sha256::new();
-        hasher.update(script);
-        let digest = hasher.finalize();
-        let mut out = [0u8; 32];
-        out.copy_from_slice(&digest);
-        Ok(out)
-    }
 }

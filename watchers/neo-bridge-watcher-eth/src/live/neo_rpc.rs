@@ -21,10 +21,19 @@
 //! The callback returns the tx hash on success; the submitter returns
 //! that as the `submit_inbound` result.
 
-use crate::submitter::{InboundSubmission, NeoSubmitter, SubmitterError};
-use serde::{Deserialize, Serialize};
+use crate::submitter::SubmitterError;
 use std::time::Duration;
 use thiserror::Error;
+
+mod invoke_function_result;
+mod json_rpc_error;
+mod json_rpc_request;
+mod json_rpc_response;
+mod neo_rpc_submitter;
+mod neo_rpc_submitter_builder;
+
+pub use neo_rpc_submitter::NeoRpcSubmitter;
+pub use neo_rpc_submitter_builder::NeoRpcSubmitterBuilder;
 
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -80,196 +89,6 @@ where
     }
 }
 
-/// Configuration for a [`NeoRpcSubmitter`].
-pub struct NeoRpcSubmitterBuilder<S: SignAndSend> {
-    rpc_url: String,
-    escrow_address: [u8; 20],
-    /// Account hash that will be the tx signer. Passed to
-    /// `invokefunction` so the pre-check sees `Runtime.CheckWitness`
-    /// against this address as TRUE — same as a real signed tx would.
-    signer: [u8; 20],
-    sign_and_send: S,
-    request_timeout: Duration,
-}
-
-impl<S: SignAndSend> NeoRpcSubmitterBuilder<S> {
-    pub fn new(
-        rpc_url: impl Into<String>,
-        escrow_address: [u8; 20],
-        signer: [u8; 20],
-        sign_and_send: S,
-    ) -> Self {
-        Self {
-            rpc_url: rpc_url.into(),
-            escrow_address,
-            signer,
-            sign_and_send,
-            request_timeout: DEFAULT_REQUEST_TIMEOUT,
-        }
-    }
-
-    pub fn request_timeout(mut self, t: Duration) -> Self {
-        self.request_timeout = t;
-        self
-    }
-
-    pub fn build(self) -> Result<NeoRpcSubmitter<S>, NeoRpcError> {
-        let client = reqwest::blocking::Client::builder()
-            .timeout(self.request_timeout)
-            .build()
-            .map_err(|e| NeoRpcError::Http(format!("client build: {e}")))?;
-        Ok(NeoRpcSubmitter {
-            client,
-            rpc_url: self.rpc_url,
-            escrow_address: self.escrow_address,
-            signer: self.signer,
-            sign_and_send: self.sign_and_send,
-        })
-    }
-}
-
-/// Live `NeoSubmitter` impl backed by Neo JSON-RPC + an operator-supplied
-/// signer.
-pub struct NeoRpcSubmitter<S: SignAndSend> {
-    client: reqwest::blocking::Client,
-    rpc_url: String,
-    escrow_address: [u8; 20],
-    signer: [u8; 20],
-    sign_and_send: S,
-}
-
-impl<S: SignAndSend> NeoSubmitter for NeoRpcSubmitter<S> {
-    fn submit_inbound(
-        &mut self,
-        submission: InboundSubmission,
-    ) -> Result<[u8; 32], SubmitterError> {
-        // 1. Pre-check: build invokefunction request, verify HALT,
-        //    extract the constructed script.
-        let req = self.build_invokefunction(&submission)?;
-        let resp: InvokeFunctionResult = self.send_rpc("invokefunction", req)?;
-        if resp.state != "HALT" {
-            return Err(NeoRpcError::Fault(
-                resp.exception
-                    .unwrap_or_else(|| format!("VM state {} (no exception detail)", resp.state)),
-            )
-            .into());
-        }
-        let script_bytes = decode_hex_bytes(&resp.script)
-            .map_err(|e| NeoRpcError::Decode(format!("script: {e}")))?;
-
-        // 2. Hand the script to the operator's signer/sender.
-        let tx_hash = self.sign_and_send.sign_and_send(&script_bytes)?;
-        Ok(tx_hash)
-    }
-}
-
-impl<S: SignAndSend> NeoRpcSubmitter<S> {
-    pub fn builder(
-        rpc_url: impl Into<String>,
-        escrow_address: [u8; 20],
-        signer: [u8; 20],
-        sign_and_send: S,
-    ) -> NeoRpcSubmitterBuilder<S> {
-        NeoRpcSubmitterBuilder::new(rpc_url, escrow_address, signer, sign_and_send)
-    }
-
-    fn build_invokefunction(
-        &self,
-        submission: &InboundSubmission,
-    ) -> Result<serde_json::Value, NeoRpcError> {
-        // Neo addresses in JSON-RPC are little-endian hex, prefixed with
-        // 0x. The escrow ContractParameter is a UInt160 (20 bytes BE in
-        // protocol but Neo's RPC convention prints LE).
-        let escrow_hex = format!("0x{}", hex::encode(self.escrow_address));
-        let signer_hex = format!("0x{}", hex::encode(self.signer));
-
-        Ok(serde_json::json!([
-            escrow_hex,
-            "receive",
-            [
-                { "type": "Integer", "value": submission.external_chain_id.to_string() },
-                { "type": "ByteArray", "value": hex::encode(&submission.message_bytes) },
-                { "type": "ByteArray", "value": hex::encode(&submission.proof_bytes) },
-            ],
-            // Signers list — required so Runtime.CheckWitness inside the
-            // contract sees us as a witnessed caller. CalledByEntry is
-            // the standard scope for end-user txs.
-            [
-                {
-                    "account": signer_hex,
-                    "scopes": "CalledByEntry",
-                }
-            ]
-        ]))
-    }
-
-    fn send_rpc<T: for<'de> Deserialize<'de>>(
-        &self,
-        method: &str,
-        params: serde_json::Value,
-    ) -> Result<T, NeoRpcError> {
-        let req = JsonRpcRequest {
-            jsonrpc: "2.0",
-            id: 1,
-            method,
-            params,
-        };
-        let resp: JsonRpcResponse<T> = self
-            .client
-            .post(&self.rpc_url)
-            .json(&req)
-            .send()
-            .map_err(|e| NeoRpcError::Http(format!("send: {e}")))?
-            .json()
-            .map_err(|e| NeoRpcError::Decode(format!("response json: {e}")))?;
-        if let Some(err) = resp.error {
-            return Err(NeoRpcError::Rpc {
-                code: err.code,
-                message: err.message,
-            });
-        }
-        resp.result
-            .ok_or_else(|| NeoRpcError::Decode("response has no result and no error".into()))
-    }
-}
-
-// ─── JSON-RPC types ──────────────────────────────────────────────────
-
-#[derive(Serialize)]
-struct JsonRpcRequest<'a> {
-    jsonrpc: &'static str,
-    id: u64,
-    method: &'a str,
-    params: serde_json::Value,
-}
-
-#[derive(Deserialize)]
-struct JsonRpcResponse<T> {
-    #[allow(dead_code)]
-    jsonrpc: Option<String>,
-    #[allow(dead_code)]
-    id: Option<u64>,
-    result: Option<T>,
-    error: Option<JsonRpcError>,
-}
-
-#[derive(Deserialize)]
-struct JsonRpcError {
-    code: i64,
-    message: String,
-}
-
-#[derive(Deserialize, Debug)]
-struct InvokeFunctionResult {
-    /// VM exit state — `"HALT"` on success, `"FAULT"` on revert.
-    state: String,
-    /// Pre-built NeoVM script as hex. Operators can submit this exact
-    /// blob via `sendrawtransaction` once wrapped in a signed tx.
-    script: String,
-    /// Optional exception message on FAULT.
-    exception: Option<String>,
-}
-
 fn decode_hex_bytes(s: &str) -> Result<Vec<u8>, String> {
     let s = s.strip_prefix("0x").unwrap_or(s);
     hex::decode(s).map_err(|e| format!("hex: {e}"))
@@ -278,6 +97,7 @@ fn decode_hex_bytes(s: &str) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::submitter::{InboundSubmission, NeoSubmitter};
 
     /// Pin the `invokefunction` JSON shape. This is what the operator's
     /// neo-cli RPC node sees; a refactor that drops a field or shifts a

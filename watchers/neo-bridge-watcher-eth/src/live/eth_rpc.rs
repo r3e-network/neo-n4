@@ -16,11 +16,23 @@
 //! dep tree to ~30 transitive crates instead of 200+ for ethers, and
 //! gives full control over the decoder. ~250 lines of focused code.
 
-use crate::event_source::{EventSource, EventSourceError, LockedEvent};
-use serde::{Deserialize, Serialize};
+use crate::event_source::{EventSourceError, LockedEvent};
+
 use std::time::Duration;
 use thiserror::Error;
 use tiny_keccak::{Hasher, Keccak};
+
+mod eth_rpc_event_source;
+mod eth_rpc_event_source_builder;
+mod json_rpc_error;
+mod json_rpc_request;
+mod json_rpc_response;
+mod raw_log;
+
+pub use eth_rpc_event_source::EthRpcEventSource;
+pub use eth_rpc_event_source_builder::EthRpcEventSourceBuilder;
+
+use raw_log::RawLog;
 
 /// Default chunk size when querying historical blocks. Free-tier RPCs
 /// often cap log queries at 10k blocks; 5k is a safe ceiling that
@@ -56,255 +68,6 @@ impl From<EthRpcError> for EventSourceError {
         }
     }
 }
-
-/// Configuration for an [`EthRpcEventSource`].
-pub struct EthRpcEventSourceBuilder {
-    rpc_url: String,
-    router_address: [u8; 20],
-    chunk_size: u64,
-    request_timeout: Duration,
-    /// Block-finality buffer: the source never polls events from blocks
-    /// less than `min_confirmations` deep from the chain head. Chosen
-    /// per-chain by the operator based on the target chain's reorg
-    /// characteristics. Default 0 (no buffer — caller's job to set).
-    min_confirmations: u64,
-    /// Keep an in-memory FIFO of decoded events; pop one per
-    /// `next_event` call.
-    queue: std::collections::VecDeque<LockedEvent>,
-    /// Where the next chunk poll resumes from. Updated as we drain
-    /// blocks past `start_block`.
-    next_block_to_poll: u64,
-}
-
-impl EthRpcEventSourceBuilder {
-    pub fn new(rpc_url: impl Into<String>, router_address: [u8; 20]) -> Self {
-        Self {
-            rpc_url: rpc_url.into(),
-            router_address,
-            chunk_size: DEFAULT_BLOCK_CHUNK,
-            request_timeout: DEFAULT_REQUEST_TIMEOUT,
-            min_confirmations: 0,
-            queue: std::collections::VecDeque::new(),
-            next_block_to_poll: 0,
-        }
-    }
-
-    /// Override the historical-query chunk size (default 5_000 blocks).
-    /// Free-tier providers may cap at 10k; larger means fewer round-trips
-    /// when catching up after a long downtime.
-    pub fn chunk_size(mut self, n: u64) -> Self {
-        self.chunk_size = n;
-        self
-    }
-
-    /// Override the per-request HTTP timeout (default 30 s).
-    pub fn request_timeout(mut self, t: Duration) -> Self {
-        self.request_timeout = t;
-        self
-    }
-
-    /// Set the minimum confirmations buffer. The source will not emit
-    /// events from blocks less than `n` deep from the chain head, so a
-    /// reorg shallower than `n` blocks cannot produce a phantom mint.
-    ///
-    /// Per-chain guidance (see [`crate::chains`]):
-    /// - Ethereum mainnet: 12 (~99.9% finality), 32 for finalized
-    /// - BSC: 15
-    /// - Polygon PoS: 256 (heuristic finality; longer for hard finality)
-    /// - Arbitrum / Optimism / Base: 0 — finality follows L1 batch posts;
-    ///   operators wait for L1 confirmation via a separate signal.
-    /// - Avalanche C-Chain: 1 (snowman++ has near-instant finality)
-    /// - Tron: 19 (super-representative-confirmed)
-    /// - L2 testnets / devnets: 0 (don't slow down dev cycles)
-    ///
-    /// Default 0 — the operator MUST opt in for production deployments.
-    pub fn min_confirmations(mut self, n: u64) -> Self {
-        self.min_confirmations = n;
-        self
-    }
-
-    pub fn build(self) -> Result<EthRpcEventSource, EthRpcError> {
-        let client = reqwest::blocking::Client::builder()
-            .timeout(self.request_timeout)
-            .build()
-            .map_err(|e| EthRpcError::Http(format!("client build: {e}")))?;
-        Ok(EthRpcEventSource {
-            client,
-            rpc_url: self.rpc_url,
-            router_address: self.router_address,
-            chunk_size: self.chunk_size,
-            min_confirmations: self.min_confirmations,
-            queue: self.queue,
-            next_block_to_poll: self.next_block_to_poll,
-        })
-    }
-}
-
-/// Live `EventSource` impl backed by Eth JSON-RPC.
-pub struct EthRpcEventSource {
-    client: reqwest::blocking::Client,
-    rpc_url: String,
-    router_address: [u8; 20],
-    chunk_size: u64,
-    min_confirmations: u64,
-    queue: std::collections::VecDeque<LockedEvent>,
-    next_block_to_poll: u64,
-}
-
-impl EventSource for EthRpcEventSource {
-    fn next_event(&mut self, start_block: u64) -> Result<Option<LockedEvent>, EventSourceError> {
-        // 1. If we have a queued event, return it immediately. The watcher
-        //    drains one per tick — keeping a queue lets us batch-fetch
-        //    blocks and still return one at a time.
-        if let Some(ev) = self.queue.pop_front() {
-            return Ok(Some(ev));
-        }
-
-        // 2. The journal cursor (start_block) is the source of truth for
-        //    where to resume. We clamp our own cursor to `max(self,
-        //    start_block)` so a journal jump-forward doesn't re-fetch.
-        if start_block > self.next_block_to_poll {
-            self.next_block_to_poll = start_block;
-        }
-
-        // 3. Get current head height — we never poll within
-        //    `min_confirmations` blocks of head (would expose us to
-        //    short-reorg-induced phantom mints — events from blocks that
-        //    end up reorganized away). Operators set the threshold per
-        //    target chain's finality characteristics; default 0 means no
-        //    buffer (suitable only for testnets).
-        let head = self.fetch_block_number()?;
-        let effective_head = head.saturating_sub(self.min_confirmations);
-        if self.next_block_to_poll > effective_head {
-            return Ok(None);
-        }
-
-        // 4. Poll one chunk worth of blocks. Don't overshoot the
-        //    effective head.
-        let from = self.next_block_to_poll;
-        let to = (from.saturating_add(self.chunk_size - 1)).min(effective_head);
-        let logs = self.fetch_locked_logs(from, to)?;
-
-        // 5. Decode + enqueue all matching logs. Advance our cursor past
-        //    `to` regardless of whether logs were found — empty windows
-        //    still consume blocks.
-        for log in logs {
-            self.queue.push_back(decode_locked_event(&log)?);
-        }
-        self.next_block_to_poll = to + 1;
-
-        Ok(self.queue.pop_front())
-    }
-}
-
-impl EthRpcEventSource {
-    pub fn builder(
-        rpc_url: impl Into<String>,
-        router_address: [u8; 20],
-    ) -> EthRpcEventSourceBuilder {
-        EthRpcEventSourceBuilder::new(rpc_url, router_address)
-    }
-
-    /// `eth_blockNumber` — returns the current head height.
-    ///
-    /// Public so operator tooling (e.g. `--preflight`) can use it to
-    /// validate RPC reachability without reaching for a separate
-    /// JSON-RPC client.
-    pub fn fetch_block_number(&self) -> Result<u64, EthRpcError> {
-        let req = JsonRpcRequest {
-            jsonrpc: "2.0",
-            id: 1,
-            method: "eth_blockNumber",
-            params: serde_json::json!([]),
-        };
-        let resp = self.send::<String>(&req)?;
-        decode_hex_u64(&resp).map_err(|e| EthRpcError::Decode(format!("blockNumber: {e}")))
-    }
-
-    /// `eth_getLogs` for the `Locked` topic on the router address.
-    fn fetch_locked_logs(&self, from: u64, to: u64) -> Result<Vec<RawLog>, EthRpcError> {
-        let topic_locked = locked_event_topic_hash();
-        let address_hex = format!("0x{}", hex::encode(self.router_address));
-        let req = JsonRpcRequest {
-            jsonrpc: "2.0",
-            id: 1,
-            method: "eth_getLogs",
-            params: serde_json::json!([{
-                "address": address_hex,
-                "topics": [format!("0x{}", hex::encode(topic_locked))],
-                "fromBlock": format!("0x{:x}", from),
-                "toBlock": format!("0x{:x}", to),
-            }]),
-        };
-        self.send::<Vec<RawLog>>(&req)
-    }
-
-    fn send<T: for<'de> Deserialize<'de>>(&self, req: &JsonRpcRequest) -> Result<T, EthRpcError> {
-        let resp: JsonRpcResponse<T> = self
-            .client
-            .post(&self.rpc_url)
-            .json(req)
-            .send()
-            .map_err(|e| EthRpcError::Http(format!("send: {e}")))?
-            .json()
-            .map_err(|e| EthRpcError::Decode(format!("response json: {e}")))?;
-        if let Some(err) = resp.error {
-            return Err(EthRpcError::Rpc {
-                code: err.code,
-                message: err.message,
-            });
-        }
-        resp.result
-            .ok_or_else(|| EthRpcError::Decode("response has no result and no error".into()))
-    }
-}
-
-// ─── JSON-RPC types ──────────────────────────────────────────────────
-
-#[derive(Serialize)]
-struct JsonRpcRequest {
-    jsonrpc: &'static str,
-    id: u64,
-    method: &'static str,
-    params: serde_json::Value,
-}
-
-#[derive(Deserialize)]
-struct JsonRpcResponse<T> {
-    #[allow(dead_code)]
-    jsonrpc: Option<String>,
-    #[allow(dead_code)]
-    id: Option<u64>,
-    result: Option<T>,
-    error: Option<JsonRpcError>,
-}
-
-#[derive(Deserialize)]
-struct JsonRpcError {
-    code: i64,
-    message: String,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-struct RawLog {
-    /// The router contract address. Already constrained at the
-    /// request level by `eth_getLogs`'s `address` filter, but kept on
-    /// the struct so a future hardening pass can cross-check it
-    /// post-decode without changing the wire shape.
-    #[allow(dead_code)]
-    address: String,
-    /// Topic hashes; Solidity events put indexed args into topics[1..].
-    /// topics[0] is the event signature hash.
-    topics: Vec<String>,
-    /// ABI-encoded data for non-indexed args.
-    data: String,
-    #[serde(rename = "blockNumber")]
-    block_number: String,
-    #[serde(rename = "transactionHash")]
-    transaction_hash: String,
-}
-
-// ─── decoding ────────────────────────────────────────────────────────
 
 /// Keccak256 of the Locked event signature.
 ///
@@ -481,6 +244,7 @@ fn decode_topic_u64(s: &str) -> Result<u64, EthRpcError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::event_source::EventSource;
 
     /// Pin the Locked event signature hash. Operators reading this
     /// constant in their tooling expect a specific value; a refactor

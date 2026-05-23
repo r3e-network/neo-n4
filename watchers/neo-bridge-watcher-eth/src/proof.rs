@@ -15,7 +15,17 @@
 //! Watchers produce both formats from one signing round and submit each
 //! to the appropriate side.
 
+mod eth_proof_bytes;
+mod indexed_rsv;
+mod neo_proof_bytes;
+mod pubkey_signature;
+
 use thiserror::Error;
+
+pub use eth_proof_bytes::EthProofBytes;
+pub use indexed_rsv::IndexedRsv;
+pub use neo_proof_bytes::NeoProofBytes;
+pub use pubkey_signature::PubkeySignature;
 
 /// Curve identifier — must match what the committee was registered with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,88 +66,6 @@ pub enum ProofBuildError {
 
 /// Maximum signers — matches C# `MpcCommitteePayload.MaxSigners`.
 pub const MAX_SIGNERS: usize = 256;
-
-/// One (pubkey, signature) pair.
-#[derive(Debug, Clone)]
-pub struct PubkeySignature {
-    pub pubkey: Vec<u8>,
-    pub signature: [u8; 64],
-}
-
-/// Encode the proof bytes for `NeoHub.MpcCommitteeVerifier.VerifyInboundMessage`.
-///
-/// Layout: `[2B sigCount LE] + sigCount × ([keyLen B pubkey][64B sig])`.
-/// Same shape `Neo.L2.Bridge.External.MpcCommitteePayload.Encode` produces.
-pub struct NeoProofBytes;
-
-impl NeoProofBytes {
-    pub fn encode(curve: Curve, sigs: &[PubkeySignature]) -> Result<Vec<u8>, ProofBuildError> {
-        if sigs.len() > MAX_SIGNERS {
-            return Err(ProofBuildError::TooManySigners(sigs.len()));
-        }
-        let key_len = curve.pubkey_len();
-        for s in sigs {
-            if s.pubkey.len() != key_len {
-                return Err(ProofBuildError::BadPubkeyLength {
-                    curve,
-                    got: s.pubkey.len(),
-                    expected: key_len,
-                });
-            }
-        }
-
-        let size = 2 + sigs.len() * (key_len + 64);
-        let mut out = Vec::with_capacity(size);
-        out.extend_from_slice(&(sigs.len() as u16).to_le_bytes());
-        for s in sigs {
-            out.extend_from_slice(&s.pubkey);
-            out.extend_from_slice(&s.signature);
-        }
-        Ok(out)
-    }
-}
-
-/// One indexed signer + its (r, s, v) tuple as the Eth router expects.
-#[derive(Debug, Clone)]
-pub struct IndexedRsv {
-    /// Index into the committee array stored on the Eth router.
-    pub signer_idx: u8,
-    /// 32 bytes.
-    pub r: [u8; 32],
-    /// 32 bytes.
-    pub s: [u8; 32],
-    /// 27 or 28 — the recovery id.
-    pub v: u8,
-}
-
-/// Encode the proof bytes for `NeoExternalBridgeRouter.finalizeWithdrawal`.
-///
-/// Layout: `[2B sigCount LE] + sigCount × (1B signerIdx, 32B r, 32B s, 1B v)`.
-pub struct EthProofBytes;
-
-impl EthProofBytes {
-    pub fn encode(sigs: &[IndexedRsv]) -> Result<Vec<u8>, ProofBuildError> {
-        if sigs.len() > MAX_SIGNERS {
-            return Err(ProofBuildError::TooManySigners(sigs.len()));
-        }
-        for s in sigs {
-            if s.v != 27 && s.v != 28 {
-                return Err(ProofBuildError::BadVByte(s.v));
-            }
-        }
-
-        let size = 2 + sigs.len() * 66;
-        let mut out = Vec::with_capacity(size);
-        out.extend_from_slice(&(sigs.len() as u16).to_le_bytes());
-        for s in sigs {
-            out.push(s.signer_idx);
-            out.extend_from_slice(&s.r);
-            out.extend_from_slice(&s.s);
-            out.push(s.v);
-        }
-        Ok(out)
-    }
-}
 
 #[cfg(test)]
 mod tests {

@@ -21,104 +21,18 @@
 
 #![cfg(feature = "live-rpc")]
 
-use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::process::Command;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::thread;
-use std::time::Duration;
 
-struct FakeRpcServer {
-    url: String,
-    stop: Arc<AtomicBool>,
-    _handle: thread::JoinHandle<()>,
-}
+mod support;
 
-impl FakeRpcServer {
-    fn spawn<F>(handler: F) -> Self
-    where
-        F: Fn(&str) -> String + Send + 'static,
-    {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        listener.set_nonblocking(true).unwrap();
-        let port = listener.local_addr().unwrap().port();
-        let url = format!("http://127.0.0.1:{port}/");
-        let stop = Arc::new(AtomicBool::new(false));
-        let stop_c = stop.clone();
-        let handle = thread::spawn(move || {
-            while !stop_c.load(Ordering::Relaxed) {
-                match listener.accept() {
-                    Ok((mut stream, _)) => {
-                        let _ = stream.set_nonblocking(false);
-                        let mut buf = vec![0u8; 8192];
-                        let n = stream.read(&mut buf).unwrap_or(0);
-                        let req = String::from_utf8_lossy(&buf[..n]).to_string();
-                        let body = req.split("\r\n\r\n").nth(1).unwrap_or("").to_string();
-                        let resp = handler(&body);
-                        let http = format!(
-                            "HTTP/1.1 200 OK\r\n\
-                             Content-Type: application/json\r\n\
-                             Content-Length: {}\r\n\
-                             Connection: close\r\n\
-                             \r\n{}",
-                            resp.len(),
-                            resp
-                        );
-                        let _ = stream.write_all(http.as_bytes());
-                    }
-                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                        thread::sleep(Duration::from_millis(20));
-                    }
-                    Err(_) => break,
-                }
-            }
-        });
-        Self {
-            url,
-            stop,
-            _handle: handle,
-        }
-    }
-}
-
-impl Drop for FakeRpcServer {
-    fn drop(&mut self) {
-        self.stop.store(true, Ordering::Relaxed);
-    }
-}
+use support::fake_rpc_server::FakeRpcServer;
+use support::temp_dir::TempDir;
 
 /// Build a tempdir + TOML config + 32-byte signer key + return paths.
 struct PreflightFixture {
-    _tmp: tempdir::TempDir,
+    _tmp: TempDir,
     config_path: std::path::PathBuf,
-}
-
-mod tempdir {
-    use std::path::PathBuf;
-    pub struct TempDir {
-        path: PathBuf,
-    }
-    impl TempDir {
-        pub fn new(prefix: &str) -> std::io::Result<Self> {
-            let mut p = std::env::temp_dir();
-            let ns = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos();
-            p.push(format!("{prefix}-{ns}"));
-            std::fs::create_dir_all(&p)?;
-            Ok(Self { path: p })
-        }
-        pub fn path(&self) -> &std::path::Path {
-            &self.path
-        }
-    }
-    impl Drop for TempDir {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.path);
-        }
-    }
 }
 
 fn toml_basic_string(value: &str) -> String {
@@ -141,7 +55,7 @@ fn toml_path(path: &std::path::Path) -> String {
 }
 
 fn build_fixture(eth_url: &str, neo_url: &str) -> PreflightFixture {
-    let tmp = tempdir::TempDir::new("preflight-test").unwrap();
+    let tmp = TempDir::new("preflight-test").unwrap();
     let key_path = tmp.path().join("watcher.priv");
     let journal_dir = tmp.path().join("journal");
     let config_path = tmp.path().join("watcher.toml");
@@ -302,7 +216,7 @@ fn preflight_fails_when_eth_rpc_unreachable() {
 #[test]
 fn preflight_fails_when_eth_router_is_zero_address() {
     // No fakes needed — zero-address check fires before any RPC probe.
-    let tmp = tempdir::TempDir::new("preflight-zero-router").unwrap();
+    let tmp = TempDir::new("preflight-zero-router").unwrap();
     let key_path = tmp.path().join("watcher.priv");
     std::fs::write(&key_path, [0x42u8; 32]).unwrap();
     let cfg = tmp.path().join("watcher.toml");
@@ -431,7 +345,7 @@ fn config_template_emits_parseable_toml() {
     // End-to-end: substitute placeholders, run preflight against
     // unreachable URLs (should fail at the RPC probe, NOT at TOML
     // parse — that's what we're verifying).
-    let tmp = tempdir::TempDir::new("template-test").unwrap();
+    let tmp = TempDir::new("template-test").unwrap();
     let key_path = tmp.path().join("watcher.priv");
     std::fs::write(&key_path, [0x42u8; 32]).unwrap();
     let cfg_path = tmp.path().join("watcher.toml");
@@ -482,7 +396,7 @@ fn config_template_emits_parseable_toml() {
 fn journal_info_reads_hand_crafted_journal() {
     // Build a journal directory with cursor=42 + 3 records on 2
     // chains, then run --journal-info + assert the output.
-    let tmp = tempdir::TempDir::new("journal-info-test").unwrap();
+    let tmp = TempDir::new("journal-info-test").unwrap();
     let key_path = tmp.path().join("watcher.priv");
     std::fs::write(&key_path, [0x42u8; 32]).unwrap();
     let journal_dir = tmp.path().join("journal");

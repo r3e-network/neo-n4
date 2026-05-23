@@ -22,11 +22,15 @@
 //! probe hits ~once per few seconds.
 
 use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::net::TcpStream;
 use std::sync::{Arc, Mutex};
-use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+mod health_inner;
+mod health_server;
+
+use health_inner::HealthInner;
+pub use health_server::HealthServer;
 
 /// Snapshot of the daemon's health, shared between the main loop
 /// (writer) and the health HTTP server (reader). Cheaply cloneable —
@@ -41,19 +45,6 @@ pub struct HealthState {
     /// carries the label so multi-chain operator setups get cleanly
     /// tagged metrics out of the box without relabel rules.
     metric_label_suffix: String,
-}
-
-#[derive(Default)]
-struct HealthInner {
-    started_at_unix: u64,
-    last_tick_at_unix: Option<u64>,
-    last_tick_success_unix: Option<u64>,
-    ticks_total: u64,
-    events_processed: u64,
-    submissions_total: u64,
-    journal_cursor: u64,
-    last_error: Option<String>,
-    last_error_unix: Option<u64>,
 }
 
 impl HealthState {
@@ -220,59 +211,6 @@ impl HealthState {
 impl Default for HealthState {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// HTTP server exposing the health endpoints. Holds the listener +
-/// background thread; teardown via `Drop` (sets a stop flag and waits
-/// for the next accept-loop iteration to exit).
-pub struct HealthServer {
-    /// Resolved bind address — useful for tests that bind to
-    /// `127.0.0.1:0` and want to know which random port the OS assigned.
-    pub bound_addr: std::net::SocketAddr,
-    stop: Arc<AtomicBool>,
-    _handle: thread::JoinHandle<()>,
-}
-
-impl HealthServer {
-    /// Spawn the health server. The listener binds immediately
-    /// (returns an io::Error on bind failure); the handler thread
-    /// starts in the background.
-    pub fn spawn(
-        bind: &str,
-        state: HealthState,
-        healthy_threshold_secs: u64,
-    ) -> std::io::Result<Self> {
-        let listener = TcpListener::bind(bind)?;
-        let bound_addr = listener.local_addr()?;
-        listener.set_nonblocking(true)?;
-        let stop = Arc::new(AtomicBool::new(false));
-        let stop_c = stop.clone();
-        let handle = thread::spawn(move || {
-            while !stop_c.load(Ordering::Relaxed) {
-                match listener.accept() {
-                    Ok((mut stream, _)) => {
-                        let _ = stream.set_nonblocking(false);
-                        handle_request(&mut stream, &state, healthy_threshold_secs);
-                    }
-                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                        thread::sleep(std::time::Duration::from_millis(50));
-                    }
-                    Err(_) => break,
-                }
-            }
-        });
-        Ok(Self {
-            bound_addr,
-            stop,
-            _handle: handle,
-        })
-    }
-}
-
-impl Drop for HealthServer {
-    fn drop(&mut self) {
-        self.stop.store(true, Ordering::Relaxed);
     }
 }
 

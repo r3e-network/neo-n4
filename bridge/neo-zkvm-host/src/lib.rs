@@ -13,6 +13,12 @@ use sp1_sdk::blocking::{Elf, ProveRequest, Prover, ProverClient};
 #[cfg(unix)]
 use sp1_sdk::{ProvingKey, SP1Stdin};
 
+mod execution_result;
+mod proof_result;
+
+pub use execution_result::ExecutionResult;
+pub use proof_result::ProofResult;
+
 /// Embedded guest ELF — wired by build.rs from `cargo prove build`.
 #[cfg(unix)]
 pub const NEO_ZKVM_GUEST_ELF: &[u8] = include_bytes!(env!("NEO_ZKVM_GUEST_ELF"));
@@ -20,27 +26,6 @@ pub const NEO_ZKVM_GUEST_ELF: &[u8] = include_bytes!(env!("NEO_ZKVM_GUEST_ELF"))
 /// Empty placeholder on platforms where SP1's JIT/prover stack is unavailable.
 #[cfg(not(unix))]
 pub const NEO_ZKVM_GUEST_ELF: &[u8] = &[];
-
-/// Result of a successful end-to-end zkVM execution.
-pub struct ExecutionResult {
-    /// 32-byte public-input hash committed by the guest.
-    pub public_input_hash: [u8; 32],
-    /// Reported gas / cycle count from the SP1 executor.
-    pub cycles: u64,
-}
-
-/// Result of a successful ZK proof generation.
-pub struct ProofResult {
-    /// 32-byte public-input hash committed by the guest.
-    pub public_input_hash: [u8; 32],
-    /// Serialized proof bytes — submitted to L1 via SettlementManager.
-    /// Format: bincode-encoded `SP1ProofWithPublicValues`.
-    pub proof_bytes: Vec<u8>,
-    /// Serialized verifying key bytes — used by the on-chain verifier
-    /// to check the proof. Stable for a given guest ELF.
-    /// Format: bincode-encoded `SP1VerifyingKey`.
-    pub vk_bytes: Vec<u8>,
-}
 
 /// Execute the guest inside SP1's zkVM (no proving — just the deterministic
 /// run). Cheap; suitable for development + the "did the script HALT" check.

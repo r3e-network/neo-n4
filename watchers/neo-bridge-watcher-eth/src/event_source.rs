@@ -25,49 +25,13 @@
 //! in `LockedEvent` so the daemon can journal cursor + populate the
 //! canonical message's `sourceTxRef` field.
 
+mod locked_event;
+mod mock_event_source;
+
 use thiserror::Error;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LockedEvent {
-    /// `externalChainId` from the event — should equal the watcher's
-    /// configured chain id (e.g. 0xE0000001 for Eth mainnet). The watcher
-    /// rejects mismatches as a sanity check before processing.
-    pub external_chain_id: u32,
-
-    /// Target Neo L2 chain id.
-    pub neo_chain_id: u32,
-
-    /// Outbound nonce assigned by the router.
-    pub nonce: u64,
-
-    /// Eth-side sender (msg.sender at lock time).
-    pub sender: [u8; 20],
-
-    /// 20-byte Neo recipient.
-    pub neo_recipient: [u8; 20],
-
-    /// ERC-20 asset hash; `[0u8; 20]` for native ETH.
-    pub asset: [u8; 20],
-
-    /// Locked amount, big-endian uint256 (Eth's wire format). The
-    /// canonical asset-transfer payload encoder converts to minimal-LE
-    /// before signing.
-    pub amount: [u8; 32],
-
-    /// Arbitrary payload (call data), copied verbatim into the canonical
-    /// message's payload field for `MSG_TYPE_CALL` / `MSG_TYPE_ASSET_AND_CALL`.
-    pub payload: Vec<u8>,
-
-    /// Deadline; 0 = no deadline.
-    pub deadline: u64,
-
-    /// Eth tx hash that emitted this event. Goes into `sourceTxRef`.
-    pub source_tx_hash: [u8; 32],
-
-    /// Block height the event was emitted at — the daemon journals this
-    /// so a restart resumes from the right cursor.
-    pub block_number: u64,
-}
+pub use locked_event::LockedEvent;
+pub use mock_event_source::MockEventSource;
 
 #[derive(Debug, Error)]
 pub enum EventSourceError {
@@ -90,45 +54,4 @@ pub trait EventSource {
     /// `Ok(None)` if no more events are currently available — the
     /// caller is expected to backoff + retry.
     fn next_event(&mut self, start_block: u64) -> Result<Option<LockedEvent>, EventSourceError>;
-}
-
-/// Test fixture: in-memory queue of events, returned in insertion order
-/// (or filtered by start_block).
-pub struct MockEventSource {
-    events: Vec<LockedEvent>,
-}
-
-impl MockEventSource {
-    pub fn new() -> Self {
-        Self { events: Vec::new() }
-    }
-
-    pub fn push(&mut self, event: LockedEvent) {
-        self.events.push(event);
-    }
-
-    pub fn pending(&self) -> usize {
-        self.events.len()
-    }
-}
-
-impl Default for MockEventSource {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl EventSource for MockEventSource {
-    fn next_event(&mut self, start_block: u64) -> Result<Option<LockedEvent>, EventSourceError> {
-        // Find the first event ≥ start_block; pop it (FIFO over qualifying events).
-        if let Some(idx) = self
-            .events
-            .iter()
-            .position(|e| e.block_number >= start_block)
-        {
-            Ok(Some(self.events.remove(idx)))
-        } else {
-            Ok(None)
-        }
-    }
 }

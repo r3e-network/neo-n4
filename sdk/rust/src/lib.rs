@@ -2,10 +2,21 @@
 //! (`doc.md` §14.1). Mirrors the .NET reference SDK in `src/Neo.L2.Sdk/` —
 //! same method names, same 4-way error taxonomy, same chainId cross-check.
 
-use serde::Deserialize;
+mod batch_status_response;
+mod deposit_status_response;
+mod l2_batch_view;
+mod security_label_response;
+mod security_level_response;
+
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Duration;
 use thiserror::Error;
+
+pub use batch_status_response::BatchStatusResponse;
+pub use deposit_status_response::DepositStatusResponse;
+pub use l2_batch_view::L2BatchView;
+pub use security_label_response::SecurityLabelResponse;
+pub use security_level_response::SecurityLevelResponse;
 
 // ─── enum mirrors of doc.md §16.2 ───────────────────────────────────
 //
@@ -141,116 +152,6 @@ impl BatchStatus {
 }
 
 // ─── typed RPC responses ────────────────────────────────────────────
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct L2BatchView {
-    #[serde(rename = "chainId")]
-    pub chain_id: u32,
-    #[serde(rename = "batchNumber")]
-    pub batch_number: u64,
-    #[serde(rename = "firstBlock")]
-    pub first_block: u64,
-    #[serde(rename = "lastBlock")]
-    pub last_block: u64,
-    #[serde(rename = "preStateRoot")]
-    pub pre_state_root: String,
-    #[serde(rename = "postStateRoot")]
-    pub post_state_root: String,
-    #[serde(rename = "txRoot")]
-    pub tx_root: String,
-    #[serde(rename = "receiptRoot")]
-    pub receipt_root: String,
-    #[serde(rename = "withdrawalRoot")]
-    pub withdrawal_root: String,
-    #[serde(rename = "l2ToL1MessageRoot")]
-    pub l2_to_l1_message_root: String,
-    #[serde(rename = "l2ToL2MessageRoot")]
-    pub l2_to_l2_message_root: String,
-    #[serde(rename = "daCommitment")]
-    pub da_commitment: String,
-    #[serde(rename = "publicInputHash")]
-    pub public_input_hash: String,
-    #[serde(rename = "proofType")]
-    pub proof_type: u8,
-    pub proof: String,
-    pub encoded: String,
-}
-
-impl L2BatchView {
-    pub fn proof_type(&self) -> ProofType {
-        ProofType::from_u8(self.proof_type)
-    }
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct BatchStatusResponse {
-    #[serde(rename = "chainId")]
-    pub chain_id: u32,
-    #[serde(rename = "batchNumber")]
-    pub batch_number: u64,
-    pub status: u8,
-    #[serde(rename = "statusName", default)]
-    pub status_name: String,
-}
-
-impl BatchStatusResponse {
-    pub fn status(&self) -> BatchStatus {
-        BatchStatus::from_u8(self.status)
-    }
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct DepositStatusResponse {
-    #[serde(rename = "sourceChainId")]
-    pub source_chain_id: u32,
-    pub nonce: u64,
-    #[serde(rename = "consumedOnL2")]
-    pub consumed_on_l2: bool,
-    #[serde(rename = "includedInBatch")]
-    pub included_in_batch: Option<u64>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct SecurityLevelResponse {
-    #[serde(rename = "chainId")]
-    pub chain_id: u32,
-    pub level: u8,
-}
-
-impl SecurityLevelResponse {
-    pub fn level(&self) -> SecurityLevel {
-        SecurityLevel::from_u8(self.level)
-    }
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct SecurityLabelResponse {
-    #[serde(rename = "chainId")]
-    pub chain_id: u32,
-    #[serde(rename = "securityLevel")]
-    pub security_level: u8,
-    #[serde(rename = "daMode")]
-    pub da_mode: u8,
-    #[serde(rename = "gatewayEnabled")]
-    pub gateway_enabled: bool,
-    pub sequencer: u8,
-    pub exit: u8,
-}
-
-impl SecurityLabelResponse {
-    pub fn security_level(&self) -> SecurityLevel {
-        SecurityLevel::from_u8(self.security_level)
-    }
-    pub fn da_mode(&self) -> DAMode {
-        DAMode::from_u8(self.da_mode)
-    }
-    pub fn sequencer(&self) -> SequencerModel {
-        SequencerModel::from_u8(self.sequencer)
-    }
-    pub fn exit(&self) -> ExitModel {
-        ExitModel::from_u8(self.exit)
-    }
-}
 
 // ─── error taxonomy ────────────────────────────────────────────────
 

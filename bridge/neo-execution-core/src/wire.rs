@@ -3,6 +3,11 @@ use core::convert::TryInto;
 
 use crate::types::{BatchRequest, ExecutionError, L1Message, BATCH_WIRE_VERSION};
 
+/// Maximum total byte size across all transactions in a batch.
+/// Reject at parse-time to prevent OOM from an adversarial request
+/// specifying 65,536 txs each up to 4 GiB.
+const MAX_TOTAL_TX_BYTES: u64 = 8 * 1024 * 1024; // 8 MiB
+
 /// Parse canonical batch request bytes.
 pub fn parse_batch_request(bytes: &[u8]) -> Result<BatchRequest, ExecutionError> {
     let mut p = 0;
@@ -50,8 +55,14 @@ fn read_transactions(p: &mut usize, bytes: &[u8]) -> Result<Vec<Vec<u8>>, Execut
     }
 
     let mut transactions = Vec::with_capacity(tx_count);
+    let mut total_bytes: u64 = 0;
     for _ in 0..tx_count {
-        transactions.push(read_var_bytes(p, bytes)?);
+        let tx = read_var_bytes(p, bytes)?;
+        total_bytes = total_bytes.saturating_add(tx.len() as u64);
+        if total_bytes > MAX_TOTAL_TX_BYTES {
+            return Err(ExecutionError::OversizedField("total transaction bytes"));
+        }
+        transactions.push(tx);
     }
     Ok(transactions)
 }

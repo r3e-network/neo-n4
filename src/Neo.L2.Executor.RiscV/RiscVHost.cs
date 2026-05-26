@@ -3,6 +3,18 @@ using System.Runtime.InteropServices;
 namespace Neo.L2.Executor.RiscV;
 
 /// <summary>
+/// Thrown when <c>libneo_riscv_host</c> is not available on the current machine.
+/// Callers catch this type instead of matching exception messages.
+/// </summary>
+public sealed class RiscVHostUnavailableException : InvalidOperationException
+{
+    public RiscVHostUnavailableException(string message) : base(message) { }
+    public RiscVHostUnavailableException(string message, Exception inner) : base(message, inner) { }
+}
+
+namespace Neo.L2.Executor.RiscV;
+
+/// <summary>
 /// P/Invoke wrapper around <c>libneo_riscv_host</c> — the PolkaVM-backed Neo RISC-V execution
 /// engine that lives at <c>external/neo-riscv-vm/crates/neo-riscv-host</c>. Calls cross the
 /// stable C ABI defined in <c>neo-riscv-host/src/ffi.rs</c>.
@@ -70,9 +82,10 @@ public static class RiscVHost
     }
 
     // The bridge's loaded-or-not state is sticky for process lifetime: if the .so is missing
-    // at startup it stays missing; if it's present it stays present. Cache so every call
-    // doesn't re-pay the DllNotFoundException cost on dev environments where the lib is
-    // intentionally absent.
+    // at startup it stays missing; if it's present it stays present. Use a lock to guard
+    // the probe so concurrent access sees a consistent view; the probe itself must still
+    // be single-threaded (DllImport state is process-global).
+    private static readonly object _availabilityLock = new();
     private static bool? _isAvailableCache;
     private static string? _lastAvailabilityError;
 
@@ -82,43 +95,40 @@ public static class RiscVHost
         get
         {
             if (_isAvailableCache is { } cached) return cached;
-            try
+            lock (_availabilityLock)
             {
-                // A zero-arg probe: build a 1-byte no-op script and run it. If the library
-                // is loadable, this succeeds (or fails with a structured fault, not a
-                // DllNotFoundException). Net cost is one VM init on first access; subsequent
-                // accesses hit the cache.
-                Span<byte> script = stackalloc byte[1] { 0x40 };  // RET opcode
-                unsafe
+                if (_isAvailableCache is { } cached) return cached;
+                try
                 {
-                    fixed (byte* scriptPtr = script)
+                    Span<byte> script = stackalloc byte[1] { 0x40 };
+                    unsafe
                     {
-                        NativeExecutionResult output = default;
-                        var ok = NativeExecuteScript(
-                            scriptPtr, (nuint)script.Length,
-                            TriggerApplication, DefaultNetwork, 0, 1_000_000_000L,
-                            &output);
-                        // Free whatever the native side allocated, regardless of ok.
-                        NativeFreeExecutionResult(&output);
-                        _isAvailableCache = true;
-                        _lastAvailabilityError = null;
-                        return true;
+                        fixed (byte* scriptPtr = script)
+                        {
+                            NativeExecutionResult output = default;
+                            var ok = NativeExecuteScript(
+                                scriptPtr, (nuint)script.Length,
+                                TriggerApplication, DefaultNetwork, 0, 1_000_000_000L,
+                                &output);
+                            NativeFreeExecutionResult(&output);
+                            _isAvailableCache = true;
+                            _lastAvailabilityError = null;
+                            return true;
+                        }
                     }
                 }
-            }
-            catch (DllNotFoundException ex)
-            {
-                _lastAvailabilityError = $"{ex.GetType().Name}: {ex.Message}";
-                _isAvailableCache = false;
-                return false;
-            }
-            catch (Exception ex)
-            {
-                // Any other exception (e.g. EntryPointNotFoundException for the wrong .so)
-                // also counts as unavailable — the wrapper can't proceed safely.
-                _lastAvailabilityError = $"{ex.GetType().Name}: {ex.Message}";
-                _isAvailableCache = false;
-                return false;
+                catch (DllNotFoundException ex)
+                {
+                    _lastAvailabilityError = $"{ex.GetType().Name}: {ex.Message}";
+                    _isAvailableCache = false;
+                    return false;
+                }
+                catch (Exception ex)
+                {
+                    _lastAvailabilityError = $"{ex.GetType().Name}: {ex.Message}";
+                    _isAvailableCache = false;
+                    return false;
+                }
             }
         }
     }
@@ -131,8 +141,11 @@ public static class RiscVHost
     /// stable value over process lifetime).</summary>
     public static void ResetAvailabilityCache()
     {
-        _isAvailableCache = null;
-        _lastAvailabilityError = null;
+        lock (_availabilityLock)
+        {
+            _isAvailableCache = null;
+            _lastAvailabilityError = null;
+        }
     }
 
     /// <summary>

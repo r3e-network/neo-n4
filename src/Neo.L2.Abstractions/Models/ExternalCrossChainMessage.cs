@@ -84,8 +84,22 @@ public sealed record ExternalCrossChainMessage
     }
 
     /// <inheritdoc />
-    public override int GetHashCode() => HashCode.Combine(
-        ExternalChainId, NeoChainId, Nonce, (byte)Direction, Sender, Recipient, MessageHash);
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(ExternalChainId);
+        hash.Add(NeoChainId);
+        hash.Add(Nonce);
+        hash.Add((byte)Direction);
+        hash.Add(Sender);
+        hash.Add(Recipient);
+        hash.Add(DeadlineUnixSeconds);
+        hash.Add(SourceTxRef);
+        hash.Add((byte)MessageType);
+        hash.AddBytes(Payload.Span);
+        hash.Add(MessageHash);
+        return hash.ToHashCode();
+    }
 }
 
 /// <summary>Direction of an <see cref="ExternalCrossChainMessage"/>.</summary>

@@ -21,7 +21,7 @@ sp1-sdk = { version = "=6.2.1", features = ["blocking"] }
 # wire format and break verification of all existing on-chain proofs.
 # Migration requires: dual-format deserialization (try v1, fallback v2) OR
 # a coordinated L1 contract upgrade with proof format versioning.
-bincode = "1.3"
+bincode = "2.0"
 # Unix signal handling for the prove-batch daemon's SIGTERM/SIGINT graceful
 # shutdown. Without this a SIGTERM under k8s/systemd would land mid-proof
 # (proofs can take ~40s), losing the in-flight work to the kill-after-grace.

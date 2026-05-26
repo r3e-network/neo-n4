@@ -43,15 +43,32 @@ fn execute_transaction(tx: &[u8], gas_limit: u64) -> VmExecutionReceipt {
 mod tests {
     use super::*;
 
-    fn build_minimal_request() -> Vec<u8> {
+    fn build_minimal_request_v2() -> Vec<u8> {
+        // Wire format v2: [1B version=2][4B chain_id][8B batch_number]
+        // [10 × 32B roots][4B l1_count][l1_messages][4B tx_count][transactions]
         let mut buf = Vec::new();
-        buf.push(1u8);
+        buf.push(2u8); // version 2
         buf.extend_from_slice(&1099u32.to_le_bytes());
         buf.extend_from_slice(&7u64.to_le_bytes());
+        // pre_state_root (32B zero)
         buf.extend_from_slice(&[0u8; 32]);
+        // da_commitment
         buf.extend_from_slice(&[0xCDu8; 32]);
+        // withdrawal_root
+        buf.extend_from_slice(&[0u8; 32]);
+        // l2_to_l1_message_root
+        buf.extend_from_slice(&[0u8; 32]);
+        // l2_to_l2_message_root
+        buf.extend_from_slice(&[0u8; 32]);
+        // l1_message_hash
+        buf.extend_from_slice(&[0u8; 32]);
+        // block_context_hash
+        buf.extend_from_slice(&[0u8; 32]);
+        // l1_messages: 0
         buf.extend_from_slice(&0u32.to_le_bytes());
+        // transactions: 1
         buf.extend_from_slice(&1u32.to_le_bytes());
+        // tx: 3 bytes
         buf.extend_from_slice(&3u32.to_le_bytes());
         buf.extend_from_slice(&[0xAA, 0xBB, 0xCC]);
         buf
@@ -59,7 +76,7 @@ mod tests {
 
     #[test]
     fn parse_then_execute_minimal() {
-        let bytes = build_minimal_request();
+        let bytes = build_minimal_request_v2();
         let result = execute_batch(&bytes).expect("execute_batch failed");
         assert_ne!(result.post_state_root, [0u8; 32]);
         assert_ne!(result.public_input_hash, [0u8; 32]);
@@ -67,10 +84,27 @@ mod tests {
 
     #[test]
     fn determinism_same_input_same_output() {
-        let bytes = build_minimal_request();
+        let bytes = build_minimal_request_v2();
         let r1 = execute_batch(&bytes).unwrap();
         let r2 = execute_batch(&bytes).unwrap();
         assert_eq!(r1, r2);
+    }
+
+    #[test]
+    fn v1_backward_compat() {
+        // v1 wire format still works — roots default to zero
+        let mut buf = Vec::new();
+        buf.push(1u8);
+        buf.extend_from_slice(&1099u32.to_le_bytes());
+        buf.extend_from_slice(&7u64.to_le_bytes());
+        buf.extend_from_slice(&[0u8; 32]);
+        buf.extend_from_slice(&[0xCDu8; 32]);
+        buf.extend_from_slice(&0u32.to_le_bytes()); // l1_count
+        buf.extend_from_slice(&1u32.to_le_bytes()); // tx_count
+        buf.extend_from_slice(&3u32.to_le_bytes()); // tx_len
+        buf.extend_from_slice(&[0xAA, 0xBB, 0xCC]);
+        let result = execute_batch(&buf).expect("v1 execution failed");
+        assert_ne!(result.public_input_hash, [0u8; 32]);
     }
 
     #[test]
@@ -84,7 +118,7 @@ mod tests {
     #[test]
     fn unsupported_version_rejected() {
         let mut bytes = vec![99u8];
-        bytes.resize(100, 0);
+        bytes.resize(300, 0);
         match execute_batch(&bytes) {
             Err(ExecutionError::InvalidVersion(99)) => (),
             other => panic!("expected InvalidVersion(99), got {:?}", other),

@@ -26,6 +26,7 @@
 use ed25519_dalek::{Signer as DalekSigner, SigningKey, VerifyingKey};
 use neo_bridge_watcher_eth::{Signer, SignerError, SignerOutput};
 use std::path::Path;
+use zeroize::Zeroizing;
 
 /// Solana mainnet-beta. The high byte `0xE0` reserves the foreign-namespace
 /// prefix; `0xE0_00_00_20` is canonical for Solana mainnet (vs
@@ -68,7 +69,10 @@ pub struct Ed25519FileSigner {
 impl Ed25519FileSigner {
     /// Load a 32-byte raw ed25519 private key from `path`.
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, SignerError> {
-        let bytes = std::fs::read(path).map_err(SignerError::Io)?;
+        // Wrap in Zeroizing so the raw key bytes are wiped on drop regardless
+        // of control flow (panic, early return, etc.). Manual .fill(0) is
+        // fragile under unwinding; Zeroizing guarantees destruction.
+        let bytes = Zeroizing::new(std::fs::read(path).map_err(SignerError::Io)?);
         Self::from_bytes(&bytes)
     }
 

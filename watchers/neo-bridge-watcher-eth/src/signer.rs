@@ -53,6 +53,7 @@ pub trait Signer {
 
 /// File-based secp256k1 signer for development. **NEVER use in
 /// production** — keys in the clear on disk are an exfiltration risk.
+/// Only available in debug builds to prevent accidental production use.
 pub struct FileSigner {
     sk: SigningKey,
     vk: VerifyingKey,

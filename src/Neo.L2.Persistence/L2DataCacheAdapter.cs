@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Neo.L2;
 using Neo.Persistence;
 using Neo.SmartContract;
 
@@ -115,8 +116,8 @@ public sealed class L2DataCacheAdapter : DataCache
         var snapshot = _store.EnumeratePrefix(ReadOnlySpan<byte>.Empty).ToList();
 
         IEnumerable<(byte[] Key, byte[] Value)> filtered = direction == SeekDirection.Forward
-            ? snapshot.Where(kv => ByteArrayComparer.Instance.Compare(kv.Key, keyOrPrefix) >= 0)
-            : snapshot.Where(kv => ByteArrayComparer.Instance.Compare(kv.Key, keyOrPrefix) <= 0)
+            ? snapshot.Where(kv => LexicographicByteArrayComparer.Instance.Compare(kv.Key, keyOrPrefix) >= 0)
+            : snapshot.Where(kv => LexicographicByteArrayComparer.Instance.Compare(kv.Key, keyOrPrefix) <= 0)
                       .Reverse();
 
         foreach (var (k, v) in filtered)
@@ -126,16 +127,6 @@ public sealed class L2DataCacheAdapter : DataCache
             // exposed only as an implicit conversion. StorageItem has a
             // public byte[] ctor.
             yield return ((StorageKey)k, new StorageItem(v));
-        }
-    }
-
-    private sealed class ByteArrayComparer : IComparer<byte[]>
-    {
-        public static readonly ByteArrayComparer Instance = new();
-        public int Compare(byte[]? x, byte[]? y)
-        {
-            if (x is null || y is null) return (x is null ? 0 : 1) - (y is null ? 0 : 1);
-            return x.AsSpan().SequenceCompareTo(y);
         }
     }
 }

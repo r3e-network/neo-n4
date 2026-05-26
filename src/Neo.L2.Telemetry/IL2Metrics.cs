@@ -11,13 +11,13 @@ namespace Neo.L2.Telemetry;
 public interface IL2Metrics
 {
     /// <summary>Increment a monotonic counter.</summary>
-    void IncrementCounter(string name, long delta = 1, params (string Key, string Value)[] tags);
+    void IncrementCounter(string name, long delta = 1, params ReadOnlySpan<(string Key, string Value)> tags);
 
     /// <summary>Record a histogram observation (e.g. sealing-time milliseconds).</summary>
-    void RecordHistogram(string name, double value, params (string Key, string Value)[] tags);
+    void RecordHistogram(string name, double value, params ReadOnlySpan<(string Key, string Value)> tags);
 
     /// <summary>Set an instantaneous gauge value.</summary>
-    void SetGauge(string name, double value, params (string Key, string Value)[] tags);
+    void SetGauge(string name, double value, params ReadOnlySpan<(string Key, string Value)> tags);
 }
 
 /// <summary>Null implementation — safe default that costs nothing.</summary>
@@ -27,11 +27,11 @@ public sealed class NoOpMetrics : IL2Metrics
     public static readonly NoOpMetrics Instance = new();
 
     /// <inheritdoc />
-    public void IncrementCounter(string name, long delta = 1, params (string Key, string Value)[] tags) { }
+    public void IncrementCounter(string name, long delta = 1, params ReadOnlySpan<(string Key, string Value)> tags) { }
 
     /// <inheritdoc />
-    public void RecordHistogram(string name, double value, params (string Key, string Value)[] tags) { }
+    public void RecordHistogram(string name, double value, params ReadOnlySpan<(string Key, string Value)> tags) { }
 
     /// <inheritdoc />
-    public void SetGauge(string name, double value, params (string Key, string Value)[] tags) { }
+    public void SetGauge(string name, double value, params ReadOnlySpan<(string Key, string Value)> tags) { }
 }

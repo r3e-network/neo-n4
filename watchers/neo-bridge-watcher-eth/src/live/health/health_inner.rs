@@ -1,4 +1,4 @@
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub(super) struct HealthInner {
     pub(super) started_at_unix: u64,
     pub(super) last_tick_at_unix: Option<u64>,

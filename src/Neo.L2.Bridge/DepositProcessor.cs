@@ -89,7 +89,7 @@ public sealed class DepositProcessor
                 SourceNonce = message.Nonce,
             };
         }
-        catch
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             try { _metrics.IncrementCounter(MetricNames.DepositsRejected); } catch { }
             throw;

@@ -47,6 +47,29 @@ public sealed record OptimisticProofPayload
     /// <summary>Signature of <see cref="PublicInputs"/> by the sequencer key.</summary>
     public required ReadOnlyMemory<byte> SequencerSignature { get; init; }
 
+    /// <inheritdoc />
+    public bool Equals(OptimisticProofPayload? other)
+    {
+        return other is not null
+            && BondContract.Equals(other.BondContract)
+            && BondTxHash.Equals(other.BondTxHash)
+            && SubmittedAt == other.SubmittedAt
+            && Sequencer.Equals(other.Sequencer)
+            && SequencerSignature.Span.SequenceEqual(other.SequencerSignature.Span);
+    }
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(BondContract);
+        hash.Add(BondTxHash);
+        hash.Add(SubmittedAt);
+        hash.Add(Sequencer);
+        hash.AddBytes(SequencerSignature.Span);
+        return hash.ToHashCode();
+    }
+
     /// <summary>Encode to canonical bytes for embedding in <see cref="L2BatchCommitment.Proof"/>.</summary>
     public byte[] Encode()
     {

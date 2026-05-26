@@ -124,4 +124,21 @@ public sealed record MpcSignature
 
     /// <summary>Raw signature (64B). For secp256k1 this is r||s; for ed25519 this is R||s.</summary>
     public required ReadOnlyMemory<byte> Signature { get; init; }
+
+    /// <inheritdoc />
+    public bool Equals(MpcSignature? other)
+    {
+        return other is not null
+            && PublicKey.Span.SequenceEqual(other.PublicKey.Span)
+            && Signature.Span.SequenceEqual(other.Signature.Span);
+    }
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.AddBytes(PublicKey.Span);
+        hash.AddBytes(Signature.Span);
+        return hash.ToHashCode();
+    }
 }

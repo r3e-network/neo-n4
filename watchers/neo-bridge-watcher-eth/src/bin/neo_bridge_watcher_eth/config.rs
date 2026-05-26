@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use crate::health_config::HealthConfig;
 use crate::poll_config::PollConfig;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub(crate) struct Config {
     pub(crate) external_chain_id: u32,
     pub(crate) eth_rpc_url: String,

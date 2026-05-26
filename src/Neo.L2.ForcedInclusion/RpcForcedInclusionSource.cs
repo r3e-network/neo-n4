@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Neo.Json;
 using Neo.L2.Settlement.Rpc;
 
 namespace Neo.L2.ForcedInclusion;
@@ -165,12 +164,12 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
     {
         // Two parallel reads: GetEntry to fetch the encoded payload, IsConsumed to drop
         // entries L1 has already finalized via SettlementManager.
-        var entryTask = InvokeReadAsync("getEntry", new object[] { ChainId, nonce }, ct);
-        var consumedTask = InvokeReadAsync("isConsumed", new object[] { ChainId, nonce }, ct);
+        var entryTask = RpcContractReader.InvokeReadAsync(_rpc, _registryHash, "getEntry", new object[] { ChainId, nonce }, ct).AsTask();
+        var consumedTask = RpcContractReader.InvokeReadAsync(_rpc, _registryHash, "isConsumed", new object[] { ChainId, nonce }, ct).AsTask();
         await Task.WhenAll(entryTask, consumedTask).ConfigureAwait(false);
 
-        if (ParseBoolean(consumedTask.Result)) return null;
-        var entryBytes = ParseByteArray(entryTask.Result);
+        if (RpcContractReader.ParseBoolean(consumedTask.Result)) return null;
+        var entryBytes = RpcContractReader.ParseByteArray(entryTask.Result);
         if (entryBytes.Length == 0) return null; // L1 returns empty bytes when nonce not stored
         return DecodeEntry(nonce, entryBytes);
     }
@@ -203,63 +202,6 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
             SerializedTx = tx,
             DeadlineUnixSeconds = deadline,
         };
-    }
-
-    private async Task<JToken?> InvokeReadAsync(string method, object[] args, CancellationToken ct)
-    {
-        var paramsArray = new JArray
-        {
-            _registryHash.ToString(),
-            method,
-            BuildParamsArray(args),
-        };
-        var result = await _rpc.CallAsync("invokefunction", paramsArray, ct).ConfigureAwait(false);
-        if (result is not JObject obj)
-            throw new InvalidOperationException($"invokefunction({method}) returned non-object");
-        var state = obj["state"]?.AsString();
-        if (state != "HALT")
-            throw new InvalidOperationException($"{method} faulted: state={state}");
-        if (obj["stack"] is not JArray stack || stack.Count == 0)
-            throw new InvalidOperationException($"{method} returned empty stack");
-        return stack[0];
-    }
-
-    private static JArray BuildParamsArray(object[] args)
-    {
-        var arr = new JArray();
-        foreach (var a in args)
-        {
-            var entry = new JObject();
-            switch (a)
-            {
-                case uint u: entry["type"] = "Integer"; entry["value"] = u.ToString(); break;
-                case ulong ul: entry["type"] = "Integer"; entry["value"] = ul.ToString(); break;
-                case int i: entry["type"] = "Integer"; entry["value"] = i.ToString(); break;
-                case UInt160 h: entry["type"] = "Hash160"; entry["value"] = h.ToString(); break;
-                default: throw new ArgumentException($"unsupported param type {a?.GetType()}");
-            }
-            arr.Add(entry);
-        }
-        return arr;
-    }
-
-    private static byte[] ParseByteArray(JToken? token)
-    {
-        if (token is not JObject obj) throw new InvalidOperationException("expected JObject");
-        var value = obj["value"]?.AsString();
-        if (string.IsNullOrEmpty(value)) return Array.Empty<byte>();
-        return Convert.FromBase64String(value);
-    }
-
-    private static bool ParseBoolean(JToken? token)
-    {
-        if (token is not JObject obj) throw new InvalidOperationException("expected JObject");
-        var typeStr = obj["type"]?.AsString();
-        var value = obj["value"]?.AsString();
-        if (typeStr == "Boolean") return value == "true";
-        if (int.TryParse(value, out var n)) return n != 0;
-        var bytes = string.IsNullOrEmpty(value) ? Array.Empty<byte>() : Convert.FromBase64String(value);
-        return bytes.Length > 0 && bytes[0] != 0;
     }
 
     /// <inheritdoc />

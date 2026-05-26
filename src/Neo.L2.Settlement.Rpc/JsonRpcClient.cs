@@ -2,6 +2,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using Neo.Json;
+using Neo.L2.Telemetry;
 
 namespace Neo.L2.Settlement.Rpc;
 
@@ -13,11 +14,13 @@ public sealed class JsonRpcClient : IDisposable
 {
     private readonly HttpClient _http;
     private readonly Uri _endpoint;
+    private readonly CircuitBreaker? _circuitBreaker;
     private long _nextId;
     private bool _ownsHttp;
 
     /// <summary>Construct against an endpoint URI; allocates a default <see cref="HttpClient"/>.</summary>
-    public JsonRpcClient(string endpoint) : this(ParseEndpoint(endpoint), httpClient: null)
+    public JsonRpcClient(string endpoint, CircuitBreaker? circuitBreaker = null)
+        : this(ParseEndpoint(endpoint), httpClient: null, circuitBreaker)
     { }
 
     private static Uri ParseEndpoint(string endpoint)
@@ -29,8 +32,9 @@ public sealed class JsonRpcClient : IDisposable
         return new Uri(endpoint);
     }
 
-    /// <summary>Construct with an explicit endpoint and optional caller-owned <see cref="HttpClient"/>.</summary>
-    public JsonRpcClient(Uri endpoint, HttpClient? httpClient)
+    /// <summary>Construct with an explicit endpoint, optional caller-owned <see cref="HttpClient"/>,
+    /// and optional <see cref="CircuitBreaker"/> for L1 RPC resilience.</summary>
+    public JsonRpcClient(Uri endpoint, HttpClient? httpClient, CircuitBreaker? circuitBreaker = null)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
         // Relative URIs throw InvalidOperationException on .Scheme access; reject
@@ -48,9 +52,17 @@ public sealed class JsonRpcClient : IDisposable
                 $"endpoint scheme '{endpoint.Scheme}' must be http or https",
                 nameof(endpoint));
         _endpoint = endpoint;
+        _circuitBreaker = circuitBreaker;
         if (httpClient is null)
         {
-            _http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            var handler = new HttpClientHandler
+            {
+                // Limit concurrent connections to the L1 RPC endpoint. Default
+                // (unlimited per server) risks connection pool exhaustion under
+                // batch fanout loads. 10 is generous for a single L1 node.
+                MaxConnectionsPerServer = 10,
+            };
+            _http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
             _ownsHttp = true;
         }
         else
@@ -73,6 +85,15 @@ public sealed class JsonRpcClient : IDisposable
         ArgumentNullException.ThrowIfNull(@params);
 
         var id = Interlocked.Increment(ref _nextId);
+
+        // Circuit breaker: fail fast if the circuit is open, avoiding wasted
+        // network calls to a known-degraded endpoint.
+        if (_circuitBreaker is not null && !_circuitBreaker.TryEnter())
+        {
+            throw new JsonRpcException(-32603,
+                $"RPC circuit breaker open for '{_circuitBreaker.Name}' — endpoint is degraded");
+        }
+
         var envelope = new JObject();
         envelope["jsonrpc"] = "2.0";
         envelope["method"] = method;
@@ -91,23 +112,26 @@ public sealed class JsonRpcClient : IDisposable
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             // Caller-driven cancellation: propagate so they get the OperationCanceledException
-            // they expected.
+            // they expected. Don't count as a circuit breaker failure — the caller cancelled.
             throw;
         }
         catch (OperationCanceledException ex)
         {
             // Timeout — caller didn't cancel, but the SendAsync gave up (HttpClient.Timeout).
+            _circuitBreaker?.RecordFailure();
             throw new JsonRpcException(-32603, $"RPC timeout: {ex.Message}");
         }
         catch (HttpRequestException ex)
         {
             // Network-level failure (connection refused, DNS, TLS).
+            _circuitBreaker?.RecordFailure();
             throw new JsonRpcException(-32603, $"HTTP send failed: {ex.Message}");
         }
         using var _response = response;
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
+            _circuitBreaker?.RecordFailure();
             // Symmetric with the parse-error wrapping below: a non-2xx status (proxy 502,
             // server 500, etc.) gets a JsonRpcException so callers handle one type.
             // -32603 is the JSON-RPC 2.0 spec code for "Internal error".
@@ -158,6 +182,7 @@ public sealed class JsonRpcClient : IDisposable
             throw new JsonRpcException(code, message);
         }
 
+        _circuitBreaker?.RecordSuccess();
         return obj["result"];
     }
 

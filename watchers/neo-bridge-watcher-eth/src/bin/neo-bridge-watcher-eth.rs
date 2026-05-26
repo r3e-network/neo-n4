@@ -83,6 +83,16 @@ extern "C" fn handle_shutdown_signal(_: libc::c_int) {
     SHUTDOWN_REQUESTED.store(true, Ordering::Relaxed);
 }
 
+    /// Set by the SIGHUP handler. The run loop checks this once per tick;
+    /// when set, it reloads the TOML config so poll intervals, backoff
+    /// limits, and health thresholds can be adjusted without restarting.
+    static CONFIG_RELOAD_REQUESTED: AtomicBool = AtomicBool::new(false);
+
+    #[cfg(unix)]
+    extern "C" fn handle_reload_signal(_: libc::c_int) {
+        CONFIG_RELOAD_REQUESTED.store(true, Ordering::Relaxed);
+    }
+
 /// Install signal handlers for SIGTERM (kubernetes / systemd shutdown)
 /// and SIGINT (Ctrl-C). Both flip `SHUTDOWN_REQUESTED`. Idempotent —
 /// re-registering would just no-op (libc::signal returns the previous
@@ -99,6 +109,7 @@ fn install_shutdown_handlers() {
     unsafe {
         libc::signal(libc::SIGTERM, handler as libc::sighandler_t);
         libc::signal(libc::SIGINT, handler as libc::sighandler_t);
+        libc::signal(libc::SIGHUP, handle_reload_signal as libc::sighandler_t);
     }
 }
 
@@ -842,6 +853,26 @@ fn run(config: Config, allow_stub_signer: bool) -> Result<(), String> {
                 }
             }
             Err(CoreError::Submit(submit_err)) => {
+                // AlreadyConsumed means the on-chain contract already
+                // consumed this nonce (likely crash between submit and
+                // journal write). Recover by marking the journal to
+                // match and advancing, without backoff.
+                if matches!(submit_err, SubmitterError::AlreadyConsumed) {
+                    eprintln!(
+                        "info: nonce {} already consumed on-chain — marking local journal + advancing",
+                        core.last_event_nonce()
+                    );
+                    if let Err(e) = core.recover_already_consumed() {
+                        eprintln!("error: recovery journal write failed: {e:?}");
+                    }
+                    health_state.record_tick(true);
+                    health_state.record_submission();
+                    if let Ok(cursor) = core.journal.cursor() {
+                        health_state.record_cursor(cursor);
+                    }
+                    backoff_secs = config.poll.backoff_initial_secs;
+                    continue;
+                }
                 let delay = jittered_backoff(backoff_secs);
                 eprintln!(
                     "warn: submit failed: {submit_err:?} — backing off {}s",

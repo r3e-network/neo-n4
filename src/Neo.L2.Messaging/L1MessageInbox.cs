@@ -47,6 +47,11 @@ public sealed class L1MessageInbox
     }
 
     /// <summary>Drain up to <paramref name="max"/> messages and mark them consumed.</summary>
+    /// <remarks>
+    /// Messages are drained in deterministic order (source chain ID, then nonce ascending)
+    /// so that two L2 nodes reconstructing the same batch from the same L1 messages produce
+    /// the same <c>L1MessageHash</c> regardless of arrival timing.
+    /// </remarks>
     public IReadOnlyList<CrossChainMessage> Dequeue(int max)
     {
         if (max < 0) throw new ArgumentOutOfRangeException(nameof(max));
@@ -55,10 +60,25 @@ public sealed class L1MessageInbox
         {
             var n = Math.Min(max, _pending.Count);
             if (n == 0) return Array.Empty<CrossChainMessage>();
+
+            // Drain into temporary array, sort deterministically, then mark consumed.
+            // This guarantees that the L1MessageHash computed over the batch's L1
+            // messages is identical across all L2 nodes that see the same set of
+            // messages, even if they arrived in different orders due to network
+            // propagation variance.
+            var tmp = new CrossChainMessage[n];
+            for (var i = 0; i < n; i++)
+                tmp[i] = _pending.Dequeue();
+            Array.Sort(tmp, (a, b) =>
+            {
+                var chainCompare = a.SourceChainId.CompareTo(b.SourceChainId);
+                return chainCompare != 0 ? chainCompare : a.Nonce.CompareTo(b.Nonce);
+            });
+
             var result = new CrossChainMessage[n];
             for (var i = 0; i < n; i++)
             {
-                result[i] = _pending.Dequeue();
+                result[i] = tmp[i];
                 var key = (result[i].SourceChainId, result[i].Nonce);
                 _pendingKeys.Remove(key);
                 _consumed.Add(key);

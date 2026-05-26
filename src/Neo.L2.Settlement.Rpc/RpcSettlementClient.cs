@@ -1,4 +1,3 @@
-using Neo.Json;
 using Neo.L2.Batch;
 
 namespace Neo.L2.Settlement.Rpc;
@@ -57,105 +56,18 @@ public sealed class RpcSettlementClient : ISettlementClient, IDisposable
     /// <inheritdoc />
     public async ValueTask<UInt256> GetCanonicalStateRootAsync(uint chainId, CancellationToken cancellationToken = default)
     {
-        var result = await InvokeReadAsync("getCanonicalStateRoot", new object[] { chainId }, cancellationToken).ConfigureAwait(false);
-        return ParseUInt256(result, "ByteString");
+        var result = await RpcContractReader.InvokeReadAsync(_rpc, _settlementManagerHash, "getCanonicalStateRoot", new object[] { chainId }, cancellationToken).ConfigureAwait(false);
+        return RpcContractReader.ParseUInt256(result);
     }
 
     /// <inheritdoc />
     public async ValueTask<BatchStatus> GetBatchStatusAsync(uint chainId, ulong batchNumber, CancellationToken cancellationToken = default)
     {
-        var result = await InvokeReadAsync("getBatchStatus", new object[] { chainId, batchNumber }, cancellationToken).ConfigureAwait(false);
-        var byteValue = ParseInteger(result);
+        var result = await RpcContractReader.InvokeReadAsync(_rpc, _settlementManagerHash, "getBatchStatus", new object[] { chainId, batchNumber }, cancellationToken).ConfigureAwait(false);
+        var byteValue = RpcContractReader.ParseInteger(result);
         if (byteValue < 0 || byteValue > 4)
             throw new InvalidOperationException($"unexpected status byte {byteValue}");
         return (BatchStatus)byteValue;
-    }
-
-    private async ValueTask<JToken?> InvokeReadAsync(string method, object[] args, CancellationToken cancellationToken)
-    {
-        var paramsArray = new JArray
-        {
-            _settlementManagerHash.ToString(),
-            method,
-            BuildParamsArray(args),
-        };
-
-        var result = await _rpc.CallAsync("invokefunction", paramsArray, cancellationToken).ConfigureAwait(false);
-        if (result is not JObject obj)
-            throw new InvalidOperationException("invokefunction returned non-object");
-
-        var state = obj["state"]?.AsString();
-        if (state != "HALT")
-            throw new InvalidOperationException($"contract call faulted (state={state})");
-
-        if (obj["stack"] is not JArray stack || stack.Count == 0)
-            throw new InvalidOperationException("contract call returned empty stack");
-
-        return stack[0];
-    }
-
-    private static JArray BuildParamsArray(object[] args)
-    {
-        var arr = new JArray();
-        foreach (var a in args)
-        {
-            var entry = new JObject();
-            switch (a)
-            {
-                case uint u:
-                    entry["type"] = "Integer";
-                    entry["value"] = u.ToString();
-                    break;
-                case ulong ul:
-                    entry["type"] = "Integer";
-                    entry["value"] = ul.ToString();
-                    break;
-                case int i:
-                    entry["type"] = "Integer";
-                    entry["value"] = i.ToString();
-                    break;
-                case string s:
-                    entry["type"] = "String";
-                    entry["value"] = s;
-                    break;
-                case UInt160 h160:
-                    entry["type"] = "Hash160";
-                    entry["value"] = h160.ToString();
-                    break;
-                case UInt256 h256:
-                    entry["type"] = "Hash256";
-                    entry["value"] = h256.ToString();
-                    break;
-                case byte[] b:
-                    entry["type"] = "ByteArray";
-                    entry["value"] = Convert.ToBase64String(b);
-                    break;
-                default:
-                    throw new ArgumentException($"Unsupported RPC param type {a?.GetType()}");
-            }
-            arr.Add(entry);
-        }
-        return arr;
-    }
-
-    private static UInt256 ParseUInt256(JToken? token, string expectedType)
-    {
-        if (token is not JObject obj) throw new InvalidOperationException("expected JObject for stack item");
-        var value = obj["value"]?.AsString() ?? throw new InvalidOperationException("missing 'value'");
-        var bytes = Convert.FromBase64String(value);
-        if (bytes.Length != 32) throw new InvalidOperationException($"expected 32 bytes, got {bytes.Length}");
-        return new UInt256(bytes);
-    }
-
-    private static int ParseInteger(JToken? token)
-    {
-        if (token is not JObject obj) throw new InvalidOperationException("expected JObject for stack item");
-        var value = obj["value"]?.AsString() ?? "0";
-        if (int.TryParse(value, out var intValue)) return intValue;
-        var bytes = Convert.FromBase64String(value);
-        if (bytes.Length == 0) return 0;
-        // Neo encodes integers as little-endian; interpret first 4 bytes for status byte.
-        return bytes[0];
     }
 
     /// <inheritdoc />

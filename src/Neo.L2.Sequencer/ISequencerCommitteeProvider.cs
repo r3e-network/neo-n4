@@ -24,6 +24,41 @@ public interface ISequencerCommitteeProvider
 
     /// <summary>True if a key is currently registered (any status, including Exiting).</summary>
     ValueTask<bool> IsRegisteredAsync(ECPoint sequencerKey, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Identify the committee member responsible for producing the block at a given
+    /// Unix-seconds timestamp. This is typically the dBFT proposer at that moment.
+    /// <para>
+    /// Default implementations that cannot resolve the actual proposer should return
+    /// the first member of the sorted committee (deterministic fallback) and document
+    /// that the returned identity is approximate. Real production deploys override
+    /// this with dBFT consensus data to identify the actual proposer.
+    /// </para>
+    /// </summary>
+    /// <param name="atUnixSeconds">The Unix timestamp at which to query responsibility.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The committee member responsible, or null when the committee is empty or
+    /// the timestamp predates any known committee configuration.</returns>
+    ValueTask<CommitteeMember?> GetResponsibleSequencerAsync(uint atUnixSeconds, CancellationToken cancellationToken = default)
+    {
+        // Default: fall back to the first sorted committee member. This is a
+        // deterministic placeholder; production deployments override with dBFT
+        // proposer identification.
+        var active = GetActiveCommitteeAsync(cancellationToken);
+        if (!active.IsCompleted) return GetResponsibleSequencerSlowAsync(active, cancellationToken);
+        var committee = active.GetAwaiter().GetResult();
+        if (committee is null || committee.Count == 0) return ValueTask.FromResult<CommitteeMember?>(null);
+        return ValueTask.FromResult<CommitteeMember?>(committee.OrderBy(m => m.PublicKey).First());
+    }
+
+    /// <summary>Deferred fallback when GetActiveCommitteeAsync is not yet completed.</summary>
+    private protected static async ValueTask<CommitteeMember?> GetResponsibleSequencerSlowAsync(
+        ValueTask<IReadOnlyList<CommitteeMember>> activeTask, CancellationToken ct)
+    {
+        var committee = await activeTask.ConfigureAwait(false);
+        if (committee is null || committee.Count == 0) return null;
+        return committee.OrderBy(m => m.PublicKey).First();
+    }
 }
 
 /// <summary>One sequencer entry in the committee.</summary>

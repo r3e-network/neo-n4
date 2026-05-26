@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Neo.Cryptography.ECC;
 
 namespace Neo.L2.Proving.Attestation;
@@ -37,8 +38,13 @@ public sealed class InMemorySignerSet : ISignerSet
     /// public-key bytes so independent constructions of the same key set produce the same
     /// validator-set hash.
     /// </summary>
+    /// <remarks>
+    /// <b>NEVER use this in production.</b> Private keys are held in plain memory. A debug
+    /// assertion fires in DEBUG builds; Release builds should use HSM/KMS-backed signers.
+    /// </remarks>
     public InMemorySignerSet(IEnumerable<(ECPoint PubKey, byte[] PrivateKey)> keys)
     {
+        Debug.Assert(false, "InMemorySignerSet must never be used in production — private keys are held in plain memory. Use an HSM/KMS-backed ISignerSet implementation.");
         ArgumentNullException.ThrowIfNull(keys);
         _keys = keys
             .OrderBy(k => k.PubKey)

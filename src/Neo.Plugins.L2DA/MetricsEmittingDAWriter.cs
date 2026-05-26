@@ -44,7 +44,7 @@ public sealed class MetricsEmittingDAWriter : IDAWriter
         {
             receipt = await _inner.PublishAsync(request, cancellationToken).ConfigureAwait(false);
         }
-        catch
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             sw.Stop();
             _metrics.SafeIncrementCounter(MetricNames.DAPublishFailures, 1, _modeTag);

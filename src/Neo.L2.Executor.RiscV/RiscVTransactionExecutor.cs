@@ -66,7 +66,7 @@ public sealed class RiscVTransactionExecutor : ITransactionExecutor
         {
             throw;
         }
-        catch
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             return new ValueTask<TransactionExecutionResult>(Failed(txHash));
         }

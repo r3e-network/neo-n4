@@ -78,7 +78,8 @@ pub fn canonical_message_bytes(msg: &ExternalCrossChainMessage) -> Result<Vec<u8
     out.extend_from_slice(&msg.deadline_unix_seconds.to_le_bytes());
     out.extend_from_slice(&msg.source_tx_ref);
     out.push(msg.message_type as u8);
-    out.extend_from_slice(&(msg.payload.len() as u32).to_le_bytes());
+    let payload_len = u32::try_from(msg.payload.len()).unwrap_or(u32::MAX);
+    out.extend_from_slice(&payload_len.to_le_bytes());
     out.extend_from_slice(&msg.payload);
     debug_assert_eq!(out.len(), size);
     Ok(out)
@@ -109,7 +110,8 @@ pub fn encode_asset_transfer_payload(foreign_asset: [u8; 20], amount_le: &[u8]) 
     );
     let mut out = Vec::with_capacity(20 + 4 + amount_le.len());
     out.extend_from_slice(&foreign_asset);
-    out.extend_from_slice(&(amount_le.len() as u32).to_le_bytes());
+    let amount_len = u32::try_from(amount_le.len()).expect("amount_le capped at 64 by assert above");
+    out.extend_from_slice(&amount_len.to_le_bytes());
     out.extend_from_slice(amount_le);
     out
 }

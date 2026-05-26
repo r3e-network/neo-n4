@@ -67,9 +67,22 @@ where
     pub event_source: ES,
     pub submitter: NS,
     pub journal: J,
+    /// Nonce of the event currently being processed (set at the top of
+    /// process_event). Used by the run loop to recover from
+    /// AlreadyConsumed errors — the on-chain contract already consumed
+    /// this nonce, so we mark the local journal to match and advance.
+    last_event_nonce: u64,
+    /// Block number of the event currently being processed.
+    last_event_block: u64,
 }
 
 impl<S: Signer, ES: EventSource, NS: NeoSubmitter, J: Journal> WatcherCore<S, ES, NS, J> {
+    /// Nonce of the event most recently passed to `process_event`.
+    /// Used by the run loop for AlreadyConsumed recovery.
+    pub fn last_event_nonce(&self) -> u64 {
+        self.last_event_nonce
+    }
+
     pub fn new(
         external_chain_id: u32,
         signer: S,
@@ -83,7 +96,24 @@ impl<S: Signer, ES: EventSource, NS: NeoSubmitter, J: Journal> WatcherCore<S, ES
             event_source,
             submitter,
             journal,
+            last_event_nonce: 0,
+            last_event_block: 0,
         }
+    }
+
+    /// Recover from an `AlreadyConsumed` error: the on-chain contract has
+    /// consumed the last-processed event's nonce but the local journal
+    /// doesn't know about it (crash between submit + journal write).
+    /// Mark the nonce as submitted and advance the cursor so the run loop
+    /// can continue to subsequent events without backoff.
+    pub fn recover_already_consumed(&mut self) -> Result<(), CoreError> {
+        let chain = self.external_chain_id;
+        let nonce = self.last_event_nonce;
+        let block = self.last_event_block;
+        self.journal.mark_submitted(chain, nonce)?;
+        self.journal
+            .set_cursor(block.saturating_add(1))?;
+        Ok(())
     }
 
     /// Run one tick: pull the next event, process if any, advance the
@@ -113,6 +143,11 @@ impl<S: Signer, ES: EventSource, NS: NeoSubmitter, J: Journal> WatcherCore<S, ES
     /// The single-event hot path. Public so tests can drive it without
     /// pushing through the event source.
     pub fn process_event(&mut self, event: LockedEvent) -> Result<[u8; 32], CoreError> {
+        // Capture the event identity before any fallible work so the run
+        // loop can recover from AlreadyConsumed by journaling the nonce.
+        self.last_event_nonce = event.nonce;
+        self.last_event_block = event.block_number;
+
         if event.external_chain_id != self.external_chain_id {
             return Err(CoreError::ChainIdMismatch {
                 got: event.external_chain_id,
@@ -424,5 +459,71 @@ mod tests {
         // is unchanged so a restart with the real persistent source
         // would correctly re-emit nonce 2.
         assert!(!core.journal.is_submitted(0xE000_0001, 2).unwrap());
+    }
+
+    #[test]
+    fn already_consumed_recovery_marks_journal_and_advances() {
+        use crate::submitter::MockSubmitter;
+        use crate::event_source::MockEventSource;
+        use crate::journal::InMemoryJournal;
+
+        let signer = make_signer();
+        let submitter = MockSubmitter::default();
+        let event = sample_event(7, 100);
+        let mut event_source = MockEventSource::new();
+        event_source.push(event.clone());
+        let journal = InMemoryJournal::default();
+        let mut core = WatcherCore::new(0xE000_0001, signer, event_source, submitter, journal);
+
+        // process_event captures the nonce
+        let _ = core.tick();
+
+        // Recovery: mark nonce submitted, advance cursor past the event's block
+        core.recover_already_consumed().unwrap();
+        assert!(core.journal.is_submitted(0xE000_0001, 7).unwrap());
+        assert_eq!(core.journal.cursor().unwrap(), 101);
+    }
+
+    #[test]
+    fn process_event_rejects_wrong_chain_id() {
+        let signer = make_signer();
+        let submitter = MockSubmitter::default();
+        let event_source = MockEventSource::new();
+        let journal = InMemoryJournal::default();
+        let mut core = WatcherCore::new(0xE000_0002, signer, event_source, submitter, journal);
+
+        let event = sample_event(1, 100);
+        let result = core.process_event(event);
+        assert!(matches!(result, Err(CoreError::ChainIdMismatch { .. })));
+    }
+
+    #[test]
+    fn already_submitted_skips_journaled_nonce() {
+        let signer = make_signer();
+        let submitter = MockSubmitter::default();
+        let mut journal = InMemoryJournal::default();
+        journal.mark_submitted(0xE000_0001, 1).unwrap();
+        let mut event_source = MockEventSource::new();
+        event_source.push(sample_event(1, 100));
+        let mut core = WatcherCore::new(0xE000_0001, signer, event_source, submitter, journal);
+
+        let result = core.process_event(sample_event(1, 100));
+        assert!(matches!(result, Err(CoreError::AlreadySubmitted(1))));
+    }
+
+    #[test]
+    fn recover_already_consumed_advances_cursor() {
+        let signer = make_signer();
+        let submitter = MockSubmitter::default();
+        let journal = InMemoryJournal::default();
+        let mut event_source = MockEventSource::new();
+        event_source.push(sample_event(42, 200));
+        let mut core = WatcherCore::new(0xE000_0001, signer, event_source, submitter, journal);
+
+        let _ = core.tick(); // captures nonce 42
+
+        core.recover_already_consumed().unwrap();
+        assert!(core.journal.is_submitted(0xE000_0001, 42).unwrap());
+        assert_eq!(core.journal.cursor().unwrap(), 201); // block + 1
     }
 }

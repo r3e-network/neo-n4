@@ -19,7 +19,12 @@ public sealed class WithdrawalProcessor
     // and the duplicate is only caught hours later at L1 settlement. The
     // (chain, sender, nonce) tuple is monotonic per-sender per the WithdrawalRequest
     // contract, so we enforce uniqueness across the chain's lifetime.
+    // Bounded at MaxConsumedAcrossBatches; when exceeded, evict oldest half entries
+    // to prevent unbounded memory growth. L1 settlement provides final replay protection.
     private readonly HashSet<(UInt160, ulong)> _consumedAcrossBatches = new();
+    private readonly Queue<(UInt160, ulong)> _consumedOrder = new();
+    /// <summary>Maximum number of cross-batch consumed nonces tracked in memory.</summary>
+    private const int MaxConsumedAcrossBatches = 1_000_000;
     private WithdrawalTree _tree = new();
 
     /// <summary>Identifier of the L2 chain this processor runs on.</summary>
@@ -86,7 +91,7 @@ public sealed class WithdrawalProcessor
                 leaf = MessageHasher.HashWithdrawal(request);
             }
         }
-        catch
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             // Metric calls are isolated so a defective sink can't double-count or
             // mask the original business exception. Same swallow-and-rethrow as the
@@ -116,7 +121,24 @@ public sealed class WithdrawalProcessor
             // Stage on a duplicate (sender, nonce) sees it in _consumedAcrossBatches
             // and rejects it.
             foreach (var key in _byNonce.Keys)
+            {
                 _consumedAcrossBatches.Add(key);
+                _consumedOrder.Enqueue(key);
+            }
+            // Evict oldest entries if over capacity. The L1 settlement contract
+            // provides definitive replay protection for finalized withdrawals,
+            // so evicting here is safe — it only affects pre-settlement L2-level
+            // deduplication as a defense-in-depth measure.
+            while (_consumedAcrossBatches.Count > MaxConsumedAcrossBatches)
+            {
+                // Evict the oldest half of entries
+                var toEvict = _consumedAcrossBatches.Count / 2;
+                for (var i = 0; i < toEvict && _consumedOrder.Count > 0; i++)
+                {
+                    var old = _consumedOrder.Dequeue();
+                    _consumedAcrossBatches.Remove(old);
+                }
+            }
             _tree = new WithdrawalTree();
             _byNonce.Clear();
             return (sealed_.Root, sealed_);

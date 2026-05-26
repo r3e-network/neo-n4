@@ -8,6 +8,11 @@ use super::{handle_request, HealthState};
 /// HTTP server exposing the health endpoints. Holds the listener +
 /// background thread; teardown via `Drop` (sets a stop flag and waits
 /// for the next accept-loop iteration to exit).
+///
+/// **Security note**: Endpoints are unauthenticated. In production, bind
+/// to a private address (127.0.0.1 or ClusterIP) and front with a reverse
+/// proxy or k8s network policy. The `/metrics` and `/info` endpoints expose
+/// internal daemon state (cursor, submission count, last error).
 pub struct HealthServer {
     /// Resolved bind address — useful for tests that bind to
     /// `127.0.0.1:0` and want to know which random port the OS assigned.

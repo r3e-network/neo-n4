@@ -80,6 +80,11 @@ contract NeoExternalBridgeRouter {
 
     /// @notice Token-specific lock accounting (so the contract can't release
     ///         more than was ever locked — matches NeoHub.ExternalBridgeEscrow).
+    /// @dev    Balances grow monotonically per inbound lock and shrink per
+    ///         finalized withdrawal. There is no recovery path for stuck locks
+    ///         (e.g. Neo chain halt) — this matches the canonical bridge model
+    ///         where the locked side is the source of truth. Governance can
+    ///         pause new locks but cannot claw back already-locked funds.
     mapping(address => uint256) public lockedBalances;
 
     // ─── events ───────────────────────────────────────────────────────────
@@ -347,6 +352,9 @@ contract NeoExternalBridgeRouter {
                 // normal EOA transfer + a simple contract receiver; complex
                 // hooks should use the ERC-20 path which is bounded by the token
                 // contract's transfer cost.
+                // NOTE: 30_000 may be insufficient for smart-contract wallets
+                // (Gnosis Safe, Argent). Recipients using such wallets should
+                // withdraw via the ERC-20 path to avoid stuck ETH transfers.
                 (bool sent,) = recipient.call{value: amount, gas: 30_000}("");
                 require(sent, "ETH transfer failed");
             } else {

@@ -29,6 +29,7 @@ pub trait NeoSubmitter {
 
 /// Test fixture: records every submission. Returns deterministic tx
 /// hashes (low byte = submission count) so tests can assert on order.
+#[derive(Debug)]
 pub struct MockSubmitter {
     submissions: Vec<InboundSubmission>,
     /// If set, the next submit_inbound returns this error instead of

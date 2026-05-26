@@ -35,7 +35,7 @@ pub use health_server::HealthServer;
 /// Snapshot of the daemon's health, shared between the main loop
 /// (writer) and the health HTTP server (reader). Cheaply cloneable —
 /// internally an `Arc<Mutex<...>>`.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct HealthState {
     inner: Arc<Mutex<HealthInner>>,
     /// Optional Prometheus label suffix (e.g. `{chain_id="0xE0000030"}`)
@@ -74,7 +74,7 @@ impl HealthState {
     /// The freshness check (`/healthz`) compares `last_tick_at_unix`
     /// against the threshold.
     pub fn record_tick(&self, processed_event: bool) {
-        let mut s = self.inner.lock().unwrap();
+        let mut s = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let now = unix_now();
         s.last_tick_at_unix = Some(now);
         s.last_tick_success_unix = Some(now);
@@ -89,20 +89,20 @@ impl HealthState {
     /// submit step — we want the count of journal-advancing
     /// submissions, not the count of events seen.
     pub fn record_submission(&self) {
-        self.inner.lock().unwrap().submissions_total += 1;
+        self.inner.lock().unwrap_or_else(|e| e.into_inner()).submissions_total += 1;
     }
 
     /// Update the journal cursor surfaced in the health snapshot.
     /// Called after every successful journal advance.
     pub fn record_cursor(&self, cursor: u64) {
-        self.inner.lock().unwrap().journal_cursor = cursor;
+        self.inner.lock().unwrap_or_else(|e| e.into_inner()).journal_cursor = cursor;
     }
 
     /// Record a tick error. The error message is stable (truncated
     /// to ~256 chars) — a frequent error like a chain reorg wouldn't
     /// rotate the field every tick.
     pub fn record_error(&self, msg: impl Into<String>) {
-        let mut s = self.inner.lock().unwrap();
+        let mut s = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let mut m = msg.into();
         if m.len() > 256 {
             m.truncate(256);
@@ -113,7 +113,7 @@ impl HealthState {
 
     /// Build a JSON snapshot + freshness verdict.
     pub fn snapshot(&self, healthy_threshold_secs: u64) -> (bool, String) {
-        let s = self.inner.lock().unwrap();
+        let s = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let now = unix_now();
         // Healthy if we've had a recent tick success. Before the first
         // tick (just-started daemon) we use `started_at_unix` instead
@@ -158,7 +158,7 @@ impl HealthState {
     ///   - `watcher_healthy == 0` (same alert, threshold-aware)
     ///   - `rate(watcher_submissions_total[5m]) == 0` AND `events_processed > 0` (stuck)
     pub fn metrics_text(&self, healthy_threshold_secs: u64) -> String {
-        let s = self.inner.lock().unwrap();
+        let s = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let now = unix_now();
         let reference = s.last_tick_success_unix.unwrap_or(s.started_at_unix);
         let healthy = if now.saturating_sub(reference) <= healthy_threshold_secs {

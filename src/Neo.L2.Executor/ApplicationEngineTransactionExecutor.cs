@@ -56,18 +56,20 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
     private readonly INotificationCollector _collector;
     private readonly ProtocolSettings _settings;
     private readonly long _gasLimit;
+    private readonly HashSet<(UInt160 Sender, uint Nonce)> _consumedNonces = new();
 
     /// <summary>
     /// Construct.
     /// </summary>
     /// <param name="state">L2 state KV store the engine reads/writes.</param>
+    /// <param name="settings">
+    /// Neo <see cref="ProtocolSettings"/> (network magic, native-contract
+    /// addresses). Required — no fallback to avoid misconfigured deployments
+    /// silently using the wrong network magic.
+    /// </param>
     /// <param name="collector">
     /// Optional notification → withdrawals/messages decoder. Default treats
     /// every transaction as effect-free.
-    /// </param>
-    /// <param name="settings">
-    /// Optional Neo <see cref="ProtocolSettings"/> (network magic, native-contract
-    /// addresses). Defaults to <see cref="ProtocolSettings.Default"/>.
     /// </param>
     /// <param name="gasLimit">
     /// Per-transaction gas budget in datoshi (Neo's smallest GAS unit).
@@ -75,16 +77,17 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
     /// </param>
     public ApplicationEngineTransactionExecutor(
         IL2KeyValueStore state,
+        ProtocolSettings settings,
         INotificationCollector? collector = null,
-        ProtocolSettings? settings = null,
         long gasLimit = ApplicationEngine.TestModeGas)
     {
         ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(settings);
         if (gasLimit <= 0)
             throw new ArgumentException("gasLimit must be positive", nameof(gasLimit));
         _state = state;
+        _settings = settings;
         _collector = collector ?? NoEffectsCollector.Instance;
-        _settings = settings ?? ProtocolSettings.Default;
         _gasLimit = gasLimit;
     }
 
@@ -111,6 +114,16 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
             // Malformed transaction — return a Failed receipt without running anything.
             // Same semantics as Neo's mempool reject.
             return Failed(rawTxHash, $"deserialize failed: {ex.Message}");
+        }
+
+        // Per-account nonce deduplication. Each sender may use a given nonce at most
+        // once per batch; replayed or duplicate nonces from the same account are
+        // rejected before execution to prevent sequencer-side tx reordering attacks.
+        // The Transaction.Sender is the script hash of the first signer's account.
+        var nonceKey = (tx.Sender, tx.Nonce);
+        if (!_consumedNonces.Add(nonceKey))
+        {
+            return Failed(tx.Hash, $"duplicate nonce: sender={tx.Sender}, nonce={tx.Nonce}");
         }
 
         // Run the script against a fresh DataCache snapshot. On HALT, commit;
@@ -154,7 +167,7 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
         };
 
         var (withdrawals, messages) = success
-            ? _collector.CollectAsync(tx, engine.Notifications.ToArray()).Result
+            ? await _collector.CollectAsync(tx, engine.Notifications.ToArray()).ConfigureAwait(false)
             : (Array.Empty<WithdrawalRequest>(), Array.Empty<CrossChainMessage>());
         return new TransactionExecutionResult
         {
@@ -190,7 +203,7 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
         // SPEC.md proving contract: same script + same starting state → same delta hash.
         // We sort by the Key bytes so iteration order doesn't leak into the hash.
         var changes = engine.SnapshotCache.GetChangeSet()
-            .OrderBy(c => c.Key.ToArray(), ByteSeqComparer.Instance)
+            .OrderBy(c => c.Key.ToArray(), LexicographicByteArrayComparer.Instance)
             .ToArray();
 
         if (changes.Length == 0) return UInt256.Zero;
@@ -269,20 +282,6 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
         };
     }
 
-    private sealed class ByteSeqComparer : IComparer<byte[]>
-    {
-        public static readonly ByteSeqComparer Instance = new();
-        public int Compare(byte[]? x, byte[]? y)
-        {
-            if (x is null || y is null) return (x is null ? 0 : 1) - (y is null ? 0 : 1);
-            var min = Math.Min(x.Length, y.Length);
-            for (var i = 0; i < min; i++)
-            {
-                var d = x[i] - y[i];
-                if (d != 0) return d;
-            }
-            return x.Length - y.Length;
-        }
     }
 }
 

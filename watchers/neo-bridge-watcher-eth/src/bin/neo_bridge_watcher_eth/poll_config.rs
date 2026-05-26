@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub(crate) struct PollConfig {
     #[serde(default = "default_poll_interval")]
     pub(crate) poll_interval_secs: u64,

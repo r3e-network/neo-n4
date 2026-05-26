@@ -95,4 +95,21 @@ public sealed record SignerSignature
 
     /// <summary>Raw 64-byte signature (r||s) over the canonical public-input bytes.</summary>
     public required ReadOnlyMemory<byte> Signature { get; init; }
+
+    /// <inheritdoc />
+    public bool Equals(SignerSignature? other)
+    {
+        return other is not null
+            && PublicKey.Equals(other.PublicKey)
+            && Signature.Span.SequenceEqual(other.Signature.Span);
+    }
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(PublicKey);
+        hash.AddBytes(Signature.Span);
+        return hash.ToHashCode();
+    }
 }

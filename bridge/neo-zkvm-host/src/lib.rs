@@ -21,11 +21,11 @@ pub use zk_execution_result::ZkExecutionResult;
 
 /// Embedded guest ELF — wired by build.rs from `cargo prove build`.
 #[cfg(unix)]
-pub const NEO_ZKVM_GUEST_ELF: &[u8] = include_bytes!(env!("NEO_ZKVM_GUEST_ELF"));
+pub(crate) const NEO_ZKVM_GUEST_ELF: &[u8] = include_bytes!(env!("NEO_ZKVM_GUEST_ELF"));
 
 /// Empty placeholder on platforms where SP1's JIT/prover stack is unavailable.
 #[cfg(not(unix))]
-pub const NEO_ZKVM_GUEST_ELF: &[u8] = &[];
+pub(crate) const NEO_ZKVM_GUEST_ELF: &[u8] = &[];
 
 /// Execute the guest inside SP1's zkVM (no proving — just the deterministic
 /// run). Cheap; suitable for development + the "did the script HALT" check.

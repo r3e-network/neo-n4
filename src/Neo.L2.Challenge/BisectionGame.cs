@@ -113,7 +113,7 @@ public sealed class BisectionGame
             // produce a settled game with no metric record.
             _disputedIndex = _lo;
             _settled = true;
-            _metrics.RecordHistogram(MetricNames.BisectionRounds, _rounds);
+            try { _metrics.RecordHistogram(MetricNames.BisectionRounds, _rounds); } catch { }
             return false;
         }
 
@@ -148,7 +148,7 @@ public sealed class BisectionGame
         {
             _disputedIndex = _lo;
             _settled = true;
-            _metrics.RecordHistogram(MetricNames.BisectionRounds, _rounds);
+            try { _metrics.RecordHistogram(MetricNames.BisectionRounds, _rounds); } catch { }
         }
     }
 

@@ -14,7 +14,7 @@ public sealed class InMemoryMetrics : IL2Metrics, IMetricsSource
     private readonly Lock _gate = new();
 
     /// <inheritdoc />
-    public void IncrementCounter(string name, long delta = 1, params (string Key, string Value)[] tags)
+    public void IncrementCounter(string name, long delta = 1, params ReadOnlySpan<(string Key, string Value)> tags)
     {
         ArgumentNullException.ThrowIfNull(name);
         var key = TaggedKey(name, tags);
@@ -22,7 +22,7 @@ public sealed class InMemoryMetrics : IL2Metrics, IMetricsSource
     }
 
     /// <inheritdoc />
-    public void RecordHistogram(string name, double value, params (string Key, string Value)[] tags)
+    public void RecordHistogram(string name, double value, params ReadOnlySpan<(string Key, string Value)> tags)
     {
         ArgumentNullException.ThrowIfNull(name);
         var key = TaggedKey(name, tags);
@@ -38,7 +38,7 @@ public sealed class InMemoryMetrics : IL2Metrics, IMetricsSource
     }
 
     /// <inheritdoc />
-    public void SetGauge(string name, double value, params (string Key, string Value)[] tags)
+    public void SetGauge(string name, double value, params ReadOnlySpan<(string Key, string Value)> tags)
     {
         ArgumentNullException.ThrowIfNull(name);
         var key = TaggedKey(name, tags);
@@ -46,15 +46,15 @@ public sealed class InMemoryMetrics : IL2Metrics, IMetricsSource
     }
 
     /// <summary>Read the current value of a counter (or 0).</summary>
-    public long GetCounter(string name, params (string Key, string Value)[] tags) =>
+    public long GetCounter(string name, params ReadOnlySpan<(string Key, string Value)> tags) =>
         _counters.TryGetValue(TaggedKey(name, tags), out var v) ? v : 0L;
 
     /// <summary>Read the current gauge value (or 0.0).</summary>
-    public double GetGauge(string name, params (string Key, string Value)[] tags) =>
+    public double GetGauge(string name, params ReadOnlySpan<(string Key, string Value)> tags) =>
         _gauges.TryGetValue(TaggedKey(name, tags), out var v) ? v : 0.0;
 
     /// <summary>Snapshot of all histogram observations under a name.</summary>
-    public IReadOnlyList<double> GetHistogram(string name, params (string Key, string Value)[] tags)
+    public IReadOnlyList<double> GetHistogram(string name, params ReadOnlySpan<(string Key, string Value)> tags)
     {
         lock (_gate)
         {
@@ -88,10 +88,13 @@ public sealed class InMemoryMetrics : IL2Metrics, IMetricsSource
         };
     }
 
-    private static string TaggedKey(string name, (string Key, string Value)[] tags)
+    private static string TaggedKey(string name, ReadOnlySpan<(string Key, string Value)> tags)
     {
-        if (tags.Length == 0) return name;
-        var ordered = tags.OrderBy(t => t.Key, StringComparer.Ordinal);
+        if (tags.IsEmpty) return name;
+        // Convert to array for LINQ sorting — the interface uses ReadOnlySpan for
+        // zero-alloc calls, but the internal key construction needs ordering.
+        var tagsArr = tags.ToArray();
+        var ordered = tagsArr.OrderBy(t => t.Key, StringComparer.Ordinal);
         return name + "{" + string.Join(",", ordered.Select(t => $"{t.Key}={t.Value}")) + "}";
     }
 }

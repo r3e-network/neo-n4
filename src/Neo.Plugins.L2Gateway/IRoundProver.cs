@@ -33,4 +33,21 @@ public sealed record RoundResult
 
     /// <summary>Opaque proof bytes for this subtree. Format depends on backend.</summary>
     public required ReadOnlyMemory<byte> ProofBytes { get; init; }
+
+    /// <inheritdoc />
+    public bool Equals(RoundResult? other)
+    {
+        return other is not null
+            && MessageRootContribution.Equals(other.MessageRootContribution)
+            && ProofBytes.Span.SequenceEqual(other.ProofBytes.Span);
+    }
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(MessageRootContribution);
+        hash.AddBytes(ProofBytes.Span);
+        return hash.ToHashCode();
+    }
 }

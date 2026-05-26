@@ -1,4 +1,5 @@
 /// Result of a successful ZK proof generation.
+#[derive(Debug, Clone)]
 pub struct ProofResult {
     /// 32-byte public-input hash committed by the guest.
     pub public_input_hash: [u8; 32],

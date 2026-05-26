@@ -101,7 +101,7 @@ public sealed class MetricsHttpServer : IDisposable
                 await WriteResponseAsync(stream, response, linkedCts.Token).ConfigureAwait(false);
             }
         }
-        catch
+        catch (Exception ex) when (ex is IOException or System.Net.Sockets.SocketException or ObjectDisposedException or OperationCanceledException)
         {
             // best-effort — never let a bad client take down the server
         }

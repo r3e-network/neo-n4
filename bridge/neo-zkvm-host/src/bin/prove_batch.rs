@@ -34,20 +34,19 @@ extern "C" fn shutdown_signal_handler(_sig: i32) {
 
 #[cfg(unix)]
 fn install_shutdown_signal_handlers() {
-    // SAFETY: libc::signal is the standard POSIX shape; the handler is
+    // SAFETY: sigaction is the POSIX-standard signal API (more portable than
+    // signal(), which has SysV-vs-BSD reset differences). The handler is
     // marked `extern "C"` and only touches an AtomicBool (signal-safe).
-    // The `as *const () as libc::sighandler_t` two-step is the rustc-recommended
-    // cast (a direct function-item-as-integer cast is a `function_casts_as_integer`
-    // warning).
+    // SA_RESTART ensures interrupted syscalls (e.g. read from the prover
+    // pipe) are transparently retried rather than failing with EINTR.
     unsafe {
-        libc::signal(
-            libc::SIGTERM,
-            shutdown_signal_handler as *const () as libc::sighandler_t,
-        );
-        libc::signal(
-            libc::SIGINT,
-            shutdown_signal_handler as *const () as libc::sighandler_t,
-        );
+        let sa = libc::sigaction {
+            sa_sigaction: shutdown_signal_handler as libc::sighandler_t,
+            sa_flags: libc::SA_RESTART,
+            sa_mask: std::mem::zeroed(),
+        };
+        libc::sigaction(libc::SIGTERM, &sa, std::ptr::null_mut());
+        libc::sigaction(libc::SIGINT, &sa, std::ptr::null_mut());
     }
 }
 
@@ -460,8 +459,9 @@ fn hex_decode(s: &str) -> Result<Vec<u8>, String> {
 
 fn hex_encode(b: &[u8]) -> String {
     let mut s = String::with_capacity(b.len() * 2);
+    use std::fmt::Write;
     for byte in b {
-        s.push_str(&format!("{:02x}", byte));
+        write!(&mut s, "{:02x}", byte).expect("write to String is infallible");
     }
     s
 }

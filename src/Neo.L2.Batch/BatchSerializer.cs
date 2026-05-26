@@ -57,7 +57,9 @@ public static class BatchSerializer
 {
     private const int ProofMaxBytes = 1 * 1024 * 1024; // 1 MiB cap matches NeoHub's defensive limit.
 
-    /// <summary>Fixed-size portion of an <see cref="L2BatchCommitment"/> encoding (excludes proof varbytes).</summary>
+    /// <summary>Fixed-size portion of an <see cref="L2BatchCommitment"/> encoding.
+    /// Includes the 4-byte proof length prefix (the proof bytes themselves are varbytes).
+    /// Total = 4 + 8 + 8 + 8 + 9×32 + 1 + 4 = 321 bytes.</summary>
     public const int CommitmentFixedSize =
         4 +              // ChainId
         8 + 8 + 8 +      // BatchNumber, FirstBlock, LastBlock
@@ -110,15 +112,11 @@ public static class BatchSerializer
         BinaryPrimitives.WriteUInt64LittleEndian(span.Slice(pos, 8), commitment.FirstBlock); pos += 8;
         BinaryPrimitives.WriteUInt64LittleEndian(span.Slice(pos, 8), commitment.LastBlock); pos += 8;
 
-        WriteUInt256(span, ref pos, commitment.PreStateRoot);
-        WriteUInt256(span, ref pos, commitment.PostStateRoot);
-        WriteUInt256(span, ref pos, commitment.TxRoot);
-        WriteUInt256(span, ref pos, commitment.ReceiptRoot);
-        WriteUInt256(span, ref pos, commitment.WithdrawalRoot);
-        WriteUInt256(span, ref pos, commitment.L2ToL1MessageRoot);
-        WriteUInt256(span, ref pos, commitment.L2ToL2MessageRoot);
-        WriteUInt256(span, ref pos, commitment.DACommitment);
-        WriteUInt256(span, ref pos, commitment.PublicInputHash);
+        foreach (var root in new[] {
+            commitment.PreStateRoot, commitment.PostStateRoot, commitment.TxRoot,
+            commitment.ReceiptRoot, commitment.WithdrawalRoot, commitment.L2ToL1MessageRoot,
+            commitment.L2ToL2MessageRoot, commitment.DACommitment, commitment.PublicInputHash,
+        }) WriteUInt256(span, ref pos, root);
 
         span[pos++] = (byte)commitment.ProofType;
         BinaryPrimitives.WriteInt32LittleEndian(span.Slice(pos, 4), commitment.Proof.Length); pos += 4;
@@ -143,6 +141,9 @@ public static class BatchSerializer
         var batchNumber = BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(pos, 8)); pos += 8;
         var firstBlock = BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(pos, 8)); pos += 8;
         var lastBlock = BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(pos, 8)); pos += 8;
+
+        if (lastBlock < firstBlock)
+            throw new InvalidDataException($"lastBlock ({lastBlock}) < firstBlock ({firstBlock}) in decoded commitment");
 
         var preStateRoot = ReadUInt256(data, ref pos);
         var postStateRoot = ReadUInt256(data, ref pos);
@@ -221,15 +222,13 @@ public static class BatchSerializer
         BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(pos, 4), inputs.ChainId); pos += 4;
         BinaryPrimitives.WriteUInt64LittleEndian(span.Slice(pos, 8), inputs.BatchNumber); pos += 8;
 
-        WriteUInt256(span, ref pos, inputs.PreStateRoot);
-        WriteUInt256(span, ref pos, inputs.PostStateRoot);
-        WriteUInt256(span, ref pos, inputs.TxRoot);
-        WriteUInt256(span, ref pos, inputs.ReceiptRoot);
-        WriteUInt256(span, ref pos, inputs.WithdrawalRoot);
-        WriteUInt256(span, ref pos, inputs.L2ToL1MessageRoot);
-        WriteUInt256(span, ref pos, inputs.L2ToL2MessageRoot);
-        WriteUInt256(span, ref pos, inputs.L1MessageHash);
-        WriteUInt256(span, ref pos, inputs.DACommitment);
+        foreach (var root in new[] {
+            inputs.PreStateRoot, inputs.PostStateRoot, inputs.TxRoot, inputs.ReceiptRoot,
+            inputs.WithdrawalRoot, inputs.L2ToL1MessageRoot, inputs.L2ToL2MessageRoot,
+            inputs.L1MessageHash, inputs.DACommitment, inputs.BlockContextHash,
+        }) WriteUInt256(span, ref pos, root);
+
+        if (pos != buffer.Length)
         WriteUInt256(span, ref pos, inputs.BlockContextHash);
 
         if (pos != buffer.Length)

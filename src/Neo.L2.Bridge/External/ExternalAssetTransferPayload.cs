@@ -71,6 +71,13 @@ public sealed record ExternalAssetTransferPayload
                 $"payload length {bytes.Length} != 24 + amountLen {amountLen}", nameof(bytes));
 
         var amount = new BigInteger(bytes.Slice(24, amountLen));
+        // Defense-in-depth: reject amounts that exceed a realistic supply cap
+        // (32 bytes = 256 bits, more than the total supply of any known asset).
+        // Downstream code should also validate against the specific asset's supply.
+        if (amount.GetByteCount() > 32)
+            throw new ArgumentException(
+                $"amount magnitude exceeds 256-bit supply cap", nameof(bytes));
+
         return new ExternalAssetTransferPayload
         {
             ForeignAsset = foreignAsset,

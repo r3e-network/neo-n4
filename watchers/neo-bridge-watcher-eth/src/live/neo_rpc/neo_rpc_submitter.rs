@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::submitter::{InboundSubmission, NeoSubmitter, SubmitterError};
 
@@ -15,6 +16,7 @@ pub struct NeoRpcSubmitter<S: SignAndSend> {
     pub(super) escrow_address: [u8; 20],
     pub(super) signer: [u8; 20],
     pub(super) sign_and_send: S,
+    pub(super) next_request_id: AtomicU64,
 }
 
 impl<S: SignAndSend> NeoSubmitter for NeoRpcSubmitter<S> {
@@ -78,9 +80,10 @@ impl<S: SignAndSend> NeoRpcSubmitter<S> {
         method: &str,
         params: serde_json::Value,
     ) -> Result<T, NeoRpcError> {
+        let req_id = self.next_request_id.fetch_add(1, Ordering::Relaxed);
         let req = JsonRpcRequest {
             jsonrpc: "2.0",
-            id: 1,
+            id: req_id,
             method,
             params,
         };
@@ -97,6 +100,12 @@ impl<S: SignAndSend> NeoRpcSubmitter<S> {
                 code: err.code,
                 message: err.message,
             });
+        }
+        if resp.id != Some(req_id) {
+            return Err(NeoRpcError::Decode(format!(
+                "response id {:?} != request id {}",
+                resp.id, req_id
+            )));
         }
         resp.result
             .ok_or_else(|| NeoRpcError::Decode("response has no result and no error".into()))

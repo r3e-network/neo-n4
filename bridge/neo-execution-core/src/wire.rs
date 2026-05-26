@@ -1,7 +1,12 @@
 use alloc::vec::Vec;
-use core::convert::TryInto;
 
 use crate::types::{BatchRequest, ExecutionError, L1Message, BATCH_WIRE_VERSION};
+
+/// Maximum byte size of a single transaction or L1 message payload. Reject at
+/// parse-time before allocating to prevent OOM from a single element claiming
+/// to be gigabytes long. Also used as a per-element guard alongside
+/// MAX_TOTAL_TX_BYTES which limits the aggregate.
+const MAX_PER_ELEMENT_BYTES: u32 = 1024 * 1024; // 1 MiB
 
 /// Maximum total byte size across all transactions in a batch.
 /// Reject at parse-time to prevent OOM from an adversarial request
@@ -9,9 +14,15 @@ use crate::types::{BatchRequest, ExecutionError, L1Message, BATCH_WIRE_VERSION};
 const MAX_TOTAL_TX_BYTES: u64 = 8 * 1024 * 1024; // 8 MiB
 
 /// Parse canonical batch request bytes.
+///
+/// Version 1 (deprecated, 75+ bytes): 4-root layout.
+/// Version 2 (current, 235+ bytes): 10-root layout matching C# PublicInputs.
 pub fn parse_batch_request(bytes: &[u8]) -> Result<BatchRequest, ExecutionError> {
     let mut p = 0;
     let version = read_byte(&mut p, bytes)?;
+    if version == 1 {
+        return parse_batch_request_v1(bytes, &mut p);
+    }
     if version != BATCH_WIRE_VERSION {
         return Err(ExecutionError::InvalidVersion(version));
     }
@@ -20,15 +31,51 @@ pub fn parse_batch_request(bytes: &[u8]) -> Result<BatchRequest, ExecutionError>
     let batch_number = read_u64(&mut p, bytes)?;
     let pre_state_root = read_32b(&mut p, bytes)?;
     let da_commitment = read_32b(&mut p, bytes)?;
+    let withdrawal_root = read_32b(&mut p, bytes)?;
+    let l2_to_l1_message_root = read_32b(&mut p, bytes)?;
+    let l2_to_l2_message_root = read_32b(&mut p, bytes)?;
+    let l1_message_hash = read_32b(&mut p, bytes)?;
+    let block_context_hash = read_32b(&mut p, bytes)?;
 
     let l1_messages = read_l1_messages(&mut p, bytes)?;
     let transactions = read_transactions(&mut p, bytes)?;
 
     Ok(BatchRequest {
+        wire_version: BATCH_WIRE_VERSION,
         chain_id,
         batch_number,
         pre_state_root,
         da_commitment,
+        withdrawal_root,
+        l2_to_l1_message_root,
+        l2_to_l2_message_root,
+        l1_message_hash,
+        block_context_hash,
+        l1_messages,
+        transactions,
+    })
+}
+
+fn parse_batch_request_v1(bytes: &[u8], p: &mut usize) -> Result<BatchRequest, ExecutionError> {
+    let chain_id = read_u32(p, bytes)?;
+    let batch_number = read_u64(p, bytes)?;
+    let pre_state_root = read_32b(p, bytes)?;
+    let da_commitment = read_32b(p, bytes)?;
+
+    let l1_messages = read_l1_messages(p, bytes)?;
+    let transactions = read_transactions(p, bytes)?;
+
+    Ok(BatchRequest {
+        wire_version: 1,
+        chain_id,
+        batch_number,
+        pre_state_root,
+        da_commitment,
+        withdrawal_root: [0u8; 32],
+        l2_to_l1_message_root: [0u8; 32],
+        l2_to_l2_message_root: [0u8; 32],
+        l1_message_hash: [0u8; 32],
+        block_context_hash: [0u8; 32],
         l1_messages,
         transactions,
     })
@@ -41,8 +88,13 @@ fn read_l1_messages(p: &mut usize, bytes: &[u8]) -> Result<Vec<L1Message>, Execu
     }
 
     let mut l1_messages = Vec::with_capacity(l1_count);
+    let mut total_bytes: u64 = 0;
     for _ in 0..l1_count {
         let payload = read_var_bytes(p, bytes)?;
+        total_bytes = total_bytes.saturating_add(payload.len() as u64);
+        if total_bytes > MAX_TOTAL_TX_BYTES {
+            return Err(ExecutionError::OversizedField("total L1 message bytes"));
+        }
         l1_messages.push(L1Message { bytes: payload });
     }
     Ok(l1_messages)
@@ -69,6 +121,9 @@ fn read_transactions(p: &mut usize, bytes: &[u8]) -> Result<Vec<Vec<u8>>, Execut
 
 fn read_var_bytes(p: &mut usize, bytes: &[u8]) -> Result<Vec<u8>, ExecutionError> {
     let len = read_u32(p, bytes)? as usize;
+    if len > MAX_PER_ELEMENT_BYTES as usize {
+        return Err(ExecutionError::OversizedField("element exceeds per-element byte cap"));
+    }
     let end = p.checked_add(len).ok_or(ExecutionError::Truncated)?;
     if end > bytes.len() {
         return Err(ExecutionError::Truncated);
@@ -93,7 +148,11 @@ fn read_u32(p: &mut usize, b: &[u8]) -> Result<u32, ExecutionError> {
     if end > b.len() {
         return Err(ExecutionError::Truncated);
     }
-    let v = u32::from_le_bytes(b[*p..end].try_into().unwrap());
+    let v = u32::from_le_bytes(
+        b[*p..end]
+            .try_into()
+            .map_err(|_| ExecutionError::Truncated)?,
+    );
     *p = end;
     Ok(v)
 }
@@ -103,7 +162,11 @@ fn read_u64(p: &mut usize, b: &[u8]) -> Result<u64, ExecutionError> {
     if end > b.len() {
         return Err(ExecutionError::Truncated);
     }
-    let v = u64::from_le_bytes(b[*p..end].try_into().unwrap());
+    let v = u64::from_le_bytes(
+        b[*p..end]
+            .try_into()
+            .map_err(|_| ExecutionError::Truncated)?,
+    );
     *p = end;
     Ok(v)
 }
@@ -113,7 +176,9 @@ fn read_32b(p: &mut usize, b: &[u8]) -> Result<[u8; 32], ExecutionError> {
     if end > b.len() {
         return Err(ExecutionError::Truncated);
     }
-    let v: [u8; 32] = b[*p..end].try_into().unwrap();
+    let v: [u8; 32] = b[*p..end]
+        .try_into()
+        .map_err(|_| ExecutionError::Truncated)?;
     *p = end;
     Ok(v)
 }

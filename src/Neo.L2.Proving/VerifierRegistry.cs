@@ -13,20 +13,44 @@ namespace Neo.L2.Proving;
 /// </remarks>
 public sealed class VerifierRegistry
 {
+    private readonly Lock _gate = new();
     private readonly Dictionary<ProofType, IL2ProofVerifier> _verifiers = new();
+    private bool _sealed;
 
     /// <summary>Register a verifier. Replaces any prior registration for the same kind.</summary>
+    /// <remarks>
+    /// Registration is only allowed before sealing. Call <see cref="SealAfterInit"/> once
+    /// all verifiers are registered to prevent runtime plugin code from swapping verifiers
+    /// after the node starts processing batches.
+    /// </remarks>
     public void Register(IL2ProofVerifier verifier)
     {
         ArgumentNullException.ThrowIfNull(verifier);
-        _verifiers[verifier.Kind] = verifier;
+        lock (_gate)
+        {
+            if (_sealed)
+                throw new InvalidOperationException("VerifierRegistry is sealed; no further registrations allowed");
+            _verifiers[verifier.Kind] = verifier;
+        }
+    }
+
+    /// <summary>Prevent further registrations. Call once during node initialization.</summary>
+    public void SealAfterInit()
+    {
+        lock (_gate) { _sealed = true; }
     }
 
     /// <summary>True if a verifier is registered for the given kind.</summary>
-    public bool IsRegistered(ProofType kind) => _verifiers.ContainsKey(kind);
+    public bool IsRegistered(ProofType kind)
+    {
+        lock (_gate) return _verifiers.ContainsKey(kind);
+    }
 
     /// <summary>Number of registered verifiers.</summary>
-    public int Count => _verifiers.Count;
+    public int Count
+    {
+        get { lock (_gate) return _verifiers.Count; }
+    }
 
     /// <summary>Dispatch and verify <paramref name="commitment"/> using the registered verifier.</summary>
     public ValueTask<ProofVerificationResult> VerifyAsync(
@@ -41,9 +65,13 @@ public sealed class VerifierRegistry
             return new ValueTask<ProofVerificationResult>(
                 ProofVerificationResult.Fail("ProofType.None requires no verification but is not allowed for finalization"));
 
-        if (!_verifiers.TryGetValue(commitment.ProofType, out var verifier))
-            return new ValueTask<ProofVerificationResult>(
-                ProofVerificationResult.Fail($"no verifier registered for {commitment.ProofType}"));
+        IL2ProofVerifier verifier;
+        lock (_gate)
+        {
+            if (!_verifiers.TryGetValue(commitment.ProofType, out verifier!))
+                return new ValueTask<ProofVerificationResult>(
+                    ProofVerificationResult.Fail($"no verifier registered for {commitment.ProofType}"));
+        }
 
         if (commitment.ChainId != publicInputs.ChainId
             || commitment.BatchNumber != publicInputs.BatchNumber

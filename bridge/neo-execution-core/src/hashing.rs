@@ -10,23 +10,29 @@ pub fn merkle_root(leaves: &[[u8; 32]]) -> [u8; 32] {
     }
 
     let mut current: Vec<[u8; 32]> = leaves.to_vec();
-    while current.len() > 1 {
-        let mut next = Vec::with_capacity(current.len().div_ceil(2));
-        let mut i = 0;
-        while i < current.len() {
-            let left = current[i];
-            let right = if i + 1 < current.len() {
-                current[i + 1]
-            } else {
-                left
-            };
+    let mut n = current.len();
+    while n > 1 {
+        // Compute parent hashes in-place: parent[i] overwrites children[2*i],
+        // which is safe because child[2*i] is never read after parent[i] is
+        // computed.
+        let half = n / 2;
+        for i in 0..half {
+            let left = current[2 * i];
+            let right = if 2 * i + 1 < n { current[2 * i + 1] } else { left };
             let mut buf = [0u8; 64];
             buf[..32].copy_from_slice(&left);
             buf[32..].copy_from_slice(&right);
-            next.push(hash256(&buf));
-            i += 2;
+            current[i] = hash256(&buf);
         }
-        current = next;
+        // If n is odd, the last leaf is promoted to the next level (paired with
+        // itself). We need to copy it to position `half` since it wasn't consumed
+        // by the loop above (it has no sibling at 2*half + 1).
+        if n % 2 != 0 {
+            current[half] = current[n - 1];
+            n = half + 1;
+        } else {
+            n = half;
+        }
     }
 
     current[0]
@@ -40,6 +46,16 @@ pub fn hash256(input: &[u8]) -> [u8; 32] {
     out
 }
 
+/// Compute the zkVM-internal receipt leaf hash.
+///
+/// Layout (90 bytes): `"neo-vm-receipt:v1:"[17] || tx_hash[32] || state[1] ||
+/// gas_consumed[8 LE] || output_hash[32]`, double-SHA256.
+///
+/// This is the **zkVM proof path** receipt hash. The C# native-executor receipt
+/// hash at `Receipt.Hash()` uses a different layout (105 bytes, no prefix, separate
+/// StorageDeltaHash + EventsHash). These two hashes intentionally differ because they
+/// represent different execution backends. Only the zkVM's receipt hash flow reaches
+/// L1 settlement; the C# native path is for local devnet/testing.
 pub fn hash_receipt(tx_hash: &[u8; 32], execution: VmExecutionReceipt) -> [u8; 32] {
     const RECEIPT_PREFIX: &[u8] = b"neo-vm-receipt:v1:";
     let mut receipt_buf = Vec::with_capacity(RECEIPT_PREFIX.len() + 32 + 1 + 8 + 32);
@@ -59,20 +75,30 @@ pub fn fold_state_root(prev_root: &[u8; 32], receipt_hash: &[u8; 32]) -> [u8; 32
 }
 
 pub fn apply_l1_message(prev_root: &[u8; 32], msg: &L1Message) -> [u8; 32] {
-    let mut h = Sha256::new();
-    h.update(prev_root);
-    h.update(b"L1MSG");
-    h.update((msg.bytes.len() as u32).to_le_bytes());
-    h.update(&msg.bytes);
-    let first = h.finalize();
-    let mut h2 = Sha256::new();
-    h2.update(first);
-    let final_hash = h2.finalize();
-    let mut out = [0u8; 32];
-    out.copy_from_slice(&final_hash);
-    out
+    // Wire parser enforces 1 MiB per-element cap; the u32 conversion is safe
+    // for all parser-constructed messages. For programmatically constructed
+    // L1Message, saturate at u32::MAX to prevent silent truncation.
+    let msg_len = u32::try_from(msg.bytes.len()).unwrap_or(u32::MAX);
+    let mut buf = Vec::with_capacity(32 + 5 + 4 + msg.bytes.len());
+    buf.extend_from_slice(prev_root);
+    buf.extend_from_slice(b"L1MSG");
+    buf.extend_from_slice(&msg_len.to_le_bytes());
+    buf.extend_from_slice(&msg.bytes);
+    hash256(&buf)
 }
 
+/// Compute the canonical public-input hash matching the C# `StateRootCalculator.HashPublicInputs`.
+///
+/// Layout (332 bytes, all little-endian):
+///   [4B chain_id][8B batch_number][10 × 32B roots]
+///
+/// The 10 roots in order: PreStateRoot, PostStateRoot, TxRoot, ReceiptRoot,
+/// WithdrawalRoot, L2ToL1MessageRoot, L2ToL2MessageRoot, L1MessageHash,
+/// DACommitment, BlockContextHash.
+///
+/// This is double-SHA256 (Hash256) over the concatenated 332-byte buffer,
+/// matching Neo's canonical hash convention.
+#[allow(clippy::too_many_arguments)]
 pub fn hash_public_inputs(
     chain_id: u32,
     batch_number: u64,
@@ -80,21 +106,20 @@ pub fn hash_public_inputs(
     post_state_root: &[u8; 32],
     tx_root: &[u8; 32],
     receipt_root: &[u8; 32],
+    withdrawal_root: &[u8; 32],
+    l2_to_l1_message_root: &[u8; 32],
+    l2_to_l2_message_root: &[u8; 32],
+    l1_message_hash: &[u8; 32],
     da_commitment: &[u8; 32],
+    block_context_hash: &[u8; 32],
 ) -> [u8; 32] {
-    let mut h = Sha256::new();
-    h.update(chain_id.to_le_bytes());
-    h.update(batch_number.to_le_bytes());
-    h.update(pre_state_root);
-    h.update(post_state_root);
-    h.update(tx_root);
-    h.update(receipt_root);
-    h.update(da_commitment);
-    let first = h.finalize();
-    let mut h2 = Sha256::new();
-    h2.update(first);
-    let final_hash = h2.finalize();
-    let mut out = [0u8; 32];
-    out.copy_from_slice(&final_hash);
-    out
+    let mut buf = [0u8; 4 + 8 + 10 * 32]; // 332 bytes
+    buf[0..4].copy_from_slice(&chain_id.to_le_bytes());
+    buf[4..12].copy_from_slice(&batch_number.to_le_bytes());
+    let mut pos = 12;
+    for root in [pre_state_root, post_state_root, tx_root, receipt_root, withdrawal_root, l2_to_l1_message_root, l2_to_l2_message_root, l1_message_hash, da_commitment, block_context_hash] {
+        buf[pos..pos + 32].copy_from_slice(root);
+        pos += 32;
+    }
+    hash256(&buf)
 }

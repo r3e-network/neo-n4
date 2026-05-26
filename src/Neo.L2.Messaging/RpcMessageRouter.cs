@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Neo.Json;
 using Neo.L2.Persistence;
 using Neo.L2.Settlement.Rpc;
 using Neo.L2.State;
@@ -213,15 +212,15 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
 
     private async Task<CrossChainMessage?> FetchOneAsync(ulong nonce, CancellationToken ct)
     {
-        var raw = await InvokeReadAsync("getL1ToL2", new object[] { _chainId, nonce }, ct).ConfigureAwait(false);
-        var bytes = ParseByteArray(raw);
+        var raw = await RpcContractReader.InvokeReadAsync(_rpc, _routerHash, "getL1ToL2", new object[] { _chainId, nonce }, ct).ConfigureAwait(false);
+        var bytes = RpcContractReader.ParseByteArray(raw);
         if (bytes.Length == 0) return null; // not stored — operator's known set is ahead of L1
         var msg = DecodeMessage(bytes);
 
         // Cross-check L1's IsConsumed: the contract's at-most-once gate. Skip messages
         // that the L1 already considers consumed (settlement-driven cleanup).
-        var consumedRaw = await InvokeReadAsync("isConsumed", new object[] { msg.MessageHash }, ct).ConfigureAwait(false);
-        if (ParseBoolean(consumedRaw)) return null;
+        var consumedRaw = await RpcContractReader.InvokeReadAsync(_rpc, _routerHash, "isConsumed", new object[] { msg.MessageHash }, ct).ConfigureAwait(false);
+        if (RpcContractReader.ParseBoolean(consumedRaw)) return null;
         return msg;
     }
 
@@ -266,64 +265,6 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
         };
         var hash = MessageHasher.HashMessage(unhashed);
         return unhashed with { MessageHash = hash };
-    }
-
-    private async Task<JToken?> InvokeReadAsync(string method, object[] args, CancellationToken ct)
-    {
-        var paramsArray = new JArray
-        {
-            _routerHash.ToString(),
-            method,
-            BuildParamsArray(args),
-        };
-        var result = await _rpc.CallAsync("invokefunction", paramsArray, ct).ConfigureAwait(false);
-        if (result is not JObject obj)
-            throw new InvalidOperationException($"invokefunction({method}) returned non-object");
-        var state = obj["state"]?.AsString();
-        if (state != "HALT")
-            throw new InvalidOperationException($"{method} faulted: state={state}");
-        if (obj["stack"] is not JArray stack || stack.Count == 0)
-            throw new InvalidOperationException($"{method} returned empty stack");
-        return stack[0];
-    }
-
-    private static JArray BuildParamsArray(object[] args)
-    {
-        var arr = new JArray();
-        foreach (var a in args)
-        {
-            var entry = new JObject();
-            switch (a)
-            {
-                case uint u: entry["type"] = "Integer"; entry["value"] = u.ToString(); break;
-                case ulong ul: entry["type"] = "Integer"; entry["value"] = ul.ToString(); break;
-                case int i: entry["type"] = "Integer"; entry["value"] = i.ToString(); break;
-                case UInt160 h: entry["type"] = "Hash160"; entry["value"] = h.ToString(); break;
-                case UInt256 h2: entry["type"] = "Hash256"; entry["value"] = h2.ToString(); break;
-                default: throw new ArgumentException($"unsupported param type {a?.GetType()}");
-            }
-            arr.Add(entry);
-        }
-        return arr;
-    }
-
-    private static byte[] ParseByteArray(JToken? token)
-    {
-        if (token is not JObject obj) throw new InvalidOperationException("expected JObject");
-        var value = obj["value"]?.AsString();
-        if (string.IsNullOrEmpty(value)) return Array.Empty<byte>();
-        return Convert.FromBase64String(value);
-    }
-
-    private static bool ParseBoolean(JToken? token)
-    {
-        if (token is not JObject obj) throw new InvalidOperationException("expected JObject");
-        var typeStr = obj["type"]?.AsString();
-        var value = obj["value"]?.AsString();
-        if (typeStr == "Boolean") return value == "true";
-        if (int.TryParse(value, out var n)) return n != 0;
-        var bytes = string.IsNullOrEmpty(value) ? Array.Empty<byte>() : Convert.FromBase64String(value);
-        return bytes.Length > 0 && bytes[0] != 0;
     }
 
     /// <inheritdoc />

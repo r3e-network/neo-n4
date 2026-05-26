@@ -37,6 +37,25 @@ public sealed record RiscVProofPayload
     /// <summary>Verification key identifier (used by the verifier to look up VK material).</summary>
     public required UInt256 VerificationKeyId { get; init; }
 
+    /// <inheritdoc />
+    public bool Equals(RiscVProofPayload? other)
+    {
+        return other is not null
+            && ProofSystem == other.ProofSystem
+            && VerificationKeyId.Equals(other.VerificationKeyId)
+            && ProofBytes.Span.SequenceEqual(other.ProofBytes.Span);
+    }
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(ProofSystem);
+        hash.Add(VerificationKeyId);
+        hash.AddBytes(ProofBytes.Span);
+        return hash.ToHashCode();
+    }
+
     /// <summary>Encode to canonical bytes for embedding in <see cref="L2BatchCommitment.Proof"/>.</summary>
     public byte[] Encode()
     {

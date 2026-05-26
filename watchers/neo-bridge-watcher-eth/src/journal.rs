@@ -35,6 +35,7 @@ pub trait Journal {
     fn is_submitted(&self, external_chain_id: u32, nonce: u64) -> Result<bool, JournalError>;
 }
 
+#[derive(Debug)]
 pub struct InMemoryJournal {
     cursor: u64,
     submitted: HashSet<(u32, u64)>,

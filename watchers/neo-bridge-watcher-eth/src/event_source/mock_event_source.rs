@@ -2,6 +2,7 @@ use super::{EventSource, EventSourceError, LockedEvent};
 
 /// Test fixture: in-memory queue of events, returned in insertion order
 /// (or filtered by start_block).
+#[derive(Debug)]
 pub struct MockEventSource {
     events: Vec<LockedEvent>,
 }

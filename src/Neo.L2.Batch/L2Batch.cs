@@ -26,7 +26,7 @@ public sealed class L2Batch
     public ulong LastBlock { get; private set; }
 
     /// <summary>Block context committed at sealing time.</summary>
-    public BatchBlockContext? BlockContext { get; set; }
+    public BatchBlockContext? BlockContext { get; internal set; }
 
     /// <summary>Ordered transactions that the executor will replay deterministically.</summary>
     public IReadOnlyList<ReadOnlyMemory<byte>> Transactions => _transactions;
@@ -77,6 +77,9 @@ public sealed class L2Batch
             throw new ArgumentOutOfRangeException(nameof(blockIndex), $"blockIndex {blockIndex} precedes FirstBlock {FirstBlock}");
         if (blockIndex < LastBlock)
             throw new ArgumentOutOfRangeException(nameof(blockIndex), $"blockIndex {blockIndex} is older than LastBlock {LastBlock}; blocks must be appended in order");
+        if (blockIndex != LastBlock && blockIndex != LastBlock + 1)
+            throw new ArgumentOutOfRangeException(nameof(blockIndex),
+                $"blockIndex {blockIndex} is non-contiguous after {LastBlock}; blocks must be sequential with no gaps");
         LastBlock = blockIndex;
     }
 

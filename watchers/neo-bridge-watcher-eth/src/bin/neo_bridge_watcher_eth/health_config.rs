@@ -4,7 +4,7 @@ use serde::Deserialize;
 /// the daemon runs without a health server (suitable for one-off
 /// CLI runs); k8s/systemd deployments set `bind = "0.0.0.0:9090"`
 /// and probe `/healthz` for readiness/liveness.
-#[derive(Deserialize, Default)]
+#[derive(Deserialize, Default, Debug)]
 pub(crate) struct HealthConfig {
     /// Bind address (e.g. "0.0.0.0:9090" or "127.0.0.1:9090"). Unset
     /// = no health server.

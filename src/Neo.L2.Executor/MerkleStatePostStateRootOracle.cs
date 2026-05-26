@@ -69,7 +69,7 @@ public sealed class MerkleStatePostStateRootOracle : IPostStateRootOracle
     {
         ArgumentNullException.ThrowIfNull(key);
         var sorted = _state.EnumeratePrefix(ReadOnlySpan<byte>.Empty)
-            .OrderBy(kv => kv.Key, ByteSeqComparer.Instance)
+            .OrderBy(kv => kv.Key, LexicographicByteArrayComparer.Instance)
             .ToArray();
         var index = -1;
         for (var i = 0; i < sorted.Length; i++)
@@ -86,16 +86,4 @@ public sealed class MerkleStatePostStateRootOracle : IPostStateRootOracle
 
     /// <summary>Total leaves in the current state Merkle tree.</summary>
     public int LeafCount => (int)_state.Count;
-
-    private sealed class ByteSeqComparer : IComparer<byte[]>
-    {
-        public static readonly ByteSeqComparer Instance = new();
-        public int Compare(byte[]? x, byte[]? y)
-        {
-            if (x is null || y is null) return (x is null ? 0 : 1) - (y is null ? 0 : 1);
-            var min = Math.Min(x.Length, y.Length);
-            for (var i = 0; i < min; i++) { var d = x[i] - y[i]; if (d != 0) return d; }
-            return x.Length - y.Length;
-        }
-    }
 }

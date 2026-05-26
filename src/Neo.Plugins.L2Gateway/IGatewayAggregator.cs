@@ -44,4 +44,23 @@ public sealed record AggregatedCommitment
 
     /// <summary>Identifier of the aggregation backend (matches <c>ProofSystem</c> in RiscVZk).</summary>
     public required byte BackendId { get; init; }
+
+    /// <inheritdoc />
+    public bool Equals(AggregatedCommitment? other)
+    {
+        return other is not null
+            && BackendId == other.BackendId
+            && GlobalMessageRoot.Equals(other.GlobalMessageRoot)
+            && AggregatedProof.Span.SequenceEqual(other.AggregatedProof.Span);
+    }
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(BackendId);
+        hash.Add(GlobalMessageRoot);
+        hash.AddBytes(AggregatedProof.Span);
+        return hash.ToHashCode();
+    }
 }

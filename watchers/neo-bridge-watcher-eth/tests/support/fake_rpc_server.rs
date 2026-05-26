@@ -12,6 +12,9 @@ pub struct FakeRpcServer {
 }
 
 impl FakeRpcServer {
+    /// Panics if port allocation fails (test machine is fundamentally broken).
+    /// In test code, `.unwrap()` on bind is acceptable — a CI runner without
+    /// available ports can't run any network tests.
     pub fn spawn<F>(handler: F) -> Self
     where
         F: Fn(&str) -> String + Send + 'static,

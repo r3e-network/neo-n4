@@ -1,7 +1,8 @@
 [package]
 name = "neo-zkvm-host"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+rust-version = "1.85"
 license = "MIT"
 description = "Real SP1 host that loads neo-zkvm-guest's RISC-V ELF, runs it via SP1's prover, and produces a verifiable ZK proof of L2 batch execution."
 # build.rs invokes `cargo prove build` against ../neo-zkvm-guest and exposes
@@ -13,7 +14,13 @@ build = "build.rs"
 [dependencies]
 
 [target.'cfg(unix)'.dependencies]
-sp1-sdk = { version = "6.2.1", features = ["blocking"] }
+sp1-sdk = { version = "=6.2.1", features = ["blocking"] }
+# bincode v1 is REQUIRED for on-chain proof format stability. Proof bytes
+# (SP1ProofWithPublicValues + SP1VerifyingKey) are serialized with bincode v1
+# and stored on L1 by SettlementManager. Upgrading to v2 would change the
+# wire format and break verification of all existing on-chain proofs.
+# Migration requires: dual-format deserialization (try v1, fallback v2) OR
+# a coordinated L1 contract upgrade with proof format versioning.
 bincode = "1.3"
 # Unix signal handling for the prove-batch daemon's SIGTERM/SIGINT graceful
 # shutdown. Without this a SIGTERM under k8s/systemd would land mid-proof

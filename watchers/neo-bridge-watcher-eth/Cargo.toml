@@ -1,7 +1,7 @@
 [package]
 name = "neo-bridge-watcher-eth"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 license = "MIT"
 description = "Off-chain watcher daemon for Neo Elastic Network's Eth ↔ Neo external bridge. Default features ship the messaging + signing + orchestration core (no networking deps). Build with `--features live-rpc` for the runnable daemon binary, which wires HTTP JSON-RPC adapters (Eth event source + Neo submitter pre-check) and a flat-file journal."
 
@@ -20,7 +20,7 @@ required-features = ["live-rpc"]
 
 [dependencies]
 # secp256k1 ECDSA (used by both Eth and Neo verifiers — same curve, same hash).
-k256 = { version = "0.13", features = ["ecdsa", "sha2"] }
+k256 = { version = "=0.13.4", features = ["ecdsa", "sha2"] }
 sha2 = "0.10"
 # Zero the read-buffer + signing-key bytes after use so a core dump or
 # memory-disclosure bug can't leak the signing key. k256's SigningKey is
@@ -39,6 +39,8 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking", 
 serde = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", optional = true }
 tiny-keccak = { version = "2.0", features = ["keccak"], optional = true }
+# NOTE: tiny-keccak is in maintenance mode. Consider migrating to `sha3`
+# (Keccak256) when convenient — more actively maintained, same algorithm.
 # Daemon config format. Pulled in by the daemon binary only.
 toml = { version = "0.8", optional = true }
 # OS-level advisory file locking for FileJournal (flock on Unix). Prevents

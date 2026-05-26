@@ -49,4 +49,27 @@ public sealed record ForcedInclusionEntry
 
     /// <summary>Unix timestamp (seconds) by which the L2 must include this entry.</summary>
     public required uint DeadlineUnixSeconds { get; init; }
+
+    /// <inheritdoc />
+    public bool Equals(ForcedInclusionEntry? other)
+    {
+        return other is not null
+            && Nonce == other.Nonce
+            && Sender.Equals(other.Sender)
+            && TxHash.Equals(other.TxHash)
+            && DeadlineUnixSeconds == other.DeadlineUnixSeconds
+            && SerializedTx.Span.SequenceEqual(other.SerializedTx.Span);
+    }
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(Nonce);
+        hash.Add(Sender);
+        hash.Add(TxHash);
+        hash.Add(DeadlineUnixSeconds);
+        hash.AddBytes(SerializedTx.Span);
+        return hash.ToHashCode();
+    }
 }

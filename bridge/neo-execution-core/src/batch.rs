@@ -26,6 +26,9 @@ where
     for tx in &request.transactions {
         let tx_hash = hash256(tx);
         let execution = execute_tx(tx, DEFAULT_PER_TX_GAS_LIMIT);
+        if execution.gas_consumed > DEFAULT_PER_TX_GAS_LIMIT {
+            return Err(ExecutionError::GasExceeded);
+        }
         let receipt_hash = hash_receipt(&tx_hash, execution);
         state_root = fold_state_root(&state_root, &receipt_hash);
         tx_hashes.push(tx_hash);
@@ -41,7 +44,12 @@ where
         &state_root,
         &tx_root,
         &receipt_root,
+        &request.withdrawal_root,
+        &request.l2_to_l1_message_root,
+        &request.l2_to_l2_message_root,
+        &request.l1_message_hash,
         &request.da_commitment,
+        &request.block_context_hash,
     );
 
     Ok(BatchResult {

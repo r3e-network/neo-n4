@@ -46,7 +46,9 @@ public sealed class MerklePathRoundProver : IRoundProver
     public RoundResult Combine(RoundResult left, RoundResult? right)
     {
         ArgumentNullException.ThrowIfNull(left);
+        ArgumentNullException.ThrowIfNull(left.MessageRootContribution);
         if (right is null) return left;
+        ArgumentNullException.ThrowIfNull(right.MessageRootContribution);
 
         var leftRoot = left.MessageRootContribution;
         var rightRoot = right.MessageRootContribution;

@@ -71,9 +71,14 @@ public sealed class MultisigRoundProver : IRoundProver
         if (right is null) return left; // Merkle odd-leaf rule
 
         var canonicalMessage = CanonicalRoundMessage(left, right);
-        // The Sign call shape mirrors AttestationProver: signers may return fewer signatures
-        // than total validators (e.g. one signer offline). Accept that, but enforce threshold.
-        var sigs = _signers.SignAsync(canonicalMessage).AsTask().GetAwaiter().GetResult()
+        // ISignerSet.SignAsync is inherently async (HSM/KMS backends). Run it on a
+        // background thread and synchronously await with ConfigureAwait(false) to
+        // prevent SynchronizationContext capture deadlocks. GetAwaiter().GetResult()
+        // unwraps exceptions directly (unlike .Result which wraps in AggregateException).
+        // TODO: make IRoundProver.Combine return ValueTask<RoundResult> so the async
+        // propagates cleanly through BinaryTreeAggregator → settlement plugin.
+        var sigs = Task.Run(async () => await _signers.SignAsync(canonicalMessage).ConfigureAwait(false))
+            .GetAwaiter().GetResult()
             ?? throw new InvalidOperationException("ISignerSet.SignAsync returned null");
         if (sigs.Count < Threshold)
             throw new InvalidOperationException(
@@ -123,7 +128,8 @@ public sealed class MultisigRoundProver : IRoundProver
 
         MultisigProofPayload payload;
         try { payload = MultisigProofPayload.Decode(result.ProofBytes.Span); }
-        catch { return false; }
+        catch (InvalidDataException) { return false; }
+        catch (ArgumentException) { return false; }
 
         var validatorSet = new HashSet<ECPoint>(validators);
         var validCount = 0;
@@ -138,9 +144,14 @@ public sealed class MultisigRoundProver : IRoundProver
                 if (Crypto.VerifySignature(canonical, sig.Signature.Span, sig.PublicKey))
                     validCount++;
             }
-            catch
+            catch (ArgumentException)
             {
-                // Verify can throw on malformed inputs — a bad signature counts as not valid.
+                // Malformed pubkey or signature bytes — treat as invalid signature.
+                continue;
+            }
+            catch (FormatException)
+            {
+                // Malformed ECPoint encoding — treat as invalid signature.
                 continue;
             }
         }

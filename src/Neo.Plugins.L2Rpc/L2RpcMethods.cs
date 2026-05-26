@@ -165,7 +165,7 @@ public sealed class L2RpcMethods
         {
             result = body();
         }
-        catch
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             sw.Stop();
             _metrics.SafeIncrementCounter(MetricNames.RpcFailures, 1, ("method", method));

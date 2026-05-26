@@ -19,6 +19,8 @@ namespace Neo.L2.Executor.UnitTests;
 [TestClass]
 public class UT_ApplicationEngineTransactionExecutor
 {
+    private static readonly ProtocolSettings DefaultSettings = ProtocolSettings.Default;
+
     private static readonly BatchBlockContext Ctx = new()
     {
         L1FinalizedHeight = 1,
@@ -80,7 +82,7 @@ public class UT_ApplicationEngineTransactionExecutor
         var serialized = BuildTx(script);
 
         using var store = new InMemoryKeyValueStore();
-        var executor = new ApplicationEngineTransactionExecutor(store);
+        var executor = new ApplicationEngineTransactionExecutor(store, DefaultSettings);
         var result = await executor.ExecuteAsync(serialized, Ctx);
 
         Assert.IsFalse(result.Receipt.Success);
@@ -98,7 +100,7 @@ public class UT_ApplicationEngineTransactionExecutor
         var malformed = new byte[] { 0xFF, 0xFE, 0xFD };
 
         using var store = new InMemoryKeyValueStore();
-        var executor = new ApplicationEngineTransactionExecutor(store);
+        var executor = new ApplicationEngineTransactionExecutor(store, DefaultSettings);
 
         var result = await executor.ExecuteAsync(malformed, Ctx);
         Assert.IsFalse(result.Receipt.Success);
@@ -116,7 +118,7 @@ public class UT_ApplicationEngineTransactionExecutor
     {
         await Task.Yield();
         Assert.ThrowsExactly<ArgumentNullException>(
-            () => new ApplicationEngineTransactionExecutor(null!));
+            () => new ApplicationEngineTransactionExecutor(null!, DefaultSettings));
     }
 
     [TestMethod]
@@ -125,9 +127,9 @@ public class UT_ApplicationEngineTransactionExecutor
         await Task.Yield();
         using var store = new InMemoryKeyValueStore();
         Assert.ThrowsExactly<ArgumentException>(
-            () => new ApplicationEngineTransactionExecutor(store, gasLimit: 0));
+            () => new ApplicationEngineTransactionExecutor(store, DefaultSettings, gasLimit: 0));
         Assert.ThrowsExactly<ArgumentException>(
-            () => new ApplicationEngineTransactionExecutor(store, gasLimit: -100));
+            () => new ApplicationEngineTransactionExecutor(store, DefaultSettings, gasLimit: -100));
     }
 
     [TestMethod]
@@ -142,8 +144,8 @@ public class UT_ApplicationEngineTransactionExecutor
 
         using var s1 = new InMemoryKeyValueStore();
         using var s2 = new InMemoryKeyValueStore();
-        var e1 = new ApplicationEngineTransactionExecutor(s1);
-        var e2 = new ApplicationEngineTransactionExecutor(s2);
+        var e1 = new ApplicationEngineTransactionExecutor(s1, DefaultSettings);
+        var e2 = new ApplicationEngineTransactionExecutor(s2, DefaultSettings);
 
         var r1 = await e1.ExecuteAsync(serialized, Ctx);
         var r2 = await e2.ExecuteAsync(serialized, Ctx);

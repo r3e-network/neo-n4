@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Neo.L2;
 
 namespace Neo.L2.Persistence;
 
@@ -16,7 +17,7 @@ namespace Neo.L2.Persistence;
 public sealed class InMemoryKeyValueStore : IL2KeyValueStore
 {
     private readonly Lock _gate = new();
-    private readonly SortedDictionary<byte[], byte[]> _data = new(ByteArrayComparer.Lexicographic);
+    private readonly SortedDictionary<byte[], byte[]> _data = new(LexicographicByteArrayComparer.Instance);
 
     /// <inheritdoc />
     public long Count
@@ -79,16 +80,4 @@ public sealed class InMemoryKeyValueStore : IL2KeyValueStore
 
     private static bool StartsWith(byte[] key, byte[] prefix)
         => key.AsSpan().StartsWith(prefix);
-
-    private sealed class ByteArrayComparer : IComparer<byte[]>
-    {
-        public static readonly ByteArrayComparer Lexicographic = new();
-
-        public int Compare(byte[]? x, byte[]? y)
-        {
-            if (x is null) return y is null ? 0 : -1;
-            if (y is null) return 1;
-            return x.AsSpan().SequenceCompareTo(y);
-        }
-    }
 }

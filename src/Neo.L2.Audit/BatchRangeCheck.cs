@@ -56,6 +56,7 @@ public sealed class BatchRangeCheck : IAuditCheck
                     Detail = "batchNumber 0 is reserved for genesis — operational batches start at 1",
                 });
                 failed++;
+                continue;
             }
         }
 

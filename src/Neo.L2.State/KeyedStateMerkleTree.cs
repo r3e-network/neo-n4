@@ -39,6 +39,12 @@ namespace Neo.L2.State;
 /// </remarks>
 public static class KeyedStateMerkleTree
 {
+    /// <summary>Maximum key size in bytes. Rejects keys above this to prevent memory exhaustion.</summary>
+    public const int MaxKeySize = 1 * 1024; // 1 KiB
+
+    /// <summary>Maximum value size in bytes. Rejects values above this to prevent OOM.</summary>
+    public const int MaxValueSize = 1 * 1024 * 1024; // 1 MiB
+
     /// <summary>
     /// Compute the root of a binary Merkle tree over <paramref name="pairs"/>.
     /// Empty input → <see cref="UInt256.Zero"/>.
@@ -110,6 +116,10 @@ public static class KeyedStateMerkleTree
     {
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(value);
+        if (key.Length > MaxKeySize)
+            throw new ArgumentException($"Key exceeds max size {MaxKeySize} (got {key.Length})", nameof(key));
+        if (value.Length > MaxValueSize)
+            throw new ArgumentException($"Value exceeds max size {MaxValueSize} (got {value.Length})", nameof(value));
         var size = checked(4 + key.Length + 4 + value.Length);
         var buf = new byte[size];
         BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(0, 4), key.Length);
@@ -122,7 +132,7 @@ public static class KeyedStateMerkleTree
     private static UInt256[] SortAndHash(IEnumerable<(byte[] Key, byte[] Value)> pairs)
     {
         return pairs
-            .OrderBy(p => p.Key, ByteSeqComparer.Instance)
+            .OrderBy(p => p.Key, LexicographicByteArrayComparer.Instance)
             .Select(p => HashLeaf(p.Key, p.Value))
             .ToArray();
     }
@@ -135,21 +145,5 @@ public static class KeyedStateMerkleTree
         left.GetSpan().CopyTo(buf);
         right.GetSpan().CopyTo(buf[32..]);
         return new UInt256(Crypto.Hash256(buf));
-    }
-
-    private sealed class ByteSeqComparer : IComparer<byte[]>
-    {
-        public static readonly ByteSeqComparer Instance = new();
-        public int Compare(byte[]? x, byte[]? y)
-        {
-            if (x is null || y is null) return (x is null ? 0 : 1) - (y is null ? 0 : 1);
-            var min = Math.Min(x.Length, y.Length);
-            for (var i = 0; i < min; i++)
-            {
-                var d = x[i] - y[i];
-                if (d != 0) return d;
-            }
-            return x.Length - y.Length;
-        }
     }
 }

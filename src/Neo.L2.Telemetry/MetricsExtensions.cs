@@ -14,19 +14,19 @@ namespace Neo.L2.Telemetry;
 public static class MetricsExtensions
 {
     /// <summary>Increment a counter; silently swallow any exception from the sink.</summary>
-    public static void SafeIncrementCounter(this IL2Metrics metrics, string name, long delta = 1, params (string Key, string Value)[] tags)
+    public static void SafeIncrementCounter(this IL2Metrics metrics, string name, long delta = 1, params ReadOnlySpan<(string Key, string Value)> tags)
     {
         try { metrics.IncrementCounter(name, delta, tags); } catch { }
     }
 
     /// <summary>Record a histogram value; silently swallow any exception from the sink.</summary>
-    public static void SafeRecordHistogram(this IL2Metrics metrics, string name, double value, params (string Key, string Value)[] tags)
+    public static void SafeRecordHistogram(this IL2Metrics metrics, string name, double value, params ReadOnlySpan<(string Key, string Value)> tags)
     {
         try { metrics.RecordHistogram(name, value, tags); } catch { }
     }
 
     /// <summary>Set a gauge value; silently swallow any exception from the sink.</summary>
-    public static void SafeSetGauge(this IL2Metrics metrics, string name, double value, params (string Key, string Value)[] tags)
+    public static void SafeSetGauge(this IL2Metrics metrics, string name, double value, params ReadOnlySpan<(string Key, string Value)> tags)
     {
         try { metrics.SetGauge(name, value, tags); } catch { }
     }

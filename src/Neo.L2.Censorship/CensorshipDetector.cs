@@ -53,6 +53,9 @@ public sealed class CensorshipDetector
         _metrics = metrics ?? NoOpMetrics.Instance;
     }
 
+    /// <summary>Maximum number of forced-inclusion entries scanned per detect pass.</summary>
+    private const int MaxEntriesPerScan = 1000;
+
     /// <summary>
     /// Inspect the queue once and emit reports for every entry whose deadline has passed.
     /// The detector does NOT consume the queue (that's the batcher's job once the sequencer
@@ -64,8 +67,10 @@ public sealed class CensorshipDetector
         var hasOverdue = await _source.HasOverdueEntryAsync(nowSeconds, cancellationToken).ConfigureAwait(false);
         if (!hasOverdue) return Array.Empty<CensorshipReport>();
 
-        // Drain candidates without consuming. We need entries' nonces + tx hashes + deadlines.
-        var entries = await _source.DrainAsync(int.MaxValue, cancellationToken).ConfigureAwait(false);
+        // Drain up to a capped number of candidates so an attacker who enqueues
+        // thousands of entries can't cause unbounded memory allocation on every
+        // scan tick. The batcher drains the rest in the next block.
+        var entries = await _source.DrainAsync(MaxEntriesPerScan, cancellationToken).ConfigureAwait(false);
         // Defensive: a buggy IForcedInclusionSource that returns null would NRE in the
         // foreach below with no link to the source's contract violation. Same iter-171
         // pattern: surface the bad return value as InvalidOperationException with the
@@ -102,10 +107,11 @@ public sealed class CensorshipDetector
             return reports;
         }
 
-        // Pick the first active member as the "responsible sequencer". Real production deploys
-
-        // identify the actual dBFT proposer at the deadline timestamp.
-        var responsible = committee.OrderBy(m => m.PublicKey).First();
+        // Identify the sequencer responsible for the blocks whose deadlines
+        // have passed. Production deployments wire the actual dBFT proposer via
+        // ISequencerCommitteeProvider.GetResponsibleSequencerAsync; the default
+        // implementation falls back to the first sorted committee member.
+        var responsible = await _committee.GetResponsibleSequencerAsync(nowSeconds, cancellationToken).ConfigureAwait(false);
 
         foreach (var e in entries)
         {
@@ -116,13 +122,13 @@ public sealed class CensorshipDetector
                 ForcedInclusionNonce = e.Nonce,
                 OverdueTxHash = e.TxHash,
                 DeadlineUnixSeconds = e.DeadlineUnixSeconds,
-                ResponsibleSequencer = responsible.PublicKey,
-                ResponsibleSequencerAddress = responsible.L1Address,
+                ResponsibleSequencer = responsible?.PublicKey ?? Cryptography.ECC.ECCurve.Secp256r1.Infinity,
+                ResponsibleSequencerAddress = responsible?.L1Address ?? UInt160.Zero,
                 SlashAmount = _baseSlashAmount,
             });
         }
         if (reports.Count > 0)
-            _metrics.IncrementCounter(MetricNames.CensorshipReports, reports.Count);
+            _metrics.SafeIncrementCounter(MetricNames.CensorshipReports, reports.Count);
         return reports;
     }
 }

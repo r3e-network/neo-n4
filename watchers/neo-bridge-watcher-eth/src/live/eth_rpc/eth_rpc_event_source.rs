@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::event_source::{EventSource, EventSourceError, LockedEvent};
 
@@ -19,6 +20,8 @@ pub struct EthRpcEventSource {
     pub(super) min_confirmations: u64,
     pub(super) queue: std::collections::VecDeque<LockedEvent>,
     pub(super) next_block_to_poll: u64,
+    /// Monotonically incrementing JSON-RPC request id.
+    pub(super) next_request_id: AtomicU64,
 }
 
 impl EventSource for EthRpcEventSource {
@@ -55,6 +58,10 @@ impl EventSource for EthRpcEventSource {
 }
 
 impl EthRpcEventSource {
+    fn next_id(&self) -> u64 {
+        self.next_request_id.fetch_add(1, Ordering::Relaxed)
+    }
+
     pub fn builder(
         rpc_url: impl Into<String>,
         router_address: [u8; 20],
@@ -70,7 +77,7 @@ impl EthRpcEventSource {
     pub fn fetch_block_number(&self) -> Result<u64, EthRpcError> {
         let req = JsonRpcRequest {
             jsonrpc: "2.0",
-            id: 1,
+            id: self.next_id(),
             method: "eth_blockNumber",
             params: serde_json::json!([]),
         };
@@ -84,7 +91,7 @@ impl EthRpcEventSource {
         let address_hex = format!("0x{}", hex::encode(self.router_address));
         let req = JsonRpcRequest {
             jsonrpc: "2.0",
-            id: 1,
+            id: self.next_id(),
             method: "eth_getLogs",
             params: serde_json::json!([{
                 "address": address_hex,
@@ -110,6 +117,14 @@ impl EthRpcEventSource {
                 code: err.code,
                 message: err.message,
             });
+        }
+        // Validate response id matches request to prevent cross-talk in
+        // pipelined/concurrent scenarios.
+        if resp.id != Some(req.id) {
+            return Err(EthRpcError::Decode(format!(
+                "response id {:?} != request id {}",
+                resp.id, req.id
+            )));
         }
         resp.result
             .ok_or_else(|| EthRpcError::Decode("response has no result and no error".into()))

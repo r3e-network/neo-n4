@@ -22,19 +22,27 @@ public sealed class MetricsRequestHandler
 
     private readonly IMetricsSource _source;
     private readonly Func<bool>? _readinessCheck;
+    private readonly Func<bool>? _livenessCheck;
 
     /// <summary>Construct a handler reading from <paramref name="source"/>.</summary>
     /// <param name="source">Metrics snapshot source.</param>
     /// <param name="readinessCheck">
-    /// Optional predicate for <c>/readyz</c>. When <c>null</c> (default), <c>/readyz</c>
-    /// always returns 200 — wire a real predicate in production deployments to gate
+    /// Optional predicate for <c>/readyz</c>. When <c>null</c>, <c>/readyz</c>
+    /// always returns 200. Wire a real predicate in production to gate
     /// load-balancer traffic on (e.g.) "have we caught up to L1?".
     /// </param>
-    public MetricsRequestHandler(IMetricsSource source, Func<bool>? readinessCheck = null)
+    /// <param name="livenessCheck">
+    /// Optional predicate for <c>/healthz</c>. When <c>null</c>, <c>/healthz</c>
+    /// always returns 200. Wire a lightweight check (e.g. "is the main loop
+    /// still ticking?") to detect process hangs. Avoid heavy checks — k8s
+    /// liveness probes run frequently and a slow check can trigger a restart.
+    /// </param>
+    public MetricsRequestHandler(IMetricsSource source, Func<bool>? readinessCheck = null, Func<bool>? livenessCheck = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         _source = source;
         _readinessCheck = readinessCheck;
+        _livenessCheck = livenessCheck;
     }
 
     /// <summary>Handle a request. <paramref name="path"/> is the URL path component (e.g. <c>"/metrics"</c>).</summary>
@@ -45,7 +53,7 @@ public sealed class MetricsRequestHandler
         return normalized switch
         {
             "/metrics" => HandleMetrics(),
-            "/healthz" => new MetricsHttpResponse(200, PlainText, "ok\n"),
+            "/healthz" => HandleLiveness(),
             "/readyz" => HandleReady(),
             _ => new MetricsHttpResponse(404, PlainText, "Not Found\n"),
         };
@@ -65,10 +73,25 @@ public sealed class MetricsRequestHandler
             var body = PrometheusExporter.Format(snapshot);
             return new MetricsHttpResponse(200, PrometheusExporter.ContentType, body);
         }
-        catch
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             return new MetricsHttpResponse(500, PlainText, "metrics export failed\n");
         }
+    }
+
+    private MetricsHttpResponse HandleLiveness()
+    {
+        if (_livenessCheck is null) return new MetricsHttpResponse(200, PlainText, "ok\n");
+
+        bool isLive;
+        try { isLive = _livenessCheck(); }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return new MetricsHttpResponse(500, PlainText, "liveness check threw\n");
+        }
+        return isLive
+            ? new MetricsHttpResponse(200, PlainText, "ok\n")
+            : new MetricsHttpResponse(500, PlainText, "not live\n");
     }
 
     private MetricsHttpResponse HandleReady()
@@ -77,7 +100,7 @@ public sealed class MetricsRequestHandler
 
         bool isReady;
         try { isReady = _readinessCheck(); }
-        catch
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             // If the predicate itself threw, we definitely aren't ready — surface 503 instead
             // of letting the exception kill the connection. The body is generic on purpose;

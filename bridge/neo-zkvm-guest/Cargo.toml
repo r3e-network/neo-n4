@@ -1,7 +1,9 @@
 [package]
 name = "neo-zkvm-guest"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
 description = "SP1 ZK guest program: deterministic Neo L2 batch executor that the SP1 prover proves correct."
 
 [lib]
@@ -23,7 +25,7 @@ path = "src/main.rs"
 test = false
 
 [dependencies]
-sp1-zkvm = "6.2.1"
+sp1-zkvm = "=6.2.1"
 neo-execution-core = { path = "../neo-execution-core" }
 # Real Neo N3 VM in Rust — vendored via the external/neo-zkvm submodule.
 # Each tx in a batch becomes a ProofInput that gets executed by neo_vm_guest::execute,

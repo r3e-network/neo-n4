@@ -83,6 +83,7 @@ impl EthRpcEventSourceBuilder {
             min_confirmations: self.min_confirmations,
             queue: self.queue,
             next_block_to_poll: self.next_block_to_poll,
+            next_request_id: std::sync::atomic::AtomicU64::new(1),
         })
     }
 }

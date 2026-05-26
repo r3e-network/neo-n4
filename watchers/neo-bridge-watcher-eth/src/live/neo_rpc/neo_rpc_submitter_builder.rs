@@ -46,6 +46,7 @@ impl<S: SignAndSend> NeoRpcSubmitterBuilder<S> {
             escrow_address: self.escrow_address,
             signer: self.signer,
             sign_and_send: self.sign_and_send,
+            next_request_id: std::sync::atomic::AtomicU64::new(1),
         })
     }
 }

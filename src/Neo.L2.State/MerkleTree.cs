@@ -78,16 +78,28 @@ public sealed class MerkleTree
         if (leaves.Count == 1) return leaves[0];
 
         var current = leaves.ToArray();
-        while (current.Length > 1)
+        var n = current.Length;
+        while (n > 1)
         {
-            var next = new UInt256[(current.Length + 1) / 2];
-            for (var i = 0; i < next.Length; i++)
+            // Compute parent hashes in-place: parent[i] overwrites current[2*i],
+            // which is safe because current[2*i] is not read after parent[i] is computed.
+            var half = n / 2;
+            for (var i = 0; i < half; i++)
             {
                 var left = current[i * 2];
-                var right = (i * 2 + 1 < current.Length) ? current[i * 2 + 1] : left;
-                next[i] = CombineHash(left, right);
+                var right = (i * 2 + 1 < n) ? current[i * 2 + 1] : left;
+                current[i] = CombineHash(left, right);
             }
-            current = next;
+            // If n is odd, the last leaf is promoted (paired with itself).
+            if (n % 2 != 0)
+            {
+                current[half] = current[n - 1];
+                n = half + 1;
+            }
+            else
+            {
+                n = half;
+            }
         }
         return current[0];
     }

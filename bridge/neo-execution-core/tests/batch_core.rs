@@ -289,7 +289,6 @@ fn hash_public_inputs_all_roots_change_output() {
     use neo_execution_core::hash_public_inputs;
 
     let a = [1u8; 32];
-    let b = [2u8; 32];
     let zero = [0u8; 32];
 
     let baseline = hash_public_inputs(1, 1, &zero, &zero, &zero, &zero,
@@ -313,7 +312,7 @@ fn hash_public_inputs_all_roots_change_output() {
 
 #[test]
 fn execute_batch_with_empty_transactions_is_valid() {
-    use neo_execution_core::{execute_batch_with, VmExecutionReceipt};
+    use neo_execution_core::execute_batch_with;
 
     let mut buf = Vec::new();
     buf.push(2u8);

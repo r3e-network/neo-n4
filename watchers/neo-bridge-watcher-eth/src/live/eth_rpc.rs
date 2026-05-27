@@ -12,21 +12,19 @@
 //! The watcher's needs are narrow (one event signature, one log filter,
 //! one parse path) and the alternative crate ecosystem is in flux
 //! (ethers is in maintenance; alloy's API still evolving). Hand-rolling
-//! against `reqwest::blocking` + `serde_json` + `tiny-keccak` keeps the
+//! against `reqwest::blocking` + `serde_json` + `sha3` keeps the
 //! dep tree to ~30 transitive crates instead of 200+ for ethers, and
 //! gives full control over the decoder. ~250 lines of focused code.
 
 use crate::event_source::{EventSourceError, LockedEvent};
+use crate::live::json_rpc_types::{JsonRpcError, JsonRpcRequest, JsonRpcResponse};
 
+use sha3::{Digest, Keccak256};
 use std::time::Duration;
 use thiserror::Error;
-use tiny_keccak::{Hasher, Keccak};
 
 mod eth_rpc_event_source;
 mod eth_rpc_event_source_builder;
-mod json_rpc_error;
-mod json_rpc_request;
-mod json_rpc_response;
 mod raw_log;
 
 pub use eth_rpc_event_source::EthRpcEventSource;
@@ -72,15 +70,13 @@ impl From<EthRpcError> for EventSourceError {
 /// Keccak256 of the Locked event signature.
 ///
 /// Solidity computes `topic0 = keccak256("Locked(uint32,uint32,uint64,address,
-/// bytes20,address,uint256,bytes,uint64)")`. Hand-compute via tiny-keccak so we
+/// bytes20,address,uint256,bytes,uint64)")`. Hand-compute via sha3 so we
 /// don't pull a contract-binding crate.
 fn locked_event_topic_hash() -> [u8; 32] {
     let sig = b"Locked(uint32,uint32,uint64,address,bytes20,address,uint256,bytes,uint64)";
-    let mut hasher = Keccak::v256();
+    let mut hasher = Keccak256::new();
     hasher.update(sig);
-    let mut out = [0u8; 32];
-    hasher.finalize(&mut out);
-    out
+    hasher.finalize().into()
 }
 
 /// Decode a `Locked` log into a [`LockedEvent`]. The Solidity event
@@ -360,10 +356,9 @@ mod tests {
     #[test]
     fn decode_locked_event_rejects_wrong_topic0() {
         // Use a different keccak hash for topic[0] — should reject.
-        let mut hasher = Keccak::v256();
+        let mut hasher = Keccak256::new();
         hasher.update(b"NotLocked(uint256)");
-        let mut wrong_topic = [0u8; 32];
-        hasher.finalize(&mut wrong_topic);
+        let wrong_topic: [u8; 32] = hasher.finalize().into();
 
         let log = RawLog {
             address: "0x".into(),

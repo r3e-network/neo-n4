@@ -20,6 +20,7 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
+use tracing::{error, info, warn};
 
 /// Set by the SIGTERM/SIGINT handler. The daemon loop checks this at the
 /// top of every iteration and inside `interruptible_sleep` so a shutdown
@@ -29,7 +30,7 @@ static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
 
 #[cfg(unix)]
 extern "C" fn shutdown_signal_handler(_sig: i32) {
-    SHUTDOWN_REQUESTED.store(true, Ordering::Relaxed);
+    SHUTDOWN_REQUESTED.store(true, Ordering::Release);
 }
 
 #[cfg(unix)]
@@ -58,7 +59,7 @@ fn interruptible_sleep(dur: Duration) {
     let step = Duration::from_millis(100);
     let mut remaining = dur;
     while remaining > Duration::ZERO {
-        if SHUTDOWN_REQUESTED.load(Ordering::Relaxed) {
+        if SHUTDOWN_REQUESTED.load(Ordering::Acquire) {
             return;
         }
         let slice = remaining.min(step);
@@ -68,6 +69,14 @@ fn interruptible_sleep(dur: Duration) {
 }
 
 fn main() {
+    // Initialize tracing subscriber for structured logging
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .init();
+
     let args: Vec<String> = std::env::args().collect();
     if args.len() >= 2 && args[1] == "daemon" {
         run_daemon(&args[2..]);
@@ -89,7 +98,7 @@ fn run_oneshot(args: &[String]) {
             "--out" => {
                 i += 1;
                 if i >= args.len() {
-                    eprintln!("--out requires a path");
+                    error!("--out requires a path");
                     std::process::exit(1);
                 }
                 out_path = Some(args[i].clone());
@@ -100,7 +109,7 @@ fn run_oneshot(args: &[String]) {
             }
             other => {
                 if positional.is_some() {
-                    eprintln!("unexpected argument: {}", other);
+                    error!("unexpected argument: {}", other);
                     std::process::exit(1);
                 }
                 positional = Some(other.to_string());
@@ -115,7 +124,7 @@ fn run_oneshot(args: &[String]) {
     let bytes = match hex_decode(&hex) {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("invalid hex: {}", e);
+            error!("invalid hex: {}", e);
             std::process::exit(1);
         }
     };
@@ -124,28 +133,28 @@ fn run_oneshot(args: &[String]) {
         let path = out_path.unwrap_or_else(|| "proof.bin".to_string());
         match prove_one(&bytes, Path::new(&path)) {
             Ok((pi, proof_len, vk_len, proof_path, vk_path)) => {
-                println!("public_input_hash = 0x{}", hex_encode(&pi));
-                println!("proof_bytes_len   = {}", proof_len);
-                println!("vk_bytes_len      = {}", vk_len);
-                println!("proof_path        = {}", proof_path);
-                println!("vk_path           = {}", vk_path);
+                info!("public_input_hash = 0x{}", hex_encode(&pi));
+                info!("proof_bytes_len   = {}", proof_len);
+                info!("vk_bytes_len      = {}", vk_len);
+                info!("proof_path        = {}", proof_path);
+                info!("vk_path           = {}", vk_path);
             }
             Err(e) => {
-                eprintln!("proof generation failed: {}", e);
+                error!("proof generation failed: {}", e);
                 std::process::exit(1);
             }
         }
     } else {
         match neo_zkvm_host::execute(&bytes) {
             Ok(result) => {
-                println!(
+                info!(
                     "public_input_hash = 0x{}",
                     hex_encode(&result.public_input_hash)
                 );
-                println!("cycles            = {}", result.cycles);
+                info!("cycles            = {}", result.cycles);
             }
             Err(e) => {
-                eprintln!("execution failed: {}", e);
+                error!("execution failed: {}", e);
                 std::process::exit(1);
             }
         }
@@ -162,13 +171,13 @@ struct DaemonConfig {
 
 fn run_daemon(args: &[String]) {
     let cfg = parse_daemon_args(args).unwrap_or_else(|e| {
-        eprintln!("{}", e);
+        error!("{}", e);
         print_usage();
         std::process::exit(1);
     });
 
     if !cfg.watch.is_dir() {
-        eprintln!(
+        error!(
             "--watch dir does not exist or is not a directory: {}",
             cfg.watch.display()
         );
@@ -176,12 +185,12 @@ fn run_daemon(args: &[String]) {
     }
     if let Some(a) = &cfg.archive {
         std::fs::create_dir_all(a).unwrap_or_else(|e| {
-            eprintln!("failed to create --archive dir {}: {}", a.display(), e);
+            error!("failed to create --archive dir {}: {}", a.display(), e);
             std::process::exit(1);
         });
     }
 
-    eprintln!(
+    info!(
         "prove-batch daemon: watching {} (poll every {}s, archive: {})",
         cfg.watch.display(),
         cfg.poll_secs,
@@ -206,24 +215,24 @@ fn run_daemon(args: &[String]) {
     let _lock = match acquire_watch_lock(&cfg.watch) {
         Ok(file) => file,
         Err(e) => {
-            eprintln!("{}", e);
+            error!("{}", e);
             std::process::exit(1);
         }
     };
 
     loop {
-        if SHUTDOWN_REQUESTED.load(Ordering::Relaxed) {
-            eprintln!("prove-batch daemon: shutdown signal received — exiting cleanly");
+        if SHUTDOWN_REQUESTED.load(Ordering::Acquire) {
+            info!("prove-batch daemon: shutdown signal received — exiting cleanly");
             return;
         }
         match scan_once(&cfg) {
             Ok(processed) => {
                 if processed > 0 {
-                    eprintln!("processed {} batch(es) this tick", processed);
+                    info!("processed {} batch(es) this tick", processed);
                 }
             }
             Err(e) => {
-                eprintln!("scan error: {}", e);
+                error!("scan error: {}", e);
             }
         }
         interruptible_sleep(Duration::from_secs(cfg.poll_secs));
@@ -342,17 +351,17 @@ fn scan_once(cfg: &DaemonConfig) -> Result<usize, String> {
         let bytes = match std::fs::read(&path) {
             Ok(b) => b,
             Err(e) => {
-                eprintln!("read {}: {}", path.display(), e);
+                error!("read {}: {}", path.display(), e);
                 continue;
             }
         };
         let stem = name.trim_end_matches(".batch.bin");
         let proof_path = path.with_file_name(format!("{}.proof.bin", stem));
-        eprintln!("proving {} ({} bytes)...", name, bytes.len());
+        info!("proving {} ({} bytes)...", name, bytes.len());
         let t0 = std::time::Instant::now();
         match prove_one(&bytes, &proof_path) {
             Ok((pi, proof_len, vk_len, _pp, _vp)) => {
-                eprintln!(
+                info!(
                     "  ✓ {} → public_input_hash=0x{} proof={}B vk={}B in {:?}",
                     name,
                     hex_encode(&pi),
@@ -361,8 +370,8 @@ fn scan_once(cfg: &DaemonConfig) -> Result<usize, String> {
                     t0.elapsed()
                 );
                 if let Err(e) = finalize_input(&path, cfg) {
-                    eprintln!(
-                        "  WARNING: failed to archive/rename {}: {}",
+                    warn!(
+                        "  failed to archive/rename {}: {}",
                         path.display(),
                         e
                     );
@@ -370,7 +379,7 @@ fn scan_once(cfg: &DaemonConfig) -> Result<usize, String> {
                 processed += 1;
             }
             Err(e) => {
-                eprintln!("  ✗ {} failed: {}", name, e);
+                error!("  ✗ {} failed: {}", name, e);
                 // Leave the input in place so an operator can retry / inspect.
                 // A poison-pill batch would otherwise loop the daemon forever — log it
                 // loudly so monitoring catches the repeated failure rather than
@@ -428,40 +437,27 @@ fn prove_one(
 }
 
 fn print_usage() {
-    eprintln!("usage:");
-    eprintln!(
+    info!("usage:");
+    info!(
         "  prove-batch <hex>                                     # one-shot execute (no proof)"
     );
-    eprintln!("  prove-batch --prove <hex> [--out proof.bin]           # one-shot prove + verify-key emit");
-    eprintln!("  prove-batch daemon --watch <dir> [--archive <dir>]    # production prover daemon");
-    eprintln!("              [--poll-secs N]");
-    eprintln!();
-    eprintln!("daemon mode:");
-    eprintln!("  watches <dir> for *.batch.bin (raw BatchExecutionRequest bytes), proves each,");
-    eprintln!("  emits <name>.proof.bin + <name>.proof.vk next to the input. After a successful");
-    eprintln!("  prove the input is renamed to *.batch.bin.done (or moved into --archive if set)");
-    eprintln!("  so it isn't re-processed. Failures leave the input in place and log loudly so a");
-    eprintln!("  monitoring system can alert on repeated failures (poison-pill batches).");
+    info!("  prove-batch --prove <hex> [--out proof.bin]           # one-shot prove + verify-key emit");
+    info!("  prove-batch daemon --watch <dir> [--archive <dir>]    # production prover daemon");
+    info!("              [--poll-secs N]");
+    info!("");
+    info!("daemon mode:");
+    info!("  watches <dir> for *.batch.bin (raw BatchExecutionRequest bytes), proves each,");
+    info!("  emits <name>.proof.bin + <name>.proof.vk next to the input. After a successful");
+    info!("  prove the input is renamed to *.batch.bin.done (or moved into --archive if set)");
+    info!("  so it isn't re-processed. Failures leave the input in place and log loudly so a");
+    info!("  monitoring system can alert on repeated failures (poison-pill batches).");
 }
 
 fn hex_decode(s: &str) -> Result<Vec<u8>, String> {
     let s = s.strip_prefix("0x").unwrap_or(s);
-    if !s.len().is_multiple_of(2) {
-        return Err(format!("odd-length hex: {}", s.len()));
-    }
-    let mut out = Vec::with_capacity(s.len() / 2);
-    for i in (0..s.len()).step_by(2) {
-        let byte = u8::from_str_radix(&s[i..i + 2], 16).map_err(|e| e.to_string())?;
-        out.push(byte);
-    }
-    Ok(out)
+    hex::decode(s).map_err(|e| format!("invalid hex: {e}"))
 }
 
 fn hex_encode(b: &[u8]) -> String {
-    let mut s = String::with_capacity(b.len() * 2);
-    use std::fmt::Write;
-    for byte in b {
-        write!(&mut s, "{:02x}", byte).expect("write to String is infallible");
-    }
-    s
+    hex::encode(b)
 }

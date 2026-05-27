@@ -18,7 +18,7 @@ pub struct HealthServer {
     /// `127.0.0.1:0` and want to know which random port the OS assigned.
     pub bound_addr: std::net::SocketAddr,
     stop: Arc<AtomicBool>,
-    _handle: thread::JoinHandle<()>,
+    _handle: Option<thread::JoinHandle<()>>,
 }
 
 impl HealthServer {
@@ -52,7 +52,7 @@ impl HealthServer {
         Ok(Self {
             bound_addr,
             stop,
-            _handle: handle,
+            _handle: Some(handle),
         })
     }
 }
@@ -64,6 +64,8 @@ impl Drop for HealthServer {
         // dropped. The thread checks the stop flag every ~50ms, so the join
         // should complete quickly. This prevents the thread from outliving the
         // HealthServer struct and potentially competing on the same port.
-        let _ = self._handle.join();
+        if let Some(handle) = self._handle.take() {
+            let _ = handle.join();
+        }
     }
 }

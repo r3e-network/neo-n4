@@ -26,6 +26,7 @@ public class SharedBridgeContract : SmartContract
     private const byte PrefixWithdrawalConsumed = 0x03; // 0x03 + chainId(4B) + leafHash(32B) → 1
     private const byte PrefixSettlementManager = 0xFD;
     private const byte PrefixTokenRegistry = 0xFE;
+    private const byte PrefixEmergencyManager = 0xFC;
     private const byte KeyOwner = 0xFF;
 
     /// <summary>Emitted when a user deposits into the bridge.</summary>
@@ -76,6 +77,29 @@ public class SharedBridgeContract : SmartContract
         return raw == null ? UInt160.Zero : (UInt160)raw;
     }
 
+    /// <summary>Hash of the EmergencyManager contract for pause enforcement.</summary>
+    [Safe]
+    public static UInt160 GetEmergencyManager()
+    {
+        var raw = Storage.Get(new byte[] { PrefixEmergencyManager });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Set the EmergencyManager contract hash. Owner only.</summary>
+    public static void SetEmergencyManager(UInt160 emergencyManager)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        Storage.Put(new byte[] { PrefixEmergencyManager }, emergencyManager);
+    }
+
+    /// <summary>Check if the network is paused. Returns false if EmergencyManager is not set.</summary>
+    private static bool IsPaused()
+    {
+        var em = GetEmergencyManager();
+        if (em == UInt160.Zero) return false;
+        return (bool)Contract.Call(em, "isPaused", CallFlags.ReadOnly, new object[0]);
+    }
+
     /// <summary>
     /// Lock <paramref name="amount"/> of <paramref name="asset"/> from <see cref="Runtime.CallingScriptHash"/>'s
     /// allowance, allocate a deposit nonce for <paramref name="targetChainId"/>, and emit the
@@ -83,6 +107,7 @@ public class SharedBridgeContract : SmartContract
     /// </summary>
     public static ulong Deposit(UInt160 asset, BigInteger amount, uint targetChainId, UInt160 l2Recipient)
     {
+        ExecutionEngine.Assert(!IsPaused(), "network paused");
         ExecutionEngine.Assert(asset.IsValid && !asset.IsZero, "invalid asset");
         ExecutionEngine.Assert(amount > 0, "amount must be positive");
         ExecutionEngine.Assert(l2Recipient.IsValid && !l2Recipient.IsZero, "invalid recipient");
@@ -130,6 +155,7 @@ public class SharedBridgeContract : SmartContract
         UInt160 recipient,
         BigInteger amount)
     {
+        ExecutionEngine.Assert(!IsPaused(), "network paused");
         ValidateWithdrawalArgs(chainId, asset, recipient, amount);
         ValidateWithdrawalLeafBinding(
             chainId, withdrawalLeafHash, emittingContract, l2Sender,
@@ -165,6 +191,7 @@ public class SharedBridgeContract : SmartContract
         UInt160 recipient,
         BigInteger amount)
     {
+        ExecutionEngine.Assert(!IsPaused(), "network paused");
         ValidateWithdrawalArgs(chainId, asset, recipient, amount);
         ValidateWithdrawalLeafBinding(
             chainId, withdrawalLeafHash, emittingContract, l2Sender,
@@ -208,6 +235,7 @@ public class SharedBridgeContract : SmartContract
         UInt160 recipient,
         BigInteger amount)
     {
+        ExecutionEngine.Assert(!IsPaused(), "network paused");
         ValidateWithdrawalArgs(chainId, asset, recipient, amount);
         ValidateWithdrawalLeafBinding(
             chainId, withdrawalLeafHash, emittingContract, l2Sender,

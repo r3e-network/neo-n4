@@ -30,6 +30,8 @@ zeroize = { version = "1.8", features = ["derive"] }
 # Compact error types for the watcher's failure modes.
 thiserror = "2.0"
 hex = "0.4"
+tracing = { version = "0.1", optional = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 
 # Live RPC dependencies, gated behind the `live-rpc` feature so default
 # `cargo test` keeps a lean dep tree (the messaging + signing + orchestration
@@ -38,9 +40,7 @@ hex = "0.4"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls", "json"], optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", optional = true }
-tiny-keccak = { version = "2.0", features = ["keccak"], optional = true }
-# NOTE: tiny-keccak is in maintenance mode. Consider migrating to `sha3`
-# (Keccak256) when convenient — more actively maintained, same algorithm.
+sha3 = { version = "0.10", optional = true }
 # Daemon config format. Pulled in by the daemon binary only.
 toml = { version = "0.8", optional = true }
 # OS-level advisory file locking for FileJournal (flock on Unix). Prevents
@@ -55,7 +55,7 @@ default = []
 # (for computing the Locked event topic) + TOML config parsing for the
 # daemon binary. Operators run `cargo build --features live-rpc` to
 # produce the runnable daemon.
-live-rpc = ["dep:reqwest", "dep:serde", "dep:serde_json", "dep:tiny-keccak", "dep:toml", "dep:libc"]
+live-rpc = ["dep:reqwest", "dep:serde", "dep:serde_json", "dep:sha3", "dep:toml", "dep:libc", "dep:tracing", "dep:tracing-subscriber"]
 
 [dev-dependencies]
 # Test-vector helpers.

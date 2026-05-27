@@ -21,14 +21,12 @@
 //! The callback returns the tx hash on success; the submitter returns
 //! that as the `submit_inbound` result.
 
+use crate::live::json_rpc_types::{JsonRpcError, JsonRpcRequest, JsonRpcResponse};
 use crate::submitter::SubmitterError;
 use std::time::Duration;
 use thiserror::Error;
 
 mod invoke_function_result;
-mod json_rpc_error;
-mod json_rpc_request;
-mod json_rpc_response;
 mod neo_rpc_submitter;
 mod neo_rpc_submitter_builder;
 

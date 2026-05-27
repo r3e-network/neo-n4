@@ -1,20 +1,11 @@
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ExecutionError {
+    #[error("input truncated")]
     Truncated,
+    #[error("unsupported version {0}")]
     InvalidVersion(u8),
+    #[error("field {0} exceeds size limit")]
     OversizedField(&'static str),
+    #[error("gas consumed exceeds per-tx limit")]
     GasExceeded,
 }
-
-impl core::fmt::Display for ExecutionError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            ExecutionError::Truncated => write!(f, "input truncated"),
-            ExecutionError::InvalidVersion(v) => write!(f, "unsupported version {v}"),
-            ExecutionError::OversizedField(field) => write!(f, "field {field} exceeds size limit"),
-            ExecutionError::GasExceeded => write!(f, "gas consumed exceeds per-tx limit"),
-        }
-    }
-}
-
-impl core::error::Error for ExecutionError {}

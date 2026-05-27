@@ -226,7 +226,7 @@ public class ForcedInclusionContract : SmartContract
         Storage.Put(nonceKey, (BigInteger)nonce);
 
         var deadline = GetDeadlineSeconds();
-        var enqueuedAt = (uint)Runtime.Time / 1000u; // ms → seconds
+        var enqueuedAt = (uint)(Runtime.Time / 1000u); // ms → seconds
         var payload = EncodeEntry(caller, txHash, encodedTx, enqueuedAt + deadline);
         Storage.Put(EntryKey(chainId, nonce), payload);
 
@@ -273,7 +273,7 @@ public class ForcedInclusionContract : SmartContract
 
         var entry = (byte[])rawEntry!;
         var deadline = ReadUInt32(entry, 20 + 32 + 4 + entry.Length - 20 - 32 - 4 - 4); // last 4 bytes
-        var nowSec = (uint)Runtime.Time / 1000u;
+        var nowSec = (uint)(Runtime.Time / 1000u);
         if (nowSec < deadline) return false;
 
         OnSequencerCensorshipReported(chainId, nonce, sequencer);

@@ -149,7 +149,9 @@ public class SettlementManagerContract : SmartContract
     /// </summary>
     public static void SubmitBatch(byte[] commitmentBytes)
     {
-        ExecutionEngine.Assert(commitmentBytes.Length >= 317, "commitment too small");
+        // Minimum size must cover: chainId(4) + batchNumber(8) + 10 roots(320) + proofType(1) + proofLen(4) = 337
+        // But we use ProofBytesOffset (321) as the minimum to safely read proofType and proofLen
+        ExecutionEngine.Assert(commitmentBytes.Length >= ProofBytesOffset, "commitment too small");
 
         var chainId = ReadUInt32(commitmentBytes, 0);
         var batchNumber = ReadUInt64(commitmentBytes, 4);

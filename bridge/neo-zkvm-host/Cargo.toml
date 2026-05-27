@@ -12,6 +12,9 @@ description = "Real SP1 host that loads neo-zkvm-guest's RISC-V ELF, runs it via
 build = "build.rs"
 
 [dependencies]
+hex = "0.4"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [target.'cfg(unix)'.dependencies]
 sp1-sdk = { version = "=6.2.1", features = ["blocking"] }

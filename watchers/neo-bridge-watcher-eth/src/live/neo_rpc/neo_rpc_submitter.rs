@@ -1,11 +1,10 @@
 use serde::Deserialize;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use crate::live::json_rpc_types::{JsonRpcRequest, JsonRpcResponse};
 use crate::submitter::{InboundSubmission, NeoSubmitter, SubmitterError};
 
 use super::invoke_function_result::InvokeFunctionResult;
-use super::json_rpc_request::JsonRpcRequest;
-use super::json_rpc_response::JsonRpcResponse;
 use super::{decode_hex_bytes, NeoRpcError, NeoRpcSubmitterBuilder, SignAndSend};
 
 /// Live `NeoSubmitter` impl backed by Neo JSON-RPC + an operator-supplied

@@ -524,13 +524,5 @@ impl L2RpcClient {
 
 fn hex_decode(s: &str) -> std::result::Result<Vec<u8>, String> {
     let s = s.strip_prefix("0x").unwrap_or(s);
-    if !s.len().is_multiple_of(2) {
-        return Err(format!("odd-length hex string: {}", s.len()));
-    }
-    let mut out = Vec::with_capacity(s.len() / 2);
-    for i in (0..s.len()).step_by(2) {
-        let byte = u8::from_str_radix(&s[i..i + 2], 16).map_err(|e| e.to_string())?;
-        out.push(byte);
-    }
-    Ok(out)
+    hex::decode(s).map_err(|e| format!("invalid hex: {e}"))
 }

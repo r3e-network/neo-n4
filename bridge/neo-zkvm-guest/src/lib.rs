@@ -32,11 +32,22 @@ fn execute_transaction(tx: &[u8], gas_limit: u64) -> VmExecutionReceipt {
     };
     let output = neo_vm_guest::execute(input);
 
+    let output_hash = match neo_vm_guest::try_hash_proof_output(&output) {
+        Ok(hash) => hash,
+        Err(_) => {
+            // Return a fault receipt if hashing fails (e.g., due to serialization limits)
+            return VmExecutionReceipt {
+                state: 1, // Fault
+                gas_consumed: output.gas_consumed,
+                output_hash: [0u8; 32],
+            };
+        }
+    };
+
     VmExecutionReceipt {
         state: output.state,
         gas_consumed: output.gas_consumed,
-        output_hash: neo_vm_guest::try_hash_proof_output(&output)
-            .expect("ProofOutput serialization must not fail for valid VM output"),
+        output_hash,
     }
 }
 

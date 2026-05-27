@@ -61,11 +61,12 @@ use neo_bridge_watcher_eth::chains;
 use neo_bridge_watcher_eth::live::{
     EthRpcEventSourceBuilder, FileJournal, HealthServer, HealthState, NeoRpcSubmitterBuilder,
 };
-use neo_bridge_watcher_eth::{CoreError, FileSigner, Journal, Signer, WatcherCore};
+use neo_bridge_watcher_eth::{CoreError, FileSigner, Journal, Signer, SubmitterError, WatcherCore};
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
+use tracing::{error, info, warn};
 
 /// Shutdown flag flipped by SIGTERM / SIGINT handlers. The run loop
 /// polls this between ticks + during interruptible sleeps so the
@@ -77,10 +78,10 @@ static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
 #[cfg(unix)]
 extern "C" fn handle_shutdown_signal(_: libc::c_int) {
     // Signal handlers must be async-signal-safe. AtomicBool::store with
-    // Relaxed ordering is — it compiles to a single memory write on
-    // every platform we target. NO eprintln / String / heap allocations
+    // Release ordering ensures the write is visible to the run loop
+    // which uses Acquire ordering. NO eprintln / String / heap allocations
     // allowed here. The run loop notices the flag on its next poll.
-    SHUTDOWN_REQUESTED.store(true, Ordering::Relaxed);
+    SHUTDOWN_REQUESTED.store(true, Ordering::Release);
 }
 
     /// Set by the SIGHUP handler. The run loop checks this once per tick;
@@ -90,26 +91,26 @@ extern "C" fn handle_shutdown_signal(_: libc::c_int) {
 
     #[cfg(unix)]
     extern "C" fn handle_reload_signal(_: libc::c_int) {
-        CONFIG_RELOAD_REQUESTED.store(true, Ordering::Relaxed);
+        CONFIG_RELOAD_REQUESTED.store(true, Ordering::Release);
     }
 
 /// Install signal handlers for SIGTERM (kubernetes / systemd shutdown)
-/// and SIGINT (Ctrl-C). Both flip `SHUTDOWN_REQUESTED`. Idempotent —
-/// re-registering would just no-op (libc::signal returns the previous
-/// handler).
+/// and SIGINT (Ctrl-C). Both flip `SHUTDOWN_REQUESTED`. Uses `sigaction`
+/// instead of `signal` for portable behavior (SysV vs BSD reset semantics).
 #[cfg(unix)]
 fn install_shutdown_handlers() {
-    // Form a function-pointer first then cast to libc's `sighandler_t`
-    // (which is just `usize`). The two-step keeps the new "direct cast
-    // of function item into an integer" lint quiet on Rust 2024+.
-    let handler: extern "C" fn(libc::c_int) = handle_shutdown_signal;
-    // SAFETY: libc::signal mutates a process-global table. Safe because
-    // we only call it once at startup before any concurrent code runs;
-    // the handler we install is async-signal-safe.
+    // SAFETY: sigaction is the POSIX-standard signal API. The handlers are
+    // marked `extern "C"` and only touch AtomicBools (signal-safe).
+    // SA_RESTART ensures interrupted syscalls are transparently retried.
     unsafe {
-        libc::signal(libc::SIGTERM, handler as libc::sighandler_t);
-        libc::signal(libc::SIGINT, handler as libc::sighandler_t);
-        libc::signal(libc::SIGHUP, handle_reload_signal as libc::sighandler_t);
+        let sa = libc::sigaction {
+            sa_sigaction: handle_shutdown_signal as libc::sighandler_t,
+            sa_flags: libc::SA_RESTART,
+            sa_mask: std::mem::zeroed(),
+        };
+        libc::sigaction(libc::SIGTERM, &sa, std::ptr::null_mut());
+        libc::sigaction(libc::SIGINT, &sa, std::ptr::null_mut());
+        libc::sigaction(libc::SIGHUP, &sa, std::ptr::null_mut());
     }
 }
 
@@ -119,16 +120,24 @@ fn install_shutdown_handlers() {
 fn interruptible_sleep(duration: Duration) -> bool {
     let end = Instant::now() + duration;
     while Instant::now() < end {
-        if SHUTDOWN_REQUESTED.load(Ordering::Relaxed) {
+        if SHUTDOWN_REQUESTED.load(Ordering::Acquire) {
             return true;
         }
         let remaining = end.saturating_duration_since(Instant::now());
         std::thread::sleep(remaining.min(Duration::from_millis(100)));
     }
-    SHUTDOWN_REQUESTED.load(Ordering::Relaxed)
+    SHUTDOWN_REQUESTED.load(Ordering::Acquire)
 }
 
 fn main() -> ExitCode {
+    // Initialize tracing subscriber for structured logging
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .init();
+
     #[cfg(unix)]
     install_shutdown_handlers();
 
@@ -136,7 +145,7 @@ fn main() -> ExitCode {
     let parsed = match parse_args(&args) {
         Ok(p) => p,
         Err(msg) => {
-            eprintln!("{msg}");
+            error!("{msg}");
             print_usage();
             return ExitCode::from(1);
         }
@@ -145,7 +154,7 @@ fn main() -> ExitCode {
     let config = match load_config(&parsed.config_path) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("config error: {e}");
+            error!("config error: {e}");
             return ExitCode::from(1);
         }
     };
@@ -153,11 +162,11 @@ fn main() -> ExitCode {
     if parsed.preflight {
         return match preflight(&config) {
             Ok(()) => {
-                eprintln!("preflight: all checks passed");
+                info!("preflight: all checks passed");
                 ExitCode::SUCCESS
             }
             Err(e) => {
-                eprintln!("preflight: FAILED — {e}");
+                error!("preflight: FAILED — {e}");
                 ExitCode::from(1)
             }
         };
@@ -167,7 +176,7 @@ fn main() -> ExitCode {
         return match journal_info(&config) {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => {
-                eprintln!("journal-info: {e}");
+                error!("journal-info: {e}");
                 ExitCode::from(1)
             }
         };
@@ -175,7 +184,7 @@ fn main() -> ExitCode {
 
     let chain_label = chains::name_for_chain_id(config.external_chain_id)
         .unwrap_or("(unknown chain — operator-allocated)");
-    eprintln!(
+    info!(
         "neo-bridge-watcher-eth starting:\n  externalChainId = 0x{:08X} ({})\n  ethRouter        = 0x{}\n  neoEscrow        = 0x{}\n  signer           = 0x{}\n  journalDir       = {}",
         config.external_chain_id,
         chain_label,
@@ -193,8 +202,8 @@ fn main() -> ExitCode {
     if config.poll.min_confirmations == 0 {
         if let Some(recommended) = chains::recommended_confirmations(config.external_chain_id) {
             if recommended > 0 {
-                eprintln!(
-                    "WARNING: min_confirmations is 0 but chain 0x{:08X} ({}) \
+                warn!(
+                    "min_confirmations is 0 but chain 0x{:08X} ({}) \
                      recommends {} — short reorgs could produce phantom mints. \
                      Set [poll].min_confirmations in your TOML to silence \
                      this warning (and set explicitly to 0 if you mean \
@@ -203,8 +212,8 @@ fn main() -> ExitCode {
                 );
             }
         } else {
-            eprintln!(
-                "WARNING: chain 0x{:08X} is not in the curated chains.rs table \
+            warn!(
+                "chain 0x{:08X} is not in the curated chains.rs table \
                  — verify your finality assumptions before production use.",
                 config.external_chain_id
             );
@@ -214,7 +223,7 @@ fn main() -> ExitCode {
     match run(config, parsed.allow_stub_signer) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("fatal: {e}");
+            error!("fatal: {e}");
             ExitCode::from(1)
         }
     }
@@ -287,7 +296,7 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, String> {
 }
 
 fn print_usage() {
-    eprintln!(
+    info!(
         "Usage: neo-bridge-watcher-eth --config <watcher.toml> [--preflight]\n\
          \n\
          Flags:\n\
@@ -403,7 +412,7 @@ threshold_secs        = 120              # /healthz returns 503 after this many
 /// fail. Designed for `kubectl apply` / systemd ExecStartPre / CI
 /// gate flows: exit 0 = safe to start, non-zero = config issue.
 fn preflight(config: &Config) -> Result<(), String> {
-    eprintln!(
+    info!(
         "preflight: starting checks for chain 0x{:08X}",
         config.external_chain_id
     );
@@ -416,11 +425,11 @@ fn preflight(config: &Config) -> Result<(), String> {
         ));
     }
     match chains::name_for_chain_id(config.external_chain_id) {
-        Some(name) => eprintln!(
+        Some(name) => info!(
             "[ok]   chain id 0x{:08X} ({name})",
             config.external_chain_id
         ),
-        None => eprintln!(
+        None => warn!(
             "[warn] chain id 0x{:08X} not in curated chains.rs table — verify finality assumptions",
             config.external_chain_id
         ),
@@ -440,15 +449,15 @@ fn preflight(config: &Config) -> Result<(), String> {
     if config.neo_signer_address == [0u8; 20] {
         return Err("neo_signer_address is the zero address — likely a config typo".into());
     }
-    eprintln!(
+    info!(
         "[ok]   eth_router_address  = 0x{}",
         hex::encode(config.eth_router_address)
     );
-    eprintln!(
+    info!(
         "[ok]   neo_escrow_address  = 0x{}",
         hex::encode(config.neo_escrow_address)
     );
-    eprintln!(
+    info!(
         "[ok]   neo_signer_address  = 0x{}",
         hex::encode(config.neo_signer_address)
     );
@@ -457,15 +466,15 @@ fn preflight(config: &Config) -> Result<(), String> {
     if config.poll.min_confirmations == 0 {
         if let Some(rec) = chains::recommended_confirmations(config.external_chain_id) {
             if rec > 0 {
-                eprintln!(
+                warn!(
                     "[warn] [poll].min_confirmations = 0 but recommended {rec} for this chain"
                 );
             } else {
-                eprintln!("[ok]   min_confirmations = 0 (recommendation matches)");
+                info!("[ok]   min_confirmations = 0 (recommendation matches)");
             }
         }
     } else {
-        eprintln!(
+        info!(
             "[ok]   min_confirmations = {}",
             config.poll.min_confirmations
         );
@@ -474,7 +483,7 @@ fn preflight(config: &Config) -> Result<(), String> {
     // 3. Signer key file.
     let signer = FileSigner::from_file(&config.signer_key_path)
         .map_err(|e| format!("signer key {}: {e:?}", config.signer_key_path.display()))?;
-    eprintln!(
+    info!(
         "[ok]   signer key loaded from {} ({} bytes pubkey)",
         config.signer_key_path.display(),
         signer.public_key_bytes().len()
@@ -486,7 +495,7 @@ fn preflight(config: &Config) -> Result<(), String> {
     {
         let _journal = FileJournal::open(&config.journal_dir)
             .map_err(|e| format!("journal {}: {e:?}", config.journal_dir.display()))?;
-        eprintln!(
+        info!(
             "[ok]   journal_dir {} opened (flock acquired + released)",
             config.journal_dir.display()
         );
@@ -507,7 +516,7 @@ fn preflight(config: &Config) -> Result<(), String> {
     let head = source
         .fetch_block_number()
         .map_err(|e| format!("eth_blockNumber on {}: {e:?}", config.eth_rpc_url))?;
-    eprintln!(
+    info!(
         "[ok]   eth_rpc_url {} responsive (head = {head})",
         config.eth_rpc_url
     );
@@ -527,7 +536,7 @@ fn preflight(config: &Config) -> Result<(), String> {
             hex::encode(config.eth_router_address)
         )
     })?;
-    eprintln!("[ok]   eth_router_address has bytecode (eth_getCode returned > 0 bytes)");
+    info!("[ok]   eth_router_address has bytecode (eth_getCode returned > 0 bytes)");
 
     // 6. Neo RPC reachability — direct reqwest probe of `getversion`,
     //    which every Neo node implements. Avoids needing a public
@@ -535,7 +544,7 @@ fn preflight(config: &Config) -> Result<(), String> {
     //    invokefunction, not raw queries).
     probe_neo_rpc(&config.neo_rpc_url, preflight_timeout)
         .map_err(|e| format!("getversion on {}: {e}", config.neo_rpc_url))?;
-    eprintln!(
+    info!(
         "[ok]   neo_rpc_url {} responsive (getversion succeeded)",
         config.neo_rpc_url
     );
@@ -763,7 +772,7 @@ fn run(config: Config, allow_stub_signer: bool) -> Result<(), String> {
             journal
                 .set_cursor(config.poll.start_block)
                 .map_err(|e| format!("bootstrap cursor: {e:?}"))?;
-            eprintln!(
+            info!(
                 "journal cursor bootstrapped to start_block = {} (was {})",
                 config.poll.start_block, cur
             );
@@ -787,7 +796,7 @@ fn run(config: Config, allow_stub_signer: bool) -> Result<(), String> {
     let _health_server = if let Some(bind) = &config.health.bind {
         match HealthServer::spawn(bind, health_state.clone(), config.health.threshold_secs) {
             Ok(server) => {
-                eprintln!(
+                info!(
                     "health server listening on http://{} (threshold {}s)",
                     server.bound_addr, config.health.threshold_secs
                 );
@@ -801,7 +810,7 @@ fn run(config: Config, allow_stub_signer: bool) -> Result<(), String> {
         None
     };
 
-    eprintln!(
+    info!(
         "watcher ready (poll {}s, backoff {}-{}s)",
         config.poll.poll_interval_secs,
         config.poll.backoff_initial_secs,
@@ -813,8 +822,8 @@ fn run(config: Config, allow_stub_signer: bool) -> Result<(), String> {
         // Check shutdown at the top of every iteration. Any sleep below
         // returns early when SHUTDOWN_REQUESTED is set; control falls
         // through to the next iteration which exits cleanly here.
-        if SHUTDOWN_REQUESTED.load(Ordering::Relaxed) {
-            eprintln!("shutdown signal received — exiting cleanly");
+        if SHUTDOWN_REQUESTED.load(Ordering::Acquire) {
+            info!("shutdown signal received — exiting cleanly");
             return Ok(());
         }
         match core.tick() {
@@ -846,7 +855,7 @@ fn run(config: Config, allow_stub_signer: bool) -> Result<(), String> {
                 // Local journal already had this nonce — usually means
                 // the daemon is replaying after a restart. Log + drop;
                 // continue without sleeping.
-                eprintln!("info: nonce {nonce} already submitted (journal hit, advancing)");
+                info!("nonce {nonce} already submitted (journal hit, advancing)");
                 health_state.record_tick(false);
                 if let Ok(cursor) = core.journal.cursor() {
                     health_state.record_cursor(cursor);
@@ -858,12 +867,19 @@ fn run(config: Config, allow_stub_signer: bool) -> Result<(), String> {
                 // journal write). Recover by marking the journal to
                 // match and advancing, without backoff.
                 if matches!(submit_err, SubmitterError::AlreadyConsumed) {
-                    eprintln!(
-                        "info: nonce {} already consumed on-chain — marking local journal + advancing",
+                    info!(
+                        "nonce {} already consumed on-chain — marking local journal + advancing",
                         core.last_event_nonce()
                     );
                     if let Err(e) = core.recover_already_consumed() {
-                        eprintln!("error: recovery journal write failed: {e:?}");
+                        error!("recovery journal write failed: {e:?}");
+                        // Journal write failure means the nonce is NOT marked
+                        // consumed locally. Sleep with backoff and retry rather
+                        // than continuing to the next iteration — otherwise the
+                        // daemon re-processes the same event in a tight loop.
+                        backoff_secs = (backoff_secs * 2).min(config.poll.backoff_max_secs);
+                        interruptible_sleep(Duration::from_secs(backoff_secs));
+                        continue;
                     }
                     health_state.record_tick(true);
                     health_state.record_submission();
@@ -874,8 +890,8 @@ fn run(config: Config, allow_stub_signer: bool) -> Result<(), String> {
                     continue;
                 }
                 let delay = jittered_backoff(backoff_secs);
-                eprintln!(
-                    "warn: submit failed: {submit_err:?} — backing off {}s",
+                warn!(
+                    "submit failed: {submit_err:?} — backing off {}s",
                     delay.as_secs()
                 );
                 health_state.record_error(format!("submit: {submit_err:?}"));
@@ -884,8 +900,8 @@ fn run(config: Config, allow_stub_signer: bool) -> Result<(), String> {
             }
             Err(CoreError::EventSource(es_err)) => {
                 let delay = jittered_backoff(backoff_secs);
-                eprintln!(
-                    "warn: event source: {es_err:?} — backing off {}s",
+                warn!(
+                    "event source: {es_err:?} — backing off {}s",
                     delay.as_secs()
                 );
                 health_state.record_error(format!("event_source: {es_err:?}"));
@@ -899,8 +915,8 @@ fn run(config: Config, allow_stub_signer: bool) -> Result<(), String> {
                 // human time to fix the config without losing the
                 // daemon process.
                 let delay = jittered_backoff(backoff_secs);
-                eprintln!(
-                    "error: unrecoverable-looking: {other:?} — backing off {}s",
+                error!(
+                    "unrecoverable-looking: {other:?} — backing off {}s",
                     delay.as_secs()
                 );
                 health_state.record_error(format!("{other:?}"));

@@ -2,9 +2,8 @@ use serde::Deserialize;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::event_source::{EventSource, EventSourceError, LockedEvent};
+use crate::live::json_rpc_types::{JsonRpcRequest, JsonRpcResponse};
 
-use super::json_rpc_request::JsonRpcRequest;
-use super::json_rpc_response::JsonRpcResponse;
 use super::raw_log::RawLog;
 use super::{
     decode_hex_u64, decode_locked_event, locked_event_topic_hash, EthRpcError,

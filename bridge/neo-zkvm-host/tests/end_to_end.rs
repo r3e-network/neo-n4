@@ -86,7 +86,7 @@ fn v1_backward_compat_guest_in_zkvm_matches_host() {
 #[ignore]
 #[serial_test::serial]
 fn prove_and_verify_real_zk_proof() {
-    let bytes = build_minimal_request();
+    let bytes = build_minimal_request_v2();
     let host_result = neo_zkvm_guest::execute_batch(&bytes).expect("host execute failed");
 
     let t0 = std::time::Instant::now();
@@ -120,7 +120,7 @@ fn prove_and_verify_real_zk_proof() {
 #[ignore]
 #[serial_test::serial]
 fn verify_rejects_mismatched_public_input_hash() {
-    let bytes = build_minimal_request();
+    let bytes = build_minimal_request_v2();
     let proof_result = neo_zkvm_host::prove(&bytes).expect("zkVM prove failed");
 
     let mut tampered = proof_result.public_input_hash;

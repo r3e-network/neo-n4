@@ -11,7 +11,7 @@
 //! - [`eth_rpc`] — `EthRpcEventSource` implementing
 //!   [`crate::EventSource`] via Eth JSON-RPC `eth_getLogs` polling. Hand-
 //!   rolled decoder for the `Locked` event (no `ethers-rs` / `alloy` —
-//!   keeps the dep tree to `reqwest` + `serde_json` + `tiny-keccak`).
+//!   keeps the dep tree to `reqwest` + `serde_json` + `sha3`).
 //!
 //! Deferred to subsequent iterations:
 //!
@@ -24,6 +24,7 @@
 pub mod eth_rpc;
 pub mod file_journal;
 pub mod health;
+pub(crate) mod json_rpc_types;
 pub mod neo_rpc;
 
 #[cfg(test)]

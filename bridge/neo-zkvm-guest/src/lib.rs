@@ -35,7 +35,8 @@ fn execute_transaction(tx: &[u8], gas_limit: u64) -> VmExecutionReceipt {
     VmExecutionReceipt {
         state: output.state,
         gas_consumed: output.gas_consumed,
-        output_hash: neo_vm_guest::hash_proof_output(&output),
+        output_hash: neo_vm_guest::try_hash_proof_output(&output)
+            .expect("ProofOutput serialization must not fail for valid VM output"),
     }
 }
 

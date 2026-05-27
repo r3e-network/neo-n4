@@ -503,7 +503,11 @@ impl L2RpcClient {
             });
         }
         if let Some(error) = envelope.get("error").filter(|v| !v.is_null()) {
-            let code = error.get("code").and_then(|v| v.as_i64()).unwrap_or(-32603) as i32;
+            let code = error
+                .get("code")
+                .and_then(|v| v.as_i64())
+                .and_then(|c| i32::try_from(c).ok())
+                .unwrap_or(-32603);
             let msg = error
                 .get("message")
                 .and_then(|v| v.as_str())

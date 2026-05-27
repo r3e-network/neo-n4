@@ -13,6 +13,12 @@ const MAX_PER_ELEMENT_BYTES: u32 = 1024 * 1024; // 1 MiB
 /// specifying 65,536 txs each up to 4 GiB.
 const MAX_TOTAL_TX_BYTES: u64 = 8 * 1024 * 1024; // 8 MiB
 
+/// Maximum number of L1 messages per batch.
+const MAX_L1_MESSAGES: u32 = 1024;
+
+/// Maximum number of transactions per batch.
+const MAX_TRANSACTIONS: u32 = 65_536;
+
 /// Parse canonical batch request bytes.
 ///
 /// Version 1 (deprecated, 75+ bytes): 4-root layout.
@@ -82,10 +88,11 @@ fn parse_batch_request_v1(bytes: &[u8], p: &mut usize) -> Result<BatchRequest, E
 }
 
 fn read_l1_messages(p: &mut usize, bytes: &[u8]) -> Result<Vec<L1Message>, ExecutionError> {
-    let l1_count = read_u32(p, bytes)? as usize;
-    if l1_count > 1024 {
+    let l1_count = read_u32(p, bytes)?;
+    if l1_count > MAX_L1_MESSAGES {
         return Err(ExecutionError::OversizedField("l1_messages"));
     }
+    let l1_count = l1_count as usize;
 
     let mut l1_messages = Vec::with_capacity(l1_count);
     let mut total_bytes: u64 = 0;
@@ -101,10 +108,11 @@ fn read_l1_messages(p: &mut usize, bytes: &[u8]) -> Result<Vec<L1Message>, Execu
 }
 
 fn read_transactions(p: &mut usize, bytes: &[u8]) -> Result<Vec<Vec<u8>>, ExecutionError> {
-    let tx_count = read_u32(p, bytes)? as usize;
-    if tx_count > 65_536 {
+    let tx_count = read_u32(p, bytes)?;
+    if tx_count > MAX_TRANSACTIONS {
         return Err(ExecutionError::OversizedField("transactions"));
     }
+    let tx_count = tx_count as usize;
 
     let mut transactions = Vec::with_capacity(tx_count);
     let mut total_bytes: u64 = 0;

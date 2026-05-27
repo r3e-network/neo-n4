@@ -36,7 +36,7 @@ impl HealthServer {
         let stop = Arc::new(AtomicBool::new(false));
         let stop_c = stop.clone();
         let handle = thread::spawn(move || {
-            while !stop_c.load(Ordering::Relaxed) {
+            while !stop_c.load(Ordering::Acquire) {
                 match listener.accept() {
                     Ok((mut stream, _)) => {
                         let _ = stream.set_nonblocking(false);
@@ -59,7 +59,7 @@ impl HealthServer {
 
 impl Drop for HealthServer {
     fn drop(&mut self) {
-        self.stop.store(true, Ordering::Relaxed);
+        self.stop.store(true, Ordering::Release);
         // Join the background thread to ensure it exits before the server is
         // dropped. The thread checks the stop flag every ~50ms, so the join
         // should complete quickly. This prevents the thread from outliving the

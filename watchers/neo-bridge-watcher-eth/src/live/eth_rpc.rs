@@ -212,28 +212,20 @@ fn decode_locked_event(log: &RawLog) -> Result<LockedEvent, EthRpcError> {
 }
 
 fn decode_hex_u64(s: &str) -> Result<u64, String> {
-    let s = s.strip_prefix("0x").unwrap_or(s);
-    u64::from_str_radix(s, 16).map_err(|e| format!("u64 parse: {e}"))
+    crate::live::json_rpc_types::decode_hex_u64(s)
 }
 
 fn decode_hex32(s: &str) -> Result<[u8; 32], String> {
-    let s = s.strip_prefix("0x").unwrap_or(s);
-    let bytes = hex::decode(s).map_err(|e| format!("hex32: {e}"))?;
-    if bytes.len() != 32 {
-        return Err(format!("expected 32 bytes, got {}", bytes.len()));
-    }
-    let mut out = [0u8; 32];
-    out.copy_from_slice(&bytes);
-    Ok(out)
+    crate::live::json_rpc_types::decode_hex32(s)
 }
 
 fn decode_hex_bytes(s: &str) -> Result<Vec<u8>, String> {
-    let s = s.strip_prefix("0x").unwrap_or(s);
-    hex::decode(s).map_err(|e| format!("hex: {e}"))
+    crate::live::json_rpc_types::decode_hex_bytes(s)
 }
 
 fn decode_topic_u32(s: &str) -> Result<u32, EthRpcError> {
-    let bytes = decode_hex32(s).map_err(|e| EthRpcError::BadLog(format!("topic u32: {e}")))?;
+    let bytes = crate::live::json_rpc_types::decode_hex32(s)
+        .map_err(|e| EthRpcError::BadLog(format!("topic u32: {e}")))?;
     Ok(u32::from_be_bytes([
         bytes[28], bytes[29], bytes[30], bytes[31],
     ]))

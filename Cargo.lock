@@ -2144,9 +2144,7 @@ name = "neo-bridge-watcher-sol"
 version = "0.1.0"
 dependencies = [
  "ed25519-dalek",
- "hex",
  "neo-bridge-watcher-eth",
- "thiserror 2.0.18",
  "zeroize",
 ]
 
@@ -2154,9 +2152,7 @@ dependencies = [
 name = "neo-bridge-watcher-tron"
 version = "0.1.0"
 dependencies = [
- "hex",
  "neo-bridge-watcher-eth",
- "sha2 0.10.9",
 ]
 
 [[package]]

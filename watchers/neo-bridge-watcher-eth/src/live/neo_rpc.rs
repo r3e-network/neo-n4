@@ -95,8 +95,7 @@ where
 }
 
 fn decode_hex_bytes(s: &str) -> Result<Vec<u8>, String> {
-    let s = s.strip_prefix("0x").unwrap_or(s);
-    hex::decode(s).map_err(|e| format!("hex: {e}"))
+    crate::live::json_rpc_types::decode_hex_bytes(s)
 }
 
 #[cfg(test)]

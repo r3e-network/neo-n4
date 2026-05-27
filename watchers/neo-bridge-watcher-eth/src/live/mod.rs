@@ -26,9 +26,7 @@ pub mod file_journal;
 pub mod health;
 pub(crate) mod json_rpc_types;
 pub mod neo_rpc;
-
-#[cfg(test)]
-pub(crate) mod test_support;
+pub mod test_support;
 
 pub use eth_rpc::{EthRpcError, EthRpcEventSource, EthRpcEventSourceBuilder};
 pub use file_journal::FileJournal;

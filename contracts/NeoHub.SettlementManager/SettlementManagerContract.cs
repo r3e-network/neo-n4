@@ -60,6 +60,22 @@ public class SettlementManagerContract : SmartContract
     [DisplayName("BatchReverted")]
     public static event Action<uint, ulong> OnBatchReverted = default!;
 
+    /// <summary>Emitted when ownership is transferred.</summary>
+    [DisplayName("OwnerChanged")]
+    public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
+
+    /// <summary>Emitted when OptimisticChallenge contract is wired.</summary>
+    [DisplayName("OptimisticChallengeChanged")]
+    public static event Action<UInt160> OnOptimisticChallengeChanged = default!;
+
+    /// <summary>Emitted when DARegistry contract is wired.</summary>
+    [DisplayName("DARegistryChanged")]
+    public static event Action<UInt160> OnDARegistryChanged = default!;
+
+    /// <summary>Emitted when DAValidator contract is wired.</summary>
+    [DisplayName("DAValidatorChanged")]
+    public static event Action<UInt160> OnDAValidatorChanged = default!;
+
     /// <summary>Set wiring on deploy.</summary>
     public static void _deploy(object data, bool update)
     {
@@ -94,6 +110,16 @@ public class SettlementManagerContract : SmartContract
         return raw == null ? UInt160.Zero : (UInt160)raw;
     }
 
+    /// <summary>Transfer governance ownership. Owner only.</summary>
+    public static void SetOwner(UInt160 newOwner)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(newOwner.IsValid && !newOwner.IsZero, "invalid new owner");
+        var oldOwner = GetOwner();
+        Storage.Put(new byte[] { KeyOwner }, newOwner);
+        OnOwnerChanged(oldOwner, newOwner);
+    }
+
     /// <summary>Contract authorized to open/finalize/revert optimistic challenge windows.</summary>
     [Safe]
     public static UInt160 GetOptimisticChallenge()
@@ -109,6 +135,7 @@ public class SettlementManagerContract : SmartContract
         ExecutionEngine.Assert(optimisticChallenge.IsValid && !optimisticChallenge.IsZero,
             "invalid optimistic challenge");
         Storage.Put(new byte[] { PrefixOptimisticChallenge }, optimisticChallenge);
+        OnOptimisticChallengeChanged(optimisticChallenge);
     }
 
     /// <summary>DARegistry contract called when a batch is accepted.</summary>
@@ -125,6 +152,7 @@ public class SettlementManagerContract : SmartContract
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(daRegistry.IsValid && !daRegistry.IsZero, "invalid DA registry");
         Storage.Put(new byte[] { PrefixDARegistry }, daRegistry);
+        OnDARegistryChanged(daRegistry);
     }
 
     /// <summary>DAValidator contract called before a batch is finalized.</summary>
@@ -141,6 +169,7 @@ public class SettlementManagerContract : SmartContract
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(daValidator.IsValid && !daValidator.IsZero, "invalid DA validator");
         Storage.Put(new byte[] { PrefixDAValidator }, daValidator);
+        OnDAValidatorChanged(daValidator);
     }
 
     /// <summary>

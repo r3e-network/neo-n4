@@ -30,10 +30,18 @@ public class EmergencyManagerContract : SmartContract
     [DisplayName("PauseStateChanged")]
     public static event Action<bool> OnPauseStateChanged = default!;
 
-    /// <summary>Emitted on a successful escape-hatch withdrawal. Includes chainId so off-chain
+    /// <summary>Emitted on a successful escape-hatch exit. Includes chainId so off-chain
     /// indexers can attribute the exit to the right L2.</summary>
     [DisplayName("EscapeHatchExit")]
     public static event Action<uint, UInt160, UInt256> OnEscapeHatchExit = default!;
+
+    /// <summary>Emitted when ownership is transferred.</summary>
+    [DisplayName("OwnerChanged")]
+    public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
+
+    /// <summary>Emitted when the emergency council is changed.</summary>
+    [DisplayName("CouncilChanged")]
+    public static event Action<UInt160> OnCouncilChanged = default!;
 
     /// <summary>Set wiring on deploy. Args: (owner, emergencyCouncil, settlementManager).</summary>
     public static void _deploy(object data, bool update)
@@ -67,6 +75,25 @@ public class EmergencyManagerContract : SmartContract
     {
         var raw = Storage.Get(new byte[] { KeyOwner });
         return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Transfer governance ownership. Owner only.</summary>
+    public static void SetOwner(UInt160 newOwner)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(newOwner.IsValid && !newOwner.IsZero, "invalid new owner");
+        var oldOwner = GetOwner();
+        Storage.Put(new byte[] { KeyOwner }, newOwner);
+        OnOwnerChanged(oldOwner, newOwner);
+    }
+
+    /// <summary>Set the emergency council multisig hash. Owner only.</summary>
+    public static void SetEmergencyCouncil(UInt160 council)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(council.IsValid && !council.IsZero, "invalid council");
+        Storage.Put(new byte[] { KeyEmergencyCouncil }, council);
+        OnCouncilChanged(council);
     }
 
     /// <summary>True when the network is currently paused.</summary>

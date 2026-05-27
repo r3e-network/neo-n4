@@ -272,7 +272,9 @@ public class ForcedInclusionContract : SmartContract
         ExecutionEngine.Assert(rawEntry != null, "entry not found");
 
         var entry = (byte[])rawEntry!;
-        var deadline = ReadUInt32(entry, 20 + 32 + 4 + entry.Length - 20 - 32 - 4 - 4); // last 4 bytes
+        // Minimum entry size: sender(20) + txHash(32) + txLen(4) + deadline(4) = 60
+        ExecutionEngine.Assert(entry.Length >= 60, "entry malformed");
+        var deadline = ReadUInt32(entry, entry.Length - 4); // deadline is last 4 bytes
         var nowSec = (uint)(Runtime.Time / 1000u);
         if (nowSec < deadline) return false;
 

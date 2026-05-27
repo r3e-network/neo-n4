@@ -171,6 +171,9 @@ public class ExternalBridgeEscrowContract : SmartContract
     /// </summary>
     public static void Receive(uint externalChainId, byte[] messageBytes, byte[] proofBytes)
     {
+        // Validate external chain ID namespace (must be in 0xE0_xx_xx_xx range)
+        ExecutionEngine.Assert((externalChainId & 0xFF000000U) == 0xE0000000U,
+            "externalChainId not in foreign namespace");
         ExecutionEngine.Assert(messageBytes.Length >= 102,
             "messageBytes too short");
 

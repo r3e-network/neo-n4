@@ -41,9 +41,9 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
     private readonly ConcurrentDictionary<ulong, byte> _knownNonces = new();
     private readonly ConcurrentDictionary<ulong, byte> _locallyConsumed = new();
     private readonly Lock _cacheGate = new();
+    private readonly SemaphoreSlim _fetchConcurrency = new(8, 8); // Cap concurrent L1 RPC calls
     private List<ForcedInclusionEntry>? _cachedDrain;
     private DateTime _cacheUntilUtc = DateTime.MinValue;
-    private bool _disposed;
 
     /// <inheritdoc />
     public uint ChainId { get; }
@@ -152,12 +152,28 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
     private async Task<List<ForcedInclusionEntry>> FetchPendingAsync(CancellationToken ct)
     {
         var snapshot = _knownNonces.Keys.ToArray();
+        // Cap concurrent RPC calls to prevent L1 rate-limit exhaustion.
+        // Each nonce requires 2 RPC calls (getEntry + isConsumed); the semaphore
+        // ensures at most 8 nonces are fetched concurrently, regardless of queue size.
         var fetchTasks = snapshot
             .Where(n => !_locallyConsumed.ContainsKey(n))
-            .Select(n => FetchEntryAsync(n, ct))
+            .Select(n => FetchEntryThrottledAsync(n, ct))
             .ToArray();
         var entries = await Task.WhenAll(fetchTasks).ConfigureAwait(false);
         return entries.Where(e => e is not null).Cast<ForcedInclusionEntry>().ToList();
+    }
+
+    private async Task<ForcedInclusionEntry?> FetchEntryThrottledAsync(ulong nonce, CancellationToken ct)
+    {
+        await _fetchConcurrency.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            return await FetchEntryAsync(nonce, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _fetchConcurrency.Release();
+        }
     }
 
     private async Task<ForcedInclusionEntry?> FetchEntryAsync(ulong nonce, CancellationToken ct)
@@ -212,8 +228,9 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
     /// <inheritdoc />
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
+        if (Interlocked.Exchange(ref _disposed_flag, 1) != 0) return;
+        _fetchConcurrency.Dispose();
         if (_ownsRpc) _rpc.Dispose();
     }
+    private int _disposed_flag;
 }

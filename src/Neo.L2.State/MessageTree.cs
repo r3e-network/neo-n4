@@ -8,6 +8,12 @@ namespace Neo.L2.State;
 /// <remarks>
 /// See doc.md §10 (Neo Connect) and §15 (key flows). Each L2 should keep two instances per
 /// batch — one for L2 → L1 and one for L2 → L2.
+/// <para>
+/// <strong>Thread safety:</strong> This class is <em>not</em> thread-safe. Callers must
+/// ensure that <see cref="Add"/> and <see cref="Root"/>/<see cref="GetProof"/> are not
+/// called concurrently. The typical usage pattern (single-writer during execution, then
+/// read-only during sealing) satisfies this requirement.
+/// </para>
 /// </remarks>
 public sealed class MessageTree
 {

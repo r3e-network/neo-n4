@@ -921,10 +921,12 @@ fn jittered_backoff(secs: u64) -> Duration {
     if secs == 0 {
         return Duration::ZERO;
     }
+    // Derive jitter from clock nanoseconds + process ID so multiple watcher
+    // instances on the same host don't herd when the clock is skewed.
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.subsec_nanos())
-        .unwrap_or(0) as u64;
+        .map(|d| d.subsec_nanos() as u64)
+        .unwrap_or_else(|_| std::process::id() as u64 * 1_000_000);
     // Window [secs*3/4, secs*5/4]; saturating-arithmetic so a giant `secs` doesn't wrap.
     let lo = secs.saturating_mul(3) / 4;
     let hi = secs.saturating_mul(5) / 4;

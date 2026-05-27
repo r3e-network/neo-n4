@@ -9,8 +9,17 @@ namespace Neo.L2.Messaging;
 /// <see cref="L2BatchCommitment.L2ToL2MessageRoot"/>.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Anything with <see cref="CrossChainMessage.TargetChainId"/> equal to <c>0</c> is treated
 /// as L2 → L1; any other target is treated as L2 → L2.
+/// </para>
+/// <para>
+/// <strong>Thread safety:</strong> This class is <em>not</em> thread-safe. The owning
+/// <see cref="Neo.L2.Batch.L2Batch"/> enforces a single-writer model: the batch plugin
+/// adds messages during execution (single-threaded), then the sealer reads
+/// <see cref="L2ToL1Root"/>/<see cref="L2ToL2Root"/> after execution completes.
+/// Do not call <see cref="Add"/> concurrently with root reads.
+/// </para>
 /// </remarks>
 public sealed class L2Outbox
 {

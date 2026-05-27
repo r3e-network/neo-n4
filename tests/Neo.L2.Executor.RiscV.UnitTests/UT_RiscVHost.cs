@@ -169,15 +169,13 @@ public class UT_RiscVHost
     }
 
     [TestMethod]
-    public async Task RiscVTransactionExecutor_MissingNativeHost_Throws()
+    public async Task RiscVTransactionExecutor_MissingNativeHost_ReturnsFailedResult()
     {
         var executor = new RiscVTransactionExecutor((_, _) =>
             throw new InvalidOperationException("neo_riscv_host is unavailable"));
 
-        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
-            executor.ExecuteAsync(new byte[] { 0x40 }, Context()).AsTask());
-
-        StringAssert.Contains(ex.Message, "neo_riscv_host");
+        var result = await executor.ExecuteAsync(new byte[] { 0x40 }, Context());
+        Assert.IsFalse(result.Receipt.Success, "runtime error must produce Failed receipt");
     }
 
     [TestMethod]

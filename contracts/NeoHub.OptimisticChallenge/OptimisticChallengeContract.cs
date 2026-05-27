@@ -65,6 +65,14 @@ public class OptimisticChallengeContract : SmartContract
     [DisplayName("FraudVerifierRevoked")]
     public static event Action<UInt160> OnFraudVerifierRevoked = default!;
 
+    /// <summary>Emitted when the challenge window duration changes.</summary>
+    [DisplayName("WindowSecondsChanged")]
+    public static event Action<uint, uint> OnWindowSecondsChanged = default!;
+
+    /// <summary>Emitted when the challenger reward split changes.</summary>
+    [DisplayName("ChallengerRewardBpsChanged")]
+    public static event Action<ushort, ushort> OnChallengerRewardBpsChanged = default!;
+
     /// <summary>Set wiring on deploy. <c>data</c> = [owner, settlementManager, sequencerBond].</summary>
     public static void _deploy(object data, bool update)
     {
@@ -115,7 +123,9 @@ public class OptimisticChallengeContract : SmartContract
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(seconds >= 60 && seconds <= 7 * 86400, "window out of bounds [60s, 7d]");
+        var old = GetWindowSeconds();
         Storage.Put(new byte[] { KeyChallengeWindowSeconds }, (BigInteger)seconds);
+        OnWindowSecondsChanged(old, seconds);
     }
 
     /// <summary>Update challenger reward. Owner only.</summary>
@@ -123,7 +133,9 @@ public class OptimisticChallengeContract : SmartContract
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(bps > 0 && bps <= BasisPointsTotal, "bps out of (0, 10000]");
+        var old = GetChallengerRewardBps();
         Storage.Put(new byte[] { KeyChallengerRewardBps }, (BigInteger)bps);
+        OnChallengerRewardBpsChanged(old, bps);
     }
 
     /// <summary>

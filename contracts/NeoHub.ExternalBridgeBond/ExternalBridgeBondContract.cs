@@ -59,6 +59,18 @@ public class ExternalBridgeBondContract : SmartContract
     [DisplayName("BondWithdrawn")]
     public static event Action<uint, UInt160, BigInteger> OnBondWithdrawn = default!;
 
+    /// <summary>Emitted when the minimum bond amount changes.</summary>
+    [DisplayName("MinBondChanged")]
+    public static event Action<BigInteger, BigInteger> OnMinBondChanged = default!;
+
+    /// <summary>Emitted when a slasher is registered.</summary>
+    [DisplayName("SlasherRegistered")]
+    public static event Action<UInt160> OnSlasherRegistered = default!;
+
+    /// <summary>Emitted when a slasher is revoked.</summary>
+    [DisplayName("SlasherRevoked")]
+    public static event Action<UInt160> OnSlasherRevoked = default!;
+
     /// <summary>Set wiring on deploy. <c>data</c> = [owner, bondAsset].</summary>
     public static void _deploy(object data, bool update)
     {
@@ -101,8 +113,28 @@ public class ExternalBridgeBondContract : SmartContract
     public static void SetMinBond(BigInteger amount)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
-        ExecutionEngine.Assert(amount >= 0, "minBond must be non-negative");
+        ExecutionEngine.Assert(amount > 0, "minBond must be positive");
+        var old = GetMinBond();
         Storage.Put(new byte[] { KeyMinBond }, amount);
+        OnMinBondChanged(old, amount);
+    }
+
+    /// <summary>Owner-only: register a contract authorized to slash.
+    /// Typically the Phase-C optimistic-challenge fraud verifier.</summary>
+    public static void RegisterSlasher(UInt160 slasher)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(slasher.IsValid && !slasher.IsZero, "invalid slasher");
+        Storage.Put(SlasherKey(slasher), new byte[] { 1 });
+        OnSlasherRegistered(slasher);
+    }
+
+    /// <summary>Owner-only: revoke a slasher.</summary>
+    public static void RevokeSlasher(UInt160 slasher)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        Storage.Put(SlasherKey(slasher), null);
+        OnSlasherRevoked(slasher);
     }
 
     /// <summary>Owner-only: register a contract authorized to slash.

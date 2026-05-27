@@ -68,6 +68,26 @@ public class GovernanceControllerContract : SmartContract
     [DisplayName("ProposalExecuted")]
     public static event Action<ulong, ulong> OnProposalExecuted = default!;
 
+    /// <summary>Emitted when the admission mode changes.</summary>
+    [DisplayName("AdmissionModeChanged")]
+    public static event Action<byte> OnAdmissionModeChanged = default!;
+
+    /// <summary>Emitted when a verifier is approved for semi-permissionless admission.</summary>
+    [DisplayName("VerifierApproved")]
+    public static event Action<UInt160> OnVerifierApproved = default!;
+
+    /// <summary>Emitted when a verifier is revoked from the semi-permissionless set.</summary>
+    [DisplayName("VerifierRevoked")]
+    public static event Action<UInt160> OnVerifierRevoked = default!;
+
+    /// <summary>Emitted when a bridge adapter is approved for semi-permissionless admission.</summary>
+    [DisplayName("BridgeAdapterApproved")]
+    public static event Action<UInt160> OnBridgeAdapterApproved = default!;
+
+    /// <summary>Emitted when a bridge adapter is revoked from the semi-permissionless set.</summary>
+    [DisplayName("BridgeAdapterRevoked")]
+    public static event Action<UInt160> OnBridgeAdapterRevoked = default!;
+
     /// <summary>Set initial council + thresholds at deploy.</summary>
     public static void _deploy(object data, bool update)
     {
@@ -155,6 +175,7 @@ public class GovernanceControllerContract : SmartContract
         var owner = (UInt160)(Storage.Get(new byte[] { KeyOwner }) ?? throw new Exception("owner unset"));
         ExecutionEngine.Assert(Runtime.CheckWitness(owner), "not authorized");
         Storage.Put(new byte[] { KeyAdmissionMode }, new byte[] { mode });
+        OnAdmissionModeChanged(mode);
     }
 
     /// <summary>Council member submits a proposal payload (opaque bytes, semantics owned by caller).</summary>
@@ -424,6 +445,7 @@ public class GovernanceControllerContract : SmartContract
         var owner = (UInt160)(Storage.Get(new byte[] { KeyOwner }) ?? throw new Exception("owner unset"));
         ExecutionEngine.Assert(Runtime.CheckWitness(owner), "not authorized");
         Storage.Put(VerifierKey(verifier), new byte[] { 1 });
+        OnVerifierApproved(verifier);
     }
 
     /// <summary>Revoke a previously-approved verifier. Owner only. Does not affect chains
@@ -434,6 +456,7 @@ public class GovernanceControllerContract : SmartContract
         var owner = (UInt160)(Storage.Get(new byte[] { KeyOwner }) ?? throw new Exception("owner unset"));
         ExecutionEngine.Assert(Runtime.CheckWitness(owner), "not authorized");
         Storage.Delete(VerifierKey(verifier));
+        OnVerifierRevoked(verifier);
     }
 
     /// <summary>True if <paramref name="verifier"/> is in the approved-verifier set.</summary>
@@ -450,6 +473,7 @@ public class GovernanceControllerContract : SmartContract
         var owner = (UInt160)(Storage.Get(new byte[] { KeyOwner }) ?? throw new Exception("owner unset"));
         ExecutionEngine.Assert(Runtime.CheckWitness(owner), "not authorized");
         Storage.Put(BridgeKey(bridge), new byte[] { 1 });
+        OnBridgeAdapterApproved(bridge);
     }
 
     /// <summary>Revoke a previously-approved bridge adapter. Owner only.</summary>
@@ -459,6 +483,7 @@ public class GovernanceControllerContract : SmartContract
         var owner = (UInt160)(Storage.Get(new byte[] { KeyOwner }) ?? throw new Exception("owner unset"));
         ExecutionEngine.Assert(Runtime.CheckWitness(owner), "not authorized");
         Storage.Delete(BridgeKey(bridge));
+        OnBridgeAdapterRevoked(bridge);
     }
 
     /// <summary>True if <paramref name="bridge"/> is in the approved-bridge-adapter set.</summary>

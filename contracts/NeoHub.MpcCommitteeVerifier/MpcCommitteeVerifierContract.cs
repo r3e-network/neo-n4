@@ -138,7 +138,50 @@ public class MpcCommitteeVerifierContract : SmartContract
         WriteCommitteeWithMembers(externalChainId, threshold, curveTag, committeeBlob, memberBlob);
     }
 
-    /// <summary>Governance-mediated committee registration with replay protection.</summary>
+    /// <summary>Governance-mediated committee registration with member bindings.
+    /// Unlike <see cref="RegisterCommitteeViaProposal"/>, this also writes per-signer
+    /// member addresses so <c>MpcCommitteeFraudVerifier.Slash</c> can attribute fraud
+    /// to individual members. Use this for production governance proposals —
+    /// <c>RegisterCommitteeViaProposal</c> exists for backward compatibility but
+    /// produces un-slashable committees.
+    /// </summary>
+    public static void RegisterCommitteeWithMembersViaProposal(
+        uint externalChainId, byte threshold, byte curveTag,
+        byte[] committeeBlob, byte[] memberBlob, ulong proposalId)
+    {
+        var gc = GetGovernanceController();
+        ExecutionEngine.Assert(gc != UInt160.Zero,
+            "governance controller not wired — owner must call SetGovernanceController first");
+
+        var consumedKey = new byte[1 + 8];
+        consumedKey[0] = PrefixConsumedProposal;
+        consumedKey[1] = (byte)proposalId; consumedKey[2] = (byte)(proposalId >> 8);
+        consumedKey[3] = (byte)(proposalId >> 16); consumedKey[4] = (byte)(proposalId >> 24);
+        consumedKey[5] = (byte)(proposalId >> 32); consumedKey[6] = (byte)(proposalId >> 40);
+        consumedKey[7] = (byte)(proposalId >> 48); consumedKey[8] = (byte)(proposalId >> 56);
+        ExecutionEngine.Assert(Storage.Get(consumedKey) == null, "proposal already consumed");
+
+        var ok = (bool)Contract.Call(gc, "isApprovedAndTimelocked",
+            CallFlags.ReadOnly, new object[] { proposalId });
+        ExecutionEngine.Assert(ok, "proposal not approved + timelocked");
+
+        // Bind proposal payload to (externalChainId, threshold, curveTag, committeeBlob, memberBlob).
+        var expectedAction = BuildRegisterCommitteeWithMembersAction(
+            externalChainId, threshold, curveTag, committeeBlob, memberBlob);
+        var bound = (bool)Contract.Call(gc, "matchesProposalPayload",
+            CallFlags.ReadOnly, new object[] { proposalId, expectedAction });
+        ExecutionEngine.Assert(bound,
+            "proposal payload does not match action args (council voted on different bytes)");
+
+        Storage.Put(consumedKey, new byte[] { 1 });
+        WriteCommitteeWithMembers(externalChainId, threshold, curveTag, committeeBlob, memberBlob);
+    }
+
+    /// <summary>Governance-mediated committee registration with replay protection.
+    /// NOTE: This does NOT bind per-signer member addresses — committees registered
+    /// this way cannot be slashed via <c>MpcCommitteeFraudVerifier</c>. Prefer
+    /// <see cref="RegisterCommitteeWithMembersViaProposal"/> for production use.
+    /// </summary>
     public static void RegisterCommitteeViaProposal(
         uint externalChainId, byte threshold, byte curveTag, byte[] committeeBlob, ulong proposalId)
     {
@@ -199,6 +242,51 @@ public class MpcCommitteeVerifierContract : SmartContract
         for (var i = 0; i < blobLen; i++) buf[pos + i] = committeeBlob[i];
         return buf;
     }
+
+    /// <summary>
+    /// Canonical encoding for a "register committee with members" action. Layout:
+    /// <c>"neo4-gov:registerCommitteeWithMembers" || externalChainId(4B LE) || threshold(1B) ||
+    /// curveTag(1B) || committeeBlobLen(4B LE) || committeeBlob(NB) || memberBlobLen(4B LE) || memberBlob(NB)</c>.
+    /// Length-prefixed blobs for unambiguous parsing.
+    /// </summary>
+    [Safe]
+    public static byte[] BuildRegisterCommitteeWithMembersAction(
+        uint externalChainId, byte threshold, byte curveTag,
+        byte[] committeeBlob, byte[] memberBlob)
+    {
+        var tag = ActionTagRegisterCommitteeWithMembers;
+        var committeeLen = committeeBlob.Length;
+        var memberLen = memberBlob!.Length;
+        var buf = new byte[tag.Length + 4 + 1 + 1 + 4 + committeeLen + 4 + memberLen];
+        var pos = 0;
+        for (var i = 0; i < tag.Length; i++) buf[pos++] = tag[i];
+        buf[pos++] = (byte)externalChainId;
+        buf[pos++] = (byte)(externalChainId >> 8);
+        buf[pos++] = (byte)(externalChainId >> 16);
+        buf[pos++] = (byte)(externalChainId >> 24);
+        buf[pos++] = threshold;
+        buf[pos++] = curveTag;
+        buf[pos++] = (byte)committeeLen;
+        buf[pos++] = (byte)(committeeLen >> 8);
+        buf[pos++] = (byte)(committeeLen >> 16);
+        buf[pos++] = (byte)(committeeLen >> 24);
+        for (var i = 0; i < committeeLen; i++) buf[pos++] = committeeBlob[i];
+        buf[pos++] = (byte)memberLen;
+        buf[pos++] = (byte)(memberLen >> 8);
+        buf[pos++] = (byte)(memberLen >> 16);
+        buf[pos++] = (byte)(memberLen >> 24);
+        for (var i = 0; i < memberLen; i++) buf[pos++] = memberBlob[i];
+        return buf;
+    }
+
+    private static readonly byte[] ActionTagRegisterCommitteeWithMembers = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'g', (byte)'o', (byte)'v', (byte)':',
+        (byte)'r', (byte)'e', (byte)'g', (byte)'i', (byte)'s', (byte)'t', (byte)'e', (byte)'r',
+        (byte)'C', (byte)'o', (byte)'m', (byte)'m', (byte)'i', (byte)'t', (byte)'t', (byte)'e', (byte)'e',
+        (byte)'W', (byte)'i', (byte)'t', (byte)'h', (byte)'M', (byte)'e', (byte)'m', (byte)'b', (byte)'e', (byte)'r', (byte)'s'
+    };
 
     private static readonly byte[] ActionTagRegisterCommittee = new byte[]
     {

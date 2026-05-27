@@ -83,6 +83,14 @@ public class ChainRegistryContract : SmartContract
     [DisplayName("ChainResumed")]
     public static event Action<uint> OnChainResumed = default!;
 
+    /// <summary>Emitted when ownership is transferred.</summary>
+    [DisplayName("OwnerChanged")]
+    public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
+
+    /// <summary>Emitted when the GovernanceController is wired.</summary>
+    [DisplayName("GovernanceControllerChanged")]
+    public static event Action<UInt160> OnGovernanceControllerChanged = default!;
+
     /// <summary>Initial owner is set on deploy.</summary>
     public static void _deploy(object data, bool update)
     {
@@ -105,7 +113,9 @@ public class ChainRegistryContract : SmartContract
     {
         ExecutionEngine.Assert(newOwner.IsValid && !newOwner.IsZero, "invalid new owner");
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        var oldOwner = GetOwner();
         Storage.Put(new byte[] { KeyOwner }, newOwner);
+        OnOwnerChanged(oldOwner, newOwner);
     }
 
     /// <summary>Register a new L2 chain. Owner only (the §16.1 "permissioned" admission
@@ -125,6 +135,7 @@ public class ChainRegistryContract : SmartContract
         ExecutionEngine.Assert(governanceController.IsValid && !governanceController.IsZero,
             "invalid governance controller");
         Storage.Put(new byte[] { KeyGovernanceController }, governanceController);
+        OnGovernanceControllerChanged(governanceController);
     }
 
     /// <summary>Look up the wired GovernanceController hash, or <see cref="UInt160.Zero"/>

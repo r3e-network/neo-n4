@@ -56,6 +56,8 @@ pub enum BuildError {
     /// the Eth side never authorized.
     #[error("unsupported message-type byte 0x{0:02X} — watcher cannot encode payload safely")]
     UnsupportedMessageType(u8),
+    #[error("payload length {0} exceeds u32::MAX — cannot encode canonical message")]
+    PayloadTooLarge(usize),
 }
 
 /// Build the canonical pre-image bytes (102-byte fixed prefix + payload).
@@ -78,7 +80,8 @@ pub fn canonical_message_bytes(msg: &ExternalCrossChainMessage) -> Result<Vec<u8
     out.extend_from_slice(&msg.deadline_unix_seconds.to_le_bytes());
     out.extend_from_slice(&msg.source_tx_ref);
     out.push(msg.message_type as u8);
-    let payload_len = u32::try_from(msg.payload.len()).unwrap_or(u32::MAX);
+    let payload_len = u32::try_from(msg.payload.len())
+        .map_err(|_| BuildError::PayloadTooLarge(msg.payload.len()))?;
     out.extend_from_slice(&payload_len.to_le_bytes());
     out.extend_from_slice(&msg.payload);
     debug_assert_eq!(out.len(), size);
@@ -102,18 +105,17 @@ pub fn message_hash(msg: &ExternalCrossChainMessage) -> Result<[u8; 32], BuildEr
 /// ```
 ///
 /// Mirrors C# `ExternalAssetTransferPayload.Encode`.
-pub fn encode_asset_transfer_payload(foreign_asset: [u8; 20], amount_le: &[u8]) -> Vec<u8> {
-    assert!(
-        amount_le.len() <= 64,
-        "amount_le.len() {} > 64 (cap matches C# MaxAmountBytes)",
-        amount_le.len()
-    );
+pub fn encode_asset_transfer_payload(foreign_asset: [u8; 20], amount_le: &[u8]) -> Result<Vec<u8>, BuildError> {
+    if amount_le.len() > 64 {
+        return Err(BuildError::PayloadTooLarge(amount_le.len()));
+    }
     let mut out = Vec::with_capacity(20 + 4 + amount_le.len());
     out.extend_from_slice(&foreign_asset);
-    let amount_len = u32::try_from(amount_le.len()).expect("amount_le capped at 64 by assert above");
+    let amount_len = u32::try_from(amount_le.len())
+        .map_err(|_| BuildError::PayloadTooLarge(amount_le.len()))?;
     out.extend_from_slice(&amount_len.to_le_bytes());
     out.extend_from_slice(amount_le);
-    out
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -124,7 +126,7 @@ mod tests {
         // 1_000_000 = 0x0F4240, encoded as the 3-byte minimal LE representation
         // (matches BigInteger.ToByteArray() in C# for unsigned values that don't
         // need a sign byte).
-        let payload = encode_asset_transfer_payload([0xee; 20], &[0x40, 0x42, 0x0F]);
+        let payload = encode_asset_transfer_payload([0xee; 20], &[0x40, 0x42, 0x0F]).unwrap();
         ExternalCrossChainMessage {
             external_chain_id: 0xE000_0001,
             neo_chain_id: 1099,

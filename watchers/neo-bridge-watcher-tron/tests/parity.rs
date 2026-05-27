@@ -10,7 +10,7 @@ use neo_bridge_watcher_tron::TRON_MAINNET_CHAIN_ID;
 fn build_tron_deposit(nonce: u64) -> ExternalCrossChainMessage {
     // 1_000_000 = 0x0F4240, 3-byte minimal LE (matches C#
     // BigInteger.ToByteArray for unsigned values).
-    let payload = encode_asset_transfer_payload([0xee; 20], &[0x40, 0x42, 0x0F]);
+    let payload = encode_asset_transfer_payload([0xee; 20], &[0x40, 0x42, 0x0F]).unwrap();
     ExternalCrossChainMessage {
         external_chain_id: TRON_MAINNET_CHAIN_ID,
         neo_chain_id: 1099,

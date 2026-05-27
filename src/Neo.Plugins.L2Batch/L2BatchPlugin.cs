@@ -115,8 +115,12 @@ public sealed class L2BatchPlugin : Plugin
         if (subscribers is null) return;
         foreach (var sub in subscribers)
         {
+            // Subscriber isolation: a subscriber failure must not surface as a
+            // caller-visible error, which would leave the caller out of sync
+            // with the sealed batch. Catch all non-fatal exceptions.
+            // Fatal exceptions (OOM, SO) terminate the process and can't be caught.
             try { ((EventHandler<L2BatchCommitment>)sub).Invoke(sender, commitment); }
-            catch { metrics.SafeIncrementCounter(MetricNames.BatchSealedSubscriberFailures); }
+            catch (Exception) { metrics.SafeIncrementCounter(MetricNames.BatchSealedSubscriberFailures); }
         }
     }
 }

@@ -9,7 +9,7 @@ use neo_bridge_watcher_sol::eth::*;
 use neo_bridge_watcher_sol::{Ed25519FileSigner, SOLANA_MAINNET_CHAIN_ID};
 
 fn build_solana_deposit(nonce: u64) -> ExternalCrossChainMessage {
-    let payload = encode_asset_transfer_payload([0xee; 20], &[0x40, 0x42, 0x0F]);
+    let payload = encode_asset_transfer_payload([0xee; 20], &[0x40, 0x42, 0x0F]).unwrap();
     ExternalCrossChainMessage {
         external_chain_id: SOLANA_MAINNET_CHAIN_ID,
         neo_chain_id: 1099,

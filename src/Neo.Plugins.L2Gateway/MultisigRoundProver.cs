@@ -136,6 +136,7 @@ public sealed class MultisigRoundProver : IRoundProver
         var seen = new HashSet<ECPoint>();
         foreach (var sig in payload.Signatures)
         {
+            if (sig.PublicKey is null || sig.Signature is null) continue;
             if (!validatorSet.Contains(sig.PublicKey)) continue; // not a known validator
             if (!seen.Add(sig.PublicKey)) continue; // duplicate signer counts once
             if (sig.Signature.Length != 64) continue;

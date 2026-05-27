@@ -169,7 +169,7 @@ impl<S: Signer, ES: EventSource, NS: NeoSubmitter, J: Journal> WatcherCore<S, ES
             // amount to the minimal-LE encoding C# BigInteger.ToByteArray
             // produces for unsigned values.
             true => {
-                encode_asset_transfer_payload(event.asset, &amount_be_to_le_minimal(&event.amount))
+                encode_asset_transfer_payload(event.asset, &amount_be_to_le_minimal(&event.amount))?
             }
             // Non-empty payload → asset+call. The Eth-side router doesn't
             // emit `MSG_TYPE_ASSET_AND_CALL` events today; until it does AND

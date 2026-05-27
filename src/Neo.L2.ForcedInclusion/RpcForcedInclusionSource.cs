@@ -189,6 +189,11 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
         var txLen = BinaryPrimitives.ReadInt32LittleEndian(bytes.Slice(52, 4));
         if (txLen < 0)
             throw new InvalidDataException($"forced-tx entry txLen {txLen} negative");
+        // Cap txLen at 1 MiB to prevent OOM from malicious L1 responses.
+        // Real transactions are typically < 100 KiB; the generous cap handles
+        // edge cases while preventing a crafted 2^31-1 allocation.
+        if (txLen > 1024 * 1024)
+            throw new InvalidDataException($"forced-tx entry txLen {txLen} exceeds 1 MiB cap");
         if (bytes.Length != FixedHeader + txLen + FixedTrailer)
             throw new InvalidDataException(
                 $"forced-tx entry size {bytes.Length} != expected {FixedHeader + txLen + FixedTrailer} for txLen={txLen}");

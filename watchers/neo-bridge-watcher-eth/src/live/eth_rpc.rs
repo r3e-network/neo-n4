@@ -142,9 +142,15 @@ fn decode_locked_event(log: &RawLog) -> Result<LockedEvent, EthRpcError> {
         data[128 + 29],
         data[128 + 30],
         data[128 + 31],
-    // NOTE: `as usize` is safe — EVM log offsets from 32-byte words are bounded
-    // by log data size. On 64-bit targets, no truncation occurs.
-    ]) as usize;
+    ]);
+    if payload_offset > data.len() as u64 {
+        return Err(EthRpcError::BadLog(format!(
+            "payload offset {} > data len {}",
+            payload_offset,
+            data.len()
+        )));
+    }
+    let payload_offset = payload_offset as usize;
     let deadline = u64::from_be_bytes([
         data[160 + 24],
         data[160 + 25],

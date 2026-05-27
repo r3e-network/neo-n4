@@ -43,6 +43,18 @@ public class SequencerBondContract : SmartContract
     [DisplayName("BondWithdrawn")]
     public static event Action<uint, UInt160, BigInteger> OnBondWithdrawn = default!;
 
+    /// <summary>Emitted when the minimum bond amount changes.</summary>
+    [DisplayName("MinBondChanged")]
+    public static event Action<BigInteger, BigInteger> OnMinBondChanged = default!;
+
+    /// <summary>Emitted when a slasher is registered.</summary>
+    [DisplayName("SlasherRegistered")]
+    public static event Action<UInt160> OnSlasherRegistered = default!;
+
+    /// <summary>Emitted when a slasher is revoked.</summary>
+    [DisplayName("SlasherRevoked")]
+    public static event Action<UInt160> OnSlasherRevoked = default!;
+
     /// <summary>Set wiring on deploy. <c>data</c> = [owner, bondAsset, initialSlashers[]].</summary>
     public static void _deploy(object data, bool update)
     {
@@ -102,7 +114,9 @@ public class SequencerBondContract : SmartContract
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(amount > 0, "amount must be positive");
+        var old = GetMinBond();
         Storage.Put(new byte[] { KeyMinBond }, amount);
+        OnMinBondChanged(old, amount);
     }
 
     /// <summary>Authorize a contract to slash bonds (typically <c>ForcedInclusion</c> + <c>SettlementManager</c>).</summary>
@@ -111,6 +125,7 @@ public class SequencerBondContract : SmartContract
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(slasher.IsValid && !slasher.IsZero, "invalid slasher");
         Storage.Put(SlasherKey(slasher), new byte[] { 1 });
+        OnSlasherRegistered(slasher);
     }
 
     /// <summary>Revoke a previously authorized slasher.</summary>
@@ -118,6 +133,7 @@ public class SequencerBondContract : SmartContract
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         Storage.Delete(SlasherKey(slasher));
+        OnSlasherRevoked(slasher);
     }
 
     /// <summary>True if <paramref name="who"/> is currently authorized to call <see cref="Slash"/>.</summary>

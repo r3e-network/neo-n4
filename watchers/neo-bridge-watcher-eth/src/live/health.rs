@@ -115,26 +115,22 @@ impl HealthState {
     pub fn snapshot(&self, healthy_threshold_secs: u64) -> (bool, String) {
         let s = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let now = unix_now();
-        // Healthy if we've had a recent tick success. Before the first
-        // tick (just-started daemon) we use `started_at_unix` instead
-        // so the daemon is "healthy" during normal startup-to-first-poll
-        // window.
         let reference = s.last_tick_success_unix.unwrap_or(s.started_at_unix);
         let healthy = now.saturating_sub(reference) <= healthy_threshold_secs;
-        let json = format!(
-            r#"{{"healthy":{},"started_at_unix":{},"last_tick_at_unix":{},"last_tick_success_unix":{},"ticks_total":{},"events_processed":{},"submissions_total":{},"journal_cursor":{},"last_error":{},"last_error_unix":{},"now_unix":{}}}"#,
-            healthy,
-            s.started_at_unix,
-            json_opt_u64(s.last_tick_at_unix),
-            json_opt_u64(s.last_tick_success_unix),
-            s.ticks_total,
-            s.events_processed,
-            s.submissions_total,
-            s.journal_cursor,
-            json_opt_str(s.last_error.as_deref()),
-            json_opt_u64(s.last_error_unix),
-            now,
-        );
+        let json = serde_json::json!({
+            "healthy": healthy,
+            "started_at_unix": s.started_at_unix,
+            "last_tick_at_unix": s.last_tick_at_unix,
+            "last_tick_success_unix": s.last_tick_success_unix,
+            "ticks_total": s.ticks_total,
+            "events_processed": s.events_processed,
+            "submissions_total": s.submissions_total,
+            "journal_cursor": s.journal_cursor,
+            "last_error": s.last_error,
+            "last_error_unix": s.last_error_unix,
+            "now_unix": now,
+        })
+        .to_string();
         (healthy, json)
     }
 
@@ -268,8 +264,11 @@ fn unix_now() -> u64 {
         .unwrap_or(0)
 }
 
-fn json_opt_u64(v: Option<u64>) -> String {
-    v.map_or("null".to_string(), |x| x.to_string())
+fn unix_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
 }
 
 fn json_opt_str(v: Option<&str>) -> String {

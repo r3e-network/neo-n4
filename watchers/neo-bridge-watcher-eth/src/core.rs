@@ -226,10 +226,12 @@ impl<S: Signer, ES: EventSource, NS: NeoSubmitter, J: Journal> WatcherCore<S, ES
             proof_bytes: neo_proof,
         })?;
 
-        // Successful submit → mark + advance cursor.
+        // Successful submit → mark + advance cursor past the processed block.
+        // Using block_number + 1 so the event source skips the already-processed
+        // block on restart, saving RPC calls.
         self.journal
             .mark_submitted(event.external_chain_id, event.nonce)?;
-        self.journal.set_cursor(event.block_number)?;
+        self.journal.set_cursor(event.block_number + 1)?;
         Ok(tx_hash)
     }
 }
@@ -321,8 +323,8 @@ mod tests {
         // single-signer Neo proof = 2 header + (33 + 64) = 99 bytes
         assert_eq!(sub.proof_bytes.len(), 99);
 
-        // Journal advanced.
-        assert_eq!(core.journal.cursor().unwrap(), 1234);
+        // Journal advanced past the processed block.
+        assert_eq!(core.journal.cursor().unwrap(), 1235);
         assert!(core.journal.is_submitted(0xE000_0001, 7).unwrap());
     }
 
@@ -384,7 +386,7 @@ mod tests {
         // Retry: clear the error, same event succeeds.
         let tx_hash = core.process_event(evt).unwrap();
         assert_eq!(tx_hash[0], 1);
-        assert_eq!(core.journal.cursor().unwrap(), 1234);
+        assert_eq!(core.journal.cursor().unwrap(), 1235);
     }
 
     #[test]
@@ -403,8 +405,8 @@ mod tests {
         let processed = core.drain().unwrap();
         assert_eq!(processed, 3);
         assert_eq!(core.submitter.submissions().len(), 3);
-        // Cursor advances to the last block processed.
-        assert_eq!(core.journal.cursor().unwrap(), 300);
+        // Cursor advances past the last block processed.
+        assert_eq!(core.journal.cursor().unwrap(), 301);
         // Nonces in submission order: 1, 2, 3.
         assert_eq!(
             core.submitter.submissions()[0].external_chain_id,
@@ -438,7 +440,7 @@ mod tests {
         // Process first event; it succeeds.
         let processed = core.tick().unwrap();
         assert!(processed);
-        assert_eq!(core.journal.cursor().unwrap(), 100);
+        assert_eq!(core.journal.cursor().unwrap(), 101);
 
         // Inject failure for the second event's submission.
         core.submitter.next_error = Some(SubmitterError::Rpc("transient".into()));
@@ -446,8 +448,8 @@ mod tests {
         assert!(matches!(err, CoreError::Submit(_)));
         assert_eq!(
             core.journal.cursor().unwrap(),
-            100,
-            "cursor must NOT advance on submit failure"
+            101,
+            "cursor must NOT advance on submit failure (stays at previous event's block + 1)"
         );
 
         // Recovery: clear the error, retry. The next_event call still

@@ -60,5 +60,10 @@ impl HealthServer {
 impl Drop for HealthServer {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
+        // Join the background thread to ensure it exits before the server is
+        // dropped. The thread checks the stop flag every ~50ms, so the join
+        // should complete quickly. This prevents the thread from outliving the
+        // HealthServer struct and potentially competing on the same port.
+        let _ = self._handle.join();
     }
 }

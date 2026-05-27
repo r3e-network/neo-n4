@@ -54,7 +54,15 @@ pub enum NeoRpcError {
 impl From<NeoRpcError> for SubmitterError {
     fn from(err: NeoRpcError) -> Self {
         match err {
-            NeoRpcError::Fault(msg) if msg.contains("already consumed") => {
+            // Match common variations of the "nonce already consumed" FAULT.
+            // The L1 contract throws with "already consumed" but message
+            // wording may vary across Neo node versions or localization.
+            NeoRpcError::Fault(msg)
+                if msg.contains("already consumed")
+                    || msg.contains("already-consumed")
+                    || msg.contains("nonce consumed")
+                    || msg.contains("replay detected") =>
+            {
                 SubmitterError::AlreadyConsumed
             }
             NeoRpcError::Fault(msg) => SubmitterError::VerifierRejected(msg),

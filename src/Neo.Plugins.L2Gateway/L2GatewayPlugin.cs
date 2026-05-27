@@ -11,7 +11,7 @@ namespace Neo.Plugins.L2Gateway;
 /// </summary>
 public sealed class L2GatewayPlugin : Plugin
 {
-    private IGatewayAggregator _aggregator = new PassThroughAggregator();
+    private volatile IGatewayAggregator _aggregator = new PassThroughAggregator();
     private bool _enabled = true;
 
     /// <inheritdoc />
@@ -20,7 +20,10 @@ public sealed class L2GatewayPlugin : Plugin
     /// <inheritdoc />
     public override string Description => "Aggregates per-chain L2 batch commitments into a single Gateway commitment.";
 
-    /// <summary>Replace the active aggregator (production wires a real recursive prover here).</summary>
+    /// <summary>Replace the active aggregator. This is a configuration-time method;
+    /// calling it while <see cref="ReceiveBatch"/> or <see cref="PullAggregate"/> is
+    /// in flight on another thread is safe (the write is a single reference swap) but
+    /// the old aggregator may receive the in-flight batch.</summary>
     public void UseAggregator(IGatewayAggregator aggregator)
     {
         ArgumentNullException.ThrowIfNull(aggregator);

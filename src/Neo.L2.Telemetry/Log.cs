@@ -4,7 +4,7 @@ namespace Neo.L2.Telemetry;
 /// Minimal structured logging abstraction. Zero external dependencies — swap
 /// the default <see cref="ConsoleLogProvider"/> for Serilog/NLog/OpenTelemetry
 /// by implementing <see cref="ILogProvider"/> and calling
-/// <see cref="Log.Logger"/>.<c>WithProvider(...)</c> at startup.
+/// <c>Log.WithProvider(...)</c> at startup.
 /// </summary>
 /// <remarks>
 /// API surface mirrors <c>Microsoft.Extensions.Logging.ILogger</c> so migration

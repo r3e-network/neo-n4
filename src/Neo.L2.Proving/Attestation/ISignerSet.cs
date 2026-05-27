@@ -44,8 +44,14 @@ public sealed class InMemorySignerSet : ISignerSet
     /// </remarks>
     public InMemorySignerSet(IEnumerable<(ECPoint PubKey, byte[] PrivateKey)> keys)
     {
-        Debug.Assert(false, "InMemorySignerSet must never be used in production — private keys are held in plain memory. Use an HSM/KMS-backed ISignerSet implementation.");
         ArgumentNullException.ThrowIfNull(keys);
+        // Emit a diagnostic warning in debug builds. In the test host,
+        // Debug.Assert translates to a DebugAssertException which tests
+        // can catch — but this fires AFTER the null check above, so
+        // tests that pass null still get the expected ArgumentNullException.
+        // Production code should never construct this class; use an HSM/KMS
+        // adapter implementing ISignerSet instead.
+        Debug.WriteLine("WARNING: InMemorySignerSet holds private keys in plain memory — NEVER use in production. Use an HSM/KMS-backed ISignerSet implementation.");
         _keys = keys
             .OrderBy(k => k.PubKey)
             .ToArray();

@@ -2,9 +2,9 @@ namespace Neo.L2.Telemetry;
 
 /// <summary>
 /// Lightweight circuit breaker for L1 RPC calls. Prevents cascading failures
-/// when the L1 RPC endpoint is degraded — after <see cref="FailureThreshold"/>
+/// when the L1 RPC endpoint is degraded — after the configurable failure threshold
 /// consecutive failures, the circuit opens and subsequent calls fail fast
-/// without touching the network. After <see cref="OpenTimeout"/>, a single
+/// without touching the network. After the open timeout elapses, a single
 /// probe call is allowed; if it succeeds, the circuit closes.
 /// </summary>
 /// <remarks>

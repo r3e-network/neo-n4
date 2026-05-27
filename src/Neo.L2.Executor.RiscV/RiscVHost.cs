@@ -12,8 +12,6 @@ public sealed class RiscVHostUnavailableException : InvalidOperationException
     public RiscVHostUnavailableException(string message, Exception inner) : base(message, inner) { }
 }
 
-namespace Neo.L2.Executor.RiscV;
-
 /// <summary>
 /// P/Invoke wrapper around <c>libneo_riscv_host</c> — the PolkaVM-backed Neo RISC-V execution
 /// engine that lives at <c>external/neo-riscv-vm/crates/neo-riscv-host</c>. Calls cross the
@@ -97,7 +95,7 @@ public static class RiscVHost
             if (_isAvailableCache is { } cached) return cached;
             lock (_availabilityLock)
             {
-                if (_isAvailableCache is { } cached) return cached;
+                if (_isAvailableCache is { } innerCached) return innerCached;
                 try
                 {
                     Span<byte> script = stackalloc byte[1] { 0x40 };

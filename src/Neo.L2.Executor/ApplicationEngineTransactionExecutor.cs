@@ -281,8 +281,6 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
             Transactions = Array.Empty<Transaction>(),
         };
     }
-
-    }
 }
 
 /// <summary>

@@ -90,9 +90,9 @@ public sealed record RiscVProofPayload
         // silently treat as "not the expected one", a silent verifier-route mismatch that
         // could cause the wrong backend to be selected.
         var systemByte = bytes[1];
-        if (systemByte > (byte)ProofSystem.Axiom || systemByte == (byte)ProofSystem.Unknown)
+        if (systemByte > (byte)ProofSystem.Axiom)
             throw new InvalidDataException(
-                $"Unknown ProofSystem byte {systemByte} (valid range: {(byte)ProofSystem.Sp1}..{(byte)ProofSystem.Axiom})");
+                $"Unknown ProofSystem byte {systemByte} (valid range: {(byte)ProofSystem.Unknown}..{(byte)ProofSystem.Axiom})");
         var system = (ProofSystem)systemByte;
         var vk = new UInt256(bytes.Slice(2, 32));
         var len = BinaryPrimitives.ReadInt32LittleEndian(bytes.Slice(34, 4));

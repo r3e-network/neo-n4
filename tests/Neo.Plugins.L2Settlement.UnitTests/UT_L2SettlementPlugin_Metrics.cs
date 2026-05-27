@@ -230,11 +230,11 @@ public class UT_L2SettlementPlugin_Metrics
 
     private sealed class ThrowingMetrics : Neo.L2.Telemetry.IL2Metrics
     {
-        public void IncrementCounter(string name, long delta = 1, params (string Key, string Value)[] tags)
+        public void IncrementCounter(string name, long delta = 1, params ReadOnlySpan<(string Key, string Value)> tags)
             => throw new InvalidOperationException($"sink down: {name}");
-        public void RecordHistogram(string name, double value, params (string Key, string Value)[] tags)
+        public void RecordHistogram(string name, double value, params ReadOnlySpan<(string Key, string Value)> tags)
             => throw new InvalidOperationException($"sink down: {name}");
-        public void SetGauge(string name, double value, params (string Key, string Value)[] tags)
+        public void SetGauge(string name, double value, params ReadOnlySpan<(string Key, string Value)> tags)
             => throw new InvalidOperationException($"sink down: {name}");
     }
 

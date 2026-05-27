@@ -264,20 +264,6 @@ fn unix_now() -> u64 {
         .unwrap_or(0)
 }
 
-fn unix_now() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-}
-
-fn json_opt_str(v: Option<&str>) -> String {
-    match v {
-        None => "null".to_string(),
-        Some(s) => format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\"")),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

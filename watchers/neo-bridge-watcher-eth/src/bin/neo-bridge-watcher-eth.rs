@@ -84,16 +84,6 @@ extern "C" fn handle_shutdown_signal(_: libc::c_int) {
     SHUTDOWN_REQUESTED.store(true, Ordering::Release);
 }
 
-    /// Set by the SIGHUP handler. The run loop checks this once per tick;
-    /// when set, it reloads the TOML config so poll intervals, backoff
-    /// limits, and health thresholds can be adjusted without restarting.
-    static CONFIG_RELOAD_REQUESTED: AtomicBool = AtomicBool::new(false);
-
-    #[cfg(unix)]
-    extern "C" fn handle_reload_signal(_: libc::c_int) {
-        CONFIG_RELOAD_REQUESTED.store(true, Ordering::Release);
-    }
-
 /// Install signal handlers for SIGTERM (kubernetes / systemd shutdown)
 /// and SIGINT (Ctrl-C). Both flip `SHUTDOWN_REQUESTED`. Uses `sigaction`
 /// instead of `signal` for portable behavior (SysV vs BSD reset semantics).
@@ -110,7 +100,6 @@ fn install_shutdown_handlers() {
         };
         libc::sigaction(libc::SIGTERM, &sa, std::ptr::null_mut());
         libc::sigaction(libc::SIGINT, &sa, std::ptr::null_mut());
-        libc::sigaction(libc::SIGHUP, &sa, std::ptr::null_mut());
     }
 }
 

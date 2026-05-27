@@ -17,7 +17,6 @@
 //! gives full control over the decoder. ~250 lines of focused code.
 
 use crate::event_source::{EventSourceError, LockedEvent};
-use crate::live::json_rpc_types::{JsonRpcError, JsonRpcRequest, JsonRpcResponse};
 
 use sha3::{Digest, Keccak256};
 use std::time::Duration;

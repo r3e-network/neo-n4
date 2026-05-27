@@ -81,8 +81,6 @@ public sealed class MerkleTree
         var n = current.Length;
         while (n > 1)
         {
-            // Compute parent hashes in-place: parent[i] overwrites current[2*i],
-            // which is safe because current[2*i] is not read after parent[i] is computed.
             var half = n / 2;
             for (var i = 0; i < half; i++)
             {
@@ -90,10 +88,14 @@ public sealed class MerkleTree
                 var right = (i * 2 + 1 < n) ? current[i * 2 + 1] : left;
                 current[i] = CombineHash(left, right);
             }
-            // If n is odd, the last leaf is promoted (paired with itself).
+            // If n is odd, the last leaf is paired with itself (hashed to itself),
+            // matching Neo.Cryptography.MerkleTree's convention. Without this,
+            // ComputeRoot diverges from the constructor-based MerkleTree for odd
+            // leaf counts because the constructor pairs right=left at the node
+            // level, producing H(L, L) rather than promoting L raw.
             if (n % 2 != 0)
             {
-                current[half] = current[n - 1];
+                current[half] = CombineHash(current[n - 1], current[n - 1]);
                 n = half + 1;
             }
             else

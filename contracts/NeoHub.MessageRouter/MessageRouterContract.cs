@@ -47,6 +47,10 @@ public class MessageRouterContract : SmartContract
     [DisplayName("L1TxFilterSet")]
     public static event Action<uint, UInt160> OnL1TxFilterSet = default!;
 
+    /// <summary>Emitted when message roots are published for a finalized batch.</summary>
+    [DisplayName("MessageRootsPublished")]
+    public static event Action<uint, ulong, UInt256, UInt256> OnMessageRootsPublished = default!;
+
     /// <summary>Set wiring on deploy.</summary>
     public static void _deploy(object data, bool update)
     {
@@ -144,6 +148,7 @@ public class MessageRouterContract : SmartContract
         ExecutionEngine.Assert(Runtime.CheckWitness(sm), "not settlement manager");
         Storage.Put(BuildKey(PrefixL2ToL1Root, chainId, batchNumber), (byte[])l2ToL1Root);
         Storage.Put(BuildKey(PrefixL2ToL2Root, chainId, batchNumber), (byte[])l2ToL2Root);
+        OnMessageRootsPublished(chainId, batchNumber, l2ToL1Root, l2ToL2Root);
     }
 
     /// <summary>Get the L2→L1 message root committed for a finalized batch.</summary>

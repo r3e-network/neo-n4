@@ -58,6 +58,10 @@ public class ExternalBridgeEscrowContract : SmartContract
     [DisplayName("CrossChainInboundFinalized")]
     public static event Action<uint, ulong, byte> OnCrossChainInboundFinalized = default!;
 
+    /// <summary>Emitted when the registry contract hash is changed.</summary>
+    [DisplayName("RegistryChanged")]
+    public static event Action<UInt160> OnRegistryChanged = default!;
+
     /// <summary>Set the initial owner + registry hash on deploy.</summary>
     public static void _deploy(object data, bool update)
     {
@@ -94,6 +98,7 @@ public class ExternalBridgeEscrowContract : SmartContract
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(registry.IsValid && !registry.IsZero, "invalid registry");
         Storage.Put(new byte[] { KeyRegistry }, registry);
+        OnRegistryChanged(registry);
     }
 
     /// <summary>

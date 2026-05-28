@@ -70,6 +70,10 @@ public class MpcCommitteeVerifierContract : SmartContract
     [DisplayName("InboundVerified")]
     public static event Action<uint, ulong> OnInboundVerified = default!;
 
+    /// <summary>Emitted when the GovernanceController address is changed.</summary>
+    [DisplayName("GovernanceControllerChanged")]
+    public static event Action<UInt160> OnGovernanceControllerChanged = default!;
+
     /// <summary>Set the initial owner.</summary>
     public static void _deploy(object data, bool update)
     {
@@ -94,6 +98,7 @@ public class MpcCommitteeVerifierContract : SmartContract
         ExecutionEngine.Assert(governanceController.IsValid && !governanceController.IsZero,
             "invalid governance controller");
         Storage.Put(new byte[] { KeyGovernanceController }, governanceController);
+        OnGovernanceControllerChanged(governanceController);
     }
 
     /// <summary>Read the wired GovernanceController hash, or zero if not set.</summary>

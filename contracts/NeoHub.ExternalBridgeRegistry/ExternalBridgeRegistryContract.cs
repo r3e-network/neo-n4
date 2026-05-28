@@ -62,6 +62,10 @@ public class ExternalBridgeRegistryContract : SmartContract
     [DisplayName("ExternalVerifierRegistered")]
     public static event Action<uint, UInt160, byte> OnExternalVerifierRegistered = default!;
 
+    /// <summary>Emitted when the GovernanceController address is changed.</summary>
+    [DisplayName("GovernanceControllerChanged")]
+    public static event Action<UInt160> OnGovernanceControllerChanged = default!;
+
     /// <summary>Set the initial owner. Same shape as VerifierRegistry._deploy.</summary>
     public static void _deploy(object data, bool update)
     {
@@ -87,6 +91,7 @@ public class ExternalBridgeRegistryContract : SmartContract
         ExecutionEngine.Assert(governanceController.IsValid && !governanceController.IsZero,
             "invalid governance controller");
         Storage.Put(new byte[] { KeyGovernanceController }, governanceController);
+        OnGovernanceControllerChanged(governanceController);
     }
 
     /// <summary>Look up the wired GovernanceController hash, or

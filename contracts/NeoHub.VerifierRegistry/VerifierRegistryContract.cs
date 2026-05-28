@@ -34,6 +34,10 @@ public class VerifierRegistryContract : SmartContract
     [DisplayName("VerifierRegistered")]
     public static event Action<byte, UInt160> OnVerifierRegistered = default!;
 
+    /// <summary>Emitted when the GovernanceController address is changed.</summary>
+    [DisplayName("GovernanceControllerChanged")]
+    public static event Action<UInt160> OnGovernanceControllerChanged = default!;
+
     /// <summary>Set the initial owner.</summary>
     public static void _deploy(object data, bool update)
     {
@@ -68,6 +72,7 @@ public class VerifierRegistryContract : SmartContract
         ExecutionEngine.Assert(governanceController.IsValid && !governanceController.IsZero,
             "invalid governance controller");
         Storage.Put(new byte[] { KeyGovernanceController }, governanceController);
+        OnGovernanceControllerChanged(governanceController);
     }
 
     /// <summary>Look up the wired GovernanceController hash, or <see cref="UInt160.Zero"/>

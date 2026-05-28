@@ -24,11 +24,17 @@ pub fn merkle_root(leaves: &[[u8; 32]]) -> [u8; 32] {
             buf[32..].copy_from_slice(&right);
             current[i] = hash256(&buf);
         }
-        // If n is odd, the last leaf is promoted to the next level (paired with
-        // itself). We need to copy it to position `half` since it wasn't consumed
-        // by the loop above (it has no sibling at 2*half + 1).
+        // If n is odd, the last leaf has no sibling. Neo L1 convention:
+        // pair the orphan with itself and hash, matching the C# MerkleTree
+        // and Neo's native MerkleTree (Cryptography/MerkleTree.cs:54-56).
+        // Without this, tx_root in Rust would diverge from C# for any batch
+        // with an odd number of transactions.
         if n % 2 != 0 {
-            current[half] = current[n - 1];
+            let orphan = current[n - 1];
+            let mut buf = [0u8; 64];
+            buf[..32].copy_from_slice(&orphan);
+            buf[32..].copy_from_slice(&orphan);
+            current[half] = hash256(&buf);
             n = half + 1;
         } else {
             n = half;

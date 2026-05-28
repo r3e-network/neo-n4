@@ -1,7 +1,8 @@
 [package]
 name = "neo-n4-sdk"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+rust-version = "1.85"
 description = "Typed Rust SDK for the Neo Elastic Network L2 RPC surface (doc.md §14.1)"
 license = "MIT"
 

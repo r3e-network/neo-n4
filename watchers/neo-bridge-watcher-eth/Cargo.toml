@@ -21,7 +21,7 @@ required-features = ["live-rpc"]
 [dependencies]
 # secp256k1 ECDSA (used by both Eth and Neo verifiers — same curve, same hash).
 k256 = { version = "=0.13.4", features = ["ecdsa", "sha2"] }
-sha2 = "0.10"
+sha2 = "0.11"
 # Zero the read-buffer + signing-key bytes after use so a core dump or
 # memory-disclosure bug can't leak the signing key. k256's SigningKey is
 # already ZeroizeOnDrop internally; the wrapper here is for the read buffer

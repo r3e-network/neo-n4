@@ -150,4 +150,12 @@ public sealed class L2DAPlugin : Plugin
 
     private static IDAWriter Unwrap(IDAWriter w)
         => w is MetricsEmittingDAWriter wrapped ? wrapped.Inner : w;
+
+    /// <inheritdoc />
+    public override void Dispose()
+    {
+        if (_writerOverridden && _writer is IDisposable d)
+            d.Dispose();
+        base.Dispose();
+    }
 }

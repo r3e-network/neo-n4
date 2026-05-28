@@ -229,9 +229,6 @@ public static class BatchSerializer
         }) WriteUInt256(span, ref pos, root);
 
         if (pos != buffer.Length)
-        WriteUInt256(span, ref pos, inputs.BlockContextHash);
-
-        if (pos != buffer.Length)
             throw new InvalidOperationException($"EncodePublicInputs internal length mismatch: pos={pos}, buf={buffer.Length}");
 
         return buffer;

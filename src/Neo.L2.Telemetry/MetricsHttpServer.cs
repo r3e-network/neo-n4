@@ -37,7 +37,6 @@ public sealed class MetricsHttpServer : IDisposable
         ArgumentNullException.ThrowIfNull(endpoint);
         ArgumentNullException.ThrowIfNull(handler);
         _listener = new TcpListener(endpoint);
-        _listener.Start();
         Endpoint = (IPEndPoint)_listener.LocalEndpoint;
         _handler = handler;
     }
@@ -64,6 +63,7 @@ public sealed class MetricsHttpServer : IDisposable
         lock (_startGate)
         {
             if (_loop is not null) return;
+            _listener.Start();
             _loop = Task.Run(AcceptLoopAsync);
         }
     }

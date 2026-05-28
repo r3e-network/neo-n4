@@ -117,6 +117,8 @@ public class DAValidatorContract : SmartContract
     {
         ExecutionEngine.Assert(VerifyAttestation(chainId, batchNumber, commitment, daMode, proofBytes),
             "DA attestation rejected");
+        ExecutionEngine.Assert(Storage.Get(ValidatedKey(chainId, batchNumber)) == null,
+            "attestation already submitted for this batch");
         var value = new byte[33];
         value[0] = daMode;
         var commitmentBytes = (byte[])commitment;
@@ -176,6 +178,7 @@ public class DAValidatorContract : SmartContract
         ExecutionEngine.Assert(committee.Length >= 2, "committee malformed");
         var threshold = committee[0];
         var size = committee[1];
+        ExecutionEngine.Assert(size <= MaxCommitteeSize, "committee too large for verification");
         ExecutionEngine.Assert(threshold > 0, "threshold must be positive");
         ExecutionEngine.Assert(threshold <= size, "threshold exceeds committee size");
         ExecutionEngine.Assert(committee.Length == 2 + size * PublicKeyLength, "committee length mismatch");

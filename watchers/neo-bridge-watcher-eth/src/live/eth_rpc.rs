@@ -69,13 +69,16 @@ impl From<EthRpcError> for EventSourceError {
 /// Keccak256 of the Locked event signature.
 ///
 /// Solidity computes `topic0 = keccak256("Locked(uint32,uint32,uint64,address,
-/// bytes20,address,uint256,bytes,uint64)")`. Hand-compute via sha3 so we
-/// don't pull a contract-binding crate.
+/// bytes20,address,uint256,bytes,uint64)")`. Computed once via OnceLock.
+static LOCKED_EVENT_TOPIC: std::sync::OnceLock<[u8; 32]> = std::sync::OnceLock::new();
+
 fn locked_event_topic_hash() -> [u8; 32] {
-    let sig = b"Locked(uint32,uint32,uint64,address,bytes20,address,uint256,bytes,uint64)";
-    let mut hasher = Keccak256::new();
-    hasher.update(sig);
-    hasher.finalize().into()
+    *LOCKED_EVENT_TOPIC.get_or_init(|| {
+        let sig = b"Locked(uint32,uint32,uint64,address,bytes20,address,uint256,bytes,uint64)";
+        let mut hasher = Keccak256::new();
+        hasher.update(sig);
+        hasher.finalize().into()
+    })
 }
 
 /// Decode a `Locked` log into a [`LockedEvent`]. The Solidity event

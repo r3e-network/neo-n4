@@ -213,7 +213,7 @@ public sealed class L2SettlementPlugin : Plugin
                 _metrics.SafeIncrementCounter(MetricNames.BatchesSubmitted);
                 _metrics.SafeRecordHistogram(MetricNames.SubmitLatencyMs, submitSw.Elapsed.TotalMilliseconds);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
             {
                 // Tag the failure metric with the exception type so a dashboard can
                 // separate contract violations (InvalidOperationException) from network

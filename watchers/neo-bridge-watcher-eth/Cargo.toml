@@ -50,7 +50,7 @@ toml = { version = "0.8", optional = true }
 libc = { version = "0.2", optional = true }
 
 [features]
-default = []
+default = ["live-rpc"]
 # Pulls the JSON-RPC HTTP client (reqwest blocking) + JSON serde + keccak
 # (for computing the Locked event topic) + TOML config parsing for the
 # daemon binary. Operators run `cargo build --features live-rpc` to

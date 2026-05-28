@@ -55,6 +55,10 @@ public class SequencerBondContract : SmartContract
     [DisplayName("SlasherRevoked")]
     public static event Action<UInt160> OnSlasherRevoked = default!;
 
+    /// <summary>Emitted when ownership is transferred.</summary>
+    [DisplayName("OwnerChanged")]
+    public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
+
     /// <summary>Set wiring on deploy. <c>data</c> = [owner, bondAsset, initialSlashers[]].</summary>
     public static void _deploy(object data, bool update)
     {
@@ -91,6 +95,16 @@ public class SequencerBondContract : SmartContract
     {
         var raw = Storage.Get(new byte[] { KeyOwner });
         return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Transfer governance ownership. Owner only.</summary>
+    public static void SetOwner(UInt160 newOwner)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(newOwner.IsValid && !newOwner.IsZero, "invalid new owner");
+        var oldOwner = GetOwner();
+        Storage.Put(new byte[] { KeyOwner }, newOwner);
+        OnOwnerChanged(oldOwner, newOwner);
     }
 
     /// <summary>The NEP-17 asset held as bond collateral.</summary>

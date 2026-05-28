@@ -96,6 +96,11 @@ public class TokenRegistryContract : SmartContract
             ExecutionEngine.Assert(l1Decimals == 8 && l2Decimals == 8, "BTC decimals must be 8");
         }
 
+        // Ensure new mappings are active by default (byte 49 = 1).
+        // Without this, callers who don't explicitly set the active flag
+        // get an inactive mapping that silently blocks all bridge transfers.
+        mappingBytes[49] = 1;
+
         Storage.Put(MappingKey(l1Asset, chainId), mappingBytes);
         OnMappingRegistered(l1Asset, chainId, l2Asset);
     }

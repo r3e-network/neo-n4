@@ -85,15 +85,24 @@ public sealed class L2BatchPlugin : Plugin
     /// <summary>Block-commit hook — entry point for batch accumulation.</summary>
     private void OnBlockCommitted(NeoSystem system, Block block)
     {
-        if (!_settings.Enabled) return;
-        if (block is null) return;
+        try
+        {
+            if (!_settings.Enabled) return;
+            if (block is null) return;
 
-        var sealer = _sealer ??= new BatchSealer(_settings, _metrics);
-        var rawTxs = block.Transactions.Select(tx => tx.ToArray());
-        var commitment = sealer.OnBlockCommit(block.Index, block.Timestamp, system.Settings.Network, rawTxs);
-        if (commitment is null) return;
+            var sealer = _sealer ??= new BatchSealer(_settings, _metrics);
+            var rawTxs = block.Transactions.Select(tx => tx.ToArray());
+            var commitment = sealer.OnBlockCommit(block.Index, block.Timestamp, system.Settings.Network, rawTxs);
+            if (commitment is null) return;
 
-        DispatchSealed(this, OnBatchSealed, commitment, _metrics);
+            DispatchSealed(this, OnBatchSealed, commitment, _metrics);
+        }
+        catch (Exception ex)
+        {
+            _metrics?.IncrementCounter("l2_batch_on_block_committed_error");
+            // Log the error but do NOT propagate — an exception escaping here
+            // would corrupt Neo's Blockchain.Committed event and halt block import.
+        }
     }
 
     /// <summary>

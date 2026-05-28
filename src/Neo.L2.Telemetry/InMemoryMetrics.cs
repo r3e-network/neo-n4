@@ -8,6 +8,7 @@ namespace Neo.L2.Telemetry;
 /// </summary>
 public sealed class InMemoryMetrics : IL2Metrics, IMetricsSource
 {
+    private const int MaxHistogramObservations = 100_000;
     private readonly ConcurrentDictionary<string, long> _counters = new();
     private readonly ConcurrentDictionary<string, double> _gauges = new();
     private readonly ConcurrentDictionary<string, List<double>> _histograms = new();
@@ -34,6 +35,9 @@ public sealed class InMemoryMetrics : IL2Metrics, IMetricsSource
                 _histograms[key] = list;
             }
             list.Add(value);
+            // Cap histogram observations to prevent unbounded memory growth.
+            if (list.Count > MaxHistogramObservations)
+                list.RemoveRange(0, list.Count - MaxHistogramObservations / 2);
         }
     }
 

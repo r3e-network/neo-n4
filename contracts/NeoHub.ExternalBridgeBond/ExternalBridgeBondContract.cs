@@ -137,22 +137,6 @@ public class ExternalBridgeBondContract : SmartContract
         OnSlasherRevoked(slasher);
     }
 
-    /// <summary>Owner-only: register a contract authorized to slash.
-    /// Typically the Phase-C optimistic-challenge fraud verifier.</summary>
-    public static void RegisterSlasher(UInt160 slasher)
-    {
-        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
-        ExecutionEngine.Assert(slasher.IsValid && !slasher.IsZero, "invalid slasher");
-        Storage.Put(SlasherKey(slasher), new byte[] { 1 });
-    }
-
-    /// <summary>Owner-only: revoke a slasher.</summary>
-    public static void RevokeSlasher(UInt160 slasher)
-    {
-        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
-        Storage.Delete(SlasherKey(slasher));
-    }
-
     /// <summary>Is <paramref name="who"/> currently authorized to slash?</summary>
     [Safe]
     public static bool IsSlasher(UInt160 who) => Storage.Get(SlasherKey(who)) != null;

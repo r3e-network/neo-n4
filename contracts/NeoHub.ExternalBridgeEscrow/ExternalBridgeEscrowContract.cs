@@ -118,7 +118,7 @@ public class ExternalBridgeEscrowContract : SmartContract
             (externalChainId & 0xFF000000U) == 0xE0000000U,
             "externalChainId must use the 0xE0_xx_xx_xx foreign-namespace prefix");
         ExecutionEngine.Assert(recipient.IsValid && !recipient.IsZero, "invalid recipient");
-        ExecutionEngine.Assert(asset.IsValid, "invalid asset");
+        ExecutionEngine.Assert(asset.IsValid && !asset.IsZero, "invalid asset");
         ExecutionEngine.Assert(amount > 0, "amount must be positive");
 
         // Lock the asset by transferring it to this contract.

@@ -451,7 +451,7 @@ impl L2RpcClient {
     }
 
     async fn call(&self, method: &str, params: serde_json::Value) -> Result<serde_json::Value> {
-        let id = self.next_id.fetch_add(1, Ordering::SeqCst) + 1;
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed) + 1;
         let body = serde_json::json!({
             "jsonrpc": "2.0",
             "method": method,

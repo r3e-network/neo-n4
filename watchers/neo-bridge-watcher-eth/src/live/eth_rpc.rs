@@ -313,7 +313,6 @@ mod tests {
         data.extend_from_slice(&[0u8; 29]); // pad to 32
 
         let log = RawLog {
-            address: "0x0102030405060708090a0b0c0d0e0f1011121314".into(),
             topics: vec![topic_sig, topic_chain, topic_neo, topic_nonce],
             data: format!("0x{}", hex::encode(&data)),
             block_number: "0x100".into(),
@@ -340,7 +339,6 @@ mod tests {
     #[test]
     fn decode_locked_event_rejects_wrong_topic_count() {
         let log = RawLog {
-            address: "0x".into(),
             topics: vec!["0x".into(); 3], // only 3, expected 4
             data: "0x".into(),
             block_number: "0x0".into(),
@@ -358,7 +356,6 @@ mod tests {
         let wrong_topic: [u8; 32] = hasher.finalize().into();
 
         let log = RawLog {
-            address: "0x".into(),
             topics: vec![
                 format!("0x{}", hex::encode(wrong_topic)),
                 format!("0x{:0>64x}", 0xE000_0001u32),

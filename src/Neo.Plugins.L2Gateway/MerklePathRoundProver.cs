@@ -168,8 +168,12 @@ public sealed class MerklePathRoundProver : IRoundProver
         var leftRoot = new UInt256(bytes.Slice(1, 32).ToArray());
         var rightRoot = new UInt256(bytes.Slice(33, 32).ToArray());
         var leftLen = BinaryPrimitives.ReadInt32LittleEndian(bytes.Slice(HeaderSize, 4));
+        if (leftLen < 0 || HeaderSize + 4 + leftLen + 4 > bytes.Length)
+            throw new InvalidDataException("malformed merkle-path proof: invalid left subtree length");
         var leftBytes = bytes.Slice(HeaderSize + 4, leftLen);
         var rightLen = BinaryPrimitives.ReadInt32LittleEndian(bytes.Slice(HeaderSize + 4 + leftLen, 4));
+        if (rightLen < 0 || HeaderSize + 4 + leftLen + 4 + rightLen > bytes.Length)
+            throw new InvalidDataException("malformed merkle-path proof: invalid right subtree length");
         var rightBytes = bytes.Slice(HeaderSize + 4 + leftLen + 4, rightLen);
 
         // Mirror BinaryTreeAggregator's actual reduction. Tracing the algorithm: at each

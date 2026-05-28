@@ -79,11 +79,11 @@ public sealed class ChallengeOrchestrator
             ClaimedPostStateRoot = claimedCommitment.PostStateRoot,
             ReplayedPostStateRoot = replayedRoot,
             // Batch-level entry: caller hasn't supplied per-tx checkpoints, so we can't
-            // narrow which transaction caused the divergence. Sentinel value 0 is fine
-            // for fraud verifiers that re-execute the entire batch; verifiers that need
-            // per-tx narrowing must use InspectWithBisectionAsync (which runs BisectionGame
-            // and supplies the real index).
-            DisputedTxIndex = 0,
+            // narrow which transaction caused the divergence. Use uint.MaxValue as sentinel
+            // (0 is a valid tx index). Fraud verifiers that re-execute the entire batch
+            // should treat uint.MaxValue as "re-execute all"; verifiers that need per-tx
+            // narrowing must use InspectWithBisectionAsync.
+            DisputedTxIndex = uint.MaxValue,
         };
         _metrics.SafeIncrementCounter(MetricNames.FraudProofsEmitted);
         return payload;

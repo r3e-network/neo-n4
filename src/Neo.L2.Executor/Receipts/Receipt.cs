@@ -27,6 +27,9 @@ public sealed record Receipt
     /// <summary>Hash committing to all events emitted by the transaction.</summary>
     public required UInt256 EventsHash { get; init; }
 
+    /// <summary>Canonical receipt hash buffer size: TxHash(32) + State(1) + Gas(8) + StorageDeltaHash(32) + EventsHash(32).</summary>
+    public const int ReceiptHashSize = 105;
+
     /// <summary>Compute the canonical leaf hash for this receipt.</summary>
     public UInt256 Hash()
     {
@@ -36,7 +39,7 @@ public sealed record Receipt
         ArgumentNullException.ThrowIfNull(TxHash);
         ArgumentNullException.ThrowIfNull(StorageDeltaHash);
         ArgumentNullException.ThrowIfNull(EventsHash);
-        Span<byte> buffer = stackalloc byte[32 + 1 + 8 + 32 + 32];
+        Span<byte> buffer = stackalloc byte[ReceiptHashSize];
         var pos = 0;
         TxHash.GetSpan().CopyTo(buffer.Slice(pos, 32)); pos += 32;
         buffer[pos++] = (byte)(Success ? 1 : 0);

@@ -57,6 +57,7 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
     private readonly ProtocolSettings _settings;
     private readonly long _gasLimit;
     private readonly HashSet<(UInt160 Sender, uint Nonce)> _consumedNonces = new();
+    private readonly Lock _nonceGate = new();
 
     /// <summary>
     /// Construct.
@@ -121,9 +122,12 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
         // rejected before execution to prevent sequencer-side tx reordering attacks.
         // The Transaction.Sender is the script hash of the first signer's account.
         var nonceKey = (tx.Sender, tx.Nonce);
-        if (!_consumedNonces.Add(nonceKey))
+        lock (_nonceGate)
         {
-            return Failed(tx.Hash, $"duplicate nonce: sender={tx.Sender}, nonce={tx.Nonce}");
+            if (!_consumedNonces.Add(nonceKey))
+            {
+                return Failed(tx.Hash, $"duplicate nonce: sender={tx.Sender}, nonce={tx.Nonce}");
+            }
         }
 
         // Run the script against a fresh DataCache snapshot. On HALT, commit;

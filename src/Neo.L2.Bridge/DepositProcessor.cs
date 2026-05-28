@@ -12,6 +12,7 @@ namespace Neo.L2.Bridge;
 /// </remarks>
 public sealed class DepositProcessor
 {
+    private const int MaxConsumedEntries = 1_000_000;
     private readonly AssetRegistry _registry;
     private IL2Metrics _metrics;
     private readonly HashSet<(uint, ulong)> _consumed = new();
@@ -78,6 +79,7 @@ public sealed class DepositProcessor
                 if (!_consumed.Add((message.SourceChainId, message.Nonce)))
                     throw new InvalidOperationException(
                         $"Deposit ({message.SourceChainId},{message.Nonce}) was already processed");
+                EvictIfNeeded();
             }
 
             instr = new MintInstruction
@@ -108,6 +110,20 @@ public sealed class DepositProcessor
     {
         lock (_gate)
             return _consumed.Contains((sourceChainId, nonce));
+    }
+
+    private void EvictIfNeeded()
+    {
+        if (_consumed.Count <= MaxConsumedEntries) return;
+        var toRemove = new List<(uint, ulong)>();
+        var count = _consumed.Count - MaxConsumedEntries / 2;
+        foreach (var entry in _consumed)
+        {
+            if (count-- <= 0) break;
+            toRemove.Add(entry);
+        }
+        foreach (var entry in toRemove)
+            _consumed.Remove(entry);
     }
 }
 

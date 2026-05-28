@@ -26,6 +26,9 @@ public sealed class CensorshipDetector
     private readonly BigInteger _baseSlashAmount;
     private readonly IL2Metrics _metrics;
 
+    /// <summary>Default slash amount — 1.0 GAS at 8 decimal places.</summary>
+    public static readonly BigInteger DefaultSlashAmount = new(1_000_000);
+
     /// <summary>Amount to slash (default policy: fixed per overdue entry).</summary>
     public BigInteger BaseSlashAmount => _baseSlashAmount;
 
@@ -42,7 +45,7 @@ public sealed class CensorshipDetector
         _source = source;
         _committee = committee;
         _clock = clock ?? new SystemClock();
-        _baseSlashAmount = baseSlashAmount ?? new BigInteger(1_000_000); // 1.0 GAS at 8 decimals
+        _baseSlashAmount = baseSlashAmount ?? DefaultSlashAmount;
         // A negative slash amount on L1 would effectively reward the offending sequencer
         // — clearly nonsensical. Zero is allowed for warning-only modes (operator wants
         // detection without enforcement). Reject negative outright at construction so the

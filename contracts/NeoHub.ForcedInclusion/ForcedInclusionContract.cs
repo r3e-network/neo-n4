@@ -56,6 +56,22 @@ public class ForcedInclusionContract : SmartContract
     [DisplayName("SequencerCensorshipReported")]
     public static event Action<uint, ulong, UInt160> OnSequencerCensorshipReported = default!;
 
+    /// <summary>Emitted when the deadline is changed.</summary>
+    [DisplayName("DeadlineSecondsChanged")]
+    public static event Action<uint, uint> OnDeadlineSecondsChanged = default!;
+
+    /// <summary>Emitted when the fee is changed.</summary>
+    [DisplayName("FeeChanged")]
+    public static event Action<BigInteger, BigInteger> OnFeeChanged = default!;
+
+    /// <summary>Emitted when the fee recipient is changed.</summary>
+    [DisplayName("FeeRecipientChanged")]
+    public static event Action<UInt160, UInt160> OnFeeRecipientChanged = default!;
+
+    /// <summary>Emitted when the gas token is changed.</summary>
+    [DisplayName("GasTokenChanged")]
+    public static event Action<UInt160, UInt160> OnGasTokenChanged = default!;
+
     /// <summary>Emitted when an enqueue-fee is charged. <c>(payer, recipient, amount)</c>.</summary>
     [DisplayName("ForcedInclusionFeeCharged")]
     public static event Action<UInt160, UInt160, BigInteger> OnFeeCharged = default!;
@@ -114,7 +130,9 @@ public class ForcedInclusionContract : SmartContract
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(seconds >= 60 && seconds <= 86400, "deadline out of bounds [60, 86400]");
+        var old = GetDeadlineSeconds();
         Storage.Put(new byte[] { KeyDeadlineSeconds }, (BigInteger)seconds);
+        OnDeadlineSecondsChanged(old, seconds);
     }
 
     /// <summary>GAS amount charged per <see cref="EnqueueForcedTransaction"/> call. 0 = no fee.</summary>
@@ -160,7 +178,9 @@ public class ForcedInclusionContract : SmartContract
             var gas = GetGasToken();
             ExecutionEngine.Assert(gas.IsValid && !gas.IsZero, "set gasToken before non-zero fee");
         }
+        var old = GetFee();
         Storage.Put(new byte[] { KeyFeeAmount }, amount);
+        OnFeeChanged(old, amount);
     }
 
     /// <summary>Owner-gated: set the address that receives forced-inclusion fees.</summary>
@@ -168,7 +188,9 @@ public class ForcedInclusionContract : SmartContract
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(recipient.IsValid && !recipient.IsZero, "invalid recipient");
+        var old = GetFeeRecipient();
         Storage.Put(new byte[] { KeyFeeRecipient }, recipient);
+        OnFeeRecipientChanged(old, recipient);
     }
 
     /// <summary>Owner-gated: set the GAS NEP-17 contract hash used for fee transfers.</summary>
@@ -176,7 +198,9 @@ public class ForcedInclusionContract : SmartContract
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(gasContract.IsValid && !gasContract.IsZero, "invalid gas hash");
+        var old = GetGasToken();
         Storage.Put(new byte[] { KeyGasToken }, gasContract);
+        OnGasTokenChanged(old, gasContract);
     }
 
     /// <summary>

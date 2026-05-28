@@ -50,6 +50,14 @@ public class SequencerRegistryContract : SmartContract
     [DisplayName("SequencerRemoved")]
     public static event Action<uint, ECPoint> OnSequencerRemoved = default!;
 
+    /// <summary>Emitted when MaxCommitteeSize is changed.</summary>
+    [DisplayName("MaxCommitteeSizeChanged")]
+    public static event Action<byte, byte> OnMaxCommitteeSizeChanged = default!;
+
+    /// <summary>Emitted when ExitWindowSeconds is changed.</summary>
+    [DisplayName("ExitWindowSecondsChanged")]
+    public static event Action<uint, uint> OnExitWindowSecondsChanged = default!;
+
     /// <summary>Set wiring at deploy time. <c>data</c> = [owner, bondContract].</summary>
     public static void _deploy(object data, bool update)
     {
@@ -97,7 +105,9 @@ public class SequencerRegistryContract : SmartContract
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(size >= 1 && size <= 64, "size must be in [1, 64]");
+        var old = GetMaxCommitteeSize();
         Storage.Put(new byte[] { KeyMaxCommitteeSize }, new byte[] { size });
+        OnMaxCommitteeSizeChanged(old, size);
     }
 
     /// <summary>Update the exit window. Owner only.</summary>
@@ -105,7 +115,9 @@ public class SequencerRegistryContract : SmartContract
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(seconds >= 60 && seconds <= 7 * 86400, "exit window out of bounds [60s, 7d]");
+        var old = GetExitWindowSeconds();
         Storage.Put(new byte[] { KeyExitWindowSeconds }, (BigInteger)seconds);
+        OnExitWindowSecondsChanged(old, seconds);
     }
 
     /// <summary>

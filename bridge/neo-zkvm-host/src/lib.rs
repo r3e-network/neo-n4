@@ -31,10 +31,10 @@ pub(crate) const NEO_ZKVM_GUEST_ELF: &[u8] = &[];
 /// run). Cheap; suitable for development + the "did the script HALT" check.
 #[cfg(unix)]
 pub fn execute(request_bytes: &[u8]) -> Result<ZkExecutionResult, String> {
-    // SP1 6.x API: build a CPU prover, call execute(elf, stdin).
     let prover = ProverClient::builder().cpu().build();
     let mut stdin = SP1Stdin::new();
-    stdin.write::<Vec<u8>>(&request_bytes.to_vec());
+    let request_vec = request_bytes.to_vec();
+    stdin.write::<Vec<u8>>(&request_vec);
 
     let (mut public_values, report) = prover
         .execute(Elf::Static(NEO_ZKVM_GUEST_ELF), stdin)
@@ -63,7 +63,8 @@ pub fn execute(request_bytes: &[u8]) -> Result<ZkExecutionResult, String> {
 pub fn prove(request_bytes: &[u8]) -> Result<ProofResult, String> {
     let prover = ProverClient::builder().cpu().build();
     let mut stdin = SP1Stdin::new();
-    stdin.write::<Vec<u8>>(&request_bytes.to_vec());
+    let request_vec = request_bytes.to_vec();
+    stdin.write::<Vec<u8>>(&request_vec);
 
     let pk = prover
         .setup(Elf::Static(NEO_ZKVM_GUEST_ELF))
@@ -77,8 +78,9 @@ pub fn prove(request_bytes: &[u8]) -> Result<ProofResult, String> {
         .run()
         .map_err(|e| format!("zkVM prove failed: {:?}", e))?;
 
-    let mut public_values = proof.public_values.clone();
-    let public_input_hash: [u8; 32] = public_values.read::<[u8; 32]>();
+    let public_input_hash: [u8; 32] = proof.public_values.as_slice()[..32]
+        .try_into()
+        .map_err(|_| "public values too short".to_string())?;
 
     let proof_bytes =
         bincode::serialize(&proof).map_err(|e| format!("proof serialization failed: {}", e))?;
@@ -109,8 +111,9 @@ pub fn verify(
 
     // Public-input commitment check first — cheap, catches replay / mismatch
     // before we burn cycles on the cryptographic verifier.
-    let mut public_values = proof.public_values.clone();
-    let actual: [u8; 32] = public_values.read::<[u8; 32]>();
+    let actual: [u8; 32] = proof.public_values.as_slice()[..32]
+        .try_into()
+        .map_err(|_| "public values too short".to_string())?;
     if &actual != expected_public_input_hash {
         return Err(format!(
             "public-input hash mismatch: expected {:?}, got {:?}",

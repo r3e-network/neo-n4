@@ -6,18 +6,22 @@
 #![cfg(unix)]
 
 fn build_minimal_request_v2() -> Vec<u8> {
+    build_minimal_request_v2_with_block_context([0u8; 32])
+}
+
+fn build_minimal_request_v2_with_block_context(block_context_hash: [u8; 32]) -> Vec<u8> {
     let mut buf = Vec::new();
     buf.push(2u8); // version = 2 (current, 10-root layout)
     buf.extend_from_slice(&1099u32.to_le_bytes()); // chainId
     buf.extend_from_slice(&7u64.to_le_bytes()); // batchNumber
-    // 10 roots (pre_state_root through block_context_hash)
+    // 7 roots (pre_state_root through block_context_hash)
     buf.extend_from_slice(&[0u8; 32]); // preStateRoot
     buf.extend_from_slice(&[0xCDu8; 32]); // daCommitment
     buf.extend_from_slice(&[0u8; 32]); // withdrawalRoot
     buf.extend_from_slice(&[0u8; 32]); // l2ToL1MessageRoot
     buf.extend_from_slice(&[0u8; 32]); // l2ToL2MessageRoot
     buf.extend_from_slice(&[0u8; 32]); // l1MessageHash
-    buf.extend_from_slice(&[0u8; 32]); // blockContextHash
+    buf.extend_from_slice(&block_context_hash); // blockContextHash
     buf.extend_from_slice(&0u32.to_le_bytes()); // 0 L1 messages
     buf.extend_from_slice(&1u32.to_le_bytes()); // 1 tx
     buf.extend_from_slice(&3u32.to_le_bytes()); // tx0 len = 3
@@ -39,9 +43,25 @@ fn build_minimal_request_v1() -> Vec<u8> {
     buf
 }
 
+fn skip_when_cached_elf_is_allowed(test_name: &str) -> bool {
+    if std::env::var("NEO_ZKVM_ALLOW_CACHED_ELF").as_deref() == Ok("1") {
+        eprintln!(
+            "skipping {test_name}: NEO_ZKVM_ALLOW_CACHED_ELF=1 is a host-only development mode; install the SP1/succinct toolchain to run zkVM execution parity"
+        );
+        true
+    } else {
+        false
+    }
+}
+
 #[test]
+#[cfg_attr(debug_assertions, ignore)]
 #[serial_test::serial]
 fn execute_guest_in_zkvm_matches_host_run() {
+    if skip_when_cached_elf_is_allowed("execute_guest_in_zkvm_matches_host_run") {
+        return;
+    }
+
     let bytes = build_minimal_request_v2();
     // Run inside SP1 zkVM
     let zkvm_result = neo_zkvm_host::execute(&bytes).expect("zkVM execute failed");
@@ -59,18 +79,29 @@ fn execute_guest_in_zkvm_matches_host_run() {
 }
 
 #[test]
+#[cfg_attr(debug_assertions, ignore)]
 #[serial_test::serial]
 fn v1_backward_compat_guest_in_zkvm_matches_host() {
+    if skip_when_cached_elf_is_allowed("v1_backward_compat_guest_in_zkvm_matches_host") {
+        return;
+    }
+
     let bytes = build_minimal_request_v1();
     let zkvm_result = neo_zkvm_host::execute(&bytes).expect("zkVM execute v1 failed");
     let host_result = neo_zkvm_guest::execute_batch(&bytes).expect("host execute v1 failed");
     assert_eq!(zkvm_result.public_input_hash, host_result.public_input_hash);
-    // v1 hash must differ from v2 (6 extra zero-filled roots change the commitment)
     let v2_bytes = build_minimal_request_v2();
     let zkvm_v2 = neo_zkvm_host::execute(&v2_bytes).expect("zkVM execute v2 failed");
-    assert_ne!(
+    assert_eq!(
         zkvm_result.public_input_hash, zkvm_v2.public_input_hash,
-        "v1 and v2 must produce different public-input hashes"
+        "v1 and equivalent zero-filled v2 must produce the same public-input hash"
+    );
+    let v2_with_context = build_minimal_request_v2_with_block_context([0x42u8; 32]);
+    let zkvm_v2_with_context =
+        neo_zkvm_host::execute(&v2_with_context).expect("zkVM execute v2 with context failed");
+    assert_ne!(
+        zkvm_result.public_input_hash, zkvm_v2_with_context.public_input_hash,
+        "non-zero v2-only roots must change the public-input hash"
     );
 }
 

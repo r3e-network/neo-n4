@@ -6,8 +6,8 @@ use crate::live::json_rpc_types::{JsonRpcRequest, JsonRpcResponse};
 
 use super::raw_log::RawLog;
 use super::{
-    decode_hex_u64, decode_locked_event, locked_event_topic_hash, EthRpcError,
-    EthRpcEventSourceBuilder,
+    EthRpcError, EthRpcEventSourceBuilder, decode_hex_u64, decode_locked_event,
+    locked_event_topic_hash,
 };
 
 /// Live `EventSource` impl backed by Eth JSON-RPC.
@@ -99,7 +99,33 @@ impl EthRpcEventSource {
                 "toBlock": format!("0x{:x}", to),
             }]),
         };
-        self.send::<Vec<RawLog>>(&req)
+        let logs = self.send::<Vec<RawLog>>(&req)?;
+        for log in &logs {
+            self.validate_log_envelope(log, from, to)?;
+        }
+        Ok(logs)
+    }
+
+    fn validate_log_envelope(&self, log: &RawLog, from: u64, to: u64) -> Result<(), EthRpcError> {
+        let address =
+            decode_hex20(&log.address).map_err(|e| EthRpcError::BadLog(format!("address: {e}")))?;
+        if address != self.router_address {
+            return Err(EthRpcError::BadLog(format!(
+                "log address 0x{} != configured router 0x{}",
+                hex::encode(address),
+                hex::encode(self.router_address)
+            )));
+        }
+
+        let block_number = decode_hex_u64(&log.block_number)
+            .map_err(|e| EthRpcError::BadLog(format!("blockNumber: {e}")))?;
+        if block_number < from || block_number > to {
+            return Err(EthRpcError::BadLog(format!(
+                "log block {} outside requested range [{}..{}]",
+                block_number, from, to
+            )));
+        }
+        Ok(())
     }
 
     fn send<T: for<'de> Deserialize<'de>>(&self, req: &JsonRpcRequest) -> Result<T, EthRpcError> {
@@ -128,4 +154,14 @@ impl EthRpcEventSource {
         resp.result
             .ok_or_else(|| EthRpcError::Decode("response has no result and no error".into()))
     }
+}
+
+fn decode_hex20(s: &str) -> Result<[u8; 20], String> {
+    let bytes = crate::live::json_rpc_types::decode_hex_bytes(s)?;
+    if bytes.len() != 20 {
+        return Err(format!("expected 20 bytes, got {}", bytes.len()));
+    }
+    let mut out = [0u8; 20];
+    out.copy_from_slice(&bytes);
+    Ok(out)
 }

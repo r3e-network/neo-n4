@@ -3,9 +3,9 @@
 //! crate produces bytes the Neo `MpcCommitteeVerifier` accepts identically
 //! to bytes from an Eth daemon — only the `externalChainId` field differs.
 
+use neo_bridge_watcher_tron::TRON_MAINNET_CHAIN_ID;
 use neo_bridge_watcher_tron::eth::messaging::encode_asset_transfer_payload;
 use neo_bridge_watcher_tron::eth::*;
-use neo_bridge_watcher_tron::TRON_MAINNET_CHAIN_ID;
 
 fn build_tron_deposit(nonce: u64) -> ExternalCrossChainMessage {
     // 1_000_000 = 0x0F4240, 3-byte minimal LE (matches C#

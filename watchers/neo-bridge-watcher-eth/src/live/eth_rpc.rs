@@ -128,7 +128,7 @@ fn decode_locked_event(log: &RawLog) -> Result<LockedEvent, EthRpcError> {
     }
     let mut sender = [0u8; 20];
     sender.copy_from_slice(&data[12..32]); // address right-padded
-                                           // bytes20 stored as 20 bytes left-padded with 12 zeros.
+    // bytes20 stored as 20 bytes left-padded with 12 zeros.
     let mut neo_recipient = [0u8; 20];
     neo_recipient.copy_from_slice(&data[32..52]);
     let mut asset = [0u8; 20];
@@ -180,8 +180,8 @@ fn decode_locked_event(log: &RawLog) -> Result<LockedEvent, EthRpcError> {
         data[payload_offset + 29],
         data[payload_offset + 30],
         data[payload_offset + 31],
-    // NOTE: `as usize` is safe — EVM log offsets from 32-byte words are bounded
-    // by log data size. On 64-bit targets, no truncation occurs.
+        // NOTE: `as usize` is safe — EVM log offsets from 32-byte words are bounded
+        // by log data size. On 64-bit targets, no truncation occurs.
     ]) as usize;
     let payload_start = payload_offset + 32;
     if payload_start + payload_len > data.len() {
@@ -316,6 +316,7 @@ mod tests {
         data.extend_from_slice(&[0u8; 29]); // pad to 32
 
         let log = RawLog {
+            address: "0x0102030405060708090a0b0c0d0e0f1011121314".into(),
             topics: vec![topic_sig, topic_chain, topic_neo, topic_nonce],
             data: format!("0x{}", hex::encode(&data)),
             block_number: "0x100".into(),
@@ -342,6 +343,7 @@ mod tests {
     #[test]
     fn decode_locked_event_rejects_wrong_topic_count() {
         let log = RawLog {
+            address: "0x0102030405060708090a0b0c0d0e0f1011121314".into(),
             topics: vec!["0x".into(); 3], // only 3, expected 4
             data: "0x".into(),
             block_number: "0x0".into(),
@@ -359,6 +361,7 @@ mod tests {
         let wrong_topic: [u8; 32] = hasher.finalize().into();
 
         let log = RawLog {
+            address: "0x0102030405060708090a0b0c0d0e0f1011121314".into(),
             topics: vec![
                 format!("0x{}", hex::encode(wrong_topic)),
                 format!("0x{:0>64x}", 0xE000_0001u32),
@@ -397,8 +400,8 @@ mod tests {
 
     use crate::live::test_support::FakeRpcServer;
     use std::net::TcpListener;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     /// Build a synthetic Locked event JSON object matching the
     /// `RawLog` shape, with the given chain id / neo chain id / nonce.
@@ -466,10 +469,16 @@ mod tests {
             }
         });
 
-        let mut source = EthRpcEventSource::builder(server.url.clone(), [0u8; 20])
-            .request_timeout(Duration::from_secs(5))
-            .build()
-            .unwrap();
+        let mut source = EthRpcEventSource::builder(
+            server.url.clone(),
+            [
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+                0x0f, 0x10, 0x11, 0x12, 0x13, 0x14,
+            ],
+        )
+        .request_timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
 
         let ev = source
             .next_event(0)
@@ -683,19 +692,57 @@ mod tests {
             }
         });
 
+        let mut source = EthRpcEventSource::builder(
+            server.url.clone(),
+            [
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+                0x0f, 0x10, 0x11, 0x12, 0x13, 0x14,
+            ],
+        )
+        .chunk_size(100)
+        .min_confirmations(12)
+        .request_timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
+
+        // cursor=0, head=100, confirmations=12 → effective_head=88;
+        // poll window = [0..88], and the synthetic event is at block 0x10.
+        let ev = source.next_event(0).unwrap().expect("event emitted");
+        assert_eq!(ev.nonce, 7);
+    }
+
+    #[test]
+    fn live_rejects_log_from_unexpected_address() {
+        let log = synthetic_locked_log(0xE000_0001, 1099, 7);
+        let server = FakeRpcServer::spawn(move |body: &str| {
+            if body.contains("eth_blockNumber") {
+                r#"{"jsonrpc":"2.0","id":1,"result":"0x64"}"#.to_string()
+            } else if body.contains("eth_getLogs") {
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "result": [log.clone()]
+                })
+                .to_string()
+            } else {
+                r#"{"jsonrpc":"2.0","id":1,"result":null}"#.to_string()
+            }
+        });
+
         let mut source = EthRpcEventSource::builder(server.url.clone(), [0u8; 20])
-            .chunk_size(100)
-            .min_confirmations(12)
             .request_timeout(Duration::from_secs(5))
             .build()
             .unwrap();
 
-        // cursor=50, head=100, confirmations=12 → effective_head=88;
-        // poll window = [50..88]; the synthetic event is at block 0x10
-        // = 16 < 50 (so won't appear if filter strict) — but we return
-        // it from the fake regardless to verify decode flows.
-        let ev = source.next_event(50).unwrap().expect("event emitted");
-        assert_eq!(ev.nonce, 7);
+        let err = source
+            .next_event(0)
+            .expect_err("RPC log address must match configured router");
+        match err {
+            crate::event_source::EventSourceError::Rpc(msg) => {
+                assert!(msg.contains("log address"), "unexpected error: {msg}");
+            }
+            other => panic!("expected EventSourceError::Rpc, got {other:?}"),
+        }
     }
 
     /// Default `min_confirmations` is 0 — no buffer (existing behavior).

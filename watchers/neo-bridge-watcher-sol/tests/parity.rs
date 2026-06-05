@@ -59,8 +59,11 @@ fn watcher_core_drives_through_with_ed25519_signer() {
     let subs = core.submitter.submissions();
     assert_eq!(subs.len(), 1);
     // Proof bytes for ed25519 single-signer: 2B header + (32B pubkey + 64B sig) = 98.
-    assert_eq!(subs[0].proof_bytes.len(), 98,
-        "ed25519 single-signer Neo proof = 2 + 32 + 64 = 98 bytes (was 99 for secp256k1's 33B pubkey)");
+    assert_eq!(
+        subs[0].proof_bytes.len(),
+        98,
+        "ed25519 single-signer Neo proof = 2 + 32 + 64 = 98 bytes (was 99 for secp256k1's 33B pubkey)"
+    );
     // Header is sigCount LE.
     assert_eq!(
         u16::from_le_bytes([subs[0].proof_bytes[0], subs[0].proof_bytes[1]]),

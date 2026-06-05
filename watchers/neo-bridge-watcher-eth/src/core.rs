@@ -28,8 +28,8 @@ use thiserror::Error;
 use crate::event_source::{EventSource, EventSourceError, LockedEvent};
 use crate::journal::{Journal, JournalError};
 use crate::messaging::{
-    canonical_message_bytes, encode_asset_transfer_payload, BuildError, ExternalBridgeDirection,
-    ExternalCrossChainMessage, ExternalMessageType,
+    BuildError, ExternalBridgeDirection, ExternalCrossChainMessage, ExternalMessageType,
+    canonical_message_bytes, encode_asset_transfer_payload,
 };
 use crate::proof::{Curve, NeoProofBytes, ProofBuildError, PubkeySignature};
 use crate::signer::{Signer, SignerError};
@@ -41,6 +41,10 @@ pub enum CoreError {
     ChainIdMismatch { got: u32, expected: u32 },
     #[error("nonce {0} already submitted (per local journal)")]
     AlreadySubmitted(u64),
+    #[error(
+        "already-consumed recovery for chain 0x{chain:08X} nonce {nonce} was not confirmed by Neo"
+    )]
+    AlreadyConsumedNotConfirmed { chain: u32, nonce: u64 },
     #[error(transparent)]
     EventSource(#[from] EventSourceError),
     #[error(transparent)]
@@ -101,18 +105,18 @@ impl<S: Signer, ES: EventSource, NS: NeoSubmitter, J: Journal> WatcherCore<S, ES
         }
     }
 
-    /// Recover from an `AlreadyConsumed` error: the on-chain contract has
-    /// consumed the last-processed event's nonce but the local journal
-    /// doesn't know about it (crash between submit + journal write).
-    /// Mark the nonce as submitted and advance the cursor so the run loop
-    /// can continue to subsequent events without backoff.
+    /// Recover from an `AlreadyConsumed` error after confirming the replay
+    /// state on Neo. The FAULT string itself is not enough to mutate the
+    /// local journal: a faulty RPC endpoint could otherwise cause a skip.
     pub fn recover_already_consumed(&mut self) -> Result<(), CoreError> {
         let chain = self.external_chain_id;
         let nonce = self.last_event_nonce;
         let block = self.last_event_block;
+        if !self.submitter.is_inbound_consumed(chain, nonce)? {
+            return Err(CoreError::AlreadyConsumedNotConfirmed { chain, nonce });
+        }
         self.journal.mark_submitted(chain, nonce)?;
-        self.journal
-            .set_cursor(block.saturating_add(1))?;
+        self.journal.set_cursor(block.saturating_add(1))?;
         Ok(())
     }
 
@@ -465,12 +469,13 @@ mod tests {
 
     #[test]
     fn already_consumed_recovery_marks_journal_and_advances() {
-        use crate::submitter::MockSubmitter;
         use crate::event_source::MockEventSource;
         use crate::journal::InMemoryJournal;
+        use crate::submitter::MockSubmitter;
 
         let signer = make_signer();
-        let submitter = MockSubmitter::default();
+        let mut submitter = MockSubmitter::default();
+        submitter.mark_consumed_on_chain(0xE000_0001, 7);
         let event = sample_event(7, 100);
         let mut event_source = MockEventSource::new();
         event_source.push(event.clone());
@@ -516,7 +521,8 @@ mod tests {
     #[test]
     fn recover_already_consumed_advances_cursor() {
         let signer = make_signer();
-        let submitter = MockSubmitter::default();
+        let mut submitter = MockSubmitter::default();
+        submitter.mark_consumed_on_chain(0xE000_0001, 42);
         let journal = InMemoryJournal::default();
         let mut event_source = MockEventSource::new();
         event_source.push(sample_event(42, 200));
@@ -527,5 +533,33 @@ mod tests {
         core.recover_already_consumed().unwrap();
         assert!(core.journal.is_submitted(0xE000_0001, 42).unwrap());
         assert_eq!(core.journal.cursor().unwrap(), 201); // block + 1
+    }
+
+    #[test]
+    fn recover_already_consumed_refuses_without_chain_confirmation() {
+        let signer = make_signer();
+        let mut submitter = MockSubmitter::default();
+        submitter.next_error = Some(SubmitterError::AlreadyConsumed);
+        let journal = InMemoryJournal::default();
+        let mut event_source = MockEventSource::new();
+        event_source.push(sample_event(42, 200));
+        let mut core = WatcherCore::new(0xE000_0001, signer, event_source, submitter, journal);
+
+        let err = core.tick().unwrap_err();
+        assert!(matches!(
+            err,
+            CoreError::Submit(SubmitterError::AlreadyConsumed)
+        ));
+
+        let err = core.recover_already_consumed().unwrap_err();
+        assert!(matches!(
+            err,
+            CoreError::AlreadyConsumedNotConfirmed {
+                chain: 0xE000_0001,
+                nonce: 42
+            }
+        ));
+        assert!(!core.journal.is_submitted(0xE000_0001, 42).unwrap());
+        assert_eq!(core.journal.cursor().unwrap(), 0);
     }
 }

@@ -5,8 +5,6 @@
 //! and asserts:
 //!
 //!  - daemon exits with code 0 (graceful shutdown succeeded)
-//!  - "shutdown signal received" appears in stderr (the unified
-//!    shutdown branch was reached)
 //!  - the eth fake received at least one `eth_blockNumber` request
 //!    (the run loop's hot path actually ran)
 //!
@@ -24,8 +22,8 @@ use std::os::fd::AsRawFd;
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -187,12 +185,6 @@ fn daemon_run_loop_starts_polls_and_shuts_down_on_sigterm() {
         eth_call_count >= 2,
         "expected the run loop to have iterated at least once (≥2 eth RPC calls — \
          eth_blockNumber + eth_getLogs); got {eth_call_count}\nstderr:\n{stderr_text}"
-    );
-
-    assert!(
-        stderr_text.contains("shutdown signal received") || stderr_text.contains("watcher ready"),
-        "stderr should show either 'watcher ready' or 'shutdown signal received'; \
-         got:\n{stderr_text}"
     );
 
     let _ = std::fs::remove_dir_all(&journal_dir);

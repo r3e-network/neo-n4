@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use crate::types::{BatchRequest, ExecutionError, L1Message, BATCH_WIRE_VERSION};
+use crate::types::{BATCH_WIRE_VERSION, BatchRequest, ExecutionError, L1Message};
 
 /// Maximum byte size of a single transaction or L1 message payload. Reject at
 /// parse-time before allocating to prevent OOM from a single element claiming
@@ -130,7 +130,9 @@ fn read_transactions(p: &mut usize, bytes: &[u8]) -> Result<Vec<Vec<u8>>, Execut
 fn read_var_bytes(p: &mut usize, bytes: &[u8]) -> Result<Vec<u8>, ExecutionError> {
     let len = read_u32(p, bytes)? as usize;
     if len > MAX_PER_ELEMENT_BYTES as usize {
-        return Err(ExecutionError::OversizedField("element exceeds per-element byte cap"));
+        return Err(ExecutionError::OversizedField(
+            "element exceeds per-element byte cap",
+        ));
     }
     let end = p.checked_add(len).ok_or(ExecutionError::Truncated)?;
     if end > bytes.len() {

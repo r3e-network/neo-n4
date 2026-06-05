@@ -50,8 +50,8 @@ pub use core::{CoreError, WatcherCore};
 pub use event_source::{EventSource, EventSourceError, LockedEvent, MockEventSource};
 pub use journal::{InMemoryJournal, Journal, JournalError};
 pub use messaging::{
-    canonical_message_bytes, message_hash, BuildError, ExternalBridgeDirection,
-    ExternalCrossChainMessage, ExternalMessageType,
+    BuildError, ExternalBridgeDirection, ExternalCrossChainMessage, ExternalMessageType,
+    canonical_message_bytes, message_hash,
 };
 pub use proof::{Curve, EthProofBytes, NeoProofBytes, ProofBuildError};
 pub use signer::{FileSigner, Signer, SignerError, SignerOutput};

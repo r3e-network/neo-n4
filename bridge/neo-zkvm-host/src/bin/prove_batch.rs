@@ -370,11 +370,7 @@ fn scan_once(cfg: &DaemonConfig) -> Result<usize, String> {
                     t0.elapsed()
                 );
                 if let Err(e) = finalize_input(&path, cfg) {
-                    warn!(
-                        "  failed to archive/rename {}: {}",
-                        path.display(),
-                        e
-                    );
+                    warn!("  failed to archive/rename {}: {}", path.display(), e);
                 }
                 processed += 1;
             }
@@ -438,10 +434,10 @@ fn prove_one(
 
 fn print_usage() {
     info!("usage:");
+    info!("  prove-batch <hex>                                     # one-shot execute (no proof)");
     info!(
-        "  prove-batch <hex>                                     # one-shot execute (no proof)"
+        "  prove-batch --prove <hex> [--out proof.bin]           # one-shot prove + verify-key emit"
     );
-    info!("  prove-batch --prove <hex> [--out proof.bin]           # one-shot prove + verify-key emit");
     info!("  prove-batch daemon --watch <dir> [--archive <dir>]    # production prover daemon");
     info!("              [--poll-secs N]");
     info!("");

@@ -85,7 +85,7 @@ request_timeout_secs  = 30
 min_confirmations     = 12     # see chains::recommended_confirmations
 
 [health]                       # optional — for k8s readiness probes
-bind                  = "0.0.0.0:9090"
+bind                  = "127.0.0.1:9090"  # k8s/service deployments may use 0.0.0.0
 threshold_secs        = 120
 TOML
 
@@ -118,9 +118,9 @@ disrupting it:
 #     ...
 
 # Live HTTP probes (when [health].bind is configured):
-curl http://0.0.0.0:9090/healthz   # 200 (healthy) or 503 (stale)
-curl http://0.0.0.0:9090/info      # always 200, full JSON snapshot
-curl http://0.0.0.0:9090/metrics   # Prometheus exposition with chain_id label
+curl http://127.0.0.1:9090/healthz   # 200 (healthy) or 503 (stale)
+curl http://127.0.0.1:9090/info      # always 200, full JSON snapshot
+curl http://127.0.0.1:9090/metrics   # Prometheus exposition with chain_id label
 ```
 
 The `--preflight` flag runs all setup checks (TOML schema, chain-id

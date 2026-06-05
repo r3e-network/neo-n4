@@ -152,6 +152,30 @@ mod tests {
         );
     }
 
+    #[test]
+    fn is_inbound_consumed_request_shape() {
+        let escrow = [0xAB; 20];
+        let signer = [0xCD; 20];
+        let dummy_callback = |_script: &[u8]| -> Result<[u8; 32], NeoRpcError> { Ok([0u8; 32]) };
+        let s = NeoRpcSubmitterBuilder::new("http://x", escrow, signer, dummy_callback)
+            .build()
+            .unwrap();
+        let req = s.build_is_inbound_consumed(0xE000_0001, 42);
+        let arr = req.as_array().unwrap();
+        assert_eq!(arr.len(), 3, "params: [contract, method, callargs]");
+        assert_eq!(
+            arr[0].as_str().unwrap(),
+            "0xabababababababababababababababababababab"
+        );
+        assert_eq!(arr[1].as_str().unwrap(), "isInboundConsumed");
+        let call_args = arr[2].as_array().unwrap();
+        assert_eq!(call_args.len(), 2);
+        assert_eq!(call_args[0]["type"].as_str().unwrap(), "Integer");
+        assert_eq!(call_args[0]["value"].as_str().unwrap(), "3758096385");
+        assert_eq!(call_args[1]["type"].as_str().unwrap(), "Integer");
+        assert_eq!(call_args[1]["value"].as_str().unwrap(), "42");
+    }
+
     /// Pin the FAULT → SubmitterError translation: an "already consumed"
     /// fault produces SubmitterError::AlreadyConsumed (so the watcher's
     /// retry loop doesn't try forever on a duplicate).
@@ -194,8 +218,8 @@ mod tests {
     //   relies on this distinction to not loop forever on duplicates.
 
     use crate::live::test_support::FakeRpcServer;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     /// Happy path: invokefunction returns HALT + a script hex; callback
     /// receives the script bytes; callback's tx hash bubbles up to the
@@ -355,6 +379,46 @@ mod tests {
         assert!(
             matches!(err, SubmitterError::AlreadyConsumed),
             "expected AlreadyConsumed, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn live_is_inbound_consumed_reads_boolean_stack() {
+        let server = FakeRpcServer::spawn(|body: &str| {
+            assert!(
+                body.contains(r#""method":"invokefunction""#),
+                "unexpected method: {body}"
+            );
+            assert!(
+                body.contains(r#""isInboundConsumed""#),
+                "unexpected invokefunction target: {body}"
+            );
+            r#"{
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                    "state": "HALT",
+                    "script": "0x",
+                    "exception": null,
+                    "stack": [
+                        {"type": "Boolean", "value": true}
+                    ]
+                }
+            }"#
+            .to_string()
+        });
+
+        let callback = |_: &[u8]| -> Result<[u8; 32], NeoRpcError> { Ok([0u8; 32]) };
+        let mut submitter =
+            NeoRpcSubmitter::builder(server.url.clone(), [0xCC; 20], [0xDD; 20], callback)
+                .request_timeout(Duration::from_secs(5))
+                .build()
+                .unwrap();
+
+        assert!(
+            submitter
+                .is_inbound_consumed(0xE000_0001, 42)
+                .expect("read succeeds")
         );
     }
 

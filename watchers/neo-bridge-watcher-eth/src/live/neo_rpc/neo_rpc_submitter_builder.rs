@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use super::{NeoRpcError, NeoRpcSubmitter, SignAndSend, DEFAULT_REQUEST_TIMEOUT};
+use super::{DEFAULT_REQUEST_TIMEOUT, NeoRpcError, NeoRpcSubmitter, SignAndSend};
 
 /// Configuration for a [`NeoRpcSubmitter`].
 pub struct NeoRpcSubmitterBuilder<S: SignAndSend> {

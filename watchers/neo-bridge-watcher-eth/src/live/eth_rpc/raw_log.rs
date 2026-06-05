@@ -2,6 +2,7 @@ use serde::Deserialize;
 
 #[derive(Deserialize, Debug, Clone)]
 pub(super) struct RawLog {
+    pub(super) address: String,
     pub(super) topics: Vec<String>,
     pub(super) data: String,
     #[serde(rename = "blockNumber")]

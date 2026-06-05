@@ -89,13 +89,19 @@ impl HealthState {
     /// submit step — we want the count of journal-advancing
     /// submissions, not the count of events seen.
     pub fn record_submission(&self) {
-        self.inner.lock().unwrap_or_else(|e| e.into_inner()).submissions_total += 1;
+        self.inner
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .submissions_total += 1;
     }
 
     /// Update the journal cursor surfaced in the health snapshot.
     /// Called after every successful journal advance.
     pub fn record_cursor(&self, cursor: u64) {
-        self.inner.lock().unwrap_or_else(|e| e.into_inner()).journal_cursor = cursor;
+        self.inner
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .journal_cursor = cursor;
     }
 
     /// Record a tick error. The error message is stable (truncated

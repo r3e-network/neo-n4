@@ -6,7 +6,7 @@ namespace Neo.L2.Telemetry;
 
 /// <summary>
 /// Minimal background HTTP server that exposes <see cref="MetricsRequestHandler"/> over a
-/// raw <see cref="TcpListener"/>. Speaks HTTP/1.0 well enough to satisfy a Prometheus scrape
+/// raw <see cref="Socket"/>. Speaks HTTP/1.0 well enough to satisfy a Prometheus scrape
 /// (request line + headers + body, <c>Connection: close</c>). Avoids the host-side
 /// <c>HttpListener</c> stack so behavior is consistent across Linux / macOS / Windows.
 /// </summary>
@@ -18,7 +18,7 @@ namespace Neo.L2.Telemetry;
 /// </remarks>
 public sealed class MetricsHttpServer : IDisposable
 {
-    private readonly TcpListener _listener;
+    private readonly Socket _listener;
     private readonly MetricsRequestHandler _handler;
     private readonly CancellationTokenSource _cts = new();
     private Task? _loop;
@@ -36,8 +36,9 @@ public sealed class MetricsHttpServer : IDisposable
     {
         ArgumentNullException.ThrowIfNull(endpoint);
         ArgumentNullException.ThrowIfNull(handler);
-        _listener = new TcpListener(endpoint);
-        Endpoint = (IPEndPoint)_listener.LocalEndpoint;
+        _listener = new Socket(endpoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+        _listener.Bind(endpoint);
+        Endpoint = (IPEndPoint)_listener.LocalEndPoint!;
         _handler = handler;
     }
 
@@ -63,7 +64,7 @@ public sealed class MetricsHttpServer : IDisposable
         lock (_startGate)
         {
             if (_loop is not null) return;
-            _listener.Start();
+            _listener.Listen();
             _loop = Task.Run(AcceptLoopAsync);
         }
     }
@@ -72,8 +73,8 @@ public sealed class MetricsHttpServer : IDisposable
     {
         while (!_cts.IsCancellationRequested)
         {
-            TcpClient client;
-            try { client = await _listener.AcceptTcpClientAsync(_cts.Token).ConfigureAwait(false); }
+            Socket client;
+            try { client = await _listener.AcceptAsync(_cts.Token).ConfigureAwait(false); }
             catch (OperationCanceledException) { return; }
             catch (SocketException) { return; }
             catch (ObjectDisposedException) { return; }
@@ -82,7 +83,7 @@ public sealed class MetricsHttpServer : IDisposable
         }
     }
 
-    private async Task HandleConnectionAsync(TcpClient client)
+    private async Task HandleConnectionAsync(Socket client)
     {
         // Apply a per-connection deadline so a slow client can't pin a worker forever.
         // NetworkStream.ReadTimeout doesn't apply to ReadAsync, so we use a CTS instead.
@@ -92,7 +93,7 @@ public sealed class MetricsHttpServer : IDisposable
         try
         {
             using (client)
-            using (var stream = client.GetStream())
+            using (var stream = new NetworkStream(client, ownsSocket: false))
             {
                 var path = await ReadRequestPathAsync(stream, linkedCts.Token).ConfigureAwait(false);
                 if (path is null) return;
@@ -161,7 +162,7 @@ public sealed class MetricsHttpServer : IDisposable
     public void Dispose()
     {
         try { _cts.Cancel(); } catch { /* swallow */ }
-        try { _listener.Stop(); } catch { /* swallow */ }
+        try { _listener.Dispose(); } catch { /* swallow */ }
         try { _loop?.Wait(TimeSpan.FromSeconds(2)); } catch { /* swallow */ }
         _cts.Dispose();
     }

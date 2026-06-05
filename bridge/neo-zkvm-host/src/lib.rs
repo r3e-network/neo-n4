@@ -36,12 +36,12 @@ pub fn execute(request_bytes: &[u8]) -> Result<ZkExecutionResult, String> {
     let request_vec = request_bytes.to_vec();
     stdin.write::<Vec<u8>>(&request_vec);
 
-    let (mut public_values, report) = prover
+    let (public_values, report) = prover
         .execute(Elf::Static(NEO_ZKVM_GUEST_ELF), stdin)
         .run()
         .map_err(|e| format!("zkVM execute failed: {:?}", e))?;
 
-    let public_input_hash: [u8; 32] = public_values.read::<[u8; 32]>();
+    let public_input_hash = decode_committed_public_values(public_values.as_slice())?;
 
     Ok(ZkExecutionResult {
         public_input_hash,
@@ -78,9 +78,7 @@ pub fn prove(request_bytes: &[u8]) -> Result<ProofResult, String> {
         .run()
         .map_err(|e| format!("zkVM prove failed: {:?}", e))?;
 
-    let public_input_hash: [u8; 32] = proof.public_values.as_slice()[..32]
-        .try_into()
-        .map_err(|_| "public values too short".to_string())?;
+    let public_input_hash = decode_committed_public_values(proof.public_values.as_slice())?;
 
     let proof_bytes =
         bincode::serialize(&proof).map_err(|e| format!("proof serialization failed: {}", e))?;
@@ -111,9 +109,7 @@ pub fn verify(
 
     // Public-input commitment check first — cheap, catches replay / mismatch
     // before we burn cycles on the cryptographic verifier.
-    let actual: [u8; 32] = proof.public_values.as_slice()[..32]
-        .try_into()
-        .map_err(|_| "public values too short".to_string())?;
+    let actual = decode_committed_public_values(proof.public_values.as_slice())?;
     if &actual != expected_public_input_hash {
         return Err(format!(
             "public-input hash mismatch: expected {:?}, got {:?}",
@@ -153,4 +149,61 @@ pub fn verify(
 #[cfg(not(unix))]
 fn unsupported_platform() -> String {
     "neo-zkvm-host requires a Unix/WSL2/Linux target because SP1's JIT/prover stack uses POSIX file descriptors and shared memory".to_string()
+}
+
+fn decode_committed_public_values(public_values: &[u8]) -> Result<[u8; 32], String> {
+    const STATUS_LEN: usize = 1;
+    const HASH_LEN: usize = 32;
+    const COMMITTED_PUBLIC_VALUES_LEN: usize = STATUS_LEN + HASH_LEN;
+
+    if public_values.len() < COMMITTED_PUBLIC_VALUES_LEN {
+        return Err(format!(
+            "public values too short: expected at least {} bytes, got {}",
+            COMMITTED_PUBLIC_VALUES_LEN,
+            public_values.len()
+        ));
+    }
+
+    match public_values[0] {
+        0 => public_values[STATUS_LEN..COMMITTED_PUBLIC_VALUES_LEN]
+            .try_into()
+            .map_err(|_| "public-input hash decode failed".to_string()),
+        1 => Err("guest reported execution error".to_string()),
+        status => Err(format!("unknown guest status tag: {}", status)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decode_committed_public_values;
+
+    #[test]
+    fn decode_committed_public_values_skips_status_tag() {
+        let expected_hash = [0x42u8; 32];
+        let mut committed = Vec::with_capacity(33);
+        committed.push(0);
+        committed.extend_from_slice(&expected_hash);
+
+        let decoded = decode_committed_public_values(&committed).unwrap();
+
+        assert_eq!(decoded, expected_hash);
+    }
+
+    #[test]
+    fn decode_committed_public_values_rejects_guest_error_tag() {
+        let mut committed = Vec::with_capacity(33);
+        committed.push(1);
+        committed.extend_from_slice(&[0u8; 32]);
+
+        let error = decode_committed_public_values(&committed).unwrap_err();
+
+        assert!(error.contains("guest reported execution error"));
+    }
+
+    #[test]
+    fn decode_committed_public_values_rejects_truncated_values() {
+        let error = decode_committed_public_values(&[0, 1, 2]).unwrap_err();
+
+        assert!(error.contains("public values too short"));
+    }
 }

@@ -1,9 +1,9 @@
 use alloc::vec::Vec;
 
 use crate::hashing::{
-    apply_l1_message, fold_state_root, hash256, hash_public_inputs, hash_receipt, merkle_root,
+    apply_l1_message, fold_state_root, hash_public_inputs, hash_receipt, hash256, merkle_root,
 };
-use crate::types::{BatchResult, ExecutionError, VmExecutionReceipt, DEFAULT_PER_TX_GAS_LIMIT};
+use crate::types::{BatchResult, DEFAULT_PER_TX_GAS_LIMIT, ExecutionError, VmExecutionReceipt};
 use crate::wire::parse_batch_request;
 
 /// Execute a canonical batch request with a caller-provided VM backend.

@@ -13,7 +13,7 @@ use alloc::vec::Vec;
 use neo_execution_core::VmExecutionReceipt;
 
 pub use neo_execution_core::{
-    execute_batch_with, hash256, merkle_root, BatchResult, ExecutionError, DEFAULT_PER_TX_GAS_LIMIT,
+    BatchResult, DEFAULT_PER_TX_GAS_LIMIT, ExecutionError, execute_batch_with, hash256, merkle_root,
 };
 
 /// Pure execution function invariant under the proving contract.

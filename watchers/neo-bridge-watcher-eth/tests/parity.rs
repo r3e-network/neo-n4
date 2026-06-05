@@ -8,11 +8,11 @@
 
 use neo_bridge_watcher_eth::messaging::encode_asset_transfer_payload;
 use neo_bridge_watcher_eth::proof::{IndexedRsv, PubkeySignature};
-use neo_bridge_watcher_eth::{
-    canonical_message_bytes, message_hash, ExternalBridgeDirection, ExternalCrossChainMessage,
-    ExternalMessageType,
-};
 use neo_bridge_watcher_eth::{Curve, EthProofBytes, NeoProofBytes};
+use neo_bridge_watcher_eth::{
+    ExternalBridgeDirection, ExternalCrossChainMessage, ExternalMessageType,
+    canonical_message_bytes, message_hash,
+};
 
 fn sample_eth_deposit() -> ExternalCrossChainMessage {
     // 1_000_000 = 0x0F4240, 3-byte minimal LE (matches C# BigInteger.ToByteArray).

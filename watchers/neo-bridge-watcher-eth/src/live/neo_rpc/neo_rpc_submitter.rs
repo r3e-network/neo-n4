@@ -5,7 +5,7 @@ use crate::live::json_rpc_types::{JsonRpcRequest, JsonRpcResponse};
 use crate::submitter::{InboundSubmission, NeoSubmitter, SubmitterError};
 
 use super::invoke_function_result::InvokeFunctionResult;
-use super::{decode_hex_bytes, NeoRpcError, NeoRpcSubmitterBuilder, SignAndSend};
+use super::{NeoRpcError, NeoRpcSubmitterBuilder, SignAndSend, decode_hex_bytes};
 
 /// Live `NeoSubmitter` impl backed by Neo JSON-RPC + an operator-supplied
 /// signer.
@@ -37,6 +37,24 @@ impl<S: SignAndSend> NeoSubmitter for NeoRpcSubmitter<S> {
 
         let tx_hash = self.sign_and_send.sign_and_send(&script_bytes)?;
         Ok(tx_hash)
+    }
+
+    fn is_inbound_consumed(
+        &mut self,
+        external_chain_id: u32,
+        nonce: u64,
+    ) -> Result<bool, SubmitterError> {
+        let req = self.build_is_inbound_consumed(external_chain_id, nonce);
+        let resp: InvokeFunctionResult = self.send_rpc("invokefunction", req)?;
+        if resp.state != "HALT" {
+            return Err(NeoRpcError::Fault(
+                resp.exception
+                    .unwrap_or_else(|| format!("VM state {} (no exception detail)", resp.state)),
+            )
+            .into());
+        }
+        resp.first_bool()
+            .map_err(|e| NeoRpcError::Decode(format!("isInboundConsumed: {e}")).into())
     }
 }
 
@@ -72,6 +90,23 @@ impl<S: SignAndSend> NeoRpcSubmitter<S> {
                 }
             ]
         ]))
+    }
+
+    pub(super) fn build_is_inbound_consumed(
+        &self,
+        external_chain_id: u32,
+        nonce: u64,
+    ) -> serde_json::Value {
+        let escrow_hex = format!("0x{}", hex::encode(self.escrow_address));
+
+        serde_json::json!([
+            escrow_hex,
+            "isInboundConsumed",
+            [
+                { "type": "Integer", "value": external_chain_id.to_string() },
+                { "type": "Integer", "value": nonce.to_string() },
+            ],
+        ])
     }
 
     fn send_rpc<T: for<'de> Deserialize<'de>>(

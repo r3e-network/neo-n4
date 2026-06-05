@@ -312,4 +312,28 @@ public class UT_MessageHasher
         var hash = MessageHasher.HashWithdrawal(w);
         Assert.AreNotEqual(UInt256.Zero, hash);
     }
+
+    [TestMethod]
+    public void HashWithdrawal_GoldenVector_CrossImplementationParity()
+    {
+        // Frozen cross-implementation reference. The off-chain MessageHasher.HashWithdrawal
+        // must produce the same leaf hash as the on-chain
+        // NeoHub.SharedBridge.ComputeWithdrawalLeafHash, which a unit test cannot invoke
+        // (it is private NeoVM contract code). CanonicalBufferLayout pins the off-chain
+        // encoder against a buffer assembled from the *documented* layout — but that mirror
+        // buffer lives in this test file, so a refactor touching both the encoder and the
+        // mirror in lockstep would stay green. This literal was computed OUT OF BAND (not by
+        // the C# encoder) for the canonical input below; it breaks on any drift in either,
+        // and is the value a contract reviewer re-derives against ComputeWithdrawalLeafHash.
+        //
+        // Canonical input — symmetric UInt160 bytes so GetSpan() byte-order is irrelevant:
+        //   chainId=1, emitting=0xAA*20, l2Sender=0xBB*20, l1Recipient=0xCC*20,
+        //   l2Asset=0xDD*20, amount=1000 (0xE803 unsigned-LE), nonce=1
+        //   buf = 01000000 | AA*20 | BB*20 | CC*20 | DD*20 | 02000000 | E803 | 0100000000000000
+        //   leaf = Sha256(Sha256(buf))
+        var wd = Wd(emitting: A(), l2sender: B(), l1recipient: C(), l2asset: D());
+        var golden = UInt256.Parse("0xe16deec3f35f8c64d2f2f11ed10a498374855a499da9eea4ad33bbb134c4ad76");
+        Assert.AreEqual(golden, MessageHasher.HashWithdrawal(wd),
+            "withdrawal-leaf hash drifted from the frozen on-chain parity vector");
+    }
 }

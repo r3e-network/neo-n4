@@ -18,7 +18,11 @@ pub fn merkle_root(leaves: &[[u8; 32]]) -> [u8; 32] {
         let half = n / 2;
         for i in 0..half {
             let left = current[2 * i];
-            let right = if 2 * i + 1 < n { current[2 * i + 1] } else { left };
+            let right = if 2 * i + 1 < n {
+                current[2 * i + 1]
+            } else {
+                left
+            };
             let mut buf = [0u8; 64];
             buf[..32].copy_from_slice(&left);
             buf[32..].copy_from_slice(&right);
@@ -123,7 +127,18 @@ pub fn hash_public_inputs(
     buf[0..4].copy_from_slice(&chain_id.to_le_bytes());
     buf[4..12].copy_from_slice(&batch_number.to_le_bytes());
     let mut pos = 12;
-    for root in [pre_state_root, post_state_root, tx_root, receipt_root, withdrawal_root, l2_to_l1_message_root, l2_to_l2_message_root, l1_message_hash, da_commitment, block_context_hash] {
+    for root in [
+        pre_state_root,
+        post_state_root,
+        tx_root,
+        receipt_root,
+        withdrawal_root,
+        l2_to_l1_message_root,
+        l2_to_l2_message_root,
+        l1_message_hash,
+        da_commitment,
+        block_context_hash,
+    ] {
         buf[pos..pos + 32].copy_from_slice(root);
         pos += 32;
     }

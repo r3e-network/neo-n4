@@ -3,6 +3,7 @@ using Neo.Cryptography.ECC;
 using Neo.L2.Batch;
 using Neo.L2.Proving.Optimistic;
 using Neo.L2.Proving.RiscVZk;
+using Neo.L2.State;
 using Neo.SmartContract;
 
 namespace Neo.L2.Proving.UnitTests;
@@ -601,5 +602,41 @@ public class UT_OptimisticAndRiscV
         Assert.AreEqual(2, (byte)ProofSystem.RiscZero);
         Assert.AreEqual(3, (byte)ProofSystem.Halo2);
         Assert.AreEqual(4, (byte)ProofSystem.Axiom);
+    }
+
+    [TestMethod]
+    public void PublicInputs_HashEqualsHash256OfCanonicalEncoding()
+    {
+        // StateRootCalculator.HashPublicInputs and BatchSerializer.EncodePublicInputs
+        // independently hand-roll the SAME 332-byte canonical layout
+        // (ChainId‖BatchNumber‖10×UInt256, all LE). StateRootCalculator.cs:87 documents
+        // this as the "BatchSerializer-equivalent layout" invariant, but nothing pinned
+        // it. The two encoders feed DIFFERENT trust paths:
+        //   - EncodePublicInputs → the exact bytes Multisig validators ECDSA-sign
+        //     (AttestationVerifier) and Optimistic sequencers sign (OptimisticVerifier).
+        //   - HashPublicInputs    → commitment.PublicInputHash, re-derived and checked by
+        //     VerifierRegistry and by NeoHub on L1.
+        // If either layout drifts (a reordered field, a missing domain-separator), the
+        // signed bytes would no longer correspond to the committed hash and the drift
+        // would surface only as opaque downstream verification failures. Pin the
+        // equivalence so a layout change is a visible, intentional diff in one place.
+        var inputs = SamplePublicInputs();
+        var expected = new UInt256(Crypto.Hash256(BatchSerializer.EncodePublicInputs(inputs)));
+        Assert.AreEqual(expected, StateRootCalculator.HashPublicInputs(inputs),
+            "HashPublicInputs drifted from the canonical EncodePublicInputs layout");
+    }
+
+    [TestMethod]
+    public void PublicInputs_HashBindsChainId_PreventsCrossL2Replay()
+    {
+        // Domain-separation regression: ChainId is the first field of both canonical
+        // encodings, so a proof/attestation valid on one L2 must not validate on another
+        // that shares a validator set. Flipping only ChainId must change the hash.
+        var a = SamplePublicInputs();
+        var b = a with { ChainId = a.ChainId + 1u };
+        Assert.AreNotEqual(
+            StateRootCalculator.HashPublicInputs(a),
+            StateRootCalculator.HashPublicInputs(b),
+            "public-input hash must bind ChainId for cross-L2 domain separation");
     }
 }

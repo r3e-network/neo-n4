@@ -1,7 +1,7 @@
 use std::io::{Read, Write};
 use std::net::TcpListener;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -31,7 +31,7 @@ impl FakeRpcServer {
                         let n = stream.read(&mut buf).unwrap_or(0);
                         let req = String::from_utf8_lossy(&buf[..n]).to_string();
                         let body = req.split("\r\n\r\n").nth(1).unwrap_or("").to_string();
-                        let resp = handler(&body);
+                        let resp = echo_json_rpc_id(&body, handler(&body));
                         let http = format!(
                             "HTTP/1.1 200 OK\r\n\
                              Content-Type: application/json\r\n\
@@ -56,6 +56,23 @@ impl FakeRpcServer {
             _handle: handle,
         }
     }
+}
+
+fn echo_json_rpc_id(request_body: &str, response_body: String) -> String {
+    let Ok(request) = serde_json::from_str::<serde_json::Value>(request_body) else {
+        return response_body;
+    };
+    let Some(request_id) = request.get("id").cloned() else {
+        return response_body;
+    };
+    let Ok(mut response) = serde_json::from_str::<serde_json::Value>(&response_body) else {
+        return response_body;
+    };
+    if response.get("id").is_none() {
+        return response_body;
+    }
+    response["id"] = request_id;
+    response.to_string()
 }
 
 impl Drop for FakeRpcServer {

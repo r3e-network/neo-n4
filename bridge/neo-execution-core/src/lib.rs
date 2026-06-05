@@ -17,10 +17,10 @@ mod wire;
 
 pub use batch::execute_batch_with;
 pub use hashing::{
-    apply_l1_message, fold_state_root, hash256, hash_public_inputs, hash_receipt, merkle_root,
+    apply_l1_message, fold_state_root, hash_public_inputs, hash_receipt, hash256, merkle_root,
 };
 pub use types::{
-    BatchRequest, BatchResult, ExecutionError, L1Message, VmExecutionReceipt, BATCH_WIRE_VERSION,
-    DEFAULT_PER_TX_GAS_LIMIT,
+    BATCH_WIRE_VERSION, BatchRequest, BatchResult, DEFAULT_PER_TX_GAS_LIMIT, ExecutionError,
+    L1Message, VmExecutionReceipt,
 };
 pub use wire::parse_batch_request;

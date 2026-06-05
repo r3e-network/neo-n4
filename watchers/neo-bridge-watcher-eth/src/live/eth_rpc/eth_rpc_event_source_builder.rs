@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::event_source::LockedEvent;
 
-use super::{EthRpcError, EthRpcEventSource, DEFAULT_BLOCK_CHUNK, DEFAULT_REQUEST_TIMEOUT};
+use super::{DEFAULT_BLOCK_CHUNK, DEFAULT_REQUEST_TIMEOUT, EthRpcError, EthRpcEventSource};
 
 /// Configuration for an [`EthRpcEventSource`].
 pub struct EthRpcEventSourceBuilder {

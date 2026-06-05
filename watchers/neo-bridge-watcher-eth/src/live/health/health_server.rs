@@ -1,9 +1,9 @@
 use std::net::TcpListener;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
-use super::{handle_request, HealthState};
+use super::{HealthState, handle_request};
 
 /// HTTP server exposing the health endpoints. Holds the listener +
 /// background thread; teardown via `Drop` (sets a stop flag and waits

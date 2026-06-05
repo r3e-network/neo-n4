@@ -1,4 +1,4 @@
-use super::{IndexedRsv, ProofBuildError, MAX_SIGNERS};
+use super::{IndexedRsv, MAX_SIGNERS, ProofBuildError};
 
 /// Encode the proof bytes for `NeoExternalBridgeRouter.finalizeWithdrawal`.
 ///

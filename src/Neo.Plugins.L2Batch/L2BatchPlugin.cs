@@ -102,6 +102,7 @@ public sealed class L2BatchPlugin : Plugin
             _metrics?.IncrementCounter("l2_batch_on_block_committed_error");
             // Log the error but do NOT propagate — an exception escaping here
             // would corrupt Neo's Blockchain.Committed event and halt block import.
+            Logs.RuntimeLogger.Error(ex, "L2Batch OnBlockCommitted handler failed");
         }
     }
 

@@ -7,7 +7,7 @@ namespace Neo.L2.Bridge;
 /// Canonical encoding of an asset-deposit payload that rides inside a
 /// <see cref="CrossChainMessage"/> with <see cref="MessageType.Deposit"/>.
 /// </summary>
-public static class DepositPayload
+public sealed class DepositPayload
 {
     /// <summary>Maximum byte length of the deposit amount — 64 bytes covers up to 2^512.</summary>
     public const int MaxAmountBytes = 64;
@@ -30,7 +30,6 @@ public static class DepositPayload
         var amountBytes = Amount.ToByteArray(isUnsigned: true, isBigEndian: false);
         if (amountBytes.Length > MaxAmountBytes)
             throw new InvalidOperationException($"Deposit amount exceeds {MaxAmountBytes} bytes");
-            throw new InvalidOperationException("Deposit amount exceeds 64 bytes");
         var size = 20 + 20 + 4 + amountBytes.Length;
         var buffer = new byte[size];
         var span = buffer.AsSpan();

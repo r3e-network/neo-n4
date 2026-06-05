@@ -386,7 +386,7 @@ min_confirmations     = 5
 # Required for k8s readiness/liveness probes + Prometheus scraping.
 # Unset = no health server (one-off CLI runs).
 [health]
-bind                  = "0.0.0.0:9090"   # Listen address; ClusterIP / private
+bind                  = "127.0.0.1:9090" # Local-only by default; k8s may use 0.0.0.0
 threshold_secs        = 120              # /healthz returns 503 after this many
                                           # seconds without a successful tick.
 "#
@@ -455,9 +455,7 @@ fn preflight(config: &Config) -> Result<(), String> {
     if config.poll.min_confirmations == 0 {
         if let Some(rec) = chains::recommended_confirmations(config.external_chain_id) {
             if rec > 0 {
-                warn!(
-                    "[warn] [poll].min_confirmations = 0 but recommended {rec} for this chain"
-                );
+                warn!("[warn] [poll].min_confirmations = 0 but recommended {rec} for this chain");
             } else {
                 info!("[ok]   min_confirmations = 0 (recommendation matches)");
             }
@@ -467,6 +465,15 @@ fn preflight(config: &Config) -> Result<(), String> {
             "[ok]   min_confirmations = {}",
             config.poll.min_confirmations
         );
+    }
+    if let Some(bind) = config.health.bind.as_deref() {
+        if bind.starts_with("0.0.0.0:") || bind.starts_with("[::]:") {
+            warn!(
+                "[warn] [health].bind = {bind} exposes /healthz, /info, and /metrics on all interfaces; use 127.0.0.1 for local runs or restrict access with Kubernetes NetworkPolicy/firewall rules"
+            );
+        } else {
+            info!("[ok]   health bind = {bind}");
+        }
     }
 
     // 3. Signer key file.

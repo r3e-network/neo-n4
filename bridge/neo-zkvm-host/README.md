@@ -123,7 +123,10 @@ The `--prove` mode writes both `proof.bin` (the proof) and `proof.vk`
 ## Tests
 
 ```bash
-# Default suite (1 test, ~42s — runs the guest in zkVM execute path
+# Daily debug suite (skips SP1 execute/prove cost; release gates below cover it):
+cargo test -p neo-zkvm-host
+
+# Default release suite (~1 min — runs the guest in zkVM execute path
 # and cross-checks public-input hash byte-for-byte against host run):
 cargo test --release -p neo-zkvm-host
 

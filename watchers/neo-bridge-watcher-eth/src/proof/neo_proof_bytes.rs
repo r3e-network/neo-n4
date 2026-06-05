@@ -1,4 +1,4 @@
-use super::{Curve, ProofBuildError, PubkeySignature, MAX_SIGNERS};
+use super::{Curve, MAX_SIGNERS, ProofBuildError, PubkeySignature};
 
 /// Encode the proof bytes for `NeoHub.MpcCommitteeVerifier.VerifyInboundMessage`.
 ///

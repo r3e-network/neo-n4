@@ -239,7 +239,7 @@ public sealed class L2SettlementPlugin : Plugin
             // there's nothing the caller (typically a fire-and-forget event handler)
             // can do with it. Without this guard, the exception surfaces only via the
             // TaskScheduler.UnobservedTaskException path, which is invisible by default.
-            try { _submitGate.Release(); } catch (ObjectDisposedException) when (true) { }
+            try { _submitGate.Release(); } catch (ObjectDisposedException) { }
         }
     }
 

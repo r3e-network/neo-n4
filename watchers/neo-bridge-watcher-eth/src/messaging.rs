@@ -105,14 +105,17 @@ pub fn message_hash(msg: &ExternalCrossChainMessage) -> Result<[u8; 32], BuildEr
 /// ```
 ///
 /// Mirrors C# `ExternalAssetTransferPayload.Encode`.
-pub fn encode_asset_transfer_payload(foreign_asset: [u8; 20], amount_le: &[u8]) -> Result<Vec<u8>, BuildError> {
+pub fn encode_asset_transfer_payload(
+    foreign_asset: [u8; 20],
+    amount_le: &[u8],
+) -> Result<Vec<u8>, BuildError> {
     if amount_le.len() > 64 {
         return Err(BuildError::PayloadTooLarge(amount_le.len()));
     }
     let mut out = Vec::with_capacity(20 + 4 + amount_le.len());
     out.extend_from_slice(&foreign_asset);
-    let amount_len = u32::try_from(amount_le.len())
-        .map_err(|_| BuildError::PayloadTooLarge(amount_le.len()))?;
+    let amount_len =
+        u32::try_from(amount_le.len()).map_err(|_| BuildError::PayloadTooLarge(amount_le.len()))?;
     out.extend_from_slice(&amount_len.to_le_bytes());
     out.extend_from_slice(amount_le);
     Ok(out)

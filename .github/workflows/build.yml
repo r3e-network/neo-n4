@@ -399,8 +399,8 @@ jobs:
           npm --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000 audit --audit-level=moderate
 
   # Foundry test pass for the foreign EVM router at
-  # external/foreign-contracts/eth — 13 single-chain + 7 multi-chain
-  # tests (= 20 total) that pin the Solidity side of every EVM bridge
+  # external/foreign-contracts/eth — 32 single-chain + 7 multi-chain
+  # tests (= 39 total) that pin the Solidity side of every EVM bridge
   # path. The contract deploys unchanged on the entire EVM family
   # (Ethereum, Tron, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche,
   # Linea, zkSync Era, Scroll, Mantle, Fantom, Celo) — drift here

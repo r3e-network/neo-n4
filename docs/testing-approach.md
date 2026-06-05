@@ -6,7 +6,7 @@ where each piece of the system lives.
 
 ---
 
-## Test surface (1467 .NET + 202 cross-language base + SP1 host E2E)
+## Test surface (1521 .NET + cross-language gates + SP1 host E2E)
 
 | Tier | Framework | Where | What |
 |------|-----------|-------|------|
@@ -16,10 +16,10 @@ where each piece of the system lives.
 | Fuzz | MSTest + seeded `System.Random` | `UT_WireFormat_Fuzz.cs` (19 tests) | Random byte sequences to every decoder — must round-trip or reject with typed exception, never crash |
 | Cross-language parity | byte-vector pins + canonical-bytes-match-csharp | Rust watcher tests + Foundry tests | Wire format byte-identical across C# encoder + Rust + Solidity verifier |
 | On-chain ↔ off-chain parity | C# replicas of on-chain decision trees | `UT_OnChainMerkleVerifyParity`, `UT_RestrictedExecutionFraudVerifierParity`, `UT_GovernanceFraudVerifierParity`, `UT_MpcFraudProof_RealCrypto` | Off-chain algorithm replicates the on-chain verifier and produces identical roots/decisions; drift surfaces in unit tests rather than at L1 settlement time |
-| Foundry | Solidity invariant + multi-chain | `external/foreign-contracts/eth/test/` (21 tests) | EVM-family Solidity router — 14 single-chain + 7 multi-chain pinning per-instance state isolation across 17 mainnet slots |
+| Foundry | Solidity invariant + multi-chain | `external/foreign-contracts/eth/test/` (39 tests) | EVM-family Solidity router — 32 single-chain + 7 multi-chain pinning per-instance state isolation across 17 mainnet slots |
 | Real-CPU SP1 prover | Rust `#[ignore]`-gated | `bridge/neo-zkvm-host/tests/end_to_end.rs` (2 tests) | Real ZK proof generation (~40s prove, ~20s verify, 2.78 MB proof) + tampered-hash-rejection negative test |
 | Live-RPC | Rust `--features live-rpc` | `watchers/neo-bridge-watcher-eth/tests/` (55 tests) | `FakeRpcServer` in-process — exercises `EthRpcEventSource`+`NeoRpcSubmitter` through real `reqwest::blocking` HTTP cycles |
-| TS SDK | vitest | `sdk/typescript/` (15 tests) | RPC client surface; error-taxonomy parity across .NET / Rust / TS |
+| TS SDK | vitest | `sdk/typescript/` (16 tests) | RPC client surface; error-taxonomy parity across .NET / Rust / TS |
 | Rust SDK | cargo test + mockito | `sdk/rust/` (10 tests) | RPC client; same surface as TS + .NET |
 | execution-core | cargo test | `bridge/neo-execution-core/` (5 tests) | Backend-neutral batch parsing, receipt/state folding, Merkle determinism, backend-dependency guard |
 | zkvm-guest | cargo test | `bridge/neo-zkvm-guest/` (7 tests) | Host-mode execution of the Neo N3 VM through the shared batch core |
@@ -120,7 +120,7 @@ Rust prover, and their TS SDK. neo4 has equivalent pin tests:
   parity vs C# `Neo.L2.Messaging.ExternalMessageHasher`
 - `message_hash_matches_csharp_vector` (Rust watcher) — same for the
   hash computation
-- 21 Foundry tests in `external/foreign-contracts/eth/` — the same Solidity
+- 39 Foundry tests in `external/foreign-contracts/eth/` — the same Solidity
   router deploys unchanged across 14 EVM chain families and 17 mainnet slots
 
 ---
@@ -129,15 +129,15 @@ Rust prover, and their TS SDK. neo4 has equivalent pin tests:
 
 `.github/workflows/build.yml` runs the full suite on every push + PR:
 
-1. `test` — `dotnet test Neo.L2.sln` (1467 tests, 34 projects)
+1. `test` — `dotnet test Neo.L2.sln` (1521 tests, 34 projects)
 2. `contracts` — installs `Neo.Compiler.CSharp`, type-checks all 24 deployable NeoHub
    projects plus the 2 sample contracts, asserts 26 `.nef` + 26 `.manifest.json`
    artifacts, and runs the `external/neo` N4 native-contract tests
 3. `bridge` — `cargo check` on Rust workspace
 4. `neo-zkvm-host` — `cargo build` + non-ignored tests (the 2 real-CPU
    ignored tests run nightly, not per-PR)
-5. `sdk-typescript` — `npx vitest run` (15 tests)
-6. `foreign-evm` — `forge test` (20 Solidity tests)
+5. `sdk-typescript` — `npx vitest run` (16 tests)
+6. `foreign-evm` — `forge test` (39 Solidity tests)
 7. `docs-site` — `mdbook build` + link-check
 
 A PR cannot merge until every job is green. Dependabot keeps cargo /

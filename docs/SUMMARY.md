@@ -66,8 +66,10 @@
 - [Spec-gap plan](./spec-gap-plan.md)
 - [Application Engine + MPT plan](./plan-application-engine-and-mpt.md)
 - [ZKsync Elastic Chain comparison](./zksync-comparison.md)
+- [BN254 Groth16 verifier design](./groth16-bn254-verifier-design.md)
 - [Testing approach](./testing-approach.md)
 - [Test coverage](./test-coverage.md)
+- [System verification plan](./system-verification-plan.md)
 - [Neo N4 Unified Experience Hub design](./superpowers/specs/2026-05-19-neo-n4-unified-experience-hub-design.md)
 - [Neo N4 Experience Hub phase 1 plan](./superpowers/plans/2026-05-19-neo-n4-experience-hub-phase-1.md)
 
@@ -76,6 +78,7 @@
 - [Comprehensive audit closure (2026-05-20)](./audit/comprehensive-audit-2026-05-20.md)
 - [Production readiness audit](./audit/production-readiness-audit.md)
 - [Repository coverage ledger](./audit/repository-coverage-ledger.md)
+- [System verification ledger (2026-06-05)](./audit/system-verification-ledger-2026-06-05.md)
 - [Neo 4 system assurance audit](./audit/neo4-system-assurance-audit-2026-05-19.md)
 - [ZKsync alignment consistency security pass](./audit/zksync-alignment-consistency-security-2026-05-18.md)
 - [Repository-wide consistency/localization/security pass](./audit/repository-wide-consistency-localization-security-2026-05-18.md)

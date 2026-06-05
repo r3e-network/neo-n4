@@ -51,7 +51,7 @@ All agent output transcripts persisted under `.claude/projects/.../subagents/`.
 | Watcher record_cursor | `watcher_journal_cursor` gauge stuck at 0. | **FIXED** — wired into run loop | (same commit) |
 | Watcher jitter | Backoff was deterministic → thundering-herd. | **FIXED** — ±25% jitter | (same commit) |
 | prove-batch SIGTERM | Daemon had no signal handler. | **FIXED** — `libc::signal` for SIGTERM/SIGINT + interruptible_sleep | `fix(prove-batch): SIGTERM/SIGINT graceful shutdown for daemon mode` |
-| prove-batch flock | Two daemons could race on same `--watch` dir. | **FIXED** — `flock(LOCK_EX|LOCK_NB)` on `<watch>/.prove-batch.lock` | `fix: prove-batch single-instance flock + Solana vault rent-safety` |
+| prove-batch flock | Two daemons could race on same `--watch` dir. | **FIXED** — `flock(LOCK_EX|LOCK_NB)` on the watch directory's `.prove-batch.lock` file | `fix: prove-batch single-instance flock + Solana vault rent-safety` |
 | Ownable2Step | Single-step ownership transfer = irrevocable on typo. | **FIXED** — pendingOwner + acceptOwnership + 3 regression tests | `fix(foreign-bridge eth): Ownable2Step + gas-cap on ETH push` |
 | Gas grief | `recipient.call{value:amount}("")` forwarded all gas. | **FIXED** — capped at 30k gas | (same commit) |
 | Solana rent-exempt | Vault PDA drainable past rent minimum. | **FIXED** — withdrawable = lamports - rent_min; new `InsufficientVault` semantics | `fix: prove-batch single-instance flock + Solana vault rent-safety` |

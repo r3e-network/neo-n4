@@ -32,6 +32,13 @@ coverage/
 *.swp
 *.tmp
 *.log
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
 # mdBook generated static site (CI builds + deploys; not checked in).
 book/
 
@@ -41,3 +48,7 @@ build/
 # Local Codex audit scratch. Curated audit documents live under docs/audit/;
 # raw logs, inventories, TRX files, and transient command outputs stay local.
 CODEX_DEEP_AUDIT/
+
+# Local agent/tool state and generated presentation scratch output.
+.serena/
+outputs/

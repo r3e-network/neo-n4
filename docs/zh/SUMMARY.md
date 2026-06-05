@@ -42,6 +42,7 @@
 - [架构摘要](./ARCHITECTURE.md)
 - [白皮书](./WHITEPAPER.md)
 - [可视化导览](./visual-guide.md)
+- [Crate 可视化导览](./crate-visual-guide.md)
 - [Neo N4 统一体验中心](./experience-hub.md)
 - [交互式运行剧场](./interactive-runtime.md)
 - [Neo N4 数学动态教程](./interactive-math.md)
@@ -70,8 +71,10 @@
 - [规格空白计划](./spec-gap-plan.md)
 - [Application Engine + MPT 计划](./plan-application-engine-and-mpt.md)
 - [ZKsync 弹性链对比](./zksync-comparison.md)
+- [BN254 Groth16 验证器设计](./groth16-bn254-verifier-design.md)
 - [测试方法论](./testing-approach.md)
 - [测试覆盖](./test-coverage.md)
+- [系统化验证计划](./system-verification-plan.md)
 - [Neo N4 统一体验中心设计](./superpowers/specs/2026-05-19-neo-n4-unified-experience-hub-design.md)
 - [Neo N4 统一体验中心第一期计划](./superpowers/plans/2026-05-19-neo-n4-experience-hub-phase-1.md)
 
@@ -80,6 +83,17 @@
 - [综合审计闭环报告(2026-05-20)](./audit/comprehensive-audit-2026-05-20.md)
 - [生产就绪审计](./audit/production-readiness-audit.md)
 - [仓库覆盖率账本](./audit/repository-coverage-ledger.md)
+- [系统验证账本(2026-06-05)](./audit/system-verification-ledger-2026-06-05.md)
 - [Neo 4 系统保证审计](./audit/neo4-system-assurance-audit-2026-05-19.md)
 - [ZKsync 对齐 / 一致性 / 安全 审计](./audit/zksync-alignment-consistency-security-2026-05-18.md)
 - [仓库级一致性 / 本地化 / 安全审计](./audit/repository-wide-consistency-localization-security-2026-05-18.md)
+
+# 项目治理
+
+- [权威架构规格 doc.md](./doc.md)
+- [实现状态矩阵](./IMPLEMENTATION_STATUS.md)
+- [技术栈](./TECH_STACK.md)
+- [安全政策](./SECURITY.md)
+- [贡献指南](./CONTRIBUTING.md)
+- [任务列表](./TASKS.md)
+- [变更日志](./CHANGELOG.md)

@@ -12,6 +12,99 @@ see [`docs/audit/zksync-elastic-chain-validation-2026-05-18.md`](audit/zksync-el
 
 ---
 
+## Neo-native 1:1 replica policy
+
+In this repository, "1:1 with ZKsync Elastic Chain" means: preserve the
+**component role**, **security invariant**, **operator workflow**, and **user-facing
+contract**, while substituting the substrate-specific parts that are inseparable from
+Ethereum / EVM / EraVM. It does **not** mean copying Solidity bytecode, EraVM system
+contracts, Boojum circuit layouts, or Ethereum gas/accounting semantics verbatim.
+
+The official ZKsync Gateway docs define Gateway as an optional shared proof aggregation
+layer: chains remain anchored to Ethereum, assets stay locked on Ethereum, and Gateway
+does not become a general custody / execution layer. The Neo equivalent keeps that
+invariant but swaps the root layer from Ethereum to Neo L1: assets are locked in
+NeoHub, global roots are anchored by NeoHub contracts, and Gateway remains middleware.
+Reference docs: [Gateway overview](https://docs.zksync.io/zksync-protocol/gateway),
+[Gateway features](https://docs.zksync.io/zksync-protocol/gateway/features), and
+[shared bridges](https://docs.zksync.io/zksync-protocol/contracts/l1-contracts/shared-bridges).
+
+| ZKsync Elastic Chain invariant | Neo-native replacement | Acceptance gate |
+|---|---|---|
+| Ethereum is the root of trust and final verifier | Neo L1 / NeoHub is the root of trust and final verifier | Batch roots, message roots, withdrawals, and emergency exits are anchored by NeoHub contracts; Gateway never becomes the custody layer |
+| Bridgehub is the chain registry + L1 entry point | `NeoHub.ChainRegistry` + `SettlementManager` + `MessageRouter` | Chain registration, settlement, L1→L2 messages, and global roots are all reachable from NeoHub |
+| Chain Type Manager shares verifier / upgrade policy for a chain family | `VerifierRegistry` + `GovernanceController` + proof/DA mode in `L2ChainConfig` | Chains of the same Neo-native type share verifier policy, staged upgrades, immutable flags, and DA gates |
+| Shared Bridge provides canonical ecosystem liquidity | `NeoHub.SharedBridge` + `TokenRegistry` + L2 native `L2BridgeContract` / `BridgedNep17Contract` | One canonical bridged representation per asset; replay protection via withdrawal/message nullifiers |
+| Gateway is optional proof aggregation middleware | `Neo.Plugins.L2Gateway` + `MessageRouter.PublishGlobalRoot` | Chains can use direct NeoHub settlement or a Gateway aggregation path without moving asset custody to Gateway |
+| Rollup / validium DA choices are explicit | `DARegistry` + `DAValidator` + NeoFS / L1 / DAC writers | Batch finalization checks the active DA policy; NeoFS is the default Neo-native external DA layer |
+| Forced inclusion protects users from sequencer censorship | `NeoHub.ForcedInclusion` + `SequencerBond` + `ChainRegistry` pauser wiring | Overdue forced txs can trigger at-most-once report, slashing, and chain pause when production wiring is enabled |
+| L2 system contracts expose bridge, messaging, fee, AA, and interop primitives | Neo core native L2 contracts under `external/neo` | Neo-native contracts expose equivalent primitives without EraVM bytecode/deployer/nonce-holder machinery |
+| ZK validity proof is the trustless settlement target | RISC-V/NeoVM execution receipt + SP1/Neo zkVM proof boundary + `ContractZkVerifier` route | Production ZK chains must register a real verifier and permanently disable `envelope-only`; devnet-only shortcuts must stay explicit |
+| `zkstack` / `zksync-cli` make the operator flow reproducible | `neo-stack`, `neo-hub-deploy`, SDKs, devnet runner | Operators get deterministic config bytes, deploy plans, post-deploy wiring checks, smoke tests, and wallet-owned signing |
+
+### Direct-copy boundary
+
+The following ZKsync ideas should be copied as closely as Neo permits:
+
+- shared bridge liquidity model and replay/nullifier discipline;
+- Bridgehub / CTM / Gateway topology;
+- explicit rollup-vs-validium DA selection;
+- global message-root aggregation for L2↔L2 interop;
+- staged governance, immutable restrictions, and emergency path separation;
+- forced inclusion with sequencer accountability;
+- operator CLI ergonomics and reproducible deployment plans.
+
+The following must remain Neo-native substitutions, not direct copies:
+
+- **EraVM / EVM system contracts** → NeoVM2/RISC-V runtime plus Neo core native L2 contracts;
+- **Boojum / Airbender circuit stack** → Neo execution proof adapter (currently SP1 over
+  the vendored Neo zkVM path, with RISC-V execution receipts as the N4 target);
+- **Ethereum ETH/ERC20 accounting** → GAS / NEO / NEP-17 accounting and UInt160 addresses;
+- **calldata-centric DA** → NeoFS / L1 / DAC DA modes;
+- **Solidity Diamond/facet upgrade mechanics** → deployed NeoHub contracts plus
+  `GovernanceController` staged upgrade windows.
+
+This is the architectural contract for "ZKsync Elastic Chain, but for Neo": maximum
+parity at the protocol boundary, deliberate divergence only where Ethereum-specific
+mechanics would be incorrect or inefficient on Neo.
+
+---
+
+## L1 trust model (read this first)
+
+The property that *defines* ZKsync's Elastic Chain is that L1 contracts verify a
+**validity proof** (a Boojum/Plonk SNARK) for every settled batch, so the L1 never has to
+trust the sequencer. neo4 is **topologically** aligned with the Elastic Chain — shared
+bridge, chain registry, aggregated message root, DA gate, forced inclusion, escape hatch —
+but it does **not yet ship an in-repo on-chain validity-proof verifier**. What an L1 batch
+settlement actually trusts today depends on the `ProofType` the chain is configured for:
+
+- **`ProofType.Multisig` (Stage 0)** — the L1 trusts a registered secp256r1 committee
+  (`MpcCommitteeVerifier`). The signature checks are real and fully on-chain; security is an
+  honest-majority assumption on the committee.
+- **`ProofType.Optimistic` (Stage 1)** — validity is *assumed* and the L1 relies on a
+  fraud-proof challenge window (`OptimisticChallenge`). This is an **optimistic-rollup
+  divergence** from ZKsync, which is a pure validity rollup. The on-chain fraud verifier
+  re-derives roots from storage proofs but does not yet re-execute the disputed transaction
+  on L1 (see [`IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md)).
+- **`ProofType.Zk` (Stage 2)** — the canonical batch/proof envelope is validated on-chain by
+  `ContractZkVerifier`, but the **SNARK math itself is not verified in-repo on-chain**.
+  `ContractZkVerifier` either dispatches to an operator-registered verifier contract (none
+  ships in this repository) or, in explicit devnet `envelope-only` mode, accepts the proof
+  with **no cryptographic check**. The real cryptographic verification runs **off-chain** in
+  the Rust SP1 prover/verifier under `external/neo-zkvm`. A chain that wants the trustless
+  guarantee must register a real on-chain verifier contract and call
+  `ContractZkVerifier.DisableEnvelopeOnlyPermanently` to permanently lock out the
+  envelope-only path.
+
+In short: neo4 reproduces the Elastic Chain's *architecture* and its *off-chain* ZK
+verification, but on-chain validity-proof verification — the trustless settlement core — is
+operator-supplied / out-of-process rather than shipped and wired in this repository. Rows
+below that read "parity" describe structural/topological parity unless stated otherwise; the
+proof-verification rows are explicitly marked **partial**.
+
+---
+
 ## Component map
 
 | ZKsync component | neo4 equivalent | Status |
@@ -24,12 +117,12 @@ see [`docs/audit/zksync-elastic-chain-validation-2026-05-18.md`](audit/zksync-el
 | **`L1Nullifier`** — withdrawal replay protection | `SharedBridge.PrefixWithdrawalConsumed` + `MessageRouter.PrefixConsumed` | parity |
 | **`MessageRoot.sol`** — aggregated L2→L1 root across all chains | `MessageRouter.PublishGlobalRoot` (0x05 slot) + off-chain `Neo.Plugins.L2Gateway.BinaryTreeAggregator` | parity |
 | **`ChainAssetHandler`** (per-asset routing rules) | absent | intentionally different (single trust model) |
-| **`ValidatorTimelock`** — commit→execute delay | `NeoHub.OptimisticChallenge` + `SettlementManager.StatusChallengeable` | parity (different mechanism) |
+| **`ValidatorTimelock`** — commit→execute delay on **already-proven** batches | `NeoHub.OptimisticChallenge` + `SettlementManager.StatusChallengeable` | **different security model, not parity** — ZKsync delays execution of batches whose validity proof already verified on L1; neo4's window is instead an *optimistic* fraud-proof game where validity is assumed absent a challenge (N4 `ProofType.Optimistic`, Stage 1). See **L1 trust model** above. |
 | **Governance / `ChainAdmin` / `PermanentRestriction` / `AccessControlRestriction`** | `NeoHub.GovernanceController` (immutable flags + staged proposal windows) | parity for shared governance; no ZKsync-style per-chain admin factory |
 | **`TransactionFilterer`** (per-chain L1→L2 tx hook) | `MessageRouter.SetL1TxFilter` + `NeoHub.L1TxFilter` | parity for L1→L2 enqueue filtering; L2 mempool filtering remains operator-specific |
 | **`L2AdminFactory` / per-chain `ChainAdmin`** | absent — chain-admin is hub-side `operatorManager` in `ChainRegistry.L2ChainConfig` | intentionally different |
 | **`BridgedStandardERC20`** — canonical L2 token | Neo Core native `BridgedNep17Contract` | parity at the canonical bridged-token level |
-| **Boojum / Plonk verifier contracts** | `NeoHub.{MpcCommittee,Governance,RestrictedExecution,ExternalBridgeStub}*Verifier` + pluggable via `VerifierRegistry` | parity |
+| **Boojum / Plonk verifier contracts** — on-chain validity-proof math | `NeoHub.ContractZkVerifier` routes `ProofType.Zk` to a governance-registered verifier contract; `NeoHub.{MpcCommittee,Governance,RestrictedExecution}*Verifier` cover the multisig/policy proof types | partial — **no in-repo SNARK verifier**: the Plonk/Boojum/Groth16 math is supplied by an operator-registered verifier contract (or skipped in devnet `envelope-only` mode). Real cryptographic verification runs **off-chain** in `external/neo-zkvm` (SP1). See **L1 trust model** above. |
 | **`CalldataDA` / `ValidiumL1DAValidator` / `RollupDAManager` / `RelayedSLDAValidator`** | `NeoHub.DARegistry` + `NeoHub.DAValidator` + off-chain writers in `Neo.Plugins.L2DA` | partial — DAC attestation gate exists; richer NeoFS/external inclusion adapters remain operator-specific |
 | **`BytecodesSupplier` / `*Upgrade` family / `UpgradeStageValidator`** | `GovernanceController` proposal pipeline with notice/execution/cooldown windows | parity for staged timing; no bytecode supplier because NeoVM uses ContractManagement |
 | **L2 `Bootloader`** | absent — NeoVM2/RISC-V runtime provides native dispatch | intentionally different |

@@ -1,6 +1,6 @@
 # Neo N4 中文规格书实施计划
 
-> 对应英文计划：[docs/superpowers/plans/2026-05-20-neo-n4-chinese-specification-book.md](../../../../superpowers/plans/2026-05-20-neo-n4-chinese-specification-book.md)
+> 对应英文计划：[docs/superpowers/plans/2026-05-20-neo-n4-chinese-specification-book.md](../../../superpowers/plans/2026-05-20-neo-n4-chinese-specification-book.md)
 
 **目标：** 新增一本面向读者的中文 Neo N4 规格书，让读者可以按章节理解设计、架构、实现、运维、测试与安全边界。
 

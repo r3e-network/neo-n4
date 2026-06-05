@@ -1,17 +1,18 @@
 # SDKs
 
 Typed app-developer SDKs for the Neo Elastic Network L2 RPC surface
-(`doc.md` §14.1). Three language bindings + one zero-build web app.
+(`doc.md` §14.1). Four language bindings + one zero-build web app.
 All wire-compatible with any node running `Neo.Plugins.L2Rpc`.
 
 | Path | Language | Tests |
 |------|----------|-------|
 | [`../src/Neo.L2.Sdk/`](../src/Neo.L2.Sdk/) | C# / .NET | 25 (`Neo.L2.Sdk.UnitTests`) |
-| [`typescript/`](./typescript/) | TypeScript | 15 (vitest) |
+| [`typescript/`](./typescript/) | TypeScript | 16 (vitest) |
 | [`rust/`](./rust/) | Rust | 10 (mockito) |
+| [`python/`](./python/) | Python | 12 (`unittest`) |
 | [`web-explorer/`](./web-explorer/) | static HTML + inlined JS | manual / smoke |
 
-All three typed SDKs follow the same shape:
+All four typed SDKs follow the same shape:
 
 - Constructor takes `(endpoint, chainId)`. ChainId is cross-checked against
   every response field that includes one — surfaces config errors early
@@ -34,9 +35,9 @@ build step.
 
 dApp developers building on top of an L2 chain use whatever they're
 already using. Forcing them onto one language stack costs adoption.
-.NET / TS / Rust covers the majority of contemporary dApp ecosystems;
-the wire format is fixed (JSON-RPC 2.0) so additional languages are
-straightforward operator-supplied wrappers.
+.NET / TS / Rust / Python covers the majority of contemporary dApp and
+operator ecosystems; the wire format is fixed (JSON-RPC 2.0) so additional
+languages are straightforward operator-supplied wrappers.
 
 ## Wallet integration
 

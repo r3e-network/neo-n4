@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neo-n4-sdk"
+version = "0.1.0"
+description = "Typed Python client for the Neo Elastic Network L2 RPC surface"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "r3e-network" }]
+keywords = ["neo", "neo-n4", "elastic-chain", "json-rpc", "sdk"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["neo_n4_sdk*"]
+
+[tool.setuptools.package-data]
+neo_n4_sdk = ["py.typed"]

@@ -5,15 +5,17 @@
 
 ## 本页用途
 
-这是 SDK 或客户端说明。中文版本用于解释安装、API 面和与 L2 RPC 的关系。
+这是 Neo Elastic Network L2 RPC SDK 总览。中文版本用于解释各语言客户端、
+安装入口、API 面和与 `Neo.Plugins.L2Rpc` 的关系。
 
 ## 中文摘要
 
-- 对应文件：sdk/README.md
-- 中文路径：docs/zh/sdk/README.md
-- 适用范围：Neo N4 项目的文档、架构、模块、工具、合约、测试或审计证据的一部分。
-- 一致性要求：术语、项目路径、命令、合约名称、模块名称、测试名称和安全结论必须与英文源文件保持一致。
-- 生产完备要求：如果英文源文件声明某模块已完成、已验证、已部署演练或已通过测试，中文版本不能降低或扩大该结论；必须同步记录同样的前提和限制。
+- 对应文件：sdk/README.md。
+- 当前 SDK 覆盖 C#/.NET、TypeScript、Rust、Python 四种类型化绑定，以及一个零构建静态 Web Explorer。
+- 四种类型化 SDK 都遵循同一形状：构造函数接收 `(endpoint, chainId)`，响应内出现 chainId 时必须交叉校验。
+- 四种类型化 SDK 都覆盖 `doc.md` §14.1 的 10 个 RPC 方法：批次、批次状态、状态根、提款证明、消息证明、L1 deposit 状态、资产映射、安全等级和完整安全标签。
+- 错误分类保持一致：`Transport`、`Protocol`、`Server`、`MismatchedChainId`。
+- Python SDK 位于 `sdk/python/`，使用标准库实现，测试命令为 `PYTHONPATH=sdk/python python3 -m unittest discover -s sdk/python/tests`。
 
 ## 维护检查清单
 

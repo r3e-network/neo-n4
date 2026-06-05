@@ -66,6 +66,10 @@ public class ExternalBridgeRegistryContract : SmartContract
     [DisplayName("GovernanceControllerChanged")]
     public static event Action<UInt160> OnGovernanceControllerChanged = default!;
 
+    /// <summary>Emitted when ownership is transferred.</summary>
+    [DisplayName("OwnerChanged")]
+    public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
+
     /// <summary>Set the initial owner. Same shape as VerifierRegistry._deploy.</summary>
     public static void _deploy(object data, bool update)
     {
@@ -81,6 +85,16 @@ public class ExternalBridgeRegistryContract : SmartContract
     {
         var raw = Storage.Get(new byte[] { KeyOwner });
         return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Transfer governance ownership. Owner only.</summary>
+    public static void SetOwner(UInt160 newOwner)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(newOwner.IsValid && !newOwner.IsZero, "invalid new owner");
+        var oldOwner = GetOwner();
+        Storage.Put(new byte[] { KeyOwner }, newOwner);
+        OnOwnerChanged(oldOwner, newOwner);
     }
 
     /// <summary>Wire the GovernanceController contract hash that
@@ -207,9 +221,11 @@ public class ExternalBridgeRegistryContract : SmartContract
         return raw == null ? (byte)0 : raw[0];
     }
 
-    /// <summary>Dispatch verification to the registered verifier. The verifier
-    /// contract must export <c>verifyInboundMessage(uint, byte[], byte[])</c>.
-    /// Reverts if no verifier is registered for <paramref name="externalChainId"/>.</summary>
+    /// <summary>
+    /// Dispatch verification to the registered verifier. The verifier contract
+    /// must export pure <c>verifyInboundMessage(uint, byte[], byte[])</c>.
+    /// Replay protection belongs to the escrow finalization path.
+    /// </summary>
     [Safe]
     public static bool VerifyInbound(uint externalChainId, byte[] messageBytes, byte[] proofBytes)
     {
@@ -231,6 +247,10 @@ public class ExternalBridgeRegistryContract : SmartContract
             || bridgeKind == BridgeKindOptimistic
             || bridgeKind == BridgeKindZk,
             "bridgeKind must be 1 (MPC), 2 (Optimistic), or 3 (ZK)");
+        var declaredKind = (byte)Contract.Call(verifier, "bridgeKind",
+            CallFlags.ReadOnly, new object[0]);
+        ExecutionEngine.Assert(declaredKind == bridgeKind,
+            "verifier bridgeKind does not match requested production bridgeKind");
 
         Storage.Put(VerifierKey(externalChainId), verifier);
         Storage.Put(BridgeKindKey(externalChainId), new byte[] { bridgeKind });

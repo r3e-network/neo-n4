@@ -40,6 +40,7 @@ public class ExternalBridgeBondContract : SmartContract
     private const byte PrefixSlasher = 0x02;          // 0x02 + slasher(20B) → 1
     private const byte KeyBondAsset = 0x03;
     private const byte KeyMinBond = 0x04;
+    private const byte PrefixPendingTransfer = 0x05;  // 0x05 + asset(20B) + from(20B) → 1
     private const byte KeyOwner = 0xFF;
 
     /// <summary>Default minimum bond — 10 GAS (committee membership is more
@@ -71,6 +72,10 @@ public class ExternalBridgeBondContract : SmartContract
     [DisplayName("SlasherRevoked")]
     public static event Action<UInt160> OnSlasherRevoked = default!;
 
+    /// <summary>Emitted when ownership is transferred.</summary>
+    [DisplayName("OwnerChanged")]
+    public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
+
     /// <summary>Set wiring on deploy. <c>data</c> = [owner, bondAsset].</summary>
     public static void _deploy(object data, bool update)
     {
@@ -91,6 +96,16 @@ public class ExternalBridgeBondContract : SmartContract
     {
         var raw = Storage.Get(new byte[] { KeyOwner });
         return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Transfer governance ownership. Owner only.</summary>
+    public static void SetOwner(UInt160 newOwner)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(newOwner.IsValid && !newOwner.IsZero, "invalid new owner");
+        var oldOwner = GetOwner();
+        Storage.Put(new byte[] { KeyOwner }, newOwner);
+        OnOwnerChanged(oldOwner, newOwner);
     }
 
     /// <summary>The NEP-17 asset bonded.</summary>
@@ -133,7 +148,7 @@ public class ExternalBridgeBondContract : SmartContract
     public static void RevokeSlasher(UInt160 slasher)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
-        Storage.Put(SlasherKey(slasher), null);
+        Storage.Delete(SlasherKey(slasher));
         OnSlasherRevoked(slasher);
     }
 
@@ -154,14 +169,21 @@ public class ExternalBridgeBondContract : SmartContract
         ExecutionEngine.Assert(amount > 0, "amount must be positive");
 
         var sender = (UInt160)Runtime.CallingScriptHash;
-        var ok = (bool)Contract.Call(GetBondAsset(), "transfer", CallFlags.All,
-            new object[] { sender, Runtime.ExecutingScriptHash, amount, null! });
-        ExecutionEngine.Assert(ok, "bond transfer failed");
 
+        // Update balance BEFORE external transfer to prevent re-entrant
+        // deposit double-counting. NeoVM FAULT on subsequent transfer failure
+        // reverts this write.
         var k = BalanceKey(externalChainId, member);
         var prev = Storage.Get(k);
         var newBal = (prev == null ? BigInteger.Zero : (BigInteger)prev) + amount;
         Storage.Put(k, newBal);
+
+        var pendingKey = PendingTransferKey(GetBondAsset(), sender);
+        Storage.Put(pendingKey, new byte[] { 1 });
+        var ok = (bool)Contract.Call(GetBondAsset(), "transfer", CallFlags.All,
+            new object[] { sender, Runtime.ExecutingScriptHash, amount, null! });
+        ExecutionEngine.Assert(ok, "bond transfer failed");
+        Storage.Delete(pendingKey);
         OnBondDeposited(externalChainId, member, newBal);
     }
 
@@ -236,16 +258,15 @@ public class ExternalBridgeBondContract : SmartContract
         OnBondWithdrawn(externalChainId, member, amount);
     }
 
-    /// <summary>NEP-17 onPayment hook — accept transfers (the Deposit flow
-    /// transfers into this contract). Reject direct user-initiated transfers
-    /// with non-null data to avoid orphaned funds.</summary>
+    /// <summary>NEP-17 hook. Accept only transfers initiated by <see cref="Deposit"/>.</summary>
     public static void OnNEP17Payment(UInt160 from, BigInteger amount, object data)
     {
-        if (data != null)
-        {
-            ExecutionEngine.Assert(false,
-                "direct transfer rejected — call Deposit to credit a member's bond");
-        }
+        ExecutionEngine.Assert(amount > 0, "amount must be positive");
+        var asset = (UInt160)Runtime.CallingScriptHash;
+        var pendingKey = PendingTransferKey(asset, from);
+        ExecutionEngine.Assert(Storage.Get(pendingKey) != null,
+            "direct transfer rejected — call Deposit to credit a member's bond");
+        Storage.Delete(pendingKey);
     }
 
     private static byte[] BalanceKey(uint externalChainId, UInt160 member)
@@ -266,5 +287,19 @@ public class ExternalBridgeBondContract : SmartContract
         var s = (byte[])slasher;
         for (var i = 0; i < 20; i++) k[1 + i] = s[i];
         return k;
+    }
+
+    private static byte[] PendingTransferKey(UInt160 asset, UInt160 from)
+    {
+        var key = new byte[1 + 20 + 20];
+        key[0] = PrefixPendingTransfer;
+        var assetBytes = (byte[])asset;
+        var fromBytes = (byte[])from;
+        for (var i = 0; i < 20; i++)
+        {
+            key[1 + i] = assetBytes[i];
+            key[21 + i] = fromBytes[i];
+        }
+        return key;
     }
 }

@@ -51,6 +51,10 @@ public class MessageRouterContract : SmartContract
     [DisplayName("MessageRootsPublished")]
     public static event Action<uint, ulong, UInt256, UInt256> OnMessageRootsPublished = default!;
 
+    /// <summary>Emitted when ownership is transferred.</summary>
+    [DisplayName("OwnerChanged")]
+    public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
+
     /// <summary>Set wiring on deploy.</summary>
     public static void _deploy(object data, bool update)
     {
@@ -75,10 +79,20 @@ public class MessageRouterContract : SmartContract
         return raw == null ? UInt160.Zero : (UInt160)raw;
     }
 
+    /// <summary>Transfer governance ownership. Owner only.</summary>
+    public static void SetOwner(UInt160 newOwner)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(newOwner.IsValid && !newOwner.IsZero, "invalid new owner");
+        var oldOwner = GetOwner();
+        Storage.Put(new byte[] { KeyOwner }, newOwner);
+        OnOwnerChanged(oldOwner, newOwner);
+    }
+
     /// <summary>
-    /// Enqueue an L1 → L2 message. Anyone may call. The L2 watches its inbox and consumes the
-    /// message in its next batch; replay protection lives on the L2 side via the (sourceChain,
-    /// nonce) bitmap.
+    /// Enqueue an L1 → L2 message. Anyone may call. The L2 watches its inbox and consumes
+    /// the message in its next batch; replay protection lives on the L2 side via the
+    /// (sourceChain, nonce) bitmap.
     /// </summary>
     public static ulong EnqueueL1ToL2(uint targetChainId, UInt160 receiver, byte messageType, byte[] payload)
     {

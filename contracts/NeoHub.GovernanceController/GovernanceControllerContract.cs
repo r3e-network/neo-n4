@@ -88,6 +88,10 @@ public class GovernanceControllerContract : SmartContract
     [DisplayName("BridgeAdapterRevoked")]
     public static event Action<UInt160> OnBridgeAdapterRevoked = default!;
 
+    /// <summary>Emitted when ownership is transferred.</summary>
+    [DisplayName("OwnerChanged")]
+    public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
+
     /// <summary>Set initial council + thresholds at deploy.</summary>
     public static void _deploy(object data, bool update)
     {
@@ -123,6 +127,24 @@ public class GovernanceControllerContract : SmartContract
             for (var j = 0; j < 33; j++) key[1 + j] = pk[j];
             Storage.Put(key, new byte[] { 1 });
         }
+    }
+
+    /// <summary>Owner — controls admission policy, upgrade windows, and allowlisted verifier/bridge sets.</summary>
+    [Safe]
+    public static UInt160 GetOwner()
+    {
+        var raw = Storage.Get(new byte[] { KeyOwner });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Transfer governance ownership. Owner only.</summary>
+    public static void SetOwner(UInt160 newOwner)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(newOwner.IsValid && !newOwner.IsZero, "invalid new owner");
+        var oldOwner = GetOwner();
+        Storage.Put(new byte[] { KeyOwner }, newOwner);
+        OnOwnerChanged(oldOwner, newOwner);
     }
 
     /// <summary>True if the given key is a current council member.</summary>
@@ -172,8 +194,7 @@ public class GovernanceControllerContract : SmartContract
     public static void SetAdmissionMode(byte mode)
     {
         ExecutionEngine.Assert(mode <= 2, "invalid admission mode");
-        var owner = (UInt160)(Storage.Get(new byte[] { KeyOwner }) ?? throw new Exception("owner unset"));
-        ExecutionEngine.Assert(Runtime.CheckWitness(owner), "not authorized");
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         Storage.Put(new byte[] { KeyAdmissionMode }, new byte[] { mode });
         OnAdmissionModeChanged(mode);
     }
@@ -309,8 +330,7 @@ public class GovernanceControllerContract : SmartContract
     /// <summary>Set staged-upgrade timing windows. Owner only.</summary>
     public static void SetUpgradeWindows(uint noticeSeconds, uint executionWindowSeconds, uint cooldownSeconds)
     {
-        var owner = (UInt160)(Storage.Get(new byte[] { KeyOwner }) ?? throw new Exception("owner unset"));
-        ExecutionEngine.Assert(Runtime.CheckWitness(owner), "not authorized");
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(noticeSeconds > 0, "notice must be positive");
         ExecutionEngine.Assert(executionWindowSeconds > 0, "execution window must be positive");
         ExecutionEngine.Assert(cooldownSeconds > 0, "cooldown must be positive");
@@ -389,8 +409,7 @@ public class GovernanceControllerContract : SmartContract
     /// </summary>
     public static void MarkProposalExecuted(ulong proposalId)
     {
-        var owner = (UInt160)(Storage.Get(new byte[] { KeyOwner }) ?? throw new Exception("owner unset"));
-        ExecutionEngine.Assert(Runtime.CheckWitness(owner), "not authorized");
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(IsInExecutionWindow(proposalId), "proposal not executable");
         var key = ProposalIdKey(PrefixProposalExecutedAt, proposalId);
         ExecutionEngine.Assert(Storage.Get(key) == null, "proposal already executed");
@@ -442,8 +461,7 @@ public class GovernanceControllerContract : SmartContract
     public static void ApproveVerifier(UInt160 verifier)
     {
         ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero, "invalid verifier");
-        var owner = (UInt160)(Storage.Get(new byte[] { KeyOwner }) ?? throw new Exception("owner unset"));
-        ExecutionEngine.Assert(Runtime.CheckWitness(owner), "not authorized");
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         Storage.Put(VerifierKey(verifier), new byte[] { 1 });
         OnVerifierApproved(verifier);
     }
@@ -453,8 +471,7 @@ public class GovernanceControllerContract : SmartContract
     public static void RevokeVerifier(UInt160 verifier)
     {
         ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero, "invalid verifier");
-        var owner = (UInt160)(Storage.Get(new byte[] { KeyOwner }) ?? throw new Exception("owner unset"));
-        ExecutionEngine.Assert(Runtime.CheckWitness(owner), "not authorized");
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         Storage.Delete(VerifierKey(verifier));
         OnVerifierRevoked(verifier);
     }
@@ -470,8 +487,7 @@ public class GovernanceControllerContract : SmartContract
     public static void ApproveBridgeAdapter(UInt160 bridge)
     {
         ExecutionEngine.Assert(bridge.IsValid && !bridge.IsZero, "invalid bridge");
-        var owner = (UInt160)(Storage.Get(new byte[] { KeyOwner }) ?? throw new Exception("owner unset"));
-        ExecutionEngine.Assert(Runtime.CheckWitness(owner), "not authorized");
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         Storage.Put(BridgeKey(bridge), new byte[] { 1 });
         OnBridgeAdapterApproved(bridge);
     }
@@ -480,8 +496,7 @@ public class GovernanceControllerContract : SmartContract
     public static void RevokeBridgeAdapter(UInt160 bridge)
     {
         ExecutionEngine.Assert(bridge.IsValid && !bridge.IsZero, "invalid bridge");
-        var owner = (UInt160)(Storage.Get(new byte[] { KeyOwner }) ?? throw new Exception("owner unset"));
-        ExecutionEngine.Assert(Runtime.CheckWitness(owner), "not authorized");
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         Storage.Delete(BridgeKey(bridge));
         OnBridgeAdapterRevoked(bridge);
     }
@@ -508,8 +523,7 @@ public class GovernanceControllerContract : SmartContract
     /// </remarks>
     public static void SetImmutableFlag(byte flagId)
     {
-        var owner = (UInt160)(Storage.Get(new byte[] { KeyOwner }) ?? throw new Exception("owner unset"));
-        ExecutionEngine.Assert(Runtime.CheckWitness(owner), "not authorized");
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         var key = ImmutableFlagKey(flagId);
         if (Storage.Get(key) == null)
         {

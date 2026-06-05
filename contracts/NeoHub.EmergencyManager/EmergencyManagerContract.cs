@@ -11,6 +11,8 @@ namespace NeoHub.EmergencyManager;
 /// Provides the global pause flag and the escape-hatch withdrawal path. See doc.md §3.2
 /// (EmergencyManager) and §15.5 (Emergency Exit). Other NeoHub contracts consult
 /// <see cref="IsPaused"/> before mutating state.
+/// Asset payouts during a pause use <c>SharedBridge.EmergencyFinalizeWithdrawalWithProof</c>,
+/// which reuses the canonical withdrawal-root proof and transfers escrowed assets.
 /// </summary>
 [DisplayName("NeoHub.EmergencyManager")]
 [ContractAuthor("Neo Project", "dev@neo.org")]

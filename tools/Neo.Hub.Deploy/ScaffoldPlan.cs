@@ -253,6 +253,9 @@ public static class ScaffoldPlan
         var contractZkVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "ContractZkVerifier");
         var gc = bundle.Invocations.FirstOrDefault(i => i.Name == "GovernanceController");
         var sm = bundle.Invocations.FirstOrDefault(i => i.Name == "SettlementManager");
+        var forcedInclusion = bundle.Invocations.FirstOrDefault(i => i.Name == "ForcedInclusion");
+        var sharedBridge = bundle.Invocations.FirstOrDefault(i => i.Name == "SharedBridge");
+        var emergencyManager = bundle.Invocations.FirstOrDefault(i => i.Name == "EmergencyManager");
         var daRegistry = bundle.Invocations.FirstOrDefault(i => i.Name == "DARegistry");
         var daValidator = bundle.Invocations.FirstOrDefault(i => i.Name == "DAValidator");
         var messageRouter = bundle.Invocations.FirstOrDefault(i => i.Name == "MessageRouter");
@@ -268,6 +271,24 @@ public static class ScaffoldPlan
         if (bond is not null && oc is not null)
         {
             yield return $"SequencerBond.RegisterSlasher({oc.Name})  # enable Phase-3 challenge slashing (broken cycle: bond→challenge dep is post-deploy)";
+        }
+        if (bond is not null && forcedInclusion is not null)
+        {
+            yield return $"{bond.Name}.RegisterSlasher({forcedInclusion.Name})  # enable §15.4 forced-inclusion censorship slashing";
+        }
+        if (chainReg is not null && forcedInclusion is not null)
+        {
+            yield return $"{chainReg.Name}.RegisterPauser({forcedInclusion.Name})  # let proven censorship pause the affected L2 chain before more batches finalize";
+            yield return $"{forcedInclusion.Name}.SetChainRegistry({chainReg.Name})  # wire §15.4 censorship reports to ChainRegistry.PauseChain";
+        }
+        if (forcedInclusion is not null && bond is not null)
+        {
+            yield return $"{forcedInclusion.Name}.SetSequencerBond({bond.Name})  # wire §15.4 censorship reports to SequencerBond.Slash";
+            yield return $"{forcedInclusion.Name}.SetCensorshipSlashAmount(1000000)  # production default: slash 1.0 GAS per overdue forced-inclusion entry";
+        }
+        if (sharedBridge is not null && emergencyManager is not null)
+        {
+            yield return $"{sharedBridge.Name}.SetEmergencyManager({emergencyManager.Name})  # enable paused-only emergency withdrawal payouts";
         }
         if (chainReg is not null && gc is not null)
         {

@@ -45,8 +45,14 @@ public class ExternalBridgeEscrowContract : SmartContract
     private const byte PrefixOutboundNonce = 0x01;
     private const byte PrefixConsumedInboundNonce = 0x02;
     private const byte PrefixLockedBalance = 0x03;
+    private const byte PrefixPendingTransfer = 0x04;
     private const byte KeyRegistry = 0xFE;
     private const byte KeyOwner = 0xFF;
+    private const int OffsetExternalChainId = 0;
+    private const int OffsetNonce = 8;
+    private const int OffsetDirection = 16;
+    private const int OffsetDeadlineUnixSeconds = 57;
+    private const int OffsetMessageType = 97;
 
     /// <summary>Emitted on outbound send (Neo → foreign). Off-chain watchers
     /// listen for this event to attest the message on the foreign chain.</summary>
@@ -61,6 +67,10 @@ public class ExternalBridgeEscrowContract : SmartContract
     /// <summary>Emitted when the registry contract hash is changed.</summary>
     [DisplayName("RegistryChanged")]
     public static event Action<UInt160> OnRegistryChanged = default!;
+
+    /// <summary>Emitted when ownership is transferred.</summary>
+    [DisplayName("OwnerChanged")]
+    public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
 
     /// <summary>Set the initial owner + registry hash on deploy.</summary>
     public static void _deploy(object data, bool update)
@@ -81,6 +91,16 @@ public class ExternalBridgeEscrowContract : SmartContract
     {
         var raw = Storage.Get(new byte[] { KeyOwner });
         return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Transfer governance ownership. Owner only.</summary>
+    public static void SetOwner(UInt160 newOwner)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(newOwner.IsValid && !newOwner.IsZero, "invalid new owner");
+        var oldOwner = GetOwner();
+        Storage.Put(new byte[] { KeyOwner }, newOwner);
+        OnOwnerChanged(oldOwner, newOwner);
     }
 
     /// <summary>The currently-wired ExternalBridgeRegistry hash.</summary>
@@ -126,14 +146,11 @@ public class ExternalBridgeEscrowContract : SmartContract
         ExecutionEngine.Assert(asset.IsValid && !asset.IsZero, "invalid asset");
         ExecutionEngine.Assert(amount > 0, "amount must be positive");
 
-        // Lock the asset by transferring it to this contract.
-        var sender = (UInt160)Runtime.CallingScriptHash;
-        var ok = (bool)Contract.Call(asset, "transfer", CallFlags.All,
-            new object[] { sender, Runtime.ExecutingScriptHash, amount, null! });
-        ExecutionEngine.Assert(ok, "asset transfer failed (lock)");
-
-        // Update locked-balance accounting. Storage.Get returns ByteString;
-        // cast to BigInteger directly (the framework supports the implicit conversion).
+        // Update locked-balance accounting and allocate nonce BEFORE calling
+        // the external NEP-17 transfer. If the transfer subsequently fails,
+        // NeoVM FAULT reverts the storage writes, so there is no stale state.
+        // This CEI ordering prevents a re-entrant token from re-using the same
+        // nonce and double-locking the same deposit.
         var balKey = LockedBalanceKey(externalChainId, asset);
         var prev = Storage.Get(balKey);
         var prevAmount = prev == null ? BigInteger.Zero : (BigInteger)prev;
@@ -160,6 +177,15 @@ public class ExternalBridgeEscrowContract : SmartContract
         nextBytes[6] = (byte)(next >> 48); nextBytes[7] = (byte)(next >> 56);
         Storage.Put(nonceKey, nextBytes);
 
+        // Lock the asset by transferring it to this contract.
+        var sender = (UInt160)Runtime.CallingScriptHash;
+        var pendingKey = PendingTransferKey(asset, sender);
+        Storage.Put(pendingKey, new byte[] { 1 });
+        var ok = (bool)Contract.Call(asset, "transfer", CallFlags.All,
+            new object[] { sender, Runtime.ExecutingScriptHash, amount, null! });
+        ExecutionEngine.Assert(ok, "asset transfer failed (lock)");
+        Storage.Delete(pendingKey);
+
         // Emit the canonical send event. The `calldata` blob is the payload —
         // off-chain watchers re-encode the full ExternalCrossChainMessage from
         // these args + nonce + their observation timestamp and sign the hash.
@@ -182,19 +208,37 @@ public class ExternalBridgeEscrowContract : SmartContract
         ExecutionEngine.Assert(messageBytes.Length >= 102,
             "messageBytes too short");
 
-        // Parse the nonce (offset 8, 8B LE) and direction (offset 16, 1B) from the
-        // canonical ExternalCrossChainMessage layout — replay key + sanity check.
+        // Parse fields from the canonical ExternalCrossChainMessage layout.
+        var signedExternalChainId =
+            (uint)messageBytes[OffsetExternalChainId]
+            | ((uint)messageBytes[OffsetExternalChainId + 1] << 8)
+            | ((uint)messageBytes[OffsetExternalChainId + 2] << 16)
+            | ((uint)messageBytes[OffsetExternalChainId + 3] << 24);
+        ExecutionEngine.Assert(signedExternalChainId == externalChainId,
+            "externalChainId argument does not match signed message domain");
+
         var nonce =
-            (ulong)messageBytes[8]
-            | ((ulong)messageBytes[9] << 8)
-            | ((ulong)messageBytes[10] << 16)
-            | ((ulong)messageBytes[11] << 24)
-            | ((ulong)messageBytes[12] << 32)
-            | ((ulong)messageBytes[13] << 40)
-            | ((ulong)messageBytes[14] << 48)
-            | ((ulong)messageBytes[15] << 56);
-        var direction = messageBytes[16];
+            (ulong)messageBytes[OffsetNonce]
+            | ((ulong)messageBytes[OffsetNonce + 1] << 8)
+            | ((ulong)messageBytes[OffsetNonce + 2] << 16)
+            | ((ulong)messageBytes[OffsetNonce + 3] << 24)
+            | ((ulong)messageBytes[OffsetNonce + 4] << 32)
+            | ((ulong)messageBytes[OffsetNonce + 5] << 40)
+            | ((ulong)messageBytes[OffsetNonce + 6] << 48)
+            | ((ulong)messageBytes[OffsetNonce + 7] << 56);
+        var direction = messageBytes[OffsetDirection];
         ExecutionEngine.Assert(direction == 2, "direction must be 2 (ForeignToNeo)");
+        var deadlineUnixSeconds =
+            (ulong)messageBytes[OffsetDeadlineUnixSeconds]
+            | ((ulong)messageBytes[OffsetDeadlineUnixSeconds + 1] << 8)
+            | ((ulong)messageBytes[OffsetDeadlineUnixSeconds + 2] << 16)
+            | ((ulong)messageBytes[OffsetDeadlineUnixSeconds + 3] << 24)
+            | ((ulong)messageBytes[OffsetDeadlineUnixSeconds + 4] << 32)
+            | ((ulong)messageBytes[OffsetDeadlineUnixSeconds + 5] << 40)
+            | ((ulong)messageBytes[OffsetDeadlineUnixSeconds + 6] << 48)
+            | ((ulong)messageBytes[OffsetDeadlineUnixSeconds + 7] << 56);
+        ExecutionEngine.Assert(deadlineUnixSeconds == 0 || Runtime.Time / 1000UL <= deadlineUnixSeconds,
+            "external bridge message expired");
 
         // Replay protection at the escrow layer (the verifier ALSO replay-protects;
         // this catches a verifier that's been swapped to one without nonce tracking).
@@ -211,7 +255,7 @@ public class ExternalBridgeEscrowContract : SmartContract
 
         // Mark consumed + emit settlement event.
         Storage.Put(consumedKey, new byte[] { 1 });
-        var messageType = messageBytes[81]; // offset: 4+4+8+1+20+20+8+32 - 16 = 81
+        var messageType = messageBytes[OffsetMessageType];
         OnCrossChainInboundFinalized(externalChainId, nonce, messageType);
     }
 
@@ -246,21 +290,15 @@ public class ExternalBridgeEscrowContract : SmartContract
         return Storage.Get(ConsumedInboundKey(externalChainId, nonce)) != null;
     }
 
-    /// <summary>NEP-17 onPayment hook — accept transfers (the Send flow
-    /// transfers into this contract). Reject all unsolicited transfers so a
-    /// user can't accidentally send tokens to the contract directly and
-    /// have them counted as a Send.</summary>
+    /// <summary>NEP-17 hook. Accept only transfers initiated by <see cref="Send"/>.</summary>
     public static void OnNEP17Payment(UInt160 from, BigInteger amount, object data)
     {
-        // The Send flow uses Contract.Call(asset, "transfer", ...) which routes
-        // through this hook; the data field will be null. We accept those.
-        // Direct user-initiated transfers (with non-null data) get rejected so
-        // tokens don't go missing from the escrow's POV.
-        if (data != null)
-        {
-            ExecutionEngine.Assert(false,
-                "direct transfer rejected — call Send to lock assets for cross-chain transfer");
-        }
+        ExecutionEngine.Assert(amount > 0, "amount must be positive");
+        var asset = (UInt160)Runtime.CallingScriptHash;
+        var pendingKey = PendingTransferKey(asset, from);
+        ExecutionEngine.Assert(Storage.Get(pendingKey) != null,
+            "direct transfer rejected — call Send to lock assets for cross-chain transfer");
+        Storage.Delete(pendingKey);
     }
 
     private static byte[] OutboundNonceKey(uint externalChainId)
@@ -300,5 +338,19 @@ public class ExternalBridgeEscrowContract : SmartContract
         var assetBytes = (byte[])asset;
         for (var i = 0; i < 20; i++) k[5 + i] = assetBytes[i];
         return k;
+    }
+
+    private static byte[] PendingTransferKey(UInt160 asset, UInt160 from)
+    {
+        var key = new byte[1 + 20 + 20];
+        key[0] = PrefixPendingTransfer;
+        var assetBytes = (byte[])asset;
+        var fromBytes = (byte[])from;
+        for (var i = 0; i < 20; i++)
+        {
+            key[1 + i] = assetBytes[i];
+            key[21 + i] = fromBytes[i];
+        }
+        return key;
     }
 }

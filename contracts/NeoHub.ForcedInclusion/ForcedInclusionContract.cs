@@ -38,6 +38,10 @@ public class ForcedInclusionContract : SmartContract
     private const byte KeyFeeAmount = 0x05;            // GAS amount charged per enqueue (BigInteger)
     private const byte KeyFeeRecipient = 0x06;         // 20B address that receives the fees
     private const byte KeyGasToken = 0x07;             // 20B GAS contract hash (operator-configurable for testnet/local)
+    private const byte PrefixReported = 0x08;          // 0x08 + chainId(4B) + nonce(8B) → 1
+    private const byte KeySequencerBond = 0x09;        // 20B SequencerBond contract hash
+    private const byte KeyChainRegistry = 0x0A;        // 20B ChainRegistry contract hash for per-chain pause
+    private const byte KeyCensorshipSlashAmount = 0x0B;// BigInteger amount slashed per overdue entry
     private const byte KeySettlementManager = 0xFD;
     private const byte KeyOwner = 0xFF;
 
@@ -76,12 +80,24 @@ public class ForcedInclusionContract : SmartContract
     [DisplayName("ForcedInclusionFeeCharged")]
     public static event Action<UInt160, UInt160, BigInteger> OnFeeCharged = default!;
 
+    /// <summary>Emitted when SequencerBond wiring changes.</summary>
+    [DisplayName("SequencerBondChanged")]
+    public static event Action<UInt160> OnSequencerBondChanged = default!;
+
+    /// <summary>Emitted when ChainRegistry wiring changes.</summary>
+    [DisplayName("ChainRegistryChanged")]
+    public static event Action<UInt160> OnChainRegistryChanged = default!;
+
+    /// <summary>Emitted when the per-report slash amount changes.</summary>
+    [DisplayName("CensorshipSlashAmountChanged")]
+    public static event Action<BigInteger, BigInteger> OnCensorshipSlashAmountChanged = default!;
+
+    /// <summary>Emitted when ownership is transferred.</summary>
+    [DisplayName("OwnerChanged")]
+    public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
+
     /// <summary>
-    /// Set wiring at deploy time. Data tuple:
-    /// <c>[owner, settlementManager, deadlineSeconds?, gasTokenHash?]</c> — the optional
-    /// 4th element is the GAS NEP-17 contract hash; defaults to <see cref="UInt160.Zero"/>
-    /// (operator must call <see cref="SetGasToken"/> before enabling fees).
-    /// </summary>
+    /// Set wiring at deploy time.</summary>
     public static void _deploy(object data, bool update)
     {
         if (update) return;
@@ -107,6 +123,26 @@ public class ForcedInclusionContract : SmartContract
             ExecutionEngine.Assert(gas.IsValid && !gas.IsZero, "invalid gas token hash");
             Storage.Put(new byte[] { KeyGasToken }, gas);
         }
+        if (arr.Length >= 5)
+        {
+            var sequencerBond = (UInt160)arr[4];
+            ExecutionEngine.Assert(sequencerBond.IsValid && !sequencerBond.IsZero,
+                "invalid sequencer bond");
+            Storage.Put(new byte[] { KeySequencerBond }, sequencerBond);
+        }
+        if (arr.Length >= 6)
+        {
+            var chainRegistry = (UInt160)arr[5];
+            ExecutionEngine.Assert(chainRegistry.IsValid && !chainRegistry.IsZero,
+                "invalid chain registry");
+            Storage.Put(new byte[] { KeyChainRegistry }, chainRegistry);
+        }
+        if (arr.Length >= 7)
+        {
+            var slashAmount = (BigInteger)arr[6];
+            ExecutionEngine.Assert(slashAmount >= 0, "slash amount must be non-negative");
+            Storage.Put(new byte[] { KeyCensorshipSlashAmount }, slashAmount);
+        }
     }
 
     /// <summary>Governance owner.</summary>
@@ -115,6 +151,16 @@ public class ForcedInclusionContract : SmartContract
     {
         var raw = Storage.Get(new byte[] { KeyOwner });
         return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Transfer governance ownership. Owner only.</summary>
+    public static void SetOwner(UInt160 newOwner)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(newOwner.IsValid && !newOwner.IsZero, "invalid new owner");
+        var oldOwner = GetOwner();
+        Storage.Put(new byte[] { KeyOwner }, newOwner);
+        OnOwnerChanged(oldOwner, newOwner);
     }
 
     /// <summary>Configured censorship deadline in seconds.</summary>
@@ -157,6 +203,30 @@ public class ForcedInclusionContract : SmartContract
     {
         var raw = Storage.Get(new byte[] { KeyGasToken });
         return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>SequencerBond contract used for censorship slashing. Zero means warning-only mode.</summary>
+    [Safe]
+    public static UInt160 GetSequencerBond()
+    {
+        var raw = Storage.Get(new byte[] { KeySequencerBond });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>ChainRegistry contract used to pause a censored chain. Zero means no auto-pause.</summary>
+    [Safe]
+    public static UInt160 GetChainRegistry()
+    {
+        var raw = Storage.Get(new byte[] { KeyChainRegistry });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Amount slashed from the responsible sequencer per accepted censorship report.</summary>
+    [Safe]
+    public static BigInteger GetCensorshipSlashAmount()
+    {
+        var raw = Storage.Get(new byte[] { KeyCensorshipSlashAmount });
+        return raw == null ? BigInteger.Zero : (BigInteger)raw;
     }
 
     /// <summary>
@@ -203,6 +273,36 @@ public class ForcedInclusionContract : SmartContract
         OnGasTokenChanged(old, gasContract);
     }
 
+    /// <summary>Owner-gated: wire SequencerBond so reports slash the responsible sequencer.</summary>
+    public static void SetSequencerBond(UInt160 sequencerBond)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(sequencerBond.IsValid && !sequencerBond.IsZero,
+            "invalid sequencer bond");
+        Storage.Put(new byte[] { KeySequencerBond }, sequencerBond);
+        OnSequencerBondChanged(sequencerBond);
+    }
+
+    /// <summary>Owner-gated: wire ChainRegistry so reports pause the affected L2 chain.</summary>
+    public static void SetChainRegistry(UInt160 chainRegistry)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(chainRegistry.IsValid && !chainRegistry.IsZero,
+            "invalid chain registry");
+        Storage.Put(new byte[] { KeyChainRegistry }, chainRegistry);
+        OnChainRegistryChanged(chainRegistry);
+    }
+
+    /// <summary>Owner-gated: set the per-report sequencer slash amount. Zero = warning-only.</summary>
+    public static void SetCensorshipSlashAmount(BigInteger amount)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(amount >= 0, "slash amount must be non-negative");
+        var old = GetCensorshipSlashAmount();
+        Storage.Put(new byte[] { KeyCensorshipSlashAmount }, amount);
+        OnCensorshipSlashAmountChanged(old, amount);
+    }
+
     /// <summary>
     /// Submit a forced L2 transaction. Stores the encoded payload + the L1 timestamp at which
     /// the sequencer must include it.
@@ -224,26 +324,10 @@ public class ForcedInclusionContract : SmartContract
         // the whole enqueue fails — caller's nonce stays untouched and no entry is
         // stored. Fee == 0 is the legacy fee-free path; non-zero requires the recipient
         // + gas-token to be wired (SetFee enforces this at config time).
-        var fee = GetFee();
-        if (fee > 0)
-        {
-            var recipient = GetFeeRecipient();
-            var gas = GetGasToken();
-            // Defensive re-checks: fee > 0 should imply recipient/gas are set (SetFee
-            // enforces it), but a Storage.Put bug or out-of-band manipulation could
-            // leave fee>0 without recipient. Surface the misconfig clearly.
-            ExecutionEngine.Assert(recipient.IsValid && !recipient.IsZero, "fee recipient unset");
-            ExecutionEngine.Assert(gas.IsValid && !gas.IsZero, "gas token unset");
-            // Caller must have authorized this contract to spend their GAS (Neo's
-            // standard NEP-17 transfer pattern uses CheckWitness internally on `from`,
-            // so the wallet that signed the EnqueueForcedTransaction tx has approved
-            // both intents).
-            var transferred = (bool)Contract.Call(gas, "transfer", CallFlags.All,
-                new object[] { caller, recipient, fee, null! });
-            ExecutionEngine.Assert(transferred, "fee transfer failed");
-            OnFeeCharged(caller, recipient, fee);
-        }
-
+        // Write nonce + entry BEFORE fee transfer (CEI ordering). If the
+        // fee transfer subsequently fails, NeoVM FAULT reverts both writes
+        // so there is no stale nonce or orphaned entry. A re-entrant token
+        // cannot re-use the same nonce.
         var nonceKey = NonceKey(chainId);
         var raw = Storage.Get(nonceKey);
         var nonce = raw == null ? 1UL : (ulong)(BigInteger)raw + 1UL;
@@ -253,6 +337,19 @@ public class ForcedInclusionContract : SmartContract
         var enqueuedAt = (uint)(Runtime.Time / 1000u); // ms → seconds
         var payload = EncodeEntry(caller, txHash, encodedTx, enqueuedAt + deadline);
         Storage.Put(EntryKey(chainId, nonce), payload);
+
+        var fee = GetFee();
+        if (fee > 0)
+        {
+            var recipient = GetFeeRecipient();
+            var gas = GetGasToken();
+            ExecutionEngine.Assert(recipient.IsValid && !recipient.IsZero, "fee recipient unset");
+            ExecutionEngine.Assert(gas.IsValid && !gas.IsZero, "gas token unset");
+            var transferred = (bool)Contract.Call(gas, "transfer", CallFlags.All,
+                new object[] { caller, recipient, fee, null! });
+            ExecutionEngine.Assert(transferred, "fee transfer failed");
+            OnFeeCharged(caller, recipient, fee);
+        }
 
         OnForcedTxEnqueued(chainId, nonce, caller, txHash);
         return nonce;
@@ -284,14 +381,25 @@ public class ForcedInclusionContract : SmartContract
         return Storage.Get(ConsumedKey(chainId, nonce)) != null;
     }
 
+    /// <summary>True if (chainId, nonce) has already produced a censorship report.</summary>
+    [Safe]
+    public static bool IsCensorshipReported(uint chainId, ulong nonce)
+    {
+        return Storage.Get(ReportedKey(chainId, nonce)) != null;
+    }
+
     /// <summary>
     /// Anyone can call to flag censorship if the deadline has passed and the entry is still
-    /// unconsumed. Returns true on a successful report; the SettlementManager hook is left to
-    /// governance / production wiring (slashing logic depends on bond contract).
+    /// unconsumed. Returns true on a successful report. When production wiring is set, the
+    /// report is at-most-once, slashes the responsible sequencer through SequencerBond, and
+    /// pauses the affected L2 chain through ChainRegistry.
     /// </summary>
     public static bool ReportCensorship(uint chainId, ulong nonce, UInt160 sequencer)
     {
+        ExecutionEngine.Assert(sequencer.IsValid && !sequencer.IsZero, "invalid sequencer");
         ExecutionEngine.Assert(!IsConsumed(chainId, nonce), "already consumed");
+        var reportedKey = ReportedKey(chainId, nonce);
+        ExecutionEngine.Assert(Storage.Get(reportedKey) == null, "censorship already reported");
         var rawEntry = Storage.Get(EntryKey(chainId, nonce));
         ExecutionEngine.Assert(rawEntry != null, "entry not found");
 
@@ -302,8 +410,25 @@ public class ForcedInclusionContract : SmartContract
         var nowSec = (uint)(Runtime.Time / 1000u);
         if (nowSec < deadline) return false;
 
+        Storage.Put(reportedKey, new byte[] { 1 });
+
+        var slashAmount = GetCensorshipSlashAmount();
+        if (slashAmount > 0)
+        {
+            var sequencerBond = GetSequencerBond();
+            ExecutionEngine.Assert(sequencerBond.IsValid && !sequencerBond.IsZero,
+                "sequencer bond unset");
+            Contract.Call(sequencerBond, "slash", CallFlags.All,
+                new object[] { chainId, sequencer, slashAmount, Runtime.CallingScriptHash });
+        }
+
+        var chainRegistry = GetChainRegistry();
+        if (chainRegistry.IsValid && !chainRegistry.IsZero)
+        {
+            Contract.Call(chainRegistry, "pauseChain", CallFlags.All, new object[] { chainId });
+        }
+
         OnSequencerCensorshipReported(chainId, nonce, sequencer);
-        // Production: call SettlementManager to slash sequencer + pause finalization.
         return true;
     }
 
@@ -320,6 +445,9 @@ public class ForcedInclusionContract : SmartContract
 
     private static byte[] ConsumedKey(uint chainId, ulong nonce) =>
         BuildKey(PrefixConsumed, chainId, nonce);
+
+    private static byte[] ReportedKey(uint chainId, ulong nonce) =>
+        BuildKey(PrefixReported, chainId, nonce);
 
     private static byte[] BuildKey(byte prefix, uint chainId, ulong number)
     {

@@ -26,6 +26,7 @@ public class SequencerBondContract : SmartContract
     private const byte PrefixSlasher = 0x02;          // 0x02 + slasher(20B) → 1
     private const byte KeyBondAsset = 0x03;
     private const byte KeyMinBond = 0x04;
+    private const byte PrefixPendingTransfer = 0x05;  // 0x05 + asset(20B) + from(20B) → 1
     private const byte KeyOwner = 0xFF;
 
     /// <summary>Default minimum bond amount (in fee-asset smallest units).</summary>
@@ -167,17 +168,35 @@ public class SequencerBondContract : SmartContract
 
         var asset = GetBondAsset();
         var caller = Runtime.CallingScriptHash;
-        var transferred = (bool)Contract.Call(
-            asset, "transfer", CallFlags.All,
-            new object[] { caller, Runtime.ExecutingScriptHash, amount, null! });
-        ExecutionEngine.Assert(transferred, "asset transfer failed");
 
+        // Update balance BEFORE external transfer to prevent re-entrant
+        // deposit double-counting. NeoVM FAULT on subsequent transfer failure
+        // reverts this write, so there is no stale state.
         var key = BalanceKey(chainId, sequencer);
         var raw = Storage.Get(key);
         var current = raw == null ? BigInteger.Zero : (BigInteger)raw;
         Storage.Put(key, current + amount);
 
+        var pendingKey = PendingTransferKey(asset, caller);
+        Storage.Put(pendingKey, new byte[] { 1 });
+        var transferred = (bool)Contract.Call(
+            asset, "transfer", CallFlags.All,
+            new object[] { caller, Runtime.ExecutingScriptHash, amount, null! });
+        ExecutionEngine.Assert(transferred, "asset transfer failed");
+        Storage.Delete(pendingKey);
+
         OnBondDeposited(chainId, sequencer, amount);
+    }
+
+    /// <summary>NEP-17 hook. Accept only transfers initiated by <see cref="Deposit"/>.</summary>
+    public static void OnNEP17Payment(UInt160 from, BigInteger amount, object data)
+    {
+        ExecutionEngine.Assert(amount > 0, "amount must be positive");
+        var asset = (UInt160)Runtime.CallingScriptHash;
+        var pendingKey = PendingTransferKey(asset, from);
+        ExecutionEngine.Assert(Storage.Get(pendingKey) != null,
+            "direct transfer rejected — call Deposit to credit sequencer bond");
+        Storage.Delete(pendingKey);
     }
 
     /// <summary>Read a sequencer's current bond balance for a chain.</summary>
@@ -270,5 +289,19 @@ public class SequencerBondContract : SmartContract
         var s = (byte[])slasher;
         for (var i = 0; i < 20; i++) k[1 + i] = s[i];
         return k;
+    }
+
+    private static byte[] PendingTransferKey(UInt160 asset, UInt160 from)
+    {
+        var key = new byte[1 + 20 + 20];
+        key[0] = PrefixPendingTransfer;
+        var assetBytes = (byte[])asset;
+        var fromBytes = (byte[])from;
+        for (var i = 0; i < 20; i++)
+        {
+            key[1 + i] = assetBytes[i];
+            key[21 + i] = fromBytes[i];
+        }
+        return key;
     }
 }

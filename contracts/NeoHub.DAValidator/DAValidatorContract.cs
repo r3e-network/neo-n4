@@ -9,8 +9,8 @@ namespace NeoHub.DAValidator;
 
 /// <summary>
 /// L1 data-availability validator for validium-style Neo Elastic Network chains.
-/// Rollup/L1 DA only requires a non-zero commitment; DAC mode additionally requires
-/// M-of-N secp256r1 committee attestations before SettlementManager can finalize.
+/// Rollup/L1 DA requires a non-zero commitment; off-L1 DA modes require M-of-N
+/// secp256r1 committee attestations before SettlementManager can finalize.
 /// </summary>
 [DisplayName("NeoHub.DAValidator")]
 [ContractAuthor("Neo Project", "dev@neo.org")]
@@ -41,6 +41,10 @@ public class DAValidatorContract : SmartContract
     [DisplayName("DAValidated")]
     public static event Action<uint, ulong, UInt256, byte> OnDAValidated = default!;
 
+    /// <summary>Emitted when ownership is transferred.</summary>
+    [DisplayName("OwnerChanged")]
+    public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
+
     /// <summary>Set owner and DARegistry wiring.</summary>
     public static void _deploy(object data, bool update)
     {
@@ -60,6 +64,16 @@ public class DAValidatorContract : SmartContract
     {
         var raw = Storage.Get(new byte[] { KeyOwner });
         return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Transfer governance ownership. Owner only.</summary>
+    public static void SetOwner(UInt160 newOwner)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(newOwner.IsValid && !newOwner.IsZero, "invalid new owner");
+        var oldOwner = GetOwner();
+        Storage.Put(new byte[] { KeyOwner }, newOwner);
+        OnOwnerChanged(oldOwner, newOwner);
     }
 
     /// <summary>DARegistry hash this validator is paired with.</summary>
@@ -104,7 +118,7 @@ public class DAValidatorContract : SmartContract
     }
 
     /// <summary>
-    /// Submit and persist an attestation that a DAC batch is available. Proof format:
+    /// Submit and persist an attestation that an off-L1 DA batch is available. Proof format:
     /// <c>[2B sigCount LE] + sigCount * ([1B signerIndex] [64B secp256r1 signature])</c>.
     /// The signed message is <c>"N4DA" || chainId || batchNumber || commitment || daMode</c>.
     /// </summary>
@@ -146,15 +160,15 @@ public class DAValidatorContract : SmartContract
     }
 
     /// <summary>
-    /// SettlementManager calls this during finalization. Rollup/NeoFS/external modes
-    /// require a non-zero commitment; DAC additionally requires a previously submitted
-    /// committee attestation matching this batch and commitment.
+    /// SettlementManager calls this during finalization. Rollup/L1 mode requires a
+    /// non-zero commitment; NeoFS/external/DAC modes additionally require a
+    /// previously submitted committee attestation matching this batch and commitment.
     /// </summary>
     [Safe]
     public static bool Validate(uint chainId, ulong batchNumber, UInt256 commitment, byte daMode)
     {
         if (chainId == 0 || daMode > ModeDAC || commitment.Equals(UInt256.Zero)) return false;
-        if (daMode == ModeL1 || daMode == ModeNeoFS || daMode == ModeExternal) return true;
+        if (daMode == ModeL1) return true;
         return IsValidated(chainId, batchNumber, commitment, daMode);
     }
 
@@ -168,7 +182,8 @@ public class DAValidatorContract : SmartContract
         byte[] proofBytes)
     {
         ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
-        ExecutionEngine.Assert(daMode == ModeDAC, "attestations are only required for DAC mode");
+        ExecutionEngine.Assert(daMode == ModeNeoFS || daMode == ModeExternal || daMode == ModeDAC,
+            "attestations are required for off-L1 DA modes");
         ExecutionEngine.Assert(!commitment.Equals(UInt256.Zero), "commitment must be non-zero");
         ExecutionEngine.Assert(proofBytes.Length >= 2, "proof too short");
 

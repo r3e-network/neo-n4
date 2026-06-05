@@ -38,6 +38,10 @@ public class VerifierRegistryContract : SmartContract
     [DisplayName("GovernanceControllerChanged")]
     public static event Action<UInt160> OnGovernanceControllerChanged = default!;
 
+    /// <summary>Emitted when ownership is transferred.</summary>
+    [DisplayName("OwnerChanged")]
+    public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
+
     /// <summary>Set the initial owner.</summary>
     public static void _deploy(object data, bool update)
     {
@@ -53,6 +57,16 @@ public class VerifierRegistryContract : SmartContract
     {
         var raw = Storage.Get(new byte[] { KeyOwner });
         return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Transfer governance ownership. Owner only.</summary>
+    public static void SetOwner(UInt160 newOwner)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(newOwner.IsValid && !newOwner.IsZero, "invalid new owner");
+        var oldOwner = GetOwner();
+        Storage.Put(new byte[] { KeyOwner }, newOwner);
+        OnOwnerChanged(oldOwner, newOwner);
     }
 
     /// <summary>Bind a verifier contract to a <c>ProofType</c>. Owner only — the §16

@@ -30,6 +30,9 @@ public class ChainRegistryContract : SmartContract
     /// the owner; consulted by <see cref="RegisterChainPublic"/> for §16.1 admission policy.</summary>
     private const byte KeyGovernanceController = 0x03;
 
+    /// <summary>Storage prefix for contracts authorized to pause a chain on proven censorship.</summary>
+    private const byte PrefixPauser = 0x04;
+
     /// <summary>Storage key for the owner address.</summary>
     private const byte KeyOwner = 0xFF;
 
@@ -91,6 +94,14 @@ public class ChainRegistryContract : SmartContract
     [DisplayName("GovernanceControllerChanged")]
     public static event Action<UInt160> OnGovernanceControllerChanged = default!;
 
+    /// <summary>Emitted when a contract is authorized to pause chains.</summary>
+    [DisplayName("PauserRegistered")]
+    public static event Action<UInt160> OnPauserRegistered = default!;
+
+    /// <summary>Emitted when a contract is removed from the chain-pauser set.</summary>
+    [DisplayName("PauserRevoked")]
+    public static event Action<UInt160> OnPauserRevoked = default!;
+
     /// <summary>Initial owner is set on deploy.</summary>
     public static void _deploy(object data, bool update)
     {
@@ -147,6 +158,27 @@ public class ChainRegistryContract : SmartContract
         return raw == null ? UInt160.Zero : (UInt160)raw;
     }
 
+    /// <summary>Owner-only: authorize a contract to pause chains after proving a protocol fault.</summary>
+    public static void RegisterPauser(UInt160 pauser)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(pauser.IsValid && !pauser.IsZero, "invalid pauser");
+        Storage.Put(PauserKey(pauser), new byte[] { 1 });
+        OnPauserRegistered(pauser);
+    }
+
+    /// <summary>Owner-only: revoke a chain-pauser contract.</summary>
+    public static void RevokePauser(UInt160 pauser)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        Storage.Delete(PauserKey(pauser));
+        OnPauserRevoked(pauser);
+    }
+
+    /// <summary>True when <paramref name="who"/> may pause chains without owner witness.</summary>
+    [Safe]
+    public static bool IsPauser(UInt160 who) => Storage.Get(PauserKey(who)) != null;
+
     /// <summary>
     /// Permissionless / semi-permissionless registration path (§16.1). Reads the admission
     /// mode from <see cref="GetGovernanceController"/>:
@@ -161,6 +193,8 @@ public class ChainRegistryContract : SmartContract
     /// </summary>
     public static void RegisterChainPublic(uint chainId, byte[] configBytes)
     {
+        ExecutionEngine.Assert(Storage.Get(ConfigKey(chainId)) == null,
+            "chain already registered — use owner-governed UpdateChain");
         var gc = GetGovernanceController();
         ExecutionEngine.Assert(gc != UInt160.Zero,
             "governance controller not wired — owner must call SetGovernanceController first");
@@ -231,7 +265,9 @@ public class ChainRegistryContract : SmartContract
     /// <summary>Pause a chain. Owner only. Sets active=false in stored config.</summary>
     public static void PauseChain(uint chainId)
     {
-        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        var caller = Runtime.CallingScriptHash;
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()) || IsPauser(caller),
+            "not authorized");
         var key = ConfigKey(chainId);
         var raw = Storage.Get(key);
         ExecutionEngine.Assert(raw != null, "chain not registered");
@@ -351,6 +387,15 @@ public class ChainRegistryContract : SmartContract
         key[2] = (byte)(chainId >> 8);
         key[3] = (byte)(chainId >> 16);
         key[4] = (byte)(chainId >> 24);
+        return key;
+    }
+
+    private static byte[] PauserKey(UInt160 pauser)
+    {
+        var key = new byte[1 + 20];
+        key[0] = PrefixPauser;
+        var bytes = (byte[])pauser;
+        for (var i = 0; i < 20; i++) key[1 + i] = bytes[i];
         return key;
     }
 

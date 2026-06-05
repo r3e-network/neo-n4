@@ -383,6 +383,12 @@ public static class LiveDeployCommand
         return
         [
             Call("SequencerBond.RegisterSlasher", h["SequencerBond"], "registerSlasher", h["OptimisticChallenge"]),
+            Call("SequencerBond.RegisterSlasher.ForcedInclusion", h["SequencerBond"], "registerSlasher", h["ForcedInclusion"]),
+            Call("ChainRegistry.RegisterPauser.ForcedInclusion", h["ChainRegistry"], "registerPauser", h["ForcedInclusion"]),
+            Call("ForcedInclusion.SetChainRegistry", h["ForcedInclusion"], "setChainRegistry", h["ChainRegistry"]),
+            Call("ForcedInclusion.SetSequencerBond", h["ForcedInclusion"], "setSequencerBond", h["SequencerBond"]),
+            Call("ForcedInclusion.SetCensorshipSlashAmount", h["ForcedInclusion"], "setCensorshipSlashAmount", 1_000_000L),
+            Call("SharedBridge.SetEmergencyManager", h["SharedBridge"], "setEmergencyManager", h["EmergencyManager"]),
             Call("ChainRegistry.SetGovernanceController", h["ChainRegistry"], "setGovernanceController", h["GovernanceController"]),
             Call("VerifierRegistry.SetGovernanceController", h["VerifierRegistry"], "setGovernanceController", h["GovernanceController"]),
             Call("VerifierRegistry.RegisterVerifier.Zk", h["VerifierRegistry"], "registerVerifier", (byte)3, h["ContractZkVerifier"]),
@@ -416,8 +422,14 @@ public static class LiveDeployCommand
             HashCheck("SettlementManager.GetDARegistry", h["SettlementManager"], "getDARegistry", h["DARegistry"]),
             HashCheck("SettlementManager.GetDAValidator", h["SettlementManager"], "getDAValidator", h["DAValidator"]),
             HashCheck("SettlementManager.GetOptimisticChallenge", h["SettlementManager"], "getOptimisticChallenge", h["OptimisticChallenge"]),
+            HashCheck("ForcedInclusion.GetChainRegistry", h["ForcedInclusion"], "getChainRegistry", h["ChainRegistry"]),
+            HashCheck("ForcedInclusion.GetSequencerBond", h["ForcedInclusion"], "getSequencerBond", h["SequencerBond"]),
+            IntegerCheck("ForcedInclusion.GetCensorshipSlashAmount", h["ForcedInclusion"], "getCensorshipSlashAmount", 1_000_000),
+            HashCheck("SharedBridge.GetEmergencyManager", h["SharedBridge"], "getEmergencyManager", h["EmergencyManager"]),
             HashCheck("VerifierRegistry.GetVerifier.Zk", h["VerifierRegistry"], "getVerifier", h["ContractZkVerifier"], (byte)3),
             BoolCheck("SequencerBond.IsSlasher", h["SequencerBond"], "isSlasher", true, h["OptimisticChallenge"]),
+            BoolCheck("SequencerBond.IsSlasher.ForcedInclusion", h["SequencerBond"], "isSlasher", true, h["ForcedInclusion"]),
+            BoolCheck("ChainRegistry.IsPauser.ForcedInclusion", h["ChainRegistry"], "isPauser", true, h["ForcedInclusion"]),
             BoolCheck("ExternalBridgeBond.IsSlasher", h["ExternalBridgeBond"], "isSlasher", true, h["MpcCommitteeFraudVerifier"]),
         ];
     }

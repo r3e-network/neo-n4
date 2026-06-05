@@ -90,8 +90,11 @@ public class MpcCommitteeFraudVerifierContract : SmartContract
     [DisplayName("CommitteeMemberSlashed")]
     public static event Action<uint, byte, UInt160, BigInteger, UInt160> OnCommitteeMemberSlashed = default!;
 
-    /// <summary>Wire owner + verifier + bond on deploy.
-    /// <c>data</c> = <c>[owner, mpcCommitteeVerifierHash, externalBridgeBondHash]</c>.</summary>
+    /// <summary>Emitted when ownership is transferred.</summary>
+    [DisplayName("OwnerChanged")]
+    public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
+
+    /// <summary>Wire owner + verifier + bond on deploy.</summary>
     public static void _deploy(object data, bool update)
     {
         if (update) return;
@@ -115,6 +118,16 @@ public class MpcCommitteeFraudVerifierContract : SmartContract
     {
         var raw = Storage.Get(new byte[] { KeyOwner });
         return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Transfer governance ownership. Owner only.</summary>
+    public static void SetOwner(UInt160 newOwner)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(newOwner.IsValid && !newOwner.IsZero, "invalid new owner");
+        var oldOwner = GetOwner();
+        Storage.Put(new byte[] { KeyOwner }, newOwner);
+        OnOwnerChanged(oldOwner, newOwner);
     }
 
     /// <summary>The wired MpcCommitteeVerifier contract hash.</summary>

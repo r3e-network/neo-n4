@@ -156,6 +156,56 @@ public class UT_ProductionGapClosure
     }
 
     [TestMethod]
+    public void ZksyncComparison_DocumentsNeoNativeReplicaPolicy()
+    {
+        var root = FindRepositoryRoot();
+        var english = File.ReadAllText(Path.Combine(root, "docs", "zksync-comparison.md"));
+        var chinese = File.ReadAllText(Path.Combine(root, "docs", "zh", "zksync-comparison.md"));
+
+        string[] englishRequired =
+        [
+            "Neo-native 1:1 replica policy",
+            "component role",
+            "security invariant",
+            "operator workflow",
+            "Bridgehub",
+            "Chain Type Manager",
+            "Shared Bridge",
+            "Gateway",
+            "NeoFS",
+            "RISC-V",
+            "ContractZkVerifier",
+            "envelope-only",
+            "Direct-copy boundary",
+        ];
+        foreach (var required in englishRequired)
+        {
+            StringAssert.Contains(english, required);
+        }
+
+        string[] chineseRequired =
+        [
+            "Neo-native 1:1 复刻策略",
+            "组件职责",
+            "安全不变量",
+            "运维流程",
+            "Bridgehub",
+            "Chain Type Manager",
+            "Shared Bridge",
+            "Gateway",
+            "NeoFS",
+            "RISC-V",
+            "ContractZkVerifier",
+            "envelope-only",
+            "直接复刻边界",
+        ];
+        foreach (var required in chineseRequired)
+        {
+            StringAssert.Contains(chinese, required);
+        }
+    }
+
+    [TestMethod]
     public void Repository_DeployPlanMatchesNeoHubContractInventory()
     {
         var root = FindRepositoryRoot();

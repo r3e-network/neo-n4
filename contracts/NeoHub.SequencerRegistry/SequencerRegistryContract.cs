@@ -58,7 +58,11 @@ public class SequencerRegistryContract : SmartContract
     [DisplayName("ExitWindowSecondsChanged")]
     public static event Action<uint, uint> OnExitWindowSecondsChanged = default!;
 
-    /// <summary>Set wiring at deploy time. <c>data</c> = [owner, bondContract].</summary>
+    /// <summary>Emitted when ownership is transferred.</summary>
+    [DisplayName("OwnerChanged")]
+    public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
+
+    /// <summary>Set wiring at deploy time.</summary>
     public static void _deploy(object data, bool update)
     {
         if (update) return;
@@ -82,6 +86,16 @@ public class SequencerRegistryContract : SmartContract
     {
         var raw = Storage.Get(new byte[] { KeyOwner });
         return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Transfer governance ownership. Owner only.</summary>
+    public static void SetOwner(UInt160 newOwner)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(newOwner.IsValid && !newOwner.IsZero, "invalid new owner");
+        var oldOwner = GetOwner();
+        Storage.Put(new byte[] { KeyOwner }, newOwner);
+        OnOwnerChanged(oldOwner, newOwner);
     }
 
     /// <summary>Maximum allowed committee size per chain.</summary>

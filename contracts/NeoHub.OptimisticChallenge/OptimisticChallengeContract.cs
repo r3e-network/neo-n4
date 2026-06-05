@@ -32,6 +32,7 @@ public class OptimisticChallengeContract : SmartContract
     private const byte KeyChallengeWindowSeconds = 0x04;
     private const byte KeyChallengerRewardBps = 0x05;
     private const byte PrefixApprovedVerifier = 0x06; // 0x06 + verifier(20B) → 1 (allowlist gate)
+    private const byte PrefixPermissionlessVerifier = 0x07; // 0x07 + verifier(20B) → 1 (can auto-slash/revert)
     private const byte KeySettlementManager = 0xFC;
     private const byte KeySequencerBond = 0xFD;
     private const byte KeyOwner = 0xFF;
@@ -61,6 +62,10 @@ public class OptimisticChallengeContract : SmartContract
     [DisplayName("FraudVerifierApproved")]
     public static event Action<UInt160> OnFraudVerifierApproved = default!;
 
+    /// <summary>Emitted when governance marks a verifier safe for permissionless auto-slash/revert.</summary>
+    [DisplayName("FraudVerifierPermissionlessApproved")]
+    public static event Action<UInt160> OnFraudVerifierPermissionlessApproved = default!;
+
     /// <summary>Emitted when governance removes a fraud-verifier from the allowlist.</summary>
     [DisplayName("FraudVerifierRevoked")]
     public static event Action<UInt160> OnFraudVerifierRevoked = default!;
@@ -73,7 +78,11 @@ public class OptimisticChallengeContract : SmartContract
     [DisplayName("ChallengerRewardBpsChanged")]
     public static event Action<ushort, ushort> OnChallengerRewardBpsChanged = default!;
 
-    /// <summary>Set wiring on deploy. <c>data</c> = [owner, settlementManager, sequencerBond].</summary>
+    /// <summary>Emitted when ownership is transferred.</summary>
+    [DisplayName("OwnerChanged")]
+    public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
+
+    /// <summary>Set wiring on deploy.</summary>
     public static void _deploy(object data, bool update)
     {
         if (update) return;
@@ -100,6 +109,16 @@ public class OptimisticChallengeContract : SmartContract
     {
         var raw = Storage.Get(new byte[] { KeyOwner });
         return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Transfer governance ownership. Owner only.</summary>
+    public static void SetOwner(UInt160 newOwner)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(newOwner.IsValid && !newOwner.IsZero, "invalid new owner");
+        var oldOwner = GetOwner();
+        Storage.Put(new byte[] { KeyOwner }, newOwner);
+        OnOwnerChanged(oldOwner, newOwner);
     }
 
     /// <summary>Configured challenge window in seconds.</summary>
@@ -159,12 +178,28 @@ public class OptimisticChallengeContract : SmartContract
         OnFraudVerifierApproved(verifier);
     }
 
+    /// <summary>
+    /// Mark a fraud verifier safe for permissionless challenges. Owner only.
+    /// Use only for verifiers that cryptographically bind proof truth to the disputed
+    /// batch; structural/council-arbitrated verifiers should remain approved-only.
+    /// </summary>
+    public static void RegisterPermissionlessFraudVerifier(UInt160 verifier)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero, "invalid verifier");
+        Storage.Put(ApprovedVerifierKey(verifier), new byte[] { 1 });
+        Storage.Put(PermissionlessVerifierKey(verifier), new byte[] { 1 });
+        OnFraudVerifierApproved(verifier);
+        OnFraudVerifierPermissionlessApproved(verifier);
+    }
+
     /// <summary>Remove a fraud-verifier from the allowlist. Owner-gated.</summary>
     public static void RevokeFraudVerifier(UInt160 verifier)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero, "invalid verifier");
         Storage.Delete(ApprovedVerifierKey(verifier));
+        Storage.Delete(PermissionlessVerifierKey(verifier));
         OnFraudVerifierRevoked(verifier);
     }
 
@@ -174,6 +209,14 @@ public class OptimisticChallengeContract : SmartContract
     {
         if (!verifier.IsValid || verifier.IsZero) return false;
         return Storage.Get(ApprovedVerifierKey(verifier)) != null;
+    }
+
+    /// <summary>True iff <paramref name="verifier"/> may auto-slash/revert without owner co-sign.</summary>
+    [Safe]
+    public static bool IsPermissionlessFraudVerifier(UInt160 verifier)
+    {
+        if (!verifier.IsValid || verifier.IsZero) return false;
+        return Storage.Get(PermissionlessVerifierKey(verifier)) != null;
     }
 
     /// <summary>
@@ -222,6 +265,9 @@ public class OptimisticChallengeContract : SmartContract
         // RegisterFraudVerifier post-deploy for every shipped verifier
         // (GovernanceFraudVerifier, RestrictedExecutionFraudVerifier, …).
         ExecutionEngine.Assert(IsApprovedFraudVerifier(fraudVerifier), "fraud verifier not approved");
+        ExecutionEngine.Assert(
+            IsPermissionlessFraudVerifier(fraudVerifier) || Runtime.CheckWitness(GetOwner()),
+            "fraud verifier requires owner/governance co-sign");
 
         var deadlineKey = DeadlineKey(chainId, batchNumber);
         var rawDeadline = Storage.Get(deadlineKey);
@@ -323,6 +369,15 @@ public class OptimisticChallengeContract : SmartContract
     {
         var k = new byte[1 + 20];
         k[0] = PrefixApprovedVerifier;
+        var b = (byte[])verifier;
+        for (var i = 0; i < 20; i++) k[1 + i] = b[i];
+        return k;
+    }
+
+    private static byte[] PermissionlessVerifierKey(UInt160 verifier)
+    {
+        var k = new byte[1 + 20];
+        k[0] = PrefixPermissionlessVerifier;
         var b = (byte[])verifier;
         for (var i = 0; i < 20; i++) k[1 + i] = b[i];
         return k;

@@ -16,7 +16,8 @@ namespace NeoHub.ContractZkVerifier;
 /// then dispatches proof-system math to a governance-registered deployable
 /// verifier contract when one is configured. Development networks may explicitly
 /// enable envelope-only mode per proof system; production networks should register
-/// a verifier contract for each proof system they accept.
+/// a verifier contract for each proof system they accept, and may call
+/// <c>DisableEnvelopeOnlyPermanently</c> to make that commitment irreversible.
 ///
 /// Verifier contract ABI:
 /// <c>verifyZkProof(byte proofSystem, byte[] verificationKeyId, byte[] publicInputHash, byte[] proofBytes) : bool</c>.
@@ -32,6 +33,7 @@ public class ContractZkVerifierContract : SmartContract
     private const byte PrefixVerificationKey = 0x02;
     private const byte PrefixProofVerifier = 0x03;
     private const byte PrefixEnvelopeOnly = 0x04;
+    private const byte PrefixEnvelopeOnlyLocked = 0x05;
     private const byte KeyOwner = 0xFF;
 
     private const int PublicInputHashOffset = 284;
@@ -67,6 +69,14 @@ public class ContractZkVerifierContract : SmartContract
     [DisplayName("EnvelopeOnlyModeSet")]
     public static event Action<byte, bool> OnEnvelopeOnlyModeSet = default!;
 
+    /// <summary>Emitted when envelope-only verification is permanently disabled for a proof system.</summary>
+    [DisplayName("EnvelopeOnlyPermanentlyDisabled")]
+    public static event Action<byte> OnEnvelopeOnlyPermanentlyDisabled = default!;
+
+    /// <summary>Emitted when ownership is transferred.</summary>
+    [DisplayName("OwnerChanged")]
+    public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
+
     /// <summary>Set the initial owner.</summary>
     public static void _deploy(object data, bool update)
     {
@@ -82,6 +92,16 @@ public class ContractZkVerifierContract : SmartContract
     {
         var raw = Storage.Get(new byte[] { KeyOwner });
         return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Transfer governance ownership. Owner only.</summary>
+    public static void SetOwner(UInt160 newOwner)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(newOwner.IsValid && !newOwner.IsZero, "invalid new owner");
+        var oldOwner = GetOwner();
+        Storage.Put(new byte[] { KeyOwner }, newOwner);
+        OnOwnerChanged(oldOwner, newOwner);
     }
 
     /// <summary>
@@ -149,6 +169,8 @@ public class ContractZkVerifierContract : SmartContract
         ValidateProofSystem(proofSystem);
         if (allowed)
         {
+            ExecutionEngine.Assert(!IsEnvelopeOnlyLocked(proofSystem),
+                "envelope-only permanently disabled for this proof system");
             Storage.Put(EnvelopeOnlyStorageKey(proofSystem), new byte[] { 1 });
         }
         else
@@ -165,6 +187,37 @@ public class ContractZkVerifierContract : SmartContract
     {
         if (!IsSupportedProofSystem(proofSystem)) return false;
         return Storage.Get(EnvelopeOnlyStorageKey(proofSystem)) != null;
+    }
+
+    /// <summary>
+    /// Permanently forbid envelope-only acceptance for a supported proof system. Owner only.
+    /// </summary>
+    /// <remarks>
+    /// One-way switch. Once a chain commits to real proof verification for a proof system
+    /// (for example a rollup that must never accept an unverified batch), it can lock the
+    /// door so that no future owner — compromised or otherwise — can re-enable envelope-only
+    /// mode. This immediately disables any currently-enabled envelope-only flag for the proof
+    /// system and blocks all future <see cref="SetEnvelopeOnlyAllowed"/> enables. There is no
+    /// corresponding unlock; the decision is irreversible by design.
+    /// </remarks>
+    public static void DisableEnvelopeOnlyPermanently(byte proofSystem)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ValidateProofSystem(proofSystem);
+
+        Storage.Delete(EnvelopeOnlyStorageKey(proofSystem));
+        Storage.Put(EnvelopeOnlyLockStorageKey(proofSystem), new byte[] { 1 });
+
+        OnEnvelopeOnlyModeSet(proofSystem, false);
+        OnEnvelopeOnlyPermanentlyDisabled(proofSystem);
+    }
+
+    /// <summary>True when envelope-only acceptance is permanently locked off for a proof system.</summary>
+    [Safe]
+    public static bool IsEnvelopeOnlyLocked(byte proofSystem)
+    {
+        if (!IsSupportedProofSystem(proofSystem)) return false;
+        return Storage.Get(EnvelopeOnlyLockStorageKey(proofSystem)) != null;
     }
 
     /// <summary>True when the proof-system/VK pair is governance-allowed.</summary>
@@ -277,5 +330,10 @@ public class ContractZkVerifierContract : SmartContract
     private static byte[] EnvelopeOnlyStorageKey(byte proofSystem)
     {
         return new[] { PrefixEnvelopeOnly, proofSystem };
+    }
+
+    private static byte[] EnvelopeOnlyLockStorageKey(byte proofSystem)
+    {
+        return new[] { PrefixEnvelopeOnlyLocked, proofSystem };
     }
 }

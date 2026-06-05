@@ -24,8 +24,6 @@ namespace NeoHub.MpcCommitteeVerifier;
 /// <list type="bullet">
 ///   <item><description><c>0x01 + externalChainId(4B LE)</c> → committee blob:
 ///     <c>[1B threshold][1B size][1B curveTag][size × 33B pubkey]</c></description></item>
-///   <item><description><c>0x02 + externalChainId(4B LE) + nonce(8B LE)</c> →
-///     1B (replay-protection: a finalized inbound message can't be applied twice)</description></item>
 /// </list>
 ///
 /// <para>Trust model: the committee can collude (M-of-N). Phase C wraps this in
@@ -42,7 +40,6 @@ namespace NeoHub.MpcCommitteeVerifier;
 public class MpcCommitteeVerifierContract : SmartContract
 {
     private const byte PrefixCommittee = 0x01;
-    private const byte PrefixConsumedNonce = 0x02;
     private const byte KeyGovernanceController = 0x03;
     private const byte PrefixConsumedProposal = 0x04;
     /// <summary>0x05 + externalChainId(4B LE) + signerIdx(1B) → UInt160 member.
@@ -51,6 +48,9 @@ public class MpcCommitteeVerifierContract : SmartContract
     /// specific committee member's bond on equivocation.</summary>
     private const byte PrefixSignerMember = 0x05;
     private const byte KeyOwner = 0xFF;
+    private const int OffsetExternalChainId = 0;
+    private const int OffsetDirection = 16;
+    private const int OffsetDeadlineUnixSeconds = 57;
 
     /// <summary>secp256k1 + SHA256 hashing — Ethereum / Tron watchers sign this curve.</summary>
     public const byte CurveSecp256k1 = 1;
@@ -65,14 +65,13 @@ public class MpcCommitteeVerifierContract : SmartContract
     [DisplayName("CommitteeRegistered")]
     public static event Action<uint, byte, byte, byte> OnCommitteeRegistered = default!;
 
-    /// <summary>Emitted on every verified inbound message (allows off-chain
-    /// indexers to track committee activity without re-decoding tx scripts).</summary>
-    [DisplayName("InboundVerified")]
-    public static event Action<uint, ulong> OnInboundVerified = default!;
-
     /// <summary>Emitted when the GovernanceController address is changed.</summary>
     [DisplayName("GovernanceControllerChanged")]
     public static event Action<UInt160> OnGovernanceControllerChanged = default!;
+
+    /// <summary>Emitted when ownership is transferred.</summary>
+    [DisplayName("OwnerChanged")]
+    public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
 
     /// <summary>Set the initial owner.</summary>
     public static void _deploy(object data, bool update)
@@ -89,6 +88,16 @@ public class MpcCommitteeVerifierContract : SmartContract
     {
         var raw = Storage.Get(new byte[] { KeyOwner });
         return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Transfer governance ownership. Owner only.</summary>
+    public static void SetOwner(UInt160 newOwner)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(newOwner.IsValid && !newOwner.IsZero, "invalid new owner");
+        var oldOwner = GetOwner();
+        Storage.Put(new byte[] { KeyOwner }, newOwner);
+        OnOwnerChanged(oldOwner, newOwner);
     }
 
     /// <summary>Wire the GovernanceController contract hash.</summary>
@@ -332,8 +341,8 @@ public class MpcCommitteeVerifierContract : SmartContract
 
     /// <summary>
     /// The dispatch entry point — registry calls this. Verifies the proof
-    /// against the committee for <paramref name="externalChainId"/>, enforces
-    /// threshold, replay-protects on the message's nonce.
+    /// against the committee for <paramref name="externalChainId"/> and enforces
+    /// threshold. Replay protection belongs to the escrow finalization path.
     /// </summary>
     /// <param name="externalChainId">Foreign chain id.</param>
     /// <param name="messageBytes">Canonical ExternalCrossChainMessage bytes
@@ -343,6 +352,7 @@ public class MpcCommitteeVerifierContract : SmartContract
     /// <c>[2B sigCount LE]</c> + <c>sigCount × ([keyLen B pubkey][64B sig])</c>
     /// where <c>keyLen</c> is 33 for secp256k1, 32 for ed25519 (per the
     /// committee's curveTag).</param>
+    [Safe]
     public static bool VerifyInboundMessage(
         uint externalChainId, byte[] messageBytes, byte[] proofBytes)
     {
@@ -350,6 +360,26 @@ public class MpcCommitteeVerifierContract : SmartContract
             "messageBytes too short for ExternalCrossChainMessage layout");
         ExecutionEngine.Assert(proofBytes.Length >= 2,
             "proofBytes too short");
+        var signedExternalChainId =
+            (uint)messageBytes[OffsetExternalChainId]
+            | ((uint)messageBytes[OffsetExternalChainId + 1] << 8)
+            | ((uint)messageBytes[OffsetExternalChainId + 2] << 16)
+            | ((uint)messageBytes[OffsetExternalChainId + 3] << 24);
+        ExecutionEngine.Assert(signedExternalChainId == externalChainId,
+            "externalChainId argument does not match signed message domain");
+        var direction = messageBytes[OffsetDirection];
+        ExecutionEngine.Assert(direction == 2, "direction must be 2 (ForeignToNeo)");
+        var deadlineUnixSeconds =
+            (ulong)messageBytes[OffsetDeadlineUnixSeconds]
+            | ((ulong)messageBytes[OffsetDeadlineUnixSeconds + 1] << 8)
+            | ((ulong)messageBytes[OffsetDeadlineUnixSeconds + 2] << 16)
+            | ((ulong)messageBytes[OffsetDeadlineUnixSeconds + 3] << 24)
+            | ((ulong)messageBytes[OffsetDeadlineUnixSeconds + 4] << 32)
+            | ((ulong)messageBytes[OffsetDeadlineUnixSeconds + 5] << 40)
+            | ((ulong)messageBytes[OffsetDeadlineUnixSeconds + 6] << 48)
+            | ((ulong)messageBytes[OffsetDeadlineUnixSeconds + 7] << 56);
+        ExecutionEngine.Assert(deadlineUnixSeconds == 0 || Runtime.Time / 1000UL <= deadlineUnixSeconds,
+            "external bridge message expired");
 
         // 1. Read committee. Storage.Get returns ByteString in contract context;
         // we cast to byte[] once so the rest of the function can index freely.
@@ -366,21 +396,6 @@ public class MpcCommitteeVerifierContract : SmartContract
         var keyLen = curveTag == CurveSecp256k1 ? 33 : 32;
         ExecutionEngine.Assert(committee.Length == 3 + size * keyLen, "committee blob length mismatch");
 
-        // 2. Replay protection: nonce lives at offset 8 in messageBytes.
-        var nonce =
-            (ulong)messageBytes[8]
-            | ((ulong)messageBytes[9] << 8)
-            | ((ulong)messageBytes[10] << 16)
-            | ((ulong)messageBytes[11] << 24)
-            | ((ulong)messageBytes[12] << 32)
-            | ((ulong)messageBytes[13] << 40)
-            | ((ulong)messageBytes[14] << 48)
-            | ((ulong)messageBytes[15] << 56);
-        var nonceKey = ConsumedNonceKey(externalChainId, nonce);
-        ExecutionEngine.Assert(Storage.Get(nonceKey) == null,
-            "message nonce already consumed (replay)");
-
-        // 3. Decode and verify signatures.
         var sigCount = (int)proofBytes[0] | ((int)proofBytes[1] << 8);
         ExecutionEngine.Assert(sigCount >= threshold,
             "signature count below threshold");
@@ -438,9 +453,6 @@ public class MpcCommitteeVerifierContract : SmartContract
         ExecutionEngine.Assert(validSigs >= threshold,
             "valid signatures below threshold after dedup");
 
-        // 4. Mark the nonce consumed and emit the audit event.
-        Storage.Put(nonceKey, new byte[] { 1 });
-        OnInboundVerified(externalChainId, nonce);
         return true;
     }
 
@@ -482,6 +494,8 @@ public class MpcCommitteeVerifierContract : SmartContract
         ExecutionEngine.Assert(size <= MaxCommitteeSize, "committee size exceeds MaxCommitteeSize");
         ExecutionEngine.Assert(threshold <= size, "threshold exceeds committee size");
 
+        ClearSignerMemberBindings(externalChainId);
+
         var stored = new byte[3 + committeeBlob.Length];
         stored[0] = threshold;
         stored[1] = (byte)size;
@@ -517,6 +531,12 @@ public class MpcCommitteeVerifierContract : SmartContract
         }
     }
 
+    private static void ClearSignerMemberBindings(uint externalChainId)
+    {
+        for (var i = 0; i < MaxCommitteeSize; i++)
+            Storage.Delete(SignerMemberKey(externalChainId, (byte)i));
+    }
+
     private static byte[] SignerMemberKey(uint externalChainId, byte signerIdx)
     {
         var k = new byte[1 + 4 + 1];
@@ -540,22 +560,4 @@ public class MpcCommitteeVerifierContract : SmartContract
         return k;
     }
 
-    private static byte[] ConsumedNonceKey(uint externalChainId, ulong nonce)
-    {
-        var k = new byte[1 + 4 + 8];
-        k[0] = PrefixConsumedNonce;
-        k[1] = (byte)externalChainId;
-        k[2] = (byte)(externalChainId >> 8);
-        k[3] = (byte)(externalChainId >> 16);
-        k[4] = (byte)(externalChainId >> 24);
-        k[5] = (byte)nonce;
-        k[6] = (byte)(nonce >> 8);
-        k[7] = (byte)(nonce >> 16);
-        k[8] = (byte)(nonce >> 24);
-        k[9] = (byte)(nonce >> 32);
-        k[10] = (byte)(nonce >> 40);
-        k[11] = (byte)(nonce >> 48);
-        k[12] = (byte)(nonce >> 56);
-        return k;
-    }
 }

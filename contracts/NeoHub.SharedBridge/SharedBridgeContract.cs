@@ -24,6 +24,7 @@ public class SharedBridgeContract : SmartContract
     private const byte PrefixDepositNonce = 0x01;     // 0x01 + chainId(4B) → next nonce (8B)
     private const byte PrefixDeposit = 0x02;          // 0x02 + chainId(4B) + nonce(8B) → encoded deposit msg
     private const byte PrefixWithdrawalConsumed = 0x03; // 0x03 + chainId(4B) + leafHash(32B) → 1
+    private const byte PrefixPendingTransfer = 0x04;  // 0x04 + asset(20B) + from(20B) → 1
     private const byte PrefixSettlementManager = 0xFD;
     private const byte PrefixTokenRegistry = 0xFE;
     private const byte PrefixEmergencyManager = 0xFC;
@@ -136,18 +137,39 @@ public class SharedBridgeContract : SmartContract
 
         var caller = Runtime.CallingScriptHash;
 
-        // Pull tokens into escrow. The asset must be NEP-17.
+        // Allocate nonce and commit deposit record before pulling tokens.
+        // If the subsequent transfer fails, NeoVM FAULT reverts the storage write,
+        // so there is no stale nonce gap. This ordering prevents a re-entrant token
+        // from re-using the same nonce and overwriting a prior deposit.
+        var nonce = NextDepositNonce(targetChainId);
+        var encoded = EncodeDeposit(asset, amount, l2Recipient, caller, nonce);
+        Storage.Put(DepositKey(targetChainId, nonce), encoded);
+
+        // Pull tokens into escrow. The asset must be NEP-17. The pending-transfer
+        // marker lets the NEP-17 hook reject unsolicited direct transfers while
+        // still accepting this Deposit-initiated transfer.
+        var pendingKey = PendingTransferKey(asset, caller);
+        Storage.Put(pendingKey, new byte[] { 1 });
         var transferred = (bool)Contract.Call(
             asset, "transfer",
             CallFlags.All,
             new object[] { caller, Runtime.ExecutingScriptHash, amount, null! });
         ExecutionEngine.Assert(transferred, "asset transfer failed");
+        Storage.Delete(pendingKey);
 
-        var nonce = NextDepositNonce(targetChainId);
-        var encoded = EncodeDeposit(asset, amount, l2Recipient, caller, nonce);
-        Storage.Put(DepositKey(targetChainId, nonce), encoded);
         OnDepositEnqueued(targetChainId, nonce, caller, l2Recipient, amount);
         return nonce;
+    }
+
+    /// <summary>NEP-17 hook. Accept only transfers initiated by <see cref="Deposit"/>.</summary>
+    public static void OnNEP17Payment(UInt160 from, BigInteger amount, object data)
+    {
+        ExecutionEngine.Assert(amount > 0, "amount must be positive");
+        var asset = (UInt160)Runtime.CallingScriptHash;
+        var pendingKey = PendingTransferKey(asset, from);
+        ExecutionEngine.Assert(Storage.Get(pendingKey) != null,
+            "direct transfer rejected — call Deposit to enqueue an L2 bridge deposit");
+        Storage.Delete(pendingKey);
     }
 
     /// <summary>Read a previously enqueued deposit (used by L2 nodes when scanning the queue).</summary>
@@ -255,6 +277,43 @@ public class SharedBridgeContract : SmartContract
         BigInteger amount)
     {
         ExecutionEngine.Assert(!IsPaused(), "network paused");
+        ValidateWithdrawalArgs(chainId, asset, recipient, amount);
+        ValidateWithdrawalLeafBinding(
+            chainId, withdrawalLeafHash, emittingContract, l2Sender,
+            l2Asset, withdrawalNonce, asset, recipient, amount);
+        var consumedKey = WithdrawalKey(chainId, withdrawalLeafHash);
+        ExecutionEngine.Assert(Storage.Get(consumedKey) == null, "withdrawal already consumed");
+
+        var sm = GetSettlementManager();
+        var verified = (bool)Contract.Call(
+            sm, "verifyWithdrawalLeafWithProof",
+            CallFlags.ReadOnly,
+            new object[] { chainId, batchNumber, withdrawalLeafHash, siblings, leafIndex });
+        ExecutionEngine.Assert(verified, "withdrawal leaf not in batch's Merkle root (proof failed)");
+
+        ConsumeAndPayout(consumedKey, chainId, asset, recipient, amount);
+    }
+
+    /// <summary>
+    /// Emergency withdrawal path available only while the network is paused. This mirrors
+    /// <see cref="FinalizeWithdrawalWithProof"/> but inverts the pause precondition so users
+    /// can still recover finalized withdrawals during incident response.
+    /// </summary>
+    public static void EmergencyFinalizeWithdrawalWithProof(
+        uint chainId,
+        ulong batchNumber,
+        UInt256 withdrawalLeafHash,
+        byte[][] siblings,
+        ulong leafIndex,
+        UInt160 emittingContract,
+        UInt160 l2Sender,
+        UInt160 l2Asset,
+        ulong withdrawalNonce,
+        UInt160 asset,
+        UInt160 recipient,
+        BigInteger amount)
+    {
+        ExecutionEngine.Assert(IsPaused(), "emergency withdrawal only valid while paused");
         ValidateWithdrawalArgs(chainId, asset, recipient, amount);
         ValidateWithdrawalLeafBinding(
             chainId, withdrawalLeafHash, emittingContract, l2Sender,
@@ -452,6 +511,15 @@ public class SharedBridgeContract : SmartContract
         key[4] = (byte)(chainId >> 24);
         var hashBytes = (byte[])leafHash;
         for (var i = 0; i < 32; i++) key[5 + i] = hashBytes[i];
+        return key;
+    }
+
+    private static byte[] PendingTransferKey(UInt160 asset, UInt160 from)
+    {
+        var key = new byte[1 + 20 + 20];
+        key[0] = PrefixPendingTransfer;
+        WriteUInt160(key, 1, asset);
+        WriteUInt160(key, 21, from);
         return key;
     }
 

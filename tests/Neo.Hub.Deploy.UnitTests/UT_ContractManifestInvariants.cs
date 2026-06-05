@@ -31,6 +31,46 @@ public class UT_ContractManifestInvariants
     private static bool HasMethod(JArray methods, string name) =>
         methods.Any(m => ((JObject?)m)?["name"]?.AsString() == name);
 
+    [TestMethod]
+    public void OwnerManagedContracts_ExposeOwnershipTransfer()
+    {
+        var contracts = new[]
+        {
+            "NeoHub.ChainRegistry",
+            "NeoHub.ContractZkVerifier",
+            "NeoHub.DARegistry",
+            "NeoHub.DAValidator",
+            "NeoHub.EmergencyManager",
+            "NeoHub.ExternalBridgeBond",
+            "NeoHub.ExternalBridgeEscrow",
+            "NeoHub.ExternalBridgeRegistry",
+            "NeoHub.ForcedInclusion",
+            "NeoHub.GovernanceController",
+            "NeoHub.L1TxFilter",
+            "NeoHub.MessageRouter",
+            "NeoHub.MpcCommitteeFraudVerifier",
+            "NeoHub.MpcCommitteeVerifier",
+            "NeoHub.OptimisticChallenge",
+            "NeoHub.SequencerBond",
+            "NeoHub.SequencerRegistry",
+            "NeoHub.SettlementManager",
+            "NeoHub.SharedBridge",
+            "NeoHub.TokenRegistry",
+            "NeoHub.VerifierRegistry"
+        };
+
+        foreach (var contract in contracts)
+        {
+            var methods = LoadMethods(contract);
+            if (methods is null) continue;
+
+            Assert.IsTrue(HasMethod(methods, "getOwner"),
+                $"{contract} must expose getOwner for operator/auditor introspection");
+            Assert.IsTrue(HasMethod(methods, "setOwner"),
+                $"{contract} must expose setOwner so governance can rotate compromised or deprecated owner keys");
+        }
+    }
+
     // ─── ContractZkVerifier: contract-deployed proof route ───────────────────
 
     [TestMethod]
@@ -49,6 +89,11 @@ public class UT_ContractManifestInvariants
             "ContractZkVerifier must expose explicit devnet-only envelope mode");
         Assert.IsTrue(HasMethod(methods, "isEnvelopeOnlyAllowed"),
             "ContractZkVerifier must expose isEnvelopeOnlyAllowed");
+        Assert.IsTrue(HasMethod(methods, "disableEnvelopeOnlyPermanently"),
+            "ContractZkVerifier must expose disableEnvelopeOnlyPermanently — the one-way " +
+            "switch a rollup uses to make 'never accept an unverified batch' irreversible");
+        Assert.IsTrue(HasMethod(methods, "isEnvelopeOnlyLocked"),
+            "ContractZkVerifier must expose isEnvelopeOnlyLocked (read-only audit of the lock)");
         Assert.IsTrue(HasMethod(methods, "verify"),
             "ContractZkVerifier must expose verify for VerifierRegistry dispatch");
 
@@ -56,6 +101,21 @@ public class UT_ContractManifestInvariants
             "REGRESSION: ContractZkVerifier must not require an L1 native accelerator");
         Assert.IsFalse(HasMethod(methods, "getNativeAccelerator"),
             "REGRESSION: ContractZkVerifier must not expose native-accelerator state");
+
+        // Critical: the envelope-only disable is one-way. There must be NO method
+        // that unlocks or clears it — a regression adding one would let a future
+        // (possibly compromised) owner re-enable "accept any proof with no crypto
+        // check" on a chain that had permanently locked the door. Mirrors the
+        // GovernanceController.SetImmutableFlag no-clear-side invariant below.
+        Assert.IsFalse(HasMethod(methods, "unlockEnvelopeOnly"),
+            "REGRESSION: ContractZkVerifier must NOT expose unlockEnvelopeOnly — " +
+            "the permanent envelope-only disable is irreversible by design");
+        Assert.IsFalse(HasMethod(methods, "clearEnvelopeOnlyLock"),
+            "REGRESSION: ContractZkVerifier must NOT expose clearEnvelopeOnlyLock");
+        Assert.IsFalse(HasMethod(methods, "removeEnvelopeOnlyLock"),
+            "REGRESSION: ContractZkVerifier must NOT expose removeEnvelopeOnlyLock");
+        Assert.IsFalse(HasMethod(methods, "enableEnvelopeOnlyPermanently"),
+            "REGRESSION: ContractZkVerifier must NOT expose enableEnvelopeOnlyPermanently");
     }
 
     // ─── GovernanceController: SetImmutableFlag is permanent ──────────
@@ -117,6 +177,39 @@ public class UT_ContractManifestInvariants
             "direct transfer can be rejected at the bridge boundary");
     }
 
+    [TestMethod]
+    public void TokenIngressContracts_Expose_Nep17PaymentHooks()
+    {
+        var contracts = new[]
+        {
+            "NeoHub.SharedBridge",
+            "NeoHub.SequencerBond",
+            "NeoHub.ExternalBridgeBond",
+            "NeoHub.ExternalBridgeEscrow"
+        };
+
+        foreach (var contract in contracts)
+        {
+            var methods = LoadMethods(contract);
+            if (methods is null) continue;
+
+            Assert.IsTrue(HasMethod(methods, "onNEP17Payment"),
+                $"{contract} must reject unsolicited NEP-17 transfers instead of silently orphaning funds");
+        }
+    }
+
+    [TestMethod]
+    public void SharedBridge_Exposes_PausedEmergencyWithdrawalPayout()
+    {
+        var methods = LoadMethods("NeoHub.SharedBridge");
+        if (methods is null) return;
+
+        Assert.IsTrue(HasMethod(methods, "finalizeWithdrawalWithProof"),
+            "SharedBridge must expose the normal multi-leaf withdrawal payout path");
+        Assert.IsTrue(HasMethod(methods, "emergencyFinalizeWithdrawalWithProof"),
+            "SharedBridge must expose a paused-only emergency withdrawal path that pays assets");
+    }
+
     // ─── SettlementManager: status enum surface ───────────────────────
 
     [TestMethod]
@@ -157,6 +250,20 @@ public class UT_ContractManifestInvariants
             "EmergencyManager must expose isPaused (read-only)");
     }
 
+    [TestMethod]
+    public void ChainRegistry_Exposes_AuthorizedPauserSurface()
+    {
+        var methods = LoadMethods("NeoHub.ChainRegistry");
+        if (methods is null) return;
+
+        Assert.IsTrue(HasMethod(methods, "registerPauser"),
+            "ChainRegistry must let governance authorize fault contracts to pause a censored L2");
+        Assert.IsTrue(HasMethod(methods, "revokePauser"),
+            "ChainRegistry must let governance revoke compromised chain pausers");
+        Assert.IsTrue(HasMethod(methods, "isPauser"),
+            "ChainRegistry must expose isPauser for deployment smoke checks");
+    }
+
     // ─── MpcCommitteeVerifier: per-signer dedup live on the verifyInbound path ──
 
     [TestMethod]
@@ -168,11 +275,24 @@ public class UT_ContractManifestInvariants
             "MpcCommitteeVerifier must expose verifyInboundMessage — the dispatch " +
             "entry-point ExternalBridgeRegistry calls. Without it, the duplicate-" +
             "signer dedup (load-bearing ECDSA malleability defense) is unreachable.");
+        Assert.IsFalse(HasMethod(methods, "consumeNonce"),
+            "MpcCommitteeVerifier must not expose public nonce consumption — replay state " +
+            "belongs to ExternalBridgeEscrow finalization so callers cannot pre-consume nonces");
         Assert.IsTrue(HasMethod(methods, "registerCommittee"),
             "MpcCommitteeVerifier must expose registerCommittee");
         Assert.IsTrue(HasMethod(methods, "registerCommitteeWithMembers"),
             "MpcCommitteeVerifier must expose registerCommitteeWithMembers — " +
             "Phase-C equivocation slashing requires the per-signer bond-holder binding");
+    }
+
+    [TestMethod]
+    public void ExternalBridgeStubVerifier_IsNotProductionBridgeKind()
+    {
+        var methods = LoadMethods("NeoHub.ExternalBridgeStubVerifier");
+        if (methods is null) return;
+
+        Assert.IsTrue(HasMethod(methods, "bridgeKind"),
+            "ExternalBridgeStubVerifier must expose bridgeKind so registry kind matching rejects it as production");
     }
 
     // ─── ForcedInclusion: censorship-resistance surface ───────────────
@@ -188,5 +308,13 @@ public class UT_ContractManifestInvariants
             "ForcedInclusion must expose markConsumed (sequencer dequeues post-inclusion)");
         Assert.IsTrue(HasMethod(methods, "reportCensorship"),
             "ForcedInclusion must expose reportCensorship (post-deadline escalation)");
+        Assert.IsTrue(HasMethod(methods, "isCensorshipReported"),
+            "ForcedInclusion must make censorship reports at-most-once per queue entry");
+        Assert.IsTrue(HasMethod(methods, "setSequencerBond"),
+            "ForcedInclusion must wire SequencerBond so censorship reports slash bonds");
+        Assert.IsTrue(HasMethod(methods, "setChainRegistry"),
+            "ForcedInclusion must wire ChainRegistry so censorship reports pause finalization");
+        Assert.IsTrue(HasMethod(methods, "setCensorshipSlashAmount"),
+            "ForcedInclusion must expose the per-report slash policy");
     }
 }

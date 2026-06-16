@@ -105,18 +105,24 @@ public static class RpcContractReader
     }
 
     /// <summary>
-    /// Parse an integer from a Neo N3 RPC stack item. Tries direct integer parsing first,
-    /// then falls back to interpreting the first byte of the Base64-encoded ByteString value.
-    /// Returns 0 for empty or null values.
+    /// Parse an integer from a Neo N3 RPC stack item. Tries direct decimal parsing first
+    /// (Neo's <c>Integer</c> stack-item shape), then decodes a Base64-encoded ByteString as a
+    /// little-endian signed integer (Neo's ByteString integer encoding). Returns 0 for empty
+    /// or null values. Throws <see cref="OverflowException"/> if the decoded value does not fit
+    /// in <see cref="int"/>, rather than silently truncating to the low byte.
     /// </summary>
     public static int ParseInteger(JToken? token)
     {
         if (token is not JObject obj) throw new InvalidOperationException("expected JObject");
         var value = obj["value"]?.AsString() ?? "0";
         if (int.TryParse(value, out var n)) return n;
-        // Neo encodes small ints in ByteString form; first byte is the value.
+        // Neo encodes integers in ByteString form as little-endian two's complement; decode the
+        // full value via BigInteger and range-check it for int rather than reading only bytes[0]
+        // (which would truncate any value >= 256 or any multi-byte count to its low byte).
         var bytes = Convert.FromBase64String(value);
-        return bytes.Length == 0 ? 0 : bytes[0];
+        if (bytes.Length == 0) return 0;
+        var big = new System.Numerics.BigInteger(bytes, isUnsigned: false, isBigEndian: false);
+        return checked((int)big);
     }
 
     /// <summary>

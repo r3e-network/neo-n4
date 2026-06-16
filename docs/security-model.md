@@ -82,7 +82,7 @@ security claim is downgraded to whatever the worst label could be.**
 | -- | ------------------------------- | ------------------------------------------------------------------------ | --------------------------------------- |
 | 1  | Sequencer censorship            | Forced inclusion + bond slashing + escape hatch                          | `Neo.L2.ForcedInclusion`, `Neo.L2.Censorship` |
 | 2  | Invalid state root              | ZK validity proof (Phase 4) or optimistic challenge (Phase 3)            | `Neo.L2.Proving.RiscVZk`, `Neo.L2.Challenge` |
-| 3  | Bridge exploit                  | Lock-mint vs burn-unlock invariants; rate limits; emergency pause        | `NeoHub.SharedBridge`, `EmergencyManager` |
+| 3  | Bridge exploit                  | Lock-mint vs burn-unlock invariants; per-chain escrow accounting (a chain's withdrawals can never exceed its own deposits); on-chain proof↔state binding in `SettlementManager`; emergency pause | `NeoHub.SharedBridge` (`GetLockedBalance`), `NeoHub.SettlementManager`, `EmergencyManager` |
 | 4  | Replay attack (cross-chain)     | `(chainId, nonce)` envelope + per-pair dedup                             | `NeoHub.MessageRouter`, `Neo.L2.Messaging.L1MessageInbox` |
 | 5  | DA unavailability               | Public DA security label in `ChainRegistry`; escape hatch on opacity     | `NeoHub.DARegistry`, `EmergencyManager` |
 | 6  | Malicious validator committee   | Sequencer bonds; rotate-out via `SequencerRegistry`                      | `NeoHub.SequencerBond`, `NeoHub.SequencerRegistry` |

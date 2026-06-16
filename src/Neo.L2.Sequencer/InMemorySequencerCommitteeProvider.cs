@@ -165,7 +165,14 @@ public sealed class InMemorySequencerCommitteeProvider : ISequencerCommitteeProv
         }
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Snapshot the current committee. Note on exit semantics: a member that has called
+    /// <see cref="BeginExit"/> (Status=Exiting) is still returned here until <see cref="Finalize"/>
+    /// removes it — this method takes no clock input and therefore cannot apply time-based
+    /// exclusion of members whose <c>ExitsAtUnixSeconds</c> has elapsed. Callers that require
+    /// exited members to disappear must invoke <see cref="Finalize"/> promptly once the exit
+    /// window passes; the snapshot reflects committee membership, not exit-window expiry.
+    /// </summary>
     public ValueTask<IReadOnlyList<CommitteeMember>> GetActiveCommitteeAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

@@ -110,7 +110,7 @@ verifier could replay step-by-step on L1 — that's tracked here:
 
 | Item | What's still missing | Where |
 |------|---------------------|-------|
-| Full L1 disputed-tx re-execution | The on-chain v3 verifier (`NeoHub.RestrictedExecutionFraudVerifier`) now ships and re-derives pre/post state roots from each storage proof's siblings + leafIndex against the v1 header roots — well-formed v3 fraud claims are accepted on-chain without governance arbitration. **Still missing**: actually re-executing the disputed transaction on L1 with restricted state (an `ApplicationEngine` instance seeded only with the storage proofs' pre-values) to confirm the challenger's `ReplayedPostStateRoot` is truly correct. Until that lands, "accepted by RestrictedExecutionFraudVerifier" means "the challenger has made a structurally credible claim a downstream re-execution service must arbitrate." | `contracts/NeoHub.RestrictedExecutionFraudVerifier/` (on-chain v3 ✅), no on-L1 NeoVM-with-restricted-state re-executor yet |
+| Full L1 disputed-tx re-execution | The on-chain v3 verifier (`NeoHub.RestrictedExecutionFraudVerifier`) ships and re-derives pre/post state roots from each storage proof's siblings + leafIndex. **Important — not trustless as written**: it checks only the *internal* consistency of the **challenger-supplied** roots; it does NOT bind them to the sequencer's actual on-chain committed `SettlementManager` batch roots, and it does NOT re-execute the disputed transaction. A "valid" v3 claim is therefore a structurally credible assertion a downstream re-execution service / governance must still arbitrate — **not** a self-contained trustless fraud proof. It MUST NOT be wired via the permissionless registration path for value-bearing chains until (a) the proof binds to the committed batch roots and (b) on-L1 NeoVM-with-restricted-state re-execution confirms the challenger's `ReplayedPostStateRoot`. **Still missing**: (a) the committed-batch-root binding and (b) the restricted-state re-executor. | `contracts/NeoHub.RestrictedExecutionFraudVerifier/` (structural check ✅, trustless binding ❌, re-executor ❌) |
 
 ### Reference / scaffolding — operator must replace
 
@@ -251,13 +251,13 @@ External-bridge stack (doc.md §11.3 — cross-foreign-chain to Eth/Tron/Sol):
 
 ### Tests
 
-**1467 .NET tests across 34 projects, plus 202 cross-language tests
+**1521 .NET tests across 34 projects, plus 202 cross-language tests
 (15 TypeScript + 10 Rust SDK + 5 shared execution-core + 7 SP1 guest host-mode + 103 Rust bridge
 watcher core across 3 crates [eth: 87 with `live-rpc`; tron: 7; sol: 9],
 39 Foundry Solidity tests for `NeoExternalBridgeRouter` [32 single-chain
 and 7 multi-chain validating the router deploys unchanged across the entire
 EVM family], and 22 Solana router tests) — all green on the Windows audit
-matrix.** Phase-C real-crypto fraud-proof tests (7 of the 1467 .NET) pin the
+matrix.** Phase-C real-crypto fraud-proof tests (7 of the 1521 .NET) pin the
 equivocation slash path's bytes-on-the-wire contract end-to-end with
 real secp256k1 signatures.
 

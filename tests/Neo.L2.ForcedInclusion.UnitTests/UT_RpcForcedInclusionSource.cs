@@ -181,7 +181,9 @@ public class UT_RpcForcedInclusionSource
         });
 
         Assert.IsFalse(await src.HasOverdueEntryAsync(nowUnixSeconds: 50), "deadline ahead of now is not overdue");
-        Assert.IsFalse(await src.HasOverdueEntryAsync(nowUnixSeconds: 100), "deadline at exactly now is due, not overdue");
+        // deadline <= now is overdue, matching InMemoryForcedInclusionSource, CensorshipDetector,
+        // and the on-chain ReportCensorship boundary (now == deadline counts as overdue).
+        Assert.IsTrue(await src.HasOverdueEntryAsync(nowUnixSeconds: 100), "deadline at exactly now is overdue");
         Assert.IsTrue(await src.HasOverdueEntryAsync(nowUnixSeconds: 101), "deadline before now is overdue");
     }
 

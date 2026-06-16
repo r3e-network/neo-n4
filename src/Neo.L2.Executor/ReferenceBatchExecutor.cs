@@ -8,12 +8,25 @@ namespace Neo.L2.Executor;
 /// <summary>
 /// Reference batch executor: applies L1 messages, then transactions, then computes the four
 /// per-batch Merkle roots plus the post-state root resolved via the injected
-/// <see cref="IPostStateRootOracle"/>. Implements <see cref="IL2BatchExecutor"/> exactly as
-/// the proving spec mandates.
+/// <see cref="IPostStateRootOracle"/>. Implements the execution-order and root-computation
+/// portions of the proving spec (<see cref="IL2BatchExecutor"/>).
 /// </summary>
 /// <remarks>
-/// See SPEC.md for the full determinism contract. The class is production-quality; the
-/// behavior of <see cref="BatchExecutionResult.PostStateRoot"/> is determined entirely by
+/// See SPEC.md for the full determinism contract. The class is production-quality.
+/// <para>
+/// <b>Pre-state validation is the caller's responsibility.</b> SPEC.md §"Error handling"
+/// makes an invalid <see cref="BatchExecutionRequest.PreStateRoot"/> a fatal protocol error
+/// ("the calling batcher MUST NOT seal a batch"). This executor does not re-derive the
+/// store's current state root and compare it against <c>request.PreStateRoot</c>: the
+/// <see cref="IPostStateRootOracle"/> abstraction it is given only resolves the post-batch
+/// root and (for the test <see cref="DerivedPostStateRootOracle"/>) does not read live state
+/// at all. A batcher that feeds this executor MUST verify that the store it is executing
+/// against actually corresponds to <c>request.PreStateRoot</c> before sealing — e.g. by
+/// computing the state-store oracle's root before applying the batch and rejecting on
+/// mismatch.
+/// </para>
+/// <para>
+/// The behavior of <see cref="BatchExecutionResult.PostStateRoot"/> is determined entirely by
 /// the injected oracle:
 /// <list type="bullet">
 ///   <item><description><see cref="State.KeyedStateRootOracle"/> — production in-process
@@ -27,6 +40,7 @@ namespace Neo.L2.Executor;
 ///     that exercise the executor's plumbing without standing up a state store. NOT for
 ///     production use; the production oracles above are the canonical implementations.</description></item>
 /// </list>
+/// </para>
 /// </remarks>
 public sealed class ReferenceBatchExecutor : IL2BatchExecutor
 {

@@ -125,11 +125,19 @@ public class EmergencyManagerContract : SmartContract
     }
 
     /// <summary>
-    /// Escape-hatch withdrawal: when an L2 has stalled or its sequencer is malicious, a user
-    /// can prove ownership directly to NeoHub and receive the canonical asset. The leaf hash
-    /// is verified against the chain's latest finalized state root via SettlementManager —
-    /// without that check, a malicious user could submit a leaf for any state, valid or not.
-    /// Replay-protected per (chainId, leafHash) so the same proof can't drain twice and so a
+    /// Escape-hatch exit CLAIM: when an L2 has stalled or its sequencer is malicious, a user
+    /// proves ownership of a state-tree leaf directly to NeoHub against the chain's latest
+    /// finalized state root (via SettlementManager) and records a one-time, replay-protected
+    /// exit claim (emits <see cref="OnEscapeHatchExit"/>).
+    /// <para>
+    /// IMPORTANT: this method does NOT itself transfer any asset — a generic state leaf does not
+    /// bind a canonical (asset, amount, recipient) tuple the bridge could pay out. Asset recovery
+    /// for a withdrawal the sequencer already finalized goes through
+    /// <c>SharedBridge.EmergencyFinalizeWithdrawalWithProof</c> (verified against the batch
+    /// withdrawalRoot). The state-leaf claim recorded here is consumed by governance / off-chain
+    /// settlement to release escrow for users whose withdrawal was never finalized.
+    /// </para>
+    /// Replay-protected per (chainId, leafHash) so the same proof can't be claimed twice and so a
     /// leaf valid on one L2 can't be replayed against another.
     /// </summary>
     public static void EscapeHatchExit(uint chainId, UInt160 sender, UInt256 leafHash)
@@ -149,6 +157,9 @@ public class EmergencyManagerContract : SmartContract
         ExecutionEngine.Assert(sm != UInt160.Zero, "settlement manager unset");
         var canonicalRoot = (UInt256)Contract.Call(sm, "getCanonicalStateRoot",
             CallFlags.ReadOnly, new object[] { chainId });
+        // Zero-root guard (mirrors VerifyStateLeafWithProof): a chain with no finalized batch has
+        // a zero canonical root; without this a zero leafHash would spuriously match it.
+        ExecutionEngine.Assert(!canonicalRoot.Equals(UInt256.Zero), "no finalized state root");
         ExecutionEngine.Assert(canonicalRoot.Equals(leafHash),
             "leaf does not match latest finalized state root");
 

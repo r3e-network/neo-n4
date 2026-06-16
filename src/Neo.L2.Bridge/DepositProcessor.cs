@@ -15,7 +15,14 @@ public sealed class DepositProcessor
     private const int MaxConsumedEntries = 1_000_000;
     private readonly AssetRegistry _registry;
     private IL2Metrics _metrics;
+    // In-memory replay dedup. This is a defense-in-depth soft cache only:
+    // authoritative deposit replay protection is the L2 native bridge contract's
+    // persistent PrefixDepositConsumed store (external/neo .../L2NativeContracts.cs),
+    // which rejects "deposit replayed" regardless of this set's contents. The set is
+    // bounded at MaxConsumedEntries; when exceeded, EvictIfNeeded removes the oldest
+    // entries first (FIFO, mirroring WithdrawalProcessor) so eviction is deterministic.
     private readonly HashSet<(uint, ulong)> _consumed = new();
+    private readonly Queue<(uint, ulong)> _consumedOrder = new();
     private readonly Lock _gate = new();
 
     /// <summary>Identifier of the L2 chain this processor runs on.</summary>
@@ -76,9 +83,11 @@ public sealed class DepositProcessor
             // mint instruction; the loser sees "already processed" and gives up.
             lock (_gate)
             {
-                if (!_consumed.Add((message.SourceChainId, message.Nonce)))
+                var key = (message.SourceChainId, message.Nonce);
+                if (!_consumed.Add(key))
                     throw new InvalidOperationException(
                         $"Deposit ({message.SourceChainId},{message.Nonce}) was already processed");
+                _consumedOrder.Enqueue(key);
                 EvictIfNeeded();
             }
 
@@ -112,18 +121,19 @@ public sealed class DepositProcessor
             return _consumed.Contains((sourceChainId, nonce));
     }
 
+    // Evict oldest-first (FIFO) once the in-memory set exceeds capacity, matching
+    // WithdrawalProcessor.SealBatch's eviction. Authoritative replay protection is
+    // the L2 native PrefixDepositConsumed store, so dropping the oldest in-memory
+    // entries only weakens the soft pre-settlement cache, never double-mint safety.
     private void EvictIfNeeded()
     {
         if (_consumed.Count <= MaxConsumedEntries) return;
-        var toRemove = new List<(uint, ulong)>();
-        var count = _consumed.Count - MaxConsumedEntries / 2;
-        foreach (var entry in _consumed)
+        var toEvict = _consumed.Count - MaxConsumedEntries / 2;
+        for (var i = 0; i < toEvict && _consumedOrder.Count > 0; i++)
         {
-            if (count-- <= 0) break;
-            toRemove.Add(entry);
+            var old = _consumedOrder.Dequeue();
+            _consumed.Remove(old);
         }
-        foreach (var entry in toRemove)
-            _consumed.Remove(entry);
     }
 }
 

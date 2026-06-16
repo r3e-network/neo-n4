@@ -37,11 +37,14 @@ public sealed record ExternalAssetTransferPayload
         if (Amount.Sign < 0)
             throw new InvalidOperationException("Amount must be non-negative");
 
-        // BigInteger.ToByteArray returns LE, two's-complement. For unsigned
-        // values that don't naturally need a sign byte, the result has no
-        // padding. We emit the raw bytes; callers passing Sign=0 get a
-        // single zero byte (matches DepositPayload).
-        var amountBytes = Amount.ToByteArray();
+        // Emit minimal unsigned little-endian bytes so the wire format matches
+        // the documented "unsigned BigInteger little-endian" layout, DepositPayload
+        // (DepositPayload.cs:30), and the on-chain minimal-unsigned-LE leaf encoding.
+        // Amount is asserted non-negative above, so isUnsigned is always valid; a
+        // value with the top bit set gets NO extra 0x00 sign byte (which signed
+        // ToByteArray would add), keeping the encoding byte-for-byte interoperable
+        // with foreign-chain / payout-adapter counterparties.
+        var amountBytes = Amount.ToByteArray(isUnsigned: true, isBigEndian: false);
         if (amountBytes.Length > MaxAmountBytes)
             throw new InvalidOperationException(
                 $"Amount byte length {amountBytes.Length} exceeds MaxAmountBytes {MaxAmountBytes}");
@@ -70,7 +73,7 @@ public sealed record ExternalAssetTransferPayload
             throw new ArgumentException(
                 $"payload length {bytes.Length} != 24 + amountLen {amountLen}", nameof(bytes));
 
-        var amount = new BigInteger(bytes.Slice(24, amountLen));
+        var amount = new BigInteger(bytes.Slice(24, amountLen), isUnsigned: true, isBigEndian: false);
         // Defense-in-depth: reject amounts that exceed a realistic supply cap
         // (32 bytes = 256 bits, more than the total supply of any known asset).
         // Downstream code should also validate against the specific asset's supply.

@@ -22,6 +22,7 @@ public class VerifierRegistryContract : SmartContract
     private const byte PrefixVerifier = 0x01;   // 0x01 + proofType(1B) → UInt160 verifier
     private const byte KeyGovernanceController = 0x02;
     private const byte PrefixConsumedProposal = 0x03;  // 0x03 + proposalId(8B) → 1 (replay protection)
+    private const byte KeyGovernanceLocked = 0x04;     // once set → instant owner RegisterVerifier is disabled (one-way)
     private const byte KeyOwner = 0xFF;
 
     /// <summary>
@@ -41,6 +42,10 @@ public class VerifierRegistryContract : SmartContract
     /// <summary>Emitted when ownership is transferred.</summary>
     [DisplayName("OwnerChanged")]
     public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
+
+    /// <summary>Emitted the first time governance is locked. Re-locking is a no-op and does not re-emit.</summary>
+    [DisplayName("GovernanceLocked")]
+    public static event Action OnGovernanceLocked = default!;
 
     /// <summary>Set the initial owner.</summary>
     public static void _deploy(object data, bool update)
@@ -69,12 +74,54 @@ public class VerifierRegistryContract : SmartContract
         OnOwnerChanged(oldOwner, newOwner);
     }
 
-    /// <summary>Bind a verifier contract to a <c>ProofType</c>. Owner only — the §16
-    /// council-veto path is <see cref="RegisterVerifierViaProposal"/>.</summary>
+    /// <summary>
+    /// Bind a verifier contract to a <c>ProofType</c>. Owner only — the instant bootstrap path.
+    /// <para>
+    /// This instant owner-witness path has NO timelock and NO council-veto. It exists so a
+    /// genuine §16 council-veto path (<see cref="RegisterVerifierViaProposal"/>) coexists with the instant path
+    /// only during bring-up. At production launch the operator MUST call
+    /// <see cref="LockGovernance"/> — once governance is locked this instant path reverts and
+    /// every verifier swap is forced through the council multisig + timelock
+    /// (<see cref="RegisterVerifierViaProposal"/>), closing the rogue-owner "swap to a
+    /// return-true verifier" hole. Lock is one-way (mirrors
+    /// <c>ContractZkVerifier.disableEnvelopeOnlyPermanently</c>).
+    /// </para>
+    /// </summary>
     public static void RegisterVerifier(byte proofType, UInt160 verifier)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(),
+            "governance locked — instant owner path disabled; use RegisterVerifierViaProposal");
         WriteVerifier(proofType, verifier);
+    }
+
+    /// <summary>
+    /// Permanently disable the instant owner-only <see cref="RegisterVerifier"/> path so all
+    /// verifier swaps must go through the council multisig + timelock
+    /// (<see cref="RegisterVerifierViaProposal"/>). Owner only; one-way (there is no unlock).
+    /// Idempotent — re-locking is a no-op. The GovernanceController must be wired first
+    /// (<see cref="SetGovernanceController"/>) so the proposal path is actually usable once
+    /// the instant path is closed.
+    /// </summary>
+    public static void LockGovernance()
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(GetGovernanceController() != UInt160.Zero,
+            "wire GovernanceController before locking — else no verifier could ever be registered");
+        var key = new byte[] { KeyGovernanceLocked };
+        if (Storage.Get(key) == null)
+        {
+            Storage.Put(key, new byte[] { 1 });
+            OnGovernanceLocked();
+        }
+    }
+
+    /// <summary>True once <see cref="LockGovernance"/> has been called — the instant owner
+    /// <see cref="RegisterVerifier"/> path is then permanently disabled.</summary>
+    [Safe]
+    public static bool IsGovernanceLocked()
+    {
+        return Storage.Get(new byte[] { KeyGovernanceLocked }) != null;
     }
 
     /// <summary>Wire the GovernanceController contract hash that

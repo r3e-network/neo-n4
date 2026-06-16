@@ -169,6 +169,14 @@ public class OptimisticChallengeContract : SmartContract
     /// continue to register new ones as the protocol adds verifier shapes. Revoking a
     /// verifier disables it for future challenges but does not undo past challenges that
     /// it accepted.
+    /// <para>
+    /// NOTE: both <c>GovernanceFraudVerifier</c> and <c>RestrictedExecutionFraudVerifier</c>
+    /// are STRUCTURAL verifiers — they check the proof against the challenger-supplied payload
+    /// header only, NOT against the sequencer's on-chain batch commitment. Register them via
+    /// this method (approved-only, owner/governance co-sign required at Challenge time); do
+    /// NOT pass them to <see cref="RegisterPermissionlessFraudVerifier"/> until a verifier
+    /// binds acceptance to the committed batch roots.
+    /// </para>
     /// </remarks>
     public static void RegisterFraudVerifier(UInt160 verifier)
     {
@@ -304,9 +312,16 @@ public class OptimisticChallengeContract : SmartContract
         // that coincidental safety — this ordering future-proofs against it.
         Storage.Put(AcceptedFraudKey(chainId, batchNumber), challenger);
 
-        // Pay challenger first.
-        Contract.Call(bondContract, "slash", CallFlags.All,
-            new object[] { chainId, sequencer, challengerCut, challenger });
+        // Pay challenger first. Skip the payout slash when the cut rounds down to 0
+        // (residual bond too small for `rewardBps` to yield ≥ 1 unit) — SequencerBond.Slash
+        // asserts `amount > 0`, so a 0-cut slash would FAULT and revert the whole accepted
+        // challenge, leaving a too-small-to-challenge bond on a proven-fraudulent sequencer.
+        // In that case the entire residual bond is burned below instead.
+        if (challengerCut > 0)
+        {
+            Contract.Call(bondContract, "slash", CallFlags.All,
+                new object[] { chainId, sequencer, challengerCut, challenger });
+        }
         // Burn (or treasury) the rest.
         var remaining = bondBalance - challengerCut;
         if (remaining > 0)

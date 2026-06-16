@@ -47,10 +47,21 @@ public static class ScaffoldPlan
                     OwnerAndDep("DARegistry"),
                     "DARegistry"),
 
+                // EmergencyManager._deploy is (owner, emergencyCouncil, settlementManager)
+                // and Pause() requires Runtime.CheckWitness(emergencyCouncil). The council
+                // MUST be a real account (multisig/EOA) whose witness can actually be
+                // produced — NOT a deployed-contract hash. A contract hash only satisfies
+                // CheckWitness while that contract is in the live invocation chain, and
+                // GovernanceController makes no outbound Contract.Call to forward a pause,
+                // so wiring the council to its hash would make Pause() permanently
+                // unreachable and the emergency-response system non-functional. The
+                // operator substitutes EMERGENCY_COUNCIL_REPLACE_ME with the emergency
+                // multisig signing-account hash before deploy; it must be a callable
+                // witness, not a contract that can't sign.
                 Step("EmergencyManager",
                     "contracts/NeoHub.EmergencyManager/bin/sc/NeoHub.EmergencyManager.nef",
-                    OwnerAndDeps("GovernanceController", "SettlementManager"),
-                    "GovernanceController", "SettlementManager"),
+                    new JArray { "OWNER_REPLACE_ME", "EMERGENCY_COUNCIL_REPLACE_ME", "$step:SettlementManager" },
+                    "SettlementManager"),
 
                 Step("GovernanceController",
                     "contracts/NeoHub.GovernanceController/bin/sc/NeoHub.GovernanceController.nef",

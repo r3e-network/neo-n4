@@ -143,10 +143,12 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
     public async ValueTask<bool> HasOverdueEntryAsync(uint nowUnixSeconds, CancellationToken cancellationToken = default)
     {
         var pending = await DrainAsync(int.MaxValue, cancellationToken).ConfigureAwait(false);
-        // Use < (not <=) so a deadline at exactly nowUnixSeconds is "due now," not overdue —
-        // the L2 batcher gets one block to include it before censorship is reported. Mirrors
-        // the in-memory variant.
-        return pending.Any(e => e.DeadlineUnixSeconds < nowUnixSeconds);
+        // Overdue iff nowUnixSeconds >= DeadlineUnixSeconds (i.e. deadline <= now), matching
+        // InMemoryForcedInclusionSource.HasOverdueEntryAsync, CensorshipDetector's continue-only-
+        // when-now-<-deadline loop, and the on-chain ReportCensorship boundary. Using strict <
+        // here would let the RPC path skip the detect pass at the exact deadline second that the
+        // in-memory and on-chain paths already act on.
+        return pending.Any(e => e.DeadlineUnixSeconds <= nowUnixSeconds);
     }
 
     private async Task<List<ForcedInclusionEntry>> FetchPendingAsync(CancellationToken ct)

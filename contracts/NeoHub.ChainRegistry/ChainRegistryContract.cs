@@ -33,6 +33,14 @@ public class ChainRegistryContract : SmartContract
     /// <summary>Storage prefix for contracts authorized to pause a chain on proven censorship.</summary>
     private const byte PrefixPauser = 0x04;
 
+    /// <summary>Storage key for the one-way governance lock. Once set, the instant owner
+    /// <see cref="UpdateChain"/> path is disabled and config mutations must go through the
+    /// council-gated <see cref="UpdateChainViaProposal"/>.</summary>
+    private const byte KeyGovernanceLocked = 0x05;
+
+    /// <summary>Storage prefix for consumed UpdateChain proposal ids (replay protection).</summary>
+    private const byte PrefixConsumedUpdateProposal = 0x06; // 0x06 + proposalId(8B) → 1
+
     /// <summary>Storage key for the owner address.</summary>
     private const byte KeyOwner = 0xFF;
 
@@ -101,6 +109,10 @@ public class ChainRegistryContract : SmartContract
     /// <summary>Emitted when a contract is removed from the chain-pauser set.</summary>
     [DisplayName("PauserRevoked")]
     public static event Action<UInt160> OnPauserRevoked = default!;
+
+    /// <summary>Emitted the first time governance is locked. Re-locking is a no-op and does not re-emit.</summary>
+    [DisplayName("GovernanceLocked")]
+    public static event Action OnGovernanceLocked = default!;
 
     /// <summary>Initial owner is set on deploy.</summary>
     public static void _deploy(object data, bool update)
@@ -239,6 +251,7 @@ public class ChainRegistryContract : SmartContract
         ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         ExecutionEngine.Assert(configBytes.Length == ConfigSize, "config size mismatch");
         ExecutionEngine.Assert(ReadChainId(configBytes) == chainId, "chainId mismatch");
+        AssertDAModeInRange(configBytes);
 
         var key = ConfigKey(chainId);
         var existing = Storage.Get(key);
@@ -249,17 +262,161 @@ public class ChainRegistryContract : SmartContract
         OnChainRegistered(chainId, configBytes);
     }
 
-    /// <summary>Update an already-registered chain's config. Owner only.</summary>
+    /// <summary>
+    /// Update an already-registered chain's config. Owner only — the instant bootstrap path.
+    /// <para>
+    /// SECURITY NOTE: this is an instant, owner-witness-only mutation — it has NO timelock
+    /// and NO council-veto gate, so it can rewrite a chain's verifier / securityLevel /
+    /// daMode / active byte in a single block. To close the rogue-owner hole, the operator
+    /// MUST call <see cref="LockGovernance"/> at production launch: once locked this instant
+    /// path reverts and config mutations are forced through the council multisig + timelock
+    /// (<see cref="UpdateChainViaProposal"/>). For any production deployment the owner SHOULD
+    /// additionally be the <c>GovernanceController</c> contract hash, not a single EOA.
+    /// </para>
+    /// </summary>
     public static void UpdateChain(uint chainId, byte[] configBytes)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(),
+            "governance locked — instant owner path disabled; use UpdateChainViaProposal");
         ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         ExecutionEngine.Assert(configBytes.Length == ConfigSize, "config size mismatch");
         ExecutionEngine.Assert(ReadChainId(configBytes) == chainId, "chainId mismatch");
+        AssertDAModeInRange(configBytes);
         ExecutionEngine.Assert(Storage.Get(ConfigKey(chainId)) != null, "chain not registered");
 
         Storage.Put(ConfigKey(chainId), configBytes);
         OnChainRegistered(chainId, configBytes);
+    }
+
+    /// <summary>
+    /// Council-veto path for updating a chain config — the only way to mutate a chain's
+    /// verifier / securityLevel / daMode / active byte once <see cref="LockGovernance"/> has
+    /// closed the instant owner path. The proposalId must be approved by the council multisig
+    /// AND have cleared the timelock (consulted on the wired GovernanceController), then this
+    /// call is replay-protected per proposalId and bound to the EXACT (chainId, configBytes)
+    /// via <see cref="BuildUpdateChainAction"/> so council members vote on the precise config,
+    /// not opaque bytes that could be repurposed. Anyone may submit; authority is the
+    /// proposal's approval state, not the caller's witness.
+    /// </summary>
+    public static void UpdateChainViaProposal(uint chainId, byte[] configBytes, ulong proposalId)
+    {
+        var gc = GetGovernanceController();
+        ExecutionEngine.Assert(gc != UInt160.Zero,
+            "governance controller not wired — owner must call SetGovernanceController first");
+        ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
+        ExecutionEngine.Assert(configBytes.Length == ConfigSize, "config size mismatch");
+        ExecutionEngine.Assert(ReadChainId(configBytes) == chainId, "chainId mismatch");
+        AssertDAModeInRange(configBytes);
+        ExecutionEngine.Assert(Storage.Get(ConfigKey(chainId)) != null, "chain not registered");
+
+        var consumedKey = ConsumedUpdateProposalKey(proposalId);
+        ExecutionEngine.Assert(Storage.Get(consumedKey) == null, "proposal already consumed");
+
+        var ok = (bool)Contract.Call(gc, "isApprovedAndTimelocked",
+            CallFlags.ReadOnly, new object[] { proposalId });
+        ExecutionEngine.Assert(ok,
+            "proposal not approved + timelocked (council multisig + timelock not satisfied)");
+
+        // Bind the proposal payload to (chainId, configBytes) so an approved proposal can't be
+        // applied with a different config than the council voted on.
+        var expectedAction = BuildUpdateChainAction(chainId, configBytes);
+        var bound = (bool)Contract.Call(gc, "matchesProposalPayload",
+            CallFlags.ReadOnly, new object[] { proposalId, expectedAction });
+        ExecutionEngine.Assert(bound,
+            "proposal payload does not match (chainId, configBytes) action args (council voted on different bytes)");
+
+        Storage.Put(consumedKey, new byte[] { 1 });
+        Storage.Put(ConfigKey(chainId), configBytes);
+        OnChainRegistered(chainId, configBytes);
+    }
+
+    /// <summary>
+    /// Permanently disable the instant owner-only <see cref="UpdateChain"/> path so chain
+    /// config mutations must go through the council multisig + timelock
+    /// (<see cref="UpdateChainViaProposal"/>). Owner only; one-way (there is no unlock).
+    /// Idempotent — re-locking is a no-op. The GovernanceController must be wired first
+    /// (<see cref="SetGovernanceController"/>) so the proposal path is usable once the instant
+    /// path is closed.
+    /// </summary>
+    public static void LockGovernance()
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(GetGovernanceController() != UInt160.Zero,
+            "wire GovernanceController before locking — else no chain config could ever be updated");
+        var key = new byte[] { KeyGovernanceLocked };
+        if (Storage.Get(key) == null)
+        {
+            Storage.Put(key, new byte[] { 1 });
+            OnGovernanceLocked();
+        }
+    }
+
+    /// <summary>True once <see cref="LockGovernance"/> has been called — the instant owner
+    /// <see cref="UpdateChain"/> path is then permanently disabled.</summary>
+    [Safe]
+    public static bool IsGovernanceLocked()
+    {
+        return Storage.Get(new byte[] { KeyGovernanceLocked }) != null;
+    }
+
+    /// <summary>
+    /// Canonical encoding for an "update chain" action — what the council votes on when they
+    /// create the proposal that <see cref="UpdateChainViaProposal"/> executes. Off-chain
+    /// tooling computes this and submits it as the proposal payload via the
+    /// GovernanceController's <c>CreateProposal</c>; the execution call re-derives the same
+    /// bytes from its args and asserts byte-equality against the stored payload. Layout:
+    /// <c>"neo4-gov:updateChain" || chainId(4B LE) || configBytes(ConfigSize)</c>. The
+    /// "neo4-gov:" prefix + distinct method id prevents cross-method payload reuse.
+    /// </summary>
+    [Safe]
+    public static byte[] BuildUpdateChainAction(uint chainId, byte[] configBytes)
+    {
+        var tag = ActionTagUpdateChain;
+        var buf = new byte[tag.Length + 4 + configBytes.Length];
+        for (var i = 0; i < tag.Length; i++) buf[i] = tag[i];
+        buf[tag.Length] = (byte)chainId;
+        buf[tag.Length + 1] = (byte)(chainId >> 8);
+        buf[tag.Length + 2] = (byte)(chainId >> 16);
+        buf[tag.Length + 3] = (byte)(chainId >> 24);
+        for (var i = 0; i < configBytes.Length; i++) buf[tag.Length + 4 + i] = configBytes[i];
+        return buf;
+    }
+
+    // ASCII bytes for the "neo4-gov:updateChain" action tag (20 bytes). Kept as a const
+    // byte[] (not a string) so the on-chain bytecode is the literal byte sequence — same
+    // idiom as the GovernanceController action tags.
+    private static readonly byte[] ActionTagUpdateChain = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'g', (byte)'o', (byte)'v', (byte)':',
+        (byte)'u', (byte)'p', (byte)'d', (byte)'a', (byte)'t', (byte)'e',
+        (byte)'C', (byte)'h', (byte)'a', (byte)'i', (byte)'n'
+    };
+
+    private static byte[] ConsumedUpdateProposalKey(ulong proposalId)
+    {
+        var k = new byte[1 + 8];
+        k[0] = PrefixConsumedUpdateProposal;
+        k[1] = (byte)proposalId; k[2] = (byte)(proposalId >> 8);
+        k[3] = (byte)(proposalId >> 16); k[4] = (byte)(proposalId >> 24);
+        k[5] = (byte)(proposalId >> 32); k[6] = (byte)(proposalId >> 40);
+        k[7] = (byte)(proposalId >> 48); k[8] = (byte)(proposalId >> 56);
+        return k;
+    }
+
+    /// <summary>
+    /// Reject a config whose daMode byte is outside the defined 0..3 range. Mirrors the
+    /// downstream guards in <c>SettlementManager.RecordDataAvailability</c> and
+    /// <c>DARegistry.Record</c> (both assert daMode &lt;= 3) so an invalid DA mode is
+    /// rejected at registration / update time instead of surfacing late and confusingly at
+    /// the first <c>SubmitBatch</c> for the chain. DA modes (doc.md §12.1):
+    /// L1(0)/Rollup(1)/Validium(2)/Volition(3).
+    /// </summary>
+    private static void AssertDAModeInRange(byte[] configBytes)
+    {
+        ExecutionEngine.Assert(configBytes[OffsetDAMode] <= 3,
+            "daMode must be 0..3 (L1/Rollup/Validium/Volition)");
     }
 
     /// <summary>Pause a chain. Owner only. Sets active=false in stored config.</summary>

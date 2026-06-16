@@ -9,9 +9,22 @@ namespace NeoHub.DAValidator;
 
 /// <summary>
 /// L1 data-availability validator for validium-style Neo Elastic Network chains.
-/// Rollup/L1 DA requires a non-zero commitment; off-L1 DA modes require M-of-N
-/// secp256r1 committee attestations before SettlementManager can finalize.
+/// Off-L1 DA modes (NeoFS/External/DAC) require M-of-N secp256r1 committee attestations
+/// before SettlementManager can finalize.
 /// </summary>
+/// <remarks>
+/// IMPORTANT TRUST NOTE for <c>ModeL1</c>: this contract only checks that the batch's DA
+/// commitment is non-zero. It does NOT verify the batch payload was actually published to
+/// L1 — that publication is performed off-chain by <c>JsonRpcL1DAWriter</c>, which this
+/// contract neither calls nor receives a receipt from. Consequently L1 mode cannot
+/// distinguish an honestly-published batch from a sequencer that set an arbitrary non-zero
+/// commitment and withheld the data. L1 mode is therefore NOT the strongest on-chain DA
+/// gate despite carrying the highest off-chain cost; the off-L1 modes that require a
+/// verifiable committee attestation provide stronger on-chain enforcement. Achieving true
+/// "highest security" for L1 mode requires an on-chain L1-inclusion proof (e.g. verifying
+/// the DA blob's commitment is recorded by an L1 DA contract within a window), which is not
+/// yet implemented.
+/// </remarks>
 [DisplayName("NeoHub.DAValidator")]
 [ContractAuthor("Neo Project", "dev@neo.org")]
 [ContractDescription("L1 data-availability validator for Neo Elastic Network batches.")]
@@ -129,6 +142,14 @@ public class DAValidatorContract : SmartContract
         byte daMode,
         byte[] proofBytes)
     {
+        // VerifyAttestation aborts-on-failure: every rejection path inside it is an
+        // ExecutionEngine.Assert with its own specific message (e.g. "signature
+        // verification failed"), and its only return is `valid >= threshold`, which is
+        // always true once it has asserted past every signature. We therefore invoke it
+        // purely for that verification side-effect; the returned bool is true whenever the
+        // call does not abort. The defensive assert below preserves a non-zero return as a
+        // belt-and-suspenders gate should VerifyAttestation ever be refactored to return
+        // false instead of aborting.
         ExecutionEngine.Assert(VerifyAttestation(chainId, batchNumber, commitment, daMode, proofBytes),
             "DA attestation rejected");
         ExecutionEngine.Assert(Storage.Get(ValidatedKey(chainId, batchNumber)) == null,
@@ -160,10 +181,14 @@ public class DAValidatorContract : SmartContract
     }
 
     /// <summary>
-    /// SettlementManager calls this during finalization. Rollup/L1 mode requires a
-    /// non-zero commitment; NeoFS/external/DAC modes additionally require a
+    /// SettlementManager calls this during finalization. NeoFS/external/DAC modes require a
     /// previously submitted committee attestation matching this batch and commitment.
     /// </summary>
+    /// <remarks>
+    /// <c>ModeL1</c> passes on any non-zero commitment WITHOUT proof the data was published
+    /// to L1 (publication is delegated to the off-chain <c>JsonRpcL1DAWriter</c>); it cannot
+    /// detect DA-withholding by a malicious/buggy sequencer. See the class-level trust note.
+    /// </remarks>
     [Safe]
     public static bool Validate(uint chainId, ulong batchNumber, UInt256 commitment, byte daMode)
     {

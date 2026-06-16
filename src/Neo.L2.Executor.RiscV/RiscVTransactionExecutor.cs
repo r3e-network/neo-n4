@@ -5,12 +5,23 @@ using Neo.L2.Executor.Receipts;
 namespace Neo.L2.Executor.RiscV;
 
 /// <summary>
-/// <see cref="ITransactionExecutor"/> backed by the PolkaVM-based NeoVM2/RISC-V host.
+/// Preview <see cref="ITransactionExecutor"/> seam backed by the PolkaVM-based NeoVM2/RISC-V host.
 /// </summary>
 /// <remarks>
 /// The serialized transaction payload is expected to be the compiled NeoVM2/RISC-V
 /// program bytes for this execution stage. Legacy NeoVM bytecode must use
 /// <c>ApplicationEngineTransactionExecutor</c> instead.
+/// <para>
+/// <b>Not yet a state-bearing production executor.</b> This wrapper binds only the stateless
+/// <c>neo_riscv_execute_script</c> FFI (see <see cref="RiscVHost"/>), which runs the program
+/// with no host callbacks. Consequently it cannot mutate L2 state: it holds no
+/// <c>IL2KeyValueStore</c>, the receipt's <see cref="Receipt.StorageDeltaHash"/> and
+/// <see cref="Receipt.EventsHash"/> are always <see cref="UInt256.Zero"/>, and it never emits
+/// withdrawals or cross-chain messages. Pairing it with a state-root oracle would compute a
+/// post-state root over a store this executor never wrote. Wiring the stateful
+/// <c>neo_riscv_execute_script_with_host</c> variants (storage-delta / withdrawal / message
+/// extraction and per-tx gas threading) is required before this becomes the production path.
+/// </para>
 /// </remarks>
 public sealed class RiscVTransactionExecutor : ITransactionExecutor
 {
@@ -80,9 +91,13 @@ public sealed class RiscVTransactionExecutor : ITransactionExecutor
                 TxHash = txHash,
                 Success = success,
                 GasConsumed = Math.Max(0, result.FeeConsumed),
+                // Always Zero: the stateless FFI produces no storage delta or event
+                // stream. Real values require the _with_host FFI binding (see class remarks).
                 StorageDeltaHash = UInt256.Zero,
                 EventsHash = UInt256.Zero,
             },
+            // Always empty for the same reason — no host callbacks means no withdrawals
+            // or cross-chain messages can be emitted by the guest program.
             Withdrawals = Array.Empty<WithdrawalRequest>(),
             Messages = Array.Empty<CrossChainMessage>(),
         });
@@ -104,6 +119,10 @@ public sealed class RiscVTransactionExecutor : ITransactionExecutor
         }
 
         var network = batchContext.Network == 0 ? RiscVHost.DefaultNetwork : batchContext.Network;
+        // Fixed budget for the preview seam: the serialized payload is a raw RISC-V program,
+        // not a decoded Neo transaction, so a per-tx gas limit isn't available here. Threading
+        // the transaction's own gas requires the decode + _with_host wiring noted in the class
+        // remarks; until then OOG/HALT outcomes are evaluated against this constant budget.
         return RiscVHost.Execute(
             program.Span,
             RiscVHost.TriggerApplication,

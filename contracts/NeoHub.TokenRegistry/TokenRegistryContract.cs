@@ -37,6 +37,10 @@ public class TokenRegistryContract : SmartContract
     [DisplayName("MappingRegistered")]
     public static event Action<UInt160, uint, UInt160> OnMappingRegistered = default!;
 
+    /// <summary>Emitted when a mapping's active flag is toggled.</summary>
+    [DisplayName("MappingActiveChanged")]
+    public static event Action<UInt160, uint, bool> OnMappingActiveChanged = default!;
+
     /// <summary>Emitted when ownership is transferred.</summary>
     [DisplayName("OwnerChanged")]
     public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
@@ -117,6 +121,23 @@ public class TokenRegistryContract : SmartContract
 
         Storage.Put(MappingKey(l1Asset, chainId), mappingBytes);
         OnMappingRegistered(l1Asset, chainId, l2Asset);
+    }
+
+    /// <summary>
+    /// Activate or deactivate an existing mapping. Owner only. Deactivating a mapping makes
+    /// <see cref="IsActive"/> return false, which the SharedBridge deposit/withdrawal paths use to
+    /// gate transfers — letting governance freeze a specific asset/chain pair (e.g. a deprecated
+    /// or compromised token) without deleting the mapping or its decimals metadata.
+    /// </summary>
+    public static void SetActive(UInt160 l1Asset, uint chainId, bool active)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        var raw = Storage.Get(MappingKey(l1Asset, chainId));
+        ExecutionEngine.Assert(raw != null, "mapping not found");
+        var bytes = (byte[])raw!;
+        bytes[MappingSize - 1] = (byte)(active ? 1 : 0);
+        Storage.Put(MappingKey(l1Asset, chainId), bytes);
+        OnMappingActiveChanged(l1Asset, chainId, active);
     }
 
     /// <summary>Read the mapping for a given (l1Asset, chainId) pair.</summary>

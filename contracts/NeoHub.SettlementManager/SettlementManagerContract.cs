@@ -32,7 +32,16 @@ public class SettlementManagerContract : SmartContract
     private const byte PrefixVerifierRegistry = 0xFD;
     private const byte KeyOwner = 0xFF;
 
+    // Canonical L2BatchCommitment header offsets (see Neo.L2.Batch.BatchSerializer).
+    private const int PreStateRootOffset = 28;
+    private const int PostStateRootOffset = 60;
+    private const int TxRootOffset = 92;
+    private const int ReceiptRootOffset = 124;
+    private const int WithdrawalRootOffset = 156;
+    private const int L2ToL1MessageRootOffset = 188;
+    private const int L2ToL2MessageRootOffset = 220;
     private const int DACommitmentOffset = 252;
+    private const int PublicInputHashOffset = 284;
     private const int ProofTypeOffset = 316;
     private const int ProofLenOffset = 317;
     private const int ProofBytesOffset = 321;
@@ -176,11 +185,28 @@ public class SettlementManagerContract : SmartContract
     /// Submit an L2BatchCommitment. The chain must be registered + active; the batch number
     /// must equal <c>latestFinalized + 1</c>; the verifier dispatches by ProofType.
     /// </summary>
-    public static void SubmitBatch(byte[] commitmentBytes)
+    /// <param name="commitmentBytes">Canonical L2BatchCommitment encoding (see Neo.L2.Batch.BatchSerializer).</param>
+    /// <param name="l1MessageHash">The <c>l1MessageHash</c> public input the proof attests. It is
+    /// NOT carried in the commitment header, so the submitter supplies it; it is bound into
+    /// <c>publicInputHash</c> below, so a wrong value simply fails verification.</param>
+    /// <param name="blockContextHash">The <c>blockContextHash</c> public input the proof attests
+    /// (same binding rationale as <paramref name="l1MessageHash"/>).</param>
+    /// <remarks>
+    /// SECURITY: the recorded canonical roots are bound to the proof. We (1) require the
+    /// commitment's preStateRoot to equal the chain's current canonical head (state-root
+    /// continuity), and (2) recompute the public-input hash from the commitment header plus the
+    /// two supplied public-input hashes and require it to equal the commitment's
+    /// <c>publicInputHash</c> — the exact value the registered verifier cryptographically checks.
+    /// Without (1)+(2) a valid proof produced for one state could be replayed to finalize an
+    /// attacker-chosen postStateRoot / withdrawalRoot and drain the shared bridge.
+    /// </remarks>
+    public static void SubmitBatch(byte[] commitmentBytes, byte[] l1MessageHash, byte[] blockContextHash)
     {
-        // Minimum size must cover: chainId(4) + batchNumber(8) + 10 roots(320) + proofType(1) + proofLen(4) = 337
-        // But we use ProofBytesOffset (321) as the minimum to safely read proofType and proofLen
+        // Minimum size must cover: chainId(4) + batchNumber(8) + firstBlock(8) + lastBlock(8) +
+        // 9 roots(288) + proofType(1) + proofLen(4) = 321 = ProofBytesOffset.
         ExecutionEngine.Assert(commitmentBytes.Length >= ProofBytesOffset, "commitment too small");
+        ExecutionEngine.Assert(l1MessageHash != null && l1MessageHash.Length == 32, "l1MessageHash must be 32 bytes");
+        ExecutionEngine.Assert(blockContextHash != null && blockContextHash.Length == 32, "blockContextHash must be 32 bytes");
 
         var chainId = ReadUInt32(commitmentBytes, 0);
         var batchNumber = ReadUInt64(commitmentBytes, 4);
@@ -194,9 +220,31 @@ public class SettlementManagerContract : SmartContract
         var latest = GetLatestFinalizedBatch(chainId);
         ExecutionEngine.Assert(batchNumber == latest + 1, "batch number out of sequence");
 
-        // Don't double-submit.
+        // Don't double-submit. A previously-reverted slot (fraud-proven or governance-reverted)
+        // may be resubmitted with a corrected batch; any other existing status is rejected so the
+        // chain is never permanently wedged by a revert.
         var statusKey = StatusKey(chainId, batchNumber);
-        ExecutionEngine.Assert(Storage.Get(statusKey) == null, "batch already submitted");
+        var existing = Storage.Get(statusKey);
+        ExecutionEngine.Assert(existing == null || ((byte[])existing)[0] == StatusReverted, "batch already submitted");
+
+        // Continuity: the batch must build on the chain's current canonical head. The first batch
+        // (latest == 0) establishes genesis and has no prior root to chain to; every later batch
+        // must chain exactly. Prevents finalizing a transition from a fabricated preStateRoot.
+        if (latest > 0)
+        {
+            var preStateRoot = ReadUInt256(commitmentBytes, PreStateRootOffset);
+            ExecutionEngine.Assert(preStateRoot.Equals(GetCanonicalStateRoot(chainId)),
+                "preStateRoot does not match canonical head");
+        }
+
+        // Bind every recorded root to the proof: recompute publicInputHash from the committed
+        // header fields + the supplied l1MessageHash / blockContextHash and require it to equal
+        // the commitment's publicInputHash (the value the verifier attests). Mirrors the off-chain
+        // Neo.L2.State.StateRootCalculator.HashPublicInputs layout byte-for-byte.
+        var expectedPublicInputHash = ComputePublicInputHash(commitmentBytes, l1MessageHash!, blockContextHash!);
+        var declaredPublicInputHash = ReadUInt256(commitmentBytes, PublicInputHashOffset);
+        ExecutionEngine.Assert(expectedPublicInputHash.Equals(declaredPublicInputHash),
+            "publicInputHash not bound to commitment roots");
 
         // Hand off proof verification to the registry (it dispatches by ProofType).
         var verifierRegistry = (UInt160)(Storage.Get(new byte[] { PrefixVerifierRegistry }) ?? throw new Exception("verifier registry unset"));
@@ -208,12 +256,21 @@ public class SettlementManagerContract : SmartContract
         RecordDataAvailability(chainId, batchNumber, daCommitment, daMode);
 
         var proofType = commitmentBytes[ProofTypeOffset];
+        // Enforce the chain's advertised security level. securityLevel (doc.md §16.2) and ProofType
+        // share the same 0..3 ordering — 0 sidechain/None, 1 settled/Multisig, 2 optimistic/Optimistic,
+        // 3 zk/Zk — so a batch's proof type must be at least as strong as the level the chain declares.
+        // Without this a chain could advertise (e.g.) ZK validity to users yet settle via a weaker
+        // proof type, which — combined with the shared bridge — would let it mint withdrawals under a
+        // weaker trust model than advertised.
+        var securityLevel = (byte)(BigInteger)Contract.Call(chainRegistry, "getSecurityLevel",
+            CallFlags.ReadOnly, new object[] { chainId });
+        ExecutionEngine.Assert(proofType >= securityLevel, "proof type below chain's advertised security level");
         var status = proofType == ProofTypeOptimistic ? StatusChallengeable : StatusPending;
         Storage.Put(statusKey, new byte[] { status });
         Storage.Put(BatchHeaderKey(chainId, batchNumber), commitmentBytes);
 
         // Capture the per-batch withdrawalRoot so the SharedBridge can consult it.
-        var withdrawalRoot = ReadUInt256(commitmentBytes, 4 + 8 + 8 + 8 + 4 * 32);
+        var withdrawalRoot = ReadUInt256(commitmentBytes, WithdrawalRootOffset);
         Storage.Put(WithdrawalRootKey(chainId, batchNumber), (byte[])withdrawalRoot);
 
         if (proofType == ProofTypeOptimistic)
@@ -226,8 +283,47 @@ public class SettlementManagerContract : SmartContract
                 new object[] { chainId, batchNumber, sequencer });
         }
 
-        var postStateRoot = ReadUInt256(commitmentBytes, 4 + 8 + 8 + 8 + 32);
+        var postStateRoot = ReadUInt256(commitmentBytes, PostStateRootOffset);
         OnBatchSubmitted(chainId, batchNumber, postStateRoot);
+    }
+
+    /// <summary>
+    /// Recompute the canonical public-input hash from a commitment header plus the two public
+    /// inputs not carried in the header (<paramref name="l1MessageHash"/>,
+    /// <paramref name="blockContextHash"/>). Must match
+    /// <c>Neo.L2.State.StateRootCalculator.HashPublicInputs</c>:
+    /// <c>Hash256(chainId(4 LE) ‖ batchNumber(8 LE) ‖ preStateRoot ‖ postStateRoot ‖ txRoot ‖
+    /// receiptRoot ‖ withdrawalRoot ‖ l2ToL1MessageRoot ‖ l2ToL2MessageRoot ‖ l1MessageHash ‖
+    /// daCommitment ‖ blockContextHash)</c>, where <c>Hash256(x) = Sha256(Sha256(x))</c>.
+    /// </summary>
+    private static UInt256 ComputePublicInputHash(byte[] commitmentBytes, byte[] l1MessageHash, byte[] blockContextHash)
+    {
+        var buf = new byte[4 + 8 + 10 * 32];
+        var pos = 0;
+        // chainId(4 LE) + batchNumber(8 LE) are already little-endian at the head of the commitment.
+        for (var i = 0; i < 12; i++) buf[pos + i] = commitmentBytes[i];
+        pos += 12;
+        CopyRoot(buf, ref pos, commitmentBytes, PreStateRootOffset);
+        CopyRoot(buf, ref pos, commitmentBytes, PostStateRootOffset);
+        CopyRoot(buf, ref pos, commitmentBytes, TxRootOffset);
+        CopyRoot(buf, ref pos, commitmentBytes, ReceiptRootOffset);
+        CopyRoot(buf, ref pos, commitmentBytes, WithdrawalRootOffset);
+        CopyRoot(buf, ref pos, commitmentBytes, L2ToL1MessageRootOffset);
+        CopyRoot(buf, ref pos, commitmentBytes, L2ToL2MessageRootOffset);
+        for (var i = 0; i < 32; i++) buf[pos + i] = l1MessageHash[i];
+        pos += 32;
+        CopyRoot(buf, ref pos, commitmentBytes, DACommitmentOffset);
+        for (var i = 0; i < 32; i++) buf[pos + i] = blockContextHash[i];
+        pos += 32;
+
+        var h1 = CryptoLib.Sha256((ByteString)buf);
+        return (UInt256)(byte[])CryptoLib.Sha256(h1);
+    }
+
+    private static void CopyRoot(byte[] dest, ref int pos, byte[] src, int srcOffset)
+    {
+        for (var i = 0; i < 32; i++) dest[pos + i] = src[srcOffset + i];
+        pos += 32;
     }
 
     /// <summary>
@@ -263,7 +359,13 @@ public class SettlementManagerContract : SmartContract
         OnBatchFinalized(chainId, batchNumber, postStateRoot);
     }
 
-    /// <summary>Mark a batch reverted (governance / successful optimistic fraud proof).</summary>
+    /// <summary>
+    /// Mark a batch reverted (governance action, or a successful optimistic fraud proof). The
+    /// slot becomes resubmittable via <see cref="SubmitBatch"/> with a corrected batch, so a
+    /// revert never permanently wedges the chain. If the reverted batch was the current finalized
+    /// head, the canonical state root and the latestFinalized pointer are rewound to the previous
+    /// finalized batch so the escape hatch and withdrawal paths stop honoring the reverted state.
+    /// </summary>
     public static void RevertBatch(uint chainId, ulong batchNumber)
     {
         var ownerAuthorized = Runtime.CheckWitness(GetOwner());
@@ -272,14 +374,41 @@ public class SettlementManagerContract : SmartContract
             && !optimisticChallenge.IsZero
             && Runtime.CheckWitness(optimisticChallenge);
         ExecutionEngine.Assert(ownerAuthorized || challengeAuthorized, "not authorized");
+
+        var rawStatus = Storage.Get(StatusKey(chainId, batchNumber));
+        ExecutionEngine.Assert(rawStatus != null, "batch unknown");
+        var status = ((byte[])rawStatus!)[0];
+        ExecutionEngine.Assert(status != StatusReverted, "batch already reverted");
+
         if (challengeAuthorized && !ownerAuthorized)
         {
-            var rawStatus = Storage.Get(StatusKey(chainId, batchNumber));
-            ExecutionEngine.Assert(rawStatus != null, "batch unknown");
-            var status = ((byte[])rawStatus!)[0];
             ExecutionEngine.Assert(status == StatusChallengeable,
                 "OptimisticChallenge can only revert challengeable batches");
         }
+
+        // If the reverted batch is the current finalized head, rewind the canonical root and the
+        // latestFinalized pointer to the previous finalized batch. Only the head may be reverted
+        // while finalized — deeper rollbacks must revert from the top down so the rewind stays
+        // consistent and never leaves a stale canonical root the escape hatch would honor.
+        if (status == StatusFinalized)
+        {
+            ExecutionEngine.Assert(batchNumber == GetLatestFinalizedBatch(chainId),
+                "only the latest finalized batch can be reverted");
+            if (batchNumber > 1)
+            {
+                var prevHeaderRaw = Storage.Get(BatchHeaderKey(chainId, batchNumber - 1));
+                ExecutionEngine.Assert(prevHeaderRaw != null, "previous batch header missing");
+                var prevPostStateRoot = ReadUInt256((byte[])prevHeaderRaw!, PostStateRootOffset);
+                Storage.Put(CanonicalRootKey(chainId), (byte[])prevPostStateRoot);
+                SetLatestFinalizedBatch(chainId, batchNumber - 1);
+            }
+            else
+            {
+                Storage.Delete(CanonicalRootKey(chainId));
+                SetLatestFinalizedBatch(chainId, 0);
+            }
+        }
+
         Storage.Put(StatusKey(chainId, batchNumber), new byte[] { StatusReverted });
         OnBatchReverted(chainId, batchNumber);
     }

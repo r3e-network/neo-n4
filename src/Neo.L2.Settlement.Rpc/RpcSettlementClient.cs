@@ -15,10 +15,19 @@ namespace Neo.L2.Settlement.Rpc;
 public sealed class RpcSettlementClient : ISettlementClient, IDisposable
 {
     /// <summary>Delegate for signing+sending the SubmitBatch transaction.</summary>
+    /// <remarks>
+    /// The on-chain <c>SettlementManager.SubmitBatch</c> takes three arguments —
+    /// <paramref name="commitmentBytes"/> plus <paramref name="l1MessageHash"/> and
+    /// <paramref name="blockContextHash"/> — because the contract recomputes and binds the
+    /// commitment's <c>publicInputHash</c> from them (these two public inputs are not carried in
+    /// the commitment header). The signer MUST forward all three as the contract-call arguments.
+    /// </remarks>
     /// <returns>Tx hash returned by <c>sendrawtransaction</c>.</returns>
     public delegate ValueTask<UInt256> SignAndSendAsync(
         UInt160 settlementManagerHash,
         byte[] commitmentBytes,
+        byte[] l1MessageHash,
+        byte[] blockContextHash,
         CancellationToken cancellationToken);
 
     private readonly JsonRpcClient _rpc;
@@ -43,11 +52,16 @@ public sealed class RpcSettlementClient : ISettlementClient, IDisposable
     public async ValueTask<UInt256> SubmitBatchAsync(L2BatchCommitment commitment, PublicInputs publicInputs, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(commitment);
+        ArgumentNullException.ThrowIfNull(publicInputs);
         var bytes = BatchSerializer.Encode(commitment);
+        // The contract binds the commitment's publicInputHash to these two public inputs, which
+        // are not part of the commitment header — forward exactly the values used to compute it.
+        var l1MessageHash = publicInputs.L1MessageHash.GetSpan().ToArray();
+        var blockContextHash = publicInputs.BlockContextHash.GetSpan().ToArray();
         // Defensive: a buggy signAndSend that returns null UInt256 would propagate as a
         // NRE further downstream (e.g. an L1-tracker that dereferences the tx hash).
         // Same iter-171/172/173 callee-contract pattern.
-        var txHash = await _signAndSend(_settlementManagerHash, bytes, cancellationToken).ConfigureAwait(false)
+        var txHash = await _signAndSend(_settlementManagerHash, bytes, l1MessageHash, blockContextHash, cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException(
                 "RpcSettlementClient.SignAndSendAsync delegate returned null tx hash");
         return txHash;

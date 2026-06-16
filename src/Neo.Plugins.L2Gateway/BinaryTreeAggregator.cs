@@ -16,6 +16,15 @@ namespace Neo.Plugins.L2Gateway;
 /// aggregator produces an O(log N)-deep recursive structure that's the right shape for
 /// SP1 Compress / Halo2 accumulators / Risc0 STARK folding.
 /// </para>
+/// <para>
+/// The <see cref="AggregatedCommitment.AggregatedProof"/> bytes carry whatever attestation the
+/// configured <see cref="IRoundProver"/> emits (e.g. committee signatures for
+/// <see cref="MultisigRoundProver"/>, Merkle-path data for <see cref="MerklePathRoundProver"/>).
+/// Producing those bytes does not by itself make the published global root trust-minimized: the
+/// current on-chain publish path authorizes on the settlement-manager witness and does not
+/// verify the aggregated proof. A consumer that wants the attestation to be load-bearing must
+/// verify it (via the round prover's verify primitive) before committing the root.
+/// </para>
 /// </remarks>
 public sealed class BinaryTreeAggregator : IGatewayAggregator
 {

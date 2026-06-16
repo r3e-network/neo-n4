@@ -20,6 +20,18 @@ namespace Neo.L2.Challenge;
 ///     reports the single narrowed disputed-tx index. Use this in production whenever
 ///     the L1 fraud verifier needs to know which transaction to re-execute.</item>
 /// </list>
+/// <para>
+/// Important trust scope: the bisection here is an <em>off-chain</em> narrowing optimization, not
+/// an on-chain interactive fraud-proof game. There is currently no on-chain bisection contract,
+/// and <c>NeoHub.OptimisticChallenge.Challenge</c> is single-shot — it calls <c>verifyFraud</c>
+/// once and the shipped verifier does not re-execute the disputed transaction. The narrowed
+/// <see cref="FraudProofPayload.DisputedTxIndex"/> and embedded witness are therefore metadata:
+/// nothing on-chain confirms that re-running the narrowed tx on the committed pre-state yields the
+/// challenger's claimed root. Integrators must not treat a narrowed index as an on-chain-enforced
+/// fraud proof; soundness today rests on off-chain replay plus the challenge contract's trust
+/// model. Once an on-chain re-execution verifier lands, the narrowed index should be settled
+/// on-chain so the verifier re-executes exactly that tx against the committed pre-root.
+/// </para>
 /// </remarks>
 public sealed class ChallengeOrchestrator
 {

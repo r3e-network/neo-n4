@@ -25,6 +25,7 @@ public class SharedBridgeContract : SmartContract
     private const byte PrefixDeposit = 0x02;          // 0x02 + chainId(4B) + nonce(8B) → encoded deposit msg
     private const byte PrefixWithdrawalConsumed = 0x03; // 0x03 + chainId(4B) + leafHash(32B) → 1
     private const byte PrefixPendingTransfer = 0x04;  // 0x04 + asset(20B) + from(20B) → 1
+    private const byte PrefixLockedBalance = 0x05;    // 0x05 + chainId(4B) + asset(20B) → per-chain escrowed amount (BigInteger)
     private const byte PrefixSettlementManager = 0xFD;
     private const byte PrefixTokenRegistry = 0xFE;
     private const byte PrefixEmergencyManager = 0xFC;
@@ -135,6 +136,19 @@ public class SharedBridgeContract : SmartContract
         // would lock tokens in escrow that no L2 would ever pick up.
         ExecutionEngine.Assert(targetChainId > 0, "targetChainId 0 is reserved for L1");
 
+        // Refuse to lock funds for an asset that has no active L1->L2 mapping on the target chain.
+        // The withdrawal path already enforces this binding; without the symmetric deposit-side
+        // check a deposit of an unmapped/inactive asset is permanently locked — the L2 can never
+        // mint it and there is no refund path.
+        var tokenRegistry = GetTokenRegistry();
+        ExecutionEngine.Assert(tokenRegistry.IsValid && !tokenRegistry.IsZero, "token registry not wired");
+        var mappedL2Asset = (UInt160)Contract.Call(
+            tokenRegistry, "getL2Asset", CallFlags.ReadOnly, new object[] { asset, targetChainId });
+        ExecutionEngine.Assert(mappedL2Asset.IsValid && !mappedL2Asset.IsZero, "asset not mapped for target chain");
+        var mappingActive = (bool)Contract.Call(
+            tokenRegistry, "isActive", CallFlags.ReadOnly, new object[] { asset, targetChainId });
+        ExecutionEngine.Assert(mappingActive, "asset mapping inactive");
+
         var caller = Runtime.CallingScriptHash;
 
         // Allocate nonce and commit deposit record before pulling tokens.
@@ -156,6 +170,11 @@ public class SharedBridgeContract : SmartContract
             new object[] { caller, Runtime.ExecutingScriptHash, amount, null! });
         ExecutionEngine.Assert(transferred, "asset transfer failed");
         Storage.Delete(pendingKey);
+
+        // Credit the per-chain escrow ledger so withdrawals for this chain can never draw more of
+        // this asset than was deposited for it — this contains a single chain's compromise to that
+        // chain's own escrow instead of the whole shared pool.
+        IncrementLocked(targetChainId, asset, amount);
 
         OnDepositEnqueued(targetChainId, nonce, caller, l2Recipient, amount);
         return nonce;
@@ -452,6 +471,13 @@ public class SharedBridgeContract : SmartContract
     {
         Storage.Put(consumedKey, new byte[] { 1 });
 
+        // A chain may only withdraw up to what was escrowed for it in this asset. This caps the
+        // blast radius of any single chain's compromise (or a forged withdrawalRoot) to that
+        // chain's own deposits and prevents draining assets escrowed on behalf of other chains.
+        var locked = GetLockedBalance(chainId, asset);
+        ExecutionEngine.Assert(locked >= amount, "withdrawal exceeds chain's escrowed balance");
+        Storage.Put(LockedBalanceKey(chainId, asset), locked - amount);
+
         var transferred = (bool)Contract.Call(
             asset, "transfer",
             CallFlags.All,
@@ -459,6 +485,32 @@ public class SharedBridgeContract : SmartContract
         ExecutionEngine.Assert(transferred, "asset transfer failed");
 
         OnWithdrawalFinalized(chainId, asset, recipient, amount);
+    }
+
+    /// <summary>Per-chain escrowed balance of an L1 asset (incremented on deposit, decremented on
+    /// withdrawal). Withdrawals for a chain can never exceed this.</summary>
+    [Safe]
+    public static BigInteger GetLockedBalance(uint chainId, UInt160 asset)
+    {
+        var raw = Storage.Get(LockedBalanceKey(chainId, asset));
+        return raw == null ? 0 : (BigInteger)raw;
+    }
+
+    private static void IncrementLocked(uint chainId, UInt160 asset, BigInteger amount)
+    {
+        var key = LockedBalanceKey(chainId, asset);
+        var current = GetLockedBalance(chainId, asset);
+        Storage.Put(key, current + amount);
+    }
+
+    private static byte[] LockedBalanceKey(uint chainId, UInt160 asset)
+    {
+        var k = new byte[1 + 4 + 20];
+        k[0] = PrefixLockedBalance;
+        k[1] = (byte)chainId; k[2] = (byte)(chainId >> 8); k[3] = (byte)(chainId >> 16); k[4] = (byte)(chainId >> 24);
+        var b = (byte[])asset;
+        for (var i = 0; i < 20; i++) k[5 + i] = b[i];
+        return k;
     }
 
     private static ulong NextDepositNonce(uint chainId)

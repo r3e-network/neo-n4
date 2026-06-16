@@ -53,7 +53,16 @@ pub trait Signer {
 
 /// File-based secp256k1 signer for development. **NEVER use in
 /// production** — keys in the clear on disk are an exfiltration risk.
-/// Only available in debug builds to prevent accidental production use.
+///
+/// This type is compiled into every build (it is wired into the daemon
+/// binary's preflight + run paths) and re-exported from the crate root,
+/// so the build system does NOT prevent its use. Accidental production
+/// use is instead gated at runtime: the daemon refuses to start without
+/// the explicit `--allow-stub-signer` acknowledgement and ships a
+/// non-submitting stub sign-and-send path (see
+/// `src/bin/neo-bridge-watcher-eth.rs`). Production deployments replace
+/// this with an HSM/KMS-backed [`Signer`] impl that never exposes raw
+/// key material.
 pub struct FileSigner {
     sk: SigningKey,
     vk: VerifyingKey,

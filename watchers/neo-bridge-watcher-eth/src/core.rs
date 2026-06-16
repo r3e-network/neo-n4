@@ -116,7 +116,13 @@ impl<S: Signer, ES: EventSource, NS: NeoSubmitter, J: Journal> WatcherCore<S, ES
             return Err(CoreError::AlreadyConsumedNotConfirmed { chain, nonce });
         }
         self.journal.mark_submitted(chain, nonce)?;
-        self.journal.set_cursor(block.saturating_add(1))?;
+        // Advance to the event's block (NOT block + 1) for the same
+        // reason as the happy path in `process_event`: a block can hold
+        // multiple Locked events and advancing past it would strand any
+        // remaining same-block events that only exist in the source's
+        // in-memory queue. Re-fetching `block` on restart is deduped by
+        // the (chain, nonce) submitted-set.
+        self.journal.set_cursor(block)?;
         Ok(())
     }
 
@@ -230,12 +236,22 @@ impl<S: Signer, ES: EventSource, NS: NeoSubmitter, J: Journal> WatcherCore<S, ES
             proof_bytes: neo_proof,
         })?;
 
-        // Successful submit → mark + advance cursor past the processed block.
-        // Using block_number + 1 so the event source skips the already-processed
-        // block on restart, saving RPC calls.
+        // Successful submit → mark + advance cursor to the processed
+        // block (NOT block + 1). A single Eth block can carry multiple
+        // Locked events; the event source batch-fetches them into an
+        // in-memory queue and drains one per tick. Advancing to block + 1
+        // here would persist a cursor past a block whose remaining
+        // same-block events live only in that volatile queue — a
+        // crash/restart between two same-block events would resume polling
+        // at block + 1, never re-fetch the block, and silently drop the
+        // unprocessed events. Resuming at `block` re-fetches it; the
+        // already-processed nonces are rejected by the (chain, nonce)
+        // dedup below (`is_submitted` → AlreadySubmitted, handled by the
+        // daemon loop as a no-op advance) while the unprocessed ones get
+        // their turn.
         self.journal
             .mark_submitted(event.external_chain_id, event.nonce)?;
-        self.journal.set_cursor(event.block_number + 1)?;
+        self.journal.set_cursor(event.block_number)?;
         Ok(tx_hash)
     }
 }
@@ -327,8 +343,10 @@ mod tests {
         // single-signer Neo proof = 2 header + (33 + 64) = 99 bytes
         assert_eq!(sub.proof_bytes.len(), 99);
 
-        // Journal advanced past the processed block.
-        assert_eq!(core.journal.cursor().unwrap(), 1235);
+        // Journal advanced to the processed block (not block + 1, so a
+        // restart re-fetches the block and the (chain, nonce) dedup
+        // suppresses already-processed same-block events).
+        assert_eq!(core.journal.cursor().unwrap(), 1234);
         assert!(core.journal.is_submitted(0xE000_0001, 7).unwrap());
     }
 
@@ -390,7 +408,7 @@ mod tests {
         // Retry: clear the error, same event succeeds.
         let tx_hash = core.process_event(evt).unwrap();
         assert_eq!(tx_hash[0], 1);
-        assert_eq!(core.journal.cursor().unwrap(), 1235);
+        assert_eq!(core.journal.cursor().unwrap(), 1234);
     }
 
     #[test]
@@ -409,8 +427,8 @@ mod tests {
         let processed = core.drain().unwrap();
         assert_eq!(processed, 3);
         assert_eq!(core.submitter.submissions().len(), 3);
-        // Cursor advances past the last block processed.
-        assert_eq!(core.journal.cursor().unwrap(), 301);
+        // Cursor advances to the last block processed (not block + 1).
+        assert_eq!(core.journal.cursor().unwrap(), 300);
         // Nonces in submission order: 1, 2, 3.
         assert_eq!(
             core.submitter.submissions()[0].external_chain_id,
@@ -429,8 +447,8 @@ mod tests {
     #[test]
     fn drain_resumes_after_partial_progress() {
         // Two events: first succeeds, second fails on submit. Drain
-        // should process the first, journal the cursor at block 100,
-        // and bubble the error from the second.
+        // should process the first, journal the cursor at the first
+        // event's block (100), and bubble the error from the second.
         let mut core = WatcherCore::new(
             0xE000_0001,
             make_signer(),
@@ -444,7 +462,7 @@ mod tests {
         // Process first event; it succeeds.
         let processed = core.tick().unwrap();
         assert!(processed);
-        assert_eq!(core.journal.cursor().unwrap(), 101);
+        assert_eq!(core.journal.cursor().unwrap(), 100);
 
         // Inject failure for the second event's submission.
         core.submitter.next_error = Some(SubmitterError::Rpc("transient".into()));
@@ -452,8 +470,8 @@ mod tests {
         assert!(matches!(err, CoreError::Submit(_)));
         assert_eq!(
             core.journal.cursor().unwrap(),
-            101,
-            "cursor must NOT advance on submit failure (stays at previous event's block + 1)"
+            100,
+            "cursor must NOT advance on submit failure (stays at previous event's block)"
         );
 
         // Recovery: clear the error, retry. The next_event call still
@@ -485,10 +503,10 @@ mod tests {
         // process_event captures the nonce
         let _ = core.tick();
 
-        // Recovery: mark nonce submitted, advance cursor past the event's block
+        // Recovery: mark nonce submitted, advance cursor to the event's block
         core.recover_already_consumed().unwrap();
         assert!(core.journal.is_submitted(0xE000_0001, 7).unwrap());
-        assert_eq!(core.journal.cursor().unwrap(), 101);
+        assert_eq!(core.journal.cursor().unwrap(), 100);
     }
 
     #[test]
@@ -532,7 +550,7 @@ mod tests {
 
         core.recover_already_consumed().unwrap();
         assert!(core.journal.is_submitted(0xE000_0001, 42).unwrap());
-        assert_eq!(core.journal.cursor().unwrap(), 201); // block + 1
+        assert_eq!(core.journal.cursor().unwrap(), 200); // event's block
     }
 
     #[test]

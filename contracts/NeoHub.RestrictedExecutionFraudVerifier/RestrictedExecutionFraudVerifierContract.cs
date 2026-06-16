@@ -10,14 +10,14 @@ namespace NeoHub.RestrictedExecutionFraudVerifier;
 
 /// <summary>
 /// On-chain v3 fraud verifier — re-derives pre/post state roots from each storage
-/// proof's leaf-hash + siblings + leafIndex and checks them against the payload's
-/// header roots.
+/// proof's leaf-hash + siblings + leafIndex and checks they are internally consistent
+/// with the roots in the challenger-supplied payload header.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Trustless companion to <c>NeoHub.GovernanceFraudVerifier</c>. The governance
-/// verifier stops at structural checks (length / version / claimed != replayed) and
-/// defers correctness arbitration to the security council; this verifier requires the
+/// Structural companion to <c>NeoHub.GovernanceFraudVerifier</c>. The governance
+/// verifier stops at length/version/claimed-!=-replayed checks and defers correctness
+/// arbitration to the security council; this verifier additionally requires the
 /// challenger to supply storage-proof manifests for every key the disputed tx touched
 /// and rejects the proof on-chain if the supplied storage manifests don't reconstruct
 /// to the payload's <c>PreStateRoot</c> and <c>ReplayedPostStateRoot</c>.
@@ -26,20 +26,39 @@ namespace NeoHub.RestrictedExecutionFraudVerifier;
 /// What this proves on-chain:
 /// </para>
 /// <list type="bullet">
-///   <item><description>The challenger's storage proofs are well-formed: each proof's
-///     pre-leaf folds with its siblings + leafIndex bits to a root that matches the
-///     header's <c>PreStateRoot</c>, and same on the post side against
+///   <item><description>The challenger's storage proofs are internally well-formed: each
+///     proof's pre-leaf folds with its siblings + leafIndex bits to a root that matches the
+///     payload header's <c>PreStateRoot</c>, and same on the post side against
 ///     <c>ReplayedPostStateRoot</c>.</description></item>
 ///   <item><description>The challenger claims a real discrepancy:
 ///     <c>ClaimedPostStateRoot != ReplayedPostStateRoot</c>.</description></item>
 /// </list>
 /// <para>
-/// What this verifier does NOT prove: that re-running the disputed transaction on the
-/// pre-state actually produces the challenger's claimed post-state. That requires
-/// running NeoVM with restricted state on L1 — substantial multi-iteration work and
-/// the natural follow-on to this contract. Until then, "accepted by this verifier"
-/// means "the challenger has made a structurally credible claim a downstream re-execution
-/// service (or council) should arbitrate."
+/// What this verifier does NOT prove:
+/// </para>
+/// <list type="bullet">
+///   <item><description>That the payload's <c>PreStateRoot</c> / <c>ClaimedPostStateRoot</c>
+///     match what the sequencer actually committed on-chain. ALL roots checked here come from
+///     the same challenger-supplied <c>payload</c>; the verifier performs no
+///     <c>Storage.Get</c> / <c>Contract.Call</c> against <c>SettlementManager</c>'s batch
+///     header, and <c>chainId</c>/<c>batchNumber</c> are used only for event emission. A
+///     challenger can therefore fabricate a self-consistent pre-root / replayed-root pair
+///     (e.g. a one-leaf tree they build) unrelated to the disputed batch. Binding requires
+///     reading the committed roots from the on-chain batch header (a getter
+///     <c>SettlementManager</c> does not yet expose, threaded through
+///     <c>OptimisticChallenge.OpenWindow</c>/<c>Challenge</c>) — not yet implemented.</description></item>
+///   <item><description>That re-running the disputed transaction on the pre-state actually
+///     produces the challenger's claimed post-state. That requires running NeoVM with
+///     restricted state on L1.</description></item>
+/// </list>
+/// <para>
+/// Because acceptance is NOT bound to the on-chain commitment, this verifier is NOT
+/// trustless and MUST NOT be registered on the permissionless auto-slash path
+/// (<c>OptimisticChallenge.RegisterPermissionlessFraudVerifier</c>). Like the governance
+/// verifier, "accepted by this verifier" means only "the challenger has made a structurally
+/// credible claim a downstream re-execution service (or council) should arbitrate" — keep it
+/// approved-only with owner/governance co-sign until on-chain batch binding + re-execution
+/// land.
 /// </para>
 /// <para>
 /// Hash composition mirrors <c>Neo.L2.Executor.State.KeyedStateStore.HashEntry</c>:
@@ -82,7 +101,7 @@ namespace NeoHub.RestrictedExecutionFraudVerifier;
 /// </remarks>
 [DisplayName("NeoHub.RestrictedExecutionFraudVerifier")]
 [ContractAuthor("Neo Project", "dev@neo.org")]
-[ContractDescription("Trustless v3 fraud verifier — checks storage-proof manifests against the payload's pre/post state roots.")]
+[ContractDescription("Structural v3 fraud verifier — checks storage-proof manifests are internally consistent with the payload's pre/post state roots (not bound to the on-chain batch commitment).")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.RestrictedExecutionFraudVerifier")]
 [ContractPermission(Permission.Any, Method.Any)]
@@ -146,14 +165,17 @@ public class RestrictedExecutionFraudVerifierContract : SmartContract
 
     /// <summary>
     /// Verify a v3 fraud-proof payload by re-deriving pre/post state roots from each
-    /// storage proof and matching against the payload's header roots.
+    /// storage proof and matching against the payload's own header roots. NOTE: this binds
+    /// the proofs only to the challenger-supplied header, NOT to the sequencer's on-chain
+    /// batch commitment — <paramref name="chainId"/>/<paramref name="batchNumber"/> are used
+    /// only for event emission. See the class remarks for the trust limitation.
     /// </summary>
-    /// <param name="chainId">L2 chain id (passed through from <c>OptimisticChallenge.Challenge</c>).</param>
-    /// <param name="batchNumber">Disputed batch number (passed through).</param>
+    /// <param name="chainId">L2 chain id (passed through from <c>OptimisticChallenge.Challenge</c>; event-only here).</param>
+    /// <param name="batchNumber">Disputed batch number (passed through; event-only here).</param>
     /// <param name="payload">Canonical v3 <c>FraudProofPayload</c> bytes.</param>
     /// <returns>
     /// True when the payload is well-formed v3 AND every storage proof reconstructs to
-    /// the header's pre/post roots AND <c>ClaimedPostStateRoot != ReplayedPostStateRoot</c>.
+    /// the payload header's pre/post roots AND <c>ClaimedPostStateRoot != ReplayedPostStateRoot</c>.
     /// False otherwise — the rejected event names the specific failure mode.
     /// </returns>
     [Safe]

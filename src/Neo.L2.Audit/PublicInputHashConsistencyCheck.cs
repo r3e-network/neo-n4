@@ -5,18 +5,30 @@ namespace Neo.L2.Audit;
 /// <summary>
 /// Verifies that each batch's stored <see cref="L2BatchCommitment.PublicInputHash"/>
 /// matches the hash of public inputs reconstructed from the commitment's own fields.
-/// Catches commitments where the PublicInputHash was set to a value derived from
-/// different public inputs than the commitment claims — a tampered submission that
-/// would otherwise verify against the wrong proof.
 /// </summary>
 /// <remarks>
+/// <para>
+/// Scope (default ctor): the reconstruction uses the same commitment fields and the same
+/// <see cref="StateRootCalculator.HashPublicInputs"/> function that the settlement plugin's
+/// <c>BuildPublicInputs</c> uses to produce <c>PublicInputHash</c>, so this check is the
+/// inverse of the producer. It therefore catches only inconsistency / drift between a stored
+/// commitment's fields and its stored <c>PublicInputHash</c> (e.g. partial corruption where one
+/// was mutated without the other). It does NOT detect deliberate tampering — an attacker who
+/// edits a commitment field can recompute a matching hash with the same public function and pass
+/// — and it does NOT bind the proof's embedded inputs (wrong-proof binding is
+/// <see cref="ProofValidityCheck"/>'s responsibility). To turn this into a tamper/wrong-proof
+/// check it must be driven from an independent source of public inputs via the resolver below.
+/// </para>
+/// <para>
 /// The commitment alone doesn't carry every <see cref="PublicInputs"/> field
 /// (specifically <c>L1MessageHash</c> and <c>BlockContextHash</c>). The default
 /// reconstruction matches the current Phase 0–3 settlement plugin's
 /// <c>BuildPublicInputs</c> by zero-filling those fields. When future phases populate
 /// them, callers can pass an optional <c>publicInputsResolver</c> to the constructor —
 /// same shape as <see cref="ProofValidityCheck"/>'s resolver — to look up the actual
-/// values from a side store / replay path.
+/// values from a side store / replay path, which also makes the check independent of the
+/// producer rather than a self-inverse.
+/// </para>
 /// </remarks>
 public sealed class PublicInputHashConsistencyCheck : IAuditCheck
 {

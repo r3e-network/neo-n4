@@ -30,6 +30,16 @@ namespace Neo.Plugins.L2Gateway;
 /// for chains that want every level of the aggregation tree to carry a committee attestation
 /// without needing a recursive-ZK toolchain.
 /// </para>
+/// <para>
+/// Trust scope: the attestation produced here is only as load-bearing as the consumer that
+/// verifies it. The current on-chain global-root publish path (<c>PublishGlobalRoot</c>)
+/// authorizes purely on the settlement-manager witness and does NOT call
+/// <see cref="VerifyRound"/>, so a published <c>GlobalMessageRoot</c> is today backed by that
+/// witness, not by these committee signatures. <see cref="VerifyRound"/> is therefore an
+/// off-chain / future-on-chain verification primitive, not an enforced trust-minimization
+/// guarantee — do not treat the mere production of this attestation as making the global root
+/// trust-minimized.
+/// </para>
 /// </remarks>
 public sealed class MultisigRoundProver : IRoundProver
 {
@@ -71,12 +81,19 @@ public sealed class MultisigRoundProver : IRoundProver
         if (right is null) return left; // Merkle odd-leaf rule
 
         var canonicalMessage = CanonicalRoundMessage(left, right);
-        // ISignerSet.SignAsync is inherently async (HSM/KMS backends). Run it on a
-        // background thread and synchronously await with ConfigureAwait(false) to
-        // prevent SynchronizationContext capture deadlocks. GetAwaiter().GetResult()
-        // unwraps exceptions directly (unlike .Result which wraps in AggregateException).
-        // TODO: make IRoundProver.Combine return ValueTask<RoundResult> so the async
-        // propagates cleanly through BinaryTreeAggregator → settlement plugin.
+        // ISignerSet.SignAsync is inherently async (HSM/KMS backends), but IRoundProver.Combine
+        // is synchronous because IGatewayAggregator.Aggregate (its only caller) is synchronous.
+        // Run the signing on a background thread and synchronously await with ConfigureAwait(false)
+        // to prevent SynchronizationContext capture deadlocks; GetAwaiter().GetResult() unwraps
+        // exceptions directly (unlike .Result, which wraps in AggregateException).
+        //
+        // Blocking characteristic: each tree node parks one thread-pool thread for the duration of
+        // its signer round-trip, so an N-leaf aggregation performs O(N) sequential blocking calls.
+        // This is acceptable here because aggregation runs off the hot request path (a periodic
+        // settlement-batch job, not per-transaction) and the signer count is bounded by the
+        // committee size. A fully async IRoundProver/IGatewayAggregator surface would remove the
+        // blocking entirely; that is a breaking change to two public interfaces and their callers
+        // across the repo, so it is intentionally not done here.
         var sigs = Task.Run(async () => await _signers.SignAsync(canonicalMessage).ConfigureAwait(false))
             .GetAwaiter().GetResult()
             ?? throw new InvalidOperationException("ISignerSet.SignAsync returned null");
@@ -165,6 +182,17 @@ public sealed class MultisigRoundProver : IRoundProver
     /// prover that omitted lengths would expose the canonical encoding to length-extension /
     /// concatenation ambiguity attacks.
     /// </summary>
+    /// <remarks>
+    /// The message binds the two child commitments but NOT the aggregation epoch, source chain
+    /// id, or the node's level/position in the tree. A signature therefore attests only that
+    /// "these two child commitments combine" and would be replayable in any other context where
+    /// the same (root, proofBytes) child pair recurs. This is defense-in-depth rather than an
+    /// active gap today (the attestation is not yet verified on-chain and identical child pairs
+    /// across epochs are improbable). When real on-chain verification is wired up, the
+    /// aggregation epoch and an unambiguous chain/context id must be included here so signatures
+    /// are bound to a single aggregation context and cannot be cross-context replayed; those
+    /// values are not available in this two-argument shape and would require an interface change.
+    /// </remarks>
     public static byte[] CanonicalRoundMessage(RoundResult left, RoundResult right)
     {
         ArgumentNullException.ThrowIfNull(left);

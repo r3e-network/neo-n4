@@ -24,6 +24,16 @@ namespace Neo.L2.State;
 /// that flat concatenation would introduce.
 /// </para>
 /// <para>
+/// No domain-separation tags: leaves and internal nodes share the bare
+/// <c>Hash256</c> primitive with no 0x00 leaf / 0x01 node prefix. This is a deliberate
+/// choice, not an oversight — the on-chain <c>NeoHub.SettlementManager.VerifyStateLeafWithProof</c>
+/// verifier uses the identical untagged construction, and the length-prefixed leaf preimage
+/// (whose first 4 bytes are a small keyLen) already constrains forging an internal-node
+/// preimage that also parses as a leaf. Any future revision that adds leaf/node domain tags
+/// MUST change both this off-chain tree and the on-chain verifier together, or state proofs
+/// will stop verifying.
+/// </para>
+/// <para>
 /// Tree composition delegates to <see cref="MerkleTree"/> (Neo classic Hash256 with
 /// odd-leaf duplication). This convention matches the on-chain
 /// <c>NeoHub.SettlementManager.VerifyStateLeafWithProof</c> verifier byte-for-byte:

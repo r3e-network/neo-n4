@@ -23,9 +23,14 @@ public sealed class RiscVHostUnavailableException : InvalidOperationException
 /// macOS: <c>libneo_riscv_host.dylib</c>. Windows: <c>neo_riscv_host.dll</c>.
 /// <para>
 /// This project targets the off-chain L2 batch executor. <c>RiscVTransactionExecutor</c>
-/// implements <c>ITransactionExecutor</c> on top of this VM, providing the NeoVM2/RISC-V
-/// execution path the spec calls for. The binding keeps an availability gate so callers
-/// can fail clearly when the native library is not deployed.
+/// implements <c>ITransactionExecutor</c> on top of this VM as a <em>preview seam</em> for
+/// the NeoVM2/RISC-V execution path the spec calls for: it currently binds only the
+/// stateless <c>neo_riscv_execute_script</c> FFI, so it does not yet read or write L2 state.
+/// The stateful <c>neo_riscv_execute_script_with_host</c> variants (which thread an
+/// <c>IL2KeyValueStore</c> and emit storage deltas / withdrawals / messages) are not bound
+/// from C# yet and must be wired before this path can be the state-bearing production
+/// executor. The binding keeps an availability gate so callers can fail clearly when the
+/// native library is not deployed.
 /// </para>
 /// </remarks>
 public static class RiscVHost

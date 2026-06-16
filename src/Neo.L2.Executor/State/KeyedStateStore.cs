@@ -55,7 +55,16 @@ public sealed class KeyedStateStore : IDisposable
     /// <summary>Delete a key. Returns <c>true</c> if it existed.</summary>
     public bool Delete(ReadOnlySpan<byte> key) => _backing.Delete(key);
 
-    /// <summary>Read a value, or empty span if missing.</summary>
+    /// <summary>
+    /// Read a value, or an empty span if the key is missing.
+    /// </summary>
+    /// <remarks>
+    /// An empty span is returned both for an absent key and for a key stored with an
+    /// empty value, so this method alone cannot distinguish the two. Empty-value keys
+    /// are real, distinct leaves that participate in the Merkle root (see
+    /// <see cref="HashEntry"/> with <c>valueLen == 0</c>), so the distinction is
+    /// semantically meaningful — callers that need it must use <see cref="Contains"/>.
+    /// </remarks>
     public ReadOnlyMemory<byte> Get(ReadOnlySpan<byte> key)
         => _backing.Get(key) ?? Array.Empty<byte>();
 

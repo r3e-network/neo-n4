@@ -10,9 +10,12 @@ namespace NeoHub.ExternalBridgeEscrow;
 
 /// <summary>
 /// L1-side escrow + dispatch for cross-foreign-chain messages. Locks NEP-17
-/// assets bound for foreign chains; pays out (mints / releases) on inbound
-/// proofs that the registered <c>IExternalBridgeVerifier</c> accepts. See
-/// <c>doc.md</c> §11.3 and <c>docs/external-bridge-roadmap.md</c>.
+/// assets bound for foreign chains (outbound); on inbound proofs that the
+/// registered <c>IExternalBridgeVerifier</c> accepts it marks the
+/// (chainId,nonce) consumed and emits <c>CrossChainInboundFinalized</c> — it
+/// does NOT itself transfer/release any asset to the recipient (see the
+/// payout-seam note in <see cref="Receive"/>). See <c>doc.md</c> §11.3 and
+/// <c>docs/external-bridge-roadmap.md</c> (Phase A is the message seam only).
 /// </summary>
 /// <remarks>
 /// <para>Storage layout per externalChainId:</para>
@@ -23,16 +26,24 @@ namespace NeoHub.ExternalBridgeEscrow;
 ///     1B (consumed inbound, replay protection — note the verifier ALSO
 ///     replay-protects, this is defense-in-depth on the escrow side)</description></item>
 ///   <item><description><c>0x03 + externalChainId(4B LE) + asset(20B)</c> →
-///     u128 LE locked-balance (so the escrow can't release more than was
-///     ever sent in)</description></item>
+///     u128 LE locked-balance. Incremented by <see cref="Send"/> and exposed
+///     read-only via <see cref="GetLockedBalance"/>; it records how much has
+///     been locked outbound. It is NOT decremented or checked on-chain — the
+///     escrow performs no payout, so supply conservation across the bridge is
+///     the responsibility of the off-chain payout layer that reads this
+///     value, not an invariant enforced by this contract.</description></item>
 /// </list>
 ///
-/// <para>This contract does NOT call NEP-17 transfer to mint pegged tokens
-/// for the user — that wiring is asset-mapping-specific and lives in a
-/// per-asset adapter the operator deploys (same pattern as
-/// <c>NeoHub.SharedBridge</c>'s mint/release split). The escrow's job is to
-/// (a) lock outbound, (b) authorize releases via verified inbound, (c) emit
-/// canonical events.</para>
+/// <para>This contract does NOT call NEP-17 transfer to mint or release
+/// pegged tokens for the user, and exposes no Release/Payout method. On a
+/// verified inbound message it only records replay state and emits
+/// <c>CrossChainInboundFinalized</c>; the actual release is asset-mapping-
+/// specific and is the job of the off-chain payout layer / per-asset adapter
+/// the operator deploys in a later phase (see
+/// <c>docs/external-bridge-roadmap.md</c>). The escrow's job is to (a) lock
+/// outbound, (b) verify + replay-guard inbound, (c) emit canonical events.
+/// The inbound direction is therefore the Phase A message seam, not a
+/// production-complete payout path.</para>
 /// </remarks>
 [DisplayName("NeoHub.ExternalBridgeEscrow")]
 [ContractAuthor("Neo Project", "dev@neo.org")]
@@ -196,9 +207,13 @@ public class ExternalBridgeEscrowContract : SmartContract
     /// <summary>
     /// Process a verified inbound message. Verifies the proof via the
     /// registered verifier through <c>ExternalBridgeRegistry.VerifyInbound</c>,
-    /// rejects on replay (per-(chainId,nonce)), then emits the finalize event
-    /// that the per-asset payout adapter reads to mint/release the recipient's
-    /// pegged asset on the destination Neo chain.
+    /// rejects on replay (per-(chainId,nonce)), marks the nonce consumed, then
+    /// emits <see cref="OnCrossChainInboundFinalized"/>. This method performs no
+    /// asset transfer/release itself and does not touch the locked-balance
+    /// accounting: the actual payout is left to the off-chain payout layer /
+    /// per-asset adapter (a later-phase component — see the class remarks and
+    /// <c>docs/external-bridge-roadmap.md</c>) that consumes this event. Treat
+    /// the inbound direction as the Phase A message seam, not a finished payout.
     /// </summary>
     public static void Receive(uint externalChainId, byte[] messageBytes, byte[] proofBytes)
     {
@@ -274,8 +289,11 @@ public class ExternalBridgeEscrowContract : SmartContract
             | ((ulong)b[7] << 56);
     }
 
-    /// <summary>Read the locked balance for an (externalChainId, asset) pair.
-    /// Used to enforce conservation of supply across the bridge.</summary>
+    /// <summary>Read the cumulative outbound locked balance for an
+    /// (externalChainId, asset) pair (incremented by <see cref="Send"/>, never
+    /// decremented on-chain). Exposed read-only so the off-chain payout layer
+    /// can enforce conservation of supply across the bridge; this contract does
+    /// not check it.</summary>
     [Safe]
     public static BigInteger GetLockedBalance(uint externalChainId, UInt160 asset)
     {

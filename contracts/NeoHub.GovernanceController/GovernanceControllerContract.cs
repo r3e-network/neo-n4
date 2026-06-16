@@ -39,6 +39,8 @@ public class GovernanceControllerContract : SmartContract
     private const byte KeyUpgradeExecutionWindowSeconds = 0x10;
     private const byte KeyUpgradeCooldownSeconds = 0x11;
     private const byte PrefixProposalExecutedAt = 0x12;   // 0x12 + proposalId(8B) → Runtime.Time ms
+    private const byte PrefixConsumedSetAdmissionMode = 0x13; // 0x13 + proposalId(8B) → 1 (replay protection for SetAdmissionModeViaProposal)
+    private const byte PrefixProposalVetoed = 0x14;        // 0x14 + proposalId(8B) → 1 (council/owner brake; IsApprovedAndTimelocked returns false once set)
     private const byte KeyOwner = 0xFF;
 
     public const byte StagePending = 0;
@@ -68,6 +70,10 @@ public class GovernanceControllerContract : SmartContract
     [DisplayName("ProposalExecuted")]
     public static event Action<ulong, ulong> OnProposalExecuted = default!;
 
+    /// <summary>Emitted the first time a proposal is vetoed via <c>CancelProposal</c>. Re-vetoing is a no-op and does not re-emit.</summary>
+    [DisplayName("ProposalVetoed")]
+    public static event Action<ulong> OnProposalVetoed = default!;
+
     /// <summary>Emitted when the admission mode changes.</summary>
     [DisplayName("AdmissionModeChanged")]
     public static event Action<byte> OnAdmissionModeChanged = default!;
@@ -92,7 +98,27 @@ public class GovernanceControllerContract : SmartContract
     [DisplayName("OwnerChanged")]
     public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
 
-    /// <summary>Set initial council + thresholds at deploy.</summary>
+    /// <summary>
+    /// Set initial council + thresholds at deploy.
+    /// <para>
+    /// COUNCIL IMMUTABILITY (intentional): the council member set (<see cref="PrefixCouncilMember"/>),
+    /// member count, M-of-N threshold, and timelock are written ONCE here and have no on-chain
+    /// mutator — there is deliberately no AddCouncilMember / RemoveCouncilMember / SetThreshold /
+    /// SetTimelock / RotateCouncil entry-point, and no ContractManagement.Update upgrade path.
+    /// The council is therefore frozen for the lifetime of this deployment. Operational
+    /// consequences the operator MUST plan for:
+    /// </para>
+    /// <list type="bullet">
+    ///   <item><description>Rotating or replacing a council member, or changing the threshold /
+    ///   timelock, requires a fresh GovernanceController deployment and re-wiring every consumer
+    ///   (VerifierRegistry / ChainRegistry / bridge stack SetGovernanceController) to the new hash —
+    ///   keep a redeploy-based recovery runbook.</description></item>
+    ///   <item><description>A single lost council key permanently reduces effective signing power; if
+    ///   it drops the live signer count below the threshold, NO proposal can ever reach approval and
+    ///   the governance path is unrecoverable without a redeploy. Choose a threshold with headroom
+    ///   (e.g. M of N where N-M tolerates expected key loss) accordingly.</description></item>
+    /// </list>
+    /// </summary>
     public static void _deploy(object data, bool update)
     {
         if (update) return;
@@ -190,14 +216,76 @@ public class GovernanceControllerContract : SmartContract
         return raw == null ? (byte)0 : ((byte[])raw)[0];
     }
 
-    /// <summary>Update the admission mode. Owner only.</summary>
+    /// <summary>
+    /// Tighten the admission mode. Owner only. The instant owner-witness path may only make
+    /// admission MORE restrictive (lower or equal numeric mode: 2=permissionless &gt;
+    /// 1=semi-permissionless &gt; 0=permissioned) — a compromised or rogue owner key cannot
+    /// instantly open the network up. Loosening admission (e.g. switching to permissionless)
+    /// is security-relevant and must go through the council-gated, timelocked
+    /// <see cref="SetAdmissionModeViaProposal"/> path, consistent with the treatment of
+    /// other security-relevant upgrades (verifier swaps, immutable-flag locks).
+    /// </summary>
     public static void SetAdmissionMode(byte mode)
     {
         ExecutionEngine.Assert(mode <= 2, "invalid admission mode");
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        // Only allow tightening (toward permissioned). Loosening must go through the
+        // approved + timelocked proposal path so opening admission is council-gated + delayed.
+        ExecutionEngine.Assert(mode <= GetAdmissionMode(),
+            "instant SetAdmissionMode may only tighten admission; use SetAdmissionModeViaProposal to loosen");
         Storage.Put(new byte[] { KeyAdmissionMode }, new byte[] { mode });
         OnAdmissionModeChanged(mode);
     }
+
+    /// <summary>
+    /// Council-veto path for changing the admission mode (the only way to LOOSEN admission,
+    /// e.g. switch to semi-permissionless or permissionless). The proposalId must be
+    /// approved by the council multisig AND have cleared the timelock; the call is then
+    /// replay-protected per proposalId and bound to the exact target mode so council
+    /// members vote on the precise transition, not opaque bytes.
+    /// </summary>
+    public static void SetAdmissionModeViaProposal(byte mode, ulong proposalId)
+    {
+        ExecutionEngine.Assert(mode <= 2, "invalid admission mode");
+        var consumedKey = ProposalIdKey(PrefixConsumedSetAdmissionMode, proposalId);
+        ExecutionEngine.Assert(Storage.Get(consumedKey) == null, "proposal already consumed");
+        ExecutionEngine.Assert(IsApprovedAndTimelocked(proposalId), "proposal not approved + timelocked");
+        // Bind the proposal payload to the target mode. Without this, an approved proposal
+        // could be applied with ANY mode — the council vote becomes a one-time blank check.
+        AssertProposalBinding(proposalId, BuildSetAdmissionModeAction(mode));
+        Storage.Put(consumedKey, new byte[] { 1 });
+        Storage.Put(new byte[] { KeyAdmissionMode }, new byte[] { mode });
+        OnAdmissionModeChanged(mode);
+    }
+
+    /// <summary>
+    /// Canonical encoding for a "set admission mode" action — what the council votes on when
+    /// they create the proposal that <see cref="SetAdmissionModeViaProposal"/> executes.
+    /// Off-chain tooling computes this and submits it as the proposal payload via
+    /// <see cref="CreateProposal"/>; the execution call re-derives the same bytes from its
+    /// args and asserts byte-equality. Layout:
+    /// <c>"neo4-gov:setAdmissionMode" || mode(1B)</c> = 26 bytes. The "neo4-gov:" prefix +
+    /// distinct method id prevents cross-method payload reuse.
+    /// </summary>
+    [Safe]
+    public static byte[] BuildSetAdmissionModeAction(byte mode)
+    {
+        var buf = new byte[ActionTagSetAdmissionMode.Length + 1];
+        for (var i = 0; i < ActionTagSetAdmissionMode.Length; i++) buf[i] = ActionTagSetAdmissionMode[i];
+        buf[ActionTagSetAdmissionMode.Length] = mode;
+        return buf;
+    }
+
+    // ASCII bytes for the "neo4-gov:setAdmissionMode" action tag (25 bytes). Kept as a const
+    // byte[] (not a string) so the on-chain bytecode is the literal byte sequence — same
+    // idiom as ActionTagSetImmutableFlag.
+    private static readonly byte[] ActionTagSetAdmissionMode = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'g', (byte)'o', (byte)'v', (byte)':',
+        (byte)'s', (byte)'e', (byte)'t', (byte)'A', (byte)'d', (byte)'m', (byte)'i', (byte)'s', (byte)'s', (byte)'i', (byte)'o', (byte)'n',
+        (byte)'M', (byte)'o', (byte)'d', (byte)'e'
+    };
 
     /// <summary>Council member submits a proposal payload (opaque bytes, semantics owned by caller).</summary>
     public static ulong CreateProposal(ECPoint signer, byte[] payload)
@@ -309,16 +397,22 @@ public class GovernanceControllerContract : SmartContract
 
     /// <summary>
     /// True iff the proposal has reached the M-of-N approval threshold AND the configured
-    /// timelock has elapsed since first-threshold-reach. Verifier / bridge upgrades on
-    /// other contracts call this via <c>Contract.Call</c> as the §16 council-veto gate.
+    /// timelock has elapsed since first-threshold-reach AND it has not been vetoed. Verifier /
+    /// bridge upgrades on other contracts call this via <c>Contract.Call</c> as the §16
+    /// council-veto gate.
     /// </summary>
     /// <remarks>
-    /// Threshold reach without elapsed timelock returns false — that's the window where
-    /// the security council can still raise an alarm and revert / re-approve.
+    /// Threshold reach without elapsed timelock returns false — that's the delay window. The
+    /// timelock is a pure delay, but it is NOT inert: during (and after) it the governance
+    /// owner can call <see cref="CancelProposal"/> to veto an approved-but-malicious proposal,
+    /// which permanently flips this method to false for that proposalId. So the window is the
+    /// on-chain brake the security council uses to stop a bad-but-approved proposal before it
+    /// executes.
     /// </remarks>
     [Safe]
     public static bool IsApprovedAndTimelocked(ulong proposalId)
     {
+        if (IsVetoed(proposalId)) return false;
         var approvedAt = GetApprovedAt(proposalId);
         if (approvedAt == 0UL) return false;
         var timelockSeconds = GetTimelockSeconds();
@@ -327,7 +421,55 @@ public class GovernanceControllerContract : SmartContract
         return Runtime.Time >= approvedAt + timelockMs;
     }
 
-    /// <summary>Set staged-upgrade timing windows. Owner only.</summary>
+    /// <summary>
+    /// Veto / cancel an approved-but-not-yet-executed proposal. Governance owner only — the
+    /// on-chain brake referenced by <see cref="IsApprovedAndTimelocked"/>. Once vetoed, a
+    /// proposalId can never satisfy the timelock gate, so any *ViaProposal consumer that
+    /// re-checks <c>isApprovedAndTimelocked</c> (verifier swap, immutable-flag lock, admission
+    /// loosening, external bridge upgrades) will refuse to apply it. The veto is permanent and
+    /// replay-safe: re-vetoing is a no-op. A vetoed proposal cannot be revived; the council
+    /// must create a fresh proposal to re-attempt the action.
+    /// </summary>
+    public static void CancelProposal(ulong proposalId)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(Storage.Get(ProposalKey(proposalId)) != null, "unknown proposal");
+        // Refuse to veto a proposal that already executed — the cool-down / completed state
+        // is terminal and a late veto would be misleading.
+        ExecutionEngine.Assert(GetProposalExecutedAt(proposalId) == 0UL, "proposal already executed");
+        var key = ProposalIdKey(PrefixProposalVetoed, proposalId);
+        if (Storage.Get(key) == null)
+        {
+            Storage.Put(key, new byte[] { 1 });
+            OnProposalVetoed(proposalId);
+        }
+    }
+
+    /// <summary>True if <paramref name="proposalId"/> has been vetoed via <see cref="CancelProposal"/>.</summary>
+    [Safe]
+    public static bool IsVetoed(ulong proposalId)
+    {
+        return Storage.Get(ProposalIdKey(PrefixProposalVetoed, proposalId)) != null;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Staged-upgrade lifecycle (notice → execution → cooldown).
+    //
+    // ADVISORY / OBSERVABILITY ONLY. The methods below model a richer proposal
+    // lifecycle (notice window, bounded execution window, post-execution cooldown,
+    // single-execution marker) for off-chain dashboards / operator runbooks. They
+    // are NOT part of the enforced execution gate: every *ViaProposal consumer in the
+    // system (RegisterVerifierViaProposal, SetImmutableFlagViaProposal,
+    // SetAdmissionModeViaProposal, and the external bridge stack) gates SOLELY on
+    // isApprovedAndTimelocked + matchesProposalPayload + its own per-proposalId
+    // consumed/replay flag (plus the CancelProposal veto). A consumer does NOT call
+    // IsInExecutionWindow or MarkProposalExecuted, so approvals do not "expire" at the
+    // end of the execution window and the cooldown does not block re-execution at the
+    // protocol level — replay is prevented per-consumer instead. Treat these as
+    // operator-facing scheduling hints, not authorization.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Set staged-upgrade timing windows (advisory; see the section note above). Owner only.</summary>
     public static void SetUpgradeWindows(uint noticeSeconds, uint executionWindowSeconds, uint cooldownSeconds)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
@@ -404,8 +546,14 @@ public class GovernanceControllerContract : SmartContract
     }
 
     /// <summary>
-    /// Mark a proposal executed. Consumers should call this after applying an upgrade,
-    /// which starts the explicit cool-down phase and prevents duplicate execution.
+    /// Advisory marker: record that a proposal was executed so the staged-upgrade stage view
+    /// (<see cref="GetProposalStage"/>) reports cooldown/complete for dashboards. Owner only.
+    /// <para>
+    /// This is NOT a hard authorization step — current *ViaProposal consumers enforce
+    /// single-execution via their own per-proposalId consumed flag and do not require this
+    /// marker (see the staged-upgrade section note above). It is kept so operators running a
+    /// notice/execution/cooldown runbook can pin the explicit cool-down start on-chain.
+    /// </para>
     /// </summary>
     public static void MarkProposalExecuted(ulong proposalId)
     {

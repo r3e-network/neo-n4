@@ -105,20 +105,33 @@ public sealed class L2DataCacheAdapter : DataCache
     protected override IEnumerable<(StorageKey Key, StorageItem Value)> SeekInternal(byte[] keyOrPrefix, SeekDirection direction)
     {
         ArgumentNullException.ThrowIfNull(keyOrPrefix);
-        // The L2 KV stores' EnumeratePrefix iterates in ascending key order.
-        // Forward seek: start at keyOrPrefix and walk ascending.
-        // Backward seek: enumerate the full prefix-less store (or the
-        //   matching prefix), filter to keys <= keyOrPrefix, return descending.
-        // Neo VM's interop almost always seeks forward; backward seeks come
-        // from native-contract enumerators that snapshot then iterate.
-        // EnumeratePrefix already delivers in lex order per the IL2KeyValueStore
-        // contract (both InMemory and RocksDB backends honor it); no OrderBy needed.
-        var snapshot = _store.EnumeratePrefix(ReadOnlySpan<byte>.Empty).ToList();
-
-        IEnumerable<(byte[] Key, byte[] Value)> filtered = direction == SeekDirection.Forward
-            ? snapshot.Where(kv => LexicographicByteArrayComparer.Instance.Compare(kv.Key, keyOrPrefix) >= 0)
-            : snapshot.Where(kv => LexicographicByteArrayComparer.Instance.Compare(kv.Key, keyOrPrefix) <= 0)
-                      .Reverse();
+        // The L2 KV stores' EnumeratePrefix iterates in ascending key order and is itself
+        // lazy (the RocksDB backend yields straight off a live iterator; InMemory yields
+        // off a single locked snapshot). Neo VM's interop almost always seeks forward;
+        // backward seeks come from native-contract enumerators that snapshot then iterate.
+        //
+        // Forward: stream the ascending enumeration and yield entries with key >= keyOrPrefix
+        //   without materializing the store first — for the production RocksDB backend this
+        //   pulls and clones one entry at a time instead of cloning the whole store per seek.
+        //   (Seeking the underlying iterator straight to keyOrPrefix would also skip the
+        //   leading keys < keyOrPrefix, but that requires a seek-aware method on
+        //   IL2KeyValueStore; this streaming form already removes the O(N)-memory blowup.)
+        // Backward: a forward-only enumeration can't be reversed without buffering, so the
+        //   descending path materializes the matching (key <= keyOrPrefix) entries before
+        //   reversing. A reverse-iterator method on IL2KeyValueStore would remove this; that
+        //   interface change is out of scope here.
+        IEnumerable<(byte[] Key, byte[] Value)> filtered;
+        if (direction == SeekDirection.Forward)
+        {
+            filtered = _store.EnumeratePrefix(ReadOnlySpan<byte>.Empty)
+                .Where(kv => LexicographicByteArrayComparer.Instance.Compare(kv.Key, keyOrPrefix) >= 0);
+        }
+        else
+        {
+            filtered = _store.EnumeratePrefix(ReadOnlySpan<byte>.Empty)
+                .Where(kv => LexicographicByteArrayComparer.Instance.Compare(kv.Key, keyOrPrefix) <= 0)
+                .Reverse();
+        }
 
         foreach (var (k, v) in filtered)
         {

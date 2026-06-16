@@ -48,9 +48,13 @@ public sealed class L1MessageInbox
 
     /// <summary>Drain up to <paramref name="max"/> messages and mark them consumed.</summary>
     /// <remarks>
-    /// Messages are drained in deterministic order (source chain ID, then nonce ascending)
-    /// so that two L2 nodes reconstructing the same batch from the same L1 messages produce
-    /// the same <c>L1MessageHash</c> regardless of arrival timing.
+    /// The lowest-ordered <paramref name="max"/> messages (by source chain ID, then nonce
+    /// ascending) are selected across the <em>entire</em> pending set, not just the FIFO front.
+    /// This guarantees that two L2 nodes reconstructing the same batch from the same set of
+    /// pending L1 messages select the same subset and produce the same <c>L1MessageHash</c>,
+    /// regardless of arrival timing — even when <paramref name="max"/> is smaller than the
+    /// pending count (in which case sorting only the FIFO-popped front would let nodes with
+    /// different arrival orders pick different subsets).
     /// </remarks>
     public IReadOnlyList<CrossChainMessage> Dequeue(int max)
     {
@@ -58,30 +62,42 @@ public sealed class L1MessageInbox
         if (max == 0) return Array.Empty<CrossChainMessage>();
         lock (_gate)
         {
-            var n = Math.Min(max, _pending.Count);
+            var pendingCount = _pending.Count;
+            var n = Math.Min(max, pendingCount);
             if (n == 0) return Array.Empty<CrossChainMessage>();
 
-            // Drain into temporary array, sort deterministically, then mark consumed.
-            // This guarantees that the L1MessageHash computed over the batch's L1
-            // messages is identical across all L2 nodes that see the same set of
-            // messages, even if they arrived in different orders due to network
-            // propagation variance.
-            var tmp = new CrossChainMessage[n];
-            for (var i = 0; i < n; i++)
-                tmp[i] = _pending.Dequeue();
-            Array.Sort(tmp, (a, b) =>
+            // Snapshot the pending set in FIFO order, then order a copy deterministically and take
+            // the lowest n. Selecting over the whole set (not just the FIFO front) is what makes the
+            // chosen subset — and therefore the L1MessageHash — identical across nodes that received
+            // the same messages in different orders due to network propagation variance.
+            var fifo = _pending.ToArray();
+            var sorted = (CrossChainMessage[])fifo.Clone();
+            Array.Sort(sorted, static (a, b) =>
             {
                 var chainCompare = a.SourceChainId.CompareTo(b.SourceChainId);
                 return chainCompare != 0 ? chainCompare : a.Nonce.CompareTo(b.Nonce);
             });
 
             var result = new CrossChainMessage[n];
+            var selected = new HashSet<(uint, ulong)>();
             for (var i = 0; i < n; i++)
             {
-                result[i] = tmp[i];
+                result[i] = sorted[i];
                 var key = (result[i].SourceChainId, result[i].Nonce);
+                selected.Add(key);
                 _pendingKeys.Remove(key);
                 _consumed.Add(key);
+            }
+
+            // Rebuild the queue with the non-selected messages, preserving their original FIFO order.
+            _pending.Clear();
+            if (n < pendingCount)
+            {
+                foreach (var msg in fifo)
+                {
+                    if (!selected.Contains((msg.SourceChainId, msg.Nonce)))
+                        _pending.Enqueue(msg);
+                }
             }
             return result;
         }

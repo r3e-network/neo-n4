@@ -29,7 +29,16 @@ public class SequencerBondContract : SmartContract
     private const byte PrefixPendingTransfer = 0x05;  // 0x05 + asset(20B) + from(20B) → 1
     private const byte KeyOwner = 0xFF;
 
-    /// <summary>Default minimum bond amount (in fee-asset smallest units).</summary>
+    /// <summary>
+    /// Default minimum bond amount (in fee-asset smallest units). This is a flat eligibility
+    /// floor only — it is NOT tied to the value a sequencer could steal by committing a
+    /// fraudulent withdrawalRoot (which can be the chain's entire escrow). A 1-GAS default
+    /// does not economically deter theft of large escrow, so operators MUST raise it via
+    /// <see cref="SetMinBond"/> to a value commensurate with the chain's per-batch withdrawal
+    /// cap / escrowed value. Automatic value-scaled bonding (bond ≥ f(escrow)) is not yet
+    /// implemented; until it is, the min bond is a governance-tuned parameter, not a
+    /// cryptographic guarantee.
+    /// </summary>
     public const ulong DefaultMinBond = 1_000_000UL; // 1.0 GAS at 8 decimals
 
     /// <summary>Emitted when a sequencer posts (or tops up) its bond.</summary>

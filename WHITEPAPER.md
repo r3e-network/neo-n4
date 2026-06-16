@@ -110,7 +110,9 @@ contain 23 production contracts plus one test-only external-bridge stub:
   l2ToL1MessageRoot, l2ToL2MessageRoot, daCommitment, publicInputHash,
   proofType, proof). Forward verification to `VerifierRegistry`.
 - **`VerifierRegistry`** — Pluggable verifier dispatch by `ProofType`:
-  `Multisig`, `Optimistic`, `ContractZkVerifier`, `Aggregated`.
+  `Multisig` (1), `Optimistic` (2), and `Zk` (3, routed through
+  `ContractZkVerifier`). Gateway proof aggregation reuses these same proof
+  types; there is no distinct `Aggregated` proof type.
 - **`ContractZkVerifier`** — Deployable `ProofType.Zk` router. It validates
   the N4 commitment/proof envelope, verification-key id, and public-input hash
   boundary, then calls a governance-registered deployable verifier contract for
@@ -188,7 +190,7 @@ Eight node plugins extending `Neo.Plugins.Plugin`:
 
 ### 4.2 Native L2 contracts
 
-Six on-L2 native contracts, deployed identically on every L2:
+Six **new** on-L2 native contracts, deployed identically on every L2:
 
 - `L2BridgeContract` — mint / burn bridged assets; receives `MintInstruction` from the bridge plugin.
 - `L2MessageContract` — emit / consume cross-chain messages.
@@ -197,23 +199,31 @@ Six on-L2 native contracts, deployed identically on every L2:
 - `L2PaymasterContract` — stablecoin / sponsored fees.
 - `L2SystemConfigContract` — config synced from NeoHub.
 
-Adjusted (not new) native contracts: `GAS` (bridge-controlled supply on L2), `NEO` (bridged
-but governance stays on L1), `Oracle` (local or via L1 pull), `Policy` (local fee control;
-bridge / security are NeoHub-controlled).
+Plus four **adjusted** (not new) native contracts: `GAS` (bridge-controlled supply on L2),
+`NEO` (bridged but governance stays on L1), `Oracle` (local or via L1 pull), `Policy` (local
+fee control; bridge / security are NeoHub-controlled).
 
-### 4.3 Chain modes
+Total: **10** L2 native contracts (6 new + 4 adjusted), matching
+`external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs` and the count cited elsewhere
+in the docs.
 
-Each L2 declares one of four modes via `ChainRegistry.securityLevel`:
+### 4.3 Chain security levels
 
-| Mode                 | DA           | Proof             | Trust assumption                              |
-| -------------------- | ------------ | ----------------- | --------------------------------------------- |
-| `SidechainMode`      | local        | none / multisig   | Trust the sequencer committee                 |
-| `L2RollupMode`       | L1 / NeoFS   | optimistic / ZK   | Trust the verifier (and the challenge window) |
-| `L2ValidiumMode`     | DAC          | optimistic / ZK   | Trust the DAC + the verifier                  |
-| `L1Mode`             | self         | self              | Trust Neo N3 / Neo 4 L1 itself                |
+Each L2 declares a `securityLevel` byte (0–3) in its `ChainRegistry` config (doc.md §16.2).
+The level both names the operating mode and sets the **minimum proof type** the
+`SettlementManager` will accept for that chain's batches (a batch's `ProofType` must be `>=`
+the level — see §5), so a chain cannot settle below its advertised security:
 
-This is on-chain so users can read the chain's actual security level via the
-`getsecuritylevel` RPC (`§14.1` of `doc.md`).
+| `securityLevel` | Mode descriptor   | DA           | Min proof (`ProofType`) | Trust assumption                              |
+| --------------- | ----------------- | ------------ | ----------------------- | --------------------------------------------- |
+| `0` sidechain   | `SidechainMode`   | local        | `None`/`Multisig`       | Trust the sequencer committee                 |
+| `1` settled     | `SidechainMode`   | local / L1   | `Multisig`              | Trust the settlement multisig                 |
+| `2` optimistic  | `L2RollupMode`    | L1 / NeoFS   | `Optimistic`            | Trust the verifier (and the challenge window) |
+| `3` validity    | `L2RollupMode` / `L2ValidiumMode` | L1 / NeoFS / DAC | `Zk` | Trust the verifier (ZK validity proof)        |
+
+(`securityLevel` and `ProofType` share the same `0..3` ordering, which is what makes the
+"`ProofType >= securityLevel`" check meaningful.) Users can read the chain's actual security
+level via the `getsecuritylevel` RPC (`§14.1` of `doc.md`).
 
 ### 4.4 Durable state — `IL2KeyValueStore`
 
@@ -314,8 +324,11 @@ plugin code or L2 contract changes required.
   real proof payloads route through a deployable router and verifier contract;
   end-to-end queue → daemon → verify pipeline validated off-chain.
 
-Aggregated proofs (Phase 5 Gateway) reuse the same registry — `ProofType.Aggregated` plus a
-backend tag identifies the recursive scheme used.
+Gateway proof aggregation (Phase 5) reuses the same registry and the existing proof types: a
+round prover (`MultisigRoundProver` / `MerklePathRoundProver`) attests each aggregation round,
+and the aggregate still settles under one of `Multisig` / `Optimistic` / `Zk`. There is no
+distinct `ProofType.Aggregated`; a recursive-ZK fold, when supplied by an operator, settles as
+`ProofType.Zk`.
 
 ---
 

@@ -153,6 +153,11 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
         }
 
         var success = engine.State == VMState.HALT;
+        // Compute the storage-delta hash from the staged change set BEFORE committing.
+        // DataCache.Commit() ends by clearing the change set, so computing this after the commit
+        // would always hash an empty set and return UInt256.Zero — decoupling the receipt from the
+        // actual storage changes it must bind.
+        var storageDeltaHash = success ? ComputeStorageDeltaHash(engine) : UInt256.Zero;
         if (success)
         {
             // Persist the cache changes to the underlying KV store. DataCache.Commit()
@@ -166,7 +171,7 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
             TxHash = tx.Hash,
             Success = success,
             GasConsumed = engine.FeeConsumed,
-            StorageDeltaHash = success ? ComputeStorageDeltaHash(engine) : UInt256.Zero,
+            StorageDeltaHash = storageDeltaHash,
             EventsHash = success ? ComputeEventsHash(engine.Notifications) : UInt256.Zero,
         };
 

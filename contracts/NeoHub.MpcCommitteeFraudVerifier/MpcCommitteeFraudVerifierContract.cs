@@ -84,6 +84,12 @@ public class MpcCommitteeFraudVerifierContract : SmartContract
     /// <summary>ed25519 curveTag.</summary>
     private const byte CurveEd25519 = 2;
 
+    /// <summary>Offset of the direction byte in an ExternalCrossChainMessage (matches
+    /// MpcCommitteeVerifier.OffsetDirection).</summary>
+    private const int OffsetDirection = 16;
+    /// <summary>The only direction the committee legitimately attests (ForeignToNeo).</summary>
+    private const byte DirectionForeignToNeo = 2;
+
     /// <summary>Emitted on a successful slash. <c>amount</c> is the slashed
     /// portion paid to <c>reporter</c>; <c>signerIdx</c> identifies which
     /// committee slot equivocated for off-chain monitoring.</summary>
@@ -190,6 +196,16 @@ public class MpcCommitteeFraudVerifierContract : SmartContract
         var nonce2 = ReadUInt64LE(message2Bytes!, 8);
         ExecutionEngine.Assert(nonce1 == nonce2,
             "messages have different nonces — not an equivocation (a member is allowed to sign distinct nonces)");
+
+        // Both messages must be ForeignToNeo — the only direction the committee legitimately
+        // attests (see MpcCommitteeVerifier). Nonce namespaces are disjoint across directions, so
+        // without this an honest ForeignToNeo signature paired with an (un-attested) NeoToForeign
+        // message that happens to share (chainId, nonce) would be treated as equivocation and
+        // slash an innocent member.
+        ExecutionEngine.Assert(message1Bytes![OffsetDirection] == DirectionForeignToNeo,
+            "message1 direction must be ForeignToNeo(2)");
+        ExecutionEngine.Assert(message2Bytes![OffsetDirection] == DirectionForeignToNeo,
+            "message2 direction must be ForeignToNeo(2)");
 
         // Messages must NOT be byte-identical. Two identical messages with
         // two valid signatures is just two honest signings — ECDSA permits

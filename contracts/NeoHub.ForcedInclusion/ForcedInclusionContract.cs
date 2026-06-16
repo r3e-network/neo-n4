@@ -42,6 +42,7 @@ public class ForcedInclusionContract : SmartContract
     private const byte KeySequencerBond = 0x09;        // 20B SequencerBond contract hash
     private const byte KeyChainRegistry = 0x0A;        // 20B ChainRegistry contract hash for per-chain pause
     private const byte KeyCensorshipSlashAmount = 0x0B;// BigInteger amount slashed per overdue entry
+    private const byte PrefixSlashed = 0x0C;           // 0x0C + chainId(4B) + nonce(8B) → 1 (censorship slash settled)
     private const byte KeySettlementManager = 0xFD;
     private const byte KeyOwner = 0xFF;
 
@@ -59,6 +60,10 @@ public class ForcedInclusionContract : SmartContract
     /// <summary>Emitted when a sequencer is reported missing the deadline.</summary>
     [DisplayName("SequencerCensorshipReported")]
     public static event Action<uint, ulong, UInt160> OnSequencerCensorshipReported = default!;
+
+    /// <summary>Emitted when governance slashes a sequencer for a reported censorship.</summary>
+    [DisplayName("SequencerSlashedForCensorship")]
+    public static event Action<uint, ulong, UInt160> OnSequencerSlashedForCensorship = default!;
 
     /// <summary>Emitted when the deadline is changed.</summary>
     [DisplayName("DeadlineSecondsChanged")]
@@ -389,10 +394,18 @@ public class ForcedInclusionContract : SmartContract
     }
 
     /// <summary>
-    /// Anyone can call to flag censorship if the deadline has passed and the entry is still
-    /// unconsumed. Returns true on a successful report. When production wiring is set, the
-    /// report is at-most-once, slashes the responsible sequencer through SequencerBond, and
-    /// pauses the affected L2 chain through ChainRegistry.
+    /// Permissionless censorship report: anyone can flag censorship once the entry's deadline has
+    /// passed and it is still unconsumed. Records an at-most-once report and pauses the affected L2
+    /// chain through ChainRegistry (liveness protection). Returns true on a successful report.
+    /// <para>
+    /// SECURITY: this method does NOT slash. The responsible sequencer/proposer for the censored
+    /// window cannot be attributed on-chain (the contract records no proposer-per-block, and
+    /// SequencerRegistry membership is keyed by consensus key, not address), so allowing an
+    /// arbitrary caller to name the victim let a griefer slash an innocent bonded sequencer.
+    /// Slashing is performed separately by governance via <see cref="SlashReportedCensorship"/>.
+    /// The <paramref name="sequencer"/> argument is recorded in the event for off-chain
+    /// attribution only.
+    /// </para>
     /// </summary>
     public static bool ReportCensorship(uint chainId, ulong nonce, UInt160 sequencer)
     {
@@ -412,16 +425,6 @@ public class ForcedInclusionContract : SmartContract
 
         Storage.Put(reportedKey, new byte[] { 1 });
 
-        var slashAmount = GetCensorshipSlashAmount();
-        if (slashAmount > 0)
-        {
-            var sequencerBond = GetSequencerBond();
-            ExecutionEngine.Assert(sequencerBond.IsValid && !sequencerBond.IsZero,
-                "sequencer bond unset");
-            Contract.Call(sequencerBond, "slash", CallFlags.All,
-                new object[] { chainId, sequencer, slashAmount, Runtime.CallingScriptHash });
-        }
-
         var chainRegistry = GetChainRegistry();
         if (chainRegistry.IsValid && !chainRegistry.IsZero)
         {
@@ -430,6 +433,42 @@ public class ForcedInclusionContract : SmartContract
 
         OnSequencerCensorshipReported(chainId, nonce, sequencer);
         return true;
+    }
+
+    /// <summary>
+    /// Governance-gated slashing for a previously-reported censorship. Owner only — governance is
+    /// the party that can attribute the responsible proposer for the censored window off-chain,
+    /// which the protocol cannot do on-chain. Requires an existing, unconsumed, not-yet-slashed
+    /// report for (chainId, nonce), then slashes the named sequencer's bond. Separating this from
+    /// the permissionless <see cref="ReportCensorship"/> prevents an arbitrary caller from
+    /// slashing an innocent bonded sequencer.
+    /// </summary>
+    public static void SlashReportedCensorship(uint chainId, ulong nonce, UInt160 sequencer)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(sequencer.IsValid && !sequencer.IsZero, "invalid sequencer");
+        ExecutionEngine.Assert(Storage.Get(ReportedKey(chainId, nonce)) != null, "no censorship report");
+        ExecutionEngine.Assert(!IsConsumed(chainId, nonce), "already consumed");
+        var slashedKey = SlashedKey(chainId, nonce);
+        ExecutionEngine.Assert(Storage.Get(slashedKey) == null, "already slashed");
+
+        var slashAmount = GetCensorshipSlashAmount();
+        ExecutionEngine.Assert(slashAmount > 0, "slash amount not configured");
+        var sequencerBond = GetSequencerBond();
+        ExecutionEngine.Assert(sequencerBond.IsValid && !sequencerBond.IsZero, "sequencer bond unset");
+
+        Storage.Put(slashedKey, new byte[] { 1 });
+        Contract.Call(sequencerBond, "slash", CallFlags.All,
+            new object[] { chainId, sequencer, slashAmount, Runtime.CallingScriptHash });
+
+        OnSequencerSlashedForCensorship(chainId, nonce, sequencer);
+    }
+
+    /// <summary>True if a reported censorship at (chainId, nonce) has been slash-settled.</summary>
+    [Safe]
+    public static bool IsCensorshipSlashed(uint chainId, ulong nonce)
+    {
+        return Storage.Get(SlashedKey(chainId, nonce)) != null;
     }
 
     private static byte[] NonceKey(uint chainId)
@@ -448,6 +487,9 @@ public class ForcedInclusionContract : SmartContract
 
     private static byte[] ReportedKey(uint chainId, ulong nonce) =>
         BuildKey(PrefixReported, chainId, nonce);
+
+    private static byte[] SlashedKey(uint chainId, ulong nonce) =>
+        BuildKey(PrefixSlashed, chainId, nonce);
 
     private static byte[] BuildKey(byte prefix, uint chainId, ulong number)
     {

@@ -111,7 +111,14 @@ public sealed class RocksDbKeyValueStore : IL2KeyValueStore
         var keyArr = key.ToArray();
         // RocksDB's Delete is idempotent and returns no "did this key exist" hint, so
         // we have to probe first to honor the IL2KeyValueStore contract that returns
-        // true iff the key existed before the call.
+        // true iff the key existed before the call. The probe + remove are two separate
+        // RocksDB ops with no transaction between them, matching this store's documented
+        // lock-free surface ("no per-call locks"). The key removal is always correct
+        // (Remove is idempotent); only the returned boolean is best-effort under a
+        // concurrent Delete/Put of the same key — two racing deletes can both observe
+        // the key present and both return true, and an interleaved Put can flip the
+        // result. Callers that need an exact "I removed it" guarantee must serialize
+        // their own Delete operations.
         var existed = _db.Get(keyArr) is not null;
         _db.Remove(keyArr);
         return existed;

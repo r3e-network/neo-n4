@@ -22,6 +22,12 @@ public sealed class BatchSealer
     private readonly L2BatchSettings _settings;
     private IL2Metrics _metrics;
     private readonly Func<long> _nowUtcMillis;
+    private readonly Func<int, IReadOnlyList<(ulong Nonce, ReadOnlyMemory<byte> SerializedTx)>>? _forcedDrain;
+    private readonly Action<ulong>? _forcedMarkConsumed;
+
+    /// <summary>Maximum forced-inclusion entries prepended to a single batch — bounds batch size so a
+    /// flooded L1 forced-inclusion queue cannot produce an unbounded batch.</summary>
+    public const int MaxForcedTransactionsPerBatch = 256;
 
     private BatchBuilder? _builder;
     private long _batchStartedAtUtcMillis;
@@ -35,8 +41,21 @@ public sealed class BatchSealer
         _metrics = metrics;
     }
 
-    /// <summary>Construct a sealer. <paramref name="nowUtcMillis"/> is injectable so tests can advance time.</summary>
-    public BatchSealer(L2BatchSettings settings, IL2Metrics metrics, Func<long>? nowUtcMillis = null)
+    /// <summary>
+    /// Construct a sealer. <paramref name="nowUtcMillis"/> is injectable so tests can advance time.
+    /// <paramref name="forcedDrain"/> (optional) is polled once at the start of each batch and its
+    /// entries are PREPENDED to the batch's transaction list (deadline-ordered, oldest first, capped
+    /// at <see cref="MaxForcedTransactionsPerBatch"/>) so the sequencer cannot censor L1 forced
+    /// transactions; <paramref name="forcedMarkConsumed"/> is invoked per included nonce. When
+    /// <paramref name="forcedDrain"/> is null the sealer behaves exactly as before (no forced
+    /// inclusion). The orchestration adapts <c>IForcedInclusionSource</c> to these callbacks.
+    /// </summary>
+    public BatchSealer(
+        L2BatchSettings settings,
+        IL2Metrics metrics,
+        Func<long>? nowUtcMillis = null,
+        Func<int, IReadOnlyList<(ulong Nonce, ReadOnlyMemory<byte> SerializedTx)>>? forcedDrain = null,
+        Action<ulong>? forcedMarkConsumed = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(metrics);
@@ -52,6 +71,8 @@ public sealed class BatchSealer
         _settings = settings;
         _metrics = metrics;
         _nowUtcMillis = nowUtcMillis ?? (() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        _forcedDrain = forcedDrain;
+        _forcedMarkConsumed = forcedMarkConsumed;
     }
 
     /// <summary>Number of transactions in the in-progress batch (0 if no batch is open).</summary>
@@ -73,7 +94,11 @@ public sealed class BatchSealer
     {
         ArgumentNullException.ThrowIfNull(rawTransactions);
 
+        var isFreshBatch = _builder is null;
         var builder = _builder ??= StartFreshBatch(blockIndex);
+        // Prepend pending L1 forced-inclusion transactions at the START of each batch (before any
+        // block txs) so a censoring sequencer cannot exclude them. Done once per batch, oldest-first.
+        if (isFreshBatch) DrainForcedTransactions(builder);
         builder.AddBlock(blockIndex);
         var txIndex = 0;
         foreach (var tx in rawTransactions)
@@ -105,6 +130,28 @@ public sealed class BatchSealer
 
         _builder = null;
         return commitment;
+    }
+
+    /// <summary>
+    /// Poll the forced-inclusion source (if wired) and prepend its entries to the fresh batch.
+    /// Entries become part of the batch's transaction list, so the deterministic executor runs them
+    /// and the TxRoot/post-state commit to them. No-op when no source is configured.
+    /// </summary>
+    private void DrainForcedTransactions(BatchBuilder builder)
+    {
+        if (_forcedDrain is null) return;
+        var forced = _forcedDrain(MaxForcedTransactionsPerBatch);
+        if (forced is null) return;
+        foreach (var entry in forced)
+        {
+            // An empty forced tx would fold into the tx tree as an empty leaf and break
+            // deterministic replay (same guard as the block-tx path). Surface it.
+            if (entry.SerializedTx.IsEmpty)
+                throw new InvalidOperationException(
+                    $"forced-inclusion entry nonce {entry.Nonce} has an empty transaction");
+            builder.AddTransaction(entry.SerializedTx);
+            _forcedMarkConsumed?.Invoke(entry.Nonce);
+        }
     }
 
     private bool ShouldSeal(BatchBuilder builder)

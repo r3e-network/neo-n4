@@ -2,8 +2,17 @@ namespace Neo.L2.ForcedInclusion;
 
 /// <summary>
 /// L2-side view of the L1 forced-inclusion queue defined in <c>NeoHub.ForcedInclusion</c>.
-/// The L2 batcher polls this before sealing each batch and prepends any pending entries to
-/// the transaction list. See doc.md §15.4.
+/// See doc.md §15.4. Two consumers:
+/// <list type="bullet">
+///   <item><description><see cref="DrainAsync"/> feeds the batcher's forced-tx prepend:
+///   <c>BatchSealer</c> takes a <c>forcedDrain</c> callback and prepends drained entries to the
+///   start of each batch so a sequencer cannot silently exclude them. (The async source is adapted
+///   to that synchronous callback by the orchestration / plugin wiring.)</description></item>
+///   <item><description><see cref="HasOverdueEntryAsync"/> drives <c>CensorshipDetector</c>, which
+///   produces a <c>CensorshipReport</c> that an operator submits to
+///   <c>NeoHub.ForcedInclusion.ReportCensorship</c> — the on-chain enforcement (pause + slashing)
+///   that makes inclusion a guarantee rather than best-effort.</description></item>
+/// </list>
 /// </summary>
 public interface IForcedInclusionSource
 {

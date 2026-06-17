@@ -286,6 +286,84 @@ public class UT_BatchSealer
         StringAssert.Contains(ex.Message, "[1]");
     }
 
+    // ---- Forced-inclusion drain (censorship resistance) ----
+
+    private static L2BatchSettings ForcedSettings(int maxBlocks = 5) => new()
+    {
+        ChainId = 1001,
+        MaxBlocksPerBatch = maxBlocks,
+        MaxTransactionsPerBatch = 100_000,
+        MaxBatchAgeMillis = int.MaxValue,
+        Enabled = true,
+    };
+
+    private static (ulong, ReadOnlyMemory<byte>)[] TwoForced() => new (ulong, ReadOnlyMemory<byte>)[]
+    {
+        (1UL, new byte[] { 0xF1, 0x01 }),
+        (2UL, new byte[] { 0xF2, 0x02 }),
+    };
+
+    [TestMethod]
+    public void ForcedInclusion_PrependsAtBatchStart_MarksConsumed_DrainsOncePerBatch()
+    {
+        var consumed = new List<ulong>();
+        var drainCalls = 0;
+        var sealer = new BatchSealer(ForcedSettings(maxBlocks: 5), new InMemoryMetrics(), () => 0L,
+            forcedDrain: _ => { drainCalls++; return TwoForced(); },
+            forcedMarkConsumed: consumed.Add);
+
+        // First block of a fresh batch: 2 forced txs prepended + 1 block tx = 3.
+        Assert.IsNull(sealer.OnBlockCommit(1, 1000, 11, MakeTxs(1)));
+        Assert.AreEqual(3, sealer.InProgressTxCount, "2 forced + 1 block tx");
+        CollectionAssert.AreEqual(new ulong[] { 1, 2 }, consumed.ToArray(), "both forced nonces consumed");
+        Assert.AreEqual(1, drainCalls);
+
+        // Second block of the SAME batch: forced source not re-polled; only the block tx is added.
+        Assert.IsNull(sealer.OnBlockCommit(2, 1100, 11, MakeTxs(1)));
+        Assert.AreEqual(4, sealer.InProgressTxCount, "only the new block tx is added");
+        Assert.AreEqual(1, drainCalls, "forced source polled once per batch, at batch start");
+    }
+
+    [TestMethod]
+    public void ForcedInclusion_ForcedTxsComeFirst_InTxRoot()
+    {
+        // Seal on the first block (MaxBlocksPerBatch=1) and assert the sealed TxRoot equals the
+        // Merkle root over [F1, F2, B1] in that order — i.e. forced txs are prepended, not appended.
+        var f1 = new byte[] { 0xF1, 0x01 };
+        var f2 = new byte[] { 0xF2, 0x02 };
+        var b1 = new byte[] { 0x00, 0xCA, 0xFE }; // MakeTxs(1)[0]
+        var sealer = new BatchSealer(ForcedSettings(maxBlocks: 1), new InMemoryMetrics(), () => 0L,
+            forcedDrain: _ => new (ulong, ReadOnlyMemory<byte>)[] { (1UL, f1), (2UL, f2) },
+            forcedMarkConsumed: _ => { });
+
+        var sealed_ = sealer.OnBlockCommit(1, 1000, 11, MakeTxs(1));
+        Assert.IsNotNull(sealed_);
+        var h = (byte[] tx) => new UInt256(Neo.Cryptography.Crypto.Hash256(tx));
+        var expected = Neo.L2.State.MerkleTree.ComputeRoot(new[] { h(f1), h(f2), h(b1) });
+        Assert.AreEqual(expected, sealed_!.TxRoot, "forced txs must be prepended before block txs");
+    }
+
+    [TestMethod]
+    public void ForcedInclusion_NoSource_BehaviorUnchanged()
+    {
+        var sealer = new BatchSealer(ForcedSettings(maxBlocks: 1), new InMemoryMetrics(), () => 0L);
+        var b1 = new byte[] { 0x00, 0xCA, 0xFE };
+        var sealed_ = sealer.OnBlockCommit(1, 1000, 11, MakeTxs(1));
+        Assert.IsNotNull(sealed_);
+        var expected = Neo.L2.State.MerkleTree.ComputeRoot(
+            new[] { new UInt256(Neo.Cryptography.Crypto.Hash256(b1)) });
+        Assert.AreEqual(expected, sealed_!.TxRoot, "no forced source -> only the block tx");
+    }
+
+    [TestMethod]
+    public void ForcedInclusion_EmptyForcedTx_Rejected()
+    {
+        var sealer = new BatchSealer(ForcedSettings(maxBlocks: 5), new InMemoryMetrics(), () => 0L,
+            forcedDrain: _ => new (ulong, ReadOnlyMemory<byte>)[] { (1UL, ReadOnlyMemory<byte>.Empty) },
+            forcedMarkConsumed: _ => { });
+        Assert.ThrowsExactly<InvalidOperationException>(() => sealer.OnBlockCommit(1, 1000, 11, NoTxs()));
+    }
+
     private static IEnumerable<byte[]> NoTxs() => Array.Empty<byte[]>();
 
     private static IEnumerable<byte[]> MakeTxs(int n)

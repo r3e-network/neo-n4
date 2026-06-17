@@ -63,8 +63,8 @@ public class OptimisticChallengeContract : SmartContract
     public static event Action<UInt160> OnFraudVerifierApproved = default!;
 
     /// <summary>Emitted when governance marks a verifier safe for permissionless auto-slash/revert.</summary>
-    [DisplayName("FraudVerifierPermissionlessApproved")]
-    public static event Action<UInt160> OnFraudVerifierPermissionlessApproved = default!;
+    [DisplayName("PermissionlessVerifierApproved")]
+    public static event Action<UInt160> OnPermissionlessVerifierApproved = default!;
 
     /// <summary>Emitted when governance removes a fraud-verifier from the allowlist.</summary>
     [DisplayName("FraudVerifierRevoked")]
@@ -198,7 +198,7 @@ public class OptimisticChallengeContract : SmartContract
         Storage.Put(ApprovedVerifierKey(verifier), new byte[] { 1 });
         Storage.Put(PermissionlessVerifierKey(verifier), new byte[] { 1 });
         OnFraudVerifierApproved(verifier);
-        OnFraudVerifierPermissionlessApproved(verifier);
+        OnPermissionlessVerifierApproved(verifier);
     }
 
     /// <summary>Remove a fraud-verifier from the allowlist. Owner-gated.</summary>
@@ -285,8 +285,12 @@ public class OptimisticChallengeContract : SmartContract
 
         ExecutionEngine.Assert(Storage.Get(AcceptedFraudKey(chainId, batchNumber)) == null, "already accepted");
 
-        // Hand off proof verification.
-        var verified = (bool)Contract.Call(fraudVerifier, "verifyFraud", CallFlags.ReadOnly,
+        // Hand off proof verification. Grant AllowNotify (in addition to ReadOnly's
+        // ReadStates|AllowCall) so the verifier can emit its reason-coded diagnostic events;
+        // WriteStates is deliberately withheld so a verifier cannot mutate challenge state.
+        // Without AllowNotify the verifier's Runtime.Notify would FAULT and no fraud proof
+        // could ever be accepted on-chain.
+        var verified = (bool)Contract.Call(fraudVerifier, "verifyFraud", CallFlags.ReadOnly | CallFlags.AllowNotify,
             new object[] { chainId, batchNumber, fraudProofBytes });
         ExecutionEngine.Assert(verified, "fraud proof rejected");
 

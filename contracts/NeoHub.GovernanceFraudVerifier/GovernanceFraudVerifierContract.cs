@@ -96,7 +96,10 @@ public class GovernanceFraudVerifierContract : SmartContract
     /// (claimedPostStateRoot != replayedPostStateRoot). False otherwise — the rejected
     /// event names the specific failure mode.
     /// </returns>
-    [Safe]
+    // NOT [Safe]: this method emits diagnostic events (Runtime.Notify), which requires the
+    // AllowNotify call flag. A [Safe] method is invoked read-only (ReadStates|AllowCall), so the
+    // Notify would FAULT — OptimisticChallenge.Challenge dispatches here with
+    // CallFlags.ReadOnly|AllowNotify expressly so these reason-coded events can fire.
     public static bool VerifyFraud(uint chainId, ulong batchNumber, byte[] payload)
     {
         // Need at least the 1-byte version prefix to dispatch.

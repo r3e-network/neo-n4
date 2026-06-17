@@ -438,8 +438,17 @@ public class UT_ProductionGapClosure
     private static bool IsSkippedPath(string root, string path)
     {
         var relative = Relative(root, path);
+
+        // Documentation-consistency applies to the COMMITTED repository only. Skip anything not
+        // git-tracked, so gitignored generated output (e.g. outputs/) and untracked work-in-progress
+        // — which a clean checkout / CI never sees — don't produce false counterpart failures. Falls
+        // back to the path-based rules below when git is unavailable.
+        var tracked = GetTrackedPaths(root);
+        if (tracked is not null && !tracked.Contains(relative))
+            return true;
+
         var parts = relative.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Any(part => part is ".git" or "bin" or "obj" or "target" or "book" or "build" or "node_modules"))
+        if (parts.Any(part => part is ".git" or "bin" or "obj" or "target" or "book" or "build" or "node_modules" or "outputs"))
             return true;
 
         return relative.StartsWith("artifacts/", StringComparison.OrdinalIgnoreCase)
@@ -448,6 +457,42 @@ public class UT_ProductionGapClosure
             || relative.StartsWith("external/neo-riscv-vm/", StringComparison.OrdinalIgnoreCase)
             || relative.StartsWith("external/neo-zkvm/", StringComparison.OrdinalIgnoreCase)
             || relative.StartsWith("external/foreign-contracts/eth/lib/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static HashSet<string>? _trackedPaths;
+    private static bool _trackedComputed;
+
+    /// <summary>
+    /// The set of git-tracked paths (relative, forward-slash), or null if git is unavailable. Cached
+    /// for the process. Used so the doc-counterpart checks only consider committed files.
+    /// </summary>
+    private static HashSet<string>? GetTrackedPaths(string root)
+    {
+        if (_trackedComputed) return _trackedPaths;
+        _trackedComputed = true;
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo("git", $"-C \"{root}\" ls-files")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            using var process = System.Diagnostics.Process.Start(psi);
+            if (process is null) return _trackedPaths = null;
+            var stdout = process.StandardOutput.ReadToEnd();
+            process.WaitForExit(15000);
+            if (process.ExitCode != 0) return _trackedPaths = null;
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var line in stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                set.Add(line.Trim().Replace('\\', '/'));
+            return _trackedPaths = set.Count > 0 ? set : null;
+        }
+        catch
+        {
+            return _trackedPaths = null;
+        }
     }
 
     private static bool IsChinesePath(string root, string path)

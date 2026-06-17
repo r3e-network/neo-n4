@@ -434,8 +434,13 @@ public class ChainRegistryContract : SmartContract
         var key = ConfigKey(chainId);
         var raw = Storage.Get(key);
         ExecutionEngine.Assert(raw != null, "chain not registered");
-        var bytes = (byte[])raw!;
-        // active flag is the very last byte of the encoded config.
+        // raw is a NeoVM ByteString (immutable) — index-assigning it FAULTs at runtime
+        // ("Invalid type for SETITEM: ByteString"), which would break the chain-pause /
+        // censorship-pause path entirely. Copy into a fresh mutable buffer and clear the active
+        // byte (the very last byte of the encoded config) there.
+        var src = (byte[])raw!;
+        var bytes = new byte[ConfigSize];
+        for (var i = 0; i < ConfigSize; i++) bytes[i] = src[i];
         bytes[ConfigSize - 1] = 0;
         Storage.Put(key, bytes);
         OnChainPaused(chainId);
@@ -448,7 +453,11 @@ public class ChainRegistryContract : SmartContract
         var key = ConfigKey(chainId);
         var raw = Storage.Get(key);
         ExecutionEngine.Assert(raw != null, "chain not registered");
-        var bytes = (byte[])raw!;
+        // Copy into a fresh mutable buffer (raw is an immutable ByteString — see PauseChain) and
+        // set the active byte there.
+        var src = (byte[])raw!;
+        var bytes = new byte[ConfigSize];
+        for (var i = 0; i < ConfigSize; i++) bytes[i] = src[i];
         bytes[ConfigSize - 1] = 1;
         Storage.Put(key, bytes);
         OnChainResumed(chainId);

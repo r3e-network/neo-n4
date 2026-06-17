@@ -146,6 +146,10 @@ public class SequencerRegistryContract : SmartContract
         ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         ExecutionEngine.Assert(Runtime.CheckWitness(sequencerKey), "no witness for sequencer key");
         ExecutionEngine.Assert(sequencerAddress.IsValid && !sequencerAddress.IsZero, "invalid sequencer address");
+        // Bind the consensus key to the bond/payout address by requiring a witness for BOTH. Without
+        // this, an operator controlling only sequencerKey could attach it to someone else's bonded
+        // address, so that victim's bond would be slashed for the operator's misbehaviour.
+        ExecutionEngine.Assert(Runtime.CheckWitness(sequencerAddress), "no witness for sequencer address");
 
         // Min-bond gate via inter-contract call.
         var bondContract = (UInt160)(Storage.Get(new byte[] { KeyBondContract }) ?? throw new Exception("bond contract unset"));
@@ -184,10 +188,15 @@ public class SequencerRegistryContract : SmartContract
         var raw = Storage.Get(key);
         ExecutionEngine.Assert(raw != null, "not registered");
 
-        var entry = (byte[])raw!;
-        ExecutionEngine.Assert(entry[0] == StatusActive, "not currently active");
+        var src = (byte[])raw!;
+        ExecutionEngine.Assert(src[0] == StatusActive, "not currently active");
 
         var exitsAt = (uint)(Runtime.Time / 1000) + GetExitWindowSeconds();
+        // src is a NeoVM ByteString (immutable) — index-assigning it FAULTs at runtime, which would
+        // make sequencer exit impossible. Copy into a fresh mutable buffer (1B status + 20B address
+        // + 4B exitsAt) and write the new status + exit timestamp there.
+        var entry = new byte[1 + 20 + 4];
+        for (var i = 0; i < entry.Length; i++) entry[i] = src[i];
         entry[0] = StatusExiting;
         entry[21] = (byte)exitsAt;
         entry[22] = (byte)(exitsAt >> 8);

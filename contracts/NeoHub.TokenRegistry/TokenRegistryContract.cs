@@ -114,12 +114,16 @@ public class TokenRegistryContract : SmartContract
             ExecutionEngine.Assert(l1Decimals == 8 && l2Decimals == 8, "BTC decimals must be 8");
         }
 
-        // Ensure new mappings are active by default (byte 49 = 1).
-        // Without this, callers who don't explicitly set the active flag
-        // get an inactive mapping that silently blocks all bridge transfers.
-        mappingBytes[49] = 1;
+        // Ensure new mappings are active by default (last byte = 1). The incoming mappingBytes is a
+        // NeoVM ByteString (immutable) — index-assigning it (mappingBytes[49] = 1) compiles to
+        // SETITEM and FAULTs at runtime ("Invalid type for SETITEM: ByteString"). Copy into a fresh
+        // mutable buffer and set the active byte there. (Without the active default, callers who
+        // don't set the flag would get an inactive mapping that silently blocks bridge transfers.)
+        var stored = new byte[MappingSize];
+        for (var i = 0; i < MappingSize; i++) stored[i] = mappingBytes[i];
+        stored[MappingSize - 1] = 1;
 
-        Storage.Put(MappingKey(l1Asset, chainId), mappingBytes);
+        Storage.Put(MappingKey(l1Asset, chainId), stored);
         OnMappingRegistered(l1Asset, chainId, l2Asset);
     }
 
@@ -134,7 +138,11 @@ public class TokenRegistryContract : SmartContract
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         var raw = Storage.Get(MappingKey(l1Asset, chainId));
         ExecutionEngine.Assert(raw != null, "mapping not found");
-        var bytes = (byte[])raw!;
+        // raw is a NeoVM ByteString (immutable); index-assigning it FAULTs at runtime. Copy into a
+        // fresh mutable buffer, flip the active byte there, then store.
+        var src = (byte[])raw!;
+        var bytes = new byte[MappingSize];
+        for (var i = 0; i < MappingSize; i++) bytes[i] = src[i];
         bytes[MappingSize - 1] = (byte)(active ? 1 : 0);
         Storage.Put(MappingKey(l1Asset, chainId), bytes);
         OnMappingActiveChanged(l1Asset, chainId, active);

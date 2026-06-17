@@ -70,6 +70,11 @@ public class SharedBridgeContract : SmartContract
         Storage.Put(new byte[] { KeyOwner }, owner);
         Storage.Put(new byte[] { PrefixSettlementManager }, settlementManager);
         Storage.Put(new byte[] { PrefixTokenRegistry }, tokenRegistry);
+        // Fresh deployment: the per-chain escrow ledger starts correct from the first deposit, so the
+        // migration backfill window is never needed — seal it immediately so MigrateLockedBalance is
+        // not a standing cap-inflation surface. An in-place UPGRADE (update == true) returns early
+        // above and therefore leaves the migration window OPEN for the operator to backfill.
+        Storage.Put(new byte[] { KeyLockedBalanceMigrationSealed }, new byte[] { 1 });
     }
 
     /// <summary>Governance owner.</summary>
@@ -513,18 +518,19 @@ public class SharedBridgeContract : SmartContract
     }
 
     /// <summary>
-    /// One-time migration backfill for the per-chain escrow ledger. The <see cref="GetLockedBalance"/>
-    /// ledger is only credited by <see cref="Deposit"/> from this contract version onward; if this
-    /// contract is deployed as an in-place UPGRADE over a bridge that already holds escrow, that
-    /// pre-existing escrow has no ledger entry and its withdrawals would fail the cap. An operator
-    /// backfills the outstanding per-(chainId, asset) escrow here, then calls
-    /// <see cref="SealLockedBalanceMigration"/> to make the ledger immutable to admin writes.
+    /// One-time, set-once-per-(chainId, asset) migration backfill for the per-chain escrow ledger.
+    /// The <see cref="GetLockedBalance"/> ledger is only credited by <see cref="Deposit"/> from this
+    /// contract version onward; if this contract is deployed as an in-place UPGRADE over a bridge that
+    /// already holds escrow, that pre-existing escrow has no ledger entry and its withdrawals would
+    /// fail the cap. An operator backfills the outstanding per-(chainId, asset) escrow here (before
+    /// any deposits), then calls <see cref="SealLockedBalanceMigration"/> to make the ledger
+    /// immutable to admin writes.
     /// <para>
-    /// Guarded: owner-only, network MUST be paused (no withdrawals can race the backfill), and only
-    /// callable before the migration is sealed. Residual trust: a compromised owner during the
-    /// (paused, unsealed) window could inflate a chain's cap, but actual withdrawals still require a
-    /// valid finalized withdrawalRoot bound to a proven state root, so this cannot by itself move
-    /// funds. Fresh deployments skip this entirely (ledger starts correct from the first deposit).
+    /// Guarded: owner-only, network MUST be paused (no withdrawals can race the backfill), only
+    /// callable before the migration is sealed, and SET-ONCE per (chainId, asset) — it refuses to
+    /// overwrite an already-credited entry, so an accidental double-submit cannot inflate the cap.
+    /// Fresh deployments auto-seal this in _deploy (ledger starts correct from the first deposit), so
+    /// the window only exists for upgrades.
     /// </para>
     /// </summary>
     public static void MigrateLockedBalance(uint chainId, UInt160 asset, BigInteger amount)
@@ -534,7 +540,10 @@ public class SharedBridgeContract : SmartContract
         ExecutionEngine.Assert(!IsLockedBalanceMigrationSealed(), "locked-balance migration is sealed");
         ExecutionEngine.Assert(asset.IsValid && !asset.IsZero, "invalid asset");
         ExecutionEngine.Assert(amount > 0, "amount must be positive");
-        IncrementLocked(chainId, asset, amount);
+        // Set-once: refuse to overwrite/double-credit an entry that already has a balance (from a
+        // prior migration call or a deposit). Backfill must run on a clean ledger entry.
+        ExecutionEngine.Assert(GetLockedBalance(chainId, asset) == 0, "locked balance already set for (chainId, asset)");
+        Storage.Put(LockedBalanceKey(chainId, asset), amount);
         OnLockedBalanceMigrated(chainId, asset, amount);
     }
 

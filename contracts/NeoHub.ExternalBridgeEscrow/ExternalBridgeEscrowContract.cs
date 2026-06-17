@@ -214,6 +214,15 @@ public class ExternalBridgeEscrowContract : SmartContract
     /// per-asset adapter (a later-phase component — see the class remarks and
     /// <c>docs/external-bridge-roadmap.md</c>) that consumes this event. Treat
     /// the inbound direction as the Phase A message seam, not a finished payout.
+    /// <para>
+    /// SECURITY (domain separation): the committee-signed message carries a <c>neoChainId</c> field,
+    /// but this contract does NOT validate it against the deploying Neo L2's chain id (the escrow is
+    /// not configured with its own neoChainId). It is therefore a deployment requirement that an
+    /// external-bridge committee MUST NOT be shared across multiple Neo L2s — otherwise a
+    /// ForeignToNeo message signed for one L2 could be replayed on another that shares the committee.
+    /// A full on-chain fix would add a configured neoChainId and assert messageBytes' neoChainId
+    /// equals it (tracked in docs/external-bridge-roadmap.md).
+    /// </para>
     /// </summary>
     public static void Receive(uint externalChainId, byte[] messageBytes, byte[] proofBytes)
     {

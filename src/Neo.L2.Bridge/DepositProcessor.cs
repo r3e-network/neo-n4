@@ -78,6 +78,12 @@ public sealed class DepositProcessor
             if (!mapping.Active)
                 throw new InvalidOperationException($"Asset mapping for {payload.L1Asset} is inactive");
 
+            // Scale to the L2 amount as part of validation — BEFORE consuming the nonce. ToL2Amount
+            // throws when a down-scale leaves a non-zero remainder; doing it after the consume would
+            // permanently lock the (source, nonce) pair on a deterministic failure, violating the
+            // validate-before-consume invariant above.
+            var l2Amount = mapping.ToL2Amount(payload.Amount);
+
             // Atomic claim: if another thread already processed this nonce while we were
             // validating, lose the race and throw. The successful thread still emits the
             // mint instruction; the loser sees "already processed" and gives up.
@@ -95,7 +101,7 @@ public sealed class DepositProcessor
             {
                 L2Asset = mapping.L2Asset,
                 Recipient = payload.L2Recipient,
-                Amount = mapping.ToL2Amount(payload.Amount),
+                Amount = l2Amount,
                 SourceChainId = message.SourceChainId,
                 SourceNonce = message.Nonce,
             };

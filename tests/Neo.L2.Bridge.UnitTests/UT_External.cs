@@ -33,6 +33,49 @@ public class UT_External_AssetTransferPayload
     }
 
     [TestMethod]
+    public void Encode_ZeroAmount_RoundTrips()
+    {
+        // .NET BigInteger.Zero.ToByteArray(isUnsigned:true) yields a single 0x00 byte (not empty),
+        // so a zero amount encodes as a 1-byte amount field and must decode back to zero. (Deposit
+        // itself rejects zero amounts; this only pins encode/decode symmetry at the boundary.)
+        var p = new ExternalAssetTransferPayload
+        {
+            ForeignAsset = UInt160.Parse("0x" + new string('a', 40)),
+            Amount = BigInteger.Zero,
+        };
+        var bytes = p.Encode();
+        var amountLen = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(20, 4));
+        Assert.AreEqual(1, amountLen, "zero encodes as the single 0x00 byte BigInteger produces");
+        Assert.AreEqual(BigInteger.Zero, ExternalAssetTransferPayload.Decode(bytes).Amount);
+    }
+
+    [TestMethod]
+    public void Encode_TopBitSetAmount_HasNoSignByte_AndRoundTrips()
+    {
+        // The cases the signed→unsigned switch actually changes: an amount whose top byte has the
+        // high bit set must NOT gain a trailing 0x00 sign byte (which signed ToByteArray() added),
+        // so the wire stays byte-for-byte interoperable with the foreign-chain router/payout adapter.
+        var cases = new (BigInteger amount, int expectedLen)[]
+        {
+            (new BigInteger(0x80), 1),    // 128  → [0x80]
+            (new BigInteger(0xFF), 1),    // 255  → [0xFF]
+            (new BigInteger(0x8000), 2),  // 32768 → [0x00,0x80]
+        };
+        foreach (var (amount, expectedLen) in cases)
+        {
+            var p = new ExternalAssetTransferPayload
+            {
+                ForeignAsset = UInt160.Parse("0x" + new string('a', 40)),
+                Amount = amount,
+            };
+            var bytes = p.Encode();
+            var amountLen = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(20, 4));
+            Assert.AreEqual(expectedLen, amountLen, $"amount {amount} must encode minimal-unsigned-LE with no sign byte");
+            Assert.AreEqual(amount, ExternalAssetTransferPayload.Decode(bytes).Amount);
+        }
+    }
+
+    [TestMethod]
     public void Decode_RejectsTrailingBytes()
     {
         var p = new ExternalAssetTransferPayload

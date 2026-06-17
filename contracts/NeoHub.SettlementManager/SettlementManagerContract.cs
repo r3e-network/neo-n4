@@ -349,8 +349,24 @@ public class SettlementManagerContract : SmartContract
         }
 
         var header = (byte[])(Storage.Get(BatchHeaderKey(chainId, batchNumber)) ?? throw new Exception("header missing"));
+
+        // Finalize strictly in order onto the current canonical head. Continuity is checked at
+        // submit time, but a head RevertBatch rewinds latestFinalized/canonicalRoot afterwards —
+        // without re-checking here, an already-submitted descendant of the reverted batch could
+        // finalize onto the rewound root, break canonical continuity, and make its withdrawalRoot
+        // claimable on the SharedBridge. Re-assert both the sequence and preStateRoot continuity.
+        // (To resume after a head revert, an orphaned Pending descendant must itself be reverted
+        // and resubmitted against the rewound head.)
+        ExecutionEngine.Assert(batchNumber == GetLatestFinalizedBatch(chainId) + 1, "finalize out of sequence");
+        if (batchNumber > 1)
+        {
+            var preStateRoot = ReadUInt256(header, PreStateRootOffset);
+            ExecutionEngine.Assert(preStateRoot.Equals(GetCanonicalStateRoot(chainId)),
+                "preStateRoot no longer matches canonical head");
+        }
+
         ValidateDataAvailability(chainId, batchNumber, header);
-        var postStateRoot = ReadUInt256(header, 4 + 8 + 8 + 8 + 32);
+        var postStateRoot = ReadUInt256(header, PostStateRootOffset);
 
         Storage.Put(key, new byte[] { StatusFinalized });
         Storage.Put(CanonicalRootKey(chainId), (byte[])postStateRoot);

@@ -151,6 +151,33 @@ public class UT_Messaging
     }
 
     [TestMethod]
+    public void Inbox_PartialDequeue_SelectsLowestAcrossWholeSet_RegardlessOfArrivalOrder()
+    {
+        // Regression guard for the determinism fix: when max < pendingCount, the lowest-ordered
+        // subset (by sourceChainId, then nonce) must be selected across the ENTIRE pending set —
+        // NOT the FIFO front. The old code popped the FIFO front then sorted only those, so two
+        // nodes that received messages in different orders would pick different subsets and produce
+        // different L1MessageHashes. Enqueue out of nonce order; assert the lowest two win anyway,
+        // and that the non-selected messages remain (not dropped) and stay dequeuable in order.
+        var inbox = new L1MessageInbox();
+        foreach (var nonce in new ulong[] { 5, 1, 3, 2, 4 }) inbox.Enqueue(Build(0, nonce));
+        Assert.AreEqual(5, inbox.PendingCount);
+
+        var taken = inbox.Dequeue(2);
+        Assert.AreEqual(2, taken.Count);
+        Assert.AreEqual(1UL, taken[0].Nonce, "lowest nonce first — not the FIFO front (5)");
+        Assert.AreEqual(2UL, taken[1].Nonce);
+        Assert.AreEqual(3, inbox.PendingCount, "non-selected messages must remain, not be dropped");
+
+        var rest = inbox.Dequeue(10);
+        Assert.AreEqual(3, rest.Count);
+        Assert.AreEqual(3UL, rest[0].Nonce);
+        Assert.AreEqual(4UL, rest[1].Nonce);
+        Assert.AreEqual(5UL, rest[2].Nonce);
+        Assert.AreEqual(0, inbox.PendingCount);
+    }
+
+    [TestMethod]
     public void Inbox_HasConsumed_TracksPostDequeue()
     {
         // Build() hard-codes SourceChainId = 1001, so consume-tracking keys against 1001.

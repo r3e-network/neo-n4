@@ -445,6 +445,54 @@ mod tests {
     }
 
     #[test]
+    fn drain_processes_two_events_in_the_same_block() {
+        // Regression guard for the H6 cursor fix: a single Eth block can carry multiple Locked
+        // events. Both must process, and the persisted cursor must be the block itself (not
+        // block + 1) so a restart re-fetches the block instead of skipping unprocessed siblings.
+        let mut core = WatcherCore::new(
+            0xE000_0001,
+            make_signer(),
+            MockEventSource::new(),
+            MockSubmitter::new(),
+            InMemoryJournal::new(),
+        );
+        core.event_source.push(sample_event(1, 100));
+        core.event_source.push(sample_event(2, 100)); // SAME block as nonce 1
+
+        let processed = core.drain().unwrap();
+        assert_eq!(processed, 2, "both same-block events must be processed");
+        assert_eq!(core.submitter.submissions().len(), 2);
+        // Cursor is the block, not block + 1 — this is the crux of the fix.
+        assert_eq!(core.journal.cursor().unwrap(), 100);
+        assert!(core.journal.is_submitted(0xE000_0001, 1).unwrap());
+        assert!(core.journal.is_submitted(0xE000_0001, 2).unwrap());
+    }
+
+    #[test]
+    fn reprocessing_already_submitted_same_block_event_is_rejected_not_lost() {
+        // Simulates a restart that re-fetches a block whose first event was already submitted
+        // (the cost of cursor==block): the dup must be rejected as AlreadySubmitted, while a
+        // fresh same-block nonce still processes — i.e. no same-block event is lost.
+        let mut core = WatcherCore::new(
+            0xE000_0001,
+            make_signer(),
+            MockEventSource::new(),
+            MockSubmitter::new(),
+            InMemoryJournal::new(),
+        );
+        core.process_event(sample_event(1, 100)).unwrap();
+        assert!(core.journal.is_submitted(0xE000_0001, 1).unwrap());
+
+        // Re-delivery of the already-submitted nonce 1 is rejected, not silently swallowed.
+        let err = core.process_event(sample_event(1, 100)).unwrap_err();
+        assert!(matches!(err, CoreError::AlreadySubmitted(1)));
+
+        // The other same-block event (nonce 2) still processes successfully.
+        core.process_event(sample_event(2, 100)).unwrap();
+        assert!(core.journal.is_submitted(0xE000_0001, 2).unwrap());
+    }
+
+    #[test]
     fn drain_resumes_after_partial_progress() {
         // Two events: first succeeds, second fails on submit. Drain
         // should process the first, journal the cursor at the first

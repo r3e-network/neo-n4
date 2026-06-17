@@ -639,4 +639,38 @@ public class UT_OptimisticAndRiscV
             StateRootCalculator.HashPublicInputs(b),
             "public-input hash must bind ChainId for cross-L2 domain separation");
     }
+
+    [TestMethod]
+    public void PublicInputs_Hash_MatchesOutOfBandGoldenVector()
+    {
+        // Out-of-band golden vector (computed independently of this C# code) that pins the exact
+        // bytes + double-SHA256 of HashPublicInputs. This is the cross-implementation anchor for
+        // the ON-CHAIN parity: NeoHub.SettlementManager.ComputePublicInputHash reconstructs this
+        // same hash from the commitment header offsets (chainId@0, batchNumber@4, preState@28,
+        // postState@60, tx@92, receipt@124, withdrawal@156, l2ToL1@188, l2ToL2@220, daCommitment@252)
+        // plus the supplied l1MessageHash/blockContextHash. If this golden constant ever breaks, the
+        // on-chain offsets/field-order MUST be re-verified or settlement will silently mis-bind.
+        // Canonical input: chainId=1, batchNumber=1, roots = uniform bytes 0x11,0x22,...,0xAA in
+        // HashPublicInputs field order (pre,post,tx,receipt,withdrawal,l2ToL1,l2ToL2,l1MessageHash,
+        // daCommitment,blockContextHash).
+        static UInt256 Root(char hexDigit) => UInt256.Parse("0x" + new string(hexDigit, 64));
+        var inputs = new PublicInputs
+        {
+            ChainId = 1,
+            BatchNumber = 1,
+            PreStateRoot = Root('1'),
+            PostStateRoot = Root('2'),
+            TxRoot = Root('3'),
+            ReceiptRoot = Root('4'),
+            WithdrawalRoot = Root('5'),
+            L2ToL1MessageRoot = Root('6'),
+            L2ToL2MessageRoot = Root('7'),
+            L1MessageHash = Root('8'),
+            DACommitment = Root('9'),
+            BlockContextHash = Root('a'),
+        };
+        var golden = Convert.FromHexString("13760a1b4cb7b3e75421c564671f8fabb7014fe71806fd94beaff927a4cc03f4");
+        CollectionAssert.AreEqual(golden, StateRootCalculator.HashPublicInputs(inputs).GetSpan().ToArray(),
+            "HashPublicInputs diverged from the pinned golden vector — re-verify on-chain ComputePublicInputHash parity");
+    }
 }

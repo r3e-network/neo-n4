@@ -147,6 +147,12 @@ public class ChainRegistryContract : SmartContract
     public static void RegisterChain(uint chainId, byte[] configBytes)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        // Once governance is locked, RegisterChain must not be a lock-bypass for rewriting an
+        // EXISTING chain's verifier / securityLevel / daMode — those changes have to go through the
+        // council-gated UpdateChainViaProposal. Registering a brand-new chainId stays allowed.
+        if (Storage.Get(ConfigKey(chainId)) != null)
+            ExecutionEngine.Assert(!IsGovernanceLocked(),
+                "governance locked — use UpdateChainViaProposal to change an existing chain");
         WriteChainConfig(chainId, configBytes);
     }
 
@@ -466,8 +472,11 @@ public class ChainRegistryContract : SmartContract
         return bytes[ConfigSize - 1] == 1;
     }
 
-    /// <summary>Read the securityLevel byte (doc.md §16.2). Returns 0 (Sidechain — the
-    /// strongest-default trust posture) if the chain is not registered.</summary>
+    /// <summary>Read the securityLevel byte (doc.md §16.2). 0 = sidechain (the LOWEST security
+    /// level), 3 = validity/Zk (the highest). Returns 0 for an unregistered chain — this is the
+    /// safe default because SettlementManager's `proofType >= securityLevel` gate then reduces to
+    /// a no-op floor (`proofType >= 0`), and an unregistered chain fails the `isActive` gate
+    /// anyway, so a low default cannot grant unintended settlement.</summary>
     [Safe]
     public static byte GetSecurityLevel(uint chainId)
     {

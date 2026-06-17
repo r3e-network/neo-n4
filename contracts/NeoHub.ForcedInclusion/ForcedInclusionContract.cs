@@ -397,6 +397,8 @@ public class ForcedInclusionContract : SmartContract
     /// Permissionless censorship report: anyone can flag censorship once the entry's deadline has
     /// passed and it is still unconsumed. Records an at-most-once report and pauses the affected L2
     /// chain through ChainRegistry (liveness protection). Returns true on a successful report.
+    /// NOTE: the auto-pause is best-effort — it only fires when ChainRegistry is wired
+    /// (<see cref="SetChainRegistry"/>); operators MUST wire it before relying on pause-on-report.
     /// <para>
     /// SECURITY: this method does NOT slash. The responsible sequencer/proposer for the censored
     /// window cannot be attributed on-chain (the contract records no proposer-per-block, and
@@ -448,7 +450,9 @@ public class ForcedInclusionContract : SmartContract
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(sequencer.IsValid && !sequencer.IsZero, "invalid sequencer");
         ExecutionEngine.Assert(Storage.Get(ReportedKey(chainId, nonce)) != null, "no censorship report");
-        ExecutionEngine.Assert(!IsConsumed(chainId, nonce), "already consumed");
+        // NOTE: intentionally NOT gated on !IsConsumed. The report already proved the deadline was
+        // missed (censorship occurred); a belated MarkConsumed afterwards must not immunize the
+        // sequencer from the slash. The slashed flag below still makes this at-most-once.
         var slashedKey = SlashedKey(chainId, nonce);
         ExecutionEngine.Assert(Storage.Get(slashedKey) == null, "already slashed");
 

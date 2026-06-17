@@ -26,6 +26,7 @@ public class SharedBridgeContract : SmartContract
     private const byte PrefixWithdrawalConsumed = 0x03; // 0x03 + chainId(4B) + leafHash(32B) → 1
     private const byte PrefixPendingTransfer = 0x04;  // 0x04 + asset(20B) + from(20B) → 1
     private const byte PrefixLockedBalance = 0x05;    // 0x05 + chainId(4B) + asset(20B) → per-chain escrowed amount (BigInteger)
+    private const byte KeyLockedBalanceMigrationSealed = 0x06; // 1 once the migration backfill is sealed
     private const byte PrefixSettlementManager = 0xFD;
     private const byte PrefixTokenRegistry = 0xFE;
     private const byte PrefixEmergencyManager = 0xFC;
@@ -46,6 +47,14 @@ public class SharedBridgeContract : SmartContract
     /// <summary>Emitted when EmergencyManager address is changed.</summary>
     [DisplayName("EmergencyManagerChanged")]
     public static event Action<UInt160> OnEmergencyManagerChanged = default!;
+
+    /// <summary>Emitted when an upgrade migration backfills the per-chain escrow ledger.</summary>
+    [DisplayName("LockedBalanceMigrated")]
+    public static event Action<uint, UInt160, BigInteger> OnLockedBalanceMigrated = default!;
+
+    /// <summary>Emitted when the locked-balance migration is permanently sealed.</summary>
+    [DisplayName("LockedBalanceMigrationSealed")]
+    public static event Action OnLockedBalanceMigrationSealed = default!;
 
     /// <summary>Set bridge wiring on deploy.</summary>
     public static void _deploy(object data, bool update)
@@ -501,6 +510,47 @@ public class SharedBridgeContract : SmartContract
         var key = LockedBalanceKey(chainId, asset);
         var current = GetLockedBalance(chainId, asset);
         Storage.Put(key, current + amount);
+    }
+
+    /// <summary>
+    /// One-time migration backfill for the per-chain escrow ledger. The <see cref="GetLockedBalance"/>
+    /// ledger is only credited by <see cref="Deposit"/> from this contract version onward; if this
+    /// contract is deployed as an in-place UPGRADE over a bridge that already holds escrow, that
+    /// pre-existing escrow has no ledger entry and its withdrawals would fail the cap. An operator
+    /// backfills the outstanding per-(chainId, asset) escrow here, then calls
+    /// <see cref="SealLockedBalanceMigration"/> to make the ledger immutable to admin writes.
+    /// <para>
+    /// Guarded: owner-only, network MUST be paused (no withdrawals can race the backfill), and only
+    /// callable before the migration is sealed. Residual trust: a compromised owner during the
+    /// (paused, unsealed) window could inflate a chain's cap, but actual withdrawals still require a
+    /// valid finalized withdrawalRoot bound to a proven state root, so this cannot by itself move
+    /// funds. Fresh deployments skip this entirely (ledger starts correct from the first deposit).
+    /// </para>
+    /// </summary>
+    public static void MigrateLockedBalance(uint chainId, UInt160 asset, BigInteger amount)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(IsPaused(), "migration requires the network to be paused");
+        ExecutionEngine.Assert(!IsLockedBalanceMigrationSealed(), "locked-balance migration is sealed");
+        ExecutionEngine.Assert(asset.IsValid && !asset.IsZero, "invalid asset");
+        ExecutionEngine.Assert(amount > 0, "amount must be positive");
+        IncrementLocked(chainId, asset, amount);
+        OnLockedBalanceMigrated(chainId, asset, amount);
+    }
+
+    /// <summary>Permanently disable <see cref="MigrateLockedBalance"/>. Owner only, one-way.</summary>
+    public static void SealLockedBalanceMigration()
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        Storage.Put(new byte[] { KeyLockedBalanceMigrationSealed }, new byte[] { 1 });
+        OnLockedBalanceMigrationSealed();
+    }
+
+    /// <summary>True once <see cref="SealLockedBalanceMigration"/> has been called.</summary>
+    [Safe]
+    public static bool IsLockedBalanceMigrationSealed()
+    {
+        return Storage.Get(new byte[] { KeyLockedBalanceMigrationSealed }) != null;
     }
 
     private static byte[] LockedBalanceKey(uint chainId, UInt160 asset)

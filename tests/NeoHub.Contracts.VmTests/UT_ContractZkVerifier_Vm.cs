@@ -379,6 +379,49 @@ public class UT_ContractZkVerifier_Vm
     }
 
     [TestMethod]
+    public void Verify_RejectsInnerProofLengthMismatch()
+    {
+        var engine = new TestEngine(true);
+        var c = Deploy(engine);
+        c.RegisterVerificationKey(Sp1, VkId, true);
+
+        // Build a well-formed payload (3-byte inner proof so the inner-proof-len field reads 3 and the
+        // payload length is ZkPayloadProofBytesOffset + 3), then CORRUPT the inner-proof-length field at
+        // ZkPayloadInnerProofLenOffset to claim a different size. The VK is registered and the corrupted
+        // length is still > 0, so the only guard that can reject is the inner length-match
+        // (ZkPayloadProofBytesOffset + proofSize == payload.Length).
+        var payload = BuildPayload(ZkPayloadVersion, Sp1, VkId, new byte[] { 0xAA, 0xBB, 0xCC });
+        // Claim 5 inner-proof bytes while only 3 are present -> 38 + 5 != 41.
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(ZkPayloadInnerProofLenOffset, 4), 5);
+        var commitment = BuildCommitment(ProofTypeZk, new byte[32], payload);
+
+        var ex = Assert.ThrowsExactly<TestException>(() => c.Verify(commitment),
+            "an inner-proof-length field that disagrees with the actual inner-proof byte count must fault");
+        StringAssert.Contains(ex.Message, "ZK payload proof length mismatch");
+    }
+
+    [TestMethod]
+    public void Verify_RejectsEmptyInnerProof()
+    {
+        var engine = new TestEngine(true);
+        var c = Deploy(engine);
+        c.RegisterVerificationKey(Sp1, VkId, true);
+
+        // A payload whose inner-proof-length field is 0: total payload length is exactly
+        // ZkPayloadProofBytesOffset (the header with no inner-proof trailer), valid version + proof
+        // system + registered VK. The `proofLen > 0` guard (which runs before the length match) is the
+        // decider — an empty inner proof can never be a real ZK proof.
+        var payload = BuildPayload(ZkPayloadVersion, Sp1, VkId, Array.Empty<byte>());
+        Assert.AreEqual(ZkPayloadProofBytesOffset, payload.Length,
+            "an empty inner proof yields a header-only payload of exactly ZkPayloadProofBytesOffset bytes");
+        var commitment = BuildCommitment(ProofTypeZk, new byte[32], payload);
+
+        var ex = Assert.ThrowsExactly<TestException>(() => c.Verify(commitment),
+            "an empty inner proof must be rejected");
+        StringAssert.Contains(ex.Message, "inner proof empty");
+    }
+
+    [TestMethod]
     public void Verify_EnvelopeOnly_OnlyAcceptedWhenExplicitlyAllowed()
     {
         var engine = new TestEngine(true);

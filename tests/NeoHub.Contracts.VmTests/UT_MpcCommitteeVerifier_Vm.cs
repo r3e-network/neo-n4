@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Numerics;
 using Moq;
 using Neo;
+using Neo.Cryptography;
+using Neo.Cryptography.ECC;
 using Neo.SmartContract.Testing;
 using Neo.SmartContract.Testing.Exceptions;
 
@@ -614,5 +616,82 @@ public class UT_MpcCommitteeVerifier_Vm
 
         Assert.AreEqual(UInt160.Zero, c.GetSignerMember(ForeignChain, 0),
             "an unbound signer slot reads back as zero (fraud verifier then refuses to slash)");
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // VerifyInboundMessage — duplicate-signer dedup (the load-bearing malleability defense)
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>A deterministic secp256k1 PRIVATE key (32 bytes), kept inside the curve order. The
+    /// on-chain verify uses the native secp256k1+SHA256 syscall, which cannot be mocked — so this test
+    /// produces REAL secp256k1 keys/signatures (Neo's KeyPair is secp256r1-only and cannot represent
+    /// this key, so we carry raw private-key bytes and derive the pubkey / sign off the curve directly).</summary>
+    private static byte[] Secp256k1PrivKey()
+    {
+        var priv = new byte[32];
+        for (var j = 0; j < 32; j++) priv[j] = (byte)(0x11 + j);
+        priv[0] &= 0x1F; // keep inside the curve order (non-zero, < n)
+        return priv;
+    }
+
+    /// <summary>Derive the 33-byte compressed secp256k1 pubkey for a private key: G * priv, compressed.</summary>
+    private static byte[] DeriveSecp256k1PubKey(byte[] priv) =>
+        (ECCurve.Secp256k1.G * priv).EncodePoint(true); // 33 bytes
+
+    /// <summary>Sign with secp256k1 + SHA256 prehash so the on-chain VerifyWithECDsa(secp256k1SHA256)
+    /// accepts it. Crypto.Sign SHA256-prehashes internally and returns the raw 64-byte (r‖s) signature.</summary>
+    private static byte[] Secp256k1Sign(byte[] priv, byte[] message) =>
+        Crypto.Sign(message, priv, ECCurve.Secp256k1, HashAlgorithm.SHA256);
+
+    [TestMethod]
+    public void VerifyInboundMessage_DuplicateSigner_DedupRejectsSecondSignature()
+    {
+        var engine = new TestEngine(true);
+        var c = Deploy(engine);
+
+        // Register a 1-of-1 secp256k1 committee whose single member is a REAL key (so its signature
+        // actually verifies). committee blob = the 33-byte compressed pubkey at slot 0.
+        var priv = Secp256k1PrivKey();
+        var pub = DeriveSecp256k1PubKey(priv); // 33 bytes
+        c.RegisterCommittee(ForeignChain, 1, CurveSecp256k1, pub);
+
+        // Canonical inbound message: signed-domain chainId == ForeignChain, direction ForeignToNeo(2),
+        // no deadline (0 == never expires) so the expiry guard passes regardless of the test clock.
+        var msg = Message(ForeignChain, direction: 2, deadlineUnixSeconds: 0);
+        var sig = Secp256k1Sign(priv, msg);
+
+        // Sanity: a SINGLE valid attestation from this member verifies (so we know the crypto path is
+        // genuinely reached — the dedup fault below is not a masked earlier failure).
+        var singleProof = Secp256k1ProofWith(new[] { (pub, sig) });
+        Assert.IsTrue(c.VerifyInboundMessage(ForeignChain, msg, singleProof)!,
+            "a single valid committee signature must verify (the crypto path is reached)");
+
+        // Two entries, BOTH the same committee member (same pubkey) with valid signatures. The dedup is
+        // keyed on the resolved committee index, not the signature bytes, so the second entry resolves
+        // to the SAME memberIdx whose bitmap bit is already set -> "duplicate signer" before the second
+        // signature is even verified. This is the malleability defense: one signer cannot count twice
+        // toward the threshold even with two individually-valid signatures.
+        var dupProof = Secp256k1ProofWith(new[] { (pub, sig), (pub, sig) });
+        var ex = Assert.ThrowsExactly<TestException>(
+            () => c.VerifyInboundMessage(ForeignChain, msg, dupProof),
+            "the same committee member counted twice must be rejected by the dedup guard");
+        StringAssert.Contains(ex.Message, "duplicate signer");
+    }
+
+    /// <summary>Build a secp256k1 proof: [2B sigCount LE] + sigCount × (33B pubkey ‖ 64B sig).</summary>
+    private static byte[] Secp256k1ProofWith((byte[] pubkey, byte[] sig)[] entries)
+    {
+        const int perSig = 33 + 64;
+        var p = new byte[2 + entries.Length * perSig];
+        p[0] = (byte)(entries.Length & 0xFF);
+        p[1] = (byte)((entries.Length >> 8) & 0xFF);
+        var pos = 2;
+        foreach (var (pubkey, sig) in entries)
+        {
+            for (var j = 0; j < 33; j++) p[pos + j] = pubkey[j];
+            for (var j = 0; j < 64; j++) p[pos + 33 + j] = sig[j];
+            pos += perSig;
+        }
+        return p;
     }
 }

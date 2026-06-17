@@ -273,6 +273,26 @@ public class UT_DAValidator_Vm
             "threshold cannot exceed committee size");
     }
 
+    [TestMethod]
+    public void RegisterCommittee_RejectsOversizedCommittee()
+    {
+        var engine = new TestEngine(true);
+        var c = Deploy(engine);
+
+        // 65 valid 33-byte keys: blob length is a multiple of 33, chainId > 0, and threshold is in
+        // [1, size], so every earlier guard passes and the only one that can reject is the
+        // MaxCommitteeSize (64) cap. This pins the committee-size ceiling that bounds the per-batch
+        // signature-verification work (and the seen-bitmap width) in VerifyAttestation.
+        var signers = new Signer[65];
+        for (var i = 0; i < signers.Length; i++) signers[i] = new Signer(i);
+        var oversized = CommitteeBlob(signers); // 65 × 33 bytes
+
+        var ex = Assert.ThrowsExactly<TestException>(() => c.RegisterCommittee(ChainA, 1, oversized),
+            "a committee larger than MaxCommitteeSize (64) must be rejected");
+        StringAssert.Contains(ex.Message, "committee too large");
+        Assert.AreEqual(0, c.GetCommittee(ChainA)!.Length, "rejected oversized registration must not persist");
+    }
+
     // ----- attestation: happy path + persistence --------------------------------------------------
 
     [TestMethod]

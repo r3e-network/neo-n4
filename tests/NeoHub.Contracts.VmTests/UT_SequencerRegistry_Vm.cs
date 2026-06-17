@@ -342,9 +342,23 @@ public class UT_SequencerRegistry_Vm
         var reg = Deploy(engine);
         RegisterAs(engine, reg, ChainA, Seq1, owner);
 
+        // The default deploy seeds ExitWindowSeconds = DefaultExitWindowSeconds (24h); no block-time
+        // advance happens between deploy and this call, so the exit timestamp is exactly the contract's
+        // formula `(uint)(Runtime.Time/1000) + GetExitWindowSeconds()`. Runtime.Time mirrors the
+        // persisting block header timestamp (ms), so we can compute the expected value precisely.
+        const uint defaultExitWindowSeconds = 86400; // contract DefaultExitWindowSeconds
+        Assert.AreEqual((BigInteger)defaultExitWindowSeconds, reg.ExitWindowSeconds!,
+            "default exit window is wired at deploy");
+        var nowUnixSeconds = (uint)((ulong)engine.PersistingBlock.Timestamp.TotalMilliseconds / 1000UL);
+        var expectedExitsAt = nowUnixSeconds + defaultExitWindowSeconds;
+
         engine.SetTransactionSigners(Seq1);
         var exitsAt = reg.Unregister(ChainA, Seq1)!.Value;
-        Assert.IsTrue(exitsAt > (BigInteger)0, "exit timestamp returned");
+        // Pin the EXACT value: a vacuous `exitsAt > 0` would pass even if the window term were dropped
+        // (Runtime.Time alone is already a large value). Asserting equality fails if the window addend
+        // is ever lost or the time base changes.
+        Assert.AreEqual((BigInteger)expectedExitsAt, exitsAt,
+            "exit timestamp == now + exit window seconds");
         Assert.AreEqual((BigInteger)2, reg.GetStatus(ChainA, Seq1)!, "status Exiting (2)");
         // Count is unchanged: the sequencer is still in the registry (and signing) until finalize.
         Assert.AreEqual((BigInteger)1, reg.GetActiveCount(ChainA)!, "exiting sequencer still counts until finalize");

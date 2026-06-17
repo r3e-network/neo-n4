@@ -100,13 +100,20 @@ public class UT_GovernanceFraudVerifier_Vm
         var engine = new TestEngine(true);
         var fv = Deploy(engine);
 
-        var tooShort = new byte[V1Size - 1];
-        tooShort[0] = VersionV1;
+        // Both buffers must carry DIFFERING roots ([33..64]=0xAA, [65..96]=0xBB) so the no-discrepancy
+        // guard (claimedRoot == replayedRoot) can never be the one rejecting — only the v1 length guard
+        // can. An all-zero buffer would have equal roots and be rejected by the discrepancy guard even
+        // if the length check were removed, masking a length-guard regression. Both wrong sizes keep the
+        // root offsets in range (max index 96 < 100), so the roots survive the copy intact.
+        var canonical = BuildV1(0xAA, 0xBB); // 101 bytes, differing roots
+
+        var tooShort = new byte[V1Size - 1]; // 100 bytes
+        for (var i = 0; i < tooShort.Length; i++) tooShort[i] = canonical[i];
         Assert.IsFalse(fv.VerifyFraud(ChainId, BatchNumber, tooShort)!,
             "v1 payload shorter than 101 bytes must be rejected (ReasonBadLength)");
 
-        var tooLong = new byte[V1Size + 1];
-        tooLong[0] = VersionV1;
+        var tooLong = new byte[V1Size + 1]; // 102 bytes
+        for (var i = 0; i < canonical.Length; i++) tooLong[i] = canonical[i];
         Assert.IsFalse(fv.VerifyFraud(ChainId, BatchNumber, tooLong)!,
             "v1 payload longer than 101 bytes must be rejected (ReasonBadLength)");
     }
@@ -208,9 +215,13 @@ public class UT_GovernanceFraudVerifier_Vm
         var engine = new TestEngine(true);
         var fv = Deploy(engine);
 
-        // Declared witness length exceeds the 64KB cap. Use a small actual trailer so we exercise the
-        // oversized-witness guard (which runs before the strict length match) without allocating 64KB.
-        var oversized = BuildV2(16, declaredLen: (uint)(MaxDisputedTxBytes + 1));
+        // Allocate a REAL >64KB trailer so the declared length (defaulting to the actual witness
+        // length) MATCHES the trailer exactly. That makes the strict length-match pass, so ONLY the
+        // oversized-witness guard (declaredLen > MaxDisputedTxBytes, checked before the length match)
+        // can reject. If that guard were removed, the length match would pass and the differing roots
+        // would make this accept (return true) — so the test now fails iff the oversized guard is gone.
+        // Payload size ≈ 105 + 65537 = 65642 bytes, well under the VM item limit (131070).
+        var oversized = BuildV2(MaxDisputedTxBytes + 1);
         Assert.IsFalse(fv.VerifyFraud(ChainId, BatchNumber, oversized)!,
             "declared witness length above MaxDisputedTxBytes must be rejected (ReasonOversizedWitness)");
     }

@@ -40,8 +40,9 @@ public abstract class Mock_MpcCommitteeFraudVerifier_Bond(SmartContractInitializ
 ///   * signerIdx out of committee range reverts;
 ///   * an unbound signer slot (getSignerMember == zero) refuses to slash so the wrong identity
 ///     can never be slashed;
-///   * a zero-balance equivocator still records the slash (replay record) but slashing reverts on
-///     the "nothing to slash" guard, preventing a no-op slash from being replayed later;
+///   * a zero-balance equivocator reverts on the "nothing to slash" guard and records NOTHING —
+///     the zero-balance assert runs before the replay-record write, so a re-report simply reverts
+///     again until the member posts a bond, at which point the slash can proceed;
 ///   * the CEI ordering: the replay flag is written BEFORE the external bond.slash call.
 /// </summary>
 [TestClass]
@@ -425,5 +426,9 @@ public class UT_MpcCommitteeFraudVerifier_Vm
 
         Assert.ThrowsExactly<TestException>(() => c.Slash(ChainId, SignerIdx, m1, s1, m2, s2),
             "a zero-balance equivocator yields the 'nothing to slash' fault");
+        // The zero-balance assert runs BEFORE the replay-record write, so a reverted zero-balance
+        // slash records nothing — a later re-report (after a bond is posted) can still proceed.
+        Assert.IsFalse(c.IsSlashed(ChainId, SignerIdx)!,
+            "a reverted zero-balance slash must NOT record the slash (no replay record written)");
     }
 }

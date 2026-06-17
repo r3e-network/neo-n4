@@ -408,15 +408,28 @@ public class UT_OptimisticChallenge_Vm
         oc.RegisterPermissionlessFraudVerifier(verifier);
         oc.OpenWindow(ChainId, BatchNum, Sequencer);
 
-        Assert.ThrowsExactly<TestException>(() =>
+        // Empty proof: engine.Sender is witnessed, so CheckWitness passes and the empty-proof guard
+        // (`fraudProofBytes.Length > 0`) is the decider. Assert the reason so a removed guard fails here.
+        var exEmpty = Assert.ThrowsExactly<TestException>(() =>
             oc.Challenge(ChainId, BatchNum, engine.Sender, Array.Empty<byte>(), verifier),
             "empty fraud proof rejected");
-        Assert.ThrowsExactly<TestException>(() =>
+        StringAssert.Contains(exEmpty.Message, "empty fraud proof");
+
+        // Zero (unwitnessable) challenger: UInt160.Zero can never be a transaction signer, so the FIRST
+        // guard `CheckWitness(challenger)` aborts before the later `!challenger.IsZero` validity guard is
+        // reached. The challenger-witness gate IS the real protection here (an attacker cannot forge a
+        // witness for address 0, nor for any victim), so pin the abort to the witness gate.
+        var exZeroChallenger = Assert.ThrowsExactly<TestException>(() =>
             oc.Challenge(ChainId, BatchNum, UInt160.Zero, Proof, verifier),
-            "zero challenger rejected (would pay reward to address 0)");
-        Assert.ThrowsExactly<TestException>(() =>
+            "zero (unwitnessable) challenger rejected by the challenger-witness gate");
+        StringAssert.Contains(exZeroChallenger.Message, "witness");
+
+        // Zero fraud verifier: Sender is witnessed and the proof is non-empty + challenger valid, so the
+        // decider is the `!fraudVerifier.IsZero` validity guard. Assert its reason.
+        var exZeroVerifier = Assert.ThrowsExactly<TestException>(() =>
             oc.Challenge(ChainId, BatchNum, engine.Sender, Proof, UInt160.Zero),
             "zero fraud verifier rejected");
+        StringAssert.Contains(exZeroVerifier.Message, "invalid fraud verifier");
     }
 
     [TestMethod]

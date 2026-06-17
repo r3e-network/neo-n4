@@ -192,8 +192,13 @@ public class UT_ExternalBridgeBond_Vm
         var engine = new TestEngine(true);
         var bond = Deploy(engine);
 
-        Assert.ThrowsExactly<TestException>(() => bond.OnNEP17Payment(Member, 0, null),
+        // The contract checks `amount > 0` FIRST (before the pending-transfer marker check), so a
+        // zero-amount callback must abort on the amount guard specifically — NOT on the pending-
+        // transfer guard. Capturing the abort reason makes this test fail if the amount>0 guard is
+        // ever removed (in which case it would instead reach, and abort on, the pending-transfer guard).
+        var ex = Assert.ThrowsExactly<TestException>(() => bond.OnNEP17Payment(Member, 0, null),
             "zero-amount NEP-17 callback must be rejected");
+        StringAssert.Contains(ex.Message, "amount must be positive");
     }
 
     // ---------------------------------------------------------------------------------------------

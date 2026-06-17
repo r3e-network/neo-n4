@@ -264,8 +264,10 @@ public class MpcCommitteeFraudVerifierContract : SmartContract
         ExecutionEngine.Assert(bond != UInt160.Zero, "bond contract not wired");
         var balance = (BigInteger)Contract.Call(bond, "getBalance",
             CallFlags.ReadOnly, new object[] { externalChainId, member });
-        ExecutionEngine.Assert(balance > 0,
-            "equivocator has zero bond balance — nothing to slash (still record the slash to prevent replay)");
+        // Nothing to slash: revert. This assert runs before the replay-record write below, so a
+        // zero-bond equivocator is NOT marked slashed — that is fine, since a re-report simply
+        // reverts again until/unless the member posts a bond, at which point the slash can proceed.
+        ExecutionEngine.Assert(balance > 0, "equivocator has zero bond balance — nothing to slash");
 
         var reporter = (UInt160)Runtime.CallingScriptHash;
 

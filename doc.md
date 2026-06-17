@@ -289,10 +289,12 @@ struct CrossChainMessage {
 ```text
 enqueueL1ToL2Message(targetChainId, receiver, payload)
 publishL2ToL1Root(chainId, batchNumber, messageRoot)
-consumeL2ToL1Message(message, merkleProof)
+consumeL2ToL1Message(message, merkleProof)   // L1 侧（MessageRouter.MarkConsumed）：仅在 SettlementManager 见证下标记 message 为已消费并做重放保护；Merkle proof 的校验由调用方在链下负责，L1 router 自身不验证 proof
 publishL2ToL2Root(sourceChainId, batchNumber, messageRoot)
-consumeL2ToL2Message(message, merkleProof)
+consumeL2ToL2Message(message, merkleProof)   // 同上：L1 router 只做去重，不做 proof 校验
 ```
+
+L2 侧则不同：`L2InteropVerifier.ConsumeMessage` 会在链上验证 Merkle proof。换言之，当前实现中只有 L2 侧消费消息时才做链上 proof 校验；L1 侧的 `consumeL2ToL1Message` / `consumeL2ToL2Message` 仅做见证下的标记 + 重放保护，proof 校验留给链下调用方。
 
 ZKsync Connect 的互操作思路可以直接借鉴：它通过智能合约和 Merkle proof 验证跨链交易/消息，支持链之间通信和交易。([ZKsync Docs][6])
 
@@ -1223,8 +1225,14 @@ Canonical confirmation:
 2. User obtains state proof from last finalized state root
 3. User submits proof to NeoHub
 4. NeoHub verifies user balance / ownership
-5. User exits canonical asset
+5. User records a verified exit CLAIM（并非直接转出资产）
 ```
+
+第 5 步需澄清当前实现的两条路径（见 `EmergencyManager.EscapeHatchExit*` 与 `SharedBridge.EmergencyFinalizeWithdrawalWithProof`）：
+
+- 逃生舱（escape hatch）只对状态树叶子做 Merkle 校验并记录一个一次性、防重放的**退出 CLAIM**（emit `EscapeHatchExit`），它本身**不转出任何资产**——通用 state leaf 并不绑定 canonical 的 (asset, amount, recipient) 元组，桥无法据此自动赔付。
+- **自动赔付**仅适用于 sequencer 已经 finalize 的提款：用户走 `SharedBridge.EmergencyFinalizeWithdrawalWithProof`，针对该 batch 的 withdrawalRoot 做 Merkle 校验后由桥直接 payout。
+- 对于**从未被 finalize** 的 state-leaf 退出，记录的 CLAIM 由 governance / 链下结算来释放对应托管资产，而非链上自动转出。
 
 这要求 DA 足够强。对 validium / DAC 模式，emergency exit 可能受限，必须提前披露。
 
@@ -1233,6 +1241,8 @@ Canonical confirmation:
 # 16. Governance 设计
 
 Neo 4 roadmap 提到增强 NEO Council 角色，包括动态调整 council members、决定 consensus node admission/exit、管理核心网络参数，并提到 NEO holders 的 referendum power 和未来探索 Layer-2 governance。([GitHub][3])
+
+> 注（实现状态，roadmap / 尚未实现）：上述「动态调整 council members」与「NEO holders referendum」均为 Neo 4 roadmap 目标，**当前实现尚不支持**。本仓库的 `NeoHub.GovernanceController` 中的链上 council 在部署时（`_deploy`）一次性固定，**刻意设计为不可变**——没有 AddCouncilMember / RemoveCouncilMember / SetThreshold / RotateCouncil 入口，也没有 `ContractManagement.Update` 升级路径；轮换或更换成员、修改门限/timelock 都必须重新部署一套 GovernanceController 并重连所有 consumer。链上也**没有任何 referendum 机制**。
 
 Neo L2 governance 应分三层：
 
@@ -1451,7 +1461,10 @@ Deliverables:
 ```text
 Optimistic rollup-like
 安全性依赖至少一个 honest challenger
+（当前已发布的 fraud verifier 为结构性 + governance 仲裁，见下方说明）
 ```
+
+> 注（实现状态）：当前已发布的 fraud verifier（`GovernanceFraudVerifier`、`RestrictedExecutionFraudVerifier`）是**结构性**且由 **governance 仲裁**的——它们只校验 fraud-proof payload 的 wire 格式并确认 challenger 声称的 root 与 sequencer 声称的 root 不一致，**既不在链上重新执行争议交易，也不绑定到 SettlementManager 已提交的 root**。因此「fraud proof 以密码学方式 / 无需信任地证明 batch 存在欺诈」这一更强性质**尚未达成**：是否真的存在欺诈，最终由安全委员会（`GovernanceController`）裁定。要做到完全无需信任，需要把 verifier 替换为在链上**重新执行**争议交易的版本（需扩展 `FraudProofPayload` 携带 execution-trace witness），这属于 roadmap，详见 `IMPLEMENTATION_STATUS.md`。
 
 ---
 

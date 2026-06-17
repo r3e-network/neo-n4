@@ -137,11 +137,17 @@ contain 23 production contracts plus one test-only external-bridge stub:
   `FraudProofPayload` (v1 = 101 bytes fixed, v2 = 105+N bytes with
   disputed-tx witness), validates structural integrity, emits
   accept/reject events for council review.
-- **`RestrictedExecutionFraudVerifier`** — Trustless v3 fraud verifier
+- **`RestrictedExecutionFraudVerifier`** — Structural v3 fraud verifier
   — re-derives pre/post Merkle state roots on-chain from each storage
-  proof's leaf-hash + siblings + leafIndex and matches against the v1
-  header's `PreStateRoot` / `ReplayedPostStateRoot`. Accepted v3
-  payloads are credible without council arbitration.
+  proof's leaf-hash + siblings + leafIndex and checks they are internally
+  consistent with the `PreStateRoot` / `ReplayedPostStateRoot` in the
+  challenger-supplied payload header. All roots come from the same
+  challenger payload: it does NOT read the sequencer's committed
+  `SettlementManager` batch roots and does NOT re-execute the disputed tx,
+  so it is not trustless. Accepted v3 payloads still require governance
+  arbitration and the verifier MUST be registered approved-only (never on
+  the permissionless auto-slash path). Full trustless on-chain
+  re-execution bound to committed roots is roadmap.
 
 All 24 deployable projects type-check against `Neo.SmartContract.Framework`. The
 `Neo.Hub.Deploy` tool emits a topologically-sorted, dependency-resolved deploy bundle.
@@ -305,7 +311,7 @@ witness, L1 messages consumed, DA data, execution trace.
 
 ```
 Stage 0 — Multisig attestation  (production-usable from day 1)
-Stage 1 — Optimistic + bisection-game (the fraud-proof flow)
+Stage 1 — Optimistic + bisection-game (governance-arbitrated challenge flow)
 Stage 2 — ZK validity proof    (NeoVM 2 / RISC-V via SP1)
 ```
 
@@ -317,8 +323,11 @@ plugin code or L2 contract changes required.
   `ISignerSet`. Status: production-ready; M-of-N secp256r1 over
   canonical public-input bytes.
 - **Stage 1 — `OptimisticVerifier`.** Producer: `OptimisticProofPayload`
-  + sequencer signature. Status: Stage-1 verifier; `BisectionGame` for
-  log-N narrowing of disputed tx.
+  + sequencer signature. Status: Stage-1 verifier; the shipped fraud
+  verifiers are structural / governance-arbitrated (they validate payload
+  structure and self-consistency, not self-contained cryptographic proofs
+  that bind to the committed roots or re-execute). `BisectionGame` is an
+  off-chain log-N narrowing of the disputed tx.
 - **Stage 2 — `ContractZkVerifier`.** Producer: `prove-batch daemon` (real,
   out-of-process) + `MockRiscVProver` (in-process test seam). Status:
   real proof payloads route through a deployable router and verifier contract;
@@ -428,7 +437,12 @@ Phase 5 introduces an optional aggregation layer mirroring ZKsync Gateway. The G
   rounds (log-N rounds; default `PassThroughRoundProver` is a hash combiner; production
   swaps in SP1 Compress, Halo2 fold, or a Risc-Zero accumulator).
 - Maintains the `globalMessageRoot` for L2-to-L2 messages.
-- Submits one aggregated commitment to NeoHub.
+- Submits one aggregated commitment to NeoHub. The on-chain global-root
+  publish (`MessageRouter.PublishGlobalRoot`) is authorized solely by the
+  settlement-manager witness (`CheckWitness`); the aggregated proof /
+  committee signatures carried in `AggregatedProof` are NOT verified
+  on-chain in the current path. On-chain verification of the aggregated
+  attestation is roadmap.
 
 **Critical invariant: the Gateway does NOT custody assets.** Assets stay locked in
 NeoHub.SharedBridge throughout; the Gateway moves only proofs and message roots.
@@ -454,8 +468,14 @@ Sequencer censorship is the canonical L2 attack. Three layered defenses:
    member's bond.
 
 3. **Escape hatch** (`NeoHub.EmergencyManager`). On confirmed sequencer-side liveness
-   failure, governance can pause the L2 and allow direct-from-L1 withdrawal proofs over
-   the last finalized state root.
+   failure, governance can pause the L2. While paused, autonomous on-L1 payout exists
+   only for withdrawals the sequencer ALREADY finalized, via
+   `SharedBridge.EmergencyFinalizeWithdrawalWithProof` (verified against the batch
+   `withdrawalRoot`). `EmergencyManager.EscapeHatchExit` over a state leaf does NOT move
+   any funds: it records a replay-protected exit CLAIM (per `(chainId, leafHash)`) and
+   emits an event; a never-finalized state-leaf exit yields a claim that governance /
+   off-chain settlement releases escrow against. Full autonomous state-leaf payout
+   direct from L1 is roadmap.
 
 These three together mean: **no individual sequencer can permanently exclude a user's
 transaction from a chain that is alive at all.**
@@ -468,9 +488,16 @@ Three layers:
 
 | Layer       | Authority                                              | What it controls                                                              |
 | ----------- | ------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| L1          | Neo Governance / Council / NEO holder referendum       | NeoHub upgrade, verifier registry, bridge upgrade, emergency pause, L2 admission policy |
+| L1          | Neo Council (`GovernanceController`)                    | NeoHub upgrade, verifier registry, bridge upgrade, emergency pause, L2 admission policy |
 | L2 local    | The L2's own governance contract                       | Sequencer committee, local fee policy, app-chain params, DA mode (within approved range) |
 | App         | Each dApp / RWA issuer / stablecoin policy             | Per-app rules, KYC list, enterprise permissioning                              |
+
+The L1 council member set, member count, M-of-N threshold, and timelock are written
+once in `GovernanceController._deploy` and have no on-chain mutator: the council is
+immutable for the lifetime of the deployment. Rotating a member or changing the
+threshold requires a fresh `GovernanceController` deployment plus re-wiring every
+consumer to the new hash. There is no on-chain NEO-holder referendum. On-chain council
+rotation and a NEO-holder referendum are roadmap.
 
 Every L2 must publish security labels per `doc.md` §16.2: securityLevel
 (`SecurityLevel` enum — Sidechain / Settled / Optimistic / Validity / Validium),
@@ -548,7 +575,7 @@ the L2 plugin set are stable across phases; the *verifier* changes.
 | Native interop          | L1↔L2 + L2↔L2 + bundles          | Native L2-L2 via Gateway | Superchain interop (early)   | Cross-chain Inbox messaging     |
 | DA tiers                | L1 / NeoFS / External / DAC      | Validium + GW DA        | EthDA / AnyTrust              | AnyTrust + ETH DA               |
 | Gas token               | Bridged GAS canonical            | Custom per chain        | ETH (no custom-base support yet) | Configurable                |
-| Governance              | Neo Council + NEO holder referendum | DAO + security council | Optimism Foundation + Council | Arbitrum DAO + Security Council |
+| Governance              | Neo Council (immutable per deployment; rotation + NEO-holder referendum are roadmap) | DAO + security council | Optimism Foundation + Council | Arbitrum DAO + Security Council |
 
 The headline architectural choice is **borrowing Elastic Chain's shared-bridge pattern but
 swapping in Neo's primitives** — dBFT 2.0 finality (single-block confirms with no MEV
@@ -572,7 +599,7 @@ tiers).
 | **l2ToL1MessageRoot / l2ToL2MessageRoot** | Per-class outbox Merkle roots committed in the batch.                          |
 | **daCommitment**           | Hash committing to the batch's DA blob; bound by DA mode.                                     |
 | **Forced inclusion**       | L1-side queue any user can post to; sequencer must include before deadline.                   |
-| **Bisection game**         | Phase-3 fraud-proof flow: log-N narrowing to a single disputed transaction's pre/post state.  |
+| **Bisection game**         | Off-chain log-N narrowing optimization (`Neo.L2.Challenge.BisectionGame`) that converges to a single disputed transaction index. The narrowed index is metadata: there is no on-chain bisection contract and `OptimisticChallenge.Challenge` is single-shot (one `verifyFraud` call, no on-chain re-execution). Full on-chain interactive bisection is roadmap. |
 | **Security label**         | Public on-chain claim of a chain's DA / proof / sequencer model; `getsecuritylevel` RPC.     |
 | **Escape hatch**           | Operator-of-last-resort path for users to withdraw if the sequencer fails. Owned by `EmergencyManager`. |
 

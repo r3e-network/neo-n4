@@ -40,7 +40,7 @@ Core L1 contract suite:
 
 ## §4 Neo Gateway
 
-Optional layer. Mirrors ZKsync Gateway: collects proofs from multiple Neo L2s, aggregates them, maintains `globalMessageRoot` for L2-to-L2, submits aggregated settlement to NeoHub. **Doesn't custody assets** — assets stay locked in NeoHub/SharedBridge.
+Optional layer. Mirrors ZKsync Gateway: collects proofs from multiple Neo L2s, aggregates them, maintains `globalMessageRoot` for L2-to-L2, and publishes the aggregated global root to NeoHub. In the current path that publish is settlement-manager-witness-authorized (the `PublishGlobalRoot` / `GlobalRootMirrored` flow gates on the system witness); the aggregated proof itself is **not** verified on-chain — NeoHub trusts the authorized publisher rather than re-checking the aggregation cryptographically. On-chain verification of the aggregated proof is planned/roadmap. **Doesn't custody assets** — assets stay locked in NeoHub/SharedBridge.
 
 ## §5–§7 L2 chain internals
 

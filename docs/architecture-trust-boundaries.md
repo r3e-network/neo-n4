@@ -80,11 +80,15 @@ verification path. Every byte is checked.
 | Failure mode     | Proof invalid / wrong public-input / proof type mismatch        |
 | Mitigation       | Hard reject; submitter pays the gas, batch doesn't land         |
 
+Discriminants per `src/Neo.L2.Abstractions/Models/ProofType.cs`: `None=0`,
+`Multisig=1`, `Optimistic=2`, `Zk=3` (there is no `RiscVZk`).
+
 | Proof type        | Trust assumption                                              |
 |-------------------|---------------------------------------------------------------|
-| `RiscVZk` (=1)    | SP1 zkVM proof — math (the proof IS the verification)         |
-| `Multisig` (=0)   | M-of-N committee signed the BatchCommitment                   |
-| `Optimistic` (=2) | Challenge window + bisection game — game-theoretic            |
+| `None` (=0)       | No proof — genesis / operator-trusted internal flows only     |
+| `Multisig` (=1)   | M-of-N committee signed the BatchCommitment                   |
+| `Optimistic` (=2) | Challenge window — game-theoretic. The bisection narrowing runs **off-chain** (`ChallengeOrchestrator` / `BisectionGame`); the on-chain `OptimisticChallenge.Challenge` is single-shot — it calls `verifyFraud` once and the shipped verifier does **not** re-execute the disputed tx. On-chain interactive bisection / re-execution is planned/roadmap. |
+| `Zk` (=3)         | ZK validity proof (NeoVM2 / RISC-V) — math (the proof IS the verification) |
 
 ### Boundary D: settled batch → L2 user (withdrawal)
 

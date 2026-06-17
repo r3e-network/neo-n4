@@ -44,8 +44,11 @@ L1 核心合约套件:
 ## §4 Neo Gateway
 
 可选层。镜像 ZKsync Gateway:从多条 Neo L2 收集证明、聚合、维护 L2-L2
-的 `globalMessageRoot`,向 NeoHub 提交聚合后的结算。**不托管资产** ——
-资产仍锁在 NeoHub / SharedBridge。
+的 `globalMessageRoot`,并向 NeoHub 发布聚合后的全局根。在当前路径下,该发布
+由结算管理者见证授权(`PublishGlobalRoot` / `GlobalRootMirrored` 流程校验系统
+见证);聚合证明本身**不会**在链上被验证 —— NeoHub 信任被授权的发布者,而不是
+在链上重新加密校验聚合结果。在链上验证聚合证明属于计划中(roadmap)。**不托管
+资产** —— 资产仍锁在 NeoHub / SharedBridge。
 
 ## §5–§7 L2 链内部
 

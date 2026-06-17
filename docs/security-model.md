@@ -31,8 +31,16 @@ For any L2 chain registered in `NeoHub.ChainRegistry`:
 - **Withdrawal finality.** Funds leave `SharedBridge` only on inclusion proofs
   against a *finalized* `withdrawalRoot`. Pre-finalization batches cannot release
   L1 assets.
-- **Escape hatch.** `EmergencyManager` exposes a governance-gated path for users
-  to withdraw against the last finalized state root if the L2 fails durably.
+- **Escape hatch.** `EmergencyManager.EscapeHatchExit*` lets a user prove a
+  state-tree leaf against the chain's last finalized state root (while the network
+  is paused) and records a one-time, replay-protected **exit claim** — it moves no
+  funds. A withdrawal the sequencer already finalized is paid out autonomously via
+  `SharedBridge.EmergencyFinalizeWithdrawalWithProof` (verified against the batch
+  `withdrawalRoot`). For a withdrawal that was *never* finalized, the recorded
+  state-leaf claim is settled by governance / off-chain settlement to release
+  escrow; fully autonomous payout directly from an arbitrary state leaf is roadmap
+  (a generic leaf does not bind a canonical asset/amount/recipient tuple the bridge
+  could pay out on its own).
 
 ## What L1 does NOT guarantee (per chain, until the chain reaches Phase 4)
 

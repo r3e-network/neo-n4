@@ -526,7 +526,7 @@ L2:      ── L1MessageInbox 出队 → DepositProcessor 铸 L2 GAS
                                  ↓
          证明者产生证明(Multisig / Optimistic / ZK)
                                  ↓
-L1:      SettlementManager.SubmitBatch(commitment, publicInputs, proof)
+L1:      SettlementManager.SubmitBatch(commitmentBytes, l1MessageHash, blockContextHash)
                                  ↓
          Verifier 派发 → 最终化 → 更新规范状态根
                                  ↓

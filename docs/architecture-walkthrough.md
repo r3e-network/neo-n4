@@ -83,7 +83,9 @@ The prover output goes into `L2BatchCommitment.Proof` with the matching `ProofTy
 
 `Neo.L2.Settlement.Rpc.RpcSettlementClient.SubmitBatchAsync` encodes the commitment and
 delegates to the operator-supplied `SignAndSendAsync` to build + sign + post a
-`NeoHub.SettlementManager.SubmitBatch(commitmentBytes)` transaction.
+`NeoHub.SettlementManager.SubmitBatch(commitmentBytes, l1MessageHash, blockContextHash)`
+transaction. The `l1MessageHash` / `blockContextHash` arguments are required: they
+feed the on-chain `publicInputHash` binding that the registered verifier checks.
 
 ### 8. L1 verification + finalization
 
@@ -105,10 +107,12 @@ the window expires.
 
 ### 9. Withdrawal claim (much later)
 
-A user calls `NeoHub.SharedBridge.FinalizeWithdrawal(chainId, withdrawalLeafHash, asset,
-recipient, amount)`. SharedBridge calls back into `SettlementManager.VerifyWithdrawalLeaf`
-to check the leaf is in the most recently finalized batch's `withdrawalRoot`, then
-releases the canonical asset.
+A user calls `NeoHub.SharedBridge.FinalizeWithdrawal(chainId, withdrawalLeafHash,
+emittingContract, l2Sender, l2Asset, withdrawalNonce, asset, recipient, amount)`.
+SharedBridge recomputes the full withdrawal-leaf preimage from these fields and
+verifies the L1↔L2 asset mapping, then calls back into
+`SettlementManager.VerifyWithdrawalLeaf` to check the leaf is in the most recently
+finalized batch's `withdrawalRoot`, then releases the canonical asset.
 
 ## Walk #2: anti-censorship via forced inclusion
 

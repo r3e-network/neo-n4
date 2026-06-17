@@ -73,11 +73,15 @@
 | 故障模式          | 证明非法 / 错的 public-input / proof type 不匹配               |
 | 缓解              | 硬拒绝;提交者付 gas、批次未落地                              |
 
+判别值依据 `src/Neo.L2.Abstractions/Models/ProofType.cs`:`None=0`、
+`Multisig=1`、`Optimistic=2`、`Zk=3`(并无 `RiscVZk`)。
+
 | 证明类型           | 信任假设                                                      |
 |-------------------|---------------------------------------------------------------|
-| `RiscVZk` (=1)    | SP1 zkVM 证明 —— 数学(证明就是验证)                         |
-| `Multisig` (=0)   | M-of-N 委员会签了 BatchCommitment                            |
-| `Optimistic` (=2) | 挑战窗口 + 二分博弈 —— 博弈论                                |
+| `None` (=0)       | 无证明 —— 仅用于创世 / 运维信任的内部流程                     |
+| `Multisig` (=1)   | M-of-N 委员会签了 BatchCommitment                            |
+| `Optimistic` (=2) | 挑战窗口 —— 博弈论。二分收敛在**链下**运行(`ChallengeOrchestrator` / `BisectionGame`);链上 `OptimisticChallenge.Challenge` 是单次的 —— 它只调用一次 `verifyFraud`,且随附的验证器**不会**重放有争议的 tx。链上交互式二分 / 重放属于计划中(roadmap)。 |
+| `Zk` (=3)         | ZK 有效性证明(NeoVM2 / RISC-V)—— 数学(证明就是验证)       |
 
 ### 边界 D:已结算批次 → L2 用户(提款)
 

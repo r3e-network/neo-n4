@@ -78,7 +78,9 @@
 
 `Neo.L2.Settlement.Rpc.RpcSettlementClient.SubmitBatchAsync` 编码承诺并把它委派给
 运维提供的 `SignAndSendAsync`,由后者构造、签名并发出
-`NeoHub.SettlementManager.SubmitBatch(commitmentBytes)` 交易。
+`NeoHub.SettlementManager.SubmitBatch(commitmentBytes, l1MessageHash, blockContextHash)`
+交易。`l1MessageHash` / `blockContextHash` 参数是必需的:它们参与链上的
+`publicInputHash` 绑定,由已注册的 verifier 校验。
 
 ### 8. L1 验证 + 最终化
 
@@ -99,9 +101,11 @@
 
 ### 9. 提款领取(很久之后)
 
-用户调 `NeoHub.SharedBridge.FinalizeWithdrawal(chainId, withdrawalLeafHash, asset,
-recipient, amount)`。SharedBridge 回调 `SettlementManager.VerifyWithdrawalLeaf`
-检查叶子在最近最终化批次的 `withdrawalRoot` 中,然后释放规范资产。
+用户调 `NeoHub.SharedBridge.FinalizeWithdrawal(chainId, withdrawalLeafHash,
+emittingContract, l2Sender, l2Asset, withdrawalNonce, asset, recipient, amount)`。
+SharedBridge 由这些字段重算完整的提款叶前像并验证 L1↔L2 资产映射,然后回调
+`SettlementManager.VerifyWithdrawalLeaf` 检查叶子在最近最终化批次的 `withdrawalRoot`
+中,然后释放规范资产。
 
 ## Walk #2:经强制纳入抗审查
 

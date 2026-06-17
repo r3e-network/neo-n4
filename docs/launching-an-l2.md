@@ -571,7 +571,7 @@ L2:      ── L1MessageInbox dequeues → DepositProcessor mints L2 GAS
                                  ↓
          Prover produces proof (Multisig / Optimistic / ZK)
                                  ↓
-L1:      SettlementManager.SubmitBatch(commitment, publicInputs, proof)
+L1:      SettlementManager.SubmitBatch(commitmentBytes, l1MessageHash, blockContextHash)
                                  ↓
          Verifier dispatches → finalize → updates canonical state root
                                  ↓

@@ -219,6 +219,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NeoHub.L1TxFilter", "contra
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NeoHub.ContractZkVerifier", "contracts\NeoHub.ContractZkVerifier\NeoHub.ContractZkVerifier.csproj", "{B3FD0ED3-D2BE-4F35-BAD3-2F809F7A58FB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NeoHub.Contracts.VmTests", "tests\NeoHub.Contracts.VmTests\NeoHub.Contracts.VmTests.csproj", "{D7D0C5AB-E4E5-4132-962A-A67FD79D2F9E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -1405,6 +1407,18 @@ Global
 		{B3FD0ED3-D2BE-4F35-BAD3-2F809F7A58FB}.Release|x64.Build.0 = Release|Any CPU
 		{B3FD0ED3-D2BE-4F35-BAD3-2F809F7A58FB}.Release|x86.ActiveCfg = Release|Any CPU
 		{B3FD0ED3-D2BE-4F35-BAD3-2F809F7A58FB}.Release|x86.Build.0 = Release|Any CPU
+		{D7D0C5AB-E4E5-4132-962A-A67FD79D2F9E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D7D0C5AB-E4E5-4132-962A-A67FD79D2F9E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D7D0C5AB-E4E5-4132-962A-A67FD79D2F9E}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D7D0C5AB-E4E5-4132-962A-A67FD79D2F9E}.Debug|x64.Build.0 = Debug|Any CPU
+		{D7D0C5AB-E4E5-4132-962A-A67FD79D2F9E}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D7D0C5AB-E4E5-4132-962A-A67FD79D2F9E}.Debug|x86.Build.0 = Debug|Any CPU
+		{D7D0C5AB-E4E5-4132-962A-A67FD79D2F9E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D7D0C5AB-E4E5-4132-962A-A67FD79D2F9E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D7D0C5AB-E4E5-4132-962A-A67FD79D2F9E}.Release|x64.ActiveCfg = Release|Any CPU
+		{D7D0C5AB-E4E5-4132-962A-A67FD79D2F9E}.Release|x64.Build.0 = Release|Any CPU
+		{D7D0C5AB-E4E5-4132-962A-A67FD79D2F9E}.Release|x86.ActiveCfg = Release|Any CPU
+		{D7D0C5AB-E4E5-4132-962A-A67FD79D2F9E}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -1508,5 +1522,6 @@ Global
 		{850F386A-BA04-43D0-8E44-19C371603E83} = {A73F2606-6D4C-3EEE-1759-0E59DCFEF523}
 		{8D7059EF-A706-42E1-8820-05197E1BC2D5} = {A73F2606-6D4C-3EEE-1759-0E59DCFEF523}
 		{B3FD0ED3-D2BE-4F35-BAD3-2F809F7A58FB} = {A73F2606-6D4C-3EEE-1759-0E59DCFEF523}
+		{D7D0C5AB-E4E5-4132-962A-A67FD79D2F9E} = {FEED0001-0000-0000-0000-000000000002}
 	EndGlobalSection
 EndGlobal

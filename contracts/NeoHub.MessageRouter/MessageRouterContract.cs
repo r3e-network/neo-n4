@@ -28,6 +28,8 @@ public class MessageRouterContract : SmartContract
     private const byte PrefixGlobalRoot = 0x05;        // 0x05 + batchEpoch(8B) → 32B global aggregated message root (Phase-5 Neo Gateway commitment)
     private const byte PrefixConsumed = 0x06;          // 0x06 + msgHash(32B) → 1
     private const byte PrefixL1TxFilter = 0x07;        // 0x07 + targetChainId(4B) → filter contract hash
+    private const byte KeyGlobalRootVerifier = 0x08;   // 20B Groth16Verifier hash (proof gate; zero = devnet witness-only)
+    private const byte KeyGlobalRootProofSystem = 0x09;// 1B proof-system tag (1=SP1, …) for the aggregated-root proof
     private const byte PrefixSettlementManager = 0xFD;
     private const byte KeyOwner = 0xFF;
 
@@ -54,6 +56,10 @@ public class MessageRouterContract : SmartContract
     /// <summary>Emitted when ownership is transferred.</summary>
     [DisplayName("OwnerChanged")]
     public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
+
+    /// <summary>Emitted when the global-root proof verifier is wired or cleared.</summary>
+    [DisplayName("GlobalRootVerifierChanged")]
+    public static event Action<UInt160, byte> OnGlobalRootVerifierChanged = default!;
 
     /// <summary>Set wiring on deploy.</summary>
     public static void _deploy(object data, bool update)
@@ -189,11 +195,21 @@ public class MessageRouterContract : SmartContract
     /// <c>BridgeHub.MessageRoot</c> aggregated commitment.
     /// </summary>
     /// <remarks>
-    /// Epoch numbering is operator-defined (typically unix-second-windowed); a given
+    /// <para>Epoch numbering is operator-defined (typically unix-second-windowed); a given
     /// <paramref name="batchEpoch"/> can be published only once — re-publication is
-    /// rejected so a buggy aggregator can't silently overwrite a published root.
+    /// rejected so a buggy aggregator can't silently overwrite a published root.</para>
+    /// <para><b>Proof gate.</b> When a global-root verifier is wired via
+    /// <see cref="SetGlobalRootVerifier"/> (production mode — matches zkSync's Gateway
+    /// proof-anchored interop), the supplied <paramref name="aggregatedProof"/> is
+    /// checked against the wired <c>Groth16Verifier</c> with <paramref name="globalRoot"/>
+    /// as the single public input. A published root is then backed by cryptography, not
+    /// just the settlement-manager witness. When no verifier is wired (devnet mode), the
+    /// witness alone authorizes publication — preserving the legacy path for local
+    /// testing. Operators targeting production MUST wire the verifier before relying on
+    /// any L2→L2 message provenance.</para>
     /// </remarks>
-    public static void PublishGlobalRoot(ulong batchEpoch, UInt256 globalRoot)
+    public static void PublishGlobalRoot(
+        ulong batchEpoch, UInt256 globalRoot, byte[] verificationKeyId, byte[] aggregatedProof)
     {
         var sm = (UInt160)(Storage.Get(new byte[] { PrefixSettlementManager }) ?? throw new Exception("sm unset"));
         ExecutionEngine.Assert(Runtime.CheckWitness(sm), "not settlement manager");
@@ -206,8 +222,61 @@ public class MessageRouterContract : SmartContract
         // Without this guard, a buggy gateway could overwrite a previously-committed
         // root and silently invalidate inclusion proofs already taken against it.
         ExecutionEngine.Assert(Storage.Get(key) == null, "global root already published for this epoch");
+
+        // Proof gate (production). When a Groth16Verifier is wired, the published root MUST be
+        // backed by an aggregated proof that verifies against it. The global root is the single
+        // 32-byte public input the proof commits to.
+        var verifier = GetGlobalRootVerifier();
+        if (verifier.IsValid && !verifier.IsZero)
+        {
+            ExecutionEngine.Assert(verificationKeyId.Length == 32, "verification key id must be 32 bytes");
+            ExecutionEngine.Assert(aggregatedProof.Length > 0, "aggregated proof required when verifier wired");
+            var proofSystem = GetGlobalRootProofSystem();
+            var ok = (bool)Contract.Call(verifier, "verifyZkProof", CallFlags.ReadOnly,
+                new object[] { (BigInteger)proofSystem, verificationKeyId, (byte[])globalRoot, aggregatedProof });
+            ExecutionEngine.Assert(ok, "aggregated proof rejected by global-root verifier");
+        }
+
         Storage.Put(key, (byte[])globalRoot);
         OnGlobalRootPublished(batchEpoch, globalRoot);
+    }
+
+    /// <summary>The wired Groth16Verifier for global-root proof gating, or zero (devnet witness-only).</summary>
+    [Safe]
+    public static UInt160 GetGlobalRootVerifier()
+    {
+        var raw = Storage.Get(new byte[] { KeyGlobalRootVerifier });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>The proof-system tag used for global-root proof verification (1=SP1, …).</summary>
+    [Safe]
+    public static byte GetGlobalRootProofSystem()
+    {
+        var raw = Storage.Get(new byte[] { KeyGlobalRootProofSystem });
+        return raw == null ? (byte)1 : ((byte[])raw)[0];
+    }
+
+    /// <summary>
+    /// Wire (or clear) the Groth16Verifier that gates global-root publication. Owner only.
+    /// Pass a zero hash to return to the devnet witness-only path. Setting a non-zero verifier
+    /// makes every subsequent <see cref="PublishGlobalRoot"/> require a valid aggregated proof.
+    /// </summary>
+    public static void SetGlobalRootVerifier(UInt160 verifier, byte proofSystem)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        if (verifier.IsZero)
+        {
+            Storage.Delete(new byte[] { KeyGlobalRootVerifier });
+        }
+        else
+        {
+            ExecutionEngine.Assert(verifier.IsValid, "invalid verifier");
+            ExecutionEngine.Assert(proofSystem >= 1 && proofSystem <= 4, "proofSystem must be 1..4");
+            Storage.Put(new byte[] { KeyGlobalRootVerifier }, verifier);
+            Storage.Put(new byte[] { KeyGlobalRootProofSystem }, new byte[] { proofSystem });
+        }
+        OnGlobalRootVerifierChanged(verifier, proofSystem);
     }
 
     /// <summary>

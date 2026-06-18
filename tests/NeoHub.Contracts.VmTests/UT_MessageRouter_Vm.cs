@@ -15,6 +15,15 @@ public abstract class MockL1TxFilter(SmartContractInitialize initialize) : Smart
         BigInteger? messageType, byte[]? payload);
 }
 
+/// <summary>Minimal Groth16Verifier surface so the router's proof-gate dispatch can be mocked
+/// without a real bn254 engine. The router calls
+/// <c>verifyZkProof(proofSystem, vkId, publicInputHash, proofBytes)</c> read-only.</summary>
+public abstract class MockMessageRouter_Groth16Verifier(SmartContractInitialize initialize) : SmartContract(initialize)
+{
+    [DisplayName("verifyZkProof")]
+    public abstract bool? VerifyZkProof(BigInteger? proofSystem, byte[]? verificationKeyId, byte[]? publicInputHash, byte[]? proofBytes);
+}
+
 /// <summary>
 /// VM-level tests for NeoHub.MessageRouter — the cross-chain messaging hub. Executes the enqueue /
 /// consume / publish-root / filter paths in a real NeoVM and pins the security-critical invariants:
@@ -31,6 +40,7 @@ public class UT_MessageRouter_Vm
     private static readonly UInt160 FilterHash = UInt160.Parse("0x" + new string('f', 40));
     private static readonly UInt160 OtherSm = UInt160.Parse("0x" + new string('3', 40));
     private static readonly UInt160 Receiver = UInt160.Parse("0x" + new string('c', 40));
+    private static readonly UInt160 Groth16Hash = UInt160.Parse("0x" + new string('9', 40));
     private static readonly UInt256 MsgHash = UInt256.Parse("0x" + new string('1', 64));
 
     /// <summary>Deploy the router. owner/settlementManager default to engine.Sender so the owner and
@@ -100,17 +110,23 @@ public class UT_MessageRouter_Vm
         var engine = new TestEngine(true);
         var mr = Deploy(engine);
         var root = UInt256.Parse("0x" + new string('2', 64));
+        // Devnet mode: no global-root verifier wired → witness-only path, proof args ignored
+        // (pass empty/zero; the verifier pointer is zero so the proof-gate branch is skipped).
+        var emptyProof = Array.Empty<byte>();
+        var dummyVkId = new byte[32];
 
         Assert.AreEqual(UInt256.Zero, mr.GetGlobalRoot(7), "no root published yet");
-        Assert.ThrowsExactly<TestException>(() => mr.PublishGlobalRoot(7, UInt256.Zero), "zero global root rejected");
+        Assert.ThrowsExactly<TestException>(() => mr.PublishGlobalRoot(7, UInt256.Zero, dummyVkId, emptyProof),
+            "zero global root rejected");
 
-        mr.PublishGlobalRoot(7, root);
+        mr.PublishGlobalRoot(7, root, dummyVkId, emptyProof);
         Assert.AreEqual(root, mr.GetGlobalRoot(7));
-        Assert.ThrowsExactly<TestException>(() => mr.PublishGlobalRoot(7, root), "publish-once-per-epoch");
+        Assert.ThrowsExactly<TestException>(() => mr.PublishGlobalRoot(7, root, dummyVkId, emptyProof),
+            "publish-once-per-epoch");
 
         // A different epoch is independent and still publishable.
         var root8 = UInt256.Parse("0x" + new string('4', 64));
-        mr.PublishGlobalRoot(8, root8);
+        mr.PublishGlobalRoot(8, root8, dummyVkId, emptyProof);
         Assert.AreEqual(root8, mr.GetGlobalRoot(8));
     }
 
@@ -121,8 +137,104 @@ public class UT_MessageRouter_Vm
         var mr = Deploy(engine, settlementManager: OtherSm);
         var root = UInt256.Parse("0x" + new string('2', 64));
 
-        Assert.ThrowsExactly<TestException>(() => mr.PublishGlobalRoot(7, root),
+        Assert.ThrowsExactly<TestException>(() => mr.PublishGlobalRoot(7, root, new byte[32], Array.Empty<byte>()),
             "PublishGlobalRoot is settlement-manager-gated");
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Global-root proof gate (production). When a Groth16Verifier is wired, PublishGlobalRoot MUST
+    // verify an aggregated proof before committing the root — the global root becomes the single
+    // 32-byte public input the proof commits to. Mocked Groth16Verifier so the real bn254 math
+    // (engine-gated) isn't required.
+    // ---------------------------------------------------------------------------------------------
+
+    private static byte[] SampleVkId() => new byte[32] {
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+        0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
+        0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
+        0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20,
+    };
+
+    private static void WireGroth16Mock(TestEngine engine, bool accepts) =>
+        engine.FromHash<MockMessageRouter_Groth16Verifier>(Groth16Hash, m =>
+            m.Setup(c => c.VerifyZkProof(
+                It.IsAny<BigInteger?>(), It.IsAny<byte[]?>(),
+                It.IsAny<byte[]?>(), It.IsAny<byte[]?>()))
+             .Returns(accepts), checkExistence: false);
+
+    [TestMethod]
+    public void SetGlobalRootVerifier_OwnerOnly_WiresAndClears()
+    {
+        var engine = new TestEngine(true);
+        var mr = Deploy(engine);
+
+        // Default: no verifier wired (devnet mode).
+        Assert.AreEqual(UInt160.Zero, mr.GlobalRootVerifier);
+
+        // Owner wires the verifier with proofSystem=SP1(1).
+        mr.SetGlobalRootVerifier(Groth16Hash, 1);
+        Assert.AreEqual(Groth16Hash, mr.GlobalRootVerifier);
+        Assert.AreEqual((BigInteger)1, mr.GlobalRootProofSystem);
+
+        // Owner clears it back to devnet mode (zero hash).
+        mr.SetGlobalRootVerifier(UInt160.Zero, 1);
+        Assert.AreEqual(UInt160.Zero, mr.GlobalRootVerifier);
+
+        // Negative: non-owner faults. Switch signer away from the owner.
+        engine.SetTransactionSigners(OtherSm);
+        Assert.ThrowsExactly<TestException>(() => mr.SetGlobalRootVerifier(Groth16Hash, 1),
+            "non-owner cannot wire the global-root verifier");
+
+        // Negative: bad proofSystem range.
+        engine.SetTransactionSigners(engine.Sender);
+        Assert.ThrowsExactly<TestException>(() => mr.SetGlobalRootVerifier(Groth16Hash, 0),
+            "proofSystem=0 must be rejected");
+        Assert.ThrowsExactly<TestException>(() => mr.SetGlobalRootVerifier(Groth16Hash, 5),
+            "proofSystem=5 must be rejected");
+    }
+
+    [TestMethod]
+    public void PublishGlobalRoot_ProofGateAccepts_WhenGroth16Accepts()
+    {
+        var engine = new TestEngine(true);
+        var mr = Deploy(engine);
+        mr.SetGlobalRootVerifier(Groth16Hash, 1);  // production mode
+        WireGroth16Mock(engine, accepts: true);
+
+        var root = UInt256.Parse("0x" + new string('7', 64));
+        var proof = new byte[] { 0xCA, 0xFE };  // opaque to the router; the mock ignores content
+        mr.PublishGlobalRoot(7, root, SampleVkId(), proof);
+        Assert.AreEqual(root, mr.GetGlobalRoot(7), "verified root must be committed");
+    }
+
+    [TestMethod]
+    public void PublishGlobalRoot_ProofGateRejects_WhenGroth16Rejects()
+    {
+        var engine = new TestEngine(true);
+        var mr = Deploy(engine);
+        mr.SetGlobalRootVerifier(Groth16Hash, 1);  // production mode
+        WireGroth16Mock(engine, accepts: false);
+
+        var root = UInt256.Parse("0x" + new string('7', 64));
+        // Groth16 mock returns false → publish must fault ("aggregated proof rejected").
+        Assert.ThrowsExactly<TestException>(() =>
+            mr.PublishGlobalRoot(7, root, SampleVkId(), new byte[] { 0xCA, 0xFE }),
+            "a Groth16 pairing failure must reject the global-root publish");
+        Assert.AreEqual(UInt256.Zero, mr.GetGlobalRoot(7),
+            "rejected publish must NOT commit the root");
+    }
+
+    [TestMethod]
+    public void PublishGlobalRoot_ProofGateRejectsEmptyProof_WhenVerifierWired()
+    {
+        var engine = new TestEngine(true);
+        var mr = Deploy(engine);
+        mr.SetGlobalRootVerifier(Groth16Hash, 1);  // production mode → proof required
+        // No mock wired; the contract faults on the empty-proof guard BEFORE reaching the call.
+        var root = UInt256.Parse("0x" + new string('7', 64));
+        Assert.ThrowsExactly<TestException>(() =>
+            mr.PublishGlobalRoot(7, root, SampleVkId(), Array.Empty<byte>()),
+            "empty aggregated proof must be rejected when a verifier is wired");
     }
 
     [TestMethod]

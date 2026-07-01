@@ -42,7 +42,7 @@ serde = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", optional = true }
 sha3 = { version = "0.10", optional = true }
 # Daemon config format. Pulled in by the daemon binary only.
-toml = { version = "0.8", optional = true }
+toml = { version = "1.1", optional = true }
 # OS-level advisory file locking for FileJournal (flock on Unix). Prevents
 # two watcher processes from accidentally racing on the same journal
 # directory and corrupting consumed.log's 12-byte record alignment with

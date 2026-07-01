@@ -17,7 +17,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [target.'cfg(unix)'.dependencies]
-sp1-sdk = { version = "=6.2.1", features = ["blocking"] }
+sp1-sdk = { version = "=6.3.1", features = ["blocking"] }
 # bincode v1 is REQUIRED for on-chain proof format stability. Proof bytes
 # (SP1ProofWithPublicValues + SP1VerifyingKey) are serialized with bincode v1
 # and stored on L1 by SettlementManager. Upgrading to v2 would change the

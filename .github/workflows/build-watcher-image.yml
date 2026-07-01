@@ -52,7 +52,7 @@ jobs:
 
     steps:
       - name: Checkout (with submodules)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           # bridge/neo-zkvm-guest has a path dep on
           # external/neo-zkvm/crates/neo-vm-guest, which lives in a

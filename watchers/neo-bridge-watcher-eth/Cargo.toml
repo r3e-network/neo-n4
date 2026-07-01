@@ -40,7 +40,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = tr
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls", "json"], optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", optional = true }
-sha3 = { version = "0.10", optional = true }
+sha3 = { version = "0.12", optional = true }
 # Daemon config format. Pulled in by the daemon binary only.
 toml = { version = "0.8", optional = true }
 # OS-level advisory file locking for FileJournal (flock on Unix). Prevents

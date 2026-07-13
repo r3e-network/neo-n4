@@ -69,14 +69,16 @@ def aggregate_trx_counters(paths: Sequence[Path]) -> TestCounters:
     return total
 
 
-def validation_errors(counters: TestCounters, expected_tests: int) -> list[str]:
+def validation_errors(counters: TestCounters, minimum_tests: int) -> list[str]:
     errors: list[str] = []
-    if counters.total != expected_tests:
-        errors.append(f"expected {expected_tests} selected tests, found {counters.total}")
-    if counters.executed != expected_tests:
-        errors.append(f"expected {expected_tests} executed tests, found {counters.executed}")
-    if counters.passed != expected_tests:
-        errors.append(f"expected {expected_tests} passed tests, found {counters.passed}")
+    if counters.total < minimum_tests:
+        errors.append(f"expected at least {minimum_tests} selected tests, found {counters.total}")
+    if counters.executed != counters.total:
+        errors.append(
+            f"expected all {counters.total} selected tests to execute, found {counters.executed}"
+        )
+    if counters.passed != counters.total:
+        errors.append(f"expected all {counters.total} selected tests to pass, found {counters.passed}")
     if counters.failed != 0:
         errors.append(f"expected zero failed tests, found {counters.failed}")
     if counters.not_executed != 0:
@@ -87,7 +89,7 @@ def validation_errors(counters: TestCounters, expected_tests: int) -> list[str]:
 def positive_integer(value: str) -> int:
     parsed = int(value)
     if parsed < 1:
-        raise argparse.ArgumentTypeError("expected-tests must be at least 1")
+        raise argparse.ArgumentTypeError("minimum-tests must be at least 1")
     return parsed
 
 
@@ -95,7 +97,7 @@ def parse_arguments(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project", required=True, type=Path)
     parser.add_argument("--filter", required=True, dest="test_filter")
-    parser.add_argument("--expected-tests", required=True, type=positive_integer)
+    parser.add_argument("--minimum-tests", required=True, type=positive_integer)
     parser.add_argument("dotnet_arguments", nargs=argparse.REMAINDER)
     return parser.parse_args(argv)
 
@@ -131,14 +133,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"ERROR: {error}", file=sys.stderr)
             return 1
 
-        errors = validation_errors(counters, arguments.expected_tests)
+        errors = validation_errors(counters, arguments.minimum_tests)
         if errors:
             for error in errors:
                 print(f"ERROR: {error}", file=sys.stderr)
             return 1
 
         print(
-            f"Filtered test gate passed: {counters.passed}/{arguments.expected_tests} tests passed; none skipped."
+            f"Filtered test gate passed: {counters.passed} tests passed; "
+            f"minimum {arguments.minimum_tests}; none skipped."
         )
         return 0
 

@@ -45,12 +45,19 @@ class DotnetFilteredTestGateTests(unittest.TestCase):
 
         self.assertTrue(any("selected tests" in error for error in errors))
 
-    def test_wrong_selected_test_count_fails_closed(self) -> None:
+    def test_selection_below_minimum_fails_closed(self) -> None:
         counters = dotnet_gate.TestCounters(2, 2, 2, 0, 0)
 
         errors = dotnet_gate.validation_errors(counters, 3)
 
-        self.assertTrue(any("expected 3 selected tests" in error for error in errors))
+        self.assertTrue(any("at least 3 selected tests" in error for error in errors))
+
+    def test_selection_above_minimum_remains_valid(self) -> None:
+        counters = dotnet_gate.TestCounters(4, 4, 4, 0, 0)
+
+        errors = dotnet_gate.validation_errors(counters, 3)
+
+        self.assertEqual([], errors)
 
     def test_skipped_test_fails_closed(self) -> None:
         counters = dotnet_gate.TestCounters(3, 2, 2, 0, 1)
@@ -58,6 +65,33 @@ class DotnetFilteredTestGateTests(unittest.TestCase):
         errors = dotnet_gate.validation_errors(counters, 3)
 
         self.assertTrue(any("skipped tests" in error for error in errors))
+
+    def test_missing_trx_fails_closed(self) -> None:
+        with self.assertRaisesRegex(ValueError, "did not produce a TRX result"):
+            dotnet_gate.aggregate_trx_counters([])
+
+    def test_malformed_trx_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            trx = Path(temporary_directory) / "results.trx"
+            trx.write_text("<TestRun>", encoding="utf-8")
+
+            with self.assertRaises(dotnet_gate.ElementTree.ParseError):
+                dotnet_gate.parse_trx_counters(trx)
+
+    def test_missing_counters_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            trx = Path(temporary_directory) / "results.trx"
+            trx.write_text("<TestRun><ResultSummary /></TestRun>", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "exactly one TRX Counters"):
+                dotnet_gate.parse_trx_counters(trx)
+
+    def test_inconsistent_execution_count_fails_closed(self) -> None:
+        counters = dotnet_gate.TestCounters(3, 2, 3, 0, 0)
+
+        errors = dotnet_gate.validation_errors(counters, 3)
+
+        self.assertTrue(any("selected tests to execute" in error for error in errors))
 
 
 class CargoIgnoredTestGateTests(unittest.TestCase):

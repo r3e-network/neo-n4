@@ -202,7 +202,7 @@ jobs:
           python3 scripts/ci/run_dotnet_filtered_tests.py \
             --project tests/Neo.Hub.Deploy.UnitTests/Neo.Hub.Deploy.UnitTests.csproj \
             --filter 'FullyQualifiedName~UT_ContractManifestInvariants|FullyQualifiedName~UT_OptimisticChallengeAllowlist' \
-            --expected-tests 19 \
+            --minimum-tests 19 \
             -- /p:NuGetAudit=false --nologo
 
       - name: Verify audited verifier artifacts against fresh nccs output
@@ -212,7 +212,7 @@ jobs:
           python3 scripts/ci/run_dotnet_filtered_tests.py \
             --project tests/NeoHub.Sp1Groth16Verifier.UnitTests/NeoHub.Sp1Groth16Verifier.UnitTests.csproj \
             --filter FullyQualifiedName~UT_FreshContractArtifacts \
-            --expected-tests 2 \
+            --minimum-tests 2 \
             -- /p:NuGetAudit=false --nologo
 
       - name: Verify N4 L2 native contracts in r3e Neo core
@@ -220,7 +220,7 @@ jobs:
           python3 scripts/ci/run_dotnet_filtered_tests.py \
             --project external/neo/tests/Neo.UnitTests/Neo.UnitTests.csproj \
             --filter FullyQualifiedName~UT_L2NativeContracts \
-            --expected-tests 12 \
+            --minimum-tests 12 \
             -- /p:NuGetAudit=false --nologo
 
   bridge:
@@ -274,7 +274,7 @@ jobs:
           NEO_RISCV_NATIVE_TESTS=1 python3 scripts/ci/run_dotnet_filtered_tests.py \
             --project tests/Neo.L2.Executor.RiscV.UnitTests/Neo.L2.Executor.RiscV.UnitTests.csproj \
             --filter 'FullyQualifiedName=Neo.L2.Executor.RiscV.UnitTests.UT_RiscVHost.RealNative_RetReceiptMatchesApplicationEngineByteForByte|FullyQualifiedName=Neo.L2.Executor.RiscV.UnitTests.UT_RiscVHost.RealNative_StoragePutCommitsStateAndCanonicalEffects|FullyQualifiedName=Neo.L2.Executor.RiscV.UnitTests.UT_RiscVHost.RealNative_UnsupportedContractCallFaultsClosed' \
-            --expected-tests 3 \
+            --minimum-tests 3 \
             -- /p:NuGetAudit=false --nologo --no-build
 
       # neo-zkvm-guest: the Rust crate that compiles to RISC-V ELF inside SP1's

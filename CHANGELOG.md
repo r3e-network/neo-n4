@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Rust dependency advisories — 2026-07-14
+
+- Refreshed all production Rust lockfiles to remove the current RustSec
+  vulnerabilities in `crossbeam-epoch` and `quinn-proto`, plus patched
+  `anyhow`, `memmap2`, and `rand` releases flagged for unsound behavior.
+
 ### Fixed — release-gate completeness — 2026-07-14
 
 - Made filtered .NET and ignored Rust proof gates fail closed when their expected

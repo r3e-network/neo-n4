@@ -377,6 +377,8 @@ public class UT_SettlementManager_Vm
             "pending message roots must not be consumable");
         Assert.AreEqual(UInt256.Zero, sm.GetL2ToL2MessageRoot(ChainId, 1),
             "pending message roots must not be consumable");
+        Assert.AreEqual(UInt256.Zero, sm.GetFinalizedTxRoot(ChainId, 1),
+            "pending transaction roots must not authorize forced consumption");
 
         sm.FinalizeBatch(ChainId, 1);
         Assert.AreEqual((BigInteger)3, sm.GetBatchStatus(ChainId, 1), "batch 1 should be Finalized(3)");
@@ -384,6 +386,7 @@ public class UT_SettlementManager_Vm
         Assert.AreEqual((BigInteger)1, sm.GetLatestFinalizedBatch(ChainId));
         Assert.AreEqual(new UInt256(R(0x06)), sm.GetL2ToL1MessageRoot(ChainId, 1));
         Assert.AreEqual(new UInt256(R(0x07)), sm.GetL2ToL2MessageRoot(ChainId, 1));
+        Assert.AreEqual(new UInt256(R(0x03)), sm.GetFinalizedTxRoot(ChainId, 1));
     }
 
     [TestMethod]

@@ -518,6 +518,15 @@ public class SettlementManagerContract : SmartContract
     public static UInt256 GetL2ToL2MessageRoot(uint chainId, ulong batchNumber) =>
         GetFinalizedBatchRoot(chainId, batchNumber, L2ToL2MessageRootOffset);
 
+    /// <summary>
+    /// Return the transaction root committed by a finalized batch, or zero while the batch is
+    /// unknown, pending, challengeable, or reverted.
+    /// </summary>
+    /// <remarks>See doc.md §7.2 and §15.4 (Forced Inclusion).</remarks>
+    [Safe]
+    public static UInt256 GetFinalizedTxRoot(uint chainId, ulong batchNumber) =>
+        GetFinalizedBatchRoot(chainId, batchNumber, TxRootOffset);
+
     /// <summary>Latest finalized batch number for a chain.</summary>
     [Safe]
     public static ulong GetLatestFinalizedBatch(uint chainId)

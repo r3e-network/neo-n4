@@ -304,8 +304,10 @@ public class UT_ContractManifestInvariants
         if (methods is null) return;
         Assert.IsTrue(HasMethod(methods, "enqueueForcedTransaction"),
             "ForcedInclusion must expose enqueueForcedTransaction (user-side queue entry)");
-        Assert.IsTrue(HasMethod(methods, "markConsumed"),
-            "ForcedInclusion must expose markConsumed (sequencer dequeues post-inclusion)");
+        Assert.IsTrue(HasMethod(methods, "consume"),
+            "ForcedInclusion must verify finalized transaction inclusion before consumption");
+        Assert.IsFalse(HasMethod(methods, "markConsumed"),
+            "ForcedInclusion must not expose a witness-only arbitrary-nonce consumption bypass");
         Assert.IsTrue(HasMethod(methods, "reportCensorship"),
             "ForcedInclusion must expose reportCensorship (post-deadline escalation)");
         Assert.IsTrue(HasMethod(methods, "isCensorshipReported"),

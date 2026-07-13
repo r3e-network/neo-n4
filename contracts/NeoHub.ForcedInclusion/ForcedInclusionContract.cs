@@ -45,6 +45,7 @@ public class ForcedInclusionContract : SmartContract
     private const byte PrefixSlashed = 0x0C;           // 0x0C + chainId(4B) + nonce(8B) → 1 (censorship slash settled)
     private const byte KeySettlementManager = 0xFD;
     private const byte KeyOwner = 0xFF;
+    private const int MaxTransactionProofDepth = 64;
 
     /// <summary>Default time the sequencer has to include a forced tx before censorship kicks in.</summary>
     public const uint DefaultDeadlineSeconds = 7200;   // 2 hours
@@ -53,7 +54,7 @@ public class ForcedInclusionContract : SmartContract
     [DisplayName("ForcedTxEnqueued")]
     public static event Action<uint, ulong, UInt160, UInt256> OnForcedTxEnqueued = default!;
 
-    /// <summary>Emitted when the L2 confirms inclusion (callback from SettlementManager).</summary>
+    /// <summary>Emitted after a finalized-batch transaction proof confirms inclusion.</summary>
     [DisplayName("ForcedTxConsumed")]
     public static event Action<uint, ulong> OnForcedTxConsumed = default!;
 
@@ -341,6 +342,7 @@ public class ForcedInclusionContract : SmartContract
         // would ever consume.
         ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         ExecutionEngine.Assert(encodedTx.Length > 0, "empty tx");
+        ExecutionEngine.Assert(HashTransaction(encodedTx).Equals(txHash), "txHash does not match encodedTx");
         var caller = Runtime.CallingScriptHash;
 
         // Charge the configured spam-control fee BEFORE storing any state. If the
@@ -387,11 +389,43 @@ public class ForcedInclusionContract : SmartContract
         return raw == null ? new byte[0] : (byte[])raw;
     }
 
-    /// <summary>SettlementManager calls this to mark a forced tx consumed by an L2 batch.</summary>
-    public static void MarkConsumed(uint chainId, ulong nonce)
+    /// <summary>
+    /// Permissionlessly mark a forced transaction consumed after proving its transaction hash is
+    /// included in a finalized batch's canonical transaction root.
+    /// </summary>
+    /// <remarks>
+    /// See doc.md §15.4. Siblings are ordered leaf-to-root and use Neo Hash256 over
+    /// <c>left || right</c>. Bit i of <paramref name="leafIndex"/> selects the leaf side at level i.
+    /// </remarks>
+    public static void Consume(
+        uint chainId,
+        ulong batchNumber,
+        ulong nonce,
+        byte[][] siblings,
+        ulong leafIndex)
     {
+        ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
+        ExecutionEngine.Assert(nonce > 0, "nonce must be positive");
+        ExecutionEngine.Assert(siblings != null, "siblings required");
+        var proofSiblings = siblings!;
+        ExecutionEngine.Assert(proofSiblings.Length <= MaxTransactionProofDepth, "proof too deep");
+
+        var entry = Storage.Get(EntryKey(chainId, nonce));
+        ExecutionEngine.Assert(entry != null, "entry not found");
+        var encodedEntry = (byte[])entry!;
+        ExecutionEngine.Assert(encodedEntry.Length >= 60, "entry malformed");
+        var txHash = ReadUInt256(encodedEntry, 20);
+
         var sm = (UInt160)(Storage.Get(new byte[] { KeySettlementManager }) ?? throw new Exception("sm unset"));
-        ExecutionEngine.Assert(Runtime.CheckWitness(sm), "not settlement manager");
+        var txRoot = (UInt256)Contract.Call(
+            sm,
+            "getFinalizedTxRoot",
+            CallFlags.ReadOnly,
+            new object[] { chainId, batchNumber });
+        ExecutionEngine.Assert(!txRoot.Equals(UInt256.Zero), "batch is not finalized or has no transactions");
+        ExecutionEngine.Assert(VerifyMerkleProof(txHash, txRoot, proofSiblings, leafIndex),
+            "invalid forced-transaction proof");
+
         var key = ConsumedKey(chainId, nonce);
         ExecutionEngine.Assert(Storage.Get(key) == null, "already consumed");
         Storage.Put(key, new byte[] { 1 });
@@ -470,7 +504,7 @@ public class ForcedInclusionContract : SmartContract
         ExecutionEngine.Assert(sequencer.IsValid && !sequencer.IsZero, "invalid sequencer");
         ExecutionEngine.Assert(Storage.Get(ReportedKey(chainId, nonce)) != null, "no censorship report");
         // NOTE: intentionally NOT gated on !IsConsumed. The report already proved the deadline was
-        // missed (censorship occurred); a belated MarkConsumed afterwards must not immunize the
+        // missed (censorship occurred); a belated Consume afterwards must not immunize the
         // sequencer from the slash. The slashed flag below still makes this at-most-once.
         var slashedKey = SlashedKey(chainId, nonce);
         ExecutionEngine.Assert(Storage.Get(slashedKey) == null, "already slashed");
@@ -551,5 +585,51 @@ public class ForcedInclusionContract : SmartContract
             | ((uint)data[offset + 1] << 8)
             | ((uint)data[offset + 2] << 16)
             | ((uint)data[offset + 3] << 24);
+    }
+
+    private static UInt256 HashTransaction(byte[] encodedTx)
+    {
+        var first = CryptoLib.Sha256((ByteString)encodedTx);
+        return (UInt256)(byte[])CryptoLib.Sha256(first);
+    }
+
+    private static UInt256 ReadUInt256(byte[] data, int offset)
+    {
+        var bytes = new byte[32];
+        for (var i = 0; i < 32; i++) bytes[i] = data[offset + i];
+        return (UInt256)bytes;
+    }
+
+    private static bool VerifyMerkleProof(
+        UInt256 leafHash,
+        UInt256 expectedRoot,
+        byte[][] siblings,
+        ulong leafIndex)
+    {
+        var current = (byte[])leafHash;
+        var index = leafIndex;
+        for (var level = 0; level < siblings.Length; level++)
+        {
+            var sibling = siblings[level];
+            ExecutionEngine.Assert(sibling != null && sibling.Length == 32,
+                "sibling must be 32 bytes");
+            var combined = new byte[64];
+            if ((index & 1UL) == 0UL)
+            {
+                for (var i = 0; i < 32; i++) combined[i] = current[i];
+                for (var i = 0; i < 32; i++) combined[32 + i] = sibling[i];
+            }
+            else
+            {
+                for (var i = 0; i < 32; i++) combined[i] = sibling[i];
+                for (var i = 0; i < 32; i++) combined[32 + i] = current[i];
+            }
+
+            var first = CryptoLib.Sha256((ByteString)combined);
+            current = (byte[])CryptoLib.Sha256(first);
+            index >>= 1;
+        }
+
+        return index == 0 && expectedRoot.Equals((UInt256)current);
     }
 }

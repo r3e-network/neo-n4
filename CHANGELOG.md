@@ -5,6 +5,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Gateway prover binding coverage — 2026-07-14
+
+- Added direct fail-closed tests for the delegate Gateway prover's proof-system range,
+  production-backend allowlist, cancellation, aggregate backend, and canonical binding checks.
+
 ### Fixed — batch plugin production-boundary coverage — 2026-07-14
 
 - Added direct lifecycle coverage for immutable sink and input wiring, chain-domain mismatches,

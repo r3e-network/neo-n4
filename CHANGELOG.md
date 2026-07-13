@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — canonical codec boundary coverage — 2026-07-14
+
+- Hardened the shared proof-payload length-prefix primitives with explicit position, capacity,
+  prefix, and payload bounds so malformed data fails with stable typed errors.
+- Added direct content-equality coverage for proof-witness execution results and canonical
+  message/withdrawal decoder round-trip, truncation, enum, length, and maximum-value boundaries.
+
 ### Added — four-language SDK conformance — 2026-07-14
 
 - Added one canonical JSON vector set consumed by the .NET, Rust, TypeScript, and Python SDKs,

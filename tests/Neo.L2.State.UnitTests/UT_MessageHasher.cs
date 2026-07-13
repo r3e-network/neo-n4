@@ -336,4 +336,91 @@ public class UT_MessageHasher
         Assert.AreEqual(golden, MessageHasher.HashWithdrawal(wd),
             "withdrawal-leaf hash drifted from the frozen on-chain parity vector");
     }
+
+    [TestMethod]
+    public void DecodeMessage_RoundTripsCanonicalPreimage()
+    {
+        var original = Msg(sender: A(), receiver: B()) with
+        {
+            SourceChainId = 1001,
+            TargetChainId = 2002,
+            Nonce = ulong.MaxValue,
+            MessageType = MessageType.Call,
+            Payload = new byte[] { 0xAA, 0xBB, 0xCC },
+        };
+
+        var decoded = MessageHasher.DecodeMessage(MessageHasher.EncodeMessage(original));
+
+        Assert.AreEqual(original.SourceChainId, decoded.SourceChainId);
+        Assert.AreEqual(original.TargetChainId, decoded.TargetChainId);
+        Assert.AreEqual(original.Nonce, decoded.Nonce);
+        Assert.AreEqual(original.Sender, decoded.Sender);
+        Assert.AreEqual(original.Receiver, decoded.Receiver);
+        Assert.AreEqual(original.MessageType, decoded.MessageType);
+        CollectionAssert.AreEqual(original.Payload.ToArray(), decoded.Payload.ToArray());
+        Assert.AreEqual(MessageHasher.HashMessage(original), decoded.MessageHash);
+    }
+
+    [TestMethod]
+    public void DecodeMessage_RejectsTruncatedUnknownTypeAndInvalidLengths()
+    {
+        Assert.ThrowsExactly<InvalidDataException>(
+            () => MessageHasher.DecodeMessage(new byte[60]));
+
+        var encoded = MessageHasher.EncodeMessage(Msg(sender: A(), receiver: B()));
+        encoded[56] = byte.MaxValue;
+        Assert.ThrowsExactly<InvalidDataException>(() => MessageHasher.DecodeMessage(encoded));
+
+        encoded = MessageHasher.EncodeMessage(Msg(sender: A(), receiver: B()));
+        BinaryPrimitives.WriteInt32LittleEndian(encoded.AsSpan(57, 4), -1);
+        Assert.ThrowsExactly<InvalidDataException>(() => MessageHasher.DecodeMessage(encoded));
+
+        encoded = MessageHasher.EncodeMessage(Msg(sender: A(), receiver: B()));
+        BinaryPrimitives.WriteInt32LittleEndian(
+            encoded.AsSpan(57, 4),
+            MessageHasher.MaxMessagePayloadBytes + 1);
+        Assert.ThrowsExactly<InvalidDataException>(() => MessageHasher.DecodeMessage(encoded));
+
+        encoded = MessageHasher.EncodeMessage(Msg(sender: A(), receiver: B()));
+        BinaryPrimitives.WriteInt32LittleEndian(encoded.AsSpan(57, 4), 1);
+        Assert.ThrowsExactly<InvalidDataException>(() => MessageHasher.DecodeMessage(encoded));
+    }
+
+    [TestMethod]
+    public void DecodeWithdrawal_RoundTripsCanonicalPreimage()
+    {
+        var original = Wd(emitting: A(), l2sender: B(), l1recipient: C(), l2asset: D()) with
+        {
+            ChainId = uint.MaxValue,
+            Amount = BigInteger.One << 504,
+            Nonce = ulong.MaxValue,
+        };
+
+        var decoded = MessageHasher.DecodeWithdrawal(MessageHasher.EncodeWithdrawal(original));
+
+        Assert.AreEqual(original, decoded);
+        Assert.AreEqual(MessageHasher.HashWithdrawal(original), MessageHasher.HashWithdrawal(decoded));
+    }
+
+    [TestMethod]
+    public void DecodeWithdrawal_RejectsTruncatedAndInvalidLengths()
+    {
+        Assert.ThrowsExactly<InvalidDataException>(
+            () => MessageHasher.DecodeWithdrawal(new byte[95]));
+
+        var encoded = MessageHasher.EncodeWithdrawal(
+            Wd(emitting: A(), l2sender: B(), l1recipient: C(), l2asset: D()));
+        BinaryPrimitives.WriteInt32LittleEndian(encoded.AsSpan(84, 4), -1);
+        Assert.ThrowsExactly<InvalidDataException>(() => MessageHasher.DecodeWithdrawal(encoded));
+
+        encoded = MessageHasher.EncodeWithdrawal(
+            Wd(emitting: A(), l2sender: B(), l1recipient: C(), l2asset: D()));
+        BinaryPrimitives.WriteInt32LittleEndian(encoded.AsSpan(84, 4), 65);
+        Assert.ThrowsExactly<InvalidDataException>(() => MessageHasher.DecodeWithdrawal(encoded));
+
+        encoded = MessageHasher.EncodeWithdrawal(
+            Wd(emitting: A(), l2sender: B(), l1recipient: C(), l2asset: D()));
+        BinaryPrimitives.WriteInt32LittleEndian(encoded.AsSpan(84, 4), 1);
+        Assert.ThrowsExactly<InvalidDataException>(() => MessageHasher.DecodeWithdrawal(encoded));
+    }
 }

@@ -5,6 +5,11 @@
 分支：`master`
 HEAD：`2ba7db9`
 
+> **仅作为历史证据。** 2026-07-13 的实时 RPC 复核确认，记录中的 23 个合约和
+> 13 笔 HALT 交易仍然存在，但已部署 NEF 的校验和与完成安全加固后的当前源码不一致。
+> 详见 [`../../../audit/testnet-evidence-status-2026-07-13.json`](../../../audit/testnet-evidence-status-2026-07-13.json)。
+> 本报告不得作为当前代码树的发布证据。
+
 ## 结果
 
 已完成有证据记录的全栈验证。当前实现可以构建、测试、编译合约、运行使用 NeoFS DA 的私有 devnet 冒烟测试、运行规范默认的 NeoVM2/RISC-V 路径、生成并验证 SP1 zk proof、验证 EVM/Solana 桥组件、构建 SDK/文档、检查供应链安全，并通过 RPC 重新验证当前 Neo N3 testnet 部署状态。
@@ -15,13 +20,13 @@ HEAD：`2ba7db9`
 
 原始命令输出只作为本地工作证据使用，不保留在 `docs/audit` 中。仓库只保留便于审阅、本地化和版本管理的 Markdown/JSON 摘要证据：
 
-- `09-testnet-rpc.json`：当前 contract-first 部署的独立 Neo testnet RPC 验证。
+- `09-testnet-rpc.json`：2026-05-20 contract-first 部署的历史 Neo testnet RPC 验证。
 - `testnet-dry-run.json`：23 个生产 NeoHub 合约的部署 dry-run 证据。
 - `10-contract-zk-verifier.json`：链上 ABI、安全默认状态、畸形 proof FAULT、`VerifierRegistry` ZK 路由验证。
 - `11-docs-consistency.md`：过时术语扫描和文档一致性证据。
 - `README.md`：面向人的全栈验证摘要。
-- `../testnet-deployment-2026-05-20-contract-first.json`：当前 testnet 部署报告。
-- `../testnet-deployment-2026-05-20-contract-first-dry-run.json`：当前 testnet dry-run 报告。
+- `../testnet-deployment-2026-05-20-contract-first.json`：历史 testnet 部署报告。
+- `../testnet-deployment-2026-05-20-contract-first-dry-run.json`：历史 testnet dry-run 报告。
 
 ## 通过摘要
 

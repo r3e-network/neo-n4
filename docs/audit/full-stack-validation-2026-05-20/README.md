@@ -5,6 +5,12 @@ Repository: `D:\Git\neo-n4`
 Branch: `master`
 HEAD: `2ba7db9`
 
+> **Historical evidence only.** A live RPC recheck on 2026-07-13 confirmed that the
+> recorded 23 contracts and 13 HALT transactions still exist, but the deployed NEF
+> checksums do not match the security-hardened source. See
+> [`../testnet-evidence-status-2026-07-13.json`](../testnet-evidence-status-2026-07-13.json).
+> This report must not be used as release evidence for the current tree.
+
 ## Result
 
 Validated with recorded evidence. The implementation builds, tests, compiles contracts, runs private devnet smoke tests with NeoFS DA, runs the canonical NeoVM2/RISC-V path, produces and verifies an SP1 zk proof, validates EVM/Solana bridge components, builds SDK/docs, verifies supply-chain posture, and revalidates the current Neo N3 testnet deployment through RPC.
@@ -15,13 +21,13 @@ This report does not claim that every production operator action is complete. Th
 
 Raw command output was used as local working evidence and is intentionally not retained in `docs/audit`. The repository keeps compact Markdown and JSON evidence that can be reviewed, localized, and versioned:
 
-- `09-testnet-rpc.json`: independent Neo testnet RPC validation for the current contract-first deployment.
+- `09-testnet-rpc.json`: historical Neo testnet RPC validation for the 2026-05-20 contract-first deployment.
 - `testnet-dry-run.json`: deployment dry-run evidence for the 23 production NeoHub contracts.
 - `10-contract-zk-verifier.json`: chain ABI, safe defaults, malformed proof faulting, and `VerifierRegistry` ZK route validation.
 - `11-docs-consistency.md`: obsolete terminology scan and documentation consistency evidence.
 - `README.md`: human-readable full-stack validation summary.
-- `../testnet-deployment-2026-05-20-contract-first.json`: current testnet deployment report.
-- `../testnet-deployment-2026-05-20-contract-first-dry-run.json`: current testnet dry-run report.
+- `../testnet-deployment-2026-05-20-contract-first.json`: historical testnet deployment report.
+- `../testnet-deployment-2026-05-20-contract-first-dry-run.json`: historical testnet dry-run report.
 
 ## Pass Summary
 

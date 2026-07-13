@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — batch plugin production-boundary coverage — 2026-07-14
+
+- Added direct lifecycle coverage for immutable sink and input wiring, chain-domain mismatches,
+  metrics re-wiring, pending-batch retry ordering, and unbound settings adoption.
+- Added forced-inclusion source coverage that filters durably tracked and null entries, preserves
+  L1 consumption until settlement finality, and rejects a null drain result before persistence.
+
 ### Fixed — canonical codec boundary coverage — 2026-07-14
 
 - Hardened the shared proof-payload length-prefix primitives with explicit position, capacity,

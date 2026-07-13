@@ -1,5 +1,7 @@
+using Neo.Cryptography;
 using Neo.L2;
 using Neo.L2.Batch;
+using Neo.L2.ForcedInclusion;
 using Neo.L2.Telemetry;
 using Neo.Plugins.L2;
 
@@ -87,6 +89,119 @@ public class UT_L2BatchPlugin
     }
 
     [TestMethod]
+    public void WithMetrics_AfterSinkWiringUsesNewMetricsSink()
+    {
+        using var plugin = new L2BatchPlugin(OneBlockSettings());
+        var sink = new DurableSink();
+        var metrics = new InMemoryMetrics();
+        plugin.WithSealedBatchSink(sink, 1001);
+
+        plugin.WithMetrics(metrics);
+        plugin.ProcessCommittedBlock(1, 1000, 11, NoTxs());
+
+        Assert.AreEqual(1, metrics.GetCounter(MetricNames.BatchesSealed));
+    }
+
+    [TestMethod]
+    public void WithSealingInputs_RejectsNullAndBindsBlockContext()
+    {
+        using var plugin = new L2BatchPlugin(OneBlockSettings());
+        Func<int, IReadOnlyList<CrossChainMessage>> drain = _ => Array.Empty<CrossChainMessage>();
+        Func<uint> finalizedHeight = () => 77;
+        var committeeHash = DurableSink.RootFor(9);
+        Func<UInt256> committee = () => committeeHash;
+
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => plugin.WithSealingInputs(null!, finalizedHeight, committee));
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => plugin.WithSealingInputs(drain, null!, committee));
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => plugin.WithSealingInputs(drain, finalizedHeight, null!));
+
+        plugin.WithSealingInputs(drain, finalizedHeight, committee);
+        var sink = new DurableSink();
+        plugin.WithSealedBatchSink(sink, 1001);
+        plugin.ProcessCommittedBlock(1, 1000, 11, NoTxs());
+
+        var context = sink.PersistedBatches.Single().BlockContext;
+        Assert.AreEqual(77U, context.L1FinalizedHeight);
+        Assert.AreEqual(committeeHash, context.SequencerCommitteeHash);
+    }
+
+    [TestMethod]
+    public void WithSealingInputs_AfterSinkWiringFailsClosed()
+    {
+        using var plugin = new L2BatchPlugin(OneBlockSettings());
+        plugin.WithSealedBatchSink(new DurableSink(), 1001);
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => plugin.WithSealingInputs(
+            _ => Array.Empty<CrossChainMessage>(),
+            () => 0,
+            () => UInt256.Zero));
+    }
+
+    [TestMethod]
+    public void WithForcedInclusionSource_RejectsNullWrongChainAndLateWiring()
+    {
+        using var plugin = new L2BatchPlugin(OneBlockSettings());
+
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => plugin.WithForcedInclusionSource(null!));
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => plugin.WithForcedInclusionSource(new FakeForcedInclusionSource(1002)));
+
+        plugin.WithSealedBatchSink(new DurableSink(), 1001);
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => plugin.WithForcedInclusionSource(new FakeForcedInclusionSource(1001)));
+    }
+
+    [TestMethod]
+    public void WithSealedBatchSink_RejectsInvalidArgumentsAndSettingsMismatch()
+    {
+        using var plugin = new L2BatchPlugin(OneBlockSettings());
+
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => plugin.WithSealedBatchSink(null!, 1001));
+        Assert.ThrowsExactly<InvalidDataException>(
+            () => plugin.WithSealedBatchSink(new DurableSink(), 0));
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => plugin.WithSealedBatchSink(new DurableSink(), 1002));
+    }
+
+    [TestMethod]
+    public void WithSealedBatchSink_EnforcesOneImmutableSink()
+    {
+        using var plugin = new L2BatchPlugin(OneBlockSettings());
+        var first = new DurableSink();
+        var second = new DurableSink();
+        plugin.WithSealedBatchSink(first, 1001);
+
+        plugin.WithSealedBatchSink(first, 1001);
+        Assert.AreEqual(1, first.CheckpointReadCount);
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => plugin.WithSealedBatchSink(second, 1001));
+
+        plugin.RemoveSealedBatchSink(first);
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => plugin.WithSealedBatchSink(second, 1001));
+    }
+
+    [TestMethod]
+    public void WithSealedBatchSink_UnboundSettingsAdoptChainAndRejectForcedSourceMismatch()
+    {
+        using (var unbound = new L2BatchPlugin())
+        {
+            unbound.WithSealedBatchSink(new DurableSink(), 1001);
+            unbound.ProcessCommittedBlock(1, 1000, 11, NoTxs());
+        }
+
+        using var mismatched = new L2BatchPlugin();
+        mismatched.WithForcedInclusionSource(new FakeForcedInclusionSource(1002));
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => mismatched.WithSealedBatchSink(new DurableSink(), 1001));
+    }
+
+    [TestMethod]
     public void ProcessCommittedBlock_SinkFailureRetriesPendingBeforeLaterBlock()
     {
         using var plugin = new L2BatchPlugin(OneBlockSettings());
@@ -123,6 +238,69 @@ public class UT_L2BatchPlugin
         Assert.AreEqual(1, sink.PersistedBatches.Count);
         Assert.AreEqual(1UL, sink.Checkpoint!.BatchNumber);
         Assert.AreEqual(1UL, sink.Checkpoint.LastBlock);
+    }
+
+    [TestMethod]
+    public void ProcessCommittedBlock_OlderThanPendingBatchFailsAfterDurableRetry()
+    {
+        using var plugin = new L2BatchPlugin(TwoBlockSettings());
+        var sink = new DurableSink { FailBeforePersistOnce = true };
+        plugin.WithSealedBatchSink(sink, 1001);
+        plugin.ProcessCommittedBlock(1, 1000, 11, NoTxs());
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => plugin.ProcessCommittedBlock(2, 1100, 11, NoTxs()));
+
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => plugin.ProcessCommittedBlock(1, 1000, 11, NoTxs()));
+
+        Assert.AreEqual(1, sink.PersistedBatches.Count);
+        Assert.AreEqual(2UL, sink.Checkpoint!.LastBlock);
+    }
+
+    [TestMethod]
+    public void ForcedInclusion_FiltersTrackedAndNullEntriesWithoutEarlyConsumption()
+    {
+        var source = new FakeForcedInclusionSource(1001)
+        {
+            Entries =
+            [
+                ForcedEntry(1, 0xA1),
+                null!,
+                ForcedEntry(2, 0xA2),
+                ForcedEntry(3, 0xA3),
+            ],
+        };
+        var sink = new DurableSink
+        {
+            TrackedForcedInclusionNonces = [1],
+        };
+        using var plugin = new L2BatchPlugin(OneBlockSettings());
+        plugin.WithForcedInclusionSource(source);
+        plugin.WithSealedBatchSink(sink, 1001);
+
+        plugin.ProcessCommittedBlock(1, 1000, 11, NoTxs());
+
+        var batch = sink.PersistedBatches.Single();
+        CollectionAssert.AreEqual(
+            new ulong[] { 2, 3 },
+            batch.ForcedInclusions.Select(entry => entry.Nonce).ToArray());
+        Assert.AreEqual(int.MaxValue, source.LastDrainMaximum);
+        Assert.AreEqual(1001U, sink.LastTrackedForcedInclusionChainId);
+        Assert.AreEqual(0, source.ConfirmConsumedCount);
+    }
+
+    [TestMethod]
+    public void ForcedInclusion_NullDrainResultFailsClosed()
+    {
+        var source = new FakeForcedInclusionSource(1001) { Entries = null };
+        var sink = new DurableSink();
+        using var plugin = new L2BatchPlugin(OneBlockSettings());
+        plugin.WithForcedInclusionSource(source);
+        plugin.WithSealedBatchSink(sink, 1001);
+
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => plugin.ProcessCommittedBlock(1, 1000, 11, NoTxs()));
+        Assert.AreEqual(0, sink.PersistedBatches.Count);
     }
 
     [TestMethod]
@@ -197,7 +375,29 @@ public class UT_L2BatchPlugin
         Enabled = true,
     };
 
+    private static L2BatchSettings TwoBlockSettings() => new()
+    {
+        ChainId = 1001,
+        MaxBlocksPerBatch = 2,
+        MaxTransactionsPerBatch = 100,
+        MaxBatchAgeMillis = int.MaxValue,
+        Enabled = true,
+    };
+
     private static IEnumerable<byte[]> NoTxs() => Array.Empty<byte[]>();
+
+    private static ForcedInclusionEntry ForcedEntry(ulong nonce, byte value)
+    {
+        var transaction = new[] { value };
+        return new ForcedInclusionEntry
+        {
+            Nonce = nonce,
+            Sender = UInt160.Zero,
+            TxHash = new UInt256(Crypto.Hash256(transaction)),
+            SerializedTx = transaction,
+            DeadlineUnixSeconds = 1000,
+        };
+    }
 
     private sealed class DurableSink : ISealedBatchSink
     {
@@ -207,6 +407,8 @@ public class UT_L2BatchPlugin
         public int CheckpointReadCount { get; private set; }
         public List<ulong> AttemptedBatchNumbers { get; } = new();
         public List<SealedBatch> PersistedBatches { get; } = new();
+        public IReadOnlyCollection<ulong> TrackedForcedInclusionNonces { get; init; } = [];
+        public uint? LastTrackedForcedInclusionChainId { get; private set; }
 
         private bool _failedBefore;
         private bool _failedAfter;
@@ -263,13 +465,54 @@ public class UT_L2BatchPlugin
         public ValueTask<IReadOnlyCollection<ulong>> GetTrackedForcedInclusionNoncesAsync(
             uint chainId,
             CancellationToken cancellationToken = default)
-            => ValueTask.FromResult<IReadOnlyCollection<ulong>>(Array.Empty<ulong>());
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            LastTrackedForcedInclusionChainId = chainId;
+            return ValueTask.FromResult(TrackedForcedInclusionNonces);
+        }
 
         public static UInt256 RootFor(ulong batchNumber)
         {
             var bytes = new byte[UInt256.Length];
             bytes[0] = checked((byte)(0x60 + batchNumber));
             return new UInt256(bytes);
+        }
+    }
+
+    private sealed class FakeForcedInclusionSource(uint chainId) : IForcedInclusionSource
+    {
+        public uint ChainId { get; } = chainId;
+
+        public IReadOnlyList<ForcedInclusionEntry>? Entries { get; init; } = [];
+
+        public int? LastDrainMaximum { get; private set; }
+
+        public int ConfirmConsumedCount { get; private set; }
+
+        public ValueTask<IReadOnlyList<ForcedInclusionEntry>> DrainAsync(
+            int max,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            LastDrainMaximum = max;
+            return ValueTask.FromResult(Entries!);
+        }
+
+        public ValueTask ConfirmConsumedAsync(
+            ulong nonce,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ConfirmConsumedCount++;
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask<bool> HasOverdueEntryAsync(
+            uint nowUnixSeconds,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(false);
         }
     }
 }

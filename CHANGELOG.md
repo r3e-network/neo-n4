@@ -12,6 +12,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Froze the 105-byte `CanonicalReceiptV1`, domain-separated storage/event V1 hashes, canonical event stack encoding, and keyed post-state-root recomputation.
 - Added a stable stateful golden artifact, host/guest parity coverage, and transaction/witness/state/root/receipt/order/parameter tamper rejection tests.
 
+### Added — stateful PolkaVM execution parity — 2026-07-13
+
+- Replaced the stateless RISC-V P/Invoke path with
+  `neo_riscv_execute_script_with_host`. The managed host now roots callback
+  delegates for process lifetime, passes each transaction through a
+  `GCHandle`-owned context, recursively marshals the complete native stack
+  model, and releases both native results and callback-owned buffers on every
+  exit path.
+- Added fail-closed host implementations for transaction/block runtime
+  context, `CheckWitness`, `Runtime.Notify`, storage read-through with
+  `Put`/`Delete`/`Find`, local-storage aliases, and iterator operations.
+  Consensus syscalls not explicitly implemented return callback failure and
+  force VM `FAULT`; no dummy values, unconditional witness success, or no-op
+  writes remain.
+- Added `ExecutionStateTransaction` and canonical execution effects V1.
+  `ApplicationEngineTransactionExecutor` and `RiscVTransactionExecutor` now
+  derive receipt hashes and exposed effects from the same immutable source,
+  and commit storage only after `HALT`. `FAULT`, out-of-gas, callback,
+  collector, and commit failures roll back the transaction overlay.
+- Pinned the 105-byte receipt preimage and V1 storage/event encodings with
+  ordering, before/after image, full event stack-state, rollback, fee,
+  fail-closed, managed parity, and real native PolkaVM tests.
+
 ### Security — comprehensive audit cycle 2026-05-19
 
 Multi-agent audit team surfaced + closed two CRITICAL exploit paths and

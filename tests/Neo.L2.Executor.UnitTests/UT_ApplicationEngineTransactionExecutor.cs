@@ -114,6 +114,23 @@ public class UT_ApplicationEngineTransactionExecutor
     // here + the engine-setup-throw documentation.
 
     [TestMethod]
+    public async Task BootstrappedHalt_UsesCanonicalEffectsAsReceiptSource()
+    {
+        var serialized = BuildTx(new byte[] { (byte)OpCode.RET });
+        using var store = new InMemoryKeyValueStore();
+        var settings = NeoVMGenesisBootstrap.DefaultBootstrapSettings;
+        NeoVMGenesisBootstrap.Run(store, settings);
+        var executor = new ApplicationEngineTransactionExecutor(store, settings);
+
+        var result = await executor.ExecuteAsync(serialized, Ctx);
+
+        Assert.IsTrue(result.Receipt.Success, result.FailureReason);
+        Assert.AreEqual(result.Effects.StorageHash, result.Receipt.StorageDeltaHash);
+        Assert.AreEqual(result.Effects.EventsHash, result.Receipt.EventsHash);
+        Assert.AreEqual(105, result.Receipt.EncodeHashData().Length);
+    }
+
+    [TestMethod]
     public async Task NullState_RejectedAtConstruction()
     {
         await Task.Yield();

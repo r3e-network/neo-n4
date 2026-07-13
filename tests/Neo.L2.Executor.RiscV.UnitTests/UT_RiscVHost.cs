@@ -1,235 +1,155 @@
+using Neo.Extensions.IO;
+using Neo.Extensions.VM;
+using Neo.L2.Persistence;
+using Neo.SmartContract;
+using Neo.VM;
+
 namespace Neo.L2.Executor.RiscV.UnitTests;
 
-/// <summary>
-/// Tests for <see cref="RiscVHost"/> — the P/Invoke wrapper around <c>libneo_riscv_host</c>.
-/// These exercise the binding's structural contracts (constants, null-arg defenses, the
-/// availability gate) without requiring the native library to be deployed. When the
-/// library is on the dynamic loader path (set <c>LD_LIBRARY_PATH</c> to
-/// <c>external/neo-riscv-vm/target/release</c> after building it), <see cref="RiscVHost.IsAvailable"/>
-/// reports true and <see cref="RiscVHost.Execute"/> runs scripts on the real VM.
-/// </summary>
+/// <summary>Structural and real-native tests for the stateful PolkaVM ABI binding.</summary>
 [TestClass]
 public class UT_RiscVHost
 {
     [TestMethod]
-    public void StateConstants_PinnedToNeoVMConvention()
+    public void StateConstants_MatchRustAbiOrdinals()
     {
-        // RISC-V host uses Neo VMState's byte values: HALT=1, FAULT=2, BREAK=4. A future
-        // refactor that renumbers these would silently mis-classify execution outcomes
-        // — host returns "halt" but the C# wrapper reports "break."
-        Assert.AreEqual(0u, RiscVHost.StateNone);
-        Assert.AreEqual(1u, RiscVHost.StateHalt);
-        Assert.AreEqual(2u, RiscVHost.StateFault);
-        Assert.AreEqual(4u, RiscVHost.StateBreak);
+        Assert.AreEqual(0u, RiscVHost.StateHalt);
+        Assert.AreEqual(1u, RiscVHost.StateFault);
+        Assert.AreEqual(2u, RiscVHost.StateBreak);
     }
 
     [TestMethod]
-    public void DefaultNetwork_IsNeoN3MainnetMagic()
+    public void IsAvailable_DoesNotThrow_WhenStatefulLibraryIsAbsent()
     {
-        // 860833102 = "NEO\0" little-endian = the canonical Neo N3 mainnet magic. Pin so
-        // the default doesn't drift to testnet or another value.
-        Assert.AreEqual(860833102u, RiscVHost.DefaultNetwork);
-    }
-
-    [TestMethod]
-    public void TriggerApplication_PinnedToNeoConvention()
-    {
-        // 0x40 = ApplicationTrigger.Application in Neo. Smart contracts use this as the
-        // default execution context.
-        Assert.AreEqual((byte)0x40, RiscVHost.TriggerApplication);
-    }
-
-    [TestMethod]
-    public void IsAvailable_DoesNotThrow_WhenLibraryAbsent()
-    {
-        // The binding gracefully handles a missing library — IsAvailable returns false
-        // instead of bubbling a DllNotFoundException up to the caller. This lets the
-        // off-chain executor pick a fallback path when the bridge isn't deployed.
-        // We can't assert true/false because CI might run with or without the .so on PATH;
-        // the contract is "doesn't throw."
         var available = RiscVHost.IsAvailable;
-        // Either value is acceptable — both paths must not throw.
         Assert.IsTrue(available || !available);
     }
 
     [TestMethod]
-    public void ResetAvailabilityCache_ClearsLastAvailabilityError()
+    public void ResetAvailabilityCache_ClearsLastError()
     {
         _ = RiscVHost.IsAvailable;
-
         RiscVHost.ResetAvailabilityCache();
-
         Assert.IsNull(RiscVHost.LastAvailabilityError);
     }
 
     [TestMethod]
-    public void Execute_RejectsEmptyScript()
+    public void Execute_RejectsEmptyScriptBeforeNativeCall()
     {
-        // Defense at the API boundary — empty script is meaningless. Without this guard
-        // the native side would either reject silently or fault deep inside PolkaVM with
-        // no link to the bad caller.
         Assert.ThrowsExactly<ArgumentException>(
-            () => RiscVHost.Execute(System.Array.Empty<byte>()));
+            () => RiscVHost.Execute(System.Array.Empty<byte>(), null!));
     }
 
     [TestMethod]
-    public void RiscVExecutionResult_HaltedReflectsStateByte()
+    public void ExecutionResult_FeeRoundsNativePicoAndAddsHostDatoshi()
     {
-        // Pin Halted property: state == StateHalt (1) → Halted = true. Other states
-        // → Halted = false. Operators read Halted as the "did it succeed" boolean.
-        var halted = new RiscVExecutionResult { State = RiscVHost.StateHalt, FeeConsumed = 100 };
-        Assert.IsTrue(halted.Halted);
-
-        var faulted = new RiscVExecutionResult { State = RiscVHost.StateFault, FeeConsumed = 100, ErrorMessage = "ok" };
-        Assert.IsFalse(faulted.Halted);
-
-        var none = new RiscVExecutionResult { State = RiscVHost.StateNone, FeeConsumed = 0 };
-        Assert.IsFalse(none.Halted);
-    }
-
-    [TestMethod]
-    public async Task RiscVTransactionExecutor_HaltedProgram_ProducesSuccessfulReceipt()
-    {
-        var executor = new RiscVTransactionExecutor((_, _) => new RiscVExecutionResult
+        var result = new RiscVExecutionResult
         {
             State = RiscVHost.StateHalt,
-            FeeConsumed = 123,
-        });
+            FeeConsumedPico = 10_001,
+            HostFeeConsumed = 7,
+        };
 
-        var result = await executor.ExecuteAsync(
-            new byte[] { 1, 2, 3 },
-            Context());
-
-        Assert.IsTrue(result.Receipt.Success);
-        Assert.AreEqual(123, result.Receipt.GasConsumed);
-        Assert.AreEqual(0, result.Withdrawals.Count);
-        Assert.AreEqual(0, result.Messages.Count);
+        Assert.AreEqual(9, result.FeeConsumed);
+        Assert.IsTrue(result.Halted);
     }
 
     [TestMethod]
-    public async Task RiscVTransactionExecutor_EmptyProgram_FailsWithoutCallingRunner()
+    public void ExecutionResult_NegativeNativeFeeFailsClosed()
     {
-        var called = false;
-        var executor = new RiscVTransactionExecutor((_, _) =>
-        {
-            called = true;
-            return new RiscVExecutionResult { State = RiscVHost.StateHalt, FeeConsumed = 1 };
-        });
-
-        var result = await executor.ExecuteAsync(Array.Empty<byte>(), Context());
-
-        Assert.IsFalse(called);
-        Assert.IsFalse(result.Receipt.Success);
-        Assert.AreEqual(0, result.Receipt.GasConsumed);
-    }
-
-    [TestMethod]
-    public async Task RiscVTransactionExecutor_NegativeFee_ClampsReceiptGasToZero()
-    {
-        var executor = new RiscVTransactionExecutor((_, _) => new RiscVExecutionResult
+        var result = new RiscVExecutionResult
         {
             State = RiscVHost.StateHalt,
-            FeeConsumed = -123,
-        });
+            FeeConsumedPico = -1,
+            HostFeeConsumed = 0,
+        };
 
-        var result = await executor.ExecuteAsync(new byte[] { 0x01 }, Context());
-
-        Assert.IsTrue(result.Receipt.Success);
-        Assert.AreEqual(0, result.Receipt.GasConsumed);
+        Assert.ThrowsExactly<InvalidOperationException>(() => _ = result.FeeConsumed);
     }
 
     [TestMethod]
-    public async Task RiscVTransactionExecutor_FaultedProgram_ProducesFailedReceipt()
+    public async Task RealNative_RetReceiptMatchesApplicationEngineByteForByte()
     {
-        var executor = new RiscVTransactionExecutor((_, _) => new RiscVExecutionResult
-        {
-            State = RiscVHost.StateFault,
-            FeeConsumed = 77,
-            ErrorMessage = "fault",
-        });
+        RequireNativeHost();
+        var script = new byte[] { (byte)OpCode.RET };
+        var serialized = RiscVTestData.BuildTransaction(script);
+        using var applicationStore = RiscVTestData.CreateStore();
+        using var riscVStore = RiscVTestData.CreateStore();
+        var application = new ApplicationEngineTransactionExecutor(
+            applicationStore,
+            RiscVTestData.Settings);
+        var riscV = new RiscVTransactionExecutor(
+            riscVStore,
+            RiscVTestData.Settings);
+
+        var applicationResult = await application.ExecuteAsync(serialized, RiscVTestData.Context);
+        var riscVResult = await riscV.ExecuteAsync(serialized, RiscVTestData.Context);
+
+        Assert.IsTrue(applicationResult.Receipt.Success);
+        Assert.IsTrue(riscVResult.Receipt.Success);
+        CollectionAssert.AreEqual(
+            applicationResult.Receipt.EncodeHashData(),
+            riscVResult.Receipt.EncodeHashData());
+        Assert.AreEqual(applicationResult.Receipt.Hash(), riscVResult.Receipt.Hash());
+    }
+
+    [TestMethod]
+    public async Task RealNative_StoragePutCommitsStateAndCanonicalEffects()
+    {
+        RequireNativeHost();
+        var key = new byte[] { 0xAA, 0x01 };
+        var value = new byte[] { 0xBB, 0x02 };
+        var script = new ScriptBuilder()
+            .EmitPush(value)
+            .EmitPush(key)
+            .EmitSysCall(ApplicationEngine.System_Storage_GetContext)
+            .EmitSysCall(ApplicationEngine.System_Storage_Put)
+            .Emit(OpCode.RET)
+            .ToArray();
+        var contract = RiscVTestData.BuildContract(script);
+        using var store = RiscVTestData.CreateStore();
+        var executor = new RiscVTransactionExecutor(
+            store,
+            RiscVTestData.Settings,
+            contractResolver: (_, _) => contract);
 
         var result = await executor.ExecuteAsync(
-            new byte[] { 9, 9 },
-            Context());
+            RiscVTestData.BuildTransaction(script),
+            RiscVTestData.Context);
+
+        Assert.IsTrue(result.Receipt.Success);
+        CollectionAssert.AreEqual(
+            value,
+            store.Get(new StorageKey { Id = contract.Id, Key = key }.ToArray()));
+        Assert.AreEqual(1, result.Effects.StorageChanges.Count);
+        Assert.AreNotEqual(UInt256.Zero, result.Receipt.StorageDeltaHash);
+        RiscVTestData.AssertReceiptEffectsAreSameSource(result);
+    }
+
+    [TestMethod]
+    public async Task RealNative_UnsupportedContractCallFaultsClosed()
+    {
+        RequireNativeHost();
+        var script = new ScriptBuilder()
+            .EmitDynamicCall(UInt160.Zero, "missing")
+            .ToArray();
+        using var store = RiscVTestData.CreateStore();
+        var executor = new RiscVTransactionExecutor(store, RiscVTestData.Settings);
+
+        var result = await executor.ExecuteAsync(
+            RiscVTestData.BuildTransaction(script),
+            RiscVTestData.Context);
 
         Assert.IsFalse(result.Receipt.Success);
-        Assert.AreEqual(77, result.Receipt.GasConsumed);
+        Assert.AreEqual(UInt256.Zero, result.Receipt.StorageDeltaHash);
+        Assert.AreEqual(UInt256.Zero, result.Receipt.EventsHash);
+        Assert.AreEqual(0, result.Effects.StorageChanges.Count);
     }
 
-    [TestMethod]
-    public async Task RiscVTransactionExecutor_GenericRunnerFailure_ProducesFailedReceipt()
+    private static void RequireNativeHost()
     {
-        var executor = new RiscVTransactionExecutor((_, _) =>
-            throw new FormatException("bad guest payload"));
-
-        var result = await executor.ExecuteAsync(new byte[] { 0x01, 0x02 }, Context());
-
-        Assert.IsFalse(result.Receipt.Success);
-        Assert.AreEqual(0, result.Receipt.GasConsumed);
+        RiscVHost.ResetAvailabilityCache();
+        if (!RiscVHost.IsAvailable)
+            Assert.Inconclusive($"stateful neo_riscv_host is unavailable: {RiscVHost.LastAvailabilityError}");
     }
-
-    [TestMethod]
-    public async Task RiscVTransactionExecutor_MissingNativeHost_ReturnsFailedResult()
-    {
-        var executor = new RiscVTransactionExecutor((_, _) =>
-            throw new InvalidOperationException("neo_riscv_host is unavailable"));
-
-        var result = await executor.ExecuteAsync(new byte[] { 0x40 }, Context());
-        Assert.IsFalse(result.Receipt.Success, "runtime error must produce Failed receipt");
-    }
-
-    [TestMethod]
-    public async Task RiscVTransactionExecutor_DllNotFound_Propagates()
-    {
-        var executor = new RiscVTransactionExecutor((_, _) =>
-            throw new DllNotFoundException("native host missing"));
-
-        await Assert.ThrowsExactlyAsync<DllNotFoundException>(() =>
-            executor.ExecuteAsync(new byte[] { 0x40 }, Context()).AsTask());
-    }
-
-    [TestMethod]
-    public async Task RiscVTransactionExecutor_EntryPointNotFound_Propagates()
-    {
-        var executor = new RiscVTransactionExecutor((_, _) =>
-            throw new EntryPointNotFoundException("ffi mismatch"));
-
-        await Assert.ThrowsExactlyAsync<EntryPointNotFoundException>(() =>
-            executor.ExecuteAsync(new byte[] { 0x40 }, Context()).AsTask());
-    }
-
-    [TestMethod]
-    public async Task RiscVTransactionExecutor_Cancellation_Propagates()
-    {
-        var executor = new RiscVTransactionExecutor((_, _) =>
-            throw new OperationCanceledException());
-
-        await Assert.ThrowsExactlyAsync<OperationCanceledException>(() =>
-            executor.ExecuteAsync(new byte[] { 0x40 }, Context()).AsTask());
-    }
-
-    [TestMethod]
-    public void RiscVTransactionExecutor_RejectsNullRunner()
-    {
-        Assert.ThrowsExactly<ArgumentNullException>(() => new RiscVTransactionExecutor(null!));
-    }
-
-    [TestMethod]
-    public async Task RiscVTransactionExecutor_RejectsNullBatchContext()
-    {
-        var executor = new RiscVTransactionExecutor((_, _) =>
-            new RiscVExecutionResult { State = RiscVHost.StateHalt, FeeConsumed = 1 });
-
-        await Assert.ThrowsExactlyAsync<ArgumentNullException>(() =>
-            executor.ExecuteAsync(new byte[] { 0x01 }, null!).AsTask());
-    }
-
-    private static BatchBlockContext Context() => new()
-    {
-        L1FinalizedHeight = 1,
-        FirstBlockTimestamp = 10,
-        LastBlockTimestamp = 20,
-        SequencerCommitteeHash = UInt256.Zero,
-        Network = RiscVHost.DefaultNetwork,
-    };
 }

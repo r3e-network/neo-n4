@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Neo.Cryptography;
 using Neo.Extensions;
 using Neo.IO;
+using Neo.L2.Executor.Effects;
 using Neo.L2.Executor.Receipts;
+using Neo.L2.Executor.State;
 using Neo.L2.Persistence;
 using Neo.Network.P2P.Payloads;
 using Neo.Persistence;
@@ -130,9 +131,11 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
             }
         }
 
-        // Run the script against a fresh DataCache snapshot. On HALT, commit;
-        // on FAULT, the cache is discarded so no state mutates.
-        var cache = new L2DataCacheAdapter(_state);
+        // Both ApplicationEngine and RISC-V stage mutations in the same read-through
+        // transaction overlay. This keeps receipt effects and committed bytes sourced
+        // from one immutable transition set.
+        using var stateTransaction = new ExecutionStateTransaction(_state);
+        var cache = new L2DataCacheAdapter(stateTransaction);
         var persistingBlock = BuildPersistingBlock(batchContext);
 
         ApplicationEngine engine;
@@ -152,42 +155,48 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
             return Failed(tx.Hash, $"engine setup failed: {ex.Message}");
         }
 
-        var success = engine.State == VMState.HALT;
-        // Compute the storage-delta hash from the staged change set BEFORE committing.
-        // DataCache.Commit() ends by clearing the change set, so computing this after the commit
-        // would always hash an empty set and return UInt256.Zero — decoupling the receipt from the
-        // actual storage changes it must bind.
-        var storageDeltaHash = success ? ComputeStorageDeltaHash(engine) : UInt256.Zero;
-        if (success)
+        if (engine.State != VMState.HALT)
         {
-            // Persist the cache changes to the underlying KV store. DataCache.Commit()
-            // walks the dirty-tracked entries and calls AddInternal/UpdateInternal/
-            // DeleteInternal on the adapter, which routes them to the IL2KeyValueStore.
-            cache.Commit();
+            return Failed(tx.Hash, engine.FaultException?.Message ?? "VM fault", engine.FeeConsumed);
         }
 
-        var receipt = new Receipt
+        try
         {
-            TxHash = tx.Hash,
-            Success = success,
-            GasConsumed = engine.FeeConsumed,
-            StorageDeltaHash = storageDeltaHash,
-            EventsHash = success ? ComputeEventsHash(engine.Notifications) : UInt256.Zero,
-        };
+            // DataCache.Commit only stages into stateTransaction. Nothing reaches the
+            // backing store until effects hashing and downstream collection succeed.
+            cache.Commit();
+            var effects = CanonicalExecutionEffects.Create(
+                stateTransaction.GetChanges(),
+                engine.Notifications.ToArray());
+            var (withdrawals, messages) = await _collector
+                .CollectAsync(tx, effects.Notifications)
+                .ConfigureAwait(false);
+            stateTransaction.Commit();
 
-        var (withdrawals, messages) = success
-            ? await _collector.CollectAsync(tx, engine.Notifications.ToArray()).ConfigureAwait(false)
-            : (Array.Empty<WithdrawalRequest>(), Array.Empty<CrossChainMessage>());
-        return new TransactionExecutionResult
+            return new TransactionExecutionResult
+            {
+                Receipt = new Receipt
+                {
+                    TxHash = tx.Hash,
+                    Success = true,
+                    GasConsumed = engine.FeeConsumed,
+                    StorageDeltaHash = effects.StorageHash,
+                    EventsHash = effects.EventsHash,
+                },
+                TxHash = tx.Hash,
+                Withdrawals = withdrawals,
+                Messages = messages,
+                Effects = effects,
+            };
+        }
+        catch (Exception ex)
         {
-            Receipt = receipt,
-            TxHash = tx.Hash,
-            Withdrawals = withdrawals,
-            Messages = messages,
-        };
+            stateTransaction.Rollback();
+            return Failed(tx.Hash, $"effect commit failed: {ex.Message}", engine.FeeConsumed);
+        }
     }
 
-    private static TransactionExecutionResult Failed(UInt256 hash, string reason)
+    private static TransactionExecutionResult Failed(UInt256 hash, string reason, long gasConsumed = 0)
     {
         return new TransactionExecutionResult
         {
@@ -195,71 +204,16 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
             {
                 TxHash = hash,
                 Success = false,
-                GasConsumed = 0,
+                GasConsumed = gasConsumed,
                 StorageDeltaHash = UInt256.Zero,
                 EventsHash = UInt256.Zero,
             },
             TxHash = hash,
             Withdrawals = Array.Empty<WithdrawalRequest>(),
             Messages = Array.Empty<CrossChainMessage>(),
+            Effects = CanonicalExecutionEffects.Empty,
+            FailureReason = reason,
         };
-    }
-
-    private static UInt256 ComputeStorageDeltaHash(ApplicationEngine engine)
-    {
-        // Hash the canonical-ordered set of (key, value) updates the engine staged.
-        // Used by the batch executor to feed the receipt root. Deterministic per the
-        // SPEC.md proving contract: same script + same starting state → same delta hash.
-        // We sort by the Key bytes so iteration order doesn't leak into the hash.
-        var changes = engine.SnapshotCache.GetChangeSet()
-            .OrderBy(c => c.Key.ToArray(), LexicographicByteArrayComparer.Instance)
-            .ToArray();
-
-        if (changes.Length == 0) return UInt256.Zero;
-
-        // Stream into IncrementalHash instead of MemoryStream → drop the orphan
-        // SHA256.Create() handle, the intermediate MemoryStream buffer, and the
-        // three BitConverter.GetBytes(int) allocations per iteration. The
-        // canonical byte order (key.Length LE, key, val.Length LE, val,
-        // state byte) is unchanged.
-        using var hash = System.Security.Cryptography.IncrementalHash.CreateHash(
-            System.Security.Cryptography.HashAlgorithmName.SHA256);
-        Span<byte> lenBuf = stackalloc byte[4];
-        Span<byte> stateBuf = stackalloc byte[1];
-        foreach (var c in changes)
-        {
-            var keyBytes = c.Key.ToArray();
-            var valBytes = c.Value.Item is null ? Array.Empty<byte>() : c.Value.Item.Value.ToArray();
-            System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(lenBuf, keyBytes.Length);
-            hash.AppendData(lenBuf);
-            hash.AppendData(keyBytes);
-            System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(lenBuf, valBytes.Length);
-            hash.AppendData(lenBuf);
-            hash.AppendData(valBytes);
-            stateBuf[0] = (byte)c.Value.State;
-            hash.AppendData(stateBuf);
-        }
-        // Crypto.Hash256 is double-SHA256 (sha256(sha256(x))); IncrementalHash
-        // gives us the inner sha256, then we run the second pass on that 32B digest.
-        return new UInt256(System.Security.Cryptography.SHA256.HashData(hash.GetHashAndReset()));
-    }
-
-    private static UInt256 ComputeEventsHash(IReadOnlyCollection<NotifyEventArgs> notifications)
-    {
-        if (notifications.Count == 0) return UInt256.Zero;
-        // Same IncrementalHash refactor as ComputeStorageDeltaHash above.
-        using var hash = System.Security.Cryptography.IncrementalHash.CreateHash(
-            System.Security.Cryptography.HashAlgorithmName.SHA256);
-        Span<byte> lenBuf = stackalloc byte[4];
-        foreach (var n in notifications)
-        {
-            hash.AppendData(n.ScriptHash.GetSpan());
-            var nameBytes = System.Text.Encoding.UTF8.GetBytes(n.EventName ?? string.Empty);
-            System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(lenBuf, nameBytes.Length);
-            hash.AppendData(lenBuf);
-            hash.AppendData(nameBytes);
-        }
-        return new UInt256(System.Security.Cryptography.SHA256.HashData(hash.GetHashAndReset()));
     }
 
     private Block BuildPersistingBlock(BatchBlockContext ctx)

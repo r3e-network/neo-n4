@@ -32,6 +32,13 @@ public sealed record Receipt
 
     /// <summary>Compute the canonical leaf hash for this receipt.</summary>
     public UInt256 Hash()
+        => new(Crypto.Hash256(EncodeHashData()));
+
+    /// <summary>
+    /// Encode the fixed 105-byte receipt leaf preimage shared by all transaction executors.
+    /// </summary>
+    /// <remarks>See <c>doc.md</c> §7.2 and §8.1.</remarks>
+    public byte[] EncodeHashData()
     {
         // Defense-in-depth: UInt256 fields are reference types; `required` only forces
         // "must be set," not "non-null." A null field would crash inside GetSpan() with
@@ -39,13 +46,13 @@ public sealed record Receipt
         ArgumentNullException.ThrowIfNull(TxHash);
         ArgumentNullException.ThrowIfNull(StorageDeltaHash);
         ArgumentNullException.ThrowIfNull(EventsHash);
-        Span<byte> buffer = stackalloc byte[ReceiptHashSize];
+        var buffer = new byte[ReceiptHashSize];
         var pos = 0;
-        TxHash.GetSpan().CopyTo(buffer.Slice(pos, 32)); pos += 32;
+        TxHash.GetSpan().CopyTo(buffer.AsSpan(pos, 32)); pos += 32;
         buffer[pos++] = (byte)(Success ? 1 : 0);
-        BinaryPrimitives.WriteInt64LittleEndian(buffer.Slice(pos, 8), GasConsumed); pos += 8;
-        StorageDeltaHash.GetSpan().CopyTo(buffer.Slice(pos, 32)); pos += 32;
-        EventsHash.GetSpan().CopyTo(buffer.Slice(pos, 32));
-        return new UInt256(Crypto.Hash256(buffer));
+        BinaryPrimitives.WriteInt64LittleEndian(buffer.AsSpan(pos, 8), GasConsumed); pos += 8;
+        StorageDeltaHash.GetSpan().CopyTo(buffer.AsSpan(pos, 32)); pos += 32;
+        EventsHash.GetSpan().CopyTo(buffer.AsSpan(pos, 32));
+        return buffer;
     }
 }

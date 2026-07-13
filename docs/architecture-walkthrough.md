@@ -41,6 +41,12 @@ threshold trips: `MaxBlocksPerBatch`, `MaxTransactionsPerBatch`, `MaxBatchAgeMil
 `Neo.L2.Executor.ReferenceBatchExecutor.ApplyBatchAsync`:
 - Applies L1 inbox messages first (deposits, etc.) via `IL1MessageProcessor`.
 - Iterates ordered transactions through `ITransactionExecutor`.
+- Commits each transaction through `ExecutionStateTransaction`: storage remains in a
+  read-through overlay until `HALT`, canonical effect collection succeeds, and the
+  backing store accepts the complete transition.
+- Builds `CanonicalExecutionEffects` V1 once per successful transaction. Both the
+  ApplicationEngine compatibility executor and the PolkaVM/RISC-V executor use this
+  same object for receipt hashes and downstream notification effects.
 - Computes `txRoot`, `receiptRoot`, `withdrawalRoot`, `l2ToL1MessageRoot`,
   `l2ToL2MessageRoot` via `Neo.L2.State.MerkleTree.ComputeRoot`.
 - Resolves `postStateRoot` via `IPostStateRootOracle`. The shipping
@@ -74,7 +80,9 @@ hands it to the configured `IL2Prover`:
   NeoVM2/RISC-V execution: batches are reduced to canonical public inputs and
   proved as RISC-V execution artifacts. The legacy Neo N3 VM guest remains a
   compatibility bridge while the PolkaVM-backed `external/neo-riscv-vm` path is
-  the L2 execution target. The .NET prover plugin uses `MockRiscVProver` for
+  the L2 execution target. Its .NET runtime binds the stateful host-callback ABI,
+  implements the safe runtime/storage/iterator subset with ApplicationEngine
+  semantics, and faults unknown or unsupported consensus syscalls. The .NET prover plugin uses `MockRiscVProver` for
   in-process testing only — production proving lives in the daemon.
 
 The prover output goes into `L2BatchCommitment.Proof` with the matching `ProofType`.

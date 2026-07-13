@@ -1,4 +1,5 @@
 using Neo.L2.Executor.Receipts;
+using Neo.L2.Executor.Effects;
 
 namespace Neo.L2.Executor;
 
@@ -46,4 +47,16 @@ public sealed record TransactionExecutionResult
 
     /// <summary>L2 → L1 / L2 messages emitted during this transaction.</summary>
     public required IReadOnlyList<CrossChainMessage> Messages { get; init; }
+
+    /// <summary>
+    /// Canonical committed storage and event effects from the same source used to build
+    /// <see cref="Receipt.StorageDeltaHash"/> and <see cref="Receipt.EventsHash"/>.
+    /// Failed transactions always expose <see cref="CanonicalExecutionEffects.Empty"/>.
+    /// </summary>
+    /// <remarks>See <c>doc.md</c> §7.2, §7.3, and §8.1.</remarks>
+    public CanonicalExecutionEffects Effects { get; init; } = CanonicalExecutionEffects.Empty;
+
+    /// <summary>Deterministic diagnostic for a failed execution; <c>null</c> on success.</summary>
+    /// <remarks>See <c>doc.md</c> §8.1 error handling.</remarks>
+    public string? FailureReason { get; init; }
 }

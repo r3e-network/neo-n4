@@ -72,6 +72,25 @@ txHash[32] | success[1] | gasConsumed i64 LE[8]
 
 The post-state root is recomputed from the verified complete pre-state key/value witness plus committed HALT overlays using the keyed-state Merkle algorithm. Receipt folding is not a state-root algorithm.
 
+### Stateful RISC-V host boundary
+
+The PolkaVM path calls `neo_riscv_execute_script_with_host` with a transaction-scoped
+managed host context. Native opcode fees are returned in pico-datoshi and converted by
+ceiling division (`ceil(pico / 10,000)`); safely implemented host syscall fees are added
+in datoshi using Neo's active execution-fee factor. Fixed-zero fee substitution is invalid.
+
+Storage reads use a read-through overlay. A Put or Delete changes only the transaction
+overlay until the VM returns `HALT`, canonical effects are built, and downstream effect
+collection succeeds. Only then may the overlay commit. `FAULT`, `BREAK`, out-of-gas,
+callback/marshalling error, collector failure, or commit conflict MUST leave storage and
+effects unchanged.
+
+The host implements only syscalls whose Neo consensus behavior can be reproduced safely.
+An unknown or unsupported descriptor MUST make the callback fail so native execution
+faults. In particular, cross-contract/native-contract invocation, cryptographic syscalls,
+randomness, dynamic script loading, runtime logging, and ledger/blockchain query families
+remain fail-closed until implemented with ApplicationEngine parity.
+
 ## Error handling
 
 A canonical transaction decode failure, malformed witness scope/rule, invalid contract adapter, invalid pre-state witness, or root mismatch is a **fatal protocol error**. The batch MUST NOT be sealed.

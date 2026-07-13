@@ -1488,7 +1488,7 @@ v4 仅在已声明的 restricted executor semantics 内提供 permissionless 可
 
 版本边界：
 
-- `GovernanceFraudVerifier` v1/v2 与 `RestrictedExecutionFraudVerifier` v3 仍是**结构性 / governance 仲裁**模式，只能通过 `RegisterFraudVerifier` 使用，并且 `Challenge` 必须有 governance owner co-sign；它们不得进入 permissionless value-bearing profile。
+- `GovernanceFraudVerifier` v1/v2 与 `RestrictedExecutionFraudVerifier` v3 仅保留为**结构性审计 / 离线仲裁证据**。即使 governance owner co-sign，它们也不能通过 `Challenge` 回滚批次或罚没保证金；所有会改变资产与最终性的 challenge 都必须匹配链上注册的 executable v4 profile。
 - `RestrictedExecutionFraudVerifier` v4 是 **SettlementManager-bound restricted trustless profile**。verifier 部署参数固定为 `[SettlementManager, replayDomain]`；`OptimisticChallenge.RegisterPermissionlessFraudProfile(chainId, verifier, executorSemanticId, replayDomain)` 会链上读取并核对这三个配置维度。
 - legacy `RegisterPermissionlessFraudVerifier` 被禁用；permissionless 权限只属于精确的 `(chainId, verifier, executorSemanticId, replayDomain, profileGeneration)`。revoke 或 approved-only 重新注册会使旧 profile generation 失效。
 
@@ -1531,7 +1531,7 @@ v4 仅在已声明的 restricted executor semantics 内提供 permissionless 可
 
 当前唯一 executor semantic id 为 `Hash256("neo4-executor:counter-increment-existing-key:v1")`。交易必须是 29 bytes：`0x01 || sender(20) || amount(uint64 LE)`；state key 必须是 `"counter:" || sender`，old/committed-new value 均为 uint64 LE，执行语义为 `expected = old + amount`（unchecked wrap）。old leaf 与 pre path 必须重建 committed pre root，committed-new leaf 与 post path 必须重建 committed post root；两侧使用同一 key 与 leaf index，且 leaf index 不得含超出各自 path depth 的高位。verifier 再以 old leaf 的 pre path 和执行所得 expected value 重建 `expectedPostStateRoot`。若 expected root 等于 committed post root，fraud claim 为 `false`；只有不等时返回 `true` 并允许 revert/slash。由此 challenger 不能只提交一对内部自洽但未绑定 SettlementManager 的 old/new roots。
 
-该 profile **不是通用 NeoVM trustless verifier**：不覆盖任意 NeoVM opcode、其它 custom executor、key 插入/删除或多交易 batch。未识别 semantic id、错链/批次/tx index、错 root、错 witness、错 path、错 replay domain、legacy version 均 fail closed 或退回 governance-only 模式。通用 NeoVM 仍需 commitment 中的 tx-count / trace-root 锚点及完整单步执行语义，详见 `IMPLEMENTATION_STATUS.md`。
+该 profile **不是通用 NeoVM trustless verifier**：不覆盖任意 NeoVM opcode、其它 custom executor、key 插入/删除或多交易 batch。未识别 semantic id、错链/批次/tx index、错 root、错 witness、错 path、错 replay domain、legacy version 均 fail closed；governance 不存在绕过 executable-profile gate 的状态变更通道。通用 NeoVM 仍需 commitment 中的 tx-count / trace-root 锚点及完整单步执行语义，详见 `IMPLEMENTATION_STATUS.md`。
 
 ---
 

@@ -36,7 +36,7 @@ public abstract class Mock_OptimisticChallenge_Verifier(SmartContractInitialize 
 ///   * The challenger-reward / window-seconds / ownership setters are owner-gated (positive AND
 ///     negative) and bounds-checked.
 ///   * Challenge enforces the CRITICAL fraud-verifier allowlist gate (an un-approved "yes-verifier"
-///     cannot drain a bond), the permissionless-OR-owner-co-sign gate, the challenger witness, a
+///     cannot drain a bond), the exact permissionless executable-profile gate, the challenger witness, a
 ///     non-empty proof, the open+unexpired window, and is replay-protected (already-accepted).
 ///   * A successful Challenge records the accepted-fraud marker, which both blocks a second challenge
 ///     and blocks FinalizeIfPastWindow (a challenged batch can never be finalized).
@@ -281,7 +281,7 @@ public class UT_OptimisticChallenge_Vm
         oc.RegisterFraudVerifier(verifier);
         Assert.IsTrue(oc.IsApprovedFraudVerifier(verifier)!.Value, "approved after register");
         Assert.IsFalse(oc.IsPermissionlessFraudVerifier(verifier)!.Value,
-            "approved-only verifier is NOT permissionless (still needs owner co-sign)");
+            "approved-only verifier is NOT permissionless and cannot revert a batch");
 
         oc.RevokeFraudVerifier(verifier);
         Assert.IsFalse(oc.IsApprovedFraudVerifier(verifier)!.Value, "revoked");
@@ -358,7 +358,7 @@ public class UT_OptimisticChallenge_Vm
             ReplayDomain)!.Value);
     }
 
-    // ---- Challenge: the CRITICAL allowlist + co-sign gates -----------------------------------
+    // ---- Challenge: the CRITICAL allowlist + executable-profile gates ------------------------
 
     [TestMethod]
     public void Challenge_UnapprovedVerifier_Faults_PreventsBondDrain()
@@ -381,11 +381,10 @@ public class UT_OptimisticChallenge_Vm
     }
 
     [TestMethod]
-    public void Challenge_ApprovedButNotPermissionless_RequiresOwnerCoSign()
+    public void Challenge_ApprovedButNotPermissionless_IsRejectedEvenWithOwnerWitness()
     {
-        // An approved-but-not-permissionless verifier needs owner/governance co-sign at Challenge
-        // time. We set up the approved-only state under the owner (== Sender), then transfer
-        // ownership away so the co-sign witness is absent for the subsequent challenge.
+        // An approved-but-not-profile-bound verifier can never revert a value-bearing batch.
+        // The transaction signer is also the owner, proving governance cannot bypass the gate.
         var engine = new TestEngine(true);
         var smHash = Hash('5');
         var sbHash = Hash('8');
@@ -397,20 +396,15 @@ public class UT_OptimisticChallenge_Vm
         WireBond(engine, sbHash, 1000);
         oc.RegisterFraudVerifier(verifier); // approved-only (NOT permissionless)
         oc.OpenWindow(ChainId, BatchNum, Sequencer);
-        oc.Owner = Hash('1');               // governance is now a different account
 
-        // engine.Sender witnesses itself (so the challenger witness is fine), but it is no longer the
-        // owner; an approved-only verifier still requires the owner co-sign -> fault.
         Assert.ThrowsExactly<TestException>(() =>
             oc.Challenge(ChainId, BatchNum, engine.Sender, Proof, verifier),
-            "approved-only verifier requires owner/governance co-sign");
+            "approved-only verifier must fail closed even with an owner witness");
     }
 
     [TestMethod]
-    public void Challenge_OwnerCoSign_WithApprovedVerifier_Accepts()
+    public void Challenge_LegacyVerifier_OwnerCoSignCannotRevertOrSlash()
     {
-        // Owner == signer: an approved-only verifier is usable because the owner co-sign witness
-        // is present. This pins the positive co-sign path.
         var engine = new TestEngine(true);
         var smHash = Hash('5');
         var sbHash = Hash('8');
@@ -419,23 +413,16 @@ public class UT_OptimisticChallenge_Vm
 
         WireVerifier(engine, verifier, verdict: true);
         WireSm(engine, smHash);
-        WireBond(engine, sbHash, 1000);
+        var slashCount = 0;
+        WireBond(engine, sbHash, 1000, (_, _) => slashCount++);
         oc.RegisterFraudVerifier(verifier); // approved-only
         oc.OpenWindow(ChainId, BatchNum, Sequencer);
 
-        // Challenger must witness itself; deploy used Sender as owner, but the challenger here is a
-        // distinct principal -> witness for the challenger is absent -> fault.
         Assert.ThrowsExactly<TestException>(() =>
-            oc.Challenge(ChainId, BatchNum, Challenger, Proof, verifier),
-            "challenger without its own witness must fault");
-
-        // Use engine.Sender as the challenger so its witness is present (and owner co-sign too).
-        oc.Challenge(ChainId, BatchNum, engine.Sender, Proof, verifier);
-
-        // Accepted-fraud marker is now set: a challenged batch can never be finalized.
+            oc.Challenge(ChainId, BatchNum, engine.Sender, Proof, verifier));
+        Assert.AreEqual(0, slashCount);
         engine.PersistingBlock.Advance(TimeSpan.FromSeconds(DefaultWindow + 10));
-        Assert.ThrowsExactly<TestException>(() => oc.FinalizeIfPastWindow(ChainId, BatchNum),
-            "a challenged batch must not be finalizable");
+        oc.FinalizeIfPastWindow(ChainId, BatchNum);
     }
 
     [TestMethod]
@@ -470,7 +457,7 @@ public class UT_OptimisticChallenge_Vm
     }
 
     [TestMethod]
-    public void Challenge_V4ProfileMismatchAndLegacyV3_RequireGovernanceCoSign()
+    public void Challenge_V4ProfileMismatchAndLegacyV3_FailClosed()
     {
         var engine = new TestEngine(true);
         var smHash = Hash('5');
@@ -524,13 +511,13 @@ public class UT_OptimisticChallenge_Vm
         var verifier = Hash('a');
         var slashes = new List<(BigInteger Amount, UInt160 Beneficiary)>();
         var oc = Deploy(engine, smHash, sbHash);
-        WireVerifier(engine, verifier, verdict: true);
         WireSm(engine, smHash);
         WireBond(engine, sbHash, 1, (amount, beneficiary) => slashes.Add((amount, beneficiary)));
-        oc.RegisterFraudVerifier(verifier);
+        WireVerifier(engine, verifier, verdict: true, settlementManager: smHash);
+        oc.RegisterPermissionlessFraudProfile(ChainId, verifier, ExecutorSemanticId, ReplayDomain);
         oc.OpenWindow(ChainId, BatchNum, Sequencer);
 
-        oc.Challenge(ChainId, BatchNum, engine.Sender, Proof, verifier);
+        oc.Challenge(ChainId, BatchNum, engine.Sender, V4Proof(), verifier);
 
         Assert.HasCount(1, slashes);
         Assert.AreEqual(BigInteger.One, slashes[0].Amount);
@@ -549,14 +536,14 @@ public class UT_OptimisticChallenge_Vm
         var verifier = Hash('a');
         var oc = Deploy(engine, smHash, sbHash);
 
-        WireVerifier(engine, verifier, verdict: false); // verifier says "no fraud"
+        WireVerifier(engine, verifier, verdict: false, settlementManager: smHash); // verifier says "no fraud"
         WireSm(engine, smHash);
         WireBond(engine, sbHash, 1000);
-        oc.RegisterFraudVerifier(verifier);
+        oc.RegisterPermissionlessFraudProfile(ChainId, verifier, ExecutorSemanticId, ReplayDomain);
         oc.OpenWindow(ChainId, BatchNum, Sequencer);
 
         Assert.ThrowsExactly<TestException>(() =>
-            oc.Challenge(ChainId, BatchNum, engine.Sender, Proof, verifier),
+            oc.Challenge(ChainId, BatchNum, engine.Sender, V4Proof(), verifier),
             "a rejected fraud proof must fault");
 
         // The window is intact and unchallenged -> after expiry it finalizes cleanly.
@@ -610,12 +597,12 @@ public class UT_OptimisticChallenge_Vm
         var verifier = Hash('a');
         var oc = Deploy(engine, smHash, sbHash);
 
-        WireVerifier(engine, verifier, verdict: true);
-        oc.RegisterFraudVerifier(verifier);
+        WireVerifier(engine, verifier, verdict: true, settlementManager: smHash);
+        oc.RegisterPermissionlessFraudProfile(ChainId, verifier, ExecutorSemanticId, ReplayDomain);
         // No OpenWindow call -> there is no window to challenge.
 
         Assert.ThrowsExactly<TestException>(() =>
-            oc.Challenge(ChainId, BatchNum, engine.Sender, Proof, verifier),
+            oc.Challenge(ChainId, BatchNum, engine.Sender, V4Proof(), verifier),
             "challenge with no open window must fault");
     }
 
@@ -628,16 +615,16 @@ public class UT_OptimisticChallenge_Vm
         var verifier = Hash('a');
         var oc = Deploy(engine, smHash, sbHash);
 
-        WireVerifier(engine, verifier, verdict: true);
+        WireVerifier(engine, verifier, verdict: true, settlementManager: smHash);
         WireSm(engine, smHash);
         WireBond(engine, sbHash, 1000);
-        oc.RegisterFraudVerifier(verifier);
+        oc.RegisterPermissionlessFraudProfile(ChainId, verifier, ExecutorSemanticId, ReplayDomain);
         oc.OpenWindow(ChainId, BatchNum, Sequencer);
 
         // Advance past the deadline -> the window is closed -> challenge must fault.
         engine.PersistingBlock.Advance(TimeSpan.FromSeconds(DefaultWindow + 1));
         Assert.ThrowsExactly<TestException>(() =>
-            oc.Challenge(ChainId, BatchNum, engine.Sender, Proof, verifier),
+            oc.Challenge(ChainId, BatchNum, engine.Sender, V4Proof(), verifier),
             "challenge after the window has closed must fault");
     }
 
@@ -652,14 +639,14 @@ public class UT_OptimisticChallenge_Vm
         var verifier = Hash('a');
         var oc = Deploy(engine, smHash, sbHash);
 
-        WireVerifier(engine, verifier, verdict: true);
+        WireVerifier(engine, verifier, verdict: true, settlementManager: smHash);
         WireSm(engine, smHash);
         WireBond(engine, sbHash, 0); // sequencer has no bond
-        oc.RegisterFraudVerifier(verifier);
+        oc.RegisterPermissionlessFraudProfile(ChainId, verifier, ExecutorSemanticId, ReplayDomain);
         oc.OpenWindow(ChainId, BatchNum, Sequencer);
 
         Assert.ThrowsExactly<TestException>(() =>
-            oc.Challenge(ChainId, BatchNum, engine.Sender, Proof, verifier),
+            oc.Challenge(ChainId, BatchNum, engine.Sender, V4Proof(), verifier),
             "no bond to slash must fault");
     }
 
@@ -686,5 +673,9 @@ public class UT_OptimisticChallenge_Vm
         // Past the deadline and unchallenged -> finalize succeeds.
         engine.PersistingBlock.Advance(TimeSpan.FromSeconds(DefaultWindow + 1));
         oc.FinalizeIfPastWindow(ChainId, BatchNum); // must not throw
+        Assert.AreEqual((BigInteger)0, oc.GetDeadline(ChainId, BatchNum),
+            "finalized window must be consumed before the external finalize call");
+        Assert.ThrowsExactly<TestException>(() => oc.FinalizeIfPastWindow(ChainId, BatchNum),
+            "finalized window cannot be replayed");
     }
 }

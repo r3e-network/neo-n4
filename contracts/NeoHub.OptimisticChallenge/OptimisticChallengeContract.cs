@@ -18,9 +18,10 @@ namespace NeoHub.OptimisticChallenge;
 /// <remarks>
 /// Permissionless value-bearing challenges require a v4 profile bound to the exact chain,
 /// verifier, executor semantic id, and replay domain. Versions v1/v2/v3 and every unregistered
-/// v4 profile require the governance owner witness. Successful v4 claim ids are globally
-/// consumed, and accepted/consumed effects are written before external revert/slash calls;
-/// a fault rolls the whole transaction back atomically. See doc.md §15, §17, and §18 Phase 3.
+/// v4 profile fail closed even when governance co-signs; governance cannot substitute its
+/// judgment for executable fraud verification. Successful v4 claim ids are globally consumed,
+/// and accepted/consumed effects are written before external revert/slash calls; a fault rolls
+/// the whole transaction back atomically. See doc.md §15, §17, and §18 Phase 3.
 /// </remarks>
 [DisplayName("NeoHub.OptimisticChallenge")]
 [ContractAuthor("R3E Network", "dev@r3e.network")]
@@ -195,10 +196,11 @@ public class OptimisticChallengeContract : SmartContract
     /// verifier disables it for future challenges but does not undo past challenges that
     /// it accepted.
     /// <para>
-    /// Use this approved-only path for <c>GovernanceFraudVerifier</c> v1/v2 and
-    /// <c>RestrictedExecutionFraudVerifier</c> v3. A configured restricted verifier's v4
-    /// path may instead use <see cref="RegisterPermissionlessFraudProfile"/>, which binds
-    /// its exact chain, SettlementManager, semantic id, and replay domain.
+    /// This allowlist is a prerequisite, not authorization to revert value-bearing batches.
+    /// <c>GovernanceFraudVerifier</c> v1/v2 and <c>RestrictedExecutionFraudVerifier</c> v3
+    /// remain advisory/audit tools only. A configured restricted verifier's v4 path uses
+    /// <see cref="RegisterPermissionlessFraudProfile"/>, which binds its exact chain,
+    /// SettlementManager, semantic id, and replay domain.
     /// </para>
     /// </remarks>
     public static void RegisterFraudVerifier(UInt160 verifier)
@@ -376,9 +378,9 @@ public class OptimisticChallengeContract : SmartContract
     }
 
     /// <summary>
-    /// Submit a fraud proof against a challengeable optimistic batch. Permissionless dispatch
-    /// is limited to registered v4 profiles; every older or unmatched payload needs governance
-    /// co-sign. Slashing proceeds only after the selected verifier returns true.
+    /// Submit a fraud proof against a challengeable optimistic batch. State-changing dispatch
+    /// is limited to registered executable v4 profiles; older and unmatched payloads fail closed,
+    /// including when governance signs. Slashing proceeds only after the selected verifier returns true.
     /// </summary>
     /// <param name="fraudVerifier">Address of the contract that decodes + verifies the proof.</param>
     public static void Challenge(uint chainId, ulong batchNumber, UInt160 challenger, byte[] fraudProofBytes, UInt160 fraudVerifier)
@@ -400,6 +402,7 @@ public class OptimisticChallengeContract : SmartContract
 
         var isV4 = fraudProofBytes.Length >= V4BindingHeaderSize
             && fraudProofBytes[0] == TrustlessPayloadVersion;
+        ExecutionEngine.Assert(isV4, "trustless v4 fraud proof required");
         var claimId = UInt256.Zero;
         var permissionless = false;
         if (isV4)
@@ -415,8 +418,8 @@ public class OptimisticChallengeContract : SmartContract
                 replayDomain);
             ExecutionEngine.Assert(!IsClaimConsumed(claimId), "claim already consumed");
         }
-        ExecutionEngine.Assert(permissionless || Runtime.CheckWitness(GetOwner()),
-            "fraud verifier requires owner/governance co-sign");
+        ExecutionEngine.Assert(permissionless,
+            "fraud proof does not match a permissionless executable profile");
 
         var deadlineKey = DeadlineKey(chainId, batchNumber);
         var rawDeadline = Storage.Get(deadlineKey);
@@ -456,7 +459,7 @@ public class OptimisticChallengeContract : SmartContract
         // reject a re-entrant Challenge, but a future "partial slash" refactor would lose
         // that coincidental safety — this ordering future-proofs against it.
         Storage.Put(AcceptedFraudKey(chainId, batchNumber), challenger);
-        if (isV4) Storage.Put(ConsumedClaimKey(claimId), new byte[] { 1 });
+        Storage.Put(ConsumedClaimKey(claimId), new byte[] { 1 });
 
         var sm = (UInt160)(Storage.Get(new byte[] { KeySettlementManager }) ?? throw new Exception("sm unset"));
         Contract.Call(sm, "revertBatch", CallFlags.All, new object[] { chainId, batchNumber });
@@ -497,6 +500,10 @@ public class OptimisticChallengeContract : SmartContract
         ExecutionEngine.Assert(Storage.Get(AcceptedFraudKey(chainId, batchNumber)) == null,
             "batch was challenged; cannot finalize");
 
+        // CEI: consume the window before the external SettlementManager call. A fault rolls this
+        // deletion back atomically; a re-entrant finalize sees no window and fails closed.
+        Storage.Delete(deadlineKey);
+        Storage.Delete(SequencerKey(chainId, batchNumber));
         var sm = (UInt160)(Storage.Get(new byte[] { KeySettlementManager }) ?? throw new Exception("sm unset"));
         Contract.Call(sm, "finalizeBatch", CallFlags.All, new object[] { chainId, batchNumber });
 

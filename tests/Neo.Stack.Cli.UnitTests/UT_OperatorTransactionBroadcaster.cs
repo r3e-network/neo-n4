@@ -68,6 +68,40 @@ public class UT_OperatorTransactionBroadcaster
         Assert.AreEqual(10, result);
     }
 
+    [TestMethod]
+    public async Task Broadcast_CallerCancellationReturns130()
+    {
+        var environmentVariable = $"NEO_N4_TEST_WIF_{Guid.NewGuid():N}";
+        var key = new KeyPair(Enumerable.Range(1, 32).Select(value => (byte)value).ToArray());
+        var wif = key.Export();
+        key.PrivateKey.AsSpan().Clear();
+        Environment.SetEnvironmentVariable(environmentVariable, wif);
+        try
+        {
+            using var cancellation = new CancellationTokenSource();
+            cancellation.Cancel();
+            using var http = new HttpClient(new RpcHandler(Network));
+
+            var result = await OperatorTransactionBroadcaster.BroadcastAsync(
+                new[]
+                {
+                    "--rpc", "http://localhost:10332",
+                    "--expected-network", Network.ToString(),
+                    "--wif-env", environmentVariable,
+                },
+                new byte[] { 0x40 },
+                "test operation",
+                http,
+                cancellationToken: cancellation.Token);
+
+            Assert.AreEqual(130, result);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(environmentVariable, null);
+        }
+    }
+
     private sealed class RpcHandler(uint network) : HttpMessageHandler
     {
         public List<string> Methods { get; } = [];

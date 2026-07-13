@@ -44,8 +44,63 @@ public class UT_InitL2Command
         });
         Assert.AreEqual(0, rc);
         Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "data")), "data/ must be created");
+        Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "batcher-data")), "batcher-data/ must be created");
         Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "logs")), "logs/ must be created");
         Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "Plugins")), "Plugins/ must be created");
+        Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "node", "Plugins")), "node/Plugins must be created");
+        Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "batcher-node", "Plugins")), "batcher-node/Plugins must be created");
+        Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "prover", "inbox")), "prover inbox must be created");
+        Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "prover", "archive")), "prover archive must be created");
+    }
+
+    [TestMethod]
+    public void InitL2_BatcherConfig_CopiesIntoDedicatedDeploymentRoot()
+    {
+        SeedChainDirWithConfig();
+        var source = Path.Combine(_tempDir, "reviewed-batcher-config.json");
+        File.WriteAllText(source, "{\"ApplicationConfiguration\":{\"Storage\":{\"Path\":\"batcher-data\"}}}");
+
+        var result = InitL2Command.Run(new[]
+        {
+            "--chain-id", "1099",
+            "--output", _tempDir,
+            "--batcher-node-config", source,
+        });
+
+        Assert.AreEqual(0, result);
+        Assert.AreEqual(
+            File.ReadAllText(source),
+            File.ReadAllText(Path.Combine(_tempDir, "batcher-node", "config.json")));
+    }
+
+    [TestMethod]
+    public void InitL2_NodeConfig_CopiesReviewedConfigWithoutOverwriting()
+    {
+        SeedChainDirWithConfig();
+        var source = Path.Combine(_tempDir, "reviewed-node-config.json");
+        File.WriteAllText(source, "{\"ProtocolConfiguration\":{\"Network\":123}}");
+
+        var first = InitL2Command.Run(new[]
+        {
+            "--chain-id", "1099",
+            "--output", _tempDir,
+            "--node-config", source,
+        });
+
+        Assert.AreEqual(0, first);
+        var destination = Path.Combine(_tempDir, "node", "config.json");
+        Assert.AreEqual(File.ReadAllText(source), File.ReadAllText(destination));
+
+        File.WriteAllText(source, "{\"ProtocolConfiguration\":{\"Network\":456}}");
+        var second = InitL2Command.Run(new[]
+        {
+            "--chain-id", "1099",
+            "--output", _tempDir,
+            "--node-config", source,
+        });
+
+        Assert.AreEqual(3, second);
+        StringAssert.Contains(File.ReadAllText(destination), "123");
     }
 
     [TestMethod]

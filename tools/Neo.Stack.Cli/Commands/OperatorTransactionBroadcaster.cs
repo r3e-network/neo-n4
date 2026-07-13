@@ -16,7 +16,8 @@ internal static class OperatorTransactionBroadcaster
         byte[] script,
         string operation,
         HttpClient? httpClient = null,
-        string optionPrefix = "")
+        string optionPrefix = "",
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(script);
@@ -56,7 +57,7 @@ internal static class OperatorTransactionBroadcaster
                 rpc,
                 signer,
                 new RpcTransactionSenderOptions { ExpectedNetwork = expectedNetwork });
-            var receipt = await sender.SendInvocationAsync(script).ConfigureAwait(false);
+            var receipt = await sender.SendInvocationAsync(script, cancellationToken).ConfigureAwait(false);
             Console.WriteLine();
             Console.WriteLine($"{operation} confirmed:");
             Console.WriteLine($"  transactionHash : {receipt.TransactionHash}");
@@ -64,6 +65,10 @@ internal static class OperatorTransactionBroadcaster
             Console.WriteLine($"  systemFee       : {receipt.SystemFee} datoshi");
             Console.WriteLine($"  networkFee      : {receipt.NetworkFee} datoshi");
             return 0;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return 130;
         }
         catch (Exception exception)
         {

@@ -8,6 +8,7 @@ internal static class Program
 {
     public static async Task<int> Main(string[] args)
     {
+        using var shutdown = OperatorShutdown.Create();
         if (args.Length == 0)
         {
             PrintHelp();
@@ -28,9 +29,9 @@ internal static class Program
                 "init-l2" => InitL2Command.Run(rest),
                 "register-chain" => await RegisterChainCommand.RunAsync(rest),
                 "deploy-bridge-adapter" => await DeployBridgeAdapterCommand.RunAsync(rest),
-                "start-sequencer" => StartSequencerCommand.Run(rest),
-                "start-batcher" => StartBatcherCommand.Run(rest),
-                "start-prover" => StartProverCommand.Run(rest),
+                "start-sequencer" => await StartSequencerCommand.RunAsync(rest, cancellationToken: shutdown.Token),
+                "start-batcher" => await StartBatcherCommand.RunAsync(rest, cancellationToken: shutdown.Token),
+                "start-prover" => await StartProverCommand.RunAsync(rest, cancellationToken: shutdown.Token),
                 "submit-batch" => await SubmitBatchCommand.RunAsync(rest),
                 "validate" => ValidateChainConfigCommand.Run(rest),
                 "scaffold-executor" => ScaffoldExecutorCommand.Run(rest),
@@ -80,6 +81,15 @@ internal static class Program
               Add --broadcast --rpc <url> --expected-network <magic> and set
               NEO_N4_OPERATOR_WIF (or select another variable with --wif-env).
               Bridge mapping uses the corresponding --l1-* and --l2-* options.
+
+            Operator processes:
+              init-l2 accepts --node-config and --batcher-node-config and installs
+              each reviewed config as config.json in its isolated deployment root.
+              start-sequencer/start-batcher require --neo-cli <reviewed Neo.CLI path>
+              (or NEO_N4_NEO_CLI); start-prover requires --prover <prove-batch path>
+              (or NEO_N4_PROVE_BATCH). Add --dry-run to validate and print the exact
+              argument-vector launch without starting a child process. Neo.CLI config
+              and storage overrides are rejected; only --verbose may follow `--`.
 
             See doc.md §14.2 for the full design.
             """);

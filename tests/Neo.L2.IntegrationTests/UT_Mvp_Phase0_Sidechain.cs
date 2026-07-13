@@ -210,6 +210,8 @@ public class UT_Mvp_Phase0_Sidechain
         UInt256 txHash,
         CanonicalExecutionEffects effects) : ITransactionExecutor
     {
+        public TransactionEffectsProfile EffectsProfile => TransactionEffectsProfile.CanonicalNativeV1;
+
         public ValueTask<TransactionExecutionResult> ExecuteAsync(
             ReadOnlyMemory<byte> serializedTx,
             BatchBlockContext batchContext,

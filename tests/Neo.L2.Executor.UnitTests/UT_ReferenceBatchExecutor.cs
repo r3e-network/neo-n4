@@ -138,6 +138,8 @@ public class UT_ReferenceBatchExecutor
         UInt256 txHash,
         Executor.Effects.CanonicalExecutionEffects effects) : ITransactionExecutor
     {
+        public TransactionEffectsProfile EffectsProfile => TransactionEffectsProfile.CanonicalNativeV1;
+
         public ValueTask<TransactionExecutionResult> ExecuteAsync(
             ReadOnlyMemory<byte> serializedTx,
             BatchBlockContext batchContext,
@@ -152,6 +154,57 @@ public class UT_ReferenceBatchExecutor
                     GasConsumed = 1,
                     StorageDeltaHash = effects.StorageHash,
                     EventsHash = effects.EventsHash,
+                },
+                Withdrawals = [],
+                Messages = [],
+                Effects = effects,
+            });
+    }
+
+    [TestMethod]
+    public async Task CanonicalNativeEffects_RejectReceiptMismatch()
+    {
+        var transactionHash = new UInt256(Cryptography.Crypto.Hash256(new byte[] { 0x44 }));
+        var effects = UT_CanonicalNativeExecutionAdapter.OutboundEffects();
+        var executor = new ReferenceBatchExecutor(
+            new MismatchedCanonicalEffectsExecutor(transactionHash, effects, UInt256.Zero),
+            new DerivedPostStateRootOracle());
+
+        var exception = await Assert.ThrowsExactlyAsync<InvalidOperationException>(async () =>
+            await executor.ApplyBatchAsync(new BatchExecutionRequest
+            {
+                ChainId = 1099,
+                BatchNumber = 1,
+                PreStateRoot = UInt256.Zero,
+                Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 0x44 } },
+                L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
+                BlockContext = SampleContext(),
+            }));
+
+        StringAssert.Contains(exception.Message, "canonical effects do not match receipt");
+    }
+
+    private sealed class MismatchedCanonicalEffectsExecutor(
+        UInt256 txHash,
+        Executor.Effects.CanonicalExecutionEffects effects,
+        UInt256 receiptEventsHash) : ITransactionExecutor
+    {
+        public TransactionEffectsProfile EffectsProfile => TransactionEffectsProfile.CanonicalNativeV1;
+
+        public ValueTask<TransactionExecutionResult> ExecuteAsync(
+            ReadOnlyMemory<byte> serializedTx,
+            BatchBlockContext batchContext,
+            CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(new TransactionExecutionResult
+            {
+                TxHash = txHash,
+                Receipt = new Receipt
+                {
+                    TxHash = txHash,
+                    Success = true,
+                    GasConsumed = 1,
+                    StorageDeltaHash = effects.StorageHash,
+                    EventsHash = receiptEventsHash,
                 },
                 Withdrawals = [],
                 Messages = [],

@@ -134,6 +134,14 @@ events terminate the batch. An ordinary user contract may emit the same event na
 different script hash cannot create a system withdrawal or message. Empty collections remain
 `UInt256.Zero`.
 
+`ApplicationEngineTransactionExecutor` and `RiscVTransactionExecutor` declare the
+`CanonicalNativeV1` effects profile. `ReferenceBatchExecutor` therefore re-hashes their canonical
+storage/events, requires the hashes to equal the receipt, and ignores any separately projected
+withdrawal/message lists. A custom `ITransactionExecutor` uses `ExecutorDeclared` effects by
+default so domain-specific chains can commit their own deterministic withdrawal/message model;
+such a chain MUST use a matching executor/prover semantic identifier and is not accepted by the
+N4 genesis V1 ZK profile.
+
 ### Stateful RISC-V host boundary
 
 The PolkaVM path calls `neo_riscv_execute_script_with_host` with a transaction-scoped

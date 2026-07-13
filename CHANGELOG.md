@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — execution-effects profile isolation — 2026-07-14
+
+- Added an explicit transaction-effects profile so canonical Neo N4 executors re-hash receipt
+  effects and derive outbox commitments only from the pinned native notification ABI, while
+  custom-chain executors retain their declared deterministic withdrawal/message semantics.
+- Restored custom-executor end-to-end compatibility without weakening the fail-closed native
+  execution/proof boundary, and pinned both ApplicationEngine and RISC-V executors to the
+  canonical native profile with regression coverage.
+
 ### Fixed — executable fraud-proof deployment boundary — 2026-07-14
 
 - Removed advisory `GovernanceFraudVerifier` from the default/live production deployment and

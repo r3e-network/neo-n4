@@ -25,6 +25,7 @@ public class UT_RiscVTransactionExecutor
             RiscVTestData.BuildTransaction([(byte)OpCode.RET]),
             RiscVTestData.Context);
 
+        Assert.AreEqual(TransactionEffectsProfile.CanonicalNativeV1, executor.EffectsProfile);
         Assert.IsTrue(result.Receipt.Success, result.FailureReason);
         Assert.AreEqual(2, result.Receipt.GasConsumed);
         Assert.AreEqual(UInt256.Zero, result.Receipt.StorageDeltaHash);

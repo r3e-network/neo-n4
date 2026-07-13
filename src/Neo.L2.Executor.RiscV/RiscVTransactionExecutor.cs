@@ -52,6 +52,9 @@ public sealed class RiscVTransactionExecutor : ITransactionExecutor
     private readonly HashSet<(UInt160 Sender, uint Nonce)> _consumedNonces = new();
     private readonly Lock _nonceGate = new();
 
+    /// <inheritdoc />
+    public TransactionEffectsProfile EffectsProfile => TransactionEffectsProfile.CanonicalNativeV1;
+
     /// <summary>
     /// Construct a self-contained devnet executor with bootstrapped in-memory Neo state.
     /// Production operators should use the explicit-state constructor.

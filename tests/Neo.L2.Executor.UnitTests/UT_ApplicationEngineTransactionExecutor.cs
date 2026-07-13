@@ -124,6 +124,7 @@ public class UT_ApplicationEngineTransactionExecutor
 
         var result = await executor.ExecuteAsync(serialized, Ctx);
 
+        Assert.AreEqual(TransactionEffectsProfile.CanonicalNativeV1, executor.EffectsProfile);
         Assert.IsTrue(result.Receipt.Success, result.FailureReason);
         Assert.AreEqual(result.Effects.StorageHash, result.Receipt.StorageDeltaHash);
         Assert.AreEqual(result.Effects.EventsHash, result.Receipt.EventsHash);

@@ -45,6 +45,7 @@ namespace Neo.L2.Executor;
 public sealed class ReferenceBatchExecutor : IL2BatchExecutor
 {
     private readonly ITransactionExecutor _txExecutor;
+    private readonly TransactionEffectsProfile _effectsProfile;
     private readonly IL1MessageProcessor? _l1Processor;
     private readonly IPostStateRootOracle _postStateRootOracle;
 
@@ -57,6 +58,13 @@ public sealed class ReferenceBatchExecutor : IL2BatchExecutor
         ArgumentNullException.ThrowIfNull(txExecutor);
         ArgumentNullException.ThrowIfNull(postStateRootOracle);
         _txExecutor = txExecutor;
+        _effectsProfile = txExecutor.EffectsProfile;
+        if (_effectsProfile is not TransactionEffectsProfile.ExecutorDeclared
+            and not TransactionEffectsProfile.CanonicalNativeV1)
+            throw new ArgumentOutOfRangeException(
+                nameof(txExecutor),
+                _effectsProfile,
+                "ITransactionExecutor returned an unsupported effects profile");
         _postStateRootOracle = postStateRootOracle;
         _l1Processor = l1Processor;
     }
@@ -108,14 +116,8 @@ public sealed class ReferenceBatchExecutor : IL2BatchExecutor
             txHashes.Add(result.TxHash);
             totalGas += result.Receipt.GasConsumed;
 
-            if (!result.Effects.StorageHash.Equals(
-                    Effects.CanonicalEffectsHasher.HashStorage(result.Effects.StorageChanges))
-                || !result.Effects.EventsHash.Equals(
-                    Effects.CanonicalEffectsHasher.HashEvents(result.Effects.Events))
-                || !result.Receipt.StorageDeltaHash.Equals(result.Effects.StorageHash)
-                || !result.Receipt.EventsHash.Equals(result.Effects.EventsHash))
-                throw new InvalidOperationException(
-                    $"ITransactionExecutor canonical effects do not match receipt {result.TxHash}");
+            if (_effectsProfile == TransactionEffectsProfile.CanonicalNativeV1)
+                ValidateCanonicalNativeEffects(result);
 
             // Per L2 semantics, a failed transaction reverts all its state changes —
             // including emitted withdrawals and L2-side cross-chain messages. The
@@ -127,9 +129,15 @@ public sealed class ReferenceBatchExecutor : IL2BatchExecutor
             // for the leaked withdrawal is checked against the user's actual state.
             if (!result.Receipt.Success) continue;
 
-            var canonical = CanonicalNativeEffectsAdapter.Derive(request.ChainId, result.Effects);
-            foreach (var withdrawal in canonical.Withdrawals) withdrawalTree.Add(withdrawal);
-            foreach (var message in canonical.Messages) outbox.Add(message);
+            if (_effectsProfile == TransactionEffectsProfile.CanonicalNativeV1)
+            {
+                var canonical = CanonicalNativeEffectsAdapter.Derive(request.ChainId, result.Effects);
+                foreach (var withdrawal in canonical.Withdrawals) withdrawalTree.Add(withdrawal);
+                foreach (var message in canonical.Messages) outbox.Add(message);
+                continue;
+            }
+
+            AddExecutorDeclaredEffects(result, withdrawalTree, outbox);
         }
 
         // 3. Compute the four batch-level roots.
@@ -151,6 +159,53 @@ public sealed class ReferenceBatchExecutor : IL2BatchExecutor
             TxRoot = txRoot,
             GasConsumed = totalGas,
         };
+    }
+
+    private static void ValidateCanonicalNativeEffects(TransactionExecutionResult result)
+    {
+        if (result.Effects is null)
+            throw new InvalidOperationException(
+                $"ITransactionExecutor returned null canonical effects for tx {result.TxHash}");
+        if (result.Effects.StorageChanges is null || result.Effects.Events is null)
+            throw new InvalidOperationException(
+                $"ITransactionExecutor returned incomplete canonical effects for tx {result.TxHash}");
+
+        var storageHash = Effects.CanonicalEffectsHasher.HashStorage(result.Effects.StorageChanges);
+        var eventsHash = Effects.CanonicalEffectsHasher.HashEvents(result.Effects.Events);
+        if (!Equals(result.Effects.StorageHash, storageHash)
+            || !Equals(result.Effects.EventsHash, eventsHash)
+            || !Equals(result.Receipt.StorageDeltaHash, result.Effects.StorageHash)
+            || !Equals(result.Receipt.EventsHash, result.Effects.EventsHash))
+            throw new InvalidOperationException(
+                $"ITransactionExecutor canonical effects do not match receipt {result.TxHash}");
+    }
+
+    private static void AddExecutorDeclaredEffects(
+        TransactionExecutionResult result,
+        WithdrawalTree withdrawalTree,
+        L2Outbox outbox)
+    {
+        var withdrawals = result.Withdrawals
+            ?? throw new InvalidOperationException(
+                $"ITransactionExecutor returned null result.Withdrawals for tx {result.TxHash}");
+        var messages = result.Messages
+            ?? throw new InvalidOperationException(
+                $"ITransactionExecutor returned null result.Messages for tx {result.TxHash}");
+
+        for (var index = 0; index < withdrawals.Count; index++)
+        {
+            var withdrawal = withdrawals[index]
+                ?? throw new InvalidOperationException(
+                    $"ITransactionExecutor returned null result.Withdrawals[{index}] for tx {result.TxHash}");
+            withdrawalTree.Add(withdrawal);
+        }
+        for (var index = 0; index < messages.Count; index++)
+        {
+            var message = messages[index]
+                ?? throw new InvalidOperationException(
+                    $"ITransactionExecutor returned null result.Messages[{index}] for tx {result.TxHash}");
+            outbox.Add(message);
+        }
     }
 }
 

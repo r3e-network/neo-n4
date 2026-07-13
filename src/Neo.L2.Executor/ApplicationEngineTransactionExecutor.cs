@@ -60,6 +60,9 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
     private readonly HashSet<(UInt160 Sender, uint Nonce)> _consumedNonces = new();
     private readonly Lock _nonceGate = new();
 
+    /// <inheritdoc />
+    public TransactionEffectsProfile EffectsProfile => TransactionEffectsProfile.CanonicalNativeV1;
+
     /// <summary>
     /// Construct.
     /// </summary>

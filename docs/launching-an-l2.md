@@ -40,8 +40,12 @@ will use `ReferenceTransactionExecutor`).
 # 1. Generate config from a template (rollup / zk-rollup / validium / sidechain).
 neo-stack create-chain --chain-id 1099 --template rollup --output ./my-l2
 
-# 2. Initialize the node working directory (data/ logs/ Plugins/).
-neo-stack init-l2 --chain-id 1099 --output ./my-l2
+# 2. Review a Neo.CLI protocol config whose ValidatorsCount and genesis
+#    StandbyCommittee match chain.config.json validators, then initialize the
+#    sequencer/batcher/prover state directories without overwriting that config.
+neo-stack init-l2 --chain-id 1099 --output ./my-l2 \
+    --node-config /secure/reviewed/sequencer-config.json \
+    --batcher-node-config /secure/reviewed/batcher-config.json
 
 # 3. Print the L1 registration plan (run during permissioned admission phase
 #    or governance-approved semi-permissionless / permissionless modes).
@@ -54,17 +58,78 @@ neo-stack register-chain --chain-id 1099 --output ./my-l2 \
 # 4. Print the bridge adapter deploy plan (one-time per new chain).
 neo-stack deploy-bridge-adapter --chain-id 1099 --output ./my-l2
 
-# 5. Run sequencer + batcher + prover. Each subcommand prints its preflight
-#    checks and exits zero when the chain is ready to accept transactions.
-neo-stack start-sequencer --chain-id 1099 --output ./my-l2 &
-neo-stack start-batcher  --chain-id 1099 --output ./my-l2 &
-neo-stack start-prover   --chain-id 1099 --output ./my-l2 &
+# 5. Put a reviewed Neo.CLI + DBFTPlugin deployment under ./my-l2/node and the
+#    release prove-batch binary under ./my-l2/prover. These commands supervise
+#    the real processes and remain attached so systemd/k8s sees the child exit.
+neo-stack start-sequencer --chain-id 1099 --output ./my-l2 \
+    --neo-cli ./my-l2/node/Neo.CLI.dll
+neo-stack start-prover --chain-id 1099 --output ./my-l2 \
+    --prover ./my-l2/prover/prove-batch
+
+# Optional dedicated batcher follower: use a separate Neo.CLI deployment root
+# and data directory. Never point two Neo.CLI processes at the same database.
+neo-stack start-batcher --chain-id 1099 --output ./my-l2 \
+    --neo-cli ./my-l2/batcher-node/Neo.CLI.dll \
+    --data-dir ./my-l2/batcher-data
 ```
 
-Wallet-gated steps (#3, #4, and `submit-batch`) print the structured operator
-plan — target contract, args, signed-transaction template, numbered next-steps —
-rather than auto-signing. Operators feed the plan into their wallet of choice
-(NEP-6 keystore, Ledger, etc.).
+Wallet-gated steps (#3, #4, and `submit-batch`) retain deterministic plan mode.
+With `--broadcast --rpc <url> --expected-network <magic>`, they sign through the
+shared signer boundary, run an `invokescript` preflight, calculate exact fees,
+broadcast, and wait for a HALT application log. The built-in CLI signer reads a
+WIF from `NEO_N4_OPERATOR_WIF`; production HSM/KMS integrations implement
+`INeoTransactionSigner` without changing transaction construction.
+
+### Neo.CLI bundle and dBFT committee state
+
+`r3e-network/neo-node` is not published, so this repository deliberately does
+not fabricate or auto-download a mutable node distribution. Build the mature
+Neo.CLI and DBFTPlugin sources you have reviewed against the pinned
+`r3e-network/neo` core, then deploy each role with plugins adjacent to the
+Neo.CLI entry assembly:
+
+```text
+my-l2/node/
+├── Neo.CLI.dll
+├── config.json
+└── Plugins/
+    └── DBFTPlugin/
+        ├── DBFTPlugin.dll
+        └── DBFTPlugin.json
+```
+
+`config.json` must live beside the Neo.CLI entry assembly. Its
+`ApplicationConfiguration.Storage.Path` must resolve to the role's isolated data
+directory; the sequencer config must also enable `UnlockWallet.IsActive`, name an
+existing wallet, and pair with `DBFTPlugin.json` where
+`PluginConfiguration.AutoStart=true`. The batcher has its own deployment root,
+`config.json`, database, and `Neo.Plugins.L2Batch` config with the same `ChainId`.
+`neo-stack` intentionally does not pass Neo.CLI `--config` or `--db-path`
+overrides: current Neo.CLI option binding reconstructs wallet settings and can
+drop the auto-unlock flag, leaving DBFTPlugin loaded but consensus stopped.
+
+The DBFTPlugin remains unmodified. Its existing call to
+`NativeContract.NEO.GetNextBlockValidators` now reads the canonical validator
+set stored by `L2SystemConfigContract`. The genesis committee authorizes initial
+configuration; subsequent committee rotation is an owner-authorized native
+transaction, not an off-chain callback:
+
+```bash
+neo-stack start-sequencer --chain-id 1099 --output ./my-l2 \
+    --node-config ./my-l2/node/config.json \
+    --sync-only --broadcast --rpc http://existing-l2-rpc:10332 \
+    --expected-network <magic>
+```
+
+The command parses and canonicalizes `chain.config.json.validators`, checks its
+count against the node's `ValidatorsCount`, simulates the native call, signs,
+broadcasts, and confirms the pending rotation. The old committee then commits the
+new `NextConsensus` at the next deterministic committee-refresh block; only after
+that block does native state promote pending to active. `neo-stack` polls
+`getSequencerValidators` until that activation (bounded by
+`--committee-activation-timeout-seconds`). A genesis-matching set can start without
+RPC; a rotated set must either complete this scheduled activation or already match
+finalized native state queried through `--rpc`.
 
 For a fully in-process demo without L1, see `tools/Neo.L2.Devnet`:
 
@@ -282,9 +347,10 @@ classes at the same call sites.
   persistent NeoFS-like store when `--data-dir` is set; `External`
   uses `InMemoryDAWriter` for tests/demos. Swap for a real NeoFS SDK /
   L1 `sendrawtransaction`.
-- **`ISequencerCommitteeProvider`** — Default:
-  `InMemorySequencerCommitteeProvider`. Swap to wire to neo's
-  `DBFTPlugin` consensus selector.
+- **`ISequencerCommitteeProvider`** — Registry/source abstraction for discovering
+  the desired set. Production consensus does not call an external provider during
+  a dBFT round; use `SequencerCommitteeTransactionBuilder` to atomically commit the
+  selected set into native consensus state.
 - **`IRoundProver`** (Phase 5 only) — Default: `PassThroughRoundProver`.
   Swap for SP1 Compress / Halo2 accumulator / Risc0 fold.
 
@@ -455,15 +521,13 @@ public sealed class StakeWeightedSequencerProvider : ISequencerCommitteeProvider
 }
 ```
 
-Wire it through whatever component owns the sequencer reference (typically
-the L2 node's consensus selector — the existing `InMemorySequencerCommitteeProvider`
-in `Neo.L2.Sequencer` shows the production-ready persistence + lifecycle
-pattern your custom provider can follow if you also need restart-survival).
-
-The L2 node's dBFT plugin polls this interface before each round, so switching
-the provider is the only on-chain-visible step needed to swap sequencer models —
-NeoHub's `SequencerRegistry` continues to track *who registered* but the
-*selection policy* is the L2's call.
+Use the provider to compute the intended active set, then pass those keys through
+`SequencerCommitteeTransactionBuilder.BuildSetValidatorsScript` and submit the
+result under L2 governance. The dBFT plugin reads only the finalized native state,
+which keeps every validator deterministic even if an L1 RPC endpoint is unavailable
+or two operators observe registry events at different times. NeoHub's
+`SequencerRegistry` remains the admission source; the confirmed L2 transaction is
+the consensus activation boundary.
 
 ### Worked example: writing a custom `IL2Prover` + `IL2ProofVerifier`
 
@@ -751,6 +815,10 @@ prove-batch daemon \
     --watch /var/lib/neo-l2/batches \
     --archive /var/lib/neo-l2/proven \
     --poll-secs 5
+
+# Equivalent supervised launch from the chain directory:
+neo-stack start-prover --chain-id 1099 --output ./my-l2 \
+    --prover ./my-l2/prover/prove-batch -- --poll-secs 5
 ```
 
 The daemon polls `--watch` for `*.batch.bin`, generates a real ZK proof

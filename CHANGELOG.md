@@ -25,6 +25,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Replaced incorrect Neo Project authorship with R3E Network across package metadata and all 25 NeoHub contract manifests, regenerated the 24 VM testing artifacts from fresh `nccs` output, and added a fresh-manifest regression gate for maintainer attribution.
 
+### Production dBFT operator integration — 2026-07-13
+
+- Added committee-authorized initialization plus an owner-authorized pending/active L2
+  sequencer validator set;
+  stock `GetNextBlockValidators` / refresh-block `ComputeNextBlockValidators` selection now
+  commits `NextConsensus` before activation, so unmodified DBFT never switches early.
+- Added canonical committee transaction construction plus
+  `start-sequencer --sync-committee` / `--sync-only` governance submission and confirmation.
+- Replaced `start-{sequencer,batcher,prover}` plan printers with supervised real
+  Neo.CLI/SP1 child processes: no shell, fixed config/data ownership, exact exit codes,
+  SIGINT/SIGTERM grace, separate batcher storage, plugin/config/network fail-closed checks.
+- Extended `init-l2` with non-overwriting sequencer and batcher Neo.CLI config installation
+  plus isolated node, batcher, prover-inbox, and prover-archive directories.
+
 ### Stateful SP1 execution witness V1 — 2026-07-13
 
 - Reused the canonical `ProofWitnessArtifactV1` envelope for SP1 and added bounded `NEO4STW1` state/code/manifest witness plus `NEO4EFX1` effects sections.

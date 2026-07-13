@@ -16,8 +16,8 @@
 > persistence, comprehensive test coverage, and documented operator seams. Provenance
 > aside, treat it as you would any third-party implementation of a public protocol:
 > review the [security model](docs/security-model.md), audit before mainnet use, and
-> configure the documented production seams (operator key/HSM policy, real NeoFS adapter, dBFT
-> consensus selector) per your deployment.
+> wire the documented production seams (HSM/KMS signer, real NeoFS adapter, and a
+> reviewed Neo.CLI/DBFTPlugin release bundle) per your deployment.
 
 `neo4` is the consolidation repo for the **Neo Elastic Network** — a system that uses
 the [`r3e-network/neo`](https://github.com/r3e-network/neo) Neo core fork as the L2

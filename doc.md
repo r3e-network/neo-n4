@@ -475,6 +475,16 @@ L1 settlement finality:
   来自 NeoHub accepted batch/proof，用于 withdrawal、canonical bridge、跨 L2 消息
 ```
 
+实现约束：dBFT 共识轮次不得直接依赖 L1 RPC 或进程内
+`ISequencerCommitteeProvider` 回调，否则不同 validator 可能在同一高度观察到不同集合。
+NeoHub `SequencerRegistry` 是准入来源；genesis committee 先授权初始化并确定 L2 owner，
+之后由 owner 授权的 `L2SystemConfigContract.setSequencerValidators` 交易把规范排序后的集合写入 pending 状态；
+旧集合在下一个确定性 committee-refresh 块先提交新的 `NextConsensus`，该块持久化时再将
+pending 原子提升为 active。r3e Neo core 的 `Governance.GetNextBlockValidators` 与
+`ComputeNextBlockValidators` 分别读取 active / pending，因此现有 DBFTPlugin 无需定制
+selector，也不会出现前一块 `NextConsensus` 与下一块签名集合不一致。未配置时仅使用
+genesis `StandbyCommittee`，已配置但计数与协议 `ValidatorsCount` 不一致时 fail closed。
+
 ---
 
 ## 7.2 Batcher
@@ -1125,11 +1135,15 @@ neo-stack create-chain --template rollup --vm neovm2-riscv
 neo-stack init-l2 --chain-id 1001 --da neofs
 neo-stack register-chain --l1 neo-n3-testnet
 neo-stack deploy-bridge-adapter
-neo-stack start-sequencer
-neo-stack start-batcher
-neo-stack start-prover
+neo-stack start-sequencer --neo-cli <reviewed Neo.CLI entry>
+neo-stack start-batcher --neo-cli <dedicated follower Neo.CLI entry> --data-dir <separate data dir>
+neo-stack start-prover --prover <release prove-batch binary>
 neo-stack submit-batch
 ```
+
+`start-*` 必须启动并监督真实 operator 进程，而不是只打印计划：禁止 shell 拼接，保留
+子进程退出码，SIGINT/SIGTERM 先优雅终止再做有界强杀。Neo.CLI/DBFTPlugin 发布包由
+operator 审计并提供；仓库不得假装存在尚未发布的 `r3e-network/neo-node` 二进制。
 
 ## 14.3 Developer Tooling
 

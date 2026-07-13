@@ -121,12 +121,14 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
     /// <remarks>
     /// See doc.md §3.2, §7.5, §14.2, and §15.4. The caller retains ownership of
     /// <paramref name="signer"/> and all explicitly supplied execution, DA, store, prover, and
-    /// batch-plugin dependencies. This plugin owns only the RPC client, transaction sender,
-    /// settlement client, forced-inclusion finalizer, and forced-inclusion source it constructs.
+    /// batch-plugin dependencies, including <paramref name="forcedInclusionEventStore"/>. This
+    /// plugin owns only the RPC client, transaction sender, settlement client, forced-inclusion
+    /// scanner/finalizer, and forced-inclusion source it constructs.
     /// </remarks>
     /// <returns>
-    /// The owned RPC forced-inclusion source so the operator's L1 event watcher can forward
-    /// newly observed nonces through <see cref="RpcForcedInclusionSource.RegisterNonce"/>.
+    /// The owned RPC forced-inclusion source. Its durable scanner discovers finalized L1 enqueue
+    /// events automatically; <see cref="RpcForcedInclusionSource.RegisterNonce"/> remains a
+    /// migration/recovery hook rather than the production discovery path.
     /// </returns>
     public RpcForcedInclusionSource WireProduction(
         L2BatchPlugin batchPlugin,
@@ -136,7 +138,11 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         IL2Prover prover,
         ProofWitnessPipelineProfile profile,
         INeoTransactionSigner signer,
-        IEnumerable<ulong> knownForcedInclusionNonces,
+        IL2KeyValueStore forcedInclusionEventStore,
+        uint forcedInclusionDeploymentHeight,
+        uint forcedInclusionFinalityDepth = 1,
+        int forcedInclusionMaximumBlocksPerScan = 256,
+        IEnumerable<ulong>? knownForcedInclusionNonces = null,
         int? maxAutomaticRetries = null)
     {
         ArgumentNullException.ThrowIfNull(batchPlugin);
@@ -146,12 +152,18 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         ArgumentNullException.ThrowIfNull(prover);
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(signer);
-        ArgumentNullException.ThrowIfNull(knownForcedInclusionNonces);
+        ArgumentNullException.ThrowIfNull(forcedInclusionEventStore);
         if (_pipeline is not null || _productionComposition is not null)
             throw new InvalidOperationException("settlement pipeline is already wired");
 
         var composition = L2SettlementProductionComposition.Create(
-            _settings, signer, knownForcedInclusionNonces);
+            _settings,
+            signer,
+            forcedInclusionEventStore,
+            forcedInclusionDeploymentHeight,
+            forcedInclusionFinalityDepth,
+            forcedInclusionMaximumBlocksPerScan,
+            knownForcedInclusionNonces);
         try
         {
             Wire(

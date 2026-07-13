@@ -85,9 +85,12 @@ WIF from `NEO_N4_OPERATOR_WIF`; production HSM/KMS integrations implement
 `L2SettlementPlugin.WireProduction(...)` is the production composition root for L1
 settlement. It consumes the plugin's `PluginConfiguration` and constructs one shared
 `JsonRpcClient`, a network-pinned `RpcTransactionSender`, `RpcSettlementClient`,
-`RpcForcedInclusionFinalizationClient`, and `RpcForcedInclusionSource`. The source and
-finalizer are always wired as a pair; custom/test dependency injection remains available
-through `Wire(...)`, which rejects a forced-inclusion source without a finalizer.
+`RpcForcedInclusionEventScanner`, `RpcForcedInclusionFinalizationClient`, and
+`RpcForcedInclusionSource`. The scanner persists each observed nonce before its finalized-block
+cursor, verifies the previous block hash on restart, and fails closed on a finalized-history
+mismatch. Scanner, source, and finalizer are always wired as one production unit; custom/test
+dependency injection remains available through `Wire(...)`, which rejects a forced-inclusion
+source without a finalizer.
 
 Configure every production identity explicitly in
 `Plugins/Neo.Plugins.L2Settlement/config.json` before calling `WireProduction`:
@@ -121,11 +124,17 @@ var forcedSource = settlementPlugin.WireProduction(
     prover,
     profile,
     hsmOrKmsSigner,
-    knownForcedInclusionNonces,
+    forcedInclusionEventRocksDbStore,
+    forcedInclusionDeploymentHeight,
+    forcedInclusionFinalityDepth: 1,
+    knownForcedInclusionNonces: migrationSeed,
     maxAutomaticRetries: 3);
-
-forcedTxWatcher.NonceObserved += nonce => forcedSource.RegisterNonce(nonce);
 ```
+
+`forcedInclusionDeploymentHeight` is the block that deployed the configured contract. The
+caller-owned event store must be durable in production. `knownForcedInclusionNonces` and
+`RegisterNonce` are recovery/migration hooks only; normal operation discovers
+`ForcedTxEnqueued` from finalized L1 blocks through `getblock` + `getapplicationlog`.
 
 Every settlement transaction is preflighted, signed for `ExpectedNetwork`, broadcast, and
 confirmed with a `HALT` application log before the durable pipeline records success; zero

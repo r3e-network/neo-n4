@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — forced-inclusion event discovery — 2026-07-14
+
+- Replaced the operator-supplied nonce watcher gap with a durable finalized-L1 scanner wired by
+  `L2SettlementPlugin.WireProduction`. It scans `getblock`/`getapplicationlog`, accepts only the
+  configured contract's canonical `ForcedTxEnqueued` payloads, persists each nonce before its
+  cursor, verifies the previous block hash on restart, and fails closed on malformed logs or
+  finalized-history changes.
+- Production wiring now requires the contract deployment height and a caller-owned durable event
+  store. Manual nonce registration remains available only for controlled migration/recovery.
+
 ### Fixed — Rust dependency advisories — 2026-07-14
 
 - Refreshed all production Rust lockfiles to remove the current RustSec

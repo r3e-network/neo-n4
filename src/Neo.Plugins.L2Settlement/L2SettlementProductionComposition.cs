@@ -1,5 +1,6 @@
 using Neo.Extensions.VM;
 using Neo.L2.ForcedInclusion;
+using Neo.L2.Persistence;
 using Neo.L2.Settlement.Rpc;
 using Neo.SmartContract;
 using Neo.VM;
@@ -16,6 +17,7 @@ internal sealed class L2SettlementProductionComposition : IDisposable
         RpcTransactionSender transactionSender,
         RpcSettlementClient settlementClient,
         RpcForcedInclusionFinalizationClient forcedInclusionFinalizer,
+        RpcForcedInclusionEventScanner forcedInclusionEventScanner,
         RpcForcedInclusionSource forcedInclusionSource)
     {
         Configuration = configuration;
@@ -23,6 +25,7 @@ internal sealed class L2SettlementProductionComposition : IDisposable
         TransactionSender = transactionSender;
         SettlementClient = settlementClient;
         ForcedInclusionFinalizer = forcedInclusionFinalizer;
+        ForcedInclusionEventScanner = forcedInclusionEventScanner;
         ForcedInclusionSource = forcedInclusionSource;
     }
 
@@ -36,6 +39,8 @@ internal sealed class L2SettlementProductionComposition : IDisposable
 
     internal RpcForcedInclusionFinalizationClient ForcedInclusionFinalizer { get; }
 
+    internal RpcForcedInclusionEventScanner ForcedInclusionEventScanner { get; }
+
     internal RpcForcedInclusionSource ForcedInclusionSource { get; }
 
     internal bool IsDisposed => _disposed;
@@ -43,11 +48,15 @@ internal sealed class L2SettlementProductionComposition : IDisposable
     internal static L2SettlementProductionComposition Create(
         L2SettlementSettings settings,
         INeoTransactionSigner signer,
-        IEnumerable<ulong> knownForcedInclusionNonces)
+        IL2KeyValueStore forcedInclusionEventStore,
+        uint forcedInclusionDeploymentHeight,
+        uint forcedInclusionFinalityDepth = 1,
+        int forcedInclusionMaximumBlocksPerScan = 256,
+        IEnumerable<ulong>? knownForcedInclusionNonces = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(signer);
-        ArgumentNullException.ThrowIfNull(knownForcedInclusionNonces);
+        ArgumentNullException.ThrowIfNull(forcedInclusionEventStore);
         var signerAccount = signer.Account
             ?? throw new InvalidDataException("production settlement signer returned a null account");
         if (signerAccount.Equals(UInt160.Zero))
@@ -57,6 +66,7 @@ internal sealed class L2SettlementProductionComposition : IDisposable
         var configuration = settings.ValidateProduction();
         JsonRpcClient? rpc = null;
         RpcSettlementClient? settlementClient = null;
+        RpcForcedInclusionEventScanner? forcedInclusionEventScanner = null;
         RpcForcedInclusionSource? forcedInclusionSource = null;
         try
         {
@@ -78,23 +88,36 @@ internal sealed class L2SettlementProductionComposition : IDisposable
                 transactionSender,
                 configuration.SettlementManagerHash,
                 configuration.ForcedInclusionHash);
+            forcedInclusionEventScanner = new RpcForcedInclusionEventScanner(
+                rpc,
+                configuration.ForcedInclusionHash,
+                configuration.ChainId,
+                forcedInclusionEventStore,
+                forcedInclusionDeploymentHeight,
+                forcedInclusionFinalityDepth,
+                forcedInclusionMaximumBlocksPerScan);
             forcedInclusionSource = new RpcForcedInclusionSource(
                 rpc,
                 configuration.ForcedInclusionHash,
                 configuration.ChainId,
-                knownForcedInclusionNonces,
-                ownsRpc: false);
+                knownForcedInclusionNonces ?? Array.Empty<ulong>(),
+                ownsRpc: false,
+                eventScanner: forcedInclusionEventScanner);
             return new L2SettlementProductionComposition(
                 configuration,
                 rpc,
                 transactionSender,
                 settlementClient,
                 forcedInclusionFinalizer,
+                forcedInclusionEventScanner,
                 forcedInclusionSource);
         }
         catch
         {
-            forcedInclusionSource?.Dispose();
+            if (forcedInclusionSource is not null)
+                forcedInclusionSource.Dispose();
+            else
+                forcedInclusionEventScanner?.Dispose();
             if (settlementClient is not null)
                 settlementClient.Dispose();
             else

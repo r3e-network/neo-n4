@@ -16,6 +16,7 @@ public class UT_L2SettlementProductionWiring
     public void WireProduction_ConstructsCanonicalRpcStackAndForcedPair()
     {
         using var backend = new InMemoryKeyValueStore();
+        using var forcedEvents = new InMemoryKeyValueStore();
         using var store = new KeyValueProofWitnessStore(backend);
         using var batch = new L2BatchPlugin();
         using var settlement = new L2SettlementPlugin(ProductionSettings());
@@ -29,7 +30,9 @@ public class UT_L2SettlementProductionWiring
             new TestProver(),
             ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig),
             signer,
-            new ulong[] { 3, 7 });
+            forcedEvents,
+            forcedInclusionDeploymentHeight: 123,
+            knownForcedInclusionNonces: new ulong[] { 3, 7 });
 
         var composition = settlement.ProductionComposition;
         Assert.IsNotNull(composition);
@@ -38,6 +41,8 @@ public class UT_L2SettlementProductionWiring
         Assert.IsInstanceOfType<RpcSettlementClient>(composition.SettlementClient);
         Assert.IsInstanceOfType<RpcForcedInclusionFinalizationClient>(
             composition.ForcedInclusionFinalizer);
+        Assert.IsInstanceOfType<RpcForcedInclusionEventScanner>(
+            composition.ForcedInclusionEventScanner);
         Assert.AreEqual(new Uri("http://127.0.0.1:10332/"), composition.Rpc.Endpoint);
         Assert.AreEqual(ChainId, composition.Configuration.ChainId);
         Assert.AreEqual(860833102u, composition.Configuration.ExpectedNetwork);
@@ -48,6 +53,7 @@ public class UT_L2SettlementProductionWiring
     public async Task Dispose_ProductionStackDisposesOwnedRpcButNotCallerSigner()
     {
         using var backend = new InMemoryKeyValueStore();
+        using var forcedEvents = new InMemoryKeyValueStore();
         using var store = new KeyValueProofWitnessStore(backend);
         using var batch = new L2BatchPlugin();
         var settlement = new L2SettlementPlugin(ProductionSettings());
@@ -60,7 +66,8 @@ public class UT_L2SettlementProductionWiring
             new TestProver(),
             ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig),
             signer,
-            Array.Empty<ulong>());
+            forcedEvents,
+            forcedInclusionDeploymentHeight: 123);
         var composition = settlement.ProductionComposition;
         Assert.IsNotNull(composition);
 
@@ -77,12 +84,13 @@ public class UT_L2SettlementProductionWiring
     public void WireProduction_RejectsNullOrZeroAccountSigner()
     {
         var settings = ProductionSettings();
+        using var forcedEvents = new InMemoryKeyValueStore();
         Assert.ThrowsExactly<ArgumentNullException>(() =>
             L2SettlementProductionComposition.Create(
-                settings, null!, Array.Empty<ulong>()));
+                settings, null!, forcedEvents, 123));
         Assert.ThrowsExactly<InvalidDataException>(() =>
             L2SettlementProductionComposition.Create(
-                settings, new TrackingSigner(UInt160.Zero), Array.Empty<ulong>()));
+                settings, new TrackingSigner(UInt160.Zero), forcedEvents, 123));
     }
 
     [TestMethod]

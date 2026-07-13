@@ -4,6 +4,35 @@ namespace Neo.Hub.Deploy.UnitTests;
 public class UT_ProductionGapClosure
 {
     [TestMethod]
+    public void ProductionScaffold_BindsAndLocksRealSp1Verifier()
+    {
+        var plan = ScaffoldPlan.Default();
+        var names = plan.Steps.Select(step => step.Name).ToHashSet(StringComparer.Ordinal);
+
+        CollectionAssert.Contains(names.ToArray(), "Sp1Groth16Verifier",
+            "the production bundle must ship the SP1 Groth16 terminal verifier");
+
+        var bundle = DeployPlanner.Plan(plan, name => H((byte)(name.Length & 0xFF)));
+        var actions = ScaffoldPlan.PostDeployActions(bundle).ToArray();
+
+        Assert.IsTrue(actions.Any(action => action.Contains(
+            "ContractZkVerifier.RegisterProofVerifier(ProofSystem.Sp1=1, Sp1Groth16Verifier",
+            StringComparison.Ordinal)),
+            "the production wiring must route SP1 proof math to the in-repo terminal verifier");
+        Assert.IsTrue(actions.Any(action => action.Contains(
+            "ContractZkVerifier.DisableEnvelopeOnlyPermanently(ProofSystem.Sp1=1)",
+            StringComparison.Ordinal)),
+            "the production wiring must irreversibly close the envelope-only escape hatch");
+        Assert.IsTrue(actions.Any(action => action.Contains(
+            "ContractZkVerifier.LockProofSystemConfiguration(ProofSystem.Sp1=1, PROGRAM_VKEY_REPLACE_ME)",
+            StringComparison.Ordinal)),
+            "the production wiring must freeze the exact SP1 vkey and terminal verifier");
+        Assert.IsFalse(actions.Any(action => action.Contains(
+            "SetEnvelopeOnlyAllowed", StringComparison.Ordinal)),
+            "production deployment instructions must never enable envelope-only acceptance");
+    }
+
+    [TestMethod]
     public void Scaffold_IncludesDAValidatorAndL1TxFilter()
     {
         var plan = ScaffoldPlan.Default();
@@ -224,10 +253,10 @@ public class UT_ProductionGapClosure
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.AreEqual(24, neoHubContracts.Length,
-            "contracts/NeoHub.* must contain the 23 production contracts plus the test-only ExternalBridgeStubVerifier.");
-        Assert.AreEqual(23, productionSteps.Length,
-            "The default NeoHub deploy plan must emit only the 23 production contracts.");
+        Assert.AreEqual(25, neoHubContracts.Length,
+            "contracts/NeoHub.* must contain the 24 production contracts plus the test-only ExternalBridgeStubVerifier.");
+        Assert.AreEqual(24, productionSteps.Length,
+            "The default NeoHub deploy plan must emit only the 24 production contracts.");
         CollectionAssert.Contains(neoHubContracts, "ExternalBridgeStubVerifier");
         CollectionAssert.DoesNotContain(productionSteps, "ExternalBridgeStubVerifier",
             "ExternalBridgeStubVerifier is a dev/test helper and must not ship in the production NeoHub deploy bundle.");
@@ -259,8 +288,8 @@ public class UT_ProductionGapClosure
         }
 
         var readme = File.ReadAllText(Path.Combine(root, "README.md"));
-        StringAssert.Contains(readme, "24 NeoHub L1 deployable contracts");
-        StringAssert.Contains(readme, "23 production");
+        StringAssert.Contains(readme, "25 NeoHub L1 deployable contracts");
+        StringAssert.Contains(readme, "24 production");
     }
 
     [TestMethod]

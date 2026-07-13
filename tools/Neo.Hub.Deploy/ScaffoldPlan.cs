@@ -5,7 +5,8 @@ namespace Neo.Hub.Deploy;
 /// <summary>
 /// Generates the canonical default <see cref="DeployPlan"/> that matches the layout in
 /// doc.md §3.2 and §13.1. The 15 core NeoHub contracts deploy in dependency order, plus
-/// one contract-deployed ZK verifier router and two stateless fraud-verifier reference contracts (<c>GovernanceFraudVerifier</c> for
+/// the contract-deployed ZK verifier router, its pinned SP1 Groth16 terminal verifier,
+/// and two stateless fraud-verifier reference contracts (<c>GovernanceFraudVerifier</c> for
 /// v1/v2 structural verification and <c>RestrictedExecutionFraudVerifier</c> for
 /// trustless v3 storage-proof verification). L2 native contracts are listed but
 /// commented as "deploy on the L2", not the L1.
@@ -32,6 +33,10 @@ public static class ScaffoldPlan
                 Step("ContractZkVerifier",
                     "contracts/NeoHub.ContractZkVerifier/bin/sc/NeoHub.ContractZkVerifier.nef",
                     OwnerOnly()),
+
+                Step("Sp1Groth16Verifier",
+                    "contracts/NeoHub.Sp1Groth16Verifier/bin/sc/NeoHub.Sp1Groth16Verifier.nef",
+                    new JArray()),
 
                 Step("TokenRegistry",
                     "contracts/NeoHub.TokenRegistry/bin/sc/NeoHub.TokenRegistry.nef",
@@ -160,11 +165,18 @@ public static class ScaffoldPlan
                     "contracts/NeoHub.ExternalBridgeRegistry/bin/sc/NeoHub.ExternalBridgeRegistry.nef",
                     OwnerOnly()),
 
-                // ExternalBridgeEscrow's _deploy takes (owner, registry).
-                // The registry hash is resolved via $step:ExternalBridgeRegistry.
+                // ExternalBridgeEscrow's _deploy takes (owner, registry, neoChainId).
+                // The registry hash is resolved via $step:ExternalBridgeRegistry; the
+                // target L2 chain id is an explicit operator value because the escrow
+                // permanently binds inbound signatures to that domain at deployment.
                 Step("ExternalBridgeEscrow",
                     "contracts/NeoHub.ExternalBridgeEscrow/bin/sc/NeoHub.ExternalBridgeEscrow.nef",
-                    OwnerAndDep("ExternalBridgeRegistry"),
+                    new JArray
+                    {
+                        "OWNER_REPLACE_ME",
+                        "$step:ExternalBridgeRegistry",
+                        "L2_CHAIN_ID_REPLACE_ME",
+                    },
                     "ExternalBridgeRegistry"),
 
                 // ExternalBridgeBond mirrors SequencerBond — owner + bondAsset
@@ -262,6 +274,7 @@ public static class ScaffoldPlan
         var chainReg = bundle.Invocations.FirstOrDefault(i => i.Name == "ChainRegistry");
         var verifierReg = bundle.Invocations.FirstOrDefault(i => i.Name == "VerifierRegistry");
         var contractZkVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "ContractZkVerifier");
+        var sp1Groth16Verifier = bundle.Invocations.FirstOrDefault(i => i.Name == "Sp1Groth16Verifier");
         var gc = bundle.Invocations.FirstOrDefault(i => i.Name == "GovernanceController");
         var sm = bundle.Invocations.FirstOrDefault(i => i.Name == "SettlementManager");
         var forcedInclusion = bundle.Invocations.FirstOrDefault(i => i.Name == "ForcedInclusion");
@@ -309,14 +322,17 @@ public static class ScaffoldPlan
         {
             yield return $"VerifierRegistry.SetGovernanceController({gc.Name})  # enable §16 council-veto path (RegisterVerifierViaProposal depends on this wiring)";
         }
-        if (contractZkVerifier is not null)
+        if (contractZkVerifier is not null && sp1Groth16Verifier is not null)
         {
-            yield return $"{contractZkVerifier.Name}.RegisterVerificationKey(proofSystem, vkId, allowed=true)  # allow each production RISC-V/SP1/Risc0/Halo2/Axiom verification key before accepting ZK batches";
-            yield return $"{contractZkVerifier.Name}.RegisterProofVerifier(proofSystem, verifierContract, allowed=true)  # production path: route proof-system math to a deployable verifier contract; devnets may explicitly use SetEnvelopeOnlyAllowed";
+            yield return $"{contractZkVerifier.Name}.RegisterVerificationKey(ProofSystem.Sp1=1, PROGRAM_VKEY_REPLACE_ME, allowed=true)  # allow the audited SP1 program vkey emitted by the production prover";
+            yield return $"{contractZkVerifier.Name}.RegisterProofVerifier(ProofSystem.Sp1=1, {sp1Groth16Verifier.Name}, allowed=true)  # route SP1 proof math to the pinned in-repo Groth16 verifier";
+            yield return $"{contractZkVerifier.Name}.DisableEnvelopeOnlyPermanently(ProofSystem.Sp1=1)  # irreversible production gate: SP1 batches can never fall back to envelope-only acceptance";
+            yield return $"{contractZkVerifier.Name}.LockProofSystemConfiguration(ProofSystem.Sp1=1, PROGRAM_VKEY_REPLACE_ME)  # freeze the exact SP1 vkey and terminal verifier; upgrades deploy a new versioned router";
         }
         if (verifierReg is not null && contractZkVerifier is not null)
         {
-            yield return $"{verifierReg.Name}.RegisterVerifier(ProofType.Zk=3, {contractZkVerifier.Name})  # route ZK settlement commitments to the contract-deployed verifier router; use RegisterVerifierViaProposal after governance is live";
+            yield return $"{verifierReg.Name}.RegisterVerifier(ProofType.Zk=3, {contractZkVerifier.Name})  # route ZK settlement commitments to the contract-deployed verifier router";
+            yield return $"{verifierReg.Name}.LockGovernance()  # irreversible production gate: freeze the GovernanceController and disable direct owner verifier replacement; future routes require an exact payload-bound timelocked proposal";
         }
         if (govFraudVerifier is not null && oc is not null)
         {

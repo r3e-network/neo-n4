@@ -64,6 +64,10 @@ public static class L2ChainConfigSerializer
         ArgumentNullException.ThrowIfNull(config.Verifier);
         ArgumentNullException.ThrowIfNull(config.BridgeAdapter);
         ArgumentNullException.ThrowIfNull(config.MessageAdapter);
+        if (!config.DAMode.IsPublic())
+            throw new ArgumentException(
+                $"DAMode {config.DAMode} is local-only and cannot be encoded for ChainRegistry",
+                nameof(config));
 
         var bytes = new byte[ConfigSize];
         var span = bytes.AsSpan();

@@ -1,5 +1,6 @@
 {
   "PluginConfiguration": {
-    "DAMode": 1
+    "Profile": "Development",
+    "DAMode": 255
   }
 }

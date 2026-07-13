@@ -7,17 +7,19 @@ namespace Neo.Plugins.L2;
 
 /// <summary>
 /// Data Availability Committee (DAC) writer — N committee signers attest to availability
-/// by signing the payload commitment hash. The aggregated signatures are stored as the
-/// receipt <c>Pointer</c>; <see cref="IsAvailableAsync"/> verifies all N signatures
+/// by signing the payload commitment hash. The receipt pointer identifies the data while
+/// <see cref="DAReceipt.Evidence"/> carries the signatures; <see cref="IsAvailableAsync"/>
+/// verifies all N signatures
 /// against the committee public keys before answering true.
 /// </summary>
 /// <remarks>
-/// In-process backing for tests, devnets, and single-node demos. Production replaces the
-/// in-memory store with networked distribution while keeping the cryptographic shape:
+/// See doc.md §12.4. This class is an explicit development semantic model because the data
+/// remains in an in-process store. Production replaces the store and signer callback with
+/// independently operated distribution/read paths while keeping the cryptographic shape:
 /// one 64-byte secp256r1 signature per committee member, all signing the same Hash256
-/// commitment. The receipt is L1-recoverable — `NeoHub.DARegistry` can verify the same
-/// signatures on-chain by re-running the loop here against the committee declared in
-/// `ChainRegistry`.
+/// commitment. These signatures are independently verifiable evidence, but this class does
+/// not distribute the bytes to committee nodes or publish the receipt to L1 and therefore
+/// makes no L1-recoverability claim.
 /// <para>
 /// Threshold-DAC (k-of-N) is layered above this by trimming the signature set to the
 /// chosen quorum before submission and tracking which seats signed; the on-chain
@@ -26,9 +28,9 @@ namespace Neo.Plugins.L2;
 /// </para>
 /// <para>
 /// Wire via <c>L2DAPlugin.WithWriter(new CommitteeAttestedDAWriter(committee, signFn))</c>
-/// before <c>L2DAPlugin.Configure</c> runs. The <c>sign</c> callback is intentionally
-/// injected (not a held private-key set) so production deployments can back it with HSMs,
-/// remote signers, or threshold-signing protocols without touching this class.
+/// for development semantics only. Production uses <c>WithProductionBackend</c> with a
+/// distributed writer and independent reader. The <c>sign</c> callback remains injected so
+/// tests can model remote signers without storing private keys in this component.
 /// </para>
 /// </remarks>
 public sealed class CommitteeAttestedDAWriter : IDAWriter
@@ -39,6 +41,9 @@ public sealed class CommitteeAttestedDAWriter : IDAWriter
 
     /// <inheritdoc />
     public DAMode Mode => DAMode.DAC;
+
+    /// <inheritdoc />
+    public DAReceiptKind ReceiptKind => DAReceiptKind.SemanticSimulation;
 
     /// <summary>The committee public keys (canonicalized order matters for verification).</summary>
     public IReadOnlyList<ECPoint> Committee => _committee;
@@ -73,10 +78,6 @@ public sealed class CommitteeAttestedDAWriter : IDAWriter
         ArgumentNullException.ThrowIfNull(request);
 
         var commitment = new UInt256(Crypto.Hash256(request.Payload.Span));
-        // Defensive copy of the payload so a caller who reuses a scratch buffer can't
-        // silently corrupt the stored bytes. Same iter-167 pattern as RecordWithdrawalProof.
-        _store[commitment] = request.Payload.ToArray();
-
         // The signing callback returns one 64-byte signature per committee member, in the
         // same order as Committee. Validate the callee contract — same iter-171 callee-
         // contract pattern: a buggy signing callback that returns null / wrong-count /
@@ -89,7 +90,8 @@ public sealed class CommitteeAttestedDAWriter : IDAWriter
             throw new InvalidOperationException(
                 $"DAC sign callback returned {sigs.Count} signatures but committee is {_committee.Count}");
 
-        var pointer = new byte[sigs.Count * 64];
+        var evidence = new byte[sigs.Count * 64];
+        var message = commitment.GetSpan().ToArray();
         for (var i = 0; i < sigs.Count; i++)
         {
             var sig = sigs[i];
@@ -98,13 +100,22 @@ public sealed class CommitteeAttestedDAWriter : IDAWriter
             if (sig.Length != 64)
                 throw new InvalidOperationException(
                     $"DAC sign callback returned signature[{i}] of {sig.Length} bytes (must be exactly 64)");
-            sig.AsSpan(0, 64).CopyTo(pointer.AsSpan(i * 64, 64));
+            if (!Crypto.VerifySignature(message, sig, _committee[i]))
+                throw new InvalidOperationException(
+                    $"DAC sign callback returned an invalid signature[{i}] for the configured committee key");
+            sig.AsSpan(0, 64).CopyTo(evidence.AsSpan(i * 64, 64));
         }
+
+        // Commit only after the complete attestation has passed validation. A failed
+        // signer callback must not leave orphaned data that appears available internally.
+        _store[commitment] = request.Payload.ToArray();
 
         return new ValueTask<DAReceipt>(new DAReceipt
         {
             Commitment = commitment,
-            Pointer = pointer,
+            Pointer = DAReceiptFormats.CommitmentPointer(commitment),
+            Evidence = evidence,
+            Kind = ReceiptKind,
             Layer = Mode,
         });
     }
@@ -118,18 +129,51 @@ public sealed class CommitteeAttestedDAWriter : IDAWriter
         // boundary pattern.
         ArgumentNullException.ThrowIfNull(receipt.Commitment);
 
-        // Reject quickly if we never saw the data or the receipt's signature shape is
+        if (!receipt.HasRequiredMetadata(Mode, ReceiptKind)) return new ValueTask<bool>(false);
+        if (receipt.Pointer.Length != UInt256.Length
+            || !receipt.Pointer.Span.SequenceEqual(receipt.Commitment.GetSpan()))
+        {
+            return new ValueTask<bool>(false);
+        }
+
+        // Reject quickly if we never saw the data or the receipt's attestation shape is
         // inconsistent with the committee.
         if (!_store.ContainsKey(receipt.Commitment)) return new ValueTask<bool>(false);
-        if (receipt.Pointer.Length != _committee.Count * 64) return new ValueTask<bool>(false);
+        if (receipt.Evidence.Length != _committee.Count * 64) return new ValueTask<bool>(false);
 
         var msg = receipt.Commitment.GetSpan().ToArray();
         for (var i = 0; i < _committee.Count; i++)
         {
-            var sigSpan = receipt.Pointer.Span.Slice(i * 64, 64);
+            var sigSpan = receipt.Evidence.Span.Slice(i * 64, 64);
             if (!Crypto.VerifySignature(msg, sigSpan, _committee[i]))
                 return new ValueTask<bool>(false);
         }
         return new ValueTask<bool>(true);
+    }
+
+    /// <summary>Create a distinct reader over the same development-only DAC store.</summary>
+    public IDAReader CreateReader() => new Reader(this, _store);
+
+    private sealed class Reader(
+        CommitteeAttestedDAWriter verifier,
+        ConcurrentDictionary<UInt256, byte[]> store) : IDAReader
+    {
+        public DAMode Mode => DAMode.DAC;
+
+        public DAReceiptKind ReceiptKind => DAReceiptKind.SemanticSimulation;
+
+        public async ValueTask<ReadOnlyMemory<byte>?> ReadAsync(
+            DAReceipt receipt,
+            CancellationToken cancellationToken = default)
+        {
+            if (!await verifier.IsAvailableAsync(receipt, cancellationToken).ConfigureAwait(false)
+                || !store.TryGetValue(receipt.Commitment, out var payload)
+                || !Crypto.Hash256(payload).AsSpan().SequenceEqual(receipt.Commitment.GetSpan()))
+            {
+                return null;
+            }
+
+            return (byte[])payload.Clone();
+        }
     }
 }

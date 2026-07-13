@@ -51,7 +51,7 @@ public class UT_E2E_Telemetry_Pipeline
                 BatchNumber = sealed_!.BatchNumber,
                 Payload = new byte[] { (byte)i, 0xCA, 0xFE },
             });
-            Assert.AreEqual(DAMode.External, receipt.Layer);
+            Assert.AreEqual(DAMode.Local, receipt.Layer);
 
             // Synthesize the proving + settlement counters that L2SettlementPlugin emits.
             metrics.IncrementCounter(MetricNames.ProofsGenerated, 1, ("kind", "Multisig"));
@@ -80,8 +80,8 @@ public class UT_E2E_Telemetry_Pipeline
         StringAssert.Contains(body, "l2_batch_seal_latency_ms_count 4");
 
         // DA metrics (mode-tagged)
-        StringAssert.Contains(body, "l2_da_published_total{mode=\"External\"} 4");
-        StringAssert.Contains(body, "l2_da_publish_latency_ms_count{mode=\"External\"} 4");
+        StringAssert.Contains(body, "l2_da_published_total{mode=\"Local\"} 4");
+        StringAssert.Contains(body, "l2_da_publish_latency_ms_count{mode=\"Local\"} 4");
 
         // Proving (kind-tagged)
         StringAssert.Contains(body, "l2_proving_generated_total{kind=\"Multisig\"} 4");

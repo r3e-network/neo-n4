@@ -159,6 +159,15 @@ public class UT_L2ChainConfigSerializer
     }
 
     [TestMethod]
+    public void Encode_RejectsLocalDurabilityAsPublicDAMode()
+    {
+        var ex = Assert.ThrowsExactly<ArgumentException>(
+            () => L2ChainConfigSerializer.Encode(SampleConfig() with { DAMode = DAMode.Local }));
+        StringAssert.Contains(ex.Message, "local-only");
+        StringAssert.Contains(ex.Message, "ChainRegistry");
+    }
+
+    [TestMethod]
     public void Encode_ChainIdMatchesContractParsing()
     {
         // The contract reads chainId via:

@@ -33,7 +33,8 @@ public class UT_E2E_AuditPipeline
         verifierRegistry.Register(verifier);
 
         // 3-batch chain with continuity. Each batch has a real DA receipt.
-        var daWriter = L2DAPlugin.BuildDefaultWriter(DAMode.External, dataDir: null);
+        var daWriter = new InMemoryDAWriter();
+        var receiptsByBatch = new Dictionary<ulong, DAReceipt>();
         var prover = new AttestationProver(signers);
         var preStateRoot = UInt256.Zero;
         var commitments = new List<L2BatchCommitment>();
@@ -48,6 +49,7 @@ public class UT_E2E_AuditPipeline
                 BatchNumber = i,
                 Payload = new byte[] { (byte)i, 0xAA, 0xBB, 0xCC },
             });
+            receiptsByBatch[i] = receipt;
             var inputs = new PublicInputs
             {
                 ChainId = chainId,
@@ -99,7 +101,9 @@ public class UT_E2E_AuditPipeline
             .Register(new BatchRangeCheck())
             .Register(new ProofValidityCheck(verifierRegistry, c => publicInputsByBatch[c.BatchNumber]))
             .Register(new PublicInputHashConsistencyCheck())
-            .Register(new DAAvailabilityCheck(daWriter));
+            .Register(new DAAvailabilityCheck(
+                daWriter,
+                batch => receiptsByBatch[batch.BatchNumber]));
 
         var report = await auditor.AuditAsync(commitments);
 
@@ -131,8 +135,8 @@ public class UT_E2E_AuditPipeline
         // to a DA writer, then audit against a SECOND writer that never saw the
         // commitment. The check should flag the missing payload by name + commitment.
         const uint chainId = 1001;
-        var publisher = L2DAPlugin.BuildDefaultWriter(DAMode.External, dataDir: null);
-        var auditWriter = L2DAPlugin.BuildDefaultWriter(DAMode.External, dataDir: null);
+        var publisher = new InMemoryDAWriter();
+        var auditWriter = new InMemoryDAWriter();
 
         var receipt = await publisher.PublishAsync(new DAPublishRequest
         {
@@ -161,7 +165,7 @@ public class UT_E2E_AuditPipeline
         };
 
         var auditor = new ChainAuditor()
-            .Register(new DAAvailabilityCheck(auditWriter));
+            .Register(new DAAvailabilityCheck(auditWriter, _ => receipt));
         var report = await auditor.AuditAsync(new[] { batch });
 
         Assert.IsFalse(report.Passed);

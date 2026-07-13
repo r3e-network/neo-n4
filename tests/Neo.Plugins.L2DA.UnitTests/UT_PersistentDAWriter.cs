@@ -2,8 +2,7 @@ namespace Neo.Plugins.L2DA.UnitTests;
 
 /// <summary>
 /// Tests for <see cref="PersistentDAWriter"/> — the durable IDAWriter backed by an
-/// IL2KeyValueStore. Production deployments wire RocksDbKeyValueStore here for
-/// state-survives-restart durability; tests use InMemoryKeyValueStore.
+/// IL2KeyValueStore. This is node-local durability only; tests use InMemoryKeyValueStore.
 /// </summary>
 [TestClass]
 public class UT_PersistentDAWriter
@@ -21,22 +20,23 @@ public class UT_PersistentDAWriter
             Payload = new byte[] { 0xAA, 0xBB, 0xCC },
         });
 
-        Assert.AreEqual(DAMode.NeoFS, receipt.Layer);
+        Assert.AreEqual(DAMode.Local, receipt.Layer);
+        Assert.AreEqual(DAReceiptKind.LocalPersistence, receipt.Kind);
+        Assert.AreEqual(UInt256.Length, receipt.Pointer.Length);
+        Assert.IsFalse(receipt.Evidence.IsEmpty);
         Assert.IsTrue(await writer.IsAvailableAsync(receipt));
     }
 
     [TestMethod]
-    public async Task ConfiguredMode_FlowsToReceipt()
+    public void Constructor_RejectsPublicModeImpersonation()
     {
         using var store = new InMemoryKeyValueStore();
-        var writer = new PersistentDAWriter(store, DAMode.External);
-        var receipt = await writer.PublishAsync(new DAPublishRequest
+        foreach (var mode in new[] { DAMode.L1, DAMode.NeoFS, DAMode.External, DAMode.DAC })
         {
-            ChainId = 1001,
-            BatchNumber = 1,
-            Payload = new byte[] { 0x01 },
-        });
-        Assert.AreEqual(DAMode.External, receipt.Layer);
+            var ex = Assert.ThrowsExactly<ArgumentException>(
+                () => new PersistentDAWriter(store, mode));
+            StringAssert.Contains(ex.Message, "local durability");
+        }
     }
 
     [TestMethod]
@@ -54,8 +54,11 @@ public class UT_PersistentDAWriter
             Payload = new byte[] { 0xDE, 0xAD, 0xBE, 0xEF },
         });
 
-        var writer2 = new PersistentDAWriter(store);
-        Assert.IsTrue(await writer2.IsAvailableAsync(receipt));
+        var reader = writer1.CreateReader();
+        Assert.IsFalse(ReferenceEquals(writer1, reader));
+        CollectionAssert.AreEqual(
+            new byte[] { 0xDE, 0xAD, 0xBE, 0xEF },
+            (await reader.ReadAsync(receipt))!.Value.ToArray());
     }
 
     [TestMethod]
@@ -63,11 +66,20 @@ public class UT_PersistentDAWriter
     {
         using var store = new InMemoryKeyValueStore();
         var writer = new PersistentDAWriter(store);
+        var published = await writer.PublishAsync(new DAPublishRequest
+        {
+            ChainId = 1001,
+            BatchNumber = 1,
+            Payload = new byte[] { 0x01 },
+        });
+        var unknown = UInt256.Parse("0x" + new string('f', 64));
         var fake = new DAReceipt
         {
-            Commitment = UInt256.Parse("0x" + new string('f', 64)),
-            Pointer = ReadOnlyMemory<byte>.Empty,
-            Layer = DAMode.External,
+            Commitment = unknown,
+            Pointer = unknown.GetSpan().ToArray(),
+            Evidence = published.Evidence,
+            Kind = DAReceiptKind.LocalPersistence,
+            Layer = DAMode.Local,
         };
         Assert.IsFalse(await writer.IsAvailableAsync(fake));
     }
@@ -100,7 +112,14 @@ public class UT_PersistentDAWriter
     {
         using var store = new InMemoryKeyValueStore();
         var writer = new PersistentDAWriter(store);
-        var bad = new DAReceipt { Commitment = null!, Pointer = ReadOnlyMemory<byte>.Empty, Layer = DAMode.External };
+        var bad = new DAReceipt
+        {
+            Commitment = null!,
+            Pointer = new byte[UInt256.Length],
+            Evidence = new byte[] { 0x01 },
+            Kind = DAReceiptKind.LocalPersistence,
+            Layer = DAMode.Local,
+        };
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(
             async () => await writer.IsAvailableAsync(bad));
     }
@@ -132,7 +151,7 @@ public class UT_PersistentDAWriter
         // For RocksDB this releases the file handle; for InMemory it's a no-op but the
         // contract is the same. We verify by attempting use-after-dispose throws.
         var store = new InMemoryKeyValueStore();
-        var writer = new PersistentDAWriter(store, DAMode.External, ownsStore: true);
+        var writer = new PersistentDAWriter(store, ownsStore: true);
         await writer.PublishAsync(new DAPublishRequest
         {
             ChainId = 1001,
@@ -169,10 +188,29 @@ public class UT_PersistentDAWriter
     }
 
     [TestMethod]
-    public void Mode_Default_IsNeoFS()
+    public void Mode_IsAlwaysLocal()
     {
         using var store = new InMemoryKeyValueStore();
         var writer = new PersistentDAWriter(store);
-        Assert.AreEqual(DAMode.NeoFS, writer.Mode);
+        Assert.AreEqual(DAMode.Local, writer.Mode);
+        Assert.AreEqual(DAReceiptKind.LocalPersistence, writer.ReceiptKind);
+    }
+
+    [TestMethod]
+    public async Task Reader_RejectsPublicLabelAndWrongEvidenceKind()
+    {
+        using var store = new InMemoryKeyValueStore();
+        var writer = new PersistentDAWriter(store);
+        var receipt = await writer.PublishAsync(new DAPublishRequest
+        {
+            ChainId = 1001,
+            BatchNumber = 1,
+            Payload = new byte[] { 0x42 },
+        });
+        var reader = writer.CreateReader();
+
+        Assert.IsNull(await reader.ReadAsync(receipt with { Layer = DAMode.NeoFS }));
+        Assert.IsNull(await reader.ReadAsync(receipt with { Kind = DAReceiptKind.NeoFSObject }));
+        Assert.IsNull(await reader.ReadAsync(receipt with { Evidence = ReadOnlyMemory<byte>.Empty }));
     }
 }

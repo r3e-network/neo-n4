@@ -67,7 +67,7 @@ public class UT_E2E_Persistence_FullStack
         });
         var proofBytes = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05 };
         var daPayload = new byte[] { 0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE };
-        UInt256 daCommitment = default!;
+        DAReceipt daReceipt = default!;
 
         try
         {
@@ -79,7 +79,7 @@ public class UT_E2E_Persistence_FullStack
             using (var seqRocks = new RocksDbKeyValueStore(Path.Combine(root, "sequencer")))
             using (var seqProvider = new InMemorySequencerCommitteeProvider(chainId, seqRocks, ownsStore: true))
             using (var daWriter = (PersistentDAWriter)L2DAPlugin.BuildDefaultWriter(
-                DAMode.External, Path.Combine(root, "da")))
+                DAMode.Local, Path.Combine(root, "da")))
             {
                 // (1) State: alice has 100 wei in assetL2.
                 stateStore.Put(aliceBalanceKey, new BigInteger(100).ToByteArray());
@@ -92,13 +92,12 @@ public class UT_E2E_Persistence_FullStack
                 seqProvider.Register(seqKey.pub, seqL1Addr);
 
                 // (4) DA: publish a payload — receipt commitment is content-addressed.
-                var receipt = await daWriter.PublishAsync(new DAPublishRequest
+                daReceipt = await daWriter.PublishAsync(new DAPublishRequest
                 {
                     ChainId = chainId,
                     BatchNumber = 1,
                     Payload = daPayload,
                 });
-                daCommitment = receipt.Commitment;
             }
 
             // Second boot: rehydrate against the same directories. Each component must
@@ -132,17 +131,12 @@ public class UT_E2E_Persistence_FullStack
 
                 // (4) DA: same content-addressed commitment must still resolve to
                 // IsAvailable=true after restart. PersistentDAWriter is a property of
-                // the plugin layer; the integration test pins that the per-mode wiring
-                // (External + dataDir → RocksDB) actually persists across the dispose
-                // boundary and isn't lost when the plugin's process exits.
+                // the plugin layer; the integration test pins that the explicitly local
+                // RocksDB durability path survives the dispose boundary without claiming
+                // a public DA security label.
                 using var daWriter2 = (PersistentDAWriter)L2DAPlugin.BuildDefaultWriter(
-                    DAMode.External, Path.Combine(root, "da"));
-                var available = await daWriter2.IsAvailableAsync(new DAReceipt
-                {
-                    Commitment = daCommitment,
-                    Pointer = ReadOnlyMemory<byte>.Empty,
-                    Layer = DAMode.External,
-                });
+                    DAMode.Local, Path.Combine(root, "da"));
+                var available = await daWriter2.IsAvailableAsync(daReceipt);
                 Assert.IsTrue(available, "DA payload must rehydrate from RocksDB");
             }
         }

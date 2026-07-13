@@ -10,14 +10,14 @@ namespace Neo.Plugins.L2;
 /// persists the bytes to the underlying KV store so the data survives node restarts.
 /// </summary>
 /// <remarks>
-/// Production deployments wire one of:
+/// Local deployments wire one of:
 /// <list type="bullet">
 ///   <item><description><c>new PersistentDAWriter(new RocksDbKeyValueStore("/var/lib/neo-l2/da"))</c> — durable, multi-GB, snappy-compressed.</description></item>
 ///   <item><description><c>new PersistentDAWriter(new InMemoryKeyValueStore())</c> — same surface but no disk; equivalent to <see cref="InMemoryDAWriter"/>, useful when callers want a single KV-backed code path across all stores.</description></item>
 /// </list>
-/// Wire via <c>L2DAPlugin.WithWriter(new PersistentDAWriter(...))</c> before the host
-/// fires Configure. Mode is configurable to align with whichever DAMode the operator
-/// declared in <c>ChainRegistry</c> — the writer itself is layer-agnostic.
+/// See doc.md §7.4 and §12. This writer always reports <see cref="DAMode.Local"/>. A
+/// local RocksDB directory provides durability only and must never be used as evidence
+/// for NeoFS, L1, External, or DAC.
 /// </remarks>
 public sealed class PersistentDAWriter : IDAWriter, IDisposable
 {
@@ -26,18 +26,26 @@ public sealed class PersistentDAWriter : IDAWriter, IDisposable
     private bool _disposed;
 
     /// <inheritdoc />
-    public DAMode Mode { get; }
+    public DAMode Mode => DAMode.Local;
+
+    /// <inheritdoc />
+    public DAReceiptKind ReceiptKind => DAReceiptKind.LocalPersistence;
 
     /// <summary>
-    /// Construct with an explicit <see cref="DAMode"/> + KV store. Caller owns the KV
-    /// store unless <paramref name="ownsStore"/> is true (in which case Dispose flows
-    /// through to the store).
+    /// Construct with a KV store. Caller owns the store unless
+    /// <paramref name="ownsStore"/> is true.
     /// </summary>
-    public PersistentDAWriter(IL2KeyValueStore store, DAMode mode = DAMode.NeoFS, bool ownsStore = false)
+    public PersistentDAWriter(
+        IL2KeyValueStore store,
+        DAMode mode = DAMode.Local,
+        bool ownsStore = false)
     {
         ArgumentNullException.ThrowIfNull(store);
+        if (mode != DAMode.Local)
+            throw new ArgumentException(
+                $"PersistentDAWriter is local durability and cannot advertise public DAMode {mode}",
+                nameof(mode));
         _store = store;
-        Mode = mode;
         _ownsStore = ownsStore;
     }
 
@@ -57,7 +65,9 @@ public sealed class PersistentDAWriter : IDAWriter, IDisposable
         return new ValueTask<DAReceipt>(new DAReceipt
         {
             Commitment = commitment,
-            Pointer = ReadOnlyMemory<byte>.Empty,
+            Pointer = DAReceiptFormats.CommitmentPointer(commitment),
+            Evidence = DAReceiptFormats.LocalEvidence.ToArray(),
+            Kind = ReceiptKind,
             Layer = Mode,
         });
     }
@@ -69,7 +79,49 @@ public sealed class PersistentDAWriter : IDAWriter, IDisposable
         ArgumentNullException.ThrowIfNull(receipt);
         ArgumentNullException.ThrowIfNull(receipt.Commitment);
         ThrowIfDisposed();
-        return new ValueTask<bool>(_store.Contains(receipt.Commitment.GetSpan()));
+        return IsAvailableCoreAsync(receipt, cancellationToken);
+    }
+
+    /// <summary>Create a distinct reader over the same local key-value store.</summary>
+    public IDAReader CreateReader()
+    {
+        ThrowIfDisposed();
+        return new Reader(_store);
+    }
+
+    private async ValueTask<bool> IsAvailableCoreAsync(
+        DAReceipt receipt,
+        CancellationToken cancellationToken)
+        => await CreateReader().ReadAsync(receipt, cancellationToken).ConfigureAwait(false) is not null;
+
+    private sealed class Reader(IL2KeyValueStore store) : IDAReader
+    {
+        public DAMode Mode => DAMode.Local;
+
+        public DAReceiptKind ReceiptKind => DAReceiptKind.LocalPersistence;
+
+        public ValueTask<ReadOnlyMemory<byte>?> ReadAsync(
+            DAReceipt receipt,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ArgumentNullException.ThrowIfNull(receipt);
+            ArgumentNullException.ThrowIfNull(receipt.Commitment);
+
+            var payload = store.Get(receipt.Commitment.GetSpan());
+            if (payload is null
+                || !DAReceiptFormats.IsContentAddressedPayload(
+                    receipt,
+                    Mode,
+                    ReceiptKind,
+                    DAReceiptFormats.LocalEvidence,
+                    payload))
+            {
+                return new ValueTask<ReadOnlyMemory<byte>?>((ReadOnlyMemory<byte>?)null);
+            }
+
+            return new ValueTask<ReadOnlyMemory<byte>?>(payload.ToArray());
+        }
     }
 
     private void ThrowIfDisposed()

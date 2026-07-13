@@ -32,6 +32,12 @@ public class UT_Models
         Assert.AreEqual(1, (byte)DAMode.NeoFS);
         Assert.AreEqual(2, (byte)DAMode.External);
         Assert.AreEqual(3, (byte)DAMode.DAC);
+        Assert.AreEqual(byte.MaxValue, (byte)DAMode.Local);
+        Assert.IsTrue(DAMode.L1.IsPublic());
+        Assert.IsTrue(DAMode.NeoFS.IsPublic());
+        Assert.IsTrue(DAMode.External.IsPublic());
+        Assert.IsTrue(DAMode.DAC.IsPublic());
+        Assert.IsFalse(DAMode.Local.IsPublic());
     }
 
     [TestMethod]
@@ -269,12 +275,17 @@ public class UT_Models
     }
 
     [TestMethod]
-    public void DAReceipt_DistinguishesByPointerContent()
+    public void DAReceipt_DistinguishesByPointerEvidenceAndKind()
     {
-        DAReceipt Mk(byte[] pointer) => new()
+        DAReceipt Mk(
+            byte[] pointer,
+            byte[]? evidence = null,
+            DAReceiptKind kind = DAReceiptKind.NeoFSObject) => new()
         {
             Commitment = UInt256.Zero,
             Pointer = pointer,
+            Evidence = evidence ?? new byte[] { 0x01 },
+            Kind = kind,
             Layer = DAMode.NeoFS,
         };
         var a = Mk([0xCA, 0xFE]);
@@ -282,6 +293,12 @@ public class UT_Models
         Assert.AreEqual(a, b);
         Assert.AreEqual(a.GetHashCode(), b.GetHashCode());
         Assert.AreNotEqual(a, Mk([0xDE, 0xAD]));
+        Assert.AreNotEqual(a, Mk([0xCA, 0xFE], [0x02]));
+        Assert.AreNotEqual(a, Mk([0xCA, 0xFE], kind: DAReceiptKind.SemanticSimulation));
+        Assert.IsTrue(a.HasRequiredMetadata(DAMode.NeoFS, DAReceiptKind.NeoFSObject));
+        Assert.IsFalse(a.HasRequiredMetadata(DAMode.Local, DAReceiptKind.NeoFSObject));
+        Assert.IsFalse((a with { Evidence = ReadOnlyMemory<byte>.Empty })
+            .HasRequiredMetadata(DAMode.NeoFS, DAReceiptKind.NeoFSObject));
     }
 
     [TestMethod]

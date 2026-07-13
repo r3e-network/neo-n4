@@ -81,7 +81,7 @@ public class UT_E2E_L2MetricsPlugin_CompositionRoot
 
         // Every instrumented component must show up:
         StringAssert.Contains(body, "l2_batch_sealed_total 3", "BatchSealer");
-        StringAssert.Contains(body, "l2_da_published_total{mode=\"External\"} 3", "MetricsEmittingDAWriter");
+        StringAssert.Contains(body, "l2_da_published_total{mode=\"Local\"} 3", "MetricsEmittingDAWriter");
         StringAssert.Contains(body, "l2_bridge_deposits_total 1", "DepositProcessor");
         StringAssert.Contains(body, "l2_bridge_withdrawals_total 1", "WithdrawalProcessor");
         StringAssert.Contains(body, "l2_gateway_aggregations_total 1", "BinaryTreeAggregator");

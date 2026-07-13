@@ -37,24 +37,27 @@ public class UT_GovernanceController_Vm
     // A valid public key that is NOT a council member (used for the negative membership path).
     private static readonly ECPoint NonMember =
         ECPoint.Parse("03b8d9d5771d8f513aa0869b9cc8d50986403b78c6da36890638c3d46a5adce04a", ECCurve.Secp256r1);
+    private static readonly ECPoint NewMember1 = PointFromScalar(101);
+    private static readonly ECPoint NewMember2 = PointFromScalar(102);
 
     private static readonly UInt160 Verifier = UInt160.Parse("0x" + new string('a', 40));
     private static readonly UInt160 Bridge = UInt160.Parse("0x" + new string('b', 40));
     private static readonly UInt160 Stranger = UInt160.Parse("0x" + new string('c', 40));
 
     private const uint Timelock = 100; // seconds
+    private const byte ExpiredProposalStage = 5;
 
     /// <summary>Deploy with owner = engine.Sender (the default validators address), a 2-member council,
     /// threshold 2, and a 100s timelock. Pass a non-Sender <paramref name="owner"/> to exercise the
     /// negative owner-auth paths.</summary>
     private static NeoHubGovernanceController Deploy(TestEngine engine, UInt160? owner = null,
-        uint threshold = 2, uint timelock = Timelock)
+        uint threshold = 2, uint timelock = Timelock, ECPoint[]? members = null)
     {
         var o = owner ?? engine.Sender;
-        var members = new ECPoint[] { Member1, Member2 };
+        var council = members ?? new ECPoint[] { Member1, Member2 };
         return engine.Deploy<NeoHubGovernanceController>(
             NeoHubGovernanceController.Nef, NeoHubGovernanceController.Manifest,
-            new object[] { o, members, (BigInteger)threshold, (BigInteger)timelock });
+            new object[] { o, council, (BigInteger)threshold, (BigInteger)timelock });
     }
 
     // ───────────────────────── deploy validation ─────────────────────────
@@ -96,6 +99,14 @@ public class UT_GovernanceController_Vm
             NeoHubGovernanceController.Nef, NeoHubGovernanceController.Manifest,
             new object[] { e5.Sender, new ECPoint[] { Member1 }, (BigInteger)1, (BigInteger)0 }),
             "zero timelock must be rejected");
+
+        var e6 = new TestEngine(true);
+        Assert.ThrowsExactly<TestException>(() => Deploy(e6, threshold: 1,
+            members: new ECPoint[] { Member1, Member1 }), "duplicate council members must be rejected");
+
+        var e7 = new TestEngine(true);
+        Assert.ThrowsExactly<TestException>(() => Deploy(e7, threshold: 1,
+            members: CreateDistinctMembers(65)), "council size must be bounded without count truncation");
     }
 
     [TestMethod]
@@ -107,6 +118,7 @@ public class UT_GovernanceController_Vm
         Assert.AreEqual(engine.Sender, g.Owner!, "owner is the deployer");
         Assert.AreEqual((BigInteger)2, g.CouncilCount!);
         Assert.AreEqual((BigInteger)2, g.Threshold!);
+        Assert.AreEqual((BigInteger)1, g.CouncilEpoch!);
         Assert.AreEqual((BigInteger)Timelock, g.TimelockSeconds!);
         Assert.AreEqual((BigInteger)0, g.AdmissionMode!, "starts permissioned");
         Assert.IsTrue(g.IsCouncilMember(Member1)!.Value);
@@ -246,6 +258,7 @@ public class UT_GovernanceController_Vm
         // Witnessed member, valid payload -> id 1.
         Assert.AreEqual((BigInteger)1, g.CreateProposal(Member1, payload)!, "first proposal id is 1");
         Assert.IsTrue(g.GetProposal((BigInteger)1)!.Length > 0, "payload stored");
+        Assert.AreEqual((BigInteger)1, g.GetProposalEpoch((BigInteger)1)!, "proposal binds creation epoch");
     }
 
     [TestMethod]
@@ -435,11 +448,186 @@ public class UT_GovernanceController_Vm
 
         var admission = g.BuildSetAdmissionModeAction((BigInteger)2)!;
         var immutable = g.BuildSetImmutableFlagAction((BigInteger)2)!;
+        var rotation = g.BuildRotateCouncilAction(new ECPoint[] { NewMember1, NewMember2 }, (BigInteger)2)!;
 
         // Same trailing arg byte but different method-id prefix -> different bytes. This is what
         // prevents an approved "set admission mode" proposal from being replayed as "set immutable flag".
         CollectionAssert.AreNotEqual(admission, immutable,
             "distinct *ViaProposal actions must encode to distinct payloads");
+        CollectionAssert.AreNotEqual(admission, rotation);
+        CollectionAssert.AreNotEqual(immutable, rotation);
+    }
+
+    // ───────────────────────── council rotation ─────────────────────────
+
+    [TestMethod]
+    public void BuildRotateCouncilAction_EncodesEpochThresholdCountAndOrderedMembers()
+    {
+        var engine = new TestEngine(true);
+        var governance = Deploy(engine);
+        var action = governance.BuildRotateCouncilAction(
+            new ECPoint[] { NewMember1, NewMember2 }, (BigInteger)2)!;
+
+        Assert.AreEqual(107, action.Length);
+        CollectionAssert.AreEqual(System.Text.Encoding.ASCII.GetBytes("neo4-gov:rotateCouncil:v1"),
+            action[..25]);
+        CollectionAssert.AreEqual(new byte[] { 1, 0, 0, 0, 0, 0, 0, 0 }, action[25..33]);
+        CollectionAssert.AreEqual(new byte[] { 2, 0, 0, 0 }, action[33..37]);
+        CollectionAssert.AreEqual(new byte[] { 2, 0, 0, 0 }, action[37..41]);
+        CollectionAssert.AreEqual(NewMember1.EncodePoint(true), action[41..74]);
+        CollectionAssert.AreEqual(NewMember2.EncodePoint(true), action[74..107]);
+
+        var reversed = governance.BuildRotateCouncilAction(
+            new ECPoint[] { NewMember2, NewMember1 }, (BigInteger)2)!;
+        CollectionAssert.AreNotEqual(action, reversed, "the complete ordered member list is bound");
+    }
+
+    [TestMethod]
+    public void BuildRotateCouncilAction_RejectsDuplicateThresholdAndBoundViolations()
+    {
+        var engine = new TestEngine(true);
+        var governance = Deploy(engine);
+
+        Assert.ThrowsExactly<TestException>(() => governance.BuildRotateCouncilAction(
+            new ECPoint[] { NewMember1, NewMember1 }, (BigInteger)1), "duplicate new members rejected");
+        Assert.ThrowsExactly<TestException>(() => governance.BuildRotateCouncilAction(
+            new ECPoint[] { NewMember1 }, (BigInteger)0), "zero threshold rejected");
+        Assert.ThrowsExactly<TestException>(() => governance.BuildRotateCouncilAction(
+            new ECPoint[] { NewMember1 }, (BigInteger)2), "threshold above member count rejected");
+        Assert.ThrowsExactly<TestException>(() => governance.BuildRotateCouncilAction(
+            CreateDistinctMembers(65), (BigInteger)1), "more than 64 members rejected");
+    }
+
+    [TestMethod]
+    public void RotateCouncil_RejectsIncompleteDuplicateAndInvalidSets()
+    {
+        var engine = new TestEngine(true);
+        var governance = Deploy(engine);
+        var newMembers = new ECPoint[] { NewMember1, NewMember2 };
+        var proposalId = ApproveToThreshold(engine, governance,
+            governance.BuildRotateCouncilAction(newMembers, (BigInteger)2)!, engine.Sender);
+        engine.PersistingBlock.Advance(TimeSpan.FromSeconds(Timelock + 1));
+
+        Assert.ThrowsExactly<TestException>(() => governance.RotateCouncil(
+            new ECPoint[] { Member1 }, newMembers, (BigInteger)2, proposalId),
+            "partial old snapshot rejected");
+        Assert.ThrowsExactly<TestException>(() => governance.RotateCouncil(
+            new ECPoint[] { Member1, Member1 }, newMembers, (BigInteger)2, proposalId),
+            "duplicate old snapshot rejected");
+        Assert.ThrowsExactly<TestException>(() => governance.RotateCouncil(
+            new ECPoint[] { Member1, NonMember }, newMembers, (BigInteger)2, proposalId),
+            "old snapshot must equal the current set");
+        Assert.ThrowsExactly<TestException>(() => governance.RotateCouncil(
+            new ECPoint[] { Member1, Member2 }, new ECPoint[] { NewMember1, NewMember1 },
+            (BigInteger)1, proposalId), "duplicate new members rejected");
+        Assert.ThrowsExactly<TestException>(() => governance.RotateCouncil(
+            new ECPoint[] { Member1, Member2 }, newMembers, (BigInteger)0, proposalId),
+            "zero threshold rejected");
+        Assert.ThrowsExactly<TestException>(() => governance.RotateCouncil(
+            new ECPoint[] { Member1, Member2 }, newMembers, (BigInteger)3, proposalId),
+            "threshold above new council size rejected");
+        Assert.ThrowsExactly<TestException>(() => governance.RotateCouncil(
+            new ECPoint[] { Member1, Member2 }, CreateDistinctMembers(65),
+            (BigInteger)1, proposalId), "new council maximum enforced");
+
+        Assert.AreEqual((BigInteger)1, governance.CouncilEpoch!);
+        Assert.IsTrue(governance.IsCouncilMember(Member1)!.Value);
+        Assert.IsFalse(governance.IsCouncilMember(NewMember1)!.Value);
+    }
+
+    [TestMethod]
+    public void RotateCouncil_EnforcesTimelockPayloadBindingAndReplayProtection()
+    {
+        var engine = new TestEngine(true);
+        var governance = Deploy(engine);
+        var newMembers = new ECPoint[] { NewMember1, NewMember2 };
+        var proposalId = ApproveToThreshold(engine, governance,
+            governance.BuildRotateCouncilAction(newMembers, (BigInteger)2)!, engine.Sender);
+
+        Assert.ThrowsExactly<TestException>(() => governance.RotateCouncil(
+            new ECPoint[] { Member1, Member2 }, newMembers, (BigInteger)2, proposalId),
+            "rotation cannot execute before timelock");
+
+        engine.PersistingBlock.Advance(TimeSpan.FromSeconds(Timelock + 1));
+        Assert.ThrowsExactly<TestException>(() => governance.RotateCouncil(
+            new ECPoint[] { Member1, Member2 }, new ECPoint[] { NewMember2, NewMember1 },
+            (BigInteger)2, proposalId), "ordered payload mismatch rejected");
+        Assert.ThrowsExactly<TestException>(() => governance.RotateCouncil(
+            new ECPoint[] { Member1, Member2 }, newMembers, (BigInteger)1, proposalId),
+            "threshold payload mismatch rejected");
+
+        governance.RotateCouncil(
+            new ECPoint[] { Member1, Member2 }, newMembers, (BigInteger)2, proposalId);
+
+        Assert.AreEqual((BigInteger)2, governance.CouncilEpoch!);
+        Assert.AreEqual((BigInteger)2, governance.CouncilCount!);
+        Assert.AreEqual((BigInteger)2, governance.Threshold!);
+        Assert.IsFalse(governance.IsCouncilMember(Member1)!.Value);
+        Assert.IsFalse(governance.IsCouncilMember(Member2)!.Value);
+        Assert.IsTrue(governance.IsCouncilMember(NewMember1)!.Value);
+        Assert.IsTrue(governance.IsCouncilMember(NewMember2)!.Value);
+
+        Assert.ThrowsExactly<TestException>(() => governance.RotateCouncil(
+            new ECPoint[] { NewMember1, NewMember2 }, newMembers, (BigInteger)2, proposalId),
+            "the same proposal id cannot execute twice");
+    }
+
+    [TestMethod]
+    public void RotateCouncil_InvalidatesAllOldEpochProposals_AndNewCouncilTakesControl()
+    {
+        var engine = new TestEngine(true);
+        var governance = Deploy(engine);
+        var oldAdmissionProposal = ApproveToThreshold(engine, governance,
+            governance.BuildSetAdmissionModeAction((BigInteger)2)!, engine.Sender);
+        var newMembers = new ECPoint[] { NewMember1, NewMember2 };
+        var rotationProposal = ApproveToThreshold(engine, governance,
+            governance.BuildRotateCouncilAction(newMembers, (BigInteger)2)!, engine.Sender);
+        engine.PersistingBlock.Advance(TimeSpan.FromSeconds(Timelock + 1));
+
+        governance.RotateCouncil(
+            new ECPoint[] { Member1, Member2 }, newMembers, (BigInteger)2, rotationProposal);
+
+        Assert.IsFalse(governance.IsApprovedAndTimelocked(oldAdmissionProposal)!.Value,
+            "old approvals cannot authorize actions in a new epoch");
+        Assert.AreEqual((BigInteger)ExpiredProposalStage, governance.GetProposalStage(oldAdmissionProposal)!);
+        Assert.ThrowsExactly<TestException>(() => governance.SetAdmissionModeViaProposal(
+            (BigInteger)2, oldAdmissionProposal), "old approved proposal cannot execute after rotation");
+
+        engine.SetTransactionSigners(Member1);
+        Assert.ThrowsExactly<TestException>(() => governance.CreateProposal(Member1,
+            governance.BuildSetImmutableFlagAction((BigInteger)11)!), "removed member loses authority immediately");
+
+        engine.SetTransactionSigners(NewMember1);
+        var newProposal = governance.CreateProposal(NewMember1,
+            governance.BuildSetImmutableFlagAction((BigInteger)11))!.Value;
+        Assert.AreEqual((BigInteger)2, governance.GetProposalEpoch(newProposal)!);
+        Assert.AreEqual((BigInteger)1, governance.Approve(newProposal, NewMember1)!);
+        engine.SetTransactionSigners(NewMember2);
+        Assert.AreEqual((BigInteger)2, governance.Approve(newProposal, NewMember2)!);
+    }
+
+    [TestMethod]
+    public void Approve_CurrentMemberCannotApproveProposalFromPreviousEpoch()
+    {
+        var engine = new TestEngine(true);
+        var governance = Deploy(engine);
+
+        engine.SetTransactionSigners(Member1);
+        var oldProposal = governance.CreateProposal(Member1,
+            governance.BuildSetImmutableFlagAction((BigInteger)12))!.Value;
+        governance.Approve(oldProposal, Member1);
+
+        var newMembers = new ECPoint[] { Member2, NewMember1 };
+        var rotationProposal = ApproveToThreshold(engine, governance,
+            governance.BuildRotateCouncilAction(newMembers, (BigInteger)2)!, engine.Sender);
+        engine.PersistingBlock.Advance(TimeSpan.FromSeconds(Timelock + 1));
+        governance.RotateCouncil(
+            new ECPoint[] { Member1, Member2 }, newMembers, (BigInteger)2, rotationProposal);
+
+        engine.SetTransactionSigners(Member2);
+        Assert.IsTrue(governance.IsCouncilMember(Member2)!.Value, "member remains in the new council");
+        Assert.ThrowsExactly<TestException>(() => governance.Approve(oldProposal, Member2),
+            "membership in the new council cannot revive an old-epoch proposal");
     }
 
     // ───────────────────────── upgrade windows (owner-gated) ─────────────────────────
@@ -482,5 +670,21 @@ public class UT_GovernanceController_Vm
         g.Approve((BigInteger)id, Member2);
         engine.SetTransactionSigners(owner);
         return (ulong)id;
+    }
+
+    private static ECPoint[] CreateDistinctMembers(int count)
+    {
+        var members = new ECPoint[count];
+        for (var index = 0; index < count; index++) members[index] = PointFromScalar(index + 1000);
+        return members;
+    }
+
+    private static ECPoint PointFromScalar(int scalar)
+    {
+        var scalarBytes = new BigInteger(scalar).ToByteArray(isUnsigned: true, isBigEndian: true);
+        var paddedScalar = new byte[32];
+        Buffer.BlockCopy(scalarBytes, 0, paddedScalar, paddedScalar.Length - scalarBytes.Length, scalarBytes.Length);
+        var point = ECCurve.Secp256r1.G * paddedScalar;
+        return ECPoint.DecodePoint(point.EncodePoint(true), ECCurve.Secp256r1);
     }
 }

@@ -41,7 +41,13 @@ public class GovernanceControllerContract : SmartContract
     private const byte PrefixProposalExecutedAt = 0x12;   // 0x12 + proposalId(8B) → Runtime.Time ms
     private const byte PrefixConsumedSetAdmissionMode = 0x13; // 0x13 + proposalId(8B) → 1 (replay protection for SetAdmissionModeViaProposal)
     private const byte PrefixProposalVetoed = 0x14;        // 0x14 + proposalId(8B) → 1 (council/owner brake; IsApprovedAndTimelocked returns false once set)
+    private const byte KeyCouncilEpoch = 0x15;
+    private const byte PrefixProposalEpoch = 0x16;         // 0x16 + proposalId(8B) → council epoch at creation
+    private const byte PrefixConsumedRotateCouncil = 0x17; // 0x17 + proposalId(8B) → 1
     private const byte KeyOwner = 0xFF;
+
+    private const uint MaxCouncilMembers = 64;
+    private const ulong InitialCouncilEpoch = 1;
 
     public const byte StagePending = 0;
     public const byte StageNotice = 1;
@@ -74,6 +80,10 @@ public class GovernanceControllerContract : SmartContract
     [DisplayName("ProposalVetoed")]
     public static event Action<ulong> OnProposalVetoed = default!;
 
+    /// <summary>Emitted after an atomic council rotation advances the governance epoch.</summary>
+    [DisplayName("CouncilRotated")]
+    public static event Action<ulong, ulong, ulong, uint, uint> OnCouncilRotated = default!;
+
     /// <summary>Emitted when the admission mode changes.</summary>
     [DisplayName("AdmissionModeChanged")]
     public static event Action<byte> OnAdmissionModeChanged = default!;
@@ -99,25 +109,9 @@ public class GovernanceControllerContract : SmartContract
     public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
 
     /// <summary>
-    /// Set initial council + thresholds at deploy.
-    /// <para>
-    /// COUNCIL IMMUTABILITY (intentional): the council member set (<see cref="PrefixCouncilMember"/>),
-    /// member count, M-of-N threshold, and timelock are written ONCE here and have no on-chain
-    /// mutator — there is deliberately no AddCouncilMember / RemoveCouncilMember / SetThreshold /
-    /// SetTimelock / RotateCouncil entry-point, and no ContractManagement.Update upgrade path.
-    /// The council is therefore frozen for the lifetime of this deployment. Operational
-    /// consequences the operator MUST plan for:
-    /// </para>
-    /// <list type="bullet">
-    ///   <item><description>Rotating or replacing a council member, or changing the threshold /
-    ///   timelock, requires a fresh GovernanceController deployment and re-wiring every consumer
-    ///   (VerifierRegistry / ChainRegistry / bridge stack SetGovernanceController) to the new hash —
-    ///   keep a redeploy-based recovery runbook.</description></item>
-    ///   <item><description>A single lost council key permanently reduces effective signing power; if
-    ///   it drops the live signer count below the threshold, NO proposal can ever reach approval and
-    ///   the governance path is unrecoverable without a redeploy. Choose a threshold with headroom
-    ///   (e.g. M of N where N-M tolerates expected key loss) accordingly.</description></item>
-    /// </list>
+    /// Set the initial council, threshold, timelock, and governance epoch. Council replacement is
+    /// available only through the epoch-bound, approved, timelocked <see cref="RotateCouncil"/>
+    /// operation. Timelock remains deployment-fixed.
     /// </summary>
     public static void _deploy(object data, bool update)
     {
@@ -129,11 +123,13 @@ public class GovernanceControllerContract : SmartContract
         var timelockSeconds = (uint)(BigInteger)arr[3];
         ExecutionEngine.Assert(owner.IsValid && !owner.IsZero, "invalid owner");
         ExecutionEngine.Assert(members.Length > 0, "council must be non-empty");
+        ExecutionEngine.Assert(members.Length <= MaxCouncilMembers, "council exceeds maximum size");
         ExecutionEngine.Assert(threshold > 0, "threshold must be positive");
         ExecutionEngine.Assert(threshold <= members.Length, "threshold exceeds committee size");
         // A zero timelock means proposals execute instantly — defeats the point of a
         // timelock. Surface the misconfig at deploy time.
         ExecutionEngine.Assert(timelockSeconds > 0, "timelock must be positive");
+        AssertDistinctMembers(members);
 
         Storage.Put(new byte[] { KeyOwner }, owner);
         Storage.Put(new byte[] { KeyCouncilCount }, (BigInteger)members.Length);
@@ -144,15 +140,10 @@ public class GovernanceControllerContract : SmartContract
         Storage.Put(new byte[] { KeyUpgradeCooldownSeconds }, (BigInteger)timelockSeconds);
         Storage.Put(new byte[] { KeyAdmissionMode }, new byte[] { 0 }); // start permissioned
         Storage.Put(new byte[] { KeyNextProposalId }, (BigInteger)1);
+        Storage.Put(new byte[] { KeyCouncilEpoch }, (BigInteger)InitialCouncilEpoch);
 
         for (var i = 0; i < members.Length; i++)
-        {
-            var key = new byte[1 + 33];
-            key[0] = PrefixCouncilMember;
-            var pk = (byte[])members[i];
-            for (var j = 0; j < 33; j++) key[1 + j] = pk[j];
-            Storage.Put(key, new byte[] { 1 });
-        }
+            Storage.Put(CouncilMemberKey(members[i]), new byte[] { 1 });
     }
 
     /// <summary>Owner — controls admission policy, upgrade windows, and allowlisted verifier/bridge sets.</summary>
@@ -177,11 +168,7 @@ public class GovernanceControllerContract : SmartContract
     [Safe]
     public static bool IsCouncilMember(ECPoint memberKey)
     {
-        var key = new byte[1 + 33];
-        key[0] = PrefixCouncilMember;
-        var pk = (byte[])memberKey;
-        for (var j = 0; j < 33; j++) key[1 + j] = pk[j];
-        return Storage.Get(key) != null;
+        return Storage.Get(CouncilMemberKey(memberKey)) != null;
     }
 
     /// <summary>Number of registered council members.</summary>
@@ -198,6 +185,14 @@ public class GovernanceControllerContract : SmartContract
     {
         var raw = Storage.Get(new byte[] { KeyCouncilThreshold });
         return raw == null ? 0u : (uint)(BigInteger)raw;
+    }
+
+    /// <summary>Monotonic council generation. Every successful rotation increments it once.</summary>
+    [Safe]
+    public static ulong GetCouncilEpoch()
+    {
+        var raw = Storage.Get(new byte[] { KeyCouncilEpoch });
+        return raw == null ? InitialCouncilEpoch : (ulong)(BigInteger)raw;
     }
 
     /// <summary>Timelock applied to verifier and bridge upgrades, in seconds.</summary>
@@ -287,6 +282,95 @@ public class GovernanceControllerContract : SmartContract
         (byte)'M', (byte)'o', (byte)'d', (byte)'e'
     };
 
+    private static readonly byte[] ActionTagRotateCouncil = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'g', (byte)'o', (byte)'v', (byte)':',
+        (byte)'r', (byte)'o', (byte)'t', (byte)'a', (byte)'t', (byte)'e',
+        (byte)'C', (byte)'o', (byte)'u', (byte)'n', (byte)'c', (byte)'i', (byte)'l',
+        (byte)':', (byte)'v', (byte)'1'
+    };
+
+    /// <summary>
+    /// Atomically replace the complete council set and threshold after the current council's
+    /// epoch-bound proposal has reached threshold and cleared the timelock.
+    /// </summary>
+    public static void RotateCouncil(
+        ECPoint[] oldMembers,
+        ECPoint[] newMembers,
+        uint newThreshold,
+        ulong proposalId)
+    {
+        var consumedKey = ProposalIdKey(PrefixConsumedRotateCouncil, proposalId);
+        ExecutionEngine.Assert(Storage.Get(consumedKey) == null, "proposal already consumed");
+
+        var currentCount = GetCouncilCount();
+        ExecutionEngine.Assert(oldMembers.Length == currentCount,
+            "oldMembers must be the complete current council");
+        ExecutionEngine.Assert(oldMembers.Length > 0, "old council must be non-empty");
+        ExecutionEngine.Assert(oldMembers.Length <= MaxCouncilMembers, "old council exceeds maximum size");
+        AssertDistinctMembers(oldMembers);
+        for (var i = 0; i < oldMembers.Length; i++)
+            ExecutionEngine.Assert(IsCouncilMember(oldMembers[i]), "oldMembers is not the current council");
+
+        ExecutionEngine.Assert(newMembers.Length > 0, "new council must be non-empty");
+        ExecutionEngine.Assert(newMembers.Length <= MaxCouncilMembers, "new council exceeds maximum size");
+        ExecutionEngine.Assert(newThreshold > 0, "threshold must be positive");
+        ExecutionEngine.Assert(newThreshold <= newMembers.Length, "threshold exceeds new council size");
+        AssertDistinctMembers(newMembers);
+
+        var currentEpoch = GetCouncilEpoch();
+        ExecutionEngine.Assert(currentEpoch < ulong.MaxValue, "council epoch exhausted");
+        ExecutionEngine.Assert(GetProposalEpoch(proposalId) == currentEpoch, "proposal council epoch expired");
+        ExecutionEngine.Assert(IsApprovedAndTimelocked(proposalId), "proposal not approved + timelocked");
+        AssertProposalBinding(proposalId, BuildRotateCouncilAction(newMembers, newThreshold));
+
+        Storage.Put(consumedKey, new byte[] { 1 });
+        for (var i = 0; i < oldMembers.Length; i++)
+            Storage.Delete(CouncilMemberKey(oldMembers[i]));
+        for (var i = 0; i < newMembers.Length; i++)
+            Storage.Put(CouncilMemberKey(newMembers[i]), new byte[] { 1 });
+
+        var newEpoch = currentEpoch + 1;
+        Storage.Put(new byte[] { KeyCouncilCount }, (BigInteger)newMembers.Length);
+        Storage.Put(new byte[] { KeyCouncilThreshold }, (BigInteger)newThreshold);
+        Storage.Put(new byte[] { KeyCouncilEpoch }, (BigInteger)newEpoch);
+        OnCouncilRotated(proposalId, currentEpoch, newEpoch, (uint)newMembers.Length, newThreshold);
+    }
+
+    /// <summary>
+    /// Build the canonical versioned rotation action for the current epoch. Layout:
+    /// <c>tag || epoch(8B LE) || threshold(4B LE) || count(4B LE) || ordered member keys</c>.
+    /// </summary>
+    [Safe]
+    public static byte[] BuildRotateCouncilAction(ECPoint[] newMembers, uint newThreshold)
+    {
+        ExecutionEngine.Assert(newMembers.Length > 0, "new council must be non-empty");
+        ExecutionEngine.Assert(newMembers.Length <= MaxCouncilMembers, "new council exceeds maximum size");
+        ExecutionEngine.Assert(newThreshold > 0, "threshold must be positive");
+        ExecutionEngine.Assert(newThreshold <= newMembers.Length, "threshold exceeds new council size");
+        AssertDistinctMembers(newMembers);
+
+        var buf = new byte[ActionTagRotateCouncil.Length + 8 + 4 + 4 + newMembers.Length * 33];
+        var pos = 0;
+        for (var i = 0; i < ActionTagRotateCouncil.Length; i++) buf[pos++] = ActionTagRotateCouncil[i];
+
+        var epoch = GetCouncilEpoch();
+        WriteUInt64LittleEndian(buf, pos, epoch);
+        pos += 8;
+        WriteUInt32LittleEndian(buf, pos, newThreshold);
+        pos += 4;
+        WriteUInt32LittleEndian(buf, pos, (uint)newMembers.Length);
+        pos += 4;
+
+        for (var i = 0; i < newMembers.Length; i++)
+        {
+            var member = (byte[])newMembers[i];
+            for (var j = 0; j < 33; j++) buf[pos++] = member[j];
+        }
+        return buf;
+    }
+
     /// <summary>Council member submits a proposal payload (opaque bytes, semantics owned by caller).</summary>
     public static ulong CreateProposal(ECPoint signer, byte[] payload)
     {
@@ -298,8 +382,10 @@ public class GovernanceControllerContract : SmartContract
         ExecutionEngine.Assert(payload.Length > 0, "empty proposal payload");
         var idRaw = Storage.Get(new byte[] { KeyNextProposalId });
         var id = idRaw == null ? 1UL : (ulong)(BigInteger)idRaw;
+        ExecutionEngine.Assert(id < ulong.MaxValue, "proposal id exhausted");
         Storage.Put(new byte[] { KeyNextProposalId }, (BigInteger)(id + 1));
         Storage.Put(ProposalKey(id), payload);
+        Storage.Put(ProposalIdKey(PrefixProposalEpoch, id), (BigInteger)GetCouncilEpoch());
         OnProposalCreated(id, payload);
         return id;
     }
@@ -307,9 +393,10 @@ public class GovernanceControllerContract : SmartContract
     /// <summary>Approve an existing proposal. One vote per member.</summary>
     public static uint Approve(ulong proposalId, ECPoint memberKey)
     {
+        ExecutionEngine.Assert(Storage.Get(ProposalKey(proposalId)) != null, "unknown proposal");
+        ExecutionEngine.Assert(GetProposalEpoch(proposalId) == GetCouncilEpoch(), "proposal council epoch expired");
         ExecutionEngine.Assert(IsCouncilMember(memberKey), "not a council member");
         ExecutionEngine.Assert(Runtime.CheckWitness(memberKey), "not authorized");
-        ExecutionEngine.Assert(Storage.Get(ProposalKey(proposalId)) != null, "unknown proposal");
 
         var aKey = ApprovalKey(proposalId, memberKey);
         ExecutionEngine.Assert(Storage.Get(aKey) == null, "already approved");
@@ -324,6 +411,14 @@ public class GovernanceControllerContract : SmartContract
     {
         var raw = Storage.Get(ProposalKey(proposalId));
         return raw == null ? new byte[0] : (byte[])raw;
+    }
+
+    /// <summary>Council epoch captured when the proposal was created, or zero if unknown.</summary>
+    [Safe]
+    public static ulong GetProposalEpoch(ulong proposalId)
+    {
+        var raw = Storage.Get(ProposalIdKey(PrefixProposalEpoch, proposalId));
+        return raw == null ? 0UL : (ulong)(BigInteger)raw;
     }
 
     /// <summary>
@@ -412,6 +507,7 @@ public class GovernanceControllerContract : SmartContract
     [Safe]
     public static bool IsApprovedAndTimelocked(ulong proposalId)
     {
+        if (GetProposalEpoch(proposalId) != GetCouncilEpoch()) return false;
         if (IsVetoed(proposalId)) return false;
         var approvedAt = GetApprovedAt(proposalId);
         if (approvedAt == 0UL) return false;
@@ -521,6 +617,8 @@ public class GovernanceControllerContract : SmartContract
     [Safe]
     public static byte GetProposalStage(ulong proposalId)
     {
+        if (Storage.Get(ProposalKey(proposalId)) == null) return StagePending;
+        if (GetProposalEpoch(proposalId) != GetCouncilEpoch()) return StageExpired;
         var approvedAt = GetApprovedAt(proposalId);
         if (approvedAt == 0UL) return StagePending;
 
@@ -569,29 +667,75 @@ public class GovernanceControllerContract : SmartContract
     {
         var k = new byte[1 + 8];
         k[0] = prefix;
-        k[1] = (byte)id; k[2] = (byte)(id >> 8); k[3] = (byte)(id >> 16); k[4] = (byte)(id >> 24);
-        k[5] = (byte)(id >> 32); k[6] = (byte)(id >> 40); k[7] = (byte)(id >> 48); k[8] = (byte)(id >> 56);
+        WriteUInt64LittleEndian(k, 1, id);
         return k;
     }
 
     private static byte[] ProposalKey(ulong id)
     {
-        var k = new byte[1 + 8];
-        k[0] = PrefixProposal;
-        k[1] = (byte)id; k[2] = (byte)(id >> 8); k[3] = (byte)(id >> 16); k[4] = (byte)(id >> 24);
-        k[5] = (byte)(id >> 32); k[6] = (byte)(id >> 40); k[7] = (byte)(id >> 48); k[8] = (byte)(id >> 56);
-        return k;
+        return ProposalIdKey(PrefixProposal, id);
     }
 
     private static byte[] ApprovalKey(ulong id, ECPoint memberKey)
     {
         var k = new byte[1 + 8 + 33];
         k[0] = PrefixApproval;
-        k[1] = (byte)id; k[2] = (byte)(id >> 8); k[3] = (byte)(id >> 16); k[4] = (byte)(id >> 24);
-        k[5] = (byte)(id >> 32); k[6] = (byte)(id >> 40); k[7] = (byte)(id >> 48); k[8] = (byte)(id >> 56);
+        WriteUInt64LittleEndian(k, 1, id);
         var pk = (byte[])memberKey;
         for (var j = 0; j < 33; j++) k[9 + j] = pk[j];
         return k;
+    }
+
+    private static byte[] CouncilMemberKey(ECPoint memberKey)
+    {
+        var key = new byte[1 + 33];
+        key[0] = PrefixCouncilMember;
+        var member = (byte[])memberKey;
+        ExecutionEngine.Assert(member.Length == 33, "council member key must be compressed");
+        for (var i = 0; i < 33; i++) key[i + 1] = member[i];
+        return key;
+    }
+
+    private static void AssertDistinctMembers(ECPoint[] members)
+    {
+        for (var i = 0; i < members.Length; i++)
+        {
+            var left = (byte[])members[i];
+            ExecutionEngine.Assert(left.Length == 33, "council member key must be compressed");
+            for (var j = i + 1; j < members.Length; j++)
+            {
+                var right = (byte[])members[j];
+                ExecutionEngine.Assert(right.Length == 33, "council member key must be compressed");
+                ExecutionEngine.Assert(!MemberKeysEqual(left, right), "duplicate council member");
+            }
+        }
+    }
+
+    private static bool MemberKeysEqual(byte[] left, byte[] right)
+    {
+        for (var i = 0; i < 33; i++)
+            if (left[i] != right[i]) return false;
+        return true;
+    }
+
+    private static void WriteUInt32LittleEndian(byte[] destination, int offset, uint value)
+    {
+        destination[offset] = (byte)value;
+        destination[offset + 1] = (byte)(value >> 8);
+        destination[offset + 2] = (byte)(value >> 16);
+        destination[offset + 3] = (byte)(value >> 24);
+    }
+
+    private static void WriteUInt64LittleEndian(byte[] destination, int offset, ulong value)
+    {
+        destination[offset] = (byte)value;
+        destination[offset + 1] = (byte)(value >> 8);
+        destination[offset + 2] = (byte)(value >> 16);
+        destination[offset + 3] = (byte)(value >> 24);
+        destination[offset + 4] = (byte)(value >> 32);
+        destination[offset + 5] = (byte)(value >> 40);
+        destination[offset + 6] = (byte)(value >> 48);
+        destination[offset + 7] = (byte)(value >> 56);
     }
 
     // ─────────────────────────────────────────────────────────────────────────

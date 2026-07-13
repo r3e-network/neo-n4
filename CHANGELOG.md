@@ -113,6 +113,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Replaced script-only/fixed-zero guest execution with full Neo transaction decoding, stateful `neo-vm-rs` execution, production opcode/syscall gas, HALT overlay commits, FAULT rollback, and fail-closed unsupported syscalls.
 - Froze the 105-byte `CanonicalReceiptV1`, domain-separated storage/event V1 hashes, canonical event stack encoding, and keyed post-state-root recomputation.
 - Added a stable stateful golden artifact, host/guest parity coverage, and transaction/witness/state/root/receipt/order/parameter tamper rejection tests.
+- Added the restricted N4 genesis native transition V1: non-empty L1 deposits atomically update the real L2Bridge replay/mapping and TokenManagement token/account layout before transactions, while unsupported inbox types fail closed.
+- Derived withdrawal and L2→L1/L2 roots only from exact canonical L2Bridge/L2Message notifications, with pinned native hashes/ABIs, limited proven native dispatch, duplicate/malformed rejection, and C#/Rust/SP1 parity goldens.
 
 ### Fixed — N4 genesis execution-effects parity — 2026-07-13
 

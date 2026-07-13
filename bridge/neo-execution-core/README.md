@@ -15,10 +15,12 @@ It owns the canonical proof boundary shared by host and guest:
 1. decode the existing `ProofWitnessArtifactV1` / `ExecutionPayloadV1` envelope;
 2. decode complete Neo transactions, signer scopes/rules, attributes, and witnesses;
 3. verify bounded `NEO4STW1` pre-state plus contract code/manifest bindings;
-4. validate backend-produced storage overlays and notifications;
-5. encode the frozen 105-byte receipt and `NEO4EFX1` effects;
-6. recompute state, transaction, receipt, DA, context, and public-input hashes;
-7. reject every host-supplied result, effect, or root that differs.
+4. apply the restricted N4 genesis V1 deposit against the real native bridge/token layout;
+5. validate backend-produced storage overlays and notifications;
+6. derive native withdrawal/message roots from exact canonical event ABIs;
+7. encode the frozen 105-byte receipt and `NEO4EFX1` effects;
+8. recompute state, transaction, receipt, DA, context, and public-input hashes;
+9. reject every host-supplied result, effect, or root that differs.
 
 ## Backend model
 

@@ -70,8 +70,10 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
     /// silently using the wrong network magic.
     /// </param>
     /// <param name="collector">
-    /// Optional notification → withdrawals/messages decoder. Default treats
-    /// every transaction as effect-free.
+    /// Optional legacy projection for callers that consume
+    /// <see cref="TransactionExecutionResult.Withdrawals"/> and
+    /// <see cref="TransactionExecutionResult.Messages"/> directly. Batch commitments never
+    /// trust this projection; they derive outbox records from canonical notifications.
     /// </param>
     /// <param name="gasLimit">
     /// Per-transaction gas budget in datoshi (Neo's smallest GAS unit).
@@ -249,9 +251,8 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
 /// <summary>
 /// Plug-in point for translating engine notifications into the L2's
 /// <see cref="WithdrawalRequest"/> + <see cref="CrossChainMessage"/> sets.
-/// Production wires a domain-specific decoder (e.g. one that recognizes the
-/// chain's native bridge contract's <c>OnWithdraw</c> event); the default
-/// <see cref="NoEffectsCollector"/> treats every transaction as effect-free.
+/// This is a legacy convenience projection only. <see cref="ReferenceBatchExecutor"/> ignores
+/// these returned records and derives committed outbox roots from canonical native notifications.
 /// </summary>
 public interface INotificationCollector
 {

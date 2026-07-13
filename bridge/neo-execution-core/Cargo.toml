@@ -7,6 +7,8 @@ license = "MIT"
 description = "Backend-agnostic Neo L2 batch execution primitives shared by fast RISC-V runners and zkVM guests."
 
 [dependencies]
+num-bigint = { version = "0.4", default-features = false }
+num-traits = { version = "0.2", default-features = false }
 ripemd = { version = "0.1", default-features = false }
 p256 = { version = "0.13", default-features = false, features = ["arithmetic"] }
 serde = { version = "1", default-features = false, features = ["alloc", "derive"] }

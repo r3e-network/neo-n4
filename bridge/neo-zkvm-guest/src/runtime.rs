@@ -6,9 +6,10 @@ use alloc::{
 
 use neo_execution_core::{
     CanonicalStackValue, ContractManifest, ContractParameterType, ContractWitness, ExecutionError,
-    ExecutionEvent, ExecutionPayload, ParsedTransaction, PermissionContract, PermissionMethods,
-    StateWitness, StorageDelta, StorageOperation, UInt160, VmOutcome, encode_stack_state, hash160,
-    normalize_signed_le,
+    ExecutionEvent, ExecutionPayload, NativeCallContextV1, ParsedTransaction, PermissionContract,
+    PermissionMethods, StateWitness, StorageDelta, StorageOperation, UInt160, VmOutcome,
+    encode_stack_state, hash160, l2_bridge_hash, l2_message_hash, native_emit_message_v1,
+    native_initiate_withdrawal_v1, normalize_signed_le,
 };
 use neo_vm_rs::{
     OpCode, StackValue, SyscallProvider, VmState, encode_integer,
@@ -239,6 +240,15 @@ impl<'a> ApplicationProvider<'a> {
             return Err("invalid contract call flags".to_string());
         }
         let arguments = pop_array(stack, "contract arguments")?;
+        if contract_hash == l2_message_hash() || contract_hash == l2_bridge_hash() {
+            return self.call_native_contract(
+                contract_hash,
+                &method_name,
+                requested_flags,
+                arguments,
+                stack,
+            );
+        }
         let contract = self
             .witness
             .contract_by_hash(&contract_hash)
@@ -334,6 +344,90 @@ impl<'a> ApplicationProvider<'a> {
             return Err("void contract returned a value".to_string());
         }
         Ok(())
+    }
+
+    fn call_native_contract(
+        &mut self,
+        contract_hash: UInt160,
+        method_name: &str,
+        requested_flags: u8,
+        arguments: Vec<StackValue>,
+        stack: &mut Vec<StackValue>,
+    ) -> Result<(), String> {
+        let parent = self.current_context()?.clone();
+        let child_flags = requested_flags & parent.call_flags;
+        let required_flags =
+            CALL_FLAGS_READ_STATES | CALL_FLAGS_WRITE_STATES | CALL_FLAGS_ALLOW_NOTIFY;
+        if child_flags & required_flags != required_flags {
+            return Err("native call disallowed by call flags".to_string());
+        }
+        if let Some(caller_id) = parent.contract_id {
+            let caller = self
+                .witness
+                .contract_by_id(caller_id)
+                .ok_or_else(|| "caller contract witness not found".to_string())?;
+            if !manifest_allows_hash(&caller.manifest, &contract_hash, method_name) {
+                return Err("contract manifest permission denied".to_string());
+            }
+        }
+
+        let merged_state = self.merged_state();
+        let native_context = NativeCallContextV1 {
+            chain_id: self.payload.chain_id,
+            caller: parent.script_hash,
+            exec_fee_factor: self.witness.config.exec_fee_factor,
+            storage_price: self.witness.config.storage_price,
+        };
+        let transition = if contract_hash == l2_message_hash() {
+            if method_name != "emitMessage" || arguments.len() != 4 {
+                return Err("unsupported L2Message native method".to_string());
+            }
+            native_emit_message_v1(
+                &merged_state,
+                &native_context,
+                value_u32(&arguments[0], "target chain id")?,
+                value_fixed_bytes::<20>(&arguments[1], "message receiver")?,
+                value_u8(&arguments[2], "message type")?,
+                value_bytes(&arguments[3], "message payload")?,
+            )
+        } else {
+            if method_name != "initiateWithdrawal" || arguments.len() != 3 {
+                return Err("unsupported L2Bridge native method".to_string());
+            }
+            let amount = value_integer_bytes(&arguments[1], "withdrawal amount")?;
+            native_initiate_withdrawal_v1(
+                &merged_state,
+                &native_context,
+                value_fixed_bytes::<20>(&arguments[0], "withdrawal asset")?,
+                &amount,
+                value_fixed_bytes::<20>(&arguments[2], "withdrawal recipient")?,
+            )
+        }
+        .map_err(|error| error.to_string())?;
+
+        self.charge(transition.native_fee)?;
+        for delta in transition.storage_deltas {
+            self.overlay.insert(delta.key, delta.new_value);
+        }
+        self.events.extend(transition.events);
+        *self.invocation_counter.entry(contract_hash).or_insert(0) += 1;
+        stack.push(integer_from_u64(transition.return_value));
+        Ok(())
+    }
+
+    fn merged_state(&self) -> BTreeMap<Vec<u8>, Vec<u8>> {
+        let mut state = self.state.clone();
+        for (key, value) in &self.overlay {
+            match value {
+                Some(value) => {
+                    state.insert(key.clone(), value.clone());
+                }
+                None => {
+                    state.remove(key);
+                }
+            }
+        }
+        state
     }
 
     fn notify(&mut self, stack: &mut Vec<StackValue>) -> Result<(), String> {
@@ -641,6 +735,21 @@ fn manifest_allows_call(caller: &ContractManifest, target: &ContractWitness, met
     })
 }
 
+fn manifest_allows_hash(caller: &ContractManifest, target_hash: &UInt160, method: &str) -> bool {
+    caller.permissions.iter().any(|permission| {
+        let contract_matches = match &permission.contract {
+            PermissionContract::Wildcard => true,
+            PermissionContract::Hash(hash) => hash == target_hash,
+            PermissionContract::Group(_) => false,
+        };
+        let method_matches = match &permission.methods {
+            PermissionMethods::Wildcard => true,
+            PermissionMethods::Named(methods) => methods.iter().any(|name| name == method),
+        };
+        contract_matches && method_matches
+    })
+}
+
 fn stack_value_matches_type(value: &StackValue, parameter_type: &ContractParameterType) -> bool {
     if matches!(value, StackValue::Pointer(_)) {
         return false;
@@ -762,6 +871,48 @@ fn pop_u8(stack: &mut Vec<StackValue>, field: &str) -> Result<u8, String> {
 fn pop_array(stack: &mut Vec<StackValue>, field: &str) -> Result<Vec<StackValue>, String> {
     match pop_value(stack, field)? {
         StackValue::Array(items) | StackValue::Struct(items) => Ok(items),
+        _ => Err(alloc::format!("invalid {field}")),
+    }
+}
+
+fn value_bytes(value: &StackValue, field: &str) -> Result<Vec<u8>, String> {
+    value
+        .as_bytes()
+        .map(<[u8]>::to_vec)
+        .ok_or_else(|| alloc::format!("invalid {field}"))
+}
+
+fn value_fixed_bytes<const N: usize>(value: &StackValue, field: &str) -> Result<[u8; N], String> {
+    value_bytes(value, field)?
+        .try_into()
+        .map_err(|_| alloc::format!("invalid {field}"))
+}
+
+fn value_u32(value: &StackValue, field: &str) -> Result<u32, String> {
+    value
+        .to_i128()
+        .and_then(|value| u32::try_from(value).ok())
+        .ok_or_else(|| alloc::format!("invalid {field}"))
+}
+
+fn value_u8(value: &StackValue, field: &str) -> Result<u8, String> {
+    value
+        .to_i128()
+        .and_then(|value| u8::try_from(value).ok())
+        .ok_or_else(|| alloc::format!("invalid {field}"))
+}
+
+fn value_integer_bytes(value: &StackValue, field: &str) -> Result<Vec<u8>, String> {
+    match value {
+        StackValue::Integer(value) => Ok(encode_integer(*value)),
+        StackValue::BigInteger(bytes)
+        | StackValue::ByteString(bytes)
+        | StackValue::Buffer(bytes) => {
+            if normalize_signed_le(bytes) != *bytes {
+                return Err(alloc::format!("invalid {field}"));
+            }
+            Ok(bytes.clone())
+        }
         _ => Err(alloc::format!("invalid {field}")),
     }
 }

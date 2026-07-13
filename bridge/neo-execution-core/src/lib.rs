@@ -5,6 +5,7 @@ extern crate alloc;
 mod batch;
 mod hashing;
 mod manifest;
+mod native;
 mod transaction;
 mod types;
 mod wire;
@@ -17,6 +18,12 @@ pub use hashing::{
     hash_l1_messages, hash_public_inputs, hash160, hash256, keyed_state_root,
     keyed_state_root_from_map, merkle_root, normalize_signed_le, receipt_hash, state_leaf_hash,
     storage_delta_hash,
+};
+pub use native::{
+    NativeCallContextV1, NativeTransitionV1, apply_l1_inbox_v1, bridged_nep17_hash,
+    contract_management_key, derive_outbound_roots_v1, governance_hash, l2_bridge_hash,
+    l2_message_hash, native_contract_hash, native_emit_message_v1, native_initiate_withdrawal_v1,
+    token_management_hash,
 };
 pub use transaction::parse_transaction;
 pub use types::*;

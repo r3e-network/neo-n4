@@ -18,19 +18,14 @@ public class UT_ReferenceBatchExecutor
     private sealed class StubL1MessageProcessor : IL1MessageProcessor
     {
         public List<CrossChainMessage> Applied { get; } = new();
-        public ValueTask ApplyAsync(CrossChainMessage message, CancellationToken cancellationToken = default)
+        public ValueTask ApplyBatchAsync(
+            uint chainId,
+            IReadOnlyList<CrossChainMessage> messages,
+            CancellationToken cancellationToken = default)
         {
-            Applied.Add(message);
+            Applied.AddRange(messages);
             return ValueTask.CompletedTask;
         }
-    }
-
-    private sealed class StubEffectsCollector : IBatchEffectsCollector
-    {
-        private readonly Dictionary<UInt256, BatchEffects> _effects;
-        public StubEffectsCollector(IDictionary<UInt256, BatchEffects> effects) => _effects = new(effects);
-        public BatchEffects GetEffects(UInt256 txHash) =>
-            _effects.TryGetValue(txHash, out var e) ? e : BatchEffects.Empty;
     }
 
     [TestMethod]
@@ -118,45 +113,15 @@ public class UT_ReferenceBatchExecutor
         var txBytes = new ReadOnlyMemory<byte>(new byte[] { 0x10, 0x20, 0x30 });
         var txHash = new UInt256(Cryptography.Crypto.Hash256(txBytes.Span));
 
-        var withdrawal = new WithdrawalRequest
-        {
-            ChainId = 1U,
-            EmittingContract = UInt160.Zero,
-            L2Sender = UInt160.Parse("0x" + new string('a', 40)),
-            L1Recipient = UInt160.Parse("0x" + new string('b', 40)),
-            L2Asset = UInt160.Parse("0x" + new string('c', 40)),
-            Amount = new BigInteger(123),
-            Nonce = 1,
-        };
-        var msgL1 = new CrossChainMessage
-        {
-            SourceChainId = 1001,
-            TargetChainId = 0,
-            Nonce = 1,
-            Sender = UInt160.Zero,
-            Receiver = UInt160.Zero,
-            MessageType = MessageType.Withdraw,
-            Payload = ReadOnlyMemory<byte>.Empty,
-            MessageHash = UInt256.Parse("0x" + new string('5', 64)),
-        };
-        var msgL2 = msgL1 with { TargetChainId = 2002, MessageHash = UInt256.Parse("0x" + new string('6', 64)) };
-
-        var effects = new StubEffectsCollector(new Dictionary<UInt256, BatchEffects>
-        {
-            [txHash] = new BatchEffects
-            {
-                Withdrawals = new[] { withdrawal },
-                Messages = new[] { msgL1, msgL2 },
-            },
-        });
+        var effects = UT_CanonicalNativeExecutionAdapter.OutboundEffects();
 
         var executor = new ReferenceBatchExecutor(
-            new ReferenceTransactionExecutor(effects),
+            new CanonicalEffectsExecutor(txHash, effects),
             new DerivedPostStateRootOracle());
 
         var result = await executor.ApplyBatchAsync(new BatchExecutionRequest
         {
-            ChainId = 1001,
+            ChainId = 1099,
             BatchNumber = 1,
             PreStateRoot = UInt256.Zero,
             Transactions = new[] { txBytes },
@@ -167,6 +132,31 @@ public class UT_ReferenceBatchExecutor
         Assert.AreNotEqual(UInt256.Zero, result.WithdrawalRoot);
         Assert.AreNotEqual(UInt256.Zero, result.L2ToL1MessageRoot);
         Assert.AreNotEqual(UInt256.Zero, result.L2ToL2MessageRoot);
+    }
+
+    private sealed class CanonicalEffectsExecutor(
+        UInt256 txHash,
+        Executor.Effects.CanonicalExecutionEffects effects) : ITransactionExecutor
+    {
+        public ValueTask<TransactionExecutionResult> ExecuteAsync(
+            ReadOnlyMemory<byte> serializedTx,
+            BatchBlockContext batchContext,
+            CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(new TransactionExecutionResult
+            {
+                TxHash = txHash,
+                Receipt = new Receipt
+                {
+                    TxHash = txHash,
+                    Success = true,
+                    GasConsumed = 1,
+                    StorageDeltaHash = effects.StorageHash,
+                    EventsHash = effects.EventsHash,
+                },
+                Withdrawals = [],
+                Messages = [],
+                Effects = effects,
+            });
     }
 
     [TestMethod]
@@ -443,7 +433,10 @@ public class UT_ReferenceBatchExecutor
 
     private sealed class NoopL1Processor : IL1MessageProcessor
     {
-        public ValueTask ApplyAsync(CrossChainMessage message, CancellationToken cancellationToken = default)
+        public ValueTask ApplyBatchAsync(
+            uint chainId,
+            IReadOnlyList<CrossChainMessage> messages,
+            CancellationToken cancellationToken = default)
             => ValueTask.CompletedTask;
     }
 

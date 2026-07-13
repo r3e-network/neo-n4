@@ -1,9 +1,26 @@
 #![cfg(unix)]
 
+use std::sync::OnceLock;
+
 const FIXTURE_HEX: &str = include_str!("../../neo-zkvm-guest/tests/fixtures/stateful_batch_v1.hex");
+const NATIVE_FIXTURE_HEX: &str =
+    include_str!("../../neo-zkvm-guest/tests/fixtures/native_transition_v1.hex");
 
 fn stateful_fixture() -> Vec<u8> {
     hex::decode(FIXTURE_HEX.split_whitespace().collect::<String>()).expect("fixture hex")
+}
+
+fn native_fixture() -> Vec<u8> {
+    hex::decode(NATIVE_FIXTURE_HEX.split_whitespace().collect::<String>())
+        .expect("native fixture hex")
+}
+
+fn real_native_proof() -> &'static neo_zkvm_host::ProofResult {
+    static PROOF: OnceLock<Result<neo_zkvm_host::ProofResult, String>> = OnceLock::new();
+    PROOF
+        .get_or_init(|| neo_zkvm_host::prove(&native_fixture()))
+        .as_ref()
+        .expect("zkVM prove failed")
 }
 
 fn skip_when_cached_elf_is_allowed(test_name: &str) -> bool {
@@ -34,6 +51,25 @@ fn execute_fresh_stateful_guest_matches_host_run() {
 
 #[test]
 #[serial_test::serial]
+fn execute_fresh_native_guest_binds_inbox_and_outbox_roots() {
+    if skip_when_cached_elf_is_allowed("execute_fresh_native_guest_binds_inbox_and_outbox_roots") {
+        return;
+    }
+
+    let bytes = native_fixture();
+    let zkvm_result = neo_zkvm_host::execute(&bytes).expect("zkVM native execute failed");
+    let artifact =
+        neo_execution_core::parse_proof_witness_artifact(&bytes).expect("native fixture artifact");
+    let host_result = neo_zkvm_guest::execute_batch(&bytes).expect("host native execute failed");
+
+    assert_eq!(zkvm_result.public_input_hash, host_result.public_input_hash);
+    assert_ne!(artifact.public_inputs.l1_message_hash, [0u8; 32]);
+    assert_ne!(artifact.execution_result.withdrawal_root, [0u8; 32]);
+    assert_ne!(artifact.execution_result.l2_to_l1_message_root, [0u8; 32]);
+}
+
+#[test]
+#[serial_test::serial]
 fn execute_fresh_guest_rejects_tampered_witness() {
     if skip_when_cached_elf_is_allowed("execute_fresh_guest_rejects_tampered_witness") {
         return;
@@ -49,10 +85,10 @@ fn execute_fresh_guest_rejects_tampered_witness() {
 #[ignore]
 #[serial_test::serial]
 fn prove_and_verify_real_zk_proof() {
-    let bytes = stateful_fixture();
+    let bytes = native_fixture();
     let host_result = neo_zkvm_guest::execute_batch(&bytes).expect("host execute failed");
 
-    let proof_result = neo_zkvm_host::prove(&bytes).expect("zkVM prove failed");
+    let proof_result = real_native_proof();
     assert_eq!(356, proof_result.proof_bytes.len());
     assert_eq!(32, proof_result.vk_bytes.len());
     assert_eq!(33, proof_result.public_values.len());
@@ -78,7 +114,7 @@ fn prove_and_verify_real_zk_proof() {
 #[ignore]
 #[serial_test::serial]
 fn verify_rejects_mismatched_public_input_hash() {
-    let proof_result = neo_zkvm_host::prove(&stateful_fixture()).expect("zkVM prove failed");
+    let proof_result = real_native_proof();
     let mut tampered = proof_result.public_input_hash;
     tampered[0] ^= 0xff;
     let error = neo_zkvm_host::verify(&proof_result.proof_bytes, &proof_result.vk_bytes, &tampered)

@@ -26,7 +26,10 @@ contract bindings, decodes each full canonical Neo transaction, and executes
 `tx.Script` with the vendored `external/neo-vm-rs` interpreter. The syscall
 provider exposes bounded storage overlays, contract calls, manifests, block
 context, signer scopes, notifications, and production gas prices. HALT commits;
-FAULT rolls back. Unsupported consensus behavior fails closed.
+FAULT rolls back. Before transactions, the guest applies the restricted N4 genesis
+deposit transition to the real native L2Bridge/TokenManagement keys. It also proves
+the pinned `L2Message.emitMessage` and `L2Bridge.initiateWithdrawal` paths and derives
+outbox roots from their exact canonical events. Other native/consensus behavior fails closed.
 
 ## Build
 
@@ -51,7 +54,7 @@ functions on the host:
 
 ```bash
 cargo test
-# → 7 guest tests + 5 shared-core tests in the top-level workspace
+# → host-mode shared-core and guest execution/tamper tests
 ```
 
 ## Wire format

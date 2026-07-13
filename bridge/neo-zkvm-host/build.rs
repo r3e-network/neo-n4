@@ -9,6 +9,7 @@ use std::process::Command;
 fn main() {
     println!("cargo:rerun-if-changed=../neo-zkvm-guest/src");
     println!("cargo:rerun-if-changed=../neo-zkvm-guest/tests/fixtures/stateful_batch_v1.hex");
+    println!("cargo:rerun-if-changed=../neo-zkvm-guest/tests/fixtures/native_transition_v1.hex");
     println!("cargo:rerun-if-changed=../neo-zkvm-guest/Cargo.toml");
     println!("cargo:rerun-if-changed=../neo-execution-core/Cargo.toml");
     println!("cargo:rerun-if-changed=../neo-execution-core/src");

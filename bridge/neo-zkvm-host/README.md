@@ -133,7 +133,7 @@ cargo test --release -p neo-zkvm-host
 cargo test --release -p neo-zkvm-host -- --ignored --nocapture
 ```
 
-The execute/prove tests use the committed stateful golden artifact, so
+The execute/prove tests use committed stateful and native-transition golden artifacts, so
 divergence between fresh zkVM execution, host execution, and proven execution
 is caught without a script-only fallback.
 

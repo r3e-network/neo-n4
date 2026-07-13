@@ -2281,6 +2281,8 @@ dependencies = [
 name = "neo-execution-core"
 version = "0.1.0"
 dependencies = [
+ "num-bigint 0.4.6",
+ "num-traits",
  "p256",
  "ripemd",
  "serde",
@@ -2330,6 +2332,7 @@ version = "0.1.0"
 dependencies = [
  "hex",
  "libc",
+ "neo-execution-core",
  "neo-zkvm-guest",
  "serial_test",
  "sp1-sdk",

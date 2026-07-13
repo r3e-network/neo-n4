@@ -5,6 +5,7 @@ use crate::{
         events_hash, hash_block_context, hash_l1_messages, hash_public_inputs, hash256,
         keyed_state_root_from_map, merkle_root, receipt_hash, storage_delta_hash,
     },
+    native::{apply_l1_inbox_v1, derive_outbound_roots_v1},
     transaction::parse_transaction,
     types::{
         BatchEffects, BatchExecutionResult, BatchResult, CanonicalReceiptV1, ComputedBatch,
@@ -27,15 +28,11 @@ where
         &ParsedTransaction,
     ) -> Result<VmOutcome, ExecutionError>,
 {
-    if !payload.l1_messages.is_empty() {
-        return Err(ExecutionError::Unsupported(
-            "L1 inbox adapter in state witness V1",
-        ));
-    }
     let mut state = witness.state_map();
     if keyed_state_root_from_map(&state) != payload.pre_state_root {
         return Err(ExecutionError::Invalid("pre-state root"));
     }
+    apply_l1_inbox_v1(payload, &mut state)?;
 
     let transactions = payload
         .transactions
@@ -82,17 +79,19 @@ where
         });
     }
 
+    let effects = BatchEffects {
+        transactions: transaction_effects,
+    };
+    let (withdrawal_root, l2_to_l1_message_root, l2_to_l2_message_root) =
+        derive_outbound_roots_v1(payload.chain_id, &effects)?;
     let execution_result = BatchExecutionResult {
         post_state_root: keyed_state_root_from_map(&state),
         tx_root: merkle_root(&transaction_hashes),
         receipt_root: merkle_root(&receipt_hashes),
-        withdrawal_root: [0u8; 32],
-        l2_to_l1_message_root: [0u8; 32],
-        l2_to_l2_message_root: [0u8; 32],
+        withdrawal_root,
+        l2_to_l1_message_root,
+        l2_to_l2_message_root,
         gas_consumed: total_gas,
-    };
-    let effects = BatchEffects {
-        transactions: transaction_effects,
     };
     let effects_bytes = encode_batch_effects(&effects)?;
     let da_commitment = hash256(&encode_execution_payload(payload)?);

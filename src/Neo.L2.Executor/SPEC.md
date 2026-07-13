@@ -41,7 +41,7 @@ The executor MUST NOT write:
 
 ## Execution order
 
-1. **Apply L1 messages first.** For each `l1Messages[i]`, in the order given, the executor calls into the on-L2 bridge / message contracts as if the message came from a trusted source. Replay protection is enforced by the contracts via per-(sourceChain, nonce) bitmaps. The executor MUST NOT skip or reorder.
+1. **Apply L1 messages first.** For each `l1Messages[i]`, in the order given, the executor applies the pinned N4 genesis V1 transition below. Replay protection uses the native L2 bridge's exact per-`(sourceChain, nonce)` key. The executor MUST NOT skip or reorder. Inbox validation or adapter failure is fatal to the whole batch; it is not a transaction `FAULT` and cannot produce a synthetic receipt.
 2. **Apply transactions next.** Before execution starts, every `orderedTxs[i]` is decoded as a complete canonical Neo `Transaction` (unsigned fields, signers/scopes/rules, attributes, script, and witnesses). A decode or adapter error is fatal to the batch. Decoded transactions then execute `tx.Script` in order. Neo N4 L2 production uses NeoVM2/RISC-V; the NeoVM compatibility path uses the same opcode prices, bounded gas, block context, signer scopes, deployed contract code/manifests, and stateful syscalls as `ApplicationEngine`. A VM `FAULT` produces a failure receipt and rolls back that transaction's storage and notifications.
 3. **Seal outboxes.** After all transactions complete, the executor computes:
    - `txRoot` = MerkleTree(txHash[0], …, txHash[N-1])
@@ -83,6 +83,57 @@ The stack-state header is `NEO4STK1 | version:u16=1 | flags:u16=0`. Recursive ta
 
 The post-state root is recomputed from the verified complete pre-state key/value witness plus committed HALT overlays using the keyed-state Merkle algorithm. Receipt folding is not a state-root algorithm.
 
+### N4 genesis V1 inbox and native outbox profile
+
+N4 genesis intentionally proves a restricted native profile, not general native-contract dispatch.
+The only supported inbound message is `MessageType.Deposit` (`0`). It MUST have
+`sourceChainId == 0`, `targetChainId == payload.chainId`, a non-zero sender,
+`receiver == NativeContract.L2Bridge.Hash`, and the exact canonical
+`DepositPayload` bytes (`l1Asset[20] | recipient[20] | amountLength i32 LE | unsigned amount`).
+The complete message bytes are committed through `MessageHasher.HashMessage` and the
+`l1MessageHash` Merkle root; no host-supplied per-message hash is trusted.
+
+The transition reads and writes the actual N4 native layout:
+
+- L2 bridge mapping: contract id `-104`, prefix `0x01`, key suffix `l1Asset`; V1 requires
+  the exact 22-byte value `l2Asset[20] | l1Decimals | l2Decimals`.
+- Replay marker: contract id `-104`, prefix `0x02`, suffix
+  `sourceChainId u32 LE | nonce u64 LE`, value `01`.
+- Bridged token authorization: contract id `-109`, either key `fe` containing the L2 bridge
+  hash or prefix `0x03 | bridgeHash`.
+- Token metadata: contract id `-12`, prefix `0x0a | l2Asset`; value is the core
+  `BinarySerializer` encoding of `TokenState` (`Struct(7)`, `TokenType.Fungible == 1`).
+- Account balance: contract id `-12`, prefix `0x0c | recipient | l2Asset`; value is the core
+  `BinarySerializer` encoding of `AccountState` (`Struct(1)`).
+
+The token owner MUST be `NativeContract.BridgedNep17.Hash`, `TokenManagement.GetAssetId(owner,
+name)` MUST equal the mapped asset, token and mapping decimals MUST agree, decimal conversion
+MUST be exact, and the minted amount MUST be positive and at most `2^128`. Total/max supply and
+the recipient balance are updated with checked arbitrary-precision arithmetic. V1 supports only
+externally owned recipients; contract recipients fail closed because the `onNEP17Payment`
+callback is not yet modeled. Missing native contract state, mapping, authorization, malformed
+native state, replay, or any `Call`/`Event`/`Governance` inbox message terminates the batch without
+partially applying any inbox write.
+
+For outbound effects, the guest implements only the pinned native methods
+`L2Message.emitMessage(targetChainId, receiver, messageType, payload)` and
+`L2Bridge.initiateWithdrawal(l2Asset, amount, l1Recipient)`. They update the native nonce,
+TokenManagement supply/balance, and emit the same canonical notifications and native fees as the
+N4 core profile. Every other native method fails closed.
+
+Committed outbox roots are derived only from successful transactions' canonical `NEO4STK1`
+notifications with both the exact native script hash and exact ABI:
+
+- `L2Bridge.WithdrawalEmitted(sender, l1Recipient, l2Asset, amount, nonce)` feeds
+  `MessageHasher.HashWithdrawal` and `WithdrawalTree`.
+- `L2Message.MessageEmitted(sourceChainId, targetChainId, nonce, sender, receiver,
+  messageType, payload)` feeds `MessageHasher.HashMessage` and the appropriate `MessageTree`.
+
+Events are consumed in execution order. Duplicate sender/nonces or malformed reserved native
+events terminate the batch. An ordinary user contract may emit the same event name, but its
+different script hash cannot create a system withdrawal or message. Empty collections remain
+`UInt256.Zero`.
+
 ### Stateful RISC-V host boundary
 
 The PolkaVM path calls `neo_riscv_execute_script_with_host` with a transaction-scoped
@@ -98,9 +149,10 @@ effects unchanged.
 
 The host implements only syscalls whose Neo consensus behavior can be reproduced safely.
 An unknown or unsupported descriptor MUST make the callback fail so native execution
-faults. In particular, cross-contract/native-contract invocation, cryptographic syscalls,
-randomness, dynamic script loading, runtime logging, and ledger/blockchain query families
-remain fail-closed until implemented with ApplicationEngine parity.
+faults. Deployed-contract calls use witnessed code/manifests; native dispatch is limited to the
+two methods in the N4 genesis profile above. Other native methods, cryptographic syscalls,
+randomness, dynamic script loading, runtime logging, and ledger/blockchain query families remain
+fail-closed until implemented with ApplicationEngine parity.
 
 ## Error handling
 
@@ -108,7 +160,7 @@ A canonical transaction decode failure, malformed witness scope/rule, invalid co
 
 After successful decode, an unknown contract, unsupported consensus syscall, insufficient gas, or any other VM `FAULT` is a **valid result with a failure receipt**. Its storage overlay and notifications are discarded; its actual consumed gas remains in the frozen receipt.
 
-A malformed L1 message (corrupted payload, unknown asset) is **also a valid result with a failure receipt**. The deposit is consumed (the `(sourceChain, nonce)` is marked) and the funds remain in the L1 escrow until governance refunds them — the L2 cannot mint to a bogus recipient.
+A malformed, replayed, unsupported, or incompletely witnessed L1 message is a **fatal batch error**. Inbox messages execute before transactions and have no transaction receipt in which to encode a recoverable `FAULT`. The inbox transition is atomic, so no replay marker, supply, or balance write survives rejection.
 
 A protocol-level error (invalid `preStateRoot`, witness inconsistency) is **fatal**. The executor returns a hard failure and the calling batcher MUST NOT seal a batch.
 
@@ -134,7 +186,7 @@ These are explicitly OUTSIDE the proven function and must not be observable in a
 
 The prover input is the existing `ProofWitnessArtifactV1` (`NEO4PWIT`); no parallel outer witness envelope is permitted. Its `ExecutionPayloadV1` carries ordered full transaction bytes, block/L1 context, and DA bytes. Its non-empty `StateWitness` section uses `NEO4STW1` V1 and carries the complete sorted pre-state key/value set, frozen protocol settings, and deployed contract IDs, hashes, scripts, and Neo manifests. Every contract descriptor is bound into the pre-state root through `0xff || "neo-n4/contract-binding/v1/" || scriptHash` and the domain `neo-n4/contract-binding/v1\0`.
 
-The artifact's execution result, `NEO4EFX1` effects, and 332-byte public inputs are claims, not trusted inputs. The guest recomputes all of them and requires exact equality. N4 genesis V1 currently rejects non-empty L1 inbox batches and consensus syscalls without a state adapter; unsupported behavior fails closed rather than returning fabricated values.
+The artifact's execution result, `NEO4EFX1` effects, and 332-byte public inputs are claims, not trusted inputs. The guest recomputes all of them and requires exact equality. N4 genesis V1 accepts only the restricted deposit and native outbox profile above; all other inbox types, native methods, and unavailable consensus syscalls fail closed rather than returning fabricated state or zero roots.
 
 The executor-specific state and effects bytes are canonical outputs supplied through
 `IProofWitnessBatchExecutor`; the settlement pipeline treats them as opaque and MUST NOT create a

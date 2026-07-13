@@ -215,7 +215,7 @@ Optimistic 模式下，系统允许先接受状态，然后在挑战期内用 fr
 | 合约 | 用途 |
 | --- | --- |
 | `OptimisticChallenge` | 管理挑战窗口和挑战状态 |
-| `GovernanceFraudVerifier` | 治理仲裁参考路径 |
+| `GovernanceFraudVerifier` | 仅审计用 v1/v2 结构验证，不进入生产 challenge 路径 |
 | `RestrictedExecutionFraudVerifier` | 更严格的链上可验证 fraud proof 路径 |
 
 ## 8.13 Governance 与 Emergency
@@ -252,7 +252,7 @@ Optimistic 模式下，系统允许先接受状态，然后在挑战期内用 fr
 `ScaffoldPlan.Default()` 定义生产 NeoHub deploy plan。单元测试确保：
 
 - 25 个 `NeoHub.*` 项目存在；
-- 24 个生产合约进入 deploy plan；
+- 23 个生产合约进入 deploy plan；仅审计用结构验证器不进入；
 - test-only stub 不进入生产 plan；
 - DAValidator、L1TxFilter、ContractZkVerifier 都在计划中；
 - post-deploy wiring 提示不会遗漏关键接线。

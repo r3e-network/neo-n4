@@ -95,11 +95,11 @@ Lives at `contracts/NeoHub.*`. Each is a compiled .nef + .manifest.json.
 ### Governance (2)
 
 - **`GovernanceController`** — Multisig + timelock for verifier upgrades + protocol parameter changes.
-- **`GovernanceFraudVerifier`** — Reference fraud verifier — governance arbitrates challenged batches in v0.
+- **`GovernanceFraudVerifier`** — Advisory v1/v2 structural checker for offline audit diagnostics; excluded from the production challenge route.
 
 ### Specialized fraud verifiers (1)
 
-- **`RestrictedExecutionFraudVerifier`** — governance-only structural v3 plus SettlementManager-bound executable v4 for one existing-key Counter Increment transaction; v4 is not a general NeoVM verifier.
+- **`RestrictedExecutionFraudVerifier`** — advisory structural v3 plus SettlementManager-bound executable v4 for one existing-key Counter Increment transaction; only an exact registered v4 profile is state-changing and it is not a general NeoVM verifier.
 
 ### External bridge — Phase B/C (6)
 
@@ -166,7 +166,7 @@ Lives at `tools/*`.
 - **`Neo.Stack.Cli`** (`neo-stack`) — 12 subcommands: create-chain,
   init-l2, register-chain, scaffold-executor, new-l2, ...
 - **`Neo.Hub.Deploy`** (`neo-hub-deploy`) — Plan/scaffold/verify NeoHub
-  deployment (24-step ordered production bundle).
+  deployment (23-step ordered production bundle).
 - **`Neo.L2.Devnet`** (`neo-l2-devnet`) — In-process end-to-end demo
   runner. `--executor counter` wires a sample executor.
 - **`Neo.L2.Explore`** (`neo-l2-explore`) — Terminal block explorer +

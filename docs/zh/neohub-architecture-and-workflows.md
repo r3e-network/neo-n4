@@ -335,9 +335,9 @@ flowchart TB
 - `SequencerRegistry` 确定某条链有哪些 active sequencer。
 - `SequencerBond` 持有可 slash 的价值并控制 exit window。
 - `OptimisticChallenge` 协调针对 batch 的 challenge。
-- `GovernanceFraudVerifier` 校验治理仲裁使用的 v1/v2 structural fraud payload。
+- `GovernanceFraudVerifier` 校验仅审计用的 v1/v2 structural fraud payload，不能触发状态变更。
 - `RestrictedExecutionFraudVerifier` 的 v3 会重新推导 challenger 提供的 pre/post roots，
-  但不绑定 committed batch，仍需 governance arbitration。独立的 v4 profile 会绑定
+  但不绑定 committed batch，因此仍是仅审计证据。独立的 v4 profile 会绑定
   SettlementManager header、chain/batch/roots、semantic id、replay domain、claim/transcript/
   witness 和 transaction proof，并执行一笔 existing-key Counter Increment；它只在该
   窄域 profile 内 permissionless，通用 NeoVM 与多交易证明 fail closed。
@@ -413,8 +413,8 @@ sequenceDiagram
 | `SequencerRegistry` | 跟踪每条链 active sequencer 和 committee membership。 | Chain id、sequencer account、metadata、activation/exit action。 | Sequencer registered/removed/exit-started。 | Governance/operator、settlement/challenge 读取方。 |
 | `ForcedInclusion` | 存储用户发布的 forced transaction 和 inclusion deadline。 | Chain id、sender、transaction bytes、deadline policy。 | Forced transaction queued/consumed/expired。 | 用户、L2 sequencer、challenge tooling。 |
 | `OptimisticChallenge` | 对 disputed batch 运行 optimistic fraud challenge。 | Chain id、batch number、challenger、fraud payload、verifier。 | Challenge opened/accepted/rejected；batch status updated。 | Challenger、settlement、sequencer bond。 |
-| `GovernanceFraudVerifier` | 校验治理仲裁路径使用的 v1/v2 structural fraud payload。 | Versioned fraud payload、claimed/replayed roots、optional witness。 | FraudProofAccepted 或带 reason code 的 FraudProofRejected。 | `OptimisticChallenge`、governance challenge path。 |
-| `RestrictedExecutionFraudVerifier` | v3 重新推导 challenger payload roots 并保留治理仲裁；v4 绑定 committed header/roots 并执行精确 Counter profile。 | V3 structural evidence；或 v4 chain/batch/root/semantic/replay/claim/transcript/tx/storage witness。 | v3 reason-coded evidence；v4 仅在 committed Counter transition 错误时返回 true。 | `OptimisticChallenge`；v4 非通用 NeoVM。 |
+| `GovernanceFraudVerifier` | 校验仅审计用的 v1/v2 structural fraud payload。 | Versioned fraud payload、claimed/replayed roots、optional witness。 | 带 reason code 的结构结果；不能授权回滚或罚没。 | 离线审计工具；不进入生产 deploy plan。 |
+| `RestrictedExecutionFraudVerifier` | v3 重新推导 challenger payload roots 但仅供审计；v4 绑定 committed header/roots 并执行精确 Counter profile。 | V3 structural evidence；或 v4 chain/batch/root/semantic/replay/claim/transcript/tx/storage witness。 | v3 不改变状态；v4 仅在 committed Counter transition 错误时返回 true。 | `OptimisticChallenge` 只接收精确注册 v4；非通用 NeoVM。 |
 | `MpcCommitteeVerifier` | 校验外部链 committee signatures 和 threshold。 | External event hash、committee signatures、signer metadata。 | External event accepted/rejected。 | Watcher、`ExternalBridgeEscrow`。 |
 | `MpcCommitteeFraudVerifier` | challenge 或 slash 错误的外部 committee attestation。 | 针对 committee-signed external event 的 fraud proof。 | Fraud accepted/rejected；slashing path enabled。 | Challenger、`ExternalBridgeBond`。 |
 | `ExternalBridgeRegistry` | 注册外部链、资产路由和 bridge adapter。 | External chain id、foreign asset/router、Neo asset/chain route。 | External route registered/updated。 | Operator/governance、`ExternalBridgeEscrow`。 |

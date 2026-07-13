@@ -122,8 +122,9 @@ odd cases), plus a `HashLeaf` ↔ `HashEntry` byte-identity pin.
 
 ### §v4-fraud-verifier ✅ restricted profile / ⏭ general NeoVM
 
-`NeoHub.RestrictedExecutionFraudVerifier` now preserves v3 as governance-only
-structural evidence and adds canonical v4. V4 reads SettlementManager's stored
+`NeoHub.RestrictedExecutionFraudVerifier` preserves v3 as advisory-only
+structural evidence and adds canonical v4. `OptimisticChallenge` rejects v3
+before dispatch even with governance witness. V4 reads SettlementManager's stored
 `Challengeable` optimistic header, binds chain/batch/pre/post/tx roots,
 transaction index, replay domain, semantic id, transcript/witness/claim hashes,
 verifies the single-leaf transaction proof, and executes one existing-key
@@ -235,13 +236,11 @@ honest "is everything correctly and completely implemented?" audit):
   - `NeoHub.ForcedInclusion` ships a real configurable spam-control fee
     (`SetFee` / `SetFeeRecipient` / `SetGasToken`); default 0 = fee-free
     legacy preserved. Closes the "fee-free MVP" callout.
-  - `NeoHub.GovernanceFraudVerifier` (the 14th NeoHub contract) ships as
-    a structural fraud verifier reference for governance-arbitration
-    optimistic chains. Decodes the canonical 101-byte `FraudProofPayload`,
+  - `NeoHub.GovernanceFraudVerifier` ships as an advisory structural fraud
+    verifier for offline audit tooling. It decodes the canonical 101-byte `FraudProofPayload`,
     validates length / version / claims-a-real-discrepancy, emits
-    accept/reject events with reason codes for council review. Closes
-    the on-chain `fraudVerifier` callsite gap. Wired into
-    `ScaffoldPlan.Default()` + `PostDeployActions` informational hint.
+    accept/reject events with reason codes, but cannot authorize revert/slash and
+    is deliberately excluded from `ScaffoldPlan.Default()` and live post-deploy wiring.
   - 13 parity tests (`UT_GovernanceFraudVerifierParity`) simulate the
     contract's decision tree in C# so a refactor that changes constants
     / order / offsets is caught at unit-test time.

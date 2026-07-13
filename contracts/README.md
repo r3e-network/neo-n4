@@ -45,8 +45,8 @@ contracts/
 |-- NeoHub.ForcedInclusion/                     # anti-censorship forced-tx queue
 |-- NeoHub.OptimisticChallenge/                 # Phase-3 fraud-proof challenge window
 |-- NeoHub.GovernanceController/                # L2 admission policy / verifier upgrades
-|-- NeoHub.GovernanceFraudVerifier/             # v1/v2 structural fraud verifier
-|-- NeoHub.RestrictedExecutionFraudVerifier/    # governance-only v3 + committed-root-bound restricted v4
+|-- NeoHub.GovernanceFraudVerifier/             # advisory-only v1/v2 structural evidence; excluded from production plan
+|-- NeoHub.RestrictedExecutionFraudVerifier/    # advisory v3 + committed-root-bound executable v4; only exact v4 is state-changing
 |-- NeoHub.EmergencyManager/                    # pause / escape hatch
 |-- NeoHub.MpcCommitteeVerifier/                # foreign-chain committee verifier
 |-- NeoHub.MpcCommitteeFraudVerifier/           # external-bridge equivocation slasher

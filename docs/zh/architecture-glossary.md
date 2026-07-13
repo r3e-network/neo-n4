@@ -41,7 +41,7 @@
 | **MerkleProofSerializer**     | Merkle 证明的规范编码器(用于提款 + 跨 L2 消息)。                                                |
 | **MessageHasher**             | `CrossChainMessage`(跨 L2)的规范编码器。两端都重算哈希。                                        |
 | **min_confirmations**         | watcher config 字段:不从距外链头不足 N 确认的浅块发出事件。                                       |
-| **NeoHub**                    | 锚定整个网络的 25 项目 L1 套件(24 个生产合约 + 1 个测试 stub)。见下文 §2。                         |
+| **NeoHub**                    | 锚定整个网络的 25 项目 L1 套件(23 个生产合约 + 1 个仅审计用结构验证器 + 1 个测试 stub)。见下文 §2。                         |
 | **nonce(deposit/message)**   | 按 (源链、方向) 单调递增的计数器。带重放保护。                                                    |
 | **operatorManager**           | UInt160。管理一条已注册 L2 的多签(set-verifier、pause 等)。在链 config 里。                      |
 | **postStateRoot**             | UInt256。批次最后一笔 tx 之后的状态根。携带于 `BatchCommitment`。                                  |
@@ -92,11 +92,11 @@
 ### 治理(2)
 
 - **`GovernanceController`** — 多签 + timelock,用于验证器升级 + 协议参数变更。
-- **`GovernanceFraudVerifier`** — 参考 fraud verifier —— v0 由治理仲裁被挑战的批次。
+- **`GovernanceFraudVerifier`** — 仅审计用 v1/v2 结构验证器；不进入生产部署，也不能触发回滚或罚没。
 
 ### 专用 fraud verifier(1)
 
-- **`RestrictedExecutionFraudVerifier`** — v3 仅重新派生挑战者 payload 内的 storage roots，必须经治理仲裁；v4 对精确注册的单笔 Counter Increment 语义绑定已提交批次并在链上执行，允许无许可挑战。通用 NeoVM 语义 fail closed。
+- **`RestrictedExecutionFraudVerifier`** — v3 仅重新派生挑战者 payload 内的 storage roots，属于仅审计证据；精确注册的 v4 对单笔 Counter Increment 语义绑定已提交批次并在链上执行。v1/v2/v3 即使有治理 witness 也 fail closed，通用 NeoVM 同样 fail closed。
 
 ### 外链桥 —— Phase B/C(6)
 

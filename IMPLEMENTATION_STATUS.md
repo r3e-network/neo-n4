@@ -7,11 +7,11 @@
 | Phase | Goal                                      | Status                                      |
 | ----- | ----------------------------------------- | ------------------------------------------- |
 | 0     | Sidechain PoC                             | ✅ MVP integration test passes              |
-| 1     | NeoHub v0 + Shared Bridge                 | ✅ All 25 NeoHub projects compile; deploy planner emits 24 production steps (15 core + ContractZkVerifier + immutable Sp1Groth16Verifier + 2 fraud verifiers + 5 external-bridge) |
+| 1     | NeoHub v0 + Shared Bridge                 | ✅ All 25 NeoHub projects compile; deploy planner emits 23 production steps (15 core + ContractZkVerifier + immutable Sp1Groth16Verifier + executable-v4 fraud verifier + 5 external-bridge); advisory structural verifier is excluded |
 | 2     | Batch Settlement                          | ✅ Off-chain green; real `KeyedStateStore` continuity verified across batches |
-| 3     | Optimistic Challenge Window               | ✅ `OptimisticChallenge` + replay-protected chain/semantic/domain v4 profiles + `RestrictedExecutionFraudVerifier` executable single-step Counter v4; v1/v2/v3 remain governance-only; general NeoVM remains explicitly unsupported |
+| 3     | Optimistic Challenge Window               | 🟡 `OptimisticChallenge` accepts only replay-protected exact executable-v4 profiles; v1/v2/v3 and unmatched v4 fail closed even with governance witness. The shipped verifier executes one restricted Counter transition; general NeoVM remains unsupported |
 | 4     | NeoVM2 / RISC-V ZK Validity Proof         | ✅ **Neo N4 L2 execution targets NeoVM2/RISC-V.** `src/Neo.L2.Executor.RiscV` binds the PolkaVM `neo_riscv_execute_script_with_host` ABI with transaction-scoped state, fail-closed syscalls, real fee accounting, and HALT-only atomic effect commit; `neo-l2-devnet --executor riscv` is the canonical L2 VM path. The SP1 boundary in `bridge/neo-zkvm-host` / `bridge/neo-zkvm-guest` proves full canonical transactions, verified pre-state/code/manifest witness, production opcode/syscall gas, HALT overlays, FAULT rollback, V1 storage/event effects, and recomputed post-state/public inputs. Both execution paths use the fixed 105-byte receipt preimage; unsupported consensus syscalls and non-empty L1 inbox adapters fail closed. Operator install: build `external/neo-riscv-vm` for the target OS, and use SP1 (`sp1up`) for real proof generation. |
-| 5     | Neo Gateway (proof aggregation)           | ✅ `BinaryTreeAggregator` ships **two production-grade `IRoundProver`s** (`MultisigRoundProver` — Secp256r1 threshold-attested rounds; `MerklePathRoundProver` — per-constituent inclusion proofs against the aggregate root) plus the `PassThroughRoundProver` reference. Real cryptography, no toolchain dependency. Recursive-ZK fold variants (SP1 Compress / Halo2 / Risc0) remain operator-supplied via the same `IRoundProver` seam |
+| 5     | Neo Gateway (proof aggregation)           | 🟡 Binding, durable outbox, on-chain proof route, Secp256r1/Merkle round provers, and publication reconciliation ship. A dedicated in-repo recursive Gateway SP1 prover/guest and proof-bound production RPC publisher are still required before the Gateway can be called a validity-proof production path |
 | 6     | Neo Stack CLI / Templates                 | ✅ All 12 subcommands functional (create-chain / init-l2 / register-chain / deploy-bridge-adapter / start-sequencer / start-batcher / start-prover / submit-batch / validate / scaffold-executor / new-l2 / list-templates) |
 
 Legend: ✅ done, 🟡 substantial scaffolding + tests, 🔴 stub.
@@ -22,14 +22,16 @@ The phase matrix above measures **architectural coverage** — does the
 component exist with the right shape? It does NOT measure whether each
 component is mainnet-ready. Below is an honest readiness audit.
 
-### Production-ready
+### Production-shaped and locally verified
 
-These are real production-shape implementations with full test coverage:
+These components have production-shaped implementations and focused local coverage.
+This label is not a mainnet-readiness claim; live deployment evidence, external audits,
+and every open release gate still apply:
 
 - **All 25 NeoHub L1 contract projects** type-check via
   `Neo.SmartContract.Framework`; CI compiles each with `nccs` and verifies
-  the `.nef` + `.manifest.json` artifacts. The 24-contract production bundle
-  excludes only the test-only `ExternalBridgeStubVerifier` and includes
+  the `.nef` + `.manifest.json` artifacts. The 23-contract production bundle
+  excludes advisory `GovernanceFraudVerifier` and test-only `ExternalBridgeStubVerifier`, and includes
   `ContractZkVerifier` plus immutable `Sp1Groth16Verifier`: the router validates
   proof envelopes and dispatches SP1 proofs to the terminal BN254 verifier. NeoHub is intentionally shipped as
   deployed contracts plus plugin/service integration, not as L1 Neo core native
@@ -57,7 +59,7 @@ These are real production-shape implementations with full test coverage:
   public-input hash / no-zero-proof / DA availability / batch range).
 - **CLI tooling** — `neo-stack` plan-printers + `validate` subcommand;
   `neo-hub-deploy` declarative L1 deploy planner (now scaffolds the
-  external-bridge stack alongside NeoHub: 24 steps + 32 post-deploy
+  external-bridge stack alongside NeoHub: 23 steps + 29 post-deploy
   hints); `neo-external-bridge` operator CLI for bridge committee
   setup + dual-side deploy planning.
 - **Cross-foreign-chain bridge (Phase B + C — doc.md §11.3)** —
@@ -95,10 +97,10 @@ These are real production-shape implementations with full test coverage:
 
 ### Optimistic-challenge fraud-proof game — restricted v4 shipped
 
-The governance paths remain explicit: `GovernanceFraudVerifier` v1/v2 and
-`RestrictedExecutionFraudVerifier` v3 validate structural evidence only and
-require the `OptimisticChallenge` owner/governance co-sign. Legacy global
-permissionless registration is disabled.
+`GovernanceFraudVerifier` v1/v2 and `RestrictedExecutionFraudVerifier` v3 validate
+structural evidence only. They are audit/advisory artifacts: `OptimisticChallenge`
+rejects them before verifier dispatch, including when the owner/governance signs.
+Legacy global permissionless registration is disabled.
 
 The versioned v4 path is permissionless only for an exact chain-scoped profile.
 It reads the canonical 321-byte `Challengeable` optimistic header from
@@ -118,7 +120,7 @@ not a general NeoVM claim:
 | Item | What's still missing | Where |
 |------|---------------------|-------|
 | General NeoVM / multi-transaction fraud proofs | The current batch header has no committed transaction count or intermediate execution-trace root, so v4 deliberately accepts only `txIndex=0`, `txCount=1`, interval `[0,1]`, and semantic id `Hash256("neo4-executor:counter-increment-existing-key:v1")`. Arbitrary NeoVM opcodes, other custom executors, key insertion/deletion, and multi-tx bisection fail closed. A general protocol needs committed tx-count/trace anchors plus complete single-step NeoVM semantics. | Restricted v4 ✅; general NeoVM ❌ |
-| Default deployment automation | The 24-step production planner deploys `RestrictedExecutionFraudVerifier` with `[SettlementManager, replayDomain]`, requires an explicit non-zero `--fraud-replay-domain`, registers the exact chain/semantic/domain v4 profile, and smoke-checks verifier configuration plus profile state. Legacy custom plans may still use empty deploy data for governance-only v3; v4 then fails closed. | ✅ Production planner + legacy fail-closed compatibility |
+| Default deployment automation | The 23-step production planner excludes advisory `GovernanceFraudVerifier`, deploys `RestrictedExecutionFraudVerifier` with `[SettlementManager, replayDomain]`, requires an explicit non-zero `--fraud-replay-domain`, registers only the exact chain/semantic/domain v4 profile, and smoke-checks verifier configuration plus profile state. Legacy empty verifier deployments are not registered and remain fail closed. | ✅ Production planner + legacy fail-closed compatibility |
 
 ### Reference / scaffolding — operator must replace
 
@@ -248,8 +250,8 @@ deployments for the documented process/signing seams.
 
 ### Smart contracts - 25 NeoHub projects + 10 Neo core native L2 contracts
 
-**NeoHub L1 suite (25 projects / 24 production + 1 test-only stub):**
-Phase 0-4: `ChainRegistry` · `SharedBridge` · `SettlementManager` · `VerifierRegistry` · **`ContractZkVerifier`** (ProofType.Zk router -> deployable proof-verifier contracts) · **`Sp1Groth16Verifier`** (immutable SP1-compatible BN254 terminal verifier) · `MessageRouter` · `TokenRegistry` · `DARegistry` · **`DAValidator`** · **`L1TxFilter`** · `GovernanceController` · `EmergencyManager` · `ForcedInclusion` · `SequencerBond` · `SequencerRegistry` · `OptimisticChallenge` (v4 chain/semantic/replay profile + global claim replay protection + CEI) · `GovernanceFraudVerifier` (structural v1/v2, governance-only) · **`RestrictedExecutionFraudVerifier`** (structural v3 governance-only + SettlementManager-bound executable v4 for one existing-key Counter Increment; not general NeoVM)
+**NeoHub L1 suite (25 projects / 23 production + 1 advisory + 1 test-only stub):**
+Phase 0-4: `ChainRegistry` · `SharedBridge` · `SettlementManager` · `VerifierRegistry` · **`ContractZkVerifier`** (ProofType.Zk router -> deployable proof-verifier contracts) · **`Sp1Groth16Verifier`** (immutable SP1-compatible BN254 terminal verifier) · `MessageRouter` · `TokenRegistry` · `DARegistry` · **`DAValidator`** · **`L1TxFilter`** · `GovernanceController` · `EmergencyManager` · `ForcedInclusion` · `SequencerBond` · `SequencerRegistry` · `OptimisticChallenge` (exact executable-v4 chain/semantic/replay profile + global claim replay protection + CEI) · **`RestrictedExecutionFraudVerifier`** (SettlementManager-bound executable v4 for one existing-key Counter Increment; not general NeoVM). `GovernanceFraudVerifier` remains an advisory structural v1/v2 artifact and is excluded from the production plan; restricted v3 is likewise non-state-changing.
 
 External-bridge stack (doc.md §11.3 — cross-foreign-chain to Eth/Tron/Sol):
 **`MpcCommitteeVerifier`** (Phase B M-of-N secp256k1/ed25519 verifier; Phase C-extended with per-signer bond-holder binding via `RegisterCommitteeWithMembers`) · **`ExternalBridgeRegistry`** (pluggable verifier dispatch; same upgrade-via-governance shape as `VerifierRegistry`) · **`ExternalBridgeEscrow`** (locks NEP-17 outbound + dispatches inbound through registry; defense-in-depth replay tracking) · **`ExternalBridgeBond`** (committee bonding + slashing-on-equivocation; mirrors `SequencerBond` 1:1) · **`ExternalBridgeStubVerifier`** (Phase-A devnet acceptance verifier; bridgeKind=0 to refuse production deployments) · **`MpcCommitteeFraudVerifier`** (Phase C — proves equivocation cryptographically + slashes full bond + pays reporter; replay-protected per `(chainId, signerIdx)`)
@@ -302,7 +304,7 @@ real secp256k1 signatures.
 | `Neo.L2.Telemetry.UnitTests`         | 73    | counter/histogram/gauge accumulation, tag canonicalization, Prometheus exporter (counter/gauge/summary, labels, name sanitization, frozen-snapshot), request handler routing, TCP server round-trip + multi-request, catalog completeness vs MetricNames + Prometheus integration, **`/healthz` + `/readyz` (with predicate)** |
 | `Neo.L2.Persistence.UnitTests`       | 58    | **`InMemoryKeyValueStore` + `RocksDbKeyValueStore` parity plus atomic artifact/proof-manifest persistence, content-hash binding, ordered recovery enumeration, durable retry/poison/reset checkpoints, versioned submission state and replacement CAS, forced nonce tracking/finalization, reopen durability** |
 | `Neo.L2.Executor.RiscV.UnitTests`    | 20    | stateful ABI constants/ownership/fee boundaries; storage read-through Put/Delete/Find and rollback; ordered full-state notifications; transaction/block context and `CheckWitness`; unsupported-syscall/OOG/collector fail-closed paths; ApplicationEngine receipt parity; real native PolkaVM RET, storage callback, and unsupported-syscall tests |
-| `Neo.Hub.Deploy.UnitTests`           | 98    | topology/cycle/plan validation; full 24-step production scaffold; exact SP1 bootstrap-and-lock order; immutable remote NEF/manifest matching; explicit L2 and v4 replay domains; `Hash160 + Hash256` deploy ABI; governance-only v3 plus chain-scoped executable v4 registration; resumable completion checks and production smoke postconditions; signer/RPC/report failure paths. |
+| `Neo.Hub.Deploy.UnitTests`           | 102   | topology/cycle/plan validation; full 23-step production scaffold; exact SP1 bootstrap-and-lock order; immutable remote NEF/manifest matching; explicit L2 and v4 replay domains; `Hash160 + Hash256` deploy ABI; advisory v1/v2/v3 exclusion, malformed optimistic-plan rejection, and atomic exact executable-v4 registration; resumable completion checks and production smoke postconditions; signer/RPC/report failure paths. |
 | `Neo.L2.IntegrationTests`            | 29    | Phase 0 MVP + Phase 1 cross-component + Phase 2 full-stack + Phase 3 optimistic-challenge + all-phases stitch + e2e telemetry pipeline + **L2MetricsPlugin composition root (every instrumented component → one sink → HTTP scrape) + e2e RocksDB persistence (KeyedStateStore + InMemoryL2RpcStore + InMemorySequencerCommitteeProvider all rehydrate from one shared data dir on reopen) + e2e audit pipeline (all 6 checks pass on healthy chain + DA-dropped scenario specifically catches via `DAAvailabilityCheck` + broken-batch-range failure-detection metric counts) + **e2e custom-executor full-stack (Sample.CounterChainExecutor + KeyedStateStoreAdapter + ReferenceBatchExecutor + KeyedStateRootOracle + AttestationProver/Verifier all wire cleanly: 3-batch run with mixed Increment/Withdraw/Message txs → all 4 batch roots non-zero, state-root advances per batch + uniqueness pin across 4 distinct roots, multisig verifier accepts custom-executor commitments, BatchSerializer encode/decode round-trip is identity, final state has 6 expected counter entries; failed-tx batch → effects don't pollute withdrawal/message roots, gas accounting still correct, state from successful txs intact)** **Restricted-v4 integration pins `BatchSerializer → canonical payload → executable verifier` for both honest and fraudulent committed transitions.** |
 | `Neo.Stack.Cli.UnitTests`            | 164   | Full command surface plus real operator-process launch plans, Neo.CLI/prover bundle validation, child exit-code propagation, shell-metacharacter isolation, SIGTERM and transaction-confirmation cancellation, forwarded-argument boundary parsing, separate batcher data, genesis/rotated committee verification, committee sync dry-run, wallet/DBFT auto-start, storage, network, config, and plugin fail-closed checks, and the complete quick path |
 | `Sample.CounterChainExecutor.UnitTests` | 24 | **operator-facing reference for "how to plug in custom chain logic"**: 3-opcode custom executor (IncrementCounter / EmitWithdrawal / EmitMessage) demonstrates the `ITransactionExecutor` seam. Per-sender-counter happy-path + accumulation + ulong wraparound semantics; per-sender state isolation; truncated-tx → Failed-receipt path (not crash); withdrawal happy-path produces valid `WithdrawalRequest` with deterministic txHash-derived nonce; zero-amount withdrawal rejected; message happy-path produces routable `CrossChainMessage` via canonical `MessageBuilder.Build`; self-routed (source==target) rejected; oversized message body builder-rejected at MaxMessageBytes cap; unknown-opcode + empty-tx → Failed; SPEC.md determinism pin (two fresh executors + identical inputs → identical receipts + state); mixed-opcode batch smoke test; **executor ctor null-state / null-emittingContract guards; ExecuteAsync null-batchContext guard; cooperative-cancellation pin (cancelled token → OperationCanceledException, not a wasted receipt); `KeyedStateStoreAdapter` round-trip Put/Get + missing-key returns false + adapter writes flow through to `KeyedStateStore.ComputeRoot` parity vs direct writes; adapter ctor null-store + Put null-key/null-value + TryGet null-key all reject with ArgumentNullException at the call boundary so a misconfigured DI wiring fails at composition, not later with an unattributed NRE** |

@@ -285,7 +285,7 @@ public static class LiveDeployCommand
         var hex = value.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? value[2..] : value;
         if (hex.Length != UInt256.Length * 2 || !hex.All(Uri.IsHexDigit))
             throw new FormatException(
-                "--fraud-replay-domain must be exactly 64 hexadecimal characters (optional 0x prefix)." );
+                "--fraud-replay-domain must be exactly 64 hexadecimal characters (optional 0x prefix).");
         var raw = Convert.FromHexString(hex);
         if (raw.All(static item => item == 0))
             throw new FormatException("--fraud-replay-domain must not be zero.");
@@ -390,6 +390,7 @@ public static class LiveDeployCommand
         uint l2ChainId,
         UInt256 fraudReplayDomain)
     {
+        ScaffoldPlan.RequireExecutableOptimisticFraudProfile(plan);
         if (l2ChainId == 0) throw new ArgumentOutOfRangeException(nameof(l2ChainId));
         ArgumentNullException.ThrowIfNull(fraudReplayDomain);
         if (fraudReplayDomain == UInt256.Zero)
@@ -714,10 +715,6 @@ public static class LiveDeployCommand
                 HashCheck("VerifierRegistry.GetVerifier.Zk", h["VerifierRegistry"], "getVerifier", h["ContractZkVerifier"], ProofTypeZk), ProofTypeZk, h["ContractZkVerifier"]),
             CheckedCall("VerifierRegistry.LockGovernance", h["VerifierRegistry"], "lockGovernance",
                 BoolCheck("VerifierRegistry.IsGovernanceLocked", h["VerifierRegistry"], "isGovernanceLocked", true)),
-            CheckedCall("OptimisticChallenge.RegisterFraudVerifier.Governance", h["OptimisticChallenge"], "registerFraudVerifier",
-                BoolCheck("OptimisticChallenge.IsApprovedFraudVerifier.Governance", h["OptimisticChallenge"], "isApprovedFraudVerifier", true, h["GovernanceFraudVerifier"]), h["GovernanceFraudVerifier"]),
-            CheckedCall("OptimisticChallenge.RegisterFraudVerifier.RestrictedExecution", h["OptimisticChallenge"], "registerFraudVerifier",
-                BoolCheck("OptimisticChallenge.IsApprovedFraudVerifier.RestrictedExecution", h["OptimisticChallenge"], "isApprovedFraudVerifier", true, h["RestrictedExecutionFraudVerifier"]), h["RestrictedExecutionFraudVerifier"]),
             CheckedCall("OptimisticChallenge.RegisterPermissionlessFraudProfile.RestrictedExecutionV4", h["OptimisticChallenge"], "registerPermissionlessFraudProfile",
                 BoolCheck("OptimisticChallenge.IsPermissionlessFraudProfile.RestrictedExecutionV4", h["OptimisticChallenge"], "isPermissionlessFraudProfile", true,
                     l2ChainId, h["RestrictedExecutionFraudVerifier"], RestrictedExecutorSemanticId, fraudReplayDomain),
@@ -809,8 +806,7 @@ public static class LiveDeployCommand
             HashCheck("VerifierRegistry.GetVerifier.Zk", h["VerifierRegistry"], "getVerifier", h["ContractZkVerifier"], ProofTypeZk),
             HashCheck("VerifierRegistry.GetGovernanceController", h["VerifierRegistry"], "getGovernanceController", h["GovernanceController"]),
             BoolCheck("VerifierRegistry.IsGovernanceLocked", h["VerifierRegistry"], "isGovernanceLocked", true),
-            BoolCheck("OptimisticChallenge.IsApprovedFraudVerifier.Governance", h["OptimisticChallenge"], "isApprovedFraudVerifier", true, h["GovernanceFraudVerifier"]),
-            BoolCheck("OptimisticChallenge.IsApprovedFraudVerifier.RestrictedExecution", h["OptimisticChallenge"], "isApprovedFraudVerifier", true, h["RestrictedExecutionFraudVerifier"]),
+            BoolCheck("OptimisticChallenge.IsApprovedFraudVerifier.RestrictedExecutionV4", h["OptimisticChallenge"], "isApprovedFraudVerifier", true, h["RestrictedExecutionFraudVerifier"]),
             BoolCheck("OptimisticChallenge.IsPermissionlessFraudProfile.RestrictedExecutionV4", h["OptimisticChallenge"], "isPermissionlessFraudProfile", true,
                 l2ChainId, h["RestrictedExecutionFraudVerifier"], RestrictedExecutorSemanticId, fraudReplayDomain),
             HashCheck("RestrictedExecutionFraudVerifier.GetSettlementManager", h["RestrictedExecutionFraudVerifier"], "getSettlementManager", h["SettlementManager"]),

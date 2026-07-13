@@ -6,10 +6,10 @@ namespace Neo.Hub.Deploy;
 /// Generates the canonical default <see cref="DeployPlan"/> that matches the layout in
 /// doc.md §3.2 and §13.1. The 15 core NeoHub contracts deploy in dependency order, plus
 /// the contract-deployed ZK verifier router, its pinned SP1 Groth16 terminal verifier,
-/// and two stateless fraud-verifier reference contracts (<c>GovernanceFraudVerifier</c> for
-/// v1/v2 structural verification and <c>RestrictedExecutionFraudVerifier</c> for
-/// governance-only v3 evidence plus a SettlementManager-bound restricted executable v4
-/// profile). L2 native contracts are listed but
+/// and the SettlementManager-bound <c>RestrictedExecutionFraudVerifier</c> executable v4
+/// profile. The structural v1/v2/v3 verifier contracts remain audit aids and are deliberately
+/// excluded from the production deployment bundle because they cannot authorize state changes.
+/// L2 native contracts are listed but
 /// commented as "deploy on the L2", not the L1.
 /// </summary>
 public static class ScaffoldPlan
@@ -122,19 +122,10 @@ public static class ScaffoldPlan
                     OwnerAndDeps("SettlementManager", "SequencerBond"),
                     "SettlementManager", "SequencerBond"),
 
-                // GovernanceFraudVerifier is the structural-verifier reference contract
-                // operators in governance-arbitration mode pass as the fraudVerifier
-                // argument to OptimisticChallenge.Challenge. It has no deploy-time deps —
-                // verifies a static wire format (v1/v2). Skip this step entirely if the
-                // chain ships its own (re-execution-capable) fraud verifier.
-                Step("GovernanceFraudVerifier",
-                    "contracts/NeoHub.GovernanceFraudVerifier/bin/sc/NeoHub.GovernanceFraudVerifier.nef",
-                    new JArray()),
-
-                // Version 3 remains governance-only structural evidence. Version 4 is
-                // permissionless only after deployment binds this verifier to the exact
+                // Version 4 is permissionless only after deployment binds this verifier to the exact
                 // SettlementManager and an operator-selected non-zero replay domain, and
-                // OptimisticChallenge registers the exact chain/semantic/domain profile.
+                // OptimisticChallenge registers the exact chain/semantic/domain profile. Legacy
+                // v1/v2/v3 payloads remain diagnostic-only and always fail closed in Challenge().
                 Step("RestrictedExecutionFraudVerifier",
                     "contracts/NeoHub.RestrictedExecutionFraudVerifier/bin/sc/NeoHub.RestrictedExecutionFraudVerifier.nef",
                     new JArray
@@ -242,6 +233,75 @@ public static class ScaffoldPlan
         };
     }
 
+    /// <summary>
+    /// Reject an optimistic deployment plan unless it contains the exact executable v4
+    /// verifier shape supported by the production runner.
+    /// </summary>
+    internal static void RequireExecutableOptimisticFraudProfile(DeployPlan plan)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        var optimisticSteps = plan.Steps
+            .Where(step => step.Name == "OptimisticChallenge")
+            .ToArray();
+        if (optimisticSteps.Length == 0) return;
+        if (optimisticSteps.Length != 1)
+            throw new InvalidOperationException(
+                "optimistic deployment requires exactly one OptimisticChallenge step");
+
+        var restrictedSteps = plan.Steps
+            .Where(step => step.Name == "RestrictedExecutionFraudVerifier")
+            .ToArray();
+        if (restrictedSteps.Length != 1)
+            throw UnsupportedOptimisticPlan();
+
+        var restricted = restrictedSteps[0];
+        if (!restricted.DependsOn.Contains("SettlementManager", StringComparer.Ordinal)
+            || restricted.DeployData.Count != 2
+            || restricted.DeployData[0] is not JString settlementManager
+            || settlementManager.AsString() != "$step:SettlementManager"
+            || !IsConfiguredReplayDomain(restricted.DeployData[1]))
+        {
+            throw UnsupportedOptimisticPlan();
+        }
+    }
+
+    private static void RequireExecutableOptimisticFraudProfile(DeployBundle bundle)
+    {
+        var optimistic = bundle.Invocations
+            .SingleOrDefault(invocation => invocation.Name == "OptimisticChallenge");
+        if (optimistic is null) return;
+
+        var restricted = bundle.Invocations
+            .SingleOrDefault(invocation => invocation.Name == "RestrictedExecutionFraudVerifier");
+        if (restricted is null
+            || optimistic.ResolvedDeployData.Count < 2
+            || restricted.ResolvedDeployData.Count != 2
+            || optimistic.ResolvedDeployData[1] is not JString optimisticSettlementManager
+            || restricted.ResolvedDeployData[0] is not JString restrictedSettlementManager
+            || optimisticSettlementManager.AsString() != restrictedSettlementManager.AsString()
+            || !IsConfiguredReplayDomain(restricted.ResolvedDeployData[1]))
+        {
+            throw UnsupportedOptimisticPlan();
+        }
+    }
+
+    private static bool IsConfiguredReplayDomain(JToken? token)
+    {
+        if (token is not JString text) return false;
+        var value = text.AsString();
+        if (value == "FRAUD_REPLAY_DOMAIN_REPLACE_ME") return true;
+        return UInt256.TryParse(value, out var replayDomain)
+            && replayDomain != UInt256.Zero;
+    }
+
+    private static InvalidOperationException UnsupportedOptimisticPlan()
+    {
+        return new InvalidOperationException(
+            "unsupported optimistic deployment: state-changing challenges require the exact executable v4 " +
+            "RestrictedExecutionFraudVerifier configuration [SettlementManager, non-zero replayDomain]; " +
+            "v1/v2/v3 structural evidence remains advisory only and fails closed even with governance or owner witness");
+    }
+
     private static DeployStep Step(string name, string nefPath, JArray deployData, params string[] dependsOn)
     {
         return new DeployStep
@@ -265,12 +325,13 @@ public static class ScaffoldPlan
     ///   <item><description><c>SequencerBond.RegisterSlasher(OptimisticChallenge)</c>: broken cycle workaround — bond can't depend on challenge at deploy time, so the operator wires it post-deploy.</description></item>
     ///   <item><description><c>ChainRegistry.SetGovernanceController(GovernanceController)</c>: doc.md §16.1 admission policy needs the GovernanceController hash wired before <c>RegisterChainPublic</c> works in mode 1/2.</description></item>
     ///   <item><description><c>VerifierRegistry.SetGovernanceController(GovernanceController)</c>: doc.md §16 council-veto needs the GovernanceController hash wired before <c>RegisterVerifierViaProposal</c> can consult <c>IsApprovedAndTimelocked</c>.</description></item>
-    ///   <item><description>Fraud-verifier wiring for <c>GovernanceFraudVerifier</c> v1/v2, governance-only <c>RestrictedExecutionFraudVerifier</c> v3, and the exact chain-scoped restricted executable v4 profile.</description></item>
+    ///   <item><description>Fraud-verifier wiring only for the exact chain-scoped restricted executable v4 profile. Structural v1/v2/v3 contracts are reported as advisory-only and are never registered for state-changing challenges.</description></item>
     /// </list>
     /// </remarks>
     public static IEnumerable<string> PostDeployActions(DeployBundle bundle)
     {
         ArgumentNullException.ThrowIfNull(bundle);
+        RequireExecutableOptimisticFraudProfile(bundle);
         var bond = bundle.Invocations.FirstOrDefault(i => i.Name == "SequencerBond");
         var oc = bundle.Invocations.FirstOrDefault(i => i.Name == "OptimisticChallenge");
         var chainReg = bundle.Invocations.FirstOrDefault(i => i.Name == "ChainRegistry");
@@ -286,7 +347,6 @@ public static class ScaffoldPlan
         var daValidator = bundle.Invocations.FirstOrDefault(i => i.Name == "DAValidator");
         var messageRouter = bundle.Invocations.FirstOrDefault(i => i.Name == "MessageRouter");
         var l1TxFilter = bundle.Invocations.FirstOrDefault(i => i.Name == "L1TxFilter");
-        var govFraudVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "GovernanceFraudVerifier");
         var rexFraudVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "RestrictedExecutionFraudVerifier");
         var mpcVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "MpcCommitteeVerifier");
         var extRegistry = bundle.Invocations.FirstOrDefault(i => i.Name == "ExternalBridgeRegistry");
@@ -339,27 +399,10 @@ public static class ScaffoldPlan
             yield return $"{verifierReg.Name}.RegisterVerifier(ProofType.Zk=3, {contractZkVerifier.Name})  # route ZK settlement commitments to the contract-deployed verifier router";
             yield return $"{verifierReg.Name}.LockGovernance()  # irreversible production gate: freeze the GovernanceController and disable direct owner verifier replacement; future routes require an exact payload-bound timelocked proposal";
         }
-        if (govFraudVerifier is not null && oc is not null)
-        {
-            // REQUIRED — OptimisticChallenge gates Challenge() on an owner-managed
-            // verifier allowlist (added to defend against bond-drain by caller-supplied
-            // yes-verifiers). Operator MUST call RegisterFraudVerifier before any
-            // legitimate challenge against this verifier shape is accepted.
-            yield return $"{oc.Name}.RegisterFraudVerifier({govFraudVerifier.Name})  # allowlist v1/v2 governance-arbitration verifier";
-            yield return $"# Note: challengers pass {govFraudVerifier.Name}.Hash as the `fraudVerifier` argument to {oc.Name}.Challenge for v1/v2 fraud proofs (governance arbitration).";
-        }
         if (rexFraudVerifier is not null && oc is not null)
         {
-            yield return $"{oc.Name}.RegisterFraudVerifier({rexFraudVerifier.Name})  # allowlist governance-only v3 structural evidence";
-            if (rexFraudVerifier.ResolvedDeployData.Count == 2)
-            {
-                yield return $"{oc.Name}.RegisterPermissionlessFraudProfile(L2_CHAIN_ID_REPLACE_ME, {rexFraudVerifier.Name}, {rexFraudVerifier.Name}.GetExecutorSemanticId(), FRAUD_REPLAY_DOMAIN_REPLACE_ME)  # enable only the exact restricted executable v4 profile";
-                yield return $"# Note: v3 requires governance co-sign; v4 is permissionless only for the registered chain, verifier, semantic id, replay domain, and profile generation.";
-            }
-            else
-            {
-                yield return $"# Note: {rexFraudVerifier.Name} v3 requires governance co-sign; v4 remains fail closed because this legacy plan did not deploy [SettlementManager, replayDomain].";
-            }
+            yield return $"{oc.Name}.RegisterPermissionlessFraudProfile(L2_CHAIN_ID_REPLACE_ME, {rexFraudVerifier.Name}, {rexFraudVerifier.Name}.GetExecutorSemanticId(), FRAUD_REPLAY_DOMAIN_REPLACE_ME)  # atomically approve and bind the only supported state-changing executable v4 profile";
+            yield return "# Security boundary: v1/v2/v3 fraud payloads are advisory only and fail closed for state changes even with governance or owner witness; general NeoVM optimistic execution remains unsupported.";
         }
 
         // ─── External-bridge wiring ──────────────────────────────────────

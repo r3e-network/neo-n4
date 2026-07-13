@@ -1461,10 +1461,10 @@ Deliverables:
 ```text
 Optimistic rollup-like
 安全性依赖至少一个 honest challenger
-（v1/v2/v3 仍为 governance 仲裁；v4 对一个精确受限语义实现无许可链上重放）
+（v1/v2/v3 仅为审计证据且即使有 governance witness 也 fail closed；v4 对一个精确受限语义实现无许可链上重放）
 ```
 
-> 注（实现状态）：`GovernanceFraudVerifier` 的 v1/v2 与 `RestrictedExecutionFraudVerifier` 的 v3 是**结构性证据 + governance 仲裁**；v3 只重新派生挑战者 payload 内的 storage roots，不绑定已提交批次，也不执行交易。v4 则绑定 `SettlementManager` 已提交的规范头/roots、交易证明、claim id、受限 transcript 与 replay domain，并在链上执行精确的 `counter-increment-existing-key:v1` 语义；只有与 chainId、semanticId、replayDomain 精确注册的 profile 才允许无许可罚没。通用 NeoVM、多交易与其它 custom executor 语义仍 fail closed，需新增已承诺 tx-count / trace anchor 与完整单步语义后才能支持。
+> 注（实现状态）：`GovernanceFraudVerifier` 的 v1/v2 与 `RestrictedExecutionFraudVerifier` 的 v3 是**仅审计用结构性证据**；v3 只重新派生挑战者 payload 内的 storage roots，不绑定已提交批次，也不执行交易。它们不能触发回滚/罚没，governance witness 也不能绕过该限制。v4 则绑定 `SettlementManager` 已提交的规范头/roots、交易证明、claim id、受限 transcript 与 replay domain，并在链上执行精确的 `counter-increment-existing-key:v1` 语义；只有与 chainId、semanticId、replayDomain 精确注册的 profile 才允许无许可罚没。通用 NeoVM、多交易与其它 custom executor 语义仍 fail closed，需新增已承诺 tx-count / trace anchor 与完整单步语义后才能支持。
 
 ---
 

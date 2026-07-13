@@ -126,14 +126,14 @@ pinning regression test):
   with `LockProofSystemConfiguration` before registering the ZK route. Private
   devnets may use envelope-only mode only on a separate, deliberately unlocked
   deployment.
-- **Fraud-verifier allowlist on `OptimisticChallenge.Challenge`.** Closes a
+- **Executable-profile gate on `OptimisticChallenge.Challenge`.** Closes a
   bond-drain attack window: `Challenge` will only invoke a `fraudVerifier`
-  contract hash that the owner has explicitly registered via
-  `RegisterFraudVerifier`. Without this gate, an attacker could deploy a
-  yes-verifier and drain any sequencer's bond. The deploy planner emits the
-  required `RegisterFraudVerifier` step for every shipped verifier
-  (`GovernanceFraudVerifier`, `RestrictedExecutionFraudVerifier`) as part of
-  post-deploy wiring.
+  contract hash that is allowlisted and whose exact chain, semantic id, replay
+  domain, and generation are registered as an executable v4 profile. Without
+  both gates, an attacker could deploy a yes-verifier and drain a sequencer's
+  bond. The production planner registers only `RestrictedExecutionFraudVerifier`
+  v4; advisory v1/v2/v3 artifacts are never registered and governance cannot
+  override the executable-profile requirement.
 - **Governance proposal payload binding.** Every `*ViaProposal` method
   (`SetImmutableFlagViaProposal`, `RegisterVerifierViaProposal`,
   `UpgradeVerifierViaProposal`, `RegisterCommitteeViaProposal`) canonically

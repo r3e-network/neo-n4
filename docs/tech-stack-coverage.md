@@ -30,10 +30,10 @@ any other project's source.
 - **Optimistic challenge game** ✅ — `contracts/NeoHub.OptimisticChallenge/`
 - **Governance + council + timelock** ✅ — `contracts/NeoHub.GovernanceController/`
 - **Emergency pause + escape hatch** ✅ — `contracts/NeoHub.EmergencyManager/`
-- **Fraud verifier (governance-arbitration mode reference)** ✅ — `contracts/NeoHub.GovernanceFraudVerifier/`
-- **Fraud verifier (governance-only structural v3 + committed-root-bound restricted executable v4)** ✅ — `contracts/NeoHub.RestrictedExecutionFraudVerifier/` (single-tx Counter profile only; general NeoVM ❌)
+- **Fraud verifier (advisory structural v1/v2 reference)** ✅ — `contracts/NeoHub.GovernanceFraudVerifier/` (excluded from production challenge routing)
+- **Fraud verifier (advisory structural v3 + committed-root-bound restricted executable v4)** 🟡 — `contracts/NeoHub.RestrictedExecutionFraudVerifier/` (state-changing only for exact registered single-tx Counter v4; general NeoVM ❌)
 
-**25 NeoHub contract projects** (24 production + 1 test-only `ExternalBridgeStubVerifier`). All type-check via `Neo.SmartContract.Framework`; CI
+**25 NeoHub contract projects** (23 production + advisory-only `GovernanceFraudVerifier` + test-only `ExternalBridgeStubVerifier`). All type-check via `Neo.SmartContract.Framework`; CI
 builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 
 - **L2 batch info (chainId, batch number, L1 height)** ✅ — Neo core native `L2BatchInfoContract`.
@@ -72,7 +72,7 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 - **Cross-chain messaging** ✅ — `src/Neo.L2.Messaging/`
 - **Asset registry + deposit/withdrawal processors** ✅ — `src/Neo.L2.Bridge/`
 - **Per-L2 RPC method surface** ✅ — `src/Neo.Plugins.L2Rpc/` (10 methods)
-- **Phase-5 proof aggregation** ✅ — `src/Neo.Plugins.L2Gateway/` — `BinaryTreeAggregator` with two production `IRoundProver` implementations (`MultisigRoundProver`, `MerklePathRoundProver`) plus `PassThroughRoundProver` as the minimal-cost reference. Recursive-ZK fold variants (SP1 Compress / Halo2 / Risc0) are operator-supplied through the same seam
+- **Phase-5 proof aggregation** 🟡 — `src/Neo.Plugins.L2Gateway/` — `BinaryTreeAggregator`, Secp256r1/Merkle round provers, canonical binding, durable outbox, and on-chain route ship. A dedicated recursive Gateway SP1 guest/prover and proof-bound production RPC publisher remain required; opaque round proof bytes cannot substitute for the terminal validity proof.
 
 **16 off-chain libraries + 8 plugins.** All have `tests/Neo.*.UnitTests/` mirrors;
 the solution currently contains 37 .NET test projects and reports the exact
@@ -155,16 +155,15 @@ is a valid endpoint.
 
 ## Coverage assessment
 
-| Layer | Components | ✅ Done | 🟡 Scaffolded | 🔴 Out-of-repo |
-|-------|-----------:|--------:|--------------:|---------------:|
-| L1 protocol contracts | 17 | 17 | 0 | 0 |
-| L2 native contracts | 10 | 10 | 0 | 0 |
-| Cross-foreign-chain bridge | 13 | 13 | 0 | 0 |
-| Node infrastructure | 19 | 19 | 0 | 0 |
-| Operator tooling | 12 | 12 | 0 | 0 |
-| App development | 8 | 8 | 0 | 0 |
-| End-user UIs | 5 | 5 | 0 | 0 |
-| **Total** | **83** | **83** | **0** | **0** |
+| Layer | Current assessment | Explicit remaining production gap |
+|-------|--------------------|-----------------------------------|
+| L1 protocol contracts | 🟡 | Optimistic state changes are trustless only for the exact restricted Counter v4 profile; general NeoVM/multi-transaction fraud proofs fail closed. |
+| L2 native contracts | ✅ | Deployment-specific genesis and governance rehearsal remain operator evidence, not missing code. |
+| Cross-foreign-chain bridge | ✅ | Live committee/foreign-chain deployment evidence remains environment-specific. |
+| Node infrastructure | 🟡 | Gateway lacks the dedicated recursive SP1 guest/prover and proof-bound production RPC publisher. |
+| Operator tooling | ✅ | Wallet/HSM custody and live submission are explicit operator boundaries. |
+| App development | ✅ | Live-node conformance evidence must be produced for each release environment. |
+| End-user UIs | ✅ | Production hosting and wallet integrations remain deployment choices. |
 
 **Phase 4 (SP1 ZK proving) is now end-to-end functional.** The
 `bridge/neo-zkvm-host/tests/end_to_end.rs` test loads the compiled

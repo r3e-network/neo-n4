@@ -175,12 +175,10 @@ KMS 的实操样例。所有 CLI 都输出规范 hex;生产热路径
   - `NeoHub.ForcedInclusion` 出货真正可配置的反垃圾费
     (`SetFee` / `SetFeeRecipient` / `SetGasToken`);默认 0 = 保留无费
     的 legacy。关掉"无费 MVP"的标注。
-  - `NeoHub.GovernanceFraudVerifier`(第 14 个 NeoHub 合约)以治理仲裁
-    乐观链的结构性 fraud verifier 参照形式出货。解码规范的 101 字节
+  - `NeoHub.GovernanceFraudVerifier` 仅作为离线审计用 v1/v2 结构验证器出货。解码规范的 101 字节
     `FraudProofPayload`,校验长度 / 版本 / 是否声称真实差异,并发出
-    accept/reject 事件(带原因码)供 council 审议。关掉链上
-    `fraudVerifier` 调用点空白。已接进 `ScaffoldPlan.Default()` +
-    `PostDeployActions` 信息提示。
+    accept/reject 事件(带原因码)供审计工具诊断。它不能触发回滚/罚没，
+    也不进入 `ScaffoldPlan.Default()` 或生产 post-deploy wiring。
   - 13 条对等测试(`UT_GovernanceFraudVerifierParity`)在 C# 中模拟该合约
     的判定树,让改常量 / 顺序 / 偏移的 refactor 在单测时即被抓住。
   - "MVP" 注释清理:`ChallengeOrchestrator.InspectAsync`(收敛路径已存于

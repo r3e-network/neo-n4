@@ -59,7 +59,7 @@ off-chain infrastructure that connects them:
 
 ### Tier 1: NeoHub (L1)
 
-The L1 anchor. **24 production contracts plus 1 test-only stub** grouped by
+The L1 anchor. **23 production contracts plus 1 advisory structural verifier and 1 test-only stub** grouped by
 concern:
 
 <p align="center">
@@ -368,7 +368,7 @@ Which `neo-stack` subcommand touches which component:
 For NeoHub itself (one-time, per-network):
 
 ```bash
-# Generate the 24-step ordered bundle:
+# Generate the 23-step ordered production bundle:
 dotnet run --project tools/Neo.Hub.Deploy -- plan
 
 # Verify the bundle's invariants:

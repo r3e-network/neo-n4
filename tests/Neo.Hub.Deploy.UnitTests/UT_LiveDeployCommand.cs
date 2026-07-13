@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Neo.Extensions.IO;
 using Neo.Extensions.VM;
+using Neo.Json;
 using Neo.L2.Proving.RiscVZk;
 using Neo.SmartContract;
 using Neo.SmartContract.Manifest;
@@ -174,6 +175,47 @@ public class UT_LiveDeployCommand
     }
 
     [TestMethod]
+    public void SubstituteOperatorPlaceholders_LegacyOnlyOptimisticPlan_IsRejected()
+    {
+        var key = new Neo.Wallets.KeyPair(new byte[32]
+        {
+            1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        });
+        var owner = new UInt160(new byte[UInt160.Length]);
+        var plan = new DeployPlan
+        {
+            Version = 1,
+            Network = "test",
+            Steps =
+            [
+                new DeployStep
+                {
+                    Name = "OptimisticChallenge",
+                    NefPath = "optimistic.nef",
+                    ManifestPath = "optimistic.manifest.json",
+                    DeployData = new JArray { "OWNER_REPLACE_ME" },
+                    DependsOn = [],
+                },
+                new DeployStep
+                {
+                    Name = "GovernanceFraudVerifier",
+                    NefPath = "governance.nef",
+                    ManifestPath = "governance.manifest.json",
+                    DeployData = new JArray(),
+                    DependsOn = [],
+                },
+            ],
+        };
+
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() =>
+            LiveDeployCommand.SubstituteOperatorPlaceholders(
+                plan, owner, owner, key.PublicKey, owner, 1001, FraudReplayDomain));
+        StringAssert.Contains(ex.Message, "unsupported optimistic deployment");
+        StringAssert.Contains(ex.Message, "v1/v2/v3");
+    }
+
+    [TestMethod]
     public void ProductionEndpointAndNetworkValidation_FailsClosed()
     {
         Assert.AreEqual(894710606u, LiveDeployCommand.ParseRequiredNetwork("894710606"));
@@ -302,12 +344,10 @@ public class UT_LiveDeployCommand
         Assert.AreEqual(registerOuterRoute + 1, lockOuterRegistry,
             "production deployment must freeze the outer route immediately after bootstrap registration");
 
-        var registerRestricted = IndexOf(actions,
-            "OptimisticChallenge.RegisterFraudVerifier.RestrictedExecution");
         var registerPermissionlessV4 = IndexOf(actions,
             "OptimisticChallenge.RegisterPermissionlessFraudProfile.RestrictedExecutionV4");
-        Assert.AreEqual(registerRestricted + 1, registerPermissionlessV4,
-            "the exact v4 profile must be registered immediately after the governance-only v3 route");
+        Assert.AreEqual(lockOuterRegistry + 1, registerPermissionlessV4,
+            "the exact executable v4 profile must be atomically approved immediately after the ZK route is frozen");
 
         var setGas = IndexOf(actions, "ForcedInclusion.SetGasToken");
         var setRecipient = IndexOf(actions, "ForcedInclusion.SetFeeRecipient");
@@ -402,6 +442,8 @@ public class UT_LiveDeployCommand
             .RunAsync(new StubRpcClient(HashResult(hashes["GovernanceController"])));
         await smokes["VerifierRegistry.IsGovernanceLocked"]
             .RunAsync(new StubRpcClient(BooleanResult(true)));
+        await smokes["OptimisticChallenge.IsApprovedFraudVerifier.RestrictedExecutionV4"]
+            .RunAsync(new StubRpcClient(BooleanResult(true)));
         await smokes["OptimisticChallenge.IsPermissionlessFraudProfile.RestrictedExecutionV4"]
             .RunAsync(new StubRpcClient(BooleanResult(true)));
         await smokes["RestrictedExecutionFraudVerifier.GetSettlementManager"]
@@ -448,6 +490,7 @@ public class UT_LiveDeployCommand
             ["VerifierRegistry.GetVerifier.Zk"] = HashResult(UInt160.Zero),
             ["VerifierRegistry.GetGovernanceController"] = HashResult(UInt160.Zero),
             ["VerifierRegistry.IsGovernanceLocked"] = BooleanResult(false),
+            ["OptimisticChallenge.IsApprovedFraudVerifier.RestrictedExecutionV4"] = BooleanResult(false),
             ["OptimisticChallenge.IsPermissionlessFraudProfile.RestrictedExecutionV4"] = BooleanResult(false),
             ["RestrictedExecutionFraudVerifier.GetSettlementManager"] = HashResult(UInt160.Zero),
             ["RestrictedExecutionFraudVerifier.GetReplayDomain"] = Hash256Result(UInt256.Zero),
@@ -483,7 +526,7 @@ public class UT_LiveDeployCommand
             "Owner", "Gas", "SequencerBond", "OptimisticChallenge", "ForcedInclusion",
             "ChainRegistry", "SharedBridge", "EmergencyManager", "GovernanceController",
             "VerifierRegistry", "ContractZkVerifier", "Sp1Groth16Verifier",
-            "GovernanceFraudVerifier", "RestrictedExecutionFraudVerifier",
+            "RestrictedExecutionFraudVerifier",
             "MpcCommitteeVerifier", "ExternalBridgeRegistry", "ExternalBridgeBond",
             "ExternalBridgeEscrow", "MpcCommitteeFraudVerifier", "SettlementManager",
             "DARegistry", "DAValidator",
@@ -541,13 +584,13 @@ public class UT_LiveDeployCommand
         int updateCounter,
         JsonNode nef,
         JsonNode manifest) => StjSerializer.SerializeToElement(new JsonObject
-    {
-        ["id"] = 1,
-        ["updatecounter"] = updateCounter,
-        ["hash"] = hash.ToString(),
-        ["nef"] = nef,
-        ["manifest"] = manifest,
-    });
+        {
+            ["id"] = 1,
+            ["updatecounter"] = updateCounter,
+            ["hash"] = hash.ToString(),
+            ["nef"] = nef,
+            ["manifest"] = manifest,
+        });
 
     private sealed class StubRpcClient(params JsonElement[] responses) : LiveDeployCommand.ILiveRpcClient
     {

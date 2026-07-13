@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — executable fraud-proof deployment boundary — 2026-07-14
+
+- Removed advisory `GovernanceFraudVerifier` from the default/live production deployment and
+  stopped registering any v1/v2/v3 structural verifier for state-changing challenges.
+- The 23-step production plan now registers only the exact SettlementManager/replay-domain-bound
+  executable v4 profile. Legacy custom plans receive fail-closed warnings and governance/owner
+  witness cannot substitute for executable fraud verification.
+- Reconciled English and Chinese operator, architecture, security, whitepaper, and status docs
+  with the 23-production + 1-advisory + 1-test-only NeoHub project inventory.
+
 ### Fixed — forced-inclusion event discovery — 2026-07-14
 
 - Replaced the operator-supplied nonce watcher gap with a durable finalized-L1 scanner wired by
@@ -74,7 +84,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Reconciled English and Chinese architecture, launch, security, and status
   documentation with the shipped SP1 terminal verifier, restricted fraud-proof v4,
-  epoch-bound council rotation, 25-project NeoHub inventory, 24-step production bundle,
+  epoch-bound council rotation, 25-project NeoHub inventory, 23-step production bundle,
   four typed SDKs, 37 solution test projects, and the official RpcServer integration.
 - Removed volatile total-test counts and corrected production-boundary claims for
   Gateway round provers, operator key custody, real NeoFS, and deployment evidence.

@@ -63,7 +63,7 @@ ZKsync 的 Foundry 测试同时演练合约与参考 Rust 实现并对比。neo4
 中采取同样方法:每个链上 verifier 都有一个对等测试,复刻其决策树
 (`UT_OnChainMerkleVerifyParity` 对应 SettlementManager、
 `UT_RestrictedExecutionFraudVerifierParity` 对应 v3 结构性 root 重推导 fraud
-verifier、`UT_GovernanceFraudVerifierParity` 对应 v1/v2 治理仲裁 verifier、
+verifier、`UT_GovernanceFraudVerifierParity` 对应仅审计用 v1/v2 结构 verifier、
 `UT_MpcFraudProof_RealCrypto` 对应 Phase-C MPC 委员会 fraud verifier)。
 链下漂移在单元测试期暴露,而非运行时。
 

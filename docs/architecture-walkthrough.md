@@ -113,7 +113,8 @@ canonical state root, and bumps `latestFinalizedBatch[chainId]`. Challengeable
 optimistic batches can reach this path only through `OptimisticChallenge` after
 the window expires.
 
-During that window, legacy fraud payloads v1/v2/v3 remain governance-co-signed.
+During that window, legacy fraud payloads v1/v2/v3 remain advisory-only and fail
+closed even with governance witness; state changes require an exact registered executable v4 profile.
 Permissionless v4 is profile-scoped to one chain, verifier, executor semantic id,
 and replay domain. The restricted verifier reads SettlementManager's stored
 321-byte `Challengeable` header, executes one supported existing-key Counter

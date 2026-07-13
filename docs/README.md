@@ -11,9 +11,9 @@
 > Development (NGD), the Neo Foundation, or the
 > [`neo-project`](https://github.com/neo-project) organization**. The "Neo 4" name
 > refers to the *target core* used as the L2 execution kernel; the canonical Neo 4
-> protocol roadmap is owned by the Neo project. The code is engineered for production
-> L2 deployment — full cryptographic primitives, real persistence, comprehensive test
-> coverage, and documented operator seams. Audit before mainnet use and wire the
+> protocol roadmap is owned by the Neo project. The code is undergoing production
+> hardening: real cryptographic and persistence components ship, while general NeoVM
+> fraud proofs and recursive Gateway SP1 remain explicit open gates. Audit before mainnet use and wire the
 > production seams (operator key/HSM policy, real NeoFS adapter, dBFT consensus selector)
 > per your deployment.
 
@@ -61,7 +61,7 @@ fractional withdrawals such as non-whole L1 NEO exits.
 The architecture is three tiers:
 
 - **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 25 contract projects
-  (24 production plus 1 test-only stub) grouped into six concerns: *Settlement*
+  (23 production, 1 advisory-only structural fraud verifier, and 1 test-only stub) grouped into six concerns: *Settlement*
   (SettlementManager · VerifierRegistry · ContractZkVerifier · Sp1Groth16Verifier), *Bridge*
   (SharedBridge · TokenRegistry · ChainRegistry), *Messaging* (MessageRouter · DARegistry),
   *Security* (SequencerRegistry · SequencerBond · ForcedInclusion · OptimisticChallenge),
@@ -96,8 +96,8 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
   [`docs/persistence.md`](./persistence.md).
 - **Node plugins (8)** — `Neo.Plugins.L2{Batch, Bridge, DA, Gateway,
   Metrics, Prover, Rpc, Settlement}`.
-- **Smart contracts (25 NeoHub + 10 L2 native)** — 25 NeoHub L1 contract projects (24 production plus the test-only `ExternalBridgeStubVerifier`, incl. `DAValidator`, `L1TxFilter`, `ContractZkVerifier`, immutable `Sp1Groth16Verifier`, `GovernanceFraudVerifier`,
-  `RestrictedExecutionFraudVerifier` governance-only v3 / restricted executable v4 verifier, and the 6
+- **Smart contracts (25 NeoHub + 10 L2 native)** — 25 NeoHub L1 contract projects (23 production, advisory-only `GovernanceFraudVerifier`, and test-only `ExternalBridgeStubVerifier`, incl. `DAValidator`, `L1TxFilter`, `ContractZkVerifier`, immutable `Sp1Groth16Verifier`,
+  `RestrictedExecutionFraudVerifier` executable restricted-v4 verifier, and the 6
   cross-foreign-chain bridge contracts: `MpcCommitteeVerifier` /
   `ExternalBridgeRegistry` / `ExternalBridgeEscrow` /
   `ExternalBridgeBond` / `ExternalBridgeStubVerifier` /
@@ -141,7 +141,7 @@ neo4/
 │   ├── Neo.L2.Telemetry/                   # IL2Metrics + PrometheusExporter
 │   └── Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}/
 ├── contracts/
-│   ├── NeoHub.* (25)                       # L1 contract suite: 24 production + 1 test stub
+│   ├── NeoHub.* (25)                       # L1 suite: 23 production + 1 advisory + 1 test stub
 ├── external/neo/                            # r3e Neo fork with N4 L2 native contracts
 ├── tools/
 │   ├── Neo.Stack.Cli/                      # neo-stack CLI (12 subcommands)
@@ -167,11 +167,11 @@ Per [`doc.md` §18](../doc.md):
 | Phase | Goal                                | Status | Evidence                                                  |
 | ----- | ----------------------------------- | :----: | --------------------------------------------------------- |
 | 0     | Sidechain PoC                       | ✅     | MVP integration test passes end-to-end                    |
-| 1     | NeoHub v0 + Shared Bridge           | ✅     | All 25 NeoHub projects compile; deploy planner emits 24 production steps including immutable Sp1Groth16Verifier |
+| 1     | NeoHub v0 + Shared Bridge           | ✅     | All 25 NeoHub projects compile; deploy planner emits 23 production steps including immutable Sp1Groth16Verifier and only the executable-v4 fraud path |
 | 2     | Batch Settlement                    | ✅     | Real `KeyedStateStore` continuity verified across batches |
-| 3     | Optimistic Challenge Window         | ✅     | `OptimisticChallenge` contract + `BisectionGame` (log-N narrowing) |
+| 3     | Optimistic Challenge Window         | 🟡     | Exact executable-v4 profile only; general NeoVM fraud proofs remain unsupported and fail closed |
 | 4     | NeoVM 2 / RISC-V ZK Validity Proof  | ✅     | Neo N4 L2 execution targets NeoVM2/RISC-V via `src/Neo.L2.Executor.RiscV` + PolkaVM host in `external/neo-riscv-vm`; `neo-l2-devnet --executor riscv` runs the canonical path. SP1 prover daemon lives in `bridge/neo-zkvm-host` (`prove-batch` CLI); real CPU proofs verified by `#[ignore]`-gated release-gate tests. |
-| 5     | Neo Gateway proof aggregation       | ✅     | `BinaryTreeAggregator` ships 2 production `IRoundProver`s (`MultisigRoundProver`, `MerklePathRoundProver`) plus the `PassThroughRoundProver` reference |
+| 5     | Neo Gateway proof aggregation       | 🟡     | Binding/outbox/on-chain proof route ships; recursive Gateway SP1 prover/guest and proof-bound production RPC publication remain open |
 | 6     | Neo Stack CLI / templates           | ✅     | 12 subcommands functional (3 print operator-plan output for the L1/L2-wallet-gated steps; `validate` is a pure JSON sanity-check; `scaffold-executor` emits a custom-executor starter project; `new-l2` is the composite; `list-templates` prints discoverable template + use-case descriptions) |
 
 Legend: ✅ done · 🟡 substantial scaffolding + tests · 🔴 stub.
@@ -233,7 +233,7 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --data-dir /tmp/neo-l2-devnet
 
 # --- L1 deploy (when ready) ---
 
-# Generate a NeoHub deploy bundle (24 production contracts, declarative, dependency-resolved)
+# Generate a NeoHub deploy bundle (23 production contracts, declarative, dependency-resolved)
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
     --output deploy-plan.json
 dotnet run --project tools/Neo.Hub.Deploy -- plan \

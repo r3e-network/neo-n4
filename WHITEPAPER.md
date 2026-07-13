@@ -91,8 +91,8 @@ routing, and governance must be unified.**
 ## 3. L1 contract suite — NeoHub
 
 NeoHub is the L1 contract suite shared by every L2. Conceptually it combines ZKsync's
-BridgeHub, SharedBridge, VerifierRegistry, and MessageRouter into one suite. The 25 deployable projects
-contain 24 production contracts plus one test-only external-bridge stub:
+BridgeHub, SharedBridge, VerifierRegistry, and MessageRouter into one suite. The 25 contract projects
+contain 23 production contracts, one advisory structural fraud verifier, and one test-only external-bridge stub:
 
 <p align="center">
   <img src="docs/figures/architecture/neohub-anatomy.svg" alt="NeoHub L1 anatomy grouped by settlement, bridge, messaging, security, governance, and external-bridge concerns. The production settlement path includes ContractZkVerifier and immutable Sp1Groth16Verifier; ExternalBridgeStubVerifier remains test-only." width="900">
@@ -137,11 +137,12 @@ contain 24 production contracts plus one test-only external-bridge stub:
   admission / exit lifecycle.
 - **`OptimisticChallenge`** — Phase-3 challenge window; entry point for
   the bisection-game fraud-proof flow.
-- **`GovernanceFraudVerifier`** — Reference fraud verifier for
-  governance-arbitration optimistic chains. Decodes the canonical
+- **`GovernanceFraudVerifier`** — Advisory structural verifier for offline
+  audit tooling. Decodes the canonical
   `FraudProofPayload` (v1 = 101 bytes fixed, v2 = 105+N bytes with
   disputed-tx witness), validates structural integrity, emits
-  accept/reject events for council review.
+  accept/reject events with reason codes, but cannot authorize revert/slash and
+  is excluded from the production deployment bundle.
 - **`RestrictedExecutionFraudVerifier`** — Versioned fraud verifier. V3
   — re-derives pre/post Merkle state roots on-chain from each storage
   proof's leaf-hash + siblings + leafIndex and checks they are internally
@@ -149,17 +150,17 @@ contain 24 production contracts plus one test-only external-bridge stub:
   challenger-supplied payload header. All roots come from the same
   challenger payload: it does NOT read the sequencer's committed
   `SettlementManager` batch roots and does NOT re-execute the disputed tx,
-  so it is not trustless. Accepted v3 payloads still require governance
-  arbitration and the verifier MUST be registered approved-only. V4 is a
+  so it is not trustless. V3 is advisory-only and `OptimisticChallenge` rejects
+  it before dispatch even with governance witness. V4 is a
   separate SettlementManager-bound permissionless profile: it binds chain,
   batch, committed roots, replay domain, semantic id, transaction proof,
   transcript, claim id, and storage witness, then executes exactly one
   existing-key Counter Increment transaction. It is trustless inside that
   declared profile; multi-transaction and general NeoVM fraud proofs fail closed.
 
-All 25 deployable projects type-check against `Neo.SmartContract.Framework`. The
-`Neo.Hub.Deploy` tool emits a topologically-sorted, dependency-resolved 24-step
-production deploy bundle; the test-only stub is excluded.
+All 25 contract projects type-check against `Neo.SmartContract.Framework`. The
+`Neo.Hub.Deploy` tool emits a topologically-sorted, dependency-resolved 23-step
+production deploy bundle; the advisory structural verifier and test-only stub are excluded.
 
 The principle behind NeoHub is **one suite of L1 trust roots for all L2s**. A new L2 does
 not deploy a new bridge or a new verifier; it registers in `ChainRegistry` and inherits the
@@ -585,7 +586,7 @@ the L2 plugin set are stable across phases; the *verifier* changes.
 | Aspect                  | Neo Elastic Network              | ZKsync Elastic Chain    | OP Stack                      | Arbitrum Orbit                  |
 | ----------------------- | -------------------------------- | ----------------------- | ----------------------------- | ------------------------------- |
 | Execution kernel        | Neo 4 (NeoVM2 / RISC-V for L2; NeoVM only for legacy compatibility) | EraVM (zkEVM) | EVM (op-geth) | EVM (Nitro) |
-| L1 settlement contracts | NeoHub (24 production contracts + test stub) | BridgeHub + SharedBridge + V.R. | OptimismPortal etc.    | RollupCore + Inbox              |
+| L1 settlement contracts | NeoHub (23 production + advisory structural verifier + test stub) | BridgeHub + SharedBridge + V.R. | OptimismPortal etc.    | RollupCore + Inbox              |
 | Sequencer               | dBFT 2.0 committee (M-of-N)      | Centralized (with FCFS) | Centralized (decentralizing)  | Centralized (decentralizing)    |
 | Proof regimes           | Multisig → Optimistic → ZK       | ZK (production)         | Optimistic (Cannon)           | Optimistic (BOLD challenge game) |
 | Native interop          | L1↔L2 + L2↔L2 + bundles          | Native L2-L2 via Gateway | Superchain interop (early)   | Cross-chain Inbox messaging     |

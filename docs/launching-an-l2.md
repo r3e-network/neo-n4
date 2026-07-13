@@ -346,24 +346,12 @@ batchNumber, challenger, fraudProofBytes, fraudVerifier)` delegates the
 actual cryptographic check to a contract identified by the
 `fraudVerifier` argument.
 
-Four verifier modes are available. The default 24-step production bundle
-deploys both reference verifiers and configures the restricted verifier with
+Two production verifier modes are available. The default 23-step production bundle
+excludes the structural v1/v2 advisory contract and configures the restricted verifier with
 `[SettlementManager, replayDomain]`; live deployment therefore requires an
 explicit `--fraud-replay-domain`:
 
-  1. **Governance-arbitration mode** (the simplest operator-friendly path):
-     deploy `NeoHub.GovernanceFraudVerifier`. It does a structural check
-     of the canonical `FraudProofPayload` (v1=101 bytes fixed or v2=105+N
-     bytes with disputed-tx witness; length / version /
-     claims-a-real-discrepancy) and emits accept/reject events for the
-     security council to arbitrate. Pass its deployed hash as
-     `fraudVerifier` when filing a challenge.
-  2. **Structural v3 governance mode**: legacy custom plans may deploy
-     `NeoHub.RestrictedExecutionFraudVerifier` with empty data. V3 re-derives
-     challenger-supplied storage roots, but does not bind them to the committed
-     batch or execute the transaction; register it through approved-only
-     `RegisterFraudVerifier` and require governance co-sign.
-  3. **Permissionless restricted v4**: the production bundle deploys
+  1. **Permissionless restricted v4**: the production bundle deploys
      `NeoHub.RestrictedExecutionFraudVerifier` with
      `[SettlementManager, replayDomain]`, then calls
      `RegisterPermissionlessFraudProfile(chainId, verifier,
@@ -375,27 +363,27 @@ explicit `--fraud-replay-domain`:
      committed root returns true. Production smoke checks verify the deployed
      settlement-manager hash, replay domain, semantic id, and exact profile.
      This mode is not general NeoVM; unsupported semantics fail closed.
-  4. **Custom verifier**: ship your own fraud verifier (e.g. one that
-     re-executes the disputed transaction on L1 with restricted state).
-     Skip both reference verifiers from the deploy bundle and register
-     your own verifier's hash. The `FraudProofPayload` v2 (DisputedTxBytes)
-     and v3 (StorageProofs) wire-format fields carry the disputed-tx
-     bytes + storage manifests a re-execution verifier needs.
+  2. **Custom executable v4 verifier**: ship your own fraud verifier that
+     re-executes the disputed transaction on L1 with restricted state.
+     Replace the restricted verifier in the deploy bundle and register an exact
+     chain/semantic/replay-domain v4 profile. A custom verifier must consume the
+     committed batch header and executable witness; accepting self-asserted roots
+     or structural payloads is not a supported production profile.
 
-`neo-hub-deploy`'s post-deploy actions output surfaces the right hash for
-each verifier so operators know which to pass as the `fraudVerifier`
-argument:
+`GovernanceFraudVerifier` v1/v2 and the structural v3 decoder remain useful for
+offline audits and reason-coded diagnostics. They cannot authorize a revert or
+slash: `OptimisticChallenge.Challenge` requires v4 plus an exact registered
+executable profile before dispatch, even when the owner/governance witnesses.
+The deploy planner therefore never registers these legacy contracts and emits a
+fail-closed warning if a custom plan includes one.
 
 ```
-# Note: for v1/v2 fraud proofs (governance arbitration),
-#       pass GovernanceFraudVerifier.Hash ...
-# Note: for v3 fraud proofs (governance-only structural evidence),
-#       pass RestrictedExecutionFraudVerifier.Hash ...
+# Security boundary: only exact registered executable v4 is state-changing;
+# v1/v2/v3 and mismatched v4 fail closed even with governance/owner witness.
 ```
 
-Do not interpret the legacy deploy-planner v3 note as permissionless
-authorization. `RegisterPermissionlessFraudVerifier` is disabled; value-bearing
-permissionless challenges require the explicit v4 profile registration above.
+`RegisterPermissionlessFraudVerifier` is disabled; all value-bearing challenges
+require the explicit v4 profile registration above.
 
 ---
 
@@ -777,15 +765,15 @@ be whatever the operator needs.
 
 ## Going to L1: deploying NeoHub
 
-Before `register-chain` works, the 24 production NeoHub contracts must be
-deployed on the target L1. The test-only `ExternalBridgeStubVerifier` is not
-part of the default deploy bundle. The `neo-hub-deploy` tool emits a deploy
+Before `register-chain` works, the 23 production NeoHub contracts must be
+deployed on the target L1. Advisory `GovernanceFraudVerifier` and test-only
+`ExternalBridgeStubVerifier` are not part of the default deploy bundle. The `neo-hub-deploy` tool emits a deploy
 bundle that names each contract, its dependencies, and the resolved hashes
 after a topological sort:
 
 ```bash
-# 1. Scaffold a starter plan (24 production NeoHub deploy steps in dependency
-#    order, including ContractZkVerifier, Sp1Groth16Verifier, and both fraud verifiers).
+# 1. Scaffold a starter plan (23 production NeoHub deploy steps in dependency
+#    order, including ContractZkVerifier, Sp1Groth16Verifier, and executable-v4 fraud verifier).
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
     --output ./my-l2/deploy-plan.json
 

@@ -75,7 +75,7 @@ dotnet run --project tools\Neo.Hub.Deploy -- verify --plan plan.json --rpc https
 
 生产前必须确认：
 
-- 24 个生产 NeoHub 合约存在；
+- 23 个生产 NeoHub 合约存在；
 - `ContractZkVerifier` 已部署并路由；
 - `VerifierRegistry.getVerifier(ProofType.Zk)` 指向当前 verifier route；
 - DARegistry / DAValidator 已接线；

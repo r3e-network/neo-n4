@@ -336,11 +336,11 @@ The security stack is layered:
 - `SequencerRegistry` determines which sequencers are active for a chain.
 - `SequencerBond` holds slashable value and controls exit windows.
 - `OptimisticChallenge` coordinates challenges over submitted batches.
-- `GovernanceFraudVerifier` verifies structural v1/v2 fraud payloads used by
-  governance arbitration.
-- `RestrictedExecutionFraudVerifier` keeps v3 storage-proof payloads governance-only;
-  v4 reads the committed SettlementManager header and executes the declared
-  single-transaction Counter semantic before permissionless slashing.
+- `GovernanceFraudVerifier` verifies advisory structural v1/v2 payloads for
+  offline audit diagnostics; it cannot authorize a state-changing challenge.
+- `RestrictedExecutionFraudVerifier` keeps v3 storage-proof payloads advisory-only;
+  exact registered v4 reads the committed SettlementManager header and executes the
+  declared single-transaction Counter semantic before permissionless slashing.
 
 ## 12. External bridge data flow
 
@@ -414,8 +414,8 @@ be visible through events and operator runbooks.
 | `SequencerRegistry` | Track active sequencers and committee membership per chain. | Chain id, sequencer account, metadata, activation/exit action. | Sequencer registered/removed/exit-started. | Governance/operator, settlement/challenge readers. |
 | `ForcedInclusion` | Store user-posted forced transactions and inclusion deadlines. | Chain id, sender, transaction bytes, deadline policy. | Forced transaction queued/consumed/expired. | Users, L2 sequencer, challenge tooling. |
 | `OptimisticChallenge` | Run optimistic fraud challenge flow over disputed batches. | Chain id, batch number, challenger, fraud payload, verifier. | Challenge opened/accepted/rejected; batch status updated. | Challengers, settlement, sequencer bond. |
-| `GovernanceFraudVerifier` | Validate structural v1/v2 fraud payloads for governance-mediated challenges. | Versioned fraud payload, claimed/replayed roots, optional witness. | FraudProofAccepted or FraudProofRejected with reason code. | `OptimisticChallenge`, governance challenge path. |
-| `RestrictedExecutionFraudVerifier` | Validate governance-only structural v3 or committed-root-bound executable restricted v4. | V3 evidence, or v4 chain/batch/root/transcript/claim/tx/storage witness. | False for honest/invalid/unsupported claims; true only for a wrong committed Counter transition. | `OptimisticChallenge`; v4 single-tx Counter profile, not general NeoVM. |
+| `GovernanceFraudVerifier` | Validate advisory structural v1/v2 payloads for audit diagnostics. | Versioned fraud payload, claimed/replayed roots, optional witness. | Reason-coded structural result; never authorizes revert/slash. | Offline auditors and tooling; excluded from the production deploy plan. |
+| `RestrictedExecutionFraudVerifier` | Validate advisory structural v3 or committed-root-bound executable restricted v4. | V3 evidence, or v4 chain/batch/root/transcript/claim/tx/storage witness. | V3 is non-state-changing; v4 returns true only for a wrong committed Counter transition. | `OptimisticChallenge` only through exact registered v4; not general NeoVM. |
 | `MpcCommitteeVerifier` | Verify external-chain committee signatures and signer threshold. | External event hash, committee signatures, signer metadata. | External event accepted/rejected. | Watchers, `ExternalBridgeEscrow`. |
 | `MpcCommitteeFraudVerifier` | Challenge or slash incorrect external committee attestations. | Fraud proof over committee-signed external event. | Fraud accepted/rejected; slashing path enabled. | Challengers, `ExternalBridgeBond`. |
 | `ExternalBridgeRegistry` | Register foreign chains, asset routes, and bridge adapters. | External chain id, foreign asset/router, Neo asset/chain route. | External route registered/updated. | Operator/governance, `ExternalBridgeEscrow`. |

@@ -79,7 +79,7 @@ ZKsync 弹性链最本质的特性是:L1 合约会为每个结算批次验证一
   多数假设。
 - **`ProofType.Optimistic`(Stage 1)**——有效性被*假定*成立,L1 依赖一个欺诈证明
   挑战窗口(`OptimisticChallenge`)。这是相对 ZKsync(纯有效性 rollup)的**乐观 rollup
-  分歧**。v1/v2/v3 仍是治理仲裁的结构性证据；独立 v4 profile 会绑定 committed batch
+  分歧**。v1/v2/v3 仅是审计用结构性证据，不能改变状态；独立 v4 profile 会绑定 committed batch
   并执行一笔 existing-key Counter Increment。通用 NeoVM 与多交易 fraud proof fail closed。
 - **`ProofType.Zk`(Stage 2)**——`ContractZkVerifier` 校验规范 batch/proof 信封，并把
   SP1 证明路由到仓库内不可变的 `Sp1Groth16Verifier`；后者通过 Neo Core 原生 BN254
@@ -199,7 +199,7 @@ gated NFT mint、L1→L2 deposit)。neo4 总共 3 个样例模块。
   `ContractManagement`、原生 NEP-17 GAS、原生密码学、隐式签名者 nonce。
 - **Diamond proxy + facet 模式**(`DiamondProxy.sol`、`Admin.sol`、
   `Executor.sol`、`Getters.sol`、`Mailbox.sol`)—— 为绕过以太坊 24KB 合约
-  大小限制而存在。NeoVM2/RISC-V 无 24KB 上限;NeoHub 在 24 个生产合约间按职责切分等效。
+  大小限制而存在。NeoVM2/RISC-V 无 24KB 上限;NeoHub 在 23 个生产合约间按职责切分等效。
 - **`CTMDeploymentTracker` + `ChainAssetHandler`** —— ZKsync 用来支持
   *竞争性* 链类型与第三方资产路由器。neo4 只有一个规范 Hub。
 - **`L2BaseToken` + `L2WrappedBaseToken` / `L2WrappedBaseTokenStore`** ——

@@ -94,7 +94,7 @@ public sealed class DelegatingGatewayProofProver : IGatewayProofProver
     }
 }
 
-/// <summary>Publishes a fully-bound Gateway statement and terminal proof to MessageRouter.</summary>
+/// <summary>Publishes a fully-bound Gateway statement and terminal proof through SettlementManager.</summary>
 /// <remarks>
 /// See doc.md §4 (Neo Gateway). Implementations own L1 signing and transport and must forward
 /// every binding field and the proof unchanged.
@@ -104,6 +104,7 @@ public interface IProofBoundGlobalRootPublisher
     /// <summary>Sign, submit, reconcile, and confirm a proof-gated publication.</summary>
     ValueTask<UInt256> PublishGlobalRootAsync(
         GatewayProofBinding binding,
+        AggregatedCommitment commitment,
         ReadOnlyMemory<byte> aggregatedProof,
         CancellationToken cancellationToken = default);
 }
@@ -116,6 +117,7 @@ public sealed record GatewayRootPublicationObservation
 
     /// <summary>Stored canonical proof-input hash.</summary>
     public required UInt256 ProofInputHash { get; init; }
+
 }
 
 /// <summary>Exact transaction payload forwarded to the wallet-backed submitter.</summary>
@@ -126,6 +128,12 @@ public sealed record GatewayRootPublishRequest
 
     /// <summary>Hash256 of the canonical statement.</summary>
     public required UInt256 ProofInputHash { get; init; }
+
+    /// <summary>
+    /// Canonical packed <c>chainId:uint32 LE || batchNumber:uint64 LE</c> references validated by
+    /// SettlementManager against its current finalized records.
+    /// </summary>
+    public required ReadOnlyMemory<byte> ConstituentReferences { get; init; }
 
     /// <summary>Terminal proof bytes.</summary>
     public required ReadOnlyMemory<byte> AggregatedProof { get; init; }
@@ -173,10 +181,24 @@ public sealed class ReconciledGlobalRootPublisher : IProofBoundGlobalRootPublish
     /// <inheritdoc />
     public async ValueTask<UInt256> PublishGlobalRootAsync(
         GatewayProofBinding binding,
+        AggregatedCommitment commitment,
         ReadOnlyMemory<byte> aggregatedProof,
         CancellationToken cancellationToken = default)
     {
         GatewayProofBindingSerializer.Validate(binding);
+        ArgumentNullException.ThrowIfNull(commitment);
+        var expectedBinding = GatewayProofBindingSerializer.Create(
+            binding.MessageRouter,
+            binding.ReplayDomain,
+            binding.BatchEpoch,
+            commitment,
+            binding.ProofSystem,
+            binding.VerificationKeyId);
+        if (!GatewayProofBindingSerializer.ComputeHash(expectedBinding)
+            .Equals(GatewayProofBindingSerializer.ComputeHash(binding)))
+        {
+            throw new ArgumentException("binding does not match aggregate", nameof(binding));
+        }
         if (aggregatedProof.IsEmpty)
             throw new ArgumentException("aggregated proof must be non-empty", nameof(aggregatedProof));
         if (aggregatedProof.Length > MaxAggregatedProofBytes)
@@ -193,6 +215,7 @@ public sealed class ReconciledGlobalRootPublisher : IProofBoundGlobalRootPublish
         {
             Binding = binding,
             ProofInputHash = proofInputHash,
+            ConstituentReferences = GatewayFinalityReferenceSerializer.Encode(commitment.Constituents),
             AggregatedProof = aggregatedProof.ToArray(),
         };
 

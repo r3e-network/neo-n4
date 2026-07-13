@@ -184,8 +184,8 @@ public static class GatewayProofBindingSerializer
             throw new ArgumentException("GlobalMessageRoot must be non-zero", nameof(binding));
         if (binding.ConstituentCommitmentsRoot.Equals(UInt256.Zero))
             throw new ArgumentException("ConstituentCommitmentsRoot must be non-zero", nameof(binding));
-        if (binding.ConstituentCount == 0)
-            throw new ArgumentException("ConstituentCount must be positive", nameof(binding));
+        if (binding.ConstituentCount is 0 or > GatewayFinalityReferenceSerializer.MaxConstituents)
+            throw new ArgumentException("ConstituentCount must be 1..4096", nameof(binding));
         if (!IsProductionAggregationBackend(binding.AggregationBackendId))
             throw new ArgumentException("pass-through/reserved aggregation backend is not publishable", nameof(binding));
         if (binding.ProofSystem is < 1 or > 4)
@@ -203,6 +203,8 @@ public static class GatewayProofBindingSerializer
         {
             var current = constituents[i]
                 ?? throw new ArgumentException($"constituents[{i}] is null", nameof(constituents));
+            if (current.ChainId == 0)
+                throw new ArgumentException("Gateway chainId 0 is reserved for L1", nameof(constituents));
             if (i == 0) continue;
             var previous = constituents[i - 1];
             if (previous.ChainId > current.ChainId

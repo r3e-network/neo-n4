@@ -5,6 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — fail-closed recursive Gateway SP1 proof — 2026-07-14
+
+- Added independent SP1 6.2.1 Gateway guest/host crates. The guest strictly validates the
+  `NEO4GWP1` request, fixed 170-byte `NEO4GWR2` binding, canonical ordered commitments and roots,
+  and compile-time-batch-VK compressed child proofs before committing only
+  `0x00 || Hash256(binding170)`.
+- Added a canonical tuple-derived compressed-proof sidecar protocol, build manifest locking both
+  program VKs and ELF digests, host-side child and terminal Groth16 verification, symlink/path
+  rejection, atomic artifact publication with result manifest last, and explicit test-only VK
+  gating that cannot produce proofs.
+- Added parser/root/tamper/VK/proof-kind/path tests plus an ignored real-recursion release gate.
+- Added crash recovery that cryptographically re-verifies complete result markers and safely
+  removes only regular non-symlink orphan artifacts before re-proving.
+- Added atomic `SettlementManager.PublishGatewayGlobalRoot`: exact ordered finalized-batch
+  references, bounded O(log 4096) dual-root reconstruction, per-chain non-revertible watermarks,
+  deployment readback, and same-transaction forwarding to `MessageRouter`. The proof-bound RPC
+  publisher queries Router for reconciliation but submits through SettlementManager.
+- Phase 5 remains partial until independent audit and executed real-proof deployment evidence are
+  complete; the former SettlementManager authorization/finality implementation gap is closed.
+
 ### Fixed — governance quorum recovery evidence — 2026-07-14
 
 - Added VM-level evidence that two surviving signers in a 2-of-3 council can approve and execute

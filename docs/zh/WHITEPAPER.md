@@ -300,8 +300,8 @@ L1 上的 verifier registry 按 `ProofType` 分发;同一份 `L2BatchCommitment`
   Neo N3 VM 经 SP1 6.2.1 证明;NeoHub 合约校验 envelope / VK / publicInputHash,
   再由 L1 可部署验证器合约 完成proof-system 验证工作。
 
-聚合证明(Phase 5 Gateway)复用同一 registry —— `ProofType.Aggregated` 加上
-backend tag 标识用了哪种递归方案。
+聚合证明(Phase 5 Gateway)不引入 `ProofType.Aggregated`。最终聚合证明仍使用
+`ProofType.Zk`，并由独立 backend tag 标识递归方案。
 
 ---
 
@@ -396,14 +396,20 @@ Phase 5 引入一个可选聚合层,镜像 ZKsync Gateway。Gateway:
 
 - 从多条 L2 收集 `L2BatchCommitment` + 证明。
 - 通过 `BinaryTreeAggregator` 在 `IRoundProver` 实现的 combine 轮次上聚合
-  (log-N 轮;默认 `PassThroughRoundProver` 是 hash 合并器;生产换成
-  SP1 Compress、Halo2 fold 或 Risc-Zero accumulator)。
+  (log-N 轮；`PassThroughRoundProver` 仅为参照，Secp256r1/Merkle 提供
+  非递归 round，内置 `neo-zkvm-gateway-{guest,host}` 提供 SP1 6.2.1 递归终端证明)。
 - 维护 L2-to-L2 的 `globalMessageRoot`。
-- 把一份聚合后的承诺提交给 NeoHub。链上全局根的发布
-  (`MessageRouter.PublishGlobalRoot`)仅由 settlement-manager 的 witness
-  (`CheckWitness`)授权;`AggregatedProof` 中携带的聚合证明 / 委员会签名
-  在当前路径下并不在链上验证。聚合 attestation 的链上验证仍属规划中
-  (roadmap)。
+- 把聚合承诺与精确有序的 `(chainId,batchNumber)` references 提交给
+  `SettlementManager.PublishGatewayGlobalRoot`。SettlementManager 重新验证每个成员当前
+  finalized 且已启用 Gateway，从存储 record 以 O(log 4096) 内存重建 commitment root
+  (奇数叶复制)与 message root(奇数叶提升)，推进每链不可回退 watermark，并原子调用
+  `MessageRouter.PublishGlobalRoot`。MessageRouter 对固定 backend/proof system/Gateway
+  VK/replay domain 调链上 verifier；Router fault 会回滚全部 watermark，operator 直接调用
+  Router 也无法满足 SettlementManager contract witness。
+
+代码路径及崩溃恢复、部署 readback、奇数叶策略、篡改拒绝和原子回滚均有本地覆盖。
+Phase 5 仍为部分完成，只因为独立审计与生产配置下真实递归证明部署证据尚未完成；
+本地测试不能替代这些证据。
 
 **关键不变量:Gateway 不托管资产。**资产全程仍锁在 NeoHub.SharedBridge;
 Gateway 只搬证明和消息根。

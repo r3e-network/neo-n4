@@ -157,16 +157,22 @@ neo's RpcServer dispatcher needs that source. Track as a pending integration —
 when neo-modules (or wherever Neo 4 RpcServer lands) is available, generate the
 partial class.
 
-### §4-recursive-zk — Real Neo Gateway round prover
+### §4-recursive-zk — Real Neo Gateway terminal prover
 
-**Status update**: Phase 5 aggregation now ships **two production-grade
+**Status update**: Phase 5 aggregation ships **two production-grade
 `IRoundProver` implementations** — `MultisigRoundProver` (Secp256r1
 threshold-attested rounds) + `MerklePathRoundProver` (per-constituent
 inclusion proofs against the aggregate root) — alongside the
-`PassThroughRoundProver` reference. Real cryptography, no toolchain
-dependency. The remaining recursive-ZK fold variants (SP1 Compress / Halo2
-accumulator / Risc0 STARK fold) plug into the same `IRoundProver` seam
-when the operator brings the SP1 toolchain.
+`PassThroughRoundProver` reference. The independent
+`neo-zkvm-gateway-{guest,host}` crates now bundle the SP1 6.2.1 recursive
+terminal proof with compile-time batch VK locking and host-verified Groth16
+output. The proof-bound RPC path now submits exact ordered constituent references to
+`SettlementManager.PublishGatewayGlobalRoot`; the contract revalidates finalized status and
+Gateway admission, reconstructs the commitment/message roots, advances non-revertible per-chain
+watermarks, and atomically forwards the proof to `MessageRouter`. Crash recovery re-verifies a
+complete result marker and safely cleans only regular non-symlink orphan artifacts. This code gap
+is closed; independent audit and executed real-proof deployment evidence remain release gates.
+Halo2/Risc0 are optional alternative seams.
 
 ## Operator-specific (won't fix in repo)
 

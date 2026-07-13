@@ -13,7 +13,7 @@
 > refers to the *target core* used as the L2 execution kernel; the canonical Neo 4
 > protocol roadmap is owned by the Neo project. The code is undergoing production
 > hardening: real cryptographic and persistence components ship, while general NeoVM
-> fraud proofs and recursive Gateway SP1 remain explicit open gates. Audit before mainnet use and wire the
+> fraud proofs plus independent Gateway audit and executed real-proof deployment evidence remain explicit open gates. Audit before mainnet use and wire the
 > production seams (operator key/HSM policy, real NeoFS adapter, dBFT consensus selector)
 > per your deployment.
 
@@ -72,8 +72,9 @@ The architecture is three tiers:
   post on L1. `BinaryTreeAggregator` reduces in log-N rounds; `IRoundProver` ships in
   two production-grade implementations (`MultisigRoundProver` for committee-attested
   rounds, `MerklePathRoundProver` for per-leaf inclusion proofs against the aggregate
-  root) plus `PassThroughRoundProver` as the minimal-cost reference. Recursive-ZK fold
-  variants (SP1 Compress / Halo2 / Risc0) plug into the same seam when the operator
+  root) plus `PassThroughRoundProver` as the minimal-cost reference. The dedicated
+  `neo-zkvm-gateway-{guest,host}` crates bundle the SP1 6.2.1 recursive terminal proof;
+  Halo2 / Risc0 alternatives plug into the same seam when the operator
   brings the toolchain.
 - **L2 chains (elastic, N of them)** — Neo 4 core as execution kernel, 8 L2 plugins,
   10 native L2 contracts per chain. Independent state, shared L1 anchor.
@@ -114,11 +115,10 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
 - **Web app (1)** — `sdk/web-explorer/index.html` — single static-file
   UI: Explore + Bridge + Faucet + state-root continuity Audit.
 - **Docs site config (1)** — `book.toml` + `docs/SUMMARY.md` (mdBook).
-- **Rust prover/core (3)** — `bridge/neo-execution-core/` (backend-neutral
-  batch parsing, receipt/state folding, Merkle roots, public-input hash; no
-  SP1/PolkaVM dependency) · `bridge/neo-zkvm-host/` (sp1-sdk 6.2.1 prover +
-  `prove-batch daemon`) · `bridge/neo-zkvm-guest/` (the function being
-  proved — RISC-V ELF, real Neo N3 VM via `neo_vm_guest::execute`).
+- **Rust prover/core (5)** — `bridge/neo-execution-core/` (shared canonical
+  execution semantics) · `bridge/neo-zkvm-{host,guest}/` (batch SP1 proof
+  producer/program) · `bridge/neo-zkvm-gateway-{host,guest}/` (recursive
+  Gateway SP1 proof producer/program).
 - **Submodules (4)** — `external/neo` (`r3e-network/neo` fork, L2 branch `r3e/neo-n4-core`; L1 core branch is `r3e/neo-n3-core` in the same fork) ·
   `external/neo-devpack-dotnet` (smart-contract devpack + nccs) ·
   `external/neo-riscv-vm` (PolkaVM-backed Neo RISC-V engine) ·
@@ -172,7 +172,7 @@ Per [`doc.md` §18](../doc.md):
 | 2     | Batch Settlement                    | ✅     | Real `KeyedStateStore` continuity verified across batches |
 | 3     | Optimistic Challenge Window         | 🟡     | Exact executable-v4 profile only; general NeoVM fraud proofs remain unsupported and fail closed |
 | 4     | NeoVM 2 / RISC-V ZK Validity Proof  | ✅     | Neo N4 L2 execution targets NeoVM2/RISC-V via `src/Neo.L2.Executor.RiscV` + PolkaVM host in `external/neo-riscv-vm`; `neo-l2-devnet --executor riscv` runs the canonical path. SP1 prover daemon lives in `bridge/neo-zkvm-host` (`prove-batch` CLI); real CPU proofs verified by `#[ignore]`-gated release-gate tests. |
-| 5     | Neo Gateway proof aggregation       | 🟡     | Binding/outbox/on-chain proof route ships; recursive Gateway SP1 prover/guest and proof-bound production RPC publication remain open |
+| 5     | Neo Gateway proof aggregation       | 🟡     | Recursive SP1 proving, durable publication, exact finalized-constituent binding, and atomic `SettlementManager → MessageRouter` publication ship; independent audit and executed real-proof deployment evidence remain open |
 | 6     | Neo Stack CLI / templates           | ✅     | 12 subcommands functional (3 print operator-plan output for the L1/L2-wallet-gated steps; `validate` is a pure JSON sanity-check; `scaffold-executor` emits a custom-executor starter project; `new-l2` is the composite; `list-templates` prints discoverable template + use-case descriptions) |
 
 Legend: ✅ done · 🟡 substantial scaffolding + tests · 🔴 stub.

@@ -35,7 +35,7 @@ Reference docs: [Gateway overview](https://docs.zksync.io/zksync-protocol/gatewa
 | Bridgehub is the chain registry + L1 entry point | `NeoHub.ChainRegistry` + `SettlementManager` + `MessageRouter` | Chain registration, settlement, L1→L2 messages, and global roots are all reachable from NeoHub |
 | Chain Type Manager shares verifier / upgrade policy for a chain family | `VerifierRegistry` + `GovernanceController` + proof/DA mode in `L2ChainConfig` | Chains of the same Neo-native type share verifier policy, staged upgrades, immutable flags, and DA gates |
 | Shared Bridge provides canonical ecosystem liquidity | `NeoHub.SharedBridge` + `TokenRegistry` + L2 native `L2BridgeContract` / `BridgedNep17Contract` | One canonical bridged representation per asset; replay protection via withdrawal/message nullifiers |
-| Gateway is optional proof aggregation middleware | `Neo.Plugins.L2Gateway` + `MessageRouter.PublishGlobalRoot` | Chains can use direct NeoHub settlement or a Gateway aggregation path without moving asset custody to Gateway |
+| Gateway is optional proof aggregation middleware | `Neo.Plugins.L2Gateway` + `SettlementManager.PublishGatewayGlobalRoot` → `MessageRouter.PublishGlobalRoot` | Chains can use direct NeoHub settlement or an atomic, finalized-constituent-bound Gateway path without moving asset custody to Gateway |
 | Rollup / validium DA choices are explicit | `DARegistry` + `DAValidator` + NeoFS / L1 / DAC writers | Batch finalization checks the active DA policy; NeoFS is the default Neo-native external DA layer |
 | Forced inclusion protects users from sequencer censorship | `NeoHub.ForcedInclusion` + `SequencerBond` + `ChainRegistry` pauser wiring | Overdue forced txs can trigger at-most-once report, slashing, and chain pause when production wiring is enabled |
 | L2 system contracts expose bridge, messaging, fee, AA, and interop primitives | Neo core native L2 contracts under `external/neo` | Neo-native contracts expose equivalent primitives without EraVM bytecode/deployer/nonce-holder machinery |
@@ -134,7 +134,7 @@ proof-verification rows are explicitly marked **partial**.
 | **L2 `L2InteropRootStorage` / `L2MessageVerification` (v29)** | Neo Core native `L2InteropVerifier` mirrors global roots and verifies Merkle inclusion locally | parity at helper-contract level |
 | **L2 `L2V29Upgrade` / `ComplexUpgrader` / `L2GenesisUpgrade`** | scaffolded by `Neo.Hub.Deploy` (off-chain) but no on-chain orchestrator | partial |
 | **L2 `GasBoundCaller`** | absent — NeoVM2/RISC-V gas is instruction/runtime-metered | intentionally different |
-| **ZK Gateway** (settlement-layer proof aggregator) | `Neo.Plugins.L2Gateway` (off-chain) + on-chain `MessageRouter.PublishGlobalRoot` (this release) | parity |
+| **ZK Gateway** (settlement-layer proof aggregator) | `Neo.Plugins.L2Gateway` (off-chain) + on-chain `SettlementManager.PublishGatewayGlobalRoot` → `MessageRouter.PublishGlobalRoot` | parity at protocol/code level; external audit and executed production deployment evidence remain |
 | **Forced inclusion / priority queue** | `NeoHub.ForcedInclusion` + `Neo.L2.ForcedInclusion` | parity |
 | **Sequencer staking / slashing** | `NeoHub.SequencerRegistry` + `NeoHub.SequencerBond` | parity |
 | **Emergency security upgrade / instant governance** | `NeoHub.EmergencyManager` | parity |

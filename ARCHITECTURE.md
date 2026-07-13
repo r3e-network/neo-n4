@@ -40,7 +40,7 @@ Core L1 contract suite:
 
 ## §4 Neo Gateway
 
-Optional layer. Mirrors ZKsync Gateway: collects proofs from multiple Neo L2s, aggregates them, maintains `globalMessageRoot` for L2-to-L2, and publishes the aggregated global root to NeoHub. In the current path that publish is settlement-manager-witness-authorized (the `PublishGlobalRoot` / `GlobalRootMirrored` flow gates on the system witness); the aggregated proof itself is **not** verified on-chain — NeoHub trusts the authorized publisher rather than re-checking the aggregation cryptographically. On-chain verification of the aggregated proof is planned/roadmap. **Doesn't custody assets** — assets stay locked in NeoHub/SharedBridge.
+Optional layer. Mirrors ZKsync Gateway: collects proofs from multiple Neo L2s, aggregates them, maintains `globalMessageRoot` for L2-to-L2, and publishes the aggregate to NeoHub. The production entry point is `SettlementManager.PublishGatewayGlobalRoot`, which receives exact ordered finalized-batch references, reconstructs both proof-bound roots from stored finalization records, advances non-revertible per-chain watermarks, and atomically calls `MessageRouter.PublishGlobalRoot`. MessageRouter requires the SettlementManager contract witness and verifies the fixed backend/proof-system/VK/replay-domain statement through its configured verifier; a Router fault rolls back the watermarks. The bundled SP1 6.2.1 recursive guest/host emits a terminal 356-byte Groth16 proof rather than opaque round bytes. **Doesn't custody assets** — assets stay locked in NeoHub/SharedBridge. Independent audit and executed production-config real-proof deployment evidence remain release gates.
 
 ## §5–§7 L2 chain internals
 

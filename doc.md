@@ -332,6 +332,58 @@ Neo L2-C proof ┘
 
 Gateway 不保管资产。资产仍锁在 NeoHub / SharedBridge。Gateway 只负责证明聚合和消息根聚合。
 
+## 4.1 SP1 递归证明边界
+
+Gateway 的 SP1 路径使用独立 guest，不复用 batch execution guest。输入固定为
+`NEO4GWP1 || binding170 || countLE32 || (commitmentLenLE32 || canonicalCommitment)*`，
+其中 `binding170` 必须是固定 170-byte `NEO4GWR2`。guest 必须重新验证严格
+`(chainId, batchNumber)` 顺序、`ProofType.Zk`、完整 canonical commitment Merkle root、
+奇数叶提升的 `globalMessageRoot`、backend `0xC2` 与 proof system `1`。
+
+每个递归 child 的 public values 固定为 `0x00 || batch.PublicInputHash`。child sidecar
+还必须携带 commitment 中缺失的 `l1MessageHash` 与 `blockContextHash`；Gateway guest
+使用 commitment 的 chain/batch/七个执行根/DA commitment 与这两个补充字段重建完整
+332-byte public inputs，并要求其 Hash256 等于 `batch.PublicInputHash`。child 必须是
+SP1 6.2.1 compressed proof，并由 guest 内编译期锁定的 batch guest VK 验证；请求不得
+携带 VK、文件路径或 Groth16 child proof。Gateway guest 唯一允许 commit 的 public
+values 是 `0x00 || Hash256(binding170)`。
+
+host daemon 只能按 canonical `(chainId,batchNumber,publicInputHash)` 文件名从独立
+sidecar 目录读取 compressed proof，拒绝符号链接、非 regular file、错误 proof kind、
+错误 SP1 版本或 public values。build 产物 manifest 同时锁定 batch VK、Gateway VK 与
+两个 ELF 的 SHA-256；production build 缺失或零 VK 必须失败，test-only VK 只能通过
+显式 feature 使用且不得生成证明。host 在发布任何 ready marker 前再次验证 child proof
+和最终 356-byte Gateway Groth16 proof；proof/VK/public-values 原子写入，result manifest
+最后写入。若进程在 marker 前崩溃，守护进程只清理 regular non-symlink orphan；若 marker
+已经存在，则必须重新校验 manifest、工件长度/hash/VK/public values，并再次执行终端
+Groth16 验证后才能幂等跳过，任何不一致都 fail closed。
+
+规范生产者是 `prove-batch daemon --watch <batch-dir> --gateway-sidecars <sidecar-dir>`；
+它只在终端 batch Groth16 与 compressed child 都经 host 验证且 public-input hash 一致后，
+原子发布 tuple-bound sidecar。消费者是
+`prove-gateway daemon --queue <gateway-queue> --child-proofs <sidecar-dir>`；两个守护进程
+必须共享同一个非符号链接 sidecar 目录。
+
+L1 发布入口固定为 `SettlementManager.PublishGatewayGlobalRoot`，不得由 operator 直接调用
+`MessageRouter.PublishGlobalRoot`；后者要求 SettlementManager contract witness。RPC publisher
+查询 MessageRouter 做幂等 reconciliation，但签名交易始终发给 SettlementManager。调用携带
+1..4096 个严格按 `(chainId,batchNumber)` 排序且唯一的 12-byte little-endian references。
+`FinalizeBatch` 为每个成员保存 `Hash256(完整 canonical commitment bytes) ||
+l2ToL2MessageRoot` 的 64-byte record。发布时 SettlementManager 必须逐项验证 batch 当前仍为
+`Finalized`、chain 已启用 Gateway、batch 高于该 chain 已发布 watermark，并用 O(log 4096)
+streaming frontier 重建两棵 proof-bound tree：commitment root 对奇数叶复制，message root 对
+奇数叶提升。任一 reference、root 或配置不匹配即失败。
+
+验证成功后，SettlementManager 在同一 NeoVM transaction 中推进各 chain 的 non-revertible
+watermark，并原子调用 MessageRouter 验证固定 backend/proof-system/VK/replay-domain 绑定的
+Gateway proof。Router fault 会回滚全部 watermark；发布成功后 `RevertBatch` 不得越过已发布
+watermark。部署计划必须双向绑定 MessageRouter 构造参数中的 SettlementManager 与
+`SettlementManager.SetMessageRouter(MessageRouter)`，并对 readback 做 smoke check。
+
+因此 SettlementManager 授权和最终化成员绑定已是可执行、被 VM/RPC/deploy 测试覆盖的路径。
+Phase 5 仍保持 🟡，只因为独立安全审计和生产配置下执行真实递归证明、链上部署与发布的证据
+尚未完成；不得把本地实现测试扩大表述为 mainnet readiness。
+
 ---
 
 # 5. Neo 4 L2 Chain 内部架构

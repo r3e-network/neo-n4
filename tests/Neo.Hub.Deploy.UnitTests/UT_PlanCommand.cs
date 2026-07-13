@@ -113,6 +113,7 @@ public class UT_PlanCommand
         StringAssert.Contains(output, "SequencerBond.RegisterSlasher");
         StringAssert.Contains(output, "ChainRegistry.SetGovernanceController");
         StringAssert.Contains(output, "SettlementManager.SetDAValidator");
+        StringAssert.Contains(output, "SettlementManager.SetMessageRouter");
         StringAssert.Contains(output, "MessageRouter.SetL1TxFilter");
         StringAssert.Contains(output, "ContractZkVerifier.RegisterProofVerifier");
         StringAssert.Contains(output, "ContractZkVerifier.DisableEnvelopeOnlyPermanently");

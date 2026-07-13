@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Neo.L2;
 using Neo.L2.Gateway.Rpc;
 using Neo.L2.Settlement.Rpc;
 using Neo.Plugins.L2Gateway;
@@ -13,6 +14,8 @@ public sealed class UT_ProofBoundRpcGlobalRootPublisher
 {
     private static readonly UInt160 MessageRouter =
         UInt160.Parse("0x" + new string('a', 40));
+    private static readonly UInt160 SettlementManager =
+        UInt160.Parse("0x" + new string('b', 40));
 
     [TestMethod]
     public async Task PublishGlobalRootAsync_ForwardsCompleteBindingAndConfirmsOnChainState()
@@ -20,16 +23,18 @@ public sealed class UT_ProofBoundRpcGlobalRootPublisher
         using var handler = new RouterRpcHandler();
         using var http = new HttpClient(handler);
         using var rpc = new JsonRpcClient(new Uri("http://l1.example/"), http);
-        var binding = Binding();
+        var (binding, aggregate) = Statement();
         var proof = Enumerable.Repeat((byte)0x5A, Sp1GatewayProofProver.Groth16ProofSize).ToArray();
         GatewayRootPublishRequest? captured = null;
         var expectedTransaction = H(0xF1);
         using var publisher = new ProofBoundRpcGlobalRootPublisher(
             rpc,
+            SettlementManager,
             MessageRouter,
             (
-                router,
+                settlementManager,
                 epoch,
+                constituentReferences,
                 globalRoot,
                 constituentRoot,
                 count,
@@ -41,11 +46,12 @@ public sealed class UT_ProofBoundRpcGlobalRootPublisher
                 cancellationToken) =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                Assert.AreEqual(SettlementManager, settlementManager);
                 captured = new GatewayRootPublishRequest
                 {
                     Binding = new GatewayProofBinding
                     {
-                        MessageRouter = router,
+                        MessageRouter = MessageRouter,
                         ReplayDomain = replayDomain,
                         BatchEpoch = epoch,
                         GlobalMessageRoot = globalRoot,
@@ -56,6 +62,7 @@ public sealed class UT_ProofBoundRpcGlobalRootPublisher
                         VerificationKeyId = verificationKey,
                     },
                     ProofInputHash = GatewayProofBindingSerializer.ComputeHash(binding),
+                    ConstituentReferences = constituentReferences.ToArray(),
                     AggregatedProof = forwardedProof.ToArray(),
                 };
                 handler.GlobalRoot = globalRoot;
@@ -63,7 +70,7 @@ public sealed class UT_ProofBoundRpcGlobalRootPublisher
                 return ValueTask.FromResult(expectedTransaction);
             });
 
-        var transaction = await publisher.PublishGlobalRootAsync(binding, proof);
+        var transaction = await publisher.PublishGlobalRootAsync(binding, aggregate, proof);
 
         Assert.AreEqual(expectedTransaction, transaction);
         Assert.IsNotNull(captured);
@@ -71,6 +78,9 @@ public sealed class UT_ProofBoundRpcGlobalRootPublisher
             GatewayProofBindingSerializer.ComputeHash(binding),
             GatewayProofBindingSerializer.ComputeHash(captured.Binding));
         Assert.IsTrue(captured.AggregatedProof.Span.SequenceEqual(proof));
+        CollectionAssert.AreEqual(
+            GatewayFinalityReferenceSerializer.Encode(aggregate.Constituents),
+            captured.ConstituentReferences.ToArray());
         CollectionAssert.AreEqual(
             new[]
             {
@@ -86,7 +96,7 @@ public sealed class UT_ProofBoundRpcGlobalRootPublisher
     public async Task PublishGlobalRootAsync_ExactPreflight_IsIdempotentWithoutSubmission()
     {
         using var handler = new RouterRpcHandler();
-        var binding = Binding();
+        var (binding, aggregate) = Statement();
         handler.GlobalRoot = binding.GlobalMessageRoot;
         handler.ProofInputHash = GatewayProofBindingSerializer.ComputeHash(binding);
         using var http = new HttpClient(handler);
@@ -94,8 +104,9 @@ public sealed class UT_ProofBoundRpcGlobalRootPublisher
         var submissions = 0;
         using var publisher = new ProofBoundRpcGlobalRootPublisher(
             rpc,
+            SettlementManager,
             MessageRouter,
-            (_, _, _, _, _, _, _, _, _, _, _) =>
+            (_, _, _, _, _, _, _, _, _, _, _, _) =>
             {
                 submissions++;
                 return ValueTask.FromResult(H(0xF1));
@@ -103,6 +114,7 @@ public sealed class UT_ProofBoundRpcGlobalRootPublisher
 
         var transaction = await publisher.PublishGlobalRootAsync(
             binding,
+            aggregate,
             new byte[Sp1GatewayProofProver.Groth16ProofSize]);
 
         Assert.AreEqual(UInt256.Zero, transaction);
@@ -122,11 +134,13 @@ public sealed class UT_ProofBoundRpcGlobalRootPublisher
         };
         using var http = new HttpClient(handler);
         using var rpc = new JsonRpcClient(new Uri("http://l1.example/"), http);
+        var (binding, aggregate) = Statement();
         var submissions = 0;
         using var publisher = new ProofBoundRpcGlobalRootPublisher(
             rpc,
+            SettlementManager,
             MessageRouter,
-            (_, _, _, _, _, _, _, _, _, _, _) =>
+            (_, _, _, _, _, _, _, _, _, _, _, _) =>
             {
                 submissions++;
                 return ValueTask.FromResult(H(0xF1));
@@ -134,7 +148,8 @@ public sealed class UT_ProofBoundRpcGlobalRootPublisher
 
         await Assert.ThrowsExactlyAsync<GatewayPublicationConflictException>(
             async () => await publisher.PublishGlobalRootAsync(
-                Binding(),
+                binding,
+                aggregate,
                 new byte[Sp1GatewayProofProver.Groth16ProofSize]));
 
         Assert.AreEqual(0, submissions);
@@ -146,14 +161,17 @@ public sealed class UT_ProofBoundRpcGlobalRootPublisher
         using var handler = new RouterRpcHandler();
         using var http = new HttpClient(handler);
         using var rpc = new JsonRpcClient(new Uri("http://l1.example/"), http);
+        var (binding, aggregate) = Statement();
         using var publisher = new ProofBoundRpcGlobalRootPublisher(
             rpc,
+            SettlementManager,
             MessageRouter,
-            (_, _, _, _, _, _, _, _, _, _, _) => ValueTask.FromResult(H(0xF1)));
+            (_, _, _, _, _, _, _, _, _, _, _, _) => ValueTask.FromResult(H(0xF1)));
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             async () => await publisher.PublishGlobalRootAsync(
-                Binding(),
+                binding,
+                aggregate,
                 new byte[Sp1GatewayProofProver.Groth16ProofSize]));
     }
 
@@ -166,13 +184,15 @@ public sealed class UT_ProofBoundRpcGlobalRootPublisher
         var submissions = 0;
         using var publisher = new ProofBoundRpcGlobalRootPublisher(
             rpc,
+            SettlementManager,
             MessageRouter,
-            (_, _, _, _, _, _, _, _, _, _, _) =>
+            (_, _, _, _, _, _, _, _, _, _, _, _) =>
             {
                 submissions++;
                 return ValueTask.FromResult(H(0xF1));
             });
-        var binding = Binding() with
+        var (canonicalBinding, aggregate) = Statement();
+        var binding = canonicalBinding with
         {
             MessageRouter = UInt160.Parse("0x" + new string('b', 40)),
         };
@@ -180,6 +200,7 @@ public sealed class UT_ProofBoundRpcGlobalRootPublisher
         await Assert.ThrowsExactlyAsync<ArgumentException>(
             async () => await publisher.PublishGlobalRootAsync(
                 binding,
+                aggregate,
                 new byte[Sp1GatewayProofProver.Groth16ProofSize]));
 
         Assert.AreEqual(0, submissions);
@@ -192,11 +213,13 @@ public sealed class UT_ProofBoundRpcGlobalRootPublisher
         using var handler = new RouterRpcHandler();
         using var http = new HttpClient(handler);
         using var rpc = new JsonRpcClient(new Uri("http://l1.example/"), http);
+        var (binding, aggregate) = Statement();
         var submissions = 0;
         using var publisher = new ProofBoundRpcGlobalRootPublisher(
             rpc,
+            SettlementManager,
             MessageRouter,
-            (_, _, _, _, _, _, _, _, _, _, _) =>
+            (_, _, _, _, _, _, _, _, _, _, _, _) =>
             {
                 submissions++;
                 return ValueTask.FromResult(H(0xF1));
@@ -204,24 +227,53 @@ public sealed class UT_ProofBoundRpcGlobalRootPublisher
 
         await Assert.ThrowsExactlyAsync<ArgumentException>(
             async () => await publisher.PublishGlobalRootAsync(
-                Binding(),
-                GatewayProofBindingSerializer.ComputeHash(Binding()).GetSpan().ToArray()));
+                binding,
+                aggregate,
+                GatewayProofBindingSerializer.ComputeHash(binding).GetSpan().ToArray()));
 
         Assert.AreEqual(0, submissions);
         Assert.AreEqual(0, handler.ContractMethods.Count);
     }
 
-    private static GatewayProofBinding Binding() => new()
+    private static (GatewayProofBinding Binding, AggregatedCommitment Aggregate) Statement()
     {
-        MessageRouter = MessageRouter,
-        ReplayDomain = H(0xD1),
-        BatchEpoch = 77,
-        GlobalMessageRoot = H(0x51),
-        ConstituentCommitmentsRoot = H(0x61),
-        ConstituentCount = 2,
-        AggregationBackendId = Sp1GatewayProofProver.RecursiveAggregationBackendId,
-        ProofSystem = Sp1GatewayProofProver.Sp1ProofSystem,
-        VerificationKeyId = H(0xA1),
+        var constituents = new[] { Commitment(1001, 1), Commitment(1002, 2) };
+        var aggregate = new AggregatedCommitment
+        {
+            Constituents = constituents,
+            GlobalMessageRoot = H(0x51),
+            ConstituentCommitmentsRoot =
+                GatewayProofBindingSerializer.ComputeConstituentCommitmentsRoot(constituents),
+            AggregatedProof = ReadOnlyMemory<byte>.Empty,
+            BackendId = Sp1GatewayProofProver.RecursiveAggregationBackendId,
+        };
+        var binding = GatewayProofBindingSerializer.Create(
+            MessageRouter,
+            H(0xD1),
+            77,
+            aggregate,
+            Sp1GatewayProofProver.Sp1ProofSystem,
+            H(0xA1));
+        return (binding, aggregate);
+    }
+
+    private static L2BatchCommitment Commitment(uint chainId, ulong batchNumber) => new()
+    {
+        ChainId = chainId,
+        BatchNumber = batchNumber,
+        FirstBlock = batchNumber,
+        LastBlock = batchNumber,
+        PreStateRoot = H(0x01),
+        PostStateRoot = H(0x02),
+        TxRoot = H(0x03),
+        ReceiptRoot = H(0x04),
+        WithdrawalRoot = H(0x05),
+        L2ToL1MessageRoot = H(0x06),
+        L2ToL2MessageRoot = H((byte)(chainId & 0xFF)),
+        DACommitment = H(0x08),
+        PublicInputHash = H(0x09),
+        ProofType = ProofType.Zk,
+        Proof = new byte[] { 0x10 },
     };
 
     private static UInt256 H(byte value) => new(Enumerable.Repeat(value, 32).ToArray());

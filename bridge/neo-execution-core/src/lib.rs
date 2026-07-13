@@ -28,7 +28,7 @@ pub use native::{
 pub use transaction::parse_transaction;
 pub use types::*;
 pub use wire::{
-    encode_batch_effects, encode_execution_payload, encode_proof_witness_artifact,
-    encode_state_witness, parse_batch_effects, parse_execution_payload,
-    parse_proof_witness_artifact, parse_state_witness,
+    MAX_PROOF_WITNESS_ARTIFACT_BYTES, encode_batch_effects, encode_execution_payload,
+    encode_proof_witness_artifact, encode_state_witness, parse_batch_effects,
+    parse_execution_payload, parse_proof_witness_artifact, parse_state_witness,
 };

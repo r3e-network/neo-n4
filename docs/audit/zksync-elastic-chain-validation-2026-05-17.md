@@ -1,5 +1,9 @@
 # ZKsync Elastic Chain Comparison Validation - 2026-05-17
 
+> Historical snapshot. The current Gateway route is
+> `SettlementManager.PublishGatewayGlobalRoot` → `MessageRouter.PublishGlobalRoot`; the bundled
+> SP1 recursive prover and exact finalized-constituent binding supersede the gap noted below.
+
 This audit compares Neo Elastic Network (`neo4`) with ZKsync Elastic Chain / ZK
 Stack as documented by ZKsync on 2026-05-17. The goal is not source-level
 equivalence. ZKsync is Ethereum/EraVM/zkEVM based; neo4 is NeoVM2-RISC-V/NEP-17/NeoFS
@@ -75,7 +79,7 @@ Chain yet. The remaining gaps are concrete and tracked:
 | Canonical assets | ZKsync shared bridges deploy/verify canonical L2 token contracts. | `TokenRegistry` maps assets; Neo Core native `L2BridgeContract` mints/burns through native `BridgedNep17Contract`. | Aligned; N4 keeps the L2 token surface in the core native layer instead of operator-deployed L2 templates. |
 | Batch settlement | ExecutorFacet commits/proves/executes batches and checks DA/proofs. | `SettlementManager`, proof payloads, verifier registry, SP1 prover host, optimistic challenge path. | Strong off-chain/devnet parity; public-network deployment still open. |
 | Data availability | Rollup and validium modes; Stage-2 validium verifies DA inclusion on L1 via validators. | `DARegistry`, `DAValidator`, `L2DAPlugin`, `JsonRpcL1DAWriter`, `CommitteeAttestedDAWriter`, `NeoFsLikeDAWriter`. | Aligned for DAC attestation; richer external/NeoFS proof adapters remain operator-specific. |
-| Gateway/proof aggregation | Gateway aggregates proofs from multiple chains; assets remain locked on Ethereum, not Gateway. | `Neo.Plugins.L2Gateway.BinaryTreeAggregator`, `IRoundProver` implementations, `MessageRouter.PublishGlobalRoot`; assets remain in NeoHub. | Architecturally aligned. Recursive-ZK round prover remains operator-supplied. |
+| Gateway/proof aggregation | Gateway aggregates proofs from multiple chains; assets remain locked on Ethereum, not Gateway. | `Neo.Plugins.L2Gateway.BinaryTreeAggregator`, bundled SP1 recursive prover, `SettlementManager.PublishGatewayGlobalRoot` → `MessageRouter.PublishGlobalRoot`; assets remain in NeoHub. | Protocol/code aligned; independent audit and executed production deployment evidence remain. |
 | Interop | ZKsync Connect verifies messages via Gateway MessageRoot and L2 message verifier. | L1-side message router/global root plus Neo Core native `L2InteropVerifier` for local proof verification. | Aligned at helper-contract level. |
 | Sequencing/censorship | Configurable sequencing; priority queue escape hatch. | `SequencerRegistry`, `SequencerBond`, `ForcedInclusion`, `CensorshipDetector`, RPC source abstractions. | Strong framework parity; production dBFT selector wiring is still operator-specific. |
 | Governance/security response | Shared governance, security council, freezing, permanent restrictions, ValidatorTimelock. | `GovernanceController`, `EmergencyManager`, immutable flags, timelock, challenge windows, staged proposal windows. | Strong; per-chain admin factory remains intentionally different. |

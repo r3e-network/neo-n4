@@ -65,17 +65,20 @@ public class UT_L2GatewayPlugin
         public int CallCount { get; private set; }
         public bool FailNext { get; set; }
         public GatewayProofBinding? LastBinding { get; private set; }
+        public AggregatedCommitment? LastCommitment { get; private set; }
         public ReadOnlyMemory<byte> LastProof { get; private set; }
         public UInt256 TransactionHash { get; } = UInt256.Parse("0x" + new string('f', 64));
 
         public ValueTask<UInt256> PublishGlobalRootAsync(
             GatewayProofBinding binding,
+            AggregatedCommitment commitment,
             ReadOnlyMemory<byte> aggregatedProof,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             CallCount++;
             LastBinding = binding;
+            LastCommitment = commitment;
             LastProof = aggregatedProof.ToArray();
             if (FailNext)
             {

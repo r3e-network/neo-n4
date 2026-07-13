@@ -21,7 +21,7 @@ const STATE_WITNESS_MAGIC: &[u8; 8] = b"NEO4STW1";
 const EFFECTS_MAGIC: &[u8; 8] = b"NEO4EFX1";
 const CONTENT_HASH_DOMAIN: &[u8] = b"neo-n4/proof-witness/v1\0";
 
-const MAX_ARTIFACT_BYTES: usize = 256 * 1024 * 1024;
+pub const MAX_PROOF_WITNESS_ARTIFACT_BYTES: usize = 256 * 1024 * 1024;
 const MAX_PAYLOAD_BYTES: usize = 64 * 1024 * 1024;
 const MAX_STATE_WITNESS_BYTES: usize = 128 * 1024 * 1024;
 const MAX_EFFECTS_BYTES: usize = 64 * 1024 * 1024;
@@ -40,7 +40,7 @@ const MAX_DELTAS_PER_TRANSACTION: usize = 65_536;
 const MAX_EVENTS_PER_TRANSACTION: usize = 512;
 
 pub fn parse_proof_witness_artifact(bytes: &[u8]) -> Result<ProofWitnessArtifact, ExecutionError> {
-    if bytes.len() > MAX_ARTIFACT_BYTES {
+    if bytes.len() > MAX_PROOF_WITNESS_ARTIFACT_BYTES {
         return Err(ExecutionError::Oversized("proof witness artifact"));
     }
     if bytes.len() < 32 {
@@ -627,7 +627,7 @@ pub fn encode_proof_witness_artifact(
     content_bytes.extend_from_slice(&body);
     let mut encoded = body;
     encoded.extend_from_slice(&hash256(&content_bytes));
-    if encoded.len() > MAX_ARTIFACT_BYTES {
+    if encoded.len() > MAX_PROOF_WITNESS_ARTIFACT_BYTES {
         return Err(ExecutionError::Oversized("proof witness artifact"));
     }
     Ok(encoded)

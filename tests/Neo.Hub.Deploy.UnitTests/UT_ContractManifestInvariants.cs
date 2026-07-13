@@ -273,6 +273,12 @@ public class UT_ContractManifestInvariants
         Assert.IsTrue(HasMethod(methods, "getBatchStatus"),
             "SettlementManager must expose getBatchStatus so off-chain " +
             "consumers can distinguish Pending / Challengeable / Finalized");
+        Assert.IsTrue(HasMethod(methods, "publishGatewayGlobalRoot"),
+            "SettlementManager must atomically validate Gateway constituent finality before routing a root");
+        Assert.IsTrue(HasMethod(methods, "getGatewayFinalizedThrough"),
+            "SettlementManager must expose the non-revertible per-chain Gateway watermark");
+        Assert.IsTrue(HasMethod(methods, "setMessageRouter") && HasMethod(methods, "getMessageRouter"),
+            "SettlementManager must expose auditable MessageRouter deployment wiring");
     }
 
     // ─── EmergencyManager: escape hatch is replay-protected ───────────

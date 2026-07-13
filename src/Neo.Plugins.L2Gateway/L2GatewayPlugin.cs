@@ -386,6 +386,7 @@ public sealed class L2GatewayPlugin : Plugin
                 EmitOutboxMetrics();
                 var transactionHash = await attempt.Profile.Publisher.PublishGlobalRootAsync(
                     attempt.Binding,
+                    attempt.Commitment,
                     attempt.Proof,
                     cancellationToken).ConfigureAwait(false);
 

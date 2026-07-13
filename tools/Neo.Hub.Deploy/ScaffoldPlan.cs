@@ -462,6 +462,10 @@ public static class ScaffoldPlan
         {
             yield return $"{sm.Name}.SetOptimisticChallenge({oc.Name})  # complete the SettlementManager -> OptimisticChallenge cycle after both contracts exist";
         }
+        if (sm is not null && messageRouter is not null)
+        {
+            yield return $"{sm.Name}.SetMessageRouter({messageRouter.Name})  # make Gateway publication validate finalized L1 constituents and enter MessageRouter with the canonical contract witness atomically";
+        }
         if (messageRouter is not null && l1TxFilter is not null)
         {
             yield return $"# Per L2 chain: call {messageRouter.Name}.SetL1TxFilter(<chainId>, {l1TxFilter.Name}) to enable sender/receiver/message-type filtering before L1->L2 enqueue.";

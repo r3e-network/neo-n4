@@ -11,7 +11,7 @@
 #[cfg(unix)]
 use sp1_sdk::blocking::{Elf, ProveRequest, Prover, ProverClient};
 #[cfg(unix)]
-use sp1_sdk::{HashableKey, ProvingKey, SP1Stdin};
+use sp1_sdk::{HashableKey, ProvingKey, SP1Proof, SP1Stdin};
 #[cfg(unix)]
 use sp1_verifier::{GROTH16_VK_BYTES, Groth16Verifier};
 
@@ -19,9 +19,11 @@ const COMMITTED_PUBLIC_VALUES_LEN: usize = 33;
 const SP1_GROTH16_PROOF_LEN: usize = 356;
 
 mod proof_result;
+mod recursive_child_result;
 mod zk_execution_result;
 
 pub use proof_result::ProofResult;
+pub use recursive_child_result::RecursiveChildProofResult;
 pub use zk_execution_result::ZkExecutionResult;
 
 /// Embedded guest ELF — wired by build.rs from `cargo prove build`.
@@ -109,6 +111,78 @@ pub fn prove(request_bytes: &[u8]) -> Result<ProofResult, String> {
     })
 }
 
+/// Generate the compressed proof sidecar consumed by the recursive Gateway prover.
+///
+/// The sidecar carries the two public-input fields that are not present in
+/// `L2BatchCommitment` (`l1_message_hash` and `block_context_hash`). The Gateway guest
+/// reconstructs all 332 canonical public-input bytes, hashes them, and requires that hash
+/// to equal the public value of this recursively verified child proof.
+#[cfg(unix)]
+pub fn prove_compressed(request_bytes: &[u8]) -> Result<RecursiveChildProofResult, String> {
+    let artifact = neo_execution_core::parse_proof_witness_artifact(request_bytes)
+        .map_err(|error| format!("parse proof witness artifact: {error}"))?;
+    let expected_public_input_hash = neo_execution_core::hash_public_inputs(
+        artifact.public_inputs.chain_id,
+        artifact.public_inputs.batch_number,
+        &artifact.public_inputs.pre_state_root,
+        &artifact.public_inputs.post_state_root,
+        &artifact.public_inputs.tx_root,
+        &artifact.public_inputs.receipt_root,
+        &artifact.public_inputs.withdrawal_root,
+        &artifact.public_inputs.l2_to_l1_message_root,
+        &artifact.public_inputs.l2_to_l2_message_root,
+        &artifact.public_inputs.l1_message_hash,
+        &artifact.public_inputs.da_commitment,
+        &artifact.public_inputs.block_context_hash,
+    );
+
+    let prover = ProverClient::builder().cpu().build();
+    let pk = prover
+        .setup(Elf::Static(NEO_ZKVM_GUEST_ELF))
+        .map_err(|error| format!("prover setup failed: {error:?}"))?;
+    let mut stdin = SP1Stdin::new();
+    stdin.write::<Vec<u8>>(&request_bytes.to_vec());
+    let proof = prover
+        .prove(&pk, stdin)
+        .compressed()
+        .run()
+        .map_err(|error| format!("compressed proof generation failed: {error:?}"))?;
+    prover
+        .verify(&proof, pk.verifying_key(), None)
+        .map_err(|error| format!("compressed proof verification failed: {error:?}"))?;
+    if !matches!(proof.proof, SP1Proof::Compressed(_)) {
+        return Err("recursive child proof is not SP1 Compressed".into());
+    }
+    if proof.tee_proof.is_some() {
+        return Err("TEE-wrapped recursive child proofs are forbidden".into());
+    }
+    let public_values: [u8; COMMITTED_PUBLIC_VALUES_LEN] =
+        proof.public_values.as_slice().try_into().map_err(|_| {
+            format!(
+                "unexpected compressed public-values length: expected {}, got {}",
+                COMMITTED_PUBLIC_VALUES_LEN,
+                proof.public_values.as_slice().len()
+            )
+        })?;
+    let public_input_hash = decode_committed_public_values(&public_values)?;
+    if public_input_hash != expected_public_input_hash {
+        return Err(
+            "compressed proof public-input hash does not match canonical artifact claims".into(),
+        );
+    }
+    let proof_bytes = bincode::serialize(&proof)
+        .map_err(|error| format!("serialize canonical compressed proof: {error}"))?;
+
+    Ok(RecursiveChildProofResult {
+        chain_id: artifact.chain_id,
+        batch_number: artifact.batch_number,
+        public_input_hash,
+        l1_message_hash: artifact.public_inputs.l1_message_hash,
+        block_context_hash: artifact.public_inputs.block_context_hash,
+        proof_bytes,
+    })
+}
+
 /// Verify a previously-generated proof against the canonical guest verifying key.
 ///
 /// Mirrors what the on-chain `VerifierRegistry` dispatch path does: deserialize
@@ -161,6 +235,12 @@ pub fn execute(_request_bytes: &[u8]) -> Result<ZkExecutionResult, String> {
 /// Generate a real ZK proof for the batch.
 #[cfg(not(unix))]
 pub fn prove(_request_bytes: &[u8]) -> Result<ProofResult, String> {
+    Err(unsupported_platform())
+}
+
+/// Generate a recursive compressed proof sidecar.
+#[cfg(not(unix))]
+pub fn prove_compressed(_request_bytes: &[u8]) -> Result<RecursiveChildProofResult, String> {
     Err(unsupported_platform())
 }
 

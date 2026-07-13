@@ -353,8 +353,9 @@ plugin code or L2 contract changes required.
 Gateway proof aggregation (Phase 5) reuses the same registry and the existing proof types: a
 round prover (`MultisigRoundProver` / `MerklePathRoundProver`) attests each aggregation round,
 and the aggregate still settles under one of `Multisig` / `Optimistic` / `Zk`. There is no
-distinct `ProofType.Aggregated`; a recursive-ZK fold, when supplied by an operator, settles as
-`ProofType.Zk`.
+distinct `ProofType.Aggregated`. The bundled SP1 6.2.1 Gateway guest verifies compile-time-VK-
+locked compressed batch proofs and the canonical `NEO4GWR2` statement, while its host emits and
+verifies the terminal 356-byte Groth16 artifact; the aggregate settles as `ProofType.Zk`.
 
 ---
 
@@ -451,15 +452,25 @@ Phase 5 introduces an optional aggregation layer mirroring ZKsync Gateway. The G
 
 - Collects `L2BatchCommitment` plus proof from multiple L2 chains.
 - Aggregates them via `BinaryTreeAggregator` over `IRoundProver`-implemented combine
-  rounds (log-N rounds; default `PassThroughRoundProver` is a hash combiner; production
-  swaps in SP1 Compress, Halo2 fold, or a Risc-Zero accumulator).
+  rounds (log-N rounds; `PassThroughRoundProver` is reference-only,
+  `MultisigRoundProver` and `MerklePathRoundProver` are non-recursive options, and the
+  bundled `neo-zkvm-gateway-{guest,host}` path recursively verifies compile-time-VK-locked
+  SP1 compressed batch proofs before producing a terminal 356-byte Groth16 proof).
 - Maintains the `globalMessageRoot` for L2-to-L2 messages.
-- Submits one aggregated commitment to NeoHub. The on-chain global-root
-  publish (`MessageRouter.PublishGlobalRoot`) is authorized solely by the
-  settlement-manager witness (`CheckWitness`); the aggregated proof /
-  committee signatures carried in `AggregatedProof` are NOT verified
-  on-chain in the current path. On-chain verification of the aggregated
-  attestation is roadmap.
+- Submits one aggregated commitment to `SettlementManager.PublishGatewayGlobalRoot` with
+  exact ordered `(chainId,batchNumber)` references. SettlementManager revalidates every
+  constituent as currently finalized and Gateway-enabled, reconstructs the commitment root
+  (duplicate-odd) and message root (promote-odd) from stored records with O(log 4096) memory,
+  advances non-revertible per-chain watermarks, and atomically calls
+  `MessageRouter.PublishGlobalRoot`. MessageRouter verifies the fixed backend/proof-system/
+  Gateway-VK/replay-domain statement through its configured verifier; a Router fault rolls
+  back every watermark. Direct operator publication cannot satisfy the SettlementManager
+  contract witness.
+
+The code path is complete and locally covered, including crash-safe daemon recovery,
+deployment readback, root-policy edge cases, tamper rejection, and atomic rollback. Phase 5
+remains partial until independent audit and executed production-config real-proof deployment
+evidence exist; those evidence gates are not implied by local tests.
 
 **Critical invariant: the Gateway does NOT custody assets.** Assets stay locked in
 NeoHub.SharedBridge throughout; the Gateway moves only proofs and message roots.

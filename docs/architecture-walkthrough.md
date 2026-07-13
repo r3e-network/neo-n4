@@ -181,15 +181,26 @@ each round invokes the swappable `IRoundProver.Combine` on adjacent siblings.
   in `src/Neo.Plugins.L2Gateway/MultisigRoundProver.cs`).
 - `MerklePathRoundProver`: per-constituent inclusion proofs against the aggregate
   root (production, ships in the same folder).
-- Operator-supplied via the same `IRoundProver` seam: recursive-ZK fold variants
-  (SP1 Compress / Halo2 accumulator / Risc0 fold). The seam is the extension point;
-  these aren't bundled because they pull large prover toolchains as deps.
+- `Sp1RecursiveRoundProver` fixes backend `0xC2`; the terminal recursive proof is bundled in
+  `bridge/neo-zkvm-gateway-guest` and `bridge/neo-zkvm-gateway-host`. The guest verifies only
+  compile-time-batch-VK SP1 compressed children whose public values are exactly
+  `0x00 || batch.PublicInputHash`, then commits `0x00 || Hash256(binding170)`. Halo2/Risc0
+  alternatives may still use the seam, but they are not the bundled production path.
 
 The `AggregatedCommitment` carries:
 - All constituent `L2BatchCommitment`s.
 - A `GlobalMessageRoot` over the L2→L2 message roots (used for L2-to-L2 inclusion proofs).
 - The aggregated proof bytes.
 - The `BackendId` so on-L1 verification can route correctly.
+
+Publication is intentionally not a direct Router write. The RPC publisher queries
+`MessageRouter` only for idempotent reconciliation, then submits the aggregate plus a packed,
+strictly ordered list of 12-byte `(chainId:uint32 LE,batchNumber:uint64 LE)` references to
+`SettlementManager.PublishGatewayGlobalRoot`. SettlementManager requires every referenced batch
+to remain finalized and Gateway-enabled, rebuilds the exact commitment and message roots from
+its finalized records, and advances per-chain non-revertible watermarks before making the
+same-transaction call to `MessageRouter.PublishGlobalRoot`. A Router fault rolls the watermarks
+back; a successful publication prevents later batch reversion below the published watermark.
 
 ## Walk #4: telemetry — emit, snapshot, scrape
 
@@ -311,7 +322,7 @@ specifically by `DAAvailabilityCheck` against a writer that never saw the payloa
 - **§3.2 DARegistry** — DA commitment store. `contracts/NeoHub.DARegistry/`.
 - **§3.2 GovernanceController** — Council + timelocks. `contracts/NeoHub.GovernanceController/`.
 - **§3.2 EmergencyManager** — Pause + escape hatch. `contracts/NeoHub.EmergencyManager/`.
-- **§4 Neo Gateway** — Proof aggregation. `Neo.Plugins.L2Gateway` (incl. `BinaryTreeAggregator` + `IRoundProver`).
+- **§4 Neo Gateway** — Proof aggregation. `Neo.Plugins.L2Gateway` plus `bridge/neo-zkvm-gateway-{guest,host}` for the SP1 recursive terminal proof.
 - **§5 L2 chain internals** — per-L2 plugin layout. `Neo.Plugins.L2Batch / L2Settlement / L2Bridge / L2DA / L2Prover / L2Rpc`.
 - **§7.1 Sequencer / dBFT** — Committee selection. `contracts/NeoHub.SequencerRegistry/` + `Neo.L2.Sequencer`.
 - **§7.2 Batcher** — Block ↦ batch. `Neo.L2.Batch.BatchBuilder` + `Neo.Plugins.L2Batch.L2BatchPlugin`.

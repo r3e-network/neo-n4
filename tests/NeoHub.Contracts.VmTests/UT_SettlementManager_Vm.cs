@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.ComponentModel;
 using System.Numerics;
 using System.Security.Cryptography;
 using Moq;
@@ -7,6 +8,23 @@ using Neo.SmartContract.Testing;
 using Neo.SmartContract.Testing.Exceptions;
 
 namespace NeoHub.Contracts.VmTests;
+
+/// <summary>MessageRouter publication surface used by SettlementManager Gateway VM tests.</summary>
+public abstract class MockSettlementManager_MessageRouter(SmartContractInitialize initialize)
+    : SmartContract(initialize)
+{
+    [DisplayName("publishGlobalRoot")]
+    public abstract bool? PublishGlobalRoot(
+        BigInteger? batchEpoch,
+        UInt256? globalRoot,
+        UInt256? constituentCommitmentsRoot,
+        BigInteger? constituentCount,
+        BigInteger? aggregationBackendId,
+        BigInteger? proofSystem,
+        UInt256? verificationKeyId,
+        UInt256? replayDomain,
+        byte[]? aggregatedProof);
+}
 
 /// <summary>
 /// VM-level tests for NeoHub.SettlementManager — the security-critical settlement path. These
@@ -42,11 +60,17 @@ public class UT_SettlementManager_Vm
     /// the C2 binding passes. l1MessageHash/blockContextHash are zero (and passed to SubmitBatch).
     /// </summary>
     private static (byte[] commitment, byte[] l1msg, byte[] blkctx) BuildCommitment(
-        ulong batch, byte[] preState, byte[] postState, byte[] withdrawalRoot, byte proofType = 3)
+        ulong batch,
+        byte[] preState,
+        byte[] postState,
+        byte[] withdrawalRoot,
+        byte proofType = 3,
+        uint chainId = ChainId,
+        byte[]? l2ToL2MessageRoot = null)
     {
         var proofLength = proofType == 2 ? OptimisticProofLength : 0;
         var c = new byte[ProofBytesOffset + proofLength];
-        BinaryPrimitives.WriteUInt32LittleEndian(c.AsSpan(OffChainId, 4), ChainId);
+        BinaryPrimitives.WriteUInt32LittleEndian(c.AsSpan(OffChainId, 4), chainId);
         BinaryPrimitives.WriteUInt64LittleEndian(c.AsSpan(OffBatch, 8), batch);
         BinaryPrimitives.WriteUInt64LittleEndian(c.AsSpan(OffFirstBlock, 8), batch);
         BinaryPrimitives.WriteUInt64LittleEndian(c.AsSpan(OffLastBlock, 8), batch);
@@ -56,7 +80,7 @@ public class UT_SettlementManager_Vm
         R(0x04).CopyTo(c.AsSpan(OffReceiptRoot, 32));
         withdrawalRoot.CopyTo(c.AsSpan(OffWithdrawal, 32));
         R(0x06).CopyTo(c.AsSpan(OffL2ToL1, 32));
-        R(0x07).CopyTo(c.AsSpan(OffL2ToL2, 32));
+        (l2ToL2MessageRoot ?? R(0x07)).CopyTo(c.AsSpan(OffL2ToL2, 32));
         R(0x09).CopyTo(c.AsSpan(OffDaCommitment, 32)); // must be non-zero (RecordDataAvailability)
         c[OffProofType] = proofType;
         BinaryPrimitives.WriteUInt32LittleEndian(c.AsSpan(OffProofLen, 4), (uint)proofLength);
@@ -106,6 +130,7 @@ public class UT_SettlementManager_Vm
                 .Returns(() => (BigInteger)(securityLevelProvider?.Invoke() ?? securityLevel));
             m.Setup(c => c.GetDAMode(It.IsAny<BigInteger?>()))
                 .Returns(() => (BigInteger)(daModeProvider?.Invoke() ?? daMode));
+            m.Setup(c => c.GetGatewayEnabled(It.IsAny<BigInteger?>())).Returns(true);
         }, checkExistence: false);
         engine.FromHash<NeoHubVerifierRegistry>(vrHash,
             m => m.Setup(c => c.VerifyCommitment(It.IsAny<byte[]?>())).Returns(true), checkExistence: false);
@@ -150,6 +175,113 @@ public class UT_SettlementManager_Vm
         sm.DAValidator = dvHash;
         sm.OptimisticChallenge = ocHash;
         return sm;
+    }
+
+    private static void WireGatewayRouter(
+        TestEngine engine,
+        NeoHubSettlementManager settlementManager,
+        UInt160 routerHash)
+    {
+        engine.FromHash<MockSettlementManager_MessageRouter>(routerHash, mock =>
+            mock.Setup(router => router.PublishGlobalRoot(
+                    It.IsAny<BigInteger?>(),
+                    It.IsAny<UInt256?>(),
+                    It.IsAny<UInt256?>(),
+                    It.IsAny<BigInteger?>(),
+                    It.IsAny<BigInteger?>(),
+                    It.IsAny<BigInteger?>(),
+                    It.IsAny<UInt256?>(),
+                    It.IsAny<UInt256?>(),
+                    It.IsAny<byte[]?>()))
+                .Returns(true),
+            checkExistence: false);
+        settlementManager.MessageRouter = routerHash;
+    }
+
+    private static byte[] PackGatewayReferences(
+        IReadOnlyList<(uint ChainId, ulong BatchNumber)> references)
+    {
+        var result = new byte[references.Count * 12];
+        for (var index = 0; index < references.Count; index++)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(
+                result.AsSpan(index * 12, 4),
+                references[index].ChainId);
+            BinaryPrimitives.WriteUInt64LittleEndian(
+                result.AsSpan(index * 12 + 4, 8),
+                references[index].BatchNumber);
+        }
+        return result;
+    }
+
+    private static byte[] ComputeMerkleRoot(IReadOnlyList<byte[]> leaves, bool duplicateOdd)
+    {
+        Assert.IsGreaterThan(0, leaves.Count);
+        var level = leaves.Select(leaf => leaf.ToArray()).ToList();
+        while (level.Count > 1)
+        {
+            var next = new List<byte[]>((level.Count + 1) / 2);
+            for (var index = 0; index < level.Count; index += 2)
+            {
+                if (index + 1 >= level.Count)
+                {
+                    next.Add(duplicateOdd
+                        ? HashGatewayPair(level[index], level[index])
+                        : level[index]);
+                }
+                else
+                {
+                    next.Add(HashGatewayPair(level[index], level[index + 1]));
+                }
+            }
+            level = next;
+        }
+        return level[0];
+    }
+
+    private static byte[] HashGatewayPair(byte[] left, byte[] right)
+    {
+        var pair = new byte[64];
+        left.CopyTo(pair, 0);
+        right.CopyTo(pair, 32);
+        return Hash256(pair);
+    }
+
+    private static (
+        byte[] References,
+        UInt256 ConstituentRoot,
+        UInt256 GlobalRoot,
+        IReadOnlyList<byte[]> Commitments) FinalizeGatewayConstituents(
+            NeoHubSettlementManager settlementManager,
+            int count)
+    {
+        var references = new List<(uint ChainId, ulong BatchNumber)>(count);
+        var commitments = new List<byte[]>(count);
+        var messageRoots = new List<byte[]>(count);
+        for (var index = 0; index < count; index++)
+        {
+            var chainId = ChainId + (uint)index;
+            var messageRoot = R((byte)(0x40 + index));
+            var (commitment, l1MessageHash, blockContextHash) = BuildCommitment(
+                batch: 1,
+                preState: R(0x00),
+                postState: R((byte)(0x80 + index)),
+                withdrawalRoot: R((byte)(0x50 + index)),
+                proofType: 3,
+                chainId: chainId,
+                l2ToL2MessageRoot: messageRoot);
+            settlementManager.SubmitBatch(commitment, l1MessageHash, blockContextHash);
+            settlementManager.FinalizeBatch(chainId, 1);
+            references.Add((chainId, 1));
+            commitments.Add(commitment);
+            messageRoots.Add(messageRoot);
+        }
+
+        return (
+            PackGatewayReferences(references),
+            new UInt256(ComputeMerkleRoot(commitments.Select(Hash256).ToArray(), duplicateOdd: true)),
+            new UInt256(ComputeMerkleRoot(messageRoots, duplicateOdd: false)),
+            commitments);
     }
 
     [TestMethod]
@@ -450,5 +582,189 @@ public class UT_SettlementManager_Vm
         // would otherwise finalize onto the rewound root (making its withdrawalRoot claimable).
         Assert.ThrowsExactly<TestException>(() => sm.FinalizeBatch(ChainId, 2),
             "orphaned descendant of a reverted head must not finalize");
+    }
+
+    [TestMethod]
+    public void PublishGatewayGlobalRoot_RejectsPendingRevertedAndUnknownReferences()
+    {
+        var engine = new TestEngine(true);
+        var settlementManager = Deploy(engine);
+        var routerHash = UInt160.Parse("0x" + new string('6', 40));
+        WireGatewayRouter(engine, settlementManager, routerHash);
+        var messageRoot = R(0x47);
+        var (commitment, l1MessageHash, blockContextHash) = BuildCommitment(
+            batch: 1,
+            preState: R(0x00),
+            postState: R(0xA1),
+            withdrawalRoot: R(0x51),
+            l2ToL2MessageRoot: messageRoot);
+        settlementManager.SubmitBatch(commitment, l1MessageHash, blockContextHash);
+        var references = PackGatewayReferences(new[] { (ChainId, 1UL) });
+        var commitmentRoot = new UInt256(Hash256(commitment));
+        var globalRoot = new UInt256(messageRoot);
+
+        Assert.ThrowsExactly<TestException>(() => settlementManager.PublishGatewayGlobalRoot(
+            1, references, globalRoot, commitmentRoot, 1, 2, 1, new UInt256(R(0xA1)),
+            new UInt256(R(0xD1)), new byte[] { 0xCA }));
+
+        settlementManager.RevertBatch(ChainId, 1);
+        Assert.ThrowsExactly<TestException>(() => settlementManager.PublishGatewayGlobalRoot(
+            1, references, globalRoot, commitmentRoot, 1, 2, 1, new UInt256(R(0xA1)),
+            new UInt256(R(0xD1)), new byte[] { 0xCA }));
+
+        var unknown = PackGatewayReferences(new[] { (ChainId + 1, 1UL) });
+        Assert.ThrowsExactly<TestException>(() => settlementManager.PublishGatewayGlobalRoot(
+            1, unknown, globalRoot, commitmentRoot, 1, 2, 1, new UInt256(R(0xA1)),
+            new UInt256(R(0xD1)), new byte[] { 0xCA }));
+    }
+
+    [TestMethod]
+    public void PublishGatewayGlobalRoot_RejectsUnorderedDuplicateAndTamperedSets()
+    {
+        var engine = new TestEngine(true);
+        var settlementManager = Deploy(engine);
+        WireGatewayRouter(
+            engine,
+            settlementManager,
+            UInt160.Parse("0x" + new string('6', 40)));
+        var fixture = FinalizeGatewayConstituents(settlementManager, 3);
+        var unordered = fixture.References.ToArray();
+        var first = unordered.AsSpan(0, 12).ToArray();
+        unordered.AsSpan(12, 12).CopyTo(unordered.AsSpan(0, 12));
+        first.CopyTo(unordered.AsSpan(12, 12));
+        var duplicate = fixture.References.ToArray();
+        duplicate.AsSpan(0, 12).CopyTo(duplicate.AsSpan(12, 12));
+
+        Assert.ThrowsExactly<TestException>(() => settlementManager.PublishGatewayGlobalRoot(
+            7, unordered, fixture.GlobalRoot, fixture.ConstituentRoot, 3, 2, 1,
+            new UInt256(R(0xA1)), new UInt256(R(0xD1)), new byte[] { 0xCA }));
+        Assert.ThrowsExactly<TestException>(() => settlementManager.PublishGatewayGlobalRoot(
+            7, duplicate, fixture.GlobalRoot, fixture.ConstituentRoot, 3, 2, 1,
+            new UInt256(R(0xA1)), new UInt256(R(0xD1)), new byte[] { 0xCA }));
+        Assert.ThrowsExactly<TestException>(() => settlementManager.PublishGatewayGlobalRoot(
+            7, fixture.References, new UInt256(R(0xEE)), fixture.ConstituentRoot, 3, 2, 1,
+            new UInt256(R(0xA1)), new UInt256(R(0xD1)), new byte[] { 0xCA }));
+        Assert.ThrowsExactly<TestException>(() => settlementManager.PublishGatewayGlobalRoot(
+            7, fixture.References, fixture.GlobalRoot, new UInt256(R(0xEF)), 3, 2, 1,
+            new UInt256(R(0xA1)), new UInt256(R(0xD1)), new byte[] { 0xCA }));
+    }
+
+    [TestMethod]
+    [DataRow(3)]
+    [DataRow(5)]
+    public void PublishGatewayGlobalRoot_RebuildsPinnedOddLeafPolicies(int constituentCount)
+    {
+        var engine = new TestEngine(true);
+        var settlementManager = Deploy(engine);
+        WireGatewayRouter(
+            engine,
+            settlementManager,
+            UInt160.Parse("0x" + new string('6', 40)));
+        var fixture = FinalizeGatewayConstituents(settlementManager, constituentCount);
+
+        Assert.IsTrue(settlementManager.PublishGatewayGlobalRoot(
+            9,
+            fixture.References,
+            fixture.GlobalRoot,
+            fixture.ConstituentRoot,
+            constituentCount,
+            2,
+            1,
+            new UInt256(R(0xA1)),
+            new UInt256(R(0xD1)),
+            new byte[] { 0xCA }));
+        for (var index = 0; index < constituentCount; index++)
+            Assert.AreEqual((BigInteger)1, settlementManager.GetGatewayFinalizedThrough(ChainId + index));
+    }
+
+    [TestMethod]
+    public void PublishGatewayGlobalRoot_RouterFaultRollsBackEveryWatermark()
+    {
+        var engine = new TestEngine(true);
+        var settlementManager = Deploy(engine);
+        var router = engine.Deploy<NeoHubMessageRouter>(
+            NeoHubMessageRouter.Nef,
+            NeoHubMessageRouter.Manifest,
+            new object[] { engine.Sender, settlementManager.Hash });
+        settlementManager.MessageRouter = router.Hash;
+        var fixture = FinalizeGatewayConstituents(settlementManager, 2);
+
+        Assert.ThrowsExactly<TestException>(() => settlementManager.PublishGatewayGlobalRoot(
+            11, fixture.References, fixture.GlobalRoot, fixture.ConstituentRoot, 2, 2, 1,
+            new UInt256(R(0xA1)), new UInt256(R(0xD1)), new byte[] { 0xCA }));
+
+        Assert.AreEqual((BigInteger)0, settlementManager.GetGatewayFinalizedThrough(ChainId));
+        Assert.AreEqual((BigInteger)0, settlementManager.GetGatewayFinalizedThrough(ChainId + 1));
+        Assert.AreEqual(UInt256.Zero, router.GetGlobalRoot(11));
+    }
+
+    [TestMethod]
+    public void PublishGatewayGlobalRoot_RealRouterWitnessLocksPublishedHistoryOnly()
+    {
+        var engine = new TestEngine(true);
+        var settlementManager = Deploy(engine);
+        var router = engine.Deploy<NeoHubMessageRouter>(
+            NeoHubMessageRouter.Nef,
+            NeoHubMessageRouter.Manifest,
+            new object[] { engine.Sender, settlementManager.Hash });
+        settlementManager.MessageRouter = router.Hash;
+        var fixture = FinalizeGatewayConstituents(settlementManager, 1);
+        var verifierHash = UInt160.Parse("0x" + new string('9', 40));
+        var governanceHash = UInt160.Parse("0x" + new string('8', 40));
+        var verificationKey = new UInt256(R(0xA1));
+        var replayDomain = new UInt256(R(0xD1));
+        var proof = new byte[] { 0xCA, 0xFE };
+        engine.FromHash<MockMessageRouter_ZkVerifier>(verifierHash, mock =>
+            mock.Setup(verifier => verifier.VerifyZkProof(
+                    It.IsAny<BigInteger?>(),
+                    It.IsAny<byte[]?>(),
+                    It.IsAny<byte[]?>(),
+                    It.IsAny<byte[]?>()))
+                .Returns(true),
+            checkExistence: false);
+        router.SetGlobalRootVerifier(verifierHash, 1, 2, verificationKey, replayDomain);
+        router.GovernanceController = governanceHash;
+        router.LockGlobalRootGovernance();
+
+        Assert.ThrowsExactly<TestException>(() => router.PublishGlobalRoot(
+            13, fixture.GlobalRoot, fixture.ConstituentRoot, 1, 2, 1,
+            verificationKey, replayDomain, proof));
+        Assert.IsTrue(settlementManager.PublishGatewayGlobalRoot(
+            13, fixture.References, fixture.GlobalRoot, fixture.ConstituentRoot, 1, 2, 1,
+            verificationKey, replayDomain, proof));
+
+        Assert.AreEqual(fixture.GlobalRoot, router.GetGlobalRoot(13));
+        Assert.AreEqual((BigInteger)1, settlementManager.GetGatewayFinalizedThrough(ChainId));
+        Assert.ThrowsExactly<TestException>(() => settlementManager.RevertBatch(ChainId, 1));
+
+        var (second, l1MessageHash, blockContextHash) = BuildCommitment(
+            batch: 2,
+            preState: R(0x80),
+            postState: R(0x81),
+            withdrawalRoot: R(0x52),
+            l2ToL2MessageRoot: R(0x48));
+        settlementManager.SubmitBatch(second, l1MessageHash, blockContextHash);
+        settlementManager.FinalizeBatch(ChainId, 2);
+        settlementManager.RevertBatch(ChainId, 2);
+        Assert.AreEqual((BigInteger)1, settlementManager.GetLatestFinalizedBatch(ChainId));
+        Assert.AreEqual((BigInteger)4, settlementManager.GetBatchStatus(ChainId, 2));
+    }
+
+    [TestMethod]
+    public void PublishGatewayGlobalRoot_RejectsMoreThan4096Constituents()
+    {
+        var engine = new TestEngine(true);
+        var settlementManager = Deploy(engine);
+        Assert.ThrowsExactly<TestException>(() => settlementManager.PublishGatewayGlobalRoot(
+            1,
+            new byte[4097 * 12],
+            new UInt256(R(0x51)),
+            new UInt256(R(0x61)),
+            4097,
+            2,
+            1,
+            new UInt256(R(0xA1)),
+            new UInt256(R(0xD1)),
+            new byte[] { 0xCA }));
     }
 }

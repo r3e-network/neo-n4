@@ -28,6 +28,9 @@ public class SettlementManagerContract : SmartContract
     private const byte PrefixOptimisticChallenge = 0x06;
     private const byte PrefixDARegistry = 0x07;
     private const byte PrefixDAValidator = 0x08;
+    private const byte PrefixGatewayFinalizedRecord = 0x09;
+    private const byte PrefixGatewayFinalizedThrough = 0x0A;
+    private const byte PrefixMessageRouter = 0x0B;
     private const byte PrefixChainRegistry = 0xFC;
     private const byte PrefixVerifierRegistry = 0xFD;
     private const byte KeyOwner = 0xFF;
@@ -51,6 +54,8 @@ public class SettlementManagerContract : SmartContract
     private const byte ProofTypeMultisig = 1;
     private const byte ProofTypeOptimistic = 2;
     private const byte ProofTypeZk = 3;
+    private const uint MaxGatewayConstituents = 4096;
+    private const int MaxGatewayProofDepth = 12;
 
     private const byte SecurityLevelSidechain = 0;
     private const byte SecurityLevelSettled = 1;
@@ -93,6 +98,10 @@ public class SettlementManagerContract : SmartContract
     /// <summary>Emitted when DAValidator contract is wired.</summary>
     [DisplayName("DAValidatorChanged")]
     public static event Action<UInt160> OnDAValidatorChanged = default!;
+
+    /// <summary>Emitted when the canonical MessageRouter is wired.</summary>
+    [DisplayName("MessageRouterChanged")]
+    public static event Action<UInt160> OnMessageRouterChanged = default!;
 
     /// <summary>Set wiring on deploy.</summary>
     public static void _deploy(object data, bool update)
@@ -188,6 +197,26 @@ public class SettlementManagerContract : SmartContract
         ExecutionEngine.Assert(daValidator.IsValid && !daValidator.IsZero, "invalid DA validator");
         Storage.Put(new byte[] { PrefixDAValidator }, daValidator);
         OnDAValidatorChanged(daValidator);
+    }
+
+    /// <summary>Canonical MessageRouter that receives finalized Gateway roots.</summary>
+    /// <remarks>See doc.md §4 (Neo Gateway).</remarks>
+    [Safe]
+    public static UInt160 GetMessageRouter()
+    {
+        var raw = Storage.Get(new byte[] { PrefixMessageRouter });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Wire the canonical MessageRouter. Owner only.</summary>
+    /// <remarks>See doc.md §4 (Neo Gateway).</remarks>
+    public static void SetMessageRouter(UInt160 messageRouter)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(messageRouter.IsValid && !messageRouter.IsZero,
+            "invalid message router");
+        Storage.Put(new byte[] { PrefixMessageRouter }, messageRouter);
+        OnMessageRouterChanged(messageRouter);
     }
 
     /// <summary>
@@ -426,6 +455,7 @@ public class SettlementManagerContract : SmartContract
         Storage.Put(key, new byte[] { StatusFinalized });
         Storage.Put(CanonicalRootKey(chainId), (byte[])postStateRoot);
         SetLatestFinalizedBatch(chainId, batchNumber);
+        RecordGatewayFinalizedBatch(chainId, batchNumber, header);
 
         OnBatchFinalized(chainId, batchNumber, postStateRoot);
     }
@@ -465,6 +495,8 @@ public class SettlementManagerContract : SmartContract
         {
             ExecutionEngine.Assert(batchNumber == GetLatestFinalizedBatch(chainId),
                 "only the latest finalized batch can be reverted");
+            ExecutionEngine.Assert(batchNumber > GetGatewayFinalizedThrough(chainId),
+                "Gateway-published batch cannot be reverted");
             if (batchNumber > 1)
             {
                 var prevHeaderRaw = Storage.Get(BatchHeaderKey(chainId, batchNumber - 1));
@@ -562,6 +594,125 @@ public class SettlementManagerContract : SmartContract
     {
         var raw = Storage.Get(LatestBatchKey(chainId));
         return raw == null ? 0UL : (ulong)(BigInteger)raw;
+    }
+
+    /// <summary>
+    /// Atomically bind a Gateway proof to exact, currently finalized L1 commitments and forward it
+    /// through the canonical SettlementManager witness. Returns <c>false</c> for an exact Router
+    /// replay and <c>true</c> for a new publication.
+    /// </summary>
+    /// <remarks>
+    /// See doc.md §4 (Neo Gateway). <paramref name="constituentReferences"/> is a packed sequence
+    /// of <c>chainId:uint32 LE || batchNumber:uint64 LE</c> entries, strictly ordered by that tuple.
+    /// The contract rebuilds both proof-bound roots from finalized records using O(log 4096)
+    /// streaming frontiers, advances per-chain non-revertible watermarks, and calls MessageRouter
+    /// in the same NeoVM transaction. Any validation or Router failure rolls back every watermark.
+    /// </remarks>
+    public static bool PublishGatewayGlobalRoot(
+        ulong batchEpoch,
+        byte[] constituentReferences,
+        UInt256 globalRoot,
+        UInt256 constituentCommitmentsRoot,
+        uint constituentCount,
+        byte aggregationBackendId,
+        byte proofSystem,
+        UInt256 verificationKeyId,
+        UInt256 replayDomain,
+        byte[] aggregatedProof)
+    {
+        ExecutionEngine.Assert(constituentReferences != null, "constituent references required");
+        var references = constituentReferences!;
+        ExecutionEngine.Assert(constituentCount > 0 && constituentCount <= MaxGatewayConstituents,
+            "constituent count must be 1..4096");
+        ExecutionEngine.Assert(references.Length == (int)constituentCount * 12,
+            "constituent reference length mismatch");
+        ExecutionEngine.Assert(!globalRoot.Equals(UInt256.Zero), "global root must be non-zero");
+        ExecutionEngine.Assert(!constituentCommitmentsRoot.Equals(UInt256.Zero),
+            "constituent root must be non-zero");
+
+        var commitmentFrontier = CreateGatewayFrontier();
+        var messageFrontier = CreateGatewayFrontier();
+        var chainRegistry = (UInt160)(Storage.Get(new byte[] { PrefixChainRegistry })
+            ?? throw new Exception("registry unset"));
+        uint previousChainId = 0;
+        ulong previousBatchNumber = 0;
+        for (uint index = 0; index < constituentCount; index++)
+        {
+            var offset = (int)index * 12;
+            var chainId = ReadUInt32(references, offset);
+            var batchNumber = ReadUInt64(references, offset + 4);
+            ExecutionEngine.Assert(chainId > 0, "Gateway chainId 0 is reserved for L1");
+            if (index > 0)
+            {
+                ExecutionEngine.Assert(
+                    chainId > previousChainId
+                    || (chainId == previousChainId && batchNumber > previousBatchNumber),
+                    "Gateway constituent references must be strictly ordered");
+            }
+            previousChainId = chainId;
+            previousBatchNumber = batchNumber;
+
+            ExecutionEngine.Assert(GetBatchStatus(chainId, batchNumber) == StatusFinalized,
+                "Gateway constituent is not finalized");
+            var gatewayEnabled = (bool)Contract.Call(
+                chainRegistry,
+                "getGatewayEnabled",
+                CallFlags.ReadOnly,
+                new object[] { chainId });
+            ExecutionEngine.Assert(gatewayEnabled, "Gateway disabled for constituent chain");
+            ExecutionEngine.Assert(batchNumber > GetGatewayFinalizedThrough(chainId),
+                "Gateway constituent was already published");
+
+            var recordRaw = Storage.Get(GatewayFinalizedRecordKey(chainId, batchNumber));
+            ExecutionEngine.Assert(recordRaw != null, "Gateway finalized record missing");
+            var record = (byte[])recordRaw!;
+            ExecutionEngine.Assert(record.Length == 64, "Gateway finalized record corrupt");
+            var commitmentLeaf = new byte[32];
+            var messageLeaf = new byte[32];
+            for (var byteIndex = 0; byteIndex < 32; byteIndex++)
+            {
+                commitmentLeaf[byteIndex] = record[byteIndex];
+                messageLeaf[byteIndex] = record[32 + byteIndex];
+            }
+            PushGatewayLeaf(commitmentFrontier, commitmentLeaf, index);
+            PushGatewayLeaf(messageFrontier, messageLeaf, index);
+        }
+
+        var rebuiltCommitmentRoot = FinalizeGatewayFrontier(commitmentFrontier, duplicateOdd: true);
+        var rebuiltGlobalRoot = FinalizeGatewayFrontier(messageFrontier, duplicateOdd: false);
+        ExecutionEngine.Assert(constituentCommitmentsRoot.Equals((UInt256)rebuiltCommitmentRoot),
+            "Gateway constituent commitment root mismatch");
+        ExecutionEngine.Assert(globalRoot.Equals((UInt256)rebuiltGlobalRoot),
+            "Gateway global message root mismatch");
+
+        for (uint index = 0; index < constituentCount; index++)
+        {
+            var offset = (int)index * 12;
+            var chainId = ReadUInt32(references, offset);
+            var batchNumber = ReadUInt64(references, offset + 4);
+            if (batchNumber > GetGatewayFinalizedThrough(chainId))
+                Storage.Put(GatewayFinalizedThroughKey(chainId), (BigInteger)batchNumber);
+        }
+
+        var messageRouter = GetMessageRouter();
+        ExecutionEngine.Assert(messageRouter.IsValid && !messageRouter.IsZero,
+            "message router not wired");
+        return (bool)Contract.Call(
+            messageRouter,
+            "publishGlobalRoot",
+            CallFlags.All,
+            new object[]
+            {
+                batchEpoch,
+                globalRoot,
+                constituentCommitmentsRoot,
+                constituentCount,
+                aggregationBackendId,
+                proofSystem,
+                verificationKeyId,
+                replayDomain,
+                aggregatedProof
+            });
     }
 
     private static UInt256 GetFinalizedBatchRoot(uint chainId, ulong batchNumber, int rootOffset)
@@ -817,6 +968,103 @@ public class SettlementManagerContract : SmartContract
         return canonicalRoot.Equals((UInt256)current);
     }
 
+    private static void RecordGatewayFinalizedBatch(uint chainId, ulong batchNumber, byte[] commitment)
+    {
+        var first = CryptoLib.Sha256((ByteString)commitment);
+        var commitmentHash = (byte[])CryptoLib.Sha256(first);
+        var record = new byte[64];
+        for (var index = 0; index < 32; index++)
+        {
+            record[index] = commitmentHash[index];
+            record[32 + index] = commitment[L2ToL2MessageRootOffset + index];
+        }
+        Storage.Put(GatewayFinalizedRecordKey(chainId, batchNumber), record);
+    }
+
+    /// <summary>
+    /// Return the highest finalized batch whose commitment was atomically published through the
+    /// Gateway for <paramref name="chainId"/>. Published history is non-revertible.
+    /// </summary>
+    /// <remarks>See doc.md §4 (Neo Gateway) and §5 (L2 settlement).</remarks>
+    [Safe]
+    public static ulong GetGatewayFinalizedThrough(uint chainId)
+    {
+        var raw = Storage.Get(GatewayFinalizedThroughKey(chainId));
+        return raw == null ? 0UL : (ulong)(BigInteger)raw;
+    }
+
+    private static byte[][] CreateGatewayFrontier()
+    {
+        var frontier = new byte[MaxGatewayProofDepth + 1][];
+        for (var level = 0; level < frontier.Length; level++)
+            frontier[level] = new byte[0];
+        return frontier;
+    }
+
+    private static void PushGatewayLeaf(byte[][] frontier, byte[] leaf, uint leafIndex)
+    {
+        ExecutionEngine.Assert(leaf.Length == 32, "Gateway leaf must be 32 bytes");
+        var current = leaf;
+        var index = leafIndex;
+        var level = 0;
+        while ((index & 1U) == 1U)
+        {
+            ExecutionEngine.Assert(level < frontier.Length, "Gateway frontier overflow");
+            ExecutionEngine.Assert(frontier[level].Length == 32,
+                "Gateway frontier is incomplete");
+            current = HashGatewayPair(frontier[level], current);
+            frontier[level] = new byte[0];
+            index >>= 1;
+            level++;
+        }
+        ExecutionEngine.Assert(level < frontier.Length, "Gateway frontier overflow");
+        frontier[level] = current;
+    }
+
+    private static byte[] FinalizeGatewayFrontier(byte[][] frontier, bool duplicateOdd)
+    {
+        var root = new byte[0];
+        var rootLevel = 0;
+        for (var level = 0; level < frontier.Length; level++)
+        {
+            var left = frontier[level];
+            if (left.Length == 0) continue;
+            ExecutionEngine.Assert(left.Length == 32, "Gateway frontier is corrupt");
+            if (root.Length == 0)
+            {
+                root = left;
+                rootLevel = level;
+                continue;
+            }
+            if (duplicateOdd)
+            {
+                while (rootLevel < level)
+                {
+                    root = HashGatewayPair(root, root);
+                    rootLevel++;
+                }
+            }
+            root = HashGatewayPair(left, root);
+            rootLevel = level + 1;
+        }
+        ExecutionEngine.Assert(root.Length == 32, "Gateway frontier is empty");
+        return root;
+    }
+
+    private static byte[] HashGatewayPair(byte[] left, byte[] right)
+    {
+        ExecutionEngine.Assert(left.Length == 32 && right.Length == 32,
+            "Gateway node must be 32 bytes");
+        var combined = new byte[64];
+        for (var index = 0; index < 32; index++)
+        {
+            combined[index] = left[index];
+            combined[32 + index] = right[index];
+        }
+        var first = CryptoLib.Sha256((ByteString)combined);
+        return (byte[])CryptoLib.Sha256(first);
+    }
+
     private static void SetLatestFinalizedBatch(uint chainId, ulong batchNumber)
     {
         Storage.Put(LatestBatchKey(chainId), (BigInteger)batchNumber);
@@ -828,6 +1076,8 @@ public class SettlementManagerContract : SmartContract
         BuildKey(PrefixBatchHeader, chainId, batchNumber);
     private static byte[] WithdrawalRootKey(uint chainId, ulong batchNumber) =>
         BuildKey(PrefixWithdrawalRoot, chainId, batchNumber);
+    private static byte[] GatewayFinalizedRecordKey(uint chainId, ulong batchNumber) =>
+        BuildKey(PrefixGatewayFinalizedRecord, chainId, batchNumber);
 
     private static byte[] CanonicalRootKey(uint chainId)
     {
@@ -841,6 +1091,14 @@ public class SettlementManagerContract : SmartContract
     {
         var k = new byte[5];
         k[0] = PrefixLatestBatch;
+        k[1] = (byte)chainId; k[2] = (byte)(chainId >> 8); k[3] = (byte)(chainId >> 16); k[4] = (byte)(chainId >> 24);
+        return k;
+    }
+
+    private static byte[] GatewayFinalizedThroughKey(uint chainId)
+    {
+        var k = new byte[5];
+        k[0] = PrefixGatewayFinalizedThrough;
         k[1] = (byte)chainId; k[2] = (byte)(chainId >> 8); k[3] = (byte)(chainId >> 16); k[4] = (byte)(chainId >> 24);
         return k;
     }

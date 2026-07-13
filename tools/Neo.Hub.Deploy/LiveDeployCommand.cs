@@ -731,6 +731,8 @@ public static class LiveDeployCommand
                 HashCheck("SettlementManager.GetDAValidator", h["SettlementManager"], "getDAValidator", h["DAValidator"]), h["DAValidator"]),
             CheckedCall("SettlementManager.SetOptimisticChallenge", h["SettlementManager"], "setOptimisticChallenge",
                 HashCheck("SettlementManager.GetOptimisticChallenge", h["SettlementManager"], "getOptimisticChallenge", h["OptimisticChallenge"]), h["OptimisticChallenge"]),
+            CheckedCall("SettlementManager.SetMessageRouter", h["SettlementManager"], "setMessageRouter",
+                HashCheck("SettlementManager.GetMessageRouter", h["SettlementManager"], "getMessageRouter", h["MessageRouter"]), h["MessageRouter"]),
         ];
     }
 
@@ -788,6 +790,7 @@ public static class LiveDeployCommand
             HashCheck("SettlementManager.GetDARegistry", h["SettlementManager"], "getDARegistry", h["DARegistry"]),
             HashCheck("SettlementManager.GetDAValidator", h["SettlementManager"], "getDAValidator", h["DAValidator"]),
             HashCheck("SettlementManager.GetOptimisticChallenge", h["SettlementManager"], "getOptimisticChallenge", h["OptimisticChallenge"]),
+            HashCheck("SettlementManager.GetMessageRouter", h["SettlementManager"], "getMessageRouter", h["MessageRouter"]),
             HashCheck("ForcedInclusion.GetChainRegistry", h["ForcedInclusion"], "getChainRegistry", h["ChainRegistry"]),
             HashCheck("ForcedInclusion.GetSequencerBond", h["ForcedInclusion"], "getSequencerBond", h["SequencerBond"]),
             IntegerCheck("ForcedInclusion.GetCensorshipSlashAmount", h["ForcedInclusion"], "getCensorshipSlashAmount", 1_000_000),

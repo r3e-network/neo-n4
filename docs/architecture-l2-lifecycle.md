@@ -95,11 +95,17 @@ Aggregates many L2s' proofs into one settlement post on L1. Reduces
 L1 gas cost when running >1 L2 chain.
 
 - `BinaryTreeAggregator` — log-N round narrowing across N constituent batches.
-- `IRoundProver` — 2 production implementations, 1 reference, plus a recursive-ZK seam:
+- `IRoundProver` — 2 production implementations, 1 reference, plus a recursive terminal path:
   - `MultisigRoundProver` — Secp256r1 threshold-attested rounds
   - `MerklePathRoundProver` — per-constituent inclusion proofs
   - `PassThroughRoundProver` — minimal-cost reference
-  - SP1 Compress / Halo2 / Risc0 fold variants plug into the same trait
+  - `neo-zkvm-gateway-{guest,host}` — bundled SP1 6.2.1 recursive terminal proof
+  - Halo2 / Risc0 variants may plug into the same seam
+
+The L1 entry point is `SettlementManager.PublishGatewayGlobalRoot`, not a direct Router call.
+It binds 1..4096 exact finalized constituent identities, reconstructs both proof-bound roots
+with bounded streaming frontiers, advances non-revertible per-chain publication watermarks,
+and atomically forwards the verified statement to `MessageRouter.PublishGlobalRoot`.
 
 Optional: a single L2 doesn't need a Gateway. Multi-L2 deployments
 that want lower per-batch L1 gas costs flip on `gatewayEnabled`

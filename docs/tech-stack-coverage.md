@@ -72,7 +72,7 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 - **Cross-chain messaging** ✅ — `src/Neo.L2.Messaging/`
 - **Asset registry + deposit/withdrawal processors** ✅ — `src/Neo.L2.Bridge/`
 - **Per-L2 RPC method surface** ✅ — `src/Neo.Plugins.L2Rpc/` (10 methods)
-- **Phase-5 proof aggregation** 🟡 — `src/Neo.Plugins.L2Gateway/` — `BinaryTreeAggregator`, Secp256r1/Merkle round provers, canonical binding, durable outbox, and on-chain route ship. A dedicated recursive Gateway SP1 guest/prover and proof-bound production RPC publisher remain required; opaque round proof bytes cannot substitute for the terminal validity proof.
+- **Phase-5 proof aggregation** 🟡 — `src/Neo.Plugins.L2Gateway/` and `bridge/neo-zkvm-gateway-{guest,host}` — `BinaryTreeAggregator`, Secp256r1/Merkle rounds, canonical binding, durable outbox, crash-safe proof recovery, and a fail-closed SP1 6.2.1 recursive terminal proof ship. The RPC path targets `SettlementManager.PublishGatewayGlobalRoot`, whose bounded streaming verifier binds exact finalized constituents and atomically forwards to `MessageRouter`. Independent audit and executed real-proof deployment evidence remain required; opaque round proof bytes still cannot substitute for the terminal validity proof.
 
 **16 off-chain libraries + 8 plugins.** All have `tests/Neo.*.UnitTests/` mirrors;
 the solution currently contains 37 .NET test projects and reports the exact
@@ -160,7 +160,7 @@ is a valid endpoint.
 | L1 protocol contracts | 🟡 | Optimistic state changes are trustless only for the exact restricted Counter v4 profile; general NeoVM/multi-transaction fraud proofs fail closed. |
 | L2 native contracts | ✅ | Deployment-specific genesis and governance rehearsal remain operator evidence, not missing code. |
 | Cross-foreign-chain bridge | ✅ | Live committee/foreign-chain deployment evidence remains environment-specific. |
-| Node infrastructure | 🟡 | Gateway lacks the dedicated recursive SP1 guest/prover and proof-bound production RPC publisher. |
+| Node infrastructure | 🟡 | The recursive SP1 guest/prover and atomic SettlementManager-authorized finalized-constituent publication path ship; independent audit and executed real-proof deployment evidence remain. |
 | Operator tooling | ✅ | Wallet/HSM custody and live submission are explicit operator boundaries. |
 | App development | ✅ | Live-node conformance evidence must be produced for each release environment. |
 | End-user UIs | ✅ | Production hosting and wallet integrations remain deployment choices. |
@@ -193,7 +193,7 @@ program using Solana's ed25519 sigverify precompile, source-only
 pending operator `anchor build`), and an operator CLI
 (`tools/Neo.External.Bridge.Cli/` for genkey + committee-blob +
 deploy-bundle). `Neo.Hub.Deploy` scaffolds the full bridge stack
-alongside NeoHub: 24 deploy steps + 32 post-deploy actions/hints. Phase C's
+alongside NeoHub: 23 production deploy steps + 30 post-deploy actions/hints. Phase C's
 `MpcCommitteeFraudVerifier` makes slashing of equivocating committee
 members permissionless (anyone can submit cryptographic proof of two
 byte-distinct messages signed for the same `(chainId, nonce)` and

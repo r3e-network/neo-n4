@@ -438,7 +438,9 @@ classes at the same call sites.
   a dBFT round; use `SequencerCommitteeTransactionBuilder` to atomically commit the
   selected set into native consensus state.
 - **`IRoundProver`** (Phase 5 only) — Default: `PassThroughRoundProver`.
-  Swap for SP1 Compress / Halo2 accumulator / Risc0 fold.
+  Use `MultisigRoundProver` / `MerklePathRoundProver` for non-recursive rounds;
+  the bundled recursive terminal path is `bridge/neo-zkvm-gateway-{guest,host}`.
+  Halo2/Risc0 remain optional alternatives.
 
 All of these accept ctor injection. The plugin host is the single composition
 root; see `Neo.Plugins.L2Metrics.L2MetricsPlugin` for the canonical pattern of
@@ -806,7 +808,8 @@ The bundle's "PostDeployActions" section surfaces the wiring steps that
 have to run AFTER all contracts are deployed (e.g.
 `SequencerBond.RegisterSlasher(OptimisticChallenge)` to break the
 bond↔challenge cycle, `ChainRegistry.SetGovernanceController` to enable
-§16.1 admission policy, and per-fraud-verifier informational notes
+§16.1 admission policy, `SettlementManager.SetMessageRouter(MessageRouter)` to close the
+Gateway contract-witness path, and per-fraud-verifier informational notes
 naming which contract hash to pass as the `fraudVerifier` argument to
 `OptimisticChallenge.Challenge`).
 
@@ -817,7 +820,7 @@ naming which contract hash to pass as the `fraudVerifier` argument to
 > returns each real hash; capture those into the four `register-chain`
 > flags below — NOT the stub hashes from the bundle.
 
-After all 22 deploys + post-deploy wiring complete, capture the
+After all 23 deploys + post-deploy wiring complete, capture the
 **real on-chain** contract hashes (returned by your wallet from each
 `ContractManagement.Deploy` call) into the four `register-chain` flags:
 
@@ -886,32 +889,57 @@ The framework ships **two** SP1 integrations. Pick one:
 matches industry-standard L2 layout.
 
 ```bash
-# Build the daemon binary (one-time):
-cd bridge/neo-zkvm-host
-cargo build --release
-# → target/release/prove-batch
+# Build both production prover daemons (one-time, from the repository root):
+cargo build --release -p neo-zkvm-host -p neo-zkvm-gateway-host
+# → target/release/prove-batch + target/release/prove-gateway
 
 # Wire the sequencer to drop sealed batches into a queue dir
-# (e.g. /var/lib/neo-l2/batches/) — the format is just the canonical
-# BatchExecutionRequest bytes written to <batch-number>.batch.bin.
-# That format is what `Neo.L2.Batch.BatchExecutionRequest.Encode()` emits.
+# (e.g. /var/lib/neo-l2/batches/) — each file is the canonical
+# ProofWitnessArtifactV1 written to <batch-number>.batch.bin.
 
 # Run the daemon (typically under systemd / k8s):
 prove-batch daemon \
     --watch /var/lib/neo-l2/batches \
     --archive /var/lib/neo-l2/proven \
+    --gateway-sidecars /var/lib/neo-l2/gateway-children \
     --poll-secs 5
+
+# Run only when Gateway aggregation is enabled. The .NET Sp1GatewayProofProver
+# writes canonical request + readiness manifests into --queue.
+prove-gateway daemon \
+    --queue /var/lib/neo-l2/gateway-queue \
+    --child-proofs /var/lib/neo-l2/gateway-children \
+    --poll-ms 1000
 
 # Equivalent supervised launch from the chain directory:
 neo-stack start-prover --chain-id 1099 --output ./my-l2 \
     --prover ./my-l2/prover/prove-batch -- --poll-secs 5
 ```
 
-The daemon polls `--watch` for `*.batch.bin`, generates a real ZK proof
+The batch daemon polls `--watch` for `*.batch.bin`, generates a real ZK proof
 for each, writes `<name>.proof.bin` (the on-chain submission artifact)
-+ `<name>.proof.vk` (the verifying key, stable per guest ELF), and moves
-the input to `--archive` so it's not re-processed. Failures leave the
-input in place and log loudly so monitoring catches poison-pill batches.
++ `<name>.proof.vk` (the verifying key, stable per guest ELF), and atomically
+publishes a canonical compressed child sidecar when `--gateway-sidecars` is set.
+`--watch`, `--archive`, and the sidecar directory must reside on filesystems that
+support hard links; the archive path must be on the same filesystem as `--watch`.
+Failures leave the input in place and log loudly so monitoring catches poison-pill batches.
+
+The Gateway daemon accepts only the tuple-derived sidecar filename, reconstructs the full
+332-byte public inputs from the commitment plus the sidecar's two missing hashes, recursively
+verifies every compressed batch proof against the compiled batch VK, and emits a host-verified
+356-byte Gateway Groth16 proof with the result manifest published last. On restart, a complete
+result is skipped only after exact manifest/artifact checks and terminal Groth16 re-verification;
+without a result marker, only regular non-symlink orphan outputs are removed before re-proving.
+The batch daemon applies the same fail-closed policy to its proof/VK/public-values triplet.
+
+The proof-bound RPC publisher queries `MessageRouter.GetGlobalRoot*` for reconciliation but signs
+and submits `SettlementManager.PublishGatewayGlobalRoot(epoch,references,globalRoot,
+constituentRoot,count,backend,proofSystem,vkId,replayDomain,proof)`. `references` is the exact
+strictly ordered packed list of `chainId:uint32 LE || batchNumber:uint64 LE` entries (1..4096).
+SettlementManager revalidates current finality/Gateway admission, reconstructs both roots from
+stored finalized records, advances non-revertible per-chain watermarks, and atomically invokes
+Router. Verify post-deploy readback of both MessageRouter's SettlementManager constructor binding
+and `SettlementManager.GetMessageRouter`; a direct Router call is expected to fail witness checks.
 
 What it actually proves: each tx in the batch is loaded as a Neo N3 VM
 script and executed by `neo_vm_guest::execute` (vendored from

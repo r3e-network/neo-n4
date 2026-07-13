@@ -1,0 +1,43 @@
+[package]
+name = "neo-zkvm-gateway-host"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+description = "Fail-closed SP1 recursive Gateway prover daemon for Neo N4."
+build = "build.rs"
+
+[features]
+default = []
+test-only-vk = ["neo-zkvm-gateway-guest/test-only-vk"]
+
+[dependencies]
+bincode = "1.3"
+hex = { workspace = true }
+neo-zkvm-gateway-guest = { path = "../neo-zkvm-gateway-guest" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = "0.10.8"
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+sp1-sdk = { version = "=6.2.1", features = ["blocking"] }
+sp1-verifier = { version = "=6.2.1", features = ["std"] }
+
+[build-dependencies]
+hex = "0.4"
+sha2 = "0.10.8"
+sp1-sdk = { version = "=6.2.1", features = ["blocking"] }
+
+[dev-dependencies]
+neo-execution-core = { path = "../neo-execution-core" }
+neo-zkvm-host = { path = "../neo-zkvm-host" }
+serial_test = "3"
+tempfile = "3"
+
+[[bin]]
+name = "prove-gateway"
+path = "src/bin/prove_gateway.rs"

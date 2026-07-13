@@ -106,14 +106,17 @@ ChainRegistry 模式 1 路径通过 `Contract.Call(...,
 需要那份源。作为待集成跟踪 —— 当 neo-modules(或 Neo 4 RpcServer 落地处)可用,
 生成 partial class。
 
-### §4-recursive-zk —— 真正的 Neo Gateway round prover
+### §4-recursive-zk —— 真正的 Neo Gateway 终端证明者
 
-**状态更新**:Phase 5 聚合现已出货**两份生产级 `IRoundProver` 实现** ——
+**状态更新**:Phase 5 聚合已出货**两份非递归 `IRoundProver` 实现** ——
 `MultisigRoundProver`(Secp256r1 阈值证明轮)+ `MerklePathRoundProver`(逐成员
-对聚合根的 包含证明)—— 与 `PassThroughRoundProver` 参照实现并存。真正的
-密码学,不带工具链依赖。剩下的递归-ZK fold 变体(SP1 Compress / Halo2
-accumulator / Risc0 STARK fold)在运维者带上 SP1 工具链时,接到同一
-`IRoundProver` 接缝。
+对聚合根的包含证明)—— 与 `PassThroughRoundProver` 参照实现并存。独立的
+`neo-zkvm-gateway-{guest,host}` 已内置 SP1 6.2.1 递归终端证明，锁定 batch VK，
+并由 host 验证最终 Groth16。proof-bound RPC 现把精确有序的 constituent references
+提交给 `SettlementManager.PublishGatewayGlobalRoot`；合约重新检查 finalized 状态与 Gateway
+准入、重建 commitment/message roots、推进每条链不可回退的 watermark，并原子转发证明到
+`MessageRouter`。崩溃恢复会重新验证完整 result marker，只清理 regular non-symlink orphan。
+该代码缺口已关闭；独立审计与真实递归证明部署证据仍是发布门禁。
 
 ## 运维特定(不在仓内修)
 

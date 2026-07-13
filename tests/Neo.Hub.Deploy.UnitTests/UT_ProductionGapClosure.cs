@@ -65,6 +65,9 @@ public class UT_ProductionGapClosure
             && a.Contains("DARegistry")), "operator hints must wire DARegistry into SettlementManager");
         Assert.IsTrue(actions.Any(a => a.Contains("SettlementManager.SetDAValidator")
             && a.Contains("DAValidator")), "operator hints must wire DAValidator into SettlementManager");
+        Assert.IsTrue(actions.Any(a => a.Contains("SettlementManager.SetMessageRouter")
+            && a.Contains("MessageRouter")),
+            "operator hints must wire MessageRouter into SettlementManager's atomic Gateway path");
         Assert.IsTrue(actions.Any(a => a.Contains("MessageRouter.SetL1TxFilter")
             && a.Contains("L1TxFilter")), "operator hints must explain per-chain L1TxFilter wiring");
     }

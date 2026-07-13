@@ -356,6 +356,16 @@ public class UT_LiveDeployCommand
         Assert.AreEqual(setRecipient + 1, setFee,
             "fee must only be enabled after both the token and recipient are configured");
 
+        var setMessageRouter = actions[IndexOf(actions, "SettlementManager.SetMessageRouter")];
+        using (var expectedMessageRouterScript = new ScriptBuilder())
+        {
+            expectedMessageRouterScript.EmitDynamicCall(
+                hashes["SettlementManager"],
+                "setMessageRouter",
+                hashes["MessageRouter"]);
+            CollectionAssert.AreEqual(expectedMessageRouterScript.ToArray(), setMessageRouter.Script);
+        }
+
         var action = actions[registerKey];
         using var expected = new ScriptBuilder();
         expected.EmitDynamicCall(
@@ -453,6 +463,8 @@ public class UT_LiveDeployCommand
         await smokes["RestrictedExecutionFraudVerifier.GetExecutorSemanticId"]
             .RunAsync(new StubRpcClient(Hash256Result(
                 LiveDeployCommand.RestrictedExecutorSemanticId)));
+        await smokes["SettlementManager.GetMessageRouter"]
+            .RunAsync(new StubRpcClient(HashResult(hashes["MessageRouter"])));
         await smokes["ForcedInclusion.GetGasToken"]
             .RunAsync(new StubRpcClient(HashResult(hashes["Gas"])));
         await smokes["ForcedInclusion.GetFeeRecipient"]
@@ -495,6 +507,7 @@ public class UT_LiveDeployCommand
             ["RestrictedExecutionFraudVerifier.GetSettlementManager"] = HashResult(UInt160.Zero),
             ["RestrictedExecutionFraudVerifier.GetReplayDomain"] = Hash256Result(UInt256.Zero),
             ["RestrictedExecutionFraudVerifier.GetExecutorSemanticId"] = Hash256Result(UInt256.Zero),
+            ["SettlementManager.GetMessageRouter"] = HashResult(UInt160.Zero),
             ["ForcedInclusion.GetGasToken"] = HashResult(UInt160.Zero),
             ["ForcedInclusion.GetFeeRecipient"] = HashResult(UInt160.Zero),
             ["ForcedInclusion.GetFee"] = IntegerResult(0),
@@ -529,7 +542,7 @@ public class UT_LiveDeployCommand
             "RestrictedExecutionFraudVerifier",
             "MpcCommitteeVerifier", "ExternalBridgeRegistry", "ExternalBridgeBond",
             "ExternalBridgeEscrow", "MpcCommitteeFraudVerifier", "SettlementManager",
-            "DARegistry", "DAValidator",
+            "DARegistry", "DAValidator", "MessageRouter",
         ];
 
         return names.Select((name, index) => new

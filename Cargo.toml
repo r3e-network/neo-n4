@@ -2,6 +2,8 @@
 resolver = "2"
 members = [
     "bridge/neo-execution-core",
+    "bridge/neo-zkvm-gateway-guest",
+    "bridge/neo-zkvm-gateway-host",
     "bridge/neo-zkvm-guest",
     "bridge/neo-zkvm-host",
     "sdk/rust",

@@ -3,18 +3,21 @@ using Neo.Plugins.L2Gateway;
 
 namespace Neo.L2.Gateway.Rpc;
 
-/// <summary>Production JSON-RPC publisher for the complete proof-bound MessageRouter ABI.</summary>
+/// <summary>Production JSON-RPC publisher for atomic Gateway finality through SettlementManager.</summary>
 /// <remarks>
 /// See doc.md §4 (Neo Gateway). Read-only preflight and post-confirmation use
 /// <c>invokefunction</c>. The caller-supplied wallet delegate receives every current
-/// <c>publishGlobalRoot</c> argument unchanged. Exact already-published state is idempotent;
-/// conflicting or unconfirmed state fails closed.
+/// SettlementManager's <c>publishGatewayGlobalRoot</c> argument unchanged. The manager validates
+/// the exact finalized constituents, advances non-revertible watermarks, then calls MessageRouter
+/// atomically using its contract witness. Exact already-published state is idempotent; conflicting
+/// or unconfirmed state fails closed.
 /// </remarks>
 public sealed class ProofBoundRpcGlobalRootPublisher : IProofBoundGlobalRootPublisher, IDisposable
 {
-    /// <summary>Sign, submit, and wait for the complete nine-argument contract invocation.</summary>
-    /// <param name="messageRouterHash">Configured NeoHub.MessageRouter contract.</param>
+    /// <summary>Sign, submit, and wait for the complete ten-argument contract invocation.</summary>
+    /// <param name="settlementManagerHash">Configured NeoHub.SettlementManager contract.</param>
     /// <param name="batchEpoch">Gateway aggregation epoch.</param>
+    /// <param name="constituentReferences">Packed canonical L2 batch references.</param>
     /// <param name="globalRoot">Aggregated L2-to-L2 message root.</param>
     /// <param name="constituentCommitmentsRoot">Root of canonical constituent commitments.</param>
     /// <param name="constituentCount">Number of canonical constituents.</param>
@@ -26,8 +29,9 @@ public sealed class ProofBoundRpcGlobalRootPublisher : IProofBoundGlobalRootPubl
     /// <param name="cancellationToken">Cooperative cancellation.</param>
     /// <returns>Confirmed transaction hash.</returns>
     public delegate ValueTask<UInt256> SignAndSendAsync(
-        UInt160 messageRouterHash,
+        UInt160 settlementManagerHash,
         ulong batchEpoch,
+        ReadOnlyMemory<byte> constituentReferences,
         UInt256 globalRoot,
         UInt256 constituentCommitmentsRoot,
         uint constituentCount,
@@ -39,6 +43,7 @@ public sealed class ProofBoundRpcGlobalRootPublisher : IProofBoundGlobalRootPubl
         CancellationToken cancellationToken);
 
     private readonly JsonRpcClient _rpc;
+    private readonly UInt160 _settlementManagerHash;
     private readonly UInt160 _messageRouterHash;
     private readonly SignAndSendAsync _signAndSend;
     private readonly ReconciledGlobalRootPublisher _reconciled;
@@ -47,22 +52,28 @@ public sealed class ProofBoundRpcGlobalRootPublisher : IProofBoundGlobalRootPubl
 
     /// <summary>Construct a complete proof-bound RPC publisher.</summary>
     /// <param name="rpc">L1 Neo JSON-RPC client.</param>
+    /// <param name="settlementManagerHash">Configured non-zero SettlementManager contract.</param>
     /// <param name="messageRouterHash">Configured non-zero MessageRouter contract.</param>
     /// <param name="signAndSend">Wallet/HSM transaction builder and confirmation delegate.</param>
     /// <param name="ownsRpc">Whether disposing this publisher also disposes <paramref name="rpc"/>.</param>
     public ProofBoundRpcGlobalRootPublisher(
         JsonRpcClient rpc,
+        UInt160 settlementManagerHash,
         UInt160 messageRouterHash,
         SignAndSendAsync signAndSend,
         bool ownsRpc = false)
     {
         ArgumentNullException.ThrowIfNull(rpc);
+        ArgumentNullException.ThrowIfNull(settlementManagerHash);
         ArgumentNullException.ThrowIfNull(messageRouterHash);
         ArgumentNullException.ThrowIfNull(signAndSend);
+        if (settlementManagerHash.Equals(UInt160.Zero))
+            throw new ArgumentException("settlementManagerHash must be non-zero", nameof(settlementManagerHash));
         if (messageRouterHash.Equals(UInt160.Zero))
             throw new ArgumentException("messageRouterHash must be non-zero", nameof(messageRouterHash));
 
         _rpc = rpc;
+        _settlementManagerHash = settlementManagerHash;
         _messageRouterHash = messageRouterHash;
         _signAndSend = signAndSend;
         _ownsRpc = ownsRpc;
@@ -72,6 +83,7 @@ public sealed class ProofBoundRpcGlobalRootPublisher : IProofBoundGlobalRootPubl
     /// <inheritdoc />
     public ValueTask<UInt256> PublishGlobalRootAsync(
         GatewayProofBinding binding,
+        AggregatedCommitment commitment,
         ReadOnlyMemory<byte> aggregatedProof,
         CancellationToken cancellationToken = default)
     {
@@ -86,7 +98,11 @@ public sealed class ProofBoundRpcGlobalRootPublisher : IProofBoundGlobalRootPubl
                 $"SP1 Gateway proof must be {Sp1GatewayProofProver.Groth16ProofSize} bytes",
                 nameof(aggregatedProof));
         }
-        return _reconciled.PublishGlobalRootAsync(binding, aggregatedProof, cancellationToken);
+        return _reconciled.PublishGlobalRootAsync(
+            binding,
+            commitment,
+            aggregatedProof,
+            cancellationToken);
     }
 
     /// <inheritdoc />
@@ -136,8 +152,9 @@ public sealed class ProofBoundRpcGlobalRootPublisher : IProofBoundGlobalRootPubl
         if (!binding.MessageRouter.Equals(_messageRouterHash))
             throw new InvalidOperationException("publication request targets a different MessageRouter");
         return await _signAndSend(
-            _messageRouterHash,
+            _settlementManagerHash,
             binding.BatchEpoch,
+            request.ConstituentReferences,
             binding.GlobalMessageRoot,
             binding.ConstituentCommitmentsRoot,
             binding.ConstituentCount,

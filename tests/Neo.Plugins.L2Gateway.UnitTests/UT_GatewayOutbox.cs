@@ -63,6 +63,7 @@ public class UT_GatewayOutbox
 
         public ValueTask<UInt256> PublishGlobalRootAsync(
             GatewayProofBinding binding,
+            AggregatedCommitment commitment,
             ReadOnlyMemory<byte> aggregatedProof,
             CancellationToken cancellationToken = default)
         {

@@ -494,8 +494,8 @@ public class UT_DeployPlanner
         // 1 exact atomic v4 profile registration +
         // 1 fraud-verifier security-boundary note +
         // 3 external-bridge gov/setup hints +
-        // 2 Phase-C wiring hints + 4 DA/optimistic/filter production wiring hints = 29.
-        Assert.AreEqual(29, actions.Count);
+        // 2 Phase-C wiring hints + 5 DA/optimistic/Gateway/filter production wiring hints = 30.
+        Assert.AreEqual(30, actions.Count);
 
         // 1. SequencerBond.RegisterSlasher(OptimisticChallenge) — Phase-3 cycle-break.
         StringAssert.Contains(actions[0], "SequencerBond.RegisterSlasher");

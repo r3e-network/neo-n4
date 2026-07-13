@@ -5,6 +5,11 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+  schedule:
+    # Nightly release-grade proof generation. Pull requests run the deterministic
+    # host/guest suites; the scheduled lane additionally generates and verifies
+    # the expensive real SP1 Groth16 proofs.
+    - cron: "17 2 * * *"
   workflow_dispatch:
     inputs:
       run_real_sp1_proof:
@@ -130,9 +135,9 @@ jobs:
       - name: Install nccs (Neo C# Compiler)
         # Without nccs, contracts only type-check — nccs catches a separate class of
         # error (NeoVM-specific opcode constraints, manifest emission, ABI compile
-        # errors) that the C# compiler never sees. Installing it on the runner means
-        # every commit gets the .nef + .manifest.json artifacts validated.
-        run: dotnet tool install -g Neo.Compiler.CSharp
+        # errors) that the C# compiler never sees. The exact version is part of the
+        # audited NEF build provenance and must not float between CI runs.
+        run: dotnet tool install -g Neo.Compiler.CSharp --version 3.9.1
 
       - name: Type-check + compile deployable NeoHub + sample contracts
         # dotnet build type-checks the C# surface; nccs explicitly emits the
@@ -181,6 +186,15 @@ jobs:
           /p:NuGetAudit=false
           --nologo
 
+      - name: Verify audited verifier artifacts against fresh nccs output
+        env:
+          NEO_N4_REQUIRE_FRESH_MANIFESTS: "1"
+        run: >
+          dotnet test tests/NeoHub.Sp1Groth16Verifier.UnitTests/NeoHub.Sp1Groth16Verifier.UnitTests.csproj
+          --filter FullyQualifiedName~UT_FreshContractArtifacts
+          /p:NuGetAudit=false
+          --nologo
+
       - name: Verify N4 L2 native contracts in r3e Neo core
         run: |
           dotnet test external/neo/tests/Neo.UnitTests/Neo.UnitTests.csproj \
@@ -190,7 +204,7 @@ jobs:
   bridge:
     name: cargo check (Rust bridge)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - name: Checkout (with submodules)
@@ -201,6 +215,23 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Override nuget.config for the Neo submodule
+        run: |
+          cat > external/neo/nuget.config <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="NuGet.org" value="https://api.nuget.org/v3/index.json" />
+            </packageSources>
+          </configuration>
+          EOF
+
       # neo-riscv-host: PolkaVM-backed Neo RISC-V execution engine vendored at
       # external/neo-riscv-vm. C# project Neo.L2.Executor.RiscV P/Invokes into
       # the produced libneo_riscv_host.so. cargo check (not build) keeps CI
@@ -208,6 +239,18 @@ jobs:
       - name: cargo check (neo-riscv-host)
         working-directory: external/neo-riscv-vm
         run: cargo check -p neo-riscv-host
+
+      - name: Verify native RISC-V FFI state mapping
+        run: |
+          cargo build --release -p neo-riscv-host --manifest-path external/neo-riscv-vm/Cargo.toml
+          dotnet build tests/Neo.L2.Executor.RiscV.UnitTests/Neo.L2.Executor.RiscV.UnitTests.csproj \
+            /p:NuGetAudit=false --nologo
+          cp external/neo-riscv-vm/target/release/libneo_riscv_host.so \
+            tests/Neo.L2.Executor.RiscV.UnitTests/bin/Debug/net10.0/
+          NEO_RISCV_NATIVE_TESTS=1 dotnet test \
+            tests/Neo.L2.Executor.RiscV.UnitTests/Neo.L2.Executor.RiscV.UnitTests.csproj \
+            /p:NuGetAudit=false --nologo --no-build \
+            --filter FullyQualifiedName~RealNativeAbi_MapsHaltZeroAndFaultOne
 
       # neo-zkvm-guest: the Rust crate that compiles to RISC-V ELF inside SP1's
       # zkVM. Host-side compilation + tests pin the deterministic execution
@@ -286,7 +329,7 @@ jobs:
   sp1-host:
     name: cargo build + test (neo-zkvm-host, real SP1 zkVM)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 90
 
     steps:
       - name: Checkout (with submodules)
@@ -348,7 +391,7 @@ jobs:
         run: cargo test --workspace --release --locked
 
       - name: cargo test (neo-zkvm-host, real proof)
-        if: github.event_name == 'workflow_dispatch' && inputs.run_real_sp1_proof
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_real_sp1_proof)
         working-directory: bridge/neo-zkvm-host
         run: cargo test --release --locked -- --ignored --nocapture
 
@@ -397,6 +440,27 @@ jobs:
           npm test
           npm run build
           npm --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000 audit --audit-level=moderate
+
+  sdk-python:
+    name: Python SDK
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install, test, and build distribution
+        working-directory: sdk/python
+        run: |
+          python -m pip install --upgrade pip build
+          python -m pip install --editable .
+          python -m unittest discover --start-directory tests --verbose
+          python -m build
 
   # Foundry test pass for the foreign EVM router at
   # external/foreign-contracts/eth — 32 single-chain + 7 multi-chain

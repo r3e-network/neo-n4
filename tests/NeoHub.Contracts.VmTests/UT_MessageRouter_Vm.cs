@@ -36,6 +36,13 @@ public abstract class MockMessageRouter_GovernanceController(SmartContractInitia
     public abstract bool? MatchesProposalPayload(BigInteger? proposalId, byte[]? expectedPayload);
 }
 
+/// <summary>Canonical finalized-message-root surface exposed by SettlementManager.</summary>
+public abstract class MockMessageRouter_SettlementManager(SmartContractInitialize initialize) : SmartContract(initialize)
+{
+    [DisplayName("getL2ToL1MessageRoot")]
+    public abstract UInt256? GetL2ToL1MessageRoot(BigInteger? chainId, BigInteger? batchNumber);
+}
+
 /// <summary>
 /// VM-level tests for NeoHub.MessageRouter — the cross-chain messaging hub. Executes the enqueue /
 /// consume / publish-root / filter paths in a real NeoVM and pins the security-critical invariants:
@@ -51,6 +58,7 @@ public class UT_MessageRouter_Vm
     private const uint ChainB = 2002;
     private static readonly UInt160 FilterHash = UInt160.Parse("0x" + new string('f', 40));
     private static readonly UInt160 OtherSm = UInt160.Parse("0x" + new string('3', 40));
+    private static readonly UInt160 SettlementManagerHash = UInt160.Parse("0x" + new string('4', 40));
     private static readonly UInt160 Receiver = UInt160.Parse("0x" + new string('c', 40));
     private static readonly UInt160 ZkVerifierHash = UInt160.Parse("0x" + new string('9', 40));
     private static readonly UInt160 GovernanceControllerHash = UInt160.Parse("0x" + new string('8', 40));
@@ -72,6 +80,31 @@ public class UT_MessageRouter_Vm
     }
 
     private static UInt256 FilledHash(byte value) => new(Enumerable.Repeat(value, 32).ToArray());
+
+    private static UInt256 PairRoot(UInt256 left, UInt256 right)
+    {
+        var input = new byte[64];
+        left.GetSpan().CopyTo(input);
+        right.GetSpan().CopyTo(input.AsSpan(32));
+        return new UInt256(Crypto.Hash256(input));
+    }
+
+    private static void WireFinalizedL2ToL1Root(
+        TestEngine engine,
+        UInt256 root,
+        uint sourceChainId = ChainA,
+        ulong batchNumber = 5)
+    {
+        engine.FromHash<MockMessageRouter_SettlementManager>(SettlementManagerHash, mock =>
+        {
+            mock.Setup(contract => contract.GetL2ToL1MessageRoot(
+                    It.IsAny<BigInteger?>(), It.IsAny<BigInteger?>()))
+                .Returns(UInt256.Zero);
+            mock.Setup(contract => contract.GetL2ToL1MessageRoot(
+                    (BigInteger)sourceChainId, (BigInteger)batchNumber))
+                .Returns(root);
+        }, checkExistence: false);
+    }
 
     private static void ConfigureAndLockGateway(TestEngine engine, NeoHubMessageRouter router)
     {
@@ -163,26 +196,58 @@ public class UT_MessageRouter_Vm
     }
 
     [TestMethod]
-    public void MarkConsumed_BySettlementManager_ConsumeOnce_ReplayProtected()
+    public void ConsumeL2ToL1_ValidFinalizedProof_ConsumeOnce_ReplayProtected()
     {
         var engine = new TestEngine(true);
-        var mr = Deploy(engine); // settlementManager == engine.Sender
+        var sibling = FilledHash(0x22);
+        WireFinalizedL2ToL1Root(engine, PairRoot(MsgHash, sibling));
+        var mr = Deploy(engine, settlementManager: SettlementManagerHash);
+        IList<object> proof = new object[] { sibling.GetSpan().ToArray() };
 
         Assert.IsFalse(mr.IsConsumed(MsgHash));
-        mr.MarkConsumed(ChainA, MsgHash);
+        mr.ConsumeL2ToL1(ChainA, 5, MsgHash, proof, 0);
         Assert.IsTrue(mr.IsConsumed(MsgHash));
-        Assert.ThrowsExactly<TestException>(() => mr.MarkConsumed(ChainA, MsgHash), "double consume must fault");
+        Assert.ThrowsExactly<TestException>(() => mr.ConsumeL2ToL1(ChainA, 5, MsgHash, proof, 0),
+            "double consume must fault");
     }
 
     [TestMethod]
-    public void MarkConsumed_NonSettlementManager_Faults()
+    public void ConsumeL2ToL1_MissingFinalizedRootOrInvalidProof_FaultsWithoutConsuming()
     {
         var engine = new TestEngine(true);
-        var mr = Deploy(engine, settlementManager: OtherSm); // SM witness will not be present
+        WireFinalizedL2ToL1Root(engine, UInt256.Zero);
+        var mr = Deploy(engine, settlementManager: SettlementManagerHash);
 
-        Assert.ThrowsExactly<TestException>(() => mr.MarkConsumed(ChainA, MsgHash),
-            "MarkConsumed is settlement-manager-gated");
-        Assert.IsFalse(mr.IsConsumed(MsgHash), "rejected consume must not set state");
+        Assert.ThrowsExactly<TestException>(() =>
+            mr.ConsumeL2ToL1(ChainA, 5, MsgHash, Array.Empty<object>(), 0));
+        Assert.IsFalse(mr.IsConsumed(MsgHash), "unfinalized root must not consume the message");
+
+        var secondEngine = new TestEngine(true);
+        WireFinalizedL2ToL1Root(secondEngine, PairRoot(MsgHash, FilledHash(0x22)));
+        var secondRouter = Deploy(secondEngine, settlementManager: SettlementManagerHash);
+        IList<object> wrongProof = new object[] { FilledHash(0x23).GetSpan().ToArray() };
+
+        Assert.ThrowsExactly<TestException>(() =>
+            secondRouter.ConsumeL2ToL1(ChainA, 5, MsgHash, wrongProof, 0));
+        Assert.IsFalse(secondRouter.IsConsumed(MsgHash), "invalid proof must not set state");
+    }
+
+    [TestMethod]
+    public void ConsumeL2ToL1_RejectsNonCanonicalIndexMalformedSiblingAndLegacyBypass()
+    {
+        var engine = new TestEngine(true);
+        var sibling = FilledHash(0x22);
+        WireFinalizedL2ToL1Root(engine, PairRoot(MsgHash, sibling));
+        var mr = Deploy(engine, settlementManager: SettlementManagerHash);
+
+        Assert.ThrowsExactly<TestException>(() => mr.ConsumeL2ToL1(
+            ChainA, 5, MsgHash, new object[] { sibling.GetSpan().ToArray() }, 2));
+        Assert.ThrowsExactly<TestException>(() => mr.ConsumeL2ToL1(
+            ChainA, 5, MsgHash, new object[] { new byte[31] }, 0));
+        Assert.IsFalse(mr.IsConsumed(MsgHash));
+
+        Assert.IsFalse(NeoHubMessageRouter.Manifest.Abi.Methods.Any(method => method.Name == "markConsumed"),
+            "the witness-only arbitrary-hash bypass must not remain in the ABI");
     }
 
     [TestMethod]

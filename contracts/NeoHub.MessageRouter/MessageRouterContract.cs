@@ -40,6 +40,7 @@ public class MessageRouterContract : SmartContract
     private const byte PrefixSettlementManager = 0xFD;
     private const byte KeyOwner = 0xFF;
     private const int MaxAggregatedProofBytes = 1 * 1024 * 1024;
+    private const int MaxMessageProofDepth = 64;
     private const byte PassThroughRoundBackend = 0xFE;
     private const byte PassThroughAggregateBackend = 0xFF;
 
@@ -524,13 +525,39 @@ public class MessageRouterContract : SmartContract
     }
 
     /// <summary>
-    /// Mark a message hash as consumed. The Merkle proof check happens off-chain (or via a
-    /// separate proof helper) and is the caller's responsibility. Replay-protected.
+    /// Permissionlessly consume an L2→L1 message after proving that its canonical message hash is
+    /// included in a finalized batch's L2→L1 message root. Replay-protected.
     /// </summary>
-    public static void MarkConsumed(uint sourceChainId, UInt256 messageHash)
+    /// <remarks>
+    /// See doc.md §3.2 (MessageRouter) and §10 (Neo Connect). The root is read from
+    /// SettlementManager's finalized canonical batch header; a settlement witness cannot replace
+    /// the Merkle proof. Siblings are ordered from leaf to root and use Neo Hash256 over
+    /// <c>left || right</c>. Bit i of <paramref name="leafIndex"/> selects the leaf's side at
+    /// level i.
+    /// </remarks>
+    public static void ConsumeL2ToL1(
+        uint sourceChainId,
+        ulong batchNumber,
+        UInt256 messageHash,
+        byte[][] siblings,
+        ulong leafIndex)
     {
+        ExecutionEngine.Assert(sourceChainId > 0, "sourceChainId 0 is reserved for L1");
+        ExecutionEngine.Assert(!messageHash.Equals(UInt256.Zero), "message hash must be non-zero");
+        ExecutionEngine.Assert(siblings != null, "siblings required");
+        var proofSiblings = siblings!;
+        ExecutionEngine.Assert(proofSiblings.Length <= MaxMessageProofDepth, "proof too deep");
+
         var sm = (UInt160)(Storage.Get(new byte[] { PrefixSettlementManager }) ?? throw new Exception("sm unset"));
-        ExecutionEngine.Assert(Runtime.CheckWitness(sm), "not settlement manager");
+        var root = (UInt256)Contract.Call(
+            sm,
+            "getL2ToL1MessageRoot",
+            CallFlags.ReadOnly,
+            new object[] { sourceChainId, batchNumber });
+        ExecutionEngine.Assert(!root.Equals(UInt256.Zero), "batch is not finalized or has no L2-to-L1 messages");
+        ExecutionEngine.Assert(VerifyMerkleProof(messageHash, root, proofSiblings, leafIndex),
+            "invalid L2-to-L1 message proof");
+
         var key = ConsumedKey(messageHash);
         ExecutionEngine.Assert(Storage.Get(key) == null, "already consumed");
         Storage.Put(key, new byte[] { 1 });
@@ -542,6 +569,39 @@ public class MessageRouterContract : SmartContract
     public static bool IsConsumed(UInt256 messageHash)
     {
         return Storage.Get(ConsumedKey(messageHash)) != null;
+    }
+
+    private static bool VerifyMerkleProof(
+        UInt256 leafHash,
+        UInt256 expectedRoot,
+        byte[][] siblings,
+        ulong leafIndex)
+    {
+        var current = (byte[])leafHash;
+        var index = leafIndex;
+        for (var level = 0; level < siblings.Length; level++)
+        {
+            var sibling = siblings[level];
+            ExecutionEngine.Assert(sibling != null && sibling.Length == 32,
+                "sibling must be 32 bytes");
+            var combined = new byte[64];
+            if ((index & 1UL) == 0UL)
+            {
+                for (var i = 0; i < 32; i++) combined[i] = current[i];
+                for (var i = 0; i < 32; i++) combined[32 + i] = sibling[i];
+            }
+            else
+            {
+                for (var i = 0; i < 32; i++) combined[i] = sibling[i];
+                for (var i = 0; i < 32; i++) combined[32 + i] = current[i];
+            }
+
+            var first = CryptoLib.Sha256((ByteString)combined);
+            current = (byte[])CryptoLib.Sha256(first);
+            index >>= 1;
+        }
+
+        return index == 0 && expectedRoot.Equals((UInt256)current);
     }
 
     private static byte[] NonceKey(uint chainId)

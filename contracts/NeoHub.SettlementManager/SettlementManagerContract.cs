@@ -500,12 +500,39 @@ public class SettlementManagerContract : SmartContract
         return raw == null ? StatusUnknown : ((byte[])raw)[0];
     }
 
+    /// <summary>
+    /// Return the L2→L1 message root committed by a finalized batch, or zero while the batch is
+    /// unknown, pending, challengeable, or reverted.
+    /// </summary>
+    /// <remarks>See doc.md §3.2 (MessageRouter) and §10 (Neo Connect).</remarks>
+    [Safe]
+    public static UInt256 GetL2ToL1MessageRoot(uint chainId, ulong batchNumber) =>
+        GetFinalizedBatchRoot(chainId, batchNumber, L2ToL1MessageRootOffset);
+
+    /// <summary>
+    /// Return the L2→L2 message root committed by a finalized batch, or zero while the batch is
+    /// unknown, pending, challengeable, or reverted.
+    /// </summary>
+    /// <remarks>See doc.md §3.2 (MessageRouter) and §10 (Neo Connect).</remarks>
+    [Safe]
+    public static UInt256 GetL2ToL2MessageRoot(uint chainId, ulong batchNumber) =>
+        GetFinalizedBatchRoot(chainId, batchNumber, L2ToL2MessageRootOffset);
+
     /// <summary>Latest finalized batch number for a chain.</summary>
     [Safe]
     public static ulong GetLatestFinalizedBatch(uint chainId)
     {
         var raw = Storage.Get(LatestBatchKey(chainId));
         return raw == null ? 0UL : (ulong)(BigInteger)raw;
+    }
+
+    private static UInt256 GetFinalizedBatchRoot(uint chainId, ulong batchNumber, int rootOffset)
+    {
+        if (GetBatchStatus(chainId, batchNumber) != StatusFinalized)
+            return UInt256.Zero;
+
+        var header = Storage.Get(BatchHeaderKey(chainId, batchNumber));
+        return header == null ? UInt256.Zero : ReadUInt256((byte[])header, rootOffset);
     }
 
     /// <summary>

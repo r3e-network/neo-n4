@@ -373,11 +373,17 @@ public class UT_SettlementManager_Vm
         var (c1, l1, blk) = BuildCommitment(batch: 1, preState: R(0x00), postState: post1, withdrawalRoot: R(0x51));
         sm.SubmitBatch(c1, l1, blk);
         Assert.AreEqual((BigInteger)1, sm.GetBatchStatus(ChainId, 1), "batch 1 should be Pending(1)");
+        Assert.AreEqual(UInt256.Zero, sm.GetL2ToL1MessageRoot(ChainId, 1),
+            "pending message roots must not be consumable");
+        Assert.AreEqual(UInt256.Zero, sm.GetL2ToL2MessageRoot(ChainId, 1),
+            "pending message roots must not be consumable");
 
         sm.FinalizeBatch(ChainId, 1);
         Assert.AreEqual((BigInteger)3, sm.GetBatchStatus(ChainId, 1), "batch 1 should be Finalized(3)");
         Assert.AreEqual(new UInt256(post1), sm.GetCanonicalStateRoot(ChainId), "canonical root must be batch 1 postState");
         Assert.AreEqual((BigInteger)1, sm.GetLatestFinalizedBatch(ChainId));
+        Assert.AreEqual(new UInt256(R(0x06)), sm.GetL2ToL1MessageRoot(ChainId, 1));
+        Assert.AreEqual(new UInt256(R(0x07)), sm.GetL2ToL2MessageRoot(ChainId, 1));
     }
 
     [TestMethod]

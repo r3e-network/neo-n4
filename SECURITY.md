@@ -82,8 +82,10 @@ in non-sensitive surfaces.
 The framework provides the cryptographic primitives, replay protection, and
 auth gates. Operators are responsible for:
 
-- **L1 signer integration** — wire `RpcSettlementClient.SignAndSendAsync` to
-  KMS / HSM / hot-wallet-with-thresholds. See `docs/wallet-integration.md`.
+- **L1 signer integration** — implement `INeoTransactionSigner` with a KMS / HSM
+  or threshold wallet and use it through `RpcTransactionSender`. The bundled
+  `LocalKeyTransactionSigner` is for controlled local/test deployments, not a
+  production key-custody design. See `docs/wallet-integration.md`.
 - **Key management** — `neo-external-bridge genkey` writes private keys 0600
   on POSIX; rotate via committee-replacement governance proposals.
 - **Production deployment refusal** — do NOT register
@@ -91,9 +93,10 @@ auth gates. Operators are responsible for:
   exists for devnet acceptance testing only and is excluded from
   `neo-hub-deploy`'s default bundle. Deploy CI should refuse a registration
   whose `bridgeKind == 0`.
-- **`SetFee` / `SetFeeRecipient` configuration** — `NeoHub.ForcedInclusion`
-  ships with `fee == 0` (legacy fee-free path). Production deployments
-  configure a non-zero anti-spam fee.
+- **Forced-inclusion anti-spam configuration** — development deployments may
+  remain fee-free, but production `neo-hub-deploy` requires a positive fee,
+  GAS token, accountable fee recipient, bond/slash wiring, and a successful
+  `ForcedInclusion.IsProductionReady` post-deploy check. Do not bypass that gate.
 - **Verifier-upgrade governance** — use `RegisterVerifierViaProposal` (with
   council threshold + timelock) rather than the owner-only `RegisterVerifier`
   for production upgrades.
@@ -114,13 +117,19 @@ will be credited as "Anonymous" or under a handle of their choosing.
 
 ## Verifying releases
 
-All release tags are signed. Verify with:
+No production release tag has been published yet. The repository's `0.1.0`
+package version is pre-release metadata, not evidence that a `v0.1.0` tag or
+binary release exists. Until the first release, deploy only an explicitly
+reviewed commit and record the superproject plus every submodule SHA.
+
+The release policy requires signed tags and published maintainer keys. Once a
+release exists, verify its actual tag with:
 
 ```bash
-git verify-tag v0.1.0
+git tag --verify <published-tag>
 ```
 
-Public keys for current maintainers live in `docs/security-model.md`.
+Do not infer release authenticity from a version string or an unsigned archive.
 
 ## Related documentation
 

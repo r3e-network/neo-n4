@@ -31,7 +31,7 @@ The web app vendors the JS SDK inline (zero build tooling) so operators
 can drop `web-explorer/index.html` onto any static-file host with no
 build step.
 
-## Why three languages
+## Why four typed languages
 
 dApp developers building on top of an L2 chain use whatever they're
 already using. Forcing them onto one language stack costs adoption.

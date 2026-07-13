@@ -338,8 +338,9 @@ The security stack is layered:
 - `OptimisticChallenge` coordinates challenges over submitted batches.
 - `GovernanceFraudVerifier` verifies structural v1/v2 fraud payloads used by
   governance arbitration.
-- `RestrictedExecutionFraudVerifier` verifies v3 storage-proof based fraud
-  payloads by re-deriving pre/post roots without governance arbitration.
+- `RestrictedExecutionFraudVerifier` keeps v3 storage-proof payloads governance-only;
+  v4 reads the committed SettlementManager header and executes the declared
+  single-transaction Counter semantic before permissionless slashing.
 
 ## 12. External bridge data flow
 
@@ -414,7 +415,7 @@ be visible through events and operator runbooks.
 | `ForcedInclusion` | Store user-posted forced transactions and inclusion deadlines. | Chain id, sender, transaction bytes, deadline policy. | Forced transaction queued/consumed/expired. | Users, L2 sequencer, challenge tooling. |
 | `OptimisticChallenge` | Run optimistic fraud challenge flow over disputed batches. | Chain id, batch number, challenger, fraud payload, verifier. | Challenge opened/accepted/rejected; batch status updated. | Challengers, settlement, sequencer bond. |
 | `GovernanceFraudVerifier` | Validate structural v1/v2 fraud payloads for governance-mediated challenges. | Versioned fraud payload, claimed/replayed roots, optional witness. | FraudProofAccepted or FraudProofRejected with reason code. | `OptimisticChallenge`, governance challenge path. |
-| `RestrictedExecutionFraudVerifier` | Validate v3 storage-proof fraud payloads by re-deriving pre/post roots. | V3 payload, storage proofs, claimed/replayed roots, disputed tx witness. | FraudProofAccepted or FraudProofRejected with precise reason. | `OptimisticChallenge`, trustless restricted re-execution path. |
+| `RestrictedExecutionFraudVerifier` | Validate governance-only structural v3 or committed-root-bound executable restricted v4. | V3 evidence, or v4 chain/batch/root/transcript/claim/tx/storage witness. | False for honest/invalid/unsupported claims; true only for a wrong committed Counter transition. | `OptimisticChallenge`; v4 single-tx Counter profile, not general NeoVM. |
 | `MpcCommitteeVerifier` | Verify external-chain committee signatures and signer threshold. | External event hash, committee signatures, signer metadata. | External event accepted/rejected. | Watchers, `ExternalBridgeEscrow`. |
 | `MpcCommitteeFraudVerifier` | Challenge or slash incorrect external committee attestations. | Fraud proof over committee-signed external event. | Fraud accepted/rejected; slashing path enabled. | Challengers, `ExternalBridgeBond`. |
 | `ExternalBridgeRegistry` | Register foreign chains, asset routes, and bridge adapters. | External chain id, foreign asset/router, Neo asset/chain route. | External route registered/updated. | Operator/governance, `ExternalBridgeEscrow`. |

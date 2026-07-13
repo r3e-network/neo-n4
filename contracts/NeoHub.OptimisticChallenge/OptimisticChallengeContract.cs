@@ -16,11 +16,15 @@ namespace NeoHub.OptimisticChallenge;
 /// SequencerBond.Slash and pays the challenger.
 /// </summary>
 /// <remarks>
-/// See doc.md §15 (key flows), §17 (sequencer-fraud mitigations), §18 Phase 3.
+/// Permissionless value-bearing challenges require a v4 profile bound to the exact chain,
+/// verifier, executor semantic id, and replay domain. Versions v1/v2/v3 and every unregistered
+/// v4 profile require the governance owner witness. Successful v4 claim ids are globally
+/// consumed, and accepted/consumed effects are written before external revert/slash calls;
+/// a fault rolls the whole transaction back atomically. See doc.md §15, §17, and §18 Phase 3.
 /// </remarks>
 [DisplayName("NeoHub.OptimisticChallenge")]
 [ContractAuthor("Neo Project", "dev@neo.org")]
-[ContractDescription("Phase-3 optimistic-rollup challenge window for Neo Elastic Network.")]
+[ContractDescription("Versioned optimistic challenge window with profile-bound executable v4 fraud proofs.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.OptimisticChallenge")]
 [ContractPermission(Permission.Any, Method.Any)]
@@ -32,7 +36,9 @@ public class OptimisticChallengeContract : SmartContract
     private const byte KeyChallengeWindowSeconds = 0x04;
     private const byte KeyChallengerRewardBps = 0x05;
     private const byte PrefixApprovedVerifier = 0x06; // 0x06 + verifier(20B) → 1 (allowlist gate)
-    private const byte PrefixPermissionlessVerifier = 0x07; // 0x07 + verifier(20B) → 1 (can auto-slash/revert)
+    private const byte PrefixPermissionlessProfile = 0x07; // chain + verifier → semanticId || replayDomain || generation
+    private const byte PrefixConsumedClaim = 0x08; // 0x08 + claimId(32B) → 1
+    private const byte PrefixVerifierProfileGeneration = 0x09; // 0x09 + verifier(20B) → generation
     private const byte KeySettlementManager = 0xFC;
     private const byte KeySequencerBond = 0xFD;
     private const byte KeyOwner = 0xFF;
@@ -45,6 +51,21 @@ public class OptimisticChallengeContract : SmartContract
 
     /// <summary>Total basis points in a slash split.</summary>
     public const ushort BasisPointsTotal = 10_000;
+
+    /// <summary>Trustless restricted fraud-proof version.</summary>
+    public const byte TrustlessPayloadVersion = 4;
+
+    /// <summary>Offset of replayDomain in a v4 payload.</summary>
+    public const int V4ReplayDomainOffset = 1;
+
+    /// <summary>Offset of executorSemanticId in a v4 payload.</summary>
+    public const int V4ExecutorSemanticIdOffset = 33;
+
+    /// <summary>Offset of claimId in a v4 payload.</summary>
+    public const int V4ClaimIdOffset = 65;
+
+    /// <summary>Minimum bytes required to read the v4 permissionless profile binding.</summary>
+    public const int V4BindingHeaderSize = 97;
 
     /// <summary>Emitted when SettlementManager opens the challenge window for a batch.</summary>
     [DisplayName("WindowOpened")]
@@ -65,6 +86,10 @@ public class OptimisticChallengeContract : SmartContract
     /// <summary>Emitted when governance marks a verifier safe for permissionless auto-slash/revert.</summary>
     [DisplayName("PermissionlessVerifierApproved")]
     public static event Action<UInt160> OnPermissionlessVerifierApproved = default!;
+
+    /// <summary>Emitted when governance binds a permissionless verifier profile to one chain.</summary>
+    [DisplayName("FraudProfileApproved")]
+    public static event Action<uint, UInt160, UInt256, UInt256> OnPermissionlessFraudProfileApproved = default!;
 
     /// <summary>Emitted when governance removes a fraud-verifier from the allowlist.</summary>
     [DisplayName("FraudVerifierRevoked")]
@@ -170,35 +195,97 @@ public class OptimisticChallengeContract : SmartContract
     /// verifier disables it for future challenges but does not undo past challenges that
     /// it accepted.
     /// <para>
-    /// NOTE: both <c>GovernanceFraudVerifier</c> and <c>RestrictedExecutionFraudVerifier</c>
-    /// are STRUCTURAL verifiers — they check the proof against the challenger-supplied payload
-    /// header only, NOT against the sequencer's on-chain batch commitment. Register them via
-    /// this method (approved-only, owner/governance co-sign required at Challenge time); do
-    /// NOT pass them to <see cref="RegisterPermissionlessFraudVerifier"/> until a verifier
-    /// binds acceptance to the committed batch roots.
+    /// Use this approved-only path for <c>GovernanceFraudVerifier</c> v1/v2 and
+    /// <c>RestrictedExecutionFraudVerifier</c> v3. A configured restricted verifier's v4
+    /// path may instead use <see cref="RegisterPermissionlessFraudProfile"/>, which binds
+    /// its exact chain, SettlementManager, semantic id, and replay domain.
     /// </para>
     /// </remarks>
     public static void RegisterFraudVerifier(UInt160 verifier)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero, "invalid verifier");
+        BumpVerifierProfileGeneration(verifier);
         Storage.Put(ApprovedVerifierKey(verifier), new byte[] { 1 });
         OnFraudVerifierApproved(verifier);
     }
 
     /// <summary>
-    /// Mark a fraud verifier safe for permissionless challenges. Owner only.
-    /// Use only for verifiers that cryptographically bind proof truth to the disputed
-    /// batch; structural/council-arbitrated verifiers should remain approved-only.
+    /// Legacy global permissionless registration is disabled because it cannot bind a verifier
+    /// to one chain, executor semantic id, and replay domain.
     /// </summary>
     public static void RegisterPermissionlessFraudVerifier(UInt160 verifier)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero, "invalid verifier");
+        ExecutionEngine.Assert(false,
+            "global permissionless verifier profiles are disabled; use registerPermissionlessFraudProfile");
+    }
+
+    /// <summary>
+    /// Bind a v4 trustless verifier to one chain, executor semantic id, and replay domain.
+    /// Owner only.
+    /// </summary>
+    /// <remarks>
+    /// See doc.md §15 and §17. Registration introspects the verifier so a typo cannot pair the
+    /// profile with a different SettlementManager, semantic implementation, or replay domain.
+    /// </remarks>
+    public static void RegisterPermissionlessFraudProfile(
+        uint chainId,
+        UInt160 verifier,
+        UInt256 executorSemanticId,
+        UInt256 replayDomain)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
+        ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero, "invalid verifier");
+        ExecutionEngine.Assert(!executorSemanticId.Equals(UInt256.Zero), "executor semantic id is zero");
+        ExecutionEngine.Assert(!replayDomain.Equals(UInt256.Zero), "replay domain is zero");
+
+        var configuredSettlementManager = (UInt160)Contract.Call(
+            verifier,
+            "getSettlementManager",
+            CallFlags.ReadOnly,
+            new object[0]);
+        var expectedSettlementManager =
+            (UInt160)(Storage.Get(new byte[] { KeySettlementManager }) ?? throw new Exception("sm unset"));
+        ExecutionEngine.Assert(configuredSettlementManager.Equals(expectedSettlementManager),
+            "verifier settlement manager mismatch");
+
+        var configuredSemanticId = (UInt256)Contract.Call(
+            verifier,
+            "getExecutorSemanticId",
+            CallFlags.ReadOnly,
+            new object[0]);
+        var configuredReplayDomain = (UInt256)Contract.Call(
+            verifier,
+            "getReplayDomain",
+            CallFlags.ReadOnly,
+            new object[0]);
+        ExecutionEngine.Assert(configuredSemanticId.Equals(executorSemanticId),
+            "verifier executor semantic id mismatch");
+        ExecutionEngine.Assert(configuredReplayDomain.Equals(replayDomain),
+            "verifier replay domain mismatch");
+
+        var generation = GetVerifierProfileGeneration(verifier);
+        if (generation == 0) generation = BumpVerifierProfileGeneration(verifier);
+        var profile = new byte[68];
+        var semanticBytes = (byte[])executorSemanticId;
+        var replayBytes = (byte[])replayDomain;
+        for (var index = 0; index < 32; index++)
+        {
+            profile[index] = semanticBytes[index];
+            profile[32 + index] = replayBytes[index];
+        }
+        profile[64] = (byte)generation;
+        profile[65] = (byte)(generation >> 8);
+        profile[66] = (byte)(generation >> 16);
+        profile[67] = (byte)(generation >> 24);
         Storage.Put(ApprovedVerifierKey(verifier), new byte[] { 1 });
-        Storage.Put(PermissionlessVerifierKey(verifier), new byte[] { 1 });
+        Storage.Put(PermissionlessProfileKey(chainId, verifier), profile);
         OnFraudVerifierApproved(verifier);
         OnPermissionlessVerifierApproved(verifier);
+        OnPermissionlessFraudProfileApproved(chainId, verifier, executorSemanticId, replayDomain);
     }
 
     /// <summary>Remove a fraud-verifier from the allowlist. Owner-gated.</summary>
@@ -206,8 +293,8 @@ public class OptimisticChallengeContract : SmartContract
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero, "invalid verifier");
+        BumpVerifierProfileGeneration(verifier);
         Storage.Delete(ApprovedVerifierKey(verifier));
-        Storage.Delete(PermissionlessVerifierKey(verifier));
         OnFraudVerifierRevoked(verifier);
     }
 
@@ -219,12 +306,49 @@ public class OptimisticChallengeContract : SmartContract
         return Storage.Get(ApprovedVerifierKey(verifier)) != null;
     }
 
-    /// <summary>True iff <paramref name="verifier"/> may auto-slash/revert without owner co-sign.</summary>
+    /// <summary>
+    /// Legacy global permissionless state is always false; permissionless authorization is
+    /// profile-scoped through <see cref="IsPermissionlessFraudProfile"/>.
+    /// </summary>
     [Safe]
     public static bool IsPermissionlessFraudVerifier(UInt160 verifier)
     {
-        if (!verifier.IsValid || verifier.IsZero) return false;
-        return Storage.Get(PermissionlessVerifierKey(verifier)) != null;
+        return false;
+    }
+
+    /// <summary>True when the exact chain, verifier, semantic id, and replay domain are registered.</summary>
+    [Safe]
+    public static bool IsPermissionlessFraudProfile(
+        uint chainId,
+        UInt160 verifier,
+        UInt256 executorSemanticId,
+        UInt256 replayDomain)
+    {
+        if (chainId == 0 || !verifier.IsValid || verifier.IsZero) return false;
+        var raw = Storage.Get(PermissionlessProfileKey(chainId, verifier));
+        if (raw == null) return false;
+        var profile = (byte[])raw;
+        if (profile.Length != 68) return false;
+        var storedGeneration = (uint)profile[64]
+            | ((uint)profile[65] << 8)
+            | ((uint)profile[66] << 16)
+            | ((uint)profile[67] << 24);
+        if (storedGeneration != GetVerifierProfileGeneration(verifier)) return false;
+        var semanticBytes = (byte[])executorSemanticId;
+        var replayBytes = (byte[])replayDomain;
+        for (var index = 0; index < 32; index++)
+        {
+            if (profile[index] != semanticBytes[index]) return false;
+            if (profile[32 + index] != replayBytes[index]) return false;
+        }
+        return true;
+    }
+
+    /// <summary>True when a v4 claim id has already finalized a challenge.</summary>
+    [Safe]
+    public static bool IsClaimConsumed(UInt256 claimId)
+    {
+        return Storage.Get(ConsumedClaimKey(claimId)) != null;
     }
 
     /// <summary>
@@ -252,9 +376,9 @@ public class OptimisticChallengeContract : SmartContract
     }
 
     /// <summary>
-    /// Submit a fraud proof against a pending optimistic batch. The on-chain check is shallow
-    /// (the proof bytes' shape — that's all storage knows about); the actual cryptographic
-    /// validation is a verifier-contract call.
+    /// Submit a fraud proof against a challengeable optimistic batch. Permissionless dispatch
+    /// is limited to registered v4 profiles; every older or unmatched payload needs governance
+    /// co-sign. Slashing proceeds only after the selected verifier returns true.
     /// </summary>
     /// <param name="fraudVerifier">Address of the contract that decodes + verifies the proof.</param>
     public static void Challenge(uint chainId, ulong batchNumber, UInt160 challenger, byte[] fraudProofBytes, UInt160 fraudVerifier)
@@ -273,8 +397,25 @@ public class OptimisticChallengeContract : SmartContract
         // RegisterFraudVerifier post-deploy for every shipped verifier
         // (GovernanceFraudVerifier, RestrictedExecutionFraudVerifier, …).
         ExecutionEngine.Assert(IsApprovedFraudVerifier(fraudVerifier), "fraud verifier not approved");
-        ExecutionEngine.Assert(
-            IsPermissionlessFraudVerifier(fraudVerifier) || Runtime.CheckWitness(GetOwner()),
+
+        var isV4 = fraudProofBytes.Length >= V4BindingHeaderSize
+            && fraudProofBytes[0] == TrustlessPayloadVersion;
+        var claimId = UInt256.Zero;
+        var permissionless = false;
+        if (isV4)
+        {
+            var replayDomain = SliceUInt256(fraudProofBytes, V4ReplayDomainOffset);
+            var executorSemanticId = SliceUInt256(fraudProofBytes, V4ExecutorSemanticIdOffset);
+            claimId = SliceUInt256(fraudProofBytes, V4ClaimIdOffset);
+            ExecutionEngine.Assert(!claimId.Equals(UInt256.Zero), "claim id is zero");
+            permissionless = IsPermissionlessFraudProfile(
+                chainId,
+                fraudVerifier,
+                executorSemanticId,
+                replayDomain);
+            ExecutionEngine.Assert(!IsClaimConsumed(claimId), "claim already consumed");
+        }
+        ExecutionEngine.Assert(permissionless || Runtime.CheckWitness(GetOwner()),
             "fraud verifier requires owner/governance co-sign");
 
         var deadlineKey = DeadlineKey(chainId, batchNumber);
@@ -315,6 +456,10 @@ public class OptimisticChallengeContract : SmartContract
         // reject a re-entrant Challenge, but a future "partial slash" refactor would lose
         // that coincidental safety — this ordering future-proofs against it.
         Storage.Put(AcceptedFraudKey(chainId, batchNumber), challenger);
+        if (isV4) Storage.Put(ConsumedClaimKey(claimId), new byte[] { 1 });
+
+        var sm = (UInt160)(Storage.Get(new byte[] { KeySettlementManager }) ?? throw new Exception("sm unset"));
+        Contract.Call(sm, "revertBatch", CallFlags.All, new object[] { chainId, batchNumber });
 
         // Pay challenger first. Skip the payout slash when the cut rounds down to 0
         // (residual bond too small for `rewardBps` to yield ≥ 1 unit) — SequencerBond.Slash
@@ -333,10 +478,6 @@ public class OptimisticChallengeContract : SmartContract
             Contract.Call(bondContract, "slash", CallFlags.All,
                 new object[] { chainId, sequencer, remaining, UInt160.Zero });
         }
-
-        // Tell SettlementManager the batch is reverted.
-        var sm = (UInt160)(Storage.Get(new byte[] { KeySettlementManager }) ?? throw new Exception("sm unset"));
-        Contract.Call(sm, "revertBatch", CallFlags.All, new object[] { chainId, batchNumber });
 
         OnChallengeAccepted(chainId, batchNumber, challenger, bondBalance);
     }
@@ -393,13 +534,57 @@ public class OptimisticChallengeContract : SmartContract
         return k;
     }
 
-    private static byte[] PermissionlessVerifierKey(UInt160 verifier)
+    private static byte[] PermissionlessProfileKey(uint chainId, UInt160 verifier)
     {
-        var k = new byte[1 + 20];
-        k[0] = PrefixPermissionlessVerifier;
-        var b = (byte[])verifier;
-        for (var i = 0; i < 20; i++) k[1 + i] = b[i];
-        return k;
+        var key = new byte[1 + 4 + 20];
+        key[0] = PrefixPermissionlessProfile;
+        key[1] = (byte)chainId;
+        key[2] = (byte)(chainId >> 8);
+        key[3] = (byte)(chainId >> 16);
+        key[4] = (byte)(chainId >> 24);
+        var verifierBytes = (byte[])verifier;
+        for (var index = 0; index < 20; index++) key[5 + index] = verifierBytes[index];
+        return key;
+    }
+
+    private static byte[] ConsumedClaimKey(UInt256 claimId)
+    {
+        var key = new byte[1 + 32];
+        key[0] = PrefixConsumedClaim;
+        var claimBytes = (byte[])claimId;
+        for (var index = 0; index < 32; index++) key[1 + index] = claimBytes[index];
+        return key;
+    }
+
+    private static byte[] VerifierProfileGenerationKey(UInt160 verifier)
+    {
+        var key = new byte[1 + 20];
+        key[0] = PrefixVerifierProfileGeneration;
+        var verifierBytes = (byte[])verifier;
+        for (var index = 0; index < 20; index++) key[1 + index] = verifierBytes[index];
+        return key;
+    }
+
+    private static uint GetVerifierProfileGeneration(UInt160 verifier)
+    {
+        var raw = Storage.Get(VerifierProfileGenerationKey(verifier));
+        return raw == null ? 0u : (uint)(BigInteger)raw;
+    }
+
+    private static uint BumpVerifierProfileGeneration(UInt160 verifier)
+    {
+        var current = GetVerifierProfileGeneration(verifier);
+        ExecutionEngine.Assert(current < uint.MaxValue, "verifier profile generation exhausted");
+        var next = current + 1;
+        Storage.Put(VerifierProfileGenerationKey(verifier), (BigInteger)next);
+        return next;
+    }
+
+    private static UInt256 SliceUInt256(byte[] source, int offset)
+    {
+        var bytes = new byte[32];
+        for (var index = 0; index < 32; index++) bytes[index] = source[offset + index];
+        return (UInt256)bytes;
     }
 
     private static byte[] BuildKey(byte prefix, uint chainId, ulong number)

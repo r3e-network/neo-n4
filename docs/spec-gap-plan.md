@@ -120,25 +120,23 @@ fold loop byte-for-byte. New parity test
 cardinalities 1, 2, 3, 4, 5, 7, 8, 9, 15, 16 (including the previously-divergent
 odd cases), plus a `HashLeaf` ↔ `HashEntry` byte-identity pin.
 
-### §v4-fraud-verifier ⏭ deferred
+### §v4-fraud-verifier ✅ restricted profile / ⏭ general NeoVM
 
-`NeoHub.RestrictedExecutionFraudVerifier` (v3) reconstructs pre/post state
-roots from storage proofs and checks them against the payload header — i.e.
-it proves "the challenger has supplied storage manifests that fold to the
-declared roots AND claims a real discrepancy." It does NOT prove that
-re-executing the disputed transaction on the pre-state actually produces the
-challenger's `ReplayedPostStateRoot`. A v4 verifier closing that gap would
-need to:
+`NeoHub.RestrictedExecutionFraudVerifier` now preserves v3 as governance-only
+structural evidence and adds canonical v4. V4 reads SettlementManager's stored
+`Challengeable` optimistic header, binds chain/batch/pre/post/tx roots,
+transaction index, replay domain, semantic id, transcript/witness/claim hashes,
+verifies the single-leaf transaction proof, and executes one existing-key
+Counter Increment transition over a canonical old/new storage proof. Honest
+committed execution returns false; only a wrong committed post root returns true.
 
-  1. Seed an L1-side `ApplicationEngine` instance with a frozen view of the
-     pre-state restricted to the keys the storage proofs cover.
-  2. Execute the disputed transaction bytes (already present in the v2+ witness).
-  3. Compare the post-execution state root against `ReplayedPostStateRoot`.
-
-Blocked on upstream core exposing an `ApplicationEngine` restricted-snapshot
-mode (see "Upstream / out-of-repo" below). Until then, v3 acceptance means
-"structurally credible claim; a downstream re-execution service or council
-arbitrates correctness."
+The remaining gap is intentionally narrower: the batch commitment has no
+transaction count or intermediate trace root, and L1 has no general restricted
+NeoVM snapshot executor. Therefore v4 accepts only one transaction at index 0,
+interval `[0,1]`, semantic id
+`Hash256("neo4-executor:counter-increment-existing-key:v1")`. Multi-transaction
+bisection, arbitrary opcodes/custom executors, and key insertion/deletion fail
+closed until the commitment and execution engine expose those anchors/semantics.
 
 ## Upstream / out-of-repo (track but don't fix here)
 

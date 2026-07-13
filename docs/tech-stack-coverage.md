@@ -31,7 +31,7 @@ any other project's source.
 - **Governance + council + timelock** ✅ — `contracts/NeoHub.GovernanceController/`
 - **Emergency pause + escape hatch** ✅ — `contracts/NeoHub.EmergencyManager/`
 - **Fraud verifier (governance-arbitration mode reference)** ✅ — `contracts/NeoHub.GovernanceFraudVerifier/`
-- **Fraud verifier (trustless v3 — on-chain Merkle re-derivation)** ✅ — `contracts/NeoHub.RestrictedExecutionFraudVerifier/`
+- **Fraud verifier (governance-only structural v3 + committed-root-bound restricted executable v4)** ✅ — `contracts/NeoHub.RestrictedExecutionFraudVerifier/` (single-tx Counter profile only; general NeoVM ❌)
 
 **24 NeoHub contracts** (23 production + 1 test-only `ExternalBridgeStubVerifier`). All type-check via `Neo.SmartContract.Framework`; CI
 builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.

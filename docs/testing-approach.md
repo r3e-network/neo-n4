@@ -71,8 +71,10 @@ ZKsync's Foundry tests exercise both the contract and a reference Rust
 implementation, then diff. neo4 takes the same approach in C#: each on-chain
 verifier has a parity test that replicates its decision tree (`UT_OnChainMerkleVerifyParity`
 for SettlementManager, `UT_RestrictedExecutionFraudVerifierParity` for the
-v3 trustless fraud verifier, `UT_GovernanceFraudVerifierParity` for the v1/v2
-governance arbitration verifier, `UT_MpcFraudProof_RealCrypto` for the
+governance-only structural v3 path, `UT_RestrictedFraudProofV4` plus NeoVM tests
+for the SettlementManager-bound executable restricted v4 path,
+`UT_GovernanceFraudVerifierParity` for the v1/v2 governance arbitration verifier,
+and `UT_MpcFraudProof_RealCrypto` for the
 Phase-C MPC committee fraud verifier). Off-chain drift surfaces in unit tests
 rather than at runtime.
 

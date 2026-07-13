@@ -190,7 +190,8 @@ batchNumber, challenger, fraudProofBytes, fraudVerifier)` delegates the
 actual cryptographic check to a contract identified by the
 `fraudVerifier` argument.
 
-Three paths, all in the default `neo-hub-deploy plan` 23-step bundle:
+Four verifier modes are available; only the first two are ready from the
+default empty-deploy-data bundle:
 
   1. **Governance-arbitration mode** (the simplest operator-friendly path):
      deploy `NeoHub.GovernanceFraudVerifier`. It does a structural check
@@ -199,16 +200,23 @@ Three paths, all in the default `neo-hub-deploy plan` 23-step bundle:
      claims-a-real-discrepancy) and emits accept/reject events for the
      security council to arbitrate. Pass its deployed hash as
      `fraudVerifier` when filing a challenge.
-  2. **Trustless v3 mode** (no council arbitration): deploy
-     `NeoHub.RestrictedExecutionFraudVerifier`. It re-derives pre/post
-     state roots on-chain from each `FraudProofPayload` v3 storage proof
-     (leaf-hash + Merkle siblings + leafIndex) and checks them against
-     the v1 header's `PreStateRoot` and `ReplayedPostStateRoot`. A v3
-     payload that reconstructs cleanly + claims a real discrepancy is
-     accepted automatically. The challenger generates v3 payloads off-
-     chain (see `Neo.L2.Challenge.V3StorageProofVerifier` for the
-     reference + parity test against the on-chain logic).
-  3. **Custom verifier**: ship your own fraud verifier (e.g. one that
+  2. **Structural v3 governance mode**: the default bundle deploys
+     `NeoHub.RestrictedExecutionFraudVerifier` with empty data. V3 re-derives
+     challenger-supplied storage roots, but does not bind them to the committed
+     batch or execute the transaction; register it through approved-only
+     `RegisterFraudVerifier` and require governance co-sign.
+  3. **Permissionless restricted v4**: deploy
+     `NeoHub.RestrictedExecutionFraudVerifier` with
+     `[SettlementManager, replayDomain]`, then call
+     `RegisterPermissionlessFraudProfile(chainId, verifier,
+     executorSemanticId, replayDomain)`. The shipped semantic id covers exactly
+     one existing-key Counter Increment transaction. It binds the canonical
+     committed header/roots, tx proof, canonical degenerate `[0,1]` transcript, claim id, and
+     old/new storage proofs against the committed pre/post roots, then executes
+     that transition. Correct committed execution returns false; a wrong
+     committed root returns true. This mode is
+     not general NeoVM and is not yet emitted by the default deploy planner.
+  4. **Custom verifier**: ship your own fraud verifier (e.g. one that
      re-executes the disputed transaction on L1 with restricted state).
      Skip both reference verifiers from the deploy bundle and register
      your own verifier's hash. The `FraudProofPayload` v2 (DisputedTxBytes)
@@ -222,9 +230,13 @@ argument:
 ```
 # Note: for v1/v2 fraud proofs (governance arbitration),
 #       pass GovernanceFraudVerifier.Hash ...
-# Note: for v3 fraud proofs (trustless storage-proof re-derivation),
+# Note: for v3 fraud proofs (governance-only structural evidence),
 #       pass RestrictedExecutionFraudVerifier.Hash ...
 ```
+
+Do not interpret the legacy deploy-planner v3 note as permissionless
+authorization. `RegisterPermissionlessFraudVerifier` is disabled; value-bearing
+permissionless challenges require the explicit v4 profile registration above.
 
 ---
 

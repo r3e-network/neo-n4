@@ -390,6 +390,30 @@ public class UT_SettlementManager_Vm
     }
 
     [TestMethod]
+    public void GetChallengeableBatchHeader_ReturnsCanonicalStoredHeader_OnlyWhileChallengeable()
+    {
+        var engine = new TestEngine(true);
+        var sm = Deploy(engine, securityLevel: 0);
+        var (commitment, l1MessageHash, blockContextHash) = BuildCommitment(
+            batch: 1,
+            preState: R(0x00),
+            postState: R(0xA1),
+            withdrawalRoot: R(0x51),
+            proofType: 2);
+
+        Assert.ThrowsExactly<TestException>(() => sm.GetChallengeableBatchHeader(ChainId, 1));
+        sm.SubmitBatch(commitment, l1MessageHash, blockContextHash);
+
+        Assert.AreEqual((BigInteger)2, sm.GetBatchStatus(ChainId, 1));
+        CollectionAssert.AreEqual(
+            commitment.AsSpan(0, ProofBytesOffset).ToArray(),
+            sm.GetChallengeableBatchHeader(ChainId, 1)!);
+
+        sm.RevertBatch(ChainId, 1);
+        Assert.ThrowsExactly<TestException>(() => sm.GetChallengeableBatchHeader(ChainId, 1));
+    }
+
+    [TestMethod]
     public void SubmitBatch_RejectsTamperedPostStateRoot_C2Binding()
     {
         var engine = new TestEngine(true);

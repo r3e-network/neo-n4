@@ -96,7 +96,7 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
 - **Node plugins (8)** — `Neo.Plugins.L2{Batch, Bridge, DA, Gateway,
   Metrics, Prover, Rpc, Settlement}`.
 - **Smart contracts (24 deployable + 10 L2 native)** — 24 NeoHub L1 deployable contracts (23 production plus the test-only `ExternalBridgeStubVerifier`, incl. `DAValidator`, `L1TxFilter`, `ContractZkVerifier`, `GovernanceFraudVerifier`,
-  `RestrictedExecutionFraudVerifier` v3 trustless verifier, and the 6
+  `RestrictedExecutionFraudVerifier` governance-only v3 / restricted executable v4 verifier, and the 6
   cross-foreign-chain bridge contracts: `MpcCommitteeVerifier` /
   `ExternalBridgeRegistry` / `ExternalBridgeEscrow` /
   `ExternalBridgeBond` / `ExternalBridgeStubVerifier` /

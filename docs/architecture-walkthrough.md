@@ -61,7 +61,7 @@ is NOT proven.
 
 `Neo.L2.Batch.BatchBuilder.Seal` packs the `BatchExecutionResult` plus the proof bytes
 into an `L2BatchCommitment` record. `Neo.L2.Batch.BatchSerializer.Encode` produces the
-canonical 317-byte fixed prefix + variable proof bytes that `NeoHub.SettlementManager`
+canonical 321-byte fixed prefix + variable proof bytes that `NeoHub.SettlementManager`
 will decode (the byte format is documented in `BatchSerializer`'s XML doc).
 
 ### 6. Proving (multisig today, ZK in Phase 4)
@@ -112,6 +112,14 @@ feed the on-chain `publicInputHash` binding that the registered verifier checks.
 canonical state root, and bumps `latestFinalizedBatch[chainId]`. Challengeable
 optimistic batches can reach this path only through `OptimisticChallenge` after
 the window expires.
+
+During that window, legacy fraud payloads v1/v2/v3 remain governance-co-signed.
+Permissionless v4 is profile-scoped to one chain, verifier, executor semantic id,
+and replay domain. The restricted verifier reads SettlementManager's stored
+321-byte `Challengeable` header, executes one supported existing-key Counter
+Increment transition, and only reverts/slashes when the derived root differs from
+the committed post-state root. Multi-transaction and general NeoVM semantics fail
+closed.
 
 ### 9. Withdrawal claim (much later)
 

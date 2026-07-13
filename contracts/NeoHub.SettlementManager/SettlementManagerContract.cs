@@ -527,6 +527,35 @@ public class SettlementManagerContract : SmartContract
     public static UInt256 GetFinalizedTxRoot(uint chainId, ulong batchNumber) =>
         GetFinalizedBatchRoot(chainId, batchNumber, TxRootOffset);
 
+    /// <summary>
+    /// Return the canonical 321-byte commitment header for a challengeable optimistic batch.
+    /// </summary>
+    /// <remarks>
+    /// See doc.md §15 and §17. The returned bytes are the exact fixed portion of
+    /// <c>Neo.L2.Batch.BatchSerializer</c>'s stored commitment, including chainId, batchNumber,
+    /// pre/post state roots, txRoot, proof type, and proof length. Unknown, non-optimistic,
+    /// finalized, or reverted batches fail closed.
+    /// </remarks>
+    [Safe]
+    public static byte[] GetChallengeableBatchHeader(uint chainId, ulong batchNumber)
+    {
+        var rawStatus = Storage.Get(StatusKey(chainId, batchNumber));
+        ExecutionEngine.Assert(rawStatus != null, "batch unknown");
+        ExecutionEngine.Assert(((byte[])rawStatus!)[0] == StatusChallengeable,
+            "batch is not challengeable");
+
+        var rawHeader = Storage.Get(BatchHeaderKey(chainId, batchNumber));
+        ExecutionEngine.Assert(rawHeader != null, "batch header missing");
+        var stored = (byte[])rawHeader!;
+        ExecutionEngine.Assert(stored.Length >= ProofBytesOffset, "batch header truncated");
+        ExecutionEngine.Assert(stored[ProofTypeOffset] == ProofTypeOptimistic,
+            "batch is not optimistic");
+
+        var header = new byte[ProofBytesOffset];
+        for (var index = 0; index < ProofBytesOffset; index++) header[index] = stored[index];
+        return header;
+    }
+
     /// <summary>Latest finalized batch number for a chain.</summary>
     [Safe]
     public static ulong GetLatestFinalizedBatch(uint chainId)

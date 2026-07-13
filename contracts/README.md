@@ -46,7 +46,7 @@ contracts/
 |-- NeoHub.OptimisticChallenge/                 # Phase-3 fraud-proof challenge window
 |-- NeoHub.GovernanceController/                # L2 admission policy / verifier upgrades
 |-- NeoHub.GovernanceFraudVerifier/             # v1/v2 structural fraud verifier
-|-- NeoHub.RestrictedExecutionFraudVerifier/    # v3 restricted re-execution verifier
+|-- NeoHub.RestrictedExecutionFraudVerifier/    # governance-only v3 + committed-root-bound restricted v4
 |-- NeoHub.EmergencyManager/                    # pause / escape hatch
 |-- NeoHub.MpcCommitteeVerifier/                # foreign-chain committee verifier
 |-- NeoHub.MpcCommitteeFraudVerifier/           # external-bridge equivocation slasher

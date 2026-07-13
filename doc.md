@@ -1469,10 +1469,55 @@ Deliverables:
 ```text
 Optimistic rollup-like
 安全性依赖至少一个 honest challenger
-（当前已发布的 fraud verifier 为结构性 + governance 仲裁，见下方说明）
+v4 仅在已声明的 restricted executor semantics 内提供 permissionless 可执行验证
 ```
 
-> 注（实现状态）：当前已发布的 fraud verifier（`GovernanceFraudVerifier`、`RestrictedExecutionFraudVerifier`）是**结构性**且由 **governance 仲裁**的——它们只校验 fraud-proof payload 的 wire 格式并确认 challenger 声称的 root 与 sequencer 声称的 root 不一致，**既不在链上重新执行争议交易，也不绑定到 SettlementManager 已提交的 root**。因此「fraud proof 以密码学方式 / 无需信任地证明 batch 存在欺诈」这一更强性质**尚未达成**：是否真的存在欺诈，最终由安全委员会（`GovernanceController`）裁定。要做到完全无需信任，需要把 verifier 替换为在链上**重新执行**争议交易的版本（需扩展 `FraudProofPayload` 携带 execution-trace witness），这属于 roadmap，详见 `IMPLEMENTATION_STATUS.md`。
+版本边界：
+
+- `GovernanceFraudVerifier` v1/v2 与 `RestrictedExecutionFraudVerifier` v3 仍是**结构性 / governance 仲裁**模式，只能通过 `RegisterFraudVerifier` 使用，并且 `Challenge` 必须有 governance owner co-sign；它们不得进入 permissionless value-bearing profile。
+- `RestrictedExecutionFraudVerifier` v4 是 **SettlementManager-bound restricted trustless profile**。verifier 部署参数固定为 `[SettlementManager, replayDomain]`；`OptimisticChallenge.RegisterPermissionlessFraudProfile(chainId, verifier, executorSemanticId, replayDomain)` 会链上读取并核对这三个配置维度。
+- legacy `RegisterPermissionlessFraudVerifier` 被禁用；permissionless 权限只属于精确的 `(chainId, verifier, executorSemanticId, replayDomain, profileGeneration)`。revoke 或 approved-only 重新注册会使旧 profile generation 失效。
+
+### Restricted fraud proof v4 canonical payload
+
+所有多字节整数均为 little-endian，hash 均为 Neo `Hash256`。v4 复用 `BatchSerializer`、`MerkleProofSerializer` 与 `StorageProof`，不定义第二套 Merkle 编码。
+
+| Offset | Size | Field |
+|---:|---:|---|
+| 0 | 1 | `version = 4` |
+| 1 | 32 | `replayDomain` |
+| 33 | 32 | `executorSemanticId` |
+| 65 | 32 | `claimId` |
+| 97 | 32 | `transcriptHash` |
+| 129 | 32 | `witnessHash` |
+| 161 | 32 | `committedHeaderHash = Hash256(canonicalHeader[0..321])` |
+| 193 | 4 | `chainId` |
+| 197 | 8 | `batchNumber` |
+| 205 | 4 | `disputedTxIndex` |
+| 209 | 4 | `transactionCount` |
+| 213 | 4 | canonical final-step `lowerBound` |
+| 217 | 4 | canonical final-step `upperBound` |
+| 221 | 32 | committed `preStateRoot` |
+| 253 | 32 | committed `postStateRoot` |
+| 285 | 32 | verifier-derived `expectedPostStateRoot` |
+| 317 | 32 | committed `txRoot` |
+| 349 | 4 | `disputedTxLength = T` |
+| 353 | T | exact disputed transaction bytes |
+| next | 4 + P | `txProofLength = P` + canonical `MerkleProofSerializer` bytes |
+| next | 4 + S | `stateProofLength = S` + one canonical `StorageProof` |
+
+`SettlementManager.GetChallengeableBatchHeader(chainId,batchNumber)` 只对存在、`Challengeable`、`ProofType.Optimistic` 的批次返回已存 commitment 的前 321 bytes。verifier 从该 header 读取 chain/batch/pre/post/tx roots；payload 中的对应字段不能替换 committed 值。
+
+绑定规则：
+
+1. `transcriptHash = Hash256("neo4-fraud-bisection-transcript:v1" || replayDomain || executorSemanticId || committedHeaderHash || chainId || batchNumber || txIndex || txCount || lower || upper || preRoot || committedPostRoot || expectedPostRoot || txRoot)`。
+2. `witnessHash = Hash256("neo4-fraud-witness:v1" || canonical tail starting at disputedTxLength)`，因此交易、交易 Merkle proof、storage old/new leaves、key、leaf index、siblings/path 与所有 length prefixes 都不可替换。
+3. `claimId = Hash256("neo4-fraud-claim:v4" || SettlementManager || fraudVerifier || replayDomain || executorSemanticId || committedHeaderHash || chainId || batchNumber || txIndex || transcriptHash || witnessHash)`；`OptimisticChallenge` 在成功 challenge 时全局消费 claim id，跨批次/链/部署重放失败。
+4. 当前 commitment 没有 `txCount` 或 execution-trace root，因此 permissionless v4 **fail closed 到单交易批次**：`txIndex=0`、`txCount=1`、canonical degenerate transcript interval `[0,1]`，且 `txRoot` 必须是该交易的 canonical single-leaf proof（index/path/sibling count 均为 0）。该 transcript 绑定同一 batch/roots/tx index/replay domain/claim/witness，但单交易无需 BisectionGame 多轮 narrowing；多交易 transcript 不得宣称已被 trustlessly 覆盖。
+
+当前唯一 executor semantic id 为 `Hash256("neo4-executor:counter-increment-existing-key:v1")`。交易必须是 29 bytes：`0x01 || sender(20) || amount(uint64 LE)`；state key 必须是 `"counter:" || sender`，old/committed-new value 均为 uint64 LE，执行语义为 `expected = old + amount`（unchecked wrap）。old leaf 与 pre path 必须重建 committed pre root，committed-new leaf 与 post path 必须重建 committed post root；两侧使用同一 key 与 leaf index，且 leaf index 不得含超出各自 path depth 的高位。verifier 再以 old leaf 的 pre path 和执行所得 expected value 重建 `expectedPostStateRoot`。若 expected root 等于 committed post root，fraud claim 为 `false`；只有不等时返回 `true` 并允许 revert/slash。由此 challenger 不能只提交一对内部自洽但未绑定 SettlementManager 的 old/new roots。
+
+该 profile **不是通用 NeoVM trustless verifier**：不覆盖任意 NeoVM opcode、其它 custom executor、key 插入/删除或多交易 batch。未识别 semantic id、错链/批次/tx index、错 root、错 witness、错 path、错 replay domain、legacy version 均 fail closed 或退回 governance-only 模式。通用 NeoVM 仍需 commitment 中的 tx-count / trace-root 锚点及完整单步执行语义，详见 `IMPLEMENTATION_STATUS.md`。
 
 ---
 

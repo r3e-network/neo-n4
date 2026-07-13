@@ -35,6 +35,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   ordering, before/after image, full event stack-state, rollback, fee,
   fail-closed, managed parity, and real native PolkaVM tests.
 
+### Security — P0-4 committed-root-bound optimistic fraud proof v4
+
+- Added canonical `RestrictedFraudProofV4`: chain/batch/tx index, 321-byte
+  committed-header hash, pre/post/tx roots, canonical degenerate `[0,1]` transcript, executor
+  semantic id, replay domain, transcript hash, witness hash, and deployment-bound
+  claim id are one immutable claim. Transaction inclusion reuses
+  `MerkleProofSerializer`; state old/new leaves and paths reuse `StorageProof`
+  and reconstruct the committed pre/post roots independently.
+- Added `SettlementManager.GetChallengeableBatchHeader` for exact stored optimistic
+  headers while status is `Challengeable`. It does not alter finalization or the
+  finalized message/tx-root getter surface.
+- Added executable restricted v4 verification for one existing-key Counter
+  Increment transaction. Honest transitions return false; a wrong committed post
+  root returns true. Unsupported semantics and multi-transaction batches fail
+  closed; this is explicitly not a general NeoVM trustless verifier.
+- Scoped permissionless challenges to exact chain/verifier/semantic/replay profiles,
+  disabled legacy global permissionless registration, consumed successful v4 claim
+  ids, invalidated profiles across revoke/downgrade generations, and preserved atomic
+  CEI rollback around batch revert and bond slashing. V1/v2/v3 remain governance-only.
+- Added off-chain, NeoVM, and integration regressions for honest/fraud transitions,
+  root substitution, chain/batch/tx/bisection/replay/semantic/claim/witness/path
+  tampering, slashing boundaries, rollback, and fresh `nccs` artifacts.
+
 ### Security — comprehensive audit cycle 2026-05-19
 
 Multi-agent audit team surfaced + closed two CRITICAL exploit paths and

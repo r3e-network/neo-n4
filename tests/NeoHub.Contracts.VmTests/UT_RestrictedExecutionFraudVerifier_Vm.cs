@@ -1,38 +1,22 @@
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Numerics;
 using System.Security.Cryptography;
+using Moq;
+using Neo;
 using Neo.SmartContract.Testing;
 
 namespace NeoHub.Contracts.VmTests;
 
+public abstract class Mock_RestrictedExecutionSettlementManager(SmartContractInitialize initialize) : SmartContract(initialize)
+{
+    [DisplayName("getChallengeableBatchHeader")]
+    public abstract byte[]? GetChallengeableBatchHeader(BigInteger? chainId, BigInteger? batchNumber);
+}
+
 /// <summary>
-/// VM-level tests for NeoHub.RestrictedExecutionFraudVerifier — the structural v3 fraud verifier in
-/// the §17 mitigation #2 (invalid state root) chain. Like its companion GovernanceFraudVerifier it is
-/// a pure, [Safe], stateless validator: no _deploy args, no witness gates, no cross-contract calls, no
-/// storage. Its entire security value is in (a) input/wire-format validation and (b) re-deriving each
-/// storage proof's pre/post Merkle root from leaf+siblings+leafIndex and rejecting the payload unless
-/// every proof reconstructs to the header's PreStateRoot / ReplayedPostStateRoot AND a real
-/// discrepancy (claimed != replayed) is claimed.
-///
-/// These tests execute verifyFraud in a real NeoVM and pin:
-///   * the core fraud guard: claimedPostStateRoot == replayedPostStateRoot => no discrepancy => reject
-///     (accepting it would let a self-consistent, non-fraudulent "proof" slash an honest sequencer);
-///   * the soundness guard the v3 verifier adds over v2: a storage proof whose pre-leaf does NOT fold
-///     to payload.PreStateRoot is rejected (ReasonPreStateRootMismatch); same on the post side
-///     (ReasonReplayedPostStateRootMismatch) — a challenger cannot supply arbitrary unrelated proofs;
-///   * proof-count bounds: zero proofs (must use v2) and > MaxStorageProofsPerPayload are rejected;
-///   * version gating: only version byte 3 is accepted (v1/v2 belong to GovernanceFraudVerifier);
-///   * wire-format framing: sub-header truncation, oversized declared witness, and any extra trailing
-///     bytes after the last proof (strict total-length match) are rejected;
-///   * the happy path: a well-formed v3 payload whose single proof folds to both roots with a genuine
-///     discrepancy is accepted (true).
-///
-/// To exercise the Merkle re-derivation honestly, the test mirrors the contract's HashEntry
-/// (Hash256(int32LE(keyLen)||key||int32LE(valLen)||val)) and FoldMerkleProof (Hash256(left||right)
-/// with leafIndex's low bit at level i selecting current-left/current-right) off-chain so the built
-/// payload's header roots equal what the contract re-derives. verifyFraud is [Safe] and returns bool,
-/// so rejected inputs return false rather than faulting.
+/// NeoVM tests for governance-only structural v3 and SettlementManager-bound executable v4.
 /// </summary>
 [TestClass]
 public class UT_RestrictedExecutionFraudVerifier_Vm
@@ -48,9 +32,24 @@ public class UT_RestrictedExecutionFraudVerifier_Vm
     private const int MaxStorageProofsPerPayload = 32;
     private const int MaxSiblingDepth = 64;
 
-    private static NeoHubRestrictedExecutionFraudVerifier Deploy(TestEngine engine) =>
+    private static NeoHubRestrictedExecutionFraudVerifier Deploy(
+        TestEngine engine,
+        UInt160? settlementManager = null,
+        UInt256? replayDomain = null) =>
         engine.Deploy<NeoHubRestrictedExecutionFraudVerifier>(
-            NeoHubRestrictedExecutionFraudVerifier.Nef, NeoHubRestrictedExecutionFraudVerifier.Manifest, new object[] { });
+            NeoHubRestrictedExecutionFraudVerifier.Nef,
+            NeoHubRestrictedExecutionFraudVerifier.Manifest,
+            settlementManager is null
+                ? Array.Empty<object>()
+                : new object[] { settlementManager, replayDomain! });
+
+    private static void WireSettlementManager(TestEngine engine, UInt160 hash, byte[] canonicalHeader) =>
+        engine.FromHash<Mock_RestrictedExecutionSettlementManager>(hash, mock =>
+            mock.Setup(contract => contract.GetChallengeableBatchHeader(
+                    It.IsAny<BigInteger?>(),
+                    It.IsAny<BigInteger?>()))
+                .Returns(canonicalHeader),
+            checkExistence: false);
 
     // ---- off-chain mirrors of the contract's hashing / folding ----
 
@@ -209,7 +208,105 @@ public class UT_RestrictedExecutionFraudVerifier_Vm
         PostSiblings = new[] { Fill(0x10), Fill(0x20) },
     };
 
-    // ---- happy path ----
+    [TestMethod]
+    public void VerifyFraud_V4IncorrectCommittedTransition_Accepts()
+    {
+        var engine = new TestEngine(true);
+        var settlementManager = UInt160.Parse("0x" + new string('5', 40));
+        var verifier = Deploy(engine, settlementManager, RestrictedFraudProofV4TestData.ReplayDomain);
+        var fixture = RestrictedFraudProofV4TestData.Build(settlementManager, verifier.Hash, committedFraud: true);
+        WireSettlementManager(engine, settlementManager, fixture.CanonicalHeader);
+
+        Assert.AreEqual(settlementManager, verifier.SettlementManager);
+        Assert.AreEqual(RestrictedFraudProofV4TestData.ReplayDomain, verifier.ReplayDomain);
+        Assert.AreEqual(RestrictedFraudProofV4TestData.ExecutorSemanticId, verifier.ExecutorSemanticId);
+        Assert.IsTrue(verifier.VerifyFraud(ChainId, BatchNumber, fixture.Payload)!.Value);
+        Assert.AreNotEqual(fixture.ExpectedPostStateRoot, fixture.CommittedPostStateRoot);
+    }
+
+    [TestMethod]
+    public void VerifyFraud_V4CorrectCommittedTransition_ReturnsFalse()
+    {
+        var engine = new TestEngine(true);
+        var settlementManager = UInt160.Parse("0x" + new string('5', 40));
+        var verifier = Deploy(engine, settlementManager, RestrictedFraudProofV4TestData.ReplayDomain);
+        var fixture = RestrictedFraudProofV4TestData.Build(settlementManager, verifier.Hash, committedFraud: false);
+        WireSettlementManager(engine, settlementManager, fixture.CanonicalHeader);
+
+        Assert.IsFalse(verifier.VerifyFraud(ChainId, BatchNumber, fixture.Payload)!.Value);
+        Assert.AreEqual(fixture.ExpectedPostStateRoot, fixture.CommittedPostStateRoot);
+    }
+
+    [TestMethod]
+    public void VerifyFraud_V4CommittedHeaderSubstitution_ReturnsFalse()
+    {
+        var engine = new TestEngine(true);
+        var settlementManager = UInt160.Parse("0x" + new string('5', 40));
+        var verifier = Deploy(engine, settlementManager, RestrictedFraudProofV4TestData.ReplayDomain);
+        var fixture = RestrictedFraudProofV4TestData.Build(settlementManager, verifier.Hash, committedFraud: true);
+        var substitutedHeader = fixture.CanonicalHeader.ToArray();
+        substitutedHeader[60] ^= 0x80;
+        WireSettlementManager(engine, settlementManager, substitutedHeader);
+
+        Assert.IsFalse(verifier.VerifyFraud(ChainId, BatchNumber, fixture.Payload)!.Value);
+    }
+
+    [TestMethod]
+    public void VerifyFraud_V4ContextReplayTranscriptAndWitnessTampering_ReturnsFalse()
+    {
+        var engine = new TestEngine(true);
+        var settlementManager = UInt160.Parse("0x" + new string('5', 40));
+        var verifier = Deploy(engine, settlementManager, RestrictedFraudProofV4TestData.ReplayDomain);
+        var fixture = RestrictedFraudProofV4TestData.Build(settlementManager, verifier.Hash, committedFraud: true);
+        WireSettlementManager(engine, settlementManager, fixture.CanonicalHeader);
+        var offsets = new[]
+        {
+            RestrictedFraudProofV4TestData.ReplayDomainOffset,
+            RestrictedFraudProofV4TestData.ExecutorSemanticIdOffset,
+            RestrictedFraudProofV4TestData.ClaimIdOffset,
+            RestrictedFraudProofV4TestData.TranscriptHashOffset,
+            RestrictedFraudProofV4TestData.WitnessHashOffset,
+            RestrictedFraudProofV4TestData.CommittedHeaderHashOffset,
+            RestrictedFraudProofV4TestData.ChainIdOffset,
+            RestrictedFraudProofV4TestData.BatchNumberOffset,
+            RestrictedFraudProofV4TestData.DisputedTxIndexOffset,
+            RestrictedFraudProofV4TestData.TransactionCountOffset,
+            RestrictedFraudProofV4TestData.LowerBoundOffset,
+            RestrictedFraudProofV4TestData.UpperBoundOffset,
+            RestrictedFraudProofV4TestData.PreStateRootOffset,
+            RestrictedFraudProofV4TestData.CommittedPostStateRootOffset,
+            RestrictedFraudProofV4TestData.ExpectedPostStateRootOffset,
+            RestrictedFraudProofV4TestData.TxRootOffset,
+            RestrictedFraudProofV4TestData.FixedHeaderSize,
+        };
+
+        foreach (var offset in offsets)
+        {
+            var tampered = fixture.Payload.ToArray();
+            tampered[offset] ^= 0x01;
+            Assert.IsFalse(verifier.VerifyFraud(ChainId, BatchNumber, tampered)!.Value, $"offset {offset}");
+        }
+
+        Assert.IsFalse(verifier.VerifyFraud(ChainId + 1, BatchNumber, fixture.Payload)!.Value);
+        Assert.IsFalse(verifier.VerifyFraud(ChainId, BatchNumber + 1, fixture.Payload)!.Value);
+    }
+
+    [TestMethod]
+    public void VerifyFraud_V4ReboundWrongStateWitness_ReturnsFalse()
+    {
+        var engine = new TestEngine(true);
+        var settlementManager = UInt160.Parse("0x" + new string('5', 40));
+        var verifier = Deploy(engine, settlementManager, RestrictedFraudProofV4TestData.ReplayDomain);
+        var fixture = RestrictedFraudProofV4TestData.Build(settlementManager, verifier.Hash, committedFraud: true);
+        WireSettlementManager(engine, settlementManager, fixture.CanonicalHeader);
+        var tampered = fixture.Payload.ToArray();
+        tampered[^1] ^= 0x01;
+        RestrictedFraudProofV4TestData.Rebind(tampered, settlementManager, verifier.Hash);
+
+        Assert.IsFalse(verifier.VerifyFraud(ChainId, BatchNumber, tampered)!.Value);
+    }
+
+    // ---- v3 governance-only structural path ----
 
     [TestMethod]
     public void VerifyFraud_WellFormedV3_ProofsFoldToHeaderRoots_WithDiscrepancy_Accepts()

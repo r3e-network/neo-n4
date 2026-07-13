@@ -99,7 +99,7 @@ Lives at `contracts/NeoHub.*`. Each is a compiled .nef + .manifest.json.
 
 ### Specialized fraud verifiers (1)
 
-- **`RestrictedExecutionFraudVerifier`** — v3: re-derives pre/post state roots from storage proofs; accepts well-formed claims without governance arbitration.
+- **`RestrictedExecutionFraudVerifier`** — governance-only structural v3 plus SettlementManager-bound executable v4 for one existing-key Counter Increment transaction; v4 is not a general NeoVM verifier.
 
 ### External bridge — Phase B/C (6)
 

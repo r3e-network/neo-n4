@@ -6,10 +6,8 @@ using Neo.Wallets;
 namespace Neo.L2.Gateway.Rpc.UnitTests;
 
 /// <summary>
-/// Unit tests for <see cref="RpcGlobalRootPublisher"/> — the production IGlobalRootPublisher that
-/// signs + sends the L1 PublishGlobalRoot transaction. The L1 transport + signing is delegated, so
-/// these tests assert the publisher's input validation + argument-forwarding contract, not the L1
-/// round-trip itself (the delegate captures the forwarded args and returns a fixed tx hash).
+/// Compatibility tests for the legacy four-field <see cref="RpcGlobalRootPublisher"/> seam.
+/// Production proof-bound publication is covered by <see cref="UT_ProofBoundRpcGlobalRootPublisher"/>.
 /// </summary>
 [TestClass]
 public class UT_RpcGlobalRootPublisher

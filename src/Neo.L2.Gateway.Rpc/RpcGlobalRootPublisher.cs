@@ -4,21 +4,13 @@ using Neo.Plugins.L2Gateway;
 namespace Neo.L2.Gateway.Rpc;
 
 /// <summary>
-/// Production <see cref="IGlobalRootPublisher"/> that calls
-/// <c>NeoHub.MessageRouter.publishGlobalRoot</c> on L1 over JSON-RPC, signing the L1 transaction
-/// through a caller-supplied delegate. Mirrors <see cref="RpcSettlementClient"/>'s
-/// sign-and-send pattern: this library avoids forcing a particular signing dependency on consumers,
-/// so the wallet / signer is injected.
+/// Legacy compatibility publisher for the pre-proof-binding MessageRouter ABI.
 /// </summary>
 /// <remarks>
-/// <para>The on-chain <c>PublishGlobalRoot</c> (Phase-5 proof-gated) takes four arguments —
-/// <c>(batchEpoch, globalRoot, verificationKeyId, aggregatedProof)</c>. The signer MUST forward all
-/// four as the contract-call arguments, with the global root and verification key id exactly as
-/// supplied here (the contract hashes / dispatches on them verbatim). The settlement-manager
-/// witness authorizing the publish must be the transaction signer's account.</para>
-/// <para>The signature is settled at the gateway plugin layer — <c>L2GatewayPlugin.PublishAggregateAsync</c>
-/// produces the <see cref="AggregatedCommitment"/> and forwards it here, where the proof bytes /
-/// global root are the proof-gate inputs MessageRouter verifies against the wired Groth16Verifier.</para>
+/// See doc.md §4 (Neo Gateway). This type intentionally cannot publish production Gateway roots:
+/// it omits replay domain, constituent root/count, aggregation backend, and proof system. Retain it
+/// only for source compatibility with pre-R2 callers. New deployments must use
+/// <see cref="ProofBoundRpcGlobalRootPublisher"/>.
 /// </remarks>
 public sealed class RpcGlobalRootPublisher : IGlobalRootPublisher, IDisposable
 {

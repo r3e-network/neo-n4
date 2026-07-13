@@ -10,6 +10,8 @@ public class UT_GatewayOutbox
     private static readonly UInt160 MessageRouter = UInt160.Parse("0x" + new string('a', 40));
     private static readonly UInt256 ReplayDomain = H(0xD1);
     private static readonly UInt256 VerificationKey = H(0xA1);
+    private static readonly byte[] TestTerminalProof =
+        Enumerable.Repeat((byte)0x5A, Sp1GatewayProofProver.Groth16ProofSize).ToArray();
 
     private static UInt256 H(byte value) => new(Enumerable.Repeat(value, 32).ToArray());
 
@@ -48,8 +50,7 @@ public class UT_GatewayOutbox
         {
             cancellationToken.ThrowIfCancellationRequested();
             Calls++;
-            ReadOnlyMemory<byte> proof = GatewayProofBindingSerializer.ComputeHash(binding)
-                .GetSpan().ToArray();
+            ReadOnlyMemory<byte> proof = TestTerminalProof.ToArray();
             return ValueTask.FromResult(proof);
         }
     }

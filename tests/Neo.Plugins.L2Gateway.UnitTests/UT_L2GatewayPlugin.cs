@@ -7,6 +7,8 @@ public class UT_L2GatewayPlugin
     private static readonly UInt160 MessageRouter = UInt160.Parse("0x" + new string('a', 40));
     private static readonly UInt256 ReplayDomain = FilledHash(0xD1);
     private static readonly UInt256 VerificationKeyId = FilledHash(0xA1);
+    private static readonly byte[] TestTerminalProof =
+        Enumerable.Repeat((byte)0x5A, Sp1GatewayProofProver.Groth16ProofSize).ToArray();
 
     private static UInt256 FilledHash(byte value) => new(Enumerable.Repeat(value, 32).ToArray());
 
@@ -53,7 +55,7 @@ public class UT_L2GatewayPlugin
                 FailNext = false;
                 throw new InvalidOperationException("injected prover failure");
             }
-            ReadOnlyMemory<byte> proof = GatewayProofBindingSerializer.ComputeHash(binding).GetSpan().ToArray();
+            ReadOnlyMemory<byte> proof = TestTerminalProof.ToArray();
             return ValueTask.FromResult(proof);
         }
     }
@@ -182,8 +184,7 @@ public class UT_L2GatewayPlugin
         Assert.AreEqual(2U, binding.ConstituentCount);
         Assert.AreEqual(MerklePathRoundProver.ConstBackendId, binding.AggregationBackendId);
         Assert.AreEqual((byte)1, binding.ProofSystem);
-        Assert.IsTrue(setup.Publisher.LastProof.Span.SequenceEqual(
-            GatewayProofBindingSerializer.ComputeHash(binding).GetSpan()));
+        Assert.IsTrue(setup.Publisher.LastProof.Span.SequenceEqual(TestTerminalProof));
     }
 
     [TestMethod]

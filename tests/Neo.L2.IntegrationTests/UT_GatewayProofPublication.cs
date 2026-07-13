@@ -7,6 +7,9 @@ namespace Neo.L2.IntegrationTests;
 [TestClass]
 public class UT_GatewayProofPublication
 {
+    private static readonly byte[] TestTerminalProof =
+        Enumerable.Repeat((byte)0x5A, Sp1GatewayProofProver.Groth16ProofSize).ToArray();
+
     private static UInt256 H(byte value) => new(Enumerable.Repeat(value, 32).ToArray());
 
     private static L2BatchCommitment Batch(uint chainId, byte proof) => new()
@@ -33,20 +36,11 @@ public class UT_GatewayProofPublication
         IGatewayAggregator? aggregator = null)
     {
         var plugin = new L2GatewayPlugin();
-        plugin.UseAggregator(aggregator ?? new BinaryTreeAggregator(new MerklePathRoundProver()));
+        plugin.UseAggregator(aggregator ?? new BinaryTreeAggregator(new Sp1RecursiveRoundProver()));
         plugin.UsePersistentOutbox(new PersistentGatewayOutbox(
             new InMemoryKeyValueStore(),
             ownsStore: true), ownsOutbox: true);
-        var prover = new DelegatingGatewayProofProver(
-            proofSystem: 1,
-            aggregationBackendId: MerklePathRoundProver.ConstBackendId,
-            (binding, _, cancellationToken) =>
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                ReadOnlyMemory<byte> proof = GatewayProofBindingSerializer.ComputeHash(binding)
-                    .GetSpan().ToArray();
-                return ValueTask.FromResult(proof);
-            });
+        var prover = new FixedTestGatewayProofProver();
         plugin.ConfigureGlobalRootPublication(
             prover,
             publisher,
@@ -64,7 +58,9 @@ public class UT_GatewayProofPublication
             (_, _, _) => ValueTask.FromResult(observed),
             (request, _) =>
             {
-                Assert.IsTrue(request.AggregatedProof.Span.SequenceEqual(
+                Assert.AreEqual(Sp1GatewayProofProver.Groth16ProofSize, request.AggregatedProof.Length);
+                Assert.IsTrue(request.AggregatedProof.Span.SequenceEqual(TestTerminalProof));
+                Assert.IsFalse(request.AggregatedProof.Span.SequenceEqual(
                     request.ProofInputHash.GetSpan()));
                 observed = new GatewayRootPublicationObservation
                 {
@@ -98,7 +94,7 @@ public class UT_GatewayProofPublication
             ConstituentCommitmentsRoot =
                 GatewayProofBindingSerializer.ComputeConstituentCommitmentsRoot(constituents),
             AggregatedProof = new byte[] { 0x01 },
-            BackendId = MerklePathRoundProver.ConstBackendId,
+            BackendId = Sp1RecursiveRoundProver.ConstBackendId,
         };
         constituents[1] = second with { Proof = new byte[] { 0x23 } };
         var publisherCalls = 0;
@@ -137,5 +133,23 @@ public class UT_GatewayProofPublication
         public void Submit(L2BatchCommitment commitment) => _ready = true;
         public AggregatedCommitment? Aggregate() =>
             _ready ? Interlocked.Exchange(ref _aggregate, null) : null;
+    }
+
+    private sealed class FixedTestGatewayProofProver : IGatewayProofProver
+    {
+        public byte ProofSystem => Sp1GatewayProofProver.Sp1ProofSystem;
+
+        public byte AggregationBackendId => Sp1RecursiveRoundProver.ConstBackendId;
+
+        public ValueTask<ReadOnlyMemory<byte>> ProveAsync(
+            GatewayProofBinding binding,
+            AggregatedCommitment commitment,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            GatewayProofBindingSerializer.Validate(binding);
+            ReadOnlyMemory<byte> proof = TestTerminalProof.ToArray();
+            return ValueTask.FromResult(proof);
+        }
     }
 }

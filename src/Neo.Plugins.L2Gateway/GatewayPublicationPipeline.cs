@@ -22,10 +22,11 @@ public interface IGatewayProofProver
         CancellationToken cancellationToken = default);
 }
 
-/// <summary>Delegate-backed production adapter for an external Gateway proving service.</summary>
+/// <summary>Delegate-backed test or custom integration adapter for a Gateway proving service.</summary>
 /// <remarks>
-/// See doc.md §4 (Neo Gateway). The injected delegate can call SP1, Halo2, or another mature
-/// prover service; this adapter validates the complete statement before crossing that boundary.
+/// See doc.md §4 (Neo Gateway). This adapter cannot authenticate daemon manifests, proof lengths,
+/// public values, or verification keys and is therefore not a production SP1 implementation. Use
+/// <see cref="Sp1GatewayProofProver"/> for the fail-closed Gateway SP1 file-queue protocol.
 /// </remarks>
 public sealed class DelegatingGatewayProofProver : IGatewayProofProver
 {

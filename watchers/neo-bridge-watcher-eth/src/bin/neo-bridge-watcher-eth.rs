@@ -93,11 +93,10 @@ fn install_shutdown_handlers() {
     // marked `extern "C"` and only touch AtomicBools (signal-safe).
     // SA_RESTART ensures interrupted syscalls are transparently retried.
     unsafe {
-        let sa = libc::sigaction {
-            sa_sigaction: handle_shutdown_signal as libc::sighandler_t,
-            sa_flags: libc::SA_RESTART,
-            sa_mask: std::mem::zeroed(),
-        };
+        let mut sa: libc::sigaction = std::mem::zeroed();
+        sa.sa_sigaction = handle_shutdown_signal as libc::sighandler_t;
+        sa.sa_flags = libc::SA_RESTART;
+        libc::sigemptyset(&mut sa.sa_mask);
         libc::sigaction(libc::SIGTERM, &sa, std::ptr::null_mut());
         libc::sigaction(libc::SIGINT, &sa, std::ptr::null_mut());
     }

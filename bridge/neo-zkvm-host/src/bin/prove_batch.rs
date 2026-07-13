@@ -42,11 +42,10 @@ fn install_shutdown_signal_handlers() {
     // SA_RESTART ensures interrupted syscalls (e.g. read from the prover
     // pipe) are transparently retried rather than failing with EINTR.
     unsafe {
-        let sa = libc::sigaction {
-            sa_sigaction: shutdown_signal_handler as libc::sighandler_t,
-            sa_flags: libc::SA_RESTART,
-            sa_mask: std::mem::zeroed(),
-        };
+        let mut sa: libc::sigaction = std::mem::zeroed();
+        sa.sa_sigaction = shutdown_signal_handler as libc::sighandler_t;
+        sa.sa_flags = libc::SA_RESTART;
+        libc::sigemptyset(&mut sa.sa_mask);
         libc::sigaction(libc::SIGTERM, &sa, std::ptr::null_mut());
         libc::sigaction(libc::SIGINT, &sa, std::ptr::null_mut());
     }

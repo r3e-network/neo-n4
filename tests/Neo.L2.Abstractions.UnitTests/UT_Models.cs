@@ -281,13 +281,13 @@ public class UT_Models
             byte[] pointer,
             byte[]? evidence = null,
             DAReceiptKind kind = DAReceiptKind.NeoFSObject) => new()
-        {
-            Commitment = UInt256.Zero,
-            Pointer = pointer,
-            Evidence = evidence ?? new byte[] { 0x01 },
-            Kind = kind,
-            Layer = DAMode.NeoFS,
-        };
+            {
+                Commitment = UInt256.Zero,
+                Pointer = pointer,
+                Evidence = evidence ?? new byte[] { 0x01 },
+                Kind = kind,
+                Layer = DAMode.NeoFS,
+            };
         var a = Mk([0xCA, 0xFE]);
         var b = Mk([0xCA, 0xFE]);
         Assert.AreEqual(a, b);

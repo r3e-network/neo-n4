@@ -4,6 +4,7 @@ using System.Numerics;
 using System.Threading.Tasks;
 using Neo.Cryptography;
 using Neo.Cryptography.ECC;
+using Neo.Extensions.IO;
 using Neo.L2;
 using Neo.L2.Batch;
 using Neo.L2.Bridge;
@@ -21,6 +22,7 @@ using Neo.L2.Audit;
 using Neo.L2.Telemetry;
 using Neo.Plugins.L2;
 using Neo.Plugins.L2Rpc;
+using Neo.Network.P2P.Payloads;
 using Sample.CounterChainExecutor;
 
 namespace Neo.L2.Devnet;
@@ -284,9 +286,11 @@ internal static class Program
             }
             else if (executorMode == "riscv")
             {
-                var haltProgram = new byte[] { 0x40 };
-                txList = new ReadOnlyMemory<byte>[] { haltProgram };
-                daPayload = haltProgram;
+                var serializedTransaction = BuildDevnetTransaction(
+                    new byte[] { 0x40 },
+                    (uint)batchNum);
+                txList = new ReadOnlyMemory<byte>[] { serializedTransaction };
+                daPayload = serializedTransaction;
             }
             else
             {
@@ -598,6 +602,32 @@ internal static class Program
     {
         var s = root.ToString();
         return s.Length <= 18 ? s : s[..10] + "…" + s[^6..];
+    }
+
+    private static byte[] BuildDevnetTransaction(byte[] script, uint nonce)
+    {
+        return new Transaction
+        {
+            Version = 0,
+            Nonce = nonce,
+            SystemFee = 0,
+            NetworkFee = 0,
+            ValidUntilBlock = 100_000,
+            Script = script,
+            Signers = new[]
+            {
+                new Signer { Account = Alice, Scopes = WitnessScope.None },
+            },
+            Attributes = Array.Empty<TransactionAttribute>(),
+            Witnesses = new[]
+            {
+                new Witness
+                {
+                    InvocationScript = ReadOnlyMemory<byte>.Empty,
+                    VerificationScript = ReadOnlyMemory<byte>.Empty,
+                },
+            },
+        }.ToArray();
     }
 
     private static string Truncate160(UInt160 h)

@@ -612,13 +612,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      RUSTUP_TOOLCHAIN: 1.88.0
+      RUSTUP_TOOLCHAIN: 1.89.0
 
     steps:
       - uses: actions/checkout@v6
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@1.88.0
+        uses: dtolnay/rust-toolchain@1.89.0
 
       - name: cargo test
         working-directory: external/foreign-contracts/sol

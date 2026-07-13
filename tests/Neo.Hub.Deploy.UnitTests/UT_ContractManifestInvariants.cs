@@ -207,7 +207,7 @@ public class UT_ContractManifestInvariants
     // ─── ExternalBridgeEscrow: Receive (inbound dispatch) ─────────────
 
     [TestMethod]
-    public void ExternalBridgeEscrow_Exposes_Send_And_Receive()
+    public void ExternalBridgeEscrow_ExposesProductionPayoutAndGovernanceSurface()
     {
         var methods = LoadMethods("NeoHub.ExternalBridgeEscrow");
         if (methods is null) return;
@@ -215,6 +215,27 @@ public class UT_ContractManifestInvariants
             "ExternalBridgeEscrow must expose send (Neo → foreign outbound)");
         Assert.IsTrue(HasMethod(methods, "receive"),
             "ExternalBridgeEscrow must expose receive (foreign → Neo inbound)");
+        string[] payoutMethods =
+        [
+            "fundLiquidity",
+            "setAssetRoute",
+            "getRoutedNeoAsset",
+            "getRoutedForeignAsset",
+            "getPayoutAdapter",
+            "getPayoutAdapterUpdateCounter",
+            "setGovernanceController",
+            "lockGovernance",
+            "isGovernanceLocked",
+            "configureAssetRouteViaProposal",
+            "setRegistryViaProposal",
+            "buildConfigureAssetRouteAction",
+            "buildSetRegistryAction",
+        ];
+        foreach (var method in payoutMethods)
+        {
+            Assert.IsTrue(HasMethod(methods, method),
+                $"ExternalBridgeEscrow must expose production payout/governance method '{method}'");
+        }
         // The NEP-17 hook MUST be present so unsolicited transfers can be
         // rejected loudly (rather than silently accepted as Send records).
         Assert.IsTrue(HasMethod(methods, "onNEP17Payment"),

@@ -191,7 +191,7 @@ deposits, finalize batches, or consume messages until:
 sequenceDiagram
     participant User
     participant Bridge as SharedBridge
-    participant Token as TokenRegistry
+    participant Tokens as TokenRegistry
     participant Chain as ChainRegistry
     participant Router as MessageRouter
     participant L2Bridge as L2BridgeContract
@@ -199,7 +199,7 @@ sequenceDiagram
 
     User->>Bridge: deposit(l1Asset, targetChainId, receiver, amount)
     Bridge->>Chain: read chain config and active flag
-    Bridge->>Token: read canonical asset mapping
+    Bridge->>Tokens: read canonical asset mapping
     Bridge->>Bridge: lock L1 asset / record nonce
     Bridge->>Router: enqueue L1-to-L2 deposit message
     Router-->>L2: message observed by relayer / L2 node
@@ -352,15 +352,24 @@ sequenceDiagram
     participant Registry as ExternalBridgeRegistry
     participant Escrow as ExternalBridgeEscrow
     participant Bond as ExternalBridgeBond
-    participant Bridge as SharedBridge
+    participant Token as NEP-17
+    participant Adapter as Payout-v1 adapter
 
     Foreign->>Watcher: lock / message event
     Watcher->>Watcher: wait min confirmations, journal event
-    Watcher->>MPC: submit committee proof
+    Watcher->>Escrow: canonical message + proof
+    Escrow->>Registry: verifyInbound(chain, message, proof)
+    Registry->>MPC: verifyInboundMessage
     MPC->>Bond: check signer set / bonded committee
-    MPC-->>Escrow: event accepted
-    Escrow->>Registry: resolve external chain + asset route
-    Escrow->>Bridge: mint/credit or enqueue target message
+    MPC-->>Registry: accepted
+    Registry-->>Escrow: accepted
+    Escrow->>Escrow: consume domain nonce + resolve immutable asset route
+    alt direct funded release
+        Escrow->>Token: transfer(escrow, signed recipient, amount)
+    else target-chain credit instruction
+        Escrow->>Adapter: payout(all signed fields, canonical bytes)
+        Adapter-->>Escrow: credit persisted/enqueued atomically
+    end
 ```
 
 The external bridge plane is intentionally separate from normal L2 settlement:
@@ -418,8 +427,8 @@ be visible through events and operator runbooks.
 | `RestrictedExecutionFraudVerifier` | Validate advisory structural v3 or committed-root-bound executable restricted v4. | V3 evidence, or v4 chain/batch/root/transcript/claim/tx/storage witness. | V3 is non-state-changing; v4 returns true only for a wrong committed Counter transition. | `OptimisticChallenge` only through exact registered v4; not general NeoVM. |
 | `MpcCommitteeVerifier` | Verify external-chain committee signatures and signer threshold. | External event hash, committee signatures, signer metadata. | External event accepted/rejected. | Watchers, `ExternalBridgeEscrow`. |
 | `MpcCommitteeFraudVerifier` | Challenge or slash incorrect external committee attestations. | Fraud proof over committee-signed external event. | Fraud accepted/rejected; slashing path enabled. | Challengers, `ExternalBridgeBond`. |
-| `ExternalBridgeRegistry` | Register foreign chains, asset routes, and bridge adapters. | External chain id, foreign asset/router, Neo asset/chain route. | External route registered/updated. | Operator/governance, `ExternalBridgeEscrow`. |
-| `ExternalBridgeEscrow` | Hold or release assets for foreign-chain bridge events. | Verified external event, route, recipient, amount. | External deposit/withdrawal/message consumed. | Watchers, external bridge relayers, `SharedBridge`. |
+| `ExternalBridgeRegistry` | Register each foreign chain's verifier and trust-model kind. | External chain id, verifier hash, bridge kind. | Verifier route registered/updated. | Operator/governance, `ExternalBridgeEscrow`. |
+| `ExternalBridgeEscrow` | Hold outbound assets and atomically release or credit verified inbound value. | Canonical signed event/proof; immutable asset route; source/destination chains, nonce, recipient, amount, deadline. | Replay consumed only with successful direct NEP-17 payout or pinned payout-v1 adapter credit. | Watchers, external bridge relayers, NEP-17/payout adapters. |
 | `ExternalBridgeBond` | Bond and slash external bridge committee members. | Committee member, bond amount, fraud/slash request. | Bond deposited/slashed/withdrawn. | Committee members, fraud verifier, governance. |
 | `ExternalBridgeStubVerifier` | Test-only verifier used for local scaffolding and negative tests. | Stub event/proof data. | Deterministic test result. | Unit/integration tests only. Not in production deploy bundle. |
 

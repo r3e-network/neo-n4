@@ -102,7 +102,7 @@
 
 - **`MpcCommitteeVerifier`** — 在规范 `ExternalCrossChainMessage` 上验证 M-of-N 委员会签名。
 - **`ExternalBridgeRegistry`** — 按链的 (verifier、bridgeKind) 条目。路由到 MPC 或 ZK 轻客户端(Phase D)。
-- **`ExternalBridgeEscrow`** — 为外链入站铸/销包装资产;带重放保护。
+- **`ExternalBridgeEscrow`** — 锁定外链出站 NEP-17；已验证入站仅在 L1 绑定实例中原子释放已注资 NEP-17，所有 L2 目标都必须使用固定 ABI 版本与 update counter 的 payout/credit adapter。路由与治理均带重放保护并 fail closed。
 - **`ExternalBridgeBond`** — 外链桥委员会成员的可罚没保证金。
 - **`ExternalBridgeStubVerifier`** — v0 测试 stub —— 自动接受任何消息。**不**用于生产。
 - **`MpcCommitteeFraudVerifier`** — Phase C:从密码学上证明委员会等价签名;经 `ExternalBridgeBond` 罚没。

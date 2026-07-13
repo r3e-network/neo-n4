@@ -23,10 +23,11 @@ Three new contracts plus an interface:
   (`1=MPC`, `2=Optimistic`, `3=ZK`) so dApps can read what trust model
   they're actually riding.
 - **`NeoHub.ExternalBridgeEscrow`** — holds locked NEP-17 assets bound
-  for foreign chains and pays out on verified inbound proofs. Mirrors
-  `SharedBridge.Deposit` / `FinalizeWithdrawalWithProof` but indexed by
-  `externalChainId` and routes proof verification to the registry rather
-  than `SettlementManager`.
+  for foreign chains and atomically pays out or dispatches a versioned
+  credit/mint adapter after a verified inbound proof. Routes bind both
+  chain domains, nonce, deadline, foreign/Neo asset mapping, recipient,
+  and amount; verification is delegated to the registry rather than
+  `SettlementManager`.
 - **`L2NativeExternalBridgeContract`** — Neo core native L2 counterpart so an L2
   dApp can `Send(externalChainId, recipient, asset, amount, calldata)`
   directly. Mirrors `L2BridgeContract` but its withdrawals are
@@ -60,7 +61,7 @@ Multisig → Zk.
                            Tron=0xE0_00_00_10, Solana=0xE0_00_00_20 — high-bit
                            prefix 0xE0 reserves a namespace disjoint from Neo
                            L2 chainIds, which start at 1)
-4B  neoChainId            (target Neo L2 chainId, or 0 for L1)
+4B  neoChainId            (target Neo domain; 0 = L1, non-zero = L2 chainId)
 8B  nonce                 (per-direction, per-pair; replay key)
 1B  direction             (1 = Neo→Foreign, 2 = Foreign→Neo)
 20B sender                (UInt160 on Neo side; on foreign side, last 20B
@@ -69,20 +70,54 @@ Multisig → Zk.
 8B  deadlineUnixSeconds   (0 = none)
 32B sourceTxRef           (Eth tx hash / Tron tx hash / Solana sig truncated)
 1B  messageType           (0=AssetTransfer, 1=Call, 2=AssetAndCall)
-4B+ payload-LE-prefixed bytes
-32B messageHash           (Hash256 of the above) — populated by MessageBuilder
+4B  payloadLength         (little-endian)
+N   payload
 ```
 
-Goes through a new `Neo.L2.Messaging/ExternalMessageBuilder.cs` +
-`ExternalMessageHasher.cs`. The contract verifies the hash matches, then
-dispatches.
+The canonical wire value is exactly `102 + N` bytes. `MessageHash` is derived
+off-wire metadata populated by `ExternalMessageBuilder` as Neo `Hash256`
+(double-SHA256) over these bytes; it is never serialized as a caller-supplied
+trailing field. The escrow validates the signed domains, direction, deadline,
+payload length, and asset payload before dispatch.
+
+Asset payloads reuse one canonical encoding:
+
+```
+20B foreignAsset || 4B amountLength || 1..32B minimal unsigned LE amount
+```
+
+`AssetAndCall` appends adapter calldata after that prefix. Zero/non-minimal/
+oversized amounts and zero foreign assets are rejected identically by C#,
+Rust, and the on-chain contract.
+
+### 1.4 Production payout boundary
+
+- A zero adapter is valid only for an escrow bound to the Neo L1 domain
+  (`neoChainId == 0`). It performs direct NEP-17 release from the chain-specific
+  funded escrow pool. `FundLiquidity` accepts only an existing, active direct
+  route so operators cannot orphan tokens in an unreachable pool; insufficient
+  liquidity or a false token return reverts replay consumption and accounting atomically.
+- A non-zero adapter receives every signed routing/value field plus the original
+  canonical bytes. It must report `payoutVersion() == 1` and be a fresh
+  `UpdateCounter == 0` deployment. The route pins that counter, so an in-place
+  code upgrade fails closed even if it still claims ABI v1.
+- A non-zero L2 destination must use a non-zero adapter. The adapter may return
+  `true` only after atomically persisting or enqueueing the target credit/mint
+  instruction; final target-chain execution is asynchronous and is not implied
+  by verifier acceptance or by an event alone.
+- Foreign-to-Neo asset mappings are immutable and reverse-unique per external
+  chain. Adapter rotation/deactivation remains possible, but production locks
+  direct owner administration and requires exact payload-bound timelocked
+  proposals with one-shot proposal ids. Action bytes include the escrow script
+  hash and immutable Neo destination domain, preventing cross-instance or
+  cross-domain proposal reuse.
 
 ## 2. Cryptography
 
 Neo's `CryptoLib` already exposes `VerifyWithECDsa` for **secp256k1 +
-Keccak256** AND `VerifyWithEd25519` as native syscalls. So:
+SHA256** and `VerifyWithEd25519` as native syscalls. So:
 
-- **Eth/Tron**: secp256k1+Keccak256 verification on-chain is cheap and
+- **Eth/Tron**: secp256k1+SHA256 committee verification on-chain is cheap and
   already there.
 - **Solana**: ed25519 verification on-chain works. The pain isn't
   signature verification — it's the *Tower BFT light client*. Solana's
@@ -104,7 +139,7 @@ New top-level `watchers/` directory; each watcher is a Rust binary.
 - `watchers/neo-bridge-watcher-eth/` — ethers-rs RPC client. Subscribes
   to events on the Eth-side `NeoExternalBridgeRouter.sol` (deployed via
   `external/foreign-contracts/`). For each event, builds the canonical
-  `ExternalCrossChainMessage`, signs with secp256r1, posts to
+  `ExternalCrossChainMessage`, signs with secp256k1+SHA256, posts to
   `NeoHub.MpcCommitteeVerifier`'s `Attest` endpoint on Neo. Mirrors
   `Neo.L2.Sequencer.RpcSequencerCommitteeProvider` patterns.
 - `watchers/neo-bridge-watcher-tron/` — same shape using `tron-rust`.
@@ -239,8 +274,14 @@ NeoExternalBridgeRouter.lockAndSend(
     uint64 deadline);
 ```
 
-Watchers observe the `Locked` event, attest, the Neo verifier accepts,
-`ExternalBridgeEscrow` mints a pegged asset on the destination L2.
+Watchers observe the `Locked` event and submit the attested canonical message.
+After registry verification, `ExternalBridgeEscrow` either releases funded
+NEP-17 on its hosting chain or invokes the pinned payout-v1 adapter that
+atomically persists/enqueues the target credit instruction with L1 replay
+consumption. Cross-network L2 execution is necessarily asynchronous: the final
+application remains the system-account-gated
+`L2NativeExternalBridgeContract.ApplyInbound` boundary. Verification or queueing
+alone never implies that target-L2 assets were already minted.
 
 The seam guarantees these two surfaces stay byte-identical when the
 registry flips MPC → Optimistic → ZK; only the verifier contract
@@ -261,7 +302,7 @@ posture:
   `ExternalOptimisticChallenge` (challenge window + bisection game,
   same shape as the existing fraud-proof system).
 - `src/Neo.L2.Proving/Attestation/AttestationVerifier.cs` — for
-  `MpcCommitteeVerifier` (M-of-N secp256r1 over canonical hashes).
+  `MpcCommitteeVerifier` (M-of-N secp256k1+SHA256 over canonical bytes).
   Foreign-chain ops will replace the curve to secp256k1 / ed25519 as
   appropriate via Neo's CryptoLib syscalls.
 - `src/Neo.L2.State/MessageHasher.cs` — for `ExternalMessageHasher.cs`

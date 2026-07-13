@@ -100,6 +100,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Added the missing Chinese counterpart for the shared four-language SDK conformance contract,
   including its fail-closed live fixture requirements and canonical protocol-ABI alignment.
 
+### Fixed — external inbound bridge payout closure — 2026-07-14
+
+- Completed verified foreign-to-Neo asset finalization with atomic direct NEP-17 release or a
+  versioned payout/credit adapter that receives every signed domain, identity, value, nonce,
+  deadline, source-transaction, and canonical-message field.
+- Bound each deployment to an explicit Neo destination domain (`0` for L1, non-zero for L2),
+  restricted zero-adapter direct liquidity/release to L1, and made every L2 route fail closed
+  unless it installs a versioned adapter that atomically persists or enqueues target credit.
+- Made foreign-to-Neo asset mappings immutable and reverse-unique per source chain, pinned adapter
+  ABI plus Neo update counter to reject in-place code drift, and retained an emergency route-disable
+  path without allowing silent adapter repinning.
+- Added irreversible proposal-only production governance, exact proposal-payload binding and replay
+  protection, chain-specific liquidity accounting, canonical uint256 amount validation across C#,
+  Rust, and NeoVM, plus deployment-plan wiring and failure/reentrancy/upgrade regression coverage.
+
 ### Fixed — Python SDK CI dependency parity — 2026-07-14
 
 - Installed the declared Python SDK test extra in the multi-version package job so its shared

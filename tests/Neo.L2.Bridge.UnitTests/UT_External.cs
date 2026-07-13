@@ -22,31 +22,34 @@ public class UT_External_AssetTransferPayload
     }
 
     [TestMethod]
-    public void Encode_RejectsNegativeAmount()
+    public void Encode_RejectsNonPositiveAmount()
     {
-        var p = new ExternalAssetTransferPayload
+        foreach (var amount in new[] { new BigInteger(-1), BigInteger.Zero })
         {
-            ForeignAsset = UInt160.Parse("0x" + new string('a', 40)),
-            Amount = new BigInteger(-1),
-        };
-        Assert.ThrowsExactly<InvalidOperationException>(() => p.Encode());
+            var payload = new ExternalAssetTransferPayload
+            {
+                ForeignAsset = UInt160.Parse("0x" + new string('a', 40)),
+                Amount = amount,
+            };
+            Assert.ThrowsExactly<InvalidOperationException>(() => payload.Encode());
+        }
     }
 
     [TestMethod]
-    public void Encode_ZeroAmount_RoundTrips()
+    public void EncodeAndDecode_RejectZeroForeignAsset()
     {
-        // .NET BigInteger.Zero.ToByteArray(isUnsigned:true) yields a single 0x00 byte (not empty),
-        // so a zero amount encodes as a 1-byte amount field and must decode back to zero. (Deposit
-        // itself rejects zero amounts; this only pins encode/decode symmetry at the boundary.)
-        var p = new ExternalAssetTransferPayload
+        var payload = new ExternalAssetTransferPayload
         {
-            ForeignAsset = UInt160.Parse("0x" + new string('a', 40)),
-            Amount = BigInteger.Zero,
+            ForeignAsset = UInt160.Zero,
+            Amount = BigInteger.One,
         };
-        var bytes = p.Encode();
-        var amountLen = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(20, 4));
-        Assert.AreEqual(1, amountLen, "zero encodes as the single 0x00 byte BigInteger produces");
-        Assert.AreEqual(BigInteger.Zero, ExternalAssetTransferPayload.Decode(bytes).Amount);
+        Assert.ThrowsExactly<InvalidOperationException>(() => payload.Encode());
+
+        var bytes = new byte[25];
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(20, 4), 1);
+        bytes[24] = 1;
+        Assert.ThrowsExactly<ArgumentException>(
+            () => ExternalAssetTransferPayload.Decode(bytes));
     }
 
     [TestMethod]
@@ -94,6 +97,29 @@ public class UT_External_AssetTransferPayload
     {
         Assert.ThrowsExactly<ArgumentException>(
             () => ExternalAssetTransferPayload.Decode(new byte[10]));
+    }
+
+    [TestMethod]
+    public void Decode_RejectsZeroNonMinimalAndWiderThanUint256Amounts()
+    {
+        static byte[] Payload(int amountLength, byte[] amount)
+        {
+            var bytes = new byte[24 + amount.Length];
+            UInt160.Parse("0x" + new string('a', 40)).GetSpan().CopyTo(bytes);
+            System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(
+                bytes.AsSpan(20, 4), amountLength);
+            amount.CopyTo(bytes, 24);
+            return bytes;
+        }
+
+        Assert.ThrowsExactly<ArgumentException>(
+            () => ExternalAssetTransferPayload.Decode(Payload(0, [])));
+        Assert.ThrowsExactly<ArgumentException>(
+            () => ExternalAssetTransferPayload.Decode(Payload(1, [0])));
+        Assert.ThrowsExactly<ArgumentException>(
+            () => ExternalAssetTransferPayload.Decode(Payload(2, [1, 0])));
+        Assert.ThrowsExactly<ArgumentException>(
+            () => ExternalAssetTransferPayload.Decode(Payload(33, Enumerable.Repeat((byte)1, 33).ToArray())));
     }
 }
 

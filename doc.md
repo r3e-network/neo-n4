@@ -1008,25 +1008,68 @@ struct ExternalCrossChainMessage {
     UInt256 sourceTxRef;        // Eth tx hash / Tron tx hash / Solana sig
     byte   messageType;         // 0=AssetTransfer, 1=Call, 2=AssetAndCall
     byte[] payload;
-    UInt256 messageHash;        // Hash256 over canonical bytes
+    UInt256 messageHash;        // 派生元数据：Hash256(canonicalBytes)，不在线上序列化
 }
 ```
 
 `externalChainId` 高位 `0xE0` 前缀保留外链命名空间，与 Neo L2 chainId
-（从 1 开始）无冲突。
+（从 1 开始）无冲突。规范线格式为固定 102 bytes 前缀加 `payload`：所有多字节
+整数均为 little-endian，最后 4 bytes 前缀字段为 `payloadLength`，随后紧跟
+`payloadLength` bytes。`messageHash` 仅由 C# / Rust 两侧从这 `102 + N` bytes
+重算，不附加到证明输入，链上也不信任调用方提供的哈希。
 
-### 11.3.4 加密原语
+`ExternalBridgeEscrow` 的生产实例必须在部署时绑定一个不可变的目标 Neo 域：
+`neoChainId == 0` 明确表示 Neo L1，非零值表示对应 Neo L2。合约必须在 verifier
+调用前同时检查参数 `externalChainId`、签名消息中的 source/destination chain、
+direction、nonce 与 deadline。`AssetTransfer` payload 为
+`foreignAsset(20B) || amountLength(4B LE) || amount(1..32B minimal unsigned LE)`；
+`AssetAndCall` 在相同资产前缀后追加 adapter calldata。零金额、超过 uint256、
+非最短编码、零资产或零 recipient 均 fail closed。
+
+### 11.3.4 入站资产释放 / 信用闭环
+
+`ExternalBridgeEscrow` 自身持有每个 `(externalChainId, neoAsset)` 的直接释放
+流动性，并持有不可变的 `(externalChainId, foreignAsset) → neoAsset` 映射：
+
+- `payoutAdapter == UInt160.Zero`：仅允许目标域为 Neo L1（`neoChainId == 0`）时
+  调用原生 NEP-17 `transfer`，从对应外链域的 escrow 余额原子扣减并向已签名
+  recipient 释放；`FundLiquidity` 只接受已经建立并启用的 direct route，避免把资产
+  注入不可领取的池。余额不足或 token 返回 `false` 时，余额与 replay marker 一并回滚。
+- 非零 adapter：调用版本化 `payout` ABI，并完整传入 source/destination chain、
+  nonce、foreign/Neo asset、recipient、amount、deadline、sourceTxRef 与原始规范
+  message bytes。adapter 必须是 `payoutVersion() == 1`、从未原地更新
+  (`ContractManagement.UpdateCounter == 0`) 的新部署；route 固定该 update counter，
+  后续原地更新即停止 payout，必须部署新 adapter 并走治理升级。
+- 目标域为 Neo L2 时必须配置非零 adapter；该 adapter 只有在目标 credit/mint 指令
+  已被同一 NeoVM 事务持久化或入队后才能返回 `true`。跨链到 L2 的最终执行天然异步，
+  不能把 verifier 接受或单独事件视为已经 mint。
+- 同一外链域内一个 Neo asset 不得映射两个 foreign assets；已建立的
+  foreign→Neo asset 映射不可改写，只能升级 adapter 或停用 route。
+- verifier 接受后先写 replay marker，再进入不可信 token/adapter；NeoVM 事务原子性
+  保证 payout fault 时 marker、余额与事件全部回滚，同时阻断 adapter 重入重放。
+
+生产部署先连接 `GovernanceController`，配置并注资 route，再调用不可逆
+`LockGovernance()`。锁定后 owner 不能直接更换 registry/route；只能使用已批准、
+已 timelock、且 action bytes 精确绑定所有参数的 `SetRegistryViaProposal` /
+`ConfigureAssetRouteViaProposal`，proposal id 只能消费一次。两种 action bytes 还必须
+包含 escrow `ExecutingScriptHash` 与不可变 `neoChainId`，同一治理 proposal 因此不能
+跨 escrow 实例或跨 L2 域复用。
+
+### 11.3.5 加密原语
 
 Neo `CryptoLib` 已暴露：
 
-- `VerifyWithECDsa`（secp256k1 + Keccak256）→ Eth / Tron 签名验证
+- `VerifyWithECDsa`（`secp256k1SHA256`）→ Eth / Tron watcher 委员会签名验证
 - `VerifyWithEd25519` → Solana 签名验证
+
+这里的 Keccak256 只用于 EVM event topic / 地址生态，不用于 Neo 上的委员会
+签名验证。消息身份另以 Neo `Hash256`（double-SHA256）从规范 bytes 派生。
 
 签名验证不是瓶颈，**轻客户端复杂度才是**。Solana 因 Tower BFT 验证
 集 ~1500、每 epoch 轮换、需要推理 lockouts，不能短期做无信任轻
 客户端，因此 Solana 桥的所有 Phase 都停留在 MPC committee 模型。
 
-### 11.3.5 升级路径（Phase 顺序）
+### 11.3.6 升级路径（Phase 顺序）
 
 ```text
 Phase A：Foundation       # 三个合约 + IExternalBridgeVerifier seam（无 verifier）

@@ -493,9 +493,9 @@ public class UT_DeployPlanner
         // 6 production ZK verifier wiring/governance-lock hints +
         // 1 exact atomic v4 profile registration +
         // 1 fraud-verifier security-boundary note +
-        // 3 external-bridge gov/setup hints +
-        // 2 Phase-C wiring hints + 5 DA/optimistic/Gateway/filter production wiring hints = 30.
-        Assert.AreEqual(30, actions.Count);
+        // 7 external-bridge governance/route/liquidity/setup hints +
+        // 2 Phase-C wiring hints + 5 DA/optimistic/Gateway/filter production wiring hints = 34.
+        Assert.AreEqual(34, actions.Count);
 
         // 1. SequencerBond.RegisterSlasher(OptimisticChallenge) — Phase-3 cycle-break.
         StringAssert.Contains(actions[0], "SequencerBond.RegisterSlasher");
@@ -572,18 +572,40 @@ public class UT_DeployPlanner
         StringAssert.Contains(actions[21], "GovernanceController");
         StringAssert.Contains(actions[21], "UpgradeVerifierViaProposal");
 
-        // 20. Per-foreign-chain committee setup pointer.
-        StringAssert.Contains(actions[22], "neo-external-bridge");
-        StringAssert.Contains(actions[22], "RegisterVerifier");
-        StringAssert.Contains(actions[22], "0xE0000001");
+        // 20. ExternalBridgeEscrow proposal-governance wiring.
+        StringAssert.Contains(actions[22], "ExternalBridgeEscrow.SetGovernanceController");
+        StringAssert.Contains(actions[22], "timelocked");
 
-        // 21. Phase-C: ExternalBridgeBond.RegisterSlasher(MpcCommitteeFraudVerifier).
-        StringAssert.Contains(actions[23], "ExternalBridgeBond.RegisterSlasher");
-        StringAssert.Contains(actions[23], "MpcCommitteeFraudVerifier");
+        // 21. Per-foreign-chain committee setup pointer.
+        StringAssert.Contains(actions[23], "neo-external-bridge");
+        StringAssert.Contains(actions[23], "RegisterVerifier");
+        StringAssert.Contains(actions[23], "0xE0000001");
 
-        // 22. Phase-C: per-chain RegisterCommitteeWithMembers pointer.
-        StringAssert.Contains(actions[24], "RegisterCommitteeWithMembers");
-        StringAssert.Contains(actions[24], "MpcCommitteeFraudVerifier");
+        // 22-24. Inbound payout route, collateral, and irreversible admin lock.
+        StringAssert.Contains(actions[24], "ExternalBridgeEscrow.SetAssetRoute");
+        StringAssert.Contains(actions[24], "payoutVersion()==1");
+        StringAssert.Contains(actions[24], "UpdateCounter==0");
+        StringAssert.Contains(actions[24], "non-zero L2_CHAIN_ID_REPLACE_ME");
+        StringAssert.Contains(actions[24], "neoChainId=0");
+        StringAssert.Contains(actions[25], "ExternalBridgeEscrow.FundLiquidity");
+        StringAssert.Contains(actions[25], "Neo L1 direct-release routes only");
+        StringAssert.Contains(actions[26], "ExternalBridgeEscrow.LockGovernance");
+        StringAssert.Contains(actions[26], "ConfigureAssetRouteViaProposal");
+
+        // 25. Phase-C: ExternalBridgeBond.RegisterSlasher(MpcCommitteeFraudVerifier).
+        StringAssert.Contains(actions[27], "ExternalBridgeBond.RegisterSlasher");
+        StringAssert.Contains(actions[27], "MpcCommitteeFraudVerifier");
+
+        // 26. Phase-C: per-chain RegisterCommitteeWithMembers pointer.
+        StringAssert.Contains(actions[28], "RegisterCommitteeWithMembers");
+        StringAssert.Contains(actions[28], "MpcCommitteeFraudVerifier");
+
+        StringAssert.Contains(actions[29], "SettlementManager.SetDARegistry");
+        StringAssert.Contains(actions[30], "SettlementManager.SetDAValidator");
+        StringAssert.Contains(actions[31], "SettlementManager.SetOptimisticChallenge");
+        StringAssert.Contains(actions[32], "SettlementManager.SetMessageRouter");
+        StringAssert.Contains(actions[32], "MessageRouter");
+        StringAssert.Contains(actions[33], "MessageRouter.SetL1TxFilter");
     }
 
     [TestMethod]

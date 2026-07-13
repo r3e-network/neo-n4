@@ -58,6 +58,10 @@ pub enum BuildError {
     UnsupportedMessageType(u8),
     #[error("payload length {0} exceeds u32::MAX — cannot encode canonical message")]
     PayloadTooLarge(usize),
+    #[error("asset amount must be 1..=32 bytes in minimal unsigned little-endian form")]
+    InvalidAmountEncoding,
+    #[error("foreign asset must be non-zero")]
+    InvalidForeignAsset,
 }
 
 /// Build the canonical pre-image bytes (102-byte fixed prefix + payload).
@@ -69,7 +73,11 @@ pub fn canonical_message_bytes(msg: &ExternalCrossChainMessage) -> Result<Vec<u8
         return Err(BuildError::BadNamespace(msg.external_chain_id));
     }
 
-    let size = 102 + msg.payload.len();
+    let payload_len = u32::try_from(msg.payload.len())
+        .map_err(|_| BuildError::PayloadTooLarge(msg.payload.len()))?;
+    let size = 102usize
+        .checked_add(msg.payload.len())
+        .ok_or(BuildError::PayloadTooLarge(msg.payload.len()))?;
     let mut out = Vec::with_capacity(size);
     out.extend_from_slice(&msg.external_chain_id.to_le_bytes());
     out.extend_from_slice(&msg.neo_chain_id.to_le_bytes());
@@ -80,8 +88,6 @@ pub fn canonical_message_bytes(msg: &ExternalCrossChainMessage) -> Result<Vec<u8
     out.extend_from_slice(&msg.deadline_unix_seconds.to_le_bytes());
     out.extend_from_slice(&msg.source_tx_ref);
     out.push(msg.message_type as u8);
-    let payload_len = u32::try_from(msg.payload.len())
-        .map_err(|_| BuildError::PayloadTooLarge(msg.payload.len()))?;
     out.extend_from_slice(&payload_len.to_le_bytes());
     out.extend_from_slice(&msg.payload);
     debug_assert_eq!(out.len(), size);
@@ -109,8 +115,11 @@ pub fn encode_asset_transfer_payload(
     foreign_asset: [u8; 20],
     amount_le: &[u8],
 ) -> Result<Vec<u8>, BuildError> {
-    if amount_le.len() > 64 {
-        return Err(BuildError::PayloadTooLarge(amount_le.len()));
+    if foreign_asset == [0; 20] {
+        return Err(BuildError::InvalidForeignAsset);
+    }
+    if amount_le.is_empty() || amount_le.len() > 32 || amount_le.last() == Some(&0) {
+        return Err(BuildError::InvalidAmountEncoding);
     }
     let mut out = Vec::with_capacity(20 + 4 + amount_le.len());
     out.extend_from_slice(&foreign_asset);
@@ -210,5 +219,29 @@ mod tests {
         msg.payload.clear();
         let bytes = canonical_message_bytes(&msg).unwrap();
         assert_eq!(bytes.len(), 102);
+    }
+
+    #[test]
+    fn asset_payload_rejects_zero_non_minimal_and_overwide_amounts() {
+        assert!(matches!(
+            encode_asset_transfer_payload([0; 20], &[1]),
+            Err(BuildError::InvalidForeignAsset)
+        ));
+        assert!(matches!(
+            encode_asset_transfer_payload([0xee; 20], &[]),
+            Err(BuildError::InvalidAmountEncoding)
+        ));
+        assert!(matches!(
+            encode_asset_transfer_payload([0xee; 20], &[0]),
+            Err(BuildError::InvalidAmountEncoding)
+        ));
+        assert!(matches!(
+            encode_asset_transfer_payload([0xee; 20], &[1, 0]),
+            Err(BuildError::InvalidAmountEncoding)
+        ));
+        assert!(matches!(
+            encode_asset_transfer_payload([0xee; 20], &[1; 33]),
+            Err(BuildError::InvalidAmountEncoding)
+        ));
     }
 }

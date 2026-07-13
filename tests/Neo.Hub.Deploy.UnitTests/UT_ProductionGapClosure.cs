@@ -73,6 +73,29 @@ public class UT_ProductionGapClosure
     }
 
     [TestMethod]
+    public void PostDeployActions_CloseExternalBridgeInboundPayoutWiring()
+    {
+        var plan = ScaffoldPlan.Default();
+        var bundle = DeployPlanner.Plan(plan, name => H((byte)(name.Length & 0xFF)));
+        var actions = ScaffoldPlan.PostDeployActions(bundle).ToArray();
+
+        Assert.IsTrue(actions.Any(action => action.Contains(
+            "ExternalBridgeEscrow.SetGovernanceController(GovernanceController)",
+            StringComparison.Ordinal)));
+        Assert.IsTrue(actions.Any(action => action.Contains("ExternalBridgeEscrow.SetAssetRoute", StringComparison.Ordinal)
+            && action.Contains("payoutVersion()==1", StringComparison.Ordinal)
+            && action.Contains("UpdateCounter==0", StringComparison.Ordinal)
+            && action.Contains("non-zero L2_CHAIN_ID_REPLACE_ME", StringComparison.Ordinal)
+            && action.Contains("neoChainId=0", StringComparison.Ordinal)));
+        Assert.IsTrue(actions.Any(action => action.Contains(
+            "ExternalBridgeEscrow.FundLiquidity", StringComparison.Ordinal)
+            && action.Contains("Neo L1 direct-release routes only", StringComparison.Ordinal)));
+        Assert.IsTrue(actions.Any(action => action.Contains(
+            "ExternalBridgeEscrow.LockGovernance()", StringComparison.Ordinal)
+            && action.Contains("ConfigureAssetRouteViaProposal", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
     public void Repository_UsesNeoCoreForkForL2NativeContracts()
     {
         var root = FindRepositoryRoot();

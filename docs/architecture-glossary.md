@@ -105,7 +105,7 @@ Lives at `contracts/NeoHub.*`. Each is a compiled .nef + .manifest.json.
 
 - **`MpcCommitteeVerifier`** — Verifies M-of-N committee signatures over canonical `ExternalCrossChainMessage`.
 - **`ExternalBridgeRegistry`** — Per-chain (verifier, bridgeKind) entries. Routes to MPC vs ZK light-client (Phase D).
-- **`ExternalBridgeEscrow`** — Mints/burns wrapped assets for foreign-chain inbounds; replay-protected.
+- **`ExternalBridgeEscrow`** — Locks outbound NEP-17; verified inbound atomically releases funded NEP-17 only for an L1-bound instance, while every L2 destination requires a version/update-counter-pinned payout/credit adapter. Routes and governance are replay-protected and fail closed.
 - **`ExternalBridgeBond`** — Slashable bonds for external-bridge committee members.
 - **`ExternalBridgeStubVerifier`** — v0 stub for testing — auto-accepts any message. NOT for production.
 - **`MpcCommitteeFraudVerifier`** — Phase C: cryptographically proves committee equivocation; slashes via `ExternalBridgeBond`.

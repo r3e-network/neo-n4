@@ -325,6 +325,7 @@ public static class ScaffoldPlan
     ///   <item><description><c>SequencerBond.RegisterSlasher(OptimisticChallenge)</c>: broken cycle workaround — bond can't depend on challenge at deploy time, so the operator wires it post-deploy.</description></item>
     ///   <item><description><c>ChainRegistry.SetGovernanceController(GovernanceController)</c>: doc.md §16.1 admission policy needs the GovernanceController hash wired before <c>RegisterChainPublic</c> works in mode 1/2.</description></item>
     ///   <item><description><c>VerifierRegistry.SetGovernanceController(GovernanceController)</c>: doc.md §16 council-veto needs the GovernanceController hash wired before <c>RegisterVerifierViaProposal</c> can consult <c>IsApprovedAndTimelocked</c>.</description></item>
+    ///   <item><description><c>ExternalBridgeEscrow</c> governance, versioned payout-route, direct-liquidity, and irreversible-lock wiring required to close the verified inbound asset path.</description></item>
     ///   <item><description>Fraud-verifier wiring only for the exact chain-scoped restricted executable v4 profile. Structural v1/v2/v3 contracts are reported as advisory-only and are never registered for state-changing challenges.</description></item>
     /// </list>
     /// </remarks>
@@ -419,6 +420,10 @@ public static class ScaffoldPlan
         {
             yield return $"{extRegistry.Name}.SetGovernanceController({gc.Name})  # enable governance-mediated verifier upgrade (UpgradeVerifierViaProposal depends on this)";
         }
+        if (extEscrow is not null && gc is not null)
+        {
+            yield return $"{extEscrow.Name}.SetGovernanceController({gc.Name})  # enable exact payload-bound, timelocked registry and payout-route upgrades before the irreversible production lock";
+        }
         if (mpcVerifier is not null && extRegistry is not null)
         {
             // Informational — operators must wire each supported foreign
@@ -428,6 +433,15 @@ public static class ScaffoldPlan
             // and ExternalBridgeEscrow.Receive reverts with "no verifier
             // registered for externalChainId" on first inbound message.
             yield return $"# Per supported foreign chain (e.g. Eth=0xE0000001, Sepolia=0xE0000002): run `neo-external-bridge committee-blob` + `neo-external-bridge deploy-bundle` to register the committee on {mpcVerifier.Name} and bind it to {extRegistry.Name} via RegisterVerifier(externalChainId, mpcVerifier.Hash, bridgeKindMpc=1).";
+        }
+        if (extEscrow is not null)
+        {
+            yield return $"# Per supported asset: call {extEscrow.Name}.SetAssetRoute(EXTERNAL_CHAIN_ID, FOREIGN_ASSET, NEO_ASSET, PAYOUT_ADAPTER_V1). The default non-zero L2_CHAIN_ID_REPLACE_ME deployment requires a freshly deployed adapter with payoutVersion()==1 and UpdateCounter==0 that atomically persists/enqueues the target credit instruction (L2 execution remains asynchronous). UInt160.Zero is valid only for an escrow explicitly deployed with neoChainId=0 for direct Neo L1 NEP-17 release.";
+            yield return $"# Neo L1 direct-release routes only: call {extEscrow.Name}.FundLiquidity(EXTERNAL_CHAIN_ID, NEO_ASSET, AMOUNT) before accepting inbound value; non-zero L2 adapter routes own their target-chain credit/mint accounting.";
+        }
+        if (extEscrow is not null && gc is not null)
+        {
+            yield return $"{extEscrow.Name}.LockGovernance()  # irreversible production gate: disable direct owner registry/route replacement; future changes require SetRegistryViaProposal or ConfigureAssetRouteViaProposal with exact bound bytes";
         }
         if (fraudVerifier is not null && extBond is not null)
         {

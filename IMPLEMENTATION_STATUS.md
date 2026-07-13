@@ -59,7 +59,8 @@ and every open release gate still apply:
   public-input hash / no-zero-proof / DA availability / batch range).
 - **CLI tooling** — `neo-stack` plan-printers + `validate` subcommand;
   `neo-hub-deploy` declarative L1 deploy planner (now scaffolds the
-  external-bridge stack alongside NeoHub: 23 steps + 29 post-deploy
+  external-bridge stack alongside NeoHub: 23 steps + explicit verifier,
+  payout-route, liquidity, governance-lock, and DA post-deploy wiring
   hints); `neo-external-bridge` operator CLI for bridge committee
   setup + dual-side deploy planning.
 - **Cross-foreign-chain bridge (Phase B + C — doc.md §11.3)** —
@@ -68,7 +69,11 @@ and every open release gate still apply:
   also stores per-signer bond-holder member binding via
   `RegisterCommitteeWithMembers`) + `NeoHub.ExternalBridgeRegistry`
   for verifier dispatch + `NeoHub.ExternalBridgeEscrow` (locks
-  NEP-17 outbound + verifies inbound via registry) +
+  NEP-17 outbound + verifies inbound via registry + atomically releases
+  funded NEP-17 for the explicit L1 domain or invokes a mandatory
+  version/update-counter-pinned payout-v1 adapter for an L2 destination;
+  immutable/reverse-unique asset mapping, replay protection,
+  and irreversible proposal-only production governance) +
   `NeoHub.ExternalBridgeBond` (committee bonding mirroring
   `SequencerBond`) + `NeoHub.MpcCommitteeFraudVerifier` (Phase C —
   proves equivocation cryptographically + slashes the full bond +
@@ -254,7 +259,7 @@ deployments for the documented process/signing seams.
 Phase 0-4: `ChainRegistry` · `SharedBridge` · `SettlementManager` · `VerifierRegistry` · **`ContractZkVerifier`** (ProofType.Zk router -> deployable proof-verifier contracts) · **`Sp1Groth16Verifier`** (immutable SP1-compatible BN254 terminal verifier) · `MessageRouter` · `TokenRegistry` · `DARegistry` · **`DAValidator`** · **`L1TxFilter`** · `GovernanceController` · `EmergencyManager` · `ForcedInclusion` · `SequencerBond` · `SequencerRegistry` · `OptimisticChallenge` (exact executable-v4 chain/semantic/replay profile + global claim replay protection + CEI) · **`RestrictedExecutionFraudVerifier`** (SettlementManager-bound executable v4 for one existing-key Counter Increment; not general NeoVM). `GovernanceFraudVerifier` remains an advisory structural v1/v2 artifact and is excluded from the production plan; restricted v3 is likewise non-state-changing.
 
 External-bridge stack (doc.md §11.3 — cross-foreign-chain to Eth/Tron/Sol):
-**`MpcCommitteeVerifier`** (Phase B M-of-N secp256k1/ed25519 verifier; Phase C-extended with per-signer bond-holder binding via `RegisterCommitteeWithMembers`) · **`ExternalBridgeRegistry`** (pluggable verifier dispatch; same upgrade-via-governance shape as `VerifierRegistry`) · **`ExternalBridgeEscrow`** (locks NEP-17 outbound + dispatches inbound through registry; defense-in-depth replay tracking) · **`ExternalBridgeBond`** (committee bonding + slashing-on-equivocation; mirrors `SequencerBond` 1:1) · **`ExternalBridgeStubVerifier`** (Phase-A devnet acceptance verifier; bridgeKind=0 to refuse production deployments) · **`MpcCommitteeFraudVerifier`** (Phase C — proves equivocation cryptographically + slashes full bond + pays reporter; replay-protected per `(chainId, signerIdx)`)
+**`MpcCommitteeVerifier`** (Phase B M-of-N secp256k1/ed25519 verifier; Phase C-extended with per-signer bond-holder binding via `RegisterCommitteeWithMembers`) · **`ExternalBridgeRegistry`** (pluggable verifier dispatch; same upgrade-via-governance shape as `VerifierRegistry`) · **`ExternalBridgeEscrow`** (locks NEP-17 outbound; inbound performs atomic direct NEP-17 release only for an explicit L1 domain or mandatory pinned payout-v1 adapter credit for L2, with immutable/reverse-unique routes, exact domain/value binding, replay rollback, and proposal-only production governance) · **`ExternalBridgeBond`** (committee bonding + slashing-on-equivocation; mirrors `SequencerBond` 1:1) · **`ExternalBridgeStubVerifier`** (Phase-A devnet acceptance verifier; bridgeKind=0 to refuse production deployments) · **`MpcCommitteeFraudVerifier`** (Phase C — proves equivocation cryptographically + slashes full bond + pays reporter; replay-protected per `(chainId, signerIdx)`)
 
 **L2 native (10):**
 `L2BridgeContract` · `L2MessageContract` · `L2BatchInfoContract` · `L2FeeContract` · `L2PaymasterContract` · `L2SystemConfigContract` · **`L2NativeExternalBridgeContract`** (L2-side counterpart to `ExternalBridgeEscrow` — burn-on-send / mint-on-receive, sequencer-injected inbound) · **`BridgedNep17Contract`** (canonical mint/burn NEP-17 representation for bridged L1 assets) · **`L2AccountAbstraction`** (validator/paymaster/nonce entry point) · **`L2InteropVerifier`** (L2-side global message-root mirror and inclusion verifier)

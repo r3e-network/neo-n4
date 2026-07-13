@@ -39,7 +39,7 @@ public sealed record TransactionExecutionResult
     /// <summary>The receipt produced.</summary>
     public required Receipt Receipt { get; init; }
 
-    /// <summary>Hash256 of the exact canonical encoded transaction bytes.</summary>
+    /// <summary>The canonical transaction hash (matches Neo's <c>Transaction.Hash</c>).</summary>
     public required UInt256 TxHash { get; init; }
 
     /// <summary>Withdrawals emitted during this transaction (added to the batch withdrawal tree).</summary>

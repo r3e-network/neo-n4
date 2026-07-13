@@ -178,6 +178,50 @@ public class UT_RpcSettlementClient
     }
 
     [TestMethod]
+    public async Task SettlementClient_GetTransactionStatus_DistinguishesPendingAndConfirmed()
+    {
+        var stub = new StubHandler
+        {
+            ResponseBody = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"hash\":\"0x01\"}}",
+        };
+        using var http = new HttpClient(stub);
+        var rpc = new JsonRpcClient(FakeEndpoint, http);
+        using var settlement = new RpcSettlementClient(
+            rpc,
+            UInt160.Parse("0x" + new string('1', 40)),
+            (sm, bytes, l1h, bch, ct) => new ValueTask<UInt256>(UInt256.Zero));
+
+        Assert.AreEqual(
+            SettlementTransactionStatus.Pending,
+            await settlement.GetTransactionStatusAsync(UInt256.Zero));
+
+        stub.ResponseBody =
+            "{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{\"hash\":\"0x01\",\"blockhash\":\"0x02\"}}";
+        Assert.AreEqual(
+            SettlementTransactionStatus.Confirmed,
+            await settlement.GetTransactionStatusAsync(UInt256.Zero));
+    }
+
+    [TestMethod]
+    public async Task SettlementClient_GetTransactionStatus_UnknownTransactionFailsClosed()
+    {
+        var stub = new StubHandler
+        {
+            ResponseBody = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-100,\"message\":\"Unknown transaction\"}}",
+        };
+        using var http = new HttpClient(stub);
+        var rpc = new JsonRpcClient(FakeEndpoint, http);
+        using var settlement = new RpcSettlementClient(
+            rpc,
+            UInt160.Parse("0x" + new string('1', 40)),
+            (sm, bytes, l1h, bch, ct) => new ValueTask<UInt256>(UInt256.Zero));
+
+        Assert.AreEqual(
+            SettlementTransactionStatus.Unknown,
+            await settlement.GetTransactionStatusAsync(UInt256.Zero));
+    }
+
+    [TestMethod]
     public async Task SettlementClient_FaultedStateThrows()
     {
         var stub = new StubHandler

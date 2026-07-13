@@ -65,6 +65,9 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
                 "plugin settings differ from the canonical pipeline profile");
         if (forcedInclusionSource is not null)
         {
+            if (forcedInclusionFinalizer is null)
+                throw new InvalidOperationException(
+                    "forced-inclusion source requires an L1 finalization client");
             if (forcedInclusionSource.ChainId != profile.ChainId)
                 throw new InvalidOperationException(
                     "forced-inclusion source chain differs from the pipeline profile");

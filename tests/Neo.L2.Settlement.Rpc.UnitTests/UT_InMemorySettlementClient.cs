@@ -77,6 +77,24 @@ public class UT_InMemorySettlementClient
     }
 
     [TestMethod]
+    public async Task TransactionStatus_TracksConfirmedAndRevertedLifecycle()
+    {
+        var client = new InMemorySettlementClient();
+        var transactionHash = await client.SubmitBatchAsync(Mk(1001, 1), SamplePublicInputs());
+        Assert.AreEqual(
+            SettlementTransactionStatus.Confirmed,
+            await client.GetTransactionStatusAsync(transactionHash));
+
+        client.AdvanceStatus(1001, 1, BatchStatus.Reverted);
+        Assert.AreEqual(
+            SettlementTransactionStatus.Reverted,
+            await client.GetTransactionStatusAsync(transactionHash));
+        Assert.AreEqual(
+            SettlementTransactionStatus.Unknown,
+            await client.GetTransactionStatusAsync(MakeUInt256(0xee)));
+    }
+
+    [TestMethod]
     public async Task Submit_RejectsBatchNumberReuseWithDifferentCommitment()
     {
         var client = new InMemorySettlementClient();

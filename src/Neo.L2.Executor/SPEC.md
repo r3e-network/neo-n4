@@ -155,6 +155,13 @@ The production order is:
 5. `IL2Prover` receives the complete, non-empty serialized artifact bytes. The proof manifest is
    durably committed before settlement submission. The store, not an in-memory queue, is the source
    of truth for proving, submission, reconciliation, and restart recovery.
+   The manifest state machine is `ProofReady -> Submitted -> SettlementObserved`: `Submitted`
+   requires a persisted non-zero L1 transaction hash, while broadcast success alone never implies
+   observation. Recovery always queries the batch first. A persisted pending transaction is not
+   duplicated; dropped/reverted transactions may be replaced only after explicit transaction-status
+   evidence. Unknown or inconsistent transaction state fails closed. If a process stops before the
+   transaction hash is persisted, retry is allowed only through the settlement client's required
+   `(chainId,batchNumber)` idempotency after another batch-status query.
 6. After settlement is observed, a forced nonce remains tracked until the batch is finalized and an
    `IForcedInclusionFinalizationClient` verifies `SettlementManager.getFinalizedTxRoot`, submits
    permissionless `ForcedInclusion.consume(chainId,batchNumber,nonce,siblings,leafIndex)`, and confirms

@@ -95,13 +95,42 @@ public class UT_ProofWitnessStore
         var submitted = await store.GetProofAsync(artifact.ContentHash);
         Assert.IsNotNull(submitted);
         Assert.AreEqual(l1TransactionHash, submitted.L1TransactionHash);
-        Assert.IsTrue(submitted.SettlementObserved);
+        Assert.AreEqual(ProofSubmissionState.Submitted, submitted.SubmissionState);
+        Assert.IsTrue(submitted.Submitted);
+        Assert.IsFalse(submitted.SettlementObserved);
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             () => store.MarkSubmittedAsync(artifact.ContentHash, H(0x71)).AsTask());
         var conflictingManifest = manifest with { Proof = new byte[] { 0xff } };
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             () => store.PutProofAsync(conflictingManifest).AsTask());
+    }
+
+    [TestMethod]
+    public async Task SubmittedTransaction_ReplacementRequiresExpectedHashAndUnobservedState()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var artifact = SampleArtifact();
+        var first = H(0x72);
+        var replacement = H(0x73);
+        await store.CommitAsync(artifact);
+        await store.PutProofAsync(SampleManifest(artifact));
+        await store.MarkSubmittedAsync(artifact.ContentHash, first);
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => store.ReplaceSubmittedTransactionAsync(
+                artifact.ContentHash, H(0x74), replacement).AsTask());
+        await store.ReplaceSubmittedTransactionAsync(
+            artifact.ContentHash, first, replacement);
+        Assert.AreEqual(
+            replacement,
+            (await store.GetProofAsync(artifact.ContentHash))!.L1TransactionHash);
+
+        await store.MarkSubmissionObservedAsync(artifact.ContentHash);
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => store.ReplaceSubmittedTransactionAsync(
+                artifact.ContentHash, replacement, H(0x75)).AsTask());
     }
 
     [TestMethod]
@@ -168,6 +197,7 @@ public class UT_ProofWitnessStore
             new ulong[] { 42 },
             (await store.GetTrackedForcedInclusionNoncesAsync(artifact.ChainId)).ToArray());
 
+        await store.MarkSubmissionObservedAsync(artifact.ContentHash);
         await store.MarkForcedInclusionFinalizedAsync(artifact.ContentHash);
         await store.MarkForcedInclusionFinalizedAsync(artifact.ContentHash);
 
@@ -220,7 +250,8 @@ public class UT_ProofWitnessStore
                 var recoveredProof = await store.GetProofAsync(artifact.ContentHash);
                 Assert.IsNotNull(recoveredProof);
                 Assert.AreEqual(l1TransactionHash, recoveredProof.L1TransactionHash);
-                Assert.IsTrue(recoveredProof.SettlementObserved);
+                Assert.AreEqual(ProofSubmissionState.Submitted, recoveredProof.SubmissionState);
+                Assert.IsFalse(recoveredProof.SettlementObserved);
                 var recovered = new List<ProofWitnessArtifactV1>();
                 await foreach (var item in store.EnumerateCommittedAsync(artifact.ChainId))
                     recovered.Add(item);
@@ -257,7 +288,7 @@ public class UT_ProofWitnessStore
         Assert.ThrowsExactly<InvalidDataException>(() => ProofResultManifestSerializer.Decode(magic));
 
         var version = canonical.ToArray();
-        BinaryPrimitives.WriteUInt16LittleEndian(version.AsSpan(8, 2), 2);
+        BinaryPrimitives.WriteUInt16LittleEndian(version.AsSpan(8, 2), 3);
         Assert.ThrowsExactly<InvalidDataException>(() => ProofResultManifestSerializer.Decode(version));
 
         var flags = canonical.ToArray();
@@ -279,6 +310,32 @@ public class UT_ProofWitnessStore
         var badLength = canonical.ToArray();
         BinaryPrimitives.WriteUInt32LittleEndian(badLength.AsSpan(156, 4), uint.MaxValue);
         Assert.ThrowsExactly<InvalidDataException>(() => ProofResultManifestSerializer.Decode(badLength));
+    }
+
+    [TestMethod]
+    public void ProofResultManifest_V1BroadcastStateMigratesToSubmittedNotObserved()
+    {
+        var artifact = SampleArtifact();
+        var transactionHash = H(0x79);
+        var submitted = SampleManifest(artifact) with
+        {
+            SubmissionState = ProofSubmissionState.Submitted,
+            L1TransactionHash = transactionHash,
+        };
+        var legacy = ProofResultManifestSerializer.Encode(submitted);
+        BinaryPrimitives.WriteUInt16LittleEndian(legacy.AsSpan(8, 2), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(legacy.AsSpan(10, 2), 3);
+        var body = legacy.AsSpan(0, legacy.Length - UInt256.Length);
+        var bound = new byte["neo-n4/proof-result/v1\0"u8.Length + body.Length];
+        "neo-n4/proof-result/v1\0"u8.CopyTo(bound);
+        body.CopyTo(bound.AsSpan("neo-n4/proof-result/v1\0"u8.Length));
+        Crypto.Hash256(bound).CopyTo(legacy.AsSpan(body.Length));
+
+        var migrated = ProofResultManifestSerializer.Decode(legacy);
+
+        Assert.AreEqual(ProofSubmissionState.Submitted, migrated.SubmissionState);
+        Assert.AreEqual(transactionHash, migrated.L1TransactionHash);
+        Assert.IsFalse(migrated.SettlementObserved);
     }
 
     private const uint SampleChainId = 0x1122_3344;
@@ -332,7 +389,7 @@ public class UT_ProofWitnessStore
             ExecutionSemanticId = artifact.ExecutionSemanticId,
             Proof = new byte[] { 0x01, 0x02, 0x03 },
             PublicValues = new byte[] { 0x04, 0x05 },
-            SettlementObserved = false,
+            SubmissionState = ProofSubmissionState.ProofReady,
         };
 
     private static ProofWitnessArtifactV1 SampleArtifact(

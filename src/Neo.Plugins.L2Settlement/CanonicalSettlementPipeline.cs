@@ -283,38 +283,24 @@ public sealed class CanonicalSettlementPipeline : IDisposable
                     if (status == BatchStatus.Reverted)
                         throw new InvalidOperationException(
                             "reverted batch remains pending for operator recovery");
-                    if (status != BatchStatus.Unknown)
+                    if (status == BatchStatus.Unknown)
                     {
-                        await _store.MarkSubmissionObservedAsync(
-                            artifact.ContentHash, cancellationToken).ConfigureAwait(false);
+                        manifest = await ReconcileUnknownSubmissionAsync(
+                            artifact, manifest, cancellationToken).ConfigureAwait(false);
                     }
                     else
                     {
-                        var commitment = BuildCommitment(artifact, manifest);
-                        var submitStarted = System.Diagnostics.Stopwatch.StartNew();
-                        var transactionHash = await _client.SubmitBatchAsync(
-                            commitment,
-                            artifact.PublicInputs,
-                            cancellationToken).ConfigureAwait(false);
-                        ArgumentNullException.ThrowIfNull(transactionHash);
-                        if (transactionHash.Equals(UInt256.Zero))
-                            throw new InvalidOperationException(
-                                "ISettlementClient returned a zero transaction hash");
-                        await _store.MarkSubmittedAsync(
-                            artifact.ContentHash,
-                            transactionHash,
-                            cancellationToken).ConfigureAwait(false);
-                        submitStarted.Stop();
-                        _metrics.SafeIncrementCounter(MetricNames.BatchesSubmitted);
-                        _metrics.SafeRecordHistogram(
-                            MetricNames.SubmitLatencyMs,
-                            submitStarted.Elapsed.TotalMilliseconds);
-                        status = null;
+                        await _store.MarkSubmissionObservedAsync(
+                            artifact.ContentHash, cancellationToken).ConfigureAwait(false);
+                        manifest = await ReadManifestAsync(
+                            artifact.ContentHash, cancellationToken).ConfigureAwait(false);
                     }
-                    manifest = await _store.GetProofAsync(
-                        artifact.ContentHash, cancellationToken).ConfigureAwait(false)
-                        ?? throw new InvalidOperationException(
-                            "proof manifest disappeared during settlement reconciliation");
+
+                    if (!manifest.SettlementObserved)
+                    {
+                        processed++;
+                        return;
+                    }
                 }
 
                 if (hasForcedNonces && !manifest.ForcedInclusionFinalized)
@@ -438,7 +424,7 @@ public sealed class CanonicalSettlementPipeline : IDisposable
             ExecutionSemanticId = artifact.ExecutionSemanticId,
             Proof = proof.Proof.ToArray(),
             PublicValues = ReadOnlyMemory<byte>.Empty,
-            SettlementObserved = false,
+            SubmissionState = ProofSubmissionState.ProofReady,
             ForcedInclusionFinalized = false,
         };
         await _store.PutProofAsync(manifest, cancellationToken).ConfigureAwait(false);
@@ -455,6 +441,103 @@ public sealed class CanonicalSettlementPipeline : IDisposable
             ("kind", proof.Kind.ToString()));
         return persistedManifest;
     }
+
+    private async ValueTask<ProofResultManifest> ReconcileUnknownSubmissionAsync(
+        ProofWitnessArtifactV1 artifact,
+        ProofResultManifest manifest,
+        CancellationToken cancellationToken)
+    {
+        if (manifest.SubmissionState == ProofSubmissionState.ProofReady)
+        {
+            await BroadcastAndPersistAsync(
+                artifact, manifest, null, cancellationToken).ConfigureAwait(false);
+            return await ReadManifestAsync(
+                artifact.ContentHash, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (manifest.SubmissionState != ProofSubmissionState.Submitted
+            || manifest.L1TransactionHash is null)
+            throw new InvalidDataException(
+                "unobserved proof manifest has an invalid durable submission state");
+        if (_client is not ISettlementTransactionStatusClient transactionClient)
+            throw new InvalidOperationException(
+                "batch is unknown and a submission transaction is persisted, but the settlement " +
+                "client cannot reconcile transaction status; automatic duplicate submission is disabled");
+
+        var transactionStatus = await transactionClient.GetTransactionStatusAsync(
+            manifest.L1TransactionHash, cancellationToken).ConfigureAwait(false);
+        switch (transactionStatus)
+        {
+            case SettlementTransactionStatus.Pending:
+                return manifest;
+            case SettlementTransactionStatus.Dropped:
+            case SettlementTransactionStatus.Reverted:
+                await BroadcastAndPersistAsync(
+                    artifact,
+                    manifest,
+                    manifest.L1TransactionHash,
+                    cancellationToken).ConfigureAwait(false);
+                return await ReadManifestAsync(
+                    artifact.ContentHash, cancellationToken).ConfigureAwait(false);
+            case SettlementTransactionStatus.Confirmed:
+                throw new InvalidOperationException(
+                    "submission transaction is confirmed but the settlement batch is unknown; " +
+                    "automatic resubmission is disabled until L1 state is reconciled");
+            case SettlementTransactionStatus.Unknown:
+                throw new InvalidOperationException(
+                    "submission transaction status is unknown; automatic resubmission is disabled");
+            default:
+                throw new InvalidDataException(
+                    $"settlement client returned unknown transaction status {transactionStatus}");
+        }
+    }
+
+    private async ValueTask BroadcastAndPersistAsync(
+        ProofWitnessArtifactV1 artifact,
+        ProofResultManifest manifest,
+        UInt256? replacedTransactionHash,
+        CancellationToken cancellationToken)
+    {
+        var commitment = BuildCommitment(artifact, manifest);
+        var submitStarted = System.Diagnostics.Stopwatch.StartNew();
+        var transactionHash = await _client.SubmitBatchAsync(
+            commitment,
+            artifact.PublicInputs,
+            cancellationToken).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(transactionHash);
+        if (transactionHash.Equals(UInt256.Zero))
+            throw new InvalidOperationException(
+                "ISettlementClient returned a zero transaction hash");
+
+        if (replacedTransactionHash is null)
+        {
+            await _store.MarkSubmittedAsync(
+                artifact.ContentHash,
+                transactionHash,
+                cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            await _store.ReplaceSubmittedTransactionAsync(
+                artifact.ContentHash,
+                replacedTransactionHash,
+                transactionHash,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        submitStarted.Stop();
+        _metrics.SafeIncrementCounter(MetricNames.BatchesSubmitted);
+        _metrics.SafeRecordHistogram(
+            MetricNames.SubmitLatencyMs,
+            submitStarted.Elapsed.TotalMilliseconds);
+    }
+
+    private async ValueTask<ProofResultManifest> ReadManifestAsync(
+        UInt256 artifactContentHash,
+        CancellationToken cancellationToken)
+        => await _store.GetProofAsync(artifactContentHash, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidOperationException(
+                "proof manifest disappeared during settlement reconciliation");
 
     private void ValidateExecution(
         SealedBatch batch,
@@ -668,8 +751,14 @@ public sealed class CanonicalSettlementPipeline : IDisposable
             || !manifest.ExecutionSemanticId.Equals(artifact.ExecutionSemanticId)
             || !manifest.PublicInputHash.Equals(
                 StateRootCalculator.HashPublicInputs(artifact.PublicInputs))
+            || !Enum.IsDefined(manifest.SubmissionState)
+            || (manifest.SubmissionState == ProofSubmissionState.ProofReady
+                && manifest.L1TransactionHash is not null)
+            || (manifest.SubmissionState == ProofSubmissionState.Submitted
+                && manifest.L1TransactionHash is null)
             || (manifest.ForcedInclusionFinalized
-                && artifact.ExecutionPayload.ForcedInclusions.Count == 0)
+                && (artifact.ExecutionPayload.ForcedInclusions.Count == 0
+                    || !manifest.SettlementObserved))
             || manifest.Proof.IsEmpty)
             throw new InvalidDataException(
                 "proof manifest is not bound to the committed artifact");

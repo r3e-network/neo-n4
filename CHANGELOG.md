@@ -88,6 +88,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   canonical artifact. Consumption is deferred until settlement finality and delegated to
   `IForcedInclusionFinalizationClient`, which must verify the finalized transaction root, submit
   permissionless `ForcedInclusion.consume`, and confirm L1 state; failures remain restart-safe.
+- Proof manifests now persist distinct `ProofReady`, `Submitted`, and `SettlementObserved` states.
+  Recovery checks settlement and transaction status before retry, replaces only explicitly dropped
+  or reverted transactions, and treats unknown/confirmed-but-unobserved states as fail-closed.
 
 ### Security — comprehensive audit cycle 2026-05-19
 

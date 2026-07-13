@@ -133,6 +133,7 @@ public class UT_CanonicalSettlementPipeline
             artifact.DAReceipt.Commitment);
 
         await pipeline.ReconcileAsync();
+        await pipeline.ReconcileAsync();
 
         Assert.IsFalse(prover.LastWitness.IsEmpty);
         var provedArtifact = ProofWitnessArtifactSerializer.Decode(prover.LastWitness.Span);
@@ -194,6 +195,7 @@ public class UT_CanonicalSettlementPipeline
         Assert.AreEqual(1, await pipeline.GetPendingCountAsync());
 
         await pipeline.ReconcileAsync();
+        await pipeline.ReconcileAsync();
         Assert.AreEqual(2, prover.ProveCount);
         Assert.AreEqual(1, client.SubmitCount);
         Assert.AreEqual(0, await pipeline.GetPendingCountAsync());
@@ -224,6 +226,7 @@ public class UT_CanonicalSettlementPipeline
         Assert.IsFalse(manifest.SettlementObserved);
         Assert.AreEqual(1, prover.ProveCount);
 
+        await pipeline.ReconcileAsync();
         await pipeline.ReconcileAsync();
         Assert.AreEqual(1, prover.ProveCount, "persisted proof must be reused");
         Assert.AreEqual(2, client.SubmitCount);
@@ -291,6 +294,32 @@ public class UT_CanonicalSettlementPipeline
         await pipeline.ReconcileAsync();
 
         Assert.AreEqual(1, client.SubmitCount);
+        Assert.AreEqual(0, await pipeline.GetPendingCountAsync());
+    }
+
+    [TestMethod]
+    public async Task Reconcile_DurableArtifacts_SubmitsInBatchOrder()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var client = new RecordingSettlementClient();
+        using var pipeline = CreateZkPipeline(
+            store,
+            new TestExecutor(SafeSemantic),
+            new ProductionDaWriter(),
+            new RecordingZkProver(SafeSemantic),
+            client);
+        await pipeline.PersistAsync(BuildBatch(1));
+        await pipeline.PersistAsync(BuildBatch(2));
+
+        await pipeline.ReconcileAsync();
+        Assert.IsNull((await store.GetAsync(ChainId, 2)) is { } second
+            ? await store.GetProofAsync(second.ContentHash)
+            : null);
+        await pipeline.ReconcileAsync();
+        await pipeline.ReconcileAsync();
+
+        CollectionAssert.AreEqual(new ulong[] { 1, 2 }, client.SubmittedBatchNumbers.ToArray());
         Assert.AreEqual(0, await pipeline.GetPendingCountAsync());
     }
 
@@ -418,6 +447,311 @@ public class UT_CanonicalSettlementPipeline
     }
 
     [TestMethod]
+    public async Task Restart_BeforeProof_ReprovesDurableArtifact()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        var writer = new ProductionDaWriter();
+        var prover = new RecordingZkProver(SafeSemantic);
+        var client = new RecordingSettlementClient();
+        UInt256 contentHash;
+
+        using (var store = new KeyValueProofWitnessStore(backend))
+        using (var pipeline = CreateZkPipeline(
+            store, new TestExecutor(SafeSemantic), writer, prover, client))
+        {
+            var batch = BuildBatch();
+            await pipeline.PersistAsync(batch);
+            contentHash = (await store.GetAsync(ChainId, batch.BatchNumber))!.ContentHash;
+            Assert.IsNull(await store.GetProofAsync(contentHash));
+        }
+
+        using var restartedStore = new KeyValueProofWitnessStore(backend);
+        using var restarted = CreateZkPipeline(
+            restartedStore, new TestExecutor(SafeSemantic), writer, prover, client);
+        await restarted.ReconcileAsync();
+        await restarted.ReconcileAsync();
+
+        Assert.AreEqual(1, prover.ProveCount);
+        Assert.IsTrue((await restartedStore.GetProofAsync(contentHash))!.SettlementObserved);
+        Assert.AreEqual(1, client.SubmitCount);
+    }
+
+    [TestMethod]
+    public async Task Restart_AfterProof_ReusesManifestAfterSubmitFailure()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        var writer = new ProductionDaWriter();
+        var prover = new RecordingZkProver(SafeSemantic);
+        var client = new RecordingSettlementClient { FailNextSubmitBeforeRecord = true };
+        UInt256 contentHash;
+
+        using (var store = new KeyValueProofWitnessStore(backend))
+        using (var pipeline = CreateZkPipeline(
+            store, new TestExecutor(SafeSemantic), writer, prover, client))
+        {
+            var batch = BuildBatch();
+            await pipeline.PersistAsync(batch);
+            contentHash = (await store.GetAsync(ChainId, batch.BatchNumber))!.ContentHash;
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                async () => await pipeline.ReconcileAsync());
+            Assert.AreEqual(
+                ProofSubmissionState.ProofReady,
+                (await store.GetProofAsync(contentHash))!.SubmissionState);
+        }
+
+        using var restartedStore = new KeyValueProofWitnessStore(backend);
+        using var restarted = CreateZkPipeline(
+            restartedStore, new TestExecutor(SafeSemantic), writer, prover, client);
+        await restarted.ReconcileAsync();
+        await restarted.ReconcileAsync();
+
+        Assert.AreEqual(1, prover.ProveCount, "restart must reuse the durable proof");
+        Assert.AreEqual(2, client.SubmitCount);
+        Assert.IsTrue((await restartedStore.GetProofAsync(contentHash))!.SettlementObserved);
+    }
+
+    [TestMethod]
+    public async Task Restart_SubmittedButUnobserved_UsesTransactionStatusWithoutDuplicate()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        var writer = new ProductionDaWriter();
+        var prover = new RecordingZkProver(SafeSemantic);
+        var client = new RecordingSettlementClient();
+        UInt256 contentHash;
+        UInt256 transactionHash;
+
+        using (var store = new KeyValueProofWitnessStore(backend))
+        using (var pipeline = CreateZkPipeline(
+            store, new TestExecutor(SafeSemantic), writer, prover, client))
+        {
+            var batch = BuildBatch();
+            await pipeline.PersistAsync(batch);
+            contentHash = (await store.GetAsync(ChainId, batch.BatchNumber))!.ContentHash;
+            await pipeline.ReconcileAsync();
+            var submitted = (await store.GetProofAsync(contentHash))!;
+            Assert.AreEqual(ProofSubmissionState.Submitted, submitted.SubmissionState);
+            Assert.IsFalse(submitted.SettlementObserved);
+            transactionHash = submitted.L1TransactionHash!;
+            client.SetStatus(ChainId, batch.BatchNumber, BatchStatus.Unknown);
+            client.SetTransactionStatus(transactionHash, SettlementTransactionStatus.Pending);
+        }
+
+        using var restartedStore = new KeyValueProofWitnessStore(backend);
+        using var restarted = CreateZkPipeline(
+            restartedStore, new TestExecutor(SafeSemantic), writer, prover, client);
+        await restarted.ReconcileAsync();
+
+        Assert.AreEqual(1, client.SubmitCount);
+        Assert.AreEqual(1, client.TransactionStatusReadCount);
+        Assert.AreEqual(
+            ProofSubmissionState.Submitted,
+            (await restartedStore.GetProofAsync(contentHash))!.SubmissionState);
+        client.SetStatus(ChainId, 1, BatchStatus.Pending);
+        await restarted.ReconcileAsync();
+        Assert.IsTrue((await restartedStore.GetProofAsync(contentHash))!.SettlementObserved);
+    }
+
+    [TestMethod]
+    public async Task Restart_SubmittedDropped_ReplacesOnlyAfterExplicitTransactionStatus()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var client = new RecordingSettlementClient();
+        using var pipeline = CreateZkPipeline(
+            store,
+            new TestExecutor(SafeSemantic),
+            new ProductionDaWriter(),
+            new RecordingZkProver(SafeSemantic),
+            client);
+        var batch = BuildBatch();
+        await pipeline.PersistAsync(batch);
+        var contentHash = (await store.GetAsync(ChainId, batch.BatchNumber))!.ContentHash;
+        await pipeline.ReconcileAsync();
+        var first = (await store.GetProofAsync(contentHash))!;
+        var firstTransactionHash = first.L1TransactionHash!;
+        client.SetStatus(ChainId, batch.BatchNumber, BatchStatus.Unknown);
+        client.SetTransactionStatus(firstTransactionHash, SettlementTransactionStatus.Dropped);
+
+        await pipeline.ReconcileAsync();
+
+        var replacement = (await store.GetProofAsync(contentHash))!;
+        Assert.AreEqual(ProofSubmissionState.Submitted, replacement.SubmissionState);
+        Assert.AreNotEqual(firstTransactionHash, replacement.L1TransactionHash);
+        Assert.AreEqual(2, client.SubmitCount);
+        Assert.AreEqual(1, client.TransactionStatusReadCount);
+    }
+
+    [TestMethod]
+    public async Task Restart_SubmittedUnknown_FailsClosedWithoutDuplicate()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var client = new RecordingSettlementClient();
+        using var pipeline = CreateZkPipeline(
+            store,
+            new TestExecutor(SafeSemantic),
+            new ProductionDaWriter(),
+            new RecordingZkProver(SafeSemantic),
+            client);
+        var batch = BuildBatch();
+        await pipeline.PersistAsync(batch);
+        var contentHash = (await store.GetAsync(ChainId, batch.BatchNumber))!.ContentHash;
+        await pipeline.ReconcileAsync();
+        client.SetStatus(ChainId, batch.BatchNumber, BatchStatus.Unknown);
+        client.SetTransactionStatus(
+            (await store.GetProofAsync(contentHash))!.L1TransactionHash!,
+            SettlementTransactionStatus.Unknown);
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            async () => await pipeline.ReconcileAsync());
+
+        Assert.AreEqual(1, client.SubmitCount);
+        Assert.AreEqual(ProofSubmissionState.Submitted,
+            (await store.GetProofAsync(contentHash))!.SubmissionState);
+    }
+
+    [TestMethod]
+    public async Task Restart_Observed_PerformsNoSettlementCalls()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        var writer = new ProductionDaWriter();
+        var prover = new RecordingZkProver(SafeSemantic);
+        var client = new RecordingSettlementClient();
+
+        using (var store = new KeyValueProofWitnessStore(backend))
+        using (var pipeline = CreateZkPipeline(
+            store, new TestExecutor(SafeSemantic), writer, prover, client))
+        {
+            await pipeline.PersistAsync(BuildBatch());
+            await pipeline.ReconcileAsync();
+            await pipeline.ReconcileAsync();
+        }
+        var submitCount = client.SubmitCount;
+        var statusReads = client.BatchStatusReadCount;
+
+        using var restartedStore = new KeyValueProofWitnessStore(backend);
+        using var restarted = CreateZkPipeline(
+            restartedStore, new TestExecutor(SafeSemantic), writer, prover, client);
+        await restarted.ReconcileAsync();
+
+        Assert.AreEqual(submitCount, client.SubmitCount);
+        Assert.AreEqual(statusReads, client.BatchStatusReadCount);
+    }
+
+    [TestMethod]
+    public async Task Restart_FinalizedBeforeConsume_ConsumesPersistedProofs()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        var writer = new ProductionDaWriter();
+        var prover = new RecordingZkProver(SafeSemantic);
+        var client = new RecordingSettlementClient();
+        var finalizer = new RecordingForcedInclusionFinalizer();
+        UInt256 contentHash;
+
+        using (var store = new KeyValueProofWitnessStore(backend))
+        using (var pipeline = CreateZkPipeline(
+            store, new TestExecutor(SafeSemantic), writer, prover, client, finalizer))
+        {
+            var batch = BuildForcedBatch();
+            await pipeline.PersistAsync(batch);
+            contentHash = (await store.GetAsync(ChainId, batch.BatchNumber))!.ContentHash;
+            await pipeline.ReconcileAsync();
+            client.SetStatus(ChainId, batch.BatchNumber, BatchStatus.Finalized);
+        }
+
+        using var restartedStore = new KeyValueProofWitnessStore(backend);
+        using var restarted = CreateZkPipeline(
+            restartedStore,
+            new TestExecutor(SafeSemantic),
+            writer,
+            prover,
+            client,
+            finalizer);
+        await restarted.ReconcileAsync();
+
+        Assert.AreEqual(1, finalizer.ConsumeCount);
+        Assert.IsTrue((await restartedStore.GetProofAsync(contentHash))!.ForcedInclusionFinalized);
+    }
+
+    [TestMethod]
+    public async Task Restart_ConsumeBeforeLocalMark_RetriesIdempotentFinalizer()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        var writer = new ProductionDaWriter();
+        var prover = new RecordingZkProver(SafeSemantic);
+        var client = new RecordingSettlementClient();
+        var finalizer = new RecordingForcedInclusionFinalizer();
+        UInt256 contentHash;
+
+        using (var innerStore = new KeyValueProofWitnessStore(backend))
+        using (var failingStore = new FailForcedFinalizationMarkStore(innerStore))
+        using (var pipeline = CreateZkPipeline(
+            failingStore,
+            new TestExecutor(SafeSemantic),
+            writer,
+            prover,
+            client,
+            finalizer))
+        {
+            var batch = BuildForcedBatch();
+            await pipeline.PersistAsync(batch);
+            contentHash = (await innerStore.GetAsync(ChainId, batch.BatchNumber))!.ContentHash;
+            await pipeline.ReconcileAsync();
+            client.SetStatus(ChainId, batch.BatchNumber, BatchStatus.Finalized);
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                async () => await pipeline.ReconcileAsync());
+            Assert.AreEqual(1, finalizer.ConsumeCount);
+            Assert.IsFalse((await innerStore.GetProofAsync(contentHash))!.ForcedInclusionFinalized);
+        }
+
+        using var restartedStore = new KeyValueProofWitnessStore(backend);
+        using var restarted = CreateZkPipeline(
+            restartedStore,
+            new TestExecutor(SafeSemantic),
+            writer,
+            prover,
+            client,
+            finalizer);
+        await restarted.ReconcileAsync();
+
+        Assert.AreEqual(2, finalizer.ConsumeCount);
+        Assert.IsTrue((await restartedStore.GetProofAsync(contentHash))!.ForcedInclusionFinalized);
+    }
+
+    [TestMethod]
+    public async Task Restart_Reverted_RetainsProofAndNeverResubmits()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        var writer = new ProductionDaWriter();
+        var prover = new RecordingZkProver(SafeSemantic);
+        var client = new RecordingSettlementClient();
+        UInt256 contentHash;
+
+        using (var store = new KeyValueProofWitnessStore(backend))
+        using (var pipeline = CreateZkPipeline(
+            store, new TestExecutor(SafeSemantic), writer, prover, client))
+        {
+            var batch = BuildBatch();
+            await pipeline.PersistAsync(batch);
+            contentHash = (await store.GetAsync(ChainId, batch.BatchNumber))!.ContentHash;
+            client.SetStatus(ChainId, batch.BatchNumber, BatchStatus.Reverted);
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                async () => await pipeline.ReconcileAsync());
+        }
+
+        using var restartedStore = new KeyValueProofWitnessStore(backend);
+        using var restarted = CreateZkPipeline(
+            restartedStore, new TestExecutor(SafeSemantic), writer, prover, client);
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            async () => await restarted.ReconcileAsync());
+
+        Assert.AreEqual(0, client.SubmitCount);
+        Assert.AreEqual(ProofSubmissionState.ProofReady,
+            (await restartedStore.GetProofAsync(contentHash))!.SubmissionState);
+        Assert.AreEqual(1, await restarted.GetPendingCountAsync());
+    }
+
+    [TestMethod]
     public async Task LegacyMultisigProfile_RemainsExplicitlyCompatible()
     {
         using var backend = new InMemoryKeyValueStore();
@@ -459,7 +793,7 @@ public class UT_CanonicalSettlementPipeline
             WitnessProofSystem.Sp1,
             VerificationKeyId);
 
-    private static SealedBatch BuildBatch()
+    private static SealedBatch BuildBatch(ulong batchNumber = 1)
     {
         var message = new CrossChainMessage
         {
@@ -475,11 +809,14 @@ public class UT_CanonicalSettlementPipeline
         message = message with { MessageHash = MessageHasher.HashMessage(message) };
         return new SealedBatch(
             ChainId,
-            batchNumber: 1,
-            firstBlock: 10,
-            lastBlock: 10,
+            batchNumber,
+            firstBlock: batchNumber * 10,
+            lastBlock: batchNumber * 10,
             preStateRoot: H(1),
-            transactions: new ReadOnlyMemory<byte>[] { new byte[] { 1, 2, 3, 4 } },
+            transactions: new ReadOnlyMemory<byte>[]
+            {
+                new byte[] { 1, 2, 3, checked((byte)batchNumber) },
+            },
             l1Messages: new[] { message },
             blockContext: new BatchBlockContext
             {
@@ -548,34 +885,21 @@ public class UT_CanonicalSettlementPipeline
             cancellationToken.ThrowIfCancellationRequested();
             var txHashes = new UInt256[batch.Transactions.Count];
             var receiptHashes = new UInt256[batch.Transactions.Count];
-            var effects = new TransactionEffectsV1[batch.Transactions.Count];
             long gasConsumed = 0;
             for (var index = 0; index < batch.Transactions.Count; index++)
             {
                 var txHash = new UInt256(Crypto.Hash256(batch.Transactions[index].Span));
-                ReadOnlyMemory<byte> storage = new byte[] { 0x41, checked((byte)index) };
-                ReadOnlyMemory<byte> events = new byte[] { 0x51, checked((byte)index) };
                 var receipt = new Receipt
                 {
                     TxHash = txHash,
                     Success = true,
                     GasConsumed = 17 + index,
-                    StorageDeltaHash = new UInt256(Crypto.Hash256(storage.Span)),
-                    EventsHash = new UInt256(Crypto.Hash256(events.Span)),
+                    StorageDeltaHash = H(checked((byte)(0x41 + index))),
+                    EventsHash = H(checked((byte)(0x51 + index))),
                 };
                 txHashes[index] = txHash;
                 receiptHashes[index] = receipt.Hash();
                 gasConsumed += receipt.GasConsumed;
-                effects[index] = new TransactionEffectsV1
-                {
-                    InputHash = txHash,
-                    TxHash = txHash,
-                    Receipt = receipt,
-                    StorageWitness = storage,
-                    EventsWitness = events,
-                    Withdrawals = Array.Empty<WithdrawalRequest>(),
-                    Messages = Array.Empty<CrossChainMessage>(),
-                };
             }
             var executionResult = new BatchExecutionResult
             {
@@ -589,21 +913,14 @@ public class UT_CanonicalSettlementPipeline
             };
             var stateWitness = _returnEmptyStateWitness
                 ? ReadOnlyMemory<byte>.Empty
-                : ProofWitnessStateSerializer.Encode(new ProofWitnessStateV1
-                {
-                    ExecutionSemanticId = _semantic,
-                    Authenticated = _authenticated,
-                    WitnessItems = _authenticated
-                        ? new ReadOnlyMemory<byte>[] { new byte[] { 0x61, 0x62 } }
-                        : Array.Empty<ReadOnlyMemory<byte>>(),
-                });
+                : new byte[] { 0x4e, 0x45, 0x4f, 0x34, 0x53, 0x54, 0x57, 0x31 };
             return ValueTask.FromResult(new ProofWitnessExecutionResult
             {
                 ExecutionResult = executionResult,
                 ExecutionSemanticId = _semantic,
                 WitnessAuthenticated = _authenticated,
                 StateWitness = stateWitness,
-                Effects = ExecutionEffectsSerializer.Encode(batch, executionResult, effects),
+                Effects = new byte[] { 0x4e, 0x45, 0x4f, 0x34, 0x45, 0x46, 0x58, 0x31 },
             });
         }
     }
@@ -699,17 +1016,27 @@ public class UT_CanonicalSettlementPipeline
             });
     }
 
-    private sealed class RecordingSettlementClient : ISettlementClient
+    private sealed class RecordingSettlementClient
+        : ISettlementClient, ISettlementTransactionStatusClient
     {
         private readonly Dictionary<(uint ChainId, ulong BatchNumber), BatchStatus> _statuses = new();
+        private readonly Dictionary<UInt256, SettlementTransactionStatus> _transactionStatuses = new();
 
         public int SubmitCount { get; private set; }
+        public int BatchStatusReadCount { get; private set; }
+        public int TransactionStatusReadCount { get; private set; }
         public bool FailNextSubmitBeforeRecord { get; set; }
         public bool FailNextSubmitAfterRecord { get; set; }
         public L2BatchCommitment? LastCommitment { get; private set; }
+        public List<ulong> SubmittedBatchNumbers { get; } = new();
 
         public void SetStatus(uint chainId, ulong batchNumber, BatchStatus status)
             => _statuses[(chainId, batchNumber)] = status;
+
+        public void SetTransactionStatus(
+            UInt256 transactionHash,
+            SettlementTransactionStatus status)
+            => _transactionStatuses[transactionHash] = status;
 
         public ValueTask<UInt256> SubmitBatchAsync(
             L2BatchCommitment commitment,
@@ -718,19 +1045,22 @@ public class UT_CanonicalSettlementPipeline
         {
             cancellationToken.ThrowIfCancellationRequested();
             SubmitCount++;
+            SubmittedBatchNumbers.Add(commitment.BatchNumber);
             LastCommitment = commitment;
             if (FailNextSubmitBeforeRecord)
             {
                 FailNextSubmitBeforeRecord = false;
                 throw new InvalidOperationException("submit failed before L1 acceptance");
             }
+            var transactionHash = H(checked((byte)(0xA0 + SubmitCount)));
             _statuses[(commitment.ChainId, commitment.BatchNumber)] = BatchStatus.Pending;
+            _transactionStatuses[transactionHash] = SettlementTransactionStatus.Pending;
             if (FailNextSubmitAfterRecord)
             {
                 FailNextSubmitAfterRecord = false;
                 throw new InvalidOperationException("process stopped after L1 acceptance");
             }
-            return ValueTask.FromResult(H(0xA1));
+            return ValueTask.FromResult(transactionHash);
         }
 
         public ValueTask<UInt256> GetCanonicalStateRootAsync(
@@ -742,8 +1072,99 @@ public class UT_CanonicalSettlementPipeline
             uint chainId,
             ulong batchNumber,
             CancellationToken cancellationToken = default)
-            => ValueTask.FromResult(
+        {
+            BatchStatusReadCount++;
+            return ValueTask.FromResult(
                 _statuses.GetValueOrDefault((chainId, batchNumber), BatchStatus.Unknown));
+        }
+
+        public ValueTask<SettlementTransactionStatus> GetTransactionStatusAsync(
+            UInt256 transactionHash,
+            CancellationToken cancellationToken = default)
+        {
+            TransactionStatusReadCount++;
+            return ValueTask.FromResult(
+                _transactionStatuses.GetValueOrDefault(
+                    transactionHash, SettlementTransactionStatus.Unknown));
+        }
+    }
+
+    private sealed class FailForcedFinalizationMarkStore(IProofWitnessStore inner)
+        : IProofWitnessStore
+    {
+        private bool _failNext = true;
+
+        public ValueTask CommitAsync(
+            ProofWitnessArtifactV1 artifact,
+            CancellationToken cancellationToken = default)
+            => inner.CommitAsync(artifact, cancellationToken);
+
+        public ValueTask<ProofWitnessArtifactV1?> GetAsync(
+            uint chainId,
+            ulong batchNumber,
+            CancellationToken cancellationToken = default)
+            => inner.GetAsync(chainId, batchNumber, cancellationToken);
+
+        public IAsyncEnumerable<ProofWitnessArtifactV1> EnumerateCommittedAsync(
+            uint chainId,
+            CancellationToken cancellationToken = default)
+            => inner.EnumerateCommittedAsync(chainId, cancellationToken);
+
+        public ValueTask PutProofAsync(
+            ProofResultManifest manifest,
+            CancellationToken cancellationToken = default)
+            => inner.PutProofAsync(manifest, cancellationToken);
+
+        public ValueTask<ProofResultManifest?> GetProofAsync(
+            UInt256 artifactContentHash,
+            CancellationToken cancellationToken = default)
+            => inner.GetProofAsync(artifactContentHash, cancellationToken);
+
+        public ValueTask MarkSubmittedAsync(
+            UInt256 artifactContentHash,
+            UInt256 l1TransactionHash,
+            CancellationToken cancellationToken = default)
+            => inner.MarkSubmittedAsync(
+                artifactContentHash, l1TransactionHash, cancellationToken);
+
+        public ValueTask ReplaceSubmittedTransactionAsync(
+            UInt256 artifactContentHash,
+            UInt256 expectedTransactionHash,
+            UInt256 replacementTransactionHash,
+            CancellationToken cancellationToken = default)
+            => inner.ReplaceSubmittedTransactionAsync(
+                artifactContentHash,
+                expectedTransactionHash,
+                replacementTransactionHash,
+                cancellationToken);
+
+        public ValueTask MarkSubmissionObservedAsync(
+            UInt256 artifactContentHash,
+            CancellationToken cancellationToken = default)
+            => inner.MarkSubmissionObservedAsync(artifactContentHash, cancellationToken);
+
+        public ValueTask MarkForcedInclusionFinalizedAsync(
+            UInt256 artifactContentHash,
+            CancellationToken cancellationToken = default)
+        {
+            if (_failNext)
+            {
+                _failNext = false;
+                throw new InvalidOperationException(
+                    "process stopped before forced finalization state was persisted");
+            }
+            return inner.MarkForcedInclusionFinalizedAsync(
+                artifactContentHash, cancellationToken);
+        }
+
+        public ValueTask<IReadOnlyCollection<ulong>> GetTrackedForcedInclusionNoncesAsync(
+            uint chainId,
+            CancellationToken cancellationToken = default)
+            => inner.GetTrackedForcedInclusionNoncesAsync(chainId, cancellationToken);
+
+        public void Dispose()
+        {
+        }
     }
 
     private sealed class BlockingSettlementClient : ISettlementClient

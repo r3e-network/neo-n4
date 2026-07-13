@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — release-gate completeness — 2026-07-14
+
+- Made filtered .NET and ignored Rust proof gates fail closed when their expected
+  tests are missing, skipped, or silently renamed; pinned Rust, SP1, mdBook, and
+  audit tooling; and extended dependency, SDK, contract-security, watcher-image,
+  and package-build validation across the production release surface.
+
 ### Fixed — forced-inclusion durable L1 completion — 2026-07-14
 
 - Closed the forced-inclusion settlement loop with a production RPC finalizer that validates

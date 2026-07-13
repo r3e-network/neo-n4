@@ -42,7 +42,7 @@ public class UT_ForcedInclusion_Persistence
             using (var src = new InMemoryForcedInclusionSource(1001, rocks))
             {
                 src.Enqueue(MkEntry(42));
-                await src.MarkConsumedAsync(42);
+                await src.ConfirmConsumedAsync(42);
             }
 
             using (var rocks = new RocksDbKeyValueStore(dir))
@@ -72,7 +72,7 @@ public class UT_ForcedInclusion_Persistence
             using (var src = new InMemoryForcedInclusionSource(1001, rocks))
             {
                 src.Enqueue(MkEntry(7));
-                await src.MarkConsumedAsync(7);
+                await src.ConfirmConsumedAsync(7);
             }
             using (var rocks = new RocksDbKeyValueStore(dir))
             using (var src = new InMemoryForcedInclusionSource(1001, rocks))
@@ -111,7 +111,7 @@ public class UT_ForcedInclusion_Persistence
         using var rocks = new InMemoryKeyValueStore();
         var src = new InMemoryForcedInclusionSource(1001, rocks);
         src.Enqueue(MkEntry(1));
-        await src.MarkConsumedAsync(1);
+        await src.ConfirmConsumedAsync(1);
         src.Dispose();
 
         // rocks still works.

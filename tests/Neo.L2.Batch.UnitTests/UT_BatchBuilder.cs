@@ -74,6 +74,45 @@ public class UT_BatchBuilder
     }
 
     [TestMethod]
+    public void SealArtifact_DeepCopiesTransactionsMessagesAndContext()
+    {
+        var transaction = new byte[] { 0xaa, 0xbb };
+        var messagePayload = new byte[] { 0x11, 0x22 };
+        var messageWithoutHash = new CrossChainMessage
+        {
+            SourceChainId = 0,
+            TargetChainId = 1001,
+            Nonce = 7,
+            Sender = new UInt160(new byte[UInt160.Length]),
+            Receiver = new UInt160(Enumerable.Repeat((byte)1, UInt160.Length).ToArray()),
+            MessageType = MessageType.Deposit,
+            Payload = messagePayload,
+            MessageHash = UInt256.Zero,
+        };
+        var message = messageWithoutHash with
+        {
+            MessageHash = Neo.L2.State.MessageHasher.HashMessage(messageWithoutHash),
+        };
+        var builder = new BatchBuilder(1001, 1, 100, UInt256.Zero)
+            .AddBlock(100)
+            .AddTransaction(transaction)
+            .ConsumeL1Message(message)
+            .WithBlockContext(SampleContext());
+
+        var sealedBatch = builder.SealArtifact();
+        transaction[0] = 0xff;
+        messagePayload[0] = 0xff;
+
+        CollectionAssert.AreEqual(
+            new byte[] { 0xaa, 0xbb }, sealedBatch.Transactions[0].ToArray());
+        CollectionAssert.AreEqual(
+            new byte[] { 0x11, 0x22 }, sealedBatch.L1Messages[0].Payload.ToArray());
+        Assert.AreEqual(SampleContext(), sealedBatch.BlockContext);
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => builder.AddTransaction(new byte[] { 0x01 }));
+    }
+
+    [TestMethod]
     public void Builder_RejectsAddAfterSeal()
     {
         var b = new BatchBuilder(1001, 1, 100, UInt256.Zero);

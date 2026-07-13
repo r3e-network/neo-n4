@@ -1,43 +1,33 @@
-using System;
-using System.Collections.Generic;
 using Neo.L2;
 using Neo.L2.Batch;
-using Neo.L2.Proving;
-using Neo.L2.Proving.Attestation;
-using Neo.L2.State;
+using Neo.L2.Executor.ProofWitness;
+using Neo.L2.ForcedInclusion;
+using Neo.L2.Persistence;
 using Neo.L2.Telemetry;
 
 namespace Neo.Plugins.L2;
 
 /// <summary>
-/// Picks up sealed batches from <see cref="L2BatchPlugin"/>, generates the configured proof
-/// (Stage 0 multisig, Stage 1 optimistic, Stage 2 ZK), and submits the resulting
-/// <see cref="L2BatchCommitment"/> to NeoHub. See doc.md §15.1 (transaction flow) and §3.2
-/// (SettlementManager).
+/// Hosts the canonical durable execution, DA, witness, proving, and settlement pipeline.
 /// </summary>
 /// <remarks>
-/// The plugin queues sealed batches and signs them with the operator-supplied
-/// <see cref="IL2Prover"/> (in-process <see cref="AttestationProver"/> for the multisig
-/// path, or a remote prover daemon for ZK). L1 RPC submission is delegated to
-/// <see cref="ISettlementClient"/>; the operator's deployment wires an
-/// <c>RpcClient</c>-backed implementation with their preferred signing path (KMS / HSM /
-/// hot wallet — see <c>docs/wallet-integration.md</c>).
+/// See doc.md §7.2, §7.5, §8, and §15.1. Committed witness artifacts are the only queue of
+/// record; this plugin never treats an in-memory <c>Queue&lt;L2BatchCommitment&gt;</c> as
+/// production truth.
 /// </remarks>
-public sealed class L2SettlementPlugin : Plugin
+public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
 {
     private L2SettlementSettings _settings = new();
-    private readonly Queue<L2BatchCommitment> _pending = new();
-    private readonly SemaphoreSlim _submitGate = new(1, 1);
-    private IL2Prover? _prover;
-    private ISettlementClient? _client;
     private L2BatchPlugin? _batchPlugin;
+    private CanonicalSettlementPipeline? _pipeline;
     private IL2Metrics _metrics = NoOpMetrics.Instance;
 
     /// <inheritdoc />
     public override string Name => "L2SettlementPlugin";
 
     /// <inheritdoc />
-    public override string Description => "Signs and submits sealed L2 batches to NeoHub.";
+    public override string Description =>
+        "Persists canonical proof witnesses and reconciles durable L2 settlement.";
 
     /// <inheritdoc />
     protected override void Configure()
@@ -46,219 +36,151 @@ public sealed class L2SettlementPlugin : Plugin
     }
 
     /// <summary>
-    /// Wire the plugin to its prover, settlement client, and the batcher whose sealed batches
-    /// it consumes. Called by the host after all plugins have been instantiated.
+    /// Wire every required production seam and begin restart reconciliation from the witness store.
     /// </summary>
-    public void Wire(L2BatchPlugin batchPlugin, IL2Prover prover, ISettlementClient client)
+    public void Wire(
+        L2BatchPlugin batchPlugin,
+        IProofWitnessBatchExecutor executor,
+        IDAWriter daWriter,
+        IProofWitnessStore store,
+        IL2Prover prover,
+        ISettlementClient client,
+        ProofWitnessPipelineProfile profile,
+        IForcedInclusionFinalizationClient? forcedInclusionFinalizer = null,
+        IForcedInclusionSource? forcedInclusionSource = null)
     {
         ArgumentNullException.ThrowIfNull(batchPlugin);
+        ArgumentNullException.ThrowIfNull(executor);
+        ArgumentNullException.ThrowIfNull(daWriter);
+        ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(prover);
         ArgumentNullException.ThrowIfNull(client);
-        // Settings.From validates ProofType at config-parse time, but `init` setters
-        // allow direct construction (tests / programmatic wiring) to bypass that path.
-        // Re-validate here at Wire — the latest point we can fail fast before the
-        // first OnBatchSealed → SubmitNextAsync. Without this, an invalid byte would
-        // surface only as a "AttestationProver expects ProofType.Multisig, got X"
-        // failure deep inside the broad catch tagged as ArgumentException. Same iter-191
-        // BatchSealer ctor symmetry.
-        Neo.L2.ProofTypeExtensions.Resolve(_settings.ProofType);
+        ArgumentNullException.ThrowIfNull(profile);
+        if (_pipeline is not null)
+            throw new InvalidOperationException("settlement pipeline is already wired");
+        if (_settings.ChainId != 0
+            && (_settings.ChainId != profile.ChainId
+                || (ProofType)_settings.ProofType != profile.ProofType))
+            throw new InvalidOperationException(
+                "plugin settings differ from the canonical pipeline profile");
+        if (forcedInclusionSource is not null)
+        {
+            if (forcedInclusionSource.ChainId != profile.ChainId)
+                throw new InvalidOperationException(
+                    "forced-inclusion source chain differs from the pipeline profile");
+            batchPlugin.WithForcedInclusionSource(forcedInclusionSource);
+        }
+
+        _pipeline = new CanonicalSettlementPipeline(
+            executor,
+            daWriter,
+            store,
+            prover,
+            client,
+            profile,
+            _metrics,
+            forcedInclusionFinalizer);
         _batchPlugin = batchPlugin;
-        _prover = prover;
-        _client = client;
-        _batchPlugin.OnBatchSealed += OnBatchSealed;
+        batchPlugin.WithSealedBatchSink(this);
+        if (_settings.Enabled) _ = ReconcileSafelyAsync();
     }
 
-    /// <summary>
-    /// Wire a metrics sink. The plugin emits <c>l2.settlement.submitted</c>,
-    /// <c>l2.settlement.submit_failures</c>, <c>l2.settlement.submit_latency_ms</c>,
-    /// <c>l2.proving.generated</c> (tagged by kind), and <c>l2.proving.latency_ms</c> against
-    /// this sink. Call before the first batch arrives; defaults to <see cref="NoOpMetrics"/>.
-    /// </summary>
+    /// <summary>Wire a telemetry sink without changing durable pipeline state.</summary>
     public void WithMetrics(IL2Metrics metrics)
     {
         ArgumentNullException.ThrowIfNull(metrics);
         _metrics = metrics;
+        _pipeline?.WithMetrics(metrics);
     }
 
     /// <inheritdoc />
-    /// <remarks>
-    /// neo-project/neo master sealed the public <c>Dispose()</c>; cleanup goes through
-    /// the standard <c>Dispose(bool disposing)</c> hook.
-    /// </remarks>
+    public async ValueTask<UInt256> PersistAsync(
+        SealedBatch batch,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(batch);
+        if (!_settings.Enabled)
+            throw new InvalidOperationException("settlement plugin is disabled");
+        var pipeline = _pipeline
+            ?? throw new InvalidOperationException("settlement pipeline is not wired");
+        var postStateRoot = await pipeline.PersistAsync(batch, cancellationToken)
+            .ConfigureAwait(false);
+        _ = ReconcileSafelyAsync();
+        return postStateRoot;
+    }
+
+    /// <summary>Backfill a sealed batch through the same durable production path.</summary>
+    public ValueTask<UInt256> EnqueueAsync(
+        SealedBatch batch,
+        CancellationToken cancellationToken = default)
+        => PersistAsync(batch, cancellationToken);
+
+    /// <summary>Process at most one durable pending artifact, best-effort.</summary>
+    public Task SubmitNextAsync(CancellationToken cancellationToken = default)
+        => ReconcileSafelyAsync(maximumBatches: 1, cancellationToken);
+
+    /// <summary>Recover and process every durable pending artifact, surfacing failures.</summary>
+    public Task ReconcileAsync(CancellationToken cancellationToken = default)
+    {
+        var pipeline = _pipeline
+            ?? throw new InvalidOperationException("settlement pipeline is not wired");
+        return pipeline.ReconcileAsync(cancellationToken: cancellationToken);
+    }
+
+    /// <summary>Count durable artifacts not yet observed on L1.</summary>
+    public ValueTask<int> GetPendingCountAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var pipeline = _pipeline
+            ?? throw new InvalidOperationException("settlement pipeline is not wired");
+        return pipeline.GetPendingCountAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public ValueTask<IReadOnlyCollection<ulong>> GetTrackedForcedInclusionNoncesAsync(
+        uint chainId,
+        CancellationToken cancellationToken = default)
+    {
+        var pipeline = _pipeline
+            ?? throw new InvalidOperationException("settlement pipeline is not wired");
+        if (_settings.ChainId != 0 && chainId != _settings.ChainId)
+            throw new InvalidOperationException(
+                "forced-inclusion reservation chain differs from settlement settings");
+        return pipeline.GetTrackedForcedInclusionNoncesAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
     protected override void Dispose(bool disposing)
     {
         if (disposing)
         {
-            if (_batchPlugin is not null)
-                _batchPlugin.OnBatchSealed -= OnBatchSealed;
-            _submitGate.Dispose();
+            _batchPlugin?.RemoveSealedBatchSink(this);
+            _pipeline?.Dispose();
+            _pipeline = null;
+            _batchPlugin = null;
         }
         base.Dispose(disposing);
     }
 
-    /// <summary>How many batches are currently queued for submission.</summary>
-    public int PendingCount
+    private async Task ReconcileSafelyAsync(
+        int maximumBatches = int.MaxValue,
+        CancellationToken cancellationToken = default)
     {
-        get { lock (_pending) return _pending.Count; }
-    }
-
-    /// <summary>
-    /// Enqueue a sealed batch for submission. The hot path goes through this on every
-    /// <see cref="L2BatchPlugin.OnBatchSealed"/> event, but operators can also call it
-    /// directly to backfill a missed batch (e.g. from a node restart).
-    /// </summary>
-    public void Enqueue(L2BatchCommitment commitment)
-    {
-        ArgumentNullException.ThrowIfNull(commitment);
-        if (!_settings.Enabled) return;
-        lock (_pending) _pending.Enqueue(commitment);
-    }
-
-    private void OnBatchSealed(object? sender, L2BatchCommitment commitment)
-    {
-        Enqueue(commitment);
-        _ = SubmitNextAsync();
-    }
-
-    /// <summary>
-    /// Drain one pending batch (best-effort — exceptions are logged, not surfaced).
-    /// Serialized via an internal gate so back-to-back <see cref="L2BatchPlugin.OnBatchSealed"/>
-    /// events don't spawn parallel submits that could land on L1 out-of-order.
-    /// </summary>
-    public async System.Threading.Tasks.Task SubmitNextAsync()
-    {
-        // Check wiring BEFORE dequeue — otherwise an un-wired plugin silently drains items
-        // into the void. The metric path also wouldn't tag this as a failure (we'd just
-        // exit). Items stay queued until Wire() is called.
-        if (_prover is null || _client is null) return;
-
-        // Serialize submission across concurrent fire-and-forget callers. Without this,
-        // OnBatchSealed → _ = SubmitNextAsync() can spawn N parallel submits when N batches
-        // seal in quick succession, racing each other to call SubmitBatchAsync — NeoHub then
-        // sees out-of-order BatchNumber values and rejects the late ones.
-        try { await _submitGate.WaitAsync().ConfigureAwait(false); }
-        catch (ObjectDisposedException) { return; } // plugin is shutting down — drop quietly
+        var pipeline = _pipeline;
+        if (pipeline is null || !_settings.Enabled) return;
         try
         {
-
-            L2BatchCommitment? next;
-            lock (_pending)
-            {
-                if (_pending.Count == 0) return;
-                next = _pending.Dequeue();
-            }
-
-            try
-            {
-                var publicInputs = BuildPublicInputs(next);
-                var hash = StateRootCalculator.HashPublicInputs(publicInputs);
-
-                var requestedKind = (ProofType)_settings.ProofType;
-                var proveSw = System.Diagnostics.Stopwatch.StartNew();
-                var proofResult = await _prover.ProveAsync(new ProofRequest
-                {
-                    PublicInputs = publicInputs,
-                    Witness = ReadOnlyMemory<byte>.Empty,
-                    Kind = requestedKind,
-                }) ?? throw new InvalidOperationException("IL2Prover.ProveAsync returned null");
-                // Defensive: ProofResult fields are reference types; required doesn't prevent
-                // null. Surface bad fields as a clear contract violation instead of NREing
-                // inside the .Kind / .PublicInputHash / .Equals(hash) checks below. Same
-                // iter-171/172/173/174 callee-contract pattern.
-                ArgumentNullException.ThrowIfNull(proofResult.PublicInputHash);
-                proveSw.Stop();
-                // Sanity-check the prover's contract: the returned Kind must match what we
-                // asked for. A buggy prover that returns ProofType.None would silently produce
-                // a commitment that fails NoZeroProofCheck at audit time hours later, with no
-                // direct link back to the prover bug — better to surface the mismatch here.
-                if (proofResult.Kind != requestedKind)
-                    throw new InvalidOperationException(
-                        $"prover returned ProofType {proofResult.Kind}, expected {requestedKind}");
-                // Same defense for the public-input hash: if the prover signed a different set
-                // of inputs than we built, the verifier's iter-128 PublicInputHash check would
-                // catch it on submission, but we'd waste a SubmitBatch round-trip and surface
-                // the failure deep in the stack. Catch the disagreement here at the prove
-                // boundary so the operator sees "prover's hash differs from settlement's"
-                // directly.
-                if (!proofResult.PublicInputHash.Equals(hash))
-                    throw new InvalidOperationException(
-                        "prover's PublicInputHash differs from settlement's — prover proved different inputs");
-                // Defensive: a non-None ProofType must carry actual bytes. Empty would slip
-                // through here, get assembled into the commitment, and only be flagged hours
-                // later by NoZeroProofCheck at audit time. Fail fast so the operator sees the
-                // prover bug at the prove boundary instead of inheriting a "soft-sealed" batch.
-                if (proofResult.Proof.IsEmpty)
-                    throw new InvalidOperationException(
-                        $"prover returned empty Proof bytes for ProofType={proofResult.Kind} — would be flagged later by NoZeroProofCheck");
-                var kindTag = ("kind", proofResult.Kind.ToString());
-                // Safe* wrappers throughout: a metric throw caught by the broad `catch
-                // (Exception)` below would re-queue the batch — and after SubmitBatchAsync,
-                // re-queuing means re-submitting an already-on-L1 commitment. The L1 contract
-                // would reject the duplicate, the plugin would treat that rejection as
-                // another submit failure, and the batch would loop indefinitely. Worst-case
-                // metric-induced bug found in iter 164.
-                _metrics.SafeIncrementCounter(MetricNames.ProofsGenerated, 1, kindTag);
-                _metrics.SafeRecordHistogram(MetricNames.ProveLatencyMs, proveSw.Elapsed.TotalMilliseconds, kindTag);
-
-                var finalCommitment = next with
-                {
-                    ProofType = proofResult.Kind,
-                    Proof = proofResult.Proof,
-                    PublicInputHash = hash,
-                };
-
-                var submitSw = System.Diagnostics.Stopwatch.StartNew();
-                await _client.SubmitBatchAsync(finalCommitment, publicInputs);
-                submitSw.Stop();
-                _metrics.SafeIncrementCounter(MetricNames.BatchesSubmitted);
-                _metrics.SafeRecordHistogram(MetricNames.SubmitLatencyMs, submitSw.Elapsed.TotalMilliseconds);
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
-            {
-                // Tag the failure metric with the exception type so a dashboard can
-                // separate contract violations (InvalidOperationException) from network
-                // (HttpRequestException) from L1-side rejections. Without this tag the
-                // SubmitFailures counter is a single number that hides the failure mode.
-                _metrics.SafeIncrementCounter(
-                    MetricNames.SubmitFailures, 1, ("exception", ex.GetType().Name));
-                // Re-queue at the head so we retry. Production handler logs and bumps a metric.
-                lock (_pending)
-                {
-                    var rest = _pending.ToArray();
-                    _pending.Clear();
-                    _pending.Enqueue(next);
-                    foreach (var b in rest) _pending.Enqueue(b);
-                }
-            }
-
+            await pipeline.ReconcileAsync(maximumBatches, cancellationToken)
+                .ConfigureAwait(false);
         }
-        finally
+        catch (Exception exception) when (exception is not OutOfMemoryException
+            and not StackOverflowException
+            and not OperationCanceledException)
         {
-            // If Dispose ran while we were in flight, the semaphore is gone. Suppress
-            // the resulting ObjectDisposedException — the plugin is tearing down and
-            // there's nothing the caller (typically a fire-and-forget event handler)
-            // can do with it. Without this guard, the exception surfaces only via the
-            // TaskScheduler.UnobservedTaskException path, which is invisible by default.
-            try { _submitGate.Release(); } catch (ObjectDisposedException) { }
+            _metrics.SafeIncrementCounter(
+                MetricNames.SubmitFailures,
+                1,
+                ("exception", exception.GetType().Name));
         }
-    }
-
-    private static PublicInputs BuildPublicInputs(L2BatchCommitment c)
-    {
-        return new PublicInputs
-        {
-            ChainId = c.ChainId,
-            BatchNumber = c.BatchNumber,
-            PreStateRoot = c.PreStateRoot,
-            PostStateRoot = c.PostStateRoot,
-            TxRoot = c.TxRoot,
-            ReceiptRoot = c.ReceiptRoot,
-            WithdrawalRoot = c.WithdrawalRoot,
-            L2ToL1MessageRoot = c.L2ToL1MessageRoot,
-            L2ToL2MessageRoot = c.L2ToL2MessageRoot,
-            L1MessageHash = UInt256.Zero,
-            DACommitment = c.DACommitment,
-            BlockContextHash = UInt256.Zero,
-        };
     }
 }

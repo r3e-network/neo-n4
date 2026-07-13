@@ -7,6 +7,9 @@ namespace Neo.L2.Batch;
 /// </remarks>
 public enum WitnessProofSystem : byte
 {
+    /// <summary>Explicit non-ZK compatibility profile.</summary>
+    None = 0,
+
     /// <summary>Succinct SP1 RISC-V zkVM.</summary>
     Sp1 = 1,
 
@@ -54,6 +57,12 @@ public sealed record ExecutionPayloadV1
     /// <summary>Ordered L1 inbox messages consumed by the batch.</summary>
     public required IReadOnlyList<CrossChainMessage> L1Messages { get; init; }
 
+    /// <summary>
+    /// Forced-inclusion nonces plus finalized transaction-root inclusion proofs.
+    /// </summary>
+    public IReadOnlyList<ForcedInclusionConsumptionProof> ForcedInclusions { get; init; }
+        = Array.Empty<ForcedInclusionConsumptionProof>();
+
     /// <summary>Ordered canonical transaction bytes.</summary>
     public required IReadOnlyList<ReadOnlyMemory<byte>> Transactions { get; init; }
 
@@ -69,11 +78,14 @@ public sealed record ExecutionPayloadV1
             || !PreStateRoot.Equals(other.PreStateRoot)
             || !BlockContext.Equals(other.BlockContext)
             || L1Messages.Count != other.L1Messages.Count
+            || ForcedInclusions.Count != other.ForcedInclusions.Count
             || Transactions.Count != other.Transactions.Count)
             return false;
 
         for (var i = 0; i < L1Messages.Count; i++)
             if (!L1Messages[i].Equals(other.L1Messages[i])) return false;
+        for (var i = 0; i < ForcedInclusions.Count; i++)
+            if (!ForcedInclusions[i].Equals(other.ForcedInclusions[i])) return false;
         for (var i = 0; i < Transactions.Count; i++)
             if (!Transactions[i].Span.SequenceEqual(other.Transactions[i].Span)) return false;
         return true;
@@ -90,6 +102,7 @@ public sealed record ExecutionPayloadV1
         hash.Add(PreStateRoot);
         hash.Add(BlockContext);
         foreach (var message in L1Messages) hash.Add(message);
+        foreach (var forcedInclusion in ForcedInclusions) hash.Add(forcedInclusion);
         foreach (var transaction in Transactions) hash.AddBytes(transaction.Span);
         return hash.ToHashCode();
     }
@@ -108,11 +121,20 @@ public sealed record ProofWitnessArtifactV1
     /// <summary>Wire-format version.</summary>
     public const ushort Version = 1;
 
+    /// <summary>Settlement proof stage that consumes this artifact.</summary>
+    public required ProofType ProofType { get; init; }
+
     /// <summary>Proof backend that must consume this artifact.</summary>
     public required WitnessProofSystem ProofSystem { get; init; }
 
     /// <summary>Identifier of the verification key expected by the terminal verifier.</summary>
     public required UInt256 VerificationKeyId { get; init; }
+
+    /// <summary>Exact VM/state-transition semantic executed and proved.</summary>
+    public required UInt256 ExecutionSemanticId { get; init; }
+
+    /// <summary>True only when the executor authenticated the state witness.</summary>
+    public required bool ExecutionWitnessAuthenticated { get; init; }
 
     /// <summary>L2 chain identifier.</summary>
     public required uint ChainId { get; init; }
@@ -149,8 +171,11 @@ public sealed record ProofWitnessArtifactV1
 
     /// <summary>Create an artifact and calculate its canonical content hash.</summary>
     public static ProofWitnessArtifactV1 Create(
+        ProofType proofType,
         WitnessProofSystem proofSystem,
         UInt256 verificationKeyId,
+        UInt256 executionSemanticId,
+        bool executionWitnessAuthenticated,
         uint chainId,
         ulong batchNumber,
         ulong firstBlock,
@@ -164,8 +189,11 @@ public sealed record ProofWitnessArtifactV1
     {
         var artifact = new ProofWitnessArtifactV1
         {
+            ProofType = proofType,
             ProofSystem = proofSystem,
             VerificationKeyId = verificationKeyId,
+            ExecutionSemanticId = executionSemanticId,
+            ExecutionWitnessAuthenticated = executionWitnessAuthenticated,
             ChainId = chainId,
             BatchNumber = batchNumber,
             FirstBlock = firstBlock,
@@ -190,7 +218,10 @@ public sealed record ProofWitnessArtifactV1
         if (other is null) return false;
         if (ReferenceEquals(this, other)) return true;
         return ProofSystem == other.ProofSystem
+            && ProofType == other.ProofType
             && VerificationKeyId.Equals(other.VerificationKeyId)
+            && ExecutionSemanticId.Equals(other.ExecutionSemanticId)
+            && ExecutionWitnessAuthenticated == other.ExecutionWitnessAuthenticated
             && ChainId == other.ChainId
             && BatchNumber == other.BatchNumber
             && FirstBlock == other.FirstBlock
@@ -208,8 +239,11 @@ public sealed record ProofWitnessArtifactV1
     public override int GetHashCode()
     {
         var hash = new HashCode();
+        hash.Add(ProofType);
         hash.Add(ProofSystem);
         hash.Add(VerificationKeyId);
+        hash.Add(ExecutionSemanticId);
+        hash.Add(ExecutionWitnessAuthenticated);
         hash.Add(ChainId);
         hash.Add(BatchNumber);
         hash.Add(FirstBlock);

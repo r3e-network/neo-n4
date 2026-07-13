@@ -1,4 +1,5 @@
 using Neo.L2;
+using Neo.L2.Batch;
 using Neo.L2.Telemetry;
 using Neo.Plugins.L2;
 
@@ -7,24 +8,22 @@ namespace Neo.Plugins.L2Batch.UnitTests;
 [TestClass]
 public class UT_L2BatchPlugin
 {
-    private static L2BatchCommitment SampleCommitment() => new()
-    {
-        ChainId = 1001,
-        BatchNumber = 1,
-        FirstBlock = 0,
-        LastBlock = 0,
-        PreStateRoot = UInt256.Zero,
-        PostStateRoot = UInt256.Zero,
-        TxRoot = UInt256.Zero,
-        ReceiptRoot = UInt256.Zero,
-        WithdrawalRoot = UInt256.Zero,
-        L2ToL1MessageRoot = UInt256.Zero,
-        L2ToL2MessageRoot = UInt256.Zero,
-        DACommitment = UInt256.Zero,
-        PublicInputHash = UInt256.Zero,
-        ProofType = ProofType.None,
-        Proof = ReadOnlyMemory<byte>.Empty,
-    };
+    private static SealedBatch SampleBatch() => new(
+        1001,
+        1,
+        0,
+        0,
+        UInt256.Zero,
+        Array.Empty<ReadOnlyMemory<byte>>(),
+        Array.Empty<CrossChainMessage>(),
+        new BatchBlockContext
+        {
+            L1FinalizedHeight = 1,
+            FirstBlockTimestamp = 1,
+            LastBlockTimestamp = 1,
+            SequencerCommitteeHash = UInt256.Zero,
+            Network = 1,
+        });
 
     [TestMethod]
     public void DispatchSealed_OneSubscriberThrows_OthersStillFire()
@@ -34,13 +33,13 @@ public class UT_L2BatchPlugin
         // semantics (first-throw aborts further dispatch). Now isolated so each
         // subscriber's failure is contained.
         var fired = new bool[3];
-        EventHandler<L2BatchCommitment>? handler = null;
+        EventHandler<SealedBatch>? handler = null;
         handler += (_, _) => fired[0] = true;
         handler += (_, _) => throw new InvalidOperationException("buggy subscriber");
         handler += (_, _) => fired[2] = true;
 
         var metrics = new InMemoryMetrics();
-        L2BatchPlugin.DispatchSealed(this, handler, SampleCommitment(), metrics);
+        L2BatchPlugin.DispatchSealed(this, handler, SampleBatch(), metrics);
 
         Assert.IsTrue(fired[0], "subscriber 0 must fire");
         Assert.IsTrue(fired[2], "subscriber 2 must fire even after subscriber 1 threw");
@@ -52,19 +51,19 @@ public class UT_L2BatchPlugin
     public void DispatchSealed_NoSubscribers_DoesNotThrow()
     {
         var metrics = new InMemoryMetrics();
-        L2BatchPlugin.DispatchSealed(this, handler: null, SampleCommitment(), metrics);
+        L2BatchPlugin.DispatchSealed(this, handler: null, SampleBatch(), metrics);
         Assert.AreEqual(0, metrics.GetCounter(MetricNames.BatchSealedSubscriberFailures));
     }
 
     [TestMethod]
     public void DispatchSealed_MultipleThrowsAllCounted()
     {
-        EventHandler<L2BatchCommitment>? handler = null;
+        EventHandler<SealedBatch>? handler = null;
         for (var i = 0; i < 4; i++)
             handler += (_, _) => throw new InvalidOperationException("nope");
 
         var metrics = new InMemoryMetrics();
-        L2BatchPlugin.DispatchSealed(this, handler, SampleCommitment(), metrics);
+        L2BatchPlugin.DispatchSealed(this, handler, SampleBatch(), metrics);
         Assert.AreEqual(4, metrics.GetCounter(MetricNames.BatchSealedSubscriberFailures));
     }
 

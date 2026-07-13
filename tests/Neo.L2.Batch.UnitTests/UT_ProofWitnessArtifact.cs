@@ -31,7 +31,7 @@ public class UT_ProofWitnessArtifact
     {
         var commitment = ExecutionPayloadSerializer.ComputeCommitment(SamplePayload());
         Assert.AreEqual(
-            "1698a9b42ac8f61df4e0612f6b62a76baf947effa555e2f09e36fca4a75ea771",
+            "851d973ae3e7b163c664f825f6c43533bfdd5502c46f57178e944b2344be6f31",
             Convert.ToHexString(commitment.GetSpan()).ToLowerInvariant());
     }
 
@@ -74,7 +74,7 @@ public class UT_ProofWitnessArtifact
 
         var impossibleTransactionCount = canonical.ToArray();
         BinaryPrimitives.WriteUInt32LittleEndian(
-            impossibleTransactionCount.AsSpan(200, 4),
+            impossibleTransactionCount.AsSpan(204, 4),
             ExecutionPayloadSerializer.MaxItemCount);
         AssertDecodeFails(impossibleTransactionCount);
     }
@@ -105,6 +105,43 @@ public class UT_ProofWitnessArtifact
     }
 
     [TestMethod]
+    public void ExecutionPayload_PersistsCanonicalForcedInclusionProofs()
+    {
+        var payload = SamplePayload();
+        var txHashes = payload.Transactions
+            .Select(transaction => new UInt256(
+                Neo.Cryptography.Crypto.Hash256(transaction.Span)))
+            .ToArray();
+        var merkleProof = new Neo.L2.State.MerkleTree(txHashes).GetProof(0);
+        var forced = new ForcedInclusionConsumptionProof
+        {
+            Nonce = 77,
+            LeafIndex = 0,
+            TxHash = txHashes[0],
+            Siblings = merkleProof.Siblings,
+        };
+        var withForced = payload with
+        {
+            ForcedInclusions = new[] { forced },
+        };
+
+        var decoded = ExecutionPayloadSerializer.Decode(
+            ExecutionPayloadSerializer.Encode(withForced));
+        Assert.AreEqual(forced, decoded.ForcedInclusions.Single());
+
+        Assert.ThrowsExactly<ArgumentException>(() =>
+            ExecutionPayloadSerializer.Encode(withForced with
+            {
+                ForcedInclusions = new[] { forced with { LeafIndex = 1 } },
+            }));
+        Assert.ThrowsExactly<ArgumentException>(() =>
+            ExecutionPayloadSerializer.Encode(withForced with
+            {
+                ForcedInclusions = new[] { forced with { TxHash = H(0xee) } },
+            }));
+    }
+
+    [TestMethod]
     public void Artifact_RoundTripsAndEmbedsCanonicalPublicInputs()
     {
         var artifact = SampleArtifact();
@@ -116,8 +153,9 @@ public class UT_ProofWitnessArtifact
         Assert.AreEqual(
             ProofWitnessArtifactV1.Version,
             BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(8, 2)));
-        Assert.AreEqual((byte)WitnessProofSystem.Sp1, bytes[12]);
-        CollectionAssert.AreEqual(new byte[3], bytes[13..16]);
+        Assert.AreEqual((byte)ProofType.Zk, bytes[12]);
+        Assert.AreEqual((byte)WitnessProofSystem.Sp1, bytes[13]);
+        CollectionAssert.AreEqual(new byte[2], bytes[14..16]);
 
         var publicInputsOffset = bytes.Length - UInt256.Length - BatchSerializer.PublicInputsSize;
         CollectionAssert.AreEqual(
@@ -133,7 +171,7 @@ public class UT_ProofWitnessArtifact
     {
         var artifact = SampleArtifact();
         Assert.AreEqual(
-            "70494bca7f38405f292f48405ac44c75c6ac7cfa2de8ffc14028827851d57447",
+            "3e828a96f943f514ad9d29ef2e8e6f209c7bdcfa6e0b108576327cb1574d1553",
             Convert.ToHexString(artifact.ContentHash.GetSpan()).ToLowerInvariant());
     }
 
@@ -148,11 +186,12 @@ public class UT_ProofWitnessArtifact
         AssertArtifactDecodeFails(version);
 
         var flags = canonical.ToArray();
-        BinaryPrimitives.WriteUInt16LittleEndian(flags.AsSpan(10, 2), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(flags.AsSpan(10, 2), 0x8000);
         AssertArtifactDecodeFails(flags);
 
         AssertArtifactDecodeFails(Mutate(canonical, 12, 0xff));
-        AssertArtifactDecodeFails(Mutate(canonical, 13, 0x01));
+        AssertArtifactDecodeFails(Mutate(canonical, 13, 0xff));
+        AssertArtifactDecodeFails(Mutate(canonical, 14, 0x01));
     }
 
     [TestMethod]
@@ -164,7 +203,7 @@ public class UT_ProofWitnessArtifact
         AssertArtifactDecodeFails([.. canonical, 0x00]);
 
         var oversizedPayload = canonical.ToArray();
-        BinaryPrimitives.WriteUInt32LittleEndian(oversizedPayload.AsSpan(76, 4), uint.MaxValue);
+        BinaryPrimitives.WriteUInt32LittleEndian(oversizedPayload.AsSpan(108, 4), uint.MaxValue);
         AssertArtifactDecodeFails(oversizedPayload);
     }
 
@@ -173,8 +212,8 @@ public class UT_ProofWitnessArtifact
     {
         var artifact = SampleArtifact();
         var canonical = ProofWitnessArtifactSerializer.Encode(artifact);
-        var payloadLength = BinaryPrimitives.ReadUInt32LittleEndian(canonical.AsSpan(76, 4));
-        var stateLengthOffset = checked(80 + (int)payloadLength);
+        var payloadLength = BinaryPrimitives.ReadUInt32LittleEndian(canonical.AsSpan(108, 4));
+        var stateLengthOffset = checked(112 + (int)payloadLength);
         var stateLength = BinaryPrimitives.ReadUInt32LittleEndian(
             canonical.AsSpan(stateLengthOffset, 4));
         var effectsLengthOffset = checked(stateLengthOffset + 4 + (int)stateLength + 200);
@@ -235,6 +274,52 @@ public class UT_ProofWitnessArtifact
     }
 
     [TestMethod]
+    public void Artifact_RejectsL1ContextTimestampAndTransactionTamper()
+    {
+        var artifact = SampleArtifact();
+        var originalMessage = artifact.ExecutionPayload.L1Messages[0];
+        var changedMessage = originalMessage with
+        {
+            Payload = new byte[] { 0xff },
+            MessageHash = UInt256.Zero,
+        };
+        changedMessage = changedMessage with
+        {
+            MessageHash = MessageHasher.HashMessage(changedMessage),
+        };
+        Assert.ThrowsExactly<ArgumentException>(() =>
+            ProofWitnessArtifactSerializer.ComputeContentHash(artifact with
+            {
+                ExecutionPayload = artifact.ExecutionPayload with
+                {
+                    L1Messages = [changedMessage],
+                },
+            }));
+
+        Assert.ThrowsExactly<ArgumentException>(() =>
+            ProofWitnessArtifactSerializer.ComputeContentHash(artifact with
+            {
+                ExecutionPayload = artifact.ExecutionPayload with
+                {
+                    BlockContext = artifact.ExecutionPayload.BlockContext with
+                    {
+                        LastBlockTimestamp =
+                            artifact.ExecutionPayload.BlockContext.LastBlockTimestamp + 1,
+                    },
+                },
+            }));
+
+        Assert.ThrowsExactly<ArgumentException>(() =>
+            ProofWitnessArtifactSerializer.ComputeContentHash(artifact with
+            {
+                ExecutionPayload = artifact.ExecutionPayload with
+                {
+                    Transactions = [new byte[] { 0xfe }, .. artifact.ExecutionPayload.Transactions.Skip(1)],
+                },
+            }));
+    }
+
+    [TestMethod]
     public void Artifact_EncodeRejectsStaleContentHash()
     {
         var artifact = SampleArtifact();
@@ -244,12 +329,15 @@ public class UT_ProofWitnessArtifact
     }
 
     [TestMethod]
-    public void Artifact_EmptyVariableSectionsRoundTrip()
+    public void Artifact_LegacyProfileAllowsEmptyInternalWitnessSections()
     {
         var artifact = SampleArtifact();
         var empty = ProofWitnessArtifactV1.Create(
-            artifact.ProofSystem,
-            artifact.VerificationKeyId,
+            ProofType.Multisig,
+            WitnessProofSystem.None,
+            UInt256.Zero,
+            artifact.ExecutionSemanticId,
+            false,
             artifact.ChainId,
             artifact.BatchNumber,
             artifact.FirstBlock,
@@ -258,7 +346,7 @@ public class UT_ProofWitnessArtifact
             ReadOnlyMemory<byte>.Empty,
             artifact.ExecutionResult,
             ReadOnlyMemory<byte>.Empty,
-            artifact.DAReceipt with { Pointer = ReadOnlyMemory<byte>.Empty },
+            artifact.DAReceipt,
             artifact.PublicInputs);
 
         Assert.AreEqual(
@@ -299,6 +387,8 @@ public class UT_ProofWitnessArtifact
             Layer = DAMode.NeoFS,
             Commitment = ExecutionPayloadSerializer.ComputeCommitment(payload),
             Pointer = new byte[] { 0xa1, 0xa2, 0xa3 },
+            Kind = DAReceiptKind.NeoFSObject,
+            Evidence = new byte[] { 0xa4, 0xa5 },
         };
         var publicInputs = new PublicInputs
         {
@@ -316,8 +406,11 @@ public class UT_ProofWitnessArtifact
             BlockContextHash = StateRootCalculator.HashBlockContext(payload.BlockContext),
         };
         return ProofWitnessArtifactV1.Create(
+            ProofType.Zk,
             WitnessProofSystem.Sp1,
             H(0x41),
+            H(0x42),
+            true,
             payload.ChainId,
             payload.BatchNumber,
             payload.FirstBlock,

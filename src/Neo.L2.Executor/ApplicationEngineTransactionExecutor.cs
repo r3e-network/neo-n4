@@ -127,7 +127,7 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
         {
             if (!_consumedNonces.Add(nonceKey))
             {
-                return Failed(tx.Hash, $"duplicate nonce: sender={tx.Sender}, nonce={tx.Nonce}");
+                return Failed(rawTxHash, $"duplicate nonce: sender={tx.Sender}, nonce={tx.Nonce}");
             }
         }
 
@@ -152,7 +152,7 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
         catch (Exception ex)
         {
             // Engine construction itself can throw on a malformed script; treat as FAULT.
-            return Failed(tx.Hash, $"engine setup failed: {ex.Message}");
+            return Failed(rawTxHash, $"engine setup failed: {ex.Message}");
         }
 
         if (engine.State != VMState.HALT)

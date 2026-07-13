@@ -1,3 +1,5 @@
+using Neo.L2.Batch;
+
 namespace Neo.L2.Proving.RiscVZk;
 
 /// <summary>
@@ -13,13 +15,26 @@ namespace Neo.L2.Proving.RiscVZk;
 /// <c>memory/project_survey_findings.md</c> for current neo-zkvm capabilities and the work
 /// required to bridge from L2 batch format to SP1 input format.
 /// </remarks>
-public abstract class RiscVProverBase : IL2Prover
+public abstract class RiscVProverBase : IZkExecutionProver
 {
     /// <inheritdoc />
     public ProofType Kind => ProofType.Zk;
 
     /// <summary>The proof system this prover targets.</summary>
     public abstract ProofSystem ProofSystem { get; }
+
+    /// <inheritdoc />
+    public WitnessProofSystem WitnessProofSystem =>
+        (WitnessProofSystem)(byte)ProofSystem;
+
+    /// <inheritdoc />
+    public abstract UInt256 VerificationKeyId { get; }
+
+    /// <inheritdoc />
+    public abstract UInt256 ExecutionSemanticId { get; }
+
+    /// <inheritdoc />
+    public abstract bool ProducesCryptographicProof { get; }
 
     /// <inheritdoc />
     public abstract ValueTask<ProofResult> ProveAsync(
@@ -38,6 +53,15 @@ public sealed class MockRiscVProver : RiscVProverBase
 
     /// <inheritdoc />
     public override ProofSystem ProofSystem => ProofSystem.Sp1;
+
+    /// <inheritdoc />
+    public override UInt256 VerificationKeyId => _vkId;
+
+    /// <inheritdoc />
+    public override UInt256 ExecutionSemanticId => ExecutionSemanticIds.Sp1LegacyNeoN3GuestV1;
+
+    /// <inheritdoc />
+    public override bool ProducesCryptographicProof => false;
 
     /// <summary>Construct with the verification-key identifier the matching verifier expects.</summary>
     public MockRiscVProver(UInt256 verificationKeyId)

@@ -75,6 +75,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   root substitution, chain/batch/tx/bisection/replay/semantic/claim/witness/path
   tampering, slashing boundaries, rollback, and fresh `nccs` artifacts.
 
+### P0-8 canonical proof-witness settlement pipeline — 2026-07-13
+
+- Replaced soft zero-root batch submission with immutable `SealedBatch` execution payloads and a
+  single durable pipeline through DA, canonical `ProofWitnessArtifactV1`, proof manifest,
+  settlement submission, and restart reconciliation.
+- ZK profiles now fail closed unless executor/prover semantic IDs match, execution witness bytes
+  are authenticated and non-empty, the prover is cryptographic, and all payload/public-input/DA/
+  execution bindings agree. Explicit multisig/optimistic profiles remain isolated compatibility
+  paths.
+- Forced-inclusion nonce, transaction index, hash, and Merkle siblings are persisted in the
+  canonical artifact. Consumption is deferred until settlement finality and delegated to
+  `IForcedInclusionFinalizationClient`, which must verify the finalized transaction root, submit
+  permissionless `ForcedInclusion.consume`, and confirm L1 state; failures remain restart-safe.
+
 ### Security — comprehensive audit cycle 2026-05-19
 
 Multi-agent audit team surfaced + closed two CRITICAL exploit paths and

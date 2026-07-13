@@ -3,6 +3,8 @@ using System.Linq;
 using Neo.Extensions;
 using Neo.Extensions.IO;
 using Neo.L2;
+using Neo.L2.Batch;
+using Neo.L2.ForcedInclusion;
 using Neo.L2.Telemetry;
 using Neo.Ledger;
 using Neo.Network.P2P.Payloads;
@@ -12,7 +14,7 @@ namespace Neo.Plugins.L2;
 /// <summary>
 /// Listens to the local Neo 4 chain's <c>Blockchain.Committed</c> event and accumulates work
 /// into an in-progress <c>L2Batch</c>. When the configured size, count, or age
-/// thresholds trip, the plugin seals the batch into an <see cref="L2BatchCommitment"/>,
+/// thresholds trip, the plugin seals the exact execution inputs into a <see cref="SealedBatch"/>,
 /// publishes it via <see cref="OnBatchSealed"/>, and starts a fresh batch.
 /// </summary>
 /// <remarks>
@@ -25,9 +27,14 @@ public sealed class L2BatchPlugin : Plugin
     private L2BatchSettings _settings = new();
     private IL2Metrics _metrics = NoOpMetrics.Instance;
     private BatchSealer? _sealer;
+    private ISealedBatchSink? _sink;
+    private Func<int, IReadOnlyList<CrossChainMessage>>? _l1MessageDrain;
+    private Func<uint>? _l1FinalizedHeight;
+    private Func<UInt256>? _sequencerCommitteeHash;
+    private IForcedInclusionSource? _forcedInclusionSource;
 
-    /// <summary>Emitted whenever a batch is sealed and ready for submission.</summary>
-    public event EventHandler<L2BatchCommitment>? OnBatchSealed;
+    /// <summary>Emitted after a sealed batch has been durably accepted by the configured sink.</summary>
+    public event EventHandler<SealedBatch>? OnBatchSealed;
 
     /// <summary>
     /// Wire a metrics sink. The plugin's <see cref="BatchSealer"/> emits
@@ -43,11 +50,68 @@ public sealed class L2BatchPlugin : Plugin
         _sealer?.WithMetrics(metrics);
     }
 
+    /// <summary>
+    /// Wire real L1 inbox and block-context sources. Must be called before the first block is
+    /// observed so an in-progress batch cannot mix input providers.
+    /// </summary>
+    public void WithSealingInputs(
+        Func<int, IReadOnlyList<CrossChainMessage>> l1MessageDrain,
+        Func<uint> l1FinalizedHeight,
+        Func<UInt256> sequencerCommitteeHash)
+    {
+        ArgumentNullException.ThrowIfNull(l1MessageDrain);
+        ArgumentNullException.ThrowIfNull(l1FinalizedHeight);
+        ArgumentNullException.ThrowIfNull(sequencerCommitteeHash);
+        if (_sealer is not null)
+            throw new InvalidOperationException(
+                "sealing inputs must be wired before the first block");
+        _l1MessageDrain = l1MessageDrain;
+        _l1FinalizedHeight = l1FinalizedHeight;
+        _sequencerCommitteeHash = sequencerCommitteeHash;
+    }
+
+    /// <summary>
+    /// Wire the L1 forced-inclusion read source. The durable settlement sink remains the
+    /// reservation source of truth; this method never calls
+    /// <see cref="IForcedInclusionSource.ConfirmConsumedAsync"/>.
+    /// </summary>
+    public void WithForcedInclusionSource(IForcedInclusionSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        if (_sealer is not null)
+            throw new InvalidOperationException(
+                "forced-inclusion source must be wired before the first block");
+        if (_settings.ChainId != 0 && source.ChainId != _settings.ChainId)
+            throw new InvalidOperationException(
+                "forced-inclusion source chain differs from batch settings");
+        _forcedInclusionSource = source;
+    }
+
+    /// <summary>
+    /// Wire the single durable execution/DA/witness sink. A production batch is not acknowledged
+    /// until this sink returns a validated post-state root.
+    /// </summary>
+    public void WithSealedBatchSink(ISealedBatchSink sink)
+    {
+        ArgumentNullException.ThrowIfNull(sink);
+        if (_sink is not null && !ReferenceEquals(_sink, sink))
+            throw new InvalidOperationException("a sealed-batch sink is already wired");
+        _sink = sink;
+    }
+
+    /// <summary>Remove a previously wired sink during orderly plugin shutdown.</summary>
+    public void RemoveSealedBatchSink(ISealedBatchSink sink)
+    {
+        ArgumentNullException.ThrowIfNull(sink);
+        if (ReferenceEquals(_sink, sink)) _sink = null;
+    }
+
     /// <inheritdoc />
     public override string Name => "L2BatchPlugin";
 
     /// <inheritdoc />
-    public override string Description => "Accumulates L2 blocks into batch commitments for the Neo Elastic Network.";
+    public override string Description =>
+        "Seals immutable L2 execution batches for the Neo Elastic Network.";
 
     /// <summary>Construct and register the block-commit handler.</summary>
     public L2BatchPlugin()
@@ -90,20 +154,57 @@ public sealed class L2BatchPlugin : Plugin
             if (!_settings.Enabled) return;
             if (block is null) return;
 
-            var sealer = _sealer ??= new BatchSealer(_settings, _metrics);
+            var sealer = _sealer ??= new BatchSealer(
+                _settings,
+                _metrics,
+                forcedDrain: _forcedInclusionSource is null
+                    ? null
+                    : DrainUnreservedForcedTransactions,
+                l1MessageDrain: _l1MessageDrain,
+                l1FinalizedHeight: _l1FinalizedHeight,
+                sequencerCommitteeHash: _sequencerCommitteeHash);
             var rawTxs = block.Transactions.Select(tx => tx.ToArray());
-            var commitment = sealer.OnBlockCommit(block.Index, block.Timestamp, system.Settings.Network, rawTxs);
-            if (commitment is null) return;
+            var artifact = sealer.OnBlockCommit(block.Index, block.Timestamp, system.Settings.Network, rawTxs);
+            if (artifact is null) return;
 
-            DispatchSealed(this, OnBatchSealed, commitment, _metrics);
+            if (_sink is not null)
+            {
+                var postStateRoot = _sink.PersistAsync(artifact).AsTask().GetAwaiter().GetResult();
+                sealer.AcknowledgeExecution(artifact.BatchNumber, postStateRoot);
+            }
+            DispatchSealed(this, OnBatchSealed, artifact, _metrics);
         }
         catch (Exception ex)
         {
             _metrics?.IncrementCounter("l2_batch_on_block_committed_error");
-            // Log the error but do NOT propagate — an exception escaping here
-            // would corrupt Neo's Blockchain.Committed event and halt block import.
             Logs.RuntimeLogger.Error(ex, "L2Batch OnBlockCommitted handler failed");
+            // A production durable sink fails closed; observation-only handlers remain isolated
+            // from Neo's Blockchain.Committed event.
+            if (_sink is not null) throw;
         }
+    }
+
+    private IReadOnlyList<(ulong Nonce, UInt256 TxHash, ReadOnlyMemory<byte> SerializedTx)>
+        DrainUnreservedForcedTransactions(int maximum)
+    {
+        var source = _forcedInclusionSource
+            ?? throw new InvalidOperationException(
+                "forced-inclusion source is not wired");
+        var sink = _sink
+            ?? throw new InvalidOperationException(
+                "forced inclusion requires a durable sealed-batch sink");
+        var tracked = sink.GetTrackedForcedInclusionNoncesAsync(source.ChainId)
+            .AsTask().GetAwaiter().GetResult();
+        var trackedSet = tracked.ToHashSet();
+        var entries = source.DrainAsync(int.MaxValue)
+            .AsTask().GetAwaiter().GetResult()
+            ?? throw new InvalidOperationException(
+                "forced-inclusion source returned null");
+        return entries
+            .Where(entry => entry is not null && !trackedSet.Contains(entry.Nonce))
+            .Take(maximum)
+            .Select(entry => (entry.Nonce, entry.TxHash, entry.SerializedTx))
+            .ToArray();
     }
 
     /// <summary>
@@ -117,8 +218,8 @@ public sealed class L2BatchPlugin : Plugin
     /// </remarks>
     internal static void DispatchSealed(
         object sender,
-        EventHandler<L2BatchCommitment>? handler,
-        L2BatchCommitment commitment,
+        EventHandler<SealedBatch>? handler,
+        SealedBatch artifact,
         IL2Metrics metrics)
     {
         var subscribers = handler?.GetInvocationList();
@@ -129,7 +230,7 @@ public sealed class L2BatchPlugin : Plugin
             // caller-visible error, which would leave the caller out of sync
             // with the sealed batch. Catch all non-fatal exceptions.
             // Fatal exceptions (OOM, SO) terminate the process and can't be caught.
-            try { ((EventHandler<L2BatchCommitment>)sub).Invoke(sender, commitment); }
+            try { ((EventHandler<SealedBatch>)sub).Invoke(sender, artifact); }
             catch (Exception) { metrics.SafeIncrementCounter(MetricNames.BatchSealedSubscriberFailures); }
         }
     }

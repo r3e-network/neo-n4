@@ -95,6 +95,7 @@ public class UT_ProofWitnessStore
         var submitted = await store.GetProofAsync(artifact.ContentHash);
         Assert.IsNotNull(submitted);
         Assert.AreEqual(l1TransactionHash, submitted.L1TransactionHash);
+        Assert.IsTrue(submitted.SettlementObserved);
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             () => store.MarkSubmittedAsync(artifact.ContentHash, H(0x71)).AsTask());
@@ -123,6 +124,57 @@ public class UT_ProofWitnessStore
             () => store.PutProofAsync(manifest with { VerificationKeyId = H(0x98) }).AsTask());
         await Assert.ThrowsExactlyAsync<ArgumentException>(
             () => store.PutProofAsync(manifest with { ProofSystem = WitnessProofSystem.Halo2 }).AsTask());
+        await Assert.ThrowsExactlyAsync<ArgumentException>(
+            () => store.PutProofAsync(manifest with { ProofType = ProofType.Optimistic }).AsTask());
+        await Assert.ThrowsExactlyAsync<ArgumentException>(
+            () => store.PutProofAsync(manifest with { ExecutionSemanticId = H(0x96) }).AsTask());
+    }
+
+    [TestMethod]
+    public async Task MarkSubmissionObserved_RoundTripsWithoutInventingTransactionHash()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var artifact = SampleArtifact();
+        await store.CommitAsync(artifact);
+        await store.PutProofAsync(SampleManifest(artifact));
+
+        await store.MarkSubmissionObservedAsync(artifact.ContentHash);
+        await store.MarkSubmissionObservedAsync(artifact.ContentHash);
+
+        var observed = await store.GetProofAsync(artifact.ContentHash);
+        Assert.IsNotNull(observed);
+        Assert.IsTrue(observed.SettlementObserved);
+        Assert.IsNull(observed.L1TransactionHash);
+    }
+
+    [TestMethod]
+    public async Task ForcedInclusionReservation_PersistsUntilConfirmedFinalization()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var artifact = SampleArtifact(forcedInclusion: true);
+        var manifest = SampleManifest(artifact);
+        await store.CommitAsync(artifact);
+
+        CollectionAssert.AreEqual(
+            new ulong[] { 42 },
+            (await store.GetTrackedForcedInclusionNoncesAsync(artifact.ChainId)).ToArray());
+        await store.PutProofAsync(manifest);
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => store.MarkForcedInclusionFinalizedAsync(artifact.ContentHash).AsTask());
+        await store.MarkSubmittedAsync(artifact.ContentHash, H(0x75));
+        CollectionAssert.AreEqual(
+            new ulong[] { 42 },
+            (await store.GetTrackedForcedInclusionNoncesAsync(artifact.ChainId)).ToArray());
+
+        await store.MarkForcedInclusionFinalizedAsync(artifact.ContentHash);
+        await store.MarkForcedInclusionFinalizedAsync(artifact.ContentHash);
+
+        CollectionAssert.AreEqual(
+            new ulong[] { 42 },
+            (await store.GetTrackedForcedInclusionNoncesAsync(artifact.ChainId)).ToArray());
+        Assert.IsTrue((await store.GetProofAsync(artifact.ContentHash))!.ForcedInclusionFinalized);
     }
 
     [TestMethod]
@@ -168,6 +220,7 @@ public class UT_ProofWitnessStore
                 var recoveredProof = await store.GetProofAsync(artifact.ContentHash);
                 Assert.IsNotNull(recoveredProof);
                 Assert.AreEqual(l1TransactionHash, recoveredProof.L1TransactionHash);
+                Assert.IsTrue(recoveredProof.SettlementObserved);
                 var recovered = new List<ProofWitnessArtifactV1>();
                 await foreach (var item in store.EnumerateCommittedAsync(artifact.ChainId))
                     recovered.Add(item);
@@ -212,19 +265,19 @@ public class UT_ProofWitnessStore
         Assert.ThrowsExactly<InvalidDataException>(() => ProofResultManifestSerializer.Decode(flags));
 
         var proofSystem = canonical.ToArray();
-        proofSystem[12] = 0xff;
+        proofSystem[13] = 0xff;
         Assert.ThrowsExactly<InvalidDataException>(
             () => ProofResultManifestSerializer.Decode(proofSystem));
 
         var reserved = canonical.ToArray();
-        reserved[13] = 1;
+        reserved[14] = 1;
         Assert.ThrowsExactly<InvalidDataException>(() => ProofResultManifestSerializer.Decode(reserved));
 
         Assert.ThrowsExactly<InvalidDataException>(
             () => ProofResultManifestSerializer.Decode([.. canonical, 0x00]));
 
         var badLength = canonical.ToArray();
-        BinaryPrimitives.WriteUInt32LittleEndian(badLength.AsSpan(124, 4), uint.MaxValue);
+        BinaryPrimitives.WriteUInt32LittleEndian(badLength.AsSpan(156, 4), uint.MaxValue);
         Assert.ThrowsExactly<InvalidDataException>(() => ProofResultManifestSerializer.Decode(badLength));
     }
 
@@ -249,8 +302,11 @@ public class UT_ProofWitnessStore
         ProofWitnessArtifactV1 artifact,
         ReadOnlyMemory<byte> stateWitness)
         => ProofWitnessArtifactV1.Create(
+            artifact.ProofType,
             artifact.ProofSystem,
             artifact.VerificationKeyId,
+            artifact.ExecutionSemanticId,
+            artifact.ExecutionWitnessAuthenticated,
             artifact.ChainId,
             artifact.BatchNumber,
             artifact.FirstBlock,
@@ -265,6 +321,7 @@ public class UT_ProofWitnessStore
     private static ProofResultManifest SampleManifest(ProofWitnessArtifactV1 artifact)
         => new()
         {
+            ProofType = artifact.ProofType,
             ChainId = artifact.ChainId,
             BatchNumber = artifact.BatchNumber,
             ArtifactContentHash = artifact.ContentHash,
@@ -272,12 +329,18 @@ public class UT_ProofWitnessStore
                 Crypto.Hash256(BatchSerializer.EncodePublicInputs(artifact.PublicInputs))),
             VerificationKeyId = artifact.VerificationKeyId,
             ProofSystem = artifact.ProofSystem,
+            ExecutionSemanticId = artifact.ExecutionSemanticId,
             Proof = new byte[] { 0x01, 0x02, 0x03 },
             PublicValues = new byte[] { 0x04, 0x05 },
+            SettlementObserved = false,
         };
 
-    private static ProofWitnessArtifactV1 SampleArtifact(ulong batchNumber = 257)
+    private static ProofWitnessArtifactV1 SampleArtifact(
+        ulong batchNumber = 257,
+        bool forcedInclusion = false)
     {
+        ReadOnlyMemory<byte> transaction = new byte[] { 0x01, 0x02, 0x03 };
+        var transactionHash = new UInt256(Crypto.Hash256(transaction.Span));
         var payload = new ExecutionPayloadV1
         {
             ChainId = SampleChainId,
@@ -294,7 +357,19 @@ public class UT_ProofWitnessStore
                 Network = 860_833_102,
             },
             L1Messages = [],
-            Transactions = [new byte[] { 0x01, 0x02, 0x03 }],
+            ForcedInclusions = forcedInclusion
+                ? new ForcedInclusionConsumptionProof[]
+                {
+                    new()
+                    {
+                        Nonce = 42,
+                        LeafIndex = 0,
+                        TxHash = transactionHash,
+                        Siblings = Array.Empty<UInt256>(),
+                    },
+                }
+                : Array.Empty<ForcedInclusionConsumptionProof>(),
+            Transactions = [transaction],
         };
         var result = new BatchExecutionResult
         {
@@ -311,6 +386,8 @@ public class UT_ProofWitnessStore
             Layer = DAMode.NeoFS,
             Commitment = ExecutionPayloadSerializer.ComputeCommitment(payload),
             Pointer = new byte[] { 0xa1 },
+            Kind = DAReceiptKind.NeoFSObject,
+            Evidence = new byte[] { 0xa2 },
         };
         var inputs = new PublicInputs
         {
@@ -328,8 +405,11 @@ public class UT_ProofWitnessStore
             BlockContextHash = StateRootCalculator.HashBlockContext(payload.BlockContext),
         };
         return ProofWitnessArtifactV1.Create(
+            ProofType.Zk,
             WitnessProofSystem.Sp1,
             H(0x41),
+            H(0x42),
+            true,
             payload.ChainId,
             payload.BatchNumber,
             payload.FirstBlock,

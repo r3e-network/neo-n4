@@ -17,6 +17,9 @@ public sealed record ProofResultManifest
     /// <summary>Wire-format version.</summary>
     public const ushort Version = 1;
 
+    /// <summary>Settlement proof type produced for the artifact.</summary>
+    public required ProofType ProofType { get; init; }
+
     /// <summary>L2 chain identifier of the committed artifact.</summary>
     public required uint ChainId { get; init; }
 
@@ -35,11 +38,24 @@ public sealed record ProofResultManifest
     /// <summary>Proof backend that generated the proof.</summary>
     public required WitnessProofSystem ProofSystem { get; init; }
 
+    /// <summary>Exact execution semantic proved.</summary>
+    public required UInt256 ExecutionSemanticId { get; init; }
+
     /// <summary>Terminal proof bytes.</summary>
     public required ReadOnlyMemory<byte> Proof { get; init; }
 
     /// <summary>Public values emitted by the zkVM, when the backend exposes them separately.</summary>
     public required ReadOnlyMemory<byte> PublicValues { get; init; }
+
+    /// <summary>
+    /// True after submission succeeds or reconciliation observes the batch on L1.
+    /// </summary>
+    public bool SettlementObserved { get; init; }
+
+    /// <summary>
+    /// True only after final settlement and confirmed L1 consumption of every forced nonce.
+    /// </summary>
+    public bool ForcedInclusionFinalized { get; init; }
 
     /// <summary>L1 submission transaction, or <c>null</c> until submitted.</summary>
     public UInt256? L1TransactionHash { get; init; }
@@ -51,10 +67,14 @@ public sealed record ProofResultManifest
             && BatchNumber == other.BatchNumber
             && ArtifactContentHash.Equals(other.ArtifactContentHash)
             && PublicInputHash.Equals(other.PublicInputHash)
+            && ProofType == other.ProofType
             && VerificationKeyId.Equals(other.VerificationKeyId)
             && ProofSystem == other.ProofSystem
+            && ExecutionSemanticId.Equals(other.ExecutionSemanticId)
             && Proof.Span.SequenceEqual(other.Proof.Span)
             && PublicValues.Span.SequenceEqual(other.PublicValues.Span)
+            && SettlementObserved == other.SettlementObserved
+            && ForcedInclusionFinalized == other.ForcedInclusionFinalized
             && Equals(L1TransactionHash, other.L1TransactionHash);
 
     /// <inheritdoc />
@@ -65,10 +85,14 @@ public sealed record ProofResultManifest
         hash.Add(BatchNumber);
         hash.Add(ArtifactContentHash);
         hash.Add(PublicInputHash);
+        hash.Add(ProofType);
         hash.Add(VerificationKeyId);
         hash.Add(ProofSystem);
+        hash.Add(ExecutionSemanticId);
         hash.AddBytes(Proof.Span);
         hash.AddBytes(PublicValues.Span);
+        hash.Add(SettlementObserved);
+        hash.Add(ForcedInclusionFinalized);
         hash.Add(L1TransactionHash);
         return hash.ToHashCode();
     }
@@ -111,6 +135,27 @@ public interface IProofWitnessStore : IDisposable
     ValueTask MarkSubmittedAsync(
         UInt256 artifactContentHash,
         UInt256 l1TransactionHash,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Mark settlement as observed when restart reconciliation finds the batch on L1 but the
+    /// original transaction hash was not durably recorded before the prior process stopped.
+    /// </summary>
+    ValueTask MarkSubmissionObservedAsync(
+        UInt256 artifactContentHash,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Mark confirmed forced-inclusion consumption for a finalized artifact.</summary>
+    ValueTask MarkForcedInclusionFinalizedAsync(
+        UInt256 artifactContentHash,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Return every forced nonce durably tracked by committed artifacts, including confirmed
+    /// consumption, so a stale L1 read cache cannot reinsert it.
+    /// </summary>
+    ValueTask<IReadOnlyCollection<ulong>> GetTrackedForcedInclusionNoncesAsync(
+        uint chainId,
         CancellationToken cancellationToken = default);
 }
 
@@ -281,15 +326,20 @@ public sealed class KeyValueProofWitnessStore : IProofWitnessStore
             var current = ProofResultManifestSerializer.Decode(currentBytes);
             if (!current.ArtifactContentHash.Equals(artifactContentHash))
                 throw new InvalidDataException("Proof manifest identity does not match its storage key");
-            if (current.L1TransactionHash is not null)
+            if (current.SettlementObserved)
             {
-                if (current.L1TransactionHash.Equals(l1TransactionHash))
+                if (current.L1TransactionHash is null
+                    || current.L1TransactionHash.Equals(l1TransactionHash))
                     return ValueTask.CompletedTask;
                 throw new InvalidOperationException(
                     $"Artifact {HashHex(artifactContentHash)} is already bound to a different L1 transaction");
             }
 
-            var updated = current with { L1TransactionHash = l1TransactionHash };
+            var updated = current with
+            {
+                SettlementObserved = true,
+                L1TransactionHash = l1TransactionHash,
+            };
             var updatedBytes = ProofResultManifestSerializer.Encode(updated);
             if (_store.CompareExchange(key, currentBytes, updatedBytes))
                 return ValueTask.CompletedTask;
@@ -297,6 +347,95 @@ public sealed class KeyValueProofWitnessStore : IProofWitnessStore
 
         throw new InvalidOperationException(
             "Proof result changed repeatedly while marking it submitted");
+    }
+
+    /// <inheritdoc />
+    public ValueTask MarkSubmissionObservedAsync(
+        UInt256 artifactContentHash,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(artifactContentHash);
+        ThrowIfDisposed();
+        var key = ProofKey(artifactContentHash);
+
+        for (var attempt = 0; attempt < 32; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var currentBytes = _store.Get(key)
+                ?? throw new InvalidOperationException(
+                    $"No proof result exists for artifact {HashHex(artifactContentHash)}");
+            var current = ProofResultManifestSerializer.Decode(currentBytes);
+            if (!current.ArtifactContentHash.Equals(artifactContentHash))
+                throw new InvalidDataException(
+                    "Proof manifest identity does not match its storage key");
+            if (current.SettlementObserved) return ValueTask.CompletedTask;
+            var updatedBytes = ProofResultManifestSerializer.Encode(
+                current with { SettlementObserved = true });
+            if (_store.CompareExchange(key, currentBytes, updatedBytes))
+                return ValueTask.CompletedTask;
+        }
+
+        throw new InvalidOperationException(
+            "Proof result changed repeatedly while reconciling submission");
+    }
+
+    /// <inheritdoc />
+    public ValueTask MarkForcedInclusionFinalizedAsync(
+        UInt256 artifactContentHash,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(artifactContentHash);
+        ThrowIfDisposed();
+        var key = ProofKey(artifactContentHash);
+
+        for (var attempt = 0; attempt < 32; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var currentBytes = _store.Get(key)
+                ?? throw new InvalidOperationException(
+                    $"No proof result exists for artifact {HashHex(artifactContentHash)}");
+            var current = ProofResultManifestSerializer.Decode(currentBytes);
+            if (!current.ArtifactContentHash.Equals(artifactContentHash))
+                throw new InvalidDataException(
+                    "Proof manifest identity does not match its storage key");
+            if (current.ForcedInclusionFinalized) return ValueTask.CompletedTask;
+            if (!current.SettlementObserved)
+                throw new InvalidOperationException(
+                    "forced inclusion cannot finalize before settlement is observed");
+            var artifactBytes = _store.Get(ArtifactKey(current.ChainId, current.BatchNumber))
+                ?? throw new InvalidOperationException(
+                    "proof manifest references a missing witness artifact");
+            var artifact = ProofWitnessArtifactSerializer.Decode(artifactBytes);
+            if (!artifact.ContentHash.Equals(artifactContentHash)
+                || artifact.ExecutionPayload.ForcedInclusions.Count == 0)
+                throw new InvalidOperationException(
+                    "artifact has no matching forced-inclusion reservation to finalize");
+            var updatedBytes = ProofResultManifestSerializer.Encode(
+                current with { ForcedInclusionFinalized = true });
+            if (_store.CompareExchange(key, currentBytes, updatedBytes))
+                return ValueTask.CompletedTask;
+        }
+
+        throw new InvalidOperationException(
+            "Proof result changed repeatedly while finalizing forced inclusion");
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyCollection<ulong>> GetTrackedForcedInclusionNoncesAsync(
+        uint chainId,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        var reserved = new HashSet<ulong>();
+        await foreach (var artifact in EnumerateCommittedAsync(chainId, cancellationToken))
+        {
+            if (artifact.ExecutionPayload.ForcedInclusions.Count == 0) continue;
+            foreach (var proof in artifact.ExecutionPayload.ForcedInclusions)
+                reserved.Add(proof.Nonce);
+        }
+        return reserved;
     }
 
     /// <inheritdoc />
@@ -332,6 +471,14 @@ public sealed class KeyValueProofWitnessStore : IProofWitnessStore
         if (manifest.ProofSystem != artifact.ProofSystem)
             throw new ArgumentException(
                 "Proof manifest proof system does not match the committed artifact",
+                nameof(manifest));
+        if (manifest.ProofType != artifact.ProofType)
+            throw new ArgumentException(
+                "Proof manifest proof type does not match the committed artifact",
+                nameof(manifest));
+        if (!manifest.ExecutionSemanticId.Equals(artifact.ExecutionSemanticId))
+            throw new ArgumentException(
+                "Proof manifest execution semantic does not match the committed artifact",
                 nameof(manifest));
     }
 
@@ -376,9 +523,12 @@ public static class ProofResultManifestSerializer
     private static ReadOnlySpan<byte> Magic => "NEO4PRMF"u8;
     private static ReadOnlySpan<byte> ContentHashDomain => "neo-n4/proof-result/v1\0"u8;
 
-    private const ushort SubmittedFlag = 1;
-    private const ushort KnownFlags = SubmittedFlag;
-    private const int FixedSize = 132;
+    private const ushort SettlementObservedFlag = 1;
+    private const ushort TransactionHashFlag = 2;
+    private const ushort ForcedInclusionFinalizedFlag = 4;
+    private const ushort KnownFlags =
+        SettlementObservedFlag | TransactionHashFlag | ForcedInclusionFinalizedFlag;
+    private const int FixedSize = 164;
     private const int ContentHashSize = 32;
 
     /// <summary>Maximum terminal proof size (16 MiB).</summary>
@@ -391,23 +541,28 @@ public static class ProofResultManifestSerializer
     public static byte[] Encode(ProofResultManifest manifest)
     {
         Validate(manifest);
-        var submitted = manifest.L1TransactionHash is not null;
+        var hasTransactionHash = manifest.L1TransactionHash is not null;
+        var flags = manifest.SettlementObserved ? SettlementObservedFlag : (ushort)0;
+        if (hasTransactionHash) flags |= TransactionHashFlag;
+        if (manifest.ForcedInclusionFinalized) flags |= ForcedInclusionFinalizedFlag;
         var bodySize = checked(
             FixedSize
             + manifest.Proof.Length
             + manifest.PublicValues.Length
-            + (submitted ? UInt256.Length : 0));
+            + (hasTransactionHash ? UInt256.Length : 0));
         var writer = new ManifestWireWriter(bodySize);
         writer.WriteBytes(Magic);
         writer.WriteUInt16(ProofResultManifest.Version);
-        writer.WriteUInt16(submitted ? SubmittedFlag : (ushort)0);
+        writer.WriteUInt16(flags);
+        writer.WriteByte((byte)manifest.ProofType);
         writer.WriteByte((byte)manifest.ProofSystem);
-        writer.WriteBytes(stackalloc byte[3]);
+        writer.WriteBytes(stackalloc byte[2]);
         writer.WriteUInt32(manifest.ChainId);
         writer.WriteUInt64(manifest.BatchNumber);
         writer.WriteUInt256(manifest.ArtifactContentHash);
         writer.WriteUInt256(manifest.PublicInputHash);
         writer.WriteUInt256(manifest.VerificationKeyId);
+        writer.WriteUInt256(manifest.ExecutionSemanticId);
         writer.WriteLengthPrefixedBytes(manifest.Proof.Span);
         writer.WriteLengthPrefixedBytes(manifest.PublicValues.Span);
         if (manifest.L1TransactionHash is not null)
@@ -436,20 +591,24 @@ public static class ProofResultManifestSerializer
         var flags = reader.ReadUInt16("flags");
         if ((flags & ~KnownFlags) != 0)
             throw new InvalidDataException($"Unknown proof result flags 0x{flags:x4}");
+        var proofTypeByte = reader.ReadByte("proof type");
+        if (!Enum.IsDefined((ProofType)proofTypeByte))
+            throw new InvalidDataException($"Unknown proof type byte {proofTypeByte}");
         var proofSystemByte = reader.ReadByte("proof system");
         if (!Enum.IsDefined((WitnessProofSystem)proofSystemByte))
             throw new InvalidDataException($"Unknown proof system byte {proofSystemByte}");
-        var reserved = reader.ReadBytes(3, "reserved bytes");
-        if (reserved[0] != 0 || reserved[1] != 0 || reserved[2] != 0)
+        var reserved = reader.ReadBytes(2, "reserved bytes");
+        if (reserved[0] != 0 || reserved[1] != 0)
             throw new InvalidDataException("Proof result reserved bytes must be zero");
         var chainId = reader.ReadUInt32("chain id");
         var batchNumber = reader.ReadUInt64("batch number");
         var artifactHash = reader.ReadUInt256("artifact hash");
         var publicInputHash = reader.ReadUInt256("public input hash");
         var verificationKeyId = reader.ReadUInt256("verification key id");
+        var executionSemanticId = reader.ReadUInt256("execution semantic id");
         var proof = reader.ReadLengthPrefixedBytes(MaxProofBytes, "proof");
         var publicValues = reader.ReadLengthPrefixedBytes(MaxPublicValuesBytes, "public values");
-        var l1TransactionHash = (flags & SubmittedFlag) != 0
+        var l1TransactionHash = (flags & TransactionHashFlag) != 0
             ? reader.ReadUInt256("L1 transaction hash")
             : null;
         var contentHash = reader.ReadUInt256("content hash");
@@ -459,14 +618,18 @@ public static class ProofResultManifestSerializer
             throw new InvalidDataException("Proof result manifest content hash mismatch");
         var manifest = new ProofResultManifest
         {
+            ProofType = (ProofType)proofTypeByte,
             ChainId = chainId,
             BatchNumber = batchNumber,
             ArtifactContentHash = artifactHash,
             PublicInputHash = publicInputHash,
             VerificationKeyId = verificationKeyId,
             ProofSystem = (WitnessProofSystem)proofSystemByte,
+            ExecutionSemanticId = executionSemanticId,
             Proof = proof,
             PublicValues = publicValues,
+            SettlementObserved = (flags & SettlementObservedFlag) != 0,
+            ForcedInclusionFinalized = (flags & ForcedInclusionFinalizedFlag) != 0,
             L1TransactionHash = l1TransactionHash,
         };
         try
@@ -495,8 +658,35 @@ public static class ProofResultManifestSerializer
         ArgumentNullException.ThrowIfNull(manifest.ArtifactContentHash);
         ArgumentNullException.ThrowIfNull(manifest.PublicInputHash);
         ArgumentNullException.ThrowIfNull(manifest.VerificationKeyId);
+        ArgumentNullException.ThrowIfNull(manifest.ExecutionSemanticId);
+        if (!Enum.IsDefined(manifest.ProofType) || manifest.ProofType == ProofType.None)
+            throw new ArgumentException("Unknown proof type", nameof(manifest));
         if (!Enum.IsDefined(manifest.ProofSystem))
             throw new ArgumentException("Unknown proof system", nameof(manifest));
+        if (manifest.ExecutionSemanticId.Equals(UInt256.Zero))
+            throw new ArgumentException("ExecutionSemanticId must be non-zero", nameof(manifest));
+        if (manifest.ProofType == ProofType.Zk)
+        {
+            if (manifest.ProofSystem == WitnessProofSystem.None
+                || manifest.VerificationKeyId.Equals(UInt256.Zero))
+                throw new ArgumentException(
+                    "ZK proof manifests require a proof system and verification key",
+                    nameof(manifest));
+        }
+        else if (manifest.ProofType is ProofType.Multisig or ProofType.Optimistic)
+        {
+            if (manifest.ProofSystem != WitnessProofSystem.None
+                || !manifest.VerificationKeyId.Equals(UInt256.Zero))
+                throw new ArgumentException(
+                    "Legacy proof manifests must use ProofSystem.None and zero VK",
+                    nameof(manifest));
+        }
+        else
+        {
+            throw new ArgumentException(
+                "Only explicit ZK, multisig, and optimistic manifests are supported",
+                nameof(manifest));
+        }
         if (manifest.Proof.Length == 0)
             throw new ArgumentException("Proof must be non-empty", nameof(manifest));
         if (manifest.Proof.Length > MaxProofBytes)
@@ -507,6 +697,12 @@ public static class ProofResultManifestSerializer
         if (manifest.L1TransactionHash is not null
             && manifest.L1TransactionHash.Equals(UInt256.Zero))
             throw new ArgumentException("L1 transaction hash must be non-zero", nameof(manifest));
+        if (manifest.L1TransactionHash is not null && !manifest.SettlementObserved)
+            throw new ArgumentException(
+                "L1 transaction hash requires SettlementObserved", nameof(manifest));
+        if (manifest.ForcedInclusionFinalized && !manifest.SettlementObserved)
+            throw new ArgumentException(
+                "forced-inclusion finalization requires SettlementObserved", nameof(manifest));
     }
 }
 

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Neo.Cryptography;
 using Neo.L2.Settlement.Rpc;
 
 namespace Neo.L2.ForcedInclusion;
@@ -24,13 +25,8 @@ namespace Neo.L2.ForcedInclusion;
 /// "all nonces 1..currentMax" can be loaded once at boot via the
 /// constructor's <c>knownNonces</c> argument.
 /// </para>
-/// <para>
-/// <see cref="MarkConsumedAsync"/> is local-only bookkeeping: once the L2 batcher
-/// has sealed a forced tx into a batch, this source remembers "don't return that
-/// nonce from <see cref="DrainAsync"/> again." The L1 contract's matching
-/// <c>MarkConsumed</c> method is called by SettlementManager after a withdrawal
-/// finalizes — that's a different mechanism.
-/// </para>
+/// <para><see cref="ConfirmConsumedAsync"/> verifies the L1 consumed bit and never treats local
+/// memory as authoritative. The canonical settlement finalizer submits the write first.</para>
 /// </remarks>
 public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposable
 {
@@ -39,7 +35,6 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
     private readonly TimeSpan _cacheTtl;
     private readonly bool _ownsRpc;
     private readonly ConcurrentDictionary<ulong, byte> _knownNonces = new();
-    private readonly ConcurrentDictionary<ulong, byte> _locallyConsumed = new();
     private readonly Lock _cacheGate = new();
     private readonly SemaphoreSlim _fetchConcurrency = new(8, 8); // Cap concurrent L1 RPC calls
     private List<ForcedInclusionEntry>? _cachedDrain;
@@ -122,9 +117,8 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
             }
         }
 
-        // Filter out locally-consumed nonces + cap at `max`. Drain order: deadline asc.
+        // L1 consumption is filtered during FetchPendingAsync. Drain order: deadline asc.
         return drained
-            .Where(e => !_locallyConsumed.ContainsKey(e.Nonce))
             .OrderBy(e => e.DeadlineUnixSeconds)
             .ThenBy(e => e.Nonce)
             .Take(max)
@@ -132,11 +126,22 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
     }
 
     /// <inheritdoc />
-    public ValueTask MarkConsumedAsync(ulong nonce, CancellationToken cancellationToken = default)
+    public async ValueTask ConfirmConsumedAsync(
+        ulong nonce,
+        CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        _locallyConsumed[nonce] = 1;
-        return ValueTask.CompletedTask;
+        var consumed = await RpcContractReader.InvokeReadAsync(
+            _rpc,
+            _registryHash,
+            "isConsumed",
+            new object[] { ChainId, nonce },
+            cancellationToken).ConfigureAwait(false);
+        if (!RpcContractReader.ParseBoolean(consumed))
+            throw new InvalidOperationException(
+                $"forced-inclusion nonce {nonce} is not confirmed consumed on L1");
+        _knownNonces.TryRemove(nonce, out _);
+        InvalidateCache();
     }
 
     /// <inheritdoc />
@@ -158,7 +163,6 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
         // Each nonce requires 2 RPC calls (getEntry + isConsumed); the semaphore
         // ensures at most 8 nonces are fetched concurrently, regardless of queue size.
         var fetchTasks = snapshot
-            .Where(n => !_locallyConsumed.ContainsKey(n))
             .Select(n => FetchEntryThrottledAsync(n, ct))
             .ToArray();
         var entries = await Task.WhenAll(fetchTasks).ConfigureAwait(false);
@@ -180,8 +184,8 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
 
     private async Task<ForcedInclusionEntry?> FetchEntryAsync(ulong nonce, CancellationToken ct)
     {
-        // Two parallel reads: GetEntry to fetch the encoded payload, IsConsumed to drop
-        // entries L1 has already finalized via SettlementManager.
+        // Two parallel reads: GetEntry fetches the encoded payload; IsConsumed drops entries
+        // already confirmed by permissionless consumption after settlement finality.
         var entryTask = RpcContractReader.InvokeReadAsync(_rpc, _registryHash, "getEntry", new object[] { ChainId, nonce }, ct).AsTask();
         var consumedTask = RpcContractReader.InvokeReadAsync(_rpc, _registryHash, "isConsumed", new object[] { ChainId, nonce }, ct).AsTask();
         await Task.WhenAll(entryTask, consumedTask).ConfigureAwait(false);
@@ -216,6 +220,10 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
             throw new InvalidDataException(
                 $"forced-tx entry size {bytes.Length} != expected {FixedHeader + txLen + FixedTrailer} for txLen={txLen}");
         var tx = bytes.Slice(56, txLen).ToArray();
+        var encodedTxHash = new UInt256(Crypto.Hash256(tx));
+        if (!encodedTxHash.Equals(txHash))
+            throw new InvalidDataException(
+                $"forced-tx entry nonce {nonce} txHash does not match Hash256(encodedTx)");
         var deadline = BinaryPrimitives.ReadUInt32LittleEndian(bytes.Slice(56 + txLen, 4));
         return new ForcedInclusionEntry
         {

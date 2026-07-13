@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using Neo.L2;
 using Neo.L2.Batch;
-using Neo.L2.Executor.Receipts;
-using Neo.L2.State;
 using Neo.L2.Telemetry;
 
 namespace Neo.Plugins.L2;
@@ -22,16 +20,23 @@ public sealed class BatchSealer
     private readonly L2BatchSettings _settings;
     private IL2Metrics _metrics;
     private readonly Func<long> _nowUtcMillis;
-    private readonly Func<int, IReadOnlyList<(ulong Nonce, ReadOnlyMemory<byte> SerializedTx)>>? _forcedDrain;
-    private readonly Action<ulong>? _forcedMarkConsumed;
+    private readonly Func<int, IReadOnlyList<(ulong Nonce, UInt256 TxHash, ReadOnlyMemory<byte> SerializedTx)>>? _forcedDrain;
+    private readonly Func<int, IReadOnlyList<CrossChainMessage>>? _l1MessageDrain;
+    private readonly Func<uint>? _l1FinalizedHeight;
+    private readonly Func<UInt256>? _sequencerCommitteeHash;
 
     /// <summary>Maximum forced-inclusion entries prepended to a single batch — bounds batch size so a
     /// flooded L1 forced-inclusion queue cannot produce an unbounded batch.</summary>
     public const int MaxForcedTransactionsPerBatch = 256;
 
+    /// <summary>Maximum L1 inbox messages consumed by one batch.</summary>
+    public const int MaxL1MessagesPerBatch = 1024;
+
     private BatchBuilder? _builder;
     private long _batchStartedAtUtcMillis;
+    private ulong _firstBlockTimestamp;
     private ulong _nextBatchNumber = 1;
+    private ulong _lastAcknowledgedBatchNumber;
     private UInt256 _lastPostStateRoot = UInt256.Zero;
 
     /// <summary>Swap the metrics sink in-place. Preserves all batch-numbering + builder state, unlike re-constructing.</summary>
@@ -46,16 +51,18 @@ public sealed class BatchSealer
     /// <paramref name="forcedDrain"/> (optional) is polled once at the start of each batch and its
     /// entries are PREPENDED to the batch's transaction list (deadline-ordered, oldest first, capped
     /// at <see cref="MaxForcedTransactionsPerBatch"/>) so the sequencer cannot censor L1 forced
-    /// transactions; <paramref name="forcedMarkConsumed"/> is invoked per included nonce. When
-    /// <paramref name="forcedDrain"/> is null the sealer behaves exactly as before (no forced
-    /// inclusion). The orchestration adapts <c>IForcedInclusionSource</c> to these callbacks.
+    /// transactions. Included nonces are retained in <see cref="SealedBatch"/> and are never
+    /// marked consumed by the batcher; settlement finality owns that transition. When
+    /// <paramref name="forcedDrain"/> is null the sealer behaves exactly as before.
     /// </summary>
     public BatchSealer(
         L2BatchSettings settings,
         IL2Metrics metrics,
         Func<long>? nowUtcMillis = null,
-        Func<int, IReadOnlyList<(ulong Nonce, ReadOnlyMemory<byte> SerializedTx)>>? forcedDrain = null,
-        Action<ulong>? forcedMarkConsumed = null)
+        Func<int, IReadOnlyList<(ulong Nonce, UInt256 TxHash, ReadOnlyMemory<byte> SerializedTx)>>? forcedDrain = null,
+        Func<int, IReadOnlyList<CrossChainMessage>>? l1MessageDrain = null,
+        Func<uint>? l1FinalizedHeight = null,
+        Func<UInt256>? sequencerCommitteeHash = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(metrics);
@@ -72,7 +79,9 @@ public sealed class BatchSealer
         _metrics = metrics;
         _nowUtcMillis = nowUtcMillis ?? (() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
         _forcedDrain = forcedDrain;
-        _forcedMarkConsumed = forcedMarkConsumed;
+        _l1MessageDrain = l1MessageDrain;
+        _l1FinalizedHeight = l1FinalizedHeight;
+        _sequencerCommitteeHash = sequencerCommitteeHash;
     }
 
     /// <summary>Number of transactions in the in-progress batch (0 if no batch is open).</summary>
@@ -83,22 +92,26 @@ public sealed class BatchSealer
 
     /// <summary>
     /// Feed in a freshly-committed L2 block. If this commit triggers a seal, returns the
-    /// resulting <see cref="L2BatchCommitment"/>; otherwise returns <c>null</c> and the
+    /// resulting immutable <see cref="SealedBatch"/>; otherwise returns <c>null</c> and the
     /// block is folded into the in-progress batch.
     /// </summary>
     /// <param name="blockIndex">Block height.</param>
     /// <param name="blockTimestamp">Unix-millis timestamp of the block.</param>
     /// <param name="network">Neo network magic — feeds into the block context.</param>
     /// <param name="rawTransactions">Raw bytes of every transaction in the block, in order.</param>
-    public L2BatchCommitment? OnBlockCommit(uint blockIndex, ulong blockTimestamp, uint network, IEnumerable<byte[]> rawTransactions)
+    public SealedBatch? OnBlockCommit(uint blockIndex, ulong blockTimestamp, uint network, IEnumerable<byte[]> rawTransactions)
     {
         ArgumentNullException.ThrowIfNull(rawTransactions);
 
         var isFreshBatch = _builder is null;
-        var builder = _builder ??= StartFreshBatch(blockIndex);
+        var builder = _builder ??= StartFreshBatch(blockIndex, blockTimestamp);
         // Prepend pending L1 forced-inclusion transactions at the START of each batch (before any
         // block txs) so a censoring sequencer cannot exclude them. Done once per batch, oldest-first.
-        if (isFreshBatch) DrainForcedTransactions(builder);
+        if (isFreshBatch)
+        {
+            DrainL1Messages(builder);
+            DrainForcedTransactions(builder);
+        }
         builder.AddBlock(blockIndex);
         var txIndex = 0;
         foreach (var tx in rawTransactions)
@@ -117,7 +130,7 @@ public sealed class BatchSealer
 
         var txCount = builder.Batch.TransactionCount;
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        var commitment = SealBatch(builder, blockTimestamp, network);
+        var artifact = SealBatch(builder, blockTimestamp, network);
         sw.Stop();
 
         // Safe* wrappers: the seal is committed and `_builder = null` MUST run so the
@@ -129,7 +142,42 @@ public sealed class BatchSealer
         _metrics.SafeSetGauge(MetricNames.BatchTxCount, txCount);
 
         _builder = null;
-        return commitment;
+        return artifact;
+    }
+
+    /// <summary>
+    /// Advance the pre-state root for the next batch after execution and artifact persistence
+    /// have completed. Calls are sequential and idempotent.
+    /// </summary>
+    public void AcknowledgeExecution(ulong batchNumber, UInt256 postStateRoot)
+    {
+        ArgumentNullException.ThrowIfNull(postStateRoot);
+        if (batchNumber == _lastAcknowledgedBatchNumber)
+        {
+            if (!_lastPostStateRoot.Equals(postStateRoot))
+                throw new InvalidOperationException(
+                    "execution acknowledgement changed the post-state root");
+            return;
+        }
+        if (batchNumber != _lastAcknowledgedBatchNumber + 1)
+            throw new InvalidOperationException(
+                $"execution acknowledgements must be sequential: expected {_lastAcknowledgedBatchNumber + 1}, got {batchNumber}");
+        _lastAcknowledgedBatchNumber = batchNumber;
+        _lastPostStateRoot = new UInt256(postStateRoot.GetSpan());
+    }
+
+    private void DrainL1Messages(BatchBuilder builder)
+    {
+        if (_l1MessageDrain is null) return;
+        var messages = _l1MessageDrain(MaxL1MessagesPerBatch)
+            ?? throw new InvalidOperationException("L1 message drain returned null");
+        if (messages.Count > MaxL1MessagesPerBatch)
+            throw new InvalidOperationException(
+                $"L1 message drain returned {messages.Count}, maximum is {MaxL1MessagesPerBatch}");
+        for (var index = 0; index < messages.Count; index++)
+            builder.ConsumeL1Message(messages[index]
+                ?? throw new InvalidOperationException(
+                    $"L1 message drain returned null at index {index}"));
     }
 
     /// <summary>
@@ -149,8 +197,7 @@ public sealed class BatchSealer
             if (entry.SerializedTx.IsEmpty)
                 throw new InvalidOperationException(
                     $"forced-inclusion entry nonce {entry.Nonce} has an empty transaction");
-            builder.AddTransaction(entry.SerializedTx);
-            _forcedMarkConsumed?.Invoke(entry.Nonce);
+            builder.AddForcedTransaction(entry.Nonce, entry.TxHash, entry.SerializedTx);
         }
     }
 
@@ -169,64 +216,26 @@ public sealed class BatchSealer
         return false;
     }
 
-    private BatchBuilder StartFreshBatch(uint firstBlockIndex)
+    private BatchBuilder StartFreshBatch(uint firstBlockIndex, ulong firstBlockTimestamp)
     {
         _batchStartedAtUtcMillis = _nowUtcMillis();
+        _firstBlockTimestamp = firstBlockTimestamp;
         return new BatchBuilder(_settings.ChainId, _nextBatchNumber++, firstBlockIndex, _lastPostStateRoot);
     }
 
-    private L2BatchCommitment SealBatch(BatchBuilder builder, ulong lastBlockTimestamp, uint network)
+    private SealedBatch SealBatch(BatchBuilder builder, ulong lastBlockTimestamp, uint network)
     {
+        if (lastBlockTimestamp < _firstBlockTimestamp)
+            throw new InvalidOperationException(
+                "last block timestamp precedes the first block timestamp");
         builder.WithBlockContext(new BatchBlockContext
         {
-            L1FinalizedHeight = (uint)builder.Batch.LastBlock,
-            FirstBlockTimestamp = lastBlockTimestamp,
+            L1FinalizedHeight = _l1FinalizedHeight?.Invoke() ?? 0,
+            FirstBlockTimestamp = _firstBlockTimestamp,
             LastBlockTimestamp = lastBlockTimestamp,
-            SequencerCommitteeHash = UInt256.Zero,
+            SequencerCommitteeHash = _sequencerCommitteeHash?.Invoke() ?? UInt256.Zero,
             Network = network,
         });
-
-        // BatchSealer is the *transaction-collector* phase of the pipeline. Its job is to
-        // observe block commits, group transactions into batches by the configured triggers
-        // (max-blocks / max-txs / max-age), and produce a "soft" commitment that pins which
-        // transactions went into the batch (TxRoot is real). The deterministic executor
-        // (`IL2BatchExecutor` — `ReferenceBatchExecutor` for tests, NeoVM2/RISC-V for
-        // Neo N4 production, or `ApplicationEngine` for legacy compatibility) runs
-        // separately and produces the real
-        // post-state / receipts / withdrawals / messages roots, then the L2SettlementPlugin
-        // re-seals the batch with the executor's outputs before submitting to L1.
-        //
-        // The zero-valued roots here aren't placeholder data ever observed on L1 — they're
-        // the "execution-not-yet-run" sentinel for the soft commitment. Non-zero values
-        // come from the executor pass. See `tools/Neo.L2.Devnet/Program.cs` for the full
-        // pipeline: sealer → executor → settlement client.
-        var executionResult = new BatchExecutionResult
-        {
-            PostStateRoot = _lastPostStateRoot,
-            ReceiptRoot = UInt256.Zero,
-            WithdrawalRoot = UInt256.Zero,
-            L2ToL1MessageRoot = UInt256.Zero,
-            L2ToL2MessageRoot = UInt256.Zero,
-            TxRoot = MerkleTree.ComputeRoot(CollectTxHashes(builder)),
-            GasConsumed = 0,
-        };
-
-        return builder.Seal(
-            executionResult,
-            daCommitment: UInt256.Zero,
-            publicInputHash: UInt256.Zero,
-            proofType: ProofType.None,
-            proof: ReadOnlyMemory<byte>.Empty);
-    }
-
-    private static UInt256[] CollectTxHashes(BatchBuilder builder)
-    {
-        var hashes = new UInt256[builder.Batch.TransactionCount];
-        for (var i = 0; i < hashes.Length; i++)
-        {
-            var bytes = builder.Batch.Transactions[i].Span;
-            hashes[i] = new UInt256(Cryptography.Crypto.Hash256(bytes));
-        }
-        return hashes;
+        return builder.SealArtifact();
     }
 }

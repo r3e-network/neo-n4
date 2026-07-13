@@ -100,7 +100,8 @@ public class UT_E2E_AuditPipeline
             .Register(new NoZeroProofCheck())
             .Register(new BatchRangeCheck())
             .Register(new ProofValidityCheck(verifierRegistry, c => publicInputsByBatch[c.BatchNumber]))
-            .Register(new PublicInputHashConsistencyCheck())
+            .Register(new PublicInputHashConsistencyCheck(
+                c => publicInputsByBatch[c.BatchNumber]))
             .Register(new DAAvailabilityCheck(
                 daWriter,
                 batch => receiptsByBatch[batch.BatchNumber]));

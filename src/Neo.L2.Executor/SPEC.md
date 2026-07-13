@@ -54,6 +54,8 @@ The executor MUST NOT write:
 ## Hashing rules
 
 - All multi-byte integers in canonical encodings: little-endian.
+- Every transaction leaf is `Hash256(encodedTx)` over the exact sealed bytes; executors MUST NOT
+  substitute a decoded or witness-stripped transaction hash.
 - All Merkle trees use Neo's `Hash256` (double-SHA256) for inner-node combination, with the rightmost-leaf duplicated when the level has odd cardinality (matches `Neo.Cryptography.MerkleTree`).
 - `CrossChainMessage` and `WithdrawalRequest` leaf hashes use the encodings in `Neo.L2.State.MessageHasher`.
 
@@ -128,8 +130,38 @@ These are explicitly OUTSIDE the proven function and must not be observable in a
 
 `bridge/neo-zkvm-guest` executes this function inside the SP1 zkVM. It uses the vendored `neo-vm-rs` interpreter with the stateful N4 V1 syscall provider and rejects every host-supplied result/effect/root that it cannot recompute. The native and proven implementations MUST produce byte-identical outputs for any supported input.
 
-## Witness format
+## Canonical proof-witness pipeline
 
 The prover input is the existing `ProofWitnessArtifactV1` (`NEO4PWIT`); no parallel outer witness envelope is permitted. Its `ExecutionPayloadV1` carries ordered full transaction bytes, block/L1 context, and DA bytes. Its non-empty `StateWitness` section uses `NEO4STW1` V1 and carries the complete sorted pre-state key/value set, frozen protocol settings, and deployed contract IDs, hashes, scripts, and Neo manifests. Every contract descriptor is bound into the pre-state root through `0xff || "neo-n4/contract-binding/v1/" || scriptHash` and the domain `neo-n4/contract-binding/v1\0`.
 
 The artifact's execution result, `NEO4EFX1` effects, and 332-byte public inputs are claims, not trusted inputs. The guest recomputes all of them and requires exact equality. N4 genesis V1 currently rejects non-empty L1 inbox batches and consensus syscalls without a state adapter; unsupported behavior fails closed rather than returning fabricated values.
+
+The executor-specific state and effects bytes are canonical outputs supplied through
+`IProofWitnessBatchExecutor`; the settlement pipeline treats them as opaque and MUST NOT create a
+second effects encoding or wrap the artifact in a competing outer witness format.
+
+The production order is:
+
+1. `BatchSealer` creates an immutable `SealedBatch` containing exact transaction bytes, canonical
+   L1 messages, `BatchBlockContext`, `preStateRoot`, and any forced-inclusion nonce plus transaction
+   position and Merkle siblings. Entering an open builder never consumes a forced nonce.
+2. `IProofWitnessBatchExecutor` executes the sealed inputs and returns roots plus the canonical
+   authenticated state/effects bytes produced by the matching execution profile.
+3. `IDAWriter` publishes the exact versioned `ExecutionPayloadV1`. Its receipt commitment, layer,
+   receipt kind, pointer, evidence, and availability are checked against the payload bytes.
+4. The coordinator computes `L1MessageHash` and `BlockContextHash` from the real sealed input,
+   constructs exactly one `ProofWitnessArtifactV1`, validates every payload/result/public-input/DA
+   cross-binding, and atomically commits it through `IProofWitnessStore`.
+5. `IL2Prover` receives the complete, non-empty serialized artifact bytes. The proof manifest is
+   durably committed before settlement submission. The store, not an in-memory queue, is the source
+   of truth for proving, submission, reconciliation, and restart recovery.
+6. After settlement is observed, a forced nonce remains tracked until the batch is finalized and an
+   `IForcedInclusionFinalizationClient` verifies `SettlementManager.getFinalizedTxRoot`, submits
+   permissionless `ForcedInclusion.consume(chainId,batchNumber,nonce,siblings,leafIndex)`, and confirms
+   consumption on L1. Failures remain retryable from the persisted artifact and proof manifest.
+
+For a ZK profile, executor and prover execution semantic identifiers MUST match exactly. The
+executor witness MUST be authenticated and non-empty, and the prover MUST declare a cryptographic
+backend. Mock, preview, legacy, unauthenticated, empty, or semantic-mismatched combinations fail
+closed. Multisig and optimistic compatibility paths are permitted only through an explicit non-ZK
+profile.

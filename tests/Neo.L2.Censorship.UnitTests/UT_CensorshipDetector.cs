@@ -218,7 +218,7 @@ public class UT_CensorshipDetector
             => new ValueTask<bool>(true);
         public ValueTask<IReadOnlyList<ForcedInclusionEntry>> DrainAsync(int max, CancellationToken cancellationToken = default)
             => new ValueTask<IReadOnlyList<ForcedInclusionEntry>>(ReturnsNullDrain ? null! : Array.Empty<ForcedInclusionEntry>());
-        public ValueTask MarkConsumedAsync(ulong nonce, CancellationToken cancellationToken = default)
+        public ValueTask ConfirmConsumedAsync(ulong nonce, CancellationToken cancellationToken = default)
             => ValueTask.CompletedTask;
     }
 

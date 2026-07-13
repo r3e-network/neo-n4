@@ -16,7 +16,7 @@ public static class ExecutionPayloadSerializer
     private static ReadOnlySpan<byte> Magic => "NEO4EXEC"u8;
 
     private const ushort Flags = 0;
-    private const int FixedSize = 136;
+    private const int FixedSize = 140;
     private const int MessageFixedSize = 61;
 
     /// <summary>Minimum canonical payload size with zero messages and transactions.</summary>
@@ -64,6 +64,17 @@ public static class ExecutionPayloadSerializer
             writer.WriteUInt160(message.Receiver);
             writer.WriteByte((byte)message.MessageType);
             writer.WriteLengthPrefixedBytes(message.Payload.Span);
+        }
+
+        writer.WriteUInt32(checked((uint)payload.ForcedInclusions.Count));
+        foreach (var proof in payload.ForcedInclusions)
+        {
+            writer.WriteUInt64(proof.Nonce);
+            writer.WriteUInt32(proof.LeafIndex);
+            writer.WriteUInt256(proof.TxHash);
+            writer.WriteUInt32(checked((uint)proof.Siblings.Count));
+            foreach (var sibling in proof.Siblings)
+                writer.WriteUInt256(sibling);
         }
 
         writer.WriteUInt32(checked((uint)payload.Transactions.Count));
@@ -150,6 +161,33 @@ public static class ExecutionPayloadSerializer
             });
         }
 
+        var forcedNonceCount = reader.ReadBoundedCount(
+            MaxItemCount,
+            "forced-inclusion nonce count");
+        if (forcedNonceCount > (uint)(reader.Remaining / 48))
+            throw new InvalidDataException(
+                $"Forced-inclusion nonce count {forcedNonceCount} exceeds the remaining payload capacity");
+        var forcedInclusions = new List<ForcedInclusionConsumptionProof>(
+            checked((int)forcedNonceCount));
+        for (var index = 0U; index < forcedNonceCount; index++)
+        {
+            var nonce = reader.ReadUInt64($"forced-inclusion nonce {index}");
+            var leafIndex = reader.ReadUInt32($"forced-inclusion leaf index {index}");
+            var txHash = reader.ReadUInt256($"forced-inclusion tx hash {index}");
+            var siblingCount = reader.ReadBoundedCount(64, $"forced-inclusion sibling count {index}");
+            var siblings = new UInt256[siblingCount];
+            for (var siblingIndex = 0U; siblingIndex < siblingCount; siblingIndex++)
+                siblings[siblingIndex] = reader.ReadUInt256(
+                    $"forced-inclusion sibling {index}:{siblingIndex}");
+            forcedInclusions.Add(new ForcedInclusionConsumptionProof
+            {
+                Nonce = nonce,
+                LeafIndex = leafIndex,
+                TxHash = txHash,
+                Siblings = Array.AsReadOnly(siblings),
+            });
+        }
+
         var transactionCount = reader.ReadBoundedCount(MaxItemCount, "transaction count");
         if (transactionCount > (uint)(reader.Remaining / 4))
             throw new InvalidDataException(
@@ -170,6 +208,7 @@ public static class ExecutionPayloadSerializer
             PreStateRoot = preStateRoot,
             BlockContext = blockContext,
             L1Messages = messages,
+            ForcedInclusions = forcedInclusions,
             Transactions = transactions,
         };
         try
@@ -203,6 +242,7 @@ public static class ExecutionPayloadSerializer
         ArgumentNullException.ThrowIfNull(payload.BlockContext);
         ArgumentNullException.ThrowIfNull(payload.BlockContext.SequencerCommitteeHash);
         ArgumentNullException.ThrowIfNull(payload.L1Messages);
+        ArgumentNullException.ThrowIfNull(payload.ForcedInclusions);
         ArgumentNullException.ThrowIfNull(payload.Transactions);
         if (payload.LastBlock < payload.FirstBlock)
             throw new ArgumentException(
@@ -216,6 +256,22 @@ public static class ExecutionPayloadSerializer
             throw new ArgumentException($"L1 message count exceeds {MaxItemCount}", nameof(payload));
         if ((uint)payload.Transactions.Count > MaxItemCount)
             throw new ArgumentException($"Transaction count exceeds {MaxItemCount}", nameof(payload));
+        if ((uint)payload.ForcedInclusions.Count > MaxItemCount)
+            throw new ArgumentException(
+                $"Forced-inclusion nonce count exceeds {MaxItemCount}", nameof(payload));
+        if (payload.ForcedInclusions.Count > payload.Transactions.Count)
+            throw new ArgumentException(
+                "Forced-inclusion nonce count exceeds transaction count", nameof(payload));
+        for (var index = 0; index < payload.ForcedInclusions.Count; index++)
+        {
+            if (payload.ForcedInclusions[index] is null)
+                throw new ArgumentException(
+                    $"ForcedInclusions[{index}] is null", nameof(payload));
+        }
+        if (payload.ForcedInclusions.Select(static proof => proof.Nonce).Distinct().Count()
+            != payload.ForcedInclusions.Count)
+            throw new ArgumentException(
+                "Forced-inclusion nonces must be unique", nameof(payload));
 
         for (var i = 0; i < payload.L1Messages.Count; i++)
         {
@@ -253,6 +309,16 @@ public static class ExecutionPayloadSerializer
                     $"Transactions[{i}] exceeds {MaxTransactionBytes} bytes",
                     nameof(payload));
         }
+        _ = new SealedBatch(
+            payload.ChainId,
+            payload.BatchNumber,
+            payload.FirstBlock,
+            payload.LastBlock,
+            payload.PreStateRoot,
+            payload.Transactions,
+            payload.L1Messages,
+            payload.BlockContext,
+            payload.ForcedInclusions);
     }
 
     private static int CalculateSize(ExecutionPayloadV1 payload)
@@ -260,6 +326,8 @@ public static class ExecutionPayloadSerializer
         long size = FixedSize;
         foreach (var message in payload.L1Messages)
             size = checked(size + 4L + MessageFixedSize + message.Payload.Length);
+        foreach (var proof in payload.ForcedInclusions)
+            size = checked(size + 8L + 4L + 32L + 4L + 32L * proof.Siblings.Count);
         foreach (var transaction in payload.Transactions)
             size = checked(size + 4L + transaction.Length);
         if (size > MaxEncodedBytes)
@@ -299,8 +367,9 @@ public static class ProofWitnessArtifactSerializer
     private static ReadOnlySpan<byte> Magic => "NEO4PWIT"u8;
     private static ReadOnlySpan<byte> ContentHashDomain => "neo-n4/proof-witness/v1\0"u8;
 
-    private const ushort Flags = 0;
-    private const int FixedHeaderSize = 76;
+    private const ushort AuthenticatedWitnessFlag = 1;
+    private const ushort KnownFlags = AuthenticatedWitnessFlag;
+    private const int FixedHeaderSize = 108;
     private const int ExecutionResultSize = 200;
     private const int ContentHashSize = 32;
     private const int MinimumEncodedBytes =
@@ -309,7 +378,7 @@ public static class ProofWitnessArtifactSerializer
         + 4
         + ExecutionResultSize
         + 4
-        + 1 + 32 + 4
+        + 1 + 1 + 2 + 32 + 4 + 4
         + BatchSerializer.PublicInputsSize
         + ContentHashSize;
 
@@ -324,6 +393,9 @@ public static class ProofWitnessArtifactSerializer
 
     /// <summary>Maximum DA pointer size (1 MiB).</summary>
     public const int MaxDaPointerBytes = 1024 * 1024;
+
+    /// <summary>Maximum DA receipt evidence size (16 MiB).</summary>
+    public const int MaxDaEvidenceBytes = 16 * 1024 * 1024;
 
     /// <summary>Encode a canonical artifact including its verified content hash.</summary>
     public static byte[] Encode(ProofWitnessArtifactV1 artifact)
@@ -356,17 +428,21 @@ public static class ProofWitnessArtifactSerializer
         if (version != ProofWitnessArtifactV1.Version)
             throw new InvalidDataException($"Unsupported proof witness version {version}");
         var flags = reader.ReadUInt16("flags");
-        if (flags != Flags)
+        if ((flags & ~KnownFlags) != 0)
             throw new InvalidDataException($"Unknown proof witness flags 0x{flags:x4}");
 
+        var proofTypeByte = reader.ReadByte("proofType");
+        if (!Enum.IsDefined((ProofType)proofTypeByte))
+            throw new InvalidDataException($"Unknown proof type byte {proofTypeByte}");
         var proofSystemByte = reader.ReadByte("proofSystem");
         if (!Enum.IsDefined((WitnessProofSystem)proofSystemByte))
             throw new InvalidDataException($"Unknown proof system byte {proofSystemByte}");
-        var reserved = reader.ReadBytes(3, "reserved bytes");
-        if (reserved[0] != 0 || reserved[1] != 0 || reserved[2] != 0)
+        var reserved = reader.ReadBytes(2, "reserved bytes");
+        if (reserved[0] != 0 || reserved[1] != 0)
             throw new InvalidDataException("Proof witness reserved bytes must be zero");
 
         var verificationKeyId = reader.ReadUInt256("verificationKeyId");
+        var executionSemanticId = reader.ReadUInt256("executionSemanticId");
         var chainId = reader.ReadUInt32("chainId");
         var batchNumber = reader.ReadUInt64("batchNumber");
         var firstBlock = reader.ReadUInt64("firstBlock");
@@ -393,11 +469,19 @@ public static class ProofWitnessArtifactSerializer
         var daModeByte = reader.ReadByte("daMode");
         if (!Enum.IsDefined((DAMode)daModeByte))
             throw new InvalidDataException($"Unknown DA mode byte {daModeByte}");
+        var daKindByte = reader.ReadByte("daReceiptKind");
+        if (!Enum.IsDefined((DAReceiptKind)daKindByte))
+            throw new InvalidDataException($"Unknown DA receipt kind byte {daKindByte}");
+        var daReserved = reader.ReadBytes(2, "DA reserved bytes");
+        if (daReserved[0] != 0 || daReserved[1] != 0)
+            throw new InvalidDataException("DA receipt reserved bytes must be zero");
         var daReceipt = new DAReceipt
         {
             Layer = (DAMode)daModeByte,
+            Kind = (DAReceiptKind)daKindByte,
             Commitment = reader.ReadUInt256("daCommitment"),
             Pointer = reader.ReadLengthPrefixedBytes(MaxDaPointerBytes, "DA pointer"),
+            Evidence = reader.ReadLengthPrefixedBytes(MaxDaEvidenceBytes, "DA evidence"),
         };
         var publicInputsBytes = reader.ReadBytes(
             BatchSerializer.PublicInputsSize,
@@ -412,8 +496,11 @@ public static class ProofWitnessArtifactSerializer
 
         var artifact = new ProofWitnessArtifactV1
         {
+            ProofType = (ProofType)proofTypeByte,
             ProofSystem = (WitnessProofSystem)proofSystemByte,
             VerificationKeyId = verificationKeyId,
+            ExecutionSemanticId = executionSemanticId,
+            ExecutionWitnessAuthenticated = (flags & AuthenticatedWitnessFlag) != 0,
             ChainId = chainId,
             BatchNumber = batchNumber,
             FirstBlock = firstBlock,
@@ -456,7 +543,9 @@ public static class ProofWitnessArtifactSerializer
             + 4 + artifact.StateWitness.Length
             + ExecutionResultSize
             + 4 + artifact.Effects.Length
-            + 1 + 32 + 4 + artifact.DAReceipt.Pointer.Length
+            + 1 + 1 + 2 + 32
+            + 4 + artifact.DAReceipt.Pointer.Length
+            + 4 + artifact.DAReceipt.Evidence.Length
             + publicInputsBytes.Length);
         if (size + ContentHashSize > MaxEncodedBytes)
             throw new ArgumentException(
@@ -466,10 +555,13 @@ public static class ProofWitnessArtifactSerializer
         var writer = new CanonicalWireWriter(size);
         writer.WriteBytes(Magic);
         writer.WriteUInt16(ProofWitnessArtifactV1.Version);
-        writer.WriteUInt16(Flags);
+        writer.WriteUInt16(
+            artifact.ExecutionWitnessAuthenticated ? AuthenticatedWitnessFlag : (ushort)0);
+        writer.WriteByte((byte)artifact.ProofType);
         writer.WriteByte((byte)artifact.ProofSystem);
-        writer.WriteBytes(stackalloc byte[3]);
+        writer.WriteBytes(stackalloc byte[2]);
         writer.WriteUInt256(artifact.VerificationKeyId);
+        writer.WriteUInt256(artifact.ExecutionSemanticId);
         writer.WriteUInt32(artifact.ChainId);
         writer.WriteUInt64(artifact.BatchNumber);
         writer.WriteUInt64(artifact.FirstBlock);
@@ -485,8 +577,11 @@ public static class ProofWitnessArtifactSerializer
         writer.WriteInt64(artifact.ExecutionResult.GasConsumed);
         writer.WriteLengthPrefixedBytes(artifact.Effects.Span);
         writer.WriteByte((byte)artifact.DAReceipt.Layer);
+        writer.WriteByte((byte)artifact.DAReceipt.Kind);
+        writer.WriteBytes(stackalloc byte[2]);
         writer.WriteUInt256(artifact.DAReceipt.Commitment);
         writer.WriteLengthPrefixedBytes(artifact.DAReceipt.Pointer.Span);
+        writer.WriteLengthPrefixedBytes(artifact.DAReceipt.Evidence.Span);
         writer.WriteBytes(publicInputsBytes);
 
         if (writer.WrittenCount != size)
@@ -506,12 +601,42 @@ public static class ProofWitnessArtifactSerializer
 
     private static void Validate(ProofWitnessArtifactV1 artifact, ReadOnlySpan<byte> payloadBytes)
     {
+        if (!Enum.IsDefined(artifact.ProofType) || artifact.ProofType == ProofType.None)
+            throw new ArgumentException(
+                $"Unsupported proof type byte {(byte)artifact.ProofType}", nameof(artifact));
         if (!Enum.IsDefined(artifact.ProofSystem))
             throw new ArgumentException(
                 $"Unknown proof system byte {(byte)artifact.ProofSystem}", nameof(artifact));
         ArgumentNullException.ThrowIfNull(artifact.VerificationKeyId);
-        if (artifact.VerificationKeyId.Equals(UInt256.Zero))
-            throw new ArgumentException("VerificationKeyId must be non-zero", nameof(artifact));
+        ArgumentNullException.ThrowIfNull(artifact.ExecutionSemanticId);
+        if (artifact.ExecutionSemanticId.Equals(UInt256.Zero))
+            throw new ArgumentException("ExecutionSemanticId must be non-zero", nameof(artifact));
+        if (artifact.ProofType == ProofType.Zk)
+        {
+            if (artifact.ProofSystem == WitnessProofSystem.None)
+                throw new ArgumentException(
+                    "ZK artifacts require a concrete proof system", nameof(artifact));
+            if (artifact.VerificationKeyId.Equals(UInt256.Zero))
+                throw new ArgumentException(
+                    "ZK artifacts require a non-zero VerificationKeyId", nameof(artifact));
+            if (!artifact.ExecutionWitnessAuthenticated || artifact.StateWitness.IsEmpty)
+                throw new ArgumentException(
+                    "ZK artifacts require a non-empty authenticated execution witness",
+                    nameof(artifact));
+        }
+        else
+        {
+            if (artifact.ProofType is not (ProofType.Multisig or ProofType.Optimistic))
+                throw new ArgumentException(
+                    "Only explicit multisig/optimistic legacy profiles are supported",
+                    nameof(artifact));
+            if (artifact.ProofSystem != WitnessProofSystem.None
+                || !artifact.VerificationKeyId.Equals(UInt256.Zero)
+                || artifact.ExecutionWitnessAuthenticated)
+                throw new ArgumentException(
+                    "Legacy artifacts must use ProofSystem.None, zero VK, and unauthenticated witness",
+                    nameof(artifact));
+        }
         ArgumentNullException.ThrowIfNull(artifact.ExecutionPayload);
         ArgumentNullException.ThrowIfNull(artifact.ExecutionResult);
         ArgumentNullException.ThrowIfNull(artifact.DAReceipt);
@@ -538,9 +663,19 @@ public static class ProofWitnessArtifactSerializer
         if (artifact.DAReceipt.Pointer.Length > MaxDaPointerBytes)
             throw new ArgumentException(
                 $"DA pointer exceeds {MaxDaPointerBytes} bytes", nameof(artifact));
+        if (artifact.DAReceipt.Evidence.Length > MaxDaEvidenceBytes)
+            throw new ArgumentException(
+                $"DA evidence exceeds {MaxDaEvidenceBytes} bytes", nameof(artifact));
         if (!Enum.IsDefined(artifact.DAReceipt.Layer))
             throw new ArgumentException(
                 $"Unknown DA mode byte {(byte)artifact.DAReceipt.Layer}", nameof(artifact));
+        if (!Enum.IsDefined(artifact.DAReceipt.Kind)
+            || artifact.DAReceipt.Kind == DAReceiptKind.Unspecified
+            || artifact.DAReceipt.Pointer.IsEmpty
+            || artifact.DAReceipt.Evidence.IsEmpty)
+            throw new ArgumentException(
+                "DA receipt must carry a declared kind, locator, and evidence",
+                nameof(artifact));
 
         var expectedDaCommitment = ExecutionPayloadSerializer.ComputeCommitment(payloadBytes);
         if (!expectedDaCommitment.Equals(artifact.DAReceipt.Commitment))

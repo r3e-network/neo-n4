@@ -204,7 +204,7 @@ public class UT_ReferenceBatchExecutor
         // match the (correct) ReceiptRoot, surfacing only at L1 settlement when the
         // inclusion proof for the leaked withdrawal is checked against the user's actual
         // state (which never debited the funds).
-        var receiptTx = UInt256.Parse("0x" + new string('5', 64));
+        var receiptTx = new UInt256(Neo.Cryptography.Crypto.Hash256(new byte[] { 0x00 }));
         var withdrawal = new WithdrawalRequest
         {
             ChainId = 1U,

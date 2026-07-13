@@ -88,28 +88,28 @@ public sealed record ProofWitnessPipelineProfile
         uint chainId,
         WitnessProofSystem proofSystem,
         UInt256 verificationKeyId) => new()
-    {
-        ChainId = chainId,
-        ProofType = ProofType.Zk,
-        ProofSystem = proofSystem,
-        VerificationKeyId = verificationKeyId,
-        RequireProductionDA = true,
-        RequireCanonicalBlockContext = true,
-    };
+        {
+            ChainId = chainId,
+            ProofType = ProofType.Zk,
+            ProofSystem = proofSystem,
+            VerificationKeyId = verificationKeyId,
+            RequireProductionDA = true,
+            RequireCanonicalBlockContext = true,
+        };
 
     /// <summary>Create an explicitly isolated multisig or optimistic compatibility profile.</summary>
     public static ProofWitnessPipelineProfile Legacy(
         uint chainId,
         ProofType proofType,
         bool requireProductionDA = false) => new()
-    {
-        ChainId = chainId,
-        ProofType = proofType,
-        ProofSystem = WitnessProofSystem.None,
-        VerificationKeyId = UInt256.Zero,
-        RequireProductionDA = requireProductionDA,
-        RequireCanonicalBlockContext = false,
-    };
+        {
+            ChainId = chainId,
+            ProofType = proofType,
+            ProofSystem = WitnessProofSystem.None,
+            VerificationKeyId = UInt256.Zero,
+            RequireProductionDA = requireProductionDA,
+            RequireCanonicalBlockContext = false,
+        };
 
     internal void Validate()
     {
@@ -960,41 +960,41 @@ public sealed class CanonicalSettlementPipeline : IDisposable
         SealedBatch batch,
         BatchExecutionResult executionResult,
         UInt256 daCommitment) => new()
-    {
-        ChainId = batch.ChainId,
-        BatchNumber = batch.BatchNumber,
-        PreStateRoot = batch.PreStateRoot,
-        PostStateRoot = executionResult.PostStateRoot,
-        TxRoot = executionResult.TxRoot,
-        ReceiptRoot = executionResult.ReceiptRoot,
-        WithdrawalRoot = executionResult.WithdrawalRoot,
-        L2ToL1MessageRoot = executionResult.L2ToL1MessageRoot,
-        L2ToL2MessageRoot = executionResult.L2ToL2MessageRoot,
-        L1MessageHash = StateRootCalculator.HashL1Messages(batch.L1Messages),
-        DACommitment = daCommitment,
-        BlockContextHash = StateRootCalculator.HashBlockContext(batch.BlockContext),
-    };
+        {
+            ChainId = batch.ChainId,
+            BatchNumber = batch.BatchNumber,
+            PreStateRoot = batch.PreStateRoot,
+            PostStateRoot = executionResult.PostStateRoot,
+            TxRoot = executionResult.TxRoot,
+            ReceiptRoot = executionResult.ReceiptRoot,
+            WithdrawalRoot = executionResult.WithdrawalRoot,
+            L2ToL1MessageRoot = executionResult.L2ToL1MessageRoot,
+            L2ToL2MessageRoot = executionResult.L2ToL2MessageRoot,
+            L1MessageHash = StateRootCalculator.HashL1Messages(batch.L1Messages),
+            DACommitment = daCommitment,
+            BlockContextHash = StateRootCalculator.HashBlockContext(batch.BlockContext),
+        };
 
     private static L2BatchCommitment BuildCommitment(
         ProofWitnessArtifactV1 artifact,
         ProofResultManifest manifest) => new()
-    {
-        ChainId = artifact.ChainId,
-        BatchNumber = artifact.BatchNumber,
-        FirstBlock = artifact.FirstBlock,
-        LastBlock = artifact.LastBlock,
-        PreStateRoot = artifact.ExecutionPayload.PreStateRoot,
-        PostStateRoot = artifact.ExecutionResult.PostStateRoot,
-        TxRoot = artifact.ExecutionResult.TxRoot,
-        ReceiptRoot = artifact.ExecutionResult.ReceiptRoot,
-        WithdrawalRoot = artifact.ExecutionResult.WithdrawalRoot,
-        L2ToL1MessageRoot = artifact.ExecutionResult.L2ToL1MessageRoot,
-        L2ToL2MessageRoot = artifact.ExecutionResult.L2ToL2MessageRoot,
-        DACommitment = artifact.DAReceipt.Commitment,
-        PublicInputHash = manifest.PublicInputHash,
-        ProofType = manifest.ProofType,
-        Proof = manifest.Proof.ToArray(),
-    };
+        {
+            ChainId = artifact.ChainId,
+            BatchNumber = artifact.BatchNumber,
+            FirstBlock = artifact.FirstBlock,
+            LastBlock = artifact.LastBlock,
+            PreStateRoot = artifact.ExecutionPayload.PreStateRoot,
+            PostStateRoot = artifact.ExecutionResult.PostStateRoot,
+            TxRoot = artifact.ExecutionResult.TxRoot,
+            ReceiptRoot = artifact.ExecutionResult.ReceiptRoot,
+            WithdrawalRoot = artifact.ExecutionResult.WithdrawalRoot,
+            L2ToL1MessageRoot = artifact.ExecutionResult.L2ToL1MessageRoot,
+            L2ToL2MessageRoot = artifact.ExecutionResult.L2ToL2MessageRoot,
+            DACommitment = artifact.DAReceipt.Commitment,
+            PublicInputHash = manifest.PublicInputHash,
+            ProofType = manifest.ProofType,
+            Proof = manifest.Proof.ToArray(),
+        };
 
     private static void ValidateManifest(
         ProofWitnessArtifactV1 artifact,

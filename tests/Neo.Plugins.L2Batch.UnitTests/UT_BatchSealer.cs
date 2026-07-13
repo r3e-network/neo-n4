@@ -91,7 +91,9 @@ public class UT_BatchSealer
         var sealer = new BatchSealer(settings, new InMemoryMetrics(), () => 0L);
 
         var b1 = sealer.OnBlockCommit(10, 1000, 11, NoTxs())!;
+        sealer.AcknowledgeExecution(b1.BatchNumber, UInt256.Zero);
         var b2 = sealer.OnBlockCommit(11, 2000, 11, NoTxs())!;
+        sealer.AcknowledgeExecution(b2.BatchNumber, UInt256.Zero);
         var b3 = sealer.OnBlockCommit(12, 3000, 11, NoTxs())!;
 
         Assert.AreEqual(1u, b1.BatchNumber);
@@ -117,7 +119,8 @@ public class UT_BatchSealer
 
         Assert.IsFalse(sealer.HasOpenBatch);
         sealer.OnBlockCommit(1, 1000, 11, NoTxs()); // seals immediately (MaxBlocksPerBatch=1)
-        Assert.IsFalse(sealer.HasOpenBatch, "post-seal: builder reset");
+        Assert.IsFalse(sealer.HasOpenBatch, "sealed builder is no longer open");
+        Assert.IsNotNull(sealer.PendingBatch, "sealed batch remains pending until ack");
         Assert.AreEqual(0, sealer.InProgressTxCount);
     }
 
@@ -151,8 +154,9 @@ public class UT_BatchSealer
         var metrics = new InMemoryMetrics();
         var sealer = new BatchSealer(settings, metrics, () => 0L);
 
-        sealer.OnBlockCommit(1, 1000, 11, MakeTxs(2));
+        var first = sealer.OnBlockCommit(1, 1000, 11, MakeTxs(2))!;
         Assert.AreEqual(2, (int)metrics.GetGauge(MetricNames.BatchTxCount));
+        sealer.AcknowledgeExecution(first.BatchNumber, UInt256.Zero);
         sealer.OnBlockCommit(2, 2000, 11, MakeTxs(7));
         Assert.AreEqual(7, (int)metrics.GetGauge(MetricNames.BatchTxCount), "gauge replaces, not accumulates");
         Assert.AreEqual(2L, metrics.GetCounter(MetricNames.BatchesSealed), "counter increments");
@@ -182,12 +186,69 @@ public class UT_BatchSealer
         // Mid-flight rewire to a new sink.
         var second = new InMemoryMetrics();
         sealer.WithMetrics(second);
+        sealer.AcknowledgeExecution(b1.BatchNumber, UInt256.Zero);
 
         // Batch numbering must continue from 2, not reset to 1.
         var b2 = sealer.OnBlockCommit(11, 2000, 11, NoTxs())!;
         Assert.AreEqual(2u, b2.BatchNumber, "batch numbering survives the rewire");
         Assert.AreEqual(1, second.GetCounter(MetricNames.BatchesSealed), "post-rewire seal hits new sink");
         Assert.AreEqual(1, initial.GetCounter(MetricNames.BatchesSealed), "pre-rewire seal stayed on old sink");
+    }
+
+    [TestMethod]
+    public void Sealer_PendingBatchRejectsLaterBlockUntilAcknowledged()
+    {
+        var sealer = new BatchSealer(
+            ForcedSettings(maxBlocks: 1), new InMemoryMetrics(), () => 0L);
+        var first = sealer.OnBlockCommit(10, 1000, 11, NoTxs())!;
+
+        var exception = Assert.ThrowsExactly<InvalidOperationException>(
+            () => sealer.OnBlockCommit(11, 2000, 11, NoTxs()));
+        StringAssert.Contains(exception.Message, "must be durably acknowledged");
+        Assert.AreSame(first, sealer.PendingBatch);
+
+        var postStateRoot = new UInt256(
+            Enumerable.Repeat((byte)0x61, UInt256.Length).ToArray());
+        sealer.AcknowledgeExecution(first.BatchNumber, postStateRoot);
+        var second = sealer.OnBlockCommit(11, 2000, 11, NoTxs())!;
+        Assert.AreEqual(2UL, second.BatchNumber);
+        Assert.AreEqual(postStateRoot, second.PreStateRoot);
+    }
+
+    [TestMethod]
+    public void RestoreCheckpoint_ContinuesBatchBlockAndStateRoot()
+    {
+        var postStateRoot = new UInt256(
+            Enumerable.Repeat((byte)0x62, UInt256.Length).ToArray());
+        var sealer = new BatchSealer(
+            ForcedSettings(maxBlocks: 1), new InMemoryMetrics(), () => 0L);
+        sealer.RestoreCheckpoint(new SealedBatchCheckpoint(7, 40, postStateRoot));
+
+        var duplicate = Assert.ThrowsExactly<InvalidOperationException>(
+            () => sealer.OnBlockCommit(40, 1000, 11, NoTxs()));
+        StringAssert.Contains(duplicate.Message, "duplicate or out-of-order");
+        var gap = Assert.ThrowsExactly<InvalidOperationException>(
+            () => sealer.OnBlockCommit(42, 1000, 11, NoTxs()));
+        StringAssert.Contains(gap.Message, "gap");
+
+        var next = sealer.OnBlockCommit(41, 1000, 11, NoTxs())!;
+        Assert.AreEqual(8UL, next.BatchNumber);
+        Assert.AreEqual(41UL, next.FirstBlock);
+        Assert.AreEqual(postStateRoot, next.PreStateRoot);
+    }
+
+    [TestMethod]
+    public void OnBlockCommit_OpenBatchRejectsDuplicateAndGap()
+    {
+        var sealer = new BatchSealer(
+            ForcedSettings(maxBlocks: 3), new InMemoryMetrics(), () => 0L);
+        Assert.IsNull(sealer.OnBlockCommit(10, 1000, 11, NoTxs()));
+
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => sealer.OnBlockCommit(10, 1100, 11, NoTxs()));
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => sealer.OnBlockCommit(12, 1200, 11, NoTxs()));
+        Assert.IsNull(sealer.OnBlockCommit(11, 1100, 11, NoTxs()));
     }
 
     [TestMethod]

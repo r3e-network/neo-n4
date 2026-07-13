@@ -91,6 +91,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Proof manifests now persist distinct `ProofReady`, `Submitted`, and `SettlementObserved` states.
   Recovery checks settlement and transaction status before retry, replaces only explicitly dropped
   or reverted transactions, and treats unknown/confirmed-but-unobserved states as fail-closed.
+- Batch sealing now uses an explicit pending/persist/ack state machine. The sink restores a validated
+  continuous `(batch,lastBlock,postRoot)` checkpoint from canonical artifacts; restart replays missed
+  committed blocks from the local ledger and fails closed on missing, duplicate, or discontinuous data.
 
 ### Security — comprehensive audit cycle 2026-05-19
 

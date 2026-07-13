@@ -74,7 +74,7 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
             batchPlugin.WithForcedInclusionSource(forcedInclusionSource);
         }
 
-        _pipeline = new CanonicalSettlementPipeline(
+        var pipeline = new CanonicalSettlementPipeline(
             executor,
             daWriter,
             store,
@@ -83,8 +83,18 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
             profile,
             _metrics,
             forcedInclusionFinalizer);
+        _pipeline = pipeline;
+        try
+        {
+            batchPlugin.WithSealedBatchSink(this, profile.ChainId);
+        }
+        catch
+        {
+            _pipeline = null;
+            pipeline.Dispose();
+            throw;
+        }
         _batchPlugin = batchPlugin;
-        batchPlugin.WithSealedBatchSink(this);
         if (_settings.Enabled) _ = ReconcileSafelyAsync();
     }
 
@@ -150,6 +160,15 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
             throw new InvalidOperationException(
                 "forced-inclusion reservation chain differs from settlement settings");
         return pipeline.GetTrackedForcedInclusionNoncesAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public ValueTask<SealedBatchCheckpoint?> GetLatestCheckpointAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var pipeline = _pipeline
+            ?? throw new InvalidOperationException("settlement pipeline is not wired");
+        return pipeline.GetLatestCheckpointAsync(cancellationToken);
     }
 
     /// <inheritdoc />

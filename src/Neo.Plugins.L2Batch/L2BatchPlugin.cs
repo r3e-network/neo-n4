@@ -8,6 +8,7 @@ using Neo.L2.ForcedInclusion;
 using Neo.L2.Telemetry;
 using Neo.Ledger;
 using Neo.Network.P2P.Payloads;
+using Neo.SmartContract.Native;
 
 namespace Neo.Plugins.L2;
 
@@ -91,12 +92,30 @@ public sealed class L2BatchPlugin : Plugin
     /// Wire the single durable execution/DA/witness sink. A production batch is not acknowledged
     /// until this sink returns a validated post-state root.
     /// </summary>
-    public void WithSealedBatchSink(ISealedBatchSink sink)
+    public void WithSealedBatchSink(ISealedBatchSink sink, uint chainId)
     {
         ArgumentNullException.ThrowIfNull(sink);
+        ChainIdValidator.ValidateL2(chainId);
         if (_sink is not null && !ReferenceEquals(_sink, sink))
             throw new InvalidOperationException("a sealed-batch sink is already wired");
+        if (_sink is not null) return;
+        if (_sealer is not null)
+            throw new InvalidOperationException(
+                "sealed-batch sink must be wired before the first block");
+        if (_settings.ChainId != 0 && _settings.ChainId != chainId)
+            throw new InvalidOperationException(
+                "sealed-batch sink chain differs from batch settings");
+        if (_forcedInclusionSource is not null
+            && _forcedInclusionSource.ChainId != chainId)
+            throw new InvalidOperationException(
+                "forced-inclusion source chain differs from sealed-batch sink");
+
+        var checkpoint = sink.GetLatestCheckpointAsync()
+            .AsTask().GetAwaiter().GetResult();
+        var sealer = CreateSealer(chainId);
+        sealer.RestoreCheckpoint(checkpoint);
         _sink = sink;
+        _sealer = sealer;
     }
 
     /// <summary>Remove a previously wired sink during orderly plugin shutdown.</summary>
@@ -117,6 +136,12 @@ public sealed class L2BatchPlugin : Plugin
     public L2BatchPlugin()
     {
         Blockchain.Committed += OnBlockCommitted;
+    }
+
+    internal L2BatchPlugin(L2BatchSettings settings) : this()
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        _settings = settings;
     }
 
     /// <inheritdoc />
@@ -154,34 +179,119 @@ public sealed class L2BatchPlugin : Plugin
             if (!_settings.Enabled) return;
             if (block is null) return;
 
-            var sealer = _sealer ??= new BatchSealer(
-                _settings,
-                _metrics,
-                forcedDrain: _forcedInclusionSource is null
-                    ? null
-                    : DrainUnreservedForcedTransactions,
-                l1MessageDrain: _l1MessageDrain,
-                l1FinalizedHeight: _l1FinalizedHeight,
-                sequencerCommitteeHash: _sequencerCommitteeHash);
-            var rawTxs = block.Transactions.Select(tx => tx.ToArray());
-            var artifact = sealer.OnBlockCommit(block.Index, block.Timestamp, system.Settings.Network, rawTxs);
-            if (artifact is null) return;
-
-            if (_sink is not null)
-            {
-                var postStateRoot = _sink.PersistAsync(artifact).AsTask().GetAwaiter().GetResult();
-                sealer.AcknowledgeExecution(artifact.BatchNumber, postStateRoot);
-            }
-            DispatchSealed(this, OnBatchSealed, artifact, _metrics);
+            RecoverAndProcessCommittedBlocks(system, block);
         }
         catch (Exception ex)
         {
-            _metrics?.IncrementCounter("l2_batch_on_block_committed_error");
+            _metrics.SafeIncrementCounter("l2_batch_on_block_committed_error");
             Logs.RuntimeLogger.Error(ex, "L2Batch OnBlockCommitted handler failed");
-            // A production durable sink fails closed; observation-only handlers remain isolated
-            // from Neo's Blockchain.Committed event.
-            if (_sink is not null) throw;
+            throw;
         }
+    }
+
+    private void RecoverAndProcessCommittedBlocks(NeoSystem system, Block currentBlock)
+    {
+        var sealer = _sealer
+            ?? throw new InvalidOperationException(
+                "sealed-batch checkpoint was not restored before block recovery");
+        var expected = sealer.NextExpectedBlock
+            ?? throw new InvalidOperationException(
+                "sealed-batch recovery has no expected block checkpoint");
+        if (expected > uint.MaxValue)
+            throw new InvalidOperationException(
+                $"durable block checkpoint {expected} exceeds the supported L2 block index");
+
+        for (var index = expected; index < currentBlock.Index; index++)
+        {
+            var recovered = NativeContract.Ledger.GetBlock(
+                system.StoreView, checked((uint)index))
+                ?? throw new InvalidOperationException(
+                    $"committed L2 block {index} is missing from the local ledger; recovery cannot skip it");
+            ProcessCommittedBlock(
+                recovered.Index,
+                recovered.Timestamp,
+                system.Settings.Network,
+                recovered.Transactions.Select(transaction => transaction.ToArray()));
+        }
+
+        ProcessCommittedBlock(
+            currentBlock.Index,
+            currentBlock.Timestamp,
+            system.Settings.Network,
+            currentBlock.Transactions.Select(transaction => transaction.ToArray()));
+    }
+
+    /// <summary>
+    /// Process one committed block through the durable pending/persist/ack hand-off.
+    /// </summary>
+    /// <remarks>
+    /// Internal for deterministic recovery tests. A pending sealed batch is retried and
+    /// acknowledged before this method accepts a later block.
+    /// </remarks>
+    internal void ProcessCommittedBlock(
+        uint blockIndex,
+        ulong blockTimestamp,
+        uint network,
+        IEnumerable<byte[]> rawTransactions)
+    {
+        ArgumentNullException.ThrowIfNull(rawTransactions);
+        if (!_settings.Enabled) return;
+        var sink = _sink
+            ?? throw new InvalidOperationException(
+                "committed blocks require a durable sealed-batch sink");
+        var sealer = _sealer
+            ?? throw new InvalidOperationException(
+                "sealed-batch checkpoint was not restored before block processing");
+
+        var pending = sealer.PendingBatch;
+        if (pending is not null)
+        {
+            PersistAndAcknowledge(sealer, sink, pending);
+            if (blockIndex == pending.LastBlock) return;
+            if (blockIndex < pending.LastBlock)
+                throw new InvalidOperationException(
+                    $"duplicate or out-of-order L2 block {blockIndex}; pending batch ended at {pending.LastBlock}");
+        }
+
+        var artifact = sealer.OnBlockCommit(
+            blockIndex, blockTimestamp, network, rawTransactions);
+        if (artifact is not null)
+            PersistAndAcknowledge(sealer, sink, artifact);
+    }
+
+    private void PersistAndAcknowledge(
+        BatchSealer sealer,
+        ISealedBatchSink sink,
+        SealedBatch batch)
+    {
+        var postStateRoot = sink.PersistAsync(batch)
+            .AsTask().GetAwaiter().GetResult();
+        ArgumentNullException.ThrowIfNull(postStateRoot);
+        sealer.AcknowledgeExecution(batch.BatchNumber, postStateRoot);
+        DispatchSealed(this, OnBatchSealed, batch, _metrics);
+    }
+
+    private BatchSealer CreateSealer(uint chainId)
+    {
+        var settings = _settings.ChainId == chainId
+            ? _settings
+            : new L2BatchSettings
+            {
+                ChainId = chainId,
+                MaxBlocksPerBatch = _settings.MaxBlocksPerBatch,
+                MaxTransactionsPerBatch = _settings.MaxTransactionsPerBatch,
+                MaxBatchAgeMillis = _settings.MaxBatchAgeMillis,
+                Enabled = _settings.Enabled,
+            };
+        return new BatchSealer(
+            settings,
+            _metrics,
+            forcedDrain: _forcedInclusionSource is null
+                ? null
+                : DrainUnreservedForcedTransactions,
+            l1MessageDrain: _l1MessageDrain,
+            l1FinalizedHeight: _l1FinalizedHeight,
+            sequencerCommitteeHash: _sequencerCommitteeHash);
     }
 
     private IReadOnlyList<(ulong Nonce, UInt256 TxHash, ReadOnlyMemory<byte> SerializedTx)>

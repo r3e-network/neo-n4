@@ -752,6 +752,43 @@ public class UT_CanonicalSettlementPipeline
     }
 
     [TestMethod]
+    public async Task LatestCheckpoint_RecoversContinuousBatchBlockAndStateChain()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        using var pipeline = CreateZkPipeline(
+            store,
+            new TestExecutor(SafeSemantic),
+            new ProductionDaWriter(),
+            new RecordingZkProver(SafeSemantic),
+            new RecordingSettlementClient());
+        await pipeline.PersistAsync(BuildBatch(1, 10, H(1)));
+        var first = await pipeline.GetLatestCheckpointAsync();
+        Assert.IsNotNull(first);
+        Assert.AreEqual(1UL, first.BatchNumber);
+        Assert.AreEqual(10UL, first.LastBlock);
+        Assert.AreEqual(H(3), first.PostStateRoot);
+
+        await pipeline.PersistAsync(BuildBatch(2, 11, first.PostStateRoot));
+        var second = await pipeline.GetLatestCheckpointAsync();
+        Assert.IsNotNull(second);
+        Assert.AreEqual(2UL, second.BatchNumber);
+        Assert.AreEqual(11UL, second.LastBlock);
+        Assert.AreEqual(H(3), second.PostStateRoot);
+    }
+
+    [TestMethod]
+    public async Task LatestCheckpoint_RejectsMissingBatchBlockGapAndStateRootGap()
+    {
+        await AssertCheckpointRejectedAsync(
+            BuildBatch(2, 11, H(3)), includeFirstBatch: false);
+        await AssertCheckpointRejectedAsync(
+            BuildBatch(2, 12, H(3)), includeFirstBatch: true);
+        await AssertCheckpointRejectedAsync(
+            BuildBatch(2, 11, H(1)), includeFirstBatch: true);
+    }
+
+    [TestMethod]
     public async Task LegacyMultisigProfile_RemainsExplicitlyCompatible()
     {
         using var backend = new InMemoryKeyValueStore();
@@ -793,7 +830,10 @@ public class UT_CanonicalSettlementPipeline
             WitnessProofSystem.Sp1,
             VerificationKeyId);
 
-    private static SealedBatch BuildBatch(ulong batchNumber = 1)
+    private static SealedBatch BuildBatch(
+        ulong batchNumber = 1,
+        ulong? firstBlock = null,
+        UInt256? preStateRoot = null)
     {
         var message = new CrossChainMessage
         {
@@ -810,9 +850,9 @@ public class UT_CanonicalSettlementPipeline
         return new SealedBatch(
             ChainId,
             batchNumber,
-            firstBlock: batchNumber * 10,
-            lastBlock: batchNumber * 10,
-            preStateRoot: H(1),
+            firstBlock: firstBlock ?? batchNumber * 10,
+            lastBlock: firstBlock ?? batchNumber * 10,
+            preStateRoot: preStateRoot ?? H(1),
             transactions: new ReadOnlyMemory<byte>[]
             {
                 new byte[] { 1, 2, 3, checked((byte)batchNumber) },
@@ -826,6 +866,26 @@ public class UT_CanonicalSettlementPipeline
                 SequencerCommitteeHash = H(2),
                 Network = 860833102,
             });
+    }
+
+    private static async Task AssertCheckpointRejectedAsync(
+        SealedBatch secondBatch,
+        bool includeFirstBatch)
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        using var pipeline = CreateZkPipeline(
+            store,
+            new TestExecutor(SafeSemantic),
+            new ProductionDaWriter(),
+            new RecordingZkProver(SafeSemantic),
+            new RecordingSettlementClient());
+        if (includeFirstBatch)
+            await pipeline.PersistAsync(BuildBatch(1, 10, H(1)));
+        await pipeline.PersistAsync(secondBatch);
+
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(
+            async () => await pipeline.GetLatestCheckpointAsync());
     }
 
     private static SealedBatch BuildForcedBatch()

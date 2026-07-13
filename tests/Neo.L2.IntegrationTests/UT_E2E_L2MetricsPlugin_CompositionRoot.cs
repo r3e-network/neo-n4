@@ -60,6 +60,7 @@ public class UT_E2E_L2MetricsPlugin_CompositionRoot
             Assert.IsNotNull(sealed_);
             await daWriter.PublishAsync(new DAPublishRequest { ChainId = 1001, BatchNumber = sealed_!.BatchNumber, Payload = new byte[] { (byte)i } });
             aggregator.Submit(BuildGatewayCommitment(sealed_));
+            sealer.AcknowledgeExecution(sealed_.BatchNumber, UInt256.Zero);
         }
         aggregator.Aggregate();
 

@@ -371,6 +371,44 @@ public sealed class CanonicalSettlementPipeline : IDisposable
             _profile.ChainId, cancellationToken);
     }
 
+    /// <summary>
+    /// Recover the latest continuously committed batch checkpoint from canonical artifacts.
+    /// </summary>
+    public async ValueTask<SealedBatchCheckpoint?> GetLatestCheckpointAsync(
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        SealedBatchCheckpoint? latest = null;
+        var expectedBatchNumber = 1UL;
+        await foreach (var artifact in _store.EnumerateCommittedAsync(
+            _profile.ChainId, cancellationToken))
+        {
+            ValidateCommittedArtifact(artifact);
+            if (artifact.BatchNumber != expectedBatchNumber)
+                throw new InvalidDataException(
+                    $"durable batch checkpoint is non-contiguous: expected batch {expectedBatchNumber}, got {artifact.BatchNumber}");
+            if (latest is not null)
+            {
+                var expectedFirstBlock = checked(latest.LastBlock + 1);
+                if (artifact.FirstBlock != expectedFirstBlock)
+                    throw new InvalidDataException(
+                        $"durable block checkpoint is non-contiguous: expected block {expectedFirstBlock}, got {artifact.FirstBlock}");
+                if (!artifact.ExecutionPayload.PreStateRoot.Equals(latest.PostStateRoot))
+                    throw new InvalidDataException(
+                        "durable state checkpoint does not link the prior post-state root to the next pre-state root");
+            }
+            if (artifact.BatchNumber == ulong.MaxValue)
+                throw new InvalidDataException(
+                    "durable batch checkpoint cannot advance beyond the maximum batch number");
+            latest = new SealedBatchCheckpoint(
+                artifact.BatchNumber,
+                artifact.LastBlock,
+                new UInt256(artifact.ExecutionResult.PostStateRoot.GetSpan()));
+            expectedBatchNumber++;
+        }
+        return latest;
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {

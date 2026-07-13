@@ -144,7 +144,13 @@ The production order is:
 
 1. `BatchSealer` creates an immutable `SealedBatch` containing exact transaction bytes, canonical
    L1 messages, `BatchBlockContext`, `preStateRoot`, and any forced-inclusion nonce plus transaction
-   position and Merkle siblings. Entering an open builder never consumes a forced nonce.
+   position and Merkle siblings. Entering an open builder never consumes a forced nonce. After
+   sealing, the immutable batch remains pending and no later block is accepted until
+   `ISealedBatchSink` durably persists it and execution is acknowledged. On restart, the sink derives
+   `(batchNumber,lastBlock,postStateRoot)` from the continuous committed artifact chain before the
+   first block is processed. An empty store starts at the first non-genesis block (index 1); missing
+   blocks are replayed from the local ledger, and an unavailable block, duplicate, block gap,
+   batch-number gap, or state-root gap fails closed.
 2. `IProofWitnessBatchExecutor` executes the sealed inputs and returns roots plus the canonical
    authenticated state/effects bytes produced by the matching execution profile.
 3. `IDAWriter` publishes the exact versioned `ExecutionPayloadV1`. Its receipt commitment, layer,

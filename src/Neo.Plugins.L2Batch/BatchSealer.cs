@@ -37,7 +37,10 @@ public sealed class BatchSealer
     private ulong _firstBlockTimestamp;
     private ulong _nextBatchNumber = 1;
     private ulong _lastAcknowledgedBatchNumber;
+    private ulong _lastAcknowledgedBlock;
     private UInt256 _lastPostStateRoot = UInt256.Zero;
+    private SealedBatch? _pendingBatch;
+    private bool _checkpointRestoreApplied;
 
     /// <summary>Swap the metrics sink in-place. Preserves all batch-numbering + builder state, unlike re-constructing.</summary>
     public void WithMetrics(IL2Metrics metrics)
@@ -88,7 +91,53 @@ public sealed class BatchSealer
     public int InProgressTxCount => _builder?.Batch.TransactionCount ?? 0;
 
     /// <summary>Whether a batch is currently being accumulated.</summary>
-    public bool HasOpenBatch => _builder is not null;
+    public bool HasOpenBatch => _builder is not null && _pendingBatch is null;
+
+    /// <summary>Immutable sealed batch awaiting durable persistence and acknowledgement.</summary>
+    public SealedBatch? PendingBatch => _pendingBatch;
+
+    /// <summary>
+    /// Next block required for a continuous hand-off, or null before an explicit restore or
+    /// the first direct block feed.
+    /// </summary>
+    public ulong? NextExpectedBlock
+    {
+        get
+        {
+            if (_pendingBatch is not null)
+                return checked(_pendingBatch.LastBlock + 1);
+            if (_builder is not null)
+                return checked(_builder.Batch.LastBlock + 1);
+            if (_lastAcknowledgedBatchNumber != 0)
+                return checked(_lastAcknowledgedBlock + 1);
+            return _checkpointRestoreApplied ? 1UL : null;
+        }
+    }
+
+    /// <summary>
+    /// Restore the latest continuous durable checkpoint before accepting the first block.
+    /// </summary>
+    public void RestoreCheckpoint(SealedBatchCheckpoint? checkpoint)
+    {
+        if (_builder is not null || _pendingBatch is not null
+            || _lastAcknowledgedBatchNumber != 0 || _checkpointRestoreApplied)
+            throw new InvalidOperationException(
+                "batch checkpoint must be restored before accepting blocks");
+        _checkpointRestoreApplied = true;
+        if (checkpoint is null) return;
+        ArgumentNullException.ThrowIfNull(checkpoint.PostStateRoot);
+        if (checkpoint.BatchNumber == 0)
+            throw new ArgumentException(
+                "batch checkpoint number must be non-zero", nameof(checkpoint));
+        if (checkpoint.BatchNumber == ulong.MaxValue)
+            throw new ArgumentException(
+                "batch checkpoint cannot advance beyond the maximum batch number",
+                nameof(checkpoint));
+        _lastAcknowledgedBatchNumber = checkpoint.BatchNumber;
+        _lastAcknowledgedBlock = checkpoint.LastBlock;
+        _lastPostStateRoot = new UInt256(checkpoint.PostStateRoot.GetSpan());
+        _nextBatchNumber = checkpoint.BatchNumber + 1;
+    }
 
     /// <summary>
     /// Feed in a freshly-committed L2 block. If this commit triggers a seal, returns the
@@ -102,6 +151,11 @@ public sealed class BatchSealer
     public SealedBatch? OnBlockCommit(uint blockIndex, ulong blockTimestamp, uint network, IEnumerable<byte[]> rawTransactions)
     {
         ArgumentNullException.ThrowIfNull(rawTransactions);
+        if (_pendingBatch is not null)
+            throw new InvalidOperationException(
+                $"sealed batch {_pendingBatch.BatchNumber} must be durably acknowledged before accepting block {blockIndex}");
+
+        ValidateNextBlock(blockIndex);
 
         var isFreshBatch = _builder is null;
         var builder = _builder ??= StartFreshBatch(blockIndex, blockTimestamp);
@@ -131,17 +185,15 @@ public sealed class BatchSealer
         var txCount = builder.Batch.TransactionCount;
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var artifact = SealBatch(builder, blockTimestamp, network);
+        _pendingBatch = artifact;
         sw.Stop();
 
-        // Safe* wrappers: the seal is committed and `_builder = null` MUST run so the
-        // next OnBlockCommit starts a fresh batch. Without these, a metric throw would
-        // leave _builder pointing at the just-sealed builder; the next call would add
-        // blocks to a sealed builder (or hit "already sealed"). See iter-162/163 fix.
+        // Safe* wrappers cannot interfere with the pending hand-off state. The sealed builder
+        // remains owned until durable persistence is acknowledged.
         _metrics.SafeIncrementCounter(MetricNames.BatchesSealed);
         _metrics.SafeRecordHistogram(MetricNames.BatchSealLatencyMs, sw.Elapsed.TotalMilliseconds);
         _metrics.SafeSetGauge(MetricNames.BatchTxCount, txCount);
 
-        _builder = null;
         return artifact;
     }
 
@@ -159,11 +211,37 @@ public sealed class BatchSealer
                     "execution acknowledgement changed the post-state root");
             return;
         }
-        if (batchNumber != _lastAcknowledgedBatchNumber + 1)
+        if (_pendingBatch is null)
+        {
             throw new InvalidOperationException(
-                $"execution acknowledgements must be sequential: expected {_lastAcknowledgedBatchNumber + 1}, got {batchNumber}");
+                "no sealed batch is pending execution acknowledgement");
+        }
+        if (batchNumber != _pendingBatch.BatchNumber)
+            throw new InvalidOperationException(
+                $"execution acknowledgement targets batch {batchNumber}, pending batch is {_pendingBatch.BatchNumber}");
+        if (batchNumber != _nextBatchNumber)
+            throw new InvalidOperationException(
+                $"execution acknowledgements must be sequential: expected {_nextBatchNumber}, got {batchNumber}");
+        if (!_pendingBatch.PreStateRoot.Equals(_lastPostStateRoot))
+            throw new InvalidOperationException(
+                "pending batch pre-state root differs from the last acknowledged post-state root");
+
+        var nextBatchNumber = checked(batchNumber + 1);
         _lastAcknowledgedBatchNumber = batchNumber;
+        _lastAcknowledgedBlock = _pendingBatch.LastBlock;
         _lastPostStateRoot = new UInt256(postStateRoot.GetSpan());
+        _nextBatchNumber = nextBatchNumber;
+        _pendingBatch = null;
+        _builder = null;
+    }
+
+    private void ValidateNextBlock(uint blockIndex)
+    {
+        var expected = NextExpectedBlock;
+        if (expected is null || blockIndex == expected.Value) return;
+        var kind = blockIndex < expected.Value ? "duplicate or out-of-order" : "gap";
+        throw new InvalidOperationException(
+            $"{kind} L2 block {blockIndex}; expected {expected.Value}");
     }
 
     private void DrainL1Messages(BatchBuilder builder)
@@ -220,7 +298,7 @@ public sealed class BatchSealer
     {
         _batchStartedAtUtcMillis = _nowUtcMillis();
         _firstBlockTimestamp = firstBlockTimestamp;
-        return new BatchBuilder(_settings.ChainId, _nextBatchNumber++, firstBlockIndex, _lastPostStateRoot);
+        return new BatchBuilder(_settings.ChainId, _nextBatchNumber, firstBlockIndex, _lastPostStateRoot);
     }
 
     private SealedBatch SealBatch(BatchBuilder builder, ulong lastBlockTimestamp, uint network)

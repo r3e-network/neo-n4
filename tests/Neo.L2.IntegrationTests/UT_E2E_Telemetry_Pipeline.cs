@@ -52,6 +52,7 @@ public class UT_E2E_Telemetry_Pipeline
                 Payload = new byte[] { (byte)i, 0xCA, 0xFE },
             });
             Assert.AreEqual(DAMode.Local, receipt.Layer);
+            sealer.AcknowledgeExecution(sealed_.BatchNumber, UInt256.Zero);
 
             // Synthesize the proving + settlement counters that L2SettlementPlugin emits.
             metrics.IncrementCounter(MetricNames.ProofsGenerated, 1, ("kind", "Multisig"));

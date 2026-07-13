@@ -180,6 +180,16 @@ public sealed class SealedBatch
     };
 }
 
+/// <summary>Latest continuously persisted batch hand-off acknowledged by execution.</summary>
+/// <param name="BatchNumber">Latest continuously persisted batch number.</param>
+/// <param name="LastBlock">Last L2 block covered by that batch.</param>
+/// <param name="PostStateRoot">Validated post-state root used by the next batch.</param>
+/// <remarks>See doc.md §7.2, §7.5, and §15.1.</remarks>
+public sealed record SealedBatchCheckpoint(
+    ulong BatchNumber,
+    ulong LastBlock,
+    UInt256 PostStateRoot);
+
 /// <summary>
 /// Durable hand-off used by the batch plugin to persist a sealed batch before advancing its
 /// pre-state root.
@@ -192,6 +202,13 @@ public interface ISealedBatchSink
     /// </summary>
     ValueTask<UInt256> PersistAsync(
         SealedBatch batch,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Recover the latest checkpoint after validating that committed artifacts form one
+    /// continuous batch, block, and state-root chain.
+    /// </summary>
+    ValueTask<SealedBatchCheckpoint?> GetLatestCheckpointAsync(
         CancellationToken cancellationToken = default);
 
     /// <summary>

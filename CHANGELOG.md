@@ -5,6 +5,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Python SDK CI dependency parity — 2026-07-14
+
+- Installed the declared Python SDK test extra in the multi-version package job so its shared
+  cryptographic conformance tests execute on Python 3.10–3.13 instead of failing at import time.
+
 ### Fixed — execution-effects profile isolation — 2026-07-14
 
 - Added an explicit transaction-effects profile so canonical Neo N4 executors re-hash receipt

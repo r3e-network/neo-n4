@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — forced-inclusion durable L1 completion — 2026-07-14
+
+- Closed the forced-inclusion settlement loop with a production RPC finalizer that validates
+  persisted transaction proofs against the finalized L1 transaction root, idempotently submits
+  canonical `consume` calls through the shared signed transaction sender, and requires an L1
+  `isConsumed` read-back before acknowledging durable completion.
+
 ### Fixed — security and production-status documentation — 2026-07-14
 
 - Reconciled English and Chinese architecture, launch, security, and status

@@ -78,6 +78,13 @@ public class UT_ExternalMessageHasher
         Assert.AreNotEqual(baseline.MessageHash, changedExternalChainId.MessageHash,
             "externalChainId change must shift hash");
 
+        var changedNeoChainId = ExternalMessageBuilder.Build(
+            baseline.ExternalChainId, baseline.NeoChainId + 1, baseline.Nonce, baseline.Direction,
+            baseline.Sender, baseline.Recipient, baseline.DeadlineUnixSeconds, baseline.SourceTxRef,
+            baseline.MessageType, baseline.Payload);
+        Assert.AreNotEqual(baseline.MessageHash, changedNeoChainId.MessageHash,
+            "neoChainId change must shift hash so a signed message cannot cross Neo L2 domains");
+
         var changedDirection = ExternalMessageBuilder.Build(
             baseline.ExternalChainId, baseline.NeoChainId, baseline.Nonce,
             ExternalBridgeDirection.NeoToForeign, baseline.Sender, baseline.Recipient,

@@ -13,6 +13,14 @@ namespace Neo.Hub.Deploy.UnitTests;
 [TestClass]
 public class UT_LiveDeployCommand
 {
+    [TestMethod]
+    public void NeoGas_UsesEightDecimalDatoshiScale()
+    {
+        Assert.AreEqual(10_000_000L, Neo.L2.Settlement.Rpc.NeoGas.ParseRpcValue("0.1"));
+        Assert.AreEqual(100_000_000L, Neo.L2.Settlement.Rpc.NeoGas.ParseRpcValue("1.00000000"));
+        Assert.AreEqual(42L, Neo.L2.Settlement.Rpc.NeoGas.ParseRpcValue("42"));
+    }
+
     private static readonly byte[] AsymmetricProgramVKey = Convert.FromHexString(
         "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f");
 

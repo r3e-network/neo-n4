@@ -220,4 +220,24 @@ public class UT_RegisterChainCommand
             Console.SetOut(origOut);
         }
     }
+
+    [TestMethod]
+    public async Task Register_BroadcastRequiresChainRegistry()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(Path.Combine(_tempDir, "chain.config.json"), MinimalConfigJson(1099));
+
+        var rc = await RegisterChainCommand.RunAsync(new[]
+        {
+            "--chain-id", "1099",
+            "--output", _tempDir,
+            "--operator", "0x" + new string('a', 40),
+            "--verifier", "0x" + new string('b', 40),
+            "--bridge", "0x" + new string('c', 40),
+            "--message", "0x" + new string('d', 40),
+            "--broadcast",
+        });
+
+        Assert.AreEqual(5, rc);
+    }
 }

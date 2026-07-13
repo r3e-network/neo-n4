@@ -149,6 +149,31 @@ public class UT_SubmitBatchCommand
         StringAssert.Contains(output, "postStateRoot");
     }
 
+    [TestMethod]
+    public async Task SubmitBatch_BroadcastRequiresSettlementManager()
+    {
+        var path = WriteBatch(SampleCommitment());
+
+        var rc = await SubmitBatchCommand.RunAsync(new[] { "--file", path, "--broadcast" });
+
+        Assert.AreEqual(5, rc);
+    }
+
+    [TestMethod]
+    public async Task SubmitBatch_BroadcastRequiresPublicInputHashes()
+    {
+        var path = WriteBatch(SampleCommitment());
+
+        var rc = await SubmitBatchCommand.RunAsync(new[]
+        {
+            "--file", path,
+            "--broadcast",
+            "--settlement-manager", "0x" + new string('a', 40),
+        });
+
+        Assert.AreEqual(6, rc);
+    }
+
     // ---- Helpers ----
 
     private static (int rc, string stdout) CaptureStdout(Func<Task<int>> run)

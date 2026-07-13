@@ -64,17 +64,22 @@ internal static class Program
             Subcommands:
               create-chain          Generate chain.config.json from a template (rollup / zk-rollup / validium / sidechain)
               init-l2               Initialize an L2 node working directory
-              register-chain        Register the L2 with NeoHub.ChainRegistry on L1
-              deploy-bridge-adapter Deploy the chain's bridge adapter on L1
+              register-chain        Validate or sign+broadcast NeoHub.ChainRegistry registration
+              deploy-bridge-adapter Configure canonical asset mappings on L1 and L2
               start-sequencer       Start the L2 sequencer (dBFT committee)
               start-batcher         Start the batcher
               start-prover          Start the prover
-              submit-batch          Submit a sealed batch to NeoHub
+              submit-batch          Validate or sign+broadcast a sealed batch to NeoHub
               validate              Sanity-check a chain.config.json (enum names, required fields)
               scaffold-executor     Generate a starter custom-ITransactionExecutor project
               new-l2                Composite: create-chain + init-l2 + scaffold-executor --with-tests
               list-templates        Print the available chain-config templates + use-case descriptions
               help                  Show this message
+
+            Signed L1 execution:
+              Add --broadcast --rpc <url> --expected-network <magic> and set
+              NEO_N4_OPERATOR_WIF (or select another variable with --wif-env).
+              Bridge mapping uses the corresponding --l1-* and --l2-* options.
 
             See doc.md §14.2 for the full design.
             """);

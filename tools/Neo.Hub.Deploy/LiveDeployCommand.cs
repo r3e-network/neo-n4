@@ -9,6 +9,7 @@ using Neo.Cryptography.ECC;
 using Neo.Extensions.IO;
 using Neo.Extensions.VM;
 using Neo.Json;
+using Neo.L2.Settlement.Rpc;
 using Neo.Network.P2P.Payloads;
 using Neo.SmartContract;
 using Neo.SmartContract.Manifest;
@@ -33,7 +34,6 @@ public static class LiveDeployCommand
     private const long DefaultForcedInclusionFee = 100_000L; // 0.001 GAS.
     private const byte ProofSystemSp1 = 1;
     private const byte ProofTypeZk = 3;
-    private const long MinimumNetworkFeeFallback = 10_00000000L / 10; // 0.1 GAS.
     private const uint ValidUntilDelta = 100;
 
     /// <summary>Run the live deployment command.</summary>
@@ -496,7 +496,7 @@ public static class LiveDeployCommand
         {
             Version = 0,
             Nonce = RandomNonce(),
-            SystemFee = AddGasMargin(ParseGas(invoke.GetProperty("gasconsumed").GetString()!)),
+            SystemFee = AddGasMargin(NeoGas.ParseRpcValue(invoke.GetProperty("gasconsumed").GetString()!)),
             NetworkFee = 0,
             ValidUntilBlock = blockCount + ValidUntilDelta,
             Signers =
@@ -522,17 +522,9 @@ public static class LiveDeployCommand
 
     private static async Task<long> CalculateNetworkFeeAsync(ILiveRpcClient rpc, Transaction tx)
     {
-        try
-        {
-            var result = await rpc.CallAsync("calculatenetworkfee", Convert.ToBase64String(tx.ToArray()));
-            var fee = ParseGas(result.GetProperty("networkfee").GetString()!);
-            return AddGasMargin(fee);
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"warning: calculatenetworkfee failed, using fallback 0.1 GAS: {ex.Message}");
-            return MinimumNetworkFeeFallback;
-        }
+        var result = await rpc.CallAsync("calculatenetworkfee", Convert.ToBase64String(tx.ToArray()));
+        var fee = NeoGas.ParseRpcValue(result.GetProperty("networkfee").GetString()!);
+        return AddGasMargin(fee);
     }
 
     private static async Task SendTransactionAsync(ILiveRpcClient rpc, Transaction tx)
@@ -884,15 +876,6 @@ public static class LiveDeployCommand
         {
             Array.Clear(payload);
         }
-    }
-
-    private static long ParseGas(string value)
-    {
-        if (value.Contains('.', StringComparison.Ordinal))
-        {
-            return checked((long)(decimal.Parse(value, CultureInfo.InvariantCulture) * 100_00000000m));
-        }
-        return long.Parse(value, CultureInfo.InvariantCulture);
     }
 
     private static long AddGasMargin(long value)

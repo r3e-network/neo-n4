@@ -68,7 +68,16 @@ txHash[32] | success[1] | gasConsumed i64 LE[8]
 
 `StorageDeltaHashV1` is zero for an empty delta set. Otherwise it is `Hash256` over the domain `neo-n4/storage-delta/v1\0`, a `u32 LE` count, and deltas sorted by the complete raw storage key. Each delta binds the key, operation (`Add=1`, `Update=2`, `Delete=3`), and old/new presence bytes plus full length-prefixed values.
 
+```text
+storageDeltaV1 = domain | count:u32 | delta...
+delta = keyLength:u32 | completeRawKey | operation:u8 | before | after
+absent = 0
+present = 1 | valueLength:u32 | completeValue
+```
+
 `EventsHashV1` is zero for no notifications. Otherwise it is `Hash256` over the domain `neo-n4/events/v1\0`, a `u32 LE` count, and notifications in execution order. Each notification binds the emitting script hash, strict UTF-8 event name, and the complete versioned canonical stack state (`NEO4STK1`, V1). Pointer/interop/iterator values are not serializable and fail closed.
+
+The stack-state header is `NEO4STK1 | version:u16=1 | flags:u16=0`. Recursive tags are Null `00`, Boolean `20`, canonical signed-little-endian Integer `21`, ByteString `28`, Buffer `30`, Array `40`, Struct `41`, and insertion-ordered Map `48`; variable bytes and child counts use `u32 LE`. The format permits at most 16 nested levels, 512 nodes, and 1024 encoded bytes. Integer zero has a zero-length payload.
 
 The post-state root is recomputed from the verified complete pre-state key/value witness plus committed HALT overlays using the keyed-state Merkle algorithm. Receipt folding is not a state-root algorithm.
 

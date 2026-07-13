@@ -45,13 +45,12 @@ public sealed class ExecutionStateTransaction : IL2KeyValueStore
             var keyBytes = key.ToArray();
             if (!_changes.TryGetValue(keyBytes, out var change))
             {
-                change = new PendingChange(_backing.Get(key), value.ToArray(), CanonicalStorageOperation.Put);
+                change = new PendingChange(_backing.Get(key), value.ToArray());
                 _changes.Add(keyBytes, change);
             }
             else
             {
                 change.CurrentValue = value.ToArray();
-                change.Operation = CanonicalStorageOperation.Put;
             }
         }
     }
@@ -113,7 +112,7 @@ public sealed class ExecutionStateTransaction : IL2KeyValueStore
             {
                 _changes.Add(
                     keyBytes,
-                    new PendingChange(current, null, CanonicalStorageOperation.Delete));
+                    new PendingChange(current, null));
             }
             else if (change.OriginalValue is null)
             {
@@ -122,7 +121,6 @@ public sealed class ExecutionStateTransaction : IL2KeyValueStore
             else
             {
                 change.CurrentValue = null;
-                change.Operation = CanonicalStorageOperation.Delete;
             }
             return true;
         }
@@ -164,13 +162,18 @@ public sealed class ExecutionStateTransaction : IL2KeyValueStore
         lock (_gate)
         {
             EnsureReadable();
-            return _changes.Select(static entry => new CanonicalStorageChange
-            {
-                Key = entry.Key.ToArray(),
-                Operation = entry.Value.Operation,
-                OldValue = CopyOptional(entry.Value.OriginalValue),
-                NewValue = CopyOptional(entry.Value.CurrentValue),
-            }).ToArray();
+            return _changes
+                .Where(static entry => !OptionalBytesEqual(
+                    entry.Value.OriginalValue,
+                    CopyOptional(entry.Value.CurrentValue)))
+                .Select(static entry => new CanonicalStorageChange
+                {
+                    Key = entry.Key.ToArray(),
+                    Operation = Classify(entry.Value),
+                    OldValue = CopyOptional(entry.Value.OriginalValue),
+                    NewValue = CopyOptional(entry.Value.CurrentValue),
+                })
+                .ToArray();
         }
     }
 
@@ -253,7 +256,7 @@ public sealed class ExecutionStateTransaction : IL2KeyValueStore
 
     private void Apply(CanonicalStorageChange change)
     {
-        if (change.Operation == CanonicalStorageOperation.Put)
+        if (change.Operation != CanonicalStorageOperation.Delete)
             _backing.Put(change.Key.Span, change.NewValue!.Value.Span);
         else
             _backing.Delete(change.Key.Span);
@@ -289,14 +292,17 @@ public sealed class ExecutionStateTransaction : IL2KeyValueStore
             throw new InvalidOperationException("execution state transaction was rolled back");
     }
 
-    private sealed class PendingChange(
-        byte[]? originalValue,
-        byte[]? currentValue,
-        CanonicalStorageOperation operation)
+    private static CanonicalStorageOperation Classify(PendingChange change)
+    {
+        if (change.OriginalValue is null) return CanonicalStorageOperation.Add;
+        if (change.CurrentValue is null) return CanonicalStorageOperation.Delete;
+        return CanonicalStorageOperation.Update;
+    }
+
+    private sealed class PendingChange(byte[]? originalValue, byte[]? currentValue)
     {
         public byte[]? OriginalValue { get; } = originalValue?.ToArray();
         public byte[]? CurrentValue { get; set; } = currentValue?.ToArray();
-        public CanonicalStorageOperation Operation { get; set; } = operation;
     }
 
     private enum TransactionStatus : byte

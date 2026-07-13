@@ -56,9 +56,28 @@ public class UT_ExecutionStateTransaction
         CollectionAssert.AreEqual(new byte[] { 0x01 }, changes[0].Key.ToArray());
         Assert.IsFalse(changes[0].OldValue.HasValue);
         CollectionAssert.AreEqual(new byte[] { 0x10 }, changes[0].NewValue!.Value.ToArray());
+        Assert.AreEqual(CanonicalStorageOperation.Add, changes[0].Operation);
         CollectionAssert.AreEqual(new byte[] { 0x20 }, changes[1].OldValue!.Value.ToArray());
         CollectionAssert.AreEqual(new byte[] { 0x21 }, changes[1].NewValue!.Value.ToArray());
-        Assert.AreEqual(CanonicalStorageOperation.Put, changes[1].Operation);
+        Assert.AreEqual(CanonicalStorageOperation.Update, changes[1].Operation);
+    }
+
+    [TestMethod]
+    public void Changes_CollapseNetNoOpAndClassifyDelete()
+    {
+        using var store = new InMemoryKeyValueStore();
+        store.Put([0x01], [0x10]);
+        store.Put([0x02], [0x20]);
+        using var transaction = new ExecutionStateTransaction(store);
+        transaction.Put([0x01], [0x11]);
+        transaction.Put([0x01], [0x10]);
+        transaction.Delete([0x02]);
+
+        var changes = transaction.GetChanges();
+
+        Assert.AreEqual(1, changes.Count);
+        CollectionAssert.AreEqual(new byte[] { 0x02 }, changes[0].Key.ToArray());
+        Assert.AreEqual(CanonicalStorageOperation.Delete, changes[0].Operation);
     }
 
     [TestMethod]

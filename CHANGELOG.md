@@ -12,6 +12,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Froze the 105-byte `CanonicalReceiptV1`, domain-separated storage/event V1 hashes, canonical event stack encoding, and keyed post-state-root recomputation.
 - Added a stable stateful golden artifact, host/guest parity coverage, and transaction/witness/state/root/receipt/order/parameter tamper rejection tests.
 
+### Fixed — N4 genesis execution-effects parity — 2026-07-13
+
+- Aligned the shared C# ApplicationEngine/RISC-V effects hasher with SP1 genesis V1: exact storage domains and operations, recursive `NEO4STK1` event states, zero empty hashes, and Rust-generated receipt/effects/state-root goldens.
+
 ### Added — stateful PolkaVM execution parity — 2026-07-13
 
 - Replaced the stateless RISC-V P/Invoke path with

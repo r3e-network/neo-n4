@@ -1,5 +1,6 @@
 using Neo.Extensions.IO;
 using Neo.Extensions.VM;
+using Neo.L2.Executor.Effects;
 using Neo.L2.Persistence;
 using Neo.SmartContract;
 using Neo.VM;
@@ -122,7 +123,59 @@ public class UT_RiscVHost
             value,
             store.Get(new StorageKey { Id = contract.Id, Key = key }.ToArray()));
         Assert.AreEqual(1, result.Effects.StorageChanges.Count);
+        Assert.AreEqual(CanonicalStorageOperation.Add, result.Effects.StorageChanges[0].Operation);
         Assert.AreNotEqual(UInt256.Zero, result.Receipt.StorageDeltaHash);
+        RiscVTestData.AssertReceiptEffectsAreSameSource(result);
+    }
+
+    [TestMethod]
+    public async Task RealNative_NotifyProducesCanonicalN4StackState()
+    {
+        RequireNativeHost();
+        var script = new ScriptBuilder()
+            .EmitPush(new byte[] { 0xA0 })
+            .EmitPush(7)
+            .EmitPush(2)
+            .Emit(OpCode.PACK)
+            .EmitPush("Changed")
+            .EmitSysCall(ApplicationEngine.System_Runtime_Notify)
+            .Emit(OpCode.RET)
+            .ToArray();
+        var contract = RiscVTestData.BuildContract(
+            script,
+            new Neo.SmartContract.Manifest.ContractEventDescriptor
+            {
+                Name = "Changed",
+                Parameters =
+                [
+                    new Neo.SmartContract.Manifest.ContractParameterDefinition
+                    {
+                        Name = "value",
+                        Type = Neo.SmartContract.ContractParameterType.Integer,
+                    },
+                    new Neo.SmartContract.Manifest.ContractParameterDefinition
+                    {
+                        Name = "payload",
+                        Type = Neo.SmartContract.ContractParameterType.ByteArray,
+                    },
+                ],
+            });
+        using var store = RiscVTestData.CreateStore();
+        var executor = new RiscVTransactionExecutor(
+            store,
+            RiscVTestData.Settings,
+            contractResolver: (_, _) => contract);
+
+        var result = await executor.ExecuteAsync(
+            RiscVTestData.BuildTransaction(script),
+            RiscVTestData.Context);
+
+        Assert.IsTrue(result.Receipt.Success, result.FailureReason);
+        Assert.AreEqual(1, result.Effects.Events.Count);
+        CollectionAssert.AreEqual(
+            Convert.FromHexString("4e454f3453544b310100000040020000002101000000072801000000a0"),
+            result.Effects.Events[0].State.ToArray());
+        Assert.AreNotEqual(UInt256.Zero, result.Receipt.EventsHash);
         RiscVTestData.AssertReceiptEffectsAreSameSource(result);
     }
 

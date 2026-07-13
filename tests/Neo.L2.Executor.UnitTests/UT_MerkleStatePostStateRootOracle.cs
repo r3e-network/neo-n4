@@ -67,6 +67,21 @@ public class UT_MerkleStatePostStateRootOracle
     }
 
     [TestMethod]
+    public void ComputeRoot_MatchesRustGenesisGolden()
+    {
+        var root = KeyedStateMerkleTree.ComputeRoot(
+        [
+            (new byte[] { 0x10, 0x00, 0xff }, new byte[] { 0xaa, 0xbb }),
+            (new byte[] { 0x00, 0xff }, System.Array.Empty<byte>()),
+            (new byte[] { 0x01 }, new byte[] { 0x10, 0x21, 0x22 }),
+        ]);
+
+        CollectionAssert.AreEqual(
+            Convert.FromHexString("999e8afe8e8e1011c3ab575163138b4a4575c745311e124708201b4ba16cdf52"),
+            root.GetSpan().ToArray());
+    }
+
+    [TestMethod]
     public void Prove_ReturnsValidInclusionProof_VerifiableAgainstRoot()
     {
         using var store = new InMemoryKeyValueStore();

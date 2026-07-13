@@ -3,7 +3,6 @@ using System.Buffers.Binary;
 using System.Text;
 using Neo.Cryptography;
 using Neo.SmartContract;
-using Neo.VM;
 using Neo.VM.Types;
 using Array = Neo.VM.Types.Array;
 
@@ -21,11 +20,14 @@ public enum CanonicalEffectsVersion : byte
 /// <remarks>See <c>doc.md</c> §7.2 and §8.4.</remarks>
 public enum CanonicalStorageOperation : byte
 {
-    /// <summary>Insert or replace a value.</summary>
-    Put = 1,
+    /// <summary>Add a previously absent key.</summary>
+    Add = 1,
 
-    /// <summary>Delete an existing value.</summary>
-    Delete = 2,
+    /// <summary>Replace the value of an existing key.</summary>
+    Update = 2,
+
+    /// <summary>Delete an existing key.</summary>
+    Delete = 3,
 }
 
 /// <summary>One canonical storage transition, including its complete before and after images.</summary>
@@ -91,7 +93,7 @@ public sealed record CanonicalStorageChange
     }
 }
 
-/// <summary>One ordered notification with its complete canonical Neo stack-state bytes.</summary>
+/// <summary>One ordered notification with its complete canonical N4 stack-state bytes.</summary>
 /// <remarks>See <c>doc.md</c> §7.2 and §8.1.</remarks>
 public sealed record CanonicalExecutionEvent
 {
@@ -101,7 +103,7 @@ public sealed record CanonicalExecutionEvent
     /// <summary>UTF-8 event name.</summary>
     public required string EventName { get; init; }
 
-    /// <summary>Canonical <see cref="BinarySerializer"/> encoding of the complete event state.</summary>
+    /// <summary>Canonical <c>NEO4STK1</c> V1 encoding of the complete event state.</summary>
     public required ReadOnlyMemory<byte> State { get; init; }
 
     /// <inheritdoc />
@@ -187,6 +189,7 @@ public sealed record CanonicalExecutionEffects
             ArgumentNullException.ThrowIfNull(notification.EventName);
             ArgumentNullException.ThrowIfNull(notification.State);
 
+            var canonicalState = CanonicalStackStateSerializer.Serialize(notification.State);
             var state = (Array)notification.State.DeepCopy(asImmutable: true);
             var immutable = new NotifyEventArgs(
                 notification.ScriptContainer,
@@ -198,10 +201,7 @@ public sealed record CanonicalExecutionEffects
             {
                 ScriptHash = immutable.ScriptHash,
                 EventName = immutable.EventName,
-                State = BinarySerializer.Serialize(
-                    immutable.State,
-                    ApplicationEngine.MaxNotificationSize,
-                    ExecutionEngineLimits.Default.MaxStackSize),
+                State = canonicalState,
             };
         }
 
@@ -220,8 +220,8 @@ public sealed record CanonicalExecutionEffects
 /// <remarks>See <c>doc.md</c> §7.2, §8.1, and §8.3.</remarks>
 public static class CanonicalEffectsHasher
 {
-    private static readonly byte[] StorageDomain = Encoding.ASCII.GetBytes("NEO.L2.EFFECTS.STORAGE");
-    private static readonly byte[] EventsDomain = Encoding.ASCII.GetBytes("NEO.L2.EFFECTS.EVENTS");
+    private static readonly byte[] StorageDomain = Encoding.ASCII.GetBytes("neo-n4/storage-delta/v1\0");
+    private static readonly byte[] EventsDomain = Encoding.ASCII.GetBytes("neo-n4/events/v1\0");
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
     /// <summary>Hash canonical storage transitions, mapping an empty set to <see cref="UInt256.Zero"/>.</summary>
@@ -253,22 +253,23 @@ public static class CanonicalEffectsHasher
         if (version != CanonicalEffectsVersion.V1)
             throw new ArgumentOutOfRangeException(nameof(version), version, "unsupported canonical effects version");
 
-        var ordered = changes
-            .Select(static change => change ?? throw new ArgumentException("changes cannot contain null"))
-            .OrderBy(static change => change.Key.ToArray(), LexicographicByteArrayComparer.Instance)
-            .ToArray();
         var writer = new ArrayBufferWriter<byte>();
         WriteBytes(writer, StorageDomain);
-        WriteByte(writer, (byte)version);
-        WriteUInt32(writer, checked((uint)ordered.Length));
+        WriteUInt32(writer, checked((uint)changes.Count));
 
         byte[]? previousKey = null;
-        foreach (var change in ordered)
+        foreach (var change in changes)
         {
+            ArgumentNullException.ThrowIfNull(change);
             ValidateStorageChange(change);
             var key = change.Key.ToArray();
-            if (previousKey is not null && previousKey.AsSpan().SequenceEqual(key))
-                throw new ArgumentException("storage changes contain duplicate full keys", nameof(changes));
+            if (previousKey is not null
+                && LexicographicByteArrayComparer.Instance.Compare(previousKey, key) >= 0)
+            {
+                throw new ArgumentException(
+                    "storage changes must be strictly ordered by complete raw key",
+                    nameof(changes));
+            }
             previousKey = key;
 
             WriteLengthPrefixedBytes(writer, key);
@@ -291,7 +292,6 @@ public static class CanonicalEffectsHasher
 
         var writer = new ArrayBufferWriter<byte>();
         WriteBytes(writer, EventsDomain);
-        WriteByte(writer, (byte)version);
         WriteUInt32(writer, checked((uint)events.Count));
         foreach (var @event in events)
         {
@@ -312,12 +312,15 @@ public static class CanonicalEffectsHasher
             throw new ArgumentException("canonical storage key cannot be empty", nameof(change));
         if (!Enum.IsDefined(change.Operation))
             throw new ArgumentOutOfRangeException(nameof(change), change.Operation, "unknown storage operation");
-        if (change.Operation == CanonicalStorageOperation.Put && !change.NewValue.HasValue)
-            throw new ArgumentException("put must carry a new value", nameof(change));
-        if (change.Operation == CanonicalStorageOperation.Delete && change.NewValue.HasValue)
-            throw new ArgumentException("delete cannot carry a new value", nameof(change));
-        if (change.Operation == CanonicalStorageOperation.Delete && !change.OldValue.HasValue)
-            throw new ArgumentException("delete must bind the value being removed", nameof(change));
+        var valid = change.Operation switch
+        {
+            CanonicalStorageOperation.Add => !change.OldValue.HasValue && change.NewValue.HasValue,
+            CanonicalStorageOperation.Update => change.OldValue.HasValue && change.NewValue.HasValue,
+            CanonicalStorageOperation.Delete => change.OldValue.HasValue && !change.NewValue.HasValue,
+            _ => false,
+        };
+        if (!valid)
+            throw new ArgumentException("storage operation does not match value presence", nameof(change));
     }
 
     private static void WriteOptionalBytes(IBufferWriter<byte> writer, ReadOnlyMemory<byte>? value)

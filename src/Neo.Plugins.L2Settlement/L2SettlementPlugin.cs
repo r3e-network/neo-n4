@@ -3,6 +3,7 @@ using Neo.L2.Batch;
 using Neo.L2.Executor.ProofWitness;
 using Neo.L2.ForcedInclusion;
 using Neo.L2.Persistence;
+using Neo.L2.Settlement.Rpc;
 using Neo.L2.Telemetry;
 
 namespace Neo.Plugins.L2;
@@ -20,7 +21,19 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
     private L2SettlementSettings _settings = new();
     private L2BatchPlugin? _batchPlugin;
     private CanonicalSettlementPipeline? _pipeline;
+    private L2SettlementProductionComposition? _productionComposition;
     private IL2Metrics _metrics = NoOpMetrics.Instance;
+
+    /// <summary>Construct the plugin and load its operator configuration.</summary>
+    public L2SettlementPlugin()
+    {
+    }
+
+    internal L2SettlementPlugin(L2SettlementSettings settings) : this()
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        _settings = settings;
+    }
 
     /// <inheritdoc />
     public override string Name => "L2SettlementPlugin";
@@ -71,7 +84,6 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
             if (forcedInclusionSource.ChainId != profile.ChainId)
                 throw new InvalidOperationException(
                     "forced-inclusion source chain differs from the pipeline profile");
-            batchPlugin.WithForcedInclusionSource(forcedInclusionSource);
         }
 
         var pipeline = new CanonicalSettlementPipeline(
@@ -86,6 +98,8 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         _pipeline = pipeline;
         try
         {
+            if (forcedInclusionSource is not null)
+                batchPlugin.WithForcedInclusionSource(forcedInclusionSource);
             batchPlugin.WithSealedBatchSink(this, profile.ChainId);
         }
         catch
@@ -97,6 +111,68 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         _batchPlugin = batchPlugin;
         if (_settings.Enabled) _ = ReconcileSafelyAsync();
     }
+
+    /// <summary>
+    /// Build and own the canonical production L1 RPC settlement stack, then wire the durable
+    /// pipeline through the same dependency-injection path as <see cref="Wire"/>.
+    /// </summary>
+    /// <remarks>
+    /// See doc.md §3.2, §7.5, §14.2, and §15.4. The caller retains ownership of
+    /// <paramref name="signer"/> and all explicitly supplied execution, DA, store, prover, and
+    /// batch-plugin dependencies. This plugin owns only the RPC client, transaction sender,
+    /// settlement client, forced-inclusion finalizer, and forced-inclusion source it constructs.
+    /// </remarks>
+    /// <returns>
+    /// The owned RPC forced-inclusion source so the operator's L1 event watcher can forward
+    /// newly observed nonces through <see cref="RpcForcedInclusionSource.RegisterNonce"/>.
+    /// </returns>
+    public RpcForcedInclusionSource WireProduction(
+        L2BatchPlugin batchPlugin,
+        IProofWitnessBatchExecutor executor,
+        IDAWriter daWriter,
+        IProofWitnessStore store,
+        IL2Prover prover,
+        ProofWitnessPipelineProfile profile,
+        INeoTransactionSigner signer,
+        IEnumerable<ulong> knownForcedInclusionNonces)
+    {
+        ArgumentNullException.ThrowIfNull(batchPlugin);
+        ArgumentNullException.ThrowIfNull(executor);
+        ArgumentNullException.ThrowIfNull(daWriter);
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(prover);
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(signer);
+        ArgumentNullException.ThrowIfNull(knownForcedInclusionNonces);
+        if (_pipeline is not null || _productionComposition is not null)
+            throw new InvalidOperationException("settlement pipeline is already wired");
+
+        var composition = L2SettlementProductionComposition.Create(
+            _settings, signer, knownForcedInclusionNonces);
+        try
+        {
+            Wire(
+                batchPlugin,
+                executor,
+                daWriter,
+                store,
+                prover,
+                composition.SettlementClient,
+                profile,
+                composition.ForcedInclusionFinalizer,
+                composition.ForcedInclusionSource);
+            _productionComposition = composition;
+            return composition.ForcedInclusionSource;
+        }
+        catch
+        {
+            composition.Dispose();
+            throw;
+        }
+    }
+
+    internal L2SettlementProductionComposition? ProductionComposition =>
+        _productionComposition;
 
     /// <summary>Wire a telemetry sink without changing durable pipeline state.</summary>
     public void WithMetrics(IL2Metrics metrics)
@@ -176,10 +252,13 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
     {
         if (disposing)
         {
+            var productionComposition = _productionComposition;
+            _productionComposition = null;
             _batchPlugin?.RemoveSealedBatchSink(this);
             _pipeline?.Dispose();
             _pipeline = null;
             _batchPlugin = null;
+            productionComposition?.Dispose();
         }
         base.Dispose(disposing);
     }

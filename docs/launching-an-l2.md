@@ -80,6 +80,58 @@ broadcast, and wait for a HALT application log. The built-in CLI signer reads a
 WIF from `NEO_N4_OPERATOR_WIF`; production HSM/KMS integrations implement
 `INeoTransactionSigner` without changing transaction construction.
 
+### Production settlement composition
+
+`L2SettlementPlugin.WireProduction(...)` is the production composition root for L1
+settlement. It consumes the plugin's `PluginConfiguration` and constructs one shared
+`JsonRpcClient`, a network-pinned `RpcTransactionSender`, `RpcSettlementClient`,
+`RpcForcedInclusionFinalizationClient`, and `RpcForcedInclusionSource`. The source and
+finalizer are always wired as a pair; custom/test dependency injection remains available
+through `Wire(...)`, which rejects a forced-inclusion source without a finalizer.
+
+Configure every production identity explicitly in
+`Plugins/Neo.Plugins.L2Settlement/config.json` before calling `WireProduction`:
+
+```jsonc
+{
+  "PluginConfiguration": {
+    "ChainId": 1099,
+    "L1RpcEndpoint": "https://reviewed-l1-rpc.example:10331",
+    "ExpectedNetwork": <l1-network-magic>,
+    "SettlementManagerHash": "<real non-zero SettlementManager UInt160>",
+    "ForcedInclusionHash": "<real non-zero ForcedInclusion UInt160>",
+    "ProofType": 3,
+    "Enabled": true
+  }
+}
+```
+
+The checked-in sample intentionally leaves the network and contract hashes unset.
+Production wiring rejects missing or relative/non-HTTP endpoints, missing network magic,
+malformed/zero/equal contract hashes, a zero signer account, and any WIF/private-key field
+in plugin configuration. Pass an `INeoTransactionSigner` instance from the host instead;
+the plugin never reads, stores, logs, or disposes signer key material.
+
+```csharp
+var forcedSource = settlementPlugin.WireProduction(
+    batchPlugin,
+    executor,
+    daWriter,
+    proofWitnessStore,
+    prover,
+    profile,
+    hsmOrKmsSigner,
+    knownForcedInclusionNonces);
+
+forcedTxWatcher.NonceObserved += nonce => forcedSource.RegisterNonce(nonce);
+```
+
+Every settlement transaction is preflighted, signed for `ExpectedNetwork`, broadcast, and
+confirmed with a `HALT` application log before the durable pipeline records success; zero
+transaction hashes are rejected. `L2SettlementPlugin.Dispose()` releases only the RPC stack
+created by `WireProduction`. The signer and all dependencies supplied to either wiring API
+remain caller-owned and must be disposed by the host in its normal shutdown order.
+
 ### Neo.CLI bundle and dBFT committee state
 
 `r3e-network/neo-node` is not published, so this repository deliberately does

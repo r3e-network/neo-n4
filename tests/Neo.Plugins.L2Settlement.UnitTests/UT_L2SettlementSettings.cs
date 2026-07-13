@@ -24,8 +24,10 @@ public class UT_L2SettlementSettings
     {
         var s = L2SettlementSettings.From(BuildSection());
         Assert.AreEqual(0u, s.ChainId, "missing ChainId reads as 0 (no validation since unset is legal in test mode)");
-        Assert.AreEqual("http://localhost:10332", s.L1RpcEndpoint);
+        Assert.AreEqual("", s.L1RpcEndpoint, "production RPC must not have an implicit endpoint fallback");
+        Assert.IsNull(s.ExpectedNetwork, "production network magic must be explicit");
         Assert.AreEqual("", s.SettlementManagerHash);
+        Assert.AreEqual("", s.ForcedInclusionHash);
         Assert.AreEqual((byte)1, s.ProofType, "default ProofType is 1 = Multisig");
         Assert.IsTrue(s.Enabled, "default Enabled is true");
     }
@@ -71,9 +73,121 @@ public class UT_L2SettlementSettings
     }
 
     [TestMethod]
+    public void From_RespectsExplicitProductionFields()
+    {
+        var forcedInclusionHash = "0x" + new string('2', 40);
+        var s = L2SettlementSettings.From(BuildSection(
+            ("ExpectedNetwork", "860833102"),
+            ("ForcedInclusionHash", forcedInclusionHash)));
+
+        Assert.AreEqual(860833102u, s.ExpectedNetwork);
+        Assert.AreEqual(forcedInclusionHash, s.ForcedInclusionHash);
+    }
+
+    [TestMethod]
+    [DataRow("Wif")]
+    [DataRow("SignerWif")]
+    [DataRow("OperatorWif")]
+    [DataRow("PrivateKey")]
+    public void From_PrivateSigningMaterial_RejectedWithoutEchoingSecret(string key)
+    {
+        const string secret = "this-value-must-never-appear-in-an-error";
+        var exception = Assert.ThrowsExactly<InvalidDataException>(
+            () => L2SettlementSettings.From(BuildSection((key, secret))));
+
+        Assert.IsFalse(exception.Message.Contains(secret, StringComparison.Ordinal));
+        StringAssert.Contains(exception.Message, "INeoTransactionSigner");
+    }
+
+    [TestMethod]
+    public void ValidateProduction_ValidSettings_ReturnsCanonicalValues()
+    {
+        var settings = ValidProductionSettings();
+
+        var validated = settings.ValidateProduction();
+
+        Assert.AreEqual(1001u, validated.ChainId);
+        Assert.AreEqual(new Uri("https://l1.example.invalid:10331/rpc"), validated.RpcEndpoint);
+        Assert.AreEqual(860833102u, validated.ExpectedNetwork);
+        Assert.AreEqual(UInt160.Parse(settings.SettlementManagerHash), validated.SettlementManagerHash);
+        Assert.AreEqual(UInt160.Parse(settings.ForcedInclusionHash), validated.ForcedInclusionHash);
+    }
+
+    [TestMethod]
+    public void ValidateProduction_MissingChainId_Rejected()
+    {
+        var settings = ValidProductionSettings(chainId: 0);
+        Assert.ThrowsExactly<InvalidDataException>(() => settings.ValidateProduction());
+    }
+
+    [TestMethod]
+    [DataRow("")]
+    [DataRow("localhost:10332")]
+    [DataRow("file:///tmp/neo-rpc")]
+    public void ValidateProduction_MissingOrInvalidEndpoint_Rejected(string endpoint)
+    {
+        var settings = ValidProductionSettings(endpoint: endpoint);
+        Assert.ThrowsExactly<InvalidDataException>(() => settings.ValidateProduction());
+    }
+
+    [TestMethod]
+    public void ValidateProduction_MissingExpectedNetwork_Rejected()
+    {
+        var settings = ValidProductionSettings(expectedNetwork: null);
+        Assert.ThrowsExactly<InvalidDataException>(() => settings.ValidateProduction());
+    }
+
+    [TestMethod]
+    [DataRow("")]
+    [DataRow("not-a-hash")]
+    [DataRow("0x0000000000000000000000000000000000000000")]
+    public void ValidateProduction_MissingInvalidOrZeroSettlementHash_Rejected(string hash)
+    {
+        var settings = ValidProductionSettings(settlementManagerHash: hash);
+        Assert.ThrowsExactly<InvalidDataException>(() => settings.ValidateProduction());
+    }
+
+    [TestMethod]
+    [DataRow("")]
+    [DataRow("not-a-hash")]
+    [DataRow("0x0000000000000000000000000000000000000000")]
+    public void ValidateProduction_MissingInvalidOrZeroForcedInclusionHash_Rejected(string hash)
+    {
+        var settings = ValidProductionSettings(forcedInclusionHash: hash);
+        Assert.ThrowsExactly<InvalidDataException>(() => settings.ValidateProduction());
+    }
+
+    [TestMethod]
+    public void ValidateProduction_ContractHashesMustBeDistinct()
+    {
+        var hash = "0x" + new string('1', 40);
+        var settings = ValidProductionSettings(
+            settlementManagerHash: hash,
+            forcedInclusionHash: hash);
+
+        Assert.ThrowsExactly<InvalidDataException>(() => settings.ValidateProduction());
+    }
+
+    [TestMethod]
     public void From_RespectsExplicitEnabledFlag()
     {
         var s = L2SettlementSettings.From(BuildSection(("Enabled", "false")));
         Assert.IsFalse(s.Enabled);
     }
+
+    private static L2SettlementSettings ValidProductionSettings(
+        uint chainId = 1001,
+        string endpoint = "https://l1.example.invalid:10331/rpc",
+        uint? expectedNetwork = 860833102,
+        string? settlementManagerHash = null,
+        string? forcedInclusionHash = null)
+        => new()
+        {
+            ChainId = chainId,
+            L1RpcEndpoint = endpoint,
+            ExpectedNetwork = expectedNetwork,
+            SettlementManagerHash = settlementManagerHash ?? "0x" + new string('1', 40),
+            ForcedInclusionHash = forcedInclusionHash ?? "0x" + new string('2', 40),
+            ProofType = (byte)ProofType.Multisig,
+        };
 }

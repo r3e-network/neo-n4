@@ -12,6 +12,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   audit tooling; and extended dependency, SDK, contract-security, watcher-image,
   and package-build validation across the production release surface.
 
+### Added — production settlement composition root — 2026-07-14
+
+- Added `L2SettlementPlugin.WireProduction` to construct and own the shared L1 RPC client,
+  network-pinned confirmed transaction sender, settlement client, and paired RPC
+  forced-inclusion source/finalizer while preserving caller-owned `Wire` dependency injection.
+- Made the production endpoint, network magic, SettlementManager hash, ForcedInclusion hash,
+  and signer boundary explicit. Missing/malformed/zero identities, private-key fields in plugin
+  config, zero signer accounts, and unconfirmed/zero-hash transaction results fail closed.
+- Documented signer and resource ownership and added production configuration, construction,
+  forced-pair, and disposal coverage.
+
 ### Fixed — forced-inclusion durable L1 completion — 2026-07-14
 
 - Closed the forced-inclusion settlement loop with a production RPC finalizer that validates

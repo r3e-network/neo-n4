@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Neo.Plugins.L2Settlement\Neo.Plugins.L2Settlement.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Settlement.Rpc\Neo.L2.Settlement.Rpc.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Telemetry\Neo.L2.Telemetry.csproj" />
   </ItemGroup>
 

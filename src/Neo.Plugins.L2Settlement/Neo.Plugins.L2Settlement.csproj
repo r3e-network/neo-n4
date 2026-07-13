@@ -15,9 +15,14 @@
     <ProjectReference Include="..\Neo.L2.ForcedInclusion\Neo.L2.ForcedInclusion.csproj" />
     <ProjectReference Include="..\Neo.L2.Persistence\Neo.L2.Persistence.csproj" />
     <ProjectReference Include="..\Neo.L2.Proving\Neo.L2.Proving.csproj" />
+    <ProjectReference Include="..\Neo.L2.Settlement.Rpc\Neo.L2.Settlement.Rpc.csproj" />
     <ProjectReference Include="..\Neo.L2.State\Neo.L2.State.csproj" />
     <ProjectReference Include="..\Neo.L2.Telemetry\Neo.L2.Telemetry.csproj" />
     <ProjectReference Include="..\Neo.Plugins.L2Batch\Neo.Plugins.L2Batch.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Neo.Plugins.L2Settlement.UnitTests" />
   </ItemGroup>
 
 </Project>

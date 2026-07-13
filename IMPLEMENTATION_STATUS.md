@@ -136,7 +136,7 @@ interface:
 | `InMemorySequencerCommitteeProvider` (devnet/tests) | `RpcSequencerCommitteeProvider` ships in `src/Neo.L2.Sequencer/` — production L1-RPC poller with configurable cache TTL, parallel status fanout across known keys, operator-supplied known-keys bootstrap (genesis + RegisterKnownKey hook for event-driven additions). `IsRegisteredAsync` always hits L1 (source of truth) | `ISequencerCommitteeProvider` |
 | `InMemoryForcedInclusionSource` (devnet/tests) | `RpcForcedInclusionSource` ships in `src/Neo.L2.ForcedInclusion/` — production L1-RPC poller. Operator wires `RegisterNonce` to `OnForcedTxEnqueued` event subscription; `DrainAsync` issues parallel `getEntry` + `isConsumed` reads per known nonce, drops L1-finalized entries automatically, returns deadline-ordered list. `MarkConsumedAsync` is local bookkeeping (the L1 contract's matching method is SettlementManager-driven) | `IForcedInclusionSource` |
 | `InMemoryMessageRouter` (devnet/tests) | `RpcMessageRouter` ships in `src/Neo.L2.Messaging/` — production L1-RPC poller for the inbound (L1→L2) side via `getL1ToL2` + `isConsumed` parallel reads; local outbox staging for outbound (L2-internal); pluggable finalized-proof store for `GetMessageProofAsync` (RocksDb-backed in production). `DecodeMessage` parses the canonical contract encoding + recomputes the canonical hash via `MessageHasher` — never trusts an off-wire hash | `IMessageRouter` |
-| `InMemorySettlementClient` | Real L1 JSON-RPC client + signer | `ISettlementClient` (RpcSettlementClient exists; signer = operator-supplied delegate) |
+| `InMemorySettlementClient` | `L2SettlementPlugin.WireProduction` constructs the real `RpcSettlementClient` + network-pinned `RpcTransactionSender` + paired forced-inclusion source/finalizer; operator supplies only the reviewed `INeoTransactionSigner` custody boundary and known-nonce feed | `ISettlementClient` / `INeoTransactionSigner` |
 | `InMemoryDAWriter`, `NeoFsLikeDAWriter`, `JsonRpcL1DAWriter` (signer = delegate), `CommitteeAttestedDAWriter` (committee = delegate) | Real NeoFS SDK adapter / signed L1 transactions / real DAC committee | `IDAWriter` |
 
 ### Operator execution boundaries
@@ -210,7 +210,7 @@ deployments for the documented process/signing seams.
 | `Neo.L2.Sequencer`        | `ISequencerCommitteeProvider` + in-memory/RPC backends, optional RocksDB durability, and `SequencerCommitteeTransactionBuilder` for canonical native validator rotations. The r3e Neo core's stock `Governance.GetNextBlockValidators` reads the configured `L2SystemConfigContract` set, so an unmodified DBFTPlugin follows consensus state. |
 | `Neo.L2.Censorship`       | `CensorshipDetector` — turns overdue forced-tx entries into `CensorshipReport[]` (emits `l2.censorship.reports` per detection batch) |
 | `Neo.L2.Challenge`        | `FraudProofPayload` v1/v2/v3 governance evidence + `RestrictedFraudProofV4` canonical codec/reference verifier + `ChallengeOrchestrator` (`InspectAsync` replay detection, `InspectWithBisectionAsync` log-N narrowing) + `BisectionGame`; v4 is SettlementManager/root/replay/semantic/claim/witness-bound and deliberately single-tx Counter-only |
-| `Neo.L2.Settlement.Rpc`   | JSON-RPC client + `RpcSettlementClient` for L1 read methods + signer-delegated submit |
+| `Neo.L2.Settlement.Rpc`   | JSON-RPC client + confirmed `RpcTransactionSender` + `RpcSettlementClient` + finalized-root-bound `RpcForcedInclusionFinalizationClient` |
 | `Neo.L2.Audit`            | End-to-end chain auditor: `ContinuityCheck` + `ProofValidityCheck` + `NoZeroProofCheck` + `PublicInputHashConsistencyCheck` + `DAAvailabilityCheck` + **`BatchRangeCheck`** + `ChainAuditor` (auto-emits `l2.audit.runs` + `l2.audit.failures`) |
 | `Neo.L2.Telemetry`        | `IL2Metrics` (counter/histogram/gauge) + `NoOpMetrics` + `InMemoryMetrics` + `MetricsSnapshot` + `PrometheusExporter` + `MetricsRequestHandler` (`/metrics` + **`/healthz` + `/readyz`**) + `MetricsHttpServer` (TcpListener-based, no third-party deps) + canonical `MetricNames` + `MetricCatalog` (operator-facing HELP descriptions) |
 | `Neo.L2.Persistence`      | **`IL2KeyValueStore` abstraction + `InMemoryKeyValueStore` + `RocksDbKeyValueStore` (RocksDbSharp 10.10.1, snappy compression default).** Wired into `KeyedStateStore`, `InMemoryL2RpcStore`, `InMemoryMessageRouter`, `InMemoryForcedInclusionSource`, `InMemorySequencerCommitteeProvider`, `PersistentDAWriter` so production data survives restart. Per-component reopen tests pin the durability story. |
@@ -238,7 +238,7 @@ deployments for the documented process/signing seams.
 | Plugin                       | Role                                                  |
 | ---------------------------- | ----------------------------------------------------- |
 | `Neo.Plugins.L2Batch`        | Hooks `Blockchain.Committed`; seal logic lives on testable `BatchSealer`; emits `l2.batch.sealed/seal_latency_ms/tx_count` via `WithMetrics()` |
-| `Neo.Plugins.L2Settlement`   | Wires prover + settlement client; signs sealed batches; **emits `l2.settlement.submitted/submit_failures/submit_latency_ms` + `l2.proving.generated/latency_ms` via `WithMetrics()`** |
+| `Neo.Plugins.L2Settlement`   | Durable execution/DA/witness/proving/settlement coordinator. `WireProduction` validates explicit endpoint/network/non-zero NeoHub hashes and owns the real RPC sender/client plus paired forced-inclusion source/finalizer; `Wire` preserves caller-owned test/custom DI. **Emits `l2.settlement.submitted/submit_failures/submit_latency_ms` + `l2.proving.generated/latency_ms` via `WithMetrics()`** |
 | `Neo.Plugins.L2Bridge`       | Hosts `AssetRegistry` + `DepositProcessor` + `WithdrawalProcessor`; emits `l2.bridge.{deposits,withdrawals,*_rejected}` via `WithMetrics()` |
 | `Neo.Plugins.L2DA`           | Picks DA writer by `DAMode` config — `InMemoryDAWriter` (External default), **`NeoFsLikeDAWriter`** (content-addressed), `CommitteeAttestedDAWriter` (DAC mode, operator-injected), `PersistentDAWriter` over RocksDB when `DataDirectory` is set, L1 mode requires operator-supplied L1-RPC writer; `WithMetrics()` wraps the chosen writer in `MetricsEmittingDAWriter` (mode-tagged `l2.da.published/publish_latency_ms/publish_failures`) |
 | `Neo.Plugins.L2Prover`       | Hosts `IL2Prover` for the configured `ProofType`      |
@@ -297,7 +297,7 @@ real secp256k1 signatures.
 | `Neo.Plugins.L2Batch.UnitTests`      | 37    | `BatchSealer` immutable execution payload, real L1/block context, pending/persist/ack hand-off, sink retry, durable checkpoint restore, crash continuity, duplicate/gap fail-closed behavior, forced nonce filtering without early consumption, triggers and plugin lifecycle |
 | `Neo.Plugins.L2Bridge.UnitTests`     | 10    | `L2BridgePlugin` lifecycle, asset registration, default behavior, **WithMetrics propagates to existing Deposit + Withdrawal processors (symmetric pins — without both, a refactor that drops one of the `?.WithMetrics()` calls would silently lose half the `l2.bridge.*` metric stream)** |
 | `Neo.Plugins.L2Prover.UnitTests`     | 10    | `L2ProverPlugin` lifecycle, ProofType resolution, **Wire dispatch coverage for all branches: Zk-with-prover / Zk-without (helpful error) / Optimistic (points at L2SettlementPlugin) / None (points at Multisig+Optimistic+Zk)** |
-| `Neo.Plugins.L2Settlement.UnitTests` | 38    | canonical artifact bytes reach prover, ZK fail-closed policy, DA/result/public-input cross-checks, ordered durable reconciliation, validated continuous batch/block/state checkpoint recovery, process-crash recovery across proof/broadcast/observation/finality/consume windows, transaction-aware retry, restored success/failure/concurrency/throwing-metrics coverage, explicit legacy control |
+| `Neo.Plugins.L2Settlement.UnitTests` | 61    | canonical artifact bytes reach prover, ZK fail-closed policy, DA/result/public-input cross-checks, ordered durable reconciliation, validated continuous batch/block/state checkpoint recovery, process-crash recovery across proof/broadcast/observation/finality/consume windows, transaction-aware retry, restored success/failure/concurrency/throwing-metrics coverage, explicit legacy control, production configuration/constructor/forced-pair/ownership/disposal coverage |
 | `Neo.L2.Settlement.Rpc.UnitTests`    | 60    | JSON-RPC envelope, stack parsing, signer, batch lifecycle, transaction-status reconciliation, and finalized-root-bound forced-inclusion consumption with idempotent L1 read-back |
 | `Neo.L2.Telemetry.UnitTests`         | 73    | counter/histogram/gauge accumulation, tag canonicalization, Prometheus exporter (counter/gauge/summary, labels, name sanitization, frozen-snapshot), request handler routing, TCP server round-trip + multi-request, catalog completeness vs MetricNames + Prometheus integration, **`/healthz` + `/readyz` (with predicate)** |
 | `Neo.L2.Persistence.UnitTests`       | 57    | **`InMemoryKeyValueStore` + `RocksDbKeyValueStore` parity plus atomic artifact/proof-manifest persistence, content-hash binding, ordered recovery enumeration, versioned submission state and replacement CAS, forced nonce tracking/finalization, reopen durability** |
@@ -311,10 +311,11 @@ real secp256k1 signatures.
 
 These are explicit deployment seams rather than missing protocol algorithms:
 
-- **Settlement signing policy** — `RpcTransactionSender` provides canonical
-  preflight, fee calculation, signing, broadcast, and HALT confirmation through
-  `INeoTransactionSigner`; `RpcSettlementClient` accepts the bound submit-batch
-  delegate. Operators select local-key, wallet, HSM, or KMS custody and network policy.
+- **Settlement signer custody** — `L2SettlementPlugin.WireProduction` closes the
+  production RPC composition root around `RpcTransactionSender`, `RpcSettlementClient`,
+  and forced-inclusion finalization. Operators still select and own the concrete
+  `INeoTransactionSigner` implementation (wallet, HSM, or KMS); no private key is stored
+  in plugin configuration.
 - **Real NeoFS client** — `NeoFsLikeDAWriter` is a fail-closed semantic simulator and
   cannot satisfy a production NeoFS profile. Operators inject an SDK-backed adapter
   that returns real container/object locators and supports independent retrieval.

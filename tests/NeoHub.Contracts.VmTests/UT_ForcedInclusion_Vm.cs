@@ -20,6 +20,7 @@ public class UT_ForcedInclusion_Vm
     private const uint Deadline = 3600;
     private static readonly UInt160 CrHash = UInt160.Parse("0x" + new string('7', 40));
     private static readonly UInt160 SbHash = UInt160.Parse("0x" + new string('8', 40));
+    private static readonly UInt160 GasHash = UInt160.Parse("0x" + new string('6', 40));
     private static readonly UInt160 Sequencer = UInt160.Parse("0x" + new string('9', 40));
 
     private static void WireMocks(TestEngine engine)
@@ -33,14 +34,17 @@ public class UT_ForcedInclusion_Vm
 
     /// <summary>Deploy FI. owner==settlementManager==engine.Sender so the owner/SM witness checks
     /// pass; ChainRegistry + SequencerBond + slash amount wired to mocks.</summary>
-    private static NeoHubForcedInclusion Deploy(TestEngine engine, UInt160? owner = null)
+    private static NeoHubForcedInclusion Deploy(
+        TestEngine engine,
+        UInt160? owner = null,
+        bool wireEnforcement = true)
     {
         WireMocks(engine);
         var o = owner ?? engine.Sender;
         var fi = engine.Deploy<NeoHubForcedInclusion>(
             NeoHubForcedInclusion.Nef, NeoHubForcedInclusion.Manifest,
             new object[] { o, engine.Sender, (BigInteger)Deadline });
-        if (owner is null)
+        if (owner is null && wireEnforcement)
         {
             fi.ChainRegistry = CrHash;
             fi.SequencerBond = SbHash;
@@ -51,6 +55,28 @@ public class UT_ForcedInclusion_Vm
 
     private static ulong Enqueue(NeoHubForcedInclusion fi) =>
         (ulong)fi.EnqueueForcedTransaction(ChainId, new byte[] { 0xAB, 0xCD }, UInt256.Zero)!;
+
+    [TestMethod]
+    public void IsProductionReady_RequiresSpamControlPauseAndSlashingConfiguration()
+    {
+        var engine = new TestEngine(true);
+        var fi = Deploy(engine, wireEnforcement: false);
+
+        Assert.IsFalse(fi.IsProductionReady);
+        fi.ChainRegistry = CrHash;
+        Assert.IsFalse(fi.IsProductionReady);
+        fi.SequencerBond = SbHash;
+        Assert.IsFalse(fi.IsProductionReady);
+        fi.CensorshipSlashAmount = 100;
+        Assert.IsFalse(fi.IsProductionReady);
+        fi.GasToken = GasHash;
+        Assert.IsFalse(fi.IsProductionReady);
+        fi.FeeRecipient = engine.Sender;
+        Assert.IsFalse(fi.IsProductionReady);
+        fi.Fee = 100_000;
+
+        Assert.IsTrue(fi.IsProductionReady);
+    }
 
     [TestMethod]
     public void Enqueue_StoresEntry_IncrementsNonce()

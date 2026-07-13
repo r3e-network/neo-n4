@@ -309,6 +309,9 @@ public static class ScaffoldPlan
         {
             yield return $"{forcedInclusion.Name}.SetSequencerBond({bond.Name})  # wire §15.4 censorship reports to SequencerBond.Slash";
             yield return $"{forcedInclusion.Name}.SetCensorshipSlashAmount(1000000)  # production default: slash 1.0 GAS per overdue forced-inclusion entry";
+            yield return $"{forcedInclusion.Name}.SetGasToken(GAS_CONTRACT_HASH)  # production requires a real NEP-17 GAS token for forced-inclusion spam control";
+            yield return $"{forcedInclusion.Name}.SetFeeRecipient(FEE_RECIPIENT)  # production requires a non-zero accountable fee recipient";
+            yield return $"{forcedInclusion.Name}.SetFee(100000)  # production default: charge 0.001 GAS per forced-inclusion entry after token + recipient are wired";
         }
         if (sharedBridge is not null && emergencyManager is not null)
         {

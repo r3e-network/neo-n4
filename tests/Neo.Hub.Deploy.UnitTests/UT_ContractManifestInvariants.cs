@@ -316,5 +316,7 @@ public class UT_ContractManifestInvariants
             "ForcedInclusion must wire ChainRegistry so censorship reports pause finalization");
         Assert.IsTrue(HasMethod(methods, "setCensorshipSlashAmount"),
             "ForcedInclusion must expose the per-report slash policy");
+        Assert.IsTrue(HasMethod(methods, "isProductionReady"),
+            "ForcedInclusion must expose a fail-closed production configuration gate");
     }
 }

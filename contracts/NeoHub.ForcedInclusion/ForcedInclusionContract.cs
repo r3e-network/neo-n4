@@ -18,9 +18,9 @@ namespace NeoHub.ForcedInclusion;
 /// <para>
 /// Spam control: <see cref="EnqueueForcedTransaction"/> charges <see cref="GetFee"/> GAS
 /// (NEP-17 transfer from the caller to <see cref="GetFeeRecipient"/>) before storing the
-/// entry. Default fee = 0 + recipient = zero hash — fee-free until an operator calls
-/// <see cref="SetFee"/> + <see cref="SetFeeRecipient"/> at deploy / runtime. A non-zero fee
-/// MUST have a non-zero recipient or the enqueue rejects.
+/// entry. Development deployments can remain fee-free, but production deployment tooling
+/// must configure every dependency and require <see cref="IsProductionReady"/> before release.
+/// A non-zero fee MUST have a non-zero GAS token and recipient or the enqueue rejects.
 /// </para>
 /// </remarks>
 [DisplayName("NeoHub.ForcedInclusion")]
@@ -232,6 +232,25 @@ public class ForcedInclusionContract : SmartContract
     {
         var raw = Storage.Get(new byte[] { KeyCensorshipSlashAmount });
         return raw == null ? BigInteger.Zero : (BigInteger)raw;
+    }
+
+    /// <summary>
+    /// True only when spam control, censorship pausing, and sequencer slashing are all wired.
+    /// Production deployment tooling treats a false value as a release-blocking failure.
+    /// </summary>
+    [Safe]
+    public static bool IsProductionReady()
+    {
+        var feeRecipient = GetFeeRecipient();
+        var gasToken = GetGasToken();
+        var sequencerBond = GetSequencerBond();
+        var chainRegistry = GetChainRegistry();
+        return GetFee() > 0
+            && feeRecipient.IsValid && !feeRecipient.IsZero
+            && gasToken.IsValid && !gasToken.IsZero
+            && sequencerBond.IsValid && !sequencerBond.IsZero
+            && chainRegistry.IsValid && !chainRegistry.IsZero
+            && GetCensorshipSlashAmount() > 0;
     }
 
     /// <summary>

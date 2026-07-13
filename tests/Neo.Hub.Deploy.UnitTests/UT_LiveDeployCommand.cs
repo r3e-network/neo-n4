@@ -94,6 +94,18 @@ public class UT_LiveDeployCommand
     }
 
     [TestMethod]
+    public void ParsePositiveForcedInclusionFee_RejectsDisabledOrMalformedProductionFee()
+    {
+        Assert.AreEqual(100_000L, LiveDeployCommand.ParsePositiveForcedInclusionFee("100000"));
+        Assert.AreEqual(long.MaxValue, LiveDeployCommand.ParsePositiveForcedInclusionFee(long.MaxValue.ToString()));
+        Assert.ThrowsExactly<FormatException>(() => LiveDeployCommand.ParsePositiveForcedInclusionFee(""));
+        Assert.ThrowsExactly<FormatException>(() => LiveDeployCommand.ParsePositiveForcedInclusionFee("0"));
+        Assert.ThrowsExactly<FormatException>(() => LiveDeployCommand.ParsePositiveForcedInclusionFee("-1"));
+        Assert.ThrowsExactly<FormatException>(() => LiveDeployCommand.ParsePositiveForcedInclusionFee(" 100000"));
+        Assert.ThrowsExactly<FormatException>(() => LiveDeployCommand.ParsePositiveForcedInclusionFee("1.0"));
+    }
+
+    [TestMethod]
     public void SubstituteOperatorPlaceholders_ReplacesExternalBridgeDomainWithInteger()
     {
         var key = new Neo.Wallets.KeyPair(new byte[32] { 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
@@ -217,7 +229,12 @@ public class UT_LiveDeployCommand
     {
         var hashes = ContractHashes();
         var programVKey = new UInt256(AsymmetricProgramVKey);
-        var actions = LiveDeployCommand.BuildPostDeployCalls(hashes, programVKey).ToArray();
+        var actions = LiveDeployCommand.BuildPostDeployCalls(
+            hashes,
+            hashes["Gas"],
+            hashes["Owner"],
+            100_000,
+            programVKey).ToArray();
         Assert.IsTrue(actions.All(static action => action.CompletionCheck is not null),
             "every production post-deploy mutation must be resumable from its exact target state");
 
@@ -235,6 +252,13 @@ public class UT_LiveDeployCommand
             "ProofType.Zk must not become reachable before the inner SP1 verifier is fully bound and locked");
         Assert.AreEqual(registerOuterRoute + 1, lockOuterRegistry,
             "production deployment must freeze the outer route immediately after bootstrap registration");
+
+        var setGas = IndexOf(actions, "ForcedInclusion.SetGasToken");
+        var setRecipient = IndexOf(actions, "ForcedInclusion.SetFeeRecipient");
+        var setFee = IndexOf(actions, "ForcedInclusion.SetFee");
+        Assert.AreEqual(setGas + 1, setRecipient);
+        Assert.AreEqual(setRecipient + 1, setFee,
+            "fee must only be enabled after both the token and recipient are configured");
 
         var action = actions[registerKey];
         using var expected = new ScriptBuilder();
@@ -256,7 +280,12 @@ public class UT_LiveDeployCommand
     {
         var hashes = ContractHashes();
         var programVKey = new UInt256(AsymmetricProgramVKey);
-        var action = LiveDeployCommand.BuildPostDeployCalls(hashes, programVKey)
+        var action = LiveDeployCommand.BuildPostDeployCalls(
+                hashes,
+                hashes["Gas"],
+                hashes["Owner"],
+                100_000,
+                programVKey)
             .Single(item => item.Name == "VerifierRegistry.LockGovernance");
 
         Assert.IsNotNull(action.CompletionCheck);
@@ -275,6 +304,8 @@ public class UT_LiveDeployCommand
             hashes,
             hashes["Owner"],
             hashes["Gas"],
+            hashes["Owner"],
+            100_000,
             programVKey,
             1001).ToDictionary(check => check.Name, StringComparer.Ordinal);
 
@@ -312,6 +343,14 @@ public class UT_LiveDeployCommand
             .RunAsync(new StubRpcClient(HashResult(hashes["GovernanceController"])));
         await smokes["VerifierRegistry.IsGovernanceLocked"]
             .RunAsync(new StubRpcClient(BooleanResult(true)));
+        await smokes["ForcedInclusion.GetGasToken"]
+            .RunAsync(new StubRpcClient(HashResult(hashes["Gas"])));
+        await smokes["ForcedInclusion.GetFeeRecipient"]
+            .RunAsync(new StubRpcClient(HashResult(hashes["Owner"])));
+        await smokes["ForcedInclusion.GetFee"]
+            .RunAsync(new StubRpcClient(IntegerResult(100_000)));
+        await smokes["ForcedInclusion.IsProductionReady"]
+            .RunAsync(new StubRpcClient(BooleanResult(true)));
         await smokes["ExternalBridgeEscrow.GetNeoChainId"]
             .RunAsync(new StubRpcClient(IntegerResult(1001)));
     }
@@ -324,6 +363,8 @@ public class UT_LiveDeployCommand
             hashes,
             hashes["Owner"],
             hashes["Gas"],
+            hashes["Owner"],
+            100_000,
             new UInt256(AsymmetricProgramVKey),
             1001).ToDictionary(check => check.Name, StringComparer.Ordinal);
 
@@ -338,6 +379,10 @@ public class UT_LiveDeployCommand
             ["VerifierRegistry.GetVerifier.Zk"] = HashResult(UInt160.Zero),
             ["VerifierRegistry.GetGovernanceController"] = HashResult(UInt160.Zero),
             ["VerifierRegistry.IsGovernanceLocked"] = BooleanResult(false),
+            ["ForcedInclusion.GetGasToken"] = HashResult(UInt160.Zero),
+            ["ForcedInclusion.GetFeeRecipient"] = HashResult(UInt160.Zero),
+            ["ForcedInclusion.GetFee"] = IntegerResult(0),
+            ["ForcedInclusion.IsProductionReady"] = BooleanResult(false),
         };
 
         foreach (var (name, result) in mismatches)

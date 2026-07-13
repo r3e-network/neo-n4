@@ -30,6 +30,7 @@ public static class LiveDeployCommand
     private const string DefaultRpc = "https://testnet1.neo.coz.io:443";
     private const string DefaultWifEnv = "NEO_N4_TESTNET_WIF";
     private const string DefaultGasHash = "0xd2a4cff31913016155e38e474a2c06d08be276cf";
+    private const long DefaultForcedInclusionFee = 100_000L; // 0.001 GAS.
     private const byte ProofSystemSp1 = 1;
     private const byte ProofTypeZk = 3;
     private const long MinimumNetworkFeeFallback = 10_00000000L / 10; // 0.1 GAS.
@@ -54,6 +55,8 @@ public static class LiveDeployCommand
         var sp1ProgramVKey = ParseSp1ProgramVKey(ArgUtil.Get(args, "--sp1-program-vkey", ""));
         var l2ChainId = ParseRequiredL2ChainId(ArgUtil.Get(args, "--l2-chain-id", ""));
         var expectedNetwork = ParseRequiredNetwork(ArgUtil.Get(args, "--expected-network", ""));
+        var forcedInclusionFee = ParsePositiveForcedInclusionFee(
+            ArgUtil.Get(args, "--forced-inclusion-fee", DefaultForcedInclusionFee.ToString(CultureInfo.InvariantCulture)));
 
         ValidateProductionSafetyOptions(dryRun, runPostDeploy, runSmoke, maxSteps);
 
@@ -77,6 +80,10 @@ public static class LiveDeployCommand
         var sender = Contract.CreateSignatureRedeemScript(key.PublicKey).ToScriptHash();
         var emergencyCouncil = ParseRequiredAccount(
             ArgUtil.Get(args, "--emergency-council", ""), addressVersion, "--emergency-council");
+        var forcedInclusionFeeRecipient = ParseRequiredAccount(
+            ArgUtil.Get(args, "--forced-inclusion-fee-recipient", sender.ToString()),
+            addressVersion,
+            "--forced-inclusion-fee-recipient");
         var ownerAddress = sender.ToAddress(addressVersion);
         var gasHash = UInt160.Parse(ArgUtil.Get(args, "--gas-hash", DefaultGasHash));
         var baseDirectory = string.IsNullOrWhiteSpace(planPath)
@@ -96,6 +103,7 @@ public static class LiveDeployCommand
         Console.WriteLine($"  network: {network}");
         Console.WriteLine($"  signer: {ownerAddress} ({sender})");
         Console.WriteLine($"  external bridge L2 domain: {l2ChainId}");
+        Console.WriteLine($"  forced inclusion fee: {forcedInclusionFee} ({forcedInclusionFeeRecipient})");
         Console.WriteLine($"  dryRun: {dryRun}");
         Console.WriteLine($"  steps: {bundle.Invocations.Count}");
         Console.WriteLine($"  SP1 program vkey (raw): 0x{Convert.ToHexString(sp1ProgramVKey.GetSpan()).ToLowerInvariant()}");
@@ -152,7 +160,12 @@ public static class LiveDeployCommand
 
         if (!dryRun && runPostDeploy)
         {
-            foreach (var action in BuildPostDeployCalls(predicted, sp1ProgramVKey))
+            foreach (var action in BuildPostDeployCalls(
+                predicted,
+                gasHash,
+                forcedInclusionFeeRecipient,
+                forcedInclusionFee,
+                sp1ProgramVKey))
             {
                 if (action.CompletionCheck is not null &&
                     await IsPostDeployActionCompleteAsync(action.CompletionCheck, rpc))
@@ -179,7 +192,13 @@ public static class LiveDeployCommand
         if (!dryRun && runSmoke)
         {
             foreach (var smoke in BuildSmokeChecks(
-                predicted, sender, gasHash, sp1ProgramVKey, l2ChainId))
+                predicted,
+                sender,
+                gasHash,
+                forcedInclusionFeeRecipient,
+                forcedInclusionFee,
+                sp1ProgramVKey,
+                l2ChainId))
             {
                 await smoke.RunAsync(rpc);
                 Console.WriteLine($"smoke {smoke.Name}: ok");
@@ -240,6 +259,14 @@ public static class LiveDeployCommand
         if (!uint.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var chainId) || chainId == 0)
             throw new FormatException("--l2-chain-id must be an unsigned 32-bit integer greater than zero.");
         return chainId;
+    }
+
+    internal static long ParsePositiveForcedInclusionFee(string value)
+    {
+        if (!long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var fee) || fee <= 0)
+            throw new FormatException(
+                "--forced-inclusion-fee must be a positive integer in smallest GAS units.");
+        return fee;
     }
 
     internal static uint ParseRequiredNetwork(string value)
@@ -596,10 +623,18 @@ public static class LiveDeployCommand
 
     internal static IReadOnlyList<PostDeployCall> BuildPostDeployCalls(
         IReadOnlyDictionary<string, UInt160> h,
+        UInt160 gasHash,
+        UInt160 forcedInclusionFeeRecipient,
+        long forcedInclusionFee,
         UInt256 sp1ProgramVKey)
     {
         ArgumentNullException.ThrowIfNull(h);
         ArgumentNullException.ThrowIfNull(sp1ProgramVKey);
+        if (gasHash == UInt160.Zero) throw new ArgumentException("GAS hash must not be zero.", nameof(gasHash));
+        if (forcedInclusionFeeRecipient == UInt160.Zero)
+            throw new ArgumentException("Forced-inclusion fee recipient must not be zero.", nameof(forcedInclusionFeeRecipient));
+        if (forcedInclusionFee <= 0)
+            throw new ArgumentOutOfRangeException(nameof(forcedInclusionFee), "Forced-inclusion fee must be positive.");
 
         return
         [
@@ -615,6 +650,12 @@ public static class LiveDeployCommand
                 HashCheck("ForcedInclusion.GetSequencerBond", h["ForcedInclusion"], "getSequencerBond", h["SequencerBond"]), h["SequencerBond"]),
             CheckedCall("ForcedInclusion.SetCensorshipSlashAmount", h["ForcedInclusion"], "setCensorshipSlashAmount",
                 IntegerCheck("ForcedInclusion.GetCensorshipSlashAmount", h["ForcedInclusion"], "getCensorshipSlashAmount", 1_000_000), 1_000_000L),
+            CheckedCall("ForcedInclusion.SetGasToken", h["ForcedInclusion"], "setGasToken",
+                HashCheck("ForcedInclusion.GetGasToken", h["ForcedInclusion"], "getGasToken", gasHash), gasHash),
+            CheckedCall("ForcedInclusion.SetFeeRecipient", h["ForcedInclusion"], "setFeeRecipient",
+                HashCheck("ForcedInclusion.GetFeeRecipient", h["ForcedInclusion"], "getFeeRecipient", forcedInclusionFeeRecipient), forcedInclusionFeeRecipient),
+            CheckedCall("ForcedInclusion.SetFee", h["ForcedInclusion"], "setFee",
+                IntegerCheck("ForcedInclusion.GetFee", h["ForcedInclusion"], "getFee", forcedInclusionFee), forcedInclusionFee),
             CheckedCall("SharedBridge.SetEmergencyManager", h["SharedBridge"], "setEmergencyManager",
                 HashCheck("SharedBridge.GetEmergencyManager", h["SharedBridge"], "getEmergencyManager", h["EmergencyManager"]), h["EmergencyManager"]),
             CheckedCall("ChainRegistry.SetGovernanceController", h["ChainRegistry"], "setGovernanceController",
@@ -683,6 +724,8 @@ public static class LiveDeployCommand
         IReadOnlyDictionary<string, UInt160> h,
         UInt160 owner,
         UInt160 gasHash,
+        UInt160 forcedInclusionFeeRecipient,
+        long forcedInclusionFee,
         UInt256 sp1ProgramVKey,
         uint l2ChainId)
     {
@@ -702,6 +745,10 @@ public static class LiveDeployCommand
             HashCheck("ForcedInclusion.GetChainRegistry", h["ForcedInclusion"], "getChainRegistry", h["ChainRegistry"]),
             HashCheck("ForcedInclusion.GetSequencerBond", h["ForcedInclusion"], "getSequencerBond", h["SequencerBond"]),
             IntegerCheck("ForcedInclusion.GetCensorshipSlashAmount", h["ForcedInclusion"], "getCensorshipSlashAmount", 1_000_000),
+            HashCheck("ForcedInclusion.GetGasToken", h["ForcedInclusion"], "getGasToken", gasHash),
+            HashCheck("ForcedInclusion.GetFeeRecipient", h["ForcedInclusion"], "getFeeRecipient", forcedInclusionFeeRecipient),
+            IntegerCheck("ForcedInclusion.GetFee", h["ForcedInclusion"], "getFee", forcedInclusionFee),
+            BoolCheck("ForcedInclusion.IsProductionReady", h["ForcedInclusion"], "isProductionReady", true),
             HashCheck("SharedBridge.GetEmergencyManager", h["SharedBridge"], "getEmergencyManager", h["EmergencyManager"]),
             HashCheck("ChainRegistry.GetGovernanceController", h["ChainRegistry"], "getGovernanceController", h["GovernanceController"]),
             BoolCheck("ContractZkVerifier.IsVerificationKeyRegistered.Sp1", h["ContractZkVerifier"], "isVerificationKeyRegistered", true, ProofSystemSp1, sp1ProgramVKey),

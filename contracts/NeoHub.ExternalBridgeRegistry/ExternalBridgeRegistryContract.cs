@@ -33,7 +33,7 @@ namespace NeoHub.ExternalBridgeRegistry;
 /// <see cref="UpgradeVerifier"/> call through governance — no app rebuild.
 /// </remarks>
 [DisplayName("NeoHub.ExternalBridgeRegistry")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("Pluggable verifier dispatch table for cross-foreign-chain messages.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.ExternalBridgeRegistry")]

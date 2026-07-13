@@ -15,7 +15,7 @@ namespace NeoHub.EmergencyManager;
 /// which reuses the canonical withdrawal-root proof and transfers escrowed assets.
 /// </summary>
 [DisplayName("NeoHub.EmergencyManager")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("Emergency pause + escape hatch for Neo Elastic Network.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.EmergencyManager")]

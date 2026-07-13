@@ -32,7 +32,7 @@ namespace NeoHub.MpcCommitteeVerifier;
 /// client that doesn't trust a committee at all.</para>
 /// </remarks>
 [DisplayName("NeoHub.MpcCommitteeVerifier")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("M-of-N committee verifier for cross-foreign-chain messages.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.MpcCommitteeVerifier")]

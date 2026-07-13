@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — release artifact ownership metadata — 2026-07-14
+
+- Replaced incorrect Neo Project authorship with R3E Network across package metadata and all 25 NeoHub contract manifests, regenerated the 24 VM testing artifacts from fresh `nccs` output, and added a fresh-manifest regression gate for maintainer attribution.
+
 ### Stateful SP1 execution witness V1 — 2026-07-13
 
 - Reused the canonical `ProofWitnessArtifactV1` envelope for SP1 and added bounded `NEO4STW1` state/code/manifest witness plus `NEO4EFX1` effects sections.

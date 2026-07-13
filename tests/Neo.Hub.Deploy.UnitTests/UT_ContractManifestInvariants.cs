@@ -32,6 +32,51 @@ public class UT_ContractManifestInvariants
         methods.Any(m => ((JObject?)m)?["name"]?.AsString() == name);
 
     [TestMethod]
+    public void NeoHubContracts_UseR3EMaintainerAttribution()
+    {
+        var contracts = new[]
+        {
+            "NeoHub.ChainRegistry",
+            "NeoHub.ContractZkVerifier",
+            "NeoHub.DARegistry",
+            "NeoHub.DAValidator",
+            "NeoHub.EmergencyManager",
+            "NeoHub.ExternalBridgeBond",
+            "NeoHub.ExternalBridgeEscrow",
+            "NeoHub.ExternalBridgeRegistry",
+            "NeoHub.ExternalBridgeStubVerifier",
+            "NeoHub.ForcedInclusion",
+            "NeoHub.GovernanceController",
+            "NeoHub.GovernanceFraudVerifier",
+            "NeoHub.L1TxFilter",
+            "NeoHub.MessageRouter",
+            "NeoHub.MpcCommitteeFraudVerifier",
+            "NeoHub.MpcCommitteeVerifier",
+            "NeoHub.OptimisticChallenge",
+            "NeoHub.RestrictedExecutionFraudVerifier",
+            "NeoHub.SequencerBond",
+            "NeoHub.SequencerRegistry",
+            "NeoHub.SettlementManager",
+            "NeoHub.SharedBridge",
+            "NeoHub.Sp1Groth16Verifier",
+            "NeoHub.TokenRegistry",
+            "NeoHub.VerifierRegistry"
+        };
+
+        foreach (var contract in contracts)
+        {
+            var manifest = ManifestTestHelper.LoadFreshManifest(contract);
+            if (manifest is null) continue;
+
+            var extra = (JObject)manifest["extra"]!;
+            Assert.AreEqual(
+                "R3E Network",
+                extra["Author"]?.AsString(),
+                $"{contract} must identify its actual maintainer in release artifacts");
+        }
+    }
+
+    [TestMethod]
     public void OwnerManagedContracts_ExposeOwnershipTransfer()
     {
         var contracts = new[]

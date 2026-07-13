@@ -41,7 +41,7 @@ namespace NeoHub.GovernanceFraudVerifier;
 /// </para>
 /// </remarks>
 [DisplayName("NeoHub.GovernanceFraudVerifier")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("Structural fraud verifier for governance-arbitration optimistic rollups.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.GovernanceFraudVerifier")]

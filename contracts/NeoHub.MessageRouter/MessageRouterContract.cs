@@ -14,7 +14,7 @@ namespace NeoHub.MessageRouter;
 /// See doc.md §3.2 (MessageRouter) and §10 (Neo Connect).
 /// </summary>
 [DisplayName("NeoHub.MessageRouter")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("Cross-chain message queue + message-root registry for Neo Elastic Network.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.MessageRouter")]

@@ -19,7 +19,7 @@ namespace NeoHub.ExternalBridgeStubVerifier;
 /// and pays out. No security guarantees beyond "registered".
 /// </remarks>
 [DisplayName("NeoHub.ExternalBridgeStubVerifier")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("Phase-A stub verifier — always returns true. Devnet only.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.ExternalBridgeStubVerifier")]

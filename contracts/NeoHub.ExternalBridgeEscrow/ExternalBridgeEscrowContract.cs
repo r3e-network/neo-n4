@@ -39,7 +39,7 @@ namespace NeoHub.ExternalBridgeEscrow;
 /// transaction, so a failed transfer or adapter call reverts the entire receive.</para>
 /// </remarks>
 [DisplayName("NeoHub.ExternalBridgeEscrow")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("L1 escrow + dispatch for cross-foreign-chain messages.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.ExternalBridgeEscrow")]

@@ -13,7 +13,7 @@ namespace NeoHub.ChainRegistry;
 /// governance owner can mutate. See doc.md §3.2 (ChainRegistry).
 /// </summary>
 [DisplayName("NeoHub.ChainRegistry")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("L2 chain admission and per-chain config registry for Neo Elastic Network.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.ChainRegistry")]

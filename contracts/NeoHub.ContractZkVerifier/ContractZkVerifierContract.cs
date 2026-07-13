@@ -24,7 +24,7 @@ namespace NeoHub.ContractZkVerifier;
 /// <c>verifyZkProof(byte proofSystem, byte[] verificationKeyId, byte[] publicInputHash, byte[] proofBytes) : bool</c>.
 /// </remarks>
 [DisplayName("NeoHub.ContractZkVerifier")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("Deployable ProofType.Zk verifier router backed by ordinary verifier contracts.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.ContractZkVerifier")]

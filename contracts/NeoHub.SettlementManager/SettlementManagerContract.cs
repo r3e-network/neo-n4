@@ -13,7 +13,7 @@ namespace NeoHub.SettlementManager;
 /// records canonical state roots once batches are finalized. See doc.md §3.2 (SettlementManager).
 /// </summary>
 [DisplayName("NeoHub.SettlementManager")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("Batch settlement + canonical state root tracking for Neo Elastic Network.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.SettlementManager")]

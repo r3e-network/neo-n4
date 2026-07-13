@@ -14,7 +14,7 @@ namespace NeoHub.GovernanceController;
 /// (Governance) and §17 (verifier upgrade attack mitigations).
 /// </summary>
 [DisplayName("NeoHub.GovernanceController")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("Governance controller for the Neo Elastic Network: council, timelocks, admission policy.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.GovernanceController")]

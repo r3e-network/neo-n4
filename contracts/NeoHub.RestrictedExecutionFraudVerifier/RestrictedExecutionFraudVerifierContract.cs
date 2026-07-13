@@ -49,7 +49,7 @@ namespace NeoHub.RestrictedExecutionFraudVerifier;
 /// </para>
 /// </remarks>
 [DisplayName("NeoHub.RestrictedExecutionFraudVerifier")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("Versioned fraud verifier: governance-only structural v3 plus SettlementManager-bound executable v4 Counter transitions.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.RestrictedExecutionFraudVerifier")]

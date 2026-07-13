@@ -12,7 +12,7 @@ namespace NeoHub.VerifierRegistry;
 /// requests from <see cref="NeoHub.SettlementManager"/>. See doc.md §3.2 (VerifierRegistry).
 /// </summary>
 [DisplayName("NeoHub.VerifierRegistry")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("Pluggable proof verifier dispatch table for Neo Elastic Network.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.VerifierRegistry")]

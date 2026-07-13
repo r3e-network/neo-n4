@@ -14,7 +14,7 @@ namespace NeoHub.SequencerRegistry;
 /// effect. See doc.md §7.1 (sequencer / dBFT committee) and §16 (governance).
 /// </summary>
 [DisplayName("NeoHub.SequencerRegistry")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("Per-chain dBFT sequencer pubkey registry for Neo Elastic Network L2s.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.SequencerRegistry")]

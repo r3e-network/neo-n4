@@ -24,7 +24,7 @@ namespace NeoHub.ForcedInclusion;
 /// </para>
 /// </remarks>
 [DisplayName("NeoHub.ForcedInclusion")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("Forced-inclusion queue per L2 chain — anti-censorship primitive.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.ForcedInclusion")]

@@ -14,7 +14,7 @@ namespace NeoHub.SharedBridge;
 /// <c>withdrawalRoot</c> proofs. See doc.md §11.
 /// </summary>
 [DisplayName("NeoHub.SharedBridge")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("Canonical asset escrow + L1↔L2 transfer for Neo Elastic Network.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.SharedBridge")]

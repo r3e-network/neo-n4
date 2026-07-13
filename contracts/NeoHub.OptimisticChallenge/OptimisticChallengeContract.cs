@@ -23,7 +23,7 @@ namespace NeoHub.OptimisticChallenge;
 /// a fault rolls the whole transaction back atomically. See doc.md §15, §17, and §18 Phase 3.
 /// </remarks>
 [DisplayName("NeoHub.OptimisticChallenge")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("Versioned optimistic challenge window with profile-bound executable v4 fraud proofs.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.OptimisticChallenge")]

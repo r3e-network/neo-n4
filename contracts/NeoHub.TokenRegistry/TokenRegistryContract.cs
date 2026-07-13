@@ -12,7 +12,7 @@ namespace NeoHub.TokenRegistry;
 /// freshly deposited L1 asset should mint. See doc.md §11.2 (AssetMapping).
 /// </summary>
 [DisplayName("NeoHub.TokenRegistry")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("Canonical L1 ↔ L2 asset mapping registry for Neo Elastic Network.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.TokenRegistry")]

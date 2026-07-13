@@ -74,6 +74,9 @@ cargo test --release --locked -- --ignored --nocapture
 - 推送分支并要求扩展后的 GitHub Actions workflow 通过。
 - 对 release candidate 手动 dispatch workflow，并设置
   `run_real_sp1_proof=true`。
+- 要求 `SDK Conformance / Shared vectors (4 SDKs)` 通过，并以
+  `require_live=true` 手动触发 `SDK Conformance`；保留离线与真实环境 JSON
+  汇总，任何发现或执行零个真实环境测试的报告都必须拒绝。
 - 将 CI run URL、本地验证日志、合约工件、部署计划和 devnet/testnet
   演练证据附到发布审批。
 - 要求合约、prover、watcher/operator 和安全负责人签核。

@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — four-language SDK conformance — 2026-07-14
+
+- Added one canonical JSON vector set consumed by the .NET, Rust, TypeScript, and Python SDKs,
+  covering all L2 RPC shapes, lossless `u64` encoding, UInt256 endianness, error mapping,
+  pagination serialization, and a real signed Neo N3 transaction round-trip.
+- Added a fail-closed CI runner with machine-readable per-language discovery/execution counts and
+  live N3/N4 tests that explicitly skip without endpoint configuration but are mandatory on
+  scheduled, tagged, and opt-in release lanes.
+- Fixed definite conformance defects exposed by the suite: .NET and Rust now serialize every
+  `u64` request as a decimal string, all clients reject non-2.0 response envelopes, and the Rust
+  SDK includes a production HTTPS trust-store path.
+
 ### Fixed — P1-1 RPC / SDK ABI alignment — 2026-07-14
 
 - Reconciled `doc.md` §14.1, the official N4 RpcServer registration adapter,

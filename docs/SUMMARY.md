@@ -36,6 +36,7 @@
 - [Rust supply-chain policy](./rust-supply-chain-policy.md)
 - [Release readiness checklist](./release-readiness-checklist.md)
 - [Wallet integration](./wallet-integration.md)
+- [Four-language SDK conformance](./sdk-conformance.md)
 
 # Architecture
 

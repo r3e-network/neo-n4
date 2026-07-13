@@ -78,6 +78,9 @@ Run this on a real Neo N4 devnet/testnet node set before production:
 - Push the branch and require the expanded GitHub Actions workflow to pass.
 - For release candidates, manually dispatch the workflow with
   `run_real_sp1_proof=true`.
+- Require `SDK Conformance / Shared vectors (4 SDKs)` and dispatch
+  `SDK Conformance` with `require_live=true`; retain the offline and live JSON
+  summaries and reject any report with zero discovered or executed live tests.
 - Attach CI run URLs, local verification logs, contract artifacts, deployment
   plan, and devnet/testnet rehearsal evidence to the release approval.
 - Require sign-off from contract, prover, watcher/operator, and security owners.

@@ -18,8 +18,7 @@
 | Foundry | Solidity 不变量 + 多链 | `external/foreign-contracts/eth/test/`(21 测试) | EVM-family Solidity router —— 14 个单链 + 7 个多链,固定 17 个主网槽的每实例状态隔离 |
 | 真实 CPU SP1 prover | Rust `#[ignore]` | `bridge/neo-zkvm-host/tests/end_to_end.rs`(2 测试) | 真实 ZK 证明生成(~40s prove,~20s verify,2.78 MB 证明)+ 篡改哈希拒绝负向测试 |
 | Live-RPC | Rust `--features live-rpc` | `watchers/neo-bridge-watcher-eth/tests/`(55 测试) | 进程内 `FakeRpcServer` —— 通过真实 `reqwest::blocking` HTTP 周期演练 `EthRpcEventSource`+`NeoRpcSubmitter` |
-| TS SDK | vitest | `sdk/typescript/`(15 测试) | RPC client 表面;.NET / Rust / TS 错误分类对等 |
-| Rust SDK | cargo test + mockito | `sdk/rust/`(10 测试) | RPC client;与 TS + .NET 表面相同 |
+| 四语言 SDK 一致性 | MSTest + cargo test + Vitest + unittest | `sdk/conformance/`、四套 SDK 测试目录、`scripts/ci/run_sdk_conformance.py` | 一份规范向量覆盖 RPC 形态、u64 序列化、哈希字节序、错误、分页信封与已签名 Neo N3 交易往返；真实 N3/N4 执行按需启用并输出机器可读计数 |
 | execution-core | cargo test | `bridge/neo-execution-core/`(5 测试) | 后端无关的批次解析、receipt/state 折叠、Merkle 确定性、后端依赖守卫 |
 | zkvm-guest | cargo test | `bridge/neo-zkvm-guest/`(7 测试) | 通过共享 batch core 在主机模式执行 Neo N3 VM |
 

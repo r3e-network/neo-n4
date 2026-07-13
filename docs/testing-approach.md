@@ -19,8 +19,7 @@ where each piece of the system lives.
 | Foundry | Solidity invariant + multi-chain | `external/foreign-contracts/eth/test/` (39 tests) | EVM-family Solidity router — 32 single-chain + 7 multi-chain pinning per-instance state isolation across 17 mainnet slots |
 | Real-CPU SP1 prover | Rust `#[ignore]`-gated | `bridge/neo-zkvm-host/tests/end_to_end.rs` (2 tests) | Real ZK proof generation (~40s prove, ~20s verify, 2.78 MB proof) + tampered-hash-rejection negative test |
 | Live-RPC | Rust `--features live-rpc` | `watchers/neo-bridge-watcher-eth/tests/` (55 tests) | `FakeRpcServer` in-process — exercises `EthRpcEventSource`+`NeoRpcSubmitter` through real `reqwest::blocking` HTTP cycles |
-| TS SDK | vitest | `sdk/typescript/` (16 tests) | RPC client surface; error-taxonomy parity across .NET / Rust / TS |
-| Rust SDK | cargo test + mockito | `sdk/rust/` (10 tests) | RPC client; same surface as TS + .NET |
+| Four-language SDK conformance | MSTest + cargo test + Vitest + unittest | `sdk/conformance/`, four SDK test directories, `scripts/ci/run_sdk_conformance.py` | One canonical vector set for RPC shape, u64 serialization, hash endianness, errors, pagination envelopes, and signed Neo N3 transaction round-trip; opt-in live N3/N4 execution with machine-readable counts |
 | execution-core | cargo test | `bridge/neo-execution-core/` (5 tests) | Backend-neutral batch parsing, receipt/state folding, Merkle determinism, backend-dependency guard |
 | zkvm-guest | cargo test | `bridge/neo-zkvm-guest/` (7 tests) | Host-mode execution of the Neo N3 VM through the shared batch core |
 

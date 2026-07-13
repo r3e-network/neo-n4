@@ -171,9 +171,10 @@ hex; the framework never holds private keys.
   L2 validator set.
 - **Block explorer / bridge UI / faucet UI**: web variants ship in
   `sdk/web-explorer/index.html` (single static-file app with inlined JS SDK).
-- **Typed SDKs**: ship in three languages — `src/Neo.L2.Sdk/` (.NET),
-  `sdk/typescript/` (TS), `sdk/rust/` (Rust). All same wire shape, same
-  4-class error taxonomy.
+- **Typed SDKs**: ship in four languages — `src/Neo.L2.Sdk/` (.NET),
+  `sdk/typescript/` (TS), `sdk/rust/` (Rust), and `sdk/python/` (Python).
+  All consume one canonical conformance vector set, expose the same wire shape
+  and 4-class error taxonomy, and have opt-in live N3/N4 node tests.
 - **Faucet CLI**: `tools/Neo.L2.Faucet.Cli/` (`neo-l2-faucet`) — production
   drip with rate limiting + RocksDB-persisted journal.
 
@@ -267,7 +268,7 @@ External-bridge stack (doc.md §11.3 — cross-foreign-chain to Eth/Tron/Sol):
 ### Tests
 
 **The solution currently contains 37 .NET test projects, plus cross-language
-gates for TypeScript, Rust SDK/core/watchers/zkVM, Python, Node, Solidity,
+gates for the shared four-language SDK conformance suite, Rust core/watchers/zkVM, Node, Solidity,
 Solana, vendored VM workspaces, and SP1 release proofs. The exact test count is
 reported by each runner rather than copied into documentation.** Phase-C
 real-crypto fraud-proof tests pin the

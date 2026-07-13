@@ -109,7 +109,8 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
 - **App SDKs (4)** — `src/Neo.L2.Sdk/` (.NET) · `sdk/typescript/`
   (`@neo-n4/sdk`) · `sdk/rust/` (`neo-n4-sdk`) · `sdk/python/`
   (`neo-n4-sdk`) — all 10 RPC methods,
-  same wire shape, same 4-class error taxonomy.
+  same wire shape, same 4-class error taxonomy, and one shared offline/live
+  conformance suite documented in [`sdk-conformance.md`](./sdk-conformance.md).
 - **Web app (1)** — `sdk/web-explorer/index.html` — single static-file
   UI: Explore + Bridge + Faucet + state-root continuity Audit.
 - **Docs site config (1)** — `book.toml` + `docs/SUMMARY.md` (mdBook).

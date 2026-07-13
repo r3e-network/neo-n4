@@ -35,6 +35,8 @@
 - [安全模型](./security-model.md)
 - [Rust 供应链策略](./rust-supply-chain-policy.md)
 - [发布就绪检查清单](./release-readiness-checklist.md)
+- [钱包集成](./wallet-integration.md)
+- [四语言 SDK 一致性](./sdk-conformance.md)
 
 # 架构
 

@@ -122,11 +122,21 @@
       constructor(method, expected, got) { super(method, `server returned chainId ${got}, expected ${expected}`); this.expected = expected; this.got = got; }
     }
 
+    function u64Wire(value, field) {
+      if (typeof value === "number" && (!Number.isSafeInteger(value) || value < 0))
+        throw new RangeError(`${field} must be a non-negative safe integer or bigint`);
+      const text = String(value);
+      if (!/^(0|[1-9][0-9]*)$/.test(text) || BigInt(text) > 0xffff_ffff_ffff_ffffn)
+        throw new RangeError(`${field} must fit u64`);
+      return text;
+    }
+
     class L2RpcClient {
       constructor(endpoint, chainId) {
         const u = new URL(endpoint);
         if (!["http:", "https:"].includes(u.protocol)) throw new Error(`endpoint scheme ${u.protocol} must be http(s)`);
-        if (chainId === 0) throw new Error("chainId 0 is reserved for L1");
+        if (!Number.isInteger(chainId) || chainId <= 0 || chainId > 0xffff_ffff)
+          throw new Error("chainId must be a non-zero u32");
         this.endpoint = u.toString();
         this.chainId = chainId;
         this.nextId = 0;
@@ -143,23 +153,39 @@
         } catch (e) { throw new L2RpcTransportError(method, e.message); }
         if (!response.ok) throw new L2RpcTransportError(method, `http ${response.status}`);
         const env = await response.json().catch(e => { throw new L2RpcProtocolError(method, e.message); });
-        if (env.id !== id) throw new L2RpcProtocolError(method, `response id ${env.id} ≠ request id ${id}`);
+        if (env?.jsonrpc !== "2.0") throw new L2RpcProtocolError(method, "response jsonrpc must be '2.0'");
+        if (!Number.isSafeInteger(env.id) || env.id !== id)
+          throw new L2RpcProtocolError(method, `response id ${env.id} ≠ request id ${id}`);
         if (env.error) throw new L2RpcServerError(method, env.error.code ?? -32603, env.error.message ?? "rpc error");
         return env.result ?? null;
       }
       assertChainId(obj, method) {
-        if (obj?.chainId !== undefined && Number(obj.chainId) !== this.chainId)
-          throw new L2RpcMismatchedChainIdError(method, this.chainId, Number(obj.chainId));
+        if (!Number.isInteger(obj?.chainId) || obj.chainId !== this.chainId)
+          throw new L2RpcMismatchedChainIdError(method, this.chainId, obj?.chainId);
       }
       async getBatch(batchNumber) {
-        const r = await this.call("getl2batch", [this.chainId, Number(batchNumber)]);
+        const requestedBatch = u64Wire(batchNumber, "batchNumber");
+        const r = await this.call("getl2batch", [this.chainId, requestedBatch]);
         if (r === null) return null;
         this.assertChainId(r, "getl2batch");
+        if (r.batchNumber !== requestedBatch)
+          throw new L2RpcProtocolError("getl2batch", `response batchNumber ${r.batchNumber} ≠ request ${requestedBatch}`);
         return r;
       }
       async getLatestStateRoot() { return this.call("getl2stateroot", [this.chainId]); }
-      async getStateRootAt(batch) { return this.call("getl2stateroot", [this.chainId, Number(batch)]); }
-      async getDepositStatus(srcChain, nonce) { return this.call("getl1depositstatus", [Number(srcChain), Number(nonce)]); }
+      async getStateRootAt(batch) { return this.call("getl2stateroot", [this.chainId, u64Wire(batch, "batchNumber")]); }
+      async getDepositStatus(srcChain, nonce) {
+        if (!Number.isInteger(srcChain) || srcChain < 0 || srcChain > 0xffff_ffff)
+          throw new RangeError("sourceChainId must fit u32");
+        const requestedNonce = u64Wire(nonce, "nonce");
+        const r = await this.call("getl1depositstatus", [srcChain, requestedNonce]);
+        if (r === null) return null;
+        if (r.sourceChainId !== srcChain)
+          throw new L2RpcMismatchedChainIdError("getl1depositstatus", srcChain, r.sourceChainId);
+        if (r.nonce !== requestedNonce)
+          throw new L2RpcProtocolError("getl1depositstatus", `response nonce ${r.nonce} ≠ request ${requestedNonce}`);
+        return r;
+      }
       async getSecurityLabel() {
         const r = await this.call("getsecuritylabel", [this.chainId]);
         this.assertChainId(r, "getsecuritylabel");

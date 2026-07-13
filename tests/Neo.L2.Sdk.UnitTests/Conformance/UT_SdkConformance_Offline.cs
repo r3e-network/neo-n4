@@ -241,7 +241,10 @@ public sealed class UT_SdkConformance_Offline
             "invalid-withdrawal-proof-hex" => async () => await client.GetWithdrawalProofAsync(
                 UInt256.Parse("0x" + new string('4', 64))),
             "wrong-state-root-type" => async () => await client.GetLatestStateRootAsync(),
-            "unsafe-numeric-u64" => async () => await client.GetDepositStatusAsync(1, 9_007_199_254_740_992UL),
+            "numeric-u64" => async () => await client.GetDepositStatusAsync(1, 42),
+            "mismatched-batch-number" => async () => await client.GetBatchStatusAsync(7),
+            "mismatched-deposit-source-chain" => async () => await client.GetDepositStatusAsync(1, 42),
+            "mismatched-deposit-nonce" => async () => await client.GetDepositStatusAsync(1, 42),
             _ => throw new AssertFailedException($"unknown response-error conformance case {name}"),
         };
 
@@ -273,10 +276,13 @@ public sealed class UT_SdkConformance_Offline
     private static string ErrorResponse(JsonElement request, JsonElement errorCase)
     {
         var id = request.GetProperty("id").GetInt64() + (errorCase.TryGetProperty("idOffset", out var offset) ? offset.GetInt64() : 0);
+        object responseId = errorCase.TryGetProperty("idAsString", out var idAsString) && idAsString.GetBoolean()
+            ? id.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            : id;
         var jsonrpc = errorCase.GetProperty("jsonrpc").GetString();
         if (errorCase.TryGetProperty("error", out var error))
-            return JsonSerializer.Serialize(new { jsonrpc, id, error });
-        return JsonSerializer.Serialize(new { jsonrpc, id, result = errorCase.GetProperty("result") });
+            return JsonSerializer.Serialize(new { jsonrpc, id = responseId, error });
+        return JsonSerializer.Serialize(new { jsonrpc, id = responseId, result = errorCase.GetProperty("result") });
     }
 
     private sealed class CapturingHandler : HttpMessageHandler

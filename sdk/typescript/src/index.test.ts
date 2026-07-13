@@ -136,7 +136,7 @@ describe("L2RpcClient", () => {
         chainId: CHAIN_ID,
         fetch: stubFetch(() => ({
           sourceChainId: 1,
-          nonce: 42,
+          nonce: "42",
           consumedOnL2: false,
           includedInBatch: null,
         })),

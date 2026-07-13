@@ -9,6 +9,7 @@ The vectors pin:
 - all ten public L2 RPC methods plus the historical state-root overload;
 - JSON string encoding for every `u64`, including `u64::MAX`;
 - strict JSON-RPC 2.0 envelopes and the common error taxonomy;
+- numeric response-id echo plus chain and request-identity binding;
 - Neo `UInt256` little-endian bytes versus reversed RPC display text;
 - lossless cursor/page serialization above JavaScript's safe-integer limit;
 - a complete Neo N3 P-256 single-signature transaction, including unsigned
@@ -61,11 +62,12 @@ non-zero failure. Scheduled runs, version tags, and manual dispatches in
 `.github/workflows/sdk-conformance.yml` always use required-live mode and
 materialize `NEO_SDK_LIVE_FIXTURE_JSON` from repository secrets.
 
-## Specification alignment blocker
+## Specification alignment
 
-The vectors pin the RPC shape currently implemented by `Neo.Plugins.L2Rpc`.
-The authoritative `doc.md` §14.1 text still lists different parameters for
-withdrawal proofs, message proofs, deposit status, and bridged-asset lookup,
-and it omits `getsecuritylabel`. Resolving that conflict requires a separate
-protocol ABI decision and coordinated server/spec migration; this SDK-only
-gate does not claim the conflict is closed.
+The vectors now pin the canonical `doc.md` §14.1 surface: optional historical
+state-root selection, chain-bound proof queries, `(sourceChainId, nonce)` deposit
+identity, chain-bound bridged-asset lookup, and the §16.2 `getsecuritylabel`
+method. All four SDKs send the same parameters, require decimal-string `u64`
+fields, and fail closed on JSON-RPC version/id, chain-id, batch-number, and
+deposit-identity mismatches. See
+[`docs/audit/p1-1-rpc-sdk-abi.md`](../../docs/audit/p1-1-rpc-sdk-abi.md).

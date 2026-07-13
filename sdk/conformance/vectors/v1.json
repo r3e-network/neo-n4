@@ -87,7 +87,7 @@
       {
         "name": "bridged-asset",
         "method": "getbridgedasset",
-        "params": ["0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+        "params": ["0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", 1099],
         "result": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       },
       {
@@ -137,6 +137,13 @@
         "jsonrpc": "1.0",
         "result": "0x2222222222222222222222222222222222222222222222222222222222222222",
         "expected": "protocol"
+      },
+      {
+        "name": "stringified-id",
+        "jsonrpc": "2.0",
+        "idAsString": true,
+        "result": "0x2222222222222222222222222222222222222222222222222222222222222222",
+        "expected": "protocol"
       }
     ],
     "responseErrors": [
@@ -170,11 +177,44 @@
         "expected": "protocol"
       },
       {
-        "name": "unsafe-numeric-u64",
+        "name": "numeric-u64",
         "method": "getl1depositstatus",
         "result": {
           "sourceChainId": 1,
-          "nonce": 9007199254740992,
+          "nonce": 42,
+          "consumedOnL2": true,
+          "includedInBatch": null
+        },
+        "expected": "protocol"
+      },
+      {
+        "name": "mismatched-batch-number",
+        "method": "getl2batchstatus",
+        "result": {
+          "chainId": 1099,
+          "batchNumber": "8",
+          "status": 3,
+          "statusName": "Finalized"
+        },
+        "expected": "protocol"
+      },
+      {
+        "name": "mismatched-deposit-source-chain",
+        "method": "getl1depositstatus",
+        "result": {
+          "sourceChainId": 2,
+          "nonce": "42",
+          "consumedOnL2": true,
+          "includedInBatch": null
+        },
+        "expected": "chain"
+      },
+      {
+        "name": "mismatched-deposit-nonce",
+        "method": "getl1depositstatus",
+        "result": {
+          "sourceChainId": 1,
+          "nonce": "43",
           "consumedOnL2": true,
           "includedInBatch": null
         },

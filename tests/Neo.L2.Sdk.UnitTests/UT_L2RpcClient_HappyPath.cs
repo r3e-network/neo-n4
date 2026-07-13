@@ -135,6 +135,8 @@ public class UT_L2RpcClient_HappyPath
 
         Assert.AreEqual(expected, got);
         Assert.AreEqual("getbridgedasset", stub.Captured[0].Method);
+        Assert.AreEqual(2, stub.Captured[0].Params.Count);
+        Assert.AreEqual((double)TestChainId, stub.Captured[0].Params[1]!.AsNumber());
     }
 
     [TestMethod]
@@ -197,7 +199,7 @@ public class UT_L2RpcClient_HappyPath
         {
             var obj = new JObject();
             obj["chainId"] = TestChainId;
-            obj["batchNumber"] = 7;
+            obj["batchNumber"] = "7";
             obj["status"] = (byte)BatchStatus.Finalized;
             obj["statusName"] = BatchStatus.Finalized.ToString();
             return obj;
@@ -219,7 +221,7 @@ public class UT_L2RpcClient_HappyPath
         {
             var obj = new JObject();
             obj["sourceChainId"] = 1u;
-            obj["nonce"] = 42UL;
+            obj["nonce"] = "42";
             obj["consumedOnL2"] = false;
             obj["includedInBatch"] = JToken.Null;
             return obj;

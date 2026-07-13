@@ -69,9 +69,12 @@ def assert_base_node(test: unittest.TestCase, endpoint: str, expected: dict[str,
 
 
 def read_u64(value: Any) -> int:
-    if isinstance(value, bool) or not isinstance(value, (int, str)):
-        raise AssertionError("fixture u64 must be a number or decimal string")
-    return int(value)
+    if not isinstance(value, str) or not re.fullmatch(r"0|[1-9][0-9]*", value):
+        raise AssertionError("fixture u64 must be a canonical decimal string")
+    parsed = int(value)
+    if parsed > (1 << 64) - 1:
+        raise AssertionError("fixture u64 exceeds u64 range")
+    return parsed
 
 
 def assert_typed_case(test: unittest.TestCase, client: L2RpcClient, test_case: dict[str, Any]) -> None:

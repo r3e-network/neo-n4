@@ -65,7 +65,11 @@ class SharedSdkConformanceTests(unittest.TestCase):
                 def respond(request, case=error_case):
                     response: dict[str, Any] = {
                         "jsonrpc": case["jsonrpc"],
-                        "id": request["id"] + case.get("idOffset", 0),
+                        "id": (
+                            str(request["id"] + case.get("idOffset", 0))
+                            if case.get("idAsString", False)
+                            else request["id"] + case.get("idOffset", 0)
+                        ),
                     }
                     if "error" in case:
                         response["error"] = case["error"]
@@ -209,8 +213,14 @@ class SharedSdkConformanceTests(unittest.TestCase):
             client.get_withdrawal_proof(f"0x{'4' * 64}")
         elif name == "wrong-state-root-type":
             client.get_latest_state_root()
-        elif name == "unsafe-numeric-u64":
-            client.get_deposit_status(1, 9_007_199_254_740_992)
+        elif name in {
+            "numeric-u64",
+            "mismatched-deposit-source-chain",
+            "mismatched-deposit-nonce",
+        }:
+            client.get_deposit_status(1, 42)
+        elif name == "mismatched-batch-number":
+            client.get_batch_status(7)
         else:
             self.fail(f"unknown response-error conformance case {name}")
 

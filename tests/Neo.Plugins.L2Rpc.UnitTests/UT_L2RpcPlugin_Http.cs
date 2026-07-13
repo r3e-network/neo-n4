@@ -21,9 +21,10 @@ public sealed class UT_L2RpcPlugin_Http
 {
     private const uint Network = 0x4E34_5250;
     private const uint ChainId = 1001;
+    private const ulong LargeBatch = 9_007_199_254_740_993UL;
 
     [TestMethod]
-    public async Task PluginLifecycle_RealHttp_ExposesAllTenMethodsAndFailsClosed()
+    public async Task PluginLifecycle_RealHttp_ExposesCanonicalAbiAndFailsClosed()
     {
         RuntimeHelpers.RunClassConstructor(typeof(NeoSystem).TypeHandle);
         DisposeAndClearAutoLoadedPlugins();
@@ -51,7 +52,7 @@ public sealed class UT_L2RpcPlugin_Http
 
             plugin.Load(system);
 
-            await AssertAllTenMethodsAsync(client);
+            await AssertCanonicalMethodsAsync(client);
             await AssertErrorBoundariesAsync(client);
 
             using var replacement = new InMemoryL2RpcStore(2002, SecurityLevel.Sidechain);
@@ -114,20 +115,20 @@ public sealed class UT_L2RpcPlugin_Http
             Exit = ExitModel.Permissionless,
         };
 
-        var first = SampleBatch(1);
-        var latest = SampleBatch(2) with
+        var first = SampleBatch(LargeBatch);
+        var latest = SampleBatch(LargeBatch + 1) with
         {
             PostStateRoot = UInt256.Parse("0x" + new string('a', 64)),
         };
         store.AddBatch(first, BatchStatus.Challengeable);
         store.AddBatch(latest, BatchStatus.Pending);
-        store.Finalize(2);
+        store.Finalize(LargeBatch + 1);
 
         var withdrawal = UInt256.Parse("0x" + new string('b', 64));
         var message = UInt256.Parse("0x" + new string('c', 64));
         store.RecordWithdrawalProof(withdrawal, [0xDE, 0xAD]);
         store.RecordMessageProof(message, [0xBE, 0xEF]);
-        store.RecordDeposit(new DepositStatus(77, 9, true, 2));
+        store.RecordDeposit(new DepositStatus(77, ulong.MaxValue, true, LargeBatch));
 
         var l1Asset = UInt160.Parse("0x" + new string('1', 40));
         var l2Asset = UInt160.Parse("0x" + new string('2', 40));
@@ -135,16 +136,25 @@ public sealed class UT_L2RpcPlugin_Http
         return store;
     }
 
-    private static async Task AssertAllTenMethodsAsync(HttpClient client)
+    private static async Task AssertCanonicalMethodsAsync(HttpClient client)
     {
-        var batch = await CallAsync(client, "getl2batch", [ChainId, 1UL]);
-        Assert.AreEqual(1UL, (ulong)batch["result"]!["batchNumber"]!.AsNumber());
+        var batch = await CallAsync(client, "getl2batch", [ChainId, LargeBatch.ToString()], id: 17);
+        Assert.AreEqual(LargeBatch.ToString(), batch["result"]!["batchNumber"]!.AsString());
+        Assert.AreEqual(LargeBatch.ToString(), batch["result"]!["firstBlock"]!.AsString());
+        Assert.AreEqual((LargeBatch + 1).ToString(), batch["result"]!["lastBlock"]!.AsString());
 
-        var status = await CallAsync(client, "getl2batchstatus", [ChainId, 1UL]);
+        var status = await CallAsync(client, "getl2batchstatus", [ChainId, LargeBatch.ToString()]);
+        Assert.AreEqual(LargeBatch.ToString(), status["result"]!["batchNumber"]!.AsString());
         Assert.AreEqual("Challengeable", status["result"]!["statusName"]!.AsString());
 
         var stateRoot = await CallAsync(client, "getl2stateroot", [ChainId]);
         Assert.AreEqual("0x" + new string('a', 64), stateRoot["result"]!.AsString());
+
+        var historicalStateRoot = await CallAsync(
+            client,
+            "getl2stateroot",
+            [ChainId, LargeBatch.ToString()]);
+        Assert.AreEqual("0x" + new string('2', 64), historicalStateRoot["result"]!.AsString());
 
         var withdrawal = await CallAsync(client, "getl2withdrawalproof",
             [ChainId, "0x" + new string('b', 64)]);
@@ -154,13 +164,15 @@ public sealed class UT_L2RpcPlugin_Http
             [ChainId, "0x" + new string('c', 64)]);
         Assert.AreEqual("BEEF", message["result"]!.AsString());
 
-        var deposit = await CallAsync(client, "getl1depositstatus", [77U, 9UL]);
+        var deposit = await CallAsync(client, "getl1depositstatus", [77U, ulong.MaxValue.ToString()]);
+        Assert.AreEqual(ulong.MaxValue.ToString(), deposit["result"]!["nonce"]!.AsString());
+        Assert.AreEqual(LargeBatch.ToString(), deposit["result"]!["includedInBatch"]!.AsString());
         Assert.IsTrue(deposit["result"]!["consumedOnL2"]!.AsBoolean());
 
         var canonical = await CallAsync(client, "getcanonicalasset", ["0x" + new string('2', 40)]);
         Assert.AreEqual("0x" + new string('1', 40), canonical["result"]!.AsString());
 
-        var bridged = await CallAsync(client, "getbridgedasset", ["0x" + new string('1', 40)]);
+        var bridged = await CallAsync(client, "getbridgedasset", ["0x" + new string('1', 40), ChainId]);
         Assert.AreEqual("0x" + new string('2', 40), bridged["result"]!.AsString());
 
         var level = await CallAsync(client, "getsecuritylevel", [ChainId]);
@@ -173,12 +185,21 @@ public sealed class UT_L2RpcPlugin_Http
 
     private static async Task AssertErrorBoundariesAsync(HttpClient client)
     {
-        var nullBatch = await CallAsync(client, "getl2batch", [ChainId, 999UL]);
+        var nullBatch = await CallAsync(client, "getl2batch", [ChainId, "999"]);
         Assert.IsNull(nullBatch["error"]);
         Assert.AreEqual(JToken.Null, nullBatch["result"]);
 
-        var chainMismatch = await CallAsync(client, "getl2batchstatus", [9999U, 1UL]);
+        var chainMismatch = await CallAsync(client, "getl2batchstatus", [9999U, "1"]);
         Assert.IsNotNull(chainMismatch["error"]);
+
+        var bridgedChainMismatch = await CallAsync(
+            client,
+            "getbridgedasset",
+            ["0x" + new string('1', 40), 9999U]);
+        Assert.IsNotNull(bridgedChainMismatch["error"]);
+
+        var numericU64 = await CallAsync(client, "getl2batch", [ChainId, 1UL]);
+        Assert.IsNotNull(numericU64["error"]);
 
         var missing = await CallAsync(client, "getl2batch", [ChainId]);
         Assert.IsNotNull(missing["error"]);
@@ -187,20 +208,28 @@ public sealed class UT_L2RpcPlugin_Http
         Assert.IsNotNull(invalidHash["error"]);
     }
 
-    private static async Task<JObject> CallAsync(HttpClient client, string method, object?[] parameters)
+    private static async Task<JObject> CallAsync(
+        HttpClient client,
+        string method,
+        object?[] parameters,
+        long id = 1)
     {
         var body = JsonSerializer.Serialize(new
         {
             jsonrpc = "2.0",
-            id = 1,
+            id,
             method,
             @params = parameters,
         });
         using var response = await client.PostAsync("", new StringContent(body, Encoding.UTF8, "application/json"));
         response.EnsureSuccessStatusCode();
         var json = await response.Content.ReadAsStringAsync();
-        return JToken.Parse(json) as JObject
+        var parsed = JToken.Parse(json) as JObject
             ?? throw new InvalidDataException($"RPC response was not a JSON object: {json}");
+        Assert.AreEqual("2.0", parsed["jsonrpc"]?.AsString());
+        Assert.IsInstanceOfType<JNumber>(parsed["id"]);
+        Assert.AreEqual(id, (long)parsed["id"]!.AsNumber());
+        return parsed;
     }
 
     private static void AssertRpcError(JObject response, int expectedCode)
@@ -279,8 +308,8 @@ public sealed class UT_L2RpcPlugin_Http
     {
         ChainId = ChainId,
         BatchNumber = batchNumber,
-        FirstBlock = 100,
-        LastBlock = 200,
+        FirstBlock = LargeBatch,
+        LastBlock = LargeBatch + 1,
         PreStateRoot = UInt256.Parse("0x" + new string('1', 64)),
         PostStateRoot = UInt256.Parse("0x" + new string('2', 64)),
         TxRoot = UInt256.Parse("0x" + new string('3', 64)),

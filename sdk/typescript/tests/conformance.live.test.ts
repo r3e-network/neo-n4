@@ -75,9 +75,11 @@ async function assertBaseNode(endpoint: string, expected: Record<string, any>): 
 }
 
 function readU64(value: unknown): bigint {
-  if (typeof value !== "string" && typeof value !== "number")
-    throw new Error("fixture u64 must be a number or decimal string");
-  return BigInt(value);
+  if (typeof value !== "string" || !/^(0|[1-9][0-9]*)$/.test(value))
+    throw new Error("fixture u64 must be a canonical decimal string");
+  const parsed = BigInt(value);
+  if (parsed > 0xffff_ffff_ffff_ffffn) throw new Error("fixture u64 exceeds u64 range");
+  return parsed;
 }
 
 async function assertTypedCase(client: L2RpcClient, testCase: Record<string, any>): Promise<void> {
@@ -90,8 +92,8 @@ async function assertTypedCase(client: L2RpcClient, testCase: Record<string, any
       expect({
         chainId: batch!.chainId,
         batchNumber: batch!.batchNumber.toString(),
-        firstBlock: Number(batch!.firstBlock),
-        lastBlock: Number(batch!.lastBlock),
+        firstBlock: batch!.firstBlock.toString(),
+        lastBlock: batch!.lastBlock.toString(),
         preStateRoot: batch!.preStateRoot,
         postStateRoot: batch!.postStateRoot,
         txRoot: batch!.txRoot,

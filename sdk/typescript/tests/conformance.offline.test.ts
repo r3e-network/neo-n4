@@ -21,6 +21,7 @@ interface ErrorCase {
   name: string;
   jsonrpc: string;
   idOffset?: number;
+  idAsString?: boolean;
   result?: unknown;
   error?: { code: number; message: string };
   expected: "server" | "protocol";
@@ -103,8 +104,12 @@ async function invokeResponseErrorCase(client: L2RpcClient, name: string): Promi
       return client.getWithdrawalProof(`0x${"4".repeat(64)}`);
     case "wrong-state-root-type":
       return client.getLatestStateRoot();
-    case "unsafe-numeric-u64":
-      return client.getDepositStatus(1, 9007199254740992n);
+    case "numeric-u64":
+    case "mismatched-deposit-source-chain":
+    case "mismatched-deposit-nonce":
+      return client.getDepositStatus(1, 42n);
+    case "mismatched-batch-number":
+      return client.getBatchStatus(7n);
     default:
       throw new Error(`unknown response-error conformance case ${name}`);
   }
@@ -141,7 +146,8 @@ describe("shared SDK conformance vectors", () => {
         chainId: vectors.rpc.chainId,
         fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
           const request = JSON.parse(init!.body as string) as {id: number};
-          const id = request.id + (errorCase.idOffset ?? 0);
+          const numericId = request.id + (errorCase.idOffset ?? 0);
+          const id = errorCase.idAsString ? String(numericId) : numericId;
           return response(errorCase.error
             ? {jsonrpc: errorCase.jsonrpc, id, error: errorCase.error}
             : {jsonrpc: errorCase.jsonrpc, id, result: errorCase.result});

@@ -236,10 +236,14 @@ async fn assert_typed_case(client: &L2RpcClient, test_case: &Value) {
 }
 
 fn read_u64(value: &Value) -> u64 {
-    value
-        .as_u64()
-        .or_else(|| value.as_str().and_then(|text| text.parse().ok()))
-        .expect("fixture u64 must be a number or decimal string")
+    let text = value
+        .as_str()
+        .expect("fixture u64 must be a canonical decimal string");
+    assert!(
+        text == "0" || (!text.starts_with('0') && text.bytes().all(|byte| byte.is_ascii_digit())),
+        "fixture u64 must be a canonical decimal string"
+    );
+    text.parse().expect("fixture u64 exceeds u64 range")
 }
 
 fn is_hash(value: &str) -> bool {

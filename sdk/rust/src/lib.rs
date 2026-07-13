@@ -431,7 +431,10 @@ impl L2RpcClient {
 
     pub async fn get_bridged_asset(&self, l1_asset: &str) -> Result<Option<String>> {
         let value = self
-            .call("getbridgedasset", serde_json::json!([l1_asset]))
+            .call(
+                "getbridgedasset",
+                serde_json::json!([l1_asset, self.chain_id]),
+            )
             .await?;
         if value.is_null() {
             return Ok(None);

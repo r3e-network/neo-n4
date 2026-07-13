@@ -140,10 +140,19 @@ async fn error_vectors_server_id_and_version_map_to_canonical_taxonomy() {
 
     for error_case in rpc["errors"].as_array().unwrap() {
         let mut server = Server::new_async().await;
-        let id = 1 + error_case
+        let numeric_id = 1 + error_case
             .get("idOffset")
             .and_then(Value::as_i64)
             .unwrap_or(0);
+        let id = if error_case
+            .get("idAsString")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            Value::String(numeric_id.to_string())
+        } else {
+            Value::from(numeric_id)
+        };
         let body = if error_case.get("error").is_some() {
             serde_json::json!({
                 "jsonrpc": error_case["jsonrpc"],
@@ -199,10 +208,10 @@ async fn response_error_vectors_chain_shape_and_hex_fail_closed() {
                 .await
                 .unwrap_err(),
             "wrong-state-root-type" => client.get_latest_state_root().await.unwrap_err(),
-            "unsafe-numeric-u64" => client
-                .get_deposit_status(1, 9_007_199_254_740_992)
-                .await
-                .unwrap_err(),
+            "numeric-u64" | "mismatched-deposit-source-chain" | "mismatched-deposit-nonce" => {
+                client.get_deposit_status(1, 42).await.unwrap_err()
+            }
+            "mismatched-batch-number" => client.get_batch_status(7).await.unwrap_err(),
             name => panic!("unknown response-error conformance case {name}"),
         };
 

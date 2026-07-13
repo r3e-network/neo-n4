@@ -225,12 +225,15 @@ public sealed partial class UT_SdkConformance_Live
     }
 
     private static ulong ReadUInt64(JsonElement value)
-        => value.ValueKind switch
-        {
-            JsonValueKind.Number => value.GetUInt64(),
-            JsonValueKind.String => ulong.Parse(value.GetString()!, NumberStyles.None, CultureInfo.InvariantCulture),
-            _ => throw new AssertFailedException("fixture u64 must be a number or decimal string"),
-        };
+    {
+        if (value.ValueKind != JsonValueKind.String)
+            throw new AssertFailedException("fixture u64 must be a canonical decimal string");
+        var text = value.GetString()!;
+        if ((text != "0" && (text.Length == 0 || text[0] == '0'))
+            || !ulong.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed))
+            throw new AssertFailedException("fixture u64 must be a canonical decimal string within u64 range");
+        return parsed;
+    }
 
     [GeneratedRegex("^0x[0-9a-fA-F]{64}$", RegexOptions.CultureInvariant)]
     private static partial Regex HashRegex();

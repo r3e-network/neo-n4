@@ -288,7 +288,7 @@ export class L2RpcClient {
 
   /** getbridgedasset — L1 asset hash → L2 bridged hash; null if not bridged. */
   async getBridgedAsset(l1Asset: string): Promise<string | null> {
-    const result = await this.call("getbridgedasset", [l1Asset]);
+    const result = await this.call("getbridgedasset", [l1Asset, this.chainId]);
     if (result === null) return null;
     if (typeof result !== "string")
       throw new L2RpcProtocolError("getbridgedasset", "expected string");
@@ -303,8 +303,8 @@ export class L2RpcClient {
     this.assertChainId(result, "getsecuritylevel");
     const r = result as Record<string, unknown>;
     return {
-      chainId: Number(r.chainId),
-      level: Number(r.level) as SecurityLevel,
+      chainId: requireU32Value(r.chainId, "getsecuritylevel", "chainId"),
+      level: requireU8Value(r.level, "getsecuritylevel", "level") as SecurityLevel,
     };
   }
 
@@ -316,12 +316,12 @@ export class L2RpcClient {
     this.assertChainId(result, "getsecuritylabel");
     const r = result as Record<string, unknown>;
     return {
-      chainId: Number(r.chainId),
-      securityLevel: Number(r.securityLevel) as SecurityLevel,
-      daMode: Number(r.daMode) as DAMode,
-      gatewayEnabled: Boolean(r.gatewayEnabled),
-      sequencer: Number(r.sequencer) as SequencerModel,
-      exit: Number(r.exit) as ExitModel,
+      chainId: requireU32Value(r.chainId, "getsecuritylabel", "chainId"),
+      securityLevel: requireU8Value(r.securityLevel, "getsecuritylabel", "securityLevel") as SecurityLevel,
+      daMode: requireU8Value(r.daMode, "getsecuritylabel", "daMode") as DAMode,
+      gatewayEnabled: requireBoolean(r.gatewayEnabled, "getsecuritylabel", "gatewayEnabled"),
+      sequencer: requireU8Value(r.sequencer, "getsecuritylabel", "sequencer") as SequencerModel,
+      exit: requireU8Value(r.exit, "getsecuritylabel", "exit") as ExitModel,
     };
   }
 
@@ -377,9 +377,8 @@ export class L2RpcClient {
     if (env.jsonrpc !== "2.0") {
       throw new L2RpcProtocolError(method, "response jsonrpc must be '2.0'");
     }
-    const responseId = typeof env.id === "number" ? env.id : Number(env.id);
-    if (responseId !== id) {
-      throw new L2RpcProtocolError(method, `response id ${responseId} does not match request id ${id}`);
+    if (typeof env.id !== "number" || !Number.isSafeInteger(env.id) || env.id !== id) {
+      throw new L2RpcProtocolError(method, `response id ${String(env.id)} does not match request id ${id}`);
     }
     if (env.error !== undefined && env.error !== null) {
       const err = env.error as Record<string, unknown>;
@@ -420,10 +419,8 @@ function parseU64Wire(value: unknown, method: string, field: string): bigint {
   if (typeof value === "string" && /^(0|[1-9][0-9]*)$/.test(value)) {
     const parsed = BigInt(value);
     if (parsed <= 0xffff_ffff_ffff_ffffn) return parsed;
-  } else if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) {
-    return BigInt(value);
   }
-  throw new L2RpcProtocolError(method, `field ${field} must be a lossless u64`);
+  throw new L2RpcProtocolError(method, `field ${field} must be a canonical decimal u64 string`);
 }
 
 function requireU32Value(value: unknown, method: string, field: string): number {
@@ -435,6 +432,12 @@ function requireU32Value(value: unknown, method: string, field: string): number 
 function requireU8Value(value: unknown, method: string, field: string): number {
   if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 0xff)
     throw new L2RpcProtocolError(method, `field ${field} must be a byte`);
+  return value;
+}
+
+function requireBoolean(value: unknown, method: string, field: string): boolean {
+  if (typeof value !== "boolean")
+    throw new L2RpcProtocolError(method, `field ${field} must be a boolean`);
   return value;
 }
 
@@ -450,12 +453,6 @@ function requireHexString(value: unknown, method: string, field: string): string
   if (clean.length % 2 !== 0 || !/^[0-9a-fA-F]*$/.test(clean))
     throw new L2RpcProtocolError(method, `field ${field} must be an even-length hex string`);
   return text;
-}
-
-function requireBoolean(value: unknown, method: string, field: string): boolean {
-  if (typeof value !== "boolean")
-    throw new L2RpcProtocolError(method, `field ${field} must be a boolean`);
-  return value;
 }
 
 function hexToBytes(method: string, hex: string): Uint8Array {

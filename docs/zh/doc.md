@@ -1093,14 +1093,26 @@ Policy:
 ```text
 getl2batch(chainId, batchNumber)
 getl2batchstatus(chainId, batchNumber)
-getl2stateroot(chainId, batchNumber)
-getl2withdrawalproof(txHash)
-getl2messageproof(messageHash)
-getl1depositstatus(depositId)
+getl2stateroot(chainId, batchNumber?)
+getl2withdrawalproof(chainId, withdrawalLeafHash)
+getl2messageproof(chainId, messageHash)
+getl1depositstatus(sourceChainId, nonce)
 getcanonicalasset(l2Asset)
 getbridgedasset(l1Asset, chainId)
 getsecuritylevel(chainId)
+getsecuritylabel(chainId)
 ```
+
+`chainId` / `sourceChainId` 使用无符号 32 位 JSON number。所有 `uint64`
+参数与响应字段（`batchNumber`、区块号、deposit `nonce`、
+`includedInBatch`）必须使用无前导零的十进制 JSON string，避免 JavaScript
+安全整数边界造成精度丢失。`getl2stateroot` 省略 `batchNumber` 时返回最新已完成
+状态根；提供时返回指定批次状态根。withdrawal proof 按 SharedBridge 实际消费的
+`withdrawalLeafHash` 查询，而不是无法唯一绑定 withdrawal 的交易哈希。
+
+所有请求与响应使用 JSON-RPC 2.0；响应必须原样回显请求的数值 `id`。需要 L2
+上下文的方法必须携带 `chainId` 并由节点拒绝跨链请求。`getsecuritylabel` 是
+§16.2 五维安全标签的规范 RPC；`getsecuritylevel` 作为单维兼容接口保留。
 
 ## 14.2 Neo Stack CLI
 

@@ -7,6 +7,7 @@
 - 全部十个公开 L2 RPC 方法，以及历史状态根的重载形式；
 - 所有 `u64` 值（包括 `u64::MAX`）的 JSON 字符串编码；
 - 严格的 JSON-RPC 2.0 信封和通用错误分类；
+- 数值响应 ID 的原样回显，以及链域和请求身份绑定；
 - Neo `UInt256` 的小端字节与反转后的 RPC 显示文本之间的对应关系；
 - 超出 JavaScript 安全整数范围的游标与分页值的无损序列化；
 - 一笔完整的 Neo N3 P-256 单签名交易，包括未签名字节、交易 ID、绑定网络的签名数据、见证脚本和原始交易；
@@ -45,6 +46,6 @@ python3 scripts/ci/run_sdk_conformance.py \
 
 如果环境配置不完整，本地真实环境测试会把所有已发现测试报告为跳过；`--require-live` 会将缺失配置转换为非零退出失败。`.github/workflows/sdk-conformance.yml` 中的定时运行、版本标签运行和手动触发运行始终使用必需真实环境模式，并从仓库机密生成 `NEO_SDK_LIVE_FIXTURE_JSON`。
 
-## 规范对齐阻塞项
+## 规范对齐
 
-这些向量固定了 `Neo.Plugins.L2Rpc` 当前实现的 RPC 形态。权威规范 `doc.md` §14.1 对提现证明、消息证明、充值状态和桥接资产查询仍列出了不同参数，并且没有列出 `getsecuritylabel`。解决该冲突需要独立的协议 ABI 决策，以及服务端与规范的协调迁移；这个仅针对 SDK 的门禁不宣称该冲突已经关闭。
+这些向量现在固定了 `doc.md` §14.1 的规范接口：可选的历史状态根选择器、绑定链域的证明查询、以 `(sourceChainId, nonce)` 表示的充值身份、绑定链域的桥接资产查询，以及 §16.2 的 `getsecuritylabel` 方法。四套 SDK 发送相同参数，要求 `u64` 字段使用十进制字符串，并在 JSON-RPC 版本或 ID、链 ID、批次号、充值身份不匹配时执行关闭式失败。详见 [`docs/audit/p1-1-rpc-sdk-abi.md`](../../docs/audit/p1-1-rpc-sdk-abi.md)。

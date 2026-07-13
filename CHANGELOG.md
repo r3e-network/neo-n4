@@ -5,10 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — P1-1 RPC / SDK ABI alignment — 2026-07-14
+
+- Reconciled `doc.md` §14.1, the official N4 RpcServer registration adapter,
+  `L2RpcMethods`, and the .NET, TypeScript, Rust, and Python SDKs around one
+  canonical ten-method surface.
+- Standardized every u64 request/response value as a decimal JSON string, restored
+  `getbridgedasset(l1Asset, chainId)`, documented chain-bound proof identities and
+  the optional state-root batch selector, and made `getsecuritylabel` canonical.
+- Extended shared offline/live conformance gates and the real local NeoSystem +
+  Kestrel RpcServer integration test to fail closed on envelope, chain, request,
+  and identity drift; aligned the inline Web Explorer client with the same u64
+  and response-binding rules. No public testnet or deployment evidence is claimed.
+
 ### Fixed — SDK conformance documentation parity — 2026-07-14
 
 - Added the missing Chinese counterpart for the shared four-language SDK conformance contract,
-  including its fail-closed live fixture requirements and current protocol-ABI alignment blocker.
+  including its fail-closed live fixture requirements and canonical protocol-ABI alignment.
 
 ### Fixed — Python SDK CI dependency parity — 2026-07-14
 

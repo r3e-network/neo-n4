@@ -224,7 +224,7 @@ public sealed class L2RpcClient : IDisposable
     public async Task<UInt160?> GetBridgedAssetAsync(UInt160 l1Asset, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(l1Asset);
-        var p = new JArray { l1Asset.ToString() };
+        var p = new JArray { l1Asset.ToString(), ChainId };
         var result = await CallAsync("getbridgedasset", p, ct).ConfigureAwait(false);
         if (result is null) return null;
         return UInt160.Parse(result.AsString());
@@ -385,11 +385,10 @@ public sealed class L2RpcClient : IDisposable
         if (responseObj["jsonrpc"] is not JString version || version.AsString() != "2.0")
             throw new L2RpcProtocolException(method, "response jsonrpc must be '2.0'");
 
-        var responseIdToken = responseObj["id"];
-        var responseId = responseIdToken is JNumber rn ? (long)rn.AsNumber()
-            : responseIdToken is JString rs && long.TryParse(rs.AsString(), out var rsi) ? rsi
-            : -1L;
-        if (responseId != id)
+        if (responseObj["id"] is not JNumber responseIdToken)
+            throw new L2RpcProtocolException(method, "response id must be a JSON number");
+        var responseId = responseIdToken.AsNumber();
+        if (!double.IsFinite(responseId) || Math.Truncate(responseId) != responseId || responseId != id)
             throw new L2RpcProtocolException(method, $"response id {responseId} does not match request id {id}");
 
         if (responseObj["error"] is JObject err)
@@ -448,10 +447,14 @@ public sealed class L2RpcClient : IDisposable
 
     private static byte ReadByteField(JObject obj, string field, string method)
     {
-        var value = ReadUInt64Field(obj, field, method);
-        if (value > byte.MaxValue)
-            throw new L2RpcProtocolException(method, $"field {field} exceeds byte range");
-        return (byte)value;
+        if (obj[field] is JNumber number)
+        {
+            var value = number.AsNumber();
+            if (double.IsFinite(value) && value >= byte.MinValue && value <= byte.MaxValue
+                && Math.Truncate(value) == value)
+                return (byte)value;
+        }
+        throw new L2RpcProtocolException(method, $"field {field} must be a u8 JSON number");
     }
 
     private static byte ReadProofType(JObject obj, string method)
@@ -464,10 +467,14 @@ public sealed class L2RpcClient : IDisposable
 
     private static uint ReadUInt32Field(JObject obj, string field, string method)
     {
-        var value = ReadUInt64Field(obj, field, method);
-        if (value > uint.MaxValue)
-            throw new L2RpcProtocolException(method, $"field {field} exceeds u32 range");
-        return (uint)value;
+        if (obj[field] is JNumber number)
+        {
+            var value = number.AsNumber();
+            if (double.IsFinite(value) && value >= uint.MinValue && value <= uint.MaxValue
+                && Math.Truncate(value) == value)
+                return (uint)value;
+        }
+        throw new L2RpcProtocolException(method, $"field {field} must be a u32 JSON number");
     }
 
     private static ulong ReadUInt64Field(JObject obj, string field, string method)
@@ -477,16 +484,10 @@ public sealed class L2RpcClient : IDisposable
                 text.AsString(),
                 NumberStyles.None,
                 CultureInfo.InvariantCulture,
-                out var parsed))
+                out var parsed)
+            && text.AsString() == parsed.ToString(CultureInfo.InvariantCulture))
             return parsed;
-        if (token is JNumber number)
-        {
-            var value = number.AsNumber();
-            const double MaximumSafeInteger = 9_007_199_254_740_991d;
-            if (double.IsFinite(value) && value >= 0 && value <= MaximumSafeInteger && Math.Truncate(value) == value)
-                return (ulong)value;
-        }
-        throw new L2RpcProtocolException(method, $"field {field} must be a lossless u64");
+        throw new L2RpcProtocolException(method, $"field {field} must be a canonical decimal u64 string");
     }
 
     /// <inheritdoc />

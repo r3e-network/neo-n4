@@ -17,7 +17,7 @@ public class UT_L2RpcMethods_Metrics
         var methods = new L2RpcMethods(store, metrics);
 
         methods.GetL2StateRoot(new JArray { 1001 });
-        methods.GetL2BatchStatus(new JArray { 1001, 1UL });
+        methods.GetL2BatchStatus(new JArray { 1001, "1" });
         methods.GetSecurityLevel(new JArray { 1001 });
 
         Assert.AreEqual(1, metrics.GetCounter(MetricNames.RpcCalls, ("method", "getl2stateroot")));

@@ -32,10 +32,12 @@ public class UT_L2RpcMethods
         store.AddBatch(batch, BatchStatus.Pending);
         var methods = new L2RpcMethods(store);
 
-        var result = methods.GetL2Batch(new JArray { 1001, 1UL });
+        var result = methods.GetL2Batch(new JArray { 1001, "1" });
         var obj = (JObject)result!;
         Assert.AreEqual(1001U, (uint)obj["chainId"]!.AsNumber());
-        Assert.AreEqual(1UL, (ulong)obj["batchNumber"]!.AsNumber());
+        Assert.AreEqual("1", obj["batchNumber"]!.AsString());
+        Assert.AreEqual("100", obj["firstBlock"]!.AsString());
+        Assert.AreEqual("200", obj["lastBlock"]!.AsString());
         Assert.AreEqual((byte)ProofType.Multisig, (byte)obj["proofType"]!.AsNumber());
     }
 
@@ -44,7 +46,7 @@ public class UT_L2RpcMethods
     {
         var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
         var methods = new L2RpcMethods(store);
-        var result = methods.GetL2Batch(new JArray { 1001, 999UL });
+        var result = methods.GetL2Batch(new JArray { 1001, "999" });
         Assert.AreEqual(JToken.Null, result);
     }
 
@@ -55,7 +57,8 @@ public class UT_L2RpcMethods
         store.AddBatch(SampleBatch(7), BatchStatus.Challengeable);
         var methods = new L2RpcMethods(store);
 
-        var obj = (JObject)methods.GetL2BatchStatus(new JArray { 1001, 7UL })!;
+        var obj = (JObject)methods.GetL2BatchStatus(new JArray { 1001, "7" })!;
+        Assert.AreEqual("7", obj["batchNumber"]!.AsString());
         Assert.AreEqual((byte)BatchStatus.Challengeable, (byte)obj["status"]!.AsNumber());
         Assert.AreEqual("Challengeable", obj["statusName"]!.AsString());
     }
@@ -72,7 +75,7 @@ public class UT_L2RpcMethods
         var methods = new L2RpcMethods(store);
 
         // Specific batch.
-        var rootAt1 = methods.GetL2StateRoot(new JArray { 1001, 1UL })!;
+        var rootAt1 = methods.GetL2StateRoot(new JArray { 1001, "1" })!;
         Assert.AreEqual(b1.PostStateRoot.ToString(), rootAt1.AsString());
 
         // Latest (only batch 2 was finalized).
@@ -103,7 +106,7 @@ public class UT_L2RpcMethods
         var methods = new L2RpcMethods(store);
 
         Assert.AreEqual(l1.ToString(), methods.GetCanonicalAsset(new JArray { l2.ToString() })!.AsString());
-        Assert.AreEqual(l2.ToString(), methods.GetBridgedAsset(new JArray { l1.ToString() })!.AsString());
+        Assert.AreEqual(l2.ToString(), methods.GetBridgedAsset(new JArray { l1.ToString(), 1001 })!.AsString());
     }
 
     [TestMethod]
@@ -173,7 +176,7 @@ public class UT_L2RpcMethods
     {
         var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
         var methods = new L2RpcMethods(store);
-        Assert.ThrowsExactly<ArgumentException>(() => methods.GetL2BatchStatus(new JArray { 9999, 1UL }));
+        Assert.ThrowsExactly<ArgumentException>(() => methods.GetL2BatchStatus(new JArray { 9999, "1" }));
     }
 
     [TestMethod]
@@ -253,15 +256,16 @@ public class UT_L2RpcMethods
     }
 
     [TestMethod]
-    public void RejectsOversizedChainId_OverflowException()
+    public void RejectsOversizedChainId_ArgumentException()
     {
         // Regression: previously chainId was read as ulong then cast `(uint)` — silently
         // truncating. Caller passes 0x100000001 → reduced to 1 → AssertOurChain compares 1
-        // vs 1001 with a misleading "differs from local" message. Now: OverflowException.
+        // vs 1001 with a misleading "differs from local" message. The canonical u32
+        // JSON-number parser now rejects the value before comparison.
         var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
         var methods = new L2RpcMethods(store);
         ulong oversized = 0x1_0000_0000UL;  // UInt32.MaxValue + 1
-        Assert.ThrowsExactly<OverflowException>(() => methods.GetL2BatchStatus(new JArray { oversized, 1UL }));
+        Assert.ThrowsExactly<ArgumentException>(() => methods.GetL2BatchStatus(new JArray { oversized, "1" }));
     }
 
     [TestMethod]
@@ -273,18 +277,16 @@ public class UT_L2RpcMethods
     }
 
     [TestMethod]
-    public void RejectsNegativeNumberForULongParam_OverflowException()
+    public void RejectsNumericULongParam_ArgumentException()
     {
-        // Companion pin to RejectsOversizedChainId: the OTHER half of L2RpcMethods.cs:182
-        // — `checked((ulong)(BigInteger)n.AsNumber())`. Without `checked`, a negative
-        // JSON-RPC number would silently wrap into a large positive ulong (e.g. -1
-        // → 18446744073709551615) — a batchNumber lookup by that value would then miss,
-        // returning a "not found" rather than the more diagnostic "param[idx] must be ≥ 0".
-        // OverflowException at least surfaces the bad input shape clearly.
+        // Every u64 is a canonical decimal JSON string. Rejecting even safe numeric values
+        // keeps all SDKs on one shape instead of splitting behavior at JavaScript's 2^53 limit.
         var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
         var methods = new L2RpcMethods(store);
-        Assert.ThrowsExactly<OverflowException>(
-            () => methods.GetL2BatchStatus(new JArray { 1001UL, -5L }));
+        Assert.ThrowsExactly<ArgumentException>(
+            () => methods.GetL2BatchStatus(new JArray { 1001, 5 }));
+        Assert.ThrowsExactly<ArgumentException>(
+            () => methods.GetL2BatchStatus(new JArray { 1001, "05" }));
     }
 
     [TestMethod]
@@ -378,11 +380,11 @@ public class UT_L2RpcMethods
         var store = new InMemoryL2RpcStore(1001, SecurityLevel.Optimistic);
         store.RecordDeposit(new DepositStatus(0, 5, ConsumedOnL2: true, IncludedInBatch: 3));
         var methods = new L2RpcMethods(store);
-        var obj = (JObject)methods.GetL1DepositStatus(new JArray { 0, 5UL })!;
+        var obj = (JObject)methods.GetL1DepositStatus(new JArray { 0, "5" })!;
         Assert.AreEqual(0U, (uint)obj["sourceChainId"]!.AsNumber());
-        Assert.AreEqual(5UL, (ulong)obj["nonce"]!.AsNumber());
+        Assert.AreEqual("5", obj["nonce"]!.AsString());
         Assert.IsTrue(obj["consumedOnL2"]!.AsBoolean());
-        Assert.AreEqual(3UL, (ulong)obj["includedInBatch"]!.AsNumber());
+        Assert.AreEqual("3", obj["includedInBatch"]!.AsString());
     }
 
     /// <summary>

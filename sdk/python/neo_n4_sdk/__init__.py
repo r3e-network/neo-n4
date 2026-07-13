@@ -22,7 +22,6 @@ Transport = Callable[[JsonObject], Mapping[str, Any]]
 
 _U32_MAX = (1 << 32) - 1
 _U64_MAX = (1 << 64) - 1
-_JSON_SAFE_INTEGER_MAX = (1 << 53) - 1
 _SOURCE_VERSION = "0.1.0"
 
 try:
@@ -272,7 +271,7 @@ class L2RpcClient:
         return self._get_optional_string("getcanonicalasset", [l2_asset])
 
     def get_bridged_asset(self, l1_asset: str) -> str | None:
-        return self._get_optional_string("getbridgedasset", [l1_asset])
+        return self._get_optional_string("getbridgedasset", [l1_asset, self.chain_id])
 
     def get_security_level(self) -> SecurityLevelResponse:
         result = self._call("getsecuritylevel", [self.chain_id])
@@ -291,7 +290,7 @@ class L2RpcClient:
             chain_id=_int_field(obj, "chainId"),
             security_level=_enum_field(SecurityLevel, obj, "securityLevel"),
             da_mode=_enum_field(DAMode, obj, "daMode"),
-            gateway_enabled=bool(obj.get("gatewayEnabled", False)),
+            gateway_enabled=_bool_field(obj, "gatewayEnabled", "getsecuritylabel"),
             sequencer=_enum_field(SequencerModel, obj, "sequencer"),
             exit=_enum_field(ExitModel, obj, "exit"),
         )
@@ -344,10 +343,9 @@ class L2RpcClient:
         envelope = _require_mapping(response, method)
         if envelope.get("jsonrpc") != "2.0":
             raise L2RpcProtocolError(method, "response jsonrpc must be '2.0'")
-        try:
-            response_id = int(envelope.get("id"))
-        except (TypeError, ValueError) as exc:
-            raise L2RpcProtocolError(method, "response id is missing or non-integer") from exc
+        response_id = envelope.get("id")
+        if isinstance(response_id, bool) or not isinstance(response_id, int):
+            raise L2RpcProtocolError(method, "response id must be a JSON integer")
         if response_id != request["id"]:
             raise L2RpcProtocolError(method, f"response id {response_id} does not match request id {request['id']}")
 
@@ -428,18 +426,12 @@ def _int_field(obj: Mapping[str, Any], key: str) -> int:
 
 
 def _parse_u64(value: Any, method: str, key: str) -> int:
-    if isinstance(value, bool):
-        raise L2RpcProtocolError(method, f"field {key} must be a lossless u64")
-    if isinstance(value, int):
-        if value > _JSON_SAFE_INTEGER_MAX:
-            raise L2RpcProtocolError(method, f"field {key} must be a lossless u64")
-        parsed = value
-    elif isinstance(value, str) and (value == "0" or value.isdigit() and not value.startswith("0")):
+    if isinstance(value, str) and (value == "0" or value.isdigit() and not value.startswith("0")):
         parsed = int(value)
     else:
-        raise L2RpcProtocolError(method, f"field {key} must be a lossless u64")
+        raise L2RpcProtocolError(method, f"field {key} must be a canonical decimal u64 string")
     if parsed < 0 or parsed > _U64_MAX:
-        raise L2RpcProtocolError(method, f"field {key} must be a lossless u64")
+        raise L2RpcProtocolError(method, f"field {key} must be a canonical decimal u64 string")
     return parsed
 
 

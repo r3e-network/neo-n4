@@ -51,12 +51,16 @@ EXPECTED_RESPONSE_ERRORS = {
     "mismatched-chain-id": "getsecuritylabel",
     "invalid-withdrawal-proof-hex": "getl2withdrawalproof",
     "wrong-state-root-type": "getl2stateroot",
-    "unsafe-numeric-u64": "getl1depositstatus",
+    "numeric-u64": "getl1depositstatus",
+    "mismatched-batch-number": "getl2batchstatus",
+    "mismatched-deposit-source-chain": "getl1depositstatus",
+    "mismatched-deposit-nonce": "getl1depositstatus",
 }
 EXPECTED_ENVELOPE_ERRORS = {
     "server": "server",
     "mismatched-id": "protocol",
     "wrong-jsonrpc-version": "protocol",
+    "stringified-id": "protocol",
 }
 EXPECTED_LIVE_CASES = {
     "batch": "getl2batch",
@@ -190,14 +194,10 @@ def parse_hex(value: Any, label: str, *, expected_bytes: int | None = None) -> t
 
 
 def parse_fixture_u64(value: Any, label: str) -> tuple[int | None, list[str]]:
-    if isinstance(value, bool):
-        return None, [f"{label} must be a lossless u64"]
-    if isinstance(value, int):
-        parsed = value
-    elif isinstance(value, str) and re.fullmatch(r"0|[1-9][0-9]*", value):
+    if isinstance(value, str) and re.fullmatch(r"0|[1-9][0-9]*", value):
         parsed = int(value, 10)
     else:
-        return None, [f"{label} must be a canonical decimal string or JSON integer"]
+        return None, [f"{label} must be a canonical decimal JSON string"]
     if not 0 <= parsed <= 0xFFFF_FFFF_FFFF_FFFF:
         return None, [f"{label} exceeds u64 range"]
     return parsed, []
@@ -382,6 +382,43 @@ def validate_live_fixture(path: Path, expected_chain_id: int) -> list[str]:
                 errors.extend(proof_errors)
                 if proof == b"":
                     errors.append(f"live fixture case {case.get('name')} result must be non-empty")
+            if not isinstance(case, dict):
+                continue
+            name = case.get("name")
+            params = case.get("params")
+            if name in {"batch", "batch-status", "historical-state-root"}:
+                if not isinstance(params, list) or len(params) != 2 or params[0] != expected_chain_id:
+                    errors.append(f"live fixture case {name} must bind chainId and batchNumber")
+                elif parse_fixture_u64(params[1], f"live fixture case {name} params[1]")[1]:
+                    errors.append(f"live fixture case {name} batchNumber must be a canonical u64 string")
+            elif name in {"latest-state-root", "security-level", "security-label"}:
+                if params != [expected_chain_id]:
+                    errors.append(f"live fixture case {name} must bind n4.chainId")
+            elif name in {"withdrawal-proof", "message-proof"}:
+                if not isinstance(params, list) or len(params) != 2 or params[0] != expected_chain_id:
+                    errors.append(f"live fixture case {name} must bind n4.chainId and hash")
+            elif name == "bridged-asset":
+                if not isinstance(params, list) or len(params) != 2 or params[1] != expected_chain_id:
+                    errors.append("live fixture case bridged-asset must bind n4.chainId")
+            elif name == "canonical-asset":
+                if not isinstance(params, list) or len(params) != 1:
+                    errors.append("live fixture case canonical-asset must contain only l2Asset")
+            elif name == "deposit-status":
+                if not isinstance(params, list) or len(params) != 2:
+                    errors.append("live fixture case deposit-status must bind sourceChainId and nonce")
+                else:
+                    errors.extend(parse_fixture_u64(params[1], "live fixture deposit params[1]")[1])
+
+            result = case.get("result")
+            if name == "batch-status" and isinstance(result, dict):
+                errors.extend(parse_fixture_u64(result.get("batchNumber"), "live fixture batch-status result.batchNumber")[1])
+            if name == "deposit-status" and isinstance(result, dict):
+                errors.extend(parse_fixture_u64(result.get("nonce"), "live fixture deposit result.nonce")[1])
+                if result.get("includedInBatch") is not None:
+                    errors.extend(parse_fixture_u64(
+                        result.get("includedInBatch"),
+                        "live fixture deposit result.includedInBatch",
+                    )[1])
     return errors
 
 

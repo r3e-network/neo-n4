@@ -14,6 +14,7 @@
 - 适用范围：Neo N4 项目的文档、架构、模块、工具、合约、测试或审计证据的一部分。
 - 一致性要求：术语、项目路径、命令、合约名称、模块名称、测试名称和安全结论必须与英文源文件保持一致。
 - 生产完备要求：如果英文源文件声明某模块已完成、已验证、已部署演练或已通过测试，中文版本不能降低或扩大该结论；必须同步记录同样的前提和限制。
+- 2026-07-14 P1-1：统一 `doc.md` §14.1、官方 N4 RpcServer adapter、`L2RpcMethods` 与四 SDK 的 10 方法 ABI；所有 u64 使用十进制 JSON string，补齐 bridged-asset 链绑定、proof identity、state-root 可选 batch 与 `getsecuritylabel`，并以共享 conformance、本地真实 Kestrel RpcServer 测试和同 ABI 的 Web Explorer 内联客户端门禁锁定。未声明公网 testnet 或部署证据。
 
 ## 维护检查清单
 

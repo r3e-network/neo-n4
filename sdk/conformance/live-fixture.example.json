@@ -18,9 +18,9 @@
         "params": [1099, "42"],
         "result": {
           "chainId": 1099,
-          "batchNumber": 42,
-          "firstBlock": 100,
-          "lastBlock": 109,
+          "batchNumber": "42",
+          "firstBlock": "100",
+          "lastBlock": "109",
           "preStateRoot": "0x3333333333333333333333333333333333333333333333333333333333333333",
           "postStateRoot": "0x4444444444444444444444444444444444444444444444444444444444444444",
           "txRoot": "0x5555555555555555555555555555555555555555555555555555555555555555",
@@ -41,7 +41,7 @@
         "params": [1099, "42"],
         "result": {
           "chainId": 1099,
-          "batchNumber": 42,
+          "batchNumber": "42",
           "status": 3,
           "statusName": "Finalized"
         }
@@ -76,9 +76,9 @@
         "params": [1, "7"],
         "result": {
           "sourceChainId": 1,
-          "nonce": 7,
+          "nonce": "7",
           "consumedOnL2": true,
-          "includedInBatch": 42
+          "includedInBatch": "42"
         }
       },
       {
@@ -90,7 +90,7 @@
       {
         "name": "bridged-asset",
         "method": "getbridgedasset",
-        "params": ["0xffffffffffffffffffffffffffffffffffffffff"],
+        "params": ["0xffffffffffffffffffffffffffffffffffffffff", 1099],
         "result": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
       },
       {

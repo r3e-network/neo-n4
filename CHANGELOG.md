@@ -5,6 +5,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — SDK conformance documentation parity — 2026-07-14
+
+- Added the missing Chinese counterpart for the shared four-language SDK conformance contract,
+  including its fail-closed live fixture requirements and current protocol-ABI alignment blocker.
+
 ### Fixed — Python SDK CI dependency parity — 2026-07-14
 
 - Installed the declared Python SDK test extra in the multi-version package job so its shared

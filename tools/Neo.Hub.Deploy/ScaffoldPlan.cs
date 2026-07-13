@@ -8,7 +8,8 @@ namespace Neo.Hub.Deploy;
 /// the contract-deployed ZK verifier router, its pinned SP1 Groth16 terminal verifier,
 /// and two stateless fraud-verifier reference contracts (<c>GovernanceFraudVerifier</c> for
 /// v1/v2 structural verification and <c>RestrictedExecutionFraudVerifier</c> for
-/// trustless v3 storage-proof verification). L2 native contracts are listed but
+/// governance-only v3 evidence plus a SettlementManager-bound restricted executable v4
+/// profile). L2 native contracts are listed but
 /// commented as "deploy on the L2", not the L1.
 /// </summary>
 public static class ScaffoldPlan
@@ -130,17 +131,18 @@ public static class ScaffoldPlan
                     "contracts/NeoHub.GovernanceFraudVerifier/bin/sc/NeoHub.GovernanceFraudVerifier.nef",
                     new JArray()),
 
-                // RestrictedExecutionFraudVerifier is the trustless v3 verifier — re-derives
-                // pre/post Merkle roots from each storage proof's leaf-hash + siblings +
-                // leafIndex and matches against the v1 header roots. Same stateless
-                // shape as GovernanceFraudVerifier (no deploy args, no deps). Operators
-                // running v3 fraud-proofs pass this contract's hash as the fraudVerifier
-                // argument; operators running v1/v2 governance-arbitration use
-                // GovernanceFraudVerifier instead. Both can be deployed simultaneously
-                // — the OptimisticChallenge.Challenge caller picks which to invoke.
+                // Version 3 remains governance-only structural evidence. Version 4 is
+                // permissionless only after deployment binds this verifier to the exact
+                // SettlementManager and an operator-selected non-zero replay domain, and
+                // OptimisticChallenge registers the exact chain/semantic/domain profile.
                 Step("RestrictedExecutionFraudVerifier",
                     "contracts/NeoHub.RestrictedExecutionFraudVerifier/bin/sc/NeoHub.RestrictedExecutionFraudVerifier.nef",
-                    new JArray()),
+                    new JArray
+                    {
+                        "$step:SettlementManager",
+                        "FRAUD_REPLAY_DOMAIN_REPLACE_ME",
+                    },
+                    "SettlementManager"),
 
                 // ─── External-bridge stack (doc.md §11.3) ────────────────
                 // The cross-foreign-chain bridge contracts. Independent of
@@ -263,7 +265,7 @@ public static class ScaffoldPlan
     ///   <item><description><c>SequencerBond.RegisterSlasher(OptimisticChallenge)</c>: broken cycle workaround — bond can't depend on challenge at deploy time, so the operator wires it post-deploy.</description></item>
     ///   <item><description><c>ChainRegistry.SetGovernanceController(GovernanceController)</c>: doc.md §16.1 admission policy needs the GovernanceController hash wired before <c>RegisterChainPublic</c> works in mode 1/2.</description></item>
     ///   <item><description><c>VerifierRegistry.SetGovernanceController(GovernanceController)</c>: doc.md §16 council-veto needs the GovernanceController hash wired before <c>RegisterVerifierViaProposal</c> can consult <c>IsApprovedAndTimelocked</c>.</description></item>
-    ///   <item><description>Informational note(s) for each fraud-verifier reference contract present in the bundle, so operators know which hash to pass as the <c>fraudVerifier</c> argument to <c>OptimisticChallenge.Challenge</c>: <c>GovernanceFraudVerifier</c> (v1/v2 governance arbitration) or <c>RestrictedExecutionFraudVerifier</c> (v3 trustless on-chain re-derivation).</description></item>
+    ///   <item><description>Fraud-verifier wiring for <c>GovernanceFraudVerifier</c> v1/v2, governance-only <c>RestrictedExecutionFraudVerifier</c> v3, and the exact chain-scoped restricted executable v4 profile.</description></item>
     /// </list>
     /// </remarks>
     public static IEnumerable<string> PostDeployActions(DeployBundle bundle)
@@ -348,10 +350,16 @@ public static class ScaffoldPlan
         }
         if (rexFraudVerifier is not null && oc is not null)
         {
-            // Same shape as GovernanceFraudVerifier above — both verifiers are peers
-            // and both must be allowlisted before they can be invoked through Challenge.
-            yield return $"{oc.Name}.RegisterFraudVerifier({rexFraudVerifier.Name})  # allowlist v3 trustless storage-proof verifier";
-            yield return $"# Note: challengers pass {rexFraudVerifier.Name}.Hash as the `fraudVerifier` argument to {oc.Name}.Challenge for v3 fraud proofs (trustless storage-proof re-derivation).";
+            yield return $"{oc.Name}.RegisterFraudVerifier({rexFraudVerifier.Name})  # allowlist governance-only v3 structural evidence";
+            if (rexFraudVerifier.ResolvedDeployData.Count == 2)
+            {
+                yield return $"{oc.Name}.RegisterPermissionlessFraudProfile(L2_CHAIN_ID_REPLACE_ME, {rexFraudVerifier.Name}, {rexFraudVerifier.Name}.GetExecutorSemanticId(), FRAUD_REPLAY_DOMAIN_REPLACE_ME)  # enable only the exact restricted executable v4 profile";
+                yield return $"# Note: v3 requires governance co-sign; v4 is permissionless only for the registered chain, verifier, semantic id, replay domain, and profile generation.";
+            }
+            else
+            {
+                yield return $"# Note: {rexFraudVerifier.Name} v3 requires governance co-sign; v4 remains fail closed because this legacy plan did not deploy [SettlementManager, replayDomain].";
+            }
         }
 
         // ─── External-bridge wiring ──────────────────────────────────────

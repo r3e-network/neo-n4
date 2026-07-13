@@ -36,6 +36,9 @@ public static class LiveDeployCommand
     private const byte ProofTypeZk = 3;
     private const uint ValidUntilDelta = 100;
 
+    internal static UInt256 RestrictedExecutorSemanticId { get; } =
+        new(Crypto.Hash256("neo4-executor:counter-increment-existing-key:v1"u8));
+
     /// <summary>Run the live deployment command.</summary>
     public static async Task<int> RunAsync(string[] args)
     {
@@ -54,6 +57,8 @@ public static class LiveDeployCommand
         var maxSteps = ParseOptionalInt(ArgUtil.Get(args, "--max-steps", ""));
         var sp1ProgramVKey = ParseSp1ProgramVKey(ArgUtil.Get(args, "--sp1-program-vkey", ""));
         var l2ChainId = ParseRequiredL2ChainId(ArgUtil.Get(args, "--l2-chain-id", ""));
+        var fraudReplayDomain = ParseRequiredFraudReplayDomain(
+            ArgUtil.Get(args, "--fraud-replay-domain", ""));
         var expectedNetwork = ParseRequiredNetwork(ArgUtil.Get(args, "--expected-network", ""));
         var forcedInclusionFee = ParsePositiveForcedInclusionFee(
             ArgUtil.Get(args, "--forced-inclusion-fee", DefaultForcedInclusionFee.ToString(CultureInfo.InvariantCulture)));
@@ -91,18 +96,20 @@ public static class LiveDeployCommand
             : Path.GetDirectoryName(Path.GetFullPath(planPath)) ?? Directory.GetCurrentDirectory();
         var plan = LoadPlan(planPath);
         plan = SubstituteOperatorPlaceholders(
-            plan, sender, gasHash, key.PublicKey, emergencyCouncil, l2ChainId);
+            plan, sender, gasHash, key.PublicKey, emergencyCouncil, l2ChainId, fraudReplayDomain);
 
         var predicted = PredictContractHashes(plan, sender, baseDirectory);
         var bundle = DeployPlanner.Plan(plan, name => predicted[name]);
         var records = new List<Dictionary<string, object?>>();
-        WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey, dryRun, records);
+        WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
+            l2ChainId, fraudReplayDomain, dryRun, records);
 
         Console.WriteLine($"NeoHub live deployment");
         Console.WriteLine($"  rpc: {reportedRpc}");
         Console.WriteLine($"  network: {network}");
         Console.WriteLine($"  signer: {ownerAddress} ({sender})");
         Console.WriteLine($"  external bridge L2 domain: {l2ChainId}");
+        Console.WriteLine($"  restricted-fraud replay domain: {fraudReplayDomain}");
         Console.WriteLine($"  forced inclusion fee: {forcedInclusionFee} ({forcedInclusionFeeRecipient})");
         Console.WriteLine($"  dryRun: {dryRun}");
         Console.WriteLine($"  steps: {bundle.Invocations.Count}");
@@ -128,7 +135,8 @@ public static class LiveDeployCommand
                 ValidateRemoteContractState(invocation.Name, hash, nefBytes, manifestJson, existingState.Value);
                 Console.WriteLine($"[{deployed}/{bundle.Invocations.Count}] reuse {invocation.Name} {hash}");
                 records.Add(Record("deploy", invocation.Name, "reused", hash, txHash: null, null, null, null));
-                WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey, dryRun, records);
+                WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
+                    l2ChainId, fraudReplayDomain, dryRun, records);
                 continue;
             }
 
@@ -155,7 +163,8 @@ public static class LiveDeployCommand
             }
 
             records.Add(Record("deploy", invocation.Name, dryRun ? "dry-run" : "deployed", hash, txHash, tx.SystemFee, tx.NetworkFee, "HALT"));
-            WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey, dryRun, records);
+            WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
+                l2ChainId, fraudReplayDomain, dryRun, records);
         }
 
         if (!dryRun && runPostDeploy)
@@ -165,7 +174,9 @@ public static class LiveDeployCommand
                 gasHash,
                 forcedInclusionFeeRecipient,
                 forcedInclusionFee,
-                sp1ProgramVKey))
+                sp1ProgramVKey,
+                l2ChainId,
+                fraudReplayDomain))
             {
                 if (action.CompletionCheck is not null &&
                     await IsPostDeployActionCompleteAsync(action.CompletionCheck, rpc))
@@ -173,7 +184,8 @@ public static class LiveDeployCommand
                     Console.WriteLine($"postdeploy {action.Name}: already satisfied");
                     records.Add(Record("postdeploy", action.Name, "reused", action.Contract,
                         txHash: null, null, null, "HALT"));
-                    WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey, dryRun, records);
+                    WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
+                        l2ChainId, fraudReplayDomain, dryRun, records);
                     continue;
                 }
 
@@ -185,7 +197,8 @@ public static class LiveDeployCommand
                 if (execution.VmState != "HALT")
                     throw new InvalidOperationException($"{action.Name} failed: {execution.Exception}");
                 records.Add(Record("postdeploy", action.Name, "executed", action.Contract, tx.Hash.ToString(), tx.SystemFee, tx.NetworkFee, execution.VmState));
-                WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey, dryRun, records);
+                WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
+                    l2ChainId, fraudReplayDomain, dryRun, records);
             }
         }
 
@@ -198,12 +211,14 @@ public static class LiveDeployCommand
                 forcedInclusionFeeRecipient,
                 forcedInclusionFee,
                 sp1ProgramVKey,
-                l2ChainId))
+                l2ChainId,
+                fraudReplayDomain))
             {
                 await smoke.RunAsync(rpc);
                 Console.WriteLine($"smoke {smoke.Name}: ok");
                 records.Add(Record("smoke", smoke.Name, "ok", smoke.Contract, txHash: null, null, null, "HALT"));
-                WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey, dryRun, records);
+                WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
+                    l2ChainId, fraudReplayDomain, dryRun, records);
             }
         }
 
@@ -259,6 +274,22 @@ public static class LiveDeployCommand
         if (!uint.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var chainId) || chainId == 0)
             throw new FormatException("--l2-chain-id must be an unsigned 32-bit integer greater than zero.");
         return chainId;
+    }
+
+    internal static UInt256 ParseRequiredFraudReplayDomain(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw new ArgumentException(
+                "--fraud-replay-domain is required and must be exactly 32 non-zero raw bytes encoded as 64 hexadecimal characters.",
+                nameof(value));
+        var hex = value.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? value[2..] : value;
+        if (hex.Length != UInt256.Length * 2 || !hex.All(Uri.IsHexDigit))
+            throw new FormatException(
+                "--fraud-replay-domain must be exactly 64 hexadecimal characters (optional 0x prefix)." );
+        var raw = Convert.FromHexString(hex);
+        if (raw.All(static item => item == 0))
+            throw new FormatException("--fraud-replay-domain must not be zero.");
+        return new UInt256(raw);
     }
 
     internal static long ParsePositiveForcedInclusionFee(string value)
@@ -356,9 +387,13 @@ public static class LiveDeployCommand
         UInt160 gasHash,
         NeoECPoint publicKey,
         UInt160 emergencyCouncil,
-        uint l2ChainId)
+        uint l2ChainId,
+        UInt256 fraudReplayDomain)
     {
         if (l2ChainId == 0) throw new ArgumentOutOfRangeException(nameof(l2ChainId));
+        ArgumentNullException.ThrowIfNull(fraudReplayDomain);
+        if (fraudReplayDomain == UInt256.Zero)
+            throw new ArgumentException("Fraud replay domain must not be zero.", nameof(fraudReplayDomain));
         return new DeployPlan
         {
             Version = plan.Version,
@@ -366,7 +401,8 @@ public static class LiveDeployCommand
             Steps = plan.Steps.Select(s => s with
             {
                 DeployData = (JArray)SubstituteToken(
-                    s.DeployData, owner, gasHash, publicKey, emergencyCouncil, l2ChainId)!,
+                    s.DeployData, owner, gasHash, publicKey, emergencyCouncil, l2ChainId,
+                    fraudReplayDomain)!,
             }).ToArray(),
         };
     }
@@ -377,7 +413,8 @@ public static class LiveDeployCommand
         UInt160 gasHash,
         NeoECPoint publicKey,
         UInt160 emergencyCouncil,
-        uint l2ChainId)
+        uint l2ChainId,
+        UInt256 fraudReplayDomain)
     {
         if (token is null) return null;
         if (token is JString str)
@@ -389,6 +426,7 @@ public static class LiveDeployCommand
                 "GOVERNANCE_COUNCIL_MEMBER_REPLACE_ME" => new JString(publicKey.ToString()),
                 "EMERGENCY_COUNCIL_REPLACE_ME" => new JString(emergencyCouncil.ToString()),
                 "L2_CHAIN_ID_REPLACE_ME" => new JNumber(l2ChainId),
+                "FRAUD_REPLAY_DOMAIN_REPLACE_ME" => new JString(fraudReplayDomain.ToString()),
                 _ => new JString(str.AsString()),
             };
         }
@@ -396,14 +434,16 @@ public static class LiveDeployCommand
         {
             var copy = new JArray();
             foreach (var child in arr)
-                copy.Add(SubstituteToken(child, owner, gasHash, publicKey, emergencyCouncil, l2ChainId));
+                copy.Add(SubstituteToken(child, owner, gasHash, publicKey, emergencyCouncil,
+                    l2ChainId, fraudReplayDomain));
             return copy;
         }
         if (token is JObject obj)
         {
             var copy = new JObject();
             foreach (var (k, v) in obj.Properties)
-                copy[k] = SubstituteToken(v, owner, gasHash, publicKey, emergencyCouncil, l2ChainId);
+                copy[k] = SubstituteToken(v, owner, gasHash, publicKey, emergencyCouncil,
+                    l2ChainId, fraudReplayDomain);
             return copy;
         }
         return token;
@@ -423,7 +463,7 @@ public static class LiveDeployCommand
         return hashes;
     }
 
-    private static ContractParameter BuildDeployData(JArray data)
+    internal static ContractParameter BuildDeployData(JArray data)
     {
         return data.Count switch
         {
@@ -460,6 +500,8 @@ public static class LiveDeployCommand
     {
         if (UInt160.TryParse(value, out var hash))
             return new ContractParameter(ContractParameterType.Hash160) { Value = hash };
+        if (UInt256.TryParse(value, out var hash256))
+            return new ContractParameter(ContractParameterType.Hash256) { Value = hash256 };
         if (LooksLikeCompressedPublicKey(value))
             return new ContractParameter(ContractParameterType.PublicKey)
             {
@@ -618,7 +660,9 @@ public static class LiveDeployCommand
         UInt160 gasHash,
         UInt160 forcedInclusionFeeRecipient,
         long forcedInclusionFee,
-        UInt256 sp1ProgramVKey)
+        UInt256 sp1ProgramVKey,
+        uint l2ChainId,
+        UInt256 fraudReplayDomain)
     {
         ArgumentNullException.ThrowIfNull(h);
         ArgumentNullException.ThrowIfNull(sp1ProgramVKey);
@@ -627,6 +671,10 @@ public static class LiveDeployCommand
             throw new ArgumentException("Forced-inclusion fee recipient must not be zero.", nameof(forcedInclusionFeeRecipient));
         if (forcedInclusionFee <= 0)
             throw new ArgumentOutOfRangeException(nameof(forcedInclusionFee), "Forced-inclusion fee must be positive.");
+        if (l2ChainId == 0) throw new ArgumentOutOfRangeException(nameof(l2ChainId));
+        ArgumentNullException.ThrowIfNull(fraudReplayDomain);
+        if (fraudReplayDomain == UInt256.Zero)
+            throw new ArgumentException("Fraud replay domain must not be zero.", nameof(fraudReplayDomain));
 
         return
         [
@@ -670,6 +718,10 @@ public static class LiveDeployCommand
                 BoolCheck("OptimisticChallenge.IsApprovedFraudVerifier.Governance", h["OptimisticChallenge"], "isApprovedFraudVerifier", true, h["GovernanceFraudVerifier"]), h["GovernanceFraudVerifier"]),
             CheckedCall("OptimisticChallenge.RegisterFraudVerifier.RestrictedExecution", h["OptimisticChallenge"], "registerFraudVerifier",
                 BoolCheck("OptimisticChallenge.IsApprovedFraudVerifier.RestrictedExecution", h["OptimisticChallenge"], "isApprovedFraudVerifier", true, h["RestrictedExecutionFraudVerifier"]), h["RestrictedExecutionFraudVerifier"]),
+            CheckedCall("OptimisticChallenge.RegisterPermissionlessFraudProfile.RestrictedExecutionV4", h["OptimisticChallenge"], "registerPermissionlessFraudProfile",
+                BoolCheck("OptimisticChallenge.IsPermissionlessFraudProfile.RestrictedExecutionV4", h["OptimisticChallenge"], "isPermissionlessFraudProfile", true,
+                    l2ChainId, h["RestrictedExecutionFraudVerifier"], RestrictedExecutorSemanticId, fraudReplayDomain),
+                l2ChainId, h["RestrictedExecutionFraudVerifier"], RestrictedExecutorSemanticId, fraudReplayDomain),
             CheckedCall("MpcCommitteeVerifier.SetGovernanceController", h["MpcCommitteeVerifier"], "setGovernanceController",
                 HashCheck("MpcCommitteeVerifier.GetGovernanceController", h["MpcCommitteeVerifier"], "getGovernanceController", h["GovernanceController"]), h["GovernanceController"]),
             CheckedCall("ExternalBridgeRegistry.SetGovernanceController", h["ExternalBridgeRegistry"], "setGovernanceController",
@@ -719,10 +771,15 @@ public static class LiveDeployCommand
         UInt160 forcedInclusionFeeRecipient,
         long forcedInclusionFee,
         UInt256 sp1ProgramVKey,
-        uint l2ChainId)
+        uint l2ChainId,
+        UInt256 fraudReplayDomain)
     {
         ArgumentNullException.ThrowIfNull(h);
         ArgumentNullException.ThrowIfNull(sp1ProgramVKey);
+        ArgumentNullException.ThrowIfNull(fraudReplayDomain);
+        if (l2ChainId == 0) throw new ArgumentOutOfRangeException(nameof(l2ChainId));
+        if (fraudReplayDomain == UInt256.Zero)
+            throw new ArgumentException("Fraud replay domain must not be zero.", nameof(fraudReplayDomain));
 
         return
         [
@@ -754,6 +811,11 @@ public static class LiveDeployCommand
             BoolCheck("VerifierRegistry.IsGovernanceLocked", h["VerifierRegistry"], "isGovernanceLocked", true),
             BoolCheck("OptimisticChallenge.IsApprovedFraudVerifier.Governance", h["OptimisticChallenge"], "isApprovedFraudVerifier", true, h["GovernanceFraudVerifier"]),
             BoolCheck("OptimisticChallenge.IsApprovedFraudVerifier.RestrictedExecution", h["OptimisticChallenge"], "isApprovedFraudVerifier", true, h["RestrictedExecutionFraudVerifier"]),
+            BoolCheck("OptimisticChallenge.IsPermissionlessFraudProfile.RestrictedExecutionV4", h["OptimisticChallenge"], "isPermissionlessFraudProfile", true,
+                l2ChainId, h["RestrictedExecutionFraudVerifier"], RestrictedExecutorSemanticId, fraudReplayDomain),
+            HashCheck("RestrictedExecutionFraudVerifier.GetSettlementManager", h["RestrictedExecutionFraudVerifier"], "getSettlementManager", h["SettlementManager"]),
+            Hash256Check("RestrictedExecutionFraudVerifier.GetReplayDomain", h["RestrictedExecutionFraudVerifier"], "getReplayDomain", fraudReplayDomain),
+            Hash256Check("RestrictedExecutionFraudVerifier.GetExecutorSemanticId", h["RestrictedExecutionFraudVerifier"], "getExecutorSemanticId", RestrictedExecutorSemanticId),
             HashCheck("MpcCommitteeVerifier.GetGovernanceController", h["MpcCommitteeVerifier"], "getGovernanceController", h["GovernanceController"]),
             HashCheck("ExternalBridgeRegistry.GetGovernanceController", h["ExternalBridgeRegistry"], "getGovernanceController", h["GovernanceController"]),
             BoolCheck("SequencerBond.IsSlasher", h["SequencerBond"], "isSlasher", true, h["OptimisticChallenge"]),
@@ -939,6 +1001,8 @@ public static class LiveDeployCommand
         string ownerAddress,
         UInt160 ownerScriptHash,
         UInt256 sp1ProgramVKey,
+        uint l2ChainId,
+        UInt256 fraudReplayDomain,
         bool dryRun,
         IReadOnlyList<Dictionary<string, object?>> records)
     {
@@ -951,6 +1015,8 @@ public static class LiveDeployCommand
             ["ownerAddress"] = ownerAddress,
             ["ownerScriptHash"] = ownerScriptHash.ToString(),
             ["sp1ProgramVKeyRaw"] = $"0x{Convert.ToHexString(sp1ProgramVKey.GetSpan()).ToLowerInvariant()}",
+            ["l2ChainId"] = l2ChainId,
+            ["fraudReplayDomain"] = fraudReplayDomain.ToString(),
             ["dryRun"] = dryRun,
             ["records"] = records,
         };

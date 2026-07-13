@@ -322,35 +322,28 @@ public class UT_DeployPlanner
     }
 
     [TestMethod]
-    public void Scaffold_RestrictedExecutionFraudVerifierHasEmptyDeployData()
+    public void Scaffold_RestrictedExecutionFraudVerifierBindsV4DeploymentDomain()
     {
-        // Same shape pin as Scaffold_GovernanceFraudVerifierHasEmptyDeployData.
-        // The on-chain v3 verifier is also stateless — re-derives state roots from
-        // wire-format storage proofs. No owner / config / wired deps. Pin so a future
-        // refactor that adds OwnerOnly()/OwnerAndDep() to one verifier without
-        // updating the contract's _deploy handler would fail loud here, not at
-        // deploy time on L1 with a confusing ContractManagement.Deploy cast error.
         var plan = ScaffoldPlan.Default();
         var v = plan.Steps.Single(s => s.Name == "RestrictedExecutionFraudVerifier");
-        Assert.AreEqual(0, v.DeployData.Count,
-            "RestrictedExecutionFraudVerifier is stateless — no deploy args");
-        Assert.AreEqual(0, v.DependsOn.Count,
-            "RestrictedExecutionFraudVerifier has no deploy-time dependencies — verifies a static wire format");
+        Assert.AreEqual(2, v.DeployData.Count,
+            "production v4 requires [SettlementManager, replayDomain]");
+        Assert.AreEqual("$step:SettlementManager", v.DeployData[0]!.AsString());
+        Assert.AreEqual("FRAUD_REPLAY_DOMAIN_REPLACE_ME", v.DeployData[1]!.AsString());
+        CollectionAssert.AreEqual(new[] { "SettlementManager" }, v.DependsOn.ToArray());
     }
 
     [TestMethod]
-    public void Scaffold_BothFraudVerifiers_ParallelShape()
+    public void Scaffold_FraudVerifierDeploymentShapesReflectSecurityModel()
     {
-        // Pin that the two fraud verifiers (v1/v2 governance + v3 trustless) have
-        // identical deploy-shape: no args, no deps. They're peers — operators pick
-        // one (or deploy both) based on whether they're running governance-
-        // arbitration or trustless v3. A regression that adds asymmetry between
-        // them would mean the planner can't be a pure superset.
         var plan = ScaffoldPlan.Default();
         var gov = plan.Steps.Single(s => s.Name == "GovernanceFraudVerifier");
         var rex = plan.Steps.Single(s => s.Name == "RestrictedExecutionFraudVerifier");
-        Assert.AreEqual(gov.DeployData.Count, rex.DeployData.Count);
-        Assert.AreEqual(gov.DependsOn.Count, rex.DependsOn.Count);
+        Assert.AreEqual(0, gov.DeployData.Count,
+            "v1/v2 governance arbitration remains stateless");
+        Assert.AreEqual(2, rex.DeployData.Count,
+            "restricted executable v4 must not inherit the legacy empty deploy shape");
+        Assert.AreNotEqual(gov.DependsOn.Count, rex.DependsOn.Count);
     }
 
     [TestMethod]
@@ -457,10 +450,11 @@ public class UT_DeployPlanner
         // 5 original (Phase 0-3) + 8 forced-inclusion enforcement/spam-control hints +
         // 1 emergency-withdrawal wiring hint +
         // 6 production ZK verifier wiring/governance-lock hints +
-        // 2 RegisterFraudVerifier wiring + 2 fraud-verifier informational notes +
+        // 2 RegisterFraudVerifier wiring + 1 exact v4 profile registration +
+        // 2 fraud-verifier informational notes +
         // 3 external-bridge gov/setup hints +
-        // 2 Phase-C wiring hints + 4 DA/optimistic/filter production wiring hints = 31.
-        Assert.AreEqual(31, actions.Count);
+        // 2 Phase-C wiring hints + 4 DA/optimistic/filter production wiring hints = 32.
+        Assert.AreEqual(32, actions.Count);
 
         // 1. SequencerBond.RegisterSlasher(OptimisticChallenge) — Phase-3 cycle-break.
         StringAssert.Contains(actions[0], "SequencerBond.RegisterSlasher");
@@ -531,41 +525,45 @@ public class UT_DeployPlanner
         StringAssert.Contains(actions[20], "OptimisticChallenge.RegisterFraudVerifier");
         StringAssert.Contains(actions[20], "RestrictedExecutionFraudVerifier");
 
-        // 19. Informational: pass RestrictedExecutionFraudVerifier hash to OptimisticChallenge.Challenge (v3 trustless).
+        // 19. Register the exact permissionless v4 profile.
         StringAssert.Contains(actions[21], "RestrictedExecutionFraudVerifier");
-        StringAssert.Contains(actions[21], "fraudVerifier");
-        StringAssert.Contains(actions[21], "OptimisticChallenge.Challenge");
-        StringAssert.Contains(actions[21], "v3");
+        StringAssert.Contains(actions[21], "RegisterPermissionlessFraudProfile");
+        StringAssert.Contains(actions[21], "L2_CHAIN_ID_REPLACE_ME");
+        StringAssert.Contains(actions[21], "FRAUD_REPLAY_DOMAIN_REPLACE_ME");
 
-        // 20. MpcCommitteeVerifier.SetGovernanceController(GovernanceController) — bridge committee gov.
-        StringAssert.Contains(actions[22], "MpcCommitteeVerifier.SetGovernanceController");
-        StringAssert.Contains(actions[22], "GovernanceController");
-        StringAssert.Contains(actions[22], "RegisterCommitteeViaProposal");
+        // 20. Explain the strict v3/v4 security boundary.
+        StringAssert.Contains(actions[22], "v3 requires governance co-sign");
+        StringAssert.Contains(actions[22], "v4 is permissionless");
 
-        // 21. ExternalBridgeRegistry.SetGovernanceController(GovernanceController) — bridge verifier upgrade gov.
-        StringAssert.Contains(actions[23], "ExternalBridgeRegistry.SetGovernanceController");
+        // 21. MpcCommitteeVerifier.SetGovernanceController(GovernanceController) — bridge committee gov.
+        StringAssert.Contains(actions[23], "MpcCommitteeVerifier.SetGovernanceController");
         StringAssert.Contains(actions[23], "GovernanceController");
-        StringAssert.Contains(actions[23], "UpgradeVerifierViaProposal");
+        StringAssert.Contains(actions[23], "RegisterCommitteeViaProposal");
 
-        // 22. Per-foreign-chain committee setup pointer.
-        StringAssert.Contains(actions[24], "neo-external-bridge");
-        StringAssert.Contains(actions[24], "RegisterVerifier");
-        StringAssert.Contains(actions[24], "0xE0000001");
+        // 22. ExternalBridgeRegistry.SetGovernanceController(GovernanceController) — bridge verifier upgrade gov.
+        StringAssert.Contains(actions[24], "ExternalBridgeRegistry.SetGovernanceController");
+        StringAssert.Contains(actions[24], "GovernanceController");
+        StringAssert.Contains(actions[24], "UpgradeVerifierViaProposal");
 
-        // 23. Phase-C: ExternalBridgeBond.RegisterSlasher(MpcCommitteeFraudVerifier).
-        StringAssert.Contains(actions[25], "ExternalBridgeBond.RegisterSlasher");
-        StringAssert.Contains(actions[25], "MpcCommitteeFraudVerifier");
+        // 23. Per-foreign-chain committee setup pointer.
+        StringAssert.Contains(actions[25], "neo-external-bridge");
+        StringAssert.Contains(actions[25], "RegisterVerifier");
+        StringAssert.Contains(actions[25], "0xE0000001");
 
-        // 24. Phase-C: per-chain RegisterCommitteeWithMembers pointer.
-        StringAssert.Contains(actions[26], "RegisterCommitteeWithMembers");
+        // 24. Phase-C: ExternalBridgeBond.RegisterSlasher(MpcCommitteeFraudVerifier).
+        StringAssert.Contains(actions[26], "ExternalBridgeBond.RegisterSlasher");
         StringAssert.Contains(actions[26], "MpcCommitteeFraudVerifier");
+
+        // 25. Phase-C: per-chain RegisterCommitteeWithMembers pointer.
+        StringAssert.Contains(actions[27], "RegisterCommitteeWithMembers");
+        StringAssert.Contains(actions[27], "MpcCommitteeFraudVerifier");
     }
 
     [TestMethod]
-    public void PostDeployActions_OnlyV3FraudVerifier_EmitsOnlyV3Note()
+    public void PostDeployActions_LegacyEmptyRestrictedVerifier_LeavesV4FailClosed()
     {
         // Asymmetric pin: an operator who only deploys RestrictedExecutionFraudVerifier
-        // (e.g. a chain that wants trustless v3 only, no governance-arbitration fallback)
+        // (e.g. a legacy chain retaining governance-only v3 without the executable v4 profile)
         // gets ONLY the v3 note — not the v1/v2 GovernanceFraudVerifier note. This
         // verifies the two verifier-note paths are independent.
         var custom = new DeployPlan
@@ -580,13 +578,14 @@ public class UT_DeployPlanner
         };
         var bundle = DeployPlanner.Plan(custom, name => H(0xAA));
         var actions = ScaffoldPlan.PostDeployActions(bundle).ToList();
-        // 2 actions: allowlist register + informational note. Both reference the v3 verifier;
+        // 2 actions: allowlist register + fail-closed informational note. Both reference the v3 verifier;
         // neither references the v1/v2 GovernanceFraudVerifier (which is not in this plan).
         Assert.AreEqual(2, actions.Count);
         StringAssert.Contains(actions[0], "OptimisticChallenge.RegisterFraudVerifier");
         StringAssert.Contains(actions[0], "RestrictedExecutionFraudVerifier");
         StringAssert.Contains(actions[1], "RestrictedExecutionFraudVerifier");
         StringAssert.Contains(actions[1], "v3");
+        StringAssert.Contains(actions[1], "v4 remains fail closed");
         // v1/v2 note must NOT be present in either action.
         foreach (var action in actions)
         {

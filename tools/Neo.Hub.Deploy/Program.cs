@@ -43,6 +43,7 @@ internal static class Program
               plan --plan <path> --output <path>  Topologically sort + resolve a plan; emit a deploy bundle.
               verify --plan <path> --rpc <url>    Confirm each plan step's nef + manifest exist on disk (exit 2 on any missing).
               deploy-testnet --rpc <url> --expected-network <magic> --l2-chain-id <id>
+                             --fraud-replay-domain <64-hex-bytes>
                              --emergency-council <address-or-hash>
                                                   Sign and send the NeoHub bundle to a live Neo N3 testnet RPC.
               help                                Show this message.

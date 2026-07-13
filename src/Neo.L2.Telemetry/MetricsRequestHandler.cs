@@ -11,8 +11,8 @@ namespace Neo.L2.Telemetry;
 /// response always reflects the latest emissions. There is no internal cache — Prometheus
 /// scrapes on its own cadence (default 15s), and the snapshot itself is cheap.
 /// <para>
-/// <c>/healthz</c> always returns 200 (process liveness). <c>/readyz</c> returns 200 if no
-/// readiness predicate was wired or the predicate returned <c>true</c>; otherwise 503.
+/// <c>/healthz</c> always returns 200 (process liveness). <c>/readyz</c> returns 200 only when
+/// an explicitly wired readiness predicate returns <c>true</c>; otherwise 503.
 /// Standard pattern for Kubernetes / Docker / load-balancer probes.
 /// </para>
 /// </remarks>
@@ -28,8 +28,7 @@ public sealed class MetricsRequestHandler
     /// <param name="source">Metrics snapshot source.</param>
     /// <param name="readinessCheck">
     /// Optional predicate for <c>/readyz</c>. When <c>null</c>, <c>/readyz</c>
-    /// always returns 200. Wire a real predicate in production to gate
-    /// load-balancer traffic on (e.g.) "have we caught up to L1?".
+    /// fails closed with 503 so an incompletely composed node cannot receive traffic.
     /// </param>
     /// <param name="livenessCheck">
     /// Optional predicate for <c>/healthz</c>. When <c>null</c>, <c>/healthz</c>
@@ -96,7 +95,8 @@ public sealed class MetricsRequestHandler
 
     private MetricsHttpResponse HandleReady()
     {
-        if (_readinessCheck is null) return new MetricsHttpResponse(200, PlainText, "ready\n");
+        if (_readinessCheck is null)
+            return new MetricsHttpResponse(503, PlainText, "readiness check not configured\n");
 
         bool isReady;
         try { isReady = _readinessCheck(); }

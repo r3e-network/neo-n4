@@ -55,6 +55,21 @@ public class UT_L2MetricsPlugin
     }
 
     [TestMethod]
+    public async Task Start_WithoutReadinessCheck_ReadyzFailsClosed()
+    {
+        using var plugin = new L2MetricsPlugin();
+        plugin.Start(portOverride: 0);
+
+        using var client = new HttpClient(new HttpClientHandler { UseProxy = false })
+        {
+            Timeout = TimeSpan.FromSeconds(5),
+        };
+        var response = await client.GetAsync($"http://127.0.0.1:{plugin.BoundPort}/readyz");
+
+        Assert.AreEqual(503, (int)response.StatusCode);
+    }
+
+    [TestMethod]
     public void Start_TwiceIsIdempotent()
     {
         using var plugin = new L2MetricsPlugin();

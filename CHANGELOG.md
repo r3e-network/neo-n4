@@ -11,6 +11,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   persisted transaction proofs against the finalized L1 transaction root, idempotently submits
   canonical `consume` calls through the shared signed transaction sender, and requires an L1
   `isConsumed` read-back before acknowledging durable completion.
+### Added — production NeoFS data availability adapter — 2026-07-14
+
+- Added a production `NeoFsRestDAWriter` / `NeoFsRestDAReader` pair over the
+  official NeoFS REST Gateway object API, without depending on the archived
+  proof-of-concept C# SDK.
+- Publication now returns the canonical NeoFS `container/object` address and
+  succeeds only after an independently configured reader retrieves the object
+  and verifies its response headers, payload, and canonical Hash256 commitment.
+- Added explicit request-authentication DI, rotating v2 session-token support,
+  opt-in anonymous EACL access, HTTPS-only endpoints, bounded responses, and
+  fail-closed handling for malformed locators, status codes, and content.
 
 ### Fixed — security and production-status documentation — 2026-07-14
 

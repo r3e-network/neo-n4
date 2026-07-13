@@ -129,6 +129,14 @@ fn prove_and_verify_real_zk_proof() {
         proof_result.proof_bytes.len(),
         proof_result.vk_bytes.len()
     );
+    assert_eq!(356, proof_result.proof_bytes.len());
+    assert_eq!(32, proof_result.vk_bytes.len());
+    assert_eq!(33, proof_result.public_values.len());
+    assert_eq!(0, proof_result.public_values[0]);
+    assert_eq!(
+        proof_result.public_values[1..],
+        proof_result.public_input_hash
+    );
 
     assert_eq!(
         proof_result.public_input_hash, host_result.public_input_hash,
@@ -159,8 +167,8 @@ fn verify_rejects_mismatched_public_input_hash() {
     let err = neo_zkvm_host::verify(&proof_result.proof_bytes, &proof_result.vk_bytes, &tampered)
         .expect_err("tampered hash must fail verification");
     assert!(
-        err.contains("public-input hash mismatch"),
-        "expected hash-mismatch error, got: {}",
+        err.contains("SP1 Groth16 verification failed"),
+        "expected Groth16 verification error, got: {}",
         err
     );
 }

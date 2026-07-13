@@ -5,12 +5,13 @@
 //!   without proof generation. Fast, useful for development.
 //! * One-shot prove:   `prove-batch --prove <hex> [--out proof.bin]` —
 //!   generates a real ZK proof for a single batch and writes proof.bin
-//!   + proof.vk to disk.
+//!   + proof.vk + proof.public-values.bin to disk.
 //! * Daemon:           `prove-batch daemon --watch <dir> [--archive <dir>]
 //!                       [--poll-secs N]` — runs forever, watches `<dir>`
 //!   for `*.batch.bin` files (each is a serialized BatchExecutionRequest),
 //!   generates a proof for each, writes `<name>.proof.bin` +
-//!   `<name>.proof.vk` next to the input, and renames the input to
+//!   `<name>.proof.vk` + `<name>.proof.public-values.bin` next to the input,
+//!   and renames the input to
 //!   `<name>.batch.bin.done` so it's not re-processed. This is the
 //!   recommended production deployment shape: a separate prover process
 //!   that the sequencer drops sealed batches into via filesystem (or any
@@ -132,12 +133,20 @@ fn run_oneshot(args: &[String]) {
     if prove_mode {
         let path = out_path.unwrap_or_else(|| "proof.bin".to_string());
         match prove_one(&bytes, Path::new(&path)) {
-            Ok((pi, proof_len, vk_len, proof_path, vk_path)) => {
-                info!("public_input_hash = 0x{}", hex_encode(&pi));
-                info!("proof_bytes_len   = {}", proof_len);
-                info!("vk_bytes_len      = {}", vk_len);
-                info!("proof_path        = {}", proof_path);
-                info!("vk_path           = {}", vk_path);
+            Ok(written) => {
+                info!(
+                    "public_input_hash = 0x{}",
+                    hex_encode(&written.public_input_hash)
+                );
+                info!("proof_bytes_len   = {}", written.proof_len);
+                info!("vk_bytes_len      = {}", written.vk_len);
+                info!("public_values_len = {}", written.public_values_len);
+                info!("proof_path        = {}", written.proof_path.display());
+                info!("vk_path           = {}", written.vk_path.display());
+                info!(
+                    "public_values_path= {}",
+                    written.public_values_path.display()
+                );
             }
             Err(e) => {
                 error!("proof generation failed: {}", e);
@@ -360,13 +369,14 @@ fn scan_once(cfg: &DaemonConfig) -> Result<usize, String> {
         info!("proving {} ({} bytes)...", name, bytes.len());
         let t0 = std::time::Instant::now();
         match prove_one(&bytes, &proof_path) {
-            Ok((pi, proof_len, vk_len, _pp, _vp)) => {
+            Ok(written) => {
                 info!(
-                    "  ✓ {} → public_input_hash=0x{} proof={}B vk={}B in {:?}",
+                    "  ✓ {} → public_input_hash=0x{} proof={}B vk={}B public-values={}B in {:?}",
                     name,
-                    hex_encode(&pi),
-                    proof_len,
-                    vk_len,
+                    hex_encode(&written.public_input_hash),
+                    written.proof_len,
+                    written.vk_len,
+                    written.public_values_len,
                     t0.elapsed()
                 );
                 if let Err(e) = finalize_input(&path, cfg) {
@@ -405,14 +415,19 @@ fn finalize_input(path: &Path, cfg: &DaemonConfig) -> Result<(), String> {
 
 // ────────────── shared ──────────────
 
-/// Generate a proof for `bytes` and write `proof_path` + the matching
-/// `*.proof.vk` (derived from `proof_path` by replacing the trailing
-/// `.bin` with `.vk`, so caller can pass any extension).
-/// Returns (public_input_hash, proof_len, vk_len, proof_path, vk_path).
-fn prove_one(
-    bytes: &[u8],
-    proof_path: &Path,
-) -> Result<([u8; 32], usize, usize, String, String), String> {
+struct WrittenProof {
+    public_input_hash: [u8; 32],
+    proof_len: usize,
+    vk_len: usize,
+    public_values_len: usize,
+    proof_path: PathBuf,
+    vk_path: PathBuf,
+    public_values_path: PathBuf,
+}
+
+/// Generate a proof for `bytes` and write the exact on-chain proof, raw
+/// program VK, and committed public values as three explicit artifacts.
+fn prove_one(bytes: &[u8], proof_path: &Path) -> Result<WrittenProof, String> {
     let result = neo_zkvm_host::prove(bytes)?;
     std::fs::write(proof_path, &result.proof_bytes)
         .map_err(|e| format!("write proof to {}: {}", proof_path.display(), e))?;
@@ -420,16 +435,26 @@ fn prove_one(
         .to_str()
         .ok_or("proof path is not valid UTF-8")?
         .trim_end_matches(".bin");
-    let vk_path = format!("{}.vk", stem);
-    std::fs::write(&vk_path, &result.vk_bytes)
-        .map_err(|e| format!("write vk to {}: {}", vk_path, e))?;
-    Ok((
-        result.public_input_hash,
-        result.proof_bytes.len(),
-        result.vk_bytes.len(),
-        proof_path.display().to_string(),
+    let vk_path = PathBuf::from(format!("{}.vk", stem));
+    let public_values_path = PathBuf::from(format!("{}.public-values.bin", stem));
+    std::fs::write(&vk_path, result.vk_bytes)
+        .map_err(|e| format!("write vk to {}: {}", vk_path.display(), e))?;
+    std::fs::write(&public_values_path, result.public_values).map_err(|e| {
+        format!(
+            "write public values to {}: {}",
+            public_values_path.display(),
+            e
+        )
+    })?;
+    Ok(WrittenProof {
+        public_input_hash: result.public_input_hash,
+        proof_len: result.proof_bytes.len(),
+        vk_len: result.vk_bytes.len(),
+        public_values_len: result.public_values.len(),
+        proof_path: proof_path.to_path_buf(),
         vk_path,
-    ))
+        public_values_path,
+    })
 }
 
 fn print_usage() {
@@ -443,8 +468,10 @@ fn print_usage() {
     info!("");
     info!("daemon mode:");
     info!("  watches <dir> for *.batch.bin (raw BatchExecutionRequest bytes), proves each,");
-    info!("  emits <name>.proof.bin + <name>.proof.vk next to the input. After a successful");
-    info!("  prove the input is renamed to *.batch.bin.done (or moved into --archive if set)");
+    info!("  emits <name>.proof.bin + <name>.proof.vk + <name>.proof.public-values.bin.");
+    info!("  After a successful proof, the input is renamed or archived. The three outputs");
+    info!("  are the exact artifacts consumed by ContractZkVerifier/Sp1Groth16Verifier.");
+    info!("  The input is renamed to *.batch.bin.done (or moved into --archive if set)");
     info!("  so it isn't re-processed. Failures leave the input in place and log loudly so a");
     info!("  monitoring system can alert on repeated failures (poison-pill batches).");
 }

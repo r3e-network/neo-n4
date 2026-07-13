@@ -11,7 +11,12 @@
 #[cfg(unix)]
 use sp1_sdk::blocking::{Elf, ProveRequest, Prover, ProverClient};
 #[cfg(unix)]
-use sp1_sdk::{ProvingKey, SP1Stdin};
+use sp1_sdk::{HashableKey, ProvingKey, SP1Stdin};
+#[cfg(unix)]
+use sp1_verifier::{GROTH16_VK_BYTES, Groth16Verifier};
+
+const COMMITTED_PUBLIC_VALUES_LEN: usize = 33;
+const SP1_GROTH16_PROOF_LEN: usize = 356;
 
 mod proof_result;
 mod zk_execution_result;
@@ -70,21 +75,35 @@ pub fn prove(request_bytes: &[u8]) -> Result<ProofResult, String> {
         .setup(Elf::Static(NEO_ZKVM_GUEST_ELF))
         .map_err(|e| format!("prover setup failed: {:?}", e))?;
 
-    let vk_bytes = bincode::serialize(pk.verifying_key())
-        .map_err(|e| format!("vk serialization failed: {}", e))?;
-
     let proof = prover
         .prove(&pk, stdin)
+        .groth16()
         .run()
         .map_err(|e| format!("zkVM prove failed: {:?}", e))?;
 
-    let public_input_hash = decode_committed_public_values(proof.public_values.as_slice())?;
-
-    let proof_bytes =
-        bincode::serialize(&proof).map_err(|e| format!("proof serialization failed: {}", e))?;
+    let public_values: [u8; COMMITTED_PUBLIC_VALUES_LEN] =
+        proof.public_values.as_slice().try_into().map_err(|_| {
+            format!(
+                "unexpected public-values length: expected {}, got {}",
+                COMMITTED_PUBLIC_VALUES_LEN,
+                proof.public_values.as_slice().len()
+            )
+        })?;
+    let public_input_hash = decode_committed_public_values(&public_values)?;
+    let proof_bytes = proof.bytes();
+    if proof_bytes.len() != SP1_GROTH16_PROOF_LEN {
+        return Err(format!(
+            "unexpected SP1 Groth16 proof length: expected {}, got {}",
+            SP1_GROTH16_PROOF_LEN,
+            proof_bytes.len()
+        ));
+    }
+    let vk_bytes = pk.verifying_key().bytes32_raw();
+    verify_groth16_artifact(&proof_bytes, &vk_bytes, &public_values)?;
 
     Ok(ProofResult {
         public_input_hash,
+        public_values,
         proof_bytes,
         vk_bytes,
     })
@@ -102,26 +121,35 @@ pub fn verify(
     vk_bytes: &[u8],
     expected_public_input_hash: &[u8; 32],
 ) -> Result<(), String> {
-    let proof: sp1_sdk::SP1ProofWithPublicValues =
-        bincode::deserialize(proof_bytes).map_err(|e| format!("proof decode: {}", e))?;
-    let vk: sp1_sdk::SP1VerifyingKey =
-        bincode::deserialize(vk_bytes).map_err(|e| format!("vk decode: {}", e))?;
+    let vk: [u8; 32] = vk_bytes
+        .try_into()
+        .map_err(|_| format!("program vkey must be 32 bytes, got {}", vk_bytes.len()))?;
+    let public_values = committed_public_values(expected_public_input_hash);
+    verify_groth16_artifact(proof_bytes, &vk, &public_values)
+}
 
-    // Public-input commitment check first — cheap, catches replay / mismatch
-    // before we burn cycles on the cryptographic verifier.
-    let actual = decode_committed_public_values(proof.public_values.as_slice())?;
-    if &actual != expected_public_input_hash {
+#[cfg(unix)]
+fn verify_groth16_artifact(
+    proof_bytes: &[u8],
+    vk_bytes: &[u8; 32],
+    public_values: &[u8; COMMITTED_PUBLIC_VALUES_LEN],
+) -> Result<(), String> {
+    if proof_bytes.len() != SP1_GROTH16_PROOF_LEN {
         return Err(format!(
-            "public-input hash mismatch: expected {:?}, got {:?}",
-            expected_public_input_hash, actual
+            "SP1 Groth16 proof must be {} bytes, got {}",
+            SP1_GROTH16_PROOF_LEN,
+            proof_bytes.len()
         ));
     }
+    let vkey = format!("0x{}", hex::encode(vk_bytes));
+    Groth16Verifier::verify(proof_bytes, public_values, &vkey, &GROTH16_VK_BYTES)
+        .map_err(|e| format!("SP1 Groth16 verification failed: {e:?}"))
+}
 
-    let prover = ProverClient::builder().cpu().build();
-    prover
-        .verify(&proof, &vk, None)
-        .map_err(|e| format!("proof verification failed: {:?}", e))?;
-    Ok(())
+fn committed_public_values(public_input_hash: &[u8; 32]) -> [u8; COMMITTED_PUBLIC_VALUES_LEN] {
+    let mut public_values = [0u8; COMMITTED_PUBLIC_VALUES_LEN];
+    public_values[1..].copy_from_slice(public_input_hash);
+    public_values
 }
 
 /// Execute the guest inside SP1's zkVM.
@@ -153,12 +181,10 @@ fn unsupported_platform() -> String {
 
 fn decode_committed_public_values(public_values: &[u8]) -> Result<[u8; 32], String> {
     const STATUS_LEN: usize = 1;
-    const HASH_LEN: usize = 32;
-    const COMMITTED_PUBLIC_VALUES_LEN: usize = STATUS_LEN + HASH_LEN;
 
-    if public_values.len() < COMMITTED_PUBLIC_VALUES_LEN {
+    if public_values.len() != COMMITTED_PUBLIC_VALUES_LEN {
         return Err(format!(
-            "public values too short: expected at least {} bytes, got {}",
+            "public values must be exactly {} bytes, got {}",
             COMMITTED_PUBLIC_VALUES_LEN,
             public_values.len()
         ));
@@ -176,6 +202,8 @@ fn decode_committed_public_values(public_values: &[u8]) -> Result<[u8; 32], Stri
 #[cfg(test)]
 mod tests {
     use super::decode_committed_public_values;
+    #[cfg(unix)]
+    use super::verify;
 
     #[test]
     fn decode_committed_public_values_skips_status_tag() {
@@ -204,6 +232,24 @@ mod tests {
     fn decode_committed_public_values_rejects_truncated_values() {
         let error = decode_committed_public_values(&[0, 1, 2]).unwrap_err();
 
-        assert!(error.contains("public values too short"));
+        assert!(error.contains("public values must be exactly"));
+    }
+
+    #[test]
+    fn decode_committed_public_values_rejects_uncommitted_suffix() {
+        let error = decode_committed_public_values(&[0; 34]).unwrap_err();
+
+        assert!(error.contains("public values must be exactly"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn verify_rejects_noncanonical_artifact_lengths_before_crypto() {
+        let hash = [0u8; 32];
+        let error = verify(&[0; 355], &[0; 32], &hash).unwrap_err();
+        assert!(error.contains("must be 356 bytes"));
+
+        let error = verify(&[0; 356], &[0; 31], &hash).unwrap_err();
+        assert!(error.contains("program vkey must be 32 bytes"));
     }
 }

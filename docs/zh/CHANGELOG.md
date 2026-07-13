@@ -19,6 +19,7 @@
 - 2026-07-14 Operator 签名边界：新增 fail-closed `--signer-command`，以固定 account、verification script、canonical sign data、超时与 fee-witness 长度校验连接 HSM/KMS 或钱包适配器；补齐独立 sequencer、prover、batcher 进程的真实启动说明，未提供凭据时不声明链上广播证据。
 - 2026-07-14 Batch 插件边界：补齐不可变 sink/input wiring、chain domain、metrics 重连、pending retry 顺序与 forced-inclusion durable nonce 过滤测试；null drain 在持久化前 fail closed，L1 消费仍严格推迟到 settlement finality。
 - 2026-07-14 Gateway prover 绑定：补齐 proof-system 范围、production backend allowlist、取消、aggregate backend 与 canonical binding 的 fail-closed 测试。
+- 2026-07-14 执行事务完整性：补齐 before-image 补偿成功与 commit/rollback 双失败聚合错误、overlay 原子操作和生命周期、canonical effect 字节相等性/哈希及畸形版本测试，并删除无调用的 event copy helper。
 
 ## 维护检查清单
 

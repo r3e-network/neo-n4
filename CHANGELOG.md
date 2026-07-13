@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — execution transaction integrity coverage — 2026-07-14
+
+- Added commit-compensation tests for successful before-image restoration and the aggregate-error
+  path when both the store mutation and compensating rollback fail.
+- Covered atomic overlay operations, lifecycle guards, enumeration copies, content-based canonical
+  effect equality/hashing, malformed effect versions and operations, and removed an unused event-copy helper.
+
 ### Fixed — Gateway prover binding coverage — 2026-07-14
 
 - Added direct fail-closed tests for the delegate Gateway prover's proof-system range,

@@ -126,12 +126,6 @@ public sealed record CanonicalExecutionEvent
         return hash.ToHashCode();
     }
 
-    internal CanonicalExecutionEvent Copy() => new()
-    {
-        ScriptHash = ScriptHash,
-        EventName = EventName,
-        State = State.ToArray(),
-    };
 }
 
 /// <summary>

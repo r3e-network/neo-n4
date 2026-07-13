@@ -112,6 +112,91 @@ public class UT_CanonicalExecutionEffects
             () => CanonicalStackStateSerializer.Serialize(state));
     }
 
+    [TestMethod]
+    public void StorageChange_ContentEqualityHashAndCopyUseBytes()
+    {
+        var key = new byte[] { 0x01 };
+        var oldValue = new byte[] { 0x10 };
+        var newValue = new byte[] { 0x11 };
+        var change = Change(key, CanonicalStorageOperation.Update, oldValue, newValue);
+        var equal = Change([0x01], CanonicalStorageOperation.Update, [0x10], [0x11]);
+
+        Assert.IsFalse(change.Equals(null));
+        Assert.IsTrue(change.Equals(change));
+        Assert.AreEqual(change, equal);
+        Assert.AreEqual(change.GetHashCode(), equal.GetHashCode());
+        Assert.AreNotEqual(change, equal with { Operation = CanonicalStorageOperation.Add });
+        Assert.AreNotEqual(change, equal with { Key = new byte[] { 0x02 } });
+        Assert.AreNotEqual(change, equal with { OldValue = null });
+        Assert.AreNotEqual(change, equal with { OldValue = new byte[] { 0x12 } });
+        Assert.AreNotEqual(change, equal with { NewValue = null });
+        Assert.AreNotEqual(change, equal with { NewValue = new byte[] { 0x13 } });
+
+        var copy = CanonicalExecutionEffects.Create([change], []).StorageChanges.Single();
+        key[0] = 0xFF;
+        oldValue[0] = 0xFF;
+        newValue[0] = 0xFF;
+        CollectionAssert.AreEqual(new byte[] { 0x01 }, copy.Key.ToArray());
+        CollectionAssert.AreEqual(new byte[] { 0x10 }, copy.OldValue!.Value.ToArray());
+        CollectionAssert.AreEqual(new byte[] { 0x11 }, copy.NewValue!.Value.ToArray());
+
+        var add = Change([0x03], CanonicalStorageOperation.Add, null, [0x30]);
+        Assert.AreEqual(
+            add,
+            CanonicalExecutionEffects.Create([add], []).StorageChanges.Single());
+        _ = add.GetHashCode();
+    }
+
+    [TestMethod]
+    public void ExecutionEvent_ContentEqualityHashAndCopyUseBytes()
+    {
+        var state = new byte[] { 0x01, 0x02 };
+        var @event = new CanonicalExecutionEvent
+        {
+            ScriptHash = new UInt160(Enumerable.Repeat((byte)0x10, UInt160.Length).ToArray()),
+            EventName = "Changed",
+            State = state,
+        };
+        var equal = new CanonicalExecutionEvent
+        {
+            ScriptHash = new UInt160(Enumerable.Repeat((byte)0x10, UInt160.Length).ToArray()),
+            EventName = "Changed",
+            State = new byte[] { 0x01, 0x02 },
+        };
+
+        Assert.IsFalse(@event.Equals(null));
+        Assert.IsTrue(@event.Equals(@event));
+        Assert.AreEqual(@event, equal);
+        Assert.AreEqual(@event.GetHashCode(), equal.GetHashCode());
+        Assert.AreNotEqual(@event, equal with { ScriptHash = UInt160.Zero });
+        Assert.AreNotEqual(@event, equal with { EventName = "changed" });
+        Assert.AreNotEqual(@event, equal with { State = new byte[] { 0x02 } });
+
+        state[0] = 0xFF;
+    }
+
+    [TestMethod]
+    public void Hashers_RejectUnsupportedVersionsAndMalformedStorageChanges()
+    {
+        var change = Change([0x01], CanonicalStorageOperation.Add, null, [0x10]);
+        var @event = new CanonicalExecutionEvent
+        {
+            ScriptHash = UInt160.Zero,
+            EventName = "Changed",
+            State = new byte[] { 0x01 },
+        };
+        var invalidVersion = (CanonicalEffectsVersion)0xFF;
+
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(
+            () => CanonicalEffectsHasher.HashStorage([change], invalidVersion));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(
+            () => CanonicalEffectsHasher.HashEvents([@event], invalidVersion));
+        Assert.ThrowsExactly<ArgumentException>(() => CanonicalEffectsHasher.SerializeStorage(
+            [Change([], CanonicalStorageOperation.Add, null, [0x10])]));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => CanonicalEffectsHasher.SerializeStorage(
+            [Change([0x01], (CanonicalStorageOperation)0xFF, null, [0x10])]));
+    }
+
     internal static CanonicalExecutionEffects GoldenEffects()
         => CanonicalExecutionEffects.Create(
             GoldenChanges(),

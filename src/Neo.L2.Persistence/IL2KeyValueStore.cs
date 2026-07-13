@@ -24,6 +24,28 @@ public interface IL2KeyValueStore : IDisposable
     /// <summary>Insert or replace <paramref name="value"/> at <paramref name="key"/>.</summary>
     void Put(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value);
 
+    /// <summary>
+    /// Atomically insert <paramref name="value"/> only when <paramref name="key"/> is absent.
+    /// Returns <c>true</c> when inserted and <c>false</c> when a value already exists.
+    /// </summary>
+    /// <remarks>
+    /// Durable backends must synchronously persist a successful insertion before returning;
+    /// this operation is used as a recovery commit point.
+    /// </remarks>
+    bool TryPut(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value);
+
+    /// <summary>
+    /// Atomically replace <paramref name="expectedValue"/> with <paramref name="newValue"/>.
+    /// Returns <c>false</c> when the key is absent or its current bytes differ.
+    /// </summary>
+    /// <remarks>
+    /// Durable backends must synchronously persist a successful replacement before returning.
+    /// </remarks>
+    bool CompareExchange(
+        ReadOnlySpan<byte> key,
+        ReadOnlySpan<byte> expectedValue,
+        ReadOnlySpan<byte> newValue);
+
     /// <summary>Read the value at <paramref name="key"/>, or <c>null</c> if absent.</summary>
     byte[]? Get(ReadOnlySpan<byte> key);
 

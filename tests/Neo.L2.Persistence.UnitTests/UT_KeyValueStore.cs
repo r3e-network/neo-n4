@@ -147,6 +147,59 @@ public abstract class KeyValueStoreContractTests
     }
 
     [TestMethod]
+    public void TryPut_InsertsOnlyWhenAbsent()
+    {
+        using var s = Create();
+        Assert.IsTrue(s.TryPut(new byte[] { 0x01 }, new byte[] { 0xAA }));
+        Assert.IsFalse(s.TryPut(new byte[] { 0x01 }, new byte[] { 0xBB }));
+        CollectionAssert.AreEqual(new byte[] { 0xAA }, s.Get(new byte[] { 0x01 }));
+    }
+
+    [TestMethod]
+    public void TryPut_IsAtomicUnderConcurrency()
+    {
+        using var s = Create();
+        var successes = 0;
+        Parallel.For(0, 64, index =>
+        {
+            if (s.TryPut(new byte[] { 0x01 }, BitConverter.GetBytes(index)))
+                Interlocked.Increment(ref successes);
+        });
+        Assert.AreEqual(1, successes);
+        Assert.AreEqual(1L, s.Count);
+    }
+
+    [TestMethod]
+    public void CompareExchange_ReplacesOnlyExpectedBytes()
+    {
+        using var s = Create();
+        s.Put(new byte[] { 0x01 }, new byte[] { 0xAA });
+        Assert.IsFalse(s.CompareExchange(
+            new byte[] { 0x01 },
+            new byte[] { 0xBB },
+            new byte[] { 0xCC }));
+        CollectionAssert.AreEqual(new byte[] { 0xAA }, s.Get(new byte[] { 0x01 }));
+        Assert.IsTrue(s.CompareExchange(
+            new byte[] { 0x01 },
+            new byte[] { 0xAA },
+            new byte[] { 0xCC }));
+        CollectionAssert.AreEqual(new byte[] { 0xCC }, s.Get(new byte[] { 0x01 }));
+    }
+
+    [TestMethod]
+    public void ConditionalWrites_RejectEmptyKey()
+    {
+        using var s = Create();
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(
+            () => s.TryPut(ReadOnlySpan<byte>.Empty, new byte[] { 0x01 }));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(
+            () => s.CompareExchange(
+                ReadOnlySpan<byte>.Empty,
+                new byte[] { 0x01 },
+                new byte[] { 0x02 }));
+    }
+
+    [TestMethod]
     public void Delete_RemovesEntry()
     {
         using var s = Create();

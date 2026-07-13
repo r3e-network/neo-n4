@@ -19,6 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
     <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+    <ProjectReference Include="..\Neo.L2.Batch\Neo.L2.Batch.csproj" />
   </ItemGroup>
 
 </Project>

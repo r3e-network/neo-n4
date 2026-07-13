@@ -1,0 +1,347 @@
+using System.Buffers.Binary;
+using Neo.Cryptography;
+using Neo.L2.Batch;
+using Neo.L2.State;
+
+namespace Neo.L2.Persistence.UnitTests;
+
+[TestClass]
+public class UT_ProofWitnessStore
+{
+    [TestMethod]
+    public async Task CommitGet_IsIdempotentAndUsesCanonicalKeyLayout()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var artifact = SampleArtifact();
+
+        await store.CommitAsync(artifact);
+        await store.CommitAsync(artifact);
+
+        Assert.AreEqual(artifact, await store.GetAsync(artifact.ChainId, artifact.BatchNumber));
+        Assert.AreEqual(1L, backend.Count);
+        var (key, value) = backend.EnumeratePrefix("PWIT"u8).Single();
+        CollectionAssert.AreEqual("PWIT"u8.ToArray(), key[..4]);
+        Assert.AreEqual(artifact.ChainId, BinaryPrimitives.ReadUInt32LittleEndian(key.AsSpan(4, 4)));
+        Assert.AreEqual(artifact.BatchNumber, BinaryPrimitives.ReadUInt64LittleEndian(key.AsSpan(8, 8)));
+        Assert.AreEqual(artifact, ProofWitnessArtifactSerializer.Decode(value));
+    }
+
+    [TestMethod]
+    public async Task Commit_ConflictingContentFailsClosed()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var original = SampleArtifact();
+        var conflicting = Rebuild(original, new byte[] { 0xde, 0xad });
+
+        await store.CommitAsync(original);
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => store.CommitAsync(conflicting).AsTask());
+        Assert.AreEqual(original, await store.GetAsync(original.ChainId, original.BatchNumber));
+    }
+
+    [TestMethod]
+    public async Task Commit_ConcurrentConflictPersistsExactlyOneArtifact()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var first = SampleArtifact();
+        var second = Rebuild(first, new byte[] { 0xfa, 0xce });
+        var outcomes = await Task.WhenAll(
+            TryCommitAsync(store, first),
+            TryCommitAsync(store, second));
+
+        Assert.AreEqual(1, outcomes.Count(static result => result));
+        Assert.AreEqual(1, outcomes.Count(static result => !result));
+        var persisted = await store.GetAsync(first.ChainId, first.BatchNumber);
+        Assert.IsNotNull(persisted);
+        Assert.IsTrue(
+            persisted.ContentHash.Equals(first.ContentHash)
+            || persisted.ContentHash.Equals(second.ContentHash));
+    }
+
+    [TestMethod]
+    public async Task EnumerateCommitted_SortsLittleEndianKeysByBatchNumber()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        await store.CommitAsync(SampleArtifact(256));
+        await store.CommitAsync(SampleArtifact(2));
+        await store.CommitAsync(SampleArtifact(1));
+
+        var batches = new List<ulong>();
+        await foreach (var artifact in store.EnumerateCommittedAsync(SampleChainId))
+            batches.Add(artifact.BatchNumber);
+        CollectionAssert.AreEqual(new ulong[] { 1, 2, 256 }, batches);
+    }
+
+    [TestMethod]
+    public async Task ProofManifest_IsBoundIdempotentAndSubmissionIsCompareExchanged()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var artifact = SampleArtifact();
+        var manifest = SampleManifest(artifact);
+        var l1TransactionHash = H(0x70);
+
+        await store.CommitAsync(artifact);
+        await store.PutProofAsync(manifest);
+        await store.PutProofAsync(manifest);
+        Assert.AreEqual(manifest, await store.GetProofAsync(artifact.ContentHash));
+
+        await store.MarkSubmittedAsync(artifact.ContentHash, l1TransactionHash);
+        await store.MarkSubmittedAsync(artifact.ContentHash, l1TransactionHash);
+        var submitted = await store.GetProofAsync(artifact.ContentHash);
+        Assert.IsNotNull(submitted);
+        Assert.AreEqual(l1TransactionHash, submitted.L1TransactionHash);
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => store.MarkSubmittedAsync(artifact.ContentHash, H(0x71)).AsTask());
+        var conflictingManifest = manifest with { Proof = new byte[] { 0xff } };
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => store.PutProofAsync(conflictingManifest).AsTask());
+    }
+
+    [TestMethod]
+    public async Task ProofManifest_RejectsUnknownArtifactAndBindingMismatch()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var artifact = SampleArtifact();
+        var manifest = SampleManifest(artifact);
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => store.PutProofAsync(manifest).AsTask());
+
+        await store.CommitAsync(artifact);
+        await Assert.ThrowsExactlyAsync<ArgumentException>(
+            () => store.PutProofAsync(manifest with { PublicInputHash = H(0x99) }).AsTask());
+        await Assert.ThrowsExactlyAsync<ArgumentException>(
+            () => store.PutProofAsync(manifest with { ArtifactContentHash = H(0x97) }).AsTask());
+        await Assert.ThrowsExactlyAsync<ArgumentException>(
+            () => store.PutProofAsync(manifest with { VerificationKeyId = H(0x98) }).AsTask());
+        await Assert.ThrowsExactlyAsync<ArgumentException>(
+            () => store.PutProofAsync(manifest with { ProofSystem = WitnessProofSystem.Halo2 }).AsTask());
+    }
+
+    [TestMethod]
+    public async Task CorruptedArtifactFailsClosedOnRead()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var artifact = SampleArtifact();
+        await store.CommitAsync(artifact);
+        var (key, value) = backend.EnumeratePrefix("PWIT"u8).Single();
+        value[16] ^= 0x80;
+        backend.Put(key, value);
+
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(
+            () => store.GetAsync(artifact.ChainId, artifact.BatchNumber).AsTask());
+    }
+
+    [TestMethod]
+    public async Task RocksDb_ReopenRecoversArtifactProofAndSubmission()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "neo-l2-proof-witness-" + Guid.NewGuid().ToString("N"));
+        var artifact = SampleArtifact();
+        var manifest = SampleManifest(artifact);
+        var l1TransactionHash = H(0x77);
+        try
+        {
+            using (var backend = new RocksDbKeyValueStore(directory))
+            using (var store = new KeyValueProofWitnessStore(backend))
+            {
+                await store.CommitAsync(artifact);
+                await store.PutProofAsync(manifest);
+                await store.MarkSubmittedAsync(artifact.ContentHash, l1TransactionHash);
+            }
+
+            using (var backend = new RocksDbKeyValueStore(directory))
+            using (var store = new KeyValueProofWitnessStore(backend))
+            {
+                Assert.AreEqual(
+                    artifact,
+                    await store.GetAsync(artifact.ChainId, artifact.BatchNumber));
+                var recoveredProof = await store.GetProofAsync(artifact.ContentHash);
+                Assert.IsNotNull(recoveredProof);
+                Assert.AreEqual(l1TransactionHash, recoveredProof.L1TransactionHash);
+                var recovered = new List<ProofWitnessArtifactV1>();
+                await foreach (var item in store.EnumerateCommittedAsync(artifact.ChainId))
+                    recovered.Add(item);
+                Assert.AreEqual(1, recovered.Count);
+                Assert.AreEqual(artifact, recovered[0]);
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+                try { Directory.Delete(directory, recursive: true); } catch { }
+        }
+    }
+
+    [TestMethod]
+    public void ProofResultManifest_RoundTripsAndRejectsMalformedInput()
+    {
+        var artifact = SampleArtifact();
+        var manifest = SampleManifest(artifact);
+        var canonical = ProofResultManifestSerializer.Encode(manifest);
+        Assert.AreEqual(manifest, ProofResultManifestSerializer.Decode(canonical));
+
+        for (var index = 0; index < canonical.Length; index++)
+        {
+            var tampered = canonical.ToArray();
+            tampered[index] ^= 0x01;
+            Assert.ThrowsExactly<InvalidDataException>(
+                () => ProofResultManifestSerializer.Decode(tampered),
+                $"tamper at byte {index} must be rejected");
+        }
+
+        var magic = canonical.ToArray();
+        magic[0] = 0;
+        Assert.ThrowsExactly<InvalidDataException>(() => ProofResultManifestSerializer.Decode(magic));
+
+        var version = canonical.ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(version.AsSpan(8, 2), 2);
+        Assert.ThrowsExactly<InvalidDataException>(() => ProofResultManifestSerializer.Decode(version));
+
+        var flags = canonical.ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(flags.AsSpan(10, 2), 0x8000);
+        Assert.ThrowsExactly<InvalidDataException>(() => ProofResultManifestSerializer.Decode(flags));
+
+        var proofSystem = canonical.ToArray();
+        proofSystem[12] = 0xff;
+        Assert.ThrowsExactly<InvalidDataException>(
+            () => ProofResultManifestSerializer.Decode(proofSystem));
+
+        var reserved = canonical.ToArray();
+        reserved[13] = 1;
+        Assert.ThrowsExactly<InvalidDataException>(() => ProofResultManifestSerializer.Decode(reserved));
+
+        Assert.ThrowsExactly<InvalidDataException>(
+            () => ProofResultManifestSerializer.Decode([.. canonical, 0x00]));
+
+        var badLength = canonical.ToArray();
+        BinaryPrimitives.WriteUInt32LittleEndian(badLength.AsSpan(124, 4), uint.MaxValue);
+        Assert.ThrowsExactly<InvalidDataException>(() => ProofResultManifestSerializer.Decode(badLength));
+    }
+
+    private const uint SampleChainId = 0x1122_3344;
+
+    private static async Task<bool> TryCommitAsync(
+        IProofWitnessStore store,
+        ProofWitnessArtifactV1 artifact)
+    {
+        try
+        {
+            await store.CommitAsync(artifact);
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    private static ProofWitnessArtifactV1 Rebuild(
+        ProofWitnessArtifactV1 artifact,
+        ReadOnlyMemory<byte> stateWitness)
+        => ProofWitnessArtifactV1.Create(
+            artifact.ProofSystem,
+            artifact.VerificationKeyId,
+            artifact.ChainId,
+            artifact.BatchNumber,
+            artifact.FirstBlock,
+            artifact.LastBlock,
+            artifact.ExecutionPayload,
+            stateWitness,
+            artifact.ExecutionResult,
+            artifact.Effects,
+            artifact.DAReceipt,
+            artifact.PublicInputs);
+
+    private static ProofResultManifest SampleManifest(ProofWitnessArtifactV1 artifact)
+        => new()
+        {
+            ChainId = artifact.ChainId,
+            BatchNumber = artifact.BatchNumber,
+            ArtifactContentHash = artifact.ContentHash,
+            PublicInputHash = new UInt256(
+                Crypto.Hash256(BatchSerializer.EncodePublicInputs(artifact.PublicInputs))),
+            VerificationKeyId = artifact.VerificationKeyId,
+            ProofSystem = artifact.ProofSystem,
+            Proof = new byte[] { 0x01, 0x02, 0x03 },
+            PublicValues = new byte[] { 0x04, 0x05 },
+        };
+
+    private static ProofWitnessArtifactV1 SampleArtifact(ulong batchNumber = 257)
+    {
+        var payload = new ExecutionPayloadV1
+        {
+            ChainId = SampleChainId,
+            BatchNumber = batchNumber,
+            FirstBlock = 10,
+            LastBlock = 11,
+            PreStateRoot = H(0x10),
+            BlockContext = new BatchBlockContext
+            {
+                L1FinalizedHeight = 99,
+                FirstBlockTimestamp = 1_700_000_000,
+                LastBlockTimestamp = 1_700_000_001,
+                SequencerCommitteeHash = H(0x20),
+                Network = 860_833_102,
+            },
+            L1Messages = [],
+            Transactions = [new byte[] { 0x01, 0x02, 0x03 }],
+        };
+        var result = new BatchExecutionResult
+        {
+            PostStateRoot = H(0x31),
+            TxRoot = H(0x32),
+            ReceiptRoot = H(0x33),
+            WithdrawalRoot = H(0x34),
+            L2ToL1MessageRoot = H(0x35),
+            L2ToL2MessageRoot = H(0x36),
+            GasConsumed = 1_234,
+        };
+        var daReceipt = new DAReceipt
+        {
+            Layer = DAMode.NeoFS,
+            Commitment = ExecutionPayloadSerializer.ComputeCommitment(payload),
+            Pointer = new byte[] { 0xa1 },
+        };
+        var inputs = new PublicInputs
+        {
+            ChainId = payload.ChainId,
+            BatchNumber = payload.BatchNumber,
+            PreStateRoot = payload.PreStateRoot,
+            PostStateRoot = result.PostStateRoot,
+            TxRoot = result.TxRoot,
+            ReceiptRoot = result.ReceiptRoot,
+            WithdrawalRoot = result.WithdrawalRoot,
+            L2ToL1MessageRoot = result.L2ToL1MessageRoot,
+            L2ToL2MessageRoot = result.L2ToL2MessageRoot,
+            L1MessageHash = UInt256.Zero,
+            DACommitment = daReceipt.Commitment,
+            BlockContextHash = StateRootCalculator.HashBlockContext(payload.BlockContext),
+        };
+        return ProofWitnessArtifactV1.Create(
+            WitnessProofSystem.Sp1,
+            H(0x41),
+            payload.ChainId,
+            payload.BatchNumber,
+            payload.FirstBlock,
+            payload.LastBlock,
+            payload,
+            new byte[] { 0xb1, 0xb2 },
+            result,
+            new byte[] { 0xc1 },
+            daReceipt,
+            inputs);
+    }
+
+    private static UInt256 H(byte value)
+        => new(Enumerable.Repeat(value, UInt256.Length).ToArray());
+}

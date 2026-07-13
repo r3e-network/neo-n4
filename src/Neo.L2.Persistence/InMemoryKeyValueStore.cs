@@ -36,6 +36,40 @@ public sealed class InMemoryKeyValueStore : IL2KeyValueStore
     }
 
     /// <inheritdoc />
+    public bool TryPut(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value)
+    {
+        if (key.Length == 0)
+            throw new ArgumentOutOfRangeException(nameof(key), "key must be non-empty");
+        var keyArr = key.ToArray();
+        var valueArr = value.ToArray();
+        lock (_gate)
+        {
+            if (_data.ContainsKey(keyArr)) return false;
+            _data.Add(keyArr, valueArr);
+            return true;
+        }
+    }
+
+    /// <inheritdoc />
+    public bool CompareExchange(
+        ReadOnlySpan<byte> key,
+        ReadOnlySpan<byte> expectedValue,
+        ReadOnlySpan<byte> newValue)
+    {
+        if (key.Length == 0)
+            throw new ArgumentOutOfRangeException(nameof(key), "key must be non-empty");
+        var keyArr = key.ToArray();
+        lock (_gate)
+        {
+            if (!_data.TryGetValue(keyArr, out var current)
+                || !current.AsSpan().SequenceEqual(expectedValue))
+                return false;
+            _data[keyArr] = newValue.ToArray();
+            return true;
+        }
+    }
+
+    /// <inheritdoc />
     public byte[]? Get(ReadOnlySpan<byte> key)
     {
         var keyArr = key.ToArray();

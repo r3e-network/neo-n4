@@ -602,10 +602,7 @@ mod tests {
             for id in *ids {
                 assert!(
                     *id >= *start && *id <= *end,
-                    "chain id 0x{:08X} outside its family bank [0x{:08X}, 0x{:08X}]",
-                    id,
-                    start,
-                    end
+                    "chain id 0x{id:08X} outside its family bank [0x{start:08X}, 0x{end:08X}]"
                 );
             }
         }

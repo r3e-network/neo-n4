@@ -438,8 +438,7 @@ mod tests {
         for nonce in [1u64, 2, 3] {
             assert!(
                 core.journal.is_submitted(0xE000_0001, nonce).unwrap(),
-                "nonce {} should be marked submitted",
-                nonce
+                "nonce {nonce} should be marked submitted"
             );
         }
     }

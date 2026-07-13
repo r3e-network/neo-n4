@@ -411,9 +411,9 @@ mod tests {
         nonce: u64,
     ) -> serde_json::Value {
         let topic_sig = format!("0x{}", hex::encode(locked_event_topic_hash()));
-        let topic_chain = format!("0x{:0>64x}", external_chain_id);
-        let topic_neo = format!("0x{:0>64x}", neo_chain_id);
-        let topic_nonce = format!("0x{:0>64x}", nonce);
+        let topic_chain = format!("0x{external_chain_id:0>64x}");
+        let topic_neo = format!("0x{neo_chain_id:0>64x}");
+        let topic_nonce = format!("0x{nonce:0>64x}");
 
         // ABI-encoded data (same layout as decode_locked_event_round_trip):
         let mut data = Vec::new();
@@ -800,7 +800,7 @@ mod tests {
         let port = listener.local_addr().unwrap().port();
         drop(listener);
 
-        let url = format!("http://127.0.0.1:{}/", port);
+        let url = format!("http://127.0.0.1:{port}/");
         let mut source = EthRpcEventSource::builder(url, [0u8; 20])
             .request_timeout(Duration::from_secs(1))
             .build()

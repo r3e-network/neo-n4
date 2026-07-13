@@ -61,16 +61,14 @@ fn main() {
                 o.status, detail
             );
         }
-        Err(e) => {
+        Err(error) => {
             if !allow_cached_elf {
                 panic!(
-                    "cargo prove is not available on PATH ({}); install SP1 with sp1up or set NEO_ZKVM_ALLOW_CACHED_ELF=1 only for host-only development",
-                    e
+                    "cargo prove is not available on PATH ({error}); install SP1 with sp1up or set NEO_ZKVM_ALLOW_CACHED_ELF=1 only for host-only development"
                 );
             }
             println!(
-                "cargo:warning=cargo prove not on PATH ({}), using cached ELF because NEO_ZKVM_ALLOW_CACHED_ELF=1 at {}",
-                e,
+                "cargo:warning=cargo prove not on PATH ({error}), using cached ELF because NEO_ZKVM_ALLOW_CACHED_ELF=1 at {}",
                 elf_path.display()
             );
         }

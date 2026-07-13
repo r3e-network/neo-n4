@@ -137,7 +137,7 @@ async fn server_error_surfaces_with_code() {
             assert_eq!(code, -32000);
             assert!(message.contains("node not synced"));
         }
-        other => panic!("expected Server error, got {:?}", other),
+        other => panic!("expected Server error, got {other:?}"),
     }
 }
 
@@ -176,6 +176,6 @@ async fn mismatched_chain_id_surfaces_as_mismatch_error() {
             assert_eq!(expected, 1099);
             assert_eq!(got, 9999);
         }
-        other => panic!("expected MismatchedChainId, got {:?}", other),
+        other => panic!("expected MismatchedChainId, got {other:?}"),
     }
 }

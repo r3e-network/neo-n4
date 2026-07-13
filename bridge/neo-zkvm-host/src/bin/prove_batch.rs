@@ -310,7 +310,9 @@ fn parse_daemon_args(args: &[String]) -> Result<DaemonConfig, String> {
                 if i >= args.len() {
                     return Err("--poll-secs requires an integer".into());
                 }
-                poll_secs = args[i].parse().map_err(|e| format!("--poll-secs: {}", e))?;
+                poll_secs = args[i]
+                    .parse()
+                    .map_err(|error| format!("--poll-secs: {error}"))?;
                 if poll_secs == 0 {
                     return Err("--poll-secs must be positive".into());
                 }
@@ -319,7 +321,7 @@ fn parse_daemon_args(args: &[String]) -> Result<DaemonConfig, String> {
                 print_usage();
                 std::process::exit(0);
             }
-            other => return Err(format!("unexpected daemon argument: {}", other)),
+            other => return Err(format!("unexpected daemon argument: {other}")),
         }
         i += 1;
     }
@@ -364,7 +366,7 @@ fn scan_once(cfg: &DaemonConfig) -> Result<usize, String> {
             }
         };
         let stem = name.trim_end_matches(".batch.bin");
-        let proof_path = path.with_file_name(format!("{}.proof.bin", stem));
+        let proof_path = path.with_file_name(format!("{stem}.proof.bin"));
         info!("proving {} ({} bytes)...", name, bytes.len());
         let t0 = std::time::Instant::now();
         match prove_one(&bytes, &proof_path) {
@@ -434,8 +436,8 @@ fn prove_one(bytes: &[u8], proof_path: &Path) -> Result<WrittenProof, String> {
         .to_str()
         .ok_or("proof path is not valid UTF-8")?
         .trim_end_matches(".bin");
-    let vk_path = PathBuf::from(format!("{}.vk", stem));
-    let public_values_path = PathBuf::from(format!("{}.public-values.bin", stem));
+    let vk_path = PathBuf::from(format!("{stem}.vk"));
+    let public_values_path = PathBuf::from(format!("{stem}.public-values.bin"));
     std::fs::write(&vk_path, result.vk_bytes)
         .map_err(|e| format!("write vk to {}: {}", vk_path.display(), e))?;
     std::fs::write(&public_values_path, result.public_values).map_err(|e| {

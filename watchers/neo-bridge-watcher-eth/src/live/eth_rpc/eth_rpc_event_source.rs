@@ -121,8 +121,7 @@ impl EthRpcEventSource {
             .map_err(|e| EthRpcError::BadLog(format!("blockNumber: {e}")))?;
         if block_number < from || block_number > to {
             return Err(EthRpcError::BadLog(format!(
-                "log block {} outside requested range [{}..{}]",
-                block_number, from, to
+                "log block {block_number} outside requested range [{from}..{to}]"
             )));
         }
         Ok(())

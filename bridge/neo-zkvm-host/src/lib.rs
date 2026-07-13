@@ -44,7 +44,7 @@ pub fn execute(request_bytes: &[u8]) -> Result<ZkExecutionResult, String> {
     let (public_values, report) = prover
         .execute(Elf::Static(NEO_ZKVM_GUEST_ELF), stdin)
         .run()
-        .map_err(|e| format!("zkVM execute failed: {:?}", e))?;
+        .map_err(|error| format!("zkVM execute failed: {error:?}"))?;
 
     let public_input_hash = decode_committed_public_values(public_values.as_slice())?;
 
@@ -73,13 +73,13 @@ pub fn prove(request_bytes: &[u8]) -> Result<ProofResult, String> {
 
     let pk = prover
         .setup(Elf::Static(NEO_ZKVM_GUEST_ELF))
-        .map_err(|e| format!("prover setup failed: {:?}", e))?;
+        .map_err(|error| format!("prover setup failed: {error:?}"))?;
 
     let proof = prover
         .prove(&pk, stdin)
         .groth16()
         .run()
-        .map_err(|e| format!("zkVM prove failed: {:?}", e))?;
+        .map_err(|error| format!("zkVM prove failed: {error:?}"))?;
 
     let public_values: [u8; COMMITTED_PUBLIC_VALUES_LEN] =
         proof.public_values.as_slice().try_into().map_err(|_| {
@@ -195,7 +195,7 @@ fn decode_committed_public_values(public_values: &[u8]) -> Result<[u8; 32], Stri
             .try_into()
             .map_err(|_| "public-input hash decode failed".to_string()),
         1 => Err("guest reported execution error".to_string()),
-        status => Err(format!("unknown guest status tag: {}", status)),
+        status => Err(format!("unknown guest status tag: {status}")),
     }
 }
 

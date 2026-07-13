@@ -22,10 +22,14 @@ For any L2 chain registered in `NeoHub.ChainRegistry`:
   prover from signing different inputs than the commitment claims.
 - **ZK verifier boundary.** `ProofType.Zk` routes through the deployable
   `NeoHub.ContractZkVerifier` router. The router validates the commitment/proof
-  envelope and registered verification-key id, then calls the configured
-  deployable verifier contract for `verifyZkProof(...)`. Native/precompile
-  acceleration can implement that verifier ABI as an optional optimization, but
-  it is not required for the default NeoHub deployment.
+  envelope and registered verification-key id, then calls the registered
+  terminal verifier for `verifyZkProof(...)`. The production SP1 route binds the
+  immutable `Sp1Groth16Verifier` as its deployable verifier contract. It accepts
+  the exact 356-byte SP1 proof, reconstructs five public inputs, and evaluates the complete SP1
+  v6.1-compatible Groth16 wrapper pairing equation used by SP1 6.2.x using Neo's current BN254
+  interops. The production deployment permanently disables envelope-only
+  acceptance, freezes the exact SP1 program VK and terminal route with
+  `LockProofSystemConfiguration`, then enables the `ProofType.Zk` route.
 - **Replay safety.** Every cross-chain message carries `(chainId, nonce)` and is
   deduped per-pair in `NeoHub.MessageRouter`.
 - **Withdrawal finality.** Funds leave `SharedBridge` only on inclusion proofs
@@ -51,12 +55,16 @@ For any L2 chain registered in `NeoHub.ChainRegistry`:
   bond slashing make stall expensive; escape hatch makes it eventually unwindable.
 
 The right way to think about this: **L1 verifies what the registered verifier
-verifies.** Phase 4 (ZK validity) makes the verifier trustless. Phase 3
+verifies.** Phase 4 can provide cryptographic state-transition validity when the
+registered circuit, VK, terminal verifier, and deployment wiring are all correct. Phase 3
 (optimistic) makes it as trusted as the bisection-game challenge window. Phase
 0–2 stack governance (Neo Council, sequencer bonds) on top of multisig.
-For Phase 4 chains, the registered verifier is `ContractZkVerifier`, and each
-deployable verifier contract it points at is part of that chain's L1 trusted
-computing base.
+For the production SP1 Phase 4 path, `VerifierRegistry` points at
+`ContractZkVerifier`, which is bound to the immutable `Sp1Groth16Verifier`.
+Both contracts, the pinned SP1 circuit/VK, and Neo's BN254 interops are part of
+the L1 trusted computing base. The current VM suite accepts a Rust-produced
+positive proof through the terminal and router and rejects tampered VK,
+public-input, wrapper-field, and proof-point bindings under a pinned fee ceiling.
 
 ---
 
@@ -111,9 +119,13 @@ pinning regression test):
   hash, before submitting to L1 — preventing wasted L1 round-trips.
 - **Contract ZK verifier router.** `ContractZkVerifier` refuses non-ZK commitments,
   malformed `RiscVProofPayload` envelopes, unregistered verification keys, and
-  missing deployable verifier contracts before delegating to `verifyZkProof(...)`.
-  Envelope-only mode is explicit per proof system and should be confined to
-  private devnets or staged integration tests.
+  missing terminal verifier contracts before delegating to `verifyZkProof(...)`.
+  For the production SP1 route, the deploy plan binds the immutable
+  `Sp1Groth16Verifier` and invokes the irreversible
+  `DisableEnvelopeOnlyPermanently` gate, then freezes the exact VK and terminal
+  with `LockProofSystemConfiguration` before registering the ZK route. Private
+  devnets may use envelope-only mode only on a separate, deliberately unlocked
+  deployment.
 - **Fraud-verifier allowlist on `OptimisticChallenge.Challenge`.** Closes a
   bond-drain attack window: `Challenge` will only invoke a `fraudVerifier`
   contract hash that the owner has explicitly registered via
@@ -206,6 +218,12 @@ Before launching an L2:
 - [ ] Audit the deploy bundle. `Neo.Hub.Deploy plan` produces a deterministic,
       dependency-resolved sequence of L1 deploys; review every step against the
       `ChainRegistry` config you intend to register.
+- [ ] For production SP1 settlement, verify the post-deploy action order:
+      register the program VK, bind `Sp1Groth16Verifier`, permanently disable
+      envelope-only acceptance, freeze the exact VK/terminal configuration, then
+      route `ProofType.Zk`. The local positive proof-vector gate is green; do not
+      advertise `securityLevel=3` for a public network until that exact reviewed
+      NEF/VK pair is deployed and the same positive/negative smoke vectors are recorded.
 - [ ] Run the in-process devnet (`tools/Neo.L2.Devnet`) end-to-end before
       pointing the plugins at a live Neo network.
 - [ ] Configure the audit framework. `Neo.L2.Audit.ChainAuditor` accepts a

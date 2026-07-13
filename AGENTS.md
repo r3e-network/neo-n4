@@ -54,14 +54,15 @@ but does NOT need to extend in place.
   generally NOT what to extend.
 
 **Before writing a new component, search this repo's existing libs first** (the per-component
-table in `IMPLEMENTATION_STATUS.md` has 16 off-chain libs + 8 plugins + 23 deployable NeoHub contracts + 10 Neo core native L2 contracts; many
+table in `IMPLEMENTATION_STATUS.md` has 16 off-chain libs + 8 plugins + 25 deployable NeoHub projects
+(24 production + 1 test-only stub) + 10 Neo core native L2 contracts; many
 features that look missing are already there).
 
 ## Mapping `doc.md` to code (current state)
 
 | `doc.md` § | Topic                       | Code location |
 | ---------- | --------------------------- | ------------- |
-| §3.2 NeoHub                | L1 contract suite          | `contracts/NeoHub.*` (24 contracts = 23 production + 1 test-only `ExternalBridgeStubVerifier`: Phase 0–3 core + DA validator/filter + external-bridge stack incl. `GovernanceFraudVerifier` (structural v1/v2), `RestrictedExecutionFraudVerifier` (trustless v3), `MpcCommitteeVerifier` + `MpcCommitteeFraudVerifier`) |
+| §3.2 NeoHub                | L1 contract suite          | `contracts/NeoHub.*` (25 projects = 24 production + 1 test-only `ExternalBridgeStubVerifier`: Phase 0–3 core + DA validator/filter + immutable `Sp1Groth16Verifier` + external-bridge stack incl. `GovernanceFraudVerifier` (structural v1/v2), `RestrictedExecutionFraudVerifier` (v3 root re-derivation, governance-arbitrated), `MpcCommitteeVerifier` + `MpcCommitteeFraudVerifier`) |
 | §4 Neo Gateway             | Phase-5 aggregation        | `src/Neo.Plugins.L2Gateway` (`BinaryTreeAggregator` + `IRoundProver`) |
 | §5 L2 node internals       | Per-L2 plugin layout       | `src/Neo.Plugins.L2{Batch,Settlement,Bridge,DA,Prover,Rpc,Gateway,Metrics}` |
 | §7.1 Sequencer / dBFT      | Committee selection        | `contracts/NeoHub.SequencerRegistry` + `src/Neo.L2.Sequencer` |
@@ -69,7 +70,7 @@ features that look missing are already there).
 | §7.3 StateRootGenerator    | Per-batch roots            | `src/Neo.L2.State` + `src/Neo.L2.Executor.State.KeyedStateStore` |
 | §7.4 DAWriter              | DA layer abstraction       | `src/Neo.L2.Abstractions.IDAWriter` + `src/Neo.Plugins.L2DA` |
 | §7.5 ProverAdapter         | 3-stage proving            | `src/Neo.L2.Proving/{Attestation,Optimistic,RiscVZk}` (Stage 0/1/mock-2 in-process) + `bridge/neo-zkvm-host/` (real Stage-2 ZK out-of-process via `prove-batch daemon`) |
-| §8 Proof system            | Proving spec               | `src/Neo.L2.Executor/SPEC.md` |
+| §8 Proof system            | Proving spec               | `src/Neo.L2.Executor/SPEC.md` + `contracts/NeoHub.Sp1Groth16Verifier` (immutable SP1 v6.1-compatible wrapper used by SP1 6.2.x, verified over Neo BN254 interops) |
 | §9 Token / GAS model       | Bridged accounting         | `src/Neo.L2.Bridge.AssetRegistry` + `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs` (`L2BridgeContract`) |
 | §10 Neo Connect            | Cross-chain messaging      | `src/Neo.L2.Messaging` + `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs` (`L2MessageContract`) |
 | §11 SharedBridge           | Asset escrow               | `contracts/NeoHub.SharedBridge` + `src/Neo.L2.Bridge` |
@@ -188,7 +189,7 @@ operator plans rather than performing the wallet-side submission.
 ## Quick commands
 
 ```bash
-# Type-check + run all 1521 tests
+# Type-check + run the complete current .NET test inventory
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # Devnet demonstration with audit pass

@@ -6,11 +6,11 @@ where each piece of the system lives.
 
 ---
 
-## Test surface (1521 .NET + cross-language gates + SP1 host E2E)
+## Test surface (37 .NET test projects + cross-language gates + SP1 host E2E)
 
 | Tier | Framework | Where | What |
 |------|-----------|-------|------|
-| Unit | MSTest (xUnit-style) | `tests/Neo.L2.*.UnitTests/` (34 projects) | Per-class invariants, edge cases, null-arg + null-field guards, metric-emission pins |
+| Unit | MSTest (xUnit-style) | `tests/` (37 solution test projects including integration suites) | Per-class invariants, edge cases, null-arg + null-field guards, metric-emission pins |
 | Integration | MSTest | `tests/Neo.L2.IntegrationTests/` | E2E phase stitches (Phase 0 → 5), audit pipeline, persistence rehydration, NeoVM2/RISC-V seam, legacy NeoVM compatibility, custom executor full-stack |
 | Property-based / invariant | MSTest + seeded `System.Random` | `UT_BridgeInvariants_PropertyBased.cs` (17 tests) | Random sequences of 200 ops × 4-8 seeds — 1600-3200 transitions per invariant. Asserts bridge accounting + nonce uniqueness + bidirectional registry holds at every intermediate state |
 | Fuzz | MSTest + seeded `System.Random` | `UT_WireFormat_Fuzz.cs` (19 tests) | Random byte sequences to every decoder — must round-trip or reject with typed exception, never crash |
@@ -131,10 +131,10 @@ Rust prover, and their TS SDK. neo4 has equivalent pin tests:
 
 `.github/workflows/build.yml` runs the full suite on every push + PR:
 
-1. `test` — `dotnet test Neo.L2.sln` (1521 tests, 34 projects)
-2. `contracts` — installs `Neo.Compiler.CSharp`, type-checks all 24 deployable NeoHub
-   projects plus the 2 sample contracts, asserts 26 `.nef` + 26 `.manifest.json`
-   artifacts, and runs the `external/neo` N4 native-contract tests
+1. `test` — `dotnet test Neo.L2.sln` across the complete current solution inventory
+2. `contracts` — installs `Neo.Compiler.CSharp`, type-checks all 25 NeoHub
+   projects plus the 2 sample contracts, verifies every `.nef` + `.manifest.json`
+   artifact dynamically, and runs the `external/neo` N4 native-contract tests
 3. `bridge` — `cargo check` on Rust workspace
 4. `neo-zkvm-host` — `cargo build` + non-ignored tests (the 2 real-CPU
    ignored tests run nightly, not per-PR)

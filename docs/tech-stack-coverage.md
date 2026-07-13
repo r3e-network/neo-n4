@@ -33,7 +33,7 @@ any other project's source.
 - **Fraud verifier (governance-arbitration mode reference)** ✅ — `contracts/NeoHub.GovernanceFraudVerifier/`
 - **Fraud verifier (governance-only structural v3 + committed-root-bound restricted executable v4)** ✅ — `contracts/NeoHub.RestrictedExecutionFraudVerifier/` (single-tx Counter profile only; general NeoVM ❌)
 
-**24 NeoHub contracts** (23 production + 1 test-only `ExternalBridgeStubVerifier`). All type-check via `Neo.SmartContract.Framework`; CI
+**25 NeoHub contract projects** (24 production + 1 test-only `ExternalBridgeStubVerifier`). All type-check via `Neo.SmartContract.Framework`; CI
 builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 
 - **L2 batch info (chainId, batch number, L1 height)** ✅ — Neo core native `L2BatchInfoContract`.
@@ -72,10 +72,11 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 - **Cross-chain messaging** ✅ — `src/Neo.L2.Messaging/`
 - **Asset registry + deposit/withdrawal processors** ✅ — `src/Neo.L2.Bridge/`
 - **Per-L2 RPC method surface** ✅ — `src/Neo.Plugins.L2Rpc/` (10 methods)
-- **Phase-5 proof aggregation** ✅ — `src/Neo.Plugins.L2Gateway/` — `BinaryTreeAggregator` with three `IRoundProver` implementations: `MultisigRoundProver` (Secp256r1 threshold-attested), `MerklePathRoundProver` (per-leaf inclusion proofs), `PassThroughRoundProver` (minimal-cost reference). Recursive-ZK fold variants (SP1 Compress / Halo2 / Risc0) operator-supplied through the same seam
+- **Phase-5 proof aggregation** ✅ — `src/Neo.Plugins.L2Gateway/` — `BinaryTreeAggregator` with two production `IRoundProver` implementations (`MultisigRoundProver`, `MerklePathRoundProver`) plus `PassThroughRoundProver` as the minimal-cost reference. Recursive-ZK fold variants (SP1 Compress / Halo2 / Risc0) are operator-supplied through the same seam
 
 **16 off-chain libraries + 8 plugins.** All have `tests/Neo.*.UnitTests/` mirrors;
-1521 tests across 34 .NET projects pass. Rust workspace ships 25 default-CI
+the solution currently contains 37 .NET test projects and reports the exact
+case count at runtime. Rust workspace ships 25 default-CI
 tests (host-mode crypto + SDK + zkVM execute round-trip) plus 2 `#[ignore]`-gated
 tests that exercise real CPU proof generation + verification (~4 minutes wall
 time). TypeScript SDK ships 16 vitest tests.
@@ -118,6 +119,7 @@ is a valid endpoint.
 - **App-developer SDK / client library (.NET)** ✅ — `src/Neo.L2.Sdk/` — typed `L2RpcClient` wrapping all 10 doc.md §14.1 RPC methods. Failure modes split across `L2RpcTransportException` / `L2RpcProtocolException` / `L2RpcServerException` / `L2RpcMismatchedChainIdException` so callers can write targeted retry policy.
 - **App-developer SDK (TypeScript)** ✅ — `sdk/typescript/` — `@neo-n4/sdk` typed wrapper around all 10 RPC methods. 16 vitest tests pass against an in-process stub fetch. Same wire shape + 4-class error taxonomy as the .NET SDK.
 - **App-developer SDK (Rust)** ✅ — `sdk/rust/` — `neo-n4-sdk` typed wrapper. 10 mockito-driven tests pass. Mirrors the .NET + TS SDKs.
+- **App-developer SDK (Python)** ✅ — `sdk/python/` — standard-library typed client covering the same 10 RPC methods and four error classes; `unittest` pins response parsing, chain-id checks, and transport/protocol/server failures.
 
 ---
 
@@ -192,7 +194,7 @@ program using Solana's ed25519 sigverify precompile, source-only
 pending operator `anchor build`), and an operator CLI
 (`tools/Neo.External.Bridge.Cli/` for genkey + committee-blob +
 deploy-bundle). `Neo.Hub.Deploy` scaffolds the full bridge stack
-alongside NeoHub: 23 deploy steps + 17 post-deploy hints. Phase C's
+alongside NeoHub: 24 deploy steps + 32 post-deploy actions/hints. Phase C's
 `MpcCommitteeFraudVerifier` makes slashing of equivocating committee
 members permissionless (anyone can submit cryptographic proof of two
 byte-distinct messages signed for the same `(chainId, nonce)` and
@@ -203,7 +205,7 @@ the Phase-B trait shape was right. Live RPC adapters (ethers-rs
 `EventSource`, JSON-RPC `NeoSubmitter`, RocksDB `Journal`) are next.
 
 All previously-out-of-repo Layer-4 + Layer-5 items now ship in the framework:
-typed SDKs in three languages (.NET / TS / Rust), a static-HTML web app
+typed SDKs in four languages (.NET / TS / Rust / Python), a static-HTML web app
 covering explorer + bridge + faucet UIs, an mdBook documentation-site config,
 documented wallet-integration patterns. Wallet integrations stay
 delegate-driven so the framework never holds private keys.

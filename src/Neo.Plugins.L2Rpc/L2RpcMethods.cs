@@ -13,9 +13,9 @@ namespace Neo.Plugins.L2Rpc;
 /// </summary>
 /// <remarks>
 /// Held separately from <c>RpcServer</c> integration so the methods can be unit-tested without
-/// spinning up a node. The <c>Neo.Plugins.L2Rpc.RpcServerExtensions</c> partial class (added
-/// alongside neo's <c>RpcServer</c> when its source is available) wraps these into
-/// <c>[RpcMethod]</c>-attributed entry points.
+/// spinning up a node. <c>L2RpcServerAdapter</c> exposes the production
+/// <c>[RpcMethod]</c>-attributed entry points and <c>L2RpcPlugin</c> registers them with the
+/// official <c>RpcServerPlugin</c> for the active network.
 /// </remarks>
 public sealed class L2RpcMethods
 {

@@ -59,7 +59,7 @@ off-chain infrastructure that connects them:
 
 ### Tier 1: NeoHub (L1)
 
-The L1 anchor. **23 production contracts plus 1 test-only stub** grouped by
+The L1 anchor. **24 production contracts plus 1 test-only stub** grouped by
 concern:
 
 <p align="center">
@@ -72,8 +72,10 @@ verifies the `.nef` + `.manifest.json` artifacts.
 
 **Key relationships:**
 - `SettlementManager` consumes proofs validated by `VerifierRegistry`;
-  `ProofType.Zk` routes to `ContractZkVerifier`, which dispatches to
-  governance-registered deployable verifier contracts for proof-system work;
+  `ProofType.Zk` routes to `ContractZkVerifier`. The production SP1 route is
+  bound to immutable `Sp1Groth16Verifier`, performs the complete five-public-input
+  Groth16 pairing check over Neo BN254 interops, and permanently disables
+  envelope-only acceptance;
   withdrawals against accepted batches are user-pulled via
   `SharedBridge.FinalizeWithdrawalWithProof` (Merkle proof against the
   batch's `withdrawalRoot`), not auto-applied.
@@ -93,7 +95,7 @@ Aggregates many L2s' proofs into one settlement post on L1. Reduces
 L1 gas cost when running >1 L2 chain.
 
 - `BinaryTreeAggregator` — log-N round narrowing across N constituent batches.
-- `IRoundProver` — 3 production impls + a recursive-ZK seam:
+- `IRoundProver` — 2 production implementations, 1 reference, plus a recursive-ZK seam:
   - `MultisigRoundProver` — Secp256r1 threshold-attested rounds
   - `MerklePathRoundProver` — per-constituent inclusion proofs
   - `PassThroughRoundProver` — minimal-cost reference
@@ -366,7 +368,7 @@ Which `neo-stack` subcommand touches which component:
 For NeoHub itself (one-time, per-network):
 
 ```bash
-# Generate the 23-step ordered bundle:
+# Generate the 24-step ordered bundle:
 dotnet run --project tools/Neo.Hub.Deploy -- plan
 
 # Verify the bundle's invariants:

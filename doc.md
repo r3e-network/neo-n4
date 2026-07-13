@@ -1250,7 +1250,7 @@ Canonical confirmation:
 
 Neo 4 roadmap 提到增强 NEO Council 角色，包括动态调整 council members、决定 consensus node admission/exit、管理核心网络参数，并提到 NEO holders 的 referendum power 和未来探索 Layer-2 governance。([GitHub][3])
 
-> 注（实现状态，roadmap / 尚未实现）：上述「动态调整 council members」与「NEO holders referendum」均为 Neo 4 roadmap 目标，**当前实现尚不支持**。本仓库的 `NeoHub.GovernanceController` 中的链上 council 在部署时（`_deploy`）一次性固定，**刻意设计为不可变**——没有 AddCouncilMember / RemoveCouncilMember / SetThreshold / RotateCouncil 入口，也没有 `ContractManagement.Update` 升级路径；轮换或更换成员、修改门限/timelock 都必须重新部署一套 GovernanceController 并重连所有 consumer。链上也**没有任何 referendum 机制**。
+> 注（实现状态）：`NeoHub.GovernanceController` 已支持 proposal-bound、threshold-approved、timelocked 的原子 council rotation。`RotateCouncil` 同时替换成员与门限并递增 `councilEpoch`；所有旧 epoch proposal 立即失效，rotation proposal 只能消费一次。timelock 参数仍在部署时固定，合约没有 `ContractManagement.Update` 路径。链上 **NEO holder referendum 仍未实现**。
 
 Neo L2 governance 应分三层：
 

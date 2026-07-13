@@ -190,8 +190,10 @@ batchNumber, challenger, fraudProofBytes, fraudVerifier)` delegates the
 actual cryptographic check to a contract identified by the
 `fraudVerifier` argument.
 
-Four verifier modes are available; only the first two are ready from the
-default empty-deploy-data bundle:
+Four verifier modes are available. The default 24-step production bundle
+deploys both reference verifiers and configures the restricted verifier with
+`[SettlementManager, replayDomain]`; live deployment therefore requires an
+explicit `--fraud-replay-domain`:
 
   1. **Governance-arbitration mode** (the simplest operator-friendly path):
      deploy `NeoHub.GovernanceFraudVerifier`. It does a structural check
@@ -200,22 +202,23 @@ default empty-deploy-data bundle:
      claims-a-real-discrepancy) and emits accept/reject events for the
      security council to arbitrate. Pass its deployed hash as
      `fraudVerifier` when filing a challenge.
-  2. **Structural v3 governance mode**: the default bundle deploys
+  2. **Structural v3 governance mode**: legacy custom plans may deploy
      `NeoHub.RestrictedExecutionFraudVerifier` with empty data. V3 re-derives
      challenger-supplied storage roots, but does not bind them to the committed
      batch or execute the transaction; register it through approved-only
      `RegisterFraudVerifier` and require governance co-sign.
-  3. **Permissionless restricted v4**: deploy
+  3. **Permissionless restricted v4**: the production bundle deploys
      `NeoHub.RestrictedExecutionFraudVerifier` with
-     `[SettlementManager, replayDomain]`, then call
+     `[SettlementManager, replayDomain]`, then calls
      `RegisterPermissionlessFraudProfile(chainId, verifier,
      executorSemanticId, replayDomain)`. The shipped semantic id covers exactly
      one existing-key Counter Increment transaction. It binds the canonical
      committed header/roots, tx proof, canonical degenerate `[0,1]` transcript, claim id, and
      old/new storage proofs against the committed pre/post roots, then executes
      that transition. Correct committed execution returns false; a wrong
-     committed root returns true. This mode is
-     not general NeoVM and is not yet emitted by the default deploy planner.
+     committed root returns true. Production smoke checks verify the deployed
+     settlement-manager hash, replay domain, semantic id, and exact profile.
+     This mode is not general NeoVM; unsupported semantics fail closed.
   4. **Custom verifier**: ship your own fraud verifier (e.g. one that
      re-executes the disputed transaction on L1 with restricted state).
      Skip both reference verifiers from the deploy bundle and register
@@ -619,15 +622,15 @@ be whatever the operator needs.
 
 ## Going to L1: deploying NeoHub
 
-Before `register-chain` works, the 23 production NeoHub contracts must be
+Before `register-chain` works, the 24 production NeoHub contracts must be
 deployed on the target L1. The test-only `ExternalBridgeStubVerifier` is not
 part of the default deploy bundle. The `neo-hub-deploy` tool emits a deploy
 bundle that names each contract, its dependencies, and the resolved hashes
 after a topological sort:
 
 ```bash
-# 1. Scaffold a starter plan (23 production NeoHub deploy steps in dependency
-#    order, including ContractZkVerifier and the v1/v2 and v3 fraud verifiers).
+# 1. Scaffold a starter plan (24 production NeoHub deploy steps in dependency
+#    order, including ContractZkVerifier, Sp1Groth16Verifier, and both fraud verifiers).
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
     --output ./my-l2/deploy-plan.json
 

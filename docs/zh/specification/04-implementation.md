@@ -131,7 +131,7 @@ dotnet run --project tools\Neo.Hub.Deploy -- verify --plan plan.json --rpc https
 
 设计重点：
 
-- 23 个生产合约进入默认 deploy plan；
+- 24 个生产合约进入默认 deploy plan；
 - `ExternalBridgeStubVerifier` 只用于测试；
 - `ContractZkVerifier` 替代旧 `NativeZkVerifier` 路线；
 - post-deploy action 会提示 operator 注册 DA、verifier、bridge 和 filter。
@@ -188,4 +188,3 @@ SDK 让应用不需要直接拼 JSON-RPC：
 - 错误分类是否一致；
 - chain id mismatch 是否被显式处理；
 - secret 是否永远不进入浏览器或文档。
-

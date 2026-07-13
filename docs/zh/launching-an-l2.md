@@ -169,21 +169,30 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --executor counter
 `Challenge(chainId, batchNumber, challenger, fraudProofBytes, fraudVerifier)`
 提交,把实际密码学校验委派给由 `fraudVerifier` 参数指定的合约。
 
-3 条路径,都在默认 `neo-hub-deploy plan` 的 23 步 bundle 中:
+4 条路径可用。默认 `neo-hub-deploy plan` 的 24 步生产 bundle 同时部署两个
+参照 verifier，并用 `[SettlementManager, replayDomain]` 初始化受限执行 verifier；
+live deploy 因而必须显式传入 `--fraud-replay-domain`:
 
   1. **治理仲裁模式**(最简单的运维友好路径):部署
      `NeoHub.GovernanceFraudVerifier`。它对规范 `FraudProofPayload` 做结构性
      校验(v1=101 字节定长,或 v2=105+N 字节带 disputed-tx witness;长度 / 版本 /
      是否声明真实差异)并发出 accept/reject 事件交安全委员会仲裁。提挑战时把
      它的部署哈希作 `fraudVerifier` 传入。
-  2. **无信任 v3 模式**(无委员会仲裁):部署
+  2. **结构性 v3 治理模式**:旧版自定义 plan 可用空 deploy data 部署
      `NeoHub.RestrictedExecutionFraudVerifier`。它在链上从每个
      `FraudProofPayload` v3 storage 证明(leaf-hash + Merkle siblings + leafIndex)
      重新派生 pre/post 状态根,并与 v1 头的 `PreStateRoot` 与
-     `ReplayedPostStateRoot` 比对。一份能干净重建 + 声明真实差异的 v3 payload
-     被自动接受。挑战者在链下生成 v3 payload(参照实现 + 与链上逻辑的对等性
-     测试见 `Neo.L2.Challenge.V3StorageProofVerifier`)。
-  3. **自定义 verifier**:出货你自己的 fraud verifier(例如在 L1 上以受限状态
+     `ReplayedPostStateRoot` 比对，但不绑定已提交批次，也不执行交易。只能经
+     approved-only 的 `RegisterFraudVerifier` 注册，并要求治理联签。
+  3. **无许可受限 v4 模式**:默认生产 bundle 用
+     `[SettlementManager, replayDomain]` 部署 verifier，然后调用
+     `RegisterPermissionlessFraudProfile(chainId, verifier,
+     executorSemanticId, replayDomain)`。已发布 semantic id 只覆盖单笔、已有 key
+     的 Counter Increment；它绑定规范批次头、交易证明、退化 `[0,1]` transcript、
+     claim id、旧/新 storage proof，并执行该受限状态转换。部署后 smoke check
+     验证 SettlementManager、replay domain、semantic id 与 exact profile。
+     这不是通用 NeoVM；不支持的语义 fail closed。
+  4. **自定义 verifier**:出货你自己的 fraud verifier(例如在 L1 上以受限状态
      重新执行被争议交易的)。在 deploy bundle 中跳过两个参照 verifier,改注册
      你自己 verifier 的哈希。`FraudProofPayload` v2(DisputedTxBytes)和 v3
      (StorageProofs)线协议字段携带重新执行 verifier 所需的被争议 tx 字节 +
@@ -194,9 +203,14 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --executor counter
 
 ```
 # 注:对 v1/v2 fraud proof(治理仲裁),传 GovernanceFraudVerifier.Hash …
-# 注:对 v3 fraud proof(无信任 storage-proof 重新派生),传
+# 注:对 v3 fraud proof(仅治理的结构性证据),传
 #     RestrictedExecutionFraudVerifier.Hash …
+# 注:对 v4 fraud proof,使用与 chainId + semanticId + replayDomain 精确绑定的
+#     permissionless profile。
 ```
+
+不要把旧版 v3 提示理解为无许可授权。`RegisterPermissionlessFraudVerifier`
+已禁用；有价值转移的无许可挑战必须使用上述显式 v4 profile。
 
 ---
 
@@ -559,13 +573,13 @@ L1:      SettlementManager.SubmitBatch(commitmentBytes, l1MessageHash, blockCont
 
 ## 上 L1:部署 NeoHub
 
-`register-chain` 起作用之前,23 个生产 NeoHub 合约必须部署到目标 L1。仅测试用的
+`register-chain` 起作用之前,24 个生产 NeoHub 合约必须部署到目标 L1。仅测试用的
 `ExternalBridgeStubVerifier` 不包含在默认 deploy bundle 中,也不得注册为生产 verifier。`neo-hub-deploy`
 工具输出一个 deploy bundle,把每个合约、它的依赖、拓扑排序后解析的哈希都列出:
 
 ```bash
-# 1. 脚手架一个起步 plan(23 个生产 NeoHub 部署步骤按依赖序,
-#    包含 ContractZkVerifier 以及 v1/v2 与 v3 fraud verifier)。
+# 1. 脚手架一个起步 plan(24 个生产 NeoHub 部署步骤按依赖序,
+#    包含 ContractZkVerifier、Sp1Groth16Verifier 以及两个 fraud verifier)。
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
     --output ./my-l2/deploy-plan.json
 
@@ -596,7 +610,7 @@ verifier 的信息提示,告知传给 `OptimisticChallenge.Challenge` 的 `fraud
 > `ContractManagement.Deploy` 之后才存在。钱包返回每个真实哈希;把这些捕获到
 > 下面的 `register-chain` 4 个 flag 里 —— **不要**用 bundle 中的 stub 哈希。
 
-所有 23 步部署 + post-deploy 接线完成后,把**真实链上**合约哈希(由你的钱包从
+所有 24 步部署 + post-deploy 接线完成后,把**真实链上**合约哈希(由你的钱包从
 每次 `ContractManagement.Deploy` 调用返回)捕获到 `register-chain` 的 4 个 flag:
 
 ```bash

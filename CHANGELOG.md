@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — security and production-status documentation — 2026-07-14
+
+- Reconciled English and Chinese architecture, launch, security, and status
+  documentation with the shipped SP1 terminal verifier, restricted fraud-proof v4,
+  epoch-bound council rotation, 25-project NeoHub inventory, 24-step production bundle,
+  four typed SDKs, 37 solution test projects, and the official RpcServer integration.
+- Removed volatile total-test counts and corrected production-boundary claims for
+  Gateway round provers, operator key custody, real NeoFS, and deployment evidence.
+
 ### Fixed — release artifact ownership metadata — 2026-07-14
 
 - Replaced incorrect Neo Project authorship with R3E Network across package metadata and all 25 NeoHub contract manifests, regenerated the 24 VM testing artifacts from fresh `nccs` output, and added a fresh-manifest regression gate for maintainer attribution.

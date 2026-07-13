@@ -79,18 +79,16 @@ ZKsync 弹性链最本质的特性是:L1 合约会为每个结算批次验证一
   多数假设。
 - **`ProofType.Optimistic`(Stage 1)**——有效性被*假定*成立,L1 依赖一个欺诈证明
   挑战窗口(`OptimisticChallenge`)。这是相对 ZKsync(纯有效性 rollup)的**乐观 rollup
-  分歧**。链上欺诈验证器会从存储证明重新推导根,但**尚未**在 L1 重放有争议的交易
-  (见 [`IMPLEMENTATION_STATUS.md`](../../IMPLEMENTATION_STATUS.md))。
-- **`ProofType.Zk`(Stage 2)**——规范的批次/证明信封由 `ContractZkVerifier` 在链上
-  校验,但 **SNARK 数学本身并未在仓库内链上验证**。`ContractZkVerifier` 要么转发给一个
-  由治理注册的验证器合约(本仓库未附带任何此类合约),要么在显式的 devnet
-  `envelope-only` 模式下**不做任何密码学校验**地接受证明。真正的密码学验证目前运行在
-  `external/neo-zkvm` 下的**链下** Rust SP1 prover/verifier 中。若某条链需要无信任保证,
-  必须注册一个真实的链上验证器合约,并调用
-  `ContractZkVerifier.DisableEnvelopeOnlyPermanently` 永久锁死 envelope-only 路径。
+  分歧**。v1/v2/v3 仍是治理仲裁的结构性证据；独立 v4 profile 会绑定 committed batch
+  并执行一笔 existing-key Counter Increment。通用 NeoVM 与多交易 fraud proof fail closed。
+- **`ProofType.Zk`(Stage 2)**——`ContractZkVerifier` 校验规范 batch/proof 信封，并把
+  SP1 证明路由到仓库内不可变的 `Sp1Groth16Verifier`；后者通过 Neo Core 原生 BN254
+  interop 执行完整的固定 SP1 Groth16 pairing 方程。生产计划注册准确 program VK，并在
+  暴露 ZK settlement 路由前永久关闭 SP1 `envelope-only`。显式 envelope-only 仅保留给
+  私有 devnet 和尚未接入终端验证器的其他证明系统。
 
-简言之:neo4 复刻了弹性链的*架构*及其*链下* ZK 验证,但链上有效性证明验证——无信任
-结算的核心——在本仓库中是运维方提供 / 进程外完成的,而非随仓库一起交付并接线。下表中
+简言之：neo4 现在同时交付弹性链式 proof routing 拓扑和 SP1 Groth16 链上有效性验证器。
+这不是 ZKsync Boojum/Plonk 字节码复刻，而是 Neo SP1/RISC-V 路线对应的无信任结算边界。下表中
 标注"对等"的行除非另有说明,均指结构 / 拓扑层面的对等;与证明验证相关的行已明确标注为
 **部分**。
 
@@ -113,7 +111,7 @@ ZKsync 弹性链最本质的特性是:L1 合约会为每个结算批次验证一
 | **`TransactionFilterer`**(每链 L1→L2 过滤钩子) | `MessageRouter.SetL1TxFilter` + `NeoHub.L1TxFilter` | 对等于 L1→L2 入队过滤；L2 mempool 过滤保留为运维策略 |
 | **`L2AdminFactory` / 每链 `ChainAdmin`** | 缺 —— 链管理在 Hub 侧 `ChainRegistry.L2ChainConfig` 的 `operatorManager` | 有意分歧 |
 | **`BridgedStandardERC20`** —— 规范 L2 代币 | Neo Core 原生 `BridgedNep17Contract` | 对等于规范桥接代币层 |
-| **Boojum / Plonk 验证器合约** —— 链上有效性证明数学 | `NeoHub.ContractZkVerifier` 将 `ProofType.Zk` 转发给治理注册的验证器合约;`NeoHub.{MpcCommittee,Governance,RestrictedExecution}*Verifier` 覆盖多签 / 策略类证明 | 部分 —— **仓库内无 SNARK 验证器**:Plonk/Boojum/Groth16 数学由运维方注册的验证器合约提供(或在 devnet `envelope-only` 模式下跳过);真正的密码学验证运行在**链下** `external/neo-zkvm`(SP1)。详见上文 **L1 信任模型**。 |
+| **Boojum / Plonk 验证器合约** —— 链上有效性证明数学 | `NeoHub.ContractZkVerifier` 将 `ProofType.Zk` 路由到不可变的 `NeoHub.Sp1Groth16Verifier`；后者固定 SP1 wrapper VK 并通过 Neo Core 执行 Groth16/BN254 数学 | 安全边界等价、证明栈不同 —— SP1 Groth16 替代 Boojum/Plonk；生产永久关闭 SP1 `envelope-only`。详见上文 **L1 信任模型**。 |
 | **`CalldataDA` / `ValidiumL1DAValidator` / `RollupDAManager` / `RelayedSLDAValidator`** | `NeoHub.DARegistry` + `NeoHub.DAValidator` + `Neo.Plugins.L2DA` writer | 部分 —— DAC attestation gate 已有；更丰富的 NeoFS / 外部包含证明 adapter 属于运维扩展 |
 | **`BytecodesSupplier` / `*Upgrade` 系列 / `UpgradeStageValidator`** | `GovernanceController` 提案管线，含通知、执行、冷却窗口 | 对等于分阶段时序；NeoVM 不需要 bytecode supplier |
 | **L2 `Bootloader`** | 缺 —— NeoVM2/RISC-V runtime 提供原生派发 | 有意分歧 |
@@ -201,7 +199,7 @@ gated NFT mint、L1→L2 deposit)。neo4 总共 3 个样例模块。
   `ContractManagement`、原生 NEP-17 GAS、原生密码学、隐式签名者 nonce。
 - **Diamond proxy + facet 模式**(`DiamondProxy.sol`、`Admin.sol`、
   `Executor.sol`、`Getters.sol`、`Mailbox.sol`)—— 为绕过以太坊 24KB 合约
-  大小限制而存在。NeoVM2/RISC-V 无 24KB 上限;NeoHub 在 23 个合约间按职责切分等效。
+  大小限制而存在。NeoVM2/RISC-V 无 24KB 上限;NeoHub 在 24 个生产合约间按职责切分等效。
 - **`CTMDeploymentTracker` + `ChainAssetHandler`** —— ZKsync 用来支持
   *竞争性* 链类型与第三方资产路由器。neo4 只有一个规范 Hub。
 - **`L2BaseToken` + `L2WrappedBaseToken` / `L2WrappedBaseTokenStore`** ——

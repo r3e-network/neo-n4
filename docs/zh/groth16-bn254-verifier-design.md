@@ -1,115 +1,100 @@
-# BN254 Groth16 验证器合约设计
+# SP1 Groth16/BN254 链上验证器
 
-状态：评审草案。目标是提供一个可部署的 NeoHub 验证器合约，基于 Neo Core
-`CryptoLib` 的 `bn254*` 原生方法，对 BN254（alt_bn128）上的 Groth16 证明执行真实
-pairing 校验，使 `ContractZkVerifier` 能把 `ProofType.Zk` settlement 路由到真实密码学
-验证器，而不是依赖 envelope-only 兜底。
+状态：已实现并固定版本。生产合约位于
+`contracts/NeoHub.Sp1Groth16Verifier`。
 
-## 1. 背景
+## 1. 安全边界
 
-`contracts/NeoHub.ContractZkVerifier` 是 ZK 证明路由器。它解析 N4 batch commitment，
-读取 RISC-V ZK proof payload，检查 proof system 与治理注册的 verification-key id，然后：
+`NeoHub.ContractZkVerifier` 校验 N4 batch commitment、`RiscVProofPayload` 信封、证明系统、
+已注册的 program VK 和 32 字节 N4 public-input hash；对于 `ProofSystem.Sp1`，再调用
+`Sp1Groth16Verifier.verifyZkProof(...)` 执行完整的 BN254/Groth16 数学。
 
-- 调用治理注册的下游 verifier：
-  `verifyZkProof(proofSystem, verificationKeyId, publicInputHash, proofBytes)`；或
-- 在显式允许的 devnet / 临时模式下接受 envelope-only。
+生产部署必须注册该终端验证器，并在启用 `ProofType.Zk` 路由前不可逆地执行
+`DisableEnvelopeOnlyPermanently(ProofSystem.Sp1=1)`，随后调用
+`LockProofSystemConfiguration(ProofSystem.Sp1=1, programVKey)` 固定唯一 program VK 与
+terminal verifier。生产计划不包含 devnet 的 envelope-only 逃生路径。
 
-当前缺口是：没有下游合约真正执行 Groth16/BN254 证明数学。该设计用于关闭这个缺口，
-服务于 SP1 / RISC-Zero 等输出 Groth16 BN254 wrapper proof 的路径。
+该合约只服务于固定的 SP1 v6.1-compatible wrapper。Risc0、Halo2、Axiom、其他 SP1
+wrapper 或新的验证密钥都必须部署独立、重新审计的终端验证器。
 
-## 2. Groth16 / BN254 校验模型
+## 2. 精确 SP1 格式
 
-Groth16 verifying key 为 `(α ∈ G1, β ∈ G2, γ ∈ G2, δ ∈ G2, IC ∈ G1^{ℓ+1})`，
-proof 为 `(A ∈ G1, B ∈ G2, C ∈ G1)`。对 public inputs `a₁..a_ℓ`，验证器计算：
+SP1 wrapper 的五个 BN254 公共输入依次为：
+
+1. 原始 32 字节 `vk.bytes32()` program VK；
+2. committed public values 的 masked SHA-256；
+3. guest exit code；
+4. SP1 recursion VK root；
+5. Groth16 nonce。
+
+N4 guest 固定提交 `0x00 || publicInputHash[32]`。合约重建这 33 字节，计算 SHA-256，
+并按 SP1 规则清除 digest 第一个字节的最高三位。五个输入都必须是规范的 Fr 元素；
+不得对攻击者输入做静默模约减。
+
+证明必须正好 356 字节：
+
+| 偏移 | 长度 | 内容 |
+|---:|---:|---|
+| 0 | 4 | selector `0x4388a21c` |
+| 4 | 32 | 必须为零的 exit code |
+| 36 | 32 | recursion VK root |
+| 68 | 32 | nonce |
+| 100 | 64 | G1 点 `A` |
+| 164 | 128 | G2 点 `B` |
+| 292 | 64 | G1 点 `C` |
+
+固定 recursion VK root 为
+`0x002f850ee998974d6cc00e50cd0814b098c05bfade466d28573240d057f25352`。
+
+## 3. 配对方程
+
+合约固定 SP1 wrapper 的 `alpha`、`beta`、`gamma`、`delta` 和 `IC[0..5]`，计算：
 
 ```text
-vk_x = IC₀ + Σ aᵢ · ICᵢ
+linearCombination = IC0 + a1*IC1 + a2*IC2 + a3*IC3 + a4*IC4 + a5*IC5
+e(A, B) = e(alpha, beta) * e(linearCombination, gamma) * e(C, delta)
 ```
 
-并接受当且仅当：
+Neo `CryptoLib.Bn254Deserialize` 强制 EIP-196/EIP-197 大端规范坐标、曲线成员关系和
+G2 子群检查。GT 结果通过 `Bn254Add` 组合并用 `Bn254Equal` 比较。
 
-```text
-e(A, B) = e(α, β) · e(vk_x, γ) · e(C, δ)
-```
+## 4. 不可变性与最小权限
 
-这是固定工作量：四次 pairing、一次 G1 scalar multiplication、一次 G1 add、两次 GT
-composition 和一次 GT equality，没有攻击者可控循环。
+终端验证器没有 owner、storage、升级入口或运行时 VK 注册。SP1 wrapper 变更时必须部署新
+字节码并通过治理显式切换，不能原地替换密钥。
 
-## 3. CryptoLib 映射
+manifest 只允许调用 CryptoLib
+`0x726cb6e0cd8628a1350a611384688911ab75f51b` 的 `sha256`、
+`bn254Deserialize`、`bn254Add`、`bn254Mul`、`bn254Pairing`、`bn254Equal`，不含通配权限。
 
-合约依赖以下 Neo Core 原生方法：
+## 5. 成本与测试
 
-| 需求 | CryptoLib 方法 |
-| --- | --- |
-| 反序列化 G1/G2 | `Bn254Deserialize(byte[])` |
-| G1 标量乘 | `Bn254Mul(point, scalar)` |
-| G1 / GT 组合 | `Bn254Add(left, right)` |
-| pairing | `Bn254Pairing(g1, g2)` |
-| GT 等值判断 | `Bn254Equal(left, right)` |
+每次验证固定执行五次 G1 标量乘、五次 G1 加法、四次 pairing、两次 GT 乘法和一次相等
+检查；长度校验发生在密码学运算前，不存在攻击者控制的循环。N4 Core 测试限制总费用不超过
+100 GAS。
 
-点解码必须由 native 层校验 canonical 坐标、曲线点合法性，以及 G2 subgroup membership。
-GT 对比必须使用 `Bn254Equal`，不能把 interop value cast 成 byte array 再做普通比较。
+`tests/NeoHub.Sp1Groth16Verifier.UnitTests` 直接使用当前 vendored N4
+`ApplicationEngine` 执行编译后的 NEF，而不是 ABI 过旧的公开 Testing 包。测试固定 NEF
+SHA-256 与最小权限 manifest，并覆盖 selector/root、错误长度、非规范标量、畸形点、
+Rust 生成的正向证明和完整 pairing 失败路径。
 
-## 4. N4 public input 约定
+仓库中的发布级正向向量来自 Rust SP1 prover，并逐字节固定：356 字节 `proof.bytes()`、
+33 字节 public values、原始 32 字节 `vk.bytes32()` 和 N4 `publicInputHash`。它会通过
+terminal 与 router 两层验证；任何 program VK、public-input hash、selector、recursion
+root、nonce 或证明点变化都失败。公共网络发布证据还必须对精确部署的 NEF/VK 重跑同一组向量。
 
-当前路由 ABI 只传入一个 32-byte `publicInputHash` 和一个 `verificationKeyId`，因此 N4
-约定如下：
+## 6. 运维顺序
 
-- verifying key 身份由治理注册的 `verificationKeyId` 选择，不作为 circuit public input；
-- circuit 暴露一个 public input：batch commitment 中的 public-values digest；
-- `publicInputHash` 解释为 big-endian field scalar，并由 native scalar 逻辑按 r 取模。
+1. 部署 `ContractZkVerifier` 与 `Sp1Groth16Verifier`；
+2. 注册准确的 SP1 program VK 原始字节；
+3. 注册 SP1 终端验证器；
+4. 永久关闭 SP1 envelope-only；
+5. 调用 `LockProofSystemConfiguration` 固定准确的 program VK 与 terminal verifier；
+6. 最后将 `ProofType.Zk` 路由到 `ContractZkVerifier`。
 
-因此该合约固定支持 `ℓ = 1`，VK 只包含 `IC₀` 与 `IC₁`。多 public input circuit 需要
-新的 router ABI，不能在该 ABI 下静默近似。
+该锁保存准确的 VK，而不是布尔标记。锁定后，bootstrap 阶段曾登记的其他 VK 不再被接受，
+任何 owner 都不能增删 VK、替换 terminal 或修改 envelope-only 状态。升级 proof system 时必须
+部署新的 immutable terminal 与 versioned router，再由外层 `VerifierRegistry` 治理切换。
 
-## 5. 合约结构
-
-建议合约：`contracts/NeoHub.Groth16Verifier/Groth16VerifierContract.cs`。
-
-核心方法：
-
-- `_deploy(object data, bool update)`：设置 owner；
-- `GetOwner()` / `SetOwner(UInt160)`：治理所有权；
-- `RegisterVerifyingKey(byte[] verificationKeyId, byte[] vk)`：owner-only，校验并存储 VK；
-- `RemoveVerifyingKey(byte[] verificationKeyId)`：owner-only，删除 VK；
-- `IsVerifyingKeyRegistered(byte[] verificationKeyId)`：只读查询；
-- `verifyZkProof(byte proofSystem, byte[] verificationKeyId, byte[] publicInputHash, byte[] proofBytes)`：
-  只读验证入口，供 `ContractZkVerifier` 通过 `CallFlags.ReadOnly` 调用。
-
-## 6. 编码
-
-- G1：64 bytes，`x || y`；
-- G2：128 bytes，`x_im || x_re || y_im || y_re`；
-- VK：`α(64) || β(128) || γ(128) || δ(128) || IC₀(64) || IC₁(64)`，共 576 bytes；
-- proof：`A(64) || B(128) || C(64)`，共 256 bytes；
-- public input：32-byte `publicInputHash`。
-
-## 7. 安全要点
-
-- **VK 必须可信。** 任意 VK 注册会破坏 soundness，因此注册必须 owner/governance-gated。
-- **点必须由 native 解码校验。** 非 canonical、off-curve、off-subgroup 输入必须 fault。
-- **成本固定。** 输入长度固定，IC 长度固定，不存在按 attacker-controlled length 线性增长的路径。
-- **只读验证。** `verifyZkProof` 不写 storage，适合路由器的 `CallFlags.ReadOnly`。
-- **Envelope-only 必须只用于 devnet。** 生产链应注册真实 verifier，并永久锁定 envelope-only。
-
-## 8. 测试计划
-
-测试应通过 `Neo.SmartContract.Testing` 或等价 in-process Neo engine 执行：
-
-1. 合法 proof + 合法 public input 返回 `true`；
-2. 篡改 proof 任一字节返回 `false` 或在点非法时 fault；
-3. 错误 public input 返回 `false`；
-4. 未注册 VK fault；
-5. VK / proof 长度错误 fault；
-6. off-curve / non-canonical 点 fault；
-7. 非 owner 注册 VK fault，owner 注册成功并可查询。
-
-## 9. 构建集成决策
-
-合约编译依赖 devpack framework 的 `CryptoLib.BN254.cs` 绑定；运行测试必须加载
-bn254-enabled 的 Neo Core。推荐在实现前明确采用以下任一方式：
-
-1. 将 `external/neo` 打包到本地 NuGet feed，并把测试项目 pin 到该版本；或
-2. 通过项目引用让测试直接使用 `external/neo/src` 的本地 core。
-
-该决策不改变合约 ABI，但决定测试能否真正执行 pairing 数学。
+Rust 与 Neo 工具之间传递 `vk.bytes32()` 时必须比较原始字节，不能依赖可能反转显示顺序的
+`UInt256` 文本。

@@ -12,7 +12,7 @@
 - 对应文件：contracts/README.md
 - 中文路径：docs/zh/contracts/README.md
 - 适用范围：Neo N4 项目的文档、架构、模块、工具、合约、测试或审计证据的一部分。
-- 当前 NeoHub 合约目录包含 24 个 `NeoHub.*` 项目：23 个生产合约 + 1 个测试 stub。
+- 当前 NeoHub 合约目录包含 25 个 `NeoHub.*` 项目：24 个生产合约 + 1 个测试 stub。
 - `NeoHub.ContractZkVerifier` 属于生产 bundle；它校验 `ProofType.Zk` envelope 和 verification-key id，
   然后调用 L1 可部署验证器合约 的 `verifyZkProof(...)`，避免在普通合约字节码中执行proof-system 验证工作。
 - 一致性要求：术语、项目路径、命令、合约名称、模块名称、测试名称和安全结论必须与英文源文件保持一致。

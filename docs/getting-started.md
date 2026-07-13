@@ -35,7 +35,8 @@ git submodule update --init --recursive
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 ```
 
-Expected: **1521 tests pass across 34 projects**, ~10 seconds end-to-end.
+Expected: the complete current solution test inventory passes. The runner reports
+the exact test count; do not use a documentation snapshot as a release gate.
 
 If your machine doesn't have network access, `/p:NuGetAudit=false` is what suppresses the
 audit hop to nuget.org.

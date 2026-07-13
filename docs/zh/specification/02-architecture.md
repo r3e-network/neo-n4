@@ -28,7 +28,7 @@ Neo N4 的参与者可以分成 7 类：
 
 | 层 | 组成 | 设计目标 |
 | --- | --- | --- |
-| L1 NeoHub | 23 个生产可部署合约 + 1 个测试 stub | 保持 L1 真相、资产托管、结算和治理 |
+| L1 NeoHub | 24 个生产可部署合约 + 1 个测试 stub | 保持 L1 真相、资产托管、结算和治理 |
 | Neo Gateway | 可选聚合层 | 减少多 L2 结算成本、聚合 proofs、加速 L2↔L2 |
 | N4 L2 | Neo 4 execution kernel、L2 native contracts、plugins | 执行应用、生成状态、发布 DA、提交证明 |
 
@@ -40,7 +40,7 @@ Neo N4 的参与者可以分成 7 类：
 
 | 模块族 | 路径 | 说明 |
 | --- | --- | --- |
-| L1 合约 | `contracts/NeoHub.*` | NeoHub 可部署合约，生产计划部署 23 个 |
+| L1 合约 | `contracts/NeoHub.*` | NeoHub 可部署合约，生产计划部署 24 个 |
 | L2 core fork | `external/neo` | r3e Neo core fork，L2 native contracts 和 execution kernel |
 | DevPack | `external/neo-devpack-dotnet` | 合约框架和 `nccs` 编译器 |
 | RISC-V VM | `external/neo-riscv-vm` | PolkaVM-backed RISC-V execution support |
@@ -111,4 +111,3 @@ flowchart LR
 ```
 
 设计要求是：部署计划必须可读、可审计、可 dry-run、可复核。真实链上部署不能靠手工拼命令完成。
-

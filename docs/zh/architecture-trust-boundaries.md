@@ -80,7 +80,7 @@
 |-------------------|---------------------------------------------------------------|
 | `None` (=0)       | 无证明 —— 仅用于创世 / 运维信任的内部流程                     |
 | `Multisig` (=1)   | M-of-N 委员会签了 BatchCommitment                            |
-| `Optimistic` (=2) | 挑战窗口 —— 博弈论。二分收敛在**链下**运行(`ChallengeOrchestrator` / `BisectionGame`);链上 `OptimisticChallenge.Challenge` 是单次的 —— 它只调用一次 `verifyFraud`,且随附的验证器**不会**重放有争议的 tx。链上交互式二分 / 重放属于计划中(roadmap)。 |
+| `Optimistic` (=2) | 挑战窗口 —— 博弈论。二分收敛在**链下**运行(`ChallengeOrchestrator` / `BisectionGame`);链上 `OptimisticChallenge.Challenge` 单次调用 `verifyFraud`。v1/v2/v3 仍需治理仲裁；v4 对精确注册的单笔 Counter Increment 语义绑定已提交批次并在链上重放。通用 NeoVM 与链上交互式二分仍属 roadmap，未注册语义 fail closed。 |
 | `Zk` (=3)         | ZK 有效性证明(NeoVM2 / RISC-V)—— 数学(证明就是验证)       |
 
 ### 边界 D:已结算批次 → L2 用户(提款)

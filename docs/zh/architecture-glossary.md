@@ -6,7 +6,7 @@
 ## 目录
 
 1. [术语表](#1-术语表)
-2. [NeoHub L1 合约](#2-neohub-l1-合约23)
+2. [NeoHub L1 合约](#2-neohub-l1-合约25)
 3. [L2 原生合约](#3-l2-原生合约10)
 4. [L2 插件](#4-l2-插件8)
 5. [链下运营者](#5-链下运营者)
@@ -41,7 +41,7 @@
 | **MerkleProofSerializer**     | Merkle 证明的规范编码器(用于提款 + 跨 L2 消息)。                                                |
 | **MessageHasher**             | `CrossChainMessage`(跨 L2)的规范编码器。两端都重算哈希。                                        |
 | **min_confirmations**         | watcher config 字段:不从距外链头不足 N 确认的浅块发出事件。                                       |
-| **NeoHub**                    | 锚定整个网络的 23 合约 L1 套件。见下文 §2。                                                       |
+| **NeoHub**                    | 锚定整个网络的 25 项目 L1 套件(24 个生产合约 + 1 个测试 stub)。见下文 §2。                         |
 | **nonce(deposit/message)**   | 按 (源链、方向) 单调递增的计数器。带重放保护。                                                    |
 | **operatorManager**           | UInt160。管理一条已注册 L2 的多签(set-verifier、pause 等)。在链 config 里。                      |
 | **postStateRoot**             | UInt256。批次最后一笔 tx 之后的状态根。携带于 `BatchCommitment`。                                  |
@@ -60,7 +60,7 @@
 
 ---
 
-## 2. NeoHub L1 合约(23)
+## 2. NeoHub L1 合约(25)
 
 位于 `contracts/NeoHub.*`。每个都是已编译的 .nef + .manifest.json。
 
@@ -96,7 +96,7 @@
 
 ### 专用 fraud verifier(1)
 
-- **`RestrictedExecutionFraudVerifier`** — v3:从 storage 证明重新派生 pre/post 状态根;接受 well-formed 声明而无需治理仲裁。
+- **`RestrictedExecutionFraudVerifier`** — v3 仅重新派生挑战者 payload 内的 storage roots，必须经治理仲裁；v4 对精确注册的单笔 Counter Increment 语义绑定已提交批次并在链上执行，允许无许可挑战。通用 NeoVM 语义 fail closed。
 
 ### 外链桥 —— Phase B/C(6)
 
@@ -160,7 +160,7 @@
 - **`Neo.Stack.Cli`**(`neo-stack`)—— 12 个子命令:create-chain、
   init-l2、register-chain、scaffold-executor、new-l2、…
 - **`Neo.Hub.Deploy`**(`neo-hub-deploy`)—— NeoHub 部署的
-  plan/scaffold/verify(23 步有序生产 bundle)。
+  plan/scaffold/verify(24 步有序生产 bundle)。
 - **`Neo.L2.Devnet`**(`neo-l2-devnet`)—— 进程内端到端 demo 运行器。
   `--executor counter` 接入样例执行器。
 - **`Neo.L2.Explore`**(`neo-l2-explore`)—— 终端区块浏览器 + 状态根

@@ -18,10 +18,13 @@
   验证过。验证器还会额外校验
   `commitment.PublicInputHash == hash(publicInputs)` —— 阻止恶意证明者用与承诺
   不一致的 inputs 签名。
-- **ZK verifier 效率边界。** `ProofType.Zk` 通过可部署的
-  `NeoHub.ContractZkVerifier` adapter 路由。该合约先校验 commitment/proof envelope
-  和已登记 verification-key id,再调用配置的 L1 可部署验证器合约 执行
-  `verifyZkProof(...)`;重型 SNARK/STARK 数学不会作为普通 NeoHub 合约字节码执行。
+- **ZK verifier 边界。** `ProofType.Zk` 通过可部署的
+  `NeoHub.ContractZkVerifier` router 路由。该合约先校验 commitment/proof envelope
+  和已登记 verification-key id，再调用已登记终端验证器的 `verifyZkProof(...)`。
+  生产 SP1 路径把 immutable `Sp1Groth16Verifier` 作为可部署验证器合约：它接收精确的 356-byte SP1
+  proof，重建 5 个 public inputs，并通过 Neo 当前 BN254 interops 执行完整的、兼容
+  SP1 6.2.x 使用的 v6.1-compatible Groth16 wrapper pairing equation。生产部署在启用 `ProofType.Zk` 路由前
+  永久关闭 `ProofSystem.Sp1` 的 envelope-only acceptance。
 - **重放安全。** 每条跨链消息都带 `(chainId, nonce)`,在 `NeoHub.MessageRouter`
   按 (来源,目标) 配对去重。
 - **提款终结性。** 资金离开 `SharedBridge` 必须基于*已最终化的* `withdrawalRoot`
@@ -41,11 +44,15 @@
 - **排序器活性。** 排序器可以让链停摆。强制纳入 + 保证金罚没让停摆代价高昂;
   逃生通道让停摆最终可解。
 
-正确的思考方式是:**L1 验证什么,取决于注册的验证器验证什么。** Phase 4(ZK 有效性)
-让验证器无信任。Phase 3(乐观)让验证器信任程度等同于二分博弈的挑战窗口。
+正确的思考方式是:**L1 验证什么,取决于注册的验证器验证什么。** 当注册 circuit、VK、
+终端验证器和部署 wiring 全部正确时，Phase 4 才能提供密码学状态转换有效性。
+Phase 3(乐观)让验证器信任程度等同于二分博弈的挑战窗口。
 Phase 0–2 在多签之上叠加治理(Neo Council、排序器保证金)。
-对 Phase 4 链,注册的验证器是 `ContractZkVerifier`,它指向的 可部署验证器合约
-属于 L1 trusted computing base。
+生产 SP1 Phase 4 路径中，`VerifierRegistry` 指向 `ContractZkVerifier`，后者固定绑定
+immutable `Sp1Groth16Verifier`。两个合约、固定的 SP1 circuit/VK 和 Neo BN254 interops
+共同属于 L1 trusted computing base。当前 VM suite 已接受 Rust 生成的正向 SP1 proof
+通过 terminal 与 router，并覆盖 artifact integrity、常量、篡改拒绝、pairing 路径和
+fee ceiling。
 
 ---
 
@@ -96,7 +103,10 @@ DAC 链(就标 DAC,不要营销话术粉饰)。
   往返。
 - **Contract ZK verifier router。** `ContractZkVerifier` 会在委托给
   `verifyZkProof(...)` 前拒绝非 ZK commitment、畸形 `RiscVProofPayload` envelope、
-  未登记 verification key、以及未设置 可部署验证器合约 hash 的配置。
+  未登记 verification key、以及未设置终端验证器合约 hash 的配置。生产 SP1 deploy
+  plan 会绑定 immutable `Sp1Groth16Verifier`，并在登记 ZK route 前调用不可逆的
+  `DisableEnvelopeOnlyPermanently`。私有 devnet 如需 envelope-only，只能使用独立且
+  明确未锁定的部署。
 - **`OptimisticChallenge.Challenge` 的 fraud-verifier 白名单。** 关闭一次
   bond-drain 攻击窗口:`Challenge` 只会调用 owner 经 `RegisterFraudVerifier`
   显式登记过的 `fraudVerifier` 合约哈希。否则攻击者可以部署"yes-verifier"
@@ -172,6 +182,10 @@ DAC 链(就标 DAC,不要营销话术粉饰)。
       面板见 `docs/telemetry.md`。
 - [ ] 审 deploy bundle。`Neo.Hub.Deploy plan` 输出确定性、依赖已解析的 L1 部署
       序列;按你打算注册的 `ChainRegistry` 配置逐一比对每一步。
+- [ ] 生产 SP1 结算必须核对 post-deploy 顺序：登记 program VK、绑定
+      `Sp1Groth16Verifier`、永久关闭 envelope-only、最后路由 `ProofType.Zk`。在精确
+      本地正向 proof-vector VM gate 已通过；公共网络仍必须对精确部署的 NEF/VK pair
+      记录同一组正向/负向 smoke evidence 后，才可标注 `securityLevel=3`。
 - [ ] 运行进程内 devnet(`tools/Neo.L2.Devnet`)做端到端验证,再把插件指向真实
       Neo 网络。
 - [ ] 配好审计框架。`Neo.L2.Audit.ChainAuditor` 接受一序列 `IAuditCheck` 实现;

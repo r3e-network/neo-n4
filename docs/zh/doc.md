@@ -1242,7 +1242,7 @@ Canonical confirmation:
 
 Neo 4 roadmap 提到增强 NEO Council 角色，包括动态调整 council members、决定 consensus node admission/exit、管理核心网络参数，并提到 NEO holders 的 referendum power 和未来探索 Layer-2 governance。([GitHub][3])
 
-> 注（实现状态，roadmap / 尚未实现）：上述「动态调整 council members」与「NEO holders referendum」均为 Neo 4 roadmap 目标，**当前实现尚不支持**。本仓库的 `NeoHub.GovernanceController` 中的链上 council 在部署时（`_deploy`）一次性固定，**刻意设计为不可变**——没有 AddCouncilMember / RemoveCouncilMember / SetThreshold / RotateCouncil 入口，也没有 `ContractManagement.Update` 升级路径；轮换或更换成员、修改门限/timelock 都必须重新部署一套 GovernanceController 并重连所有 consumer。链上也**没有任何 referendum 机制**。
+> 注（实现状态）：`NeoHub.GovernanceController` 已支持 proposal-bound、threshold-approved、timelocked 的原子 council rotation。`RotateCouncil` 同时替换成员与门限并递增 `councilEpoch`；所有旧 epoch proposal 立即失效，rotation proposal 只能消费一次。timelock 参数仍在部署时固定，合约没有 `ContractManagement.Update` 路径。链上 **NEO holder referendum 仍未实现**。
 
 Neo L2 governance 应分三层：
 
@@ -1461,10 +1461,10 @@ Deliverables:
 ```text
 Optimistic rollup-like
 安全性依赖至少一个 honest challenger
-（当前已发布的 fraud verifier 为结构性 + governance 仲裁，见下方说明）
+（v1/v2/v3 仍为 governance 仲裁；v4 对一个精确受限语义实现无许可链上重放）
 ```
 
-> 注（实现状态）：当前已发布的 fraud verifier（`GovernanceFraudVerifier`、`RestrictedExecutionFraudVerifier`）是**结构性**且由 **governance 仲裁**的——它们只校验 fraud-proof payload 的 wire 格式并确认 challenger 声称的 root 与 sequencer 声称的 root 不一致，**既不在链上重新执行争议交易，也不绑定到 SettlementManager 已提交的 root**。因此「fraud proof 以密码学方式 / 无需信任地证明 batch 存在欺诈」这一更强性质**尚未达成**：是否真的存在欺诈，最终由安全委员会（`GovernanceController`）裁定。要做到完全无需信任，需要把 verifier 替换为在链上**重新执行**争议交易的版本（需扩展 `FraudProofPayload` 携带 execution-trace witness），这属于 roadmap，详见 `IMPLEMENTATION_STATUS.md`。
+> 注（实现状态）：`GovernanceFraudVerifier` 的 v1/v2 与 `RestrictedExecutionFraudVerifier` 的 v3 是**结构性证据 + governance 仲裁**；v3 只重新派生挑战者 payload 内的 storage roots，不绑定已提交批次，也不执行交易。v4 则绑定 `SettlementManager` 已提交的规范头/roots、交易证明、claim id、受限 transcript 与 replay domain，并在链上执行精确的 `counter-increment-existing-key:v1` 语义；只有与 chainId、semanticId、replayDomain 精确注册的 profile 才允许无许可罚没。通用 NeoVM、多交易与其它 custom executor 语义仍 fail closed，需新增已承诺 tx-count / trace anchor 与完整单步语义后才能支持。
 
 ---
 

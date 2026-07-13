@@ -40,13 +40,13 @@
 
 ## 2. L1 做什么(以及为什么必须由 L1 做)
 
-23 个生产 NeoHub 合约(加 1 个测试 stub)是可部署 L1 合约，不是 L1 原生合约。
+24 个生产 NeoHub 合约(加 1 个测试 stub)是可部署 L1 合约，不是 L1 原生合约。
 `ContractZkVerifier` 也保持为可部署合约：它校验 ZK proof envelope / VK 边界，
 再把proof-system 验证工作路由到 L1 可部署验证器合约。它们聚成 6 个关注点。每条都点出*把它强制放在
 L1 的属性*:
 
 <p align="center">
-  <img src="../figures/architecture/l1-concerns.svg" alt="24 个 NeoHub L1 可部署项目按 6 个关注点 + 2 个专用 fraud-verifier 槽位分组。Settlement(SettlementManager + VerifierRegistry + ContractZkVerifier)定义信任边界，并把 ZK 证明路由到 可部署验证器合约。Bridge(SharedBridge + TokenRegistry + ChainRegistry)托管资产。Messaging(MessageRouter + DARegistry + DAValidator + L1TxFilter)是跨 L2 路由与数据可用性仲裁。Security(SequencerRegistry + SequencerBond + ForcedInclusion + OptimisticChallenge)把关可罚没保证金与抗审查。Governance + Emergency(GovernanceController + EmergencyManager)负责分阶段升级 + 逃生通道。外链桥(6 个合约)。再加 2 个 fraud-verifier 参照槽位:GovernanceFraudVerifier(v1/v2 治理仲裁)+ RestrictedExecutionFraudVerifier(v3 无信任的 on-chain 重派生)" width="900">
+  <img src="../figures/architecture/l1-concerns.svg" alt="25 个 NeoHub L1 可部署项目:24 个生产合约加 1 个测试 stub。Settlement(SettlementManager + VerifierRegistry + ContractZkVerifier + immutable Sp1Groth16Verifier)定义信任边界。Bridge、Messaging、Security、Governance + Emergency 与外链桥共同完成托管、路由、抗审查和治理。两个 fraud-verifier 参照槽位分别是 GovernanceFraudVerifier(v1/v2 治理仲裁)与 RestrictedExecutionFraudVerifier(v3 治理证据、v4 精确受限链上重放)" width="900">
 </p>
 
 **关于 L1 合约的关键观察:** 它们持有的是*承诺*与*权限*,而非批量状态。NeoHub 的
@@ -138,7 +138,7 @@ L1 上多半是*过早中心化*。
 
 **结论:**
 
-✅ **24 个 NeoHub 可部署项目中的 23 个生产合约被正确作为可部署 L1 合约放到 L1** —— 每个都满足规则 1、2 或 3 至少
+✅ **25 个 NeoHub 项目中的 24 个生产合约被正确作为可部署 L1 合约放到 L1** —— 每个都满足规则 1、2 或 3 至少
 其一。
 
 ✅ **10 个 L2 原生合约都被正确放到 L2** —— 每个都是按链状态、无跨 L2 读需求。

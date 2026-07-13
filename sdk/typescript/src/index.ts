@@ -43,11 +43,11 @@ export enum ProofType {
 }
 
 export enum BatchStatus {
-  Pending = 0,
-  Challengeable = 1,
-  Finalized = 2,
-  Challenged = 3,
-  Slashed = 4,
+  Unknown = 0,
+  Pending = 1,
+  Challengeable = 2,
+  Finalized = 3,
+  Reverted = 4,
 }
 
 /* ─────────────────────────── typed RPC responses ──────────────────────────── */
@@ -167,9 +167,7 @@ export class L2RpcClient {
     if (url.protocol !== "http:" && url.protocol !== "https:") {
       throw new Error(`endpoint scheme '${url.protocol}' must be http(s):`);
     }
-    if (opts.chainId === 0) {
-      throw new Error("chainId 0 is reserved for L1 — supply a non-zero L2 chainId");
-    }
+    requireU32(opts.chainId, "chainId", false);
     this.endpoint = url;
     this.chainId = opts.chainId;
     this.fetchImpl = opts.fetch ?? globalThis.fetch.bind(globalThis);
@@ -181,27 +179,39 @@ export class L2RpcClient {
     // Send as JSON string to preserve full u64 precision — `Number(bigint)` silently
     // truncates above 2^53-1. Server's L2RpcMethods.ReadULong accepts JString via
     // ulong.Parse, matching the Rust + .NET SDKs which pass full 64-bit unsigned.
-    const result = await this.call("getl2batch", [this.chainId, batchNumber.toString()]);
+    const result = await this.call("getl2batch", [this.chainId, u64Wire(batchNumber, "batchNumber")]);
     if (result === null) return null;
     if (typeof result !== "object" || result === null)
       throw new L2RpcProtocolError("getl2batch", "expected object response");
     this.assertChainId(result as object, "getl2batch");
-    return parseBatchView(result as Record<string, unknown>);
+    const batch = parseBatchView(result as Record<string, unknown>, "getl2batch");
+    if (batch.batchNumber !== batchNumber)
+      throw new L2RpcProtocolError(
+        "getl2batch",
+        `response batchNumber ${batch.batchNumber} does not match request ${batchNumber}`,
+      );
+    return batch;
   }
 
   /** getl2batchstatus — pending / finalized / challenged / etc. */
   async getBatchStatus(batchNumber: bigint): Promise<BatchStatusResponse> {
-    const result = await this.call("getl2batchstatus", [this.chainId, batchNumber.toString()]);
+    const result = await this.call("getl2batchstatus", [this.chainId, u64Wire(batchNumber, "batchNumber")]);
     if (typeof result !== "object" || result === null)
       throw new L2RpcProtocolError("getl2batchstatus", "expected object response");
     this.assertChainId(result, "getl2batchstatus");
     const r = result as Record<string, unknown>;
-    return {
-      chainId: Number(r.chainId),
-      batchNumber: BigInt(r.batchNumber as number | string),
-      status: Number(r.status) as BatchStatus,
+    const response: BatchStatusResponse = {
+      chainId: requireU32Value(r.chainId, "getl2batchstatus", "chainId"),
+      batchNumber: parseU64Wire(r.batchNumber, "getl2batchstatus", "batchNumber"),
+      status: requireU8Value(r.status, "getl2batchstatus", "status") as BatchStatus,
       statusName: String(r.statusName ?? ""),
     };
+    if (response.batchNumber !== batchNumber)
+      throw new L2RpcProtocolError(
+        "getl2batchstatus",
+        `response batchNumber ${response.batchNumber} does not match request ${batchNumber}`,
+      );
+    return response;
   }
 
   /** getl2stateroot — latest sealed state root. */
@@ -214,7 +224,7 @@ export class L2RpcClient {
 
   /** getl2stateroot at a specific batch height. */
   async getStateRootAt(batchNumber: bigint): Promise<string> {
-    const result = await this.call("getl2stateroot", [this.chainId, batchNumber.toString()]);
+    const result = await this.call("getl2stateroot", [this.chainId, u64Wire(batchNumber, "batchNumber")]);
     if (typeof result !== "string")
       throw new L2RpcProtocolError("getl2stateroot", "expected string");
     return result;
@@ -226,7 +236,7 @@ export class L2RpcClient {
     if (result === null) return null;
     if (typeof result !== "string")
       throw new L2RpcProtocolError("getl2withdrawalproof", "expected hex string");
-    return hexToBytes(result);
+    return hexToBytes("getl2withdrawalproof", result);
   }
 
   /** getl2messageproof — Merkle proof bytes for a cross-chain message; null if unknown. */
@@ -235,29 +245,36 @@ export class L2RpcClient {
     if (result === null) return null;
     if (typeof result !== "string")
       throw new L2RpcProtocolError("getl2messageproof", "expected hex string");
-    return hexToBytes(result);
+    return hexToBytes("getl2messageproof", result);
   }
 
   /** getl1depositstatus — has an L1 deposit (sourceChain, nonce) been consumed? null if untracked. */
   async getDepositStatus(sourceChainId: number, nonce: bigint): Promise<DepositStatusResponse | null> {
-    const result = await this.call("getl1depositstatus", [sourceChainId, nonce.toString()]);
+    requireU32(sourceChainId, "sourceChainId", true);
+    const result = await this.call("getl1depositstatus", [sourceChainId, u64Wire(nonce, "nonce")]);
     if (result === null) return null;
     if (typeof result !== "object")
       throw new L2RpcProtocolError("getl1depositstatus", "expected object response");
     const r = result as Record<string, unknown>;
     // Cross-check the requested sourceChainId matches what the server returned — a
     // misbehaving server returning another chain's deposit would otherwise sail through.
-    const respChain = Number(r.sourceChainId);
+    const respChain = requireU32Value(r.sourceChainId, "getl1depositstatus", "sourceChainId");
     if (respChain !== sourceChainId)
       throw new L2RpcMismatchedChainIdError("getl1depositstatus", sourceChainId, respChain);
-    return {
+    const response: DepositStatusResponse = {
       sourceChainId: respChain,
-      nonce: BigInt(r.nonce as number | string),
-      consumedOnL2: Boolean(r.consumedOnL2),
+      nonce: parseU64Wire(r.nonce, "getl1depositstatus", "nonce"),
+      consumedOnL2: requireBoolean(r.consumedOnL2, "getl1depositstatus", "consumedOnL2"),
       includedInBatch: r.includedInBatch === null || r.includedInBatch === undefined
         ? null
-        : BigInt(r.includedInBatch as number | string),
+        : parseU64Wire(r.includedInBatch, "getl1depositstatus", "includedInBatch"),
     };
+    if (response.nonce !== nonce)
+      throw new L2RpcProtocolError(
+        "getl1depositstatus",
+        `response nonce ${response.nonce} does not match request ${nonce}`,
+      );
+    return response;
   }
 
   /** getcanonicalasset — L2-side asset hash → L1 asset hash; null if not bridged. */
@@ -310,9 +327,9 @@ export class L2RpcClient {
 
   private assertChainId(obj: object, method: string): void {
     const r = obj as Record<string, unknown>;
-    if (r.chainId !== undefined && Number(r.chainId) !== this.chainId) {
-      throw new L2RpcMismatchedChainIdError(method, this.chainId, Number(r.chainId));
-    }
+    const responseChainId = requireU32Value(r.chainId, method, "chainId");
+    if (responseChainId !== this.chainId)
+      throw new L2RpcMismatchedChainIdError(method, this.chainId, responseChainId);
   }
 
   private async call(method: string, params: unknown[]): Promise<unknown> {
@@ -357,6 +374,9 @@ export class L2RpcClient {
       throw new L2RpcProtocolError(method, "non-object response");
     }
     const env = parsed as Record<string, unknown>;
+    if (env.jsonrpc !== "2.0") {
+      throw new L2RpcProtocolError(method, "response jsonrpc must be '2.0'");
+    }
     const responseId = typeof env.id === "number" ? env.id : Number(env.id);
     if (responseId !== id) {
       throw new L2RpcProtocolError(method, `response id ${responseId} does not match request id ${id}`);
@@ -367,40 +387,96 @@ export class L2RpcClient {
       const msg = typeof err.message === "string" ? err.message : "rpc error";
       throw new L2RpcServerError(method, code, msg);
     }
-    return env.result ?? null;
+    if (!Object.prototype.hasOwnProperty.call(env, "result"))
+      throw new L2RpcProtocolError(method, "response is missing result");
+    return env.result;
   }
 }
 
 /* ─────────────────────────── helpers ────────────────────────────── */
 
-function parseBatchView(r: Record<string, unknown>): L2BatchView {
+function parseBatchView(r: Record<string, unknown>, method: string): L2BatchView {
   return {
-    chainId: Number(r.chainId),
-    batchNumber: BigInt(r.batchNumber as number | string),
-    firstBlock: BigInt(r.firstBlock as number | string),
-    lastBlock: BigInt(r.lastBlock as number | string),
-    preStateRoot: String(r.preStateRoot),
-    postStateRoot: String(r.postStateRoot),
-    txRoot: String(r.txRoot),
-    receiptRoot: String(r.receiptRoot),
-    withdrawalRoot: String(r.withdrawalRoot),
-    l2ToL1MessageRoot: String(r.l2ToL1MessageRoot),
-    l2ToL2MessageRoot: String(r.l2ToL2MessageRoot),
-    daCommitment: String(r.daCommitment),
-    publicInputHash: String(r.publicInputHash),
-    proofType: Number(r.proofType) as ProofType,
-    proof: String(r.proof),
-    encoded: String(r.encoded),
+    chainId: requireU32Value(r.chainId, method, "chainId"),
+    batchNumber: parseU64Wire(r.batchNumber, method, "batchNumber"),
+    firstBlock: parseU64Wire(r.firstBlock, method, "firstBlock"),
+    lastBlock: parseU64Wire(r.lastBlock, method, "lastBlock"),
+    preStateRoot: requireString(r.preStateRoot, method, "preStateRoot"),
+    postStateRoot: requireString(r.postStateRoot, method, "postStateRoot"),
+    txRoot: requireString(r.txRoot, method, "txRoot"),
+    receiptRoot: requireString(r.receiptRoot, method, "receiptRoot"),
+    withdrawalRoot: requireString(r.withdrawalRoot, method, "withdrawalRoot"),
+    l2ToL1MessageRoot: requireString(r.l2ToL1MessageRoot, method, "l2ToL1MessageRoot"),
+    l2ToL2MessageRoot: requireString(r.l2ToL2MessageRoot, method, "l2ToL2MessageRoot"),
+    daCommitment: requireString(r.daCommitment, method, "daCommitment"),
+    publicInputHash: requireString(r.publicInputHash, method, "publicInputHash"),
+    proofType: requireU8Value(r.proofType, method, "proofType") as ProofType,
+    proof: requireHexString(r.proof, method, "proof"),
+    encoded: requireHexString(r.encoded, method, "encoded"),
   };
 }
 
-function hexToBytes(hex: string): Uint8Array {
-  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
-  if (clean.length % 2 !== 0)
-    throw new Error(`invalid hex string length: ${clean.length}`);
+function parseU64Wire(value: unknown, method: string, field: string): bigint {
+  if (typeof value === "string" && /^(0|[1-9][0-9]*)$/.test(value)) {
+    const parsed = BigInt(value);
+    if (parsed <= 0xffff_ffff_ffff_ffffn) return parsed;
+  } else if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) {
+    return BigInt(value);
+  }
+  throw new L2RpcProtocolError(method, `field ${field} must be a lossless u64`);
+}
+
+function requireU32Value(value: unknown, method: string, field: string): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 0xffff_ffff)
+    throw new L2RpcProtocolError(method, `field ${field} must be a u32`);
+  return value;
+}
+
+function requireU8Value(value: unknown, method: string, field: string): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 0xff)
+    throw new L2RpcProtocolError(method, `field ${field} must be a byte`);
+  return value;
+}
+
+function requireString(value: unknown, method: string, field: string): string {
+  if (typeof value !== "string")
+    throw new L2RpcProtocolError(method, `field ${field} must be a string`);
+  return value;
+}
+
+function requireHexString(value: unknown, method: string, field: string): string {
+  const text = requireString(value, method, field);
+  const clean = /^0x/i.test(text) ? text.slice(2) : text;
+  if (clean.length % 2 !== 0 || !/^[0-9a-fA-F]*$/.test(clean))
+    throw new L2RpcProtocolError(method, `field ${field} must be an even-length hex string`);
+  return text;
+}
+
+function requireBoolean(value: unknown, method: string, field: string): boolean {
+  if (typeof value !== "boolean")
+    throw new L2RpcProtocolError(method, `field ${field} must be a boolean`);
+  return value;
+}
+
+function hexToBytes(method: string, hex: string): Uint8Array {
+  const clean = /^0x/i.test(hex) ? hex.slice(2) : hex;
+  if (clean.length % 2 !== 0 || !/^[0-9a-fA-F]*$/.test(clean))
+    throw new L2RpcProtocolError(method, `invalid hex string: ${hex}`);
   const bytes = new Uint8Array(clean.length / 2);
   for (let i = 0; i < bytes.length; i++) {
     bytes[i] = parseInt(clean.substring(i * 2, i * 2 + 2), 16);
   }
   return bytes;
+}
+
+function requireU32(value: number, name: string, allowZero: boolean): number {
+  if (!Number.isInteger(value) || value < (allowZero ? 0 : 1) || value > 0xffff_ffff)
+    throw new L2RpcProtocolError("<arg>", `${name} must be a ${allowZero ? "" : "non-zero "}u32`);
+  return value;
+}
+
+function u64Wire(value: bigint, name: string): string {
+  if (value < 0n || value > 0xffff_ffff_ffff_ffffn)
+    throw new L2RpcProtocolError("<arg>", `${name} must be a u64`);
+  return value.toString();
 }

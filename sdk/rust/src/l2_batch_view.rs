@@ -6,11 +6,20 @@ use crate::ProofType;
 pub struct L2BatchView {
     #[serde(rename = "chainId")]
     pub chain_id: u32,
-    #[serde(rename = "batchNumber")]
+    #[serde(
+        rename = "batchNumber",
+        deserialize_with = "crate::wire::deserialize_u64"
+    )]
     pub batch_number: u64,
-    #[serde(rename = "firstBlock")]
+    #[serde(
+        rename = "firstBlock",
+        deserialize_with = "crate::wire::deserialize_u64"
+    )]
     pub first_block: u64,
-    #[serde(rename = "lastBlock")]
+    #[serde(
+        rename = "lastBlock",
+        deserialize_with = "crate::wire::deserialize_u64"
+    )]
     pub last_block: u64,
     #[serde(rename = "preStateRoot")]
     pub pre_state_root: String,

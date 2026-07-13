@@ -4,12 +4,12 @@ Typed app-developer SDKs for the Neo Elastic Network L2 RPC surface
 (`doc.md` §14.1). Four language bindings + one zero-build web app.
 All wire-compatible with any node running `Neo.Plugins.L2Rpc`.
 
-| Path | Language | Tests |
-|------|----------|-------|
-| [`../src/Neo.L2.Sdk/`](../src/Neo.L2.Sdk/) | C# / .NET | 25 (`Neo.L2.Sdk.UnitTests`) |
-| [`typescript/`](./typescript/) | TypeScript | 16 (vitest) |
-| [`rust/`](./rust/) | Rust | 10 (mockito) |
-| [`python/`](./python/) | Python | 12 (`unittest`) |
+| Path | Language | Test framework |
+|------|----------|----------------|
+| [`../src/Neo.L2.Sdk/`](../src/Neo.L2.Sdk/) | C# / .NET | MSTest |
+| [`typescript/`](./typescript/) | TypeScript | Vitest |
+| [`rust/`](./rust/) | Rust | libtest + mockito |
+| [`python/`](./python/) | Python | `unittest` |
 | [`web-explorer/`](./web-explorer/) | static HTML + inlined JS | manual / smoke |
 
 All four typed SDKs follow the same shape:
@@ -30,6 +30,15 @@ All four typed SDKs follow the same shape:
 The web app vendors the JS SDK inline (zero build tooling) so operators
 can drop `web-explorer/index.html` onto any static-file host with no
 build step.
+
+## Shared conformance
+
+All four typed SDKs consume the same canonical vectors in
+[`conformance/vectors/v1.json`](./conformance/vectors/v1.json). The shared
+runner covers method shape, lossless integer serialization, hash endianness,
+error mapping, cursor/page serialization, and a real signed Neo N3 transaction.
+It also provides explicit-skip and required-execution modes for real N3/N4
+nodes. See [`conformance/README.md`](./conformance/README.md).
 
 ## Why four typed languages
 

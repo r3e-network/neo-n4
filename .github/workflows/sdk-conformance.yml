@@ -1,0 +1,153 @@
+name: SDK Conformance
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/sdk-conformance.yml'
+      - 'sdk/**'
+      - 'src/Neo.L2.Sdk/**'
+      - 'tests/Neo.L2.Sdk.UnitTests/**'
+      - 'scripts/ci/**'
+  push:
+    branches: [master]
+    tags: ['v*']
+  schedule:
+    - cron: '37 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sdk-conformance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTUP_TOOLCHAIN: 1.88.0
+
+jobs:
+  offline:
+    name: Shared vectors (4 SDKs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout with pinned dependencies
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@1.88.0
+        with:
+          components: rustfmt
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: sdk/typescript/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: pip
+
+      - name: Install SDK test dependencies
+        run: |
+          npm --prefix sdk/typescript ci --no-audit --no-fund
+          python -m pip install --editable 'sdk/python[test]'
+
+      - name: Test conformance harness
+        run: python -m unittest scripts.ci.tests.test_sdk_conformance_runner
+
+      - name: Run four-language offline conformance
+        run: |
+          python scripts/ci/run_sdk_conformance.py \
+            --mode offline \
+            --require-all-languages \
+            --output artifacts/sdk-conformance-offline.json
+
+      - name: Upload machine-readable summary
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: sdk-conformance-offline
+          path: artifacts/sdk-conformance-offline.json
+          if-no-files-found: error
+
+  live:
+    name: Live N3 + N4 nodes (4 SDKs)
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEO_SDK_LIVE: '1'
+      NEO_N3_RPC_URL: ${{ secrets.NEO_N3_RPC_URL }}
+      NEO_N4_RPC_URL: ${{ secrets.NEO_N4_RPC_URL }}
+      NEO_N4_CHAIN_ID: ${{ secrets.NEO_N4_CHAIN_ID }}
+    steps:
+      - name: Checkout with pinned dependencies
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@1.88.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: sdk/typescript/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: pip
+
+      - name: Install SDK test dependencies
+        run: |
+          npm --prefix sdk/typescript ci --no-audit --no-fund
+          python -m pip install --editable 'sdk/python[test]'
+
+      - name: Materialize operator-owned live fixture
+        env:
+          NEO_SDK_LIVE_FIXTURE_JSON: ${{ secrets.NEO_SDK_LIVE_FIXTURE_JSON }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          fixture="$RUNNER_TEMP/neo-sdk-live-fixture.json"
+          printf '%s\n' "$NEO_SDK_LIVE_FIXTURE_JSON" > "$fixture"
+          echo "NEO_SDK_LIVE_FIXTURE=$fixture" >> "$GITHUB_ENV"
+
+      - name: Run four-language live conformance
+        run: |
+          python scripts/ci/run_sdk_conformance.py \
+            --mode live \
+            --require-live \
+            --require-all-languages \
+            --output artifacts/sdk-conformance-live.json
+
+      - name: Upload machine-readable summary
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: sdk-conformance-live
+          path: artifacts/sdk-conformance-live.json
+          if-no-files-found: error

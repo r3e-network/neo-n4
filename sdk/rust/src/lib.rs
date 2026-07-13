@@ -7,6 +7,7 @@ mod deposit_status_response;
 mod l2_batch_view;
 mod security_label_response;
 mod security_level_response;
+mod wire;
 
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Duration;
@@ -130,23 +131,23 @@ impl ProofType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BatchStatus {
+    Unknown,
     Pending,
     Challengeable,
     Finalized,
-    Challenged,
-    Slashed,
-    Unknown(u8),
+    Reverted,
+    Unrecognized(u8),
 }
 
 impl BatchStatus {
     pub fn from_u8(b: u8) -> Self {
         match b {
-            0 => Self::Pending,
-            1 => Self::Challengeable,
-            2 => Self::Finalized,
-            3 => Self::Challenged,
-            4 => Self::Slashed,
-            other => Self::Unknown(other),
+            0 => Self::Unknown,
+            1 => Self::Pending,
+            2 => Self::Challengeable,
+            3 => Self::Finalized,
+            4 => Self::Reverted,
+            other => Self::Unrecognized(other),
         }
     }
 }
@@ -238,7 +239,7 @@ impl L2RpcClient {
         let value = self
             .call(
                 "getl2batch",
-                serde_json::json!([self.chain_id, batch_number]),
+                serde_json::json!([self.chain_id, u64_wire(batch_number)]),
             )
             .await?;
         if value.is_null() {
@@ -256,6 +257,15 @@ impl L2RpcClient {
                 got: batch.chain_id,
             });
         }
+        if batch.batch_number != batch_number {
+            return Err(L2RpcError::Protocol {
+                method: "getl2batch".to_string(),
+                message: format!(
+                    "response batchNumber {} does not match request {}",
+                    batch.batch_number, batch_number
+                ),
+            });
+        }
         Ok(Some(batch))
     }
 
@@ -263,7 +273,7 @@ impl L2RpcClient {
         let value = self
             .call(
                 "getl2batchstatus",
-                serde_json::json!([self.chain_id, batch_number]),
+                serde_json::json!([self.chain_id, u64_wire(batch_number)]),
             )
             .await?;
         let resp: BatchStatusResponse =
@@ -276,6 +286,15 @@ impl L2RpcClient {
                 method: "getl2batchstatus".to_string(),
                 expected: self.chain_id,
                 got: resp.chain_id,
+            });
+        }
+        if resp.batch_number != batch_number {
+            return Err(L2RpcError::Protocol {
+                method: "getl2batchstatus".to_string(),
+                message: format!(
+                    "response batchNumber {} does not match request {}",
+                    resp.batch_number, batch_number
+                ),
             });
         }
         Ok(resp)
@@ -298,7 +317,7 @@ impl L2RpcClient {
         let value = self
             .call(
                 "getl2stateroot",
-                serde_json::json!([self.chain_id, batch_number]),
+                serde_json::json!([self.chain_id, u64_wire(batch_number)]),
             )
             .await?;
         value
@@ -362,7 +381,7 @@ impl L2RpcClient {
         let value = self
             .call(
                 "getl1depositstatus",
-                serde_json::json!([source_chain_id, nonce]),
+                serde_json::json!([source_chain_id, u64_wire(nonce)]),
             )
             .await?;
         if value.is_null() {
@@ -381,6 +400,15 @@ impl L2RpcClient {
                 method: "getl1depositstatus".to_string(),
                 expected: source_chain_id,
                 got: resp.source_chain_id,
+            });
+        }
+        if resp.nonce != nonce {
+            return Err(L2RpcError::Protocol {
+                method: "getl1depositstatus".to_string(),
+                message: format!(
+                    "response nonce {} does not match request {}",
+                    resp.nonce, nonce
+                ),
             });
         }
         Ok(Some(resp))
@@ -499,6 +527,12 @@ impl L2RpcClient {
                     method: method.to_string(),
                     message: format!("parse error: {error}"),
                 })?;
+        if envelope.get("jsonrpc").and_then(|value| value.as_str()) != Some("2.0") {
+            return Err(L2RpcError::Protocol {
+                method: method.to_string(),
+                message: "response jsonrpc must be '2.0'".to_string(),
+            });
+        }
         let response_id = envelope.get("id").and_then(|v| v.as_i64()).unwrap_or(-1);
         if response_id != id {
             return Err(L2RpcError::Protocol {
@@ -523,14 +557,24 @@ impl L2RpcClient {
                 message: msg,
             });
         }
-        Ok(envelope
+        envelope
             .get("result")
             .cloned()
-            .unwrap_or(serde_json::Value::Null))
+            .ok_or_else(|| L2RpcError::Protocol {
+                method: method.to_string(),
+                message: "response is missing result".to_string(),
+            })
     }
 }
 
+fn u64_wire(value: u64) -> String {
+    value.to_string()
+}
+
 fn hex_decode(s: &str) -> std::result::Result<Vec<u8>, String> {
-    let s = s.strip_prefix("0x").unwrap_or(s);
+    let s = s
+        .strip_prefix("0x")
+        .or_else(|| s.strip_prefix("0X"))
+        .unwrap_or(s);
     hex::decode(s).map_err(|e| format!("invalid hex: {e}"))
 }

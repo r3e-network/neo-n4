@@ -1,0 +1,231 @@
+{
+  "schema": "neo-n4-sdk-conformance/v1",
+  "rpc": {
+    "chainId": 1099,
+    "cases": [
+      {
+        "name": "batch-missing-max-u64",
+        "method": "getl2batch",
+        "params": [1099, "18446744073709551615"],
+        "result": null
+      },
+      {
+        "name": "batch-complete-large-u64",
+        "method": "getl2batch",
+        "params": [1099, "9007199254740993"],
+        "result": {
+          "chainId": 1099,
+          "batchNumber": "9007199254740993",
+          "firstBlock": "100",
+          "lastBlock": "200",
+          "preStateRoot": "0x1111111111111111111111111111111111111111111111111111111111111111",
+          "postStateRoot": "0x2222222222222222222222222222222222222222222222222222222222222222",
+          "txRoot": "0x3333333333333333333333333333333333333333333333333333333333333333",
+          "receiptRoot": "0x4444444444444444444444444444444444444444444444444444444444444444",
+          "withdrawalRoot": "0x5555555555555555555555555555555555555555555555555555555555555555",
+          "l2ToL1MessageRoot": "0x6666666666666666666666666666666666666666666666666666666666666666",
+          "l2ToL2MessageRoot": "0x7777777777777777777777777777777777777777777777777777777777777777",
+          "daCommitment": "0x8888888888888888888888888888888888888888888888888888888888888888",
+          "publicInputHash": "0x9999999999999999999999999999999999999999999999999999999999999999",
+          "proofType": 3,
+          "proof": "AABBCC",
+          "encoded": "4B04000001000000000020006400000000000000C8000000000000001111111111111111111111111111111111111111111111111111111111111111222222222222222222222222222222222222222222222222222222222222222233333333333333333333333333333333333333333333333333333333333333334444444444444444444444444444444444444444444444444444444444444444555555555555555555555555555555555555555555555555555555555555555566666666666666666666666666666666666666666666666666666666666666667777777777777777777777777777777777777777777777777777777777777777888888888888888888888888888888888888888888888888888888888888888899999999999999999999999999999999999999999999999999999999999999990303000000AABBCC"
+        }
+      },
+      {
+        "name": "batch-status",
+        "method": "getl2batchstatus",
+        "params": [1099, "9007199254740993"],
+        "result": {
+          "chainId": 1099,
+          "batchNumber": "9007199254740993",
+          "status": 3,
+          "statusName": "Finalized"
+        }
+      },
+      {
+        "name": "latest-state-root",
+        "method": "getl2stateroot",
+        "params": [1099],
+        "result": "0x2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      {
+        "name": "state-root-max-u64",
+        "method": "getl2stateroot",
+        "params": [1099, "18446744073709551615"],
+        "result": "0x3333333333333333333333333333333333333333333333333333333333333333"
+      },
+      {
+        "name": "withdrawal-proof",
+        "method": "getl2withdrawalproof",
+        "params": [1099, "0x4444444444444444444444444444444444444444444444444444444444444444"],
+        "result": "CAFEBABE"
+      },
+      {
+        "name": "message-proof",
+        "method": "getl2messageproof",
+        "params": [1099, "0x5555555555555555555555555555555555555555555555555555555555555555"],
+        "result": "DEADBEEF"
+      },
+      {
+        "name": "deposit-status-max-u64",
+        "method": "getl1depositstatus",
+        "params": [1, "18446744073709551615"],
+        "result": {
+          "sourceChainId": 1,
+          "nonce": "18446744073709551615",
+          "consumedOnL2": true,
+          "includedInBatch": "9007199254740993"
+        }
+      },
+      {
+        "name": "canonical-asset",
+        "method": "getcanonicalasset",
+        "params": ["0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+        "result": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      {
+        "name": "bridged-asset",
+        "method": "getbridgedasset",
+        "params": ["0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+        "result": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "name": "security-level",
+        "method": "getsecuritylevel",
+        "params": [1099],
+        "result": {
+          "chainId": 1099,
+          "level": 3,
+          "levelName": "Validity"
+        }
+      },
+      {
+        "name": "security-label",
+        "method": "getsecuritylabel",
+        "params": [1099],
+        "result": {
+          "chainId": 1099,
+          "securityLevel": 4,
+          "securityLevelName": "Validium",
+          "daMode": 1,
+          "daModeName": "NeoFS",
+          "gatewayEnabled": true,
+          "sequencer": 1,
+          "sequencerName": "DbftCommittee",
+          "exit": 1,
+          "exitName": "Delayed"
+        }
+      }
+    ],
+    "errors": [
+      {
+        "name": "server",
+        "jsonrpc": "2.0",
+        "error": {"code": -32000, "message": "node not synced"},
+        "expected": "server"
+      },
+      {
+        "name": "mismatched-id",
+        "jsonrpc": "2.0",
+        "idOffset": 1,
+        "result": "0x2222222222222222222222222222222222222222222222222222222222222222",
+        "expected": "protocol"
+      },
+      {
+        "name": "wrong-jsonrpc-version",
+        "jsonrpc": "1.0",
+        "result": "0x2222222222222222222222222222222222222222222222222222222222222222",
+        "expected": "protocol"
+      }
+    ],
+    "responseErrors": [
+      {
+        "name": "mismatched-chain-id",
+        "method": "getsecuritylabel",
+        "result": {
+          "chainId": 1100,
+          "securityLevel": 4,
+          "securityLevelName": "Validium",
+          "daMode": 1,
+          "daModeName": "NeoFS",
+          "gatewayEnabled": true,
+          "sequencer": 1,
+          "sequencerName": "DbftCommittee",
+          "exit": 1,
+          "exitName": "Delayed"
+        },
+        "expected": "chain"
+      },
+      {
+        "name": "invalid-withdrawal-proof-hex",
+        "method": "getl2withdrawalproof",
+        "result": "0xnot-hex",
+        "expected": "protocol"
+      },
+      {
+        "name": "wrong-state-root-type",
+        "method": "getl2stateroot",
+        "result": 42,
+        "expected": "protocol"
+      },
+      {
+        "name": "unsafe-numeric-u64",
+        "method": "getl1depositstatus",
+        "result": {
+          "sourceChainId": 1,
+          "nonce": 9007199254740992,
+          "consumedOnL2": true,
+          "includedInBatch": null
+        },
+        "expected": "protocol"
+      }
+    ]
+  },
+  "domain": {
+    "l1ReservedChainId": 0,
+    "l2ChainId": 1099,
+    "networkMagic": 860833102,
+    "networkMagicLittleEndianHex": "4e454f33"
+  },
+  "hash": {
+    "wireLittleEndianHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "rpcDisplay": "0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100"
+  },
+  "pagination": {
+    "request": {"cursor": null, "limit": 2},
+    "pages": [
+      {
+        "items": [
+          {"batchNumber": "9007199254740993", "stateRoot": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+          {"batchNumber": "9007199254740994", "stateRoot": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
+        ],
+        "nextCursor": "batch:9007199254740994"
+      },
+      {
+        "items": [
+          {"batchNumber": "18446744073709551615", "stateRoot": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}
+        ],
+        "nextCursor": null
+      }
+    ],
+    "expectedBatchNumbers": [
+      "9007199254740993",
+      "9007199254740994",
+      "18446744073709551615"
+    ]
+  },
+  "transaction": {
+    "network": 860833102,
+    "accountLittleEndianHex": "66de052617e55519358c3885e049e3d3e07efe7e",
+    "accountRpcDisplay": "0x7efe7ee0d3e349e085388c351955e5172605de66",
+    "publicKeyCompressedHex": "036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296",
+    "publicKeyUncompressedHex": "046b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c2964fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5",
+    "verificationScriptHex": "0c21036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c2964156e7b327",
+    "unsignedTransactionHex": "004433221115cd5b0700000000b168de3a00000000040302010166de052617e55519358c3885e049e3d3e07efe7e01000140",
+    "txid": "0xcc277552098c42777ab29ba887ac289d094e6b97f6253c2d0e91787d61c8e2fe",
+    "signDataHex": "4e454f33fee2c8617d78910e2d3c25f6976b4e099d28ac87a89bb27a77428c09527527cc",
+    "signatureHex": "5fa05c57f41f575d1f76dc69161441980dfc40ca2f45ec562400a342ea7804ef218f374b8cc44db284a8664417b0cf2ba4bd2d25b2af0234f98d14b1211b9c26",
+    "rawTransactionHex": "004433221115cd5b0700000000b168de3a00000000040302010166de052617e55519358c3885e049e3d3e07efe7e0100014001420c405fa05c57f41f575d1f76dc69161441980dfc40ca2f45ec562400a342ea7804ef218f374b8cc44db284a8664417b0cf2ba4bd2d25b2af0234f98d14b1211b9c26280c21036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c2964156e7b327"
+  }
+}

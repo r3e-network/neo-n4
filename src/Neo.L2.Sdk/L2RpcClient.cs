@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -87,13 +88,18 @@ public sealed class L2RpcClient : IDisposable
     /// </summary>
     public async Task<L2BatchView?> GetBatchAsync(ulong batchNumber, CancellationToken ct = default)
     {
-        var p = new JArray { ChainId, batchNumber };
+        var p = new JArray { ChainId, ULongWire(batchNumber) };
         var result = await CallAsync("getl2batch", p, ct).ConfigureAwait(false);
         if (result is null) return null;
         if (result is not JObject obj)
             throw new L2RpcProtocolException("getl2batch", "expected object response");
         AssertResponseChainId(obj, "getl2batch");
-        return ParseBatch(obj);
+        var batch = ParseBatch(obj, "getl2batch");
+        if (batch.BatchNumber != batchNumber)
+            throw new L2RpcProtocolException(
+                "getl2batch",
+                $"response batchNumber {batch.BatchNumber} does not match request {batchNumber}");
+        return batch;
     }
 
     /// <summary>
@@ -101,17 +107,24 @@ public sealed class L2RpcClient : IDisposable
     /// </summary>
     public async Task<BatchStatusResponse> GetBatchStatusAsync(ulong batchNumber, CancellationToken ct = default)
     {
-        var p = new JArray { ChainId, batchNumber };
+        var p = new JArray { ChainId, ULongWire(batchNumber) };
         var result = await CallAsync("getl2batchstatus", p, ct).ConfigureAwait(false);
         if (result is not JObject obj)
             throw new L2RpcProtocolException("getl2batchstatus", "expected object response");
         AssertResponseChainId(obj, "getl2batchstatus");
-        var statusByte = (byte)(double)((JNumber)obj["status"]!).AsNumber();
-        return new BatchStatusResponse(
-            ChainId: (uint)(double)((JNumber)obj["chainId"]!).AsNumber(),
-            BatchNumber: (ulong)(double)((JNumber)obj["batchNumber"]!).AsNumber(),
+        var statusByte = ReadByteField(obj, "status", "getl2batchstatus");
+        if (statusByte > (byte)BatchStatus.Reverted)
+            throw new L2RpcProtocolException("getl2batchstatus", $"unknown batch status {statusByte}");
+        var response = new BatchStatusResponse(
+            ChainId: ReadUInt32Field(obj, "chainId", "getl2batchstatus"),
+            BatchNumber: ReadUInt64Field(obj, "batchNumber", "getl2batchstatus"),
             Status: (BatchStatus)statusByte,
             StatusName: obj["statusName"]?.AsString() ?? ((BatchStatus)statusByte).ToString());
+        if (response.BatchNumber != batchNumber)
+            throw new L2RpcProtocolException(
+                "getl2batchstatus",
+                $"response batchNumber {response.BatchNumber} does not match request {batchNumber}");
+        return response;
     }
 
     /// <summary>
@@ -123,7 +136,7 @@ public sealed class L2RpcClient : IDisposable
         var p = new JArray { ChainId };
         var result = await CallAsync("getl2stateroot", p, ct).ConfigureAwait(false)
             ?? throw new L2RpcProtocolException("getl2stateroot", "null result");
-        return UInt256.Parse(result.AsString());
+        return ParseUInt256("getl2stateroot", result);
     }
 
     /// <summary>
@@ -131,10 +144,10 @@ public sealed class L2RpcClient : IDisposable
     /// </summary>
     public async Task<UInt256> GetStateRootAtAsync(ulong batchNumber, CancellationToken ct = default)
     {
-        var p = new JArray { ChainId, batchNumber };
+        var p = new JArray { ChainId, ULongWire(batchNumber) };
         var result = await CallAsync("getl2stateroot", p, ct).ConfigureAwait(false)
             ?? throw new L2RpcProtocolException("getl2stateroot", "null result");
-        return UInt256.Parse(result.AsString());
+        return ParseUInt256("getl2stateroot", result);
     }
 
     /// <summary>
@@ -147,8 +160,7 @@ public sealed class L2RpcClient : IDisposable
         ArgumentNullException.ThrowIfNull(leaf);
         var p = new JArray { ChainId, leaf.ToString() };
         var result = await CallAsync("getl2withdrawalproof", p, ct).ConfigureAwait(false);
-        if (result is null) return null;
-        return Convert.FromHexString(result.AsString());
+        return ParseOptionalHex("getl2withdrawalproof", result);
     }
 
     /// <summary>
@@ -159,8 +171,7 @@ public sealed class L2RpcClient : IDisposable
         ArgumentNullException.ThrowIfNull(messageHash);
         var p = new JArray { ChainId, messageHash.ToString() };
         var result = await CallAsync("getl2messageproof", p, ct).ConfigureAwait(false);
-        if (result is null) return null;
-        return Convert.FromHexString(result.AsString());
+        return ParseOptionalHex("getl2messageproof", result);
     }
 
     /// <summary>
@@ -169,23 +180,30 @@ public sealed class L2RpcClient : IDisposable
     /// </summary>
     public async Task<DepositStatusResponse?> GetDepositStatusAsync(uint sourceChainId, ulong nonce, CancellationToken ct = default)
     {
-        var p = new JArray { sourceChainId, nonce };
+        var p = new JArray { sourceChainId, ULongWire(nonce) };
         var result = await CallAsync("getl1depositstatus", p, ct).ConfigureAwait(false);
         if (result is null) return null;
         if (result is not JObject obj)
             throw new L2RpcProtocolException("getl1depositstatus", "expected object response");
-        var serverSourceChainId = (uint)(double)((JNumber)obj["sourceChainId"]!).AsNumber();
+        var serverSourceChainId = ReadUInt32Field(obj, "sourceChainId", "getl1depositstatus");
         // Cross-check the requested source-chain matches what came back — a misbehaving
         // server returning another L1's deposit would otherwise sail through and the caller
         // would consume the wrong consumed/included status.
         if (serverSourceChainId != sourceChainId)
             throw new L2RpcMismatchedChainIdException("getl1depositstatus", sourceChainId, serverSourceChainId);
-        ulong? includedInBatch = obj["includedInBatch"] is JNumber inb ? (ulong)(double)inb.AsNumber() : null;
-        return new DepositStatusResponse(
+        ulong? includedInBatch = obj["includedInBatch"] is null
+            ? null
+            : ReadUInt64Field(obj, "includedInBatch", "getl1depositstatus");
+        var response = new DepositStatusResponse(
             SourceChainId: serverSourceChainId,
-            Nonce: (ulong)(double)((JNumber)obj["nonce"]!).AsNumber(),
+            Nonce: ReadUInt64Field(obj, "nonce", "getl1depositstatus"),
             ConsumedOnL2: ((JBoolean)obj["consumedOnL2"]!).AsBoolean(),
             IncludedInBatch: includedInBatch);
+        if (response.Nonce != nonce)
+            throw new L2RpcProtocolException(
+                "getl1depositstatus",
+                $"response nonce {response.Nonce} does not match request {nonce}");
+        return response;
     }
 
     /// <summary>
@@ -223,9 +241,11 @@ public sealed class L2RpcClient : IDisposable
         if (result is not JObject obj)
             throw new L2RpcProtocolException("getsecuritylevel", "expected object response");
         AssertResponseChainId(obj, "getsecuritylevel");
-        var lvlByte = (byte)(double)((JNumber)obj["level"]!).AsNumber();
+        var lvlByte = ReadByteField(obj, "level", "getsecuritylevel");
+        if (lvlByte > (byte)SecurityLevel.Validium)
+            throw new L2RpcProtocolException("getsecuritylevel", $"unknown security level {lvlByte}");
         return new SecurityLevelResponse(
-            ChainId: (uint)(double)((JNumber)obj["chainId"]!).AsNumber(),
+            ChainId: ReadUInt32Field(obj, "chainId", "getsecuritylevel"),
             Level: (SecurityLevel)lvlByte);
     }
 
@@ -240,27 +260,41 @@ public sealed class L2RpcClient : IDisposable
         if (result is not JObject obj)
             throw new L2RpcProtocolException("getsecuritylabel", "expected object response");
         AssertResponseChainId(obj, "getsecuritylabel");
+        var securityLevel = ReadByteField(obj, "securityLevel", "getsecuritylabel");
+        var daMode = ReadByteField(obj, "daMode", "getsecuritylabel");
+        var sequencer = ReadByteField(obj, "sequencer", "getsecuritylabel");
+        var exit = ReadByteField(obj, "exit", "getsecuritylabel");
+        if (securityLevel > (byte)SecurityLevel.Validium)
+            throw new L2RpcProtocolException("getsecuritylabel", $"unknown security level {securityLevel}");
+        if (daMode > (byte)DAMode.DAC)
+            throw new L2RpcProtocolException("getsecuritylabel", $"unknown public DA mode {daMode}");
+        if (sequencer > (byte)SequencerModel.Decentralized)
+            throw new L2RpcProtocolException("getsecuritylabel", $"unknown sequencer model {sequencer}");
+        if (exit > (byte)ExitModel.OperatorAssisted)
+            throw new L2RpcProtocolException("getsecuritylabel", $"unknown exit model {exit}");
         return new SecurityLabelResponse(
-            ChainId: (uint)(double)((JNumber)obj["chainId"]!).AsNumber(),
-            SecurityLevel: (SecurityLevel)(byte)(double)((JNumber)obj["securityLevel"]!).AsNumber(),
-            DAMode: (DAMode)(byte)(double)((JNumber)obj["daMode"]!).AsNumber(),
+            ChainId: ReadUInt32Field(obj, "chainId", "getsecuritylabel"),
+            SecurityLevel: (SecurityLevel)securityLevel,
+            DAMode: (DAMode)daMode,
             GatewayEnabled: ((JBoolean)obj["gatewayEnabled"]!).AsBoolean(),
-            Sequencer: (SequencerModel)(byte)(double)((JNumber)obj["sequencer"]!).AsNumber(),
-            Exit: (ExitModel)(byte)(double)((JNumber)obj["exit"]!).AsNumber());
+            Sequencer: (SequencerModel)sequencer,
+            Exit: (ExitModel)exit);
     }
 
-    private static L2BatchView ParseBatch(JObject obj)
+    private static L2BatchView ParseBatch(JObject obj, string method)
     {
         // The full encoded batch bytes round-trip via BatchSerializer if a caller wants
         // the canonical wire format. Decoding the structured fields here gives the SDK's
         // typed surface; the encoded bytes blob stays exposed for re-publish flows.
-        var encoded = Convert.FromHexString(obj["encoded"]!.AsString());
-        var proof = Convert.FromHexString(obj["proof"]!.AsString());
-        return new L2BatchView(
-            ChainId: (uint)(double)((JNumber)obj["chainId"]!).AsNumber(),
-            BatchNumber: (ulong)(double)((JNumber)obj["batchNumber"]!).AsNumber(),
-            FirstBlock: (ulong)(double)((JNumber)obj["firstBlock"]!).AsNumber(),
-            LastBlock: (ulong)(double)((JNumber)obj["lastBlock"]!).AsNumber(),
+        var encoded = ParseOptionalHex(method, obj["encoded"])
+            ?? throw new L2RpcProtocolException(method, "encoded batch is null");
+        var proof = ParseOptionalHex(method, obj["proof"])
+            ?? throw new L2RpcProtocolException(method, "proof is null");
+        var view = new L2BatchView(
+            ChainId: ReadUInt32Field(obj, "chainId", method),
+            BatchNumber: ReadUInt64Field(obj, "batchNumber", method),
+            FirstBlock: ReadUInt64Field(obj, "firstBlock", method),
+            LastBlock: ReadUInt64Field(obj, "lastBlock", method),
             PreStateRoot: UInt256.Parse(obj["preStateRoot"]!.AsString()),
             PostStateRoot: UInt256.Parse(obj["postStateRoot"]!.AsString()),
             TxRoot: UInt256.Parse(obj["txRoot"]!.AsString()),
@@ -270,16 +304,45 @@ public sealed class L2RpcClient : IDisposable
             L2ToL2MessageRoot: UInt256.Parse(obj["l2ToL2MessageRoot"]!.AsString()),
             DACommitment: UInt256.Parse(obj["daCommitment"]!.AsString()),
             PublicInputHash: UInt256.Parse(obj["publicInputHash"]!.AsString()),
-            ProofType: (ProofType)(byte)(double)((JNumber)obj["proofType"]!).AsNumber(),
+            ProofType: (ProofType)ReadProofType(obj, method),
             Proof: proof,
             EncodedWireFormat: encoded);
+        byte[] canonical;
+        try
+        {
+            canonical = BatchSerializer.Encode(new L2BatchCommitment
+            {
+                ChainId = view.ChainId,
+                BatchNumber = view.BatchNumber,
+                FirstBlock = view.FirstBlock,
+                LastBlock = view.LastBlock,
+                PreStateRoot = view.PreStateRoot,
+                PostStateRoot = view.PostStateRoot,
+                TxRoot = view.TxRoot,
+                ReceiptRoot = view.ReceiptRoot,
+                WithdrawalRoot = view.WithdrawalRoot,
+                L2ToL1MessageRoot = view.L2ToL1MessageRoot,
+                L2ToL2MessageRoot = view.L2ToL2MessageRoot,
+                DACommitment = view.DACommitment,
+                PublicInputHash = view.PublicInputHash,
+                ProofType = view.ProofType,
+                Proof = view.Proof,
+            });
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or OverflowException)
+        {
+            throw new L2RpcProtocolException(method, $"invalid canonical batch: {ex.Message}");
+        }
+        if (!canonical.AsSpan().SequenceEqual(encoded))
+            throw new L2RpcProtocolException(method, "encoded batch does not match structured response fields");
+        return view;
     }
 
     private void AssertResponseChainId(JObject obj, string method)
     {
-        if (obj["chainId"] is not JNumber n)
-            return; // method's response shape doesn't include chainId — fine.
-        var serverChainId = (uint)(double)n.AsNumber();
+        if (obj["chainId"] is not JNumber)
+            throw new L2RpcProtocolException(method, "response chainId is missing or not numeric");
+        var serverChainId = ReadUInt32Field(obj, "chainId", method);
         if (serverChainId != ChainId)
             throw new L2RpcMismatchedChainIdException(method, expected: ChainId, got: serverChainId);
     }
@@ -319,6 +382,9 @@ public sealed class L2RpcClient : IDisposable
         if (parsed is not JObject responseObj)
             throw new L2RpcProtocolException(method, "non-object response");
 
+        if (responseObj["jsonrpc"] is not JString version || version.AsString() != "2.0")
+            throw new L2RpcProtocolException(method, "response jsonrpc must be '2.0'");
+
         var responseIdToken = responseObj["id"];
         var responseId = responseIdToken is JNumber rn ? (long)rn.AsNumber()
             : responseIdToken is JString rs && long.TryParse(rs.AsString(), out var rsi) ? rsi
@@ -338,7 +404,89 @@ public sealed class L2RpcClient : IDisposable
             throw new L2RpcServerException(method, code, message);
         }
 
+        if (!responseObj.ContainsProperty("result"))
+            throw new L2RpcProtocolException(method, "response is missing result");
+
         return responseObj["result"];
+    }
+
+    private static JString ULongWire(ulong value)
+        => new(value.ToString(CultureInfo.InvariantCulture));
+
+    private static byte[]? ParseOptionalHex(string method, JToken? result)
+    {
+        if (result is null)
+            return null;
+        if (result is not JString textToken)
+            throw new L2RpcProtocolException(method, "expected hex string");
+        var text = textToken.AsString();
+        if (text.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            text = text[2..];
+        try
+        {
+            return Convert.FromHexString(text);
+        }
+        catch (FormatException ex)
+        {
+            throw new L2RpcProtocolException(method, $"invalid hex: {ex.Message}");
+        }
+    }
+
+    private static UInt256 ParseUInt256(string method, JToken result)
+    {
+        if (result is not JString textToken)
+            throw new L2RpcProtocolException(method, "expected UInt256 string");
+        try
+        {
+            return UInt256.Parse(textToken.AsString());
+        }
+        catch (FormatException ex)
+        {
+            throw new L2RpcProtocolException(method, $"invalid UInt256: {ex.Message}");
+        }
+    }
+
+    private static byte ReadByteField(JObject obj, string field, string method)
+    {
+        var value = ReadUInt64Field(obj, field, method);
+        if (value > byte.MaxValue)
+            throw new L2RpcProtocolException(method, $"field {field} exceeds byte range");
+        return (byte)value;
+    }
+
+    private static byte ReadProofType(JObject obj, string method)
+    {
+        var value = ReadByteField(obj, "proofType", method);
+        if (value > (byte)ProofType.Zk)
+            throw new L2RpcProtocolException(method, $"unknown proof type {value}");
+        return value;
+    }
+
+    private static uint ReadUInt32Field(JObject obj, string field, string method)
+    {
+        var value = ReadUInt64Field(obj, field, method);
+        if (value > uint.MaxValue)
+            throw new L2RpcProtocolException(method, $"field {field} exceeds u32 range");
+        return (uint)value;
+    }
+
+    private static ulong ReadUInt64Field(JObject obj, string field, string method)
+    {
+        var token = obj[field];
+        if (token is JString text && ulong.TryParse(
+                text.AsString(),
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out var parsed))
+            return parsed;
+        if (token is JNumber number)
+        {
+            var value = number.AsNumber();
+            const double MaximumSafeInteger = 9_007_199_254_740_991d;
+            if (double.IsFinite(value) && value >= 0 && value <= MaximumSafeInteger && Math.Truncate(value) == value)
+                return (ulong)value;
+        }
+        throw new L2RpcProtocolException(method, $"field {field} must be a lossless u64");
     }
 
     /// <inheritdoc />

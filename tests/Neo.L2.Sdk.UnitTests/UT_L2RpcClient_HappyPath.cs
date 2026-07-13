@@ -59,7 +59,7 @@ public class UT_L2RpcClient_HappyPath
         Assert.AreEqual(expected, got);
         Assert.AreEqual("getl2stateroot", stub.Captured[0].Method);
         Assert.AreEqual(2, stub.Captured[0].Params.Count);
-        Assert.AreEqual(42d, ((JNumber)stub.Captured[0].Params[1]!).AsNumber());
+        Assert.AreEqual("42", stub.Captured[0].Params[1]!.AsString());
     }
 
     [TestMethod]

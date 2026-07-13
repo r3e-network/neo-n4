@@ -22,6 +22,9 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
 ]
 
+[project.optional-dependencies]
+test = ["cryptography>=44,<47"]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["neo_n4_sdk*"]

@@ -15,6 +15,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Corrected the forced-inclusion slashing contract documentation: a late consume does not erase
   censorship that was already reported after its deadline.
 
+### Fixed — native RISC-V coverage gate — 2026-07-14
+
+- Made the .NET coverage runner build and load the locked platform `neo_riscv_host` artifact,
+  record its SHA-256, and fail instead of skipping when the stateful ABI is unavailable.
+- Expanded real-native coverage across runtime context, complex stack marshalling, storage
+  read/write/delete/iterator behavior, canonical notifications, callback errors, out-of-gas
+  rollback, and default executor bootstrapping; the explicit bridge gate now discovers every
+  `RealNative_` test, including the previously omitted Notify boundary.
+
 ### Fixed — execution transaction integrity coverage — 2026-07-14
 
 - Added commit-compensation tests for successful before-image restoration and the aggregate-error

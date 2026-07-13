@@ -21,6 +21,7 @@
 - 2026-07-14 Gateway prover 绑定：补齐 proof-system 范围、production backend allowlist、取消、aggregate backend 与 canonical binding 的 fail-closed 测试。
 - 2026-07-14 执行事务完整性：补齐 before-image 补偿成功与 commit/rollback 双失败聚合错误、overlay 原子操作和生命周期、canonical effect 字节相等性/哈希及畸形版本测试，并删除无调用的 event copy helper。
 - 2026-07-14 治理法定人数恢复：新增 2-of-3 委员会丢失一个签名者后由其余两个成员完成 epoch 绑定、timelock 保护的完整轮换 VM 证据；明确无 owner 绕过，低于阈值时必须停止治理并走另行审计的紧急迁移；同步修正强制包含罚没文档，deadline 后已证明的审查不会被迟到消费抹除。
+- 2026-07-14 原生 RISC-V 覆盖门禁：覆盖脚本会构建、复制并强制加载锁定的 `neo_riscv_host` 平台库，记录 SHA-256，缺失时直接失败；真实 ABI 门禁自动发现全部 `RealNative_` 测试并覆盖 Notify、复杂栈、运行时上下文、存储迭代、回滚与错误路径。
 
 ## 维护检查清单
 

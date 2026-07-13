@@ -26,6 +26,8 @@ jobs:
     name: dotnet test
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      RUSTUP_TOOLCHAIN: 1.88.0
 
     steps:
       - name: Checkout (with submodules)
@@ -47,6 +49,9 @@ jobs:
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@1.88.0
 
       - name: Override nuget.config for the submodule
         # external/neo/nuget.config <clear/>s sources and adds MyGet-neo, which
@@ -275,8 +280,8 @@ jobs:
             tests/Neo.L2.Executor.RiscV.UnitTests/bin/Debug/net10.0/
           NEO_RISCV_NATIVE_TESTS=1 python3 scripts/ci/run_dotnet_filtered_tests.py \
             --project tests/Neo.L2.Executor.RiscV.UnitTests/Neo.L2.Executor.RiscV.UnitTests.csproj \
-            --filter 'FullyQualifiedName=Neo.L2.Executor.RiscV.UnitTests.UT_RiscVHost.RealNative_RetReceiptMatchesApplicationEngineByteForByte|FullyQualifiedName=Neo.L2.Executor.RiscV.UnitTests.UT_RiscVHost.RealNative_StoragePutCommitsStateAndCanonicalEffects|FullyQualifiedName=Neo.L2.Executor.RiscV.UnitTests.UT_RiscVHost.RealNative_UnsupportedContractCallFaultsClosed' \
-            --minimum-tests 3 \
+            --filter 'FullyQualifiedName~Neo.L2.Executor.RiscV.UnitTests.UT_RiscVHost.RealNative_' \
+            --minimum-tests 10 \
             -- /p:NuGetAudit=false --nologo --no-build
 
       # neo-zkvm-guest: the Rust crate that compiles to RISC-V ELF inside SP1's

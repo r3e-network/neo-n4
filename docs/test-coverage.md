@@ -4,7 +4,7 @@ Neo N4 uses an evidence-first test strategy rather than a single percentage clai
 
 ## Gates
 
-- `.NET`: `scripts/test-coverage.ps1` runs the full `Neo.L2.sln` test suite with `coverlet.collector`, merges Cobertura reports by source file/line, and applies two gates: 90% line coverage for protocol/runtime source roots and 80% overall reported line coverage.
+- `.NET`: `scripts/test-coverage.ps1` builds the platform `neo_riscv_host` library with locked Cargo dependencies, places it beside the Release RISC-V test assembly, requires every real-native test to execute, runs the full `Neo.L2.sln` suite with `coverlet.collector`, merges Cobertura reports by source file/line, and applies two gates: 90% line coverage for protocol/runtime source roots and 80% overall reported line coverage. A missing or unloadable native library fails the run; it is never converted into a skipped coverage result.
 - `Contracts`: CI builds every `contracts/NeoHub.*` and `samples/contracts/Sample.*` project, compiles each with `nccs`, and verifies `.nef` plus `.manifest.json` artifacts.
 - `Neo core fork`: CI runs `UT_L2NativeContracts` in the r3e Neo core submodule.
 - `Rust`: CI runs workspace tests, clippy, PolkaVM host checks, watcher feature checks, and SP1 host/guest checks.
@@ -20,6 +20,7 @@ dotnet test .\Neo.L2.sln -c Release /p:NuGetAudit=false --nologo
 ```
 
 The raw coverage output is written under `coverage/`, which is intentionally ignored. The script writes `dotnet-line-coverage-summary.json` in the selected results directory for audit review.
+The summary records the exact platform-native library path and SHA-256 under `nativeRiscVHost`. Local runs therefore require the Rust toolchain in addition to .NET 10.
 
 ## Scope
 

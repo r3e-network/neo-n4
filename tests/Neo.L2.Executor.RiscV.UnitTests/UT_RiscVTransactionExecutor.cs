@@ -16,6 +16,57 @@ namespace Neo.L2.Executor.RiscV.UnitTests;
 public class UT_RiscVTransactionExecutor
 {
     [TestMethod]
+    public void Constructor_RejectsNonPositiveGasLimit()
+    {
+        using var store = RiscVTestData.CreateStore();
+
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(
+            () => new RiscVTransactionExecutor(
+                store,
+                RiscVTestData.Settings,
+                gasLimit: 0));
+    }
+
+    [TestMethod]
+    public async Task ResolvedContractScriptMismatch_FailsBeforeRunner()
+    {
+        var runnerCalled = false;
+        using var store = RiscVTestData.CreateStore();
+        var contract = RiscVTestData.BuildContract([(byte)OpCode.RET]);
+        var executor = new RiscVTransactionExecutor(
+            store,
+            RiscVTestData.Settings,
+            contractResolver: (_, _) => contract,
+            runner: (_, context) =>
+            {
+                runnerCalled = true;
+                return RiscVTestData.Halt(context);
+            });
+
+        var result = await executor.ExecuteAsync(
+            RiscVTestData.BuildTransaction([(byte)OpCode.PUSH1, (byte)OpCode.RET]),
+            RiscVTestData.Context);
+
+        Assert.IsFalse(runnerCalled);
+        Assert.IsFalse(result.Receipt.Success);
+        StringAssert.Contains(result.FailureReason, "host context setup failed");
+    }
+
+    [TestMethod]
+    public async Task NativeLoaderFailure_PropagatesInsteadOfReturningReceipt()
+    {
+        using var store = RiscVTestData.CreateStore();
+        var executor = Executor(
+            store,
+            (_, _) => throw new DllNotFoundException("missing native library"));
+
+        await Assert.ThrowsExactlyAsync<DllNotFoundException>(
+            async () => await executor.ExecuteAsync(
+                RiscVTestData.BuildTransaction([(byte)OpCode.RET]),
+                RiscVTestData.Context));
+    }
+
+    [TestMethod]
     public async Task Halt_UsesNativeFeeAndReturnsCanonicalEmptyEffects()
     {
         using var store = RiscVTestData.CreateStore();

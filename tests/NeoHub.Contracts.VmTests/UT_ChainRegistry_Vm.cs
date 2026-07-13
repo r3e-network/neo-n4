@@ -13,16 +13,17 @@ namespace NeoHub.Contracts.VmTests;
 public class UT_ChainRegistry_Vm
 {
     private const int ConfigSize = 91;
+    private const int OffsetSecurityLevel = 84;
     private const int OffsetDAMode = 85;
     private const int OffsetActive = 90;
 
     private static byte[] BuildConfig(uint chainId, byte daMode = 0, byte securityLevel = 0)
     {
-        // 91-byte L2ChainConfig. Only chainId@0, daMode@85 (must be <=3), and active@90 are
-        // validated at registration; the UInt160 fields are not, so they may stay zero.
+        // 91-byte L2ChainConfig. The UInt160 fields are not relevant to these registration
+        // compatibility tests, so they may stay zero.
         var c = new byte[ConfigSize];
         BinaryPrimitives.WriteUInt32LittleEndian(c.AsSpan(0, 4), chainId);
-        c[84] = securityLevel;
+        c[OffsetSecurityLevel] = securityLevel;
         c[OffsetDAMode] = daMode;
         c[OffsetActive] = 1; // active
         return c;
@@ -60,5 +61,68 @@ public class UT_ChainRegistry_Vm
         // daMode 99 is out of the 0..3 range — registration must abort (VM FAULT → throw).
         Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
             () => reg.RegisterChain(1001, BuildConfig(1001, daMode: 99)));
+    }
+
+    [TestMethod]
+    [DataRow(0, 0, true)]
+    [DataRow(0, 1, true)]
+    [DataRow(0, 2, true)]
+    [DataRow(0, 3, true)]
+    [DataRow(1, 0, true)]
+    [DataRow(1, 1, true)]
+    [DataRow(1, 2, true)]
+    [DataRow(1, 3, true)]
+    [DataRow(2, 0, true)]
+    [DataRow(2, 1, true)]
+    [DataRow(2, 2, true)]
+    [DataRow(2, 3, true)]
+    [DataRow(3, 0, true)]
+    [DataRow(3, 1, false)]
+    [DataRow(3, 2, false)]
+    [DataRow(3, 3, false)]
+    [DataRow(4, 0, false)]
+    [DataRow(4, 1, true)]
+    [DataRow(4, 2, true)]
+    [DataRow(4, 3, true)]
+    public void RegisterChain_EnforcesSecurityAndDaCompatibility(
+        int securityLevel,
+        int daMode,
+        bool expectedCompatible)
+    {
+        var reg = Deploy();
+        var config = BuildConfig(1001, (byte)daMode, (byte)securityLevel);
+
+        if (!expectedCompatible)
+        {
+            Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
+                () => reg.RegisterChain(1001, config));
+            Assert.IsFalse(reg.IsActive(1001), "rejected config must not be persisted");
+            return;
+        }
+
+        reg.RegisterChain(1001, config);
+        CollectionAssert.AreEqual(config, reg.GetChainConfig(1001));
+    }
+
+    [TestMethod]
+    public void RegisterChain_RejectsOutOfRangeSecurityLevel()
+    {
+        var reg = Deploy();
+
+        Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
+            () => reg.RegisterChain(1001, BuildConfig(1001, securityLevel: 99)));
+    }
+
+    [TestMethod]
+    public void UpdateChain_RejectsContradictorySecurityAndDaWithoutChangingStoredConfig()
+    {
+        var reg = Deploy();
+        var original = BuildConfig(1001, daMode: 0, securityLevel: 3);
+        reg.RegisterChain(1001, original);
+
+        Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
+            () => reg.UpdateChain(1001, BuildConfig(1001, daMode: 1, securityLevel: 3)));
+
+        CollectionAssert.AreEqual(original, reg.GetChainConfig(1001));
     }
 }

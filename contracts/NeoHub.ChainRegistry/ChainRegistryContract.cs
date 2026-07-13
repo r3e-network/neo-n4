@@ -82,6 +82,10 @@ public class ChainRegistryContract : SmartContract
     /// <summary>Offset of the exitModel byte within the encoded config.</summary>
     public const int OffsetExitModel = 89;
 
+    private const byte SecurityLevelValidity = 3;
+    private const byte SecurityLevelValidium = 4;
+    private const byte DAModeL1 = 0;
+
     /// <summary>Emitted whenever a chain is registered or updated.</summary>
     [DisplayName("ChainRegistered")]
     public static event Action<uint, byte[]> OnChainRegistered = default!;
@@ -257,7 +261,7 @@ public class ChainRegistryContract : SmartContract
         ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         ExecutionEngine.Assert(configBytes.Length == ConfigSize, "config size mismatch");
         ExecutionEngine.Assert(ReadChainId(configBytes) == chainId, "chainId mismatch");
-        AssertDAModeInRange(configBytes);
+        AssertSecurityConfigurationCompatible(configBytes);
 
         var key = ConfigKey(chainId);
         var existing = Storage.Get(key);
@@ -288,7 +292,7 @@ public class ChainRegistryContract : SmartContract
         ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         ExecutionEngine.Assert(configBytes.Length == ConfigSize, "config size mismatch");
         ExecutionEngine.Assert(ReadChainId(configBytes) == chainId, "chainId mismatch");
-        AssertDAModeInRange(configBytes);
+        AssertSecurityConfigurationCompatible(configBytes);
         ExecutionEngine.Assert(Storage.Get(ConfigKey(chainId)) != null, "chain not registered");
 
         Storage.Put(ConfigKey(chainId), configBytes);
@@ -313,7 +317,7 @@ public class ChainRegistryContract : SmartContract
         ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         ExecutionEngine.Assert(configBytes.Length == ConfigSize, "config size mismatch");
         ExecutionEngine.Assert(ReadChainId(configBytes) == chainId, "chainId mismatch");
-        AssertDAModeInRange(configBytes);
+        AssertSecurityConfigurationCompatible(configBytes);
         ExecutionEngine.Assert(Storage.Get(ConfigKey(chainId)) != null, "chain not registered");
 
         var consumedKey = ConsumedUpdateProposalKey(proposalId);
@@ -412,17 +416,29 @@ public class ChainRegistryContract : SmartContract
     }
 
     /// <summary>
-    /// Reject a config whose daMode byte is outside the defined 0..3 range. Mirrors the
-    /// downstream guards in <c>SettlementManager.RecordDataAvailability</c> and
-    /// <c>DARegistry.Record</c> (both assert daMode &lt;= 3) so an invalid DA mode is
-    /// rejected at registration / update time instead of surfacing late and confusingly at
-    /// the first <c>SubmitBatch</c> for the chain. DA modes (doc.md §12.1):
-    /// L1(0)/Rollup(1)/Validium(2)/Volition(3).
+    /// Validate the public security label and DA mode together before storing a chain config.
+    /// Validity is a ZK rollup and therefore requires L1 DA; Validium uses the same ZK proof
+    /// requirement with off-chain DA (NeoFS, external DA, or DAC). Rejecting contradictory
+    /// labels here prevents a chain from advertising stronger guarantees than its DA mode
+    /// provides. See doc.md §12 and §16.2.
     /// </summary>
-    private static void AssertDAModeInRange(byte[] configBytes)
+    private static void AssertSecurityConfigurationCompatible(byte[] configBytes)
     {
-        ExecutionEngine.Assert(configBytes[OffsetDAMode] <= 3,
-            "daMode must be 0..3 (L1/Rollup/Validium/Volition)");
+        var securityLevel = configBytes[OffsetSecurityLevel];
+        var daMode = configBytes[OffsetDAMode];
+
+        ExecutionEngine.Assert(securityLevel <= SecurityLevelValidium,
+            "securityLevel must be 0..4 (Sidechain/Settled/Optimistic/Validity/Validium)");
+        ExecutionEngine.Assert(daMode <= 3,
+            "daMode must be 0..3 (L1/NeoFS/External/DAC)");
+
+        if (securityLevel == SecurityLevelValidity)
+            ExecutionEngine.Assert(daMode == DAModeL1,
+                "Validity security level requires L1 DA");
+
+        if (securityLevel == SecurityLevelValidium)
+            ExecutionEngine.Assert(daMode != DAModeL1,
+                "Validium security level requires off-chain DA");
     }
 
     /// <summary>Pause a chain. Owner only. Sets active=false in stored config.</summary>
@@ -481,11 +497,10 @@ public class ChainRegistryContract : SmartContract
         return bytes[ConfigSize - 1] == 1;
     }
 
-    /// <summary>Read the securityLevel byte (doc.md §16.2). 0 = sidechain (the LOWEST security
-    /// level), 3 = validity/Zk (the highest). Returns 0 for an unregistered chain — this is the
-    /// safe default because SettlementManager's `proofType >= securityLevel` gate then reduces to
-    /// a no-op floor (`proofType >= 0`), and an unregistered chain fails the `isActive` gate
-    /// anyway, so a low default cannot grant unintended settlement.</summary>
+    /// <summary>Read the securityLevel byte (doc.md §12). Values are Sidechain(0), Settled(1),
+    /// Optimistic(2), Validity(3), and Validium(4). Returns 0 for an unregistered chain; this is
+    /// safe because SettlementManager rejects unregistered chains through its <c>isActive</c>
+    /// check before evaluating proof compatibility.</summary>
     [Safe]
     public static byte GetSecurityLevel(uint chainId)
     {

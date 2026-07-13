@@ -101,7 +101,9 @@ public class VerifierRegistryContract : SmartContract
     /// (<see cref="RegisterVerifierViaProposal"/>). Owner only; one-way (there is no unlock).
     /// Idempotent — re-locking is a no-op. The GovernanceController must be wired first
     /// (<see cref="SetGovernanceController"/>) so the proposal path is actually usable once
-    /// the instant path is closed.
+    /// the instant path is closed. Locking also permanently freezes that controller hash;
+    /// otherwise the owner could replace it with an accept-all controller and bypass the
+    /// council-veto path.
     /// </summary>
     public static void LockGovernance()
     {
@@ -130,6 +132,8 @@ public class VerifierRegistryContract : SmartContract
     public static void SetGovernanceController(UInt160 governanceController)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(),
+            "governance locked — controller is immutable; deploy a versioned registry for migration");
         ExecutionEngine.Assert(governanceController.IsValid && !governanceController.IsZero,
             "invalid governance controller");
         Storage.Put(new byte[] { KeyGovernanceController }, governanceController);

@@ -48,7 +48,16 @@ public class SettlementManagerContract : SmartContract
     private const int OptimisticSequencerOffsetInProof = 61;
     private const int OptimisticMinProofBytes = 85;
     private const int OptimisticMaxProofBytes = 1 * 1024 * 1024;
+    private const byte ProofTypeMultisig = 1;
     private const byte ProofTypeOptimistic = 2;
+    private const byte ProofTypeZk = 3;
+
+    private const byte SecurityLevelSidechain = 0;
+    private const byte SecurityLevelSettled = 1;
+    private const byte SecurityLevelOptimistic = 2;
+    private const byte SecurityLevelValidity = 3;
+    private const byte SecurityLevelValidium = 4;
+    private const byte DAModeL1 = 0;
 
     /// <summary>Status byte values match Neo.L2.BatchStatus.</summary>
     public const byte StatusUnknown = 0;
@@ -246,25 +255,25 @@ public class SettlementManagerContract : SmartContract
         ExecutionEngine.Assert(expectedPublicInputHash.Equals(declaredPublicInputHash),
             "publicInputHash not bound to commitment roots");
 
+        var proofType = commitmentBytes[ProofTypeOffset];
+        var securityLevel = GetChainSecurityLevel(chainRegistry, chainId);
+        var daMode = GetChainDAMode(chainRegistry, chainId);
+
+        // SecurityLevel, ProofType, and DAMode are distinct protocol domains. In particular,
+        // Validium(4) requires Zk(3) plus off-chain DA, so comparing raw enum bytes is invalid.
+        // Enforce both compatibility tables before invoking external verifier / DA contracts.
+        AssertSecurityConfigurationCompatible(securityLevel, daMode);
+        ExecutionEngine.Assert(IsProofTypeCompatible(securityLevel, proofType),
+            "proof type incompatible with chain's advertised security level");
+
         // Hand off proof verification to the registry (it dispatches by ProofType).
         var verifierRegistry = (UInt160)(Storage.Get(new byte[] { PrefixVerifierRegistry }) ?? throw new Exception("verifier registry unset"));
         var verified = (bool)Contract.Call(verifierRegistry, "verifyCommitment", CallFlags.ReadOnly, new object[] { commitmentBytes });
         ExecutionEngine.Assert(verified, "verifier rejected commitment");
 
         var daCommitment = ReadUInt256(commitmentBytes, DACommitmentOffset);
-        var daMode = GetChainDAMode(chainRegistry, chainId);
         RecordDataAvailability(chainId, batchNumber, daCommitment, daMode);
 
-        var proofType = commitmentBytes[ProofTypeOffset];
-        // Enforce the chain's advertised security level. securityLevel (doc.md §16.2) and ProofType
-        // share the same 0..3 ordering — 0 sidechain/None, 1 settled/Multisig, 2 optimistic/Optimistic,
-        // 3 zk/Zk — so a batch's proof type must be at least as strong as the level the chain declares.
-        // Without this a chain could advertise (e.g.) ZK validity to users yet settle via a weaker
-        // proof type, which — combined with the shared bridge — would let it mint withdrawals under a
-        // weaker trust model than advertised.
-        var securityLevel = (byte)(BigInteger)Contract.Call(chainRegistry, "getSecurityLevel",
-            CallFlags.ReadOnly, new object[] { chainId });
-        ExecutionEngine.Assert(proofType >= securityLevel, "proof type below chain's advertised security level");
         var status = proofType == ProofTypeOptimistic ? StatusChallengeable : StatusPending;
         Storage.Put(statusKey, new byte[] { status });
         Storage.Put(BatchHeaderKey(chainId, batchNumber), commitmentBytes);
@@ -285,6 +294,38 @@ public class SettlementManagerContract : SmartContract
 
         var postStateRoot = ReadUInt256(commitmentBytes, PostStateRootOffset);
         OnBatchSubmitted(chainId, batchNumber, postStateRoot);
+    }
+
+    private static bool IsProofTypeCompatible(byte securityLevel, byte proofType)
+    {
+        if (securityLevel == SecurityLevelSidechain || securityLevel == SecurityLevelSettled)
+            return proofType == ProofTypeMultisig ||
+                   proofType == ProofTypeOptimistic ||
+                   proofType == ProofTypeZk;
+
+        if (securityLevel == SecurityLevelOptimistic)
+            return proofType == ProofTypeOptimistic || proofType == ProofTypeZk;
+
+        if (securityLevel == SecurityLevelValidity || securityLevel == SecurityLevelValidium)
+            return proofType == ProofTypeZk;
+
+        return false;
+    }
+
+    private static void AssertSecurityConfigurationCompatible(byte securityLevel, byte daMode)
+    {
+        ExecutionEngine.Assert(securityLevel <= SecurityLevelValidium,
+            "securityLevel must be 0..4 (Sidechain/Settled/Optimistic/Validity/Validium)");
+        ExecutionEngine.Assert(daMode <= 3,
+            "daMode must be 0..3 (L1/NeoFS/External/DAC)");
+
+        if (securityLevel == SecurityLevelValidity)
+            ExecutionEngine.Assert(daMode == DAModeL1,
+                "Validity security level requires L1 DA");
+
+        if (securityLevel == SecurityLevelValidium)
+            ExecutionEngine.Assert(daMode != DAModeL1,
+                "Validium security level requires off-chain DA");
     }
 
     /// <summary>
@@ -350,6 +391,17 @@ public class SettlementManagerContract : SmartContract
 
         var header = (byte[])(Storage.Get(BatchHeaderKey(chainId, batchNumber)) ?? throw new Exception("header missing"));
 
+        // Chain security configuration is mutable through governance. Revalidate the stored
+        // header against the current label before finalization so a Multisig/Optimistic batch
+        // submitted under a weaker label cannot finalize after the chain advertises Validity or
+        // Validium, and a pre-upgrade contradictory DA label cannot cross the finalization gate.
+        var chainRegistry = (UInt160)(Storage.Get(new byte[] { PrefixChainRegistry }) ?? throw new Exception("registry unset"));
+        var securityLevel = GetChainSecurityLevel(chainRegistry, chainId);
+        var daMode = GetChainDAMode(chainRegistry, chainId);
+        AssertSecurityConfigurationCompatible(securityLevel, daMode);
+        ExecutionEngine.Assert(IsProofTypeCompatible(securityLevel, header[ProofTypeOffset]),
+            "proof type incompatible with current chain security level");
+
         // Finalize strictly in order onto the current canonical head. Continuity is checked at
         // submit time, but a head RevertBatch rewinds latestFinalized/canonicalRoot afterwards —
         // without re-checking here, an already-submitted descendant of the reverted batch could
@@ -365,7 +417,10 @@ public class SettlementManagerContract : SmartContract
                 "preStateRoot no longer matches canonical head");
         }
 
-        ValidateDataAvailability(chainId, batchNumber, header);
+        var daCommitment = ReadUInt256(header, DACommitmentOffset);
+        var recordedDaMode = GetRecordedDAMode(chainId, batchNumber, daCommitment);
+        AssertSecurityConfigurationCompatible(securityLevel, recordedDaMode);
+        ValidateDataAvailability(chainId, batchNumber, daCommitment, recordedDaMode);
         var postStateRoot = ReadUInt256(header, PostStateRootOffset);
 
         Storage.Put(key, new byte[] { StatusFinalized });
@@ -592,11 +647,12 @@ public class SettlementManagerContract : SmartContract
             new object[] { chainId, batchNumber, daCommitment, daMode });
     }
 
-    private static void ValidateDataAvailability(uint chainId, ulong batchNumber, byte[] header)
+    private static void ValidateDataAvailability(
+        uint chainId,
+        ulong batchNumber,
+        UInt256 daCommitment,
+        byte daMode)
     {
-        var chainRegistry = (UInt160)(Storage.Get(new byte[] { PrefixChainRegistry }) ?? throw new Exception("registry unset"));
-        var daMode = GetChainDAMode(chainRegistry, chainId);
-        var daCommitment = ReadUInt256(header, DACommitmentOffset);
         var validator = GetDAValidator();
         ExecutionEngine.Assert(validator.IsValid && !validator.IsZero, "DA validator not wired");
         var ok = (bool)Contract.Call(validator, "validate", CallFlags.ReadOnly,
@@ -604,11 +660,44 @@ public class SettlementManagerContract : SmartContract
         ExecutionEngine.Assert(ok, "DA validator rejected commitment");
     }
 
+    private static byte GetRecordedDAMode(
+        uint chainId,
+        ulong batchNumber,
+        UInt256 expectedCommitment)
+    {
+        var daRegistry = GetDARegistry();
+        ExecutionEngine.Assert(daRegistry.IsValid && !daRegistry.IsZero, "DA registry not wired");
+        var recordedCommitment = (UInt256)Contract.Call(
+            daRegistry,
+            "getCommitment",
+            CallFlags.ReadOnly,
+            new object[] { chainId, batchNumber });
+        ExecutionEngine.Assert(recordedCommitment.Equals(expectedCommitment),
+            "DA registry commitment does not match batch header");
+
+        var recordedMode = (byte)(BigInteger)Contract.Call(
+            daRegistry,
+            "getMode",
+            CallFlags.ReadOnly,
+            new object[] { chainId, batchNumber });
+        ExecutionEngine.Assert(recordedMode <= 3, "recorded daMode must be 0..3");
+        return recordedMode;
+    }
+
     private static byte GetChainDAMode(UInt160 chainRegistry, uint chainId)
     {
         return (byte)(BigInteger)Contract.Call(
             chainRegistry,
             "getDAMode",
+            CallFlags.ReadOnly,
+            new object[] { chainId });
+    }
+
+    private static byte GetChainSecurityLevel(UInt160 chainRegistry, uint chainId)
+    {
+        return (byte)(BigInteger)Contract.Call(
+            chainRegistry,
+            "getSecurityLevel",
             CallFlags.ReadOnly,
             new object[] { chainId });
     }

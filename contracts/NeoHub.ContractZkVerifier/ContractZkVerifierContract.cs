@@ -17,7 +17,8 @@ namespace NeoHub.ContractZkVerifier;
 /// verifier contract when one is configured. Development networks may explicitly
 /// enable envelope-only mode per proof system; production networks should register
 /// a verifier contract for each proof system they accept, and may call
-/// <c>DisableEnvelopeOnlyPermanently</c> to make that commitment irreversible.
+/// <c>DisableEnvelopeOnlyPermanently</c> followed by
+/// <c>LockProofSystemConfiguration</c> to freeze one exact VK and terminal route.
 ///
 /// Verifier contract ABI:
 /// <c>verifyZkProof(byte proofSystem, byte[] verificationKeyId, byte[] publicInputHash, byte[] proofBytes) : bool</c>.
@@ -34,6 +35,7 @@ public class ContractZkVerifierContract : SmartContract
     private const byte PrefixProofVerifier = 0x03;
     private const byte PrefixEnvelopeOnly = 0x04;
     private const byte PrefixEnvelopeOnlyLocked = 0x05;
+    private const byte PrefixProofSystemConfigurationLocked = 0x06;
     private const byte KeyOwner = 0xFF;
 
     private const int PublicInputHashOffset = 284;
@@ -73,6 +75,10 @@ public class ContractZkVerifierContract : SmartContract
     [DisplayName("EnvelopeOnlyPermanentlyDisabled")]
     public static event Action<byte> OnEnvelopeOnlyPermanentlyDisabled = default!;
 
+    /// <summary>Emitted when a proof-system route and its registered verification keys are frozen.</summary>
+    [DisplayName("ProofSystemConfigurationLocked")]
+    public static event Action<byte, UInt256, UInt160> OnProofSystemConfigurationLocked = default!;
+
     /// <summary>Emitted when ownership is transferred.</summary>
     [DisplayName("OwnerChanged")]
     public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
@@ -111,7 +117,9 @@ public class ContractZkVerifierContract : SmartContract
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ValidateProofSystem(proofSystem);
+        AssertProofSystemConfigurationMutable(proofSystem);
         ExecutionEngine.Assert(!verificationKeyId.Equals(UInt256.Zero), "verification key id must be non-zero");
+        if (allowed) AssertCanonicalVerificationKey(proofSystem, verificationKeyId);
 
         var key = VerificationKeyStorageKey(proofSystem, verificationKeyId);
         if (allowed)
@@ -133,6 +141,7 @@ public class ContractZkVerifierContract : SmartContract
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ValidateProofSystem(proofSystem);
+        AssertProofSystemConfigurationMutable(proofSystem);
         if (allowed)
         {
             ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero, "invalid proof verifier");
@@ -167,6 +176,7 @@ public class ContractZkVerifierContract : SmartContract
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ValidateProofSystem(proofSystem);
+        AssertProofSystemConfigurationMutable(proofSystem);
         if (allowed)
         {
             ExecutionEngine.Assert(!IsEnvelopeOnlyLocked(proofSystem),
@@ -204,6 +214,7 @@ public class ContractZkVerifierContract : SmartContract
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ValidateProofSystem(proofSystem);
+        AssertProofSystemConfigurationMutable(proofSystem);
 
         Storage.Delete(EnvelopeOnlyStorageKey(proofSystem));
         Storage.Put(EnvelopeOnlyLockStorageKey(proofSystem), new byte[] { 1 });
@@ -220,12 +231,67 @@ public class ContractZkVerifierContract : SmartContract
         return Storage.Get(EnvelopeOnlyLockStorageKey(proofSystem)) != null;
     }
 
+    /// <summary>
+    /// Permanently freeze one proof system after its exact verification key and terminal verifier
+    /// have been registered and envelope-only verification has been irreversibly disabled.
+    /// </summary>
+    /// <remarks>
+    /// See <c>doc.md</c> §8. This is the final production bootstrap step. Once locked, no owner can
+    /// add or remove verification keys, replace the terminal verifier, or alter envelope-only state
+    /// for this proof system. Upgrades deploy a new versioned router and are selected by the outer
+    /// governance-controlled <c>VerifierRegistry</c>.
+    /// </remarks>
+    public static void LockProofSystemConfiguration(byte proofSystem, UInt256 verificationKeyId)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ValidateProofSystem(proofSystem);
+        AssertProofSystemConfigurationMutable(proofSystem);
+        ExecutionEngine.Assert(!verificationKeyId.Equals(UInt256.Zero), "verification key id must be non-zero");
+        AssertCanonicalVerificationKey(proofSystem, verificationKeyId);
+        ExecutionEngine.Assert(IsVerificationKeyRegistered(proofSystem, verificationKeyId),
+            "verification key not registered");
+
+        var verifier = GetProofVerifier(proofSystem);
+        ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero, "proof verifier not configured");
+        ExecutionEngine.Assert(IsEnvelopeOnlyLocked(proofSystem),
+            "envelope-only must be permanently disabled before configuration lock");
+        ExecutionEngine.Assert(!IsEnvelopeOnlyAllowed(proofSystem),
+            "envelope-only must be disabled before configuration lock");
+
+        Storage.Put(ProofSystemConfigurationLockStorageKey(proofSystem), verificationKeyId);
+        OnProofSystemConfigurationLocked(proofSystem, verificationKeyId, verifier);
+    }
+
+    /// <summary>True when all mutable configuration for a proof system has been frozen.</summary>
+    [Safe]
+    public static bool IsProofSystemConfigurationLocked(byte proofSystem)
+    {
+        if (!IsSupportedProofSystem(proofSystem)) return false;
+        return Storage.Get(ProofSystemConfigurationLockStorageKey(proofSystem)) != null;
+    }
+
+    /// <summary>
+    /// Exact verification key frozen for a proof system, or zero when the configuration is mutable.
+    /// </summary>
+    [Safe]
+    public static UInt256 GetLockedVerificationKey(byte proofSystem)
+    {
+        if (!IsSupportedProofSystem(proofSystem)) return UInt256.Zero;
+        var raw = Storage.Get(ProofSystemConfigurationLockStorageKey(proofSystem));
+        return raw == null ? UInt256.Zero : (UInt256)raw;
+    }
+
     /// <summary>True when the proof-system/VK pair is governance-allowed.</summary>
     [Safe]
     public static bool IsVerificationKeyRegistered(byte proofSystem, UInt256 verificationKeyId)
     {
         if (!IsSupportedProofSystem(proofSystem)) return false;
         if (verificationKeyId.Equals(UInt256.Zero)) return false;
+
+        var lockedVerificationKey = GetLockedVerificationKey(proofSystem);
+        if (!lockedVerificationKey.Equals(UInt256.Zero))
+            return lockedVerificationKey.Equals(verificationKeyId);
+
         return Storage.Get(VerificationKeyStorageKey(proofSystem, verificationKeyId)) != null;
     }
 
@@ -291,6 +357,12 @@ public class ContractZkVerifierContract : SmartContract
         return proofSystem >= ProofSystemSp1 && proofSystem <= ProofSystemAxiom;
     }
 
+    private static void AssertProofSystemConfigurationMutable(byte proofSystem)
+    {
+        ExecutionEngine.Assert(!IsProofSystemConfigurationLocked(proofSystem),
+            "proof-system configuration permanently locked");
+    }
+
     private static uint ReadUInt32(byte[] data, int offset)
     {
         return (uint)data[offset]
@@ -322,6 +394,14 @@ public class ContractZkVerifierContract : SmartContract
         return key;
     }
 
+    private static void AssertCanonicalVerificationKey(byte proofSystem, UInt256 verificationKeyId)
+    {
+        if (proofSystem != ProofSystemSp1) return;
+        var raw = (byte[])verificationKeyId;
+        ExecutionEngine.Assert(raw.Length == 32 && raw[0] == 0,
+            "SP1 program vkey must use canonical bytes32_raw() encoding");
+    }
+
     private static byte[] ProofVerifierStorageKey(byte proofSystem)
     {
         return new[] { PrefixProofVerifier, proofSystem };
@@ -335,5 +415,10 @@ public class ContractZkVerifierContract : SmartContract
     private static byte[] EnvelopeOnlyLockStorageKey(byte proofSystem)
     {
         return new[] { PrefixEnvelopeOnlyLocked, proofSystem };
+    }
+
+    private static byte[] ProofSystemConfigurationLockStorageKey(byte proofSystem)
+    {
+        return new[] { PrefixProofSystemConfigurationLocked, proofSystem };
     }
 }

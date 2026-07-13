@@ -37,6 +37,7 @@
 - [发布就绪检查清单](./release-readiness-checklist.md)
 - [钱包集成](./wallet-integration.md)
 - [四语言 SDK 一致性](./sdk-conformance.md)
+- [Operator signer-command 协议](./operator-signer-command-protocol.md)
 
 # 架构
 

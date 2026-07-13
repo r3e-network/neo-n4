@@ -1157,6 +1157,14 @@ neo-stack submit-batch
 子进程退出码，SIGINT/SIGTERM 先优雅终止再做有界强杀。Neo.CLI/DBFTPlugin 发布包由
 operator 审计并提供；仓库不得假装存在尚未发布的 `r3e-network/neo-node` 二进制。
 
+所有会改变 L1/L2 状态的 operator 命令必须保留确定性的 plan/dry-run 路径；显式
+`--broadcast` 时必须先验证 RPC network、`invokescript` 预执行和精确 fee，再签名、
+广播并等待 HALT 确认。devnet 可从受控环境变量读取 WIF；生产 HSM/KMS 通过外部
+signer command 接收 canonical `GetSignData(network)` 并只返回 invocation script。CLI
+固定 account + verification script，要求最终 invocation script 与 fee-estimation witness
+同长度，并在脚本哈希不匹配、超时、非零退出或无效响应时 fail closed；不得把私钥或
+provider token 传给 CLI 参数。
+
 ## 14.3 Developer Tooling
 
 ```text

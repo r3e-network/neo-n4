@@ -147,7 +147,8 @@ Transaction-producing commands support an explicit signed path, and process comm
 supervise the real operator binaries:
 
 - `neo-stack register-chain`, `deploy-bridge-adapter`, and `submit-batch` retain a
-  deterministic plan mode; `--broadcast` signs, preflights, broadcasts, and confirms.
+  deterministic plan mode; `--broadcast` selects a local WIF or fail-closed
+  external signer command, then signs, preflights, broadcasts, and confirms.
 - `neo-stack start-sequencer` and `start-batcher` launch a reviewed Neo.CLI deployment
   through `ProcessStartInfo.ArgumentList`, propagate its exit code, and terminate the child
   gracefully on SIGINT/SIGTERM before a bounded kill fallback.
@@ -158,10 +159,11 @@ supervise the real operator binaries:
   the confirmed rotation.
 
 Wallet integration patterns are documented in
-[`docs/wallet-integration.md`](docs/wallet-integration.md): paste-into-wallet
-hex (cold-key flows) + delegate signing (hot-wallet automation). Worked
-examples for NeoLine, Neon, NEP-6, Ledger, KMS — every CLI emits canonical
-hex; the framework never holds private keys.
+[`docs/wallet-integration.md`](docs/wallet-integration.md) and
+[`docs/operator-signer-command-protocol.md`](docs/operator-signer-command-protocol.md):
+paste-into-wallet hex (cold-key flows), delegate signing, and the CLI's
+provider-neutral HSM/KMS command boundary. The framework never holds private
+keys.
 
 ### Out of repo by design
 
@@ -303,18 +305,19 @@ real secp256k1 signatures.
 | `Neo.L2.Executor.RiscV.UnitTests`    | 20    | stateful ABI constants/ownership/fee boundaries; storage read-through Put/Delete/Find and rollback; ordered full-state notifications; transaction/block context and `CheckWitness`; unsupported-syscall/OOG/collector fail-closed paths; ApplicationEngine receipt parity; real native PolkaVM RET, storage callback, and unsupported-syscall tests |
 | `Neo.Hub.Deploy.UnitTests`           | 102   | topology/cycle/plan validation; full 23-step production scaffold; exact SP1 bootstrap-and-lock order; immutable remote NEF/manifest matching; explicit L2 and v4 replay domains; `Hash160 + Hash256` deploy ABI; advisory v1/v2/v3 exclusion, malformed optimistic-plan rejection, and atomic exact executable-v4 registration; resumable completion checks and production smoke postconditions; signer/RPC/report failure paths. |
 | `Neo.L2.IntegrationTests`            | 29    | Phase 0 MVP + Phase 1 cross-component + Phase 2 full-stack + Phase 3 optimistic-challenge + all-phases stitch + e2e telemetry pipeline + **L2MetricsPlugin composition root (every instrumented component → one sink → HTTP scrape) + e2e RocksDB persistence (KeyedStateStore + InMemoryL2RpcStore + InMemorySequencerCommitteeProvider all rehydrate from one shared data dir on reopen) + e2e audit pipeline (all 6 checks pass on healthy chain + DA-dropped scenario specifically catches via `DAAvailabilityCheck` + broken-batch-range failure-detection metric counts) + **e2e custom-executor full-stack (Sample.CounterChainExecutor + KeyedStateStoreAdapter + ReferenceBatchExecutor + KeyedStateRootOracle + AttestationProver/Verifier all wire cleanly: 3-batch run with mixed Increment/Withdraw/Message txs → all 4 batch roots non-zero, state-root advances per batch + uniqueness pin across 4 distinct roots, multisig verifier accepts custom-executor commitments, BatchSerializer encode/decode round-trip is identity, final state has 6 expected counter entries; failed-tx batch → effects don't pollute withdrawal/message roots, gas accounting still correct, state from successful txs intact)** **Restricted-v4 integration pins `BatchSerializer → canonical payload → executable verifier` for both honest and fraudulent committed transitions.** |
-| `Neo.Stack.Cli.UnitTests`            | 164   | Full command surface plus real operator-process launch plans, Neo.CLI/prover bundle validation, child exit-code propagation, shell-metacharacter isolation, SIGTERM and transaction-confirmation cancellation, forwarded-argument boundary parsing, separate batcher data, genesis/rotated committee verification, committee sync dry-run, wallet/DBFT auto-start, storage, network, config, and plugin fail-closed checks, and the complete quick path |
+| `Neo.Stack.Cli.UnitTests`            | 169   | Full command surface plus real operator-process launch plans, Neo.CLI/prover bundle validation, child exit-code propagation, shell-metacharacter isolation, SIGTERM and transaction-confirmation cancellation, forwarded-argument boundary parsing, separate batcher data, genesis/rotated committee verification, committee sync dry-run, wallet/DBFT auto-start, storage, network, config, external signer-command request binding, explicit WIF exclusion, empty/mismatched fee-witness rejection, and the complete quick path |
 | `Sample.CounterChainExecutor.UnitTests` | 24 | **operator-facing reference for "how to plug in custom chain logic"**: 3-opcode custom executor (IncrementCounter / EmitWithdrawal / EmitMessage) demonstrates the `ITransactionExecutor` seam. Per-sender-counter happy-path + accumulation + ulong wraparound semantics; per-sender state isolation; truncated-tx → Failed-receipt path (not crash); withdrawal happy-path produces valid `WithdrawalRequest` with deterministic txHash-derived nonce; zero-amount withdrawal rejected; message happy-path produces routable `CrossChainMessage` via canonical `MessageBuilder.Build`; self-routed (source==target) rejected; oversized message body builder-rejected at MaxMessageBytes cap; unknown-opcode + empty-tx → Failed; SPEC.md determinism pin (two fresh executors + identical inputs → identical receipts + state); mixed-opcode batch smoke test; **executor ctor null-state / null-emittingContract guards; ExecuteAsync null-batchContext guard; cooperative-cancellation pin (cancelled token → OperationCanceledException, not a wasted receipt); `KeyedStateStoreAdapter` round-trip Put/Get + missing-key returns false + adapter writes flow through to `KeyedStateStore.ComputeRoot` parity vs direct writes; adapter ctor null-store + Put null-key/null-value + TryGet null-key all reject with ArgumentNullException at the call boundary so a misconfigured DI wiring fails at composition, not later with an unattributed NRE** |
 
 ## Production integrations still operator-supplied
 
 These are explicit deployment seams rather than missing protocol algorithms:
 
-- **Settlement signer custody** — `L2SettlementPlugin.WireProduction` closes the
+- **Settlement and operator signer custody** — `L2SettlementPlugin.WireProduction` closes the
   production RPC composition root around `RpcTransactionSender`, `RpcSettlementClient`,
-  and forced-inclusion finalization. Operators still select and own the concrete
-  `INeoTransactionSigner` implementation (wallet, HSM, or KMS); no private key is stored
-  in plugin configuration.
+  and forced-inclusion finalization. `neo-stack --signer-command` provides a provider-neutral,
+  deadline-bounded executable boundary with pinned account/script, canonical sign data, and
+  fee-witness-shape validation. Operators still select and own the reviewed wallet, HSM, or KMS
+  adapter; no private key is stored in plugin configuration.
 - **Real NeoFS client** — `NeoFsLikeDAWriter` is a fail-closed semantic simulator and
   cannot satisfy a production NeoFS profile. Operators inject an SDK-backed adapter
   that returns real container/object locators and supports independent retrieval.

@@ -110,6 +110,7 @@ internal static class RegisterChainCommand
                 Console.WriteLine($"Next steps:");
                 Console.WriteLine($"  1. Add --broadcast --rpc <url> --expected-network <magic> --chain-registry <hash>");
                 Console.WriteLine($"     to sign + submit registerChain({chainId}, 0x{Convert.ToHexString(bytes).ToLowerInvariant()})");
+                Console.WriteLine($"     Sign with NEO_N4_OPERATOR_WIF or --signer-command (docs/operator-signer-command-protocol.md).");
                 Console.WriteLine($"  2. Verify on L1 by calling ChainRegistry.isActive({chainId})");
                 return Task.FromResult(0);
             }
@@ -396,7 +397,7 @@ internal static class SubmitBatchCommand
                 $"batch {commitment.ChainId}/{commitment.BatchNumber} submission");
         }
         Console.WriteLine();
-        Console.WriteLine($"Validation passed. Add --broadcast plus RPC, network, contract, and public-input hashes to submit on L1.");
+        Console.WriteLine($"Validation passed. Add --broadcast plus RPC, network, contract, public-input hashes, and a signer to submit on L1.");
         return Task.FromResult(0);
     }
 

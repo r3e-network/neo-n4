@@ -48,16 +48,31 @@ neo-stack register-chain --chain-id 1099 --output ./my-l2 \
 # 4. 打印 bridge adapter 部署计划(每条新链一次性)。
 neo-stack deploy-bridge-adapter --chain-id 1099 --output ./my-l2
 
-# 5. 跑排序器 + 批处理器 + 证明者。每个子命令打印 preflight 检查,
-#    在链可接受交易时退出 0。
-neo-stack start-sequencer --chain-id 1099 --output ./my-l2 &
-neo-stack start-batcher  --chain-id 1099 --output ./my-l2 &
-neo-stack start-prover   --chain-id 1099 --output ./my-l2 &
+# 5. 把经审计的 Neo.CLI + DBFTPlugin 部署放到 ./my-l2/node，并把 release
+#    prove-batch 放到 ./my-l2/prover。每个命令监督一个真实子进程并保持前台附着，
+#    因此应分别在独立 service unit 或终端中启动。
+
+# 终端 / 服务 A：dBFT sequencer 节点。
+neo-stack start-sequencer --chain-id 1099 --output ./my-l2 \
+    --neo-cli ./my-l2/node/Neo.CLI.dll
+
+# 终端 / 服务 B：独立 SP1 prover daemon。
+neo-stack start-prover --chain-id 1099 --output ./my-l2 \
+    --prover ./my-l2/prover/prove-batch
+
+# 终端 / 服务 C（可选）：专用 batcher follower。必须使用独立 Neo.CLI 部署根目录
+# 和数据目录，禁止两个节点进程共享同一个数据库。
+neo-stack start-batcher --chain-id 1099 --output ./my-l2 \
+    --neo-cli ./my-l2/batcher-node/Neo.CLI.dll \
+    --data-dir ./my-l2/batcher-data
 ```
 
-钱包把关步骤(#3、#4 和 `submit-batch`)打印结构化运维计划 —— 目标合约、参数、
-已签 tx 模板、按编号的下一步 —— 而不是自动签名。运维者把计划喂给自己挑的钱包
-(NEP-6 keystore、Ledger 等)。
+钱包把关步骤（#3、#4 和 `submit-batch`）保留确定性 plan 模式。显式传入
+`--broadcast --rpc <url> --expected-network <magic>` 后，命令通过共享 signer 边界
+签名，先执行 `invokescript` 预执行并计算精确费用，再广播并等待 HALT application
+log。内置 signer 从 `NEO_N4_OPERATOR_WIF` 读取 WIF；生产 HSM/KMS 使用 fail-closed
+的 `--signer-command`，不会改变交易构造。详见
+[Operator signer-command 协议](./operator-signer-command-protocol.md)。
 
 不依赖 L1 的进程内完整 demo,见 `tools/Neo.L2.Devnet`:
 

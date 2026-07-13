@@ -37,6 +37,7 @@
 - [Release readiness checklist](./release-readiness-checklist.md)
 - [Wallet integration](./wallet-integration.md)
 - [Four-language SDK conformance](./sdk-conformance.md)
+- [Operator signer-command protocol](./operator-signer-command-protocol.md)
 
 # Architecture
 

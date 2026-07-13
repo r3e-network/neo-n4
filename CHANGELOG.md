@@ -144,6 +144,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Replaced incorrect Neo Project authorship with R3E Network across package metadata and all 25 NeoHub contract manifests, regenerated the 24 VM testing artifacts from fresh `nccs` output, and added a fresh-manifest regression gate for maintainer attribution.
 
+### Operator signer-command boundary — 2026-07-14
+
+- Added a fail-closed `neo-stack --signer-command` bridge for HSM/KMS or wallet
+  adapters: it pins the account and verification script, sends canonical Neo
+  sign data without a private key, rejects invalid/empty/size-mismatched
+  witnesses, and retains preflight, exact-fee, broadcast, and HALT confirmation.
+- Documented the command protocol and corrected the production launch path so
+  sequencer, prover, and optional batcher run concurrently under separate
+  terminal or service supervisors.
+
 ### Production dBFT operator integration — 2026-07-13
 
 - Added committee-authorized initialization plus an owner-authorized pending/active L2

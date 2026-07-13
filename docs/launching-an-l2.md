@@ -59,15 +59,21 @@ neo-stack register-chain --chain-id 1099 --output ./my-l2 \
 neo-stack deploy-bridge-adapter --chain-id 1099 --output ./my-l2
 
 # 5. Put a reviewed Neo.CLI + DBFTPlugin deployment under ./my-l2/node and the
-#    release prove-batch binary under ./my-l2/prover. These commands supervise
-#    the real processes and remain attached so systemd/k8s sees the child exit.
+#    release prove-batch binary under ./my-l2/prover. Each command supervises a
+#    real child process and remains attached, so start these in separate service
+#    units or terminals rather than pasting them sequentially into one shell.
+#
+# Terminal / service A: dBFT sequencer node.
 neo-stack start-sequencer --chain-id 1099 --output ./my-l2 \
     --neo-cli ./my-l2/node/Neo.CLI.dll
+
+# Terminal / service B: separate SP1 prover daemon.
 neo-stack start-prover --chain-id 1099 --output ./my-l2 \
     --prover ./my-l2/prover/prove-batch
 
-# Optional dedicated batcher follower: use a separate Neo.CLI deployment root
-# and data directory. Never point two Neo.CLI processes at the same database.
+# Terminal / service C (optional): dedicated batcher follower. Use a separate
+# Neo.CLI deployment root and data directory; never point two node processes at
+# the same database.
 neo-stack start-batcher --chain-id 1099 --output ./my-l2 \
     --neo-cli ./my-l2/batcher-node/Neo.CLI.dll \
     --data-dir ./my-l2/batcher-data
@@ -77,8 +83,9 @@ Wallet-gated steps (#3, #4, and `submit-batch`) retain deterministic plan mode.
 With `--broadcast --rpc <url> --expected-network <magic>`, they sign through the
 shared signer boundary, run an `invokescript` preflight, calculate exact fees,
 broadcast, and wait for a HALT application log. The built-in CLI signer reads a
-WIF from `NEO_N4_OPERATOR_WIF`; production HSM/KMS integrations implement
-`INeoTransactionSigner` without changing transaction construction.
+WIF from `NEO_N4_OPERATOR_WIF`; production HSM/KMS integrations use the
+fail-closed `--signer-command` protocol without changing transaction
+construction. See [operator signer-command protocol](./operator-signer-command-protocol.md).
 
 ### Production settlement composition
 

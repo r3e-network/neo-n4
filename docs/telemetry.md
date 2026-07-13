@@ -120,8 +120,11 @@ the test suite enforces this via reflection.
 ### Settlement (`Neo.Plugins.L2Settlement`)
 
 - `l2.settlement.submitted` — counter — Batches submitted to NeoHub successfully
-- `l2.settlement.submit_failures` — counter — Batch submissions that threw and were re-queued
+- `l2.settlement.submit_failures` — counter — Settlement reconciliation runs that surfaced an exception
 - `l2.settlement.submit_latency_ms` — histogram — Round-trip wall-clock milliseconds for SubmitBatch
+- `l2.settlement.pending` — gauge — Canonical artifacts not fully reconciled on L1
+- `l2.settlement.retries` — counter — Failed durable reconciliation attempts
+- `l2.settlement.poisoned` — gauge — `1` when the ordered settlement head requires explicit operator recovery
 
 ### Proving (emitted by Settlement plugin)
 

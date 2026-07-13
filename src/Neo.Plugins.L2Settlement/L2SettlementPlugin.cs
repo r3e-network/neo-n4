@@ -60,7 +60,8 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         ISettlementClient client,
         ProofWitnessPipelineProfile profile,
         IForcedInclusionFinalizationClient? forcedInclusionFinalizer = null,
-        IForcedInclusionSource? forcedInclusionSource = null)
+        IForcedInclusionSource? forcedInclusionSource = null,
+        int? maxAutomaticRetries = null)
     {
         ArgumentNullException.ThrowIfNull(batchPlugin);
         ArgumentNullException.ThrowIfNull(executor);
@@ -94,7 +95,8 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
             client,
             profile,
             _metrics,
-            forcedInclusionFinalizer);
+            forcedInclusionFinalizer,
+            maxAutomaticRetries ?? 3);
         _pipeline = pipeline;
         try
         {
@@ -134,7 +136,8 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         IL2Prover prover,
         ProofWitnessPipelineProfile profile,
         INeoTransactionSigner signer,
-        IEnumerable<ulong> knownForcedInclusionNonces)
+        IEnumerable<ulong> knownForcedInclusionNonces,
+        int? maxAutomaticRetries = null)
     {
         ArgumentNullException.ThrowIfNull(batchPlugin);
         ArgumentNullException.ThrowIfNull(executor);
@@ -160,7 +163,8 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
                 composition.SettlementClient,
                 profile,
                 composition.ForcedInclusionFinalizer,
-                composition.ForcedInclusionSource);
+                composition.ForcedInclusionSource,
+                maxAutomaticRetries);
             _productionComposition = composition;
             return composition.ForcedInclusionSource;
         }
@@ -223,6 +227,27 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         var pipeline = _pipeline
             ?? throw new InvalidOperationException("settlement pipeline is not wired");
         return pipeline.GetPendingCountAsync(cancellationToken);
+    }
+
+    /// <summary>Read durable pending, retry, and poison state for operator health surfaces.</summary>
+    public ValueTask<SettlementRecoveryStatus> GetRecoveryStatusAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var pipeline = _pipeline
+            ?? throw new InvalidOperationException("settlement pipeline is not wired");
+        return pipeline.GetRecoveryStatusAsync(cancellationToken);
+    }
+
+    /// <summary>Reset the exact poisoned batch after operator remediation.</summary>
+    public Task RecoverPoisonedBatchAsync(
+        ulong batchNumber,
+        UInt256 artifactContentHash,
+        CancellationToken cancellationToken = default)
+    {
+        var pipeline = _pipeline
+            ?? throw new InvalidOperationException("settlement pipeline is not wired");
+        return pipeline.RecoverPoisonedBatchAsync(
+            batchNumber, artifactContentHash, cancellationToken);
     }
 
     /// <inheritdoc />

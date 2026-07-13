@@ -50,13 +50,24 @@ public class UT_L2SettlementPlugin_Metrics
         settlement.WithMetrics(metrics);
         Wire(settlement, batch, store, client);
 
-        await settlement.EnqueueAsync(BuildBatch(2));
+        await settlement.EnqueueAsync(BuildBatch(1));
         await WaitUntilAsync(() => metrics.GetCounter(
             MetricNames.SubmitFailures,
             ("exception", "InvalidOperationException")) == 1);
+        await settlement.SubmitNextAsync();
+        await settlement.SubmitNextAsync();
+        await WaitUntilAsync(() => metrics.GetCounter(MetricNames.SettlementRetries) == 3);
 
         Assert.AreEqual(0, metrics.GetCounter(MetricNames.BatchesSubmitted));
         Assert.AreEqual(1, await settlement.GetPendingCountAsync());
+        var status = await settlement.GetRecoveryStatusAsync();
+        Assert.AreEqual(SettlementRecoveryState.Poisoned, status.State);
+        Assert.AreEqual(3, status.RetryCount);
+        Assert.AreEqual(1, metrics.GetGauge(MetricNames.SettlementPending));
+        Assert.AreEqual(1, metrics.GetGauge(MetricNames.SettlementPoisoned));
+        Assert.AreEqual(3, client.SubmitCount);
+        await settlement.SubmitNextAsync();
+        Assert.AreEqual(3, client.SubmitCount, "poisoned work must not retry automatically");
         var artifacts = new List<ProofWitnessArtifactV1>();
         await foreach (var artifact in store.EnumerateCommittedAsync(ChainId))
             artifacts.Add(artifact);
@@ -99,7 +110,7 @@ public class UT_L2SettlementPlugin_Metrics
         settlement.WithMetrics(new ThrowingMetrics());
         Wire(settlement, batch, store, client);
 
-        await settlement.EnqueueAsync(BuildBatch(9));
+        await settlement.EnqueueAsync(BuildBatch(1));
         await WaitUntilAsync(() => client.SubmitCount == 1);
         await settlement.SubmitNextAsync();
         await settlement.SubmitNextAsync();

@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
+using System.Text;
 using Neo.Cryptography;
 using Neo.L2.Batch;
 
@@ -19,6 +20,46 @@ public enum ProofSubmissionState : byte
 
     /// <summary>The batch is visible through the settlement contract lifecycle.</summary>
     SettlementObserved = 2,
+}
+
+/// <summary>Durable recovery state for one canonical settlement artifact.</summary>
+/// <remarks>See doc.md §7.5, §15.1, and §17. Values are persisted; do not renumber.</remarks>
+public enum SettlementRecoveryState : byte
+{
+    /// <summary>The artifact remains eligible for another bounded reconciliation attempt.</summary>
+    Retrying = 1,
+
+    /// <summary>Automatic retries are exhausted and explicit operator recovery is required.</summary>
+    Poisoned = 2,
+}
+
+/// <summary>Durable failure and quarantine checkpoint for one settlement artifact.</summary>
+/// <remarks>See doc.md §7.5, §15.1, and §17.</remarks>
+public sealed record SettlementRecoveryCheckpoint
+{
+    /// <summary>L2 chain identifier of the blocked artifact.</summary>
+    public required uint ChainId { get; init; }
+
+    /// <summary>Canonical batch number of the blocked artifact.</summary>
+    public required ulong BatchNumber { get; init; }
+
+    /// <summary>Content hash of the immutable witness artifact.</summary>
+    public required UInt256 ArtifactContentHash { get; init; }
+
+    /// <summary>Current retry or poison state.</summary>
+    public required SettlementRecoveryState State { get; init; }
+
+    /// <summary>Consecutive failed reconciliation attempts since the last operator reset.</summary>
+    public required int RetryCount { get; init; }
+
+    /// <summary>UTC Unix milliseconds of the first failure in the current retry sequence.</summary>
+    public required long FirstFailureAtUnixMilliseconds { get; init; }
+
+    /// <summary>UTC Unix milliseconds of the most recent failure.</summary>
+    public required long LastFailureAtUnixMilliseconds { get; init; }
+
+    /// <summary>Bounded operator-visible error from the most recent failure.</summary>
+    public string? LastError { get; init; }
 }
 
 /// <summary>Durable proof-generation state associated with one witness artifact.</summary>
@@ -179,6 +220,37 @@ public interface IProofWitnessStore : IDisposable
         UInt256 artifactContentHash,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Read the durable retry or poison checkpoint for an artifact.</summary>
+    ValueTask<SettlementRecoveryCheckpoint?> GetSettlementRecoveryAsync(
+        UInt256 artifactContentHash,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Atomically record one failed reconciliation attempt and poison the artifact at the bound.
+    /// </summary>
+    ValueTask<SettlementRecoveryCheckpoint> RecordSettlementFailureAsync(
+        uint chainId,
+        ulong batchNumber,
+        UInt256 artifactContentHash,
+        string error,
+        int maxAutomaticRetries,
+        long failedAtUnixMilliseconds,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Reset an explicitly poisoned artifact after operator remediation.</summary>
+    ValueTask ResetSettlementRecoveryAsync(
+        uint chainId,
+        ulong batchNumber,
+        UInt256 artifactContentHash,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Clear resolved retry metadata without changing the canonical artifact.</summary>
+    ValueTask ClearSettlementRecoveryAsync(
+        uint chainId,
+        ulong batchNumber,
+        UInt256 artifactContentHash,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Return every forced nonce durably tracked by committed artifacts, including confirmed
     /// consumption, so a stale L1 read cache cannot reinsert it.
@@ -198,6 +270,7 @@ public sealed class KeyValueProofWitnessStore : IProofWitnessStore
 {
     private static ReadOnlySpan<byte> ArtifactPrefix => "PWIT"u8;
     private static ReadOnlySpan<byte> ProofPrefix => "PWRF"u8;
+    private static ReadOnlySpan<byte> SettlementRecoveryPrefix => "PWRC"u8;
 
     private readonly IL2KeyValueStore _store;
     private readonly bool _ownsStore;
@@ -503,6 +576,159 @@ public sealed class KeyValueProofWitnessStore : IProofWitnessStore
     }
 
     /// <inheritdoc />
+    public ValueTask<SettlementRecoveryCheckpoint?> GetSettlementRecoveryAsync(
+        UInt256 artifactContentHash,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(artifactContentHash);
+        ThrowIfDisposed();
+        var bytes = _store.Get(SettlementRecoveryKey(artifactContentHash));
+        if (bytes is null)
+            return new ValueTask<SettlementRecoveryCheckpoint?>((SettlementRecoveryCheckpoint?)null);
+        var checkpoint = SettlementRecoveryCheckpointSerializer.Decode(bytes);
+        if (!checkpoint.ArtifactContentHash.Equals(artifactContentHash))
+            throw new InvalidDataException(
+                "Settlement recovery identity does not match its storage key");
+        return new ValueTask<SettlementRecoveryCheckpoint?>(checkpoint);
+    }
+
+    /// <inheritdoc />
+    public ValueTask<SettlementRecoveryCheckpoint> RecordSettlementFailureAsync(
+        uint chainId,
+        ulong batchNumber,
+        UInt256 artifactContentHash,
+        string error,
+        int maxAutomaticRetries,
+        long failedAtUnixMilliseconds,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(artifactContentHash);
+        ArgumentException.ThrowIfNullOrWhiteSpace(error);
+        if (maxAutomaticRetries is < 1 or > 100)
+            throw new ArgumentOutOfRangeException(
+                nameof(maxAutomaticRetries), "maxAutomaticRetries must be in [1, 100]");
+        if (failedAtUnixMilliseconds <= 0)
+            throw new ArgumentOutOfRangeException(nameof(failedAtUnixMilliseconds));
+        ThrowIfDisposed();
+        ValidateRecoveryArtifact(chainId, batchNumber, artifactContentHash);
+        var key = SettlementRecoveryKey(artifactContentHash);
+
+        for (var attempt = 0; attempt < 32; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var currentBytes = _store.Get(key);
+            SettlementRecoveryCheckpoint updated;
+            if (currentBytes is null)
+            {
+                updated = new SettlementRecoveryCheckpoint
+                {
+                    ChainId = chainId,
+                    BatchNumber = batchNumber,
+                    ArtifactContentHash = artifactContentHash,
+                    State = maxAutomaticRetries == 1
+                        ? SettlementRecoveryState.Poisoned
+                        : SettlementRecoveryState.Retrying,
+                    RetryCount = 1,
+                    FirstFailureAtUnixMilliseconds = failedAtUnixMilliseconds,
+                    LastFailureAtUnixMilliseconds = failedAtUnixMilliseconds,
+                    LastError = error,
+                };
+                var inserted = SettlementRecoveryCheckpointSerializer.Encode(updated);
+                if (_store.TryPut(key, inserted))
+                    return ValueTask.FromResult(
+                        SettlementRecoveryCheckpointSerializer.Decode(inserted));
+                continue;
+            }
+
+            var current = SettlementRecoveryCheckpointSerializer.Decode(currentBytes);
+            ValidateRecoveryBinding(current, chainId, batchNumber, artifactContentHash);
+            if (current.State == SettlementRecoveryState.Poisoned)
+                return ValueTask.FromResult(current);
+            var retryCount = checked(current.RetryCount + 1);
+            updated = current with
+            {
+                State = retryCount >= maxAutomaticRetries
+                    ? SettlementRecoveryState.Poisoned
+                    : SettlementRecoveryState.Retrying,
+                RetryCount = retryCount,
+                FirstFailureAtUnixMilliseconds = current.RetryCount == 0
+                    ? failedAtUnixMilliseconds
+                    : current.FirstFailureAtUnixMilliseconds,
+                LastFailureAtUnixMilliseconds = failedAtUnixMilliseconds,
+                LastError = error,
+            };
+            var updatedBytes = SettlementRecoveryCheckpointSerializer.Encode(updated);
+            if (_store.CompareExchange(key, currentBytes, updatedBytes))
+                return ValueTask.FromResult(
+                    SettlementRecoveryCheckpointSerializer.Decode(updatedBytes));
+        }
+
+        throw new InvalidOperationException(
+            "Settlement recovery changed repeatedly while recording a failure");
+    }
+
+    /// <inheritdoc />
+    public ValueTask ResetSettlementRecoveryAsync(
+        uint chainId,
+        ulong batchNumber,
+        UInt256 artifactContentHash,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(artifactContentHash);
+        ThrowIfDisposed();
+        ValidateRecoveryArtifact(chainId, batchNumber, artifactContentHash);
+        var key = SettlementRecoveryKey(artifactContentHash);
+
+        for (var attempt = 0; attempt < 32; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var currentBytes = _store.Get(key)
+                ?? throw new InvalidOperationException(
+                    "No settlement recovery checkpoint exists for the artifact");
+            var current = SettlementRecoveryCheckpointSerializer.Decode(currentBytes);
+            ValidateRecoveryBinding(current, chainId, batchNumber, artifactContentHash);
+            if (current.State != SettlementRecoveryState.Poisoned)
+                throw new InvalidOperationException(
+                    "Settlement recovery checkpoint is not poisoned");
+            var resetBytes = SettlementRecoveryCheckpointSerializer.Encode(current with
+            {
+                State = SettlementRecoveryState.Retrying,
+                RetryCount = 0,
+                FirstFailureAtUnixMilliseconds = 0,
+                LastFailureAtUnixMilliseconds = 0,
+                LastError = null,
+            });
+            if (_store.CompareExchange(key, currentBytes, resetBytes))
+                return ValueTask.CompletedTask;
+        }
+
+        throw new InvalidOperationException(
+            "Settlement recovery changed repeatedly while resetting poison state");
+    }
+
+    /// <inheritdoc />
+    public ValueTask ClearSettlementRecoveryAsync(
+        uint chainId,
+        ulong batchNumber,
+        UInt256 artifactContentHash,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(artifactContentHash);
+        ThrowIfDisposed();
+        var key = SettlementRecoveryKey(artifactContentHash);
+        var currentBytes = _store.Get(key);
+        if (currentBytes is null) return ValueTask.CompletedTask;
+        var current = SettlementRecoveryCheckpointSerializer.Decode(currentBytes);
+        ValidateRecoveryBinding(current, chainId, batchNumber, artifactContentHash);
+        _store.Delete(key);
+        return ValueTask.CompletedTask;
+    }
+
+    /// <inheritdoc />
     public async ValueTask<IReadOnlyCollection<ulong>> GetTrackedForcedInclusionNoncesAsync(
         uint chainId,
         CancellationToken cancellationToken = default)
@@ -587,12 +813,157 @@ public sealed class KeyValueProofWitnessStore : IProofWitnessStore
         return key;
     }
 
+    private static byte[] SettlementRecoveryKey(UInt256 artifactContentHash)
+    {
+        var key = new byte[SettlementRecoveryPrefix.Length + UInt256.Length];
+        SettlementRecoveryPrefix.CopyTo(key);
+        artifactContentHash.GetSpan().CopyTo(key.AsSpan(SettlementRecoveryPrefix.Length));
+        return key;
+    }
+
+    private void ValidateRecoveryArtifact(
+        uint chainId,
+        ulong batchNumber,
+        UInt256 artifactContentHash)
+    {
+        var artifactBytes = _store.Get(ArtifactKey(chainId, batchNumber))
+            ?? throw new InvalidOperationException(
+                $"Cannot record settlement recovery for unknown chain {chainId}, batch {batchNumber}");
+        var artifact = ProofWitnessArtifactSerializer.Decode(artifactBytes);
+        if (!artifact.ContentHash.Equals(artifactContentHash))
+            throw new InvalidOperationException(
+                "Settlement recovery content hash does not match the committed artifact");
+    }
+
+    private static void ValidateRecoveryBinding(
+        SettlementRecoveryCheckpoint checkpoint,
+        uint chainId,
+        ulong batchNumber,
+        UInt256 artifactContentHash)
+    {
+        if (checkpoint.ChainId != chainId
+            || checkpoint.BatchNumber != batchNumber
+            || !checkpoint.ArtifactContentHash.Equals(artifactContentHash))
+        {
+            throw new InvalidDataException(
+                "Settlement recovery checkpoint does not match the canonical artifact");
+        }
+    }
+
     private static string HashHex(UInt256 hash)
         => Convert.ToHexString(hash.GetSpan()).ToLowerInvariant();
 
     private void ThrowIfDisposed()
     {
         if (_disposed) throw new ObjectDisposedException(nameof(KeyValueProofWitnessStore));
+    }
+}
+
+internal static class SettlementRecoveryCheckpointSerializer
+{
+    private static ReadOnlySpan<byte> Magic => "NEO4SRCV"u8;
+    private const byte Version = 1;
+    private const int FixedSize = 80;
+    private const int MaxErrorBytes = 4096;
+
+    public static byte[] Encode(SettlementRecoveryCheckpoint checkpoint)
+    {
+        Validate(checkpoint);
+        var errorBytes = checkpoint.LastError is null
+            ? Array.Empty<byte>()
+            : Encoding.UTF8.GetBytes(checkpoint.LastError);
+        if (errorBytes.Length > MaxErrorBytes)
+            errorBytes = errorBytes.AsSpan(0, MaxErrorBytes).ToArray();
+        var encodedSize = checked(FixedSize + errorBytes.Length);
+        var writer = new ManifestWireWriter(encodedSize);
+        writer.WriteBytes(Magic);
+        writer.WriteByte(Version);
+        writer.WriteByte((byte)checkpoint.State);
+        writer.WriteBytes(stackalloc byte[2]);
+        writer.WriteUInt32(checkpoint.ChainId);
+        writer.WriteUInt64(checkpoint.BatchNumber);
+        writer.WriteUInt256(checkpoint.ArtifactContentHash);
+        writer.WriteUInt32(checked((uint)checkpoint.RetryCount));
+        writer.WriteUInt64(checked((ulong)checkpoint.FirstFailureAtUnixMilliseconds));
+        writer.WriteUInt64(checked((ulong)checkpoint.LastFailureAtUnixMilliseconds));
+        writer.WriteLengthPrefixedBytes(errorBytes);
+        if (writer.WrittenCount != encodedSize)
+            throw new InvalidOperationException("Settlement recovery checkpoint length mismatch");
+        return writer.ToArray();
+    }
+
+    public static SettlementRecoveryCheckpoint Decode(ReadOnlySpan<byte> data)
+    {
+        if (data.Length < FixedSize || data.Length > FixedSize + MaxErrorBytes)
+            throw new InvalidDataException("Settlement recovery checkpoint has an invalid length");
+        var reader = new ManifestWireReader(data);
+        reader.RequireMagic(Magic);
+        var version = reader.ReadByte("version");
+        if (version != Version)
+            throw new InvalidDataException(
+                $"Unsupported settlement recovery checkpoint version {version}");
+        var stateByte = reader.ReadByte("state");
+        if (!Enum.IsDefined((SettlementRecoveryState)stateByte))
+            throw new InvalidDataException(
+                $"Unknown settlement recovery state byte {stateByte}");
+        var reserved = reader.ReadBytes(2, "reserved bytes");
+        if (reserved[0] != 0 || reserved[1] != 0)
+            throw new InvalidDataException(
+                "Settlement recovery reserved bytes must be zero");
+        var checkpoint = new SettlementRecoveryCheckpoint
+        {
+            ChainId = reader.ReadUInt32("chain id"),
+            BatchNumber = reader.ReadUInt64("batch number"),
+            ArtifactContentHash = reader.ReadUInt256("artifact hash"),
+            State = (SettlementRecoveryState)stateByte,
+            RetryCount = checked((int)reader.ReadUInt32("retry count")),
+            FirstFailureAtUnixMilliseconds = checked((long)reader.ReadUInt64("first failure")),
+            LastFailureAtUnixMilliseconds = checked((long)reader.ReadUInt64("last failure")),
+            LastError = DecodeError(reader.ReadLengthPrefixedBytes(MaxErrorBytes, "last error")),
+        };
+        reader.EnsureEnd();
+        try
+        {
+            Validate(checkpoint);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new InvalidDataException(
+                "Settlement recovery checkpoint fields are inconsistent", exception);
+        }
+        return checkpoint;
+    }
+
+    private static string? DecodeError(ReadOnlyMemory<byte> bytes)
+        => bytes.IsEmpty ? null : Encoding.UTF8.GetString(bytes.Span);
+
+    private static void Validate(SettlementRecoveryCheckpoint checkpoint)
+    {
+        ArgumentNullException.ThrowIfNull(checkpoint);
+        ArgumentNullException.ThrowIfNull(checkpoint.ArtifactContentHash);
+        if (!Enum.IsDefined(checkpoint.State))
+            throw new ArgumentException("Unknown settlement recovery state", nameof(checkpoint));
+        if (checkpoint.RetryCount < 0)
+            throw new ArgumentException("RetryCount must be non-negative", nameof(checkpoint));
+        if (checkpoint.State == SettlementRecoveryState.Poisoned
+            && checkpoint.RetryCount == 0)
+            throw new ArgumentException("Poisoned recovery requires a retry count", nameof(checkpoint));
+        if (checkpoint.RetryCount == 0)
+        {
+            if (checkpoint.FirstFailureAtUnixMilliseconds != 0
+                || checkpoint.LastFailureAtUnixMilliseconds != 0
+                || checkpoint.LastError is not null)
+            {
+                throw new ArgumentException(
+                    "Reset recovery state must clear failure details", nameof(checkpoint));
+            }
+            return;
+        }
+        if (checkpoint.FirstFailureAtUnixMilliseconds <= 0
+            || checkpoint.LastFailureAtUnixMilliseconds < checkpoint.FirstFailureAtUnixMilliseconds)
+            throw new ArgumentException("Invalid settlement recovery timestamps", nameof(checkpoint));
+        if (string.IsNullOrWhiteSpace(checkpoint.LastError))
+            throw new ArgumentException("Failed recovery requires LastError", nameof(checkpoint));
     }
 }
 

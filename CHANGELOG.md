@@ -11,6 +11,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   vulnerabilities in `crossbeam-epoch` and `quinn-proto`, plus patched
   `anyhow`, `memmap2`, and `rand` releases flagged for unsound behavior.
 
+### Fixed — settlement poison-batch recovery — 2026-07-14
+
+- Added durable per-artifact bounded settlement retries and explicit poison checkpoints that
+  survive RocksDB restart, expose pending/retry/poison status and metrics, and stop automatic work
+  after the configured bound without deleting the canonical artifact or proof state.
+- Enforced contiguous batch-number reconciliation so later settlement cannot bypass a missing or
+  poisoned predecessor; preserved transaction-aware duplicate suppression and ambiguous-broadcast
+  reconciliation.
+- Added exact batch/content-hash operator recovery after remediation. Recovery resets retry state
+  while retaining canonical proof, transaction, forced-inclusion, and L1 reconciliation state;
+  terminal rejection remains an explicit protocol/governance policy decision rather than a local
+  skip mechanism.
+
 ### Fixed — release-gate completeness — 2026-07-14
 
 - Made filtered .NET and ignored Rust proof gates fail closed when their expected

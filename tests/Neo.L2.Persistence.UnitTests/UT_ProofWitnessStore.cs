@@ -223,6 +223,86 @@ public class UT_ProofWitnessStore
     }
 
     [TestMethod]
+    public async Task SettlementRecovery_RestartPersistsPoisonResetAndClearWithoutArtifactLoss()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "neo-l2-settlement-recovery-" + Guid.NewGuid().ToString("N"));
+        var artifact = SampleArtifact();
+        try
+        {
+            using (var backend = new RocksDbKeyValueStore(directory))
+            using (var store = new KeyValueProofWitnessStore(backend))
+            {
+                await store.CommitAsync(artifact);
+                var first = await store.RecordSettlementFailureAsync(
+                    artifact.ChainId,
+                    artifact.BatchNumber,
+                    artifact.ContentHash,
+                    "first failure",
+                    maxAutomaticRetries: 3,
+                    failedAtUnixMilliseconds: 1000);
+                var second = await store.RecordSettlementFailureAsync(
+                    artifact.ChainId,
+                    artifact.BatchNumber,
+                    artifact.ContentHash,
+                    "second failure",
+                    maxAutomaticRetries: 3,
+                    failedAtUnixMilliseconds: 2000);
+                Assert.AreEqual(SettlementRecoveryState.Retrying, first.State);
+                Assert.AreEqual(2, second.RetryCount);
+            }
+
+            using (var backend = new RocksDbKeyValueStore(directory))
+            using (var store = new KeyValueProofWitnessStore(backend))
+            {
+                var recovered = await store.GetSettlementRecoveryAsync(artifact.ContentHash);
+                Assert.IsNotNull(recovered);
+                Assert.AreEqual(2, recovered.RetryCount);
+                var poisoned = await store.RecordSettlementFailureAsync(
+                    artifact.ChainId,
+                    artifact.BatchNumber,
+                    artifact.ContentHash,
+                    "permanent failure",
+                    maxAutomaticRetries: 3,
+                    failedAtUnixMilliseconds: 3000);
+                Assert.AreEqual(SettlementRecoveryState.Poisoned, poisoned.State);
+                Assert.AreEqual(3, poisoned.RetryCount);
+                Assert.AreEqual("permanent failure", poisoned.LastError);
+            }
+
+            using (var backend = new RocksDbKeyValueStore(directory))
+            using (var store = new KeyValueProofWitnessStore(backend))
+            {
+                var poisoned = await store.GetSettlementRecoveryAsync(artifact.ContentHash);
+                Assert.IsNotNull(poisoned);
+                Assert.AreEqual(SettlementRecoveryState.Poisoned, poisoned.State);
+                Assert.AreEqual(artifact, await store.GetAsync(
+                    artifact.ChainId, artifact.BatchNumber));
+
+                await store.ResetSettlementRecoveryAsync(
+                    artifact.ChainId, artifact.BatchNumber, artifact.ContentHash);
+                var reset = await store.GetSettlementRecoveryAsync(artifact.ContentHash);
+                Assert.IsNotNull(reset);
+                Assert.AreEqual(SettlementRecoveryState.Retrying, reset.State);
+                Assert.AreEqual(0, reset.RetryCount);
+                Assert.IsNull(reset.LastError);
+
+                await store.ClearSettlementRecoveryAsync(
+                    artifact.ChainId, artifact.BatchNumber, artifact.ContentHash);
+                Assert.IsNull(await store.GetSettlementRecoveryAsync(artifact.ContentHash));
+                Assert.AreEqual(artifact, await store.GetAsync(
+                    artifact.ChainId, artifact.BatchNumber));
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+                try { Directory.Delete(directory, recursive: true); } catch { }
+        }
+    }
+
+    [TestMethod]
     public async Task RocksDb_ReopenRecoversArtifactProofAndSubmission()
     {
         var directory = Path.Combine(

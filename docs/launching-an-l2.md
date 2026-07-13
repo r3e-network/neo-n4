@@ -121,7 +121,8 @@ var forcedSource = settlementPlugin.WireProduction(
     prover,
     profile,
     hsmOrKmsSigner,
-    knownForcedInclusionNonces);
+    knownForcedInclusionNonces,
+    maxAutomaticRetries: 3);
 
 forcedTxWatcher.NonceObserved += nonce => forcedSource.RegisterNonce(nonce);
 ```
@@ -131,6 +132,35 @@ confirmed with a `HALT` application log before the durable pipeline records succ
 transaction hashes are rejected. `L2SettlementPlugin.Dispose()` releases only the RPC stack
 created by `WireProduction`. The signer and all dependencies supplied to either wiring API
 remain caller-owned and must be disposed by the host in its normal shutdown order.
+
+Settlement reconciliation is strictly ordered by canonical batch number. A missing predecessor,
+permanently invalid proof/artifact, reverted batch, unresolved transaction status, DA failure, or
+forced-inclusion finalization failure increments a durable per-artifact retry checkpoint. After the
+configured bound (default 3, allowed range 1–100), the earliest artifact becomes `Poisoned`; later
+batches remain durable but cannot be proved or submitted around it. Restarts preserve the exact
+batch number, artifact content hash, retry count, and last bounded error.
+
+Monitor `GetRecoveryStatusAsync()` plus `l2.settlement.pending`,
+`l2.settlement.retries`, and `l2.settlement.poisoned`. Recovery is deliberately explicit: correct
+the prover/DA/RPC/L1 state first, verify the displayed content hash, reset that exact artifact, then
+run reconciliation again:
+
+```csharp
+var status = await settlementPlugin.GetRecoveryStatusAsync();
+if (status.State == SettlementRecoveryState.Poisoned)
+{
+    await settlementPlugin.RecoverPoisonedBatchAsync(
+        status.BlockedBatchNumber!.Value,
+        status.ArtifactContentHash!);
+    await settlementPlugin.ReconcileAsync();
+}
+```
+
+Recovery retains the canonical artifact, proof, known L1 transaction hash, and forced-inclusion
+reservations, so normal idempotent L1 reconciliation still decides whether a broadcast must be
+observed, replaced, or left untouched. There is no operator "skip" or local terminal-rejection
+button: defining a protocol-safe terminal rejection requires an explicit chain-governance policy
+for state-root continuity, deposits, messages, withdrawals, and forced inclusions.
 
 ### Neo.CLI bundle and dBFT committee state
 

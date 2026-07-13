@@ -9,6 +9,58 @@ using Neo.L2.Telemetry;
 
 namespace Neo.Plugins.L2;
 
+/// <summary>Operator-facing durable settlement queue and poison status.</summary>
+/// <remarks>See doc.md §7.5, §15.1, and §17.</remarks>
+public sealed record SettlementRecoveryStatus
+{
+    /// <summary>Number of canonical artifacts not fully reconciled on L1.</summary>
+    public required int PendingCount { get; init; }
+
+    /// <summary>Retry or poison state of the earliest failed artifact.</summary>
+    public SettlementRecoveryState? State { get; init; }
+
+    /// <summary>Batch number of the earliest failed artifact.</summary>
+    public ulong? BlockedBatchNumber { get; init; }
+
+    /// <summary>Content hash of the earliest failed artifact.</summary>
+    public UInt256? ArtifactContentHash { get; init; }
+
+    /// <summary>Consecutive failed reconciliation attempts.</summary>
+    public required int RetryCount { get; init; }
+
+    /// <summary>Most recent durable failure.</summary>
+    public string? LastError { get; init; }
+
+    /// <summary>UTC Unix milliseconds of the first consecutive failure.</summary>
+    public long? FirstFailureAtUnixMilliseconds { get; init; }
+
+    /// <summary>UTC Unix milliseconds of the most recent failure.</summary>
+    public long? LastFailureAtUnixMilliseconds { get; init; }
+}
+
+/// <summary>Raised when durable settlement is quarantined pending operator remediation.</summary>
+/// <remarks>See doc.md §7.5, §15.1, and §17.</remarks>
+public sealed class SettlementPoisonedException : InvalidOperationException
+{
+    /// <summary>Create an exception bound to the exact durable poison checkpoint.</summary>
+    public SettlementPoisonedException(SettlementRecoveryCheckpoint recovery)
+        : base(BuildMessage(recovery))
+    {
+        Recovery = recovery;
+    }
+
+    /// <summary>Exact durable recovery checkpoint that blocked reconciliation.</summary>
+    public SettlementRecoveryCheckpoint Recovery { get; }
+
+    private static string BuildMessage(SettlementRecoveryCheckpoint recovery)
+    {
+        ArgumentNullException.ThrowIfNull(recovery);
+        return $"settlement batch {recovery.BatchNumber} is poisoned after " +
+            $"{recovery.RetryCount} failures; inspect settlement status and call " +
+            "RecoverPoisonedBatchAsync after remediation";
+    }
+}
+
 /// <summary>Explicit proof and DA profile for the canonical settlement pipeline.</summary>
 /// <remarks>See doc.md §7.4, §7.5, §8, and §15.1.</remarks>
 public sealed record ProofWitnessPipelineProfile
@@ -93,6 +145,7 @@ public sealed record ProofWitnessPipelineProfile
 /// </remarks>
 public sealed class CanonicalSettlementPipeline : IDisposable
 {
+    private const int DefaultMaxAutomaticRetries = 3;
     private readonly IProofWitnessBatchExecutor _executor;
     private readonly IDAWriter _daWriter;
     private readonly IProofWitnessStore _store;
@@ -100,6 +153,7 @@ public sealed class CanonicalSettlementPipeline : IDisposable
     private readonly ISettlementClient _client;
     private readonly IForcedInclusionFinalizationClient? _forcedInclusionFinalizer;
     private readonly ProofWitnessPipelineProfile _profile;
+    private readonly int _maxAutomaticRetries;
     private readonly SemaphoreSlim _reconcileGate = new(1, 1);
     private IL2Metrics _metrics;
     private bool _disposed;
@@ -113,7 +167,8 @@ public sealed class CanonicalSettlementPipeline : IDisposable
         ISettlementClient client,
         ProofWitnessPipelineProfile profile,
         IL2Metrics? metrics = null,
-        IForcedInclusionFinalizationClient? forcedInclusionFinalizer = null)
+        IForcedInclusionFinalizationClient? forcedInclusionFinalizer = null,
+        int maxAutomaticRetries = DefaultMaxAutomaticRetries)
     {
         ArgumentNullException.ThrowIfNull(executor);
         ArgumentNullException.ThrowIfNull(daWriter);
@@ -132,6 +187,9 @@ public sealed class CanonicalSettlementPipeline : IDisposable
         if (profile.RequireProductionDA && daWriter is not IProductionDAWriter)
             throw new ArgumentException(
                 "profile requires an IProductionDAWriter", nameof(daWriter));
+        if (maxAutomaticRetries is < 1 or > 100)
+            throw new ArgumentOutOfRangeException(
+                nameof(maxAutomaticRetries), "maxAutomaticRetries must be in [1, 100]");
 
         _executor = executor;
         _daWriter = daWriter;
@@ -140,6 +198,7 @@ public sealed class CanonicalSettlementPipeline : IDisposable
         _client = client;
         _forcedInclusionFinalizer = forcedInclusionFinalizer;
         _profile = profile;
+        _maxAutomaticRetries = maxAutomaticRetries;
         _metrics = metrics ?? NoOpMetrics.Instance;
         ValidateProverProfile();
     }
@@ -233,6 +292,7 @@ public sealed class CanonicalSettlementPipeline : IDisposable
             || !ProofWitnessArtifactSerializer.Encode(persisted).AsSpan().SequenceEqual(artifactBytes))
             throw new InvalidOperationException(
                 "persisted artifact differs from the canonical committed bytes");
+        await EmitRecoveryMetricsAsync(cancellationToken).ConfigureAwait(false);
         return persisted.ExecutionResult.PostStateRoot;
     }
 
@@ -251,85 +311,123 @@ public sealed class CanonicalSettlementPipeline : IDisposable
         try
         {
             var processed = 0;
+            var expectedBatchNumber = 1UL;
             await foreach (var artifact in _store.EnumerateCommittedAsync(
                 _profile.ChainId, cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                ValidateCommittedArtifact(artifact);
-                await ValidateDaReceiptAsync(
-                    artifact.DAReceipt,
-                    ExecutionPayloadSerializer.ComputeCommitment(artifact.ExecutionPayload),
-                    cancellationToken).ConfigureAwait(false);
-                var manifest = await _store.GetProofAsync(
+                var recovery = await _store.GetSettlementRecoveryAsync(
                     artifact.ContentHash, cancellationToken).ConfigureAwait(false);
-                if (manifest is null)
-                    manifest = await ProveCommittedArtifactAsync(
-                        artifact, cancellationToken).ConfigureAwait(false);
-                ValidateManifest(artifact, manifest);
-                var hasForcedNonces =
-                    artifact.ExecutionPayload.ForcedInclusions.Count != 0;
-                var needsSettlement = !manifest.SettlementObserved;
-                var needsForcedFinalization =
-                    hasForcedNonces && !manifest.ForcedInclusionFinalized;
-                if (!needsSettlement && !needsForcedFinalization) continue;
-
-                BatchStatus? status = null;
-                if (needsSettlement)
+                if (recovery?.State == SettlementRecoveryState.Poisoned)
                 {
-                    status = await _client.GetBatchStatusAsync(
-                        artifact.ChainId,
-                        artifact.BatchNumber,
-                        cancellationToken).ConfigureAwait(false);
-                    if (status == BatchStatus.Reverted)
-                        throw new InvalidOperationException(
-                            "reverted batch remains pending for operator recovery");
-                    if (status == BatchStatus.Unknown)
-                    {
-                        manifest = await ReconcileUnknownSubmissionAsync(
-                            artifact, manifest, cancellationToken).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        await _store.MarkSubmissionObservedAsync(
-                            artifact.ContentHash, cancellationToken).ConfigureAwait(false);
-                        manifest = await ReadManifestAsync(
-                            artifact.ContentHash, cancellationToken).ConfigureAwait(false);
-                    }
-
-                    if (!manifest.SettlementObserved)
-                    {
-                        processed++;
-                        return;
-                    }
+                    await EmitRecoveryMetricsAsync(cancellationToken).ConfigureAwait(false);
+                    throw new SettlementPoisonedException(recovery);
                 }
 
-                if (hasForcedNonces && !manifest.ForcedInclusionFinalized)
+                try
                 {
-                    status ??= await _client.GetBatchStatusAsync(
-                        artifact.ChainId,
-                        artifact.BatchNumber,
+                    if (artifact.BatchNumber != expectedBatchNumber)
+                        throw new InvalidDataException(
+                            $"durable settlement is non-contiguous: expected batch " +
+                            $"{expectedBatchNumber}, got {artifact.BatchNumber}");
+                    if (expectedBatchNumber == ulong.MaxValue)
+                        throw new InvalidDataException(
+                            "durable settlement cannot advance beyond the maximum batch number");
+                    expectedBatchNumber++;
+                    ValidateCommittedArtifact(artifact);
+                    await ValidateDaReceiptAsync(
+                        artifact.DAReceipt,
+                        ExecutionPayloadSerializer.ComputeCommitment(artifact.ExecutionPayload),
                         cancellationToken).ConfigureAwait(false);
-                    if (status == BatchStatus.Reverted)
-                        throw new InvalidOperationException(
-                            "reverted batch retains forced-inclusion reservations for operator recovery");
-                    if (status == BatchStatus.Finalized)
+                    var manifest = await _store.GetProofAsync(
+                        artifact.ContentHash, cancellationToken).ConfigureAwait(false);
+                    if (manifest is null)
+                        manifest = await ProveCommittedArtifactAsync(
+                            artifact, cancellationToken).ConfigureAwait(false);
+                    ValidateManifest(artifact, manifest);
+                    var hasForcedNonces =
+                        artifact.ExecutionPayload.ForcedInclusions.Count != 0;
+                    var needsSettlement = !manifest.SettlementObserved;
+                    var needsForcedFinalization =
+                        hasForcedNonces && !manifest.ForcedInclusionFinalized;
+                    if (!needsSettlement && !needsForcedFinalization)
                     {
-                        var finalizer = _forcedInclusionFinalizer
-                            ?? throw new InvalidOperationException(
-                                "finalized forced-inclusion batch requires an L1 finalization client");
-                        await finalizer.ConsumeAndConfirmAsync(
+                        await ClearRecoveryAsync(artifact, cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
+
+                    BatchStatus? status = null;
+                    if (needsSettlement)
+                    {
+                        status = await _client.GetBatchStatusAsync(
                             artifact.ChainId,
                             artifact.BatchNumber,
-                            artifact.ExecutionPayload.ForcedInclusions,
                             cancellationToken).ConfigureAwait(false);
-                        await _store.MarkForcedInclusionFinalizedAsync(
-                            artifact.ContentHash, cancellationToken).ConfigureAwait(false);
-                    }
-                }
+                        if (status == BatchStatus.Reverted)
+                            throw new InvalidOperationException(
+                                "reverted batch remains pending for operator recovery");
+                        if (status == BatchStatus.Unknown)
+                        {
+                            manifest = await ReconcileUnknownSubmissionAsync(
+                                artifact, manifest, cancellationToken).ConfigureAwait(false);
+                        }
+                        else
+                        {
+                            await _store.MarkSubmissionObservedAsync(
+                                artifact.ContentHash, cancellationToken).ConfigureAwait(false);
+                            manifest = await ReadManifestAsync(
+                                artifact.ContentHash, cancellationToken).ConfigureAwait(false);
+                        }
 
-                processed++;
-                if (processed >= maximumBatches) return;
+                        if (!manifest.SettlementObserved)
+                        {
+                            await ClearRecoveryAsync(artifact, cancellationToken).ConfigureAwait(false);
+                            processed++;
+                            break;
+                        }
+                    }
+
+                    if (hasForcedNonces && !manifest.ForcedInclusionFinalized)
+                    {
+                        status ??= await _client.GetBatchStatusAsync(
+                            artifact.ChainId,
+                            artifact.BatchNumber,
+                            cancellationToken).ConfigureAwait(false);
+                        if (status == BatchStatus.Reverted)
+                            throw new InvalidOperationException(
+                                "reverted batch retains forced-inclusion reservations for operator recovery");
+                        if (status == BatchStatus.Finalized)
+                        {
+                            var finalizer = _forcedInclusionFinalizer
+                                ?? throw new InvalidOperationException(
+                                    "finalized forced-inclusion batch requires an L1 finalization client");
+                            await finalizer.ConsumeAndConfirmAsync(
+                                artifact.ChainId,
+                                artifact.BatchNumber,
+                                artifact.ExecutionPayload.ForcedInclusions,
+                                cancellationToken).ConfigureAwait(false);
+                            await _store.MarkForcedInclusionFinalizedAsync(
+                                artifact.ContentHash, cancellationToken).ConfigureAwait(false);
+                        }
+                    }
+
+                    await ClearRecoveryAsync(artifact, cancellationToken).ConfigureAwait(false);
+                    processed++;
+                    if (processed >= maximumBatches) break;
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception exception) when (exception is not OutOfMemoryException
+                    and not StackOverflowException)
+                {
+                    await RecordFailureAsync(artifact, exception, cancellationToken)
+                        .ConfigureAwait(false);
+                    throw;
+                }
             }
+            await EmitRecoveryMetricsAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -360,6 +458,80 @@ public sealed class CanonicalSettlementPipeline : IDisposable
                 count++;
         }
         return count;
+    }
+
+    /// <summary>Read durable pending, retry, and poison state for operators and health checks.</summary>
+    public async ValueTask<SettlementRecoveryStatus> GetRecoveryStatusAsync(
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        return await ReadRecoveryStatusAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask<SettlementRecoveryStatus> ReadRecoveryStatusAsync(
+        CancellationToken cancellationToken)
+    {
+        var pendingCount = 0;
+        SettlementRecoveryCheckpoint? earliestRecovery = null;
+        await foreach (var artifact in _store.EnumerateCommittedAsync(
+            _profile.ChainId, cancellationToken))
+        {
+            var manifest = await _store.GetProofAsync(
+                artifact.ContentHash, cancellationToken).ConfigureAwait(false);
+            var pending = manifest?.SettlementObserved != true
+                || (artifact.ExecutionPayload.ForcedInclusions.Count != 0
+                    && manifest.ForcedInclusionFinalized != true);
+            if (!pending) continue;
+            pendingCount++;
+            earliestRecovery ??= await _store.GetSettlementRecoveryAsync(
+                artifact.ContentHash, cancellationToken).ConfigureAwait(false);
+        }
+
+        return new SettlementRecoveryStatus
+        {
+            PendingCount = pendingCount,
+            State = earliestRecovery?.State,
+            BlockedBatchNumber = earliestRecovery?.BatchNumber,
+            ArtifactContentHash = earliestRecovery?.ArtifactContentHash,
+            RetryCount = earliestRecovery?.RetryCount ?? 0,
+            LastError = earliestRecovery?.LastError,
+            FirstFailureAtUnixMilliseconds = earliestRecovery?.FirstFailureAtUnixMilliseconds,
+            LastFailureAtUnixMilliseconds = earliestRecovery?.LastFailureAtUnixMilliseconds,
+        };
+    }
+
+    /// <summary>
+    /// Reset the exact poisoned artifact after the operator corrects its prover, DA, RPC, or L1
+    /// state. The canonical artifact and proof/submission reconciliation state are retained.
+    /// </summary>
+    public async Task RecoverPoisonedBatchAsync(
+        ulong batchNumber,
+        UInt256 artifactContentHash,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(artifactContentHash);
+        await _reconcileGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var artifact = await _store.GetAsync(
+                _profile.ChainId, batchNumber, cancellationToken).ConfigureAwait(false)
+                ?? throw new InvalidOperationException(
+                    $"No canonical settlement artifact exists for batch {batchNumber}");
+            if (!artifact.ContentHash.Equals(artifactContentHash))
+                throw new InvalidOperationException(
+                    "Operator recovery content hash does not match the canonical artifact");
+            await _store.ResetSettlementRecoveryAsync(
+                artifact.ChainId,
+                artifact.BatchNumber,
+                artifact.ContentHash,
+                cancellationToken).ConfigureAwait(false);
+            await EmitRecoveryMetricsAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            ReleaseReconcileGate();
+        }
     }
 
     /// <summary>Return forced-inclusion nonces tracked by durable artifacts.</summary>
@@ -478,6 +650,55 @@ public sealed class CanonicalSettlementPipeline : IDisposable
             proveStarted.Elapsed.TotalMilliseconds,
             ("kind", proof.Kind.ToString()));
         return persistedManifest;
+    }
+
+    private async ValueTask RecordFailureAsync(
+        ProofWitnessArtifactV1 artifact,
+        Exception exception,
+        CancellationToken cancellationToken)
+    {
+        var message = string.IsNullOrWhiteSpace(exception.Message)
+            ? exception.GetType().Name
+            : $"{exception.GetType().Name}: {exception.Message}";
+        await _store.RecordSettlementFailureAsync(
+            artifact.ChainId,
+            artifact.BatchNumber,
+            artifact.ContentHash,
+            message,
+            _maxAutomaticRetries,
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            cancellationToken).ConfigureAwait(false);
+        _metrics.SafeIncrementCounter(MetricNames.SettlementRetries);
+        await EmitRecoveryMetricsAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private ValueTask ClearRecoveryAsync(
+        ProofWitnessArtifactV1 artifact,
+        CancellationToken cancellationToken)
+        => _store.ClearSettlementRecoveryAsync(
+            artifact.ChainId,
+            artifact.BatchNumber,
+            artifact.ContentHash,
+            cancellationToken);
+
+    private async ValueTask EmitRecoveryMetricsAsync(CancellationToken cancellationToken)
+    {
+        var status = await ReadRecoveryStatusAsync(cancellationToken).ConfigureAwait(false);
+        _metrics.SafeSetGauge(MetricNames.SettlementPending, status.PendingCount);
+        _metrics.SafeSetGauge(
+            MetricNames.SettlementPoisoned,
+            status.State == SettlementRecoveryState.Poisoned ? 1 : 0);
+    }
+
+    private void ReleaseReconcileGate()
+    {
+        try
+        {
+            _reconcileGate.Release();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
     }
 
     private async ValueTask<ProofResultManifest> ReconcileUnknownSubmissionAsync(

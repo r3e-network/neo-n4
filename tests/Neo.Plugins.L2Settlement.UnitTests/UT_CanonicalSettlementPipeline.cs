@@ -199,6 +199,129 @@ public class UT_CanonicalSettlementPipeline
         Assert.AreEqual(2, prover.ProveCount);
         Assert.AreEqual(1, client.SubmitCount);
         Assert.AreEqual(0, await pipeline.GetPendingCountAsync());
+        var status = await pipeline.GetRecoveryStatusAsync();
+        Assert.AreEqual(0, status.PendingCount);
+        Assert.IsNull(status.State);
+    }
+
+    [TestMethod]
+    public async Task RepeatedPermanentFailure_PoisonsAndStopsWithoutLosingOrBypassingWork()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var prover = new RecordingZkProver(SafeSemantic) { FailAllProofs = true };
+        var client = new RecordingSettlementClient();
+        using var pipeline = CreateZkPipeline(
+            store,
+            new TestExecutor(SafeSemantic),
+            new ProductionDaWriter(),
+            prover,
+            client);
+        await pipeline.PersistAsync(BuildBatch(1));
+        await pipeline.PersistAsync(BuildBatch(2));
+
+        for (var attempt = 0; attempt < 3; attempt++)
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                async () => await pipeline.ReconcileAsync());
+
+        var first = await store.GetAsync(ChainId, 1);
+        var second = await store.GetAsync(ChainId, 2);
+        Assert.IsNotNull(first);
+        Assert.IsNotNull(second);
+        var status = await pipeline.GetRecoveryStatusAsync();
+        Assert.AreEqual(2, status.PendingCount);
+        Assert.AreEqual(SettlementRecoveryState.Poisoned, status.State);
+        Assert.AreEqual(1UL, status.BlockedBatchNumber);
+        Assert.AreEqual(first.ContentHash, status.ArtifactContentHash);
+        Assert.AreEqual(3, status.RetryCount);
+        StringAssert.Contains(status.LastError, "prover unavailable");
+        Assert.AreEqual(3, prover.ProveCount);
+
+        await Assert.ThrowsExactlyAsync<SettlementPoisonedException>(
+            async () => await pipeline.ReconcileAsync());
+        Assert.AreEqual(3, prover.ProveCount, "poisoned work must not retry automatically");
+        Assert.AreEqual(0, client.SubmitCount);
+        Assert.IsNull(await store.GetProofAsync(second.ContentHash),
+            "later settlement must not bypass the poisoned predecessor");
+    }
+
+    [TestMethod]
+    public async Task Restart_PoisonPersistsUntilExplicitRecoveryThenRetriesCanonicalArtifact()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        var writer = new ProductionDaWriter();
+        var failingProver = new RecordingZkProver(SafeSemantic) { FailAllProofs = true };
+        var client = new RecordingSettlementClient();
+        UInt256 contentHash;
+        using (var store = new KeyValueProofWitnessStore(backend))
+        using (var pipeline = CreateZkPipeline(
+            store, new TestExecutor(SafeSemantic), writer, failingProver, client))
+        {
+            await pipeline.PersistAsync(BuildBatch());
+            contentHash = (await store.GetAsync(ChainId, 1))!.ContentHash;
+            for (var attempt = 0; attempt < 3; attempt++)
+                await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                    async () => await pipeline.ReconcileAsync());
+        }
+
+        var recoveredProver = new RecordingZkProver(SafeSemantic);
+        using var restartedStore = new KeyValueProofWitnessStore(backend);
+        using var restarted = CreateZkPipeline(
+            restartedStore,
+            new TestExecutor(SafeSemantic),
+            writer,
+            recoveredProver,
+            client);
+        await Assert.ThrowsExactlyAsync<SettlementPoisonedException>(
+            async () => await restarted.ReconcileAsync());
+        Assert.AreEqual(0, recoveredProver.ProveCount);
+
+        await restarted.RecoverPoisonedBatchAsync(1, contentHash);
+        var reset = await restarted.GetRecoveryStatusAsync();
+        Assert.AreEqual(SettlementRecoveryState.Retrying, reset.State);
+        Assert.AreEqual(0, reset.RetryCount);
+        await restarted.ReconcileAsync();
+        await restarted.ReconcileAsync();
+
+        Assert.AreEqual(1, recoveredProver.ProveCount);
+        Assert.AreEqual(1, client.SubmitCount);
+        Assert.IsTrue((await restartedStore.GetProofAsync(contentHash))!.SettlementObserved);
+        Assert.IsNull((await restarted.GetRecoveryStatusAsync()).State);
+    }
+
+    [TestMethod]
+    public async Task MissingPredecessor_NeverSubmitsLaterBatchAndRequiresRecoveryAfterCorrection()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var client = new RecordingSettlementClient();
+        using var pipeline = CreateZkPipeline(
+            store,
+            new TestExecutor(SafeSemantic),
+            new ProductionDaWriter(),
+            new RecordingZkProver(SafeSemantic),
+            client);
+        await pipeline.PersistAsync(BuildBatch(2));
+        var second = await store.GetAsync(ChainId, 2);
+        Assert.IsNotNull(second);
+
+        for (var attempt = 0; attempt < 3; attempt++)
+            await Assert.ThrowsExactlyAsync<InvalidDataException>(
+                async () => await pipeline.ReconcileAsync());
+        Assert.AreEqual(0, client.SubmitCount);
+        Assert.IsNull(await store.GetProofAsync(second.ContentHash));
+        Assert.AreEqual(
+            SettlementRecoveryState.Poisoned,
+            (await pipeline.GetRecoveryStatusAsync()).State);
+
+        await pipeline.PersistAsync(BuildBatch(1));
+        await pipeline.RecoverPoisonedBatchAsync(2, second.ContentHash);
+        await pipeline.ReconcileAsync();
+        await pipeline.ReconcileAsync();
+        await pipeline.ReconcileAsync();
+
+        CollectionAssert.AreEqual(new ulong[] { 1, 2 }, client.SubmittedBatchNumbers.ToArray());
+        Assert.AreEqual(0, await pipeline.GetPendingCountAsync());
     }
 
     [TestMethod]
@@ -256,6 +379,7 @@ public class UT_CanonicalSettlementPipeline
             await Assert.ThrowsExactlyAsync<InvalidOperationException>(
                 async () => await firstPipeline.ReconcileAsync());
             Assert.IsFalse((await firstStore.GetProofAsync(contentHash))!.SettlementObserved);
+            Assert.AreEqual(1, (await firstPipeline.GetRecoveryStatusAsync()).RetryCount);
         }
 
         using var restartedStore = new KeyValueProofWitnessStore(backend);
@@ -274,6 +398,7 @@ public class UT_CanonicalSettlementPipeline
         Assert.IsNull(reconciled.L1TransactionHash);
         Assert.AreEqual(1, client.SubmitCount);
         Assert.AreEqual(0, await restartedPipeline.GetPendingCountAsync());
+        Assert.IsNull((await restartedPipeline.GetRecoveryStatusAsync()).State);
     }
 
     [TestMethod]
@@ -602,12 +727,19 @@ public class UT_CanonicalSettlementPipeline
             (await store.GetProofAsync(contentHash))!.L1TransactionHash!,
             SettlementTransactionStatus.Unknown);
 
-        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            async () => await pipeline.ReconcileAsync());
+        for (var attempt = 0; attempt < 3; attempt++)
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                async () => await pipeline.ReconcileAsync());
 
         Assert.AreEqual(1, client.SubmitCount);
         Assert.AreEqual(ProofSubmissionState.Submitted,
             (await store.GetProofAsync(contentHash))!.SubmissionState);
+        Assert.AreEqual(
+            SettlementRecoveryState.Poisoned,
+            (await pipeline.GetRecoveryStatusAsync()).State);
+        await Assert.ThrowsExactlyAsync<SettlementPoisonedException>(
+            async () => await pipeline.ReconcileAsync());
+        Assert.AreEqual(1, client.SubmitCount);
     }
 
     [TestMethod]
@@ -1029,6 +1161,7 @@ public class UT_CanonicalSettlementPipeline
         public bool ProducesCryptographicProof { get; set; } = true;
         public IProofWitnessStore? Store { get; init; }
         public bool FailNextProof { get; set; }
+        public bool FailAllProofs { get; set; }
         public int ProveCount { get; private set; }
         public ReadOnlyMemory<byte> LastWitness { get; private set; }
 
@@ -1039,7 +1172,7 @@ public class UT_CanonicalSettlementPipeline
             cancellationToken.ThrowIfCancellationRequested();
             ProveCount++;
             LastWitness = request.Witness.ToArray();
-            if (FailNextProof)
+            if (FailAllProofs || FailNextProof)
             {
                 FailNextProof = false;
                 throw new InvalidOperationException("prover unavailable");
@@ -1216,6 +1349,44 @@ public class UT_CanonicalSettlementPipeline
             return inner.MarkForcedInclusionFinalizedAsync(
                 artifactContentHash, cancellationToken);
         }
+
+        public ValueTask<SettlementRecoveryCheckpoint?> GetSettlementRecoveryAsync(
+            UInt256 artifactContentHash,
+            CancellationToken cancellationToken = default)
+            => inner.GetSettlementRecoveryAsync(artifactContentHash, cancellationToken);
+
+        public ValueTask<SettlementRecoveryCheckpoint> RecordSettlementFailureAsync(
+            uint chainId,
+            ulong batchNumber,
+            UInt256 artifactContentHash,
+            string error,
+            int maxAutomaticRetries,
+            long failedAtUnixMilliseconds,
+            CancellationToken cancellationToken = default)
+            => inner.RecordSettlementFailureAsync(
+                chainId,
+                batchNumber,
+                artifactContentHash,
+                error,
+                maxAutomaticRetries,
+                failedAtUnixMilliseconds,
+                cancellationToken);
+
+        public ValueTask ResetSettlementRecoveryAsync(
+            uint chainId,
+            ulong batchNumber,
+            UInt256 artifactContentHash,
+            CancellationToken cancellationToken = default)
+            => inner.ResetSettlementRecoveryAsync(
+                chainId, batchNumber, artifactContentHash, cancellationToken);
+
+        public ValueTask ClearSettlementRecoveryAsync(
+            uint chainId,
+            ulong batchNumber,
+            UInt256 artifactContentHash,
+            CancellationToken cancellationToken = default)
+            => inner.ClearSettlementRecoveryAsync(
+                chainId, batchNumber, artifactContentHash, cancellationToken);
 
         public ValueTask<IReadOnlyCollection<ulong>> GetTrackedForcedInclusionNoncesAsync(
             uint chainId,

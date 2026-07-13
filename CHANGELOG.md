@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — governance quorum recovery evidence — 2026-07-14
+
+- Added VM-level evidence that two surviving signers in a 2-of-3 council can approve and execute
+  an epoch-bound, timelocked full rotation without the unavailable signer, after which removed keys
+  lose authority and the replacement council controls new proposals.
+- Documented the fail-closed recovery boundary: council rotation has no owner bypass, and loss of
+  quorum requires a separately reviewed emergency-governance migration.
+- Corrected the forced-inclusion slashing contract documentation: a late consume does not erase
+  censorship that was already reported after its deadline.
+
 ### Fixed — execution transaction integrity coverage — 2026-07-14
 
 - Added commit-compensation tests for successful before-image restoration and the aggregate-error

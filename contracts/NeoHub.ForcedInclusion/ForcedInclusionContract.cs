@@ -493,10 +493,11 @@ public class ForcedInclusionContract : SmartContract
     /// <summary>
     /// Governance-gated slashing for a previously-reported censorship. Owner only — governance is
     /// the party that can attribute the responsible proposer for the censored window off-chain,
-    /// which the protocol cannot do on-chain. Requires an existing, unconsumed, not-yet-slashed
-    /// report for (chainId, nonce), then slashes the named sequencer's bond. Separating this from
-    /// the permissionless <see cref="ReportCensorship"/> prevents an arbitrary caller from
-    /// slashing an innocent bonded sequencer.
+    /// which the protocol cannot do on-chain. Requires an existing, not-yet-slashed report for
+    /// (chainId, nonce), then slashes the named sequencer's bond. A late consume does not erase
+    /// censorship that was already proven after the deadline. Separating this from the permissionless
+    /// <see cref="ReportCensorship"/> prevents an arbitrary caller from slashing an innocent bonded
+    /// sequencer.
     /// </summary>
     public static void SlashReportedCensorship(uint chainId, ulong nonce, UInt160 sequencer)
     {

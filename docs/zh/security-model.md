@@ -120,6 +120,13 @@ DAC 链(就标 DAC,不要营销话术粉饰)。
   与存储的 proposal payload 做按字节相等性比较。council 成员投票的就是执行
   调用实际还原出的同一段字节 —— 已通过的 proposal 不能被改写成不同的 action
   args 重新触发。
+- **法定人数仍存活时的委员会密钥丢失恢复。** 完整委员会轮换本身就是绑定 epoch、
+  达到阈值并经过 timelock 的 proposal。若 2-of-3 委员会中有一个签名者不可用，
+  其余两个签名者提出并批准 `BuildRotateCouncilAction`，等待配置的 timelock，随后
+  使用完整旧成员快照和 proposal 中精确绑定的新成员集合调用 `RotateCouncil`。
+  丢失的密钥无需参与；轮换后所有旧 epoch proposal 立即失效，被移除的密钥立即
+  失去权限。该路径刻意不提供 owner 绕过。若可用签名者少于配置阈值，运维方必须
+  停止治理操作，并执行另行审计的紧急治理迁移，而不能削弱链上法定人数。
 - **提款 leaf 中的 chainId 域分隔。** `SharedBridge.ComputeWithdrawalLeafHash`
   和链下 `MessageHasher.HashWithdrawal` 的 preimage 都会先拼 4 字节小端 chainId,
   这样某条 L2 的 withdrawal root 上的 inclusion proof 即便其它字段恰好相同也

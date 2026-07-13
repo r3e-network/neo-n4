@@ -141,6 +141,17 @@ pinning regression test):
   proposal payload via `GovernanceController.MatchesProposalPayload`. Council
   members vote on the EXACT bytes the execution call will reproduce — an
   approved proposal can NOT be repurposed with different action args.
+- **Council-key loss recovery while quorum survives.** A complete council
+  rotation is itself an epoch-bound, threshold-approved, timelocked proposal.
+  If one signer in a 2-of-3 council becomes unavailable, the two remaining
+  signers propose and approve `BuildRotateCouncilAction`, wait the configured
+  timelock, and call `RotateCouncil` with the complete old-member snapshot and
+  the exact proposed replacement set. The unavailable key does not participate;
+  after rotation every old-epoch proposal expires and removed keys lose authority
+  immediately. This path intentionally has no owner bypass. If fewer than the
+  configured threshold remain available, operators must stop governance actions
+  and follow a separately reviewed emergency-governance migration rather than
+  weakening the on-chain quorum.
 - **Withdrawal-leaf chainId domain separation.** The
   `SharedBridge.ComputeWithdrawalLeafHash` and off-chain
   `MessageHasher.HashWithdrawal` preimages both prepend a 4-byte LE chainId

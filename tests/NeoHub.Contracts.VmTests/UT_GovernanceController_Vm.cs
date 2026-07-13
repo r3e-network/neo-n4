@@ -607,6 +607,40 @@ public class UT_GovernanceController_Vm
     }
 
     [TestMethod]
+    public void RotateCouncil_TwoOfThreeRecoversAfterOneSignerLost()
+    {
+        var engine = new TestEngine(true);
+        var oldMembers = new ECPoint[] { Member1, Member2, NonMember };
+        var governance = Deploy(engine, threshold: 2, members: oldMembers);
+        var newMembers = new ECPoint[] { NewMember1, NewMember2 };
+
+        var rotationProposal = ApproveToThreshold(engine, governance,
+            governance.BuildRotateCouncilAction(newMembers, (BigInteger)2)!, engine.Sender);
+        engine.PersistingBlock.Advance(TimeSpan.FromSeconds(Timelock + 1));
+        governance.RotateCouncil(oldMembers, newMembers, (BigInteger)2, rotationProposal);
+
+        Assert.AreEqual((BigInteger)2, governance.CouncilEpoch!);
+        Assert.AreEqual((BigInteger)2, governance.CouncilCount!);
+        Assert.AreEqual((BigInteger)2, governance.Threshold!);
+        Assert.IsFalse(governance.IsCouncilMember(Member1)!.Value);
+        Assert.IsFalse(governance.IsCouncilMember(Member2)!.Value);
+        Assert.IsFalse(governance.IsCouncilMember(NonMember)!.Value,
+            "the unavailable member is removed without participating in recovery");
+
+        engine.SetTransactionSigners(NonMember);
+        Assert.ThrowsExactly<TestException>(() => governance.CreateProposal(NonMember,
+            governance.BuildSetImmutableFlagAction((BigInteger)13)!),
+            "the removed unavailable signer cannot regain authority");
+
+        engine.SetTransactionSigners(NewMember1);
+        var newProposal = governance.CreateProposal(NewMember1,
+            governance.BuildSetImmutableFlagAction((BigInteger)13))!.Value;
+        Assert.AreEqual((BigInteger)1, governance.Approve(newProposal, NewMember1)!);
+        engine.SetTransactionSigners(NewMember2);
+        Assert.AreEqual((BigInteger)2, governance.Approve(newProposal, NewMember2)!);
+    }
+
+    [TestMethod]
     public void Approve_CurrentMemberCannotApproveProposalFromPreviousEpoch()
     {
         var engine = new TestEngine(true);

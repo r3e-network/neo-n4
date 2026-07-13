@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Stateful SP1 execution witness V1 — 2026-07-13
+
+- Reused the canonical `ProofWitnessArtifactV1` envelope for SP1 and added bounded `NEO4STW1` state/code/manifest witness plus `NEO4EFX1` effects sections.
+- Replaced script-only/fixed-zero guest execution with full Neo transaction decoding, stateful `neo-vm-rs` execution, production opcode/syscall gas, HALT overlay commits, FAULT rollback, and fail-closed unsupported syscalls.
+- Froze the 105-byte `CanonicalReceiptV1`, domain-separated storage/event V1 hashes, canonical event stack encoding, and keyed post-state-root recomputation.
+- Added a stable stateful golden artifact, host/guest parity coverage, and transaction/witness/state/root/receipt/order/parameter tamper rejection tests.
+
 ### Security — comprehensive audit cycle 2026-05-19
 
 Multi-agent audit team surfaced + closed two CRITICAL exploit paths and

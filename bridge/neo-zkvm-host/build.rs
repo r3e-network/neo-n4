@@ -7,13 +7,11 @@ use std::path::PathBuf;
 use std::process::Command;
 
 fn main() {
-    println!("cargo:rerun-if-changed=../neo-zkvm-guest/src/main.rs");
-    println!("cargo:rerun-if-changed=../neo-zkvm-guest/src/lib.rs");
+    println!("cargo:rerun-if-changed=../neo-zkvm-guest/src");
+    println!("cargo:rerun-if-changed=../neo-zkvm-guest/tests/fixtures/stateful_batch_v1.hex");
     println!("cargo:rerun-if-changed=../neo-zkvm-guest/Cargo.toml");
     println!("cargo:rerun-if-changed=../neo-execution-core/Cargo.toml");
     println!("cargo:rerun-if-changed=../neo-execution-core/src");
-    println!("cargo:rerun-if-changed=../../external/neo-zkvm/crates/neo-vm-guest/Cargo.toml");
-    println!("cargo:rerun-if-changed=../../external/neo-zkvm/crates/neo-vm-guest/src");
     println!("cargo:rerun-if-changed=../../external/neo-vm-rs/Cargo.toml");
     println!("cargo:rerun-if-changed=../../external/neo-vm-rs/src");
     println!("cargo:rerun-if-env-changed=NEO_ZKVM_ALLOW_CACHED_ELF");

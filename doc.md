@@ -683,6 +683,14 @@ DA data
 execution trace
 ```
 
+## 8.5 N4 Genesis Stateful Witness V1
+
+N4 genesis 的 SP1 输入固定复用 `ProofWitnessArtifactV1`（`NEO4PWIT`），不得再创建第二套外层 witness。`ExecutionPayloadV1` 提供完整 canonical Neo Transaction、批次区间、L1 finalized height、时间戳、network 与 L1 message；`StateWitness` 的 `NEO4STW1` V1 提供有界且非空的完整 pre-state、合约 code/manifest 和固定协议参数。合约 descriptor 通过 `neo-n4/contract-binding/v1\0` 域绑定到 pre-state root。
+
+`CanonicalReceiptV1` 固定为 105 bytes：`txHash[32] | success[1] | gasConsumed i64 LE[8] | storageDeltaHash[32] | eventsHash[32]`。`StorageDeltaHashV1` 以完整 raw key 排序，绑定 op 及 old/new presence+bytes；`EventsHashV1` 按执行顺序绑定 emitting script hash、UTF-8 name 和完整 `NEO4STK1` canonical stack state。两者空集合均为零 `UInt256`，非空分别使用 `neo-n4/storage-delta/v1\0` 与 `neo-n4/events/v1\0` 域。
+
+guest 必须先验证 pre-state root，再执行 `tx.Script`。`HALT` 提交 overlay/notifications；`FAULT` 生成失败 receipt 并回滚；transaction/witness/manifest adapter 解码错误终止整个批次。post-state root 只能由验证后的 pre-state 与实际 HALT overlay 重算，禁止用 receipt hash 折叠代替。未实现的 consensus syscall 必须 fail closed。
+
 ---
 
 # 9. Token / GAS / 资产模型

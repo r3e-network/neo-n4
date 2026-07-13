@@ -42,7 +42,7 @@ The executor MUST NOT write:
 ## Execution order
 
 1. **Apply L1 messages first.** For each `l1Messages[i]`, in the order given, the executor calls into the on-L2 bridge / message contracts as if the message came from a trusted source. Replay protection is enforced by the contracts via per-(sourceChain, nonce) bitmaps. The executor MUST NOT skip or reorder.
-2. **Apply transactions next.** For each `orderedTxs[i]`, in the order given, the executor decodes the transaction, validates it, and runs it through the configured deterministic VM. Neo N4 L2 production uses NeoVM2/RISC-V; the legacy NeoVM compatibility executor uses Neo's standard `Transaction.DeserializeFrom` + `ApplicationEngine` path. Failed transactions still update fees (matches Neo L1).
+2. **Apply transactions next.** Before execution starts, every `orderedTxs[i]` is decoded as a complete canonical Neo `Transaction` (unsigned fields, signers/scopes/rules, attributes, script, and witnesses). A decode or adapter error is fatal to the batch. Decoded transactions then execute `tx.Script` in order. Neo N4 L2 production uses NeoVM2/RISC-V; the NeoVM compatibility path uses the same opcode prices, bounded gas, block context, signer scopes, deployed contract code/manifests, and stateful syscalls as `ApplicationEngine`. A VM `FAULT` produces a failure receipt and rolls back that transaction's storage and notifications.
 3. **Seal outboxes.** After all transactions complete, the executor computes:
    - `txRoot` = MerkleTree(txHash[0], …, txHash[N-1])
    - `receiptRoot` = MerkleTree(receiptHash[0], …, receiptHash[N-1])
@@ -57,9 +57,26 @@ The executor MUST NOT write:
 - All Merkle trees use Neo's `Hash256` (double-SHA256) for inner-node combination, with the rightmost-leaf duplicated when the level has odd cardinality (matches `Neo.Cryptography.MerkleTree`).
 - `CrossChainMessage` and `WithdrawalRequest` leaf hashes use the encodings in `Neo.L2.State.MessageHasher`.
 
+### N4 genesis V1 receipt and effects
+
+N4 genesis freezes `CanonicalReceiptV1` at exactly 105 bytes:
+
+```text
+txHash[32] | success[1] | gasConsumed i64 LE[8]
+| storageDeltaHash[32] | eventsHash[32]
+```
+
+`StorageDeltaHashV1` is zero for an empty delta set. Otherwise it is `Hash256` over the domain `neo-n4/storage-delta/v1\0`, a `u32 LE` count, and deltas sorted by the complete raw storage key. Each delta binds the key, operation (`Add=1`, `Update=2`, `Delete=3`), and old/new presence bytes plus full length-prefixed values.
+
+`EventsHashV1` is zero for no notifications. Otherwise it is `Hash256` over the domain `neo-n4/events/v1\0`, a `u32 LE` count, and notifications in execution order. Each notification binds the emitting script hash, strict UTF-8 event name, and the complete versioned canonical stack state (`NEO4STK1`, V1). Pointer/interop/iterator values are not serializable and fail closed.
+
+The post-state root is recomputed from the verified complete pre-state key/value witness plus committed HALT overlays using the keyed-state Merkle algorithm. Receipt folding is not a state-root algorithm.
+
 ## Error handling
 
-A malformed transaction (bad signature, unknown contract, insufficient gas) is a **valid result with a failure receipt** — it must NOT abort the batch. The receipt's failure flag goes into `receiptRoot`. This matches Ethereum-style and Neo L1 semantics.
+A canonical transaction decode failure, malformed witness scope/rule, invalid contract adapter, invalid pre-state witness, or root mismatch is a **fatal protocol error**. The batch MUST NOT be sealed.
+
+After successful decode, an unknown contract, unsupported consensus syscall, insufficient gas, or any other VM `FAULT` is a **valid result with a failure receipt**. Its storage overlay and notifications are discarded; its actual consumed gas remains in the frozen receipt.
 
 A malformed L1 message (corrupted payload, unknown asset) is **also a valid result with a failure receipt**. The deposit is consumed (the `(sourceChain, nonce)` is marked) and the funds remain in the L1 escrow until governance refunds them — the L2 cannot mint to a bogus recipient.
 
@@ -81,18 +98,10 @@ These are explicitly OUTSIDE the proven function and must not be observable in a
 
 `Neo.L2.Executor.ReferenceBatchExecutor` is the in-process reference implementation used by tests, the devnet boot path, and the witness-collection code that feeds the RISC-V prover.
 
-A separate `Sp1BatchExecutor` (in a future RISC-V ELF binary, not C#) executes the same function inside the SP1 zkVM. The two implementations MUST produce byte-identical outputs for any given input. Cross-implementation conformance tests live in `tests/Neo.L2.Executor.UnitTests/Conformance/`.
+`bridge/neo-zkvm-guest` executes this function inside the SP1 zkVM. It uses the vendored `neo-vm-rs` interpreter with the stateful N4 V1 syscall provider and rejects every host-supplied result/effect/root that it cannot recompute. The native and proven implementations MUST produce byte-identical outputs for any supported input.
 
 ## Witness format
 
-The witness handed to the prover is a serialized record of:
+The prover input is the existing `ProofWitnessArtifactV1` (`NEO4PWIT`); no parallel outer witness envelope is permitted. Its `ExecutionPayloadV1` carries ordered full transaction bytes, block/L1 context, and DA bytes. Its non-empty `StateWitness` section uses `NEO4STW1` V1 and carries the complete sorted pre-state key/value set, frozen protocol settings, and deployed contract IDs, hashes, scripts, and Neo manifests. Every contract descriptor is bound into the pre-state root through `0xff || "neo-n4/contract-binding/v1/" || scriptHash` and the domain `neo-n4/contract-binding/v1\0`.
 
-1. The ordered transactions and their decoded form.
-2. Storage read set: `(contract, key, value, mptProof)` for every read.
-3. Storage write set: `(contract, key, oldValue, newValue, mptProofPre)` for every write.
-4. Native contract state delta: per-contract state slot reads and writes.
-5. The L1 messages consumed (already in inputs).
-6. The ordered list of receipts produced.
-7. `BlockContext`.
-
-Witness format is defined in `Neo.L2.Executor.Witness.WitnessRecord`.
+The artifact's execution result, `NEO4EFX1` effects, and 332-byte public inputs are claims, not trusted inputs. The guest recomputes all of them and requires exact equality. N4 genesis V1 currently rejects non-empty L1 inbox batches and consensus syscalls without a state adapter; unsupported behavior fails closed rather than returning fabricated values.

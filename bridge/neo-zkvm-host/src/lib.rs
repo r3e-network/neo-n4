@@ -1,7 +1,7 @@
 //! SP1 host runtime for the neo-zkvm-guest crate.
 //!
 //! Loads the guest's RISC-V ELF (compiled by `cargo prove build`), runs it
-//! via the SP1 prover with a canonical `BatchExecutionRequest` payload, and
+//! via the SP1 prover with a canonical `ProofWitnessArtifactV1` payload, and
 //! returns a serialized proof + the public-input commitment.
 //!
 //! End-to-end verified: `cargo test --release execute_guest_in_zkvm` proves

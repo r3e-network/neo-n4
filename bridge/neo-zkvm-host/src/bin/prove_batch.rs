@@ -8,7 +8,7 @@
 //!   + proof.vk + proof.public-values.bin to disk.
 //! * Daemon:           `prove-batch daemon --watch <dir> [--archive <dir>]
 //!                       [--poll-secs N]` — runs forever, watches `<dir>`
-//!   for `*.batch.bin` files (each is a serialized BatchExecutionRequest),
+//!   for `*.batch.bin` files (each is a serialized ProofWitnessArtifactV1),
 //!   generates a proof for each, writes `<name>.proof.bin` +
 //!   `<name>.proof.vk` + `<name>.proof.public-values.bin` next to the input,
 //!   and renames the input to
@@ -467,7 +467,7 @@ fn print_usage() {
     info!("              [--poll-secs N]");
     info!("");
     info!("daemon mode:");
-    info!("  watches <dir> for *.batch.bin (raw BatchExecutionRequest bytes), proves each,");
+    info!("  watches <dir> for *.batch.bin (raw ProofWitnessArtifactV1 bytes), proves each,");
     info!("  emits <name>.proof.bin + <name>.proof.vk + <name>.proof.public-values.bin.");
     info!("  After a successful proof, the input is renamed or archived. The three outputs");
     info!("  are the exact artifacts consumed by ContractZkVerifier/Sp1Groth16Verifier.");

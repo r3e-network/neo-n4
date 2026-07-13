@@ -9,10 +9,11 @@ points its prover at.
 
 ```
 [off-chain L2 sequencer]
-         ↓ canonical BatchExecutionRequest bytes (*.batch.bin in queue dir)
+         ↓ canonical ProofWitnessArtifactV1 bytes (*.batch.bin)
 [bridge/neo-zkvm-host  (prove-batch daemon)]
          ↓ loads neo-zkvm-guest (this crate) into SP1 zkVM
-         ↓ runs neo_vm_guest::execute on every tx → real Neo N3 VM
+         ↓ decodes full Neo transactions + verifies state/code/manifest witness
+         ↓ runs tx.Script through neo-vm-rs with stateful syscalls
          ↓ produces ZK proof + verifying-key bytes + public-input commitment
 [L1 NeoHub.VerifierRegistry]
          ↓ verifies proof
@@ -20,15 +21,12 @@ points its prover at.
          ✓ batch finalized
 ```
 
-What gets proven: each tx in the batch is loaded as a Neo N3 VM script and
-executed by `neo_vm_guest::execute` (vendored from
-`external/neo-zkvm/crates/neo-vm-guest`, which contains the full Neo N3
-VM in pure Rust — opcodes, eval stack, gas accounting, native contracts,
-storage). The proof attests to actual VM execution outcomes — halt or
-fault, gas consumed, top-of-stack result — not a hash of the input bytes.
-Canonical batch parsing, L1 message folding, tx/receipt Merkle roots,
-state-root folding, and public-input hashing live in
-`bridge/neo-execution-core`, which has no SP1 or PolkaVM dependency.
+What gets proven: the guest verifies the complete pre-state and deployed
+contract bindings, decodes each full canonical Neo transaction, and executes
+`tx.Script` with the vendored `external/neo-vm-rs` interpreter. The syscall
+provider exposes bounded storage overlays, contract calls, manifests, block
+context, signer scopes, notifications, and production gas prices. HALT commits;
+FAULT rolls back. Unsupported consensus behavior fails closed.
 
 ## Build
 
@@ -58,19 +56,11 @@ cargo test
 
 ## Wire format
 
-`BatchExecutionRequest` (canonical bytes, all little-endian):
-
-```
-[1B  version=1]
-[4B  chainId]
-[8B  batchNumber]
-[32B preStateRoot]
-[32B daCommitment]
-[4B  l1MessageCount]
-  [(4B msgLen)(msgBytes)]*l1MessageCount
-[4B  txCount]
-  [(4B txLen)(txBytes)]*txCount
-```
+Input is exactly the repository's existing `ProofWitnessArtifactV1`
+(`NEO4PWIT`, V1). Its `ExecutionPayloadV1` contains transaction and block/L1
+context bytes. Its non-empty `NEO4STW1` section contains sorted complete
+pre-state plus contract scripts/manifests. `NEO4EFX1`, execution result, and
+public inputs are untrusted claims that the guest recomputes byte-for-byte.
 
 Output: 32-byte `publicInputHash` committed via `sp1_zkvm::io::commit`.
 This binds into the proof's public outputs and is what the on-chain
@@ -78,11 +68,9 @@ verifier compares against `L2BatchCommitment.PublicInputHash`.
 
 ## What this crate does
 
-1. Delegates canonical batch parsing and root folding to `neo-execution-core`.
-2. **Executes each tx through real Neo N3 VM** via `neo_vm_guest::execute`,
-   folding the resulting `ProofOutput` (state, gas, top-of-stack, error)
-   into a backend-neutral `VmExecutionReceipt`.
-3. Commits the shared core's public-input bundle hash to the SP1 output stream.
+1. Delegates artifact, transaction, state, receipt, effect, and root protocols to `neo-execution-core`.
+2. Executes each decoded `tx.Script` through `neo-vm-rs` with the stateful N4 V1 syscall provider.
+3. Recomputes the post-state and all host claims, then commits only the verified public-input hash.
 
 ## End-to-end proving
 

@@ -1,7 +1,7 @@
 # neo-zkvm-host
 
 The SP1 **host** runtime that loads the compiled `neo-zkvm-guest` RISC-V
-ELF, runs it through SP1's zkVM with a canonical `BatchExecutionRequest`
+ELF, runs it through SP1's zkVM with a canonical `ProofWitnessArtifactV1`
 payload, and produces (a) the public-input commitment that L1 settlement
 checks against, (b) the cryptographic ZK validity proof itself.
 
@@ -12,7 +12,7 @@ This is the production proving path for any L2 running in Stage-2
 
 ```
 [off-chain L2 batch builder]
-         ↓ canonical BatchExecutionRequest bytes
+         ↓ canonical ProofWitnessArtifactV1 bytes
 [neo-zkvm-host:  this crate]
    • execute()  → run guest in zkVM, return public-input hash
    • prove()    → real CPU proof + verifying-key bytes
@@ -27,13 +27,10 @@ to a RISC-V ELF by `cargo prove build`). This crate is the orchestrator
 that runs that ELF inside SP1's zkVM and exposes a clean three-function
 public API to the rest of the framework (and to operator scripts).
 
-**What's being proved**: each tx in the batch is loaded as a Neo N3 VM
-script and executed by the real `neo_vm_guest::execute` (vendored from
-`external/neo-zkvm/crates/neo-vm-guest`, which contains the full Neo N3
-VM in pure Rust — opcodes, stack, gas accounting, native contracts,
-storage). The proof attests to actual VM execution outcomes — halt or
-fault, gas consumed, top-of-stack result — not just a hash of the
-input bytes.
+**What's being proved**: the guest decodes complete Neo transactions, verifies
+the bounded pre-state/code/manifest witness, executes `tx.Script` through
+`neo-vm-rs` with stateful production-priced syscalls, commits HALT overlays,
+rolls back FAULT effects, and recomputes every receipt/root/public input.
 
 ## Build
 
@@ -112,7 +109,7 @@ submission so it never wastes L1 gas on bad proofs.
 Operator-facing entrypoint:
 
 ```text
-prove-batch <hex-encoded BatchExecutionRequest>             # execute only (fast)
+prove-batch <hex-encoded ProofWitnessArtifactV1>            # execute only (fast)
 prove-batch --prove <hex> [--out proof.bin]                 # generate ZK proof (slow)
 ```
 
@@ -136,9 +133,9 @@ cargo test --release -p neo-zkvm-host
 cargo test --release -p neo-zkvm-host -- --ignored --nocapture
 ```
 
-Both tests use the same minimal `BatchExecutionRequest` builder so any
-divergence between zkVM execution, host execution, and proven
-execution is caught.
+The execute/prove tests use the committed stateful golden artifact, so
+divergence between fresh zkVM execution, host execution, and proven execution
+is caught without a script-only fallback.
 
 The 2026-05-17 WSL2 audit run with SP1 `6.2.1` completed the default
 release test in about 14 seconds after dependencies were built. The

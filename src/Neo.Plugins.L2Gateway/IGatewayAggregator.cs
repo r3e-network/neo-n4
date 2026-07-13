@@ -13,6 +13,9 @@ namespace Neo.Plugins.L2Gateway;
 /// </remarks>
 public interface IGatewayAggregator
 {
+    /// <summary>Canonical aggregation-backend discriminator emitted in every result.</summary>
+    byte BackendId { get; }
+
     /// <summary>Receive a per-chain commitment ready for aggregation.</summary>
     void Submit(L2BatchCommitment commitment);
 
@@ -20,8 +23,9 @@ public interface IGatewayAggregator
     int PendingCount { get; }
 
     /// <summary>
-    /// Produce an aggregated commitment over all currently-pending entries and clear the
-    /// queue. Returns <c>null</c> when nothing is pending.
+    /// Produce an aggregated commitment over all currently-pending entries. Entries are removed
+    /// only after successful aggregation; any exception leaves the full snapshot pending.
+    /// Returns <c>null</c> when nothing is pending.
     /// </summary>
     AggregatedCommitment? Aggregate();
 }
@@ -39,6 +43,12 @@ public sealed record AggregatedCommitment
     /// <summary>Merkle root of all L2-to-L2 messages from the constituent batches.</summary>
     public required UInt256 GlobalMessageRoot { get; init; }
 
+    /// <summary>
+    /// Ordered Merkle root over <c>Hash256(BatchSerializer.Encode(constituent))</c> leaves.
+    /// This commits every canonical constituent field and proof byte, not only message roots.
+    /// </summary>
+    public required UInt256 ConstituentCommitmentsRoot { get; init; }
+
     /// <summary>Aggregated proof bytes (interpretation depends on backend).</summary>
     public required ReadOnlyMemory<byte> AggregatedProof { get; init; }
 
@@ -51,6 +61,8 @@ public sealed record AggregatedCommitment
         return other is not null
             && BackendId == other.BackendId
             && GlobalMessageRoot.Equals(other.GlobalMessageRoot)
+            && ConstituentCommitmentsRoot.Equals(other.ConstituentCommitmentsRoot)
+            && Constituents.SequenceEqual(other.Constituents)
             && AggregatedProof.Span.SequenceEqual(other.AggregatedProof.Span);
     }
 
@@ -60,6 +72,8 @@ public sealed record AggregatedCommitment
         var hash = new HashCode();
         hash.Add(BackendId);
         hash.Add(GlobalMessageRoot);
+        hash.Add(ConstituentCommitmentsRoot);
+        foreach (var constituent in Constituents) hash.Add(constituent);
         hash.AddBytes(AggregatedProof.Span);
         return hash.ToHashCode();
     }

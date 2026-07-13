@@ -1,5 +1,6 @@
 {
   "PluginConfiguration": {
-    "Enabled": true
+    "Enabled": true,
+    "MaxAutomaticRetries": 3
   }
 }

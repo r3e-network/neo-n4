@@ -18,9 +18,12 @@ public sealed class PassThroughAggregator : IGatewayAggregator
 {
     private readonly Lock _gate = new();
     private readonly List<L2BatchCommitment> _pending = new();
+    private bool _aggregationInProgress;
 
     /// <summary>Constant backend id for this trivial aggregation strategy.</summary>
     public const byte BackendId = 0xFF;
+
+    byte IGatewayAggregator.BackendId => BackendId;
 
     /// <inheritdoc />
     public int PendingCount
@@ -42,24 +45,45 @@ public sealed class PassThroughAggregator : IGatewayAggregator
         lock (_gate)
         {
             if (_pending.Count == 0) return null;
+            if (_aggregationInProgress)
+                throw new InvalidOperationException("an aggregation is already in progress");
             snapshot = _pending.ToArray();
-            _pending.Clear();
+            _aggregationInProgress = true;
         }
 
-        // Compute global message root over the L2-to-L2 roots of every constituent.
-        var l2L2Roots = new UInt256[snapshot.Length];
-        for (var i = 0; i < snapshot.Length; i++) l2L2Roots[i] = snapshot[i].L2ToL2MessageRoot;
-        var globalRoot = MerkleTree.ComputeRoot(l2L2Roots);
-
-        var proof = ConcatenateProofs(snapshot);
-
-        return new AggregatedCommitment
+        try
         {
-            Constituents = snapshot,
-            GlobalMessageRoot = globalRoot,
-            AggregatedProof = proof,
-            BackendId = BackendId,
-        };
+            var ordered = snapshot
+                .OrderBy(static commitment => commitment.ChainId)
+                .ThenBy(static commitment => commitment.BatchNumber)
+                .ToArray();
+            GatewayProofBindingSerializer.ValidateCanonicalConstituentOrder(ordered);
+
+            var l2L2Roots = new UInt256[ordered.Length];
+            for (var i = 0; i < ordered.Length; i++)
+                l2L2Roots[i] = ordered[i].L2ToL2MessageRoot;
+            var result = new AggregatedCommitment
+            {
+                Constituents = ordered,
+                GlobalMessageRoot = MerkleTree.ComputeRoot(l2L2Roots),
+                ConstituentCommitmentsRoot =
+                    GatewayProofBindingSerializer.ComputeConstituentCommitmentsRoot(ordered),
+                AggregatedProof = ConcatenateProofs(ordered),
+                BackendId = BackendId,
+            };
+
+            lock (_gate)
+            {
+                _pending.RemoveRange(0, snapshot.Length);
+                _aggregationInProgress = false;
+            }
+            return result;
+        }
+        catch
+        {
+            lock (_gate) _aggregationInProgress = false;
+            throw;
+        }
     }
 
     private static byte[] ConcatenateProofs(L2BatchCommitment[] batches)

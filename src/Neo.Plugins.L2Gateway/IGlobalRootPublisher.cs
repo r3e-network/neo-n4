@@ -3,26 +3,13 @@ using Neo.L2;
 namespace Neo.Plugins.L2Gateway;
 
 /// <summary>
-/// Publishes a Phase-5 Neo Gateway aggregated commitment's global message root to
-/// <c>NeoHub.MessageRouter.PublishGlobalRoot</c> on L1. This is the off-chain counterpart to the
-/// on-chain proof-gated publish path: after the <see cref="BinaryTreeAggregator"/> (or any other
-/// <see cref="IGatewayAggregator"/>) produces an <see cref="AggregatedCommitment"/>, the gateway
-/// plugin calls this to anchor the global root on L1 — and once a <c>Groth16Verifier</c> is wired
-/// on MessageRouter, the publish must clear that proof gate.
+/// Legacy pre-proof-binding publisher retained only for source compatibility and dev/test callers.
 /// </summary>
 /// <remarks>
-/// <para>Framework provides the seam; the operator supplies the L1-wallet-backed implementation
-/// (the same division of labor as <c>ISettlementClient</c>, <c>IDAWriter</c>,
-/// <c>IForcedInclusionSource</c>). A reference <see cref="NoOpGlobalRootPublisher"/> ships for
-/// devnets and tests; production deploys inject an RPC-backed publisher that signs + submits the
-/// L1 transaction via <c>L2GatewayPlugin.UseGlobalRootPublisher</c>.</para>
-/// <para>The verification key id passed to the publish call is the governance-registered Groth16
-/// verifying key under which the <c>AggregatedProof</c> was produced. It is passed through
-/// verbatim — the publisher does not interpret it.</para>
-/// <para>Idempotency on the epoch is enforced on-chain (publish-once-per-epoch in MessageRouter),
-/// so a retried publish for an already-published epoch faults at the contract level rather than
-/// double-committing. Implementations SHOULD surface that fault as a benign already-published
-/// result, not a hard failure.</para>
+/// See doc.md §4 (Neo Gateway). This interface cannot carry the required router, replay domain,
+/// constituent root/count, proof-system, and backend binding and is therefore never accepted by
+/// <see cref="L2GatewayPlugin.ConfigureGlobalRootPublication"/>. Production uses
+/// <see cref="IProofBoundGlobalRootPublisher"/> and <see cref="ReconciledGlobalRootPublisher"/>.
 /// </remarks>
 public interface IGlobalRootPublisher
 {
@@ -48,9 +35,7 @@ public interface IGlobalRootPublisher
 }
 
 /// <summary>
-/// Default no-op publisher for devnets + tests. Records the last publish attempt so tests can
-/// assert the gateway plugin actually invoked it, but performs no L1 transaction. Production
-/// deploys replace this via <c>L2GatewayPlugin.UseGlobalRootPublisher</c>.
+/// Legacy no-op publisher for devnets and compatibility tests. It cannot enter production mode.
 /// </summary>
 public sealed class NoOpGlobalRootPublisher : IGlobalRootPublisher
 {

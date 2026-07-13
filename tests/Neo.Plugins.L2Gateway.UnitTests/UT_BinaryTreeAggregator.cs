@@ -66,6 +66,9 @@ public class UT_BinaryTreeAggregator
         Assert.IsNotNull(aggregated);
         Assert.AreEqual(1, aggregated!.Constituents.Count);
         Assert.AreEqual(H('1'), aggregated.GlobalMessageRoot);
+        Assert.AreEqual(
+            GatewayProofBindingSerializer.ComputeConstituentCommitmentsRoot(aggregated.Constituents),
+            aggregated.ConstituentCommitmentsRoot);
         // Single-leaf passes through proof unchanged.
         CollectionAssert.AreEqual(new byte[] { 0xAB }, aggregated.AggregatedProof.ToArray());
     }
@@ -176,12 +179,49 @@ public class UT_BinaryTreeAggregator
         agg.Submit(MkBatch(1002, new byte[] { 0x02 }, UInt256.Zero));
         var ex = Assert.ThrowsExactly<InvalidOperationException>(() => agg.Aggregate());
         StringAssert.Contains(ex.Message, "Combine");
+        Assert.AreEqual(2, agg.PendingCount, "failed aggregation must retain every constituent");
     }
 
     private sealed class NullReturningRoundProver : IRoundProver
     {
         public byte BackendId => 0xBB;
         public RoundResult Combine(RoundResult left, RoundResult? right) => null!;
+    }
+
+    [TestMethod]
+    public void Aggregate_TransientProverFailure_RetriesAllPendingInCanonicalOrder()
+    {
+        var prover = new FailOnceRoundProver();
+        var agg = new BinaryTreeAggregator(prover);
+        agg.Submit(MkBatch(2002, new byte[] { 0x02 }, H('b')));
+        agg.Submit(MkBatch(1001, new byte[] { 0x01 }, H('a')));
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => agg.Aggregate());
+        Assert.AreEqual(2, agg.PendingCount);
+
+        var result = agg.Aggregate()!;
+        Assert.AreEqual(0, agg.PendingCount);
+        Assert.AreEqual(1001U, result.Constituents[0].ChainId);
+        Assert.AreEqual(2002U, result.Constituents[1].ChainId);
+        Assert.AreEqual(
+            GatewayProofBindingSerializer.ComputeConstituentCommitmentsRoot(result.Constituents),
+            result.ConstituentCommitmentsRoot);
+    }
+
+    private sealed class FailOnceRoundProver : IRoundProver
+    {
+        private bool _failed;
+        public byte BackendId => 0xBC;
+
+        public RoundResult Combine(RoundResult left, RoundResult? right)
+        {
+            if (!_failed)
+            {
+                _failed = true;
+                throw new InvalidOperationException("injected transient failure");
+            }
+            return new PassThroughRoundProver().Combine(left, right);
+        }
     }
 
     [TestMethod]

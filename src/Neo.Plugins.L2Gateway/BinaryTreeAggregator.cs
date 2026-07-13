@@ -6,8 +6,8 @@ namespace Neo.Plugins.L2Gateway;
 /// <summary>
 /// Tiered <see cref="IGatewayAggregator"/> that performs log(N) rounds of pairwise combination
 /// over the pending batches. Each round calls the configured <see cref="IRoundProver"/> to fold
-/// two child commitments into one parent. The shape is the same whether the round prover is a
-/// pass-through hash (default) or a real recursive-ZK backend (production).
+/// two child commitments into one parent. The pass-through default is dev/test-only; production
+/// publication rejects reserved and pass-through backend identifiers.
 /// </summary>
 /// <remarks>
 /// See doc.md §4 (Neo Gateway).
@@ -20,10 +20,9 @@ namespace Neo.Plugins.L2Gateway;
 /// The <see cref="AggregatedCommitment.AggregatedProof"/> bytes carry whatever attestation the
 /// configured <see cref="IRoundProver"/> emits (e.g. committee signatures for
 /// <see cref="MultisigRoundProver"/>, Merkle-path data for <see cref="MerklePathRoundProver"/>).
-/// Producing those bytes does not by itself make the published global root trust-minimized: the
-/// current on-chain publish path authorizes on the settlement-manager witness and does not
-/// verify the aggregated proof. A consumer that wants the attestation to be load-bearing must
-/// verify it (via the round prover's verify primitive) before committing the root.
+/// The terminal <see cref="IGatewayProofProver"/> binds these bytes and all canonical constituents
+/// into <see cref="GatewayProofBinding"/>. NeoHub.MessageRouter verifies that proof before storing
+/// the global root; settlement-manager authorization cannot replace verification.
 /// </para>
 /// </remarks>
 public sealed class BinaryTreeAggregator : IGatewayAggregator
@@ -32,11 +31,15 @@ public sealed class BinaryTreeAggregator : IGatewayAggregator
     private readonly List<L2BatchCommitment> _pending = new();
     private readonly IRoundProver _roundProver;
     private IL2Metrics _metrics;
+    private bool _aggregationInProgress;
 
     /// <summary>The active round prover.</summary>
     public IRoundProver RoundProver => _roundProver;
 
-    /// <summary>Construct with a round prover (default = pass-through).</summary>
+    /// <inheritdoc />
+    public byte BackendId => _roundProver.BackendId;
+
+    /// <summary>Construct with a round prover (default = dev/test-only pass-through).</summary>
     public BinaryTreeAggregator(IRoundProver? roundProver = null, IL2Metrics? metrics = null)
     {
         _roundProver = roundProver ?? new PassThroughRoundProver();
@@ -70,58 +73,78 @@ public sealed class BinaryTreeAggregator : IGatewayAggregator
         lock (_gate)
         {
             if (_pending.Count == 0) return null;
+            if (_aggregationInProgress)
+                throw new InvalidOperationException("an aggregation is already in progress");
             snapshot = _pending.ToArray();
-            _pending.Clear();
+            _aggregationInProgress = true;
         }
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
-
-        // Seed the leaves: each batch contributes its L2->L2 message root + its own proof bytes.
-        var current = new RoundResult[snapshot.Length];
-        for (var i = 0; i < snapshot.Length; i++)
+        try
         {
-            current[i] = new RoundResult
-            {
-                MessageRootContribution = snapshot[i].L2ToL2MessageRoot,
-                ProofBytes = snapshot[i].Proof,
-            };
-        }
+            var ordered = snapshot
+                .OrderBy(static commitment => commitment.ChainId)
+                .ThenBy(static commitment => commitment.BatchNumber)
+                .ToArray();
+            GatewayProofBindingSerializer.ValidateCanonicalConstituentOrder(ordered);
 
-        // Pairwise reduce — log(N) rounds. Odd cardinality promotes the trailing leaf unchanged
-        // (matches Neo's Merkle convention but without leaf duplication so the proof bytes don't
-        // grow on odd levels).
-        var rounds = 0;
-        while (current.Length > 1)
-        {
-            var next = new RoundResult[(current.Length + 1) / 2];
-            for (var i = 0; i < next.Length; i++)
+            // Seed the leaves: each batch contributes its L2->L2 message root + its own proof bytes.
+            var current = new RoundResult[ordered.Length];
+            for (var i = 0; i < ordered.Length; i++)
             {
-                var left = current[i * 2];
-                var right = (i * 2 + 1 < current.Length) ? current[i * 2 + 1] : null;
-                next[i] = _roundProver.Combine(left, right)
-                    ?? throw new InvalidOperationException(
-                        $"IRoundProver.Combine returned null at round {rounds}, slot {i}");
+                current[i] = new RoundResult
+                {
+                    MessageRootContribution = ordered[i].L2ToL2MessageRoot,
+                    ProofBytes = ordered[i].Proof,
+                };
             }
-            current = next;
-            rounds++;
+
+            // Pairwise reduce — log(N) rounds. Odd cardinality promotes the trailing leaf unchanged.
+            var rounds = 0;
+            while (current.Length > 1)
+            {
+                var next = new RoundResult[(current.Length + 1) / 2];
+                for (var i = 0; i < next.Length; i++)
+                {
+                    var left = current[i * 2];
+                    var right = (i * 2 + 1 < current.Length) ? current[i * 2 + 1] : null;
+                    next[i] = _roundProver.Combine(left, right)
+                        ?? throw new InvalidOperationException(
+                            $"IRoundProver.Combine returned null at round {rounds}, slot {i}");
+                }
+                current = next;
+                rounds++;
+            }
+
+            var root = current[0];
+            var result = new AggregatedCommitment
+            {
+                Constituents = ordered,
+                GlobalMessageRoot = root.MessageRootContribution,
+                ConstituentCommitmentsRoot =
+                    GatewayProofBindingSerializer.ComputeConstituentCommitmentsRoot(ordered),
+                AggregatedProof = root.ProofBytes,
+                BackendId = _roundProver.BackendId,
+            };
+
+            lock (_gate)
+            {
+                _pending.RemoveRange(0, snapshot.Length);
+                _aggregationInProgress = false;
+            }
+
+            sw.Stop();
+            _metrics.SafeIncrementCounter(MetricNames.GatewayAggregations);
+            _metrics.SafeIncrementCounter(MetricNames.GatewayBatchesAggregated, ordered.Length);
+            _metrics.SafeRecordHistogram(MetricNames.GatewayAggregationRounds, rounds);
+            _metrics.SafeRecordHistogram(MetricNames.GatewayAggregationLatencyMs, sw.Elapsed.TotalMilliseconds);
+            return result;
         }
-
-        sw.Stop();
-        // Safe* wrappers: the aggregation result is computed and must be returned even
-        // if the metrics sink throws.
-        _metrics.SafeIncrementCounter(MetricNames.GatewayAggregations);
-        _metrics.SafeIncrementCounter(MetricNames.GatewayBatchesAggregated, snapshot.Length);
-        _metrics.SafeRecordHistogram(MetricNames.GatewayAggregationRounds, rounds);
-        _metrics.SafeRecordHistogram(MetricNames.GatewayAggregationLatencyMs, sw.Elapsed.TotalMilliseconds);
-
-        var root = current[0];
-        return new AggregatedCommitment
+        catch
         {
-            Constituents = snapshot,
-            GlobalMessageRoot = root.MessageRootContribution,
-            AggregatedProof = root.ProofBytes,
-            BackendId = _roundProver.BackendId,
-        };
+            lock (_gate) _aggregationInProgress = false;
+            throw;
+        }
     }
 
     /// <summary>Compute the depth (number of rounds) for <paramref name="leafCount"/> leaves. 0 ≤ depth ≤ 31.</summary>

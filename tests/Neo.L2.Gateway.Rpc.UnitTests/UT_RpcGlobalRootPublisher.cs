@@ -28,6 +28,7 @@ public class UT_RpcGlobalRootPublisher
     {
         Constituents = Array.Empty<L2BatchCommitment>(),
         GlobalMessageRoot = root,
+        ConstituentCommitmentsRoot = UInt256.Zero,
         AggregatedProof = proof,
         BackendId = 1,
     };

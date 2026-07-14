@@ -408,13 +408,8 @@ public class ExternalBridgeEscrowContract : SmartContract
         ExecutionEngine.Assert(ReadUInt160(route, RouteOffsetPayoutAdapter) == UInt160.Zero,
             "liquidity funding is only valid for direct-release routes");
 
+        TransferIntoCustody(asset, owner, amount, "asset transfer failed (fund liquidity)");
         CreditLockedBalance(externalChainId, asset, amount);
-        var pendingKey = PendingTransferKey(asset, owner);
-        Storage.Put(pendingKey, amount);
-        var ok = (bool)Contract.Call(asset, "transfer", CallFlags.All,
-            new object[] { owner, Runtime.ExecutingScriptHash, amount, null! });
-        ExecutionEngine.Assert(ok, "asset transfer failed (fund liquidity)");
-        Storage.Delete(pendingKey);
     }
 
     /// <summary>
@@ -441,14 +436,8 @@ public class ExternalBridgeEscrowContract : SmartContract
         ExecutionEngine.Assert(asset.IsValid && !asset.IsZero, "invalid asset");
         ExecutionEngine.Assert(amount > 0, "amount must be positive");
 
-        // Update locked-balance accounting and allocate nonce BEFORE calling
-        // the external NEP-17 transfer. If the transfer subsequently fails,
-        // NeoVM FAULT reverts the storage writes, so there is no stale state.
-        // This CEI ordering prevents a re-entrant token from re-using the same
-        // nonce and double-locking the same deposit.
-        CreditLockedBalance(externalChainId, asset, amount);
-
-        // Allocate the next outbound nonce.
+        // Allocate the nonce before the untrusted NEP-17 call so re-entrant sends
+        // cannot reuse it. A later FAULT reverts this write atomically.
         var nonceKey = OutboundNonceKey(externalChainId, neoChainId);
         var nonceRaw = Storage.Get(nonceKey);
         ulong next;
@@ -469,14 +458,9 @@ public class ExternalBridgeEscrowContract : SmartContract
         nextBytes[6] = (byte)(next >> 48); nextBytes[7] = (byte)(next >> 56);
         Storage.Put(nonceKey, nextBytes);
 
-        // Lock the asset by transferring it to this contract.
         var sender = (UInt160)Runtime.CallingScriptHash;
-        var pendingKey = PendingTransferKey(asset, sender);
-        Storage.Put(pendingKey, amount);
-        var ok = (bool)Contract.Call(asset, "transfer", CallFlags.All,
-            new object[] { sender, Runtime.ExecutingScriptHash, amount, null! });
-        ExecutionEngine.Assert(ok, "asset transfer failed (lock)");
-        Storage.Delete(pendingKey);
+        TransferIntoCustody(asset, sender, amount, "asset transfer failed (lock)");
+        CreditLockedBalance(externalChainId, asset, amount);
 
         // Emit the canonical send event. The `calldata` blob is the payload —
         // off-chain watchers re-encode the full ExternalCrossChainMessage from
@@ -619,7 +603,7 @@ public class ExternalBridgeEscrowContract : SmartContract
         return Storage.Get(ConsumedInboundKey(externalChainId, neoChainId, nonce)) != null;
     }
 
-    /// <summary>NEP-17 hook. Accept only transfers initiated by <see cref="Send"/>.</summary>
+    /// <summary>NEP-17 hook. Accept only transfers initiated by <see cref="Send"/> or <see cref="FundLiquidity"/>.</summary>
     public static void OnNEP17Payment(UInt160 from, BigInteger amount, object data)
     {
         ExecutionEngine.Assert(amount > 0, "amount must be positive");
@@ -627,7 +611,7 @@ public class ExternalBridgeEscrowContract : SmartContract
         var pendingKey = PendingTransferKey(asset, from);
         var expected = Storage.Get(pendingKey);
         ExecutionEngine.Assert(expected != null,
-            "direct transfer rejected — call Send to lock assets for cross-chain transfer");
+            "direct transfer rejected — use an escrow transfer entrypoint");
         ExecutionEngine.Assert((BigInteger)expected! == amount,
             "NEP-17 callback amount does not match pending transfer");
         Storage.Delete(pendingKey);
@@ -736,6 +720,9 @@ public class ExternalBridgeEscrowContract : SmartContract
         var route = AssertRouteBytes((byte[])routeRaw!);
         ExecutionEngine.Assert(route[RouteOffsetActive] == 1, "asset route inactive");
         var neoAsset = ReadUInt160(route, RouteOffsetNeoAsset);
+        var reverseRaw = Storage.Get(ReverseAssetRouteKey(externalChainId, neoAsset));
+        ExecutionEngine.Assert(reverseRaw != null && (UInt160)reverseRaw == foreignAsset,
+            "asset route reverse mapping inconsistent — migrate route through governance");
         var adapter = ReadUInt160(route, RouteOffsetPayoutAdapter);
 
         if (adapter == UInt160.Zero)
@@ -778,6 +765,30 @@ public class ExternalBridgeEscrowContract : SmartContract
         var previous = Storage.Get(balanceKey);
         var previousAmount = previous == null ? BigInteger.Zero : (BigInteger)previous;
         Storage.Put(balanceKey, previousAmount + amount);
+    }
+
+    private static void TransferIntoCustody(
+        UInt160 asset,
+        UInt160 from,
+        BigInteger amount,
+        string transferFailureMessage)
+    {
+        var escrow = Runtime.ExecutingScriptHash;
+        var balanceBefore = (BigInteger)Contract.Call(asset, "balanceOf", CallFlags.ReadOnly,
+            new object[] { escrow });
+        var pendingKey = PendingTransferKey(asset, from);
+        ExecutionEngine.Assert(Storage.Get(pendingKey) == null,
+            "asset transfer already pending");
+        Storage.Put(pendingKey, amount);
+        var transferred = (bool)Contract.Call(asset, "transfer", CallFlags.All,
+            new object[] { from, escrow, amount, null! });
+        ExecutionEngine.Assert(transferred, transferFailureMessage);
+        ExecutionEngine.Assert(Storage.Get(pendingKey) == null,
+            "NEP-17 callback not received");
+        var balanceAfter = (BigInteger)Contract.Call(asset, "balanceOf", CallFlags.ReadOnly,
+            new object[] { escrow });
+        ExecutionEngine.Assert(balanceAfter == balanceBefore + amount,
+            "asset custody balance increase does not match amount");
     }
 
     private static void AssertDirectGovernance()
@@ -890,7 +901,7 @@ public class ExternalBridgeEscrowContract : SmartContract
             WriteUInt16(updateCounterBytes, 0, adapterUpdateCounter);
             Storage.Put(updateCounterKey, updateCounterBytes);
         }
-        if (reverseRaw == null || (UInt160)reverseRaw == foreignAsset)
+        if (active && reverseRaw == null)
             Storage.Put(reverseKey, foreignAsset);
         OnAssetRouteConfigured(externalChainId, foreignAsset, neoAsset, payoutAdapter, active);
     }

@@ -49,6 +49,16 @@ public abstract class Mock_ExternalBridgeEscrow_Registry(SmartContractInitialize
     public abstract bool? VerifyInbound(BigInteger? externalChainId, byte[]? messageBytes, byte[]? proofBytes);
 }
 
+/// <summary>Stateful NEP-17 surface used to verify callback and custody-balance invariants.</summary>
+public abstract class MockExternalBridgeEscrowNep17(SmartContractInitialize initialize) : SmartContract(initialize)
+{
+    [DisplayName("balanceOf")]
+    public abstract BigInteger? BalanceOf(UInt160? account);
+
+    [DisplayName("transfer")]
+    public abstract bool? Transfer(UInt160? from, UInt160? to, BigInteger? amount, object? data);
+}
+
 /// <summary>
 /// VM-level tests for NeoHub.ExternalBridgeEscrow — the L1-side escrow + dispatch for cross-foreign-
 /// chain messages. With the NEP-17 asset and the ExternalBridgeRegistry verifier replaced by mocks,
@@ -58,14 +68,14 @@ public abstract class Mock_ExternalBridgeEscrow_Registry(SmartContractInitialize
 ///     (zero for L1, non-zero for L2),
 ///   * SetOwner / SetRegistry are owner-witness-gated (positive AND negative), and reject zero args,
 ///   * Send validates the 0xE0_xx_xx_xx foreign-namespace prefix, recipient/asset/amount, allocates a
-///     per-chain monotonic nonce, accumulates the locked-balance ledger, and FAULT-reverts the
-///     pre-transfer accounting when the asset transfer fails (no phantom lock),
+///     per-chain monotonic nonce, and credits the locked-balance ledger only after a consumed callback
+///     and exact custody-balance increase,
 ///   * Receive validates namespace + message length + both signed chain domains + direction + deadline,
 ///     is replay-protected once-only per (externalChainId, neoChainId, nonce), is gated on the registry
 ///     verifier accepting, and only then marks the nonce consumed,
-///   * the NEP-17 hook rejects unsolicited direct transfers (only Send-initiated transfers are accepted).
+///   * the NEP-17 hook rejects unsolicited direct transfers.
 ///
-/// The NEP-17 asset is mocked with the shared <see cref="MockNep17"/> (defined in UT_SharedBridge_Vm.cs).
+/// The NEP-17 asset uses a stateful mock that can vary callback and custody-balance behavior.
 /// </summary>
 [TestClass]
 public class UT_ExternalBridgeEscrow_Vm
@@ -152,23 +162,77 @@ public class UT_ExternalBridgeEscrow_Vm
         return key;
     }
 
-    /// <summary>Register the shared MockNep17 transfer at <see cref="AssetHash"/> returning the given
-    /// result (used by Send's lock transfer).</summary>
-    private static void WireAsset(
+    /// <summary>Register a stateful NEP-17 mock returning the configured transfer behavior.</summary>
+    private static Action<NeoHubExternalBridgeEscrow> WireAsset(
         TestEngine engine,
         UInt160 hash,
         bool transferOk,
         Action<UInt160?, UInt160?, BigInteger?>? onTransfer = null,
-        Func<bool>? transferResult = null)
+        Func<bool>? transferResult = null,
+        bool invokeCallback = true,
+        Func<BigInteger, BigInteger>? callbackAmount = null,
+        Func<BigInteger, BigInteger>? custodyDelta = null)
     {
-        engine.FromHash<MockNep17>(hash, m =>
+        NeoHubExternalBridgeEscrow? escrow = null;
+        var escrowBalance = BigInteger.Zero;
+        engine.FromHash<MockExternalBridgeEscrowNep17>(hash, m =>
+        {
+            m.Setup(c => c.BalanceOf(It.IsAny<UInt160?>()))
+                .Returns((UInt160? account) => account == escrow?.Hash
+                    ? escrowBalance
+                    : BigInteger.Zero);
             m.Setup(c => c.Transfer(It.IsAny<UInt160?>(), It.IsAny<UInt160?>(), It.IsAny<BigInteger?>(), It.IsAny<object?>()))
                 .Returns((UInt160? from, UInt160? to, BigInteger? amount, object? _) =>
                 {
                     onTransfer?.Invoke(from, to, amount);
-                    return transferResult?.Invoke() ?? transferOk;
-                }),
-            checkExistence: false);
+                    if (!(transferResult?.Invoke() ?? transferOk))
+                        return false;
+
+                    var boundEscrow = escrow
+                        ?? throw new InvalidOperationException("escrow asset mock is not bound");
+                    var transferAmount = amount ?? BigInteger.Zero;
+                    if (to == boundEscrow.Hash)
+                    {
+                        var balanceBefore = escrowBalance;
+                        escrowBalance += custodyDelta?.Invoke(transferAmount) ?? transferAmount;
+                        try
+                        {
+                            if (invokeCallback)
+                            {
+                                var previousCallingScriptHash = engine.OnGetCallingScriptHash;
+                                engine.OnGetCallingScriptHash = (executing, calling) =>
+                                    executing == boundEscrow.Hash
+                                        ? hash
+                                        : previousCallingScriptHash?.Invoke(executing, calling) ?? calling;
+                                try
+                                {
+                                    boundEscrow.OnNEP17Payment(
+                                        from,
+                                        callbackAmount?.Invoke(transferAmount) ?? transferAmount,
+                                        null);
+                                }
+                                finally
+                                {
+                                    engine.OnGetCallingScriptHash = previousCallingScriptHash;
+                                }
+                            }
+                        }
+                        catch
+                        {
+                            escrowBalance = balanceBefore;
+                            throw;
+                        }
+                    }
+                    else if (from == boundEscrow.Hash)
+                    {
+                        escrowBalance -= transferAmount;
+                    }
+
+                    return true;
+                });
+        }, checkExistence: false);
+
+        return deployedEscrow => escrow = deployedEscrow;
     }
 
     private static void WirePayoutAdapter(
@@ -405,8 +469,9 @@ public class UT_ExternalBridgeEscrow_Vm
     public void Send_AllocatesPerChainMonotonicNonce_AndAccumulatesLockedBalance()
     {
         var engine = new TestEngine(true);
-        WireAsset(engine, AssetHash, transferOk: true);
+        var bindAsset = WireAsset(engine, AssetHash, transferOk: true);
         var c = Deploy(engine);
+        bindAsset(c);
 
         Assert.AreEqual((BigInteger)0, c.GetLastOutboundNonce(ChainA), "no nonce assigned yet");
         Assert.AreEqual((BigInteger)0, c.GetLockedBalance(ChainA, AssetHash), "no balance locked yet");
@@ -435,8 +500,9 @@ public class UT_ExternalBridgeEscrow_Vm
     public void Send_RejectsNonForeignNamespaceChainId()
     {
         var engine = new TestEngine(true);
-        WireAsset(engine, AssetHash, transferOk: true);
+        var bindAsset = WireAsset(engine, AssetHash, transferOk: true);
         var c = Deploy(engine);
+        bindAsset(c);
 
         Assert.ThrowsExactly<TestException>(() => c.Send(BadChain, Recipient, AssetHash, 100, new byte[] { 0x01 }, 0),
             "a chain id without the 0xE0 foreign-namespace prefix must be rejected");
@@ -446,8 +512,9 @@ public class UT_ExternalBridgeEscrow_Vm
     public void Send_RejectsZeroRecipientAssetAndNonPositiveAmount()
     {
         var engine = new TestEngine(true);
-        WireAsset(engine, AssetHash, transferOk: true);
+        var bindAsset = WireAsset(engine, AssetHash, transferOk: true);
         var c = Deploy(engine);
+        bindAsset(c);
 
         Assert.ThrowsExactly<TestException>(() => c.Send(ChainA, UInt160.Zero, AssetHash, 100, new byte[] { 0x01 }, 0),
             "a zero recipient must be rejected");
@@ -466,19 +533,78 @@ public class UT_ExternalBridgeEscrow_Vm
     [TestMethod]
     public void Send_FailedAssetTransfer_FaultsAndRevertsAccounting()
     {
-        // The asset transfer returns false (e.g. paused/frozen). Send increments the locked-balance
-        // ledger and allocates the nonce BEFORE the lock transfer, so a false return MUST FAULT and
-        // the NeoVM must revert both writes — otherwise a phantom lock / consumed nonce would persist.
+        // The asset transfer returns false (e.g. paused/frozen). The nonce allocation precedes the
+        // external call, so a false return must FAULT and roll it back without accounting a lock.
         var engine = new TestEngine(true);
-        WireAsset(engine, AssetHash, transferOk: false);
+        var bindAsset = WireAsset(engine, AssetHash, transferOk: false);
         var c = Deploy(engine);
+        bindAsset(c);
 
         Assert.ThrowsExactly<TestException>(() => c.Send(ChainA, Recipient, AssetHash, 1000, new byte[] { 0x01 }, 0),
             "a failed lock transfer must FAULT the send");
         Assert.AreEqual((BigInteger)0, c.GetLockedBalance(ChainA, AssetHash),
-            "FAULT must revert the pre-transfer locked-balance credit — no phantom lock");
+            "FAULT must not create locked-balance credit — no phantom lock");
         Assert.AreEqual((BigInteger)0, c.GetLastOutboundNonce(ChainA),
             "FAULT must revert the pre-transfer nonce allocation");
+    }
+
+    [TestMethod]
+    public void Send_TrueWithoutCallback_DoesNotAccountOrEmit()
+    {
+        var engine = new TestEngine(true);
+        var bindAsset = WireAsset(engine, AssetHash, transferOk: true, invokeCallback: false);
+        var c = Deploy(engine);
+        bindAsset(c);
+        var sendEvents = 0;
+        c.OnCrossChainSendInitiated += (_, _, _, _, _, _, _) => sendEvents++;
+
+        Assert.ThrowsExactly<TestException>(
+            () => c.Send(ChainA, Recipient, AssetHash, 100, new byte[] { 0x01 }, 0),
+            "transfer=true without a conforming NEP-17 callback must fail closed");
+
+        Assert.AreEqual(BigInteger.Zero, c.GetLockedBalance(ChainA, AssetHash));
+        Assert.AreEqual(BigInteger.Zero, c.GetLastOutboundNonce(ChainA));
+        Assert.AreEqual(0, sendEvents, "failed custody verification must precede the send event");
+    }
+
+    [TestMethod]
+    public void Send_WrongCallbackAmount_DoesNotAccountOrEmit()
+    {
+        var engine = new TestEngine(true);
+        var bindAsset = WireAsset(engine, AssetHash, transferOk: true,
+            callbackAmount: amount => amount - 1);
+        var c = Deploy(engine);
+        bindAsset(c);
+        var sendEvents = 0;
+        c.OnCrossChainSendInitiated += (_, _, _, _, _, _, _) => sendEvents++;
+
+        Assert.ThrowsExactly<TestException>(
+            () => c.Send(ChainA, Recipient, AssetHash, 100, new byte[] { 0x01 }, 0),
+            "the consumed callback must match the pending transfer amount exactly");
+
+        Assert.AreEqual(BigInteger.Zero, c.GetLockedBalance(ChainA, AssetHash));
+        Assert.AreEqual(BigInteger.Zero, c.GetLastOutboundNonce(ChainA));
+        Assert.AreEqual(0, sendEvents);
+    }
+
+    [TestMethod]
+    public void Send_CustodyDeltaMismatch_DoesNotAccountOrEmit()
+    {
+        var engine = new TestEngine(true);
+        var bindAsset = WireAsset(engine, AssetHash, transferOk: true,
+            custodyDelta: amount => amount - 1);
+        var c = Deploy(engine);
+        bindAsset(c);
+        var sendEvents = 0;
+        c.OnCrossChainSendInitiated += (_, _, _, _, _, _, _) => sendEvents++;
+
+        Assert.ThrowsExactly<TestException>(
+            () => c.Send(ChainA, Recipient, AssetHash, 100, new byte[] { 0x01 }, 0),
+            "fee-on-transfer or dishonest balance reporting must not create nominal escrow credit");
+
+        Assert.AreEqual(BigInteger.Zero, c.GetLockedBalance(ChainA, AssetHash));
+        Assert.AreEqual(BigInteger.Zero, c.GetLastOutboundNonce(ChainA));
+        Assert.AreEqual(0, sendEvents);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -763,8 +889,9 @@ public class UT_ExternalBridgeEscrow_Vm
     {
         var engine = new TestEngine(true);
         WirePayoutAdapter(engine, AdapterAccept, accept: true);
-        WireAsset(engine, AssetHash, transferOk: true);
+        var bindAsset = WireAsset(engine, AssetHash, transferOk: true);
         var c = Deploy(engine, neoChainId: NeoChainA);
+        bindAsset(c);
 
         Assert.ThrowsExactly<TestException>(
             () => c.SetAssetRoute(ChainA, ForeignAsset, AssetHash, UInt160.Zero),
@@ -782,9 +909,10 @@ public class UT_ExternalBridgeEscrow_Vm
     public void FundLiquidity_RequiresActiveDirectRouteAndMatchingAsset()
     {
         var engine = new TestEngine(true);
-        WireAsset(engine, AssetHash, transferOk: true);
+        var bindAsset = WireAsset(engine, AssetHash, transferOk: true);
         WirePayoutAdapter(engine, AdapterAccept, accept: true);
         var c = Deploy(engine, neoChainId: 0);
+        bindAsset(c);
 
         Assert.ThrowsExactly<TestException>(
             () => c.FundLiquidity(ChainA, AssetHash, 1),
@@ -811,6 +939,56 @@ public class UT_ExternalBridgeEscrow_Vm
             "only the current owner may fund the direct-release pool");
         Assert.AreEqual(BigInteger.One, c.GetLockedBalance(ChainA, AssetHash),
             "an unauthorized funding attempt must not change accounting");
+    }
+
+    [TestMethod]
+    public void FundLiquidity_TrueWithoutCallback_DoesNotCredit()
+    {
+        var engine = new TestEngine(true);
+        var bindAsset = WireAsset(engine, AssetHash, transferOk: true, invokeCallback: false);
+        var c = Deploy(engine, neoChainId: 0);
+        bindAsset(c);
+        c.SetAssetRoute(ChainA, ForeignAsset, AssetHash, UInt160.Zero);
+
+        Assert.ThrowsExactly<TestException>(
+            () => c.FundLiquidity(ChainA, AssetHash, 100),
+            "liquidity funding must consume a conforming NEP-17 callback");
+
+        Assert.AreEqual(BigInteger.Zero, c.GetLockedBalance(ChainA, AssetHash));
+    }
+
+    [TestMethod]
+    public void FundLiquidity_WrongCallbackAmount_DoesNotCredit()
+    {
+        var engine = new TestEngine(true);
+        var bindAsset = WireAsset(engine, AssetHash, transferOk: true,
+            callbackAmount: amount => amount + 1);
+        var c = Deploy(engine, neoChainId: 0);
+        bindAsset(c);
+        c.SetAssetRoute(ChainA, ForeignAsset, AssetHash, UInt160.Zero);
+
+        Assert.ThrowsExactly<TestException>(
+            () => c.FundLiquidity(ChainA, AssetHash, 100),
+            "liquidity callback amount must equal the pending amount");
+
+        Assert.AreEqual(BigInteger.Zero, c.GetLockedBalance(ChainA, AssetHash));
+    }
+
+    [TestMethod]
+    public void FundLiquidity_CustodyDeltaMismatch_DoesNotCredit()
+    {
+        var engine = new TestEngine(true);
+        var bindAsset = WireAsset(engine, AssetHash, transferOk: true,
+            custodyDelta: amount => amount - 2);
+        var c = Deploy(engine, neoChainId: 0);
+        bindAsset(c);
+        c.SetAssetRoute(ChainA, ForeignAsset, AssetHash, UInt160.Zero);
+
+        Assert.ThrowsExactly<TestException>(
+            () => c.FundLiquidity(ChainA, AssetHash, 100),
+            "fee-on-transfer liquidity must not receive nominal accounting credit");
+
+        Assert.AreEqual(BigInteger.Zero, c.GetLockedBalance(ChainA, AssetHash));
     }
 
     [TestMethod]
@@ -918,9 +1096,10 @@ public class UT_ExternalBridgeEscrow_Vm
         var engine = new TestEngine(true);
         WireRegistry(engine, RegistryAccept, accept: true);
         var transfers = new List<(UInt160? From, UInt160? To, BigInteger? Amount)>();
-        WireAsset(engine, AssetHash, transferOk: true,
+        var bindAsset = WireAsset(engine, AssetHash, transferOk: true,
             (from, to, amount) => transfers.Add((from, to, amount)));
         var c = Deploy(engine, neoChainId: 0);
+        bindAsset(c);
         c.SetAssetRoute(ChainA, ForeignAsset, AssetHash, UInt160.Zero);
         c.FundLiquidity(ChainA, AssetHash, 1_000);
 
@@ -941,8 +1120,9 @@ public class UT_ExternalBridgeEscrow_Vm
     {
         var engine = new TestEngine(true);
         WireRegistry(engine, RegistryAccept, accept: true);
-        WireAsset(engine, AssetHash, transferOk: true);
+        var bindAsset = WireAsset(engine, AssetHash, transferOk: true);
         var c = Deploy(engine, neoChainId: 0);
+        bindAsset(c);
         c.SetAssetRoute(ChainA, ForeignAsset, AssetHash, UInt160.Zero);
         c.FundLiquidity(ChainA, AssetHash, 50);
 
@@ -963,9 +1143,10 @@ public class UT_ExternalBridgeEscrow_Vm
         var engine = new TestEngine(true);
         WireRegistry(engine, RegistryAccept, accept: true);
         var transferOk = true;
-        WireAsset(engine, AssetHash, transferOk: true,
+        var bindAsset = WireAsset(engine, AssetHash, transferOk: true,
             transferResult: () => transferOk);
         var c = Deploy(engine, neoChainId: 0);
+        bindAsset(c);
         c.SetAssetRoute(ChainA, ForeignAsset, AssetHash, UInt160.Zero);
         c.FundLiquidity(ChainA, AssetHash, 50);
         transferOk = false;
@@ -1152,6 +1333,64 @@ public class UT_ExternalBridgeEscrow_Vm
                 new byte[] { 0x01 }),
             "the migrated route must detect later in-place adapter updates");
         Assert.IsFalse(c.IsInboundConsumed(ChainA, 755)!.Value);
+    }
+
+    [TestMethod]
+    public void AssetRoute_CollidingLegacyRoutesRequireUniqueGovernanceMigrationBeforePayout()
+    {
+        var engine = new TestEngine(true);
+        WireRegistry(engine, RegistryAccept, accept: true);
+        WireGovernance(engine, approved: true, payloadMatches: true);
+        var payoutCalls = 0;
+        WirePayoutAdapter(engine, AdapterAccept, accept: true, () => payoutCalls++);
+        var c = Deploy(engine);
+        c.GovernanceController = GovernanceController;
+        c.LockGovernance();
+
+        var legacyRoute = new byte[41];
+        AssetHash.GetSpan().CopyTo(legacyRoute.AsSpan(0, 20));
+        AdapterAccept.GetSpan().CopyTo(legacyRoute.AsSpan(20, 20));
+        legacyRoute[40] = 1;
+        c.Storage.Put(AssetRouteStorageKey(ChainA, ForeignAsset), legacyRoute);
+        c.Storage.Put(AssetRouteStorageKey(ChainA, ForeignAsset2), legacyRoute);
+
+        Assert.ThrowsExactly<TestException>(
+            () => c.Receive(ChainA,
+                InboundAssetMessage(ChainA, 757, ForeignAsset, Recipient, 1,
+                    messageType: 2, calldata: new byte[] { 0x04 }),
+                new byte[] { 0x01 }),
+            "an active legacy forward route must not pay before reverse migration");
+        Assert.IsFalse(c.IsInboundConsumed(ChainA, 757)!.Value);
+        Assert.AreEqual(0, payoutCalls);
+
+        c.ConfigureAssetRouteViaProposal(
+            ChainA, ForeignAsset, AssetHash, AdapterAccept, true, 61);
+        Assert.AreEqual(ForeignAsset, c.GetRoutedForeignAsset(ChainA, AssetHash));
+        c.Receive(ChainA,
+            InboundAssetMessage(ChainA, 758, ForeignAsset, Recipient, 1,
+                messageType: 2, calldata: new byte[] { 0x05 }),
+            new byte[] { 0x01 });
+        Assert.AreEqual(1, payoutCalls);
+
+        Assert.ThrowsExactly<TestException>(
+            () => c.ConfigureAssetRouteViaProposal(
+                ChainA, ForeignAsset2, AssetHash, AdapterAccept, true, 62),
+            "the colliding legacy route cannot claim an already-migrated reverse slot");
+        Assert.ThrowsExactly<TestException>(
+            () => c.Receive(ChainA,
+                InboundAssetMessage(ChainA, 759, ForeignAsset2, Recipient, 1,
+                    messageType: 2, calldata: new byte[] { 0x06 }),
+                new byte[] { 0x01 }),
+            "forward/reverse disagreement must fail before the colliding payout adapter runs");
+        Assert.IsFalse(c.IsInboundConsumed(ChainA, 759)!.Value);
+        Assert.AreEqual(1, payoutCalls);
+
+        c.ConfigureAssetRouteViaProposal(
+            ChainA, ForeignAsset2, AssetHash, AdapterAccept, false, 62);
+        Assert.IsFalse(c.IsAssetRouteActive(ChainA, ForeignAsset2)!.Value,
+            "a collision must not block emergency disable or consume the failed proposal id");
+        Assert.AreEqual(ForeignAsset, c.GetRoutedForeignAsset(ChainA, AssetHash),
+            "disabling the colliding legacy route must not overwrite the winning reverse mapping");
     }
 
     [TestMethod]

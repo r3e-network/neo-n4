@@ -38,6 +38,53 @@ public class UT_BatchBuilder
     }
 
     [TestMethod]
+    public void Builder_ExposesEveryAccumulatedProtocolEffect()
+    {
+        var message = new CrossChainMessage
+        {
+            SourceChainId = 1001,
+            TargetChainId = 1,
+            Nonce = 7,
+            Sender = new UInt160(Enumerable.Repeat((byte)0x11, UInt160.Length).ToArray()),
+            Receiver = new UInt160(Enumerable.Repeat((byte)0x22, UInt160.Length).ToArray()),
+            MessageType = MessageType.Call,
+            Payload = new byte[] { 0x33 },
+            MessageHash = UInt256.Zero,
+        };
+        message = message with { MessageHash = Neo.L2.State.MessageHasher.HashMessage(message) };
+        var withdrawal = new WithdrawalRequest
+        {
+            EmittingContract = message.Sender,
+            L2Sender = message.Sender,
+            L1Recipient = message.Receiver,
+            L2Asset = new UInt160(Enumerable.Repeat((byte)0x44, UInt160.Length).ToArray()),
+            Amount = 5,
+            Nonce = 8,
+            ChainId = 1001,
+        };
+        var preStateRoot = UInt256.Parse("0x" + new string('9', 64));
+        var context = SampleContext();
+        var builder = new BatchBuilder(1001, 7, 100, preStateRoot)
+            .AddBlock(100)
+            .AddBlock(101)
+            .AddTransaction(new byte[] { 0xaa })
+            .ConsumeL1Message(message)
+            .AddWithdrawal(withdrawal)
+            .AddL2ToL1Message(message)
+            .AddL2ToL2Message(message)
+            .WithBlockContext(context);
+
+        Assert.AreEqual(7UL, builder.Batch.BatchNumber);
+        Assert.AreEqual(preStateRoot, builder.Batch.PreStateRoot);
+        Assert.AreEqual(context, builder.Batch.BlockContext);
+        CollectionAssert.AreEqual(new byte[] { 0xaa }, builder.Batch.Transactions.Single().ToArray());
+        Assert.AreEqual(message, builder.Batch.L1MessagesConsumed.Single());
+        Assert.AreEqual(withdrawal, builder.Batch.Withdrawals.Single());
+        Assert.AreEqual(message, builder.Batch.L2ToL1Messages.Single());
+        Assert.AreEqual(message, builder.Batch.L2ToL2Messages.Single());
+    }
+
+    [TestMethod]
     public void Builder_RejectsOutOfOrderBlocks()
     {
         var b = new BatchBuilder(1001, 1, 100, UInt256.Zero);

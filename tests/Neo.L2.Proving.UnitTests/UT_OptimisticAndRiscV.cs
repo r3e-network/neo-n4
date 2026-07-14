@@ -279,6 +279,53 @@ public class UT_OptimisticAndRiscV
     }
 
     [TestMethod]
+    public void OptimisticProofPayload_ValueSemanticsAndHashCodeBindEveryField()
+    {
+        var payload = new OptimisticProofPayload
+        {
+            BondContract = UInt160.Parse("0x" + new string('b', 40)),
+            BondTxHash = UInt256.Parse("0x" + new string('c', 64)),
+            SubmittedAt = 1_700_000_000,
+            Sequencer = SampleSequencer(),
+            SequencerSignature = new byte[] { 1, 2, 3 },
+        };
+        var equal = OptimisticProofPayload.Decode(payload.Encode());
+
+        Assert.AreEqual(payload, equal);
+        Assert.AreEqual(payload.GetHashCode(), equal.GetHashCode());
+        Assert.AreNotEqual(payload, null);
+        Assert.AreNotEqual(payload, payload with { BondContract = UInt160.Zero });
+        Assert.AreNotEqual(payload, payload with { BondTxHash = UInt256.Zero });
+        Assert.AreNotEqual(payload, payload with { SubmittedAt = payload.SubmittedAt + 1 });
+        Assert.AreNotEqual(payload, payload with { Sequencer = UInt160.Parse("0x" + new string('e', 40)) });
+        Assert.AreNotEqual(payload, payload with { SequencerSignature = new byte[] { 3, 2, 1 } });
+    }
+
+    [TestMethod]
+    public async Task OptimisticVerifier_RejectsMalformedAndWrongLengthProofs()
+    {
+        var privateKey = Enumerable.Range(1, 32).Select(value => (byte)value).ToArray();
+        var publicKey = ECCurve.Secp256r1.G * privateKey;
+        var verifier = new OptimisticVerifier(publicKey);
+
+        Assert.AreEqual(ProofType.Optimistic, verifier.Kind);
+        var malformed = await verifier.VerifyAsync(SamplePublicInputs(), new byte[] { 1 });
+        Assert.IsFalse(malformed.Valid);
+
+        var wrongLength = new OptimisticProofPayload
+        {
+            BondContract = UInt160.Zero,
+            BondTxHash = UInt256.Zero,
+            SubmittedAt = 0,
+            Sequencer = SequencerAccount(publicKey),
+            SequencerSignature = new byte[] { 1 },
+        };
+        var wrongLengthResult = await verifier.VerifyAsync(
+            SamplePublicInputs(), wrongLength.Encode());
+        Assert.IsFalse(wrongLengthResult.Valid);
+    }
+
+    [TestMethod]
     public void OptimisticProofPayload_Decode_RejectsOversizedSigLen()
     {
         var inner = new OptimisticProofPayload

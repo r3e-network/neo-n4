@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — external payout release-gate coverage — 2026-07-14
+
+- Added production-composition tests for the durable L1 payout scanner, authenticated L1/L2 RPC
+  clients, RocksDB-backed relay runtime ownership, finalized-history reorganization rejection,
+  canonical event parsing, domain/configuration mismatch rejection, and transaction confirmation.
+- Added ordered value-semantics regression coverage for payout instructions, proof-witness
+  artifacts, execution payloads, optimistic proof payloads, and every accumulated batch effect.
+- Restored the unchanged CI thresholds with 90.03% gate line coverage and 86.29% overall reported
+  line coverage; no coverage exclusion or threshold reduction was introduced.
+
 ### Added — fail-closed recursive Gateway SP1 proof — 2026-07-14
 
 - Added independent SP1 6.2.1 Gateway guest/host crates. The guest strictly validates the

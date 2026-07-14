@@ -3,21 +3,13 @@ using Neo.L2.Bridge.External;
 using Neo.L2.Messaging;
 using Neo.L2.Persistence;
 
+using static Neo.L2.ExternalBridge.UnitTests.PayoutTestData;
+
 namespace Neo.L2.ExternalBridge.UnitTests;
 
 [TestClass]
 public sealed class UT_PersistentL2PayoutOutbox
 {
-    private const uint ExternalChainId = 0xE0000038;
-    private const uint NeoChainId = 1099;
-    private static readonly UInt160 Adapter = H160(0x11);
-    private static readonly UInt160 ForeignSender = H160(0x22);
-    private static readonly ExternalAssetId ForeignAsset =
-        ExternalAssetId.Parse("11223344556677889900aabbccddeeff00112233");
-    private static readonly UInt160 NeoAsset = H160(0x44);
-    private static readonly UInt160 Recipient = H160(0x55);
-    private static readonly UInt256 SourceTransaction = H256(0x66);
-
     [TestMethod]
     public void Enqueue_ExactReplayIsIdempotentAndMappedAssetConflictFailsClosed()
     {
@@ -76,37 +68,52 @@ public sealed class UT_PersistentL2PayoutOutbox
             ExternalMessageHasher.DecodeCanonical(instruction.CanonicalMessageBytes.Span).MessageHash);
     }
 
-    private static L2PayoutInstruction Instruction(BigInteger? amount = null)
+    [TestMethod]
+    public void Instruction_ValueSemanticsAndHashCodeBindCanonicalBytes()
     {
-        var payload = new ExternalAssetTransferPayload
+        var instruction = Instruction();
+        var equal = Instruction();
+
+        Assert.AreEqual(instruction, equal);
+        Assert.AreEqual(instruction.GetHashCode(), equal.GetHashCode());
+        Assert.AreNotEqual(instruction, null);
+        Assert.AreNotEqual(instruction, instruction with { Sequence = 2 });
+        Assert.AreNotEqual(instruction, instruction with { Adapter = H160(0x81) });
+        Assert.AreNotEqual(instruction, instruction with { NeoAsset = H160(0x82) });
+        Assert.AreNotEqual(instruction, instruction with
         {
-            ForeignAsset = ForeignAsset,
-            Amount = amount ?? 25,
-        }.Encode();
-        var message = ExternalMessageBuilder.Build(
-            ExternalChainId,
-            NeoChainId,
-            nonce: 7,
-            ExternalBridgeDirection.ForeignToNeo,
-            ForeignSender,
-            Recipient,
-            deadlineUnixSeconds: 1_900_000_000,
-            SourceTransaction,
-            ExternalMessageType.AssetTransfer,
-            payload);
-        var canonical = ExternalMessageHasher.EncodeCanonical(message);
-        return L2PayoutInstruction.Decode(
-            sequence: 1,
-            Adapter,
-            NeoAsset,
-            message.MessageHash,
-            canonical,
-            NeoChainId);
+            Message = instruction.Message with { Nonce = instruction.Message.Nonce + 1 },
+        });
+        Assert.AreNotEqual(instruction, instruction with
+        {
+            ForeignAsset = ExternalAssetId.Parse("223344556677889900aabbccddeeff0011223344"),
+        });
+        Assert.AreNotEqual(instruction, instruction with { Amount = instruction.Amount + 1 });
+        Assert.AreNotEqual(instruction, instruction with { CanonicalMessageBytes = new byte[] { 1 } });
     }
 
-    private static UInt160 H160(byte value) =>
-        new(Enumerable.Repeat(value, UInt160.Length).ToArray());
+    [TestMethod]
+    public void Instruction_DecodeRejectsUnsafeEnvelopeFields()
+    {
+        var instruction = Instruction();
 
-    private static UInt256 H256(byte value) =>
-        new(Enumerable.Repeat(value, UInt256.Length).ToArray());
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => L2PayoutInstruction.Decode(
+            0, Adapter, NeoAsset, instruction.Message.MessageHash,
+            instruction.CanonicalMessageBytes, NeoChainId));
+        Assert.ThrowsExactly<ArgumentException>(() => L2PayoutInstruction.Decode(
+            1, UInt160.Zero, NeoAsset, instruction.Message.MessageHash,
+            instruction.CanonicalMessageBytes, NeoChainId));
+        Assert.ThrowsExactly<ArgumentException>(() => L2PayoutInstruction.Decode(
+            1, Adapter, UInt160.Zero, instruction.Message.MessageHash,
+            instruction.CanonicalMessageBytes, NeoChainId));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => L2PayoutInstruction.Decode(
+            1, Adapter, NeoAsset, instruction.Message.MessageHash,
+            instruction.CanonicalMessageBytes, 0));
+        Assert.ThrowsExactly<InvalidDataException>(() => L2PayoutInstruction.Decode(
+            1, Adapter, NeoAsset, H256(0x83), instruction.CanonicalMessageBytes, NeoChainId));
+        Assert.ThrowsExactly<InvalidDataException>(() => L2PayoutInstruction.Decode(
+            1, Adapter, NeoAsset, instruction.Message.MessageHash,
+            instruction.CanonicalMessageBytes, NeoChainId + 1));
+    }
+
 }

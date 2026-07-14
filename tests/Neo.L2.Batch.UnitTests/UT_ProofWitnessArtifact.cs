@@ -36,6 +36,57 @@ public class UT_ProofWitnessArtifact
     }
 
     [TestMethod]
+    public void ExecutionPayload_ValueSemanticsBindEveryOrderedField()
+    {
+        var forced = new ForcedInclusionConsumptionProof
+        {
+            Nonce = 77,
+            LeafIndex = 0,
+            TxHash = H(0x71),
+            Siblings = [H(0x72)],
+        };
+        var payload = SamplePayload() with { ForcedInclusions = [forced] };
+        var equal = payload with
+        {
+            L1Messages = payload.L1Messages.ToArray(),
+            ForcedInclusions = payload.ForcedInclusions.ToArray(),
+            Transactions = payload.Transactions.Select(static value =>
+                (ReadOnlyMemory<byte>)value.ToArray()).ToArray(),
+        };
+
+        Assert.AreEqual(payload, equal);
+        Assert.AreEqual(payload.GetHashCode(), equal.GetHashCode());
+        Assert.AreNotEqual(payload, null);
+        Assert.AreNotEqual(payload, payload with { ChainId = payload.ChainId + 1 });
+        Assert.AreNotEqual(payload, payload with { BatchNumber = payload.BatchNumber + 1 });
+        Assert.AreNotEqual(payload, payload with { FirstBlock = payload.FirstBlock + 1 });
+        Assert.AreNotEqual(payload, payload with { LastBlock = payload.LastBlock + 1 });
+        Assert.AreNotEqual(payload, payload with { PreStateRoot = H(0x73) });
+        Assert.AreNotEqual(payload, payload with
+        {
+            BlockContext = payload.BlockContext with
+            {
+                L1FinalizedHeight = payload.BlockContext.L1FinalizedHeight + 1,
+            },
+        });
+        Assert.AreNotEqual(payload, payload with { L1Messages = [] });
+        Assert.AreNotEqual(payload, payload with { ForcedInclusions = [] });
+        Assert.AreNotEqual(payload, payload with { Transactions = [] });
+        Assert.AreNotEqual(payload, payload with
+        {
+            L1Messages = [payload.L1Messages[0] with { Nonce = 99 }],
+        });
+        Assert.AreNotEqual(payload, payload with
+        {
+            ForcedInclusions = [forced with { Nonce = 78 }],
+        });
+        Assert.AreNotEqual(payload, payload with
+        {
+            Transactions = [new byte[] { 0xff }, payload.Transactions[1]],
+        });
+    }
+
+    [TestMethod]
     public void ExecutionPayload_DecodeRejectsUnknownMagicVersionFlagsAndTrailingBytes()
     {
         var canonical = ExecutionPayloadSerializer.Encode(SamplePayload());
@@ -173,6 +224,52 @@ public class UT_ProofWitnessArtifact
         Assert.AreEqual(
             "3e828a96f943f514ad9d29ef2e8e6f209c7bdcfa6e0b108576327cb1574d1553",
             Convert.ToHexString(artifact.ContentHash.GetSpan()).ToLowerInvariant());
+    }
+
+    [TestMethod]
+    public void Artifact_ValueSemanticsAndHashCodeBindEveryField()
+    {
+        var artifact = SampleArtifact();
+        var equal = ProofWitnessArtifactSerializer.Decode(
+            ProofWitnessArtifactSerializer.Encode(artifact));
+
+        Assert.AreEqual(artifact, equal);
+        Assert.AreEqual(artifact.GetHashCode(), equal.GetHashCode());
+        Assert.AreNotEqual(artifact, null);
+        Assert.AreNotEqual(artifact, artifact with { ProofSystem = WitnessProofSystem.Halo2 });
+        Assert.AreNotEqual(artifact, artifact with { ProofType = ProofType.Optimistic });
+        Assert.AreNotEqual(artifact, artifact with { VerificationKeyId = H(0x81) });
+        Assert.AreNotEqual(artifact, artifact with { ExecutionSemanticId = H(0x82) });
+        Assert.AreNotEqual(artifact, artifact with { ExecutionWitnessAuthenticated = false });
+        Assert.AreNotEqual(artifact, artifact with { ChainId = artifact.ChainId + 1 });
+        Assert.AreNotEqual(artifact, artifact with { BatchNumber = artifact.BatchNumber + 1 });
+        Assert.AreNotEqual(artifact, artifact with { FirstBlock = artifact.FirstBlock + 1 });
+        Assert.AreNotEqual(artifact, artifact with { LastBlock = artifact.LastBlock + 1 });
+        Assert.AreNotEqual(artifact, artifact with
+        {
+            ExecutionPayload = artifact.ExecutionPayload with
+            {
+                BatchNumber = artifact.ExecutionPayload.BatchNumber + 1,
+            },
+        });
+        Assert.AreNotEqual(artifact, artifact with { StateWitness = new byte[] { 0x83 } });
+        Assert.AreNotEqual(artifact, artifact with
+        {
+            ExecutionResult = artifact.ExecutionResult with
+            {
+                GasConsumed = artifact.ExecutionResult.GasConsumed + 1,
+            },
+        });
+        Assert.AreNotEqual(artifact, artifact with { Effects = new byte[] { 0x84 } });
+        Assert.AreNotEqual(artifact, artifact with
+        {
+            DAReceipt = artifact.DAReceipt with { Evidence = new byte[] { 0x85 } },
+        });
+        Assert.AreNotEqual(artifact, artifact with
+        {
+            PublicInputs = artifact.PublicInputs with { ReceiptRoot = H(0x86) },
+        });
+        Assert.AreNotEqual(artifact, artifact with { ContentHash = H(0x87) });
     }
 
     [TestMethod]

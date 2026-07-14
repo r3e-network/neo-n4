@@ -251,8 +251,8 @@ Optimistic 模式下，系统允许先接受状态，然后在挑战期内用 fr
 
 `ScaffoldPlan.Default()` 定义生产 NeoHub deploy plan。单元测试确保：
 
-- 25 个 `NeoHub.*` 项目存在；
-- 23 个生产合约进入 deploy plan；仅审计用结构验证器不进入；
+- 26 个 `NeoHub.*` 项目存在；
+- 24 个生产合约进入 deploy plan；仅审计用结构验证器与测试 stub 不进入；
 - test-only stub 不进入生产 plan；
 - DAValidator、L1TxFilter、ContractZkVerifier 都在计划中；
 - post-deploy wiring 提示不会遗漏关键接线。

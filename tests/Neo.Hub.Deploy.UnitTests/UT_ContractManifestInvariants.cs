@@ -49,6 +49,7 @@ public class UT_ContractManifestInvariants
             "NeoHub.GovernanceController",
             "NeoHub.GovernanceFraudVerifier",
             "NeoHub.L1TxFilter",
+            "NeoHub.L2PayoutAdapter",
             "NeoHub.MessageRouter",
             "NeoHub.MpcCommitteeFraudVerifier",
             "NeoHub.MpcCommitteeVerifier",
@@ -385,7 +386,7 @@ public class UT_ContractManifestInvariants
         Assert.IsTrue(HasMethod(methods, "isCensorshipReported"),
             "ForcedInclusion must make censorship reports at-most-once per queue entry");
         Assert.IsTrue(HasMethod(methods, "setSequencerBond"),
-            "ForcedInclusion must wire SequencerBond so censorship reports slash bonds");
+            "ForcedInclusion must wire SequencerBond for separately authorized censorship slashing");
         Assert.IsTrue(HasMethod(methods, "setChainRegistry"),
             "ForcedInclusion must wire ChainRegistry so censorship reports pause finalization");
         Assert.IsTrue(HasMethod(methods, "setCensorshipSlashAmount"),

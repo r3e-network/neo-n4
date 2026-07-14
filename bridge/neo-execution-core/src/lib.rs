@@ -10,7 +10,10 @@ mod transaction;
 mod types;
 mod wire;
 
-pub use batch::{compute_batch_with, verify_artifact_with, verify_decoded_artifact_with};
+pub use batch::{
+    compute_batch_transition_with, compute_batch_with, verify_artifact_with,
+    verify_decoded_artifact_with,
+};
 pub use hashing::{
     CONTRACT_BINDING_HASH_DOMAIN, CONTRACT_BINDING_KEY_PREFIX, EVENTS_HASH_DOMAIN,
     STACK_STATE_MAGIC, STORAGE_DELTA_HASH_DOMAIN, contract_binding_hash, contract_binding_key,
@@ -28,7 +31,9 @@ pub use native::{
 pub use transaction::parse_transaction;
 pub use types::*;
 pub use wire::{
-    MAX_PROOF_WITNESS_ARTIFACT_BYTES, encode_batch_effects, encode_execution_payload,
-    encode_proof_witness_artifact, encode_state_witness, parse_batch_effects,
-    parse_execution_payload, parse_proof_witness_artifact, parse_state_witness,
+    MAX_EXECUTION_PAYLOAD_BYTES, MAX_NATIVE_EXECUTION_OUTPUT_BYTES,
+    MAX_PROOF_WITNESS_ARTIFACT_BYTES, MAX_STATE_WITNESS_BYTES, encode_batch_effects,
+    encode_execution_payload, encode_native_execution_output, encode_proof_witness_artifact,
+    encode_state_witness, parse_batch_effects, parse_execution_payload,
+    parse_native_execution_output, parse_proof_witness_artifact, parse_state_witness,
 };

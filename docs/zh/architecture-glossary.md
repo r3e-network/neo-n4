@@ -41,7 +41,7 @@
 | **MerkleProofSerializer**     | Merkle 证明的规范编码器(用于提款 + 跨 L2 消息)。                                                |
 | **MessageHasher**             | `CrossChainMessage`(跨 L2)的规范编码器。两端都重算哈希。                                        |
 | **min_confirmations**         | watcher config 字段:不从距外链头不足 N 确认的浅块发出事件。                                       |
-| **NeoHub**                    | 锚定整个网络的 25 项目 L1 套件(23 个生产合约 + 1 个仅审计用结构验证器 + 1 个测试 stub)。见下文 §2。                         |
+| **NeoHub**                    | 锚定整个网络的 26 项目 L1 套件（24 个生产合约 + 1 个仅审计用结构验证器 + 1 个测试 stub）。见下文 §2。 |
 | **nonce(deposit/message)**   | 按 (源链、方向) 单调递增的计数器。带重放保护。                                                    |
 | **operatorManager**           | UInt160。管理一条已注册 L2 的多签(set-verifier、pause 等)。在链 config 里。                      |
 | **postStateRoot**             | UInt256。批次最后一笔 tx 之后的状态根。携带于 `BatchCommitment`。                                  |
@@ -60,7 +60,7 @@
 
 ---
 
-## 2. NeoHub L1 合约(25)
+## 2. NeoHub L1 合约（26）
 
 位于 `contracts/NeoHub.*`。每个都是已编译的 .nef + .manifest.json。
 
@@ -85,7 +85,7 @@
 
 - **`SequencerRegistry`** — 列出每条链已注册的排序器。带保证金。
 - **`SequencerBond`** — 排序器可罚没保证金。被 `OptimisticChallenge` 在欺诈被接受时罚没。
-- **`ForcedInclusion`** — 抗审查:用户在 L1 post tx;L2 必须在 deadline 前纳入,否则排序器被罚。
+- **`ForcedInclusion`** —— 抗审查：用户在 L1 提交交易；逾期条目可暂停 L2，治理仅在已最终化 dBFT 证据完成归责后罚没。
 - **`OptimisticChallenge`** — 二分博弈驱动的欺诈证明窗口。结算等 `challengeWindow` 后才最终化。
 - **`EmergencyManager`** — 个别链的运维多签暂停(例如调试关键问题时)。
 

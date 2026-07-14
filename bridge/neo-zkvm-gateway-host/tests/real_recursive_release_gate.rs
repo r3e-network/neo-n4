@@ -21,6 +21,10 @@ fn proves_and_host_verifies_real_recursive_gateway_groth16() {
     );
     let batch_fixture = hex::decode(BATCH_FIXTURE.split_whitespace().collect::<String>()).unwrap();
     let artifact = neo_execution_core::parse_proof_witness_artifact(&batch_fixture).unwrap();
+    let gateway_vk = gateway_verification_key();
+    let preflight_request = request(&artifact, &[1], &gateway_vk);
+    parse_request_with_gateway_vk(&preflight_request, Some(&gateway_vk))
+        .expect("Gateway request must pass before generating expensive proofs");
     let terminal = neo_zkvm_host::prove(&batch_fixture).expect("real terminal batch proof");
     let child = neo_zkvm_host::prove_compressed(&batch_fixture)
         .expect("real compressed recursive child proof");
@@ -43,7 +47,6 @@ fn proves_and_host_verifies_real_recursive_gateway_groth16() {
     .unwrap();
     std::fs::write(&sidecar, sidecar_bytes).expect("save canonical recursive child sidecar");
 
-    let gateway_vk = gateway_verification_key();
     let request_bytes = request(&artifact, &terminal.proof_bytes, &gateway_vk);
     let parsed = parse_request_with_gateway_vk(&request_bytes, Some(&gateway_vk)).unwrap();
     let result = prove_request(&parsed, &request_bytes, child_directory.path())
@@ -62,7 +65,7 @@ fn request(
 ) -> Vec<u8> {
     let commitment = commitment(artifact, proof);
     let constituent_root = hash256(&commitment);
-    let message_root = [0x77; 32];
+    let message_root = artifact.public_inputs.l2_to_l2_message_root;
     let mut binding = [0u8; BINDING_BYTES];
     binding[..8].copy_from_slice(BINDING_MAGIC);
     binding[8..28].fill(0x11);

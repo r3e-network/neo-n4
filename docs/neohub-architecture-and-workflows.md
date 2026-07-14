@@ -24,9 +24,9 @@ implemented as a contract or plugin:
 
 Current status:
 
-- 24 `contracts/NeoHub.*` projects exist in `neo-n4`.
-- 23 are production NeoHub contracts; `ExternalBridgeStubVerifier` is test-only.
-- 23 are deployed by the production NeoHub deploy plan.
+- 26 `contracts/NeoHub.*` projects exist in `neo-n4`.
+- 24 are production NeoHub contracts; `GovernanceFraudVerifier` is advisory-only and `ExternalBridgeStubVerifier` is test-only.
+- The production NeoHub deploy plan deploys exactly those 24 production contracts.
 - `ContractZkVerifier` is a deployable NeoHub contract. It validates the
   N4 proof envelope and dispatches proof-system math to a governance-registered
   deployable verifier contract, keeping L1 core changes optional rather than

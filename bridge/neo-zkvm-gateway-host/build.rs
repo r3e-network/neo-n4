@@ -9,7 +9,12 @@ use std::{
     process::Command,
 };
 
+#[path = "../sp1_build_support.rs"]
+mod sp1_build_support;
+
 mod pinned {
+    include!("../neo-zkvm-gateway-guest/batch_vk_manifest.rs");
+    include!("../neo-zkvm-guest/vk_manifest.rs");
     include!("../neo-zkvm-gateway-guest/vk_manifest.rs");
 }
 
@@ -29,16 +34,20 @@ fn main() {
         "../neo-zkvm-gateway-guest/src",
         "../neo-zkvm-gateway-guest/Cargo.toml",
         "../neo-zkvm-gateway-guest/build.rs",
+        "../neo-zkvm-gateway-guest/batch_vk_manifest.rs",
         "../neo-zkvm-gateway-guest/vk_manifest.rs",
+        "../neo-zkvm-guest/vk_manifest.rs",
         "../neo-zkvm-guest/src",
         "../neo-zkvm-guest/Cargo.toml",
         "../neo-execution-core/src",
         "../neo-execution-core/Cargo.toml",
+        "../sp1_build_support.rs",
     ] {
         println!("cargo:rerun-if-changed={path}");
     }
     println!("cargo:rerun-if-env-changed=CARGO_FEATURE_TEST_ONLY_VK");
     println!("cargo:rerun-if-env-changed=CARGO_PROVE");
+    println!("cargo:rerun-if-env-changed=SP1_DOCKER_IMAGE");
 
     let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("manifest dir"));
     let output_dir = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR"));
@@ -47,7 +56,7 @@ fn main() {
     let artifacts = if test_only {
         test_only_artifacts(&output_dir)
     } else {
-        production_artifacts(&manifest_dir)
+        production_artifacts(&manifest_dir, &output_dir)
     };
     write_outputs(&output_dir, &artifacts, test_only);
 }
@@ -62,39 +71,41 @@ struct BuildArtifacts {
     gateway_elf_sha256: [u8; 32],
 }
 
-fn production_artifacts(manifest_dir: &Path) -> BuildArtifacts {
+fn production_artifacts(manifest_dir: &Path, output_dir: &Path) -> BuildArtifacts {
     if env::var("CARGO_CFG_TARGET_FAMILY").as_deref() != Ok("unix") {
         panic!("production Gateway SP1 proving is supported only on Unix/WSL2 targets");
     }
+    let workspace_target = manifest_dir.join("../../target");
     let batch_guest = manifest_dir.join("../neo-zkvm-guest");
-    run_cargo_prove(&batch_guest);
-    let target =
-        manifest_dir.join("../../target/elf-compilation/riscv64im-succinct-zkvm-elf/release");
-    let batch_elf = target.join("neo-zkvm-guest");
-    require_file(&batch_elf, "batch guest ELF");
+    run_cargo_prove(&batch_guest, &workspace_target);
+    let batch_source = sp1_build_support::docker_elf_path(&workspace_target, "neo-zkvm-guest");
+    let batch_bytes = read_required_file(&batch_source, "batch guest ELF");
 
     let prover = LightProver::new();
-    let batch_bytes = leak_bytes(&batch_elf);
     let batch_pk = prover
-        .setup(Elf::Static(batch_bytes))
+        .setup(Elf::Static(Box::leak(
+            batch_bytes.clone().into_boxed_slice(),
+        )))
         .unwrap_or_else(|error| panic!("derive batch guest VK: {error:?}"));
     let batch_vk_words = batch_pk.verifying_key().hash_u32();
     let batch_vk_bytes32 = batch_pk.verifying_key().bytes32_raw();
     require_nonzero(&batch_vk_words, "batch VK words");
     require_nonzero(&batch_vk_bytes32, "batch VK bytes32");
-    let batch_elf_sha256 = sha256_file(&batch_elf);
+    let batch_elf_sha256 = Sha256::digest(&batch_bytes).into();
 
     let gateway_guest = manifest_dir.join("../neo-zkvm-gateway-guest");
-    run_cargo_prove(&gateway_guest);
-    let gateway_elf = target.join("neo-zkvm-gateway-guest");
-    require_file(&gateway_elf, "Gateway guest ELF");
-    let gateway_bytes = leak_bytes(&gateway_elf);
+    run_cargo_prove(&gateway_guest, &workspace_target);
+    let gateway_source =
+        sp1_build_support::docker_elf_path(&workspace_target, "neo-zkvm-gateway-guest");
+    let gateway_bytes = read_required_file(&gateway_source, "Gateway guest ELF");
     let gateway_pk = prover
-        .setup(Elf::Static(gateway_bytes))
+        .setup(Elf::Static(Box::leak(
+            gateway_bytes.clone().into_boxed_slice(),
+        )))
         .unwrap_or_else(|error| panic!("derive Gateway guest VK: {error:?}"));
     let gateway_vk_bytes32 = gateway_pk.verifying_key().bytes32_raw();
     require_nonzero(&gateway_vk_bytes32, "Gateway VK bytes32");
-    let gateway_elf_sha256 = sha256_file(&gateway_elf);
+    let gateway_elf_sha256 = Sha256::digest(&gateway_bytes).into();
 
     validate_pinned_artifacts(
         &batch_vk_words,
@@ -103,6 +114,19 @@ fn production_artifacts(manifest_dir: &Path) -> BuildArtifacts {
         &batch_elf_sha256,
         &gateway_elf_sha256,
     );
+
+    let batch_elf = sp1_build_support::publish_verified_artifact(
+        output_dir,
+        "neo-zkvm-batch-guest.verified.elf",
+        &batch_bytes,
+    )
+    .unwrap_or_else(|error| panic!("publish verified batch guest ELF: {error}"));
+    let gateway_elf = sp1_build_support::publish_verified_artifact(
+        output_dir,
+        "neo-zkvm-gateway-guest.verified.elf",
+        &gateway_bytes,
+    )
+    .unwrap_or_else(|error| panic!("publish verified Gateway guest ELF: {error}"));
 
     BuildArtifacts {
         batch_elf_sha256,
@@ -116,8 +140,12 @@ fn production_artifacts(manifest_dir: &Path) -> BuildArtifacts {
 }
 
 fn test_only_artifacts(output_dir: &Path) -> BuildArtifacts {
-    let placeholder = output_dir.join("test-only-placeholder.elf");
-    fs::write(&placeholder, b"NEO4 TEST ONLY - NOT A PROVING ELF").expect("write placeholder");
+    let placeholder = sp1_build_support::publish_verified_artifact(
+        output_dir,
+        "test-only-placeholder.elf",
+        b"NEO4 TEST ONLY - NOT A PROVING ELF",
+    )
+    .expect("write placeholder");
     BuildArtifacts {
         batch_elf: placeholder.clone(),
         gateway_elf: placeholder,
@@ -178,7 +206,7 @@ fn write_outputs(output_dir: &Path, artifacts: &BuildArtifacts, test_only: bool)
     fs::write(output_dir.join("gateway_build.rs"), constants).expect("write build constants");
 }
 
-fn run_cargo_prove(directory: &Path) {
+fn run_cargo_prove(directory: &Path, workspace_target: &Path) {
     let cargo_prove = env::var("CARGO_PROVE").unwrap_or_else(|_| {
         env::var_os("HOME")
             .map(PathBuf::from)
@@ -188,17 +216,16 @@ fn run_cargo_prove(directory: &Path) {
             .unwrap_or_else(|| "cargo".to_string())
     });
     let mut command = Command::new(&cargo_prove);
-    command.args(["prove", "build"]);
+    sp1_build_support::configure_reproducible_build(&mut command);
     command.current_dir(directory);
-    for key in [
-        "RUSTC",
-        "RUSTC_WRAPPER",
-        "RUSTC_WORKSPACE_WRAPPER",
-        "RUSTFLAGS",
-        "CARGO_ENCODED_RUSTFLAGS",
-    ] {
-        command.env_remove(key);
-    }
+    sp1_build_support::sanitize_nested_build_environment(&mut command);
+    let _build_lock = sp1_build_support::acquire_reproducible_build_lock()
+        .unwrap_or_else(|error| panic!("acquire SP1 Docker build lock: {error}"));
+    sp1_build_support::isolate_loopback_docker_proxy(
+        &mut command,
+        &workspace_target.join("sp1-docker-config"),
+    )
+    .unwrap_or_else(|error| panic!("prepare isolated Docker configuration: {error}"));
     let output = command
         .output()
         .unwrap_or_else(|error| panic!("run cargo prove in {}: {error}", directory.display()));
@@ -213,22 +240,14 @@ fn run_cargo_prove(directory: &Path) {
     }
 }
 
-fn leak_bytes(path: &Path) -> &'static [u8] {
-    Box::leak(
-        fs::read(path)
-            .unwrap_or_else(|error| panic!("read {}: {error}", path.display()))
-            .into_boxed_slice(),
-    )
-}
-
-fn sha256_file(path: &Path) -> [u8; 32] {
-    Sha256::digest(fs::read(path).expect("read ELF for SHA-256")).into()
-}
-
-fn require_file(path: &Path, description: &str) {
-    if !path.is_file() {
-        panic!("{description} not found at {}", path.display());
+fn read_required_file(path: &Path, description: &str) -> Vec<u8> {
+    let metadata = fs::symlink_metadata(path)
+        .unwrap_or_else(|error| panic!("inspect {description} at {}: {error}", path.display()));
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        panic!("{description} must be a regular file at {}", path.display());
     }
+    fs::read(path)
+        .unwrap_or_else(|error| panic!("read {description} at {}: {error}", path.display()))
 }
 
 fn require_nonzero<T>(values: &[T], description: &str)

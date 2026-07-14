@@ -17,7 +17,7 @@ Independent implementation — not the official Neo 4 release, not endorsed by N
 ```
 +--------------------------------------------------------------------------+
 | Layer 5 - End-user interfaces                                            |
-|   Web explorer | TS/Rust/.NET SDKs | Faucet CLI | neo-l2-explore         |
+|   Web explorer | TS/Rust/Python/.NET SDKs | Faucet CLI | neo-l2-explore  |
 +--------------------------------------------------------------------------+
 | Layer 4 - Application development                                        |
 |   Sample dApps | Sample executor | Scaffold-executor templates | mdBook  |
@@ -28,12 +28,12 @@ Independent implementation — not the official Neo 4 release, not endorsed by N
 | Layer 2 - Node infrastructure                                            |
 |   8 plugins (Batch / Bridge / DA / Gateway / Metrics / Prover /          |
 |              Rpc / Settlement)                                           |
-|   16 off-chain libs (Batch / State / Bridge / Messaging / Proving /      |
-|                       Executor / Audit / Persistence / Telemetry / ...)  |
+|   16 core off-chain libs + 2 RPC adapters (Gateway / Settlement)         |
+|   Batch / State / Bridge / Messaging / Proving / Executor / Audit / ... |
 |   Bridge crates (zkvm-host / guest) | Watchers (eth / tron / sol)        |
 +--------------------------------------------------------------------------+
 | Layer 1 - Protocol contracts (on-chain)                                  |
-|   NeoHub L1 deployable suite (25: 24 prod + 1 stub) | L2 native contracts (10) |
+|   NeoHub projects (26: 24 prod + 1 advisory + 1 stub) | L2 native (10)   |
 |   Foreign-side routers (EVM family Solidity | Solana Anchor program)     |
 +--------------------------------------------------------------------------+
                                     |
@@ -52,24 +52,26 @@ Per-component detail lives in [`docs/tech-stack-coverage.md`](docs/tech-stack-co
 
 | Category | Count | Where |
 |----------|------:|-------|
-| Smart contracts — NeoHub L1 suite | 25 | `contracts/NeoHub.*/` (24 production + test-only `ExternalBridgeStubVerifier`) |
+| Smart contracts — NeoHub L1 suite | 26 | `contracts/NeoHub.*/` (24 production + advisory-only `GovernanceFraudVerifier` + test-only `ExternalBridgeStubVerifier`) |
 | Smart contracts — L2 native | 10 | `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs` |
 | Smart contracts — sample dApps | 2 | `samples/contracts/Sample.*/` |
 | Sample executor (reference) | 1 | `samples/executors/Sample.CounterChainExecutor/` |
 | Foreign-side on-chain programs | 2 | `external/foreign-contracts/eth/` (Solidity, deploys to 14 EVM chains) + `external/foreign-contracts/sol/` (Solana Anchor) |
-| Off-chain .NET libraries | 16 | `src/Neo.L2.*/` (the .NET SDK in `src/Neo.L2.Sdk/` is counted separately under "App SDKs" below to match the README accounting) |
+| Core off-chain .NET libraries | 16 | `src/Neo.L2.*/` excluding the two RPC adapters and `Neo.L2.Sdk`; these are the protocol/runtime libraries counted by the README |
+| RPC adapter libraries | 2 | `src/Neo.L2.Gateway.Rpc/`, `src/Neo.L2.Settlement.Rpc/` |
 | neo-node plugins | 8 | `src/Neo.Plugins.L2*/` |
 | CLI tools | 7 | `tools/Neo.*.Cli/`, `tools/Neo.L2.Devnet/`, `tools/Neo.Hub.Deploy/`, `tools/Neo.L2.Explore/` (`tools/manuscript/` is a PDF/EPUB build-script directory, not a CLI) |
 | Rust crates — bridge | 2 | `bridge/neo-zkvm-{host,guest}/` |
 | Rust crates — watchers | 3 | `watchers/neo-bridge-watcher-{eth,tron,sol}/` |
-| App SDKs (TS / Rust / Python / .NET) | 4 | `sdk/typescript/`, `sdk/rust/`, `sdk/python/`, `src/Neo.L2.Sdk/` — 10 RPC methods (11 convenience calls because state-root supports latest/at-batch) × 4 languages, parity-pinned |
+| App SDK source implementations (TS / Rust / Python / .NET) | 4 | `sdk/typescript/`, `sdk/rust/`, `sdk/python/`, `src/Neo.L2.Sdk/` — 10 RPC methods (11 convenience calls because state-root supports latest/at-batch) × 4 languages, parity-pinned; package release evidence is not claimed |
 | Web explorer (static-file dApp) | 1 | `sdk/web-explorer/index.html` |
-| Test projects | 37 | Current `tests/**/*.csproj` entries in `Neo.L2.sln` |
-| Documentation pages | 20 EN + 22 zh | `docs/*.md`, `docs/zh/*.md` |
+| Test projects | 38 | Current `tests/**/*.csproj` entries in `Neo.L2.sln` |
+| Top-level documentation pages | 39 EN + 49 zh | Current `docs/*.md`, `docs/zh/*.md`; nested guides are additional |
 
-The solution currently contains **103 project entries**, including 37 test projects. Use
-`dotnet sln Neo.L2.sln list` as the source of truth instead of maintaining a second hand-counted
-module total here.
+The solution and test inventories are discovered from `Neo.L2.sln` and
+`tests/**/*.csproj`; `dotnet sln Neo.L2.sln list` is the source of truth. Targeted
+CI regression gates bind the public NeoHub, test-project, SDK, submodule, and
+top-level documentation counts to the source tree.
 
 ---
 
@@ -77,26 +79,27 @@ module total here.
 
 | Check | Result |
 |-------|--------|
-| .NET test inventory | **37 solution test projects**; CI and release evidence record the exact case count for each source revision instead of hard-coding a drifting total here |
-| Cross-language tests | Dedicated TypeScript, Rust SDK, execution-core, SP1, watcher, Foundry, and Solana-router gates; release evidence records each gate's exact revision and count |
-| Real-CPU SP1 proof generation | **2 ignored release-gate tests** (~40s prove, ~20s verify, 2.78 MB proof artifact) |
+| .NET test inventory | **38 solution test projects**; CI and release evidence record the exact case count for each source revision instead of hard-coding a drifting total here |
+| Cross-language tests | Dedicated TypeScript, Rust SDK, execution-core, C#↔native SP1 execution, watcher, Foundry, and Solana-router gates; release evidence records each gate's exact revision and count |
+| Native SP1 execution boundary | Non-ignored C# gate invokes the SHA-256-pinned release `neo-zkvm-executor` over complete bootstrapped Neo state and validates/commits canonical `NEO4EXR1` |
+| Real-CPU SP1 proof generation | **3 ignored release-gate tests**: two terminal batch proof positive/negative cases plus one real recursive Gateway proof |
 | On-chain SP1 verifier VM coverage | Pinned NEF/manifest and constants, a Rust-produced positive proof through terminal + router, tampered bindings/proof points, malformed inputs, non-canonical fields, invalid pairing, and cost ceiling |
-| Smart contract artifacts | All 25 NeoHub projects compile; the 24 production artifacts are generated by the deployment bundle, while the test-only stub remains outside it |
+| Smart contract artifacts | All 26 NeoHub projects compile; the 24 production artifacts are generated by the deployment bundle, while the advisory structural verifier and test-only stub remain outside it |
 | Devnet 5-batch end-to-end | green (state-root continuity, multisig proofs, audit pass) |
-| `dotnet build Neo.L2.sln` | 103 current project entries; the release gate rebuilds the complete solution from source |
+| `dotnet build Neo.L2.sln` | The release gate rebuilds every project discovered from the solution instead of relying on a hand-maintained total |
 
 ---
 
 ## 5. Open development work
 
-**37 actionable tasks total, 15 closed, 22 remaining** — see [`TASKS.md`](TASKS.md) for the full checklist.
+**37 actionable tasks total, 19 closed, 18 remaining** — see [`TASKS.md`](TASKS.md) for the full checklist.
 
 | Repo | Total | Closed | Remaining | Remaining breakdown |
 |------|------:|-------:|----------:|---------------------|
-| Neo L2 Core (`r3e-network/neo`, branch `r3e/neo-n4-core`) | 10 | 0 | 10 | 4 critical (ChainMode + GAS / NEO / Policy gating) · 3 high (RpcServer source, OnPersist hook, optional Oracle) · 3 medium (dBFT hook, restricted-state mode, RISC-V mode) |
-| This repo (`neo4`) | 24 | 15 | 9 | 4 production-readiness examples · 2 future features · 1 spec-gap deferred (§8-witness-canonical) · 2 ecosystem items (more samples, Python/Go SDKs) |
-| Cross-repo coordination | 3 | 0 | 3 | L2 bootstrap handoff · RpcServer migration · RISC-V mode promotion |
-| **Totals** | **37** | **15** | **22** | |
+| Neo L2 Core (`r3e-network/neo`, branch `r3e/neo-n4-core`) | 10 | 2 | 8 | 4 critical (ChainMode + GAS / NEO / Policy gating) · 2 high (OnPersist hook, optional Oracle) · 2 medium (restricted-state mode, RISC-V mode) |
+| This repo (`neo4`) | 24 | 16 | 8 | 3 production-readiness examples · 2 future features · 1 spec-gap deferred (§8-witness-canonical) · 2 ecosystem items (more samples, Go SDK) |
+| Cross-repo coordination | 3 | 1 | 2 | L2 bootstrap handoff · RISC-V mode promotion |
+| **Totals** | **37** | **19** | **18** | |
 
 ZKsync parity tracking comes from [`docs/zksync-comparison.md`](docs/zksync-comparison.md),
 which maps every ZKsync v29 component to its neo4 equivalent and identifies the
@@ -110,7 +113,7 @@ remaining gaps worth closing as the framework matures.
 |--------------------------|-----------|-----|
 | NeoVM2/RISC-V execution / native contracts | **Core fork** (`r3e-network/neo`) | L1 core deltas tracked on `r3e/neo-n3-core`; L2 execution-kernel and N4-native deltas tracked on `r3e/neo-n4-core` |
 | dBFT consensus / RpcServer plugin | **Core** | Same |
-| L1 contracts (NeoHub) | This repo → `contracts/NeoHub.*/` | All 25 L1 projects live here (24 production + 1 test-only stub) |
+| L1 contracts (NeoHub) | This repo → `contracts/NeoHub.*/` | All 26 L1 projects live here (24 production + 1 advisory structural verifier + 1 test-only stub) |
 | L2 native contracts | **Core fork** (`external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`) | Native contracts registered by Neo core at genesis |
 | Batch / state / messaging logic | This repo → `src/Neo.L2.{Batch,State,Messaging}/` | Pure off-chain libraries |
 | Sequencer / batcher / prover runtime | This repo → `src/Neo.L2.{Sequencer,Batch,Proving}/` + `src/Neo.Plugins.L2*/` | Plugin-based runtime |
@@ -145,7 +148,10 @@ PATH="$HOME/.dotnet/tools:$PATH" dotnet build contracts/NeoHub.ChainRegistry
 # Rust crates (watcher tests)
 cd watchers/neo-bridge-watcher-eth && cargo test --release
 
-# Real SP1 proof generation (~100s for both ignored tests)
+# Build the same-runtime native executor used by production C# execution
+cargo build --release --locked -p neo-zkvm-guest --bin neo-zkvm-executor
+
+# Real SP1 terminal proof gates (Gateway recursion has its own host test target)
 cd bridge/neo-zkvm-host && cargo test --release --tests -- --ignored
 
 # Scaffold a starter L2

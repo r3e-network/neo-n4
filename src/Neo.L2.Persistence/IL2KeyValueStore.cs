@@ -66,3 +66,68 @@ public interface IL2KeyValueStore : IDisposable
     /// <summary>Total number of keys in the store. Production RocksDB callers should treat this as O(N) — use sparingly.</summary>
     long Count { get; }
 }
+
+/// <summary>
+/// Durable store capability for replacing a complete authenticated L2 state snapshot as
+/// one atomic commit.
+/// </summary>
+/// <remarks>
+/// See doc.md §7.3 and §8. Implementations validate and defensively copy the complete
+/// replacement before mutating the store. An empty replacement clears the store.
+/// </remarks>
+public interface IAtomicL2KeyValueStore : IL2KeyValueStore
+{
+    /// <summary>Atomically replace every key/value pair in the store.</summary>
+    void ReplaceAll(
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> entries);
+
+    /// <summary>
+    /// Atomically replace every key/value pair only when the complete current snapshot equals
+    /// <paramref name="expectedEntries"/>.
+    /// </summary>
+    /// <returns><c>true</c> when replaced; <c>false</c> when the current snapshot differs.</returns>
+    bool CompareExchangeAll(
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> expectedEntries,
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> replacementEntries);
+}
+
+internal static class AtomicReplacementValidator
+{
+    public static SortedDictionary<byte[], byte[]> Materialize(
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> entries)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+        var replacement = new SortedDictionary<byte[], byte[]>(
+            LexicographicByteArrayComparer.Instance);
+        foreach (var (keyMemory, valueMemory) in entries)
+        {
+            if (keyMemory.IsEmpty)
+                throw new ArgumentOutOfRangeException(
+                    nameof(entries), "replacement keys must be non-empty");
+            if (!replacement.TryAdd(keyMemory.ToArray(), valueMemory.ToArray()))
+                throw new InvalidDataException(
+                    "replacement snapshot contains a duplicate key");
+        }
+        return replacement;
+    }
+
+    public static bool ContentEquals(
+        IEnumerable<KeyValuePair<byte[], byte[]>> current,
+        IEnumerable<KeyValuePair<byte[], byte[]>> expected)
+    {
+        using var currentEnumerator = current.GetEnumerator();
+        using var expectedEnumerator = expected.GetEnumerator();
+        while (true)
+        {
+            var hasCurrent = currentEnumerator.MoveNext();
+            var hasExpected = expectedEnumerator.MoveNext();
+            if (hasCurrent != hasExpected) return false;
+            if (!hasCurrent) return true;
+            if (!currentEnumerator.Current.Key.AsSpan().SequenceEqual(
+                    expectedEnumerator.Current.Key)
+                || !currentEnumerator.Current.Value.AsSpan().SequenceEqual(
+                    expectedEnumerator.Current.Value))
+                return false;
+        }
+    }
+}

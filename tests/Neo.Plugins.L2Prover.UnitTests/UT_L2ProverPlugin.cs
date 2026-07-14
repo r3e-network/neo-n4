@@ -76,10 +76,33 @@ public class UT_L2ProverPlugin
         using var plugin = new L2ProverPlugin { Kind = ProofType.Zk };
         var vk = UInt256.Parse("0x" + new string('a', 64));
         var rv = new MockRiscVProver(vk);
-        plugin.Wire(riscVProver: rv);
+        plugin.Wire(zkProver: rv);
         Assert.IsNotNull(plugin.Prover);
         Assert.AreSame(rv, plugin.Prover);
         Assert.AreEqual(ProofType.Zk, plugin.Prover.Kind);
+    }
+
+    [TestMethod]
+    public void Wire_Zk_WithSp1BatchProofProver_SetsProductionClient()
+    {
+        var queue = Path.Combine(
+            Path.GetTempPath(), $"neo-n4-prover-plugin-{Guid.NewGuid():N}");
+        try
+        {
+            using var plugin = new L2ProverPlugin { Kind = ProofType.Zk };
+            var prover = new Sp1BatchProofProver(
+                queue,
+                UInt256.Parse("0x" + new string('b', 64)));
+
+            plugin.Wire(zkProver: prover);
+
+            Assert.AreSame(prover, plugin.Prover);
+            Assert.IsTrue(((IZkExecutionProver)plugin.Prover!).ProducesCryptographicProof);
+        }
+        finally
+        {
+            if (Directory.Exists(queue)) Directory.Delete(queue, recursive: true);
+        }
     }
 
     [TestMethod]
@@ -88,7 +111,7 @@ public class UT_L2ProverPlugin
         using var plugin = new L2ProverPlugin { Kind = ProofType.Zk };
         var ex = Assert.ThrowsExactly<InvalidOperationException>(() => plugin.Wire());
         StringAssert.Contains(ex.Message, "Zk");
-        StringAssert.Contains(ex.Message, "RiscV");
+        StringAssert.Contains(ex.Message, "IZkExecutionProver");
     }
 
     [TestMethod]

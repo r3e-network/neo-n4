@@ -83,6 +83,7 @@
 
 # 审计证据
 
+- [P0/P1/P2 审计闭环账本（2026-07-14）](./audit/p0-p1-p2-closure-2026-07-14.md)
 - [综合审计闭环报告(2026-05-20)](./audit/comprehensive-audit-2026-05-20.md)
 - [生产就绪审计](./audit/production-readiness-audit.md)
 - [仓库覆盖率账本](./audit/repository-coverage-ledger.md)

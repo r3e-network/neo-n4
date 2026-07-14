@@ -1335,6 +1335,7 @@ mod tests {
                 network: 0x334f_454e,
             },
             l1_messages: vec![message],
+            forced_inclusions: Vec::new(),
             transactions: Vec::new(),
         };
         DepositFixture {

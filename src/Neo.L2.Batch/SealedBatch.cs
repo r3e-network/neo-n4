@@ -198,6 +198,14 @@ public sealed record SealedBatchCheckpoint(
 public interface ISealedBatchSink
 {
     /// <summary>
+    /// Return the authenticated state root preceding batch 1. Legacy profiles default to zero;
+    /// production ZK sinks override this with their committed genesis snapshot root.
+    /// </summary>
+    ValueTask<UInt256> GetInitialStateRootAsync(
+        CancellationToken cancellationToken = default)
+        => new(UInt256.Zero);
+
+    /// <summary>
     /// Execute, publish, and atomically persist the batch, returning the validated post-state root.
     /// </summary>
     ValueTask<UInt256> PersistAsync(

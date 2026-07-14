@@ -282,15 +282,25 @@ public class UT_Sp1Groth16Verifier
 
     private static void AssertVectorIntegrity()
     {
+        Assert.AreEqual(1, Sp1Groth16PositiveVector.SchemaVersion);
+        Assert.AreEqual("6.2.1", Sp1Groth16PositiveVector.Sp1Version);
         Assert.AreEqual(ProofSize, Sp1Groth16PositiveVector.Proof.Length);
         Assert.AreEqual(FieldElementSize, Sp1Groth16PositiveVector.ProgramVKey.Length);
+        Assert.AreEqual(1 + FieldElementSize, Sp1Groth16PositiveVector.PublicValues.Length);
         Assert.AreEqual(FieldElementSize, Sp1Groth16PositiveVector.PublicInputHash.Length);
+        Assert.AreEqual(0, Sp1Groth16PositiveVector.PublicValues[0]);
+        CollectionAssert.AreEqual(
+            Sp1Groth16PositiveVector.PublicInputHash,
+            Sp1Groth16PositiveVector.PublicValues[1..]);
         Assert.AreEqual(
             Sp1Groth16PositiveVector.ProofSha256,
             Convert.ToHexString(SHA256.HashData(Sp1Groth16PositiveVector.Proof)).ToLowerInvariant());
         Assert.AreEqual(
             Sp1Groth16PositiveVector.ProgramVKeySha256,
             Convert.ToHexString(SHA256.HashData(Sp1Groth16PositiveVector.ProgramVKey)).ToLowerInvariant());
+        Assert.AreEqual(
+            Sp1Groth16PositiveVector.PublicValuesSha256,
+            Convert.ToHexString(SHA256.HashData(Sp1Groth16PositiveVector.PublicValues)).ToLowerInvariant());
         Assert.AreEqual(
             Sp1Groth16PositiveVector.PublicInputHashSha256,
             Convert.ToHexString(SHA256.HashData(Sp1Groth16PositiveVector.PublicInputHash)).ToLowerInvariant());

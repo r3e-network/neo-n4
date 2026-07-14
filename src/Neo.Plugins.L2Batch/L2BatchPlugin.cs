@@ -112,7 +112,11 @@ public sealed class L2BatchPlugin : Plugin
 
         var checkpoint = sink.GetLatestCheckpointAsync()
             .AsTask().GetAwaiter().GetResult();
-        var sealer = CreateSealer(chainId);
+        var initialStateRoot = checkpoint is null
+            ? sink.GetInitialStateRootAsync().AsTask().GetAwaiter().GetResult()
+            : checkpoint.PostStateRoot;
+        ArgumentNullException.ThrowIfNull(initialStateRoot);
+        var sealer = CreateSealer(chainId, initialStateRoot);
         sealer.RestoreCheckpoint(checkpoint);
         _sink = sink;
         _sealer = sealer;
@@ -271,7 +275,7 @@ public sealed class L2BatchPlugin : Plugin
         DispatchSealed(this, OnBatchSealed, batch, _metrics);
     }
 
-    private BatchSealer CreateSealer(uint chainId)
+    private BatchSealer CreateSealer(uint chainId, UInt256 initialStateRoot)
     {
         var settings = _settings.ChainId == chainId
             ? _settings
@@ -291,7 +295,8 @@ public sealed class L2BatchPlugin : Plugin
                 : DrainUnreservedForcedTransactions,
             l1MessageDrain: _l1MessageDrain,
             l1FinalizedHeight: _l1FinalizedHeight,
-            sequencerCommitteeHash: _sequencerCommitteeHash);
+            sequencerCommitteeHash: _sequencerCommitteeHash,
+            initialStateRoot: initialStateRoot);
     }
 
     private IReadOnlyList<(ulong Nonce, UInt256 TxHash, ReadOnlyMemory<byte> SerializedTx)>

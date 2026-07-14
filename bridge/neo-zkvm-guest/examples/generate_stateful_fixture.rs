@@ -1,13 +1,43 @@
 use neo_execution_core::{
     BatchBlockContext, ContractManifest, ContractParameterType, ContractWitness, ExecutionPayload,
-    ManifestEvent, ManifestMethod, ManifestPermission, PermissionContract, PermissionMethods,
-    ProofWitnessArtifact, ProtocolConfig, StateEntry, StateWitness, contract_binding_hash,
-    contract_binding_key, encode_execution_payload, encode_proof_witness_artifact, hash256,
-    keyed_state_root,
+    ManifestEvent, ManifestMethod, ManifestPermission, NativeExecutionOutputV1, PermissionContract,
+    PermissionMethods, ProofWitnessArtifact, ProtocolConfig,
+    SP1_STATEFUL_NEO_VM_V1_EXECUTION_SEMANTIC_ID, StateEntry, StateWitness, contract_binding_hash,
+    contract_binding_key, encode_execution_payload, encode_native_execution_output,
+    encode_proof_witness_artifact, encode_state_witness, hash256, keyed_state_root,
 };
+
+#[path = "../vk_manifest.rs"]
+#[allow(dead_code)]
+mod pinned;
 
 fn main() {
     let artifact = fixture_artifact();
+    if std::env::args().nth(1).as_deref() == Some("--native-output") {
+        let payload_bytes = encode_execution_payload(&artifact.execution_payload)
+            .expect("payload encoding must succeed");
+        let state_witness_bytes =
+            encode_state_witness(&artifact.state_witness).expect("state witness must encode");
+        let transition = neo_zkvm_guest::compute_batch_transition(
+            &artifact.execution_payload,
+            &artifact.state_witness,
+        )
+        .expect("fixture transition must execute");
+        let output = NativeExecutionOutputV1 {
+            request_payload_hash: hash256(&payload_bytes),
+            request_state_witness_hash: hash256(&state_witness_bytes),
+            execution_semantic_id: SP1_STATEFUL_NEO_VM_V1_EXECUTION_SEMANTIC_ID,
+            execution_result: transition.batch.execution_result,
+            effects_bytes: transition.batch.effects_bytes,
+            post_state_witness_bytes: transition.post_state_witness_bytes,
+            public_input_hash: transition.batch.public_input_hash,
+        };
+        println!(
+            "{}",
+            hex::encode(encode_native_execution_output(&output).expect("output encoding"))
+        );
+        return;
+    }
     let encoded = encode_proof_witness_artifact(&artifact).expect("fixture encoding must succeed");
     let result = neo_zkvm_guest::execute_batch(&encoded).expect("fixture must execute");
     assert_eq!(
@@ -91,6 +121,7 @@ fn fixture_artifact() -> ProofWitnessArtifact {
             network: 0x334f_454e,
         },
         l1_messages: Vec::new(),
+        forced_inclusions: Vec::new(),
         transactions: vec![transaction(contract_hash)],
     };
     let mut computed =
@@ -100,8 +131,11 @@ fn fixture_artifact() -> ProofWitnessArtifact {
     computed.public_inputs.da_commitment = da_commitment;
 
     ProofWitnessArtifact {
+        proof_type: 3,
         proof_system: 1,
-        verification_key_id: [0x44; 32],
+        execution_witness_authenticated: true,
+        verification_key_id: pinned::PINNED_BATCH_VK_BYTES32,
+        execution_semantic_id: neo_execution_core::SP1_STATEFUL_NEO_VM_V1_EXECUTION_SEMANTIC_ID,
         chain_id: payload.chain_id,
         batch_number: payload.batch_number,
         first_block: payload.first_block,
@@ -114,8 +148,10 @@ fn fixture_artifact() -> ProofWitnessArtifact {
         effects_bytes: computed.effects_bytes,
         effects: computed.effects,
         da_mode: u8::MAX,
+        da_receipt_kind: 1,
         da_commitment,
         da_pointer: b"fixture://stateful-v1".to_vec(),
+        da_evidence: b"fixture-evidence-v1".to_vec(),
         public_inputs: computed.public_inputs,
     }
 }

@@ -289,35 +289,229 @@ public class UT_ProductionGapClosure
         CollectionAssert.DoesNotContain(productionSteps, "GovernanceFraudVerifier",
             "GovernanceFraudVerifier is structural audit evidence and must not ship in the production NeoHub deploy bundle.");
         CollectionAssert.AreEqual(expectedProductionContracts, productionSteps,
-            "The production deploy bundle must include every NeoHub contract except the test-only stub.");
+            "The production deploy bundle must include every production NeoHub contract and exclude advisory/test-only projects.");
     }
 
     [TestMethod]
     public void CurrentDocumentation_UsesCurrentNeoHubCounts()
     {
         var root = FindRepositoryRoot();
+        var neoHubCount = Directory.EnumerateDirectories(
+            Path.Combine(root, "contracts"), "NeoHub.*").Count();
+        var productionCount = ScaffoldPlan.Default().Steps.Count;
         string[] currentDocs =
         [
+            "AGENTS.md",
             "README.md",
-            Path.Combine("docs", "README.md"),
-            Path.Combine("docs", "architecture-l2-lifecycle.md"),
-            Path.Combine("docs", "zh", "architecture-l2-lifecycle.md"),
+            "IMPLEMENTATION_STATUS.md",
+            "TECH_STACK.md",
+            "WHITEPAPER.md",
             Path.Combine("contracts", "README.md"),
-            "IMPLEMENTATION_STATUS.md"
+            Path.Combine("docs", "README.md"),
+            Path.Combine("docs", "architecture-glossary.md"),
+            Path.Combine("docs", "architecture-l1-vs-l2.md"),
+            Path.Combine("docs", "architecture-l2-lifecycle.md"),
+            Path.Combine("docs", "getting-started.md"),
+            Path.Combine("docs", "launching-an-l2.md"),
+            Path.Combine("docs", "neohub-architecture-and-workflows.md"),
+            Path.Combine("docs", "tech-stack-coverage.md"),
+            Path.Combine("docs", "zksync-comparison.md"),
+            Path.Combine("docs", "zh", "README.md"),
+            Path.Combine("docs", "zh", "WHITEPAPER.md"),
+            Path.Combine("docs", "zh", "architecture-glossary.md"),
+            Path.Combine("docs", "zh", "architecture-l1-vs-l2.md"),
+            Path.Combine("docs", "zh", "architecture-l2-lifecycle.md"),
+            Path.Combine("docs", "zh", "contracts", "README.md"),
+            Path.Combine("docs", "zh", "launching-an-l2.md"),
+            Path.Combine("docs", "zh", "neohub-architecture-and-workflows.md"),
+            Path.Combine("docs", "zh", "tech-stack-coverage.md"),
+            Path.Combine("docs", "zh", "zksync-comparison.md")
+        ];
+
+        string[] obsoleteClaims =
+        [
+            "23 production",
+            "23-step",
+            "25 NeoHub",
+            "all 25",
+            "23 个生产",
+            "25 个 NeoHub",
+            "25 个项目",
+            "23 步"
         ];
 
         foreach (var relativePath in currentDocs)
         {
             var text = File.ReadAllText(Path.Combine(root, relativePath));
-            Assert.IsFalse(text.Contains("20 contracts", StringComparison.OrdinalIgnoreCase),
-                $"{relativePath} must not carry the obsolete 20-contract NeoHub count.");
-            Assert.IsFalse(text.Contains("20 个合约", StringComparison.Ordinal),
-                $"{relativePath} must not carry the obsolete Chinese 20-contract NeoHub count.");
+            foreach (var obsoleteClaim in obsoleteClaims)
+            {
+                Assert.IsFalse(text.Contains(obsoleteClaim, StringComparison.OrdinalIgnoreCase),
+                    $"{relativePath} must not carry obsolete inventory text '{obsoleteClaim}'.");
+            }
         }
 
         var readme = File.ReadAllText(Path.Combine(root, "README.md"));
-        StringAssert.Contains(readme, "26 NeoHub L1 contract projects");
-        StringAssert.Contains(readme, "24 production");
+        StringAssert.Contains(readme, $"{neoHubCount} NeoHub L1 contract projects");
+        StringAssert.Contains(readme, $"{productionCount} production");
+
+        var contractsReadme = File.ReadAllText(Path.Combine(root, "contracts", "README.md"));
+        StringAssert.Contains(contractsReadme, $"There are {neoHubCount} `NeoHub.*` projects");
+        StringAssert.Contains(contractsReadme, $"{productionCount} production contracts");
+    }
+
+    [TestMethod]
+    public void CurrentDocumentation_UsesSourceDrivenTestAndSdkInventories()
+    {
+        var root = FindRepositoryRoot();
+        var testProjectCount = Directory
+            .EnumerateFiles(Path.Combine(root, "tests"), "*.csproj", SearchOption.AllDirectories)
+            .Count();
+        var foundryTestCount = Directory
+            .EnumerateFiles(Path.Combine(root, "external", "foreign-contracts", "eth", "test"),
+                "*.sol", SearchOption.AllDirectories)
+            .Sum(path => System.Text.RegularExpressions.Regex.Matches(
+                File.ReadAllText(path), @"\bfunction\s+test[A-Za-z0-9_]*\s*\(").Count);
+
+        var techStack = File.ReadAllText(Path.Combine(root, "TECH_STACK.md"));
+        StringAssert.Contains(techStack, $"| Test projects | {testProjectCount} |");
+
+        string[] foundryDocs =
+        [
+            "README.md",
+            "IMPLEMENTATION_STATUS.md",
+            Path.Combine("docs", "tech-stack-coverage.md"),
+            Path.Combine("docs", "testing-approach.md")
+        ];
+        foreach (var relativePath in foundryDocs)
+        {
+            StringAssert.Contains(
+                File.ReadAllText(Path.Combine(root, relativePath)),
+                $"{foundryTestCount} Foundry tests");
+        }
+
+        string[] sdkPaths =
+        [
+            Path.Combine("src", "Neo.L2.Sdk"),
+            Path.Combine("sdk", "typescript"),
+            Path.Combine("sdk", "rust"),
+            Path.Combine("sdk", "python")
+        ];
+        Assert.IsTrue(sdkPaths.All(path => Directory.Exists(Path.Combine(root, path))));
+        Assert.IsFalse(Directory.Exists(Path.Combine(root, "sdk", "go")),
+            "The documented Go SDK gap must remain source-driven until a Go implementation exists.");
+
+        var sdkReadme = File.ReadAllText(Path.Combine(root, "sdk", "README.md"));
+        StringAssert.Contains(sdkReadme, "Four language bindings");
+        StringAssert.Contains(sdkReadme, "## Why four typed languages");
+        Assert.IsFalse(sdkReadme.Contains("Why three languages", StringComparison.OrdinalIgnoreCase));
+
+        var comparison = File.ReadAllText(Path.Combine(root, "docs", "zksync-comparison.md"));
+        StringAssert.Contains(comparison, "### Gap 2 — No Go SDK");
+        StringAssert.Contains(comparison, "SDK source implementations are present");
+        Assert.IsFalse(comparison.Contains("No Python / Go SDK", StringComparison.OrdinalIgnoreCase));
+
+        var gitmodules = File.ReadAllText(Path.Combine(root, ".gitmodules"));
+        var submoduleCount = System.Text.RegularExpressions.Regex.Matches(
+            gitmodules, @"(?m)^\[submodule ").Count;
+        var readme = File.ReadAllText(Path.Combine(root, "README.md"));
+        StringAssert.Contains(readme, $"| Submodules        | **{submoduleCount}**");
+        StringAssert.Contains(readme, "external/neo-vm-rs");
+
+        var l2ProjectCount = Directory
+            .EnumerateFiles(Path.Combine(root, "src"), "Neo.L2.*.csproj", SearchOption.AllDirectories)
+            .Count();
+        var rpcAdapterCount = Directory
+            .EnumerateFiles(Path.Combine(root, "src"), "Neo.L2.*.Rpc.csproj", SearchOption.AllDirectories)
+            .Count();
+        var coreLibraryCount = l2ProjectCount - rpcAdapterCount - 1;
+        StringAssert.Contains(techStack, $"| Core off-chain .NET libraries | {coreLibraryCount} |");
+        StringAssert.Contains(techStack, $"| RPC adapter libraries | {rpcAdapterCount} |");
+        StringAssert.Contains(readme, $"| Core off-chain libraries | **{coreLibraryCount}**");
+        StringAssert.Contains(readme, $"| RPC adapter libraries | **{rpcAdapterCount}**");
+
+        var englishDocCount = Directory
+            .EnumerateFiles(Path.Combine(root, "docs"), "*.md", SearchOption.TopDirectoryOnly)
+            .Count();
+        var chineseDocCount = Directory
+            .EnumerateFiles(Path.Combine(root, "docs", "zh"), "*.md", SearchOption.TopDirectoryOnly)
+            .Count();
+        StringAssert.Contains(techStack,
+            $"| Top-level documentation pages | {englishDocCount} EN + {chineseDocCount} zh |");
+
+        string[] staleInventoryClaims =
+        [
+            "393-line",
+            "393 lines",
+            "~638-line",
+            "32 base tests + 55",
+            "55 live-RPC integration tests",
+            "Submodules        | **4**"
+        ];
+        foreach (var claim in staleInventoryClaims)
+        {
+            Assert.IsFalse(readme.Contains(claim, StringComparison.OrdinalIgnoreCase),
+                $"README.md must not carry stale inventory text '{claim}'.");
+        }
+
+        var changelog = File.ReadAllText(Path.Combine(root, "CHANGELOG.md"));
+        StringAssert.Contains(changelog, "targeted regression gates");
+        Assert.IsFalse(changelog.Contains("cannot drift silently", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void CurrentDocumentation_SeparatesImplementationFromProductionReadiness()
+    {
+        var root = FindRepositoryRoot();
+        var status = File.ReadAllText(Path.Combine(root, "IMPLEMENTATION_STATUS.md"));
+        StringAssert.Contains(status, "| Production-ready |");
+        StringAssert.Contains(status, "No phase is production-ready");
+
+        var readme = File.ReadAllText(Path.Combine(root, "README.md"));
+        StringAssert.Contains(readme, "| Production-ready |");
+        StringAssert.Contains(readme, "No row is a production-readiness claim");
+
+        var chinese = File.ReadAllText(Path.Combine(root, "docs", "zh", "IMPLEMENTATION_STATUS.md"));
+        StringAssert.Contains(chinese, "| 生产完备 |");
+        StringAssert.Contains(chinese, "任何阶段都不能标记为生产完备");
+    }
+
+    [TestMethod]
+    public void SampleContracts_UseRepositoryMaintainerAttribution()
+    {
+        var root = FindRepositoryRoot();
+        string[] samples =
+        [
+            Path.Combine("samples", "contracts", "Sample.CrossChainGreeter", "CrossChainGreeter.cs"),
+            Path.Combine("samples", "contracts", "Sample.WithdrawalDemo", "WithdrawalDemo.cs")
+        ];
+
+        foreach (var relativePath in samples)
+        {
+            var source = File.ReadAllText(Path.Combine(root, relativePath));
+            StringAssert.Contains(source, "ContractAuthor(\"R3E Network — Sample\", \"dev@r3e.network\")");
+            Assert.IsFalse(source.Contains("Neo Project", StringComparison.Ordinal));
+            Assert.IsFalse(source.Contains("dev@neo.org", StringComparison.Ordinal));
+        }
+    }
+
+    [TestMethod]
+    public void CurrentSecurityPolicy_DoesNotInventARelease()
+    {
+        var root = FindRepositoryRoot();
+        var policy = File.ReadAllText(Path.Combine(root, "SECURITY.md"));
+
+        StringAssert.Contains(policy, "No production release tag has been published yet.");
+        StringAssert.Contains(policy, "private vulnerability reporting form");
+        StringAssert.Contains(policy, "R3E Network security mailbox");
+        StringAssert.Contains(policy, "git tag --verify <published-tag>");
+        Assert.IsFalse(policy.Contains("git tag --verify v0.1.0", StringComparison.Ordinal));
+        Assert.IsFalse(policy.Contains("all release tags are signed", StringComparison.OrdinalIgnoreCase));
+
+        var model = File.ReadAllText(Path.Combine(root, "docs", "security-model.md"));
+        StringAssert.Contains(model, "r3e-network/neo-n4");
+        StringAssert.Contains(model, "unmodified upstream Neo behavior");
+        StringAssert.Contains(model, "Neo Project");
+        Assert.IsFalse(model.Contains("Neo project security mailbox", StringComparison.OrdinalIgnoreCase));
     }
 
     [TestMethod]

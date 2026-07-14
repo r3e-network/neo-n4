@@ -23,7 +23,7 @@ This is the production proving path for any L2 running in Stage-2
 ```
 
 The `bridge/neo-zkvm-guest/` crate is the function being proved (compiled
-to a RISC-V ELF by `cargo prove build`). This crate is the orchestrator
+to a RISC-V ELF by the digest-pinned Docker `cargo prove build`). This crate is the orchestrator
 that runs that ELF inside SP1's zkVM and exposes a clean three-function
 public API to the rest of the framework (and to operator scripts).
 
@@ -37,11 +37,20 @@ rolls back FAULT effects, and recomputes every receipt/root/public input.
 Requires Linux or macOS with the SP1 toolchain (`sp1up` → installs
 `cargo prove` and the RISC-V succinct target). SP1 does not currently
 ship native Windows support; on Windows, run the prover under WSL2 or a
-Linux/macOS prover host. `build.rs` invokes `cargo prove build` against
-the sibling guest crate on every build, so the embedded ELF stays synced
-with the guest source. Cached ELFs are disabled by default; set
+Linux/macOS prover host. Docker is required for production builds. `build.rs`
+invokes `cargo prove build --docker --locked` against the sibling guest crate
+with the audited immutable SP1 6.2.1 amd64 image digest, so the embedded ELF and
+program VK do not inherit host paths or compiler differences. The build script reads the shared
+Docker ELF once, checks SHA-256 and VK from that exact snapshot, publishes it as a read-only `0400`
+file in Cargo's isolated `OUT_DIR`, and embeds only that copy. This prevents a concurrent guest
+build from replacing the shared target ELF between validation and `include_bytes!`. Cached ELFs are disabled by default; set
 `NEO_ZKVM_ALLOW_CACHED_ELF=1` only for host-only development that
 intentionally does not execute or prove the guest.
+
+If Docker's client configuration injects a loopback HTTP/HTTPS proxy, the shared build support
+creates a credential-free temporary Docker configuration that preserves the active context but
+removes the unreachable loopback proxy. This prevents containerized Cargo from trying to reach
+the host's `127.0.0.1` proxy while keeping non-loopback enterprise proxies unchanged.
 
 ```bash
 # 1. Install SP1 (one-time, Linux/macOS or WSL2):
@@ -66,7 +75,17 @@ export https_proxy=http://$HOST_IP:7890
 #    export CPATH=~/.local/include
 
 # 3. Build:
-cargo prove build
+export SP1_DOCKER_IMAGE=ghcr.io/succinctlabs/sp1@sha256:14d3c46eff7492f87e429bfbf618e3d33499ba7515b15c36eeb1bcaebc9f7b7f
+export SP1_GNARK_IMAGE=ghcr.io/succinctlabs/sp1-gnark@sha256:be8555f1ad90870acd8c6ec7fd3ba0b1a2133ea9cddf25e130665aa651129e54
+
+# macOS + Colima: SP1's Groth16 wrapper bind-mounts temporary witness and
+# output files into Docker. Keep TMPDIR under the shared repository/user tree;
+# the default /var/folders path is not visible inside the Colima VM and Docker
+# otherwise creates /witness as a directory.
+mkdir -p "$PWD/target/sp1-tmp"
+export TMPDIR="$PWD/target/sp1-tmp"
+
+cargo prove build --docker --locked
 cargo build --release -p neo-zkvm-host
 ```
 
@@ -111,11 +130,22 @@ Operator-facing entrypoint:
 ```text
 prove-batch <hex-encoded ProofWitnessArtifactV1>            # execute only (fast)
 prove-batch --prove <hex> [--out proof.bin]                 # generate ZK proof (slow)
+prove-batch daemon --watch <dir> [--archive <dir>] \
+  [--max-queue-bytes N] [--max-queue-tasks N]              # production queue
 ```
 
 The `--prove` mode writes both `proof.bin` (the proof) and `proof.vk`
 (the verifying key) to disk; submit both to L1 via
 `NeoHub.SettlementManager.SubmitBatch`.
+
+The daemon treats the filesystem queue as confidential durable state. Unix queue/archive
+directories are owner-only `0700`, files are `0600`, and symlinks, foreign ownership, or broader
+modes fail closed. The combined watch/archive defaults are capped at 16 GiB and 64
+content-addressed tasks, checked before every proof. A completed proof is retained until the .NET
+settlement pipeline has durably recorded `SettlementObserved` and atomically publishes
+`<artifact-content-hash>.proof.ack` containing that same 32-byte hash. The daemon validates the
+acknowledgement, idempotently removes the request/proof/VK/public-values/result/archive set, then
+removes the acknowledgement. Do not apply TTL cleanup to unconfirmed artifacts.
 
 ## Tests
 
@@ -131,6 +161,10 @@ cargo test --release -p neo-zkvm-host
 # negative test — ~4 min wall time, gated behind --ignored so the
 # default loop stays fast):
 cargo test --release -p neo-zkvm-host -- --ignored --nocapture
+
+# Regenerate the exact Rust/C# on-chain verifier release vector:
+cargo run --release -p neo-zkvm-host \
+  --example generate_groth16_release_vector --locked
 ```
 
 The execute/prove tests use committed stateful and native-transition golden artifacts, so

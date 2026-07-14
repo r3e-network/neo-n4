@@ -190,6 +190,15 @@ These are explicitly OUTSIDE the proven function and must not be observable in a
 
 `bridge/neo-zkvm-guest` executes this function inside the SP1 zkVM. It uses the vendored `neo-vm-rs` interpreter with the stateful N4 V1 syscall provider and rejects every host-supplied result/effect/root that it cannot recompute. The native and proven implementations MUST produce byte-identical outputs for any supported input.
 
+The same crate also builds `neo-zkvm-executor`, a host-native one-shot executable that invokes the
+exact shared execution core and VM runtime used by the SP1 guest. It consumes canonical
+`NEO4EXEC` plus complete pre-state `NEO4STW1` files and emits canonical `NEO4EXR1`. The result
+binds both exact request byte strings by `Hash256`, the fixed execution semantic, every execution
+root and gas value, complete `NEO4EFX1` effects, the complete post-state `NEO4STW1`, the public
+input hash, and a domain-separated trailing content `Hash256`. It is an execution handoff, not a
+validity proof; the resulting `NEO4PWIT` still has to be proved by `neo-zkvm-host` and verified on
+L1.
+
 ## Canonical proof-witness pipeline
 
 The prover input is the existing `ProofWitnessArtifactV1` (`NEO4PWIT`); no parallel outer witness envelope is permitted. Its `ExecutionPayloadV1` carries ordered full transaction bytes, block/L1 context, and DA bytes. Its non-empty `StateWitness` section uses `NEO4STW1` V1 and carries the complete sorted pre-state key/value set, frozen protocol settings, and deployed contract IDs, hashes, scripts, and Neo manifests. Every contract descriptor is bound into the pre-state root through `0xff || "neo-n4/contract-binding/v1/" || scriptHash` and the domain `neo-n4/contract-binding/v1\0`.
@@ -213,11 +222,25 @@ The production order is:
    batch-number gap, or state-root gap fails closed.
 2. `IProofWitnessBatchExecutor` executes the sealed inputs and returns roots plus the canonical
    authenticated state/effects bytes produced by the matching execution profile.
+   The production SP1 executor captures the complete durable pre-state, executes only an isolated
+   copy whose SHA-256 matches an independently reviewed operator pin, validates every `NEO4EXR1`
+   request/semantic/result/post-state/public-input binding, and returns the authenticated transition
+   without mutating the durable state. A changed pre-state, malformed or non-canonical result,
+   process failure, timeout, digest mismatch, or failed root check leaves the prior state intact.
 3. `IDAWriter` publishes the exact versioned `ExecutionPayloadV1`. Its receipt commitment, layer,
    receipt kind, pointer, evidence, and availability are checked against the payload bytes.
 4. The coordinator computes `L1MessageHash` and `BlockContextHash` from the real sealed input,
    constructs exactly one `ProofWitnessArtifactV1`, validates every payload/result/public-input/DA
-   cross-binding, and atomically commits it through `IProofWitnessStore`.
+   cross-binding, atomically commits it through `IProofWitnessStore`, and byte-verifies the durable
+   canonical artifact before asking `ICommittedProofWitnessStateSink` to commit state. The
+   production SP1 sink replays the exact native transition from that artifact, revalidates its
+   public inputs, execution result, effects, and pre/post-state binding, and only then atomically
+   compares and replaces the complete state through
+   `IAtomicL2KeyValueStore.CompareExchangeAll`. The complete witnessed pre-state is the expected
+   snapshot, so concurrent writers cannot overwrite a winning transition or commit a partial
+   state. Retry and startup checkpoint recovery MUST repair an artifact/state handoff interrupted
+   after artifact commit; an already-committed post-state is accepted idempotently without
+   re-execution.
 5. `IL2Prover` receives the complete, non-empty serialized artifact bytes. The proof manifest is
    durably committed before settlement submission. The store, not an in-memory queue, is the source
    of truth for proving, submission, reconciliation, and restart recovery.
@@ -228,7 +251,15 @@ The production order is:
    evidence. Unknown or inconsistent transaction state fails closed. If a process stops before the
    transaction hash is persisted, retry is allowed only through the settlement client's required
    `(chainId,batchNumber)` idempotency after another batch-status query.
-6. After settlement is observed, a forced nonce remains tracked until the batch is finalized and an
+6. After `SettlementObserved` is durable, an external prover that implements
+   `IProofArtifactRetention` receives the artifact content hash and atomically publishes exactly one
+   32-byte content-bound acknowledgement. The Rust daemon validates the acknowledgement and then
+   idempotently prunes the matching request, proof, VK, public values, result manifest, and archive
+   copy before removing the acknowledgement. No unconfirmed artifact may be deleted by age or on
+   proof completion. On Unix, queue directories are owner-only `0700`, artifacts are `0600`, and
+   symlinks, foreign ownership, or broader modes fail closed. The default queue limits are 16 GiB
+   and 64 content-addressed tasks, checked before each proof.
+7. After settlement is observed, a forced nonce remains tracked until the batch is finalized and an
    `IForcedInclusionFinalizationClient` verifies `SettlementManager.getFinalizedTxRoot`, submits
    permissionless `ForcedInclusion.consume(chainId,batchNumber,nonce,siblings,leafIndex)`, and confirms
    consumption on L1. Failures remain retryable from the persisted artifact and proof manifest.
@@ -238,3 +269,17 @@ executor witness MUST be authenticated and non-empty, and the prover MUST declar
 backend. Mock, preview, legacy, unauthenticated, empty, or semantic-mismatched combinations fail
 closed. Multisig and optimistic compatibility paths are permitted only through an explicit non-ZK
 profile.
+
+Before batch 1, operators MUST run `NeoVMGenesisBootstrap` against the same durable state store,
+call `Sp1StateWitnessSource.InitializeGenesisContractBindings`, and persist the returned non-zero
+root outside the mutable store as the chain's immutable initial state root. Wiring re-captures the
+store and rejects drift from that root. N4 genesis V1 does not permit a transition to add, remove,
+or replace a deployed contract descriptor; unsupported native methods, dynamic deployment/update,
+and consensus syscalls fail closed. Expanding that profile requires a versioned protocol, guest,
+native executable, VK, on-chain verifier route, and cross-language vector upgrade.
+
+Production SP1 build scripts MUST read each shared Docker-built ELF once, derive its SHA-256 and
+program VK from that same byte snapshot, and publish the verified bytes into the crate's Cargo
+`OUT_DIR` as a read-only snapshot before `include_bytes!`. Referencing the mutable shared target
+path after validation is forbidden. Required CI runs MUST generate both the terminal and recursive
+real SP1 proofs; a skipped proof step cannot satisfy the required SP1 job.

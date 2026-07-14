@@ -53,7 +53,7 @@ Neo Elastic Network 由**4 层**组件 + 把它们连起来的链下基础设施
 
 ### 第 1 层:NeoHub(L1)
 
-L1 锚。**23 个生产合约 + 1 个仅审计用结构验证器 + 1 个仅测试 stub** 按关注点分组:
+L1 锚。**24 个生产合约 + 1 个仅审计用结构验证器 + 1 个仅测试 stub** 按关注点分组:
 
 <p align="center">
   <img src="../figures/architecture/neohub-anatomy.svg" alt="NeoHub L1 解剖:合约按 Settlement、Bridge、Messaging、Security、Governance、External Bridge 6 个关注点分组" width="900">
@@ -116,6 +116,7 @@ DA / 证明 / RPC / gateway / metrics)。
 |-----------------|------------------------------------------------------------------|-----------------------------------------|
 | 排序器           | dBFT 2.0 共识成员;产出 L2 区块                                  | `Neo.L2.Sequencer/`                     |
 | 批处理器         | 订阅 `Blockchain.Committed`,封装批次,提交到 L1                 | `Neo.L2.Batch/` + `Neo.Plugins.L2Batch` |
+| Native SP1 executor | 运行 digest 锁定的共享 guest runtime，校验完整 transition，并且仅在不可变 proof artifact 持久化后重放及原子提交状态 | `neo-zkvm-executor` + `Sp1StatefulBatchExecutor` |
 | 证明守护进程     | SP1 zkVM 证明该批次(Phase 4)                                   | `bridge/neo-zkvm-host/`(Rust 二进制) |
 | DA writer       | 把批次 payload 发到 NeoFS / L1 / 委员会                         | `Neo.L2.DA*` + 注入的 `IDAWriter`      |
 | 外链 watcher     | (仅外链桥)中继 EVM/Solana 事件 → Neo                          | `watchers/neo-bridge-watcher-*/`        |
@@ -184,9 +185,12 @@ DA / 证明 / RPC / gateway / metrics)。
 </p>
 
 `MyChainExecutor` 脚手架是给需要自定义交易语义的链(例如 RWA 链带 KYC 检查、
-DEX 链内置撮合)的起步点。只需要标准 NeoVM2/RISC-V + NEP-17 的链不用定制 —— 它们用
-`src/Neo.L2.Executor.RiscV/` 里的 `RiscVTransactionExecutor`。
-`ApplicationEngineTransactionExecutor` 只保留给 legacy NeoVM 兼容检查。
+DEX 链内置撮合)的起步点。PolkaVM `ChainMode.L2RiscV` profile 使用
+`src/Neo.L2.Executor.RiscV/` 的 `RiscVTransactionExecutor`；它与内置
+`Sp1StatefulNeoVmV1` proof semantic 不同，没有匹配 prover 时不得继承其 validity 标签。
+生产 SP1 validity 链使用 `Sp1SettlementExecutionStack`，其 SHA-256 锁定 native executor
+与 SP1 guest 共享同一 runtime。进程内 `ApplicationEngineTransactionExecutor` 只作为
+compatibility/reference 路径。
 
 ### 三阶段准入策略
 
@@ -250,6 +254,10 @@ l2_batch_info_hash          = 0x...  # 此 L2 的 L2BatchInfoContract
 线协议格式:`BatchSerializer`(`Neo.L2.Batch/`)—— 规范顺序的 32 字节字段。
 按 tx 的细节见 `architecture-walkthrough.md` 的"transaction lifecycle"。
 
+生产 SP1 profile 中，完整 pre-state `NEO4STW1` + `NEO4EXEC` 进入锁定 native
+executor；校验后的 `NEO4EXR1` 原子提交 post-state 并形成唯一规范 `NEO4PWIT`；daemon
+在任何 proof 到达 `SettlementManager` 前于 SP1 内重新执行该 artifact。
+
 ### 通道 2 —— 桥(资产转移)
 
 <p align="center">
@@ -303,9 +311,10 @@ zkSync / Scroll / Mantle / Fantom / Celo / Tron —— 它的构造函数从
 取 `externalChainId`。5 步接入 runbook 见
 [`external-bridge-evm-chains.md`](./external-bridge-evm-chains.md)。
 
-watcher 守护进程(生产就绪:graceful SIGTERM、`/healthz`、`/metrics`、基于
-flock 的并发实例检测、`min_confirmations` reorg buffer、`--preflight` 校验)
-位于 `watchers/neo-bridge-watcher-eth/`。k8s + systemd manifest 在
+watcher 守护进程源码具备面向生产的 graceful SIGTERM、`/healthz`、`/metrics`、基于
+flock 的并发实例检测、`min_confirmations` reorg buffer 与 `--preflight` 校验；
+独立审计、真实 RPC 端点验证和当前 revision 的部署证据仍是上线门禁。源码位于
+`watchers/neo-bridge-watcher-eth/`，k8s + systemd manifest 在
 [`deploy/`](../../watchers/neo-bridge-watcher-eth/deploy/)。
 
 ---

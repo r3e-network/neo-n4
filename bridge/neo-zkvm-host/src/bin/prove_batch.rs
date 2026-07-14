@@ -17,6 +17,8 @@
 //!   that the sequencer drops sealed batches into via filesystem (or any
 //!   other queue you wire up).
 
+use serde::Serialize;
+use sha2::{Digest, Sha256};
 use std::ffi::OsStr;
 use std::fs::OpenOptions;
 use std::io::{Read, Write};
@@ -34,6 +36,34 @@ static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 const GROTH16_PROOF_BYTES: usize = 356;
 const VERIFICATION_KEY_BYTES: usize = 32;
 const PUBLIC_VALUES_BYTES: usize = 33;
+const RESULT_MANIFEST_SCHEMA_VERSION: u16 = 1;
+const RESULT_MANIFEST_SUFFIX: &str = ".proof.result.json";
+const SETTLEMENT_ACK_SUFFIX: &str = ".proof.ack";
+const SUCCEEDED_STATUS: &str = "succeeded";
+const DEFAULT_MAX_QUEUE_BYTES: u64 = 16 * 1024 * 1024 * 1024;
+const DEFAULT_MAX_QUEUE_TASKS: usize = 64;
+const PROOF_ARTIFACT_RESERVE_BYTES: u64 = 64 * 1024;
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BatchProofResultManifest {
+    schema_version: u16,
+    status: &'static str,
+    request_id: String,
+    request_sha256: String,
+    artifact_content_hash: String,
+    public_input_hash: String,
+    proof_system: u8,
+    execution_semantic_id: String,
+    verification_key: String,
+    request_file: String,
+    proof_file: String,
+    verification_key_file: String,
+    public_values_file: String,
+    proof_sha256: String,
+    verification_key_sha256: String,
+    public_values_sha256: String,
+}
 
 #[cfg(unix)]
 extern "C" fn shutdown_signal_handler(_sig: i32) {
@@ -182,6 +212,8 @@ struct DaemonConfig {
     archive: Option<PathBuf>,
     gateway_sidecars: Option<PathBuf>,
     poll_secs: u64,
+    max_queue_bytes: u64,
+    max_queue_tasks: usize,
 }
 
 fn run_daemon(args: &[String]) {
@@ -191,37 +223,25 @@ fn run_daemon(args: &[String]) {
         std::process::exit(1);
     });
 
-    if let Err(error) = validate_non_symlink_directory(&cfg.watch, "--watch") {
+    if let Err(error) = prepare_private_directory(&cfg.watch, "--watch") {
         error!("{}", error);
         std::process::exit(1);
     }
-    if let Some(a) = &cfg.archive {
-        std::fs::create_dir_all(a).unwrap_or_else(|e| {
-            error!("failed to create --archive dir {}: {}", a.display(), e);
-            std::process::exit(1);
-        });
-        if let Err(error) = validate_non_symlink_directory(a, "--archive") {
-            error!("{}", error);
-            std::process::exit(1);
-        }
+    if let Some(a) = &cfg.archive
+        && let Err(error) = prepare_private_directory(a, "--archive")
+    {
+        error!("{}", error);
+        std::process::exit(1);
     }
-    if let Some(directory) = &cfg.gateway_sidecars {
-        std::fs::create_dir_all(directory).unwrap_or_else(|error| {
-            error!(
-                "failed to create --gateway-sidecars dir {}: {}",
-                directory.display(),
-                error
-            );
-            std::process::exit(1);
-        });
-        if let Err(error) = validate_non_symlink_directory(directory, "--gateway-sidecars") {
-            error!("{}", error);
-            std::process::exit(1);
-        }
+    if let Some(directory) = &cfg.gateway_sidecars
+        && let Err(error) = prepare_private_directory(directory, "--gateway-sidecars")
+    {
+        error!("{}", error);
+        std::process::exit(1);
     }
 
     info!(
-        "prove-batch daemon: watching {} (poll every {}s, archive: {}, Gateway sidecars: {})",
+        "prove-batch daemon: watching {} (poll every {}s, archive: {}, Gateway sidecars: {}, max bytes: {}, max tasks: {})",
         cfg.watch.display(),
         cfg.poll_secs,
         cfg.archive
@@ -231,7 +251,9 @@ fn run_daemon(args: &[String]) {
         cfg.gateway_sidecars
             .as_ref()
             .map(|path| path.display().to_string())
-            .unwrap_or_else(|| "<disabled>".to_string())
+            .unwrap_or_else(|| "<disabled>".to_string()),
+        cfg.max_queue_bytes,
+        cfg.max_queue_tasks,
     );
 
     // Install SIGTERM/SIGINT handlers so a k8s/systemd shutdown lands
@@ -287,6 +309,7 @@ fn acquire_watch_lock(watch_dir: &Path) -> Result<std::fs::File, String> {
         .write(true)
         .truncate(false)
         .custom_flags(libc::O_NOFOLLOW)
+        .mode(0o600)
         .open(&lock_path)
         .map_err(|e| format!("open {} for flock: {}", lock_path.display(), e))?;
     if !lock_file
@@ -328,6 +351,8 @@ fn parse_daemon_args(args: &[String]) -> Result<DaemonConfig, String> {
     let mut archive: Option<PathBuf> = None;
     let mut gateway_sidecars: Option<PathBuf> = None;
     let mut poll_secs: u64 = 5;
+    let mut max_queue_bytes = DEFAULT_MAX_QUEUE_BYTES;
+    let mut max_queue_tasks = DEFAULT_MAX_QUEUE_TASKS;
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -364,6 +389,30 @@ fn parse_daemon_args(args: &[String]) -> Result<DaemonConfig, String> {
                     return Err("--poll-secs must be positive".into());
                 }
             }
+            "--max-queue-bytes" => {
+                i += 1;
+                if i >= args.len() {
+                    return Err("--max-queue-bytes requires an integer".into());
+                }
+                max_queue_bytes = args[i]
+                    .parse()
+                    .map_err(|error| format!("--max-queue-bytes: {error}"))?;
+                if max_queue_bytes == 0 {
+                    return Err("--max-queue-bytes must be positive".into());
+                }
+            }
+            "--max-queue-tasks" => {
+                i += 1;
+                if i >= args.len() {
+                    return Err("--max-queue-tasks requires an integer".into());
+                }
+                max_queue_tasks = args[i]
+                    .parse()
+                    .map_err(|error| format!("--max-queue-tasks: {error}"))?;
+                if max_queue_tasks == 0 {
+                    return Err("--max-queue-tasks must be positive".into());
+                }
+            }
             "-h" | "--help" => {
                 print_usage();
                 std::process::exit(0);
@@ -378,6 +427,8 @@ fn parse_daemon_args(args: &[String]) -> Result<DaemonConfig, String> {
         archive,
         gateway_sidecars,
         poll_secs,
+        max_queue_bytes,
+        max_queue_tasks,
     })
 }
 
@@ -385,9 +436,20 @@ fn parse_daemon_args(args: &[String]) -> Result<DaemonConfig, String> {
 /// atomically rename it so we don't re-pick it up next tick.
 fn scan_once(cfg: &DaemonConfig) -> Result<usize, String> {
     validate_non_symlink_directory(&cfg.watch, "watch directory")?;
+    if let Some(archive) = &cfg.archive {
+        validate_non_symlink_directory(archive, "archive directory")?;
+    }
     if let Some(directory) = &cfg.gateway_sidecars {
         validate_non_symlink_directory(directory, "Gateway sidecar directory")?;
     }
+    let pruned = prune_acknowledged(cfg)?;
+    if pruned > 0 {
+        info!(
+            "pruned {} settlement-confirmed proof artifact set(s)",
+            pruned
+        );
+    }
+    ensure_queue_capacity(cfg)?;
     let mut processed = 0usize;
     let entries = std::fs::read_dir(&cfg.watch)
         .map_err(|e| format!("read_dir {}: {}", cfg.watch.display(), e))?;
@@ -407,11 +469,13 @@ fn scan_once(cfg: &DaemonConfig) -> Result<usize, String> {
     // order if the sequencer names files like 00000042.batch.bin).
     batches.sort();
     for path in batches {
+        ensure_queue_capacity(cfg)?;
         let name = path
             .file_name()
             .and_then(OsStr::to_str)
             .unwrap_or("<unnamed>")
             .to_string();
+        validate_private_regular_file(&path, "batch proof request")?;
         let bytes =
             match read_regular_bounded(&path, neo_execution_core::MAX_PROOF_WITNESS_ARTIFACT_BYTES)
             {
@@ -421,7 +485,22 @@ fn scan_once(cfg: &DaemonConfig) -> Result<usize, String> {
                     continue;
                 }
             };
-        let stem = name.trim_end_matches(".batch.bin");
+        let request_id = match canonical_request_id(&bytes) {
+            Ok(value) => value,
+            Err(error) => {
+                error!("validate {}: {}", path.display(), error);
+                continue;
+            }
+        };
+        let expected_name = format!("{request_id}.batch.bin");
+        if name != expected_name {
+            error!(
+                "rejecting non-canonical batch filename {}: expected {}",
+                name, expected_name
+            );
+            continue;
+        }
+        let stem = request_id.as_str();
         let proof_path = path.with_file_name(format!("{stem}.proof.bin"));
         info!("proving {} ({} bytes)...", name, bytes.len());
         let t0 = std::time::Instant::now();
@@ -439,6 +518,10 @@ fn scan_once(cfg: &DaemonConfig) -> Result<usize, String> {
                     && let Err(error) = publish_gateway_sidecar(&bytes, &written, directory)
                 {
                     error!("  ✗ {} Gateway sidecar failed: {}", name, error);
+                    continue;
+                }
+                if let Err(error) = publish_batch_result_manifest(&bytes, &written) {
+                    error!("  ✗ {} result manifest failed: {}", name, error);
                     continue;
                 }
                 info!(
@@ -465,6 +548,100 @@ fn scan_once(cfg: &DaemonConfig) -> Result<usize, String> {
         }
     }
     Ok(processed)
+}
+
+fn canonical_request_id(request_bytes: &[u8]) -> Result<String, String> {
+    neo_execution_core::parse_proof_witness_artifact(request_bytes)
+        .map_err(|error| format!("parse proof witness artifact: {error}"))?;
+    let content_hash = request_bytes
+        .get(request_bytes.len().saturating_sub(32)..)
+        .filter(|bytes| bytes.len() == 32)
+        .ok_or_else(|| "proof witness artifact has no content hash".to_string())?;
+    Ok(hex_encode(content_hash))
+}
+
+fn publish_batch_result_manifest(
+    request_bytes: &[u8],
+    terminal: &WrittenProof,
+) -> Result<(), String> {
+    let artifact = neo_execution_core::parse_proof_witness_artifact(request_bytes)
+        .map_err(|error| format!("parse proof witness artifact: {error}"))?;
+    let request_id = canonical_request_id(request_bytes)?;
+    let request_file = format!("{request_id}.batch.bin");
+    let proof_file = format!("{request_id}.proof.bin");
+    let verification_key_file = format!("{request_id}.proof.vk");
+    let public_values_file = format!("{request_id}.proof.public-values.bin");
+    require_file_name(&terminal.proof_path, &proof_file)?;
+    require_file_name(&terminal.vk_path, &verification_key_file)?;
+    require_file_name(&terminal.public_values_path, &public_values_file)?;
+
+    let proof = read_regular_bounded(&terminal.proof_path, GROTH16_PROOF_BYTES)
+        .map_err(|error| format!("read {}: {error}", terminal.proof_path.display()))?;
+    let verification_key = read_regular_bounded(&terminal.vk_path, VERIFICATION_KEY_BYTES)
+        .map_err(|error| format!("read {}: {error}", terminal.vk_path.display()))?;
+    let public_values = read_regular_bounded(&terminal.public_values_path, PUBLIC_VALUES_BYTES)
+        .map_err(|error| format!("read {}: {error}", terminal.public_values_path.display()))?;
+    if proof.len() != GROTH16_PROOF_BYTES
+        || verification_key.len() != VERIFICATION_KEY_BYTES
+        || public_values.len() != PUBLIC_VALUES_BYTES
+    {
+        return Err("proof result artifacts have non-canonical lengths".into());
+    }
+    let expected_public_input_hash = expected_public_input_hash(request_bytes)?;
+    if terminal.public_input_hash != expected_public_input_hash
+        || public_values[0] != 0
+        || public_values[1..] != expected_public_input_hash
+    {
+        return Err("proof result public values do not bind the canonical artifact".into());
+    }
+    if verification_key != artifact.verification_key_id {
+        return Err("proof result verification key differs from the witness artifact".into());
+    }
+
+    let manifest = BatchProofResultManifest {
+        schema_version: RESULT_MANIFEST_SCHEMA_VERSION,
+        status: SUCCEEDED_STATUS,
+        request_id: request_id.clone(),
+        request_sha256: sha256_hex(request_bytes),
+        artifact_content_hash: request_id.clone(),
+        public_input_hash: hex_encode(&expected_public_input_hash),
+        proof_system: artifact.proof_system,
+        execution_semantic_id: hex_encode(&artifact.execution_semantic_id),
+        verification_key: hex_encode(&verification_key),
+        request_file,
+        proof_file,
+        verification_key_file,
+        public_values_file,
+        proof_sha256: sha256_hex(&proof),
+        verification_key_sha256: sha256_hex(&verification_key),
+        public_values_sha256: sha256_hex(&public_values),
+    };
+    let bytes = serde_json::to_vec(&manifest)
+        .map_err(|error| format!("serialize proof result manifest: {error}"))?;
+    let directory = terminal
+        .proof_path
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    publish_exact_atomic(
+        &directory.join(format!("{request_id}{RESULT_MANIFEST_SUFFIX}")),
+        &bytes,
+    )
+}
+
+fn require_file_name(path: &Path, expected: &str) -> Result<(), String> {
+    if path.file_name().and_then(OsStr::to_str) == Some(expected) {
+        Ok(())
+    } else {
+        Err(format!(
+            "proof result artifact has non-canonical filename: {}",
+            path.display()
+        ))
+    }
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    hex_encode(&Sha256::digest(bytes))
 }
 
 fn publish_gateway_sidecar(
@@ -498,8 +675,11 @@ fn publish_gateway_sidecar(
 
 fn publish_exact_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
     match read_regular_bounded(path, bytes.len()) {
-        Ok(existing) if existing == bytes => return Ok(()),
-        Ok(_) => {
+        Ok(existing) => {
+            validate_private_regular_file(path, "existing idempotent artifact")?;
+            if existing == bytes {
+                return Ok(());
+            }
             return Err(format!(
                 "existing idempotent artifact differs: {}",
                 path.display()
@@ -519,9 +699,14 @@ fn publish_exact_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let temporary =
         path.with_file_name(format!(".{file_name}.tmp-{}-{suffix}", std::process::id()));
     let result = (|| {
-        let mut file = OpenOptions::new()
-            .create_new(true)
-            .write(true)
+        let mut options = OpenOptions::new();
+        options.create_new(true).write(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let mut file = options
             .open(&temporary)
             .map_err(|error| format!("create {}: {error}", temporary.display()))?;
         file.write_all(bytes)
@@ -534,6 +719,7 @@ fn publish_exact_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
                 Ok(())
             }
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                validate_private_regular_file(path, "existing idempotent artifact")?;
                 let existing = read_regular_bounded(path, bytes.len()).map_err(|read_error| {
                     format!("inspect existing {}: {read_error}", path.display())
                 })?;
@@ -548,6 +734,169 @@ fn publish_exact_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
     })();
     let _ = std::fs::remove_file(&temporary);
     result
+}
+
+fn prune_acknowledged(cfg: &DaemonConfig) -> Result<usize, String> {
+    let mut acknowledgements = Vec::new();
+    for entry in std::fs::read_dir(&cfg.watch)
+        .map_err(|error| format!("read_dir {}: {error}", cfg.watch.display()))?
+    {
+        let path = entry
+            .map_err(|error| format!("read_dir {} entry: {error}", cfg.watch.display()))?
+            .path();
+        if path
+            .file_name()
+            .and_then(OsStr::to_str)
+            .is_some_and(|name| name.ends_with(SETTLEMENT_ACK_SUFFIX))
+        {
+            acknowledgements.push(path);
+        }
+    }
+    acknowledgements.sort();
+    let mut pruned = 0usize;
+    for acknowledgement in acknowledgements {
+        validate_private_regular_file(&acknowledgement, "settlement acknowledgement")?;
+        let name = acknowledgement
+            .file_name()
+            .and_then(OsStr::to_str)
+            .ok_or_else(|| "settlement acknowledgement filename is not UTF-8".to_string())?;
+        let request_id = name
+            .strip_suffix(SETTLEMENT_ACK_SUFFIX)
+            .ok_or_else(|| "settlement acknowledgement suffix mismatch".to_string())?;
+        if request_id.len() != 64
+            || !request_id
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        {
+            return Err(format!(
+                "invalid settlement acknowledgement filename: {}",
+                acknowledgement.display()
+            ));
+        }
+        let expected = hex::decode(request_id)
+            .map_err(|error| format!("decode acknowledgement request id: {error}"))?;
+        let actual = read_regular_bounded(&acknowledgement, 32)
+            .map_err(|error| format!("read {}: {error}", acknowledgement.display()))?;
+        if actual != expected {
+            return Err(format!(
+                "settlement acknowledgement bytes do not match filename: {}",
+                acknowledgement.display()
+            ));
+        }
+
+        for suffix in [
+            ".batch.bin",
+            ".batch.bin.done",
+            ".proof.bin",
+            ".proof.vk",
+            ".proof.public-values.bin",
+            RESULT_MANIFEST_SUFFIX,
+        ] {
+            let _ = remove_private_regular_if_exists(
+                &cfg.watch.join(format!("{request_id}{suffix}")),
+                "acknowledged SP1 artifact",
+            )?;
+        }
+        if let Some(archive) = &cfg.archive {
+            let removed = remove_private_regular_if_exists(
+                &archive.join(format!("{request_id}.batch.bin")),
+                "archived acknowledged SP1 request",
+            )?;
+            if removed {
+                sync_directory(archive)?;
+            }
+        }
+        std::fs::remove_file(&acknowledgement)
+            .map_err(|error| format!("remove {}: {error}", acknowledgement.display()))?;
+        sync_parent_directory(&acknowledgement)?;
+        pruned += 1;
+    }
+    Ok(pruned)
+}
+
+fn ensure_queue_capacity(cfg: &DaemonConfig) -> Result<(), String> {
+    let (queue_bytes, queue_tasks) = queue_usage(cfg)?;
+    if queue_tasks > cfg.max_queue_tasks
+        || queue_bytes.saturating_add(PROOF_ARTIFACT_RESERVE_BYTES) > cfg.max_queue_bytes
+    {
+        return Err(format!(
+            "SP1 queue backpressure hard-stop: bytes={queue_bytes}/{} tasks={queue_tasks}/{}",
+            cfg.max_queue_bytes, cfg.max_queue_tasks
+        ));
+    }
+    Ok(())
+}
+
+fn queue_usage(cfg: &DaemonConfig) -> Result<(u64, usize), String> {
+    let mut bytes = 0u64;
+    let mut request_ids = std::collections::BTreeSet::new();
+    let directories = std::iter::once(cfg.watch.as_path()).chain(cfg.archive.as_deref());
+    for directory in directories {
+        for entry in std::fs::read_dir(directory)
+            .map_err(|error| format!("read_dir {}: {error}", directory.display()))?
+        {
+            let path = entry
+                .map_err(|error| format!("read_dir entry: {error}"))?
+                .path();
+            let metadata = std::fs::symlink_metadata(&path)
+                .map_err(|error| format!("inspect {}: {error}", path.display()))?;
+            if metadata.file_type().is_symlink() || !metadata.file_type().is_file() {
+                return Err(format!(
+                    "SP1 queue entries must be regular non-symlink files: {}",
+                    path.display()
+                ));
+            }
+            validate_private_regular_file_metadata(&metadata, &path, "SP1 queue artifact")?;
+            bytes = bytes
+                .checked_add(metadata.len())
+                .ok_or_else(|| "SP1 queue byte count overflow".to_string())?;
+            if let Some(name) = path.file_name().and_then(OsStr::to_str)
+                && let Some(request_id) = canonical_artifact_request_id(name)
+            {
+                request_ids.insert(request_id.to_owned());
+            }
+        }
+    }
+    Ok((bytes, request_ids.len()))
+}
+
+fn canonical_artifact_request_id(name: &str) -> Option<&str> {
+    const SUFFIXES: [&str; 7] = [
+        ".batch.bin",
+        ".batch.bin.done",
+        ".proof.bin",
+        ".proof.vk",
+        ".proof.public-values.bin",
+        RESULT_MANIFEST_SUFFIX,
+        SETTLEMENT_ACK_SUFFIX,
+    ];
+    let request_id = SUFFIXES
+        .iter()
+        .find_map(|suffix| name.strip_suffix(suffix))?;
+    (request_id.len() == 64
+        && request_id
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)))
+    .then_some(request_id)
+}
+
+fn remove_private_regular_if_exists(path: &Path, description: &str) -> Result<bool, String> {
+    match std::fs::symlink_metadata(path) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink() || !metadata.file_type().is_file() {
+                return Err(format!(
+                    "{description} must be a regular non-symlink file: {}",
+                    path.display()
+                ));
+            }
+            validate_private_regular_file_metadata(&metadata, path, description)?;
+            std::fs::remove_file(path)
+                .map_err(|error| format!("remove {}: {error}", path.display()))?;
+            Ok(true)
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!("inspect {}: {error}", path.display())),
+    }
 }
 
 fn finalize_input(path: &Path, cfg: &DaemonConfig, expected: &[u8]) -> Result<(), String> {
@@ -584,6 +933,101 @@ fn validate_non_symlink_directory(path: &Path, description: &str) -> Result<(), 
             path.display()
         ));
     }
+    validate_private_directory_metadata(&metadata, path, description)?;
+    Ok(())
+}
+
+fn prepare_private_directory(path: &Path, description: &str) -> Result<(), String> {
+    std::fs::create_dir_all(path)
+        .map_err(|error| format!("create {description} {}: {error}", path.display()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))
+            .map_err(|error| format!("secure {description} {}: {error}", path.display()))?;
+        for entry in std::fs::read_dir(path)
+            .map_err(|error| format!("read {description} {}: {error}", path.display()))?
+        {
+            let entry = entry.map_err(|error| format!("read {description} entry: {error}"))?;
+            let metadata = entry
+                .file_type()
+                .map_err(|error| format!("inspect {}: {error}", entry.path().display()))?;
+            if metadata.is_symlink() || !metadata.is_file() {
+                return Err(format!(
+                    "{description} entries must be regular non-symlink files: {}",
+                    entry.path().display()
+                ));
+            }
+            std::fs::set_permissions(entry.path(), std::fs::Permissions::from_mode(0o600))
+                .map_err(|error| format!("secure {}: {error}", entry.path().display()))?;
+        }
+    }
+    validate_non_symlink_directory(path, description)
+}
+
+fn validate_private_regular_file(path: &Path, description: &str) -> Result<(), String> {
+    let metadata = std::fs::symlink_metadata(path)
+        .map_err(|error| format!("inspect {description} {}: {error}", path.display()))?;
+    if metadata.file_type().is_symlink() || !metadata.file_type().is_file() {
+        return Err(format!(
+            "{description} must be a regular non-symlink file: {}",
+            path.display()
+        ));
+    }
+    validate_private_regular_file_metadata(&metadata, path, description)
+}
+
+#[cfg(unix)]
+fn validate_private_regular_file_metadata(
+    metadata: &std::fs::Metadata,
+    path: &Path,
+    description: &str,
+) -> Result<(), String> {
+    use std::os::unix::fs::MetadataExt;
+    // SAFETY: geteuid has no preconditions and does not dereference pointers.
+    let effective_uid = unsafe { libc::geteuid() };
+    if metadata.uid() != effective_uid || metadata.mode() & 0o777 != 0o600 {
+        return Err(format!(
+            "{description} must be owned by the daemon user with mode 0600: {}",
+            path.display()
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn validate_private_regular_file_metadata(
+    _: &std::fs::Metadata,
+    _: &Path,
+    _: &str,
+) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(unix)]
+fn validate_private_directory_metadata(
+    metadata: &std::fs::Metadata,
+    path: &Path,
+    description: &str,
+) -> Result<(), String> {
+    use std::os::unix::fs::MetadataExt;
+    // SAFETY: geteuid has no preconditions and does not dereference pointers.
+    let effective_uid = unsafe { libc::geteuid() };
+    if metadata.uid() != effective_uid || metadata.mode() & 0o777 != 0o700 {
+        return Err(format!(
+            "{description} must be owned by the daemon user with mode 0700: {}",
+            path.display()
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn validate_private_directory_metadata(
+    _: &std::fs::Metadata,
+    _: &Path,
+    _: &str,
+) -> Result<(), String> {
     Ok(())
 }
 
@@ -632,6 +1076,12 @@ fn sync_parent_directory(path: &Path) -> Result<(), String> {
     std::fs::File::open(parent)
         .and_then(|directory| directory.sync_all())
         .map_err(|error| format!("sync {}: {error}", parent.display()))
+}
+
+fn sync_directory(path: &Path) -> Result<(), String> {
+    std::fs::File::open(path)
+        .and_then(|directory| directory.sync_all())
+        .map_err(|error| format!("sync {}: {error}", path.display()))
 }
 
 fn finalize_exact_no_replace(source: &Path, destination: &Path) -> Result<(), String> {
@@ -836,15 +1286,19 @@ fn print_usage() {
     );
     info!("  prove-batch daemon --watch <dir> [--archive <dir>]    # production prover daemon");
     info!("              [--gateway-sidecars <dir>] [--poll-secs N]");
+    info!("              [--max-queue-bytes N] [--max-queue-tasks N]");
     info!("");
     info!("daemon mode:");
     info!("  watches <dir> for *.batch.bin (raw ProofWitnessArtifactV1 bytes), proves each,");
     info!("  emits <name>.proof.bin + <name>.proof.vk + <name>.proof.public-values.bin.");
     info!("  With --gateway-sidecars, also emits one atomically published, tuple-bound SP1");
     info!("  compressed child sidecar containing the missing public-input hash fields.");
+    info!("  All queue/archive directories use 0700 and artifacts use 0600. The daemon");
+    info!("  hard-stops at configured byte/task limits instead of filling the filesystem.");
     info!("  After a successful proof, the input is renamed or archived. The three outputs");
     info!("  are the exact artifacts consumed by ContractZkVerifier/Sp1Groth16Verifier.");
     info!("  The input is renamed to *.batch.bin.done (or moved into --archive if set)");
+    info!("  and is pruned with its proof set only after a matching *.proof.ack is durable.");
     info!("  so it isn't re-processed. Failures leave the input in place and log loudly so a");
     info!("  monitoring system can alert on repeated failures (poison-pill batches).");
 }
@@ -862,6 +1316,13 @@ fn hex_encode(b: &[u8]) -> String {
 mod tests {
     use super::*;
 
+    const FIXTURE_HEX: &str =
+        include_str!("../../../neo-zkvm-guest/tests/fixtures/stateful_batch_v1.hex");
+
+    fn fixture_bytes() -> Vec<u8> {
+        hex::decode(FIXTURE_HEX.split_whitespace().collect::<String>()).unwrap()
+    }
+
     fn test_directory(name: &str) -> PathBuf {
         let directory = std::env::temp_dir().join(format!(
             "neo-zkvm-host-{name}-{}-{}",
@@ -869,7 +1330,21 @@ mod tests {
             TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)
         ));
         std::fs::create_dir(&directory).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o700)).unwrap();
+        }
         directory
+    }
+
+    fn write_private(path: &Path, bytes: &[u8]) {
+        std::fs::write(path, bytes).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        }
     }
 
     #[test]
@@ -881,6 +1356,97 @@ mod tests {
         assert_eq!(std::fs::read(&artifact).unwrap(), b"exact");
         assert!(publish_exact_atomic(&artifact, b"different").is_err());
         std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn canonical_request_id_is_the_authenticated_content_hash() {
+        let bytes = fixture_bytes();
+        assert_eq!(
+            canonical_request_id(&bytes).unwrap(),
+            hex_encode(&bytes[bytes.len() - 32..])
+        );
+    }
+
+    #[test]
+    fn daemon_limits_parse_and_reject_zero() {
+        let config = parse_daemon_args(&[
+            "--watch".into(),
+            "/tmp/queue".into(),
+            "--max-queue-bytes".into(),
+            "4096".into(),
+            "--max-queue-tasks".into(),
+            "7".into(),
+        ])
+        .unwrap();
+        assert_eq!(config.max_queue_bytes, 4096);
+        assert_eq!(config.max_queue_tasks, 7);
+        assert!(
+            parse_daemon_args(&[
+                "--watch".into(),
+                "/tmp/queue".into(),
+                "--max-queue-bytes".into(),
+                "0".into(),
+            ])
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn settlement_ack_prunes_watch_and_archive_idempotently() {
+        let watch = test_directory("ack-watch");
+        let archive = test_directory("ack-archive");
+        let request_id = "11".repeat(32);
+        for suffix in [
+            ".proof.bin",
+            ".proof.vk",
+            ".proof.public-values.bin",
+            RESULT_MANIFEST_SUFFIX,
+        ] {
+            write_private(&watch.join(format!("{request_id}{suffix}")), b"artifact");
+        }
+        write_private(&archive.join(format!("{request_id}.batch.bin")), b"witness");
+        publish_exact_atomic(
+            &watch.join(format!("{request_id}{SETTLEMENT_ACK_SUFFIX}")),
+            &hex::decode(&request_id).unwrap(),
+        )
+        .unwrap();
+        let config = DaemonConfig {
+            watch: watch.clone(),
+            archive: Some(archive.clone()),
+            gateway_sidecars: None,
+            poll_secs: 1,
+            max_queue_bytes: DEFAULT_MAX_QUEUE_BYTES,
+            max_queue_tasks: DEFAULT_MAX_QUEUE_TASKS,
+        };
+
+        assert_eq!(prune_acknowledged(&config).unwrap(), 1);
+        assert_eq!(prune_acknowledged(&config).unwrap(), 0);
+        assert!(std::fs::read_dir(&watch).unwrap().next().is_none());
+        assert!(std::fs::read_dir(&archive).unwrap().next().is_none());
+        std::fs::remove_dir_all(watch).unwrap();
+        std::fs::remove_dir_all(archive).unwrap();
+    }
+
+    #[test]
+    fn queue_usage_counts_archive_and_content_addressed_tasks() {
+        let watch = test_directory("usage-watch");
+        let archive = test_directory("usage-archive");
+        let first = "22".repeat(32);
+        let second = "33".repeat(32);
+        write_private(&watch.join(format!("{first}.proof.bin")), b"proof");
+        write_private(&archive.join(format!("{second}.batch.bin")), b"witness");
+        let config = DaemonConfig {
+            watch: watch.clone(),
+            archive: Some(archive.clone()),
+            gateway_sidecars: None,
+            poll_secs: 1,
+            max_queue_bytes: DEFAULT_MAX_QUEUE_BYTES,
+            max_queue_tasks: DEFAULT_MAX_QUEUE_TASKS,
+        };
+
+        assert_eq!(queue_usage(&config).unwrap(), (12, 2));
+        std::fs::remove_dir_all(watch).unwrap();
+        std::fs::remove_dir_all(archive).unwrap();
     }
 
     #[test]

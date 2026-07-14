@@ -234,7 +234,6 @@ public class MessageRouterContract : SmartContract
     {
         var sm = (UInt160)(Storage.Get(new byte[] { PrefixSettlementManager }) ?? throw new Exception("sm unset"));
         ExecutionEngine.Assert(Runtime.CheckWitness(sm), "not settlement manager");
-        ExecutionEngine.Assert(!globalRoot.Equals(UInt256.Zero), "global root must be non-zero");
         ExecutionEngine.Assert(!constituentCommitmentsRoot.Equals(UInt256.Zero),
             "constituent commitments root must be non-zero");
         ExecutionEngine.Assert(constituentCount > 0, "constituent count must be positive");
@@ -582,8 +581,8 @@ public class MessageRouterContract : SmartContract
         for (var level = 0; level < siblings.Length; level++)
         {
             var sibling = siblings[level];
-            ExecutionEngine.Assert(sibling != null && sibling.Length == 32,
-                "sibling must be 32 bytes");
+            if (sibling is null) throw new Exception("sibling must be 32 bytes");
+            ExecutionEngine.Assert(sibling.Length == 32, "sibling must be 32 bytes");
             var combined = new byte[64];
             if ((index & 1UL) == 0UL)
             {

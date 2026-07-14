@@ -678,6 +678,39 @@ public class UT_SettlementManager_Vm
     }
 
     [TestMethod]
+    public void PublishGatewayGlobalRoot_AllowsCanonicalZeroMessageRoot()
+    {
+        var engine = new TestEngine(true);
+        var settlementManager = Deploy(engine);
+        WireGatewayRouter(
+            engine,
+            settlementManager,
+            UInt160.Parse("0x" + new string('6', 40)));
+        var (commitment, l1MessageHash, blockContextHash) = BuildCommitment(
+            batch: 1,
+            preState: R(0x00),
+            postState: R(0xA1),
+            withdrawalRoot: R(0x51),
+            l2ToL2MessageRoot: R(0x00));
+        settlementManager.SubmitBatch(commitment, l1MessageHash, blockContextHash);
+        settlementManager.FinalizeBatch(ChainId, 1);
+        var references = PackGatewayReferences(new[] { (ChainId, 1UL) });
+
+        Assert.IsTrue(settlementManager.PublishGatewayGlobalRoot(
+            10,
+            references,
+            UInt256.Zero,
+            new UInt256(Hash256(commitment)),
+            1,
+            2,
+            1,
+            new UInt256(R(0xA1)),
+            new UInt256(R(0xD1)),
+            new byte[] { 0xCA }));
+        Assert.AreEqual((BigInteger)1, settlementManager.GetGatewayFinalizedThrough(ChainId));
+    }
+
+    [TestMethod]
     public void PublishGatewayGlobalRoot_RouterFaultRollsBackEveryWatermark()
     {
         var engine = new TestEngine(true);

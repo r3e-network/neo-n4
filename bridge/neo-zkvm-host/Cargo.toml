@@ -5,17 +5,25 @@ edition = "2024"
 rust-version = "1.88"
 license = "MIT"
 description = "Real SP1 host that loads neo-zkvm-guest's RISC-V ELF, runs it via SP1's prover, and produces a verifiable ZK proof of L2 batch execution."
-# build.rs invokes `cargo prove build` against ../neo-zkvm-guest and exposes
+# build.rs invokes the digest-pinned Docker `cargo prove build --docker --locked`
+# against ../neo-zkvm-guest and exposes
 # the produced RISC-V ELF path via the NEO_ZKVM_GUEST_ELF env var so lib.rs
 # can `include_bytes!()` it. (Cargo silently ignores `build` keys placed
 # inside other tables like [[bin]] — keep this under [package].)
 build = "build.rs"
+
+[features]
+default = []
+native-gnark = ["sp1-sdk/native-gnark"]
 
 [dependencies]
 bincode = "1.3"
 hex = "0.4"
 neo-execution-core = { path = "../neo-execution-core" }
 neo-zkvm-gateway-guest = { path = "../neo-zkvm-gateway-guest" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
@@ -34,6 +42,12 @@ libc = "0.2"
 serial_test = "3.0"
 neo-zkvm-guest = { path = "../neo-zkvm-guest" }
 neo-execution-core = { path = "../neo-execution-core" }
+
+[build-dependencies]
+libc = "0.2"
+serde_json = { workspace = true }
+sha2 = "0.10.8"
+sp1-sdk = { version = "=6.2.1", features = ["blocking"] }
 
 [[bin]]
 name = "prove-batch"

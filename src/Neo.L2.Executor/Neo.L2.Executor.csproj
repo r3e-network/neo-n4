@@ -17,4 +17,8 @@
     <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Neo.L2.Executor.UnitTests" />
+  </ItemGroup>
+
 </Project>

@@ -34,6 +34,10 @@ public static class MetricNames
     /// <summary>Current canonical artifacts not fully reconciled on L1.</summary>
     public const string SettlementPending = "l2.settlement.pending";
 
+    /// <summary>Gauge: canonical batches submitted or ready but not yet observed on L1.</summary>
+    public const string SettlementConfirmationLagBatches =
+        "l2.settlement.confirmation_lag_batches";
+
     /// <summary>Failed canonical settlement reconciliation attempts.</summary>
     public const string SettlementRetries = "l2.settlement.retries";
 

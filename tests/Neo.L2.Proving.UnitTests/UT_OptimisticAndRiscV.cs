@@ -541,6 +541,34 @@ public class UT_OptimisticAndRiscV
     }
 
     [TestMethod]
+    public void RiscVProofPayload_Equality_UsesProofByteContent()
+    {
+        var verificationKeyId = UInt256.Parse("0x" + new string('c', 64));
+        var left = new RiscVProofPayload
+        {
+            ProofSystem = ProofSystem.Sp1,
+            ProofBytes = new byte[] { 0x11, 0x22, 0x33 },
+            VerificationKeyId = verificationKeyId,
+        };
+        var equal = new RiscVProofPayload
+        {
+            ProofSystem = ProofSystem.Sp1,
+            ProofBytes = new byte[] { 0x11, 0x22, 0x33 },
+            VerificationKeyId = new UInt256(verificationKeyId.GetSpan()),
+        };
+        var differentProof = equal with { ProofBytes = new byte[] { 0x11, 0x22, 0x34 } };
+        var differentSystem = equal with { ProofSystem = ProofSystem.RiscZero };
+        var differentKey = equal with { VerificationKeyId = UInt256.Zero };
+
+        Assert.AreEqual(left, equal);
+        Assert.AreEqual(left.GetHashCode(), equal.GetHashCode());
+        Assert.AreNotEqual(left, differentProof);
+        Assert.AreNotEqual(left, differentSystem);
+        Assert.AreNotEqual(left, differentKey);
+        Assert.IsFalse(left.Equals(null));
+    }
+
+    [TestMethod]
     public void MockRiscVProver_Constructor_RejectsNullVerificationKeyId()
     {
         // Regression for iter 198: null UInt256 verificationKeyId would slip past the

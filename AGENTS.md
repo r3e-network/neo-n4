@@ -42,9 +42,10 @@ but does NOT need to extend in place.
 - `neo-zkvm`, `neo-axiom` — ZK proof systems. `bridge/neo-zkvm-host` (Rust prover daemon
   in this repo) is the production prover, built on sp1-sdk 6.2.1; `bridge/neo-zkvm-guest`
   is the function it proves correct (compiled to RISC-V via `cargo prove build`, runs
-  real Neo N3 VM via `neo-vm-guest`). neo-zkvm is vendored as a git submodule at
-  `external/neo-zkvm`; the guest crate's path-dep is `crates/neo-vm-guest` (the full
-  Neo N3 VM in pure Rust).
+  the stateful N4 V1 profile via vendored `neo-vm-rs`). The same crate builds host-native
+  `neo-zkvm-executor`; production C# execution pins its SHA-256 and uses the same runtime
+  before SP1 re-executes the canonical witness. `neo-zkvm` remains vendored at
+  `external/neo-zkvm` as an adjacent proof-system dependency/reference.
 - `neo-devpack-dotnet` — compile C# to NeoVM (used for `contracts/`). Also vendored as a
   git submodule at `external/neo-devpack-dotnet` (never released on NuGet for the version
   we track). `contracts/Directory.Build.props` defaults `NeoDevpackPath` to the submodule.
@@ -54,22 +55,22 @@ but does NOT need to extend in place.
   generally NOT what to extend.
 
 **Before writing a new component, search this repo's existing libs first** (the per-component
-table in `IMPLEMENTATION_STATUS.md` has 16 off-chain libs + 8 plugins + 25 deployable NeoHub projects
-(24 production + 1 test-only stub) + 10 Neo core native L2 contracts; many
+table in `IMPLEMENTATION_STATUS.md` has 16 core off-chain libs + 2 RPC adapter libs + 8 plugins +
+26 NeoHub projects (24 production + 1 advisory verifier + 1 test-only stub) + 10 Neo core native L2 contracts; many
 features that look missing are already there).
 
 ## Mapping `doc.md` to code (current state)
 
 | `doc.md` § | Topic                       | Code location |
 | ---------- | --------------------------- | ------------- |
-| §3.2 NeoHub                | L1 contract suite          | `contracts/NeoHub.*` (25 projects = 24 production + 1 test-only `ExternalBridgeStubVerifier`: Phase 0–3 core + DA validator/filter + immutable `Sp1Groth16Verifier` + external-bridge stack incl. `GovernanceFraudVerifier` (structural v1/v2), `RestrictedExecutionFraudVerifier` (v3 root re-derivation, governance-arbitrated), `MpcCommitteeVerifier` + `MpcCommitteeFraudVerifier`) |
+| §3.2 NeoHub                | L1 contract suite          | `contracts/NeoHub.*` (26 projects = 24 production + advisory-only `GovernanceFraudVerifier` + test-only `ExternalBridgeStubVerifier`: Phase 0–3 core + DA validator/filter + immutable `Sp1Groth16Verifier` + external-bridge stack. Fraud-proof v1/v2 are structural audit formats, v3 self-consistency is rejected by the production challenge path, and permissionless v4 binds committed roots while re-executing exactly one registered Counter transaction; general NeoVM fraud proofs remain unsupported.) |
 | §4 Neo Gateway             | Phase-5 aggregation        | `src/Neo.Plugins.L2Gateway` (`BinaryTreeAggregator` + `IRoundProver`) |
 | §5 L2 node internals       | Per-L2 plugin layout       | `src/Neo.Plugins.L2{Batch,Settlement,Bridge,DA,Prover,Rpc,Gateway,Metrics}` |
 | §7.1 Sequencer / dBFT      | Committee selection        | `contracts/NeoHub.SequencerRegistry` + `src/Neo.L2.Sequencer` |
 | §7.2 Batcher               | Block ↦ batch              | `src/Neo.L2.Batch` + `src/Neo.Plugins.L2Batch` |
-| §7.3 StateRootGenerator    | Per-batch roots            | `src/Neo.L2.State` + `src/Neo.L2.Executor.State.KeyedStateStore` |
+| §7.3 StateRootGenerator    | Per-batch roots            | `src/Neo.L2.State` + `src/Neo.L2.Executor.State.KeyedStateStore` + `Sp1StateWitnessSource` durable-artifact-first atomic complete-state handoff |
 | §7.4 DAWriter              | DA layer abstraction       | `src/Neo.L2.Abstractions.IDAWriter` + `src/Neo.Plugins.L2DA` |
-| §7.5 ProverAdapter         | 3-stage proving            | `src/Neo.L2.Proving/{Attestation,Optimistic,RiscVZk}` (Stage 0/1/mock-2 in-process) + `bridge/neo-zkvm-host/` (real Stage-2 ZK out-of-process via `prove-batch daemon`) |
+| §7.5 ProverAdapter         | 3-stage proving            | `src/Neo.L2.Proving/{Attestation,Optimistic,RiscVZk}` + `Sp1SettlementExecutionStack` + host-native `neo-zkvm-executor` + `bridge/neo-zkvm-host/` (real Stage-2 ZK out-of-process) |
 | §8 Proof system            | Proving spec               | `src/Neo.L2.Executor/SPEC.md` + `contracts/NeoHub.Sp1Groth16Verifier` (immutable SP1 v6.1-compatible wrapper used by SP1 6.2.x, verified over Neo BN254 interops) |
 | §9 Token / GAS model       | Bridged accounting         | `src/Neo.L2.Bridge.AssetRegistry` + `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs` (`L2BridgeContract`) |
 | §10 Neo Connect            | Cross-chain messaging      | `src/Neo.L2.Messaging` + `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs` (`L2MessageContract`) |
@@ -149,19 +150,20 @@ Every cross-cutting capability has an interface so phases can swap implementatio
 
 All phases (0/1/2/3/4/5/6) are ✅.
 
-- **Phase 4** (NeoVM2/RISC-V ZK validity proof): N4 L2 execution targets the
-  PolkaVM-backed RISC-V kernel in `external/neo-riscv-vm`, wired through
-  `src/Neo.L2.Executor.RiscV`. `neo-l2-devnet --executor riscv` is the canonical
-  path. The SP1 proof boundary lives in `bridge/neo-zkvm-host` (the `prove-batch`
-  prover daemon CLI) and `bridge/neo-zkvm-guest` (the RISC-V ELF that compiles
-  via `sp1up` + `cargo prove build`). Real-CPU proof generation + verification +
-  tampered-hash rejection are exercised by `#[ignore]`-gated release-gate tests
-  in `bridge/neo-zkvm-host/`.
+- **Phase 4** (NeoVM2/RISC-V ZK validity proof): the codebase exposes two explicit
+  execution profiles. PolkaVM `ChainMode.L2RiscV` lives in `external/neo-riscv-vm` +
+  `src/Neo.L2.Executor.RiscV`; it does not inherit a validity label without a matching
+  prover. The bundled production validity profile is `Sp1StatefulNeoVmV1`:
+  `Sp1SettlementExecutionStack` binds complete durable state, SHA-256-pinned
+  `neo-zkvm-executor`, immutable-artifact-first atomic post-state commit,
+  `Sp1BatchProofProver`, and exact VK/profile;
+  `bridge/neo-zkvm-guest` re-executes the same runtime inside SP1 and
+  `bridge/neo-zkvm-host` proves it out of process. Real native C#→Rust execution and
+  ignored real-CPU proof/tamper gates cover this exact semantic.
 - **Phase 5** (Neo Gateway proof aggregation): `BinaryTreeAggregator` ships three
-  `IRoundProver` implementations (`MultisigRoundProver` Secp256r1 threshold-attested,
-  `MerklePathRoundProver` per-leaf inclusion proofs, `PassThroughRoundProver` reference).
-  Recursive-ZK fold variants (SP1 Compress / Halo2 / Risc0) plug into the same seam
-  when the operator brings their toolchain — the seam is the extension point, not a gap.
+  non-recursive `IRoundProver` implementations plus the bundled
+  `neo-zkvm-gateway-{guest,host}` SP1 recursive terminal proof. Halo2/Risc0 alternatives may
+  still plug into the seam; they are not prerequisites for the shipped SP1 path.
 
 Phase 6 (12 CLI subcommands: create-chain / init-l2 / register-chain / deploy-bridge-adapter
 / start-{sequencer,batcher,prover} / submit-batch / validate / scaffold-executor / new-l2 /

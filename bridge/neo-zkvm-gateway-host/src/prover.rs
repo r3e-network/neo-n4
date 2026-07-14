@@ -18,6 +18,9 @@ use sp1_sdk::{
 use sp1_verifier::{GROTH16_VK_BYTES, Groth16Verifier};
 use std::{fs::OpenOptions, io::Read, os::unix::fs::OpenOptionsExt, path::Path};
 
+#[path = "../../sp1_runtime_support.rs"]
+mod sp1_runtime_support;
+
 #[must_use]
 pub const fn gateway_verification_key() -> [u8; 32] {
     GATEWAY_VK_BYTES32
@@ -33,6 +36,7 @@ pub fn prove_request(
             "test-only-vk build cannot generate production proofs".into(),
         ));
     }
+    sp1_runtime_support::validate_gnark_backend().map_err(GatewayError::Proving)?;
     let parsed = parse_request_with_gateway_vk(request_bytes, Some(&GATEWAY_VK_BYTES32))
         .map_err(|error| GatewayError::Request(error.to_string()))?;
     if &parsed != request {

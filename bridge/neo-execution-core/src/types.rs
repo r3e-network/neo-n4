@@ -10,6 +10,10 @@ pub const DEFAULT_ADDRESS_VERSION: u8 = 0x35;
 pub const DEFAULT_PER_TX_GAS_LIMIT: i64 = 2_000_000_000;
 pub const MAX_STORAGE_KEY_BYTES: usize = 64;
 pub const MAX_STORAGE_VALUE_BYTES: usize = u16::MAX as usize;
+pub const SP1_STATEFUL_NEO_VM_V1_EXECUTION_SEMANTIC_ID: UInt256 = [
+    0xd1, 0x0e, 0x9e, 0xb1, 0x4f, 0x5c, 0xca, 0x96, 0xfc, 0x1c, 0xcd, 0x21, 0x2e, 0x73, 0x40, 0x8d,
+    0x41, 0x17, 0xa3, 0xed, 0x7e, 0xe5, 0xb5, 0xfd, 0x0d, 0xde, 0x4c, 0xa1, 0x57, 0x8e, 0xe9, 0x15,
+];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BatchBlockContext {
@@ -32,6 +36,14 @@ pub struct L1Message {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ForcedInclusionProof {
+    pub nonce: u64,
+    pub leaf_index: u32,
+    pub tx_hash: UInt256,
+    pub siblings: Vec<UInt256>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutionPayload {
     pub chain_id: u32,
     pub batch_number: u64,
@@ -40,6 +52,7 @@ pub struct ExecutionPayload {
     pub pre_state_root: UInt256,
     pub block_context: BatchBlockContext,
     pub l1_messages: Vec<L1Message>,
+    pub forced_inclusions: Vec<ForcedInclusionProof>,
     pub transactions: Vec<Vec<u8>>,
 }
 
@@ -184,8 +197,11 @@ pub struct BatchExecutionResult {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProofWitnessArtifact {
+    pub proof_type: u8,
     pub proof_system: u8,
+    pub execution_witness_authenticated: bool,
     pub verification_key_id: UInt256,
+    pub execution_semantic_id: UInt256,
     pub chain_id: u32,
     pub batch_number: u64,
     pub first_block: u64,
@@ -198,8 +214,10 @@ pub struct ProofWitnessArtifact {
     pub effects_bytes: Vec<u8>,
     pub effects: BatchEffects,
     pub da_mode: u8,
+    pub da_receipt_kind: u8,
     pub da_commitment: UInt256,
     pub da_pointer: Vec<u8>,
+    pub da_evidence: Vec<u8>,
     pub public_inputs: PublicInputs,
 }
 
@@ -338,6 +356,23 @@ pub struct ComputedBatch {
     pub effects: BatchEffects,
     pub effects_bytes: Vec<u8>,
     pub public_inputs: PublicInputs,
+    pub public_input_hash: UInt256,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComputedBatchTransition {
+    pub batch: ComputedBatch,
+    pub post_state_witness_bytes: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeExecutionOutputV1 {
+    pub request_payload_hash: UInt256,
+    pub request_state_witness_hash: UInt256,
+    pub execution_semantic_id: UInt256,
+    pub execution_result: BatchExecutionResult,
+    pub effects_bytes: Vec<u8>,
+    pub post_state_witness_bytes: Vec<u8>,
     pub public_input_hash: UInt256,
 }
 

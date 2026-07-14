@@ -3,15 +3,17 @@ use alloc::{string::ToString, vec::Vec};
 use crate::{
     hashing::{
         contract_binding_hash, contract_binding_key, encode_receipt, encode_stack_state,
-        hash_block_context, hash_l1_messages, hash256,
+        hash_block_context, hash_l1_messages, hash256, keyed_state_root,
     },
     manifest::parse_contract_manifest,
     types::{
         BatchBlockContext, BatchEffects, BatchExecutionResult, CanonicalReceiptV1,
         CanonicalStackValue, ContractWitness, DEFAULT_ADDRESS_VERSION, DEFAULT_EXEC_FEE_FACTOR,
         DEFAULT_PER_TX_GAS_LIMIT, DEFAULT_STORAGE_PRICE, ExecutionError, ExecutionEvent,
-        ExecutionPayload, L1Message, ProofWitnessArtifact, ProtocolConfig, PublicInputs,
-        StateEntry, StateWitness, StorageDelta, StorageOperation, TransactionEffects, UInt256,
+        ExecutionPayload, ForcedInclusionProof, L1Message, NativeExecutionOutputV1,
+        ProofWitnessArtifact, ProtocolConfig, PublicInputs,
+        SP1_STATEFUL_NEO_VM_V1_EXECUTION_SEMANTIC_ID, StateEntry, StateWitness, StorageDelta,
+        StorageOperation, TransactionEffects, UInt256,
     },
 };
 
@@ -19,16 +21,22 @@ const ARTIFACT_MAGIC: &[u8; 8] = b"NEO4PWIT";
 const PAYLOAD_MAGIC: &[u8; 8] = b"NEO4EXEC";
 const STATE_WITNESS_MAGIC: &[u8; 8] = b"NEO4STW1";
 const EFFECTS_MAGIC: &[u8; 8] = b"NEO4EFX1";
+const NATIVE_EXECUTION_OUTPUT_MAGIC: &[u8; 8] = b"NEO4EXR1";
 const CONTENT_HASH_DOMAIN: &[u8] = b"neo-n4/proof-witness/v1\0";
+const NATIVE_EXECUTION_OUTPUT_HASH_DOMAIN: &[u8] = b"neo-n4/native-execution-output/v1\0";
 
 pub const MAX_PROOF_WITNESS_ARTIFACT_BYTES: usize = 256 * 1024 * 1024;
-const MAX_PAYLOAD_BYTES: usize = 64 * 1024 * 1024;
-const MAX_STATE_WITNESS_BYTES: usize = 128 * 1024 * 1024;
+pub const MAX_EXECUTION_PAYLOAD_BYTES: usize = 64 * 1024 * 1024;
+pub const MAX_STATE_WITNESS_BYTES: usize = 128 * 1024 * 1024;
+pub const MAX_NATIVE_EXECUTION_OUTPUT_BYTES: usize =
+    MAX_STATE_WITNESS_BYTES + MAX_EFFECTS_BYTES + 512;
 const MAX_EFFECTS_BYTES: usize = 64 * 1024 * 1024;
 const MAX_DA_POINTER_BYTES: usize = 1024 * 1024;
+const MAX_DA_EVIDENCE_BYTES: usize = 16 * 1024 * 1024;
 const MAX_MESSAGE_BYTES: usize = 4 * 1024 * 1024;
 const MAX_PAYLOAD_TRANSACTION_BYTES: usize = 16 * 1024 * 1024;
 const MAX_PAYLOAD_ITEMS: usize = 1_000_000;
+const MAX_FORCED_INCLUSION_SIBLINGS: usize = 64;
 const MAX_STATE_ENTRIES: usize = 65_536;
 const MAX_STATE_KEY_BYTES: usize = 4096;
 const MAX_STATE_VALUE_BYTES: usize = 1024 * 1024;
@@ -56,17 +64,35 @@ pub fn parse_proof_witness_artifact(bytes: &[u8]) -> Result<ProofWitnessArtifact
 
     let mut reader = Reader::new(&bytes[..body_len]);
     reader.require_magic(ARTIFACT_MAGIC, "proof witness magic")?;
-    require_version_flags(&mut reader, "proof witness")?;
+    if reader.read_u16()? != 1 {
+        return Err(ExecutionError::Invalid("proof witness version"));
+    }
+    let flags = reader.read_u16()?;
+    if flags & !1 != 0 {
+        return Err(ExecutionError::Invalid("proof witness flags"));
+    }
+    let execution_witness_authenticated = flags & 1 != 0;
+    let proof_type = reader.read_u8()?;
+    if proof_type != 3 {
+        return Err(ExecutionError::Invalid("proof type"));
+    }
     let proof_system = reader.read_u8()?;
     if !(1..=4).contains(&proof_system) {
         return Err(ExecutionError::Invalid("proof system"));
     }
-    if reader.read_fixed::<3>()? != [0u8; 3] {
+    if reader.read_fixed::<2>()? != [0u8; 2] {
         return Err(ExecutionError::Invalid("proof witness reserved bytes"));
+    }
+    if !execution_witness_authenticated {
+        return Err(ExecutionError::Invalid("unauthenticated proof witness"));
     }
     let verification_key_id = reader.read_fixed::<32>()?;
     if verification_key_id == [0u8; 32] {
         return Err(ExecutionError::Invalid("zero verification key id"));
+    }
+    let execution_semantic_id = reader.read_fixed::<32>()?;
+    if execution_semantic_id == [0u8; 32] {
+        return Err(ExecutionError::Invalid("zero execution semantic id"));
     }
     let chain_id = reader.read_u32()?;
     let batch_number = reader.read_u64()?;
@@ -75,7 +101,8 @@ pub fn parse_proof_witness_artifact(bytes: &[u8]) -> Result<ProofWitnessArtifact
     if last_block < first_block {
         return Err(ExecutionError::Invalid("artifact block range"));
     }
-    let payload_bytes = reader.read_length_prefixed(MAX_PAYLOAD_BYTES, "execution payload")?;
+    let payload_bytes =
+        reader.read_length_prefixed(MAX_EXECUTION_PAYLOAD_BYTES, "execution payload")?;
     let execution_payload = parse_execution_payload(&payload_bytes)?;
     let state_witness_bytes =
         reader.read_length_prefixed(MAX_STATE_WITNESS_BYTES, "state witness")?;
@@ -93,8 +120,22 @@ pub fn parse_proof_witness_artifact(bytes: &[u8]) -> Result<ProofWitnessArtifact
     if !matches!(da_mode, 0..=3 | u8::MAX) {
         return Err(ExecutionError::Invalid("DA mode"));
     }
+    let da_receipt_kind = reader.read_u8()?;
+    if !(1..=6).contains(&da_receipt_kind) {
+        return Err(ExecutionError::Invalid("DA receipt kind"));
+    }
+    if reader.read_fixed::<2>()? != [0u8; 2] {
+        return Err(ExecutionError::Invalid("DA receipt reserved bytes"));
+    }
     let da_commitment = reader.read_fixed::<32>()?;
     let da_pointer = reader.read_length_prefixed(MAX_DA_POINTER_BYTES, "DA pointer")?;
+    if da_pointer.is_empty() {
+        return Err(ExecutionError::Invalid("empty DA pointer"));
+    }
+    let da_evidence = reader.read_length_prefixed(MAX_DA_EVIDENCE_BYTES, "DA evidence")?;
+    if da_evidence.is_empty() {
+        return Err(ExecutionError::Invalid("empty DA evidence"));
+    }
     let public_inputs = read_public_inputs(&mut reader)?;
     reader.ensure_end("proof witness body")?;
 
@@ -119,8 +160,11 @@ pub fn parse_proof_witness_artifact(bytes: &[u8]) -> Result<ProofWitnessArtifact
     }
 
     Ok(ProofWitnessArtifact {
+        proof_type,
         proof_system,
+        execution_witness_authenticated,
         verification_key_id,
+        execution_semantic_id,
         chain_id,
         batch_number,
         first_block,
@@ -133,14 +177,133 @@ pub fn parse_proof_witness_artifact(bytes: &[u8]) -> Result<ProofWitnessArtifact
         effects_bytes,
         effects,
         da_mode,
+        da_receipt_kind,
         da_commitment,
         da_pointer,
+        da_evidence,
         public_inputs,
     })
 }
 
+pub fn parse_native_execution_output(
+    bytes: &[u8],
+) -> Result<NativeExecutionOutputV1, ExecutionError> {
+    if bytes.len() > MAX_NATIVE_EXECUTION_OUTPUT_BYTES {
+        return Err(ExecutionError::Oversized("native execution output"));
+    }
+    if bytes.len() < 32 {
+        return Err(ExecutionError::Truncated);
+    }
+    let body_len = bytes.len() - 32;
+    let mut content_bytes =
+        Vec::with_capacity(NATIVE_EXECUTION_OUTPUT_HASH_DOMAIN.len() + body_len);
+    content_bytes.extend_from_slice(NATIVE_EXECUTION_OUTPUT_HASH_DOMAIN);
+    content_bytes.extend_from_slice(&bytes[..body_len]);
+    if hash256(&content_bytes) != bytes[body_len..] {
+        return Err(ExecutionError::Invalid(
+            "native execution output content hash",
+        ));
+    }
+
+    let mut reader = Reader::new(&bytes[..body_len]);
+    reader.require_magic(
+        NATIVE_EXECUTION_OUTPUT_MAGIC,
+        "native execution output magic",
+    )?;
+    require_version_flags(&mut reader, "native execution output")?;
+    let request_payload_hash = reader.read_fixed::<32>()?;
+    let request_state_witness_hash = reader.read_fixed::<32>()?;
+    let execution_semantic_id = reader.read_fixed::<32>()?;
+    if execution_semantic_id != SP1_STATEFUL_NEO_VM_V1_EXECUTION_SEMANTIC_ID {
+        return Err(ExecutionError::Invalid(
+            "native execution output semantic id",
+        ));
+    }
+    let execution_result = read_execution_result(&mut reader)?;
+    let effects_bytes = reader.read_length_prefixed(MAX_EFFECTS_BYTES, "batch effects")?;
+    let post_state_witness_bytes =
+        reader.read_length_prefixed(MAX_STATE_WITNESS_BYTES, "post-state witness")?;
+    let public_input_hash = reader.read_fixed::<32>()?;
+    reader.ensure_end("native execution output body")?;
+
+    let effects = parse_batch_effects(&effects_bytes)?;
+    if encode_batch_effects(&effects)? != effects_bytes {
+        return Err(ExecutionError::Invalid(
+            "non-canonical native execution effects",
+        ));
+    }
+    let post_state_witness = parse_state_witness(&post_state_witness_bytes)?;
+    if encode_state_witness(&post_state_witness)? != post_state_witness_bytes
+        || keyed_state_root(&post_state_witness.entries) != execution_result.post_state_root
+    {
+        return Err(ExecutionError::Invalid(
+            "native execution post-state witness",
+        ));
+    }
+
+    Ok(NativeExecutionOutputV1 {
+        request_payload_hash,
+        request_state_witness_hash,
+        execution_semantic_id,
+        execution_result,
+        effects_bytes,
+        post_state_witness_bytes,
+        public_input_hash,
+    })
+}
+
+pub fn encode_native_execution_output(
+    output: &NativeExecutionOutputV1,
+) -> Result<Vec<u8>, ExecutionError> {
+    if output.execution_semantic_id != SP1_STATEFUL_NEO_VM_V1_EXECUTION_SEMANTIC_ID
+        || output.execution_result.gas_consumed < 0
+    {
+        return Err(ExecutionError::Invalid("native execution output fields"));
+    }
+    let effects = parse_batch_effects(&output.effects_bytes)?;
+    if encode_batch_effects(&effects)? != output.effects_bytes {
+        return Err(ExecutionError::Invalid(
+            "non-canonical native execution effects",
+        ));
+    }
+    let post_state_witness = parse_state_witness(&output.post_state_witness_bytes)?;
+    if encode_state_witness(&post_state_witness)? != output.post_state_witness_bytes
+        || keyed_state_root(&post_state_witness.entries) != output.execution_result.post_state_root
+    {
+        return Err(ExecutionError::Invalid(
+            "native execution post-state witness",
+        ));
+    }
+
+    let mut writer = Writer::new();
+    writer.write_bytes(NATIVE_EXECUTION_OUTPUT_MAGIC);
+    writer.write_version_flags();
+    writer.write_bytes(&output.request_payload_hash);
+    writer.write_bytes(&output.request_state_witness_hash);
+    writer.write_bytes(&output.execution_semantic_id);
+    write_execution_result(&mut writer, &output.execution_result);
+    writer.write_length_prefixed(&output.effects_bytes, MAX_EFFECTS_BYTES, "batch effects")?;
+    writer.write_length_prefixed(
+        &output.post_state_witness_bytes,
+        MAX_STATE_WITNESS_BYTES,
+        "post-state witness",
+    )?;
+    writer.write_bytes(&output.public_input_hash);
+    let body = writer.finish();
+    let mut content_bytes =
+        Vec::with_capacity(NATIVE_EXECUTION_OUTPUT_HASH_DOMAIN.len() + body.len());
+    content_bytes.extend_from_slice(NATIVE_EXECUTION_OUTPUT_HASH_DOMAIN);
+    content_bytes.extend_from_slice(&body);
+    let mut encoded = body;
+    encoded.extend_from_slice(&hash256(&content_bytes));
+    if encoded.len() > MAX_NATIVE_EXECUTION_OUTPUT_BYTES {
+        return Err(ExecutionError::Oversized("native execution output"));
+    }
+    Ok(encoded)
+}
+
 pub fn parse_execution_payload(bytes: &[u8]) -> Result<ExecutionPayload, ExecutionError> {
-    if bytes.len() > MAX_PAYLOAD_BYTES {
+    if bytes.len() > MAX_EXECUTION_PAYLOAD_BYTES {
         return Err(ExecutionError::Oversized("execution payload"));
     }
     let mut reader = Reader::new(bytes);
@@ -189,6 +352,26 @@ pub fn parse_execution_payload(bytes: &[u8]) -> Result<ExecutionPayload, Executi
         l1_messages.push(message);
     }
 
+    let forced_inclusion_count = reader.read_count(MAX_PAYLOAD_ITEMS, "forced-inclusion proofs")?;
+    let mut forced_inclusions = Vec::with_capacity(forced_inclusion_count);
+    for _ in 0..forced_inclusion_count {
+        let nonce = reader.read_u64()?;
+        let leaf_index = reader.read_u32()?;
+        let tx_hash = reader.read_fixed::<32>()?;
+        let sibling_count =
+            reader.read_count(MAX_FORCED_INCLUSION_SIBLINGS, "forced-inclusion siblings")?;
+        let mut siblings = Vec::with_capacity(sibling_count);
+        for _ in 0..sibling_count {
+            siblings.push(reader.read_fixed::<32>()?);
+        }
+        forced_inclusions.push(ForcedInclusionProof {
+            nonce,
+            leaf_index,
+            tx_hash,
+            siblings,
+        });
+    }
+
     let transaction_count = reader.read_count(MAX_PAYLOAD_ITEMS, "payload transactions")?;
     if transaction_count == 0 {
         return Err(ExecutionError::Invalid("empty payload transactions"));
@@ -208,6 +391,7 @@ pub fn parse_execution_payload(bytes: &[u8]) -> Result<ExecutionPayload, Executi
         pre_state_root,
         block_context,
         l1_messages,
+        forced_inclusions,
         transactions,
     })
 }
@@ -437,6 +621,24 @@ pub fn encode_execution_payload(payload: &ExecutionPayload) -> Result<Vec<u8>, E
         )?;
     }
     writer.write_count(
+        payload.forced_inclusions.len(),
+        MAX_PAYLOAD_ITEMS,
+        "forced-inclusion proofs",
+    )?;
+    for proof in &payload.forced_inclusions {
+        writer.write_u64(proof.nonce);
+        writer.write_u32(proof.leaf_index);
+        writer.write_bytes(&proof.tx_hash);
+        writer.write_count(
+            proof.siblings.len(),
+            MAX_FORCED_INCLUSION_SIBLINGS,
+            "forced-inclusion siblings",
+        )?;
+        for sibling in &proof.siblings {
+            writer.write_bytes(sibling);
+        }
+    }
+    writer.write_count(
         payload.transactions.len(),
         MAX_PAYLOAD_ITEMS,
         "payload transactions",
@@ -449,7 +651,7 @@ pub fn encode_execution_payload(payload: &ExecutionPayload) -> Result<Vec<u8>, E
         )?;
     }
     let bytes = writer.finish();
-    if bytes.len() > MAX_PAYLOAD_BYTES {
+    if bytes.len() > MAX_EXECUTION_PAYLOAD_BYTES {
         return Err(ExecutionError::Oversized("execution payload"));
     }
     Ok(bytes)
@@ -574,9 +776,12 @@ pub fn encode_proof_witness_artifact(
     let payload_bytes = encode_execution_payload(&artifact.execution_payload)?;
     let state_witness_bytes = encode_state_witness(&artifact.state_witness)?;
     let effects_bytes = encode_batch_effects(&artifact.effects)?;
-    if artifact.proof_system == 0
+    if artifact.proof_type != 3
+        || artifact.proof_system == 0
         || artifact.proof_system > 4
+        || !artifact.execution_witness_authenticated
         || artifact.verification_key_id == [0u8; 32]
+        || artifact.execution_semantic_id == [0u8; 32]
         || artifact.chain_id != artifact.execution_payload.chain_id
         || artifact.batch_number != artifact.execution_payload.batch_number
         || artifact.first_block != artifact.execution_payload.first_block
@@ -594,6 +799,10 @@ pub fn encode_proof_witness_artifact(
     )?;
     if effects_bytes.len() > MAX_EFFECTS_BYTES
         || artifact.da_pointer.len() > MAX_DA_POINTER_BYTES
+        || artifact.da_pointer.is_empty()
+        || artifact.da_evidence.len() > MAX_DA_EVIDENCE_BYTES
+        || artifact.da_evidence.is_empty()
+        || !(1..=6).contains(&artifact.da_receipt_kind)
         || !matches!(artifact.da_mode, 0..=3 | u8::MAX)
     {
         return Err(ExecutionError::Invalid("proof witness artifact bounds"));
@@ -601,15 +810,22 @@ pub fn encode_proof_witness_artifact(
 
     let mut writer = Writer::new();
     writer.push(ArtifactlessMagic::Artifact);
-    writer.write_version_flags();
+    writer.write_u16(1);
+    writer.write_u16(1);
+    writer.write_u8(artifact.proof_type);
     writer.write_u8(artifact.proof_system);
-    writer.write_bytes(&[0u8; 3]);
+    writer.write_bytes(&[0u8; 2]);
     writer.write_bytes(&artifact.verification_key_id);
+    writer.write_bytes(&artifact.execution_semantic_id);
     writer.write_u32(artifact.chain_id);
     writer.write_u64(artifact.batch_number);
     writer.write_u64(artifact.first_block);
     writer.write_u64(artifact.last_block);
-    writer.write_length_prefixed(&payload_bytes, MAX_PAYLOAD_BYTES, "execution payload")?;
+    writer.write_length_prefixed(
+        &payload_bytes,
+        MAX_EXECUTION_PAYLOAD_BYTES,
+        "execution payload",
+    )?;
     writer.write_length_prefixed(
         &state_witness_bytes,
         MAX_STATE_WITNESS_BYTES,
@@ -618,8 +834,11 @@ pub fn encode_proof_witness_artifact(
     write_execution_result(&mut writer, &artifact.execution_result);
     writer.write_length_prefixed(&effects_bytes, MAX_EFFECTS_BYTES, "batch effects")?;
     writer.write_u8(artifact.da_mode);
+    writer.write_u8(artifact.da_receipt_kind);
+    writer.write_bytes(&[0u8; 2]);
     writer.write_bytes(&da_commitment);
     writer.write_length_prefixed(&artifact.da_pointer, MAX_DA_POINTER_BYTES, "DA pointer")?;
+    writer.write_length_prefixed(&artifact.da_evidence, MAX_DA_EVIDENCE_BYTES, "DA evidence")?;
     write_public_inputs(&mut writer, &artifact.public_inputs);
     let body = writer.finish();
     let mut content_bytes = Vec::with_capacity(CONTENT_HASH_DOMAIN.len() + body.len());

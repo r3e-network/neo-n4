@@ -1,4 +1,7 @@
-use alloc::{collections::BTreeSet, vec::Vec};
+use alloc::{
+    collections::{BTreeMap, BTreeSet},
+    vec::Vec,
+};
 
 use crate::{
     hashing::{
@@ -9,22 +12,77 @@ use crate::{
     transaction::parse_transaction,
     types::{
         BatchEffects, BatchExecutionResult, BatchResult, CanonicalReceiptV1, ComputedBatch,
-        ExecutionError, ExecutionPayload, ParsedTransaction, ProofWitnessArtifact, PublicInputs,
-        StateWitness, StorageDelta, StorageOperation, TransactionEffects, UInt160, VmOutcome,
+        ComputedBatchTransition, ExecutionError, ExecutionPayload, ParsedTransaction,
+        ProofWitnessArtifact, PublicInputs, StateEntry, StateWitness, StorageDelta,
+        StorageOperation, TransactionEffects, UInt160, VmOutcome,
     },
-    wire::{encode_batch_effects, encode_execution_payload, parse_proof_witness_artifact},
+    wire::{
+        encode_batch_effects, encode_execution_payload, encode_state_witness,
+        parse_proof_witness_artifact,
+    },
 };
+
+struct ComputedBatchState {
+    batch: ComputedBatch,
+    state: BTreeMap<Vec<u8>, Vec<u8>>,
+}
 
 pub fn compute_batch_with<F>(
     payload: &ExecutionPayload,
     witness: &StateWitness,
-    mut execute_transaction: F,
+    execute_transaction: F,
 ) -> Result<ComputedBatch, ExecutionError>
 where
     F: FnMut(
         &ExecutionPayload,
         &StateWitness,
         &alloc::collections::BTreeMap<Vec<u8>, Vec<u8>>,
+        &ParsedTransaction,
+    ) -> Result<VmOutcome, ExecutionError>,
+{
+    Ok(compute_batch_state_with(payload, witness, execute_transaction)?.batch)
+}
+
+pub fn compute_batch_transition_with<F>(
+    payload: &ExecutionPayload,
+    witness: &StateWitness,
+    execute_transaction: F,
+) -> Result<ComputedBatchTransition, ExecutionError>
+where
+    F: FnMut(
+        &ExecutionPayload,
+        &StateWitness,
+        &BTreeMap<Vec<u8>, Vec<u8>>,
+        &ParsedTransaction,
+    ) -> Result<VmOutcome, ExecutionError>,
+{
+    let ComputedBatchState { batch, state } =
+        compute_batch_state_with(payload, witness, execute_transaction)?;
+    let post_state_witness = StateWitness {
+        config: witness.config.clone(),
+        entries: state
+            .into_iter()
+            .map(|(key, value)| StateEntry { key, value })
+            .collect(),
+        contracts: witness.contracts.clone(),
+    };
+    let post_state_witness_bytes = encode_state_witness(&post_state_witness)?;
+    Ok(ComputedBatchTransition {
+        batch,
+        post_state_witness_bytes,
+    })
+}
+
+fn compute_batch_state_with<F>(
+    payload: &ExecutionPayload,
+    witness: &StateWitness,
+    mut execute_transaction: F,
+) -> Result<ComputedBatchState, ExecutionError>
+where
+    F: FnMut(
+        &ExecutionPayload,
+        &StateWitness,
+        &BTreeMap<Vec<u8>, Vec<u8>>,
         &ParsedTransaction,
     ) -> Result<VmOutcome, ExecutionError>,
 {
@@ -123,12 +181,15 @@ where
         &public_inputs.da_commitment,
         &public_inputs.block_context_hash,
     );
-    Ok(ComputedBatch {
-        public_input_hash,
-        execution_result,
-        effects,
-        effects_bytes,
-        public_inputs,
+    Ok(ComputedBatchState {
+        batch: ComputedBatch {
+            public_input_hash,
+            execution_result,
+            effects,
+            effects_bytes,
+            public_inputs,
+        },
+        state,
     })
 }
 
@@ -160,7 +221,11 @@ where
         &ParsedTransaction,
     ) -> Result<VmOutcome, ExecutionError>,
 {
-    if artifact.proof_system != 1 {
+    if artifact.proof_type != 3
+        || artifact.proof_system != 1
+        || !artifact.execution_witness_authenticated
+        || artifact.execution_semantic_id != crate::SP1_STATEFUL_NEO_VM_V1_EXECUTION_SEMANTIC_ID
+    {
         return Err(ExecutionError::Unsupported("non-SP1 proof witness"));
     }
     let computed = compute_batch_with(

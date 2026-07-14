@@ -626,7 +626,6 @@ public class SettlementManagerContract : SmartContract
             "constituent count must be 1..4096");
         ExecutionEngine.Assert(references.Length == (int)constituentCount * 12,
             "constituent reference length mismatch");
-        ExecutionEngine.Assert(!globalRoot.Equals(UInt256.Zero), "global root must be non-zero");
         ExecutionEngine.Assert(!constituentCommitmentsRoot.Equals(UInt256.Zero),
             "constituent root must be non-zero");
 

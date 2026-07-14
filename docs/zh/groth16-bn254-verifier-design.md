@@ -14,7 +14,7 @@
 `LockProofSystemConfiguration(ProofSystem.Sp1=1, programVKey)` 固定唯一 program VK 与
 terminal verifier。生产计划不包含 devnet 的 envelope-only 逃生路径。
 
-该合约只服务于固定的 SP1 v6.1-compatible wrapper。Risc0、Halo2、Axiom、其他 SP1
+该合约只服务于 SP1 6.2.1 SDK 当前固定的 v6.1-compatible Groth16 wrapper。Risc0、Halo2、Axiom、其他 SP1
 wrapper 或新的验证密钥都必须部署独立、重新审计的终端验证器。
 
 ## 2. 精确 SP1 格式
@@ -82,6 +82,22 @@ Rust 生成的正向证明和完整 pairing 失败路径。
 33 字节 public values、原始 32 字节 `vk.bytes32()` 和 N4 `publicInputHash`。它会通过
 terminal 与 router 两层验证；任何 program VK、public-input hash、selector、recursion
 root、nonce 或证明点变化都失败。公共网络发布证据还必须对精确部署的 NEF/VK 重跑同一组向量。
+
+以下命令从当前固定 guest 和 canonical native-transition witness 重新生成 Rust/C# 共用向量：
+
+```bash
+cargo run --release -p neo-zkvm-host \
+  --example generate_groth16_release_vector --locked
+```
+
+macOS + Colima 必须先把 `TMPDIR` 指向仓库或用户目录，例如
+`mkdir -p target/sp1-tmp && export TMPDIR="$PWD/target/sp1-tmp"`。SP1 6.2.1 会把临时
+Groth16 witness/output bind-mount 到 Docker，但 Colima 默认不共享 macOS 的
+`/var/folders`；缺少该设置时，Docker 会把 `/witness` 当作目录，昂贵证明直到 terminal
+wrapper 阶段才失败。
+Docker wrapper backend 还要求 `SP1_GNARK_IMAGE` 精确等于 prover README 与 CI 中记录的
+经审计不可变 amd64 manifest digest；可变 tag 会在证明前 fail closed。Apple Silicon
+运维者改用 SP1 的 `native-gnark` feature。
 
 ## 6. 运维顺序
 

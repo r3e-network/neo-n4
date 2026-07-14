@@ -218,6 +218,24 @@ public class UT_ProofWitnessArtifact
     }
 
     [TestMethod]
+    public void Artifact_CSharpAndRustShareCanonicalStatefulSp1Fixture()
+    {
+        var hex = File.ReadAllText(Path.Combine(
+            AppContext.BaseDirectory,
+            "Fixtures",
+            "stateful_batch_v1.hex"));
+        var bytes = Convert.FromHexString(string.Concat(hex.Where(
+            static value => !char.IsWhiteSpace(value))));
+        var artifact = ProofWitnessArtifactSerializer.Decode(bytes);
+
+        Assert.AreEqual(ProofType.Zk, artifact.ProofType);
+        Assert.AreEqual(WitnessProofSystem.Sp1, artifact.ProofSystem);
+        Assert.AreEqual(ExecutionSemanticIds.Sp1StatefulNeoVmV1, artifact.ExecutionSemanticId);
+        Assert.IsTrue(artifact.ExecutionWitnessAuthenticated);
+        CollectionAssert.AreEqual(bytes, ProofWitnessArtifactSerializer.Encode(artifact));
+    }
+
+    [TestMethod]
     public void Artifact_ContentHashHasStableGoldenValue()
     {
         var artifact = SampleArtifact();

@@ -366,6 +366,19 @@ public class UT_L2BatchPlugin
         Assert.AreEqual(1UL, sink.Checkpoint.LastBlock);
     }
 
+    [TestMethod]
+    public void Wire_EmptyCheckpointUsesAuthenticatedInitialStateRoot()
+    {
+        var initialStateRoot = DurableSink.RootFor(9);
+        var sink = new DurableSink { InitialStateRoot = initialStateRoot };
+        using var plugin = new L2BatchPlugin(OneBlockSettings());
+
+        plugin.WithSealedBatchSink(sink, 1001);
+        plugin.ProcessCommittedBlock(1, 1100, 11, NoTxs());
+
+        Assert.AreEqual(initialStateRoot, sink.PersistedBatches.Single().PreStateRoot);
+    }
+
     private static L2BatchSettings OneBlockSettings() => new()
     {
         ChainId = 1001,
@@ -408,10 +421,18 @@ public class UT_L2BatchPlugin
         public List<ulong> AttemptedBatchNumbers { get; } = new();
         public List<SealedBatch> PersistedBatches { get; } = new();
         public IReadOnlyCollection<ulong> TrackedForcedInclusionNonces { get; init; } = [];
+        public UInt256 InitialStateRoot { get; init; } = UInt256.Zero;
         public uint? LastTrackedForcedInclusionChainId { get; private set; }
 
         private bool _failedBefore;
         private bool _failedAfter;
+
+        public ValueTask<UInt256> GetInitialStateRootAsync(
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(InitialStateRoot);
+        }
 
         public ValueTask<UInt256> PersistAsync(
             SealedBatch batch,
@@ -440,6 +461,11 @@ public class UT_L2BatchPlugin
                     throw new InvalidOperationException("sink observed a block gap");
                 if (!batch.PreStateRoot.Equals(Checkpoint.PostStateRoot))
                     throw new InvalidOperationException("sink observed a state-root gap");
+            }
+            else if (!batch.PreStateRoot.Equals(InitialStateRoot))
+            {
+                throw new InvalidOperationException(
+                    "sink observed a genesis state-root mismatch");
             }
 
             var postStateRoot = RootFor(batch.BatchNumber);

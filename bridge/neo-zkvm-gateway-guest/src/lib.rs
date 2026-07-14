@@ -314,7 +314,7 @@ fn parse_binding(
     if &bytes[..8] != BINDING_MAGIC {
         return Err(GatewayError::BindingMagic);
     }
-    for range in [8..28, 28..60, 68..100, 100..132, 138..170] {
+    for range in [8..28, 28..60, 100..132, 138..170] {
         if bytes[range].iter().all(|byte| *byte == 0) {
             return Err(GatewayError::ZeroBindingField);
         }
@@ -520,6 +520,14 @@ mod tests {
         assert_eq!(parsed.constituents[0].chain_id, 1);
         assert_eq!(parsed.constituents[0].batch_number, 2);
         assert_eq!(parsed.constituents[0].public_input_hash, [0x51; 32]);
+    }
+
+    #[test]
+    fn accepts_canonical_zero_global_message_root() {
+        let input = request(&[commitment(1, 1, 0x00, 0x51)]);
+        let parsed = parse_request(&input).unwrap();
+        assert_eq!(parsed.binding.global_message_root, [0u8; 32]);
+        assert_eq!(parsed.constituents[0].l2_to_l2_message_root, [0u8; 32]);
     }
 
     #[test]

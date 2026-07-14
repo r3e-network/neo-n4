@@ -47,9 +47,9 @@ public abstract class MockMessageRouter_SettlementManager(SmartContractInitializ
 /// VM-level tests for NeoHub.MessageRouter — the cross-chain messaging hub. Executes the enqueue /
 /// consume / publish-root / filter paths in a real NeoVM and pins the security-critical invariants:
 /// L1→L2 nonces are per-chain monotonic, message consumption is replay-protected and settlement-
-/// manager-gated, global-root and message-root publication is settlement-manager-gated (global root
-/// additionally non-zero + publish-once-per-epoch), and the owner-gated L1 tx filter actually gates
-/// enqueue (accept/reject) when configured.
+/// manager-gated, global-root and message-root publication is settlement-manager-gated and
+/// publish-once-per-epoch, and the owner-gated L1 tx filter actually gates enqueue (accept/reject)
+/// when configured.
 /// </summary>
 [TestClass]
 public class UT_MessageRouter_Vm
@@ -485,6 +485,51 @@ public class UT_MessageRouter_Vm
             GatewayVerificationKey,
             GatewayReplayDomain,
             proof));
+    }
+
+    [TestMethod]
+    public void PublishGlobalRoot_AllowsProvenCanonicalZeroMessageRoot()
+    {
+        var engine = new TestEngine(true);
+        var mr = Deploy(engine);
+        ConfigureAndLockGateway(engine, mr);
+        const ulong epoch = 78;
+        var constituentRoot = FilledHash(0x61);
+        var proof = new byte[] { 0xCA, 0xFE };
+        var expectedInputHash = ComputeGatewayProofInputHash(
+            mr.Hash,
+            epoch,
+            UInt256.Zero,
+            constituentRoot,
+            1,
+            GatewayAggregationBackend,
+            GatewayProofSystem,
+            GatewayVerificationKey,
+            GatewayReplayDomain);
+        WireVerifier(engine, expectedInputHash, proof);
+
+        Assert.IsTrue(mr.PublishGlobalRoot(
+            epoch,
+            UInt256.Zero,
+            constituentRoot,
+            1,
+            GatewayAggregationBackend,
+            GatewayProofSystem,
+            GatewayVerificationKey,
+            GatewayReplayDomain,
+            proof));
+        Assert.AreEqual(UInt256.Zero, mr.GetGlobalRoot(epoch));
+        Assert.AreEqual(expectedInputHash, mr.GetGlobalRootProofInputHash(epoch));
+        Assert.IsFalse(mr.PublishGlobalRoot(
+            epoch,
+            UInt256.Zero,
+            constituentRoot,
+            1,
+            GatewayAggregationBackend,
+            GatewayProofSystem,
+            GatewayVerificationKey,
+            GatewayReplayDomain,
+            Array.Empty<byte>()));
     }
 
     [TestMethod]

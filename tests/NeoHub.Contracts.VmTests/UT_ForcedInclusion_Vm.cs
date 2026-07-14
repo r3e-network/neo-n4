@@ -194,6 +194,19 @@ public class UT_ForcedInclusion_Vm
     }
 
     [TestMethod]
+    public void ReportCensorship_UnknownAttributionStillRecordsAndPauses()
+    {
+        var engine = new TestEngine(true);
+        var fi = Deploy(engine);
+        Enqueue(fi);
+        engine.PersistingBlock.Advance(TimeSpan.FromSeconds(Deadline + 1));
+
+        Assert.IsTrue(fi.ReportCensorship(ChainId, 1, UInt160.Zero));
+        Assert.IsTrue(fi.IsCensorshipReported(ChainId, 1));
+        Assert.IsFalse(fi.IsCensorshipSlashed(ChainId, 1));
+    }
+
+    [TestMethod]
     public void SlashReportedCensorship_RequiresReport_ThenSlashes_AtMostOnce()
     {
         var engine = new TestEngine(true);

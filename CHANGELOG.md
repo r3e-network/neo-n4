@@ -5,6 +5,58 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — native SP1 execution and atomic state handoff — 2026-07-14
+
+- Added host-native `neo-zkvm-executor` as a second binary in the existing guest crate; it calls
+  the exact `neo-execution-core` and stateful NeoVM runtime used by the SP1 guest and emits the
+  canonical content-addressed `NEO4EXR1` transition protocol.
+- Added cross-language Rust/C# serializers and golden vectors that bind both exact requests,
+  execution semantic, roots/gas, canonical effects, complete post-state witness, and public inputs.
+- Added `IAtomicL2KeyValueStore.CompareExchangeAll` for complete-snapshot CAS through one
+  lock-protected in-memory swap or one RocksDB `WriteBatch`, plus `Sp1StateWitnessSource`
+  continuity, contract-binding, concurrent-writer rejection, and no-partial-mutation validation.
+- Added `Sp1StatefulBatchExecutor` and `Sp1SettlementExecutionStack`: production execution pins an
+  independently reviewed executable SHA-256, runs only an isolated digest-matched copy, validates
+  every native output binding, durably commits and re-reads the immutable proof-witness artifact,
+  then deterministically replays and atomically commits its exact post-state. Retry and startup
+  recovery are idempotent, so no crash can advance state without a durable replay record.
+- Added the non-ignored CI C#→release-Rust process gate over a bootstrapped Neo genesis transaction.
+  N4 genesis V1 remains fail-closed for unsupported native/syscall behavior and contract descriptor
+  add/remove/replace transitions; exact-revision public deployment and independent audit evidence
+  remain release gates.
+- Made terminal and recursive real SP1 proof generation unconditional in the required CI job.
+  Hardened the prover queue with `0700` directories, `0600` files, 16-GiB/64-task backpressure,
+  and settlement-confirmed hash acknowledgements; the daemon now prunes content-addressed evidence
+  only after durable L1 observation, never by TTL.
+- Eliminated the shared-target ELF validation/include race: build scripts derive SHA-256 and VK from
+  one byte snapshot, publish a read-only verified copy into Cargo `OUT_DIR`, and embed only that copy.
+
+### Fixed — canonical C# / Rust proof-witness ABI — 2026-07-14
+
+- Aligned the SP1 parser and encoder with the pinned C# `ProofWitnessArtifactV1` header,
+  execution-semantic binding, authenticated-witness flag, and complete DA receipt fields.
+- Added one checked-in stateful SP1 fixture decoded and re-encoded byte-for-byte by both
+  languages, and made the guest reject any non-stateful or mismatched semantic identifier.
+
+### Fixed — settlement confirmation-lag telemetry — 2026-07-14
+
+- Added a restart-safe L1 confirmation-lag gauge derived from durable proof manifests, alongside
+  regression coverage and operator documentation, without changing the pinned manifest wire format.
+
+### Fixed — documentation truth and release attribution — 2026-07-14
+
+- Split every phase status into design, code shape, integration, cryptographic
+  enforcement, exact-revision deployment evidence, and production readiness;
+  no phase is represented as production-ready without independent deployment evidence.
+- Reconciled the source-derived inventories at 26 NeoHub projects, 24 production
+  deployment steps, 38 .NET test projects, 44 Foundry tests, four typed SDK source
+  implementations, five submodules, and 39 English / 49 Chinese top-level docs;
+  targeted regression gates bind these public facts and the remaining Go SDK gap.
+- Completed R3E Network attribution for sample contracts and security reporting,
+  enabled private vulnerability reporting, Dependabot security fixes, secret scanning,
+  and push protection, while retaining the honest future-release policy: no production
+  tag or release exists yet.
+
 ### Fixed — external payout release-gate coverage — 2026-07-14
 
 - Added production-composition tests for the durable L1 payout scanner, authenticated L1/L2 RPC
@@ -17,6 +69,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added — fail-closed recursive Gateway SP1 proof — 2026-07-14
 
+- Moved production SP1 guest builds to `cargo prove build --docker --locked` with
+  an immutable SP1 6.2.1 amd64 image digest, regenerated both ELF/VK manifests from
+  those canonical Docker artifacts, and made the CI wrapper reject host-native builds.
+- Split the batch VK input manifest from the host-only Gateway output manifest so
+  the Gateway guest cannot compile its own VK/ELF pins and create a self-referential hash cycle.
+- Extended the scheduled/manual real-proof release gate to execute and host-verify
+  the recursive Gateway Groth16 proof in addition to the terminal batch proof.
+- Pinned the separate SP1 gnark wrapper image by immutable amd64 manifest digest and fail closed
+  before proving when the Docker backend is missing that exact reference. Apple Silicon uses
+  SP1's upstream `native-gnark` backend instead of unreliable amd64 emulation; the private-network
+  harness now runs both the terminal batch and recursive Gateway real-proof gates.
 - Added independent SP1 6.2.1 Gateway guest/host crates. The guest strictly validates the
   `NEO4GWP1` request, fixed 170-byte `NEO4GWR2` binding, canonical ordered commitments and roots,
   and compile-time-batch-VK compressed child proofs before committing only
@@ -25,13 +88,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   program VKs and ELF digests, host-side child and terminal Groth16 verification, symlink/path
   rejection, atomic artifact publication with result manifest last, and explicit test-only VK
   gating that cannot produce proofs.
-- Added parser/root/tamper/VK/proof-kind/path tests plus an ignored real-recursion release gate.
+- Added parser/root/tamper/VK/proof-kind/path tests plus a real-recursion release gate that is now
+  unconditional in the required SP1 CI job.
 - Added crash recovery that cryptographically re-verifies complete result markers and safely
   removes only regular non-symlink orphan artifacts before re-proving.
 - Added atomic `SettlementManager.PublishGatewayGlobalRoot`: exact ordered finalized-batch
   references, bounded O(log 4096) dual-root reconstruction, per-chain non-revertible watermarks,
   deployment readback, and same-transaction forwarding to `MessageRouter`. The proof-bound RPC
   publisher queries Router for reconciliation but submits through SettlementManager.
+- Corrected the cross-layer empty-message invariant: a proven zero `globalMessageRoot` is the
+  canonical result for a zero constituent message-root tree, while publication presence remains
+  independently bound by the epoch proof-input record. Rust, .NET, and both NeoVM contracts now
+  accept that valid statement without weakening constituent, domain, VK, or proof checks.
 - Phase 5 remains partial until independent audit and executed real-proof deployment evidence are
   complete; the former SettlementManager authorization/finality implementation gap is closed.
 

@@ -6,16 +6,18 @@ using Neo.L2.Telemetry;
 namespace Neo.L2.Censorship;
 
 /// <summary>
-/// Off-chain orchestrator: poll the forced-inclusion source for overdue entries, identify the
-/// responsible sequencer (typically the active dBFT proposer at the moment the deadline passed),
-/// and emit <see cref="CensorshipReport"/> records that an operator can submit on L1.
+/// Off-chain orchestrator: poll the forced-inclusion source for overdue entries and emit
+/// <see cref="CensorshipReport"/> records that an operator can submit on L1. It attributes a
+/// report only when an explicit finalized-consensus resolver supplies evidence.
 /// </summary>
 /// <remarks>
 /// See doc.md §15.4 (forced inclusion) and §17 (sequencer-censorship mitigations).
 /// <para>
 /// Operates against pluggable interfaces — <see cref="IForcedInclusionSource"/> for the queue
 /// and <see cref="ISequencerCommitteeProvider"/> for the committee — so it works with both the
-/// in-memory test backends and the production L1-RPC-backed implementations.
+/// in-memory test backends and the production L1-RPC-backed implementations. Sequencer
+/// attribution is a separate capability because committee membership does not prove which dBFT
+/// proposer was responsible for a particular deadline.
 /// </para>
 /// </remarks>
 public sealed class CensorshipDetector
@@ -25,6 +27,7 @@ public sealed class CensorshipDetector
     private readonly IClock _clock;
     private readonly BigInteger _baseSlashAmount;
     private readonly IL2Metrics _metrics;
+    private readonly ICensorshipAttributionProvider? _attributionProvider;
 
     /// <summary>Default slash amount — 1.0 GAS at 8 decimal places.</summary>
     public static readonly BigInteger DefaultSlashAmount = new(1_000_000);
@@ -38,12 +41,17 @@ public sealed class CensorshipDetector
         ISequencerCommitteeProvider committee,
         IClock? clock = null,
         BigInteger? baseSlashAmount = null,
-        IL2Metrics? metrics = null)
+        IL2Metrics? metrics = null,
+        ICensorshipAttributionProvider? attributionProvider = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(committee);
         _source = source;
         _committee = committee;
+        if (source.ChainId != committee.ChainId)
+            throw new ArgumentException(
+                $"Forced-inclusion chain {source.ChainId} does not match committee chain {committee.ChainId}.",
+                nameof(committee));
         _clock = clock ?? new SystemClock();
         _baseSlashAmount = baseSlashAmount ?? DefaultSlashAmount;
         // A negative slash amount on L1 would effectively reward the offending sequencer
@@ -54,6 +62,7 @@ public sealed class CensorshipDetector
             throw new ArgumentOutOfRangeException(nameof(baseSlashAmount),
                 $"BaseSlashAmount must be non-negative, got {_baseSlashAmount}");
         _metrics = metrics ?? NoOpMetrics.Instance;
+        _attributionProvider = attributionProvider;
     }
 
     /// <summary>Maximum number of forced-inclusion entries scanned per detect pass.</summary>
@@ -86,39 +95,14 @@ public sealed class CensorshipDetector
         if (committee is null)
             throw new InvalidOperationException(
                 "ISequencerCommitteeProvider.GetActiveCommitteeAsync returned null");
-        if (committee.Count == 0)
-        {
-            // No active committee → every overdue entry is a fault but no responsible signer.
-            // Caller still gets the entries surfaced (with sequencer = unset) so a governance
-            // path can follow up.
-            foreach (var e in entries)
-            {
-                if (nowSeconds < e.DeadlineUnixSeconds) continue;
-                reports.Add(new CensorshipReport
-                {
-                    ChainId = _source.ChainId,
-                    ForcedInclusionNonce = e.Nonce,
-                    OverdueTxHash = e.TxHash,
-                    DeadlineUnixSeconds = e.DeadlineUnixSeconds,
-                    ResponsibleSequencer = Cryptography.ECC.ECCurve.Secp256r1.Infinity,
-                    ResponsibleSequencerAddress = UInt160.Zero,
-                    SlashAmount = _baseSlashAmount,
-                });
-            }
-            if (reports.Count > 0)
-                _metrics.SafeIncrementCounter(MetricNames.CensorshipReports, reports.Count);
-            return reports;
-        }
-
-        // Identify the sequencer responsible for the blocks whose deadlines
-        // have passed. Production deployments wire the actual dBFT proposer via
-        // ISequencerCommitteeProvider.GetResponsibleSequencerAsync; the default
-        // implementation falls back to the first sorted committee member.
-        var responsible = await _committee.GetResponsibleSequencerAsync(nowSeconds, cancellationToken).ConfigureAwait(false);
-
         foreach (var e in entries)
         {
             if (nowSeconds < e.DeadlineUnixSeconds) continue;
+            var responsible = await ResolveResponsibleSequencerAsync(
+                e,
+                nowSeconds,
+                committee,
+                cancellationToken).ConfigureAwait(false);
             reports.Add(new CensorshipReport
             {
                 ChainId = _source.ChainId,
@@ -133,6 +117,28 @@ public sealed class CensorshipDetector
         if (reports.Count > 0)
             _metrics.SafeIncrementCounter(MetricNames.CensorshipReports, reports.Count);
         return reports;
+    }
+
+    private async ValueTask<CommitteeMember?> ResolveResponsibleSequencerAsync(
+        ForcedInclusionEntry entry,
+        uint observedAtUnixSeconds,
+        IReadOnlyList<CommitteeMember> committee,
+        CancellationToken cancellationToken)
+    {
+        if (_attributionProvider is null || committee.Count == 0) return null;
+
+        var attributed = await _attributionProvider.ResolveResponsibleSequencerAsync(
+            _source.ChainId,
+            entry,
+            observedAtUnixSeconds,
+            cancellationToken).ConfigureAwait(false);
+        if (attributed is null) return null;
+
+        var canonical = committee.FirstOrDefault(member => member.PublicKey == attributed.PublicKey);
+        if (canonical is null || canonical.L1Address != attributed.L1Address)
+            throw new InvalidOperationException(
+                "ICensorshipAttributionProvider returned a sequencer outside the active committee snapshot");
+        return canonical;
     }
 }
 

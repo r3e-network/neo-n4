@@ -18,6 +18,22 @@ use sp1_verifier::{GROTH16_VK_BYTES, Groth16Verifier};
 const COMMITTED_PUBLIC_VALUES_LEN: usize = 33;
 const SP1_GROTH16_PROOF_LEN: usize = 356;
 
+#[path = "../../sp1_runtime_support.rs"]
+mod sp1_runtime_support;
+
+mod pinned {
+    include!("../../neo-zkvm-guest/vk_manifest.rs");
+}
+
+/// Audited raw 32-byte verification key of the reproducibly built batch guest.
+pub const NEO_ZKVM_GUEST_VK_BYTES32: [u8; 32] = pinned::PINNED_BATCH_VK_BYTES32;
+
+/// SHA-256 of the reproducibly built batch guest ELF.
+pub const NEO_ZKVM_GUEST_ELF_SHA256: [u8; 32] = pinned::PINNED_BATCH_ELF_SHA256;
+
+/// SP1 toolchain version bound by the audited guest manifest.
+pub const NEO_ZKVM_SP1_VERSION: &str = pinned::SP1_VERSION;
+
 mod proof_result;
 mod recursive_child_result;
 mod zk_execution_result;
@@ -68,6 +84,7 @@ pub fn execute(request_bytes: &[u8]) -> Result<ZkExecutionResult, String> {
 /// development / debug, prefer `execute`.
 #[cfg(unix)]
 pub fn prove(request_bytes: &[u8]) -> Result<ProofResult, String> {
+    sp1_runtime_support::validate_gnark_backend()?;
     let prover = ProverClient::builder().cpu().build();
     let mut stdin = SP1Stdin::new();
     let request_vec = request_bytes.to_vec();

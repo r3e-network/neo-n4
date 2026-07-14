@@ -19,4 +19,10 @@
     <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\..\bridge\neo-zkvm-guest\tests\fixtures\native_execution_output_v1.hex"
+          Link="Fixtures\native_execution_output_v1.hex"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

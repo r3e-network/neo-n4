@@ -509,8 +509,9 @@ cd $(Quote-Bash $wslRepo)
         Invoke-WslBash -Name "cargo prove build guest elf" -Command @"
 set -euo pipefail
 export PATH="`$HOME/.sp1/bin:`$HOME/.cargo/bin:`$PATH"
+export SP1_DOCKER_IMAGE=ghcr.io/succinctlabs/sp1@sha256:14d3c46eff7492f87e429bfbf618e3d33499ba7515b15c36eeb1bcaebc9f7b7f
 cd $(Quote-Bash (Join-WslPath $wslRepo "bridge" "neo-zkvm-guest"))
-cargo prove build
+cargo prove build --docker --locked
 "@
 
         Invoke-WslBash -Name "cargo fmt clippy workspace" -Command @"
@@ -532,8 +533,21 @@ cd $(Quote-Bash $wslRepo)
             Invoke-WslBash -Name "cargo test real SP1 proof" -Command @"
 $stablePrefix
 export PATH="`$HOME/.sp1/bin:`$HOME/.cargo/bin:`${TOOLBIN}:`$PATH"
+export SP1_GNARK_IMAGE=ghcr.io/succinctlabs/sp1-gnark@sha256:be8555f1ad90870acd8c6ec7fd3ba0b1a2133ea9cddf25e130665aa651129e54
+mkdir -p $(Quote-Bash (Join-WslPath $wslRepo "target" "sp1-tmp"))
+export TMPDIR=$(Quote-Bash (Join-WslPath $wslRepo "target" "sp1-tmp"))
 cd $(Quote-Bash (Join-WslPath $wslRepo "bridge" "neo-zkvm-host"))
 "`$TOOLBIN/cargo" test --release --locked -- --ignored --nocapture
+"@
+
+            Invoke-WslBash -Name "cargo test real recursive Gateway proof" -Command @"
+$stablePrefix
+export PATH="`$HOME/.sp1/bin:`$HOME/.cargo/bin:`${TOOLBIN}:`$PATH"
+export SP1_GNARK_IMAGE=ghcr.io/succinctlabs/sp1-gnark@sha256:be8555f1ad90870acd8c6ec7fd3ba0b1a2133ea9cddf25e130665aa651129e54
+mkdir -p $(Quote-Bash (Join-WslPath $wslRepo "target" "sp1-tmp"))
+export TMPDIR=$(Quote-Bash (Join-WslPath $wslRepo "target" "sp1-tmp"))
+cd $(Quote-Bash $wslRepo)
+"`$TOOLBIN/cargo" test --release -p neo-zkvm-gateway-host --test real_recursive_release_gate --locked -- --ignored --nocapture
 "@
         }
     }

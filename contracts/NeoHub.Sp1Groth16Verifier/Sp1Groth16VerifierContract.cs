@@ -8,7 +8,8 @@ using Neo.SmartContract.Framework.Services;
 namespace NeoHub.Sp1Groth16Verifier;
 
 /// <summary>
-/// Verifies SP1 v6.1-compatible Groth16 proofs over BN254 for Neo N4 batch execution.
+/// Verifies the v6.1-compatible Groth16 wrapper proofs emitted by the SP1 6.2.1 SDK
+/// over BN254 for Neo N4 batch execution.
 /// </summary>
 /// <remarks>
 /// See <c>doc.md</c> §8. The contract pins the SP1 wrapper selector, recursion VK root,
@@ -17,7 +18,7 @@ namespace NeoHub.Sp1Groth16Verifier;
 /// </remarks>
 [DisplayName("NeoHub.Sp1Groth16Verifier")]
 [ContractAuthor("R3E Network", "dev@r3e.network")]
-[ContractDescription("SP1 v6.1-compatible Groth16/BN254 verifier for Neo N4 batch proofs.")]
+[ContractDescription("SP1 6.2.1 SDK v6.1-compatible Groth16/BN254 verifier for Neo N4 batch proofs.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.Sp1Groth16Verifier")]
 [ContractPermission(

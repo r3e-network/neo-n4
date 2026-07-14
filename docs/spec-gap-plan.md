@@ -87,17 +87,20 @@ integration through `ChainRegistryContract.RegisterChainPublic`.
   - `L2DAPlugin.BuildDefaultWriter(DAMode.L1, ...)` no longer throws when the
     writer is wired.
 
-### §8-witness-canonical ⏭ deferred
+### §8-witness-canonical ✅ SP1 closed / ⏭ other backends
 
 Originally proposed `Neo.L2.Proving.WitnessRecord` to pin the §8.4 witness
 layout (ordered txs / bytecode / storage R/W / native state / L1 messages /
 DA data / trace).
 
-**Decision.** Premature without a real prover targeting it — different
-backends (SP1, Halo2) want different formats. Re-evaluate when the SP1
-toolchain integration lands and the guest ELF defines its expected witness
-shape. `ProofRequest.Witness` stays as opaque `ReadOnlyMemory<byte>` until
-then.
+**Current decision.** The SP1 toolchain and guest now define the canonical boundary.
+`ProofRequest.Witness` is exactly `ProofWitnessArtifactV1` (`NEO4PWIT`), whose complete
+pre-state is `NEO4STW1`; execution effects are `NEO4EFX1`, and the host-native execution
+handoff is `NEO4EXR1`. Rust and C# decode/re-encode shared golden vectors byte-for-byte, the
+guest recomputes every claim, and the production executor validates the exact request,
+semantic, post-state, and public-input bindings before atomic state commit. No parallel
+`WitnessRecord` envelope is allowed for SP1. A future Halo2/Risc0 backend may define a
+different versioned backend-specific witness, but it must not silently reinterpret SP1 bytes.
 
 ### §state-tree-convention ✅ closed
 
@@ -151,11 +154,10 @@ core ships ChainMode hooks.
 
 ### §14.1-rpcserver-wrapper — `[RpcMethod]`-decorated wrapper class
 
-Pending Neo 4's RpcServer plugin source. The 9 L2 RPC methods exist as plain
-methods in `Neo.Plugins.L2Rpc.L2RpcMethods`; the wrapper that registers them with
-neo's RpcServer dispatcher needs that source. Track as a pending integration —
-when neo-modules (or wherever Neo 4 RpcServer lands) is available, generate the
-partial class.
+**Closed.** The tracked `r3e-network/neo` core contains the official RpcServer
+source and public `RpcServerPlugin.RegisterMethods` registration seam.
+`Neo.Plugins.L2Rpc.L2RpcPlugin` registers its adapter through that API, and the
+real Kestrel HTTP suite exercises all 10 canonical methods.
 
 ### §4-recursive-zk — Real Neo Gateway terminal prover
 
@@ -193,8 +195,11 @@ operator-supplied. Same reasoning as above.
 
 ### §16.3-dbft-consensus-integration
 
-Wiring `Neo.L2.Sequencer` into Neo's `DBFTPlugin` consensus selector is
-deployment-specific.
+**Closed at the code boundary.** The tracked core's existing DBFT path calls
+`NativeContract.NEO.GetNextBlockValidators`, which now reads the finalized
+validator set from `L2SystemConfigContract`. `ISequencerCommitteeProvider`
+selects the intended set off-chain; `neo-stack` submits it through a governed
+native transaction. Operators still supply a reviewed Neo.CLI/DBFTPlugin bundle.
 
 ## Summary
 
@@ -213,9 +218,10 @@ deployment-specific.
      `RegisterVerifierViaProposal` (consults the timelock gate).
   5. ✅ §12-l1-da-default — closed: `Neo.Plugins.L2DA.JsonRpcL1DAWriter`
      (`JsonRpcClient` + signed-tx delegate, 13 unit tests).
-  6. ⏭ §8-witness-canonical — **deferred** (plan note: "premature without
-     a real prover targeting it" — re-evaluate when the SP1 toolchain lands
-     and the guest ELF defines its expected witness shape).
+  6. ✅ §8-witness-canonical — **closed for SP1** with canonical `NEO4PWIT` /
+     `NEO4STW1` / `NEO4EFX1` / `NEO4EXR1`, cross-language golden vectors, exact semantic
+     binding, and atomic validated post-state commit. Other proof backends remain versioned
+     extension work rather than a gap in the bundled SP1 profile.
 
 **Second-order gaps closed during the same window** (additive, not in the
 original 6):

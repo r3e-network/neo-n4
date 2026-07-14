@@ -1,7 +1,8 @@
 use neo_execution_core::{
-    CANONICAL_RECEIPT_V1_BYTES, CanonicalReceiptV1, ExecutionError, StateEntry,
-    encode_proof_witness_artifact, encode_receipt, events_hash, hash256, keyed_state_root,
-    merkle_root, parse_proof_witness_artifact, parse_transaction, receipt_hash, storage_delta_hash,
+    CANONICAL_RECEIPT_V1_BYTES, CanonicalReceiptV1, ExecutionError, ForcedInclusionProof,
+    StateEntry, encode_execution_payload, encode_proof_witness_artifact, encode_receipt,
+    events_hash, hash256, keyed_state_root, merkle_root, parse_execution_payload,
+    parse_proof_witness_artifact, parse_transaction, receipt_hash, storage_delta_hash,
 };
 
 const FIXTURE_HEX: &str = include_str!("../../neo-zkvm-guest/tests/fixtures/stateful_batch_v1.hex");
@@ -19,6 +20,23 @@ fn proof_witness_artifact_v1_round_trips_without_a_second_envelope() {
     assert_eq!(&artifact.state_witness_bytes[..8], b"NEO4STW1");
     assert_eq!(&artifact.effects_bytes[..8], b"NEO4EFX1");
     assert_eq!(encode_proof_witness_artifact(&artifact).unwrap(), bytes);
+}
+
+#[test]
+fn execution_payload_round_trips_forced_inclusion_proofs_in_csharp_order() {
+    let mut payload = parse_proof_witness_artifact(&fixture_bytes())
+        .unwrap()
+        .execution_payload;
+    payload.forced_inclusions.push(ForcedInclusionProof {
+        nonce: 42,
+        leaf_index: 7,
+        tx_hash: [0x55; 32],
+        siblings: vec![[0x66; 32], [0x77; 32]],
+    });
+
+    let encoded = encode_execution_payload(&payload).unwrap();
+
+    assert_eq!(parse_execution_payload(&encoded).unwrap(), payload);
 }
 
 #[test]

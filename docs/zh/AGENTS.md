@@ -21,6 +21,16 @@
 - L1 core 改动进入 `r3e/neo-n3-core`，该分支跟踪上游 `master-n3`。
 - L2 core 改动进入 `r3e/neo-n4-core`，该分支跟踪上游 `master`，也是 `external/neo` submodule 当前使用的分支。
 
+## Phase 4 执行/证明边界
+
+- PolkaVM `ChainMode.L2RiscV` 位于 `external/neo-riscv-vm` +
+  `src/Neo.L2.Executor.RiscV`，没有匹配 prover 时不得继承 validity 标签。
+- 内置生产有效性档是精确 `Sp1StatefulNeoVmV1`：`Sp1SettlementExecutionStack` 固定
+  完整持久状态、SHA-256 锁定 `neo-zkvm-executor`、不可变 artifact-first 原子
+  post-state commit、`Sp1BatchProofProver` 与准确 VK/profile；SP1 guest 再执行同一 runtime。
+- Phase 5 已内置 `neo-zkvm-gateway-{guest,host}` recursive SP1 terminal proof；
+  Halo2/Risc0 是可选扩展，不是当前 SP1 路径的缺口。
+
 ## 维护检查清单
 
 - 英文源文件新增章节时，在这里补充对应中文章节或中文摘要。

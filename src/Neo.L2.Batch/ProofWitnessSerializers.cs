@@ -768,6 +768,13 @@ internal sealed class CanonicalWireWriter
         _writer.Advance(4);
     }
 
+    public void WriteInt32(int value)
+    {
+        var span = _writer.GetSpan(4);
+        BinaryPrimitives.WriteInt32LittleEndian(span, value);
+        _writer.Advance(4);
+    }
+
     public void WriteUInt64(ulong value)
     {
         var span = _writer.GetSpan(8);
@@ -838,6 +845,12 @@ internal ref struct StrictWireReader
     {
         var bytes = ReadBytes(4, field);
         return BinaryPrimitives.ReadUInt32LittleEndian(bytes);
+    }
+
+    public int ReadInt32(string field)
+    {
+        var bytes = ReadBytes(4, field);
+        return BinaryPrimitives.ReadInt32LittleEndian(bytes);
     }
 
     public ulong ReadUInt64(string field)

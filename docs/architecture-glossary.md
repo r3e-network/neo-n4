@@ -8,7 +8,7 @@
 ## Table of contents
 
 1. [Glossary of terms](#1-glossary-of-terms)
-2. [NeoHub L1 contracts](#2-neohub-l1-contracts-23)
+2. [NeoHub L1 contracts](#2-neohub-l1-contracts-26)
 3. [L2 native contracts](#3-l2-native-contracts-10)
 4. [L2 plugins](#4-l2-plugins-8)
 5. [Off-chain operators](#5-off-chain-operators)
@@ -43,7 +43,7 @@
 | **MerkleProofSerializer**     | Canonical encoder for Merkle proofs (used by withdrawals + cross-L2 messages).                                 |
 | **MessageHasher**             | Canonical encoder for `CrossChainMessage` (cross-L2). Both endpoints recompute the hash.                       |
 | **min_confirmations**         | Watcher-config field: refuse to emit events from blocks shallower than N confirmations from foreign-chain head. |
-| **NeoHub**                    | The 23-contract L1 suite that anchors the network. See §2 below.                                               |
+| **NeoHub**                    | The 26-project L1 suite: 24 production contracts, one advisory structural verifier, and one test-only stub. See §2 below. |
 | **nonce** (deposit/message)   | Per-(srcChain, direction) monotonic counter. Replay-protected.                                                 |
 | **operatorManager**           | UInt160. Multisig that manages a registered L2 (set-verifier, pause, etc.). In the chain config.               |
 | **postStateRoot**             | UInt256. State root after a batch's last tx. Carried in `BatchCommitment`.                                     |
@@ -62,7 +62,7 @@
 
 ---
 
-## 2. NeoHub L1 contracts (23)
+## 2. NeoHub L1 contracts (26)
 
 Lives at `contracts/NeoHub.*`. Each is a compiled .nef + .manifest.json.
 
@@ -88,7 +88,7 @@ Lives at `contracts/NeoHub.*`. Each is a compiled .nef + .manifest.json.
 
 - **`SequencerRegistry`** — Lists registered sequencers per chain. Bonds attached.
 - **`SequencerBond`** — Slashable bonds for sequencers. Slashed by `OptimisticChallenge` on accepted fraud.
-- **`ForcedInclusion`** — Anti-censorship: user posts tx on L1; L2 must include before deadline or sequencer slashed.
+- **`ForcedInclusion`** — Anti-censorship: a user posts a transaction on L1; an overdue entry can pause the L2, while governance slashes only after finalized dBFT evidence attributes responsibility.
 - **`OptimisticChallenge`** — Bisection-game-driven fraud-proof window. Settlements wait `challengeWindow` before final.
 - **`EmergencyManager`** — Operator-multisig pause for individual chains (e.g. while debugging a critical issue).
 
@@ -166,7 +166,7 @@ Lives at `tools/*`.
 - **`Neo.Stack.Cli`** (`neo-stack`) — 12 subcommands: create-chain,
   init-l2, register-chain, scaffold-executor, new-l2, ...
 - **`Neo.Hub.Deploy`** (`neo-hub-deploy`) — Plan/scaffold/verify NeoHub
-  deployment (23-step ordered production bundle).
+  deployment (24-step ordered production bundle).
 - **`Neo.L2.Devnet`** (`neo-l2-devnet`) — In-process end-to-end demo
   runner. `--executor counter` wires a sample executor.
 - **`Neo.L2.Explore`** (`neo-l2-explore`) — Terminal block explorer +

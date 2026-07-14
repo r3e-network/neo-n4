@@ -296,7 +296,14 @@ public sealed class UT_Sp1GatewayProofProver
             PublicValuesSha256 = Sha256(plan.PublicValues),
         };
         var resultPath = Path.Combine(queuePath, request.RequestId + ".gateway-result.json");
-        await File.WriteAllBytesAsync(resultPath, JsonSerializer.SerializeToUtf8Bytes(result));
+        await WriteAtomicallyAsync(resultPath, JsonSerializer.SerializeToUtf8Bytes(result));
+    }
+
+    private static async Task WriteAtomicallyAsync(string path, byte[] bytes)
+    {
+        var temporaryPath = path + ".tmp-" + Guid.NewGuid().ToString("N");
+        await File.WriteAllBytesAsync(temporaryPath, bytes);
+        File.Move(temporaryPath, path);
     }
 
     private static async Task<string> WaitForSingleFileAsync(string directory, string pattern)

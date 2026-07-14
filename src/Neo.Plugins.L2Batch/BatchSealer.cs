@@ -38,7 +38,7 @@ public sealed class BatchSealer
     private ulong _nextBatchNumber = 1;
     private ulong _lastAcknowledgedBatchNumber;
     private ulong _lastAcknowledgedBlock;
-    private UInt256 _lastPostStateRoot = UInt256.Zero;
+    private UInt256 _lastPostStateRoot;
     private SealedBatch? _pendingBatch;
     private bool _checkpointRestoreApplied;
 
@@ -65,7 +65,8 @@ public sealed class BatchSealer
         Func<int, IReadOnlyList<(ulong Nonce, UInt256 TxHash, ReadOnlyMemory<byte> SerializedTx)>>? forcedDrain = null,
         Func<int, IReadOnlyList<CrossChainMessage>>? l1MessageDrain = null,
         Func<uint>? l1FinalizedHeight = null,
-        Func<UInt256>? sequencerCommitteeHash = null)
+        Func<UInt256>? sequencerCommitteeHash = null,
+        UInt256? initialStateRoot = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(metrics);
@@ -85,6 +86,9 @@ public sealed class BatchSealer
         _l1MessageDrain = l1MessageDrain;
         _l1FinalizedHeight = l1FinalizedHeight;
         _sequencerCommitteeHash = sequencerCommitteeHash;
+        _lastPostStateRoot = initialStateRoot is null
+            ? UInt256.Zero
+            : new UInt256(initialStateRoot.GetSpan());
     }
 
     /// <summary>Number of transactions in the in-progress batch (0 if no batch is open).</summary>

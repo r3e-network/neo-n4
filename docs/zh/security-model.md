@@ -6,6 +6,14 @@
 
 ---
 
+## 漏洞报告边界
+
+漏洞披露路由以 [`SECURITY.md`](../../SECURITY.md) 为准。N4 与 R3E 自行维护的改动
+提交到 `r3e-network/neo-n4` 私密渠道；未经修改的上游 Neo 行为直接报告给 Neo Project；
+`r3e-network/neo` fork 中由 R3E 维护的差异仍属于 R3E 范围。
+
+---
+
 ## L1 提供什么保证
 
 对每一条注册到 `NeoHub.ChainRegistry` 的 L2 链:
@@ -82,7 +90,7 @@ DAC 链(就标 DAC,不要营销话术粉饰)。
 
 | #  | 威胁                          | 主缓解措施                                                       | 代码引用                                |
 | -- | ---------------------------- | --------------------------------------------------------------- | --------------------------------------- |
-| 1  | 排序器审查                    | 强制纳入 + 保证金罚没 + 逃生通道                                | `Neo.L2.ForcedInclusion`、`Neo.L2.Censorship` |
+| 1  | 排序器审查                    | 强制纳入 + 无许可暂停 + 基于最终 dBFT 归责证据的治理罚没 + 逃生通道 | `Neo.L2.ForcedInclusion`、`Neo.L2.Censorship` |
 | 2  | 非法状态根                    | ZK 有效性证明(Phase 4)或乐观挑战(Phase 3)                | `Neo.L2.Proving.RiscVZk`、`Neo.L2.Challenge` |
 | 3  | 桥被攻破                      | 锁-铸 vs 销-解锁 不变量;速率限制;紧急暂停                     | `NeoHub.SharedBridge`、`EmergencyManager` |
 | 4  | 重放攻击(跨链)               | `(chainId, nonce)` 信封 + 按对去重                              | `NeoHub.MessageRouter`、`Neo.L2.Messaging.L1MessageInbox` |
@@ -101,6 +109,21 @@ DAC 链(就标 DAC,不要营销话术粉饰)。
 - **证明者边界处的 public-input 哈希等价性。** `L2SettlementPlugin` 在提交到 L1
   之前就拒绝 `publicInputHash` 与结算者计算的哈希不一致的证明 —— 避免无谓的 L1
   往返。
+- **锁定 native SP1 执行边界。** 生产 C# 执行要求为 `neo-zkvm-executor` 提供独立
+  审阅的非零 SHA-256。每次调用都把源 executable 边复制边 hash 到隔离目录，只执行
+  digest 匹配副本，关闭可变路径及 check/use 之间替换的歧义；不使用 shell 拼接命令。
+- **全部校验后再原子提交状态。** 规范 `NEO4EXR1` 绑定精确 `NEO4EXEC` 请求、完整
+  pre-state `NEO4STW1`、execution semantic、全部 roots/gas、完整 effects/post-state 与
+  public-input hash。C# 独立重算请求/结算绑定并检查 pre-state 连续性，再用一次
+  `IAtomicL2KeyValueStore.CompareExchangeAll` 比较并替换完整状态；畸形输出、并发 writer
+  失败、超时、digest 不匹配、进程失败或状态漂移都必须保留旧状态。
+- **结算确认后的 prover 保留策略。** 私有 content-addressed SP1 queue 强制 `0700` 目录、
+  `0600` 文件和 byte/task 背压。只有 durable `SettlementObserved` 产生匹配的 32-byte ack 后
+  才清理证明证据；symlink、更宽权限、外来 owner、畸形 ack 与 TTL 删除均 fail closed。
+- **明确的 N4 genesis V1 语义上限。** 当前证明档只支持有界 native/syscall，且一次
+  transition 禁止增删替换 deployed-contract descriptor；未覆盖行为 fail closed。这是
+  安全属性，不是通用 NeoVM/native-contract 覆盖声明；扩大能力必须协调升级版本化
+  guest、VK 与 verifier route。
 - **Contract ZK verifier router。** `ContractZkVerifier` 会在委托给
   `verifyZkProof(...)` 前拒绝非 ZK commitment、畸形 `RiscVProofPayload` envelope、
   未登记 verification key、以及未设置终端验证器合约 hash 的配置。生产 SP1 deploy
@@ -193,6 +216,10 @@ DAC 链(就标 DAC,不要营销话术粉饰)。
       `Sp1Groth16Verifier`、永久关闭 envelope-only、最后路由 `ProofType.Zk`。在精确
       本地正向 proof-vector VM gate 已通过；公共网络仍必须对精确部署的 NEF/VK pair
       记录同一组正向/负向 smoke evidence 后，才可标注 `securityLevel=3`。
+- [ ] 把 bootstrap 后的非零 SP1 genesis root 持久记录在 mutable state DB 之外；用
+      审阅后的 release SHA-256 锁定 `neo-zkvm-executor`；使用 atomic RocksDB state；
+      核对 prover queue、VK、semantic 与同一 guest 一致。重启时不得把磁盘当前值静默
+      采纳为可信 digest 或 initial root。
 - [ ] 运行进程内 devnet(`tools/Neo.L2.Devnet`)做端到端验证,再把插件指向真实
       Neo 网络。
 - [ ] 配好审计框架。`Neo.L2.Audit.ChainAuditor` 接受一序列 `IAuditCheck` 实现;
@@ -205,5 +232,6 @@ DAC 链(就标 DAC,不要营销话术粉饰)。
 
 ## 上报问题
 
-安全问题请在公开披露前报到 Neo 项目安全邮箱。当前的披露政策见
-`neo-project/neo` 主仓库。
+本仓库的安全问题请在公开披露前使用 R3E Network 的 GitHub 私密漏洞报告渠道或安全邮箱。权威披露政策见
+[`SECURITY.md`](../../SECURITY.md)；不要把 Neo N4 问题路由到只读上游
+`neo-project/neo`。

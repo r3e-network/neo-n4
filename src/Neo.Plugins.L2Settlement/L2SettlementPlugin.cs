@@ -285,6 +285,15 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
     }
 
     /// <inheritdoc />
+    public ValueTask<UInt256> GetInitialStateRootAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var pipeline = _pipeline
+            ?? throw new InvalidOperationException("settlement pipeline is not wired");
+        return pipeline.GetInitialStateRootAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
     protected override void Dispose(bool disposing)
     {
         if (disposing)

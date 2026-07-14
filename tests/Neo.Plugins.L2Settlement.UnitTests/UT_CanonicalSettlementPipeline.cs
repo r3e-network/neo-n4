@@ -82,6 +82,34 @@ public class UT_CanonicalSettlementPipeline
     }
 
     [TestMethod]
+    public async Task ZkProfile_RequiresMatchingNonZeroAuthenticatedGenesisRoot()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        using var mismatch = CreateZkPipeline(
+            store,
+            new TestExecutor(SafeSemantic, initialStateRoot: H(9)),
+            new ProductionDaWriter(),
+            new RecordingZkProver(SafeSemantic),
+            new RecordingSettlementClient());
+
+        Assert.AreEqual(H(9), await mismatch.GetInitialStateRootAsync());
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(
+            async () => await mismatch.PersistAsync(BuildBatch()));
+
+        using var zeroBackend = new InMemoryKeyValueStore();
+        using var zeroStore = new KeyValueProofWitnessStore(zeroBackend);
+        using var zero = CreateZkPipeline(
+            zeroStore,
+            new TestExecutor(SafeSemantic, initialStateRoot: UInt256.Zero),
+            new ProductionDaWriter(),
+            new RecordingZkProver(SafeSemantic),
+            new RecordingSettlementClient());
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(
+            async () => await zero.GetInitialStateRootAsync());
+    }
+
+    [TestMethod]
     public async Task ZkProfile_RejectsPreviewAndLegacyExecutionSemantics()
     {
         foreach (var semantic in new[]
@@ -146,6 +174,100 @@ public class UT_CanonicalSettlementPipeline
     }
 
     [TestMethod]
+    public async Task Persist_StateCommitFailureLeavesDurableArtifactForIdempotentRetry()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var executor = new DurabilityCheckingExecutor(store)
+        {
+            FailNextStateCommit = true,
+        };
+        using var pipeline = CreateZkPipeline(
+            store,
+            executor,
+            new ProductionDaWriter(),
+            new RecordingZkProver(SafeSemantic),
+            new RecordingSettlementClient());
+        var batch = BuildBatch();
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            async () => await pipeline.PersistAsync(batch));
+
+        var artifact = await store.GetAsync(ChainId, batch.BatchNumber);
+        Assert.IsNotNull(artifact, "artifact must survive a post-commit state failure");
+        Assert.AreEqual(1, executor.ApplyCount);
+        Assert.AreEqual(1, executor.StateCommitCount);
+        Assert.AreEqual(artifact.ContentHash, executor.LastDurableContentHash);
+
+        var postStateRoot = await pipeline.PersistAsync(batch);
+
+        Assert.AreEqual(artifact.ExecutionResult.PostStateRoot, postStateRoot);
+        Assert.AreEqual(1, executor.ApplyCount, "retry must reuse the durable artifact");
+        Assert.AreEqual(2, executor.StateCommitCount);
+        Assert.AreEqual(artifact.ContentHash, executor.LastCommittedContentHash);
+    }
+
+    [TestMethod]
+    public async Task LatestCheckpoint_RestartReplaysDurableArtifactIntoStateSink()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        ProofWitnessArtifactV1 artifact;
+        using (var firstStore = new KeyValueProofWitnessStore(backend))
+        {
+            var failingExecutor = new DurabilityCheckingExecutor(firstStore)
+            {
+                FailNextStateCommit = true,
+            };
+            using var firstPipeline = CreateZkPipeline(
+                firstStore,
+                failingExecutor,
+                new ProductionDaWriter(),
+                new RecordingZkProver(SafeSemantic),
+                new RecordingSettlementClient());
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                async () => await firstPipeline.PersistAsync(BuildBatch()));
+            artifact = (await firstStore.GetAsync(ChainId, 1))!;
+        }
+
+        using var restartedStore = new KeyValueProofWitnessStore(backend);
+        var restartedExecutor = new DurabilityCheckingExecutor(restartedStore);
+        using var restartedPipeline = CreateZkPipeline(
+            restartedStore,
+            restartedExecutor,
+            new ProductionDaWriter(),
+            new RecordingZkProver(SafeSemantic),
+            new RecordingSettlementClient());
+
+        var checkpoint = await restartedPipeline.GetLatestCheckpointAsync();
+
+        Assert.IsNotNull(checkpoint);
+        Assert.AreEqual(artifact.BatchNumber, checkpoint.BatchNumber);
+        Assert.AreEqual(artifact.ExecutionResult.PostStateRoot, checkpoint.PostStateRoot);
+        Assert.AreEqual(1, restartedExecutor.StateCommitCount);
+        Assert.AreEqual(artifact.ContentHash, restartedExecutor.LastDurableContentHash);
+        Assert.AreEqual(artifact.ContentHash, restartedExecutor.LastCommittedContentHash);
+    }
+
+    [TestMethod]
+    public async Task LatestCheckpoint_RejectsStateAdvanceWithoutDurableArtifact()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        using var pipeline = CreateZkPipeline(
+            store,
+            new TestExecutor(
+                SafeSemantic,
+                initialStateRoot: H(1),
+                currentStateRoot: H(9)),
+            new ProductionDaWriter(),
+            new RecordingZkProver(SafeSemantic),
+            new RecordingSettlementClient());
+
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(
+            async () => await pipeline.GetLatestCheckpointAsync());
+    }
+
+    [TestMethod]
     public async Task Persist_RejectsTamperedDaReceiptOrUnavailablePayload()
     {
         using var corruptBackend = new InMemoryKeyValueStore();
@@ -197,6 +319,8 @@ public class UT_CanonicalSettlementPipeline
         await pipeline.ReconcileAsync();
         await pipeline.ReconcileAsync();
         Assert.AreEqual(2, prover.ProveCount);
+        Assert.AreEqual(1, prover.AcknowledgementCount);
+        Assert.AreEqual(artifact.ContentHash, prover.LastAcknowledgedArtifact);
         Assert.AreEqual(1, client.SubmitCount);
         Assert.AreEqual(0, await pipeline.GetPendingCountAsync());
         var status = await pipeline.GetRecoveryStatusAsync();
@@ -1048,20 +1172,43 @@ public class UT_CanonicalSettlementPipeline
         return new UInt256(bytes);
     }
 
-    private sealed class TestExecutor : IProofWitnessBatchExecutor
+    private sealed class TestExecutor :
+        IProofWitnessBatchExecutor,
+        IInitialStateRootProvider,
+        ICurrentStateRootProvider
     {
         private readonly UInt256 _semantic;
         private readonly bool _authenticated;
         private readonly bool _returnEmptyStateWitness;
+        private readonly UInt256 _initialStateRoot;
+        private readonly UInt256 _currentStateRoot;
 
         public TestExecutor(
             UInt256 semantic,
             bool authenticated = true,
-            bool returnEmptyStateWitness = false)
+            bool returnEmptyStateWitness = false,
+            UInt256? initialStateRoot = null,
+            UInt256? currentStateRoot = null)
         {
             _semantic = semantic;
             _authenticated = authenticated;
             _returnEmptyStateWitness = returnEmptyStateWitness;
+            _initialStateRoot = initialStateRoot ?? H(1);
+            _currentStateRoot = currentStateRoot ?? _initialStateRoot;
+        }
+
+        public ValueTask<UInt256> GetInitialStateRootAsync(
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(new UInt256(_initialStateRoot.GetSpan()));
+        }
+
+        public ValueTask<UInt256> GetCurrentStateRootAsync(
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(new UInt256(_currentStateRoot.GetSpan()));
         }
 
         public ValueTask<BatchExecutionResult> ApplyBatchAsync(
@@ -1117,6 +1264,68 @@ public class UT_CanonicalSettlementPipeline
         }
     }
 
+    private sealed class DurabilityCheckingExecutor :
+        IProofWitnessBatchExecutor,
+        IInitialStateRootProvider,
+        ICommittedProofWitnessStateSink
+    {
+        private readonly IProofWitnessStore _store;
+        private readonly TestExecutor _inner = new(SafeSemantic);
+
+        public DurabilityCheckingExecutor(IProofWitnessStore store)
+        {
+            _store = store;
+        }
+
+        public bool FailNextStateCommit { get; set; }
+
+        public int ApplyCount { get; private set; }
+
+        public int StateCommitCount { get; private set; }
+
+        public UInt256? LastDurableContentHash { get; private set; }
+
+        public UInt256? LastCommittedContentHash { get; private set; }
+
+        public ValueTask<UInt256> GetInitialStateRootAsync(
+            CancellationToken cancellationToken = default)
+            => _inner.GetInitialStateRootAsync(cancellationToken);
+
+        public ValueTask<BatchExecutionResult> ApplyBatchAsync(
+            BatchExecutionRequest request,
+            CancellationToken cancellationToken = default)
+            => _inner.ApplyBatchAsync(request, cancellationToken);
+
+        public ValueTask<ProofWitnessExecutionResult> ApplyBatchWithWitnessAsync(
+            SealedBatch batch,
+            CancellationToken cancellationToken = default)
+        {
+            ApplyCount++;
+            return _inner.ApplyBatchWithWitnessAsync(batch, cancellationToken);
+        }
+
+        public async ValueTask EnsureStateCommittedAsync(
+            IProofWitnessStore durableStore,
+            ProofWitnessArtifactV1 artifact,
+            CancellationToken cancellationToken = default)
+        {
+            Assert.AreSame(_store, durableStore);
+            StateCommitCount++;
+            var durable = await durableStore.GetAsync(
+                artifact.ChainId, artifact.BatchNumber, cancellationToken);
+            if (durable is null || !durable.ContentHash.Equals(artifact.ContentHash))
+                throw new InvalidOperationException(
+                    "state transition was requested before its artifact became durable");
+            LastDurableContentHash = durable.ContentHash;
+            if (FailNextStateCommit)
+            {
+                FailNextStateCommit = false;
+                throw new InvalidOperationException("simulated state commit crash");
+            }
+            LastCommittedContentHash = artifact.ContentHash;
+        }
+    }
+
     private sealed class ProductionDaWriter : IProductionDAWriter
     {
         public DAMode Mode => DAMode.External;
@@ -1147,7 +1356,7 @@ public class UT_CanonicalSettlementPipeline
             => ValueTask.FromResult(Available);
     }
 
-    private sealed class RecordingZkProver : IZkExecutionProver
+    private sealed class RecordingZkProver : IZkExecutionProver, IProofArtifactRetention
     {
         public RecordingZkProver(UInt256 executionSemanticId)
         {
@@ -1163,6 +1372,8 @@ public class UT_CanonicalSettlementPipeline
         public bool FailNextProof { get; set; }
         public bool FailAllProofs { get; set; }
         public int ProveCount { get; private set; }
+        public int AcknowledgementCount { get; private set; }
+        public UInt256? LastAcknowledgedArtifact { get; private set; }
         public ReadOnlyMemory<byte> LastWitness { get; private set; }
 
         public async ValueTask<ProofResult> ProveAsync(
@@ -1191,6 +1402,16 @@ public class UT_CanonicalSettlementPipeline
                 Kind = Kind,
                 PublicInputHash = StateRootCalculator.HashPublicInputs(request.PublicInputs),
             };
+        }
+
+        public ValueTask AcknowledgeSettlementAsync(
+            UInt256 artifactContentHash,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            AcknowledgementCount++;
+            LastAcknowledgedArtifact = artifactContentHash;
+            return ValueTask.CompletedTask;
         }
     }
 

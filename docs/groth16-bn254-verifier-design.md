@@ -30,7 +30,8 @@ and wrapper version requires its own reviewed terminal verifier deployment.
 
 ## 2. Pinned SP1 format
 
-The contract implements the SP1 v6.1-compatible Groth16 wrapper used by SP1 6.2.x. The
+The contract implements the v6.1-compatible Groth16 wrapper shipped by the repository's
+exactly pinned `sp1-sdk` and `sp1-verifier` 6.2.1 dependencies. The
 wrapper exposes five BN254 scalar public inputs, in order:
 
 1. the raw 32-byte program verification-key digest (`vk.bytes32()`),
@@ -119,18 +120,33 @@ current vendored N4 `ApplicationEngine`, not the older public
 checks selector/root constants, rejects malformed envelopes, non-canonical scalars and
 invalid points, and executes both the positive and invalid-pairing paths under the fee ceiling.
 
-The committed release-quality positive vector contains all four byte-for-byte values produced
-by the Rust SP1 prover:
+The shared `tests/fixtures/sp1-groth16-positive-vector-v1.json` release vector contains the
+exact guest ELF digest, source-witness digest, and all four byte-for-byte values produced by
+the Rust SP1 6.2.1 prover:
 
 - `proof.bytes()` (356 bytes),
 - `proof.public_values` (33 bytes),
 - raw `vk.bytes32()` bytes (32 bytes, without Neo textual hash reversal),
 - the extracted N4 `publicInputHash` (bytes 1..32 of public values).
 
-The positive proof verifies through both `Sp1Groth16Verifier` and `ContractZkVerifier`.
+`cargo run --release -p neo-zkvm-host --example generate_groth16_release_vector --locked` regenerates
+the vector from the current pinned guest and canonical native-transition witness. A Rust
+integration test independently verifies the committed vector with `sp1-verifier`, binds it to
+the current guest VK/ELF manifest and witness, and re-executes the witness. The same JSON is
+loaded by the C# VM tests, so there is no hand-maintained duplicate proof. The positive proof
+verifies through both `Sp1Groth16Verifier` and `ContractZkVerifier`.
 Changing the program VK, N4 public-input hash, selector, recursion root, nonce, or any proof
 point fails closed. Public-network release evidence must repeat these vectors against the exact
 deployed NEF/VK pair.
+
+On macOS with Colima, set `TMPDIR` to a directory under the repository or home directory before
+proving (for example `mkdir -p target/sp1-tmp && export TMPDIR="$PWD/target/sp1-tmp"`). SP1 6.2.1
+bind-mounts its temporary Groth16 witness/output files into Docker, while Colima does not share
+the default macOS `/var/folders` tree. Without this setting Docker sees `/witness` as a directory
+and the expensive proof fails only at the terminal wrapper stage.
+The Docker wrapper backend additionally requires `SP1_GNARK_IMAGE` to equal the audited immutable
+amd64 manifest digest documented in the prover READMEs and CI. Mutable tags fail closed before
+proof generation. Apple Silicon operators use SP1's `native-gnark` feature instead.
 
 ## 7. Operator sequence
 

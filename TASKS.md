@@ -1,6 +1,6 @@
 # Neo N4 — Task Split
 
-Open work between **Neo core forks** (`r3e-network/neo`, L1 branch `r3e/neo-n3-core`, L2 branch `r3e/neo-n4-core`) and **this Elastic Network repo** (`neo4`). Counts verified against the codebase on 2026-05-19.
+Open work between **Neo core forks** (`r3e-network/neo`, L1 branch `r3e/neo-n3-core`, L2 branch `r3e/neo-n4-core`) and **this Elastic Network repo** (`neo4`). Counts verified against the tracked revisions on 2026-07-14.
 
 ---
 
@@ -22,17 +22,21 @@ tests pass.
 
 ### High — required for production deployment
 
-- [ ] §14.1 `RpcServer` plugin source availability (unblocks the `[RpcMethod]` wrapper for the 10 L2 RPC methods)
+- [x] ~~§14.1 `RpcServer` plugin source availability~~ — the tracked core contains the
+  official `RpcServerPlugin.RegisterMethods` source, and `Neo.Plugins.L2Rpc` registers all
+  10 methods through it; real Kestrel HTTP tests cover the adapter.
 - [ ] `OnPersist` / `PostPersist` ChainMode awareness — make genesis bootstrap a first-class L2-mode API
 - [ ] §13.2 Optional Oracle gating — let an L2 skip the Oracle native contract
 
 ### Medium — full Elastic Network
 
-- [ ] dBFT consensus selector hook — accept pluggable validator-set providers
+- [x] ~~dBFT consensus selector hook~~ — the tracked core's native governance selector reads
+  the finalized validator set from `L2SystemConfigContract`; `neo-stack` synchronizes an
+  operator-selected `ISequencerCommitteeProvider` result through a governed native transaction.
 - [ ] `ApplicationEngine` restricted-state mode — for v4 fraud verifier's on-L1 re-execution
 - [ ] NeoVM2 / RISC-V execution mode opt-in (`ChainMode.L2RiscV`)
 
-**Subtotal: 10**
+**Subtotal: 10 (2 closed, 8 remain)**
 
 ---
 
@@ -66,7 +70,10 @@ Items inside the Elastic Network consolidation. Owned here, not blocked on upstr
 - [ ] `NeoFsClientDAWriter` example wired against actual NeoFS gRPC SDK
 - [ ] `JsonRpcL1DAWriter` worked example against a real Neo N3 node
 - [ ] `RpcSettlementClient.SignAndSendAsync` worked example with KMS / HSM
-- [ ] dBFT plugin wiring example using `SequencerRegistry` as the validator-set source
+- [x] ~~dBFT plugin wiring example using `SequencerRegistry` as the validator-set source~~ —
+  `docs/launching-an-l2.md` documents the provider → governed native transaction → finalized
+  `L2SystemConfigContract` → unmodified DBFTPlugin path, and `neo-stack start-sequencer
+  --sync-only --broadcast` implements it.
 
 ### Future features
 
@@ -87,9 +94,9 @@ for full mapping + rationale. Each item names a concrete neo4 location.
 - [x] ~~Per-chain `IL1TxFilter` extension point~~ — `MessageRouter.SetL1TxFilter` and `NeoHub.L1TxFilter` implemented for sender/receiver/message-type pre-enqueue filtering.
 - [x] ~~L2-side message verification helper~~ — `L2Native.L2InteropVerifier` implemented with mirrored global roots, L1 finalized-height check, Merkle proof verification, and local replay protection.
 - [ ] Additional sample dApps — `Sample.Erc20PaymasterClient`, `Sample.MultisigAccount`, `Sample.GatedMint`, `Sample.CrossChainSwap`
-- [ ] Python + Go SDKs — community-tier, generated from the canonical `L2RpcClient` surface
+- [ ] Go SDK — generate from the shared conformance surface; Python joins the other three typed SDK source implementations under the shared conformance gate
 
-**Subtotal: 24 (15 closed, 9 remain — 4 operator examples + 2 future features + 1 spec-gap-deferred + 2 ecosystem items)**
+**Subtotal: 24 (16 closed, 8 remain — 3 operator examples + 2 future features + 1 spec-gap-deferred + 2 ecosystem items)**
 
 ---
 
@@ -98,31 +105,32 @@ for full mapping + rationale. Each item names a concrete neo4 location.
 Items that need work in both repos and PR coordination across them.
 
 - [ ] **L2 mode bootstrap handoff** — deprecate `NeoVMGenesisBootstrap` in this repo when core ships `ChainMode.L2RollupMode` initialization
-- [ ] **RpcServer source migration** — file the `[RpcMethod]` wrapper partial class against `L2RpcMethods` once core exposes `RpcServer` source
+- [x] ~~**RpcServer source migration**~~ — `L2RpcPlugin` now registers its official adapter
+  directly through the tracked core's `RpcServerPlugin.RegisterMethods` API.
 - [ ] **NeoVM2 / RISC-V mode** — migrate `Neo.L2.Executor.RiscV` from P/Invoke binding to first-class core integration once core ships `ChainMode.L2RiscV`
 
-**Subtotal: 3**
+**Subtotal: 3 (1 closed, 2 remain)**
 
 ---
 
-## Total: 37 actionable tasks (9 closed)
+## Total: 37 actionable tasks (19 closed)
 
 | Bucket | Total | Closed | Remaining |
 |--------|------:|-------:|----------:|
-| Neo N4 Core | 10 | 0 | 10 |
-| This repo | 24 | 15 | 9 |
-| Cross-repo | 3 | 0 | 3 |
-| **Total** | **37** | **15** | **22** |
+| Neo N4 Core | 10 | 2 | 8 |
+| This repo | 24 | 16 | 8 |
+| Cross-repo | 3 | 1 | 2 |
+| **Total** | **37** | **19** | **18** |
 
 The ZKsync Elastic Chain comparison (`docs/zksync-comparison.md`) originally
 added 8 in-repo parity tasks. The high-value contract gaps are now closed:
 global message root, immutable flags, DA validator, canonical bridged token,
 AA, staged governance, L1 transaction filter, and L2 interop verifier.
 
-The 22 remaining items are split between 4 production-readiness examples
+The 18 remaining items are split between 3 production-readiness examples
 (operator-supplied seams the framework already exposes), 2 future features
-(toolchain-blocked), 1 deferred spec-gap, 2 ecosystem items (samples + Go/Python
-SDKs), 10 upstream core items, and 3 cross-repo coordination items.
+(toolchain-blocked), 1 deferred spec-gap, 2 ecosystem items (samples + Go SDK),
+8 upstream core items, and 2 cross-repo coordination items.
 
 ---
 
@@ -134,12 +142,10 @@ Anything touching **NeoVM execution semantics, native contracts, dBFT consensus,
 
 ## Validation snapshot
 
-Reference state after the closed-iteration fixes:
-
-- Tests green: **1467 .NET + 202 cross-language base = 1669**, plus 2 real-CPU SP1 release-gate tests verified via `cargo test --release --locked -- --ignored --nocapture` in `bridge/neo-zkvm-host/`.
-  - 1467 .NET across 34 projects.
-  - 202 cross-language (16 TS + 10 Rust SDK + 5 shared execution-core + 7 SP1 guest + 103 watcher (87 eth + 7 tron + 9 sol) + 39 Foundry (32 single + 7 multi) + 22 Solana router).
-- Build: 99 solution projects, 0 errors, 0 warnings (with `nccs` on PATH)
-- Smart contracts: 31 NeoHub/L2Native (24 NeoHub deployable + 7 L2 native) + 2 sample dApps + 1 sample executor → all compile fresh
-- Devnet 5-batch E2E: green, state root unchanged (`KeyedStateRootOracle` path was already Neo classic)
-- Findings ledger: **0 substantive + 0 minor nits open** — all 4 findings from the 40-iteration sweep now closed
+This backlog is not release evidence. Exact test counts and results belong to the
+CI run for the reviewed commit, not to a timeless task list. The current source
+inventory is 38 .NET test projects, 26 NeoHub projects (24 production, one
+advisory, one test-only), 10 L2 native contracts, and 44 Foundry tests. Consult
+[`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for maturity boundaries and
+[`SECURITY.md`](SECURITY.md) for the release/deployment gates; no exact-revision
+public deployment or production release is claimed here.

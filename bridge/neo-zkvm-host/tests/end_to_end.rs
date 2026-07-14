@@ -92,6 +92,9 @@ fn prove_and_verify_real_zk_proof() {
     assert_eq!(356, proof_result.proof_bytes.len());
     assert_eq!(32, proof_result.vk_bytes.len());
     assert_eq!(33, proof_result.public_values.len());
+    let artifact =
+        neo_execution_core::parse_proof_witness_artifact(&bytes).expect("native fixture artifact");
+    assert_eq!(proof_result.vk_bytes, artifact.verification_key_id);
     assert_eq!(0, proof_result.public_values[0]);
     assert_eq!(
         proof_result.public_values[1..],

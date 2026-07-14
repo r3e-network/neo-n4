@@ -2,7 +2,7 @@ use std::{env, fs, path::PathBuf};
 
 #[allow(dead_code)]
 mod pinned {
-    include!("vk_manifest.rs");
+    include!("batch_vk_manifest.rs");
 }
 
 const TEST_ONLY_BATCH_VK: [u32; 8] = [
@@ -17,7 +17,7 @@ const TEST_ONLY_BATCH_VK: [u32; 8] = [
 ];
 
 fn main() {
-    println!("cargo:rerun-if-changed=vk_manifest.rs");
+    println!("cargo:rerun-if-changed=batch_vk_manifest.rs");
     println!("cargo:rerun-if-env-changed=CARGO_FEATURE_TEST_ONLY_VK");
 
     let test_only = env::var_os("CARGO_FEATURE_TEST_ONLY_VK").is_some();

@@ -131,4 +131,24 @@ public class UT_GatewayProofBinding
         Assert.IsFalse(GatewayProofBindingSerializer.IsProductionAggregationBackend(
             PassThroughAggregator.BackendId));
     }
+
+    [TestMethod]
+    public void EncodeDecode_AllowsCanonicalZeroGlobalMessageRoot()
+    {
+        var constituent = Batch(1001, 1, 0x11) with { L2ToL2MessageRoot = UInt256.Zero };
+        var commitment = Aggregate(constituent) with { GlobalMessageRoot = UInt256.Zero };
+        var binding = GatewayProofBindingSerializer.Create(
+            UInt160.Parse("0x" + new string('a', 40)),
+            H(0xD1),
+            1,
+            commitment,
+            1,
+            H(0xA1));
+
+        var encoded = GatewayProofBindingSerializer.Encode(binding);
+        var decoded = GatewayProofBindingSerializer.Decode(encoded);
+
+        Assert.AreEqual(UInt256.Zero, decoded.GlobalMessageRoot);
+        Assert.IsTrue(encoded.AsSpan(68, 32).SequenceEqual(new byte[32]));
+    }
 }

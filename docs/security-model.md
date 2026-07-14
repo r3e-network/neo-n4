@@ -7,6 +7,15 @@
 
 ---
 
+## Reporting boundary
+
+[`SECURITY.md`](../SECURITY.md) is authoritative for disclosure routing. Report
+N4 and R3E-authored changes to the private `r3e-network/neo-n4` channel. Report
+unmodified upstream Neo behavior directly to the Neo Project; changes maintained
+in the `r3e-network/neo` fork remain in R3E scope.
+
+---
+
 ## What L1 guarantees
 
 For any L2 chain registered in `NeoHub.ChainRegistry`:
@@ -96,7 +105,7 @@ security claim is downgraded to whatever the worst label could be.**
 
 | #  | Threat                          | Primary mitigation                                                       | Code reference                          |
 | -- | ------------------------------- | ------------------------------------------------------------------------ | --------------------------------------- |
-| 1  | Sequencer censorship            | Forced inclusion + bond slashing + escape hatch                          | `Neo.L2.ForcedInclusion`, `Neo.L2.Censorship` |
+| 1  | Sequencer censorship            | Forced inclusion + permissionless pause + finalized-dBFT-attributed governance slashing + escape hatch | `Neo.L2.ForcedInclusion`, `Neo.L2.Censorship` |
 | 2  | Invalid state root              | ZK validity proof (Phase 4) or optimistic challenge (Phase 3)            | `Neo.L2.Proving.RiscVZk`, `Neo.L2.Challenge` |
 | 3  | Bridge exploit                  | Lock-mint vs burn-unlock invariants; per-chain escrow accounting (a chain's withdrawals can never exceed its own deposits); on-chain proof↔state binding in `SettlementManager`; emergency pause | `NeoHub.SharedBridge` (`GetLockedBalance`), `NeoHub.SettlementManager`, `EmergencyManager` |
 | 4  | Replay attack (cross-chain)     | `(chainId, nonce)` envelope + per-pair dedup                             | `NeoHub.MessageRouter`, `Neo.L2.Messaging.L1MessageInbox` |
@@ -117,6 +126,26 @@ pinning regression test):
 - **Public-input hash equality at the prover boundary.** `L2SettlementPlugin`
   rejects a proof whose `publicInputHash` differs from the settler's computed
   hash, before submitting to L1 — preventing wasted L1 round-trips.
+- **Pinned native SP1 execution boundary.** Production C# execution requires an
+  independently reviewed non-zero SHA-256 for `neo-zkvm-executor`. Every invocation
+  copies the source executable into an isolated directory while hashing it and executes
+  only that digest-matched copy, closing mutable-path and replace-between-check/use
+  ambiguity. Shell command construction is not used.
+- **Validate-before-atomic-state-commit.** Canonical `NEO4EXR1` binds the exact
+  `NEO4EXEC` request, complete pre-state `NEO4STW1`, execution semantic, all roots/gas,
+  complete effects/post-state, and public-input hash. C# independently recomputes the
+  request and settlement bindings, checks pre-state continuity, and compares/replaces the complete
+  state with one `IAtomicL2KeyValueStore.CompareExchangeAll`; malformed output, concurrent-writer
+  loss, timeout, digest mismatch, process failure, or state drift leaves the old state intact.
+- **Settlement-confirmed prover retention.** The private content-addressed SP1 queue enforces
+  `0700` directories, `0600` files, and byte/task backpressure. Proof evidence is pruned only after
+  durable `SettlementObserved` produces a matching 32-byte acknowledgement; symlinks, broader
+  permissions, foreign ownership, malformed acknowledgements, and TTL cleanup fail closed.
+- **Explicit N4 genesis V1 semantic ceiling.** The proven profile has bounded native and
+  syscall support and forbids add/remove/replace changes to deployed contract descriptors
+  in one transition. Unsupported behavior fails closed. This is a safety property, not a
+  claim of general NeoVM/native-contract coverage; expanding it requires a coordinated
+  versioned guest/VK/verifier upgrade.
 - **Contract ZK verifier router.** `ContractZkVerifier` refuses non-ZK commitments,
   malformed `RiscVProofPayload` envelopes, unregistered verification keys, and
   missing terminal verifier contracts before delegating to `verifyZkProof(...)`.
@@ -235,6 +264,11 @@ Before launching an L2:
       route `ProofType.Zk`. The local positive proof-vector gate is green; do not
       advertise `securityLevel=3` for a public network until that exact reviewed
       NEF/VK pair is deployed and the same positive/negative smoke vectors are recorded.
+- [ ] Persist the bootstrapped non-zero SP1 genesis root outside the mutable state DB,
+      pin `neo-zkvm-executor` by a reviewed release SHA-256, use an atomic RocksDB-backed
+      state store, and verify the configured prover queue/VK/semantic match the same guest.
+      Never derive the trusted digest or initial root by silently adopting whatever is on
+      disk at restart.
 - [ ] Run the in-process devnet (`tools/Neo.L2.Devnet`) end-to-end before
       pointing the plugins at a live Neo network.
 - [ ] Configure the audit framework. `Neo.L2.Audit.ChainAuditor` accepts a
@@ -248,6 +282,8 @@ Before launching an L2:
 
 ## Reporting issues
 
-Security issues should be reported to the Neo project security mailbox before
-public disclosure. See the main `neo-project/neo` repo for the current
-disclosure policy.
+Security issues in this repository should be reported to the R3E Network
+private vulnerability reporting channel or security mailbox before public
+disclosure. Follow [`SECURITY.md`](../SECURITY.md), which is the authoritative
+disclosure policy for `r3e-network/neo-n4`; do not route Neo N4 findings to the
+read-only `neo-project/neo` upstream.

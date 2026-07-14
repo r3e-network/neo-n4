@@ -46,7 +46,7 @@ specific logic — runs on **L2** because L1 cannot scale to it.
 
 ## 2. What L1 does (and why it has to)
 
-The 23 production NeoHub contracts (plus 1 advisory structural verifier and 1 testing stub) are deployed L1
+The 24 production NeoHub contracts (plus 1 advisory structural verifier and 1 testing stub) are deployed L1
 contracts, not L1 native contracts. `ContractZkVerifier` is one of those
 deployed contracts: it validates ZK proof envelopes and routes proof-system
 work to terminal verifier contracts instead of becoming a NeoHub native
@@ -158,7 +158,7 @@ the rules in §5:
 
 **Findings:**
 
-✅ **24 of 25 NeoHub deployable projects are correctly placed as production L1 contracts** — each
+✅ **24 of 26 NeoHub projects are production L1 contracts** — the remaining two are the advisory structural verifier and test-only stub; each production contract
 satisfies at least one of rules 1, 2, or 3.
 
 ✅ **All 10 L2 native contracts are correctly placed in L2 Neo core** — each is

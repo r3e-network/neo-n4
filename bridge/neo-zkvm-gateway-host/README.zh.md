@@ -5,7 +5,16 @@
 验证每个子证明，生成 356 字节 Gateway Groth16 证明，在 host 再次验证，并最后发布结果
 manifest。
 
+生产构建只允许在经审计的不可变 SP1 6.2.1 amd64 镜像 digest
+`sha256:14d3c46eff7492f87e429bfbf618e3d33499ba7515b15c36eeb1bcaebc9f7b7f`
+下执行 `cargo prove build --docker --locked`。构建脚本会拒绝其它
+`SP1_DOCKER_IMAGE`，并把两个 Docker ELF 的哈希与 VK 对照 guest 中拆分的
+`batch_vk_manifest.rs` 与 `vk_manifest.rs` fail closed 校验；Gateway guest 不会
+把自己的输出 pin 编译进自身。
+
 ```bash
+export SP1_DOCKER_IMAGE=ghcr.io/succinctlabs/sp1@sha256:14d3c46eff7492f87e429bfbf618e3d33499ba7515b15c36eeb1bcaebc9f7b7f
+export SP1_GNARK_IMAGE=ghcr.io/succinctlabs/sp1-gnark@sha256:be8555f1ad90870acd8c6ec7fd3ba0b1a2133ea9cddf25e130665aa651129e54
 cargo build --release -p neo-zkvm-gateway-host
 target/release/prove-gateway build-manifest
 target/release/prove-gateway daemon --queue /srv/gateway/queue \
@@ -31,5 +40,16 @@ cargo test -p neo-zkvm-gateway-host --features test-only-vk
 
 ```bash
 cargo test --release -p neo-zkvm-gateway-host \
+  proves_and_host_verifies_real_recursive_gateway_groth16 -- --ignored --exact
+```
+
+SP1 6.2.1 发布的 gnark 镜像仅提供 `linux/amd64`。在 Apple Silicon 上应启用 SP1
+上游自带的原生 gnark backend，让最终 wrapper proof 使用原生 arm64 Go，而不是经过
+不稳定的 amd64 仿真层。该选项只改变 wrapper prover 的执行通道；测试仍会验证完全相同、
+已固定 Gateway VK 的 Groth16 proof：
+
+```bash
+export LIBCLANG_PATH="$(brew --prefix llvm)/lib"
+cargo test --release -p neo-zkvm-gateway-host --features native-gnark \
   proves_and_host_verifies_real_recursive_gateway_groth16 -- --ignored --exact
 ```

@@ -36,6 +36,7 @@ public class UT_L2SettlementPlugin_Metrics
             MetricNames.ProveLatencyMs, ("kind", "Multisig")).Count);
         Assert.AreEqual(1, metrics.GetHistogram(MetricNames.SubmitLatencyMs).Count);
         Assert.AreEqual(0, await settlement.GetPendingCountAsync());
+        Assert.AreEqual(0, metrics.GetGauge(MetricNames.SettlementConfirmationLagBatches));
     }
 
     [TestMethod]
@@ -64,6 +65,7 @@ public class UT_L2SettlementPlugin_Metrics
         Assert.AreEqual(SettlementRecoveryState.Poisoned, status.State);
         Assert.AreEqual(3, status.RetryCount);
         Assert.AreEqual(1, metrics.GetGauge(MetricNames.SettlementPending));
+        Assert.AreEqual(1, metrics.GetGauge(MetricNames.SettlementConfirmationLagBatches));
         Assert.AreEqual(1, metrics.GetGauge(MetricNames.SettlementPoisoned));
         Assert.AreEqual(3, client.SubmitCount);
         await settlement.SubmitNextAsync();

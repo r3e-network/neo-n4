@@ -17,4 +17,10 @@
     <ProjectReference Include="..\..\src\Neo.L2.Proving\Neo.L2.Proving.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\..\bridge\neo-zkvm-guest\tests\fixtures\stateful_batch_v1.hex"
+          Link="Fixtures\stateful_batch_v1.hex"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

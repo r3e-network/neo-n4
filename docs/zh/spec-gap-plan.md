@@ -81,15 +81,18 @@ ChainRegistry 模式 1 路径通过 `Contract.Call(...,
   - 13 条单测对进程内伪 RPC 客户端。
   - 接好 writer 后,`L2DAPlugin.BuildDefaultWriter(DAMode.L1, ...)` 不再抛错。
 
-### §8-witness-canonical ⏭ 推迟
+### §8-witness-canonical ✅ SP1 已关闭 / ⏭ 其它 backend
 
 原计划加 `Neo.L2.Proving.WitnessRecord` 钉死 §8.4 的 witness 布局
 (有序 tx / 字节码 / storage 读写 / 原生状态 / L1 消息 / DA 数据 / trace)。
 
-**决定。** 在没有真正的 prover 锁定它之前过早 —— 不同后备(SP1、Halo2)想要
-不同格式。等 SP1 工具链集成落地、guest ELF 定下它期望的 witness 形状之后再
-评估。在那之前,`ProofRequest.Witness` 仍保持不透明的
-`ReadOnlyMemory<byte>`。
+**当前决定。** SP1 工具链和 guest 已定义规范边界。`ProofRequest.Witness` 精确等于
+`ProofWitnessArtifactV1`(`NEO4PWIT`)，完整 pre-state 是 `NEO4STW1`；execution
+effects 是 `NEO4EFX1`，host-native execution handoff 是 `NEO4EXR1`。Rust/C# 对共享
+golden vector 字节级 decode/re-encode，guest 重算全部 claim，生产 executor 在原子提交
+状态前校验精确 request、semantic、post-state 与 public-input binding。SP1 禁止再包一层
+并行 `WitnessRecord`。未来 Halo2/Risc0 可以定义不同的版本化 backend-specific witness，
+但不得静默重解释 SP1 bytes。
 
 ## 上游 / 仓外(跟踪但此处不修)
 
@@ -101,10 +104,9 @@ ChainRegistry 模式 1 路径通过 `Contract.Call(...,
 
 ### §14.1-rpcserver-wrapper —— `[RpcMethod]` 装饰的包装类
 
-待 Neo 4 的 RpcServer 插件源码。9 个 L2 RPC 方法以普通方法形式存在于
-`Neo.Plugins.L2Rpc.L2RpcMethods`;把它们注册到 neo 的 RpcServer 派发器的包装类
-需要那份源。作为待集成跟踪 —— 当 neo-modules(或 Neo 4 RpcServer 落地处)可用,
-生成 partial class。
+**已关闭。** 当前跟踪的 `r3e-network/neo` core 已包含官方 RpcServer 源码与公开的
+`RpcServerPlugin.RegisterMethods` 注册接口。`Neo.Plugins.L2Rpc.L2RpcPlugin` 已通过
+该接口注册适配器，真实 Kestrel HTTP 测试覆盖全部 10 个规范方法。
 
 ### §4-recursive-zk —— 真正的 Neo Gateway 终端证明者
 
@@ -134,7 +136,11 @@ KMS 的实操样例。所有 CLI 都输出规范 hex;生产热路径
 
 ### §16.3-dbft-consensus-integration
 
-把 `Neo.L2.Sequencer` 接进 Neo 的 `DBFTPlugin` 共识选择器是部署相关的。
+**代码边界已关闭。** 当前 core 的 DBFT 路径继续调用
+`NativeContract.NEO.GetNextBlockValidators`，该调用现从
+`L2SystemConfigContract` 读取已最终确认的验证者集合。链下由
+`ISequencerCommitteeProvider` 计算目标集合，`neo-stack` 再通过治理授权的原生交易
+提交；运维者仍需提供经过审查的 Neo.CLI/DBFTPlugin 发布包。
 
 ## 总结
 
@@ -153,9 +159,10 @@ KMS 的实操样例。所有 CLI 都输出规范 hex;生产热路径
      `RegisterVerifierViaProposal`(咨询 timelock 门)。
   5. ✅ §12-l1-da-default —— 已关闭:`Neo.Plugins.L2DA.JsonRpcL1DAWriter`
      (`JsonRpcClient` + 已签 tx 委托,13 条单测)。
-  6. ⏭ §8-witness-canonical —— **延后**(计划备注:"在没有真正以它为目标的
-     prover 之前太早 —— 等 SP1 工具链落地、guest ELF 定义其 witness 形态时
-     再评估")。
+  6. ✅ §8-witness-canonical —— **SP1 已关闭**：规范 `NEO4PWIT` / `NEO4STW1` /
+     `NEO4EFX1` / `NEO4EXR1`、跨语言 golden、精确 semantic binding 与校验后原子
+     post-state commit 已交付。其它 proof backend 属于版本化扩展，不再是内置 SP1
+     profile 的缺口。
 
 **同窗口里关闭的二阶空白**(增项,不在原 6 项之列):
   - Abstractions 中规范的 91 字节 `L2ChainConfigSerializer` +

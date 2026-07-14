@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -8,6 +10,15 @@ from pathlib import Path
 
 
 CI_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = CI_ROOT.parents[1]
+SP1_DOCKER_IMAGE = (
+    "ghcr.io/succinctlabs/sp1@sha256:"
+    "14d3c46eff7492f87e429bfbf618e3d33499ba7515b15c36eeb1bcaebc9f7b7f"
+)
+SP1_GNARK_IMAGE = (
+    "ghcr.io/succinctlabs/sp1-gnark@sha256:"
+    "be8555f1ad90870acd8c6ec7fd3ba0b1a2133ea9cddf25e130665aa651129e54"
+)
 
 
 def load_module(name: str):
@@ -116,6 +127,133 @@ class CargoIgnoredTestGateTests(unittest.TestCase):
         errors = cargo_gate.selection_errors({"prove"}, {"prove", "rejects_tamper"})
 
         self.assertTrue(any("missing ignored tests" in error for error in errors))
+
+
+class CargoProveWrapperTests(unittest.TestCase):
+    def run_wrapper(self, *arguments: str) -> subprocess.CompletedProcess[str]:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            fake_cargo = Path(temporary_directory) / "cargo"
+            fake_cargo.write_text(
+                "#!/usr/bin/env bash\nprintf '%s\\n' \"$@\"\n",
+                encoding="utf-8",
+            )
+            fake_cargo.chmod(0o755)
+            environment = os.environ.copy()
+            environment["PATH"] = f"{temporary_directory}:{environment['PATH']}"
+            return subprocess.run(
+                [str(CI_ROOT / "cargo-prove-locked.sh"), *arguments],
+                check=False,
+                capture_output=True,
+                text=True,
+                env=environment,
+            )
+
+    def test_rejects_native_build(self) -> None:
+        completed = self.run_wrapper("prove", "build")
+
+        self.assertEqual(2, completed.returncode)
+        self.assertIn("requires the reproducible --docker", completed.stderr)
+
+    def test_appends_locked_once(self) -> None:
+        completed = self.run_wrapper("prove", "build", "--docker")
+
+        self.assertEqual(0, completed.returncode)
+        self.assertEqual(["prove", "build", "--docker", "--locked"], completed.stdout.splitlines())
+
+    def test_preserves_explicit_locked(self) -> None:
+        completed = self.run_wrapper("prove", "build", "--docker", "--locked")
+
+        self.assertEqual(0, completed.returncode)
+        self.assertEqual(["prove", "build", "--docker", "--locked"], completed.stdout.splitlines())
+
+    def test_production_build_surfaces_share_immutable_image(self) -> None:
+        shared_support = (REPO_ROOT / "bridge" / "sp1_build_support.rs").read_text(
+            encoding="utf-8"
+        )
+        runtime_support = (REPO_ROOT / "bridge" / "sp1_runtime_support.rs").read_text(
+            encoding="utf-8"
+        )
+        workflow = (REPO_ROOT / ".github" / "workflows" / "build.yml").read_text(
+            encoding="utf-8"
+        )
+        private_network = (
+            REPO_ROOT / "scripts" / "private-network" / "Test-PrivateNetwork.ps1"
+        ).read_text(encoding="utf-8")
+        gateway_guest_build = (
+            REPO_ROOT / "bridge" / "neo-zkvm-gateway-guest" / "build.rs"
+        ).read_text(encoding="utf-8")
+        gateway_host_build = (
+            REPO_ROOT / "bridge" / "neo-zkvm-gateway-host" / "build.rs"
+        ).read_text(encoding="utf-8")
+        batch_host_build = (
+            REPO_ROOT / "bridge" / "neo-zkvm-host" / "build.rs"
+        ).read_text(encoding="utf-8")
+
+        for source in (shared_support, workflow, private_network):
+            self.assertIn(SP1_DOCKER_IMAGE, source)
+        for source in (runtime_support, workflow, private_network):
+            self.assertIn(SP1_GNARK_IMAGE, source)
+        self.assertIn("validate_gnark_backend", runtime_support)
+        self.assertIn("aarch64 prover hosts must enable", runtime_support)
+
+        self.assertIn(
+            'command.args(["prove", "build", "--docker", "--locked"]);',
+            shared_support,
+        )
+        self.assertIn("cargo prove build --docker --locked", workflow)
+        self.assertIn("cargo prove build --docker --locked", private_network)
+        self.assertIn("cargo test real recursive Gateway proof", private_network)
+        self.assertIn('include!("batch_vk_manifest.rs")', gateway_guest_build)
+        self.assertNotIn('include!("vk_manifest.rs")', gateway_guest_build)
+        self.assertIn("batch_vk_manifest.rs", gateway_host_build)
+        self.assertIn("neo-zkvm-guest/vk_manifest.rs", gateway_host_build)
+        self.assertIn("vk_manifest.rs", gateway_host_build)
+        self.assertIn("neo-zkvm-guest/vk_manifest.rs", batch_host_build)
+        self.assertIn('"CARGO_TARGET_DIR",', shared_support)
+        for host_build in (batch_host_build, gateway_host_build):
+            self.assertIn(
+                "sp1_build_support::configure_reproducible_build",
+                host_build,
+            )
+            self.assertIn(
+                "sp1_build_support::sanitize_nested_build_environment",
+                host_build,
+            )
+            self.assertIn(
+                "sp1_build_support::isolate_loopback_docker_proxy",
+                host_build,
+            )
+        self.assertIn('command.env("DOCKER_CONFIG"', shared_support)
+        self.assertIn(
+            "Verify production C# to native SP1 execution boundary", workflow
+        )
+        self.assertIn(
+            "RealNativeExecutor_ExecutesBootstrappedNeoGenesisRetTransaction",
+            workflow,
+        )
+        self.assertIn(
+            'NEO_ZKVM_EXECUTOR="$GITHUB_WORKSPACE/target/release/neo-zkvm-executor"',
+            workflow,
+        )
+        self.assertNotIn("run_real_sp1_proof", workflow)
+        for step_name in (
+            "cargo test (neo-zkvm-host, real proof)",
+            "cargo test (neo-zkvm-gateway-host, real recursive proof)",
+        ):
+            marker = f"- name: {step_name}"
+            self.assertIn(marker, workflow)
+            step = workflow.split(marker, 1)[1].split("\n      - name:", 1)[0]
+            self.assertNotRegex(step, r"(?m)^\s+if:")
+        self.assertIn("prove_and_verify_real_zk_proof", workflow)
+        self.assertIn(
+            "proves_and_host_verifies_real_recursive_gateway_groth16",
+            workflow,
+        )
+        for host_build in (batch_host_build, gateway_host_build):
+            self.assertIn(
+                "sp1_build_support::publish_verified_artifact",
+                host_build,
+            )
 
 
 if __name__ == "__main__":

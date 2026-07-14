@@ -24,8 +24,18 @@ toolchain:
 
 `cargo audit --json` with the advisory database refreshed reports:
 
-- Vulnerabilities: `0`
-- Informational warnings: `5` unmaintained crates and `1` unsound crate
+| Lockfile | Vulnerabilities | Unmaintained | Unsound | Yanked |
+| --- | ---: | ---: | ---: | ---: |
+| Root `Cargo.lock` | 0 | 6 | 1 | 1 |
+| `external/neo-riscv-vm/Cargo.lock` | 0 | 1 | 0 | 1 |
+| `external/neo-vm-rs/Cargo.lock` | 0 | 0 | 0 | 0 |
+| `external/neo-zkvm/Cargo.lock` | 0 | 7 | 1 | 1 |
+| `external/foreign-contracts/sol/Cargo.lock` | 0 | 1 | 0 | 0 |
+
+The root and independently locked `external/neo-zkvm` graphs previously
+resolved `serial_test 3.4.0 -> scc 2.4.0`. A semver-compatible update to
+`serial_test 3.5.0` removes `scc` and therefore removes RUSTSEC-2026-0205 from
+both graphs.
 
 ## Accepted Informational Warnings
 
@@ -40,7 +50,10 @@ semver-compatible `cargo update` without forking upstream proof dependencies.
 | RUSTSEC-2021-0139 | `ansi_term 0.12.1` | SP1 tracing stack | Accepted transitive dependency |
 | RUSTSEC-2025-0119 | `number_prefix 0.4.0` | SP1 progress/indicator stack | Accepted transitive dependency |
 | RUSTSEC-2024-0436 | `paste 1.0.15` | SP1/zkVM macro stack | Accepted transitive dependency |
+| RUSTSEC-2026-0173 | `proc-macro-error2 2.0.1` | `dynasm 3.2.1` via SP1 JIT | Accepted transitive dependency |
 | RUSTSEC-2025-0134 | `rustls-pemfile 2.2.0` | `tonic 0.12.3` via SP1 prover types | Accepted transitive dependency |
+| RUSTSEC-2023-0089 | `atomic-polyfill 1.0.3` | `neo-riscv-host -> postcard -> heapless` in the independently locked RISC-V workspace | Accepted submodule compatibility dependency |
+| yanked, no advisory | `spin 0.9.8` | SP1's `lazy_static` graph and `neo-riscv-host -> postcard -> heapless` | Exact lock remains reproducible; replace when upstream moves to a non-yanked compatible release |
 
 ## `lru` Reachability Note
 
@@ -74,7 +87,7 @@ cargo tree -i lru --locked --workspace
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --release --locked
-cargo prove build
+cargo prove build --docker --locked
 cd bridge/neo-zkvm-host
 cargo test --release --locked
 cargo test --release --locked -- --ignored --nocapture

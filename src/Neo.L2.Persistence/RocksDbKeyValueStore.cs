@@ -24,7 +24,7 @@ namespace Neo.L2.Persistence;
 /// <see cref="DbOptions"/>.
 /// </para>
 /// </remarks>
-public sealed class RocksDbKeyValueStore : IL2KeyValueStore
+public sealed class RocksDbKeyValueStore : IAtomicL2KeyValueStore
 {
     private readonly RocksDb _db;
     private readonly Lock _writeGate = new();
@@ -172,6 +172,51 @@ public sealed class RocksDbKeyValueStore : IL2KeyValueStore
     }
 
     /// <inheritdoc />
+    public void ReplaceAll(
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> entries)
+    {
+        ThrowIfDisposed();
+        var replacement = AtomicReplacementValidator.Materialize(entries);
+        lock (_writeGate)
+        {
+            ThrowIfDisposed();
+            using var batch = new WriteBatch();
+            using var iterator = _db.NewIterator();
+            iterator.SeekToFirst();
+            while (iterator.Valid())
+            {
+                batch.Delete(iterator.Key());
+                iterator.Next();
+            }
+            foreach (var pair in replacement)
+                batch.Put(pair.Key, pair.Value);
+            _db.Write(batch, _durableWriteOptions);
+        }
+    }
+
+    /// <inheritdoc />
+    public bool CompareExchangeAll(
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> expectedEntries,
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> replacementEntries)
+    {
+        ThrowIfDisposed();
+        var expected = AtomicReplacementValidator.Materialize(expectedEntries);
+        var replacement = AtomicReplacementValidator.Materialize(replacementEntries);
+        lock (_writeGate)
+        {
+            ThrowIfDisposed();
+            if (!CurrentSnapshotEquals(expected)) return false;
+            using var batch = new WriteBatch();
+            foreach (var pair in expected)
+                batch.Delete(pair.Key);
+            foreach (var pair in replacement)
+                batch.Put(pair.Key, pair.Value);
+            _db.Write(batch, _durableWriteOptions);
+            return true;
+        }
+    }
+
+    /// <inheritdoc />
     public IEnumerable<(byte[] Key, byte[] Value)> EnumeratePrefix(ReadOnlySpan<byte> prefix)
     {
         ThrowIfDisposed();
@@ -202,6 +247,21 @@ public sealed class RocksDbKeyValueStore : IL2KeyValueStore
         for (var i = 0; i < prefix.Length; i++)
             if (key[i] != prefix[i]) return false;
         return true;
+    }
+
+    private bool CurrentSnapshotEquals(SortedDictionary<byte[], byte[]> expected)
+    {
+        using var iterator = _db.NewIterator();
+        iterator.SeekToFirst();
+        foreach (var pair in expected)
+        {
+            if (!iterator.Valid()
+                || !iterator.Key().AsSpan().SequenceEqual(pair.Key)
+                || !iterator.Value().AsSpan().SequenceEqual(pair.Value))
+                return false;
+            iterator.Next();
+        }
+        return !iterator.Valid();
     }
 
     private void ThrowIfDisposed()

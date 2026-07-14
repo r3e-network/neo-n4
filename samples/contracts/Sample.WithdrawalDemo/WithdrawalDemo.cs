@@ -25,7 +25,7 @@ namespace Sample.WithdrawalDemo;
 /// the standard NEP-17 withdraw pattern an app can offer its users.
 /// </remarks>
 [DisplayName("Sample.WithdrawalDemo")]
-[ContractAuthor("Neo Project — Sample", "dev@neo.org")]
+[ContractAuthor("R3E Network — Sample", "dev@r3e.network")]
 [ContractDescription("Sample dApp: initiate an L2→L1 withdrawal via L2BridgeContract.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/samples/contracts/Sample.WithdrawalDemo")]

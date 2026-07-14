@@ -35,6 +35,7 @@ contracts/
 |-- NeoHub.SettlementManager/                   # batch submission + finalization
 |-- NeoHub.VerifierRegistry/                    # pluggable proof verifier dispatch
 |-- NeoHub.ContractZkVerifier/                  # ProofType.Zk router -> deployable verifier contracts
+|-- NeoHub.Sp1Groth16Verifier/                  # immutable SP1 Groth16/BN254 terminal verifier
 |-- NeoHub.MessageRouter/                       # L1<->L2 / L2<->L2 message queues
 |-- NeoHub.TokenRegistry/                       # canonical L1<->L2 asset mappings
 |-- NeoHub.DARegistry/                          # DA layer commitment store
@@ -52,12 +53,15 @@ contracts/
 |-- NeoHub.MpcCommitteeFraudVerifier/           # external-bridge equivocation slasher
 |-- NeoHub.ExternalBridgeRegistry/              # externalChainId -> verifier routing
 |-- NeoHub.ExternalBridgeEscrow/                # foreign-chain asset escrow
+|-- NeoHub.L2PayoutAdapter/                     # immutable L1-to-L2 payout request adapter
 |-- NeoHub.ExternalBridgeBond/                  # foreign-chain committee bonds
 `-- NeoHub.ExternalBridgeStubVerifier/          # dev/test only; excluded from production bundle
 ```
 
-There are 24 `NeoHub.*` projects in this directory. `neo-hub-deploy` emits a
-23-step production bundle that excludes `NeoHub.ExternalBridgeStubVerifier`.
+There are 26 `NeoHub.*` projects in this directory: 24 production contracts,
+the advisory-only structural `NeoHub.GovernanceFraudVerifier`, and the test-only
+`NeoHub.ExternalBridgeStubVerifier`. `neo-hub-deploy` emits the 24-step
+production bundle and excludes both non-production projects.
 `NeoHub.ContractZkVerifier` is part of that production bundle: it validates
 `ProofType.Zk` envelopes and registered verification-key ids, then calls the
 configured deployable verifier contract for `verifyZkProof(...)`. Private

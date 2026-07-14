@@ -459,12 +459,12 @@ public class ForcedInclusionContract : SmartContract
     /// arbitrary caller to name the victim let a griefer slash an innocent bonded sequencer.
     /// Slashing is performed separately by governance via <see cref="SlashReportedCensorship"/>.
     /// The <paramref name="sequencer"/> argument is recorded in the event for off-chain
-    /// attribution only.
+    /// attribution only; <see cref="UInt160.Zero"/> means attribution is not yet proven.
     /// </para>
     /// </summary>
     public static bool ReportCensorship(uint chainId, ulong nonce, UInt160 sequencer)
     {
-        ExecutionEngine.Assert(sequencer.IsValid && !sequencer.IsZero, "invalid sequencer");
+        ExecutionEngine.Assert(sequencer.IsValid, "invalid sequencer");
         ExecutionEngine.Assert(!IsConsumed(chainId, nonce), "already consumed");
         var reportedKey = ReportedKey(chainId, nonce);
         ExecutionEngine.Assert(Storage.Get(reportedKey) == null, "censorship already reported");
@@ -612,8 +612,8 @@ public class ForcedInclusionContract : SmartContract
         for (var level = 0; level < siblings.Length; level++)
         {
             var sibling = siblings[level];
-            ExecutionEngine.Assert(sibling != null && sibling.Length == 32,
-                "sibling must be 32 bytes");
+            if (sibling is null) throw new Exception("sibling must be 32 bytes");
+            ExecutionEngine.Assert(sibling.Length == 32, "sibling must be 32 bytes");
             var combined = new byte[64];
             if ((index & 1UL) == 0UL)
             {

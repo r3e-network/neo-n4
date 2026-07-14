@@ -36,7 +36,10 @@ Out of scope:
 
 Please **do not file a public GitHub issue** for vulnerabilities. Instead:
 
-1. Email **security@reborn.com** with the subject line `neo4 security: <short description>`.
+1. Prefer GitHub's enabled
+   [private vulnerability reporting form](https://github.com/r3e-network/neo-n4/security/advisories/new).
+   If GitHub reporting is unavailable, email the **R3E Network security mailbox**
+   at **security@reborn.com** with the subject line `neo4 security: <short description>`.
 2. Include reproduction steps, affected commit hash, and your assessment of impact
    (e.g., funds at risk, censorship, liveness, data integrity).
 3. If your finding requires demonstration code, prefer a small standalone reproducer.

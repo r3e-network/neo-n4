@@ -6,17 +6,10 @@ on:
   pull_request:
     branches: [master]
   schedule:
-    # Nightly release-grade proof generation. Pull requests run the deterministic
-    # host/guest suites; the scheduled lane additionally generates and verifies
-    # the expensive real SP1 Groth16 proofs.
+    # Nightly re-runs the same release-grade proof gate required on pull requests
+    # and master pushes, catching environment or upstream-registry drift.
     - cron: "17 2 * * *"
   workflow_dispatch:
-    inputs:
-      run_real_sp1_proof:
-        description: "Run ignored real SP1 proof tests"
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -142,12 +135,21 @@ jobs:
           </configuration>
           EOF
 
-      - name: Install nccs (Neo C# Compiler)
-        # Without nccs, contracts only type-check — nccs catches a separate class of
-        # error (NeoVM-specific opcode constraints, manifest emission, ABI compile
-        # errors) that the C# compiler never sees. The exact version is part of the
-        # audited NEF build provenance and must not float between CI runs.
-        run: dotnet tool install -g Neo.Compiler.CSharp --version 3.9.1
+      - name: Build pinned nccs from the audited devpack submodule
+        # The N4 BN254 framework/compiler surface is newer than the public 3.9.1
+        # tool package. Build the exact vendored r3e-network/neo-devpack-dotnet
+        # revision so the compiler and framework cannot drift independently.
+        run: |
+          dotnet build \
+            external/neo-devpack-dotnet/src/Neo.Compiler.CSharp/Neo.Compiler.CSharp.csproj \
+            --configuration Release \
+            /p:NeoCorePackageVersion=3.9.3-CI02045 \
+            /p:NuGetAudit=false \
+            --nologo
+          nccs_dir="$GITHUB_WORKSPACE/external/neo-devpack-dotnet/src/Neo.Compiler.CSharp/bin/Release/net10.0"
+          test -x "$nccs_dir/nccs"
+          echo "$nccs_dir" >> "$GITHUB_PATH"
+          "$nccs_dir/nccs" --version
 
       - name: Type-check + compile deployable NeoHub + sample contracts
         # dotnet build type-checks the C# surface; nccs explicitly emits the
@@ -286,14 +288,24 @@ jobs:
 
       # neo-zkvm-guest: the Rust crate that compiles to RISC-V ELF inside SP1's
       # zkVM. Host-side compilation + tests pin the deterministic execution
-      # contract (parse, Merkle root, hash256). The actual `cargo prove build`
-      # that produces the RISC-V ELF requires the SP1 toolchain - operator-supplied
+      # contract (parse, Merkle root, hash256). The actual digest-pinned Docker
+      # `cargo prove build --docker --locked` that produces the RISC-V ELF requires SP1 + Docker
       # at deploy time per bridge/neo-zkvm-guest/README.md.
       - name: cargo build + test (neo-zkvm-guest, host mode)
         working-directory: bridge/neo-zkvm-guest
         run: |
           cargo build --locked
           cargo test --locked
+
+      - name: Verify production C# to native SP1 execution boundary
+        run: |
+          cargo build --release --locked -p neo-zkvm-guest --bin neo-zkvm-executor
+          NEO_ZKVM_EXECUTOR="$GITHUB_WORKSPACE/target/release/neo-zkvm-executor" \
+            python3 scripts/ci/run_dotnet_filtered_tests.py \
+              --project tests/Neo.L2.Executor.UnitTests/Neo.L2.Executor.UnitTests.csproj \
+              --filter FullyQualifiedName~RealNativeExecutor_ExecutesBootstrappedNeoGenesisRetTransaction \
+              --minimum-tests 1 \
+              -- /p:NuGetAudit=false --nologo
 
       # Rust app-developer SDK - the typed-client mirror of src/Neo.L2.Sdk
       # for Rust dApps. Mockito-driven integration tests exercise every method
@@ -355,9 +367,9 @@ jobs:
 
   # Real SP1 zkVM smoke test for bridge/neo-zkvm-host. Runs in its own job
   # because the SP1 toolchain install is heavy. Coverage: builds the guest
-  # ELF via `cargo prove build`, then runs workspace formatting, clippy, and
-  # release tests. The ignored real-proof tests are available through manual
-  # workflow dispatch by enabling `run_real_sp1_proof`.
+  # ELF via digest-pinned `cargo prove build --docker --locked`, then runs workspace formatting, clippy, and
+  # release tests. The ignored real-proof targets are explicitly selected and
+  # required on every event so this required job can never pass by skipping proof generation.
   sp1-host:
     name: cargo build + test (neo-zkvm-host, real SP1 zkVM)
     runs-on: ubuntu-latest
@@ -367,6 +379,8 @@ jobs:
       RUSTUP_TOOLCHAIN: 1.88.0
       SP1_CARGO_PROVE_SHA256: c94bb8c4b2f360a6b4d9046d28d3bf3c383f9bdf20fe62efe5fdacc84085dba6
       SP1_COMMIT: 98a376e
+      SP1_DOCKER_IMAGE: ghcr.io/succinctlabs/sp1@sha256:14d3c46eff7492f87e429bfbf618e3d33499ba7515b15c36eeb1bcaebc9f7b7f
+      SP1_GNARK_IMAGE: ghcr.io/succinctlabs/sp1-gnark@sha256:be8555f1ad90870acd8c6ec7fd3ba0b1a2133ea9cddf25e130665aa651129e54
       SP1_VERSION: 6.2.1
 
     steps:
@@ -434,9 +448,9 @@ jobs:
           fi
           rustup toolchain list | grep -E '^succinct([[:space:]]|$)'
 
-      - name: cargo prove build (guest ELF)
+      - name: cargo prove build (reproducible guest ELF)
         working-directory: bridge/neo-zkvm-guest
-        run: cargo prove build --locked
+        run: cargo prove build --docker --locked
 
       - name: cargo fmt (Rust workspace)
         run: cargo fmt --all -- --check
@@ -448,7 +462,6 @@ jobs:
         run: cargo test --workspace --release --locked
 
       - name: cargo test (neo-zkvm-host, real proof)
-        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_real_sp1_proof)
         run: |
           python3 scripts/ci/run_cargo_ignored_tests.py \
             --manifest-path bridge/neo-zkvm-host/Cargo.toml \
@@ -456,6 +469,14 @@ jobs:
             --release \
             --expected-test prove_and_verify_real_zk_proof \
             --expected-test verify_rejects_mismatched_public_input_hash
+
+      - name: cargo test (neo-zkvm-gateway-host, real recursive proof)
+        run: |
+          python3 scripts/ci/run_cargo_ignored_tests.py \
+            --manifest-path bridge/neo-zkvm-gateway-host/Cargo.toml \
+            --test-target real_recursive_release_gate \
+            --release \
+            --expected-test proves_and_host_verifies_real_recursive_gateway_groth16
 
   rust-audit:
     name: cargo audit

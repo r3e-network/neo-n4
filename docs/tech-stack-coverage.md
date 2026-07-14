@@ -33,7 +33,7 @@ any other project's source.
 - **Fraud verifier (advisory structural v1/v2 reference)** ✅ — `contracts/NeoHub.GovernanceFraudVerifier/` (excluded from production challenge routing)
 - **Fraud verifier (advisory structural v3 + committed-root-bound restricted executable v4)** 🟡 — `contracts/NeoHub.RestrictedExecutionFraudVerifier/` (state-changing only for exact registered single-tx Counter v4; general NeoVM ❌)
 
-**25 NeoHub contract projects** (23 production + advisory-only `GovernanceFraudVerifier` + test-only `ExternalBridgeStubVerifier`). All type-check via `Neo.SmartContract.Framework`; CI
+**26 NeoHub contract projects** (24 production + advisory-only `GovernanceFraudVerifier` + test-only `ExternalBridgeStubVerifier`). All type-check via `Neo.SmartContract.Framework`; CI
 builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 
 - **L2 batch info (chainId, batch number, L1 height)** ✅ — Neo core native `L2BatchInfoContract`.
@@ -63,7 +63,16 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 - **Forced-inclusion source** ✅ — `src/Neo.L2.ForcedInclusion/`
 - **Multisig (Stage 0) prover/verifier** ✅ — `src/Neo.L2.Proving.Attestation/`
 - **Optimistic (Stage 1) prover/verifier** ✅ — `src/Neo.L2.Proving.Optimistic/`
-- **RISC-V ZK (Stage 2) prover/verifier — full path** ✅ — C# `src/Neo.L2.Proving/RiscVZk/` is the in-process testing seam (mock prover for unit tests). Shared batch semantics live in `bridge/neo-execution-core/` (no SP1 or PolkaVM dependency): canonical batch parsing, L1 message folding, tx/receipt Merkle roots, state-root folding, and public-input hashing. The canonical N4 L2 execution target is the PolkaVM-backed NeoVM2/RISC-V path: `external/neo-riscv-vm` + `src/Neo.L2.Executor.RiscV/` + `RiscVTransactionExecutor`. Real Stage-2 proving runs out-of-process through `bridge/neo-zkvm-host/`; the current legacy Neo N3 VM guest remains a compatibility bridge while the RISC-V execution receipt boundary is the target for N4 parity testing. `bridge/neo-zkvm-host/` is the sp1-sdk 6.2.1 orchestrator with `execute()` / `prove()` / `verify()` API and a `prove-batch daemon --watch <dir>` CLI that turns into a production prover daemon (operator drops sealed batches in a queue dir, daemon emits `<name>.proof.bin` + `<name>.proof.vk` for L1 submission). Real CPU proof generation + verification + tampered-hash rejection are covered by `#[ignore]`-gated tests, while normal CI exercises the deterministic C# RISC-V proof seam.
+- **RISC-V ZK (Stage 2) prover/verifier — one exact SP1 semantic** ✅ —
+  `Sp1SettlementExecutionStack` binds complete durable `NEO4STW1`, a SHA-256-pinned
+  host-native `neo-zkvm-executor`, atomic state replacement, `Sp1BatchProofProver`, program VK,
+  and ZK profile. The native executable and SP1 RISC-V guest call the same
+  `bridge/neo-execution-core/` + vendored `neo-vm-rs` stateful N4 V1 runtime; C# validates
+  canonical `NEO4EXR1` before state commit, and `bridge/neo-zkvm-host/` re-executes the resulting
+  `NEO4PWIT` inside SP1. The PolkaVM path (`external/neo-riscv-vm` +
+  `Neo.L2.Executor.RiscV`) is a distinct `ChainMode.L2RiscV` execution profile and does not
+  inherit SP1 validity without a matching prover. Real terminal proof generation/verification,
+  tamper rejection, and the non-ignored real C#→Rust native execution boundary are gated in CI.
 - **DA writers (in-memory / NeoFS / L1 / DAC / RocksDB)** ✅ — `src/Neo.Plugins.L2DA/` (5 implementations)
 - **Settlement RPC client** ✅ — `src/Neo.L2.Settlement.Rpc/`
 - **Telemetry (Prometheus-shaped)** ✅ — `src/Neo.L2.Telemetry/`, `Neo.Plugins.L2Metrics/`
@@ -74,12 +83,11 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 - **Per-L2 RPC method surface** ✅ — `src/Neo.Plugins.L2Rpc/` (10 methods)
 - **Phase-5 proof aggregation** 🟡 — `src/Neo.Plugins.L2Gateway/` and `bridge/neo-zkvm-gateway-{guest,host}` — `BinaryTreeAggregator`, Secp256r1/Merkle rounds, canonical binding, durable outbox, crash-safe proof recovery, and a fail-closed SP1 6.2.1 recursive terminal proof ship. The RPC path targets `SettlementManager.PublishGatewayGlobalRoot`, whose bounded streaming verifier binds exact finalized constituents and atomically forwards to `MessageRouter`. Independent audit and executed real-proof deployment evidence remain required; opaque round proof bytes still cannot substitute for the terminal validity proof.
 
-**16 off-chain libraries + 8 plugins.** All have `tests/Neo.*.UnitTests/` mirrors;
-the solution currently contains 37 .NET test projects and reports the exact
-case count at runtime. Rust workspace ships 25 default-CI
-tests (host-mode crypto + SDK + zkVM execute round-trip) plus 2 `#[ignore]`-gated
-tests that exercise real CPU proof generation + verification (~4 minutes wall
-time). TypeScript SDK ships 16 vitest tests.
+**16 core off-chain libraries + 2 RPC adapter libraries + 8 plugins.** Their
+`tests/Neo.*.UnitTests/` mirrors contribute to the solution's current 38 .NET
+test projects. Cross-language Rust, TypeScript, Python, Solidity, and ignored
+real-proof release gates are discovered and reported by CI rather than pinned
+to brittle prose counts.
 
 ---
 
@@ -160,18 +168,17 @@ is a valid endpoint.
 | L1 protocol contracts | 🟡 | Optimistic state changes are trustless only for the exact restricted Counter v4 profile; general NeoVM/multi-transaction fraud proofs fail closed. |
 | L2 native contracts | ✅ | Deployment-specific genesis and governance rehearsal remain operator evidence, not missing code. |
 | Cross-foreign-chain bridge | ✅ | Live committee/foreign-chain deployment evidence remains environment-specific. |
-| Node infrastructure | 🟡 | The recursive SP1 guest/prover and atomic SettlementManager-authorized finalized-constituent publication path ship; independent audit and executed real-proof deployment evidence remain. |
+| Node infrastructure | 🟡 | Exact-semantic native SP1 execution, atomic state handoff, terminal/recursive SP1 proving, and SettlementManager-authorized finalized-constituent publication ship; independent audit and executed exact-revision deployment evidence remain. PolkaVM validity still requires its own matching proof profile. |
 | Operator tooling | ✅ | Wallet/HSM custody and live submission are explicit operator boundaries. |
 | App development | ✅ | Live-node conformance evidence must be produced for each release environment. |
 | End-user UIs | ✅ | Production hosting and wallet integrations remain deployment choices. |
 
-**Phase 4 (SP1 ZK proving) is now end-to-end functional.** The
-`bridge/neo-zkvm-host/tests/end_to_end.rs` test loads the compiled
-guest ELF, runs it through the real SP1 zkVM (42s of cryptographic
-proving work), and verifies the public-input hash matches host-mode
-execution byte-for-byte. The toolchain (`sp1up` → `cargo prove build`)
-remains an operator install step but the integration is real, tested,
-and pinned in CI.
+**Phase 4's bundled `Sp1StatefulNeoVmV1` profile is end-to-end functional locally.** A
+non-ignored gate runs C# through the release native executor over bootstrapped Neo genesis state;
+the real-proof gate loads the compiled guest ELF, runs the same transition through SP1, and verifies
+the committed public-input hash. The toolchain (`sp1up` → digest-pinned Docker
+`cargo prove build --locked`) remains an operator step. Exact-revision public deployment and
+independent audit evidence are still absent, so this is not a mainnet-readiness claim.
 
 **Cross-foreign-chain bridge to Eth/Tron/Sol (doc.md §11.3 Phases B + C).**
 Six on-chain contracts (`MpcCommitteeVerifier`, `ExternalBridgeRegistry`,
@@ -185,15 +192,15 @@ with Tron chain-ids; Sol: `Ed25519FileSigner` + Solana chain-ids
 dispatches to `CryptoLib.VerifyWithEd25519` on-chain), foreign-side
 router artifacts for all three target chains
 (`external/foreign-contracts/eth/` — `NeoExternalBridgeRouter.sol` +
-39 Foundry tests with real `vm.sign` + `ecrecover` (incl. messageType-offset regression with non-zero sourceTxRef);
+44 Foundry tests with real `vm.sign` + `ecrecover` (37 single-chain + 7 multi-chain, including messageType-offset regression with non-zero sourceTxRef);
 `external/foreign-contracts/tron/` — README pointing at the Eth
 contract since TVM is EVM-flavored, deploy with the Tron chainId
-constructor arg; `external/foreign-contracts/sol/` — ~638-line Anchor
+constructor arg; `external/foreign-contracts/sol/` — Anchor
 program using Solana's ed25519 sigverify precompile, source-only
 pending operator `anchor build`), and an operator CLI
 (`tools/Neo.External.Bridge.Cli/` for genkey + committee-blob +
 deploy-bundle). `Neo.Hub.Deploy` scaffolds the full bridge stack
-alongside NeoHub: 23 production deploy steps + 30 post-deploy actions/hints. Phase C's
+alongside NeoHub: 24 production deploy steps + post-deploy actions/hints. Phase C's
 `MpcCommitteeFraudVerifier` makes slashing of equivocating committee
 members permissionless (anyone can submit cryptographic proof of two
 byte-distinct messages signed for the same `(chainId, nonce)` and

@@ -180,8 +180,6 @@ public static class GatewayProofBindingSerializer
             throw new ArgumentException("MessageRouter must be non-zero", nameof(binding));
         if (binding.ReplayDomain.Equals(UInt256.Zero))
             throw new ArgumentException("ReplayDomain must be non-zero", nameof(binding));
-        if (binding.GlobalMessageRoot.Equals(UInt256.Zero))
-            throw new ArgumentException("GlobalMessageRoot must be non-zero", nameof(binding));
         if (binding.ConstituentCommitmentsRoot.Equals(UInt256.Zero))
             throw new ArgumentException("ConstituentCommitmentsRoot must be non-zero", nameof(binding));
         if (binding.ConstituentCount is 0 or > GatewayFinalityReferenceSerializer.MaxConstituents)

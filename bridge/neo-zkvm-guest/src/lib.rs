@@ -16,3 +16,14 @@ pub fn compute_batch(
 ) -> Result<neo_execution_core::ComputedBatch, ExecutionError> {
     neo_execution_core::compute_batch_with(payload, witness, runtime::execute_transaction)
 }
+
+pub fn compute_batch_transition(
+    payload: &neo_execution_core::ExecutionPayload,
+    witness: &neo_execution_core::StateWitness,
+) -> Result<neo_execution_core::ComputedBatchTransition, ExecutionError> {
+    neo_execution_core::compute_batch_transition_with(
+        payload,
+        witness,
+        runtime::execute_transaction,
+    )
+}

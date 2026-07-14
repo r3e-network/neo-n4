@@ -1,14 +1,19 @@
 use neo_execution_core::{
-    CanonicalStackValue, ExecutionError, L1Message, ProofWitnessArtifact, StateEntry, StorageDelta,
-    StorageOperation, bridged_nep17_hash, contract_binding_hash, contract_binding_key,
-    contract_management_key, encode_execution_payload, encode_proof_witness_artifact,
-    encode_receipt, events_hash, hash_l1_messages, hash160, hash256, keyed_state_root,
-    l2_bridge_hash, l2_message_hash, parse_proof_witness_artifact, storage_delta_hash,
-    token_management_hash,
+    CanonicalStackValue, ExecutionError, L1Message, NativeExecutionOutputV1, ProofWitnessArtifact,
+    SP1_STATEFUL_NEO_VM_V1_EXECUTION_SEMANTIC_ID, StateEntry, StorageDelta, StorageOperation,
+    bridged_nep17_hash, contract_binding_hash, contract_binding_key, contract_management_key,
+    encode_execution_payload, encode_native_execution_output, encode_proof_witness_artifact,
+    encode_receipt, encode_state_witness, events_hash, hash_l1_messages, hash160, hash256,
+    keyed_state_root, l2_bridge_hash, l2_message_hash, parse_native_execution_output,
+    parse_proof_witness_artifact, parse_state_witness, storage_delta_hash, token_management_hash,
 };
 
 const FIXTURE_HEX: &str = include_str!("fixtures/stateful_batch_v1.hex");
 const NATIVE_FIXTURE_HEX: &str = include_str!("fixtures/native_transition_v1.hex");
+
+#[path = "../vk_manifest.rs"]
+#[allow(dead_code)]
+mod pinned;
 
 fn fixture_bytes() -> Vec<u8> {
     hex::decode(FIXTURE_HEX.split_whitespace().collect::<String>()).expect("fixture hex")
@@ -81,6 +86,10 @@ fn golden_fixture_round_trips_and_executes_statefully() {
 
     assert_eq!(encode(&artifact), bytes);
     assert_eq!(
+        artifact.verification_key_id,
+        pinned::PINNED_BATCH_VK_BYTES32
+    );
+    assert_eq!(
         result.post_state_root,
         artifact.execution_result.post_state_root
     );
@@ -108,6 +117,51 @@ fn golden_fixture_round_trips_and_executes_statefully() {
     );
     assert_eq!(transaction.events[0].name, "Updated");
     assert_eq!(transaction.events[1].name, "Updated");
+}
+
+#[test]
+fn native_execution_output_binds_request_and_complete_post_state() {
+    let artifact = fixture_artifact();
+    let payload_bytes = encode_execution_payload(&artifact.execution_payload).unwrap();
+    let state_witness_bytes = encode_state_witness(&artifact.state_witness).unwrap();
+    let transition = neo_zkvm_guest::compute_batch_transition(
+        &artifact.execution_payload,
+        &artifact.state_witness,
+    )
+    .unwrap();
+    let output = NativeExecutionOutputV1 {
+        request_payload_hash: hash256(&payload_bytes),
+        request_state_witness_hash: hash256(&state_witness_bytes),
+        execution_semantic_id: SP1_STATEFUL_NEO_VM_V1_EXECUTION_SEMANTIC_ID,
+        execution_result: transition.batch.execution_result,
+        effects_bytes: transition.batch.effects_bytes,
+        post_state_witness_bytes: transition.post_state_witness_bytes,
+        public_input_hash: transition.batch.public_input_hash,
+    };
+
+    let encoded = encode_native_execution_output(&output).unwrap();
+    let decoded = parse_native_execution_output(&encoded).unwrap();
+    let post_state = parse_state_witness(&decoded.post_state_witness_bytes).unwrap();
+
+    assert_eq!(decoded, output);
+    assert_eq!(
+        keyed_state_root(&post_state.entries),
+        decoded.execution_result.post_state_root
+    );
+    assert_ne!(
+        decoded.execution_result.post_state_root,
+        artifact.execution_payload.pre_state_root
+    );
+
+    let last = encoded.len() - 1;
+    let mut tampered = encoded;
+    tampered[last] ^= 1;
+    assert!(matches!(
+        parse_native_execution_output(&tampered),
+        Err(ExecutionError::Invalid(
+            "native execution output content hash"
+        ))
+    ));
 }
 
 #[test]
@@ -570,6 +624,7 @@ fn native_batch_artifact() -> ProofWitnessArtifact {
         transaction(message_script),
         transaction_with_nonce(withdrawal_script, 8),
     ];
+    artifact.da_evidence = b"native_transition_v1-evidence-v1".to_vec();
     recompute_claims(&mut artifact);
     artifact
 }

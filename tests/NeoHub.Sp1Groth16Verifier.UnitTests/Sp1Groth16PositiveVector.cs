@@ -1,17 +1,89 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace NeoHub.Sp1Groth16Verifier.UnitTests;
 
 internal static class Sp1Groth16PositiveVector
 {
-    internal const string ProofSha256 = "f0a8f0aec36d156f9458605854f85667e6ad42c9d4550cff22b48f4a5ebf6b10";
-    internal const string ProgramVKeySha256 = "7d13471e12ab0adeb46bfcfe24d34eb6fbd25211a1cc0764f3b7eb85e6b53efe";
-    internal const string PublicInputHashSha256 = "01c28518437fed3f43a7d512bab3b199f4e36bb2fda0e0d4e93d70f0bab1c0f3";
+    private static readonly Lazy<ReleaseVector> Vector = new(Load);
 
-    internal static byte[] Proof => Convert.FromBase64String(
-        "Q4iiHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC+FDumYl01swA5QzQgUsJjAW/reRm0oVzJA0FfyU1IAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA2uZkMIQKYwT8gstSKcQY2IPVkZWmdaM/n23BPfKQn2IMGUewMabFaR76EmgQkR7kfvUxE2uOCE3f7zozjnni4WbZamoWGUJ389+PBR/sndpUb0Kauze0UG6Cn0z09QIy00CfFeWwgfqvdguemMkhCKvGLj5PbvJ0aPfav9AIFgAwqqekQpMi6HMB+s1LSQZuk97Tr9n0agWCrDH5kxdjgsv7C8Yz2jhO4XV0R0LUeOWYaa14aBGDt3Ucqu1EjmUiM6Cguu62mWIv7qc6XxrbfoFWNkerZnRc3efRpWunDIL12X43ecRI3wbJ1IqPwFXZVaLZkIsjDhsXvgSq1D9VM=");
+    internal static int SchemaVersion => Vector.Value.SchemaVersion;
+    internal static string Sp1Version => Vector.Value.Sp1Version;
+    internal static string GuestElfSha256 => Vector.Value.GuestElfSha256;
+    internal static string WitnessPath => Vector.Value.WitnessPath;
+    internal static string WitnessSha256 => Vector.Value.WitnessSha256;
+    internal static string ProofSha256 => Vector.Value.ProofSha256;
+    internal static string ProgramVKeySha256 => Vector.Value.ProgramVKeySha256;
+    internal static string PublicValuesSha256 => Vector.Value.PublicValuesSha256;
+    internal static string PublicInputHashSha256 => Vector.Value.PublicInputHashSha256;
 
-    internal static byte[] ProgramVKey => Convert.FromBase64String(
-        "ALp8OEZIwI2KXA1RBAnzbSGLoWi/Y5C8tpD9bjOMdYc=");
+    internal static byte[] Proof => Convert.FromHexString(Vector.Value.ProofHex);
+    internal static byte[] ProgramVKey => Convert.FromHexString(Vector.Value.ProgramVKeyHex);
+    internal static byte[] PublicValues => Convert.FromHexString(Vector.Value.PublicValuesHex);
+    internal static byte[] PublicInputHash => Convert.FromHexString(Vector.Value.PublicInputHashHex);
 
-    internal static byte[] PublicInputHash => Convert.FromBase64String(
-        "EPvB+RKuEpa8icigosbLhldVWm8l7ywaoaG9FwVUn2g=");
+    private static ReleaseVector Load()
+    {
+        var path = Path.Combine(
+            FindRepositoryRoot(),
+            "tests",
+            "fixtures",
+            "sp1-groth16-positive-vector-v1.json");
+        return JsonSerializer.Deserialize<ReleaseVector>(File.ReadAllText(path))
+            ?? throw new InvalidDataException($"Failed to deserialize release vector: {path}");
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            if (File.Exists(Path.Combine(current.FullName, "Neo.L2.sln"))) return current.FullName;
+            current = current.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate the neo-n4 repository root.");
+    }
+
+    private sealed class ReleaseVector
+    {
+        [JsonPropertyName("schemaVersion")]
+        public required int SchemaVersion { get; init; }
+
+        [JsonPropertyName("sp1Version")]
+        public required string Sp1Version { get; init; }
+
+        [JsonPropertyName("guestElfSha256")]
+        public required string GuestElfSha256 { get; init; }
+
+        [JsonPropertyName("witnessPath")]
+        public required string WitnessPath { get; init; }
+
+        [JsonPropertyName("witnessSha256")]
+        public required string WitnessSha256 { get; init; }
+
+        [JsonPropertyName("proofHex")]
+        public required string ProofHex { get; init; }
+
+        [JsonPropertyName("proofSha256")]
+        public required string ProofSha256 { get; init; }
+
+        [JsonPropertyName("publicValuesHex")]
+        public required string PublicValuesHex { get; init; }
+
+        [JsonPropertyName("publicValuesSha256")]
+        public required string PublicValuesSha256 { get; init; }
+
+        [JsonPropertyName("programVkeyHex")]
+        public required string ProgramVKeyHex { get; init; }
+
+        [JsonPropertyName("programVkeySha256")]
+        public required string ProgramVKeySha256 { get; init; }
+
+        [JsonPropertyName("publicInputHashHex")]
+        public required string PublicInputHashHex { get; init; }
+
+        [JsonPropertyName("publicInputHashSha256")]
+        public required string PublicInputHashSha256 { get; init; }
+    }
 }

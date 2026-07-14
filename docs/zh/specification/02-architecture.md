@@ -28,7 +28,7 @@ Neo N4 的参与者可以分成 7 类：
 
 | 层 | 组成 | 设计目标 |
 | --- | --- | --- |
-| L1 NeoHub | 23 个生产可部署合约 + 1 个仅审计用结构验证器 + 1 个测试 stub | 保持 L1 真相、资产托管、结算和治理 |
+| L1 NeoHub | 24 个生产可部署合约 + 1 个仅审计用结构验证器 + 1 个测试 stub | 保持 L1 真相、资产托管、结算和治理 |
 | Neo Gateway | 可选聚合层 | 减少多 L2 结算成本、聚合 proofs、加速 L2↔L2 |
 | N4 L2 | Neo 4 execution kernel、L2 native contracts、plugins | 执行应用、生成状态、发布 DA、提交证明 |
 

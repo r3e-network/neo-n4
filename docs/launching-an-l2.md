@@ -122,14 +122,40 @@ malformed/zero/equal contract hashes, a zero signer account, and any WIF/private
 in plugin configuration. Pass an `INeoTransactionSigner` instance from the host instead;
 the plugin never reads, stores, logs, or disposes signer key material.
 
+For the SP1 validity profile, build the complete execution/proving dependency stack before
+calling `WireProduction`. The state store, signer, DA writer, witness store, and queue directories
+remain caller-owned:
+
 ```csharp
+using var state = new RocksDbKeyValueStore("/var/lib/neo-l2/state");
+
+// First deployment only: bootstrap the reviewed Neo protocol settings into this exact store.
+NeoVMGenesisBootstrap.Run(state, reviewedProtocolSettings);
+var observedInitialRoot =
+    Sp1StateWitnessSource.InitializeGenesisContractBindings(state);
+
+// Persist this non-zero root in the signed deployment manifest before batch 1. On every
+// restart, load the persisted value and reject any mismatch rather than adopting a new root.
+if (!observedInitialRoot.Equals(operatorManifest.InitialStateRoot))
+    throw new InvalidDataException("SP1 genesis state root differs from the deployment manifest");
+
+var sp1 = Sp1SettlementExecutionStack.Create(
+    chainId: 1099,
+    state,
+    operatorManifest.InitialStateRoot,
+    executorPath: "/opt/neo-n4/bin/neo-zkvm-executor",
+    executorSha256: Convert.FromHexString(operatorManifest.ExecutorSha256Hex),
+    executorScratchDirectory: "/var/lib/neo-l2/executor-scratch",
+    proverQueueDirectory: "/var/lib/neo-l2/batches",
+    verificationKeyId: operatorManifest.BatchVerificationKeyId);
+
 var forcedSource = settlementPlugin.WireProduction(
     batchPlugin,
-    executor,
+    sp1.Executor,
     daWriter,
     proofWitnessStore,
-    prover,
-    profile,
+    sp1.Prover,
+    sp1.Profile,
     hsmOrKmsSigner,
     forcedInclusionEventRocksDbStore,
     forcedInclusionDeploymentHeight,
@@ -137,6 +163,22 @@ var forcedSource = settlementPlugin.WireProduction(
     knownForcedInclusionNonces: migrationSeed,
     maxAutomaticRetries: 3);
 ```
+
+`ExecutorSha256Hex` must come from a reviewed/signed release manifest, not be calculated from the
+same mutable path at process startup. Each invocation copies the executable into a private scratch
+directory while hashing it, executes only that digest-matched copy, validates the complete
+`NEO4EXR1` request/result/post-state/public-input binding, and atomically replaces the full state.
+N4 genesis V1 rejects contract descriptor add/remove/replace operations and unsupported native or
+consensus behavior. Expanding that profile requires a coordinated guest/VK/verifier protocol
+upgrade; it is not a runtime flag.
+
+The prover queue is a security boundary, not a temporary scratch directory. On Unix the queue and
+archive directories are forced to `0700`, every artifact is `0600`, and symlinks or foreign-owned
+entries fail closed. Defaults cap the combined watch/archive footprint at 16 GiB and 64
+content-addressed tasks; operators may lower the limits with `--max-queue-bytes` and
+`--max-queue-tasks`. Do not configure a TTL. After the durable proof manifest records
+`SettlementObserved`, the settlement pipeline writes `<content-hash>.proof.ack`; the daemon checks
+its 32-byte body and only then prunes the matching request and proof set.
 
 `forcedInclusionDeploymentHeight` is the block that deployed the configured contract. The
 caller-owned event store must be durable in production. `knownForcedInclusionNonces` and
@@ -157,6 +199,7 @@ batches remain durable but cannot be proved or submitted around it. Restarts pre
 batch number, artifact content hash, retry count, and last bounded error.
 
 Monitor `GetRecoveryStatusAsync()` plus `l2.settlement.pending`,
+`l2.settlement.confirmation_lag_batches`,
 `l2.settlement.retries`, and `l2.settlement.poisoned`. Recovery is deliberately explicit: correct
 the prover/DA/RPC/L1 state first, verify the displayed content hash, reset that exact artifact, then
 run reconciliation again:
@@ -353,7 +396,8 @@ batchNumber, challenger, fraudProofBytes, fraudVerifier)` delegates the
 actual cryptographic check to a contract identified by the
 `fraudVerifier` argument.
 
-Two production verifier modes are available. The default 23-step production bundle
+Two production-target deployment profiles are documented: the bundled restricted-v4
+profile and an operator-supplied custom executable-v4 profile. The default 24-step production bundle
 excludes the structural v1/v2 advisory contract and configures the restricted verifier with
 `[SettlementManager, replayDomain]`; live deployment therefore requires an
 explicit `--fraud-replay-domain`:
@@ -774,14 +818,14 @@ be whatever the operator needs.
 
 ## Going to L1: deploying NeoHub
 
-Before `register-chain` works, the 23 production NeoHub contracts must be
+Before `register-chain` works, the 24 production NeoHub contracts must be
 deployed on the target L1. Advisory `GovernanceFraudVerifier` and test-only
 `ExternalBridgeStubVerifier` are not part of the default deploy bundle. The `neo-hub-deploy` tool emits a deploy
 bundle that names each contract, its dependencies, and the resolved hashes
 after a topological sort:
 
 ```bash
-# 1. Scaffold a starter plan (23 production NeoHub deploy steps in dependency
+# 1. Scaffold a starter plan (24 production NeoHub deploy steps in dependency
 #    order, including ContractZkVerifier, Sp1Groth16Verifier, and executable-v4 fraud verifier).
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
     --output ./my-l2/deploy-plan.json
@@ -889,9 +933,15 @@ The framework ships **two** SP1 integrations. Pick one:
 matches industry-standard L2 layout.
 
 ```bash
-# Build both production prover daemons (one-time, from the repository root):
-cargo build --release -p neo-zkvm-host -p neo-zkvm-gateway-host
-# → target/release/prove-batch + target/release/prove-gateway
+# Build the production native executor and both prover daemons (from the repository root):
+cargo build --release --locked \
+    -p neo-zkvm-guest --bin neo-zkvm-executor \
+    -p neo-zkvm-host -p neo-zkvm-gateway-host
+# → target/release/neo-zkvm-executor + prove-batch + prove-gateway
+
+# Record neo-zkvm-executor's SHA-256 in the signed operator release manifest.
+# Linux: sha256sum target/release/neo-zkvm-executor
+# macOS: shasum -a 256 target/release/neo-zkvm-executor
 
 # Wire the sequencer to drop sealed batches into a queue dir
 # (e.g. /var/lib/neo-l2/batches/) — each file is the canonical
@@ -902,7 +952,9 @@ prove-batch daemon \
     --watch /var/lib/neo-l2/batches \
     --archive /var/lib/neo-l2/proven \
     --gateway-sidecars /var/lib/neo-l2/gateway-children \
-    --poll-secs 5
+    --poll-secs 5 \
+    --max-queue-bytes 17179869184 \
+    --max-queue-tasks 64
 
 # Run only when Gateway aggregation is enabled. The .NET Sp1GatewayProofProver
 # writes canonical request + readiness manifests into --queue.
@@ -923,6 +975,9 @@ publishes a canonical compressed child sidecar when `--gateway-sidecars` is set.
 `--watch`, `--archive`, and the sidecar directory must reside on filesystems that
 support hard links; the archive path must be on the same filesystem as `--watch`.
 Failures leave the input in place and log loudly so monitoring catches poison-pill batches.
+Successful proof generation also retains all content-addressed evidence. Pruning starts only after
+the .NET settlement pipeline has durably observed L1 settlement and published the matching
+`*.proof.ack`; deletion is crash-idempotent across both watch and archive directories.
 
 The Gateway daemon accepts only the tuple-derived sidecar filename, reconstructs the full
 332-byte public inputs from the commitment plus the sidecar's two missing hashes, recursively
@@ -941,13 +996,15 @@ stored finalized records, advances non-revertible per-chain watermarks, and atom
 Router. Verify post-deploy readback of both MessageRouter's SettlementManager constructor binding
 and `SettlementManager.GetMessageRouter`; a direct Router call is expected to fail witness checks.
 
-What it actually proves: each tx in the batch is loaded as a Neo N3 VM
-script and executed by `neo_vm_guest::execute` (vendored from
-`external/neo-zkvm/crates/neo-vm-guest`, which contains the full Neo N3
-VM in pure Rust — opcodes, eval stack, gas accounting, native contracts,
-storage). The proof attests that each tx halted or faulted at a specific
-gas count with a specific top-of-stack result. Tampering with any
-execution detail breaks the proof.
+What it actually proves: the sequencer first invokes the SHA-256-pinned
+`neo-zkvm-executor` with canonical `NEO4EXEC` and complete pre-state `NEO4STW1`.
+That binary and the SP1 guest call the same `neo-execution-core` and vendored
+`neo-vm-rs` stateful N4 V1 runtime. The native result is canonical `NEO4EXR1`; C#
+validates its exact request hashes, semantic id, roots, gas, effects, complete post-state,
+and public-input hash before atomic state commit. The resulting `NEO4PWIT` is then
+re-executed inside SP1. The proof therefore binds HALT/FAULT behavior, gas, receipts,
+storage/event effects, post-state, withdrawal/message roots, and settlement public inputs.
+Tampering with any bound byte breaks native validation or proof verification.
 
 The on-chain settlement transaction submits `<name>.proof.bin`,
 `<name>.proof.vk`, and the public-input commitment via

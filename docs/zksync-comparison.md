@@ -39,7 +39,7 @@ Reference docs: [Gateway overview](https://docs.zksync.io/zksync-protocol/gatewa
 | Rollup / validium DA choices are explicit | `DARegistry` + `DAValidator` + NeoFS / L1 / DAC writers | Batch finalization checks the active DA policy; NeoFS is the default Neo-native external DA layer |
 | Forced inclusion protects users from sequencer censorship | `NeoHub.ForcedInclusion` + `SequencerBond` + `ChainRegistry` pauser wiring | Overdue forced txs can trigger at-most-once report, slashing, and chain pause when production wiring is enabled |
 | L2 system contracts expose bridge, messaging, fee, AA, and interop primitives | Neo core native L2 contracts under `external/neo` | Neo-native contracts expose equivalent primitives without EraVM bytecode/deployer/nonce-holder machinery |
-| ZK validity proof is the trustless settlement target | RISC-V/NeoVM execution receipt + SP1/Neo zkVM proof boundary + `ContractZkVerifier` route | Production ZK chains must register a real verifier and permanently disable `envelope-only`; devnet-only shortcuts must stay explicit |
+| ZK validity proof is the trustless settlement target | Same-runtime native `Sp1StatefulNeoVmV1` execution + SP1 RISC-V guest + `ContractZkVerifier` route | Production ZK chains must pin the native executor/VK, register a real verifier, and permanently disable `envelope-only`; unrelated executor profiles cannot inherit the label |
 | `zkstack` / `zksync-cli` make the operator flow reproducible | `neo-stack`, `neo-hub-deploy`, SDKs, devnet runner | Operators get deterministic config bytes, deploy plans, post-deploy wiring checks, smoke tests, and wallet-owned signing |
 
 ### Direct-copy boundary
@@ -57,8 +57,9 @@ The following ZKsync ideas should be copied as closely as Neo permits:
 The following must remain Neo-native substitutions, not direct copies:
 
 - **EraVM / EVM system contracts** → NeoVM2/RISC-V runtime plus Neo core native L2 contracts;
-- **Boojum / Airbender circuit stack** → Neo execution proof adapter (currently SP1 over
-  the vendored Neo zkVM path, with RISC-V execution receipts as the N4 target);
+- **Boojum / Airbender circuit stack** → Neo execution proof adapter (currently the
+  exact `Sp1StatefulNeoVmV1` runtime in both host-native execution and the SP1 RISC-V guest;
+  the distinct PolkaVM profile requires its own matching prover);
 - **Ethereum ETH/ERC20 accounting** → GAS / NEO / NEP-17 accounting and UInt160 addresses;
 - **calldata-centric DA** → NeoFS / L1 / DAC DA modes;
 - **Solidity Diamond/facet upgrade mechanics** → deployed NeoHub contracts plus
@@ -91,13 +92,17 @@ actually trusts depends on the `ProofType` the chain is configured for:
 - **`ProofType.Zk` (Stage 2)** — `ContractZkVerifier` validates the canonical batch/proof
   envelope and routes SP1 proofs to the in-repo immutable `Sp1Groth16Verifier`, which executes
   the complete pinned SP1 Groth16/BN254 pairing equation through Neo Core native interops.
-  The production plan registers the exact program VK and permanently disables SP1
-  `envelope-only` before exposing the ZK settlement route. Explicit envelope-only mode remains
-  available only for private devnets and proof systems whose terminal verifier is not yet wired.
+  Before proving, `Sp1SettlementExecutionStack` runs the SHA-256-pinned same-runtime native
+  executor, validates canonical `NEO4EXR1`, and atomically commits complete state; the daemon then
+  re-executes the same `NEO4PWIT` in SP1. The production plan registers the exact program VK and
+  permanently disables SP1 `envelope-only` before exposing the ZK settlement route. Explicit
+  envelope-only mode remains available only for private devnets and proof systems whose terminal
+  verifier is not yet wired.
 
 In short: neo4 now ships both the Elastic Chain-style proof-routing topology and an SP1
 Groth16 on-chain validity verifier. This is not bytecode parity with ZKsync's Boojum/Plonk
-verifier; it is the corresponding trustless settlement boundary for Neo's SP1/RISC-V path. Rows
+verifier; it is the corresponding trustless settlement boundary for Neo's bundled stateful
+NeoVM/SP1-RISC-V profile, not a blanket claim for every RISC-V executor. Rows
 below that read "parity" describe structural/topological parity unless stated otherwise; the
 proof-verification rows are explicitly marked **partial**.
 
@@ -140,7 +145,7 @@ proof-verification rows are explicitly marked **partial**.
 | **Emergency security upgrade / instant governance** | `NeoHub.EmergencyManager` | parity |
 | **Audit module (`ChainAuditor` analog)** | `Neo.L2.Audit` (6 invariant checks) | parity |
 | **Foundry tests + invariant + Hardhat specs** | xUnit `tests/Neo.*.UnitTests` + `tests/Neo.L2.IntegrationTests` (E2E series); Foundry tests for `external/foreign-contracts/eth/` | parity |
-| **`zksync-cli` + multi-language SDKs** | `Neo.Stack.Cli` + 6 other CLIs; `sdk/typescript`, `sdk/rust`, `src/Neo.L2.Sdk` | partial — no Go / Python SDK |
+| **`zksync-cli` + multi-language SDKs** | `Neo.Stack.Cli` + 6 other CLIs; `sdk/typescript`, `sdk/rust`, `sdk/python`, `src/Neo.L2.Sdk` | partial — four parity-pinned SDK source implementations are present; Go remains absent and no package-release evidence is claimed |
 | **`code.zksync.io` tutorials + zksync-developers samples (~15+)** | `samples/contracts/{CrossChainGreeter,WithdrawalDemo}` + `samples/executors/CounterChainExecutor` | partial — only 3 sample modules |
 
 ---
@@ -230,13 +235,14 @@ gated NFT mint, L1→L2 deposit). neo4 has 3 sample modules total.
 **Recommendation:** Add at least `Sample.Erc20PaymasterClient`,
 `Sample.MultisigAccount`, `Sample.GatedMint`, `Sample.CrossChainSwap`.
 
-### Gap 2 — No Python / Go SDK
+### Gap 2 — No Go SDK
 
-`sdk/rust` and `sdk/typescript` mirror the 10 RPC methods, but ZKsync ships
-`zksync2-go` and `zksync2-python` (high indexer / exchange demand).
+The .NET, TypeScript, Rust, and Python SDKs mirror the same 10 RPC methods and
+consume the shared conformance vectors. ZKsync also ships `zksync2-go`, which
+remains a useful gap for indexer and exchange integrations.
 
-**Recommendation:** Generate community-tier SDKs from the same `L2RpcClient.cs`
-surface.
+**Recommendation:** Generate a Go SDK from the shared conformance surface rather
+than hand-maintaining a fifth independent wire implementation.
 
 ---
 
@@ -253,8 +259,8 @@ makes them moot or provides native equivalents:
   nonces.
 - **Diamond proxy + facet pattern** (`DiamondProxy.sol`, `Admin.sol`, `Executor.sol`,
   `Getters.sol`, `Mailbox.sol`) — exists to work around Ethereum's 24KB contract
-  size limit. NeoVM2/RISC-V has no 24KB bound; the per-concern split in NeoHub's 23
-  contracts is equivalent in effect.
+  size limit. NeoVM2/RISC-V has no 24KB bound; the per-concern split across NeoHub's 24
+  production contracts is equivalent in effect.
 - **`CTMDeploymentTracker` + `ChainAssetHandler`** — ZKsync needs these to support
   *competing* chain types and asset routers run by third parties. neo4 has one
   canonical Hub.

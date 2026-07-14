@@ -24,6 +24,11 @@ path = "src/main.rs"
 # RISC-V ELF and runs it inside SP1.
 test = false
 
+[[bin]]
+name = "neo-zkvm-executor"
+path = "src/bin/executor.rs"
+test = false
+
 [dependencies]
 sp1-zkvm = "=6.2.1"
 neo-execution-core = { path = "../neo-execution-core" }

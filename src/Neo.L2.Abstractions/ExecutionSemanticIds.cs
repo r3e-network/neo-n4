@@ -22,6 +22,9 @@ public static class ExecutionSemanticIds
     /// <summary>Legacy Neo N3 VM semantics used by the current SP1 compatibility guest.</summary>
     public static UInt256 Sp1LegacyNeoN3GuestV1 { get; } = FromName("neo-l2/sp1-legacy-neo-n3-guest/v1");
 
+    /// <summary>Stateful Neo VM semantics implemented by the canonical SP1 batch guest.</summary>
+    public static UInt256 Sp1StatefulNeoVmV1 { get; } = FromName("neo-l2/sp1-stateful-neo-vm/v1");
+
     /// <summary>Derive a stable Hash256 identifier from an ASCII semantic name.</summary>
     public static UInt256 FromName(string name)
     {

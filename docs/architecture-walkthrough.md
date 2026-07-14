@@ -25,10 +25,11 @@ RpcServer plugin handles it, no neo4 code in this step.
 
 ### 2. dBFT sequencer (committee mode)
 
-`Neo.Plugins.DBFTPlugin` (upstream) selects the next block proposer. **Who is allowed to
-propose** is governed by `NeoHub.SequencerRegistry` on L1; the L2 node pulls the active set
-via `Neo.L2.Sequencer.ISequencerCommitteeProvider` (production wires the L1-RPC-backed
-implementation; tests use `InMemorySequencerCommitteeProvider`).
+`Neo.Plugins.DBFTPlugin` selects the next block proposer through
+`NativeContract.NEO.GetNextBlockValidators`. **Who is allowed to propose** is governed by
+`NeoHub.SequencerRegistry` on L1: an `ISequencerCommitteeProvider` computes the intended active
+set, `neo-stack` commits it through a governed L2 native transaction, and DBFT reads only the
+finalized `L2SystemConfigContract` state.
 
 ### 3. Block commit hook
 
@@ -75,15 +76,16 @@ hands it to the configured `IL2Prover`:
   account, sequencer signature, and bond reference. The verifier checks the
   signature and key/account binding; `NeoHub.SettlementManager` marks the batch
   `Challengeable` and opens `NeoHub.OptimisticChallenge`.
-- **Stage 2 (ZK):** Out-of-process Rust prover at `bridge/neo-zkvm-host/`
-  (run as `prove-batch daemon --watch <queue-dir>`). The N4 target is
-  NeoVM2/RISC-V execution: batches are reduced to canonical public inputs and
-  proved as RISC-V execution artifacts. The legacy Neo N3 VM guest remains a
-  compatibility bridge while the PolkaVM-backed `external/neo-riscv-vm` path is
-  the L2 execution target. Its .NET runtime binds the stateful host-callback ABI,
-  implements the safe runtime/storage/iterator subset with ApplicationEngine
-  semantics, and faults unknown or unsupported consensus syscalls. The .NET prover plugin uses `MockRiscVProver` for
-  in-process testing only — production proving lives in the daemon.
+- **Stage 2 (ZK):** `Sp1SettlementExecutionStack` binds one exact
+  `Sp1StatefulNeoVmV1` semantic from execution through proof. The sequencer invokes the
+  SHA-256-pinned host-native `neo-zkvm-executor`, validates canonical `NEO4EXR1`, and
+  atomically commits its complete post-state. `bridge/neo-zkvm-host` then runs
+  `prove-batch daemon --watch <queue-dir>` and re-executes the same
+  `neo-execution-core` + vendored `neo-vm-rs` runtime inside the SP1 RISC-V guest.
+  `external/neo-riscv-vm` and `Neo.L2.Executor.RiscV` remain the distinct PolkaVM
+  `ChainMode.L2RiscV` execution profile; they are not silently treated as the same SP1
+  semantic. A chain must use a matching proof profile before claiming validity for that
+  path. `MockRiscVProver` remains in-process testing only.
 
 The prover output goes into `L2BatchCommitment.Proof` with the matching `ProofType`.
 
@@ -154,15 +156,18 @@ must include in its next batch. After inclusion, `MarkConsumedAsync` removes the
 ### 3. If sequencer censors past the deadline
 
 `Neo.L2.Censorship.CensorshipDetector` polls the source; when `HasOverdueEntryAsync` returns
-true, it identifies the responsible sequencer via `ISequencerCommitteeProvider` and emits
-`CensorshipReport[]`.
+true, it emits `CensorshipReport[]`. Committee membership alone cannot identify the dBFT
+proposer for a missed deadline. An optional `ICensorshipAttributionProvider` may attach an
+identity only from finalized consensus evidence; otherwise the report carries the explicit
+unknown sentinel rather than blaming the first committee member.
 
 ### 4. Operator submits the report
 
-The operator calls `NeoHub.ForcedInclusion.ReportCensorship(chainId, nonce, sequencerAddr)`.
-Per the `_deploy` wiring, `ForcedInclusion` is registered as a slasher in
-`SequencerBond`, so the contract calls `SequencerBond.Slash(chainId, sequencer, amount,
-reporter)` directly. Bond is debited; reporter is paid (or the funds go to the treasury).
+The operator calls `NeoHub.ForcedInclusion.ReportCensorship(chainId, nonce, sequencerAddr)`;
+`UInt160.Zero` is valid when attribution is still unknown. The permissionless report records
+the overdue event at most once and pauses the chain, but cannot slash. After reviewing
+finalized dBFT evidence, governance separately calls `SlashReportedCensorship`; only that
+owner-gated path invokes `SequencerBond.Slash` and debits the evidenced member's bond.
 
 ## Walk #3: multi-L2 proof aggregation (Phase 5)
 
@@ -326,9 +331,9 @@ specifically by `DAAvailabilityCheck` against a writer that never saw the payloa
 - **§5 L2 chain internals** — per-L2 plugin layout. `Neo.Plugins.L2Batch / L2Settlement / L2Bridge / L2DA / L2Prover / L2Rpc`.
 - **§7.1 Sequencer / dBFT** — Committee selection. `contracts/NeoHub.SequencerRegistry/` + `Neo.L2.Sequencer`.
 - **§7.2 Batcher** — Block ↦ batch. `Neo.L2.Batch.BatchBuilder` + `Neo.Plugins.L2Batch.L2BatchPlugin`.
-- **§7.3 StateRootGenerator** — Per-batch roots. `Neo.L2.State.*` + `Neo.L2.Executor.State.KeyedStateStore`.
+- **§7.3 StateRootGenerator** — Per-batch roots. `Neo.L2.State.*` + `Neo.L2.Executor.State.KeyedStateStore`; production SP1 capture/atomic transition is `Sp1StateWitnessSource`.
 - **§7.4 DAWriter** — DA layer abstraction. `Neo.L2.Abstractions.IDAWriter` + `Neo.Plugins.L2DA.*`.
-- **§7.5 ProverAdapter** — 3-stage proving. `Neo.L2.Proving.Attestation / Optimistic / RiscVZk` + `bridge/neo-zkvm-host/` (out-of-process Stage-2).
+- **§7.5 ProverAdapter** — 3-stage proving. `Neo.L2.Proving.Attestation / Optimistic / RiscVZk`, `Sp1SettlementExecutionStack`, host-native `neo-zkvm-executor`, and `bridge/neo-zkvm-host/` (out-of-process Stage-2).
 - **§8 Proof system** — Proving spec. `src/Neo.L2.Executor/SPEC.md`.
 - **§9 Token / GAS model** — Bridged asset accounting. `Neo.L2.Bridge.AssetRegistry` + Neo Core native `L2BridgeContract`.
 - **§10 Neo Connect** — Cross-chain messaging. `Neo.L2.Messaging.*` + Neo Core native `L2MessageContract`.

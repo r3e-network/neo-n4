@@ -111,6 +111,27 @@ public class UT_Sp1StateWitnessSource
     }
 
     [TestMethod]
+    public void CommitTransition_RejectsChangeRacingWithAtomicReplacement()
+    {
+        using var state = new InterleavingAtomicStore();
+        NeoVMGenesisBootstrap.Run(state);
+        var initialRoot = Sp1StateWitnessSource.InitializeGenesisContractBindings(state);
+        var source = new Sp1StateWitnessSource(state, initialRoot);
+        var preState = StateWitnessV1Serializer.Decode(source.Capture(initialRoot).Witness.Span);
+        var postStateBytes = AddEntry(
+            preState, "application-key"u8.ToArray(), "value"u8.ToArray());
+        var expectedPostRoot = ComputeRoot(postStateBytes);
+        state.BeforeCompareExchangeAll = () =>
+            state.Put("concurrent-change"u8, "value"u8);
+
+        Assert.ThrowsExactly<InvalidDataException>(() =>
+            source.CommitTransition(initialRoot, expectedPostRoot, postStateBytes));
+
+        Assert.IsNull(state.Get("application-key"u8));
+        CollectionAssert.AreEqual("value"u8.ToArray(), state.Get("concurrent-change"u8));
+    }
+
+    [TestMethod]
     public void CommitTransition_RejectsPostStateRootMismatchWithoutMutation()
     {
         using var state = new InMemoryKeyValueStore();
@@ -181,5 +202,51 @@ public class UT_Sp1StateWitnessSource
         var state = StateWitnessV1Serializer.Decode(stateWitness);
         return KeyedStateMerkleTree.ComputeRoot(state.Entries.Select(
             static entry => (entry.Key.ToArray(), entry.Value.ToArray())));
+    }
+
+    private sealed class InterleavingAtomicStore : IAtomicL2KeyValueStore
+    {
+        private readonly InMemoryKeyValueStore _inner = new();
+
+        public Action? BeforeCompareExchangeAll { get; set; }
+
+        public long Count => _inner.Count;
+
+        public void Put(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value) =>
+            _inner.Put(key, value);
+
+        public bool TryPut(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value) =>
+            _inner.TryPut(key, value);
+
+        public bool CompareExchange(
+            ReadOnlySpan<byte> key,
+            ReadOnlySpan<byte> expectedValue,
+            ReadOnlySpan<byte> newValue) =>
+            _inner.CompareExchange(key, expectedValue, newValue);
+
+        public byte[]? Get(ReadOnlySpan<byte> key) => _inner.Get(key);
+
+        public bool Delete(ReadOnlySpan<byte> key) => _inner.Delete(key);
+
+        public bool Contains(ReadOnlySpan<byte> key) => _inner.Contains(key);
+
+        public IEnumerable<(byte[] Key, byte[] Value)> EnumeratePrefix(
+            ReadOnlySpan<byte> prefix) => _inner.EnumeratePrefix(prefix);
+
+        public void ReplaceAll(
+            IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> entries) =>
+            _inner.ReplaceAll(entries);
+
+        public bool CompareExchangeAll(
+            IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> expectedEntries,
+            IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> replacementEntries)
+        {
+            var interleave = BeforeCompareExchangeAll;
+            BeforeCompareExchangeAll = null;
+            interleave?.Invoke();
+            return _inner.CompareExchangeAll(expectedEntries, replacementEntries);
+        }
+
+        public void Dispose() => _inner.Dispose();
     }
 }

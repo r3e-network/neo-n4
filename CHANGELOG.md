@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — SP1 restart and cross-instance state-race regression gates — 2026-07-15
+
+- Proved that a reconstructed SP1 executor replays an already durable artifact after the
+  artifact/state crash window, retains the immutable genesis root, and accepts the recovered
+  post-state idempotently without executing the transition again.
+- Added an injected interleaving between complete-state capture and `CompareExchangeAll`; the
+  losing transition now has direct regression evidence that it fails closed without overwriting
+  the concurrently committed state.
+
 ### Fixed — real SP1 CI workspace ownership — 2026-07-15
 
 - Restored the GitHub runner's ownership of Docker-generated SP1 target artifacts before

@@ -69,6 +69,41 @@ public sealed class UT_Sp1StatefulBatchExecutor
     }
 
     [TestMethod]
+    public async Task EnsureStateCommitted_RestartRecoversDurableArtifactAndAcceptsPostState()
+    {
+        using var harness = new ExecutorHarness();
+        var firstProcess = new WritingProcess(AddStateEntry);
+        var firstExecutor = harness.CreateExecutor(firstProcess);
+        var batch = harness.Batch();
+        var execution = await firstExecutor.ApplyBatchWithWitnessAsync(batch);
+        var artifact = BuildArtifact(batch, execution);
+        using var artifactBackend = new InMemoryKeyValueStore();
+        using var artifactStore = new KeyValueProofWitnessStore(artifactBackend);
+        await artifactStore.CommitAsync(artifact);
+
+        var recoveryProcess = new WritingProcess(AddStateEntry);
+        var recoveryExecutor = harness.CreateRestartedExecutor(recoveryProcess);
+        await recoveryExecutor.EnsureStateCommittedAsync(artifactStore, artifact);
+
+        Assert.AreEqual(1, firstProcess.RunCount);
+        Assert.AreEqual(1, recoveryProcess.RunCount);
+        Assert.AreEqual(
+            execution.ExecutionResult.PostStateRoot,
+            await recoveryExecutor.GetCurrentStateRootAsync());
+        Assert.AreEqual(harness.InitialRoot, await recoveryExecutor.GetInitialStateRootAsync());
+
+        var postStateProcess = new WritingProcess(AddStateEntry);
+        var postStateExecutor = harness.CreateRestartedExecutor(postStateProcess);
+        await postStateExecutor.EnsureStateCommittedAsync(artifactStore, artifact);
+
+        Assert.AreEqual(0, postStateProcess.RunCount);
+        Assert.AreEqual(
+            execution.ExecutionResult.PostStateRoot,
+            await postStateExecutor.GetCurrentStateRootAsync());
+        Assert.IsFalse(Directory.EnumerateFileSystemEntries(harness.ScratchDirectory).Any());
+    }
+
+    [TestMethod]
     public async Task EnsureStateCommitted_RejectsArtifactThatIsNotDurable()
     {
         using var harness = new ExecutorHarness();
@@ -227,8 +262,21 @@ public sealed class UT_Sp1StatefulBatchExecutor
         public Sp1StatefulBatchExecutor CreateExecutor(
             ISp1NativeExecutionProcess process,
             ReadOnlyMemory<byte>? executableSha256 = null)
+            => CreateExecutor(Source, process, executableSha256);
+
+        public Sp1StatefulBatchExecutor CreateRestartedExecutor(
+            ISp1NativeExecutionProcess process)
+            => CreateExecutor(
+                new Sp1StateWitnessSource(_state, InitialRoot),
+                process,
+                executableSha256: null);
+
+        private Sp1StatefulBatchExecutor CreateExecutor(
+            Sp1StateWitnessSource source,
+            ISp1NativeExecutionProcess process,
+            ReadOnlyMemory<byte>? executableSha256)
             => new(
-                Source,
+                source,
                 _executablePath,
                 executableSha256 ?? SHA256.HashData(File.ReadAllBytes(_executablePath)),
                 ScratchDirectory,

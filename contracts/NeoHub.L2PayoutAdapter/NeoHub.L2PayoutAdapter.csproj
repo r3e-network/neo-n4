@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NeoHub.L2PayoutAdapter</RootNamespace>
+    <AssemblyName>NeoHub.L2PayoutAdapter</AssemblyName>
+    <Description>Authenticated durable L1 payout queue for external-bridge transfers targeting Neo L2.</Description>
+    <PackageTags>NEO;SmartContract;NeoHub;ExternalBridge;Payout</PackageTags>
+  </PropertyGroup>
+
+</Project>

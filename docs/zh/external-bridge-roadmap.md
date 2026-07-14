@@ -235,7 +235,9 @@ NeoExternalBridgeRouter.lockAndSend(
 
 Watcher 观察 `Locked` 事件并构造证明；Neo verifier 接受后，`ExternalBridgeEscrow`
 原子执行 L1 direct payout 或通过固定 payout-v1 adapter 持久化/入队 L2 credit。
-目标 L2 最终由授权系统路径调用 `L2NativeExternalBridgeContract.ApplyInbound` 完成 mint，
+持久中继读取已确认队列后，由授权系统路径调用
+`L2NativeExternalBridgeContract.ApplyPayout`；原生入口重新校验完整规范字节、哈希、
+映射资产及所有支付字段，保存一次性收据后 mint，再由中继把 L2 交易哈希确认回 L1。
 该异步执行不能由一条 L1 事件替代。
 
 接缝保证这两个面在 registry 翻 MPC → Optimistic → ZK 时字节一致;只有底下的验证

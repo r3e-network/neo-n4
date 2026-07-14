@@ -279,9 +279,12 @@ After registry verification, `ExternalBridgeEscrow` either releases funded
 NEP-17 on its hosting chain or invokes the pinned payout-v1 adapter that
 atomically persists/enqueues the target credit instruction with L1 replay
 consumption. Cross-network L2 execution is necessarily asynchronous: the final
-application remains the system-account-gated
-`L2NativeExternalBridgeContract.ApplyInbound` boundary. Verification or queueing
-alone never implies that target-L2 assets were already minted.
+application is performed by the durable relay through the system-account-gated
+`L2NativeExternalBridgeContract.ApplyPayout` boundary. That endpoint revalidates
+the exact canonical bytes/hash, mapped asset, and every payout field before storing
+the one-time receipt and minting; the relay then acknowledges the L1 queue with the
+L2 transaction hash. Verification or queueing alone never implies that target-L2
+assets were already minted.
 
 The seam guarantees these two surfaces stay byte-identical when the
 registry flips MPC → Optimistic → ZK; only the verifier contract

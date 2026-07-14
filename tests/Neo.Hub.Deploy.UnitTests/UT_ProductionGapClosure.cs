@@ -279,10 +279,10 @@ public class UT_ProductionGapClosure
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.AreEqual(25, neoHubContracts.Length,
-            "contracts/NeoHub.* must contain 23 production contracts, one advisory structural verifier, and the test-only ExternalBridgeStubVerifier.");
-        Assert.AreEqual(23, productionSteps.Length,
-            "The default NeoHub deploy plan must emit only the 23 state-changing production contracts.");
+        Assert.AreEqual(26, neoHubContracts.Length,
+            "contracts/NeoHub.* must contain 24 production contracts, one advisory structural verifier, and the test-only ExternalBridgeStubVerifier.");
+        Assert.AreEqual(24, productionSteps.Length,
+            "The default NeoHub deploy plan must emit only the 24 state-changing production contracts.");
         CollectionAssert.Contains(neoHubContracts, "ExternalBridgeStubVerifier");
         CollectionAssert.DoesNotContain(productionSteps, "ExternalBridgeStubVerifier",
             "ExternalBridgeStubVerifier is a dev/test helper and must not ship in the production NeoHub deploy bundle.");
@@ -316,8 +316,8 @@ public class UT_ProductionGapClosure
         }
 
         var readme = File.ReadAllText(Path.Combine(root, "README.md"));
-        StringAssert.Contains(readme, "25 NeoHub L1 contract projects");
-        StringAssert.Contains(readme, "23 production");
+        StringAssert.Contains(readme, "26 NeoHub L1 contract projects");
+        StringAssert.Contains(readme, "24 production");
     }
 
     [TestMethod]

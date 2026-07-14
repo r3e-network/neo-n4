@@ -5,8 +5,8 @@ namespace Neo.Hub.Deploy;
 
 /// <summary>
 /// <c>neo-hub-deploy scaffold</c> — write a starter <see cref="DeployPlan"/> JSON
-/// covering the 23-step NeoHub production bundle (15 core, ContractZkVerifier,
-/// its immutable SP1 terminal verifier, one executable fraud verifier, and 5 external-bridge contracts).
+/// covering the 24-step NeoHub production bundle (15 core, ContractZkVerifier,
+/// its immutable SP1 terminal verifier, one executable fraud verifier, and 6 external-bridge contracts).
 /// The output is operator-editable JSON;
 /// operators replace the placeholder bond owner / asset hashes before piping it
 /// through <c>plan</c>.

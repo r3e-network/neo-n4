@@ -9,8 +9,8 @@ namespace Neo.Hub.Deploy;
 /// and the SettlementManager-bound <c>RestrictedExecutionFraudVerifier</c> executable v4
 /// profile. The structural v1/v2/v3 verifier contracts remain audit aids and are deliberately
 /// excluded from the production deployment bundle because they cannot authorize state changes.
-/// L2 native contracts are listed but
-/// commented as "deploy on the L2", not the L1.
+/// The production external-bridge bundle includes the concrete immutable L2 payout adapter;
+/// target native contracts remain L2 genesis configuration rather than L1 deploy steps.
 /// </summary>
 public static class ScaffoldPlan
 {
@@ -171,6 +171,17 @@ public static class ScaffoldPlan
                         "L2_CHAIN_ID_REPLACE_ME",
                     },
                     "ExternalBridgeRegistry"),
+
+                Step("L2PayoutAdapter",
+                    "contracts/NeoHub.L2PayoutAdapter/bin/sc/NeoHub.L2PayoutAdapter.nef",
+                    new JArray
+                    {
+                        "OWNER_REPLACE_ME",
+                        "$step:ExternalBridgeEscrow",
+                        "L2_CHAIN_ID_REPLACE_ME",
+                        "L2_PAYOUT_RELAY_ACCOUNT_REPLACE_ME",
+                    },
+                    "ExternalBridgeEscrow"),
 
                 // ExternalBridgeBond mirrors SequencerBond — owner + bondAsset
                 // (canonical GAS hash on the target L1; operator-substituted
@@ -352,6 +363,7 @@ public static class ScaffoldPlan
         var mpcVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "MpcCommitteeVerifier");
         var extRegistry = bundle.Invocations.FirstOrDefault(i => i.Name == "ExternalBridgeRegistry");
         var extEscrow = bundle.Invocations.FirstOrDefault(i => i.Name == "ExternalBridgeEscrow");
+        var l2PayoutAdapter = bundle.Invocations.FirstOrDefault(i => i.Name == "L2PayoutAdapter");
         var extBond = bundle.Invocations.FirstOrDefault(i => i.Name == "ExternalBridgeBond");
         var fraudVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "MpcCommitteeFraudVerifier");
 
@@ -434,9 +446,9 @@ public static class ScaffoldPlan
             // registered for externalChainId" on first inbound message.
             yield return $"# Per supported foreign chain (e.g. Eth=0xE0000001, Sepolia=0xE0000002): run `neo-external-bridge committee-blob` + `neo-external-bridge deploy-bundle` to register the committee on {mpcVerifier.Name} and bind it to {extRegistry.Name} via RegisterVerifier(externalChainId, mpcVerifier.Hash, bridgeKindMpc=1).";
         }
-        if (extEscrow is not null)
+        if (extEscrow is not null && l2PayoutAdapter is not null)
         {
-            yield return $"# Per supported asset: call {extEscrow.Name}.SetAssetRoute(EXTERNAL_CHAIN_ID, FOREIGN_ASSET, NEO_ASSET, PAYOUT_ADAPTER_V1). The default non-zero L2_CHAIN_ID_REPLACE_ME deployment requires a freshly deployed adapter with payoutVersion()==1 and UpdateCounter==0 that atomically persists/enqueues the target credit instruction (L2 execution remains asynchronous). UInt160.Zero is valid only for an escrow explicitly deployed with neoChainId=0 for direct Neo L1 NEP-17 release.";
+            yield return $"{extEscrow.Name}.SetAssetRoute(EXTERNAL_CHAIN_ID, FOREIGN_ASSET, NEO_ASSET, {l2PayoutAdapter.Name})  # bind each foreign asset to the concrete immutable payout-v1 queue after verifying payoutVersion()==1, UpdateCounter==0, adapter neoChainId=non-zero L2_CHAIN_ID_REPLACE_ME; use payoutAdapter=0 only for neoChainId=0 direct-release routes; target credit is enqueue/confirm/ack, not a synchronous cross-chain commit";
             yield return $"# Neo L1 direct-release routes only: call {extEscrow.Name}.FundLiquidity(EXTERNAL_CHAIN_ID, NEO_ASSET, AMOUNT) before accepting inbound value; non-zero L2 adapter routes own their target-chain credit/mint accounting.";
         }
         if (extEscrow is not null && gc is not null)

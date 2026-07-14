@@ -5,11 +5,11 @@
 
 ---
 
-## 测试面(37 个 .NET 测试工程 + 跨语言门禁 + 2 个 SP1 发布关口)
+## 测试面(38 个 .NET 测试工程 + 跨语言门禁 + 2 个 SP1 发布关口)
 
 | 层 | 框架 | 位置 | 内容 |
 |---|---|---|---|
-| 单元 | MSTest(xUnit 风) | `tests/`(solution 当前 37 个测试工程，包含集成套件) | 每类不变量、边界、空参 + 空字段守卫、指标 emission 钉 |
+| 单元 | MSTest(xUnit 风) | `tests/`(solution 当前 38 个测试工程，包含集成套件) | 每类不变量、边界、空参 + 空字段守卫、指标 emission 钉 |
 | 集成 | MSTest | `tests/Neo.L2.IntegrationTests/` | E2E 分阶段缝合(Phase 0 → 5)、审计管线、持久化恢复、NeoVM2/RISC-V 接缝、legacy NeoVM 兼容、自定义 executor 全栈 |
 | 属性 / 不变量 | MSTest + seeded `System.Random` | `UT_BridgeInvariants_PropertyBased.cs`(17 测试) | 200 次操作的随机序列 × 4-8 种子 —— 每个不变量 1600-3200 次状态转移。在每个中间态断言桥账面 + nonce 唯一性 + 双向注册表的不变量 |
 | 模糊 | MSTest + seeded `System.Random` | `UT_WireFormat_Fuzz.cs`(19 测试) | 随机字节序列喂给每个 decoder —— 必须 round-trip 或以类型化异常拒绝,永不崩溃 |

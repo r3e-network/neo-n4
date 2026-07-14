@@ -205,10 +205,10 @@ public class UT_DeployPlanner
         // 15 core NeoHub contracts + 1 executable fraud verifier
         // (RestrictedExecution v4) + 4 external-bridge contracts (doc.md
         // §11.3 Phase B: MpcCommitteeVerifier, ExternalBridgeRegistry,
-        // ExternalBridgeEscrow, ExternalBridgeBond) + 1 Phase-C
+        // ExternalBridgeEscrow, L2PayoutAdapter, ExternalBridgeBond) + 1 Phase-C
         // (MpcCommitteeFraudVerifier) + 1 contract-deployed ZK verifier router
-        // + 1 pinned SP1 Groth16 terminal verifier = 23.
-        Assert.AreEqual(23, plan.Steps.Count);
+        // + 1 pinned SP1 Groth16 terminal verifier = 24.
+        Assert.AreEqual(24, plan.Steps.Count);
         var names = plan.Steps.Select(s => s.Name).ToHashSet();
         Assert.IsFalse(names.Contains("GovernanceFraudVerifier"),
             "structural v1/v2 evidence must not ship in the production deployment bundle");
@@ -239,6 +239,7 @@ public class UT_DeployPlanner
         Assert.IsTrue(names.Contains("MpcCommitteeVerifier"));
         Assert.IsTrue(names.Contains("ExternalBridgeRegistry"));
         Assert.IsTrue(names.Contains("ExternalBridgeEscrow"));
+        Assert.IsTrue(names.Contains("L2PayoutAdapter"));
         Assert.IsTrue(names.Contains("ExternalBridgeBond"));
         Assert.IsTrue(names.Contains("MpcCommitteeFraudVerifier"));
 
@@ -292,6 +293,27 @@ public class UT_DeployPlanner
         Assert.AreEqual("$step:ExternalBridgeRegistry", escrow.DeployData[1]!.AsString());
         Assert.AreEqual("L2_CHAIN_ID_REPLACE_ME", escrow.DeployData[2]!.AsString());
         CollectionAssert.Contains(escrow.DependsOn.ToArray(), "ExternalBridgeRegistry");
+    }
+
+    [TestMethod]
+    public void Scaffold_L2PayoutAdapterIsConcreteAndDomainBound()
+    {
+        var plan = ScaffoldPlan.Default();
+        var adapter = plan.Steps.Single(s => s.Name == "L2PayoutAdapter");
+        Assert.AreEqual(4, adapter.DeployData.Count,
+            "L2PayoutAdapter _deploy requires (owner, escrow, neoChainId, relayAccount)");
+        Assert.AreEqual("OWNER_REPLACE_ME", adapter.DeployData[0]!.AsString());
+        Assert.AreEqual("$step:ExternalBridgeEscrow", adapter.DeployData[1]!.AsString());
+        Assert.AreEqual("L2_CHAIN_ID_REPLACE_ME", adapter.DeployData[2]!.AsString());
+        Assert.AreEqual("L2_PAYOUT_RELAY_ACCOUNT_REPLACE_ME", adapter.DeployData[3]!.AsString());
+        CollectionAssert.AreEqual(new[] { "ExternalBridgeEscrow" }, adapter.DependsOn.ToArray());
+
+        var bundle = DeployPlanner.Plan(plan, _ => H(0x42));
+        var action = ScaffoldPlan.PostDeployActions(bundle)
+            .Single(line => line.StartsWith("ExternalBridgeEscrow.SetAssetRoute", StringComparison.Ordinal));
+        StringAssert.Contains(action, "L2PayoutAdapter");
+        Assert.IsFalse(action.Contains("PAYOUT_ADAPTER_V1", StringComparison.Ordinal),
+            "the production plan must name the deployed adapter, not a comment placeholder");
     }
 
     [TestMethod]

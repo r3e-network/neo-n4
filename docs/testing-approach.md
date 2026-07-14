@@ -6,11 +6,11 @@ where each piece of the system lives.
 
 ---
 
-## Test surface (37 .NET test projects + cross-language gates + SP1 host E2E)
+## Test surface (38 .NET test projects + cross-language gates + SP1 host E2E)
 
 | Tier | Framework | Where | What |
 |------|-----------|-------|------|
-| Unit | MSTest (xUnit-style) | `tests/` (37 solution test projects including integration suites) | Per-class invariants, edge cases, null-arg + null-field guards, metric-emission pins |
+| Unit | MSTest (xUnit-style) | `tests/` (38 solution test projects including integration suites) | Per-class invariants, edge cases, null-arg + null-field guards, metric-emission pins |
 | Integration | MSTest | `tests/Neo.L2.IntegrationTests/` | E2E phase stitches (Phase 0 → 5), audit pipeline, persistence rehydration, NeoVM2/RISC-V seam, legacy NeoVM compatibility, custom executor full-stack |
 | Property-based / invariant | MSTest + seeded `System.Random` | `UT_BridgeInvariants_PropertyBased.cs` (17 tests) | Random sequences of 200 ops × 4-8 seeds — 1600-3200 transitions per invariant. Asserts bridge accounting + nonce uniqueness + bidirectional registry holds at every intermediate state |
 | Fuzz | MSTest + seeded `System.Random` | `UT_WireFormat_Fuzz.cs` (19 tests) | Random byte sequences to every decoder — must round-trip or reject with typed exception, never crash |

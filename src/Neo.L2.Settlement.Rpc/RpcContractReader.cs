@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Neo.Json;
@@ -113,17 +114,25 @@ public static class RpcContractReader
     /// </summary>
     public static int ParseInteger(JToken? token)
     {
+        return checked((int)ParseBigInteger(token));
+    }
+
+    /// <summary>Parse an arbitrary-size Neo VM integer stack item.</summary>
+    public static BigInteger ParseBigInteger(JToken? token)
+    {
         if (token is not JObject obj) throw new InvalidOperationException("expected JObject");
         var value = obj["value"]?.AsString() ?? "0";
-        if (int.TryParse(value, out var n)) return n;
+        if (BigInteger.TryParse(value, out var number)) return number;
         // Neo encodes integers in ByteString form as little-endian two's complement; decode the
-        // full value via BigInteger and range-check it for int rather than reading only bytes[0]
-        // (which would truncate any value >= 256 or any multi-byte count to its low byte).
+        // full value rather than reading only bytes[0].
         var bytes = Convert.FromBase64String(value);
-        if (bytes.Length == 0) return 0;
-        var big = new System.Numerics.BigInteger(bytes, isUnsigned: false, isBigEndian: false);
-        return checked((int)big);
+        return bytes.Length == 0
+            ? BigInteger.Zero
+            : new BigInteger(bytes, isUnsigned: false, isBigEndian: false);
     }
+
+    /// <summary>Parse a canonical unsigned 64-bit Neo VM integer stack item.</summary>
+    public static ulong ParseUInt64(JToken? token) => checked((ulong)ParseBigInteger(token));
 
     /// <summary>
     /// Parse a <see cref="UInt160"/> (20-byte address/hash) from a Neo N3 RPC stack item.

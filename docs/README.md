@@ -124,7 +124,7 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
   `external/neo-riscv-vm` (PolkaVM-backed Neo RISC-V engine) ·
   `external/neo-zkvm` (SP1 prover crates and legacy Neo VM compatibility guest). None
   are released on NuGet/crates.io for the versions tracked here.
-- **Tests (37 .NET test projects + cross-language gates)** — the current solution inventory is discovered dynamically, plus TypeScript, Rust SDK/core/watchers/zkVM, Python SDK, Node experience, vendored `neo-zkvm` / `neo-riscv-vm`, Solidity, Solana, and SP1 release-proof gates documented in [`testing-approach.md`](./testing-approach.md).
+- **Tests (38 .NET test projects + cross-language gates)** — the current solution inventory is discovered dynamically, plus TypeScript, Rust SDK/core/watchers/zkVM, Python SDK, Node experience, vendored `neo-zkvm` / `neo-riscv-vm`, Solidity, Solana, and SP1 release-proof gates documented in [`testing-approach.md`](./testing-approach.md).
 
 ```
 neo4/
@@ -156,7 +156,7 @@ neo4/
 │   ├── neo-execution-core/                 # backend-neutral batch fold + public input hash
 │   ├── neo-zkvm-guest/                     # Rust → RISC-V ELF (SP1-proven execution guest)
 │   └── neo-zkvm-host/                      # sp1-sdk 6.2.1 prover daemon (prove-batch)
-└── tests/                                  # 37 solution test projects; inventory is discovered dynamically
+└── tests/                                  # 38 solution test projects; inventory is discovered dynamically
 ```
 
 ---

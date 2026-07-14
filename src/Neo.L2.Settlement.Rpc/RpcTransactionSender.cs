@@ -138,11 +138,17 @@ public sealed class RpcTransactionSender
         ValidateWitness(transaction.Witnesses[0]);
         await GetNetworkAsync(cancellationToken).ConfigureAwait(false);
 
-        var result = await _rpc.CallAsync(
-            "sendrawtransaction",
-            new JArray { Convert.ToBase64String(transaction.ToArray()) },
-            cancellationToken).ConfigureAwait(false);
-        ValidateBroadcastResult(result, transaction.Hash);
+        try
+        {
+            var result = await _rpc.CallAsync(
+                "sendrawtransaction",
+                new JArray { Convert.ToBase64String(transaction.ToArray()) },
+                cancellationToken).ConfigureAwait(false);
+            ValidateBroadcastResult(result, transaction.Hash);
+        }
+        catch (JsonRpcException exception) when (IsAlreadyKnownTransaction(exception))
+        {
+        }
 
         var execution = await WaitForApplicationLogAsync(transaction.Hash, cancellationToken).ConfigureAwait(false);
         var receipt = new RpcTransactionReceipt(
@@ -259,6 +265,14 @@ public sealed class RpcTransactionSender
         return exception.Code is -100 or -105
             || exception.Message.Contains("Unknown transaction", StringComparison.OrdinalIgnoreCase)
             || exception.Message.Contains("not found", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsAlreadyKnownTransaction(JsonRpcException exception)
+    {
+        return exception.Message.Contains("already exists", StringComparison.OrdinalIgnoreCase)
+            || exception.Message.Contains("already in pool", StringComparison.OrdinalIgnoreCase)
+            || exception.Message.Contains("already known", StringComparison.OrdinalIgnoreCase)
+            || exception.Message.Contains("already on chain", StringComparison.OrdinalIgnoreCase);
     }
 
     private void ValidateWitness(Witness witness)

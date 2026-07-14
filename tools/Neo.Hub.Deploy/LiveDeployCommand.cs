@@ -85,6 +85,10 @@ public static class LiveDeployCommand
         var sender = Contract.CreateSignatureRedeemScript(key.PublicKey).ToScriptHash();
         var emergencyCouncil = ParseRequiredAccount(
             ArgUtil.Get(args, "--emergency-council", ""), addressVersion, "--emergency-council");
+        var l2PayoutRelayAccount = ParseRequiredAccount(
+            ArgUtil.Get(args, "--l2-payout-relay-account", sender.ToString()),
+            addressVersion,
+            "--l2-payout-relay-account");
         var forcedInclusionFeeRecipient = ParseRequiredAccount(
             ArgUtil.Get(args, "--forced-inclusion-fee-recipient", sender.ToString()),
             addressVersion,
@@ -96,7 +100,8 @@ public static class LiveDeployCommand
             : Path.GetDirectoryName(Path.GetFullPath(planPath)) ?? Directory.GetCurrentDirectory();
         var plan = LoadPlan(planPath);
         plan = SubstituteOperatorPlaceholders(
-            plan, sender, gasHash, key.PublicKey, emergencyCouncil, l2ChainId, fraudReplayDomain);
+            plan, sender, gasHash, key.PublicKey, emergencyCouncil, l2ChainId,
+            fraudReplayDomain, l2PayoutRelayAccount);
 
         var predicted = PredictContractHashes(plan, sender, baseDirectory);
         var bundle = DeployPlanner.Plan(plan, name => predicted[name]);
@@ -109,6 +114,7 @@ public static class LiveDeployCommand
         Console.WriteLine($"  network: {network}");
         Console.WriteLine($"  signer: {ownerAddress} ({sender})");
         Console.WriteLine($"  external bridge L2 domain: {l2ChainId}");
+        Console.WriteLine($"  external bridge payout relay: {l2PayoutRelayAccount}");
         Console.WriteLine($"  restricted-fraud replay domain: {fraudReplayDomain}");
         Console.WriteLine($"  forced inclusion fee: {forcedInclusionFee} ({forcedInclusionFeeRecipient})");
         Console.WriteLine($"  dryRun: {dryRun}");
@@ -388,13 +394,18 @@ public static class LiveDeployCommand
         NeoECPoint publicKey,
         UInt160 emergencyCouncil,
         uint l2ChainId,
-        UInt256 fraudReplayDomain)
+        UInt256 fraudReplayDomain,
+        UInt160 l2PayoutRelayAccount)
     {
         ScaffoldPlan.RequireExecutableOptimisticFraudProfile(plan);
         if (l2ChainId == 0) throw new ArgumentOutOfRangeException(nameof(l2ChainId));
         ArgumentNullException.ThrowIfNull(fraudReplayDomain);
         if (fraudReplayDomain == UInt256.Zero)
             throw new ArgumentException("Fraud replay domain must not be zero.", nameof(fraudReplayDomain));
+        ArgumentNullException.ThrowIfNull(l2PayoutRelayAccount);
+        if (l2PayoutRelayAccount == UInt160.Zero)
+            throw new ArgumentException("L2 payout relay account must not be zero.",
+                nameof(l2PayoutRelayAccount));
         return new DeployPlan
         {
             Version = plan.Version,
@@ -403,7 +414,7 @@ public static class LiveDeployCommand
             {
                 DeployData = (JArray)SubstituteToken(
                     s.DeployData, owner, gasHash, publicKey, emergencyCouncil, l2ChainId,
-                    fraudReplayDomain)!,
+                    fraudReplayDomain, l2PayoutRelayAccount)!,
             }).ToArray(),
         };
     }
@@ -415,7 +426,8 @@ public static class LiveDeployCommand
         NeoECPoint publicKey,
         UInt160 emergencyCouncil,
         uint l2ChainId,
-        UInt256 fraudReplayDomain)
+        UInt256 fraudReplayDomain,
+        UInt160 l2PayoutRelayAccount)
     {
         if (token is null) return null;
         if (token is JString str)
@@ -428,6 +440,7 @@ public static class LiveDeployCommand
                 "EMERGENCY_COUNCIL_REPLACE_ME" => new JString(emergencyCouncil.ToString()),
                 "L2_CHAIN_ID_REPLACE_ME" => new JNumber(l2ChainId),
                 "FRAUD_REPLAY_DOMAIN_REPLACE_ME" => new JString(fraudReplayDomain.ToString()),
+                "L2_PAYOUT_RELAY_ACCOUNT_REPLACE_ME" => new JString(l2PayoutRelayAccount.ToString()),
                 _ => new JString(str.AsString()),
             };
         }
@@ -436,7 +449,7 @@ public static class LiveDeployCommand
             var copy = new JArray();
             foreach (var child in arr)
                 copy.Add(SubstituteToken(child, owner, gasHash, publicKey, emergencyCouncil,
-                    l2ChainId, fraudReplayDomain));
+                    l2ChainId, fraudReplayDomain, l2PayoutRelayAccount));
             return copy;
         }
         if (token is JObject obj)
@@ -444,7 +457,7 @@ public static class LiveDeployCommand
             var copy = new JObject();
             foreach (var (k, v) in obj.Properties)
                 copy[k] = SubstituteToken(v, owner, gasHash, publicKey, emergencyCouncil,
-                    l2ChainId, fraudReplayDomain);
+                    l2ChainId, fraudReplayDomain, l2PayoutRelayAccount);
             return copy;
         }
         return token;

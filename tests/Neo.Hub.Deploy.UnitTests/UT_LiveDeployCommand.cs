@@ -141,11 +141,13 @@ public class UT_LiveDeployCommand
         var owner = new UInt160(new byte[UInt160.Length]);
         var gas = new UInt160(Enumerable.Repeat((byte)2, UInt160.Length).ToArray());
         var emergencyCouncil = new UInt160(Enumerable.Repeat((byte)3, UInt160.Length).ToArray());
+        var payoutRelay = new UInt160(Enumerable.Repeat((byte)4, UInt160.Length).ToArray());
 
         var substituted = LiveDeployCommand.SubstituteOperatorPlaceholders(
             ScaffoldPlan.Default(), owner, gas, key.PublicKey, emergencyCouncil, 1001,
-            FraudReplayDomain);
+            FraudReplayDomain, payoutRelay);
         var escrow = substituted.Steps.Single(s => s.Name == "ExternalBridgeEscrow");
+        var payoutAdapter = substituted.Steps.Single(s => s.Name == "L2PayoutAdapter");
         var emergency = substituted.Steps.Single(s => s.Name == "EmergencyManager");
         var restricted = substituted.Steps.Single(
             s => s.Name == "RestrictedExecutionFraudVerifier");
@@ -154,6 +156,7 @@ public class UT_LiveDeployCommand
         Assert.AreEqual(1001d, escrow.DeployData[2]!.AsNumber());
         Assert.AreEqual(emergencyCouncil.ToString(), emergency.DeployData[1]!.AsString());
         Assert.AreEqual(FraudReplayDomain.ToString(), restricted.DeployData[1]!.AsString());
+        Assert.AreEqual(payoutRelay.ToString(), payoutAdapter.DeployData[3]!.AsString());
 
         var resolvedRestricted = DeployPlanner.Plan(substituted, _ => owner).Invocations
             .Single(invocation => invocation.Name == "RestrictedExecutionFraudVerifier");
@@ -167,11 +170,11 @@ public class UT_LiveDeployCommand
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
             LiveDeployCommand.SubstituteOperatorPlaceholders(
                 ScaffoldPlan.Default(), owner, gas, key.PublicKey, emergencyCouncil, 0,
-                FraudReplayDomain));
+                FraudReplayDomain, payoutRelay));
         Assert.ThrowsExactly<ArgumentException>(() =>
             LiveDeployCommand.SubstituteOperatorPlaceholders(
                 ScaffoldPlan.Default(), owner, gas, key.PublicKey, emergencyCouncil, 1001,
-                UInt256.Zero));
+                UInt256.Zero, payoutRelay));
     }
 
     [TestMethod]
@@ -210,7 +213,7 @@ public class UT_LiveDeployCommand
 
         var ex = Assert.ThrowsExactly<InvalidOperationException>(() =>
             LiveDeployCommand.SubstituteOperatorPlaceholders(
-                plan, owner, owner, key.PublicKey, owner, 1001, FraudReplayDomain));
+                plan, owner, owner, key.PublicKey, owner, 1001, FraudReplayDomain, owner));
         StringAssert.Contains(ex.Message, "unsupported optimistic deployment");
         StringAssert.Contains(ex.Message, "v1/v2/v3");
     }

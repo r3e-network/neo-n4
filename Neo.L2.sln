@@ -19,6 +19,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.L2.Messaging", "src\Neo
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.L2.Bridge", "src\Neo.L2.Bridge\Neo.L2.Bridge.csproj", "{A0001000-0000-0000-0000-000000000005}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.L2.ExternalBridge", "src\Neo.L2.ExternalBridge\Neo.L2.ExternalBridge.csproj", "{A0001000-0000-0000-0000-000000000019}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.L2.Proving", "src\Neo.L2.Proving\Neo.L2.Proving.csproj", "{A0001000-0000-0000-0000-000000000006}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.L2.Executor", "src\Neo.L2.Executor\Neo.L2.Executor.csproj", "{A0001000-0000-0000-0000-000000000007}"
@@ -38,6 +40,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.L2.Executor.UnitTests", "tests\Neo.L2.Executor.UnitTests\Neo.L2.Executor.UnitTests.csproj", "{A0002000-0000-0000-0000-000000000007}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.L2.IntegrationTests", "tests\Neo.L2.IntegrationTests\Neo.L2.IntegrationTests.csproj", "{A0002000-0000-0000-0000-000000000008}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.L2.ExternalBridge.UnitTests", "tests\Neo.L2.ExternalBridge.UnitTests\Neo.L2.ExternalBridge.UnitTests.csproj", "{A0002000-0000-0000-0000-000000000027}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.Plugins.L2Rpc", "src\Neo.Plugins.L2Rpc\Neo.Plugins.L2Rpc.csproj", "{A0001000-0000-0000-0000-000000000008}"
 EndProject
@@ -161,6 +165,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NeoHub.MpcCommitteeVerifier
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NeoHub.ExternalBridgeEscrow", "contracts\NeoHub.ExternalBridgeEscrow\NeoHub.ExternalBridgeEscrow.csproj", "{8F464A14-1931-46D8-9324-254822EF3089}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NeoHub.L2PayoutAdapter", "contracts\NeoHub.L2PayoutAdapter\NeoHub.L2PayoutAdapter.csproj", "{F72FDE26-4E26-4A8A-95AA-36574AA79C9B}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NeoHub.ExternalBridgeBond", "contracts\NeoHub.ExternalBridgeBond\NeoHub.ExternalBridgeBond.csproj", "{999FC984-C349-481E-B5E2-8760D57F43D2}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Neo.External.Bridge.Cli", "tools\Neo.External.Bridge.Cli\Neo.External.Bridge.Cli.csproj", "{8899245E-8A6E-4619-B3CF-CFEDEC6D86A5}"
@@ -239,6 +245,42 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A0001000-0000-0000-0000-000000000019}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A0001000-0000-0000-0000-000000000019}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A0001000-0000-0000-0000-000000000019}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A0001000-0000-0000-0000-000000000019}.Debug|x64.Build.0 = Debug|Any CPU
+		{A0001000-0000-0000-0000-000000000019}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A0001000-0000-0000-0000-000000000019}.Debug|x86.Build.0 = Debug|Any CPU
+		{A0001000-0000-0000-0000-000000000019}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A0001000-0000-0000-0000-000000000019}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A0001000-0000-0000-0000-000000000019}.Release|x64.ActiveCfg = Release|Any CPU
+		{A0001000-0000-0000-0000-000000000019}.Release|x64.Build.0 = Release|Any CPU
+		{A0001000-0000-0000-0000-000000000019}.Release|x86.ActiveCfg = Release|Any CPU
+		{A0001000-0000-0000-0000-000000000019}.Release|x86.Build.0 = Release|Any CPU
+		{A0002000-0000-0000-0000-000000000027}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A0002000-0000-0000-0000-000000000027}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A0002000-0000-0000-0000-000000000027}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A0002000-0000-0000-0000-000000000027}.Debug|x64.Build.0 = Debug|Any CPU
+		{A0002000-0000-0000-0000-000000000027}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A0002000-0000-0000-0000-000000000027}.Debug|x86.Build.0 = Debug|Any CPU
+		{A0002000-0000-0000-0000-000000000027}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A0002000-0000-0000-0000-000000000027}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A0002000-0000-0000-0000-000000000027}.Release|x64.ActiveCfg = Release|Any CPU
+		{A0002000-0000-0000-0000-000000000027}.Release|x64.Build.0 = Release|Any CPU
+		{A0002000-0000-0000-0000-000000000027}.Release|x86.ActiveCfg = Release|Any CPU
+		{A0002000-0000-0000-0000-000000000027}.Release|x86.Build.0 = Release|Any CPU
+		{F72FDE26-4E26-4A8A-95AA-36574AA79C9B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F72FDE26-4E26-4A8A-95AA-36574AA79C9B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F72FDE26-4E26-4A8A-95AA-36574AA79C9B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{F72FDE26-4E26-4A8A-95AA-36574AA79C9B}.Debug|x64.Build.0 = Debug|Any CPU
+		{F72FDE26-4E26-4A8A-95AA-36574AA79C9B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{F72FDE26-4E26-4A8A-95AA-36574AA79C9B}.Debug|x86.Build.0 = Debug|Any CPU
+		{F72FDE26-4E26-4A8A-95AA-36574AA79C9B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F72FDE26-4E26-4A8A-95AA-36574AA79C9B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F72FDE26-4E26-4A8A-95AA-36574AA79C9B}.Release|x64.ActiveCfg = Release|Any CPU
+		{F72FDE26-4E26-4A8A-95AA-36574AA79C9B}.Release|x64.Build.0 = Release|Any CPU
+		{F72FDE26-4E26-4A8A-95AA-36574AA79C9B}.Release|x86.ActiveCfg = Release|Any CPU
+		{F72FDE26-4E26-4A8A-95AA-36574AA79C9B}.Release|x86.Build.0 = Release|Any CPU
 		{A0001000-0000-0000-0000-000000000001}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{A0001000-0000-0000-0000-000000000001}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A0001000-0000-0000-0000-000000000001}.Debug|x64.ActiveCfg = Debug|Any CPU
@@ -1480,6 +1522,9 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
+		{A0001000-0000-0000-0000-000000000019} = {FEED0001-0000-0000-0000-000000000001}
+		{A0002000-0000-0000-0000-000000000027} = {FEED0001-0000-0000-0000-000000000002}
+		{F72FDE26-4E26-4A8A-95AA-36574AA79C9B} = {A73F2606-6D4C-3EEE-1759-0E59DCFEF523}
 		{A0001000-0000-0000-0000-000000000001} = {FEED0001-0000-0000-0000-000000000001}
 		{A0001000-0000-0000-0000-000000000002} = {FEED0001-0000-0000-0000-000000000001}
 		{A0001000-0000-0000-0000-000000000003} = {FEED0001-0000-0000-0000-000000000001}

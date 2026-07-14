@@ -254,7 +254,7 @@ For deeper diagrams, see:
 
 The architecture is three tiers:
 
-- **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 25 contract projects (23 production contracts, one advisory-only structural fraud verifier, and one test-only stub) grouped into
+- **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 26 contract projects (24 production contracts, one advisory-only structural fraud verifier, and one test-only stub) grouped into
   six concerns: *Settlement* (SettlementManager · VerifierRegistry · ContractZkVerifier), *Bridge*
   (SharedBridge · TokenRegistry · ChainRegistry), *Messaging* (MessageRouter · DARegistry),
   *Security* (SequencerRegistry · SequencerBond · ForcedInclusion · OptimisticChallenge),
@@ -283,10 +283,10 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 
 | Area              | Count     | Description                                                              |
 | ----------------- | --------- | ------------------------------------------------------------------------ |
-| Off-chain libraries | **16**  | `Neo.L2.{Abstractions,Audit,Batch,Bridge,Censorship,Challenge,Executor,Executor.RiscV,ForcedInclusion,Messaging,Persistence,Proving,Sequencer,Settlement.Rpc,State,Telemetry}` (App SDK in `Neo.L2.Sdk` is counted separately under App SDKs) |
+| Off-chain libraries | **17**  | `Neo.L2.{Abstractions,Audit,Batch,Bridge,Censorship,Challenge,Executor,Executor.RiscV,ExternalBridge,ForcedInclusion,Messaging,Persistence,Proving,Sequencer,Settlement.Rpc,State,Telemetry}` (App SDK in `Neo.L2.Sdk` is counted separately under App SDKs) |
 | Persistence backends | **2**  | `InMemoryKeyValueStore` (tests) · `RocksDbKeyValueStore` (production default) — see [`docs/persistence.md`](./docs/persistence.md) |
 | Node plugins      | **8**     | `Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}`  |
-| Smart contracts   | **25 projects + 10 L2 native** | 25 NeoHub L1 contract projects: 23 production contracts, advisory-only `GovernanceFraudVerifier`, and test-only `ExternalBridgeStubVerifier`. The production bundle excludes both non-state-changing helpers and includes the `ContractZkVerifier` router plus immutable `Sp1Groth16Verifier` terminal verifier for real SP1/BN254 proof math. 10 L2 system contracts are Neo core native contracts in the r3e `external/neo` fork. |
+| Smart contracts   | **26 projects + 10 L2 native** | 26 NeoHub L1 contract projects: 24 production contracts, advisory-only `GovernanceFraudVerifier`, and test-only `ExternalBridgeStubVerifier`. The production bundle excludes both non-state-changing helpers and includes the concrete immutable `L2PayoutAdapter`, `ContractZkVerifier` router, and immutable `Sp1Groth16Verifier` terminal verifier. 10 L2 system contracts are Neo core native contracts in the r3e `external/neo` fork. |
 | CLI tools         | **7**     | `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`, `neo-l2-explore`, `neo-bridge`, `neo-l2-faucet`, `neo-external-bridge` |
 | App SDKs          | **4**     | `src/Neo.L2.Sdk/` (.NET) · `sdk/typescript/` (`@neo-n4/sdk`) · `sdk/rust/` (`neo-n4-sdk`) · `sdk/python/` (`neo-n4-sdk`) — all 10 RPC methods, same wire shape, same 4-class error taxonomy |
 | Web apps          | **2**     | `sdk/web-explorer/index.html` — single static-file UI: Explore + Bridge + Faucet + state-root continuity Audit · `docs/interactive-runtime/index.html` — static runtime theater for learning architecture/data-flow/business-flow scenarios |
@@ -294,7 +294,7 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 | Rust prover/core  | **5**     | `bridge/neo-execution-core/` (shared canonical execution semantics) · `bridge/neo-zkvm-{host,guest}/` (batch SP1 proof producer/program) · `bridge/neo-zkvm-gateway-{host,guest}/` (recursive Gateway SP1 proof producer/program) |
 | Foreign-chain integrations | **6** | Watchers (3): `watchers/neo-bridge-watcher-eth/` (secp256k1+SHA256, **serves the entire EVM family** — Ethereum, Tron, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche, Linea, zkSync Era, Scroll, Mantle, Fantom, Celo — via one chain-id-driven daemon binary; 32 base tests + 55 live-RPC integration tests = 87 with `--features live-rpc`. Production daemon ships **graceful SIGTERM shutdown**, **`/healthz`+`/info` HTTP endpoints**, **`/metrics` Prometheus exposition**, **per-chain `min_confirmations` reorg buffer**, and **`flock`-based concurrent-instance detection** on the journal directory; reference k8s + systemd manifests in [`watchers/neo-bridge-watcher-eth/deploy/`](./watchers/neo-bridge-watcher-eth/deploy/)) · `.../-tron/` (thin re-export with Tron chain-ids `0xE0000010..12`, 7 tests) · `.../-sol/` (ed25519-dalek + Solana chain-ids `0xE0000020..22`, 9 tests; curve-agnostic `Signer` trait dispatches to `CryptoLib.VerifyWithEd25519` on-chain). Foreign-side routers (3): `external/foreign-contracts/eth/` (393-line Solidity that deploys unchanged on any EVM chain — constructor parameterizes `externalChainId`; **39 Foundry tests** = 32 single-chain + 7 multi-chain pinning per-instance state isolation across 17 canonical mainnet slots (14 family banks + Polygon zkEVM, Arbitrum Nova, Sonic variants)) · `.../tron/` (README — TVM is EVM-flavored Solidity, points at the Eth contract) · `.../sol/` (~638-line Anchor program using Solana's ed25519 sigverify precompile, source-only — operator runs `anchor build`). Canonical 16-slot family banks for the namespace + 5-step EVM-onboarding runbook in [`docs/external-bridge-evm-chains.md`](./docs/external-bridge-evm-chains.md). |
 | Submodules        | **4**     | `external/neo` (`r3e-network/neo` fork, L2 branch `r3e/neo-n4-core`; L1 core branch is `r3e/neo-n3-core` in the same fork) · `external/neo-devpack-dotnet` (smart-contract devpack + nccs) · `external/neo-riscv-vm` (PolkaVM-backed NeoVM2/RISC-V L2 engine) · `external/neo-zkvm` (SP1 prover crates and legacy Neo VM compatibility guest). None are released on NuGet/crates.io for the versions tracked here. |
-| Tests             | **37 .NET test projects + cross-language gates** | The solution discovers the current .NET inventory dynamically, plus TypeScript, Rust SDK/core/watchers/zkVM, Python SDK, Node experience, vendored `neo-zkvm` / `neo-riscv-vm`, Solidity, Solana, and SP1 release-proof gates documented in [`docs/testing-approach.md`](./docs/testing-approach.md). |
+| Tests             | **38 .NET test projects + cross-language gates** | The solution discovers the current .NET inventory dynamically, plus TypeScript, Rust SDK/core/watchers/zkVM, Python SDK, Node experience, vendored `neo-zkvm` / `neo-riscv-vm`, Solidity, Solana, and SP1 release-proof gates documented in [`docs/testing-approach.md`](./docs/testing-approach.md). |
 
 ```
 neo4/
@@ -312,7 +312,7 @@ neo4/
 │   ├── Neo.L2.Telemetry/                   # IL2Metrics + PrometheusExporter
 │   └── Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}/
 ├── contracts/
-│   ├── NeoHub.* (25)                       # L1 suite: 23 production + 1 advisory + 1 test stub
+│   ├── NeoHub.* (26)                       # L1 suite: 24 production + 1 advisory + 1 test stub
 ├── external/neo/                            # r3e Neo fork with N4 L2 native contracts
 ├── tools/
 │   ├── Neo.Stack.Cli/                      # neo-stack CLI (12 subcommands)
@@ -326,7 +326,7 @@ neo4/
 │   ├── neo-execution-core/                 # backend-neutral batch fold, roots, public input hash
 │   ├── neo-zkvm-guest/                     # Rust → RISC-V ELF (SP1-proven execution guest)
 │   └── neo-zkvm-host/                      # sp1-sdk 6.2.1 prover daemon (prove-batch)
-└── tests/                                  # 37 solution test projects; inventory is discovered dynamically
+└── tests/                                  # 38 solution test projects; inventory is discovered dynamically
 ```
 
 ---
@@ -338,7 +338,7 @@ Per [`doc.md` §18](./doc.md):
 | Phase | Goal                                | Status | Evidence                                                  |
 | ----- | ----------------------------------- | :----: | --------------------------------------------------------- |
 | 0     | Sidechain PoC                       | ✅     | MVP integration test passes end-to-end                    |
-| 1     | NeoHub v0 + Shared Bridge           | ✅     | All 25 NeoHub projects compile; deploy planner emits 23 production steps (15 core + ContractZkVerifier + Sp1Groth16Verifier + executable-v4 fraud verifier + 5 external-bridge); structural v1/v2 verifier is excluded |
+| 1     | NeoHub v0 + Shared Bridge           | ✅     | All 26 NeoHub projects compile; deploy planner emits 24 production steps, including the concrete immutable L2 payout adapter; structural v1/v2 verifier is excluded |
 | 2     | Batch Settlement                    | ✅     | Real `KeyedStateStore` continuity verified across batches |
 | 3     | Optimistic Challenge Window         | 🟡     | Exact registered executable v4 is state-changing and governance cannot bypass it; shipped v4 covers one committed single-transaction Counter transition, while general NeoVM fraud proofs fail closed |
 | 4     | NeoVM 2 / RISC-V ZK Validity Proof  | ✅     | Neo N4 L2 execution targets NeoVM2/RISC-V via `src/Neo.L2.Executor.RiscV` + PolkaVM host in `external/neo-riscv-vm`; SP1 proving lives in `bridge/neo-zkvm-host`; `Sp1Groth16Verifier` accepts a Rust-produced positive proof and rejects tampered bindings through current Neo Core BN254 interops. Execution semantics remain versioned: unsupported profiles fail closed rather than inheriting this claim. |
@@ -415,7 +415,7 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --data-dir /tmp/neo-l2-devnet
 
 # --- L1 deploy (when ready) ---
 
-# Generate a NeoHub deploy bundle (23 production contracts, declarative, dependency-resolved)
+# Generate a NeoHub deploy bundle (24 production contracts, declarative, dependency-resolved)
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold --output deploy-plan.json
 dotnet run --project tools/Neo.Hub.Deploy -- plan     --plan deploy-plan.json --output bundle.json
 

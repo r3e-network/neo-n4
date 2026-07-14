@@ -115,6 +115,24 @@ public class UT_RpcTransactionSender
     }
 
     [TestMethod]
+    public async Task BroadcastAndWait_AlreadyKnownTransactionContinuesToConfirmation()
+    {
+        var handler = new ScriptedRpcHandler(Network)
+        {
+            BroadcastErrorMessage = "Transaction already exists in the memory pool",
+        };
+        using var http = new HttpClient(handler);
+        using var rpc = new JsonRpcClient(Endpoint, http);
+        using var signer = CreateSigner();
+        var sender = CreateSender(rpc, signer);
+
+        var receipt = await sender.SendInvocationAsync(new byte[] { 0x40 });
+
+        Assert.AreEqual("HALT", receipt.VmState);
+        Assert.IsTrue(handler.Methods.Contains("getapplicationlog"));
+    }
+
+    [TestMethod]
     public async Task BroadcastAndWait_RejectsFaultedConfirmedTransaction()
     {
         var handler = new ScriptedRpcHandler(Network) { ExecutionState = "FAULT" };
@@ -191,6 +209,7 @@ public class UT_RpcTransactionSender
         public bool FailNetworkFee { get; init; }
         public int PendingApplicationLogs { get; set; }
         public JToken BroadcastResult { get; init; } = true;
+        public string? BroadcastErrorMessage { get; init; }
 
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
@@ -210,6 +229,13 @@ public class UT_RpcTransactionSender
                 var error = new JObject();
                 error["code"] = -32603;
                 error["message"] = "fee service unavailable";
+                response["error"] = error;
+            }
+            else if (method == "sendrawtransaction" && BroadcastErrorMessage is not null)
+            {
+                var error = new JObject();
+                error["code"] = -501;
+                error["message"] = BroadcastErrorMessage;
                 response["error"] = error;
             }
             else if (method == "getapplicationlog" && PendingApplicationLogs-- > 0)

@@ -36,12 +36,12 @@ public class UT_ScaffoldCommand
         Assert.IsTrue(File.Exists(output), "scaffold must produce the output file");
 
         // Content must be parseable back into a DeployPlan + match the canonical
-        // 23-step scaffold (ScaffoldPlan.Default: 15 core + 1 executable fraud verifier
+        // 24-step scaffold (ScaffoldPlan.Default: 15 core + 1 executable fraud verifier
         // + 1 ZK verifier router + 1 pinned SP1 terminal verifier + 4 Phase-B external-bridge
-        // + 1 Phase-C MpcCommitteeFraudVerifier).
+        // + 1 Phase-C MpcCommitteeFraudVerifier + 1 immutable L2 payout adapter).
         var json = File.ReadAllText(output);
         var roundtripped = DeployPlan.FromJson(json);
-        Assert.AreEqual(23, roundtripped.Steps.Count);
+        Assert.AreEqual(24, roundtripped.Steps.Count);
         Assert.AreEqual(ScaffoldPlan.Default().Steps.Count, roundtripped.Steps.Count);
     }
 

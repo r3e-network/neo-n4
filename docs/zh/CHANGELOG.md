@@ -23,6 +23,7 @@
 - 2026-07-14 治理法定人数恢复：新增 2-of-3 委员会丢失一个签名者后由其余两个成员完成 epoch 绑定、timelock 保护的完整轮换 VM 证据；明确无 owner 绕过，低于阈值时必须停止治理并走另行审计的紧急迁移；同步修正强制包含罚没文档，deadline 后已证明的审查不会被迟到消费抹除。
 - 2026-07-14 原生 RISC-V 覆盖门禁：覆盖脚本会构建、复制并强制加载锁定的 `neo_riscv_host` 平台库，记录 SHA-256，缺失时直接失败；真实 ABI 门禁自动发现全部 `RealNative_` 测试并覆盖 Notify、复杂栈、运行时上下文、存储迭代、回滚与错误路径。
 - 2026-07-14 Gateway 递归 SP1 与原子终局发布：新增独立 SP1 6.2.1 guest/host，严格校验 `NEO4GWP1` 请求、固定 170 字节 `NEO4GWR2` binding、排序承诺与根、编译期锁定 batch VK 的压缩子证明，并由 host 再验证终端 Groth16；崩溃恢复重新验证完整 marker，只清理 regular non-symlink orphan。新增 `SettlementManager.PublishGatewayGlobalRoot`，以精确 finalized batch references、O(log 4096) 双根重建、每链不可回退 watermark 和同交易 `MessageRouter` 调用闭合授权与最终化绑定。Phase 5 仅因独立审计与真实递归证明部署证据未完成而保持部分完成。
+- 2026-07-14 外链入站 payout 闭环：L1 immutable adapter、RocksDB relay 与 L2 native `ApplyPayout` 形成 enqueue/prepare/credit/ack 的可恢复状态机；跨 EVM wire 的 foreign asset 全程使用 opaque network-order `ExternalAssetId`，scanner 与 L2 invocation 保持原始 20-byte 顺序，并以非对称地址向量防止误套 Neo `UInt160` 端序。
 
 ## 维护检查清单
 

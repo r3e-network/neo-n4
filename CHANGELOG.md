@@ -114,6 +114,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Added irreversible proposal-only production governance, exact proposal-payload binding and replay
   protection, chain-specific liquidity accounting, canonical uint256 amount validation across C#,
   Rust, and NeoVM, plus deployment-plan wiring and failure/reentrancy/upgrade regression coverage.
+- Integrated the durable L2 payout relay with the opaque network-order `ExternalAssetId` wire type;
+  scanner parsing and L2 invocation scripts preserve raw foreign-asset bytes, with an asymmetric
+  address regression vector preventing accidental Neo `UInt160` endianness conversion.
 
 ### Fixed — Python SDK CI dependency parity — 2026-07-14
 

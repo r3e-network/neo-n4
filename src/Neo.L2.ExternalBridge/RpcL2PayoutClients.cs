@@ -2,6 +2,7 @@ using Neo.Extensions;
 using Neo.Extensions.IO;
 using Neo.Extensions.VM;
 using Neo.IO;
+using Neo.L2.Bridge.External;
 using Neo.L2.Settlement.Rpc;
 using Neo.Network.P2P.Payloads;
 using Neo.SmartContract;
@@ -91,6 +92,8 @@ public sealed class RpcL2PayoutCreditClient : IL2PayoutCreditClient
         CancellationToken cancellationToken = default)
     {
         ValidateInstruction(instruction);
+        var foreignAsset = new byte[ExternalAssetId.Length];
+        instruction.ForeignAsset.CopyTo(foreignAsset);
         using var builder = new ScriptBuilder();
         builder.EmitDynamicCall(
             _nativeBridge,
@@ -99,7 +102,7 @@ public sealed class RpcL2PayoutCreditClient : IL2PayoutCreditClient
             instruction.Message.ExternalChainId,
             instruction.Message.NeoChainId,
             instruction.Message.Nonce,
-            instruction.ForeignAsset,
+            foreignAsset,
             instruction.NeoAsset,
             instruction.Message.Recipient,
             instruction.Amount,

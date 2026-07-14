@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Numerics;
 using System.Text;
 using Neo.Json;
+using Neo.L2.Bridge.External;
 using Neo.L2.Persistence;
 using Neo.L2.Settlement.Rpc;
 
@@ -208,7 +209,8 @@ public sealed class RpcL1PayoutQueueScanner : IDisposable
         var externalChainId = ParseStackUInt32(values[2], "PayoutEnqueued.externalChainId");
         var neoChainId = ParseStackUInt32(values[3], "PayoutEnqueued.neoChainId");
         var nonce = ParseStackUInt64(values[4], "PayoutEnqueued.nonce");
-        var foreignAsset = ParseStackUInt160(values[5], "PayoutEnqueued.foreignAsset");
+        var foreignAsset = ParseStackExternalAssetId(
+            values[5], "PayoutEnqueued.foreignAsset");
         var neoAsset = ParseStackUInt160(values[6], "PayoutEnqueued.neoAsset");
         var recipient = ParseStackUInt160(values[7], "PayoutEnqueued.recipient");
         var amount = ParseStackInteger(values[8], "PayoutEnqueued.amount");
@@ -326,6 +328,20 @@ public sealed class RpcL1PayoutQueueScanner : IDisposable
         if (bytes.Length != UInt160.Length)
             throw new InvalidDataException($"{field} is not 20 bytes");
         return new UInt160(bytes);
+    }
+
+    private static ExternalAssetId ParseStackExternalAssetId(JToken? token, string field)
+    {
+        var bytes = ParseStackBytes(token, field);
+        try
+        {
+            return new ExternalAssetId(bytes);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new InvalidDataException(
+                $"{field} is not a canonical foreign asset identifier", exception);
+        }
     }
 
     private static UInt256 ParseStackUInt256(JToken? token, string field)

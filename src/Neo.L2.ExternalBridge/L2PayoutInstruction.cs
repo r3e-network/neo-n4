@@ -20,7 +20,7 @@ public sealed record L2PayoutInstruction
     public required ExternalCrossChainMessage Message { get; init; }
 
     /// <summary>Foreign asset decoded from the canonical asset-transfer payload.</summary>
-    public required UInt160 ForeignAsset { get; init; }
+    public required ExternalAssetId ForeignAsset { get; init; }
 
     /// <summary>Amount decoded from the canonical asset-transfer payload.</summary>
     public required System.Numerics.BigInteger Amount { get; init; }

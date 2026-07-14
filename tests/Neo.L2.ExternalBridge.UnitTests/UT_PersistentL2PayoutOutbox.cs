@@ -12,7 +12,8 @@ public sealed class UT_PersistentL2PayoutOutbox
     private const uint NeoChainId = 1099;
     private static readonly UInt160 Adapter = H160(0x11);
     private static readonly UInt160 ForeignSender = H160(0x22);
-    private static readonly UInt160 ForeignAsset = H160(0x33);
+    private static readonly ExternalAssetId ForeignAsset =
+        ExternalAssetId.Parse("11223344556677889900aabbccddeeff00112233");
     private static readonly UInt160 NeoAsset = H160(0x44);
     private static readonly UInt160 Recipient = H160(0x55);
     private static readonly UInt256 SourceTransaction = H256(0x66);

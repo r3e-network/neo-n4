@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — real SP1 CI workspace ownership — 2026-07-15
+
+- Restored the GitHub runner's ownership of Docker-generated SP1 target artifacts before
+  host-side Cargo formatting, linting, and tests, preventing the required real-proof job from
+  failing with a permission error after a successful reproducible guest build.
+
 ### Added — native SP1 execution and atomic state handoff — 2026-07-14
 
 - Added host-native `neo-zkvm-executor` as a second binary in the existing guest crate; it calls

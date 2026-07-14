@@ -202,6 +202,14 @@ class CargoProveWrapperTests(unittest.TestCase):
         )
         self.assertIn("cargo prove build --docker --locked", workflow)
         self.assertIn("cargo prove build --docker --locked", private_network)
+        prove_step = workflow.split(
+            "- name: cargo prove build (reproducible guest ELF)", 1
+        )[1].split("\n      - name:", 1)[0]
+        self.assertIn("sudo chown --recursive --no-dereference", prove_step)
+        self.assertLess(
+            prove_step.index("cargo prove build --docker --locked"),
+            prove_step.index("sudo chown --recursive --no-dereference"),
+        )
         self.assertIn("cargo test real recursive Gateway proof", private_network)
         self.assertIn('include!("batch_vk_manifest.rs")', gateway_guest_build)
         self.assertNotIn('include!("vk_manifest.rs")', gateway_guest_build)

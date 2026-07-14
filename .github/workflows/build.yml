@@ -450,7 +450,10 @@ jobs:
 
       - name: cargo prove build (reproducible guest ELF)
         working-directory: bridge/neo-zkvm-guest
-        run: cargo prove build --docker --locked
+        run: |
+          cargo prove build --docker --locked
+          sudo chown --recursive --no-dereference \
+            "$(id -u):$(id -g)" "$GITHUB_WORKSPACE/target"
 
       - name: cargo fmt (Rust workspace)
         run: cargo fmt --all -- --check

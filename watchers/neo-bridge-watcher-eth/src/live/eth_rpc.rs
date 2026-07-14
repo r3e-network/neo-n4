@@ -111,9 +111,9 @@ fn decode_locked_event(log: &RawLog) -> Result<LockedEvent, EthRpcError> {
     let nonce = decode_topic_u64(&log.topics[3])?;
 
     // Decode `data` per ABI. Layout for the 6 non-indexed args:
-    //   [0..32]   sender (address, right-padded to 32B)
+    //   [0..32]   sender (address, left-padded with 12 zero bytes)
     //   [32..64]  neoRecipient (bytes20, left-padded to 32B)
-    //   [64..96]  asset (address, right-padded to 32B)
+    //   [64..96]  asset (address, left-padded with 12 zero bytes)
     //   [96..128] amount (uint256, BE)
     //   [128..160] payload offset (32B BE — points into the dynamic region)
     //   [160..192] deadline (uint64, right-padded to 32B)
@@ -127,12 +127,12 @@ fn decode_locked_event(log: &RawLog) -> Result<LockedEvent, EthRpcError> {
         )));
     }
     let mut sender = [0u8; 20];
-    sender.copy_from_slice(&data[12..32]); // address right-padded
+    sender.copy_from_slice(&data[12..32]); // discard ABI's 12-byte left padding
     // bytes20 stored as 20 bytes left-padded with 12 zeros.
     let mut neo_recipient = [0u8; 20];
     neo_recipient.copy_from_slice(&data[32..52]);
     let mut asset = [0u8; 20];
-    asset.copy_from_slice(&data[64 + 12..96]); // address right-padded
+    asset.copy_from_slice(&data[64 + 12..96]); // opaque network-order address bytes
     let mut amount = [0u8; 32];
     amount.copy_from_slice(&data[96..128]);
     let payload_offset = u64::from_be_bytes([
@@ -246,6 +246,11 @@ mod tests {
     use super::*;
     use crate::event_source::EventSource;
 
+    const ASYMMETRIC_ASSET: [u8; 20] = [
+        0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc,
+        0xfe, 0x11, 0x22, 0x33, 0x44,
+    ];
+
     /// Pin the Locked event signature hash. Operators reading this
     /// constant in their tooling expect a specific value; a refactor
     /// that changed the event signature would shift this and break
@@ -282,19 +287,19 @@ mod tests {
         let topic_nonce = format!("0x{:0>64x}", 42u64);
 
         // ABI-encode the 6 non-indexed args:
-        //   sender (0x11...), neoRecipient (0xaa..., bytes20), asset (0xee...),
+        //   sender, Neo recipient, and an asymmetric network-order asset address,
         //   amount = 1_000_000, payload offset = 192 (start after head),
         //   deadline = 1_900_000_000, then the payload (3 bytes: 0xCA 0xFE 0xBA).
         let mut data = Vec::new();
-        // sender (right-padded)
+        // sender (ABI-left-padded)
         data.extend_from_slice(&[0u8; 12]);
         data.extend_from_slice(&[0x11; 20]);
         // neoRecipient (bytes20 = left-aligned in 32 bytes, right-padded)
         data.extend_from_slice(&[0xaa; 20]);
         data.extend_from_slice(&[0u8; 12]);
-        // asset (right-padded)
+        // asset (ABI-left-padded)
         data.extend_from_slice(&[0u8; 12]);
-        data.extend_from_slice(&[0xee; 20]);
+        data.extend_from_slice(&ASYMMETRIC_ASSET);
         // amount = 1_000_000 (BE 32B)
         let mut amount32 = [0u8; 32];
         amount32[28..32].copy_from_slice(&1_000_000u32.to_be_bytes());
@@ -329,7 +334,7 @@ mod tests {
         assert_eq!(decoded.nonce, 42);
         assert_eq!(decoded.sender, [0x11; 20]);
         assert_eq!(decoded.neo_recipient, [0xaa; 20]);
-        assert_eq!(decoded.asset, [0xee; 20]);
+        assert_eq!(decoded.asset, ASYMMETRIC_ASSET);
         // amount BE: 1_000_000 in last 4 bytes, rest zero.
         let mut expected_amount = [0u8; 32];
         expected_amount[28..32].copy_from_slice(&1_000_000u32.to_be_bytes());
@@ -422,7 +427,7 @@ mod tests {
         data.extend_from_slice(&[0xaa; 20]); // neoRecipient (bytes20 left-aligned)
         data.extend_from_slice(&[0u8; 12]); //   right-pad
         data.extend_from_slice(&[0u8; 12]); // asset pad
-        data.extend_from_slice(&[0xee; 20]); // asset
+        data.extend_from_slice(&ASYMMETRIC_ASSET); // asset
         let mut amount32 = [0u8; 32];
         amount32[28..32].copy_from_slice(&1_000_000u32.to_be_bytes());
         data.extend_from_slice(&amount32); // amount
@@ -489,7 +494,7 @@ mod tests {
         assert_eq!(ev.nonce, 42);
         assert_eq!(ev.sender, [0x11; 20]);
         assert_eq!(ev.neo_recipient, [0xaa; 20]);
-        assert_eq!(ev.asset, [0xee; 20]);
+        assert_eq!(ev.asset, ASYMMETRIC_ASSET);
         assert_eq!(ev.payload, vec![0xCA, 0xFE, 0xBA]);
         assert_eq!(ev.deadline, 1_900_000_000);
         assert_eq!(ev.block_number, 0x10);

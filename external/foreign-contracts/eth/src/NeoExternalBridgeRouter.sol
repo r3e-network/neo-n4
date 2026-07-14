@@ -49,6 +49,12 @@ contract NeoExternalBridgeRouter {
     uint8 private constant MSG_TYPE_CALL = 1;
     uint8 private constant MSG_TYPE_ASSET_AND_CALL = 2;
 
+    /// @notice Canonical non-zero identifier for the EVM chain's native asset.
+    /// @dev    This mature sentinel is copied verbatim into the 20-byte foreignAsset
+    ///         wire field. ERC-20 tokens cannot use this reserved address.
+    address public constant NATIVE_ASSET_SENTINEL =
+        address(uint160(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE));
+
     // ─── state ────────────────────────────────────────────────────────────
 
     address public owner;
@@ -96,10 +102,10 @@ contract NeoExternalBridgeRouter {
     /// @param  nonce            Per-(neoChainId) outbound counter.
     /// @param  sender           Eth-side sender (msg.sender).
     /// @param  neoRecipient     Last 20B of the Neo recipient address.
-    /// @param  asset            ERC-20 hash; address(0) for native ETH.
+    /// @param  asset            Opaque network-order ERC-20 address, or
+    ///                          NATIVE_ASSET_SENTINEL for native ETH.
     /// @param  amount           Locked amount (token-decimals-native).
-    /// @param  payload          Arbitrary call payload, copied verbatim into
-    ///                          the canonical ExternalCrossChainMessage.
+    /// @param  payload          Reserved for AssetAndCall; must be empty in v0.
     /// @param  deadline         Unix-seconds; 0 = no deadline.
     event Locked(
         uint32 indexed externalChainId,
@@ -226,8 +232,10 @@ contract NeoExternalBridgeRouter {
         uint64 deadline
     ) external nonReentrant returns (uint64 nonce) {
         require(asset != address(0), "use lockETHAndSend for native ETH");
+        require(asset != NATIVE_ASSET_SENTINEL, "native sentinel reserved");
         require(amount > 0, "zero amount");
         require(neoRecipient != bytes20(0), "zero recipient");
+        require(payload.length == 0, "payload not supported");
 
         bool ok = IERC20(asset).transferFrom(msg.sender, address(this), amount);
         require(ok, "ERC-20 transferFrom failed");
@@ -257,8 +265,9 @@ contract NeoExternalBridgeRouter {
     ) external payable nonReentrant returns (uint64 nonce) {
         require(msg.value > 0, "zero amount");
         require(neoRecipient != bytes20(0), "zero recipient");
+        require(payload.length == 0, "payload not supported");
 
-        lockedBalances[address(0)] += msg.value;
+        lockedBalances[NATIVE_ASSET_SENTINEL] += msg.value;
         nonce = _allocateNonce(neoChainId);
         emit Locked(
             externalChainId,
@@ -266,7 +275,7 @@ contract NeoExternalBridgeRouter {
             nonce,
             msg.sender,
             neoRecipient,
-            address(0),
+            NATIVE_ASSET_SENTINEL,
             msg.value,
             payload,
             deadline
@@ -336,6 +345,7 @@ contract NeoExternalBridgeRouter {
             require(messageBytes.length == FIXED_PREFIX_LEN + payloadLen, "payload length mismatch");
             require(payloadLen >= 24, "asset-transfer payload too short");
             address asset = _readAddress(messageBytes, FIXED_PREFIX_LEN);
+            require(asset != address(0), "zero asset");
             uint32 amountLen = _readUint32LE(messageBytes, FIXED_PREFIX_LEN + 20);
             require(amountLen > 0 && amountLen <= 32, "amountLen out of bounds");
             require(payloadLen == 24 + amountLen, "payload length != 24 + amountLen");
@@ -345,7 +355,7 @@ contract NeoExternalBridgeRouter {
 
             consumedInbound[srcNeoChainId][nonce] = true;
 
-            if (asset == address(0)) {
+            if (asset == NATIVE_ASSET_SENTINEL) {
                 // Cap forwarded gas to a small budget so a hostile recipient with a
                 // gas-burning fallback can't grief the relayer (who pays gas for
                 // permissionless `finalizeWithdrawal`). 30_000 is enough for a
@@ -440,10 +450,8 @@ contract NeoExternalBridgeRouter {
     }
 
     function _readAddress(bytes calldata data, uint256 offset) private pure returns (address) {
-        // Read 20 bytes starting at offset and pack as an address.
-        // Solidity stores addresses big-endian; the canonical message
-        // format stores them as the raw 20-byte UInt160 (which is the
-        // same byte order Eth uses).
+        // Read 20 opaque network-order bytes starting at offset. No Neo UInt160
+        // display/storage conversion is permitted at this foreign-asset boundary.
         bytes20 packed;
         assembly {
             let off := add(data.offset, offset)

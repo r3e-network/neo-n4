@@ -10,9 +10,9 @@ namespace Neo.L2.Bridge.External;
 /// </summary>
 /// <remarks>
 /// See <c>doc.md</c> §11.3.3–§11.3.4.
-/// Layout (little-endian):
+/// Layout (foreign asset in network order; numeric fields little-endian):
 /// <code>
-/// [20B foreignAsset]   (chain-specific canonical packed asset identifier)
+/// [20B foreignAsset]   (opaque network-order foreign asset identifier)
 /// [4B  amountLength]
 /// [amountLength B amount]   (unsigned BigInteger little-endian)
 /// </code>
@@ -23,8 +23,10 @@ public sealed record ExternalAssetTransferPayload
     /// <c>NeoHub.ExternalBridgeEscrow</c>.</summary>
     public const int MaxAmountBytes = 32;
 
-    /// <summary>Foreign-side asset identifier (last 20B of the foreign address).</summary>
-    public required UInt160 ForeignAsset { get; init; }
+    /// <summary>
+    /// Foreign-side asset identifier copied as opaque network-order bytes.
+    /// </summary>
+    public required ExternalAssetId ForeignAsset { get; init; }
 
     /// <summary>Amount being transferred, smallest-unit unsigned BigInteger.</summary>
     public required BigInteger Amount { get; init; }
@@ -34,8 +36,6 @@ public sealed record ExternalAssetTransferPayload
     public byte[] Encode()
     {
         ArgumentNullException.ThrowIfNull(ForeignAsset);
-        if (ForeignAsset == UInt160.Zero)
-            throw new InvalidOperationException("ForeignAsset must be non-zero");
         if (Amount.Sign <= 0)
             throw new InvalidOperationException("Amount must be positive");
 
@@ -53,7 +53,7 @@ public sealed record ExternalAssetTransferPayload
 
         var size = 20 + 4 + amountBytes.Length;
         var buffer = new byte[size];
-        ForeignAsset.GetSpan().CopyTo(buffer.AsSpan(0, 20));
+        ForeignAsset.CopyTo(buffer.AsSpan(0, ExternalAssetId.Length));
         BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan(20, 4), amountBytes.Length);
         amountBytes.AsSpan().CopyTo(buffer.AsSpan(24));
         return buffer;
@@ -66,9 +66,15 @@ public sealed record ExternalAssetTransferPayload
             throw new ArgumentException(
                 $"payload length {bytes.Length} < 24 (header)", nameof(bytes));
 
-        var foreignAsset = new UInt160(bytes.Slice(0, 20));
-        if (foreignAsset == UInt160.Zero)
-            throw new ArgumentException("foreignAsset must be non-zero", nameof(bytes));
+        ExternalAssetId foreignAsset;
+        try
+        {
+            foreignAsset = new ExternalAssetId(bytes.Slice(0, ExternalAssetId.Length));
+        }
+        catch (ArgumentException ex)
+        {
+            throw new ArgumentException(ex.Message, nameof(bytes), ex);
+        }
         var amountLen = BinaryPrimitives.ReadInt32LittleEndian(bytes.Slice(20, 4));
         if (amountLen <= 0 || amountLen > MaxAmountBytes)
             throw new ArgumentException(

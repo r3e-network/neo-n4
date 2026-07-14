@@ -18,7 +18,8 @@ pub struct LockedEvent {
     /// 20-byte Neo recipient.
     pub neo_recipient: [u8; 20],
 
-    /// ERC-20 asset hash; `[0u8; 20]` for native ETH.
+    /// Opaque network-order ERC-20 address, or the canonical non-zero
+    /// `NATIVE_ASSET_SENTINEL` for native ETH.
     pub asset: [u8; 20],
 
     /// Locked amount, big-endian uint256 (Eth's wire format). The
@@ -26,8 +27,8 @@ pub struct LockedEvent {
     /// before signing.
     pub amount: [u8; 32],
 
-    /// Arbitrary payload (call data), copied verbatim into the canonical
-    /// message's payload field for `MSG_TYPE_CALL` / `MSG_TYPE_ASSET_AND_CALL`.
+    /// Reserved call data. The v0 router rejects non-empty payloads before
+    /// custody, and the watcher rejects any legacy non-empty event fail-closed.
     pub payload: Vec<u8>,
 
     /// Deadline; 0 = no deadline.

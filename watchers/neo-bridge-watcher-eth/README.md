@@ -243,7 +243,7 @@ deadlineUnixSeconds  = 1_900_000_000
 sourceTxRef          = 0xeeee...ee (32B)
 messageType          = AssetTransfer (0)
 payload              = ExternalAssetTransferPayload {
-                         foreignAsset: 0xeeee...ee (20B),
+                         foreignAsset: 0x0123456789abcdef1032547698badcfe11223344,
                          amount: 1_000_000 (3-byte LE = 40 42 0F)
                        }.encode()  →  27 bytes total
 
@@ -254,10 +254,10 @@ canonical_message_bytes (129 B):
   00b33f7100000000
   eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
   00 1b000000
-  eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee 03000000 40420f
+  0123456789abcdef1032547698badcfe11223344 03000000 40420f
 
-raw Hash256 = ce681e5ecb3eaf452d1834fd94c397271a6556736a4ecfa1e66e4d67e9e1bfac
-            (C# UInt256.ToString reverses for display: acbfe1e9...)
+raw Hash256 = 473ca6a7e6e63a57952ff7fdd7a9338f3202e3843386f13ec6fee5da69819ff6
+            (C# UInt256.ToString reverses for display: f69f8169...)
 ```
 
 <!-- N4-CRATE-VISUAL-GUIDE:START -->

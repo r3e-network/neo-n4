@@ -85,6 +85,11 @@ contract BadERC20 {
 contract NeoExternalBridgeRouterTest is Test {
     uint32 constant ETH_SEPOLIA = 0xE0000002;
     uint32 constant NEO_L2 = 1099;
+    address constant NATIVE_ASSET_SENTINEL =
+        address(uint160(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE));
+    address constant ASYMMETRIC_ASSET =
+        address(uint160(0x0123456789abcDEF1032547698BADCFe11223344));
+    address constant REVERSED_ASSET = address(uint160(0x44332211fedCba9876543210EfcDaB8967452301));
 
     NeoExternalBridgeRouter router;
     MockERC20 token;
@@ -186,11 +191,12 @@ contract NeoExternalBridgeRouterTest is Test {
 
         vm.expectEmit(true, true, true, true, address(router));
         emit NeoExternalBridgeRouter.Locked(
-            ETH_SEPOLIA, NEO_L2, 1, address(this), recipient, address(0), 1 ether, "", 0
+            ETH_SEPOLIA, NEO_L2, 1, address(this), recipient, NATIVE_ASSET_SENTINEL, 1 ether, "", 0
         );
         uint64 nonce = router.lockETHAndSend{value: 1 ether}(NEO_L2, recipient, "", 0);
         assertEq(nonce, 1);
-        assertEq(router.lockedBalances(address(0)), 1 ether);
+        assertEq(router.NATIVE_ASSET_SENTINEL(), NATIVE_ASSET_SENTINEL);
+        assertEq(router.lockedBalances(NATIVE_ASSET_SENTINEL), 1 ether);
         assertEq(address(router).balance, 1 ether);
         assertEq(router.outboundNonces(NEO_L2), 1);
     }
@@ -200,8 +206,7 @@ contract NeoExternalBridgeRouterTest is Test {
         token.approve(address(router), 1000);
         bytes20 recipient = bytes20(uint160(0xCAFEBABE));
 
-        uint64 nonce =
-            router.lockERC20AndSend(NEO_L2, recipient, address(token), 1000, hex"AABBCC", 0);
+        uint64 nonce = router.lockERC20AndSend(NEO_L2, recipient, address(token), 1000, "", 0);
         assertEq(nonce, 1);
         assertEq(router.lockedBalances(address(token)), 1000);
         assertEq(token.balanceOf(address(router)), 1000);
@@ -211,6 +216,41 @@ contract NeoExternalBridgeRouterTest is Test {
         bytes20 recipient = bytes20(uint160(0xDEAD));
         vm.expectRevert("zero amount");
         router.lockETHAndSend{value: 0}(NEO_L2, recipient, "", 0);
+    }
+
+    function test_LockETHAndSend_RejectsPayloadBeforeCustody() public {
+        vm.deal(address(this), 1 ether);
+        bytes20 recipient = bytes20(uint160(0xDEAD));
+        uint256 senderBalanceBefore = address(this).balance;
+        uint256 routerBalanceBefore = address(router).balance;
+
+        vm.expectRevert("payload not supported");
+        router.lockETHAndSend{value: 1 ether}(NEO_L2, recipient, hex"CAFE", 0);
+
+        assertEq(address(this).balance, senderBalanceBefore);
+        assertEq(address(router).balance, routerBalanceBefore);
+        assertEq(router.lockedBalances(NATIVE_ASSET_SENTINEL), 0);
+        assertEq(router.outboundNonces(NEO_L2), 0);
+    }
+
+    function test_LockERC20AndSend_RejectsPayloadBeforeCustody() public {
+        token.mint(address(this), 1000);
+        token.approve(address(router), 1000);
+        bytes20 recipient = bytes20(uint160(0xCAFE));
+
+        vm.expectRevert("payload not supported");
+        router.lockERC20AndSend(NEO_L2, recipient, address(token), 1000, hex"012345", 0);
+
+        assertEq(token.balanceOf(address(this)), 1000);
+        assertEq(token.balanceOf(address(router)), 0);
+        assertEq(token.allowance(address(this), address(router)), 1000);
+        assertEq(router.lockedBalances(address(token)), 0);
+        assertEq(router.outboundNonces(NEO_L2), 0);
+    }
+
+    function test_LockERC20AndSend_RejectsReservedNativeSentinel() public {
+        vm.expectRevert("native sentinel reserved");
+        router.lockERC20AndSend(NEO_L2, bytes20(uint160(0xCAFE)), NATIVE_ASSET_SENTINEL, 1, "", 0);
     }
 
     function test_BareETHTransfer_Reverts() public {
@@ -335,7 +375,8 @@ contract NeoExternalBridgeRouterTest is Test {
         router.lockETHAndSend{value: 1 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
 
         address recipient = address(0xBEEF);
-        bytes memory msgBytes = _buildTransferMessage(42, recipient, address(0), 1 ether, 0);
+        bytes memory msgBytes =
+            _buildTransferMessage(42, recipient, NATIVE_ASSET_SENTINEL, 1 ether, 0);
 
         // Watchers 0 and 1 sign — meets threshold of 2.
         (uint8 v0, bytes32 r0, bytes32 s0) = _signBy(priv0, msgBytes);
@@ -357,8 +398,42 @@ contract NeoExternalBridgeRouterTest is Test {
 
         router.finalizeWithdrawal(msgBytes, proof);
         assertEq(recipient.balance, 1 ether);
-        assertEq(router.lockedBalances(address(0)), 0);
+        assertEq(router.lockedBalances(NATIVE_ASSET_SENTINEL), 0);
         assertTrue(router.consumedInbound(NEO_L2, 42));
+    }
+
+    function test_FinalizeWithdrawal_RoutesAsymmetricAssetBytesWithoutReversal() public {
+        vm.etch(ASYMMETRIC_ASSET, address(token).code);
+        MockERC20 routedToken = MockERC20(ASYMMETRIC_ASSET);
+        routedToken.mint(address(this), 1000);
+        routedToken.approve(address(router), 1000);
+        router.lockERC20AndSend(NEO_L2, bytes20(uint160(0xDEAD)), ASYMMETRIC_ASSET, 1000, "", 0);
+
+        address recipient = address(0xBEEF);
+        bytes memory msgBytes = _buildTransferMessage(142, recipient, ASYMMETRIC_ASSET, 400, 0);
+        bytes memory expectedNetworkBytes = abi.encodePacked(ASYMMETRIC_ASSET);
+        for (uint256 i = 0; i < 20; i++) {
+            assertEq(msgBytes[102 + i], expectedNetworkBytes[i]);
+        }
+
+        router.finalizeWithdrawal(msgBytes, _proofFromTwo(msgBytes));
+
+        assertEq(routedToken.balanceOf(recipient), 400);
+        assertEq(router.lockedBalances(ASYMMETRIC_ASSET), 600);
+        assertEq(router.lockedBalances(REVERSED_ASSET), 0);
+    }
+
+    function test_FinalizeWithdrawal_RejectsLegacyZeroNativeAsset() public {
+        vm.deal(address(this), 1 ether);
+        router.lockETHAndSend{value: 1 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
+        bytes memory msgBytes = _buildTransferMessage(143, address(0xBEEF), address(0), 1, 0);
+        bytes memory proof = _proofFromTwo(msgBytes);
+
+        vm.expectRevert("zero asset");
+        router.finalizeWithdrawal(msgBytes, proof);
+
+        assertEq(router.lockedBalances(NATIVE_ASSET_SENTINEL), 1 ether);
+        assertFalse(router.consumedInbound(NEO_L2, 143));
     }
 
     /// Regression for the MESSAGE_TYPE_OFFSET = 97 invariant. Production watchers always
@@ -381,8 +456,9 @@ contract NeoExternalBridgeRouterTest is Test {
         bytes32 nonTrivialTxRef =
             bytes32(uint256(0x0102030405060708091011121314151617181920212223242526272829303132));
 
-        bytes memory msgBytes =
-            _buildTransferMessageWithTxRef(42, recipient, address(0), 1 ether, 0, nonTrivialTxRef);
+        bytes memory msgBytes = _buildTransferMessageWithTxRef(
+            42, recipient, NATIVE_ASSET_SENTINEL, 1 ether, 0, nonTrivialTxRef
+        );
 
         // Sanity-check the offset arithmetic so the test is self-explanatory.
         assertEq(uint8(msgBytes[65]), 0x01, "sourceTxRef starts at offset 65");
@@ -416,7 +492,8 @@ contract NeoExternalBridgeRouterTest is Test {
         vm.deal(address(this), 1 ether);
         fresh.lockETHAndSend{value: 1 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
 
-        bytes memory msgBytes = _buildTransferMessage(41, address(0xBEEF), address(0), 1 ether, 0);
+        bytes memory msgBytes =
+            _buildTransferMessage(41, address(0xBEEF), NATIVE_ASSET_SENTINEL, 1 ether, 0);
         bytes memory emptyProof = hex"0000";
 
         vm.expectRevert("committee not registered");
@@ -428,7 +505,8 @@ contract NeoExternalBridgeRouterTest is Test {
         router.lockETHAndSend{value: 1 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
 
         address recipient = address(0xBEEF);
-        bytes memory msgBytes = _buildTransferMessage(42, recipient, address(0), 0.5 ether, 0);
+        bytes memory msgBytes =
+            _buildTransferMessage(42, recipient, NATIVE_ASSET_SENTINEL, 0.5 ether, 0);
         (uint8 v0, bytes32 r0, bytes32 s0) = _signBy(priv0, msgBytes);
         (uint8 v1, bytes32 r1, bytes32 s1) = _signBy(priv1, msgBytes);
         uint8[] memory idx = new uint8[](2);
@@ -454,7 +532,8 @@ contract NeoExternalBridgeRouterTest is Test {
         vm.deal(address(this), 1 ether);
         router.lockETHAndSend{value: 1 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
 
-        bytes memory msgBytes = _buildTransferMessage(43, address(0xBEEF), address(0), 0.5 ether, 0);
+        bytes memory msgBytes =
+            _buildTransferMessage(43, address(0xBEEF), NATIVE_ASSET_SENTINEL, 0.5 ether, 0);
         (uint8 v0, bytes32 r0, bytes32 s0) = _signBy(priv0, msgBytes);
         // Only 1 sig but threshold is 2.
         uint8[] memory idx = new uint8[](1);
@@ -475,7 +554,8 @@ contract NeoExternalBridgeRouterTest is Test {
         vm.deal(address(this), 1 ether);
         router.lockETHAndSend{value: 1 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
 
-        bytes memory msgBytes = _buildTransferMessage(44, address(0xBEEF), address(0), 0.5 ether, 0);
+        bytes memory msgBytes =
+            _buildTransferMessage(44, address(0xBEEF), NATIVE_ASSET_SENTINEL, 0.5 ether, 0);
         (uint8 v0, bytes32 r0, bytes32 s0) = _signBy(priv0, msgBytes);
         // Same signer twice claiming different indices is caught by pubkey
         // check; same signer twice claiming the same index is the bitmap dup.
@@ -503,7 +583,8 @@ contract NeoExternalBridgeRouterTest is Test {
 
         // deadline = 1; block.timestamp will be > 1.
         vm.warp(1000);
-        bytes memory msgBytes = _buildTransferMessage(45, address(0xBEEF), address(0), 0.5 ether, 1);
+        bytes memory msgBytes =
+            _buildTransferMessage(45, address(0xBEEF), NATIVE_ASSET_SENTINEL, 0.5 ether, 1);
         (uint8 v0, bytes32 r0, bytes32 s0) = _signBy(priv0, msgBytes);
         (uint8 v1, bytes32 r1, bytes32 s1) = _signBy(priv1, msgBytes);
         uint8[] memory idx = new uint8[](2);
@@ -633,14 +714,16 @@ contract NeoExternalBridgeRouterTest is Test {
     // ─── messageType dispatch (v0 only supports AssetTransfer) ───────────
 
     function test_FinalizeWithdrawal_RejectsMessageTypeCall() public {
-        bytes memory msgBytes = _buildMessageWithType(50, address(0xBEEF), address(0), 0.5 ether, 1); // Call
+        bytes memory msgBytes =
+            _buildMessageWithType(50, address(0xBEEF), NATIVE_ASSET_SENTINEL, 0.5 ether, 1); // Call
         bytes memory proof = _proofFromTwo(msgBytes);
         vm.expectRevert("messageType not yet supported");
         router.finalizeWithdrawal(msgBytes, proof);
     }
 
     function test_FinalizeWithdrawal_RejectsMessageTypeAssetAndCall() public {
-        bytes memory msgBytes = _buildMessageWithType(51, address(0xBEEF), address(0), 0.5 ether, 2); // AssetAndCall
+        bytes memory msgBytes =
+            _buildMessageWithType(51, address(0xBEEF), NATIVE_ASSET_SENTINEL, 0.5 ether, 2); // AssetAndCall
         bytes memory proof = _proofFromTwo(msgBytes);
         vm.expectRevert("messageType not yet supported");
         router.finalizeWithdrawal(msgBytes, proof);
@@ -649,7 +732,8 @@ contract NeoExternalBridgeRouterTest is Test {
     function test_FinalizeWithdrawal_RejectsUnknownMessageType() public {
         // Type > 2: the unreachable `else` branch. Same revert string — defense in depth
         // ensures a future enum extension that forgets to add a dispatch arm still aborts.
-        bytes memory msgBytes = _buildMessageWithType(52, address(0xBEEF), address(0), 0.5 ether, 7);
+        bytes memory msgBytes =
+            _buildMessageWithType(52, address(0xBEEF), NATIVE_ASSET_SENTINEL, 0.5 ether, 7);
         bytes memory proof = _proofFromTwo(msgBytes);
         vm.expectRevert("messageType not yet supported");
         router.finalizeWithdrawal(msgBytes, proof);
@@ -694,7 +778,8 @@ contract NeoExternalBridgeRouterTest is Test {
         vm.deal(address(this), 0.5 ether);
         router.lockETHAndSend{value: 0.5 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
 
-        bytes memory msgBytes = _buildTransferMessage(54, address(0xBEEF), address(0), 1 ether, 0);
+        bytes memory msgBytes =
+            _buildTransferMessage(54, address(0xBEEF), NATIVE_ASSET_SENTINEL, 1 ether, 0);
         bytes memory proof = _proofFromTwo(msgBytes);
         vm.expectRevert("amount exceeds locked balance");
         router.finalizeWithdrawal(msgBytes, proof);
@@ -706,7 +791,8 @@ contract NeoExternalBridgeRouterTest is Test {
         vm.deal(address(this), 1 ether);
         router.lockETHAndSend{value: 1 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
 
-        bytes memory msgBytes = _buildTransferMessage(55, address(0xBEEF), address(0), 0.5 ether, 0);
+        bytes memory msgBytes =
+            _buildTransferMessage(55, address(0xBEEF), NATIVE_ASSET_SENTINEL, 0.5 ether, 0);
 
         // Build a proof with v=27, r=0, s=0 — ecrecover returns address(0) on these
         // sentinel "malformed" inputs, which the contract must reject.
@@ -732,7 +818,8 @@ contract NeoExternalBridgeRouterTest is Test {
         vm.deal(address(this), 1 ether);
         router.lockETHAndSend{value: 1 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
 
-        bytes memory msgBytes = _buildTransferMessage(56, address(0xBEEF), address(0), 0.5 ether, 0);
+        bytes memory msgBytes =
+            _buildTransferMessage(56, address(0xBEEF), NATIVE_ASSET_SENTINEL, 0.5 ether, 0);
         // committee.length = 3; claim idx 99.
         (uint8 v0, bytes32 r0, bytes32 s0) = _signBy(priv0, msgBytes);
         (uint8 v1, bytes32 r1, bytes32 s1) = _signBy(priv1, msgBytes);
@@ -758,7 +845,8 @@ contract NeoExternalBridgeRouterTest is Test {
         vm.deal(address(this), 1 ether);
         router.lockETHAndSend{value: 1 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
 
-        bytes memory msgBytes = _buildTransferMessage(57, address(0xBEEF), address(0), 0.5 ether, 0);
+        bytes memory msgBytes =
+            _buildTransferMessage(57, address(0xBEEF), NATIVE_ASSET_SENTINEL, 0.5 ether, 0);
         // committee.length = 3; claim 4 sigs (one over). _verifyQuorum requires
         // sigCount <= committeeLen.
         (uint8 v0, bytes32 r0, bytes32 s0) = _signBy(priv0, msgBytes);
@@ -795,7 +883,8 @@ contract NeoExternalBridgeRouterTest is Test {
         vm.deal(address(this), 1 ether);
         router.lockETHAndSend{value: 1 ether}(NEO_L2, bytes20(uint160(0xDEAD)), "", 0);
 
-        bytes memory msgBytes = _buildTransferMessage(58, address(0xBEEF), address(0), 0.5 ether, 0);
+        bytes memory msgBytes =
+            _buildTransferMessage(58, address(0xBEEF), NATIVE_ASSET_SENTINEL, 0.5 ether, 0);
 
         // Declare sigCount=2 (LE) but only ship 1 signature worth of data
         // (66 bytes instead of 2 × 66). _verifyQuorum requires the framing to match.

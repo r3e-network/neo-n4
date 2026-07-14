@@ -277,8 +277,14 @@ mod tests {
     use super::*;
     use crate::event_source::MockEventSource;
     use crate::journal::InMemoryJournal;
+    use crate::messaging::NATIVE_ASSET_SENTINEL;
     use crate::signer::FileSigner;
     use crate::submitter::{MockSubmitter, SubmitterError};
+
+    const ASYMMETRIC_ASSET: [u8; 20] = [
+        0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc,
+        0xfe, 0x11, 0x22, 0x33, 0x44,
+    ];
 
     fn make_signer() -> FileSigner {
         FileSigner::from_bytes(&[0x42; 32]).unwrap()
@@ -294,7 +300,7 @@ mod tests {
             nonce,
             sender: [0x11; 20],
             neo_recipient: [0xaa; 20],
-            asset: [0xee; 20],
+            asset: ASYMMETRIC_ASSET,
             amount,
             payload: Vec::new(),
             deadline: 1_900_000_000,
@@ -348,6 +354,47 @@ mod tests {
         // suppresses already-processed same-block events).
         assert_eq!(core.journal.cursor().unwrap(), 1234);
         assert!(core.journal.is_submitted(0xE000_0001, 7).unwrap());
+    }
+
+    #[test]
+    fn process_event_accepts_native_asset_sentinel() {
+        let mut core = WatcherCore::new(
+            0xE000_0001,
+            make_signer(),
+            MockEventSource::new(),
+            MockSubmitter::new(),
+            InMemoryJournal::new(),
+        );
+        let mut event = sample_event(8, 1235);
+        event.asset = NATIVE_ASSET_SENTINEL;
+
+        core.process_event(event).unwrap();
+
+        let submission = &core.submitter.submissions()[0];
+        assert_eq!(&submission.message_bytes[102..122], &NATIVE_ASSET_SENTINEL);
+    }
+
+    #[test]
+    fn process_event_rejects_non_empty_payload_without_submission() {
+        let mut core = WatcherCore::new(
+            0xE000_0001,
+            make_signer(),
+            MockEventSource::new(),
+            MockSubmitter::new(),
+            InMemoryJournal::new(),
+        );
+        let mut event = sample_event(9, 1236);
+        event.payload = vec![0xca, 0xfe];
+
+        let error = core.process_event(event).unwrap_err();
+
+        assert!(matches!(
+            error,
+            CoreError::Build(BuildError::UnsupportedMessageType(2))
+        ));
+        assert!(core.submitter.submissions().is_empty());
+        assert_eq!(core.journal.cursor().unwrap(), 0);
+        assert!(!core.journal.is_submitted(0xE000_0001, 9).unwrap());
     }
 
     #[test]

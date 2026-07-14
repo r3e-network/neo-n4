@@ -106,6 +106,12 @@ class DotnetFilteredTestGateTests(unittest.TestCase):
 
 
 class CargoIgnoredTestGateTests(unittest.TestCase):
+    def test_real_proof_tests_run_serially(self) -> None:
+        self.assertEqual(
+            ["--ignored", "--nocapture", "--test-threads=1"],
+            cargo_gate.test_harness_arguments(),
+        )
+
     def test_exact_ignored_test_selection_passes(self) -> None:
         output = "prove: test\nrejects_tamper: test\n\n2 tests, 0 benchmarks\n"
 
@@ -202,6 +208,8 @@ class CargoProveWrapperTests(unittest.TestCase):
         )
         self.assertIn("cargo prove build --docker --locked", workflow)
         self.assertIn("cargo prove build --docker --locked", private_network)
+        sp1_job = workflow.split("  sp1-host:", 1)[1].split("\n  rust-audit:", 1)[0]
+        self.assertIn("timeout-minutes: 120", sp1_job)
         prove_step = workflow.split(
             "- name: cargo prove build (reproducible guest ELF)", 1
         )[1].split("\n      - name:", 1)[0]

@@ -373,7 +373,7 @@ jobs:
   sp1-host:
     name: cargo build + test (neo-zkvm-host, real SP1 zkVM)
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     env:
       CARGO_PROVE: ${{ github.workspace }}/scripts/ci/cargo-prove-locked.sh
       RUSTUP_TOOLCHAIN: 1.88.0

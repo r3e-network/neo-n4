@@ -37,6 +37,10 @@ def selection_errors(discovered: set[str], expected: set[str]) -> list[str]:
     return errors
 
 
+def test_harness_arguments() -> list[str]:
+    return ["--ignored", "--nocapture", "--test-threads=1"]
+
+
 def parse_arguments(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest-path", required=True, type=Path)
@@ -79,7 +83,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"ERROR: {error}", file=sys.stderr)
         return 1
 
-    test_command = [*command, "--", "--ignored", "--nocapture"]
+    test_command = [*command, "--", *test_harness_arguments()]
     print(f"+ {shlex.join(test_command)}", flush=True)
     return subprocess.run(test_command, check=False).returncode
 

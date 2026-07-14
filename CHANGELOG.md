@@ -10,6 +10,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Restored the GitHub runner's ownership of Docker-generated SP1 target artifacts before
   host-side Cargo formatting, linting, and tests, preventing the required real-proof job from
   failing with a permission error after a successful reproducible guest build.
+- Serialized the resource-intensive ignored proof tests and raised the fail-closed job budget to
+  120 minutes so concurrent SP1 provers cannot exhaust a hosted runner while every terminal and
+  recursive proof assertion still executes.
 
 ### Added — native SP1 execution and atomic state handoff — 2026-07-14
 

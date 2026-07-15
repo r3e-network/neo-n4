@@ -7,7 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed — coordinated dependency maintenance — 2026-07-15
 
-- Upgraded the coverage collector to 10.0.1.
+- Retained the coverage collector at 6.0.4 after 10.0.1 changed the reported executable-line
+  set and made identical commits oscillate around the 90% coverage gate. A future upgrade must
+  include an explicit coverage-baseline migration.
 - Upgraded the Ethereum watcher to `sha3` 0.12 and `toml` 1.1.3, with the lockfile updated
   as one atomic Rust dependency change.
 - Upgraded the pinned GitHub workflow actions to `actions/checkout` 7, `actions/cache` 6,

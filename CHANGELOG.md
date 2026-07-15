@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — metrics scrape connection storm bound — 2026-07-15
+
+- `MetricsHttpServer` now hard-caps concurrent accepted connections (default 32) via a
+  semaphore: excess scrapes/probes receive HTTP 503 and never spawn unbounded handler
+  tasks. Active connection count is exposed for diagnostics; `L2MetricsPlugin` config
+  adds `MaxConcurrentConnections`.
+
 ### Added — local deposit composition and drain combiner — 2026-07-15
 
 - Added `L1MessageDrain.Combine` / `FromRouter` so operators compose SharedBridge

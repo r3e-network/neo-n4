@@ -26,7 +26,9 @@ plugins emit ──> IL2Metrics ──> InMemoryMetrics ──> Snapshot()
 Every layer is independently swappable: `IL2Metrics` defaults to `NoOpMetrics`,
 the snapshot is a frozen `MetricsSnapshot`, the request handler is framework
 agnostic (drop into ASP.NET / Kestrel / RpcServer), and the HTTP server uses raw
-`TcpListener` — no third-party deps.
+sockets — no third-party deps. Concurrent scrapes are hard-capped (default 32;
+`L2Metrics.MaxConcurrentConnections`); excess clients receive HTTP 503 instead
+of unbounded handler tasks.
 
 ## Try it locally
 

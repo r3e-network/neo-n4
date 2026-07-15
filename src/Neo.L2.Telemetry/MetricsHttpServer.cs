@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 
 namespace Neo.L2.Telemetry;
 
@@ -14,37 +15,70 @@ namespace Neo.L2.Telemetry;
 /// For production deployments that already run an HTTP framework (ASP.NET, Kestrel, RpcServer
 /// plugin), prefer routing GET <c>/metrics</c> directly into <see cref="MetricsRequestHandler.Handle"/>
 /// rather than starting another listener. Bind to localhost unless you front the endpoint
-/// with a reverse proxy.
+/// with a reverse proxy. Concurrent scrapes are hard-capped so a scrape DoS cannot exhaust
+/// the process thread pool.
 /// </remarks>
 public sealed class MetricsHttpServer : IDisposable
 {
+    /// <summary>Default concurrent in-flight scrape / probe connections.</summary>
+    public const int DefaultMaxConcurrentConnections = 32;
+
     private readonly Socket _listener;
     private readonly MetricsRequestHandler _handler;
+    private readonly SemaphoreSlim _concurrency;
     private readonly CancellationTokenSource _cts = new();
+    private readonly Lock _startGate = new();
+    private int _activeConnections;
     private Task? _loop;
+    private int _disposed;
 
     /// <summary>The concrete IP endpoint the server bound. Useful when constructing with port 0.</summary>
     public IPEndPoint Endpoint { get; }
 
+    /// <summary>Configured concurrent-connection hard cap.</summary>
+    public int MaxConcurrentConnections { get; }
+
+    /// <summary>Current number of accepted connections being handled (diagnostic).</summary>
+    public int ActiveConnections => Volatile.Read(ref _activeConnections);
+
     /// <summary>True when <see cref="Start"/> has been called and <see cref="Dispose"/> has not. Useful for diagnostics + integration tests.</summary>
-    public bool IsRunning => _loop is not null && !_cts.IsCancellationRequested;
+    public bool IsRunning => _loop is not null && !_cts.IsCancellationRequested && Volatile.Read(ref _disposed) == 0;
 
     /// <summary>Construct a server that binds to <paramref name="endpoint"/>.</summary>
     /// <param name="endpoint">IP endpoint to bind. Use port 0 for "any free port".</param>
     /// <param name="handler">Request handler to dispatch requests through.</param>
-    public MetricsHttpServer(IPEndPoint endpoint, MetricsRequestHandler handler)
+    /// <param name="maxConcurrentConnections">
+    /// Hard cap on simultaneous accepted connections (default
+    /// <see cref="DefaultMaxConcurrentConnections"/>). Excess connections receive HTTP 503
+    /// and are closed immediately.
+    /// </param>
+    public MetricsHttpServer(
+        IPEndPoint endpoint,
+        MetricsRequestHandler handler,
+        int maxConcurrentConnections = DefaultMaxConcurrentConnections)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
         ArgumentNullException.ThrowIfNull(handler);
+        if (maxConcurrentConnections < 1)
+            throw new ArgumentOutOfRangeException(
+                nameof(maxConcurrentConnections),
+                "maxConcurrentConnections must be >= 1");
+
+        _handler = handler;
+        MaxConcurrentConnections = maxConcurrentConnections;
+        _concurrency = new SemaphoreSlim(maxConcurrentConnections, maxConcurrentConnections);
         _listener = new Socket(endpoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
         _listener.Bind(endpoint);
         Endpoint = (IPEndPoint)_listener.LocalEndPoint!;
-        _handler = handler;
     }
 
     /// <summary>Construct a server that binds to <paramref name="address"/> and <paramref name="port"/>.</summary>
-    public MetricsHttpServer(IPAddress address, int port, MetricsRequestHandler handler)
-        : this(MakeValidatedEndpoint(address, port), handler) { }
+    public MetricsHttpServer(
+        IPAddress address,
+        int port,
+        MetricsRequestHandler handler,
+        int maxConcurrentConnections = DefaultMaxConcurrentConnections)
+        : this(MakeValidatedEndpoint(address, port), handler, maxConcurrentConnections) { }
 
     private static IPEndPoint MakeValidatedEndpoint(IPAddress address, int port)
     {
@@ -52,19 +86,18 @@ public sealed class MetricsHttpServer : IDisposable
         // generic "port" ArgumentOutOfRangeException. IPAddress null-guard is delegated
         // to IPEndPoint (which throws ArgumentNullException with arg name "address" —
         // already clear).
-        Neo.L2.Telemetry.PortValidator.Validate(port, "MetricsHttpServer port");
+        PortValidator.Validate(port, "MetricsHttpServer port");
         return new IPEndPoint(address, port);
     }
-
-    private readonly Lock _startGate = new();
 
     /// <summary>Start accepting requests. Runs until <see cref="Dispose"/>. Idempotent — extra calls are no-ops.</summary>
     public void Start()
     {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         lock (_startGate)
         {
             if (_loop is not null) return;
-            _listener.Listen();
+            _listener.Listen(backlog: Math.Min(MaxConcurrentConnections * 2, 128));
             _loop = Task.Run(AcceptLoopAsync);
         }
     }
@@ -79,7 +112,40 @@ public sealed class MetricsHttpServer : IDisposable
             catch (SocketException) { return; }
             catch (ObjectDisposedException) { return; }
 
+            // Bound concurrent work: if saturated, answer 503 on a short-lived task and do
+            // not enter the full handler path. WaitAsync(0) is non-blocking so the accept
+            // loop cannot stall behind a slow scraper.
+            if (!await _concurrency.WaitAsync(0).ConfigureAwait(false))
+            {
+                _ = Task.Run(() => RejectSaturatedAsync(client));
+                continue;
+            }
+
+            Interlocked.Increment(ref _activeConnections);
             _ = Task.Run(() => HandleConnectionAsync(client));
+        }
+    }
+
+    private async Task RejectSaturatedAsync(Socket client)
+    {
+        try
+        {
+            using (client)
+            using (var stream = new NetworkStream(client, ownsSocket: false))
+            using (var deadlineCts = new CancellationTokenSource(TimeSpan.FromSeconds(2)))
+            {
+                var response = new MetricsHttpResponse(
+                    503,
+                    "text/plain; charset=utf-8",
+                    "concurrent connection limit reached\n");
+                await WriteResponseAsync(stream, response, deadlineCts.Token).ConfigureAwait(false);
+                await stream.FlushAsync(deadlineCts.Token).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex) when (
+            ex is IOException or SocketException or ObjectDisposedException or OperationCanceledException)
+        {
+            // best-effort rejection path
         }
     }
 
@@ -102,9 +168,16 @@ public sealed class MetricsHttpServer : IDisposable
                 await WriteResponseAsync(stream, response, linkedCts.Token).ConfigureAwait(false);
             }
         }
-        catch (Exception ex) when (ex is IOException or System.Net.Sockets.SocketException or ObjectDisposedException or OperationCanceledException)
+        catch (Exception ex) when (
+            ex is IOException or SocketException or ObjectDisposedException or OperationCanceledException)
         {
             // best-effort — never let a bad client take down the server
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _activeConnections);
+            try { _concurrency.Release(); }
+            catch (ObjectDisposedException) { /* server shutting down */ }
         }
     }
 
@@ -149,9 +222,8 @@ public sealed class MetricsHttpServer : IDisposable
     private static string StatusText(int code) => code switch
     {
         200 => "OK",
-        // 503 is the readiness-probe failure response (MetricsRequestHandler.HandleReady).
-        // Without this case the response wire-form was "HTTP/1.0 503 OK" — clients would
-        // see a 503 status with the OK reason phrase, a strict-parser confusion vector.
+        // 503 is the readiness-probe failure response (MetricsRequestHandler.HandleReady)
+        // and the concurrent-connection saturation response.
         503 => "Service Unavailable",
         404 => "Not Found",
         500 => "Internal Server Error",
@@ -161,9 +233,11 @@ public sealed class MetricsHttpServer : IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         try { _cts.Cancel(); } catch { /* swallow */ }
         try { _listener.Dispose(); } catch { /* swallow */ }
         try { _loop?.Wait(TimeSpan.FromSeconds(2)); } catch { /* swallow */ }
+        try { _concurrency.Dispose(); } catch { /* swallow */ }
         _cts.Dispose();
     }
 }

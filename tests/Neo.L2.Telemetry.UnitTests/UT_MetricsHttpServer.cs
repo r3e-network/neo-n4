@@ -188,4 +188,57 @@ public class UT_MetricsHttpServer
         using var s1 = new MetricsHttpServer(IPAddress.Loopback, 0, handler);
         // Skip 65535 — may collide with an in-use port on the test host.
     }
+
+    [TestMethod]
+    public void Constructor_RejectsNonPositiveMaxConcurrentConnections()
+    {
+        var handler = new MetricsRequestHandler(new InMemoryMetrics());
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(
+            () => new MetricsHttpServer(IPAddress.Loopback, 0, handler, maxConcurrentConnections: 0));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(
+            () => new MetricsHttpServer(IPAddress.Loopback, 0, handler, maxConcurrentConnections: -1));
+    }
+
+    [TestMethod]
+    public async Task Server_CapsActiveConnections_UnderConnectionStorm()
+    {
+        // Cap at 2 in-flight handler slots. Open more silent TCP clients than the cap;
+        // ActiveConnections must never exceed the configured hard limit (rejected peers
+        // answer 503 without entering the handler path or inflating the active count).
+        var handler = new MetricsRequestHandler(new InMemoryMetrics());
+        using var server = new MetricsHttpServer(
+            IPAddress.Loopback, port: 0, handler, maxConcurrentConnections: 2);
+        server.Start();
+        Assert.AreEqual(2, server.MaxConcurrentConnections);
+
+        var holds = new List<System.Net.Sockets.TcpClient>();
+        try
+        {
+            for (var i = 0; i < 8; i++)
+            {
+                var client = new System.Net.Sockets.TcpClient();
+                await client.ConnectAsync(IPAddress.Loopback, server.Endpoint.Port);
+                holds.Add(client);
+            }
+
+            var observedMax = 0;
+            for (var i = 0; i < 40; i++)
+            {
+                observedMax = Math.Max(observedMax, server.ActiveConnections);
+                await Task.Delay(25);
+            }
+
+            Assert.IsTrue(
+                observedMax > 0,
+                "at least one connection must be accepted into the handler path");
+            Assert.IsTrue(
+                observedMax <= 2,
+                $"ActiveConnections peaked at {observedMax}, expected <= 2");
+        }
+        finally
+        {
+            foreach (var client in holds)
+                client.Dispose();
+        }
+    }
 }

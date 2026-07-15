@@ -72,7 +72,11 @@ public sealed class L2MetricsPlugin : Plugin
 
             var handler = new MetricsRequestHandler(_metrics, _readinessCheck);
             var port = portOverride ?? _settings.Port;
-            var server = new MetricsHttpServer(address, port, handler);
+            var server = new MetricsHttpServer(
+                address,
+                port,
+                handler,
+                maxConcurrentConnections: _settings.MaxConcurrentConnections);
             server.Start();
             _server = server;
         }

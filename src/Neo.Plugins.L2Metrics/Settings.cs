@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Neo.L2.Telemetry;
 
 namespace Neo.Plugins.L2;
 
@@ -14,14 +15,28 @@ public sealed class L2MetricsSettings
     /// <summary>TCP port. <c>0</c> picks any free port (useful for tests / dev).</summary>
     public int Port { get; init; } = 9090;
 
+    /// <summary>
+    /// Hard cap on simultaneous accepted scrapes / probes. Excess clients receive HTTP 503.
+    /// Default matches <see cref="MetricsHttpServer.DefaultMaxConcurrentConnections"/>.
+    /// </summary>
+    public int MaxConcurrentConnections { get; init; } = MetricsHttpServer.DefaultMaxConcurrentConnections;
+
     /// <summary>Build settings from the plugin's <c>PluginConfiguration</c> section.</summary>
     public static L2MetricsSettings From(IConfigurationSection s)
     {
+        var maxConnections = s.GetValue(
+            "MaxConcurrentConnections",
+            MetricsHttpServer.DefaultMaxConcurrentConnections);
+        if (maxConnections < 1)
+            throw new InvalidDataException(
+                $"L2Metrics MaxConcurrentConnections must be >= 1 (got {maxConnections})");
+
         return new L2MetricsSettings
         {
             Enabled = s.GetValue("Enabled", true),
             BindAddress = s.GetValue("BindAddress", "127.0.0.1")!,
             Port = ValidatePort(s.GetValue("Port", 9090)),
+            MaxConcurrentConnections = maxConnections,
         };
     }
 

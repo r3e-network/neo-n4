@@ -16,8 +16,9 @@
 - 生产完备要求：如果英文源文件声明某模块已完成、已验证、已部署演练或已通过测试，中文版本不能降低或扩大该结论；必须同步记录同样的前提和限制。
 - 2026-07-15 SP1 release gate 并行化：workspace release、真实 batch 证明和真实递归
   Gateway 证明拆分到三个独立且版本固定的 SP1 runner；fail-closed 聚合作业保留原有必需
-  branch-protection context。每个重型 lane 均低于托管 runner 的实际生命周期，避免编译成功后
-  因单作业过长而取消证明生成。
+  branch-protection context。两个证明 lane 使用 SP1 上游 worker 参数串行化 core/recursion
+  工作，限制 trace buffer 与 shard 大小，并在标准托管 runner 上执行 4 GiB guest 内存上限；
+  Groth16 证明模式保持不变，也不允许 mock/dummy fallback。
 - 2026-07-15 ChainRegistry 准入与治理状态闭合：`ChainRegistry` 在跨合约边界先以完整
   `BigInteger` 校验 `GovernanceController` 返回值必须严格为 0、1 或 2，再转换为 `byte`；
   负数、未定义值及 258 这类截断值都不能被误判成 permissionless，也不会写入 chain config

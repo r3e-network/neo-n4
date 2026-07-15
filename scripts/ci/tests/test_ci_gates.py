@@ -221,6 +221,19 @@ class CargoProveWrapperTests(unittest.TestCase):
             "gateway-recursive-proof",
         ):
             self.assertIn(f"lane: {lane}", sp1_release_gates)
+        for setting in (
+            "MEMORY_LIMIT: 4294967296",
+            "RAYON_NUM_THREADS: 1",
+            "SHARD_SIZE: 1048576",
+            "TRACE_CHUNK_SLOTS: 1",
+            "SP1_WORKER_NUM_CORE_WORKERS: 1",
+            "SP1_WORKER_CORE_BUFFER_SIZE: 1",
+            "SP1_WORKER_NUM_RECURSION_PROVER_WORKERS: 1",
+            "SP1_WORKER_RECURSION_PROVER_BUFFER_SIZE: 1",
+        ):
+            self.assertIn(setting, sp1_release_gates)
+        self.assertNotIn("SP1_PROVER: mock", sp1_release_gates)
+        self.assertNotIn("SP1_FORCE_DUMMY", sp1_release_gates)
         sp1_aggregate = workflow.split("  sp1-host:", 1)[1].split(
             "\n  rust-audit:", 1
         )[0]
@@ -288,6 +301,8 @@ class CargoProveWrapperTests(unittest.TestCase):
             self.assertIn(marker, workflow)
             step = workflow.split(marker, 1)[1].split("\n      - name:", 1)[0]
             self.assertIn(f"if: matrix.lane == '{lane}'", step)
+            self.assertIn('free -h', step)
+            self.assertIn('df -h "$GITHUB_WORKSPACE"', step)
         self.assertIn("prove_and_verify_real_zk_proof", workflow)
         self.assertIn(
             "proves_and_host_verifies_real_recursive_gateway_groth16",

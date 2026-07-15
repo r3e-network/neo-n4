@@ -369,9 +369,9 @@ jobs:
         run: cargo clippy --release --locked --all-targets -p neo-bridge-watcher-tron -p neo-bridge-watcher-sol -- -D warnings
 
   # The SP1 release gate is split across independent runners so workspace
-  # compilation, batch proving, and recursive proving cannot exhaust one
-  # hosted runner's lifetime. Every lane performs the same pinned guest build;
-  # the stable aggregate job below preserves the branch-protection context.
+  # compilation, batch proving, and recursive proving have separate resource
+  # envelopes. Every lane performs the same pinned guest build; the stable
+  # aggregate job below preserves the branch-protection context.
   sp1-release-gates:
     name: ${{ matrix.name }}
     runs-on: ubuntu-latest
@@ -394,6 +394,33 @@ jobs:
       SP1_DOCKER_IMAGE: ghcr.io/succinctlabs/sp1@sha256:14d3c46eff7492f87e429bfbf618e3d33499ba7515b15c36eeb1bcaebc9f7b7f
       SP1_GNARK_IMAGE: ghcr.io/succinctlabs/sp1-gnark@sha256:be8555f1ad90870acd8c6ec7fd3ba0b1a2133ea9cddf25e130665aa651129e54
       SP1_VERSION: 6.2.1
+      # SP1 6.2.1 defaults target large prover hosts (four core workers,
+      # eight recursion workers, five 256-MiB trace slots, and a 24-GiB
+      # executor limit). Keep the cryptographic proof mode unchanged while
+      # bounding peak memory on standard GitHub-hosted runners. These are
+      # upstream SP1 worker controls, not mock/fallback switches.
+      MEMORY_LIMIT: 4294967296
+      RAYON_NUM_THREADS: 1
+      SHARD_SIZE: 1048576
+      TRACE_CHUNK_SLOTS: 1
+      SP1_WORKER_NUM_SPLICING_WORKERS: 1
+      SP1_WORKER_SPLICING_BUFFER_SIZE: 1
+      SP1_WORKER_NUMBER_OF_SEND_SPLICE_WORKERS_PER_SPLICE: 1
+      SP1_WORKER_SEND_SPLICE_INPUT_BUFFER_SIZE_PER_SPLICE: 1
+      SP1_WORKER_GLOBAL_MEMORY_BUFFER_SIZE: 1
+      SP1_WORKER_NUM_CORE_WORKERS: 1
+      SP1_WORKER_CORE_BUFFER_SIZE: 1
+      SP1_WORKER_NUM_SETUP_WORKERS: 1
+      SP1_WORKER_SETUP_BUFFER_SIZE: 1
+      SP1_WORKER_NORMALIZE_PROGRAM_CACHE_SIZE: 1
+      SP1_WORKER_NUM_PREPARE_REDUCE_WORKERS: 1
+      SP1_WORKER_PREPARE_REDUCE_BUFFER_SIZE: 1
+      SP1_WORKER_NUM_RECURSION_EXECUTOR_WORKERS: 1
+      SP1_WORKER_RECURSION_EXECUTOR_BUFFER_SIZE: 1
+      SP1_WORKER_NUM_RECURSION_PROVER_WORKERS: 1
+      SP1_WORKER_RECURSION_PROVER_BUFFER_SIZE: 1
+      SP1_WORKER_NUM_DEFERRED_WORKERS: 1
+      SP1_WORKER_DEFERRED_BUFFER_SIZE: 1
 
     steps:
       - name: Checkout (with submodules)
@@ -482,6 +509,8 @@ jobs:
       - name: cargo test (neo-zkvm-host, real proof)
         if: matrix.lane == 'host-real-proof'
         run: |
+          free -h
+          df -h "$GITHUB_WORKSPACE"
           python3 scripts/ci/run_cargo_ignored_tests.py \
             --manifest-path bridge/neo-zkvm-host/Cargo.toml \
             --test-target end_to_end \
@@ -492,6 +521,8 @@ jobs:
       - name: cargo test (neo-zkvm-gateway-host, real recursive proof)
         if: matrix.lane == 'gateway-recursive-proof'
         run: |
+          free -h
+          df -h "$GITHUB_WORKSPACE"
           python3 scripts/ci/run_cargo_ignored_tests.py \
             --manifest-path bridge/neo-zkvm-gateway-host/Cargo.toml \
             --test-target real_recursive_release_gate \

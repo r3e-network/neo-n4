@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — settlement Wire attaches SharedBridge deposit L1 inbox — 2026-07-16
+
+- `L2SettlementPlugin.Wire` / `WireProduction` now accept optional
+  `ISharedBridgeDepositSource` + `IMessageRouter` and install them on the batcher via
+  `WireL1MessageInbox` before the sealed-batch sink is attached (same order as forced
+  inclusion). Block-context providers are required whenever an L1 inbox source is present;
+  chain mismatch and missing providers fail closed. Deposit sources remain caller-owned.
+
 ### Added — batcher deposit inbox integration evidence — 2026-07-16
 
 - Added `L2BatchPlugin` unit coverage for `WireL1MessageInbox` with real

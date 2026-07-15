@@ -1,7 +1,9 @@
 using Neo.L2;
 using Neo.L2.Batch;
+using Neo.L2.Bridge;
 using Neo.L2.Executor.ProofWitness;
 using Neo.L2.ForcedInclusion;
+using Neo.L2.Messaging;
 using Neo.L2.Persistence;
 using Neo.L2.Settlement.Rpc;
 using Neo.L2.Telemetry;
@@ -51,6 +53,12 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
     /// <summary>
     /// Wire every required production seam and begin restart reconciliation from the witness store.
     /// </summary>
+    /// <remarks>
+    /// SharedBridge deposits and MessageRouter traffic are optional but, when either is supplied,
+    /// <paramref name="l1FinalizedHeight"/> and <paramref name="sequencerCommitteeHash"/> are
+    /// required and are installed on the batcher via <see cref="L2BatchPlugin.WireL1MessageInbox"/>
+    /// before the sealed-batch sink is attached. Deposit confirm/release remains owned by the batcher.
+    /// </remarks>
     public void Wire(
         L2BatchPlugin batchPlugin,
         IProofWitnessBatchExecutor executor,
@@ -61,6 +69,10 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         ProofWitnessPipelineProfile profile,
         IForcedInclusionFinalizationClient? forcedInclusionFinalizer = null,
         IForcedInclusionSource? forcedInclusionSource = null,
+        ISharedBridgeDepositSource? depositSource = null,
+        IMessageRouter? messageRouter = null,
+        Func<uint>? l1FinalizedHeight = null,
+        Func<UInt256>? sequencerCommitteeHash = null,
         int? maxAutomaticRetries = null)
     {
         ArgumentNullException.ThrowIfNull(batchPlugin);
@@ -86,6 +98,13 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
                 throw new InvalidOperationException(
                     "forced-inclusion source chain differs from the pipeline profile");
         }
+        if (depositSource is not null && depositSource.ChainId != profile.ChainId)
+            throw new InvalidOperationException(
+                "deposit source chain differs from the pipeline profile");
+        if ((depositSource is not null || messageRouter is not null)
+            && (l1FinalizedHeight is null || sequencerCommitteeHash is null))
+            throw new InvalidOperationException(
+                "L1 message inbox wiring requires l1FinalizedHeight and sequencerCommitteeHash providers");
 
         var pipeline = new CanonicalSettlementPipeline(
             executor,
@@ -100,6 +119,17 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         _pipeline = pipeline;
         try
         {
+            // Order: L1 inbox first (drain composition), then forced inclusion, then durable sink
+            // (creates the sealer that captures the drain).
+            if (depositSource is not null || messageRouter is not null)
+            {
+                batchPlugin.WireL1MessageInbox(
+                    profile.ChainId,
+                    l1FinalizedHeight!,
+                    sequencerCommitteeHash!,
+                    deposits: depositSource,
+                    messageRouter: messageRouter);
+            }
             if (forcedInclusionSource is not null)
                 batchPlugin.WithForcedInclusionSource(forcedInclusionSource);
             batchPlugin.WithSealedBatchSink(this, profile.ChainId);
@@ -144,7 +174,11 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         int forcedInclusionMaximumBlocksPerScan = 256,
         IEnumerable<ulong>? knownForcedInclusionNonces = null,
         int? maxAutomaticRetries = null,
-        HttpClient? rpcHttpClient = null)
+        HttpClient? rpcHttpClient = null,
+        ISharedBridgeDepositSource? depositSource = null,
+        IMessageRouter? messageRouter = null,
+        Func<uint>? l1FinalizedHeight = null,
+        Func<UInt256>? sequencerCommitteeHash = null)
     {
         ArgumentNullException.ThrowIfNull(batchPlugin);
         ArgumentNullException.ThrowIfNull(executor);
@@ -174,6 +208,8 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
             rpcHttpClient);
         try
         {
+            // Caller owns depositSource / messageRouter; this plugin owns the forced-inclusion
+            // RPC pair and settlement client constructed above.
             Wire(
                 batchPlugin,
                 executor,
@@ -184,6 +220,10 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
                 profile,
                 composition.ForcedInclusionFinalizer,
                 composition.ForcedInclusionSource,
+                depositSource,
+                messageRouter,
+                l1FinalizedHeight,
+                sequencerCommitteeHash,
                 maxAutomaticRetries);
             _productionComposition = composition;
             return composition.ForcedInclusionSource;

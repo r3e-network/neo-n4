@@ -483,8 +483,10 @@ classes at the same call sites.
   `WithProductionBackend` with `NeoFsRestDAWriter` + `NeoFsRestDAReader`
   (or an equivalent reviewed adapter) and independent retrieval validation;
   L1 mode uses `JsonRpcL1DAWriter` with a signed-transaction confirm path.
-- **L1 deposit drain** — Production: `L2BatchPlugin.WireL1MessageInbox(chainId, height, committee,
-  deposits: rpcDepositSource, messageRouter: router)`. Lifecycle is **Drain (reserve) → durable
+- **L1 deposit drain** — Production: prefer
+  `L2SettlementPlugin.Wire(..., depositSource:, messageRouter:, l1FinalizedHeight:, sequencerCommitteeHash:)`
+  or `WireProduction(...)` with the same optional args; settlement installs the inbox on the batcher
+  via `WireL1MessageInbox` before the sealed-batch sink. Lifecycle is **Drain (reserve) → durable
   seal → ConfirmConsumed**; failed persist releases reservations. Local/devnet:
   `InMemorySharedBridgeDepositSource` with the same reserve/confirm contract.
 - **`ISequencerCommitteeProvider`** — Registry/source abstraction for discovering

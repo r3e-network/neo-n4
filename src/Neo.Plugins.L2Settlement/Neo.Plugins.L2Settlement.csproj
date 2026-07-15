@@ -11,8 +11,10 @@
     <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
     <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
     <ProjectReference Include="..\Neo.L2.Batch\Neo.L2.Batch.csproj" />
+    <ProjectReference Include="..\Neo.L2.Bridge\Neo.L2.Bridge.csproj" />
     <ProjectReference Include="..\Neo.L2.Executor\Neo.L2.Executor.csproj" />
     <ProjectReference Include="..\Neo.L2.ForcedInclusion\Neo.L2.ForcedInclusion.csproj" />
+    <ProjectReference Include="..\Neo.L2.Messaging\Neo.L2.Messaging.csproj" />
     <ProjectReference Include="..\Neo.L2.Persistence\Neo.L2.Persistence.csproj" />
     <ProjectReference Include="..\Neo.L2.Proving\Neo.L2.Proving.csproj" />
     <ProjectReference Include="..\Neo.L2.Settlement.Rpc\Neo.L2.Settlement.Rpc.csproj" />

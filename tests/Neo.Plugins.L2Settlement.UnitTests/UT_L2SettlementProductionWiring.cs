@@ -200,6 +200,93 @@ public class UT_L2SettlementProductionWiring
             forcedInclusionSource: source));
     }
 
+    [TestMethod]
+    public void Wire_AttachesSharedBridgeDepositInboxToBatchPlugin()
+    {
+        // Production composition must surface deposit inbox on the batcher, not only
+        // forced-inclusion. Callers own the deposit source; settlement does not dispose it.
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin(new L2SettlementSettings
+        {
+            ChainId = ChainId,
+            ProofType = (byte)ProofType.Multisig,
+            Enabled = false,
+        });
+        var deposits = new InMemorySharedBridgeDepositSource(
+            ChainId, UInt160.Parse("0x" + new string('e', 40)));
+        var committee = Root(0xCC);
+
+        settlement.Wire(
+            batch,
+            new TestExecutor(),
+            new TestDaWriter(),
+            store,
+            new TestProver(),
+            new TrackingSettlementClient(),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
+            depositSource: deposits,
+            l1FinalizedHeight: static () => 99,
+            sequencerCommitteeHash: () => committee);
+
+        Assert.AreSame(deposits, batch.DepositSource);
+    }
+
+    [TestMethod]
+    public void Wire_DepositInboxWithoutBlockContextProviders_FailsClosed()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin(new L2SettlementSettings
+        {
+            ChainId = ChainId,
+            ProofType = (byte)ProofType.Multisig,
+            Enabled = false,
+        });
+        var deposits = new InMemorySharedBridgeDepositSource(
+            ChainId, UInt160.Parse("0x" + new string('e', 40)));
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => settlement.Wire(
+            batch,
+            new TestExecutor(),
+            new TestDaWriter(),
+            store,
+            new TestProver(),
+            new TrackingSettlementClient(),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
+            depositSource: deposits));
+    }
+
+    [TestMethod]
+    public void Wire_DepositChainMismatch_FailsClosed()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin(new L2SettlementSettings
+        {
+            ChainId = ChainId,
+            ProofType = (byte)ProofType.Multisig,
+            Enabled = false,
+        });
+        var deposits = new InMemorySharedBridgeDepositSource(
+            2002, UInt160.Parse("0x" + new string('e', 40)));
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => settlement.Wire(
+            batch,
+            new TestExecutor(),
+            new TestDaWriter(),
+            store,
+            new TestProver(),
+            new TrackingSettlementClient(),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
+            depositSource: deposits,
+            l1FinalizedHeight: static () => 1,
+            sequencerCommitteeHash: static () => Root(0x1)));
+    }
+
     private static L2SettlementSettings ProductionSettings() => new()
     {
         ChainId = ChainId,

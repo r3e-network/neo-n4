@@ -14,6 +14,10 @@
 - 适用范围：Neo N4 项目的文档、架构、模块、工具、合约、测试或审计证据的一部分。
 - 一致性要求：术语、项目路径、命令、合约名称、模块名称、测试名称和安全结论必须与英文源文件保持一致。
 - 生产完备要求：如果英文源文件声明某模块已完成、已验证、已部署演练或已通过测试，中文版本不能降低或扩大该结论；必须同步记录同样的前提和限制。
+- 2026-07-15 SP1 release gate 并行化：workspace release、真实 batch 证明和真实递归
+  Gateway 证明拆分到三个独立且版本固定的 SP1 runner；fail-closed 聚合作业保留原有必需
+  branch-protection context。每个重型 lane 均低于托管 runner 的实际生命周期，避免编译成功后
+  因单作业过长而取消证明生成。
 - 2026-07-15 ChainRegistry 准入与治理状态闭合：`ChainRegistry` 在跨合约边界先以完整
   `BigInteger` 校验 `GovernanceController` 返回值必须严格为 0、1 或 2，再转换为 `byte`；
   负数、未定义值及 258 这类截断值都不能被误判成 permissionless，也不会写入 chain config

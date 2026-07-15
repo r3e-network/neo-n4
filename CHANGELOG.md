@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — parallel SP1 release gates — 2026-07-15
+
+- Split workspace release checks, real batch proving, and real recursive Gateway proving across
+  three independent pinned SP1 runners. A fail-closed aggregate job retains the existing required
+  branch-protection context, while each heavy lane stays below the hosted-runner lifetime that
+  previously cancelled proof generation after successful compilation.
+
 ### Fixed — closed ChainRegistry admission and governance states — 2026-07-15
 
 - Made the public admission-mode state machine fail closed at the cross-contract boundary.

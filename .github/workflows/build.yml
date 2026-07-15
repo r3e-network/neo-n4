@@ -368,15 +368,24 @@ jobs:
       - name: cargo clippy (neo-bridge-watcher-tron + neo-bridge-watcher-sol)
         run: cargo clippy --release --locked --all-targets -p neo-bridge-watcher-tron -p neo-bridge-watcher-sol -- -D warnings
 
-  # Real SP1 zkVM smoke test for bridge/neo-zkvm-host. Runs in its own job
-  # because the SP1 toolchain install is heavy. Coverage: builds the guest
-  # ELF via digest-pinned `cargo prove build --docker --locked`, then runs workspace formatting, clippy, and
-  # release tests. The ignored real-proof targets are explicitly selected and
-  # required on every event so this required job can never pass by skipping proof generation.
-  sp1-host:
-    name: cargo build + test (neo-zkvm-host, real SP1 zkVM)
+  # The SP1 release gate is split across independent runners so workspace
+  # compilation, batch proving, and recursive proving cannot exhaust one
+  # hosted runner's lifetime. Every lane performs the same pinned guest build;
+  # the stable aggregate job below preserves the branch-protection context.
+  sp1-release-gates:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: workspace-release
+            name: SP1 workspace release
+          - lane: host-real-proof
+            name: SP1 host real proof
+          - lane: gateway-recursive-proof
+            name: SP1 gateway recursive proof
     env:
       CARGO_PROVE: ${{ github.workspace }}/scripts/ci/cargo-prove-locked.sh
       RUSTUP_TOOLCHAIN: 1.88.0
@@ -459,15 +468,19 @@ jobs:
             "$(id -u):$(id -g)" "$GITHUB_WORKSPACE/target"
 
       - name: cargo fmt (Rust workspace)
+        if: matrix.lane == 'workspace-release'
         run: cargo fmt --all -- --check
 
       - name: cargo clippy (Rust workspace)
+        if: matrix.lane == 'workspace-release'
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: cargo test (Rust workspace, release)
+        if: matrix.lane == 'workspace-release'
         run: cargo test --workspace --release --locked
 
       - name: cargo test (neo-zkvm-host, real proof)
+        if: matrix.lane == 'host-real-proof'
         run: |
           python3 scripts/ci/run_cargo_ignored_tests.py \
             --manifest-path bridge/neo-zkvm-host/Cargo.toml \
@@ -477,12 +490,27 @@ jobs:
             --expected-test verify_rejects_mismatched_public_input_hash
 
       - name: cargo test (neo-zkvm-gateway-host, real recursive proof)
+        if: matrix.lane == 'gateway-recursive-proof'
         run: |
           python3 scripts/ci/run_cargo_ignored_tests.py \
             --manifest-path bridge/neo-zkvm-gateway-host/Cargo.toml \
             --test-target real_recursive_release_gate \
             --release \
             --expected-test proves_and_host_verifies_real_recursive_gateway_groth16
+
+  sp1-host:
+    name: cargo build + test (neo-zkvm-host, real SP1 zkVM)
+    needs: sp1-release-gates
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every SP1 release lane
+        env:
+          SP1_RELEASE_GATES_RESULT: ${{ needs.sp1-release-gates.result }}
+        run: |
+          echo "SP1 release gates: $SP1_RELEASE_GATES_RESULT"
+          test "$SP1_RELEASE_GATES_RESULT" = success
 
   rust-audit:
     name: cargo audit

@@ -210,8 +210,31 @@ class CargoProveWrapperTests(unittest.TestCase):
         )
         self.assertIn("cargo prove build --docker --locked", workflow)
         self.assertIn("cargo prove build --docker --locked", private_network)
-        sp1_job = workflow.split("  sp1-host:", 1)[1].split("\n  rust-audit:", 1)[0]
-        self.assertIn("timeout-minutes: 120", sp1_job)
+        sp1_release_gates = workflow.split("  sp1-release-gates:", 1)[1].split(
+            "\n  sp1-host:", 1
+        )[0]
+        self.assertIn("timeout-minutes: 50", sp1_release_gates)
+        self.assertIn("fail-fast: false", sp1_release_gates)
+        for lane in (
+            "workspace-release",
+            "host-real-proof",
+            "gateway-recursive-proof",
+        ):
+            self.assertIn(f"lane: {lane}", sp1_release_gates)
+        sp1_aggregate = workflow.split("  sp1-host:", 1)[1].split(
+            "\n  rust-audit:", 1
+        )[0]
+        self.assertIn(
+            "name: cargo build + test (neo-zkvm-host, real SP1 zkVM)",
+            sp1_aggregate,
+        )
+        self.assertIn("needs: sp1-release-gates", sp1_aggregate)
+        self.assertIn("if: ${{ always() }}", sp1_aggregate)
+        self.assertIn("SP1_RELEASE_GATES_RESULT", sp1_aggregate)
+        self.assertIn(
+            'test "$SP1_RELEASE_GATES_RESULT" = success',
+            sp1_aggregate,
+        )
         prove_step = workflow.split(
             "- name: cargo prove build (reproducible guest ELF)", 1
         )[1].split("\n      - name:", 1)[0]
@@ -254,14 +277,17 @@ class CargoProveWrapperTests(unittest.TestCase):
             workflow,
         )
         self.assertNotIn("run_real_sp1_proof", workflow)
-        for step_name in (
-            "cargo test (neo-zkvm-host, real proof)",
-            "cargo test (neo-zkvm-gateway-host, real recursive proof)",
+        for step_name, lane in (
+            ("cargo test (neo-zkvm-host, real proof)", "host-real-proof"),
+            (
+                "cargo test (neo-zkvm-gateway-host, real recursive proof)",
+                "gateway-recursive-proof",
+            ),
         ):
             marker = f"- name: {step_name}"
             self.assertIn(marker, workflow)
             step = workflow.split(marker, 1)[1].split("\n      - name:", 1)[0]
-            self.assertNotRegex(step, r"(?m)^\s+if:")
+            self.assertIn(f"if: matrix.lane == '{lane}'", step)
         self.assertIn("prove_and_verify_real_zk_proof", workflow)
         self.assertIn(
             "proves_and_host_verifies_real_recursive_gateway_groth16",

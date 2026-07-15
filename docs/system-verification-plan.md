@@ -108,7 +108,12 @@ cargo test --workspace --release --locked
 
 ```powershell
 pwsh ./scripts/deployment/run-local-rehearsal.ps1
-pwsh ./scripts/private-network/Test-PrivateNetwork.ps1
+pwsh ./scripts/private-network/Test-PrivateNetwork.ps1 `
+  -NodeConfig C:\reviewed\sequencer\config.json `
+  -BatcherNodeConfig C:\reviewed\batcher\config.json `
+  -SequencerNeoCli C:\reviewed\sequencer\Neo.CLI.dll `
+  -BatcherNeoCli C:\reviewed\batcher\Neo.CLI.dll `
+  -Prover C:\reviewed\prover\prove-batch.exe
 ```
 
 Operator-specific L3 evidence must also include wallet/HSM configuration,

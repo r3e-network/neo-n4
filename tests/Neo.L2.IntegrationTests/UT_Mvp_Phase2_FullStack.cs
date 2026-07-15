@@ -192,7 +192,7 @@ public class UT_Mvp_Phase2_FullStack
     }
 
     [TestMethod]
-    public async Task FullStack_CensorshipDetector_IdentifiesResponsibleSequencerForOverdue()
+    public async Task FullStack_CensorshipDetector_LeavesAttributionUnknownWithoutConsensusEvidence()
     {
         // Wire committee.
         var committee = new InMemorySequencerCommitteeProvider(LocalChainId);
@@ -226,10 +226,11 @@ public class UT_Mvp_Phase2_FullStack
         Assert.AreEqual(1, reports.Count, "only one entry is overdue at this clock value");
         Assert.AreEqual(1UL, reports[0].ForcedInclusionNonce);
 
-        // The lowest-pubkey active member is the named responsible sequencer.
-        var sortedCommittee = (await committee.GetActiveCommitteeAsync()).OrderBy(m => m.PublicKey).ToList();
-        Assert.AreEqual(sortedCommittee[0].PublicKey, reports[0].ResponsibleSequencer);
-        Assert.AreEqual(sortedCommittee[0].L1Address, reports[0].ResponsibleSequencerAddress);
+        // Committee membership alone does not prove which dBFT proposer omitted the
+        // transaction. Without a finalized-consensus attribution provider, the report
+        // remains unassigned for governance review rather than blaming an arbitrary member.
+        Assert.AreEqual(ECCurve.Secp256r1.Infinity, reports[0].ResponsibleSequencer);
+        Assert.AreEqual(UInt160.Zero, reports[0].ResponsibleSequencerAddress);
         Assert.IsTrue(reports[0].SlashAmount > 0);
     }
 }

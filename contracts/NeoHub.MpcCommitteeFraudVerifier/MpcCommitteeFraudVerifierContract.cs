@@ -64,7 +64,7 @@ namespace NeoHub.MpcCommitteeFraudVerifier;
 /// </list>
 /// </remarks>
 [DisplayName("NeoHub.MpcCommitteeFraudVerifier")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("Slashes equivocating committee members on the cross-foreign-chain bridge.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.MpcCommitteeFraudVerifier")]

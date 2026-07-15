@@ -59,7 +59,8 @@ public class UT_E2E_L2MetricsPlugin_CompositionRoot
             var sealed_ = sealer.OnBlockCommit((uint)(10 + i), 1000UL, 11, new[] { new byte[] { (byte)i } });
             Assert.IsNotNull(sealed_);
             await daWriter.PublishAsync(new DAPublishRequest { ChainId = 1001, BatchNumber = sealed_!.BatchNumber, Payload = new byte[] { (byte)i } });
-            aggregator.Submit(sealed_);
+            aggregator.Submit(BuildGatewayCommitment(sealed_));
+            sealer.AcknowledgeExecution(sealed_.BatchNumber, UInt256.Zero);
         }
         aggregator.Aggregate();
 
@@ -81,12 +82,41 @@ public class UT_E2E_L2MetricsPlugin_CompositionRoot
 
         // Every instrumented component must show up:
         StringAssert.Contains(body, "l2_batch_sealed_total 3", "BatchSealer");
-        StringAssert.Contains(body, "l2_da_published_total{mode=\"External\"} 3", "MetricsEmittingDAWriter");
+        StringAssert.Contains(body, "l2_da_published_total{mode=\"Local\"} 3", "MetricsEmittingDAWriter");
         StringAssert.Contains(body, "l2_bridge_deposits_total 1", "DepositProcessor");
         StringAssert.Contains(body, "l2_bridge_withdrawals_total 1", "WithdrawalProcessor");
         StringAssert.Contains(body, "l2_gateway_aggregations_total 1", "BinaryTreeAggregator");
         StringAssert.Contains(body, "l2_rpc_calls_total{method=\"getl2stateroot\"} 1", "L2RpcMethods.GetL2StateRoot");
         StringAssert.Contains(body, "l2_rpc_calls_total{method=\"getsecuritylevel\"} 1", "L2RpcMethods.GetSecurityLevel");
+    }
+
+    private static L2BatchCommitment BuildGatewayCommitment(SealedBatch batch)
+    {
+        UInt256 H(byte value)
+        {
+            var bytes = new byte[UInt256.Length];
+            bytes[0] = value;
+            return new UInt256(bytes);
+        }
+
+        return new L2BatchCommitment
+        {
+            ChainId = batch.ChainId,
+            BatchNumber = batch.BatchNumber,
+            FirstBlock = batch.FirstBlock,
+            LastBlock = batch.LastBlock,
+            PreStateRoot = batch.PreStateRoot,
+            PostStateRoot = H(1),
+            TxRoot = H(2),
+            ReceiptRoot = H(3),
+            WithdrawalRoot = H(4),
+            L2ToL1MessageRoot = H(5),
+            L2ToL2MessageRoot = H(6),
+            DACommitment = H(7),
+            PublicInputHash = H(8),
+            ProofType = ProofType.Multisig,
+            Proof = new byte[] { 0x01 },
+        };
     }
 
     private static CrossChainMessage BuildDeposit(ulong nonce)

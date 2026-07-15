@@ -11,10 +11,10 @@
 > Development (NGD), the Neo Foundation, or the
 > [`neo-project`](https://github.com/neo-project) organization**. The "Neo 4" name
 > refers to the *target core* used as the L2 execution kernel; the canonical Neo 4
-> protocol roadmap is owned by the Neo project. The code is engineered for production
-> L2 deployment — full cryptographic primitives, real persistence, comprehensive test
-> coverage, and documented operator seams. Audit before mainnet use and wire the
-> production seams (live L1 signer, real NeoFS adapter, dBFT consensus selector)
+> protocol roadmap is owned by the Neo project. The code is undergoing production
+> hardening: real cryptographic and persistence components ship, while general NeoVM
+> fraud proofs plus independent Gateway audit and executed real-proof deployment evidence remain explicit open gates. Audit before mainnet use and wire the
+> production seams (operator key/HSM policy, real NeoFS adapter, reviewed dBFT node bundle)
 > per your deployment.
 
 `neo4` is the consolidation repo for the **Neo Elastic Network** — a system that uses
@@ -60,8 +60,9 @@ fractional withdrawals such as non-whole L1 NEO exits.
 
 The architecture is three tiers:
 
-- **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 24 deployable contracts grouped into
-  six concerns: *Settlement* (SettlementManager · VerifierRegistry · ContractZkVerifier), *Bridge*
+- **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 26 contract projects
+  (24 production, 1 advisory-only structural fraud verifier, and 1 test-only stub) grouped into six concerns: *Settlement*
+  (SettlementManager · VerifierRegistry · ContractZkVerifier · Sp1Groth16Verifier), *Bridge*
   (SharedBridge · TokenRegistry · ChainRegistry), *Messaging* (MessageRouter · DARegistry),
   *Security* (SequencerRegistry · SequencerBond · ForcedInclusion · OptimisticChallenge),
   *Governance* (GovernanceController · EmergencyManager · GovernanceFraudVerifier · RestrictedExecutionFraudVerifier),
@@ -69,10 +70,11 @@ The architecture is three tiers:
   message routing, and governance. `ContractZkVerifier` keeps ZK settlement in the deployable NeoHub path while routing proof-system work to governance-registered deployable verifier contracts.
 - **Neo Gateway (Phase 5, optional)** — aggregates many L2s' proofs into one settlement
   post on L1. `BinaryTreeAggregator` reduces in log-N rounds; `IRoundProver` ships in
-  three production-grade implementations (`MultisigRoundProver` for committee-attested
+  two production-grade implementations (`MultisigRoundProver` for committee-attested
   rounds, `MerklePathRoundProver` for per-leaf inclusion proofs against the aggregate
-  root, `PassThroughRoundProver` as the minimal-cost reference). Recursive-ZK fold
-  variants (SP1 Compress / Halo2 / Risc0) plug into the same seam when the operator
+  root) plus `PassThroughRoundProver` as the minimal-cost reference. The dedicated
+  `neo-zkvm-gateway-{guest,host}` crates bundle the SP1 6.2.1 recursive terminal proof;
+  Halo2 / Risc0 alternatives plug into the same seam when the operator
   brings the toolchain.
 - **L2 chains (elastic, N of them)** — Neo 4 core as execution kernel, 8 L2 plugins,
   10 native L2 contracts per chain. Independent state, shared L1 anchor.
@@ -95,8 +97,8 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
   [`docs/persistence.md`](./persistence.md).
 - **Node plugins (8)** — `Neo.Plugins.L2{Batch, Bridge, DA, Gateway,
   Metrics, Prover, Rpc, Settlement}`.
-- **Smart contracts (24 deployable + 10 L2 native)** — 24 NeoHub L1 deployable contracts (23 production plus the test-only `ExternalBridgeStubVerifier`, incl. `DAValidator`, `L1TxFilter`, `ContractZkVerifier`, `GovernanceFraudVerifier`,
-  `RestrictedExecutionFraudVerifier` v3 trustless verifier, and the 6
+- **Smart contracts (26 NeoHub + 10 L2 native)** — 26 NeoHub L1 contract projects (24 production, advisory-only `GovernanceFraudVerifier`, and test-only `ExternalBridgeStubVerifier`, incl. `DAValidator`, `L1TxFilter`, `ContractZkVerifier`, immutable `Sp1Groth16Verifier`,
+  `RestrictedExecutionFraudVerifier` executable restricted-v4 verifier, and the 6
   cross-foreign-chain bridge contracts: `MpcCommitteeVerifier` /
   `ExternalBridgeRegistry` / `ExternalBridgeEscrow` /
   `ExternalBridgeBond` / `ExternalBridgeStubVerifier` /
@@ -105,23 +107,27 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
   `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`.
 - **CLI tools (7)** — `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`,
   `neo-l2-explore`, `neo-bridge`, `neo-l2-faucet`, `neo-external-bridge`.
-- **App SDKs (3)** — `src/Neo.L2.Sdk/` (.NET) · `sdk/typescript/`
-  (`@neo-n4/sdk`) · `sdk/rust/` (`neo-n4-sdk`) — all 10 RPC methods,
-  same wire shape, same 4-class error taxonomy.
-- **Web app (1)** — `sdk/web-explorer/index.html` — single static-file
-  UI: Explore + Bridge + Faucet + state-root continuity Audit.
+- **App SDKs (4)** — `src/Neo.L2.Sdk/` (.NET) · `sdk/typescript/`
+  (`@neo-n4/sdk`) · `sdk/rust/` (`neo-n4-sdk`) · `sdk/python/`
+  (`neo-n4-sdk`) — all 10 RPC methods,
+  same wire shape, same 4-class error taxonomy, and one shared offline/live
+  conformance suite documented in [`sdk-conformance.md`](./sdk-conformance.md).
+- **Static web experiences (4)** — `sdk/web-explorer/index.html` (operator
+  explorer) · `experience-hub/index.html` (architecture tour) ·
+  `interactive-runtime/index.html` (runtime theater) ·
+  `interactive-math/index.html` (proof math lab).
 - **Docs site config (1)** — `book.toml` + `docs/SUMMARY.md` (mdBook).
-- **Rust prover/core (3)** — `bridge/neo-execution-core/` (backend-neutral
-  batch parsing, receipt/state folding, Merkle roots, public-input hash; no
-  SP1/PolkaVM dependency) · `bridge/neo-zkvm-host/` (sp1-sdk 6.2.1 prover +
-  `prove-batch daemon`) · `bridge/neo-zkvm-guest/` (the function being
-  proved — RISC-V ELF, real Neo N3 VM via `neo_vm_guest::execute`).
-- **Submodules (4)** — `external/neo` (`r3e-network/neo` fork, L2 branch `r3e/neo-n4-core`; L1 core branch is `r3e/neo-n3-core` in the same fork) ·
+- **Rust prover/core (5)** — `bridge/neo-execution-core/` (shared canonical
+  execution semantics) · `bridge/neo-zkvm-{host,guest}/` (batch SP1 proof
+  producer/program) · `bridge/neo-zkvm-gateway-{host,guest}/` (recursive
+  Gateway SP1 proof producer/program).
+- **Submodules (5)** — `external/neo` (`r3e-network/neo` fork, L2 branch `r3e/neo-n4-core`; L1 core branch is `r3e/neo-n3-core` in the same fork) ·
   `external/neo-devpack-dotnet` (smart-contract devpack + nccs) ·
   `external/neo-riscv-vm` (PolkaVM-backed Neo RISC-V engine) ·
-  `external/neo-zkvm` (SP1 prover crates and legacy Neo VM compatibility guest). None
+  `external/neo-zkvm` (SP1 prover crates and legacy Neo VM compatibility guest) ·
+  `external/neo-vm-rs` (stateful Rust NeoVM runtime shared by native execution and SP1). None
   are released on NuGet/crates.io for the versions tracked here.
-- **Tests (1521 .NET + cross-language gates)** — 1521 tests across 34 .NET projects, plus TypeScript, Rust SDK/core/watchers/zkVM, Python SDK, Node experience, vendored `neo-zkvm` / `neo-riscv-vm`, Solidity, Solana, and SP1 release-proof gates documented in [`testing-approach.md`](./testing-approach.md).
+- **Tests (38 .NET test projects + cross-language gates)** — the current solution inventory is discovered dynamically, plus TypeScript, Rust SDK/core/watchers/zkVM, Python SDK, Node experience, vendored `neo-zkvm` / `neo-riscv-vm`, Solidity, Solana, and SP1 release-proof gates documented in [`testing-approach.md`](./testing-approach.md).
 
 ```
 neo4/
@@ -139,7 +145,7 @@ neo4/
 │   ├── Neo.L2.Telemetry/                   # IL2Metrics + PrometheusExporter
 │   └── Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}/
 ├── contracts/
-│   ├── NeoHub.* (24)                       # L1 contract suite: 23 production + 1 test stub
+│   ├── NeoHub.* (26)                       # L1 suite: 24 production + 1 advisory + 1 test stub
 ├── external/neo/                            # r3e Neo fork with N4 L2 native contracts
 ├── tools/
 │   ├── Neo.Stack.Cli/                      # neo-stack CLI (12 subcommands)
@@ -153,7 +159,7 @@ neo4/
 │   ├── neo-execution-core/                 # backend-neutral batch fold + public input hash
 │   ├── neo-zkvm-guest/                     # Rust → RISC-V ELF (SP1-proven execution guest)
 │   └── neo-zkvm-host/                      # sp1-sdk 6.2.1 prover daemon (prove-batch)
-└── tests/                                  # 1521 tests / 34 projects
+└── tests/                                  # 38 solution test projects; inventory is discovered dynamically
 ```
 
 ---
@@ -162,17 +168,19 @@ neo4/
 
 Per [`doc.md` §18](../doc.md):
 
-| Phase | Goal                                | Status | Evidence                                                  |
-| ----- | ----------------------------------- | :----: | --------------------------------------------------------- |
-| 0     | Sidechain PoC                       | ✅     | MVP integration test passes end-to-end                    |
-| 1     | NeoHub v0 + Shared Bridge           | ✅     | All 24 NeoHub contracts compile; deploy planner emits 23 production steps (15 core + ContractZkVerifier + 2 fraud verifiers + 5 external-bridge) |
-| 2     | Batch Settlement                    | ✅     | Real `KeyedStateStore` continuity verified across batches |
-| 3     | Optimistic Challenge Window         | ✅     | `OptimisticChallenge` contract + `BisectionGame` (log-N narrowing) |
-| 4     | NeoVM 2 / RISC-V ZK Validity Proof  | ✅     | Neo N4 L2 execution targets NeoVM2/RISC-V via `src/Neo.L2.Executor.RiscV` + PolkaVM host in `external/neo-riscv-vm`; `neo-l2-devnet --executor riscv` runs the canonical path. SP1 prover daemon lives in `bridge/neo-zkvm-host` (`prove-batch` CLI); real CPU proofs verified by `#[ignore]`-gated release-gate tests. |
-| 5     | Neo Gateway proof aggregation       | ✅     | `BinaryTreeAggregator` ships 3 production `IRoundProver`s: `MultisigRoundProver` (Secp256r1 threshold-attested) · `MerklePathRoundProver` (per-leaf inclusion proofs) · `PassThroughRoundProver` (reference) |
-| 6     | Neo Stack CLI / templates           | ✅     | 12 subcommands functional (3 print operator-plan output for the L1/L2-wallet-gated steps; `validate` is a pure JSON sanity-check; `scaffold-executor` emits a custom-executor starter project; `new-l2` is the composite; `list-templates` prints discoverable template + use-case descriptions) |
+| Phase | Goal | Design | Code | Integrated | Crypto enforced | Exact-revision deployment | Production-ready |
+| ----- | ---- | :----: | :--: | :--------: | :-------------: | :-----------------------: | :--------------: |
+| 0 | Sidechain PoC | ✅ | ✅ | ✅ local | N/A | ❌ | ❌ |
+| 1 | NeoHub v0 + Shared Bridge | ✅ | ✅ | ✅ local | 🟡 profile dependent | ❌ | ❌ |
+| 2 | Batch Settlement | ✅ | ✅ | ✅ local | 🟡 proof profile dependent | ❌ | ❌ |
+| 3 | Optimistic Challenge Window | ✅ | 🟡 restricted v4 | 🟡 restricted transition | 🟡 exact v4 only | ❌ | ❌ |
+| 4 | NeoVM2 / RISC-V ZK validity | ✅ | ✅ | ✅ local + CI | ✅ pinned SP1 Groth16 path | ❌ | ❌ |
+| 5 | Neo Gateway aggregation | ✅ | ✅ | ✅ local + CI | 🟡 validity profile dependent | ❌ | ❌ |
+| 6 | Neo Stack CLI / templates | ✅ | ✅ | 🟡 wallet adapters required | N/A | ❌ | ❌ |
 
-Legend: ✅ done · 🟡 substantial scaffolding + tests · 🔴 stub.
+Legend: ✅ proved for this revision · 🟡 partial/profile-dependent · ❌ missing.
+No row is a production-readiness claim; the complete evidence matrix is in
+[`IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md).
 
 Detailed coverage per project: [`IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md).
 
@@ -195,7 +203,7 @@ cd neo-n4
 # If you forgot --recurse-submodules:
 # git submodule update --init --recursive
 
-# Type-check everything + run all 1521 tests (~10 seconds)
+# Type-check everything + run the complete current .NET test inventory
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 
 # --- Bootstrapping a new L2 chain (recommended path) ---
@@ -231,7 +239,7 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --data-dir /tmp/neo-l2-devnet
 
 # --- L1 deploy (when ready) ---
 
-# Generate a NeoHub deploy bundle (23 production contracts, declarative, dependency-resolved)
+# Generate a NeoHub deploy bundle (24 production contracts, declarative, dependency-resolved)
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
     --output deploy-plan.json
 dotnet run --project tools/Neo.Hub.Deploy -- plan \
@@ -260,7 +268,7 @@ A 5-minute walkthrough is in [`docs/getting-started.md`](./getting-started.md).
 | [`docs/launching-an-l2.md`](./launching-an-l2.md)                  | L2 operators          | 5-command path to a registered L2 chain + every plug-in point for custom logic (executor / DA / prover / sequencer). Templates: rollup / zk-rollup / validium / sidechain. |
 | [`samples/`](../samples/README.md)                                       | L2 operators          | 4 ready-to-run sample chain configs covering distinct use cases (general-rollup / gaming-rollup / exchange-validium / privacy-sidechain), each verified end-to-end via `neo-l2-devnet --config`. |
 | [`samples/contracts/`](../samples/contracts/README.md)                   | dApp developers       | Sample L2-aware app contracts (`CrossChainGreeter`, `WithdrawalDemo`) showing standard patterns for integrating with N4 L2 native contracts. |
-| [`docs/tech-stack-coverage.md`](./tech-stack-coverage.md)          | reviewers             | Honest gap analysis of L2-stack coverage — 51 components ✅, 2 🟡 (Phase 4/5 ZK infra), 6 🔴 (out-of-repo: SDKs, explorer, portal, faucet, wallet integration). |
+| [`docs/tech-stack-coverage.md`](./tech-stack-coverage.md)          | reviewers             | Source-tree coverage and remaining evidence: four typed SDKs and the explorer/bridge/faucet Experience Hub ship; live SDK/provider rehearsals, exact-revision deployment, and independent approval remain open. |
 | [`docs/neohub-architecture-and-workflows.md`](./neohub-architecture-and-workflows.md) | engineers, operators, reviewers | Detailed NeoHub architecture, dataflow, workflow diagrams, and per-contract responsibility matrix for all NeoHub contracts. |
 | [`docs/crate-visual-guide.md`](./crate-visual-guide.md) | developers, reviewers | Crate-by-crate visual learning index with architecture, workflow, and dataflow diagrams for every Rust crate. |
 | [`docs/architecture-walkthrough.md`](./architecture-walkthrough.md) | engineers             | Narrative tour mapping every `doc.md` section to code.               |

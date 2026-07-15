@@ -17,4 +17,13 @@
     <ProjectReference Include="..\..\src\Neo.L2.Batch\Neo.L2.Batch.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\..\bridge\neo-zkvm-guest\tests\fixtures\stateful_batch_v1.hex"
+          Link="Fixtures\stateful_batch_v1.hex"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\bridge\neo-zkvm-guest\tests\fixtures\native_execution_output_v1.hex"
+          Link="Fixtures\native_execution_output_v1.hex"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

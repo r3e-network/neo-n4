@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text.Json;
 
 namespace Neo.Stack.Cli.Commands;
 
@@ -44,15 +45,91 @@ internal static class InitL2Command
             return 2;
         }
 
+        var nodeConfigDestination = Path.Combine(path, "node", "config.json");
+        if (!TryLoadReviewedConfig(
+                args,
+                "--node-config",
+                nodeConfigDestination,
+                out var nodeConfigBytes,
+                out var nodeConfigError))
+        {
+            Console.Error.WriteLine(nodeConfigError);
+            return 3;
+        }
+        var batcherConfigDestination = Path.Combine(path, "batcher-node", "config.json");
+        if (!TryLoadReviewedConfig(
+                args,
+                "--batcher-node-config",
+                batcherConfigDestination,
+                out var batcherConfigBytes,
+                out var batcherConfigError))
+        {
+            Console.Error.WriteLine(batcherConfigError);
+            return 3;
+        }
+
         Directory.CreateDirectory(Path.Combine(path, "data"));
+        Directory.CreateDirectory(Path.Combine(path, "batcher-data"));
         Directory.CreateDirectory(Path.Combine(path, "logs"));
         Directory.CreateDirectory(Path.Combine(path, "Plugins"));
+        Directory.CreateDirectory(Path.Combine(path, "node", "Plugins"));
+        Directory.CreateDirectory(Path.Combine(path, "batcher-node", "Plugins"));
+        Directory.CreateDirectory(Path.Combine(path, "prover", "inbox"));
+        Directory.CreateDirectory(Path.Combine(path, "prover", "archive"));
+        if (nodeConfigBytes is not null)
+        {
+            File.WriteAllBytes(nodeConfigDestination, nodeConfigBytes);
+        }
+        if (batcherConfigBytes is not null)
+        {
+            File.WriteAllBytes(batcherConfigDestination, batcherConfigBytes);
+        }
 
         Console.WriteLine($"Initialized L2 node at {path}");
         Console.WriteLine($"  data       = {path}/data");
+        Console.WriteLine($"  batcher    = {path}/batcher-data");
         Console.WriteLine($"  logs       = {path}/logs");
         Console.WriteLine($"  plugins    = {path}/Plugins");
+        Console.WriteLine($"  node root  = {path}/node");
+        Console.WriteLine($"  prover     = {path}/prover");
         Console.WriteLine($"  da mode    = {da}");
         return 0;
+    }
+
+    private static bool TryLoadReviewedConfig(
+        string[] args,
+        string option,
+        string destinationPath,
+        out byte[]? configBytes,
+        out string error)
+    {
+        configBytes = null;
+        error = "";
+        var configuredSource = ArgUtil.Get(args, option, "");
+        if (configuredSource.Length == 0) return true;
+
+        var sourcePath = Path.GetFullPath(configuredSource);
+        if (!File.Exists(sourcePath))
+        {
+            error = $"Neo.CLI config not found: {sourcePath}";
+            return false;
+        }
+        try
+        {
+            configBytes = File.ReadAllBytes(sourcePath);
+            using var _ = JsonDocument.Parse(configBytes);
+        }
+        catch (Exception exception) when (exception is IOException or JsonException)
+        {
+            error = $"Invalid Neo.CLI config: {exception.Message}";
+            return false;
+        }
+        if (File.Exists(destinationPath)
+            && !File.ReadAllBytes(destinationPath).SequenceEqual(configBytes))
+        {
+            error = $"Refusing to overwrite existing Neo.CLI config: {destinationPath}";
+            return false;
+        }
+        return true;
     }
 }

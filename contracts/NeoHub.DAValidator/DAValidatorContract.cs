@@ -26,7 +26,7 @@ namespace NeoHub.DAValidator;
 /// yet implemented.
 /// </remarks>
 [DisplayName("NeoHub.DAValidator")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("L1 data-availability validator for Neo Elastic Network batches.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.DAValidator")]

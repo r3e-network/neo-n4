@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NeoHub.Sp1Groth16Verifier</RootNamespace>
+    <AssemblyName>NeoHub.Sp1Groth16Verifier</AssemblyName>
+  </PropertyGroup>
+
+</Project>

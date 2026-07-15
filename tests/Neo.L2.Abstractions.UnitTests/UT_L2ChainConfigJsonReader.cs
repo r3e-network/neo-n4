@@ -102,6 +102,17 @@ public class UT_L2ChainConfigJsonReader
     }
 
     [TestMethod]
+    public void FromJson_RejectsLocalDurabilityAsPublicDAMode()
+    {
+        var local = SampleJson.Replace("\"daMode\": \"NeoFS\"", "\"daMode\": \"Local\"");
+        var ex = Assert.ThrowsExactly<ArgumentException>(
+            () => L2ChainConfigJsonReader.FromJson(4242, local,
+                OpHash, VerifierHash, BridgeHash, MessageHash));
+        StringAssert.Contains(ex.Message, "daMode");
+        StringAssert.Contains(ex.Message, "local-only");
+    }
+
+    [TestMethod]
     public void FromJson_RejectsMalformedHash_NamesFlag()
     {
         // Pin operator-friendly error: the flag that's wrong is in the message so the

@@ -3,7 +3,7 @@ namespace Neo.L2.Batch;
 /// <summary>
 /// In-progress batch state: blocks, transactions, withdrawals, and messages collected while
 /// the L2 sequencer accumulates work. <see cref="BatchBuilder"/> mutates this; once sealed it
-/// is converted to an immutable <see cref="L2BatchCommitment"/>.
+/// is converted to an immutable <see cref="SealedBatch"/>.
 /// </summary>
 /// <remarks>
 /// See doc.md §7.2 (Batcher inputs/outputs).

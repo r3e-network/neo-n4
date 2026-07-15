@@ -81,10 +81,16 @@ var settlement = new RpcSettlementClient(
     });
 ```
 
-Same pattern for the other CLIs that need to sign — they all expose a
-delegate hook so the operator wires their preferred signing path
-(`AWS-KMS` / `Azure Key Vault` / `Ledger` / NEP-6 / etc.) without the
-framework needing to know.
+For `neo-stack` operator commands, the same boundary is available directly
+through `--signer-command`, which receives canonical sign data on standard
+input and returns only the witness invocation script. The CLI pins the account
+and verification script, calculates fees, broadcasts, and confirms the result.
+See [operator signer-command protocol](./operator-signer-command-protocol.md)
+for the strict request, response, timeout, and failure contract.
+
+Other programmatic callers can use `INeoTransactionSigner` directly so the
+operator wires their preferred signing path (`AWS-KMS` / `Azure Key Vault` /
+`Ledger` / NEP-6 / etc.) without the framework needing to know.
 
 ## Specific wallet products
 

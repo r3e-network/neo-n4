@@ -44,3 +44,16 @@ public interface IL2Prover
         ProofRequest request,
         CancellationToken cancellationToken = default);
 }
+
+/// <summary>Optional lifecycle seam for pruning external prover artifacts after L1 settlement.</summary>
+/// <remarks>
+/// See doc.md §7.5 and §15.1. Implementations must publish an idempotent durable acknowledgement;
+/// deletion is owned by the external prover process so crashes cannot erase unconfirmed evidence.
+/// </remarks>
+public interface IProofArtifactRetention
+{
+    /// <summary>Acknowledge that the content-addressed artifact is durably observed on L1.</summary>
+    ValueTask AcknowledgeSettlementAsync(
+        UInt256 artifactContentHash,
+        CancellationToken cancellationToken = default);
+}

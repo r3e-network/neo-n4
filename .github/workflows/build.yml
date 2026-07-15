@@ -5,13 +5,11 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+  schedule:
+    # Nightly re-runs the same release-grade proof gate required on pull requests
+    # and master pushes, catching environment or upstream-registry drift.
+    - cron: "17 2 * * *"
   workflow_dispatch:
-    inputs:
-      run_real_sp1_proof:
-        description: "Run ignored real SP1 proof tests"
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -21,6 +19,8 @@ jobs:
     name: dotnet test
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      RUSTUP_TOOLCHAIN: 1.88.0
 
     steps:
       - name: Checkout (with submodules)
@@ -33,10 +33,21 @@ jobs:
           # we track here, so the submodule init is required for the build.
           submodules: recursive
 
+      - name: CI gate helper self-tests
+        run: |
+          python3 -m unittest discover --start-directory scripts/ci/tests --verbose
+          bash -n scripts/ci/cargo-prove-locked.sh
+
+      - name: Verify Neo gitlink is published on the official core branch
+        run: python3 scripts/ci/verify_neo_core_gitlink.py
+
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@1.88.0
 
       - name: Override nuget.config for the submodule
         # external/neo/nuget.config <clear/>s sources and adds MyGet-neo, which
@@ -127,12 +138,21 @@ jobs:
           </configuration>
           EOF
 
-      - name: Install nccs (Neo C# Compiler)
-        # Without nccs, contracts only type-check — nccs catches a separate class of
-        # error (NeoVM-specific opcode constraints, manifest emission, ABI compile
-        # errors) that the C# compiler never sees. Installing it on the runner means
-        # every commit gets the .nef + .manifest.json artifacts validated.
-        run: dotnet tool install -g Neo.Compiler.CSharp
+      - name: Build pinned nccs from the audited devpack submodule
+        # The N4 BN254 framework/compiler surface is newer than the public 3.9.1
+        # tool package. Build the exact vendored r3e-network/neo-devpack-dotnet
+        # revision so the compiler and framework cannot drift independently.
+        run: |
+          dotnet build \
+            external/neo-devpack-dotnet/src/Neo.Compiler.CSharp/Neo.Compiler.CSharp.csproj \
+            --configuration Release \
+            /p:NeoCorePackageVersion=3.9.3-CI02045 \
+            /p:NuGetAudit=false \
+            --nologo
+          nccs_dir="$GITHUB_WORKSPACE/external/neo-devpack-dotnet/src/Neo.Compiler.CSharp/bin/Release/net10.0"
+          test -x "$nccs_dir/nccs"
+          echo "$nccs_dir" >> "$GITHUB_PATH"
+          "$nccs_dir/nccs" --version
 
       - name: Type-check + compile deployable NeoHub + sample contracts
         # dotnet build type-checks the C# surface; nccs explicitly emits the
@@ -141,17 +161,31 @@ jobs:
         # path, so a refactor that breaks the sample API surfaces here, not at
         # an operator's terminal.
         run: |
-          for d in contracts/NeoHub.* samples/contracts/Sample.*; do
+          shopt -s nullglob
+          contract_directories=(contracts/NeoHub.* samples/contracts/Sample.*)
+          if [ "${#contract_directories[@]}" -eq 0 ]; then
+            echo "No deployable contract projects matched the expected paths"
+            exit 1
+          fi
+          for d in "${contract_directories[@]}"; do
             name=$(basename "$d")
             project="$d/$name.csproj"
             dotnet build "$project" /p:NuGetAudit=false --nologo
-            nccs "$project" --output "$d/bin/sc"
+            nccs "$project" --output "$d/bin/sc" --security-analysis
           done
 
       - name: Verify .nef + .manifest.json artifacts produced
         run: |
+          shopt -s nullglob
+          neo_contracts=(contracts/NeoHub.*)
+          sample_contracts=(samples/contracts/Sample.*)
+          contract_directories=("${neo_contracts[@]}" "${sample_contracts[@]}")
+          if [ "${#contract_directories[@]}" -eq 0 ]; then
+            echo "No deployable contract projects matched the expected paths"
+            exit 1
+          fi
           missing=0
-          for d in contracts/NeoHub.* samples/contracts/Sample.*; do
+          for d in "${contract_directories[@]}"; do
             name=$(basename "$d")
             for ext in nef manifest.json; do
               if [ ! -f "$d/bin/sc/$name.$ext" ]; then
@@ -160,37 +194,51 @@ jobs:
               fi
             done
           done
-          if [ $missing -gt 0 ]; then
+          if [ "$missing" -gt 0 ]; then
             echo "$missing artifacts missing - nccs did not run for some contracts"
             exit 1
           fi
           # Count is logged dynamically so the message can't drift from reality
           # when a contract is added (matches the loop above + the verification loop).
-          neo_count=$(ls -d contracts/NeoHub.* 2>/dev/null | wc -l)
-          sample_count=$(ls -d samples/contracts/Sample.* 2>/dev/null | wc -l)
+          neo_count=${#neo_contracts[@]}
+          sample_count=${#sample_contracts[@]}
           total=$((neo_count + sample_count))
           echo "All $total deployable contracts ($neo_count NeoHub + $sample_count samples) produced .nef + .manifest.json artifacts"
 
       - name: Verify NeoHub manifest invariants against fresh nccs artifacts
         env:
           NEO_N4_REQUIRE_FRESH_MANIFESTS: "1"
-        run: >
-          dotnet test tests/Neo.Hub.Deploy.UnitTests/Neo.Hub.Deploy.UnitTests.csproj
-          --filter
-          "FullyQualifiedName~UT_ContractManifestInvariants|FullyQualifiedName~UT_OptimisticChallengeAllowlist"
-          /p:NuGetAudit=false
-          --nologo
+        run: |
+          python3 scripts/ci/run_dotnet_filtered_tests.py \
+            --project tests/Neo.Hub.Deploy.UnitTests/Neo.Hub.Deploy.UnitTests.csproj \
+            --filter 'FullyQualifiedName~UT_ContractManifestInvariants|FullyQualifiedName~UT_OptimisticChallengeAllowlist' \
+            --minimum-tests 19 \
+            -- /p:NuGetAudit=false --nologo
+
+      - name: Verify audited verifier artifacts against fresh nccs output
+        env:
+          NEO_N4_REQUIRE_FRESH_MANIFESTS: "1"
+        run: |
+          python3 scripts/ci/run_dotnet_filtered_tests.py \
+            --project tests/NeoHub.Sp1Groth16Verifier.UnitTests/NeoHub.Sp1Groth16Verifier.UnitTests.csproj \
+            --filter FullyQualifiedName~UT_FreshContractArtifacts \
+            --minimum-tests 2 \
+            -- /p:NuGetAudit=false --nologo
 
       - name: Verify N4 L2 native contracts in r3e Neo core
         run: |
-          dotnet test external/neo/tests/Neo.UnitTests/Neo.UnitTests.csproj \
+          python3 scripts/ci/run_dotnet_filtered_tests.py \
+            --project external/neo/tests/Neo.UnitTests/Neo.UnitTests.csproj \
             --filter FullyQualifiedName~UT_L2NativeContracts \
-            /p:NuGetAudit=false --nologo
+            --minimum-tests 12 \
+            -- /p:NuGetAudit=false --nologo
 
   bridge:
     name: cargo check (Rust bridge)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
+    env:
+      RUSTUP_TOOLCHAIN: 1.88.0
 
     steps:
       - name: Checkout (with submodules)
@@ -199,26 +247,68 @@ jobs:
           submodules: recursive
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.88.0
+        with:
+          components: rustfmt, clippy
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Override nuget.config for the Neo submodule
+        run: |
+          cat > external/neo/nuget.config <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="NuGet.org" value="https://api.nuget.org/v3/index.json" />
+            </packageSources>
+          </configuration>
+          EOF
 
       # neo-riscv-host: PolkaVM-backed Neo RISC-V execution engine vendored at
       # external/neo-riscv-vm. C# project Neo.L2.Executor.RiscV P/Invokes into
-      # the produced libneo_riscv_host.so. cargo check (not build) keeps CI
-      # fast - the actual cdylib is operator-built when deploying.
+      # the produced libneo_riscv_host.so. The first check covers the host
+      # crate quickly; the stateful ABI gate then builds and loads the cdylib.
       - name: cargo check (neo-riscv-host)
         working-directory: external/neo-riscv-vm
-        run: cargo check -p neo-riscv-host
+        run: cargo check --locked -p neo-riscv-host
+
+      - name: Verify native RISC-V stateful ABI + parity
+        run: |
+          cargo build --release --locked -p neo-riscv-host --manifest-path external/neo-riscv-vm/Cargo.toml
+          dotnet build tests/Neo.L2.Executor.RiscV.UnitTests/Neo.L2.Executor.RiscV.UnitTests.csproj \
+            /p:NuGetAudit=false --nologo
+          cp external/neo-riscv-vm/target/release/libneo_riscv_host.so \
+            tests/Neo.L2.Executor.RiscV.UnitTests/bin/Debug/net10.0/
+          NEO_RISCV_NATIVE_TESTS=1 python3 scripts/ci/run_dotnet_filtered_tests.py \
+            --project tests/Neo.L2.Executor.RiscV.UnitTests/Neo.L2.Executor.RiscV.UnitTests.csproj \
+            --filter 'FullyQualifiedName~Neo.L2.Executor.RiscV.UnitTests.UT_RiscVHost.RealNative_' \
+            --minimum-tests 10 \
+            -- /p:NuGetAudit=false --nologo --no-build
 
       # neo-zkvm-guest: the Rust crate that compiles to RISC-V ELF inside SP1's
       # zkVM. Host-side compilation + tests pin the deterministic execution
-      # contract (parse, Merkle root, hash256). The actual `cargo prove build`
-      # that produces the RISC-V ELF requires the SP1 toolchain - operator-supplied
+      # contract (parse, Merkle root, hash256). The actual digest-pinned Docker
+      # `cargo prove build --docker --locked` that produces the RISC-V ELF requires SP1 + Docker
       # at deploy time per bridge/neo-zkvm-guest/README.md.
       - name: cargo build + test (neo-zkvm-guest, host mode)
         working-directory: bridge/neo-zkvm-guest
         run: |
-          cargo build
-          cargo test
+          cargo build --locked
+          cargo test --locked
+
+      - name: Verify production C# to native SP1 execution boundary
+        run: |
+          cargo build --release --locked -p neo-zkvm-guest --bin neo-zkvm-executor
+          NEO_ZKVM_EXECUTOR="$GITHUB_WORKSPACE/target/release/neo-zkvm-executor" \
+            python3 scripts/ci/run_dotnet_filtered_tests.py \
+              --project tests/Neo.L2.Executor.UnitTests/Neo.L2.Executor.UnitTests.csproj \
+              --filter FullyQualifiedName~RealNativeExecutor_ExecutesBootstrappedNeoGenesisRetTransaction \
+              --minimum-tests 1 \
+              -- /p:NuGetAudit=false --nologo
 
       # Rust app-developer SDK - the typed-client mirror of src/Neo.L2.Sdk
       # for Rust dApps. Mockito-driven integration tests exercise every method
@@ -226,8 +316,8 @@ jobs:
       - name: cargo build + test (sdk/rust)
         working-directory: sdk/rust
         run: |
-          cargo build
-          cargo test
+          cargo build --locked
+          cargo test --locked
 
       # External-bridge watcher — messaging + signing core for the entire EVM
       # family ↔ Neo external bridge. Default features test the cryptographic
@@ -237,14 +327,14 @@ jobs:
       - name: cargo build + test (neo-bridge-watcher-eth, default features)
         working-directory: watchers/neo-bridge-watcher-eth
         run: |
-          cargo build --release
-          cargo test --release
+          cargo build --release --locked
+          cargo test --release --locked
 
       - name: cargo build + test (neo-bridge-watcher-eth, --features live-rpc)
         working-directory: watchers/neo-bridge-watcher-eth
         run: |
-          cargo build --release --features live-rpc
-          cargo test --release --features live-rpc
+          cargo build --release --locked --features live-rpc
+          cargo test --release --locked --features live-rpc
 
       # Tron + Solana watchers re-export / extend the eth core. Build + test
       # both so a refactor that breaks the cross-curve abstraction surfaces
@@ -252,14 +342,14 @@ jobs:
       - name: cargo build + test (neo-bridge-watcher-tron)
         working-directory: watchers/neo-bridge-watcher-tron
         run: |
-          cargo build --release
-          cargo test --release
+          cargo build --release --locked
+          cargo test --release --locked
 
       - name: cargo build + test (neo-bridge-watcher-sol)
         working-directory: watchers/neo-bridge-watcher-sol
         run: |
-          cargo build --release
-          cargo test --release
+          cargo build --release --locked
+          cargo test --release --locked
 
       # Clippy gate for the watcher crates. Runs across both feature
       # configurations of the eth crate (default cryptographic core +
@@ -269,24 +359,32 @@ jobs:
       # idiomatic Rust here is high-cost (HSM/RPC code paths).
       - name: cargo clippy (neo-bridge-watcher-eth, default features)
         working-directory: watchers/neo-bridge-watcher-eth
-        run: cargo clippy --release --all-targets -- -D warnings
+        run: cargo clippy --release --locked --all-targets -- -D warnings
 
       - name: cargo clippy (neo-bridge-watcher-eth, --features live-rpc)
         working-directory: watchers/neo-bridge-watcher-eth
-        run: cargo clippy --release --features live-rpc --all-targets -- -D warnings
+        run: cargo clippy --release --locked --features live-rpc --all-targets -- -D warnings
 
       - name: cargo clippy (neo-bridge-watcher-tron + neo-bridge-watcher-sol)
-        run: cargo clippy --release --all-targets -p neo-bridge-watcher-tron -p neo-bridge-watcher-sol -- -D warnings
+        run: cargo clippy --release --locked --all-targets -p neo-bridge-watcher-tron -p neo-bridge-watcher-sol -- -D warnings
 
   # Real SP1 zkVM smoke test for bridge/neo-zkvm-host. Runs in its own job
   # because the SP1 toolchain install is heavy. Coverage: builds the guest
-  # ELF via `cargo prove build`, then runs workspace formatting, clippy, and
-  # release tests. The ignored real-proof tests are available through manual
-  # workflow dispatch by enabling `run_real_sp1_proof`.
+  # ELF via digest-pinned `cargo prove build --docker --locked`, then runs workspace formatting, clippy, and
+  # release tests. The ignored real-proof targets are explicitly selected and
+  # required on every event so this required job can never pass by skipping proof generation.
   sp1-host:
     name: cargo build + test (neo-zkvm-host, real SP1 zkVM)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 120
+    env:
+      CARGO_PROVE: ${{ github.workspace }}/scripts/ci/cargo-prove-locked.sh
+      RUSTUP_TOOLCHAIN: 1.88.0
+      SP1_CARGO_PROVE_SHA256: c94bb8c4b2f360a6b4d9046d28d3bf3c383f9bdf20fe62efe5fdacc84085dba6
+      SP1_COMMIT: 98a376e
+      SP1_DOCKER_IMAGE: ghcr.io/succinctlabs/sp1@sha256:14d3c46eff7492f87e429bfbf618e3d33499ba7515b15c36eeb1bcaebc9f7b7f
+      SP1_GNARK_IMAGE: ghcr.io/succinctlabs/sp1-gnark@sha256:be8555f1ad90870acd8c6ec7fd3ba0b1a2133ea9cddf25e130665aa651129e54
+      SP1_VERSION: 6.2.1
 
     steps:
       - name: Checkout (with submodules)
@@ -299,7 +397,7 @@ jobs:
           submodules: recursive
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.88.0
         with:
           components: rustfmt, clippy
 
@@ -312,9 +410,9 @@ jobs:
         id: cache-sp1
         uses: actions/cache@v5
         with:
-          # `~/.sp1/` holds the sp1up + cargo-prove binaries.
+          # `~/.sp1/` holds the pinned cargo-prove binary.
           # `~/.rustup/toolchains/succinct/` holds the custom rustup
-          # toolchain sp1up installs (used by `cargo +succinct` /
+          # toolchain cargo-prove installs (used by `cargo +succinct` /
           # `cargo prove build`). Caching only ~/.sp1/ left the
           # toolchain absent on cache hit, which produced
           # 'override toolchain succinct is not installed' from
@@ -323,20 +421,42 @@ jobs:
             ~/.sp1
             ~/.rustup/toolchains/succinct
             ~/.rustup/update-hashes/succinct
-          key: sp1-toolchain-v6.2.1-${{ runner.os }}
+          key: sp1-toolchain-v${{ env.SP1_VERSION }}-${{ env.SP1_COMMIT }}-${{ runner.os }}
 
-      - name: Install SP1 toolchain (sp1up + cargo-prove)
+      - name: Install pinned SP1 cargo-prove + toolchain
         if: steps.cache-sp1.outputs.cache-hit != 'true'
         run: |
-          curl -L https://sp1up.succinct.xyz | bash
-          ~/.sp1/bin/sp1up
+          install_directory="$HOME/.sp1/bin"
+          archive="$RUNNER_TEMP/cargo-prove.tar.gz"
+          mkdir -p "$install_directory"
+          curl --proto '=https' --tlsv1.2 --retry 3 --retry-all-errors -sSfL \
+            "https://github.com/succinctlabs/sp1/releases/download/v$SP1_VERSION/cargo_prove_v${SP1_VERSION}_linux_amd64.tar.gz" \
+            --output "$archive"
+          echo "$SP1_CARGO_PROVE_SHA256  $archive" | sha256sum --check --strict
+          tar -xzf "$archive" -C "$install_directory"
+          chmod +x "$install_directory/cargo-prove"
+          "$install_directory/cargo-prove" prove install-toolchain
 
       - name: Add SP1 to PATH
         run: echo "$HOME/.sp1/bin" >> "$GITHUB_PATH"
 
-      - name: cargo prove build (guest ELF)
+      - name: Verify pinned SP1 toolchain
+        run: |
+          version=$(cargo prove --version)
+          echo "$version"
+          expected_prefix="cargo-prove sp1 ($SP1_COMMIT "
+          if [[ "$version" != "$expected_prefix"* ]]; then
+            echo "Expected SP1 v$SP1_VERSION cargo-prove commit $SP1_COMMIT"
+            exit 1
+          fi
+          rustup toolchain list | grep -E '^succinct([[:space:]]|$)'
+
+      - name: cargo prove build (reproducible guest ELF)
         working-directory: bridge/neo-zkvm-guest
-        run: cargo prove build
+        run: |
+          cargo prove build --docker --locked
+          sudo chown --recursive --no-dereference \
+            "$(id -u):$(id -g)" "$GITHUB_WORKSPACE/target"
 
       - name: cargo fmt (Rust workspace)
         run: cargo fmt --all -- --check
@@ -348,14 +468,28 @@ jobs:
         run: cargo test --workspace --release --locked
 
       - name: cargo test (neo-zkvm-host, real proof)
-        if: github.event_name == 'workflow_dispatch' && inputs.run_real_sp1_proof
-        working-directory: bridge/neo-zkvm-host
-        run: cargo test --release --locked -- --ignored --nocapture
+        run: |
+          python3 scripts/ci/run_cargo_ignored_tests.py \
+            --manifest-path bridge/neo-zkvm-host/Cargo.toml \
+            --test-target end_to_end \
+            --release \
+            --expected-test prove_and_verify_real_zk_proof \
+            --expected-test verify_rejects_mismatched_public_input_hash
+
+      - name: cargo test (neo-zkvm-gateway-host, real recursive proof)
+        run: |
+          python3 scripts/ci/run_cargo_ignored_tests.py \
+            --manifest-path bridge/neo-zkvm-gateway-host/Cargo.toml \
+            --test-target real_recursive_release_gate \
+            --release \
+            --expected-test proves_and_host_verifies_real_recursive_gateway_groth16
 
   rust-audit:
     name: cargo audit
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      RUSTUP_TOOLCHAIN: 1.88.0
 
     steps:
       - name: Checkout (with submodules)
@@ -364,13 +498,22 @@ jobs:
           submodules: recursive
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.88.0
 
       - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
+        run: cargo install cargo-audit --version 0.22.2 --locked
 
-      - name: cargo audit
-        run: cargo audit --json
+      - name: cargo audit (production Rust lockfiles)
+        run: |
+          for lockfile in \
+            Cargo.lock \
+            external/neo-riscv-vm/Cargo.lock \
+            external/neo-vm-rs/Cargo.lock \
+            external/neo-zkvm/Cargo.lock \
+            external/foreign-contracts/sol/Cargo.lock; do
+            echo "── $lockfile ──"
+            cargo audit --file "$lockfile" --json
+          done
 
   sdk-typescript:
     name: TypeScript SDK
@@ -384,8 +527,10 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: '20'
+          cache: npm
+          cache-dependency-path: sdk/typescript/package-lock.json
 
-      # @neo-n4/sdk — typed TS wrapper around all 10 RPC methods. vitest
+      # @neo-n4/sdk — typed TS wrapper around the supported RPC surface. vitest
       # tests use an in-process stub fetch matching the .NET StubHttpHandler
       # pattern. Catches drift between the wire format the .NET server emits
       # and what the TS client expects.
@@ -396,11 +541,38 @@ jobs:
           npm ci --no-audit --no-fund
           npm test
           npm run build
+          npm pack --dry-run
           npm --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000 audit --audit-level=moderate
 
+  sdk-python:
+    name: Python SDK (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install, test, and build distribution
+        working-directory: sdk/python
+        run: |
+          python -m pip install build==1.5.1
+          python -m pip install --editable '.[test]'
+          python -m pip check
+          python -m unittest discover --start-directory tests --verbose
+          python -m build
+
   # Foundry test pass for the foreign EVM router at
-  # external/foreign-contracts/eth — 32 single-chain + 7 multi-chain
-  # tests (= 39 total) that pin the Solidity side of every EVM bridge
+  # external/foreign-contracts/eth — single-chain + multi-chain tests
+  # that pin the Solidity side of every EVM bridge
   # path. The contract deploys unchanged on the entire EVM family
   # (Ethereum, Tron, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche,
   # Linea, zkSync Era, Scroll, Mantle, Fantom, Celo) — drift here
@@ -428,7 +600,7 @@ jobs:
         run: forge install --no-git foundry-rs/forge-std
 
       # forge fmt pass — verifies Solidity formatting consistency. The router
-      # contract + its 39 Foundry tests must stay in the standard style so
+      # contract + its Foundry tests must stay in the standard style so
       # auditors can review without style-noise distraction.
       - name: forge fmt --check
         working-directory: external/foreign-contracts/eth
@@ -450,11 +622,11 @@ jobs:
       # HTML/JS surface that renders the canonical phase-1 report schemas
       # (devnet, deployment plan, bridge drill, NeoFS DA, etc.). The Node
       # test suite under tests/experience-hub/ exercises:
-      #   - hub-state.test.mjs (5 tests): workspace state machine + evidence
+      #   - hub-state.test.mjs: workspace state machine + evidence
       #     summary + private-vs-public devnet partition
-      #   - manifest-generator.test.mjs (2 tests): the tools/experience-hub
+      #   - manifest-generator.test.mjs: the tools/experience-hub
       #     generator that scaffolds the canonical neo-n4.manifest.json
-      #   - report-schemas.test.mjs (3 tests): per-report-type envelope
+      #   - report-schemas.test.mjs: per-report-type envelope
       #     validation + redaction guard
       # Catches drift between the manifest generator + the report-schema
       # invariants the static UI assumes.
@@ -473,16 +645,18 @@ jobs:
     name: cargo test (foreign Solana program)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      RUSTUP_TOOLCHAIN: 1.89.0
 
     steps:
       - uses: actions/checkout@v6
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.89.0
 
       - name: cargo test
         working-directory: external/foreign-contracts/sol
-        run: cargo test
+        run: cargo test --locked
 
   docs-site:
     name: mdBook docs site
@@ -497,10 +671,19 @@ jobs:
       # navigation + every cross-link — a stale link or missing referenced
       # file fails the build.
       - name: Install mdBook
+        env:
+          MDBOOK_SHA256: e2fd508a4fac06cbaa9f88b97d27bdc3b55a08946304ca845879fe26a3699e11
+          MDBOOK_VERSION: 0.5.3
         run: |
-          mkdir -p $HOME/.local/bin
-          curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.4.40/mdbook-v0.4.40-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C $HOME/.local/bin
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          install_directory="$HOME/.local/bin"
+          archive="$RUNNER_TEMP/mdbook.tar.gz"
+          mkdir -p "$install_directory"
+          curl --proto '=https' --tlsv1.2 --retry 3 --retry-all-errors -sSfL \
+            "https://github.com/rust-lang/mdBook/releases/download/v$MDBOOK_VERSION/mdbook-v$MDBOOK_VERSION-x86_64-unknown-linux-gnu.tar.gz" \
+            --output "$archive"
+          echo "$MDBOOK_SHA256  $archive" | sha256sum --check --strict
+          tar -xzf "$archive" -C "$install_directory"
+          echo "$install_directory" >> "$GITHUB_PATH"
 
       - name: mdbook build
         run: mdbook build

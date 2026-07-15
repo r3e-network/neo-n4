@@ -13,7 +13,7 @@ namespace NeoHub.ChainRegistry;
 /// governance owner can mutate. See doc.md §3.2 (ChainRegistry).
 /// </summary>
 [DisplayName("NeoHub.ChainRegistry")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("L2 chain admission and per-chain config registry for Neo Elastic Network.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.ChainRegistry")]
@@ -40,6 +40,9 @@ public class ChainRegistryContract : SmartContract
 
     /// <summary>Storage prefix for consumed UpdateChain proposal ids (replay protection).</summary>
     private const byte PrefixConsumedUpdateProposal = 0x06; // 0x06 + proposalId(8B) → 1
+
+    /// <summary>Storage prefix for each chain's immutable authenticated genesis state root.</summary>
+    private const byte PrefixGenesisStateRoot = 0x07; // 0x07 + chainId(4B) → UInt256
 
     /// <summary>Storage key for the owner address.</summary>
     private const byte KeyOwner = 0xFF;
@@ -82,9 +85,17 @@ public class ChainRegistryContract : SmartContract
     /// <summary>Offset of the exitModel byte within the encoded config.</summary>
     public const int OffsetExitModel = 89;
 
+    private const byte SecurityLevelValidity = 3;
+    private const byte SecurityLevelValidium = 4;
+    private const byte DAModeL1 = 0;
+
     /// <summary>Emitted whenever a chain is registered or updated.</summary>
     [DisplayName("ChainRegistered")]
     public static event Action<uint, byte[]> OnChainRegistered = default!;
+
+    /// <summary>Emitted once when a chain's immutable genesis state root is registered.</summary>
+    [DisplayName("GenesisStateRootRegistered")]
+    public static event Action<uint, UInt256> OnGenesisStateRootRegistered = default!;
 
     /// <summary>Emitted whenever a chain is paused.</summary>
     [DisplayName("ChainPaused")]
@@ -144,7 +155,7 @@ public class ChainRegistryContract : SmartContract
     /// <summary>Register a new L2 chain. Owner only (the §16.1 "permissioned" admission
     /// path). Idempotent on chainId. <see cref="RegisterChainPublic"/> is the
     /// non-owner path gated by GovernanceController's admission mode.</summary>
-    public static void RegisterChain(uint chainId, byte[] configBytes)
+    public static void RegisterChain(uint chainId, byte[] configBytes, UInt256 genesisStateRoot)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         // Once governance is locked, RegisterChain must not be a lock-bypass for rewriting an
@@ -153,7 +164,7 @@ public class ChainRegistryContract : SmartContract
         if (Storage.Get(ConfigKey(chainId)) != null)
             ExecutionEngine.Assert(!IsGovernanceLocked(),
                 "governance locked — use UpdateChainViaProposal to change an existing chain");
-        WriteChainConfig(chainId, configBytes);
+        WriteChainConfig(chainId, configBytes, genesisStateRoot);
     }
 
     /// <summary>Wire the GovernanceController contract hash that <see cref="RegisterChainPublic"/>
@@ -161,6 +172,8 @@ public class ChainRegistryContract : SmartContract
     public static void SetGovernanceController(UInt160 governanceController)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(),
+            "governance locked — controller is immutable; deploy a versioned registry for migration");
         ExecutionEngine.Assert(governanceController.IsValid && !governanceController.IsZero,
             "invalid governance controller");
         Storage.Put(new byte[] { KeyGovernanceController }, governanceController);
@@ -209,15 +222,21 @@ public class ChainRegistryContract : SmartContract
     ///   chainId / size / consistency checks</description></item>
     /// </list>
     /// </summary>
-    public static void RegisterChainPublic(uint chainId, byte[] configBytes)
+    public static void RegisterChainPublic(
+        uint chainId,
+        byte[] configBytes,
+        UInt256 genesisStateRoot)
     {
         ExecutionEngine.Assert(Storage.Get(ConfigKey(chainId)) == null,
             "chain already registered — use owner-governed UpdateChain");
         var gc = GetGovernanceController();
         ExecutionEngine.Assert(gc != UInt160.Zero,
             "governance controller not wired — owner must call SetGovernanceController first");
-        var mode = (byte)(BigInteger)Contract.Call(gc, "getAdmissionMode",
+        var rawMode = (BigInteger)Contract.Call(gc, "getAdmissionMode",
             CallFlags.ReadOnly, new object[0]);
+        ExecutionEngine.Assert(rawMode >= 0 && rawMode <= 2,
+            "invalid admission mode — expected 0, 1, or 2");
+        var mode = (byte)rawMode;
         if (mode == 0)
         {
             ExecutionEngine.Assert(false,
@@ -246,21 +265,43 @@ public class ChainRegistryContract : SmartContract
             ExecutionEngine.Assert(bridgeApproved,
                 "bridge adapter not in GovernanceController approved set (semi-permissionless mode)");
         }
-        // mode 2 (permissionless) falls through to the same write path.
-        WriteChainConfig(chainId, configBytes);
+        // The range assertion above makes the only remaining value mode 2 (permissionless).
+        WriteChainConfig(chainId, configBytes, genesisStateRoot);
     }
 
-    private static void WriteChainConfig(uint chainId, byte[] configBytes)
+    private static void WriteChainConfig(
+        uint chainId,
+        byte[] configBytes,
+        UInt256 genesisStateRoot)
     {
         // chainId 0 is the L1 sentinel (see L2Outbox.L1ChainId) — registering a chain
         // with id 0 would silently break L2→L2 routing for every other chain.
         ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         ExecutionEngine.Assert(configBytes.Length == ConfigSize, "config size mismatch");
         ExecutionEngine.Assert(ReadChainId(configBytes) == chainId, "chainId mismatch");
-        AssertDAModeInRange(configBytes);
+        ExecutionEngine.Assert(
+            genesisStateRoot != null && !genesisStateRoot.Equals(UInt256.Zero),
+            "genesis state root must be non-zero");
+        AssertSecurityConfigurationCompatible(configBytes);
 
         var key = ConfigKey(chainId);
         var existing = Storage.Get(key);
+        var genesisKey = GenesisStateRootKey(chainId);
+        var existingGenesis = Storage.Get(genesisKey);
+        if (existing == null)
+        {
+            ExecutionEngine.Assert(existingGenesis == null,
+                "orphaned genesis state root exists");
+            Storage.Put(genesisKey, (byte[])genesisStateRoot!);
+            OnGenesisStateRootRegistered(chainId, genesisStateRoot!);
+        }
+        else
+        {
+            ExecutionEngine.Assert(existingGenesis != null,
+                "registered chain is missing genesis state root");
+            ExecutionEngine.Assert(((UInt256)existingGenesis!).Equals(genesisStateRoot),
+                "genesis state root is immutable");
+        }
         Storage.Put(key, configBytes);
         if (existing == null)
             Storage.Put(IndexKey(chainId), new byte[] { 1 });
@@ -288,7 +329,7 @@ public class ChainRegistryContract : SmartContract
         ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         ExecutionEngine.Assert(configBytes.Length == ConfigSize, "config size mismatch");
         ExecutionEngine.Assert(ReadChainId(configBytes) == chainId, "chainId mismatch");
-        AssertDAModeInRange(configBytes);
+        AssertSecurityConfigurationCompatible(configBytes);
         ExecutionEngine.Assert(Storage.Get(ConfigKey(chainId)) != null, "chain not registered");
 
         Storage.Put(ConfigKey(chainId), configBytes);
@@ -313,7 +354,7 @@ public class ChainRegistryContract : SmartContract
         ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         ExecutionEngine.Assert(configBytes.Length == ConfigSize, "config size mismatch");
         ExecutionEngine.Assert(ReadChainId(configBytes) == chainId, "chainId mismatch");
-        AssertDAModeInRange(configBytes);
+        AssertSecurityConfigurationCompatible(configBytes);
         ExecutionEngine.Assert(Storage.Get(ConfigKey(chainId)) != null, "chain not registered");
 
         var consumedKey = ConsumedUpdateProposalKey(proposalId);
@@ -412,17 +453,29 @@ public class ChainRegistryContract : SmartContract
     }
 
     /// <summary>
-    /// Reject a config whose daMode byte is outside the defined 0..3 range. Mirrors the
-    /// downstream guards in <c>SettlementManager.RecordDataAvailability</c> and
-    /// <c>DARegistry.Record</c> (both assert daMode &lt;= 3) so an invalid DA mode is
-    /// rejected at registration / update time instead of surfacing late and confusingly at
-    /// the first <c>SubmitBatch</c> for the chain. DA modes (doc.md §12.1):
-    /// L1(0)/Rollup(1)/Validium(2)/Volition(3).
+    /// Validate the public security label and DA mode together before storing a chain config.
+    /// Validity is a ZK rollup and therefore requires L1 DA; Validium uses the same ZK proof
+    /// requirement with off-chain DA (NeoFS, external DA, or DAC). Rejecting contradictory
+    /// labels here prevents a chain from advertising stronger guarantees than its DA mode
+    /// provides. See doc.md §12 and §16.2.
     /// </summary>
-    private static void AssertDAModeInRange(byte[] configBytes)
+    private static void AssertSecurityConfigurationCompatible(byte[] configBytes)
     {
-        ExecutionEngine.Assert(configBytes[OffsetDAMode] <= 3,
-            "daMode must be 0..3 (L1/Rollup/Validium/Volition)");
+        var securityLevel = configBytes[OffsetSecurityLevel];
+        var daMode = configBytes[OffsetDAMode];
+
+        ExecutionEngine.Assert(securityLevel <= SecurityLevelValidium,
+            "securityLevel must be 0..4 (Sidechain/Settled/Optimistic/Validity/Validium)");
+        ExecutionEngine.Assert(daMode <= 3,
+            "daMode must be 0..3 (L1/NeoFS/External/DAC)");
+
+        if (securityLevel == SecurityLevelValidity)
+            ExecutionEngine.Assert(daMode == DAModeL1,
+                "Validity security level requires L1 DA");
+
+        if (securityLevel == SecurityLevelValidium)
+            ExecutionEngine.Assert(daMode != DAModeL1,
+                "Validium security level requires off-chain DA");
     }
 
     /// <summary>Pause a chain. Owner only. Sets active=false in stored config.</summary>
@@ -471,6 +524,17 @@ public class ChainRegistryContract : SmartContract
         return raw == null ? new byte[0] : (byte[])raw;
     }
 
+    /// <summary>
+    /// Read the immutable authenticated genesis state root. Returns zero for an unregistered chain.
+    /// </summary>
+    /// <remarks>See doc.md §3.2, §7.3, and §8.5.</remarks>
+    [Safe]
+    public static UInt256 GetGenesisStateRoot(uint chainId)
+    {
+        var raw = Storage.Get(GenesisStateRootKey(chainId));
+        return raw == null ? UInt256.Zero : (UInt256)raw;
+    }
+
     /// <summary>True if chainId is registered AND active=1.</summary>
     [Safe]
     public static bool IsActive(uint chainId)
@@ -481,11 +545,10 @@ public class ChainRegistryContract : SmartContract
         return bytes[ConfigSize - 1] == 1;
     }
 
-    /// <summary>Read the securityLevel byte (doc.md §16.2). 0 = sidechain (the LOWEST security
-    /// level), 3 = validity/Zk (the highest). Returns 0 for an unregistered chain — this is the
-    /// safe default because SettlementManager's `proofType >= securityLevel` gate then reduces to
-    /// a no-op floor (`proofType >= 0`), and an unregistered chain fails the `isActive` gate
-    /// anyway, so a low default cannot grant unintended settlement.</summary>
+    /// <summary>Read the securityLevel byte (doc.md §12). Values are Sidechain(0), Settled(1),
+    /// Optimistic(2), Validity(3), and Validium(4). Returns 0 for an unregistered chain; this is
+    /// safe because SettlementManager rejects unregistered chains through its <c>isActive</c>
+    /// check before evaluating proof compatibility.</summary>
     [Safe]
     public static byte GetSecurityLevel(uint chainId)
     {
@@ -558,6 +621,17 @@ public class ChainRegistryContract : SmartContract
     {
         var key = new byte[5];
         key[0] = PrefixChainIndex;
+        key[1] = (byte)chainId;
+        key[2] = (byte)(chainId >> 8);
+        key[3] = (byte)(chainId >> 16);
+        key[4] = (byte)(chainId >> 24);
+        return key;
+    }
+
+    private static byte[] GenesisStateRootKey(uint chainId)
+    {
+        var key = new byte[5];
+        key[0] = PrefixGenesisStateRoot;
         key[1] = (byte)chainId;
         key[2] = (byte)(chainId >> 8);
         key[3] = (byte)(chainId >> 16);

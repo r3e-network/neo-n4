@@ -230,6 +230,11 @@ public class UT_VerifierRegistry_Vm
         // The instant owner path is now permanently disabled — even the legitimate owner is blocked.
         Assert.ThrowsExactly<TestException>(() => vr.RegisterVerifier(ProofZk, VerifierA),
             "instant owner RegisterVerifier must revert once governance is locked");
+
+        Assert.ThrowsExactly<TestException>(() => vr.GovernanceController = VerifierB,
+            "the owner must not be able to replace the trusted GovernanceController after locking");
+        Assert.AreEqual(GcHash, vr.GovernanceController,
+            "a rejected controller replacement must preserve the exact pre-lock controller");
     }
 
     [TestMethod]

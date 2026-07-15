@@ -10,11 +10,16 @@
   <ItemGroup>
     <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
     <ProjectReference Include="$(NeoCorePath)\Neo.Json\Neo.Json.csproj" />
+    <ProjectReference Include="$(NeoCorePath)\Plugins\RpcServer\RpcServer.csproj" />
     <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
     <ProjectReference Include="..\Neo.L2.Batch\Neo.L2.Batch.csproj" />
     <ProjectReference Include="..\Neo.L2.Persistence\Neo.L2.Persistence.csproj" />
     <ProjectReference Include="..\Neo.L2.State\Neo.L2.State.csproj" />
     <ProjectReference Include="..\Neo.L2.Telemetry\Neo.L2.Telemetry.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Neo.Plugins.L2Rpc.UnitTests" />
   </ItemGroup>
 
 </Project>

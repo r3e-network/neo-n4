@@ -91,11 +91,11 @@ routing, and governance must be unified.**
 ## 3. L1 contract suite — NeoHub
 
 NeoHub is the L1 contract suite shared by every L2. Conceptually it combines ZKsync's
-BridgeHub, SharedBridge, VerifierRegistry, and MessageRouter into one suite. The 24 deployable projects
-contain 23 production contracts plus one test-only external-bridge stub:
+BridgeHub, SharedBridge, VerifierRegistry, and MessageRouter into one suite. The 26 contract projects
+contain 24 production contracts, one advisory structural fraud verifier, and one test-only external-bridge stub:
 
 <p align="center">
-  <img src="docs/figures/architecture/neohub-anatomy.svg" alt="NeoHub L1 anatomy: all 24 deployable projects grouped by concern — Settlement (SettlementManager + VerifierRegistry + ContractZkVerifier), Bridge (SharedBridge + TokenRegistry + ChainRegistry), Messaging (MessageRouter + DARegistry + DAValidator + L1TxFilter), Security (SequencerRegistry + SequencerBond + ForcedInclusion + OptimisticChallenge + EmergencyManager), Governance (GovernanceController + GovernanceFraudVerifier + RestrictedExecutionFraudVerifier), and External Bridge for Phase B/C (MpcCommitteeVerifier + ExternalBridgeRegistry + ExternalBridgeEscrow + ExternalBridgeBond + MpcCommitteeFraudVerifier + ExternalBridgeStubVerifier — test-only)" width="900">
+  <img src="docs/figures/architecture/neohub-anatomy.svg" alt="NeoHub L1 anatomy grouped by settlement, bridge, messaging, security, governance, and external-bridge concerns. The production settlement path includes ContractZkVerifier and immutable Sp1Groth16Verifier; ExternalBridgeStubVerifier remains test-only." width="900">
 </p>
 
 - **`ChainRegistry`** — Register / configure / pause L2 chains. Each entry:
@@ -115,8 +115,13 @@ contain 23 production contracts plus one test-only external-bridge stub:
   types; there is no distinct `Aggregated` proof type.
 - **`ContractZkVerifier`** — Deployable `ProofType.Zk` router. It validates
   the N4 commitment/proof envelope, verification-key id, and public-input hash
-  boundary, then calls a governance-registered deployable verifier contract for
+  boundary, then calls a registered terminal verifier contract for
   `verifyZkProof(...)`.
+- **`Sp1Groth16Verifier`** — Immutable production SP1 terminal verifier. It pins
+  the SP1 wrapper selector, recursion VK root, Groth16 verification key, successful
+  exit code, and five-public-input layout; consumes the exact 356-byte SP1 proof;
+  and evaluates the complete SP1 v6.1-compatible wrapper pairing equation used by SP1 6.2.x through
+  Neo's current BN254 interops.
 - **`MessageRouter`** — L1↔L2 and L2↔L2 message queues with
   `(chainId, nonce)` replay protection.
 - **`TokenRegistry`** — Canonical L1↔L2 asset mapping:
@@ -132,25 +137,30 @@ contain 23 production contracts plus one test-only external-bridge stub:
   admission / exit lifecycle.
 - **`OptimisticChallenge`** — Phase-3 challenge window; entry point for
   the bisection-game fraud-proof flow.
-- **`GovernanceFraudVerifier`** — Reference fraud verifier for
-  governance-arbitration optimistic chains. Decodes the canonical
+- **`GovernanceFraudVerifier`** — Advisory structural verifier for offline
+  audit tooling. Decodes the canonical
   `FraudProofPayload` (v1 = 101 bytes fixed, v2 = 105+N bytes with
   disputed-tx witness), validates structural integrity, emits
-  accept/reject events for council review.
-- **`RestrictedExecutionFraudVerifier`** — Structural v3 fraud verifier
+  accept/reject events with reason codes, but cannot authorize revert/slash and
+  is excluded from the production deployment bundle.
+- **`RestrictedExecutionFraudVerifier`** — Versioned fraud verifier. V3
   — re-derives pre/post Merkle state roots on-chain from each storage
   proof's leaf-hash + siblings + leafIndex and checks they are internally
   consistent with the `PreStateRoot` / `ReplayedPostStateRoot` in the
   challenger-supplied payload header. All roots come from the same
   challenger payload: it does NOT read the sequencer's committed
   `SettlementManager` batch roots and does NOT re-execute the disputed tx,
-  so it is not trustless. Accepted v3 payloads still require governance
-  arbitration and the verifier MUST be registered approved-only (never on
-  the permissionless auto-slash path). Full trustless on-chain
-  re-execution bound to committed roots is roadmap.
+  so it is not trustless. V3 is advisory-only and `OptimisticChallenge` rejects
+  it before dispatch even with governance witness. V4 is a
+  separate SettlementManager-bound permissionless profile: it binds chain,
+  batch, committed roots, replay domain, semantic id, transaction proof,
+  transcript, claim id, and storage witness, then executes exactly one
+  existing-key Counter Increment transaction. It is trustless inside that
+  declared profile; multi-transaction and general NeoVM fraud proofs fail closed.
 
-All 24 deployable projects type-check against `Neo.SmartContract.Framework`. The
-`Neo.Hub.Deploy` tool emits a topologically-sorted, dependency-resolved deploy bundle.
+All 26 contract projects type-check against `Neo.SmartContract.Framework`. The
+`Neo.Hub.Deploy` tool emits a topologically-sorted, dependency-resolved 24-step
+production deploy bundle; the advisory structural verifier and test-only stub are excluded.
 
 The principle behind NeoHub is **one suite of L1 trust roots for all L2s**. A new L2 does
 not deploy a new bridge or a new verifier; it registers in `ChainRegistry` and inherits the
@@ -233,16 +243,18 @@ level via the `getsecuritylevel` RPC (`§14.1` of `doc.md`).
 
 ### 4.4 Durable state — `IL2KeyValueStore`
 
-Six off-chain components carry state that must survive a restart: the keyed state
+Seven off-chain component families carry state that must survive a restart: the keyed state
 store, RPC withdrawal/message proofs, finalized message proofs, consumed forced-
 inclusion nonces, sequencer committee membership (with mid-flight exit windows),
-and DA payloads. An in-memory dict is fine for tests but unacceptable in production
+DA payloads, and canonical proof-witness/finality/rollback recovery. An in-memory dict is fine for tests but unacceptable in production
 — a sequencer mid-exit losing its `ExitsAtUnixSeconds` deadline on restart could
 re-admit a sequencer that should be in cooldown, or fail to finalize an exit that
 already passed its window.
 
-Solution: an explicit `IL2KeyValueStore` abstraction (`Put` / `Get` / `Delete` /
-`Contains` / `EnumeratePrefix` / `Count` / `IDisposable`) with two implementations:
+Solution: an explicit `IL2KeyValueStore` abstraction (`Put` / `TryPut` /
+`CompareExchange` / `Get` / `Delete` / `Contains` / `EnumeratePrefix` / `Count` /
+`IDisposable`) plus optional guarded atomic batch/snapshot replacement through
+`IAtomicL2KeyValueStore`, with two implementations:
 
 - `InMemoryKeyValueStore` — `SortedDictionary<byte[], byte[]>` with lexicographic
   ordering. Devnet / test default.
@@ -307,12 +319,20 @@ daCommitment, blockContextHash
 Witness: ordered txs, contract bytecode, storage read/write paths, native-contract state
 witness, L1 messages consumed, DA data, execution trace.
 
+For the bundled production profile, C# does not independently implement this function.
+`Sp1SettlementExecutionStack` invokes a SHA-256-pinned host-native build of the same guest
+runtime with canonical `NEO4EXEC` + complete pre-state `NEO4STW1`, validates canonical
+`NEO4EXR1`, and atomically commits its complete post-state. The resulting `NEO4PWIT` is then
+re-executed inside SP1. This closes execution/proof semantic drift for
+`Sp1StatefulNeoVmV1`; the separate PolkaVM `ChainMode.L2RiscV` profile requires its own
+matching prover before it can claim the same validity guarantee.
+
 ### 5.2 Three-stage progression
 
 ```
-Stage 0 — Multisig attestation  (production-usable from day 1)
+Stage 0 — Multisig attestation  (production-shaped; operator gates still apply)
 Stage 1 — Optimistic + bisection-game (governance-arbitrated challenge flow)
-Stage 2 — ZK validity proof    (NeoVM 2 / RISC-V via SP1)
+Stage 2 — ZK validity proof    (stateful NeoVM V1 inside the SP1 RISC-V guest)
 ```
 
 The verifier registry on L1 dispatches by `ProofType`; the same `L2BatchCommitment` shape
@@ -320,24 +340,39 @@ carries any of the three. A chain progresses by changing its registered verifier
 plugin code or L2 contract changes required.
 
 - **Stage 0 — `AttestationVerifier`.** Producer: `AttestationProver` +
-  `ISignerSet`. Status: production-ready; M-of-N secp256r1 over
+  `ISignerSet`. Status: production-shaped, not independently audited or
+  deployed for the current revision; M-of-N secp256r1 over
   canonical public-input bytes.
 - **Stage 1 — `OptimisticVerifier`.** Producer: `OptimisticProofPayload`
-  + sequencer signature. Status: Stage-1 verifier; the shipped fraud
-  verifiers are structural / governance-arbitrated (they validate payload
-  structure and self-consistency, not self-contained cryptographic proofs
-  that bind to the committed roots or re-execute). `BisectionGame` is an
-  off-chain log-N narrowing of the disputed tx.
-- **Stage 2 — `ContractZkVerifier`.** Producer: `prove-batch daemon` (real,
-  out-of-process) + `MockRiscVProver` (in-process test seam). Status:
-  real proof payloads route through a deployable router and verifier contract;
-  end-to-end queue → daemon → verify pipeline validated off-chain.
+  + sequencer signature. Status: structural v1/v2 and self-consistency-only v3
+  are advisory and fail closed in the production challenge path. Executable v4
+  is permissionless and binds the committed roots, but deliberately re-executes
+  only the registered single-transaction Counter profile. `BisectionGame` is an
+  off-chain log-N narrowing of the disputed tx; general NeoVM fraud proofs remain unsupported.
+- **Stage 2 — `ContractZkVerifier` → `Sp1Groth16Verifier`.** Producer:
+  SHA-256-pinned `neo-zkvm-executor` + `Sp1BatchProofProver`/
+  `prove-batch daemon` (real, out-of-process); `MockRiscVProver` is an
+  in-process test seam only. Native execution and the SP1 guest share the exact
+  stateful runtime and semantic id, with complete-state atomic commit after all
+  request/result/public-input checks. The immutable terminal contract implements the complete
+  five-public-input SP1 v6.1-compatible Groth16 wrapper used by SP1 6.2.x over Neo
+  BN254 interops and accepts the exact 356-byte SP1 proof shape. The production
+  deploy plan registers the program VK, binds the terminal verifier, permanently
+  disables envelope-only SP1 acceptance, and only then enables the
+  `ProofType.Zk` route. Current Neo VM tests cover artifact integrity, constants,
+  rejection behavior, pairing dispatch, and cost. A Rust-produced positive
+  proof verifies through both the terminal contract and production router;
+  tampering with the VK, public-input hash, wrapper fields, or proof points fails closed.
+  The bounded N4 genesis V1 native/syscall profile and immutable deployed-contract descriptor
+  set are explicit semantic limits; unsupported behavior fails closed rather than inheriting a
+  validity label from a different executor.
 
 Gateway proof aggregation (Phase 5) reuses the same registry and the existing proof types: a
 round prover (`MultisigRoundProver` / `MerklePathRoundProver`) attests each aggregation round,
 and the aggregate still settles under one of `Multisig` / `Optimistic` / `Zk`. There is no
-distinct `ProofType.Aggregated`; a recursive-ZK fold, when supplied by an operator, settles as
-`ProofType.Zk`.
+distinct `ProofType.Aggregated`. The bundled SP1 6.2.1 Gateway guest verifies compile-time-VK-
+locked compressed batch proofs and the canonical `NEO4GWR2` statement, while its host emits and
+verifies the terminal 356-byte Groth16 artifact; the aggregate settles as `ProofType.Zk`.
 
 ---
 
@@ -434,15 +469,25 @@ Phase 5 introduces an optional aggregation layer mirroring ZKsync Gateway. The G
 
 - Collects `L2BatchCommitment` plus proof from multiple L2 chains.
 - Aggregates them via `BinaryTreeAggregator` over `IRoundProver`-implemented combine
-  rounds (log-N rounds; default `PassThroughRoundProver` is a hash combiner; production
-  swaps in SP1 Compress, Halo2 fold, or a Risc-Zero accumulator).
+  rounds (log-N rounds; `PassThroughRoundProver` is reference-only,
+  `MultisigRoundProver` and `MerklePathRoundProver` are non-recursive options, and the
+  bundled `neo-zkvm-gateway-{guest,host}` path recursively verifies compile-time-VK-locked
+  SP1 compressed batch proofs before producing a terminal 356-byte Groth16 proof).
 - Maintains the `globalMessageRoot` for L2-to-L2 messages.
-- Submits one aggregated commitment to NeoHub. The on-chain global-root
-  publish (`MessageRouter.PublishGlobalRoot`) is authorized solely by the
-  settlement-manager witness (`CheckWitness`); the aggregated proof /
-  committee signatures carried in `AggregatedProof` are NOT verified
-  on-chain in the current path. On-chain verification of the aggregated
-  attestation is roadmap.
+- Submits one aggregated commitment to `SettlementManager.PublishGatewayGlobalRoot` with
+  exact ordered `(chainId,batchNumber)` references. SettlementManager revalidates every
+  constituent as currently finalized and Gateway-enabled, reconstructs the commitment root
+  (duplicate-odd) and message root (promote-odd) from stored records with O(log 4096) memory,
+  advances non-revertible per-chain watermarks, and atomically calls
+  `MessageRouter.PublishGlobalRoot`. MessageRouter verifies the fixed backend/proof-system/
+  Gateway-VK/replay-domain statement through its configured verifier; a Router fault rolls
+  back every watermark. Direct operator publication cannot satisfy the SettlementManager
+  contract witness.
+
+The code path is complete and locally covered, including crash-safe daemon recovery,
+deployment readback, root-policy edge cases, tamper rejection, and atomic rollback. Phase 5
+remains partial until independent audit and executed production-config real-proof deployment
+evidence exist; those evidence gates are not implied by local tests.
 
 **Critical invariant: the Gateway does NOT custody assets.** Assets stay locked in
 NeoHub.SharedBridge throughout; the Gateway moves only proofs and message roots.
@@ -454,18 +499,19 @@ NeoHub.SharedBridge throughout; the Gateway moves only proofs and message roots.
 Sequencer censorship is the canonical L2 attack. Three layered defenses:
 
 <p align="center">
-  <img src="docs/figures/forced-inclusion.svg" alt="Forced inclusion + censorship slashing sequence — user posts forced tx on L1, L2 batcher polls and drains pending entries, sequencer censors past deadline, CensorshipDetector observes overdue, operator submits ReportCensorship, SequencerBond slashes responsible sequencer's bond and pays the reporter" width="900">
+  <img src="docs/figures/forced-inclusion.svg" alt="Forced inclusion accountability sequence — user posts a forced transaction on L1, the L2 batcher polls it, an overdue entry produces a permissionless report and chain pause, and governance may slash only after reviewing finalized dBFT attribution evidence" width="900">
 </p>
 
 1. **Forced inclusion queue** (`NeoHub.ForcedInclusion`, `Neo.L2.ForcedInclusion`,
    `Neo.L2.Censorship`). A user can post a tx directly to L1 and assert a deadline. The
    sequencer must include the tx in a batch before the deadline elapses. Missing the
-   deadline produces a `CensorshipReport` (`Neo.L2.Censorship.CensorshipDetector`) usable
-   to slash via `NeoHub.SequencerBond`.
+   deadline produces a `CensorshipReport` (`Neo.L2.Censorship.CensorshipDetector`) that
+   can pause the chain without claiming an unproven proposer identity.
 
 2. **Sequencer bonds** (`NeoHub.SequencerBond`, `NeoHub.SequencerRegistry`). Every active
-   sequencer committee member posts collateral; censorship reports slash the responsible
-   member's bond.
+   sequencer committee member posts collateral. Governance may slash a reported incident
+   only after finalized dBFT evidence attributes it to a specific member; the permissionless
+   report itself never slashes.
 
 3. **Escape hatch** (`NeoHub.EmergencyManager`). On confirmed sequencer-side liveness
    failure, governance can pause the L2. While paused, autonomous on-L1 payout exists
@@ -492,12 +538,12 @@ Three layers:
 | L2 local    | The L2's own governance contract                       | Sequencer committee, local fee policy, app-chain params, DA mode (within approved range) |
 | App         | Each dApp / RWA issuer / stablecoin policy             | Per-app rules, KYC list, enterprise permissioning                              |
 
-The L1 council member set, member count, M-of-N threshold, and timelock are written
-once in `GovernanceController._deploy` and have no on-chain mutator: the council is
-immutable for the lifetime of the deployment. Rotating a member or changing the
-threshold requires a fresh `GovernanceController` deployment plus re-wiring every
-consumer to the new hash. There is no on-chain NEO-holder referendum. On-chain council
-rotation and a NEO-holder referendum are roadmap.
+The L1 council and threshold are initialized in `GovernanceController._deploy` and can
+later be replaced atomically through the proposal-bound, threshold-approved, timelocked
+`RotateCouncil` action. Each rotation increments `councilEpoch`, invalidates every
+proposal from the previous epoch, and is replay-protected per proposal id. The timelock
+itself remains deployment-fixed and the contract has no `ContractManagement.Update`
+path. There is no on-chain NEO-holder referendum; that mechanism remains roadmap.
 
 Every L2 must publish security labels per `doc.md` §16.2: securityLevel
 (`SecurityLevel` enum — Sidechain / Settled / Optimistic / Validity / Validium),
@@ -517,7 +563,7 @@ Ten threat classes, each with a named mitigation. Detailed in `doc.md` §17.
 
 | #  | Threat                          | Primary mitigation                                                  |
 | -- | ------------------------------- | ------------------------------------------------------------------- |
-| 1  | Sequencer censorship            | Forced inclusion + bond slashing + escape hatch (§10)               |
+| 1  | Sequencer censorship            | Forced inclusion + permissionless pause + evidence-attributed governance slashing + escape hatch (§10) |
 | 2  | Invalid state root              | ZK validity proof (Phase 4) or optimistic challenge (Phase 3)       |
 | 3  | Bridge exploit                  | Lock-mint vs burn-unlock invariants; rate limits; emergency pause   |
 | 4  | Replay attack (cross-chain)     | `(chainId, nonce)` envelope on every message                        |
@@ -569,19 +615,24 @@ the L2 plugin set are stable across phases; the *verifier* changes.
 | Aspect                  | Neo Elastic Network              | ZKsync Elastic Chain    | OP Stack                      | Arbitrum Orbit                  |
 | ----------------------- | -------------------------------- | ----------------------- | ----------------------------- | ------------------------------- |
 | Execution kernel        | Neo 4 (NeoVM2 / RISC-V for L2; NeoVM only for legacy compatibility) | EraVM (zkEVM) | EVM (op-geth) | EVM (Nitro) |
-| L1 settlement contracts | NeoHub (23 production contracts + test stub) | BridgeHub + SharedBridge + V.R. | OptimismPortal etc.    | RollupCore + Inbox              |
+| L1 settlement contracts | NeoHub (24 production + advisory structural verifier + test stub) | BridgeHub + SharedBridge + V.R. | OptimismPortal etc.    | RollupCore + Inbox              |
 | Sequencer               | dBFT 2.0 committee (M-of-N)      | Centralized (with FCFS) | Centralized (decentralizing)  | Centralized (decentralizing)    |
 | Proof regimes           | Multisig → Optimistic → ZK       | ZK (production)         | Optimistic (Cannon)           | Optimistic (BOLD challenge game) |
 | Native interop          | L1↔L2 + L2↔L2 + bundles          | Native L2-L2 via Gateway | Superchain interop (early)   | Cross-chain Inbox messaging     |
 | DA tiers                | L1 / NeoFS / External / DAC      | Validium + GW DA        | EthDA / AnyTrust              | AnyTrust + ETH DA               |
 | Gas token               | Bridged GAS canonical            | Custom per chain        | ETH (no custom-base support yet) | Configurable                |
-| Governance              | Neo Council (immutable per deployment; rotation + NEO-holder referendum are roadmap) | DAO + security council | Optimism Foundation + Council | Arbitrum DAO + Security Council |
+| Governance              | Neo Council (epoch-bound timelocked rotation; NEO-holder referendum is roadmap) | DAO + security council | Optimism Foundation + Council | Arbitrum DAO + Security Council |
 
 The headline architectural choice is **borrowing Elastic Chain's shared-bridge pattern but
 swapping in Neo's primitives** — dBFT 2.0 finality (single-block confirms with no MEV
 auction needed at L2 level), NEP-17 (no need for per-chain ERC-20 deployments), NeoVM 2 /
 RISC-V (smaller proving target than zkEVM), and NeoFS DA (cheaper than blob DA for non-L1
 tiers).
+
+This is architectural borrowing, not proof-stack identity. Neo N4's shipped
+validity path is SP1 Groth16 over BN254 with a Neo contract verifier; ZKsync's
+production proof stack uses its own Boojum/Plonk-family circuits and verifier
+pipeline. The two systems therefore do not have a 1:1 proof-system implementation.
 
 ---
 
@@ -590,7 +641,7 @@ tiers).
 | Term                       | Meaning                                                                                       |
 | -------------------------- | --------------------------------------------------------------------------------------------- |
 | **L2 chain**               | A rollup / sidechain / validium running Neo 4 core + the L2 plugin set, registered in NeoHub. |
-| **NeoHub**                 | The 23-production-contract L1 suite shared by every L2, plus one test-only external bridge stub. |
+| **NeoHub**                 | The 24-production-contract L1 suite shared by every L2, plus one test-only external bridge stub. |
 | **Neo Gateway**            | Optional Phase-5 proof-aggregation + global-message-root layer.                               |
 | **Neo Connect**            | The cross-chain messaging system (L1↔L2, L2↔L2, bundles).                                     |
 | **L2BatchCommitment**      | The per-batch on-chain object: roots, public-input hash, proof type, proof bytes.             |
@@ -599,7 +650,7 @@ tiers).
 | **l2ToL1MessageRoot / l2ToL2MessageRoot** | Per-class outbox Merkle roots committed in the batch.                          |
 | **daCommitment**           | Hash committing to the batch's DA blob; bound by DA mode.                                     |
 | **Forced inclusion**       | L1-side queue any user can post to; sequencer must include before deadline.                   |
-| **Bisection game**         | Off-chain log-N narrowing optimization (`Neo.L2.Challenge.BisectionGame`) that converges to a single disputed transaction index. The narrowed index is metadata: there is no on-chain bisection contract and `OptimisticChallenge.Challenge` is single-shot (one `verifyFraud` call, no on-chain re-execution). Full on-chain interactive bisection is roadmap. |
+| **Bisection game**         | Off-chain log-N narrowing optimization (`Neo.L2.Challenge.BisectionGame`) that converges to a disputed transaction index. `OptimisticChallenge.Challenge` is single-shot. Restricted v4 executes the exact one-transaction Counter profile on-chain; general multi-step NeoVM bisection/re-execution remains unsupported. |
 | **Security label**         | Public on-chain claim of a chain's DA / proof / sequencer model; `getsecuritylevel` RPC.     |
 | **Escape hatch**           | Operator-of-last-resort path for users to withdraw if the sequencer fails. Owned by `EmergencyManager`. |
 

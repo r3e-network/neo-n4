@@ -36,8 +36,12 @@ public static class MetricCatalog
 
         // Settlement
         [MetricNames.BatchesSubmitted] = "Batches submitted to NeoHub successfully",
-        [MetricNames.SubmitFailures] = "Batch submissions that threw and were re-queued",
+        [MetricNames.SubmitFailures] = "Settlement reconciliation runs that surfaced an exception",
         [MetricNames.SubmitLatencyMs] = "Round-trip wall-clock milliseconds for SubmitBatch",
+        [MetricNames.SettlementPending] = "Canonical settlement artifacts not fully reconciled on L1",
+        [MetricNames.SettlementConfirmationLagBatches] = "Canonical batches not yet observed through the L1 settlement lifecycle",
+        [MetricNames.SettlementRetries] = "Failed canonical settlement reconciliation attempts",
+        [MetricNames.SettlementPoisoned] = "Whether the ordered settlement head is durably poisoned",
 
         // Proving
         [MetricNames.ProofsGenerated] = "Proofs generated for sealed batches, tagged by proof kind",

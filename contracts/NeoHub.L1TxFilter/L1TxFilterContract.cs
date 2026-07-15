@@ -13,7 +13,7 @@ namespace NeoHub.L1TxFilter;
 /// Missing rules fall back to the configured default.
 /// </summary>
 [DisplayName("NeoHub.L1TxFilter")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("Per-chain L1-to-L2 transaction filter for NeoHub.MessageRouter.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.L1TxFilter")]

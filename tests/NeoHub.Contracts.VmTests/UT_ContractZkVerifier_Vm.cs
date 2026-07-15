@@ -28,6 +28,8 @@ public abstract class Mock_ContractZkVerifier_Verifier(SmartContractInitialize i
 ///   * proofSystem is validated to 1..4 and zero verification-key ids are rejected;
 ///   * envelope-only mode honors the one-way permanent lock (DisableEnvelopeOnlyPermanently is
 ///     irreversible — no future owner can re-enable it, the documented anti-foot-gun hardening);
+///   * the production configuration lock freezes one exact VK and terminal verifier per proof
+///     system, even when stale keys had been registered during bootstrap;
 ///   * Verify enforces the full commitment/payload envelope validation, requires a governance-
 ///     registered verification key, dispatches proof math to a registered verifier contract, and only
 ///     accepts envelope-only (no real proof) when explicitly allowed — never silently.
@@ -51,7 +53,8 @@ public class UT_ContractZkVerifier_Vm
     private const int ZkPayloadInnerProofLenOffset = 34;
     private const int ZkPayloadProofBytesOffset = 38;
 
-    private static readonly UInt256 VkId = UInt256.Parse("0x" + new string('1', 64));
+    private static readonly UInt256 VkId = new(Convert.FromHexString("00" + new string('1', 62)));
+    private static readonly UInt256 AlternateVkId = new(Convert.FromHexString("00" + new string('2', 62)));
 
     /// <summary>Deploy the router. owner defaults to engine.Sender so the owner witness check passes;
     /// pass an explicit non-sender <paramref name="owner"/> to exercise the negative auth paths.</summary>
@@ -195,6 +198,23 @@ public class UT_ContractZkVerifier_Vm
             "the zero verification-key id must be rejected");
     }
 
+    [TestMethod]
+    public void RegisterVerificationKey_Sp1RejectsNonCanonicalBytes32RawShape()
+    {
+        var engine = new TestEngine(true);
+        var c = Deploy(engine);
+        var nonCanonical = new UInt256(Convert.FromHexString("01" + new string('0', 62)));
+
+        Assert.ThrowsExactly<TestException>(() => c.RegisterVerificationKey(Sp1, nonCanonical, true),
+            "SP1 bytes32_raw() always has a zero leading byte");
+        Assert.IsFalse(c.IsVerificationKeyRegistered(Sp1, nonCanonical)!.Value,
+            "a rejected SP1 verification key must not become registered");
+
+        c.RegisterVerificationKey(Halo2, nonCanonical, true);
+        Assert.IsTrue(c.IsVerificationKeyRegistered(Halo2, nonCanonical)!.Value,
+            "the SP1-specific wire invariant must not constrain other proof systems");
+    }
+
     // ---------------------------------------------------------------------
     // RegisterProofVerifier — auth, zero-verifier validation, state
     // ---------------------------------------------------------------------
@@ -292,6 +312,126 @@ public class UT_ContractZkVerifier_Vm
         var c = Deploy(engine, owner: UInt160.Parse("0x" + new string('9', 40)));
         Assert.ThrowsExactly<TestException>(() => c.DisableEnvelopeOnlyPermanently(Sp1),
             "DisableEnvelopeOnlyPermanently is owner-gated");
+    }
+
+    // ---------------------------------------------------------------------
+    // Production proof-system configuration lock
+    // ---------------------------------------------------------------------
+
+    [TestMethod]
+    public void LockProofSystemConfiguration_RequiresCompleteProductionBootstrap()
+    {
+        var verifier = UInt160.Parse("0x" + new string('a', 40));
+
+        var missingKeyEngine = new TestEngine(true);
+        var missingKey = Deploy(missingKeyEngine);
+        missingKey.RegisterProofVerifier(Sp1, verifier, true);
+        missingKey.DisableEnvelopeOnlyPermanently(Sp1);
+        Assert.ThrowsExactly<TestException>(() => missingKey.LockProofSystemConfiguration(Sp1, VkId),
+            "the exact VK must be registered before the configuration can be frozen");
+
+        var missingVerifierEngine = new TestEngine(true);
+        var missingVerifier = Deploy(missingVerifierEngine);
+        missingVerifier.RegisterVerificationKey(Sp1, VkId, true);
+        missingVerifier.DisableEnvelopeOnlyPermanently(Sp1);
+        Assert.ThrowsExactly<TestException>(() => missingVerifier.LockProofSystemConfiguration(Sp1, VkId),
+            "a terminal verifier must be configured before the configuration can be frozen");
+
+        var mutableEnvelopeEngine = new TestEngine(true);
+        var mutableEnvelope = Deploy(mutableEnvelopeEngine);
+        mutableEnvelope.RegisterVerificationKey(Sp1, VkId, true);
+        mutableEnvelope.RegisterProofVerifier(Sp1, verifier, true);
+        Assert.ThrowsExactly<TestException>(() => mutableEnvelope.LockProofSystemConfiguration(Sp1, VkId),
+            "envelope-only must be permanently disabled before the configuration can be frozen");
+
+        Assert.IsFalse(mutableEnvelope.IsProofSystemConfigurationLocked(Sp1)!.Value);
+        Assert.AreEqual(UInt256.Zero, mutableEnvelope.GetLockedVerificationKey(Sp1));
+    }
+
+    [TestMethod]
+    public void LockProofSystemConfiguration_FreezesExactKeyTerminalAndEnvelopeState()
+    {
+        var engine = new TestEngine(true);
+        var c = Deploy(engine);
+        var verifier = UInt160.Parse("0x" + new string('a', 40));
+        var replacement = UInt160.Parse("0x" + new string('b', 40));
+
+        c.RegisterVerificationKey(Sp1, VkId, true);
+        c.RegisterVerificationKey(Sp1, AlternateVkId, true);
+        c.RegisterProofVerifier(Sp1, verifier, true);
+        c.DisableEnvelopeOnlyPermanently(Sp1);
+        c.LockProofSystemConfiguration(Sp1, VkId);
+
+        Assert.IsTrue(c.IsProofSystemConfigurationLocked(Sp1)!.Value);
+        Assert.AreEqual(VkId, c.GetLockedVerificationKey(Sp1));
+        Assert.IsTrue(c.IsVerificationKeyRegistered(Sp1, VkId)!.Value,
+            "the exact locked VK remains accepted");
+        Assert.IsFalse(c.IsVerificationKeyRegistered(Sp1, AlternateVkId)!.Value,
+            "a stale bootstrap VK becomes unusable once a different exact VK is locked");
+        Assert.AreEqual(verifier, c.GetProofVerifier(Sp1));
+        Assert.IsTrue(c.IsEnvelopeOnlyLocked(Sp1)!.Value);
+        Assert.IsFalse(c.IsEnvelopeOnlyAllowed(Sp1)!.Value);
+
+        Assert.ThrowsExactly<TestException>(() => c.RegisterVerificationKey(Sp1, VkId, false));
+        Assert.ThrowsExactly<TestException>(() => c.RegisterVerificationKey(Sp1, AlternateVkId, true));
+        Assert.ThrowsExactly<TestException>(() => c.RegisterProofVerifier(Sp1, replacement, true));
+        Assert.ThrowsExactly<TestException>(() => c.RegisterProofVerifier(Sp1, verifier, false));
+        Assert.ThrowsExactly<TestException>(() => c.SetEnvelopeOnlyAllowed(Sp1, false));
+        Assert.ThrowsExactly<TestException>(() => c.SetEnvelopeOnlyAllowed(Sp1, true));
+        Assert.ThrowsExactly<TestException>(() => c.DisableEnvelopeOnlyPermanently(Sp1));
+        Assert.ThrowsExactly<TestException>(() => c.LockProofSystemConfiguration(Sp1, VkId));
+
+        Assert.AreEqual(VkId, c.GetLockedVerificationKey(Sp1),
+            "rejected mutations must not change the exact locked VK");
+        Assert.AreEqual(verifier, c.GetProofVerifier(Sp1),
+            "rejected mutations must not change the terminal verifier");
+        Assert.IsFalse(c.IsEnvelopeOnlyAllowed(Sp1)!.Value,
+            "rejected mutations must not reopen envelope-only acceptance");
+
+        Assert.IsFalse(c.IsProofSystemConfigurationLocked(Halo2)!.Value,
+            "the lock is scoped per proof system");
+        c.RegisterVerificationKey(Halo2, VkId, true);
+        Assert.IsTrue(c.IsVerificationKeyRegistered(Halo2, VkId)!.Value,
+            "other proof systems remain independently configurable");
+    }
+
+    [TestMethod]
+    public void LockProofSystemConfiguration_NonOwner_FaultsWithoutChangingState()
+    {
+        var engine = new TestEngine(true);
+        var c = Deploy(engine);
+        var verifier = UInt160.Parse("0x" + new string('a', 40));
+        c.RegisterVerificationKey(Sp1, VkId, true);
+        c.RegisterProofVerifier(Sp1, verifier, true);
+        c.DisableEnvelopeOnlyPermanently(Sp1);
+
+        engine.SetTransactionSigners(UInt160.Parse("0x" + new string('9', 40)));
+        Assert.ThrowsExactly<TestException>(() => c.LockProofSystemConfiguration(Sp1, VkId),
+            "the irreversible configuration lock is owner-witness-gated");
+        Assert.IsFalse(c.IsProofSystemConfigurationLocked(Sp1)!.Value);
+        Assert.AreEqual(UInt256.Zero, c.GetLockedVerificationKey(Sp1));
+    }
+
+    [TestMethod]
+    public void Verify_ConfigurationLockRejectsPreviouslyRegisteredAlternateKey()
+    {
+        var engine = new TestEngine(true);
+        var c = Deploy(engine);
+        var acceptVerifier = UInt160.Parse("0x" + new string('b', 40));
+        engine.FromHash<Mock_ContractZkVerifier_Verifier>(acceptVerifier, mock =>
+            mock.Setup(x => x.VerifyZkProof(It.IsAny<BigInteger?>(), It.IsAny<byte[]?>(),
+                It.IsAny<byte[]?>(), It.IsAny<byte[]?>())).Returns(true), checkExistence: false);
+
+        c.RegisterVerificationKey(Sp1, VkId, true);
+        c.RegisterVerificationKey(Sp1, AlternateVkId, true);
+        c.RegisterProofVerifier(Sp1, acceptVerifier, true);
+        c.DisableEnvelopeOnlyPermanently(Sp1);
+        c.LockProofSystemConfiguration(Sp1, VkId);
+
+        Assert.IsTrue(c.Verify(ValidCommitment(Sp1, VkId))!.Value,
+            "the exact production VK still reaches the accepting terminal verifier");
+        Assert.ThrowsExactly<TestException>(() => c.Verify(ValidCommitment(Sp1, AlternateVkId)),
+            "a stale bootstrap VK must not remain accepted after the exact production VK is locked");
     }
 
     // ---------------------------------------------------------------------

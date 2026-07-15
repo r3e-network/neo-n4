@@ -49,15 +49,15 @@ public class UT_PlanCommand
         Assert.AreEqual(0, rc);
         Assert.IsTrue(File.Exists(bundlePath), "plan must produce the bundle file");
 
-        // Resolved bundle JSON should be parseable + carry 23 invocations
-        // (matching the scaffold's step count: 15 core + 2 fraud verifiers +
-        // 1 ZK native verifier adapter + 4 Phase-B external-bridge +
-        // 1 Phase-C MpcCommitteeFraudVerifier).
+        // Resolved bundle JSON should be parseable + carry 24 invocations
+        // (matching the scaffold's step count: 15 core + 1 executable fraud verifier +
+        // 1 ZK verifier router + 1 pinned SP1 terminal verifier + 4 Phase-B external-bridge +
+        // 1 Phase-C MpcCommitteeFraudVerifier + 1 immutable L2 payout adapter).
         var json = File.ReadAllText(bundlePath);
         using var doc = System.Text.Json.JsonDocument.Parse(json);
         var invocations = doc.RootElement.GetProperty("invocations");
-        Assert.AreEqual(23, invocations.GetArrayLength(),
-            "default scaffold -> 23 resolved invocations in the bundle");
+        Assert.AreEqual(24, invocations.GetArrayLength(),
+            "default scaffold -> 24 resolved invocations in the bundle");
 
         foreach (var invocation in invocations.EnumerateArray())
         {
@@ -112,11 +112,20 @@ public class UT_PlanCommand
         StringAssert.Contains(output, "Required post-deploy actions:");
         StringAssert.Contains(output, "SequencerBond.RegisterSlasher");
         StringAssert.Contains(output, "ChainRegistry.SetGovernanceController");
+        StringAssert.Contains(output, "ChainRegistry.LockGovernance");
+        StringAssert.Contains(output, "SettlementManager.SetGovernanceController");
         StringAssert.Contains(output, "SettlementManager.SetDAValidator");
+        StringAssert.Contains(output, "SettlementManager.SetMessageRouter");
+        StringAssert.Contains(output, "SettlementManager.LockGovernance");
+        StringAssert.Contains(output, "RevertBatchViaProposal");
         StringAssert.Contains(output, "MessageRouter.SetL1TxFilter");
         StringAssert.Contains(output, "ContractZkVerifier.RegisterProofVerifier");
+        StringAssert.Contains(output, "ContractZkVerifier.DisableEnvelopeOnlyPermanently");
+        StringAssert.Contains(output, "ContractZkVerifier.LockProofSystemConfiguration");
+        StringAssert.Contains(output, "Sp1Groth16Verifier");
         StringAssert.Contains(output, "VerifierRegistry.RegisterVerifier(ProofType.Zk=3, ContractZkVerifier)");
-        StringAssert.Contains(output, "GovernanceFraudVerifier");
+        Assert.IsFalse(output.Contains("GovernanceFraudVerifier", StringComparison.Ordinal),
+            "the production plan must not deploy or register the structural v1/v2 verifier");
         StringAssert.Contains(output, "RestrictedExecutionFraudVerifier");
     }
 

@@ -47,7 +47,7 @@ public class UT_CensorshipDetector
     }
 
     [TestMethod]
-    public async Task SingleOverdue_NamesResponsibleSequencer()
+    public async Task SingleOverdue_WithoutAttributionLeavesIdentityUnknown()
     {
         var src = new InMemoryForcedInclusionSource(1001);
         src.Enqueue(MkEntry(1, 1_700_005_000));
@@ -62,12 +62,35 @@ public class UT_CensorshipDetector
         Assert.AreEqual(1, reports.Count);
         Assert.AreEqual(1UL, reports[0].ForcedInclusionNonce);
         Assert.AreEqual(1001U, reports[0].ChainId);
-        Assert.AreEqual(K(1), reports[0].ResponsibleSequencer);
-        Assert.AreEqual(A(0x10), reports[0].ResponsibleSequencerAddress);
+        Assert.AreEqual(ECCurve.Secp256r1.Infinity, reports[0].ResponsibleSequencer);
+        Assert.AreEqual(UInt160.Zero, reports[0].ResponsibleSequencerAddress);
     }
 
     [TestMethod]
-    public async Task MultipleOverdue_AllReportSameResponsibleSequencer()
+    public async Task ExplicitAttribution_NamesResponsibleSequencer()
+    {
+        var src = new InMemoryForcedInclusionSource(1001);
+        src.Enqueue(MkEntry(1, 1_700_005_000));
+
+        var committee = new InMemorySequencerCommitteeProvider(1001);
+        committee.Register(K(1), A(0x10));
+        var responsible = (await committee.GetActiveCommitteeAsync()).Single();
+
+        var clock = new FakeClock { NowUnixSeconds = 1_700_006_000 };
+        var detector = new CensorshipDetector(
+            src,
+            committee,
+            clock,
+            attributionProvider: new FixedAttributionProvider(responsible));
+
+        var reports = await detector.DetectOverdueAsync();
+        Assert.AreEqual(1, reports.Count);
+        Assert.AreEqual(responsible.PublicKey, reports[0].ResponsibleSequencer);
+        Assert.AreEqual(responsible.L1Address, reports[0].ResponsibleSequencerAddress);
+    }
+
+    [TestMethod]
+    public async Task MultipleOverdue_WithoutAttributionRemainUnknown()
     {
         var src = new InMemoryForcedInclusionSource(1001);
         for (ulong i = 1; i <= 3; i++) src.Enqueue(MkEntry(i, 1_700_000_000));
@@ -81,9 +104,34 @@ public class UT_CensorshipDetector
 
         var reports = await detector.DetectOverdueAsync();
         Assert.AreEqual(3, reports.Count);
-        // All 3 reports should name the same lowest-pubkey sequencer.
-        var responsible = reports[0].ResponsibleSequencer;
-        Assert.IsTrue(reports.All(r => r.ResponsibleSequencer.Equals(responsible)));
+        Assert.IsTrue(reports.All(r => r.ResponsibleSequencer.Equals(ECCurve.Secp256r1.Infinity)));
+        Assert.IsTrue(reports.All(r => r.ResponsibleSequencerAddress == UInt160.Zero));
+    }
+
+    [TestMethod]
+    public async Task AttributionOutsideCommittee_FailsClosed()
+    {
+        var src = new InMemoryForcedInclusionSource(1001);
+        src.Enqueue(MkEntry(1, 1_700_005_000));
+
+        var committee = new InMemorySequencerCommitteeProvider(1001);
+        committee.Register(K(1), A(0x10));
+        var outsider = new CommitteeMember
+        {
+            PublicKey = K(2),
+            L1Address = A(0x20),
+            Status = 1,
+            ExitsAtUnixSeconds = 0,
+        };
+        var detector = new CensorshipDetector(
+            src,
+            committee,
+            new FakeClock { NowUnixSeconds = 1_700_006_000 },
+            attributionProvider: new FixedAttributionProvider(outsider));
+
+        var error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            async () => await detector.DetectOverdueAsync());
+        StringAssert.Contains(error.Message, "outside the active committee");
     }
 
     [TestMethod]
@@ -137,6 +185,15 @@ public class UT_CensorshipDetector
         var src = new InMemoryForcedInclusionSource(1001);
         Assert.ThrowsExactly<ArgumentNullException>(
             () => new CensorshipDetector(src, null!));
+    }
+
+    [TestMethod]
+    public void Constructor_RejectsCrossChainCommittee()
+    {
+        var src = new InMemoryForcedInclusionSource(1001);
+        var committee = new InMemorySequencerCommitteeProvider(1002);
+
+        Assert.ThrowsExactly<ArgumentException>(() => new CensorshipDetector(src, committee));
     }
 
     [TestMethod]
@@ -218,7 +275,7 @@ public class UT_CensorshipDetector
             => new ValueTask<bool>(true);
         public ValueTask<IReadOnlyList<ForcedInclusionEntry>> DrainAsync(int max, CancellationToken cancellationToken = default)
             => new ValueTask<IReadOnlyList<ForcedInclusionEntry>>(ReturnsNullDrain ? null! : Array.Empty<ForcedInclusionEntry>());
-        public ValueTask MarkConsumedAsync(ulong nonce, CancellationToken cancellationToken = default)
+        public ValueTask ConfirmConsumedAsync(ulong nonce, CancellationToken cancellationToken = default)
             => ValueTask.CompletedTask;
     }
 
@@ -231,6 +288,19 @@ public class UT_CensorshipDetector
             => new ValueTask<bool>(false);
         public ValueTask<int> GetMaxCommitteeSizeAsync(CancellationToken cancellationToken = default)
             => new ValueTask<int>(7);
+    }
+
+    private sealed class FixedAttributionProvider(CommitteeMember member) : ICensorshipAttributionProvider
+    {
+        public ValueTask<CommitteeMember?> ResolveResponsibleSequencerAsync(
+            uint chainId,
+            ForcedInclusionEntry entry,
+            uint observedAtUnixSeconds,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult<CommitteeMember?>(member);
+        }
     }
 
     [TestMethod]

@@ -1,4 +1,4 @@
-using System.Numerics;
+using System.Globalization;
 using Neo.Json;
 using Neo.L2;
 using Neo.L2.Batch;
@@ -13,9 +13,9 @@ namespace Neo.Plugins.L2Rpc;
 /// </summary>
 /// <remarks>
 /// Held separately from <c>RpcServer</c> integration so the methods can be unit-tested without
-/// spinning up a node. The <c>Neo.Plugins.L2Rpc.RpcServerExtensions</c> partial class (added
-/// alongside neo's <c>RpcServer</c> when its source is available) wraps these into
-/// <c>[RpcMethod]</c>-attributed entry points.
+/// spinning up a node. <c>L2RpcServerAdapter</c> exposes the production
+/// <c>[RpcMethod]</c>-attributed entry points and <c>L2RpcPlugin</c> registers them with the
+/// official <c>RpcServerPlugin</c> for the active network.
 /// </remarks>
 public sealed class L2RpcMethods
 {
@@ -47,7 +47,7 @@ public sealed class L2RpcMethods
         var status = _store.GetBatchStatus(batchNumber);
         var obj = new JObject();
         obj["chainId"] = chainId;
-        obj["batchNumber"] = batchNumber;
+        obj["batchNumber"] = ULongWire(batchNumber);
         obj["status"] = (byte)status;
         obj["statusName"] = status.ToString();
         return obj;
@@ -96,9 +96,11 @@ public sealed class L2RpcMethods
         var s = status.Value;
         var obj = new JObject();
         obj["sourceChainId"] = s.SourceChainId;
-        obj["nonce"] = s.Nonce;
+        obj["nonce"] = ULongWire(s.Nonce);
         obj["consumedOnL2"] = s.ConsumedOnL2;
-        obj["includedInBatch"] = s.IncludedInBatch.HasValue ? (JToken)s.IncludedInBatch.Value : JToken.Null;
+        obj["includedInBatch"] = s.IncludedInBatch.HasValue
+            ? ULongWire(s.IncludedInBatch.Value)
+            : JToken.Null;
         return obj;
     });
 
@@ -114,6 +116,8 @@ public sealed class L2RpcMethods
     public JToken? GetBridgedAsset(JArray @params) => Time("getbridgedasset", () =>
     {
         var l1Asset = ReadUInt160(@params, 0);
+        var chainId = ReadUInt(@params, 1);
+        AssertOurChain(chainId);
         var l2 = _store.GetBridgedAsset(l1Asset);
         return l2 is null ? JToken.Null : new JString(l2.ToString());
     });
@@ -203,43 +207,55 @@ public sealed class L2RpcMethods
     private static ulong ReadULong(JArray @params, int idx)
     {
         var token = RequireParam(@params, idx);
-        return token switch
-        {
-            JNumber n => checked((ulong)(BigInteger)n.AsNumber()),
-            JString s => ulong.Parse(s.AsString()),
-            _ => throw new ArgumentException($"param[{idx}] not a number"),
-        };
+        if (token is JString text
+            && ulong.TryParse(text.AsString(), NumberStyles.None, CultureInfo.InvariantCulture, out var value)
+            && text.AsString() == value.ToString(CultureInfo.InvariantCulture))
+            return value;
+        throw new ArgumentException($"param[{idx}] must be a canonical decimal u64 string");
     }
 
     private static uint ReadUInt(JArray @params, int idx)
     {
-        // Use checked cast so a chainId > UInt32.MaxValue surfaces an OverflowException
-        // instead of silently truncating to a small uint that could collide with a real
-        // L2 chain id (e.g. 0x100000001 → 1, which AssertOurChain would compare misleadingly).
-        var v = ReadULong(@params, idx);
-        return checked((uint)v);
+        var token = RequireParam(@params, idx);
+        if (token is JNumber number)
+        {
+            var value = number.AsNumber();
+            if (double.IsFinite(value)
+                && value >= uint.MinValue
+                && value <= uint.MaxValue
+                && Math.Truncate(value) == value)
+                return (uint)value;
+        }
+        throw new ArgumentException($"param[{idx}] must be a u32 JSON number");
     }
 
     private static UInt256 ReadUInt256(JArray @params, int idx)
     {
         var token = RequireParam(@params, idx);
-        return UInt256.Parse(token.AsString());
+        if (token is not JString text)
+            throw new ArgumentException($"param[{idx}] must be a UInt256 string");
+        return UInt256.Parse(text.AsString());
     }
 
     private static UInt160 ReadUInt160(JArray @params, int idx)
     {
         var token = RequireParam(@params, idx);
-        return UInt160.Parse(token.AsString());
+        if (token is not JString text)
+            throw new ArgumentException($"param[{idx}] must be a UInt160 string");
+        return UInt160.Parse(text.AsString());
     }
+
+    private static JString ULongWire(ulong value) =>
+        new(value.ToString(CultureInfo.InvariantCulture));
 
     private static JToken? EncodeBatch(L2BatchCommitment batch)
     {
         var bytes = BatchSerializer.Encode(batch);
         var obj = new JObject();
         obj["chainId"] = batch.ChainId;
-        obj["batchNumber"] = batch.BatchNumber;
-        obj["firstBlock"] = batch.FirstBlock;
-        obj["lastBlock"] = batch.LastBlock;
+        obj["batchNumber"] = ULongWire(batch.BatchNumber);
+        obj["firstBlock"] = ULongWire(batch.FirstBlock);
+        obj["lastBlock"] = ULongWire(batch.LastBlock);
         obj["preStateRoot"] = batch.PreStateRoot.ToString();
         obj["postStateRoot"] = batch.PostStateRoot.ToString();
         obj["txRoot"] = batch.TxRoot.ToString();

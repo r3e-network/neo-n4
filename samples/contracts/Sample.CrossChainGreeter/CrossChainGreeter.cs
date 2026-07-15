@@ -24,7 +24,7 @@ namespace Sample.CrossChainGreeter;
 /// "greeting" type) — receivers on L1 dispatch by this byte.
 /// </remarks>
 [DisplayName("Sample.CrossChainGreeter")]
-[ContractAuthor("Neo Project — Sample", "dev@neo.org")]
+[ContractAuthor("R3E Network — Sample", "dev@r3e.network")]
 [ContractDescription("Sample dApp: emits an L2→L1 cross-chain greeting message.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/samples/contracts/Sample.CrossChainGreeter")]

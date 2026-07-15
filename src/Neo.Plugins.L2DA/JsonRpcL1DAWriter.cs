@@ -7,7 +7,7 @@ namespace Neo.Plugins.L2DA;
 /// <summary>
 /// <see cref="IDAWriter"/> implementation that publishes batch payloads to an L1 contract
 /// via JSON-RPC <c>sendrawtransaction</c>. Used when <c>DAMode.L1</c> is selected — the
-/// L2 batch's <c>daCommitment</c> becomes the SHA256 of the published payload, and the
+/// L2 batch's <c>daCommitment</c> becomes the Hash256 of the published payload, and the
 /// pointer carries the L1 transaction hash for off-chain re-fetch.
 /// </summary>
 /// <remarks>
@@ -18,6 +18,11 @@ namespace Neo.Plugins.L2DA;
 /// that records (chainId, batchNumber, commitment, pointer) on L1; an obvious candidate
 /// is a method on <c>NeoHub.DARegistry</c> or a sibling contract that emits a
 /// "blob published" event.
+/// <para>
+/// See doc.md §12.1. This adapter is not by itself an <see cref="IProductionDAWriter"/>:
+/// production composition additionally requires an independently operated L1 reader that
+/// retrieves and verifies the signed transaction payload.
+/// </para>
 /// </remarks>
 public sealed class JsonRpcL1DAWriter : IDAWriter, IDisposable
 {
@@ -32,9 +37,19 @@ public sealed class JsonRpcL1DAWriter : IDAWriter, IDisposable
         DAPublishRequest request,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Confirm that the signed publish transaction was included and return non-empty,
+    /// independently verifiable confirmation metadata.
+    /// </summary>
+    public delegate ValueTask<ReadOnlyMemory<byte>> ConfirmTransactionAsync(
+        UInt256 transactionHash,
+        DAPublishRequest request,
+        CancellationToken cancellationToken);
+
     private readonly JsonRpcClient _rpc;
     private readonly UInt160 _daContractHash;
     private readonly SignAndSendAsync _signAndSend;
+    private readonly ConfirmTransactionAsync _confirmTransaction;
     private readonly string _isAvailableRpcMethod;
     private bool _disposed;
 
@@ -43,6 +58,8 @@ public sealed class JsonRpcL1DAWriter : IDAWriter, IDisposable
     /// <param name="daContractHash">L1 contract that records DA publishes for this L2.</param>
     /// <param name="signAndSend">Operator-supplied callback that builds + signs + sends the
     /// publish transaction; returns the resulting tx hash.</param>
+    /// <param name="confirmTransaction">Operator-supplied confirmation callback that returns
+    /// non-empty inclusion/proof metadata after the signed transaction is confirmed.</param>
     /// <param name="isAvailableRpcMethod">L1 contract method name to call (read-only) to
     /// confirm a previously-published commitment is still queryable. Defaults to
     /// <c>"isAvailable"</c>; operators with a different DA contract can override.</param>
@@ -50,19 +67,25 @@ public sealed class JsonRpcL1DAWriter : IDAWriter, IDisposable
         JsonRpcClient rpc,
         UInt160 daContractHash,
         SignAndSendAsync signAndSend,
+        ConfirmTransactionAsync confirmTransaction,
         string isAvailableRpcMethod = "isAvailable")
     {
         ArgumentNullException.ThrowIfNull(rpc);
         ArgumentNullException.ThrowIfNull(signAndSend);
+        ArgumentNullException.ThrowIfNull(confirmTransaction);
         ArgumentException.ThrowIfNullOrEmpty(isAvailableRpcMethod);
         _rpc = rpc;
         _daContractHash = daContractHash;
         _signAndSend = signAndSend;
+        _confirmTransaction = confirmTransaction;
         _isAvailableRpcMethod = isAvailableRpcMethod;
     }
 
     /// <inheritdoc />
     public DAMode Mode => DAMode.L1;
+
+    /// <inheritdoc />
+    public DAReceiptKind ReceiptKind => DAReceiptKind.L1Transaction;
 
     /// <inheritdoc />
     public async ValueTask<DAReceipt> PublishAsync(DAPublishRequest request, CancellationToken cancellationToken = default)
@@ -75,6 +98,10 @@ public sealed class JsonRpcL1DAWriter : IDAWriter, IDisposable
         var txHash = await _signAndSend(_daContractHash, request, cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException(
                 "JsonRpcL1DAWriter.SignAndSendAsync delegate returned null tx hash");
+        var evidence = await _confirmTransaction(txHash, request, cancellationToken).ConfigureAwait(false);
+        if (evidence.IsEmpty)
+            throw new InvalidOperationException(
+                "JsonRpcL1DAWriter confirmation delegate returned empty transaction evidence");
 
         // Commitment = canonical Hash256 of the published payload — same convention as
         // InMemoryDAWriter / NeoFsLikeDAWriter so the off-chain audit
@@ -90,6 +117,8 @@ public sealed class JsonRpcL1DAWriter : IDAWriter, IDisposable
         {
             Commitment = commitment,
             Pointer = pointer,
+            Evidence = evidence.ToArray(),
+            Kind = ReceiptKind,
             Layer = DAMode.L1,
         };
     }
@@ -98,12 +127,14 @@ public sealed class JsonRpcL1DAWriter : IDAWriter, IDisposable
     public async ValueTask<bool> IsAvailableAsync(DAReceipt receipt, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(receipt);
+        ArgumentNullException.ThrowIfNull(receipt.Commitment);
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        // Skip the round-trip when the receipt is the "no DA" sentinel that some
-        // higher-tier paths use (DACommitment = UInt256.Zero on a None-mode batch).
-        // Matches the off-chain DAAvailabilityCheck convention.
-        if (receipt.Commitment.Equals(UInt256.Zero)) return true;
+        if (!receipt.HasRequiredMetadata(Mode, ReceiptKind)
+            || receipt.Pointer.Length != UInt256.Length)
+        {
+            return false;
+        }
 
         var paramsArray = new JArray
         {

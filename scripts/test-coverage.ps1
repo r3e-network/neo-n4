@@ -6,11 +6,28 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$PSNativeCommandUseErrorActionPreference = $true
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $resultsPath = Join-Path $repoRoot $ResultsDirectory
 $settingsPath = Join-Path $repoRoot "coverage.runsettings"
 $solutionPath = Join-Path $repoRoot "Neo.L2.sln"
+$riscVManifestPath = Join-Path $repoRoot "external/neo-riscv-vm/Cargo.toml"
+$riscVTargetPath = Join-Path $repoRoot "external/neo-riscv-vm/target/release"
+$riscVTestOutputPath = Join-Path $repoRoot "tests/Neo.L2.Executor.RiscV.UnitTests/bin/$Configuration"
+$isWindowsPlatform = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+    [System.Runtime.InteropServices.OSPlatform]::Windows)
+$isMacOSPlatform = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+    [System.Runtime.InteropServices.OSPlatform]::OSX)
+$nativeLibraryName = if ($isWindowsPlatform) {
+    "neo_riscv_host.dll"
+} elseif ($isMacOSPlatform) {
+    "libneo_riscv_host.dylib"
+} else {
+    "libneo_riscv_host.so"
+}
+$nativeLibraryPath = Join-Path $riscVTargetPath $nativeLibraryName
+$previousNativeTests = $env:NEO_RISCV_NATIVE_TESTS
 
 if (Test-Path -LiteralPath $resultsPath) {
     Remove-Item -LiteralPath $resultsPath -Recurse -Force
@@ -19,8 +36,42 @@ New-Item -ItemType Directory -Force -Path $resultsPath | Out-Null
 
 Push-Location $repoRoot
 try {
+    Push-Location (Split-Path -Parent $riscVManifestPath)
+    try {
+        cargo build `
+            --release `
+            --locked `
+            -p neo-riscv-host `
+            --manifest-path $riscVManifestPath
+    }
+    finally {
+        Pop-Location
+    }
+
+    if (-not (Test-Path -LiteralPath $nativeLibraryPath -PathType Leaf)) {
+        throw "neo-riscv-host build did not produce $nativeLibraryPath"
+    }
+
+    dotnet build $solutionPath `
+        -c $Configuration `
+        /p:NuGetAudit=false `
+        --nologo
+
+    $riscVTestAssemblies = @(Get-ChildItem -Path $riscVTestOutputPath -Recurse -File `
+        -Filter "Neo.L2.Executor.RiscV.UnitTests.dll" | `
+        Where-Object { $_.FullName -notmatch "[\\/]ref[\\/]" })
+    if ($riscVTestAssemblies.Count -ne 1) {
+        throw "Expected exactly one RISC-V test assembly under $riscVTestOutputPath; found $($riscVTestAssemblies.Count)."
+    }
+
+    Copy-Item -LiteralPath $nativeLibraryPath `
+        -Destination $riscVTestAssemblies[0].Directory.FullName `
+        -Force
+    $env:NEO_RISCV_NATIVE_TESTS = "1"
+
     dotnet test $solutionPath `
         -c $Configuration `
+        --no-build `
         --settings $settingsPath `
         --collect:"XPlat Code Coverage" `
         --results-directory $resultsPath `
@@ -150,6 +201,11 @@ try {
         overallThreshold = $OverallThreshold
         gateSourceRoots = $gateSourceRoots
         coberturaFiles = $coverageFiles.Count
+        nativeRiscVHost = [pscustomobject]@{
+            required = $true
+            library = $nativeLibraryPath.Substring($repoRoot.Path.Length + 1) -replace "\\", "/"
+            sha256 = (Get-FileHash -LiteralPath $nativeLibraryPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
         sourceFileAudit = [pscustomobject]@{
             knownSourceFiles = $actualFiles.Count
             reportedSourceFiles = $reportedFiles.Count
@@ -191,5 +247,10 @@ try {
     }
 }
 finally {
+    if ($null -eq $previousNativeTests) {
+        Remove-Item Env:NEO_RISCV_NATIVE_TESTS -ErrorAction SilentlyContinue
+    } else {
+        $env:NEO_RISCV_NATIVE_TESTS = $previousNativeTests
+    }
     Pop-Location
 }

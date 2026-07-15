@@ -7,46 +7,53 @@ namespace Neo.L2.Bridge.UnitTests;
 [TestClass]
 public class UT_External_AssetTransferPayload
 {
+    private const string AsymmetricAssetHex = "0123456789abcdef1032547698badcfe11223344";
+    private const string ReversedAssetHex = "44332211fedcba9876543210efcdab8967452301";
+
+    private static ExternalAssetId TestAsset => ExternalAssetId.Parse(AsymmetricAssetHex);
+
     [TestMethod]
-    public void Encode_RoundTrips()
+    public void Encode_PreservesOpaqueNetworkOrder_AndRoundTrips()
     {
         var p = new ExternalAssetTransferPayload
         {
-            ForeignAsset = UInt160.Parse("0x" + new string('a', 40)),
+            ForeignAsset = TestAsset,
             Amount = new BigInteger(1_000_000),
         };
         var bytes = p.Encode();
+        CollectionAssert.AreEqual(
+            Convert.FromHexString(AsymmetricAssetHex + "0300000040420f"),
+            bytes,
+            "C#, Rust, and Solidity must emit the same network-order asset bytes");
         var back = ExternalAssetTransferPayload.Decode(bytes);
         Assert.AreEqual(p.ForeignAsset, back.ForeignAsset);
         Assert.AreEqual(p.Amount, back.Amount);
     }
 
     [TestMethod]
-    public void Encode_RejectsNegativeAmount()
+    public void Encode_RejectsNonPositiveAmount()
     {
-        var p = new ExternalAssetTransferPayload
+        foreach (var amount in new[] { new BigInteger(-1), BigInteger.Zero })
         {
-            ForeignAsset = UInt160.Parse("0x" + new string('a', 40)),
-            Amount = new BigInteger(-1),
-        };
-        Assert.ThrowsExactly<InvalidOperationException>(() => p.Encode());
+            var payload = new ExternalAssetTransferPayload
+            {
+                ForeignAsset = TestAsset,
+                Amount = amount,
+            };
+            Assert.ThrowsExactly<InvalidOperationException>(() => payload.Encode());
+        }
     }
 
     [TestMethod]
-    public void Encode_ZeroAmount_RoundTrips()
+    public void ExternalAssetIdAndDecode_RejectZeroForeignAsset()
     {
-        // .NET BigInteger.Zero.ToByteArray(isUnsigned:true) yields a single 0x00 byte (not empty),
-        // so a zero amount encodes as a 1-byte amount field and must decode back to zero. (Deposit
-        // itself rejects zero amounts; this only pins encode/decode symmetry at the boundary.)
-        var p = new ExternalAssetTransferPayload
-        {
-            ForeignAsset = UInt160.Parse("0x" + new string('a', 40)),
-            Amount = BigInteger.Zero,
-        };
-        var bytes = p.Encode();
-        var amountLen = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(20, 4));
-        Assert.AreEqual(1, amountLen, "zero encodes as the single 0x00 byte BigInteger produces");
-        Assert.AreEqual(BigInteger.Zero, ExternalAssetTransferPayload.Decode(bytes).Amount);
+        Assert.ThrowsExactly<ArgumentException>(() => new ExternalAssetId(new byte[20]));
+
+        var bytes = new byte[25];
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(20, 4), 1);
+        bytes[24] = 1;
+        Assert.ThrowsExactly<ArgumentException>(
+            () => ExternalAssetTransferPayload.Decode(bytes));
     }
 
     [TestMethod]
@@ -65,7 +72,7 @@ public class UT_External_AssetTransferPayload
         {
             var p = new ExternalAssetTransferPayload
             {
-                ForeignAsset = UInt160.Parse("0x" + new string('a', 40)),
+                ForeignAsset = TestAsset,
                 Amount = amount,
             };
             var bytes = p.Encode();
@@ -80,7 +87,7 @@ public class UT_External_AssetTransferPayload
     {
         var p = new ExternalAssetTransferPayload
         {
-            ForeignAsset = UInt160.Parse("0x" + new string('a', 40)),
+            ForeignAsset = TestAsset,
             Amount = new BigInteger(1_000_000),
         };
         var bytes = p.Encode();
@@ -94,6 +101,57 @@ public class UT_External_AssetTransferPayload
     {
         Assert.ThrowsExactly<ArgumentException>(
             () => ExternalAssetTransferPayload.Decode(new byte[10]));
+    }
+
+    [TestMethod]
+    public void Decode_RejectsZeroNonMinimalAndWiderThanUint256Amounts()
+    {
+        static byte[] Payload(int amountLength, byte[] amount)
+        {
+            var bytes = new byte[24 + amount.Length];
+            ExternalAssetId.Parse(AsymmetricAssetHex).CopyTo(bytes);
+            System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(
+                bytes.AsSpan(20, 4), amountLength);
+            amount.CopyTo(bytes, 24);
+            return bytes;
+        }
+
+        Assert.ThrowsExactly<ArgumentException>(
+            () => ExternalAssetTransferPayload.Decode(Payload(0, [])));
+        Assert.ThrowsExactly<ArgumentException>(
+            () => ExternalAssetTransferPayload.Decode(Payload(1, [0])));
+        Assert.ThrowsExactly<ArgumentException>(
+            () => ExternalAssetTransferPayload.Decode(Payload(2, [1, 0])));
+        Assert.ThrowsExactly<ArgumentException>(
+            () => ExternalAssetTransferPayload.Decode(Payload(33, Enumerable.Repeat((byte)1, 33).ToArray())));
+    }
+
+    [TestMethod]
+    public void ExternalAssetId_RouteLookup_DoesNotMatchByteReversedAddress()
+    {
+        var routes = new Dictionary<ExternalAssetId, string>
+        {
+            [TestAsset] = "evm-token-route",
+        };
+
+        Assert.IsTrue(routes.TryGetValue(ExternalAssetId.Parse(AsymmetricAssetHex), out var route));
+        Assert.AreEqual("evm-token-route", route);
+        Assert.IsFalse(routes.ContainsKey(ExternalAssetId.Parse(ReversedAssetHex)));
+    }
+
+    [TestMethod]
+    public void NativeAssetSentinel_IsCanonicalNonZeroWireValue()
+    {
+        var bytes = new ExternalAssetTransferPayload
+        {
+            ForeignAsset = ExternalAssetId.Native,
+            Amount = BigInteger.One,
+        }.Encode();
+
+        CollectionAssert.AreEqual(
+            Convert.FromHexString(ExternalAssetId.NativeAssetSentinelHex),
+            bytes[..ExternalAssetId.Length]);
+        Assert.IsTrue(ExternalAssetTransferPayload.Decode(bytes).ForeignAsset.IsNative);
     }
 }
 
@@ -217,7 +275,7 @@ public class UT_External_EndToEnd
     {
         var transfer = new ExternalAssetTransferPayload
         {
-            ForeignAsset = UInt160.Parse("0x" + new string('e', 40)),
+            ForeignAsset = ExternalAssetId.Parse("0123456789abcdef1032547698badcfe11223344"),
             Amount = new BigInteger(1_000_000),
         }.Encode();
 
@@ -233,7 +291,10 @@ public class UT_External_EndToEnd
             messageType: ExternalMessageType.AssetTransfer,
             payload: transfer);
 
-        Assert.AreNotEqual(UInt256.Zero, msg.MessageHash);
+        CollectionAssert.AreEqual(
+            Convert.FromHexString("473ca6a7e6e63a57952ff7fdd7a9338f3202e3843386f13ec6fee5da69819ff6"),
+            msg.MessageHash.GetSpan().ToArray(),
+            "C# Hash256 bytes must match the Rust cross-language vector");
 
         // Three "signatures" — in production these would be real secp256k1.
         // The on-chain MpcCommitteeVerifier will reject these as invalid
@@ -257,5 +318,6 @@ public class UT_External_EndToEnd
         // Decode the asset-transfer payload back too.
         var transferBack = ExternalAssetTransferPayload.Decode(msg.Payload.Span);
         Assert.AreEqual(new BigInteger(1_000_000), transferBack.Amount);
+        Assert.AreEqual("0x0123456789abcdef1032547698badcfe11223344", transferBack.ForeignAsset.ToString());
     }
 }

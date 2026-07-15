@@ -60,7 +60,7 @@ public class UT_External_RealCrypto
     {
         var transferPayload = new ExternalAssetTransferPayload
         {
-            ForeignAsset = UInt160.Parse("0x" + new string('e', 40)),
+            ForeignAsset = ExternalAssetId.Parse("0123456789abcdef1032547698badcfe11223344"),
             Amount = new BigInteger(1_000_000),
         }.Encode();
 

@@ -29,7 +29,7 @@ namespace NeoHub.ExternalBridgeBond;
 /// devnet but not production-grade economic security on its own.</para>
 /// </remarks>
 [DisplayName("NeoHub.ExternalBridgeBond")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("Per-(externalChainId, committee member) slashable bond escrow.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.ExternalBridgeBond")]

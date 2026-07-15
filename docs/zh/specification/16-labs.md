@@ -56,7 +56,7 @@ dotnet run --project tools\Neo.Hub.Deploy -- plan --plan plan.json --output bund
 
 打开 `plan.json`，检查：
 
-- 是否包含 23 个生产合约；
+- 是否包含 24 个生产合约，并排除仅审计/测试合约；
 - 是否包含 `ContractZkVerifier`；
 - 是否不包含 test-only `ExternalBridgeStubVerifier`；
 - post-deploy actions 是否提示 DA / verifier / filter wiring。
@@ -133,4 +133,3 @@ docs/zh/audit/full-stack-validation-2026-05-20/README.md
 ```
 
 把每个“已验证”和“仍需生产配置”的项分开。不要把本地 devnet 通过误写成 mainnet production ready。
-

@@ -19,7 +19,9 @@ plan ID (e.g. `[plan: §16.1-admission]`) so reviewers can cross-check.
 1. Reads the wired GovernanceController hash (set via owner-only
    `SetGovernanceController`); rejects if unset with a clear "owner must wire
    first" hint.
-2. Calls `GovernanceController.GetAdmissionMode()`.
+2. Calls `GovernanceController.GetAdmissionMode()` and validates the full returned
+   `BigInteger` as the closed set 0..2 before narrowing it to `byte`; negative,
+   undefined, and wrapping values fail without persistent state changes.
 3. Mode 0 (permissioned) → reject with "use RegisterChain"; mode 1
    (semi-permissionless) → enforce `IsApprovedVerifier` + `IsApprovedBridgeAdapter`
    on the verifier (offset 24..43) and bridge (offset 44..63) bytes; mode 2
@@ -29,7 +31,8 @@ plan ID (e.g. `[plan: §16.1-admission]`) so reviewers can cross-check.
 The owner-only `RegisterChain` stays as the §16.1 "permissioned" path.
 
 **Files.** `contracts/NeoHub.ChainRegistry/ChainRegistryContract.cs`.
-Tests cover modes 0/1/2 + the unwired-controller rejection.
+Tests cover modes 0/1/2, the unwired-controller rejection, and fail-closed
+rejection of -1, 3, and 258 without config or genesis-root persistence.
 
 ### §16.1-approved-sets ✅ closed
 
@@ -87,17 +90,20 @@ integration through `ChainRegistryContract.RegisterChainPublic`.
   - `L2DAPlugin.BuildDefaultWriter(DAMode.L1, ...)` no longer throws when the
     writer is wired.
 
-### §8-witness-canonical ⏭ deferred
+### §8-witness-canonical ✅ SP1 closed / ⏭ other backends
 
 Originally proposed `Neo.L2.Proving.WitnessRecord` to pin the §8.4 witness
 layout (ordered txs / bytecode / storage R/W / native state / L1 messages /
 DA data / trace).
 
-**Decision.** Premature without a real prover targeting it — different
-backends (SP1, Halo2) want different formats. Re-evaluate when the SP1
-toolchain integration lands and the guest ELF defines its expected witness
-shape. `ProofRequest.Witness` stays as opaque `ReadOnlyMemory<byte>` until
-then.
+**Current decision.** The SP1 toolchain and guest now define the canonical boundary.
+`ProofRequest.Witness` is exactly `ProofWitnessArtifactV1` (`NEO4PWIT`), whose complete
+pre-state is `NEO4STW1`; execution effects are `NEO4EFX1`, and the host-native execution
+handoff is `NEO4EXR1`. Rust and C# decode/re-encode shared golden vectors byte-for-byte, the
+guest recomputes every claim, and the production executor validates the exact request,
+semantic, post-state, and public-input bindings before atomic state commit. No parallel
+`WitnessRecord` envelope is allowed for SP1. A future Halo2/Risc0 backend may define a
+different versioned backend-specific witness, but it must not silently reinterpret SP1 bytes.
 
 ### §state-tree-convention ✅ closed
 
@@ -120,25 +126,24 @@ fold loop byte-for-byte. New parity test
 cardinalities 1, 2, 3, 4, 5, 7, 8, 9, 15, 16 (including the previously-divergent
 odd cases), plus a `HashLeaf` ↔ `HashEntry` byte-identity pin.
 
-### §v4-fraud-verifier ⏭ deferred
+### §v4-fraud-verifier ✅ restricted profile / ⏭ general NeoVM
 
-`NeoHub.RestrictedExecutionFraudVerifier` (v3) reconstructs pre/post state
-roots from storage proofs and checks them against the payload header — i.e.
-it proves "the challenger has supplied storage manifests that fold to the
-declared roots AND claims a real discrepancy." It does NOT prove that
-re-executing the disputed transaction on the pre-state actually produces the
-challenger's `ReplayedPostStateRoot`. A v4 verifier closing that gap would
-need to:
+`NeoHub.RestrictedExecutionFraudVerifier` preserves v3 as advisory-only
+structural evidence and adds canonical v4. `OptimisticChallenge` rejects v3
+before dispatch even with governance witness. V4 reads SettlementManager's stored
+`Challengeable` optimistic header, binds chain/batch/pre/post/tx roots,
+transaction index, replay domain, semantic id, transcript/witness/claim hashes,
+verifies the single-leaf transaction proof, and executes one existing-key
+Counter Increment transition over a canonical old/new storage proof. Honest
+committed execution returns false; only a wrong committed post root returns true.
 
-  1. Seed an L1-side `ApplicationEngine` instance with a frozen view of the
-     pre-state restricted to the keys the storage proofs cover.
-  2. Execute the disputed transaction bytes (already present in the v2+ witness).
-  3. Compare the post-execution state root against `ReplayedPostStateRoot`.
-
-Blocked on upstream core exposing an `ApplicationEngine` restricted-snapshot
-mode (see "Upstream / out-of-repo" below). Until then, v3 acceptance means
-"structurally credible claim; a downstream re-execution service or council
-arbitrates correctness."
+The remaining gap is intentionally narrower: the batch commitment has no
+transaction count or intermediate trace root, and L1 has no general restricted
+NeoVM snapshot executor. Therefore v4 accepts only one transaction at index 0,
+interval `[0,1]`, semantic id
+`Hash256("neo4-executor:counter-increment-existing-key:v1")`. Multi-transaction
+bisection, arbitrary opcodes/custom executors, and key insertion/deletion fail
+closed until the commitment and execution engine expose those anchors/semantics.
 
 ## Upstream / out-of-repo (track but don't fix here)
 
@@ -152,22 +157,27 @@ core ships ChainMode hooks.
 
 ### §14.1-rpcserver-wrapper — `[RpcMethod]`-decorated wrapper class
 
-Pending Neo 4's RpcServer plugin source. The 9 L2 RPC methods exist as plain
-methods in `Neo.Plugins.L2Rpc.L2RpcMethods`; the wrapper that registers them with
-neo's RpcServer dispatcher needs that source. Track as a pending integration —
-when neo-modules (or wherever Neo 4 RpcServer lands) is available, generate the
-partial class.
+**Closed.** The tracked `r3e-network/neo` core contains the official RpcServer
+source and public `RpcServerPlugin.RegisterMethods` registration seam.
+`Neo.Plugins.L2Rpc.L2RpcPlugin` registers its adapter through that API, and the
+real Kestrel HTTP suite exercises all 10 canonical methods.
 
-### §4-recursive-zk — Real Neo Gateway round prover
+### §4-recursive-zk — Real Neo Gateway terminal prover
 
-**Status update**: Phase 5 aggregation now ships **two production-grade
+**Status update**: Phase 5 aggregation ships **two production-grade
 `IRoundProver` implementations** — `MultisigRoundProver` (Secp256r1
 threshold-attested rounds) + `MerklePathRoundProver` (per-constituent
 inclusion proofs against the aggregate root) — alongside the
-`PassThroughRoundProver` reference. Real cryptography, no toolchain
-dependency. The remaining recursive-ZK fold variants (SP1 Compress / Halo2
-accumulator / Risc0 STARK fold) plug into the same `IRoundProver` seam
-when the operator brings the SP1 toolchain.
+`PassThroughRoundProver` reference. The independent
+`neo-zkvm-gateway-{guest,host}` crates now bundle the SP1 6.2.1 recursive
+terminal proof with compile-time batch VK locking and host-verified Groth16
+output. The proof-bound RPC path now submits exact ordered constituent references to
+`SettlementManager.PublishGatewayGlobalRoot`; the contract revalidates finalized status and
+Gateway admission, reconstructs the commitment/message roots, advances non-revertible per-chain
+watermarks, and atomically forwards the proof to `MessageRouter`. Crash recovery re-verifies a
+complete result marker and safely cleans only regular non-symlink orphan artifacts. This code gap
+is closed; independent audit and executed real-proof deployment evidence remain release gates.
+Halo2/Risc0 are optional alternative seams.
 
 ## Operator-specific (won't fix in repo)
 
@@ -188,8 +198,11 @@ operator-supplied. Same reasoning as above.
 
 ### §16.3-dbft-consensus-integration
 
-Wiring `Neo.L2.Sequencer` into Neo's `DBFTPlugin` consensus selector is
-deployment-specific.
+**Closed at the code boundary.** The tracked core's existing DBFT path calls
+`NativeContract.NEO.GetNextBlockValidators`, which now reads the finalized
+validator set from `L2SystemConfigContract`. `ISequencerCommitteeProvider`
+selects the intended set off-chain; `neo-stack` submits it through a governed
+native transaction. Operators still supply a reviewed Neo.CLI/DBFTPlugin bundle.
 
 ## Summary
 
@@ -208,9 +221,10 @@ deployment-specific.
      `RegisterVerifierViaProposal` (consults the timelock gate).
   5. ✅ §12-l1-da-default — closed: `Neo.Plugins.L2DA.JsonRpcL1DAWriter`
      (`JsonRpcClient` + signed-tx delegate, 13 unit tests).
-  6. ⏭ §8-witness-canonical — **deferred** (plan note: "premature without
-     a real prover targeting it" — re-evaluate when the SP1 toolchain lands
-     and the guest ELF defines its expected witness shape).
+  6. ✅ §8-witness-canonical — **closed for SP1** with canonical `NEO4PWIT` /
+     `NEO4STW1` / `NEO4EFX1` / `NEO4EXR1`, cross-language golden vectors, exact semantic
+     binding, and atomic validated post-state commit. Other proof backends remain versioned
+     extension work rather than a gap in the bundled SP1 profile.
 
 **Second-order gaps closed during the same window** (additive, not in the
 original 6):
@@ -234,16 +248,15 @@ honest "is everything correctly and completely implemented?" audit):
     audit" section catalogueing what's production-ready vs. MVP shapes
     vs. reference scaffolding (operator must replace) vs. plan-printers
     (CLI doesn't actually sign/submit) vs. out-of-repo-by-design.
-  - `NeoHub.ForcedInclusion` ships a real configurable spam-control fee
-    (`SetFee` / `SetFeeRecipient` / `SetGasToken`); default 0 = fee-free
-    legacy preserved. Closes the "fee-free MVP" callout.
-  - `NeoHub.GovernanceFraudVerifier` (the 14th NeoHub contract) ships as
-    a structural fraud verifier reference for governance-arbitration
-    optimistic chains. Decodes the canonical 101-byte `FraudProofPayload`,
+  - `NeoHub.ForcedInclusion` ships a real configurable spam-control amount
+    (`SetFee` / `SetFeeRecipient` / native-GAS-only `SetGasToken`); substitute
+    NEP-17 contracts are rejected and default 0 preserves fee-free development.
+    Closes the "fee-free MVP" callout without adding an arbitrary-token callback surface.
+  - `NeoHub.GovernanceFraudVerifier` ships as an advisory structural fraud
+    verifier for offline audit tooling. It decodes the canonical 101-byte `FraudProofPayload`,
     validates length / version / claims-a-real-discrepancy, emits
-    accept/reject events with reason codes for council review. Closes
-    the on-chain `fraudVerifier` callsite gap. Wired into
-    `ScaffoldPlan.Default()` + `PostDeployActions` informational hint.
+    accept/reject events with reason codes, but cannot authorize revert/slash and
+    is deliberately excluded from `ScaffoldPlan.Default()` and live post-deploy wiring.
   - 13 parity tests (`UT_GovernanceFraudVerifierParity`) simulate the
     contract's decision tree in C# so a refactor that changes constants
     / order / offsets is caught at unit-test time.

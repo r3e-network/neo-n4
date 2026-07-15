@@ -25,6 +25,8 @@ import "../src/NeoExternalBridgeRouter.sol";
 /// - **Committees are per-router-instance** — a Polygon-committee
 ///   signer is not authorized on the BSC router.
 contract NeoExternalBridgeRouterMultiChainTest is Test {
+    address constant NATIVE_ASSET_SENTINEL =
+        address(uint160(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE));
     // Canonical mainnet slots from
     // watchers/neo-bridge-watcher-eth/src/chains.rs. Keep this list in
     // sync with that module's constants — the `chain_ids_distinct`
@@ -106,7 +108,7 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
             );
             // Initial state pins: no committee, no balances, no nonces.
             assertEq(r.threshold(), 0);
-            assertEq(r.lockedBalances(address(0)), 0);
+            assertEq(r.lockedBalances(NATIVE_ASSET_SENTINEL), 0);
             assertEq(r.outboundNonces(NEO_L2), 0);
         }
     }
@@ -165,7 +167,7 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
         // BSC lock: expect Locked(externalChainId=0xE0000030, ...).
         vm.expectEmit(true, true, true, true, address(bsc));
         emit NeoExternalBridgeRouter.Locked(
-            BSC_MAINNET, NEO_L2, 1, address(this), recipient, address(0), 1 ether, "", 0
+            BSC_MAINNET, NEO_L2, 1, address(this), recipient, NATIVE_ASSET_SENTINEL, 1 ether, "", 0
         );
         bsc.lockETHAndSend{value: 1 ether}(NEO_L2, recipient, "", 0);
 
@@ -173,14 +175,22 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
         // its OWN nonce starting at 1 (independent of BSC).
         vm.expectEmit(true, true, true, true, address(polygon));
         emit NeoExternalBridgeRouter.Locked(
-            POLYGON_MAINNET, NEO_L2, 1, address(this), recipient, address(0), 2 ether, "", 0
+            POLYGON_MAINNET,
+            NEO_L2,
+            1,
+            address(this),
+            recipient,
+            NATIVE_ASSET_SENTINEL,
+            2 ether,
+            "",
+            0
         );
         polygon.lockETHAndSend{value: 2 ether}(NEO_L2, recipient, "", 0);
 
         assertEq(bsc.outboundNonces(NEO_L2), 1);
         assertEq(polygon.outboundNonces(NEO_L2), 1);
-        assertEq(bsc.lockedBalances(address(0)), 1 ether);
-        assertEq(polygon.lockedBalances(address(0)), 2 ether);
+        assertEq(bsc.lockedBalances(NATIVE_ASSET_SENTINEL), 1 ether);
+        assertEq(polygon.lockedBalances(NATIVE_ASSET_SENTINEL), 2 ether);
     }
 
     // ─── 4: cross-chain message rejected ──────────────────────────────────
@@ -310,9 +320,7 @@ contract NeoExternalBridgeRouterMultiChainTest is Test {
     ) internal pure returns (bytes memory) {
         bytes memory amountBytes = _amountToLE(amount);
         bytes memory payload = abi.encodePacked(
-            address(0), // foreignAsset = native
-            uint32_LE(uint32(amountBytes.length)),
-            amountBytes
+            NATIVE_ASSET_SENTINEL, uint32_LE(uint32(amountBytes.length)), amountBytes
         );
         return abi.encodePacked(
             uint32_LE(externalChainId), // 4B

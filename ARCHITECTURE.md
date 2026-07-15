@@ -40,7 +40,7 @@ Core L1 contract suite:
 
 ## §4 Neo Gateway
 
-Optional layer. Mirrors ZKsync Gateway: collects proofs from multiple Neo L2s, aggregates them, maintains `globalMessageRoot` for L2-to-L2, and publishes the aggregated global root to NeoHub. In the current path that publish is settlement-manager-witness-authorized (the `PublishGlobalRoot` / `GlobalRootMirrored` flow gates on the system witness); the aggregated proof itself is **not** verified on-chain — NeoHub trusts the authorized publisher rather than re-checking the aggregation cryptographically. On-chain verification of the aggregated proof is planned/roadmap. **Doesn't custody assets** — assets stay locked in NeoHub/SharedBridge.
+Optional layer. Mirrors ZKsync Gateway: collects proofs from multiple Neo L2s, aggregates them, maintains `globalMessageRoot` for L2-to-L2, and publishes the aggregate to NeoHub. The production entry point is `SettlementManager.PublishGatewayGlobalRoot`, which receives exact ordered finalized-batch references, reconstructs both proof-bound roots from stored finalization records, advances non-revertible per-chain watermarks, and atomically calls `MessageRouter.PublishGlobalRoot`. MessageRouter requires the SettlementManager contract witness and verifies the fixed backend/proof-system/VK/replay-domain statement through its configured verifier; a Router fault rolls back the watermarks. The bundled SP1 6.2.1 recursive guest/host emits a terminal 356-byte Groth16 proof rather than opaque round bytes. **Doesn't custody assets** — assets stay locked in NeoHub/SharedBridge. Independent audit and executed production-config real-proof deployment evidence remain release gates.
 
 ## §5–§7 L2 chain internals
 
@@ -55,7 +55,7 @@ Each L2 = `Neo 4 core` + L2 extensions:
 - **BridgeAdapter** — L2-side handler for deposits / withdrawals
 - **MessageAdapter** — L2-side cross-chain messaging
 - **ForcedInclusionHandler** — anti-censorship: user can post tx directly to L1 forced-inclusion queue; sequencer must include before deadline or get slashed
-- **DurableStateBackend** — `IL2KeyValueStore` over RocksDB by default; survives restarts. Six components persist state: keyed state, RPC proofs, message-router proofs, forced-inclusion nonces, sequencer committee + exit windows, DA payloads. See [`docs/persistence.md`](docs/persistence.md).
+- **DurableStateBackend** — `IL2KeyValueStore` over RocksDB by default; survives restarts. Seven component families persist state: keyed state, RPC proofs, message-router proofs, forced-inclusion events/nonces, sequencer committee + exit windows, DA payloads, and canonical proof-witness/finality/rollback recovery. See [`docs/persistence.md`](docs/persistence.md).
 - **ChainAuditor** — runs 6 invariant checks (continuity, proof validity, no-zero-proof, public-input-hash, batch range, DA availability) against produced commitments; emits `l2.audit.runs` + `l2.audit.failures` for ops dashboards.
 
 ChainMode: `L1Mode` | `SidechainMode` | `L2RollupMode` | `L2ValidiumMode`.

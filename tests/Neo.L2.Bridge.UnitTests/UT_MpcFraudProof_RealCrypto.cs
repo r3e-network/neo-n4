@@ -84,7 +84,7 @@ public class UT_MpcFraudProof_RealCrypto
     {
         var transferPayload = new ExternalAssetTransferPayload
         {
-            ForeignAsset = UInt160.Parse("0x" + new string('e', 40)),
+            ForeignAsset = ExternalAssetId.Parse("0123456789abcdef1032547698badcfe11223344"),
             Amount = amount,
         }.Encode();
 
@@ -234,7 +234,7 @@ public class UT_MpcFraudProof_RealCrypto
             messageType: ExternalMessageType.AssetTransfer,
             payload: new ExternalAssetTransferPayload
             {
-                ForeignAsset = UInt160.Parse("0x" + new string('e', 40)),
+                ForeignAsset = ExternalAssetId.Parse("0123456789abcdef1032547698badcfe11223344"),
                 Amount = new BigInteger(1_000),
             }.Encode());
         var tronBytes = CanonicalMessageBytes(tronMsg);

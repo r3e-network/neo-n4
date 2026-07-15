@@ -170,18 +170,25 @@ struct L2ChainConfig {
     byte daMode;              // 0 L1 DA, 1 NeoFS DA, 2 external DA, 3 DAC
     bool gatewayEnabled;
     bool permissionlessExit;
+    byte sequencerModel;      // 0 centralized, 1 dBFT committee, 2 decentralized
+    byte exitModel;           // 0 permissionless, 1 delayed, 2 operator-assisted
     bool active;
 }
 ```
 
+`genesisStateRoot` 不属于 91 字节 `L2ChainConfig`，而是注册时单独提交的不可变、非零
+`UInt256`。`ChainRegistry` 必须在首次注册时原子保存 config 与该根；后续幂等注册只能使用
+完全相同的根，任何治理更新都不能替换它。
+
 核心方法：
 
 ```text
-registerChain(config)
-updateChainConfig(chainId, newConfig)
+registerChain(chainId, configBytes, genesisStateRoot)
+updateChain(chainId, configBytes)
 pauseChain(chainId)
 resumeChain(chainId)
 getChainConfig(chainId)
+getGenesisStateRoot(chainId)
 ```
 
 ### SharedBridge
@@ -242,12 +249,28 @@ struct L2BatchCommitment {
 核心方法：
 
 ```text
-submitBatch(batchCommitment)
-verifyBatch(chainId, batchNumber)
+submitBatch(commitmentBytes, l1MessageHash, blockContextHash)
 finalizeBatch(chainId, batchNumber)
-revertUnfinalizedBatch(chainId, batchNumber)
+revertBatch(chainId, batchNumber)                         // 仅 bootstrap owner 或 OptimisticChallenge
+setGovernanceController(governanceController)
+lockGovernance()                                         // 生产不可逆锁
+buildRevertBatchAction(chainId, batchNumber)
+revertBatchViaProposal(chainId, batchNumber, proposalId) // threshold + timelock + exact payload
 getCanonicalStateRoot(chainId)
 ```
+
+`batchNumber = 1` 的 `preStateRoot` 必须等于 `ChainRegistry` 中该链不可变的
+`genesisStateRoot`；后续 batch 必须连接最新已终局根。首批终局前（或首批回滚后），
+`getCanonicalStateRoot` 返回该已注册创世根，而不是由第一个提交者任意建立信任锚。
+
+生产部署必须先接好 `OptimisticChallenge`、`DARegistry`、`DAValidator`、
+`MessageRouter` 与 `GovernanceController`，再调用一次性的 `lockGovernance()`。
+锁定后 owner 不能改写这些依赖、转移 SettlementManager owner，或直接回滚 batch；
+治理回滚只能由任何 relayer 提交一个已达 council 阈值、超过 timelock、且 payload
+精确等于 `"neo4-gov:revertBatch" || SettlementManager:UInt160 raw 20B || chainId:uint32 LE || batchNumber:uint64 LE`
+的一次性 proposal。`OptimisticChallenge` 仍保留只针对 `Challengeable` batch 的即时
+欺诈回滚权。治理可从最新 finalized head 自顶向下回滚并恢复前一个 canonical root，
+但已被 Gateway 发布的 batch 永不可回滚。
 
 ### VerifierRegistry
 
@@ -683,6 +706,13 @@ DA data
 execution trace
 ```
 
+`PersistAsync` 必须在执行、DA 发布与 artifact 写入之前验证完整前序：batch 0 保留给
+genesis；batch 1 连接认证 genesis root；batch N 必须已有不可变 batch N-1 artifact，且
+`firstBlock = previous.lastBlock + 1`、`preStateRoot = previous.postStateRoot`。缺失前序、区块
+间隙或状态根断链必须 fail closed，禁止先推进状态再依赖重启对账发现错误。生产组合根
+`WireProduction` 只能接受明确声明重启耐久能力的 proof-witness store 与 forced-inclusion
+event store；内存 store 只允许通过测试/自定义 `Wire` 路径使用。
+
 ---
 
 # 9. Token / GAS / 资产模型
@@ -1093,14 +1123,26 @@ Policy:
 ```text
 getl2batch(chainId, batchNumber)
 getl2batchstatus(chainId, batchNumber)
-getl2stateroot(chainId, batchNumber)
-getl2withdrawalproof(txHash)
-getl2messageproof(messageHash)
-getl1depositstatus(depositId)
+getl2stateroot(chainId, batchNumber?)
+getl2withdrawalproof(chainId, withdrawalLeafHash)
+getl2messageproof(chainId, messageHash)
+getl1depositstatus(sourceChainId, nonce)
 getcanonicalasset(l2Asset)
 getbridgedasset(l1Asset, chainId)
 getsecuritylevel(chainId)
+getsecuritylabel(chainId)
 ```
+
+`chainId` / `sourceChainId` 使用无符号 32 位 JSON number。所有 `uint64`
+参数与响应字段（`batchNumber`、区块号、deposit `nonce`、
+`includedInBatch`）必须使用无前导零的十进制 JSON string，避免 JavaScript
+安全整数边界造成精度丢失。`getl2stateroot` 省略 `batchNumber` 时返回最新已完成
+状态根；提供时返回指定批次状态根。withdrawal proof 按 SharedBridge 实际消费的
+`withdrawalLeafHash` 查询，而不是无法唯一绑定 withdrawal 的交易哈希。
+
+所有请求与响应使用 JSON-RPC 2.0；响应必须原样回显请求的数值 `id`。需要 L2
+上下文的方法必须携带 `chainId` 并由节点拒绝跨链请求。`getsecuritylabel` 是
+§16.2 五维安全标签的规范 RPC；`getsecuritylevel` 作为单维兼容接口保留。
 
 ## 14.2 Neo Stack CLI
 
@@ -1210,11 +1252,23 @@ Canonical confirmation:
 ```text
 1. User submits tx directly to NeoHub forced inclusion queue
 2. L2 sequencer must include it before deadline
-3. If not included:
-   - sequencer bond slashed
-   - L2 batch finalization paused
-   - fallback sequencer can include tx
+3. If not included, anyone may submit an unattributed (zero-address) overdue report
+4. NeoHub pauses L2 batch finalization; a fallback sequencer can include the tx
+5. Governance independently verifies finalized dBFT block/view evidence
+6. Only governance may name and slash the responsible sequencer in a separate action
 ```
+
+权限开放的 `ReportCensorship` 只接受零地址归因；调用者提供的 sequencer 地址绝不能进入
+处罚事件或作为 slash 授权。链下 `ICensorshipAttributionProvider` 仅能为运营者生成基于已终局
+dBFT 证据的候选归因，governance 必须独立复核后调用 owner-gated
+`SlashReportedCensorship`。没有充分归因证据时，链保持暂停/后备包含状态而不自动处罚任何成员。
+
+生产 spam control 只能使用 Neo N3 L1 的原生 GAS 合约；`SetGasToken`、部署参数、
+`SetFee`、`IsProductionReady` 与实际 enqueue 都必须拒绝任意替代 NEP-17，避免治理误配或
+恶意 fee token 回调扩大重入面。enqueue 以 `Runtime.Transaction.Sender` 作为经过
+`CheckWitness` 的 submitter 与 GAS 付款账户，不能把入口 invocation script 的
+`Runtime.CallingScriptHash` 误当作 EOA。`Consume` 在只读查询 finalized transaction root 前先写入
+at-most-once 标记；任何未终局 batch、错误 proof 或外调 fault 都依赖 NeoVM 原子回滚清除该标记。
 
 ---
 
@@ -1242,7 +1296,7 @@ Canonical confirmation:
 
 Neo 4 roadmap 提到增强 NEO Council 角色，包括动态调整 council members、决定 consensus node admission/exit、管理核心网络参数，并提到 NEO holders 的 referendum power 和未来探索 Layer-2 governance。([GitHub][3])
 
-> 注（实现状态，roadmap / 尚未实现）：上述「动态调整 council members」与「NEO holders referendum」均为 Neo 4 roadmap 目标，**当前实现尚不支持**。本仓库的 `NeoHub.GovernanceController` 中的链上 council 在部署时（`_deploy`）一次性固定，**刻意设计为不可变**——没有 AddCouncilMember / RemoveCouncilMember / SetThreshold / RotateCouncil 入口，也没有 `ContractManagement.Update` 升级路径；轮换或更换成员、修改门限/timelock 都必须重新部署一套 GovernanceController 并重连所有 consumer。链上也**没有任何 referendum 机制**。
+> 注（实现状态）：`NeoHub.GovernanceController` 已支持 proposal-bound、threshold-approved、timelocked 的原子 council rotation。`RotateCouncil` 同时替换成员与门限并递增 `councilEpoch`；所有旧 epoch proposal 立即失效，rotation proposal 只能消费一次。timelock 参数仍在部署时固定，合约没有 `ContractManagement.Update` 路径。链上 **NEO holder referendum 仍未实现**。
 
 Neo L2 governance 应分三层：
 
@@ -1461,10 +1515,10 @@ Deliverables:
 ```text
 Optimistic rollup-like
 安全性依赖至少一个 honest challenger
-（当前已发布的 fraud verifier 为结构性 + governance 仲裁，见下方说明）
+（v1/v2/v3 仅为审计证据且即使有 governance witness 也 fail closed；v4 对一个精确受限语义实现无许可链上重放）
 ```
 
-> 注（实现状态）：当前已发布的 fraud verifier（`GovernanceFraudVerifier`、`RestrictedExecutionFraudVerifier`）是**结构性**且由 **governance 仲裁**的——它们只校验 fraud-proof payload 的 wire 格式并确认 challenger 声称的 root 与 sequencer 声称的 root 不一致，**既不在链上重新执行争议交易，也不绑定到 SettlementManager 已提交的 root**。因此「fraud proof 以密码学方式 / 无需信任地证明 batch 存在欺诈」这一更强性质**尚未达成**：是否真的存在欺诈，最终由安全委员会（`GovernanceController`）裁定。要做到完全无需信任，需要把 verifier 替换为在链上**重新执行**争议交易的版本（需扩展 `FraudProofPayload` 携带 execution-trace witness），这属于 roadmap，详见 `IMPLEMENTATION_STATUS.md`。
+> 注（实现状态）：`GovernanceFraudVerifier` 的 v1/v2 与 `RestrictedExecutionFraudVerifier` 的 v3 是**仅审计用结构性证据**；v3 只重新派生挑战者 payload 内的 storage roots，不绑定已提交批次，也不执行交易。它们不能触发回滚/罚没，governance witness 也不能绕过该限制。v4 则绑定 `SettlementManager` 已提交的规范头/roots、交易证明、claim id、受限 transcript 与 replay domain，并在链上执行精确的 `counter-increment-existing-key:v1` 语义；只有与 chainId、semanticId、replayDomain 精确注册的 profile 才允许无许可罚没。通用 NeoVM、多交易与其它 custom executor 语义仍 fail closed，需新增已承诺 tx-count / trace anchor 与完整单步语义后才能支持。
 
 ---
 

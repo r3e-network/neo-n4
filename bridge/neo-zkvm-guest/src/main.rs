@@ -1,4 +1,4 @@
-//! SP1 ZK guest entrypoint: reads canonical `BatchExecutionRequest` bytes
+//! SP1 ZK guest entrypoint: reads canonical `ProofWitnessArtifactV1` bytes
 //! from the SP1 input stream, runs the deterministic `execute_batch`
 //! function from the lib crate, and commits the public-input hash.
 //!

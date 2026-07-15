@@ -35,7 +35,8 @@ git submodule update --init --recursive
 dotnet test Neo.L2.sln /p:NuGetAudit=false
 ```
 
-Expected: **1521 tests pass across 34 projects**, ~10 seconds end-to-end.
+Expected: the complete current solution test inventory passes. The runner reports
+the exact test count; do not use a documentation snapshot as a release gate.
 
 If your machine doesn't have network access, `/p:NuGetAudit=false` is what suppresses the
 audit hop to nuget.org.
@@ -113,7 +114,7 @@ dotnet run --project tools/Neo.Hub.Deploy -- plan \
     --plan deploy-plan.json --output bundle.json
 ```
 
-`bundle.json` is a topologically-sorted, dependency-resolved sequence of 23 contract
+`bundle.json` is a topologically-sorted, dependency-resolved sequence of 24 contract
 deploy invocations — every `$step:<name>` placeholder substituted with deterministic
 stub hashes. Production deployments feed the bundle to a wallet-equipped runner that
 signs + sends each invocation.

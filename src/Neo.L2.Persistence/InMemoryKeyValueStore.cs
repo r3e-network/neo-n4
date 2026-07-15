@@ -14,7 +14,7 @@ namespace Neo.L2.Persistence;
 /// RocksDB's per-column-family locking, which is why this class is not the production
 /// default.
 /// </remarks>
-public sealed class InMemoryKeyValueStore : IL2KeyValueStore
+public sealed class InMemoryKeyValueStore : IAtomicL2KeyValueStore
 {
     private readonly Lock _gate = new();
     private readonly SortedDictionary<byte[], byte[]> _data = new(LexicographicByteArrayComparer.Instance);
@@ -33,6 +33,40 @@ public sealed class InMemoryKeyValueStore : IL2KeyValueStore
         var keyArr = key.ToArray();
         var valArr = value.ToArray();
         lock (_gate) _data[keyArr] = valArr;
+    }
+
+    /// <inheritdoc />
+    public bool TryPut(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value)
+    {
+        if (key.Length == 0)
+            throw new ArgumentOutOfRangeException(nameof(key), "key must be non-empty");
+        var keyArr = key.ToArray();
+        var valueArr = value.ToArray();
+        lock (_gate)
+        {
+            if (_data.ContainsKey(keyArr)) return false;
+            _data.Add(keyArr, valueArr);
+            return true;
+        }
+    }
+
+    /// <inheritdoc />
+    public bool CompareExchange(
+        ReadOnlySpan<byte> key,
+        ReadOnlySpan<byte> expectedValue,
+        ReadOnlySpan<byte> newValue)
+    {
+        if (key.Length == 0)
+            throw new ArgumentOutOfRangeException(nameof(key), "key must be non-empty");
+        var keyArr = key.ToArray();
+        lock (_gate)
+        {
+            if (!_data.TryGetValue(keyArr, out var current)
+                || !current.AsSpan().SequenceEqual(expectedValue))
+                return false;
+            _data[keyArr] = newValue.ToArray();
+            return true;
+        }
     }
 
     /// <inheritdoc />
@@ -57,6 +91,68 @@ public sealed class InMemoryKeyValueStore : IL2KeyValueStore
     {
         var keyArr = key.ToArray();
         lock (_gate) return _data.ContainsKey(keyArr);
+    }
+
+    /// <inheritdoc />
+    public bool CompareExchangeBatch(
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte>? ExpectedValue)> conditions,
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte>? Value)> mutations)
+    {
+        var expected = AtomicBatchValidator.Materialize(conditions, nameof(conditions));
+        var replacement = AtomicBatchValidator.Materialize(mutations, nameof(mutations));
+        lock (_gate)
+        {
+            foreach (var condition in expected)
+            {
+                var exists = _data.TryGetValue(condition.Key, out var current);
+                if (condition.Value is null)
+                {
+                    if (exists) return false;
+                }
+                else if (!exists || !current!.AsSpan().SequenceEqual(condition.Value))
+                {
+                    return false;
+                }
+            }
+            foreach (var mutation in replacement)
+            {
+                if (mutation.Value is null)
+                    _data.Remove(mutation.Key);
+                else
+                    _data[mutation.Key] = mutation.Value;
+            }
+            return true;
+        }
+    }
+
+    /// <inheritdoc />
+    public void ReplaceAll(
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> entries)
+    {
+        var replacement = AtomicReplacementValidator.Materialize(entries);
+        lock (_gate)
+        {
+            _data.Clear();
+            foreach (var pair in replacement)
+                _data.Add(pair.Key, pair.Value);
+        }
+    }
+
+    /// <inheritdoc />
+    public bool CompareExchangeAll(
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> expectedEntries,
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> replacementEntries)
+    {
+        var expected = AtomicReplacementValidator.Materialize(expectedEntries);
+        var replacement = AtomicReplacementValidator.Materialize(replacementEntries);
+        lock (_gate)
+        {
+            if (!AtomicReplacementValidator.ContentEquals(_data, expected)) return false;
+            _data.Clear();
+            foreach (var pair in replacement)
+                _data.Add(pair.Key, pair.Value);
+            return true;
+        }
     }
 
     /// <inheritdoc />

@@ -101,7 +101,7 @@ public sealed class InMemoryForcedInclusionSource : IForcedInclusionSource, IDis
     }
 
     /// <inheritdoc />
-    public ValueTask MarkConsumedAsync(ulong nonce, CancellationToken cancellationToken = default)
+    public ValueTask ConfirmConsumedAsync(ulong nonce, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         lock (_gate)

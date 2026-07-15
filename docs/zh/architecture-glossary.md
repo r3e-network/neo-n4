@@ -6,7 +6,7 @@
 ## 目录
 
 1. [术语表](#1-术语表)
-2. [NeoHub L1 合约](#2-neohub-l1-合约23)
+2. [NeoHub L1 合约](#2-neohub-l1-合约25)
 3. [L2 原生合约](#3-l2-原生合约10)
 4. [L2 插件](#4-l2-插件8)
 5. [链下运营者](#5-链下运营者)
@@ -41,7 +41,7 @@
 | **MerkleProofSerializer**     | Merkle 证明的规范编码器(用于提款 + 跨 L2 消息)。                                                |
 | **MessageHasher**             | `CrossChainMessage`(跨 L2)的规范编码器。两端都重算哈希。                                        |
 | **min_confirmations**         | watcher config 字段:不从距外链头不足 N 确认的浅块发出事件。                                       |
-| **NeoHub**                    | 锚定整个网络的 23 合约 L1 套件。见下文 §2。                                                       |
+| **NeoHub**                    | 锚定整个网络的 26 项目 L1 套件（24 个生产合约 + 1 个仅审计用结构验证器 + 1 个测试 stub）。见下文 §2。 |
 | **nonce(deposit/message)**   | 按 (源链、方向) 单调递增的计数器。带重放保护。                                                    |
 | **operatorManager**           | UInt160。管理一条已注册 L2 的多签(set-verifier、pause 等)。在链 config 里。                      |
 | **postStateRoot**             | UInt256。批次最后一笔 tx 之后的状态根。携带于 `BatchCommitment`。                                  |
@@ -60,7 +60,7 @@
 
 ---
 
-## 2. NeoHub L1 合约(23)
+## 2. NeoHub L1 合约（26）
 
 位于 `contracts/NeoHub.*`。每个都是已编译的 .nef + .manifest.json。
 
@@ -85,24 +85,24 @@
 
 - **`SequencerRegistry`** — 列出每条链已注册的排序器。带保证金。
 - **`SequencerBond`** — 排序器可罚没保证金。被 `OptimisticChallenge` 在欺诈被接受时罚没。
-- **`ForcedInclusion`** — 抗审查:用户在 L1 post tx;L2 必须在 deadline 前纳入,否则排序器被罚。
+- **`ForcedInclusion`** —— 抗审查：用户在 L1 提交交易；逾期条目可暂停 L2，治理仅在已最终化 dBFT 证据完成归责后罚没。
 - **`OptimisticChallenge`** — 二分博弈驱动的欺诈证明窗口。结算等 `challengeWindow` 后才最终化。
 - **`EmergencyManager`** — 个别链的运维多签暂停(例如调试关键问题时)。
 
 ### 治理(2)
 
 - **`GovernanceController`** — 多签 + timelock,用于验证器升级 + 协议参数变更。
-- **`GovernanceFraudVerifier`** — 参考 fraud verifier —— v0 由治理仲裁被挑战的批次。
+- **`GovernanceFraudVerifier`** — 仅审计用 v1/v2 结构验证器；不进入生产部署，也不能触发回滚或罚没。
 
 ### 专用 fraud verifier(1)
 
-- **`RestrictedExecutionFraudVerifier`** — v3:从 storage 证明重新派生 pre/post 状态根;接受 well-formed 声明而无需治理仲裁。
+- **`RestrictedExecutionFraudVerifier`** — v3 仅重新派生挑战者 payload 内的 storage roots，属于仅审计证据；精确注册的 v4 对单笔 Counter Increment 语义绑定已提交批次并在链上执行。v1/v2/v3 即使有治理 witness 也 fail closed，通用 NeoVM 同样 fail closed。
 
 ### 外链桥 —— Phase B/C(6)
 
 - **`MpcCommitteeVerifier`** — 在规范 `ExternalCrossChainMessage` 上验证 M-of-N 委员会签名。
 - **`ExternalBridgeRegistry`** — 按链的 (verifier、bridgeKind) 条目。路由到 MPC 或 ZK 轻客户端(Phase D)。
-- **`ExternalBridgeEscrow`** — 为外链入站铸/销包装资产;带重放保护。
+- **`ExternalBridgeEscrow`** — 锁定外链出站 NEP-17；已验证入站仅在 L1 绑定实例中原子释放已注资 NEP-17，所有 L2 目标都必须使用固定 ABI 版本与 update counter 的 payout/credit adapter。路由与治理均带重放保护并 fail closed。
 - **`ExternalBridgeBond`** — 外链桥委员会成员的可罚没保证金。
 - **`ExternalBridgeStubVerifier`** — v0 测试 stub —— 自动接受任何消息。**不**用于生产。
 - **`MpcCommitteeFraudVerifier`** — Phase C:从密码学上证明委员会等价签名;经 `ExternalBridgeBond` 罚没。
@@ -160,7 +160,7 @@
 - **`Neo.Stack.Cli`**(`neo-stack`)—— 12 个子命令:create-chain、
   init-l2、register-chain、scaffold-executor、new-l2、…
 - **`Neo.Hub.Deploy`**(`neo-hub-deploy`)—— NeoHub 部署的
-  plan/scaffold/verify(23 步有序生产 bundle)。
+  plan/scaffold/verify(24 步有序生产 bundle)。
 - **`Neo.L2.Devnet`**(`neo-l2-devnet`)—— 进程内端到端 demo 运行器。
   `--executor counter` 接入样例执行器。
 - **`Neo.L2.Explore`**(`neo-l2-explore`)—— 终端区块浏览器 + 状态根

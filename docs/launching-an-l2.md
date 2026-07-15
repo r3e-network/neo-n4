@@ -40,31 +40,241 @@ will use `ReferenceTransactionExecutor`).
 # 1. Generate config from a template (rollup / zk-rollup / validium / sidechain).
 neo-stack create-chain --chain-id 1099 --template rollup --output ./my-l2
 
-# 2. Initialize the node working directory (data/ logs/ Plugins/).
-neo-stack init-l2 --chain-id 1099 --output ./my-l2
+# 2. Review a Neo.CLI protocol config whose ValidatorsCount and genesis
+#    StandbyCommittee match chain.config.json validators, then initialize the
+#    sequencer/batcher/prover state directories without overwriting that config.
+neo-stack init-l2 --chain-id 1099 --output ./my-l2 \
+    --node-config /secure/reviewed/sequencer-config.json \
+    --batcher-node-config /secure/reviewed/batcher-config.json
 
 # 3. Print the L1 registration plan (run during permissioned admission phase
 #    or governance-approved semi-permissionless / permissionless modes).
 #    Without --operator/--verifier/--bridge/--message: prints plan-only.
-#    With those four UInt160 hashes (discovered from neo-hub-deploy bundle):
-#    emits the canonical 91-byte configBytes hex you paste into your wallet.
+#    With those four UInt160 hashes plus the reviewed non-zero genesis state root:
+#    emits the canonical 91-byte configBytes and immutable root you submit together.
 neo-stack register-chain --chain-id 1099 --output ./my-l2 \
-    --operator <hash> --verifier <hash> --bridge <hash> --message <hash>
+    --operator <hash> --verifier <hash> --bridge <hash> --message <hash> \
+    --genesis-state-root <authenticated-non-zero-UInt256>
 
 # 4. Print the bridge adapter deploy plan (one-time per new chain).
 neo-stack deploy-bridge-adapter --chain-id 1099 --output ./my-l2
 
-# 5. Run sequencer + batcher + prover. Each subcommand prints its preflight
-#    checks and exits zero when the chain is ready to accept transactions.
-neo-stack start-sequencer --chain-id 1099 --output ./my-l2 &
-neo-stack start-batcher  --chain-id 1099 --output ./my-l2 &
-neo-stack start-prover   --chain-id 1099 --output ./my-l2 &
+# 5. Put a reviewed Neo.CLI + DBFTPlugin deployment under ./my-l2/node and the
+#    release prove-batch binary under ./my-l2/prover. Each command supervises a
+#    real child process and remains attached, so start these in separate service
+#    units or terminals rather than pasting them sequentially into one shell.
+#
+# Terminal / service A: dBFT sequencer node.
+neo-stack start-sequencer --chain-id 1099 --output ./my-l2 \
+    --neo-cli ./my-l2/node/Neo.CLI.dll
+
+# Terminal / service B: separate SP1 prover daemon.
+neo-stack start-prover --chain-id 1099 --output ./my-l2 \
+    --prover ./my-l2/prover/prove-batch
+
+# Terminal / service C (optional): dedicated batcher follower. Use a separate
+# Neo.CLI deployment root and data directory; never point two node processes at
+# the same database.
+neo-stack start-batcher --chain-id 1099 --output ./my-l2 \
+    --neo-cli ./my-l2/batcher-node/Neo.CLI.dll \
+    --data-dir ./my-l2/batcher-data
 ```
 
-Wallet-gated steps (#3, #4, and `submit-batch`) print the structured operator
-plan — target contract, args, signed-transaction template, numbered next-steps —
-rather than auto-signing. Operators feed the plan into their wallet of choice
-(NEP-6 keystore, Ledger, etc.).
+Wallet-gated steps (#3, #4, and `submit-batch`) retain deterministic plan mode.
+With `--broadcast --rpc <url> --expected-network <magic>`, they sign through the
+shared signer boundary, run an `invokescript` preflight, calculate exact fees,
+broadcast, and wait for a HALT application log. The built-in CLI signer reads a
+WIF from `NEO_N4_OPERATOR_WIF`; production HSM/KMS integrations use the
+fail-closed `--signer-command` protocol without changing transaction
+construction. See [operator signer-command protocol](./operator-signer-command-protocol.md).
+
+### Production settlement composition
+
+`L2SettlementPlugin.WireProduction(...)` is the production composition root for L1
+settlement. It consumes the plugin's `PluginConfiguration` and constructs one shared
+`JsonRpcClient`, a network-pinned `RpcTransactionSender`, `RpcSettlementClient`,
+`RpcForcedInclusionEventScanner`, `RpcForcedInclusionFinalizationClient`, and
+`RpcForcedInclusionSource`. The scanner persists each observed nonce before its finalized-block
+cursor, verifies the previous block hash on restart, and fails closed on a finalized-history
+mismatch. Scanner, source, and finalizer are always wired as one production unit; custom/test
+dependency injection remains available through `Wire(...)`, which rejects a forced-inclusion
+source without a finalizer.
+
+Configure every production identity explicitly in
+`Plugins/Neo.Plugins.L2Settlement/config.json` before calling `WireProduction`:
+
+```jsonc
+{
+  "PluginConfiguration": {
+    "ChainId": 1099,
+    "L1RpcEndpoint": "https://reviewed-l1-rpc.example:10331",
+    "ExpectedNetwork": <l1-network-magic>,
+    "SettlementManagerHash": "<real non-zero SettlementManager UInt160>",
+    "ForcedInclusionHash": "<real non-zero ForcedInclusion UInt160>",
+    "ProofType": 3,
+    "Enabled": true
+  }
+}
+```
+
+The checked-in sample intentionally leaves the network and contract hashes unset.
+Production wiring rejects missing or relative/non-HTTP endpoints, missing network magic,
+malformed/zero/equal contract hashes, a zero signer account, and any WIF/private-key field
+in plugin configuration. Pass an `INeoTransactionSigner` instance from the host instead;
+the plugin never reads, stores, logs, or disposes signer key material.
+
+For the SP1 validity profile, build the complete execution/proving dependency stack before
+calling `WireProduction`. The state store, signer, DA writer, witness store, and queue directories
+remain caller-owned:
+
+```csharp
+using var state = new RocksDbKeyValueStore("/var/lib/neo-l2/state");
+
+// First deployment only: bootstrap the reviewed Neo protocol settings into this exact store.
+NeoVMGenesisBootstrap.Run(state, reviewedProtocolSettings);
+var observedInitialRoot =
+    Sp1StateWitnessSource.InitializeGenesisContractBindings(state);
+
+// Persist this non-zero root in the signed deployment manifest before batch 1. On every
+// restart, load the persisted value and reject any mismatch rather than adopting a new root.
+if (!observedInitialRoot.Equals(operatorManifest.InitialStateRoot))
+    throw new InvalidDataException("SP1 genesis state root differs from the deployment manifest");
+
+// Register this exact value atomically with the ChainRegistry config. The ZK profile,
+// signed deployment manifest, and L1 trust anchor must never use different roots.
+
+var sp1 = Sp1SettlementExecutionStack.Create(
+    chainId: 1099,
+    state,
+    operatorManifest.InitialStateRoot,
+    executorPath: "/opt/neo-n4/bin/neo-zkvm-executor",
+    executorSha256: Convert.FromHexString(operatorManifest.ExecutorSha256Hex),
+    executorScratchDirectory: "/var/lib/neo-l2/executor-scratch",
+    proverQueueDirectory: "/var/lib/neo-l2/batches",
+    verificationKeyId: operatorManifest.BatchVerificationKeyId);
+
+var forcedSource = settlementPlugin.WireProduction(
+    batchPlugin,
+    sp1.Executor,
+    daWriter,
+    proofWitnessStore,
+    sp1.Prover,
+    sp1.Profile,
+    hsmOrKmsSigner,
+    forcedInclusionEventRocksDbStore,
+    forcedInclusionDeploymentHeight,
+    forcedInclusionFinalityDepth: 1,
+    knownForcedInclusionNonces: migrationSeed,
+    maxAutomaticRetries: 3);
+```
+
+`ExecutorSha256Hex` must come from a reviewed/signed release manifest, not be calculated from the
+same mutable path at process startup. Each invocation copies the executable into a private scratch
+directory while hashing it, executes only that digest-matched copy, validates the complete
+`NEO4EXR1` request/result/post-state/public-input binding, and atomically replaces the full state.
+N4 genesis V1 rejects contract descriptor add/remove/replace operations and unsupported native or
+consensus behavior. Expanding that profile requires a coordinated guest/VK/verifier protocol
+upgrade; it is not a runtime flag.
+
+The prover queue is a security boundary, not a temporary scratch directory. On Unix the queue and
+archive directories are forced to `0700`, every artifact is `0600`, and symlinks or foreign-owned
+entries fail closed. Defaults cap the combined watch/archive footprint at 16 GiB and 64
+content-addressed tasks; operators may lower the limits with `--max-queue-bytes` and
+`--max-queue-tasks`. Do not configure a TTL. After the durable proof manifest records
+`SettlementFinalized`, the settlement pipeline writes `<content-hash>.proof.ack`; the daemon checks
+its 32-byte body and only then prunes the matching request and proof set.
+
+`forcedInclusionDeploymentHeight` is the block that deployed the configured contract. The
+caller-owned event store must be durable in production. `knownForcedInclusionNonces` and
+`RegisterNonce` are recovery/migration hooks only; normal operation discovers
+`ForcedTxEnqueued` from finalized L1 blocks through `getblock` + `getapplicationlog`.
+
+Every settlement transaction is preflighted, signed for `ExpectedNetwork`, broadcast, and
+confirmed with a `HALT` application log before the durable pipeline records success; zero
+transaction hashes are rejected. `L2SettlementPlugin.Dispose()` releases only the RPC stack
+created by `WireProduction`. The signer and all dependencies supplied to either wiring API
+remain caller-owned and must be disposed by the host in its normal shutdown order.
+
+Settlement reconciliation is strictly ordered by canonical batch number. A missing predecessor,
+permanently invalid proof/artifact, reverted batch, unresolved transaction status, DA failure, or
+forced-inclusion finalization failure increments a durable per-artifact retry checkpoint. After the
+configured bound (default 3, allowed range 1–100), the earliest artifact becomes `Poisoned`; later
+batches remain durable but cannot be proved or submitted around it. Restarts preserve the exact
+batch number, artifact content hash, retry count, and last bounded error.
+
+Monitor `GetRecoveryStatusAsync()` plus `l2.settlement.pending`,
+`l2.settlement.confirmation_lag_batches`,
+`l2.settlement.retries`, and `l2.settlement.poisoned`. Recovery is deliberately explicit: correct
+the prover/DA/RPC/L1 state first, verify the displayed content hash, reset that exact artifact, then
+run reconciliation again:
+
+```csharp
+var status = await settlementPlugin.GetRecoveryStatusAsync();
+if (status.State == SettlementRecoveryState.Poisoned)
+{
+    await settlementPlugin.RecoverPoisonedBatchAsync(
+        status.BlockedBatchNumber!.Value,
+        status.ArtifactContentHash!);
+    await settlementPlugin.ReconcileAsync();
+}
+```
+
+Recovery retains the canonical artifact, proof, known L1 transaction hash, and forced-inclusion
+reservations, so normal idempotent L1 reconciliation still decides whether a broadcast must be
+observed, replaced, or left untouched. There is no operator "skip" or local terminal-rejection
+button: defining a protocol-safe terminal rejection requires an explicit chain-governance policy
+for state-root continuity, deposits, messages, withdrawals, and forced inclusions.
+
+### Neo.CLI bundle and dBFT committee state
+
+`r3e-network/neo-node` is not published, so this repository deliberately does
+not fabricate or auto-download a mutable node distribution. Build the mature
+Neo.CLI and DBFTPlugin sources you have reviewed against the pinned
+`r3e-network/neo` core, then deploy each role with plugins adjacent to the
+Neo.CLI entry assembly:
+
+```text
+my-l2/node/
+├── Neo.CLI.dll
+├── config.json
+└── Plugins/
+    └── DBFTPlugin/
+        ├── DBFTPlugin.dll
+        └── DBFTPlugin.json
+```
+
+`config.json` must live beside the Neo.CLI entry assembly. Its
+`ApplicationConfiguration.Storage.Path` must resolve to the role's isolated data
+directory; the sequencer config must also enable `UnlockWallet.IsActive`, name an
+existing wallet, and pair with `DBFTPlugin.json` where
+`PluginConfiguration.AutoStart=true`. The batcher has its own deployment root,
+`config.json`, database, and `Neo.Plugins.L2Batch` config with the same `ChainId`.
+`neo-stack` intentionally does not pass Neo.CLI `--config` or `--db-path`
+overrides: current Neo.CLI option binding reconstructs wallet settings and can
+drop the auto-unlock flag, leaving DBFTPlugin loaded but consensus stopped.
+
+The DBFTPlugin remains unmodified. Its existing call to
+`NativeContract.NEO.GetNextBlockValidators` now reads the canonical validator
+set stored by `L2SystemConfigContract`. The genesis committee authorizes initial
+configuration; subsequent committee rotation is an owner-authorized native
+transaction, not an off-chain callback:
+
+```bash
+neo-stack start-sequencer --chain-id 1099 --output ./my-l2 \
+    --node-config ./my-l2/node/config.json \
+    --sync-only --broadcast --rpc http://existing-l2-rpc:10332 \
+    --expected-network <magic>
+```
+
+The command parses and canonicalizes `chain.config.json.validators`, checks its
+count against the node's `ValidatorsCount`, simulates the native call, signs,
+broadcasts, and confirms the pending rotation. The old committee then commits the
+new `NextConsensus` at the next deterministic committee-refresh block; only after
+that block does native state promote pending to active. `neo-stack` polls
+`getSequencerValidators` until that activation (bounded by
+`--committee-activation-timeout-seconds`). A genesis-matching set can start without
+RPC; a rotated set must either complete this scheduled activation or already match
+finalized native state queried through `--rpc`.
 
 For a fully in-process demo without L1, see `tools/Neo.L2.Devnet`:
 
@@ -190,41 +400,45 @@ batchNumber, challenger, fraudProofBytes, fraudVerifier)` delegates the
 actual cryptographic check to a contract identified by the
 `fraudVerifier` argument.
 
-Three paths, all in the default `neo-hub-deploy plan` 23-step bundle:
+Two production-target deployment profiles are documented: the bundled restricted-v4
+profile and an operator-supplied custom executable-v4 profile. The default 24-step production bundle
+excludes the structural v1/v2 advisory contract and configures the restricted verifier with
+`[SettlementManager, replayDomain]`; live deployment therefore requires an
+explicit `--fraud-replay-domain`:
 
-  1. **Governance-arbitration mode** (the simplest operator-friendly path):
-     deploy `NeoHub.GovernanceFraudVerifier`. It does a structural check
-     of the canonical `FraudProofPayload` (v1=101 bytes fixed or v2=105+N
-     bytes with disputed-tx witness; length / version /
-     claims-a-real-discrepancy) and emits accept/reject events for the
-     security council to arbitrate. Pass its deployed hash as
-     `fraudVerifier` when filing a challenge.
-  2. **Trustless v3 mode** (no council arbitration): deploy
-     `NeoHub.RestrictedExecutionFraudVerifier`. It re-derives pre/post
-     state roots on-chain from each `FraudProofPayload` v3 storage proof
-     (leaf-hash + Merkle siblings + leafIndex) and checks them against
-     the v1 header's `PreStateRoot` and `ReplayedPostStateRoot`. A v3
-     payload that reconstructs cleanly + claims a real discrepancy is
-     accepted automatically. The challenger generates v3 payloads off-
-     chain (see `Neo.L2.Challenge.V3StorageProofVerifier` for the
-     reference + parity test against the on-chain logic).
-  3. **Custom verifier**: ship your own fraud verifier (e.g. one that
-     re-executes the disputed transaction on L1 with restricted state).
-     Skip both reference verifiers from the deploy bundle and register
-     your own verifier's hash. The `FraudProofPayload` v2 (DisputedTxBytes)
-     and v3 (StorageProofs) wire-format fields carry the disputed-tx
-     bytes + storage manifests a re-execution verifier needs.
+  1. **Permissionless restricted v4**: the production bundle deploys
+     `NeoHub.RestrictedExecutionFraudVerifier` with
+     `[SettlementManager, replayDomain]`, then calls
+     `RegisterPermissionlessFraudProfile(chainId, verifier,
+     executorSemanticId, replayDomain)`. The shipped semantic id covers exactly
+     one existing-key Counter Increment transaction. It binds the canonical
+     committed header/roots, tx proof, canonical degenerate `[0,1]` transcript, claim id, and
+     old/new storage proofs against the committed pre/post roots, then executes
+     that transition. Correct committed execution returns false; a wrong
+     committed root returns true. Production smoke checks verify the deployed
+     settlement-manager hash, replay domain, semantic id, and exact profile.
+     This mode is not general NeoVM; unsupported semantics fail closed.
+  2. **Custom executable v4 verifier**: ship your own fraud verifier that
+     re-executes the disputed transaction on L1 with restricted state.
+     Replace the restricted verifier in the deploy bundle and register an exact
+     chain/semantic/replay-domain v4 profile. A custom verifier must consume the
+     committed batch header and executable witness; accepting self-asserted roots
+     or structural payloads is not a supported production profile.
 
-`neo-hub-deploy`'s post-deploy actions output surfaces the right hash for
-each verifier so operators know which to pass as the `fraudVerifier`
-argument:
+`GovernanceFraudVerifier` v1/v2 and the structural v3 decoder remain useful for
+offline audits and reason-coded diagnostics. They cannot authorize a revert or
+slash: `OptimisticChallenge.Challenge` requires v4 plus an exact registered
+executable profile before dispatch, even when the owner/governance witnesses.
+The deploy planner therefore never registers these legacy contracts and emits a
+fail-closed warning if a custom plan includes one.
 
 ```
-# Note: for v1/v2 fraud proofs (governance arbitration),
-#       pass GovernanceFraudVerifier.Hash ...
-# Note: for v3 fraud proofs (trustless storage-proof re-derivation),
-#       pass RestrictedExecutionFraudVerifier.Hash ...
+# Security boundary: only exact registered executable v4 is state-changing;
+# v1/v2/v3 and mismatched v4 fail closed even with governance/owner witness.
 ```
+
+`RegisterPermissionlessFraudVerifier` is disabled; all value-bearing challenges
+require the explicit v4 profile registration above.
 
 ---
 
@@ -267,11 +481,14 @@ classes at the same call sites.
   persistent NeoFS-like store when `--data-dir` is set; `External`
   uses `InMemoryDAWriter` for tests/demos. Swap for a real NeoFS SDK /
   L1 `sendrawtransaction`.
-- **`ISequencerCommitteeProvider`** — Default:
-  `InMemorySequencerCommitteeProvider`. Swap to wire to neo's
-  `DBFTPlugin` consensus selector.
+- **`ISequencerCommitteeProvider`** — Registry/source abstraction for discovering
+  the desired set. Production consensus does not call an external provider during
+  a dBFT round; use `SequencerCommitteeTransactionBuilder` to atomically commit the
+  selected set into native consensus state.
 - **`IRoundProver`** (Phase 5 only) — Default: `PassThroughRoundProver`.
-  Swap for SP1 Compress / Halo2 accumulator / Risc0 fold.
+  Use `MultisigRoundProver` / `MerklePathRoundProver` for non-recursive rounds;
+  the bundled recursive terminal path is `bridge/neo-zkvm-gateway-{guest,host}`.
+  Halo2/Risc0 remain optional alternatives.
 
 All of these accept ctor injection. The plugin host is the single composition
 root; see `Neo.Plugins.L2Metrics.L2MetricsPlugin` for the canonical pattern of
@@ -440,15 +657,13 @@ public sealed class StakeWeightedSequencerProvider : ISequencerCommitteeProvider
 }
 ```
 
-Wire it through whatever component owns the sequencer reference (typically
-the L2 node's consensus selector — the existing `InMemorySequencerCommitteeProvider`
-in `Neo.L2.Sequencer` shows the production-ready persistence + lifecycle
-pattern your custom provider can follow if you also need restart-survival).
-
-The L2 node's dBFT plugin polls this interface before each round, so switching
-the provider is the only on-chain-visible step needed to swap sequencer models —
-NeoHub's `SequencerRegistry` continues to track *who registered* but the
-*selection policy* is the L2's call.
+Use the provider to compute the intended active set, then pass those keys through
+`SequencerCommitteeTransactionBuilder.BuildSetValidatorsScript` and submit the
+result under L2 governance. The dBFT plugin reads only the finalized native state,
+which keeps every validator deterministic even if an L1 RPC endpoint is unavailable
+or two operators observe registry events at different times. NeoHub's
+`SequencerRegistry` remains the admission source; the confirmed L2 transaction is
+the consensus activation boundary.
 
 ### Worked example: writing a custom `IL2Prover` + `IL2ProofVerifier`
 
@@ -607,19 +822,20 @@ be whatever the operator needs.
 
 ## Going to L1: deploying NeoHub
 
-Before `register-chain` works, the 23 production NeoHub contracts must be
-deployed on the target L1. The test-only `ExternalBridgeStubVerifier` is not
-part of the default deploy bundle. The `neo-hub-deploy` tool emits a deploy
+Before `register-chain` works, the 24 production NeoHub contracts must be
+deployed on the target L1. Advisory `GovernanceFraudVerifier` and test-only
+`ExternalBridgeStubVerifier` are not part of the default deploy bundle. The `neo-hub-deploy` tool emits a deploy
 bundle that names each contract, its dependencies, and the resolved hashes
 after a topological sort:
 
 ```bash
-# 1. Scaffold a starter plan (23 production NeoHub deploy steps in dependency
-#    order, including ContractZkVerifier and the v1/v2 and v3 fraud verifiers).
+# 1. Scaffold a starter plan (24 production NeoHub deploy steps in dependency
+#    order, including ContractZkVerifier, Sp1Groth16Verifier, and executable-v4 fraud verifier).
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
     --output ./my-l2/deploy-plan.json
 
-# 2. Edit the plan to fill in OWNER_REPLACE_ME / BOND_ASSET_REPLACE_ME
+# 2. Edit the plan to fill in OWNER_REPLACE_ME / BOND_ASSET_REPLACE_ME /
+#    GOVERNANCE_COUNCIL_REPLACE_ME / GOVERNANCE_THRESHOLD_REPLACE_ME
 #    placeholders (canonical GAS hash on the target L1, your operator
 #    multisig hash, etc.). The plan is JSON — diff-friendly + editable.
 
@@ -629,7 +845,22 @@ dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
 dotnet run --project tools/Neo.Hub.Deploy -- plan \
     --plan ./my-l2/deploy-plan.json \
     --output ./my-l2/deploy-bundle.json
+
+# Or run the guarded live testnet deployer. Governance is explicit M-of-N:
+# 2..64 distinct compressed secp256r1 keys, threshold >= 2.
+dotnet run --project tools/Neo.Hub.Deploy -- deploy-testnet \
+    --rpc https://your-reviewed-n3-rpc.example \
+    --expected-network <network-magic> \
+    --l2-chain-id 1099 \
+    --sp1-program-vkey <32-byte-raw-vkey-or-file> \
+    --fraud-replay-domain <32-byte-non-zero-domain> \
+    --governance-council <pubkey1,pubkey2,pubkey3> \
+    --governance-threshold 2 \
+    --emergency-council <separate-account-or-script-hash>
 ```
+
+The live deployer rejects implicit 1-of-1 governance. It writes the exact council count and
+threshold into the deployment evidence report and reads both values back during smoke checks.
 
 The bundle's `Invocations` array is your wallet's deploy script — one
 `ContractManagement.Deploy` call per entry, in order. Each entry has a
@@ -641,30 +872,43 @@ The bundle's "PostDeployActions" section surfaces the wiring steps that
 have to run AFTER all contracts are deployed (e.g.
 `SequencerBond.RegisterSlasher(OptimisticChallenge)` to break the
 bond↔challenge cycle, `ChainRegistry.SetGovernanceController` to enable
-§16.1 admission policy, and per-fraud-verifier informational notes
+§16.1 admission policy, `SettlementManager.SetGovernanceController` plus the irreversible
+`SettlementManager.LockGovernance` to remove hot-wallet rewiring/direct rollback,
+`SettlementManager.SetMessageRouter(MessageRouter)` to close the Gateway contract-witness path,
+and per-fraud-verifier informational notes
 naming which contract hash to pass as the `fraudVerifier` argument to
 `OptimisticChallenge.Challenge`).
+
+After the SettlementManager lock, emergency finalized-head rollback requires an exact
+`RevertBatchViaProposal(chainId,batchNumber,proposalId)` action that has reached the configured
+council threshold and timelock. `OptimisticChallenge` retains only its immediate
+`Challengeable`-batch fraud rollback path.
 
 > **Note on hashes**: the bundle's per-step `Hash` fields are
 > *deterministic stubs* derived from the step name (so `plan` is
 > reproducible without a wallet). The actual L1 contract hashes only
 > exist after your wallet calls `ContractManagement.Deploy`. The wallet
-> returns each real hash; capture those into the four `register-chain`
-> flags below — NOT the stub hashes from the bundle.
+> returns each real hash; combine those four hashes with the signed genesis root in the five
+> required `register-chain` flags below — NOT the stub hashes from the bundle.
 
-After all 22 deploys + post-deploy wiring complete, capture the
+After all 24 deploys + post-deploy wiring complete, capture the
 **real on-chain** contract hashes (returned by your wallet from each
-`ContractManagement.Deploy` call) into the four `register-chain` flags:
+`ContractManagement.Deploy` call) and the signed genesis root into the five
+`register-chain` flags:
 
 ```bash
 neo-stack register-chain --chain-id 1099 --output ./my-l2 \
     --operator <real hash returned by your multisig deploy> \
     --verifier <real hash returned by your VerifierRegistry deploy> \
     --bridge <real hash returned by your bridge-adapter deploy> \
-    --message <real hash returned by your MessageRouter deploy>
+    --message <real hash returned by your MessageRouter deploy> \
+    --genesis-state-root <non-zero root from the signed deployment manifest>
 ```
 
-That emits the canonical 91-byte `configBytes` your wallet pastes into
+That emits the canonical 91-byte `configBytes` and immutable genesis root your wallet submits to
+`registerChain(chainId, configBytes, genesisStateRoot)`. The root must equal the value observed
+after reviewed genesis bootstrap and pinned in the signed deployment manifest; batch 1 is rejected
+unless its `preStateRoot` equals this on-chain trust anchor. It cannot be changed by config updates.
 `ChainRegistry.RegisterChain` (admission-mode 0) or
 `ChainRegistry.RegisterChainPublic` (admission-modes 1 + 2 — the §16.1
 3-phase flow gated by `GovernanceController.GetAdmissionMode`).
@@ -687,6 +931,8 @@ curl http://127.0.0.1:9090/metrics | grep l2_batch_sealed
 # After register-chain on L1, query NeoHub:
 neo-cli invoke <ChainRegistryHash> getChainConfig <chainId>
 # → returns 91 bytes (encoded L2ChainConfig per §16.2); empty = not registered
+neo-cli invoke <ChainRegistryHash> getGenesisStateRoot <chainId>
+# → returns the immutable non-zero batch-1 pre-state trust anchor
 
 # Or query the 5-dimension §16.2 security label as a single object:
 neo-cli invoke <ChainRegistryHash> getSecurityLevel <chainId>
@@ -721,36 +967,78 @@ The framework ships **two** SP1 integrations. Pick one:
 matches industry-standard L2 layout.
 
 ```bash
-# Build the daemon binary (one-time):
-cd bridge/neo-zkvm-host
-cargo build --release
-# → target/release/prove-batch
+# Build the production native executor and both prover daemons (from the repository root):
+cargo build --release --locked \
+    -p neo-zkvm-guest --bin neo-zkvm-executor \
+    -p neo-zkvm-host -p neo-zkvm-gateway-host
+# → target/release/neo-zkvm-executor + prove-batch + prove-gateway
+
+# Record neo-zkvm-executor's SHA-256 in the signed operator release manifest.
+# Linux: sha256sum target/release/neo-zkvm-executor
+# macOS: shasum -a 256 target/release/neo-zkvm-executor
 
 # Wire the sequencer to drop sealed batches into a queue dir
-# (e.g. /var/lib/neo-l2/batches/) — the format is just the canonical
-# BatchExecutionRequest bytes written to <batch-number>.batch.bin.
-# That format is what `Neo.L2.Batch.BatchExecutionRequest.Encode()` emits.
+# (e.g. /var/lib/neo-l2/batches/) — each file is the canonical
+# ProofWitnessArtifactV1 written to <batch-number>.batch.bin.
 
 # Run the daemon (typically under systemd / k8s):
 prove-batch daemon \
     --watch /var/lib/neo-l2/batches \
     --archive /var/lib/neo-l2/proven \
-    --poll-secs 5
+    --gateway-sidecars /var/lib/neo-l2/gateway-children \
+    --poll-secs 5 \
+    --max-queue-bytes 17179869184 \
+    --max-queue-tasks 64
+
+# Run only when Gateway aggregation is enabled. The .NET Sp1GatewayProofProver
+# writes canonical request + readiness manifests into --queue.
+prove-gateway daemon \
+    --queue /var/lib/neo-l2/gateway-queue \
+    --child-proofs /var/lib/neo-l2/gateway-children \
+    --poll-ms 1000
+
+# Equivalent supervised launch from the chain directory:
+neo-stack start-prover --chain-id 1099 --output ./my-l2 \
+    --prover ./my-l2/prover/prove-batch -- --poll-secs 5
 ```
 
-The daemon polls `--watch` for `*.batch.bin`, generates a real ZK proof
+The batch daemon polls `--watch` for `*.batch.bin`, generates a real ZK proof
 for each, writes `<name>.proof.bin` (the on-chain submission artifact)
-+ `<name>.proof.vk` (the verifying key, stable per guest ELF), and moves
-the input to `--archive` so it's not re-processed. Failures leave the
-input in place and log loudly so monitoring catches poison-pill batches.
++ `<name>.proof.vk` (the verifying key, stable per guest ELF), and atomically
+publishes a canonical compressed child sidecar when `--gateway-sidecars` is set.
+`--watch`, `--archive`, and the sidecar directory must reside on filesystems that
+support hard links; the archive path must be on the same filesystem as `--watch`.
+Failures leave the input in place and log loudly so monitoring catches poison-pill batches.
+Successful proof generation also retains all content-addressed evidence. Pruning starts only after
+the .NET settlement pipeline has durably observed L1 settlement and published the matching
+`*.proof.ack`; deletion is crash-idempotent across both watch and archive directories.
 
-What it actually proves: each tx in the batch is loaded as a Neo N3 VM
-script and executed by `neo_vm_guest::execute` (vendored from
-`external/neo-zkvm/crates/neo-vm-guest`, which contains the full Neo N3
-VM in pure Rust — opcodes, eval stack, gas accounting, native contracts,
-storage). The proof attests that each tx halted or faulted at a specific
-gas count with a specific top-of-stack result. Tampering with any
-execution detail breaks the proof.
+The Gateway daemon accepts only the tuple-derived sidecar filename, reconstructs the full
+332-byte public inputs from the commitment plus the sidecar's two missing hashes, recursively
+verifies every compressed batch proof against the compiled batch VK, and emits a host-verified
+356-byte Gateway Groth16 proof with the result manifest published last. On restart, a complete
+result is skipped only after exact manifest/artifact checks and terminal Groth16 re-verification;
+without a result marker, only regular non-symlink orphan outputs are removed before re-proving.
+The batch daemon applies the same fail-closed policy to its proof/VK/public-values triplet.
+
+The proof-bound RPC publisher queries `MessageRouter.GetGlobalRoot*` for reconciliation but signs
+and submits `SettlementManager.PublishGatewayGlobalRoot(epoch,references,globalRoot,
+constituentRoot,count,backend,proofSystem,vkId,replayDomain,proof)`. `references` is the exact
+strictly ordered packed list of `chainId:uint32 LE || batchNumber:uint64 LE` entries (1..4096).
+SettlementManager revalidates current finality/Gateway admission, reconstructs both roots from
+stored finalized records, advances non-revertible per-chain watermarks, and atomically invokes
+Router. Verify post-deploy readback of both MessageRouter's SettlementManager constructor binding
+and `SettlementManager.GetMessageRouter`; a direct Router call is expected to fail witness checks.
+
+What it actually proves: the sequencer first invokes the SHA-256-pinned
+`neo-zkvm-executor` with canonical `NEO4EXEC` and complete pre-state `NEO4STW1`.
+That binary and the SP1 guest call the same `neo-execution-core` and vendored
+`neo-vm-rs` stateful N4 V1 runtime. The native result is canonical `NEO4EXR1`; C#
+validates its exact request hashes, semantic id, roots, gas, effects, complete post-state,
+and public-input hash before atomic state commit. The resulting `NEO4PWIT` is then
+re-executed inside SP1. The proof therefore binds HALT/FAULT behavior, gas, receipts,
+storage/event effects, post-state, withdrawal/message roots, and settlement public inputs.
+Tampering with any bound byte breaks native validation or proof verification.
 
 The on-chain settlement transaction submits `<name>.proof.bin`,
 `<name>.proof.vk`, and the public-input commitment via

@@ -73,8 +73,13 @@ var settlement = new RpcSettlementClient(
     });
 ```
 
-其它需要签名的 CLI 用的是同一套模式 —— 都暴露一个委托钩子,让运维者把自己偏好的签名
-路径(`AWS-KMS` / `Azure Key Vault` / `Ledger` / NEP-6 等)接进来,框架不需要知道细节。
+`neo-stack` 运维命令通过 `--signer-command` 直接暴露同一边界：适配器从标准输入
+接收 canonical sign data，只返回 witness invocation script。CLI 固定 account 与
+verification script，计算费用、广播并确认结果。严格请求、响应、超时与失败协议见
+[Operator signer-command 协议](./operator-signer-command-protocol.md)。
+
+其它程序化调用方可直接使用 `INeoTransactionSigner`，让运维者接入自己偏好的签名
+路径（`AWS-KMS` / `Azure Key Vault` / `Ledger` / NEP-6 等），框架无需了解厂商细节。
 
 ## 具体钱包产品
 
@@ -143,6 +148,6 @@ KMS 后备的密钥(AWS-KMS、GCP-KMS、Azure Key Vault、HashiCorp Vault)生产
   调用 hex。粘 → 签名。
 - **`neo-l2-faucet drip`** —— `SharedBridge.Deposit`(限速版)。
   粘 → 签名。
-- **`neo-hub-deploy plan`** —— 23 步生产合约部署调用。按拓扑顺序逐一签名。
+- **`neo-hub-deploy plan`** —— 24 步生产合约部署调用。按拓扑顺序逐一签名。
 - **`neo-stack register-chain`** —— `ChainRegistry.RegisterChain` 调用 + 91
   字节 configBytes hex。粘 → 签名。

@@ -117,4 +117,58 @@ public class UT_DeployBridgeAdapterCommand
                 "--chain-id", "0",
             }));
     }
+
+    [TestMethod]
+    public async Task DeployBridge_BroadcastRequiresCanonicalMappingFields()
+    {
+        var rc = await DeployBridgeAdapterCommand.RunAsync(new[]
+        {
+            "--chain-id", "1099",
+            "--broadcast",
+        });
+
+        Assert.AreEqual(3, rc);
+    }
+
+    [TestMethod]
+    public async Task DeployBridge_BroadcastRejectsUnknownSide()
+    {
+        var rc = await DeployBridgeAdapterCommand.RunAsync(MappingArgs(
+            "--side", "unknown"));
+
+        Assert.AreEqual(4, rc);
+    }
+
+    [TestMethod]
+    public async Task DeployBridge_L1BroadcastRequiresTokenRegistry()
+    {
+        var rc = await DeployBridgeAdapterCommand.RunAsync(MappingArgs(
+            "--side", "l1"));
+
+        Assert.AreEqual(5, rc);
+    }
+
+    [TestMethod]
+    public async Task DeployBridge_L2ConfigureRequiresBothAccounts()
+    {
+        var rc = await DeployBridgeAdapterCommand.RunAsync(MappingArgs(
+            "--side", "l2",
+            "--l2-owner", "0x" + new string('3', 40)));
+
+        Assert.AreEqual(6, rc);
+    }
+
+    private static string[] MappingArgs(params string[] additional)
+    {
+        return new[]
+        {
+            "--chain-id", "1099",
+            "--broadcast",
+            "--l1-asset", "0x" + new string('1', 40),
+            "--l2-asset", "0x" + new string('2', 40),
+            "--asset-type", "PlatformUsdt",
+            "--l1-decimals", "6",
+            "--l2-decimals", "6",
+        }.Concat(additional).ToArray();
+    }
 }

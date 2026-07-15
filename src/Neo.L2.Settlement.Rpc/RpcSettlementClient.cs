@@ -1,4 +1,5 @@
 using Neo.L2.Batch;
+using Neo.Json;
 
 namespace Neo.L2.Settlement.Rpc;
 
@@ -12,7 +13,8 @@ namespace Neo.L2.Settlement.Rpc;
 /// this class accepts a delegate to do that step so production code can plug in its own
 /// signer / wallet without forcing a particular signing dependency on this library.
 /// </remarks>
-public sealed class RpcSettlementClient : ISettlementClient, IDisposable
+public sealed class RpcSettlementClient
+    : ISettlementClient, ISettlementTransactionStatusClient, IDisposable
 {
     /// <summary>Delegate for signing+sending the SubmitBatch transaction.</summary>
     /// <remarks>
@@ -33,7 +35,7 @@ public sealed class RpcSettlementClient : ISettlementClient, IDisposable
     private readonly JsonRpcClient _rpc;
     private readonly UInt160 _settlementManagerHash;
     private readonly SignAndSendAsync _signAndSend;
-    private bool _disposed;
+    private int _disposed;
 
     /// <summary>Construct.</summary>
     public RpcSettlementClient(
@@ -51,6 +53,7 @@ public sealed class RpcSettlementClient : ISettlementClient, IDisposable
     /// <inheritdoc />
     public async ValueTask<UInt256> SubmitBatchAsync(L2BatchCommitment commitment, PublicInputs publicInputs, CancellationToken cancellationToken = default)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(commitment);
         ArgumentNullException.ThrowIfNull(publicInputs);
         var bytes = BatchSerializer.Encode(commitment);
@@ -70,6 +73,7 @@ public sealed class RpcSettlementClient : ISettlementClient, IDisposable
     /// <inheritdoc />
     public async ValueTask<UInt256> GetCanonicalStateRootAsync(uint chainId, CancellationToken cancellationToken = default)
     {
+        ThrowIfDisposed();
         var result = await RpcContractReader.InvokeReadAsync(_rpc, _settlementManagerHash, "getCanonicalStateRoot", new object[] { chainId }, cancellationToken).ConfigureAwait(false);
         return RpcContractReader.ParseUInt256(result);
     }
@@ -77,6 +81,7 @@ public sealed class RpcSettlementClient : ISettlementClient, IDisposable
     /// <inheritdoc />
     public async ValueTask<BatchStatus> GetBatchStatusAsync(uint chainId, ulong batchNumber, CancellationToken cancellationToken = default)
     {
+        ThrowIfDisposed();
         var result = await RpcContractReader.InvokeReadAsync(_rpc, _settlementManagerHash, "getBatchStatus", new object[] { chainId, batchNumber }, cancellationToken).ConfigureAwait(false);
         var byteValue = RpcContractReader.ParseInteger(result);
         if (byteValue < 0 || byteValue > 4)
@@ -85,10 +90,45 @@ public sealed class RpcSettlementClient : ISettlementClient, IDisposable
     }
 
     /// <inheritdoc />
+    public async ValueTask<SettlementTransactionStatus> GetTransactionStatusAsync(
+        UInt256 transactionHash,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(transactionHash);
+        try
+        {
+            var result = await _rpc.CallAsync(
+                "getrawtransaction",
+                new JArray { transactionHash.ToString(), true },
+                cancellationToken).ConfigureAwait(false);
+            if (result is not JObject transaction)
+                throw new InvalidOperationException(
+                    "getrawtransaction returned a non-object verbose result");
+            return transaction["blockhash"] is JString blockHash
+                && !string.IsNullOrWhiteSpace(blockHash.AsString())
+                    ? SettlementTransactionStatus.Confirmed
+                    : SettlementTransactionStatus.Pending;
+        }
+        catch (JsonRpcException exception) when (IsUnknownTransaction(exception))
+        {
+            return SettlementTransactionStatus.Unknown;
+        }
+    }
+
+    /// <inheritdoc />
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         _rpc.Dispose();
     }
+
+    private static bool IsUnknownTransaction(JsonRpcException exception)
+        => exception.Code is -100 or -105
+            || exception.Message.Contains(
+                "Unknown transaction", StringComparison.OrdinalIgnoreCase)
+            || exception.Message.Contains("not found", StringComparison.OrdinalIgnoreCase);
+
+    private void ThrowIfDisposed()
+        => ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
 }

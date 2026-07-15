@@ -524,7 +524,7 @@ mod tests {
         let port = listener.local_addr().unwrap().port();
         drop(listener);
 
-        let url = format!("http://127.0.0.1:{}/", port);
+        let url = format!("http://127.0.0.1:{port}/");
         let callback_invocations = Arc::new(AtomicUsize::new(0));
         let cb = callback_invocations.clone();
         let callback = move |_: &[u8]| -> Result<[u8; 32], NeoRpcError> {

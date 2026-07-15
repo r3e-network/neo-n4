@@ -279,6 +279,53 @@ public class UT_OptimisticAndRiscV
     }
 
     [TestMethod]
+    public void OptimisticProofPayload_ValueSemanticsAndHashCodeBindEveryField()
+    {
+        var payload = new OptimisticProofPayload
+        {
+            BondContract = UInt160.Parse("0x" + new string('b', 40)),
+            BondTxHash = UInt256.Parse("0x" + new string('c', 64)),
+            SubmittedAt = 1_700_000_000,
+            Sequencer = SampleSequencer(),
+            SequencerSignature = new byte[] { 1, 2, 3 },
+        };
+        var equal = OptimisticProofPayload.Decode(payload.Encode());
+
+        Assert.AreEqual(payload, equal);
+        Assert.AreEqual(payload.GetHashCode(), equal.GetHashCode());
+        Assert.AreNotEqual(payload, null);
+        Assert.AreNotEqual(payload, payload with { BondContract = UInt160.Zero });
+        Assert.AreNotEqual(payload, payload with { BondTxHash = UInt256.Zero });
+        Assert.AreNotEqual(payload, payload with { SubmittedAt = payload.SubmittedAt + 1 });
+        Assert.AreNotEqual(payload, payload with { Sequencer = UInt160.Parse("0x" + new string('e', 40)) });
+        Assert.AreNotEqual(payload, payload with { SequencerSignature = new byte[] { 3, 2, 1 } });
+    }
+
+    [TestMethod]
+    public async Task OptimisticVerifier_RejectsMalformedAndWrongLengthProofs()
+    {
+        var privateKey = Enumerable.Range(1, 32).Select(value => (byte)value).ToArray();
+        var publicKey = ECCurve.Secp256r1.G * privateKey;
+        var verifier = new OptimisticVerifier(publicKey);
+
+        Assert.AreEqual(ProofType.Optimistic, verifier.Kind);
+        var malformed = await verifier.VerifyAsync(SamplePublicInputs(), new byte[] { 1 });
+        Assert.IsFalse(malformed.Valid);
+
+        var wrongLength = new OptimisticProofPayload
+        {
+            BondContract = UInt160.Zero,
+            BondTxHash = UInt256.Zero,
+            SubmittedAt = 0,
+            Sequencer = SequencerAccount(publicKey),
+            SequencerSignature = new byte[] { 1 },
+        };
+        var wrongLengthResult = await verifier.VerifyAsync(
+            SamplePublicInputs(), wrongLength.Encode());
+        Assert.IsFalse(wrongLengthResult.Valid);
+    }
+
+    [TestMethod]
     public void OptimisticProofPayload_Decode_RejectsOversizedSigLen()
     {
         var inner = new OptimisticProofPayload
@@ -491,6 +538,34 @@ public class UT_OptimisticAndRiscV
         CollectionAssert.AreEqual(vk.GetSpan().ToArray(), bytes[2..34]);
         Assert.AreEqual(proofBytes.Length, System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(34, 4)));
         CollectionAssert.AreEqual(proofBytes, bytes[38..]);
+    }
+
+    [TestMethod]
+    public void RiscVProofPayload_Equality_UsesProofByteContent()
+    {
+        var verificationKeyId = UInt256.Parse("0x" + new string('c', 64));
+        var left = new RiscVProofPayload
+        {
+            ProofSystem = ProofSystem.Sp1,
+            ProofBytes = new byte[] { 0x11, 0x22, 0x33 },
+            VerificationKeyId = verificationKeyId,
+        };
+        var equal = new RiscVProofPayload
+        {
+            ProofSystem = ProofSystem.Sp1,
+            ProofBytes = new byte[] { 0x11, 0x22, 0x33 },
+            VerificationKeyId = new UInt256(verificationKeyId.GetSpan()),
+        };
+        var differentProof = equal with { ProofBytes = new byte[] { 0x11, 0x22, 0x34 } };
+        var differentSystem = equal with { ProofSystem = ProofSystem.RiscZero };
+        var differentKey = equal with { VerificationKeyId = UInt256.Zero };
+
+        Assert.AreEqual(left, equal);
+        Assert.AreEqual(left.GetHashCode(), equal.GetHashCode());
+        Assert.AreNotEqual(left, differentProof);
+        Assert.AreNotEqual(left, differentSystem);
+        Assert.AreNotEqual(left, differentKey);
+        Assert.IsFalse(left.Equals(null));
     }
 
     [TestMethod]

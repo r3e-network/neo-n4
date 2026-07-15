@@ -42,8 +42,8 @@ public sealed class L2MetricsPlugin : Plugin
     public override string Description => "Hosts the shared L2 metrics sink and the /metrics + /healthz + /readyz HTTP server.";
 
     /// <summary>
-    /// Wire an optional readiness predicate. <c>/readyz</c> evaluates this on every request;
-    /// <c>true</c> → 200, <c>false</c> → 503. When unwired, <c>/readyz</c> always returns 200.
+    /// Wire a readiness predicate. <c>/readyz</c> evaluates this on every request;
+    /// <c>true</c> → 200, <c>false</c> → 503. When unwired, <c>/readyz</c> fails closed with 503.
     /// Common predicates: "is the latest batch within N seconds?", "is the prover queue draining?".
     /// </summary>
     public void WithReadinessCheck(Func<bool> check)

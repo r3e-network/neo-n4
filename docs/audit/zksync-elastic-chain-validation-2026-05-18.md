@@ -1,5 +1,9 @@
 # ZKsync Elastic Chain Alignment Validation - 2026-05-18
 
+> Historical snapshot. The current Gateway route is
+> `SettlementManager.PublishGatewayGlobalRoot` → `MessageRouter.PublishGlobalRoot`; it binds exact
+> finalized constituents and verifies the terminal proof. See `doc.md` §4.1 for current truth.
+
 This pass revalidates Neo N4 against the current ZKsync Elastic Chain design
 using official ZKsync docs and the local implementation state in `D:\Git\neo-n4`.
 
@@ -26,7 +30,7 @@ system contracts are present from genesis and hold privileged protocol state.
 | CTM-managed chain type and upgrade control | `NeoHub.VerifierRegistry`, `NeoHub.GovernanceController`, per-chain `operatorManager` | Aligned for N4; no DiamondProxy/CTM factory because NeoVM does not need EVM facet splitting |
 | Shared bridge and canonical wrapped assets | `NeoHub.TokenRegistry`, `NeoHub.SharedBridge`, Neo core native `L2BridgeContract`, `BridgedNep17Contract` | Aligned; wrapped asset accounting is in the native layer |
 | L2 system contracts at genesis | 10 native contracts in `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs` | Aligned; no `contracts/L2Native.*` deployable suite remains in active build paths |
-| Gateway/global message root and interop verification | `MessageRouter.PublishGlobalRoot`, `Neo.Plugins.L2Gateway`, native `L2InteropVerifier` | Aligned |
+| Gateway/global message root and interop verification | `SettlementManager.PublishGatewayGlobalRoot` → `MessageRouter.PublishGlobalRoot`, `Neo.Plugins.L2Gateway`, native `L2InteropVerifier` | Aligned |
 | L1-to-L2 transaction filtering | `MessageRouter.SetL1TxFilter`, `NeoHub.L1TxFilter` | Aligned |
 | DA commitment validation | `NeoHub.DARegistry`, `NeoHub.DAValidator`, `Neo.Plugins.L2DA` | Aligned for current rollup/validium modes |
 | Account abstraction and paymaster hooks | Native `L2AccountAbstraction`, native `L2PaymasterContract` | Aligned at protocol-hook level; intentionally Neo-style, not EIP-4337 byte-for-byte |

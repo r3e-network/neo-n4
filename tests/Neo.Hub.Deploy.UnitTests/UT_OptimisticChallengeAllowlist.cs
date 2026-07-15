@@ -88,6 +88,29 @@ public class UT_OptimisticChallengeAllowlist
     }
 
     [TestMethod]
+    public void Manifest_Exposes_PermissionlessFraudProfile_AndClaimReplayReads()
+    {
+        var manifest = ManifestTestHelper.LoadFreshManifest(ContractName);
+        if (manifest is null) return;
+        var abi = (JObject)manifest["abi"]!;
+        var methods = (JArray)abi["methods"]!;
+        var registerProfile = (JObject?)methods.FirstOrDefault(method =>
+            ((JObject?)method)?["name"]?.AsString() == "registerPermissionlessFraudProfile");
+        Assert.IsNotNull(registerProfile);
+        var parameters = (JArray)registerProfile!["parameters"]!;
+        Assert.AreEqual(4, parameters.Count);
+        CollectionAssert.AreEqual(
+            new[] { "Integer", "Hash160", "Hash256", "Hash256" },
+            parameters.Select(parameter => ((JObject)parameter!)["type"]!.AsString()).ToArray());
+
+        var isClaimConsumed = (JObject?)methods.FirstOrDefault(method =>
+            ((JObject?)method)?["name"]?.AsString() == "isClaimConsumed");
+        Assert.IsNotNull(isClaimConsumed);
+        Assert.IsTrue(isClaimConsumed!["safe"]!.AsBoolean());
+        Assert.AreEqual("Boolean", isClaimConsumed["returntype"]!.AsString());
+    }
+
+    [TestMethod]
     public void Manifest_Declares_FraudVerifierApproved_Event()
     {
         var manifest = ManifestTestHelper.LoadFreshManifest(ContractName);

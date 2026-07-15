@@ -1,16 +1,17 @@
 using System;
 using System.Threading.Tasks;
+using Neo.Extensions.VM;
 using Neo.L2;
+using Neo.SmartContract;
+using Neo.SmartContract.Native;
+using Neo.VM;
 
 namespace Neo.Stack.Cli.Commands;
 
 /// <summary>
-/// neo-stack subcommands that issue a structured operator plan rather than executing
-/// against L1/L2 directly. Each one validates inputs, reads the chain config it would
-/// act on, and prints the deterministic plan (target contract + args + numbered next
-/// steps) so an operator can audit before signing. Production wiring (signed L1
-/// transactions, running plugin processes) is operator-supplied; these subcommands
-/// are the deterministic, auditable preflight side. Per IMPLEMENTATION_STATUS Phase 6,
+/// neo-stack operator subcommands. Each validates inputs and prints a deterministic
+/// dry-run plan; transaction-producing commands also support explicit signed broadcast
+/// through the shared wallet/KMS boundary. Per IMPLEMENTATION_STATUS Phase 6,
 /// all 12 neo-stack subcommands are functional. This file hosts register-chain,
 /// deploy-bridge-adapter, submit-batch, and start-{sequencer,batcher,prover};
 /// create-chain, init-l2, validate, scaffold-executor, new-l2, and list-templates
@@ -49,8 +50,6 @@ internal static class RegisterChainCommand
         }
 
         // Read + display the config so the operator knows exactly what would land on L1.
-        // Real L1 submission needs a wallet-equipped signer; this command outputs what
-        // would be submitted so an operator can audit before sending.
         string configJson;
         try
         {
@@ -84,16 +83,49 @@ internal static class RegisterChainCommand
         {
             try
             {
+                var genesisStateRootValue = ArgUtil.Get(args, "--genesis-state-root", "");
+                if (!UInt256.TryParse(genesisStateRootValue, out var genesisStateRoot)
+                    || genesisStateRoot == UInt256.Zero)
+                {
+                    Console.Error.WriteLine(
+                        "--genesis-state-root <non-zero UInt256> is required with the four L1 contract hashes");
+                    return Task.FromResult(4);
+                }
                 var config = L2ChainConfigJsonReader.FromJson(chainId, configJson,
                     operatorHash, verifierHash, bridgeHash, messageHash);
                 var bytes = L2ChainConfigSerializer.Encode(config);
-                Console.WriteLine($"  Args            : (chainId={chainId}, configBytes=<{bytes.Length} bytes>)");
+                Console.WriteLine(
+                    $"  Args            : (chainId={chainId}, configBytes=<{bytes.Length} bytes>, genesisStateRoot={genesisStateRoot})");
                 Console.WriteLine();
                 Console.WriteLine($"  configBytes (hex, copy-pasteable):");
                 Console.WriteLine($"  0x{Convert.ToHexString(bytes).ToLowerInvariant()}");
+                if (ArgUtil.HasFlag(args, "--broadcast"))
+                {
+                    var chainRegistryValue = ArgUtil.Get(args, "--chain-registry", "");
+                    if (!UInt160.TryParse(chainRegistryValue, out var chainRegistry)
+                        || chainRegistry == UInt160.Zero)
+                    {
+                        Console.Error.WriteLine("--chain-registry <UInt160> is required with --broadcast");
+                        return Task.FromResult(5);
+                    }
+                    using var scriptBuilder = new ScriptBuilder();
+                    scriptBuilder.EmitDynamicCall(
+                        chainRegistry,
+                        "registerChain",
+                        chainId,
+                        bytes,
+                        genesisStateRoot);
+                    return OperatorTransactionBroadcaster.BroadcastAsync(
+                        args,
+                        scriptBuilder.ToArray(),
+                        $"chain {chainId} registration");
+                }
                 Console.WriteLine();
                 Console.WriteLine($"Next steps:");
-                Console.WriteLine($"  1. Sign + submit registerChain({chainId}, 0x{Convert.ToHexString(bytes).ToLowerInvariant()}) via your wallet RPC");
+                Console.WriteLine($"  1. Add --broadcast --rpc <url> --expected-network <magic> --chain-registry <hash>");
+                Console.WriteLine(
+                    $"     to sign + submit registerChain({chainId}, 0x{Convert.ToHexString(bytes).ToLowerInvariant()}, {genesisStateRoot})");
+                Console.WriteLine($"     Sign with NEO_N4_OPERATOR_WIF or --signer-command (docs/operator-signer-command-protocol.md).");
                 Console.WriteLine($"  2. Verify on L1 by calling ChainRegistry.isActive({chainId})");
                 return Task.FromResult(0);
             }
@@ -104,7 +136,7 @@ internal static class RegisterChainCommand
             }
         }
 
-        Console.WriteLine($"  Args            : (chainId={chainId}, configBytes=<encoded>)");
+        Console.WriteLine($"  Args            : (chainId={chainId}, configBytes=<encoded>, genesisStateRoot=<required>)");
         Console.WriteLine($"  Config bytes    : {configJson.Length} chars (will be NEO-serialized to bytes)");
         Console.WriteLine();
         Console.WriteLine($"--- chain config preview ---");
@@ -119,9 +151,10 @@ internal static class RegisterChainCommand
         Console.WriteLine($"  2. Re-run register-chain with the four wallet-returned hashes:");
         Console.WriteLine($"       neo-stack register-chain --chain-id {chainId} \\");
         Console.WriteLine($"         --operator <real hash> --verifier <real hash> \\");
-        Console.WriteLine($"         --bridge <real hash> --message <real hash>");
+        Console.WriteLine($"         --bridge <real hash> --message <real hash> \\");
+        Console.WriteLine($"         --genesis-state-root <authenticated non-zero UInt256>");
         Console.WriteLine($"     to emit the canonical 91-byte configBytes hex (ready for wallet-side submission).");
-        Console.WriteLine($"  3. Sign + submit registerChain({chainId}, <configBytes>) via your wallet RPC.");
+        Console.WriteLine($"  3. Sign + submit registerChain({chainId}, <configBytes>, <genesisStateRoot>) via your wallet RPC.");
         Console.WriteLine($"  4. Verify on L1 by calling ChainRegistry.isActive({chainId}).");
         Console.WriteLine();
         Console.WriteLine($"(Wallet integration is operator-specific — wire your signer via Neo.L2.Settlement.Rpc.RpcSettlementClient.)");
@@ -132,13 +165,13 @@ internal static class RegisterChainCommand
 
 internal static class DeployBridgeAdapterCommand
 {
-    public static Task<int> RunAsync(string[] args)
+    public static async Task<int> RunAsync(string[] args)
     {
         var rawChainId = ArgUtil.Get(args, "--chain-id", "1001");
         if (!uint.TryParse(rawChainId, out var parsed))
         {
             Console.Error.WriteLine($"--chain-id must be a non-negative integer, got '{rawChainId}'");
-            return Task.FromResult(1);
+            return 1;
         }
         var chainId = Neo.L2.ChainIdValidator.ValidateL2(parsed, "--chain-id");
 
@@ -158,7 +191,7 @@ internal static class DeployBridgeAdapterCommand
             {
                 Console.Error.WriteLine($"Missing config: {configPath}");
                 Console.Error.WriteLine("Run `neo-stack create-chain --chain-id <id>` first.");
-                return Task.FromResult(2);
+                return 2;
             }
         }
 
@@ -182,96 +215,123 @@ internal static class DeployBridgeAdapterCommand
         Console.WriteLine($"  4. Verify lookup + decimals: TokenRegistry.GetL2Asset/GetL1Decimals/GetL2Decimals and L2BridgeContract.GetL2Asset/GetL1Decimals/GetL2Decimals");
         Console.WriteLine();
         Console.WriteLine($"(No L2Native contract is deployed after genesis; L1 setup still needs the contract owner and operator-specific signing.)");
-        return Task.FromResult(0);
-    }
-}
+        if (!ArgUtil.HasFlag(args, "--broadcast")) return 0;
 
-/// <summary>
-/// Shared pre-flight checks for the start-* commands. Without these, an operator who
-/// runs <c>start-sequencer</c> without first running <c>create-chain</c>/<c>init-l2</c>
-/// would get a confusing error from the underlying plugin host. Surface the misconfig
-/// here with a clear remediation instead.
-/// </summary>
-internal static class StartCommandPreflight
-{
-    public static int Verify(string[] args, string roleName, out string chainDir, out string configPath)
-    {
-        chainDir = ""; configPath = "";
-        var rawChainId = ArgUtil.Get(args, "--chain-id", "1001");
-        if (!uint.TryParse(rawChainId, out var parsed))
+        if (!TryBuildMapping(args, chainId, out var mapping)) return 3;
+        var mappingBytes = AssetMappingSerializer.Encode(mapping);
+        var side = ArgUtil.Get(args, "--side", "both").ToLowerInvariant();
+        if (side is not ("l1" or "l2" or "both"))
         {
-            Console.Error.WriteLine($"--chain-id must be a non-negative integer, got '{rawChainId}'");
-            return 1;
+            Console.Error.WriteLine("--side must be l1, l2, or both");
+            return 4;
         }
-        var chainId = Neo.L2.ChainIdValidator.ValidateL2(parsed, "--chain-id");
-        // Accept both --output (the create-chain default flag, matches the Quick-path
-        // walkthrough in launching-an-l2.md) and --path (the original flag — kept for
-        // backwards compatibility). --output takes precedence when both are supplied,
-        // mirroring InitL2Command's pattern. Without this, the documented 5-command
-        // path `neo-stack start-sequencer --chain-id N --output ./my-l2` would silently
-        // fall back to ./chain-N and fail with "Chain dir not found".
-        var outputFlag = ArgUtil.Get(args, "--output", "");
-        chainDir = outputFlag.Length > 0
-            ? outputFlag
-            : ArgUtil.Get(args, "--path", $"./chain-{chainId}");
-        if (!System.IO.Directory.Exists(chainDir))
+
+        Console.WriteLine();
+        Console.WriteLine($"Canonical TokenRegistry mapping: 0x{Convert.ToHexString(mappingBytes).ToLowerInvariant()}");
+
+        if (side is "l1" or "both")
         {
-            Console.Error.WriteLine($"Chain dir not found: {chainDir}");
-            Console.Error.WriteLine("Run `neo-stack create-chain --chain-id <id>` followed by `neo-stack init-l2 --chain-id <id>` first.");
-            return 2;
+            var tokenRegistryValue = ArgUtil.Get(args, "--token-registry", "");
+            if (!UInt160.TryParse(tokenRegistryValue, out var tokenRegistry)
+                || tokenRegistry == UInt160.Zero)
+            {
+                Console.Error.WriteLine("--token-registry <UInt160> is required for L1 mapping registration");
+                return 5;
+            }
+            using var l1Script = new ScriptBuilder();
+            l1Script.EmitDynamicCall(tokenRegistry, "registerMapping", mappingBytes);
+            var l1Result = await OperatorTransactionBroadcaster.BroadcastAsync(
+                args,
+                l1Script.ToArray(),
+                $"L1 asset mapping for chain {chainId}",
+                optionPrefix: "l1");
+            if (l1Result != 0) return l1Result;
         }
-        configPath = System.IO.Path.Combine(chainDir, "chain.config.json");
-        if (!System.IO.File.Exists(configPath))
+
+        if (side is "l2" or "both")
         {
-            Console.Error.WriteLine($"Missing config: {configPath}");
-            Console.Error.WriteLine("Run `neo-stack create-chain --chain-id <id>` first.");
-            return 3;
+            using var l2Script = new ScriptBuilder();
+            var ownerValue = ArgUtil.Get(args, "--l2-owner", "");
+            var systemAccountValue = ArgUtil.Get(args, "--l2-system-account", "");
+            if (ownerValue.Length > 0 || systemAccountValue.Length > 0)
+            {
+                if (!TryParseNonZeroHash(ownerValue, "--l2-owner", out var owner)
+                    || !TryParseNonZeroHash(systemAccountValue, "--l2-system-account", out var systemAccount))
+                {
+                    return 6;
+                }
+                l2Script.EmitDynamicCall(NativeContract.L2Bridge.Hash, "configure", owner, systemAccount);
+            }
+            l2Script.EmitDynamicCall(
+                NativeContract.L2Bridge.Hash,
+                "registerMapping",
+                mapping.L1Asset,
+                mapping.L2Asset,
+                mapping.L1Decimals,
+                mapping.L2Decimals);
+            var l2Result = await OperatorTransactionBroadcaster.BroadcastAsync(
+                args,
+                l2Script.ToArray(),
+                $"L2 native bridge mapping for chain {chainId}",
+                optionPrefix: "l2");
+            if (l2Result != 0) return l2Result;
         }
-        Console.WriteLine($"Pre-flight OK for {roleName}:");
-        Console.WriteLine($"  chainDir   = {chainDir}");
-        Console.WriteLine($"  configPath = {configPath}");
+
         return 0;
     }
-}
 
-internal static class StartSequencerCommand
-{
-    public static int Run(string[] args)
+    private static bool TryBuildMapping(string[] args, uint chainId, out AssetMapping mapping)
     {
-        var rc = StartCommandPreflight.Verify(args, "sequencer", out _, out _);
-        if (rc != 0) return rc;
-        Console.WriteLine();
-        Console.WriteLine("Compose with neo-cli:");
-        Console.WriteLine("  1. Copy Neo.Plugins.L2Batch + Neo.Plugins.L2Prover + Neo.Plugins.L2Settlement into <chainDir>/Plugins");
-        Console.WriteLine("  2. Set DBFTPlugin's validator selector to your ISequencerCommitteeProvider");
-        Console.WriteLine("  3. neo-cli --datadir <chainDir>/data --plugins-dir <chainDir>/Plugins");
-        return 0;
+        mapping = null!;
+        if (!TryParseNonZeroHash(ArgUtil.Get(args, "--l1-asset", ""), "--l1-asset", out var l1Asset)
+            || !TryParseNonZeroHash(ArgUtil.Get(args, "--l2-asset", ""), "--l2-asset", out var l2Asset))
+        {
+            return false;
+        }
+        var assetTypeValue = ArgUtil.Get(args, "--asset-type", "");
+        if (!Enum.TryParse<AssetType>(assetTypeValue, ignoreCase: true, out var assetType)
+            || !Enum.IsDefined(assetType))
+        {
+            Console.Error.WriteLine("--asset-type must be a named AssetType value");
+            return false;
+        }
+        if (!byte.TryParse(ArgUtil.Get(args, "--l1-decimals", ""), out var l1Decimals)
+            || l1Decimals > AssetAmount.MaxDecimals)
+        {
+            Console.Error.WriteLine($"--l1-decimals must be between 0 and {AssetAmount.MaxDecimals}");
+            return false;
+        }
+        if (!byte.TryParse(ArgUtil.Get(args, "--l2-decimals", ""), out var l2Decimals)
+            || l2Decimals > AssetAmount.MaxDecimals)
+        {
+            Console.Error.WriteLine($"--l2-decimals must be between 0 and {AssetAmount.MaxDecimals}");
+            return false;
+        }
+        mapping = new AssetMapping
+        {
+            L1Asset = l1Asset,
+            L2ChainId = chainId,
+            L2Asset = l2Asset,
+            AssetType = assetType,
+            MintBurn = true,
+            LockMint = true,
+            L1Decimals = l1Decimals,
+            L2Decimals = l2Decimals,
+            Active = true,
+        };
+        return true;
     }
-}
 
-internal static class StartBatcherCommand
-{
-    public static int Run(string[] args)
+    private static bool TryParseNonZeroHash(string value, string option, out UInt160 hash)
     {
-        var rc = StartCommandPreflight.Verify(args, "batcher", out _, out _);
-        if (rc != 0) return rc;
-        Console.WriteLine();
-        Console.WriteLine("The batcher is hosted by Neo.Plugins.L2Batch — load it via neo-cli on a Neo 4 sequencer node.");
-        Console.WriteLine("It hooks Blockchain.Committed and seals batches via BatchSealer (configurable triggers: blocks, txs, age).");
-        return 0;
-    }
-}
-
-internal static class StartProverCommand
-{
-    public static int Run(string[] args)
-    {
-        var rc = StartCommandPreflight.Verify(args, "prover", out _, out _);
-        if (rc != 0) return rc;
-        Console.WriteLine();
-        Console.WriteLine("The prover is hosted by Neo.Plugins.L2Prover — load it via neo-cli on a sequencer or dedicated prover node.");
-        Console.WriteLine("ProofType is configured per chain: Multisig (Phase 0/1), Optimistic (Phase 3), Zk (Phase 4).");
-        return 0;
+        if (UInt160.TryParse(value, out var parsed) && parsed is not null && parsed != UInt160.Zero)
+        {
+            hash = parsed;
+            return true;
+        }
+        Console.Error.WriteLine($"{option} <non-zero UInt160> is required with --broadcast");
+        hash = UInt160.Zero;
+        return false;
     }
 }
 
@@ -323,9 +383,50 @@ internal static class SubmitBatchCommand
         Console.WriteLine($"  preStateRoot  : {commitment.PreStateRoot}");
         Console.WriteLine($"  postStateRoot : {commitment.PostStateRoot}");
         Console.WriteLine($"  proofType     : {commitment.ProofType} ({commitment.Proof.Length} bytes)");
+        if (ArgUtil.HasFlag(args, "--broadcast"))
+        {
+            var settlementManagerValue = ArgUtil.Get(args, "--settlement-manager", "");
+            if (!UInt160.TryParse(settlementManagerValue, out var settlementManager)
+                || settlementManager == UInt160.Zero)
+            {
+                Console.Error.WriteLine("--settlement-manager <UInt160> is required with --broadcast");
+                return Task.FromResult(5);
+            }
+
+            if (!TryParseHash256(args, "--l1-message-hash", out var l1MessageHash)
+                || !TryParseHash256(args, "--block-context-hash", out var blockContextHash))
+            {
+                return Task.FromResult(6);
+            }
+
+            using var scriptBuilder = new ScriptBuilder();
+            scriptBuilder.EmitDynamicCall(
+                settlementManager,
+                "submitBatch",
+                CallFlags.All,
+                bytes,
+                l1MessageHash.GetSpan().ToArray(),
+                blockContextHash.GetSpan().ToArray());
+            return OperatorTransactionBroadcaster.BroadcastAsync(
+                args,
+                scriptBuilder.ToArray(),
+                $"batch {commitment.ChainId}/{commitment.BatchNumber} submission");
+        }
         Console.WriteLine();
-        Console.WriteLine($"Validation passed. Would submit to NeoHub.SettlementManager.SubmitBatch on the configured L1.");
-        Console.WriteLine($"(L1 wallet integration is operator-specific — wire RpcSettlementClient + ISigner via Neo.L2.Settlement.Rpc.)");
+        Console.WriteLine($"Validation passed. Add --broadcast plus RPC, network, contract, public-input hashes, and a signer to submit on L1.");
         return Task.FromResult(0);
+    }
+
+    private static bool TryParseHash256(string[] args, string option, out UInt256 hash)
+    {
+        var value = ArgUtil.Get(args, option, "");
+        if (UInt256.TryParse(value, out var parsed) && parsed is not null && parsed != UInt256.Zero)
+        {
+            hash = parsed;
+            return true;
+        }
+        Console.Error.WriteLine($"{option} <non-zero UInt256> is required with --broadcast");
+        hash = UInt256.Zero;
+        return false;
     }
 }

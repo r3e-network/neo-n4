@@ -4,11 +4,15 @@ using Neo.Cryptography.ECC;
 using Neo.L2.Batch;
 using Neo.L2.Bridge;
 using Neo.L2.Executor;
+using Neo.L2.Executor.Effects;
 using Neo.L2.Executor.Receipts;
 using Neo.L2.Messaging;
 using Neo.L2.Proving;
 using Neo.L2.Proving.Attestation;
 using Neo.L2.State;
+using Neo.SmartContract;
+using Neo.SmartContract.Native;
+using Neo.VM.Types;
 
 namespace Neo.L2.IntegrationTests;
 
@@ -84,8 +88,8 @@ public class UT_Mvp_Phase0_Sidechain
         var withdrawalProcessor = new WithdrawalProcessor(LocalChainId, registry);
         var withdrawal = new WithdrawalRequest
         {
-            ChainId = 1U,
-            EmittingContract = UInt160.Zero,
+            ChainId = LocalChainId,
+            EmittingContract = NativeContract.L2Bridge.Hash,
             L2Sender = Alice,
             L1Recipient = Bob,
             L2Asset = GasL2,
@@ -108,17 +112,25 @@ public class UT_Mvp_Phase0_Sidechain
         var txBytes = new ReadOnlyMemory<byte>(new byte[] { 0xDE, 0xAD, 0xBE, 0xEF });
         var txHash = new UInt256(Crypto.Hash256(txBytes.Span));
 
-        var effects = new MapEffectsCollector(new Dictionary<UInt256, BatchEffects>
-        {
-            [txHash] = new BatchEffects
-            {
-                Withdrawals = new[] { withdrawal },
-                Messages = Array.Empty<CrossChainMessage>(),
-            },
-        });
+        var effects = CanonicalExecutionEffects.Create(
+            [],
+            [
+                new NotifyEventArgs(
+                    null,
+                    NativeContract.L2Bridge.Hash,
+                    "WithdrawalEmitted",
+                    new Neo.VM.Types.Array(null,
+                    [
+                        new ByteString(Alice.GetSpan().ToArray()),
+                        new ByteString(Bob.GetSpan().ToArray()),
+                        new ByteString(GasL2.GetSpan().ToArray()),
+                        new Integer(withdrawal.Amount),
+                        new Integer(withdrawal.Nonce),
+                    ])),
+            ]);
 
         var executor = new ReferenceBatchExecutor(
-            new ReferenceTransactionExecutor(effects),
+            new CanonicalEffectsExecutor(txHash, effects),
             new DerivedPostStateRootOracle(),
             new ApplyDepositL1Processor(depositProcessor));
 
@@ -128,7 +140,7 @@ public class UT_Mvp_Phase0_Sidechain
             BatchNumber = 1,
             PreStateRoot = UInt256.Zero,
             Transactions = new[] { txBytes },
-            L1MessagesConsumed = Array.Empty<CrossChainMessage>(), // already processed above
+            L1MessagesConsumed = System.Array.Empty<CrossChainMessage>(), // already processed above
             BlockContext = blockContext,
         };
         var execResult = await executor.ApplyBatchAsync(execRequest);
@@ -194,12 +206,31 @@ public class UT_Mvp_Phase0_Sidechain
         Assert.IsTrue(State.MerkleTree.Verify(proof, root));
     }
 
-    /// <summary>Test-only effects collector backed by a dictionary.</summary>
-    private sealed class MapEffectsCollector : IBatchEffectsCollector
+    private sealed class CanonicalEffectsExecutor(
+        UInt256 txHash,
+        CanonicalExecutionEffects effects) : ITransactionExecutor
     {
-        private readonly Dictionary<UInt256, BatchEffects> _map;
-        public MapEffectsCollector(IDictionary<UInt256, BatchEffects> map) => _map = new(map);
-        public BatchEffects GetEffects(UInt256 txHash) => _map.TryGetValue(txHash, out var e) ? e : BatchEffects.Empty;
+        public TransactionEffectsProfile EffectsProfile => TransactionEffectsProfile.CanonicalNativeV1;
+
+        public ValueTask<TransactionExecutionResult> ExecuteAsync(
+            ReadOnlyMemory<byte> serializedTx,
+            BatchBlockContext batchContext,
+            CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(new TransactionExecutionResult
+            {
+                TxHash = txHash,
+                Receipt = new Receipt
+                {
+                    TxHash = txHash,
+                    Success = true,
+                    GasConsumed = 1,
+                    StorageDeltaHash = effects.StorageHash,
+                    EventsHash = effects.EventsHash,
+                },
+                Withdrawals = [],
+                Messages = [],
+                Effects = effects,
+            });
     }
 
     /// <summary>Test-only L1 message processor that pipes deposits into a real DepositProcessor.</summary>
@@ -207,10 +238,14 @@ public class UT_Mvp_Phase0_Sidechain
     {
         private readonly DepositProcessor _depositProcessor;
         public ApplyDepositL1Processor(DepositProcessor depositProcessor) => _depositProcessor = depositProcessor;
-        public ValueTask ApplyAsync(CrossChainMessage message, CancellationToken cancellationToken = default)
+        public ValueTask ApplyBatchAsync(
+            uint chainId,
+            IReadOnlyList<CrossChainMessage> messages,
+            CancellationToken cancellationToken = default)
         {
-            if (message.MessageType == MessageType.Deposit)
-                _depositProcessor.Process(message);
+            foreach (var message in messages)
+                if (message.MessageType == MessageType.Deposit)
+                    _depositProcessor.Process(message);
             return ValueTask.CompletedTask;
         }
     }

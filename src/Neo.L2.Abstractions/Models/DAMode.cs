@@ -4,7 +4,9 @@ namespace Neo.L2;
 /// Data Availability mode advertised by an L2 chain. Recorded in <c>NeoHub.DARegistry</c>.
 /// </summary>
 /// <remarks>
-/// See doc.md §7.4 and §12. Cost decreases and risk increases as the number rises.
+/// See doc.md §7.4 and §12. Values 0 through 3 are public security labels. The
+/// <see cref="Local"/> sentinel is reserved for operator-local durability and tests; it
+/// must never be registered as a chain's public DA mode.
 /// </remarks>
 public enum DAMode : byte
 {
@@ -19,4 +21,19 @@ public enum DAMode : byte
 
     /// <summary>Data Availability Committee — fixed set of signers attest to availability. Lowest cost, highest risk.</summary>
     DAC = 3,
+
+    /// <summary>
+    /// Process-local or node-local storage. This is durability, not public data
+    /// availability, and is rejected by canonical ChainRegistry encoders.
+    /// </summary>
+    Local = byte.MaxValue,
+}
+
+/// <summary>Classification helpers for public and local DA modes.</summary>
+/// <remarks>See doc.md §7.4 and §12.</remarks>
+public static class DAModeExtensions
+{
+    /// <summary>Return whether a mode may be advertised through ChainRegistry.</summary>
+    public static bool IsPublic(this DAMode mode)
+        => mode is DAMode.L1 or DAMode.NeoFS or DAMode.External or DAMode.DAC;
 }

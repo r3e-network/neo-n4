@@ -15,6 +15,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Neo.L2.Persistence\Neo.L2.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Batch\Neo.L2.Batch.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.State\Neo.L2.State.csproj" />
     <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
   </ItemGroup>
 

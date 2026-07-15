@@ -7,6 +7,7 @@ mod deposit_status_response;
 mod l2_batch_view;
 mod security_label_response;
 mod security_level_response;
+mod wire;
 
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Duration;
@@ -130,23 +131,23 @@ impl ProofType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BatchStatus {
+    Unknown,
     Pending,
     Challengeable,
     Finalized,
-    Challenged,
-    Slashed,
-    Unknown(u8),
+    Reverted,
+    Unrecognized(u8),
 }
 
 impl BatchStatus {
     pub fn from_u8(b: u8) -> Self {
         match b {
-            0 => Self::Pending,
-            1 => Self::Challengeable,
-            2 => Self::Finalized,
-            3 => Self::Challenged,
-            4 => Self::Slashed,
-            other => Self::Unknown(other),
+            0 => Self::Unknown,
+            1 => Self::Pending,
+            2 => Self::Challengeable,
+            3 => Self::Finalized,
+            4 => Self::Reverted,
+            other => Self::Unrecognized(other),
         }
     }
 }
@@ -205,9 +206,9 @@ impl L2RpcClient {
         }
         // Validate URL via reqwest's parsing — keeps the dep tree minimal vs
         // adding a top-level `url` crate.
-        let parsed = reqwest::Url::parse(&endpoint).map_err(|e| L2RpcError::Protocol {
+        let parsed = reqwest::Url::parse(&endpoint).map_err(|error| L2RpcError::Protocol {
             method: "<ctor>".to_string(),
-            message: format!("invalid endpoint URL: {}", e),
+            message: format!("invalid endpoint URL: {error}"),
         })?;
         if parsed.scheme() != "http" && parsed.scheme() != "https" {
             return Err(L2RpcError::Protocol {
@@ -218,9 +219,9 @@ impl L2RpcClient {
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
-            .map_err(|e| L2RpcError::Transport {
+            .map_err(|error| L2RpcError::Transport {
                 method: "<ctor>".to_string(),
-                message: format!("http client init: {}", e),
+                message: format!("http client init: {error}"),
             })?;
         Ok(Self {
             endpoint,
@@ -238,22 +239,31 @@ impl L2RpcClient {
         let value = self
             .call(
                 "getl2batch",
-                serde_json::json!([self.chain_id, batch_number]),
+                serde_json::json!([self.chain_id, u64_wire(batch_number)]),
             )
             .await?;
         if value.is_null() {
             return Ok(None);
         }
         let batch: L2BatchView =
-            serde_json::from_value(value).map_err(|e| L2RpcError::Protocol {
+            serde_json::from_value(value).map_err(|error| L2RpcError::Protocol {
                 method: "getl2batch".to_string(),
-                message: format!("decode failed: {}", e),
+                message: format!("decode failed: {error}"),
             })?;
         if batch.chain_id != self.chain_id {
             return Err(L2RpcError::MismatchedChainId {
                 method: "getl2batch".to_string(),
                 expected: self.chain_id,
                 got: batch.chain_id,
+            });
+        }
+        if batch.batch_number != batch_number {
+            return Err(L2RpcError::Protocol {
+                method: "getl2batch".to_string(),
+                message: format!(
+                    "response batchNumber {} does not match request {}",
+                    batch.batch_number, batch_number
+                ),
             });
         }
         Ok(Some(batch))
@@ -263,19 +273,28 @@ impl L2RpcClient {
         let value = self
             .call(
                 "getl2batchstatus",
-                serde_json::json!([self.chain_id, batch_number]),
+                serde_json::json!([self.chain_id, u64_wire(batch_number)]),
             )
             .await?;
         let resp: BatchStatusResponse =
-            serde_json::from_value(value).map_err(|e| L2RpcError::Protocol {
+            serde_json::from_value(value).map_err(|error| L2RpcError::Protocol {
                 method: "getl2batchstatus".to_string(),
-                message: format!("decode failed: {}", e),
+                message: format!("decode failed: {error}"),
             })?;
         if resp.chain_id != self.chain_id {
             return Err(L2RpcError::MismatchedChainId {
                 method: "getl2batchstatus".to_string(),
                 expected: self.chain_id,
                 got: resp.chain_id,
+            });
+        }
+        if resp.batch_number != batch_number {
+            return Err(L2RpcError::Protocol {
+                method: "getl2batchstatus".to_string(),
+                message: format!(
+                    "response batchNumber {} does not match request {}",
+                    resp.batch_number, batch_number
+                ),
             });
         }
         Ok(resp)
@@ -298,7 +317,7 @@ impl L2RpcClient {
         let value = self
             .call(
                 "getl2stateroot",
-                serde_json::json!([self.chain_id, batch_number]),
+                serde_json::json!([self.chain_id, u64_wire(batch_number)]),
             )
             .await?;
         value
@@ -324,9 +343,11 @@ impl L2RpcClient {
             method: "getl2withdrawalproof".to_string(),
             message: "expected hex string".to_string(),
         })?;
-        Ok(Some(hex_decode(hex).map_err(|e| L2RpcError::Protocol {
-            method: "getl2withdrawalproof".to_string(),
-            message: format!("invalid hex: {}", e),
+        Ok(Some(hex_decode(hex).map_err(|error| {
+            L2RpcError::Protocol {
+                method: "getl2withdrawalproof".to_string(),
+                message: format!("invalid hex: {error}"),
+            }
         })?))
     }
 
@@ -344,9 +365,11 @@ impl L2RpcClient {
             method: "getl2messageproof".to_string(),
             message: "expected hex string".to_string(),
         })?;
-        Ok(Some(hex_decode(hex).map_err(|e| L2RpcError::Protocol {
-            method: "getl2messageproof".to_string(),
-            message: format!("invalid hex: {}", e),
+        Ok(Some(hex_decode(hex).map_err(|error| {
+            L2RpcError::Protocol {
+                method: "getl2messageproof".to_string(),
+                message: format!("invalid hex: {error}"),
+            }
         })?))
     }
 
@@ -358,16 +381,16 @@ impl L2RpcClient {
         let value = self
             .call(
                 "getl1depositstatus",
-                serde_json::json!([source_chain_id, nonce]),
+                serde_json::json!([source_chain_id, u64_wire(nonce)]),
             )
             .await?;
         if value.is_null() {
             return Ok(None);
         }
         let resp: DepositStatusResponse =
-            serde_json::from_value(value).map_err(|e| L2RpcError::Protocol {
+            serde_json::from_value(value).map_err(|error| L2RpcError::Protocol {
                 method: "getl1depositstatus".to_string(),
-                message: format!("decode failed: {}", e),
+                message: format!("decode failed: {error}"),
             })?;
         // Cross-check the requested source-chain matches what came back. A misbehaving
         // server returning another L1's deposit would otherwise sail through and the
@@ -377,6 +400,15 @@ impl L2RpcClient {
                 method: "getl1depositstatus".to_string(),
                 expected: source_chain_id,
                 got: resp.source_chain_id,
+            });
+        }
+        if resp.nonce != nonce {
+            return Err(L2RpcError::Protocol {
+                method: "getl1depositstatus".to_string(),
+                message: format!(
+                    "response nonce {} does not match request {}",
+                    resp.nonce, nonce
+                ),
             });
         }
         Ok(Some(resp))
@@ -399,7 +431,10 @@ impl L2RpcClient {
 
     pub async fn get_bridged_asset(&self, l1_asset: &str) -> Result<Option<String>> {
         let value = self
-            .call("getbridgedasset", serde_json::json!([l1_asset]))
+            .call(
+                "getbridgedasset",
+                serde_json::json!([l1_asset, self.chain_id]),
+            )
             .await?;
         if value.is_null() {
             return Ok(None);
@@ -417,9 +452,9 @@ impl L2RpcClient {
             .call("getsecuritylevel", serde_json::json!([self.chain_id]))
             .await?;
         let resp: SecurityLevelResponse =
-            serde_json::from_value(value).map_err(|e| L2RpcError::Protocol {
+            serde_json::from_value(value).map_err(|error| L2RpcError::Protocol {
                 method: "getsecuritylevel".to_string(),
-                message: format!("decode failed: {}", e),
+                message: format!("decode failed: {error}"),
             })?;
         if resp.chain_id != self.chain_id {
             return Err(L2RpcError::MismatchedChainId {
@@ -436,9 +471,9 @@ impl L2RpcClient {
             .call("getsecuritylabel", serde_json::json!([self.chain_id]))
             .await?;
         let resp: SecurityLabelResponse =
-            serde_json::from_value(value).map_err(|e| L2RpcError::Protocol {
+            serde_json::from_value(value).map_err(|error| L2RpcError::Protocol {
                 method: "getsecuritylabel".to_string(),
-                message: format!("decode failed: {}", e),
+                message: format!("decode failed: {error}"),
             })?;
         if resp.chain_id != self.chain_id {
             return Err(L2RpcError::MismatchedChainId {
@@ -465,9 +500,9 @@ impl L2RpcClient {
             .json(&body)
             .send()
             .await
-            .map_err(|e| L2RpcError::Transport {
+            .map_err(|error| L2RpcError::Transport {
                 method: method.to_string(),
-                message: format!("send failed: {}", e),
+                message: format!("send failed: {error}"),
             })?;
 
         let status = response.status();
@@ -483,23 +518,29 @@ impl L2RpcClient {
             };
             return Err(L2RpcError::Transport {
                 method: method.to_string(),
-                message: format!("http {}: {}", status, snippet),
+                message: format!("http {status}: {snippet}"),
             });
         }
 
         let envelope: serde_json::Value =
-            response.json().await.map_err(|e| L2RpcError::Protocol {
+            response
+                .json()
+                .await
+                .map_err(|error| L2RpcError::Protocol {
+                    method: method.to_string(),
+                    message: format!("parse error: {error}"),
+                })?;
+        if envelope.get("jsonrpc").and_then(|value| value.as_str()) != Some("2.0") {
+            return Err(L2RpcError::Protocol {
                 method: method.to_string(),
-                message: format!("parse error: {}", e),
-            })?;
+                message: "response jsonrpc must be '2.0'".to_string(),
+            });
+        }
         let response_id = envelope.get("id").and_then(|v| v.as_i64()).unwrap_or(-1);
         if response_id != id {
             return Err(L2RpcError::Protocol {
                 method: method.to_string(),
-                message: format!(
-                    "response id {} does not match request id {}",
-                    response_id, id
-                ),
+                message: format!("response id {response_id} does not match request id {id}"),
             });
         }
         if let Some(error) = envelope.get("error").filter(|v| !v.is_null()) {
@@ -519,14 +560,24 @@ impl L2RpcClient {
                 message: msg,
             });
         }
-        Ok(envelope
+        envelope
             .get("result")
             .cloned()
-            .unwrap_or(serde_json::Value::Null))
+            .ok_or_else(|| L2RpcError::Protocol {
+                method: method.to_string(),
+                message: "response is missing result".to_string(),
+            })
     }
 }
 
+fn u64_wire(value: u64) -> String {
+    value.to_string()
+}
+
 fn hex_decode(s: &str) -> std::result::Result<Vec<u8>, String> {
-    let s = s.strip_prefix("0x").unwrap_or(s);
+    let s = s
+        .strip_prefix("0x")
+        .or_else(|| s.strip_prefix("0X"))
+        .unwrap_or(s);
     hex::decode(s).map_err(|e| format!("invalid hex: {e}"))
 }

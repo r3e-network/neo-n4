@@ -1,7 +1,10 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using Neo;
 using Neo.Stack.Cli.Commands;
+using Neo.Wallets;
+using Neo.Wallets.NEP6;
 
 namespace Neo.Stack.Cli.UnitTests;
 
@@ -35,6 +38,8 @@ namespace Neo.Stack.Cli.UnitTests;
 [TestClass]
 public class UT_QuickPathIntegration
 {
+    private const string ValidatorPrivateKey = "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20";
+    private static readonly string Validator = new KeyPair(Convert.FromHexString(ValidatorPrivateKey)).PublicKey.ToString();
     private string _tempDir = null!;
 
     [TestInitialize]
@@ -68,16 +73,85 @@ public class UT_QuickPathIntegration
         var validateRc = ValidateChainConfigCommand.Run(new[] { configPath });
         Assert.AreEqual(0, validateRc, "validate must accept create-chain's output");
 
+        File.WriteAllText(
+            configPath,
+            File.ReadAllText(configPath).Replace(
+                "\"validators\": []",
+                $"\"validators\": [\"{Validator}\"]",
+                StringComparison.Ordinal));
+        var nodeConfigSource = Path.Combine(_tempDir, "node-config-source.json");
+        File.WriteAllText(nodeConfigSource, $$"""
+            {
+              "ApplicationConfiguration": {
+                "Storage": { "Path": "{{Path.Combine(_tempDir, "data")}}" },
+                "UnlockWallet": {
+                  "Path": "validator.json",
+                  "Password": "test-only",
+                  "IsActive": true
+                }
+              },
+              "ProtocolConfiguration": {
+                "Network": 123456789,
+                "MillisecondsPerBlock": 5000,
+                "ValidatorsCount": 1,
+                "StandbyCommittee": ["{{Validator}}"]
+              }
+            }
+            """);
+        var batcherConfigSource = Path.Combine(_tempDir, "batcher-node-config-source.json");
+        File.WriteAllText(batcherConfigSource, $$"""
+            {
+              "ApplicationConfiguration": {
+                "Storage": { "Path": "{{Path.Combine(_tempDir, "batcher-data")}}" }
+              },
+              "ProtocolConfiguration": {
+                "Network": 123456789,
+                "MillisecondsPerBlock": 5000,
+                "ValidatorsCount": 1,
+                "StandbyCommittee": ["{{Validator}}"]
+              }
+            }
+            """);
+
         // 3. init-l2
         var initRc = InitL2Command.Run(new[]
         {
             "--chain-id", "1099",
             "--output", _tempDir,
+            "--node-config", nodeConfigSource,
+            "--batcher-node-config", batcherConfigSource,
         });
         Assert.AreEqual(0, initRc, "init-l2 must accept the created chain dir + config");
         Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "data")));
         Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "logs")));
         Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "Plugins")));
+        var neoCli = Path.Combine(_tempDir, "node", "Neo.CLI.dll");
+        var batcherNeoCli = Path.Combine(_tempDir, "batcher-node", "Neo.CLI.dll");
+        var prover = Path.Combine(_tempDir, "prover", "prove-batch.dll");
+        Directory.CreateDirectory(Path.Combine(_tempDir, "node", "Plugins", "DBFTPlugin"));
+        Directory.CreateDirectory(Path.Combine(_tempDir, "batcher-node", "Plugins", "Neo.Plugins.L2Batch"));
+        File.WriteAllBytes(neoCli, [0]);
+        File.WriteAllBytes(batcherNeoCli, [0]);
+        File.WriteAllBytes(prover, [0]);
+        var walletPath = Path.Combine(_tempDir, "node", "validator.json");
+        File.WriteAllText(
+            walletPath,
+            """
+            {"name":"validator","version":"1.0","scrypt":{"n":2,"r":1,"p":1},"accounts":[],"extra":null}
+            """);
+        var wallet = new NEP6Wallet(walletPath, "test-only", ProtocolSettings.Default);
+        wallet.CreateAccount(Convert.FromHexString(ValidatorPrivateKey));
+        wallet.Save();
+        File.WriteAllBytes(Path.Combine(_tempDir, "node", "Plugins", "DBFTPlugin", "DBFTPlugin.dll"), [0]);
+        File.WriteAllText(
+            Path.Combine(_tempDir, "node", "Plugins", "DBFTPlugin", "DBFTPlugin.json"),
+            "{\"PluginConfiguration\":{\"AutoStart\":true}}");
+        File.WriteAllBytes(
+            Path.Combine(_tempDir, "batcher-node", "Plugins", "Neo.Plugins.L2Batch", "Neo.Plugins.L2Batch.dll"),
+            [0]);
+        File.WriteAllText(
+            Path.Combine(_tempDir, "batcher-node", "Plugins", "Neo.Plugins.L2Batch", "config.json"),
+            "{\"PluginConfiguration\":{\"ChainId\":1099}}");
 
         // 4. register-chain (plan-only, no four-hash flags)
         var registerRc = await RegisterChainCommand.RunAsync(new[]
@@ -100,6 +174,8 @@ public class UT_QuickPathIntegration
         {
             "--chain-id", "1099",
             "--output", _tempDir,
+            "--neo-cli", neoCli,
+            "--dry-run",
         });
         Assert.AreEqual(0, seqRc, "start-sequencer preflight must pass");
 
@@ -107,6 +183,8 @@ public class UT_QuickPathIntegration
         {
             "--chain-id", "1099",
             "--output", _tempDir,
+            "--neo-cli", batcherNeoCli,
+            "--dry-run",
         });
         Assert.AreEqual(0, batRc, "start-batcher preflight must pass");
 
@@ -114,6 +192,8 @@ public class UT_QuickPathIntegration
         {
             "--chain-id", "1099",
             "--output", _tempDir,
+            "--prover", prover,
+            "--dry-run",
         });
         Assert.AreEqual(0, provRc, "start-prover preflight must pass");
     }
@@ -147,6 +227,8 @@ public class UT_QuickPathIntegration
                 "--verifier", "0x" + new string('b', 40),
                 "--bridge",   "0x" + new string('c', 40),
                 "--message",  "0x" + new string('d', 40),
+                "--genesis-state-root",
+                "0x0101010101010101010101010101010101010101010101010101010101010101",
             });
             Assert.AreEqual(0, rc);
             var output = sw.ToString();

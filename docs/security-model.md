@@ -7,6 +7,15 @@
 
 ---
 
+## Reporting boundary
+
+[`SECURITY.md`](../SECURITY.md) is authoritative for disclosure routing. Report
+N4 and R3E-authored changes to the private `r3e-network/neo-n4` channel. Report
+unmodified upstream Neo behavior directly to the Neo Project; changes maintained
+in the `r3e-network/neo` fork remain in R3E scope.
+
+---
+
 ## What L1 guarantees
 
 For any L2 chain registered in `NeoHub.ChainRegistry`:
@@ -22,10 +31,14 @@ For any L2 chain registered in `NeoHub.ChainRegistry`:
   prover from signing different inputs than the commitment claims.
 - **ZK verifier boundary.** `ProofType.Zk` routes through the deployable
   `NeoHub.ContractZkVerifier` router. The router validates the commitment/proof
-  envelope and registered verification-key id, then calls the configured
-  deployable verifier contract for `verifyZkProof(...)`. Native/precompile
-  acceleration can implement that verifier ABI as an optional optimization, but
-  it is not required for the default NeoHub deployment.
+  envelope and registered verification-key id, then calls the registered
+  terminal verifier for `verifyZkProof(...)`. The production SP1 route binds the
+  immutable `Sp1Groth16Verifier` as its deployable verifier contract. It accepts
+  the exact 356-byte SP1 proof, reconstructs five public inputs, and evaluates the complete SP1
+  v6.1-compatible Groth16 wrapper pairing equation used by SP1 6.2.x using Neo's current BN254
+  interops. The production deployment permanently disables envelope-only
+  acceptance, freezes the exact SP1 program VK and terminal route with
+  `LockProofSystemConfiguration`, then enables the `ProofType.Zk` route.
 - **Replay safety.** Every cross-chain message carries `(chainId, nonce)` and is
   deduped per-pair in `NeoHub.MessageRouter`.
 - **Withdrawal finality.** Funds leave `SharedBridge` only on inclusion proofs
@@ -51,12 +64,16 @@ For any L2 chain registered in `NeoHub.ChainRegistry`:
   bond slashing make stall expensive; escape hatch makes it eventually unwindable.
 
 The right way to think about this: **L1 verifies what the registered verifier
-verifies.** Phase 4 (ZK validity) makes the verifier trustless. Phase 3
+verifies.** Phase 4 can provide cryptographic state-transition validity when the
+registered circuit, VK, terminal verifier, and deployment wiring are all correct. Phase 3
 (optimistic) makes it as trusted as the bisection-game challenge window. Phase
 0–2 stack governance (Neo Council, sequencer bonds) on top of multisig.
-For Phase 4 chains, the registered verifier is `ContractZkVerifier`, and each
-deployable verifier contract it points at is part of that chain's L1 trusted
-computing base.
+For the production SP1 Phase 4 path, `VerifierRegistry` points at
+`ContractZkVerifier`, which is bound to the immutable `Sp1Groth16Verifier`.
+Both contracts, the pinned SP1 circuit/VK, and Neo's BN254 interops are part of
+the L1 trusted computing base. The current VM suite accepts a Rust-produced
+positive proof through the terminal and router and rejects tampered VK,
+public-input, wrapper-field, and proof-point bindings under a pinned fee ceiling.
 
 ---
 
@@ -88,7 +105,7 @@ security claim is downgraded to whatever the worst label could be.**
 
 | #  | Threat                          | Primary mitigation                                                       | Code reference                          |
 | -- | ------------------------------- | ------------------------------------------------------------------------ | --------------------------------------- |
-| 1  | Sequencer censorship            | Forced inclusion + bond slashing + escape hatch                          | `Neo.L2.ForcedInclusion`, `Neo.L2.Censorship` |
+| 1  | Sequencer censorship            | Forced inclusion + permissionless pause + finalized-dBFT-attributed governance slashing + escape hatch | `Neo.L2.ForcedInclusion`, `Neo.L2.Censorship` |
 | 2  | Invalid state root              | ZK validity proof (Phase 4) or optimistic challenge (Phase 3)            | `Neo.L2.Proving.RiscVZk`, `Neo.L2.Challenge` |
 | 3  | Bridge exploit                  | Lock-mint vs burn-unlock invariants; per-chain escrow accounting (a chain's withdrawals can never exceed its own deposits); on-chain proof↔state binding in `SettlementManager`; emergency pause | `NeoHub.SharedBridge` (`GetLockedBalance`), `NeoHub.SettlementManager`, `EmergencyManager` |
 | 4  | Replay attack (cross-chain)     | `(chainId, nonce)` envelope + per-pair dedup                             | `NeoHub.MessageRouter`, `Neo.L2.Messaging.L1MessageInbox` |
@@ -109,19 +126,43 @@ pinning regression test):
 - **Public-input hash equality at the prover boundary.** `L2SettlementPlugin`
   rejects a proof whose `publicInputHash` differs from the settler's computed
   hash, before submitting to L1 — preventing wasted L1 round-trips.
+- **Pinned native SP1 execution boundary.** Production C# execution requires an
+  independently reviewed non-zero SHA-256 for `neo-zkvm-executor`. Every invocation
+  copies the source executable into an isolated directory while hashing it and executes
+  only that digest-matched copy, closing mutable-path and replace-between-check/use
+  ambiguity. Shell command construction is not used.
+- **Validate-before-atomic-state-commit.** Canonical `NEO4EXR1` binds the exact
+  `NEO4EXEC` request, complete pre-state `NEO4STW1`, execution semantic, all roots/gas,
+  complete effects/post-state, and public-input hash. C# independently recomputes the
+  request and settlement bindings, checks pre-state continuity, and compares/replaces the complete
+  state with one `IAtomicL2KeyValueStore.CompareExchangeAll`; malformed output, concurrent-writer
+  loss, timeout, digest mismatch, process failure, or state drift leaves the old state intact.
+- **Settlement-confirmed prover retention.** The private content-addressed SP1 queue enforces
+  `0700` directories, `0600` files, and byte/task backpressure. Proof evidence is pruned only after
+  durable `SettlementFinalized` produces a matching 32-byte acknowledgement; symlinks, broader
+  permissions, foreign ownership, malformed acknowledgements, and TTL cleanup fail closed.
+- **Explicit N4 genesis V1 semantic ceiling.** The proven profile has bounded native and
+  syscall support and forbids add/remove/replace changes to deployed contract descriptors
+  in one transition. Unsupported behavior fails closed. This is a safety property, not a
+  claim of general NeoVM/native-contract coverage; expanding it requires a coordinated
+  versioned guest/VK/verifier upgrade.
 - **Contract ZK verifier router.** `ContractZkVerifier` refuses non-ZK commitments,
   malformed `RiscVProofPayload` envelopes, unregistered verification keys, and
-  missing deployable verifier contracts before delegating to `verifyZkProof(...)`.
-  Envelope-only mode is explicit per proof system and should be confined to
-  private devnets or staged integration tests.
-- **Fraud-verifier allowlist on `OptimisticChallenge.Challenge`.** Closes a
+  missing terminal verifier contracts before delegating to `verifyZkProof(...)`.
+  For the production SP1 route, the deploy plan binds the immutable
+  `Sp1Groth16Verifier` and invokes the irreversible
+  `DisableEnvelopeOnlyPermanently` gate, then freezes the exact VK and terminal
+  with `LockProofSystemConfiguration` before registering the ZK route. Private
+  devnets may use envelope-only mode only on a separate, deliberately unlocked
+  deployment.
+- **Executable-profile gate on `OptimisticChallenge.Challenge`.** Closes a
   bond-drain attack window: `Challenge` will only invoke a `fraudVerifier`
-  contract hash that the owner has explicitly registered via
-  `RegisterFraudVerifier`. Without this gate, an attacker could deploy a
-  yes-verifier and drain any sequencer's bond. The deploy planner emits the
-  required `RegisterFraudVerifier` step for every shipped verifier
-  (`GovernanceFraudVerifier`, `RestrictedExecutionFraudVerifier`) as part of
-  post-deploy wiring.
+  contract hash that is allowlisted and whose exact chain, semantic id, replay
+  domain, and generation are registered as an executable v4 profile. Without
+  both gates, an attacker could deploy a yes-verifier and drain a sequencer's
+  bond. The production planner registers only `RestrictedExecutionFraudVerifier`
+  v4; advisory v1/v2/v3 artifacts are never registered and governance cannot
+  override the executable-profile requirement.
 - **Governance proposal payload binding.** Every `*ViaProposal` method
   (`SetImmutableFlagViaProposal`, `RegisterVerifierViaProposal`,
   `UpgradeVerifierViaProposal`, `RegisterCommitteeViaProposal`) canonically
@@ -129,6 +170,17 @@ pinning regression test):
   proposal payload via `GovernanceController.MatchesProposalPayload`. Council
   members vote on the EXACT bytes the execution call will reproduce — an
   approved proposal can NOT be repurposed with different action args.
+- **Council-key loss recovery while quorum survives.** A complete council
+  rotation is itself an epoch-bound, threshold-approved, timelocked proposal.
+  If one signer in a 2-of-3 council becomes unavailable, the two remaining
+  signers propose and approve `BuildRotateCouncilAction`, wait the configured
+  timelock, and call `RotateCouncil` with the complete old-member snapshot and
+  the exact proposed replacement set. The unavailable key does not participate;
+  after rotation every old-epoch proposal expires and removed keys lose authority
+  immediately. This path intentionally has no owner bypass. If fewer than the
+  configured threshold remain available, operators must stop governance actions
+  and follow a separately reviewed emergency-governance migration rather than
+  weakening the on-chain quorum.
 - **Withdrawal-leaf chainId domain separation.** The
   `SharedBridge.ComputeWithdrawalLeafHash` and off-chain
   `MessageHasher.HashWithdrawal` preimages both prepend a 4-byte LE chainId
@@ -206,6 +258,17 @@ Before launching an L2:
 - [ ] Audit the deploy bundle. `Neo.Hub.Deploy plan` produces a deterministic,
       dependency-resolved sequence of L1 deploys; review every step against the
       `ChainRegistry` config you intend to register.
+- [ ] For production SP1 settlement, verify the post-deploy action order:
+      register the program VK, bind `Sp1Groth16Verifier`, permanently disable
+      envelope-only acceptance, freeze the exact VK/terminal configuration, then
+      route `ProofType.Zk`. The local positive proof-vector gate is green; do not
+      advertise `securityLevel=3` for a public network until that exact reviewed
+      NEF/VK pair is deployed and the same positive/negative smoke vectors are recorded.
+- [ ] Persist the bootstrapped non-zero SP1 genesis root outside the mutable state DB,
+      pin `neo-zkvm-executor` by a reviewed release SHA-256, use an atomic RocksDB-backed
+      state store, and verify the configured prover queue/VK/semantic match the same guest.
+      Never derive the trusted digest or initial root by silently adopting whatever is on
+      disk at restart.
 - [ ] Run the in-process devnet (`tools/Neo.L2.Devnet`) end-to-end before
       pointing the plugins at a live Neo network.
 - [ ] Configure the audit framework. `Neo.L2.Audit.ChainAuditor` accepts a
@@ -219,6 +282,8 @@ Before launching an L2:
 
 ## Reporting issues
 
-Security issues should be reported to the Neo project security mailbox before
-public disclosure. See the main `neo-project/neo` repo for the current
-disclosure policy.
+Security issues in this repository should be reported to the R3E Network
+private vulnerability reporting channel or security mailbox before public
+disclosure. Follow [`SECURITY.md`](../SECURITY.md), which is the authoritative
+disclosure policy for `r3e-network/neo-n4`; do not route Neo N4 findings to the
+read-only `neo-project/neo` upstream.

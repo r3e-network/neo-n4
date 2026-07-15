@@ -9,8 +9,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Batch\Neo.L2.Batch.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Settlement.Rpc\Neo.L2.Settlement.Rpc.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Sequencer\Neo.L2.Sequencer.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -7,6 +7,7 @@ using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using Neo.Cryptography;
 using Neo.Cryptography.ECC;
 using Neo.Json;
 using Neo.L2;
@@ -71,10 +72,12 @@ public class UT_E2E_L1RpcPollers_FullStack
 
         // Enqueue 2 forced-inclusion entries on L1.
         var sender = UInt160.Parse("0x" + new string('2', 40));
-        var tx1Hash = UInt256.Parse("0x" + new string('e', 64));
-        var tx2Hash = UInt256.Parse("0x" + new string('f', 64));
-        var nonce1 = stub.EnqueueForcedTx(TestChainId, sender, tx1Hash, new byte[] { 0xAA }, deadline: 100);
-        var nonce2 = stub.EnqueueForcedTx(TestChainId, sender, tx2Hash, new byte[] { 0xBB }, deadline: 200);
+        var tx1 = new byte[] { 0xAA };
+        var tx2 = new byte[] { 0xBB };
+        var tx1Hash = new UInt256(Crypto.Hash256(tx1));
+        var tx2Hash = new UInt256(Crypto.Hash256(tx2));
+        var nonce1 = stub.EnqueueForcedTx(TestChainId, sender, tx1Hash, tx1, deadline: 100);
+        var nonce2 = stub.EnqueueForcedTx(TestChainId, sender, tx2Hash, tx2, deadline: 200);
 
         // Enqueue 2 L1→L2 messages on L1.
         var l1Sender = UInt160.Parse("0x" + new string('3', 40));
@@ -169,10 +172,10 @@ public class UT_E2E_L1RpcPollers_FullStack
             amount: withdrawalAmount);
         Assert.IsTrue(script.Length > 0);
 
-        // ── Stage 6: closing flow — L1 marks one forced-inclusion entry consumed,
+        // ── Stage 6: closing flow — L1 confirms one forced-inclusion entry consumed,
         //   re-pull from the L2 must drop it ─────────────────────────────────
 
-        stub.MarkForcedConsumed(TestChainId, nonce1);
+        stub.ConfirmForcedConsumed(TestChainId, nonce1);
         forcedSource.InvalidateCache();
         var afterConsume = await forcedSource.DrainAsync(max: 10);
         Assert.AreEqual(1, afterConsume.Count, "L1-consumed entry must drop on next poll");
@@ -255,7 +258,7 @@ public class UT_E2E_L1RpcPollers_FullStack
             return nonce;
         }
 
-        public void MarkForcedConsumed(uint chainId, ulong nonce)
+        public void ConfirmForcedConsumed(uint chainId, ulong nonce)
         {
             if (_forced.TryGetValue((chainId, nonce), out var v))
                 _forced[(chainId, nonce)] = (v.entry, true);

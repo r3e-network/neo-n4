@@ -8,21 +8,8 @@ namespace Neo.L2.Executor;
 /// receipt. Production Neo N4 L2s use the NeoVM2/RISC-V executor; the
 /// <c>ApplicationEngine</c>-backed executor is retained for legacy NeoVM compatibility.
 /// </summary>
-/// <remarks>
-/// Because this executor produces no withdrawals or messages on its own, the
-/// <see cref="ReferenceBatchExecutor"/> still needs an <see cref="IBatchEffectsCollector"/> to
-/// supply test-defined effects when exercising the batch-sealing pipeline.
-/// </remarks>
 public sealed class ReferenceTransactionExecutor : ITransactionExecutor
 {
-    private readonly IBatchEffectsCollector? _effects;
-
-    /// <summary>Construct optionally with an effects collector that supplies side effects.</summary>
-    public ReferenceTransactionExecutor(IBatchEffectsCollector? effects = null)
-    {
-        _effects = effects;
-    }
-
     /// <inheritdoc />
     public ValueTask<TransactionExecutionResult> ExecuteAsync(
         ReadOnlyMemory<byte> serializedTx,
@@ -39,40 +26,12 @@ public sealed class ReferenceTransactionExecutor : ITransactionExecutor
             StorageDeltaHash = UInt256.Zero,
             EventsHash = UInt256.Zero,
         };
-        var effects = _effects?.GetEffects(txHash) ?? BatchEffects.Empty;
         return new ValueTask<TransactionExecutionResult>(new TransactionExecutionResult
         {
             Receipt = receipt,
             TxHash = txHash,
-            Withdrawals = effects.Withdrawals,
-            Messages = effects.Messages,
+            Withdrawals = Array.Empty<WithdrawalRequest>(),
+            Messages = Array.Empty<CrossChainMessage>(),
         });
     }
-}
-
-/// <summary>
-/// Test hook: lets a unit test or devnet driver inject deterministic per-transaction effects
-/// (withdrawals + messages) into the reference executor without involving a real VM.
-/// </summary>
-public interface IBatchEffectsCollector
-{
-    /// <summary>Look up the deterministic effects for a transaction by its hash.</summary>
-    BatchEffects GetEffects(UInt256 txHash);
-}
-
-/// <summary>Per-transaction effects.</summary>
-public sealed record BatchEffects
-{
-    /// <summary>Empty effects.</summary>
-    public static BatchEffects Empty { get; } = new()
-    {
-        Withdrawals = Array.Empty<WithdrawalRequest>(),
-        Messages = Array.Empty<CrossChainMessage>(),
-    };
-
-    /// <summary>Withdrawals emitted by the transaction.</summary>
-    public required IReadOnlyList<WithdrawalRequest> Withdrawals { get; init; }
-
-    /// <summary>Cross-chain messages emitted by the transaction.</summary>
-    public required IReadOnlyList<CrossChainMessage> Messages { get; init; }
 }

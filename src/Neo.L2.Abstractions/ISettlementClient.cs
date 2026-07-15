@@ -36,6 +36,42 @@ public interface ISettlementClient
 }
 
 /// <summary>
+/// Optional settlement capability for reconciling a persisted submission transaction when the
+/// batch is not yet visible through <see cref="ISettlementClient.GetBatchStatusAsync"/>.
+/// </summary>
+/// <remarks>
+/// See doc.md §7.5 and §15.1. The durable pipeline never replaces a persisted transaction unless
+/// this capability explicitly reports it dropped or reverted.
+/// </remarks>
+public interface ISettlementTransactionStatusClient
+{
+    /// <summary>Look up the current L1 lifecycle of a submission transaction.</summary>
+    ValueTask<SettlementTransactionStatus> GetTransactionStatusAsync(
+        UInt256 transactionHash,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>L1 lifecycle of a settlement submission transaction.</summary>
+/// <remarks>See doc.md §7.5 and §15.1.</remarks>
+public enum SettlementTransactionStatus : byte
+{
+    /// <summary>The client cannot currently determine the transaction lifecycle.</summary>
+    Unknown = 0,
+
+    /// <summary>The transaction remains in a node or network mempool.</summary>
+    Pending = 1,
+
+    /// <summary>The transaction is included or otherwise confirmed by L1.</summary>
+    Confirmed = 2,
+
+    /// <summary>The transaction was dropped before confirmation.</summary>
+    Dropped = 3,
+
+    /// <summary>The transaction was included but reverted or rejected.</summary>
+    Reverted = 4,
+}
+
+/// <summary>
 /// Lifecycle of a batch submitted to NeoHub.
 /// </summary>
 public enum BatchStatus : byte

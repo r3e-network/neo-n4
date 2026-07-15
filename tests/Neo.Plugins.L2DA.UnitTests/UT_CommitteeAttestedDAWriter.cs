@@ -4,9 +4,8 @@ using Neo.Cryptography.ECC;
 namespace Neo.Plugins.L2DA.UnitTests;
 
 /// <summary>
-/// Tests for <see cref="CommitteeAttestedDAWriter"/> — the DAMode.DAC writer that
-/// publishes a commitment + per-committee-member signatures and verifies all
-/// signatures on availability check.
+/// Tests for <see cref="CommitteeAttestedDAWriter"/> — the development DAC semantic
+/// model that emits a commitment plus per-member signatures and verifies every signature.
 /// </summary>
 [TestClass]
 public class UT_CommitteeAttestedDAWriter
@@ -42,8 +41,15 @@ public class UT_CommitteeAttestedDAWriter
         });
 
         Assert.AreEqual(DAMode.DAC, receipt.Layer);
-        Assert.AreEqual(committee.Length * 64, receipt.Pointer.Length, "one 64-B signature per committee member");
+        Assert.AreEqual(DAReceiptKind.SemanticSimulation, receipt.Kind);
+        Assert.AreEqual(UInt256.Length, receipt.Pointer.Length, "pointer identifies the data commitment");
+        Assert.AreEqual(committee.Length * 64, receipt.Evidence.Length, "one 64-B signature per committee member");
         Assert.IsTrue(await writer.IsAvailableAsync(receipt));
+        var reader = writer.CreateReader();
+        Assert.IsFalse(ReferenceEquals(writer, reader));
+        CollectionAssert.AreEqual(
+            new byte[] { 0xAA, 0xBB, 0xCC },
+            (await reader.ReadAsync(receipt))!.Value.ToArray());
     }
 
     [TestMethod]
@@ -61,9 +67,9 @@ public class UT_CommitteeAttestedDAWriter
         });
 
         // Flip a byte in the second signature; verification must fail.
-        var badPointer = receipt.Pointer.ToArray();
-        badPointer[80] ^= 0xFF;
-        var tampered = receipt with { Pointer = badPointer };
+        var badEvidence = receipt.Evidence.ToArray();
+        badEvidence[80] ^= 0xFF;
+        var tampered = receipt with { Evidence = badEvidence };
         Assert.IsFalse(await writer.IsAvailableAsync(tampered));
     }
 
@@ -81,9 +87,9 @@ public class UT_CommitteeAttestedDAWriter
             Payload = new byte[] { 0x01 },
         });
 
-        var wrongLen = receipt with { Pointer = receipt.Pointer.Slice(0, 64) };
+        var wrongLen = receipt with { Evidence = receipt.Evidence.Slice(0, 64) };
         Assert.IsFalse(await writer.IsAvailableAsync(wrongLen),
-            "pointer must be exactly committee.Count * 64 bytes");
+            "evidence must be exactly committee.Count * 64 bytes");
     }
 
     [TestMethod]
@@ -97,7 +103,9 @@ public class UT_CommitteeAttestedDAWriter
         var fake = new DAReceipt
         {
             Commitment = UInt256.Parse("0x" + new string('f', 64)),
-            Pointer = new byte[64],
+            Pointer = new byte[UInt256.Length],
+            Evidence = new byte[64],
+            Kind = DAReceiptKind.SemanticSimulation,
             Layer = DAMode.DAC,
         };
         Assert.IsFalse(await writer.IsAvailableAsync(fake), "unknown commitment must not verify");
@@ -164,6 +172,24 @@ public class UT_CommitteeAttestedDAWriter
                 BatchNumber = 1,
                 Payload = ReadOnlyMemory<byte>.Empty,
             }));
+    }
+
+    [TestMethod]
+    public async Task Publish_RejectsCryptographicallyInvalidSignature()
+    {
+        var committee = new[] { GenKey(1) };
+        var writer = new CommitteeAttestedDAWriter(
+            committee.Select(c => c.pub),
+            _ => new[] { new byte[64] });
+
+        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            async () => await writer.PublishAsync(new DAPublishRequest
+            {
+                ChainId = 1001,
+                BatchNumber = 1,
+                Payload = new byte[] { 0x42 },
+            }));
+        StringAssert.Contains(ex.Message, "invalid signature[0]");
     }
 
     [TestMethod]
@@ -238,7 +264,14 @@ public class UT_CommitteeAttestedDAWriter
         var writer = new CommitteeAttestedDAWriter(
             committee.Select(c => c.pub),
             h => SignAll(committee, h));
-        var bad = new DAReceipt { Commitment = null!, Pointer = new byte[64], Layer = DAMode.DAC };
+        var bad = new DAReceipt
+        {
+            Commitment = null!,
+            Pointer = new byte[UInt256.Length],
+            Evidence = new byte[64],
+            Kind = DAReceiptKind.SemanticSimulation,
+            Layer = DAMode.DAC,
+        };
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(
             async () => await writer.IsAvailableAsync(bad));
     }
@@ -251,5 +284,24 @@ public class UT_CommitteeAttestedDAWriter
             committee.Select(c => c.pub),
             h => SignAll(committee, h));
         Assert.AreEqual(DAMode.DAC, writer.Mode);
+        Assert.AreEqual(DAReceiptKind.SemanticSimulation, writer.ReceiptKind);
+    }
+
+    [TestMethod]
+    public async Task IsAvailable_RejectsWrongSecurityLabelAndEvidenceKind()
+    {
+        var committee = new[] { GenKey(1) };
+        var writer = new CommitteeAttestedDAWriter(
+            committee.Select(c => c.pub),
+            h => SignAll(committee, h));
+        var receipt = await writer.PublishAsync(new DAPublishRequest
+        {
+            ChainId = 1001,
+            BatchNumber = 1,
+            Payload = new byte[] { 0x42 },
+        });
+
+        Assert.IsFalse(await writer.IsAvailableAsync(receipt with { Layer = DAMode.NeoFS }));
+        Assert.IsFalse(await writer.IsAvailableAsync(receipt with { Kind = DAReceiptKind.DACAttestation }));
     }
 }

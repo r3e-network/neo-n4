@@ -6,7 +6,10 @@ use crate::BatchStatus;
 pub struct BatchStatusResponse {
     #[serde(rename = "chainId")]
     pub chain_id: u32,
-    #[serde(rename = "batchNumber")]
+    #[serde(
+        rename = "batchNumber",
+        deserialize_with = "crate::wire::deserialize_u64"
+    )]
     pub batch_number: u64,
     pub status: u8,
     #[serde(rename = "statusName", default)]

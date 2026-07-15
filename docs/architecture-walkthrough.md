@@ -25,10 +25,11 @@ RpcServer plugin handles it, no neo4 code in this step.
 
 ### 2. dBFT sequencer (committee mode)
 
-`Neo.Plugins.DBFTPlugin` (upstream) selects the next block proposer. **Who is allowed to
-propose** is governed by `NeoHub.SequencerRegistry` on L1; the L2 node pulls the active set
-via `Neo.L2.Sequencer.ISequencerCommitteeProvider` (production wires the L1-RPC-backed
-implementation; tests use `InMemorySequencerCommitteeProvider`).
+`Neo.Plugins.DBFTPlugin` selects the next block proposer through
+`NativeContract.NEO.GetNextBlockValidators`. **Who is allowed to propose** is governed by
+`NeoHub.SequencerRegistry` on L1: an `ISequencerCommitteeProvider` computes the intended active
+set, `neo-stack` commits it through a governed L2 native transaction, and DBFT reads only the
+finalized `L2SystemConfigContract` state.
 
 ### 3. Block commit hook
 
@@ -41,6 +42,12 @@ threshold trips: `MaxBlocksPerBatch`, `MaxTransactionsPerBatch`, `MaxBatchAgeMil
 `Neo.L2.Executor.ReferenceBatchExecutor.ApplyBatchAsync`:
 - Applies L1 inbox messages first (deposits, etc.) via `IL1MessageProcessor`.
 - Iterates ordered transactions through `ITransactionExecutor`.
+- Commits each transaction through `ExecutionStateTransaction`: storage remains in a
+  read-through overlay until `HALT`, canonical effect collection succeeds, and the
+  backing store accepts the complete transition.
+- Builds `CanonicalExecutionEffects` V1 once per successful transaction. Both the
+  ApplicationEngine compatibility executor and the PolkaVM/RISC-V executor use this
+  same object for receipt hashes and downstream notification effects.
 - Computes `txRoot`, `receiptRoot`, `withdrawalRoot`, `l2ToL1MessageRoot`,
   `l2ToL2MessageRoot` via `Neo.L2.State.MerkleTree.ComputeRoot`.
 - Resolves `postStateRoot` via `IPostStateRootOracle`. The shipping
@@ -55,7 +62,7 @@ is NOT proven.
 
 `Neo.L2.Batch.BatchBuilder.Seal` packs the `BatchExecutionResult` plus the proof bytes
 into an `L2BatchCommitment` record. `Neo.L2.Batch.BatchSerializer.Encode` produces the
-canonical 317-byte fixed prefix + variable proof bytes that `NeoHub.SettlementManager`
+canonical 321-byte fixed prefix + variable proof bytes that `NeoHub.SettlementManager`
 will decode (the byte format is documented in `BatchSerializer`'s XML doc).
 
 ### 6. Proving (multisig today, ZK in Phase 4)
@@ -69,13 +76,16 @@ hands it to the configured `IL2Prover`:
   account, sequencer signature, and bond reference. The verifier checks the
   signature and key/account binding; `NeoHub.SettlementManager` marks the batch
   `Challengeable` and opens `NeoHub.OptimisticChallenge`.
-- **Stage 2 (ZK):** Out-of-process Rust prover at `bridge/neo-zkvm-host/`
-  (run as `prove-batch daemon --watch <queue-dir>`). The N4 target is
-  NeoVM2/RISC-V execution: batches are reduced to canonical public inputs and
-  proved as RISC-V execution artifacts. The legacy Neo N3 VM guest remains a
-  compatibility bridge while the PolkaVM-backed `external/neo-riscv-vm` path is
-  the L2 execution target. The .NET prover plugin uses `MockRiscVProver` for
-  in-process testing only — production proving lives in the daemon.
+- **Stage 2 (ZK):** `Sp1SettlementExecutionStack` binds one exact
+  `Sp1StatefulNeoVmV1` semantic from execution through proof. The sequencer invokes the
+  SHA-256-pinned host-native `neo-zkvm-executor`, validates canonical `NEO4EXR1`, and
+  atomically commits its complete post-state. `bridge/neo-zkvm-host` then runs
+  `prove-batch daemon --watch <queue-dir>` and re-executes the same
+  `neo-execution-core` + vendored `neo-vm-rs` runtime inside the SP1 RISC-V guest.
+  `external/neo-riscv-vm` and `Neo.L2.Executor.RiscV` remain the distinct PolkaVM
+  `ChainMode.L2RiscV` execution profile; they are not silently treated as the same SP1
+  semantic. A chain must use a matching proof profile before claiming validity for that
+  path. `MockRiscVProver` remains in-process testing only.
 
 The prover output goes into `L2BatchCommitment.Proof` with the matching `ProofType`.
 
@@ -105,6 +115,26 @@ canonical state root, and bumps `latestFinalizedBatch[chainId]`. Challengeable
 optimistic batches can reach this path only through `OptimisticChallenge` after
 the window expires.
 
+Production wiring then binds `SettlementManager` to `GovernanceController` and calls the
+irreversible `LockGovernance`. This freezes owner-controlled dependency replacement and direct
+owner rollback. An emergency governance rollback is relayed through
+`RevertBatchViaProposal(chainId, batchNumber, proposalId)`, which re-derives a domain-separated
+little-endian action bound to the executing SettlementManager hash, requires exact
+proposal-payload equality, council threshold approval,
+the deployment-fixed timelock, and one-time local consumption. The narrowly scoped
+`OptimisticChallenge` witness still reverts only `Challengeable` batches immediately. A governance
+rollback may rewind the latest finalized head and its canonical root, but never a Gateway-published
+batch.
+
+During that window, legacy fraud payloads v1/v2/v3 remain advisory-only and fail
+closed even with governance witness; state changes require an exact registered executable v4 profile.
+Permissionless v4 is profile-scoped to one chain, verifier, executor semantic id,
+and replay domain. The restricted verifier reads SettlementManager's stored
+321-byte `Challengeable` header, executes one supported existing-key Counter
+Increment transition, and only reverts/slashes when the derived root differs from
+the committed post-state root. Multi-transaction and general NeoVM semantics fail
+closed.
+
 ### 9. Withdrawal claim (much later)
 
 A user calls `NeoHub.SharedBridge.FinalizeWithdrawal(chainId, withdrawalLeafHash,
@@ -117,7 +147,7 @@ finalized batch's `withdrawalRoot`, then releases the canonical asset.
 ## Walk #2: anti-censorship via forced inclusion
 
 <p align="center">
-  <img src="figures/forced-inclusion.svg" alt="Forced-inclusion + censorship slashing sequence: user enqueues forced tx on L1, L2 polls and drains, sequencer censors past deadline, CensorshipDetector observes overdue, operator reports, SequencerBond slashes" width="900">
+  <img src="figures/forced-inclusion.svg" alt="Forced-inclusion accountability sequence: user enqueues a forced transaction on L1, L2 polls and drains, an overdue entry triggers an unattributed report and pause, and governance may slash only after reviewing finalized dBFT evidence" width="900">
 </p>
 
 `doc.md` §15.4 + §17 spell out the censorship-resistance design. Here's how it works:
@@ -125,8 +155,13 @@ finalized batch's `withdrawalRoot`, then releases the canonical asset.
 ### 1. User posts forced tx on L1
 
 <p align="center">
-  <img src="figures/architecture/forced-inclusion-step1.svg" alt="Forced inclusion step 1: L1 user calls NeoHub.ForcedInclusion.EnqueueForcedTransaction(chainId, encodedTx, txHash). The contract returns a nonce, emits a ForcedTxEnqueued event, and records (sender, txHash, encodedTx, deadlineUnix=now+2h) in storage. The L2 batcher must include the forced tx within deadlineUnix or the operator can submit a censorship report and slash the sequencer's bond" width="900">
+  <img src="figures/architecture/forced-inclusion-step1.svg" alt="Forced inclusion step 1: L1 user calls NeoHub.ForcedInclusion.EnqueueForcedTransaction(chainId, encodedTx, txHash). The contract returns a nonce, emits a ForcedTxEnqueued event, and records the request and deadline. The L2 batcher must include it before the deadline; otherwise anyone may report without attribution and pause the chain, while governance separately reviews evidence before slashing" width="900">
 </p>
+
+Production spam control accepts only the canonical Neo N3 native GAS contract. The contract writes
+the nonce and entry before transfer so a callback cannot reuse the nonce; a failed transfer faults
+and atomically rolls both writes back. The witnessed `Runtime.Transaction.Sender` is both the
+committed submitter and GAS payer; the entry invocation script hash is never mistaken for an EOA.
 
 ### 2. L2 batcher polls + drains
 
@@ -137,15 +172,18 @@ must include in its next batch. After inclusion, `MarkConsumedAsync` removes the
 ### 3. If sequencer censors past the deadline
 
 `Neo.L2.Censorship.CensorshipDetector` polls the source; when `HasOverdueEntryAsync` returns
-true, it identifies the responsible sequencer via `ISequencerCommitteeProvider` and emits
-`CensorshipReport[]`.
+true, it emits `CensorshipReport[]`. Committee membership alone cannot identify the dBFT
+proposer for a missed deadline. An optional `ICensorshipAttributionProvider` may attach an
+identity only from finalized consensus evidence; otherwise the report carries the explicit
+unknown sentinel rather than blaming the first committee member.
 
 ### 4. Operator submits the report
 
-The operator calls `NeoHub.ForcedInclusion.ReportCensorship(chainId, nonce, sequencerAddr)`.
-Per the `_deploy` wiring, `ForcedInclusion` is registered as a slasher in
-`SequencerBond`, so the contract calls `SequencerBond.Slash(chainId, sequencer, amount,
-reporter)` directly. Bond is debited; reporter is paid (or the funds go to the treasury).
+The operator calls `NeoHub.ForcedInclusion.ReportCensorship(chainId, nonce, UInt160.Zero)`.
+The permissionless entry point rejects every caller-supplied sequencer address, records the
+overdue event at most once, and pauses the chain, but cannot slash. After independently
+reviewing finalized dBFT evidence, governance separately calls `SlashReportedCensorship` with
+the evidenced address; only that owner-gated path invokes `SequencerBond.Slash`.
 
 ## Walk #3: multi-L2 proof aggregation (Phase 5)
 
@@ -164,15 +202,26 @@ each round invokes the swappable `IRoundProver.Combine` on adjacent siblings.
   in `src/Neo.Plugins.L2Gateway/MultisigRoundProver.cs`).
 - `MerklePathRoundProver`: per-constituent inclusion proofs against the aggregate
   root (production, ships in the same folder).
-- Operator-supplied via the same `IRoundProver` seam: recursive-ZK fold variants
-  (SP1 Compress / Halo2 accumulator / Risc0 fold). The seam is the extension point;
-  these aren't bundled because they pull large prover toolchains as deps.
+- `Sp1RecursiveRoundProver` fixes backend `0xC2`; the terminal recursive proof is bundled in
+  `bridge/neo-zkvm-gateway-guest` and `bridge/neo-zkvm-gateway-host`. The guest verifies only
+  compile-time-batch-VK SP1 compressed children whose public values are exactly
+  `0x00 || batch.PublicInputHash`, then commits `0x00 || Hash256(binding170)`. Halo2/Risc0
+  alternatives may still use the seam, but they are not the bundled production path.
 
 The `AggregatedCommitment` carries:
 - All constituent `L2BatchCommitment`s.
 - A `GlobalMessageRoot` over the L2→L2 message roots (used for L2-to-L2 inclusion proofs).
 - The aggregated proof bytes.
 - The `BackendId` so on-L1 verification can route correctly.
+
+Publication is intentionally not a direct Router write. The RPC publisher queries
+`MessageRouter` only for idempotent reconciliation, then submits the aggregate plus a packed,
+strictly ordered list of 12-byte `(chainId:uint32 LE,batchNumber:uint64 LE)` references to
+`SettlementManager.PublishGatewayGlobalRoot`. SettlementManager requires every referenced batch
+to remain finalized and Gateway-enabled, rebuilds the exact commitment and message roots from
+its finalized records, and advances per-chain non-revertible watermarks before making the
+same-transaction call to `MessageRouter.PublishGlobalRoot`. A Router fault rolls the watermarks
+back; a successful publication prevents later batch reversion below the published watermark.
 
 ## Walk #4: telemetry — emit, snapshot, scrape
 
@@ -223,6 +272,11 @@ implementations:
   `ByteArrayComparer.Lexicographic`. Devnet / test default.
 - `RocksDbKeyValueStore` — backed by the `RocksDB` NuGet package (v10.10.1.649,
   namespace `RocksDbSharp`) with snappy compression. Production default.
+
+`IDurableL2KeyValueStore` is the explicit restart-durability capability implemented by
+RocksDB. `KeyValueProofWitnessStore.IsDurable` propagates that capability, and the production
+settlement composition rejects witness or forced-inclusion event stores that do not declare it.
+The generic `Wire` path intentionally remains available for in-memory tests and custom devnets.
 
 Six L2 components take an `IL2KeyValueStore` ctor argument with a backwards-compatible
 default ctor that wires `InMemoryKeyValueStore`:
@@ -294,13 +348,13 @@ specifically by `DAAvailabilityCheck` against a writer that never saw the payloa
 - **§3.2 DARegistry** — DA commitment store. `contracts/NeoHub.DARegistry/`.
 - **§3.2 GovernanceController** — Council + timelocks. `contracts/NeoHub.GovernanceController/`.
 - **§3.2 EmergencyManager** — Pause + escape hatch. `contracts/NeoHub.EmergencyManager/`.
-- **§4 Neo Gateway** — Proof aggregation. `Neo.Plugins.L2Gateway` (incl. `BinaryTreeAggregator` + `IRoundProver`).
+- **§4 Neo Gateway** — Proof aggregation. `Neo.Plugins.L2Gateway` plus `bridge/neo-zkvm-gateway-{guest,host}` for the SP1 recursive terminal proof.
 - **§5 L2 chain internals** — per-L2 plugin layout. `Neo.Plugins.L2Batch / L2Settlement / L2Bridge / L2DA / L2Prover / L2Rpc`.
 - **§7.1 Sequencer / dBFT** — Committee selection. `contracts/NeoHub.SequencerRegistry/` + `Neo.L2.Sequencer`.
 - **§7.2 Batcher** — Block ↦ batch. `Neo.L2.Batch.BatchBuilder` + `Neo.Plugins.L2Batch.L2BatchPlugin`.
-- **§7.3 StateRootGenerator** — Per-batch roots. `Neo.L2.State.*` + `Neo.L2.Executor.State.KeyedStateStore`.
+- **§7.3 StateRootGenerator** — Per-batch roots. `Neo.L2.State.*` + `Neo.L2.Executor.State.KeyedStateStore`; production SP1 capture/atomic transition is `Sp1StateWitnessSource`.
 - **§7.4 DAWriter** — DA layer abstraction. `Neo.L2.Abstractions.IDAWriter` + `Neo.Plugins.L2DA.*`.
-- **§7.5 ProverAdapter** — 3-stage proving. `Neo.L2.Proving.Attestation / Optimistic / RiscVZk` + `bridge/neo-zkvm-host/` (out-of-process Stage-2).
+- **§7.5 ProverAdapter** — 3-stage proving. `Neo.L2.Proving.Attestation / Optimistic / RiscVZk`, `Sp1SettlementExecutionStack`, host-native `neo-zkvm-executor`, and `bridge/neo-zkvm-host/` (out-of-process Stage-2).
 - **§8 Proof system** — Proving spec. `src/Neo.L2.Executor/SPEC.md`.
 - **§9 Token / GAS model** — Bridged asset accounting. `Neo.L2.Bridge.AssetRegistry` + Neo Core native `L2BridgeContract`.
 - **§10 Neo Connect** — Cross-chain messaging. `Neo.L2.Messaging.*` + Neo Core native `L2MessageContract`.

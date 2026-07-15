@@ -4,6 +4,35 @@ namespace Neo.Hub.Deploy.UnitTests;
 public class UT_ProductionGapClosure
 {
     [TestMethod]
+    public void ProductionScaffold_BindsAndLocksRealSp1Verifier()
+    {
+        var plan = ScaffoldPlan.Default();
+        var names = plan.Steps.Select(step => step.Name).ToHashSet(StringComparer.Ordinal);
+
+        CollectionAssert.Contains(names.ToArray(), "Sp1Groth16Verifier",
+            "the production bundle must ship the SP1 Groth16 terminal verifier");
+
+        var bundle = DeployPlanner.Plan(plan, name => H((byte)(name.Length & 0xFF)));
+        var actions = ScaffoldPlan.PostDeployActions(bundle).ToArray();
+
+        Assert.IsTrue(actions.Any(action => action.Contains(
+            "ContractZkVerifier.RegisterProofVerifier(ProofSystem.Sp1=1, Sp1Groth16Verifier",
+            StringComparison.Ordinal)),
+            "the production wiring must route SP1 proof math to the in-repo terminal verifier");
+        Assert.IsTrue(actions.Any(action => action.Contains(
+            "ContractZkVerifier.DisableEnvelopeOnlyPermanently(ProofSystem.Sp1=1)",
+            StringComparison.Ordinal)),
+            "the production wiring must irreversibly close the envelope-only escape hatch");
+        Assert.IsTrue(actions.Any(action => action.Contains(
+            "ContractZkVerifier.LockProofSystemConfiguration(ProofSystem.Sp1=1, PROGRAM_VKEY_REPLACE_ME)",
+            StringComparison.Ordinal)),
+            "the production wiring must freeze the exact SP1 vkey and terminal verifier");
+        Assert.IsFalse(actions.Any(action => action.Contains(
+            "SetEnvelopeOnlyAllowed", StringComparison.Ordinal)),
+            "production deployment instructions must never enable envelope-only acceptance");
+    }
+
+    [TestMethod]
     public void Scaffold_IncludesDAValidatorAndL1TxFilter()
     {
         var plan = ScaffoldPlan.Default();
@@ -36,8 +65,67 @@ public class UT_ProductionGapClosure
             && a.Contains("DARegistry")), "operator hints must wire DARegistry into SettlementManager");
         Assert.IsTrue(actions.Any(a => a.Contains("SettlementManager.SetDAValidator")
             && a.Contains("DAValidator")), "operator hints must wire DAValidator into SettlementManager");
+        Assert.IsTrue(actions.Any(a => a.Contains("SettlementManager.SetMessageRouter")
+            && a.Contains("MessageRouter")),
+            "operator hints must wire MessageRouter into SettlementManager's atomic Gateway path");
         Assert.IsTrue(actions.Any(a => a.Contains("MessageRouter.SetL1TxFilter")
             && a.Contains("L1TxFilter")), "operator hints must explain per-chain L1TxFilter wiring");
+    }
+
+    [TestMethod]
+    public void SettlementManagerProductionGovernance_IsLockedAndProposalBound()
+    {
+        var root = FindRepositoryRoot();
+        var source = File.ReadAllText(Path.Combine(
+            root,
+            "contracts",
+            "NeoHub.SettlementManager",
+            "SettlementManagerContract.cs"));
+        var bundle = DeployPlanner.Plan(
+            ScaffoldPlan.Default(),
+            name => H((byte)(name.Length & 0xFF)));
+        var actions = ScaffoldPlan.PostDeployActions(bundle).ToArray();
+
+        StringAssert.Contains(source, "public static void LockGovernance()");
+        StringAssert.Contains(source, "public static void RevertBatchViaProposal(");
+        StringAssert.Contains(source, "BuildRevertBatchAction(chainId, batchNumber)");
+        StringAssert.Contains(source, "isApprovedAndTimelocked");
+        StringAssert.Contains(source, "matchesProposalPayload");
+        StringAssert.Contains(source, "PrefixConsumedRevertProposal");
+        Assert.IsTrue(actions.Any(action => action.Contains(
+            "SettlementManager.SetGovernanceController(GovernanceController)",
+            StringComparison.Ordinal)));
+        Assert.IsTrue(actions.Any(action => action.Contains(
+            "ChainRegistry.LockGovernance()",
+            StringComparison.Ordinal)
+            && action.Contains("proposal-bound", StringComparison.Ordinal)));
+        Assert.IsTrue(actions.Any(action => action.Contains(
+            "SettlementManager.LockGovernance()",
+            StringComparison.Ordinal)
+            && action.Contains("RevertBatchViaProposal", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void PostDeployActions_CloseExternalBridgeInboundPayoutWiring()
+    {
+        var plan = ScaffoldPlan.Default();
+        var bundle = DeployPlanner.Plan(plan, name => H((byte)(name.Length & 0xFF)));
+        var actions = ScaffoldPlan.PostDeployActions(bundle).ToArray();
+
+        Assert.IsTrue(actions.Any(action => action.Contains(
+            "ExternalBridgeEscrow.SetGovernanceController(GovernanceController)",
+            StringComparison.Ordinal)));
+        Assert.IsTrue(actions.Any(action => action.Contains("ExternalBridgeEscrow.SetAssetRoute", StringComparison.Ordinal)
+            && action.Contains("payoutVersion()==1", StringComparison.Ordinal)
+            && action.Contains("UpdateCounter==0", StringComparison.Ordinal)
+            && action.Contains("non-zero L2_CHAIN_ID_REPLACE_ME", StringComparison.Ordinal)
+            && action.Contains("neoChainId=0", StringComparison.Ordinal)));
+        Assert.IsTrue(actions.Any(action => action.Contains(
+            "ExternalBridgeEscrow.FundLiquidity", StringComparison.Ordinal)
+            && action.Contains("Neo L1 direct-release routes only", StringComparison.Ordinal)));
+        Assert.IsTrue(actions.Any(action => action.Contains(
+            "ExternalBridgeEscrow.LockGovernance()", StringComparison.Ordinal)
+            && action.Contains("ConfigureAssetRouteViaProposal", StringComparison.Ordinal)));
     }
 
     [TestMethod]
@@ -220,47 +308,265 @@ public class UT_ProductionGapClosure
             .Order(StringComparer.Ordinal)
             .ToArray();
         var expectedProductionContracts = neoHubContracts
-            .Where(name => name != "ExternalBridgeStubVerifier")
+            .Where(name => name is not "ExternalBridgeStubVerifier" and not "GovernanceFraudVerifier")
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.AreEqual(24, neoHubContracts.Length,
-            "contracts/NeoHub.* must contain the 23 production contracts plus the test-only ExternalBridgeStubVerifier.");
-        Assert.AreEqual(23, productionSteps.Length,
-            "The default NeoHub deploy plan must emit only the 23 production contracts.");
+        Assert.AreEqual(26, neoHubContracts.Length,
+            "contracts/NeoHub.* must contain 24 production contracts, one advisory structural verifier, and the test-only ExternalBridgeStubVerifier.");
+        Assert.AreEqual(24, productionSteps.Length,
+            "The default NeoHub deploy plan must emit only the 24 state-changing production contracts.");
         CollectionAssert.Contains(neoHubContracts, "ExternalBridgeStubVerifier");
         CollectionAssert.DoesNotContain(productionSteps, "ExternalBridgeStubVerifier",
             "ExternalBridgeStubVerifier is a dev/test helper and must not ship in the production NeoHub deploy bundle.");
+        CollectionAssert.DoesNotContain(productionSteps, "GovernanceFraudVerifier",
+            "GovernanceFraudVerifier is structural audit evidence and must not ship in the production NeoHub deploy bundle.");
         CollectionAssert.AreEqual(expectedProductionContracts, productionSteps,
-            "The production deploy bundle must include every NeoHub contract except the test-only stub.");
+            "The production deploy bundle must include every production NeoHub contract and exclude advisory/test-only projects.");
     }
 
     [TestMethod]
     public void CurrentDocumentation_UsesCurrentNeoHubCounts()
     {
         var root = FindRepositoryRoot();
+        var neoHubCount = Directory.EnumerateDirectories(
+            Path.Combine(root, "contracts"), "NeoHub.*").Count();
+        var productionCount = ScaffoldPlan.Default().Steps.Count;
         string[] currentDocs =
         [
+            "AGENTS.md",
             "README.md",
-            Path.Combine("docs", "README.md"),
-            Path.Combine("docs", "architecture-l2-lifecycle.md"),
-            Path.Combine("docs", "zh", "architecture-l2-lifecycle.md"),
+            "IMPLEMENTATION_STATUS.md",
+            "TECH_STACK.md",
+            "WHITEPAPER.md",
             Path.Combine("contracts", "README.md"),
-            "IMPLEMENTATION_STATUS.md"
+            Path.Combine("docs", "README.md"),
+            Path.Combine("docs", "architecture-glossary.md"),
+            Path.Combine("docs", "architecture-l1-vs-l2.md"),
+            Path.Combine("docs", "architecture-l2-lifecycle.md"),
+            Path.Combine("docs", "getting-started.md"),
+            Path.Combine("docs", "launching-an-l2.md"),
+            Path.Combine("docs", "neohub-architecture-and-workflows.md"),
+            Path.Combine("docs", "tech-stack-coverage.md"),
+            Path.Combine("docs", "zksync-comparison.md"),
+            Path.Combine("docs", "zh", "README.md"),
+            Path.Combine("docs", "zh", "WHITEPAPER.md"),
+            Path.Combine("docs", "zh", "architecture-glossary.md"),
+            Path.Combine("docs", "zh", "architecture-l1-vs-l2.md"),
+            Path.Combine("docs", "zh", "architecture-l2-lifecycle.md"),
+            Path.Combine("docs", "zh", "contracts", "README.md"),
+            Path.Combine("docs", "zh", "launching-an-l2.md"),
+            Path.Combine("docs", "zh", "neohub-architecture-and-workflows.md"),
+            Path.Combine("docs", "zh", "tech-stack-coverage.md"),
+            Path.Combine("docs", "zh", "zksync-comparison.md")
+        ];
+
+        string[] obsoleteClaims =
+        [
+            "23 production",
+            "23-step",
+            "25 NeoHub",
+            "all 25",
+            "23 个生产",
+            "25 个 NeoHub",
+            "25 个项目",
+            "23 步"
         ];
 
         foreach (var relativePath in currentDocs)
         {
             var text = File.ReadAllText(Path.Combine(root, relativePath));
-            Assert.IsFalse(text.Contains("20 contracts", StringComparison.OrdinalIgnoreCase),
-                $"{relativePath} must not carry the obsolete 20-contract NeoHub count.");
-            Assert.IsFalse(text.Contains("20 个合约", StringComparison.Ordinal),
-                $"{relativePath} must not carry the obsolete Chinese 20-contract NeoHub count.");
+            foreach (var obsoleteClaim in obsoleteClaims)
+            {
+                Assert.IsFalse(text.Contains(obsoleteClaim, StringComparison.OrdinalIgnoreCase),
+                    $"{relativePath} must not carry obsolete inventory text '{obsoleteClaim}'.");
+            }
         }
 
         var readme = File.ReadAllText(Path.Combine(root, "README.md"));
-        StringAssert.Contains(readme, "24 NeoHub L1 deployable contracts");
-        StringAssert.Contains(readme, "23 production");
+        StringAssert.Contains(readme, $"{neoHubCount} NeoHub L1 contract projects");
+        StringAssert.Contains(readme, $"{productionCount} production");
+
+        var contractsReadme = File.ReadAllText(Path.Combine(root, "contracts", "README.md"));
+        StringAssert.Contains(contractsReadme, $"There are {neoHubCount} `NeoHub.*` projects");
+        StringAssert.Contains(contractsReadme, $"{productionCount} production contracts");
+    }
+
+    [TestMethod]
+    public void CurrentDocumentation_UsesSourceDrivenTestAndSdkInventories()
+    {
+        var root = FindRepositoryRoot();
+        var testProjectCount = Directory
+            .EnumerateFiles(Path.Combine(root, "tests"), "*.csproj", SearchOption.AllDirectories)
+            .Count();
+        var foundryTestCount = Directory
+            .EnumerateFiles(Path.Combine(root, "external", "foreign-contracts", "eth", "test"),
+                "*.sol", SearchOption.AllDirectories)
+            .Sum(path => System.Text.RegularExpressions.Regex.Matches(
+                File.ReadAllText(path), @"\bfunction\s+test[A-Za-z0-9_]*\s*\(").Count);
+
+        var techStack = File.ReadAllText(Path.Combine(root, "TECH_STACK.md"));
+        StringAssert.Contains(techStack, $"| Test projects | {testProjectCount} |");
+
+        string[] foundryDocs =
+        [
+            "README.md",
+            "IMPLEMENTATION_STATUS.md",
+            Path.Combine("docs", "tech-stack-coverage.md"),
+            Path.Combine("docs", "testing-approach.md")
+        ];
+        foreach (var relativePath in foundryDocs)
+        {
+            StringAssert.Contains(
+                File.ReadAllText(Path.Combine(root, relativePath)),
+                $"{foundryTestCount} Foundry tests");
+        }
+
+        string[] sdkPaths =
+        [
+            Path.Combine("src", "Neo.L2.Sdk"),
+            Path.Combine("sdk", "typescript"),
+            Path.Combine("sdk", "rust"),
+            Path.Combine("sdk", "python")
+        ];
+        Assert.IsTrue(sdkPaths.All(path => Directory.Exists(Path.Combine(root, path))));
+        Assert.IsFalse(Directory.Exists(Path.Combine(root, "sdk", "go")),
+            "The documented Go SDK gap must remain source-driven until a Go implementation exists.");
+
+        var sdkReadme = File.ReadAllText(Path.Combine(root, "sdk", "README.md"));
+        StringAssert.Contains(sdkReadme, "Four language bindings");
+        StringAssert.Contains(sdkReadme, "## Why four typed languages");
+        Assert.IsFalse(sdkReadme.Contains("Why three languages", StringComparison.OrdinalIgnoreCase));
+
+        var comparison = File.ReadAllText(Path.Combine(root, "docs", "zksync-comparison.md"));
+        StringAssert.Contains(comparison, "### Gap 2 — No Go SDK");
+        StringAssert.Contains(comparison, "SDK source implementations are present");
+        Assert.IsFalse(comparison.Contains("No Python / Go SDK", StringComparison.OrdinalIgnoreCase));
+
+        var gitmodules = File.ReadAllText(Path.Combine(root, ".gitmodules"));
+        var submoduleCount = System.Text.RegularExpressions.Regex.Matches(
+            gitmodules, @"(?m)^\[submodule ").Count;
+        var readme = File.ReadAllText(Path.Combine(root, "README.md"));
+        StringAssert.Contains(readme, $"| Submodules        | **{submoduleCount}**");
+        StringAssert.Contains(readme, "external/neo-vm-rs");
+
+        var l2ProjectCount = Directory
+            .EnumerateFiles(Path.Combine(root, "src"), "Neo.L2.*.csproj", SearchOption.AllDirectories)
+            .Count();
+        var rpcAdapterCount = Directory
+            .EnumerateFiles(Path.Combine(root, "src"), "Neo.L2.*.Rpc.csproj", SearchOption.AllDirectories)
+            .Count();
+        var coreLibraryCount = l2ProjectCount - rpcAdapterCount - 1;
+        StringAssert.Contains(techStack, $"| Core off-chain .NET libraries | {coreLibraryCount} |");
+        StringAssert.Contains(techStack, $"| RPC adapter libraries | {rpcAdapterCount} |");
+        StringAssert.Contains(readme, $"| Core off-chain libraries | **{coreLibraryCount}**");
+        StringAssert.Contains(readme, $"| RPC adapter libraries | **{rpcAdapterCount}**");
+
+        var englishDocCount = Directory
+            .EnumerateFiles(Path.Combine(root, "docs"), "*.md", SearchOption.TopDirectoryOnly)
+            .Count();
+        var chineseDocCount = Directory
+            .EnumerateFiles(Path.Combine(root, "docs", "zh"), "*.md", SearchOption.TopDirectoryOnly)
+            .Count();
+        StringAssert.Contains(techStack,
+            $"| Top-level documentation pages | {englishDocCount} EN + {chineseDocCount} zh |");
+
+        string[] staleInventoryClaims =
+        [
+            "393-line",
+            "393 lines",
+            "~638-line",
+            "32 base tests + 55",
+            "55 live-RPC integration tests",
+            "Submodules        | **4**"
+        ];
+        foreach (var claim in staleInventoryClaims)
+        {
+            Assert.IsFalse(readme.Contains(claim, StringComparison.OrdinalIgnoreCase),
+                $"README.md must not carry stale inventory text '{claim}'.");
+        }
+
+        var changelog = File.ReadAllText(Path.Combine(root, "CHANGELOG.md"));
+        StringAssert.Contains(changelog, "targeted regression gates");
+        Assert.IsFalse(changelog.Contains("cannot drift silently", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void CurrentDocumentation_SeparatesImplementationFromProductionReadiness()
+    {
+        var root = FindRepositoryRoot();
+        var status = File.ReadAllText(Path.Combine(root, "IMPLEMENTATION_STATUS.md"));
+        StringAssert.Contains(status, "| Production-ready |");
+        StringAssert.Contains(status, "No phase is production-ready");
+
+        var readme = File.ReadAllText(Path.Combine(root, "README.md"));
+        StringAssert.Contains(readme, "| Production-ready |");
+        StringAssert.Contains(readme, "No row is a production-readiness claim");
+
+        var chinese = File.ReadAllText(Path.Combine(root, "docs", "zh", "IMPLEMENTATION_STATUS.md"));
+        StringAssert.Contains(chinese, "| 生产完备 |");
+        StringAssert.Contains(chinese, "任何阶段都不能标记为生产完备");
+    }
+
+    [TestMethod]
+    public void CurrentDocumentation_ChineseArchitecturePreservesCriticalSettlementAnchors()
+    {
+        var root = FindRepositoryRoot();
+        var authoritative = File.ReadAllText(Path.Combine(root, "doc.md"));
+        var chinese = File.ReadAllText(Path.Combine(root, "docs", "zh", "doc.md"));
+        string[] anchors =
+        [
+            "执行、DA 发布与 artifact 写入之前验证完整前序",
+            "batch 1 连接认证 genesis root",
+            "`firstBlock = previous.lastBlock + 1`",
+            "`preStateRoot = previous.postStateRoot`",
+            "`WireProduction` 只能接受明确声明重启耐久能力的 proof-witness store",
+        ];
+
+        foreach (var anchor in anchors)
+        {
+            StringAssert.Contains(authoritative, anchor);
+            StringAssert.Contains(chinese, anchor);
+        }
+    }
+
+    [TestMethod]
+    public void SampleContracts_UseRepositoryMaintainerAttribution()
+    {
+        var root = FindRepositoryRoot();
+        string[] samples =
+        [
+            Path.Combine("samples", "contracts", "Sample.CrossChainGreeter", "CrossChainGreeter.cs"),
+            Path.Combine("samples", "contracts", "Sample.WithdrawalDemo", "WithdrawalDemo.cs")
+        ];
+
+        foreach (var relativePath in samples)
+        {
+            var source = File.ReadAllText(Path.Combine(root, relativePath));
+            StringAssert.Contains(source, "ContractAuthor(\"R3E Network — Sample\", \"dev@r3e.network\")");
+            Assert.IsFalse(source.Contains("Neo Project", StringComparison.Ordinal));
+            Assert.IsFalse(source.Contains("dev@neo.org", StringComparison.Ordinal));
+        }
+    }
+
+    [TestMethod]
+    public void CurrentSecurityPolicy_DoesNotInventARelease()
+    {
+        var root = FindRepositoryRoot();
+        var policy = File.ReadAllText(Path.Combine(root, "SECURITY.md"));
+
+        StringAssert.Contains(policy, "No production release tag has been published yet.");
+        StringAssert.Contains(policy, "private vulnerability reporting form");
+        StringAssert.Contains(policy, "R3E Network security mailbox");
+        StringAssert.Contains(policy, "git tag --verify <published-tag>");
+        Assert.IsFalse(policy.Contains("git tag --verify v0.1.0", StringComparison.Ordinal));
+        Assert.IsFalse(policy.Contains("all release tags are signed", StringComparison.OrdinalIgnoreCase));
+
+        var model = File.ReadAllText(Path.Combine(root, "docs", "security-model.md"));
+        StringAssert.Contains(model, "r3e-network/neo-n4");
+        StringAssert.Contains(model, "unmodified upstream Neo behavior");
+        StringAssert.Contains(model, "Neo Project");
+        Assert.IsFalse(model.Contains("Neo project security mailbox", StringComparison.OrdinalIgnoreCase));
     }
 
     [TestMethod]

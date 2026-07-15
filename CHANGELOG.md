@@ -5,6 +5,506 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — closed ChainRegistry admission and governance states — 2026-07-15
+
+- Made the public admission-mode state machine fail closed at the cross-contract boundary.
+  `ChainRegistry` now validates the full `BigInteger` returned by `GovernanceController` as
+  exactly 0, 1, or 2 before narrowing it to `byte`; negative, undefined, and wrapping values
+  such as 258 cannot be interpreted as permissionless admission or persist chain state.
+- Made `ChainRegistry.LockGovernance` freeze the wired GovernanceController as well as the
+  direct update path. The bootstrap owner can no longer replace the proposal authority after
+  lock; a controller migration requires a versioned registry deployment, matching the existing
+  VerifierRegistry policy. The scaffold and live deployment paths now execute this irreversible
+  lock and verify it by read-back before reporting a production deployment complete.
+- Regenerated the real ChainRegistry NEF/testing artifact and added VM regressions for invalid
+  modes, zero-side-effect rejection, post-lock controller replacement, and retained controller
+  identity. The complete NeoHub contract VM suite passes 551/551.
+
+### Fixed — finalized retention, crash-safe rollback, and governed settlement control — 2026-07-15
+
+- Split durable settlement observation from canonical finality. `Pending` and `Challengeable`
+  remain recoverable observations; proof-queue acknowledgement, forced-inclusion consumption,
+  pending-count retirement, and content-addressed evidence pruning now require L1 `Finalized`.
+- Added authenticated rollback checkpoints for a `Reverted` canonical tail. The exact artifacts and
+  proofs are quarantined, the pre-tail state snapshot is restored atomically, checkpoint completion
+  is crash-idempotent and uses a key-local atomic delete rather than copying the complete database,
+  and the same batch number can be resubmitted only after recovery completes.
+  Startup now queries L1 for every local artifact and validates local proof manifests, contiguous
+  finality, and the canonical root before any recovery side effect.
+- Added guarded multi-key `IAtomicL2KeyValueStore.CompareExchangeBatch` commits to both built-in
+  stores. RocksDB uses one synchronous WAL `WriteBatch`, preventing an artifact publication from
+  racing a rollback marker across independent store wrappers.
+- Bound SettlementManager production administration to GovernanceController and added an irreversible
+  governance lock. After lock, the hot owner cannot rewire proof/DA/message dependencies or directly
+  revert batches; exceptional finalized-head rollback requires an executing-contract-bound exact
+  threshold-approved, timelocked, one-time proposal payload, preventing cross-deployment replay.
+  Live deployment now requires explicit distinct M-of-N
+  governance with threshold at least two and rejects implicit 1-of-1 control.
+
+### Fixed — immutable on-chain genesis trust anchor and exact committee-key preflight — 2026-07-15
+
+- Changed both ChainRegistry admission paths to atomically register a non-zero immutable
+  `genesisStateRoot` alongside the 91-byte chain config. Settlement now requires batch 1 to link
+  that root during submission and finalization, and returns it as the canonical root before the
+  first finalization or after a first-batch revert. The off-chain settlement profile carries and
+  cross-checks the same root, so neither a first submitter nor a restarted operator can silently
+  establish a different trust anchor.
+- Strengthened sequencer NEP-6 preflight from account metadata checks to real key decryption and
+  public-key equality. A multi-account wallet with a valid password but a mismatched/corrupt
+  encrypted committee key now fails closed.
+- Added VM, settlement, and CLI regression coverage for missing/zero/changed genesis roots,
+  first-batch binding and fallback, profile mismatch, required CLI arguments, and encrypted-key
+  substitution.
+
+### Fixed — fail-closed settlement continuity and production durability — 2026-07-15
+
+- Moved predecessor, block-range, and state-root continuity validation ahead of execution, DA
+  publication, artifact commit, and state acknowledgement. Missing or malformed predecessor
+  batches can no longer durably advance SP1 state and strand restart recovery.
+- Added explicit durable-store capabilities for proof witnesses and L1 forced-inclusion event
+  cursors. `WireProduction` now rejects volatile stores while custom/test `Wire` composition
+  remains available for non-production use.
+- Corrected the private-network operator preflight to require reviewed Neo.CLI configs,
+  sequencer/batcher deployments, and a prover binary; all three launch checks are explicit
+  dry-runs instead of unconfigured blocking process starts. Runtime/plugin files are now
+  whitelist-staged into an owner-only OS temporary directory that is removed in `finally`;
+  wallets, node data, logs, arbitrary JSON, hidden paths, and links never enter long-lived
+  artifacts. Sequencer dry-runs now open the reviewed NEP-6 wallet with its configured password
+  and require a decryptable committee key whose derived public key exactly matches the configured
+  validator; malformed, mismatched, unrelated, or unsupported wallet files fail closed.
+- Removed caller-controlled sequencer attribution from permissionless censorship reports while
+  retaining the contract ABI. Reports now emit only the zero address; governance names a slash
+  target separately after reviewing finalized dBFT evidence.
+- Restricted forced-inclusion fees to the canonical Neo N3 native GAS contract across deploy,
+  configuration, readiness, and enqueue paths. Enqueue now charges and commits the witnessed
+  transaction sender instead of the entry invocation script hash. Consumption reserves its replay
+  marker before the read-only finalized-root lookup and relies on NeoVM atomic rollback for every
+  failed proof.
+- Added no-side-effect regression coverage for batch zero, authenticated-genesis mismatch,
+  missing predecessor, block/state discontinuity, and predecessor block-number overflow.
+- Added a required CI ancestry gate for the `external/neo` gitlink: every referenced core commit
+  must already be published on `r3e-network/neo` branch `r3e/neo-n4-core`, preventing an
+  unpublished feature-branch-only core dependency from entering a releasable parent revision. The
+  verifier fetches the hard-coded canonical R3E URL rather than trusting the PR-controlled
+  submodule `origin`.
+- Reconciled the complete 38-project test inventory against one serial TRX run: 2,591 tests were
+  discovered, 2,587 passed, none failed, and four exact-deployment/native-fixture tests remained
+  explicitly environment-gated.
+
+### Added — SP1 restart and cross-instance state-race regression gates — 2026-07-15
+
+- Proved that a reconstructed SP1 executor replays an already durable artifact after the
+  artifact/state crash window, retains the immutable genesis root, and accepts the recovered
+  post-state idempotently without executing the transition again.
+- Added an injected interleaving between complete-state capture and `CompareExchangeAll`; the
+  losing transition now has direct regression evidence that it fails closed without overwriting
+  the concurrently committed state.
+
+### Fixed — real SP1 CI workspace ownership — 2026-07-15
+
+- Restored the GitHub runner's ownership of Docker-generated SP1 target artifacts before
+  host-side Cargo formatting, linting, and tests, preventing the required real-proof job from
+  failing with a permission error after a successful reproducible guest build.
+- Serialized the resource-intensive ignored proof tests and raised the fail-closed job budget to
+  120 minutes so concurrent SP1 provers cannot exhaust a hosted runner while every terminal and
+  recursive proof assertion still executes.
+
+### Added — native SP1 execution and atomic state handoff — 2026-07-14
+
+- Added host-native `neo-zkvm-executor` as a second binary in the existing guest crate; it calls
+  the exact `neo-execution-core` and stateful NeoVM runtime used by the SP1 guest and emits the
+  canonical content-addressed `NEO4EXR1` transition protocol.
+- Added cross-language Rust/C# serializers and golden vectors that bind both exact requests,
+  execution semantic, roots/gas, canonical effects, complete post-state witness, and public inputs.
+- Added `IAtomicL2KeyValueStore.CompareExchangeAll` for complete-snapshot CAS through one
+  lock-protected in-memory swap or one RocksDB `WriteBatch`, plus `Sp1StateWitnessSource`
+  continuity, contract-binding, concurrent-writer rejection, and no-partial-mutation validation.
+- Added `Sp1StatefulBatchExecutor` and `Sp1SettlementExecutionStack`: production execution pins an
+  independently reviewed executable SHA-256, runs only an isolated digest-matched copy, validates
+  every native output binding, durably commits and re-reads the immutable proof-witness artifact,
+  then deterministically replays and atomically commits its exact post-state. Retry and startup
+  recovery are idempotent, so no crash can advance state without a durable replay record.
+- Added the non-ignored CI C#→release-Rust process gate over a bootstrapped Neo genesis transaction.
+  N4 genesis V1 remains fail-closed for unsupported native/syscall behavior and contract descriptor
+  add/remove/replace transitions; exact-revision public deployment and independent audit evidence
+  remain release gates.
+- Made terminal and recursive real SP1 proof generation unconditional in the required CI job.
+  Hardened the prover queue with `0700` directories, `0600` files, 16-GiB/64-task backpressure,
+  and settlement-confirmed hash acknowledgements; the daemon now prunes content-addressed evidence
+  only after durable L1 finalization, never by TTL.
+- Eliminated the shared-target ELF validation/include race: build scripts derive SHA-256 and VK from
+  one byte snapshot, publish a read-only verified copy into Cargo `OUT_DIR`, and embed only that copy.
+
+### Fixed — canonical C# / Rust proof-witness ABI — 2026-07-14
+
+- Aligned the SP1 parser and encoder with the pinned C# `ProofWitnessArtifactV1` header,
+  execution-semantic binding, authenticated-witness flag, and complete DA receipt fields.
+- Added one checked-in stateful SP1 fixture decoded and re-encoded byte-for-byte by both
+  languages, and made the guest reject any non-stateful or mismatched semantic identifier.
+
+### Fixed — settlement confirmation-lag telemetry — 2026-07-14
+
+- Added a restart-safe L1 confirmation-lag gauge derived from durable proof manifests, alongside
+  regression coverage and operator documentation, without changing the pinned manifest wire format.
+
+### Fixed — documentation truth and release attribution — 2026-07-14
+
+- Split every phase status into design, code shape, integration, cryptographic
+  enforcement, exact-revision deployment evidence, and production readiness;
+  no phase is represented as production-ready without independent deployment evidence.
+- Reconciled the source-derived inventories at 26 NeoHub projects, 24 production
+  deployment steps, 38 .NET test projects, 44 Foundry tests, four typed SDK source
+  implementations, five submodules, and 39 English / 49 Chinese top-level docs;
+  targeted regression gates bind these public facts and the remaining Go SDK gap.
+- Completed R3E Network attribution for sample contracts and security reporting,
+  enabled private vulnerability reporting, Dependabot security fixes, secret scanning,
+  and push protection, while retaining the honest future-release policy: no production
+  tag or release exists yet.
+
+### Fixed — external payout release-gate coverage — 2026-07-14
+
+- Added production-composition tests for the durable L1 payout scanner, authenticated L1/L2 RPC
+  clients, RocksDB-backed relay runtime ownership, finalized-history reorganization rejection,
+  canonical event parsing, domain/configuration mismatch rejection, and transaction confirmation.
+- Added ordered value-semantics regression coverage for payout instructions, proof-witness
+  artifacts, execution payloads, optimistic proof payloads, and every accumulated batch effect.
+- Restored the unchanged CI thresholds with 90.03% gate line coverage and 86.29% overall reported
+  line coverage; no coverage exclusion or threshold reduction was introduced.
+
+### Added — fail-closed recursive Gateway SP1 proof — 2026-07-14
+
+- Moved production SP1 guest builds to `cargo prove build --docker --locked` with
+  an immutable SP1 6.2.1 amd64 image digest, regenerated both ELF/VK manifests from
+  those canonical Docker artifacts, and made the CI wrapper reject host-native builds.
+- Split the batch VK input manifest from the host-only Gateway output manifest so
+  the Gateway guest cannot compile its own VK/ELF pins and create a self-referential hash cycle.
+- Extended the scheduled/manual real-proof release gate to execute and host-verify
+  the recursive Gateway Groth16 proof in addition to the terminal batch proof.
+- Pinned the separate SP1 gnark wrapper image by immutable amd64 manifest digest and fail closed
+  before proving when the Docker backend is missing that exact reference. Apple Silicon uses
+  SP1's upstream `native-gnark` backend instead of unreliable amd64 emulation; the private-network
+  harness now runs both the terminal batch and recursive Gateway real-proof gates.
+- Added independent SP1 6.2.1 Gateway guest/host crates. The guest strictly validates the
+  `NEO4GWP1` request, fixed 170-byte `NEO4GWR2` binding, canonical ordered commitments and roots,
+  and compile-time-batch-VK compressed child proofs before committing only
+  `0x00 || Hash256(binding170)`.
+- Added a canonical tuple-derived compressed-proof sidecar protocol, build manifest locking both
+  program VKs and ELF digests, host-side child and terminal Groth16 verification, symlink/path
+  rejection, atomic artifact publication with result manifest last, and explicit test-only VK
+  gating that cannot produce proofs.
+- Added parser/root/tamper/VK/proof-kind/path tests plus a real-recursion release gate that is now
+  unconditional in the required SP1 CI job.
+- Added crash recovery that cryptographically re-verifies complete result markers and safely
+  removes only regular non-symlink orphan artifacts before re-proving.
+- Added atomic `SettlementManager.PublishGatewayGlobalRoot`: exact ordered finalized-batch
+  references, bounded O(log 4096) dual-root reconstruction, per-chain non-revertible watermarks,
+  deployment readback, and same-transaction forwarding to `MessageRouter`. The proof-bound RPC
+  publisher queries Router for reconciliation but submits through SettlementManager.
+- Corrected the cross-layer empty-message invariant: a proven zero `globalMessageRoot` is the
+  canonical result for a zero constituent message-root tree, while publication presence remains
+  independently bound by the epoch proof-input record. Rust, .NET, and both NeoVM contracts now
+  accept that valid statement without weakening constituent, domain, VK, or proof checks.
+- Phase 5 remains partial until independent audit and executed real-proof deployment evidence are
+  complete; the former SettlementManager authorization/finality implementation gap is closed.
+
+### Fixed — governance quorum recovery evidence — 2026-07-14
+
+- Added VM-level evidence that two surviving signers in a 2-of-3 council can approve and execute
+  an epoch-bound, timelocked full rotation without the unavailable signer, after which removed keys
+  lose authority and the replacement council controls new proposals.
+- Documented the fail-closed recovery boundary: council rotation has no owner bypass, and loss of
+  quorum requires a separately reviewed emergency-governance migration.
+- Corrected the forced-inclusion slashing contract documentation: a late consume does not erase
+  censorship that was already reported after its deadline.
+
+### Fixed — native RISC-V coverage gate — 2026-07-14
+
+- Made the .NET coverage runner build and load the locked platform `neo_riscv_host` artifact,
+  record its SHA-256, and fail instead of skipping when the stateful ABI is unavailable.
+- Expanded real-native coverage across runtime context, complex stack marshalling, storage
+  read/write/delete/iterator behavior, canonical notifications, callback errors, out-of-gas
+  rollback, and default executor bootstrapping; the explicit bridge gate now discovers every
+  `RealNative_` test, including the previously omitted Notify boundary.
+
+### Fixed — execution transaction integrity coverage — 2026-07-14
+
+- Added commit-compensation tests for successful before-image restoration and the aggregate-error
+  path when both the store mutation and compensating rollback fail.
+- Covered atomic overlay operations, lifecycle guards, enumeration copies, content-based canonical
+  effect equality/hashing, malformed effect versions and operations, and removed an unused event-copy helper.
+
+### Fixed — Gateway prover binding coverage — 2026-07-14
+
+- Added direct fail-closed tests for the delegate Gateway prover's proof-system range,
+  production-backend allowlist, cancellation, aggregate backend, and canonical binding checks.
+
+### Fixed — batch plugin production-boundary coverage — 2026-07-14
+
+- Added direct lifecycle coverage for immutable sink and input wiring, chain-domain mismatches,
+  metrics re-wiring, pending-batch retry ordering, and unbound settings adoption.
+- Added forced-inclusion source coverage that filters durably tracked and null entries, preserves
+  L1 consumption until settlement finality, and rejects a null drain result before persistence.
+
+### Fixed — canonical codec boundary coverage — 2026-07-14
+
+- Hardened the shared proof-payload length-prefix primitives with explicit position, capacity,
+  prefix, and payload bounds so malformed data fails with stable typed errors.
+- Added direct content-equality coverage for proof-witness execution results and canonical
+  message/withdrawal decoder round-trip, truncation, enum, length, and maximum-value boundaries.
+
+### Added — four-language SDK conformance — 2026-07-14
+
+- Added one canonical JSON vector set consumed by the .NET, Rust, TypeScript, and Python SDKs,
+  covering all L2 RPC shapes, lossless `u64` encoding, UInt256 endianness, error mapping,
+  pagination serialization, and a real signed Neo N3 transaction round-trip.
+- Added a fail-closed CI runner with machine-readable per-language discovery/execution counts and
+  live N3/N4 tests that explicitly skip without endpoint configuration but are mandatory on
+  scheduled, tagged, and opt-in release lanes.
+- Fixed definite conformance defects exposed by the suite: .NET and Rust now serialize every
+  `u64` request as a decimal string, all clients reject non-2.0 response envelopes, and the Rust
+  SDK includes a production HTTPS trust-store path.
+
+### Fixed — P1-1 RPC / SDK ABI alignment — 2026-07-14
+
+- Reconciled `doc.md` §14.1, the official N4 RpcServer registration adapter,
+  `L2RpcMethods`, and the .NET, TypeScript, Rust, and Python SDKs around one
+  canonical ten-method surface.
+- Standardized every u64 request/response value as a decimal JSON string, restored
+  `getbridgedasset(l1Asset, chainId)`, documented chain-bound proof identities and
+  the optional state-root batch selector, and made `getsecuritylabel` canonical.
+- Extended shared offline/live conformance gates and the real local NeoSystem +
+  Kestrel RpcServer integration test to fail closed on envelope, chain, request,
+  and identity drift; aligned the inline Web Explorer client with the same u64
+  and response-binding rules. No public testnet or deployment evidence is claimed.
+
+### Fixed — SDK conformance documentation parity — 2026-07-14
+
+- Added the missing Chinese counterpart for the shared four-language SDK conformance contract,
+  including its fail-closed live fixture requirements and canonical protocol-ABI alignment.
+
+### Fixed — external inbound bridge payout closure — 2026-07-14
+
+- Completed verified foreign-to-Neo asset finalization with atomic direct NEP-17 release or a
+  versioned payout/credit adapter that receives every signed domain, identity, value, nonce,
+  deadline, source-transaction, and canonical-message field.
+- Bound each deployment to an explicit Neo destination domain (`0` for L1, non-zero for L2),
+  restricted zero-adapter direct liquidity/release to L1, and made every L2 route fail closed
+  unless it installs a versioned adapter that atomically persists or enqueues target credit.
+- Made foreign-to-Neo asset mappings immutable and reverse-unique per source chain, pinned adapter
+  ABI plus Neo update counter to reject in-place code drift, and retained an emergency route-disable
+  path without allowing silent adapter repinning.
+- Added irreversible proposal-only production governance, exact proposal-payload binding and replay
+  protection, chain-specific liquidity accounting, canonical uint256 amount validation across C#,
+  Rust, and NeoVM, plus deployment-plan wiring and failure/reentrancy/upgrade regression coverage.
+- Integrated the durable L2 payout relay with the opaque network-order `ExternalAssetId` wire type;
+  scanner parsing and L2 invocation scripts preserve raw foreign-asset bytes, with an asymmetric
+  address regression vector preventing accidental Neo `UInt160` endianness conversion.
+
+### Fixed — Python SDK CI dependency parity — 2026-07-14
+
+- Installed the declared Python SDK test extra in the multi-version package job so its shared
+  cryptographic conformance tests execute on Python 3.10–3.13 instead of failing at import time.
+
+### Fixed — execution-effects profile isolation — 2026-07-14
+
+- Added an explicit transaction-effects profile so canonical Neo N4 executors re-hash receipt
+  effects and derive outbox commitments only from the pinned native notification ABI, while
+  custom-chain executors retain their declared deterministic withdrawal/message semantics.
+- Restored custom-executor end-to-end compatibility without weakening the fail-closed native
+  execution/proof boundary, and pinned both ApplicationEngine and RISC-V executors to the
+  canonical native profile with regression coverage.
+
+### Fixed — executable fraud-proof deployment boundary — 2026-07-14
+
+- Removed advisory `GovernanceFraudVerifier` from the default/live production deployment and
+  stopped registering any v1/v2/v3 structural verifier for state-changing challenges.
+- The 23-step production plan now registers only the exact SettlementManager/replay-domain-bound
+  executable v4 profile. Legacy custom plans receive fail-closed warnings and governance/owner
+  witness cannot substitute for executable fraud verification.
+- Reconciled English and Chinese operator, architecture, security, whitepaper, and status docs
+  with the 23-production + 1-advisory + 1-test-only NeoHub project inventory.
+
+### Fixed — forced-inclusion event discovery — 2026-07-14
+
+- Replaced the operator-supplied nonce watcher gap with a durable finalized-L1 scanner wired by
+  `L2SettlementPlugin.WireProduction`. It scans `getblock`/`getapplicationlog`, accepts only the
+  configured contract's canonical `ForcedTxEnqueued` payloads, persists each nonce before its
+  cursor, verifies the previous block hash on restart, and fails closed on malformed logs or
+  finalized-history changes.
+- Production wiring now requires the contract deployment height and a caller-owned durable event
+  store. Manual nonce registration remains available only for controlled migration/recovery.
+
+### Fixed — Rust dependency advisories — 2026-07-14
+
+- Refreshed all production Rust lockfiles to remove the current RustSec
+  vulnerabilities in `crossbeam-epoch` and `quinn-proto`, plus patched
+  `anyhow`, `memmap2`, and `rand` releases flagged for unsound behavior.
+
+### Fixed — settlement poison-batch recovery — 2026-07-14
+
+- Added durable per-artifact bounded settlement retries and explicit poison checkpoints that
+  survive RocksDB restart, expose pending/retry/poison status and metrics, and stop automatic work
+  after the configured bound without deleting the canonical artifact or proof state.
+- Enforced contiguous batch-number reconciliation so later settlement cannot bypass a missing or
+  poisoned predecessor; preserved transaction-aware duplicate suppression and ambiguous-broadcast
+  reconciliation.
+- Added exact batch/content-hash operator recovery after remediation. Recovery resets retry state
+  while retaining canonical proof, transaction, forced-inclusion, and L1 reconciliation state;
+  terminal rejection remains an explicit protocol/governance policy decision rather than a local
+  skip mechanism.
+
+### Fixed — release-gate completeness — 2026-07-14
+
+- Made filtered .NET and ignored Rust proof gates fail closed when their expected
+  tests are missing, skipped, or silently renamed; pinned Rust, SP1, mdBook, and
+  audit tooling; and extended dependency, SDK, contract-security, watcher-image,
+  and package-build validation across the production release surface.
+
+### Added — production settlement composition root — 2026-07-14
+
+- Added `L2SettlementPlugin.WireProduction` to construct and own the shared L1 RPC client,
+  network-pinned confirmed transaction sender, settlement client, and paired RPC
+  forced-inclusion source/finalizer while preserving caller-owned `Wire` dependency injection.
+- Made the production endpoint, network magic, SettlementManager hash, ForcedInclusion hash,
+  and signer boundary explicit. Missing/malformed/zero identities, private-key fields in plugin
+  config, zero signer accounts, and unconfirmed/zero-hash transaction results fail closed.
+- Documented signer and resource ownership and added production configuration, construction,
+  forced-pair, and disposal coverage.
+
+### Fixed — forced-inclusion durable L1 completion — 2026-07-14
+
+- Closed the forced-inclusion settlement loop with a production RPC finalizer that validates
+  persisted transaction proofs against the finalized L1 transaction root, idempotently submits
+  canonical `consume` calls through the shared signed transaction sender, and requires an L1
+  `isConsumed` read-back before acknowledging durable completion.
+### Added — production NeoFS data availability adapter — 2026-07-14
+
+- Added a production `NeoFsRestDAWriter` / `NeoFsRestDAReader` pair over the
+  official NeoFS REST Gateway object API, without depending on the archived
+  proof-of-concept C# SDK.
+- Publication now returns the canonical NeoFS `container/object` address and
+  succeeds only after an independently configured reader retrieves the object
+  and verifies its response headers, payload, and canonical Hash256 commitment.
+- Added explicit request-authentication DI, rotating v2 session-token support,
+  opt-in anonymous EACL access, HTTPS-only endpoints, bounded responses, and
+  fail-closed handling for malformed locators, status codes, and content.
+
+### Fixed — security and production-status documentation — 2026-07-14
+
+- Reconciled English and Chinese architecture, launch, security, and status
+  documentation with the shipped SP1 terminal verifier, restricted fraud-proof v4,
+  epoch-bound council rotation, 25-project NeoHub inventory, 23-step production bundle,
+  four typed SDKs, 37 solution test projects, and the official RpcServer integration.
+- Removed volatile total-test counts and corrected production-boundary claims for
+  Gateway round provers, operator key custody, real NeoFS, and deployment evidence.
+
+### Fixed — release artifact ownership metadata — 2026-07-14
+
+- Replaced incorrect Neo Project authorship with R3E Network across package metadata and all 25 NeoHub contract manifests, regenerated the 24 VM testing artifacts from fresh `nccs` output, and added a fresh-manifest regression gate for maintainer attribution.
+
+### Operator signer-command boundary — 2026-07-14
+
+- Added a fail-closed `neo-stack --signer-command` bridge for HSM/KMS or wallet
+  adapters: it pins the account and verification script, sends canonical Neo
+  sign data without a private key, rejects invalid/empty/size-mismatched
+  witnesses, and retains preflight, exact-fee, broadcast, and HALT confirmation.
+- Documented the command protocol and corrected the production launch path so
+  sequencer, prover, and optional batcher run concurrently under separate
+  terminal or service supervisors.
+
+### Production dBFT operator integration — 2026-07-13
+
+- Added committee-authorized initialization plus an owner-authorized pending/active L2
+  sequencer validator set;
+  stock `GetNextBlockValidators` / refresh-block `ComputeNextBlockValidators` selection now
+  commits `NextConsensus` before activation, so unmodified DBFT never switches early.
+- Added canonical committee transaction construction plus
+  `start-sequencer --sync-committee` / `--sync-only` governance submission and confirmation.
+- Replaced `start-{sequencer,batcher,prover}` plan printers with supervised real
+  Neo.CLI/SP1 child processes: no shell, fixed config/data ownership, exact exit codes,
+  SIGINT/SIGTERM grace, separate batcher storage, plugin/config/network fail-closed checks.
+- Extended `init-l2` with non-overwriting sequencer and batcher Neo.CLI config installation
+  plus isolated node, batcher, prover-inbox, and prover-archive directories.
+
+### Stateful SP1 execution witness V1 — 2026-07-13
+
+- Reused the canonical `ProofWitnessArtifactV1` envelope for SP1 and added bounded `NEO4STW1` state/code/manifest witness plus `NEO4EFX1` effects sections.
+- Replaced script-only/fixed-zero guest execution with full Neo transaction decoding, stateful `neo-vm-rs` execution, production opcode/syscall gas, HALT overlay commits, FAULT rollback, and fail-closed unsupported syscalls.
+- Froze the 105-byte `CanonicalReceiptV1`, domain-separated storage/event V1 hashes, canonical event stack encoding, and keyed post-state-root recomputation.
+- Added a stable stateful golden artifact, host/guest parity coverage, and transaction/witness/state/root/receipt/order/parameter tamper rejection tests.
+- Added the restricted N4 genesis native transition V1: non-empty L1 deposits atomically update the real L2Bridge replay/mapping and TokenManagement token/account layout before transactions, while unsupported inbox types fail closed.
+- Derived withdrawal and L2→L1/L2 roots only from exact canonical L2Bridge/L2Message notifications, with pinned native hashes/ABIs, limited proven native dispatch, duplicate/malformed rejection, and C#/Rust/SP1 parity goldens.
+
+### Fixed — N4 genesis execution-effects parity — 2026-07-13
+
+- Aligned the shared C# ApplicationEngine/RISC-V effects hasher with SP1 genesis V1: exact storage domains and operations, recursive `NEO4STK1` event states, zero empty hashes, and Rust-generated receipt/effects/state-root goldens.
+
+### Added — stateful PolkaVM execution parity — 2026-07-13
+
+- Replaced the stateless RISC-V P/Invoke path with
+  `neo_riscv_execute_script_with_host`. The managed host now roots callback
+  delegates for process lifetime, passes each transaction through a
+  `GCHandle`-owned context, recursively marshals the complete native stack
+  model, and releases both native results and callback-owned buffers on every
+  exit path.
+- Added fail-closed host implementations for transaction/block runtime
+  context, `CheckWitness`, `Runtime.Notify`, storage read-through with
+  `Put`/`Delete`/`Find`, local-storage aliases, and iterator operations.
+  Consensus syscalls not explicitly implemented return callback failure and
+  force VM `FAULT`; no dummy values, unconditional witness success, or no-op
+  writes remain.
+- Added `ExecutionStateTransaction` and canonical execution effects V1.
+  `ApplicationEngineTransactionExecutor` and `RiscVTransactionExecutor` now
+  derive receipt hashes and exposed effects from the same immutable source,
+  and commit storage only after `HALT`. `FAULT`, out-of-gas, callback,
+  collector, and commit failures roll back the transaction overlay.
+- Pinned the 105-byte receipt preimage and V1 storage/event encodings with
+  ordering, before/after image, full event stack-state, rollback, fee,
+  fail-closed, managed parity, and real native PolkaVM tests.
+
+### Security — P0-4 committed-root-bound optimistic fraud proof v4
+
+- Added canonical `RestrictedFraudProofV4`: chain/batch/tx index, 321-byte
+  committed-header hash, pre/post/tx roots, canonical degenerate `[0,1]` transcript, executor
+  semantic id, replay domain, transcript hash, witness hash, and deployment-bound
+  claim id are one immutable claim. Transaction inclusion reuses
+  `MerkleProofSerializer`; state old/new leaves and paths reuse `StorageProof`
+  and reconstruct the committed pre/post roots independently.
+- Added `SettlementManager.GetChallengeableBatchHeader` for exact stored optimistic
+  headers while status is `Challengeable`. It does not alter finalization or the
+  finalized message/tx-root getter surface.
+- Added executable restricted v4 verification for one existing-key Counter
+  Increment transaction. Honest transitions return false; a wrong committed post
+  root returns true. Unsupported semantics and multi-transaction batches fail
+  closed; this is explicitly not a general NeoVM trustless verifier.
+- Scoped permissionless challenges to exact chain/verifier/semantic/replay profiles,
+  disabled legacy global permissionless registration, consumed successful v4 claim
+  ids, invalidated profiles across revoke/downgrade generations, and preserved atomic
+  CEI rollback around batch revert and bond slashing. V1/v2/v3 remain governance-only.
+- Added off-chain, NeoVM, and integration regressions for honest/fraud transitions,
+  root substitution, chain/batch/tx/bisection/replay/semantic/claim/witness/path
+  tampering, slashing boundaries, rollback, and fresh `nccs` artifacts.
+
+### P0-8 canonical proof-witness settlement pipeline — 2026-07-13
+
+- Replaced soft zero-root batch submission with immutable `SealedBatch` execution payloads and a
+  single durable pipeline through DA, canonical `ProofWitnessArtifactV1`, proof manifest,
+  settlement submission, and restart reconciliation.
+- ZK profiles now fail closed unless executor/prover semantic IDs match, execution witness bytes
+  are authenticated and non-empty, the prover is cryptographic, and all payload/public-input/DA/
+  execution bindings agree. Explicit multisig/optimistic profiles remain isolated compatibility
+  paths.
+- Forced-inclusion nonce, transaction index, hash, and Merkle siblings are persisted in the
+  canonical artifact. Consumption is deferred until settlement finality and delegated to
+  `IForcedInclusionFinalizationClient`, which must verify the finalized transaction root, submit
+  permissionless `ForcedInclusion.consume`, and confirm L1 state; failures remain restart-safe.
+- Proof manifests now persist distinct `ProofReady`, `Submitted`, and `SettlementObserved` states.
+  Recovery checks settlement and transaction status before retry, replaces only explicitly dropped
+  or reverted transactions, and treats unknown/confirmed-but-unobserved states as fail-closed.
+- Batch sealing now uses an explicit pending/persist/ack state machine. The sink restores a validated
+  continuous `(batch,lastBlock,postRoot)` checkpoint from canonical artifacts; restart replays missed
+  committed blocks from the local ledger and fails closed on missing, duplicate, or discontinuous data.
+
 ### Security — comprehensive audit cycle 2026-05-19
 
 Multi-agent audit team surfaced + closed two CRITICAL exploit paths and

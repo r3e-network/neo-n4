@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "checkedAtUtc": "2026-07-13T15:54:59Z",
+  "sourceCommit": "8a94bdf7baf22f01671a297c430a6a2930001d40",
+  "rpc": "https://testnet1.neo.coz.io:443",
+  "networkMagic": 894710606,
+  "rpcUserAgent": "/NEO-GO:0.120.0/",
+  "blockCount": 17661485,
+  "priorEvidence": {
+    "deploymentReport": "docs/audit/testnet-deployment-2026-05-20-contract-first.json",
+    "rpcReport": "docs/audit/full-stack-validation-2026-05-20/09-testnet-rpc.json",
+    "contractsStillPresent": 23,
+    "contractsChecked": 23,
+    "recordedTransactionsStillHalt": 13,
+    "recordedTransactionsChecked": 13
+  },
+  "artifactComparisons": [
+    {
+      "name": "ContractZkVerifier",
+      "deployedContractHash": "0xd52484a842b97555c56bd93ecf919df3f78366f7",
+      "deployedNefChecksum": 1283006123,
+      "currentNefChecksum": 3159719040,
+      "currentNefSha256": "cefedbc5ee05591dc78606619ba1a81c3ab8c353d046baae54d4bbcb234ae1d5",
+      "matchesCurrentSource": false
+    },
+    {
+      "name": "SettlementManager",
+      "deployedContractHash": "0x97af8cb41381b4b1a42c87785dffd15b4061a76e",
+      "deployedNefChecksum": 3579079692,
+      "currentNefChecksum": 348444301,
+      "currentNefSha256": "52fd576dc072e1b01358fc46a00ae623a1640a5b66d49f671d4ebbc1291c40c5",
+      "matchesCurrentSource": false
+    },
+    {
+      "name": "OptimisticChallenge",
+      "deployedContractHash": "0x5d90c2f8152c110e515195d69f35a1cf1553264b",
+      "deployedNefChecksum": 847787303,
+      "currentNefChecksum": 2196462568,
+      "currentNefSha256": "bb270e1fa325eb55873520d783df01fb2b9d7d46cef4b640de0bbc0b574eb243",
+      "matchesCurrentSource": false
+    },
+    {
+      "name": "RestrictedExecutionFraudVerifier",
+      "deployedContractHash": "0xcdcaea352429b2fb6b4577252fc0694c9aa2f187",
+      "deployedNefChecksum": 3248221305,
+      "currentNefChecksum": 1176909208,
+      "currentNefSha256": "e8ee81b1c99a17a86b2f2d54d3fc79b840772008b93bcb8576a8f182600cf944",
+      "matchesCurrentSource": false
+    },
+    {
+      "name": "Sp1Groth16Verifier",
+      "deployedContractHash": null,
+      "deployedNefChecksum": null,
+      "currentNefChecksum": 3423212630,
+      "currentNefSha256": "3d268de5f28389e994acc73271a49925d5920d599d43113221a0ee04bb4f566c",
+      "matchesCurrentSource": false
+    }
+  ],
+  "releaseEvidenceStatus": "superseded",
+  "releaseGate": "Redeploy the reviewed source commit and record contract hashes, NEF checksums, wiring transactions, positive and negative proof vectors, bridge flows, forced inclusion, governance rotation, and emergency recovery before treating public testnet evidence as current."
+}

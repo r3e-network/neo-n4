@@ -11,23 +11,25 @@ namespace Neo.L2.Persistence;
 /// <para>
 /// Construction opens (or creates if absent) a column-family-free RocksDB database at
 /// the configured path. The library handles concurrent reads + writes; this wrapper
-/// keeps the surface flat (no per-call locks) so multi-threaded L2 components can
-/// share a single instance.
+/// serializes conditional writes so <see cref="IL2KeyValueStore.TryPut"/>,
+/// <see cref="IL2KeyValueStore.CompareExchange"/>, and
+/// <see cref="IAtomicL2KeyValueStore.CompareExchangeBatch"/> remain atomic relative to
+/// ordinary Put/Delete calls on the shared instance.
 /// </para>
 /// <para>
 /// Tunables: the default options enable Snappy compression and create-if-missing.
-/// Writes use RocksDB's default <c>WriteOptions</c> — WAL-backed but asynchronously
-/// flushed (no per-write <c>fsync</c>). This matches the standard L2-sequencer
-/// durability story: in-flight writes recoverable from WAL on restart; true finality
-/// comes from commit to L1. Operators who need per-write <c>fsync</c> (or different
-/// compression / compaction tradeoffs) supply their own <see cref="DbOptions"/> via
-/// the alternate constructor — wrap a <c>WriteOptions { Sync = true }</c> at the
-/// call site if synchronous WAL flushes are required.
+/// Ordinary Put/Delete writes use RocksDB's default <c>WriteOptions</c> — WAL-backed but
+/// asynchronously flushed. Conditional writes are recovery commit points and therefore use
+/// <c>WriteOptions.SetSync(true)</c>, forcing the WAL to stable storage before success returns.
+/// Operators can still tune compression and compaction through the alternate constructor's
+/// <see cref="DbOptions"/>.
 /// </para>
 /// </remarks>
-public sealed class RocksDbKeyValueStore : IL2KeyValueStore
+public sealed class RocksDbKeyValueStore : IAtomicL2KeyValueStore, IDurableL2KeyValueStore
 {
     private readonly RocksDb _db;
+    private readonly Lock _writeGate = new();
+    private readonly WriteOptions _durableWriteOptions = new WriteOptions().SetSync(true);
     private bool _disposed;
 
     /// <summary>Path on disk where the RocksDB database lives.</summary>
@@ -94,7 +96,52 @@ public sealed class RocksDbKeyValueStore : IL2KeyValueStore
         if (key.Length == 0)
             throw new ArgumentOutOfRangeException(nameof(key), "key must be non-empty");
         ThrowIfDisposed();
-        _db.Put(key.ToArray(), value.ToArray());
+        var keyArr = key.ToArray();
+        var valueArr = value.ToArray();
+        lock (_writeGate)
+        {
+            ThrowIfDisposed();
+            _db.Put(keyArr, valueArr);
+        }
+    }
+
+    /// <inheritdoc />
+    public bool TryPut(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value)
+    {
+        if (key.Length == 0)
+            throw new ArgumentOutOfRangeException(nameof(key), "key must be non-empty");
+        ThrowIfDisposed();
+        var keyArr = key.ToArray();
+        var valueArr = value.ToArray();
+        lock (_writeGate)
+        {
+            ThrowIfDisposed();
+            if (_db.Get(keyArr) is not null) return false;
+            _db.Put(keyArr, valueArr, writeOptions: _durableWriteOptions);
+            return true;
+        }
+    }
+
+    /// <inheritdoc />
+    public bool CompareExchange(
+        ReadOnlySpan<byte> key,
+        ReadOnlySpan<byte> expectedValue,
+        ReadOnlySpan<byte> newValue)
+    {
+        if (key.Length == 0)
+            throw new ArgumentOutOfRangeException(nameof(key), "key must be non-empty");
+        ThrowIfDisposed();
+        var keyArr = key.ToArray();
+        var newValueArr = newValue.ToArray();
+        lock (_writeGate)
+        {
+            ThrowIfDisposed();
+            var current = _db.Get(keyArr);
+            if (current is null || !current.AsSpan().SequenceEqual(expectedValue))
+                return false;
+            _db.Put(keyArr, newValueArr, writeOptions: _durableWriteOptions);
+            return true;
+        }
     }
 
     /// <inheritdoc />
@@ -109,19 +156,13 @@ public sealed class RocksDbKeyValueStore : IL2KeyValueStore
     {
         ThrowIfDisposed();
         var keyArr = key.ToArray();
-        // RocksDB's Delete is idempotent and returns no "did this key exist" hint, so
-        // we have to probe first to honor the IL2KeyValueStore contract that returns
-        // true iff the key existed before the call. The probe + remove are two separate
-        // RocksDB ops with no transaction between them, matching this store's documented
-        // lock-free surface ("no per-call locks"). The key removal is always correct
-        // (Remove is idempotent); only the returned boolean is best-effort under a
-        // concurrent Delete/Put of the same key — two racing deletes can both observe
-        // the key present and both return true, and an interleaved Put can flip the
-        // result. Callers that need an exact "I removed it" guarantee must serialize
-        // their own Delete operations.
-        var existed = _db.Get(keyArr) is not null;
-        _db.Remove(keyArr);
-        return existed;
+        lock (_writeGate)
+        {
+            ThrowIfDisposed();
+            var existed = _db.Get(keyArr) is not null;
+            _db.Remove(keyArr);
+            return existed;
+        }
     }
 
     /// <inheritdoc />
@@ -129,6 +170,89 @@ public sealed class RocksDbKeyValueStore : IL2KeyValueStore
     {
         ThrowIfDisposed();
         return _db.Get(key.ToArray()) is not null;
+    }
+
+    /// <inheritdoc />
+    public bool CompareExchangeBatch(
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte>? ExpectedValue)> conditions,
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte>? Value)> mutations)
+    {
+        ThrowIfDisposed();
+        var expected = AtomicBatchValidator.Materialize(conditions, nameof(conditions));
+        var replacement = AtomicBatchValidator.Materialize(mutations, nameof(mutations));
+        lock (_writeGate)
+        {
+            ThrowIfDisposed();
+            foreach (var condition in expected)
+            {
+                var current = _db.Get(condition.Key);
+                if (condition.Value is null)
+                {
+                    if (current is not null) return false;
+                }
+                else if (current is null
+                    || !current.AsSpan().SequenceEqual(condition.Value))
+                {
+                    return false;
+                }
+            }
+
+            using var batch = new WriteBatch();
+            foreach (var mutation in replacement)
+            {
+                if (mutation.Value is null)
+                    batch.Delete(mutation.Key);
+                else
+                    batch.Put(mutation.Key, mutation.Value);
+            }
+            _db.Write(batch, _durableWriteOptions);
+            return true;
+        }
+    }
+
+    /// <inheritdoc />
+    public void ReplaceAll(
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> entries)
+    {
+        ThrowIfDisposed();
+        var replacement = AtomicReplacementValidator.Materialize(entries);
+        lock (_writeGate)
+        {
+            ThrowIfDisposed();
+            using var batch = new WriteBatch();
+            using var iterator = _db.NewIterator();
+            iterator.SeekToFirst();
+            while (iterator.Valid())
+            {
+                batch.Delete(iterator.Key());
+                iterator.Next();
+            }
+            foreach (var pair in replacement)
+                batch.Put(pair.Key, pair.Value);
+            _db.Write(batch, _durableWriteOptions);
+        }
+    }
+
+    /// <inheritdoc />
+    public bool CompareExchangeAll(
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> expectedEntries,
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> replacementEntries)
+    {
+        ThrowIfDisposed();
+        var expected = AtomicReplacementValidator.Materialize(expectedEntries);
+        var replacement = AtomicReplacementValidator.Materialize(replacementEntries);
+        lock (_writeGate)
+        {
+            ThrowIfDisposed();
+            if (!CurrentSnapshotEquals(expected)) return false;
+            using var batch = new WriteBatch();
+            foreach (var pair in expected)
+                batch.Delete(pair.Key);
+            foreach (var pair in replacement)
+                batch.Put(pair.Key, pair.Value);
+            _db.Write(batch, _durableWriteOptions);
+            return true;
+        }
     }
 
     /// <inheritdoc />
@@ -164,6 +288,21 @@ public sealed class RocksDbKeyValueStore : IL2KeyValueStore
         return true;
     }
 
+    private bool CurrentSnapshotEquals(SortedDictionary<byte[], byte[]> expected)
+    {
+        using var iterator = _db.NewIterator();
+        iterator.SeekToFirst();
+        foreach (var pair in expected)
+        {
+            if (!iterator.Valid()
+                || !iterator.Key().AsSpan().SequenceEqual(pair.Key)
+                || !iterator.Value().AsSpan().SequenceEqual(pair.Value))
+                return false;
+            iterator.Next();
+        }
+        return !iterator.Valid();
+    }
+
     private void ThrowIfDisposed()
     {
         if (_disposed) throw new ObjectDisposedException(nameof(RocksDbKeyValueStore));
@@ -172,8 +311,11 @@ public sealed class RocksDbKeyValueStore : IL2KeyValueStore
     /// <inheritdoc />
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
-        _db.Dispose();
+        lock (_writeGate)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _db.Dispose();
+        }
     }
 }

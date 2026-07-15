@@ -14,7 +14,7 @@ namespace NeoHub.MessageRouter;
 /// See doc.md §3.2 (MessageRouter) and §10 (Neo Connect).
 /// </summary>
 [DisplayName("NeoHub.MessageRouter")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("Cross-chain message queue + message-root registry for Neo Elastic Network.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.MessageRouter")]
@@ -28,8 +28,21 @@ public class MessageRouterContract : SmartContract
     private const byte PrefixGlobalRoot = 0x05;        // 0x05 + batchEpoch(8B) → 32B global aggregated message root (Phase-5 Neo Gateway commitment)
     private const byte PrefixConsumed = 0x06;          // 0x06 + msgHash(32B) → 1
     private const byte PrefixL1TxFilter = 0x07;        // 0x07 + targetChainId(4B) → filter contract hash
+    private const byte KeyGlobalRootVerifier = 0x08;   // 20B terminal verifier/router hash
+    private const byte KeyGlobalRootProofSystem = 0x09;// 1B terminal proof-system tag (1=SP1, …)
+    private const byte KeyGlobalRootVerificationKey = 0x0A; // pinned 32B verification-key id
+    private const byte KeyGlobalRootReplayDomain = 0x0B;     // pinned 32B replay domain
+    private const byte PrefixGlobalRootProofInput = 0x0C;    // 0x0C + epoch(8B) → accepted proof-input hash
+    private const byte KeyGlobalRootAggregationBackend = 0x0D; // pinned non-pass-through backend
+    private const byte KeyGovernanceController = 0x0E;
+    private const byte PrefixConsumedGatewayProposal = 0x0F; // 0x0F + proposalId(8B) → 1
+    private const byte KeyGlobalRootGovernanceLocked = 0x10;
     private const byte PrefixSettlementManager = 0xFD;
     private const byte KeyOwner = 0xFF;
+    private const int MaxAggregatedProofBytes = 1 * 1024 * 1024;
+    private const int MaxMessageProofDepth = 64;
+    private const byte PassThroughRoundBackend = 0xFE;
+    private const byte PassThroughAggregateBackend = 0xFF;
 
     /// <summary>Emitted when a new L1→L2 message is enqueued.</summary>
     [DisplayName("L1ToL2Enqueued")]
@@ -54,6 +67,22 @@ public class MessageRouterContract : SmartContract
     /// <summary>Emitted when ownership is transferred.</summary>
     [DisplayName("OwnerChanged")]
     public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
+
+    /// <summary>Emitted when governance installs a fail-closed Gateway proof profile.</summary>
+    [DisplayName("GlobalRootVerifierSet")]
+    public static event Action<UInt160, byte, byte, UInt256, UInt256> OnGlobalRootVerifierSet = default!;
+
+    /// <summary>Emitted with the canonical proof statement accepted for an epoch.</summary>
+    [DisplayName("GlobalRootProofAccepted")]
+    public static event Action<ulong, UInt256, UInt256> OnGlobalRootProofAccepted = default!;
+
+    /// <summary>Emitted when the governance controller is configured during bootstrap.</summary>
+    [DisplayName("GovernanceControllerChanged")]
+    public static event Action<UInt160> OnGovernanceControllerChanged = default!;
+
+    /// <summary>Emitted once the owner bootstrap path is permanently disabled.</summary>
+    [DisplayName("GlobalRootGovernanceLocked")]
+    public static event Action OnGlobalRootGovernanceLocked = default!;
 
     /// <summary>Set wiring on deploy.</summary>
     public static void _deploy(object data, bool update)
@@ -182,32 +211,305 @@ public class MessageRouterContract : SmartContract
     }
 
     /// <summary>
-    /// Settlement manager calls this when Phase-5 Neo Gateway aggregation finishes
-    /// for <paramref name="batchEpoch"/>. Commits the global aggregated message root
-    /// across all L2s in that epoch so any L2 can prove a peer's message via Merkle
-    /// inclusion against this single L1-anchored root — equivalent to ZKsync's
-    /// <c>BridgeHub.MessageRoot</c> aggregated commitment.
+    /// Verify and publish a fully-bound Gateway global root. Returns <c>true</c> for a new
+    /// publication and <c>false</c> for an exact idempotent replay of confirmed state.
     /// </summary>
     /// <remarks>
-    /// Epoch numbering is operator-defined (typically unix-second-windowed); a given
-    /// <paramref name="batchEpoch"/> can be published only once — re-publication is
-    /// rejected so a buggy aggregator can't silently overwrite a published root.
+    /// See doc.md §4 (Neo Gateway). The terminal verifier checks Hash256 over
+    /// <c>"NEO4GWR2" || executingScriptHash || replayDomain || epoch || globalRoot ||
+    /// constituentCommitmentsRoot || constituentCount || aggregationBackend || proofSystem ||
+    /// verificationKeyId</c>. A settlement-manager witness can submit the transaction but cannot
+    /// replace proof verification. New publications are disabled until governance is locked.
     /// </remarks>
-    public static void PublishGlobalRoot(ulong batchEpoch, UInt256 globalRoot)
+    public static bool PublishGlobalRoot(
+        ulong batchEpoch,
+        UInt256 globalRoot,
+        UInt256 constituentCommitmentsRoot,
+        uint constituentCount,
+        byte aggregationBackendId,
+        byte proofSystem,
+        UInt256 verificationKeyId,
+        UInt256 replayDomain,
+        byte[] aggregatedProof)
     {
         var sm = (UInt160)(Storage.Get(new byte[] { PrefixSettlementManager }) ?? throw new Exception("sm unset"));
         ExecutionEngine.Assert(Runtime.CheckWitness(sm), "not settlement manager");
-        // Without this guard, a zero global root would silently commit "no messages
-        // in this epoch" — semantically valid as a sentinel but confusing as a real
-        // commitment. Force the caller to be explicit.
-        ExecutionEngine.Assert(!globalRoot.Equals(UInt256.Zero), "global root must be non-zero");
+        ExecutionEngine.Assert(!constituentCommitmentsRoot.Equals(UInt256.Zero),
+            "constituent commitments root must be non-zero");
+        ExecutionEngine.Assert(constituentCount > 0, "constituent count must be positive");
+        ExecutionEngine.Assert(IsProductionAggregationBackend(aggregationBackendId),
+            "pass-through/reserved aggregation backend is not publishable");
+        ExecutionEngine.Assert(proofSystem >= 1 && proofSystem <= 4, "proofSystem must be 1..4");
+        ExecutionEngine.Assert(!verificationKeyId.Equals(UInt256.Zero),
+            "verification key id must be non-zero");
+        ExecutionEngine.Assert(!replayDomain.Equals(UInt256.Zero), "replay domain must be non-zero");
+
+        var proofInputHash = BuildGlobalRootProofInputHash(
+            batchEpoch,
+            globalRoot,
+            constituentCommitmentsRoot,
+            constituentCount,
+            aggregationBackendId,
+            proofSystem,
+            verificationKeyId,
+            replayDomain);
         var key = GlobalRootKey(batchEpoch);
-        // Strict "publish once per epoch" — replay protection at the storage layer.
-        // Without this guard, a buggy gateway could overwrite a previously-committed
-        // root and silently invalidate inclusion proofs already taken against it.
-        ExecutionEngine.Assert(Storage.Get(key) == null, "global root already published for this epoch");
+        var existingRoot = Storage.Get(key);
+        if (existingRoot != null)
+        {
+            var existingInput = Storage.Get(GlobalRootProofInputKey(batchEpoch));
+            ExecutionEngine.Assert(
+                ((UInt256)existingRoot).Equals(globalRoot)
+                && existingInput != null
+                && ((UInt256)existingInput).Equals(proofInputHash),
+                "epoch already bound to a different global root statement");
+            return false;
+        }
+
+        ExecutionEngine.Assert(IsGlobalRootGovernanceLocked(),
+            "global root governance not locked");
+        ExecutionEngine.Assert(aggregationBackendId == GetGlobalRootAggregationBackend(),
+            "global root aggregation backend mismatch");
+        ExecutionEngine.Assert(proofSystem == GetGlobalRootProofSystem(),
+            "global root proof system mismatch");
+        ExecutionEngine.Assert(verificationKeyId.Equals(GetGlobalRootVerificationKeyId()),
+            "global root verification key mismatch");
+        ExecutionEngine.Assert(replayDomain.Equals(GetGlobalRootReplayDomain()),
+            "global root replay domain mismatch");
+        ExecutionEngine.Assert(aggregatedProof.Length > 0, "aggregated proof required");
+        ExecutionEngine.Assert(aggregatedProof.Length <= MaxAggregatedProofBytes,
+            "aggregated proof too large");
+
+        var verifier = GetGlobalRootVerifier();
+        ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero,
+            "global root verifier not configured");
+        var verified = (bool)Contract.Call(
+            verifier,
+            "verifyZkProof",
+            CallFlags.ReadOnly,
+            new object[]
+            {
+                (BigInteger)proofSystem,
+                (byte[])verificationKeyId,
+                (byte[])proofInputHash,
+                aggregatedProof
+            });
+        ExecutionEngine.Assert(verified, "gateway aggregate proof rejected");
+
         Storage.Put(key, (byte[])globalRoot);
+        Storage.Put(GlobalRootProofInputKey(batchEpoch), (byte[])proofInputHash);
         OnGlobalRootPublished(batchEpoch, globalRoot);
+        OnGlobalRootProofAccepted(batchEpoch, constituentCommitmentsRoot, proofInputHash);
+        return true;
+    }
+
+    /// <summary>Bootstrap the fail-closed Gateway proof profile. Owner only before lock.</summary>
+    public static void SetGlobalRootVerifier(
+        UInt160 verifier,
+        byte proofSystem,
+        byte aggregationBackendId,
+        UInt256 verificationKeyId,
+        UInt256 replayDomain)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGlobalRootGovernanceLocked(),
+            "governance locked — use SetGlobalRootVerifierViaProposal");
+        WriteGlobalRootVerifier(
+            verifier,
+            proofSystem,
+            aggregationBackendId,
+            verificationKeyId,
+            replayDomain);
+    }
+
+    /// <summary>Configure the GovernanceController used for post-lock profile rotation.</summary>
+    public static void SetGovernanceController(UInt160 governanceController)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGlobalRootGovernanceLocked(),
+            "global root governance already locked");
+        ExecutionEngine.Assert(governanceController.IsValid && !governanceController.IsZero,
+            "invalid governance controller");
+        Storage.Put(new byte[] { KeyGovernanceController }, governanceController);
+        OnGovernanceControllerChanged(governanceController);
+    }
+
+    /// <summary>Permanently disable owner-only proof-profile mutation.</summary>
+    public static void LockGlobalRootGovernance()
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(GetGovernanceController() != UInt160.Zero,
+            "wire GovernanceController before locking");
+        AssertGlobalRootVerifierConfigured();
+        var key = new byte[] { KeyGlobalRootGovernanceLocked };
+        if (Storage.Get(key) == null)
+        {
+            Storage.Put(key, new byte[] { 1 });
+            OnGlobalRootGovernanceLocked();
+        }
+    }
+
+    /// <summary>Apply an exact council-approved and timelocked proof-profile rotation.</summary>
+    public static void SetGlobalRootVerifierViaProposal(
+        UInt160 verifier,
+        byte proofSystem,
+        byte aggregationBackendId,
+        UInt256 verificationKeyId,
+        UInt256 replayDomain,
+        ulong proposalId)
+    {
+        ExecutionEngine.Assert(IsGlobalRootGovernanceLocked(),
+            "lock global root governance before using proposal path");
+        var governanceController = GetGovernanceController();
+        ExecutionEngine.Assert(governanceController != UInt160.Zero,
+            "governance controller not wired");
+        var consumedKey = GatewayProposalKey(proposalId);
+        ExecutionEngine.Assert(Storage.Get(consumedKey) == null, "proposal already consumed");
+        var approved = (bool)Contract.Call(
+            governanceController,
+            "isApprovedAndTimelocked",
+            CallFlags.ReadOnly,
+            new object[] { proposalId });
+        ExecutionEngine.Assert(approved, "proposal not approved and timelocked");
+        var action = BuildSetGlobalRootVerifierAction(
+            verifier,
+            proofSystem,
+            aggregationBackendId,
+            verificationKeyId,
+            replayDomain);
+        var matches = (bool)Contract.Call(
+            governanceController,
+            "matchesProposalPayload",
+            CallFlags.ReadOnly,
+            new object[] { proposalId, action });
+        ExecutionEngine.Assert(matches, "proposal payload does not match Gateway verifier action");
+        Storage.Put(consumedKey, new byte[] { 1 });
+        WriteGlobalRootVerifier(
+            verifier,
+            proofSystem,
+            aggregationBackendId,
+            verificationKeyId,
+            replayDomain);
+    }
+
+    /// <summary>
+    /// Canonical governance payload for an exact, MessageRouter-bound proof-profile rotation.
+    /// </summary>
+    [Safe]
+    public static byte[] BuildSetGlobalRootVerifierAction(
+        UInt160 verifier,
+        byte proofSystem,
+        byte aggregationBackendId,
+        UInt256 verificationKeyId,
+        UInt256 replayDomain)
+    {
+        var tag = SetGlobalRootVerifierActionTag;
+        var buffer = new byte[tag.Length + 20 + 20 + 1 + 1 + 32 + 32];
+        var position = 0;
+        for (var i = 0; i < tag.Length; i++) buffer[position++] = tag[i];
+        var messageRouterBytes = (byte[])Runtime.ExecutingScriptHash;
+        for (var i = 0; i < 20; i++) buffer[position++] = messageRouterBytes[i];
+        var verifierBytes = (byte[])verifier;
+        for (var i = 0; i < 20; i++) buffer[position++] = verifierBytes[i];
+        buffer[position++] = proofSystem;
+        buffer[position++] = aggregationBackendId;
+        var verificationKeyBytes = (byte[])verificationKeyId;
+        for (var i = 0; i < 32; i++) buffer[position++] = verificationKeyBytes[i];
+        var replayDomainBytes = (byte[])replayDomain;
+        for (var i = 0; i < 32; i++) buffer[position++] = replayDomainBytes[i];
+        return buffer;
+    }
+
+    /// <summary>Build the exact Hash256 public input checked by <see cref="PublishGlobalRoot"/>.</summary>
+    [Safe]
+    public static UInt256 BuildGlobalRootProofInputHash(
+        ulong batchEpoch,
+        UInt256 globalRoot,
+        UInt256 constituentCommitmentsRoot,
+        uint constituentCount,
+        byte aggregationBackendId,
+        byte proofSystem,
+        UInt256 verificationKeyId,
+        UInt256 replayDomain)
+    {
+        var buffer = new byte[170];
+        var tag = GlobalRootProofDomainTag;
+        for (var i = 0; i < tag.Length; i++) buffer[i] = tag[i];
+        var router = (byte[])Runtime.ExecutingScriptHash;
+        for (var i = 0; i < 20; i++) buffer[8 + i] = router[i];
+        CopyUInt256(buffer, 28, replayDomain);
+        WriteUInt64(buffer, 60, batchEpoch);
+        CopyUInt256(buffer, 68, globalRoot);
+        CopyUInt256(buffer, 100, constituentCommitmentsRoot);
+        WriteUInt32(buffer, 132, constituentCount);
+        buffer[136] = aggregationBackendId;
+        buffer[137] = proofSystem;
+        CopyUInt256(buffer, 138, verificationKeyId);
+        var first = CryptoLib.Sha256((ByteString)buffer);
+        return (UInt256)(byte[])CryptoLib.Sha256(first);
+    }
+
+    /// <summary>Configured terminal verifier/router, or zero before bootstrap.</summary>
+    [Safe]
+    public static UInt160 GetGlobalRootVerifier()
+    {
+        var raw = Storage.Get(new byte[] { KeyGlobalRootVerifier });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Configured terminal proof-system tag, or zero before bootstrap.</summary>
+    [Safe]
+    public static byte GetGlobalRootProofSystem()
+    {
+        var raw = Storage.Get(new byte[] { KeyGlobalRootProofSystem });
+        return raw == null ? (byte)0 : ((byte[])raw)[0];
+    }
+
+    /// <summary>Configured aggregation-backend tag, or zero before bootstrap.</summary>
+    [Safe]
+    public static byte GetGlobalRootAggregationBackend()
+    {
+        var raw = Storage.Get(new byte[] { KeyGlobalRootAggregationBackend });
+        return raw == null ? (byte)0 : ((byte[])raw)[0];
+    }
+
+    /// <summary>Configured verification-key id, or zero before bootstrap.</summary>
+    [Safe]
+    public static UInt256 GetGlobalRootVerificationKeyId()
+    {
+        var raw = Storage.Get(new byte[] { KeyGlobalRootVerificationKey });
+        return raw == null ? UInt256.Zero : (UInt256)raw;
+    }
+
+    /// <summary>Configured replay domain, or zero before bootstrap.</summary>
+    [Safe]
+    public static UInt256 GetGlobalRootReplayDomain()
+    {
+        var raw = Storage.Get(new byte[] { KeyGlobalRootReplayDomain });
+        return raw == null ? UInt256.Zero : (UInt256)raw;
+    }
+
+    /// <summary>Configured GovernanceController, or zero before bootstrap.</summary>
+    [Safe]
+    public static UInt160 GetGovernanceController()
+    {
+        var raw = Storage.Get(new byte[] { KeyGovernanceController });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>True once owner-only Gateway proof-profile mutation is disabled.</summary>
+    [Safe]
+    public static bool IsGlobalRootGovernanceLocked()
+    {
+        return Storage.Get(new byte[] { KeyGlobalRootGovernanceLocked }) != null;
+    }
+
+    /// <summary>Accepted canonical proof-input hash for an epoch, or zero when unpublished.</summary>
+    [Safe]
+    public static UInt256 GetGlobalRootProofInputHash(ulong batchEpoch)
+    {
+        var raw = Storage.Get(GlobalRootProofInputKey(batchEpoch));
+        return raw == null ? UInt256.Zero : (UInt256)raw;
     }
 
     /// <summary>
@@ -222,13 +524,39 @@ public class MessageRouterContract : SmartContract
     }
 
     /// <summary>
-    /// Mark a message hash as consumed. The Merkle proof check happens off-chain (or via a
-    /// separate proof helper) and is the caller's responsibility. Replay-protected.
+    /// Permissionlessly consume an L2→L1 message after proving that its canonical message hash is
+    /// included in a finalized batch's L2→L1 message root. Replay-protected.
     /// </summary>
-    public static void MarkConsumed(uint sourceChainId, UInt256 messageHash)
+    /// <remarks>
+    /// See doc.md §3.2 (MessageRouter) and §10 (Neo Connect). The root is read from
+    /// SettlementManager's finalized canonical batch header; a settlement witness cannot replace
+    /// the Merkle proof. Siblings are ordered from leaf to root and use Neo Hash256 over
+    /// <c>left || right</c>. Bit i of <paramref name="leafIndex"/> selects the leaf's side at
+    /// level i.
+    /// </remarks>
+    public static void ConsumeL2ToL1(
+        uint sourceChainId,
+        ulong batchNumber,
+        UInt256 messageHash,
+        byte[][] siblings,
+        ulong leafIndex)
     {
+        ExecutionEngine.Assert(sourceChainId > 0, "sourceChainId 0 is reserved for L1");
+        ExecutionEngine.Assert(!messageHash.Equals(UInt256.Zero), "message hash must be non-zero");
+        ExecutionEngine.Assert(siblings != null, "siblings required");
+        var proofSiblings = siblings!;
+        ExecutionEngine.Assert(proofSiblings.Length <= MaxMessageProofDepth, "proof too deep");
+
         var sm = (UInt160)(Storage.Get(new byte[] { PrefixSettlementManager }) ?? throw new Exception("sm unset"));
-        ExecutionEngine.Assert(Runtime.CheckWitness(sm), "not settlement manager");
+        var root = (UInt256)Contract.Call(
+            sm,
+            "getL2ToL1MessageRoot",
+            CallFlags.ReadOnly,
+            new object[] { sourceChainId, batchNumber });
+        ExecutionEngine.Assert(!root.Equals(UInt256.Zero), "batch is not finalized or has no L2-to-L1 messages");
+        ExecutionEngine.Assert(VerifyMerkleProof(messageHash, root, proofSiblings, leafIndex),
+            "invalid L2-to-L1 message proof");
+
         var key = ConsumedKey(messageHash);
         ExecutionEngine.Assert(Storage.Get(key) == null, "already consumed");
         Storage.Put(key, new byte[] { 1 });
@@ -240,6 +568,39 @@ public class MessageRouterContract : SmartContract
     public static bool IsConsumed(UInt256 messageHash)
     {
         return Storage.Get(ConsumedKey(messageHash)) != null;
+    }
+
+    private static bool VerifyMerkleProof(
+        UInt256 leafHash,
+        UInt256 expectedRoot,
+        byte[][] siblings,
+        ulong leafIndex)
+    {
+        var current = (byte[])leafHash;
+        var index = leafIndex;
+        for (var level = 0; level < siblings.Length; level++)
+        {
+            var sibling = siblings[level];
+            if (sibling is null) throw new Exception("sibling must be 32 bytes");
+            ExecutionEngine.Assert(sibling.Length == 32, "sibling must be 32 bytes");
+            var combined = new byte[64];
+            if ((index & 1UL) == 0UL)
+            {
+                for (var i = 0; i < 32; i++) combined[i] = current[i];
+                for (var i = 0; i < 32; i++) combined[32 + i] = sibling[i];
+            }
+            else
+            {
+                for (var i = 0; i < 32; i++) combined[i] = sibling[i];
+                for (var i = 0; i < 32; i++) combined[32 + i] = current[i];
+            }
+
+            var first = CryptoLib.Sha256((ByteString)combined);
+            current = (byte[])CryptoLib.Sha256(first);
+            index >>= 1;
+        }
+
+        return index == 0 && expectedRoot.Equals((UInt256)current);
     }
 
     private static byte[] NonceKey(uint chainId)
@@ -300,6 +661,113 @@ public class MessageRouterContract : SmartContract
         k[7] = (byte)(batchEpoch >> 48); k[8] = (byte)(batchEpoch >> 56);
         return k;
     }
+
+    private static byte[] GlobalRootProofInputKey(ulong batchEpoch)
+    {
+        var key = GlobalRootKey(batchEpoch);
+        key[0] = PrefixGlobalRootProofInput;
+        return key;
+    }
+
+    private static byte[] GatewayProposalKey(ulong proposalId)
+    {
+        var key = new byte[9];
+        key[0] = PrefixConsumedGatewayProposal;
+        WriteUInt64(key, 1, proposalId);
+        return key;
+    }
+
+    private static void WriteGlobalRootVerifier(
+        UInt160 verifier,
+        byte proofSystem,
+        byte aggregationBackendId,
+        UInt256 verificationKeyId,
+        UInt256 replayDomain)
+    {
+        ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero,
+            "invalid global root verifier");
+        ExecutionEngine.Assert(proofSystem >= 1 && proofSystem <= 4,
+            "proofSystem must be 1..4");
+        ExecutionEngine.Assert(IsProductionAggregationBackend(aggregationBackendId),
+            "pass-through/reserved aggregation backend is not publishable");
+        ExecutionEngine.Assert(!verificationKeyId.Equals(UInt256.Zero),
+            "verification key id must be non-zero");
+        ExecutionEngine.Assert(!replayDomain.Equals(UInt256.Zero),
+            "replay domain must be non-zero");
+        Storage.Put(new byte[] { KeyGlobalRootVerifier }, verifier);
+        Storage.Put(new byte[] { KeyGlobalRootProofSystem }, new byte[] { proofSystem });
+        Storage.Put(new byte[] { KeyGlobalRootAggregationBackend }, new byte[] { aggregationBackendId });
+        Storage.Put(new byte[] { KeyGlobalRootVerificationKey }, (byte[])verificationKeyId);
+        Storage.Put(new byte[] { KeyGlobalRootReplayDomain }, (byte[])replayDomain);
+        OnGlobalRootVerifierSet(
+            verifier,
+            proofSystem,
+            aggregationBackendId,
+            verificationKeyId,
+            replayDomain);
+    }
+
+    private static void AssertGlobalRootVerifierConfigured()
+    {
+        ExecutionEngine.Assert(GetGlobalRootVerifier() != UInt160.Zero,
+            "global root verifier not configured");
+        ExecutionEngine.Assert(GetGlobalRootProofSystem() >= 1,
+            "global root proof system not configured");
+        ExecutionEngine.Assert(
+            IsProductionAggregationBackend(GetGlobalRootAggregationBackend()),
+            "global root aggregation backend not configured");
+        ExecutionEngine.Assert(GetGlobalRootVerificationKeyId() != UInt256.Zero,
+            "global root verification key not configured");
+        ExecutionEngine.Assert(GetGlobalRootReplayDomain() != UInt256.Zero,
+            "global root replay domain not configured");
+    }
+
+    private static bool IsProductionAggregationBackend(byte aggregationBackendId)
+    {
+        return aggregationBackendId != 0
+            && aggregationBackendId != PassThroughRoundBackend
+            && aggregationBackendId != PassThroughAggregateBackend;
+    }
+
+    private static void CopyUInt256(byte[] target, int offset, UInt256 value)
+    {
+        var bytes = (byte[])value;
+        for (var i = 0; i < 32; i++) target[offset + i] = bytes[i];
+    }
+
+    private static void WriteUInt32(byte[] target, int offset, uint value)
+    {
+        target[offset] = (byte)value;
+        target[offset + 1] = (byte)(value >> 8);
+        target[offset + 2] = (byte)(value >> 16);
+        target[offset + 3] = (byte)(value >> 24);
+    }
+
+    private static void WriteUInt64(byte[] target, int offset, ulong value)
+    {
+        target[offset] = (byte)value;
+        target[offset + 1] = (byte)(value >> 8);
+        target[offset + 2] = (byte)(value >> 16);
+        target[offset + 3] = (byte)(value >> 24);
+        target[offset + 4] = (byte)(value >> 32);
+        target[offset + 5] = (byte)(value >> 40);
+        target[offset + 6] = (byte)(value >> 48);
+        target[offset + 7] = (byte)(value >> 56);
+    }
+
+    private static readonly byte[] GlobalRootProofDomainTag = new byte[]
+    {
+        (byte)'N', (byte)'E', (byte)'O', (byte)'4',
+        (byte)'G', (byte)'W', (byte)'R', (byte)'2'
+    };
+
+    private static readonly byte[] SetGlobalRootVerifierActionTag = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'g', (byte)'o', (byte)'v', (byte)':',
+        (byte)'s', (byte)'e', (byte)'t', (byte)'G', (byte)'l', (byte)'o', (byte)'b', (byte)'a', (byte)'l',
+        (byte)'R', (byte)'o', (byte)'o', (byte)'t', (byte)'V', (byte)'e', (byte)'r', (byte)'i', (byte)'f', (byte)'i', (byte)'e', (byte)'r'
+    };
 
     private static byte[] BuildKey(byte prefix, uint chainId, ulong number)
     {

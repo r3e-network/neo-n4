@@ -115,7 +115,7 @@ impl Signer for FileSigner {
         let (sig, recid): (Signature, RecoveryId) = self
             .sk
             .sign_prehash_recoverable(&digest)
-            .map_err(|e| SignerError::Signing(format!("{}", e)))?;
+            .map_err(|error| SignerError::Signing(format!("{error}")))?;
         // Defensive low-S normalization. k256's `sign_prehash_recoverable` already
         // returns the low-S form per its post-EIP-2 default; we re-normalize so
         // any future signer-backend swap (HSM/KMS adapters that route through the

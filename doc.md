@@ -170,18 +170,25 @@ struct L2ChainConfig {
     byte daMode;              // 0 L1 DA, 1 NeoFS DA, 2 external DA, 3 DAC
     bool gatewayEnabled;
     bool permissionlessExit;
+    byte sequencerModel;      // 0 centralized, 1 dBFT committee, 2 decentralized
+    byte exitModel;           // 0 permissionless, 1 delayed, 2 operator-assisted
     bool active;
 }
 ```
 
+`genesisStateRoot` 不属于 91 字节 `L2ChainConfig`，而是注册时单独提交的不可变、非零
+`UInt256`。`ChainRegistry` 必须在首次注册时原子保存 config 与该根；后续幂等注册只能使用
+完全相同的根，任何治理更新都不能替换它。
+
 核心方法：
 
 ```text
-registerChain(config)
-updateChainConfig(chainId, newConfig)
+registerChain(chainId, configBytes, genesisStateRoot)
+updateChain(chainId, configBytes)
 pauseChain(chainId)
 resumeChain(chainId)
 getChainConfig(chainId)
+getGenesisStateRoot(chainId)
 ```
 
 ### SharedBridge
@@ -242,12 +249,28 @@ struct L2BatchCommitment {
 核心方法：
 
 ```text
-submitBatch(batchCommitment)
-verifyBatch(chainId, batchNumber)
+submitBatch(commitmentBytes, l1MessageHash, blockContextHash)
 finalizeBatch(chainId, batchNumber)
-revertUnfinalizedBatch(chainId, batchNumber)
+revertBatch(chainId, batchNumber)                         // 仅 bootstrap owner 或 OptimisticChallenge
+setGovernanceController(governanceController)
+lockGovernance()                                         // 生产不可逆锁
+buildRevertBatchAction(chainId, batchNumber)
+revertBatchViaProposal(chainId, batchNumber, proposalId) // threshold + timelock + exact payload
 getCanonicalStateRoot(chainId)
 ```
+
+`batchNumber = 1` 的 `preStateRoot` 必须等于 `ChainRegistry` 中该链不可变的
+`genesisStateRoot`；后续 batch 必须连接最新已终局根。首批终局前（或首批回滚后），
+`getCanonicalStateRoot` 返回该已注册创世根，而不是由第一个提交者任意建立信任锚。
+
+生产部署必须先接好 `OptimisticChallenge`、`DARegistry`、`DAValidator`、
+`MessageRouter` 与 `GovernanceController`，再调用一次性的 `lockGovernance()`。
+锁定后 owner 不能改写这些依赖、转移 SettlementManager owner，或直接回滚 batch；
+治理回滚只能由任何 relayer 提交一个已达 council 阈值、超过 timelock、且 payload
+精确等于 `"neo4-gov:revertBatch" || SettlementManager:UInt160 raw 20B || chainId:uint32 LE || batchNumber:uint64 LE`
+的一次性 proposal。`OptimisticChallenge` 仍保留只针对 `Challengeable` batch 的即时
+欺诈回滚权。治理可从最新 finalized head 自顶向下回滚并恢复前一个 canonical root，
+但已被 Gateway 发布的 batch 永不可回滚。
 
 ### VerifierRegistry
 
@@ -331,6 +354,60 @@ Neo L2-C proof ┘
 ```
 
 Gateway 不保管资产。资产仍锁在 NeoHub / SharedBridge。Gateway 只负责证明聚合和消息根聚合。
+
+## 4.1 SP1 递归证明边界
+
+Gateway 的 SP1 路径使用独立 guest，不复用 batch execution guest。输入固定为
+`NEO4GWP1 || binding170 || countLE32 || (commitmentLenLE32 || canonicalCommitment)*`，
+其中 `binding170` 必须是固定 170-byte `NEO4GWR2`。guest 必须重新验证严格
+`(chainId, batchNumber)` 顺序、`ProofType.Zk`、完整 canonical commitment Merkle root、
+奇数叶提升的 `globalMessageRoot`、backend `0xC2` 与 proof system `1`。
+`globalMessageRoot == UInt256.Zero` 是单个或聚合后确实没有 L2→L2 消息时的合法规范根；
+缺失发布状态必须由 epoch 对应的 proof-input 记录区分，禁止把零根当作未证明或未发布。
+
+每个递归 child 的 public values 固定为 `0x00 || batch.PublicInputHash`。child sidecar
+还必须携带 commitment 中缺失的 `l1MessageHash` 与 `blockContextHash`；Gateway guest
+使用 commitment 的 chain/batch/七个执行根/DA commitment 与这两个补充字段重建完整
+332-byte public inputs，并要求其 Hash256 等于 `batch.PublicInputHash`。child 必须是
+SP1 6.2.1 compressed proof，并由 guest 内编译期锁定的 batch guest VK 验证；请求不得
+携带 VK、文件路径或 Groth16 child proof。Gateway guest 唯一允许 commit 的 public
+values 是 `0x00 || Hash256(binding170)`。
+
+host daemon 只能按 canonical `(chainId,batchNumber,publicInputHash)` 文件名从独立
+sidecar 目录读取 compressed proof，拒绝符号链接、非 regular file、错误 proof kind、
+错误 SP1 版本或 public values。build 产物 manifest 同时锁定 batch VK、Gateway VK 与
+两个 ELF 的 SHA-256；production build 缺失或零 VK 必须失败，test-only VK 只能通过
+显式 feature 使用且不得生成证明。host 在发布任何 ready marker 前再次验证 child proof
+和最终 356-byte Gateway Groth16 proof；proof/VK/public-values 原子写入，result manifest
+最后写入。若进程在 marker 前崩溃，守护进程只清理 regular non-symlink orphan；若 marker
+已经存在，则必须重新校验 manifest、工件长度/hash/VK/public values，并再次执行终端
+Groth16 验证后才能幂等跳过，任何不一致都 fail closed。
+
+规范生产者是 `prove-batch daemon --watch <batch-dir> --gateway-sidecars <sidecar-dir>`；
+它只在终端 batch Groth16 与 compressed child 都经 host 验证且 public-input hash 一致后，
+原子发布 tuple-bound sidecar。消费者是
+`prove-gateway daemon --queue <gateway-queue> --child-proofs <sidecar-dir>`；两个守护进程
+必须共享同一个非符号链接 sidecar 目录。
+
+L1 发布入口固定为 `SettlementManager.PublishGatewayGlobalRoot`，不得由 operator 直接调用
+`MessageRouter.PublishGlobalRoot`；后者要求 SettlementManager contract witness。RPC publisher
+查询 MessageRouter 做幂等 reconciliation，但签名交易始终发给 SettlementManager。调用携带
+1..4096 个严格按 `(chainId,batchNumber)` 排序且唯一的 12-byte little-endian references。
+`FinalizeBatch` 为每个成员保存 `Hash256(完整 canonical commitment bytes) ||
+l2ToL2MessageRoot` 的 64-byte record。发布时 SettlementManager 必须逐项验证 batch 当前仍为
+`Finalized`、chain 已启用 Gateway、batch 高于该 chain 已发布 watermark，并用 O(log 4096)
+streaming frontier 重建两棵 proof-bound tree：commitment root 对奇数叶复制，message root 对
+奇数叶提升。任一 reference、root 或配置不匹配即失败。
+
+验证成功后，SettlementManager 在同一 NeoVM transaction 中推进各 chain 的 non-revertible
+watermark，并原子调用 MessageRouter 验证固定 backend/proof-system/VK/replay-domain 绑定的
+Gateway proof。Router fault 会回滚全部 watermark；发布成功后 `RevertBatch` 不得越过已发布
+watermark。部署计划必须双向绑定 MessageRouter 构造参数中的 SettlementManager 与
+`SettlementManager.SetMessageRouter(MessageRouter)`，并对 readback 做 smoke check。
+
+因此 SettlementManager 授权和最终化成员绑定已是可执行、被 VM/RPC/deploy 测试覆盖的路径。
+Phase 5 仍保持 🟡，只因为独立安全审计和生产配置下执行真实递归证明、链上部署与发布的证据
+尚未完成；不得把本地实现测试扩大表述为 mainnet readiness。
 
 ---
 
@@ -474,6 +551,16 @@ L2 local finality:
 L1 settlement finality:
   来自 NeoHub accepted batch/proof，用于 withdrawal、canonical bridge、跨 L2 消息
 ```
+
+实现约束：dBFT 共识轮次不得直接依赖 L1 RPC 或进程内
+`ISequencerCommitteeProvider` 回调，否则不同 validator 可能在同一高度观察到不同集合。
+NeoHub `SequencerRegistry` 是准入来源；genesis committee 先授权初始化并确定 L2 owner，
+之后由 owner 授权的 `L2SystemConfigContract.setSequencerValidators` 交易把规范排序后的集合写入 pending 状态；
+旧集合在下一个确定性 committee-refresh 块先提交新的 `NextConsensus`，该块持久化时再将
+pending 原子提升为 active。r3e Neo core 的 `Governance.GetNextBlockValidators` 与
+`ComputeNextBlockValidators` 分别读取 active / pending，因此现有 DBFTPlugin 无需定制
+selector，也不会出现前一块 `NextConsensus` 与下一块签名集合不一致。未配置时仅使用
+genesis `StandbyCommittee`，已配置但计数与协议 `ValidatorsCount` 不一致时 fail closed。
 
 ---
 
@@ -682,6 +769,71 @@ L1 messages consumed
 DA data
 execution trace
 ```
+
+## 8.5 N4 Genesis Stateful Witness V1
+
+N4 genesis 的 SP1 输入固定复用 `ProofWitnessArtifactV1`（`NEO4PWIT`），不得再创建第二套外层 witness。`ExecutionPayloadV1` 提供完整 canonical Neo Transaction、批次区间、L1 finalized height、时间戳、network 与 L1 message；`StateWitness` 的 `NEO4STW1` V1 提供有界且非空的完整 pre-state、合约 code/manifest 和固定协议参数。合约 descriptor 通过 `neo-n4/contract-binding/v1\0` 域绑定到 pre-state root。
+
+`CanonicalReceiptV1` 固定为 105 bytes：`txHash[32] | success[1] | gasConsumed i64 LE[8] | storageDeltaHash[32] | eventsHash[32]`。`StorageDeltaHashV1` 以完整 raw key 排序，绑定 op 及 old/new presence+bytes；`EventsHashV1` 按执行顺序绑定 emitting script hash、UTF-8 name 和完整 `NEO4STK1` canonical stack state。两者空集合均为零 `UInt256`，非空分别使用 `neo-n4/storage-delta/v1\0` 与 `neo-n4/events/v1\0` 域。
+
+guest 必须先验证 pre-state root，再执行 `tx.Script`。`HALT` 提交 overlay/notifications；`FAULT` 生成失败 receipt 并回滚；transaction/witness/manifest adapter 解码错误终止整个批次。post-state root 只能由验证后的 pre-state 与实际 HALT overlay 重算，禁止用 receipt hash 折叠代替。未实现的 consensus syscall 必须 fail closed。
+
+生产排序器不得再用另一套 C# 执行语义猜测 SP1 guest 的结果。`neo-zkvm-guest`
+crate 同时产出 host-native `neo-zkvm-executor`；它和 zkVM ELF 调用同一份
+`neo-execution-core` 与 NeoVM runtime。native executor 读取精确的 `NEO4EXEC` payload
+与完整 pre-state `NEO4STW1`，输出规范 `NEO4EXR1`：请求 payload Hash256、请求 witness
+Hash256、固定 execution semantic id、全部执行根与 gas、完整 `NEO4EFX1` effects、完整
+post-state `NEO4STW1`、public-input Hash256，以及域分隔的尾部内容 Hash256。任何未知版本、
+越界长度、非规范编码、请求哈希、语义、post-state root 或 public-input 不一致都必须在
+状态提交前拒绝。
+
+运维启动 batch 1 前，必须把 Neo genesis 写入同一持久状态库，调用
+`Sp1StateWitnessSource.InitializeGenesisContractBindings` 加入由
+`ContractManagement` 派生的 descriptor binding，并把返回的非零 root 作为不可变 genesis
+root 持久记录。`Sp1StatefulBatchExecutor` 要求 operator 提供独立审阅的 native executable
+SHA-256；每次调用都边复制边校验该 digest，只执行隔离目录中的锁定副本。C# 在校验
+`NEO4EXR1` 的请求、语义、effects、post-state 和 public inputs 后，只返回已认证 transition，
+执行阶段不得修改持久状态；pre-state 漂移或任一校验失败都不得产生任何写入。
+
+状态提交必须服从 artifact-first 顺序：`CanonicalSettlementPipeline` 必须先把不可变
+`ProofWitnessArtifactV1` 原子持久化并按 canonical bytes 重新读取验证，再调用
+`ICommittedProofWitnessStateSink`。`Sp1StatefulBatchExecutor` 从该持久 artifact 重放同一
+native transition，逐字节校验 public inputs、execution result 与 effects 后才原子替换状态。
+若进程在 artifact 落盘后、状态提交前崩溃，重复 `PersistAsync` 或启动时
+`GetLatestCheckpointAsync` 必须重放最新 artifact；若状态已是其 post-state，则不得再次执行。
+因此任何已推进状态都必须存在可校验的持久恢复记录。
+
+`PersistAsync` 还必须在执行、DA 发布与 artifact 写入之前验证完整前序：batch 0 保留给
+genesis；batch 1 连接认证 genesis root；batch N 必须已有不可变 batch N-1 artifact，且
+`firstBlock = previous.lastBlock + 1`、`preStateRoot = previous.postStateRoot`。缺失前序、区块
+间隙或状态根断链必须 fail closed，禁止先推进状态再依赖重启对账发现错误。生产组合根
+`WireProduction` 只能接受明确声明重启耐久能力的 proof-witness store 与 forced-inclusion
+event store；内存 store 只允许通过测试/自定义 `Wire` 路径使用。
+
+状态替换还必须是完整快照 CAS：执行器以 witness 中的完整 pre-state 作为 expected snapshot，
+以验证后的完整 post-state 作为 replacement，通过 `IAtomicL2KeyValueStore.CompareExchangeAll`
+一次提交。两个进程或两个 store 实例并发推进同一 pre-state 时只能有一个成功；失败者不得
+覆盖赢家，也不得留下部分写入。
+
+SP1 文件队列以 artifact content hash 命名，并实行结算确认后删除：C# prover 只原子发布
+不可变 request；Rust daemon 生成 proof/VK/public-values/result 后保留全部工件。只有
+`ProofResultManifest.SettlementFinalized` 已持久化，pipeline 才发布内容为同一 32-byte
+content hash 的 `<hash>.proof.ack`；daemon 校验文件名、内容、owner 和 mode 后，幂等删除
+watch/archive 中对应工件，最后删除 ack。禁止 TTL 或“证明完成即删”，因为它们会在 L1
+确认前破坏恢复证据。Unix 目录必须为 owner-only `0700`、工件为 `0600`；symlink、错 owner、
+错 mode 均 fail closed。默认硬上限为 16 GiB 和 64 个 content-addressed task，且每次证明前
+重新检查容量，防止失控磁盘增长。
+
+生产 build script 必须从共享 Docker target ELF 只读取一次，以同一 byte snapshot 同时验证
+SHA-256 与 program VK，再把精确字节发布到 Cargo 独立 `OUT_DIR` 的只读 `0400` 文件；
+`include_bytes!` 只能包含该 verified snapshot，不能再次读取会被并行 `cargo prove` 覆盖的
+共享 target 路径。CI 的 terminal 与 recursive 真实 SP1 proof 步骤在 pull request、master、
+定时和手工触发中都必须执行，不允许用 step-level 条件跳过后仍让 required job 通过。
+
+N4 genesis V1 的部署合约 descriptor 集合在一次状态转换内不可增删替换；尚未覆盖的
+native method、dynamic contract update/deploy 和 consensus syscall 均 fail closed。扩大该
+语义集合必须同时升级 witness/version、guest、native executor、VK、链上 verifier 路由与
+跨语言 golden tests，不能只放宽 host 端。
 
 ---
 
@@ -938,25 +1090,68 @@ struct ExternalCrossChainMessage {
     UInt256 sourceTxRef;        // Eth tx hash / Tron tx hash / Solana sig
     byte   messageType;         // 0=AssetTransfer, 1=Call, 2=AssetAndCall
     byte[] payload;
-    UInt256 messageHash;        // Hash256 over canonical bytes
+    UInt256 messageHash;        // 派生元数据：Hash256(canonicalBytes)，不在线上序列化
 }
 ```
 
 `externalChainId` 高位 `0xE0` 前缀保留外链命名空间，与 Neo L2 chainId
-（从 1 开始）无冲突。
+（从 1 开始）无冲突。规范线格式为固定 102 bytes 前缀加 `payload`：所有多字节
+整数均为 little-endian，最后 4 bytes 前缀字段为 `payloadLength`，随后紧跟
+`payloadLength` bytes。`messageHash` 仅由 C# / Rust 两侧从这 `102 + N` bytes
+重算，不附加到证明输入，链上也不信任调用方提供的哈希。
 
-### 11.3.4 加密原语
+`ExternalBridgeEscrow` 的生产实例必须在部署时绑定一个不可变的目标 Neo 域：
+`neoChainId == 0` 明确表示 Neo L1，非零值表示对应 Neo L2。合约必须在 verifier
+调用前同时检查参数 `externalChainId`、签名消息中的 source/destination chain、
+direction、nonce 与 deadline。`AssetTransfer` payload 为
+`foreignAsset(20B) || amountLength(4B LE) || amount(1..32B minimal unsigned LE)`；
+`AssetAndCall` 在相同资产前缀后追加 adapter calldata。零金额、超过 uint256、
+非最短编码、零资产或零 recipient 均 fail closed。
+
+### 11.3.4 入站资产释放 / 信用闭环
+
+`ExternalBridgeEscrow` 自身持有每个 `(externalChainId, neoAsset)` 的直接释放
+流动性，并持有不可变的 `(externalChainId, foreignAsset) → neoAsset` 映射：
+
+- `payoutAdapter == UInt160.Zero`：仅允许目标域为 Neo L1（`neoChainId == 0`）时
+  调用原生 NEP-17 `transfer`，从对应外链域的 escrow 余额原子扣减并向已签名
+  recipient 释放；`FundLiquidity` 只接受已经建立并启用的 direct route，避免把资产
+  注入不可领取的池。余额不足或 token 返回 `false` 时，余额与 replay marker 一并回滚。
+- 非零 adapter：调用版本化 `payout` ABI，并完整传入 source/destination chain、
+  nonce、foreign/Neo asset、recipient、amount、deadline、sourceTxRef 与原始规范
+  message bytes。adapter 必须是 `payoutVersion() == 1`、从未原地更新
+  (`ContractManagement.UpdateCounter == 0`) 的新部署；route 固定该 update counter，
+  后续原地更新即停止 payout，必须部署新 adapter 并走治理升级。
+- 目标域为 Neo L2 时必须配置非零 adapter；该 adapter 只有在目标 credit/mint 指令
+  已被同一 NeoVM 事务持久化或入队后才能返回 `true`。跨链到 L2 的最终执行天然异步，
+  不能把 verifier 接受或单独事件视为已经 mint。
+- 同一外链域内一个 Neo asset 不得映射两个 foreign assets；已建立的
+  foreign→Neo asset 映射不可改写，只能升级 adapter 或停用 route。
+- verifier 接受后先写 replay marker，再进入不可信 token/adapter；NeoVM 事务原子性
+  保证 payout fault 时 marker、余额与事件全部回滚，同时阻断 adapter 重入重放。
+
+生产部署先连接 `GovernanceController`，配置并注资 route，再调用不可逆
+`LockGovernance()`。锁定后 owner 不能直接更换 registry/route；只能使用已批准、
+已 timelock、且 action bytes 精确绑定所有参数的 `SetRegistryViaProposal` /
+`ConfigureAssetRouteViaProposal`，proposal id 只能消费一次。两种 action bytes 还必须
+包含 escrow `ExecutingScriptHash` 与不可变 `neoChainId`，同一治理 proposal 因此不能
+跨 escrow 实例或跨 L2 域复用。
+
+### 11.3.5 加密原语
 
 Neo `CryptoLib` 已暴露：
 
-- `VerifyWithECDsa`（secp256k1 + Keccak256）→ Eth / Tron 签名验证
+- `VerifyWithECDsa`（`secp256k1SHA256`）→ Eth / Tron watcher 委员会签名验证
 - `VerifyWithEd25519` → Solana 签名验证
+
+这里的 Keccak256 只用于 EVM event topic / 地址生态，不用于 Neo 上的委员会
+签名验证。消息身份另以 Neo `Hash256`（double-SHA256）从规范 bytes 派生。
 
 签名验证不是瓶颈，**轻客户端复杂度才是**。Solana 因 Tower BFT 验证
 集 ~1500、每 epoch 轮换、需要推理 lockouts，不能短期做无信任轻
 客户端，因此 Solana 桥的所有 Phase 都停留在 MPC committee 模型。
 
-### 11.3.5 升级路径（Phase 顺序）
+### 11.3.6 升级路径（Phase 顺序）
 
 ```text
 Phase A：Foundation       # 三个合约 + IExternalBridgeVerifier seam（无 verifier）
@@ -1093,14 +1288,26 @@ Policy:
 ```text
 getl2batch(chainId, batchNumber)
 getl2batchstatus(chainId, batchNumber)
-getl2stateroot(chainId, batchNumber)
-getl2withdrawalproof(txHash)
-getl2messageproof(messageHash)
-getl1depositstatus(depositId)
+getl2stateroot(chainId, batchNumber?)
+getl2withdrawalproof(chainId, withdrawalLeafHash)
+getl2messageproof(chainId, messageHash)
+getl1depositstatus(sourceChainId, nonce)
 getcanonicalasset(l2Asset)
 getbridgedasset(l1Asset, chainId)
 getsecuritylevel(chainId)
+getsecuritylabel(chainId)
 ```
+
+`chainId` / `sourceChainId` 使用无符号 32 位 JSON number。所有 `uint64`
+参数与响应字段（`batchNumber`、区块号、deposit `nonce`、
+`includedInBatch`）必须使用无前导零的十进制 JSON string，避免 JavaScript
+安全整数边界造成精度丢失。`getl2stateroot` 省略 `batchNumber` 时返回最新已完成
+状态根；提供时返回指定批次状态根。withdrawal proof 按 SharedBridge 实际消费的
+`withdrawalLeafHash` 查询，而不是无法唯一绑定 withdrawal 的交易哈希。
+
+所有请求与响应使用 JSON-RPC 2.0；响应必须原样回显请求的数值 `id`。需要 L2
+上下文的方法必须携带 `chainId` 并由节点拒绝跨链请求。`getsecuritylabel` 是
+§16.2 五维安全标签的规范 RPC；`getsecuritylevel` 作为单维兼容接口保留。
 
 ## 14.2 Neo Stack CLI
 
@@ -1117,11 +1324,23 @@ neo-stack create-chain --template rollup --vm neovm2-riscv
 neo-stack init-l2 --chain-id 1001 --da neofs
 neo-stack register-chain --l1 neo-n3-testnet
 neo-stack deploy-bridge-adapter
-neo-stack start-sequencer
-neo-stack start-batcher
-neo-stack start-prover
+neo-stack start-sequencer --neo-cli <reviewed Neo.CLI entry>
+neo-stack start-batcher --neo-cli <dedicated follower Neo.CLI entry> --data-dir <separate data dir>
+neo-stack start-prover --prover <release prove-batch binary>
 neo-stack submit-batch
 ```
+
+`start-*` 必须启动并监督真实 operator 进程，而不是只打印计划：禁止 shell 拼接，保留
+子进程退出码，SIGINT/SIGTERM 先优雅终止再做有界强杀。Neo.CLI/DBFTPlugin 发布包由
+operator 审计并提供；仓库不得假装存在尚未发布的 `r3e-network/neo-node` 二进制。
+
+所有会改变 L1/L2 状态的 operator 命令必须保留确定性的 plan/dry-run 路径；显式
+`--broadcast` 时必须先验证 RPC network、`invokescript` 预执行和精确 fee，再签名、
+广播并等待 HALT 确认。devnet 可从受控环境变量读取 WIF；生产 HSM/KMS 通过外部
+signer command 接收 canonical `GetSignData(network)` 并只返回 invocation script。CLI
+固定 account + verification script，要求最终 invocation script 与 fee-estimation witness
+同长度，并在脚本哈希不匹配、超时、非零退出或无效响应时 fail closed；不得把私钥或
+provider token 传给 CLI 参数。
 
 ## 14.3 Developer Tooling
 
@@ -1210,11 +1429,23 @@ Canonical confirmation:
 ```text
 1. User submits tx directly to NeoHub forced inclusion queue
 2. L2 sequencer must include it before deadline
-3. If not included:
-   - sequencer bond slashed
-   - L2 batch finalization paused
-   - fallback sequencer can include tx
+3. If not included, anyone may submit an unattributed (zero-address) overdue report
+4. NeoHub pauses L2 batch finalization; a fallback sequencer can include the tx
+5. Governance independently verifies finalized dBFT block/view evidence
+6. Only governance may name and slash the responsible sequencer in a separate action
 ```
+
+权限开放的 `ReportCensorship` 只接受零地址归因；调用者提供的 sequencer 地址绝不能进入
+处罚事件或作为 slash 授权。链下 `ICensorshipAttributionProvider` 仅能为运营者生成基于已终局
+dBFT 证据的候选归因，governance 必须独立复核后调用 owner-gated
+`SlashReportedCensorship`。没有充分归因证据时，链保持暂停/后备包含状态而不自动处罚任何成员。
+
+生产 spam control 只能使用 Neo N3 L1 的原生 GAS 合约；`SetGasToken`、部署参数、
+`SetFee`、`IsProductionReady` 与实际 enqueue 都必须拒绝任意替代 NEP-17，避免治理误配或
+恶意 fee token 回调扩大重入面。enqueue 以 `Runtime.Transaction.Sender` 作为经过
+`CheckWitness` 的 submitter 与 GAS 付款账户，不能把入口 invocation script 的
+`Runtime.CallingScriptHash` 误当作 EOA。`Consume` 在只读查询 finalized transaction root 前先写入
+at-most-once 标记；任何未终局 batch、错误 proof 或外调 fault 都依赖 NeoVM 原子回滚清除该标记。
 
 ---
 
@@ -1242,7 +1473,7 @@ Canonical confirmation:
 
 Neo 4 roadmap 提到增强 NEO Council 角色，包括动态调整 council members、决定 consensus node admission/exit、管理核心网络参数，并提到 NEO holders 的 referendum power 和未来探索 Layer-2 governance。([GitHub][3])
 
-> 注（实现状态，roadmap / 尚未实现）：上述「动态调整 council members」与「NEO holders referendum」均为 Neo 4 roadmap 目标，**当前实现尚不支持**。本仓库的 `NeoHub.GovernanceController` 中的链上 council 在部署时（`_deploy`）一次性固定，**刻意设计为不可变**——没有 AddCouncilMember / RemoveCouncilMember / SetThreshold / RotateCouncil 入口，也没有 `ContractManagement.Update` 升级路径；轮换或更换成员、修改门限/timelock 都必须重新部署一套 GovernanceController 并重连所有 consumer。链上也**没有任何 referendum 机制**。
+> 注（实现状态）：`NeoHub.GovernanceController` 已支持 proposal-bound、threshold-approved、timelocked 的原子 council rotation。`RotateCouncil` 同时替换成员与门限并递增 `councilEpoch`；所有旧 epoch proposal 立即失效，rotation proposal 只能消费一次。timelock 参数仍在部署时固定，合约没有 `ContractManagement.Update` 路径。链上 **NEO holder referendum 仍未实现**。
 
 Neo L2 governance 应分三层：
 
@@ -1461,10 +1692,55 @@ Deliverables:
 ```text
 Optimistic rollup-like
 安全性依赖至少一个 honest challenger
-（当前已发布的 fraud verifier 为结构性 + governance 仲裁，见下方说明）
+v4 仅在已声明的 restricted executor semantics 内提供 permissionless 可执行验证
 ```
 
-> 注（实现状态）：当前已发布的 fraud verifier（`GovernanceFraudVerifier`、`RestrictedExecutionFraudVerifier`）是**结构性**且由 **governance 仲裁**的——它们只校验 fraud-proof payload 的 wire 格式并确认 challenger 声称的 root 与 sequencer 声称的 root 不一致，**既不在链上重新执行争议交易，也不绑定到 SettlementManager 已提交的 root**。因此「fraud proof 以密码学方式 / 无需信任地证明 batch 存在欺诈」这一更强性质**尚未达成**：是否真的存在欺诈，最终由安全委员会（`GovernanceController`）裁定。要做到完全无需信任，需要把 verifier 替换为在链上**重新执行**争议交易的版本（需扩展 `FraudProofPayload` 携带 execution-trace witness），这属于 roadmap，详见 `IMPLEMENTATION_STATUS.md`。
+版本边界：
+
+- `GovernanceFraudVerifier` v1/v2 与 `RestrictedExecutionFraudVerifier` v3 仅保留为**结构性审计 / 离线仲裁证据**。即使 governance owner co-sign，它们也不能通过 `Challenge` 回滚批次或罚没保证金；所有会改变资产与最终性的 challenge 都必须匹配链上注册的 executable v4 profile。
+- `RestrictedExecutionFraudVerifier` v4 是 **SettlementManager-bound restricted trustless profile**。verifier 部署参数固定为 `[SettlementManager, replayDomain]`；`OptimisticChallenge.RegisterPermissionlessFraudProfile(chainId, verifier, executorSemanticId, replayDomain)` 会链上读取并核对这三个配置维度。
+- legacy `RegisterPermissionlessFraudVerifier` 被禁用；permissionless 权限只属于精确的 `(chainId, verifier, executorSemanticId, replayDomain, profileGeneration)`。revoke 或 approved-only 重新注册会使旧 profile generation 失效。
+
+### Restricted fraud proof v4 canonical payload
+
+所有多字节整数均为 little-endian，hash 均为 Neo `Hash256`。v4 复用 `BatchSerializer`、`MerkleProofSerializer` 与 `StorageProof`，不定义第二套 Merkle 编码。
+
+| Offset | Size | Field |
+|---:|---:|---|
+| 0 | 1 | `version = 4` |
+| 1 | 32 | `replayDomain` |
+| 33 | 32 | `executorSemanticId` |
+| 65 | 32 | `claimId` |
+| 97 | 32 | `transcriptHash` |
+| 129 | 32 | `witnessHash` |
+| 161 | 32 | `committedHeaderHash = Hash256(canonicalHeader[0..321])` |
+| 193 | 4 | `chainId` |
+| 197 | 8 | `batchNumber` |
+| 205 | 4 | `disputedTxIndex` |
+| 209 | 4 | `transactionCount` |
+| 213 | 4 | canonical final-step `lowerBound` |
+| 217 | 4 | canonical final-step `upperBound` |
+| 221 | 32 | committed `preStateRoot` |
+| 253 | 32 | committed `postStateRoot` |
+| 285 | 32 | verifier-derived `expectedPostStateRoot` |
+| 317 | 32 | committed `txRoot` |
+| 349 | 4 | `disputedTxLength = T` |
+| 353 | T | exact disputed transaction bytes |
+| next | 4 + P | `txProofLength = P` + canonical `MerkleProofSerializer` bytes |
+| next | 4 + S | `stateProofLength = S` + one canonical `StorageProof` |
+
+`SettlementManager.GetChallengeableBatchHeader(chainId,batchNumber)` 只对存在、`Challengeable`、`ProofType.Optimistic` 的批次返回已存 commitment 的前 321 bytes。verifier 从该 header 读取 chain/batch/pre/post/tx roots；payload 中的对应字段不能替换 committed 值。
+
+绑定规则：
+
+1. `transcriptHash = Hash256("neo4-fraud-bisection-transcript:v1" || replayDomain || executorSemanticId || committedHeaderHash || chainId || batchNumber || txIndex || txCount || lower || upper || preRoot || committedPostRoot || expectedPostRoot || txRoot)`。
+2. `witnessHash = Hash256("neo4-fraud-witness:v1" || canonical tail starting at disputedTxLength)`，因此交易、交易 Merkle proof、storage old/new leaves、key、leaf index、siblings/path 与所有 length prefixes 都不可替换。
+3. `claimId = Hash256("neo4-fraud-claim:v4" || SettlementManager || fraudVerifier || replayDomain || executorSemanticId || committedHeaderHash || chainId || batchNumber || txIndex || transcriptHash || witnessHash)`；`OptimisticChallenge` 在成功 challenge 时全局消费 claim id，跨批次/链/部署重放失败。
+4. 当前 commitment 没有 `txCount` 或 execution-trace root，因此 permissionless v4 **fail closed 到单交易批次**：`txIndex=0`、`txCount=1`、canonical degenerate transcript interval `[0,1]`，且 `txRoot` 必须是该交易的 canonical single-leaf proof（index/path/sibling count 均为 0）。该 transcript 绑定同一 batch/roots/tx index/replay domain/claim/witness，但单交易无需 BisectionGame 多轮 narrowing；多交易 transcript 不得宣称已被 trustlessly 覆盖。
+
+当前唯一 executor semantic id 为 `Hash256("neo4-executor:counter-increment-existing-key:v1")`。交易必须是 29 bytes：`0x01 || sender(20) || amount(uint64 LE)`；state key 必须是 `"counter:" || sender`，old/committed-new value 均为 uint64 LE，执行语义为 `expected = old + amount`（unchecked wrap）。old leaf 与 pre path 必须重建 committed pre root，committed-new leaf 与 post path 必须重建 committed post root；两侧使用同一 key 与 leaf index，且 leaf index 不得含超出各自 path depth 的高位。verifier 再以 old leaf 的 pre path 和执行所得 expected value 重建 `expectedPostStateRoot`。若 expected root 等于 committed post root，fraud claim 为 `false`；只有不等时返回 `true` 并允许 revert/slash。由此 challenger 不能只提交一对内部自洽但未绑定 SettlementManager 的 old/new roots。
+
+该 profile **不是通用 NeoVM trustless verifier**：不覆盖任意 NeoVM opcode、其它 custom executor、key 插入/删除或多交易 batch。未识别 semantic id、错链/批次/tx index、错 root、错 witness、错 path、错 replay domain、legacy version 均 fail closed；governance 不存在绕过 executable-profile gate 的状态变更通道。通用 NeoVM 仍需 commitment 中的 tx-count / trace-root 锚点及完整单步执行语义，详见 `IMPLEMENTATION_STATUS.md`。
 
 ---
 

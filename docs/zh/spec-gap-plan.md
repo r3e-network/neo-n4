@@ -17,7 +17,9 @@
 1. 读取已接线的 GovernanceController 哈希(由 owner-only 的
    `SetGovernanceController` 设置);未接线则带"必须先由 owner 接线"的清晰
    提示拒绝。
-2. 调用 `GovernanceController.GetAdmissionMode()`。
+2. 调用 `GovernanceController.GetAdmissionMode()`，并在转换为 `byte` 前以完整
+   `BigInteger` 校验返回值严格属于闭集 0..2；负数、未定义值和截断值均以零持久化
+   副作用拒绝。
 3. 模式 0(许可制)→ 带 "use RegisterChain" 提示拒绝;模式 1(半许可制)→
    对 verifier 字节(偏移 24..43)与 bridge 字节(偏移 44..63)强制
    `IsApprovedVerifier` + `IsApprovedBridgeAdapter` 检查;模式 2(无许可制)→
@@ -26,7 +28,8 @@
 owner-only 的 `RegisterChain` 保留为 §16.1 的"许可制"路径。
 
 **文件。** `contracts/NeoHub.ChainRegistry/ChainRegistryContract.cs`。
-测试覆盖模式 0/1/2 + 未接线时的 controller 拒绝。
+测试覆盖模式 0/1/2、未接线时的 controller 拒绝，以及 -1、3、258 的 fail-closed
+拒绝，并验证不会持久化 config 或 genesis root。
 
 ### §16.1-approved-sets ✅ 已闭合
 
@@ -81,15 +84,18 @@ ChainRegistry 模式 1 路径通过 `Contract.Call(...,
   - 13 条单测对进程内伪 RPC 客户端。
   - 接好 writer 后,`L2DAPlugin.BuildDefaultWriter(DAMode.L1, ...)` 不再抛错。
 
-### §8-witness-canonical ⏭ 推迟
+### §8-witness-canonical ✅ SP1 已关闭 / ⏭ 其它 backend
 
 原计划加 `Neo.L2.Proving.WitnessRecord` 钉死 §8.4 的 witness 布局
 (有序 tx / 字节码 / storage 读写 / 原生状态 / L1 消息 / DA 数据 / trace)。
 
-**决定。** 在没有真正的 prover 锁定它之前过早 —— 不同后备(SP1、Halo2)想要
-不同格式。等 SP1 工具链集成落地、guest ELF 定下它期望的 witness 形状之后再
-评估。在那之前,`ProofRequest.Witness` 仍保持不透明的
-`ReadOnlyMemory<byte>`。
+**当前决定。** SP1 工具链和 guest 已定义规范边界。`ProofRequest.Witness` 精确等于
+`ProofWitnessArtifactV1`(`NEO4PWIT`)，完整 pre-state 是 `NEO4STW1`；execution
+effects 是 `NEO4EFX1`，host-native execution handoff 是 `NEO4EXR1`。Rust/C# 对共享
+golden vector 字节级 decode/re-encode，guest 重算全部 claim，生产 executor 在原子提交
+状态前校验精确 request、semantic、post-state 与 public-input binding。SP1 禁止再包一层
+并行 `WitnessRecord`。未来 Halo2/Risc0 可以定义不同的版本化 backend-specific witness，
+但不得静默重解释 SP1 bytes。
 
 ## 上游 / 仓外(跟踪但此处不修)
 
@@ -101,19 +107,21 @@ ChainRegistry 模式 1 路径通过 `Contract.Call(...,
 
 ### §14.1-rpcserver-wrapper —— `[RpcMethod]` 装饰的包装类
 
-待 Neo 4 的 RpcServer 插件源码。9 个 L2 RPC 方法以普通方法形式存在于
-`Neo.Plugins.L2Rpc.L2RpcMethods`;把它们注册到 neo 的 RpcServer 派发器的包装类
-需要那份源。作为待集成跟踪 —— 当 neo-modules(或 Neo 4 RpcServer 落地处)可用,
-生成 partial class。
+**已关闭。** 当前跟踪的 `r3e-network/neo` core 已包含官方 RpcServer 源码与公开的
+`RpcServerPlugin.RegisterMethods` 注册接口。`Neo.Plugins.L2Rpc.L2RpcPlugin` 已通过
+该接口注册适配器，真实 Kestrel HTTP 测试覆盖全部 10 个规范方法。
 
-### §4-recursive-zk —— 真正的 Neo Gateway round prover
+### §4-recursive-zk —— 真正的 Neo Gateway 终端证明者
 
-**状态更新**:Phase 5 聚合现已出货**两份生产级 `IRoundProver` 实现** ——
+**状态更新**:Phase 5 聚合已出货**两份非递归 `IRoundProver` 实现** ——
 `MultisigRoundProver`(Secp256r1 阈值证明轮)+ `MerklePathRoundProver`(逐成员
-对聚合根的 包含证明)—— 与 `PassThroughRoundProver` 参照实现并存。真正的
-密码学,不带工具链依赖。剩下的递归-ZK fold 变体(SP1 Compress / Halo2
-accumulator / Risc0 STARK fold)在运维者带上 SP1 工具链时,接到同一
-`IRoundProver` 接缝。
+对聚合根的包含证明)—— 与 `PassThroughRoundProver` 参照实现并存。独立的
+`neo-zkvm-gateway-{guest,host}` 已内置 SP1 6.2.1 递归终端证明，锁定 batch VK，
+并由 host 验证最终 Groth16。proof-bound RPC 现把精确有序的 constituent references
+提交给 `SettlementManager.PublishGatewayGlobalRoot`；合约重新检查 finalized 状态与 Gateway
+准入、重建 commitment/message roots、推进每条链不可回退的 watermark，并原子转发证明到
+`MessageRouter`。崩溃恢复会重新验证完整 result marker，只清理 regular non-symlink orphan。
+该代码缺口已关闭；独立审计与真实递归证明部署证据仍是发布门禁。
 
 ## 运维特定(不在仓内修)
 
@@ -131,7 +139,11 @@ KMS 的实操样例。所有 CLI 都输出规范 hex;生产热路径
 
 ### §16.3-dbft-consensus-integration
 
-把 `Neo.L2.Sequencer` 接进 Neo 的 `DBFTPlugin` 共识选择器是部署相关的。
+**代码边界已关闭。** 当前 core 的 DBFT 路径继续调用
+`NativeContract.NEO.GetNextBlockValidators`，该调用现从
+`L2SystemConfigContract` 读取已最终确认的验证者集合。链下由
+`ISequencerCommitteeProvider` 计算目标集合，`neo-stack` 再通过治理授权的原生交易
+提交；运维者仍需提供经过审查的 Neo.CLI/DBFTPlugin 发布包。
 
 ## 总结
 
@@ -150,9 +162,10 @@ KMS 的实操样例。所有 CLI 都输出规范 hex;生产热路径
      `RegisterVerifierViaProposal`(咨询 timelock 门)。
   5. ✅ §12-l1-da-default —— 已关闭:`Neo.Plugins.L2DA.JsonRpcL1DAWriter`
      (`JsonRpcClient` + 已签 tx 委托,13 条单测)。
-  6. ⏭ §8-witness-canonical —— **延后**(计划备注:"在没有真正以它为目标的
-     prover 之前太早 —— 等 SP1 工具链落地、guest ELF 定义其 witness 形态时
-     再评估")。
+  6. ✅ §8-witness-canonical —— **SP1 已关闭**：规范 `NEO4PWIT` / `NEO4STW1` /
+     `NEO4EFX1` / `NEO4EXR1`、跨语言 golden、精确 semantic binding 与校验后原子
+     post-state commit 已交付。其它 proof backend 属于版本化扩展，不再是内置 SP1
+     profile 的缺口。
 
 **同窗口里关闭的二阶空白**(增项,不在原 6 项之列):
   - Abstractions 中规范的 91 字节 `L2ChainConfigSerializer` +
@@ -173,14 +186,12 @@ KMS 的实操样例。所有 CLI 都输出规范 hex;生产热路径
     生产级 vs MVP 形态 vs 参照脚手架(运维必须替换)vs 计划打印器(CLI
     并未真正签名/提交)vs 设计上仓外项 一一编目。
   - `NeoHub.ForcedInclusion` 出货真正可配置的反垃圾费
-    (`SetFee` / `SetFeeRecipient` / `SetGasToken`);默认 0 = 保留无费
+    (`SetFee` / `SetFeeRecipient` / 仅允许原生 GAS 的 `SetGasToken`)；替代 NEP-17 会被拒绝，默认 0 = 保留无费
     的 legacy。关掉"无费 MVP"的标注。
-  - `NeoHub.GovernanceFraudVerifier`(第 14 个 NeoHub 合约)以治理仲裁
-    乐观链的结构性 fraud verifier 参照形式出货。解码规范的 101 字节
+  - `NeoHub.GovernanceFraudVerifier` 仅作为离线审计用 v1/v2 结构验证器出货。解码规范的 101 字节
     `FraudProofPayload`,校验长度 / 版本 / 是否声称真实差异,并发出
-    accept/reject 事件(带原因码)供 council 审议。关掉链上
-    `fraudVerifier` 调用点空白。已接进 `ScaffoldPlan.Default()` +
-    `PostDeployActions` 信息提示。
+    accept/reject 事件(带原因码)供审计工具诊断。它不能触发回滚/罚没，
+    也不进入 `ScaffoldPlan.Default()` 或生产 post-deploy wiring。
   - 13 条对等测试(`UT_GovernanceFraudVerifierParity`)在 C# 中模拟该合约
     的判定树,让改常量 / 顺序 / 偏移的 refactor 在单测时即被抓住。
   - "MVP" 注释清理:`ChallengeOrchestrator.InspectAsync`(收敛路径已存于

@@ -13,6 +13,12 @@ param(
     [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path,
     [string]$ArtifactsRoot = "",
     [int]$Batches = 3,
+    [string]$NodeConfig = "",
+    [string]$BatcherNodeConfig = "",
+    [string]$SequencerNeoCli = "",
+    [string]$BatcherNeoCli = "",
+    [string]$Prover = "",
+    [switch]$SkipOperatorPreflight,
     [switch]$SkipContracts,
     [switch]$SkipRust,
     [switch]$SkipRealSp1Proof,
@@ -24,6 +30,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+Import-Module (Join-Path $PSScriptRoot "PrivateNetworkHarness.psm1") -Force
 
 if ($Batches -lt 1) {
     throw "-Batches must be >= 1. The harness uses a separate 0-batch run for rehydration."
@@ -37,12 +44,15 @@ $runId = Get-Date -Format "yyyyMMdd-HHmmss"
 $RunDir = Join-Path $ArtifactsRoot $runId
 $LogDir = Join-Path $RunDir "logs"
 New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+$WorkDir = New-SecureWorkingDirectory
 
 $summary = [ordered]@{
     runId = $runId
-    repoRoot = $RepoRoot
-    artifactsRoot = $ArtifactsRoot
-    runDir = $RunDir
+    repoRoot = "<repo>"
+    artifactsRoot = "<artifacts>"
+    runDir = "<run>"
+    ephemeralWorkingDirectory = $true
+    workingDirectoryRemoved = $false
     startedAtUtc = [DateTime]::UtcNow.ToString("O")
     batches = $Batches
     steps = @()
@@ -62,11 +72,38 @@ function Convert-ToLogName {
     return (($Name -replace "[^A-Za-z0-9_.-]", "_").Trim("_") + ".log")
 }
 
+function Protect-SummaryText {
+    param([string]$Value)
+
+    $redacted = $Value
+    $replacements = @(
+        [pscustomobject]@{ Value = $NodeConfig; Token = "<reviewed-sequencer-config>" },
+        [pscustomobject]@{ Value = $BatcherNodeConfig; Token = "<reviewed-batcher-config>" },
+        [pscustomobject]@{ Value = $SequencerNeoCli; Token = "<reviewed-sequencer-cli>" },
+        [pscustomobject]@{ Value = $BatcherNeoCli; Token = "<reviewed-batcher-cli>" },
+        [pscustomobject]@{ Value = $Prover; Token = "<reviewed-prover>" },
+        [pscustomobject]@{ Value = $WorkDir; Token = "<ephemeral-workdir>" },
+        [pscustomobject]@{ Value = $RunDir; Token = "<run>" },
+        [pscustomobject]@{ Value = $ArtifactsRoot; Token = "<artifacts>" },
+        [pscustomobject]@{ Value = $RepoRoot; Token = "<repo>" }
+    )
+    foreach ($replacement in $replacements) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$replacement.Value)) {
+            $redacted = $redacted.Replace(
+                [string]$replacement.Value,
+                [string]$replacement.Token,
+                [StringComparison]::OrdinalIgnoreCase)
+        }
+    }
+    return $redacted
+}
+
 function Format-Command {
     param([string]$FilePath, [string[]]$Arguments)
-    return ($FilePath + " " + (($Arguments | ForEach-Object {
+    $formatted = ($FilePath + " " + (($Arguments | ForEach-Object {
         if ($_ -match "\s") { '"' + ($_ -replace '"', '\"') + '"' } else { $_ }
     }) -join " ")).Trim()
+    return Protect-SummaryText $formatted
 }
 
 function Invoke-LoggedNative {
@@ -82,8 +119,8 @@ function Invoke-LoggedNative {
     $step = [ordered]@{
         name = $Name
         command = Format-Command $FilePath $Arguments
-        cwd = $WorkingDirectory
-        log = $logPath
+        cwd = Protect-SummaryText $WorkingDirectory
+        log = Join-Path "logs" (Split-Path -Leaf $logPath)
         startedAtUtc = [DateTime]::UtcNow.ToString("O")
     }
 
@@ -110,7 +147,7 @@ function Invoke-LoggedNative {
     }
     catch {
         $step.status = "failed"
-        $step.error = $_.Exception.Message
+        $step.error = Protect-SummaryText $_.Exception.Message
         $summary.steps += $step
         Save-Summary "failed"
         throw
@@ -138,8 +175,8 @@ function Invoke-LoggedScript {
     $step = [ordered]@{
         name = $Name
         command = "<PowerShell script block>"
-        cwd = $WorkingDirectory
-        log = $logPath
+        cwd = Protect-SummaryText $WorkingDirectory
+        log = Join-Path "logs" (Split-Path -Leaf $logPath)
         startedAtUtc = [DateTime]::UtcNow.ToString("O")
     }
 
@@ -157,7 +194,7 @@ function Invoke-LoggedScript {
     catch {
         $step.status = "failed"
         $step.exitCode = 1
-        $step.error = $_.Exception.Message
+        $step.error = Protect-SummaryText $_.Exception.Message
         $summary.steps += $step
         Save-Summary "failed"
         throw
@@ -215,7 +252,7 @@ function Invoke-WslBash {
     )
 
     $normalizedCommand = $Command -replace "`r`n", "`n" -replace "`r", "`n"
-    $scriptDir = Join-Path $RunDir "wsl-scripts"
+    $scriptDir = Join-Path $WorkDir "wsl-scripts"
     New-Item -ItemType Directory -Path $scriptDir -Force | Out-Null
     $scriptName = [IO.Path]::ChangeExtension((Convert-ToLogName $Name), ".sh")
     $scriptPath = Join-Path $scriptDir $scriptName
@@ -292,7 +329,7 @@ function New-PrivateChain {
         [int]$ChainId,
         [string]$Template
     )
-    $chainDir = Join-Path $RunDir $Name
+    $chainDir = Join-Path $WorkDir $Name
     Invoke-LoggedNative -Name "neo-stack create-chain $Name" -FilePath "dotnet" -Arguments @(
         "run", "--project", "tools\Neo.Stack.Cli", "--",
         "create-chain", "--chain-id", [string]$ChainId, "--template", $Template, "--output", $chainDir
@@ -307,12 +344,32 @@ function New-PrivateChain {
 function Invoke-OperatorPreflight {
     param(
         [string]$ChainDir,
-        [int]$ChainId
+        [int]$ChainId,
+        [string]$ReviewedNodeConfig,
+        [string]$ReviewedBatcherNodeConfig,
+        [string]$ReviewedSequencerNeoCli,
+        [string]$ReviewedBatcherNeoCli,
+        [string]$ReviewedProver
     )
+
+    $sequencerNeoCli = Copy-OperatorDeployment `
+        -SourceExecutable $ReviewedSequencerNeoCli `
+        -ReviewedConfig $ReviewedNodeConfig `
+        -DestinationDirectory (Join-Path $ChainDir "node") `
+        -RequiredPluginAssembly "DBFTPlugin" `
+        -RequiredPluginConfig "DBFTPlugin.json"
+    $batcherNeoCli = Copy-OperatorDeployment `
+        -SourceExecutable $ReviewedBatcherNeoCli `
+        -ReviewedConfig $ReviewedBatcherNodeConfig `
+        -DestinationDirectory (Join-Path $ChainDir "batcher-node") `
+        -RequiredPluginAssembly "Neo.Plugins.L2Batch" `
+        -RequiredPluginConfig "config.json"
 
     Invoke-LoggedNative -Name "neo-stack init-l2" -FilePath "dotnet" -Arguments @(
         "run", "--project", "tools\Neo.Stack.Cli", "--",
-        "init-l2", "--chain-id", [string]$ChainId, "--output", $ChainDir
+        "init-l2", "--chain-id", [string]$ChainId, "--output", $ChainDir,
+        "--node-config", $ReviewedNodeConfig,
+        "--batcher-node-config", $ReviewedBatcherNodeConfig
     )
     Invoke-LoggedNative -Name "neo-stack register-chain plan" -FilePath "dotnet" -Arguments @(
         "run", "--project", "tools\Neo.Stack.Cli", "--",
@@ -322,12 +379,21 @@ function Invoke-OperatorPreflight {
         "run", "--project", "tools\Neo.Stack.Cli", "--",
         "deploy-bridge-adapter", "--chain-id", [string]$ChainId, "--output", $ChainDir
     )
-    foreach ($cmd in @("start-sequencer", "start-batcher", "start-prover")) {
-        Invoke-LoggedNative -Name "neo-stack $cmd preflight" -FilePath "dotnet" -Arguments @(
-            "run", "--project", "tools\Neo.Stack.Cli", "--",
-            $cmd, "--chain-id", [string]$ChainId, "--output", $ChainDir
-        )
-    }
+    Invoke-LoggedNative -Name "neo-stack start-sequencer preflight" -FilePath "dotnet" -Arguments @(
+        "run", "--project", "tools\Neo.Stack.Cli", "--",
+        "start-sequencer", "--chain-id", [string]$ChainId, "--output", $ChainDir,
+        "--neo-cli", $sequencerNeoCli, "--dry-run"
+    )
+    Invoke-LoggedNative -Name "neo-stack start-batcher preflight" -FilePath "dotnet" -Arguments @(
+        "run", "--project", "tools\Neo.Stack.Cli", "--",
+        "start-batcher", "--chain-id", [string]$ChainId, "--output", $ChainDir,
+        "--neo-cli", $batcherNeoCli, "--dry-run"
+    )
+    Invoke-LoggedNative -Name "neo-stack start-prover preflight" -FilePath "dotnet" -Arguments @(
+        "run", "--project", "tools\Neo.Stack.Cli", "--",
+        "start-prover", "--chain-id", [string]$ChainId, "--output", $ChainDir,
+        "--prover", $ReviewedProver, "--dry-run"
+    )
 }
 
 function Invoke-DevnetRun {
@@ -363,7 +429,7 @@ function Invoke-RiscVDevnetRun {
         [string]$ConfigPath
     )
 
-    $publishDir = Join-Path $RunDir "devnet-linux-x64"
+    $publishDir = Join-Path $WorkDir "devnet-linux-x64"
     Invoke-LoggedNative -Name "publish neo-l2-devnet linux-x64" -FilePath "dotnet" -Arguments @(
         "publish", "tools\Neo.L2.Devnet\Neo.L2.Devnet.csproj",
         "-c", "Release", "-r", "linux-x64", "--self-contained", "true",
@@ -418,7 +484,28 @@ function Ensure-RustSecDb {
 
 Save-Summary "running"
 
+$scriptFailure = $null
 try {
+    if (-not $SkipOperatorPreflight) {
+        Invoke-LoggedScript -Name "validate reviewed operator assets" -Body {
+            $requiredFiles = [ordered]@{
+                NodeConfig = $NodeConfig
+                BatcherNodeConfig = $BatcherNodeConfig
+                SequencerNeoCli = $SequencerNeoCli
+                BatcherNeoCli = $BatcherNeoCli
+                Prover = $Prover
+            }
+            foreach ($entry in $requiredFiles.GetEnumerator()) {
+                if ([string]::IsNullOrWhiteSpace([string]$entry.Value)) {
+                    throw "-$($entry.Key) is required unless -SkipOperatorPreflight is explicit."
+                }
+                if (-not (Test-Path -LiteralPath ([string]$entry.Value) -PathType Leaf)) {
+                    throw "Reviewed operator asset not found: $($entry.Value)"
+                }
+            }
+        }
+    }
+
     Invoke-LoggedNative -Name "git status" -FilePath "git" -Arguments @("status", "--short", "--branch")
     Invoke-LoggedNative -Name "dotnet info" -FilePath "dotnet" -Arguments @("--info")
 
@@ -434,12 +521,19 @@ try {
     }
 
     $rollupDir = New-PrivateChain -Name "private-rollup" -ChainId 1099 -Template "rollup"
-    Invoke-OperatorPreflight -ChainDir $rollupDir -ChainId 1099
+    if (-not $SkipOperatorPreflight) {
+        Invoke-OperatorPreflight -ChainDir $rollupDir -ChainId 1099 `
+            -ReviewedNodeConfig $NodeConfig `
+            -ReviewedBatcherNodeConfig $BatcherNodeConfig `
+            -ReviewedSequencerNeoCli $SequencerNeoCli `
+            -ReviewedBatcherNeoCli $BatcherNeoCli `
+            -ReviewedProver $Prover
+    }
     Invoke-DevnetRun -Name "rollup reference memory" -BatchCount $Batches `
         -ConfigPath (Join-Path $rollupDir "chain.config.json") -Executor "reference"
 
     $validiumDir = New-PrivateChain -Name "private-validium" -ChainId 1101 -Template "validium"
-    $validiumData = Join-Path $RunDir "private-validium-data"
+    $validiumData = Join-Path $WorkDir "private-validium-data"
     Invoke-DevnetRun -Name "validium counter persistent metrics" -BatchCount $Batches `
         -ConfigPath (Join-Path $validiumDir "chain.config.json") -Executor "counter" `
         -DataDir $validiumData -Metrics
@@ -509,8 +603,9 @@ cd $(Quote-Bash $wslRepo)
         Invoke-WslBash -Name "cargo prove build guest elf" -Command @"
 set -euo pipefail
 export PATH="`$HOME/.sp1/bin:`$HOME/.cargo/bin:`$PATH"
+export SP1_DOCKER_IMAGE=ghcr.io/succinctlabs/sp1@sha256:14d3c46eff7492f87e429bfbf618e3d33499ba7515b15c36eeb1bcaebc9f7b7f
 cd $(Quote-Bash (Join-WslPath $wslRepo "bridge" "neo-zkvm-guest"))
-cargo prove build
+cargo prove build --docker --locked
 "@
 
         Invoke-WslBash -Name "cargo fmt clippy workspace" -Command @"
@@ -532,8 +627,21 @@ cd $(Quote-Bash $wslRepo)
             Invoke-WslBash -Name "cargo test real SP1 proof" -Command @"
 $stablePrefix
 export PATH="`$HOME/.sp1/bin:`$HOME/.cargo/bin:`${TOOLBIN}:`$PATH"
+export SP1_GNARK_IMAGE=ghcr.io/succinctlabs/sp1-gnark@sha256:be8555f1ad90870acd8c6ec7fd3ba0b1a2133ea9cddf25e130665aa651129e54
+mkdir -p $(Quote-Bash (Join-WslPath $wslRepo "target" "sp1-tmp"))
+export TMPDIR=$(Quote-Bash (Join-WslPath $wslRepo "target" "sp1-tmp"))
 cd $(Quote-Bash (Join-WslPath $wslRepo "bridge" "neo-zkvm-host"))
 "`$TOOLBIN/cargo" test --release --locked -- --ignored --nocapture
+"@
+
+            Invoke-WslBash -Name "cargo test real recursive Gateway proof" -Command @"
+$stablePrefix
+export PATH="`$HOME/.sp1/bin:`$HOME/.cargo/bin:`${TOOLBIN}:`$PATH"
+export SP1_GNARK_IMAGE=ghcr.io/succinctlabs/sp1-gnark@sha256:be8555f1ad90870acd8c6ec7fd3ba0b1a2133ea9cddf25e130665aa651129e54
+mkdir -p $(Quote-Bash (Join-WslPath $wslRepo "target" "sp1-tmp"))
+export TMPDIR=$(Quote-Bash (Join-WslPath $wslRepo "target" "sp1-tmp"))
+cd $(Quote-Bash $wslRepo)
+"`$TOOLBIN/cargo" test --release -p neo-zkvm-gateway-host --test real_recursive_release_gate --locked -- --ignored --nocapture
 "@
         }
     }
@@ -613,6 +721,31 @@ mdbook build
     Write-Host "Private-network verification passed. Summary: $(Join-Path $RunDir 'summary.json')"
 }
 catch {
-    Write-Error $_
+    $scriptFailure = $_
+    $summary.error = Protect-SummaryText $_.Exception.Message
+    Save-Summary "failed"
+}
+finally {
+    try {
+        if (Test-Path -LiteralPath $WorkDir) {
+            Remove-Item -LiteralPath $WorkDir -Recurse -Force
+        }
+        if (Test-Path -LiteralPath $WorkDir) {
+            throw "Failed to remove ephemeral working directory."
+        }
+        $summary.workingDirectoryRemoved = $true
+    }
+    catch {
+        $summary.cleanupError = Protect-SummaryText $_.Exception.Message
+        if ($null -eq $scriptFailure) {
+            $scriptFailure = $_
+        }
+    }
+    $finalStatus = if ($null -eq $scriptFailure) { [string]$summary.status } else { "failed" }
+    Save-Summary $finalStatus
+}
+
+if ($null -ne $scriptFailure) {
+    Write-Error $scriptFailure -ErrorAction Continue
     exit 1
 }

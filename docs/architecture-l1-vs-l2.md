@@ -46,16 +46,17 @@ specific logic — runs on **L2** because L1 cannot scale to it.
 
 ## 2. What L1 does (and why it has to)
 
-The 23 production NeoHub contracts (plus 1 testing stub) are deployed L1
+The 24 production NeoHub contracts (plus 1 advisory structural verifier and 1 testing stub) are deployed L1
 contracts, not L1 native contracts. `ContractZkVerifier` is one of those
 deployed contracts: it validates ZK proof envelopes and routes proof-system
-work to governance-registered deployable verifier contracts instead of becoming
-a NeoHub native contract. They cluster into
+work to terminal verifier contracts instead of becoming a NeoHub native
+contract. The production SP1 terminal is the immutable
+`Sp1Groth16Verifier`, which uses Neo's current BN254 interops. They cluster into
 six concerns. Each entry below names *the property that forces it
 onto L1*:
 
 <p align="center">
-  <img src="figures/architecture/l1-concerns.svg" alt="The 24 NeoHub L1 deployable projects grouped into 6 concerns plus 2 specialized verifier slots. Settlement (SettlementManager + VerifierRegistry + ContractZkVerifier) defines the trust boundary and routes ZK proofs to a deployable verifier contract. Bridge (SharedBridge + TokenRegistry + ChainRegistry) escrows assets. Messaging (MessageRouter + DARegistry + DAValidator + L1TxFilter) is the cross-L2 routing and data-availability arbiter. Security (SequencerRegistry + SequencerBond + ForcedInclusion + OptimisticChallenge) gates slashable bonds and anti-censorship. Governance + Emergency (GovernanceController + EmergencyManager) handle staged upgrades + escape hatch. External bridge (6 contracts) is the cross-foreign-chain bridge. Plus 2 fraud-verifier reference slots: GovernanceFraudVerifier (v1/v2 governance-arbitrated) + RestrictedExecutionFraudVerifier (v3 trustless on-chain re-derivation)" width="900">
+  <img src="figures/architecture/l1-concerns.svg" alt="NeoHub L1 concerns and trust boundaries. Settlement uses SettlementManager, VerifierRegistry, ContractZkVerifier, and the immutable Sp1Groth16Verifier; bridge, messaging, DA, sequencer security, governance, emergency, fraud-verifier, and external-bridge contracts remain deployed L1 concerns." width="900">
 </p>
 
 **Key observation about L1 contracts:** they hold *commitments* and
@@ -121,7 +122,8 @@ the rules in §5:
 - **`NeoHub.ChainRegistry`** L1 ✅ → L1 — Cross-L2 invariant (rule 1)
 - **`NeoHub.SettlementManager`** L1 ✅ → L1 — Trust boundary (rule 3)
 - **`NeoHub.VerifierRegistry`** L1 ✅ → L1 — Trust boundary (rule 3)
-- **`NeoHub.ContractZkVerifier`** L1 ✅ → L1 — ZK proof envelope/VK boundary; delegates proof-system work to deployable verifier contracts (rules 2+3)
+- **`NeoHub.ContractZkVerifier`** L1 ✅ → L1 — ZK proof envelope/VK boundary; delegates proof-system work to registered terminal verifier contracts (rules 2+3)
+- **`NeoHub.Sp1Groth16Verifier`** L1 ✅ → L1 — Immutable SP1 v6.1-compatible Groth16 wrapper used by SP1 6.2.x, verified over Neo BN254 interops (rule 3)
 - **`NeoHub.SharedBridge`** L1 ✅ → L1 — Asset escrow (rule 2 — assets are on L1)
 - **`NeoHub.TokenRegistry`** L1 ✅ → L1 — Cross-bridge invariant (rule 1)
 - **`NeoHub.MessageRouter`** L1 ✅ → L1 — Cross-L2 invariant (rule 1)
@@ -156,7 +158,7 @@ the rules in §5:
 
 **Findings:**
 
-✅ **23 of 24 NeoHub deployable projects are correctly placed as production L1 contracts** — each
+✅ **24 of 26 NeoHub projects are production L1 contracts** — the remaining two are the advisory structural verifier and test-only stub; each production contract
 satisfies at least one of rules 1, 2, or 3.
 
 ✅ **All 10 L2 native contracts are correctly placed in L2 Neo core** — each is

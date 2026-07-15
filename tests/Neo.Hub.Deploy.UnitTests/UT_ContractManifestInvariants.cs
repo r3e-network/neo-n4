@@ -32,6 +32,52 @@ public class UT_ContractManifestInvariants
         methods.Any(m => ((JObject?)m)?["name"]?.AsString() == name);
 
     [TestMethod]
+    public void NeoHubContracts_UseR3EMaintainerAttribution()
+    {
+        var contracts = new[]
+        {
+            "NeoHub.ChainRegistry",
+            "NeoHub.ContractZkVerifier",
+            "NeoHub.DARegistry",
+            "NeoHub.DAValidator",
+            "NeoHub.EmergencyManager",
+            "NeoHub.ExternalBridgeBond",
+            "NeoHub.ExternalBridgeEscrow",
+            "NeoHub.ExternalBridgeRegistry",
+            "NeoHub.ExternalBridgeStubVerifier",
+            "NeoHub.ForcedInclusion",
+            "NeoHub.GovernanceController",
+            "NeoHub.GovernanceFraudVerifier",
+            "NeoHub.L1TxFilter",
+            "NeoHub.L2PayoutAdapter",
+            "NeoHub.MessageRouter",
+            "NeoHub.MpcCommitteeFraudVerifier",
+            "NeoHub.MpcCommitteeVerifier",
+            "NeoHub.OptimisticChallenge",
+            "NeoHub.RestrictedExecutionFraudVerifier",
+            "NeoHub.SequencerBond",
+            "NeoHub.SequencerRegistry",
+            "NeoHub.SettlementManager",
+            "NeoHub.SharedBridge",
+            "NeoHub.Sp1Groth16Verifier",
+            "NeoHub.TokenRegistry",
+            "NeoHub.VerifierRegistry"
+        };
+
+        foreach (var contract in contracts)
+        {
+            var manifest = ManifestTestHelper.LoadFreshManifest(contract);
+            if (manifest is null) continue;
+
+            var extra = (JObject)manifest["extra"]!;
+            Assert.AreEqual(
+                "R3E Network",
+                extra["Author"]?.AsString(),
+                $"{contract} must identify its actual maintainer in release artifacts");
+        }
+    }
+
+    [TestMethod]
     public void OwnerManagedContracts_ExposeOwnershipTransfer()
     {
         var contracts = new[]
@@ -162,7 +208,7 @@ public class UT_ContractManifestInvariants
     // ─── ExternalBridgeEscrow: Receive (inbound dispatch) ─────────────
 
     [TestMethod]
-    public void ExternalBridgeEscrow_Exposes_Send_And_Receive()
+    public void ExternalBridgeEscrow_ExposesProductionPayoutAndGovernanceSurface()
     {
         var methods = LoadMethods("NeoHub.ExternalBridgeEscrow");
         if (methods is null) return;
@@ -170,6 +216,27 @@ public class UT_ContractManifestInvariants
             "ExternalBridgeEscrow must expose send (Neo → foreign outbound)");
         Assert.IsTrue(HasMethod(methods, "receive"),
             "ExternalBridgeEscrow must expose receive (foreign → Neo inbound)");
+        string[] payoutMethods =
+        [
+            "fundLiquidity",
+            "setAssetRoute",
+            "getRoutedNeoAsset",
+            "getRoutedForeignAsset",
+            "getPayoutAdapter",
+            "getPayoutAdapterUpdateCounter",
+            "setGovernanceController",
+            "lockGovernance",
+            "isGovernanceLocked",
+            "configureAssetRouteViaProposal",
+            "setRegistryViaProposal",
+            "buildConfigureAssetRouteAction",
+            "buildSetRegistryAction",
+        ];
+        foreach (var method in payoutMethods)
+        {
+            Assert.IsTrue(HasMethod(methods, method),
+                $"ExternalBridgeEscrow must expose production payout/governance method '{method}'");
+        }
         // The NEP-17 hook MUST be present so unsolicited transfers can be
         // rejected loudly (rather than silently accepted as Send records).
         Assert.IsTrue(HasMethod(methods, "onNEP17Payment"),
@@ -228,6 +295,12 @@ public class UT_ContractManifestInvariants
         Assert.IsTrue(HasMethod(methods, "getBatchStatus"),
             "SettlementManager must expose getBatchStatus so off-chain " +
             "consumers can distinguish Pending / Challengeable / Finalized");
+        Assert.IsTrue(HasMethod(methods, "publishGatewayGlobalRoot"),
+            "SettlementManager must atomically validate Gateway constituent finality before routing a root");
+        Assert.IsTrue(HasMethod(methods, "getGatewayFinalizedThrough"),
+            "SettlementManager must expose the non-revertible per-chain Gateway watermark");
+        Assert.IsTrue(HasMethod(methods, "setMessageRouter") && HasMethod(methods, "getMessageRouter"),
+            "SettlementManager must expose auditable MessageRouter deployment wiring");
     }
 
     // ─── EmergencyManager: escape hatch is replay-protected ───────────
@@ -304,17 +377,21 @@ public class UT_ContractManifestInvariants
         if (methods is null) return;
         Assert.IsTrue(HasMethod(methods, "enqueueForcedTransaction"),
             "ForcedInclusion must expose enqueueForcedTransaction (user-side queue entry)");
-        Assert.IsTrue(HasMethod(methods, "markConsumed"),
-            "ForcedInclusion must expose markConsumed (sequencer dequeues post-inclusion)");
+        Assert.IsTrue(HasMethod(methods, "consume"),
+            "ForcedInclusion must verify finalized transaction inclusion before consumption");
+        Assert.IsFalse(HasMethod(methods, "markConsumed"),
+            "ForcedInclusion must not expose a witness-only arbitrary-nonce consumption bypass");
         Assert.IsTrue(HasMethod(methods, "reportCensorship"),
             "ForcedInclusion must expose reportCensorship (post-deadline escalation)");
         Assert.IsTrue(HasMethod(methods, "isCensorshipReported"),
             "ForcedInclusion must make censorship reports at-most-once per queue entry");
         Assert.IsTrue(HasMethod(methods, "setSequencerBond"),
-            "ForcedInclusion must wire SequencerBond so censorship reports slash bonds");
+            "ForcedInclusion must wire SequencerBond for separately authorized censorship slashing");
         Assert.IsTrue(HasMethod(methods, "setChainRegistry"),
             "ForcedInclusion must wire ChainRegistry so censorship reports pause finalization");
         Assert.IsTrue(HasMethod(methods, "setCensorshipSlashAmount"),
             "ForcedInclusion must expose the per-report slash policy");
+        Assert.IsTrue(HasMethod(methods, "isProductionReady"),
+            "ForcedInclusion must expose a fail-closed production configuration gate");
     }
 }

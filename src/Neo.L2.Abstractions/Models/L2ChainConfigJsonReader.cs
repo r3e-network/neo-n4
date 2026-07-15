@@ -35,6 +35,10 @@ public static class L2ChainConfigJsonReader
         ArgumentNullException.ThrowIfNull(json);
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
+        var daMode = ParseEnum<DAMode>(root, "daMode");
+        if (!daMode.IsPublic())
+            throw new ArgumentException(
+                $"chain.config.json 'daMode'='{daMode}' is local-only and cannot be registered");
 
         return new L2ChainConfig
         {
@@ -44,7 +48,7 @@ public static class L2ChainConfigJsonReader
             BridgeAdapter = ParseHash(bridgeHash, "--bridge"),
             MessageAdapter = ParseHash(messageHash, "--message"),
             SecurityLevel = ParseEnum<SecurityLevel>(root, "securityLevel"),
-            DAMode = ParseEnum<DAMode>(root, "daMode"),
+            DAMode = daMode,
             GatewayEnabled = ParseBool(root, "gatewayEnabled"),
             PermissionlessExit = ParseBool(root, "permissionlessExit"),
             Sequencer = ParseEnum<SequencerModel>(root, "sequencerModel"),

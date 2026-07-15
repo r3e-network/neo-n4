@@ -3,9 +3,10 @@ using Neo.Cryptography.ECC;
 namespace Neo.L2.Censorship;
 
 /// <summary>
-/// One slashable-censorship event detected by <see cref="CensorshipDetector"/>. Carries the
-/// metadata an operator needs to submit a <c>NeoHub.ForcedInclusion.ReportCensorship</c> call
-/// and (transitively) trigger <c>NeoHub.SequencerBond.Slash</c>.
+/// One overdue forced-inclusion event detected by <see cref="CensorshipDetector"/>. Carries the
+/// metadata needed for a permissionless <c>NeoHub.ForcedInclusion.ReportCensorship</c> pause and,
+/// only when finalized dBFT evidence identifies the responsible member, a separate
+/// governance-authorized <c>SlashReportedCensorship</c> action.
 /// </summary>
 public sealed record CensorshipReport
 {
@@ -21,12 +22,21 @@ public sealed record CensorshipReport
     /// <summary>Unix timestamp at which the entry's deadline expired.</summary>
     public required uint DeadlineUnixSeconds { get; init; }
 
-    /// <summary>Sequencer pubkey held responsible (typically the active one when the deadline passed).</summary>
+    /// <summary>
+    /// Sequencer pubkey supported by finalized attribution evidence, or the curve identity when
+    /// attribution is unavailable.
+    /// </summary>
     public required ECPoint ResponsibleSequencer { get; init; }
 
-    /// <summary>L1 address tied to the responsible sequencer (used for the slash payout claim).</summary>
+    /// <summary>
+    /// L1 address tied to the evidenced sequencer, or <see cref="UInt160.Zero"/> when governance
+    /// must resolve attribution before slashing.
+    /// </summary>
     public required UInt160 ResponsibleSequencerAddress { get; init; }
 
-    /// <summary>Amount to slash (caller computes per chain policy; e.g. proportional to delay).</summary>
+    /// <summary>
+    /// Chain-policy slash amount proposed for an evidence-attributed report. This value is not an
+    /// authorization; the on-chain governance action applies the configured contract policy.
+    /// </summary>
     public required System.Numerics.BigInteger SlashAmount { get; init; }
 }

@@ -101,14 +101,14 @@ public class UT_MetricsRequestHandler
     }
 
     [TestMethod]
-    public void Readyz_NoCheck_Returns200()
+    public void Readyz_NoCheck_FailsClosedWith503()
     {
         var handler = new MetricsRequestHandler(new InMemoryMetrics());
 
         var response = handler.Handle("/readyz");
 
-        Assert.AreEqual(200, response.StatusCode);
-        StringAssert.Contains(response.Body, "ready");
+        Assert.AreEqual(503, response.StatusCode);
+        StringAssert.Contains(response.Body, "not configured");
     }
 
     [TestMethod]

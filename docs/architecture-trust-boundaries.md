@@ -87,7 +87,7 @@ Discriminants per `src/Neo.L2.Abstractions/Models/ProofType.cs`: `None=0`,
 |-------------------|---------------------------------------------------------------|
 | `None` (=0)       | No proof — genesis / operator-trusted internal flows only     |
 | `Multisig` (=1)   | M-of-N committee signed the BatchCommitment                   |
-| `Optimistic` (=2) | Challenge window — game-theoretic. The bisection narrowing runs **off-chain** (`ChallengeOrchestrator` / `BisectionGame`); the on-chain `OptimisticChallenge.Challenge` is single-shot — it calls `verifyFraud` once and the shipped verifier does **not** re-execute the disputed tx. On-chain interactive bisection / re-execution is planned/roadmap. |
+| `Optimistic` (=2) | Challenge window — game-theoretic. Bisection narrowing runs **off-chain** and `OptimisticChallenge.Challenge` is single-shot. V1/v2/v3 are advisory structural evidence and fail closed even with governance witness. Exact registered restricted v4 binds the committed header and executes one existing-key Counter Increment; general NeoVM and multi-transaction re-execution fail closed. |
 | `Zk` (=3)         | ZK validity proof (NeoVM2 / RISC-V) — math (the proof IS the verification) |
 
 ### Boundary D: settled batch → L2 user (withdrawal)

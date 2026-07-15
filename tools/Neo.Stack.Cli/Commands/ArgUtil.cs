@@ -8,6 +8,7 @@ internal static class ArgUtil
     {
         for (var i = 0; i < args.Length - 1; i++)
         {
+            if (args[i] == "--") break;
             if (args[i] == name) return args[i + 1];
         }
         return defaultValue;
@@ -16,7 +17,10 @@ internal static class ArgUtil
     public static bool HasFlag(string[] args, string name)
     {
         foreach (var a in args)
+        {
+            if (a == "--") break;
             if (a == name) return true;
+        }
         return false;
     }
 }

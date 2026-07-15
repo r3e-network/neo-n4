@@ -3,47 +3,38 @@
 Backend-agnostic Neo L2 batch execution primitives shared by prover and fast
 execution adapters.
 
-This crate is deliberately not a VM:
+This crate is deliberately not an opcode VM:
 
 - no SP1 dependency;
 - no PolkaVM dependency;
 - no NeoVM opcode interpreter;
 - `#![no_std]` with `alloc`, so it can be used by constrained guests later.
 
-It owns only the deterministic batch contract that both execution paths must
-agree on:
+It owns the canonical proof boundary shared by host and guest:
 
-1. parse canonical `BatchExecutionRequest` bytes;
-2. fold L1 messages into the running state root;
-3. call a backend-supplied per-transaction executor;
-4. commit the backend's `VmExecutionReceipt` into receipt/state roots;
-5. compute `txRoot`, `receiptRoot`, `postStateRoot`, and `publicInputHash`.
+1. decode the existing `ProofWitnessArtifactV1` / `ExecutionPayloadV1` envelope;
+2. decode complete Neo transactions, signer scopes/rules, attributes, and witnesses;
+3. verify bounded `NEO4STW1` pre-state plus contract code/manifest bindings;
+4. apply the restricted N4 genesis V1 deposit against the real native bridge/token layout;
+5. validate backend-produced storage overlays and notifications;
+6. derive native withdrawal/message roots from exact canonical event ABIs;
+7. encode the frozen 105-byte receipt and `NEO4EFX1` effects;
+8. recompute state, transaction, receipt, DA, context, and public-input hashes;
+9. reject every host-supplied result, effect, or root that differs.
 
 ## Backend model
 
-The shared boundary is `VmExecutionReceipt`:
-
-```rust
-pub struct VmExecutionReceipt {
-    pub state: u8,
-    pub gas_consumed: u64,
-    pub output_hash: [u8; 32],
-}
-```
-
-The zkVM guest maps `neo_vm_guest::ProofOutput` into this shape. A
-PolkaVM-backed RISC-V adapter should map `neo_riscv_abi::ExecutionResult` the
-same way, after hashing its canonical ABI result bytes. The core never needs to
-know which VM produced the receipt.
+The shared boundary is `VmOutcome`: HALT/FAULT, actual gas, sorted full-key
+storage deltas, and ordered full notification states. The core computes
+`CanonicalReceiptV1` itself. A backend cannot provide a trusted receipt hash or
+post-state root.
 
 ## Why PolkaVM stays outside
 
-`external/neo-riscv-vm` is the PolkaVM-backed Neo RISC-V execution engine. It
-is the fast execution path, benchmarking target, and parity oracle. This crate
-does not link to PolkaVM because the same batch commitment logic must also run
-inside SP1's zkVM guest. Keeping the boundary at `VmExecutionReceipt` prevents
-the proving path from depending on a native PolkaVM host while still allowing
-both backends to share the exact same batch folding rules.
+`external/neo-riscv-vm` remains the fast PolkaVM execution path. This crate
+does not link to PolkaVM or SP1; the SP1 guest supplies the `neo-vm-rs`
+stateful syscall provider while the core keeps all wire and commitment rules
+backend-neutral.
 
 ## Tests
 

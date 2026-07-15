@@ -1,107 +1,269 @@
 namespace Neo.Plugins.L2Gateway.UnitTests;
 
-/// <summary>
-/// Tests for <see cref="L2GatewayPlugin"/> — the Phase 5 plugin that owns the active
-/// <see cref="IGatewayAggregator"/> and forwards sealed L2 batches into it. Boundary
-/// + lifecycle pins; the deep aggregation behavior is tested in
-/// <c>UT_BinaryTreeAggregator</c> and <c>UT_PassThroughAggregator</c>.
-/// </summary>
+/// <summary>Security and lifecycle tests for the production Gateway publication state machine.</summary>
 [TestClass]
 public class UT_L2GatewayPlugin
 {
-    private static L2BatchCommitment SampleCommitment(uint chainId = 1001, ulong batchNumber = 1) => new()
-    {
-        ChainId = chainId,
-        BatchNumber = batchNumber,
-        FirstBlock = 0,
-        LastBlock = 0,
-        PreStateRoot = UInt256.Zero,
-        PostStateRoot = UInt256.Zero,
-        TxRoot = UInt256.Zero,
-        ReceiptRoot = UInt256.Zero,
-        WithdrawalRoot = UInt256.Zero,
-        L2ToL1MessageRoot = UInt256.Zero,
-        L2ToL2MessageRoot = UInt256.Zero,
-        DACommitment = UInt256.Zero,
-        PublicInputHash = UInt256.Zero,
-        ProofType = ProofType.None,
-        Proof = ReadOnlyMemory<byte>.Empty,
-    };
+    private static readonly UInt160 MessageRouter = UInt160.Parse("0x" + new string('a', 40));
+    private static readonly UInt256 ReplayDomain = FilledHash(0xD1);
+    private static readonly UInt256 VerificationKeyId = FilledHash(0xA1);
+    private static readonly byte[] TestTerminalProof =
+        Enumerable.Repeat((byte)0x5A, Sp1GatewayProofProver.Groth16ProofSize).ToArray();
 
-    [TestMethod]
-    public void Constructor_DoesNotThrow()
+    private static UInt256 FilledHash(byte value) => new(Enumerable.Repeat(value, 32).ToArray());
+
+    private static L2BatchCommitment SampleCommitment(
+        uint chainId = 1001,
+        ulong batchNumber = 1,
+        byte proofByte = 0x31) => new()
+        {
+            ChainId = chainId,
+            BatchNumber = batchNumber,
+            FirstBlock = batchNumber * 10,
+            LastBlock = batchNumber * 10 + 9,
+            PreStateRoot = FilledHash(0x01),
+            PostStateRoot = FilledHash(0x02),
+            TxRoot = FilledHash(0x03),
+            ReceiptRoot = FilledHash(0x04),
+            WithdrawalRoot = FilledHash(0x05),
+            L2ToL1MessageRoot = FilledHash(0x06),
+            L2ToL2MessageRoot = FilledHash((byte)(chainId & 0xFF)),
+            DACommitment = FilledHash(0x08),
+            PublicInputHash = FilledHash(0x09),
+            ProofType = ProofType.Multisig,
+            Proof = new byte[] { proofByte },
+        };
+
+    private sealed class RecordingProofProver : IGatewayProofProver
     {
-        using var plugin = new L2GatewayPlugin();
+        public byte ProofSystem { get; init; } = 1;
+        public byte AggregationBackendId { get; init; } = MerklePathRoundProver.ConstBackendId;
+        public int CallCount { get; private set; }
+        public bool FailNext { get; set; }
+        public GatewayProofBinding? LastBinding { get; private set; }
+
+        public ValueTask<ReadOnlyMemory<byte>> ProveAsync(
+            GatewayProofBinding binding,
+            AggregatedCommitment commitment,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            CallCount++;
+            LastBinding = binding;
+            if (FailNext)
+            {
+                FailNext = false;
+                throw new InvalidOperationException("injected prover failure");
+            }
+            ReadOnlyMemory<byte> proof = TestTerminalProof.ToArray();
+            return ValueTask.FromResult(proof);
+        }
+    }
+
+    private sealed class RecordingPublisher : IProofBoundGlobalRootPublisher
+    {
+        public int CallCount { get; private set; }
+        public bool FailNext { get; set; }
+        public GatewayProofBinding? LastBinding { get; private set; }
+        public AggregatedCommitment? LastCommitment { get; private set; }
+        public ReadOnlyMemory<byte> LastProof { get; private set; }
+        public UInt256 TransactionHash { get; } = UInt256.Parse("0x" + new string('f', 64));
+
+        public ValueTask<UInt256> PublishGlobalRootAsync(
+            GatewayProofBinding binding,
+            AggregatedCommitment commitment,
+            ReadOnlyMemory<byte> aggregatedProof,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            CallCount++;
+            LastBinding = binding;
+            LastCommitment = commitment;
+            LastProof = aggregatedProof.ToArray();
+            if (FailNext)
+            {
+                FailNext = false;
+                throw new TimeoutException("injected publisher timeout");
+            }
+            return ValueTask.FromResult(TransactionHash);
+        }
+    }
+
+    private static (L2GatewayPlugin Plugin, RecordingProofProver Prover, RecordingPublisher Publisher)
+        CreateProductionPlugin()
+    {
+        var plugin = new L2GatewayPlugin();
+        plugin.UseAggregator(new BinaryTreeAggregator(new MerklePathRoundProver()));
+        plugin.UsePersistentOutbox(new PersistentGatewayOutbox(
+            new Neo.L2.Persistence.InMemoryKeyValueStore(),
+            ownsStore: true), ownsOutbox: true);
+        var prover = new RecordingProofProver();
+        var publisher = new RecordingPublisher();
+        plugin.ConfigureGlobalRootPublication(
+            prover,
+            publisher,
+            MessageRouter,
+            ReplayDomain,
+            VerificationKeyId);
+        return (plugin, prover, publisher);
     }
 
     [TestMethod]
-    public void DefaultAggregator_IsPassThrough()
+    public void DefaultsRemainDevOnly_AndProductionRejectsPassThrough()
     {
-        // Pre-Configure default — pinned so a refactor of the field initializer doesn't
-        // silently break tests / devnet setups that construct the plugin and immediately
-        // call ReceiveBatch without UseAggregator.
         using var plugin = new L2GatewayPlugin();
         Assert.IsInstanceOfType(plugin.Aggregator, typeof(PassThroughAggregator));
+        Assert.IsInstanceOfType(plugin.GlobalRootPublisher, typeof(NoOpGlobalRootPublisher));
+        var prover = new RecordingProofProver
+        {
+            AggregationBackendId = PassThroughAggregator.BackendId,
+        };
+        Assert.ThrowsExactly<ArgumentException>(() => plugin.ConfigureGlobalRootPublication(
+            prover,
+            new RecordingPublisher(),
+            MessageRouter,
+            ReplayDomain,
+            VerificationKeyId));
+
+        plugin.UseAggregator(new BinaryTreeAggregator());
+        Assert.ThrowsExactly<ArgumentException>(() => plugin.ConfigureGlobalRootPublication(
+            new RecordingProofProver
+            {
+                AggregationBackendId = PassThroughRoundProver.ConstBackendId,
+            },
+            new RecordingPublisher(),
+            MessageRouter,
+            ReplayDomain,
+            VerificationKeyId));
     }
 
     [TestMethod]
-    public void UseAggregator_OverridesDefault()
-    {
-        using var plugin = new L2GatewayPlugin();
-        var custom = new BinaryTreeAggregator();
-        plugin.UseAggregator(custom);
-        Assert.AreSame(custom, plugin.Aggregator);
-    }
-
-    [TestMethod]
-    public void UseAggregator_RejectsNull()
-    {
-        using var plugin = new L2GatewayPlugin();
-        Assert.ThrowsExactly<ArgumentNullException>(() => plugin.UseAggregator(null!));
-    }
-
-    [TestMethod]
-    public void ReceiveBatch_RejectsNull()
-    {
-        // Pin L2GatewayPlugin.cs:36. Surface null at the API boundary instead of relying
-        // on the aggregator's own internal guard, so the operator sees the L2GatewayPlugin
-        // call site in the stack rather than the deeper aggregator's "commitment" arg name.
-        using var plugin = new L2GatewayPlugin();
-        Assert.ThrowsExactly<ArgumentNullException>(() => plugin.ReceiveBatch(null!));
-    }
-
-    [TestMethod]
-    public void ReceiveBatch_ForwardsToAggregator()
+    public async Task PublishAggregateAsync_UnconfiguredFailsBeforeDraining()
     {
         using var plugin = new L2GatewayPlugin();
         plugin.ReceiveBatch(SampleCommitment());
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            async () => await plugin.PublishAggregateAsync(7));
+
         Assert.AreEqual(1, plugin.Aggregator.PendingCount);
+        Assert.IsFalse(plugin.HasPendingPublication);
     }
 
     [TestMethod]
-    public void PullAggregate_ReturnsNullWhenEmpty()
+    public void ProductionConfiguration_RequiresPersistentOutbox()
     {
         using var plugin = new L2GatewayPlugin();
-        Assert.IsNull(plugin.PullAggregate());
+        plugin.UseAggregator(new BinaryTreeAggregator(new MerklePathRoundProver()));
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => plugin.ConfigureGlobalRootPublication(
+            new RecordingProofProver(),
+            new RecordingPublisher(),
+            MessageRouter,
+            ReplayDomain,
+            VerificationKeyId));
     }
 
     [TestMethod]
-    public void PullAggregate_ReturnsResultAfterBatchSubmitted()
+    public async Task PublishAggregateAsync_BindsAllFields_AndClearsOnlyAfterSuccess()
     {
-        using var plugin = new L2GatewayPlugin();
-        plugin.ReceiveBatch(SampleCommitment(batchNumber: 1));
-        plugin.ReceiveBatch(SampleCommitment(batchNumber: 2));
-        var aggregated = plugin.PullAggregate();
-        Assert.IsNotNull(aggregated);
-        Assert.AreEqual(2, aggregated.Constituents.Count);
+        var setup = CreateProductionPlugin();
+        using var plugin = setup.Plugin;
+        plugin.ReceiveBatch(SampleCommitment(chainId: 2002));
+        plugin.ReceiveBatch(SampleCommitment(chainId: 1001));
+
+        var transactionHash = await plugin.PublishAggregateAsync(77);
+
+        Assert.AreEqual(setup.Publisher.TransactionHash, transactionHash);
+        Assert.AreEqual(1, setup.Prover.CallCount);
+        Assert.AreEqual(1, setup.Publisher.CallCount);
+        Assert.IsFalse(plugin.HasPendingPublication);
+        Assert.AreEqual(0, plugin.Aggregator.PendingCount);
+        var binding = setup.Publisher.LastBinding!;
+        Assert.AreEqual(77UL, binding.BatchEpoch);
+        Assert.AreEqual(MessageRouter, binding.MessageRouter);
+        Assert.AreEqual(ReplayDomain, binding.ReplayDomain);
+        Assert.AreEqual(VerificationKeyId, binding.VerificationKeyId);
+        Assert.AreEqual(2U, binding.ConstituentCount);
+        Assert.AreEqual(MerklePathRoundProver.ConstBackendId, binding.AggregationBackendId);
+        Assert.AreEqual((byte)1, binding.ProofSystem);
+        Assert.IsTrue(setup.Publisher.LastProof.Span.SequenceEqual(TestTerminalProof));
     }
 
     [TestMethod]
-    public void Plugin_NameAndDescription_AreNonEmpty()
+    public async Task ProverFailure_RetainsExactAttempt_ForSameEpochRetry()
+    {
+        var setup = CreateProductionPlugin();
+        using var plugin = setup.Plugin;
+        setup.Prover.FailNext = true;
+        plugin.ReceiveBatch(SampleCommitment());
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            async () => await plugin.PublishAggregateAsync(81));
+        Assert.IsTrue(plugin.HasPendingPublication);
+        Assert.AreEqual(81UL, plugin.PendingPublicationEpoch);
+        Assert.AreEqual(0, plugin.Aggregator.PendingCount);
+        Assert.AreEqual(0, setup.Publisher.CallCount);
+
+        var transactionHash = await plugin.PublishAggregateAsync(81);
+        Assert.AreEqual(setup.Publisher.TransactionHash, transactionHash);
+        Assert.AreEqual(2, setup.Prover.CallCount);
+        Assert.AreEqual(1, setup.Publisher.CallCount);
+        Assert.IsFalse(plugin.HasPendingPublication);
+    }
+
+    [TestMethod]
+    public async Task PublisherFailure_RetriesSameProof_AndBlocksNewEpoch()
+    {
+        var setup = CreateProductionPlugin();
+        using var plugin = setup.Plugin;
+        setup.Publisher.FailNext = true;
+        plugin.ReceiveBatch(SampleCommitment());
+
+        await Assert.ThrowsExactlyAsync<TimeoutException>(
+            async () => await plugin.PublishAggregateAsync(91));
+        var firstProof = setup.Publisher.LastProof.ToArray();
+        Assert.IsTrue(plugin.HasPendingPublication);
+        Assert.AreEqual(1, setup.Prover.CallCount);
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            async () => await plugin.PublishAggregateAsync(92));
+        Assert.AreEqual(1, setup.Publisher.CallCount);
+
+        var transactionHash = await plugin.PublishAggregateAsync(91);
+        Assert.AreEqual(setup.Publisher.TransactionHash, transactionHash);
+        Assert.AreEqual(1, setup.Prover.CallCount, "successful proof bytes must be reused on retry");
+        Assert.AreEqual(2, setup.Publisher.CallCount);
+        CollectionAssert.AreEqual(firstProof, setup.Publisher.LastProof.ToArray());
+        Assert.IsFalse(plugin.HasPendingPublication);
+    }
+
+    [TestMethod]
+    public void DirectDrainAndReconfiguration_AreBlockedWithProductionWork()
+    {
+        var setup = CreateProductionPlugin();
+        using var plugin = setup.Plugin;
+        plugin.ReceiveBatch(SampleCommitment());
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => plugin.PullAggregate());
+        Assert.ThrowsExactly<InvalidOperationException>(() => plugin.UseAggregator(
+            new BinaryTreeAggregator(new MerklePathRoundProver())));
+    }
+
+    [TestMethod]
+    public void LegacySeams_ValidateAndDefensivelyCopy()
     {
         using var plugin = new L2GatewayPlugin();
+        Assert.ThrowsExactly<ArgumentNullException>(() => plugin.UseAggregator(null!));
+        Assert.ThrowsExactly<ArgumentNullException>(() => plugin.ReceiveBatch(null!));
+        Assert.ThrowsExactly<ArgumentNullException>(() => plugin.UseGlobalRootPublisher(null!));
+        Assert.ThrowsExactly<ArgumentException>(() => plugin.SetGlobalRootVerificationKeyId(new byte[31]));
+
+        var mutable = Enumerable.Range(1, 32).Select(static value => (byte)value).ToArray();
+        plugin.SetGlobalRootVerificationKeyId(mutable);
+        mutable[0] = 0xFF;
+        Assert.AreEqual(0x01, plugin.GlobalRootVerificationKeyId.Span[0]);
         Assert.IsFalse(string.IsNullOrWhiteSpace(plugin.Name));
         Assert.IsFalse(string.IsNullOrWhiteSpace(plugin.Description));
-        StringAssert.Contains(plugin.Name, "L2Gateway");
     }
 }

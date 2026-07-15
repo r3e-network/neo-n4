@@ -1,0 +1,125 @@
+{
+  "schema": "neo-n4-sdk-live-fixture/v1",
+  "n3": {
+    "networkMagic": 860833102,
+    "genesisHash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+    "minimumBlockCount": 1
+  },
+  "n4": {
+    "networkMagic": 860833103,
+    "genesisHash": "0x2222222222222222222222222222222222222222222222222222222222222222",
+    "minimumBlockCount": 1,
+    "chainId": 1099,
+    "wrongChainId": 1100,
+    "cases": [
+      {
+        "name": "batch",
+        "method": "getl2batch",
+        "params": [1099, "42"],
+        "result": {
+          "chainId": 1099,
+          "batchNumber": "42",
+          "firstBlock": "100",
+          "lastBlock": "109",
+          "preStateRoot": "0x3333333333333333333333333333333333333333333333333333333333333333",
+          "postStateRoot": "0x4444444444444444444444444444444444444444444444444444444444444444",
+          "txRoot": "0x5555555555555555555555555555555555555555555555555555555555555555",
+          "receiptRoot": "0x6666666666666666666666666666666666666666666666666666666666666666",
+          "withdrawalRoot": "0x7777777777777777777777777777777777777777777777777777777777777777",
+          "l2ToL1MessageRoot": "0x8888888888888888888888888888888888888888888888888888888888888888",
+          "l2ToL2MessageRoot": "0x9999999999999999999999999999999999999999999999999999999999999999",
+          "daCommitment": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "publicInputHash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "proofType": 3,
+          "proof": "0102",
+          "encoded": "4B0400002A0000000000000064000000000000006D000000000000003333333333333333333333333333333333333333333333333333333333333333444444444444444444444444444444444444444444444444444444444444444455555555555555555555555555555555555555555555555555555555555555556666666666666666666666666666666666666666666666666666666666666666777777777777777777777777777777777777777777777777777777777777777788888888888888888888888888888888888888888888888888888888888888889999999999999999999999999999999999999999999999999999999999999999AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB03020000000102"
+        }
+      },
+      {
+        "name": "batch-status",
+        "method": "getl2batchstatus",
+        "params": [1099, "42"],
+        "result": {
+          "chainId": 1099,
+          "batchNumber": "42",
+          "status": 3,
+          "statusName": "Finalized"
+        }
+      },
+      {
+        "name": "latest-state-root",
+        "method": "getl2stateroot",
+        "params": [1099],
+        "result": "0x4444444444444444444444444444444444444444444444444444444444444444"
+      },
+      {
+        "name": "historical-state-root",
+        "method": "getl2stateroot",
+        "params": [1099, "42"],
+        "result": "0x4444444444444444444444444444444444444444444444444444444444444444"
+      },
+      {
+        "name": "withdrawal-proof",
+        "method": "getl2withdrawalproof",
+        "params": [1099, "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"],
+        "result": "CAFE"
+      },
+      {
+        "name": "message-proof",
+        "method": "getl2messageproof",
+        "params": [1099, "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"],
+        "result": "BEEF"
+      },
+      {
+        "name": "deposit-status",
+        "method": "getl1depositstatus",
+        "params": [1, "7"],
+        "result": {
+          "sourceChainId": 1,
+          "nonce": "7",
+          "consumedOnL2": true,
+          "includedInBatch": "42"
+        }
+      },
+      {
+        "name": "canonical-asset",
+        "method": "getcanonicalasset",
+        "params": ["0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"],
+        "result": "0xffffffffffffffffffffffffffffffffffffffff"
+      },
+      {
+        "name": "bridged-asset",
+        "method": "getbridgedasset",
+        "params": ["0xffffffffffffffffffffffffffffffffffffffff", 1099],
+        "result": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      },
+      {
+        "name": "security-level",
+        "method": "getsecuritylevel",
+        "params": [1099],
+        "result": {
+          "chainId": 1099,
+          "level": 3,
+          "levelName": "Validity"
+        }
+      },
+      {
+        "name": "security-label",
+        "method": "getsecuritylabel",
+        "params": [1099],
+        "result": {
+          "chainId": 1099,
+          "securityLevel": 4,
+          "securityLevelName": "Validium",
+          "daMode": 1,
+          "daModeName": "NeoFS",
+          "gatewayEnabled": true,
+          "sequencer": 1,
+          "sequencerName": "DbftCommittee",
+          "exit": 1,
+          "exitName": "Delayed"
+        }
+      }
+    ]
+  }
+}

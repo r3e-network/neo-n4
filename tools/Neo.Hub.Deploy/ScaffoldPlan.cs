@@ -5,10 +5,12 @@ namespace Neo.Hub.Deploy;
 /// <summary>
 /// Generates the canonical default <see cref="DeployPlan"/> that matches the layout in
 /// doc.md §3.2 and §13.1. The 15 core NeoHub contracts deploy in dependency order, plus
-/// one contract-deployed ZK verifier router and two stateless fraud-verifier reference contracts (<c>GovernanceFraudVerifier</c> for
-/// v1/v2 structural verification and <c>RestrictedExecutionFraudVerifier</c> for
-/// trustless v3 storage-proof verification). L2 native contracts are listed but
-/// commented as "deploy on the L2", not the L1.
+/// the contract-deployed ZK verifier router, its pinned SP1 Groth16 terminal verifier,
+/// and the SettlementManager-bound <c>RestrictedExecutionFraudVerifier</c> executable v4
+/// profile. The structural v1/v2/v3 verifier contracts remain audit aids and are deliberately
+/// excluded from the production deployment bundle because they cannot authorize state changes.
+/// The production external-bridge bundle includes the concrete immutable L2 payout adapter;
+/// target native contracts remain L2 genesis configuration rather than L1 deploy steps.
 /// </summary>
 public static class ScaffoldPlan
 {
@@ -32,6 +34,10 @@ public static class ScaffoldPlan
                 Step("ContractZkVerifier",
                     "contracts/NeoHub.ContractZkVerifier/bin/sc/NeoHub.ContractZkVerifier.nef",
                     OwnerOnly()),
+
+                Step("Sp1Groth16Verifier",
+                    "contracts/NeoHub.Sp1Groth16Verifier/bin/sc/NeoHub.Sp1Groth16Verifier.nef",
+                    new JArray()),
 
                 Step("TokenRegistry",
                     "contracts/NeoHub.TokenRegistry/bin/sc/NeoHub.TokenRegistry.nef",
@@ -116,26 +122,18 @@ public static class ScaffoldPlan
                     OwnerAndDeps("SettlementManager", "SequencerBond"),
                     "SettlementManager", "SequencerBond"),
 
-                // GovernanceFraudVerifier is the structural-verifier reference contract
-                // operators in governance-arbitration mode pass as the fraudVerifier
-                // argument to OptimisticChallenge.Challenge. It has no deploy-time deps —
-                // verifies a static wire format (v1/v2). Skip this step entirely if the
-                // chain ships its own (re-execution-capable) fraud verifier.
-                Step("GovernanceFraudVerifier",
-                    "contracts/NeoHub.GovernanceFraudVerifier/bin/sc/NeoHub.GovernanceFraudVerifier.nef",
-                    new JArray()),
-
-                // RestrictedExecutionFraudVerifier is the trustless v3 verifier — re-derives
-                // pre/post Merkle roots from each storage proof's leaf-hash + siblings +
-                // leafIndex and matches against the v1 header roots. Same stateless
-                // shape as GovernanceFraudVerifier (no deploy args, no deps). Operators
-                // running v3 fraud-proofs pass this contract's hash as the fraudVerifier
-                // argument; operators running v1/v2 governance-arbitration use
-                // GovernanceFraudVerifier instead. Both can be deployed simultaneously
-                // — the OptimisticChallenge.Challenge caller picks which to invoke.
+                // Version 4 is permissionless only after deployment binds this verifier to the exact
+                // SettlementManager and an operator-selected non-zero replay domain, and
+                // OptimisticChallenge registers the exact chain/semantic/domain profile. Legacy
+                // v1/v2/v3 payloads remain diagnostic-only and always fail closed in Challenge().
                 Step("RestrictedExecutionFraudVerifier",
                     "contracts/NeoHub.RestrictedExecutionFraudVerifier/bin/sc/NeoHub.RestrictedExecutionFraudVerifier.nef",
-                    new JArray()),
+                    new JArray
+                    {
+                        "$step:SettlementManager",
+                        "FRAUD_REPLAY_DOMAIN_REPLACE_ME",
+                    },
+                    "SettlementManager"),
 
                 // ─── External-bridge stack (doc.md §11.3) ────────────────
                 // The cross-foreign-chain bridge contracts. Independent of
@@ -160,12 +158,30 @@ public static class ScaffoldPlan
                     "contracts/NeoHub.ExternalBridgeRegistry/bin/sc/NeoHub.ExternalBridgeRegistry.nef",
                     OwnerOnly()),
 
-                // ExternalBridgeEscrow's _deploy takes (owner, registry).
-                // The registry hash is resolved via $step:ExternalBridgeRegistry.
+                // ExternalBridgeEscrow's _deploy takes (owner, registry, neoChainId).
+                // The registry hash is resolved via $step:ExternalBridgeRegistry; the
+                // target L2 chain id is an explicit operator value because the escrow
+                // permanently binds inbound signatures to that domain at deployment.
                 Step("ExternalBridgeEscrow",
                     "contracts/NeoHub.ExternalBridgeEscrow/bin/sc/NeoHub.ExternalBridgeEscrow.nef",
-                    OwnerAndDep("ExternalBridgeRegistry"),
+                    new JArray
+                    {
+                        "OWNER_REPLACE_ME",
+                        "$step:ExternalBridgeRegistry",
+                        "L2_CHAIN_ID_REPLACE_ME",
+                    },
                     "ExternalBridgeRegistry"),
+
+                Step("L2PayoutAdapter",
+                    "contracts/NeoHub.L2PayoutAdapter/bin/sc/NeoHub.L2PayoutAdapter.nef",
+                    new JArray
+                    {
+                        "OWNER_REPLACE_ME",
+                        "$step:ExternalBridgeEscrow",
+                        "L2_CHAIN_ID_REPLACE_ME",
+                        "L2_PAYOUT_RELAY_ACCOUNT_REPLACE_ME",
+                    },
+                    "ExternalBridgeEscrow"),
 
                 // ExternalBridgeBond mirrors SequencerBond — owner + bondAsset
                 // (canonical GAS hash on the target L1; operator-substituted
@@ -228,6 +244,75 @@ public static class ScaffoldPlan
         };
     }
 
+    /// <summary>
+    /// Reject an optimistic deployment plan unless it contains the exact executable v4
+    /// verifier shape supported by the production runner.
+    /// </summary>
+    internal static void RequireExecutableOptimisticFraudProfile(DeployPlan plan)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        var optimisticSteps = plan.Steps
+            .Where(step => step.Name == "OptimisticChallenge")
+            .ToArray();
+        if (optimisticSteps.Length == 0) return;
+        if (optimisticSteps.Length != 1)
+            throw new InvalidOperationException(
+                "optimistic deployment requires exactly one OptimisticChallenge step");
+
+        var restrictedSteps = plan.Steps
+            .Where(step => step.Name == "RestrictedExecutionFraudVerifier")
+            .ToArray();
+        if (restrictedSteps.Length != 1)
+            throw UnsupportedOptimisticPlan();
+
+        var restricted = restrictedSteps[0];
+        if (!restricted.DependsOn.Contains("SettlementManager", StringComparer.Ordinal)
+            || restricted.DeployData.Count != 2
+            || restricted.DeployData[0] is not JString settlementManager
+            || settlementManager.AsString() != "$step:SettlementManager"
+            || !IsConfiguredReplayDomain(restricted.DeployData[1]))
+        {
+            throw UnsupportedOptimisticPlan();
+        }
+    }
+
+    private static void RequireExecutableOptimisticFraudProfile(DeployBundle bundle)
+    {
+        var optimistic = bundle.Invocations
+            .SingleOrDefault(invocation => invocation.Name == "OptimisticChallenge");
+        if (optimistic is null) return;
+
+        var restricted = bundle.Invocations
+            .SingleOrDefault(invocation => invocation.Name == "RestrictedExecutionFraudVerifier");
+        if (restricted is null
+            || optimistic.ResolvedDeployData.Count < 2
+            || restricted.ResolvedDeployData.Count != 2
+            || optimistic.ResolvedDeployData[1] is not JString optimisticSettlementManager
+            || restricted.ResolvedDeployData[0] is not JString restrictedSettlementManager
+            || optimisticSettlementManager.AsString() != restrictedSettlementManager.AsString()
+            || !IsConfiguredReplayDomain(restricted.ResolvedDeployData[1]))
+        {
+            throw UnsupportedOptimisticPlan();
+        }
+    }
+
+    private static bool IsConfiguredReplayDomain(JToken? token)
+    {
+        if (token is not JString text) return false;
+        var value = text.AsString();
+        if (value == "FRAUD_REPLAY_DOMAIN_REPLACE_ME") return true;
+        return UInt256.TryParse(value, out var replayDomain)
+            && replayDomain != UInt256.Zero;
+    }
+
+    private static InvalidOperationException UnsupportedOptimisticPlan()
+    {
+        return new InvalidOperationException(
+            "unsupported optimistic deployment: state-changing challenges require the exact executable v4 " +
+            "RestrictedExecutionFraudVerifier configuration [SettlementManager, non-zero replayDomain]; " +
+            "v1/v2/v3 structural evidence remains advisory only and fails closed even with governance or owner witness");
+    }
+
     private static DeployStep Step(string name, string nefPath, JArray deployData, params string[] dependsOn)
     {
         return new DeployStep
@@ -251,17 +336,20 @@ public static class ScaffoldPlan
     ///   <item><description><c>SequencerBond.RegisterSlasher(OptimisticChallenge)</c>: broken cycle workaround — bond can't depend on challenge at deploy time, so the operator wires it post-deploy.</description></item>
     ///   <item><description><c>ChainRegistry.SetGovernanceController(GovernanceController)</c>: doc.md §16.1 admission policy needs the GovernanceController hash wired before <c>RegisterChainPublic</c> works in mode 1/2.</description></item>
     ///   <item><description><c>VerifierRegistry.SetGovernanceController(GovernanceController)</c>: doc.md §16 council-veto needs the GovernanceController hash wired before <c>RegisterVerifierViaProposal</c> can consult <c>IsApprovedAndTimelocked</c>.</description></item>
-    ///   <item><description>Informational note(s) for each fraud-verifier reference contract present in the bundle, so operators know which hash to pass as the <c>fraudVerifier</c> argument to <c>OptimisticChallenge.Challenge</c>: <c>GovernanceFraudVerifier</c> (v1/v2 governance arbitration) or <c>RestrictedExecutionFraudVerifier</c> (v3 trustless on-chain re-derivation).</description></item>
+    ///   <item><description><c>ExternalBridgeEscrow</c> governance, versioned payout-route, direct-liquidity, and irreversible-lock wiring required to close the verified inbound asset path.</description></item>
+    ///   <item><description>Fraud-verifier wiring only for the exact chain-scoped restricted executable v4 profile. Structural v1/v2/v3 contracts are reported as advisory-only and are never registered for state-changing challenges.</description></item>
     /// </list>
     /// </remarks>
     public static IEnumerable<string> PostDeployActions(DeployBundle bundle)
     {
         ArgumentNullException.ThrowIfNull(bundle);
+        RequireExecutableOptimisticFraudProfile(bundle);
         var bond = bundle.Invocations.FirstOrDefault(i => i.Name == "SequencerBond");
         var oc = bundle.Invocations.FirstOrDefault(i => i.Name == "OptimisticChallenge");
         var chainReg = bundle.Invocations.FirstOrDefault(i => i.Name == "ChainRegistry");
         var verifierReg = bundle.Invocations.FirstOrDefault(i => i.Name == "VerifierRegistry");
         var contractZkVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "ContractZkVerifier");
+        var sp1Groth16Verifier = bundle.Invocations.FirstOrDefault(i => i.Name == "Sp1Groth16Verifier");
         var gc = bundle.Invocations.FirstOrDefault(i => i.Name == "GovernanceController");
         var sm = bundle.Invocations.FirstOrDefault(i => i.Name == "SettlementManager");
         var forcedInclusion = bundle.Invocations.FirstOrDefault(i => i.Name == "ForcedInclusion");
@@ -271,11 +359,11 @@ public static class ScaffoldPlan
         var daValidator = bundle.Invocations.FirstOrDefault(i => i.Name == "DAValidator");
         var messageRouter = bundle.Invocations.FirstOrDefault(i => i.Name == "MessageRouter");
         var l1TxFilter = bundle.Invocations.FirstOrDefault(i => i.Name == "L1TxFilter");
-        var govFraudVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "GovernanceFraudVerifier");
         var rexFraudVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "RestrictedExecutionFraudVerifier");
         var mpcVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "MpcCommitteeVerifier");
         var extRegistry = bundle.Invocations.FirstOrDefault(i => i.Name == "ExternalBridgeRegistry");
         var extEscrow = bundle.Invocations.FirstOrDefault(i => i.Name == "ExternalBridgeEscrow");
+        var l2PayoutAdapter = bundle.Invocations.FirstOrDefault(i => i.Name == "L2PayoutAdapter");
         var extBond = bundle.Invocations.FirstOrDefault(i => i.Name == "ExternalBridgeBond");
         var fraudVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "MpcCommitteeFraudVerifier");
 
@@ -296,6 +384,9 @@ public static class ScaffoldPlan
         {
             yield return $"{forcedInclusion.Name}.SetSequencerBond({bond.Name})  # wire §15.4 censorship reports to SequencerBond.Slash";
             yield return $"{forcedInclusion.Name}.SetCensorshipSlashAmount(1000000)  # production default: slash 1.0 GAS per overdue forced-inclusion entry";
+            yield return $"{forcedInclusion.Name}.SetGasToken(GAS_CONTRACT_HASH)  # production requires the canonical Neo native GAS contract for forced-inclusion spam control";
+            yield return $"{forcedInclusion.Name}.SetFeeRecipient(FEE_RECIPIENT)  # production requires a non-zero accountable fee recipient";
+            yield return $"{forcedInclusion.Name}.SetFee(100000)  # production default: charge 0.001 GAS per forced-inclusion entry after token + recipient are wired";
         }
         if (sharedBridge is not null && emergencyManager is not null)
         {
@@ -309,30 +400,26 @@ public static class ScaffoldPlan
         {
             yield return $"VerifierRegistry.SetGovernanceController({gc.Name})  # enable §16 council-veto path (RegisterVerifierViaProposal depends on this wiring)";
         }
-        if (contractZkVerifier is not null)
+        if (sm is not null && gc is not null)
         {
-            yield return $"{contractZkVerifier.Name}.RegisterVerificationKey(proofSystem, vkId, allowed=true)  # allow each production RISC-V/SP1/Risc0/Halo2/Axiom verification key before accepting ZK batches";
-            yield return $"{contractZkVerifier.Name}.RegisterProofVerifier(proofSystem, verifierContract, allowed=true)  # production path: route proof-system math to a deployable verifier contract; devnets may explicitly use SetEnvelopeOnlyAllowed";
+            yield return $"{sm.Name}.SetGovernanceController({gc.Name})  # bind emergency batch rollback to exact §16 council proposals before the irreversible production lock";
+        }
+        if (contractZkVerifier is not null && sp1Groth16Verifier is not null)
+        {
+            yield return $"{contractZkVerifier.Name}.RegisterVerificationKey(ProofSystem.Sp1=1, PROGRAM_VKEY_REPLACE_ME, allowed=true)  # allow the audited SP1 program vkey emitted by the production prover";
+            yield return $"{contractZkVerifier.Name}.RegisterProofVerifier(ProofSystem.Sp1=1, {sp1Groth16Verifier.Name}, allowed=true)  # route SP1 proof math to the pinned in-repo Groth16 verifier";
+            yield return $"{contractZkVerifier.Name}.DisableEnvelopeOnlyPermanently(ProofSystem.Sp1=1)  # irreversible production gate: SP1 batches can never fall back to envelope-only acceptance";
+            yield return $"{contractZkVerifier.Name}.LockProofSystemConfiguration(ProofSystem.Sp1=1, PROGRAM_VKEY_REPLACE_ME)  # freeze the exact SP1 vkey and terminal verifier; upgrades deploy a new versioned router";
         }
         if (verifierReg is not null && contractZkVerifier is not null)
         {
-            yield return $"{verifierReg.Name}.RegisterVerifier(ProofType.Zk=3, {contractZkVerifier.Name})  # route ZK settlement commitments to the contract-deployed verifier router; use RegisterVerifierViaProposal after governance is live";
-        }
-        if (govFraudVerifier is not null && oc is not null)
-        {
-            // REQUIRED — OptimisticChallenge gates Challenge() on an owner-managed
-            // verifier allowlist (added to defend against bond-drain by caller-supplied
-            // yes-verifiers). Operator MUST call RegisterFraudVerifier before any
-            // legitimate challenge against this verifier shape is accepted.
-            yield return $"{oc.Name}.RegisterFraudVerifier({govFraudVerifier.Name})  # allowlist v1/v2 governance-arbitration verifier";
-            yield return $"# Note: challengers pass {govFraudVerifier.Name}.Hash as the `fraudVerifier` argument to {oc.Name}.Challenge for v1/v2 fraud proofs (governance arbitration).";
+            yield return $"{verifierReg.Name}.RegisterVerifier(ProofType.Zk=3, {contractZkVerifier.Name})  # route ZK settlement commitments to the contract-deployed verifier router";
+            yield return $"{verifierReg.Name}.LockGovernance()  # irreversible production gate: freeze the GovernanceController and disable direct owner verifier replacement; future routes require an exact payload-bound timelocked proposal";
         }
         if (rexFraudVerifier is not null && oc is not null)
         {
-            // Same shape as GovernanceFraudVerifier above — both verifiers are peers
-            // and both must be allowlisted before they can be invoked through Challenge.
-            yield return $"{oc.Name}.RegisterFraudVerifier({rexFraudVerifier.Name})  # allowlist v3 trustless storage-proof verifier";
-            yield return $"# Note: challengers pass {rexFraudVerifier.Name}.Hash as the `fraudVerifier` argument to {oc.Name}.Challenge for v3 fraud proofs (trustless storage-proof re-derivation).";
+            yield return $"{oc.Name}.RegisterPermissionlessFraudProfile(L2_CHAIN_ID_REPLACE_ME, {rexFraudVerifier.Name}, {rexFraudVerifier.Name}.GetExecutorSemanticId(), FRAUD_REPLAY_DOMAIN_REPLACE_ME)  # atomically approve and bind the only supported state-changing executable v4 profile";
+            yield return "# Security boundary: v1/v2/v3 fraud payloads are advisory only and fail closed for state changes even with governance or owner witness; general NeoVM optimistic execution remains unsupported.";
         }
 
         // ─── External-bridge wiring ──────────────────────────────────────
@@ -349,6 +436,10 @@ public static class ScaffoldPlan
         {
             yield return $"{extRegistry.Name}.SetGovernanceController({gc.Name})  # enable governance-mediated verifier upgrade (UpgradeVerifierViaProposal depends on this)";
         }
+        if (extEscrow is not null && gc is not null)
+        {
+            yield return $"{extEscrow.Name}.SetGovernanceController({gc.Name})  # enable exact payload-bound, timelocked registry and payout-route upgrades before the irreversible production lock";
+        }
         if (mpcVerifier is not null && extRegistry is not null)
         {
             // Informational — operators must wire each supported foreign
@@ -358,6 +449,15 @@ public static class ScaffoldPlan
             // and ExternalBridgeEscrow.Receive reverts with "no verifier
             // registered for externalChainId" on first inbound message.
             yield return $"# Per supported foreign chain (e.g. Eth=0xE0000001, Sepolia=0xE0000002): run `neo-external-bridge committee-blob` + `neo-external-bridge deploy-bundle` to register the committee on {mpcVerifier.Name} and bind it to {extRegistry.Name} via RegisterVerifier(externalChainId, mpcVerifier.Hash, bridgeKindMpc=1).";
+        }
+        if (extEscrow is not null && l2PayoutAdapter is not null)
+        {
+            yield return $"{extEscrow.Name}.SetAssetRoute(EXTERNAL_CHAIN_ID, FOREIGN_ASSET, NEO_ASSET, {l2PayoutAdapter.Name})  # bind each foreign asset to the concrete immutable payout-v1 queue after verifying payoutVersion()==1, UpdateCounter==0, adapter neoChainId=non-zero L2_CHAIN_ID_REPLACE_ME; use payoutAdapter=0 only for neoChainId=0 direct-release routes; target credit is enqueue/confirm/ack, not a synchronous cross-chain commit";
+            yield return $"# Neo L1 direct-release routes only: call {extEscrow.Name}.FundLiquidity(EXTERNAL_CHAIN_ID, NEO_ASSET, AMOUNT) before accepting inbound value; non-zero L2 adapter routes own their target-chain credit/mint accounting.";
+        }
+        if (extEscrow is not null && gc is not null)
+        {
+            yield return $"{extEscrow.Name}.LockGovernance()  # irreversible production gate: disable direct owner registry/route replacement; future changes require SetRegistryViaProposal or ConfigureAssetRouteViaProposal with exact bound bytes";
         }
         if (fraudVerifier is not null && extBond is not null)
         {
@@ -392,6 +492,18 @@ public static class ScaffoldPlan
         {
             yield return $"{sm.Name}.SetOptimisticChallenge({oc.Name})  # complete the SettlementManager -> OptimisticChallenge cycle after both contracts exist";
         }
+        if (sm is not null && messageRouter is not null)
+        {
+            yield return $"{sm.Name}.SetMessageRouter({messageRouter.Name})  # make Gateway publication validate finalized L1 constituents and enter MessageRouter with the canonical contract witness atomically";
+        }
+        if (chainReg is not null && gc is not null)
+        {
+            yield return $"{chainReg.Name}.LockGovernance()  # irreversible production gate: freeze the ChainRegistry controller and disable instant owner config replacement; future updates require exact proposal-bound council approval";
+        }
+        if (sm is not null && gc is not null)
+        {
+            yield return $"{sm.Name}.LockGovernance()  # irreversible production gate: freeze settlement dependencies and disable direct owner rollback; emergency rollback requires an exact RevertBatchViaProposal payload, council threshold, timelock, and one-time proposal";
+        }
         if (messageRouter is not null && l1TxFilter is not null)
         {
             yield return $"# Per L2 chain: call {messageRouter.Name}.SetL1TxFilter(<chainId>, {l1TxFilter.Name}) to enable sender/receiver/message-type filtering before L1->L2 enqueue.";
@@ -422,9 +534,9 @@ public static class ScaffoldPlan
             "OWNER_REPLACE_ME",
             new JArray
             {
-                "GOVERNANCE_COUNCIL_MEMBER_REPLACE_ME",
+                "GOVERNANCE_COUNCIL_REPLACE_ME",
             },
-            1,
+            "GOVERNANCE_THRESHOLD_REPLACE_ME",
             3600,
         };
     }

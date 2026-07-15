@@ -11,16 +11,16 @@ public class UT_MetricsEmittingDAWriter
     [TestMethod]
     public async Task Publish_Success_IncrementsPublishedAndLatency_TaggedByMode()
     {
-        var inner = new InMemoryDAWriter(); // Mode = External
+        var inner = new InMemoryDAWriter(); // Mode = Local
         var metrics = new InMemoryMetrics();
         var decorated = new MetricsEmittingDAWriter(inner, metrics);
 
         var receipt = await decorated.PublishAsync(BuildRequest(batch: 1, payload: new byte[] { 1, 2, 3 }));
 
-        Assert.AreEqual(DAMode.External, receipt.Layer);
-        Assert.AreEqual(1, metrics.GetCounter(MetricNames.DAPublished, ("mode", "External")));
-        Assert.AreEqual(1, metrics.GetHistogram(MetricNames.DAPublishLatencyMs, ("mode", "External")).Count);
-        Assert.AreEqual(0, metrics.GetCounter(MetricNames.DAPublishFailures, ("mode", "External")));
+        Assert.AreEqual(DAMode.Local, receipt.Layer);
+        Assert.AreEqual(1, metrics.GetCounter(MetricNames.DAPublished, ("mode", "Local")));
+        Assert.AreEqual(1, metrics.GetHistogram(MetricNames.DAPublishLatencyMs, ("mode", "Local")).Count);
+        Assert.AreEqual(0, metrics.GetCounter(MetricNames.DAPublishFailures, ("mode", "Local")));
     }
 
     [TestMethod]
@@ -47,8 +47,8 @@ public class UT_MetricsEmittingDAWriter
         for (var i = 0; i < 5; i++)
             await decorated.PublishAsync(BuildRequest(batch: (ulong)i, payload: new byte[] { (byte)i }));
 
-        Assert.AreEqual(5, metrics.GetCounter(MetricNames.DAPublished, ("mode", "External")));
-        Assert.AreEqual(5, metrics.GetHistogram(MetricNames.DAPublishLatencyMs, ("mode", "External")).Count);
+        Assert.AreEqual(5, metrics.GetCounter(MetricNames.DAPublished, ("mode", "Local")));
+        Assert.AreEqual(5, metrics.GetHistogram(MetricNames.DAPublishLatencyMs, ("mode", "Local")).Count);
     }
 
     [TestMethod]
@@ -77,6 +77,7 @@ public class UT_MetricsEmittingDAWriter
         var inner = new InMemoryDAWriter();
         var decorated = new MetricsEmittingDAWriter(inner, new InMemoryMetrics());
         Assert.AreEqual(inner.Mode, decorated.Mode);
+        Assert.AreEqual(inner.ReceiptKind, decorated.ReceiptKind);
         Assert.AreSame(inner, decorated.Inner);
     }
 
@@ -146,6 +147,41 @@ public class UT_MetricsEmittingDAWriter
         public ValueTask<DAReceipt> PublishAsync(DAPublishRequest request, CancellationToken cancellationToken = default)
             => new ValueTask<DAReceipt>((DAReceipt)null!);
         public ValueTask<bool> IsAvailableAsync(DAReceipt receipt, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(false);
+    }
+
+    [TestMethod]
+    public async Task Publish_MalformedReceipt_FailsBeforeSuccessMetrics()
+    {
+        var metrics = new InMemoryMetrics();
+        var decorated = new MetricsEmittingDAWriter(new MalformedWriter(), metrics);
+
+        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            async () => await decorated.PublishAsync(BuildRequest(1, new byte[] { 0xAA })));
+        StringAssert.Contains(ex.Message, "malformed or mislabeled");
+        Assert.AreEqual(1, metrics.GetCounter(MetricNames.DAPublishFailures, ("mode", "NeoFS")));
+        Assert.AreEqual(0, metrics.GetCounter(MetricNames.DAPublished, ("mode", "NeoFS")));
+    }
+
+    private sealed class MalformedWriter : IDAWriter
+    {
+        public DAMode Mode => DAMode.NeoFS;
+
+        public DAReceiptKind ReceiptKind => DAReceiptKind.NeoFSObject;
+
+        public ValueTask<DAReceipt> PublishAsync(
+            DAPublishRequest request,
+            CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(new DAReceipt
+            {
+                Commitment = UInt256.Zero,
+                Pointer = ReadOnlyMemory<byte>.Empty,
+                Layer = DAMode.NeoFS,
+            });
+
+        public ValueTask<bool> IsAvailableAsync(
+            DAReceipt receipt,
+            CancellationToken cancellationToken = default)
             => ValueTask.FromResult(false);
     }
 }

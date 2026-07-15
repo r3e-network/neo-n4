@@ -45,6 +45,7 @@ namespace Neo.L2.Executor;
 public sealed class ReferenceBatchExecutor : IL2BatchExecutor
 {
     private readonly ITransactionExecutor _txExecutor;
+    private readonly TransactionEffectsProfile _effectsProfile;
     private readonly IL1MessageProcessor? _l1Processor;
     private readonly IPostStateRootOracle _postStateRootOracle;
 
@@ -57,6 +58,13 @@ public sealed class ReferenceBatchExecutor : IL2BatchExecutor
         ArgumentNullException.ThrowIfNull(txExecutor);
         ArgumentNullException.ThrowIfNull(postStateRootOracle);
         _txExecutor = txExecutor;
+        _effectsProfile = txExecutor.EffectsProfile;
+        if (_effectsProfile is not TransactionEffectsProfile.ExecutorDeclared
+            and not TransactionEffectsProfile.CanonicalNativeV1)
+            throw new ArgumentOutOfRangeException(
+                nameof(txExecutor),
+                _effectsProfile,
+                "ITransactionExecutor returned an unsupported effects profile");
         _postStateRootOracle = postStateRootOracle;
         _l1Processor = l1Processor;
     }
@@ -69,15 +77,22 @@ public sealed class ReferenceBatchExecutor : IL2BatchExecutor
         ArgumentNullException.ThrowIfNull(request);
 
         // 1. Apply L1 messages first (per SPEC.md §"Execution order" #1).
-        if (_l1Processor is not null)
+        if (request.L1MessagesConsumed.Count > 0)
         {
-            for (var i = 0; i < request.L1MessagesConsumed.Count; i++)
+            if (_l1Processor is null)
+                throw new InvalidOperationException(
+                    "A canonical IL1MessageProcessor is required for a non-empty L1 inbox");
+            for (var index = 0; index < request.L1MessagesConsumed.Count; index++)
             {
-                var msg = request.L1MessagesConsumed[i]
-                    ?? throw new ArgumentException(
-                        $"request.L1MessagesConsumed[{i}] is null", nameof(request));
-                await _l1Processor.ApplyAsync(msg, cancellationToken).ConfigureAwait(false);
+                if (request.L1MessagesConsumed[index] is null)
+                    throw new ArgumentException(
+                        $"L1MessagesConsumed[{index}] is null",
+                        nameof(request));
             }
+            await _l1Processor.ApplyBatchAsync(
+                request.ChainId,
+                request.L1MessagesConsumed,
+                cancellationToken).ConfigureAwait(false);
         }
 
         // 2. Apply transactions in order, collecting receipts + side effects.
@@ -101,6 +116,9 @@ public sealed class ReferenceBatchExecutor : IL2BatchExecutor
             txHashes.Add(result.TxHash);
             totalGas += result.Receipt.GasConsumed;
 
+            if (_effectsProfile == TransactionEffectsProfile.CanonicalNativeV1)
+                ValidateCanonicalNativeEffects(result);
+
             // Per L2 semantics, a failed transaction reverts all its state changes —
             // including emitted withdrawals and L2-side cross-chain messages. The
             // ITransactionExecutor contract should already filter these on the executor
@@ -111,24 +129,15 @@ public sealed class ReferenceBatchExecutor : IL2BatchExecutor
             // for the leaked withdrawal is checked against the user's actual state.
             if (!result.Receipt.Success) continue;
 
-            // Per-entry null guard: WithdrawalTree.Add / L2Outbox.Add null-guard the
-            // arg, but the message there ("withdrawal is null") doesn't name which
-            // executor returned the bad entry. Surface here with the index so a
-            // misbehaving ITransactionExecutor's bug is obvious.
-            for (var i = 0; i < result.Withdrawals.Count; i++)
+            if (_effectsProfile == TransactionEffectsProfile.CanonicalNativeV1)
             {
-                var w = result.Withdrawals[i]
-                    ?? throw new InvalidOperationException(
-                        $"ITransactionExecutor returned null result.Withdrawals[{i}] for tx {result.TxHash}");
-                withdrawalTree.Add(w);
+                var canonical = CanonicalNativeEffectsAdapter.Derive(request.ChainId, result.Effects);
+                foreach (var withdrawal in canonical.Withdrawals) withdrawalTree.Add(withdrawal);
+                foreach (var message in canonical.Messages) outbox.Add(message);
+                continue;
             }
-            for (var i = 0; i < result.Messages.Count; i++)
-            {
-                var m = result.Messages[i]
-                    ?? throw new InvalidOperationException(
-                        $"ITransactionExecutor returned null result.Messages[{i}] for tx {result.TxHash}");
-                outbox.Add(m);
-            }
+
+            AddExecutorDeclaredEffects(result, withdrawalTree, outbox);
         }
 
         // 3. Compute the four batch-level roots.
@@ -150,6 +159,53 @@ public sealed class ReferenceBatchExecutor : IL2BatchExecutor
             TxRoot = txRoot,
             GasConsumed = totalGas,
         };
+    }
+
+    private static void ValidateCanonicalNativeEffects(TransactionExecutionResult result)
+    {
+        if (result.Effects is null)
+            throw new InvalidOperationException(
+                $"ITransactionExecutor returned null canonical effects for tx {result.TxHash}");
+        if (result.Effects.StorageChanges is null || result.Effects.Events is null)
+            throw new InvalidOperationException(
+                $"ITransactionExecutor returned incomplete canonical effects for tx {result.TxHash}");
+
+        var storageHash = Effects.CanonicalEffectsHasher.HashStorage(result.Effects.StorageChanges);
+        var eventsHash = Effects.CanonicalEffectsHasher.HashEvents(result.Effects.Events);
+        if (!Equals(result.Effects.StorageHash, storageHash)
+            || !Equals(result.Effects.EventsHash, eventsHash)
+            || !Equals(result.Receipt.StorageDeltaHash, result.Effects.StorageHash)
+            || !Equals(result.Receipt.EventsHash, result.Effects.EventsHash))
+            throw new InvalidOperationException(
+                $"ITransactionExecutor canonical effects do not match receipt {result.TxHash}");
+    }
+
+    private static void AddExecutorDeclaredEffects(
+        TransactionExecutionResult result,
+        WithdrawalTree withdrawalTree,
+        L2Outbox outbox)
+    {
+        var withdrawals = result.Withdrawals
+            ?? throw new InvalidOperationException(
+                $"ITransactionExecutor returned null result.Withdrawals for tx {result.TxHash}");
+        var messages = result.Messages
+            ?? throw new InvalidOperationException(
+                $"ITransactionExecutor returned null result.Messages for tx {result.TxHash}");
+
+        for (var index = 0; index < withdrawals.Count; index++)
+        {
+            var withdrawal = withdrawals[index]
+                ?? throw new InvalidOperationException(
+                    $"ITransactionExecutor returned null result.Withdrawals[{index}] for tx {result.TxHash}");
+            withdrawalTree.Add(withdrawal);
+        }
+        for (var index = 0; index < messages.Count; index++)
+        {
+            var message = messages[index]
+                ?? throw new InvalidOperationException(
+                    $"ITransactionExecutor returned null result.Messages[{index}] for tx {result.TxHash}");
+            outbox.Add(message);
+        }
     }
 }
 
@@ -215,6 +271,9 @@ public sealed class DerivedPostStateRootOracle : IPostStateRootOracle
 /// </summary>
 public interface IL1MessageProcessor
 {
-    /// <summary>Apply a single L1 → L2 message.</summary>
-    ValueTask ApplyAsync(CrossChainMessage message, CancellationToken cancellationToken = default);
+    /// <summary>Atomically apply the ordered L1 → L2 inbox for one batch.</summary>
+    ValueTask ApplyBatchAsync(
+        uint chainId,
+        IReadOnlyList<CrossChainMessage> messages,
+        CancellationToken cancellationToken = default);
 }

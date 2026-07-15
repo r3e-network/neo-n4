@@ -103,7 +103,7 @@ public class UT_Mvp_Phase1_Cross_Component
         foreach (var entry in drained)
         {
             builder.AddTransaction(entry.SerializedTx);
-            await src.MarkConsumedAsync(entry.Nonce);
+            await src.ConfirmConsumedAsync(entry.Nonce);
         }
         builder.AddBlock(100);
         builder.WithBlockContext(SampleContext());
@@ -217,7 +217,7 @@ public class UT_Mvp_Phase1_Cross_Component
         foreach (var e in await src.DrainAsync(10))
         {
             builder.AddTransaction(e.SerializedTx);
-            await src.MarkConsumedAsync(e.Nonce);
+            await src.ConfirmConsumedAsync(e.Nonce);
         }
         builder.AddBlock(100);
         builder.WithBlockContext(SampleContext());

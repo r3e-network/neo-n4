@@ -9,104 +9,56 @@ using Neo.SmartContract.Framework.Services;
 namespace NeoHub.RestrictedExecutionFraudVerifier;
 
 /// <summary>
-/// On-chain v3 fraud verifier — re-derives pre/post state roots from each storage
-/// proof's leaf-hash + siblings + leafIndex and checks they are internally consistent
-/// with the roots in the challenger-supplied payload header.
+/// Versioned fraud verifier with a governance-only structural v3 path and a
+/// SettlementManager-bound executable v4 path.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Structural companion to <c>NeoHub.GovernanceFraudVerifier</c>. The governance
-/// verifier stops at length/version/claimed-!=-replayed checks and defers correctness
-/// arbitration to the security council; this verifier additionally requires the
-/// challenger to supply storage-proof manifests for every key the disputed tx touched
-/// and rejects the proof on-chain if the supplied storage manifests don't reconstruct
-/// to the payload's <c>PreStateRoot</c> and <c>ReplayedPostStateRoot</c>.
+/// Version 3 preserves the canonical <c>FraudProofPayload</c> storage-proof format, but
+/// validates only challenger-supplied roots. It is structural evidence for governance
+/// arbitration and is never sufficient for permissionless slashing.
 /// </para>
 /// <para>
-/// What this proves on-chain:
-/// </para>
-/// <list type="bullet">
-///   <item><description>The challenger's storage proofs are internally well-formed: each
-///     proof's pre-leaf folds with its siblings + leafIndex bits to a root that matches the
-///     payload header's <c>PreStateRoot</c>, and same on the post side against
-///     <c>ReplayedPostStateRoot</c>.</description></item>
-///   <item><description>The challenger claims a real discrepancy:
-///     <c>ClaimedPostStateRoot != ReplayedPostStateRoot</c>.</description></item>
-/// </list>
-/// <para>
-/// What this verifier does NOT prove:
-/// </para>
-/// <list type="bullet">
-///   <item><description>That the payload's <c>PreStateRoot</c> / <c>ClaimedPostStateRoot</c>
-///     match what the sequencer actually committed on-chain. ALL roots checked here come from
-///     the same challenger-supplied <c>payload</c>; the verifier performs no
-///     <c>Storage.Get</c> / <c>Contract.Call</c> against <c>SettlementManager</c>'s batch
-///     header, and <c>chainId</c>/<c>batchNumber</c> are used only for event emission. A
-///     challenger can therefore fabricate a self-consistent pre-root / replayed-root pair
-///     (e.g. a one-leaf tree they build) unrelated to the disputed batch. Binding requires
-///     reading the committed roots from the on-chain batch header (a getter
-///     <c>SettlementManager</c> does not yet expose, threaded through
-///     <c>OptimisticChallenge.OpenWindow</c>/<c>Challenge</c>) — not yet implemented.</description></item>
-///   <item><description>That re-running the disputed transaction on the pre-state actually
-///     produces the challenger's claimed post-state. That requires running NeoVM with
-///     restricted state on L1.</description></item>
-/// </list>
-/// <para>
-/// Because acceptance is NOT bound to the on-chain commitment, this verifier is NOT
-/// trustless and MUST NOT be registered on the permissionless auto-slash path
-/// (<c>OptimisticChallenge.RegisterPermissionlessFraudVerifier</c>). Like the governance
-/// verifier, "accepted by this verifier" means only "the challenger has made a structurally
-/// credible claim a downstream re-execution service (or council) should arbitrate" — keep it
-/// approved-only with owner/governance co-sign until on-chain batch binding + re-execution
-/// land.
+/// Version 4 reads the exact 321-byte optimistic batch header from
+/// <c>SettlementManager.GetChallengeableBatchHeader</c>, binds the header hash, chain,
+/// batch, transaction root, pre-state root, committed post-state root, transaction index,
+/// settled bisection bounds, executor semantic id, replay domain, transcript hash, witness
+/// hash, and claim id. It then verifies the canonical single-leaf transaction proof and
+/// executes the supported existing-key Counter Increment transition against an old leaf/path
+/// bound to the committed pre-state root and a new leaf/path bound to the committed post-state root.
 /// </para>
 /// <para>
-/// Hash composition mirrors <c>Neo.L2.Executor.State.KeyedStateStore.HashEntry</c>:
-/// <c>Hash256(int32LE(keyLen) || key || int32LE(valueLen) || value)</c>. Sibling
-/// folding mirrors <c>NeoHub.SettlementManager.VerifyWithdrawalLeafWithProof</c>:
-/// <c>Hash256(left || right)</c> with <c>leafIndex</c>'s low bit at level <c>i</c>
-/// determining whether <c>current</c> is left (bit=0) or right (bit=1) of the sibling
-/// at that level.
+/// A correct committed transition returns false. The verifier returns true only when the
+/// supported transition reconstructs the committed pre-state root and derives a post-state
+/// root different from the committed batch post-state root. Malformed, substituted,
+/// replay-domain-mismatched, or unsupported payloads fail closed.
 /// </para>
 /// <para>
-/// Wire format the verifier consumes is canonical
-/// <c>Neo.L2.Challenge.FraudProofPayload</c> v3 bytes:
-/// </para>
-/// <code>
-/// [0]              version = 3
-/// [1..32]          PreStateRoot (32B)
-/// [33..64]         ClaimedPostStateRoot (32B)
-/// [65..96]         ReplayedPostStateRoot (32B)
-/// [97..100]        DisputedTxIndex (uint32 LE)
-/// [101..104]       DisputedTxLen (uint32 LE)
-/// [105..(105+T-1)] DisputedTxBytes (T bytes — re-execution witness, NOT verified here)
-/// [...]            uint32 LE numStorageProofs
-/// [for each StorageProof:]
-///   uint16 LE keyLen ; key bytes
-///   uint32 LE preValueLen ; preValue bytes
-///   uint32 LE postValueLen ; postValue bytes
-///   uint64 LE leafIndex
-///   uint8  preSiblingCount ; preSiblingCount × 32 bytes
-///   uint8  postSiblingCount ; postSiblingCount × 32 bytes
-/// </code>
-/// <para>
-/// Wire layout MUST stay in lockstep with <c>FraudProofPayload.Encode</c> /
-/// <c>StorageProof.Encode</c>. The off-chain <c>UT_GovernanceFraudVerifierParity</c>
-/// pattern + <c>V3StorageProofVerifier</c> reference enable parity tests once we
-/// re-host this verifier in tests.
+/// The v4 semantic id is
+/// <c>Hash256("neo4-executor:counter-increment-existing-key:v1")</c>. This is not a
+/// general NeoVM verifier. It supports exactly one 29-byte Counter Increment transaction,
+/// transaction index 0, transaction count 1, bisection interval [0,1], and mutation of one
+/// existing state key. Multi-transaction batches, key insertion/deletion, other custom
+/// executors, and general NeoVM opcodes are not covered.
 /// </para>
 /// <para>
-/// See doc.md §15 (optimistic challenge), §17 mitigation #2.
+/// Hash composition and wire layout stay in lockstep with
+/// <c>Neo.L2.Challenge.RestrictedFraudProofV4</c>,
+/// <c>Neo.L2.State.MerkleProofSerializer</c>, and
+/// <c>Neo.L2.Challenge.StorageProof</c>. See doc.md §15 and §17.
 /// </para>
 /// </remarks>
 [DisplayName("NeoHub.RestrictedExecutionFraudVerifier")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
-[ContractDescription("Structural v3 fraud verifier — checks storage-proof manifests are internally consistent with the payload's pre/post state roots (not bound to the on-chain batch commitment).")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
+[ContractDescription("Versioned fraud verifier: governance-only structural v3 plus SettlementManager-bound executable v4 Counter transitions.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.RestrictedExecutionFraudVerifier")]
 [ContractPermission(Permission.Any, Method.Any)]
 public class RestrictedExecutionFraudVerifierContract : SmartContract
 {
+    private const byte KeySettlementManager = 0x01;
+    private const byte KeyReplayDomain = 0x02;
+
     /// <summary>v1 wire-format header size (= 101 bytes — must match Neo.L2.Challenge.FraudProofPayload.Size).</summary>
     public const int V1HeaderSize = 1 + 32 + 32 + 32 + 4;
 
@@ -115,6 +67,76 @@ public class RestrictedExecutionFraudVerifierContract : SmartContract
 
     /// <summary>v3 wire-format version byte — must match FraudProofPayload.Version3.</summary>
     public const byte SupportedVersion3 = 3;
+
+    /// <summary>v4 trustless restricted-execution version.</summary>
+    public const byte SupportedVersion4 = 4;
+
+    /// <summary>Canonical v4 fixed header size through disputedTxLen.</summary>
+    public const int V4FixedHeaderSize = 353;
+
+    /// <summary>Canonical L2BatchCommitment fixed header size.</summary>
+    public const int CommitmentHeaderSize = 321;
+
+    /// <summary>Canonical MerkleProofSerializer header size.</summary>
+    public const int MerkleProofHeaderSize = 48;
+
+    private const int V4ReplayDomainOffset = 1;
+    private const int V4ExecutorSemanticIdOffset = 33;
+    private const int V4ClaimIdOffset = 65;
+    private const int V4TranscriptHashOffset = 97;
+    private const int V4WitnessHashOffset = 129;
+    private const int V4CommittedHeaderHashOffset = 161;
+    private const int V4ChainIdOffset = 193;
+    private const int V4BatchNumberOffset = 197;
+    private const int V4DisputedTxIndexOffset = 205;
+    private const int V4TransactionCountOffset = 209;
+    private const int V4LowerBoundOffset = 213;
+    private const int V4UpperBoundOffset = 217;
+    private const int V4PreStateRootOffset = 221;
+    private const int V4CommittedPostStateRootOffset = 253;
+    private const int V4ExpectedPostStateRootOffset = 285;
+    private const int V4TxRootOffset = 317;
+    private const int V4TxLengthOffset = 349;
+
+    private const int HeaderChainIdOffset = 0;
+    private const int HeaderBatchNumberOffset = 4;
+    private const int HeaderPreStateRootOffset = 28;
+    private const int HeaderPostStateRootOffset = 60;
+    private const int HeaderTxRootOffset = 92;
+    private const int HeaderProofTypeOffset = 316;
+    private const byte OptimisticProofType = 2;
+    private const byte IncrementCounterOpcode = 1;
+
+    private static readonly byte[] ExecutorSemanticTag = new byte[]
+    {
+        110, 101, 111, 52, 45, 101, 120, 101, 99, 117, 116, 111, 114, 58, 99, 111,
+        117, 110, 116, 101, 114, 45, 105, 110, 99, 114, 101, 109, 101, 110, 116, 45,
+        101, 120, 105, 115, 116, 105, 110, 103, 45, 107, 101, 121, 58, 118, 49
+    };
+
+    private static readonly byte[] TranscriptTag = new byte[]
+    {
+        110, 101, 111, 52, 45, 102, 114, 97, 117, 100, 45, 98, 105, 115, 101, 99,
+        116, 105, 111, 110, 45, 116, 114, 97, 110, 115, 99, 114, 105, 112, 116, 58,
+        118, 49
+    };
+
+    private static readonly byte[] WitnessTag = new byte[]
+    {
+        110, 101, 111, 52, 45, 102, 114, 97, 117, 100, 45, 119, 105, 116, 110, 101,
+        115, 115, 58, 118, 49
+    };
+
+    private static readonly byte[] ClaimTag = new byte[]
+    {
+        110, 101, 111, 52, 45, 102, 114, 97, 117, 100, 45, 99, 108, 97, 105, 109,
+        58, 118, 52
+    };
+
+    private static readonly byte[] CounterKeyPrefix = new byte[]
+    {
+        99, 111, 117, 110, 116, 101, 114, 58
+    };
 
     /// <summary>Cap on the v2 disputed-tx witness — must match FraudProofPayload.MaxDisputedTxBytes.</summary>
     public const int MaxDisputedTxBytes = 64 * 1024;
@@ -155,6 +177,45 @@ public class RestrictedExecutionFraudVerifierContract : SmartContract
     /// <summary>Reject reason: a storage proof's post-derived Merkle root != payload.ReplayedPostStateRoot.</summary>
     public const byte ReasonReplayedPostStateRootMismatch = 8;
 
+    /// <summary>Reject reason: v4 verifier was deployed without SettlementManager/replay-domain binding.</summary>
+    public const byte ReasonV4NotConfigured = 9;
+
+    /// <summary>Reject reason: replay domain does not match the configured deployment.</summary>
+    public const byte ReasonReplayDomainMismatch = 10;
+
+    /// <summary>Reject reason: executor semantic id is not the supported restricted profile.</summary>
+    public const byte ReasonExecutorSemanticMismatch = 11;
+
+    /// <summary>Reject reason: payload chain, batch, or settled single-step bounds are invalid.</summary>
+    public const byte ReasonContextMismatch = 12;
+
+    /// <summary>Reject reason: payload roots/header hash do not match SettlementManager storage.</summary>
+    public const byte ReasonCommittedHeaderMismatch = 13;
+
+    /// <summary>Reject reason: canonical final-step transcript hash mismatch.</summary>
+    public const byte ReasonTranscriptMismatch = 14;
+
+    /// <summary>Reject reason: transaction/state witness hash mismatch.</summary>
+    public const byte ReasonWitnessMismatch = 15;
+
+    /// <summary>Reject reason: replay-protected claim id mismatch.</summary>
+    public const byte ReasonClaimIdMismatch = 16;
+
+    /// <summary>Reject reason: transaction is not the single canonical tx committed by txRoot.</summary>
+    public const byte ReasonTransactionProofMismatch = 17;
+
+    /// <summary>Reject reason: transaction is outside the supported Counter Increment semantics.</summary>
+    public const byte ReasonUnsupportedTransition = 18;
+
+    /// <summary>Reject reason: storage key/value/path witness is invalid.</summary>
+    public const byte ReasonStorageWitnessMismatch = 19;
+
+    /// <summary>Reject reason: payload expectedPostStateRoot differs from executed semantics.</summary>
+    public const byte ReasonExpectedPostStateRootMismatch = 20;
+
+    /// <summary>Reject reason: the committed post-state root is correct, so no fraud exists.</summary>
+    public const byte ReasonNoFraud = 21;
+
     /// <summary>Emitted on every accepted v3 fraud proof. Surfaces both state roots so a downstream re-execution service can arbitrate without re-decoding.</summary>
     [DisplayName("FraudProofAccepted")]
     public static event Action<uint, ulong, UInt256, UInt256> OnFraudProofAccepted = default!;
@@ -162,6 +223,52 @@ public class RestrictedExecutionFraudVerifierContract : SmartContract
     /// <summary>Emitted on every rejected v3 fraud proof. The reason byte names the failure mode (constants above).</summary>
     [DisplayName("FraudProofRejected")]
     public static event Action<uint, ulong, byte> OnFraudProofRejected = default!;
+
+    /// <summary>Emitted when an executable v4 claim proves actual fraud.</summary>
+    [DisplayName("TrustlessFraudProofAccepted")]
+    public static event Action<uint, ulong, UInt256> OnTrustlessFraudProofAccepted = default!;
+
+    /// <summary>
+    /// Configure the immutable v4 SettlementManager and replay-domain binding at deployment.
+    /// Empty deployment data keeps governance-only v3 compatibility but leaves v4 fail closed.
+    /// </summary>
+    public static void _deploy(object data, bool update)
+    {
+        if (update) return;
+        var values = (object[])data;
+        if (values.Length == 0) return;
+        ExecutionEngine.Assert(values.Length == 2, "expected [settlementManager, replayDomain]");
+        var settlementManager = (UInt160)values[0];
+        var replayDomain = (UInt256)values[1];
+        ExecutionEngine.Assert(settlementManager.IsValid && !settlementManager.IsZero,
+            "invalid settlement manager");
+        ExecutionEngine.Assert(!replayDomain.Equals(UInt256.Zero), "replay domain is zero");
+        Storage.Put(new byte[] { KeySettlementManager }, settlementManager);
+        Storage.Put(new byte[] { KeyReplayDomain }, replayDomain);
+    }
+
+    /// <summary>SettlementManager whose committed headers v4 reads.</summary>
+    [Safe]
+    public static UInt160 GetSettlementManager()
+    {
+        var raw = Storage.Get(new byte[] { KeySettlementManager });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Deployment-specific v4 replay domain.</summary>
+    [Safe]
+    public static UInt256 GetReplayDomain()
+    {
+        var raw = Storage.Get(new byte[] { KeyReplayDomain });
+        return raw == null ? UInt256.Zero : (UInt256)raw;
+    }
+
+    /// <summary>Semantic id for the supported existing-key Counter Increment transition.</summary>
+    [Safe]
+    public static UInt256 GetExecutorSemanticId()
+    {
+        return (UInt256)Hash256(ExecutorSemanticTag);
+    }
 
     /// <summary>
     /// Verify a v3 fraud-proof payload by re-deriving pre/post state roots from each
@@ -184,12 +291,13 @@ public class RestrictedExecutionFraudVerifierContract : SmartContract
     // CallFlags.ReadOnly|AllowNotify expressly so these reason-coded events can fire.
     public static bool VerifyFraud(uint chainId, ulong batchNumber, byte[] payload)
     {
-        // Need at least the v1 header to dispatch the version byte.
         if (payload.Length < 1)
         {
             OnFraudProofRejected(chainId, batchNumber, ReasonBadLength);
             return false;
         }
+        if (payload[0] == SupportedVersion4)
+            return VerifyTrustlessV4(chainId, batchNumber, payload);
         if (payload[0] != SupportedVersion3)
         {
             OnFraudProofRejected(chainId, batchNumber, ReasonBadVersion);
@@ -380,6 +488,280 @@ public class RestrictedExecutionFraudVerifierContract : SmartContract
     }
 
     /// <summary>
+    /// Verify a SettlementManager-bound v4 proof by executing the supported existing-key Counter
+    /// Increment transition and comparing its derived root with the committed batch post-state root.
+    /// </summary>
+    private static bool VerifyTrustlessV4(uint chainId, ulong batchNumber, byte[] payload)
+    {
+        if (payload.Length < V4FixedHeaderSize)
+            return Reject(chainId, batchNumber, ReasonBadLength);
+
+        var settlementManager = GetSettlementManager();
+        var replayDomain = GetReplayDomain();
+        if (settlementManager.Equals(UInt160.Zero) || replayDomain.Equals(UInt256.Zero))
+            return Reject(chainId, batchNumber, ReasonV4NotConfigured);
+        if (!BytesEqual(payload, V4ReplayDomainOffset, (byte[])replayDomain, 0, 32))
+            return Reject(chainId, batchNumber, ReasonReplayDomainMismatch);
+
+        var executorSemanticId = GetExecutorSemanticId();
+        if (!BytesEqual(payload, V4ExecutorSemanticIdOffset, (byte[])executorSemanticId, 0, 32))
+            return Reject(chainId, batchNumber, ReasonExecutorSemanticMismatch);
+
+        if (ReadUInt32LE(payload, V4ChainIdOffset) != chainId
+            || ReadUInt64LE(payload, V4BatchNumberOffset) != batchNumber
+            || ReadUInt32LE(payload, V4DisputedTxIndexOffset) != 0
+            || ReadUInt32LE(payload, V4TransactionCountOffset) != 1
+            || ReadUInt32LE(payload, V4LowerBoundOffset) != 0
+            || ReadUInt32LE(payload, V4UpperBoundOffset) != 1)
+            return Reject(chainId, batchNumber, ReasonContextMismatch);
+
+        var committedHeader = (byte[])Contract.Call(
+            settlementManager,
+            "getChallengeableBatchHeader",
+            CallFlags.ReadOnly,
+            new object[] { chainId, batchNumber });
+        if (committedHeader.Length != CommitmentHeaderSize
+            || ReadUInt32LE(committedHeader, HeaderChainIdOffset) != chainId
+            || ReadUInt64LE(committedHeader, HeaderBatchNumberOffset) != batchNumber
+            || committedHeader[HeaderProofTypeOffset] != OptimisticProofType)
+            return Reject(chainId, batchNumber, ReasonCommittedHeaderMismatch);
+
+        var committedHeaderHash = Hash256(committedHeader);
+        if (!BytesEqual(payload, V4CommittedHeaderHashOffset, committedHeaderHash, 0, 32)
+            || !BytesEqual(payload, V4PreStateRootOffset, committedHeader, HeaderPreStateRootOffset, 32)
+            || !BytesEqual(payload, V4CommittedPostStateRootOffset, committedHeader, HeaderPostStateRootOffset, 32)
+            || !BytesEqual(payload, V4TxRootOffset, committedHeader, HeaderTxRootOffset, 32))
+            return Reject(chainId, batchNumber, ReasonCommittedHeaderMismatch);
+
+        var txLength = ReadUInt32LE(payload, V4TxLengthOffset);
+        if (txLength > MaxDisputedTxBytes)
+            return Reject(chainId, batchNumber, ReasonOversizedWitness);
+        var position = V4FixedHeaderSize + (int)txLength;
+        if (payload.Length < position + 4)
+            return Reject(chainId, batchNumber, ReasonBadLength);
+        var transactionProofLength = ReadUInt32LE(payload, position);
+        position += 4;
+        if (transactionProofLength != MerkleProofHeaderSize || payload.Length < position + MerkleProofHeaderSize + 4)
+            return Reject(chainId, batchNumber, ReasonTransactionProofMismatch);
+        var transactionProofOffset = position;
+        position += MerkleProofHeaderSize;
+
+        var stateProofLength = ReadUInt32LE(payload, position);
+        position += 4;
+        if (stateProofLength > (uint)payload.Length || payload.Length != position + (int)stateProofLength)
+            return Reject(chainId, batchNumber, ReasonBadLength);
+        var stateProofOffset = position;
+        var stateProofEnd = position + (int)stateProofLength;
+
+        var transcriptHash = ComputeTranscriptHash(payload);
+        if (!BytesEqual(payload, V4TranscriptHashOffset, transcriptHash, 0, 32))
+            return Reject(chainId, batchNumber, ReasonTranscriptMismatch);
+        var witnessHash = ComputeWitnessHash(payload);
+        if (!BytesEqual(payload, V4WitnessHashOffset, witnessHash, 0, 32))
+            return Reject(chainId, batchNumber, ReasonWitnessMismatch);
+        var claimId = ComputeClaimId(payload, settlementManager, transcriptHash, witnessHash);
+        if (!BytesEqual(payload, V4ClaimIdOffset, claimId, 0, 32))
+            return Reject(chainId, batchNumber, ReasonClaimIdMismatch);
+
+        if (txLength != 29 || payload[V4FixedHeaderSize] != IncrementCounterOpcode)
+            return Reject(chainId, batchNumber, ReasonUnsupportedTransition);
+        var disputedTx = Slice(payload, V4FixedHeaderSize, (int)txLength);
+        var transactionHash = Hash256(disputedTx);
+        if (!BytesEqual(payload, transactionProofOffset, transactionHash, 0, 32)
+            || ReadUInt32LE(payload, transactionProofOffset + 32) != 0
+            || ReadUInt64LE(payload, transactionProofOffset + 36) != 0
+            || ReadUInt32LE(payload, transactionProofOffset + 44) != 0
+            || !BytesEqual(payload, V4TxRootOffset, transactionHash, 0, 32))
+            return Reject(chainId, batchNumber, ReasonTransactionProofMismatch);
+
+        var storagePosition = stateProofOffset;
+        if (stateProofEnd < storagePosition + 2)
+            return Reject(chainId, batchNumber, ReasonBadLength);
+        var keyLength = ReadUInt16LE(payload, storagePosition);
+        storagePosition += 2;
+        if (keyLength > MaxKeyBytes || stateProofEnd < storagePosition + keyLength)
+            return Reject(chainId, batchNumber, ReasonStorageWitnessMismatch);
+        var keyOffset = storagePosition;
+        storagePosition += keyLength;
+
+        if (stateProofEnd < storagePosition + 4)
+            return Reject(chainId, batchNumber, ReasonBadLength);
+        var preValueLength = ReadUInt32LE(payload, storagePosition);
+        storagePosition += 4;
+        if (preValueLength != 8 || stateProofEnd < storagePosition + 8)
+            return Reject(chainId, batchNumber, ReasonStorageWitnessMismatch);
+        var preValueOffset = storagePosition;
+        storagePosition += 8;
+
+        if (stateProofEnd < storagePosition + 4)
+            return Reject(chainId, batchNumber, ReasonBadLength);
+        var postValueLength = ReadUInt32LE(payload, storagePosition);
+        storagePosition += 4;
+        if (postValueLength != 8 || stateProofEnd < storagePosition + 8)
+            return Reject(chainId, batchNumber, ReasonStorageWitnessMismatch);
+        var postValueOffset = storagePosition;
+        storagePosition += 8;
+
+        if (stateProofEnd < storagePosition + 8)
+            return Reject(chainId, batchNumber, ReasonBadLength);
+        var leafIndex = ReadUInt64LE(payload, storagePosition);
+        storagePosition += 8;
+
+        if (stateProofEnd < storagePosition + 1)
+            return Reject(chainId, batchNumber, ReasonBadLength);
+        var preSiblingCount = (int)payload[storagePosition];
+        storagePosition += 1;
+        if (preSiblingCount > MaxSiblingDepth || stateProofEnd < storagePosition + 32 * preSiblingCount)
+            return Reject(chainId, batchNumber, ReasonStorageWitnessMismatch);
+        var preSiblingOffset = storagePosition;
+        storagePosition += 32 * preSiblingCount;
+
+        if (stateProofEnd < storagePosition + 1)
+            return Reject(chainId, batchNumber, ReasonBadLength);
+        var postSiblingCount = (int)payload[storagePosition];
+        storagePosition += 1;
+        if (postSiblingCount > MaxSiblingDepth || stateProofEnd < storagePosition + 32 * postSiblingCount)
+            return Reject(chainId, batchNumber, ReasonStorageWitnessMismatch);
+        var postSiblingOffset = storagePosition;
+        storagePosition += 32 * postSiblingCount;
+        if (storagePosition != stateProofEnd
+            || !IsCanonicalLeafIndex(leafIndex, preSiblingCount)
+            || !IsCanonicalLeafIndex(leafIndex, postSiblingCount))
+            return Reject(chainId, batchNumber, ReasonStorageWitnessMismatch);
+
+        if (keyLength != 28)
+            return Reject(chainId, batchNumber, ReasonUnsupportedTransition);
+        var counterPrefix = CounterKeyPrefix;
+        for (var index = 0; index < counterPrefix.Length; index++)
+            if (payload[keyOffset + index] != counterPrefix[index])
+                return Reject(chainId, batchNumber, ReasonUnsupportedTransition);
+        for (var index = 0; index < 20; index++)
+            if (payload[keyOffset + 8 + index] != payload[V4FixedHeaderSize + 1 + index])
+                return Reject(chainId, batchNumber, ReasonUnsupportedTransition);
+
+        var previousValue = ReadUInt64LE(payload, preValueOffset);
+        var amount = ReadUInt64LE(payload, V4FixedHeaderSize + 21);
+        var expectedValue = unchecked(previousValue + amount);
+
+        var preLeaf = HashEntry(payload, keyOffset, keyLength, preValueOffset, 8);
+        var preRoot = FoldMerkleProof(preLeaf, payload, preSiblingOffset, preSiblingCount, leafIndex);
+        if (!BytesEqual(preRoot, 0, committedHeader, HeaderPreStateRootOffset, 32))
+            return Reject(chainId, batchNumber, ReasonPreStateRootMismatch);
+
+        var committedPostLeaf = HashEntry(payload, keyOffset, keyLength, postValueOffset, 8);
+        var witnessedCommittedPostRoot = FoldMerkleProof(
+            committedPostLeaf,
+            payload,
+            postSiblingOffset,
+            postSiblingCount,
+            leafIndex);
+        if (!BytesEqual(witnessedCommittedPostRoot, 0, committedHeader, HeaderPostStateRootOffset, 32))
+            return Reject(chainId, batchNumber, ReasonStorageWitnessMismatch);
+
+        var expectedPostLeaf = HashExpectedCounterEntry(payload, keyOffset, keyLength, expectedValue);
+        var expectedPostRoot = FoldMerkleProof(
+            expectedPostLeaf,
+            payload,
+            preSiblingOffset,
+            preSiblingCount,
+            leafIndex);
+        if (!BytesEqual(payload, V4ExpectedPostStateRootOffset, expectedPostRoot, 0, 32))
+            return Reject(chainId, batchNumber, ReasonExpectedPostStateRootMismatch);
+
+        if (BytesEqual(expectedPostRoot, 0, committedHeader, HeaderPostStateRootOffset, 32))
+            return Reject(chainId, batchNumber, ReasonNoFraud);
+
+        var acceptedClaimId = SliceUInt256(payload, V4ClaimIdOffset);
+        OnFraudProofAccepted(
+            chainId,
+            batchNumber,
+            SliceUInt256(committedHeader, HeaderPostStateRootOffset),
+            (UInt256)expectedPostRoot);
+        OnTrustlessFraudProofAccepted(chainId, batchNumber, acceptedClaimId);
+        return true;
+    }
+
+    private static bool Reject(uint chainId, ulong batchNumber, byte reason)
+    {
+        OnFraudProofRejected(chainId, batchNumber, reason);
+        return false;
+    }
+
+    private static byte[] ComputeTranscriptHash(byte[] payload)
+    {
+        var transcriptLength = 32 * 7 + 4 * 5 + 8;
+        var preimage = new byte[TranscriptTag.Length + transcriptLength];
+        var position = 0;
+        Copy(TranscriptTag, 0, preimage, ref position, TranscriptTag.Length);
+        Copy(payload, V4ReplayDomainOffset, preimage, ref position, 32);
+        Copy(payload, V4ExecutorSemanticIdOffset, preimage, ref position, 32);
+        Copy(payload, V4CommittedHeaderHashOffset, preimage, ref position, 32);
+        Copy(payload, V4ChainIdOffset, preimage, ref position, 4);
+        Copy(payload, V4BatchNumberOffset, preimage, ref position, 8);
+        Copy(payload, V4DisputedTxIndexOffset, preimage, ref position, 4);
+        Copy(payload, V4TransactionCountOffset, preimage, ref position, 4);
+        Copy(payload, V4LowerBoundOffset, preimage, ref position, 4);
+        Copy(payload, V4UpperBoundOffset, preimage, ref position, 4);
+        Copy(payload, V4PreStateRootOffset, preimage, ref position, 32);
+        Copy(payload, V4CommittedPostStateRootOffset, preimage, ref position, 32);
+        Copy(payload, V4ExpectedPostStateRootOffset, preimage, ref position, 32);
+        Copy(payload, V4TxRootOffset, preimage, ref position, 32);
+        return Hash256(preimage);
+    }
+
+    private static byte[] ComputeWitnessHash(byte[] payload)
+    {
+        var tailLength = payload.Length - V4TxLengthOffset;
+        var preimage = new byte[WitnessTag.Length + tailLength];
+        var position = 0;
+        Copy(WitnessTag, 0, preimage, ref position, WitnessTag.Length);
+        Copy(payload, V4TxLengthOffset, preimage, ref position, tailLength);
+        return Hash256(preimage);
+    }
+
+    private static byte[] ComputeClaimId(
+        byte[] payload,
+        UInt160 settlementManager,
+        byte[] transcriptHash,
+        byte[] witnessHash)
+    {
+        var preimage = new byte[ClaimTag.Length + 20 + 20 + 32 * 5 + 4 + 8 + 4];
+        var position = 0;
+        Copy(ClaimTag, 0, preimage, ref position, ClaimTag.Length);
+        Copy((byte[])settlementManager, 0, preimage, ref position, 20);
+        Copy((byte[])Runtime.ExecutingScriptHash, 0, preimage, ref position, 20);
+        Copy(payload, V4ReplayDomainOffset, preimage, ref position, 32);
+        Copy(payload, V4ExecutorSemanticIdOffset, preimage, ref position, 32);
+        Copy(payload, V4CommittedHeaderHashOffset, preimage, ref position, 32);
+        Copy(payload, V4ChainIdOffset, preimage, ref position, 4);
+        Copy(payload, V4BatchNumberOffset, preimage, ref position, 8);
+        Copy(payload, V4DisputedTxIndexOffset, preimage, ref position, 4);
+        Copy(transcriptHash, 0, preimage, ref position, 32);
+        Copy(witnessHash, 0, preimage, ref position, 32);
+        return Hash256(preimage);
+    }
+
+    private static void Copy(byte[] source, int sourceOffset, byte[] destination, ref int position, int length)
+    {
+        for (var index = 0; index < length; index++)
+            destination[position + index] = source[sourceOffset + index];
+        position += length;
+    }
+
+    private static byte[] Slice(byte[] source, int offset, int length)
+    {
+        var result = new byte[length];
+        for (var index = 0; index < length; index++) result[index] = source[offset + index];
+        return result;
+    }
+
+    private static byte[] Hash256(byte[] bytes)
+    {
+        var first = CryptoLib.Sha256((ByteString)bytes);
+        return (byte[])CryptoLib.Sha256(first);
+    }
+
+    /// <summary>
     /// Compute the canonical leaf hash for a (key, value) pair —
     /// <c>Hash256(int32LE(keyLen) || key || int32LE(valueLen) || value)</c>.
     /// Reads from <paramref name="payload"/> by offset to avoid allocating intermediate
@@ -405,6 +787,24 @@ public class RestrictedExecutionFraudVerifierContract : SmartContract
         var h1 = CryptoLib.Sha256((ByteString)buf);
         return (byte[])CryptoLib.Sha256(h1);
     }
+
+    private static byte[] HashExpectedCounterEntry(byte[] payload, int keyOffset, int keyLen, ulong value)
+    {
+        var buffer = new byte[4 + keyLen + 4 + 8];
+        buffer[0] = (byte)keyLen;
+        buffer[1] = (byte)(keyLen >> 8);
+        buffer[2] = (byte)(keyLen >> 16);
+        buffer[3] = (byte)(keyLen >> 24);
+        for (var index = 0; index < keyLen; index++) buffer[4 + index] = payload[keyOffset + index];
+        var valueLengthOffset = 4 + keyLen;
+        buffer[valueLengthOffset] = 8;
+        var valueOffset = valueLengthOffset + 4;
+        for (var index = 0; index < 8; index++) buffer[valueOffset + index] = (byte)(value >> (8 * index));
+        return Hash256(buffer);
+    }
+
+    private static bool IsCanonicalLeafIndex(ulong leafIndex, int siblingCount) =>
+        siblingCount == 64 || (leafIndex >> siblingCount) == 0;
 
     /// <summary>
     /// Fold a leaf hash with its sibling list using leaf-index bits to decide left/right

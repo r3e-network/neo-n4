@@ -16,15 +16,18 @@ namespace NeoHub.ForcedInclusion;
 /// <remarks>
 /// See doc.md §15.4 (Forced Inclusion) and §17 (sequencer-censorship mitigation).
 /// <para>
-/// Spam control: <see cref="EnqueueForcedTransaction"/> charges <see cref="GetFee"/> GAS
-/// (NEP-17 transfer from the caller to <see cref="GetFeeRecipient"/>) before storing the
-/// entry. Default fee = 0 + recipient = zero hash — fee-free until an operator calls
-/// <see cref="SetFee"/> + <see cref="SetFeeRecipient"/> at deploy / runtime. A non-zero fee
-/// MUST have a non-zero recipient or the enqueue rejects.
+/// Spam control: <see cref="EnqueueForcedTransaction"/> charges <see cref="GetFee"/> native
+/// GAS (NEP-17 transfer from the transaction sender to <see cref="GetFeeRecipient"/>). The
+/// sender must witness the transaction. The entry and nonce are written before the external
+/// transfer so re-entrant calls cannot reuse a nonce; NeoVM
+/// atomic fault rollback removes both writes if the transfer fails. Development deployments
+/// can remain fee-free, but production deployment tooling
+/// must configure every dependency and require <see cref="IsProductionReady"/> before release.
+/// A non-zero fee MUST have the canonical native GAS token and a non-zero recipient or enqueue rejects.
 /// </para>
 /// </remarks>
 [DisplayName("NeoHub.ForcedInclusion")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("Forced-inclusion queue per L2 chain — anti-censorship primitive.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.ForcedInclusion")]
@@ -37,7 +40,7 @@ public class ForcedInclusionContract : SmartContract
     private const byte KeyDeadlineSeconds = 0x04;
     private const byte KeyFeeAmount = 0x05;            // GAS amount charged per enqueue (BigInteger)
     private const byte KeyFeeRecipient = 0x06;         // 20B address that receives the fees
-    private const byte KeyGasToken = 0x07;             // 20B GAS contract hash (operator-configurable for testnet/local)
+    private const byte KeyGasToken = 0x07;             // 20B native GAS contract hash
     private const byte PrefixReported = 0x08;          // 0x08 + chainId(4B) + nonce(8B) → 1
     private const byte KeySequencerBond = 0x09;        // 20B SequencerBond contract hash
     private const byte KeyChainRegistry = 0x0A;        // 20B ChainRegistry contract hash for per-chain pause
@@ -45,6 +48,7 @@ public class ForcedInclusionContract : SmartContract
     private const byte PrefixSlashed = 0x0C;           // 0x0C + chainId(4B) + nonce(8B) → 1 (censorship slash settled)
     private const byte KeySettlementManager = 0xFD;
     private const byte KeyOwner = 0xFF;
+    private const int MaxTransactionProofDepth = 64;
 
     /// <summary>Default time the sequencer has to include a forced tx before censorship kicks in.</summary>
     public const uint DefaultDeadlineSeconds = 7200;   // 2 hours
@@ -53,7 +57,7 @@ public class ForcedInclusionContract : SmartContract
     [DisplayName("ForcedTxEnqueued")]
     public static event Action<uint, ulong, UInt160, UInt256> OnForcedTxEnqueued = default!;
 
-    /// <summary>Emitted when the L2 confirms inclusion (callback from SettlementManager).</summary>
+    /// <summary>Emitted after a finalized-batch transaction proof confirms inclusion.</summary>
     [DisplayName("ForcedTxConsumed")]
     public static event Action<uint, ulong> OnForcedTxConsumed = default!;
 
@@ -120,12 +124,11 @@ public class ForcedInclusionContract : SmartContract
         ExecutionEngine.Assert(deadline > 0, "deadline must be positive");
         Storage.Put(new byte[] { KeyDeadlineSeconds }, (BigInteger)deadline);
 
-        // Optional GAS token — operator can defer setting this and run fee-free; sets when
-        // they want to enable fees later via SetGasToken + SetFee.
+        // Optional native GAS token — operator can defer setting this and run fee-free.
         if (arr.Length >= 4)
         {
             var gas = (UInt160)arr[3];
-            ExecutionEngine.Assert(gas.IsValid && !gas.IsZero, "invalid gas token hash");
+            ExecutionEngine.Assert(gas.Equals(GAS.Hash), "gas token must be native GAS");
             Storage.Put(new byte[] { KeyGasToken }, gas);
         }
         if (arr.Length >= 5)
@@ -235,6 +238,25 @@ public class ForcedInclusionContract : SmartContract
     }
 
     /// <summary>
+    /// True only when spam control, censorship pausing, and sequencer slashing are all wired.
+    /// Production deployment tooling treats a false value as a release-blocking failure.
+    /// </summary>
+    [Safe]
+    public static bool IsProductionReady()
+    {
+        var feeRecipient = GetFeeRecipient();
+        var gasToken = GetGasToken();
+        var sequencerBond = GetSequencerBond();
+        var chainRegistry = GetChainRegistry();
+        return GetFee() > 0
+            && feeRecipient.IsValid && !feeRecipient.IsZero
+            && gasToken.Equals(GAS.Hash)
+            && sequencerBond.IsValid && !sequencerBond.IsZero
+            && chainRegistry.IsValid && !chainRegistry.IsZero
+            && GetCensorshipSlashAmount() > 0;
+    }
+
+    /// <summary>
     /// Owner-gated: set the per-enqueue fee in smallest GAS units. Set to 0 to disable
     /// fee collection entirely. Non-zero requires <see cref="GetFeeRecipient"/> to be set.
     /// </summary>
@@ -251,7 +273,7 @@ public class ForcedInclusionContract : SmartContract
             var rec = GetFeeRecipient();
             ExecutionEngine.Assert(rec.IsValid && !rec.IsZero, "set feeRecipient before non-zero fee");
             var gas = GetGasToken();
-            ExecutionEngine.Assert(gas.IsValid && !gas.IsZero, "set gasToken before non-zero fee");
+            ExecutionEngine.Assert(gas.Equals(GAS.Hash), "set native GAS before non-zero fee");
         }
         var old = GetFee();
         Storage.Put(new byte[] { KeyFeeAmount }, amount);
@@ -268,11 +290,11 @@ public class ForcedInclusionContract : SmartContract
         OnFeeRecipientChanged(old, recipient);
     }
 
-    /// <summary>Owner-gated: set the GAS NEP-17 contract hash used for fee transfers.</summary>
+    /// <summary>Owner-gated: select the native GAS contract used for fee transfers.</summary>
     public static void SetGasToken(UInt160 gasContract)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
-        ExecutionEngine.Assert(gasContract.IsValid && !gasContract.IsZero, "invalid gas hash");
+        ExecutionEngine.Assert(gasContract.Equals(GAS.Hash), "gas token must be native GAS");
         var old = GetGasToken();
         Storage.Put(new byte[] { KeyGasToken }, gasContract);
         OnGasTokenChanged(old, gasContract);
@@ -322,17 +344,16 @@ public class ForcedInclusionContract : SmartContract
         // would ever consume.
         ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         ExecutionEngine.Assert(encodedTx.Length > 0, "empty tx");
-        var caller = Runtime.CallingScriptHash;
+        ExecutionEngine.Assert(HashTransaction(encodedTx).Equals(txHash), "txHash does not match encodedTx");
+        var submitter = Runtime.Transaction.Sender;
+        ExecutionEngine.Assert(Runtime.CheckWitness(submitter),
+            "transaction sender witness required");
 
-        // Charge the configured spam-control fee BEFORE storing any state. If the
-        // transfer fails (insufficient balance, no allowance, GAS contract reverts),
-        // the whole enqueue fails — caller's nonce stays untouched and no entry is
-        // stored. Fee == 0 is the legacy fee-free path; non-zero requires the recipient
-        // + gas-token to be wired (SetFee enforces this at config time).
-        // Write nonce + entry BEFORE fee transfer (CEI ordering). If the
-        // fee transfer subsequently fails, NeoVM FAULT reverts both writes
-        // so there is no stale nonce or orphaned entry. A re-entrant token
-        // cannot re-use the same nonce.
+        // Reserve the nonce and entry before the native-GAS transfer (CEI ordering).
+        // A re-entrant recipient cannot reuse the same nonce. If the transfer fails,
+        // NeoVM FAULT atomically rolls back both writes, so no stale nonce or orphaned
+        // entry remains. Fee == 0 is the legacy development path; production readiness
+        // requires a non-zero fee, recipient, and canonical native GAS contract.
         var nonceKey = NonceKey(chainId);
         var raw = Storage.Get(nonceKey);
         var nonce = raw == null ? 1UL : (ulong)(BigInteger)raw + 1UL;
@@ -340,7 +361,7 @@ public class ForcedInclusionContract : SmartContract
 
         var deadline = GetDeadlineSeconds();
         var enqueuedAt = (uint)(Runtime.Time / 1000u); // ms → seconds
-        var payload = EncodeEntry(caller, txHash, encodedTx, enqueuedAt + deadline);
+        var payload = EncodeEntry(submitter, txHash, encodedTx, enqueuedAt + deadline);
         Storage.Put(EntryKey(chainId, nonce), payload);
 
         var fee = GetFee();
@@ -349,14 +370,14 @@ public class ForcedInclusionContract : SmartContract
             var recipient = GetFeeRecipient();
             var gas = GetGasToken();
             ExecutionEngine.Assert(recipient.IsValid && !recipient.IsZero, "fee recipient unset");
-            ExecutionEngine.Assert(gas.IsValid && !gas.IsZero, "gas token unset");
+            ExecutionEngine.Assert(gas.Equals(GAS.Hash), "native GAS token unset");
             var transferred = (bool)Contract.Call(gas, "transfer", CallFlags.All,
-                new object[] { caller, recipient, fee, null! });
+                new object[] { submitter, recipient, fee, null! });
             ExecutionEngine.Assert(transferred, "fee transfer failed");
-            OnFeeCharged(caller, recipient, fee);
+            OnFeeCharged(submitter, recipient, fee);
         }
 
-        OnForcedTxEnqueued(chainId, nonce, caller, txHash);
+        OnForcedTxEnqueued(chainId, nonce, submitter, txHash);
         return nonce;
     }
 
@@ -368,14 +389,49 @@ public class ForcedInclusionContract : SmartContract
         return raw == null ? new byte[0] : (byte[])raw;
     }
 
-    /// <summary>SettlementManager calls this to mark a forced tx consumed by an L2 batch.</summary>
-    public static void MarkConsumed(uint chainId, ulong nonce)
+    /// <summary>
+    /// Permissionlessly mark a forced transaction consumed after proving its transaction hash is
+    /// included in a finalized batch's canonical transaction root.
+    /// </summary>
+    /// <remarks>
+    /// See doc.md §15.4. Siblings are ordered leaf-to-root and use Neo Hash256 over
+    /// <c>left || right</c>. Bit i of <paramref name="leafIndex"/> selects the leaf side at level i.
+    /// </remarks>
+    public static void Consume(
+        uint chainId,
+        ulong batchNumber,
+        ulong nonce,
+        byte[][] siblings,
+        ulong leafIndex)
     {
-        var sm = (UInt160)(Storage.Get(new byte[] { KeySettlementManager }) ?? throw new Exception("sm unset"));
-        ExecutionEngine.Assert(Runtime.CheckWitness(sm), "not settlement manager");
+        ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
+        ExecutionEngine.Assert(nonce > 0, "nonce must be positive");
+        ExecutionEngine.Assert(siblings != null, "siblings required");
+        var proofSiblings = siblings!;
+        ExecutionEngine.Assert(proofSiblings.Length <= MaxTransactionProofDepth, "proof too deep");
+
+        var entry = Storage.Get(EntryKey(chainId, nonce));
+        ExecutionEngine.Assert(entry != null, "entry not found");
+        var encodedEntry = (byte[])entry!;
+        ExecutionEngine.Assert(encodedEntry.Length >= 60, "entry malformed");
+        var txHash = ReadUInt256(encodedEntry, 20);
+
         var key = ConsumedKey(chainId, nonce);
         ExecutionEngine.Assert(Storage.Get(key) == null, "already consumed");
+        // Reserve the nonce before the external root lookup. The lookup runs with ReadOnly,
+        // and any invalid root/proof faults the invocation and atomically rolls this write back.
         Storage.Put(key, new byte[] { 1 });
+
+        var sm = (UInt160)(Storage.Get(new byte[] { KeySettlementManager }) ?? throw new Exception("sm unset"));
+        var txRoot = (UInt256)Contract.Call(
+            sm,
+            "getFinalizedTxRoot",
+            CallFlags.ReadOnly,
+            new object[] { chainId, batchNumber });
+        ExecutionEngine.Assert(!txRoot.Equals(UInt256.Zero), "batch is not finalized or has no transactions");
+        ExecutionEngine.Assert(VerifyMerkleProof(txHash, txRoot, proofSiblings, leafIndex),
+            "invalid forced-transaction proof");
+
         OnForcedTxConsumed(chainId, nonce);
     }
 
@@ -405,13 +461,17 @@ public class ForcedInclusionContract : SmartContract
     /// SequencerRegistry membership is keyed by consensus key, not address), so allowing an
     /// arbitrary caller to name the victim let a griefer slash an innocent bonded sequencer.
     /// Slashing is performed separately by governance via <see cref="SlashReportedCensorship"/>.
-    /// The <paramref name="sequencer"/> argument is recorded in the event for off-chain
-    /// attribution only.
+    /// To preserve the deployed ABI, the <paramref name="sequencer"/> argument remains present,
+    /// but permissionless callers MUST pass <see cref="UInt160.Zero"/>. The report event therefore
+    /// cannot frame an arbitrary bonded sequencer. Governance attributes a target only in the
+    /// separately authorized <see cref="SlashReportedCensorship"/> call after reviewing finalized
+    /// consensus evidence.
     /// </para>
     /// </summary>
     public static bool ReportCensorship(uint chainId, ulong nonce, UInt160 sequencer)
     {
-        ExecutionEngine.Assert(sequencer.IsValid && !sequencer.IsZero, "invalid sequencer");
+        ExecutionEngine.Assert(sequencer.IsZero,
+            "permissionless report cannot attribute a sequencer");
         ExecutionEngine.Assert(!IsConsumed(chainId, nonce), "already consumed");
         var reportedKey = ReportedKey(chainId, nonce);
         ExecutionEngine.Assert(Storage.Get(reportedKey) == null, "censorship already reported");
@@ -433,17 +493,18 @@ public class ForcedInclusionContract : SmartContract
             Contract.Call(chainRegistry, "pauseChain", CallFlags.All, new object[] { chainId });
         }
 
-        OnSequencerCensorshipReported(chainId, nonce, sequencer);
+        OnSequencerCensorshipReported(chainId, nonce, UInt160.Zero);
         return true;
     }
 
     /// <summary>
     /// Governance-gated slashing for a previously-reported censorship. Owner only — governance is
     /// the party that can attribute the responsible proposer for the censored window off-chain,
-    /// which the protocol cannot do on-chain. Requires an existing, unconsumed, not-yet-slashed
-    /// report for (chainId, nonce), then slashes the named sequencer's bond. Separating this from
-    /// the permissionless <see cref="ReportCensorship"/> prevents an arbitrary caller from
-    /// slashing an innocent bonded sequencer.
+    /// which the protocol cannot do on-chain. Requires an existing, not-yet-slashed report for
+    /// (chainId, nonce), then slashes the named sequencer's bond. A late consume does not erase
+    /// censorship that was already proven after the deadline. Separating this from the permissionless
+    /// <see cref="ReportCensorship"/> prevents an arbitrary caller from slashing an innocent bonded
+    /// sequencer.
     /// </summary>
     public static void SlashReportedCensorship(uint chainId, ulong nonce, UInt160 sequencer)
     {
@@ -451,7 +512,7 @@ public class ForcedInclusionContract : SmartContract
         ExecutionEngine.Assert(sequencer.IsValid && !sequencer.IsZero, "invalid sequencer");
         ExecutionEngine.Assert(Storage.Get(ReportedKey(chainId, nonce)) != null, "no censorship report");
         // NOTE: intentionally NOT gated on !IsConsumed. The report already proved the deadline was
-        // missed (censorship occurred); a belated MarkConsumed afterwards must not immunize the
+        // missed (censorship occurred); a belated Consume afterwards must not immunize the
         // sequencer from the slash. The slashed flag below still makes this at-most-once.
         var slashedKey = SlashedKey(chainId, nonce);
         ExecutionEngine.Assert(Storage.Get(slashedKey) == null, "already slashed");
@@ -532,5 +593,51 @@ public class ForcedInclusionContract : SmartContract
             | ((uint)data[offset + 1] << 8)
             | ((uint)data[offset + 2] << 16)
             | ((uint)data[offset + 3] << 24);
+    }
+
+    private static UInt256 HashTransaction(byte[] encodedTx)
+    {
+        var first = CryptoLib.Sha256((ByteString)encodedTx);
+        return (UInt256)(byte[])CryptoLib.Sha256(first);
+    }
+
+    private static UInt256 ReadUInt256(byte[] data, int offset)
+    {
+        var bytes = new byte[32];
+        for (var i = 0; i < 32; i++) bytes[i] = data[offset + i];
+        return (UInt256)bytes;
+    }
+
+    private static bool VerifyMerkleProof(
+        UInt256 leafHash,
+        UInt256 expectedRoot,
+        byte[][] siblings,
+        ulong leafIndex)
+    {
+        var current = (byte[])leafHash;
+        var index = leafIndex;
+        for (var level = 0; level < siblings.Length; level++)
+        {
+            var sibling = siblings[level];
+            if (sibling is null) throw new Exception("sibling must be 32 bytes");
+            ExecutionEngine.Assert(sibling.Length == 32, "sibling must be 32 bytes");
+            var combined = new byte[64];
+            if ((index & 1UL) == 0UL)
+            {
+                for (var i = 0; i < 32; i++) combined[i] = current[i];
+                for (var i = 0; i < 32; i++) combined[32 + i] = sibling[i];
+            }
+            else
+            {
+                for (var i = 0; i < 32; i++) combined[i] = sibling[i];
+                for (var i = 0; i < 32; i++) combined[32 + i] = current[i];
+            }
+
+            var first = CryptoLib.Sha256((ByteString)combined);
+            current = (byte[])CryptoLib.Sha256(first);
+            index >>= 1;
+        }
+
+        return index == 0 && expectedRoot.Equals((UInt256)current);
     }
 }

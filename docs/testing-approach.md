@@ -6,23 +6,24 @@ where each piece of the system lives.
 
 ---
 
-## Test surface (1521 .NET + cross-language gates + SP1 host E2E)
+## Test surface (38 .NET test projects + cross-language gates + SP1 host E2E)
 
 | Tier | Framework | Where | What |
 |------|-----------|-------|------|
-| Unit | MSTest (xUnit-style) | `tests/Neo.L2.*.UnitTests/` (34 projects) | Per-class invariants, edge cases, null-arg + null-field guards, metric-emission pins |
+| Unit | MSTest (xUnit-style) | `tests/` (38 solution test projects including integration suites) | Per-class invariants, edge cases, null-arg + null-field guards, metric-emission pins |
 | Integration | MSTest | `tests/Neo.L2.IntegrationTests/` | E2E phase stitches (Phase 0 → 5), audit pipeline, persistence rehydration, NeoVM2/RISC-V seam, legacy NeoVM compatibility, custom executor full-stack |
 | Property-based / invariant | MSTest + seeded `System.Random` | `UT_BridgeInvariants_PropertyBased.cs` (17 tests) | Random sequences of 200 ops × 4-8 seeds — 1600-3200 transitions per invariant. Asserts bridge accounting + nonce uniqueness + bidirectional registry holds at every intermediate state |
 | Fuzz | MSTest + seeded `System.Random` | `UT_WireFormat_Fuzz.cs` (19 tests) | Random byte sequences to every decoder — must round-trip or reject with typed exception, never crash |
 | Cross-language parity | byte-vector pins + canonical-bytes-match-csharp | Rust watcher tests + Foundry tests | Wire format byte-identical across C# encoder + Rust + Solidity verifier |
 | On-chain ↔ off-chain parity | C# replicas of on-chain decision trees | `UT_OnChainMerkleVerifyParity`, `UT_RestrictedExecutionFraudVerifierParity`, `UT_GovernanceFraudVerifierParity`, `UT_MpcFraudProof_RealCrypto` | Off-chain algorithm replicates the on-chain verifier and produces identical roots/decisions; drift surfaces in unit tests rather than at L1 settlement time |
-| Foundry | Solidity invariant + multi-chain | `external/foreign-contracts/eth/test/` (39 tests) | EVM-family Solidity router — 32 single-chain + 7 multi-chain pinning per-instance state isolation across 17 mainnet slots |
+| Foundry | Solidity invariant + multi-chain | `external/foreign-contracts/eth/test/` (44 tests) | EVM-family Solidity router — 37 single-chain + 7 multi-chain pinning per-instance state isolation across 17 mainnet slots |
 | Real-CPU SP1 prover | Rust `#[ignore]`-gated | `bridge/neo-zkvm-host/tests/end_to_end.rs` (2 tests) | Real ZK proof generation (~40s prove, ~20s verify, 2.78 MB proof) + tampered-hash-rejection negative test |
-| Live-RPC | Rust `--features live-rpc` | `watchers/neo-bridge-watcher-eth/tests/` (55 tests) | `FakeRpcServer` in-process — exercises `EthRpcEventSource`+`NeoRpcSubmitter` through real `reqwest::blocking` HTTP cycles |
-| TS SDK | vitest | `sdk/typescript/` (16 tests) | RPC client surface; error-taxonomy parity across .NET / Rust / TS |
-| Rust SDK | cargo test + mockito | `sdk/rust/` (10 tests) | RPC client; same surface as TS + .NET |
-| execution-core | cargo test | `bridge/neo-execution-core/` (5 tests) | Backend-neutral batch parsing, receipt/state folding, Merkle determinism, backend-dependency guard |
-| zkvm-guest | cargo test | `bridge/neo-zkvm-guest/` (7 tests) | Host-mode execution of the Neo N3 VM through the shared batch core |
+| Real recursive SP1 Gateway | Rust `#[ignore]`-gated | `bridge/neo-zkvm-gateway-host/tests/real_recursive_release_gate.rs` | Builds a real terminal batch proof, recursively proves the canonical Gateway binding, and host-verifies the final Groth16 proof |
+| Native C# ↔ Rust execution | MSTest + release Rust binary | `UT_Sp1StatefulBatchExecutor` + `UT_CanonicalSettlementPipeline` | C# captures complete Neo genesis state, invokes the SHA-256-pinned release `neo-zkvm-executor`, and validates `NEO4EXR1` without pre-artifact mutation; fault injection proves durable-artifact-first replay, one atomic post-state commit, idempotent retry, and restart recovery |
+| Live-RPC | Rust `--features live-rpc` | `watchers/neo-bridge-watcher-eth/src/live/` + `tests/` (source-discovered) | `FakeRpcServer` in-process — exercises `EthRpcEventSource`+`NeoRpcSubmitter` through real `reqwest::blocking` HTTP cycles |
+| Four-language SDK conformance | MSTest + cargo test + Vitest + unittest | `sdk/conformance/`, four SDK test directories, `scripts/ci/run_sdk_conformance.py` | One canonical vector set for RPC shape, u64 serialization, hash endianness, errors, pagination envelopes, and signed Neo N3 transaction round-trip; opt-in live N3/N4 execution with machine-readable counts |
+| execution-core | cargo test | `bridge/neo-execution-core/` | Backend-neutral batch/state/witness parsing, receipt/effects/root computation, canonical `NEO4EXR1`, Merkle determinism, and backend-dependency guard |
+| zkvm-guest | cargo test | `bridge/neo-zkvm-guest/` | Host-mode stateful execution/tamper tests, Rust golden vectors, and actual `neo-zkvm-executor` CLI success/failure E2E |
 
 ---
 
@@ -71,8 +72,10 @@ ZKsync's Foundry tests exercise both the contract and a reference Rust
 implementation, then diff. neo4 takes the same approach in C#: each on-chain
 verifier has a parity test that replicates its decision tree (`UT_OnChainMerkleVerifyParity`
 for SettlementManager, `UT_RestrictedExecutionFraudVerifierParity` for the
-v3 trustless fraud verifier, `UT_GovernanceFraudVerifierParity` for the v1/v2
-governance arbitration verifier, `UT_MpcFraudProof_RealCrypto` for the
+advisory-only structural v3 path, `UT_RestrictedFraudProofV4` plus NeoVM tests
+for the SettlementManager-bound executable restricted v4 path,
+`UT_GovernanceFraudVerifierParity` for the advisory v1/v2 structural verifier,
+and `UT_MpcFraudProof_RealCrypto` for the
 Phase-C MPC committee fraud verifier). Off-chain drift surfaces in unit tests
 rather than at runtime.
 
@@ -111,6 +114,20 @@ cd bridge/neo-zkvm-host
 cargo test --release --tests -- --ignored
 ```
 
+`bridge/neo-zkvm-gateway-host/tests/real_recursive_release_gate.rs` separately proves and
+host-verifies a real recursive Gateway Groth16 proof over a real compressed batch child. It is
+scheduled/manual because the complete run is substantially more expensive than ordinary PR tests.
+On Apple Silicon, enable the crate's `native-gnark` feature and set `LIBCLANG_PATH` to Homebrew
+LLVM's `lib` directory. SP1's published 6.2.1 gnark container is amd64-only; the upstream native
+backend avoids QEMU runtime faults without changing the proof system, circuit, VK, or host
+verification boundary.
+
+The production execution boundary is not ignored: CI builds release
+`neo-zkvm-executor`, exports its exact path through `NEO_ZKVM_EXECUTOR`, and runs the focused C#
+test that bootstraps Neo genesis, crosses the real process boundary, validates the native result,
+and commits state. Unit tests additionally prove that a replaced executable, forged request hash,
+malformed output, or process failure cannot mutate state.
+
 ### 7. Cross-language wire-format parity
 
 ZKsync runs the same byte vectors through their Solidity verifier, their
@@ -120,25 +137,34 @@ Rust prover, and their TS SDK. neo4 has equivalent pin tests:
   parity vs C# `Neo.L2.Messaging.ExternalMessageHasher`
 - `message_hash_matches_csharp_vector` (Rust watcher) — same for the
   hash computation
-- 39 Foundry tests in `external/foreign-contracts/eth/` — the same Solidity
+- 44 Foundry tests in `external/foreign-contracts/eth/` — the same Solidity
   router deploys unchanged across 14 EVM chain families and 17 mainnet slots
 
 ---
 
 ## CI integration
 
-`.github/workflows/build.yml` runs the full suite on every push + PR:
+`.github/workflows/build.yml` runs the repository build suite on every push + PR;
+`.github/workflows/sdk-conformance.yml` separately enforces the shared four-language
+SDK contract and opt-in live-node matrix:
 
-1. `test` — `dotnet test Neo.L2.sln` (1521 tests, 34 projects)
-2. `contracts` — installs `Neo.Compiler.CSharp`, type-checks all 24 deployable NeoHub
-   projects plus the 2 sample contracts, asserts 26 `.nef` + 26 `.manifest.json`
-   artifacts, and runs the `external/neo` N4 native-contract tests
-3. `bridge` — `cargo check` on Rust workspace
-4. `neo-zkvm-host` — `cargo build` + non-ignored tests (the 2 real-CPU
-   ignored tests run nightly, not per-PR)
-5. `sdk-typescript` — `npx vitest run` (16 tests)
-6. `foreign-evm` — `forge test` (39 Solidity tests)
-7. `docs-site` — `mdbook build` + link-check
+1. `test` — `dotnet test Neo.L2.sln` across the complete current solution inventory
+2. `contracts` — builds the exact vendored `external/neo-devpack-dotnet` compiler,
+   dynamically discovers every `NeoHub.*` and `Sample.*` project, verifies every
+   `.nef` + `.manifest.json` artifact, and runs the `external/neo` N4 native-contract tests
+3. `bridge` — locked Rust build/tests plus a release `neo-zkvm-executor` and the real focused
+   C#→Rust native execution gate
+4. `sp1-host` — digest-pinned Docker guest build plus workspace fmt/clippy/release tests;
+   terminal and recursive real-proof ignored gates run on schedule or explicit dispatch
+5. `rust-audit` — advisory checks over every production Cargo lockfile with the documented
+   reachability policy
+6. `sdk-typescript`, `sdk-python`, and the Rust/.NET SDK gates — package, type, unit,
+   and shared-vector coverage
+7. `foreign-evm` and `foreign-solana` — locked foreign-chain contract tests
+8. `experience-hub` — static experience-surface schema and redaction tests
+9. `docs-site` — `mdbook build` + link-check
+10. `sdk-conformance` — mandatory offline .NET/Rust/TypeScript/Python parity plus the
+    credential-gated live N3/N4 transaction path
 
 A PR cannot merge until every job is green. Dependabot keeps cargo /
 NuGet / npm deps up to date.

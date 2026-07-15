@@ -10,13 +10,22 @@ use neo_bridge_watcher_eth::messaging::encode_asset_transfer_payload;
 use neo_bridge_watcher_eth::proof::{IndexedRsv, PubkeySignature};
 use neo_bridge_watcher_eth::{Curve, EthProofBytes, NeoProofBytes};
 use neo_bridge_watcher_eth::{
-    ExternalBridgeDirection, ExternalCrossChainMessage, ExternalMessageType,
+    ExternalBridgeDirection, ExternalCrossChainMessage, ExternalMessageType, NATIVE_ASSET_SENTINEL,
     canonical_message_bytes, message_hash,
 };
 
+const ASYMMETRIC_ASSET: [u8; 20] = [
+    0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc, 0xfe,
+    0x11, 0x22, 0x33, 0x44,
+];
+const REVERSED_ASSET: [u8; 20] = [
+    0x44, 0x33, 0x22, 0x11, 0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10, 0xef, 0xcd, 0xab, 0x89,
+    0x67, 0x45, 0x23, 0x01,
+];
+
 fn sample_eth_deposit() -> ExternalCrossChainMessage {
     // 1_000_000 = 0x0F4240, 3-byte minimal LE (matches C# BigInteger.ToByteArray).
-    let payload = encode_asset_transfer_payload([0xee; 20], &[0x40, 0x42, 0x0F]).unwrap();
+    let payload = encode_asset_transfer_payload(ASYMMETRIC_ASSET, &[0x40, 0x42, 0x0F]).unwrap();
     ExternalCrossChainMessage {
         external_chain_id: 0xE000_0001,
         neo_chain_id: 1099,
@@ -37,19 +46,43 @@ fn canonical_bytes_pinned_against_csharp() {
     // that drops the in-module test still keeps the parity invariant.
     let msg = sample_eth_deposit();
     let bytes = canonical_message_bytes(&msg).unwrap();
-    let expected = "010000e04b0400000700000000000000021111111111111111111111111111111111111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00b33f7100000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee001b000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0300000040420f";
+    let expected = "010000e04b0400000700000000000000021111111111111111111111111111111111111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00b33f7100000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee001b0000000123456789abcdef1032547698badcfe112233440300000040420f";
     assert_eq!(hex::encode(&bytes), expected);
 }
 
+#[test]
+fn asset_payload_matches_csharp_and_solidity_network_order_vector() {
+    let payload = encode_asset_transfer_payload(ASYMMETRIC_ASSET, &[0x40, 0x42, 0x0f]).unwrap();
+    assert_eq!(
+        hex::encode(payload),
+        "0123456789abcdef1032547698badcfe112233440300000040420f"
+    );
+}
+
+#[test]
+fn asset_route_lookup_does_not_match_reversed_address() {
+    let routes = std::collections::HashMap::from([(ASYMMETRIC_ASSET, "evm-token-route")]);
+    assert_eq!(routes.get(&ASYMMETRIC_ASSET), Some(&"evm-token-route"));
+    assert_eq!(routes.get(&REVERSED_ASSET), None);
+}
+
+#[test]
+fn native_asset_sentinel_matches_csharp_and_solidity() {
+    assert_eq!(
+        hex::encode(NATIVE_ASSET_SENTINEL),
+        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    );
+}
+
 /// Pin the raw Hash256 bytes. C# `UInt256.ToString()` displays the same
-/// hash byte-reversed as `acbfe1e9...` — that's a display convention, not
+/// hash byte-reversed as `f69f8169...` — that's a display convention, not
 /// a different value. Both representations are the same 32 bytes.
 #[test]
 fn message_hash_pinned_against_csharp() {
     let msg = sample_eth_deposit();
     assert_eq!(
         hex::encode(message_hash(&msg).unwrap()),
-        "ce681e5ecb3eaf452d1834fd94c397271a6556736a4ecfa1e66e4d67e9e1bfac"
+        "473ca6a7e6e63a57952ff7fdd7a9338f3202e3843386f13ec6fee5da69819ff6"
     );
 }
 

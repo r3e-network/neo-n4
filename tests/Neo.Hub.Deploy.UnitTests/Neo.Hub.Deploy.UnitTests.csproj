@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\tools\Neo.Hub.Deploy\Neo.Hub.Deploy.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Proving\Neo.L2.Proving.csproj" />
   </ItemGroup>
 
 </Project>

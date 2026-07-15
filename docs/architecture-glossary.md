@@ -8,7 +8,7 @@
 ## Table of contents
 
 1. [Glossary of terms](#1-glossary-of-terms)
-2. [NeoHub L1 contracts](#2-neohub-l1-contracts-23)
+2. [NeoHub L1 contracts](#2-neohub-l1-contracts-26)
 3. [L2 native contracts](#3-l2-native-contracts-10)
 4. [L2 plugins](#4-l2-plugins-8)
 5. [Off-chain operators](#5-off-chain-operators)
@@ -43,7 +43,7 @@
 | **MerkleProofSerializer**     | Canonical encoder for Merkle proofs (used by withdrawals + cross-L2 messages).                                 |
 | **MessageHasher**             | Canonical encoder for `CrossChainMessage` (cross-L2). Both endpoints recompute the hash.                       |
 | **min_confirmations**         | Watcher-config field: refuse to emit events from blocks shallower than N confirmations from foreign-chain head. |
-| **NeoHub**                    | The 23-contract L1 suite that anchors the network. See §2 below.                                               |
+| **NeoHub**                    | The 26-project L1 suite: 24 production contracts, one advisory structural verifier, and one test-only stub. See §2 below. |
 | **nonce** (deposit/message)   | Per-(srcChain, direction) monotonic counter. Replay-protected.                                                 |
 | **operatorManager**           | UInt160. Multisig that manages a registered L2 (set-verifier, pause, etc.). In the chain config.               |
 | **postStateRoot**             | UInt256. State root after a batch's last tx. Carried in `BatchCommitment`.                                     |
@@ -62,7 +62,7 @@
 
 ---
 
-## 2. NeoHub L1 contracts (23)
+## 2. NeoHub L1 contracts (26)
 
 Lives at `contracts/NeoHub.*`. Each is a compiled .nef + .manifest.json.
 
@@ -88,24 +88,24 @@ Lives at `contracts/NeoHub.*`. Each is a compiled .nef + .manifest.json.
 
 - **`SequencerRegistry`** — Lists registered sequencers per chain. Bonds attached.
 - **`SequencerBond`** — Slashable bonds for sequencers. Slashed by `OptimisticChallenge` on accepted fraud.
-- **`ForcedInclusion`** — Anti-censorship: user posts tx on L1; L2 must include before deadline or sequencer slashed.
+- **`ForcedInclusion`** — Anti-censorship: a user posts a transaction on L1; an overdue entry can pause the L2, while governance slashes only after finalized dBFT evidence attributes responsibility.
 - **`OptimisticChallenge`** — Bisection-game-driven fraud-proof window. Settlements wait `challengeWindow` before final.
 - **`EmergencyManager`** — Operator-multisig pause for individual chains (e.g. while debugging a critical issue).
 
 ### Governance (2)
 
 - **`GovernanceController`** — Multisig + timelock for verifier upgrades + protocol parameter changes.
-- **`GovernanceFraudVerifier`** — Reference fraud verifier — governance arbitrates challenged batches in v0.
+- **`GovernanceFraudVerifier`** — Advisory v1/v2 structural checker for offline audit diagnostics; excluded from the production challenge route.
 
 ### Specialized fraud verifiers (1)
 
-- **`RestrictedExecutionFraudVerifier`** — v3: re-derives pre/post state roots from storage proofs; accepts well-formed claims without governance arbitration.
+- **`RestrictedExecutionFraudVerifier`** — advisory structural v3 plus SettlementManager-bound executable v4 for one existing-key Counter Increment transaction; only an exact registered v4 profile is state-changing and it is not a general NeoVM verifier.
 
 ### External bridge — Phase B/C (6)
 
 - **`MpcCommitteeVerifier`** — Verifies M-of-N committee signatures over canonical `ExternalCrossChainMessage`.
 - **`ExternalBridgeRegistry`** — Per-chain (verifier, bridgeKind) entries. Routes to MPC vs ZK light-client (Phase D).
-- **`ExternalBridgeEscrow`** — Mints/burns wrapped assets for foreign-chain inbounds; replay-protected.
+- **`ExternalBridgeEscrow`** — Locks outbound NEP-17; verified inbound atomically releases funded NEP-17 only for an L1-bound instance, while every L2 destination requires a version/update-counter-pinned payout/credit adapter. Routes and governance are replay-protected and fail closed.
 - **`ExternalBridgeBond`** — Slashable bonds for external-bridge committee members.
 - **`ExternalBridgeStubVerifier`** — v0 stub for testing — auto-accepts any message. NOT for production.
 - **`MpcCommitteeFraudVerifier`** — Phase C: cryptographically proves committee equivocation; slashes via `ExternalBridgeBond`.
@@ -166,7 +166,7 @@ Lives at `tools/*`.
 - **`Neo.Stack.Cli`** (`neo-stack`) — 12 subcommands: create-chain,
   init-l2, register-chain, scaffold-executor, new-l2, ...
 - **`Neo.Hub.Deploy`** (`neo-hub-deploy`) — Plan/scaffold/verify NeoHub
-  deployment (23-step ordered production bundle).
+  deployment (24-step ordered production bundle).
 - **`Neo.L2.Devnet`** (`neo-l2-devnet`) — In-process end-to-end demo
   runner. `--executor counter` wires a sample executor.
 - **`Neo.L2.Explore`** (`neo-l2-explore`) — Terminal block explorer +

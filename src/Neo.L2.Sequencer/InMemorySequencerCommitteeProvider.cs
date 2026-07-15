@@ -77,9 +77,9 @@ public sealed class InMemorySequencerCommitteeProvider : ISequencerCommitteeProv
     public void Register(ECPoint pubKey, UInt160 l1Address)
     {
         ArgumentNullException.ThrowIfNull(pubKey);
-        // l1Address feeds into CensorshipReport.ResponsibleSequencerAddress and the slash
-        // payout claim — null would silently propagate to L1 submission and either
-        // misroute the slash or hard-revert the slash transaction.
+        // l1Address is the governance slash target only after an independent finalized-dBFT
+        // attribution provider identifies this member. Null would make that evidence impossible
+        // to bind to the L1 bond record.
         ArgumentNullException.ThrowIfNull(l1Address);
         int newSize;
         var member = new CommitteeMember

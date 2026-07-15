@@ -91,7 +91,9 @@ public class UT_BatchSealer
         var sealer = new BatchSealer(settings, new InMemoryMetrics(), () => 0L);
 
         var b1 = sealer.OnBlockCommit(10, 1000, 11, NoTxs())!;
+        sealer.AcknowledgeExecution(b1.BatchNumber, UInt256.Zero);
         var b2 = sealer.OnBlockCommit(11, 2000, 11, NoTxs())!;
+        sealer.AcknowledgeExecution(b2.BatchNumber, UInt256.Zero);
         var b3 = sealer.OnBlockCommit(12, 3000, 11, NoTxs())!;
 
         Assert.AreEqual(1u, b1.BatchNumber);
@@ -117,7 +119,8 @@ public class UT_BatchSealer
 
         Assert.IsFalse(sealer.HasOpenBatch);
         sealer.OnBlockCommit(1, 1000, 11, NoTxs()); // seals immediately (MaxBlocksPerBatch=1)
-        Assert.IsFalse(sealer.HasOpenBatch, "post-seal: builder reset");
+        Assert.IsFalse(sealer.HasOpenBatch, "sealed builder is no longer open");
+        Assert.IsNotNull(sealer.PendingBatch, "sealed batch remains pending until ack");
         Assert.AreEqual(0, sealer.InProgressTxCount);
     }
 
@@ -151,8 +154,9 @@ public class UT_BatchSealer
         var metrics = new InMemoryMetrics();
         var sealer = new BatchSealer(settings, metrics, () => 0L);
 
-        sealer.OnBlockCommit(1, 1000, 11, MakeTxs(2));
+        var first = sealer.OnBlockCommit(1, 1000, 11, MakeTxs(2))!;
         Assert.AreEqual(2, (int)metrics.GetGauge(MetricNames.BatchTxCount));
+        sealer.AcknowledgeExecution(first.BatchNumber, UInt256.Zero);
         sealer.OnBlockCommit(2, 2000, 11, MakeTxs(7));
         Assert.AreEqual(7, (int)metrics.GetGauge(MetricNames.BatchTxCount), "gauge replaces, not accumulates");
         Assert.AreEqual(2L, metrics.GetCounter(MetricNames.BatchesSealed), "counter increments");
@@ -182,12 +186,69 @@ public class UT_BatchSealer
         // Mid-flight rewire to a new sink.
         var second = new InMemoryMetrics();
         sealer.WithMetrics(second);
+        sealer.AcknowledgeExecution(b1.BatchNumber, UInt256.Zero);
 
         // Batch numbering must continue from 2, not reset to 1.
         var b2 = sealer.OnBlockCommit(11, 2000, 11, NoTxs())!;
         Assert.AreEqual(2u, b2.BatchNumber, "batch numbering survives the rewire");
         Assert.AreEqual(1, second.GetCounter(MetricNames.BatchesSealed), "post-rewire seal hits new sink");
         Assert.AreEqual(1, initial.GetCounter(MetricNames.BatchesSealed), "pre-rewire seal stayed on old sink");
+    }
+
+    [TestMethod]
+    public void Sealer_PendingBatchRejectsLaterBlockUntilAcknowledged()
+    {
+        var sealer = new BatchSealer(
+            ForcedSettings(maxBlocks: 1), new InMemoryMetrics(), () => 0L);
+        var first = sealer.OnBlockCommit(10, 1000, 11, NoTxs())!;
+
+        var exception = Assert.ThrowsExactly<InvalidOperationException>(
+            () => sealer.OnBlockCommit(11, 2000, 11, NoTxs()));
+        StringAssert.Contains(exception.Message, "must be durably acknowledged");
+        Assert.AreSame(first, sealer.PendingBatch);
+
+        var postStateRoot = new UInt256(
+            Enumerable.Repeat((byte)0x61, UInt256.Length).ToArray());
+        sealer.AcknowledgeExecution(first.BatchNumber, postStateRoot);
+        var second = sealer.OnBlockCommit(11, 2000, 11, NoTxs())!;
+        Assert.AreEqual(2UL, second.BatchNumber);
+        Assert.AreEqual(postStateRoot, second.PreStateRoot);
+    }
+
+    [TestMethod]
+    public void RestoreCheckpoint_ContinuesBatchBlockAndStateRoot()
+    {
+        var postStateRoot = new UInt256(
+            Enumerable.Repeat((byte)0x62, UInt256.Length).ToArray());
+        var sealer = new BatchSealer(
+            ForcedSettings(maxBlocks: 1), new InMemoryMetrics(), () => 0L);
+        sealer.RestoreCheckpoint(new SealedBatchCheckpoint(7, 40, postStateRoot));
+
+        var duplicate = Assert.ThrowsExactly<InvalidOperationException>(
+            () => sealer.OnBlockCommit(40, 1000, 11, NoTxs()));
+        StringAssert.Contains(duplicate.Message, "duplicate or out-of-order");
+        var gap = Assert.ThrowsExactly<InvalidOperationException>(
+            () => sealer.OnBlockCommit(42, 1000, 11, NoTxs()));
+        StringAssert.Contains(gap.Message, "gap");
+
+        var next = sealer.OnBlockCommit(41, 1000, 11, NoTxs())!;
+        Assert.AreEqual(8UL, next.BatchNumber);
+        Assert.AreEqual(41UL, next.FirstBlock);
+        Assert.AreEqual(postStateRoot, next.PreStateRoot);
+    }
+
+    [TestMethod]
+    public void OnBlockCommit_OpenBatchRejectsDuplicateAndGap()
+    {
+        var sealer = new BatchSealer(
+            ForcedSettings(maxBlocks: 3), new InMemoryMetrics(), () => 0L);
+        Assert.IsNull(sealer.OnBlockCommit(10, 1000, 11, NoTxs()));
+
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => sealer.OnBlockCommit(10, 1100, 11, NoTxs()));
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => sealer.OnBlockCommit(12, 1200, 11, NoTxs()));
+        Assert.IsNull(sealer.OnBlockCommit(11, 1100, 11, NoTxs()));
     }
 
     [TestMethod]
@@ -297,25 +358,32 @@ public class UT_BatchSealer
         Enabled = true,
     };
 
-    private static (ulong, ReadOnlyMemory<byte>)[] TwoForced() => new (ulong, ReadOnlyMemory<byte>)[]
+    private static (ulong, UInt256, ReadOnlyMemory<byte>) Forced(
+        ulong nonce,
+        byte[] transaction) => (
+            nonce,
+            new UInt256(Neo.Cryptography.Crypto.Hash256(transaction)),
+            transaction);
+
+    private static (ulong, UInt256, ReadOnlyMemory<byte>)[] TwoForced()
     {
-        (1UL, new byte[] { 0xF1, 0x01 }),
-        (2UL, new byte[] { 0xF2, 0x02 }),
-    };
+        return
+        [
+            Forced(1UL, new byte[] { 0xF1, 0x01 }),
+            Forced(2UL, new byte[] { 0xF2, 0x02 }),
+        ];
+    }
 
     [TestMethod]
-    public void ForcedInclusion_PrependsAtBatchStart_MarksConsumed_DrainsOncePerBatch()
+    public void ForcedInclusion_PrependsAtBatchStart_WithoutConsuming_DrainsOncePerBatch()
     {
-        var consumed = new List<ulong>();
         var drainCalls = 0;
         var sealer = new BatchSealer(ForcedSettings(maxBlocks: 5), new InMemoryMetrics(), () => 0L,
-            forcedDrain: _ => { drainCalls++; return TwoForced(); },
-            forcedMarkConsumed: consumed.Add);
+            forcedDrain: _ => { drainCalls++; return TwoForced(); });
 
         // First block of a fresh batch: 2 forced txs prepended + 1 block tx = 3.
         Assert.IsNull(sealer.OnBlockCommit(1, 1000, 11, MakeTxs(1)));
         Assert.AreEqual(3, sealer.InProgressTxCount, "2 forced + 1 block tx");
-        CollectionAssert.AreEqual(new ulong[] { 1, 2 }, consumed.ToArray(), "both forced nonces consumed");
         Assert.AreEqual(1, drainCalls);
 
         // Second block of the SAME batch: forced source not re-polled; only the block tx is added.
@@ -325,22 +393,41 @@ public class UT_BatchSealer
     }
 
     [TestMethod]
-    public void ForcedInclusion_ForcedTxsComeFirst_InTxRoot()
+    public void ForcedInclusion_ForcedTxsComeFirst_InSealedPayload()
     {
-        // Seal on the first block (MaxBlocksPerBatch=1) and assert the sealed TxRoot equals the
-        // Merkle root over [F1, F2, B1] in that order — i.e. forced txs are prepended, not appended.
+        // Seal on the first block and assert the immutable payload order directly.
         var f1 = new byte[] { 0xF1, 0x01 };
         var f2 = new byte[] { 0xF2, 0x02 };
         var b1 = new byte[] { 0x00, 0xCA, 0xFE }; // MakeTxs(1)[0]
         var sealer = new BatchSealer(ForcedSettings(maxBlocks: 1), new InMemoryMetrics(), () => 0L,
-            forcedDrain: _ => new (ulong, ReadOnlyMemory<byte>)[] { (1UL, f1), (2UL, f2) },
-            forcedMarkConsumed: _ => { });
+            forcedDrain: _ => new[] { Forced(1UL, f1), Forced(2UL, f2) });
 
         var sealed_ = sealer.OnBlockCommit(1, 1000, 11, MakeTxs(1));
         Assert.IsNotNull(sealed_);
-        var h = (byte[] tx) => new UInt256(Neo.Cryptography.Crypto.Hash256(tx));
-        var expected = Neo.L2.State.MerkleTree.ComputeRoot(new[] { h(f1), h(f2), h(b1) });
-        Assert.AreEqual(expected, sealed_!.TxRoot, "forced txs must be prepended before block txs");
+        Assert.AreEqual(3, sealed_!.Transactions.Count);
+        CollectionAssert.AreEqual(f1, sealed_.Transactions[0].ToArray());
+        CollectionAssert.AreEqual(f2, sealed_.Transactions[1].ToArray());
+        CollectionAssert.AreEqual(b1, sealed_.Transactions[2].ToArray());
+        Assert.AreEqual(2, sealed_.ForcedInclusions.Count);
+        Assert.AreEqual(1UL, sealed_.ForcedInclusions[0].Nonce);
+        Assert.AreEqual(0U, sealed_.ForcedInclusions[0].LeafIndex);
+        Assert.AreEqual(2UL, sealed_.ForcedInclusions[1].Nonce);
+        Assert.AreEqual(1U, sealed_.ForcedInclusions[1].LeafIndex);
+        var txRoot = Neo.L2.State.StateRootCalculator.ComputeTxRoot(
+            sealed_.Transactions
+                .Select(transaction => new UInt256(
+                    Neo.Cryptography.Crypto.Hash256(transaction.Span)))
+                .ToArray());
+        foreach (var proof in sealed_.ForcedInclusions)
+        {
+            Assert.IsTrue(new Neo.L2.State.MerkleProof
+            {
+                Leaf = proof.TxHash,
+                LeafIndex = checked((int)proof.LeafIndex),
+                Siblings = proof.Siblings,
+                PathBitmap = proof.LeafIndex,
+            }.Verify(txRoot));
+        }
     }
 
     [TestMethod]
@@ -350,18 +437,90 @@ public class UT_BatchSealer
         var b1 = new byte[] { 0x00, 0xCA, 0xFE };
         var sealed_ = sealer.OnBlockCommit(1, 1000, 11, MakeTxs(1));
         Assert.IsNotNull(sealed_);
-        var expected = Neo.L2.State.MerkleTree.ComputeRoot(
-            new[] { new UInt256(Neo.Cryptography.Crypto.Hash256(b1)) });
-        Assert.AreEqual(expected, sealed_!.TxRoot, "no forced source -> only the block tx");
+        Assert.AreEqual(1, sealed_!.Transactions.Count);
+        CollectionAssert.AreEqual(b1, sealed_.Transactions[0].ToArray());
     }
 
     [TestMethod]
     public void ForcedInclusion_EmptyForcedTx_Rejected()
     {
         var sealer = new BatchSealer(ForcedSettings(maxBlocks: 5), new InMemoryMetrics(), () => 0L,
-            forcedDrain: _ => new (ulong, ReadOnlyMemory<byte>)[] { (1UL, ReadOnlyMemory<byte>.Empty) },
-            forcedMarkConsumed: _ => { });
+            forcedDrain: _ => new[]
+            {
+                (1UL, UInt256.Zero, ReadOnlyMemory<byte>.Empty),
+            });
         Assert.ThrowsExactly<InvalidOperationException>(() => sealer.OnBlockCommit(1, 1000, 11, NoTxs()));
+    }
+
+    [TestMethod]
+    public void ForcedInclusion_RejectsSourceTxHashMismatch()
+    {
+        var sealer = new BatchSealer(
+            ForcedSettings(maxBlocks: 1),
+            new InMemoryMetrics(),
+            () => 0L,
+            forcedDrain: _ => new[]
+            {
+                (1UL, UInt256.Zero, (ReadOnlyMemory<byte>)new byte[] { 0x01 }),
+            });
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => sealer.OnBlockCommit(1, 1000, 11, NoTxs()));
+    }
+
+    [TestMethod]
+    public void Sealer_UsesRealL1MessagesAndFullBlockContext()
+    {
+        var messageWithoutHash = new CrossChainMessage
+        {
+            SourceChainId = 0,
+            TargetChainId = 1001,
+            Nonce = 9,
+            Sender = new UInt160(new byte[UInt160.Length]),
+            Receiver = new UInt160(Enumerable.Repeat((byte)1, UInt160.Length).ToArray()),
+            MessageType = MessageType.Deposit,
+            Payload = new byte[] { 0x44 },
+            MessageHash = UInt256.Zero,
+        };
+        var message = messageWithoutHash with
+        {
+            MessageHash = Neo.L2.State.MessageHasher.HashMessage(messageWithoutHash),
+        };
+        var committee = new UInt256(Enumerable.Repeat((byte)0x55, UInt256.Length).ToArray());
+        var sealer = new BatchSealer(
+            ForcedSettings(maxBlocks: 2),
+            new InMemoryMetrics(),
+            () => 0L,
+            l1MessageDrain: _ => new[] { message },
+            l1FinalizedHeight: () => 777,
+            sequencerCommitteeHash: () => committee);
+
+        Assert.IsNull(sealer.OnBlockCommit(10, 1000, 11, NoTxs()));
+        var sealedBatch = sealer.OnBlockCommit(11, 2000, 11, NoTxs());
+
+        Assert.IsNotNull(sealedBatch);
+        Assert.AreEqual(message, sealedBatch.L1Messages.Single());
+        Assert.AreEqual(777u, sealedBatch.BlockContext.L1FinalizedHeight);
+        Assert.AreEqual(1000UL, sealedBatch.BlockContext.FirstBlockTimestamp);
+        Assert.AreEqual(2000UL, sealedBatch.BlockContext.LastBlockTimestamp);
+        Assert.AreEqual(committee, sealedBatch.BlockContext.SequencerCommitteeHash);
+        Assert.AreEqual(11u, sealedBatch.BlockContext.Network);
+    }
+
+    [TestMethod]
+    public void AcknowledgeExecution_AdvancesNextBatchPreStateRoot()
+    {
+        var sealer = new BatchSealer(
+            ForcedSettings(maxBlocks: 1), new InMemoryMetrics(), () => 0L);
+        var first = sealer.OnBlockCommit(1, 1000, 11, NoTxs())!;
+        var postStateRoot = new UInt256(
+            Enumerable.Repeat((byte)0x66, UInt256.Length).ToArray());
+        sealer.AcknowledgeExecution(first.BatchNumber, postStateRoot);
+
+        var second = sealer.OnBlockCommit(2, 2000, 11, NoTxs())!;
+        Assert.AreEqual(postStateRoot, second.PreStateRoot);
+        sealer.AcknowledgeExecution(first.BatchNumber, postStateRoot);
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => sealer.AcknowledgeExecution(3, postStateRoot));
     }
 
     private static IEnumerable<byte[]> NoTxs() => Array.Empty<byte[]>();

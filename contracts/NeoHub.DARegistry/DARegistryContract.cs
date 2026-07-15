@@ -13,7 +13,7 @@ namespace NeoHub.DARegistry;
 /// See doc.md §3.2 (DARegistry) and §12 (Data Availability tiers).
 /// </summary>
 [DisplayName("NeoHub.DARegistry")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("DA commitment registry for Neo Elastic Network L2 batches.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.DARegistry")]

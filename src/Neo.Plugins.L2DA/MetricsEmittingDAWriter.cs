@@ -36,6 +36,9 @@ public sealed class MetricsEmittingDAWriter : IDAWriter
     public DAMode Mode => _inner.Mode;
 
     /// <inheritdoc />
+    public DAReceiptKind ReceiptKind => _inner.ReceiptKind;
+
+    /// <inheritdoc />
     public async ValueTask<DAReceipt> PublishAsync(DAPublishRequest request, CancellationToken cancellationToken = default)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -60,6 +63,13 @@ public sealed class MetricsEmittingDAWriter : IDAWriter
             _metrics.SafeIncrementCounter(MetricNames.DAPublishFailures, 1, _modeTag);
             throw new InvalidOperationException(
                 $"IDAWriter.PublishAsync returned null (mode={_modeTag.Value})");
+        }
+        if (!receipt.HasRequiredMetadata(Mode, ReceiptKind))
+        {
+            sw.Stop();
+            _metrics.SafeIncrementCounter(MetricNames.DAPublishFailures, 1, _modeTag);
+            throw new InvalidOperationException(
+                $"IDAWriter.PublishAsync returned malformed or mislabeled {Mode}/{ReceiptKind} receipt metadata");
         }
         sw.Stop();
         // Success metrics outside the try: a metric throw here would otherwise be caught

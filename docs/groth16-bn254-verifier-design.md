@@ -1,211 +1,168 @@
-# BN254 Groth16 verifier contract — design
+# SP1 Groth16/BN254 verifier contract
 
-Status: draft for review. Target: a deployable NeoHub verifier contract that performs a
-real on-chain Groth16 pairing check over BN254 (alt_bn128), using the CryptoLib `bn254*`
-native methods, so that `ContractZkVerifier` can dispatch `ProofType.Zk` settlement to it
-instead of falling back to envelope-only acceptance.
+Status: implemented and version-pinned. The production contract is
+`contracts/NeoHub.Sp1Groth16Verifier`.
 
-## 1. Problem and context
+## 1. Security boundary
 
-`contracts/NeoHub.ContractZkVerifier` is a router. It parses the canonical N4 batch
-commitment, extracts the RISC-V ZK proof payload, checks the proof system and that the
-verification-key id is governance-registered, then either:
+`NeoHub.ContractZkVerifier` validates the canonical N4 batch commitment, the
+`RiscVProofPayload` envelope, the proof-system tag, the registered program verification-key
+identifier, and the 32-byte N4 public-input hash. For `ProofSystem.Sp1`, it then calls:
 
-- dispatches to a governance-registered downstream verifier via
-  `Contract.Call(verifier, "verifyZkProof", CallFlags.ReadOnly, { proofSystem, verificationKeyId, publicInputHash, proofBytes })`, or
-- accepts the envelope without proof math, when (and only when) envelope-only mode is
-  explicitly enabled for that proof system.
-
-Today no downstream verifier implementing `verifyZkProof` does real proof-system math, so
-every accepted batch relies on the envelope-only escape hatch. This contract closes that
-gap for the proof systems whose end proof is a Groth16 proof over BN254 (SP1 and RISC-Zero
-both expose a Groth16/BN254 "wrapper" proof; this verifier serves those paths).
-
-The router ABI is fixed and is the integration contract we must satisfy:
-
-```
-verifyZkProof(byte proofSystem, byte[] verificationKeyId, byte[] publicInputHash, byte[] proofBytes) : bool
+```text
+Sp1Groth16Verifier.verifyZkProof(
+  proofSystem,
+  programVKey,
+  publicInputHash,
+  proofBytes)
 ```
 
-## 2. Cryptographic background (Groth16 over BN254)
+The terminal verifier performs the full SP1 Groth16 pairing equation on Neo's native BN254
+surface. Production deployment registers this contract and irreversibly calls
+`ContractZkVerifier.DisableEnvelopeOnlyPermanently(ProofSystem.Sp1=1)`, then calls
+`LockProofSystemConfiguration(ProofSystem.Sp1=1, programVKey)` to freeze one exact
+program VK and terminal verifier before routing `ProofType.Zk` settlement to the router.
+Devnet envelope-only mode is not part of the production plan.
 
-A Groth16 verifying key is `(α ∈ G1, β ∈ G2, γ ∈ G2, δ ∈ G2, IC ∈ G1^{ℓ+1})`. A proof is
-`(A ∈ G1, B ∈ G2, C ∈ G1)`. For public inputs `a₁..a_ℓ ∈ F_r` the verifier forms
+This verifier is deliberately **SP1-specific**. It must not be reused for Risc0, Halo2,
+Axiom, another SP1 circuit version, or a different wrapper verifying key. Each proof system
+and wrapper version requires its own reviewed terminal verifier deployment.
 
-```
-vk_x = IC₀ + Σ_{i=1..ℓ} aᵢ · ICᵢ            (in G1)
-```
+## 2. Pinned SP1 format
 
-and accepts iff
+The contract implements the v6.1-compatible Groth16 wrapper shipped by the repository's
+exactly pinned `sp1-sdk` and `sp1-verifier` 6.2.1 dependencies. The
+wrapper exposes five BN254 scalar public inputs, in order:
 
-```
-e(A, B) = e(α, β) · e(vk_x, γ) · e(C, δ)
-```
+1. the raw 32-byte program verification-key digest (`vk.bytes32()`),
+2. the masked SHA-256 digest of committed public values,
+3. the guest exit code,
+4. the SP1 recursion verification-key root,
+5. the Groth16 nonce.
 
-where `e` is the optimal-ate pairing into the target group GT, and `·` is the GT group
-operation (multiplication in F_p12). This is exactly four pairings and a fixed number of
-G1 operations — no attacker-influenced loop bounds.
+The N4 guest commits exactly 33 bytes:
 
-## 3. Mapping to the CryptoLib bn254 surface
-
-The native methods (already implemented and tested in core) give us first-class,
-composable group elements rather than a single boolean precompile:
-
-| Need | CryptoLib call | Returns |
-|------|----------------|---------|
-| Decode a G1/G2 point | `Bn254Deserialize(byte[])` | interop point (G1 from 64 B, G2 from 128 B) |
-| `aᵢ · ICᵢ` | `Bn254Mul(point, scalar)` | G1 point |
-| `vk_x` accumulation | `Bn254Add(g1, g1)` | G1 point |
-| `e(·,·)` | `Bn254Pairing(g1, g2)` | GT element |
-| GT product | `Bn254Add(gt, gt)` | GT element (F_p12 multiply) |
-| Final compare | `Bn254Equal(gt, gt)` | bool |
-
-Decode-time guarantees we rely on (enforced by core, see `BN254.TryDeserializeG1/G2`):
-canonical big-endian coordinates below the field modulus, on-curve, and — for G2 — prime
--order subgroup membership. A malformed or off-subgroup proof point therefore faults during
-decode rather than yielding a spurious pairing result. `Bn254Mul` reduces its 32-byte
-big-endian scalar modulo the curve order, so any 32-byte public input is a valid exponent.
-
-Note we intentionally do **not** mirror `ExampleZKP.cs`, which compares pairing results by
-casting the interop value to `byte[]` and using `==`. We compare GT elements with
-`Bn254Equal`, which is defined as value equality on the deserialized F_p12 element — the
-correct and intended primitive for this check.
-
-## 4. N4 public-input convention (the key interface decision)
-
-The router passes a single 32-byte `publicInputHash` (the public-values digest carried in
-the batch commitment at offset 284), plus a `verificationKeyId`. The N4 model therefore is:
-
-- The **verifying key identity** is handled out of band: `verificationKeyId` selects a
-  governance-registered VK. It is *not* a circuit public input.
-- The **circuit exposes exactly one public input**: the public-values digest, supplied as
-  `publicInputHash` and interpreted as a big-endian scalar reduced mod r.
-
-So `ℓ = 1` and a registered VK carries exactly `IC₀` and `IC₁`, and
-
-```
-vk_x = IC₀ + (publicInputHash mod r) · IC₁
+```text
+0x00 || publicInputHash[32]
 ```
 
-This matches how SP1/RISC-Zero Groth16 wrappers expose a single field element committing to
-the public outputs. Circuits needing more than one public input are out of scope for this
-ABI; supporting them would require a router/ABI change to pass the input vector, and is
-called out as future work rather than silently approximated.
+The terminal verifier reconstructs those bytes, computes SHA-256, and clears the top three
+bits of the digest's first byte exactly as SP1's BN254 public-value hashing does. It rejects
+all five public inputs that are not canonical field elements; it never silently reduces an
+attacker-controlled value modulo the scalar field.
 
-## 5. Contract design
+The accepted proof is exactly 356 bytes:
 
-Proposed contract: `contracts/NeoHub.Groth16Verifier/Groth16VerifierContract.cs`,
-`[DisplayName("NeoHub.Groth16Verifier")]`, following the conventions already used by
-`ContractZkVerifier` (governance owner in storage under `0xFF`, owner-gated mutations via
-`Runtime.CheckWitness`, events on every state change, `[Safe]` reads).
+| Offset | Size | Value |
+|---:|---:|---|
+| 0 | 4 | pinned Groth16 verifier selector `0x4388a21c` |
+| 4 | 32 | zero exit code |
+| 36 | 32 | pinned recursion VK root |
+| 68 | 32 | nonce |
+| 100 | 64 | Groth16 `A` in G1 |
+| 164 | 128 | Groth16 `B` in G2 |
+| 292 | 64 | Groth16 `C` in G1 |
 
-### 5.1 Storage
+The pinned recursion VK root is
+`0x002f850ee998974d6cc00e50cd0814b098c05bfade466d28573240d057f25352`.
 
-| Prefix | Key | Value |
-|--------|-----|-------|
-| `0xFF` | — | owner `UInt160` |
-| `0x01` | `verificationKeyId` (32 B) | encoded VK material (see 5.3) |
+## 3. Pairing equation
 
-### 5.2 Methods
+The fixed SP1 wrapper verifying key contains `alpha`, `beta`, `gamma`, `delta`, and
+`IC[0..5]`. For public inputs `a1..a5`, the verifier computes:
 
-- `_deploy(object data, bool update)` — set initial owner from `data` (a `UInt160`).
-- `GetOwner() : UInt160` `[Safe]`, `SetOwner(UInt160)` — ownership, mirroring the router.
-- `RegisterVerifyingKey(byte[] verificationKeyId, byte[] vk)` — owner-gated. Validates the
-  encoding (length and that every point decodes) by round-tripping each point through
-  `Bn254Deserialize`, then stores `vk`. Emits `VerifyingKeyRegistered`.
-- `RemoveVerifyingKey(byte[] verificationKeyId)` — owner-gated; deletes; emits the event
-  with `registered = false`.
-- `IsVerifyingKeyRegistered(byte[] verificationKeyId) : bool` `[Safe]`.
-- `verifyZkProof(byte proofSystem, byte[] verificationKeyId, byte[] publicInputHash, byte[] proofBytes) : bool`
-  `[Safe]` — the router entry point. Does **not** check witness (it is a pure verification
-  function; trust comes from the registered VK and the proof math). Steps:
-  1. Load the VK for `verificationKeyId`; fault if absent.
-  2. Decode `α, β, γ, δ, IC₀, IC₁` from the stored VK.
-  3. Require `publicInputHash.Length == 32`; require `proofBytes.Length == 256`.
-  4. Decode `A = proofBytes[0..64]`, `B = proofBytes[64..192]`, `C = proofBytes[192..256]`.
-  5. `vk_x = Bn254Add(IC₀, Bn254Mul(IC₁, publicInputHash))`.
-  6. `lhs = Bn254Pairing(A, B)`.
-  7. `rhs = Bn254Add(Bn254Add(Bn254Pairing(α, β), Bn254Pairing(vk_x, γ)), Bn254Pairing(C, δ))`.
-  8. return `Bn254Equal(lhs, rhs)`.
+```text
+linearCombination = IC0 + a1*IC1 + a2*IC2 + a3*IC3 + a4*IC4 + a5*IC5
+```
 
-`proofSystem` is accepted as an argument for ABI parity with the router and may be range
--checked, but the verifier is proof-system-agnostic: SP1 and RISC-Zero Groth16/BN254 proofs
-share this check.
+and accepts only when:
 
-### 5.3 Encodings
+```text
+e(A, B) = e(alpha, beta) * e(linearCombination, gamma) * e(C, delta)
+```
 
-All points use the EIP-197 big-endian encoding the native layer already enforces.
+Neo's `CryptoLib.Bn254Deserialize` enforces canonical EIP-196/EIP-197 big-endian
+coordinates, curve membership, and G2 subgroup membership. The contract uses
+`Bn254Equal` for target-group equality and composes pairing results with `Bn254Add`, whose
+GT operation is field multiplication.
 
-- G1 point: 64 bytes `[x‖y]`.
-- G2 point: 128 bytes `[x_im‖x_re‖y_im‖y_re]`.
-- VK material (fixed, `ℓ = 1`): `α(64) ‖ β(128) ‖ γ(128) ‖ δ(128) ‖ IC₀(64) ‖ IC₁(64)` = 576 bytes.
-- Proof: `A(64) ‖ B(128) ‖ C(64)` = 256 bytes. Produced by the off-chain prover adapter
-  from the SP1/RISC-Zero Groth16 proof.
+## 4. Mutability and permissions
 
-## 6. Security considerations
+The contract has no owner, storage, upgrade hook, or runtime VK registration. Its constants
+are part of the reviewed bytecode. Updating SP1's wrapper circuit therefore requires a new
+contract artifact and an explicit governance route change rather than an in-place key swap.
 
-- **Trusted VK only.** A Groth16 verifier is only sound against an honestly generated VK.
-  Registration is owner-gated; an attacker who could register an arbitrary VK could forge
-  acceptances. This is the same trust assumption as the router's `RegisterVerificationKey`
-  allow-list, and the two ids are kept consistent by governance.
-- **Point validation.** Every VK and proof point is decoded through `Bn254Deserialize`,
-  which rejects non-canonical, off-curve, and (for G2) off-subgroup encodings. Subgroup
-  enforcement on B and on the VK G2 points is what prevents small-subgroup forgeries.
-- **Bounded cost / no DoS.** The work is constant: one `Bn254Mul`, one G1 `Bn254Add`, four
-  `Bn254Pairing`, two GT `Bn254Add`, one `Bn254Equal`. There is no loop over
-  attacker-controlled length (IC length is fixed by the registered VK, not by input).
-- **Determinism.** All operations are pure field/curve arithmetic; no time, randomness, or
-  external state beyond the registered VK read.
-- **Read-only.** `verifyZkProof` performs no writes and is dispatched with
-  `CallFlags.ReadOnly` by the router.
+Its manifest grants calls only to the native CryptoLib contract
+`0x726cb6e0cd8628a1350a611384688911ab75f51b` and only to:
 
-## 7. Estimated cost
+- `sha256`
+- `bn254Deserialize`
+- `bn254Add`
+- `bn254Mul`
+- `bn254Pairing`
+- `bn254Equal`
 
-Dominated by four pairings at `CpuFee = 1 << 23` each, plus a scalar-mul at `1 << 21` and a
-few adds/compare. This is a fixed per-call ceiling; the router already prices a single proof
-verification as one dispatch, and this verifier's cost is independent of proof size beyond
-the fixed 256-byte proof and 32-byte input.
+No wildcard contract or method permission is present.
 
-## 8. Test plan (TDD — written before the contract)
+## 5. Cost and denial-of-service controls
 
-Tests run the compiled contract through `Neo.SmartContract.Testing`, which executes against
-an in-process Neo engine. **Prerequisite:** that engine must be the bn254-enabled core (see
-§9), otherwise `bn254*` calls fault as "method not found".
+Verification has fixed work: five G1 scalar multiplications, five G1 additions, four
+pairings, two GT multiplications, point decoding, and one equality check. Input lengths are
+checked before cryptographic work and there are no attacker-controlled loops. The N4 Core
+execution test records the actual fee and enforces a 100 GAS upper bound; documentation and
+release evidence should be updated if native BN254 pricing changes.
 
-Vectors: a Groth16/BN254 verifying key, proof, and public input produced by a standard
-toolchain (snarkjs/circom on bn128, or gnark BN254) for a minimal circuit, committed as a
-fixture. Cases:
+## 6. Verification evidence
 
-1. **Valid proof, valid public input** → `verifyZkProof` returns `true`.
-2. **Tampered proof** (flip one byte of A/B/C) → returns `false` (not a fault: the pairing
-   simply does not balance).
-3. **Wrong public input** (use a different digest) → returns `false`.
-4. **Unregistered `verificationKeyId`** → faults ("verifying key not registered").
-5. **Malformed VK / proof lengths** → faults with a specific message.
-6. **Off-curve / non-canonical proof point** → faults at decode (forgery attempt rejected).
-7. **Governance:** non-owner `RegisterVerifyingKey` faults; owner succeeds and emits the
-   event; `IsVerifyingKeyRegistered` reflects state.
+`tests/NeoHub.Sp1Groth16Verifier.UnitTests` runs the compiled NEF directly through the
+current vendored N4 `ApplicationEngine`, not the older public
+`Neo.SmartContract.Testing` package. It pins the NEF SHA-256 and least-privilege manifest,
+checks selector/root constants, rejects malformed envelopes, non-canonical scalars and
+invalid points, and executes both the positive and invalid-pairing paths under the fee ceiling.
 
-A round-trip test also confirms the VK and proof encodings in §5.3 decode to the same points
-the fixture defines.
+The shared `tests/fixtures/sp1-groth16-positive-vector-v1.json` release vector contains the
+exact guest ELF digest, source-witness digest, and all four byte-for-byte values produced by
+the Rust SP1 6.2.1 prover:
 
-## 9. Build & test integration (open item, decided before #39 implementation)
+- `proof.bytes()` (356 bytes),
+- `proof.public_values` (33 bytes),
+- raw `vk.bytes32()` bytes (32 bytes, without Neo textual hash reversal),
+- the extracted N4 `publicInputHash` (bytes 1..32 of public values).
 
-The devpack framework binding (`CryptoLib.BN254.cs`, added to
-`external/neo-devpack-dotnet/src/Neo.SmartContract.Framework/Native`) lets the contract
-type-check and lets nccs emit `bn254*` calls by name — these need no native manifest at
-compile time, so `dotnet build` and nccs generation work unchanged.
+`cargo run --release -p neo-zkvm-host --example generate_groth16_release_vector --locked` regenerates
+the vector from the current pinned guest and canonical native-transition witness. A Rust
+integration test independently verifies the committed vector with `sp1-verifier`, binds it to
+the current guest VK/ELF manifest and witness, and re-executes the witness. The same JSON is
+loaded by the C# VM tests, so there is no hand-maintained duplicate proof. The positive proof
+verifies through both `Sp1Groth16Verifier` and `ContractZkVerifier`.
+Changing the program VK, N4 public-input hash, selector, recursion root, nonce, or any proof
+point fails closed. Public-network release evidence must repeat these vectors against the exact
+deployed NEF/VK pair.
 
-Execution is the open question. `Neo.SmartContract.Testing` resolves Neo core from the NuGet
-package pinned by `NeoCorePackageVersion` (currently `3.9.3-CI02036`), which predates bn254.
-For the §8 tests to exercise real pairing math, the test engine must load the local
-bn254-enabled core at `external/neo/src`. Options, to be chosen before implementing #39:
+On macOS with Colima, set `TMPDIR` to a directory under the repository or home directory before
+proving (for example `mkdir -p target/sp1-tmp && export TMPDIR="$PWD/target/sp1-tmp"`). SP1 6.2.1
+bind-mounts its temporary Groth16 witness/output files into Docker, while Colima does not share
+the default macOS `/var/folders` tree. Without this setting Docker sees `/witness` as a directory
+and the expensive proof fails only at the terminal wrapper stage.
+The Docker wrapper backend additionally requires `SP1_GNARK_IMAGE` to equal the audited immutable
+amd64 manifest digest documented in the prover READMEs and CI. Mutable tags fail closed before
+proof generation. Apple Silicon operators use SP1's `native-gnark` feature instead.
 
-1. Pack `external/neo` to a local feed and bump `NeoCorePackageVersion` to that build
-   (closest to the project's intended publish-and-pin flow; least structural change).
-2. Add a `Directory.Build.props` redirect so the contract test project references the local
-   core projects instead of the package (keeps everything source-built in the monorepo).
+## 7. Operator sequence
 
-This is a build-wiring decision with no effect on the contract design above; it is recorded
-here so the implementation step starts from an explicit choice rather than discovering the
-gap at test time.
+The generated production plan requires this order:
+
+1. deploy `ContractZkVerifier` and `Sp1Groth16Verifier`,
+2. register the exact raw SP1 program VK for `ProofSystem.Sp1`,
+3. register `Sp1Groth16Verifier` as the SP1 terminal verifier,
+4. permanently disable SP1 envelope-only acceptance,
+5. freeze the exact program VK and terminal with `LockProofSystemConfiguration`,
+6. register `ContractZkVerifier` as the `ProofType.Zk` route.
+
+The lock stores the exact VK, not just a boolean. Once active, previously registered
+bootstrap keys are rejected and no owner can add/remove keys, replace the terminal,
+or alter envelope-only state. A proof-system upgrade deploys a new immutable terminal
+and versioned router, then uses outer `VerifierRegistry` governance to switch routes.
+
+Operators must compare raw bytes, not displayed `UInt256` text, when moving
+`vk.bytes32()` between Rust and Neo tooling.

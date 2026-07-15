@@ -1,9 +1,12 @@
+using Neo.Cryptography;
+using Neo.L2.State;
+
 namespace Neo.L2.Batch;
 
 /// <summary>
 /// Stateful builder that an L2 batcher feeds with blocks, transactions, withdrawals, and
 /// cross-chain messages. Once a flush condition is hit, the builder seals the batch and
-/// emits an <see cref="L2BatchCommitment"/> via <see cref="Seal"/>.
+/// emits an immutable <see cref="SealedBatch"/> via <see cref="SealArtifact"/>.
 /// </summary>
 /// <remarks>
 /// See doc.md §7.2.
@@ -16,6 +19,7 @@ namespace Neo.L2.Batch;
 public sealed class BatchBuilder
 {
     private readonly L2Batch _batch;
+    private readonly List<(ulong Nonce, UInt256 TxHash)> _forcedInclusions = new();
 
     /// <summary>The in-progress batch.</summary>
     public L2Batch Batch => _batch;
@@ -37,6 +41,30 @@ public sealed class BatchBuilder
     public BatchBuilder AddTransaction(ReadOnlyMemory<byte> serializedTx)
     {
         _batch.AddTransaction(serializedTx);
+        return this;
+    }
+
+    /// <summary>
+    /// Prepend metadata for a forced-inclusion transaction without marking its L1 nonce consumed.
+    /// </summary>
+    public BatchBuilder AddForcedTransaction(
+        ulong nonce,
+        UInt256 txHash,
+        ReadOnlyMemory<byte> serializedTx)
+    {
+        ArgumentNullException.ThrowIfNull(txHash);
+        if (_batch.TransactionCount != _forcedInclusions.Count)
+            throw new InvalidOperationException(
+                "forced-inclusion transactions must precede ordinary transactions");
+        if (_forcedInclusions.Any(entry => entry.Nonce == nonce))
+            throw new InvalidOperationException(
+                $"forced-inclusion nonce {nonce} is already in this batch");
+        var encodedHash = new UInt256(Crypto.Hash256(serializedTx.Span));
+        if (!encodedHash.Equals(txHash))
+            throw new InvalidOperationException(
+                $"forced-inclusion nonce {nonce} tx hash does not match encoded transaction");
+        _batch.AddTransaction(serializedTx);
+        _forcedInclusions.Add((nonce, new UInt256(txHash.GetSpan())));
         return this;
     }
 
@@ -96,6 +124,44 @@ public sealed class BatchBuilder
             L1MessagesConsumed = _batch.L1MessagesConsumed,
             BlockContext = ctx,
         };
+    }
+
+    /// <summary>
+    /// Seal the exact executable inputs without inventing execution roots, a DA commitment,
+    /// public-input hash, or proof.
+    /// </summary>
+    public SealedBatch SealArtifact()
+    {
+        var context = _batch.BlockContext
+            ?? throw new InvalidOperationException("BlockContext must be set before sealing");
+        var transactionHashes = _batch.Transactions
+            .Select(static transaction => new UInt256(Crypto.Hash256(transaction.Span)))
+            .ToArray();
+        var transactionTree = new Neo.L2.State.MerkleTree(transactionHashes);
+        var forcedProofs = new ForcedInclusionConsumptionProof[_forcedInclusions.Count];
+        for (var index = 0; index < forcedProofs.Length; index++)
+        {
+            var entry = _forcedInclusions[index];
+            var proof = transactionTree.GetProof(index);
+            forcedProofs[index] = new ForcedInclusionConsumptionProof
+            {
+                Nonce = entry.Nonce,
+                LeafIndex = checked((uint)index),
+                TxHash = entry.TxHash,
+                Siblings = proof.Siblings,
+            };
+        }
+        _batch.Seal();
+        return new SealedBatch(
+            _batch.ChainId,
+            _batch.BatchNumber,
+            _batch.FirstBlock,
+            _batch.LastBlock,
+            _batch.PreStateRoot,
+            _batch.Transactions,
+            _batch.L1MessagesConsumed,
+            context,
+            forcedProofs);
     }
 
     /// <summary>

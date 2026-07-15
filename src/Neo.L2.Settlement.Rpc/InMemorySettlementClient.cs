@@ -24,7 +24,7 @@ namespace Neo.L2.Settlement.Rpc;
 /// reuse and indicates a sequencer bug.
 /// </para>
 /// </remarks>
-public sealed class InMemorySettlementClient : ISettlementClient
+public sealed class InMemorySettlementClient : ISettlementClient, ISettlementTransactionStatusClient
 {
     private readonly ConcurrentDictionary<(uint ChainId, ulong BatchNumber), Entry> _batches = new();
     private readonly ConcurrentDictionary<uint, UInt256> _canonicalRoots = new();
@@ -78,6 +78,24 @@ public sealed class InMemorySettlementClient : ISettlementClient
         cancellationToken.ThrowIfCancellationRequested();
         return new ValueTask<BatchStatus>(
             _batches.TryGetValue((chainId, batchNumber), out var e) ? e.Status : BatchStatus.Unknown);
+    }
+
+    /// <inheritdoc />
+    public ValueTask<SettlementTransactionStatus> GetTransactionStatusAsync(
+        UInt256 transactionHash,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(transactionHash);
+        foreach (var entry in _batches.Values)
+        {
+            if (!entry.TxHash.Equals(transactionHash)) continue;
+            return new ValueTask<SettlementTransactionStatus>(
+                entry.Status == BatchStatus.Reverted
+                    ? SettlementTransactionStatus.Reverted
+                    : SettlementTransactionStatus.Confirmed);
+        }
+        return new ValueTask<SettlementTransactionStatus>(SettlementTransactionStatus.Unknown);
     }
 
     /// <summary>

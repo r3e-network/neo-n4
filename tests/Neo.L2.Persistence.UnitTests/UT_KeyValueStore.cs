@@ -147,6 +147,59 @@ public abstract class KeyValueStoreContractTests
     }
 
     [TestMethod]
+    public void TryPut_InsertsOnlyWhenAbsent()
+    {
+        using var s = Create();
+        Assert.IsTrue(s.TryPut(new byte[] { 0x01 }, new byte[] { 0xAA }));
+        Assert.IsFalse(s.TryPut(new byte[] { 0x01 }, new byte[] { 0xBB }));
+        CollectionAssert.AreEqual(new byte[] { 0xAA }, s.Get(new byte[] { 0x01 }));
+    }
+
+    [TestMethod]
+    public void TryPut_IsAtomicUnderConcurrency()
+    {
+        using var s = Create();
+        var successes = 0;
+        Parallel.For(0, 64, index =>
+        {
+            if (s.TryPut(new byte[] { 0x01 }, BitConverter.GetBytes(index)))
+                Interlocked.Increment(ref successes);
+        });
+        Assert.AreEqual(1, successes);
+        Assert.AreEqual(1L, s.Count);
+    }
+
+    [TestMethod]
+    public void CompareExchange_ReplacesOnlyExpectedBytes()
+    {
+        using var s = Create();
+        s.Put(new byte[] { 0x01 }, new byte[] { 0xAA });
+        Assert.IsFalse(s.CompareExchange(
+            new byte[] { 0x01 },
+            new byte[] { 0xBB },
+            new byte[] { 0xCC }));
+        CollectionAssert.AreEqual(new byte[] { 0xAA }, s.Get(new byte[] { 0x01 }));
+        Assert.IsTrue(s.CompareExchange(
+            new byte[] { 0x01 },
+            new byte[] { 0xAA },
+            new byte[] { 0xCC }));
+        CollectionAssert.AreEqual(new byte[] { 0xCC }, s.Get(new byte[] { 0x01 }));
+    }
+
+    [TestMethod]
+    public void ConditionalWrites_RejectEmptyKey()
+    {
+        using var s = Create();
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(
+            () => s.TryPut(ReadOnlySpan<byte>.Empty, new byte[] { 0x01 }));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(
+            () => s.CompareExchange(
+                ReadOnlySpan<byte>.Empty,
+                new byte[] { 0x01 },
+                new byte[] { 0x02 }));
+    }
+
+    [TestMethod]
     public void Delete_RemovesEntry()
     {
         using var s = Create();
@@ -237,5 +290,187 @@ public abstract class KeyValueStoreContractTests
         Assert.AreEqual(2L, s.Count);
         s.Delete(new byte[] { 0x01 });
         Assert.AreEqual(1L, s.Count);
+    }
+
+    [TestMethod]
+    public void ReplaceAll_ReplacesCompleteSnapshotAtomically()
+    {
+        using var store = Create();
+        var atomicStore = (IAtomicL2KeyValueStore)store;
+        store.Put(new byte[] { 0x01 }, new byte[] { 0xAA });
+        atomicStore.ReplaceAll(
+        [
+            (new byte[] { 0x02 }, new byte[] { 0xBB }),
+            (new byte[] { 0x03 }, new byte[] { 0xCC }),
+        ]);
+
+        Assert.IsNull(store.Get(new byte[] { 0x01 }));
+        CollectionAssert.AreEqual(new byte[] { 0xBB }, store.Get(new byte[] { 0x02 }));
+        CollectionAssert.AreEqual(new byte[] { 0xCC }, store.Get(new byte[] { 0x03 }));
+        Assert.AreEqual(2L, store.Count);
+    }
+
+    [TestMethod]
+    public void CompareExchangeBatch_AppliesOnlyWhenEveryKeyConditionMatches()
+    {
+        using var store = Create();
+        var atomicStore = (IAtomicL2KeyValueStore)store;
+        store.Put(new byte[] { 0x01 }, new byte[] { 0xAA });
+
+        Assert.IsTrue(atomicStore.CompareExchangeBatch(
+        [
+            (new byte[] { 0x01 }, new byte[] { 0xAA }),
+            (new byte[] { 0x02 }, null),
+        ],
+        [
+            (new byte[] { 0x01 }, null),
+            (new byte[] { 0x02 }, new byte[] { 0xBB }),
+        ]));
+
+        Assert.IsNull(store.Get(new byte[] { 0x01 }));
+        CollectionAssert.AreEqual(new byte[] { 0xBB }, store.Get(new byte[] { 0x02 }));
+        Assert.IsFalse(atomicStore.CompareExchangeBatch(
+        [
+            (new byte[] { 0x01 }, null),
+            (new byte[] { 0x02 }, new byte[] { 0xCC }),
+        ],
+        [
+            (new byte[] { 0x03 }, new byte[] { 0xDD }),
+        ]));
+        Assert.IsNull(store.Get(new byte[] { 0x03 }));
+    }
+
+    [TestMethod]
+    public void CompareExchangeBatch_CompetingGuardAndTargetCannotBothCommit()
+    {
+        using var store = Create();
+        var atomicStore = (IAtomicL2KeyValueStore)store;
+        var gate = new Barrier(2);
+        var target = new byte[] { 0x10 };
+        var guard = new byte[] { 0x20 };
+        var targetTask = Task.Run(() =>
+        {
+            gate.SignalAndWait();
+            return atomicStore.CompareExchangeBatch(
+                [(target, null), (guard, null)],
+                [(target, new byte[] { 0xAA })]);
+        });
+        var guardTask = Task.Run(() =>
+        {
+            gate.SignalAndWait();
+            return atomicStore.CompareExchangeBatch(
+                [(target, null), (guard, null)],
+                [(guard, new byte[] { 0xBB })]);
+        });
+
+        Task.WaitAll(targetTask, guardTask);
+
+        Assert.AreEqual(1, new[] { targetTask.Result, guardTask.Result }.Count(static x => x));
+        Assert.AreEqual(1L, store.Count);
+        Assert.AreNotEqual(store.Contains(target), store.Contains(guard));
+    }
+
+    [TestMethod]
+    public void ReplaceAll_InvalidSnapshotPreservesExistingState()
+    {
+        using var store = Create();
+        var atomicStore = (IAtomicL2KeyValueStore)store;
+        store.Put(new byte[] { 0x01 }, new byte[] { 0xAA });
+
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => atomicStore.ReplaceAll(
+        [
+            (ReadOnlyMemory<byte>.Empty, new byte[] { 0xBB }),
+        ]));
+        Assert.ThrowsExactly<InvalidDataException>(() => atomicStore.ReplaceAll(
+        [
+            (new byte[] { 0x02 }, new byte[] { 0xBB }),
+            (new byte[] { 0x02 }, new byte[] { 0xCC }),
+        ]));
+
+        CollectionAssert.AreEqual(new byte[] { 0xAA }, store.Get(new byte[] { 0x01 }));
+        Assert.AreEqual(1L, store.Count);
+    }
+
+    [TestMethod]
+    public void ReplaceAll_DefensivelyCopiesSnapshot()
+    {
+        using var store = Create();
+        var atomicStore = (IAtomicL2KeyValueStore)store;
+        var key = new byte[] { 0x02 };
+        var value = new byte[] { 0xBB };
+        atomicStore.ReplaceAll([(key, value)]);
+
+        key[0] = 0xFF;
+        value[0] = 0xFF;
+
+        CollectionAssert.AreEqual(new byte[] { 0xBB }, store.Get(new byte[] { 0x02 }));
+        Assert.IsNull(store.Get(new byte[] { 0xFF }));
+    }
+
+    [TestMethod]
+    public void CompareExchangeAll_ReplacesOnlyExactCompleteSnapshot()
+    {
+        using var store = Create();
+        var atomicStore = (IAtomicL2KeyValueStore)store;
+        store.Put(new byte[] { 0x01 }, new byte[] { 0xAA });
+        store.Put(new byte[] { 0x02 }, new byte[] { 0xBB });
+
+        Assert.IsTrue(atomicStore.CompareExchangeAll(
+        [
+            (new byte[] { 0x01 }, new byte[] { 0xAA }),
+            (new byte[] { 0x02 }, new byte[] { 0xBB }),
+        ],
+        [
+            (new byte[] { 0x03 }, new byte[] { 0xCC }),
+        ]));
+
+        Assert.IsNull(store.Get(new byte[] { 0x01 }));
+        Assert.IsNull(store.Get(new byte[] { 0x02 }));
+        CollectionAssert.AreEqual(new byte[] { 0xCC }, store.Get(new byte[] { 0x03 }));
+    }
+
+    [TestMethod]
+    public void CompareExchangeAll_MismatchPreservesCompleteSnapshot()
+    {
+        using var store = Create();
+        var atomicStore = (IAtomicL2KeyValueStore)store;
+        store.Put(new byte[] { 0x01 }, new byte[] { 0xAA });
+
+        Assert.IsFalse(atomicStore.CompareExchangeAll(
+        [
+            (new byte[] { 0x01 }, new byte[] { 0xBB }),
+        ],
+        [
+            (new byte[] { 0x02 }, new byte[] { 0xCC }),
+        ]));
+
+        CollectionAssert.AreEqual(new byte[] { 0xAA }, store.Get(new byte[] { 0x01 }));
+        Assert.IsNull(store.Get(new byte[] { 0x02 }));
+    }
+
+    [TestMethod]
+    public void CompareExchangeAll_OnlyOneConcurrentTransitionWins()
+    {
+        using var store = Create();
+        var atomicStore = (IAtomicL2KeyValueStore)store;
+        store.Put(new byte[] { 0x01 }, new byte[] { 0xAA });
+        var successes = 0;
+
+        Parallel.For(0, 32, index =>
+        {
+            if (atomicStore.CompareExchangeAll(
+                [
+                    (new byte[] { 0x01 }, new byte[] { 0xAA }),
+                ],
+                [
+                    (new byte[] { 0x02 }, BitConverter.GetBytes(index)),
+                ]))
+                Interlocked.Increment(ref successes);
+        });
+
+        Assert.AreEqual(1, successes);
+        Assert.IsNull(store.Get(new byte[] { 0x01 }));
+        Assert.IsNotNull(store.Get(new byte[] { 0x02 }));
+        Assert.AreEqual(1L, store.Count);
     }
 }

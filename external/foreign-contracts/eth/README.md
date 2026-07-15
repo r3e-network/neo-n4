@@ -138,6 +138,11 @@ event Locked(
 );
 ```
 
+Native ETH uses the explicit non-zero asset sentinel
+`0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE`; ERC-20 addresses are copied
+verbatim in network byte order. The v0 router requires `payload` to be empty
+and rejects it before either ETH or ERC-20 custody until `AssetAndCall` ships.
+
 Inbound finalization (Neo → Eth) — called by anyone with a valid proof:
 
 ```solidity
@@ -180,7 +185,8 @@ array per signature.
 - **Asset accounting**: `lockedBalances[asset]` tracks how much was
   ever locked. `finalizeWithdrawal` rejects amounts > locked balance,
   so the router can't release more than was deposited even if a
-  malicious committee signs an inflated withdrawal.
+  malicious committee signs an inflated withdrawal. Native ETH is keyed
+  by the canonical non-zero sentinel rather than `address(0)`.
 - **Reentrancy**: `nonReentrant` guards `lock*AndSend` and
   `finalizeWithdrawal`.
 - **Bare transfers**: `receive()` reverts so users can't accidentally
@@ -191,7 +197,7 @@ array per signature.
 - `MSG_TYPE_CALL` and `MSG_TYPE_ASSET_AND_CALL` — the verifier accepts
   the proof but the dispatcher reverts. A future router can add a
   registry of permitted call targets without touching the committee
-  state.
+  state. Outbound lock calls reject non-empty payloads before custody.
 - Asset metadata mapping (Neo-side asset hash ↔ Eth ERC-20 address) —
   the watchers / off-chain operator config currently hold this. A
   future router can pull from a registry contract.

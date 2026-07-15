@@ -101,7 +101,12 @@ cargo test --workspace --release --locked
 
 ```powershell
 pwsh ./scripts/deployment/run-local-rehearsal.ps1
-pwsh ./scripts/private-network/Test-PrivateNetwork.ps1
+pwsh ./scripts/private-network/Test-PrivateNetwork.ps1 `
+  -NodeConfig C:\reviewed\sequencer\config.json `
+  -BatcherNodeConfig C:\reviewed\batcher\config.json `
+  -SequencerNeoCli C:\reviewed\sequencer\Neo.CLI.dll `
+  -BatcherNeoCli C:\reviewed\batcher\Neo.CLI.dll `
+  -Prover C:\reviewed\prover\prove-batch.exe
 ```
 
 L3 还必须补充 operator 现场证据：钱包/HSM 配置、治理提案演练、紧急暂停/恢复、DA

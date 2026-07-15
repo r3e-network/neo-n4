@@ -31,14 +31,11 @@ namespace Neo.Plugins.L2Gateway;
 /// without needing a recursive-ZK toolchain.
 /// </para>
 /// <para>
-/// Trust scope: the attestation produced here is only as load-bearing as the consumer that
-/// verifies it. The current on-chain global-root publish path (<c>PublishGlobalRoot</c>)
-/// authorizes purely on the settlement-manager witness and does NOT call
-/// <see cref="VerifyRound"/>, so a published <c>GlobalMessageRoot</c> is today backed by that
-/// witness, not by these committee signatures. <see cref="VerifyRound"/> is therefore an
-/// off-chain / future-on-chain verification primitive, not an enforced trust-minimization
-/// guarantee — do not treat the mere production of this attestation as making the global root
-/// trust-minimized.
+/// Trust scope: producing this round attestation alone is not sufficient. The configured
+/// <see cref="IGatewayProofProver"/> must verify the complete aggregate and prove the terminal
+/// <see cref="GatewayProofBinding"/>; NeoHub.MessageRouter then checks that terminal proof. A
+/// settlement-manager witness cannot bypass the proof, but a terminal circuit that ignores these
+/// round bytes would still be unsound and must not be registered by governance.
 /// </para>
 /// </remarks>
 public sealed class MultisigRoundProver : IRoundProver

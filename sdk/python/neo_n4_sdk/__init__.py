@@ -77,11 +77,11 @@ class ProofType(IntEnum):
 class BatchStatus(IntEnum):
     """Batch lifecycle status returned by getl2batchstatus."""
 
-    PENDING = 0
-    CHALLENGEABLE = 1
-    FINALIZED = 2
-    CHALLENGED = 3
-    SLASHED = 4
+    UNKNOWN = 0
+    PENDING = 1
+    CHALLENGEABLE = 2
+    FINALIZED = 3
+    REVERTED = 4
 
 
 @dataclass(frozen=True)
@@ -197,18 +197,30 @@ class L2RpcClient:
             return None
         obj = _require_mapping(result, "getl2batch")
         self._assert_chain_id(obj, "getl2batch")
-        return _parse_batch_view(obj)
+        batch = _parse_batch_view(obj, "getl2batch")
+        if batch.batch_number != batch_number:
+            raise L2RpcProtocolError(
+                "getl2batch",
+                f"response batchNumber {batch.batch_number} does not match request {batch_number}",
+            )
+        return batch
 
     def get_batch_status(self, batch_number: int) -> BatchStatusResponse:
         result = self._call("getl2batchstatus", [self.chain_id, _u64_wire(batch_number, "batch_number")])
         obj = _require_mapping(result, "getl2batchstatus")
         self._assert_chain_id(obj, "getl2batchstatus")
-        return BatchStatusResponse(
+        response = BatchStatusResponse(
             chain_id=_int_field(obj, "chainId"),
-            batch_number=_int_field(obj, "batchNumber"),
+            batch_number=_u64_field(obj, "batchNumber", "getl2batchstatus"),
             status=_enum_field(BatchStatus, obj, "status"),
             status_name=str(obj.get("statusName", "")),
         )
+        if response.batch_number != batch_number:
+            raise L2RpcProtocolError(
+                "getl2batchstatus",
+                f"response batchNumber {response.batch_number} does not match request {batch_number}",
+            )
+        return response
 
     def get_latest_state_root(self) -> str:
         result = self._call("getl2stateroot", [self.chain_id])
@@ -238,18 +250,28 @@ class L2RpcClient:
         if got != source:
             raise L2RpcMismatchedChainIdError("getl1depositstatus", source, got)
         included = obj.get("includedInBatch")
-        return DepositStatusResponse(
+        response = DepositStatusResponse(
             source_chain_id=got,
-            nonce=_int_field(obj, "nonce"),
-            consumed_on_l2=bool(obj.get("consumedOnL2", False)),
-            included_in_batch=None if included is None else int(included),
+            nonce=_u64_field(obj, "nonce", "getl1depositstatus"),
+            consumed_on_l2=_bool_field(obj, "consumedOnL2", "getl1depositstatus"),
+            included_in_batch=(
+                None
+                if included is None
+                else _parse_u64(included, "getl1depositstatus", "includedInBatch")
+            ),
         )
+        if response.nonce != nonce:
+            raise L2RpcProtocolError(
+                "getl1depositstatus",
+                f"response nonce {response.nonce} does not match request {nonce}",
+            )
+        return response
 
     def get_canonical_asset(self, l2_asset: str) -> str | None:
         return self._get_optional_string("getcanonicalasset", [l2_asset])
 
     def get_bridged_asset(self, l1_asset: str) -> str | None:
-        return self._get_optional_string("getbridgedasset", [l1_asset])
+        return self._get_optional_string("getbridgedasset", [l1_asset, self.chain_id])
 
     def get_security_level(self) -> SecurityLevelResponse:
         result = self._call("getsecuritylevel", [self.chain_id])
@@ -268,7 +290,7 @@ class L2RpcClient:
             chain_id=_int_field(obj, "chainId"),
             security_level=_enum_field(SecurityLevel, obj, "securityLevel"),
             da_mode=_enum_field(DAMode, obj, "daMode"),
-            gateway_enabled=bool(obj.get("gatewayEnabled", False)),
+            gateway_enabled=_bool_field(obj, "gatewayEnabled", "getsecuritylabel"),
             sequencer=_enum_field(SequencerModel, obj, "sequencer"),
             exit=_enum_field(ExitModel, obj, "exit"),
         )
@@ -297,7 +319,7 @@ class L2RpcClient:
 
     def _assert_chain_id(self, obj: Mapping[str, Any], method: str) -> None:
         if "chainId" not in obj:
-            return
+            raise L2RpcProtocolError(method, "response chainId is missing")
         got = _int_field(obj, "chainId")
         if got != self.chain_id:
             raise L2RpcMismatchedChainIdError(method, self.chain_id, got)
@@ -321,10 +343,9 @@ class L2RpcClient:
         envelope = _require_mapping(response, method)
         if envelope.get("jsonrpc") != "2.0":
             raise L2RpcProtocolError(method, "response jsonrpc must be '2.0'")
-        try:
-            response_id = int(envelope.get("id"))
-        except (TypeError, ValueError) as exc:
-            raise L2RpcProtocolError(method, "response id is missing or non-integer") from exc
+        response_id = envelope.get("id")
+        if isinstance(response_id, bool) or not isinstance(response_id, int):
+            raise L2RpcProtocolError(method, "response id must be a JSON integer")
         if response_id != request["id"]:
             raise L2RpcProtocolError(method, f"response id {response_id} does not match request id {request['id']}")
 
@@ -335,7 +356,9 @@ class L2RpcClient:
             message = str(err.get("message", "rpc error"))
             raise L2RpcServerError(method, code, message)
 
-        return envelope.get("result")
+        if "result" not in envelope:
+            raise L2RpcProtocolError(method, "response is missing result")
+        return envelope["result"]
 
     def _http_call(self, request: JsonObject, method: str) -> Mapping[str, Any]:
         body = json.dumps(request, separators=(",", ":")).encode("utf-8")
@@ -365,24 +388,24 @@ class L2RpcClient:
         return _require_mapping(parsed, method)
 
 
-def _parse_batch_view(obj: Mapping[str, Any]) -> L2BatchView:
+def _parse_batch_view(obj: Mapping[str, Any], method: str) -> L2BatchView:
     return L2BatchView(
         chain_id=_int_field(obj, "chainId"),
-        batch_number=_int_field(obj, "batchNumber"),
-        first_block=_int_field(obj, "firstBlock"),
-        last_block=_int_field(obj, "lastBlock"),
-        pre_state_root=str(obj.get("preStateRoot")),
-        post_state_root=str(obj.get("postStateRoot")),
-        tx_root=str(obj.get("txRoot")),
-        receipt_root=str(obj.get("receiptRoot")),
-        withdrawal_root=str(obj.get("withdrawalRoot")),
-        l2_to_l1_message_root=str(obj.get("l2ToL1MessageRoot")),
-        l2_to_l2_message_root=str(obj.get("l2ToL2MessageRoot")),
-        da_commitment=str(obj.get("daCommitment")),
-        public_input_hash=str(obj.get("publicInputHash")),
+        batch_number=_u64_field(obj, "batchNumber", method),
+        first_block=_u64_field(obj, "firstBlock", method),
+        last_block=_u64_field(obj, "lastBlock", method),
+        pre_state_root=_string_field(obj, "preStateRoot", method),
+        post_state_root=_string_field(obj, "postStateRoot", method),
+        tx_root=_string_field(obj, "txRoot", method),
+        receipt_root=_string_field(obj, "receiptRoot", method),
+        withdrawal_root=_string_field(obj, "withdrawalRoot", method),
+        l2_to_l1_message_root=_string_field(obj, "l2ToL1MessageRoot", method),
+        l2_to_l2_message_root=_string_field(obj, "l2ToL2MessageRoot", method),
+        da_commitment=_string_field(obj, "daCommitment", method),
+        public_input_hash=_string_field(obj, "publicInputHash", method),
         proof_type=_enum_field(ProofType, obj, "proofType"),
-        proof=str(obj.get("proof")),
-        encoded=str(obj.get("encoded")),
+        proof=_hex_field(obj, "proof", method),
+        encoded=_hex_field(obj, "encoded", method),
     )
 
 
@@ -395,11 +418,53 @@ def _require_mapping(value: Any, method: str) -> Mapping[str, Any]:
 def _int_field(obj: Mapping[str, Any], key: str) -> int:
     try:
         value = obj[key]
-        if isinstance(value, bool):
+        if isinstance(value, bool) or not isinstance(value, int):
             raise ValueError("boolean is not an integer")
-        return int(value)
+        return value
     except (KeyError, TypeError, ValueError) as exc:
         raise L2RpcProtocolError("<decode>", f"field {key} must be an integer") from exc
+
+
+def _parse_u64(value: Any, method: str, key: str) -> int:
+    if isinstance(value, str) and (value == "0" or value.isdigit() and not value.startswith("0")):
+        parsed = int(value)
+    else:
+        raise L2RpcProtocolError(method, f"field {key} must be a canonical decimal u64 string")
+    if parsed < 0 or parsed > _U64_MAX:
+        raise L2RpcProtocolError(method, f"field {key} must be a canonical decimal u64 string")
+    return parsed
+
+
+def _u64_field(obj: Mapping[str, Any], key: str, method: str) -> int:
+    if key not in obj:
+        raise L2RpcProtocolError(method, f"field {key} is missing")
+    return _parse_u64(obj[key], method, key)
+
+
+def _string_field(obj: Mapping[str, Any], key: str, method: str) -> str:
+    value = obj.get(key)
+    if not isinstance(value, str):
+        raise L2RpcProtocolError(method, f"field {key} must be a string")
+    return value
+
+
+def _hex_field(obj: Mapping[str, Any], key: str, method: str) -> str:
+    value = _string_field(obj, key, method)
+    clean = value[2:] if value.startswith(("0x", "0X")) else value
+    if len(clean) % 2:
+        raise L2RpcProtocolError(method, f"field {key} must be an even-length hex string")
+    try:
+        bytes.fromhex(clean)
+    except ValueError as exc:
+        raise L2RpcProtocolError(method, f"field {key} must be a hex string") from exc
+    return value
+
+
+def _bool_field(obj: Mapping[str, Any], key: str, method: str) -> bool:
+    value = obj.get(key)
+    if not isinstance(value, bool):
+        raise L2RpcProtocolError(method, f"field {key} must be a boolean")
+    return value
 
 
 def _enum_field(enum_type: type[IntEnum], obj: Mapping[str, Any], key: str) -> IntEnum | int:

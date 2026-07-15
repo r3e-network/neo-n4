@@ -10,8 +10,9 @@ namespace Neo.L2.ForcedInclusion;
 ///   to that synchronous callback by the orchestration / plugin wiring.)</description></item>
 ///   <item><description><see cref="HasOverdueEntryAsync"/> drives <c>CensorshipDetector</c>, which
 ///   produces a <c>CensorshipReport</c> that an operator submits to
-///   <c>NeoHub.ForcedInclusion.ReportCensorship</c> — the on-chain enforcement (pause + slashing)
-///   that makes inclusion a guarantee rather than best-effort.</description></item>
+///   <c>NeoHub.ForcedInclusion.ReportCensorship</c> — the permissionless on-chain pause. Slashing
+///   is a separate governance action and requires finalized dBFT attribution evidence, so an
+///   overdue entry cannot be used to frame an arbitrary committee member.</description></item>
 /// </list>
 /// </summary>
 public interface IForcedInclusionSource
@@ -26,10 +27,11 @@ public interface IForcedInclusionSource
     ValueTask<IReadOnlyList<ForcedInclusionEntry>> DrainAsync(int max, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Mark <paramref name="nonce"/> as consumed so future <see cref="DrainAsync"/> calls
-    /// don't return it. Called by the batcher once the entry has been added to a sealed batch.
+    /// Confirm <paramref name="nonce"/> as consumed after L1 settlement finality and a successful
+    /// permissionless <c>ForcedInclusion.consume</c> read-back. The batcher must never call this while a
+    /// batch is merely open, sealed, proved, submitted, or pending finality.
     /// </summary>
-    ValueTask MarkConsumedAsync(ulong nonce, CancellationToken cancellationToken = default);
+    ValueTask ConfirmConsumedAsync(ulong nonce, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// True if any unconsumed entry has its deadline past <paramref name="nowUnixSeconds"/>.

@@ -1,3 +1,5 @@
+using Neo.L2.Batch;
+
 namespace Neo.L2.Proving.RiscVZk;
 
 /// <summary>
@@ -5,21 +7,32 @@ namespace Neo.L2.Proving.RiscVZk;
 /// thin shell whose concrete implementations live in dedicated backends:
 /// </summary>
 /// <list type="bullet">
-///   <item><description><c>Neo.L2.Proving.RiscVZk.Sp1Prover</c> — calls neo-zkvm's SP1 backend via FFI.</description></item>
+///   <item><description><see cref="Sp1BatchProofProver"/> — production client for the isolated SP1 daemon.</description></item>
 ///   <item><description><c>Neo.L2.Proving.RiscVZk.MockRiscVProver</c> — used in tests; produces a deterministic placeholder proof.</description></item>
 /// </list>
 /// <remarks>
-/// See doc.md §7.5 (Stage 2) and the survey notes in
-/// <c>memory/project_survey_findings.md</c> for current neo-zkvm capabilities and the work
-/// required to bridge from L2 batch format to SP1 input format.
+/// See doc.md §7.5 (Stage 2) and §8.
 /// </remarks>
-public abstract class RiscVProverBase : IL2Prover
+public abstract class RiscVProverBase : IZkExecutionProver
 {
     /// <inheritdoc />
     public ProofType Kind => ProofType.Zk;
 
     /// <summary>The proof system this prover targets.</summary>
     public abstract ProofSystem ProofSystem { get; }
+
+    /// <inheritdoc />
+    public WitnessProofSystem WitnessProofSystem =>
+        (WitnessProofSystem)(byte)ProofSystem;
+
+    /// <inheritdoc />
+    public abstract UInt256 VerificationKeyId { get; }
+
+    /// <inheritdoc />
+    public abstract UInt256 ExecutionSemanticId { get; }
+
+    /// <inheritdoc />
+    public abstract bool ProducesCryptographicProof { get; }
 
     /// <inheritdoc />
     public abstract ValueTask<ProofResult> ProveAsync(
@@ -38,6 +51,15 @@ public sealed class MockRiscVProver : RiscVProverBase
 
     /// <inheritdoc />
     public override ProofSystem ProofSystem => ProofSystem.Sp1;
+
+    /// <inheritdoc />
+    public override UInt256 VerificationKeyId => _vkId;
+
+    /// <inheritdoc />
+    public override UInt256 ExecutionSemanticId => ExecutionSemanticIds.Sp1LegacyNeoN3GuestV1;
+
+    /// <inheritdoc />
+    public override bool ProducesCryptographicProof => false;
 
     /// <summary>Construct with the verification-key identifier the matching verifier expects.</summary>
     public MockRiscVProver(UInt256 verificationKeyId)

@@ -5,32 +5,26 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Neo.Cryptography;
 using Neo.L2.Settlement.Rpc;
 
 namespace Neo.L2.ForcedInclusion;
 
 /// <summary>
 /// Production <see cref="IForcedInclusionSource"/> backed by a real Neo L1 RPC
-/// endpoint. Polls <c>NeoHub.ForcedInclusion</c>'s <c>[Safe]</c> read methods
-/// to fetch each known nonce's entry + consumption state, then returns
-/// unconsumed entries deadline-ordered to the L2 batcher.
+/// endpoint. Discovers finalized enqueue events through an optional durable scanner,
+/// polls <c>NeoHub.ForcedInclusion</c>'s <c>[Safe]</c> read methods for each tracked
+/// nonce, and returns unconsumed entries deadline-ordered to the L2 batcher.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Same operator-discovery model as <c>RpcSequencerCommitteeProvider</c>: the
-/// contract doesn't expose nonce-range enumeration via <c>[Safe]</c> reads, so
-/// the operator wires an L1 event-watcher subscribing to <c>OnForcedTxEnqueued</c>
-/// and forwards each nonce via <see cref="RegisterNonce"/>. A genesis seed of
-/// "all nonces 1..currentMax" can be loaded once at boot via the
-/// constructor's <c>knownNonces</c> argument.
+/// Production wiring supplies <see cref="RpcForcedInclusionEventScanner"/> so finalized
+/// <c>ForcedTxEnqueued</c> notifications and their cursor survive restarts. The
+/// <c>knownNonces</c> seed and <see cref="RegisterNonce"/> remain available
+/// for migrations and controlled recovery.
 /// </para>
-/// <para>
-/// <see cref="MarkConsumedAsync"/> is local-only bookkeeping: once the L2 batcher
-/// has sealed a forced tx into a batch, this source remembers "don't return that
-/// nonce from <see cref="DrainAsync"/> again." The L1 contract's matching
-/// <c>MarkConsumed</c> method is called by SettlementManager after a withdrawal
-/// finalizes — that's a different mechanism.
-/// </para>
+/// <para><see cref="ConfirmConsumedAsync"/> verifies the L1 consumed bit and never treats local
+/// memory as authoritative. The canonical settlement finalizer submits the write first.</para>
 /// </remarks>
 public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposable
 {
@@ -38,12 +32,13 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
     private readonly UInt160 _registryHash;
     private readonly TimeSpan _cacheTtl;
     private readonly bool _ownsRpc;
+    private readonly RpcForcedInclusionEventScanner? _eventScanner;
     private readonly ConcurrentDictionary<ulong, byte> _knownNonces = new();
-    private readonly ConcurrentDictionary<ulong, byte> _locallyConsumed = new();
     private readonly Lock _cacheGate = new();
     private readonly SemaphoreSlim _fetchConcurrency = new(8, 8); // Cap concurrent L1 RPC calls
     private List<ForcedInclusionEntry>? _cachedDrain;
     private DateTime _cacheUntilUtc = DateTime.MinValue;
+    private int _disposedFlag;
 
     /// <inheritdoc />
     public uint ChainId { get; }
@@ -54,16 +49,18 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
     /// <param name="rpc">L1 JSON-RPC client.</param>
     /// <param name="registryHash">Deployed <c>NeoHub.ForcedInclusion</c> hash.</param>
     /// <param name="chainId">L2 chain id this source serves.</param>
-    /// <param name="knownNonces">Bootstrap nonce set (operator's event-watcher seeds future nonces via <see cref="RegisterNonce"/>).</param>
+    /// <param name="knownNonces">Optional migration/recovery seed; production discovery comes from <paramref name="eventScanner"/>.</param>
     /// <param name="cacheTtl">Drain-cache TTL (default 5s — short enough for live state, long enough that a batcher per-block call doesn't fan out per-known-nonce every time).</param>
     /// <param name="ownsRpc">If true, <see cref="Dispose"/> disposes the rpc client.</param>
+    /// <param name="eventScanner">Optional durable finalized-event scanner; production supplies one.</param>
     public RpcForcedInclusionSource(
         JsonRpcClient rpc,
         UInt160 registryHash,
         uint chainId,
         IEnumerable<ulong> knownNonces,
         TimeSpan? cacheTtl = null,
-        bool ownsRpc = false)
+        bool ownsRpc = false,
+        RpcForcedInclusionEventScanner? eventScanner = null)
     {
         ArgumentNullException.ThrowIfNull(rpc);
         ArgumentNullException.ThrowIfNull(registryHash);
@@ -73,7 +70,13 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
         ChainId = chainId;
         _cacheTtl = cacheTtl ?? TimeSpan.FromSeconds(5);
         _ownsRpc = ownsRpc;
-        foreach (var n in knownNonces) _knownNonces[n] = 1;
+        _eventScanner = eventScanner;
+        foreach (var nonce in knownNonces) RegisterNonce(nonce);
+        if (_eventScanner is not null)
+        {
+            foreach (var nonce in _eventScanner.LoadTrackedNonces())
+                RegisterDiscoveredNonce(nonce);
+        }
     }
 
     /// <summary>
@@ -83,9 +86,8 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
     /// </summary>
     public bool RegisterNonce(ulong nonce)
     {
-        var added = _knownNonces.TryAdd(nonce, 1);
-        if (added) InvalidateCache();
-        return added;
+        _eventScanner?.TrackNonce(nonce);
+        return RegisterDiscoveredNonce(nonce);
     }
 
     /// <summary>Force a fresh L1 fanout on the next <see cref="DrainAsync"/>.</summary>
@@ -105,6 +107,11 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
         cancellationToken.ThrowIfCancellationRequested();
         if (max == 0) return Array.Empty<ForcedInclusionEntry>();
 
+        if (_eventScanner is not null)
+            await _eventScanner.ScanAsync(
+                    nonce => RegisterDiscoveredNonce(nonce), cancellationToken)
+                .ConfigureAwait(false);
+
         List<ForcedInclusionEntry>? drained;
         lock (_cacheGate)
         {
@@ -122,9 +129,8 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
             }
         }
 
-        // Filter out locally-consumed nonces + cap at `max`. Drain order: deadline asc.
+        // L1 consumption is filtered during FetchPendingAsync. Drain order: deadline asc.
         return drained
-            .Where(e => !_locallyConsumed.ContainsKey(e.Nonce))
             .OrderBy(e => e.DeadlineUnixSeconds)
             .ThenBy(e => e.Nonce)
             .Take(max)
@@ -132,11 +138,23 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
     }
 
     /// <inheritdoc />
-    public ValueTask MarkConsumedAsync(ulong nonce, CancellationToken cancellationToken = default)
+    public async ValueTask ConfirmConsumedAsync(
+        ulong nonce,
+        CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        _locallyConsumed[nonce] = 1;
-        return ValueTask.CompletedTask;
+        var consumed = await RpcContractReader.InvokeReadAsync(
+            _rpc,
+            _registryHash,
+            "isConsumed",
+            new object[] { ChainId, nonce },
+            cancellationToken).ConfigureAwait(false);
+        if (!RpcContractReader.ParseBoolean(consumed))
+            throw new InvalidOperationException(
+                $"forced-inclusion nonce {nonce} is not confirmed consumed on L1");
+        _eventScanner?.ForgetNonce(nonce);
+        _knownNonces.TryRemove(nonce, out _);
+        InvalidateCache();
     }
 
     /// <inheritdoc />
@@ -158,7 +176,6 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
         // Each nonce requires 2 RPC calls (getEntry + isConsumed); the semaphore
         // ensures at most 8 nonces are fetched concurrently, regardless of queue size.
         var fetchTasks = snapshot
-            .Where(n => !_locallyConsumed.ContainsKey(n))
             .Select(n => FetchEntryThrottledAsync(n, ct))
             .ToArray();
         var entries = await Task.WhenAll(fetchTasks).ConfigureAwait(false);
@@ -180,8 +197,8 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
 
     private async Task<ForcedInclusionEntry?> FetchEntryAsync(ulong nonce, CancellationToken ct)
     {
-        // Two parallel reads: GetEntry to fetch the encoded payload, IsConsumed to drop
-        // entries L1 has already finalized via SettlementManager.
+        // Two parallel reads: GetEntry fetches the encoded payload; IsConsumed drops entries
+        // already confirmed by permissionless consumption after settlement finality.
         var entryTask = RpcContractReader.InvokeReadAsync(_rpc, _registryHash, "getEntry", new object[] { ChainId, nonce }, ct).AsTask();
         var consumedTask = RpcContractReader.InvokeReadAsync(_rpc, _registryHash, "isConsumed", new object[] { ChainId, nonce }, ct).AsTask();
         await Task.WhenAll(entryTask, consumedTask).ConfigureAwait(false);
@@ -216,6 +233,10 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
             throw new InvalidDataException(
                 $"forced-tx entry size {bytes.Length} != expected {FixedHeader + txLen + FixedTrailer} for txLen={txLen}");
         var tx = bytes.Slice(56, txLen).ToArray();
+        var encodedTxHash = new UInt256(Crypto.Hash256(tx));
+        if (!encodedTxHash.Equals(txHash))
+            throw new InvalidDataException(
+                $"forced-tx entry nonce {nonce} txHash does not match Hash256(encodedTx)");
         var deadline = BinaryPrimitives.ReadUInt32LittleEndian(bytes.Slice(56 + txLen, 4));
         return new ForcedInclusionEntry
         {
@@ -230,9 +251,16 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
     /// <inheritdoc />
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed_flag, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposedFlag, 1) != 0) return;
+        _eventScanner?.Dispose();
         _fetchConcurrency.Dispose();
         if (_ownsRpc) _rpc.Dispose();
     }
-    private int _disposed_flag;
+
+    private bool RegisterDiscoveredNonce(ulong nonce)
+    {
+        var added = _knownNonces.TryAdd(nonce, 1);
+        if (added) InvalidateCache();
+        return added;
+    }
 }

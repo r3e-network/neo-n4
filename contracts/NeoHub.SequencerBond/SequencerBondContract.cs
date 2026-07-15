@@ -15,7 +15,7 @@ namespace NeoHub.SequencerBond;
 /// §17 (sequencer-censorship + invalid-state mitigations).
 /// </summary>
 [DisplayName("NeoHub.SequencerBond")]
-[ContractAuthor("Neo Project", "dev@neo.org")]
+[ContractAuthor("R3E Network", "dev@r3e.network")]
 [ContractDescription("Per-(chain, sequencer) slashable bond escrow for Neo Elastic Network.")]
 [ContractVersion("0.1.0")]
 [ContractSourceCode("https://github.com/r3e-network/neo-n4/tree/master/contracts/NeoHub.SequencerBond")]

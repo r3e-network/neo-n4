@@ -31,6 +31,19 @@ public static class MetricNames
     /// <summary>Histogram: round-trip ms for a SubmitBatch call.</summary>
     public const string SubmitLatencyMs = "l2.settlement.submit_latency_ms";
 
+    /// <summary>Current canonical artifacts not fully reconciled on L1.</summary>
+    public const string SettlementPending = "l2.settlement.pending";
+
+    /// <summary>Gauge: canonical batches submitted or ready but not yet observed on L1.</summary>
+    public const string SettlementConfirmationLagBatches =
+        "l2.settlement.confirmation_lag_batches";
+
+    /// <summary>Failed canonical settlement reconciliation attempts.</summary>
+    public const string SettlementRetries = "l2.settlement.retries";
+
+    /// <summary>Whether the ordered settlement head is durably poisoned.</summary>
+    public const string SettlementPoisoned = "l2.settlement.poisoned";
+
     // ---- Proving ----
 
     /// <summary>Counter: proofs generated, tagged by <c>kind</c>.</summary>

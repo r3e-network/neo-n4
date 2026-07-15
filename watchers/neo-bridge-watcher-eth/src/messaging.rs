@@ -4,6 +4,9 @@
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
+/// Canonical EVM native-asset sentinel shared with Solidity and C#.
+pub const NATIVE_ASSET_SENTINEL: [u8; 20] = [0xee; 20];
+
 /// Direction the message flows. Matches `Neo.L2.ExternalBridgeDirection`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -58,6 +61,10 @@ pub enum BuildError {
     UnsupportedMessageType(u8),
     #[error("payload length {0} exceeds u32::MAX — cannot encode canonical message")]
     PayloadTooLarge(usize),
+    #[error("asset amount must be 1..=32 bytes in minimal unsigned little-endian form")]
+    InvalidAmountEncoding,
+    #[error("foreign asset must be non-zero")]
+    InvalidForeignAsset,
 }
 
 /// Build the canonical pre-image bytes (102-byte fixed prefix + payload).
@@ -69,7 +76,11 @@ pub fn canonical_message_bytes(msg: &ExternalCrossChainMessage) -> Result<Vec<u8
         return Err(BuildError::BadNamespace(msg.external_chain_id));
     }
 
-    let size = 102 + msg.payload.len();
+    let payload_len = u32::try_from(msg.payload.len())
+        .map_err(|_| BuildError::PayloadTooLarge(msg.payload.len()))?;
+    let size = 102usize
+        .checked_add(msg.payload.len())
+        .ok_or(BuildError::PayloadTooLarge(msg.payload.len()))?;
     let mut out = Vec::with_capacity(size);
     out.extend_from_slice(&msg.external_chain_id.to_le_bytes());
     out.extend_from_slice(&msg.neo_chain_id.to_le_bytes());
@@ -80,8 +91,6 @@ pub fn canonical_message_bytes(msg: &ExternalCrossChainMessage) -> Result<Vec<u8
     out.extend_from_slice(&msg.deadline_unix_seconds.to_le_bytes());
     out.extend_from_slice(&msg.source_tx_ref);
     out.push(msg.message_type as u8);
-    let payload_len = u32::try_from(msg.payload.len())
-        .map_err(|_| BuildError::PayloadTooLarge(msg.payload.len()))?;
     out.extend_from_slice(&payload_len.to_le_bytes());
     out.extend_from_slice(&msg.payload);
     debug_assert_eq!(out.len(), size);
@@ -109,8 +118,11 @@ pub fn encode_asset_transfer_payload(
     foreign_asset: [u8; 20],
     amount_le: &[u8],
 ) -> Result<Vec<u8>, BuildError> {
-    if amount_le.len() > 64 {
-        return Err(BuildError::PayloadTooLarge(amount_le.len()));
+    if foreign_asset == [0; 20] {
+        return Err(BuildError::InvalidForeignAsset);
+    }
+    if amount_le.is_empty() || amount_le.len() > 32 || amount_le.last() == Some(&0) {
+        return Err(BuildError::InvalidAmountEncoding);
     }
     let mut out = Vec::with_capacity(20 + 4 + amount_le.len());
     out.extend_from_slice(&foreign_asset);
@@ -125,11 +137,16 @@ pub fn encode_asset_transfer_payload(
 mod tests {
     use super::*;
 
+    const ASYMMETRIC_ASSET: [u8; 20] = [
+        0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc,
+        0xfe, 0x11, 0x22, 0x33, 0x44,
+    ];
+
     fn sample_msg() -> ExternalCrossChainMessage {
         // 1_000_000 = 0x0F4240, encoded as the 3-byte minimal LE representation
         // (matches BigInteger.ToByteArray() in C# for unsigned values that don't
         // need a sign byte).
-        let payload = encode_asset_transfer_payload([0xee; 20], &[0x40, 0x42, 0x0F]).unwrap();
+        let payload = encode_asset_transfer_payload(ASYMMETRIC_ASSET, &[0x40, 0x42, 0x0F]).unwrap();
         ExternalCrossChainMessage {
             external_chain_id: 0xE000_0001,
             neo_chain_id: 1099,
@@ -151,7 +168,7 @@ mod tests {
     fn canonical_bytes_match_csharp_vector() {
         let msg = sample_msg();
         let bytes = canonical_message_bytes(&msg).unwrap();
-        let expected = "010000e04b0400000700000000000000021111111111111111111111111111111111111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00b33f7100000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee001b000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0300000040420f";
+        let expected = "010000e04b0400000700000000000000021111111111111111111111111111111111111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00b33f7100000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee001b0000000123456789abcdef1032547698badcfe112233440300000040420f";
         assert_eq!(hex::encode(&bytes), expected);
         assert_eq!(bytes.len(), 129);
     }
@@ -163,14 +180,14 @@ mod tests {
     /// byte order). When the C# side's `UInt256.ToString()` displays the
     /// same hash it REVERSES the bytes (Neo's UInt256 display convention is
     /// big-endian-for-humans even though storage is little-endian) — that
-    /// reversed display is `acbfe1e9...` for this vector. Both
+    /// reversed display is `f69f8169...` for this vector. Both
     /// representations are the same 32 bytes; the test pins the raw
     /// (Rust-natural) order.
     #[test]
     fn message_hash_matches_csharp_vector() {
         let msg = sample_msg();
         let hash = message_hash(&msg).unwrap();
-        let expected_raw = "ce681e5ecb3eaf452d1834fd94c397271a6556736a4ecfa1e66e4d67e9e1bfac";
+        let expected_raw = "473ca6a7e6e63a57952ff7fdd7a9338f3202e3843386f13ec6fee5da69819ff6";
         assert_eq!(hex::encode(hash), expected_raw);
     }
 
@@ -210,5 +227,35 @@ mod tests {
         msg.payload.clear();
         let bytes = canonical_message_bytes(&msg).unwrap();
         assert_eq!(bytes.len(), 102);
+    }
+
+    #[test]
+    fn asset_payload_rejects_zero_non_minimal_and_overwide_amounts() {
+        assert!(matches!(
+            encode_asset_transfer_payload([0; 20], &[1]),
+            Err(BuildError::InvalidForeignAsset)
+        ));
+        assert!(matches!(
+            encode_asset_transfer_payload(ASYMMETRIC_ASSET, &[]),
+            Err(BuildError::InvalidAmountEncoding)
+        ));
+        assert!(matches!(
+            encode_asset_transfer_payload(ASYMMETRIC_ASSET, &[0]),
+            Err(BuildError::InvalidAmountEncoding)
+        ));
+        assert!(matches!(
+            encode_asset_transfer_payload(ASYMMETRIC_ASSET, &[1, 0]),
+            Err(BuildError::InvalidAmountEncoding)
+        ));
+        assert!(matches!(
+            encode_asset_transfer_payload(ASYMMETRIC_ASSET, &[1; 33]),
+            Err(BuildError::InvalidAmountEncoding)
+        ));
+    }
+
+    #[test]
+    fn native_asset_sentinel_encodes_as_non_zero_foreign_asset() {
+        let payload = encode_asset_transfer_payload(NATIVE_ASSET_SENTINEL, &[1]).unwrap();
+        assert_eq!(&payload[..20], &NATIVE_ASSET_SENTINEL);
     }
 }

@@ -34,7 +34,7 @@ public class UT_InMemoryForcedInclusionSource
         src.Enqueue(MkEntry(1, 1_700_005_000));
         src.Enqueue(MkEntry(2, 1_700_007_000));
 
-        await src.MarkConsumedAsync(1);
+        await src.ConfirmConsumedAsync(1);
         Assert.AreEqual(1, src.PendingCount);
 
         var drained = await src.DrainAsync(10);
@@ -55,7 +55,7 @@ public class UT_InMemoryForcedInclusionSource
     {
         var src = new InMemoryForcedInclusionSource(1001);
         src.Enqueue(MkEntry(1, 1_700_005_000));
-        await src.MarkConsumedAsync(1);
+        await src.ConfirmConsumedAsync(1);
         Assert.ThrowsExactly<InvalidOperationException>(() => src.Enqueue(MkEntry(1, 1_700_006_000)));
     }
 
@@ -90,7 +90,7 @@ public class UT_InMemoryForcedInclusionSource
     public async Task MarkConsumedNonexistentThrows()
     {
         var src = new InMemoryForcedInclusionSource(1001);
-        await Assert.ThrowsExactlyAsync<InvalidOperationException>(async () => await src.MarkConsumedAsync(99));
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(async () => await src.ConfirmConsumedAsync(99));
     }
 
     [TestMethod]

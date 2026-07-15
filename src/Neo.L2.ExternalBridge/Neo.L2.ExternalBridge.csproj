@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Neo.L2.ExternalBridge</RootNamespace>
+    <AssemblyName>Neo.L2.ExternalBridge</AssemblyName>
+    <Description>Durable authenticated external-bridge payout relay from NeoHub L1 to Neo L2.</Description>
+    <PackageTags>NEO;L2;ExternalBridge;Relay;Payout</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+    <ProjectReference Include="..\Neo.L2.Bridge\Neo.L2.Bridge.csproj" />
+    <ProjectReference Include="..\Neo.L2.Messaging\Neo.L2.Messaging.csproj" />
+    <ProjectReference Include="..\Neo.L2.Persistence\Neo.L2.Persistence.csproj" />
+    <ProjectReference Include="..\Neo.L2.Settlement.Rpc\Neo.L2.Settlement.Rpc.csproj" />
+    <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
+    <ProjectReference Include="$(NeoCorePath)\Neo.Json\Neo.Json.csproj" />
+  </ItemGroup>
+
+</Project>

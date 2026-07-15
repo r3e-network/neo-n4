@@ -33,6 +33,13 @@ public class UT_JsonRpcL1DAWriter
     private static readonly Uri FakeEndpoint = new("http://localhost/jsonrpc");
     private static readonly UInt160 FakeContract = UInt160.Parse("0x" + new string('a', 40));
     private static readonly UInt256 FakeTxHash = UInt256.Parse("0x" + new string('5', 64));
+    private static readonly byte[] FakeConfirmationEvidence = [0x01, 0xCA, 0xFE];
+
+    private static ValueTask<ReadOnlyMemory<byte>> Confirmed(
+        UInt256 _,
+        DAPublishRequest __,
+        CancellationToken ___)
+        => new((ReadOnlyMemory<byte>)FakeConfirmationEvidence);
 
     private static DAPublishRequest SampleRequest(byte[]? payload = null) => new()
     {
@@ -47,7 +54,8 @@ public class UT_JsonRpcL1DAWriter
         Assert.ThrowsExactly<ArgumentNullException>(() => new JsonRpcL1DAWriter(
             null!,
             FakeContract,
-            (_, _, _) => new ValueTask<UInt256>(FakeTxHash)));
+            (_, _, _) => new ValueTask<UInt256>(FakeTxHash),
+            Confirmed));
     }
 
     [TestMethod]
@@ -55,7 +63,23 @@ public class UT_JsonRpcL1DAWriter
     {
         using var http = new HttpClient(new StubHandler());
         using var rpc = new JsonRpcClient(FakeEndpoint, http);
-        Assert.ThrowsExactly<ArgumentNullException>(() => new JsonRpcL1DAWriter(rpc, FakeContract, null!));
+        Assert.ThrowsExactly<ArgumentNullException>(() => new JsonRpcL1DAWriter(
+            rpc,
+            FakeContract,
+            null!,
+            Confirmed));
+    }
+
+    [TestMethod]
+    public void Constructor_RejectsNullConfirmationCallback()
+    {
+        using var http = new HttpClient(new StubHandler());
+        using var rpc = new JsonRpcClient(FakeEndpoint, http);
+        Assert.ThrowsExactly<ArgumentNullException>(() => new JsonRpcL1DAWriter(
+            rpc,
+            FakeContract,
+            (_, _, _) => new ValueTask<UInt256>(FakeTxHash),
+            null!));
     }
 
     [TestMethod]
@@ -68,6 +92,7 @@ public class UT_JsonRpcL1DAWriter
         Assert.ThrowsExactly<ArgumentException>(() => new JsonRpcL1DAWriter(
             rpc, FakeContract,
             (_, _, _) => new ValueTask<UInt256>(FakeTxHash),
+            Confirmed,
             isAvailableRpcMethod: ""));
     }
 
@@ -77,8 +102,10 @@ public class UT_JsonRpcL1DAWriter
         using var http = new HttpClient(new StubHandler());
         using var rpc = new JsonRpcClient(FakeEndpoint, http);
         using var writer = new JsonRpcL1DAWriter(rpc, FakeContract,
-            (_, _, _) => new ValueTask<UInt256>(FakeTxHash));
+            (_, _, _) => new ValueTask<UInt256>(FakeTxHash),
+            Confirmed);
         Assert.AreEqual(DAMode.L1, writer.Mode);
+        Assert.AreEqual(DAReceiptKind.L1Transaction, writer.ReceiptKind);
     }
 
     [TestMethod]
@@ -87,7 +114,8 @@ public class UT_JsonRpcL1DAWriter
         using var http = new HttpClient(new StubHandler());
         using var rpc = new JsonRpcClient(FakeEndpoint, http);
         using var writer = new JsonRpcL1DAWriter(rpc, FakeContract,
-            (_, _, _) => new ValueTask<UInt256>(FakeTxHash));
+            (_, _, _) => new ValueTask<UInt256>(FakeTxHash),
+            Confirmed);
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(
             async () => await writer.PublishAsync(null!));
     }
@@ -106,7 +134,7 @@ public class UT_JsonRpcL1DAWriter
             capturedContract = contract;
             capturedRequest = request;
             return new ValueTask<UInt256>(FakeTxHash);
-        });
+        }, Confirmed);
 
         var req = SampleRequest();
         var receipt = await writer.PublishAsync(req);
@@ -114,6 +142,8 @@ public class UT_JsonRpcL1DAWriter
         Assert.AreEqual(FakeContract, capturedContract);
         Assert.AreSame(req, capturedRequest);
         Assert.AreEqual(DAMode.L1, receipt.Layer);
+        Assert.AreEqual(DAReceiptKind.L1Transaction, receipt.Kind);
+        CollectionAssert.AreEqual(FakeConfirmationEvidence, receipt.Evidence.ToArray());
         // Pointer = tx hash bytes (32B). UInt256.GetSpan().ToArray() round-trips.
         Assert.AreEqual(32, receipt.Pointer.Length);
         CollectionAssert.AreEqual(FakeTxHash.GetSpan().ToArray(), receipt.Pointer.ToArray());
@@ -127,7 +157,8 @@ public class UT_JsonRpcL1DAWriter
         using var http = new HttpClient(new StubHandler());
         using var rpc = new JsonRpcClient(FakeEndpoint, http);
         using var writer = new JsonRpcL1DAWriter(rpc, FakeContract,
-            (_, _, _) => new ValueTask<UInt256>(FakeTxHash));
+            (_, _, _) => new ValueTask<UInt256>(FakeTxHash),
+            Confirmed);
 
         var payload = new byte[] { 0x10, 0x20, 0x30, 0x40 };
         var receipt = await writer.PublishAsync(SampleRequest(payload));
@@ -143,7 +174,8 @@ public class UT_JsonRpcL1DAWriter
         using var http = new HttpClient(new StubHandler());
         using var rpc = new JsonRpcClient(FakeEndpoint, http);
         using var writer = new JsonRpcL1DAWriter(rpc, FakeContract,
-            (_, _, _) => new ValueTask<UInt256>((UInt256)null!));
+            (_, _, _) => new ValueTask<UInt256>((UInt256)null!),
+            Confirmed);
 
         var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             async () => await writer.PublishAsync(SampleRequest()));
@@ -151,22 +183,60 @@ public class UT_JsonRpcL1DAWriter
     }
 
     [TestMethod]
-    public async Task IsAvailableAsync_ZeroCommitment_ShortCircuitsTrue()
+    public async Task PublishAsync_EmptyConfirmationEvidence_Throws()
     {
-        // Matches the off-chain DAAvailabilityCheck "no DA" sentinel: a zero commitment
-        // means the batch never published, so we don't round-trip to L1 just to confirm
-        // emptiness.
         using var http = new HttpClient(new StubHandler());
         using var rpc = new JsonRpcClient(FakeEndpoint, http);
         using var writer = new JsonRpcL1DAWriter(rpc, FakeContract,
-            (_, _, _) => new ValueTask<UInt256>(FakeTxHash));
+            (_, _, _) => new ValueTask<UInt256>(FakeTxHash),
+            (_, _, _) => new ValueTask<ReadOnlyMemory<byte>>(ReadOnlyMemory<byte>.Empty));
+
+        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            async () => await writer.PublishAsync(SampleRequest()));
+        StringAssert.Contains(ex.Message, "empty transaction evidence");
+    }
+
+    [TestMethod]
+    public async Task IsAvailableAsync_MissingMetadata_ReturnsFalse()
+    {
+        using var http = new HttpClient(new StubHandler());
+        using var rpc = new JsonRpcClient(FakeEndpoint, http);
+        using var writer = new JsonRpcL1DAWriter(rpc, FakeContract,
+            (_, _, _) => new ValueTask<UInt256>(FakeTxHash),
+            Confirmed);
         var receipt = new DAReceipt
         {
             Commitment = UInt256.Zero,
             Pointer = ReadOnlyMemory<byte>.Empty,
             Layer = DAMode.L1,
         };
-        Assert.IsTrue(await writer.IsAvailableAsync(receipt));
+        Assert.IsFalse(await writer.IsAvailableAsync(receipt));
+    }
+
+    [TestMethod]
+    public async Task IsAvailableAsync_WrongLayerOrReceiptKind_ReturnsFalseWithoutRpc()
+    {
+        var stub = new StubHandler
+        {
+            ResponseBody = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"state\":\"HALT\",\"stack\":[{\"type\":\"Boolean\",\"value\":\"true\"}]}}",
+        };
+        using var http = new HttpClient(stub);
+        using var rpc = new JsonRpcClient(FakeEndpoint, http);
+        using var writer = new JsonRpcL1DAWriter(rpc, FakeContract,
+            (_, _, _) => new ValueTask<UInt256>(FakeTxHash),
+            Confirmed);
+        var receipt = new DAReceipt
+        {
+            Commitment = UInt256.Parse("0x" + new string('1', 64)),
+            Pointer = FakeTxHash.GetSpan().ToArray(),
+            Evidence = FakeConfirmationEvidence,
+            Kind = DAReceiptKind.L1Transaction,
+            Layer = DAMode.L1,
+        };
+
+        Assert.IsFalse(await writer.IsAvailableAsync(receipt with { Layer = DAMode.NeoFS }));
+        Assert.IsFalse(await writer.IsAvailableAsync(receipt with { Kind = DAReceiptKind.NeoFSObject }));
+        Assert.AreEqual(string.Empty, stub.LastRequestBody);
     }
 
     [TestMethod]
@@ -179,11 +249,14 @@ public class UT_JsonRpcL1DAWriter
         using var http = new HttpClient(stub);
         using var rpc = new JsonRpcClient(FakeEndpoint, http);
         using var writer = new JsonRpcL1DAWriter(rpc, FakeContract,
-            (_, _, _) => new ValueTask<UInt256>(FakeTxHash));
+            (_, _, _) => new ValueTask<UInt256>(FakeTxHash),
+            Confirmed);
         var receipt = new DAReceipt
         {
             Commitment = UInt256.Parse("0x" + new string('1', 64)),
-            Pointer = ReadOnlyMemory<byte>.Empty,
+            Pointer = FakeTxHash.GetSpan().ToArray(),
+            Evidence = FakeConfirmationEvidence,
+            Kind = DAReceiptKind.L1Transaction,
             Layer = DAMode.L1,
         };
         Assert.IsTrue(await writer.IsAvailableAsync(receipt));
@@ -199,11 +272,14 @@ public class UT_JsonRpcL1DAWriter
         using var http = new HttpClient(stub);
         using var rpc = new JsonRpcClient(FakeEndpoint, http);
         using var writer = new JsonRpcL1DAWriter(rpc, FakeContract,
-            (_, _, _) => new ValueTask<UInt256>(FakeTxHash));
+            (_, _, _) => new ValueTask<UInt256>(FakeTxHash),
+            Confirmed);
         var receipt = new DAReceipt
         {
             Commitment = UInt256.Parse("0x" + new string('1', 64)),
-            Pointer = ReadOnlyMemory<byte>.Empty,
+            Pointer = FakeTxHash.GetSpan().ToArray(),
+            Evidence = FakeConfirmationEvidence,
+            Kind = DAReceiptKind.L1Transaction,
             Layer = DAMode.L1,
         };
         Assert.IsFalse(await writer.IsAvailableAsync(receipt));
@@ -221,11 +297,14 @@ public class UT_JsonRpcL1DAWriter
         using var http = new HttpClient(stub);
         using var rpc = new JsonRpcClient(FakeEndpoint, http);
         using var writer = new JsonRpcL1DAWriter(rpc, FakeContract,
-            (_, _, _) => new ValueTask<UInt256>(FakeTxHash));
+            (_, _, _) => new ValueTask<UInt256>(FakeTxHash),
+            Confirmed);
         var receipt = new DAReceipt
         {
             Commitment = UInt256.Parse("0x" + new string('1', 64)),
-            Pointer = ReadOnlyMemory<byte>.Empty,
+            Pointer = FakeTxHash.GetSpan().ToArray(),
+            Evidence = FakeConfirmationEvidence,
+            Kind = DAReceiptKind.L1Transaction,
             Layer = DAMode.L1,
         };
         Assert.IsFalse(await writer.IsAvailableAsync(receipt));
@@ -237,7 +316,8 @@ public class UT_JsonRpcL1DAWriter
         using var http = new HttpClient(new StubHandler());
         var rpc = new JsonRpcClient(FakeEndpoint, http);
         var writer = new JsonRpcL1DAWriter(rpc, FakeContract,
-            (_, _, _) => new ValueTask<UInt256>(FakeTxHash));
+            (_, _, _) => new ValueTask<UInt256>(FakeTxHash),
+            Confirmed);
         writer.Dispose();
         await Assert.ThrowsExactlyAsync<ObjectDisposedException>(
             async () => await writer.PublishAsync(SampleRequest()));

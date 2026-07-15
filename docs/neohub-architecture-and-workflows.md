@@ -24,9 +24,9 @@ implemented as a contract or plugin:
 
 Current status:
 
-- 24 `contracts/NeoHub.*` projects exist in `neo-n4`.
-- 23 are production NeoHub contracts; `ExternalBridgeStubVerifier` is test-only.
-- 23 are deployed by the production NeoHub deploy plan.
+- 26 `contracts/NeoHub.*` projects exist in `neo-n4`.
+- 24 are production NeoHub contracts; `GovernanceFraudVerifier` is advisory-only and `ExternalBridgeStubVerifier` is test-only.
+- The production NeoHub deploy plan deploys exactly those 24 production contracts.
 - `ContractZkVerifier` is a deployable NeoHub contract. It validates the
   N4 proof envelope and dispatches proof-system math to a governance-registered
   deployable verifier contract, keeping L1 core changes optional rather than
@@ -169,7 +169,7 @@ sequenceDiagram
     participant DA as DARegistry
 
     Operator->>Governance: request/admit chain policy
-    Governance->>Chain: registerChain(chainId, configBytes)
+    Governance->>Chain: registerChain(chainId, configBytes, genesisStateRoot)
     Operator->>Verifier: register proof verifier for chain/proofType
     Operator->>Token: register L1/L2 asset mappings
     Operator->>DA: register DA mode or committee metadata
@@ -179,11 +179,15 @@ sequenceDiagram
 Registration is the first load-bearing step. A chain cannot safely accept
 deposits, finalize batches, or consume messages until:
 
-1. `ChainRegistry` has a non-zero active config.
+1. `ChainRegistry` has a non-zero active config and an immutable, non-zero authenticated
+   genesis state root registered atomically with it.
 2. `VerifierRegistry` knows which verifier handles the chain's proof mode.
 3. `TokenRegistry` maps the assets the bridge may move.
 4. `DARegistry` and `DAValidator` can evaluate the chain's DA mode.
 5. Governance/emergency policy has a known owner or council path.
+
+The first submitted batch must use that exact registered genesis root as its `preStateRoot`.
+This prevents the first batch submitter from selecting the chain's settlement trust anchor.
 
 ## 7. Deposit data flow
 
@@ -191,7 +195,7 @@ deposits, finalize batches, or consume messages until:
 sequenceDiagram
     participant User
     participant Bridge as SharedBridge
-    participant Token as TokenRegistry
+    participant Tokens as TokenRegistry
     participant Chain as ChainRegistry
     participant Router as MessageRouter
     participant L2Bridge as L2BridgeContract
@@ -199,7 +203,7 @@ sequenceDiagram
 
     User->>Bridge: deposit(l1Asset, targetChainId, receiver, amount)
     Bridge->>Chain: read chain config and active flag
-    Bridge->>Token: read canonical asset mapping
+    Bridge->>Tokens: read canonical asset mapping
     Bridge->>Bridge: lock L1 asset / record nonce
     Bridge->>Router: enqueue L1-to-L2 deposit message
     Router-->>L2: message observed by relayer / L2 node
@@ -336,10 +340,11 @@ The security stack is layered:
 - `SequencerRegistry` determines which sequencers are active for a chain.
 - `SequencerBond` holds slashable value and controls exit windows.
 - `OptimisticChallenge` coordinates challenges over submitted batches.
-- `GovernanceFraudVerifier` verifies structural v1/v2 fraud payloads used by
-  governance arbitration.
-- `RestrictedExecutionFraudVerifier` verifies v3 storage-proof based fraud
-  payloads by re-deriving pre/post roots without governance arbitration.
+- `GovernanceFraudVerifier` verifies advisory structural v1/v2 payloads for
+  offline audit diagnostics; it cannot authorize a state-changing challenge.
+- `RestrictedExecutionFraudVerifier` keeps v3 storage-proof payloads advisory-only;
+  exact registered v4 reads the committed SettlementManager header and executes the
+  declared single-transaction Counter semantic before permissionless slashing.
 
 ## 12. External bridge data flow
 
@@ -351,15 +356,24 @@ sequenceDiagram
     participant Registry as ExternalBridgeRegistry
     participant Escrow as ExternalBridgeEscrow
     participant Bond as ExternalBridgeBond
-    participant Bridge as SharedBridge
+    participant Token as NEP-17
+    participant Adapter as Payout-v1 adapter
 
     Foreign->>Watcher: lock / message event
     Watcher->>Watcher: wait min confirmations, journal event
-    Watcher->>MPC: submit committee proof
+    Watcher->>Escrow: canonical message + proof
+    Escrow->>Registry: verifyInbound(chain, message, proof)
+    Registry->>MPC: verifyInboundMessage
     MPC->>Bond: check signer set / bonded committee
-    MPC-->>Escrow: event accepted
-    Escrow->>Registry: resolve external chain + asset route
-    Escrow->>Bridge: mint/credit or enqueue target message
+    MPC-->>Registry: accepted
+    Registry-->>Escrow: accepted
+    Escrow->>Escrow: consume domain nonce + resolve immutable asset route
+    alt direct funded release
+        Escrow->>Token: transfer(escrow, signed recipient, amount)
+    else target-chain credit instruction
+        Escrow->>Adapter: payout(all signed fields, canonical bytes)
+        Adapter-->>Escrow: credit persisted/enqueued atomically
+    end
 ```
 
 The external bridge plane is intentionally separate from normal L2 settlement:
@@ -413,12 +427,12 @@ be visible through events and operator runbooks.
 | `SequencerRegistry` | Track active sequencers and committee membership per chain. | Chain id, sequencer account, metadata, activation/exit action. | Sequencer registered/removed/exit-started. | Governance/operator, settlement/challenge readers. |
 | `ForcedInclusion` | Store user-posted forced transactions and inclusion deadlines. | Chain id, sender, transaction bytes, deadline policy. | Forced transaction queued/consumed/expired. | Users, L2 sequencer, challenge tooling. |
 | `OptimisticChallenge` | Run optimistic fraud challenge flow over disputed batches. | Chain id, batch number, challenger, fraud payload, verifier. | Challenge opened/accepted/rejected; batch status updated. | Challengers, settlement, sequencer bond. |
-| `GovernanceFraudVerifier` | Validate structural v1/v2 fraud payloads for governance-mediated challenges. | Versioned fraud payload, claimed/replayed roots, optional witness. | FraudProofAccepted or FraudProofRejected with reason code. | `OptimisticChallenge`, governance challenge path. |
-| `RestrictedExecutionFraudVerifier` | Validate v3 storage-proof fraud payloads by re-deriving pre/post roots. | V3 payload, storage proofs, claimed/replayed roots, disputed tx witness. | FraudProofAccepted or FraudProofRejected with precise reason. | `OptimisticChallenge`, trustless restricted re-execution path. |
+| `GovernanceFraudVerifier` | Validate advisory structural v1/v2 payloads for audit diagnostics. | Versioned fraud payload, claimed/replayed roots, optional witness. | Reason-coded structural result; never authorizes revert/slash. | Offline auditors and tooling; excluded from the production deploy plan. |
+| `RestrictedExecutionFraudVerifier` | Validate advisory structural v3 or committed-root-bound executable restricted v4. | V3 evidence, or v4 chain/batch/root/transcript/claim/tx/storage witness. | V3 is non-state-changing; v4 returns true only for a wrong committed Counter transition. | `OptimisticChallenge` only through exact registered v4; not general NeoVM. |
 | `MpcCommitteeVerifier` | Verify external-chain committee signatures and signer threshold. | External event hash, committee signatures, signer metadata. | External event accepted/rejected. | Watchers, `ExternalBridgeEscrow`. |
 | `MpcCommitteeFraudVerifier` | Challenge or slash incorrect external committee attestations. | Fraud proof over committee-signed external event. | Fraud accepted/rejected; slashing path enabled. | Challengers, `ExternalBridgeBond`. |
-| `ExternalBridgeRegistry` | Register foreign chains, asset routes, and bridge adapters. | External chain id, foreign asset/router, Neo asset/chain route. | External route registered/updated. | Operator/governance, `ExternalBridgeEscrow`. |
-| `ExternalBridgeEscrow` | Hold or release assets for foreign-chain bridge events. | Verified external event, route, recipient, amount. | External deposit/withdrawal/message consumed. | Watchers, external bridge relayers, `SharedBridge`. |
+| `ExternalBridgeRegistry` | Register each foreign chain's verifier and trust-model kind. | External chain id, verifier hash, bridge kind. | Verifier route registered/updated. | Operator/governance, `ExternalBridgeEscrow`. |
+| `ExternalBridgeEscrow` | Hold outbound assets and atomically release or credit verified inbound value. | Canonical signed event/proof; immutable asset route; source/destination chains, nonce, recipient, amount, deadline. | Replay consumed only with successful direct NEP-17 payout or pinned payout-v1 adapter credit. | Watchers, external bridge relayers, NEP-17/payout adapters. |
 | `ExternalBridgeBond` | Bond and slash external bridge committee members. | Committee member, bond amount, fraud/slash request. | Bond deposited/slashed/withdrawn. | Committee members, fraud verifier, governance. |
 | `ExternalBridgeStubVerifier` | Test-only verifier used for local scaffolding and negative tests. | Stub event/proof data. | Deterministic test result. | Unit/integration tests only. Not in production deploy bundle. |
 

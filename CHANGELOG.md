@@ -11,7 +11,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   three independent pinned SP1 runners. A fail-closed aggregate job retains the existing required
   branch-protection context. The two proof lanes now use SP1's upstream worker controls to serialize
   core/recursion work, cap trace buffering and sharding, and enforce a 4-GiB guest memory limit on
-  standard hosted runners without changing Groth16 proof mode or allowing mock/dummy fallback.
+  standard hosted runners. Each independent lane retains the production 120-minute proof budget
+  without changing Groth16 proof mode or allowing mock/dummy fallback.
 
 ### Fixed — closed ChainRegistry admission and governance states — 2026-07-15
 

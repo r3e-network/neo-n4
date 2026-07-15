@@ -213,7 +213,7 @@ class CargoProveWrapperTests(unittest.TestCase):
         sp1_release_gates = workflow.split("  sp1-release-gates:", 1)[1].split(
             "\n  sp1-host:", 1
         )[0]
-        self.assertIn("timeout-minutes: 50", sp1_release_gates)
+        self.assertIn("timeout-minutes: 120", sp1_release_gates)
         self.assertIn("fail-fast: false", sp1_release_gates)
         for lane in (
             "workspace-release",

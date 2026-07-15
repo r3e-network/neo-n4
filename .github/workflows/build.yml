@@ -441,7 +441,7 @@ jobs:
 
       - name: Cache SP1 toolchain
         id: cache-sp1
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           # `~/.sp1/` holds the pinned cargo-prove binary.
           # `~/.rustup/toolchains/succinct/` holds the custom rustup

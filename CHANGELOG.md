@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — coordinated dependency maintenance — 2026-07-15
+
+- Upgraded the coverage collector to 10.0.1.
+- Upgraded the Ethereum watcher to `sha3` 0.12 and `toml` 1.1.3, with the lockfile updated
+  as one atomic Rust dependency change.
+- Upgraded the pinned GitHub workflow actions to `actions/checkout` 7, `actions/cache` 6,
+  `docker/setup-buildx-action` 4, `docker/login-action` 4, and `docker/metadata-action` 6.
+
 ### Fixed — parallel SP1 release gates — 2026-07-15
 
 - Split workspace release checks, real batch proving, and real recursive Gateway proving across

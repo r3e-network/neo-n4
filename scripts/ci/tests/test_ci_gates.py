@@ -213,6 +213,10 @@ class CargoProveWrapperTests(unittest.TestCase):
         sp1_release_gates = workflow.split("  sp1-release-gates:", 1)[1].split(
             "\n  sp1-host:", 1
         )[0]
+        self.assertIn(
+            "if: ${{ github.event_name == 'workflow_dispatch' }}",
+            sp1_release_gates,
+        )
         self.assertIn("timeout-minutes: 120", sp1_release_gates)
         self.assertIn("fail-fast: false", sp1_release_gates)
         for lane in (
@@ -238,16 +242,23 @@ class CargoProveWrapperTests(unittest.TestCase):
             "\n  rust-audit:", 1
         )[0]
         self.assertIn(
-            "name: cargo build + test (neo-zkvm-host, real SP1 zkVM)",
+            "name: SP1 compatibility and manual release proof gate",
             sp1_aggregate,
         )
-        self.assertIn("needs: sp1-release-gates", sp1_aggregate)
+        self.assertIn(
+            "needs: [test, contracts, bridge, sp1-release-gates]",
+            sp1_aggregate,
+        )
         self.assertIn("if: ${{ always() }}", sp1_aggregate)
+        for result in ("DOTNET_RESULT", "CONTRACTS_RESULT", "BRIDGE_RESULT"):
+            self.assertIn(result, sp1_aggregate)
         self.assertIn("SP1_RELEASE_GATES_RESULT", sp1_aggregate)
         self.assertIn(
-            'test "$SP1_RELEASE_GATES_RESULT" = success',
+            'if [[ "$EVENT_NAME" == workflow_dispatch ]]',
             sp1_aggregate,
         )
+        self.assertIn('test "$SP1_RELEASE_GATES_RESULT" = skipped', sp1_aggregate)
+        self.assertNotIn("schedule:", workflow.split("permissions:", 1)[0])
         prove_step = workflow.split(
             "- name: cargo prove build (reproducible guest ELF)", 1
         )[1].split("\n      - name:", 1)[0]

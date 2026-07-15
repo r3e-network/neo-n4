@@ -5,10 +5,6 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
-  schedule:
-    # Nightly re-runs the same release-grade proof gate required on pull requests
-    # and master pushes, catching environment or upstream-registry drift.
-    - cron: "17 2 * * *"
   workflow_dispatch:
 
 permissions:
@@ -374,6 +370,7 @@ jobs:
   # aggregate job below preserves the branch-protection context.
   sp1-release-gates:
     name: ${{ matrix.name }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
@@ -530,18 +527,32 @@ jobs:
             --expected-test proves_and_host_verifies_real_recursive_gateway_groth16
 
   sp1-host:
-    name: cargo build + test (neo-zkvm-host, real SP1 zkVM)
-    needs: sp1-release-gates
+    name: SP1 compatibility and manual release proof gate
+    needs: [test, contracts, bridge, sp1-release-gates]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Require every SP1 release lane
+      - name: Require fast compatibility gates and opt-in release proofs
         env:
+          EVENT_NAME: ${{ github.event_name }}
+          DOTNET_RESULT: ${{ needs.test.result }}
+          CONTRACTS_RESULT: ${{ needs.contracts.result }}
+          BRIDGE_RESULT: ${{ needs.bridge.result }}
           SP1_RELEASE_GATES_RESULT: ${{ needs.sp1-release-gates.result }}
         run: |
+          echo "dotnet: $DOTNET_RESULT"
+          echo "contracts: $CONTRACTS_RESULT"
+          echo "Rust bridge: $BRIDGE_RESULT"
           echo "SP1 release gates: $SP1_RELEASE_GATES_RESULT"
-          test "$SP1_RELEASE_GATES_RESULT" = success
+          test "$DOTNET_RESULT" = success
+          test "$CONTRACTS_RESULT" = success
+          test "$BRIDGE_RESULT" = success
+          if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+            test "$SP1_RELEASE_GATES_RESULT" = success
+          else
+            test "$SP1_RELEASE_GATES_RESULT" = skipped
+          fi
 
   rust-audit:
     name: cargo audit

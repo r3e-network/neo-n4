@@ -30,7 +30,7 @@ path = "src/bin/executor.rs"
 test = false
 
 [dependencies]
-sp1-zkvm = "=6.2.1"
+sp1-zkvm = "=6.3.1"
 neo-execution-core = { path = "../neo-execution-core" }
 neo-vm-rs = { path = "../../external/neo-vm-rs", default-features = false }
 

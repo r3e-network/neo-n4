@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — local deposit composition and drain combiner — 2026-07-15
+
+- Added `L1MessageDrain.Combine` / `FromRouter` so operators compose SharedBridge
+  deposits with MessageRouter traffic under one fail-closed, nonce-ordered sealer
+  drain (duplicate `(source,nonce)` keys are rejected).
+- Added `InMemorySharedBridgeDepositSource` for tests and the in-process devnet.
+- `L2BridgePlugin.WithDepositSource` / `DrainSharedBridgeDeposits` expose the deposit
+  half of the batcher L1 inbox without custom glue.
+- Devnet now mints via `SharedBridgeDepositRecord` → in-memory deposit source →
+  `L1MessageDrain` → `DepositProcessor`, matching the production message shape.
+
 ### Added — production SharedBridge deposit L1→L2 ingest — 2026-07-15
 
 - Added `SharedBridgeDepositRecord` with byte-for-byte parity to

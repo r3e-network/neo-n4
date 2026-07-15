@@ -48,6 +48,12 @@ internal static class Program
     private static readonly UInt160 BtcL2 = PlatformAssets.L2BtcAsset;
     private static readonly UInt160 Alice = UInt160.Parse("0x" + new string('a', 40));
     private static readonly UInt160 Bob = UInt160.Parse("0x" + new string('b', 40));
+    /// <summary>
+    /// Stand-in for the native L2 bridge script hash used as CrossChainMessage.Receiver.
+    /// Production wires <c>NativeContract.L2Bridge.Hash</c>; the in-process devnet only
+    /// needs a stable non-zero routing identity for the SharedBridge deposit path.
+    /// </summary>
+    private static readonly UInt160 L2BridgeNative = UInt160.Parse("0x" + new string('e', 40));
 
     public static async Task<int> Main(string[] args)
     {
@@ -233,14 +239,29 @@ internal static class Program
         {
             Console.WriteLine($"────── batch #{batchNum} ──────");
 
-            // 1. Deposit message from L1 → mint balance to Alice in the state store.
+            // 1. Deposit via the same SharedBridge record → CrossChainMessage path production
+            //    uses (RpcSharedBridgeDepositSource). Locally we inject the record into an
+            //    in-memory source, drain it, process, then confirm consumption.
             var depositAmount = new BigInteger(1_000_000 * batchNum);
-            var deposit = new DepositPayload { L1Asset = GasL1, L2Recipient = Alice, Amount = depositAmount };
-            var depositMsg = MessageBuilder.Build(0, LocalChainId, (ulong)batchNum, UInt160.Zero, Alice, MessageType.Deposit, deposit.Encode());
+            var depositRecord = new SharedBridgeDepositRecord
+            {
+                Asset = GasL1,
+                Recipient = Alice,
+                Sender = Alice,
+                Nonce = (ulong)batchNum,
+                Amount = depositAmount,
+            };
+            var localDepositSource = new InMemorySharedBridgeDepositSource(LocalChainId, L2BridgeNative);
+            localDepositSource.Enqueue(depositRecord);
+            var drained = L1MessageDrain.Combine(localDepositSource.Drain)(1);
+            if (drained.Count != 1)
+                throw new InvalidOperationException("local deposit drain did not yield the enqueued deposit");
+            var depositMsg = drained[0];
             var mint = depositProcessor.Process(depositMsg);
             // Apply to the store (this is what a real L2BridgeContract.mint would do).
             ApplyMint(stateStore, mint.L2Asset, mint.Recipient, mint.Amount);
-            Console.WriteLine($"  [deposit] minted {mint.Amount} → Alice (nonce={mint.SourceNonce})");
+            localDepositSource.ConfirmConsumed(depositRecord.Nonce);
+            Console.WriteLine($"  [deposit] minted {mint.Amount} → Alice (nonce={mint.SourceNonce}) via SharedBridgeDepositRecord");
 
             // 2. Stage a withdrawal — Alice → Bob on L1.
             var withdrawalAmount = new BigInteger(10_000 * batchNum);

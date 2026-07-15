@@ -72,6 +72,36 @@ public class UT_L2BridgePlugin
     }
 
     [TestMethod]
+    public void WithDepositSource_WiresDrain()
+    {
+        using var plugin = new L2BridgePlugin();
+        var source = new InMemorySharedBridgeDepositSource(
+            chainId: 1001,
+            l2BridgeHash: UInt160.Parse("0x" + new string('e', 40)));
+        plugin.WithDepositSource(source);
+        Assert.AreSame(source, plugin.DepositSource);
+        Assert.AreEqual(0, plugin.DrainSharedBridgeDeposits(10).Count);
+
+        source.Enqueue(new SharedBridgeDepositRecord
+        {
+            Asset = UInt160.Parse("0x" + new string('a', 40)),
+            Recipient = UInt160.Parse("0x" + new string('b', 40)),
+            Sender = UInt160.Parse("0x" + new string('c', 40)),
+            Nonce = 1,
+            Amount = 10,
+        });
+        Assert.AreEqual(1, plugin.DrainSharedBridgeDeposits(10).Count);
+    }
+
+    [TestMethod]
+    public void DrainSharedBridgeDeposits_WithoutSource_ReturnsEmpty()
+    {
+        using var plugin = new L2BridgePlugin();
+        Assert.IsNull(plugin.DepositSource);
+        Assert.AreEqual(0, plugin.DrainSharedBridgeDeposits(5).Count);
+    }
+
+    [TestMethod]
     public void WithMetrics_BeforeConfigure_DoesNotThrow()
     {
         // The iter-178 lazy-init pattern: WithMetrics tolerates being called before

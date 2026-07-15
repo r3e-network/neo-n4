@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Neo.L2;
 using Neo.L2.Bridge;
 using Neo.L2.Messaging;
 using Neo.L2.Telemetry;
@@ -18,6 +19,7 @@ public sealed class L2BridgePlugin : Plugin
     private DepositProcessor? _depositProcessor;
     private WithdrawalProcessor? _withdrawalProcessor;
     private readonly L1MessageInbox _inbox = new();
+    private ISharedBridgeDepositSource? _depositSource;
     private IL2Metrics _metrics = NoOpMetrics.Instance;
 
     /// <inheritdoc />
@@ -47,6 +49,13 @@ public sealed class L2BridgePlugin : Plugin
     public L1MessageInbox Inbox => _inbox;
 
     /// <summary>
+    /// Optional production SharedBridge deposit source. When set, operators can call
+    /// <see cref="DrainSharedBridgeDeposits"/> from the batcher L1-message composition root
+    /// (often combined with MessageRouter via <see cref="L1MessageDrain.Combine"/>).
+    /// </summary>
+    public ISharedBridgeDepositSource? DepositSource => _depositSource;
+
+    /// <summary>
     /// Wire a metrics sink. The processors emit
     /// <c>l2.bridge.deposits/deposits_rejected/withdrawals/withdrawals_rejected</c> against
     /// this sink. Defaults to <see cref="NoOpMetrics"/>.
@@ -59,6 +68,32 @@ public sealed class L2BridgePlugin : Plugin
         _metrics = metrics;
         _depositProcessor?.WithMetrics(metrics);
         _withdrawalProcessor?.WithMetrics(metrics);
+    }
+
+    /// <summary>
+    /// Wire the SharedBridge deposit discovery source for this L2. Must match the plugin
+    /// chain id once <see cref="Configure"/> has run (or chain id is still unset).
+    /// </summary>
+    public void WithDepositSource(ISharedBridgeDepositSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        if (_chainId != 0 && source.ChainId != _chainId)
+            throw new InvalidOperationException(
+                $"deposit source chain {source.ChainId} differs from bridge plugin chain {_chainId}");
+        if (_depositSource is not null && !ReferenceEquals(_depositSource, source))
+            throw new InvalidOperationException("a SharedBridge deposit source is already wired");
+        _depositSource = source;
+    }
+
+    /// <summary>
+    /// Synchronous drain of ready SharedBridge deposits for <c>BatchSealer</c>. Returns an
+    /// empty list when no source is wired.
+    /// </summary>
+    public IReadOnlyList<CrossChainMessage> DrainSharedBridgeDeposits(int maxMessages)
+    {
+        if (_depositSource is null)
+            return Array.Empty<CrossChainMessage>();
+        return _depositSource.Peek(maxMessages);
     }
 
     /// <inheritdoc />

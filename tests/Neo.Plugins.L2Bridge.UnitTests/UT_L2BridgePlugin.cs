@@ -72,7 +72,7 @@ public class UT_L2BridgePlugin
     }
 
     [TestMethod]
-    public void WithDepositSource_WiresDrain()
+    public void WithDepositSource_WiresPeek()
     {
         using var plugin = new L2BridgePlugin();
         var source = new InMemorySharedBridgeDepositSource(
@@ -80,7 +80,7 @@ public class UT_L2BridgePlugin
             l2BridgeHash: UInt160.Parse("0x" + new string('e', 40)));
         plugin.WithDepositSource(source);
         Assert.AreSame(source, plugin.DepositSource);
-        Assert.AreEqual(0, plugin.DrainSharedBridgeDeposits(10).Count);
+        Assert.AreEqual(0, plugin.PeekSharedBridgeDeposits(10).Count);
 
         source.Enqueue(new SharedBridgeDepositRecord
         {
@@ -90,15 +90,16 @@ public class UT_L2BridgePlugin
             Nonce = 1,
             Amount = 10,
         });
-        Assert.AreEqual(1, plugin.DrainSharedBridgeDeposits(10).Count);
+        Assert.AreEqual(1, plugin.PeekSharedBridgeDeposits(10).Count);
+        Assert.AreEqual(1, plugin.PeekSharedBridgeDeposits(10).Count, "peek must not reserve");
     }
 
     [TestMethod]
-    public void DrainSharedBridgeDeposits_WithoutSource_ReturnsEmpty()
+    public void PeekSharedBridgeDeposits_WithoutSource_ReturnsEmpty()
     {
         using var plugin = new L2BridgePlugin();
         Assert.IsNull(plugin.DepositSource);
-        Assert.AreEqual(0, plugin.DrainSharedBridgeDeposits(5).Count);
+        Assert.AreEqual(0, plugin.PeekSharedBridgeDeposits(5).Count);
     }
 
     [TestMethod]

@@ -253,7 +253,9 @@ internal static class Program
             };
             var localDepositSource = new InMemorySharedBridgeDepositSource(LocalChainId, L2BridgeNative);
             localDepositSource.Enqueue(depositRecord);
-            var drained = L1MessageDrain.Combine(localDepositSource.Drain)(1);
+            // Production: L2BatchPlugin.WireL1MessageInbox drains + confirms after durable seal.
+            // Devnet mirrors reserve → process → confirm without a Neo node.
+            var drained = localDepositSource.Drain(1);
             if (drained.Count != 1)
                 throw new InvalidOperationException("local deposit drain did not yield the enqueued deposit");
             var depositMsg = drained[0];

@@ -483,9 +483,10 @@ classes at the same call sites.
   `WithProductionBackend` with `NeoFsRestDAWriter` + `NeoFsRestDAReader`
   (or an equivalent reviewed adapter) and independent retrieval validation;
   L1 mode uses `JsonRpcL1DAWriter` with a signed-transaction confirm path.
-- **L1 deposit drain** — Production: `RpcSharedBridgeDepositSource` + optional
-  MessageRouter via `L1MessageDrain.Combine(deposit.Drain, L1MessageDrain.FromRouter(router, chainId))`
-  into `L2BatchPlugin.WithSealingInputs`. Local/devnet: `InMemorySharedBridgeDepositSource`.
+- **L1 deposit drain** — Production: `L2BatchPlugin.WireL1MessageInbox(chainId, height, committee,
+  deposits: rpcDepositSource, messageRouter: router)`. Lifecycle is **Drain (reserve) → durable
+  seal → ConfirmConsumed**; failed persist releases reservations. Local/devnet:
+  `InMemorySharedBridgeDepositSource` with the same reserve/confirm contract.
 - **`ISequencerCommitteeProvider`** — Registry/source abstraction for discovering
   the desired set. Production consensus does not call an external provider during
   a dBFT round; use `SequencerCommitteeTransactionBuilder` to atomically commit the

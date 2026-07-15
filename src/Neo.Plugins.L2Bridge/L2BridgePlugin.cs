@@ -49,9 +49,9 @@ public sealed class L2BridgePlugin : Plugin
     public L1MessageInbox Inbox => _inbox;
 
     /// <summary>
-    /// Optional production SharedBridge deposit source. When set, operators can call
-    /// <see cref="DrainSharedBridgeDeposits"/> from the batcher L1-message composition root
-    /// (often combined with MessageRouter via <see cref="L1MessageDrain.Combine"/>).
+    /// Optional SharedBridge deposit source held for composition. Production operators should
+    /// pass the same instance to <c>L2BatchPlugin.WireL1MessageInbox</c> / <c>WithDepositSource</c>
+    /// so reserve → durable-seal confirm is owned by the batcher.
     /// </summary>
     public ISharedBridgeDepositSource? DepositSource => _depositSource;
 
@@ -86,10 +86,10 @@ public sealed class L2BridgePlugin : Plugin
     }
 
     /// <summary>
-    /// Synchronous drain of ready SharedBridge deposits for <c>BatchSealer</c>. Returns an
-    /// empty list when no source is wired.
+    /// Non-mutating view of ready SharedBridge deposits. Returns empty when no source is
+    /// wired. Mutating drain / confirm is owned by <c>L2BatchPlugin</c>.
     /// </summary>
-    public IReadOnlyList<CrossChainMessage> DrainSharedBridgeDeposits(int maxMessages)
+    public IReadOnlyList<CrossChainMessage> PeekSharedBridgeDeposits(int maxMessages)
     {
         if (_depositSource is null)
             return Array.Empty<CrossChainMessage>();

@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — SharedBridge deposit reserve/confirm lifecycle — 2026-07-15
+
+- Deposit sources now **Drain (reserve) → ConfirmConsumed (after durable seal) →
+  ReleaseReservations (on persist failure)** so the same deposit cannot be included in every
+  subsequent batch.
+- `L2BatchPlugin.WireL1MessageInbox` / `WithDepositSource` compose SharedBridge deposits with
+  optional MessageRouter traffic and confirm deposit nonces only after sink persistence succeeds.
+- `InMemorySharedBridgeDepositSource` and `RpcSharedBridgeDepositSource` implement the full
+  contract; bridge-plugin peek is non-mutating.
+
 ### Fixed — metrics scrape connection storm bound — 2026-07-15
 
 - `MetricsHttpServer` now hard-caps concurrent accepted connections (default 32) via a

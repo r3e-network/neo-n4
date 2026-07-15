@@ -4,7 +4,9 @@ using Neo.Extensions;
 using Neo.Extensions.IO;
 using Neo.L2;
 using Neo.L2.Batch;
+using Neo.L2.Bridge;
 using Neo.L2.ForcedInclusion;
+using Neo.L2.Messaging;
 using Neo.L2.Telemetry;
 using Neo.Ledger;
 using Neo.Network.P2P.Payloads;
@@ -19,9 +21,12 @@ namespace Neo.Plugins.L2;
 /// publishes it via <see cref="OnBatchSealed"/>, and starts a fresh batch.
 /// </summary>
 /// <remarks>
-/// See doc.md §7.2 (Batcher) and §15.1 (transaction flow). This plugin owns the batcher's
-/// lifecycle but does NOT submit batches to NeoHub — that is <c>L2SettlementPlugin</c>'s job.
-/// The actual seal logic lives on <see cref="BatchSealer"/> so it's testable without a node.
+/// See doc.md §7.2 (Batcher) and §15.1 / §15.2 (transaction + deposit flow). This plugin owns
+/// the batcher's lifecycle but does NOT submit batches to NeoHub — that is
+/// <c>L2SettlementPlugin</c>'s job. SharedBridge deposits wired via
+/// <see cref="WithDepositSource"/> are drained into each batch and permanently confirmed only
+/// after durable seal persistence succeeds. The actual seal logic lives on
+/// <see cref="BatchSealer"/> so it can be unit-tested without a Neo node.
 /// </remarks>
 public sealed class L2BatchPlugin : Plugin
 {
@@ -33,6 +38,7 @@ public sealed class L2BatchPlugin : Plugin
     private Func<uint>? _l1FinalizedHeight;
     private Func<UInt256>? _sequencerCommitteeHash;
     private IForcedInclusionSource? _forcedInclusionSource;
+    private ISharedBridgeDepositSource? _depositSource;
 
     /// <summary>Emitted after a sealed batch has been durably accepted by the configured sink.</summary>
     public event EventHandler<SealedBatch>? OnBatchSealed;
@@ -70,6 +76,76 @@ public sealed class L2BatchPlugin : Plugin
         _l1FinalizedHeight = l1FinalizedHeight;
         _sequencerCommitteeHash = sequencerCommitteeHash;
     }
+
+    /// <summary>
+    /// Wire the SharedBridge deposit source. When sealing inputs have not yet been set, a
+    /// deposit-only drain is installed automatically. Prefer
+    /// <see cref="WireL1MessageInbox"/> when MessageRouter traffic is also present.
+    /// </summary>
+    public void WithDepositSource(ISharedBridgeDepositSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        if (_sealer is not null)
+            throw new InvalidOperationException(
+                "deposit source must be wired before the first block");
+        if (_settings.ChainId != 0 && source.ChainId != _settings.ChainId)
+            throw new InvalidOperationException(
+                "deposit source chain differs from batch settings");
+        if (_depositSource is not null && !ReferenceEquals(_depositSource, source))
+            throw new InvalidOperationException("a SharedBridge deposit source is already wired");
+        _depositSource = source;
+        if (_l1MessageDrain is null
+            && _l1FinalizedHeight is not null
+            && _sequencerCommitteeHash is not null)
+        {
+            _l1MessageDrain = source.Drain;
+        }
+    }
+
+    /// <summary>
+    /// Compose the production L1 inbox: SharedBridge deposits and/or MessageRouter traffic,
+    /// plus block-context providers. Deposit nonces are confirmed only after durable seal
+    /// persistence (see <see cref="PersistAndAcknowledge"/>).
+    /// </summary>
+    public void WireL1MessageInbox(
+        uint chainId,
+        Func<uint> l1FinalizedHeight,
+        Func<UInt256> sequencerCommitteeHash,
+        ISharedBridgeDepositSource? deposits = null,
+        IMessageRouter? messageRouter = null)
+    {
+        ChainIdValidator.ValidateL2(chainId);
+        ArgumentNullException.ThrowIfNull(l1FinalizedHeight);
+        ArgumentNullException.ThrowIfNull(sequencerCommitteeHash);
+        if (deposits is null && messageRouter is null)
+            throw new ArgumentException(
+                "at least one of deposits or messageRouter is required",
+                nameof(deposits));
+        if (deposits is not null && deposits.ChainId != chainId)
+            throw new ArgumentException(
+                $"deposit source chain {deposits.ChainId} differs from {chainId}",
+                nameof(deposits));
+        if (_settings.ChainId != 0 && _settings.ChainId != chainId)
+            throw new InvalidOperationException(
+                "L1 inbox chain differs from batch settings");
+
+        var drains = new List<Func<int, IReadOnlyList<CrossChainMessage>>>();
+        if (deposits is not null)
+        {
+            WithDepositSource(deposits);
+            drains.Add(deposits.Drain);
+        }
+        if (messageRouter is not null)
+            drains.Add(L1MessageDrain.FromRouter(messageRouter, chainId));
+
+        WithSealingInputs(
+            L1MessageDrain.Combine(drains.ToArray()),
+            l1FinalizedHeight,
+            sequencerCommitteeHash);
+    }
+
+    /// <summary>Currently wired SharedBridge deposit source, if any.</summary>
+    public ISharedBridgeDepositSource? DepositSource => _depositSource;
 
     /// <summary>
     /// Wire the L1 forced-inclusion read source. The durable settlement sink remains the
@@ -268,11 +344,42 @@ public sealed class L2BatchPlugin : Plugin
         ISealedBatchSink sink,
         SealedBatch batch)
     {
-        var postStateRoot = sink.PersistAsync(batch)
-            .AsTask().GetAwaiter().GetResult();
-        ArgumentNullException.ThrowIfNull(postStateRoot);
-        sealer.AcknowledgeExecution(batch.BatchNumber, postStateRoot);
-        DispatchSealed(this, OnBatchSealed, batch, _metrics);
+        try
+        {
+            var postStateRoot = sink.PersistAsync(batch)
+                .AsTask().GetAwaiter().GetResult();
+            ArgumentNullException.ThrowIfNull(postStateRoot);
+            sealer.AcknowledgeExecution(batch.BatchNumber, postStateRoot);
+            ConfirmSharedBridgeDeposits(batch);
+            DispatchSealed(this, OnBatchSealed, batch, _metrics);
+        }
+        catch
+        {
+            // Durable persistence failed: return reserved SharedBridge deposits to the ready
+            // set so a retried seal can include them. MessageRouter dequeues are owned by
+            // that component's local-consumed set and are not rolled back here.
+            ReleaseSharedBridgeDepositReservations(batch);
+            throw;
+        }
+    }
+
+    private void ConfirmSharedBridgeDeposits(SealedBatch batch)
+    {
+        if (_depositSource is null) return;
+        foreach (var message in batch.L1Messages)
+        {
+            if (message.MessageType == MessageType.Deposit && message.SourceChainId == 0)
+                _depositSource.ConfirmConsumed(message.Nonce);
+        }
+    }
+
+    private void ReleaseSharedBridgeDepositReservations(SealedBatch batch)
+    {
+        if (_depositSource is null) return;
+        var nonces = batch.L1Messages
+            .Where(m => m.MessageType == MessageType.Deposit && m.SourceChainId == 0)
+            .Select(m => m.Nonce);
+        _depositSource.ReleaseReservations(nonces);
     }
 
     private BatchSealer CreateSealer(uint chainId, UInt256 initialStateRoot)

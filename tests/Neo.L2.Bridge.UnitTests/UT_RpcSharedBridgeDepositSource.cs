@@ -46,13 +46,16 @@ public class UT_RpcSharedBridgeDepositSource
             finalityDepth: 1);
 
         Assert.AreEqual(1, await source.ScanAsync());
-        var messages = source.Peek(10);
+        Assert.AreEqual(1, source.Peek(10).Count);
+        var messages = source.Drain(10);
         Assert.AreEqual(1, messages.Count);
         Assert.AreEqual(7UL, messages[0].Nonce);
         Assert.AreEqual(MessageType.Deposit, messages[0].MessageType);
         Assert.AreEqual(L2Bridge, messages[0].Receiver);
         Assert.AreEqual(Sender, messages[0].Sender);
         CollectionAssert.AreEqual(record.ToDepositPayload().Encode(), messages[0].Payload.ToArray());
+        Assert.AreEqual(0, source.Peek(10).Count, "drain must reserve");
+        Assert.AreEqual(0, source.Drain(10).Count, "must not re-drain reserved");
 
         source.ConfirmConsumed(7);
         Assert.AreEqual(0, source.Peek(10).Count);

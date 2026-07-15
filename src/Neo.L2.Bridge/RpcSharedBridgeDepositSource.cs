@@ -9,10 +9,10 @@ namespace Neo.L2.Bridge;
 /// <c>GetDeposit</c> materialization into canonical L1→L2 deposit messages.
 /// </summary>
 /// <remarks>
-/// Wire into <c>L2BatchPlugin.WithSealingInputs</c> as (part of) the L1 message drain so
-/// SharedBridge deposits enter the same batch inbox as MessageRouter traffic. Operators must
-/// call <see cref="ScanAsync"/> on a poll loop before sealing batches that should include
-/// newly finalized deposits.
+/// Wire into <c>L2BatchPlugin</c> via <c>WireL1MessageInbox</c> / <c>WithDepositSource</c> so
+/// SharedBridge deposits enter the batcher L1 inbox with reserve → durable-seal confirm
+/// lifecycle. Operators must call <see cref="ScanAsync"/> on a poll loop before sealing
+/// batches that should include newly finalized deposits.
 /// </remarks>
 public sealed class RpcSharedBridgeDepositSource : ISharedBridgeDepositSource, IDisposable
 {
@@ -21,23 +21,15 @@ public sealed class RpcSharedBridgeDepositSource : ISharedBridgeDepositSource, I
     private readonly UInt160 _l2BridgeHash;
     private readonly RpcSharedBridgeDepositScanner _scanner;
     private readonly ConcurrentDictionary<ulong, CrossChainMessage> _ready = new();
+    private readonly ConcurrentDictionary<ulong, CrossChainMessage> _reserved = new();
     private readonly ConcurrentDictionary<ulong, byte> _consumed = new();
+    private readonly Lock _gate = new();
+    private readonly IL2KeyValueStore _store;
     private readonly bool _ownsRpc;
     private readonly bool _ownsStore;
-    private readonly IL2KeyValueStore _store;
     private int _disposed;
 
     /// <summary>Construct a deposit source for one L2 chain.</summary>
-    /// <param name="rpc">L1 JSON-RPC client.</param>
-    /// <param name="sharedBridgeHash">Deployed SharedBridge script hash.</param>
-    /// <param name="chainId">Target L2 chain id.</param>
-    /// <param name="l2BridgeHash">Native L2 bridge script hash used as message receiver.</param>
-    /// <param name="store">Durable scanner store (RocksDB in production).</param>
-    /// <param name="startHeight">First L1 height to scan (deployment height).</param>
-    /// <param name="finalityDepth">Blocks behind tip before treating a height as finalized.</param>
-    /// <param name="maximumBlocksPerScan">Bound on work per <see cref="ScanAsync"/> call.</param>
-    /// <param name="ownsRpc">Dispose the RPC client with this source.</param>
-    /// <param name="ownsStore">Dispose the store with this source.</param>
     public RpcSharedBridgeDepositSource(
         JsonRpcClient rpc,
         UInt160 sharedBridgeHash,
@@ -76,9 +68,6 @@ public sealed class RpcSharedBridgeDepositSource : ISharedBridgeDepositSource, I
             startHeight,
             finalityDepth,
             maximumBlocksPerScan);
-
-        // Rehydrate any durable nonces left from a prior process without blocking
-        // the constructor on network I/O: materialize on first ScanAsync / Peek warm-up.
     }
 
     /// <inheritdoc />
@@ -91,10 +80,11 @@ public sealed class RpcSharedBridgeDepositSource : ISharedBridgeDepositSource, I
         var discovered = new List<ulong>();
         var scanned = await _scanner.ScanAsync(discovered.Add, cancellationToken).ConfigureAwait(false);
 
-        // Also rehydrate durable nonces that were tracked before a restart.
         foreach (var nonce in _scanner.LoadTrackedNonces())
         {
-            if (!_ready.ContainsKey(nonce) && !_consumed.ContainsKey(nonce))
+            if (!_ready.ContainsKey(nonce)
+                && !_reserved.ContainsKey(nonce)
+                && !_consumed.ContainsKey(nonce))
                 discovered.Add(nonce);
         }
 
@@ -112,28 +102,75 @@ public sealed class RpcSharedBridgeDepositSource : ISharedBridgeDepositSource, I
         if (maxMessages == 0)
             return Array.Empty<CrossChainMessage>();
 
-        return _ready
-            .Where(pair => !_consumed.ContainsKey(pair.Key))
-            .OrderBy(pair => pair.Key)
-            .Take(maxMessages)
-            .Select(pair => pair.Value)
-            .ToArray();
+        lock (_gate)
+        {
+            return _ready
+                .OrderBy(pair => pair.Key)
+                .Take(maxMessages)
+                .Select(pair => pair.Value)
+                .ToArray();
+        }
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<CrossChainMessage> Drain(int maxMessages)
+    {
+        ThrowIfDisposed();
+        if (maxMessages < 0)
+            throw new ArgumentOutOfRangeException(nameof(maxMessages));
+        if (maxMessages == 0)
+            return Array.Empty<CrossChainMessage>();
+
+        lock (_gate)
+        {
+            var selected = _ready
+                .OrderBy(pair => pair.Key)
+                .Take(maxMessages)
+                .ToArray();
+            var result = new CrossChainMessage[selected.Length];
+            for (var i = 0; i < selected.Length; i++)
+            {
+                var nonce = selected[i].Key;
+                var message = selected[i].Value;
+                if (!_ready.TryRemove(nonce, out _))
+                    throw new InvalidOperationException(
+                        $"deposit nonce {nonce} disappeared during drain");
+                _reserved[nonce] = message;
+                result[i] = message;
+            }
+            return result;
+        }
     }
 
     /// <inheritdoc />
     public void ConfirmConsumed(ulong nonce)
     {
         ThrowIfDisposed();
-        _consumed[nonce] = 1;
-        _ready.TryRemove(nonce, out _);
+        lock (_gate)
+        {
+            _ready.TryRemove(nonce, out _);
+            _reserved.TryRemove(nonce, out _);
+            _consumed[nonce] = 1;
+        }
         _scanner.ForgetNonce(nonce);
     }
 
-    /// <summary>
-    /// Synchronous L1-message drain adapter for <c>BatchSealer</c> /
-    /// <c>L2BatchPlugin.WithSealingInputs</c>.
-    /// </summary>
-    public IReadOnlyList<CrossChainMessage> Drain(int maxMessages) => Peek(maxMessages);
+    /// <inheritdoc />
+    public void ReleaseReservations(IEnumerable<ulong> nonces)
+    {
+        ArgumentNullException.ThrowIfNull(nonces);
+        ThrowIfDisposed();
+        lock (_gate)
+        {
+            foreach (var nonce in nonces)
+            {
+                if (_consumed.ContainsKey(nonce))
+                    continue;
+                if (_reserved.TryRemove(nonce, out var message))
+                    _ready[nonce] = message;
+            }
+        }
+    }
 
     /// <inheritdoc />
     public void Dispose()
@@ -146,7 +183,9 @@ public sealed class RpcSharedBridgeDepositSource : ISharedBridgeDepositSource, I
 
     private async ValueTask MaterializeAsync(ulong nonce, CancellationToken cancellationToken)
     {
-        if (_consumed.ContainsKey(nonce) || _ready.ContainsKey(nonce))
+        if (_consumed.ContainsKey(nonce)
+            || _ready.ContainsKey(nonce)
+            || _reserved.ContainsKey(nonce))
             return;
 
         var raw = await RpcContractReader.InvokeReadAsync(
@@ -166,7 +205,12 @@ public sealed class RpcSharedBridgeDepositSource : ISharedBridgeDepositSource, I
                 $"SharedBridge getDeposit({ChainId},{nonce}) returned record nonce {record.Nonce}");
 
         var message = record.ToCrossChainMessage(ChainId, _l2BridgeHash);
-        _ready[nonce] = message;
+        lock (_gate)
+        {
+            if (_consumed.ContainsKey(nonce) || _reserved.ContainsKey(nonce))
+                return;
+            _ready[nonce] = message;
+        }
     }
 
     private void ThrowIfDisposed()

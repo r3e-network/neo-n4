@@ -258,6 +258,85 @@ public class UT_L2BatchPlugin
     }
 
     [TestMethod]
+    public void WireL1MessageInbox_Deposits_ConfirmAfterDurableSeal()
+    {
+        // Functional completeness: Drain reserves → seal persists → ConfirmConsumed.
+        var deposits = new InMemorySharedBridgeDepositSource(1001, L2BridgeHash);
+        deposits.Enqueue(DepositRecord(nonce: 7, amount: 1000));
+        deposits.Enqueue(DepositRecord(nonce: 8, amount: 2000));
+
+        var sink = new DurableSink();
+        using var plugin = new L2BatchPlugin(OneBlockSettings());
+        plugin.WireL1MessageInbox(
+            chainId: 1001,
+            l1FinalizedHeight: static () => 42,
+            sequencerCommitteeHash: static () => CommitteeHash,
+            deposits: deposits);
+        plugin.WithSealedBatchSink(sink, 1001);
+
+        plugin.ProcessCommittedBlock(1, 1000, 11, NoTxs());
+
+        var batch = sink.PersistedBatches.Single();
+        Assert.AreEqual(2, batch.L1Messages.Count);
+        Assert.AreEqual(7UL, batch.L1Messages[0].Nonce);
+        Assert.AreEqual(8UL, batch.L1Messages[1].Nonce);
+        Assert.AreEqual(MessageType.Deposit, batch.L1Messages[0].MessageType);
+        Assert.AreEqual(42U, batch.BlockContext.L1FinalizedHeight);
+        Assert.AreEqual(0, deposits.Peek(10).Count, "confirmed deposits must leave ready set");
+        Assert.AreEqual(0, deposits.Drain(10).Count, "confirmed deposits must not re-drain");
+        Assert.AreSame(deposits, plugin.DepositSource);
+    }
+
+    [TestMethod]
+    public void WireL1MessageInbox_Deposits_ReleaseOnPersistFailureAndRetrySucceeds()
+    {
+        // Persist failure must ReleaseReservations so the next seal re-includes deposits.
+        var deposits = new InMemorySharedBridgeDepositSource(1001, L2BridgeHash);
+        deposits.Enqueue(DepositRecord(nonce: 3, amount: 500));
+
+        var sink = new DurableSink { FailBeforePersistOnce = true };
+        using var plugin = new L2BatchPlugin(OneBlockSettings());
+        plugin.WireL1MessageInbox(
+            chainId: 1001,
+            l1FinalizedHeight: static () => 1,
+            sequencerCommitteeHash: static () => CommitteeHash,
+            deposits: deposits);
+        plugin.WithSealedBatchSink(sink, 1001);
+
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => plugin.ProcessCommittedBlock(1, 1000, 11, NoTxs()));
+        Assert.AreEqual(0, sink.PersistedBatches.Count);
+        // After release, deposit is ready again (peek) even though not yet confirmed.
+        Assert.AreEqual(1, deposits.Peek(10).Count);
+
+        plugin.ProcessCommittedBlock(1, 1000, 11, NoTxs());
+        Assert.AreEqual(1, sink.PersistedBatches.Count);
+        Assert.AreEqual(3UL, sink.PersistedBatches[0].L1Messages.Single().Nonce);
+        Assert.AreEqual(0, deposits.Peek(10).Count);
+    }
+
+    [TestMethod]
+    public void WireL1MessageInbox_RejectsEmptySourcesAndChainMismatch()
+    {
+        using var plugin = new L2BatchPlugin(OneBlockSettings());
+        Assert.ThrowsExactly<ArgumentException>(() =>
+            plugin.WireL1MessageInbox(
+                1001,
+                static () => 1,
+                static () => CommitteeHash,
+                deposits: null,
+                messageRouter: null));
+
+        var wrongChain = new InMemorySharedBridgeDepositSource(2002, L2BridgeHash);
+        Assert.ThrowsExactly<ArgumentException>(() =>
+            plugin.WireL1MessageInbox(
+                1001,
+                static () => 1,
+                static () => CommitteeHash,
+                deposits: wrongChain));
+    }
+
+    [TestMethod]
     public void ForcedInclusion_FiltersTrackedAndNullEntriesWithoutEarlyConsumption()
     {
         var source = new FakeForcedInclusionSource(1001)
@@ -378,6 +457,20 @@ public class UT_L2BatchPlugin
 
         Assert.AreEqual(initialStateRoot, sink.PersistedBatches.Single().PreStateRoot);
     }
+
+    private static readonly UInt160 L2BridgeHash = UInt160.Parse("0x" + new string('e', 40));
+    private static readonly UInt160 AssetHash = UInt160.Parse("0x" + new string('a', 40));
+    private static readonly UInt160 AliceHash = UInt160.Parse("0x" + new string('b', 40));
+    private static readonly UInt256 CommitteeHash = UInt256.Parse("0x" + new string('c', 64));
+
+    private static SharedBridgeDepositRecord DepositRecord(ulong nonce, int amount) => new()
+    {
+        Asset = AssetHash,
+        Recipient = AliceHash,
+        Sender = AliceHash,
+        Nonce = nonce,
+        Amount = amount,
+    };
 
     private static L2BatchSettings OneBlockSettings() => new()
     {

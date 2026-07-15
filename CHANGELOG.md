@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — batcher deposit inbox integration evidence — 2026-07-16
+
+- Added `L2BatchPlugin` unit coverage for `WireL1MessageInbox` with real
+  `InMemorySharedBridgeDepositSource`: durable seal confirms deposits; persist failure
+  releases reservations and the retry re-includes them; empty sources and chain mismatch
+  fail closed. Closes the missing composition-root proof for the deposit reserve/confirm path.
+
 ### Fixed — SharedBridge deposit reserve/confirm lifecycle — 2026-07-15
 
 - Deposit sources now **Drain (reserve) → ConfirmConsumed (after durable seal) →
@@ -28,8 +35,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   deposits with MessageRouter traffic under one fail-closed, nonce-ordered sealer
   drain (duplicate `(source,nonce)` keys are rejected).
 - Added `InMemorySharedBridgeDepositSource` for tests and the in-process devnet.
-- `L2BridgePlugin.WithDepositSource` / `DrainSharedBridgeDeposits` expose the deposit
-  half of the batcher L1 inbox without custom glue.
+- `L2BridgePlugin.WithDepositSource` / `PeekSharedBridgeDeposits` hold a non-mutating
+  composition handle; mutating drain/confirm is owned by `L2BatchPlugin`.
 - Devnet now mints via `SharedBridgeDepositRecord` → in-memory deposit source →
   `L1MessageDrain` → `DepositProcessor`, matching the production message shape.
 

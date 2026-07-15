@@ -173,7 +173,8 @@ interface:
 | `InMemoryForcedInclusionSource` (devnet/tests) | `RpcForcedInclusionSource` + `RpcForcedInclusionEventScanner` ship in `src/Neo.L2.ForcedInclusion/`. Production wiring scans finalized L1 blocks, parses contract-bound `ForcedTxEnqueued` application logs, durably persists each nonce before advancing a hash-verified restart cursor, then issues parallel `getEntry` + `isConsumed` reads and returns deadline order. Finalized-history mismatch and malformed logs fail closed; manual `RegisterNonce` is recovery-only. | `IForcedInclusionSource` |
 | `InMemoryMessageRouter` (devnet/tests) | `RpcMessageRouter` ships in `src/Neo.L2.Messaging/` — production L1-RPC poller for the inbound (L1→L2) side via `getL1ToL2` + `isConsumed` parallel reads; local outbox staging for outbound (L2-internal); pluggable finalized-proof store for `GetMessageProofAsync` (RocksDb-backed in production). `DecodeMessage` parses the canonical contract encoding + recomputes the canonical hash via `MessageHasher` — never trusts an off-wire hash | `IMessageRouter` |
 | `InMemorySettlementClient` | `L2SettlementPlugin.WireProduction` constructs the real `RpcSettlementClient` + network-pinned `RpcTransactionSender` + durable forced-inclusion event scanner/source/finalizer; operator supplies the reviewed `INeoTransactionSigner`, deployment height, and caller-owned RocksDB event store | `ISettlementClient` / `INeoTransactionSigner` |
-| `InMemoryDAWriter`, `NeoFsLikeDAWriter`, `JsonRpcL1DAWriter` (signer = delegate), `CommitteeAttestedDAWriter` (committee = delegate) | Real NeoFS SDK adapter / signed L1 transactions / real DAC committee | `IDAWriter` |
+| `InMemoryDAWriter`, `NeoFsLikeDAWriter` (dev/sim only) | Production: `NeoFsRestDAWriter` + `NeoFsRestDAReader` via `WithProductionBackend`, or a reviewed NeoFS SDK adapter with independent retrieval | `IProductionDAWriter` / `IProductionDAReader` |
+| `JsonRpcL1DAWriter` (signer = delegate), `CommitteeAttestedDAWriter` (committee = delegate) | Signed L1 transactions / real DAC committee credentials supplied through DI | `IDAWriter` |
 
 ### Operator execution boundaries
 
@@ -278,7 +279,7 @@ deployments for the documented process/signing seams.
 | `Neo.Plugins.L2Batch`        | Hooks `Blockchain.Committed`; seal logic lives on testable `BatchSealer`; emits `l2.batch.sealed/seal_latency_ms/tx_count` via `WithMetrics()` |
 | `Neo.Plugins.L2Settlement`   | Durable execution/DA/witness/proving/settlement coordinator. `Sp1SettlementExecutionStack.Create` binds the real stateful executor, atomic state, native binary SHA-256, file-queue prover, VK, and exact ZK profile; the pipeline rejects missing predecessors, block gaps, and state-root gaps before execution or DA, then durably commits and byte-verifies each immutable proof artifact before invoking its idempotent state sink. Retry/startup replay repairs an interrupted artifact/state handoff. `WireProduction` validates explicit endpoint/network/non-zero NeoHub hashes, requires durable witness and forced-event stores, and owns the real RPC sender/client plus paired forced-inclusion source/finalizer; `Wire` preserves caller-owned test/custom DI. Strict contiguous settlement uses durable bounded retries, explicit poison status, and exact-artifact operator reset without bypassing later batches. **Emits `l2.settlement.{submitted,submit_failures,submit_latency_ms,pending,retries,poisoned}` + `l2.proving.generated/latency_ms` via `WithMetrics()`** |
 | `Neo.Plugins.L2Bridge`       | Hosts `AssetRegistry` + `DepositProcessor` + `WithdrawalProcessor`; emits `l2.bridge.{deposits,withdrawals,*_rejected}` via `WithMetrics()` |
-| `Neo.Plugins.L2DA`           | Picks DA writer by `DAMode` config — `InMemoryDAWriter` (External default), **`NeoFsLikeDAWriter`** (content-addressed), `CommitteeAttestedDAWriter` (DAC mode, operator-injected), `PersistentDAWriter` over RocksDB when `DataDirectory` is set, L1 mode requires operator-supplied L1-RPC writer; `WithMetrics()` wraps the chosen writer in `MetricsEmittingDAWriter` (mode-tagged `l2.da.published/publish_latency_ms/publish_failures`) |
+| `Neo.Plugins.L2DA`           | Picks DA writer by `DAMode` config — `InMemoryDAWriter` (External default), **`NeoFsLikeDAWriter`** (dev semantic simulator only), production NeoFS via **`NeoFsRestDAWriter` + `NeoFsRestDAReader`** through `WithProductionBackend`, `CommitteeAttestedDAWriter` (DAC mode, operator-injected), `PersistentDAWriter` over RocksDB when `DataDirectory` is set, L1 mode requires operator-supplied L1-RPC writer (`JsonRpcL1DAWriter`); production profile rejects local/simulated fallbacks; `WithMetrics()` wraps the chosen writer in `MetricsEmittingDAWriter` (mode-tagged `l2.da.published/publish_latency_ms/publish_failures`) |
 | `Neo.Plugins.L2Prover`       | Hosts `IL2Prover` for the configured `ProofType`      |
 | `Neo.Plugins.L2Rpc`          | 10 canonical RPC handlers (doc.md §14.1) + official network-scoped `RpcServerPlugin.RegisterMethods` integration + `IL2RpcStore` (`InMemoryL2RpcStore` with optional `IL2KeyValueStore` for withdrawal/message proofs); exact decimal-string u64 wire shape, chain/request binding, and per-method `l2.rpc.calls/latency_ms/failures` tagged by `method` |
 | `Neo.Plugins.L2Gateway`      | `BinaryTreeAggregator` with pluggable `IRoundProver` (default `PassThroughRoundProver`); `PassThroughAggregator` for flat aggregation; emits `l2.gateway.aggregations/batches_aggregated/aggregation_rounds/aggregation_latency_ms` |
@@ -368,17 +369,24 @@ These are explicit deployment seams rather than missing protocol algorithms:
   deadline-bounded executable boundary with pinned account/script, canonical sign data, and
   fee-witness-shape validation. Operators still select and own the reviewed wallet, HSM, or KMS
   adapter; no private key is stored in plugin configuration.
-- **Real NeoFS client** — `NeoFsLikeDAWriter` is a fail-closed semantic simulator and
-  cannot satisfy a production NeoFS profile. Operators inject an SDK-backed adapter
-  that returns real container/object locators and supports independent retrieval.
+- **Real NeoFS client** — `NeoFsLikeDAWriter` remains a development semantic simulator and
+  cannot satisfy a production NeoFS profile. Production injects `NeoFsRestDAWriter` +
+  `NeoFsRestDAReader` through `L2DAPlugin.WithProductionBackend` (or an equivalent
+  reviewed SDK adapter) with real REST credentials, container/object locators, and
+  independent retrieval validation. Provider-specific remote rehearsal evidence is still
+  operator-supplied.
 - **L1 and DAC credentials** — `JsonRpcL1DAWriter` and
   `CommitteeAttestedDAWriter` implement the protocols, while transaction keys and
   committee signer callbacks remain deployment secrets supplied through DI.
 - **Recursive-ZK Gateway operations** — the SP1 6.2.1 guest/daemon and strict queue protocol
-  ship in-repo. Terminal and recursive real SP1 proof generation are unconditional steps in the
-  required `sp1-host` CI job; neither path can be reported green through a skipped step. Operators
-  still supply canonical compressed batch-proof sidecars, proving hardware, and retain exact-build
-  deployment/audit evidence; `test-only-vk` builds cannot prove.
+  ship in-repo. Ordinary PR/`master` CI runs the fast compatibility aggregate
+  (`SP1 compatibility and manual release proof gate`) and requires the expensive real-proof
+  matrix to stay **skipped**. Release owners manually dispatch the three
+  `sp1-release-gates` lanes (workspace release, terminal batch proof, recursive Gateway
+  proof); the aggregate gate then requires every lane to succeed without mock/dummy
+  fallback. Operators still supply canonical compressed batch-proof sidecars, proving
+  hardware, and retain exact-build deployment/audit evidence; `test-only-vk` builds cannot
+  prove.
 - **Neo.CLI/DBFTPlugin release bundle** — consensus selection is wired in the r3e Neo core,
   but this repository does not publish Neo.CLI or DBFTPlugin binaries. Operators must provide
   a reviewed deployment built against the pinned r3e core; `neo-stack` fails closed if its

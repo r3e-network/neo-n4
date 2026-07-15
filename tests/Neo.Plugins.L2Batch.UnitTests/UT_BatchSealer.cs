@@ -453,6 +453,21 @@ public class UT_BatchSealer
     }
 
     [TestMethod]
+    public void ForcedInclusion_NullDrain_Rejected()
+    {
+        // A wired forced-inclusion adapter that returns null must fail closed; treating
+        // null as "no forced txs" would silently drop anti-censorship inclusion.
+        var sealer = new BatchSealer(
+            ForcedSettings(maxBlocks: 1),
+            new InMemoryMetrics(),
+            () => 0L,
+            forcedDrain: _ => null!);
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(
+            () => sealer.OnBlockCommit(1, 1000, 11, NoTxs()));
+        StringAssert.Contains(ex.Message, "forced-inclusion drain returned null");
+    }
+
+    [TestMethod]
     public void ForcedInclusion_RejectsSourceTxHashMismatch()
     {
         var sealer = new BatchSealer(

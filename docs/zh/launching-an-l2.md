@@ -320,10 +320,11 @@ v4 与精确注册的 executable profile，即使 owner/governance 提供 witnes
   Optimistic / Mock-RiscV。替换以走 Stage 2(ZK 有效性):
   `prove-batch daemon`(进程外 Rust 证明者,在
   `bridge/neo-zkvm-host/`)。
-- **`IDAWriter`** —— 默认:NeoFS(`NeoFsLikeDAWriter`),或在设置
-  `--data-dir` 时使用持久化 NeoFS-like 存储;`External` 只用
-  `InMemoryDAWriter` 支撑测试/演示。可替换为真实 NeoFS SDK /
-  L1 `sendrawtransaction`。
+- **`IDAWriter`** —— 开发默认:NeoFS 语义模拟(`NeoFsLikeDAWriter`),或在设置
+  `--data-dir` 时使用本地持久化存储;`External` 只用 `InMemoryDAWriter`
+  支撑测试/演示。生产必须经 `WithProductionBackend` 注入
+  `NeoFsRestDAWriter` + `NeoFsRestDAReader`(或等效审阅适配器)并做独立检索校验;
+  L1 模式使用带签名确认路径的 `JsonRpcL1DAWriter`。
 - **`ISequencerCommitteeProvider`** —— 默认:
   `InMemorySequencerCommitteeProvider`。生产使用 L1-RPC 实现计算目标集合，再通过
   `neo-stack` 把集合提交到 `L2SystemConfigContract`；DBFT 只读取最终确认的原生状态。
@@ -434,8 +435,10 @@ dapw.WithMetrics(metricsPlugin.Metrics);  // 发出 l2.da.published / l2.da.erro
 任何 writer,所以你的自定义层与内置 writer 享有同样的可观测性,不用额外接线。
 
 按这一形态实现的参照:
-- `Neo.Plugins.L2DA.InMemoryDAWriter` —— 最简单
-- `Neo.Plugins.L2DA.NeoFsLikeDAWriter` —— 内容寻址 blob store
+- `Neo.Plugins.L2DA.InMemoryDAWriter` —— 最简单(仅开发/测试)
+- `Neo.Plugins.L2DA.NeoFsLikeDAWriter` —— 内容寻址本地模拟器(仅开发)
+- `Neo.Plugins.L2DA.NeoFsRestDAWriter` / `NeoFsRestDAReader` —— 生产 NeoFS REST 路径
+  (经 `WithProductionBackend`,需要凭据与独立检索)
 - `Neo.Plugins.L2DA.JsonRpcL1DAWriter` —— 提交到 L1 NEP-17 风格合约
 - `Neo.Plugins.L2DA.PersistentDAWriter` —— RocksDB 后备本地 store
 - `Neo.Plugins.L2DA.CommitteeAttestedDAWriter` —— DAC 委员会多签

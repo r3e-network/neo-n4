@@ -270,8 +270,14 @@ public sealed class BatchSealer
     private void DrainForcedTransactions(BatchBuilder builder)
     {
         if (_forcedDrain is null) return;
-        var forced = _forcedDrain(MaxForcedTransactionsPerBatch);
-        if (forced is null) return;
+        // Same fail-closed contract as L1 message drain: a wired adapter that returns
+        // null must not be treated as "no forced txs", or anti-censorship inclusion can
+        // silently disappear under a flaky source.
+        var forced = _forcedDrain(MaxForcedTransactionsPerBatch)
+            ?? throw new InvalidOperationException("forced-inclusion drain returned null");
+        if (forced.Count > MaxForcedTransactionsPerBatch)
+            throw new InvalidOperationException(
+                $"forced-inclusion drain returned {forced.Count}, maximum is {MaxForcedTransactionsPerBatch}");
         foreach (var entry in forced)
         {
             // An empty forced tx would fold into the tx tree as an empty leaf and break

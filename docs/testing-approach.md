@@ -154,8 +154,11 @@ SDK contract and opt-in live-node matrix:
    `.nef` + `.manifest.json` artifact, and runs the `external/neo` N4 native-contract tests
 3. `bridge` — locked Rust build/tests plus a release `neo-zkvm-executor` and the real focused
    C#→Rust native execution gate
-4. `sp1-host` — digest-pinned Docker guest build plus workspace fmt/clippy/release tests;
-   terminal and recursive real-proof ignored gates run on schedule or explicit dispatch
+4. `sp1-host` — required aggregate named `SP1 compatibility and manual release proof gate`.
+   On PR/`master` it only requires the fast .NET, contract, and Rust lanes and asserts the
+   expensive matrix stayed skipped. On `workflow_dispatch`, the three `sp1-release-gates`
+   lanes run (workspace release, terminal batch proof, recursive Gateway proof) and the
+   aggregate requires every lane to succeed without mock/dummy proofs
 5. `rust-audit` — advisory checks over every production Cargo lockfile with the documented
    reachability policy
 6. `sdk-typescript`, `sdk-python`, and the Rust/.NET SDK gates — package, type, unit,

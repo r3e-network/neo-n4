@@ -148,10 +148,16 @@ public sealed class JsonRpcClient : IDisposable
             // -32700 is the JSON-RPC 2.0 spec code for "Parse error". Wrapping here gives
             // callers a uniform exception type to handle (JsonRpcException) regardless of
             // whether the failure originated server-side or in the response body.
+            // Count application-level failures so a node that returns 200 + garbage cannot
+            // keep the circuit closed forever.
+            _circuitBreaker?.RecordFailure();
             throw new JsonRpcException(-32700, $"failed to parse RPC response: {ex.Message}");
         }
         if (parsed is not JObject obj)
+        {
+            _circuitBreaker?.RecordFailure();
             throw new JsonRpcException(-32600, $"unexpected response: {responseBody.Substring(0, Math.Min(200, responseBody.Length))}");
+        }
 
         // Validate the response's id matches the request's. JSON-RPC 2.0 spec §5
         // mandates this for response correlation. Although we rely on HTTP one-request-
@@ -163,8 +169,11 @@ public sealed class JsonRpcClient : IDisposable
             : responseIdToken is JString rs && long.TryParse(rs.AsString(), out var rsi) ? rsi
             : -1L;
         if (responseId != id)
+        {
+            _circuitBreaker?.RecordFailure();
             throw new JsonRpcException(-32603,
                 $"response id {responseId} does not match request id {id}");
+        }
 
         if (obj["error"] is JObject err)
         {
@@ -181,6 +190,9 @@ public sealed class JsonRpcClient : IDisposable
                 // Out-of-range: keep the -32603 internal-error sentinel as a stand-in.
             }
             var message = err["message"]?.AsString() ?? "rpc error";
+            // JSON-RPC application errors are still endpoint failures from a resilience
+            // standpoint (degraded node, wrong method surface, overloaded handler).
+            _circuitBreaker?.RecordFailure();
             throw new JsonRpcException(code, message);
         }
 

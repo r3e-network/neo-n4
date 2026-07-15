@@ -282,5 +282,8 @@ native executable, VK, on-chain verifier route, and cross-language vector upgrad
 Production SP1 build scripts MUST read each shared Docker-built ELF once, derive its SHA-256 and
 program VK from that same byte snapshot, and publish the verified bytes into the crate's Cargo
 `OUT_DIR` as a read-only snapshot before `include_bytes!`. Referencing the mutable shared target
-path after validation is forbidden. Required CI runs MUST generate both the terminal and recursive
-real SP1 proofs; a skipped proof step cannot satisfy the required SP1 job.
+path after validation is forbidden. Ordinary PR and `master` CI only enforces the fast SP1
+compatibility aggregate and must leave the expensive real-proof matrix skipped. A release
+candidate MUST manually dispatch the three `sp1-release-gates` lanes so both the terminal batch
+proof and the recursive Gateway proof are generated and verified without mock/dummy fallback;
+a skipped or incomplete real-proof step on that dispatch cannot satisfy the release gate.

@@ -302,6 +302,11 @@ public sealed record FraudProofPayload
             hc.Add(DisputedTxBytes.Span[0]);
             hc.Add(DisputedTxBytes.Span[^1]);
         }
+        // Equals includes every StorageProof; GetHashCode must participate so
+        // distinct v3 payloads cannot collide as dictionary/set keys.
+        hc.Add(StorageProofs.Count);
+        for (var i = 0; i < StorageProofs.Count; i++)
+            hc.Add(StorageProofs[i]);
         return hc.ToHashCode();
     }
 }

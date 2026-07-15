@@ -148,8 +148,11 @@ The main GitHub Actions workflow now mirrors the local audit gates more closely:
 
 - SP1 job cache key and toolchain setup were updated for SP1 `6.2.1`.
 - WSL/Linux Rust workspace gates were added: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets --locked -- -D warnings`, and `cargo test --workspace --release --locked`.
-- Terminal and recursive real SP1 proof tests are unconditional in the required `sp1-host` job for
-  pull requests, master pushes, schedules, and manual dispatches.
+- Terminal and recursive real SP1 proof tests originally shipped as unconditional steps in the
+  required SP1 job. **Superseded after PR #28 (2026-07-15):** ordinary PR/`master` runs only
+  the fast `SP1 compatibility and manual release proof gate` and must leave the expensive
+  real-proof matrix skipped; release owners manually dispatch the three `sp1-release-gates`
+  lanes for terminal batch and recursive Gateway proofs.
 - `cargo audit --json`, TypeScript build/audit, and the foreign Solana program test were added.
 
 Key location:

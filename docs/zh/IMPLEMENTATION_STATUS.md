@@ -45,9 +45,11 @@
   artifact/state 交接处的崩溃窗口。content-addressed SP1 queue 使用 `0700` 目录、`0600`
   工件、16-GiB/64-task 硬上限；只有 `SettlementFinalized` 持久化并发布 hash-bound ack 后，
   daemon 才幂等清理 request/proof/VK/public-values/result/archive，禁止 TTL 提前删除。
-  terminal 与 recursive 真实 SP1 proof 均是 required CI job 的无条件步骤。N4 genesis V1 不允许转换中
-  增删替换合约 descriptor，未覆盖语义 fail closed。该证据仍是本地/CI 证据，不代表已有
-  同版本公网部署或独立审计。
+  普通 PR/`master` CI 只强制快速 SP1 兼容性汇总门禁，并要求昂贵真实证明矩阵保持
+  skipped；发布候选须手动 `workflow_dispatch` 三条 `sp1-release-gates` lane（workspace
+  release、terminal batch proof、recursive Gateway proof），禁止 mock/dummy。N4 genesis V1
+  不允许转换中增删替换合约 descriptor，未覆盖语义 fail closed。该证据仍是本地/CI 证据，
+  不代表已有同版本公网部署或独立审计。
 
 ## 阶段成熟度矩阵
 

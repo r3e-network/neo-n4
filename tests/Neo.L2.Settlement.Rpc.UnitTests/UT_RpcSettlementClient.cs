@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Neo.Json;
+using Neo.L2.Telemetry;
 
 namespace Neo.L2.Settlement.Rpc.UnitTests;
 
@@ -136,6 +137,33 @@ public class UT_RpcSettlementClient
         var ex = await Assert.ThrowsExactlyAsync<JsonRpcException>(async () =>
             await client.CallAsync("missing", new JArray()));
         Assert.AreEqual(-32601, ex.Code);
+    }
+
+    [TestMethod]
+    public async Task JsonRpcClient_ApplicationErrors_TripCircuitBreaker()
+    {
+        // HTTP 200 + JSON-RPC error / parse failure must count as endpoint failures so a
+        // degraded node cannot keep the circuit closed forever under load.
+        var stub = new StubHandler
+        {
+            ResponseBody = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32603,\"message\":\"internal\"}}",
+        };
+        using var http = new HttpClient(stub);
+        var breaker = new CircuitBreaker("rpc-test", failureThreshold: 2, openTimeout: TimeSpan.FromHours(1));
+        using var client = new JsonRpcClient(FakeEndpoint, http, breaker);
+
+        await Assert.ThrowsExactlyAsync<JsonRpcException>(async () =>
+            await client.CallAsync("ping", new JArray()));
+        Assert.AreEqual(1, breaker.FailureCount);
+        Assert.AreEqual(CircuitState.Closed, breaker.State);
+
+        await Assert.ThrowsExactlyAsync<JsonRpcException>(async () =>
+            await client.CallAsync("ping", new JArray()));
+        Assert.AreEqual(CircuitState.Open, breaker.State);
+
+        var open = await Assert.ThrowsExactlyAsync<JsonRpcException>(async () =>
+            await client.CallAsync("ping", new JArray()));
+        StringAssert.Contains(open.Message, "circuit breaker open");
     }
 
     [TestMethod]

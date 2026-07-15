@@ -5,6 +5,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — resilience and fraud-proof honesty — 2026-07-15
+
+- Made `CircuitBreaker` half-open allow exactly one concurrent probe via a latch and an
+  injectable `TimeProvider`, matching its documented contract and preventing load from
+  stampeding a degraded L1 RPC during recovery.
+- Counted JSON-RPC application failures (parse errors, id mismatches, and `error`
+  objects) in `JsonRpcClient` so HTTP 200 + bad RPC payloads trip the breaker instead of
+  failing open forever.
+- Bound `ChallengeOrchestrator.InspectWithBisectionAsync` to a local full-batch replay:
+  the challenger checkpoint terminal root must match the replayer before a narrowed fraud
+  payload is emitted, so unauthenticated intermediate checkpoints alone cannot invent fraud.
+- Made `BatchSealer` fail closed when a wired forced-inclusion drain returns null or exceeds
+  the batch cap, matching the L1 message drain contract.
+- Included `StorageProofs` in `FraudProofPayload.GetHashCode` so Equals/GetHashCode remain
+  consistent for v3 payloads used as dictionary keys.
+- Encoded SharedBridge deposit storage amounts with the same minimal unsigned little-endian
+  helper used by withdrawal leaves and off-chain `DepositPayload`, avoiding an extra sign
+  byte for high-MSB amounts.
+
+### Changed — documentation truth after PR #28 SP1 cost split — 2026-07-15
+
+- Corrected release, audit, implementation-status, README, SPEC, and EN/ZH operator docs that
+  still claimed real SP1 proofs were unconditional on every PR/`master` push. Ordinary CI only
+  requires the fast `SP1 compatibility and manual release proof gate`; terminal and recursive
+  real proofs run on manual `workflow_dispatch` of `sp1-release-gates`.
+- Documented the production NeoFS path as `NeoFsRestDAWriter` + `NeoFsRestDAReader` via
+  `WithProductionBackend`, and marked `NeoFsLikeDAWriter` as development simulation only.
+
 ### Changed — coordinated dependency maintenance — 2026-07-15
 
 - Retained the coverage collector at 6.0.4 after 10.0.1 changed the reported executable-line

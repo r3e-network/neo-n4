@@ -59,7 +59,7 @@ public class UT_ChallengeOrchestrator_WithBisection
     [TestMethod]
     public async Task Bisection_AgreesAtEnd_ReturnsNull()
     {
-        var orch = new ChallengeOrchestrator(new NoopReplayer());
+        var orch = new ChallengeOrchestrator(new FixedRootReplayer(H(3)));
         var pre = H(0);
         var both = new[] { pre, H(1), H(2), H(3) };
 
@@ -70,11 +70,11 @@ public class UT_ChallengeOrchestrator_WithBisection
     [TestMethod]
     public async Task Bisection_DisagreesAt_LastIndex_NarrowsToCorrectIndex()
     {
-        var orch = new ChallengeOrchestrator(new NoopReplayer());
+        var honest = new[] { H(0), H(1), H(2), H(3), H(4), H(5), H(6), H(7), H(8) };
+        var orch = new ChallengeOrchestrator(new FixedRootReplayer(honest[^1]));
         var pre = H(0);
         // Disagreement starts at index 5 — the bisection should narrow to disputed index 4 or 5
         // depending on the exact bisection algorithm. Just assert it's in the right region.
-        var honest = new[] { pre, H(1), H(2), H(3), H(4), H(5), H(6), H(7), H(8) };
         var lying = new[] { pre, H(1), H(2), H(3), H(4), H(99), H(99), H(99), H(99) };
 
         var payload = await orch.InspectWithBisectionAsync(
@@ -88,6 +88,19 @@ public class UT_ChallengeOrchestrator_WithBisection
         // Standard algorithm: disputedIndex is the agreed pre-state of the disputed tx.
         Assert.IsTrue(payload.DisputedTxIndex >= 4 && payload.DisputedTxIndex <= 5,
             $"narrowed to index {payload.DisputedTxIndex}, expected 4..5");
+    }
+
+    [TestMethod]
+    public async Task Bisection_RejectsCheckpointsThatDisagreeWithLocalReplay()
+    {
+        var orch = new ChallengeOrchestrator(new FixedRootReplayer(H(0xEE)));
+        var pre = H(0);
+        var honest = new[] { pre, H(1), H(2) };
+        var lying = new[] { pre, H(1), H(0xAA) };
+
+        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(async () =>
+            await orch.InspectWithBisectionAsync(MkCommit(pre, H(0xAA)), MkInputs(pre), honest, lying));
+        StringAssert.Contains(ex.Message, "does not match local replay");
     }
 
     [TestMethod]
@@ -217,6 +230,12 @@ public class UT_ChallengeOrchestrator_WithBisection
             => ValueTask.FromResult(UInt256.Zero);
     }
 
+    private sealed class FixedRootReplayer(UInt256 root) : IFraudProofGenerator
+    {
+        public ValueTask<UInt256> ReplayAsync(BatchExecutionRequest inputs, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(root);
+    }
+
     [TestMethod]
     public async Task Bisection_RejectsNullCheckpointEntry()
     {
@@ -263,10 +282,10 @@ public class UT_ChallengeOrchestrator_WithBisection
         // drops the witness emission downgrades to v1 silently.
         // Bisection semantics: checkpoints[i] = state after applying tx[0..i-1], so
         // a divergence at checkpoints[i] means tx[i-1] is the disputed tx.
-        var orch = new ChallengeOrchestrator(new NoopReplayer());
         var pre = H(0);
         var honest = new[] { pre, H(1), H(2), H(3) };
         var lying = new[] { pre, H(1), H(0xAA), H(0xBB) };  // diverges at checkpoint 2 → tx[1] disputed
+        var orch = new ChallengeOrchestrator(new FixedRootReplayer(honest[^1]));
 
         var disputedTx = new byte[] { 0xCA, 0xFE, 0xBA, 0xBE };
         var inputs = MkInputsWithTxs(pre,
@@ -297,10 +316,10 @@ public class UT_ChallengeOrchestrator_WithBisection
         // orchestrator falls back to a v1 (witnessless) payload — still allows the
         // dispute to be filed via structural verifiers; operators with re-execution
         // verifiers needing the witness use a side channel.
-        var orch = new ChallengeOrchestrator(new NoopReplayer());
         var pre = H(0);
         var honest = new[] { pre, H(1), H(2) };           // pre, post-tx0, post-tx1
         var lying = new[] { pre, H(1), H(0xAA) };         // diverges at checkpoint 2 → tx[1] disputed
+        var orch = new ChallengeOrchestrator(new FixedRootReplayer(honest[^1]));
 
         var oversized = new byte[FraudProofPayload.MaxDisputedTxBytes + 1];
         var inputs = MkInputsWithTxs(pre, new byte[] { 0x01 }, oversized);
@@ -326,10 +345,10 @@ public class UT_ChallengeOrchestrator_WithBisection
         // inputs.Transactions has fewer than N+1 entries (a malformed reconstruction).
         // Don't crash — fall back to v1 witnessless. The caller's reconstruction is
         // wrong but the dispute still surfaces structurally.
-        var orch = new ChallengeOrchestrator(new NoopReplayer());
         var pre = H(0);
         var honest = new[] { pre, H(1), H(2), H(3) };
         var lying = new[] { pre, H(1), H(0xAA), H(0xBB) };  // diverges at index 2
+        var orch = new ChallengeOrchestrator(new FixedRootReplayer(honest[^1]));
 
         // Only 1 tx supplied; disputedIndex (2) is out of range.
         var inputs = MkInputsWithTxs(pre, new byte[] { 0xFF });

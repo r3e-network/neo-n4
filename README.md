@@ -17,8 +17,10 @@
 > executed real-proof deployment evidence as open.
 > Treat it as you would any unaudited third-party implementation of a public protocol:
 > review the [security model](docs/security-model.md), close every release gate before mainnet use, and
-> wire the documented production seams (HSM/KMS signer, real NeoFS adapter, and a
-> reviewed Neo.CLI/DBFTPlugin release bundle) per your deployment.
+> wire the documented production seams (HSM/KMS signer, `NeoFsRestDAWriter`/`NeoFsRestDAReader`
+> or an equivalent reviewed NeoFS backend, and a reviewed Neo.CLI/DBFTPlugin release bundle)
+> per your deployment. Real SP1 proofs are opt-in via manual `workflow_dispatch` of the
+> `sp1-release-gates` lanes; ordinary PR CI only enforces the fast SP1 compatibility aggregate.
 
 `neo4` is the consolidation repo for the **Neo Elastic Network** — a system that uses
 the [`r3e-network/neo`](https://github.com/r3e-network/neo) Neo core fork as the L2

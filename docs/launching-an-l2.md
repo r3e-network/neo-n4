@@ -477,10 +477,12 @@ classes at the same call sites.
   Optimistic / Mock-RiscV. Swap for Stage 2 (ZK validity):
   `prove-batch daemon` (out-of-process Rust prover at
   `bridge/neo-zkvm-host/`).
-- **`IDAWriter`** — Default: NeoFS (`NeoFsLikeDAWriter`) or a
-  persistent NeoFS-like store when `--data-dir` is set; `External`
-  uses `InMemoryDAWriter` for tests/demos. Swap for a real NeoFS SDK /
-  L1 `sendrawtransaction`.
+- **`IDAWriter`** — Development default: NeoFS simulation (`NeoFsLikeDAWriter`)
+  or a persistent local store when `--data-dir` is set; `External` uses
+  `InMemoryDAWriter` for tests/demos. Production requires
+  `WithProductionBackend` with `NeoFsRestDAWriter` + `NeoFsRestDAReader`
+  (or an equivalent reviewed adapter) and independent retrieval validation;
+  L1 mode uses `JsonRpcL1DAWriter` with a signed-transaction confirm path.
 - **`ISequencerCommitteeProvider`** — Registry/source abstraction for discovering
   the desired set. Production consensus does not call an external provider during
   a dBFT round; use `SequencerCommitteeTransactionBuilder` to atomically commit the
@@ -602,8 +604,10 @@ custom layer gets the same telemetry as the built-in writers without any
 extra plumbing.
 
 Reference implementations that follow this exact shape:
-- `Neo.Plugins.L2DA.InMemoryDAWriter` — the simplest possible
-- `Neo.Plugins.L2DA.NeoFsLikeDAWriter` — content-addressed blob store
+- `Neo.Plugins.L2DA.InMemoryDAWriter` — the simplest possible (dev/test only)
+- `Neo.Plugins.L2DA.NeoFsLikeDAWriter` — content-addressed local simulator (dev only)
+- `Neo.Plugins.L2DA.NeoFsRestDAWriter` / `NeoFsRestDAReader` — production NeoFS REST path
+  via `WithProductionBackend` (credentials + independent retrieval required)
 - `Neo.Plugins.L2DA.JsonRpcL1DAWriter` — submits to an L1 NEP-17-style contract
 - `Neo.Plugins.L2DA.PersistentDAWriter` — RocksDB-backed local store
 - `Neo.Plugins.L2DA.CommitteeAttestedDAWriter` — DAC committee multisig

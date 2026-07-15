@@ -24,13 +24,16 @@ namespace Neo.L2.Challenge;
 /// Important trust scope: the bisection here is an <em>off-chain</em> narrowing optimization, not
 /// an on-chain interactive fraud-proof game. There is currently no on-chain bisection contract,
 /// and <c>NeoHub.OptimisticChallenge.Challenge</c> is single-shot — it calls <c>verifyFraud</c>
-/// once and the shipped verifier does not re-execute the disputed transaction. The narrowed
-/// <see cref="FraudProofPayload.DisputedTxIndex"/> and embedded witness are therefore metadata:
-/// nothing on-chain confirms that re-running the narrowed tx on the committed pre-state yields the
-/// challenger's claimed root. Integrators must not treat a narrowed index as an on-chain-enforced
-/// fraud proof; soundness today rests on off-chain replay plus the challenge contract's trust
-/// model. Once an on-chain re-execution verifier lands, the narrowed index should be settled
-/// on-chain so the verifier re-executes exactly that tx against the committed pre-root.
+/// once. Before emitting a narrowed payload, <see cref="InspectWithBisectionAsync"/> still
+/// requires a local full-batch replay whose post-state root matches the challenger checkpoint
+/// terminal root, so unauthenticated intermediate checkpoints alone cannot invent fraud. The
+/// narrowed <see cref="FraudProofPayload.DisputedTxIndex"/> and embedded witness remain metadata
+/// for on-chain verifiers that do not re-execute the disputed step: nothing on-chain confirms that
+/// re-running only that tx on the committed pre-state yields the challenger's claimed root.
+/// Integrators must not treat a narrowed index as an on-chain-enforced single-step fraud proof;
+/// soundness today rests on local full-batch replay plus the challenge contract's trust model.
+/// Once an on-chain re-execution verifier lands, the narrowed index should be settled on-chain so
+/// the verifier re-executes exactly that tx against the committed pre-root.
 /// </para>
 /// </remarks>
 public sealed class ChallengeOrchestrator
@@ -113,7 +116,7 @@ public sealed class ChallengeOrchestrator
     /// <param name="sequencerCheckpoints">Same shape, from the sequencer's view.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Fraud-proof payload with narrowed <c>DisputedTxIndex</c>, or null when no fraud.</returns>
-    public ValueTask<FraudProofPayload?> InspectWithBisectionAsync(
+    public async ValueTask<FraudProofPayload?> InspectWithBisectionAsync(
         L2BatchCommitment claimedCommitment,
         BatchExecutionRequest inputs,
         UInt256[] challengerCheckpoints,
@@ -160,7 +163,20 @@ public sealed class ChallengeOrchestrator
 
         // No fraud if checkpoints agree at the end.
         if (challengerCheckpoints[^1].Equals(sequencerCheckpoints[^1]))
-            return ValueTask.FromResult<FraudProofPayload?>(null);
+            return null;
+
+        // Bind the caller's checkpoint terminal root to a local full-batch replay so a
+        // buggy or malicious checkpoint array cannot emit a fraud payload that local
+        // re-execution would not support. Narrowing still relies on the supplied
+        // intermediate checkpoints; the terminal root must match the replayer.
+        var replayedRoot = await _replayer.ReplayAsync(inputs, cancellationToken).ConfigureAwait(false);
+        if (replayedRoot is null)
+            throw new InvalidOperationException("IFraudProofGenerator.ReplayAsync returned null");
+        if (!replayedRoot.Equals(challengerCheckpoints[^1]))
+            throw new InvalidOperationException(
+                "challenger checkpoint terminal root does not match local replay; refusing to emit a bisection fraud proof from unauthenticated checkpoints");
+        if (replayedRoot.Equals(claimedCommitment.PostStateRoot))
+            return null;
 
         var game = new BisectionGame(challengerCheckpoints, sequencerCheckpoints, _metrics);
         var disputedIndex = game.RunToSettlement();
@@ -186,11 +202,11 @@ public sealed class ChallengeOrchestrator
         {
             PreStateRoot = claimedCommitment.PreStateRoot,
             ClaimedPostStateRoot = claimedCommitment.PostStateRoot,
-            ReplayedPostStateRoot = challengerCheckpoints[^1],
+            ReplayedPostStateRoot = replayedRoot,
             DisputedTxIndex = (uint)disputedIndex,
             DisputedTxBytes = disputedTxBytes,
         };
         _metrics.SafeIncrementCounter(MetricNames.FraudProofsEmitted);
-        return ValueTask.FromResult<FraudProofPayload?>(payload);
+        return payload;
     }
 }

@@ -19,8 +19,10 @@ public sealed class CircuitBreaker
     private readonly string _name;
     private readonly int _failureThreshold;
     private readonly TimeSpan _openTimeout;
+    private readonly TimeProvider _time;
     private int _failureCount;
-    private DateTime _openedAt = DateTime.MinValue;
+    private DateTimeOffset _openedAt = DateTimeOffset.MinValue;
+    private bool _probeInFlight;
 
     /// <summary>Current state of the circuit.</summary>
     public CircuitState State
@@ -31,7 +33,7 @@ public sealed class CircuitBreaker
             {
                 if (_failureCount >= _failureThreshold)
                 {
-                    if (DateTime.UtcNow - _openedAt > _openTimeout)
+                    if (_time.GetUtcNow() - _openedAt > _openTimeout)
                         return CircuitState.HalfOpen;
                     return CircuitState.Open;
                 }
@@ -50,7 +52,12 @@ public sealed class CircuitBreaker
     /// <param name="name">Diagnostic name (e.g. "L1-settlement-RPC").</param>
     /// <param name="failureThreshold">Consecutive failures before opening (default 5).</param>
     /// <param name="openTimeout">How long the circuit stays open (default 30s).</param>
-    public CircuitBreaker(string name, int failureThreshold = 5, TimeSpan? openTimeout = null)
+    /// <param name="timeProvider">Clock used for open-timeout evaluation; defaults to system UTC.</param>
+    public CircuitBreaker(
+        string name,
+        int failureThreshold = 5,
+        TimeSpan? openTimeout = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(name);
         if (failureThreshold < 1)
@@ -59,12 +66,13 @@ public sealed class CircuitBreaker
         _name = name;
         _failureThreshold = failureThreshold;
         _openTimeout = openTimeout ?? TimeSpan.FromSeconds(30);
+        _time = timeProvider ?? TimeProvider.System;
     }
 
     /// <summary>
     /// Called before an operation. Returns <c>true</c> if the call may proceed.
     /// When the circuit is open, returns <c>false</c> immediately (fail-fast).
-    /// When half-open, allows exactly one probe call.
+    /// When half-open, allows exactly one probe call until that probe records success or failure.
     /// </summary>
     public bool TryEnter()
     {
@@ -72,9 +80,12 @@ public sealed class CircuitBreaker
         {
             if (_failureCount >= _failureThreshold)
             {
-                if (DateTime.UtcNow - _openedAt > _openTimeout)
+                if (_time.GetUtcNow() - _openedAt > _openTimeout)
                 {
-                    // Half-open: allow one probe call
+                    // Half-open: allow exactly one concurrent probe.
+                    if (_probeInFlight)
+                        return false;
+                    _probeInFlight = true;
                     return true;
                 }
                 return false; // Open: fail fast
@@ -89,7 +100,8 @@ public sealed class CircuitBreaker
         lock (_gate)
         {
             _failureCount = 0;
-            _openedAt = DateTime.MinValue;
+            _openedAt = DateTimeOffset.MinValue;
+            _probeInFlight = false;
         }
     }
 
@@ -99,8 +111,9 @@ public sealed class CircuitBreaker
         lock (_gate)
         {
             _failureCount++;
+            _probeInFlight = false;
             if (_failureCount >= _failureThreshold)
-                _openedAt = DateTime.UtcNow;
+                _openedAt = _time.GetUtcNow();
         }
     }
 }

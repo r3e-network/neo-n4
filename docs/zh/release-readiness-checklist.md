@@ -72,8 +72,12 @@ cargo test --release --locked -- --ignored --nocapture
 ## 6. CI 与发布审批
 
 - 推送分支并要求扩展后的 GitHub Actions workflow 通过。
-- 确认 required `sp1-host` job 已生成并验证 terminal 与 recursive 两条真实 SP1 proof。
-  这两个步骤对 PR、master push、schedule 和手工 dispatch 均无条件执行，step 被跳过不能作为证据。
+- 确认 required `SP1 compatibility and manual release proof gate`（`sp1-host`）为绿。
+  普通 PR 与 `master` push 上该 job 只汇总快速的 .NET、合约与 Rust 兼容性 lane，且必须把
+  真实证明矩阵报告为 **skipped**。发布候选时，通过 `workflow_dispatch` 手动触发 `build`
+  workflow，使三条 `sp1-release-gates` lane（workspace release、terminal batch proof、
+  recursive Gateway proof）运行；汇总门禁随后要求每条 lane 成功。禁止 mock/dummy 证明；
+  在 release dispatch 上跳过或不完整的真实证明步骤不能作为证据。
 - 要求 `SDK Conformance / Shared vectors (4 SDKs)` 通过，并手动触发
   `SDK Conformance`；手工 dispatch 会自动要求 live job 及其已配置凭据。保留离线与真实环境 JSON
   汇总，任何发现或执行零个真实环境测试的报告都必须拒绝。

@@ -76,9 +76,13 @@ Run this on a real Neo N4 devnet/testnet node set before production:
 ## 6. CI and Release Approval
 
 - Push the branch and require the expanded GitHub Actions workflow to pass.
-- Confirm the required `sp1-host` job generated and verified both terminal and recursive real SP1
-  proofs. These steps are unconditional for pull requests, master pushes, schedules, and manual
-  dispatches; a skipped step is not acceptable evidence.
+- Confirm the required `SP1 compatibility and manual release proof gate` (`sp1-host`) is green.
+  On ordinary pull requests and `master` pushes that job only aggregates the fast .NET, contract,
+  and Rust compatibility lanes and must report the real-proof matrix as **skipped**. For a
+  release candidate, manually dispatch the `build` workflow so the three `sp1-release-gates`
+  lanes (workspace release, terminal batch proof, recursive Gateway proof) run; the aggregate
+  gate then requires every lane to succeed. Mock/dummy proofs are forbidden, and a skipped or
+  incomplete real-proof step on a release dispatch is not acceptable evidence.
 - Require `SDK Conformance / Shared vectors (4 SDKs)` and manually dispatch
   `SDK Conformance`; manual dispatch automatically requires the live job and its configured
   credentials. Retain the offline and live JSON

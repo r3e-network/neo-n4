@@ -636,8 +636,10 @@ public class SharedBridgeContract : SmartContract
 
     private static byte[] EncodeDeposit(UInt160 asset, BigInteger amount, UInt160 recipient, UInt160 sender, ulong nonce)
     {
-        // 20B asset + 20B recipient + 20B sender + 8B nonce + amount(varbytes)
-        var amountBytes = amount.ToByteArray();
+        // 20B asset + 20B recipient + 20B sender + 8B nonce + amount(varbytes).
+        // Amount uses the same minimal unsigned LE encoding as withdrawal leaves and
+        // off-chain DepositPayload so high-MSB values do not grow an extra sign byte.
+        var amountBytes = ToUnsignedLittleEndian(amount);
         var totalLen = 20 + 20 + 20 + 8 + 4 + amountBytes.Length;
         var buf = new byte[totalLen];
         var pos = 0;

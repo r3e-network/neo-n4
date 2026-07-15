@@ -39,6 +39,8 @@ public static class LiveDeployCommand
     internal static UInt256 RestrictedExecutorSemanticId { get; } =
         new(Crypto.Hash256("neo4-executor:counter-increment-existing-key:v1"u8));
 
+    internal static UInt160 NativeGasHash { get; } = UInt160.Parse(DefaultGasHash);
+
     /// <summary>Run the live deployment command.</summary>
     public static async Task<int> RunAsync(string[] args)
     {
@@ -62,6 +64,10 @@ public static class LiveDeployCommand
         var expectedNetwork = ParseRequiredNetwork(ArgUtil.Get(args, "--expected-network", ""));
         var forcedInclusionFee = ParsePositiveForcedInclusionFee(
             ArgUtil.Get(args, "--forced-inclusion-fee", DefaultForcedInclusionFee.ToString(CultureInfo.InvariantCulture)));
+        var governanceCouncil = ParseGovernanceCouncil(
+            ArgUtil.Get(args, "--governance-council", ""));
+        var governanceThreshold = ParseGovernanceThreshold(
+            ArgUtil.Get(args, "--governance-threshold", ""), governanceCouncil.Count);
 
         ValidateProductionSafetyOptions(dryRun, runPostDeploy, runSmoke, maxSteps);
 
@@ -95,19 +101,21 @@ public static class LiveDeployCommand
             "--forced-inclusion-fee-recipient");
         var ownerAddress = sender.ToAddress(addressVersion);
         var gasHash = UInt160.Parse(ArgUtil.Get(args, "--gas-hash", DefaultGasHash));
+        ValidateNativeGasHash(gasHash);
         var baseDirectory = string.IsNullOrWhiteSpace(planPath)
             ? Directory.GetCurrentDirectory()
             : Path.GetDirectoryName(Path.GetFullPath(planPath)) ?? Directory.GetCurrentDirectory();
         var plan = LoadPlan(planPath);
         plan = SubstituteOperatorPlaceholders(
-            plan, sender, gasHash, key.PublicKey, emergencyCouncil, l2ChainId,
+            plan, sender, gasHash, governanceCouncil, governanceThreshold, emergencyCouncil, l2ChainId,
             fraudReplayDomain, l2PayoutRelayAccount);
 
         var predicted = PredictContractHashes(plan, sender, baseDirectory);
         var bundle = DeployPlanner.Plan(plan, name => predicted[name]);
         var records = new List<Dictionary<string, object?>>();
         WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
-            l2ChainId, fraudReplayDomain, dryRun, records);
+            l2ChainId, fraudReplayDomain, governanceCouncil.Count, governanceThreshold,
+            dryRun, records);
 
         Console.WriteLine($"NeoHub live deployment");
         Console.WriteLine($"  rpc: {reportedRpc}");
@@ -117,6 +125,7 @@ public static class LiveDeployCommand
         Console.WriteLine($"  external bridge payout relay: {l2PayoutRelayAccount}");
         Console.WriteLine($"  restricted-fraud replay domain: {fraudReplayDomain}");
         Console.WriteLine($"  forced inclusion fee: {forcedInclusionFee} ({forcedInclusionFeeRecipient})");
+        Console.WriteLine($"  governance council: {governanceThreshold}-of-{governanceCouncil.Count}");
         Console.WriteLine($"  dryRun: {dryRun}");
         Console.WriteLine($"  steps: {bundle.Invocations.Count}");
         Console.WriteLine($"  SP1 program vkey (raw): 0x{Convert.ToHexString(sp1ProgramVKey.GetSpan()).ToLowerInvariant()}");
@@ -142,7 +151,8 @@ public static class LiveDeployCommand
                 Console.WriteLine($"[{deployed}/{bundle.Invocations.Count}] reuse {invocation.Name} {hash}");
                 records.Add(Record("deploy", invocation.Name, "reused", hash, txHash: null, null, null, null));
                 WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
-                    l2ChainId, fraudReplayDomain, dryRun, records);
+                    l2ChainId, fraudReplayDomain, governanceCouncil.Count, governanceThreshold,
+                    dryRun, records);
                 continue;
             }
 
@@ -170,7 +180,8 @@ public static class LiveDeployCommand
 
             records.Add(Record("deploy", invocation.Name, dryRun ? "dry-run" : "deployed", hash, txHash, tx.SystemFee, tx.NetworkFee, "HALT"));
             WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
-                l2ChainId, fraudReplayDomain, dryRun, records);
+                l2ChainId, fraudReplayDomain, governanceCouncil.Count, governanceThreshold,
+                dryRun, records);
         }
 
         if (!dryRun && runPostDeploy)
@@ -191,7 +202,8 @@ public static class LiveDeployCommand
                     records.Add(Record("postdeploy", action.Name, "reused", action.Contract,
                         txHash: null, null, null, "HALT"));
                     WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
-                        l2ChainId, fraudReplayDomain, dryRun, records);
+                        l2ChainId, fraudReplayDomain, governanceCouncil.Count, governanceThreshold,
+                        dryRun, records);
                     continue;
                 }
 
@@ -204,7 +216,8 @@ public static class LiveDeployCommand
                     throw new InvalidOperationException($"{action.Name} failed: {execution.Exception}");
                 records.Add(Record("postdeploy", action.Name, "executed", action.Contract, tx.Hash.ToString(), tx.SystemFee, tx.NetworkFee, execution.VmState));
                 WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
-                    l2ChainId, fraudReplayDomain, dryRun, records);
+                    l2ChainId, fraudReplayDomain, governanceCouncil.Count, governanceThreshold,
+                    dryRun, records);
             }
         }
 
@@ -218,13 +231,16 @@ public static class LiveDeployCommand
                 forcedInclusionFee,
                 sp1ProgramVKey,
                 l2ChainId,
-                fraudReplayDomain))
+                fraudReplayDomain,
+                (uint)governanceCouncil.Count,
+                governanceThreshold))
             {
                 await smoke.RunAsync(rpc);
                 Console.WriteLine($"smoke {smoke.Name}: ok");
                 records.Add(Record("smoke", smoke.Name, "ok", smoke.Contract, txHash: null, null, null, "HALT"));
                 WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
-                    l2ChainId, fraudReplayDomain, dryRun, records);
+                    l2ChainId, fraudReplayDomain, governanceCouncil.Count, governanceThreshold,
+                    dryRun, records);
             }
         }
 
@@ -304,6 +320,61 @@ public static class LiveDeployCommand
             throw new FormatException(
                 "--forced-inclusion-fee must be a positive integer in smallest GAS units.");
         return fee;
+    }
+
+    internal static IReadOnlyList<NeoECPoint> ParseGovernanceCouncil(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw new ArgumentException(
+                "--governance-council is required and must contain at least two comma-separated compressed secp256r1 public keys.",
+                nameof(value));
+        if (!string.Equals(value, value.Trim(), StringComparison.Ordinal))
+            throw new FormatException("--governance-council must not contain leading or trailing whitespace.");
+
+        var encodedMembers = value.Split(',', StringSplitOptions.None);
+        if (encodedMembers.Length < 2 || encodedMembers.Length > 64)
+            throw new FormatException("--governance-council must contain 2..64 members.");
+
+        var members = new List<NeoECPoint>(encodedMembers.Length);
+        var unique = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var encodedMember in encodedMembers)
+        {
+            if (encodedMember.Length != 66
+                || (encodedMember[0] != '0' || (encodedMember[1] != '2' && encodedMember[1] != '3')))
+            {
+                throw new FormatException(
+                    "--governance-council members must be canonical 33-byte compressed secp256r1 public keys.");
+            }
+
+            NeoECPoint member;
+            try
+            {
+                member = NeoECPoint.Parse(encodedMember, ECCurve.Secp256r1);
+            }
+            catch (FormatException ex)
+            {
+                throw new FormatException(
+                    "--governance-council contains an invalid secp256r1 public key.", ex);
+            }
+
+            if (!unique.Add(member.ToString()))
+                throw new FormatException("--governance-council must not contain duplicate members.");
+            members.Add(member);
+        }
+
+        return members;
+    }
+
+    internal static uint ParseGovernanceThreshold(string value, int councilCount)
+    {
+        if (!uint.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var threshold))
+            throw new FormatException("--governance-threshold must be an unsigned integer.");
+        if (councilCount is < 2 or > 64)
+            throw new ArgumentOutOfRangeException(nameof(councilCount));
+        if (threshold < 2 || threshold > councilCount)
+            throw new FormatException(
+                "--governance-threshold must be at least 2 and no greater than the governance council size.");
+        return threshold;
     }
 
     internal static uint ParseRequiredNetwork(string value)
@@ -391,7 +462,8 @@ public static class LiveDeployCommand
         DeployPlan plan,
         UInt160 owner,
         UInt160 gasHash,
-        NeoECPoint publicKey,
+        IReadOnlyList<NeoECPoint> governanceCouncil,
+        uint governanceThreshold,
         UInt160 emergencyCouncil,
         uint l2ChainId,
         UInt256 fraudReplayDomain,
@@ -399,6 +471,17 @@ public static class LiveDeployCommand
     {
         ScaffoldPlan.RequireExecutableOptimisticFraudProfile(plan);
         if (l2ChainId == 0) throw new ArgumentOutOfRangeException(nameof(l2ChainId));
+        ArgumentNullException.ThrowIfNull(governanceCouncil);
+        if (governanceCouncil.Count is < 2 or > 64)
+            throw new ArgumentOutOfRangeException(nameof(governanceCouncil));
+        if (governanceThreshold < 2 || governanceThreshold > governanceCouncil.Count)
+            throw new ArgumentOutOfRangeException(nameof(governanceThreshold));
+        if (governanceCouncil.Select(member => member.ToString())
+            .Distinct(StringComparer.OrdinalIgnoreCase).Count() != governanceCouncil.Count)
+        {
+            throw new ArgumentException("Governance council members must be distinct.",
+                nameof(governanceCouncil));
+        }
         ArgumentNullException.ThrowIfNull(fraudReplayDomain);
         if (fraudReplayDomain == UInt256.Zero)
             throw new ArgumentException("Fraud replay domain must not be zero.", nameof(fraudReplayDomain));
@@ -413,7 +496,8 @@ public static class LiveDeployCommand
             Steps = plan.Steps.Select(s => s with
             {
                 DeployData = (JArray)SubstituteToken(
-                    s.DeployData, owner, gasHash, publicKey, emergencyCouncil, l2ChainId,
+                    s.DeployData, owner, gasHash, governanceCouncil, governanceThreshold,
+                    emergencyCouncil, l2ChainId,
                     fraudReplayDomain, l2PayoutRelayAccount)!,
             }).ToArray(),
         };
@@ -423,7 +507,8 @@ public static class LiveDeployCommand
         JToken? token,
         UInt160 owner,
         UInt160 gasHash,
-        NeoECPoint publicKey,
+        IReadOnlyList<NeoECPoint> governanceCouncil,
+        uint governanceThreshold,
         UInt160 emergencyCouncil,
         uint l2ChainId,
         UInt256 fraudReplayDomain,
@@ -436,7 +521,7 @@ public static class LiveDeployCommand
             {
                 "OWNER_REPLACE_ME" => new JString(owner.ToString()),
                 "BOND_ASSET_REPLACE_ME" => new JString(gasHash.ToString()),
-                "GOVERNANCE_COUNCIL_MEMBER_REPLACE_ME" => new JString(publicKey.ToString()),
+                "GOVERNANCE_THRESHOLD_REPLACE_ME" => new JNumber(governanceThreshold),
                 "EMERGENCY_COUNCIL_REPLACE_ME" => new JString(emergencyCouncil.ToString()),
                 "L2_CHAIN_ID_REPLACE_ME" => new JNumber(l2ChainId),
                 "FRAUD_REPLAY_DOMAIN_REPLACE_ME" => new JString(fraudReplayDomain.ToString()),
@@ -446,18 +531,30 @@ public static class LiveDeployCommand
         }
         if (token is JArray arr)
         {
+            if (arr.Count == 1
+                && arr[0] is JString memberPlaceholder
+                && memberPlaceholder.AsString() == "GOVERNANCE_COUNCIL_REPLACE_ME")
+            {
+                var council = new JArray();
+                foreach (var member in governanceCouncil)
+                    council.Add(new JString(member.ToString()));
+                return council;
+            }
+
             var copy = new JArray();
             foreach (var child in arr)
-                copy.Add(SubstituteToken(child, owner, gasHash, publicKey, emergencyCouncil,
-                    l2ChainId, fraudReplayDomain, l2PayoutRelayAccount));
+                copy.Add(SubstituteToken(child, owner, gasHash, governanceCouncil,
+                    governanceThreshold, emergencyCouncil, l2ChainId, fraudReplayDomain,
+                    l2PayoutRelayAccount));
             return copy;
         }
         if (token is JObject obj)
         {
             var copy = new JObject();
             foreach (var (k, v) in obj.Properties)
-                copy[k] = SubstituteToken(v, owner, gasHash, publicKey, emergencyCouncil,
-                    l2ChainId, fraudReplayDomain, l2PayoutRelayAccount);
+                copy[k] = SubstituteToken(v, owner, gasHash, governanceCouncil,
+                    governanceThreshold, emergencyCouncil, l2ChainId, fraudReplayDomain,
+                    l2PayoutRelayAccount);
             return copy;
         }
         return token;
@@ -680,7 +777,7 @@ public static class LiveDeployCommand
     {
         ArgumentNullException.ThrowIfNull(h);
         ArgumentNullException.ThrowIfNull(sp1ProgramVKey);
-        if (gasHash == UInt160.Zero) throw new ArgumentException("GAS hash must not be zero.", nameof(gasHash));
+        ValidateNativeGasHash(gasHash);
         if (forcedInclusionFeeRecipient == UInt160.Zero)
             throw new ArgumentException("Forced-inclusion fee recipient must not be zero.", nameof(forcedInclusionFeeRecipient));
         if (forcedInclusionFee <= 0)
@@ -716,6 +813,8 @@ public static class LiveDeployCommand
                 HashCheck("ChainRegistry.GetGovernanceController", h["ChainRegistry"], "getGovernanceController", h["GovernanceController"]), h["GovernanceController"]),
             CheckedCall("VerifierRegistry.SetGovernanceController", h["VerifierRegistry"], "setGovernanceController",
                 HashCheck("VerifierRegistry.GetGovernanceController", h["VerifierRegistry"], "getGovernanceController", h["GovernanceController"]), h["GovernanceController"]),
+            CheckedCall("SettlementManager.SetGovernanceController", h["SettlementManager"], "setGovernanceController",
+                HashCheck("SettlementManager.GetGovernanceController", h["SettlementManager"], "getGovernanceController", h["GovernanceController"]), h["GovernanceController"]),
             CheckedCall("ContractZkVerifier.RegisterVerificationKey.Sp1", h["ContractZkVerifier"], "registerVerificationKey",
                 BoolCheck("ContractZkVerifier.IsVerificationKeyRegistered.Sp1", h["ContractZkVerifier"], "isVerificationKeyRegistered", true, ProofSystemSp1, sp1ProgramVKey), ProofSystemSp1, sp1ProgramVKey, true),
             CheckedCall("ContractZkVerifier.RegisterProofVerifier.Sp1", h["ContractZkVerifier"], "registerProofVerifier",
@@ -746,7 +845,20 @@ public static class LiveDeployCommand
                 HashCheck("SettlementManager.GetOptimisticChallenge", h["SettlementManager"], "getOptimisticChallenge", h["OptimisticChallenge"]), h["OptimisticChallenge"]),
             CheckedCall("SettlementManager.SetMessageRouter", h["SettlementManager"], "setMessageRouter",
                 HashCheck("SettlementManager.GetMessageRouter", h["SettlementManager"], "getMessageRouter", h["MessageRouter"]), h["MessageRouter"]),
+            CheckedCall("ChainRegistry.LockGovernance", h["ChainRegistry"], "lockGovernance",
+                BoolCheck("ChainRegistry.IsGovernanceLocked", h["ChainRegistry"], "isGovernanceLocked", true)),
+            CheckedCall("SettlementManager.LockGovernance", h["SettlementManager"], "lockGovernance",
+                BoolCheck("SettlementManager.IsGovernanceLocked", h["SettlementManager"], "isGovernanceLocked", true)),
         ];
+    }
+
+    internal static void ValidateNativeGasHash(UInt160 gasHash)
+    {
+        ArgumentNullException.ThrowIfNull(gasHash);
+        if (!gasHash.Equals(NativeGasHash))
+            throw new ArgumentException(
+                "Forced-inclusion spam control requires the Neo native GAS contract.",
+                nameof(gasHash));
     }
 
     private static PostDeployCall CheckedCall(
@@ -784,7 +896,9 @@ public static class LiveDeployCommand
         long forcedInclusionFee,
         UInt256 sp1ProgramVKey,
         uint l2ChainId,
-        UInt256 fraudReplayDomain)
+        UInt256 fraudReplayDomain,
+        uint governanceCouncilCount,
+        uint governanceThreshold)
     {
         ArgumentNullException.ThrowIfNull(h);
         ArgumentNullException.ThrowIfNull(sp1ProgramVKey);
@@ -792,18 +906,24 @@ public static class LiveDeployCommand
         if (l2ChainId == 0) throw new ArgumentOutOfRangeException(nameof(l2ChainId));
         if (fraudReplayDomain == UInt256.Zero)
             throw new ArgumentException("Fraud replay domain must not be zero.", nameof(fraudReplayDomain));
+        if (governanceCouncilCount < 2 || governanceCouncilCount > 64)
+            throw new ArgumentOutOfRangeException(nameof(governanceCouncilCount));
+        if (governanceThreshold < 2 || governanceThreshold > governanceCouncilCount)
+            throw new ArgumentOutOfRangeException(nameof(governanceThreshold));
 
         return
         [
             HashCheck("ChainRegistry.GetOwner", h["ChainRegistry"], "getOwner", owner),
-            IntegerCheck("GovernanceController.GetCouncilCount", h["GovernanceController"], "getCouncilCount", 1),
-            IntegerCheck("GovernanceController.GetThreshold", h["GovernanceController"], "getThreshold", 1),
+            IntegerCheck("GovernanceController.GetCouncilCount", h["GovernanceController"], "getCouncilCount", governanceCouncilCount),
+            IntegerCheck("GovernanceController.GetThreshold", h["GovernanceController"], "getThreshold", governanceThreshold),
             HashCheck("SequencerBond.GetBondAsset", h["SequencerBond"], "getBondAsset", gasHash),
             HashCheck("ExternalBridgeBond.GetBondAsset", h["ExternalBridgeBond"], "getBondAsset", gasHash),
             HashCheck("SettlementManager.GetDARegistry", h["SettlementManager"], "getDARegistry", h["DARegistry"]),
             HashCheck("SettlementManager.GetDAValidator", h["SettlementManager"], "getDAValidator", h["DAValidator"]),
             HashCheck("SettlementManager.GetOptimisticChallenge", h["SettlementManager"], "getOptimisticChallenge", h["OptimisticChallenge"]),
             HashCheck("SettlementManager.GetMessageRouter", h["SettlementManager"], "getMessageRouter", h["MessageRouter"]),
+            HashCheck("SettlementManager.GetGovernanceController", h["SettlementManager"], "getGovernanceController", h["GovernanceController"]),
+            BoolCheck("SettlementManager.IsGovernanceLocked", h["SettlementManager"], "isGovernanceLocked", true),
             HashCheck("ForcedInclusion.GetChainRegistry", h["ForcedInclusion"], "getChainRegistry", h["ChainRegistry"]),
             HashCheck("ForcedInclusion.GetSequencerBond", h["ForcedInclusion"], "getSequencerBond", h["SequencerBond"]),
             IntegerCheck("ForcedInclusion.GetCensorshipSlashAmount", h["ForcedInclusion"], "getCensorshipSlashAmount", 1_000_000),
@@ -813,6 +933,7 @@ public static class LiveDeployCommand
             BoolCheck("ForcedInclusion.IsProductionReady", h["ForcedInclusion"], "isProductionReady", true),
             HashCheck("SharedBridge.GetEmergencyManager", h["SharedBridge"], "getEmergencyManager", h["EmergencyManager"]),
             HashCheck("ChainRegistry.GetGovernanceController", h["ChainRegistry"], "getGovernanceController", h["GovernanceController"]),
+            BoolCheck("ChainRegistry.IsGovernanceLocked", h["ChainRegistry"], "isGovernanceLocked", true),
             BoolCheck("ContractZkVerifier.IsVerificationKeyRegistered.Sp1", h["ContractZkVerifier"], "isVerificationKeyRegistered", true, ProofSystemSp1, sp1ProgramVKey),
             HashCheck("ContractZkVerifier.GetProofVerifier.Sp1", h["ContractZkVerifier"], "getProofVerifier", h["Sp1Groth16Verifier"], ProofSystemSp1),
             BoolCheck("ContractZkVerifier.IsEnvelopeOnlyLocked.Sp1", h["ContractZkVerifier"], "isEnvelopeOnlyLocked", true, ProofSystemSp1),
@@ -1015,6 +1136,8 @@ public static class LiveDeployCommand
         UInt256 sp1ProgramVKey,
         uint l2ChainId,
         UInt256 fraudReplayDomain,
+        int governanceCouncilCount,
+        uint governanceThreshold,
         bool dryRun,
         IReadOnlyList<Dictionary<string, object?>> records)
     {
@@ -1029,6 +1152,8 @@ public static class LiveDeployCommand
             ["sp1ProgramVKeyRaw"] = $"0x{Convert.ToHexString(sp1ProgramVKey.GetSpan()).ToLowerInvariant()}",
             ["l2ChainId"] = l2ChainId,
             ["fraudReplayDomain"] = fraudReplayDomain.ToString(),
+            ["governanceCouncilCount"] = governanceCouncilCount,
+            ["governanceThreshold"] = governanceThreshold,
             ["dryRun"] = dryRun,
             ["records"] = records,
         };

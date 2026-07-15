@@ -44,6 +44,8 @@ internal static class Program
               verify --plan <path> --rpc <url>    Confirm each plan step's nef + manifest exist on disk (exit 2 on any missing).
               deploy-testnet --rpc <url> --expected-network <magic> --l2-chain-id <id>
                              --fraud-replay-domain <64-hex-bytes>
+                             --governance-council <pubkey1,pubkey2,...>
+                             --governance-threshold <m>
                              --emergency-council <address-or-hash>
                              [--l2-payout-relay-account <address-or-hash>]
                                                   Sign and send the NeoHub bundle to a live Neo N3 testnet RPC.

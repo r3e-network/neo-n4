@@ -67,6 +67,37 @@ public class UT_NewL2Command
     }
 
     [TestMethod]
+    public void HappyPath_PrintsRequiredGenesisStateRootRegistrationFlag()
+    {
+        var originalOut = Console.Out;
+        string output;
+        int rc;
+        try
+        {
+            var writer = new StringWriter();
+            Console.SetOut(writer);
+            rc = NewL2Command.Run(new[]
+            {
+                "--name", "TestChain",
+                "--chain-id", "5555",
+                "--template", "zk-rollup",
+                "--output", _tempDir,
+            });
+            output = writer.ToString();
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+
+        Assert.AreEqual(0, rc);
+        StringAssert.Contains(
+            output,
+            "--genesis-state-root <authenticated non-zero UInt256>",
+            "new-l2 must not emit a registration command that omits the immutable L1 trust anchor");
+    }
+
+    [TestMethod]
     public void MissingName_Rejected_BeforeAnyCommandRuns()
     {
         // --name is required at the composite level. The error must surface here, not

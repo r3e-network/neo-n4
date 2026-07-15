@@ -139,7 +139,7 @@ pinning regression test):
   loss, timeout, digest mismatch, process failure, or state drift leaves the old state intact.
 - **Settlement-confirmed prover retention.** The private content-addressed SP1 queue enforces
   `0700` directories, `0600` files, and byte/task backpressure. Proof evidence is pruned only after
-  durable `SettlementObserved` produces a matching 32-byte acknowledgement; symlinks, broader
+  durable `SettlementFinalized` produces a matching 32-byte acknowledgement; symlinks, broader
   permissions, foreign ownership, malformed acknowledgements, and TTL cleanup fail closed.
 - **Explicit N4 genesis V1 semantic ceiling.** The proven profile has bounded native and
   syscall support and forbids add/remove/replace changes to deployed contract descriptors

@@ -174,6 +174,55 @@ public sealed class Sp1StateWitnessSource : IInitialStateRootProvider
         }
     }
 
+    /// <summary>Atomically restore one authenticated pre-state snapshot after L1 rollback.</summary>
+    internal UInt256 RestoreSnapshot(
+        UInt256 expectedCurrentStateRoot,
+        UInt256 targetStateRoot,
+        ReadOnlyMemory<byte> targetStateWitness)
+    {
+        ArgumentNullException.ThrowIfNull(expectedCurrentStateRoot);
+        ArgumentNullException.ThrowIfNull(targetStateRoot);
+        if (_state is not IAtomicL2KeyValueStore atomicState)
+            throw new InvalidOperationException(
+                "SP1 state rollback requires an atomic L2 key/value store");
+        lock (_gate)
+        {
+            var current = Capture(_state, ReadContracts(_state));
+            if (current.StateRoot.Equals(targetStateRoot)) return current.StateRoot;
+            if (!current.StateRoot.Equals(expectedCurrentStateRoot))
+                throw new InvalidDataException(
+                    "SP1 state root differs from both rollback source and target");
+
+            var targetState = StateWitnessV1Serializer.Decode(targetStateWitness.Span);
+            var canonicalTargetState = StateWitnessV1Serializer.Encode(targetState);
+            if (!canonicalTargetState.AsSpan().SequenceEqual(targetStateWitness.Span))
+                throw new InvalidDataException("SP1 rollback state witness is not canonical");
+            using var validationState = new InMemoryKeyValueStore();
+            validationState.ReplaceAll(targetState.Entries.Select(static entry =>
+                (entry.Key, entry.Value)));
+            var projected = Capture(validationState, ReadContracts(validationState));
+            if (!projected.Witness.Span.SequenceEqual(canonicalTargetState)
+                || !projected.StateRoot.Equals(targetStateRoot))
+                throw new InvalidDataException(
+                    "SP1 rollback witness differs from the authenticated target root");
+
+            var currentState = StateWitnessV1Serializer.Decode(current.Witness.Span);
+            if (!atomicState.CompareExchangeAll(
+                currentState.Entries.Select(static entry => (entry.Key, entry.Value)),
+                targetState.Entries.Select(static entry => (entry.Key, entry.Value))))
+            {
+                throw new InvalidDataException(
+                    "SP1 state changed during atomic rollback");
+            }
+            var restored = Capture(_state, ReadContracts(_state));
+            if (!restored.StateRoot.Equals(targetStateRoot)
+                || !restored.Witness.Span.SequenceEqual(canonicalTargetState))
+                throw new InvalidDataException(
+                    "atomically restored SP1 state differs from the rollback target");
+            return restored.StateRoot;
+        }
+    }
+
     /// <inheritdoc />
     public ValueTask<UInt256> GetInitialStateRootAsync(
         CancellationToken cancellationToken = default)

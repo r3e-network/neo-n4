@@ -1,7 +1,10 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using Neo;
 using Neo.Stack.Cli.Commands;
+using Neo.Wallets;
+using Neo.Wallets.NEP6;
 
 namespace Neo.Stack.Cli.UnitTests;
 
@@ -35,7 +38,8 @@ namespace Neo.Stack.Cli.UnitTests;
 [TestClass]
 public class UT_QuickPathIntegration
 {
-    private const string Validator = "03b209fd4f53a7170ea4444e0cb0a6bb6a53c2bd016926989cf85f9b0fba17a70c";
+    private const string ValidatorPrivateKey = "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20";
+    private static readonly string Validator = new KeyPair(Convert.FromHexString(ValidatorPrivateKey)).PublicKey.ToString();
     private string _tempDir = null!;
 
     [TestInitialize]
@@ -129,7 +133,15 @@ public class UT_QuickPathIntegration
         File.WriteAllBytes(neoCli, [0]);
         File.WriteAllBytes(batcherNeoCli, [0]);
         File.WriteAllBytes(prover, [0]);
-        File.WriteAllText(Path.Combine(_tempDir, "node", "validator.json"), "{}");
+        var walletPath = Path.Combine(_tempDir, "node", "validator.json");
+        File.WriteAllText(
+            walletPath,
+            """
+            {"name":"validator","version":"1.0","scrypt":{"n":2,"r":1,"p":1},"accounts":[],"extra":null}
+            """);
+        var wallet = new NEP6Wallet(walletPath, "test-only", ProtocolSettings.Default);
+        wallet.CreateAccount(Convert.FromHexString(ValidatorPrivateKey));
+        wallet.Save();
         File.WriteAllBytes(Path.Combine(_tempDir, "node", "Plugins", "DBFTPlugin", "DBFTPlugin.dll"), [0]);
         File.WriteAllText(
             Path.Combine(_tempDir, "node", "Plugins", "DBFTPlugin", "DBFTPlugin.json"),
@@ -215,6 +227,8 @@ public class UT_QuickPathIntegration
                 "--verifier", "0x" + new string('b', 40),
                 "--bridge",   "0x" + new string('c', 40),
                 "--message",  "0x" + new string('d', 40),
+                "--genesis-state-root",
+                "0x0101010101010101010101010101010101010101010101010101010101010101",
             });
             Assert.AreEqual(0, rc);
             var output = sw.ToString();

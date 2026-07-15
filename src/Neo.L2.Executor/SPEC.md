@@ -244,14 +244,15 @@ The production order is:
 5. `IL2Prover` receives the complete, non-empty serialized artifact bytes. The proof manifest is
    durably committed before settlement submission. The store, not an in-memory queue, is the source
    of truth for proving, submission, reconciliation, and restart recovery.
-   The manifest state machine is `ProofReady -> Submitted -> SettlementObserved`: `Submitted`
+   The submission state machine is `ProofReady -> Submitted -> SettlementObserved`; a separate
+   `SettlementFinalized` flag records canonical L1 finality. `Submitted`
    requires a persisted non-zero L1 transaction hash, while broadcast success alone never implies
    observation. Recovery always queries the batch first. A persisted pending transaction is not
    duplicated; dropped/reverted transactions may be replaced only after explicit transaction-status
    evidence. Unknown or inconsistent transaction state fails closed. If a process stops before the
    transaction hash is persisted, retry is allowed only through the settlement client's required
    `(chainId,batchNumber)` idempotency after another batch-status query.
-6. After `SettlementObserved` is durable, an external prover that implements
+6. After `SettlementFinalized` is durable, an external prover that implements
    `IProofArtifactRetention` receives the artifact content hash and atomically publishes exactly one
    32-byte content-bound acknowledgement. The Rust daemon validates the acknowledgement and then
    idempotently prunes the matching request, proof, VK, public values, result manifest, and archive

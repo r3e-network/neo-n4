@@ -115,6 +115,17 @@ canonical state root, and bumps `latestFinalizedBatch[chainId]`. Challengeable
 optimistic batches can reach this path only through `OptimisticChallenge` after
 the window expires.
 
+Production wiring then binds `SettlementManager` to `GovernanceController` and calls the
+irreversible `LockGovernance`. This freezes owner-controlled dependency replacement and direct
+owner rollback. An emergency governance rollback is relayed through
+`RevertBatchViaProposal(chainId, batchNumber, proposalId)`, which re-derives a domain-separated
+little-endian action bound to the executing SettlementManager hash, requires exact
+proposal-payload equality, council threshold approval,
+the deployment-fixed timelock, and one-time local consumption. The narrowly scoped
+`OptimisticChallenge` witness still reverts only `Challengeable` batches immediately. A governance
+rollback may rewind the latest finalized head and its canonical root, but never a Gateway-published
+batch.
+
 During that window, legacy fraud payloads v1/v2/v3 remain advisory-only and fail
 closed even with governance witness; state changes require an exact registered executable v4 profile.
 Permissionless v4 is profile-scoped to one chain, verifier, executor semantic id,
@@ -136,7 +147,7 @@ finalized batch's `withdrawalRoot`, then releases the canonical asset.
 ## Walk #2: anti-censorship via forced inclusion
 
 <p align="center">
-  <img src="figures/forced-inclusion.svg" alt="Forced-inclusion + censorship slashing sequence: user enqueues forced tx on L1, L2 polls and drains, sequencer censors past deadline, CensorshipDetector observes overdue, operator reports, SequencerBond slashes" width="900">
+  <img src="figures/forced-inclusion.svg" alt="Forced-inclusion accountability sequence: user enqueues a forced transaction on L1, L2 polls and drains, an overdue entry triggers an unattributed report and pause, and governance may slash only after reviewing finalized dBFT evidence" width="900">
 </p>
 
 `doc.md` §15.4 + §17 spell out the censorship-resistance design. Here's how it works:
@@ -144,8 +155,13 @@ finalized batch's `withdrawalRoot`, then releases the canonical asset.
 ### 1. User posts forced tx on L1
 
 <p align="center">
-  <img src="figures/architecture/forced-inclusion-step1.svg" alt="Forced inclusion step 1: L1 user calls NeoHub.ForcedInclusion.EnqueueForcedTransaction(chainId, encodedTx, txHash). The contract returns a nonce, emits a ForcedTxEnqueued event, and records (sender, txHash, encodedTx, deadlineUnix=now+2h) in storage. The L2 batcher must include the forced tx within deadlineUnix or the operator can submit a censorship report and slash the sequencer's bond" width="900">
+  <img src="figures/architecture/forced-inclusion-step1.svg" alt="Forced inclusion step 1: L1 user calls NeoHub.ForcedInclusion.EnqueueForcedTransaction(chainId, encodedTx, txHash). The contract returns a nonce, emits a ForcedTxEnqueued event, and records the request and deadline. The L2 batcher must include it before the deadline; otherwise anyone may report without attribution and pause the chain, while governance separately reviews evidence before slashing" width="900">
 </p>
+
+Production spam control accepts only the canonical Neo N3 native GAS contract. The contract writes
+the nonce and entry before transfer so a callback cannot reuse the nonce; a failed transfer faults
+and atomically rolls both writes back. The witnessed `Runtime.Transaction.Sender` is both the
+committed submitter and GAS payer; the entry invocation script hash is never mistaken for an EOA.
 
 ### 2. L2 batcher polls + drains
 
@@ -163,11 +179,11 @@ unknown sentinel rather than blaming the first committee member.
 
 ### 4. Operator submits the report
 
-The operator calls `NeoHub.ForcedInclusion.ReportCensorship(chainId, nonce, sequencerAddr)`;
-`UInt160.Zero` is valid when attribution is still unknown. The permissionless report records
-the overdue event at most once and pauses the chain, but cannot slash. After reviewing
-finalized dBFT evidence, governance separately calls `SlashReportedCensorship`; only that
-owner-gated path invokes `SequencerBond.Slash` and debits the evidenced member's bond.
+The operator calls `NeoHub.ForcedInclusion.ReportCensorship(chainId, nonce, UInt160.Zero)`.
+The permissionless entry point rejects every caller-supplied sequencer address, records the
+overdue event at most once, and pauses the chain, but cannot slash. After independently
+reviewing finalized dBFT evidence, governance separately calls `SlashReportedCensorship` with
+the evidenced address; only that owner-gated path invokes `SequencerBond.Slash`.
 
 ## Walk #3: multi-L2 proof aggregation (Phase 5)
 
@@ -256,6 +272,11 @@ implementations:
   `ByteArrayComparer.Lexicographic`. Devnet / test default.
 - `RocksDbKeyValueStore` — backed by the `RocksDB` NuGet package (v10.10.1.649,
   namespace `RocksDbSharp`) with snappy compression. Production default.
+
+`IDurableL2KeyValueStore` is the explicit restart-durability capability implemented by
+RocksDB. `KeyValueProofWitnessStore.IsDurable` propagates that capability, and the production
+settlement composition rejects witness or forced-inclusion event stores that do not declare it.
+The generic `Wire` path intentionally remains available for in-memory tests and custom devnets.
 
 Six L2 components take an `IL2KeyValueStore` ctor argument with a backwards-compatible
 default ctor that wires `InMemoryKeyValueStore`:

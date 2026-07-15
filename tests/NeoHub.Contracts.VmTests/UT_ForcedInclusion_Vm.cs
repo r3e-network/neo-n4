@@ -18,8 +18,9 @@ public abstract class MockForcedInclusion_SettlementManager(SmartContractInitial
 /// VM-level tests for NeoHub.ForcedInclusion — the censorship/liveness contract. Executes the
 /// enqueue / consume / report / slash paths in a real NeoVM (ChainRegistry.pauseChain and
 /// SequencerBond.slash mocked) and pins the round-1/round-3 security changes: ReportCensorship is
-/// permissionless report+pause, slashing is the separate owner-gated SlashReportedCensorship, it is
-/// at-most-once, and a belated finalized-proof Consume does NOT immunize a reported sequencer.
+/// permissionless unattributed report+pause, slashing is the separate owner-gated
+/// SlashReportedCensorship, it is at-most-once, and a belated finalized-proof Consume does NOT
+/// immunize a governance-attributed sequencer.
 /// </summary>
 [TestClass]
 public class UT_ForcedInclusion_Vm
@@ -28,8 +29,11 @@ public class UT_ForcedInclusion_Vm
     private const uint Deadline = 3600;
     private static readonly UInt160 CrHash = UInt160.Parse("0x" + new string('7', 40));
     private static readonly UInt160 SbHash = UInt160.Parse("0x" + new string('8', 40));
-    private static readonly UInt160 GasHash = UInt160.Parse("0x" + new string('6', 40));
+    private static readonly UInt160 GasHash =
+        UInt160.Parse("0xd2a4cff31913016155e38e474a2c06d08be276cf");
+    private static readonly UInt160 NonNativeGasHash = UInt160.Parse("0x" + new string('6', 40));
     private static readonly UInt160 Sequencer = UInt160.Parse("0x" + new string('9', 40));
+    private static readonly UInt160 FeeRecipient = UInt160.Parse("0x" + new string('a', 40));
     private static readonly UInt160 SettlementManagerHash = UInt160.Parse("0x" + new string('5', 40));
 
     private static void WireMocks(TestEngine engine)
@@ -113,6 +117,26 @@ public class UT_ForcedInclusion_Vm
     }
 
     [TestMethod]
+    public void GasToken_RejectsNonNativeContractAtDeployAndUpdate()
+    {
+        var engine = new TestEngine(true);
+        Assert.ThrowsExactly<TestException>(() => engine.Deploy<NeoHubForcedInclusion>(
+            NeoHubForcedInclusion.Nef,
+            NeoHubForcedInclusion.Manifest,
+            new object[]
+            {
+                engine.Sender,
+                engine.Sender,
+                (BigInteger)Deadline,
+                NonNativeGasHash,
+            }));
+
+        var fi = Deploy(engine);
+        Assert.ThrowsExactly<TestException>(() => fi.GasToken = NonNativeGasHash);
+        Assert.AreEqual(UInt160.Zero, fi.GasToken);
+    }
+
+    [TestMethod]
     public void Enqueue_StoresEntry_IncrementsNonce()
     {
         var engine = new TestEngine(true);
@@ -123,6 +147,52 @@ public class UT_ForcedInclusion_Vm
         Assert.AreEqual(2UL, n2);
         Assert.IsTrue(fi.GetEntry(ChainId, 1)!.Length > 0, "entry must be stored");
         Assert.IsFalse(fi.IsConsumed(ChainId, 1));
+    }
+
+    [TestMethod]
+    public void Enqueue_WithProductionFee_ChargesWitnessedTransactionSenderInNativeGas()
+    {
+        var engine = new TestEngine(true);
+        var fi = Deploy(engine);
+        const long fee = 100_000;
+        fi.GasToken = GasHash;
+        fi.FeeRecipient = FeeRecipient;
+        fi.Fee = fee;
+        var senderBalanceBefore = (BigInteger)engine.Native.GAS.BalanceOf(engine.Sender)!;
+        var recipientBalanceBefore = (BigInteger)engine.Native.GAS.BalanceOf(FeeRecipient)!;
+
+        var nonce = Enqueue(fi);
+
+        Assert.AreEqual(1UL, nonce);
+        Assert.AreEqual(senderBalanceBefore - fee, engine.Native.GAS.BalanceOf(engine.Sender));
+        Assert.AreEqual(recipientBalanceBefore + fee,
+            engine.Native.GAS.BalanceOf(FeeRecipient));
+        CollectionAssert.AreEqual(
+            engine.Sender.GetSpan().ToArray(),
+            fi.GetEntry(ChainId, nonce)![..UInt160.Length],
+            "the authenticated transaction sender must be committed as the forced-tx submitter");
+    }
+
+    [TestMethod]
+    public void Enqueue_FailedNativeGasTransfer_RollsBackNonceAndEntry()
+    {
+        var engine = new TestEngine(true);
+        var fi = Deploy(engine);
+        fi.GasToken = GasHash;
+        fi.FeeRecipient = FeeRecipient;
+        var senderBalance = (BigInteger)engine.Native.GAS.BalanceOf(engine.Sender)!;
+        var recipientBalance = (BigInteger)engine.Native.GAS.BalanceOf(FeeRecipient)!;
+        fi.Fee = senderBalance + 1;
+
+        Assert.ThrowsExactly<TestException>(() => Enqueue(fi));
+        Assert.AreEqual(0, fi.GetEntry(ChainId, 1)!.Length,
+            "a failed fee transfer must not leave an orphaned entry");
+        Assert.AreEqual(senderBalance, engine.Native.GAS.BalanceOf(engine.Sender));
+        Assert.AreEqual(recipientBalance, engine.Native.GAS.BalanceOf(FeeRecipient));
+
+        fi.Fee = 1;
+        Assert.AreEqual(1UL, Enqueue(fi),
+            "the failed invocation must not consume the first nonce");
     }
 
     [TestMethod]
@@ -184,13 +254,13 @@ public class UT_ForcedInclusion_Vm
         var fi = Deploy(engine);
         Enqueue(fi);
 
-        Assert.IsFalse(fi.ReportCensorship(ChainId, 1, Sequencer), "before the deadline, no report");
+        Assert.IsFalse(fi.ReportCensorship(ChainId, 1, UInt160.Zero), "before the deadline, no report");
         Assert.IsFalse(fi.IsCensorshipReported(ChainId, 1));
 
         engine.PersistingBlock.Advance(TimeSpan.FromSeconds(Deadline + 1));
-        Assert.IsTrue(fi.ReportCensorship(ChainId, 1, Sequencer), "overdue entry must report");
+        Assert.IsTrue(fi.ReportCensorship(ChainId, 1, UInt160.Zero), "overdue entry must report");
         Assert.IsTrue(fi.IsCensorshipReported(ChainId, 1));
-        Assert.ThrowsExactly<TestException>(() => fi.ReportCensorship(ChainId, 1, Sequencer), "double report must fault");
+        Assert.ThrowsExactly<TestException>(() => fi.ReportCensorship(ChainId, 1, UInt160.Zero), "double report must fault");
     }
 
     [TestMethod]
@@ -201,9 +271,27 @@ public class UT_ForcedInclusion_Vm
         Enqueue(fi);
         engine.PersistingBlock.Advance(TimeSpan.FromSeconds(Deadline + 1));
 
+        UInt160? reportedSequencer = null;
+        fi.OnSequencerCensorshipReported += (_, _, sequencer) => reportedSequencer = sequencer;
+
         Assert.IsTrue(fi.ReportCensorship(ChainId, 1, UInt160.Zero));
         Assert.IsTrue(fi.IsCensorshipReported(ChainId, 1));
         Assert.IsFalse(fi.IsCensorshipSlashed(ChainId, 1));
+        Assert.AreEqual(UInt160.Zero, reportedSequencer,
+            "permissionless reports must emit unattributed evidence");
+    }
+
+    [TestMethod]
+    public void ReportCensorship_CallerSuppliedAttribution_FaultsWithoutRecording()
+    {
+        var engine = new TestEngine(true);
+        var fi = Deploy(engine);
+        Enqueue(fi);
+        engine.PersistingBlock.Advance(TimeSpan.FromSeconds(Deadline + 1));
+
+        Assert.ThrowsExactly<TestException>(() => fi.ReportCensorship(ChainId, 1, Sequencer),
+            "a permissionless reporter must not be able to frame a sequencer");
+        Assert.IsFalse(fi.IsCensorshipReported(ChainId, 1));
     }
 
     [TestMethod]
@@ -217,7 +305,7 @@ public class UT_ForcedInclusion_Vm
         Assert.ThrowsExactly<TestException>(() => fi.SlashReportedCensorship(ChainId, 1, Sequencer), "no report -> no slash");
 
         engine.PersistingBlock.Advance(TimeSpan.FromSeconds(Deadline + 1));
-        fi.ReportCensorship(ChainId, 1, Sequencer);
+        fi.ReportCensorship(ChainId, 1, UInt160.Zero);
 
         fi.SlashReportedCensorship(ChainId, 1, Sequencer);
         Assert.IsTrue(fi.IsCensorshipSlashed(ChainId, 1));
@@ -234,7 +322,7 @@ public class UT_ForcedInclusion_Vm
         var fi = Deploy(engine, settlementManager: SettlementManagerHash);
         Enqueue(fi);
         engine.PersistingBlock.Advance(TimeSpan.FromSeconds(Deadline + 1));
-        fi.ReportCensorship(ChainId, 1, Sequencer);
+        fi.ReportCensorship(ChainId, 1, UInt160.Zero);
 
         fi.Consume(ChainId, 5, 1, Array.Empty<object>(), 0); // late inclusion AFTER the report
         Assert.IsTrue(fi.IsConsumed(ChainId, 1));
@@ -251,5 +339,23 @@ public class UT_ForcedInclusion_Vm
         var fi = Deploy(engine, owner: UInt160.Parse("0x" + new string('1', 40)));
         Assert.ThrowsExactly<TestException>(() => fi.SlashReportedCensorship(ChainId, 1, Sequencer),
             "SlashReportedCensorship is owner-gated");
+    }
+
+    [TestMethod]
+    public void SlashReportedCensorship_NonOwnerCannotUseValidReport()
+    {
+        var engine = new TestEngine(true);
+        var fi = Deploy(
+            engine,
+            owner: UInt160.Parse("0x" + new string('1', 40)),
+            wireEnforcement: false);
+        Enqueue(fi);
+        engine.PersistingBlock.Advance(TimeSpan.FromSeconds(Deadline + 1));
+        Assert.IsTrue(fi.ReportCensorship(ChainId, 1, UInt160.Zero));
+
+        Assert.ThrowsExactly<TestException>(
+            () => fi.SlashReportedCensorship(ChainId, 1, Sequencer),
+            "a valid permissionless report must not bypass governance attribution");
+        Assert.IsFalse(fi.IsCensorshipSlashed(ChainId, 1));
     }
 }

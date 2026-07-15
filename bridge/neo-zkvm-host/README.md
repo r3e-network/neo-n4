@@ -142,7 +142,7 @@ The daemon treats the filesystem queue as confidential durable state. Unix queue
 directories are owner-only `0700`, files are `0600`, and symlinks, foreign ownership, or broader
 modes fail closed. The combined watch/archive defaults are capped at 16 GiB and 64
 content-addressed tasks, checked before every proof. A completed proof is retained until the .NET
-settlement pipeline has durably recorded `SettlementObserved` and atomically publishes
+settlement pipeline has durably recorded `SettlementFinalized` and atomically publishes
 `<artifact-content-hash>.proof.ack` containing that same 32-byte hash. The daemon validates the
 acknowledgement, idempotently removes the request/proof/VK/public-values/result/archive set, then
 removes the acknowledgement. Do not apply TTL cleanup to unconfirmed artifacts.

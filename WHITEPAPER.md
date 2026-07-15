@@ -243,16 +243,18 @@ level via the `getsecuritylevel` RPC (`§14.1` of `doc.md`).
 
 ### 4.4 Durable state — `IL2KeyValueStore`
 
-Six off-chain components carry state that must survive a restart: the keyed state
+Seven off-chain component families carry state that must survive a restart: the keyed state
 store, RPC withdrawal/message proofs, finalized message proofs, consumed forced-
 inclusion nonces, sequencer committee membership (with mid-flight exit windows),
-and DA payloads. An in-memory dict is fine for tests but unacceptable in production
+DA payloads, and canonical proof-witness/finality/rollback recovery. An in-memory dict is fine for tests but unacceptable in production
 — a sequencer mid-exit losing its `ExitsAtUnixSeconds` deadline on restart could
 re-admit a sequencer that should be in cooldown, or fail to finalize an exit that
 already passed its window.
 
-Solution: an explicit `IL2KeyValueStore` abstraction (`Put` / `Get` / `Delete` /
-`Contains` / `EnumeratePrefix` / `Count` / `IDisposable`) with two implementations:
+Solution: an explicit `IL2KeyValueStore` abstraction (`Put` / `TryPut` /
+`CompareExchange` / `Get` / `Delete` / `Contains` / `EnumeratePrefix` / `Count` /
+`IDisposable`) plus optional guarded atomic batch/snapshot replacement through
+`IAtomicL2KeyValueStore`, with two implementations:
 
 - `InMemoryKeyValueStore` — `SortedDictionary<byte[], byte[]>` with lexicographic
   ordering. Devnet / test default.

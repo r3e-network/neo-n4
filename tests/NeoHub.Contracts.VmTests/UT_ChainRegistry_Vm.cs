@@ -1,5 +1,7 @@
 using System.Buffers.Binary;
 using System.Numerics;
+using Moq;
+using Neo;
 using Neo.SmartContract.Testing;
 
 namespace NeoHub.Contracts.VmTests;
@@ -16,6 +18,7 @@ public class UT_ChainRegistry_Vm
     private const int OffsetSecurityLevel = 84;
     private const int OffsetDAMode = 85;
     private const int OffsetActive = 90;
+    private static readonly UInt256 GenesisStateRoot = new(Enumerable.Repeat((byte)0xA5, 32).ToArray());
 
     private static byte[] BuildConfig(uint chainId, byte daMode = 0, byte securityLevel = 0)
     {
@@ -29,9 +32,10 @@ public class UT_ChainRegistry_Vm
         return c;
     }
 
-    private static NeoHubChainRegistry Deploy()
+    private static NeoHubChainRegistry Deploy() => Deploy(new TestEngine(true));
+
+    private static NeoHubChainRegistry Deploy(TestEngine engine)
     {
-        var engine = new TestEngine(true);
         var owner = engine.Sender; // default tx sender is an auto-witnessed signer
         return engine.Deploy<NeoHubChainRegistry>(NeoHubChainRegistry.Nef, NeoHubChainRegistry.Manifest, owner);
     }
@@ -42,8 +46,9 @@ public class UT_ChainRegistry_Vm
         var reg = Deploy();
         BigInteger chainId = 1001;
 
-        reg.RegisterChain(chainId, BuildConfig(1001, daMode: 0));
+        reg.RegisterChain(chainId, BuildConfig(1001, daMode: 0), GenesisStateRoot);
         Assert.IsTrue(reg.IsActive(chainId), "a freshly registered chain must be active");
+        Assert.AreEqual(GenesisStateRoot, reg.GetGenesisStateRoot(chainId));
 
         // PauseChain rewrites the stored config's active byte. Before the fix this FAULTed
         // (SETITEM on a ByteString), so the censorship/emergency pause was a no-op-that-throws.
@@ -60,7 +65,7 @@ public class UT_ChainRegistry_Vm
         var reg = Deploy();
         // daMode 99 is out of the 0..3 range — registration must abort (VM FAULT → throw).
         Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
-            () => reg.RegisterChain(1001, BuildConfig(1001, daMode: 99)));
+            () => reg.RegisterChain(1001, BuildConfig(1001, daMode: 99), GenesisStateRoot));
     }
 
     [TestMethod]
@@ -95,12 +100,12 @@ public class UT_ChainRegistry_Vm
         if (!expectedCompatible)
         {
             Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
-                () => reg.RegisterChain(1001, config));
+                () => reg.RegisterChain(1001, config, GenesisStateRoot));
             Assert.IsFalse(reg.IsActive(1001), "rejected config must not be persisted");
             return;
         }
 
-        reg.RegisterChain(1001, config);
+        reg.RegisterChain(1001, config, GenesisStateRoot);
         CollectionAssert.AreEqual(config, reg.GetChainConfig(1001));
     }
 
@@ -110,7 +115,7 @@ public class UT_ChainRegistry_Vm
         var reg = Deploy();
 
         Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
-            () => reg.RegisterChain(1001, BuildConfig(1001, securityLevel: 99)));
+            () => reg.RegisterChain(1001, BuildConfig(1001, securityLevel: 99), GenesisStateRoot));
     }
 
     [TestMethod]
@@ -118,11 +123,97 @@ public class UT_ChainRegistry_Vm
     {
         var reg = Deploy();
         var original = BuildConfig(1001, daMode: 0, securityLevel: 3);
-        reg.RegisterChain(1001, original);
+        reg.RegisterChain(1001, original, GenesisStateRoot);
 
         Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
             () => reg.UpdateChain(1001, BuildConfig(1001, daMode: 1, securityLevel: 3)));
 
         CollectionAssert.AreEqual(original, reg.GetChainConfig(1001));
+    }
+
+    [TestMethod]
+    public void RegisterChain_GenesisStateRoot_IsRequiredAndImmutable()
+    {
+        var reg = Deploy();
+        var config = BuildConfig(1001);
+
+        Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
+            () => reg.RegisterChain(1001, config, UInt256.Zero));
+        Assert.IsFalse(reg.IsActive(1001));
+        Assert.AreEqual(UInt256.Zero, reg.GetGenesisStateRoot(1001));
+
+        reg.RegisterChain(1001, config, GenesisStateRoot);
+        reg.RegisterChain(1001, config, GenesisStateRoot);
+        Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
+            () => reg.RegisterChain(
+                1001,
+                config,
+                new UInt256(Enumerable.Repeat((byte)0x5A, 32).ToArray())));
+        Assert.AreEqual(GenesisStateRoot, reg.GetGenesisStateRoot(1001));
+    }
+
+    [TestMethod]
+    public void RegisterChainPublic_RequiresAndPersistsImmutableGenesisStateRoot()
+    {
+        var engine = new TestEngine(true);
+        var reg = Deploy(engine);
+        var governanceHash = UInt160.Parse("0x" + new string('7', 40));
+        engine.FromHash<NeoHubGovernanceController>(
+            governanceHash,
+            governance => governance
+                .Setup(controller => controller.AdmissionMode)
+                .Returns((BigInteger?)2),
+            checkExistence: false);
+        reg.GovernanceController = governanceHash;
+        var config = BuildConfig(1001);
+
+        Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
+            () => reg.RegisterChainPublic(1001, config, UInt256.Zero));
+        Assert.AreEqual(UInt256.Zero, reg.GetGenesisStateRoot(1001));
+
+        reg.RegisterChainPublic(1001, config, GenesisStateRoot);
+        Assert.AreEqual(GenesisStateRoot, reg.GetGenesisStateRoot(1001));
+        CollectionAssert.AreEqual(config, reg.GetChainConfig(1001));
+    }
+
+    [TestMethod]
+    [DataRow(-1)]
+    [DataRow(3)]
+    [DataRow(258)]
+    public void RegisterChainPublic_RejectsInvalidAdmissionModeWithoutPersistingState(int admissionMode)
+    {
+        var engine = new TestEngine(true);
+        var reg = Deploy(engine);
+        var governanceHash = UInt160.Parse("0x" + new string('7', 40));
+        engine.FromHash<NeoHubGovernanceController>(
+            governanceHash,
+            governance => governance
+                .Setup(controller => controller.AdmissionMode)
+                .Returns((BigInteger?)admissionMode),
+            checkExistence: false);
+        reg.GovernanceController = governanceHash;
+
+        Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
+            () => reg.RegisterChainPublic(1001, BuildConfig(1001), GenesisStateRoot));
+
+        Assert.IsFalse(reg.IsActive(1001));
+        Assert.AreEqual(UInt256.Zero, reg.GetGenesisStateRoot(1001));
+        CollectionAssert.AreEqual(Array.Empty<byte>(), reg.GetChainConfig(1001));
+    }
+
+    [TestMethod]
+    public void SetGovernanceController_AfterGovernanceLock_RejectsReplacement()
+    {
+        var reg = Deploy();
+        var original = UInt160.Parse("0x" + new string('7', 40));
+        var replacement = UInt160.Parse("0x" + new string('8', 40));
+        reg.GovernanceController = original;
+        reg.LockGovernance();
+
+        Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
+            () => reg.GovernanceController = replacement);
+
+        Assert.IsTrue(reg.IsGovernanceLocked);
+        Assert.AreEqual(original, reg.GovernanceController);
     }
 }

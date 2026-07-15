@@ -79,8 +79,9 @@ Run this on a real Neo N4 devnet/testnet node set before production:
 - Confirm the required `sp1-host` job generated and verified both terminal and recursive real SP1
   proofs. These steps are unconditional for pull requests, master pushes, schedules, and manual
   dispatches; a skipped step is not acceptable evidence.
-- Require `SDK Conformance / Shared vectors (4 SDKs)` and dispatch
-  `SDK Conformance` with `require_live=true`; retain the offline and live JSON
+- Require `SDK Conformance / Shared vectors (4 SDKs)` and manually dispatch
+  `SDK Conformance`; manual dispatch automatically requires the live job and its configured
+  credentials. Retain the offline and live JSON
   summaries and reject any report with zero discovered or executed live tests.
 - Attach CI run URLs, local verification logs, contract artifacts, deployment
   plan, and devnet/testnet rehearsal evidence to the release approval.

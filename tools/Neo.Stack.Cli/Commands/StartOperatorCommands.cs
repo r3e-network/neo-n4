@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Neo.L2.Sequencer;
+using Neo.Wallets;
 
 namespace Neo.Stack.Cli.Commands;
 
@@ -279,6 +280,15 @@ internal static class NodeOperatorCommand
                 Console.Error.WriteLine($"Sequencer wallet not found: {walletPath}");
                 return 4;
             }
+            if (!TryValidateSequencerWallet(
+                    nodeConfigPath,
+                    walletPath,
+                    launchConfiguration,
+                    out var walletError))
+            {
+                Console.Error.WriteLine(walletError);
+                return 4;
+            }
         }
 
         var arguments = executable.PrefixArguments
@@ -297,6 +307,76 @@ internal static class NodeOperatorCommand
         return await (processRunner ?? new SystemOperatorProcessRunner())
             .RunAsync(spec, cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    private static bool TryValidateSequencerWallet(
+        string nodeConfigPath,
+        string walletPath,
+        SequencerLaunchConfiguration launchConfiguration,
+        out string error)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(nodeConfigPath));
+            var unlockWallet = document.RootElement
+                .GetProperty("ApplicationConfiguration")
+                .GetProperty("UnlockWallet");
+            if (!unlockWallet.TryGetProperty("Password", out var passwordElement)
+                || passwordElement.ValueKind != JsonValueKind.String
+                || string.IsNullOrEmpty(passwordElement.GetString()))
+            {
+                throw new InvalidDataException(
+                    "ApplicationConfiguration.UnlockWallet.Password must be a non-empty string.");
+            }
+
+            var settings = ProtocolSettings.Default with
+            {
+                Network = launchConfiguration.Network,
+                StandbyCommittee = launchConfiguration.Validators,
+                ValidatorsCount = launchConfiguration.Validators.Count,
+                MillisecondsPerBlock = launchConfiguration.MillisecondsPerBlock,
+            };
+            var wallet = Wallet.Open(walletPath, passwordElement.GetString(), settings)
+                ?? throw new InvalidDataException(
+                    "The sequencer wallet format is unsupported; the reviewed deployment must provide a Neo-compatible .json wallet.");
+            var hasUsableCommitteeKey = false;
+            foreach (var validator in launchConfiguration.Validators)
+            {
+                var account = wallet.GetAccount(validator);
+                if (account is null || account.Lock || !account.HasKey)
+                    continue;
+                try
+                {
+                    var key = account.GetKey();
+                    if (key is not null && key.PublicKey.Equals(validator))
+                    {
+                        hasUsableCommitteeKey = true;
+                        break;
+                    }
+                }
+                catch (Exception exception) when (
+                    exception is FormatException
+                    or ArgumentException
+                    or System.Security.Cryptography.CryptographicException)
+                {
+                }
+            }
+            if (!hasUsableCommitteeKey)
+            {
+                throw new InvalidDataException(
+                    "The sequencer wallet does not contain an unlocked, decryptable key whose public key matches the configured validator committee.");
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+            or InvalidDataException or JsonException or KeyNotFoundException or InvalidOperationException
+            or FormatException or ArgumentException or NullReferenceException)
+        {
+            error = $"Invalid sequencer wallet {walletPath}: {exception.Message}";
+            return false;
+        }
+
+        error = "";
+        return true;
     }
 
     private static bool RequirePlugin(

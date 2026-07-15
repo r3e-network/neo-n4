@@ -327,8 +327,8 @@ public class UT_DeployPlanner
         Assert.AreEqual("OWNER_REPLACE_ME", governance.DeployData[0]!.AsString());
         var council = governance.DeployData[1] as Neo.Json.JArray;
         Assert.IsNotNull(council, "2nd arg must be a council public-key array");
-        Assert.AreEqual("GOVERNANCE_COUNCIL_MEMBER_REPLACE_ME", council[0]!.AsString());
-        Assert.AreEqual(1, (int)governance.DeployData[2]!.AsNumber());
+        Assert.AreEqual("GOVERNANCE_COUNCIL_REPLACE_ME", council[0]!.AsString());
+        Assert.AreEqual("GOVERNANCE_THRESHOLD_REPLACE_ME", governance.DeployData[2]!.AsString());
         Assert.AreEqual(3600, (int)governance.DeployData[3]!.AsNumber());
     }
 
@@ -516,8 +516,8 @@ public class UT_DeployPlanner
         // 1 exact atomic v4 profile registration +
         // 1 fraud-verifier security-boundary note +
         // 7 external-bridge governance/route/liquidity/setup hints +
-        // 2 Phase-C wiring hints + 5 DA/optimistic/Gateway/filter production wiring hints = 34.
-        Assert.AreEqual(34, actions.Count);
+        // 2 Phase-C wiring hints + 8 registry/settlement-governance/DA/optimistic/Gateway/filter wiring hints = 37.
+        Assert.AreEqual(37, actions.Count);
 
         // 1. SequencerBond.RegisterSlasher(OptimisticChallenge) — Phase-3 cycle-break.
         StringAssert.Contains(actions[0], "SequencerBond.RegisterSlasher");
@@ -555,79 +555,88 @@ public class UT_DeployPlanner
         StringAssert.Contains(actions[11], "GovernanceController");
         StringAssert.Contains(actions[11], "§16");
 
-        // 10-15. ZK settlement must use the pinned SP1 verifier, irreversibly
+        // 13. SettlementManager must bind its emergency rollback to §16 before locking.
+        StringAssert.Contains(actions[12], "SettlementManager.SetGovernanceController");
+        StringAssert.Contains(actions[12], "GovernanceController");
+        StringAssert.Contains(actions[12], "emergency batch rollback");
+
+        // 14-19. ZK settlement must use the pinned SP1 verifier, irreversibly
         // disable envelope-only acceptance, and freeze the exact inner route before
         // routing ProofType.Zk to production.
-        StringAssert.Contains(actions[12], "ContractZkVerifier.RegisterVerificationKey");
-        StringAssert.Contains(actions[12], "ProofSystem.Sp1=1");
-        StringAssert.Contains(actions[12], "PROGRAM_VKEY_REPLACE_ME");
-        StringAssert.Contains(actions[13], "ContractZkVerifier.RegisterProofVerifier");
-        StringAssert.Contains(actions[13], "Sp1Groth16Verifier");
-        StringAssert.Contains(actions[14], "ContractZkVerifier.DisableEnvelopeOnlyPermanently");
-        StringAssert.Contains(actions[14], "ProofSystem.Sp1=1");
-        StringAssert.Contains(actions[15], "ContractZkVerifier.LockProofSystemConfiguration");
+        StringAssert.Contains(actions[13], "ContractZkVerifier.RegisterVerificationKey");
+        StringAssert.Contains(actions[13], "ProofSystem.Sp1=1");
+        StringAssert.Contains(actions[13], "PROGRAM_VKEY_REPLACE_ME");
+        StringAssert.Contains(actions[14], "ContractZkVerifier.RegisterProofVerifier");
+        StringAssert.Contains(actions[14], "Sp1Groth16Verifier");
+        StringAssert.Contains(actions[15], "ContractZkVerifier.DisableEnvelopeOnlyPermanently");
         StringAssert.Contains(actions[15], "ProofSystem.Sp1=1");
-        StringAssert.Contains(actions[15], "PROGRAM_VKEY_REPLACE_ME");
-        StringAssert.Contains(actions[16], "VerifierRegistry.RegisterVerifier");
-        StringAssert.Contains(actions[16], "ProofType.Zk");
-        StringAssert.Contains(actions[16], "ContractZkVerifier");
-        StringAssert.Contains(actions[17], "VerifierRegistry.LockGovernance");
-        StringAssert.Contains(actions[17], "irreversible production gate");
+        StringAssert.Contains(actions[16], "ContractZkVerifier.LockProofSystemConfiguration");
+        StringAssert.Contains(actions[16], "ProofSystem.Sp1=1");
+        StringAssert.Contains(actions[16], "PROGRAM_VKEY_REPLACE_ME");
+        StringAssert.Contains(actions[17], "VerifierRegistry.RegisterVerifier");
+        StringAssert.Contains(actions[17], "ProofType.Zk");
+        StringAssert.Contains(actions[17], "ContractZkVerifier");
+        StringAssert.Contains(actions[18], "VerifierRegistry.LockGovernance");
+        StringAssert.Contains(actions[18], "irreversible production gate");
 
-        // 16. Atomically approve and register the exact executable v4 profile.
-        StringAssert.Contains(actions[18], "RegisterPermissionlessFraudProfile");
-        StringAssert.Contains(actions[18], "RestrictedExecutionFraudVerifier");
-        StringAssert.Contains(actions[18], "L2_CHAIN_ID_REPLACE_ME");
-        StringAssert.Contains(actions[18], "FRAUD_REPLAY_DOMAIN_REPLACE_ME");
+        // 20. Atomically approve and register the exact executable v4 profile.
+        StringAssert.Contains(actions[19], "RegisterPermissionlessFraudProfile");
+        StringAssert.Contains(actions[19], "RestrictedExecutionFraudVerifier");
+        StringAssert.Contains(actions[19], "L2_CHAIN_ID_REPLACE_ME");
+        StringAssert.Contains(actions[19], "FRAUD_REPLAY_DOMAIN_REPLACE_ME");
 
-        // 17. Explain the strict executable-v4 security boundary.
-        StringAssert.Contains(actions[19], "v1/v2/v3 fraud payloads are advisory only");
-        StringAssert.Contains(actions[19], "governance or owner witness");
+        // 21. Explain the strict executable-v4 security boundary.
+        StringAssert.Contains(actions[20], "v1/v2/v3 fraud payloads are advisory only");
+        StringAssert.Contains(actions[20], "governance or owner witness");
 
-        // 18. MpcCommitteeVerifier.SetGovernanceController(GovernanceController) — bridge committee gov.
-        StringAssert.Contains(actions[20], "MpcCommitteeVerifier.SetGovernanceController");
-        StringAssert.Contains(actions[20], "GovernanceController");
-        StringAssert.Contains(actions[20], "RegisterCommitteeViaProposal");
-
-        // 19. ExternalBridgeRegistry.SetGovernanceController(GovernanceController) — bridge verifier upgrade gov.
-        StringAssert.Contains(actions[21], "ExternalBridgeRegistry.SetGovernanceController");
+        // 22. MpcCommitteeVerifier.SetGovernanceController(GovernanceController) — bridge committee gov.
+        StringAssert.Contains(actions[21], "MpcCommitteeVerifier.SetGovernanceController");
         StringAssert.Contains(actions[21], "GovernanceController");
-        StringAssert.Contains(actions[21], "UpgradeVerifierViaProposal");
+        StringAssert.Contains(actions[21], "RegisterCommitteeViaProposal");
 
-        // 20. ExternalBridgeEscrow proposal-governance wiring.
-        StringAssert.Contains(actions[22], "ExternalBridgeEscrow.SetGovernanceController");
-        StringAssert.Contains(actions[22], "timelocked");
+        // 23. ExternalBridgeRegistry.SetGovernanceController(GovernanceController) — bridge verifier upgrade gov.
+        StringAssert.Contains(actions[22], "ExternalBridgeRegistry.SetGovernanceController");
+        StringAssert.Contains(actions[22], "GovernanceController");
+        StringAssert.Contains(actions[22], "UpgradeVerifierViaProposal");
 
-        // 21. Per-foreign-chain committee setup pointer.
-        StringAssert.Contains(actions[23], "neo-external-bridge");
-        StringAssert.Contains(actions[23], "RegisterVerifier");
-        StringAssert.Contains(actions[23], "0xE0000001");
+        // 24. ExternalBridgeEscrow proposal-governance wiring.
+        StringAssert.Contains(actions[23], "ExternalBridgeEscrow.SetGovernanceController");
+        StringAssert.Contains(actions[23], "timelocked");
 
-        // 22-24. Inbound payout route, collateral, and irreversible admin lock.
-        StringAssert.Contains(actions[24], "ExternalBridgeEscrow.SetAssetRoute");
-        StringAssert.Contains(actions[24], "payoutVersion()==1");
-        StringAssert.Contains(actions[24], "UpdateCounter==0");
-        StringAssert.Contains(actions[24], "non-zero L2_CHAIN_ID_REPLACE_ME");
-        StringAssert.Contains(actions[24], "neoChainId=0");
-        StringAssert.Contains(actions[25], "ExternalBridgeEscrow.FundLiquidity");
-        StringAssert.Contains(actions[25], "Neo L1 direct-release routes only");
-        StringAssert.Contains(actions[26], "ExternalBridgeEscrow.LockGovernance");
-        StringAssert.Contains(actions[26], "ConfigureAssetRouteViaProposal");
+        // 25. Per-foreign-chain committee setup pointer.
+        StringAssert.Contains(actions[24], "neo-external-bridge");
+        StringAssert.Contains(actions[24], "RegisterVerifier");
+        StringAssert.Contains(actions[24], "0xE0000001");
 
-        // 25. Phase-C: ExternalBridgeBond.RegisterSlasher(MpcCommitteeFraudVerifier).
-        StringAssert.Contains(actions[27], "ExternalBridgeBond.RegisterSlasher");
-        StringAssert.Contains(actions[27], "MpcCommitteeFraudVerifier");
+        // 26-28. Inbound payout route, collateral, and irreversible admin lock.
+        StringAssert.Contains(actions[25], "ExternalBridgeEscrow.SetAssetRoute");
+        StringAssert.Contains(actions[25], "payoutVersion()==1");
+        StringAssert.Contains(actions[25], "UpdateCounter==0");
+        StringAssert.Contains(actions[25], "non-zero L2_CHAIN_ID_REPLACE_ME");
+        StringAssert.Contains(actions[25], "neoChainId=0");
+        StringAssert.Contains(actions[26], "ExternalBridgeEscrow.FundLiquidity");
+        StringAssert.Contains(actions[26], "Neo L1 direct-release routes only");
+        StringAssert.Contains(actions[27], "ExternalBridgeEscrow.LockGovernance");
+        StringAssert.Contains(actions[27], "ConfigureAssetRouteViaProposal");
 
-        // 26. Phase-C: per-chain RegisterCommitteeWithMembers pointer.
-        StringAssert.Contains(actions[28], "RegisterCommitteeWithMembers");
+        // 29. Phase-C: ExternalBridgeBond.RegisterSlasher(MpcCommitteeFraudVerifier).
+        StringAssert.Contains(actions[28], "ExternalBridgeBond.RegisterSlasher");
         StringAssert.Contains(actions[28], "MpcCommitteeFraudVerifier");
 
-        StringAssert.Contains(actions[29], "SettlementManager.SetDARegistry");
-        StringAssert.Contains(actions[30], "SettlementManager.SetDAValidator");
-        StringAssert.Contains(actions[31], "SettlementManager.SetOptimisticChallenge");
-        StringAssert.Contains(actions[32], "SettlementManager.SetMessageRouter");
-        StringAssert.Contains(actions[32], "MessageRouter");
-        StringAssert.Contains(actions[33], "MessageRouter.SetL1TxFilter");
+        // 30. Phase-C: per-chain RegisterCommitteeWithMembers pointer.
+        StringAssert.Contains(actions[29], "RegisterCommitteeWithMembers");
+        StringAssert.Contains(actions[29], "MpcCommitteeFraudVerifier");
+
+        StringAssert.Contains(actions[30], "SettlementManager.SetDARegistry");
+        StringAssert.Contains(actions[31], "SettlementManager.SetDAValidator");
+        StringAssert.Contains(actions[32], "SettlementManager.SetOptimisticChallenge");
+        StringAssert.Contains(actions[33], "SettlementManager.SetMessageRouter");
+        StringAssert.Contains(actions[33], "MessageRouter");
+        StringAssert.Contains(actions[34], "ChainRegistry.LockGovernance");
+        StringAssert.Contains(actions[34], "proposal-bound council approval");
+        StringAssert.Contains(actions[35], "SettlementManager.LockGovernance");
+        StringAssert.Contains(actions[35], "RevertBatchViaProposal");
+        StringAssert.Contains(actions[36], "MessageRouter.SetL1TxFilter");
     }
 
     [TestMethod]
@@ -711,11 +720,11 @@ public class UT_DeployPlanner
     }
 
     [TestMethod]
-    public void PostDeployActions_OnlyChainRegistryAndGovernance_EmitsOneHint()
+    public void PostDeployActions_OnlyChainRegistryAndGovernance_EmitsWiringAndLockHints()
     {
         // Asymmetry test: an operator who only deploys ChainRegistry (without
         // VerifierRegistry — e.g. governance-controlled chain admission only) gets
-        // exactly one hint.
+        // both the controller-wiring and irreversible-lock hints.
         var custom = new DeployPlan
         {
             Version = 1,
@@ -728,8 +737,9 @@ public class UT_DeployPlanner
         };
         var bundle = DeployPlanner.Plan(custom, name => H(0xAA));
         var actions = ScaffoldPlan.PostDeployActions(bundle).ToList();
-        Assert.AreEqual(1, actions.Count);
+        Assert.AreEqual(2, actions.Count);
         StringAssert.Contains(actions[0], "ChainRegistry.SetGovernanceController");
+        StringAssert.Contains(actions[1], "ChainRegistry.LockGovernance");
     }
 
     [TestMethod]

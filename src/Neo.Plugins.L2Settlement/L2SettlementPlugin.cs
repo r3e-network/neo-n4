@@ -143,7 +143,8 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         uint forcedInclusionFinalityDepth = 1,
         int forcedInclusionMaximumBlocksPerScan = 256,
         IEnumerable<ulong>? knownForcedInclusionNonces = null,
-        int? maxAutomaticRetries = null)
+        int? maxAutomaticRetries = null,
+        HttpClient? rpcHttpClient = null)
     {
         ArgumentNullException.ThrowIfNull(batchPlugin);
         ArgumentNullException.ThrowIfNull(executor);
@@ -153,6 +154,12 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(signer);
         ArgumentNullException.ThrowIfNull(forcedInclusionEventStore);
+        if (!store.IsDurable)
+            throw new InvalidOperationException(
+                "production settlement requires a durable proof witness store");
+        if (forcedInclusionEventStore is not IDurableL2KeyValueStore)
+            throw new InvalidOperationException(
+                "production settlement requires a durable forced-inclusion event store");
         if (_pipeline is not null || _productionComposition is not null)
             throw new InvalidOperationException("settlement pipeline is already wired");
 
@@ -163,7 +170,8 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
             forcedInclusionDeploymentHeight,
             forcedInclusionFinalityDepth,
             forcedInclusionMaximumBlocksPerScan,
-            knownForcedInclusionNonces);
+            knownForcedInclusionNonces,
+            rpcHttpClient);
         try
         {
             Wire(
@@ -232,7 +240,7 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         return pipeline.ReconcileAsync(cancellationToken: cancellationToken);
     }
 
-    /// <summary>Count durable artifacts not yet observed on L1.</summary>
+    /// <summary>Count durable artifacts not yet finalized on L1.</summary>
     public ValueTask<int> GetPendingCountAsync(
         CancellationToken cancellationToken = default)
     {

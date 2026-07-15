@@ -83,10 +83,19 @@ internal static class RegisterChainCommand
         {
             try
             {
+                var genesisStateRootValue = ArgUtil.Get(args, "--genesis-state-root", "");
+                if (!UInt256.TryParse(genesisStateRootValue, out var genesisStateRoot)
+                    || genesisStateRoot == UInt256.Zero)
+                {
+                    Console.Error.WriteLine(
+                        "--genesis-state-root <non-zero UInt256> is required with the four L1 contract hashes");
+                    return Task.FromResult(4);
+                }
                 var config = L2ChainConfigJsonReader.FromJson(chainId, configJson,
                     operatorHash, verifierHash, bridgeHash, messageHash);
                 var bytes = L2ChainConfigSerializer.Encode(config);
-                Console.WriteLine($"  Args            : (chainId={chainId}, configBytes=<{bytes.Length} bytes>)");
+                Console.WriteLine(
+                    $"  Args            : (chainId={chainId}, configBytes=<{bytes.Length} bytes>, genesisStateRoot={genesisStateRoot})");
                 Console.WriteLine();
                 Console.WriteLine($"  configBytes (hex, copy-pasteable):");
                 Console.WriteLine($"  0x{Convert.ToHexString(bytes).ToLowerInvariant()}");
@@ -100,7 +109,12 @@ internal static class RegisterChainCommand
                         return Task.FromResult(5);
                     }
                     using var scriptBuilder = new ScriptBuilder();
-                    scriptBuilder.EmitDynamicCall(chainRegistry, "registerChain", chainId, bytes);
+                    scriptBuilder.EmitDynamicCall(
+                        chainRegistry,
+                        "registerChain",
+                        chainId,
+                        bytes,
+                        genesisStateRoot);
                     return OperatorTransactionBroadcaster.BroadcastAsync(
                         args,
                         scriptBuilder.ToArray(),
@@ -109,7 +123,8 @@ internal static class RegisterChainCommand
                 Console.WriteLine();
                 Console.WriteLine($"Next steps:");
                 Console.WriteLine($"  1. Add --broadcast --rpc <url> --expected-network <magic> --chain-registry <hash>");
-                Console.WriteLine($"     to sign + submit registerChain({chainId}, 0x{Convert.ToHexString(bytes).ToLowerInvariant()})");
+                Console.WriteLine(
+                    $"     to sign + submit registerChain({chainId}, 0x{Convert.ToHexString(bytes).ToLowerInvariant()}, {genesisStateRoot})");
                 Console.WriteLine($"     Sign with NEO_N4_OPERATOR_WIF or --signer-command (docs/operator-signer-command-protocol.md).");
                 Console.WriteLine($"  2. Verify on L1 by calling ChainRegistry.isActive({chainId})");
                 return Task.FromResult(0);
@@ -121,7 +136,7 @@ internal static class RegisterChainCommand
             }
         }
 
-        Console.WriteLine($"  Args            : (chainId={chainId}, configBytes=<encoded>)");
+        Console.WriteLine($"  Args            : (chainId={chainId}, configBytes=<encoded>, genesisStateRoot=<required>)");
         Console.WriteLine($"  Config bytes    : {configJson.Length} chars (will be NEO-serialized to bytes)");
         Console.WriteLine();
         Console.WriteLine($"--- chain config preview ---");
@@ -136,9 +151,10 @@ internal static class RegisterChainCommand
         Console.WriteLine($"  2. Re-run register-chain with the four wallet-returned hashes:");
         Console.WriteLine($"       neo-stack register-chain --chain-id {chainId} \\");
         Console.WriteLine($"         --operator <real hash> --verifier <real hash> \\");
-        Console.WriteLine($"         --bridge <real hash> --message <real hash>");
+        Console.WriteLine($"         --bridge <real hash> --message <real hash> \\");
+        Console.WriteLine($"         --genesis-state-root <authenticated non-zero UInt256>");
         Console.WriteLine($"     to emit the canonical 91-byte configBytes hex (ready for wallet-side submission).");
-        Console.WriteLine($"  3. Sign + submit registerChain({chainId}, <configBytes>) via your wallet RPC.");
+        Console.WriteLine($"  3. Sign + submit registerChain({chainId}, <configBytes>, <genesisStateRoot>) via your wallet RPC.");
         Console.WriteLine($"  4. Verify on L1 by calling ChainRegistry.isActive({chainId}).");
         Console.WriteLine();
         Console.WriteLine($"(Wallet integration is operator-specific — wire your signer via Neo.L2.Settlement.Rpc.RpcSettlementClient.)");

@@ -8,9 +8,10 @@ namespace Neo.L2.Censorship;
 /// that attribution.
 /// </summary>
 /// <remarks>
-/// See doc.md §15.4 and §17. A production implementation must derive the result from finalized
-/// block/view consensus data. Returning <see langword="null"/> leaves the report unattributed so
-/// governance can investigate without automatically blaming an arbitrary committee member.
+/// See doc.md §15.4 and §17. This optional operator-evidence adapter may propose an attribution only
+/// from finalized block/view consensus data. Returning <see langword="null"/> leaves the report
+/// unattributed. Permissionless on-chain reports always use the zero address; governance reviews
+/// independent evidence before naming a sequencer in the separately authorized slash action.
 /// </remarks>
 public interface ICensorshipAttributionProvider
 {

@@ -384,7 +384,7 @@ public static class ScaffoldPlan
         {
             yield return $"{forcedInclusion.Name}.SetSequencerBond({bond.Name})  # wire §15.4 censorship reports to SequencerBond.Slash";
             yield return $"{forcedInclusion.Name}.SetCensorshipSlashAmount(1000000)  # production default: slash 1.0 GAS per overdue forced-inclusion entry";
-            yield return $"{forcedInclusion.Name}.SetGasToken(GAS_CONTRACT_HASH)  # production requires a real NEP-17 GAS token for forced-inclusion spam control";
+            yield return $"{forcedInclusion.Name}.SetGasToken(GAS_CONTRACT_HASH)  # production requires the canonical Neo native GAS contract for forced-inclusion spam control";
             yield return $"{forcedInclusion.Name}.SetFeeRecipient(FEE_RECIPIENT)  # production requires a non-zero accountable fee recipient";
             yield return $"{forcedInclusion.Name}.SetFee(100000)  # production default: charge 0.001 GAS per forced-inclusion entry after token + recipient are wired";
         }
@@ -399,6 +399,10 @@ public static class ScaffoldPlan
         if (verifierReg is not null && gc is not null)
         {
             yield return $"VerifierRegistry.SetGovernanceController({gc.Name})  # enable §16 council-veto path (RegisterVerifierViaProposal depends on this wiring)";
+        }
+        if (sm is not null && gc is not null)
+        {
+            yield return $"{sm.Name}.SetGovernanceController({gc.Name})  # bind emergency batch rollback to exact §16 council proposals before the irreversible production lock";
         }
         if (contractZkVerifier is not null && sp1Groth16Verifier is not null)
         {
@@ -492,6 +496,14 @@ public static class ScaffoldPlan
         {
             yield return $"{sm.Name}.SetMessageRouter({messageRouter.Name})  # make Gateway publication validate finalized L1 constituents and enter MessageRouter with the canonical contract witness atomically";
         }
+        if (chainReg is not null && gc is not null)
+        {
+            yield return $"{chainReg.Name}.LockGovernance()  # irreversible production gate: freeze the ChainRegistry controller and disable instant owner config replacement; future updates require exact proposal-bound council approval";
+        }
+        if (sm is not null && gc is not null)
+        {
+            yield return $"{sm.Name}.LockGovernance()  # irreversible production gate: freeze settlement dependencies and disable direct owner rollback; emergency rollback requires an exact RevertBatchViaProposal payload, council threshold, timelock, and one-time proposal";
+        }
         if (messageRouter is not null && l1TxFilter is not null)
         {
             yield return $"# Per L2 chain: call {messageRouter.Name}.SetL1TxFilter(<chainId>, {l1TxFilter.Name}) to enable sender/receiver/message-type filtering before L1->L2 enqueue.";
@@ -522,9 +534,9 @@ public static class ScaffoldPlan
             "OWNER_REPLACE_ME",
             new JArray
             {
-                "GOVERNANCE_COUNCIL_MEMBER_REPLACE_ME",
+                "GOVERNANCE_COUNCIL_REPLACE_ME",
             },
-            1,
+            "GOVERNANCE_THRESHOLD_REPLACE_ME",
             3600,
         };
     }

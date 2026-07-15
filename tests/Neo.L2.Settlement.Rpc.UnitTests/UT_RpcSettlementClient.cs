@@ -178,6 +178,29 @@ public class UT_RpcSettlementClient
     }
 
     [TestMethod]
+    public async Task Dispose_CallerOwnedHttpRejectsFurtherRpcAndSettlementCalls()
+    {
+        var stub = new StubHandler
+        {
+            ResponseBody = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":true}",
+        };
+        using var http = new HttpClient(stub);
+        var rpc = new JsonRpcClient(FakeEndpoint, http);
+        var settlement = new RpcSettlementClient(
+            rpc,
+            UInt160.Parse("0x" + new string('1', 40)),
+            (sm, bytes, l1h, bch, ct) => new ValueTask<UInt256>(UInt256.Zero));
+
+        settlement.Dispose();
+        settlement.Dispose();
+
+        await Assert.ThrowsExactlyAsync<ObjectDisposedException>(async () =>
+            await settlement.GetBatchStatusAsync(1001, 1));
+        await Assert.ThrowsExactlyAsync<ObjectDisposedException>(async () =>
+            await rpc.CallAsync("ping", new JArray()));
+    }
+
+    [TestMethod]
     public async Task SettlementClient_GetTransactionStatus_DistinguishesPendingAndConfirmed()
     {
         var stub = new StubHandler

@@ -19,7 +19,9 @@ plan ID (e.g. `[plan: §16.1-admission]`) so reviewers can cross-check.
 1. Reads the wired GovernanceController hash (set via owner-only
    `SetGovernanceController`); rejects if unset with a clear "owner must wire
    first" hint.
-2. Calls `GovernanceController.GetAdmissionMode()`.
+2. Calls `GovernanceController.GetAdmissionMode()` and validates the full returned
+   `BigInteger` as the closed set 0..2 before narrowing it to `byte`; negative,
+   undefined, and wrapping values fail without persistent state changes.
 3. Mode 0 (permissioned) → reject with "use RegisterChain"; mode 1
    (semi-permissionless) → enforce `IsApprovedVerifier` + `IsApprovedBridgeAdapter`
    on the verifier (offset 24..43) and bridge (offset 44..63) bytes; mode 2
@@ -29,7 +31,8 @@ plan ID (e.g. `[plan: §16.1-admission]`) so reviewers can cross-check.
 The owner-only `RegisterChain` stays as the §16.1 "permissioned" path.
 
 **Files.** `contracts/NeoHub.ChainRegistry/ChainRegistryContract.cs`.
-Tests cover modes 0/1/2 + the unwired-controller rejection.
+Tests cover modes 0/1/2, the unwired-controller rejection, and fail-closed
+rejection of -1, 3, and 258 without config or genesis-root persistence.
 
 ### §16.1-approved-sets ✅ closed
 
@@ -245,9 +248,10 @@ honest "is everything correctly and completely implemented?" audit):
     audit" section catalogueing what's production-ready vs. MVP shapes
     vs. reference scaffolding (operator must replace) vs. plan-printers
     (CLI doesn't actually sign/submit) vs. out-of-repo-by-design.
-  - `NeoHub.ForcedInclusion` ships a real configurable spam-control fee
-    (`SetFee` / `SetFeeRecipient` / `SetGasToken`); default 0 = fee-free
-    legacy preserved. Closes the "fee-free MVP" callout.
+  - `NeoHub.ForcedInclusion` ships a real configurable spam-control amount
+    (`SetFee` / `SetFeeRecipient` / native-GAS-only `SetGasToken`); substitute
+    NEP-17 contracts are rejected and default 0 preserves fee-free development.
+    Closes the "fee-free MVP" callout without adding an arbitrary-token callback surface.
   - `NeoHub.GovernanceFraudVerifier` ships as an advisory structural fraud
     verifier for offline audit tooling. It decodes the canonical 101-byte `FraudProofPayload`,
     validates length / version / claims-a-real-discrepancy, emits

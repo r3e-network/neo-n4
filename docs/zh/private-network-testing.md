@@ -15,6 +15,35 @@
 - 一致性要求：术语、项目路径、命令、合约名称、模块名称、测试名称和安全结论必须与英文源文件保持一致。
 - 生产完备要求：如果英文源文件声明某模块已完成、已验证、已部署演练或已通过测试，中文版本不能降低或扩大该结论；必须同步记录同样的前提和限制。
 
+完整运行必须提供五个已审阅资产：`-NodeConfig`、`-BatcherNodeConfig`、
+`-SequencerNeoCli`、`-BatcherNeoCli` 和 `-Prover`。脚本在仅当前用户可访问的 OS 临时目录
+中工作，只白名单暂存可执行文件、根 runtime 二进制、`runtimes/` 下允许的二进制类型、
+单个必需 plugin 的 runtime/config 和显式审阅的 node config；钱包、节点数据库、日志、
+隐藏路径、任意 JSON、symlink/junction 均不复制。sequencer config 的
+`UnlockWallet.Path` 必须是指向外部审阅、Neo 兼容 NEP-6 `.json` 钱包的绝对路径；preflight
+会用配置密码实际打开钱包，解密配置委员会账户，并验证解密私钥确实派生出对应 validator
+公钥。格式错误、密文与账户不匹配、密码错误、不支持的 adapter 文件或无关密钥均 fail closed；自定义
+HSM wallet factory 需要单独审阅的 Neo.CLI 集成，不属于通用 preflight 的已验证能力。
+临时目录在成功或失败时都由 `finally` 删除，清理失败会让运行 fail closed；普通编译仍写入
+gitignored 的 `bin/`、`obj/`、`target/`，不宣称为隔离秘密状态。长期
+`artifacts/private-network/<run-id>/` 只保留日志、脱敏命令/状态摘要和显式审计报告。
+随后执行 `init-l2`；三个 `start-*` 命令都带显式
+`--dry-run`，只证明配置、插件、钱包、可执行文件和参数一致，不把串行启动长驻进程冒充
+dBFT 生命周期演练。需要跳过该预检时必须显式传入 `-SkipOperatorPreflight`；有资金的并发
+dBFT/进程演练仍是独立发布证据。
+
+```powershell
+.\scripts\private-network\Test-PrivateNetwork.ps1 `
+  -NodeConfig C:\reviewed\sequencer\config.json `
+  -BatcherNodeConfig C:\reviewed\batcher\config.json `
+  -SequencerNeoCli C:\reviewed\sequencer\Neo.CLI.dll `
+  -BatcherNeoCli C:\reviewed\batcher\Neo.CLI.dll `
+  -Prover C:\reviewed\prover\prove-batch.exe
+```
+
+跳过真实 proof 或增加 batch 数量但仍保留完整 operator 预检时，必须继续提供上述五个
+参数；只有快速 smoke 才可显式使用 `-SkipOperatorPreflight`。
+
 ## 维护检查清单
 
 - 英文源文件新增章节时，在这里补充对应中文章节或中文摘要。

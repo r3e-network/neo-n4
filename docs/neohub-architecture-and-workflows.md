@@ -169,7 +169,7 @@ sequenceDiagram
     participant DA as DARegistry
 
     Operator->>Governance: request/admit chain policy
-    Governance->>Chain: registerChain(chainId, configBytes)
+    Governance->>Chain: registerChain(chainId, configBytes, genesisStateRoot)
     Operator->>Verifier: register proof verifier for chain/proofType
     Operator->>Token: register L1/L2 asset mappings
     Operator->>DA: register DA mode or committee metadata
@@ -179,11 +179,15 @@ sequenceDiagram
 Registration is the first load-bearing step. A chain cannot safely accept
 deposits, finalize batches, or consume messages until:
 
-1. `ChainRegistry` has a non-zero active config.
+1. `ChainRegistry` has a non-zero active config and an immutable, non-zero authenticated
+   genesis state root registered atomically with it.
 2. `VerifierRegistry` knows which verifier handles the chain's proof mode.
 3. `TokenRegistry` maps the assets the bridge may move.
 4. `DARegistry` and `DAValidator` can evaluate the chain's DA mode.
 5. Governance/emergency policy has a known owner or council path.
+
+The first submitted batch must use that exact registered genesis root as its `preStateRoot`.
+This prevents the first batch submitter from selecting the chain's settlement trust anchor.
 
 ## 7. Deposit data flow
 

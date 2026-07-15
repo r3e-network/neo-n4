@@ -50,10 +50,11 @@ neo-stack init-l2 --chain-id 1099 --output ./my-l2 \
 # 3. Print the L1 registration plan (run during permissioned admission phase
 #    or governance-approved semi-permissionless / permissionless modes).
 #    Without --operator/--verifier/--bridge/--message: prints plan-only.
-#    With those four UInt160 hashes (discovered from neo-hub-deploy bundle):
-#    emits the canonical 91-byte configBytes hex you paste into your wallet.
+#    With those four UInt160 hashes plus the reviewed non-zero genesis state root:
+#    emits the canonical 91-byte configBytes and immutable root you submit together.
 neo-stack register-chain --chain-id 1099 --output ./my-l2 \
-    --operator <hash> --verifier <hash> --bridge <hash> --message <hash>
+    --operator <hash> --verifier <hash> --bridge <hash> --message <hash> \
+    --genesis-state-root <authenticated-non-zero-UInt256>
 
 # 4. Print the bridge adapter deploy plan (one-time per new chain).
 neo-stack deploy-bridge-adapter --chain-id 1099 --output ./my-l2
@@ -139,6 +140,9 @@ var observedInitialRoot =
 if (!observedInitialRoot.Equals(operatorManifest.InitialStateRoot))
     throw new InvalidDataException("SP1 genesis state root differs from the deployment manifest");
 
+// Register this exact value atomically with the ChainRegistry config. The ZK profile,
+// signed deployment manifest, and L1 trust anchor must never use different roots.
+
 var sp1 = Sp1SettlementExecutionStack.Create(
     chainId: 1099,
     state,
@@ -177,7 +181,7 @@ archive directories are forced to `0700`, every artifact is `0600`, and symlinks
 entries fail closed. Defaults cap the combined watch/archive footprint at 16 GiB and 64
 content-addressed tasks; operators may lower the limits with `--max-queue-bytes` and
 `--max-queue-tasks`. Do not configure a TTL. After the durable proof manifest records
-`SettlementObserved`, the settlement pipeline writes `<content-hash>.proof.ack`; the daemon checks
+`SettlementFinalized`, the settlement pipeline writes `<content-hash>.proof.ack`; the daemon checks
 its 32-byte body and only then prunes the matching request and proof set.
 
 `forcedInclusionDeploymentHeight` is the block that deployed the configured contract. The
@@ -830,7 +834,8 @@ after a topological sort:
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
     --output ./my-l2/deploy-plan.json
 
-# 2. Edit the plan to fill in OWNER_REPLACE_ME / BOND_ASSET_REPLACE_ME
+# 2. Edit the plan to fill in OWNER_REPLACE_ME / BOND_ASSET_REPLACE_ME /
+#    GOVERNANCE_COUNCIL_REPLACE_ME / GOVERNANCE_THRESHOLD_REPLACE_ME
 #    placeholders (canonical GAS hash on the target L1, your operator
 #    multisig hash, etc.). The plan is JSON — diff-friendly + editable.
 
@@ -840,7 +845,22 @@ dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
 dotnet run --project tools/Neo.Hub.Deploy -- plan \
     --plan ./my-l2/deploy-plan.json \
     --output ./my-l2/deploy-bundle.json
+
+# Or run the guarded live testnet deployer. Governance is explicit M-of-N:
+# 2..64 distinct compressed secp256r1 keys, threshold >= 2.
+dotnet run --project tools/Neo.Hub.Deploy -- deploy-testnet \
+    --rpc https://your-reviewed-n3-rpc.example \
+    --expected-network <network-magic> \
+    --l2-chain-id 1099 \
+    --sp1-program-vkey <32-byte-raw-vkey-or-file> \
+    --fraud-replay-domain <32-byte-non-zero-domain> \
+    --governance-council <pubkey1,pubkey2,pubkey3> \
+    --governance-threshold 2 \
+    --emergency-council <separate-account-or-script-hash>
 ```
+
+The live deployer rejects implicit 1-of-1 governance. It writes the exact council count and
+threshold into the deployment evidence report and reads both values back during smoke checks.
 
 The bundle's `Invocations` array is your wallet's deploy script — one
 `ContractManagement.Deploy` call per entry, in order. Each entry has a
@@ -852,31 +872,43 @@ The bundle's "PostDeployActions" section surfaces the wiring steps that
 have to run AFTER all contracts are deployed (e.g.
 `SequencerBond.RegisterSlasher(OptimisticChallenge)` to break the
 bond↔challenge cycle, `ChainRegistry.SetGovernanceController` to enable
-§16.1 admission policy, `SettlementManager.SetMessageRouter(MessageRouter)` to close the
-Gateway contract-witness path, and per-fraud-verifier informational notes
+§16.1 admission policy, `SettlementManager.SetGovernanceController` plus the irreversible
+`SettlementManager.LockGovernance` to remove hot-wallet rewiring/direct rollback,
+`SettlementManager.SetMessageRouter(MessageRouter)` to close the Gateway contract-witness path,
+and per-fraud-verifier informational notes
 naming which contract hash to pass as the `fraudVerifier` argument to
 `OptimisticChallenge.Challenge`).
+
+After the SettlementManager lock, emergency finalized-head rollback requires an exact
+`RevertBatchViaProposal(chainId,batchNumber,proposalId)` action that has reached the configured
+council threshold and timelock. `OptimisticChallenge` retains only its immediate
+`Challengeable`-batch fraud rollback path.
 
 > **Note on hashes**: the bundle's per-step `Hash` fields are
 > *deterministic stubs* derived from the step name (so `plan` is
 > reproducible without a wallet). The actual L1 contract hashes only
 > exist after your wallet calls `ContractManagement.Deploy`. The wallet
-> returns each real hash; capture those into the four `register-chain`
-> flags below — NOT the stub hashes from the bundle.
+> returns each real hash; combine those four hashes with the signed genesis root in the five
+> required `register-chain` flags below — NOT the stub hashes from the bundle.
 
-After all 23 deploys + post-deploy wiring complete, capture the
+After all 24 deploys + post-deploy wiring complete, capture the
 **real on-chain** contract hashes (returned by your wallet from each
-`ContractManagement.Deploy` call) into the four `register-chain` flags:
+`ContractManagement.Deploy` call) and the signed genesis root into the five
+`register-chain` flags:
 
 ```bash
 neo-stack register-chain --chain-id 1099 --output ./my-l2 \
     --operator <real hash returned by your multisig deploy> \
     --verifier <real hash returned by your VerifierRegistry deploy> \
     --bridge <real hash returned by your bridge-adapter deploy> \
-    --message <real hash returned by your MessageRouter deploy>
+    --message <real hash returned by your MessageRouter deploy> \
+    --genesis-state-root <non-zero root from the signed deployment manifest>
 ```
 
-That emits the canonical 91-byte `configBytes` your wallet pastes into
+That emits the canonical 91-byte `configBytes` and immutable genesis root your wallet submits to
+`registerChain(chainId, configBytes, genesisStateRoot)`. The root must equal the value observed
+after reviewed genesis bootstrap and pinned in the signed deployment manifest; batch 1 is rejected
+unless its `preStateRoot` equals this on-chain trust anchor. It cannot be changed by config updates.
 `ChainRegistry.RegisterChain` (admission-mode 0) or
 `ChainRegistry.RegisterChainPublic` (admission-modes 1 + 2 — the §16.1
 3-phase flow gated by `GovernanceController.GetAdmissionMode`).
@@ -899,6 +931,8 @@ curl http://127.0.0.1:9090/metrics | grep l2_batch_sealed
 # After register-chain on L1, query NeoHub:
 neo-cli invoke <ChainRegistryHash> getChainConfig <chainId>
 # → returns 91 bytes (encoded L2ChainConfig per §16.2); empty = not registered
+neo-cli invoke <ChainRegistryHash> getGenesisStateRoot <chainId>
+# → returns the immutable non-zero batch-1 pre-state trust anchor
 
 # Or query the 5-dimension §16.2 security label as a single object:
 neo-cli invoke <ChainRegistryHash> getSecurityLevel <chainId>

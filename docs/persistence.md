@@ -30,11 +30,28 @@ byte-valued store interface every persistable component delegates to:
 public interface IL2KeyValueStore : IDisposable
 {
     void Put(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value);
+    bool TryPut(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value);
+    bool CompareExchange(
+        ReadOnlySpan<byte> key,
+        ReadOnlySpan<byte> expectedValue,
+        ReadOnlySpan<byte> newValue);
     byte[]? Get(ReadOnlySpan<byte> key);
     bool Delete(ReadOnlySpan<byte> key);
     bool Contains(ReadOnlySpan<byte> key);
     IEnumerable<(byte[] Key, byte[] Value)> EnumeratePrefix(ReadOnlySpan<byte> prefix);
     long Count { get; }
+}
+
+public interface IAtomicL2KeyValueStore : IL2KeyValueStore
+{
+    bool CompareExchangeBatch(
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte>? ExpectedValue)> conditions,
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte>? Value)> mutations);
+    void ReplaceAll(
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> entries);
+    bool CompareExchangeAll(
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> expectedEntries,
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> replacementEntries);
 }
 ```
 
@@ -45,13 +62,25 @@ Two implementations ship in the box:
 | `InMemoryKeyValueStore`     | Tests, devnets    | `SortedDictionary<byte[], byte[]>` | No        |
 | `RocksDbKeyValueStore`      | Production        | RocksDB 10.10 (Snappy compression) | Yes       |
 
+Restart durability is an explicit capability, not a class-name convention:
+`RocksDbKeyValueStore` implements `IDurableL2KeyValueStore`, while the in-memory backend does
+not. `KeyValueProofWitnessStore.IsDurable` forwards this capability. Production settlement
+wiring rejects a volatile proof-witness store or forced-inclusion event store before constructing
+any RPC/process-owned resources; tests and custom devnets continue to use the generic `Wire` path.
+
+Both built-in backends implement `IAtomicL2KeyValueStore`. `CompareExchangeBatch`
+first verifies that every condition is absent or byte-equal as requested, then applies
+all puts and deletes as one linearizable commit. RocksDB uses one synchronous WAL-backed
+`WriteBatch`, so a reported success is the durable recovery boundary rather than an
+in-memory observation.
+
 A shared `KeyValueStoreContractTests` suite runs against both backends — same
 behavior either way; future LevelDB / SQLite / cloud backends bolt on by adding
 a TestClass with a `Create()` factory.
 
 ## Per-component wiring
 
-Six components currently delegate their durability-critical state to
+Seven components currently delegate their durability-critical state to
 `IL2KeyValueStore`. Each has a default ctor that uses an in-memory backing
 (suitable for tests) and an alternate ctor that takes a caller-supplied store:
 
@@ -122,9 +151,12 @@ var src = new InMemoryForcedInclusionSource(
     ownsConsumed: true);
 ```
 
-The pending queue stays in-memory. Only the consumed-nonce set needs
-durability — losing it would let a sequencer re-include or reject already-
-consumed forced txs.
+The simple in-memory source keeps its pending queue transient and persists the
+consumed-nonce set. Production additionally wires `RpcForcedInclusionEventScanner`:
+it durably records every finalized L1 enqueue nonce before advancing its block cursor,
+and `RpcForcedInclusionSource` rebuilds the hot known-nonce set from those records on
+restart. A failed block is replayed because its cursor is not committed; a confirmed
+consumption removes the tracked nonce only after L1 reports it consumed.
 
 ### 6. Sequencer committee membership (`Neo.L2.Sequencer.InMemorySequencerCommitteeProvider`)
 
@@ -144,6 +176,27 @@ bounce mid-exit could lose the `ExitsAtUnixSeconds` deadline and either
 re-admit a sequencer that was supposed to be in cooldown or refuse to finalize
 an exit whose window already passed.
 
+### 7. Proof witness and settlement recovery (`Neo.L2.Persistence.KeyValueProofWitnessStore`)
+
+```csharp
+using var rocks = new RocksDbKeyValueStore("/var/lib/neo-l2/proof-witness");
+using var witnesses = new KeyValueProofWitnessStore(rocks, ownsStore: true);
+```
+
+This store is the production commit log for canonical proof-witness artifacts,
+proofs, result manifests, retry checkpoints, and rollback checkpoints. It provides:
+
+- guarded artifact publication that cannot race a rollback-absent marker;
+- quarantine of the exact reverted tail, including its proof bytes;
+- authenticated state-snapshot restoration before rollback completion;
+- crash-idempotent checkpoint completion and same-number resubmission;
+- separate observed and finalized settlement states: `Pending` and `Challengeable`
+  are observed but not final, so proof-queue acknowledgement and pruning happen only
+  after L1 reports `Finalized`;
+- startup reconciliation that queries L1 for every local artifact, requires the local
+  proof manifest, validates contiguous finality and the canonical state root, and only
+  then permits recovery side effects.
+
 ## Operator config recipe
 
 A production L2 node typically carves out a single base directory and gives
@@ -156,7 +209,8 @@ each store its own subdirectory:
 ├── messages/            # InMemoryMessageRouter (finalized proofs)
 ├── rpc-proofs/          # InMemoryL2RpcStore (withdrawal + message)
 ├── forced-inclusion/    # InMemoryForcedInclusionSource (consumed)
-└── sequencer/           # InMemorySequencerCommitteeProvider (membership + exit windows)
+├── sequencer/           # InMemorySequencerCommitteeProvider (membership + exit windows)
+└── proof-witness/       # KeyValueProofWitnessStore (artifact, proof, finality + rollback)
 ```
 
 Each RocksDB instance is independent — they're not column families of one
@@ -199,7 +253,7 @@ the equivalent config keys for plugin-based deployments).
       overload. The bare default ctor is for tests only — do not ship it.
 - [ ] The directory passed to `RocksDbKeyValueStore` is on durable storage
       (not `tmpfs` or an ephemeral container volume).
-- [ ] Backups capture all six subdirectories above. A point-in-time backup of
+- [ ] Backups capture all seven subdirectories above. A point-in-time backup of
       one without the others can leave the L2 in an inconsistent state on
       restore (e.g., consumed nonces but no corresponding finalized proofs).
 - [ ] The process running the L2 node has write access to each directory.
@@ -213,7 +267,7 @@ To add (e.g.) LevelDB or a cloud KV like DynamoDB:
 1. Implement `IL2KeyValueStore`.
 2. Add a TestClass to `tests/Neo.L2.Persistence.UnitTests/UT_KeyValueStore.cs`
    that inherits from `KeyValueStoreContractTests` and supplies a `Create()`
-   factory pointing at your backend. The 12 shared contract tests run as-is.
+   factory pointing at your backend. The shared contract tests run as-is.
 3. Wire it into the relevant plugin's `WithWriter` / ctor injection point.
 
 No changes needed to the consumers — the abstraction makes them agnostic.

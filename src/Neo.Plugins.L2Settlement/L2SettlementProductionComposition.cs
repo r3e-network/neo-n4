@@ -52,7 +52,8 @@ internal sealed class L2SettlementProductionComposition : IDisposable
         uint forcedInclusionDeploymentHeight,
         uint forcedInclusionFinalityDepth = 1,
         int forcedInclusionMaximumBlocksPerScan = 256,
-        IEnumerable<ulong>? knownForcedInclusionNonces = null)
+        IEnumerable<ulong>? knownForcedInclusionNonces = null,
+        HttpClient? rpcHttpClient = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(signer);
@@ -70,7 +71,7 @@ internal sealed class L2SettlementProductionComposition : IDisposable
         RpcForcedInclusionSource? forcedInclusionSource = null;
         try
         {
-            rpc = new JsonRpcClient(configuration.RpcEndpoint, httpClient: null);
+            rpc = new JsonRpcClient(configuration.RpcEndpoint, rpcHttpClient);
             var transactionSender = new RpcTransactionSender(
                 rpc,
                 signer,

@@ -16,7 +16,7 @@ public sealed record SettlementRecoveryStatus
     /// <summary>Number of canonical artifacts not fully reconciled on L1.</summary>
     public required int PendingCount { get; init; }
 
-    /// <summary>Number of canonical batches not yet observed through L1 settlement state.</summary>
+    /// <summary>Number of canonical batches not yet finalized through L1 settlement state.</summary>
     public required int ConfirmationLagBatches { get; init; }
 
     /// <summary>Retry or poison state of the earliest failed artifact.</summary>
@@ -80,6 +80,9 @@ public sealed record ProofWitnessPipelineProfile
     /// <summary>Verification-key identifier, or zero for legacy profiles.</summary>
     public required UInt256 VerificationKeyId { get; init; }
 
+    /// <summary>Immutable authenticated state root that batch 1 must build on.</summary>
+    public required UInt256 GenesisStateRoot { get; init; }
+
     /// <summary>Require a public production DA writer rather than local/simulated durability.</summary>
     public required bool RequireProductionDA { get; init; }
 
@@ -90,12 +93,14 @@ public sealed record ProofWitnessPipelineProfile
     public static ProofWitnessPipelineProfile Zk(
         uint chainId,
         WitnessProofSystem proofSystem,
-        UInt256 verificationKeyId) => new()
+        UInt256 verificationKeyId,
+        UInt256 genesisStateRoot) => new()
         {
             ChainId = chainId,
             ProofType = ProofType.Zk,
             ProofSystem = proofSystem,
             VerificationKeyId = verificationKeyId,
+            GenesisStateRoot = genesisStateRoot,
             RequireProductionDA = true,
             RequireCanonicalBlockContext = true,
         };
@@ -104,12 +109,14 @@ public sealed record ProofWitnessPipelineProfile
     public static ProofWitnessPipelineProfile Legacy(
         uint chainId,
         ProofType proofType,
+        UInt256 genesisStateRoot,
         bool requireProductionDA = false) => new()
         {
             ChainId = chainId,
             ProofType = proofType,
             ProofSystem = WitnessProofSystem.None,
             VerificationKeyId = UInt256.Zero,
+            GenesisStateRoot = genesisStateRoot,
             RequireProductionDA = requireProductionDA,
             RequireCanonicalBlockContext = false,
         };
@@ -118,6 +125,9 @@ public sealed record ProofWitnessPipelineProfile
     {
         ChainIdValidator.ValidateL2(ChainId);
         ArgumentNullException.ThrowIfNull(VerificationKeyId);
+        ArgumentNullException.ThrowIfNull(GenesisStateRoot);
+        if (GenesisStateRoot.Equals(UInt256.Zero))
+            throw new ArgumentException("settlement profile requires a non-zero genesis state root");
         if (ProofType == ProofType.Zk)
         {
             if (ProofSystem == WitnessProofSystem.None || !Enum.IsDefined(ProofSystem))
@@ -223,20 +233,27 @@ public sealed class CanonicalSettlementPipeline : IDisposable
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(batch);
+        await _reconcileGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await EnsurePendingRollbackCompletedAsync(cancellationToken).ConfigureAwait(false);
+            return await PersistUnderGateAsync(batch, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            ReleaseReconcileGate();
+        }
+    }
+
+    private async ValueTask<UInt256> PersistUnderGateAsync(
+        SealedBatch batch,
+        CancellationToken cancellationToken)
+    {
         if (batch.ChainId != _profile.ChainId)
             throw new InvalidOperationException(
                 $"sealed batch chain {batch.ChainId} does not match pipeline chain {_profile.ChainId}");
         ValidateBlockContext(batch.BlockContext);
-        if (batch.BatchNumber == 1
-            && (_profile.ProofType == ProofType.Zk
-                || _executor is IInitialStateRootProvider))
-        {
-            var initialStateRoot = await GetInitialStateRootAsync(cancellationToken)
-                .ConfigureAwait(false);
-            if (!batch.PreStateRoot.Equals(initialStateRoot))
-                throw new InvalidDataException(
-                    "batch 1 pre-state root differs from the authenticated genesis state root");
-        }
+        await ValidateBatchContinuityAsync(batch, cancellationToken).ConfigureAwait(false);
 
         var existing = await _store.GetAsync(
             batch.ChainId, batch.BatchNumber, cancellationToken).ConfigureAwait(false);
@@ -327,6 +344,7 @@ public sealed class CanonicalSettlementPipeline : IDisposable
         await _reconcileGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            await EnsurePendingRollbackCompletedAsync(cancellationToken).ConfigureAwait(false);
             var processed = 0;
             var expectedBatchNumber = 1UL;
             await foreach (var artifact in _store.EnumerateCommittedAsync(
@@ -364,7 +382,7 @@ public sealed class CanonicalSettlementPipeline : IDisposable
                     ValidateManifest(artifact, manifest);
                     var hasForcedNonces =
                         artifact.ExecutionPayload.ForcedInclusions.Count != 0;
-                    var needsSettlement = !manifest.SettlementObserved;
+                    var needsSettlement = !manifest.SettlementFinalized;
                     var needsForcedFinalization =
                         hasForcedNonces && !manifest.ForcedInclusionFinalized;
                     if (!needsSettlement && !needsForcedFinalization)
@@ -383,22 +401,41 @@ public sealed class CanonicalSettlementPipeline : IDisposable
                             artifact.BatchNumber,
                             cancellationToken).ConfigureAwait(false);
                         if (status == BatchStatus.Reverted)
-                            throw new InvalidOperationException(
-                                "reverted batch remains pending for operator recovery");
+                        {
+                            await RollBackRevertedTailAsync(artifact, cancellationToken)
+                                .ConfigureAwait(false);
+                            processed++;
+                            break;
+                        }
                         if (status == BatchStatus.Unknown)
                         {
+                            if (manifest.SettlementObserved)
+                                throw new InvalidOperationException(
+                                    "previously observed settlement batch is now unknown; automatic resubmission is disabled");
                             manifest = await ReconcileUnknownSubmissionAsync(
                                 artifact, manifest, cancellationToken).ConfigureAwait(false);
                         }
-                        else
+                        else if (status == BatchStatus.Finalized)
+                        {
+                            await _store.MarkSettlementFinalizedAsync(
+                                artifact.ContentHash, cancellationToken).ConfigureAwait(false);
+                            manifest = await ReadManifestAsync(
+                                artifact.ContentHash, cancellationToken).ConfigureAwait(false);
+                        }
+                        else if (status is BatchStatus.Pending or BatchStatus.Challengeable)
                         {
                             await _store.MarkSubmissionObservedAsync(
                                 artifact.ContentHash, cancellationToken).ConfigureAwait(false);
                             manifest = await ReadManifestAsync(
                                 artifact.ContentHash, cancellationToken).ConfigureAwait(false);
                         }
+                        else
+                        {
+                            throw new InvalidDataException(
+                                $"settlement client returned unknown batch status {status}");
+                        }
 
-                        if (!manifest.SettlementObserved)
+                        if (!manifest.SettlementFinalized)
                         {
                             await ClearRecoveryAsync(artifact, cancellationToken).ConfigureAwait(false);
                             processed++;
@@ -413,8 +450,12 @@ public sealed class CanonicalSettlementPipeline : IDisposable
                             artifact.BatchNumber,
                             cancellationToken).ConfigureAwait(false);
                         if (status == BatchStatus.Reverted)
-                            throw new InvalidOperationException(
-                                "reverted batch retains forced-inclusion reservations for operator recovery");
+                        {
+                            await RollBackRevertedTailAsync(artifact, cancellationToken)
+                                .ConfigureAwait(false);
+                            processed++;
+                            break;
+                        }
                         if (status == BatchStatus.Finalized)
                         {
                             var finalizer = _forcedInclusionFinalizer
@@ -430,7 +471,7 @@ public sealed class CanonicalSettlementPipeline : IDisposable
                         }
                     }
 
-                    if (manifest.SettlementObserved)
+                    if (manifest.SettlementFinalized)
                         await AcknowledgeProofArtifactsAsync(
                             artifact, cancellationToken).ConfigureAwait(false);
                     await ClearRecoveryAsync(artifact, cancellationToken).ConfigureAwait(false);
@@ -444,8 +485,12 @@ public sealed class CanonicalSettlementPipeline : IDisposable
                 catch (Exception exception) when (exception is not OutOfMemoryException
                     and not StackOverflowException)
                 {
-                    await RecordFailureAsync(artifact, exception, cancellationToken)
-                        .ConfigureAwait(false);
+                    if (await _store.GetSettlementRollbackAsync(
+                        _profile.ChainId, cancellationToken).ConfigureAwait(false) is null)
+                    {
+                        await RecordFailureAsync(artifact, exception, cancellationToken)
+                            .ConfigureAwait(false);
+                    }
                     throw;
                 }
             }
@@ -474,7 +519,7 @@ public sealed class CanonicalSettlementPipeline : IDisposable
         {
             var manifest = await _store.GetProofAsync(
                 artifact.ContentHash, cancellationToken).ConfigureAwait(false);
-            if (manifest?.SettlementObserved != true
+            if (manifest?.SettlementFinalized != true
                 || (artifact.ExecutionPayload.ForcedInclusions.Count != 0
                     && manifest.ForcedInclusionFinalized != true))
                 count++;
@@ -501,9 +546,9 @@ public sealed class CanonicalSettlementPipeline : IDisposable
         {
             var manifest = await _store.GetProofAsync(
                 artifact.ContentHash, cancellationToken).ConfigureAwait(false);
-            if (manifest?.SettlementObserved != true)
+            if (manifest?.SettlementFinalized != true)
                 confirmationLagBatches++;
-            var pending = manifest?.SettlementObserved != true
+            var pending = manifest?.SettlementFinalized != true
                 || (artifact.ExecutionPayload.ForcedInclusions.Count != 0
                     && manifest.ForcedInclusionFinalized != true);
             if (!pending) continue;
@@ -575,21 +620,21 @@ public sealed class CanonicalSettlementPipeline : IDisposable
     {
         ThrowIfDisposed();
         cancellationToken.ThrowIfCancellationRequested();
-        if (_executor is not IInitialStateRootProvider provider)
+        if (_executor is IInitialStateRootProvider provider)
         {
-            if (_profile.ProofType == ProofType.Zk)
-                throw new InvalidOperationException(
-                    "ZK execution requires an IInitialStateRootProvider");
-            return UInt256.Zero;
+            var executorRoot = await provider.GetInitialStateRootAsync(cancellationToken)
+                .ConfigureAwait(false);
+            ArgumentNullException.ThrowIfNull(executorRoot);
+            if (!executorRoot.Equals(_profile.GenesisStateRoot))
+                throw new InvalidDataException(
+                    "executor initial state root differs from the settlement profile genesis root");
         }
-
-        var root = await provider.GetInitialStateRootAsync(cancellationToken)
-            .ConfigureAwait(false);
-        ArgumentNullException.ThrowIfNull(root);
-        if (_profile.ProofType == ProofType.Zk && root.Equals(UInt256.Zero))
-            throw new InvalidDataException(
-                "ZK execution genesis state root must be non-zero");
-        return new UInt256(root.GetSpan());
+        else if (_profile.ProofType == ProofType.Zk)
+        {
+            throw new InvalidOperationException(
+                "ZK execution requires an IInitialStateRootProvider");
+        }
+        return new UInt256(_profile.GenesisStateRoot.GetSpan());
     }
 
     /// <summary>
@@ -599,10 +644,26 @@ public sealed class CanonicalSettlementPipeline : IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        UInt256? initialStateRoot = null;
-        if (_executor is IInitialStateRootProvider)
-            initialStateRoot = await GetInitialStateRootAsync(cancellationToken)
+        await _reconcileGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await EnsurePendingRollbackCompletedAsync(cancellationToken).ConfigureAwait(false);
+            await RefreshSettlementLifecycleForCheckpointAsync(cancellationToken)
                 .ConfigureAwait(false);
+            return await GetLatestCheckpointUnderGateAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            ReleaseReconcileGate();
+        }
+    }
+
+    private async ValueTask<SealedBatchCheckpoint?> GetLatestCheckpointUnderGateAsync(
+        CancellationToken cancellationToken)
+    {
+        var initialStateRoot = await GetInitialStateRootAsync(cancellationToken)
+            .ConfigureAwait(false);
         SealedBatchCheckpoint? latest = null;
         ProofWitnessArtifactV1? latestArtifact = null;
         var expectedBatchNumber = 1UL;
@@ -613,7 +674,7 @@ public sealed class CanonicalSettlementPipeline : IDisposable
             if (artifact.BatchNumber != expectedBatchNumber)
                 throw new InvalidDataException(
                     $"durable batch checkpoint is non-contiguous: expected batch {expectedBatchNumber}, got {artifact.BatchNumber}");
-            if (latest is null && initialStateRoot is not null
+            if (latest is null
                 && !artifact.ExecutionPayload.PreStateRoot.Equals(initialStateRoot))
                 throw new InvalidDataException(
                     "durable first batch does not link the authenticated genesis state root");
@@ -642,8 +703,7 @@ public sealed class CanonicalSettlementPipeline : IDisposable
             await EnsureExecutionStateCommittedAsync(latestArtifact, cancellationToken)
                 .ConfigureAwait(false);
         }
-        else if (initialStateRoot is not null
-            && _executor is ICurrentStateRootProvider currentStateRootProvider)
+        else if (_executor is ICurrentStateRootProvider currentStateRootProvider)
         {
             var currentStateRoot = await currentStateRootProvider
                 .GetCurrentStateRootAsync(cancellationToken).ConfigureAwait(false);
@@ -655,12 +715,166 @@ public sealed class CanonicalSettlementPipeline : IDisposable
         return latest;
     }
 
+    private async ValueTask RefreshSettlementLifecycleForCheckpointAsync(
+        CancellationToken cancellationToken)
+    {
+        var artifacts = new List<ProofWitnessArtifactV1>();
+        await foreach (var artifact in _store.EnumerateCommittedAsync(
+            _profile.ChainId, cancellationToken))
+            artifacts.Add(artifact);
+
+        var encounteredUnfinalizedBatch = false;
+        UInt256 expectedCanonicalRoot = _profile.GenesisStateRoot;
+        foreach (var artifact in artifacts)
+        {
+            var manifest = await _store.GetProofAsync(
+                artifact.ContentHash, cancellationToken).ConfigureAwait(false);
+            var status = await _client.GetBatchStatusAsync(
+                artifact.ChainId, artifact.BatchNumber, cancellationToken).ConfigureAwait(false);
+            if (status == BatchStatus.Reverted)
+            {
+                await RollBackRevertedTailAsync(artifact, cancellationToken)
+                    .ConfigureAwait(false);
+                await RefreshSettlementLifecycleForCheckpointAsync(cancellationToken)
+                    .ConfigureAwait(false);
+                return;
+            }
+            if (manifest is null)
+            {
+                if (status != BatchStatus.Unknown)
+                    throw new InvalidDataException(
+                        "L1 settlement contains a batch without its durable local proof manifest");
+                encounteredUnfinalizedBatch = true;
+                continue;
+            }
+            ValidateManifest(artifact, manifest);
+            switch (status)
+            {
+                case BatchStatus.Finalized:
+                    if (encounteredUnfinalizedBatch)
+                        throw new InvalidDataException(
+                            "L1 settlement finality is not a contiguous batch prefix");
+                    await _store.MarkSettlementFinalizedAsync(
+                        artifact.ContentHash, cancellationToken).ConfigureAwait(false);
+                    expectedCanonicalRoot = artifact.ExecutionResult.PostStateRoot;
+                    break;
+                case BatchStatus.Pending:
+                case BatchStatus.Challengeable:
+                    if (manifest.SettlementFinalized)
+                        throw new InvalidDataException(
+                            "L1 settlement status regressed after local finalization");
+                    await _store.MarkSubmissionObservedAsync(
+                        artifact.ContentHash, cancellationToken).ConfigureAwait(false);
+                    encounteredUnfinalizedBatch = true;
+                    break;
+                case BatchStatus.Unknown:
+                    if (manifest.SettlementObserved || manifest.SettlementFinalized)
+                        throw new InvalidDataException(
+                            "locally observed settlement is missing from L1 during checkpoint recovery");
+                    encounteredUnfinalizedBatch = true;
+                    break;
+                default:
+                    throw new InvalidDataException(
+                        $"settlement client returned unknown batch status {status}");
+            }
+        }
+
+        var l1CanonicalRoot = await _client.GetCanonicalStateRootAsync(
+            _profile.ChainId, cancellationToken).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(l1CanonicalRoot);
+        if (!l1CanonicalRoot.Equals(expectedCanonicalRoot))
+            throw new InvalidDataException(
+                "L1 canonical state root differs from the latest finalized local artifact");
+    }
+
     private ValueTask EnsureExecutionStateCommittedAsync(
         ProofWitnessArtifactV1 artifact,
         CancellationToken cancellationToken)
         => _executor is ICommittedProofWitnessStateSink stateSink
             ? stateSink.EnsureStateCommittedAsync(_store, artifact, cancellationToken)
             : ValueTask.CompletedTask;
+
+    private async ValueTask RollBackRevertedTailAsync(
+        ProofWitnessArtifactV1 revertedArtifact,
+        CancellationToken cancellationToken)
+    {
+        ProofWitnessArtifactV1? latestArtifact = null;
+        await foreach (var artifact in _store.EnumerateCommittedAsync(
+            revertedArtifact.ChainId, cancellationToken))
+        {
+            if (artifact.BatchNumber >= revertedArtifact.BatchNumber)
+                latestArtifact = artifact;
+        }
+        if (latestArtifact is null)
+            throw new InvalidOperationException(
+                "reverted settlement tail has no canonical witness artifact");
+        await EnsureExecutionStateCommittedAsync(latestArtifact, cancellationToken)
+            .ConfigureAwait(false);
+        await _store.QuarantineRevertedTailAsync(
+            revertedArtifact.ChainId,
+            revertedArtifact.BatchNumber,
+            revertedArtifact.ContentHash,
+            cancellationToken).ConfigureAwait(false);
+        await EnsurePendingRollbackCompletedAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask EnsurePendingRollbackCompletedAsync(
+        CancellationToken cancellationToken)
+    {
+        var checkpoint = await _store.GetSettlementRollbackAsync(
+            _profile.ChainId, cancellationToken).ConfigureAwait(false);
+        if (checkpoint is null) return;
+        if (_executor is not IRevertibleCommittedProofWitnessStateSink stateSink)
+            throw new InvalidOperationException(
+                "reverted settlement requires an execution-state rollback sink");
+        await stateSink.EnsureStateRolledBackAsync(
+            _store, checkpoint, cancellationToken).ConfigureAwait(false);
+        await _store.CompleteSettlementRollbackAsync(checkpoint, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async ValueTask ValidateBatchContinuityAsync(
+        SealedBatch batch,
+        CancellationToken cancellationToken)
+    {
+        if (batch.BatchNumber == 0)
+            throw new InvalidDataException(
+                "batch number 0 is reserved for genesis; settlement batches start at 1");
+        if (batch.BatchNumber == 1)
+        {
+            var initialStateRoot = await GetInitialStateRootAsync(cancellationToken)
+                .ConfigureAwait(false);
+            if (!batch.PreStateRoot.Equals(initialStateRoot))
+                throw new InvalidDataException(
+                    "batch 1 pre-state root differs from the authenticated genesis state root");
+            var l1CanonicalRoot = await _client.GetCanonicalStateRootAsync(
+                batch.ChainId, cancellationToken).ConfigureAwait(false);
+            ArgumentNullException.ThrowIfNull(l1CanonicalRoot);
+            if (!l1CanonicalRoot.Equals(initialStateRoot))
+                throw new InvalidDataException(
+                    "L1 canonical state root differs from the settlement profile genesis root");
+            return;
+        }
+
+        var predecessor = await _store.GetAsync(
+            batch.ChainId, batch.BatchNumber - 1, cancellationToken).ConfigureAwait(false);
+        if (predecessor is null)
+            throw new InvalidDataException(
+                $"batch {batch.BatchNumber} cannot persist before predecessor " +
+                $"batch {batch.BatchNumber - 1}");
+        ValidateCommittedArtifact(predecessor);
+        if (predecessor.LastBlock == ulong.MaxValue)
+            throw new InvalidDataException(
+                "predecessor block range cannot advance beyond the maximum block number");
+        var expectedFirstBlock = predecessor.LastBlock + 1;
+        if (batch.FirstBlock != expectedFirstBlock)
+            throw new InvalidDataException(
+                $"batch block chain is non-contiguous: expected block " +
+                $"{expectedFirstBlock}, got {batch.FirstBlock}");
+        if (!batch.PreStateRoot.Equals(predecessor.ExecutionResult.PostStateRoot))
+            throw new InvalidDataException(
+                "batch pre-state root does not match the predecessor post-state root");
+    }
 
     private ValueTask AcknowledgeProofArtifactsAsync(
         ProofWitnessArtifactV1 artifact,
@@ -724,6 +938,7 @@ public sealed class CanonicalSettlementPipeline : IDisposable
             Proof = proof.Proof.ToArray(),
             PublicValues = ReadOnlyMemory<byte>.Empty,
             SubmissionState = ProofSubmissionState.ProofReady,
+            SettlementFinalized = false,
             ForcedInclusionFinalized = false,
         };
         await _store.PutProofAsync(manifest, cancellationToken).ConfigureAwait(false);
@@ -1107,9 +1322,10 @@ public sealed class CanonicalSettlementPipeline : IDisposable
                 && manifest.L1TransactionHash is not null)
             || (manifest.SubmissionState == ProofSubmissionState.Submitted
                 && manifest.L1TransactionHash is null)
+            || (manifest.SettlementFinalized && !manifest.SettlementObserved)
             || (manifest.ForcedInclusionFinalized
                 && (artifact.ExecutionPayload.ForcedInclusions.Count == 0
-                    || !manifest.SettlementObserved))
+                    || !manifest.SettlementFinalized))
             || manifest.Proof.IsEmpty)
             throw new InvalidDataException(
                 "proof manifest is not bound to the committed artifact");

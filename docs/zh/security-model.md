@@ -118,7 +118,7 @@ DAC 链(就标 DAC,不要营销话术粉饰)。
   `IAtomicL2KeyValueStore.CompareExchangeAll` 比较并替换完整状态；畸形输出、并发 writer
   失败、超时、digest 不匹配、进程失败或状态漂移都必须保留旧状态。
 - **结算确认后的 prover 保留策略。** 私有 content-addressed SP1 queue 强制 `0700` 目录、
-  `0600` 文件和 byte/task 背压。只有 durable `SettlementObserved` 产生匹配的 32-byte ack 后
+  `0600` 文件和 byte/task 背压。只有 durable `SettlementFinalized` 产生匹配的 32-byte ack 后
   才清理证明证据；symlink、更宽权限、外来 owner、畸形 ack 与 TTL 删除均 fail closed。
 - **明确的 N4 genesis V1 语义上限。** 当前证明档只支持有界 native/syscall，且一次
   transition 禁止增删替换 deployed-contract descriptor；未覆盖行为 fail closed。这是

@@ -171,6 +171,7 @@ internal static class NewL2Command
         Console.WriteLine($"  #    returns from each deploy (NOT the deterministic stub hashes in the");
         Console.WriteLine($"  #    bundle, which only exist for plan reproducibility), then call:");
         Console.WriteLine($"  neo-stack register-chain --chain-id {chainId} --output {output} \\");
+        Console.WriteLine($"    --genesis-state-root <authenticated non-zero UInt256> \\");
         Console.WriteLine($"    --operator <real hash> --verifier <real hash> --bridge <real hash> --message <real hash>");
         Console.WriteLine($"  # See docs/launching-an-l2.md for the full L1-deploy walkthrough.");
         return 0;

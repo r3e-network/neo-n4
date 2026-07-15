@@ -14,6 +14,50 @@
 - 适用范围：Neo N4 项目的文档、架构、模块、工具、合约、测试或审计证据的一部分。
 - 一致性要求：术语、项目路径、命令、合约名称、模块名称、测试名称和安全结论必须与英文源文件保持一致。
 - 生产完备要求：如果英文源文件声明某模块已完成、已验证、已部署演练或已通过测试，中文版本不能降低或扩大该结论；必须同步记录同样的前提和限制。
+- 2026-07-15 ChainRegistry 准入与治理状态闭合：`ChainRegistry` 在跨合约边界先以完整
+  `BigInteger` 校验 `GovernanceController` 返回值必须严格为 0、1 或 2，再转换为 `byte`；
+  负数、未定义值及 258 这类截断值都不能被误判成 permissionless，也不会写入 chain config
+  或 genesis root。`LockGovernance` 现在同时冻结直接更新路径与 controller 信任根，bootstrap
+  owner 锁定后不能替换 proposal authority；迁移必须部署版本化 registry，与
+  VerifierRegistry 的既有策略一致。真实 ChainRegistry NEF/测试工件已重生成，非法模式、
+  零副作用拒绝、锁后 controller 替换和原 controller 保留均有 VM 回归，NeoHub 合约 VM
+  全套 551/551 通过。scaffold 与 live deploy 现在都会执行该不可逆锁，并在声明生产部署
+  完成前回读验证锁状态。
+- 2026-07-15 settlement finality、崩溃安全回滚与治理锁：`Pending`/`Challengeable` 只记录
+  已观察，不再触发 proof queue ack、forced-inclusion consumption、pending retirement 或工件
+  清理；这些动作必须等待 L1 `Finalized`。`Reverted` canonical 尾部会把精确 artifact/proof
+  隔离，原子恢复经过认证的 pre-tail state snapshot，并以崩溃幂等检查点完成后才允许同编号
+  重提；完成检查点只进行键级原子删除，不再复制整个数据库；启动时逐个查询本地 artifact
+  的 L1 状态并验证 proof manifest、连续 finality 与
+  canonical root。两个内置 store 新增带条件的原子 `CompareExchangeBatch`，RocksDB 使用单次
+  同步 WAL `WriteBatch`，关闭跨 wrapper 的 artifact/rollback 竞态。SettlementManager 生产接线
+  绑定 GovernanceController 后执行不可逆 lock：hot owner 不能重接安全依赖或直接回滚；异常
+  finalized-head 回滚必须匹配绑定 executing contract、达到 threshold、timelock 且只能消费一次
+  的精确 proposal payload，从而阻止跨部署重放。
+  live deploy 要求显式、互异且 threshold >= 2 的 M-of-N council，拒绝隐式 1-of-1。
+- 2026-07-15 不可变链上创世信任锚与精确委员会密钥预检：ChainRegistry 两条准入路径都将
+  非零 `genesisStateRoot` 与 91 字节 chain config 原子注册并永久禁止替换；Settlement 在提交
+  和终局 batch 1 时都要求连接该根，首批终局前或首批回滚后也返回该根。off-chain profile
+  固定并交叉验证同一个值，首个提交者或重启后的运维者都不能静默建立不同信任锚。sequencer
+  NEP-6 预检从账户元数据提升为实际解密并验证派生公钥等于配置 validator；即使同一钱包中
+  其他账户密码有效，只要委员会账户密文损坏或被替换也会 fail closed。VM、settlement 与 CLI
+  回归覆盖缺失/零值/替换根、首批绑定与回退、profile 不匹配、CLI 必填参数和密文替换。
+- 2026-07-15 结算连续性与生产持久化 fail-closed：在执行、DA 发布、工件提交和状态确认前
+  拒绝缺失前序、区块断链或状态根断链；新增持久存储能力标记，`WireProduction` 拒绝易失
+  witness/forced-event store；私网运维预检要求已审阅配置和二进制，并以三个显式 dry-run
+  检查参数与部署一致性；runtime/plugin 只白名单暂存到仅当前用户可访问并在 `finally`
+  删除的临时目录，钱包、节点数据、日志、任意 JSON、隐藏路径与链接不进入长期工件；
+  sequencer dry-run 会实际解密委员会账户并要求派生公钥精确匹配配置 validator，
+  格式错误、密文错配、无关或不支持的钱包文件均 fail closed。权限开放的审查上报保持 ABI，但只能携带零地址归因；governance
+  必须独立复核已终局 dBFT 证据后，才能在单独的授权调用中指定 slash 目标。
+  强制包含 fee token 固定为 Neo N3 原生 GAS，deploy/config/readiness/enqueue 全路径拒绝
+  替代 NEP-17；enqueue 向经过 witness 的 transaction sender 收费并提交该身份，不再误用入口
+  invocation script hash；consume 在只读 root 外调前预写重放标记并依赖 FAULT 原子回滚。新增 batch 0、
+  genesis root、缺失前序、block/state 断链及前序 block overflow 的零副作用回归测试。
+  CI 新增强制 ancestry gate：`external/neo` gitlink 必须已经发布到 `r3e-network/neo` 的
+  `r3e/neo-n4-core`，并从硬编码 canonical R3E URL 获取分支，不信任 PR 可修改的 submodule
+  `origin`；不能依赖仅存在于临时 feature branch 的 core commit。完整 38 项目 TRX
+  盘点发现 2,591 项测试：2,587 通过、0 失败、4 项精确部署/native fixture 测试明确受环境门禁。
 - 2026-07-14 原生 SP1 执行与原子状态交接：在现有 `neo-zkvm-guest` crate 内新增
   host-native `neo-zkvm-executor`，与 SP1 guest 共享精确 `neo-execution-core` 与 stateful
   NeoVM runtime；新增 Rust/C# `NEO4EXR1` golden、完整请求/语义/roots/gas/effects/
@@ -26,7 +70,7 @@
   增删替换仍 fail closed；同版本公网部署和独立审计仍是发布门槛。
 - 2026-07-14 SP1 生产加固：terminal 与 recursive 真实 proof 变为 required CI job 的无条件
   步骤；prover queue 强制 `0700` 目录、`0600` 文件、16-GiB/64-task 背压，并且只有 durable
-  L1 `SettlementObserved` 后发布 hash-bound ack 才清理 content-addressed 证据，禁止 TTL。
+  L1 `SettlementFinalized` 后发布 hash-bound ack 才清理 content-addressed 证据，禁止 TTL。
   build script 还会从同一 ELF byte snapshot 推导 SHA-256/VK，写入 Cargo `OUT_DIR` 的只读
   verified copy 并仅嵌入该副本，消除共享 target 的校验/包含竞态。
 - 2026-07-14 文档真值与发布归属：按设计、代码形态、集成、密码学强制、同版本部署证据和生产完备六个维度拆分阶段状态；统一为 26 个 NeoHub 项目、24 个生产部署步骤、38 个 .NET 测试工程、44 个 Foundry 测试及四套类型化 SDK，并以源树驱动测试防止再次漂移；补齐样例合约与安全报告的 R3E Network 归属，启用 GitHub 私密漏洞报告、Dependabot 安全修复、secret scanning 与 push protection，同时明确当前仍无生产 tag 或 release。

@@ -38,6 +38,9 @@ jobs:
           python3 -m unittest discover --start-directory scripts/ci/tests --verbose
           bash -n scripts/ci/cargo-prove-locked.sh
 
+      - name: Verify Neo gitlink is published on the official core branch
+        run: python3 scripts/ci/verify_neo_core_gitlink.py
+
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v5
         with:

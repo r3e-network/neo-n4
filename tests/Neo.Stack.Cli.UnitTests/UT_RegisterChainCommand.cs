@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using Neo;
 using Neo.Stack.Cli.Commands;
 
 namespace Neo.Stack.Cli.UnitTests;
@@ -15,6 +16,8 @@ namespace Neo.Stack.Cli.UnitTests;
 [TestClass]
 public class UT_RegisterChainCommand
 {
+    private const string GenesisStateRoot =
+        "0x0101010101010101010101010101010101010101010101010101010101010101";
     private string _tempDir = null!;
 
     [TestInitialize]
@@ -147,6 +150,7 @@ public class UT_RegisterChainCommand
                 "--verifier", "0x" + new string('b', 40),
                 "--bridge",   "0x" + new string('c', 40),
                 "--message",  "0x" + new string('d', 40),
+                "--genesis-state-root", GenesisStateRoot,
             });
             Assert.AreEqual(0, rc);
             var output = sw.ToString();
@@ -185,6 +189,7 @@ public class UT_RegisterChainCommand
                 "--verifier", "0x" + new string('b', 40),
                 "--bridge",   "0x" + new string('c', 40),
                 "--message",  "0x" + new string('d', 40),
+                "--genesis-state-root", GenesisStateRoot,
             });
             Assert.AreEqual(0, rc);
             var output = sw.ToString();
@@ -235,9 +240,30 @@ public class UT_RegisterChainCommand
             "--verifier", "0x" + new string('b', 40),
             "--bridge", "0x" + new string('c', 40),
             "--message", "0x" + new string('d', 40),
+            "--genesis-state-root", GenesisStateRoot,
             "--broadcast",
         });
 
         Assert.AreEqual(5, rc);
+    }
+
+    [TestMethod]
+    public async Task Register_WithFourHashesRequiresNonZeroGenesisStateRoot()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(Path.Combine(_tempDir, "chain.config.json"), MinimalConfigJson(1099));
+        string[] baseArgs =
+        [
+            "--chain-id", "1099",
+            "--output", _tempDir,
+            "--operator", "0x" + new string('a', 40),
+            "--verifier", "0x" + new string('b', 40),
+            "--bridge", "0x" + new string('c', 40),
+            "--message", "0x" + new string('d', 40),
+        ];
+
+        Assert.AreEqual(4, await RegisterChainCommand.RunAsync(baseArgs));
+        Assert.AreEqual(4, await RegisterChainCommand.RunAsync(
+            [.. baseArgs, "--genesis-state-root", UInt256.Zero.ToString()]));
     }
 }

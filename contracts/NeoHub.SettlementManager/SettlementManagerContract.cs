@@ -31,6 +31,9 @@ public class SettlementManagerContract : SmartContract
     private const byte PrefixGatewayFinalizedRecord = 0x09;
     private const byte PrefixGatewayFinalizedThrough = 0x0A;
     private const byte PrefixMessageRouter = 0x0B;
+    private const byte KeyGovernanceController = 0x0C;
+    private const byte KeyGovernanceLocked = 0x0D;
+    private const byte PrefixConsumedRevertProposal = 0x0E;
     private const byte PrefixChainRegistry = 0xFC;
     private const byte PrefixVerifierRegistry = 0xFD;
     private const byte KeyOwner = 0xFF;
@@ -103,6 +106,14 @@ public class SettlementManagerContract : SmartContract
     [DisplayName("MessageRouterChanged")]
     public static event Action<UInt160> OnMessageRouterChanged = default!;
 
+    /// <summary>Emitted when the production GovernanceController is wired.</summary>
+    [DisplayName("GovernanceControllerChanged")]
+    public static event Action<UInt160> OnGovernanceControllerChanged = default!;
+
+    /// <summary>Emitted the first time production governance is irreversibly locked.</summary>
+    [DisplayName("GovernanceLocked")]
+    public static event Action OnGovernanceLocked = default!;
+
     /// <summary>Set wiring on deploy.</summary>
     public static void _deploy(object data, bool update)
     {
@@ -141,6 +152,7 @@ public class SettlementManagerContract : SmartContract
     public static void SetOwner(UInt160 newOwner)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        AssertBootstrapGovernanceUnlocked();
         ExecutionEngine.Assert(newOwner.IsValid && !newOwner.IsZero, "invalid new owner");
         var oldOwner = GetOwner();
         Storage.Put(new byte[] { KeyOwner }, newOwner);
@@ -159,6 +171,7 @@ public class SettlementManagerContract : SmartContract
     public static void SetOptimisticChallenge(UInt160 optimisticChallenge)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        AssertBootstrapGovernanceUnlocked();
         ExecutionEngine.Assert(optimisticChallenge.IsValid && !optimisticChallenge.IsZero,
             "invalid optimistic challenge");
         Storage.Put(new byte[] { PrefixOptimisticChallenge }, optimisticChallenge);
@@ -177,6 +190,7 @@ public class SettlementManagerContract : SmartContract
     public static void SetDARegistry(UInt160 daRegistry)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        AssertBootstrapGovernanceUnlocked();
         ExecutionEngine.Assert(daRegistry.IsValid && !daRegistry.IsZero, "invalid DA registry");
         Storage.Put(new byte[] { PrefixDARegistry }, daRegistry);
         OnDARegistryChanged(daRegistry);
@@ -194,6 +208,7 @@ public class SettlementManagerContract : SmartContract
     public static void SetDAValidator(UInt160 daValidator)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        AssertBootstrapGovernanceUnlocked();
         ExecutionEngine.Assert(daValidator.IsValid && !daValidator.IsZero, "invalid DA validator");
         Storage.Put(new byte[] { PrefixDAValidator }, daValidator);
         OnDAValidatorChanged(daValidator);
@@ -213,10 +228,71 @@ public class SettlementManagerContract : SmartContract
     public static void SetMessageRouter(UInt160 messageRouter)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        AssertBootstrapGovernanceUnlocked();
         ExecutionEngine.Assert(messageRouter.IsValid && !messageRouter.IsZero,
             "invalid message router");
         Storage.Put(new byte[] { PrefixMessageRouter }, messageRouter);
         OnMessageRouterChanged(messageRouter);
+    }
+
+    /// <summary>
+    /// Wire the §16 GovernanceController used for proposal-bound emergency rollback after
+    /// production governance is locked. Owner only during bootstrap.
+    /// </summary>
+    /// <remarks>See doc.md §3.2 (SettlementManager) and §16 (Governance).</remarks>
+    public static void SetGovernanceController(UInt160 governanceController)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        AssertBootstrapGovernanceUnlocked();
+        ExecutionEngine.Assert(governanceController.IsValid && !governanceController.IsZero,
+            "invalid governance controller");
+        Storage.Put(new byte[] { KeyGovernanceController }, governanceController);
+        OnGovernanceControllerChanged(governanceController);
+    }
+
+    /// <summary>Return the wired §16 GovernanceController, or zero during bootstrap.</summary>
+    /// <remarks>See doc.md §3.2 (SettlementManager) and §16 (Governance).</remarks>
+    [Safe]
+    public static UInt160 GetGovernanceController()
+    {
+        var raw = Storage.Get(new byte[] { KeyGovernanceController });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>
+    /// Irreversibly freeze owner-controlled dependency rewiring and direct governance rollback.
+    /// OptimisticChallenge keeps its narrowly scoped challengeable-batch rollback authority;
+    /// every governance rollback must use <see cref="RevertBatchViaProposal"/> after locking.
+    /// </summary>
+    /// <remarks>See doc.md §3.2 (SettlementManager), §16, and §17.</remarks>
+    public static void LockGovernance()
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(GetGovernanceController() != UInt160.Zero,
+            "wire GovernanceController before locking");
+        ExecutionEngine.Assert(GetOptimisticChallenge() != UInt160.Zero,
+            "wire OptimisticChallenge before locking");
+        ExecutionEngine.Assert(GetDARegistry() != UInt160.Zero,
+            "wire DARegistry before locking");
+        ExecutionEngine.Assert(GetDAValidator() != UInt160.Zero,
+            "wire DAValidator before locking");
+        ExecutionEngine.Assert(GetMessageRouter() != UInt160.Zero,
+            "wire MessageRouter before locking");
+
+        var key = new byte[] { KeyGovernanceLocked };
+        if (Storage.Get(key) == null)
+        {
+            Storage.Put(key, new byte[] { 1 });
+            OnGovernanceLocked();
+        }
+    }
+
+    /// <summary>True once production governance has been irreversibly locked.</summary>
+    /// <remarks>See doc.md §3.2 (SettlementManager) and §16 (Governance).</remarks>
+    [Safe]
+    public static bool IsGovernanceLocked()
+    {
+        return Storage.Get(new byte[] { KeyGovernanceLocked }) != null;
     }
 
     /// <summary>
@@ -265,15 +341,14 @@ public class SettlementManagerContract : SmartContract
         var existing = Storage.Get(statusKey);
         ExecutionEngine.Assert(existing == null || ((byte[])existing)[0] == StatusReverted, "batch already submitted");
 
-        // Continuity: the batch must build on the chain's current canonical head. The first batch
-        // (latest == 0) establishes genesis and has no prior root to chain to; every later batch
-        // must chain exactly. Prevents finalizing a transition from a fabricated preStateRoot.
-        if (latest > 0)
-        {
-            var preStateRoot = ReadUInt256(commitmentBytes, PreStateRootOffset);
-            ExecutionEngine.Assert(preStateRoot.Equals(GetCanonicalStateRoot(chainId)),
-                "preStateRoot does not match canonical head");
-        }
+        // Continuity starts at the immutable genesis root recorded atomically with chain
+        // registration. A valid proof only proves a transition from the supplied witness; this
+        // comparison prevents an attacker from choosing an unrelated first-state witness and
+        // making it canonical. Later batches use the finalized post-state root through the same
+        // accessor.
+        var preStateRoot = ReadUInt256(commitmentBytes, PreStateRootOffset);
+        ExecutionEngine.Assert(preStateRoot.Equals(GetCanonicalStateRoot(chainId)),
+            "preStateRoot does not match canonical head");
 
         // Bind every recorded root to the proof: recompute publicInputHash from the committed
         // header fields + the supplied l1MessageHash / blockContextHash and require it to equal
@@ -439,12 +514,9 @@ public class SettlementManagerContract : SmartContract
         // (To resume after a head revert, an orphaned Pending descendant must itself be reverted
         // and resubmitted against the rewound head.)
         ExecutionEngine.Assert(batchNumber == GetLatestFinalizedBatch(chainId) + 1, "finalize out of sequence");
-        if (batchNumber > 1)
-        {
-            var preStateRoot = ReadUInt256(header, PreStateRootOffset);
-            ExecutionEngine.Assert(preStateRoot.Equals(GetCanonicalStateRoot(chainId)),
-                "preStateRoot no longer matches canonical head");
-        }
+        var preStateRoot = ReadUInt256(header, PreStateRootOffset);
+        ExecutionEngine.Assert(preStateRoot.Equals(GetCanonicalStateRoot(chainId)),
+            "preStateRoot no longer matches canonical head");
 
         var daCommitment = ReadUInt256(header, DACommitmentOffset);
         var recordedDaMode = GetRecordedDAMode(chainId, batchNumber, daCommitment);
@@ -469,19 +541,101 @@ public class SettlementManagerContract : SmartContract
     /// </summary>
     public static void RevertBatch(uint chainId, ulong batchNumber)
     {
-        var ownerAuthorized = Runtime.CheckWitness(GetOwner());
+        var ownerAuthorized = !IsGovernanceLocked() && Runtime.CheckWitness(GetOwner());
         var optimisticChallenge = GetOptimisticChallenge();
         var challengeAuthorized = optimisticChallenge.IsValid
             && !optimisticChallenge.IsZero
             && Runtime.CheckWitness(optimisticChallenge);
         ExecutionEngine.Assert(ownerAuthorized || challengeAuthorized, "not authorized");
 
+        RevertBatchCore(chainId, batchNumber, challengeAuthorized && !ownerAuthorized);
+    }
+
+    /// <summary>
+    /// Execute an emergency governance rollback whose exact chain and batch were approved by the
+    /// §16 council, cleared the deployment-fixed timelock, and have not previously been consumed.
+    /// Anyone may relay the approved action; authority comes from the proposal state.
+    /// </summary>
+    /// <remarks>See doc.md §3.2 (SettlementManager), §16, and §17.</remarks>
+    public static void RevertBatchViaProposal(uint chainId, ulong batchNumber, ulong proposalId)
+    {
+        ExecutionEngine.Assert(IsGovernanceLocked(),
+            "governance not locked — bootstrap owner path remains active");
+        var governanceController = GetGovernanceController();
+        ExecutionEngine.Assert(governanceController != UInt160.Zero,
+            "governance controller not wired");
+
+        var consumedKey = RevertProposalKey(proposalId);
+        ExecutionEngine.Assert(Storage.Get(consumedKey) == null, "proposal already consumed");
+
+        var approved = (bool)Contract.Call(
+            governanceController,
+            "isApprovedAndTimelocked",
+            CallFlags.ReadOnly,
+            new object[] { proposalId });
+        ExecutionEngine.Assert(approved, "proposal not approved + timelocked");
+
+        var action = BuildRevertBatchAction(chainId, batchNumber);
+        var bound = (bool)Contract.Call(
+            governanceController,
+            "matchesProposalPayload",
+            CallFlags.ReadOnly,
+            new object[] { proposalId, action });
+        ExecutionEngine.Assert(bound, "proposal payload does not match batch rollback");
+
+        Storage.Put(consumedKey, new byte[] { 1 });
+        RevertBatchCore(chainId, batchNumber, challengeOnly: false);
+    }
+
+    /// <summary>
+    /// Canonical proposal payload for <see cref="RevertBatchViaProposal"/>:
+    /// <c>"neo4-gov:revertBatch" || settlementManager(UInt160 raw bytes) ||
+    /// chainId(uint32 LE) || batchNumber(uint64 LE)</c>.
+    /// </summary>
+    /// <remarks>See doc.md §16 (Governance).</remarks>
+    [Safe]
+    public static byte[] BuildRevertBatchAction(uint chainId, ulong batchNumber)
+    {
+        var tag = ActionTagRevertBatch;
+        var settlementManager = (byte[])Runtime.ExecutingScriptHash;
+        var action = new byte[tag.Length + 20 + 4 + 8];
+        for (var index = 0; index < tag.Length; index++) action[index] = tag[index];
+        var offset = tag.Length;
+        for (var index = 0; index < 20; index++) action[offset + index] = settlementManager[index];
+        offset += 20;
+        action[offset] = (byte)chainId;
+        action[offset + 1] = (byte)(chainId >> 8);
+        action[offset + 2] = (byte)(chainId >> 16);
+        action[offset + 3] = (byte)(chainId >> 24);
+        offset += 4;
+        action[offset] = (byte)batchNumber;
+        action[offset + 1] = (byte)(batchNumber >> 8);
+        action[offset + 2] = (byte)(batchNumber >> 16);
+        action[offset + 3] = (byte)(batchNumber >> 24);
+        action[offset + 4] = (byte)(batchNumber >> 32);
+        action[offset + 5] = (byte)(batchNumber >> 40);
+        action[offset + 6] = (byte)(batchNumber >> 48);
+        action[offset + 7] = (byte)(batchNumber >> 56);
+        return action;
+    }
+
+    private static readonly byte[] ActionTagRevertBatch = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'g', (byte)'o', (byte)'v', (byte)':',
+        (byte)'r', (byte)'e', (byte)'v', (byte)'e', (byte)'r', (byte)'t',
+        (byte)'B', (byte)'a', (byte)'t', (byte)'c', (byte)'h'
+    };
+
+    private static void RevertBatchCore(uint chainId, ulong batchNumber, bool challengeOnly)
+    {
+
         var rawStatus = Storage.Get(StatusKey(chainId, batchNumber));
         ExecutionEngine.Assert(rawStatus != null, "batch unknown");
         var status = ((byte[])rawStatus!)[0];
         ExecutionEngine.Assert(status != StatusReverted, "batch already reverted");
 
-        if (challengeAuthorized && !ownerAuthorized)
+        if (challengeOnly)
         {
             ExecutionEngine.Assert(status == StatusChallengeable,
                 "OptimisticChallenge can only revert challengeable batches");
@@ -516,12 +670,25 @@ public class SettlementManagerContract : SmartContract
         OnBatchReverted(chainId, batchNumber);
     }
 
-    /// <summary>Get the canonical (finalized) state root for a chain.</summary>
+    /// <summary>
+    /// Get the canonical state root for a chain. Before batch 1 finalizes, and after batch 1 is
+    /// reverted, this is the immutable genesis state root from ChainRegistry.
+    /// </summary>
     [Safe]
     public static UInt256 GetCanonicalStateRoot(uint chainId)
     {
         var raw = Storage.Get(CanonicalRootKey(chainId));
-        return raw == null ? UInt256.Zero : (UInt256)raw;
+        if (raw != null) return (UInt256)raw;
+        var chainRegistry = (UInt160)(Storage.Get(new byte[] { PrefixChainRegistry })
+            ?? throw new Exception("registry unset"));
+        var genesisStateRoot = (UInt256)Contract.Call(
+            chainRegistry,
+            "getGenesisStateRoot",
+            CallFlags.ReadOnly,
+            new object[] { chainId });
+        ExecutionEngine.Assert(!genesisStateRoot.Equals(UInt256.Zero),
+            "chain genesis state root is not registered");
+        return genesisStateRoot;
     }
 
     /// <summary>Get the lifecycle status of a submitted batch.</summary>
@@ -1067,6 +1234,27 @@ public class SettlementManagerContract : SmartContract
     private static void SetLatestFinalizedBatch(uint chainId, ulong batchNumber)
     {
         Storage.Put(LatestBatchKey(chainId), (BigInteger)batchNumber);
+    }
+
+    private static void AssertBootstrapGovernanceUnlocked()
+    {
+        ExecutionEngine.Assert(!IsGovernanceLocked(),
+            "governance locked — bootstrap owner path disabled; deploy a versioned SettlementManager");
+    }
+
+    private static byte[] RevertProposalKey(ulong proposalId)
+    {
+        var key = new byte[9];
+        key[0] = PrefixConsumedRevertProposal;
+        key[1] = (byte)proposalId;
+        key[2] = (byte)(proposalId >> 8);
+        key[3] = (byte)(proposalId >> 16);
+        key[4] = (byte)(proposalId >> 24);
+        key[5] = (byte)(proposalId >> 32);
+        key[6] = (byte)(proposalId >> 40);
+        key[7] = (byte)(proposalId >> 48);
+        key[8] = (byte)(proposalId >> 56);
+        return key;
     }
 
     private static byte[] StatusKey(uint chainId, ulong batchNumber) =>

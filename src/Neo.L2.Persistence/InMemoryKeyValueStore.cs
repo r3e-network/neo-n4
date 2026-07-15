@@ -94,6 +94,38 @@ public sealed class InMemoryKeyValueStore : IAtomicL2KeyValueStore
     }
 
     /// <inheritdoc />
+    public bool CompareExchangeBatch(
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte>? ExpectedValue)> conditions,
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte>? Value)> mutations)
+    {
+        var expected = AtomicBatchValidator.Materialize(conditions, nameof(conditions));
+        var replacement = AtomicBatchValidator.Materialize(mutations, nameof(mutations));
+        lock (_gate)
+        {
+            foreach (var condition in expected)
+            {
+                var exists = _data.TryGetValue(condition.Key, out var current);
+                if (condition.Value is null)
+                {
+                    if (exists) return false;
+                }
+                else if (!exists || !current!.AsSpan().SequenceEqual(condition.Value))
+                {
+                    return false;
+                }
+            }
+            foreach (var mutation in replacement)
+            {
+                if (mutation.Value is null)
+                    _data.Remove(mutation.Key);
+                else
+                    _data[mutation.Key] = mutation.Value;
+            }
+            return true;
+        }
+    }
+
+    /// <inheritdoc />
     public void ReplaceAll(
         IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte> Value)> entries)
     {

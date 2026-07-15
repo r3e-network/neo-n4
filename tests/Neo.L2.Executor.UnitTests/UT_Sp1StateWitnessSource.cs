@@ -91,6 +91,29 @@ public class UT_Sp1StateWitnessSource
     }
 
     [TestMethod]
+    public void RestoreSnapshot_AtomicallyRestoresAuthenticatedTargetAndIsIdempotent()
+    {
+        using var state = new InMemoryKeyValueStore();
+        NeoVMGenesisBootstrap.Run(state);
+        var initialRoot = Sp1StateWitnessSource.InitializeGenesisContractBindings(state);
+        var source = new Sp1StateWitnessSource(state, initialRoot);
+        var target = source.Capture(initialRoot);
+        var preState = StateWitnessV1Serializer.Decode(target.Witness.Span);
+        var postStateBytes = AddEntry(
+            preState, "application-key"u8.ToArray(), "value"u8.ToArray());
+        var postRoot = ComputeRoot(postStateBytes);
+        source.CommitTransition(initialRoot, postRoot, postStateBytes);
+
+        var restored = source.RestoreSnapshot(postRoot, initialRoot, target.Witness);
+        var repeated = source.RestoreSnapshot(postRoot, initialRoot, target.Witness);
+
+        Assert.AreEqual(initialRoot, restored);
+        Assert.AreEqual(initialRoot, repeated);
+        Assert.IsNull(state.Get("application-key"u8));
+        Assert.AreEqual(target, source.Capture(initialRoot));
+    }
+
+    [TestMethod]
     public void CommitTransition_RejectsPreStateDriftWithoutMutation()
     {
         using var state = new InMemoryKeyValueStore();
@@ -128,6 +151,29 @@ public class UT_Sp1StateWitnessSource
             source.CommitTransition(initialRoot, expectedPostRoot, postStateBytes));
 
         Assert.IsNull(state.Get("application-key"u8));
+        CollectionAssert.AreEqual("value"u8.ToArray(), state.Get("concurrent-change"u8));
+    }
+
+    [TestMethod]
+    public void RestoreSnapshot_RejectsChangeRacingWithAtomicReplacement()
+    {
+        using var state = new InterleavingAtomicStore();
+        NeoVMGenesisBootstrap.Run(state);
+        var initialRoot = Sp1StateWitnessSource.InitializeGenesisContractBindings(state);
+        var source = new Sp1StateWitnessSource(state, initialRoot);
+        var target = source.Capture(initialRoot);
+        var preState = StateWitnessV1Serializer.Decode(target.Witness.Span);
+        var postStateBytes = AddEntry(
+            preState, "application-key"u8.ToArray(), "value"u8.ToArray());
+        var postRoot = ComputeRoot(postStateBytes);
+        source.CommitTransition(initialRoot, postRoot, postStateBytes);
+        state.BeforeCompareExchangeAll = () =>
+            state.Put("concurrent-change"u8, "value"u8);
+
+        Assert.ThrowsExactly<InvalidDataException>(() =>
+            source.RestoreSnapshot(postRoot, initialRoot, target.Witness));
+
+        CollectionAssert.AreEqual("value"u8.ToArray(), state.Get("application-key"u8));
         CollectionAssert.AreEqual("value"u8.ToArray(), state.Get("concurrent-change"u8));
     }
 
@@ -223,6 +269,11 @@ public class UT_Sp1StateWitnessSource
             ReadOnlySpan<byte> expectedValue,
             ReadOnlySpan<byte> newValue) =>
             _inner.CompareExchange(key, expectedValue, newValue);
+
+        public bool CompareExchangeBatch(
+            IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte>? ExpectedValue)> conditions,
+            IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte>? Value)> mutations) =>
+            _inner.CompareExchangeBatch(conditions, mutations);
 
         public byte[]? Get(ReadOnlySpan<byte> key) => _inner.Get(key);
 

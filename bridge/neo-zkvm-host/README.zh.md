@@ -81,6 +81,6 @@ prove-batch daemon \
 文件队列属于机密持久状态。Unix queue/archive 目录为 owner-only `0700`，工件为 `0600`；
 symlink、外来 owner 或更宽权限均 fail closed。watch+archive 默认硬上限为 16 GiB 和 64 个
 content-addressed task，并在每次证明前检查。证明完成后不能立即或按 TTL 删除；只有 .NET
-settlement pipeline 已持久记录 `SettlementObserved` 并原子发布内容一致的
+settlement pipeline 已持久记录 `SettlementFinalized` 并原子发布内容一致的
 `<artifact-content-hash>.proof.ack`，daemon 才校验 ack、幂等删除 request/proof/VK/
 public-values/result/archive，最后删除 ack。

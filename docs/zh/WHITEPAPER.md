@@ -209,14 +209,15 @@ NeoHub 背后的原则是**所有 L2 共用一份 L1 信任根**。新加一条 
 
 ### 4.4 持久化状态 —— `IL2KeyValueStore`
 
-6 个链下组件携带必须在重启后保留的状态:keyed state store、RPC 提款 / 消息
+7 类链下组件携带必须在重启后保留的状态:keyed state store、RPC 提款 / 消息
 证明、已最终化消息证明、已用强制纳入 nonce、排序器委员会成员(含半途的退出
-窗口)、DA payload。用内存字典做测试 OK,生产无法接受 —— 半途退出的排序器
+窗口)、DA payload，以及 canonical proof-witness/finality/rollback recovery。用内存字典做测试 OK,生产无法接受 —— 半途退出的排序器
 重启后丢失 `ExitsAtUnixSeconds` deadline,可能把本应进入冷却的排序器再次
 admit,或者卡死一个已经过期的退出。
 
-方案:显式的 `IL2KeyValueStore` 抽象(`Put` / `Get` / `Delete` / `Contains` /
-`EnumeratePrefix` / `Count` / `IDisposable`),两套实现:
+方案:显式的 `IL2KeyValueStore` 抽象(`Put` / `TryPut` / `CompareExchange` / `Get` /
+`Delete` / `Contains` / `EnumeratePrefix` / `Count` / `IDisposable`)，并通过可选
+`IAtomicL2KeyValueStore` 提供带条件的原子 batch/snapshot 替换；两套实现:
 
 - `InMemoryKeyValueStore` —— `SortedDictionary<byte[], byte[]>`,字典序排序。
   devnet / 测试默认。

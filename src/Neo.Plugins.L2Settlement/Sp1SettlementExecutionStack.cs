@@ -68,7 +68,8 @@ public sealed record Sp1SettlementExecutionStack
             Profile = ProofWitnessPipelineProfile.Zk(
                 chainId,
                 WitnessProofSystem.Sp1,
-                verificationKeyId),
+                verificationKeyId,
+                initialStateRoot),
         };
     }
 }

@@ -166,7 +166,7 @@ sequenceDiagram
     participant DA as DARegistry
 
     Operator->>Governance: request/admit chain policy
-    Governance->>Chain: registerChain(chainId, configBytes)
+    Governance->>Chain: registerChain(chainId, configBytes, genesisStateRoot)
     Operator->>Verifier: register proof verifier for chain/proofType
     Operator->>Token: register L1/L2 asset mappings
     Operator->>DA: register DA mode or committee metadata
@@ -176,11 +176,15 @@ sequenceDiagram
 注册是第一个关键边界。一条链在安全接收 deposit、finalize batch、消费 message
 之前，至少需要：
 
-1. `ChainRegistry` 中有非零且 active 的 config。
+1. `ChainRegistry` 中有非零且 active 的 config，并在同一注册操作中原子保存不可变、非零的
+   authenticated genesis state root。
 2. `VerifierRegistry` 知道该链 proof mode 对应哪个 verifier。
 3. `TokenRegistry` 已经映射桥需要移动的资产。
 4. `DARegistry` 和 `DAValidator` 可以评估该链的 DA mode。
 5. 治理和紧急控制路径有明确 owner 或 council。
+
+首个 batch 的 `preStateRoot` 必须精确等于该已注册创世根，禁止第一个 batch 提交者自行选择
+结算信任锚。
 
 ## 7. Deposit 数据流
 

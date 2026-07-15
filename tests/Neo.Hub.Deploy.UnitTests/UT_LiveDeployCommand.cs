@@ -27,6 +27,19 @@ public class UT_LiveDeployCommand
     private static readonly UInt256 FraudReplayDomain = new(
         Convert.FromHexString("a50102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1eff"));
 
+    private static IReadOnlyList<Neo.Cryptography.ECC.ECPoint> GovernanceCouncil()
+    {
+        return
+        [
+            new Neo.Wallets.KeyPair(new byte[32]
+                { 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }).PublicKey,
+            new Neo.Wallets.KeyPair(new byte[32]
+                { 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }).PublicKey,
+        ];
+    }
+
     [TestMethod]
     public void ParseSp1ProgramVKey_AsymmetricRawHex_PreservesCanonicalWireBytes()
     {
@@ -135,28 +148,54 @@ public class UT_LiveDeployCommand
     }
 
     [TestMethod]
+    public void ParseGovernanceCouncilAndThreshold_RequireDistinctThresholdMultisig()
+    {
+        var council = GovernanceCouncil();
+        var encoded = string.Join(',', council.Select(member => member.ToString()));
+        var parsed = LiveDeployCommand.ParseGovernanceCouncil(encoded);
+
+        CollectionAssert.AreEqual(
+            council.Select(member => member.ToString()).ToArray(),
+            parsed.Select(member => member.ToString()).ToArray());
+        Assert.AreEqual(2u, LiveDeployCommand.ParseGovernanceThreshold("2", parsed.Count));
+        Assert.ThrowsExactly<ArgumentException>(() =>
+            LiveDeployCommand.ParseGovernanceCouncil(""));
+        Assert.ThrowsExactly<FormatException>(() =>
+            LiveDeployCommand.ParseGovernanceCouncil(council[0].ToString()));
+        Assert.ThrowsExactly<FormatException>(() =>
+            LiveDeployCommand.ParseGovernanceCouncil(
+                $"{council[0]},{council[0]}"));
+        Assert.ThrowsExactly<FormatException>(() =>
+            LiveDeployCommand.ParseGovernanceThreshold("1", parsed.Count));
+        Assert.ThrowsExactly<FormatException>(() =>
+            LiveDeployCommand.ParseGovernanceThreshold("3", parsed.Count));
+    }
+
+    [TestMethod]
     public void SubstituteOperatorPlaceholders_ReplacesChainAndFraudDomains()
     {
-        var key = new Neo.Wallets.KeyPair(new byte[32] { 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
         var owner = new UInt160(new byte[UInt160.Length]);
         var gas = new UInt160(Enumerable.Repeat((byte)2, UInt160.Length).ToArray());
         var emergencyCouncil = new UInt160(Enumerable.Repeat((byte)3, UInt160.Length).ToArray());
         var payoutRelay = new UInt160(Enumerable.Repeat((byte)4, UInt160.Length).ToArray());
 
         var substituted = LiveDeployCommand.SubstituteOperatorPlaceholders(
-            ScaffoldPlan.Default(), owner, gas, key.PublicKey, emergencyCouncil, 1001,
+            ScaffoldPlan.Default(), owner, gas, GovernanceCouncil(), 2, emergencyCouncil, 1001,
             FraudReplayDomain, payoutRelay);
         var escrow = substituted.Steps.Single(s => s.Name == "ExternalBridgeEscrow");
         var payoutAdapter = substituted.Steps.Single(s => s.Name == "L2PayoutAdapter");
         var emergency = substituted.Steps.Single(s => s.Name == "EmergencyManager");
         var restricted = substituted.Steps.Single(
             s => s.Name == "RestrictedExecutionFraudVerifier");
+        var governance = substituted.Steps.Single(s => s.Name == "GovernanceController");
 
         Assert.IsInstanceOfType<Neo.Json.JNumber>(escrow.DeployData[2]);
         Assert.AreEqual(1001d, escrow.DeployData[2]!.AsNumber());
         Assert.AreEqual(emergencyCouncil.ToString(), emergency.DeployData[1]!.AsString());
         Assert.AreEqual(FraudReplayDomain.ToString(), restricted.DeployData[1]!.AsString());
         Assert.AreEqual(payoutRelay.ToString(), payoutAdapter.DeployData[3]!.AsString());
+        Assert.AreEqual(2, ((JArray)governance.DeployData[1]!).Count);
+        Assert.AreEqual(2d, governance.DeployData[2]!.AsNumber());
 
         var resolvedRestricted = DeployPlanner.Plan(substituted, _ => owner).Invocations
             .Single(invocation => invocation.Name == "RestrictedExecutionFraudVerifier");
@@ -169,22 +208,17 @@ public class UT_LiveDeployCommand
         Assert.AreEqual(FraudReplayDomain, deployValues[1].Value);
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
             LiveDeployCommand.SubstituteOperatorPlaceholders(
-                ScaffoldPlan.Default(), owner, gas, key.PublicKey, emergencyCouncil, 0,
+                ScaffoldPlan.Default(), owner, gas, GovernanceCouncil(), 2, emergencyCouncil, 0,
                 FraudReplayDomain, payoutRelay));
         Assert.ThrowsExactly<ArgumentException>(() =>
             LiveDeployCommand.SubstituteOperatorPlaceholders(
-                ScaffoldPlan.Default(), owner, gas, key.PublicKey, emergencyCouncil, 1001,
+                ScaffoldPlan.Default(), owner, gas, GovernanceCouncil(), 2, emergencyCouncil, 1001,
                 UInt256.Zero, payoutRelay));
     }
 
     [TestMethod]
     public void SubstituteOperatorPlaceholders_LegacyOnlyOptimisticPlan_IsRejected()
     {
-        var key = new Neo.Wallets.KeyPair(new byte[32]
-        {
-            1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        });
         var owner = new UInt160(new byte[UInt160.Length]);
         var plan = new DeployPlan
         {
@@ -213,7 +247,8 @@ public class UT_LiveDeployCommand
 
         var ex = Assert.ThrowsExactly<InvalidOperationException>(() =>
             LiveDeployCommand.SubstituteOperatorPlaceholders(
-                plan, owner, owner, key.PublicKey, owner, 1001, FraudReplayDomain, owner));
+                plan, owner, owner, GovernanceCouncil(), 2, owner, 1001,
+                FraudReplayDomain, owner));
         StringAssert.Contains(ex.Message, "unsupported optimistic deployment");
         StringAssert.Contains(ex.Message, "v1/v2/v3");
     }
@@ -338,6 +373,8 @@ public class UT_LiveDeployCommand
         var lockConfiguration = IndexOf(actions, "ContractZkVerifier.LockProofSystemConfiguration.Sp1");
         var registerOuterRoute = IndexOf(actions, "VerifierRegistry.RegisterVerifier.Zk");
         var lockOuterRegistry = IndexOf(actions, "VerifierRegistry.LockGovernance");
+        var setSettlementGovernance = IndexOf(actions, "SettlementManager.SetGovernanceController");
+        var lockChainRegistry = IndexOf(actions, "ChainRegistry.LockGovernance");
 
         Assert.AreEqual(registerKey + 1, registerTerminal);
         Assert.AreEqual(registerTerminal + 1, lockEnvelope);
@@ -346,6 +383,8 @@ public class UT_LiveDeployCommand
             "ProofType.Zk must not become reachable before the inner SP1 verifier is fully bound and locked");
         Assert.AreEqual(registerOuterRoute + 1, lockOuterRegistry,
             "production deployment must freeze the outer route immediately after bootstrap registration");
+        Assert.IsTrue(setSettlementGovernance < lockOuterRegistry,
+            "SettlementManager governance must be bound before any production governance lock runs");
 
         var registerPermissionlessV4 = IndexOf(actions,
             "OptimisticChallenge.RegisterPermissionlessFraudProfile.RestrictedExecutionV4");
@@ -359,7 +398,13 @@ public class UT_LiveDeployCommand
         Assert.AreEqual(setRecipient + 1, setFee,
             "fee must only be enabled after both the token and recipient are configured");
 
-        var setMessageRouter = actions[IndexOf(actions, "SettlementManager.SetMessageRouter")];
+        var setMessageRouterIndex = IndexOf(actions, "SettlementManager.SetMessageRouter");
+        var lockSettlementGovernance = IndexOf(actions, "SettlementManager.LockGovernance");
+        Assert.AreEqual(setMessageRouterIndex + 1, lockChainRegistry,
+            "ChainRegistry must lock after all bootstrap wiring and before SettlementManager locks");
+        Assert.AreEqual(lockChainRegistry + 1, lockSettlementGovernance,
+            "both production registries must be locked in the same resumable deployment sequence");
+        var setMessageRouter = actions[setMessageRouterIndex];
         using (var expectedMessageRouterScript = new ScriptBuilder())
         {
             expectedMessageRouterScript.EmitDynamicCall(
@@ -382,6 +427,15 @@ public class UT_LiveDeployCommand
             "registerVerificationKey script must push the raw bytes32_raw() bytes");
         Assert.AreEqual(-1, action.Script.AsSpan().IndexOf(AsymmetricProgramVKey.Reverse().ToArray()),
             "registerVerificationKey script must not contain the reversed display-order digest");
+    }
+
+    [TestMethod]
+    public void ValidateNativeGasHash_RejectsNonNativeFeeToken()
+    {
+        LiveDeployCommand.ValidateNativeGasHash(LiveDeployCommand.NativeGasHash);
+        Assert.ThrowsExactly<ArgumentException>(() =>
+            LiveDeployCommand.ValidateNativeGasHash(
+                UInt160.Parse("0x" + new string('6', UInt160.Length * 2))));
     }
 
     [TestMethod]
@@ -419,7 +473,9 @@ public class UT_LiveDeployCommand
             100_000,
             programVKey,
             1001,
-            FraudReplayDomain).ToDictionary(check => check.Name, StringComparer.Ordinal);
+            FraudReplayDomain,
+            2,
+            2).ToDictionary(check => check.Name, StringComparer.Ordinal);
 
         var verificationKeyRpc = new StubRpcClient(BooleanResult(true));
         await smokes["ContractZkVerifier.IsVerificationKeyRegistered.Sp1"].RunAsync(verificationKeyRpc);
@@ -455,6 +511,8 @@ public class UT_LiveDeployCommand
             .RunAsync(new StubRpcClient(HashResult(hashes["GovernanceController"])));
         await smokes["VerifierRegistry.IsGovernanceLocked"]
             .RunAsync(new StubRpcClient(BooleanResult(true)));
+        await smokes["ChainRegistry.IsGovernanceLocked"]
+            .RunAsync(new StubRpcClient(BooleanResult(true)));
         await smokes["OptimisticChallenge.IsApprovedFraudVerifier.RestrictedExecutionV4"]
             .RunAsync(new StubRpcClient(BooleanResult(true)));
         await smokes["OptimisticChallenge.IsPermissionlessFraudProfile.RestrictedExecutionV4"]
@@ -468,6 +526,10 @@ public class UT_LiveDeployCommand
                 LiveDeployCommand.RestrictedExecutorSemanticId)));
         await smokes["SettlementManager.GetMessageRouter"]
             .RunAsync(new StubRpcClient(HashResult(hashes["MessageRouter"])));
+        await smokes["SettlementManager.GetGovernanceController"]
+            .RunAsync(new StubRpcClient(HashResult(hashes["GovernanceController"])));
+        await smokes["SettlementManager.IsGovernanceLocked"]
+            .RunAsync(new StubRpcClient(BooleanResult(true)));
         await smokes["ForcedInclusion.GetGasToken"]
             .RunAsync(new StubRpcClient(HashResult(hashes["Gas"])));
         await smokes["ForcedInclusion.GetFeeRecipient"]
@@ -492,7 +554,9 @@ public class UT_LiveDeployCommand
             100_000,
             new UInt256(AsymmetricProgramVKey),
             1001,
-            FraudReplayDomain).ToDictionary(check => check.Name, StringComparer.Ordinal);
+            FraudReplayDomain,
+            2,
+            2).ToDictionary(check => check.Name, StringComparer.Ordinal);
 
         var mismatches = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
         {
@@ -505,12 +569,15 @@ public class UT_LiveDeployCommand
             ["VerifierRegistry.GetVerifier.Zk"] = HashResult(UInt160.Zero),
             ["VerifierRegistry.GetGovernanceController"] = HashResult(UInt160.Zero),
             ["VerifierRegistry.IsGovernanceLocked"] = BooleanResult(false),
+            ["ChainRegistry.IsGovernanceLocked"] = BooleanResult(false),
             ["OptimisticChallenge.IsApprovedFraudVerifier.RestrictedExecutionV4"] = BooleanResult(false),
             ["OptimisticChallenge.IsPermissionlessFraudProfile.RestrictedExecutionV4"] = BooleanResult(false),
             ["RestrictedExecutionFraudVerifier.GetSettlementManager"] = HashResult(UInt160.Zero),
             ["RestrictedExecutionFraudVerifier.GetReplayDomain"] = Hash256Result(UInt256.Zero),
             ["RestrictedExecutionFraudVerifier.GetExecutorSemanticId"] = Hash256Result(UInt256.Zero),
             ["SettlementManager.GetMessageRouter"] = HashResult(UInt160.Zero),
+            ["SettlementManager.GetGovernanceController"] = HashResult(UInt160.Zero),
+            ["SettlementManager.IsGovernanceLocked"] = BooleanResult(false),
             ["ForcedInclusion.GetGasToken"] = HashResult(UInt160.Zero),
             ["ForcedInclusion.GetFeeRecipient"] = HashResult(UInt160.Zero),
             ["ForcedInclusion.GetFee"] = IntegerResult(0),
@@ -548,13 +615,15 @@ public class UT_LiveDeployCommand
             "DARegistry", "DAValidator", "MessageRouter",
         ];
 
-        return names.Select((name, index) => new
+        var hashes = names.Select((name, index) => new
         {
             Name = name,
             Hash = new UInt160(Enumerable.Range(0, UInt160.Length)
                 .Select(offset => (byte)(index * 17 + offset + 1))
                 .ToArray()),
         }).ToDictionary(entry => entry.Name, entry => entry.Hash, StringComparer.Ordinal);
+        hashes["Gas"] = LiveDeployCommand.NativeGasHash;
+        return hashes;
     }
 
     private static JsonElement BooleanResult(bool value) => StjSerializer.SerializeToElement(new

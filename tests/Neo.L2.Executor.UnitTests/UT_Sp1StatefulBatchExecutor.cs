@@ -104,6 +104,30 @@ public sealed class UT_Sp1StatefulBatchExecutor
     }
 
     [TestMethod]
+    public async Task EnsureStateRolledBack_RestoresQuarantinedPreStateAndIsIdempotent()
+    {
+        using var harness = new ExecutorHarness();
+        var process = new WritingProcess(AddStateEntry);
+        var executor = harness.CreateExecutor(process);
+        var batch = harness.Batch();
+        var execution = await executor.ApplyBatchWithWitnessAsync(batch);
+        var artifact = BuildArtifact(batch, execution);
+        using var artifactBackend = new InMemoryKeyValueStore();
+        using var artifactStore = new KeyValueProofWitnessStore(artifactBackend);
+        await artifactStore.CommitAsync(artifact);
+        await executor.EnsureStateCommittedAsync(artifactStore, artifact);
+        var checkpoint = await artifactStore.QuarantineRevertedTailAsync(
+            artifact.ChainId, artifact.BatchNumber, artifact.ContentHash);
+
+        await executor.EnsureStateRolledBackAsync(artifactStore, checkpoint);
+        await executor.EnsureStateRolledBackAsync(artifactStore, checkpoint);
+
+        Assert.AreEqual(harness.InitialRoot, await executor.GetCurrentStateRootAsync());
+        Assert.AreEqual(harness.InitialRoot, harness.Source.CaptureCurrent().StateRoot);
+        Assert.IsFalse(Directory.EnumerateFileSystemEntries(harness.ScratchDirectory).Any());
+    }
+
+    [TestMethod]
     public async Task EnsureStateCommitted_RejectsArtifactThatIsNotDurable()
     {
         using var harness = new ExecutorHarness();
@@ -129,6 +153,60 @@ public sealed class UT_Sp1StatefulBatchExecutor
         var process = new WritingProcess(static (_, output) => output with
         {
             RequestPayloadHash = UInt256.Zero,
+        });
+        var executor = harness.CreateExecutor(process);
+
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(() =>
+            executor.ApplyBatchWithWitnessAsync(harness.Batch()).AsTask());
+
+        Assert.AreEqual(
+            harness.InitialRoot,
+            harness.Source.Capture(harness.InitialRoot).StateRoot);
+    }
+
+    [TestMethod]
+    public async Task ApplyBatchWithWitness_RejectsForgedStateWitnessHashWithoutStateMutation()
+    {
+        using var harness = new ExecutorHarness();
+        var process = new WritingProcess(static (_, output) => output with
+        {
+            RequestStateWitnessHash = UInt256.Zero,
+        });
+        var executor = harness.CreateExecutor(process);
+
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(() =>
+            executor.ApplyBatchWithWitnessAsync(harness.Batch()).AsTask());
+
+        Assert.AreEqual(
+            harness.InitialRoot,
+            harness.Source.Capture(harness.InitialRoot).StateRoot);
+    }
+
+    [TestMethod]
+    public async Task ApplyBatchWithWitness_RejectsForgedCanonicalPublicInputsWithoutStateMutation()
+    {
+        using var harness = new ExecutorHarness();
+        var process = new WritingProcess(static (_, output) => output with
+        {
+            ExecutionResult = output.ExecutionResult with { TxRoot = UInt256.Zero },
+        });
+        var executor = harness.CreateExecutor(process);
+
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(() =>
+            executor.ApplyBatchWithWitnessAsync(harness.Batch()).AsTask());
+
+        Assert.AreEqual(
+            harness.InitialRoot,
+            harness.Source.Capture(harness.InitialRoot).StateRoot);
+    }
+
+    [TestMethod]
+    public async Task ApplyBatchWithWitness_RejectsForgedPublicInputHashWithoutStateMutation()
+    {
+        using var harness = new ExecutorHarness();
+        var process = new WritingProcess(static (_, output) => output with
+        {
+            PublicInputHash = UInt256.Zero,
         });
         var executor = harness.CreateExecutor(process);
 
@@ -182,6 +260,41 @@ public sealed class UT_Sp1StatefulBatchExecutor
         Assert.ThrowsExactly<NotSupportedException>(() =>
             executor.ApplyBatchAsync(harness.Batch().ToExecutionRequest()).AsTask()
                 .GetAwaiter().GetResult());
+    }
+
+    [TestMethod]
+    public void Constructor_RejectsUnpinnedOrUnavailableExecutionBoundary()
+    {
+        using var harness = new ExecutorHarness();
+        var validDigest = SHA256.HashData(File.ReadAllBytes(harness.ExecutablePath));
+
+        Assert.ThrowsExactly<ArgumentException>(() => new Sp1StatefulBatchExecutor(
+            harness.Source,
+            harness.ExecutablePath,
+            new byte[SHA256.HashSizeInBytes - 1],
+            harness.ScratchDirectory));
+        Assert.ThrowsExactly<ArgumentException>(() => new Sp1StatefulBatchExecutor(
+            harness.Source,
+            harness.ExecutablePath,
+            new byte[SHA256.HashSizeInBytes],
+            harness.ScratchDirectory));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new Sp1StatefulBatchExecutor(
+            harness.Source,
+            harness.ExecutablePath,
+            validDigest,
+            harness.ScratchDirectory,
+            TimeSpan.Zero));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new Sp1StatefulBatchExecutor(
+            harness.Source,
+            harness.ExecutablePath,
+            validDigest,
+            harness.ScratchDirectory,
+            TimeSpan.FromHours(24) + TimeSpan.FromTicks(1)));
+        Assert.ThrowsExactly<FileNotFoundException>(() => new Sp1StatefulBatchExecutor(
+            harness.Source,
+            Path.Combine(harness.ScratchDirectory, "missing-executor"),
+            validDigest,
+            harness.ScratchDirectory));
     }
 
     [TestMethod]
@@ -254,6 +367,8 @@ public sealed class UT_Sp1StatefulBatchExecutor
         }
 
         public string ScratchDirectory { get; }
+
+        public string ExecutablePath => _executablePath;
 
         public UInt256 InitialRoot { get; }
 

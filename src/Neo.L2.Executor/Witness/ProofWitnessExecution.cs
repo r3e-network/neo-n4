@@ -97,3 +97,17 @@ public interface ICommittedProofWitnessStateSink
         ProofWitnessArtifactV1 artifact,
         CancellationToken cancellationToken = default);
 }
+
+/// <summary>Restores authenticated execution state after L1 reverts a speculative batch tail.</summary>
+/// <remarks>
+/// See doc.md §7.3, §7.5, §15.1, and §17. Implementations must be idempotent and may
+/// restore state only from the exact quarantined artifact named by the durable rollback checkpoint.
+/// </remarks>
+public interface IRevertibleCommittedProofWitnessStateSink
+{
+    /// <summary>Ensure execution state is restored to the checkpoint's authenticated target root.</summary>
+    ValueTask EnsureStateRolledBackAsync(
+        IProofWitnessStore durableStore,
+        SettlementRollbackCheckpoint checkpoint,
+        CancellationToken cancellationToken = default);
+}

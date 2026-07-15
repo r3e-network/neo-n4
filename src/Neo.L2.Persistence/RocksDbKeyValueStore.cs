@@ -11,9 +11,10 @@ namespace Neo.L2.Persistence;
 /// <para>
 /// Construction opens (or creates if absent) a column-family-free RocksDB database at
 /// the configured path. The library handles concurrent reads + writes; this wrapper
-/// serializes conditional writes so <see cref="IL2KeyValueStore.TryPut"/> and
-/// <see cref="IL2KeyValueStore.CompareExchange"/> remain atomic relative to ordinary
-/// Put/Delete calls on the shared instance.
+/// serializes conditional writes so <see cref="IL2KeyValueStore.TryPut"/>,
+/// <see cref="IL2KeyValueStore.CompareExchange"/>, and
+/// <see cref="IAtomicL2KeyValueStore.CompareExchangeBatch"/> remain atomic relative to
+/// ordinary Put/Delete calls on the shared instance.
 /// </para>
 /// <para>
 /// Tunables: the default options enable Snappy compression and create-if-missing.
@@ -24,7 +25,7 @@ namespace Neo.L2.Persistence;
 /// <see cref="DbOptions"/>.
 /// </para>
 /// </remarks>
-public sealed class RocksDbKeyValueStore : IAtomicL2KeyValueStore
+public sealed class RocksDbKeyValueStore : IAtomicL2KeyValueStore, IDurableL2KeyValueStore
 {
     private readonly RocksDb _db;
     private readonly Lock _writeGate = new();
@@ -169,6 +170,44 @@ public sealed class RocksDbKeyValueStore : IAtomicL2KeyValueStore
     {
         ThrowIfDisposed();
         return _db.Get(key.ToArray()) is not null;
+    }
+
+    /// <inheritdoc />
+    public bool CompareExchangeBatch(
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte>? ExpectedValue)> conditions,
+        IEnumerable<(ReadOnlyMemory<byte> Key, ReadOnlyMemory<byte>? Value)> mutations)
+    {
+        ThrowIfDisposed();
+        var expected = AtomicBatchValidator.Materialize(conditions, nameof(conditions));
+        var replacement = AtomicBatchValidator.Materialize(mutations, nameof(mutations));
+        lock (_writeGate)
+        {
+            ThrowIfDisposed();
+            foreach (var condition in expected)
+            {
+                var current = _db.Get(condition.Key);
+                if (condition.Value is null)
+                {
+                    if (current is not null) return false;
+                }
+                else if (current is null
+                    || !current.AsSpan().SequenceEqual(condition.Value))
+                {
+                    return false;
+                }
+            }
+
+            using var batch = new WriteBatch();
+            foreach (var mutation in replacement)
+            {
+                if (mutation.Value is null)
+                    batch.Delete(mutation.Key);
+                else
+                    batch.Put(mutation.Key, mutation.Value);
+            }
+            _db.Write(batch, _durableWriteOptions);
+            return true;
+        }
     }
 
     /// <inheritdoc />

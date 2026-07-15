@@ -63,7 +63,7 @@ L1 核心合约套件:
 - **BridgeAdapter** —— L2 侧的充值 / 提款处理
 - **MessageAdapter** —— L2 侧的跨链消息
 - **ForcedInclusionHandler** —— 抗审查:用户可直接把 tx 投递到 L1 强制纳入队列;排序器须在 deadline 前纳入,否则被罚没
-- **DurableStateBackend** —— 默认基于 RocksDB 的 `IL2KeyValueStore`;重启后保留。6 个组件持久化状态:keyed state、RPC 证明、消息路由证明、强制纳入 nonce、排序器委员会 + 退出窗口、DA payload。详见 [`docs/zh/persistence.md`](persistence.md)。
+- **DurableStateBackend** —— 默认基于 RocksDB 的 `IL2KeyValueStore`;重启后保留。7 类组件持久化状态:keyed state、RPC 证明、消息路由证明、强制纳入事件/nonce、排序器委员会 + 退出窗口、DA payload，以及 canonical proof-witness/finality/rollback recovery。详见 [`docs/zh/persistence.md`](persistence.md)。
 - **ChainAuditor** —— 对生成的承诺跑 6 项不变量检查(连续性、证明有效性、非零证明、public-input-hash、批次范围、DA 可用性);发出 `l2.audit.runs` + `l2.audit.failures` 给运维仪表盘。
 
 ChainMode:`L1Mode` | `SidechainMode` | `L2RollupMode` | `L2ValidiumMode`。

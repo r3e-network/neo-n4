@@ -155,4 +155,15 @@ public class UT_RpcGlobalRootPublisher
             async () => await publisher.PublishGlobalRootAsync(1, commitment, SampleVkId, cts.Token),
             "cancellation token forwarded to the signer");
     }
+
+    [TestMethod]
+    public void Dispose_IsIdempotent()
+    {
+        var publisher = new RpcGlobalRootPublisher(
+            MessageRouter,
+            (_, _, _, _, _, _) => ValueTask.FromResult(UInt256.Zero));
+
+        publisher.Dispose();
+        publisher.Dispose();
+    }
 }

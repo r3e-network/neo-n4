@@ -16,6 +16,7 @@ public sealed class JsonRpcClient : IDisposable
     private readonly Uri _endpoint;
     private readonly CircuitBreaker? _circuitBreaker;
     private long _nextId;
+    private int _disposed;
     private bool _ownsHttp;
 
     /// <summary>Construct against an endpoint URI; allocates a default <see cref="HttpClient"/>.</summary>
@@ -81,6 +82,7 @@ public sealed class JsonRpcClient : IDisposable
     /// </summary>
     public async ValueTask<JToken?> CallAsync(string method, JArray @params, CancellationToken cancellationToken = default)
     {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         ArgumentNullException.ThrowIfNull(method);
         ArgumentNullException.ThrowIfNull(@params);
 
@@ -189,6 +191,7 @@ public sealed class JsonRpcClient : IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         if (_ownsHttp)
         {
             _http.Dispose();

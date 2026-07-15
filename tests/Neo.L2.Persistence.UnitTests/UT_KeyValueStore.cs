@@ -311,6 +311,66 @@ public abstract class KeyValueStoreContractTests
     }
 
     [TestMethod]
+    public void CompareExchangeBatch_AppliesOnlyWhenEveryKeyConditionMatches()
+    {
+        using var store = Create();
+        var atomicStore = (IAtomicL2KeyValueStore)store;
+        store.Put(new byte[] { 0x01 }, new byte[] { 0xAA });
+
+        Assert.IsTrue(atomicStore.CompareExchangeBatch(
+        [
+            (new byte[] { 0x01 }, new byte[] { 0xAA }),
+            (new byte[] { 0x02 }, null),
+        ],
+        [
+            (new byte[] { 0x01 }, null),
+            (new byte[] { 0x02 }, new byte[] { 0xBB }),
+        ]));
+
+        Assert.IsNull(store.Get(new byte[] { 0x01 }));
+        CollectionAssert.AreEqual(new byte[] { 0xBB }, store.Get(new byte[] { 0x02 }));
+        Assert.IsFalse(atomicStore.CompareExchangeBatch(
+        [
+            (new byte[] { 0x01 }, null),
+            (new byte[] { 0x02 }, new byte[] { 0xCC }),
+        ],
+        [
+            (new byte[] { 0x03 }, new byte[] { 0xDD }),
+        ]));
+        Assert.IsNull(store.Get(new byte[] { 0x03 }));
+    }
+
+    [TestMethod]
+    public void CompareExchangeBatch_CompetingGuardAndTargetCannotBothCommit()
+    {
+        using var store = Create();
+        var atomicStore = (IAtomicL2KeyValueStore)store;
+        var gate = new Barrier(2);
+        var target = new byte[] { 0x10 };
+        var guard = new byte[] { 0x20 };
+        var targetTask = Task.Run(() =>
+        {
+            gate.SignalAndWait();
+            return atomicStore.CompareExchangeBatch(
+                [(target, null), (guard, null)],
+                [(target, new byte[] { 0xAA })]);
+        });
+        var guardTask = Task.Run(() =>
+        {
+            gate.SignalAndWait();
+            return atomicStore.CompareExchangeBatch(
+                [(target, null), (guard, null)],
+                [(guard, new byte[] { 0xBB })]);
+        });
+
+        Task.WaitAll(targetTask, guardTask);
+
+        Assert.AreEqual(1, new[] { targetTask.Result, guardTask.Result }.Count(static x => x));
+        Assert.AreEqual(1L, store.Count);
+        Assert.AreNotEqual(store.Contains(target), store.Contains(guard));
+    }
+
+    [TestMethod]
     public void ReplaceAll_InvalidSnapshotPreservesExistingState()
     {
         using var store = Create();

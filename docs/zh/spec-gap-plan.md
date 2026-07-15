@@ -17,7 +17,9 @@
 1. 读取已接线的 GovernanceController 哈希(由 owner-only 的
    `SetGovernanceController` 设置);未接线则带"必须先由 owner 接线"的清晰
    提示拒绝。
-2. 调用 `GovernanceController.GetAdmissionMode()`。
+2. 调用 `GovernanceController.GetAdmissionMode()`，并在转换为 `byte` 前以完整
+   `BigInteger` 校验返回值严格属于闭集 0..2；负数、未定义值和截断值均以零持久化
+   副作用拒绝。
 3. 模式 0(许可制)→ 带 "use RegisterChain" 提示拒绝;模式 1(半许可制)→
    对 verifier 字节(偏移 24..43)与 bridge 字节(偏移 44..63)强制
    `IsApprovedVerifier` + `IsApprovedBridgeAdapter` 检查;模式 2(无许可制)→
@@ -26,7 +28,8 @@
 owner-only 的 `RegisterChain` 保留为 §16.1 的"许可制"路径。
 
 **文件。** `contracts/NeoHub.ChainRegistry/ChainRegistryContract.cs`。
-测试覆盖模式 0/1/2 + 未接线时的 controller 拒绝。
+测试覆盖模式 0/1/2、未接线时的 controller 拒绝，以及 -1、3、258 的 fail-closed
+拒绝，并验证不会持久化 config 或 genesis root。
 
 ### §16.1-approved-sets ✅ 已闭合
 
@@ -183,7 +186,7 @@ KMS 的实操样例。所有 CLI 都输出规范 hex;生产热路径
     生产级 vs MVP 形态 vs 参照脚手架(运维必须替换)vs 计划打印器(CLI
     并未真正签名/提交)vs 设计上仓外项 一一编目。
   - `NeoHub.ForcedInclusion` 出货真正可配置的反垃圾费
-    (`SetFee` / `SetFeeRecipient` / `SetGasToken`);默认 0 = 保留无费
+    (`SetFee` / `SetFeeRecipient` / 仅允许原生 GAS 的 `SetGasToken`)；替代 NEP-17 会被拒绝，默认 0 = 保留无费
     的 legacy。关掉"无费 MVP"的标注。
   - `NeoHub.GovernanceFraudVerifier` 仅作为离线审计用 v1/v2 结构验证器出货。解码规范的 101 字节
     `FraudProofPayload`,校验长度 / 版本 / 是否声称真实差异,并发出

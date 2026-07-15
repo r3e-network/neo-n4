@@ -20,7 +20,8 @@ public sealed class Sp1StatefulBatchExecutor :
     IProofWitnessBatchExecutor,
     IInitialStateRootProvider,
     ICurrentStateRootProvider,
-    ICommittedProofWitnessStateSink
+    ICommittedProofWitnessStateSink,
+    IRevertibleCommittedProofWitnessStateSink
 {
     private static readonly TimeSpan DefaultExecutionTimeout = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan MaximumExecutionTimeout = TimeSpan.FromHours(24);
@@ -212,6 +213,40 @@ public sealed class Sp1StatefulBatchExecutor :
         finally
         {
             TryDeleteDirectory(invocationDirectory);
+            _executionGate.Release();
+        }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask EnsureStateRolledBackAsync(
+        IProofWitnessStore durableStore,
+        SettlementRollbackCheckpoint checkpoint,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(durableStore);
+        ArgumentNullException.ThrowIfNull(checkpoint);
+        await _executionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var artifact = await durableStore.GetQuarantinedArtifactAsync(
+                checkpoint.RevertedArtifactContentHash, cancellationToken).ConfigureAwait(false)
+                ?? throw new InvalidOperationException(
+                    "settlement rollback references a missing quarantined artifact");
+            if (artifact.ChainId != checkpoint.ChainId
+                || artifact.BatchNumber != checkpoint.FirstBatchNumber
+                || !artifact.ContentHash.Equals(checkpoint.RevertedArtifactContentHash)
+                || !artifact.ExecutionPayload.PreStateRoot.Equals(checkpoint.TargetStateRoot))
+            {
+                throw new InvalidDataException(
+                    "settlement rollback checkpoint differs from its quarantined artifact");
+            }
+            _stateSource.RestoreSnapshot(
+                checkpoint.ExpectedCurrentStateRoot,
+                checkpoint.TargetStateRoot,
+                artifact.StateWitness);
+        }
+        finally
+        {
             _executionGate.Release();
         }
     }

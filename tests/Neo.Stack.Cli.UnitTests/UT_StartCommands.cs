@@ -1,12 +1,19 @@
+using Neo;
 using Neo.Stack.Cli.Commands;
+using Neo.Wallets;
+using Neo.Wallets.NEP6;
+using System.Text.Json.Nodes;
 
 namespace Neo.Stack.Cli.UnitTests;
 
 [TestClass]
 public class UT_StartCommands
 {
-    private const string Validator = "03b209fd4f53a7170ea4444e0cb0a6bb6a53c2bd016926989cf85f9b0fba17a70c";
-    private const string RotatedValidator = "02df48f60e8f3e01c48ff40b9b7f1310d7a8b2a193188befe1c2e3df740e895093";
+    private const string ValidatorPrivateKey = "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20";
+    private const string AlternatePrivateKey = "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f";
+    private const string CorruptReplacementPrivateKey = "303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f";
+    private static readonly string Validator = new KeyPair(Convert.FromHexString(ValidatorPrivateKey)).PublicKey.ToString();
+    private static readonly string RotatedValidator = new KeyPair(Convert.FromHexString(AlternatePrivateKey)).PublicKey.ToString();
     private string _tempDir = null!;
     private string _neoCli = null!;
     private string _batcherNeoCli = null!;
@@ -221,6 +228,9 @@ public class UT_StartCommands
               "validators": ["{{RotatedValidator}}"]
             }
             """);
+        WriteTestWallet(
+            Path.Combine(_tempDir, "node", "validator.json"),
+            AlternatePrivateKey);
         var matchingReader = new FixedCommitteeReader(RotatedValidator);
 
         var matchingResult = await StartSequencerCommand.RunAsync(
@@ -253,6 +263,74 @@ public class UT_StartCommands
         File.WriteAllText(
             configPath,
             File.ReadAllText(configPath).Replace("\"IsActive\": true", "\"IsActive\": false", StringComparison.Ordinal));
+
+        var result = await StartSequencerCommand.RunAsync(StartArgs("--dry-run"));
+
+        Assert.AreEqual(4, result);
+    }
+
+    [TestMethod]
+    public async Task StartSequencer_RejectsMalformedWallet()
+    {
+        SeedOperatorLayout();
+        File.WriteAllText(Path.Combine(_tempDir, "node", "validator.json"), "{}");
+
+        var result = await StartSequencerCommand.RunAsync(StartArgs("--dry-run"));
+
+        Assert.AreEqual(4, result);
+    }
+
+    [TestMethod]
+    public async Task StartSequencer_RejectsIncorrectWalletPassword()
+    {
+        SeedOperatorLayout();
+        var configPath = Path.Combine(_tempDir, "node", "config.json");
+        File.WriteAllText(
+            configPath,
+            File.ReadAllText(configPath).Replace("test-only", "incorrect", StringComparison.Ordinal));
+
+        var result = await StartSequencerCommand.RunAsync(StartArgs("--dry-run"));
+
+        Assert.AreEqual(4, result);
+    }
+
+    [TestMethod]
+    public async Task StartSequencer_RejectsUnsupportedWalletFormat()
+    {
+        SeedOperatorLayout();
+        var nodeDirectory = Path.Combine(_tempDir, "node");
+        File.Copy(
+            Path.Combine(nodeDirectory, "validator.json"),
+            Path.Combine(nodeDirectory, "validator.hsm"));
+        var configPath = Path.Combine(nodeDirectory, "config.json");
+        File.WriteAllText(
+            configPath,
+            File.ReadAllText(configPath).Replace("validator.json", "validator.hsm", StringComparison.Ordinal));
+
+        var result = await StartSequencerCommand.RunAsync(StartArgs("--dry-run"));
+
+        Assert.AreEqual(4, result);
+    }
+
+    [TestMethod]
+    public async Task StartSequencer_RejectsWalletWithoutCommitteeKey()
+    {
+        SeedOperatorLayout();
+        WriteTestWallet(
+            Path.Combine(_tempDir, "node", "validator.json"),
+            AlternatePrivateKey);
+
+        var result = await StartSequencerCommand.RunAsync(StartArgs("--dry-run"));
+
+        Assert.AreEqual(4, result);
+    }
+
+    [TestMethod]
+    public async Task StartSequencer_RejectsCommitteeAccountWhoseEncryptedKeyDoesNotMatch()
+    {
+        SeedOperatorLayout();
+        WriteWalletWithMismatchedCommitteeKey(
+            Path.Combine(_tempDir, "node", "validator.json"));
 
         var result = await StartSequencerCommand.RunAsync(StartArgs("--dry-run"));
 
@@ -481,7 +559,7 @@ public class UT_StartCommands
         File.WriteAllBytes(_neoCli, [0]);
         File.WriteAllBytes(_batcherNeoCli, [0]);
         File.WriteAllBytes(_prover, [0]);
-        File.WriteAllText(Path.Combine(_tempDir, "node", "validator.json"), "{}");
+        WriteTestWallet(Path.Combine(_tempDir, "node", "validator.json"), ValidatorPrivateKey);
         File.WriteAllBytes(Path.Combine(_tempDir, "node", "Plugins", "DBFTPlugin", "DBFTPlugin.dll"), [0]);
         File.WriteAllText(Path.Combine(_tempDir, "node", "Plugins", "DBFTPlugin", "DBFTPlugin.json"),
             "{\"PluginConfiguration\":{\"AutoStart\":true}}");
@@ -491,6 +569,46 @@ public class UT_StartCommands
         File.WriteAllBytes(Path.Combine(_tempDir, "batcher-node", "Plugins", "Neo.Plugins.L2Batch", "Neo.Plugins.L2Batch.dll"), [0]);
         File.WriteAllText(Path.Combine(_tempDir, "batcher-node", "Plugins", "Neo.Plugins.L2Batch", "config.json"),
             "{\"PluginConfiguration\":{\"ChainId\":1099}}");
+    }
+
+    private static void WriteTestWallet(string path, string privateKey)
+    {
+        File.WriteAllText(
+            path,
+            """
+            {"name":"validator","version":"1.0","scrypt":{"n":2,"r":1,"p":1},"accounts":[],"extra":null}
+            """);
+        var wallet = new NEP6Wallet(path, "test-only", ProtocolSettings.Default);
+        wallet.CreateAccount(Convert.FromHexString(privateKey));
+        wallet.Save();
+    }
+
+    private static void WriteWalletWithMismatchedCommitteeKey(string path)
+    {
+        File.WriteAllText(
+            path,
+            """
+            {"name":"validator","version":"1.0","scrypt":{"n":2,"r":1,"p":1},"accounts":[],"extra":null}
+            """);
+        var wallet = new NEP6Wallet(path, "test-only", ProtocolSettings.Default);
+        var unrelated = wallet.CreateAccount(Convert.FromHexString(AlternatePrivateKey));
+        var validator = wallet.CreateAccount(Convert.FromHexString(ValidatorPrivateKey));
+        var replacement = wallet.CreateAccount(Convert.FromHexString(CorruptReplacementPrivateKey));
+        wallet.Save();
+
+        var document = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        var accounts = document["accounts"]!.AsArray();
+        var validatorJson = accounts
+            .Select(node => node!.AsObject())
+            .Single(account => account["address"]!.GetValue<string>() == validator.Address);
+        var replacementJson = accounts
+            .Select(node => node!.AsObject())
+            .Single(account => account["address"]!.GetValue<string>() == replacement.Address);
+        validatorJson["key"] = replacementJson["key"]!.GetValue<string>();
+        accounts.Remove(replacementJson);
+        Assert.IsTrue(accounts.Any(node =>
+            node!.AsObject()["address"]!.GetValue<string>() == unrelated.Address));
+        File.WriteAllText(path, document.ToJsonString());
     }
 
     private string[] BatcherArgs(params string[] extra)

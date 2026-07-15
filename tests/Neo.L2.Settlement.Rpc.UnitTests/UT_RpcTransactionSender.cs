@@ -179,6 +179,38 @@ public class UT_RpcTransactionSender
                 ExpectedNetwork = Network,
                 ValidUntilBlockDelta = 0,
             }));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new RpcTransactionSender(
+            rpc,
+            signer,
+            new RpcTransactionSenderOptions
+            {
+                ExpectedNetwork = Network,
+                SystemFeeMarginBasisPoints = 100_001,
+            }));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new RpcTransactionSender(
+            rpc,
+            signer,
+            new RpcTransactionSenderOptions
+            {
+                ExpectedNetwork = Network,
+                MinimumSystemFeeMargin = -1,
+            }));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new RpcTransactionSender(
+            rpc,
+            signer,
+            new RpcTransactionSenderOptions
+            {
+                ExpectedNetwork = Network,
+                ConfirmationTimeout = TimeSpan.Zero,
+            }));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new RpcTransactionSender(
+            rpc,
+            signer,
+            new RpcTransactionSenderOptions
+            {
+                ExpectedNetwork = Network,
+                ConfirmationPollInterval = TimeSpan.Zero,
+            }));
     }
 
     private static LocalKeyTransactionSigner CreateSigner()

@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.ComponentModel;
 using System.Numerics;
 using System.Security.Cryptography;
+using System.Text;
 using Moq;
 using Neo;
 using Neo.SmartContract.Testing;
@@ -26,6 +27,17 @@ public abstract class MockSettlementManager_MessageRouter(SmartContractInitializ
         byte[]? aggregatedProof);
 }
 
+/// <summary>Governance proposal surface used by SettlementManager governance-lock VM tests.</summary>
+public abstract class MockSettlementManager_GovernanceController(SmartContractInitialize initialize)
+    : SmartContract(initialize)
+{
+    [DisplayName("isApprovedAndTimelocked")]
+    public abstract bool? IsApprovedAndTimelocked(BigInteger? proposalId);
+
+    [DisplayName("matchesProposalPayload")]
+    public abstract bool? MatchesProposalPayload(BigInteger? proposalId, byte[]? payload);
+}
+
 /// <summary>
 /// VM-level tests for NeoHub.SettlementManager — the security-critical settlement path. These
 /// execute the compiled NEF in a real NeoVM with the cross-contract dependencies (ChainRegistry,
@@ -42,6 +54,8 @@ public abstract class MockSettlementManager_MessageRouter(SmartContractInitializ
 public class UT_SettlementManager_Vm
 {
     private const uint ChainId = 1001;
+    private static byte[] GenesisState => R(0x10);
+    private static UInt256 GenesisStateRoot => new(GenesisState);
 
     // Commitment header offsets (see Neo.L2.Batch.BatchSerializer).
     private const int OffChainId = 0, OffBatch = 4, OffFirstBlock = 12, OffLastBlock = 20;
@@ -114,8 +128,10 @@ public class UT_SettlementManager_Vm
         byte daMode = 0,
         Func<byte>? securityLevelProvider = null,
         Func<byte>? daModeProvider = null,
-        Func<byte, bool>? daValidation = null)
+        Func<byte, bool>? daValidation = null,
+        Func<uint, UInt256>? genesisStateRootProvider = null)
     {
+        engine.Fee = 100_000_000_000L;
         var owner = engine.Sender;
         var crHash = UInt160.Parse("0x" + new string('1', 40));
         var vrHash = UInt160.Parse("0x" + new string('2', 40));
@@ -131,6 +147,10 @@ public class UT_SettlementManager_Vm
             m.Setup(c => c.GetDAMode(It.IsAny<BigInteger?>()))
                 .Returns(() => (BigInteger)(daModeProvider?.Invoke() ?? daMode));
             m.Setup(c => c.GetGatewayEnabled(It.IsAny<BigInteger?>())).Returns(true);
+            m.Setup(c => c.GetGenesisStateRoot(It.IsAny<BigInteger?>()))
+                .Returns((BigInteger? requestedChainId) =>
+                    genesisStateRootProvider?.Invoke((uint)requestedChainId!.Value)
+                    ?? GenesisStateRoot);
         }, checkExistence: false);
         engine.FromHash<NeoHubVerifierRegistry>(vrHash,
             m => m.Setup(c => c.VerifyCommitment(It.IsAny<byte[]?>())).Returns(true), checkExistence: false);
@@ -196,6 +216,27 @@ public class UT_SettlementManager_Vm
                 .Returns(true),
             checkExistence: false);
         settlementManager.MessageRouter = routerHash;
+    }
+
+    private static UInt160 WireGovernanceController(
+        TestEngine engine,
+        NeoHubSettlementManager settlementManager,
+        Func<ulong, bool> isApprovedAndTimelocked,
+        Func<ulong, byte[], bool> matchesProposalPayload)
+    {
+        var governanceHash = UInt160.Parse("0x" + new string('7', 40));
+        engine.FromHash<MockSettlementManager_GovernanceController>(governanceHash, mock =>
+        {
+            mock.Setup(governance => governance.IsApprovedAndTimelocked(It.IsAny<BigInteger?>()))
+                .Returns((BigInteger? proposalId) =>
+                    isApprovedAndTimelocked((ulong)proposalId!.Value));
+            mock.Setup(governance => governance.MatchesProposalPayload(
+                    It.IsAny<BigInteger?>(), It.IsAny<byte[]?>()))
+                .Returns((BigInteger? proposalId, byte[]? payload) =>
+                    matchesProposalPayload((ulong)proposalId!.Value, payload!));
+        }, checkExistence: false);
+        settlementManager.GovernanceController = governanceHash;
+        return governanceHash;
     }
 
     private static byte[] PackGatewayReferences(
@@ -264,7 +305,7 @@ public class UT_SettlementManager_Vm
             var messageRoot = R((byte)(0x40 + index));
             var (commitment, l1MessageHash, blockContextHash) = BuildCommitment(
                 batch: 1,
-                preState: R(0x00),
+                preState: GenesisState,
                 postState: R((byte)(0x80 + index)),
                 withdrawalRoot: R((byte)(0x50 + index)),
                 proofType: 3,
@@ -291,7 +332,7 @@ public class UT_SettlementManager_Vm
         var sm = Deploy(engine, securityLevel: 4, daMode: 1);
         var (commitment, l1MessageHash, blockContextHash) = BuildCommitment(
             batch: 1,
-            preState: R(0x00),
+            preState: GenesisState,
             postState: R(0xA1),
             withdrawalRoot: R(0x51),
             proofType: 3);
@@ -299,6 +340,50 @@ public class UT_SettlementManager_Vm
         sm.SubmitBatch(commitment, l1MessageHash, blockContextHash);
 
         Assert.AreEqual((BigInteger)1, sm.GetBatchStatus(ChainId, 1));
+    }
+
+    [TestMethod]
+    public void SubmitBatch_FirstBatchRequiresRegisteredGenesisStateRoot()
+    {
+        var engine = new TestEngine(true);
+        var sm = Deploy(engine);
+        Assert.AreEqual(GenesisStateRoot, sm.GetCanonicalStateRoot(ChainId));
+        var (wrong, wrongL1MessageHash, wrongBlockContextHash) = BuildCommitment(
+            batch: 1,
+            preState: R(0x99),
+            postState: R(0xA1),
+            withdrawalRoot: R(0x51));
+
+        Assert.ThrowsExactly<TestException>(
+            () => sm.SubmitBatch(wrong, wrongL1MessageHash, wrongBlockContextHash),
+            "a verifier-approved transition from an attacker-selected first state must fail");
+        Assert.AreEqual((BigInteger)0, sm.GetBatchStatus(ChainId, 1));
+
+        var (correct, l1MessageHash, blockContextHash) = BuildCommitment(
+            batch: 1,
+            preState: GenesisState,
+            postState: R(0xA1),
+            withdrawalRoot: R(0x51));
+        sm.SubmitBatch(correct, l1MessageHash, blockContextHash);
+        Assert.AreEqual((BigInteger)1, sm.GetBatchStatus(ChainId, 1));
+    }
+
+    [TestMethod]
+    public void SubmitBatch_MissingRegisteredGenesisStateRoot_FailsClosed()
+    {
+        var engine = new TestEngine(true);
+        var sm = Deploy(
+            engine,
+            genesisStateRootProvider: _ => UInt256.Zero);
+        var (commitment, l1MessageHash, blockContextHash) = BuildCommitment(
+            batch: 1,
+            preState: GenesisState,
+            postState: R(0xA1),
+            withdrawalRoot: R(0x51));
+
+        Assert.ThrowsExactly<TestException>(
+            () => sm.SubmitBatch(commitment, l1MessageHash, blockContextHash));
+        Assert.AreEqual((BigInteger)0, sm.GetBatchStatus(ChainId, 1));
     }
 
     [TestMethod]
@@ -332,7 +417,7 @@ public class UT_SettlementManager_Vm
         var sm = Deploy(engine, (byte)securityLevel, daMode);
         var (commitment, l1MessageHash, blockContextHash) = BuildCommitment(
             batch: 1,
-            preState: R(0x00),
+            preState: GenesisState,
             postState: R(0xA1),
             withdrawalRoot: R(0x51),
             proofType: (byte)proofType);
@@ -386,7 +471,7 @@ public class UT_SettlementManager_Vm
         var sm = Deploy(engine, (byte)securityLevel, (byte)daMode);
         var (commitment, l1MessageHash, blockContextHash) = BuildCommitment(
             batch: 1,
-            preState: R(0x00),
+            preState: GenesisState,
             postState: R(0xA1),
             withdrawalRoot: R(0x51),
             proofType: proofType);
@@ -408,7 +493,7 @@ public class UT_SettlementManager_Vm
         var unknownSecurityManager = Deploy(unknownSecurityEngine, securityLevel: 99, daMode: 0);
         var (validProof, l1MessageHash, blockContextHash) = BuildCommitment(
             batch: 1,
-            preState: R(0x00),
+            preState: GenesisState,
             postState: R(0xA1),
             withdrawalRoot: R(0x51),
             proofType: 3);
@@ -419,7 +504,7 @@ public class UT_SettlementManager_Vm
         var unknownProofManager = Deploy(unknownProofEngine, securityLevel: 0, daMode: 0);
         var (unknownProof, secondL1MessageHash, secondBlockContextHash) = BuildCommitment(
             batch: 1,
-            preState: R(0x00),
+            preState: GenesisState,
             postState: R(0xA1),
             withdrawalRoot: R(0x51),
             proofType: 99);
@@ -439,7 +524,7 @@ public class UT_SettlementManager_Vm
             daModeProvider: () => currentDaMode);
         var (multisigCommitment, l1MessageHash, blockContextHash) = BuildCommitment(
             batch: 1,
-            preState: R(0x00),
+            preState: GenesisState,
             postState: R(0xA1),
             withdrawalRoot: R(0x51),
             proofType: 1);
@@ -459,7 +544,7 @@ public class UT_SettlementManager_Vm
             daModeProvider: () => currentDaMode);
         var (zkCommitment, secondL1MessageHash, secondBlockContextHash) = BuildCommitment(
             batch: 1,
-            preState: R(0x00),
+            preState: GenesisState,
             postState: R(0xA1),
             withdrawalRoot: R(0x51),
             proofType: 3);
@@ -483,7 +568,7 @@ public class UT_SettlementManager_Vm
             daValidation: mode => mode == 1);
         var (commitment, l1MessageHash, blockContextHash) = BuildCommitment(
             batch: 1,
-            preState: R(0x00),
+            preState: GenesisState,
             postState: R(0xA1),
             withdrawalRoot: R(0x51),
             proofType: 1);
@@ -502,7 +587,7 @@ public class UT_SettlementManager_Vm
         var sm = Deploy(engine);
         var post1 = R(0xA1);
 
-        var (c1, l1, blk) = BuildCommitment(batch: 1, preState: R(0x00), postState: post1, withdrawalRoot: R(0x51));
+        var (c1, l1, blk) = BuildCommitment(batch: 1, preState: GenesisState, postState: post1, withdrawalRoot: R(0x51));
         sm.SubmitBatch(c1, l1, blk);
         Assert.AreEqual((BigInteger)1, sm.GetBatchStatus(ChainId, 1), "batch 1 should be Pending(1)");
         Assert.AreEqual(UInt256.Zero, sm.GetL2ToL1MessageRoot(ChainId, 1),
@@ -528,7 +613,7 @@ public class UT_SettlementManager_Vm
         var sm = Deploy(engine, securityLevel: 0);
         var (commitment, l1MessageHash, blockContextHash) = BuildCommitment(
             batch: 1,
-            preState: R(0x00),
+            preState: GenesisState,
             postState: R(0xA1),
             withdrawalRoot: R(0x51),
             proofType: 2);
@@ -550,7 +635,7 @@ public class UT_SettlementManager_Vm
     {
         var engine = new TestEngine(true);
         var sm = Deploy(engine);
-        var (c1, l1, blk) = BuildCommitment(batch: 1, preState: R(0x00), postState: R(0xA1), withdrawalRoot: R(0x51));
+        var (c1, l1, blk) = BuildCommitment(batch: 1, preState: GenesisState, postState: R(0xA1), withdrawalRoot: R(0x51));
         // Tamper the recorded postStateRoot AFTER the publicInputHash was computed → binding breaks.
         R(0xEE).CopyTo(c1.AsSpan(OffPostState, 32));
         Assert.ThrowsExactly<TestException>(() => sm.SubmitBatch(c1, l1, blk),
@@ -564,8 +649,8 @@ public class UT_SettlementManager_Vm
         var sm = Deploy(engine);
         var post1 = R(0xA1);
 
-        // Batch 1: genesis (preState 0) → finalize.
-        var (c1, l1, blk) = BuildCommitment(batch: 1, preState: R(0x00), postState: post1, withdrawalRoot: R(0x51));
+        // Batch 1: authenticated genesis → finalize.
+        var (c1, l1, blk) = BuildCommitment(batch: 1, preState: GenesisState, postState: post1, withdrawalRoot: R(0x51));
         sm.SubmitBatch(c1, l1, blk);
         sm.FinalizeBatch(ChainId, 1);
 
@@ -574,14 +659,178 @@ public class UT_SettlementManager_Vm
         sm.SubmitBatch(c2, l1b, blkb);
         Assert.AreEqual((BigInteger)1, sm.GetBatchStatus(ChainId, 2), "batch 2 Pending");
 
-        // Owner reverts the finalized head (batch 1) → rewinds latest to 0, canonical cleared.
+        // Owner reverts the finalized head (batch 1) → rewinds latest to 0 and restores genesis.
         sm.RevertBatch(ChainId, 1);
         Assert.AreEqual((BigInteger)0, sm.GetLatestFinalizedBatch(ChainId), "latest rewound to 0");
+        Assert.AreEqual(GenesisStateRoot, sm.GetCanonicalStateRoot(ChainId));
 
         // Round-2 fix: FinalizeBatch(2) must now FAULT — batch 2 is no longer next-in-sequence and
         // would otherwise finalize onto the rewound root (making its withdrawalRoot claimable).
         Assert.ThrowsExactly<TestException>(() => sm.FinalizeBatch(ChainId, 2),
             "orphaned descendant of a reverted head must not finalize");
+    }
+
+    [TestMethod]
+    public void LockGovernance_RequiresCompleteWiringAndFreezesOwnerMutationAndRollback()
+    {
+        var engine = new TestEngine(true);
+        var settlementManager = Deploy(engine);
+        var (commitment, l1MessageHash, blockContextHash) = BuildCommitment(
+            batch: 1,
+            preState: GenesisState,
+            postState: R(0xA1),
+            withdrawalRoot: R(0x51));
+        settlementManager.SubmitBatch(commitment, l1MessageHash, blockContextHash);
+
+        Assert.ThrowsExactly<TestException>(() => settlementManager.LockGovernance(),
+            "locking without a GovernanceController must fail closed");
+        var governanceHash = WireGovernanceController(
+            engine,
+            settlementManager,
+            _ => true,
+            (_, _) => true);
+        Assert.ThrowsExactly<TestException>(() => settlementManager.LockGovernance(),
+            "locking without the canonical MessageRouter must fail closed");
+
+        settlementManager.MessageRouter = UInt160.Parse("0x" + new string('6', 40));
+        settlementManager.LockGovernance();
+        settlementManager.LockGovernance();
+
+        Assert.IsTrue(settlementManager.IsGovernanceLocked);
+        Assert.AreEqual(governanceHash, settlementManager.GovernanceController);
+        Assert.ThrowsExactly<TestException>(() => settlementManager.Owner = governanceHash);
+        Assert.ThrowsExactly<TestException>(() => settlementManager.DARegistry = governanceHash);
+        Assert.ThrowsExactly<TestException>(() => settlementManager.DAValidator = governanceHash);
+        Assert.ThrowsExactly<TestException>(() => settlementManager.OptimisticChallenge = governanceHash);
+        Assert.ThrowsExactly<TestException>(() => settlementManager.MessageRouter = governanceHash);
+        Assert.ThrowsExactly<TestException>(() => settlementManager.GovernanceController = engine.Sender);
+        Assert.ThrowsExactly<TestException>(() => settlementManager.RevertBatch(ChainId, 1),
+            "the bootstrap owner must lose direct rollback authority after the production lock");
+        Assert.AreEqual((BigInteger)1, settlementManager.GetBatchStatus(ChainId, 1));
+    }
+
+    [TestMethod]
+    public void BuildRevertBatchAction_UsesDomainSeparatedCanonicalLittleEndianEncoding()
+    {
+        var engine = new TestEngine(true);
+        var settlementManager = Deploy(engine);
+        const uint chainId = 0x04030201;
+        const ulong batchNumber = 0x0C0B0A0908070605;
+
+        var expected = Encoding.ASCII.GetBytes("neo4-gov:revertBatch")
+            .Concat(settlementManager.Hash.GetSpan().ToArray())
+            .Concat(new byte[]
+            {
+                0x01, 0x02, 0x03, 0x04,
+                0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C,
+            })
+            .ToArray();
+
+        CollectionAssert.AreEqual(
+            expected,
+            settlementManager.BuildRevertBatchAction(chainId, batchNumber)!);
+        Assert.AreEqual(52, expected.Length,
+            "the governance action must bind tag, exact SettlementManager, chain, and batch");
+    }
+
+    [TestMethod]
+    public void BuildRevertBatchAction_BindsExecutingContractAgainstCrossDeploymentReplay()
+    {
+        var engine = new TestEngine(true);
+        var firstSettlementManager = Deploy(engine);
+        engine.SetTransactionSigners(
+            UInt160.Parse("0x1112131415161718191a1b1c1d1e1f2021222324"));
+        var secondSettlementManager = engine.Deploy<NeoHubSettlementManager>(
+            NeoHubSettlementManager.Nef,
+            NeoHubSettlementManager.Manifest,
+            new object[]
+            {
+                engine.Sender,
+                UInt160.Parse("0x" + new string('1', 40)),
+                UInt160.Parse("0x" + new string('2', 40)),
+            });
+
+        var firstAction = firstSettlementManager.BuildRevertBatchAction(ChainId, 7)!;
+        var secondAction = secondSettlementManager.BuildRevertBatchAction(ChainId, 7)!;
+        var tagLength = Encoding.ASCII.GetByteCount("neo4-gov:revertBatch");
+
+        Assert.AreNotEqual(firstSettlementManager.Hash, secondSettlementManager.Hash,
+            "the regression setup must deploy two distinct SettlementManager contracts");
+        Assert.IsFalse(firstAction.SequenceEqual(secondAction),
+            "one approved action must not be replayable against another SettlementManager deployment");
+        CollectionAssert.AreEqual(
+            firstSettlementManager.Hash.GetSpan().ToArray(),
+            firstAction.AsSpan(tagLength, UInt160.Length).ToArray());
+        CollectionAssert.AreEqual(
+            secondSettlementManager.Hash.GetSpan().ToArray(),
+            secondAction.AsSpan(tagLength, UInt160.Length).ToArray());
+    }
+
+    [TestMethod]
+    public void RevertBatchViaProposal_RequiresExactApprovedTimelockedUnconsumedPayload()
+    {
+        var engine = new TestEngine(true);
+        var settlementManager = Deploy(engine);
+        var (commitment, l1MessageHash, blockContextHash) = BuildCommitment(
+            batch: 1,
+            preState: GenesisState,
+            postState: R(0xA1),
+            withdrawalRoot: R(0x51));
+        settlementManager.SubmitBatch(commitment, l1MessageHash, blockContextHash);
+        settlementManager.FinalizeBatch(ChainId, 1);
+
+        const ulong proposalId = 42;
+        var payloadMatches = false;
+        var expectedAction = settlementManager.BuildRevertBatchAction(ChainId, 1)!;
+        WireGovernanceController(
+            engine,
+            settlementManager,
+            candidate => candidate == proposalId,
+            (candidate, payload) => candidate == proposalId
+                && payloadMatches
+                && payload.SequenceEqual(expectedAction));
+        settlementManager.MessageRouter = UInt160.Parse("0x" + new string('6', 40));
+        settlementManager.LockGovernance();
+
+        Assert.ThrowsExactly<TestException>(() => settlementManager.RevertBatch(ChainId, 1));
+        Assert.ThrowsExactly<TestException>(() =>
+            settlementManager.RevertBatchViaProposal(ChainId, 1, proposalId - 1),
+            "an unapproved proposal must not authorize rollback");
+        Assert.ThrowsExactly<TestException>(() =>
+            settlementManager.RevertBatchViaProposal(ChainId, 1, proposalId),
+            "an approved proposal for different payload bytes must not authorize rollback");
+
+        payloadMatches = true;
+        settlementManager.RevertBatchViaProposal(ChainId, 1, proposalId);
+
+        Assert.AreEqual((BigInteger)4, settlementManager.GetBatchStatus(ChainId, 1));
+        Assert.AreEqual((BigInteger)0, settlementManager.GetLatestFinalizedBatch(ChainId));
+        Assert.AreEqual(GenesisStateRoot, settlementManager.GetCanonicalStateRoot(ChainId));
+        Assert.ThrowsExactly<TestException>(() =>
+            settlementManager.RevertBatchViaProposal(ChainId, 1, proposalId),
+            "a governance rollback proposal must be consumable at most once");
+    }
+
+    [TestMethod]
+    public void LockedGovernance_PreservesOptimisticChallengeRollbackForChallengeableBatch()
+    {
+        var engine = new TestEngine(true);
+        var settlementManager = Deploy(engine, securityLevel: 2);
+        var (commitment, l1MessageHash, blockContextHash) = BuildCommitment(
+            batch: 1,
+            preState: GenesisState,
+            postState: R(0xA1),
+            withdrawalRoot: R(0x51),
+            proofType: 2);
+        settlementManager.SubmitBatch(commitment, l1MessageHash, blockContextHash);
+
+        settlementManager.OptimisticChallenge = engine.Sender;
+        settlementManager.MessageRouter = UInt160.Parse("0x" + new string('6', 40));
+        WireGovernanceController(engine, settlementManager, _ => false, (_, _) => false);
+        settlementManager.LockGovernance();
+
+        settlementManager.RevertBatch(ChainId, 1);
+        Assert.AreEqual((BigInteger)4, settlementManager.GetBatchStatus(ChainId, 1));
     }
 
     [TestMethod]
@@ -594,7 +843,7 @@ public class UT_SettlementManager_Vm
         var messageRoot = R(0x47);
         var (commitment, l1MessageHash, blockContextHash) = BuildCommitment(
             batch: 1,
-            preState: R(0x00),
+            preState: GenesisState,
             postState: R(0xA1),
             withdrawalRoot: R(0x51),
             l2ToL2MessageRoot: messageRoot);
@@ -688,7 +937,7 @@ public class UT_SettlementManager_Vm
             UInt160.Parse("0x" + new string('6', 40)));
         var (commitment, l1MessageHash, blockContextHash) = BuildCommitment(
             batch: 1,
-            preState: R(0x00),
+            preState: GenesisState,
             postState: R(0xA1),
             withdrawalRoot: R(0x51),
             l2ToL2MessageRoot: R(0x00));

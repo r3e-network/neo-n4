@@ -5,6 +5,92 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — closed ChainRegistry admission and governance states — 2026-07-15
+
+- Made the public admission-mode state machine fail closed at the cross-contract boundary.
+  `ChainRegistry` now validates the full `BigInteger` returned by `GovernanceController` as
+  exactly 0, 1, or 2 before narrowing it to `byte`; negative, undefined, and wrapping values
+  such as 258 cannot be interpreted as permissionless admission or persist chain state.
+- Made `ChainRegistry.LockGovernance` freeze the wired GovernanceController as well as the
+  direct update path. The bootstrap owner can no longer replace the proposal authority after
+  lock; a controller migration requires a versioned registry deployment, matching the existing
+  VerifierRegistry policy. The scaffold and live deployment paths now execute this irreversible
+  lock and verify it by read-back before reporting a production deployment complete.
+- Regenerated the real ChainRegistry NEF/testing artifact and added VM regressions for invalid
+  modes, zero-side-effect rejection, post-lock controller replacement, and retained controller
+  identity. The complete NeoHub contract VM suite passes 551/551.
+
+### Fixed — finalized retention, crash-safe rollback, and governed settlement control — 2026-07-15
+
+- Split durable settlement observation from canonical finality. `Pending` and `Challengeable`
+  remain recoverable observations; proof-queue acknowledgement, forced-inclusion consumption,
+  pending-count retirement, and content-addressed evidence pruning now require L1 `Finalized`.
+- Added authenticated rollback checkpoints for a `Reverted` canonical tail. The exact artifacts and
+  proofs are quarantined, the pre-tail state snapshot is restored atomically, checkpoint completion
+  is crash-idempotent and uses a key-local atomic delete rather than copying the complete database,
+  and the same batch number can be resubmitted only after recovery completes.
+  Startup now queries L1 for every local artifact and validates local proof manifests, contiguous
+  finality, and the canonical root before any recovery side effect.
+- Added guarded multi-key `IAtomicL2KeyValueStore.CompareExchangeBatch` commits to both built-in
+  stores. RocksDB uses one synchronous WAL `WriteBatch`, preventing an artifact publication from
+  racing a rollback marker across independent store wrappers.
+- Bound SettlementManager production administration to GovernanceController and added an irreversible
+  governance lock. After lock, the hot owner cannot rewire proof/DA/message dependencies or directly
+  revert batches; exceptional finalized-head rollback requires an executing-contract-bound exact
+  threshold-approved, timelocked, one-time proposal payload, preventing cross-deployment replay.
+  Live deployment now requires explicit distinct M-of-N
+  governance with threshold at least two and rejects implicit 1-of-1 control.
+
+### Fixed — immutable on-chain genesis trust anchor and exact committee-key preflight — 2026-07-15
+
+- Changed both ChainRegistry admission paths to atomically register a non-zero immutable
+  `genesisStateRoot` alongside the 91-byte chain config. Settlement now requires batch 1 to link
+  that root during submission and finalization, and returns it as the canonical root before the
+  first finalization or after a first-batch revert. The off-chain settlement profile carries and
+  cross-checks the same root, so neither a first submitter nor a restarted operator can silently
+  establish a different trust anchor.
+- Strengthened sequencer NEP-6 preflight from account metadata checks to real key decryption and
+  public-key equality. A multi-account wallet with a valid password but a mismatched/corrupt
+  encrypted committee key now fails closed.
+- Added VM, settlement, and CLI regression coverage for missing/zero/changed genesis roots,
+  first-batch binding and fallback, profile mismatch, required CLI arguments, and encrypted-key
+  substitution.
+
+### Fixed — fail-closed settlement continuity and production durability — 2026-07-15
+
+- Moved predecessor, block-range, and state-root continuity validation ahead of execution, DA
+  publication, artifact commit, and state acknowledgement. Missing or malformed predecessor
+  batches can no longer durably advance SP1 state and strand restart recovery.
+- Added explicit durable-store capabilities for proof witnesses and L1 forced-inclusion event
+  cursors. `WireProduction` now rejects volatile stores while custom/test `Wire` composition
+  remains available for non-production use.
+- Corrected the private-network operator preflight to require reviewed Neo.CLI configs,
+  sequencer/batcher deployments, and a prover binary; all three launch checks are explicit
+  dry-runs instead of unconfigured blocking process starts. Runtime/plugin files are now
+  whitelist-staged into an owner-only OS temporary directory that is removed in `finally`;
+  wallets, node data, logs, arbitrary JSON, hidden paths, and links never enter long-lived
+  artifacts. Sequencer dry-runs now open the reviewed NEP-6 wallet with its configured password
+  and require a decryptable committee key whose derived public key exactly matches the configured
+  validator; malformed, mismatched, unrelated, or unsupported wallet files fail closed.
+- Removed caller-controlled sequencer attribution from permissionless censorship reports while
+  retaining the contract ABI. Reports now emit only the zero address; governance names a slash
+  target separately after reviewing finalized dBFT evidence.
+- Restricted forced-inclusion fees to the canonical Neo N3 native GAS contract across deploy,
+  configuration, readiness, and enqueue paths. Enqueue now charges and commits the witnessed
+  transaction sender instead of the entry invocation script hash. Consumption reserves its replay
+  marker before the read-only finalized-root lookup and relies on NeoVM atomic rollback for every
+  failed proof.
+- Added no-side-effect regression coverage for batch zero, authenticated-genesis mismatch,
+  missing predecessor, block/state discontinuity, and predecessor block-number overflow.
+- Added a required CI ancestry gate for the `external/neo` gitlink: every referenced core commit
+  must already be published on `r3e-network/neo` branch `r3e/neo-n4-core`, preventing an
+  unpublished feature-branch-only core dependency from entering a releasable parent revision. The
+  verifier fetches the hard-coded canonical R3E URL rather than trusting the PR-controlled
+  submodule `origin`.
+- Reconciled the complete 38-project test inventory against one serial TRX run: 2,591 tests were
+  discovered, 2,587 passed, none failed, and four exact-deployment/native-fixture tests remained
+  explicitly environment-gated.
+
 ### Added — SP1 restart and cross-instance state-race regression gates — 2026-07-15
 
 - Proved that a reconstructed SP1 executor replays an already durable artifact after the
@@ -45,7 +131,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Made terminal and recursive real SP1 proof generation unconditional in the required CI job.
   Hardened the prover queue with `0700` directories, `0600` files, 16-GiB/64-task backpressure,
   and settlement-confirmed hash acknowledgements; the daemon now prunes content-addressed evidence
-  only after durable L1 observation, never by TTL.
+  only after durable L1 finalization, never by TTL.
 - Eliminated the shared-target ELF validation/include race: build scripts derive SHA-256 and VK from
   one byte snapshot, publish a read-only verified copy into Cargo `OUT_DIR`, and embed only that copy.
 

@@ -137,7 +137,7 @@ public class UT_L2SettlementPlugin_Metrics
             store,
             new MetricsProver(),
             new MetricsSettlementClient(),
-            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, H(0x11)),
             forcedInclusionSource: forcedSource));
     }
 
@@ -153,15 +153,15 @@ public class UT_L2SettlementPlugin_Metrics
             store,
             new MetricsProver(),
             client,
-            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig));
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, H(0x11)));
 
     private static SealedBatch BuildBatch(ulong batchNumber)
         => new(
             ChainId,
             batchNumber,
-            firstBlock: batchNumber * 10,
-            lastBlock: batchNumber * 10,
-            preStateRoot: H(0x11),
+            firstBlock: checked(9 + batchNumber),
+            lastBlock: checked(9 + batchNumber),
+            preStateRoot: batchNumber == 1 ? H(0x11) : H(0x21),
             transactions: new ReadOnlyMemory<byte>[]
             {
                 new byte[] { 0x01, checked((byte)batchNumber) },
@@ -293,7 +293,7 @@ public class UT_L2SettlementPlugin_Metrics
                     await Task.Delay(SubmitDelay, cancellationToken);
                 if (ThrowOnSubmit)
                     throw new InvalidOperationException("simulated settlement failure");
-                _statuses[(commitment.ChainId, commitment.BatchNumber)] = BatchStatus.Pending;
+                _statuses[(commitment.ChainId, commitment.BatchNumber)] = BatchStatus.Finalized;
                 return H(checked((byte)(0x80 + commitment.BatchNumber)));
             }
             finally
@@ -305,7 +305,7 @@ public class UT_L2SettlementPlugin_Metrics
         public ValueTask<UInt256> GetCanonicalStateRootAsync(
             uint chainId,
             CancellationToken cancellationToken = default)
-            => ValueTask.FromResult(UInt256.Zero);
+            => ValueTask.FromResult(H(0x11));
 
         public ValueTask<BatchStatus> GetBatchStatusAsync(
             uint chainId,

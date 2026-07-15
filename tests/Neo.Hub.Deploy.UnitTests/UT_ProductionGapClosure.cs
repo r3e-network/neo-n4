@@ -73,6 +73,39 @@ public class UT_ProductionGapClosure
     }
 
     [TestMethod]
+    public void SettlementManagerProductionGovernance_IsLockedAndProposalBound()
+    {
+        var root = FindRepositoryRoot();
+        var source = File.ReadAllText(Path.Combine(
+            root,
+            "contracts",
+            "NeoHub.SettlementManager",
+            "SettlementManagerContract.cs"));
+        var bundle = DeployPlanner.Plan(
+            ScaffoldPlan.Default(),
+            name => H((byte)(name.Length & 0xFF)));
+        var actions = ScaffoldPlan.PostDeployActions(bundle).ToArray();
+
+        StringAssert.Contains(source, "public static void LockGovernance()");
+        StringAssert.Contains(source, "public static void RevertBatchViaProposal(");
+        StringAssert.Contains(source, "BuildRevertBatchAction(chainId, batchNumber)");
+        StringAssert.Contains(source, "isApprovedAndTimelocked");
+        StringAssert.Contains(source, "matchesProposalPayload");
+        StringAssert.Contains(source, "PrefixConsumedRevertProposal");
+        Assert.IsTrue(actions.Any(action => action.Contains(
+            "SettlementManager.SetGovernanceController(GovernanceController)",
+            StringComparison.Ordinal)));
+        Assert.IsTrue(actions.Any(action => action.Contains(
+            "ChainRegistry.LockGovernance()",
+            StringComparison.Ordinal)
+            && action.Contains("proposal-bound", StringComparison.Ordinal)));
+        Assert.IsTrue(actions.Any(action => action.Contains(
+            "SettlementManager.LockGovernance()",
+            StringComparison.Ordinal)
+            && action.Contains("RevertBatchViaProposal", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
     public void PostDeployActions_CloseExternalBridgeInboundPayoutWiring()
     {
         var plan = ScaffoldPlan.Default();
@@ -473,6 +506,28 @@ public class UT_ProductionGapClosure
         var chinese = File.ReadAllText(Path.Combine(root, "docs", "zh", "IMPLEMENTATION_STATUS.md"));
         StringAssert.Contains(chinese, "| 生产完备 |");
         StringAssert.Contains(chinese, "任何阶段都不能标记为生产完备");
+    }
+
+    [TestMethod]
+    public void CurrentDocumentation_ChineseArchitecturePreservesCriticalSettlementAnchors()
+    {
+        var root = FindRepositoryRoot();
+        var authoritative = File.ReadAllText(Path.Combine(root, "doc.md"));
+        var chinese = File.ReadAllText(Path.Combine(root, "docs", "zh", "doc.md"));
+        string[] anchors =
+        [
+            "执行、DA 发布与 artifact 写入之前验证完整前序",
+            "batch 1 连接认证 genesis root",
+            "`firstBlock = previous.lastBlock + 1`",
+            "`preStateRoot = previous.postStateRoot`",
+            "`WireProduction` 只能接受明确声明重启耐久能力的 proof-witness store",
+        ];
+
+        foreach (var anchor in anchors)
+        {
+            StringAssert.Contains(authoritative, anchor);
+            StringAssert.Contains(chinese, anchor);
+        }
     }
 
     [TestMethod]

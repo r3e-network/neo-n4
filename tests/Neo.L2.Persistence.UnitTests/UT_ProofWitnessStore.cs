@@ -98,6 +98,7 @@ public class UT_ProofWitnessStore
         Assert.AreEqual(ProofSubmissionState.Submitted, submitted.SubmissionState);
         Assert.IsTrue(submitted.Submitted);
         Assert.IsFalse(submitted.SettlementObserved);
+        Assert.IsFalse(submitted.SettlementFinalized);
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             () => store.MarkSubmittedAsync(artifact.ContentHash, H(0x71)).AsTask());
@@ -174,7 +175,15 @@ public class UT_ProofWitnessStore
         var observed = await store.GetProofAsync(artifact.ContentHash);
         Assert.IsNotNull(observed);
         Assert.IsTrue(observed.SettlementObserved);
+        Assert.IsFalse(observed.SettlementFinalized);
         Assert.IsNull(observed.L1TransactionHash);
+
+        await store.MarkSettlementFinalizedAsync(artifact.ContentHash);
+        await store.MarkSettlementFinalizedAsync(artifact.ContentHash);
+        var finalized = await store.GetProofAsync(artifact.ContentHash);
+        Assert.IsNotNull(finalized);
+        Assert.IsTrue(finalized.SettlementObserved);
+        Assert.IsTrue(finalized.SettlementFinalized);
     }
 
     [TestMethod]
@@ -198,6 +207,7 @@ public class UT_ProofWitnessStore
             (await store.GetTrackedForcedInclusionNoncesAsync(artifact.ChainId)).ToArray());
 
         await store.MarkSubmissionObservedAsync(artifact.ContentHash);
+        await store.MarkSettlementFinalizedAsync(artifact.ContentHash);
         await store.MarkForcedInclusionFinalizedAsync(artifact.ContentHash);
         await store.MarkForcedInclusionFinalizedAsync(artifact.ContentHash);
 
@@ -205,6 +215,122 @@ public class UT_ProofWitnessStore
             new ulong[] { 42 },
             (await store.GetTrackedForcedInclusionNoncesAsync(artifact.ChainId)).ToArray());
         Assert.IsTrue((await store.GetProofAsync(artifact.ContentHash))!.ForcedInclusionFinalized);
+    }
+
+    [TestMethod]
+    public async Task QuarantineRevertedTail_AtomicallyArchivesTailAndAllowsResubmissionAfterCompletion()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var first = SampleArtifact(1);
+        var second = SampleArtifact(2);
+        await store.CommitAsync(first);
+        await store.CommitAsync(second);
+        await store.PutProofAsync(SampleManifest(first));
+        await store.PutProofAsync(SampleManifest(second));
+        await store.RecordSettlementFailureAsync(
+            second.ChainId,
+            second.BatchNumber,
+            second.ContentHash,
+            "retry before L1 rollback",
+            maxAutomaticRetries: 3,
+            failedAtUnixMilliseconds: 1_000);
+
+        var checkpoint = await store.QuarantineRevertedTailAsync(
+            first.ChainId, first.BatchNumber, first.ContentHash);
+        var repeated = await store.QuarantineRevertedTailAsync(
+            first.ChainId, first.BatchNumber, first.ContentHash);
+
+        Assert.AreEqual(checkpoint, repeated);
+        Assert.AreEqual(first.ChainId, checkpoint.ChainId);
+        Assert.AreEqual(first.BatchNumber, checkpoint.FirstBatchNumber);
+        Assert.AreEqual(second.BatchNumber, checkpoint.LastBatchNumber);
+        Assert.AreEqual(first.ContentHash, checkpoint.RevertedArtifactContentHash);
+        Assert.AreEqual(second.ExecutionResult.PostStateRoot, checkpoint.ExpectedCurrentStateRoot);
+        Assert.AreEqual(first.ExecutionPayload.PreStateRoot, checkpoint.TargetStateRoot);
+        Assert.AreEqual(checkpoint, await store.GetSettlementRollbackAsync(first.ChainId));
+        Assert.IsNull(await store.GetAsync(first.ChainId, first.BatchNumber));
+        Assert.IsNull(await store.GetAsync(second.ChainId, second.BatchNumber));
+        Assert.IsNull(await store.GetProofAsync(first.ContentHash));
+        Assert.IsNull(await store.GetProofAsync(second.ContentHash));
+        Assert.IsNull(await store.GetSettlementRecoveryAsync(second.ContentHash));
+        Assert.AreEqual(first, await store.GetQuarantinedArtifactAsync(first.ContentHash));
+        Assert.AreEqual(second, await store.GetQuarantinedArtifactAsync(second.ContentHash));
+        Assert.AreEqual(2, backend.EnumeratePrefix("PWQA"u8).Count());
+        Assert.AreEqual(2, backend.EnumeratePrefix("PWQP"u8).Count());
+        Assert.AreEqual(1, backend.EnumeratePrefix("PWRB"u8).Count());
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => store.CommitAsync(first).AsTask());
+        var mismatchedCheckpoint = checkpoint with
+        {
+            LastBatchNumber = checkpoint.LastBatchNumber + 1,
+        };
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => store.CompleteSettlementRollbackAsync(mismatchedCheckpoint).AsTask());
+        Assert.AreEqual(checkpoint, await store.GetSettlementRollbackAsync(first.ChainId));
+
+        await store.CompleteSettlementRollbackAsync(checkpoint);
+        await store.CompleteSettlementRollbackAsync(checkpoint);
+
+        Assert.IsNull(await store.GetSettlementRollbackAsync(first.ChainId));
+        await store.CommitAsync(first);
+        Assert.AreEqual(first, await store.GetAsync(first.ChainId, first.BatchNumber));
+    }
+
+    [TestMethod]
+    public async Task QuarantineRevertedTail_RacingCreatorsNeverLeaveActiveRecords()
+    {
+        for (var iteration = 0; iteration < 16; iteration++)
+        {
+            using var backend = new InMemoryKeyValueStore();
+            using var writer = new KeyValueProofWitnessStore(backend);
+            using var rollback = new KeyValueProofWitnessStore(backend);
+            var first = SampleArtifact(1);
+            var second = SampleArtifact(2);
+            await writer.CommitAsync(first);
+            using var start = new Barrier(4);
+
+            var proofTask = Task.Run(async () =>
+            {
+                start.SignalAndWait();
+                try { await writer.PutProofAsync(SampleManifest(first)); }
+                catch (InvalidOperationException) { }
+            });
+            var recoveryTask = Task.Run(async () =>
+            {
+                start.SignalAndWait();
+                try
+                {
+                    await writer.RecordSettlementFailureAsync(
+                        first.ChainId,
+                        first.BatchNumber,
+                        first.ContentHash,
+                        "concurrent failure",
+                        maxAutomaticRetries: 3,
+                        failedAtUnixMilliseconds: 1_000);
+                }
+                catch (InvalidOperationException) { }
+            });
+            var descendantTask = Task.Run(async () =>
+            {
+                start.SignalAndWait();
+                try { await writer.CommitAsync(second); }
+                catch (InvalidOperationException) { }
+            });
+            var rollbackTask = Task.Run(async () =>
+            {
+                start.SignalAndWait();
+                return await rollback.QuarantineRevertedTailAsync(
+                    first.ChainId, first.BatchNumber, first.ContentHash);
+            });
+
+            await Task.WhenAll(proofTask, recoveryTask, descendantTask, rollbackTask);
+
+            Assert.IsNotNull(await rollback.GetSettlementRollbackAsync(first.ChainId));
+            Assert.AreEqual(0, backend.EnumeratePrefix("PWIT"u8).Count());
+            Assert.AreEqual(0, backend.EnumeratePrefix("PWRF"u8).Count());
+            Assert.AreEqual(0, backend.EnumeratePrefix("PWRC"u8).Count());
+        }
     }
 
     [TestMethod]
@@ -368,7 +494,7 @@ public class UT_ProofWitnessStore
         Assert.ThrowsExactly<InvalidDataException>(() => ProofResultManifestSerializer.Decode(magic));
 
         var version = canonical.ToArray();
-        BinaryPrimitives.WriteUInt16LittleEndian(version.AsSpan(8, 2), 3);
+        BinaryPrimitives.WriteUInt16LittleEndian(version.AsSpan(8, 2), 4);
         Assert.ThrowsExactly<InvalidDataException>(() => ProofResultManifestSerializer.Decode(version));
 
         var flags = canonical.ToArray();
@@ -416,6 +542,24 @@ public class UT_ProofWitnessStore
         Assert.AreEqual(ProofSubmissionState.Submitted, migrated.SubmissionState);
         Assert.AreEqual(transactionHash, migrated.L1TransactionHash);
         Assert.IsFalse(migrated.SettlementObserved);
+    }
+
+    [TestMethod]
+    public void ProofResultManifest_V2RejectsConflictingSubmittedAndObservedFlags()
+    {
+        var version2 = ProofResultManifestSerializer.Encode(
+            SampleManifest(SampleArtifact()));
+        BinaryPrimitives.WriteUInt16LittleEndian(version2.AsSpan(8, 2), 2);
+        BinaryPrimitives.WriteUInt16LittleEndian(version2.AsSpan(10, 2), 3);
+        var bodyLength = version2.Length - UInt256.Length;
+        var domain = "neo-n4/proof-result/v2\0"u8.ToArray();
+        var bound = new byte[domain.Length + bodyLength];
+        domain.CopyTo(bound, 0);
+        version2.AsSpan(0, bodyLength).CopyTo(bound.AsSpan(domain.Length));
+        Crypto.Hash256(bound).CopyTo(version2.AsSpan(bodyLength));
+
+        Assert.ThrowsExactly<InvalidDataException>(
+            () => ProofResultManifestSerializer.Decode(version2));
     }
 
     private const uint SampleChainId = 0x1122_3344;
@@ -470,6 +614,7 @@ public class UT_ProofWitnessStore
             Proof = new byte[] { 0x01, 0x02, 0x03 },
             PublicValues = new byte[] { 0x04, 0x05 },
             SubmissionState = ProofSubmissionState.ProofReady,
+            SettlementFinalized = false,
         };
 
     private static ProofWitnessArtifactV1 SampleArtifact(

@@ -93,9 +93,8 @@ public class UT_CanonicalSettlementPipeline
             new RecordingZkProver(SafeSemantic),
             new RecordingSettlementClient());
 
-        Assert.AreEqual(H(9), await mismatch.GetInitialStateRootAsync());
         await Assert.ThrowsExactlyAsync<InvalidDataException>(
-            async () => await mismatch.PersistAsync(BuildBatch()));
+            async () => await mismatch.GetInitialStateRootAsync());
 
         using var zeroBackend = new InMemoryKeyValueStore();
         using var zeroStore = new KeyValueProofWitnessStore(zeroBackend);
@@ -107,6 +106,32 @@ public class UT_CanonicalSettlementPipeline
             new RecordingSettlementClient());
         await Assert.ThrowsExactlyAsync<InvalidDataException>(
             async () => await zero.GetInitialStateRootAsync());
+    }
+
+    [TestMethod]
+    public async Task Persist_FirstBatchRejectsL1GenesisMismatchBeforeExecutionDaOrArtifactCommit()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var executor = new TestExecutor(SafeSemantic);
+        var writer = new ProductionDaWriter();
+        var client = new RecordingSettlementClient { CanonicalStateRoot = H(0xEE) };
+        using var pipeline = CreateZkPipeline(
+            store,
+            executor,
+            writer,
+            new RecordingZkProver(SafeSemantic),
+            client);
+
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(
+            async () => await pipeline.PersistAsync(BuildBatch()));
+
+        Assert.AreEqual(0, executor.ApplyCount,
+            "an unauthenticated L1 trust anchor must reject before execution");
+        Assert.AreEqual(0, writer.PublishCount,
+            "an unauthenticated L1 trust anchor must reject before DA publication");
+        Assert.IsNull(await store.GetAsync(ChainId, 1),
+            "an unauthenticated L1 trust anchor must not create a durable artifact");
     }
 
     [TestMethod]
@@ -268,6 +293,72 @@ public class UT_CanonicalSettlementPipeline
     }
 
     [TestMethod]
+    public async Task LatestCheckpoint_RejectsL1BatchWithoutDurableProofManifest()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var client = new RecordingSettlementClient();
+        using var pipeline = CreateZkPipeline(
+            store,
+            new TestExecutor(SafeSemantic),
+            new ProductionDaWriter(),
+            new RecordingZkProver(SafeSemantic),
+            client);
+        await pipeline.PersistAsync(BuildBatch());
+        client.SetStatus(ChainId, 1, BatchStatus.Pending);
+
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(
+            async () => await pipeline.GetLatestCheckpointAsync());
+    }
+
+    [TestMethod]
+    public async Task LatestCheckpoint_RejectsL1FinalityRegression()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var client = new RecordingSettlementClient();
+        using var pipeline = CreateZkPipeline(
+            store,
+            new TestExecutor(SafeSemantic),
+            new ProductionDaWriter(),
+            new RecordingZkProver(SafeSemantic),
+            client);
+        await pipeline.PersistAsync(BuildBatch());
+        await pipeline.ReconcileAsync();
+        await pipeline.ReconcileAsync();
+        client.SetStatus(ChainId, 1, BatchStatus.Pending);
+
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(
+            async () => await pipeline.GetLatestCheckpointAsync());
+    }
+
+    [TestMethod]
+    public async Task LatestCheckpoint_RejectsNonContiguousL1Finality()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var client = new RecordingSettlementClient();
+        using var pipeline = CreateZkPipeline(
+            store,
+            new TestExecutor(SafeSemantic),
+            new ProductionDaWriter(),
+            new RecordingZkProver(SafeSemantic),
+            client);
+        await pipeline.PersistAsync(BuildBatch(1, 10, H(1)));
+        await pipeline.PersistAsync(BuildBatch(2, 11, H(3)));
+        var first = (await store.GetAsync(ChainId, 1))!;
+        var second = (await store.GetAsync(ChainId, 2))!;
+        await store.PutProofAsync(BuildManifest(first));
+        await store.PutProofAsync(BuildManifest(second));
+        client.SetStatus(ChainId, 1, BatchStatus.Pending);
+        client.SetStatus(ChainId, 2, BatchStatus.Finalized);
+        client.CanonicalStateRoot = H(3);
+
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(
+            async () => await pipeline.GetLatestCheckpointAsync());
+    }
+
+    [TestMethod]
     public async Task Persist_RejectsTamperedDaReceiptOrUnavailablePayload()
     {
         using var corruptBackend = new InMemoryKeyValueStore();
@@ -414,37 +505,25 @@ public class UT_CanonicalSettlementPipeline
     }
 
     [TestMethod]
-    public async Task MissingPredecessor_NeverSubmitsLaterBatchAndRequiresRecoveryAfterCorrection()
+    public async Task Persist_MissingPredecessorRejectsBeforeExecutionPublicationOrCommit()
     {
         using var backend = new InMemoryKeyValueStore();
         using var store = new KeyValueProofWitnessStore(backend);
-        var client = new RecordingSettlementClient();
+        var executor = new DurabilityCheckingExecutor(store);
+        var writer = new ProductionDaWriter();
         using var pipeline = CreateZkPipeline(
             store,
-            new TestExecutor(SafeSemantic),
-            new ProductionDaWriter(),
+            executor,
+            writer,
             new RecordingZkProver(SafeSemantic),
-            client);
-        await pipeline.PersistAsync(BuildBatch(2));
-        var second = await store.GetAsync(ChainId, 2);
-        Assert.IsNotNull(second);
+            new RecordingSettlementClient());
 
-        for (var attempt = 0; attempt < 3; attempt++)
-            await Assert.ThrowsExactlyAsync<InvalidDataException>(
-                async () => await pipeline.ReconcileAsync());
-        Assert.AreEqual(0, client.SubmitCount);
-        Assert.IsNull(await store.GetProofAsync(second.ContentHash));
-        Assert.AreEqual(
-            SettlementRecoveryState.Poisoned,
-            (await pipeline.GetRecoveryStatusAsync()).State);
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(
+            async () => await pipeline.PersistAsync(BuildBatch(2, 11, H(3))));
 
-        await pipeline.PersistAsync(BuildBatch(1));
-        await pipeline.RecoverPoisonedBatchAsync(2, second.ContentHash);
-        await pipeline.ReconcileAsync();
-        await pipeline.ReconcileAsync();
-        await pipeline.ReconcileAsync();
-
-        CollectionAssert.AreEqual(new ulong[] { 1, 2 }, client.SubmittedBatchNumbers.ToArray());
+        Assert.AreEqual(0, executor.ApplyCount);
+        Assert.AreEqual(0, writer.PublishCount);
+        Assert.IsNull(await store.GetAsync(ChainId, 2));
         Assert.AreEqual(0, await pipeline.GetPendingCountAsync());
     }
 
@@ -573,14 +652,61 @@ public class UT_CanonicalSettlementPipeline
     }
 
     [TestMethod]
-    public async Task RevertedStatus_RemainsPendingAndIsNeverResubmittedSilently()
+    public async Task ObservedChallengeableBatch_RemainsPendingAndPolledUntilFinalized()
     {
         using var backend = new InMemoryKeyValueStore();
         using var store = new KeyValueProofWitnessStore(backend);
-        var client = new RecordingSettlementClient();
+        var prover = new RecordingZkProver(SafeSemantic);
+        var client = new RecordingSettlementClient { AutoFinalizeOnSubmit = false };
         using var pipeline = CreateZkPipeline(
             store,
             new TestExecutor(SafeSemantic),
+            new ProductionDaWriter(),
+            prover,
+            client);
+        var batch = BuildBatch();
+        await pipeline.PersistAsync(batch);
+
+        await pipeline.ReconcileAsync();
+        await pipeline.ReconcileAsync();
+        var artifact = await store.GetAsync(ChainId, batch.BatchNumber);
+        Assert.IsNotNull(artifact);
+        var pending = await store.GetProofAsync(artifact.ContentHash);
+        Assert.IsNotNull(pending);
+        Assert.IsTrue(pending.SettlementObserved);
+        Assert.IsFalse(pending.SettlementFinalized);
+        Assert.AreEqual(1, await pipeline.GetPendingCountAsync());
+        Assert.AreEqual(0, prover.AcknowledgementCount,
+            "proof retention must continue through the challenge window");
+
+        client.SetStatus(ChainId, batch.BatchNumber, BatchStatus.Challengeable);
+        var readsBeforeChallenge = client.BatchStatusReadCount;
+        await pipeline.ReconcileAsync();
+        Assert.IsTrue(client.BatchStatusReadCount > readsBeforeChallenge,
+            "challengeable settlement must remain actively polled");
+        Assert.AreEqual(1, await pipeline.GetPendingCountAsync());
+
+        client.SetStatus(ChainId, batch.BatchNumber, BatchStatus.Finalized);
+        client.CanonicalStateRoot = H(3);
+        await pipeline.ReconcileAsync();
+
+        var finalized = await store.GetProofAsync(artifact.ContentHash);
+        Assert.IsNotNull(finalized);
+        Assert.IsTrue(finalized.SettlementFinalized);
+        Assert.AreEqual(0, await pipeline.GetPendingCountAsync());
+        Assert.AreEqual(1, prover.AcknowledgementCount);
+    }
+
+    [TestMethod]
+    public async Task ObservedChallengeableThenReverted_AllowsSameBatchResubmission()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var client = new RecordingSettlementClient { AutoFinalizeOnSubmit = false };
+        var executor = new TestExecutor(SafeSemantic);
+        using var pipeline = CreateZkPipeline(
+            store,
+            executor,
             new ProductionDaWriter(),
             new RecordingZkProver(SafeSemantic),
             client);
@@ -588,16 +714,29 @@ public class UT_CanonicalSettlementPipeline
         await pipeline.PersistAsync(batch);
         var artifact = await store.GetAsync(ChainId, batch.BatchNumber);
         Assert.IsNotNull(artifact);
+        await pipeline.ReconcileAsync();
+        client.SetStatus(ChainId, batch.BatchNumber, BatchStatus.Challengeable);
+        await pipeline.ReconcileAsync();
+        Assert.IsTrue((await store.GetProofAsync(artifact.ContentHash))!.SettlementObserved);
+        Assert.IsFalse((await store.GetProofAsync(artifact.ContentHash))!.SettlementFinalized);
         client.SetStatus(ChainId, batch.BatchNumber, BatchStatus.Reverted);
 
-        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            async () => await pipeline.ReconcileAsync());
+        await pipeline.ReconcileAsync();
 
-        var manifest = await store.GetProofAsync(artifact.ContentHash);
-        Assert.IsNotNull(manifest);
-        Assert.IsFalse(manifest.SettlementObserved);
-        Assert.AreEqual(0, client.SubmitCount);
-        Assert.AreEqual(1, await pipeline.GetPendingCountAsync());
+        Assert.IsNull(await store.GetAsync(ChainId, batch.BatchNumber));
+        Assert.IsNull(await store.GetProofAsync(artifact.ContentHash));
+        Assert.IsNotNull(await store.GetQuarantinedArtifactAsync(artifact.ContentHash));
+        Assert.IsNull(await store.GetSettlementRollbackAsync(ChainId));
+        Assert.AreEqual(1, executor.RollbackCount);
+        Assert.AreEqual(1, client.SubmitCount);
+        Assert.AreEqual(0, await pipeline.GetPendingCountAsync());
+
+        client.SetStatus(ChainId, batch.BatchNumber, BatchStatus.Unknown);
+        await pipeline.PersistAsync(batch);
+        Assert.IsNotNull(await store.GetAsync(ChainId, batch.BatchNumber));
+        await pipeline.ReconcileAsync();
+        Assert.AreEqual(2, client.SubmitCount,
+            "the corrected same-number batch must become submit-eligible after rollback");
     }
 
     [TestMethod]
@@ -975,17 +1114,18 @@ public class UT_CanonicalSettlementPipeline
     }
 
     [TestMethod]
-    public async Task Restart_Reverted_RetainsProofAndNeverResubmits()
+    public async Task Restart_RevertedRollbackIntentRestoresStateAndAllowsSameBatchResubmission()
     {
         using var backend = new InMemoryKeyValueStore();
         var writer = new ProductionDaWriter();
         var prover = new RecordingZkProver(SafeSemantic);
         var client = new RecordingSettlementClient();
         UInt256 contentHash;
+        var firstExecutor = new TestExecutor(SafeSemantic) { FailNextRollback = true };
 
         using (var store = new KeyValueProofWitnessStore(backend))
         using (var pipeline = CreateZkPipeline(
-            store, new TestExecutor(SafeSemantic), writer, prover, client))
+            store, firstExecutor, writer, prover, client))
         {
             var batch = BuildBatch();
             await pipeline.PersistAsync(batch);
@@ -993,18 +1133,57 @@ public class UT_CanonicalSettlementPipeline
             client.SetStatus(ChainId, batch.BatchNumber, BatchStatus.Reverted);
             await Assert.ThrowsExactlyAsync<InvalidOperationException>(
                 async () => await pipeline.ReconcileAsync());
+            Assert.IsNotNull(await store.GetSettlementRollbackAsync(ChainId));
+            Assert.IsNull(await store.GetAsync(ChainId, batch.BatchNumber));
         }
 
         using var restartedStore = new KeyValueProofWitnessStore(backend);
+        var restartedExecutor = new TestExecutor(SafeSemantic);
         using var restarted = CreateZkPipeline(
-            restartedStore, new TestExecutor(SafeSemantic), writer, prover, client);
-        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            async () => await restarted.ReconcileAsync());
+            restartedStore, restartedExecutor, writer, prover, client);
+        Assert.IsNull(await restarted.GetLatestCheckpointAsync());
 
         Assert.AreEqual(0, client.SubmitCount);
-        Assert.AreEqual(ProofSubmissionState.ProofReady,
-            (await restartedStore.GetProofAsync(contentHash))!.SubmissionState);
-        Assert.AreEqual(1, await restarted.GetPendingCountAsync());
+        Assert.AreEqual(1, restartedExecutor.RollbackCount);
+        Assert.IsNull(await restartedStore.GetSettlementRollbackAsync(ChainId));
+        Assert.IsNotNull(await restartedStore.GetQuarantinedArtifactAsync(contentHash));
+
+        client.SetStatus(ChainId, 1, BatchStatus.Unknown);
+        await restarted.PersistAsync(BuildBatch());
+        await restarted.ReconcileAsync();
+        Assert.AreEqual(1, client.SubmitCount);
+    }
+
+    [TestMethod]
+    public async Task FinalizedThenGovernanceReverted_RollsBackAndAllowsSameBatchResubmission()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var client = new RecordingSettlementClient();
+        var executor = new TestExecutor(SafeSemantic);
+        using var pipeline = CreateZkPipeline(
+            store,
+            executor,
+            new ProductionDaWriter(),
+            new RecordingZkProver(SafeSemantic),
+            client);
+        await pipeline.PersistAsync(BuildBatch());
+        var original = (await store.GetAsync(ChainId, 1))!;
+        await pipeline.ReconcileAsync();
+        await pipeline.ReconcileAsync();
+        Assert.IsTrue((await store.GetProofAsync(original.ContentHash))!.SettlementFinalized);
+
+        client.SetStatus(ChainId, 1, BatchStatus.Reverted);
+        client.CanonicalStateRoot = H(1);
+        Assert.IsNull(await pipeline.GetLatestCheckpointAsync());
+
+        Assert.AreEqual(1, executor.RollbackCount);
+        Assert.IsNull(await store.GetAsync(ChainId, 1));
+        Assert.IsNotNull(await store.GetQuarantinedArtifactAsync(original.ContentHash));
+        client.SetStatus(ChainId, 1, BatchStatus.Unknown);
+        await pipeline.PersistAsync(BuildBatch());
+        await pipeline.ReconcileAsync();
+        Assert.AreEqual(2, client.SubmitCount);
     }
 
     [TestMethod]
@@ -1034,14 +1213,27 @@ public class UT_CanonicalSettlementPipeline
     }
 
     [TestMethod]
-    public async Task LatestCheckpoint_RejectsMissingBatchBlockGapAndStateRootGap()
+    public async Task Persist_RejectsMissingBatchBlockGapAndStateRootGap()
     {
-        await AssertCheckpointRejectedAsync(
+        await AssertSuccessorRejectedAsync(
             BuildBatch(2, 11, H(3)), includeFirstBatch: false);
-        await AssertCheckpointRejectedAsync(
+        await AssertSuccessorRejectedAsync(
             BuildBatch(2, 12, H(3)), includeFirstBatch: true);
-        await AssertCheckpointRejectedAsync(
+        await AssertSuccessorRejectedAsync(
             BuildBatch(2, 11, H(1)), includeFirstBatch: true);
+    }
+
+    [TestMethod]
+    public async Task Persist_RejectsGenesisAndOverflowBoundariesWithoutSideEffects()
+    {
+        await AssertSuccessorRejectedAsync(
+            BuildBatch(0, 0, H(1)), includeFirstBatch: false);
+        await AssertSuccessorRejectedAsync(
+            BuildBatch(1, 10, H(2)), includeFirstBatch: false);
+        await AssertSuccessorRejectedAsync(
+            BuildBatch(2, 0, H(3)),
+            includeFirstBatch: true,
+            firstBatch: BuildBatch(1, ulong.MaxValue, H(1)));
     }
 
     [TestMethod]
@@ -1056,7 +1248,7 @@ public class UT_CanonicalSettlementPipeline
             store,
             new LegacyProver(),
             client,
-            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig));
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, H(1)));
 
         await pipeline.PersistAsync(BuildBatch());
         await pipeline.ReconcileAsync();
@@ -1084,13 +1276,31 @@ public class UT_CanonicalSettlementPipeline
         ProofWitnessPipelineProfile.Zk(
             ChainId,
             WitnessProofSystem.Sp1,
-            VerificationKeyId);
+            VerificationKeyId,
+            H(1));
+
+    private static ProofResultManifest BuildManifest(ProofWitnessArtifactV1 artifact) => new()
+    {
+        ProofType = artifact.ProofType,
+        ChainId = artifact.ChainId,
+        BatchNumber = artifact.BatchNumber,
+        ArtifactContentHash = artifact.ContentHash,
+        PublicInputHash = StateRootCalculator.HashPublicInputs(artifact.PublicInputs),
+        VerificationKeyId = artifact.VerificationKeyId,
+        ProofSystem = artifact.ProofSystem,
+        ExecutionSemanticId = artifact.ExecutionSemanticId,
+        Proof = new byte[] { 0x91, 0x92, 0x93 },
+        PublicValues = ReadOnlyMemory<byte>.Empty,
+        SubmissionState = ProofSubmissionState.ProofReady,
+        SettlementFinalized = false,
+    };
 
     private static SealedBatch BuildBatch(
         ulong batchNumber = 1,
         ulong? firstBlock = null,
         UInt256? preStateRoot = null)
     {
+        var blockNumber = firstBlock ?? checked(9 + batchNumber);
         var message = new CrossChainMessage
         {
             SourceChainId = 0,
@@ -1106,9 +1316,9 @@ public class UT_CanonicalSettlementPipeline
         return new SealedBatch(
             ChainId,
             batchNumber,
-            firstBlock: firstBlock ?? batchNumber * 10,
-            lastBlock: firstBlock ?? batchNumber * 10,
-            preStateRoot: preStateRoot ?? H(1),
+            firstBlock: blockNumber,
+            lastBlock: blockNumber,
+            preStateRoot: preStateRoot ?? (batchNumber == 1 ? H(1) : H(3)),
             transactions: new ReadOnlyMemory<byte>[]
             {
                 new byte[] { 1, 2, 3, checked((byte)batchNumber) },
@@ -1124,24 +1334,37 @@ public class UT_CanonicalSettlementPipeline
             });
     }
 
-    private static async Task AssertCheckpointRejectedAsync(
+    private static async Task AssertSuccessorRejectedAsync(
         SealedBatch secondBatch,
-        bool includeFirstBatch)
+        bool includeFirstBatch,
+        SealedBatch? firstBatch = null)
     {
         using var backend = new InMemoryKeyValueStore();
         using var store = new KeyValueProofWitnessStore(backend);
+        var executor = new DurabilityCheckingExecutor(store);
+        var writer = new ProductionDaWriter();
         using var pipeline = CreateZkPipeline(
             store,
-            new TestExecutor(SafeSemantic),
-            new ProductionDaWriter(),
+            executor,
+            writer,
             new RecordingZkProver(SafeSemantic),
             new RecordingSettlementClient());
         if (includeFirstBatch)
-            await pipeline.PersistAsync(BuildBatch(1, 10, H(1)));
-        await pipeline.PersistAsync(secondBatch);
+            await pipeline.PersistAsync(firstBatch ?? BuildBatch(1, 10, H(1)));
+
+        var applyCount = executor.ApplyCount;
+        var publishCount = writer.PublishCount;
+        var pendingCount = await pipeline.GetPendingCountAsync();
 
         await Assert.ThrowsExactlyAsync<InvalidDataException>(
-            async () => await pipeline.GetLatestCheckpointAsync());
+            async () => await pipeline.PersistAsync(secondBatch));
+        Assert.AreEqual(applyCount, executor.ApplyCount,
+            "continuity rejection must happen before execution");
+        Assert.AreEqual(publishCount, writer.PublishCount,
+            "continuity rejection must happen before DA publication");
+        Assert.AreEqual(pendingCount, await pipeline.GetPendingCountAsync(),
+            "continuity rejection must not enqueue settlement work");
+        Assert.IsNull(await store.GetAsync(ChainId, secondBatch.BatchNumber));
     }
 
     private static SealedBatch BuildForcedBatch()
@@ -1175,13 +1398,18 @@ public class UT_CanonicalSettlementPipeline
     private sealed class TestExecutor :
         IProofWitnessBatchExecutor,
         IInitialStateRootProvider,
-        ICurrentStateRootProvider
+        ICurrentStateRootProvider,
+        IRevertibleCommittedProofWitnessStateSink
     {
         private readonly UInt256 _semantic;
         private readonly bool _authenticated;
         private readonly bool _returnEmptyStateWitness;
         private readonly UInt256 _initialStateRoot;
-        private readonly UInt256 _currentStateRoot;
+        private UInt256 _currentStateRoot;
+
+        public int ApplyCount { get; private set; }
+        public int RollbackCount { get; private set; }
+        public bool FailNextRollback { get; set; }
 
         public TestExecutor(
             UInt256 semantic,
@@ -1222,6 +1450,7 @@ public class UT_CanonicalSettlementPipeline
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            ApplyCount++;
             var txHashes = new UInt256[batch.Transactions.Count];
             var receiptHashes = new UInt256[batch.Transactions.Count];
             long gasConsumed = 0;
@@ -1261,6 +1490,30 @@ public class UT_CanonicalSettlementPipeline
                 StateWitness = stateWitness,
                 Effects = new byte[] { 0x4e, 0x45, 0x4f, 0x34, 0x45, 0x46, 0x58, 0x31 },
             });
+        }
+
+        public async ValueTask EnsureStateRolledBackAsync(
+            IProofWitnessStore durableStore,
+            SettlementRollbackCheckpoint checkpoint,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            RollbackCount++;
+            if (FailNextRollback)
+            {
+                FailNextRollback = false;
+                throw new InvalidOperationException("simulated execution-state rollback crash");
+            }
+            var artifact = await durableStore.GetQuarantinedArtifactAsync(
+                checkpoint.RevertedArtifactContentHash, cancellationToken);
+            if (artifact is null
+                || artifact.BatchNumber != checkpoint.FirstBatchNumber
+                || !artifact.ExecutionPayload.PreStateRoot.Equals(checkpoint.TargetStateRoot))
+            {
+                throw new InvalidDataException(
+                    "rollback checkpoint is not bound to its quarantined artifact");
+            }
+            _currentStateRoot = new UInt256(checkpoint.TargetStateRoot.GetSpan());
         }
     }
 
@@ -1332,12 +1585,14 @@ public class UT_CanonicalSettlementPipeline
         public DAReceiptKind ReceiptKind => DAReceiptKind.ExternalPublication;
         public bool CorruptCommitment { get; init; }
         public bool Available { get; set; } = true;
+        public int PublishCount { get; private set; }
 
         public ValueTask<DAReceipt> PublishAsync(
             DAPublishRequest request,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            PublishCount++;
             var commitment = ExecutionPayloadSerializer.ComputeCommitment(request.Payload.Span);
             if (CorruptCommitment) commitment = H(0xEE);
             return ValueTask.FromResult(new DAReceipt
@@ -1441,6 +1696,8 @@ public class UT_CanonicalSettlementPipeline
         public int TransactionStatusReadCount { get; private set; }
         public bool FailNextSubmitBeforeRecord { get; set; }
         public bool FailNextSubmitAfterRecord { get; set; }
+        public bool AutoFinalizeOnSubmit { get; set; } = true;
+        public UInt256 CanonicalStateRoot { get; set; } = H(1);
         public L2BatchCommitment? LastCommitment { get; private set; }
         public List<ulong> SubmittedBatchNumbers { get; } = new();
 
@@ -1467,7 +1724,11 @@ public class UT_CanonicalSettlementPipeline
                 throw new InvalidOperationException("submit failed before L1 acceptance");
             }
             var transactionHash = H(checked((byte)(0xA0 + SubmitCount)));
-            _statuses[(commitment.ChainId, commitment.BatchNumber)] = BatchStatus.Pending;
+            _statuses[(commitment.ChainId, commitment.BatchNumber)] = AutoFinalizeOnSubmit
+                ? BatchStatus.Finalized
+                : BatchStatus.Pending;
+            if (AutoFinalizeOnSubmit)
+                CanonicalStateRoot = new UInt256(commitment.PostStateRoot.GetSpan());
             _transactionStatuses[transactionHash] = SettlementTransactionStatus.Pending;
             if (FailNextSubmitAfterRecord)
             {
@@ -1480,7 +1741,7 @@ public class UT_CanonicalSettlementPipeline
         public ValueTask<UInt256> GetCanonicalStateRootAsync(
             uint chainId,
             CancellationToken cancellationToken = default)
-            => ValueTask.FromResult(UInt256.Zero);
+            => ValueTask.FromResult(new UInt256(CanonicalStateRoot.GetSpan()));
 
         public ValueTask<BatchStatus> GetBatchStatusAsync(
             uint chainId,
@@ -1557,6 +1818,11 @@ public class UT_CanonicalSettlementPipeline
             CancellationToken cancellationToken = default)
             => inner.MarkSubmissionObservedAsync(artifactContentHash, cancellationToken);
 
+        public ValueTask MarkSettlementFinalizedAsync(
+            UInt256 artifactContentHash,
+            CancellationToken cancellationToken = default)
+            => inner.MarkSettlementFinalizedAsync(artifactContentHash, cancellationToken);
+
         public ValueTask MarkForcedInclusionFinalizedAsync(
             UInt256 artifactContentHash,
             CancellationToken cancellationToken = default)
@@ -1609,6 +1875,32 @@ public class UT_CanonicalSettlementPipeline
             => inner.ClearSettlementRecoveryAsync(
                 chainId, batchNumber, artifactContentHash, cancellationToken);
 
+        public ValueTask<SettlementRollbackCheckpoint> QuarantineRevertedTailAsync(
+            uint chainId,
+            ulong firstBatchNumber,
+            UInt256 revertedArtifactContentHash,
+            CancellationToken cancellationToken = default)
+            => inner.QuarantineRevertedTailAsync(
+                chainId,
+                firstBatchNumber,
+                revertedArtifactContentHash,
+                cancellationToken);
+
+        public ValueTask<SettlementRollbackCheckpoint?> GetSettlementRollbackAsync(
+            uint chainId,
+            CancellationToken cancellationToken = default)
+            => inner.GetSettlementRollbackAsync(chainId, cancellationToken);
+
+        public ValueTask<ProofWitnessArtifactV1?> GetQuarantinedArtifactAsync(
+            UInt256 artifactContentHash,
+            CancellationToken cancellationToken = default)
+            => inner.GetQuarantinedArtifactAsync(artifactContentHash, cancellationToken);
+
+        public ValueTask CompleteSettlementRollbackAsync(
+            SettlementRollbackCheckpoint checkpoint,
+            CancellationToken cancellationToken = default)
+            => inner.CompleteSettlementRollbackAsync(checkpoint, cancellationToken);
+
         public ValueTask<IReadOnlyCollection<ulong>> GetTrackedForcedInclusionNoncesAsync(
             uint chainId,
             CancellationToken cancellationToken = default)
@@ -1641,7 +1933,7 @@ public class UT_CanonicalSettlementPipeline
         public ValueTask<UInt256> GetCanonicalStateRootAsync(
             uint chainId,
             CancellationToken cancellationToken = default)
-            => ValueTask.FromResult(UInt256.Zero);
+            => ValueTask.FromResult(H(1));
 
         public ValueTask<BatchStatus> GetBatchStatusAsync(
             uint chainId,

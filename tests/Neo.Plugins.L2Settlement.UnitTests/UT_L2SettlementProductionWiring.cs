@@ -4,6 +4,8 @@ using Neo.L2.ForcedInclusion;
 using Neo.L2.Persistence;
 using Neo.L2.Settlement.Rpc;
 using Neo.Network.P2P.Payloads;
+using System.Net;
+using System.Text;
 
 namespace Neo.Plugins.L2Settlement.UnitTests;
 
@@ -15,12 +17,13 @@ public class UT_L2SettlementProductionWiring
     [TestMethod]
     public void WireProduction_ConstructsCanonicalRpcStackAndForcedPair()
     {
-        using var backend = new InMemoryKeyValueStore();
-        using var forcedEvents = new InMemoryKeyValueStore();
-        using var store = new KeyValueProofWitnessStore(backend);
+        using var backend = new TemporaryRocksDb();
+        using var forcedEvents = new TemporaryRocksDb();
+        using var store = new KeyValueProofWitnessStore(backend.Store);
         using var batch = new L2BatchPlugin();
         using var settlement = new L2SettlementPlugin(ProductionSettings());
         var signer = new TrackingSigner(Account(0x33));
+        using var http = CanonicalRootHttpClient();
 
         var forcedSource = settlement.WireProduction(
             batch,
@@ -28,11 +31,12 @@ public class UT_L2SettlementProductionWiring
             new TestDaWriter(),
             store,
             new TestProver(),
-            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
             signer,
-            forcedEvents,
+            forcedEvents.Store,
             forcedInclusionDeploymentHeight: 123,
-            knownForcedInclusionNonces: new ulong[] { 3, 7 });
+            knownForcedInclusionNonces: new ulong[] { 3, 7 },
+            rpcHttpClient: http);
 
         var composition = settlement.ProductionComposition;
         Assert.IsNotNull(composition);
@@ -50,24 +54,68 @@ public class UT_L2SettlementProductionWiring
     }
 
     [TestMethod]
+    public void WireProduction_RejectsVolatileWitnessStore()
+    {
+        using var witnessBackend = new InMemoryKeyValueStore();
+        using var forcedEvents = new TemporaryRocksDb();
+        using var store = new KeyValueProofWitnessStore(witnessBackend);
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin(ProductionSettings());
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => settlement.WireProduction(
+            batch,
+            new TestExecutor(),
+            new TestDaWriter(),
+            store,
+            new TestProver(),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
+            new TrackingSigner(Account(0x34)),
+            forcedEvents.Store,
+            forcedInclusionDeploymentHeight: 123));
+    }
+
+    [TestMethod]
+    public void WireProduction_RejectsVolatileForcedInclusionEventStore()
+    {
+        using var witnessBackend = new TemporaryRocksDb();
+        using var forcedEvents = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(witnessBackend.Store);
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin(ProductionSettings());
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => settlement.WireProduction(
+            batch,
+            new TestExecutor(),
+            new TestDaWriter(),
+            store,
+            new TestProver(),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
+            new TrackingSigner(Account(0x35)),
+            forcedEvents,
+            forcedInclusionDeploymentHeight: 123));
+    }
+
+    [TestMethod]
     public async Task Dispose_ProductionStackDisposesOwnedRpcButNotCallerSigner()
     {
-        using var backend = new InMemoryKeyValueStore();
-        using var forcedEvents = new InMemoryKeyValueStore();
-        using var store = new KeyValueProofWitnessStore(backend);
+        using var backend = new TemporaryRocksDb();
+        using var forcedEvents = new TemporaryRocksDb();
+        using var store = new KeyValueProofWitnessStore(backend.Store);
         using var batch = new L2BatchPlugin();
         var settlement = new L2SettlementPlugin(ProductionSettings());
         var signer = new TrackingSigner(Account(0x44));
+        using var http = CanonicalRootHttpClient();
         settlement.WireProduction(
             batch,
             new TestExecutor(),
             new TestDaWriter(),
             store,
             new TestProver(),
-            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
             signer,
-            forcedEvents,
-            forcedInclusionDeploymentHeight: 123);
+            forcedEvents.Store,
+            forcedInclusionDeploymentHeight: 123,
+            rpcHttpClient: http);
         var composition = settlement.ProductionComposition;
         Assert.IsNotNull(composition);
 
@@ -115,7 +163,7 @@ public class UT_L2SettlementProductionWiring
             store,
             new TestProver(),
             client,
-            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
             new NoOpForcedInclusionFinalizer(),
             source);
 
@@ -148,7 +196,7 @@ public class UT_L2SettlementProductionWiring
             store,
             new TestProver(),
             new TrackingSettlementClient(),
-            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
             forcedInclusionSource: source));
     }
 
@@ -168,6 +216,33 @@ public class UT_L2SettlementProductionWiring
         var bytes = new byte[UInt160.Length];
         bytes[0] = value;
         return new UInt160(bytes);
+    }
+
+    private static UInt256 Root(byte value)
+    {
+        var bytes = new byte[UInt256.Length];
+        bytes[0] = value;
+        return new UInt256(bytes);
+    }
+
+    private sealed class TemporaryRocksDb : IDisposable
+    {
+        private readonly string _directory = Path.Combine(
+            Path.GetTempPath(), "neo-n4-settlement-wiring-" + Guid.NewGuid().ToString("N"));
+
+        public TemporaryRocksDb()
+        {
+            Store = new RocksDbKeyValueStore(_directory);
+        }
+
+        public RocksDbKeyValueStore Store { get; }
+
+        public void Dispose()
+        {
+            Store.Dispose();
+            if (Directory.Exists(_directory))
+                Directory.Delete(_directory, recursive: true);
+        }
     }
 
     private sealed class TestExecutor : IProofWitnessBatchExecutor
@@ -244,7 +319,7 @@ public class UT_L2SettlementProductionWiring
         public ValueTask<UInt256> GetCanonicalStateRootAsync(
             uint chainId,
             CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
+            => ValueTask.FromResult(Root(0x11));
 
         public ValueTask<BatchStatus> GetBatchStatusAsync(
             uint chainId,
@@ -253,6 +328,28 @@ public class UT_L2SettlementProductionWiring
             => throw new NotSupportedException();
 
         public void Dispose() => IsDisposed = true;
+    }
+
+    private static HttpClient CanonicalRootHttpClient()
+        => new(new CanonicalRootHandler(Root(0x11)));
+
+    private sealed class CanonicalRootHandler(UInt256 root) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var rootBase64 = Convert.ToBase64String(root.GetSpan());
+            var body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{" +
+                "\"state\":\"HALT\",\"stack\":[{" +
+                $"\"type\":\"ByteString\",\"value\":\"{rootBase64}\"" +
+                "}]}}";
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(body, Encoding.UTF8, "application/json"),
+            });
+        }
     }
 
     private sealed class TrackingForcedInclusionSource

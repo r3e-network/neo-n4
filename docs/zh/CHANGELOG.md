@@ -14,6 +14,11 @@
 - 适用范围：Neo N4 项目的文档、架构、模块、工具、合约、测试或审计证据的一部分。
 - 一致性要求：术语、项目路径、命令、合约名称、模块名称、测试名称和安全结论必须与英文源文件保持一致。
 - 生产完备要求：如果英文源文件声明某模块已完成、已验证、已部署演练或已通过测试，中文版本不能降低或扩大该结论；必须同步记录同样的前提和限制。
+- 2026-07-15 协调依赖维护：覆盖率收集器升级至 10.0.1；Ethereum watcher 将
+  `sha3` 升级至 0.12、`toml` 升级至 1.1.3，并原子更新 Rust lockfile；GitHub
+  workflows 同步升级至 `actions/checkout` 7、`actions/cache` 6、
+  `docker/setup-buildx-action` 4、`docker/login-action` 4 与
+  `docker/metadata-action` 6。
 - 2026-07-15 SP1 release gate 并行化：明确执行 release validation 时，workspace release、
   真实 batch 证明和真实递归 Gateway 证明拆分到三个独立且版本固定的 SP1 runner。
   Pull request 与普通 master push 只运行快速 .NET、合约、原生执行与 Rust 兼容性门禁，

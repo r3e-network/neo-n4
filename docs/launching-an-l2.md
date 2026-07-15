@@ -780,7 +780,11 @@ canonical settlement path picks it up.
 ```
 User:    ──► Deposit on L1 (SharedBridge.Deposit)
                                  ↓
-L2:      ── L1MessageInbox dequeues → DepositProcessor mints L2 GAS
+L1:      locks asset, stores GetDeposit record, emits DepositEnqueued
+                                 ↓
+L2:      RpcSharedBridgeDepositSource scans DepositEnqueued + getDeposit
+         materializes CrossChainMessage(DepositPayload) for L2Bridge
+         BatchSealer L1 drain includes the message → DepositProcessor / native mint
                                  ↓
          User submits L2 tx → Sequencer orders → Batcher accumulates
                                  ↓

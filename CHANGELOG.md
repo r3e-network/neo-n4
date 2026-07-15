@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — production SharedBridge deposit L1→L2 ingest — 2026-07-15
+
+- Added `SharedBridgeDepositRecord` with byte-for-byte parity to
+  `NeoHub.SharedBridge.EncodeDeposit` / `GetDeposit` (unsigned little-endian amount).
+- Added `RpcSharedBridgeDepositScanner` (durable `DepositEnqueued` discovery with
+  hash-verified restart cursor) and `RpcSharedBridgeDepositSource` (GetDeposit
+  materialization into a native-bridge-bound `CrossChainMessage` + `DepositPayload`,
+  `Peek` / `ConfirmConsumed` drain for the batcher).
+- SharedBridge still does not enqueue MessageRouter; operators wire this source as
+  the deposit half of the batcher's L1 message drain. Unit tests cover record
+  round-trip, high-MSB amounts, and end-to-end scan/materialize/confirm.
+
 ### Fixed — resilience and fraud-proof honesty — 2026-07-15
 
 - Made `CircuitBreaker` half-open allow exactly one concurrent probe via a latch and an

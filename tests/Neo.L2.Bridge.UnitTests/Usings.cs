@@ -1,4 +1,5 @@
 global using Microsoft.VisualStudio.TestTools.UnitTesting;
 global using Neo.L2;
 global using Neo.L2.Bridge;
+global using Neo.L2.State;
 global using Neo.L2.Telemetry;

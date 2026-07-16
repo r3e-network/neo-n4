@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "checkedAtUtc": "2026-07-16T04:50:00Z",
-  "sourceCommit": "2a35deb",
+  "checkedAtUtc": "2026-07-16T11:57:00Z",
+  "sourceCommit": "4f627b3",
   "rpc": "https://n3seed1.ngd.network:20332/",
   "networkMagic": 894710606,
   "signerAddress": "NLtL2v28d7TyMEaXcPqtekunkFRksJ7wxu",
@@ -36,14 +36,65 @@
     "SettlementManager": 17729293,
     "ChainRegistry": 17729282
   },
-  "releaseEvidenceStatus": "current-for-neohub-l1-bundle-and-register-chain",
-  "releaseGate": "NeoHub 24-contract L1 bundle deployed, smoke-verified, and chain 20260716 registered (Validity+L1 DA+Zk) on Neo N3 testnet. Remaining: L2 operator Neo.CLI stack, 4-SDK live fixture, DA rehearsal, real SP1 proof vectors.",
+  "followOnLiveOps": {
+    "checkedAtUtc": "2026-07-16T11:57:00Z",
+    "reverifyContractsPresent": "24/24",
+    "tokenRegistryMappings": [
+      {
+        "asset": "GAS",
+        "l1Asset": "0xd2a4cff31913016155e38e474a2c06d08be276cf",
+        "l2Asset": "0xf684fdbdcafe343233fe6cf56d443cb41d6aee28",
+        "l1Decimals": 8,
+        "l2Decimals": 8,
+        "active": true,
+        "txHash": "0xc1f447217f8bb0cf37bac63559d6c33d12a827d09a8385aff87e50fea40de06a",
+        "vmState": "HALT"
+      },
+      {
+        "asset": "NEO",
+        "l1Asset": "0xef4073a0f2b305a38ec4050e4d3d28bc40ea63f5",
+        "l2Asset": "0x8b28b3f6fc9de2a8afdc81b2d10424c5622106d5",
+        "l1Decimals": 0,
+        "l2Decimals": 8,
+        "active": true,
+        "txHash": "0xb51c8e4f1c4dbdaccfe2ec6f67c62712351177e3aa981c84550126b29ca27daa",
+        "vmState": "HALT"
+      }
+    ],
+    "forcedInclusion": {
+      "status": "enqueued",
+      "chainId": 20260716,
+      "nonce": 1,
+      "txHash": "0x73924dce415f2295d443e192a50db5a8d731b60c7b4a52da169473768a84f412",
+      "forcedTxHash": "0x9ced6a2df4ca8046105749edbea7269ae9edb2c1c80da214e87814b77ff63bed",
+      "vmState": "HALT",
+      "notes": "Requires WitnessScope.Global for nested native GAS fee transfer under ForcedInclusion."
+    },
+    "sharedBridgeDeposit": {
+      "status": "blocked-by-caller-model",
+      "reason": "SharedBridge.Deposit pulls NEP-17 from Runtime.CallingScriptHash; wallet entry-script invocations are not the user account, so transfer fails even with Global witness. ForcedInclusion correctly uses Transaction.Sender. Wallet deposit needs a contract fix (use Sender + CheckWitness) and redeploy/governance update, or a contract-wallet intermediate."
+    },
+    "settlement": {
+      "latestFinalizedBatch": 0,
+      "canonicalStateRootMatchesGenesis": true,
+      "isGovernanceLocked": true
+    },
+    "operatorPath": {
+      "createChain": "ok (zk-rollup)",
+      "initL2": "ok (from deploy report)",
+      "bootstrapGenesis": "ok root 0x59be9f1478806cd68011da5ea33e631adf5239b9df997454cf704522874a5130",
+      "registerChainBroadcast": "correctly rejected — chain already registered / governance locked"
+    }
+  },
+  "releaseEvidenceStatus": "current-for-neohub-l1-bundle-register-chain-token-maps-forced-inclusion",
+  "releaseGate": "NeoHub 24-contract L1 bundle deployed and re-verified; chain 20260716 active; L1 GAS/NEO TokenRegistry mappings live; ForcedInclusion nonce 1 enqueued. Remaining: wallet SharedBridge.Deposit caller model, L2 operator Neo.CLI stack, 4-SDK live fixture, DA rehearsal, real SP1 batch submit.",
   "keyContracts": {
     "ChainRegistry": "0x65201c5415f6fc13093ad7169c556351c2392d23",
     "SettlementManager": "0x11448868f1c14422506b9c2360051df34bcbbb51",
     "SharedBridge": "0xf2f5114b83dd6fed4ddcac0ff9966fd22a77b241",
     "MessageRouter": "0x3caf3c6e160b5aec2e07672dc37662b5998afe90",
     "ForcedInclusion": "0x962829ae28e7f89e5de4b4672b167c8ae2ba55a9",
+    "TokenRegistry": "0x96ae4655fb3792594b134067d1443922ce8f505b",
     "Sp1Groth16Verifier": "0x1004bb5185ee6947800661b0be55c38d80ee0c4d",
     "ContractZkVerifier": "0x66b68cbe8e86230e557e4f7008e6b476c055f03c",
     "OptimisticChallenge": "0x1f6fcc8876084528ee00c9222437bd9447051a0f"

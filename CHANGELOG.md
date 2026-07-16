@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Evidence — Neo N3 testnet follow-on live ops (WIF operator) — 2026-07-16
+
+- Re-verified all 24 NeoHub contracts still present on testnet (`getcontractstate`).
+- Confirmed chain `20260716` `isActive`, genesis root, 91-byte config, settlement
+  governance locked, finalized batch 0.
+- Live L1 `TokenRegistry.registerMapping` for platform GAS + NEO
+  (`0xc1f44721…e06a`, `0xb51c8e4f…7daa`).
+- Live `ForcedInclusion.enqueueForcedTransaction` nonce 1
+  (`0x73924dce…f412`); nested GAS fee requires `WitnessScope.Global`.
+- Documented wallet `SharedBridge.Deposit` block: contract pulls from
+  `Runtime.CallingScriptHash`, not `Transaction.Sender`.
+- Evidence: `docs/audit/testnet-evidence-status-2026-07-16.json`.
+
 ### Added — ProofWitnessPipelineProfile.LegacyFromChainDirectory — 2026-07-16
 
 - `ProofWitnessPipelineProfile.LegacyFromChainDirectory` builds a Multisig/Optimistic

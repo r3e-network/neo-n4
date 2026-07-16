@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Evidence — Neo N3 testnet full reverify + Deposit nonce 3 — 2026-07-17
+
+- Re-verified the full NeoHub bundle on N3 testnet with operator WIF (env-only):
+  24/24 deploy reuse, 29/29 postdeploy reuse, 42/42 smoke HALT.
+- Fixed SharedBridge `0xf64548c2…1bae` live Deposit nonce 3 HALT
+  (`0xa06e7952…e6d821`, 0.001 GAS, `WitnessScope.Global`, Transfer + DepositEnqueued).
+- Confirmed chain `20260716` isActive, TokenRegistry GAS+NEO mappings, ForcedInclusion
+  production-ready + entry nonce 1 present; local `neo-stack create-chain` +
+  `init-l2 --from-deploy-report` materializes fixed SharedBridge into `l1.deployed.json`.
+- CLI note: `--fraud-replay-domain` must be on-chain raw wire bytes from
+  `RestrictedExecutionFraudVerifier.getReplayDomain` (not the reversed UInt256 display form).
+- Evidence: `docs/audit/testnet-deployment-20260717-session-reverify.json`,
+  `docs/audit/testnet-evidence-status-2026-07-17-session2.json`.
+- WIF never written to the repo.
+
 ### Added — L1InboxFromChainDirectory host composition root — 2026-07-17
 
 - `L1InboxFromChainDirectory.Open(chainDir)` opens SharedBridge deposit + ForcedInclusion +

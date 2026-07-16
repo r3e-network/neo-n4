@@ -258,10 +258,22 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         {
             var effectiveDeposits = depositSource ?? composition.OwnedDepositSource;
             var effectiveRouter = messageRouter ?? composition.OwnedMessageRouter;
+            // Default L1 tip lag from the same production RPC + L1FinalityDepth so hosts
+            // do not re-type getblockcount math for inbox wiring. Committee hash still
+            // needs operator-supplied keys (genesis set for RpcSequencerCommitteeProvider).
+            var effectiveL1FinalizedHeight = l1FinalizedHeight;
             if ((effectiveDeposits is not null || effectiveRouter is not null)
-                && (l1FinalizedHeight is null || sequencerCommitteeHash is null))
+                && effectiveL1FinalizedHeight is null)
+            {
+                effectiveL1FinalizedHeight = new RpcL1FinalizedHeightSource(
+                    composition.Rpc,
+                    effectiveForcedFinality).CreateSyncProvider();
+            }
+            if ((effectiveDeposits is not null || effectiveRouter is not null)
+                && sequencerCommitteeHash is null)
                 throw new InvalidOperationException(
-                    "L1 message inbox wiring requires l1FinalizedHeight and sequencerCommitteeHash providers");
+                    "L1 message inbox wiring requires a sequencerCommitteeHash provider "
+                    + "(SequencerCommitteeHasher.CreateSyncProvider over ISequencerCommitteeProvider)");
 
             Wire(
                 batchPlugin,
@@ -275,7 +287,7 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
                 composition.ForcedInclusionSource,
                 effectiveDeposits,
                 effectiveRouter,
-                l1FinalizedHeight,
+                effectiveL1FinalizedHeight,
                 sequencerCommitteeHash,
                 maxAutomaticRetries);
             _productionComposition = composition;

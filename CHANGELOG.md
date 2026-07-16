@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — WireProduction defaults L1 finalized height for inbox wiring — 2026-07-16
+
+- When SharedBridge / MessageRouter inbox is owned or supplied and
+  `l1FinalizedHeight` is omitted, `WireProduction` constructs
+  `RpcL1FinalizedHeightSource` over the production `JsonRpcClient` using
+  `L1FinalityDepth` (or the resolved ForcedInclusion finality depth).
+- `sequencerCommitteeHash` remains required for inbox wiring (needs genesis committee keys).
+- Unit coverage: defaults height when committee hash is provided; still fails closed
+  with a committee-specific error when the hash provider is missing.
+
 ### Added — L1FinalityDepth plugin config + SequencerRegistry materialization — 2026-07-16
 
 - `L2SettlementSettings.L1FinalityDepth` (default 1) is read from plugin config;

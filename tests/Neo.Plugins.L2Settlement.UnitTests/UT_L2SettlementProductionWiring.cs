@@ -399,7 +399,7 @@ public class UT_L2SettlementProductionWiring
     }
 
     [TestMethod]
-    public void WireProduction_SharedBridgeWithoutBlockContext_FailsClosed()
+    public void WireProduction_SharedBridgeWithoutCommitteeHash_FailsClosed()
     {
         using var backend = new TemporaryRocksDb();
         using var forcedEvents = new TemporaryRocksDb();
@@ -409,7 +409,9 @@ public class UT_L2SettlementProductionWiring
         using var settlement = new L2SettlementPlugin(ProductionSettingsWithSharedBridge());
         using var http = CanonicalRootHttpClient();
 
-        Assert.ThrowsExactly<InvalidOperationException>(() => settlement.WireProduction(
+        // L1 finalized height is defaulted from production RPC + L1FinalityDepth;
+        // committee hash still requires operator-supplied keys.
+        var error = Assert.ThrowsExactly<InvalidOperationException>(() => settlement.WireProduction(
             batch,
             new TestExecutor(),
             new TestDaWriter(),
@@ -422,6 +424,38 @@ public class UT_L2SettlementProductionWiring
             rpcHttpClient: http,
             sharedBridgeDepositEventStore: depositEvents.Store,
             sharedBridgeDeploymentHeight: 50));
+        StringAssert.Contains(error.Message, "sequencerCommitteeHash");
+    }
+
+    [TestMethod]
+    public void WireProduction_DefaultsL1FinalizedHeightWhenInboxWired()
+    {
+        using var backend = new TemporaryRocksDb();
+        using var forcedEvents = new TemporaryRocksDb();
+        using var depositEvents = new TemporaryRocksDb();
+        using var store = new KeyValueProofWitnessStore(backend.Store);
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin(ProductionSettingsWithSharedBridge());
+        using var http = CanonicalRootHttpClient();
+
+        // Omit l1FinalizedHeight — production RPC + L1FinalityDepth should supply it.
+        settlement.WireProduction(
+            batch,
+            new TestExecutor(),
+            new TestDaWriter(),
+            store,
+            new TestProver(),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
+            new TrackingSigner(Account(0x59)),
+            forcedEvents.Store,
+            forcedInclusionDeploymentHeight: 123,
+            rpcHttpClient: http,
+            sharedBridgeDepositEventStore: depositEvents.Store,
+            sharedBridgeDeploymentHeight: 50,
+            sequencerCommitteeHash: static () => Root(0xCC));
+
+        Assert.IsNotNull(settlement.ProductionComposition?.OwnedDepositSource);
+        Assert.IsNotNull(batch.DepositSource);
     }
 
     [TestMethod]

@@ -171,8 +171,16 @@ public class UT_NeoHubDeployReport
                 "L2DAPlugin.CreateLocalFromChainDirectory(chainDirectory)",
                 stores.GetProperty("localDaPluginFactory").GetString());
             Assert.AreEqual(
+                NeoHubDeployReport.RelativeRpcProofStoreDir,
+                stores.GetProperty("rpcProofStore").GetString());
+            Assert.AreEqual(
+                "InMemoryL2RpcStore.OpenFromChainDirectory(chainDirectory)",
+                stores.GetProperty("rpcStoreOpenHelper").GetString());
+            Assert.AreEqual(
                 "Sp1SettlementExecutionStack.CreateFromChainDirectory(chainDir, state, executorPath, executorSha256, vk)",
                 stores.GetProperty("sp1StackFromChainDirectory").GetString());
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                dir, NeoHubDeployReport.RelativeRpcProofStoreDir)));
             Assert.IsTrue(File.Exists(Path.Combine(
                 dir, "Plugins", "Neo.Plugins.L2Metrics", "config.json")));
             Assert.IsTrue(File.Exists(Path.Combine(
@@ -229,9 +237,10 @@ public class UT_NeoHubDeployReport
         {
             var first = NeoHubDeployReport.EnsureSettlementStoreDirectories(dir);
             var second = NeoHubDeployReport.EnsureSettlementStoreDirectories(dir);
-            Assert.AreEqual(5, first.Count);
-            Assert.AreEqual(5, second.Count);
+            Assert.AreEqual(6, first.Count);
+            Assert.AreEqual(6, second.Count);
             CollectionAssert.Contains(first.ToList(), NeoHubDeployReport.RelativeLocalDaStoreDir);
+            CollectionAssert.Contains(first.ToList(), NeoHubDeployReport.RelativeRpcProofStoreDir);
             foreach (var relative in first)
                 Assert.IsTrue(Directory.Exists(Path.Combine(dir, relative)));
         }

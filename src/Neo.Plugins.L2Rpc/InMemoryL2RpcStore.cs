@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using Neo.L2;
 using Neo.L2.Persistence;
 
@@ -76,6 +77,79 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore, IDisposable
         SecurityLevel = level;
         _proofs = proofs;
         _ownsProofs = ownsProofs;
+    }
+
+    /// <summary>
+    /// Open a host-composition RPC store from a chain working directory after
+    /// <c>create-chain</c> / <c>init-l2</c>: reads security labels from
+    /// <c>chain.config.json</c> and durable proof maps from RocksDB at
+    /// <see cref="NeoHubDeployReport.RelativeRpcProofStoreDir"/>.
+    /// </summary>
+    /// <remarks>
+    /// Caller owns disposal (disposes the owned RocksDB proof backend). Register the
+    /// returned store with <c>NeoSystem.AddService</c> before L2RpcPlugin registers methods.
+    /// </remarks>
+    public static InMemoryL2RpcStore OpenFromChainDirectory(string chainDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        var root = Path.GetFullPath(chainDirectory);
+        if (!Directory.Exists(root))
+            throw new DirectoryNotFoundException(
+                $"Chain directory not found: {root}. Run neo-stack init-l2 first.");
+
+        var configPath = Path.Combine(root, "chain.config.json");
+        if (!File.Exists(configPath))
+            throw new FileNotFoundException(
+                "chain.config.json not found — run neo-stack create-chain first", configPath);
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(configPath));
+        var cfg = doc.RootElement;
+        if (!cfg.TryGetProperty("chainId", out var chainIdEl)
+            || !chainIdEl.TryGetUInt32(out var chainId))
+            throw new InvalidDataException("chain.config.json missing chainId");
+        var securityLevel = ParseEnumRequired<SecurityLevel>(cfg, "securityLevel");
+        // Host composition allows Local DA for Multisig durability; ChainRegistry still
+        // rejects Local on register-chain (public labels only).
+        var daMode = ParseEnumRequired<DAMode>(cfg, "daMode");
+        var sequencer = ParseEnumRequired<SequencerModel>(cfg, "sequencerModel");
+        var exit = ParseEnumRequired<ExitModel>(cfg, "exitModel");
+        var gateway = ParseBoolRequired(cfg, "gatewayEnabled");
+        var permissionlessExit = ParseBoolRequired(cfg, "permissionlessExit");
+        // ExitModel + permissionlessExit should stay coherent; store Exit from enum.
+        _ = permissionlessExit;
+
+        NeoHubDeployReport.EnsureSettlementStoreDirectories(root);
+        var proofsPath = Path.Combine(root, NeoHubDeployReport.RelativeRpcProofStoreDir);
+        Directory.CreateDirectory(proofsPath);
+        var proofs = new RocksDbKeyValueStore(proofsPath);
+        return new InMemoryL2RpcStore(chainId, securityLevel, proofs, ownsProofs: true)
+        {
+            DAMode = daMode,
+            GatewayEnabled = gateway,
+            Sequencer = sequencer,
+            Exit = exit,
+        };
+    }
+
+    private static T ParseEnumRequired<T>(JsonElement root, string field) where T : struct, Enum
+    {
+        if (!root.TryGetProperty(field, out var prop)
+            || prop.ValueKind != JsonValueKind.String
+            || string.IsNullOrWhiteSpace(prop.GetString()))
+            throw new InvalidDataException($"chain.config.json missing '{field}'");
+        var name = prop.GetString()!;
+        if (!Enum.TryParse<T>(name, ignoreCase: true, out var value))
+            throw new InvalidDataException(
+                $"chain.config.json '{field}'='{name}' is not a valid {typeof(T).Name}");
+        return value;
+    }
+
+    private static bool ParseBoolRequired(JsonElement root, string field)
+    {
+        if (!root.TryGetProperty(field, out var prop)
+            || prop.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            throw new InvalidDataException($"chain.config.json missing boolean '{field}'");
+        return prop.GetBoolean();
     }
 
     private static byte[] BuildKey(byte prefix, UInt256 hash)

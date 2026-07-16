@@ -319,8 +319,11 @@ public sealed record NeoHubDeployReport(
                     ["metricsPluginFactory"] = "L2MetricsPlugin.CreateFromChainDirectory(chainDirectory)",
                     ["localDaPluginFactory"] = "L2DAPlugin.CreateLocalFromChainDirectory(chainDirectory)",
                     ["stateStore"] = RelativeStateDir,
+                    ["rpcProofStore"] = RelativeRpcProofStoreDir,
                     ["stateOpenHelper"] =
                         "Sp1SettlementExecutionStack.OpenStateFromChainDirectory(chainDirectory)",
+                    ["rpcStoreOpenHelper"] =
+                        "InMemoryL2RpcStore.OpenFromChainDirectory(chainDirectory)",
                     ["sp1StackFromChainDirectory"] =
                         "Sp1SettlementExecutionStack.CreateFromChainDirectory(chainDir, state, executorPath, executorSha256, vk)",
                     ["wireProductionFromLayout"] =
@@ -346,6 +349,9 @@ public sealed record NeoHubDeployReport(
                     "Multisig/Optimistic local DA: L2DAPlugin.CreateLocalFromChainDirectory(chainDir) "
                     + "or PersistentDAWriter.OpenLocalFromChainDirectory; public DAMode needs "
                     + "WithProductionBackend",
+                    "L2 RPC: InMemoryL2RpcStore.OpenFromChainDirectory(chainDir) then "
+                    + "NeoSystem.AddService(store) before L2RpcPlugin registers methods "
+                    + "(durable proofs under " + RelativeRpcProofStoreDir + ")",
                     "Zk: state = Sp1SettlementExecutionStack.OpenStateFromChainDirectory(chainDir) "
                     + "then CreateFromChainDirectory(chainDir, state, executorPath, executorSha256, vk) "
                     + "after bootstrap-genesis (ensures prover/executor-scratch + prover/inbox; "
@@ -432,6 +438,12 @@ public sealed record NeoHubDeployReport(
     public const string RelativeStateDir = "data/state";
 
     /// <summary>
+    /// Canonical RocksDB path for durable L2 RPC withdrawal/message inclusion proofs
+    /// (opened by <c>InMemoryL2RpcStore.OpenFromChainDirectory</c>).
+    /// </summary>
+    public const string RelativeRpcProofStoreDir = "data/rpc/proofs";
+
+    /// <summary>
     /// Create the canonical WireProduction durable-store directories under a chain layout.
     /// Safe to call repeatedly; does not open RocksDB (empty dirs only).
     /// </summary>
@@ -447,6 +459,7 @@ public sealed record NeoHubDeployReport(
             RelativeSharedBridgeDepositEventStoreDir,
             RelativeMessageRouterEventStoreDir,
             RelativeLocalDaStoreDir,
+            RelativeRpcProofStoreDir,
         };
         foreach (var path in relative)
             Directory.CreateDirectory(Path.Combine(chainDirectory, path));

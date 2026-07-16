@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — InMemoryL2RpcStore.OpenFromChainDirectory — 2026-07-17
+
+- Host composition opens durable L2 RPC proof storage at `data/rpc/proofs` and loads
+  chain security labels from `chain.config.json` (chainId, securityLevel, daMode,
+  sequencer/exit models, gateway flag).
+- `EnsureSettlementStoreDirectories` creates the RPC proofs dir; wireproduction notes
+  document `rpcStoreOpenHelper`.
+- Unit coverage: reopen withdrawal proofs + missing config fail-closed.
+
 ### Added — Metrics/DA host factories + deploy-report materialization — 2026-07-16
 
 - `L2MetricsSettings.FromChainDirectory` / `L2MetricsPlugin.CreateFromChainDirectory`

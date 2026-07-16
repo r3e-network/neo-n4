@@ -78,6 +78,77 @@ public class UT_L2RpcStore_Persistence
     }
 
     [TestMethod]
+    public void OpenFromChainDirectory_LoadsLabelsAndDurableProofs()
+    {
+        var chainDir = Path.Combine(Path.GetTempPath(), "neo-n4-rpc-cfd-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(chainDir, "chain.config.json"), """
+                {
+                  "chainId": 20260716,
+                  "template": "zk-rollup",
+                  "vm": "neovm2-riscv",
+                  "chainMode": "L2RollupMode",
+                  "daMode": "L1",
+                  "proofType": "Zk",
+                  "securityLevel": "Validity",
+                  "sequencerModel": "DbftCommittee",
+                  "exitModel": "Permissionless",
+                  "gatewayEnabled": true,
+                  "permissionlessExit": true,
+                  "milestonePerBlockMs": 5000,
+                  "validators": []
+                }
+                """);
+
+            var leaf = UInt256.Parse("0x" + new string('c', 64));
+            var proof = new byte[] { 0xCA, 0xFE };
+            using (var store = InMemoryL2RpcStore.OpenFromChainDirectory(chainDir))
+            {
+                Assert.AreEqual(20260716u, store.ChainId);
+                Assert.AreEqual(SecurityLevel.Validity, store.SecurityLevel);
+                Assert.AreEqual(DAMode.L1, store.DAMode);
+                Assert.IsTrue(store.GatewayEnabled);
+                Assert.AreEqual(SequencerModel.DbftCommittee, store.Sequencer);
+                Assert.AreEqual(ExitModel.Permissionless, store.Exit);
+                Assert.IsTrue(Directory.Exists(Path.Combine(
+                    chainDir, NeoHubDeployReport.RelativeRpcProofStoreDir)));
+                store.RecordWithdrawalProof(leaf, proof);
+            }
+
+            using (var reopened = InMemoryL2RpcStore.OpenFromChainDirectory(chainDir))
+            {
+                var got = reopened.GetWithdrawalProof(leaf);
+                Assert.IsNotNull(got);
+                CollectionAssert.AreEqual(proof, got.Value.ToArray());
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                try { Directory.Delete(chainDir, recursive: true); } catch { /* best-effort */ }
+        }
+    }
+
+    [TestMethod]
+    public void OpenFromChainDirectory_MissingConfig_FailsClosed()
+    {
+        var chainDir = Path.Combine(Path.GetTempPath(), "neo-n4-rpc-empty-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            Assert.ThrowsExactly<FileNotFoundException>(
+                () => InMemoryL2RpcStore.OpenFromChainDirectory(chainDir));
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void WithdrawalAndMessageProofs_DoNotCollide()
     {
         // Same UInt256 hash used as both a withdrawal leaf and a message hash must store

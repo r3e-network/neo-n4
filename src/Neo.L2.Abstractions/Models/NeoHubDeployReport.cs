@@ -285,7 +285,9 @@ public sealed record NeoHubDeployReport(
                     + "new RpcSequencerCommitteeProvider(rpc, sequencerRegistry, chainId, genesisKeys))",
                     "genesis state root: L2GenesisManifest.ReadInitialStateRootFromChainDirectory(chainDir) "
                     + "after bootstrap-genesis",
-                    "executor + DA writer + prover + profile (e.g. Sp1SettlementExecutionStack)",
+                    "profile: ProofWitnessPipelineProfile.LegacyFromChainDirectory(chainDir) for Multisig/Optimistic; "
+                    + "Sp1SettlementExecutionStack.Create for Zk",
+                    "executor + DA writer + prover (e.g. Sp1SettlementExecutionStack for Zk)",
                 },
             },
             ["genesisManifest"] = BootstrapGenesisManifestRelativePath,

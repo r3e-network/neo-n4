@@ -407,10 +407,11 @@ These are explicit deployment seams rather than missing protocol algorithms:
   `RpcMessageRouterEventScanner` when `MessageRouterHash` is configured.
   Hosts load materialised plugin config via `L2SettlementSettings.FromChainDirectory(chainDir)`
   and `L2BatchSettings.FromChainDirectory(chainDir)` (or `FromPluginConfigFile`); genesis root
-  via `L2GenesisManifest.ReadInitialStateRootFromChainDirectory`; local signer via
-  `LocalKeyTransactionSigner.FromEnvironmentVariable` / `FromWif` (production uses HSM/KMS).
-  `L2SettlementStoreLayout.Open(chainDir)` opens the canonical durable RocksDB stores under
-  `data/settlement/*` for proof-witness + the three scanners;
+  via `L2GenesisManifest.ReadInitialStateRootFromChainDirectory`; Multisig/Optimistic profile via
+  `ProofWitnessPipelineProfile.LegacyFromChainDirectory` (Zk uses `Sp1SettlementExecutionStack`);
+  local signer via `LocalKeyTransactionSigner.FromEnvironmentVariable` / `FromWif` (production
+  uses HSM/KMS). `L2SettlementStoreLayout.Open(chainDir)` opens the canonical durable RocksDB
+  stores under `data/settlement/*` for proof-witness + the three scanners;
   deploy heights and `L1FinalityDepth` come from that plugin config (materialized by
   `--from-deploy-report` when the evidence JSON has `blockIndex`) with optional per-scanner
   WireProduction overrides.

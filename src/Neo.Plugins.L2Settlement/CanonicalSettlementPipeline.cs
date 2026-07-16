@@ -121,6 +121,33 @@ public sealed record ProofWitnessPipelineProfile
             RequireCanonicalBlockContext = false,
         };
 
+    /// <summary>
+    /// Build a Multisig/Optimistic (non-ZK) profile from a chain working directory after
+    /// <c>bootstrap-genesis</c> and <c>init-l2 --from-deploy-report</c>.
+    /// </summary>
+    /// <remarks>
+    /// Reads <c>chainId</c>/<c>ProofType</c> from settlement plugin config and the genesis root
+    /// from <c>genesis-manifest.json</c>. ZK chains must use
+    /// <see cref="Sp1SettlementExecutionStack.Create"/> instead.
+    /// </remarks>
+    public static ProofWitnessPipelineProfile LegacyFromChainDirectory(
+        string chainDirectory,
+        bool requireProductionDA = false)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        var settings = L2SettlementSettings.FromChainDirectory(chainDirectory);
+        if (settings.ChainId == 0)
+            throw new InvalidDataException(
+                "settlement plugin config ChainId is unset — run init-l2 --from-deploy-report first");
+        var proofType = ProofTypeExtensions.Resolve(settings.ProofType);
+        if (proofType == ProofType.Zk)
+            throw new InvalidOperationException(
+                "LegacyFromChainDirectory does not support ProofType=Zk — use Sp1SettlementExecutionStack.Create "
+                + "with L2GenesisManifest.ReadInitialStateRootFromChainDirectory for the validity path");
+        var genesis = L2GenesisManifest.ReadInitialStateRootFromChainDirectory(chainDirectory);
+        return Legacy(settings.ChainId, proofType, genesis, requireProductionDA);
+    }
+
     internal void Validate()
     {
         ChainIdValidator.ValidateL2(ChainId);

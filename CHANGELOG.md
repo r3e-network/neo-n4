@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — ProofWitnessPipelineProfile.LegacyFromChainDirectory — 2026-07-16
+
+- `ProofWitnessPipelineProfile.LegacyFromChainDirectory` builds a Multisig/Optimistic
+  settlement profile from settlement plugin config + `genesis-manifest.json` after
+  `bootstrap-genesis` / `init-l2 --from-deploy-report`.
+- Fails closed for ProofType=Zk (directs hosts to `Sp1SettlementExecutionStack`) and for
+  missing config or genesis root.
+- Wireproduction notes document the profile helper.
+
 ### Added — L2GenesisManifest reader + LocalKeyTransactionSigner WIF factories — 2026-07-16
 
 - `L2GenesisManifest.ReadInitialStateRoot` / `ReadInitialStateRootFromChainDirectory` load the

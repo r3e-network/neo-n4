@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — L2BridgePlugin CreateFromChainDirectory + deploy-report config — 2026-07-17
+
+- `L2BridgeSettings.FromChainDirectory` / `L2BridgePlugin.CreateFromChainDirectory` preload
+  L2 `ChainId` and rebind deposit/withdrawal processors for host composition outside Neo.CLI.
+- Deploy-report materializes `Plugins/Neo.Plugins.L2Bridge/config.json` and documents
+  `bridgePluginFactory` in wireproduction notes.
+- Unit coverage: chain id load, missing config fail-closed, zero chain id fail-closed.
+
 ### Added — L2GatewayPlugin CreateFromChainDirectory + durable outbox layout — 2026-07-17
 
 - `L2GatewaySettings.FromChainDirectory` / `L2GatewayPlugin.CreateFromChainDirectory`

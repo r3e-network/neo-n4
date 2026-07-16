@@ -212,6 +212,21 @@ public sealed record NeoHubDeployReport(
             batchJson,
             alsoWriteFromDeployCopy: true));
 
+        // L2-side bridge: same chain id as batch/settlement for deposit consumer + withdrawal staging.
+        var bridge = new Dictionary<string, object?>
+        {
+            ["PluginConfiguration"] = new Dictionary<string, object?>
+            {
+                ["ChainId"] = L2ChainId,
+            },
+        };
+        var bridgeJson = JsonSerializer.Serialize(bridge, jsonOptions) + Environment.NewLine;
+        written.AddRange(WritePluginConfig(
+            chainDirectory,
+            "Neo.Plugins.L2Bridge",
+            bridgeJson,
+            alsoWriteFromDeployCopy: true));
+
         // Prover plugin: same ProofType byte as settlement so Stage-0/1/2 selection matches
         // WireProduction without re-typing chain.config.
         var prover = new Dictionary<string, object?>
@@ -333,6 +348,7 @@ public sealed record NeoHubDeployReport(
                     ["openHelper"] = "L2SettlementStoreLayout.Open(chainDirectory)",
                     ["batchPluginFactory"] = "L2BatchPlugin.CreateFromChainDirectory(chainDirectory)",
                     ["settlementPluginFactory"] = "L2SettlementPlugin.CreateFromChainDirectory(chainDirectory)",
+                    ["bridgePluginFactory"] = "L2BridgePlugin.CreateFromChainDirectory(chainDirectory)",
                     ["proverPluginFactory"] = "L2ProverPlugin.CreateFromChainDirectory(chainDirectory)",
                     ["metricsPluginFactory"] = "L2MetricsPlugin.CreateFromChainDirectory(chainDirectory)",
                     ["localDaPluginFactory"] = "L2DAPlugin.CreateLocalFromChainDirectory(chainDirectory)",
@@ -365,6 +381,8 @@ public sealed record NeoHubDeployReport(
                     + "(or L2SettlementSettings.FromChainDirectory + ctor)",
                     "L2BatchPlugin.CreateFromChainDirectory(chainDir) "
                     + "(or L2BatchSettings.FromChainDirectory + ctor)",
+                    "L2BridgePlugin.CreateFromChainDirectory(chainDir) then WithDepositSource / "
+                    + "WireL1MessageInbox on the batch plugin for SharedBridge drain",
                     "L2ProverPlugin.CreateFromChainDirectory(chainDir) then Wire(signerSet / "
                     + "optimisticProver / zkProver from Sp1 stack)",
                     "L2MetricsPlugin.CreateFromChainDirectory(chainDir) then WithMetrics on batch/"

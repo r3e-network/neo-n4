@@ -72,6 +72,77 @@ public class UT_L2BridgePlugin
     }
 
     [TestMethod]
+    public void CreateFromChainDirectory_LoadsChainIdAndProcessors()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-bridge-cfd-" + Guid.NewGuid().ToString("N"));
+        var configDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Bridge");
+        Directory.CreateDirectory(configDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(configDir, "config.json"), """
+                {
+                  "PluginConfiguration": {
+                    "ChainId": 20260716
+                  }
+                }
+                """);
+            using var plugin = L2BridgePlugin.CreateFromChainDirectory(dir);
+            Assert.AreEqual(20260716u, plugin.ChainId);
+            Assert.AreEqual(20260716u, plugin.Settings.ChainId);
+            Assert.AreEqual(20260716u, plugin.DepositProcessor.LocalChainId);
+            Assert.IsNotNull(plugin.WithdrawalProcessor);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void CreateFromChainDirectory_MissingConfig_FailsClosed()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-bridge-empty-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            Assert.ThrowsExactly<FileNotFoundException>(
+                () => L2BridgePlugin.CreateFromChainDirectory(dir));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void CreateFromChainDirectory_ZeroChainId_FailsClosed()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-bridge-zero-" + Guid.NewGuid().ToString("N"));
+        var configDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Bridge");
+        Directory.CreateDirectory(configDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(configDir, "config.json"), """
+                {
+                  "PluginConfiguration": {
+                    "ChainId": 0
+                  }
+                }
+                """);
+            // ChainIdValidator rejects L2 id 0 (L1 sentinel).
+            Assert.ThrowsExactly<InvalidDataException>(
+                () => L2BridgePlugin.CreateFromChainDirectory(dir));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void WithDepositSource_WiresPeek()
     {
         using var plugin = new L2BridgePlugin();

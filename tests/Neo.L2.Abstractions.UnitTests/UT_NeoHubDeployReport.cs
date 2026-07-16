@@ -162,8 +162,19 @@ public class UT_NeoHubDeployReport
                 "L2SettlementPlugin.CreateFromChainDirectory(chainDirectory)",
                 stores.GetProperty("settlementPluginFactory").GetString());
             Assert.AreEqual(
+                "L2BridgePlugin.CreateFromChainDirectory(chainDirectory)",
+                stores.GetProperty("bridgePluginFactory").GetString());
+            Assert.AreEqual(
                 "L2ProverPlugin.CreateFromChainDirectory(chainDirectory)",
                 stores.GetProperty("proverPluginFactory").GetString());
+            Assert.IsTrue(File.Exists(Path.Combine(
+                dir, "Plugins", "Neo.Plugins.L2Bridge", "config.json")));
+            var bridgeCfg = JsonDocument.Parse(File.ReadAllText(Path.Combine(
+                dir, "Plugins", "Neo.Plugins.L2Bridge", "config.json")));
+            Assert.AreEqual(
+                20260716u,
+                bridgeCfg.RootElement.GetProperty("PluginConfiguration")
+                    .GetProperty("ChainId").GetUInt32());
             Assert.AreEqual(
                 "L2MetricsPlugin.CreateFromChainDirectory(chainDirectory)",
                 stores.GetProperty("metricsPluginFactory").GetString());

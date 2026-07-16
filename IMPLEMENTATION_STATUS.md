@@ -177,7 +177,7 @@ interface:
 | `InMemoryForcedInclusionSource` (devnet/tests) | `RpcForcedInclusionSource` + `RpcForcedInclusionEventScanner` ship in `src/Neo.L2.ForcedInclusion/`. Production wiring scans finalized L1 blocks, parses contract-bound `ForcedTxEnqueued` application logs, durably persists each nonce before advancing a hash-verified restart cursor, then issues parallel `getEntry` + `isConsumed` reads and returns deadline order. Finalized-history mismatch and malformed logs fail closed; manual `RegisterNonce` is recovery-only. | `IForcedInclusionSource` |
 | In-process deposit injection (devnet) | `RpcSharedBridgeDepositSource` + scanner + `InMemorySharedBridgeDepositSource`. Full lifecycle: **Scan at seal** (`L1MessageDrain.FromDeposits`) → **Drain (reserve)** → durable batch seal → **ConfirmConsumed** (or **ReleaseReservations** on persist failure). `L2BatchPlugin.WireL1MessageInbox` is the production composition root for deposits ± MessageRouter; `L2SettlementPlugin.Wire` / `WireProduction` attach the same inbox before the sealed-batch sink (and may own the RPC deposit source when `SharedBridgeHash` is set). Unit evidence covers scan-at-seal, seal-confirm, persist-fail release/retry, and settlement wiring fail-closed. | `ISharedBridgeDepositSource` |
 | `InMemoryMessageRouter` (devnet/tests) | `RpcMessageRouter` + `RpcMessageRouterEventScanner` ship in `src/Neo.L2.Messaging/`. Production discovers finalized `L1ToL2Enqueued` events (durable cursor), then polls `getL1ToL2` + `isConsumed`; local outbox for outbound; pluggable finalized-proof store for `GetMessageProofAsync`. `WireProduction` owns the stack when `MessageRouterHash` is set and installs it on `L2BatchPlugin` via `WireL1MessageInbox` (exposed as `batchPlugin.MessageRouter`). Seal-path unit evidence covers router-only and deposit+router merged inboxes. `DecodeMessage` recomputes the canonical hash via `MessageHasher` — never trusts an off-wire hash | `IMessageRouter` |
-| `InMemorySettlementClient` | `L2SettlementPlugin.WireProduction` constructs the real `RpcSettlementClient` + network-pinned `RpcTransactionSender` + durable forced-inclusion event scanner/source/finalizer; operator supplies the reviewed `INeoTransactionSigner`, deployment height, and caller-owned RocksDB event store | `ISettlementClient` / `INeoTransactionSigner` |
+| `InMemorySettlementClient` | `L2SettlementPlugin.WireProduction` constructs the real `RpcSettlementClient` + network-pinned `RpcTransactionSender` + durable forced-inclusion event scanner/source/finalizer; operator supplies the reviewed `INeoTransactionSigner` and opens RocksDB at the recommended `data/settlement/*` paths (heights default from plugin config when set by `--from-deploy-report`) | `ISettlementClient` / `INeoTransactionSigner` |
 | `InMemoryDAWriter`, `NeoFsLikeDAWriter` (dev/sim only) | Production: `NeoFsRestDAWriter` + `NeoFsRestDAReader` via `WithProductionBackend`, or a reviewed NeoFS SDK adapter with independent retrieval | `IProductionDAWriter` / `IProductionDAReader` |
 | `JsonRpcL1DAWriter` (signer = delegate), `CommitteeAttestedDAWriter` (committee = delegate) | Signed L1 transactions / real DAC committee credentials supplied through DI | `IDAWriter` |
 
@@ -379,18 +379,21 @@ real secp256k1 signatures.
 
 Key hashes: ChainRegistry `0x65201c54…2d23`, SettlementManager `0x11448868…bb51`, SharedBridge `0xf2f5114b…b241`, MessageRouter `0x3caf3c6e…fe90`, ForcedInclusion `0x962829ae…55a9`, Sp1Groth16Verifier `0x1004bb51…0c4d`. Scanner deploy heights: ForcedInclusion `17729309`, SharedBridge `17729307`, MessageRouter `17729303`.
 
-Still **not** closed: full L2 node process stack against a reviewed Neo.CLI binary, 4-SDK live fixture,
-production DA credentials, real SP1 proof vectors. Locally the operator path is complete:
+Still **not** closed (funded / operator binary gates): full L2 node process stack against a reviewed
+Neo.CLI binary, 4-SDK live fixture, production DA credentials, real SP1 proof vectors.
+
+**Code-complete operator path** (local layout + L1 registration encoding/broadcast/verify):
 
 ```bash
 neo-stack create-chain --chain-id 20260716 --output ./my-l2 --template zk-rollup
 neo-stack init-l2 --chain-id 20260716 --output ./my-l2 \
   --from-deploy-report docs/audit/testnet-deployment-20260716-live.json
-# settlement config ProofType=Zk from chain.config; batch config + wireproduction-notes
+# settlement config: ProofType=Zk, *DeploymentHeight from evidence blockIndex,
+# data/settlement/* durable store dirs + l1.wireproduction-notes.json
 neo-stack bootstrap-genesis --chain-id 20260716 --output ./my-l2
 neo-stack register-chain --chain-id 20260716 --output ./my-l2 \
   --from-deploy-report docs/audit/testnet-deployment-20260716-live.json
-# genesis-manifest.json auto-detected; optional --broadcast + NEO_N4_OPERATOR_WIF
+# genesis-manifest auto-detected; --broadcast signs+confirms then isActive/genesis verify
 ```
 
 ## Production integrations still operator-supplied

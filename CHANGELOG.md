@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — WireProduction store layout + register-chain post-verify — 2026-07-16
+
+- Canonical settlement durable-store directories under the chain root:
+  `data/settlement/{proof-witness,forced-inclusion-events,shared-bridge-deposits,message-router-events}`.
+  Created by `init-l2` and by `NeoHubDeployReport.WriteOperatorArtifacts` / `EnsureSettlementStoreDirectories`.
+- `l1.wireproduction-notes.json` lists `recommendedDurableStores` for those paths.
+- `register-chain --broadcast` after HALT confirmation calls `ChainRegistry.isActive` and
+  `getGenesisStateRoot` and fails closed if the chain is inactive or the genesis root mismatches.
+- `RpcContractReader.ParseBoolean` accepts JSON boolean values as well as `"true"`/`"false"` strings.
+
 ### Added — settlement plugin config materializes scanner deploy heights — 2026-07-16
 
 - `L2SettlementSettings` accepts `ForcedInclusionDeploymentHeight`,

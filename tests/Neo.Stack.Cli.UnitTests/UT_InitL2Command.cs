@@ -51,6 +51,10 @@ public class UT_InitL2Command
         Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "batcher-node", "Plugins")), "batcher-node/Plugins must be created");
         Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "prover", "inbox")), "prover inbox must be created");
         Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "prover", "archive")), "prover archive must be created");
+        Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "data", "settlement", "proof-witness")));
+        Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "data", "settlement", "forced-inclusion-events")));
+        Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "data", "settlement", "shared-bridge-deposits")));
+        Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "data", "settlement", "message-router-events")));
     }
 
     [TestMethod]

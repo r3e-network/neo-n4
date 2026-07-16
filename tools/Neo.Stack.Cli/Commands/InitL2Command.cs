@@ -78,6 +78,8 @@ internal static class InitL2Command
         Directory.CreateDirectory(Path.Combine(path, "batcher-node", "Plugins"));
         Directory.CreateDirectory(Path.Combine(path, "prover", "inbox"));
         Directory.CreateDirectory(Path.Combine(path, "prover", "archive"));
+        // Canonical WireProduction RocksDB roots (empty until the host opens them).
+        NeoHubDeployReport.EnsureSettlementStoreDirectories(path);
         if (nodeConfigBytes is not null)
         {
             File.WriteAllBytes(nodeConfigDestination, nodeConfigBytes);

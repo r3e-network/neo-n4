@@ -87,9 +87,14 @@ public static class RpcContractReader
         if (token is not JObject obj) throw new InvalidOperationException("expected JObject");
         var typeStr = obj["type"]?.AsString();
         var value = obj["value"]?.AsString();
-        // Neo represents booleans either as type="Boolean" with value="true"/"false" or as
-        // an Integer/ByteString 0/1 — handle all shapes.
-        if (typeStr == "Boolean") return value == "true";
+        // Neo represents booleans either as type="Boolean" with value true/false (JSON bool
+        // or "true"/"false" string) or as an Integer/ByteString 0/1 — handle all shapes.
+        if (typeStr == "Boolean")
+        {
+            if (obj["value"] is JBoolean jb)
+                return jb.AsBoolean();
+            return string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
+        }
         return ParseInteger(token) != 0;
     }
 

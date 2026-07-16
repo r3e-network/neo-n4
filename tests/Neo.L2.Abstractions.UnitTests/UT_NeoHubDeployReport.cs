@@ -133,6 +133,39 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(17729309u, plugin.GetProperty("ForcedInclusionDeploymentHeight").GetUInt32());
             Assert.AreEqual(17729307u, plugin.GetProperty("SharedBridgeDeploymentHeight").GetUInt32());
             Assert.AreEqual(17729303u, plugin.GetProperty("MessageRouterDeploymentHeight").GetUInt32());
+
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                dir, NeoHubDeployReport.RelativeProofWitnessStoreDir)));
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                dir, NeoHubDeployReport.RelativeForcedInclusionEventStoreDir)));
+            var stores = notes.RootElement.GetProperty("wireProduction")
+                .GetProperty("recommendedDurableStores");
+            Assert.AreEqual(
+                NeoHubDeployReport.RelativeProofWitnessStoreDir,
+                stores.GetProperty("proofWitnessStore").GetString());
+            Assert.AreEqual(
+                NeoHubDeployReport.RelativeForcedInclusionEventStoreDir,
+                stores.GetProperty("forcedInclusionEventStore").GetString());
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void EnsureSettlementStoreDirectories_Idempotent()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-store-dirs-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var first = NeoHubDeployReport.EnsureSettlementStoreDirectories(dir);
+            var second = NeoHubDeployReport.EnsureSettlementStoreDirectories(dir);
+            Assert.AreEqual(4, first.Count);
+            Assert.AreEqual(4, second.Count);
+            foreach (var relative in first)
+                Assert.IsTrue(Directory.Exists(Path.Combine(dir, relative)));
         }
         finally
         {

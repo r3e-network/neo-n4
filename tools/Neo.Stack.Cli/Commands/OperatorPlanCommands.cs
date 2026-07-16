@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Neo.Extensions.VM;
 using Neo.L2;
+using Neo.L2.Settlement.Rpc;
 using Neo.SmartContract;
 using Neo.SmartContract.Native;
 using Neo.VM;
@@ -208,10 +209,12 @@ internal static class RegisterChainCommand
                         chainId,
                         bytes,
                         genesisStateRoot);
-                    return OperatorTransactionBroadcaster.BroadcastAsync(
+                    return BroadcastAndVerifyRegistrationAsync(
                         args,
                         scriptBuilder.ToArray(),
-                        $"chain {chainId} registration");
+                        chainId,
+                        chainRegistry,
+                        genesisStateRoot);
                 }
                 Console.WriteLine();
                 Console.WriteLine($"Next steps:");
@@ -266,6 +269,78 @@ internal static class RegisterChainCommand
         next[^2] = flag;
         next[^1] = value;
         return next;
+    }
+
+    /// <summary>
+    /// Broadcast registerChain then fail closed unless ChainRegistry.isActive(chainId)
+    /// and getGenesisStateRoot(chainId) match the just-submitted trust anchor.
+    /// </summary>
+    private static async Task<int> BroadcastAndVerifyRegistrationAsync(
+        string[] args,
+        byte[] script,
+        uint chainId,
+        UInt160 chainRegistry,
+        UInt256 expectedGenesisRoot)
+    {
+        var broadcastRc = await OperatorTransactionBroadcaster.BroadcastAsync(
+            args,
+            script,
+            $"chain {chainId} registration").ConfigureAwait(false);
+        if (broadcastRc != 0)
+            return broadcastRc;
+
+        var rpcValue = ArgUtil.Get(args, "--rpc", "");
+        if (!Uri.TryCreate(rpcValue, UriKind.Absolute, out var rpcEndpoint)
+            || rpcEndpoint.Scheme is not ("http" or "https"))
+        {
+            Console.Error.WriteLine(
+                "post-registration verify skipped: --rpc is missing after broadcast");
+            return 14;
+        }
+
+        try
+        {
+            using var rpc = new JsonRpcClient(rpcEndpoint.AbsoluteUri);
+            var activeItem = await RpcContractReader.InvokeReadAsync(
+                rpc,
+                chainRegistry,
+                "isActive",
+                new object[] { chainId },
+                default).ConfigureAwait(false);
+            if (!RpcContractReader.ParseBoolean(activeItem))
+            {
+                Console.Error.WriteLine(
+                    $"post-registration verify failed: ChainRegistry.isActive({chainId}) is false");
+                return 15;
+            }
+
+            var rootItem = await RpcContractReader.InvokeReadAsync(
+                rpc,
+                chainRegistry,
+                "getGenesisStateRoot",
+                new object[] { chainId },
+                default).ConfigureAwait(false);
+            var onChainRoot = RpcContractReader.ParseUInt256(rootItem);
+            if (!onChainRoot.Equals(expectedGenesisRoot))
+            {
+                Console.Error.WriteLine(
+                    $"post-registration verify failed: getGenesisStateRoot({chainId})={onChainRoot} "
+                    + $"differs from submitted genesis {expectedGenesisRoot}");
+                return 16;
+            }
+
+            Console.WriteLine();
+            Console.WriteLine($"post-registration verify ok:");
+            Console.WriteLine($"  isActive({chainId})          : true");
+            Console.WriteLine($"  getGenesisStateRoot({chainId}): {onChainRoot}");
+            return 0;
+        }
+        catch (Exception exception)
+        {
+            Console.Error.WriteLine(
+                $"post-registration verify failed: {exception.Message}");
+            return 17;
+        }
     }
 
 }

@@ -122,6 +122,9 @@ public sealed record NeoHubDeployReport(
         var written = new List<string>();
         var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
 
+        foreach (var storeDir in EnsureSettlementStoreDirectories(chainDirectory))
+            written.Add(storeDir + Path.DirectorySeparatorChar);
+
         var deployed = new Dictionary<string, object?>
         {
             ["rpc"] = Rpc,
@@ -236,16 +239,27 @@ public sealed record NeoHubDeployReport(
                 ["deploymentHeights"] = deployHeights,
                 ["missingDeploymentHeights"] = missingHeights,
                 ["heightsInPluginConfig"] = missingHeights.Length == 0,
+                ["recommendedDurableStores"] = new Dictionary<string, object?>
+                {
+                    ["proofWitnessStore"] = RelativeProofWitnessStoreDir,
+                    ["forcedInclusionEventStore"] = RelativeForcedInclusionEventStoreDir,
+                    ["sharedBridgeDepositEventStore"] = RelativeSharedBridgeDepositEventStoreDir,
+                    ["messageRouterEventStore"] = RelativeMessageRouterEventStoreDir,
+                },
                 ["requiredCallerArgs"] = new[]
                 {
                     "INeoTransactionSigner",
-                    "durable proofWitnessStore",
-                    "durable forcedInclusionEventStore "
-                    + "(ForcedInclusionDeploymentHeight from plugin config when set)",
-                    "durable sharedBridgeDepositEventStore "
-                    + "(SharedBridgeDeploymentHeight from plugin config when SharedBridgeHash set)",
-                    "durable messageRouterEventStore "
-                    + "(MessageRouterDeploymentHeight from plugin config when MessageRouterHash set)",
+                    "durable proofWitnessStore (recommended: "
+                    + RelativeProofWitnessStoreDir + ")",
+                    "durable forcedInclusionEventStore (recommended: "
+                    + RelativeForcedInclusionEventStoreDir
+                    + "; ForcedInclusionDeploymentHeight from plugin config when set)",
+                    "durable sharedBridgeDepositEventStore (recommended: "
+                    + RelativeSharedBridgeDepositEventStoreDir
+                    + "; SharedBridgeDeploymentHeight from plugin config when SharedBridgeHash set)",
+                    "durable messageRouterEventStore (recommended: "
+                    + RelativeMessageRouterEventStoreDir
+                    + "; MessageRouterDeploymentHeight from plugin config when MessageRouterHash set)",
                     "l1FinalizedHeight + sequencerCommitteeHash providers",
                 },
             },
@@ -270,6 +284,39 @@ public sealed record NeoHubDeployReport(
 
     /// <summary>Relative path of the genesis manifest written by <c>bootstrap-genesis</c>.</summary>
     public const string BootstrapGenesisManifestRelativePath = "genesis-manifest.json";
+
+    /// <summary>Canonical RocksDB path for proof-witness durable store (relative to chain dir).</summary>
+    public const string RelativeProofWitnessStoreDir = "data/settlement/proof-witness";
+
+    /// <summary>Canonical RocksDB path for ForcedInclusion event scanner store.</summary>
+    public const string RelativeForcedInclusionEventStoreDir = "data/settlement/forced-inclusion-events";
+
+    /// <summary>Canonical RocksDB path for SharedBridge deposit event scanner store.</summary>
+    public const string RelativeSharedBridgeDepositEventStoreDir = "data/settlement/shared-bridge-deposits";
+
+    /// <summary>Canonical RocksDB path for MessageRouter L1→L2 event scanner store.</summary>
+    public const string RelativeMessageRouterEventStoreDir = "data/settlement/message-router-events";
+
+    /// <summary>
+    /// Create the canonical WireProduction durable-store directories under a chain layout.
+    /// Safe to call repeatedly; does not open RocksDB (empty dirs only).
+    /// </summary>
+    /// <returns>Relative paths created or already present.</returns>
+    public static IReadOnlyList<string> EnsureSettlementStoreDirectories(string chainDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        Directory.CreateDirectory(chainDirectory);
+        var relative = new[]
+        {
+            RelativeProofWitnessStoreDir,
+            RelativeForcedInclusionEventStoreDir,
+            RelativeSharedBridgeDepositEventStoreDir,
+            RelativeMessageRouterEventStoreDir,
+        };
+        foreach (var path in relative)
+            Directory.CreateDirectory(Path.Combine(chainDirectory, path));
+        return relative;
+    }
 
     /// <summary>
     /// Map <c>chain.config.json</c> <c>proofType</c> name to the settlement plugin byte.

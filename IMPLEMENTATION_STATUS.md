@@ -379,7 +379,7 @@ real secp256k1 signatures.
 | ForcedInclusion | nonce 1 enqueued (`0x73924dce…f412`, HALT); needs `WitnessScope.Global` for fee transfer |
 | SharedBridge deposit | **code fix** on master: `Transaction.Sender` + CheckWitness (ABI stable). **Deployed testnet** still runs pre-fix bytecode until SharedBridge redeploy + chain update. Nested NEP-17 needs `--witness-scope Global`. |
 | Local Multisig DA | **code-complete**: `PersistentDAWriter.OpenLocalFromChainDirectory` → `data/settlement/da` |
-| Host WireProduction | **code-complete**: `WireProductionFromLayout(chainDir, layout, …)` binds stores + committee + Multisig/Optimistic profile; Zk still uses Sp1 stack + production DA |
+| Host WireProduction | **code-complete**: `CreateFromChainDirectory` (batch + settlement) + `WireProductionFromLayout(chainDir, layout, …)` binds stores + committee + Multisig/Optimistic profile; Zk still uses Sp1 stack + production DA |
 | Evidence | [`docs/audit/testnet-deployment-20260716-live.json`](./docs/audit/testnet-deployment-20260716-live.json), [`docs/audit/testnet-evidence-status-2026-07-16.json`](./docs/audit/testnet-evidence-status-2026-07-16.json) |
 
 Key hashes: ChainRegistry `0x65201c54…2d23`, SettlementManager `0x11448868…bb51`, SharedBridge `0xf2f5114b…b241`, MessageRouter `0x3caf3c6e…fe90`, ForcedInclusion `0x962829ae…55a9`, TokenRegistry `0x96ae4655…505b`, Sp1Groth16Verifier `0x1004bb51…0c4d`. Scanner deploy heights: ForcedInclusion `17729309`, SharedBridge `17729307`, MessageRouter `17729303`.
@@ -411,14 +411,16 @@ These are explicit deployment seams rather than missing protocol algorithms:
   forced-inclusion finalization, optionally an owned `RpcSharedBridgeDepositSource` when
   `SharedBridgeHash` is configured, and optionally an owned `RpcMessageRouter` +
   `RpcMessageRouterEventScanner` when `MessageRouterHash` is configured.
-  Hosts load materialised plugin config via `L2SettlementSettings.FromChainDirectory(chainDir)`
-  and `L2BatchSettings.FromChainDirectory(chainDir)` (or `FromPluginConfigFile`); genesis root
-  via `L2GenesisManifest.ReadInitialStateRootFromChainDirectory`; Multisig/Optimistic profile via
-  `ProofWitnessPipelineProfile.LegacyFromChainDirectory` (Zk uses `Sp1SettlementExecutionStack`);
-  local signer via `LocalKeyTransactionSigner.FromEnvironmentVariable` / `FromWif` (production
-  uses HSM/KMS). `L2SettlementStoreLayout.Open(chainDir)` opens the canonical durable RocksDB
-  stores under `data/settlement/*` for proof-witness + the three scanners; Multisig hosts may
-  call `WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer)` to bind
+  Hosts construct plugins via `L2SettlementPlugin.CreateFromChainDirectory(chainDir)` and
+  `L2BatchPlugin.CreateFromChainDirectory(chainDir)` (or load
+  `L2SettlementSettings` / `L2BatchSettings` with `FromChainDirectory` / `FromPluginConfigFile`);
+  genesis root via `L2GenesisManifest.ReadInitialStateRootFromChainDirectory`; Multisig/Optimistic
+  profile via `ProofWitnessPipelineProfile.LegacyFromChainDirectory` (Zk uses
+  `Sp1SettlementExecutionStack`); local signer via `LocalKeyTransactionSigner.FromEnvironmentVariable`
+  / `FromWif` (production uses HSM/KMS). `L2SettlementStoreLayout.Open(chainDir)` opens the
+  canonical durable RocksDB stores under `data/settlement/*` for proof-witness + the three
+  scanners; Multisig hosts may call
+  `WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer)` to bind
   those stores, static committee hash from `chain.config` validators, and the legacy profile in
   one step (executor/DA/prover/signer remain explicit). Deploy heights and `L1FinalityDepth`
   come from plugin config (materialized by `--from-deploy-report` when evidence has `blockIndex`)

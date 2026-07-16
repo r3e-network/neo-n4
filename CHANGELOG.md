@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — CreateFromChainDirectory for batch + settlement plugins — 2026-07-16
+
+- `L2BatchPlugin.CreateFromChainDirectory` and `L2SettlementPlugin.CreateFromChainDirectory`
+  preload plugin settings from `init-l2` / `--from-deploy-report` layout without the Neo
+  plugin config loader (host WireProduction composition outside Neo.CLI).
+- Wireproduction notes document `batchPluginFactory` / `settlementPluginFactory`.
+
 ### Added — WireProductionFromLayout host composition root — 2026-07-16
 
 - `L2SettlementPlugin.WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer)`

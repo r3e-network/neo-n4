@@ -107,6 +107,27 @@ public class UT_L2BatchSettings
             Assert.AreEqual(20260716u, batch.ChainId);
             Assert.AreEqual(50, batch.MaxBlocksPerBatch);
             Assert.AreEqual(5_000, batch.MaxTransactionsPerBatch);
+
+            using var plugin = L2BatchPlugin.CreateFromChainDirectory(dir);
+            Assert.AreEqual(20260716u, plugin.Settings.ChainId);
+            Assert.AreEqual(batch.MaxBlocksPerBatch, plugin.Settings.MaxBlocksPerBatch);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void CreateFromChainDirectory_MissingConfig_FailsClosed()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-batch-empty-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            Assert.ThrowsExactly<FileNotFoundException>(
+                () => L2BatchPlugin.CreateFromChainDirectory(dir));
         }
         finally
         {

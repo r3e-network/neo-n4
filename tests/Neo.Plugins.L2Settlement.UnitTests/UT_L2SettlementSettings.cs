@@ -350,6 +350,29 @@ public class UT_L2SettlementSettings
             Assert.IsFalse(string.IsNullOrWhiteSpace(s.SharedBridgeHash));
             Assert.IsFalse(string.IsNullOrWhiteSpace(s.MessageRouterHash));
             _ = s.ValidateProduction();
+
+            using var plugin = L2SettlementPlugin.CreateFromChainDirectory(dir);
+            Assert.AreEqual(s.ChainId, plugin.Settings.ChainId);
+            Assert.AreEqual(s.ProofType, plugin.Settings.ProofType);
+            Assert.AreEqual(s.ForcedInclusionDeploymentHeight, plugin.Settings.ForcedInclusionDeploymentHeight);
+            Assert.AreEqual(s.SettlementManagerHash, plugin.Settings.SettlementManagerHash);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void CreateFromChainDirectory_MissingConfig_FailsClosed()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-settlement-empty-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            Assert.ThrowsExactly<FileNotFoundException>(
+                () => L2SettlementPlugin.CreateFromChainDirectory(dir));
         }
         finally
         {

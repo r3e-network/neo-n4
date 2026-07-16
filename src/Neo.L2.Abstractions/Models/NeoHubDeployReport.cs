@@ -257,6 +257,8 @@ public sealed record NeoHubDeployReport(
                     ["messageRouterEventStore"] = RelativeMessageRouterEventStoreDir,
                     ["localDaStore"] = RelativeLocalDaStoreDir,
                     ["openHelper"] = "L2SettlementStoreLayout.Open(chainDirectory)",
+                    ["batchPluginFactory"] = "L2BatchPlugin.CreateFromChainDirectory(chainDirectory)",
+                    ["settlementPluginFactory"] = "L2SettlementPlugin.CreateFromChainDirectory(chainDirectory)",
                     ["wireProductionFromLayout"] =
                         "L2SettlementPlugin.WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer)",
                     ["localDaOpenHelper"] = "PersistentDAWriter.OpenLocalFromChainDirectory(chainDirectory)",
@@ -267,8 +269,10 @@ public sealed record NeoHubDeployReport(
                     + "for local/testnet (use WitnessScope.Global when nested NEP-17 transfers "
                     + "are required: SharedBridge.Deposit / ForcedInclusion fees); "
                     + "production uses HSM/KMS INeoTransactionSigner",
-                    "L2SettlementSettings.FromChainDirectory(chainDir) → new L2SettlementPlugin(settings)",
-                    "L2BatchSettings.FromChainDirectory(chainDir) (or FromPluginConfigFile)",
+                    "L2SettlementPlugin.CreateFromChainDirectory(chainDir) "
+                    + "(or L2SettlementSettings.FromChainDirectory + ctor)",
+                    "L2BatchPlugin.CreateFromChainDirectory(chainDir) "
+                    + "(or L2BatchSettings.FromChainDirectory + ctor)",
                     "L2SettlementStoreLayout.Open(chainDir) then "
                     + "WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer) "
                     + "— binds ProofWitness + three scanners, static committee hash from "

@@ -155,6 +155,12 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "L2SettlementPlugin.WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer)",
                 stores.GetProperty("wireProductionFromLayout").GetString());
+            Assert.AreEqual(
+                "L2BatchPlugin.CreateFromChainDirectory(chainDirectory)",
+                stores.GetProperty("batchPluginFactory").GetString());
+            Assert.AreEqual(
+                "L2SettlementPlugin.CreateFromChainDirectory(chainDirectory)",
+                stores.GetProperty("settlementPluginFactory").GetString());
             Assert.IsTrue(Directory.Exists(Path.Combine(
                 dir, NeoHubDeployReport.RelativeLocalDaStoreDir)));
         }

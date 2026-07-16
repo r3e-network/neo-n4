@@ -38,6 +38,21 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         _settings = settings;
     }
 
+    /// <summary>
+    /// Host composition factory: preload settings from a chain working directory
+    /// (<c>init-l2</c> / <c>--from-deploy-report</c>) without the Neo plugin config loader.
+    /// </summary>
+    /// <remarks>
+    /// Pair with <see cref="L2SettlementStoreLayout.Open"/> and
+    /// <see cref="WireProductionFromLayout"/> for Multisig/Optimistic local hosts.
+    /// Zk hosts still supply Sp1 executor/DA/prover + explicit profile.
+    /// </remarks>
+    public static L2SettlementPlugin CreateFromChainDirectory(string chainDirectory)
+        => new(L2SettlementSettings.FromChainDirectory(chainDirectory));
+
+    /// <summary>Loaded settlement settings (host composition / tests).</summary>
+    internal L2SettlementSettings Settings => _settings;
+
     /// <inheritdoc />
     public override string Name => "L2SettlementPlugin";
 

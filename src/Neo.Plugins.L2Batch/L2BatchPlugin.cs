@@ -237,6 +237,22 @@ public sealed class L2BatchPlugin : Plugin
         _settings = settings;
     }
 
+    /// <summary>
+    /// Host composition factory: preload batch thresholds and chain id from a chain
+    /// working directory (<c>init-l2</c> / <c>--from-deploy-report</c>) without the Neo
+    /// plugin config loader.
+    /// </summary>
+    /// <remarks>
+    /// Prefer this over the parameterless constructor when wiring settlement
+    /// <c>WireProductionFromLayout</c> outside Neo.CLI so seal-time chain-id checks
+    /// match the settlement plugin.
+    /// </remarks>
+    public static L2BatchPlugin CreateFromChainDirectory(string chainDirectory)
+        => new(L2BatchSettings.FromChainDirectory(chainDirectory));
+
+    /// <summary>Loaded batch settings (host composition / tests).</summary>
+    internal L2BatchSettings Settings => _settings;
+
     /// <inheritdoc />
     /// <remarks>
     /// neo-project/neo master sealed the public <c>Dispose()</c> and routes cleanup through

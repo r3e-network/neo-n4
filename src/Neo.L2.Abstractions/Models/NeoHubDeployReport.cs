@@ -397,6 +397,12 @@ public sealed record NeoHubDeployReport(
                         "L2SettlementPlugin.WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer)",
                     ["multisigLocalHostComposition"] =
                         "MultisigLocalHostComposition.Open(chainDir, executor, signers, signer)",
+                    ["optimisticLocalHostComposition"] =
+                        "OptimisticLocalHostComposition.Open(chainDir, executor, sequencerKey, bondContract, bondTxHash, signer)",
+                    ["gatewayHostCompositionMerkle"] =
+                        "GatewayHostComposition.OpenMerkle(chainDir, proofProver, signer, replayDomain, vk)",
+                    ["gatewayHostCompositionSp1"] =
+                        "GatewayHostComposition.OpenSp1(chainDir, gatewayVk, signer, replayDomain, vk)",
                     ["localDaOpenHelper"] = "PersistentDAWriter.OpenLocalFromChainDirectory(chainDirectory)",
                     ["depositSourceFromChainDirectory"] =
                         "L2SettlementPlugin.CreateDepositSourceFromChainDirectory(chainDirectory)",

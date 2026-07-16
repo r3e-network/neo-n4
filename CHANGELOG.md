@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — OptimisticLocalHostComposition + GatewayHostComposition — 2026-07-17
+
+- `OptimisticLocalHostComposition.Open` mirrors Multisig: Optimistic settlement + local DA +
+  `CreateOptimisticWiredFromChainDirectory` + `WireProductionFromLayout` (bond refs host-supplied).
+- `GatewayHostComposition.OpenMerkle` / `OpenSp1` bind durable Gateway +
+  `ProofBoundRpcGlobalRootPublisher` + `ConfigureGlobalRootPublicationFromChainDirectory`
+  in one fail-closed call (lives in Gateway.Rpc to avoid plugin cycles).
+- Wireproduction notes + unit coverage. Funded L1 confirmation and gateway daemon remain
+  operator gates.
+
 ### Added — MultisigLocalHostComposition chain-directory root — 2026-07-17
 
 - `MultisigLocalHostComposition.Open(chainDir, executor, signers, signer)` opens Multisig

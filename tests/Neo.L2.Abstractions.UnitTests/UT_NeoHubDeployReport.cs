@@ -159,6 +159,15 @@ public class UT_NeoHubDeployReport
                 "MultisigLocalHostComposition.Open(chainDir, executor, signers, signer)",
                 stores.GetProperty("multisigLocalHostComposition").GetString());
             Assert.AreEqual(
+                "OptimisticLocalHostComposition.Open(chainDir, executor, sequencerKey, bondContract, bondTxHash, signer)",
+                stores.GetProperty("optimisticLocalHostComposition").GetString());
+            Assert.AreEqual(
+                "GatewayHostComposition.OpenMerkle(chainDir, proofProver, signer, replayDomain, vk)",
+                stores.GetProperty("gatewayHostCompositionMerkle").GetString());
+            Assert.AreEqual(
+                "GatewayHostComposition.OpenSp1(chainDir, gatewayVk, signer, replayDomain, vk)",
+                stores.GetProperty("gatewayHostCompositionSp1").GetString());
+            Assert.AreEqual(
                 "L2BatchPlugin.CreateFromChainDirectory(chainDirectory)",
                 stores.GetProperty("batchPluginFactory").GetString());
             Assert.AreEqual(

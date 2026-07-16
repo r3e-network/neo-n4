@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — L1FinalityDepth plugin config + SequencerRegistry materialization — 2026-07-16
+
+- `L2SettlementSettings.L1FinalityDepth` (default 1) is read from plugin config;
+  `WireProduction` applies it to ForcedInclusion / SharedBridge / MessageRouter scanners
+  when the corresponding finality-depth method args are omitted (`uint?` null).
+- Deploy-report materialization writes `L1FinalityDepth` into settlement config and
+  surfaces `sequencerRegistry` in `l1.deployed.json` + wireproduction notes for
+  `RpcSequencerCommitteeProvider` bootstrap.
+- Quick-path integration asserts live-evidence deployment heights, store dirs, and
+  SequencerRegistry hash against the 2026-07-16 testnet report.
+
 ### Added — L1 finalized-height + sequencer committee hash providers for WireProduction — 2026-07-16
 
 - `RpcL1FinalizedHeightSource` reads L1 `getblockcount` and returns

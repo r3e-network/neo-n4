@@ -194,6 +194,14 @@ public class UT_L2SettlementSettings
         Assert.AreEqual(0u, s.ForcedInclusionDeploymentHeight);
         Assert.AreEqual(0u, s.SharedBridgeDeploymentHeight);
         Assert.AreEqual(0u, s.MessageRouterDeploymentHeight);
+        Assert.AreEqual(1u, s.L1FinalityDepth);
+    }
+
+    [TestMethod]
+    public void From_ParsesL1FinalityDepth()
+    {
+        var s = L2SettlementSettings.From(BuildSection(("L1FinalityDepth", "3")));
+        Assert.AreEqual(3u, s.L1FinalityDepth);
     }
 
     private static L2SettlementSettings ValidProductionSettings(

@@ -60,6 +60,14 @@ public sealed class L2SettlementSettings
     /// </summary>
     public uint MessageRouterDeploymentHeight { get; init; }
 
+    /// <summary>
+    /// L1 confirmation lag for scanners and for <c>RpcL1FinalizedHeightSource</c>.
+    /// <c>WireProduction</c> uses this for ForcedInclusion / SharedBridge / MessageRouter
+    /// finality when the corresponding method argument is omitted (<see langword="null"/>).
+    /// Default 1 matches scanner defaults and production notes.
+    /// </summary>
+    public uint L1FinalityDepth { get; init; } = 1;
+
     /// <summary>Proof type used at this stage: 0=None, 1=Multisig, 2=Optimistic, 3=Zk.</summary>
     public byte ProofType { get; init; } = 1;
 
@@ -92,6 +100,7 @@ public sealed class L2SettlementSettings
             ForcedInclusionDeploymentHeight = s.GetValue<uint>("ForcedInclusionDeploymentHeight", 0u),
             SharedBridgeDeploymentHeight = s.GetValue<uint>("SharedBridgeDeploymentHeight", 0u),
             MessageRouterDeploymentHeight = s.GetValue<uint>("MessageRouterDeploymentHeight", 0u),
+            L1FinalityDepth = s.GetValue<uint>("L1FinalityDepth", 1u),
             ProofType = rawProofType,
             Enabled = s.GetValue("Enabled", true),
         };

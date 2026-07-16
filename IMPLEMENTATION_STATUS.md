@@ -406,12 +406,13 @@ These are explicit deployment seams rather than missing protocol algorithms:
   `SharedBridgeHash` is configured, and optionally an owned `RpcMessageRouter` +
   `RpcMessageRouterEventScanner` when `MessageRouterHash` is configured.
   `L2SettlementStoreLayout.Open(chainDir)` opens the canonical durable RocksDB stores under
-  `data/settlement/*` for proof-witness + the three scanners; deploy heights come from
-  explicit `WireProduction` args **or** plugin config `*DeploymentHeight` from
-  `--from-deploy-report` when the evidence JSON has `blockIndex`. L1 inbox block-context
-  providers ship as `RpcL1FinalizedHeightSource` + `SequencerCommitteeHasher.CreateSyncProvider`
-  (over `ISequencerCommitteeProvider` / `RpcSequencerCommitteeProvider`); seal-time deposit
-  `ScanAsync` via `L1MessageDrain.FromDeposits`.
+  `data/settlement/*` for proof-witness + the three scanners; deploy heights and
+  `L1FinalityDepth` come from plugin config (materialized by `--from-deploy-report` when the
+  evidence JSON has `blockIndex`) with optional per-scanner WireProduction overrides.
+  L1 inbox block-context providers ship as `RpcL1FinalizedHeightSource` (use
+  `settings.L1FinalityDepth`) + `SequencerCommitteeHasher.CreateSyncProvider` over
+  `RpcSequencerCommitteeProvider` (registry hash in `l1.deployed.json` /
+  wireproduction notes); seal-time deposit `ScanAsync` via `L1MessageDrain.FromDeposits`.
   `neo-stack --signer-command` provides a provider-neutral, deadline-bounded executable
   boundary with pinned account/script, canonical sign data, and fee-witness-shape validation.
   Operators still select and own the reviewed wallet, HSM, or KMS adapter; no private key is

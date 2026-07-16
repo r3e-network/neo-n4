@@ -125,6 +125,7 @@ public sealed record NeoHubDeployReport(
         foreach (var storeDir in EnsureSettlementStoreDirectories(chainDirectory))
             written.Add(storeDir + Path.DirectorySeparatorChar);
 
+        Contracts.TryGetValue("SequencerRegistry", out var sequencerRegistry);
         var deployed = new Dictionary<string, object?>
         {
             ["rpc"] = Rpc,
@@ -138,6 +139,9 @@ public sealed record NeoHubDeployReport(
             ["messageRouter"] = MessageRouter.ToString(),
             ["settlementManager"] = SettlementManager.ToString(),
             ["forcedInclusion"] = ForcedInclusion.ToString(),
+            ["sequencerRegistry"] = sequencerRegistry is null || sequencerRegistry.Equals(UInt160.Zero)
+                ? null
+                : sequencerRegistry.ToString(),
             ["contracts"] = Contracts.ToDictionary(
                 pair => pair.Key,
                 pair => pair.Value.ToString(),
@@ -169,6 +173,8 @@ public sealed record NeoHubDeployReport(
             ["L2BridgeHash"] = "",
             ["MessageRouterHash"] = MessageRouter.ToString(),
             ["ProofType"] = proofTypeByte,
+            // Align scanners + RpcL1FinalizedHeightSource; override in config when needed.
+            ["L1FinalityDepth"] = 1u,
             ["Enabled"] = true,
         };
         if (forcedHeight != 0)
@@ -236,9 +242,13 @@ public sealed record NeoHubDeployReport(
                 ["messageRouterHash"] = MessageRouter.ToString(),
                 ["l1RpcEndpoint"] = Rpc,
                 ["expectedNetwork"] = Network,
+                ["l1FinalityDepth"] = 1,
                 ["deploymentHeights"] = deployHeights,
                 ["missingDeploymentHeights"] = missingHeights,
                 ["heightsInPluginConfig"] = missingHeights.Length == 0,
+                ["sequencerRegistry"] = sequencerRegistry is null || sequencerRegistry.Equals(UInt160.Zero)
+                    ? null
+                    : sequencerRegistry.ToString(),
                 ["recommendedDurableStores"] = new Dictionary<string, object?>
                 {
                     ["proofWitnessStore"] = RelativeProofWitnessStoreDir,
@@ -263,8 +273,9 @@ public sealed record NeoHubDeployReport(
                     "durable messageRouterEventStore (recommended: "
                     + RelativeMessageRouterEventStoreDir
                     + "; MessageRouterDeploymentHeight from plugin config when MessageRouterHash set)",
-                    "l1FinalizedHeight provider (RpcL1FinalizedHeightSource.CreateSyncProvider)",
-                    "sequencerCommitteeHash provider (SequencerCommitteeHasher.CreateSyncProvider)",
+                    "l1FinalizedHeight provider: new RpcL1FinalizedHeightSource(rpc, settings.L1FinalityDepth).CreateSyncProvider()",
+                    "sequencerCommitteeHash provider: SequencerCommitteeHasher.CreateSyncProvider("
+                    + "new RpcSequencerCommitteeProvider(rpc, sequencerRegistry, chainId, genesisKeys))",
                     "executor + DA writer + prover + profile (e.g. Sp1SettlementExecutionStack)",
                 },
             },

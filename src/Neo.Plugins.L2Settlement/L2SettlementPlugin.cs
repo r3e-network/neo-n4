@@ -171,7 +171,7 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         INeoTransactionSigner signer,
         IL2KeyValueStore forcedInclusionEventStore,
         uint forcedInclusionDeploymentHeight = 0,
-        uint forcedInclusionFinalityDepth = 1,
+        uint? forcedInclusionFinalityDepth = null,
         int forcedInclusionMaximumBlocksPerScan = 256,
         IEnumerable<ulong>? knownForcedInclusionNonces = null,
         int? maxAutomaticRetries = null,
@@ -182,11 +182,11 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         Func<UInt256>? sequencerCommitteeHash = null,
         IL2KeyValueStore? sharedBridgeDepositEventStore = null,
         uint sharedBridgeDeploymentHeight = 0,
-        uint sharedBridgeFinalityDepth = 1,
+        uint? sharedBridgeFinalityDepth = null,
         int sharedBridgeMaximumBlocksPerScan = 256,
         IL2KeyValueStore? messageRouterEventStore = null,
         uint messageRouterDeploymentHeight = 0,
-        uint messageRouterFinalityDepth = 1,
+        uint? messageRouterFinalityDepth = null,
         int messageRouterMaximumBlocksPerScan = 256,
         IEnumerable<ulong>? knownInboundMessageNonces = null,
         IL2KeyValueStore? messageRouterFinalizedProofStore = null)
@@ -224,6 +224,11 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
             _settings.MessageRouterDeploymentHeight,
             "MessageRouterDeploymentHeight",
             required: false);
+        // Finality depth: explicit method args win; otherwise plugin L1FinalityDepth
+        // so scanners and RpcL1FinalizedHeightSource share one config field.
+        var effectiveForcedFinality = forcedInclusionFinalityDepth ?? _settings.L1FinalityDepth;
+        var effectiveSharedBridgeFinality = sharedBridgeFinalityDepth ?? _settings.L1FinalityDepth;
+        var effectiveMessageRouterFinality = messageRouterFinalityDepth ?? _settings.L1FinalityDepth;
 
         // When SharedBridgeHash / MessageRouterHash are configured and the caller does not
         // supply those sources, composition owns the RPC adapters. Explicit sources remain
@@ -233,18 +238,18 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
             signer,
             forcedInclusionEventStore,
             effectiveForcedHeight,
-            forcedInclusionFinalityDepth,
+            effectiveForcedFinality,
             forcedInclusionMaximumBlocksPerScan,
             knownForcedInclusionNonces,
             rpcHttpClient,
             sharedBridgeDepositEventStore,
             effectiveSharedBridgeHeight,
-            sharedBridgeFinalityDepth,
+            effectiveSharedBridgeFinality,
             sharedBridgeMaximumBlocksPerScan,
             constructDepositSource: depositSource is null,
             messageRouterEventStore,
             effectiveMessageRouterHeight,
-            messageRouterFinalityDepth,
+            effectiveMessageRouterFinality,
             messageRouterMaximumBlocksPerScan,
             knownInboundMessageNonces,
             messageRouterFinalizedProofStore,

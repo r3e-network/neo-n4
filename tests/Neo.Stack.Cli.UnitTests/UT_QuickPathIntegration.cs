@@ -295,13 +295,38 @@ public class UT_QuickPathIntegration
             File.ReadAllText(Path.Combine(
                 _tempDir, "Plugins", "Neo.Plugins.L2Settlement", "config.json"))))
         {
+            var plugin = settlement.RootElement.GetProperty("PluginConfiguration");
             Assert.AreEqual(
                 (byte)Neo.L2.ProofType.Zk,
-                settlement.RootElement.GetProperty("PluginConfiguration")
-                    .GetProperty("ProofType").GetByte(),
+                plugin.GetProperty("ProofType").GetByte(),
                 "zk-rollup chain.config must materialize ProofType=Zk (3)");
+            // Live evidence includes blockIndex for scanner start heights.
+            Assert.AreEqual(17729309u, plugin.GetProperty("ForcedInclusionDeploymentHeight").GetUInt32());
+            Assert.AreEqual(17729307u, plugin.GetProperty("SharedBridgeDeploymentHeight").GetUInt32());
+            Assert.AreEqual(17729303u, plugin.GetProperty("MessageRouterDeploymentHeight").GetUInt32());
+            Assert.AreEqual(1u, plugin.GetProperty("L1FinalityDepth").GetUInt32());
         }
         Assert.IsTrue(File.Exists(Path.Combine(_tempDir, "l1.wireproduction-notes.json")));
+        Assert.IsTrue(Directory.Exists(Path.Combine(
+            _tempDir, "data", "settlement", "proof-witness")));
+        Assert.IsTrue(Directory.Exists(Path.Combine(
+            _tempDir, "data", "settlement", "forced-inclusion-events")));
+        using (var notes = System.Text.Json.JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(_tempDir, "l1.wireproduction-notes.json"))))
+        {
+            var wire = notes.RootElement.GetProperty("wireProduction");
+            Assert.AreEqual(
+                "0xfdc33efcd9ffe81d4c9a2f70a60922f6e5039366",
+                wire.GetProperty("sequencerRegistry").GetString());
+            Assert.AreEqual(1, wire.GetProperty("l1FinalityDepth").GetInt32());
+        }
+        using (var deployed = System.Text.Json.JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(_tempDir, "l1.deployed.json"))))
+        {
+            Assert.AreEqual(
+                "0xfdc33efcd9ffe81d4c9a2f70a60922f6e5039366",
+                deployed.RootElement.GetProperty("sequencerRegistry").GetString());
+        }
 
         Assert.AreEqual(0, BootstrapGenesisCommand.Run(
         [

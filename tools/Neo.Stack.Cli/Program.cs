@@ -66,6 +66,7 @@ internal static class Program
               create-chain          Generate chain.config.json from a template (rollup / zk-rollup / validium / sidechain)
               init-l2               Initialize an L2 node working directory
               register-chain        Validate or sign+broadcast NeoHub.ChainRegistry registration
+                                    (supports --from-deploy-report <neo-hub-deploy evidence JSON>)
               deploy-bridge-adapter Configure canonical asset mappings on L1 and L2
               start-sequencer       Start the L2 sequencer (dBFT committee)
               start-batcher         Start the batcher

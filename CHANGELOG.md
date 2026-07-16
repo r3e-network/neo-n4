@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — register-chain from NeoHub deploy report — 2026-07-16
+
+- `NeoHubDeployReport` parses `neo-hub-deploy deploy-testnet` evidence JSON into typed
+  contract hashes (ChainRegistry / VerifierRegistry / SharedBridge / MessageRouter /
+  SettlementManager / ForcedInclusion) plus network, RPC, and owner identity.
+- `neo-stack register-chain --from-deploy-report <path>` fills operator/verifier/bridge/message
+  (and chain-registry on `--broadcast`) from that report, writes `l1.deployed.json` and
+  `Plugins/Neo.Plugins.L2Settlement/config.from-deploy.json` under the chain directory, and
+  defaults `--rpc` / `--expected-network` from the report when broadcasting.
+- Explicit flags still override report values. Unit coverage includes real
+  `docs/audit/testnet-deployment-20260716-live.json` when present.
+
 ### Added — Neo N3 testnet NeoHub live deployment evidence — 2026-07-16
 
 - Deployed the full 24-contract NeoHub production bundle to Neo N3 testnet

@@ -266,4 +266,89 @@ public class UT_RegisterChainCommand
         Assert.AreEqual(4, await RegisterChainCommand.RunAsync(
             [.. baseArgs, "--genesis-state-root", UInt256.Zero.ToString()]));
     }
+
+    [TestMethod]
+    public async Task Register_FromDeployReport_MaterializesArtifactsAndConfigBytes()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(Path.Combine(_tempDir, "chain.config.json"), MinimalConfigJson(20260716));
+        var reportPath = Path.Combine(_tempDir, "deploy-report.json");
+        File.WriteAllText(reportPath, """
+            {
+              "rpc": "https://n3seed1.ngd.network:20332/",
+              "network": 894710606,
+              "ownerAddress": "NLtL2v28d7TyMEaXcPqtekunkFRksJ7wxu",
+              "ownerScriptHash": "0x13ef519c362973f9a34648a9eac5b71250b2a80a",
+              "l2ChainId": 20260716,
+              "records": [
+                {"category":"deploy","name":"ChainRegistry","status":"deployed","contractHash":"0x65201c5415f6fc13093ad7169c556351c2392d23"},
+                {"category":"deploy","name":"VerifierRegistry","status":"deployed","contractHash":"0xe058ea01d6933f38bad1321d0407f514112016b1"},
+                {"category":"deploy","name":"SharedBridge","status":"deployed","contractHash":"0xf2f5114b83dd6fed4ddcac0ff9966fd22a77b241"},
+                {"category":"deploy","name":"MessageRouter","status":"deployed","contractHash":"0x3caf3c6e160b5aec2e07672dc37662b5998afe90"},
+                {"category":"deploy","name":"SettlementManager","status":"deployed","contractHash":"0x11448868f1c14422506b9c2360051df34bcbbb51"},
+                {"category":"deploy","name":"ForcedInclusion","status":"deployed","contractHash":"0x962829ae28e7f89e5de4b4672b167c8ae2ba55a9"}
+              ]
+            }
+            """);
+
+        var origOut = Console.Out;
+        try
+        {
+            var sw = new StringWriter();
+            Console.SetOut(sw);
+            var rc = await RegisterChainCommand.RunAsync(
+            [
+                "--chain-id", "20260716",
+                "--output", _tempDir,
+                "--from-deploy-report", reportPath,
+                "--genesis-state-root", GenesisStateRoot,
+            ]);
+            Assert.AreEqual(0, rc);
+            var output = sw.ToString();
+            StringAssert.Contains(output, "l1.deployed.json");
+            StringAssert.Contains(output, "config.from-deploy.json");
+            StringAssert.Contains(output, "0xe058ea01d6933f38bad1321d0407f514112016b1");
+            Assert.IsTrue(File.Exists(Path.Combine(_tempDir, "l1.deployed.json")));
+            Assert.IsTrue(File.Exists(Path.Combine(
+                _tempDir, "Plugins", "Neo.Plugins.L2Settlement", "config.from-deploy.json")));
+        }
+        finally
+        {
+            Console.SetOut(origOut);
+        }
+    }
+
+    [TestMethod]
+    public async Task Register_FromDeployReport_ChainIdMismatch_FailsClosed()
+    {
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(Path.Combine(_tempDir, "chain.config.json"), MinimalConfigJson(1099));
+        var reportPath = Path.Combine(_tempDir, "deploy-report.json");
+        File.WriteAllText(reportPath, """
+            {
+              "rpc": "https://example/",
+              "network": 1,
+              "ownerAddress": "NLtL2v28d7TyMEaXcPqtekunkFRksJ7wxu",
+              "ownerScriptHash": "0x13ef519c362973f9a34648a9eac5b71250b2a80a",
+              "l2ChainId": 20260716,
+              "records": [
+                {"category":"deploy","name":"ChainRegistry","status":"deployed","contractHash":"0x65201c5415f6fc13093ad7169c556351c2392d23"},
+                {"category":"deploy","name":"VerifierRegistry","status":"deployed","contractHash":"0xe058ea01d6933f38bad1321d0407f514112016b1"},
+                {"category":"deploy","name":"SharedBridge","status":"deployed","contractHash":"0xf2f5114b83dd6fed4ddcac0ff9966fd22a77b241"},
+                {"category":"deploy","name":"MessageRouter","status":"deployed","contractHash":"0x3caf3c6e160b5aec2e07672dc37662b5998afe90"},
+                {"category":"deploy","name":"SettlementManager","status":"deployed","contractHash":"0x11448868f1c14422506b9c2360051df34bcbbb51"},
+                {"category":"deploy","name":"ForcedInclusion","status":"deployed","contractHash":"0x962829ae28e7f89e5de4b4672b167c8ae2ba55a9"}
+              ]
+            }
+            """);
+
+        var rc = await RegisterChainCommand.RunAsync(
+        [
+            "--chain-id", "1099",
+            "--output", _tempDir,
+            "--from-deploy-report", reportPath,
+            "--genesis-state-root", GenesisStateRoot,
+        ]);
+        Assert.AreEqual(4, rc);
+    }
 }

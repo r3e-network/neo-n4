@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading.Tasks;
 using Neo.Extensions.VM;
 using Neo.L2;
@@ -68,15 +69,49 @@ internal static class RegisterChainCommand
         Console.WriteLine($"  Config source   : {configPath}");
         Console.WriteLine();
 
-        // If the operator supplied the four L1 contract hashes (discovered from the
-        // neo-hub-deploy bundle output), encode the L2ChainConfig into the canonical
-        // 91-byte wire format and print it as hex — directly pasteable into a wallet's
-        // contract-call args. Without addresses, fall back to the legacy plan-only
-        // output (JSON preview + numbered next steps).
-        var operatorHash = ArgUtil.Get(args, "--operator", "");
-        var verifierHash = ArgUtil.Get(args, "--verifier", "");
-        var bridgeHash = ArgUtil.Get(args, "--bridge", "");
-        var messageHash = ArgUtil.Get(args, "--message", "");
+        // Resolve L1 hashes either from explicit flags or from a neo-hub-deploy evidence
+        // report (--from-deploy-report). Report path also materializes l1.deployed.json +
+        // settlement config snippet under the chain directory for WireProduction hosts.
+        var deployReportPath = ArgUtil.Get(args, "--from-deploy-report", "");
+        NeoHubDeployReport? deployReport = null;
+        if (deployReportPath.Length > 0)
+        {
+            try
+            {
+                deployReport = NeoHubDeployReport.Load(deployReportPath);
+                if (deployReport.L2ChainId != chainId)
+                {
+                    Console.Error.WriteLine(
+                        $"--chain-id {chainId} differs from deploy report l2ChainId {deployReport.L2ChainId}");
+                    return Task.FromResult(4);
+                }
+                deployReport.WriteOperatorArtifacts(chainDir);
+                Console.WriteLine($"  Deploy report   : {deployReportPath}");
+                Console.WriteLine($"  L1 network      : {deployReport.Network} @ {deployReport.Rpc}");
+                Console.WriteLine($"  Wrote           : {Path.Combine(chainDir, "l1.deployed.json")}");
+                Console.WriteLine(
+                    $"  Wrote           : {Path.Combine(chainDir, "Plugins", "Neo.Plugins.L2Settlement", "config.from-deploy.json")}");
+                Console.WriteLine();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"failed to load --from-deploy-report: {ex.Message}");
+                return Task.FromResult(4);
+            }
+        }
+
+        var operatorHash = FirstNonEmpty(
+            ArgUtil.Get(args, "--operator", ""),
+            deployReport?.DefaultOperatorManager.ToString() ?? "");
+        var verifierHash = FirstNonEmpty(
+            ArgUtil.Get(args, "--verifier", ""),
+            deployReport?.VerifierRegistry.ToString() ?? "");
+        var bridgeHash = FirstNonEmpty(
+            ArgUtil.Get(args, "--bridge", ""),
+            deployReport?.SharedBridge.ToString() ?? "");
+        var messageHash = FirstNonEmpty(
+            ArgUtil.Get(args, "--message", ""),
+            deployReport?.MessageRouter.ToString() ?? "");
 
         if (operatorHash.Length > 0 && verifierHash.Length > 0
             && bridgeHash.Length > 0 && messageHash.Length > 0)
@@ -88,12 +123,19 @@ internal static class RegisterChainCommand
                     || genesisStateRoot == UInt256.Zero)
                 {
                     Console.Error.WriteLine(
-                        "--genesis-state-root <non-zero UInt256> is required with the four L1 contract hashes");
+                        "--genesis-state-root <non-zero UInt256> is required with the four L1 contract hashes"
+                        + (deployReport is not null
+                            ? " (or after --from-deploy-report)"
+                            : ""));
                     return Task.FromResult(4);
                 }
                 var config = L2ChainConfigJsonReader.FromJson(chainId, configJson,
                     operatorHash, verifierHash, bridgeHash, messageHash);
                 var bytes = L2ChainConfigSerializer.Encode(config);
+                Console.WriteLine($"  Operator        : {operatorHash}");
+                Console.WriteLine($"  Verifier        : {verifierHash}");
+                Console.WriteLine($"  Bridge          : {bridgeHash}");
+                Console.WriteLine($"  Message         : {messageHash}");
                 Console.WriteLine(
                     $"  Args            : (chainId={chainId}, configBytes=<{bytes.Length} bytes>, genesisStateRoot={genesisStateRoot})");
                 Console.WriteLine();
@@ -101,12 +143,26 @@ internal static class RegisterChainCommand
                 Console.WriteLine($"  0x{Convert.ToHexString(bytes).ToLowerInvariant()}");
                 if (ArgUtil.HasFlag(args, "--broadcast"))
                 {
-                    var chainRegistryValue = ArgUtil.Get(args, "--chain-registry", "");
+                    var chainRegistryValue = FirstNonEmpty(
+                        ArgUtil.Get(args, "--chain-registry", ""),
+                        deployReport?.ChainRegistry.ToString() ?? "");
                     if (!UInt160.TryParse(chainRegistryValue, out var chainRegistry)
                         || chainRegistry == UInt160.Zero)
                     {
-                        Console.Error.WriteLine("--chain-registry <UInt160> is required with --broadcast");
+                        Console.Error.WriteLine(
+                            "--chain-registry <UInt160> is required with --broadcast"
+                            + " (or supply --from-deploy-report that includes ChainRegistry)");
                         return Task.FromResult(5);
+                    }
+                    // Prefer deploy-report network/rpc when flags omitted so a single
+                    // --from-deploy-report path can broadcast without re-typing endpoints.
+                    if (deployReport is not null)
+                    {
+                        if (string.IsNullOrWhiteSpace(ArgUtil.Get(args, "--rpc", "")))
+                            args = AppendFlag(args, "--rpc", deployReport.Rpc);
+                        if (string.IsNullOrWhiteSpace(ArgUtil.Get(args, "--expected-network", "")))
+                            args = AppendFlag(
+                                args, "--expected-network", deployReport.Network.ToString());
                     }
                     using var scriptBuilder = new ScriptBuilder();
                     scriptBuilder.EmitDynamicCall(
@@ -123,6 +179,11 @@ internal static class RegisterChainCommand
                 Console.WriteLine();
                 Console.WriteLine($"Next steps:");
                 Console.WriteLine($"  1. Add --broadcast --rpc <url> --expected-network <magic> --chain-registry <hash>");
+                if (deployReport is not null)
+                {
+                    Console.WriteLine(
+                        $"     (with --from-deploy-report, --rpc/--expected-network/--chain-registry default from the report)");
+                }
                 Console.WriteLine(
                     $"     to sign + submit registerChain({chainId}, 0x{Convert.ToHexString(bytes).ToLowerInvariant()}, {genesisStateRoot})");
                 Console.WriteLine($"     Sign with NEO_N4_OPERATOR_WIF or --signer-command (docs/operator-signer-command-protocol.md).");
@@ -144,21 +205,31 @@ internal static class RegisterChainCommand
         Console.WriteLine($"--- end ---");
         Console.WriteLine();
         Console.WriteLine($"Next steps for production registration:");
-        Console.WriteLine($"  1. Run `neo-hub-deploy scaffold` + `plan` to get the deploy bundle.");
-        Console.WriteLine($"     Feed the bundle to your wallet — each ContractManagement.Deploy call");
-        Console.WriteLine($"     returns the REAL on-chain contract hash (the bundle's own hashes are");
-        Console.WriteLine($"     deterministic stubs, only valid for plan reproducibility).");
-        Console.WriteLine($"  2. Re-run register-chain with the four wallet-returned hashes:");
-        Console.WriteLine($"       neo-stack register-chain --chain-id {chainId} \\");
-        Console.WriteLine($"         --operator <real hash> --verifier <real hash> \\");
-        Console.WriteLine($"         --bridge <real hash> --message <real hash> \\");
+        Console.WriteLine($"  1. Run `neo-hub-deploy deploy-testnet` (or scaffold+plan+wallet) for L1 NeoHub.");
+        Console.WriteLine($"  2. Re-run register-chain with either:");
+        Console.WriteLine($"       --from-deploy-report docs/audit/testnet-deployment-<date>-live.json \\");
+        Console.WriteLine($"         --genesis-state-root <authenticated non-zero UInt256>");
+        Console.WriteLine($"     or the four explicit hashes:");
+        Console.WriteLine($"       --operator <hash> --verifier <hash> --bridge <hash> --message <hash> \\");
         Console.WriteLine($"         --genesis-state-root <authenticated non-zero UInt256>");
         Console.WriteLine($"     to emit the canonical 91-byte configBytes hex (ready for wallet-side submission).");
-        Console.WriteLine($"  3. Sign + submit registerChain({chainId}, <configBytes>, <genesisStateRoot>) via your wallet RPC.");
+        Console.WriteLine($"  3. Sign + submit registerChain({chainId}, <configBytes>, <genesisStateRoot>) via --broadcast or wallet.");
         Console.WriteLine($"  4. Verify on L1 by calling ChainRegistry.isActive({chainId}).");
         Console.WriteLine();
         Console.WriteLine($"(Wallet integration is operator-specific — wire your signer via Neo.L2.Settlement.Rpc.RpcSettlementClient.)");
         return Task.FromResult(0);
+    }
+
+    private static string FirstNonEmpty(string preferred, string fallback)
+        => preferred.Length > 0 ? preferred : fallback;
+
+    private static string[] AppendFlag(string[] args, string flag, string value)
+    {
+        var next = new string[args.Length + 2];
+        args.CopyTo(next, 0);
+        next[^2] = flag;
+        next[^1] = value;
+        return next;
     }
 
 }

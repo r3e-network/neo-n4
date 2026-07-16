@@ -923,16 +923,24 @@ council threshold and timelock. `OptimisticChallenge` retains only its immediate
 > required `register-chain` flags below — NOT the stub hashes from the bundle.
 
 After all 24 deploys + post-deploy wiring complete, capture the
-**real on-chain** contract hashes (returned by your wallet from each
-`ContractManagement.Deploy` call) and the signed genesis root into the five
-`register-chain` flags:
+**real on-chain** contract hashes and the signed genesis root into
+`register-chain`. Prefer the deploy evidence report so hashes are not hand-copied:
 
 ```bash
+# From a neo-hub-deploy evidence JSON (e.g. docs/audit/testnet-deployment-*-live.json):
+neo-stack create-chain --chain-id 20260716 --output ./my-l2 --template zk-rollup
+neo-stack register-chain --chain-id 20260716 --output ./my-l2 \
+    --from-deploy-report docs/audit/testnet-deployment-20260716-live.json \
+    --genesis-state-root <non-zero root from the signed deployment manifest>
+# Writes l1.deployed.json + Plugins/Neo.Plugins.L2Settlement/config.from-deploy.json
+# and prints the canonical 91-byte configBytes hex.
+
+# Or pass the four hashes explicitly:
 neo-stack register-chain --chain-id 1099 --output ./my-l2 \
-    --operator <real hash returned by your multisig deploy> \
-    --verifier <real hash returned by your VerifierRegistry deploy> \
-    --bridge <real hash returned by your bridge-adapter deploy> \
-    --message <real hash returned by your MessageRouter deploy> \
+    --operator <deployer script hash or multisig> \
+    --verifier <VerifierRegistry hash> \
+    --bridge <SharedBridge hash> \
+    --message <MessageRouter hash> \
     --genesis-state-root <non-zero root from the signed deployment manifest>
 ```
 

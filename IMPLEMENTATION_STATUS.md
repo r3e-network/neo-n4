@@ -378,7 +378,11 @@ real secp256k1 signatures.
 
 Key hashes: ChainRegistry `0x65201c54…2d23`, SettlementManager `0x11448868…bb51`, SharedBridge `0xf2f5114b…b241`, MessageRouter `0x3caf3c6e…fe90`, ForcedInclusion `0x962829ae…55a9`, Sp1Groth16Verifier `0x1004bb51…0c4d`.
 
-Still **not** closed by this deploy alone: `register-chain` + genesis root, L2 node/operator stack, 4-SDK live fixture, production DA credentials, real SP1 proof vectors.
+Still **not** closed by this deploy alone: on-chain `register-chain` broadcast with a signed
+genesis root, L2 node/operator stack, 4-SDK live fixture, production DA credentials, real SP1
+proof vectors. Locally, `neo-stack register-chain --from-deploy-report
+docs/audit/testnet-deployment-20260716-live.json` materializes `l1.deployed.json` + settlement
+config and emits canonical `configBytes` once `--genesis-state-root` is supplied.
 
 ## Production integrations still operator-supplied
 

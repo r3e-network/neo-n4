@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "checkedAtUtc": "2026-07-16T04:50:00Z",
-  "sourceCommit": "pending",
+  "sourceCommit": "2a35deb",
   "rpc": "https://n3seed1.ngd.network:20332/",
   "networkMagic": 894710606,
   "signerAddress": "NLtL2v28d7TyMEaXcPqtekunkFRksJ7wxu",

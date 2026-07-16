@@ -94,11 +94,11 @@ construction. See [operator signer-command protocol](./operator-signer-command-p
 settlement. It consumes the plugin's `PluginConfiguration` and constructs one shared
 `JsonRpcClient`, a network-pinned `RpcTransactionSender`, `RpcSettlementClient`,
 `RpcForcedInclusionEventScanner`, `RpcForcedInclusionFinalizationClient`, and
-`RpcForcedInclusionSource`. The scanner persists each observed nonce before its finalized-block
-cursor, verifies the previous block hash on restart, and fails closed on a finalized-history
-mismatch. Scanner, source, and finalizer are always wired as one production unit; custom/test
-dependency injection remains available through `Wire(...)`, which rejects a forced-inclusion
-source without a finalizer.
+`RpcForcedInclusionSource`. When `SharedBridgeHash` is set, it also constructs an owned
+`RpcSharedBridgeDepositSource` (unless the host passes an explicit `depositSource`) and
+installs deposits on the batcher via `WireL1MessageInbox` before the sealed-batch sink.
+Forced-inclusion scanner, source, and finalizer are always wired as one production unit;
+custom/test DI remains available through `Wire(...)`.
 
 Configure every production identity explicitly in
 `Plugins/Neo.Plugins.L2Settlement/config.json` before calling `WireProduction`:
@@ -111,11 +111,15 @@ Configure every production identity explicitly in
     "ExpectedNetwork": <l1-network-magic>,
     "SettlementManagerHash": "<real non-zero SettlementManager UInt160>",
     "ForcedInclusionHash": "<real non-zero ForcedInclusion UInt160>",
+    "SharedBridgeHash": "<real non-zero SharedBridge UInt160>",
+    "L2BridgeHash": "",
     "ProofType": 3,
     "Enabled": true
   }
 }
 ```
+
+Empty `L2BridgeHash` defaults to `NativeContract.L2Bridge.Hash` for N4 L2s.
 
 The checked-in sample intentionally leaves the network and contract hashes unset.
 Production wiring rejects missing or relative/non-HTTP endpoints, missing network magic,
@@ -165,7 +169,13 @@ var forcedSource = settlementPlugin.WireProduction(
     forcedInclusionDeploymentHeight,
     forcedInclusionFinalityDepth: 1,
     knownForcedInclusionNonces: migrationSeed,
-    maxAutomaticRetries: 3);
+    maxAutomaticRetries: 3,
+    l1FinalizedHeight: () => operatorL1FinalizedHeight,
+    sequencerCommitteeHash: () => operatorCommitteeHash,
+    sharedBridgeDepositEventStore: sharedBridgeDepositEventRocksDbStore,
+    sharedBridgeDeploymentHeight: sharedBridgeDeployBlock);
+// With SharedBridgeHash configured, batchPlugin.DepositSource is the owned
+// RpcSharedBridgeDepositSource. Call depositSource.ScanAsync() on the operator poll loop.
 ```
 
 `ExecutorSha256Hex` must come from a reviewed/signed release manifest, not be calculated from the

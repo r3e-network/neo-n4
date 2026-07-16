@@ -21,6 +21,18 @@ public sealed class L2SettlementSettings
     /// <summary>Encoded NeoHub.ForcedInclusion contract hash.</summary>
     public string ForcedInclusionHash { get; init; } = "";
 
+    /// <summary>
+    /// Encoded NeoHub.SharedBridge contract hash. When set, production wiring constructs a
+    /// durable <c>RpcSharedBridgeDepositSource</c> (unless the caller supplies one).
+    /// </summary>
+    public string SharedBridgeHash { get; init; } = "";
+
+    /// <summary>
+    /// Encoded native L2 bridge script hash used as CrossChainMessage.Receiver for deposits.
+    /// Empty means use <c>NativeContract.L2Bridge.Hash</c> for N4 L2s.
+    /// </summary>
+    public string L2BridgeHash { get; init; } = "";
+
     /// <summary>Proof type used at this stage: 0=None, 1=Multisig, 2=Optimistic, 3=Zk.</summary>
     public byte ProofType { get; init; } = 1;
 
@@ -47,6 +59,8 @@ public sealed class L2SettlementSettings
             ExpectedNetwork = s.GetValue<uint?>("ExpectedNetwork"),
             SettlementManagerHash = s.GetValue<string>("SettlementManagerHash") ?? "",
             ForcedInclusionHash = s.GetValue<string>("ForcedInclusionHash") ?? "",
+            SharedBridgeHash = s.GetValue<string>("SharedBridgeHash") ?? "",
+            L2BridgeHash = s.GetValue<string>("L2BridgeHash") ?? "",
             ProofType = rawProofType,
             Enabled = s.GetValue("Enabled", true),
         };
@@ -74,12 +88,36 @@ public sealed class L2SettlementSettings
             throw new InvalidDataException(
                 "SettlementManagerHash and ForcedInclusionHash must identify different contracts");
 
+        UInt160? sharedBridgeHash = null;
+        UInt160? l2BridgeHash = null;
+        if (!string.IsNullOrWhiteSpace(SharedBridgeHash))
+        {
+            sharedBridgeHash = ParseNonZeroHash(SharedBridgeHash, nameof(SharedBridgeHash));
+            if (sharedBridgeHash.Equals(settlementManagerHash)
+                || sharedBridgeHash.Equals(forcedInclusionHash))
+                throw new InvalidDataException(
+                    "SharedBridgeHash must identify a distinct NeoHub contract");
+
+            l2BridgeHash = string.IsNullOrWhiteSpace(L2BridgeHash)
+                ? Neo.SmartContract.Native.NativeContract.L2Bridge.Hash
+                : ParseNonZeroHash(L2BridgeHash, nameof(L2BridgeHash));
+            if (l2BridgeHash.Equals(UInt160.Zero))
+                throw new InvalidDataException("L2BridgeHash must not be zero");
+        }
+        else if (!string.IsNullOrWhiteSpace(L2BridgeHash))
+        {
+            throw new InvalidDataException(
+                "L2BridgeHash requires SharedBridgeHash for production deposit wiring");
+        }
+
         return new L2SettlementProductionConfiguration(
             chainId,
             endpoint,
             ExpectedNetwork.Value,
             settlementManagerHash,
-            forcedInclusionHash);
+            forcedInclusionHash,
+            sharedBridgeHash,
+            l2BridgeHash);
     }
 
     private static UInt160 ParseNonZeroHash(string? raw, string settingName)
@@ -126,4 +164,6 @@ internal sealed record L2SettlementProductionConfiguration(
     Uri RpcEndpoint,
     uint ExpectedNetwork,
     UInt160 SettlementManagerHash,
-    UInt160 ForcedInclusionHash);
+    UInt160 ForcedInclusionHash,
+    UInt160? SharedBridgeHash,
+    UInt160? L2BridgeHash);

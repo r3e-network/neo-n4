@@ -370,10 +370,12 @@ These are explicit deployment seams rather than missing protocol algorithms:
 
 - **Settlement and operator signer custody** — `L2SettlementPlugin.WireProduction` closes the
   production RPC composition root around `RpcTransactionSender`, `RpcSettlementClient`,
-  and forced-inclusion finalization. `neo-stack --signer-command` provides a provider-neutral,
-  deadline-bounded executable boundary with pinned account/script, canonical sign data, and
-  fee-witness-shape validation. Operators still select and own the reviewed wallet, HSM, or KMS
-  adapter; no private key is stored in plugin configuration.
+  forced-inclusion finalization, and optionally an owned `RpcSharedBridgeDepositSource` when
+  `SharedBridgeHash` is configured (durable deposit event store + deploy height required;
+  block-context providers required for L1 inbox). `neo-stack --signer-command` provides a
+  provider-neutral, deadline-bounded executable boundary with pinned account/script, canonical
+  sign data, and fee-witness-shape validation. Operators still select and own the reviewed
+  wallet, HSM, or KMS adapter; no private key is stored in plugin configuration.
 - **Real NeoFS client** — `NeoFsLikeDAWriter` remains a development semantic simulator and
   cannot satisfy a production NeoFS profile. Production injects `NeoFsRestDAWriter` +
   `NeoFsRestDAReader` through `L2DAPlugin.WithProductionBackend` (or an equivalent

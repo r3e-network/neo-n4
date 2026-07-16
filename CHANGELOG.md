@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — production SharedBridge deposit stack in WireProduction — 2026-07-16
+
+- `L2SettlementSettings` accepts optional `SharedBridgeHash` / `L2BridgeHash` (default
+  `NativeContract.L2Bridge.Hash` when SharedBridge is set).
+- `WireProduction` constructs an owned `RpcSharedBridgeDepositSource` when SharedBridge is
+  configured and the caller does not supply a deposit source, requiring a durable deposit
+  event store and non-zero deploy height (symmetric to forced-inclusion production wiring).
+- Explicit caller-owned `depositSource` still overrides auto-construction; missing store /
+  height / block providers fail closed.
+
 ### Fixed — settlement Wire attaches SharedBridge deposit L1 inbox — 2026-07-16
 
 - `L2SettlementPlugin.Wire` / `WireProduction` now accept optional

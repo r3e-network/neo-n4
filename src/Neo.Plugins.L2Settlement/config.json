@@ -5,6 +5,8 @@
     "ExpectedNetwork": null,
     "SettlementManagerHash": "",
     "ForcedInclusionHash": "",
+    "SharedBridgeHash": "",
+    "L2BridgeHash": "",
     "ProofType": 1,
     "Enabled": true
   }

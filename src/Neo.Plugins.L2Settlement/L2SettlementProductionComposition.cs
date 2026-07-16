@@ -1,4 +1,5 @@
 using Neo.Extensions.VM;
+using Neo.L2.Bridge;
 using Neo.L2.ForcedInclusion;
 using Neo.L2.Persistence;
 using Neo.L2.Settlement.Rpc;
@@ -18,7 +19,8 @@ internal sealed class L2SettlementProductionComposition : IDisposable
         RpcSettlementClient settlementClient,
         RpcForcedInclusionFinalizationClient forcedInclusionFinalizer,
         RpcForcedInclusionEventScanner forcedInclusionEventScanner,
-        RpcForcedInclusionSource forcedInclusionSource)
+        RpcForcedInclusionSource forcedInclusionSource,
+        RpcSharedBridgeDepositSource? ownedDepositSource)
     {
         Configuration = configuration;
         Rpc = rpc;
@@ -27,6 +29,7 @@ internal sealed class L2SettlementProductionComposition : IDisposable
         ForcedInclusionFinalizer = forcedInclusionFinalizer;
         ForcedInclusionEventScanner = forcedInclusionEventScanner;
         ForcedInclusionSource = forcedInclusionSource;
+        OwnedDepositSource = ownedDepositSource;
     }
 
     internal L2SettlementProductionConfiguration Configuration { get; }
@@ -43,6 +46,13 @@ internal sealed class L2SettlementProductionComposition : IDisposable
 
     internal RpcForcedInclusionSource ForcedInclusionSource { get; }
 
+    /// <summary>
+    /// Deposit source constructed from production config, when SharedBridge is configured
+    /// and the caller did not supply an external source. Null when deposits are caller-owned
+    /// or not configured.
+    /// </summary>
+    internal RpcSharedBridgeDepositSource? OwnedDepositSource { get; }
+
     internal bool IsDisposed => _disposed;
 
     internal static L2SettlementProductionComposition Create(
@@ -53,7 +63,12 @@ internal sealed class L2SettlementProductionComposition : IDisposable
         uint forcedInclusionFinalityDepth = 1,
         int forcedInclusionMaximumBlocksPerScan = 256,
         IEnumerable<ulong>? knownForcedInclusionNonces = null,
-        HttpClient? rpcHttpClient = null)
+        HttpClient? rpcHttpClient = null,
+        IL2KeyValueStore? sharedBridgeDepositEventStore = null,
+        uint sharedBridgeDeploymentHeight = 0,
+        uint sharedBridgeFinalityDepth = 1,
+        int sharedBridgeMaximumBlocksPerScan = 256,
+        bool constructDepositSource = true)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(signer);
@@ -69,6 +84,7 @@ internal sealed class L2SettlementProductionComposition : IDisposable
         RpcSettlementClient? settlementClient = null;
         RpcForcedInclusionEventScanner? forcedInclusionEventScanner = null;
         RpcForcedInclusionSource? forcedInclusionSource = null;
+        RpcSharedBridgeDepositSource? ownedDepositSource = null;
         try
         {
             rpc = new JsonRpcClient(configuration.RpcEndpoint, rpcHttpClient);
@@ -104,6 +120,34 @@ internal sealed class L2SettlementProductionComposition : IDisposable
                 knownForcedInclusionNonces ?? Array.Empty<ulong>(),
                 ownsRpc: false,
                 eventScanner: forcedInclusionEventScanner);
+
+            if (constructDepositSource
+                && configuration.SharedBridgeHash is not null
+                && configuration.L2BridgeHash is not null)
+            {
+                if (sharedBridgeDepositEventStore is null)
+                    throw new InvalidOperationException(
+                        "SharedBridgeHash is configured; production deposit wiring requires a durable sharedBridgeDepositEventStore");
+                if (sharedBridgeDepositEventStore is not IDurableL2KeyValueStore)
+                    throw new InvalidOperationException(
+                        "production deposit wiring requires a durable SharedBridge deposit event store");
+                if (sharedBridgeDeploymentHeight == 0)
+                    throw new InvalidOperationException(
+                        "SharedBridgeHash is configured; sharedBridgeDeploymentHeight must be the non-zero deploy block");
+
+                ownedDepositSource = new RpcSharedBridgeDepositSource(
+                    rpc,
+                    configuration.SharedBridgeHash,
+                    configuration.ChainId,
+                    configuration.L2BridgeHash,
+                    sharedBridgeDepositEventStore,
+                    sharedBridgeDeploymentHeight,
+                    sharedBridgeFinalityDepth,
+                    sharedBridgeMaximumBlocksPerScan,
+                    ownsRpc: false,
+                    ownsStore: false);
+            }
+
             return new L2SettlementProductionComposition(
                 configuration,
                 rpc,
@@ -111,10 +155,12 @@ internal sealed class L2SettlementProductionComposition : IDisposable
                 settlementClient,
                 forcedInclusionFinalizer,
                 forcedInclusionEventScanner,
-                forcedInclusionSource);
+                forcedInclusionSource,
+                ownedDepositSource);
         }
         catch
         {
+            ownedDepositSource?.Dispose();
             if (forcedInclusionSource is not null)
                 forcedInclusionSource.Dispose();
             else
@@ -131,6 +177,7 @@ internal sealed class L2SettlementProductionComposition : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        OwnedDepositSource?.Dispose();
         ForcedInclusionSource.Dispose();
         SettlementClient.Dispose();
     }

@@ -178,7 +178,11 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         ISharedBridgeDepositSource? depositSource = null,
         IMessageRouter? messageRouter = null,
         Func<uint>? l1FinalizedHeight = null,
-        Func<UInt256>? sequencerCommitteeHash = null)
+        Func<UInt256>? sequencerCommitteeHash = null,
+        IL2KeyValueStore? sharedBridgeDepositEventStore = null,
+        uint sharedBridgeDeploymentHeight = 0,
+        uint sharedBridgeFinalityDepth = 1,
+        int sharedBridgeMaximumBlocksPerScan = 256)
     {
         ArgumentNullException.ThrowIfNull(batchPlugin);
         ArgumentNullException.ThrowIfNull(executor);
@@ -197,6 +201,9 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         if (_pipeline is not null || _productionComposition is not null)
             throw new InvalidOperationException("settlement pipeline is already wired");
 
+        // When SharedBridgeHash is configured and the caller does not supply a deposit source,
+        // composition owns RpcSharedBridgeDepositSource. An explicit depositSource remains
+        // caller-owned and skips auto-construction.
         var composition = L2SettlementProductionComposition.Create(
             _settings,
             signer,
@@ -205,11 +212,20 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
             forcedInclusionFinalityDepth,
             forcedInclusionMaximumBlocksPerScan,
             knownForcedInclusionNonces,
-            rpcHttpClient);
+            rpcHttpClient,
+            sharedBridgeDepositEventStore,
+            sharedBridgeDeploymentHeight,
+            sharedBridgeFinalityDepth,
+            sharedBridgeMaximumBlocksPerScan,
+            constructDepositSource: depositSource is null);
         try
         {
-            // Caller owns depositSource / messageRouter; this plugin owns the forced-inclusion
-            // RPC pair and settlement client constructed above.
+            var effectiveDeposits = depositSource ?? composition.OwnedDepositSource;
+            if (effectiveDeposits is not null
+                && (l1FinalizedHeight is null || sequencerCommitteeHash is null))
+                throw new InvalidOperationException(
+                    "SharedBridge deposit inbox requires l1FinalizedHeight and sequencerCommitteeHash providers");
+
             Wire(
                 batchPlugin,
                 executor,
@@ -220,7 +236,7 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
                 profile,
                 composition.ForcedInclusionFinalizer,
                 composition.ForcedInclusionSource,
-                depositSource,
+                effectiveDeposits,
                 messageRouter,
                 l1FinalizedHeight,
                 sequencerCommitteeHash,

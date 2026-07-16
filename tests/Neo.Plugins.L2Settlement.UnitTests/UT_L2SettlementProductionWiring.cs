@@ -287,6 +287,64 @@ public class UT_L2SettlementProductionWiring
             sequencerCommitteeHash: static () => Root(0x1)));
     }
 
+    [TestMethod]
+    public void WireProduction_ConstructsOwnedDepositSourceWhenSharedBridgeConfigured()
+    {
+        using var backend = new TemporaryRocksDb();
+        using var forcedEvents = new TemporaryRocksDb();
+        using var depositEvents = new TemporaryRocksDb();
+        using var store = new KeyValueProofWitnessStore(backend.Store);
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin(ProductionSettingsWithSharedBridge());
+        var signer = new TrackingSigner(Account(0x55));
+        using var http = CanonicalRootHttpClient();
+
+        settlement.WireProduction(
+            batch,
+            new TestExecutor(),
+            new TestDaWriter(),
+            store,
+            new TestProver(),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
+            signer,
+            forcedEvents.Store,
+            forcedInclusionDeploymentHeight: 123,
+            rpcHttpClient: http,
+            l1FinalizedHeight: static () => 10,
+            sequencerCommitteeHash: static () => Root(0xCC),
+            sharedBridgeDepositEventStore: depositEvents.Store,
+            sharedBridgeDeploymentHeight: 50);
+
+        var composition = settlement.ProductionComposition;
+        Assert.IsNotNull(composition);
+        Assert.IsNotNull(composition.OwnedDepositSource);
+        Assert.AreSame(composition.OwnedDepositSource, batch.DepositSource);
+        Assert.AreEqual(ChainId, composition.OwnedDepositSource!.ChainId);
+    }
+
+    [TestMethod]
+    public void WireProduction_SharedBridgeWithoutDepositStore_FailsClosed()
+    {
+        using var backend = new TemporaryRocksDb();
+        using var forcedEvents = new TemporaryRocksDb();
+        using var store = new KeyValueProofWitnessStore(backend.Store);
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin(ProductionSettingsWithSharedBridge());
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => settlement.WireProduction(
+            batch,
+            new TestExecutor(),
+            new TestDaWriter(),
+            store,
+            new TestProver(),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
+            new TrackingSigner(Account(0x56)),
+            forcedEvents.Store,
+            forcedInclusionDeploymentHeight: 123,
+            l1FinalizedHeight: static () => 10,
+            sequencerCommitteeHash: static () => Root(0xCC)));
+    }
+
     private static L2SettlementSettings ProductionSettings() => new()
     {
         ChainId = ChainId,
@@ -294,6 +352,19 @@ public class UT_L2SettlementProductionWiring
         ExpectedNetwork = 860833102,
         SettlementManagerHash = "0x" + new string('1', 40),
         ForcedInclusionHash = "0x" + new string('2', 40),
+        ProofType = (byte)ProofType.Multisig,
+        Enabled = false,
+    };
+
+    private static L2SettlementSettings ProductionSettingsWithSharedBridge() => new()
+    {
+        ChainId = ChainId,
+        L1RpcEndpoint = "http://127.0.0.1:10332",
+        ExpectedNetwork = 860833102,
+        SettlementManagerHash = "0x" + new string('1', 40),
+        ForcedInclusionHash = "0x" + new string('2', 40),
+        SharedBridgeHash = "0x" + new string('3', 40),
+        // L2BridgeHash empty → NativeContract.L2Bridge.Hash
         ProofType = (byte)ProofType.Multisig,
         Enabled = false,
     };

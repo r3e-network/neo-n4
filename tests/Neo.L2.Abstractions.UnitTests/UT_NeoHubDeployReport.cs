@@ -171,18 +171,40 @@ public class UT_NeoHubDeployReport
                 "L2DAPlugin.CreateLocalFromChainDirectory(chainDirectory)",
                 stores.GetProperty("localDaPluginFactory").GetString());
             Assert.AreEqual(
+                "L2GatewayPlugin.CreateFromChainDirectory(chainDirectory)",
+                stores.GetProperty("gatewayPluginFactory").GetString());
+            Assert.AreEqual(
                 NeoHubDeployReport.RelativeRpcProofStoreDir,
                 stores.GetProperty("rpcProofStore").GetString());
             Assert.AreEqual(
+                NeoHubDeployReport.RelativeGatewayOutboxStoreDir,
+                stores.GetProperty("gatewayOutboxStore").GetString());
+            Assert.AreEqual(
                 "InMemoryL2RpcStore.OpenFromChainDirectory(chainDirectory)",
                 stores.GetProperty("rpcStoreOpenHelper").GetString());
+            Assert.AreEqual(
+                "PersistentGatewayOutbox.OpenFromChainDirectory(chainDirectory)",
+                stores.GetProperty("gatewayOutboxOpenHelper").GetString());
             Assert.AreEqual(
                 "Sp1SettlementExecutionStack.CreateFromChainDirectory(chainDir, state, executorPath, executorSha256, vk)",
                 stores.GetProperty("sp1StackFromChainDirectory").GetString());
             Assert.IsTrue(Directory.Exists(Path.Combine(
                 dir, NeoHubDeployReport.RelativeRpcProofStoreDir)));
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                dir, NeoHubDeployReport.RelativeGatewayOutboxStoreDir)));
             Assert.IsTrue(File.Exists(Path.Combine(
                 dir, "Plugins", "Neo.Plugins.L2Metrics", "config.json")));
+            Assert.IsTrue(File.Exists(Path.Combine(
+                dir, "Plugins", "Neo.Plugins.L2Gateway", "config.json")));
+            var gatewayCfg = JsonDocument.Parse(File.ReadAllText(Path.Combine(
+                dir, "Plugins", "Neo.Plugins.L2Gateway", "config.json")));
+            // MinimalReportJson has no chain.config → default gatewayEnabled true.
+            Assert.IsTrue(gatewayCfg.RootElement.GetProperty("PluginConfiguration")
+                .GetProperty("Enabled").GetBoolean());
+            Assert.AreEqual(
+                3,
+                gatewayCfg.RootElement.GetProperty("PluginConfiguration")
+                    .GetProperty("MaxAutomaticRetries").GetInt32());
             Assert.IsTrue(File.Exists(Path.Combine(
                 dir, "Plugins", "Neo.Plugins.L2DA", "config.json")));
             var daCfg = JsonDocument.Parse(File.ReadAllText(Path.Combine(
@@ -237,10 +259,11 @@ public class UT_NeoHubDeployReport
         {
             var first = NeoHubDeployReport.EnsureSettlementStoreDirectories(dir);
             var second = NeoHubDeployReport.EnsureSettlementStoreDirectories(dir);
-            Assert.AreEqual(6, first.Count);
-            Assert.AreEqual(6, second.Count);
+            Assert.AreEqual(7, first.Count);
+            Assert.AreEqual(7, second.Count);
             CollectionAssert.Contains(first.ToList(), NeoHubDeployReport.RelativeLocalDaStoreDir);
             CollectionAssert.Contains(first.ToList(), NeoHubDeployReport.RelativeRpcProofStoreDir);
+            CollectionAssert.Contains(first.ToList(), NeoHubDeployReport.RelativeGatewayOutboxStoreDir);
             foreach (var relative in first)
                 Assert.IsTrue(Directory.Exists(Path.Combine(dir, relative)));
         }
@@ -321,6 +344,56 @@ public class UT_NeoHubDeployReport
 
             Assert.IsTrue(File.Exists(Path.Combine(dir, "l1.wireproduction-notes.json")));
             Assert.AreEqual((byte)ProofType.Zk, NeoHubDeployReport.ResolveProofTypeByte(dir));
+            Assert.IsTrue(NeoHubDeployReport.ResolveGatewayEnabled(dir));
+            var gatewayPath = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Gateway", "config.json");
+            Assert.IsTrue(File.Exists(gatewayPath));
+            using var gateway = JsonDocument.Parse(File.ReadAllText(gatewayPath));
+            Assert.IsTrue(gateway.RootElement.GetProperty("PluginConfiguration")
+                .GetProperty("Enabled").GetBoolean());
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void ResolveGatewayEnabled_DefaultsTrueWithoutConfig()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-default-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(dir);
+            Assert.IsTrue(NeoHubDeployReport.ResolveGatewayEnabled(dir));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void ResolveGatewayEnabled_HonorsChainConfigFalse()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-false-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(Path.Combine(dir, "chain.config.json"), """
+                {
+                  "chainId": 1,
+                  "proofType": "Multisig",
+                  "securityLevel": "Attested",
+                  "daMode": "Local",
+                  "sequencerModel": "Single",
+                  "exitModel": "Permissioned",
+                  "gatewayEnabled": false,
+                  "permissionlessExit": false
+                }
+                """);
+            Assert.IsFalse(NeoHubDeployReport.ResolveGatewayEnabled(dir));
         }
         finally
         {

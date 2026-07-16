@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "checkedAtUtc": "2026-07-16T17:10:02Z",
+  "sourceCommit": "899a3f4+",
+  "rpc": "https://n3seed1.ngd.network:20332/",
+  "networkMagic": 894710606,
+  "signerAddress": "NLtL2v28d7TyMEaXcPqtekunkFRksJ7wxu",
+  "signerScriptHash": "0x13ef519c362973f9a34648a9eac5b71250b2a80a",
+  "l2ChainId": 20260716,
+  "sharedBridgeRedeploy": {
+    "status": "deployed-and-live-deposit-ok",
+    "rootCause": "Stale SharedBridge.nef still used CallingScriptHash as NEP-17 from (no System.Runtime.GetScriptContainer). Source already used Runtime.Transaction.Sender but bin/sc artifacts were not recompiled with nccs before prior testnet deploy.",
+    "oldBridge": "0xf2f5114b83dd6fed4ddcac0ff9966fd22a77b241",
+    "newBridge": "0xf64548c2c947f5c2150b467700c0f46f90dc1bae",
+    "deployTx": "0xb9c7e1c1419c12c972a9e469da5aff24edd3c1312400ac16e2988e07f6ec893a",
+    "deployBlock": 17746062,
+    "postDeploy": "SharedBridge.SetEmergencyManager executed on new bridge",
+    "liveDeposit": {
+      "status": "HALT",
+      "txHash": "0x9b72709e007a480a1c49fd672d0e46b6d449aa2b9c53f9bf8b3503051b4675ae",
+      "nonce": 1,
+      "amountDatoshi": 100000,
+      "asset": "GAS",
+      "targetChainId": 20260716,
+      "witnessScope": "Global",
+      "notifications": [
+        "Transfer",
+        "DepositEnqueued"
+      ]
+    }
+  },
+  "chain20260716Note": "ChainRegistry config for 20260716 still points at the old SharedBridge hash. Governance is locked (2-of-2); retargeting requires UpdateChainViaProposal or a new chain registration. Live Deposit works on the new bridge address independently.",
+  "reverifyReport": "docs/audit/testnet-deployment-20260717-reverify.json",
+  "sharedBridgeFixReport": "docs/audit/testnet-deployment-20260717-sharedbridge-fix.json",
+  "releaseEvidenceStatus": "sharedbridge-deposit-fixed-live-2026-07-17",
+  "keyContracts": {
+    "SharedBridge_legacy_broken_deposit": "0xf2f5114b83dd6fed4ddcac0ff9966fd22a77b241",
+    "SharedBridge_fixed": "0xf64548c2c947f5c2150b467700c0f46f90dc1bae",
+    "ChainRegistry": "0x65201c5415f6fc13093ad7169c556351c2392d23",
+    "TokenRegistry": "0x96ae4655fb3792594b134067d1443922ce8f505b",
+    "SettlementManager": "0x11448868f1c14422506b9c2360051df34bcbbb51"
+  }
+}

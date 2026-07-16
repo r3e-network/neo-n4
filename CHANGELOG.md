@@ -5,6 +5,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — L2GatewayPlugin CreateFromChainDirectory + durable outbox layout — 2026-07-17
+
+- `L2GatewaySettings.FromChainDirectory` / `L2GatewayPlugin.CreateFromChainDirectory`
+  preload Enabled/MaxAutomaticRetries and attach `PersistentGatewayOutbox` under
+  `data/gateway/outbox`. Production still requires `UseAggregator` +
+  `ConfigureGlobalRootPublication` (funded DA/prover/publisher).
+- `PersistentGatewayOutbox.OpenFromChainDirectory`; deploy-report materializes
+  `Neo.Plugins.L2Gateway` config (`gatewayEnabled` from chain.config) and documents
+  gateway factory/helpers in wireproduction notes.
+- `EnsureSettlementStoreDirectories` creates seven durable store dirs (adds gateway outbox).
+- Unit coverage: settings load, missing config fail-closed, outbox open/reopen, deploy-report notes.
+
+### Fixed — SharedBridge.Deposit live on Neo N3 testnet — 2026-07-17
+
+- Root cause: stale `bin/sc` NEF still pulled NEP-17 from `CallingScriptHash` (no
+  `System.Runtime.GetScriptContainer`); source already used `Transaction.Sender`.
+- Recompiled with nccs and deployed new SharedBridge
+  `0xf64548c2c947f5c2150b467700c0f46f90dc1bae` (tx `0xb9c7e1c1…ec893a`).
+- Live Deposit HALT: tx `0x9b72709e…4675ae`, nonce 1, 0.001 GAS, `WitnessScope.Global`.
+- Chain `20260716` registry still points at legacy bridge `0xf2f5114b…b241` until
+  governance retarget or new chain registration (funded/governance gate).
+- Evidence: `docs/audit/testnet-deployment-20260717-sharedbridge-fix.json`,
+  `docs/audit/testnet-evidence-status-2026-07-17.json`,
+  `docs/audit/testnet-deployment-20260717-reverify.json` (24/24 reuse + smoke).
+
 ### Added — InMemoryL2RpcStore.OpenFromChainDirectory — 2026-07-17
 
 - Host composition opens durable L2 RPC proof storage at `data/rpc/proofs` and loads

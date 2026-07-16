@@ -368,25 +368,25 @@ real secp256k1 signatures.
 
 | Field | Value |
 |-------|-------|
-| Status | **Current for NeoHub L1 + registerChain + TokenRegistry maps + ForcedInclusion** (2026-07-16) |
+| Status | **Current for NeoHub L1 + registerChain + TokenRegistry + ForcedInclusion + fixed SharedBridge Deposit** (2026-07-17) |
 | Network | Neo N3 testnet magic `894710606` |
 | RPC | `https://n3seed1.ngd.network:20332` |
 | Signer | `NLtL2v28d7TyMEaXcPqtekunkFRksJ7wxu` |
 | L2 domain id | `20260716` (`isActive=true`, Validity + L1 DA, Zk) |
-| Contracts | 24 deployed + re-verified present (`getcontractstate` 24/24); post-deploy + smoke |
+| Contracts | 24 original bundle re-verified (24/24 reuse + smoke 2026-07-17); SharedBridge **fixed** redeployed as new hash |
 | registerChain | tx `0xb3d02a5f…9f26` HALT; genesis root `0x59be9f14…5130` |
 | TokenRegistry | GAS+NEO mappings for chain `20260716` live (`0xc1f44721…e06a`, `0xb51c8e4f…7daa`) |
 | ForcedInclusion | nonce 1 enqueued (`0x73924dce…f412`, HALT); needs `WitnessScope.Global` for fee transfer |
-| SharedBridge deposit | **code fix** on master: `Transaction.Sender` + CheckWitness (ABI stable). **Deployed testnet** still runs pre-fix bytecode until SharedBridge redeploy + chain update. Nested NEP-17 needs `--witness-scope Global`. |
+| SharedBridge deposit | **live fixed**: new bridge `0xf64548c2…1bae` (nccs recompile of `Transaction.Sender` Deposit); live Deposit tx `0x9b72709e…4675ae` HALT nonce 1 with `WitnessScope.Global`. Legacy `0xf2f5114b…b241` still broken. Chain `20260716` config still points at legacy until governance retarget (**funded/governance gate**). |
 | Local Multisig DA | **code-complete**: `PersistentDAWriter.OpenLocalFromChainDirectory` → `data/settlement/da` |
-| Host WireProduction | **code-complete**: batch/settlement/prover/metrics `CreateFromChainDirectory` + local DA + `InMemoryL2RpcStore.OpenFromChainDirectory` + `WireProductionFromLayout` + Multisig/Optimistic provers; Zk: `OpenStateFromChainDirectory` + Sp1 stack (still needs funded executor binary + VK + production DA) |
-| Evidence | [`docs/audit/testnet-deployment-20260716-live.json`](./docs/audit/testnet-deployment-20260716-live.json), [`docs/audit/testnet-evidence-status-2026-07-16.json`](./docs/audit/testnet-evidence-status-2026-07-16.json) |
+| Host WireProduction | **code-complete**: batch/settlement/prover/metrics/gateway `CreateFromChainDirectory` + local DA + RPC proofs + gateway outbox + `WireProductionFromLayout` + Multisig/Optimistic provers; Zk: `OpenStateFromChainDirectory` + Sp1 stack (still needs funded executor binary + VK + production DA); Gateway production still needs aggregator/prover/publisher wiring |
+| Evidence | [`docs/audit/testnet-deployment-20260716-live.json`](./docs/audit/testnet-deployment-20260716-live.json), [`docs/audit/testnet-deployment-20260717-reverify.json`](./docs/audit/testnet-deployment-20260717-reverify.json), [`docs/audit/testnet-deployment-20260717-sharedbridge-fix.json`](./docs/audit/testnet-deployment-20260717-sharedbridge-fix.json), [`docs/audit/testnet-evidence-status-2026-07-17.json`](./docs/audit/testnet-evidence-status-2026-07-17.json) |
 
-Key hashes: ChainRegistry `0x65201c54…2d23`, SettlementManager `0x11448868…bb51`, SharedBridge `0xf2f5114b…b241`, MessageRouter `0x3caf3c6e…fe90`, ForcedInclusion `0x962829ae…55a9`, TokenRegistry `0x96ae4655…505b`, Sp1Groth16Verifier `0x1004bb51…0c4d`. Scanner deploy heights: ForcedInclusion `17729309`, SharedBridge `17729307`, MessageRouter `17729303`.
+Key hashes: ChainRegistry `0x65201c54…2d23`, SettlementManager `0x11448868…bb51`, SharedBridge **fixed** `0xf64548c2…1bae` (legacy `0xf2f5114b…b241`), MessageRouter `0x3caf3c6e…fe90`, ForcedInclusion `0x962829ae…55a9`, TokenRegistry `0x96ae4655…505b`, Sp1Groth16Verifier `0x1004bb51…0c4d`. Scanner deploy heights (legacy bundle): ForcedInclusion `17729309`, SharedBridge `17729307`, MessageRouter `17729303`.
 
 Still **not** closed (funded / operator binary gates): full L2 node process stack against a reviewed
-Neo.CLI binary, 4-SDK live fixture, production DA credentials, real SP1 proof vectors, testnet
-redeploy of SharedBridge with the sender-based Deposit model (governance-locked chain update).
+Neo.CLI binary, 4-SDK live fixture, production DA credentials, real SP1 proof vectors, governance
+retarget of chain `20260716` bridge hash to the fixed SharedBridge (or new chain registration).
 
 **Code-complete operator path** (local layout + L1 registration encoding/broadcast/verify):
 
@@ -416,10 +416,13 @@ These are explicit deployment seams rather than missing protocol algorithms:
   `L2ProverPlugin.CreateFromChainDirectory(chainDir)` then `Wire(...)`,
   `L2MetricsPlugin.CreateFromChainDirectory(chainDir)`, for Multisig/Optimistic local DA
   `L2DAPlugin.CreateLocalFromChainDirectory(chainDir)` (public DAMode uses
-  `WithProductionBackend`), and L2 RPC
+  `WithProductionBackend`), L2 RPC
   `InMemoryL2RpcStore.OpenFromChainDirectory(chainDir)` then `NeoSystem.AddService(store)`
-  (durable proofs under `data/rpc/proofs`). Deploy-report materialization writes settlement +
-  batch + prover + metrics + DA plugin configs (ProofType/DAMode from chain.config).
+  (durable proofs under `data/rpc/proofs`), and Gateway
+  `L2GatewayPlugin.CreateFromChainDirectory(chainDir)` (durable outbox under
+  `data/gateway/outbox`; then `UseAggregator` + `ConfigureGlobalRootPublication`).
+  Deploy-report materialization writes settlement + batch + prover + metrics + DA +
+  gateway plugin configs (ProofType/DAMode/gatewayEnabled from chain.config).
   Genesis root via `L2GenesisManifest.ReadInitialStateRootFromChainDirectory`; Multisig/Optimistic
   profile via `ProofWitnessPipelineProfile.LegacyFromChainDirectory`; Zk via
   `state = Sp1SettlementExecutionStack.OpenStateFromChainDirectory(chainDir)` then

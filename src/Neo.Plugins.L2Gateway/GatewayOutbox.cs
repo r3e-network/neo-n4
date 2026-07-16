@@ -123,6 +123,25 @@ public sealed class PersistentGatewayOutbox : IDisposable
     }
 
     /// <summary>
+    /// Open a durable Gateway outbox at
+    /// <see cref="NeoHubDeployReport.RelativeGatewayOutboxStoreDir"/> under a chain
+    /// working directory after <c>init-l2</c>. Caller owns disposal.
+    /// </summary>
+    public static PersistentGatewayOutbox OpenFromChainDirectory(string chainDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        var root = System.IO.Path.GetFullPath(chainDirectory);
+        if (!Directory.Exists(root))
+            throw new DirectoryNotFoundException(
+                $"Chain directory not found: {root}. Run neo-stack init-l2 first.");
+
+        NeoHubDeployReport.EnsureSettlementStoreDirectories(root);
+        var absolute = System.IO.Path.Combine(root, NeoHubDeployReport.RelativeGatewayOutboxStoreDir);
+        Directory.CreateDirectory(absolute);
+        return new PersistentGatewayOutbox(new RocksDbKeyValueStore(absolute), ownsStore: true);
+    }
+
+    /// <summary>
     /// Persist a sealed constituent before exposing it to the in-memory aggregator.
     /// Exact duplicates are idempotent; conflicting reuse of the same key fails closed.
     /// </summary>

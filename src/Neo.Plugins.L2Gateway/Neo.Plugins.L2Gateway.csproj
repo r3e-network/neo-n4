@@ -17,4 +17,8 @@
     <ProjectReference Include="..\Neo.L2.Proving\Neo.L2.Proving.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Neo.Plugins.L2Gateway.UnitTests" />
+  </ItemGroup>
+
 </Project>

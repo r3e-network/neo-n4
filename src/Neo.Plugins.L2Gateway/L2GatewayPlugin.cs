@@ -96,6 +96,44 @@ public sealed class L2GatewayPlugin : Plugin
     public override string Description =>
         "Durably aggregates finalized L2 batches and publishes proof-bound Gateway global roots.";
 
+    /// <summary>Construct with default settings (enabled, 3 automatic retries).</summary>
+    public L2GatewayPlugin()
+    {
+    }
+
+    internal L2GatewayPlugin(L2GatewaySettings settings) : this()
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        _enabled = settings.Enabled;
+        _maxAutomaticRetries = settings.MaxAutomaticRetries;
+    }
+
+    /// <summary>
+    /// Host composition factory: load Enabled/MaxAutomaticRetries from a chain directory
+    /// and attach a durable <see cref="PersistentGatewayOutbox"/> under
+    /// <c>data/gateway/outbox</c>. Call <see cref="UseAggregator"/> and
+    /// <see cref="ConfigureGlobalRootPublication"/> before accepting production work.
+    /// </summary>
+    public static L2GatewayPlugin CreateFromChainDirectory(string chainDirectory)
+    {
+        var settings = L2GatewaySettings.FromChainDirectory(chainDirectory);
+        var plugin = new L2GatewayPlugin(settings);
+        plugin.UsePersistentOutbox(
+            PersistentGatewayOutbox.OpenFromChainDirectory(chainDirectory),
+            ownsOutbox: true);
+        return plugin;
+    }
+
+    /// <summary>Loaded gateway settings (host composition / tests).</summary>
+    internal L2GatewaySettings Settings => new()
+    {
+        Enabled = _enabled,
+        MaxAutomaticRetries = _maxAutomaticRetries,
+    };
+
+    /// <summary>True when a durable outbox is attached.</summary>
+    internal bool HasPersistentOutbox => _outbox is not null;
+
     /// <summary>
     /// Replace the active aggregator before a durable outbox or any Gateway work is attached.
     /// </summary>

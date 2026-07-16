@@ -266,4 +266,77 @@ public class UT_L2GatewayPlugin
         Assert.IsFalse(string.IsNullOrWhiteSpace(plugin.Name));
         Assert.IsFalse(string.IsNullOrWhiteSpace(plugin.Description));
     }
+
+    [TestMethod]
+    public void CreateFromChainDirectory_LoadsSettingsAndAttachesOutbox()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-cfd-" + Guid.NewGuid().ToString("N"));
+        var configDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Gateway");
+        Directory.CreateDirectory(configDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(configDir, "config.json"), """
+                {
+                  "PluginConfiguration": {
+                    "Enabled": true,
+                    "MaxAutomaticRetries": 7
+                  }
+                }
+                """);
+            using var plugin = L2GatewayPlugin.CreateFromChainDirectory(dir);
+            Assert.IsTrue(plugin.Settings.Enabled);
+            Assert.AreEqual(7, plugin.Settings.MaxAutomaticRetries);
+            Assert.IsTrue(plugin.HasPersistentOutbox);
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                dir, NeoHubDeployReport.RelativeGatewayOutboxStoreDir)));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void CreateFromChainDirectory_MissingConfig_FailsClosed()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-empty-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            Assert.ThrowsExactly<FileNotFoundException>(
+                () => L2GatewayPlugin.CreateFromChainDirectory(dir));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void OpenFromChainDirectory_OutboxRoundTrips()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-outbox-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            using (var outbox = PersistentGatewayOutbox.OpenFromChainDirectory(dir))
+            {
+                var recovery = outbox.Recover();
+                Assert.AreEqual(0, recovery.Sealed.Count);
+                Assert.IsNull(recovery.Publication);
+            }
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                dir, NeoHubDeployReport.RelativeGatewayOutboxStoreDir)));
+            // Reopen same path after dispose (RocksDB lock released).
+            using var reopened = PersistentGatewayOutbox.OpenFromChainDirectory(dir);
+            Assert.IsNull(reopened.Recover().Publication);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
 }

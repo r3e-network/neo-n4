@@ -268,6 +268,24 @@ public sealed record NeoHubDeployReport(
             daJson,
             alsoWriteFromDeployCopy: true));
 
+        // Gateway: default durable publication settings; host attaches outbox + production
+        // aggregator/prover/publisher before accepting work when gatewayEnabled.
+        var gatewayEnabled = ResolveGatewayEnabled(chainDirectory);
+        var gateway = new Dictionary<string, object?>
+        {
+            ["PluginConfiguration"] = new Dictionary<string, object?>
+            {
+                ["Enabled"] = gatewayEnabled,
+                ["MaxAutomaticRetries"] = 3,
+            },
+        };
+        var gatewayJson = JsonSerializer.Serialize(gateway, jsonOptions) + Environment.NewLine;
+        written.AddRange(WritePluginConfig(
+            chainDirectory,
+            "Neo.Plugins.L2Gateway",
+            gatewayJson,
+            alsoWriteFromDeployCopy: true));
+
         // Operator checklist for WireProduction args that are not plugin config fields.
         // Deploy heights materialize from the evidence report when blockIndex is present;
         // durable store paths remain operator-supplied.
@@ -318,12 +336,17 @@ public sealed record NeoHubDeployReport(
                     ["proverPluginFactory"] = "L2ProverPlugin.CreateFromChainDirectory(chainDirectory)",
                     ["metricsPluginFactory"] = "L2MetricsPlugin.CreateFromChainDirectory(chainDirectory)",
                     ["localDaPluginFactory"] = "L2DAPlugin.CreateLocalFromChainDirectory(chainDirectory)",
+                    ["gatewayPluginFactory"] =
+                        "L2GatewayPlugin.CreateFromChainDirectory(chainDirectory)",
                     ["stateStore"] = RelativeStateDir,
                     ["rpcProofStore"] = RelativeRpcProofStoreDir,
+                    ["gatewayOutboxStore"] = RelativeGatewayOutboxStoreDir,
                     ["stateOpenHelper"] =
                         "Sp1SettlementExecutionStack.OpenStateFromChainDirectory(chainDirectory)",
                     ["rpcStoreOpenHelper"] =
                         "InMemoryL2RpcStore.OpenFromChainDirectory(chainDirectory)",
+                    ["gatewayOutboxOpenHelper"] =
+                        "PersistentGatewayOutbox.OpenFromChainDirectory(chainDirectory)",
                     ["sp1StackFromChainDirectory"] =
                         "Sp1SettlementExecutionStack.CreateFromChainDirectory(chainDir, state, executorPath, executorSha256, vk)",
                     ["wireProductionFromLayout"] =
@@ -352,6 +375,9 @@ public sealed record NeoHubDeployReport(
                     "L2 RPC: InMemoryL2RpcStore.OpenFromChainDirectory(chainDir) then "
                     + "NeoSystem.AddService(store) before L2RpcPlugin registers methods "
                     + "(durable proofs under " + RelativeRpcProofStoreDir + ")",
+                    "Gateway: L2GatewayPlugin.CreateFromChainDirectory(chainDir) attaches durable "
+                    + "outbox at " + RelativeGatewayOutboxStoreDir
+                    + "; then UseAggregator + ConfigureGlobalRootPublication (production DA/prover)",
                     "Zk: state = Sp1SettlementExecutionStack.OpenStateFromChainDirectory(chainDir) "
                     + "then CreateFromChainDirectory(chainDir, state, executorPath, executorSha256, vk) "
                     + "after bootstrap-genesis (ensures prover/executor-scratch + prover/inbox; "
@@ -444,6 +470,12 @@ public sealed record NeoHubDeployReport(
     public const string RelativeRpcProofStoreDir = "data/rpc/proofs";
 
     /// <summary>
+    /// Canonical RocksDB path for durable Gateway outbox / publication recovery
+    /// (opened by <c>PersistentGatewayOutbox.OpenFromChainDirectory</c>).
+    /// </summary>
+    public const string RelativeGatewayOutboxStoreDir = "data/gateway/outbox";
+
+    /// <summary>
     /// Create the canonical WireProduction durable-store directories under a chain layout.
     /// Safe to call repeatedly; does not open RocksDB (empty dirs only).
     /// </summary>
@@ -460,6 +492,7 @@ public sealed record NeoHubDeployReport(
             RelativeMessageRouterEventStoreDir,
             RelativeLocalDaStoreDir,
             RelativeRpcProofStoreDir,
+            RelativeGatewayOutboxStoreDir,
         };
         foreach (var path in relative)
             Directory.CreateDirectory(Path.Combine(chainDirectory, path));
@@ -519,6 +552,32 @@ public sealed record NeoHubDeployReport(
                 throw new ArgumentException(
                     $"chain.config.json daMode='{name}' is not a valid DAMode");
             return (byte)daMode;
+        }
+        catch (JsonException ex)
+        {
+            throw new ArgumentException(
+                $"chain.config.json is not valid JSON: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Read <c>chain.config.json</c> <c>gatewayEnabled</c>. Defaults to <c>true</c> when
+    /// absent so gateway-capable templates keep the plugin enabled.
+    /// </summary>
+    public static bool ResolveGatewayEnabled(string chainDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        var configPath = Path.Combine(chainDirectory, "chain.config.json");
+        if (!File.Exists(configPath))
+            return true;
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(configPath));
+            if (!doc.RootElement.TryGetProperty("gatewayEnabled", out var prop))
+                return true;
+            if (prop.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                throw new ArgumentException("chain.config.json gatewayEnabled must be a boolean");
+            return prop.GetBoolean();
         }
         catch (JsonException ex)
         {

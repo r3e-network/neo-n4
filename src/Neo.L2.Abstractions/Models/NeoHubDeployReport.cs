@@ -261,6 +261,7 @@ public sealed record NeoHubDeployReport(
                 {
                     "INeoTransactionSigner",
                     "L2SettlementSettings.FromChainDirectory(chainDir) (or FromPluginConfigFile)",
+                    "L2BatchSettings.FromChainDirectory(chainDir) (or FromPluginConfigFile)",
                     "L2SettlementStoreLayout.Open(chainDir) → ProofWitness + event stores "
                     + "(or open RocksDB at recommended paths below)",
                     "durable proofWitnessStore (recommended: "

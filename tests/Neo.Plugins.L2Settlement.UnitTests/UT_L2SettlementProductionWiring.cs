@@ -716,6 +716,89 @@ public class UT_L2SettlementProductionWiring
     }
 
     [TestMethod]
+    public void WireProduction_FromChainDirectoryAndStoreLayout_UsesLiveDeployReport()
+    {
+        // Host composition path: materialize report → FromChainDirectory + StoreLayout → WireProduction.
+        var reportPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        var chainDir = Path.Combine(Path.GetTempPath(), "neo-n4-wp-host-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(chainDir, "chain.config.json"), """
+                {
+                  "chainId": 20260716,
+                  "proofType": "Zk",
+                  "securityLevel": "Validity",
+                  "daMode": "L1"
+                }
+                """);
+            NeoHubDeployReport.Load(reportPath).WriteOperatorArtifacts(chainDir);
+
+            var loaded = L2SettlementSettings.FromChainDirectory(chainDir);
+            Assert.AreEqual((byte)ProofType.Zk, loaded.ProofType);
+            Assert.AreEqual(17729309u, loaded.ForcedInclusionDeploymentHeight);
+            Assert.AreEqual(17729307u, loaded.SharedBridgeDeploymentHeight);
+            Assert.AreEqual(17729303u, loaded.MessageRouterDeploymentHeight);
+            _ = loaded.ValidateProduction();
+
+            // Wire with Multisig profile for composition-only coverage (full ZK uses
+            // Sp1SettlementExecutionStack + production DA; ProofType must match profile).
+            var wireSettings = new L2SettlementSettings
+            {
+                ChainId = loaded.ChainId,
+                L1RpcEndpoint = loaded.L1RpcEndpoint,
+                ExpectedNetwork = loaded.ExpectedNetwork,
+                SettlementManagerHash = loaded.SettlementManagerHash,
+                ForcedInclusionHash = loaded.ForcedInclusionHash,
+                SharedBridgeHash = loaded.SharedBridgeHash,
+                MessageRouterHash = loaded.MessageRouterHash,
+                ForcedInclusionDeploymentHeight = loaded.ForcedInclusionDeploymentHeight,
+                SharedBridgeDeploymentHeight = loaded.SharedBridgeDeploymentHeight,
+                MessageRouterDeploymentHeight = loaded.MessageRouterDeploymentHeight,
+                L1FinalityDepth = loaded.L1FinalityDepth,
+                ProofType = (byte)ProofType.Multisig,
+                Enabled = false,
+            };
+
+            using var layout = L2SettlementStoreLayout.Open(chainDir);
+            using var batch = new L2BatchPlugin();
+            using var settlement = new L2SettlementPlugin(wireSettings);
+            using var http = CanonicalRootHttpClient();
+
+            var forcedSource = settlement.WireProduction(
+                batch,
+                new TestExecutor(),
+                new TestDaWriter(),
+                layout.ProofWitness,
+                new TestProver(),
+                ProofWitnessPipelineProfile.Legacy(wireSettings.ChainId, ProofType.Multisig, Root(0x11)),
+                new TrackingSigner(Account(0x33)),
+                layout.ForcedInclusionEvents,
+                sharedBridgeDepositEventStore: layout.SharedBridgeDeposits,
+                messageRouterEventStore: layout.MessageRouterEvents,
+                sequencerCommitteeHash: static () => Root(0x22),
+                rpcHttpClient: http);
+
+            Assert.IsNotNull(forcedSource);
+            Assert.IsNotNull(settlement.ProductionComposition?.OwnedDepositSource);
+            Assert.IsNotNull(settlement.ProductionComposition?.OwnedMessageRouter);
+            Assert.AreEqual(loaded.ChainId, forcedSource.ChainId);
+            settlement.Dispose();
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void WireProduction_ConstructsOwnedMessageRouterWhenConfigured()
     {
         using var backend = new TemporaryRocksDb();

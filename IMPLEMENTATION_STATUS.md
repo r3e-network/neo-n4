@@ -406,8 +406,9 @@ These are explicit deployment seams rather than missing protocol algorithms:
   `SharedBridgeHash` is configured, and optionally an owned `RpcMessageRouter` +
   `RpcMessageRouterEventScanner` when `MessageRouterHash` is configured.
   Hosts load materialised plugin config via `L2SettlementSettings.FromChainDirectory(chainDir)`
-  (or `FromPluginConfigFile`). `L2SettlementStoreLayout.Open(chainDir)` opens the canonical
-  durable RocksDB stores under `data/settlement/*` for proof-witness + the three scanners;
+  and `L2BatchSettings.FromChainDirectory(chainDir)` (or `FromPluginConfigFile`).
+  `L2SettlementStoreLayout.Open(chainDir)` opens the canonical durable RocksDB stores under
+  `data/settlement/*` for proof-witness + the three scanners;
   deploy heights and `L1FinalityDepth` come from that plugin config (materialized by
   `--from-deploy-report` when the evidence JSON has `blockIndex`) with optional per-scanner
   WireProduction overrides.

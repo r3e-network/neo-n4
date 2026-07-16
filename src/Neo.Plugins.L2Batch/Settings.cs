@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 
 namespace Neo.Plugins.L2;
@@ -18,6 +19,13 @@ namespace Neo.Plugins.L2;
 /// </summary>
 public sealed class L2BatchSettings
 {
+    /// <summary>
+    /// Relative path of the batch plugin config under a chain working directory
+    /// (written by <c>init-l2 --from-deploy-report</c> / <c>register-chain --from-deploy-report</c>).
+    /// </summary>
+    public const string RelativePluginConfigPath =
+        "Plugins/Neo.Plugins.L2Batch/config.json";
+
     /// <summary>L2 chain identifier this node serves.</summary>
     public uint ChainId { get; init; }
 
@@ -36,6 +44,7 @@ public sealed class L2BatchSettings
     /// <summary>Build settings from the plugin's <c>PluginConfiguration</c> section.</summary>
     public static L2BatchSettings From(IConfigurationSection section)
     {
+        ArgumentNullException.ThrowIfNull(section);
         // Distinguish "key missing" (test mode, no config supplied — leave ChainId at 0)
         // from "explicitly set to 0" (operator misconfig — reject). The nullable read
         // returns null for the former and 0 for the latter; we only validate the second.
@@ -49,6 +58,69 @@ public sealed class L2BatchSettings
             Enabled = section.GetValue("Enabled", true),
         };
     }
+
+    /// <summary>
+    /// Load settings from a batch plugin <c>config.json</c> file
+    /// (<c>{ "PluginConfiguration": { ... } }</c>).
+    /// </summary>
+    public static L2BatchSettings FromPluginConfigFile(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var fullPath = Path.GetFullPath(path);
+        if (!File.Exists(fullPath))
+            throw new FileNotFoundException("batch plugin config not found", fullPath);
+
+        using var document = JsonDocument.Parse(File.ReadAllText(fullPath));
+        if (!document.RootElement.TryGetProperty("PluginConfiguration", out var plugin)
+            || plugin.ValueKind != JsonValueKind.Object)
+            throw new InvalidDataException(
+                $"{fullPath} is missing a PluginConfiguration object");
+
+        var pairs = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var property in plugin.EnumerateObject())
+            pairs["PluginConfiguration:" + property.Name] = JsonValueToConfigString(property.Value);
+
+        var root = new ConfigurationBuilder()
+            .AddInMemoryCollection(pairs)
+            .Build();
+        return From(root.GetSection("PluginConfiguration"));
+    }
+
+    /// <summary>
+    /// Load settings from a chain working directory written by <c>init-l2</c> /
+    /// <c>--from-deploy-report</c>. Tries top-level, <c>node/</c>, then <c>batcher-node/</c>
+    /// plugin config paths.
+    /// </summary>
+    public static L2BatchSettings FromChainDirectory(string chainDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        var root = Path.GetFullPath(chainDirectory);
+        var candidates = new[]
+        {
+            Path.Combine(root, "Plugins", "Neo.Plugins.L2Batch", "config.json"),
+            Path.Combine(root, "node", "Plugins", "Neo.Plugins.L2Batch", "config.json"),
+            Path.Combine(root, "batcher-node", "Plugins", "Neo.Plugins.L2Batch", "config.json"),
+        };
+        foreach (var candidate in candidates)
+        {
+            if (File.Exists(candidate))
+                return FromPluginConfigFile(candidate);
+        }
+        throw new FileNotFoundException(
+            "batch plugin config not found under chain directory "
+            + $"(expected {RelativePluginConfigPath} or node/batcher-node variants)",
+            Path.Combine(root, RelativePluginConfigPath));
+    }
+
+    private static string? JsonValueToConfigString(JsonElement value) => value.ValueKind switch
+    {
+        JsonValueKind.String => value.GetString(),
+        JsonValueKind.Number => value.GetRawText(),
+        JsonValueKind.True => "true",
+        JsonValueKind.False => "false",
+        JsonValueKind.Null => null,
+        _ => value.GetRawText(),
+    };
 
     /// <summary>
     /// Reject zero or negative thresholds at config-parse time. Without this, a misconfigured

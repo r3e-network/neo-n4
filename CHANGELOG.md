@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — batch plugin config load + host WireProduction path from deploy report — 2026-07-16
+
+- `L2BatchSettings.FromPluginConfigFile` / `FromChainDirectory` mirror settlement loading
+  for `Plugins/Neo.Plugins.L2Batch/config.json` (and node/batcher-node variants).
+- Integration: live deploy-report materialization → `L2SettlementSettings.FromChainDirectory`
+  + `L2SettlementStoreLayout.Open` + `WireProduction` (owned deposit + MessageRouter,
+  auto L1 height, operator committee hash).
+- Wireproduction notes list batch settings load alongside settlement.
+
 ### Added — load settlement settings from deploy-report plugin config — 2026-07-16
 
 - `L2SettlementSettings.FromPluginConfigFile` and `FromChainDirectory` load the

@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — L2ProverPlugin.CreateFromChainDirectory + deploy-report config — 2026-07-16
+
+- Materialize `Plugins/Neo.Plugins.L2Prover/config.json` (ProofType from chain.config)
+  in `NeoHubDeployReport.WriteOperatorArtifacts` alongside settlement/batch configs.
+- `L2ProverPlugin.CreateFromChainDirectory` / `ReadProofTypeFromChainDirectory` preload
+  Kind for host composition; call `Wire(...)` with stage-specific dependencies afterward.
+- Wireproduction notes document `proverPluginFactory`.
+
 ### Added — Sp1SettlementExecutionStack.OpenStateFromChainDirectory — 2026-07-16
 
 - Opens RocksDB at `data/state` after `bootstrap-genesis` (caller-owned dispose).

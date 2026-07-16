@@ -124,6 +124,82 @@ public class UT_L2ProverPlugin
     }
 
     [TestMethod]
+    public void CreateFromChainDirectory_LoadsProofTypeFromDeployReport()
+    {
+        var reportPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-prover-cfd-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "chain.config.json"), """
+                {
+                  "chainId": 20260716,
+                  "proofType": "Zk",
+                  "securityLevel": "Validity",
+                  "daMode": "L1"
+                }
+                """);
+            NeoHubDeployReport.Load(reportPath).WriteOperatorArtifacts(dir);
+
+            using var plugin = L2ProverPlugin.CreateFromChainDirectory(dir);
+            Assert.AreEqual(ProofType.Zk, plugin.Kind);
+            Assert.IsNull(plugin.Prover);
+            Assert.IsTrue(File.Exists(Path.Combine(dir, L2ProverPlugin.RelativePluginConfigPath)));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void CreateFromChainDirectory_MissingConfig_FailsClosed()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-prover-empty-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            Assert.ThrowsExactly<FileNotFoundException>(
+                () => L2ProverPlugin.CreateFromChainDirectory(dir));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void CreateFromChainDirectory_Multisig_WiresAttestationProver()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-prover-ms-" + Guid.NewGuid().ToString("N"));
+        var configDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Prover");
+        Directory.CreateDirectory(configDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(configDir, "config.json"), """
+                { "PluginConfiguration": { "ProofType": 1 } }
+                """);
+            using var plugin = L2ProverPlugin.CreateFromChainDirectory(dir);
+            Assert.AreEqual(ProofType.Multisig, plugin.Kind);
+            plugin.Wire(signerSet: SampleSigners());
+            Assert.IsInstanceOfType(plugin.Prover, typeof(AttestationProver));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void Wire_Optimistic_WithProver_InstallsIL2Prover()
     {
         var priv = Enumerable.Range(1, 32).Select(i => (byte)i).ToArray();

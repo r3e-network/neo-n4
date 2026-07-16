@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Neo.L2;
 using Neo.L2.Proving;
@@ -14,6 +15,13 @@ namespace Neo.Plugins.L2;
 /// </summary>
 public sealed class L2ProverPlugin : Plugin
 {
+    /// <summary>
+    /// Relative path of the prover plugin config under a chain working directory
+    /// (written by <c>init-l2 --from-deploy-report</c> / deploy-report materialization).
+    /// </summary>
+    public const string RelativePluginConfigPath =
+        "Plugins/Neo.Plugins.L2Prover/config.json";
+
     private ProofType _kind = ProofType.Multisig;
     private IL2Prover? _prover;
 
@@ -32,6 +40,71 @@ public sealed class L2ProverPlugin : Plugin
     {
         get => _kind;
         set => _kind = value;
+    }
+
+    /// <summary>
+    /// Host composition factory: preload <see cref="Kind"/> from a chain working directory
+    /// without the Neo plugin config loader.
+    /// </summary>
+    /// <remarks>
+    /// Reads <c>Plugins/Neo.Plugins.L2Prover/config.json</c> (or node/batcher-node variants)
+    /// written by deploy-report materialization. Call <see cref="Wire"/> afterward with the
+    /// stage-specific dependency (signer set / OptimisticProver / Sp1BatchProofProver).
+    /// </remarks>
+    public static L2ProverPlugin CreateFromChainDirectory(string chainDirectory)
+    {
+        var kind = ReadProofTypeFromChainDirectory(chainDirectory);
+        return new L2ProverPlugin { Kind = kind };
+    }
+
+    /// <summary>
+    /// Load <c>ProofType</c> from a prover plugin config under a chain directory.
+    /// </summary>
+    public static ProofType ReadProofTypeFromChainDirectory(string chainDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        var root = System.IO.Path.GetFullPath(chainDirectory);
+        var candidates = new[]
+        {
+            System.IO.Path.Combine(root, "Plugins", "Neo.Plugins.L2Prover", "config.json"),
+            System.IO.Path.Combine(root, "node", "Plugins", "Neo.Plugins.L2Prover", "config.json"),
+            System.IO.Path.Combine(root, "batcher-node", "Plugins", "Neo.Plugins.L2Prover", "config.json"),
+        };
+        foreach (var candidate in candidates)
+        {
+            if (File.Exists(candidate))
+                return ReadProofTypeFromPluginConfigFile(candidate);
+        }
+        throw new FileNotFoundException(
+            "prover plugin config not found under chain directory "
+            + $"(expected {RelativePluginConfigPath} or node/batcher-node variants)",
+            System.IO.Path.Combine(root, RelativePluginConfigPath));
+    }
+
+    /// <summary>Load <c>ProofType</c> from a prover plugin <c>config.json</c> file.</summary>
+    public static ProofType ReadProofTypeFromPluginConfigFile(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var fullPath = System.IO.Path.GetFullPath(path);
+        if (!File.Exists(fullPath))
+            throw new FileNotFoundException("prover plugin config not found", fullPath);
+
+        using var document = JsonDocument.Parse(File.ReadAllText(fullPath));
+        if (!document.RootElement.TryGetProperty("PluginConfiguration", out var plugin)
+            || plugin.ValueKind != JsonValueKind.Object)
+            throw new InvalidDataException(
+                $"{fullPath} is missing a PluginConfiguration object");
+        if (!plugin.TryGetProperty("ProofType", out var proofTypeEl))
+            throw new InvalidDataException($"{fullPath} is missing PluginConfiguration.ProofType");
+
+        byte raw = proofTypeEl.ValueKind switch
+        {
+            JsonValueKind.Number when proofTypeEl.TryGetByte(out var b) => b,
+            JsonValueKind.String when byte.TryParse(proofTypeEl.GetString(), out var parsed) => parsed,
+            _ => throw new InvalidDataException(
+                $"{fullPath} ProofType must be a byte (0..3)"),
+        };
+        return ProofTypeExtensions.Resolve(raw);
     }
 
     /// <summary>

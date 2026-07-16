@@ -344,7 +344,7 @@ real secp256k1 signatures.
 | `Neo.Plugins.L2Metrics.UnitTests`    | 20    | composition root: bound port, idempotent Start, real HTTP scrape, readiness predicate gating, default settings, **`ResolveBindAddress` boundary tests, concurrent-Start race-safety, `ValidatePort` boundary tests, plugin Name + Description non-empty** |
 | `Neo.Plugins.L2Batch.UnitTests`      | 48    | `BatchSealer` immutable execution payload, real L1/block context, pending/persist/ack hand-off, sink retry, durable checkpoint restore, crash continuity, duplicate/gap fail-closed behavior, immutable sink/input wiring, chain-domain validation, metrics re-wiring, forced nonce filtering without early consumption, null-source-result rejection, triggers and plugin lifecycle |
 | `Neo.Plugins.L2Bridge.UnitTests`     | 10    | `L2BridgePlugin` lifecycle, asset registration, default behavior, **WithMetrics propagates to existing Deposit + Withdrawal processors (symmetric pins — without both, a refactor that drops one of the `?.WithMetrics()` calls would silently lose half the `l2.bridge.*` metric stream)** |
-| `Neo.Plugins.L2Prover.UnitTests`     | 12    | `L2ProverPlugin` lifecycle, ProofType resolution, **Wire dispatch: Multisig / Zk-with/without / Optimistic with `OptimisticProver` or missing (helpful error) / None** |
+| `Neo.Plugins.L2Prover.UnitTests`     | 15    | `L2ProverPlugin` lifecycle, ProofType resolution, **CreateFromChainDirectory from deploy-report**, Wire dispatch Multisig/Zk/Optimistic/None |
 | `Neo.Plugins.L2Settlement.UnitTests` | 73    | canonical artifact bytes reach prover, ZK fail-closed policy, DA/result/public-input cross-checks, pre-execution predecessor/block/state continuity rejection, strict contiguous durable reconciliation, bounded retry/poison/restart/operator recovery, no-loss and no-bypass checks, validated continuous checkpoint recovery, process-crash recovery across proof/broadcast/observation/finality/consume windows, transaction-aware duplicate suppression, restored success/failure/concurrency/throwing-metrics coverage, explicit legacy control, and production durable-store/configuration/constructor/forced-pair/ownership/disposal coverage |
 | `Neo.L2.Settlement.Rpc.UnitTests`    | 61    | JSON-RPC envelope, stack parsing, signer, batch lifecycle, duplicate-broadcast confirmation recovery, transaction-status reconciliation, and finalized-root-bound forced-inclusion consumption with idempotent L1 read-back |
 | `Neo.L2.Telemetry.UnitTests`         | 103   | counter/histogram/gauge accumulation, tag canonicalization, Prometheus exporter (counter/gauge/summary, labels, name sanitization, frozen-snapshot), request handler routing, TCP server round-trip + multi-request, catalog completeness vs MetricNames + Prometheus integration, **`/healthz` + `/readyz` (with predicate)** |
@@ -379,7 +379,7 @@ real secp256k1 signatures.
 | ForcedInclusion | nonce 1 enqueued (`0x73924dce…f412`, HALT); needs `WitnessScope.Global` for fee transfer |
 | SharedBridge deposit | **code fix** on master: `Transaction.Sender` + CheckWitness (ABI stable). **Deployed testnet** still runs pre-fix bytecode until SharedBridge redeploy + chain update. Nested NEP-17 needs `--witness-scope Global`. |
 | Local Multisig DA | **code-complete**: `PersistentDAWriter.OpenLocalFromChainDirectory` → `data/settlement/da` |
-| Host WireProduction | **code-complete**: batch/settlement `CreateFromChainDirectory` + `WireProductionFromLayout` + Multisig/Optimistic provers + local DA; Zk: `OpenStateFromChainDirectory` + `Sp1SettlementExecutionStack.CreateFromChainDirectory` (still needs funded executor binary + VK + production DA) |
+| Host WireProduction | **code-complete**: batch/settlement/prover `CreateFromChainDirectory` + `WireProductionFromLayout` + Multisig/Optimistic provers + local DA; Zk: `OpenStateFromChainDirectory` + `Sp1SettlementExecutionStack.CreateFromChainDirectory` (still needs funded executor binary + VK + production DA) |
 | Evidence | [`docs/audit/testnet-deployment-20260716-live.json`](./docs/audit/testnet-deployment-20260716-live.json), [`docs/audit/testnet-evidence-status-2026-07-16.json`](./docs/audit/testnet-evidence-status-2026-07-16.json) |
 
 Key hashes: ChainRegistry `0x65201c54…2d23`, SettlementManager `0x11448868…bb51`, SharedBridge `0xf2f5114b…b241`, MessageRouter `0x3caf3c6e…fe90`, ForcedInclusion `0x962829ae…55a9`, TokenRegistry `0x96ae4655…505b`, Sp1Groth16Verifier `0x1004bb51…0c4d`. Scanner deploy heights: ForcedInclusion `17729309`, SharedBridge `17729307`, MessageRouter `17729303`.
@@ -411,10 +411,12 @@ These are explicit deployment seams rather than missing protocol algorithms:
   forced-inclusion finalization, optionally an owned `RpcSharedBridgeDepositSource` when
   `SharedBridgeHash` is configured, and optionally an owned `RpcMessageRouter` +
   `RpcMessageRouterEventScanner` when `MessageRouterHash` is configured.
-  Hosts construct plugins via `L2SettlementPlugin.CreateFromChainDirectory(chainDir)` and
-  `L2BatchPlugin.CreateFromChainDirectory(chainDir)` (or load
-  `L2SettlementSettings` / `L2BatchSettings` with `FromChainDirectory` / `FromPluginConfigFile`);
-  genesis root via `L2GenesisManifest.ReadInitialStateRootFromChainDirectory`; Multisig/Optimistic
+  Hosts construct plugins via `L2SettlementPlugin.CreateFromChainDirectory(chainDir)`,
+  `L2BatchPlugin.CreateFromChainDirectory(chainDir)`, and
+  `L2ProverPlugin.CreateFromChainDirectory(chainDir)` then `Wire(...)` with the stage
+  dependency (or load settings via `FromChainDirectory` / `FromPluginConfigFile`).
+  Deploy-report materialization writes matching ProofType into settlement + prover configs.
+  Genesis root via `L2GenesisManifest.ReadInitialStateRootFromChainDirectory`; Multisig/Optimistic
   profile via `ProofWitnessPipelineProfile.LegacyFromChainDirectory`; Zk via
   `state = Sp1SettlementExecutionStack.OpenStateFromChainDirectory(chainDir)` then
   `CreateFromChainDirectory(chainDir, state, executorPath, executorSha256, verificationKeyId)`
@@ -425,7 +427,8 @@ These are explicit deployment seams rather than missing protocol algorithms:
   `L2SettlementStoreLayout.Open(chainDir)` opens the canonical durable RocksDB stores under
   `data/settlement/*`; Multisig hosts may call
   `WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer)` to bind
-  stores, static committee hash, and the legacy profile (pass Sp1 stack Profile for Zk).
+  stores, static committee hash, and the legacy profile (pass Sp1 stack Profile for Zk;
+  `prover` from `L2ProverPlugin.Prover` after Wire or direct Attestation/Optimistic/Sp1 instance).
   Deploy heights and `L1FinalityDepth` come from plugin config (materialized by
   `--from-deploy-report` when evidence has `blockIndex`) with optional per-scanner
   WireProduction overrides.

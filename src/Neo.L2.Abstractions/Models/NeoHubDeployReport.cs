@@ -212,6 +212,22 @@ public sealed record NeoHubDeployReport(
             batchJson,
             alsoWriteFromDeployCopy: true));
 
+        // Prover plugin: same ProofType byte as settlement so Stage-0/1/2 selection matches
+        // WireProduction without re-typing chain.config.
+        var prover = new Dictionary<string, object?>
+        {
+            ["PluginConfiguration"] = new Dictionary<string, object?>
+            {
+                ["ProofType"] = proofTypeByte,
+            },
+        };
+        var proverJson = JsonSerializer.Serialize(prover, jsonOptions) + Environment.NewLine;
+        written.AddRange(WritePluginConfig(
+            chainDirectory,
+            "Neo.Plugins.L2Prover",
+            proverJson,
+            alsoWriteFromDeployCopy: true));
+
         // Operator checklist for WireProduction args that are not plugin config fields.
         // Deploy heights materialize from the evidence report when blockIndex is present;
         // durable store paths remain operator-supplied.
@@ -259,6 +275,7 @@ public sealed record NeoHubDeployReport(
                     ["openHelper"] = "L2SettlementStoreLayout.Open(chainDirectory)",
                     ["batchPluginFactory"] = "L2BatchPlugin.CreateFromChainDirectory(chainDirectory)",
                     ["settlementPluginFactory"] = "L2SettlementPlugin.CreateFromChainDirectory(chainDirectory)",
+                    ["proverPluginFactory"] = "L2ProverPlugin.CreateFromChainDirectory(chainDirectory)",
                     ["stateStore"] = RelativeStateDir,
                     ["stateOpenHelper"] =
                         "Sp1SettlementExecutionStack.OpenStateFromChainDirectory(chainDirectory)",
@@ -280,6 +297,8 @@ public sealed record NeoHubDeployReport(
                     + "(or L2SettlementSettings.FromChainDirectory + ctor)",
                     "L2BatchPlugin.CreateFromChainDirectory(chainDir) "
                     + "(or L2BatchSettings.FromChainDirectory + ctor)",
+                    "L2ProverPlugin.CreateFromChainDirectory(chainDir) then Wire(signerSet / "
+                    + "optimisticProver / zkProver from Sp1 stack)",
                     "Zk: state = Sp1SettlementExecutionStack.OpenStateFromChainDirectory(chainDir) "
                     + "then CreateFromChainDirectory(chainDir, state, executorPath, executorSha256, vk) "
                     + "after bootstrap-genesis (ensures prover/executor-scratch + prover/inbox; "

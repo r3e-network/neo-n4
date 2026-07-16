@@ -162,6 +162,9 @@ public class UT_NeoHubDeployReport
                 "L2SettlementPlugin.CreateFromChainDirectory(chainDirectory)",
                 stores.GetProperty("settlementPluginFactory").GetString());
             Assert.AreEqual(
+                "L2ProverPlugin.CreateFromChainDirectory(chainDirectory)",
+                stores.GetProperty("proverPluginFactory").GetString());
+            Assert.AreEqual(
                 "Sp1SettlementExecutionStack.CreateFromChainDirectory(chainDir, state, executorPath, executorSha256, vk)",
                 stores.GetProperty("sp1StackFromChainDirectory").GetString());
             Assert.AreEqual(
@@ -175,6 +178,20 @@ public class UT_NeoHubDeployReport
                 stores.GetProperty("nestedNep17Signer").GetString());
             Assert.IsTrue(Directory.Exists(Path.Combine(
                 dir, NeoHubDeployReport.RelativeLocalDaStoreDir)));
+            Assert.IsTrue(File.Exists(Path.Combine(
+                dir, "Plugins", "Neo.Plugins.L2Prover", "config.json")));
+            var proverCfg = JsonDocument.Parse(File.ReadAllText(Path.Combine(
+                dir, "Plugins", "Neo.Plugins.L2Prover", "config.json")));
+            // MinimalReportJson has no chain.config.json → default Multisig (1).
+            Assert.AreEqual(
+                (byte)ProofType.Multisig,
+                proverCfg.RootElement.GetProperty("PluginConfiguration")
+                    .GetProperty("ProofType").GetByte());
+            Assert.AreEqual(
+                plugin.GetProperty("ProofType").GetByte(),
+                proverCfg.RootElement.GetProperty("PluginConfiguration")
+                    .GetProperty("ProofType").GetByte(),
+                "prover and settlement ProofType must match materialization");
         }
         finally
         {

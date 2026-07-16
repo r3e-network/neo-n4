@@ -11,8 +11,9 @@ namespace Neo.L2.Bridge;
 /// <remarks>
 /// Wire into <c>L2BatchPlugin</c> via <c>WireL1MessageInbox</c> / <c>WithDepositSource</c> so
 /// SharedBridge deposits enter the batcher L1 inbox with reserve → durable-seal confirm
-/// lifecycle. Operators must call <see cref="ScanAsync"/> on a poll loop before sealing
-/// batches that should include newly finalized deposits.
+/// lifecycle. Production composition calls <see cref="ScanAsync"/> at seal time
+/// (<c>L1MessageDrain.FromDeposits</c>) so newly finalized deposits are discovered without a
+/// separate poll loop; operators may still call <see cref="ScanAsync"/> proactively.
 /// </remarks>
 public sealed class RpcSharedBridgeDepositSource : ISharedBridgeDepositSource, IDisposable
 {

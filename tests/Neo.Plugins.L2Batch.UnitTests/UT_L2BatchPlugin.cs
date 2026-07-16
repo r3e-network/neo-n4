@@ -337,6 +337,34 @@ public class UT_L2BatchPlugin
     }
 
     [TestMethod]
+    public void WireL1MessageInbox_Deposits_ScanAtSealDiscoversPending()
+    {
+        // Production RpcSharedBridgeDepositSource only materializes after ScanAsync.
+        // Seal-path FromDeposits must Scan before Drain so L1-finalized deposits enter the batch
+        // without a separate operator poll loop.
+        var deposits = new ScanGatedDepositSource(1001, L2BridgeHash);
+        deposits.Stage(DepositRecord(nonce: 11, amount: 777));
+        Assert.AreEqual(0, deposits.Peek(10).Count);
+
+        var sink = new DurableSink();
+        using var plugin = new L2BatchPlugin(OneBlockSettings());
+        plugin.WireL1MessageInbox(
+            chainId: 1001,
+            l1FinalizedHeight: static () => 5,
+            sequencerCommitteeHash: static () => CommitteeHash,
+            deposits: deposits);
+        plugin.WithSealedBatchSink(sink, 1001);
+
+        plugin.ProcessCommittedBlock(1, 1000, 11, NoTxs());
+
+        Assert.IsTrue(deposits.ScanCount >= 1, "seal must scan deposits");
+        var batch = sink.PersistedBatches.Single();
+        Assert.AreEqual(1, batch.L1Messages.Count);
+        Assert.AreEqual(11UL, batch.L1Messages[0].Nonce);
+        Assert.AreEqual(0, deposits.Peek(10).Count, "confirmed after durable seal");
+    }
+
+    [TestMethod]
     public void ForcedInclusion_FiltersTrackedAndNullEntriesWithoutEarlyConsumption()
     {
         var source = new FakeForcedInclusionSource(1001)
@@ -633,5 +661,45 @@ public class UT_L2BatchPlugin
             cancellationToken.ThrowIfCancellationRequested();
             return ValueTask.FromResult(false);
         }
+    }
+
+    /// <summary>
+    /// Staged deposits become ready only after <see cref="ScanAsync"/> — mirrors production
+    /// event discovery without spinning an L1 RPC stub.
+    /// </summary>
+    private sealed class ScanGatedDepositSource : ISharedBridgeDepositSource
+    {
+        private readonly InMemorySharedBridgeDepositSource _inner;
+        private readonly List<SharedBridgeDepositRecord> _staged = new();
+
+        public ScanGatedDepositSource(uint chainId, UInt160 l2BridgeHash)
+        {
+            _inner = new InMemorySharedBridgeDepositSource(chainId, l2BridgeHash);
+        }
+
+        public uint ChainId => _inner.ChainId;
+        public int ScanCount { get; private set; }
+
+        public void Stage(SharedBridgeDepositRecord record) => _staged.Add(record);
+
+        public ValueTask<int> ScanAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ScanCount++;
+            foreach (var record in _staged)
+                _inner.Enqueue(record);
+            var count = _staged.Count;
+            _staged.Clear();
+            return ValueTask.FromResult(count);
+        }
+
+        public IReadOnlyList<CrossChainMessage> Peek(int maxMessages) => _inner.Peek(maxMessages);
+
+        public IReadOnlyList<CrossChainMessage> Drain(int maxMessages) => _inner.Drain(maxMessages);
+
+        public void ConfirmConsumed(ulong nonce) => _inner.ConfirmConsumed(nonce);
+
+        public void ReleaseReservations(IEnumerable<ulong> nonces) =>
+            _inner.ReleaseReservations(nonces);
     }
 }

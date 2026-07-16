@@ -10,7 +10,8 @@ namespace Neo.L2.Bridge;
 /// Lifecycle (mirrors forced-inclusion reservation / finality ownership):
 /// </para>
 /// <list type="number">
-///   <item><see cref="ScanAsync"/> discovers and materializes deposits.</item>
+///   <item><see cref="ScanAsync"/> discovers and materializes deposits (invoked at seal time
+///   by <c>L1MessageDrain.FromDeposits</c>; may also be called proactively).</item>
 ///   <item><see cref="Drain"/> reserves deposits for the batcher (must not re-offer them).</item>
 ///   <item><see cref="ConfirmConsumed"/> permanently retires a nonce after the sealed batch
 ///   that included it has been durably persisted.</item>

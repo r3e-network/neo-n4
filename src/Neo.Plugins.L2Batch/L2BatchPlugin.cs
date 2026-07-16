@@ -79,7 +79,7 @@ public sealed class L2BatchPlugin : Plugin
 
     /// <summary>
     /// Wire the SharedBridge deposit source. When sealing inputs have not yet been set, a
-    /// deposit-only drain is installed automatically. Prefer
+    /// deposit-only drain is installed automatically (Scan then Drain at seal time). Prefer
     /// <see cref="WireL1MessageInbox"/> when MessageRouter traffic is also present.
     /// </summary>
     public void WithDepositSource(ISharedBridgeDepositSource source)
@@ -98,14 +98,15 @@ public sealed class L2BatchPlugin : Plugin
             && _l1FinalizedHeight is not null
             && _sequencerCommitteeHash is not null)
         {
-            _l1MessageDrain = source.Drain;
+            _l1MessageDrain = L1MessageDrain.FromDeposits(source);
         }
     }
 
     /// <summary>
     /// Compose the production L1 inbox: SharedBridge deposits and/or MessageRouter traffic,
-    /// plus block-context providers. Deposit nonces are confirmed only after durable seal
-    /// persistence (see <see cref="PersistAndAcknowledge"/>).
+    /// plus block-context providers. Deposit drains call <c>ScanAsync</c> then <c>Drain</c>
+    /// so finalized L1 deposits are discovered at seal time. Deposit nonces are confirmed
+    /// only after durable seal persistence (see <see cref="PersistAndAcknowledge"/>).
     /// </summary>
     public void WireL1MessageInbox(
         uint chainId,
@@ -133,7 +134,7 @@ public sealed class L2BatchPlugin : Plugin
         if (deposits is not null)
         {
             WithDepositSource(deposits);
-            drains.Add(deposits.Drain);
+            drains.Add(L1MessageDrain.FromDeposits(deposits));
         }
         if (messageRouter is not null)
             drains.Add(L1MessageDrain.FromRouter(messageRouter, chainId));

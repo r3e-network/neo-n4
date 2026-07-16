@@ -175,7 +175,8 @@ var forcedSource = settlementPlugin.WireProduction(
     sharedBridgeDepositEventStore: sharedBridgeDepositEventRocksDbStore,
     sharedBridgeDeploymentHeight: sharedBridgeDeployBlock);
 // With SharedBridgeHash configured, batchPlugin.DepositSource is the owned
-// RpcSharedBridgeDepositSource. Call depositSource.ScanAsync() on the operator poll loop.
+// RpcSharedBridgeDepositSource. Seal-time composition calls ScanAsync then Drain
+// (L1MessageDrain.FromDeposits); optional proactive ScanAsync remains safe.
 ```
 
 `ExecutorSha256Hex` must come from a reviewed/signed release manifest, not be calculated from the

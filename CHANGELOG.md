@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — seal-time SharedBridge deposit Scan before Drain — 2026-07-16
+
+- `L1MessageDrain.FromDeposits` now calls `ScanAsync` then `Drain` so production
+  `RpcSharedBridgeDepositSource` materializes finalized L1 deposits at seal time
+  (symmetric to forced-inclusion event scan inside `DrainAsync`).
+- `L2BatchPlugin.WireL1MessageInbox` / `WithDepositSource` install that adapter instead of
+  raw `Drain`, so operators no longer need a separate poll loop for deposits to enter batches.
+- Unit coverage: `FromDeposits` scan-gated materialization; batch plugin seal discovers staged
+  deposits; `WireProduction` fail-closed on volatile/zero-height deposit store and missing
+  block-context providers; explicit deposit source skips owned construction; dispose owns the
+  auto-built deposit source.
+
 ### Added — production SharedBridge deposit stack in WireProduction — 2026-07-16
 
 - `L2SettlementSettings` accepts optional `SharedBridgeHash` / `L2BridgeHash` (default

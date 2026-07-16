@@ -1,3 +1,5 @@
+using Neo.L2.Bridge;
+
 namespace Neo.L2.Messaging;
 
 /// <summary>
@@ -31,6 +33,28 @@ public static class L1MessageDrain
         // change the sealed composition root.
         var snapshot = drains.ToArray();
         return max => DrainAll(snapshot, max);
+    }
+
+    /// <summary>
+    /// Adapter for SharedBridge deposits used from the sealer's sync drain boundary.
+    /// Calls <see cref="ISharedBridgeDepositSource.ScanAsync"/> then
+    /// <see cref="ISharedBridgeDepositSource.Drain"/> so newly finalized L1 deposits
+    /// are discovered at seal time without a separate operator poll loop — same pattern as
+    /// <c>RpcForcedInclusionSource.DrainAsync</c> scanning events before returning entries.
+    /// Optional proactive <c>ScanAsync</c> calls remain safe and idempotent.
+    /// </summary>
+    public static Func<int, IReadOnlyList<CrossChainMessage>> FromDeposits(
+        ISharedBridgeDepositSource deposits)
+    {
+        ArgumentNullException.ThrowIfNull(deposits);
+        return max =>
+        {
+            // Scan discovers + materializes; Drain reserves. In-memory sources no-op Scan.
+            deposits.ScanAsync().AsTask().GetAwaiter().GetResult();
+            return deposits.Drain(max)
+                ?? throw new InvalidOperationException(
+                    "SharedBridge deposit Drain returned null");
+        };
     }
 
     /// <summary>

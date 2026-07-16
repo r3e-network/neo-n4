@@ -86,6 +86,40 @@ public sealed class L2ProverPlugin : Plugin
     }
 
     /// <summary>
+    /// Host composition: load Zk proof type from the chain directory and wire
+    /// <see cref="Sp1BatchProofProver.OpenFromChainDirectory"/> for the batch SP1 daemon queue.
+    /// </summary>
+    /// <remarks>
+    /// Fails closed when the chain directory configures a non-Zk <c>ProofType</c>.
+    /// The reviewed <c>prove-batch</c> daemon must watch <c>prover/inbox</c>; the
+    /// verification key remains host-supplied (funded release pin). Pass
+    /// <see cref="Prover"/> into <c>WireProductionFromLayout</c> or use
+    /// <c>Sp1SettlementExecutionStack</c> for the full executor+prover+profile bind.
+    /// </remarks>
+    public static L2ProverPlugin CreateZkWiredFromChainDirectory(
+        string chainDirectory,
+        UInt256 verificationKeyId,
+        TimeSpan? resultTimeout = null,
+        TimeSpan? pollInterval = null)
+    {
+        ArgumentNullException.ThrowIfNull(verificationKeyId);
+        var plugin = CreateFromChainDirectory(chainDirectory);
+        if (plugin.Kind != ProofType.Zk)
+        {
+            throw new InvalidOperationException(
+                $"CreateZkWiredFromChainDirectory requires ProofType.Zk; "
+                + $"chain directory configures {plugin.Kind}");
+        }
+        var zkProver = Sp1BatchProofProver.OpenFromChainDirectory(
+            chainDirectory,
+            verificationKeyId,
+            resultTimeout,
+            pollInterval);
+        plugin.Wire(zkProver: zkProver);
+        return plugin;
+    }
+
+    /// <summary>
     /// Load <c>ProofType</c> from a prover plugin config under a chain directory.
     /// </summary>
     public static ProofType ReadProofTypeFromChainDirectory(string chainDirectory)

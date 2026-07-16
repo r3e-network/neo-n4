@@ -143,6 +143,42 @@ public sealed class UT_Sp1BatchProofProver
             resultTimeout: TimeSpan.FromSeconds(5),
             pollInterval: TimeSpan.FromMilliseconds(10));
 
+    [TestMethod]
+    public void OpenFromChainDirectory_CreatesCanonicalInbox()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-batch-prover-cfd-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var vk = UInt256.Parse("0x" + new string('a', 64));
+            var prover = Sp1BatchProofProver.OpenFromChainDirectory(
+                dir,
+                vk,
+                resultTimeout: TimeSpan.FromSeconds(5),
+                pollInterval: TimeSpan.FromMilliseconds(10));
+            var expected = Path.GetFullPath(Path.Combine(
+                dir, NeoHubDeployReport.RelativeProverInboxDir));
+            Assert.AreEqual(expected, prover.QueueDirectory);
+            Assert.IsTrue(Directory.Exists(expected));
+            Assert.AreEqual(vk, prover.VerificationKeyId);
+            Assert.IsTrue(prover.ProducesCryptographicProof);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void OpenFromChainDirectory_MissingRoot_FailsClosed()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-batch-prover-missing-" + Guid.NewGuid().ToString("N"));
+        Assert.ThrowsExactly<DirectoryNotFoundException>(
+            () => Sp1BatchProofProver.OpenFromChainDirectory(
+                dir, UInt256.Parse("0x" + new string('b', 64))));
+    }
+
     private static (ProofWitnessArtifactV1 Artifact, ProofRequest Request) Request()
     {
         var bytes = FixtureBytes();

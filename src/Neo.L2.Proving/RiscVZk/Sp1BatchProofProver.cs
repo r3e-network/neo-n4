@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Neo.L2;
 using Neo.L2.Batch;
 using Neo.L2.State;
 
@@ -60,6 +61,44 @@ public sealed class Sp1BatchProofProver : RiscVProverBase, IProofArtifactRetenti
                 maximumRequestCount ?? 64);
         _verificationKey = verificationKeyId.GetSpan().ToArray();
         _verificationKeyId = new UInt256(_verificationKey);
+    }
+
+    /// <summary>
+    /// Host composition: open the batch SP1 file queue at
+    /// <see cref="NeoHubDeployReport.RelativeProverInboxDir"/> under a chain working
+    /// directory. The governance-registered verification key remains host-supplied.
+    /// </summary>
+    /// <remarks>
+    /// Pair with <c>L2ProverPlugin.CreateZkWiredFromChainDirectory</c> or
+    /// <c>Sp1SettlementExecutionStack.CreateFromChainDirectory</c>. The isolated
+    /// <c>prove-batch</c> daemon must watch the same queue (funded operator process).
+    /// </remarks>
+    public static Sp1BatchProofProver OpenFromChainDirectory(
+        string chainDirectory,
+        UInt256 verificationKeyId,
+        TimeSpan? resultTimeout = null,
+        TimeSpan? pollInterval = null,
+        long? maximumQueueBytes = null,
+        int? maximumRequestCount = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        ArgumentNullException.ThrowIfNull(verificationKeyId);
+
+        var root = Path.GetFullPath(chainDirectory);
+        if (!Directory.Exists(root))
+            throw new DirectoryNotFoundException(
+                $"Chain directory not found: {root}. Run neo-stack init-l2 first.");
+
+        NeoHubDeployReport.EnsureSettlementStoreDirectories(root);
+        var queue = Path.Combine(root, NeoHubDeployReport.RelativeProverInboxDir);
+        Directory.CreateDirectory(queue);
+        return new Sp1BatchProofProver(
+            queue,
+            verificationKeyId,
+            resultTimeout,
+            pollInterval,
+            maximumQueueBytes,
+            maximumRequestCount);
     }
 
     /// <summary>Absolute queue directory watched by <c>prove-batch daemon</c>.</summary>

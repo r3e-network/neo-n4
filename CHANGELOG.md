@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — SP1 batch prover OpenFromChainDirectory + Zk wired factory — 2026-07-17
+
+- `Sp1BatchProofProver.OpenFromChainDirectory` opens the canonical `prover/inbox` file queue
+  (same path as `Sp1SettlementExecutionStack` / init-l2).
+- `L2ProverPlugin.CreateZkWiredFromChainDirectory` loads Zk ProofType and wires that SP1
+  client for `WireProductionFromLayout` hosts.
+- `NeoHubDeployReport.RelativeProverInboxDir` is the single layout constant; settlement stack
+  aliases it. `EnsureSettlementStoreDirectories` creates the inbox. Terminal prove-batch
+  daemon remains a funded operator process.
+
 ### Added — SP1 Gateway durable + Multisig prover wired factories — 2026-07-17
 
 - `L2GatewayPlugin.CreateSp1DurableFromChainDirectory` binds

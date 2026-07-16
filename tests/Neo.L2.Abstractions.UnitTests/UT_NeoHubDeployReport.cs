@@ -209,8 +209,17 @@ public class UT_NeoHubDeployReport
                 "Sp1GatewayProofProver.OpenFromChainDirectory(chainDirectory, gatewayVerificationKey)",
                 stores.GetProperty("gatewaySp1ProverFromChainDirectory").GetString());
             Assert.AreEqual(
+                NeoHubDeployReport.RelativeProverInboxDir,
+                stores.GetProperty("batchProverInbox").GetString());
+            Assert.AreEqual(
+                "Sp1BatchProofProver.OpenFromChainDirectory(chainDirectory, verificationKeyId)",
+                stores.GetProperty("batchSp1ProverFromChainDirectory").GetString());
+            Assert.AreEqual(
                 "L2ProverPlugin.CreateMultisigWiredFromChainDirectory(chainDirectory, signers)",
                 stores.GetProperty("proverPluginMultisigWired").GetString());
+            Assert.AreEqual(
+                "L2ProverPlugin.CreateZkWiredFromChainDirectory(chainDirectory, verificationKeyId)",
+                stores.GetProperty("proverPluginZkWired").GetString());
             Assert.AreEqual(
                 "L2SettlementPlugin.CreateDepositSourceFromChainDirectory(chainDirectory)",
                 stores.GetProperty("depositSourceFromChainDirectory").GetString());
@@ -312,12 +321,13 @@ public class UT_NeoHubDeployReport
         {
             var first = NeoHubDeployReport.EnsureSettlementStoreDirectories(dir);
             var second = NeoHubDeployReport.EnsureSettlementStoreDirectories(dir);
-            Assert.AreEqual(8, first.Count);
-            Assert.AreEqual(8, second.Count);
+            Assert.AreEqual(9, first.Count);
+            Assert.AreEqual(9, second.Count);
             CollectionAssert.Contains(first.ToList(), NeoHubDeployReport.RelativeLocalDaStoreDir);
             CollectionAssert.Contains(first.ToList(), NeoHubDeployReport.RelativeRpcProofStoreDir);
             CollectionAssert.Contains(first.ToList(), NeoHubDeployReport.RelativeGatewayOutboxStoreDir);
             CollectionAssert.Contains(first.ToList(), NeoHubDeployReport.RelativeGatewayProverQueueDir);
+            CollectionAssert.Contains(first.ToList(), NeoHubDeployReport.RelativeProverInboxDir);
             foreach (var relative in first)
                 Assert.IsTrue(Directory.Exists(Path.Combine(dir, relative)));
         }

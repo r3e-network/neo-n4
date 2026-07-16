@@ -24,9 +24,9 @@ public sealed record Sp1SettlementExecutionStack
 
     /// <summary>
     /// File-queue directory watched by the out-of-process <c>prove-batch</c> daemon
-    /// (matches <c>init-l2</c> <c>prover/inbox</c>).
+    /// (matches <c>init-l2</c> / <see cref="NeoHubDeployReport.RelativeProverInboxDir"/>).
     /// </summary>
-    public const string RelativeProverQueueDir = "prover/inbox";
+    public const string RelativeProverQueueDir = NeoHubDeployReport.RelativeProverInboxDir;
 
     /// <summary>Native executor that produces authenticated proof witness material.</summary>
     public required Sp1StatefulBatchExecutor Executor { get; init; }

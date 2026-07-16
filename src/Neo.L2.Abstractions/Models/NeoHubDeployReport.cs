@@ -369,8 +369,13 @@ public sealed record NeoHubDeployReport(
                     ["gatewayProverQueue"] = RelativeGatewayProverQueueDir,
                     ["gatewaySp1ProverFromChainDirectory"] =
                         "Sp1GatewayProofProver.OpenFromChainDirectory(chainDirectory, gatewayVerificationKey)",
+                    ["batchProverInbox"] = RelativeProverInboxDir,
+                    ["batchSp1ProverFromChainDirectory"] =
+                        "Sp1BatchProofProver.OpenFromChainDirectory(chainDirectory, verificationKeyId)",
                     ["proverPluginMultisigWired"] =
                         "L2ProverPlugin.CreateMultisigWiredFromChainDirectory(chainDirectory, signers)",
+                    ["proverPluginZkWired"] =
+                        "L2ProverPlugin.CreateZkWiredFromChainDirectory(chainDirectory, verificationKeyId)",
                     ["stateStore"] = RelativeStateDir,
                     ["rpcProofStore"] = RelativeRpcProofStoreDir,
                     ["gatewayOutboxStore"] = RelativeGatewayOutboxStoreDir,
@@ -535,6 +540,13 @@ public sealed record NeoHubDeployReport(
     public const string RelativeGatewayProverQueueDir = "prover/gateway-inbox";
 
     /// <summary>
+    /// Canonical shared file-queue directory for the batch SP1 <c>prove-batch</c> daemon
+    /// (opened by <c>Sp1BatchProofProver.OpenFromChainDirectory</c>; same path as
+    /// <c>Sp1SettlementExecutionStack.RelativeProverQueueDir</c> / <c>init-l2</c>).
+    /// </summary>
+    public const string RelativeProverInboxDir = "prover/inbox";
+
+    /// <summary>
     /// Create the canonical WireProduction durable-store directories under a chain layout.
     /// Safe to call repeatedly; does not open RocksDB (empty dirs only).
     /// </summary>
@@ -553,6 +565,7 @@ public sealed record NeoHubDeployReport(
             RelativeRpcProofStoreDir,
             RelativeGatewayOutboxStoreDir,
             RelativeGatewayProverQueueDir,
+            RelativeProverInboxDir,
         };
         foreach (var path in relative)
             Directory.CreateDirectory(Path.Combine(chainDirectory, path));

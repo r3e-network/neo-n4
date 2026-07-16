@@ -245,6 +245,58 @@ public class UT_L2ProverPlugin
     }
 
     [TestMethod]
+    public void CreateZkWiredFromChainDirectory_BindsSp1BatchProofProver()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-prover-zk-wired-" + Guid.NewGuid().ToString("N"));
+        var configDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Prover");
+        Directory.CreateDirectory(configDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(configDir, "config.json"), """
+                { "PluginConfiguration": { "ProofType": 3 } }
+                """);
+            var vk = UInt256.Parse("0x" + new string('d', 64));
+            using var plugin = L2ProverPlugin.CreateZkWiredFromChainDirectory(dir, vk);
+            Assert.AreEqual(ProofType.Zk, plugin.Kind);
+            Assert.IsInstanceOfType(plugin.Prover, typeof(Sp1BatchProofProver));
+            var sp1 = (Sp1BatchProofProver)plugin.Prover!;
+            Assert.AreEqual(
+                Path.GetFullPath(Path.Combine(dir, NeoHubDeployReport.RelativeProverInboxDir)),
+                sp1.QueueDirectory);
+            Assert.IsTrue(Directory.Exists(sp1.QueueDirectory));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void CreateZkWiredFromChainDirectory_MultisigConfig_FailsClosed()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-prover-zk-ms-" + Guid.NewGuid().ToString("N"));
+        var configDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Prover");
+        Directory.CreateDirectory(configDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(configDir, "config.json"), """
+                { "PluginConfiguration": { "ProofType": 1 } }
+                """);
+            var ex = Assert.ThrowsExactly<InvalidOperationException>(
+                () => L2ProverPlugin.CreateZkWiredFromChainDirectory(
+                    dir, UInt256.Parse("0x" + new string('e', 64))));
+            StringAssert.Contains(ex.Message, "Zk");
+            StringAssert.Contains(ex.Message, "Multisig");
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void Wire_Optimistic_WithProver_InstallsIL2Prover()
     {
         var priv = Enumerable.Range(1, 32).Select(i => (byte)i).ToArray();

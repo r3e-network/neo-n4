@@ -176,7 +176,7 @@ interface:
 | `InMemorySequencerCommitteeProvider` (devnet/tests) | `RpcSequencerCommitteeProvider` ships in `src/Neo.L2.Sequencer/` — production L1-RPC poller with configurable cache TTL, parallel status fanout across known keys, operator-supplied known-keys bootstrap (genesis + RegisterKnownKey hook for event-driven additions). `IsRegisteredAsync` always hits L1 (source of truth) | `ISequencerCommitteeProvider` |
 | `InMemoryForcedInclusionSource` (devnet/tests) | `RpcForcedInclusionSource` + `RpcForcedInclusionEventScanner` ship in `src/Neo.L2.ForcedInclusion/`. Production wiring scans finalized L1 blocks, parses contract-bound `ForcedTxEnqueued` application logs, durably persists each nonce before advancing a hash-verified restart cursor, then issues parallel `getEntry` + `isConsumed` reads and returns deadline order. Finalized-history mismatch and malformed logs fail closed; manual `RegisterNonce` is recovery-only. | `IForcedInclusionSource` |
 | In-process deposit injection (devnet) | `RpcSharedBridgeDepositSource` + scanner + `InMemorySharedBridgeDepositSource`. Full lifecycle: **Scan at seal** (`L1MessageDrain.FromDeposits`) → **Drain (reserve)** → durable batch seal → **ConfirmConsumed** (or **ReleaseReservations** on persist failure). `L2BatchPlugin.WireL1MessageInbox` is the production composition root for deposits ± MessageRouter; `L2SettlementPlugin.Wire` / `WireProduction` attach the same inbox before the sealed-batch sink (and may own the RPC deposit source when `SharedBridgeHash` is set). Unit evidence covers scan-at-seal, seal-confirm, persist-fail release/retry, and settlement wiring fail-closed. | `ISharedBridgeDepositSource` |
-| `InMemoryMessageRouter` (devnet/tests) | `RpcMessageRouter` ships in `src/Neo.L2.Messaging/` — production L1-RPC poller for the inbound (L1→L2) side via `getL1ToL2` + `isConsumed` parallel reads; local outbox staging for outbound (L2-internal); pluggable finalized-proof store for `GetMessageProofAsync` (RocksDb-backed in production). `DecodeMessage` parses the canonical contract encoding + recomputes the canonical hash via `MessageHasher` — never trusts an off-wire hash | `IMessageRouter` |
+| `InMemoryMessageRouter` (devnet/tests) | `RpcMessageRouter` + `RpcMessageRouterEventScanner` ship in `src/Neo.L2.Messaging/`. Production discovers finalized `L1ToL2Enqueued` events (durable cursor), then polls `getL1ToL2` + `isConsumed`; local outbox for outbound; pluggable finalized-proof store for `GetMessageProofAsync`. `WireProduction` owns the stack when `MessageRouterHash` is set. `DecodeMessage` recomputes the canonical hash via `MessageHasher` — never trusts an off-wire hash | `IMessageRouter` |
 | `InMemorySettlementClient` | `L2SettlementPlugin.WireProduction` constructs the real `RpcSettlementClient` + network-pinned `RpcTransactionSender` + durable forced-inclusion event scanner/source/finalizer; operator supplies the reviewed `INeoTransactionSigner`, deployment height, and caller-owned RocksDB event store | `ISettlementClient` / `INeoTransactionSigner` |
 | `InMemoryDAWriter`, `NeoFsLikeDAWriter` (dev/sim only) | Production: `NeoFsRestDAWriter` + `NeoFsRestDAReader` via `WithProductionBackend`, or a reviewed NeoFS SDK adapter with independent retrieval | `IProductionDAWriter` / `IProductionDAReader` |
 | `JsonRpcL1DAWriter` (signer = delegate), `CommitteeAttestedDAWriter` (committee = delegate) | Signed L1 transactions / real DAC committee credentials supplied through DI | `IDAWriter` |
@@ -370,10 +370,11 @@ These are explicit deployment seams rather than missing protocol algorithms:
 
 - **Settlement and operator signer custody** — `L2SettlementPlugin.WireProduction` closes the
   production RPC composition root around `RpcTransactionSender`, `RpcSettlementClient`,
-  forced-inclusion finalization, and optionally an owned `RpcSharedBridgeDepositSource` when
-  `SharedBridgeHash` is configured (durable deposit event store + deploy height required;
-  block-context providers required for L1 inbox; seal-time `ScanAsync` is automatic via
-  `L1MessageDrain.FromDeposits`). `neo-stack --signer-command` provides a
+  forced-inclusion finalization, optionally an owned `RpcSharedBridgeDepositSource` when
+  `SharedBridgeHash` is configured, and optionally an owned `RpcMessageRouter` +
+  `RpcMessageRouterEventScanner` when `MessageRouterHash` is configured (durable event stores
+  + deploy heights required; block-context providers required for L1 inbox; seal-time deposit
+  `ScanAsync` via `L1MessageDrain.FromDeposits`). `neo-stack --signer-command` provides a
   provider-neutral, deadline-bounded executable boundary with pinned account/script, canonical
   sign data, and fee-witness-shape validation. Operators still select and own the reviewed
   wallet, HSM, or KMS adapter; no private key is stored in plugin configuration.

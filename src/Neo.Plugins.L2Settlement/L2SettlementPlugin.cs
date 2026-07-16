@@ -153,7 +153,8 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
     /// <paramref name="signer"/> and all explicitly supplied execution, DA, store, prover, and
     /// batch-plugin dependencies, including <paramref name="forcedInclusionEventStore"/>. This
     /// plugin owns only the RPC client, transaction sender, settlement client, forced-inclusion
-    /// scanner/finalizer, and forced-inclusion source it constructs.
+    /// scanner/finalizer/source, and any owned SharedBridge deposit source / MessageRouter it
+    /// constructs.
     /// </remarks>
     /// <returns>
     /// The owned RPC forced-inclusion source. Its durable scanner discovers finalized L1 enqueue
@@ -182,7 +183,13 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         IL2KeyValueStore? sharedBridgeDepositEventStore = null,
         uint sharedBridgeDeploymentHeight = 0,
         uint sharedBridgeFinalityDepth = 1,
-        int sharedBridgeMaximumBlocksPerScan = 256)
+        int sharedBridgeMaximumBlocksPerScan = 256,
+        IL2KeyValueStore? messageRouterEventStore = null,
+        uint messageRouterDeploymentHeight = 0,
+        uint messageRouterFinalityDepth = 1,
+        int messageRouterMaximumBlocksPerScan = 256,
+        IEnumerable<ulong>? knownInboundMessageNonces = null,
+        IL2KeyValueStore? messageRouterFinalizedProofStore = null)
     {
         ArgumentNullException.ThrowIfNull(batchPlugin);
         ArgumentNullException.ThrowIfNull(executor);
@@ -201,9 +208,9 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         if (_pipeline is not null || _productionComposition is not null)
             throw new InvalidOperationException("settlement pipeline is already wired");
 
-        // When SharedBridgeHash is configured and the caller does not supply a deposit source,
-        // composition owns RpcSharedBridgeDepositSource. An explicit depositSource remains
-        // caller-owned and skips auto-construction.
+        // When SharedBridgeHash / MessageRouterHash are configured and the caller does not
+        // supply those sources, composition owns the RPC adapters. Explicit sources remain
+        // caller-owned and skip auto-construction.
         var composition = L2SettlementProductionComposition.Create(
             _settings,
             signer,
@@ -217,14 +224,22 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
             sharedBridgeDeploymentHeight,
             sharedBridgeFinalityDepth,
             sharedBridgeMaximumBlocksPerScan,
-            constructDepositSource: depositSource is null);
+            constructDepositSource: depositSource is null,
+            messageRouterEventStore,
+            messageRouterDeploymentHeight,
+            messageRouterFinalityDepth,
+            messageRouterMaximumBlocksPerScan,
+            knownInboundMessageNonces,
+            messageRouterFinalizedProofStore,
+            constructMessageRouter: messageRouter is null);
         try
         {
             var effectiveDeposits = depositSource ?? composition.OwnedDepositSource;
-            if (effectiveDeposits is not null
+            var effectiveRouter = messageRouter ?? composition.OwnedMessageRouter;
+            if ((effectiveDeposits is not null || effectiveRouter is not null)
                 && (l1FinalizedHeight is null || sequencerCommitteeHash is null))
                 throw new InvalidOperationException(
-                    "SharedBridge deposit inbox requires l1FinalizedHeight and sequencerCommitteeHash providers");
+                    "L1 message inbox wiring requires l1FinalizedHeight and sequencerCommitteeHash providers");
 
             Wire(
                 batchPlugin,
@@ -237,7 +252,7 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
                 composition.ForcedInclusionFinalizer,
                 composition.ForcedInclusionSource,
                 effectiveDeposits,
-                messageRouter,
+                effectiveRouter,
                 l1FinalizedHeight,
                 sequencerCommitteeHash,
                 maxAutomaticRetries);

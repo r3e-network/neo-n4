@@ -95,8 +95,10 @@ settlement. It consumes the plugin's `PluginConfiguration` and constructs one sh
 `JsonRpcClient`, a network-pinned `RpcTransactionSender`, `RpcSettlementClient`,
 `RpcForcedInclusionEventScanner`, `RpcForcedInclusionFinalizationClient`, and
 `RpcForcedInclusionSource`. When `SharedBridgeHash` is set, it also constructs an owned
-`RpcSharedBridgeDepositSource` (unless the host passes an explicit `depositSource`) and
-installs deposits on the batcher via `WireL1MessageInbox` before the sealed-batch sink.
+`RpcSharedBridgeDepositSource` (unless the host passes an explicit `depositSource`). When
+`MessageRouterHash` is set, it constructs an owned `RpcMessageRouter` with a durable
+`L1ToL2Enqueued` event scanner (unless the host passes an explicit `messageRouter`). Both
+are installed on the batcher via `WireL1MessageInbox` before the sealed-batch sink.
 Forced-inclusion scanner, source, and finalizer are always wired as one production unit;
 custom/test DI remains available through `Wire(...)`.
 
@@ -113,6 +115,7 @@ Configure every production identity explicitly in
     "ForcedInclusionHash": "<real non-zero ForcedInclusion UInt160>",
     "SharedBridgeHash": "<real non-zero SharedBridge UInt160>",
     "L2BridgeHash": "",
+    "MessageRouterHash": "<real non-zero MessageRouter UInt160>",
     "ProofType": 3,
     "Enabled": true
   }
@@ -120,6 +123,7 @@ Configure every production identity explicitly in
 ```
 
 Empty `L2BridgeHash` defaults to `NativeContract.L2Bridge.Hash` for N4 L2s.
+Empty `MessageRouterHash` leaves MessageRouter caller-supplied (or omitted).
 
 The checked-in sample intentionally leaves the network and contract hashes unset.
 Production wiring rejects missing or relative/non-HTTP endpoints, missing network magic,
@@ -173,10 +177,12 @@ var forcedSource = settlementPlugin.WireProduction(
     l1FinalizedHeight: () => operatorL1FinalizedHeight,
     sequencerCommitteeHash: () => operatorCommitteeHash,
     sharedBridgeDepositEventStore: sharedBridgeDepositEventRocksDbStore,
-    sharedBridgeDeploymentHeight: sharedBridgeDeployBlock);
+    sharedBridgeDeploymentHeight: sharedBridgeDeployBlock,
+    messageRouterEventStore: messageRouterEventRocksDbStore,
+    messageRouterDeploymentHeight: messageRouterDeployBlock);
 // With SharedBridgeHash configured, batchPlugin.DepositSource is the owned
-// RpcSharedBridgeDepositSource. Seal-time composition calls ScanAsync then Drain
-// (L1MessageDrain.FromDeposits); optional proactive ScanAsync remains safe.
+// RpcSharedBridgeDepositSource (Scan then Drain at seal). With MessageRouterHash
+// configured, WireProduction owns RpcMessageRouter + L1ToL2Enqueued scanner.
 ```
 
 `ExecutorSha256Hex` must come from a reviewed/signed release manifest, not be calculated from the

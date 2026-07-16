@@ -33,6 +33,13 @@ public sealed class L2SettlementSettings
     /// </summary>
     public string L2BridgeHash { get; init; } = "";
 
+    /// <summary>
+    /// Encoded NeoHub.MessageRouter contract hash. When set, production wiring constructs an
+    /// owned <c>RpcMessageRouter</c> with a durable <c>L1ToL2Enqueued</c> event scanner
+    /// (unless the caller supplies a message router).
+    /// </summary>
+    public string MessageRouterHash { get; init; } = "";
+
     /// <summary>Proof type used at this stage: 0=None, 1=Multisig, 2=Optimistic, 3=Zk.</summary>
     public byte ProofType { get; init; } = 1;
 
@@ -61,6 +68,7 @@ public sealed class L2SettlementSettings
             ForcedInclusionHash = s.GetValue<string>("ForcedInclusionHash") ?? "",
             SharedBridgeHash = s.GetValue<string>("SharedBridgeHash") ?? "",
             L2BridgeHash = s.GetValue<string>("L2BridgeHash") ?? "",
+            MessageRouterHash = s.GetValue<string>("MessageRouterHash") ?? "",
             ProofType = rawProofType,
             Enabled = s.GetValue("Enabled", true),
         };
@@ -110,6 +118,17 @@ public sealed class L2SettlementSettings
                 "L2BridgeHash requires SharedBridgeHash for production deposit wiring");
         }
 
+        UInt160? messageRouterHash = null;
+        if (!string.IsNullOrWhiteSpace(MessageRouterHash))
+        {
+            messageRouterHash = ParseNonZeroHash(MessageRouterHash, nameof(MessageRouterHash));
+            if (messageRouterHash.Equals(settlementManagerHash)
+                || messageRouterHash.Equals(forcedInclusionHash)
+                || (sharedBridgeHash is not null && messageRouterHash.Equals(sharedBridgeHash)))
+                throw new InvalidDataException(
+                    "MessageRouterHash must identify a distinct NeoHub contract");
+        }
+
         return new L2SettlementProductionConfiguration(
             chainId,
             endpoint,
@@ -117,7 +136,8 @@ public sealed class L2SettlementSettings
             settlementManagerHash,
             forcedInclusionHash,
             sharedBridgeHash,
-            l2BridgeHash);
+            l2BridgeHash,
+            messageRouterHash);
     }
 
     private static UInt160 ParseNonZeroHash(string? raw, string settingName)
@@ -166,4 +186,5 @@ internal sealed record L2SettlementProductionConfiguration(
     UInt160 SettlementManagerHash,
     UInt160 ForcedInclusionHash,
     UInt160? SharedBridgeHash,
-    UInt160? L2BridgeHash);
+    UInt160? L2BridgeHash,
+    UInt160? MessageRouterHash);

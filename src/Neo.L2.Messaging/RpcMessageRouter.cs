@@ -18,12 +18,12 @@ namespace Neo.L2.Messaging;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <strong>Inbound (L1→L2)</strong>: <see cref="DequeueL1MessagesAsync"/> polls
+/// <strong>Inbound (L1→L2)</strong>: <see cref="DequeueL1MessagesAsync"/> optionally
+/// scans finalized <c>L1ToL2Enqueued</c> events through
+/// <see cref="RpcMessageRouterEventScanner"/>, then polls
 /// <c>NeoHub.MessageRouter.GetL1ToL2(chainId, nonce)</c> + <c>IsConsumed(hash)</c>
-/// for each known nonce in parallel via <see cref="Task.WhenAll(IEnumerable{Task})"/>.
-/// Same operator-bootstrap pattern as the other L1-RPC pollers: genesis nonce seed
-/// in the constructor, plus <see cref="RegisterInboundNonce"/> the operator wires
-/// to L1's <c>OnL1ToL2Enqueued</c> event watcher.
+/// for each known nonce. Genesis nonce seed and <see cref="RegisterInboundNonce"/>
+/// remain migration/recovery hooks.
 /// </para>
 /// <para>
 /// <strong>Outbound (L2-internal)</strong>: <see cref="EnqueueOutboundAsync"/>
@@ -45,6 +45,7 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
     private readonly TimeSpan _cacheTtl;
     private readonly bool _ownsRpc;
     private readonly bool _ownsFinalized;
+    private readonly RpcMessageRouterEventScanner? _eventScanner;
     private readonly L2Outbox _outbox = new();
     private readonly IL2KeyValueStore _finalized;
     private readonly ConcurrentDictionary<ulong, byte> _knownNonces = new();
@@ -60,7 +61,10 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
     /// <param name="rpc">L1 JSON-RPC client.</param>
     /// <param name="routerHash">Deployed <c>NeoHub.MessageRouter</c> hash.</param>
     /// <param name="chainId">L2 chain id this router serves (for inbox lookups).</param>
-    /// <param name="knownInboundNonces">Bootstrap nonce set for L1→L2 messages.</param>
+    /// <param name="knownInboundNonces">
+    /// Optional migration/recovery seed; production discovery comes from
+    /// <paramref name="eventScanner"/>.
+    /// </param>
     /// <param name="finalized">
     /// Caller-supplied finalized-proof store. Operators wire
     /// <see cref="RocksDbKeyValueStore"/> here so messages remain queryable across
@@ -70,6 +74,7 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
     /// <param name="ownsFinalized">If true, <see cref="Dispose"/> disposes <paramref name="finalized"/>.</param>
     /// <param name="cacheTtl">Inbound-cache TTL (default 5s).</param>
     /// <param name="ownsRpc">If true, <see cref="Dispose"/> disposes the rpc client.</param>
+    /// <param name="eventScanner">Optional durable finalized-event scanner; production supplies one.</param>
     public RpcMessageRouter(
         JsonRpcClient rpc,
         UInt160 routerHash,
@@ -78,7 +83,8 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
         IL2KeyValueStore? finalized = null,
         bool ownsFinalized = true,
         TimeSpan? cacheTtl = null,
-        bool ownsRpc = false)
+        bool ownsRpc = false,
+        RpcMessageRouterEventScanner? eventScanner = null)
     {
         ArgumentNullException.ThrowIfNull(rpc);
         ArgumentNullException.ThrowIfNull(routerHash);
@@ -88,6 +94,7 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
         _chainId = chainId;
         _cacheTtl = cacheTtl ?? TimeSpan.FromSeconds(5);
         _ownsRpc = ownsRpc;
+        _eventScanner = eventScanner;
         if (finalized is null)
         {
             _finalized = new InMemoryKeyValueStore();
@@ -98,19 +105,23 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
             _finalized = finalized;
             _ownsFinalized = ownsFinalized;
         }
-        foreach (var n in knownInboundNonces) _knownNonces[n] = 1;
+        foreach (var n in knownInboundNonces)
+            RegisterInboundNonce(n);
+        if (_eventScanner is not null)
+        {
+            foreach (var nonce in _eventScanner.LoadTrackedNonces())
+                RegisterDiscoveredNonce(nonce);
+        }
     }
 
     /// <summary>
-    /// Add an L1→L2 nonce to the known set. Operators wire this to an L1
-    /// <c>OnL1ToL2Enqueued</c> event subscription so future
-    /// <see cref="DequeueL1MessagesAsync"/> calls pick it up.
+    /// Add an L1→L2 nonce to the known set. Production scanners call this for each
+    /// discovered event; operators may also seed nonces for migration/recovery.
     /// </summary>
     public bool RegisterInboundNonce(ulong nonce)
     {
-        var added = _knownNonces.TryAdd(nonce, 1);
-        if (added) InvalidateInboundCache();
-        return added;
+        _eventScanner?.TrackNonce(nonce);
+        return RegisterDiscoveredNonce(nonce);
     }
 
     /// <summary>Force a fresh L1 fanout on the next <see cref="DequeueL1MessagesAsync"/>.</summary>
@@ -144,6 +155,15 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
         if (maxMessages < 0) throw new ArgumentOutOfRangeException(nameof(maxMessages));
         cancellationToken.ThrowIfCancellationRequested();
         if (maxMessages == 0) return Array.Empty<CrossChainMessage>();
+
+        if (_eventScanner is not null)
+        {
+            // Newly registered nonces invalidate the fanout cache via RegisterDiscoveredNonce.
+            await _eventScanner.ScanAsync(
+                    nonce => { RegisterDiscoveredNonce(nonce); },
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
 
         List<CrossChainMessage>? cached;
         lock (_cacheGate)
@@ -200,6 +220,13 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
     /// <summary>The L2-internal outbox; the batcher consumes its contents when sealing.</summary>
     public L2Outbox Outbox => _outbox;
 
+    private bool RegisterDiscoveredNonce(ulong nonce)
+    {
+        var added = _knownNonces.TryAdd(nonce, 1);
+        if (added) InvalidateInboundCache();
+        return added;
+    }
+
     private async Task<List<CrossChainMessage>> FetchInboundAsync(CancellationToken ct)
     {
         var snapshot = _knownNonces.Keys
@@ -220,7 +247,13 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
         // Cross-check L1's IsConsumed: the contract's at-most-once gate. Skip messages
         // that the L1 already considers consumed (settlement-driven cleanup).
         var consumedRaw = await RpcContractReader.InvokeReadAsync(_rpc, _routerHash, "isConsumed", new object[] { msg.MessageHash }, ct).ConfigureAwait(false);
-        if (RpcContractReader.ParseBoolean(consumedRaw)) return null;
+        if (RpcContractReader.ParseBoolean(consumedRaw))
+        {
+            // Drop durable track for L1-retired messages so the store does not grow forever.
+            _eventScanner?.ForgetNonce(nonce);
+            _knownNonces.TryRemove(nonce, out _);
+            return null;
+        }
         return msg;
     }
 
@@ -272,6 +305,7 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _eventScanner?.Dispose();
         if (_ownsRpc) _rpc.Dispose();
         if (_ownsFinalized) _finalized.Dispose();
     }

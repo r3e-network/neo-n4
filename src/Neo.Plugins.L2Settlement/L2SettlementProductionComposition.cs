@@ -1,6 +1,7 @@
 using Neo.Extensions.VM;
 using Neo.L2.Bridge;
 using Neo.L2.ForcedInclusion;
+using Neo.L2.Messaging;
 using Neo.L2.Persistence;
 using Neo.L2.Settlement.Rpc;
 using Neo.SmartContract;
@@ -20,7 +21,8 @@ internal sealed class L2SettlementProductionComposition : IDisposable
         RpcForcedInclusionFinalizationClient forcedInclusionFinalizer,
         RpcForcedInclusionEventScanner forcedInclusionEventScanner,
         RpcForcedInclusionSource forcedInclusionSource,
-        RpcSharedBridgeDepositSource? ownedDepositSource)
+        RpcSharedBridgeDepositSource? ownedDepositSource,
+        RpcMessageRouter? ownedMessageRouter)
     {
         Configuration = configuration;
         Rpc = rpc;
@@ -30,6 +32,7 @@ internal sealed class L2SettlementProductionComposition : IDisposable
         ForcedInclusionEventScanner = forcedInclusionEventScanner;
         ForcedInclusionSource = forcedInclusionSource;
         OwnedDepositSource = ownedDepositSource;
+        OwnedMessageRouter = ownedMessageRouter;
     }
 
     internal L2SettlementProductionConfiguration Configuration { get; }
@@ -53,6 +56,13 @@ internal sealed class L2SettlementProductionComposition : IDisposable
     /// </summary>
     internal RpcSharedBridgeDepositSource? OwnedDepositSource { get; }
 
+    /// <summary>
+    /// Message router constructed from production config, when MessageRouterHash is configured
+    /// and the caller did not supply an external router. Null when the router is caller-owned
+    /// or not configured.
+    /// </summary>
+    internal RpcMessageRouter? OwnedMessageRouter { get; }
+
     internal bool IsDisposed => _disposed;
 
     internal static L2SettlementProductionComposition Create(
@@ -68,7 +78,14 @@ internal sealed class L2SettlementProductionComposition : IDisposable
         uint sharedBridgeDeploymentHeight = 0,
         uint sharedBridgeFinalityDepth = 1,
         int sharedBridgeMaximumBlocksPerScan = 256,
-        bool constructDepositSource = true)
+        bool constructDepositSource = true,
+        IL2KeyValueStore? messageRouterEventStore = null,
+        uint messageRouterDeploymentHeight = 0,
+        uint messageRouterFinalityDepth = 1,
+        int messageRouterMaximumBlocksPerScan = 256,
+        IEnumerable<ulong>? knownInboundMessageNonces = null,
+        IL2KeyValueStore? messageRouterFinalizedProofStore = null,
+        bool constructMessageRouter = true)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(signer);
@@ -85,6 +102,7 @@ internal sealed class L2SettlementProductionComposition : IDisposable
         RpcForcedInclusionEventScanner? forcedInclusionEventScanner = null;
         RpcForcedInclusionSource? forcedInclusionSource = null;
         RpcSharedBridgeDepositSource? ownedDepositSource = null;
+        RpcMessageRouter? ownedMessageRouter = null;
         try
         {
             rpc = new JsonRpcClient(configuration.RpcEndpoint, rpcHttpClient);
@@ -148,6 +166,41 @@ internal sealed class L2SettlementProductionComposition : IDisposable
                     ownsStore: false);
             }
 
+            if (constructMessageRouter && configuration.MessageRouterHash is not null)
+            {
+                if (messageRouterEventStore is null)
+                    throw new InvalidOperationException(
+                        "MessageRouterHash is configured; production message-router wiring requires a durable messageRouterEventStore");
+                if (messageRouterEventStore is not IDurableL2KeyValueStore)
+                    throw new InvalidOperationException(
+                        "production message-router wiring requires a durable L1→L2 event store");
+                if (messageRouterDeploymentHeight == 0)
+                    throw new InvalidOperationException(
+                        "MessageRouterHash is configured; messageRouterDeploymentHeight must be the non-zero deploy block");
+                if (messageRouterFinalizedProofStore is not null
+                    && messageRouterFinalizedProofStore is not IDurableL2KeyValueStore)
+                    throw new InvalidOperationException(
+                        "production message-router finalized proof store must be durable when supplied");
+
+                var eventScanner = new RpcMessageRouterEventScanner(
+                    rpc,
+                    configuration.MessageRouterHash,
+                    configuration.ChainId,
+                    messageRouterEventStore,
+                    messageRouterDeploymentHeight,
+                    messageRouterFinalityDepth,
+                    messageRouterMaximumBlocksPerScan);
+                ownedMessageRouter = new RpcMessageRouter(
+                    rpc,
+                    configuration.MessageRouterHash,
+                    configuration.ChainId,
+                    knownInboundMessageNonces ?? Array.Empty<ulong>(),
+                    finalized: messageRouterFinalizedProofStore,
+                    ownsFinalized: false,
+                    ownsRpc: false,
+                    eventScanner: eventScanner);
+            }
+
             return new L2SettlementProductionComposition(
                 configuration,
                 rpc,
@@ -156,10 +209,12 @@ internal sealed class L2SettlementProductionComposition : IDisposable
                 forcedInclusionFinalizer,
                 forcedInclusionEventScanner,
                 forcedInclusionSource,
-                ownedDepositSource);
+                ownedDepositSource,
+                ownedMessageRouter);
         }
         catch
         {
+            ownedMessageRouter?.Dispose();
             ownedDepositSource?.Dispose();
             if (forcedInclusionSource is not null)
                 forcedInclusionSource.Dispose();
@@ -177,6 +232,7 @@ internal sealed class L2SettlementProductionComposition : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        OwnedMessageRouter?.Dispose();
         OwnedDepositSource?.Dispose();
         ForcedInclusionSource.Dispose();
         SettlementClient.Dispose();

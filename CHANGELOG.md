@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — production MessageRouter event scanner + WireProduction ownership — 2026-07-16
+
+- `RpcMessageRouterEventScanner` durably discovers finalized `L1ToL2Enqueued` events
+  (hash-verified restart cursor, chain-filtered, fail-closed on reorg) — same pattern as
+  forced-inclusion and SharedBridge deposit scanners.
+- `RpcMessageRouter` accepts an optional event scanner and scans before each inbound dequeue;
+  known-nonce bootstrap and `RegisterInboundNonce` remain migration/recovery hooks.
+- `L2SettlementSettings.MessageRouterHash` + `WireProduction` construct an owned
+  `RpcMessageRouter` when configured (durable event store + non-zero deploy height required;
+  optional durable finalized-proof store). Explicit caller-owned routers skip auto-construction.
+
 ### Fixed — seal-time SharedBridge deposit Scan before Drain — 2026-07-16
 
 - `L1MessageDrain.FromDeposits` now calls `ScanAsync` then `Drain` so production

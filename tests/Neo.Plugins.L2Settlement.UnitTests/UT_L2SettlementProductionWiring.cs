@@ -1,6 +1,7 @@
 using Neo.L2.Batch;
 using Neo.L2.Executor.ProofWitness;
 using Neo.L2.ForcedInclusion;
+using Neo.L2.Messaging;
 using Neo.L2.Persistence;
 using Neo.L2.Settlement.Rpc;
 using Neo.Network.P2P.Payloads;
@@ -514,6 +515,104 @@ public class UT_L2SettlementProductionWiring
         ProofType = (byte)ProofType.Multisig,
         Enabled = false,
     };
+
+    private static L2SettlementSettings ProductionSettingsWithMessageRouter() => new()
+    {
+        ChainId = ChainId,
+        L1RpcEndpoint = "http://127.0.0.1:10332",
+        ExpectedNetwork = 860833102,
+        SettlementManagerHash = "0x" + new string('1', 40),
+        ForcedInclusionHash = "0x" + new string('2', 40),
+        MessageRouterHash = "0x" + new string('4', 40),
+        ProofType = (byte)ProofType.Multisig,
+        Enabled = false,
+    };
+
+    [TestMethod]
+    public void WireProduction_ConstructsOwnedMessageRouterWhenConfigured()
+    {
+        using var backend = new TemporaryRocksDb();
+        using var forcedEvents = new TemporaryRocksDb();
+        using var routerEvents = new TemporaryRocksDb();
+        using var store = new KeyValueProofWitnessStore(backend.Store);
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin(ProductionSettingsWithMessageRouter());
+        using var http = CanonicalRootHttpClient();
+
+        settlement.WireProduction(
+            batch,
+            new TestExecutor(),
+            new TestDaWriter(),
+            store,
+            new TestProver(),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
+            new TrackingSigner(Account(0x5C)),
+            forcedEvents.Store,
+            forcedInclusionDeploymentHeight: 123,
+            rpcHttpClient: http,
+            l1FinalizedHeight: static () => 10,
+            sequencerCommitteeHash: static () => Root(0xCC),
+            messageRouterEventStore: routerEvents.Store,
+            messageRouterDeploymentHeight: 40);
+
+        var composition = settlement.ProductionComposition;
+        Assert.IsNotNull(composition);
+        Assert.IsNotNull(composition.OwnedMessageRouter);
+    }
+
+    [TestMethod]
+    public void WireProduction_MessageRouterWithoutEventStore_FailsClosed()
+    {
+        using var backend = new TemporaryRocksDb();
+        using var forcedEvents = new TemporaryRocksDb();
+        using var store = new KeyValueProofWitnessStore(backend.Store);
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin(ProductionSettingsWithMessageRouter());
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => settlement.WireProduction(
+            batch,
+            new TestExecutor(),
+            new TestDaWriter(),
+            store,
+            new TestProver(),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
+            new TrackingSigner(Account(0x5D)),
+            forcedEvents.Store,
+            forcedInclusionDeploymentHeight: 123,
+            l1FinalizedHeight: static () => 10,
+            sequencerCommitteeHash: static () => Root(0xCC)));
+    }
+
+    [TestMethod]
+    public void WireProduction_ExplicitMessageRouter_SkipsOwnedConstruction()
+    {
+        using var backend = new TemporaryRocksDb();
+        using var forcedEvents = new TemporaryRocksDb();
+        using var store = new KeyValueProofWitnessStore(backend.Store);
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin(ProductionSettingsWithMessageRouter());
+        using var http = CanonicalRootHttpClient();
+        using var explicitRouter = new InMemoryMessageRouter();
+
+        settlement.WireProduction(
+            batch,
+            new TestExecutor(),
+            new TestDaWriter(),
+            store,
+            new TestProver(),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
+            new TrackingSigner(Account(0x5E)),
+            forcedEvents.Store,
+            forcedInclusionDeploymentHeight: 123,
+            rpcHttpClient: http,
+            messageRouter: explicitRouter,
+            l1FinalizedHeight: static () => 10,
+            sequencerCommitteeHash: static () => Root(0xCC));
+
+        var composition = settlement.ProductionComposition;
+        Assert.IsNotNull(composition);
+        Assert.IsNull(composition.OwnedMessageRouter);
+    }
 
     private static UInt160 Account(byte value)
     {

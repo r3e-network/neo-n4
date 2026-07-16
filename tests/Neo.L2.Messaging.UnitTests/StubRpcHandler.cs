@@ -8,14 +8,21 @@ using Neo.Json;
 
 namespace Neo.L2.Messaging.UnitTests;
 
+/// <summary>
+/// Stubbed JSON-RPC handler — same shape as ForcedInclusion/Sequencer unit tests.
+/// </summary>
 internal sealed class StubRpcHandler : HttpMessageHandler
 {
     public delegate JToken? Handler(string method, string contractHash, JArray contractParams);
+    public delegate JToken? RpcHandler(string method, JArray rpcParams);
 
     private readonly List<Handler> _handlers = new();
+    private readonly List<RpcHandler> _rpcHandlers = new();
     public readonly List<(string Method, string Hash, JArray Params)> Captured = new();
+    public readonly List<(string Method, JArray Params)> RpcCaptured = new();
 
     public void Register(Handler handler) => _handlers.Add(handler);
+    public void RegisterRpc(RpcHandler handler) => _rpcHandlers.Add(handler);
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {
@@ -26,7 +33,18 @@ internal sealed class StubRpcHandler : HttpMessageHandler
         var rpcParams = (JArray)parsed["params"]!;
 
         if (rpcMethod != "invokefunction")
-            throw new InvalidOperationException($"unexpected RPC method '{rpcMethod}'");
+        {
+            RpcCaptured.Add((rpcMethod, rpcParams));
+            JToken? rawResult = null;
+            foreach (var handler in _rpcHandlers)
+            {
+                rawResult = handler(rpcMethod, rpcParams);
+                if (rawResult is not null) break;
+            }
+            if (rawResult is null)
+                throw new InvalidOperationException($"no raw RPC stub handler matched '{rpcMethod}'");
+            return Response(id, rawResult);
+        }
         var contractHash = rpcParams[0]!.AsString();
         var contractMethod = rpcParams[1]!.AsString();
         var contractArgs = (JArray)rpcParams[2]!;
@@ -41,19 +59,24 @@ internal sealed class StubRpcHandler : HttpMessageHandler
         if (stackTop is null)
             throw new InvalidOperationException($"no stub handler matched '{contractMethod}'");
 
-        var resp = new JObject
+        return Response(id, new JObject
+        {
+            ["state"] = "HALT",
+            ["stack"] = new JArray(stackTop),
+        });
+    }
+
+    private static HttpResponseMessage Response(long id, JToken result)
+    {
+        var response = new JObject
         {
             ["jsonrpc"] = "2.0",
             ["id"] = id,
-            ["result"] = new JObject
-            {
-                ["state"] = "HALT",
-                ["stack"] = new JArray(stackTop),
-            },
+            ["result"] = result,
         };
         return new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent(resp.ToString(), System.Text.Encoding.UTF8, "application/json"),
+            Content = new StringContent(response.ToString(), System.Text.Encoding.UTF8, "application/json"),
         };
     }
 

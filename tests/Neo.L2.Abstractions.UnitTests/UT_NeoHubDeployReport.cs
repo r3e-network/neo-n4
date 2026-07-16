@@ -165,8 +165,29 @@ public class UT_NeoHubDeployReport
                 "L2ProverPlugin.CreateFromChainDirectory(chainDirectory)",
                 stores.GetProperty("proverPluginFactory").GetString());
             Assert.AreEqual(
+                "L2MetricsPlugin.CreateFromChainDirectory(chainDirectory)",
+                stores.GetProperty("metricsPluginFactory").GetString());
+            Assert.AreEqual(
+                "L2DAPlugin.CreateLocalFromChainDirectory(chainDirectory)",
+                stores.GetProperty("localDaPluginFactory").GetString());
+            Assert.AreEqual(
                 "Sp1SettlementExecutionStack.CreateFromChainDirectory(chainDir, state, executorPath, executorSha256, vk)",
                 stores.GetProperty("sp1StackFromChainDirectory").GetString());
+            Assert.IsTrue(File.Exists(Path.Combine(
+                dir, "Plugins", "Neo.Plugins.L2Metrics", "config.json")));
+            Assert.IsTrue(File.Exists(Path.Combine(
+                dir, "Plugins", "Neo.Plugins.L2DA", "config.json")));
+            var daCfg = JsonDocument.Parse(File.ReadAllText(Path.Combine(
+                dir, "Plugins", "Neo.Plugins.L2DA", "config.json")));
+            // MinimalReportJson has no chain.config → default Local (255).
+            Assert.AreEqual(
+                (byte)DAMode.Local,
+                daCfg.RootElement.GetProperty("PluginConfiguration")
+                    .GetProperty("DAMode").GetByte());
+            Assert.AreEqual(
+                NeoHubDeployReport.RelativeLocalDaStoreDir,
+                daCfg.RootElement.GetProperty("PluginConfiguration")
+                    .GetProperty("DataDirectory").GetString());
             Assert.AreEqual(
                 NeoHubDeployReport.RelativeStateDir,
                 stores.GetProperty("stateStore").GetString());

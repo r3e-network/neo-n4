@@ -12,4 +12,8 @@
     <ProjectReference Include="..\Neo.L2.Telemetry\Neo.L2.Telemetry.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Neo.Plugins.L2Metrics.UnitTests" />
+  </ItemGroup>
+
 </Project>

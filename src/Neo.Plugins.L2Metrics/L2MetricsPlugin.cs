@@ -29,8 +29,29 @@ public sealed class L2MetricsPlugin : Plugin
     private Func<bool>? _readinessCheck;
     private readonly Lock _startGate = new();
 
+    /// <summary>Construct with default settings (port 9090, loopback).</summary>
+    public L2MetricsPlugin()
+    {
+    }
+
+    internal L2MetricsPlugin(L2MetricsSettings settings) : this()
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        _settings = settings;
+    }
+
+    /// <summary>
+    /// Host composition factory: preload bind address/port from a chain working directory
+    /// without the Neo plugin config loader.
+    /// </summary>
+    public static L2MetricsPlugin CreateFromChainDirectory(string chainDirectory)
+        => new(L2MetricsSettings.FromChainDirectory(chainDirectory));
+
     /// <summary>The shared metrics sink. L2 plugins call <c>WithMetrics(plugin.Metrics)</c>.</summary>
     public IL2Metrics Metrics => _metrics;
+
+    /// <summary>Loaded metrics settings (host composition / tests).</summary>
+    internal L2MetricsSettings Settings => _settings;
 
     /// <summary>The configured port the HTTP server is bound to (after <see cref="Start"/>). 0 before Start.</summary>
     public int BoundPort => _server?.Endpoint.Port ?? 0;

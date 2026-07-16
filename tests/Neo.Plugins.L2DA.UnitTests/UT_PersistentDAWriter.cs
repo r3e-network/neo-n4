@@ -252,4 +252,30 @@ public class UT_PersistentDAWriter
         Assert.ThrowsExactly<DirectoryNotFoundException>(
             () => PersistentDAWriter.OpenLocalFromChainDirectory(missing));
     }
+
+    [TestMethod]
+    public async Task CreateLocalFromChainDirectory_InstallsPersistentWriter()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-da-plugin-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            using var plugin = L2DAPlugin.CreateLocalFromChainDirectory(dir);
+            Assert.AreEqual(DAMode.Local, plugin.Writer.Mode);
+            var receipt = await plugin.Writer.PublishAsync(new DAPublishRequest
+            {
+                ChainId = 20260716,
+                BatchNumber = 1,
+                Payload = new byte[] { 0x01, 0x02 },
+            });
+            Assert.IsTrue(await plugin.Writer.IsAvailableAsync(receipt));
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                dir, NeoHubDeployReport.RelativeLocalDaStoreDir)));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
 }

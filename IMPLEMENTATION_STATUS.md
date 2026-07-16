@@ -379,7 +379,7 @@ real secp256k1 signatures.
 | ForcedInclusion | nonce 1 enqueued (`0x73924dce…f412`, HALT); needs `WitnessScope.Global` for fee transfer |
 | SharedBridge deposit | **code fix** on master: `Transaction.Sender` + CheckWitness (ABI stable). **Deployed testnet** still runs pre-fix bytecode until SharedBridge redeploy + chain update. Nested NEP-17 needs `--witness-scope Global`. |
 | Local Multisig DA | **code-complete**: `PersistentDAWriter.OpenLocalFromChainDirectory` → `data/settlement/da` |
-| Host WireProduction | **code-complete**: batch/settlement/prover `CreateFromChainDirectory` + `WireProductionFromLayout` + Multisig/Optimistic provers + local DA; Zk: `OpenStateFromChainDirectory` + `Sp1SettlementExecutionStack.CreateFromChainDirectory` (still needs funded executor binary + VK + production DA) |
+| Host WireProduction | **code-complete**: batch/settlement/prover/metrics `CreateFromChainDirectory` + `L2DAPlugin.CreateLocalFromChainDirectory` + `WireProductionFromLayout` + Multisig/Optimistic provers; Zk: `OpenStateFromChainDirectory` + Sp1 stack (still needs funded executor binary + VK + production DA) |
 | Evidence | [`docs/audit/testnet-deployment-20260716-live.json`](./docs/audit/testnet-deployment-20260716-live.json), [`docs/audit/testnet-evidence-status-2026-07-16.json`](./docs/audit/testnet-evidence-status-2026-07-16.json) |
 
 Key hashes: ChainRegistry `0x65201c54…2d23`, SettlementManager `0x11448868…bb51`, SharedBridge `0xf2f5114b…b241`, MessageRouter `0x3caf3c6e…fe90`, ForcedInclusion `0x962829ae…55a9`, TokenRegistry `0x96ae4655…505b`, Sp1Groth16Verifier `0x1004bb51…0c4d`. Scanner deploy heights: ForcedInclusion `17729309`, SharedBridge `17729307`, MessageRouter `17729303`.
@@ -412,10 +412,12 @@ These are explicit deployment seams rather than missing protocol algorithms:
   `SharedBridgeHash` is configured, and optionally an owned `RpcMessageRouter` +
   `RpcMessageRouterEventScanner` when `MessageRouterHash` is configured.
   Hosts construct plugins via `L2SettlementPlugin.CreateFromChainDirectory(chainDir)`,
-  `L2BatchPlugin.CreateFromChainDirectory(chainDir)`, and
-  `L2ProverPlugin.CreateFromChainDirectory(chainDir)` then `Wire(...)` with the stage
-  dependency (or load settings via `FromChainDirectory` / `FromPluginConfigFile`).
-  Deploy-report materialization writes matching ProofType into settlement + prover configs.
+  `L2BatchPlugin.CreateFromChainDirectory(chainDir)`,
+  `L2ProverPlugin.CreateFromChainDirectory(chainDir)` then `Wire(...)`,
+  `L2MetricsPlugin.CreateFromChainDirectory(chainDir)`, and for Multisig/Optimistic local DA
+  `L2DAPlugin.CreateLocalFromChainDirectory(chainDir)` (public DAMode uses
+  `WithProductionBackend`). Deploy-report materialization writes settlement + batch + prover +
+  metrics + DA plugin configs (ProofType/DAMode from chain.config).
   Genesis root via `L2GenesisManifest.ReadInitialStateRootFromChainDirectory`; Multisig/Optimistic
   profile via `ProofWitnessPipelineProfile.LegacyFromChainDirectory`; Zk via
   `state = Sp1SettlementExecutionStack.OpenStateFromChainDirectory(chainDir)` then

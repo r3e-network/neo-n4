@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Metrics/DA host factories + deploy-report materialization — 2026-07-16
+
+- `L2MetricsSettings.FromChainDirectory` / `L2MetricsPlugin.CreateFromChainDirectory`
+  preload scrape bind settings; deploy-report writes `Neo.Plugins.L2Metrics` config.
+- `L2DAPlugin.CreateLocalFromChainDirectory` installs `PersistentDAWriter` under
+  `data/settlement/da` for Multisig/Optimistic hosts.
+- Deploy-report materializes `Neo.Plugins.L2DA` config (`DAMode` from chain.config
+  `daMode`, `DataDirectory` when Local) and `ResolveDAModeByte`.
+- Wireproduction notes document `metricsPluginFactory` / `localDaPluginFactory`.
+
 ### Added — L2ProverPlugin.CreateFromChainDirectory + deploy-report config — 2026-07-16
 
 - Materialize `Plugins/Neo.Plugins.L2Prover/config.json` (ProofType from chain.config)

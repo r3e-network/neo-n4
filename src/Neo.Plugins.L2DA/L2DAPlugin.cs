@@ -21,6 +21,13 @@ public sealed class L2DAPlugin : Plugin
     private bool _productionBackendOverridden;
     private bool _constructed;
 
+    /// <summary>
+    /// Relative path of the DA plugin config under a chain working directory
+    /// (written by deploy-report materialization).
+    /// </summary>
+    public const string RelativePluginConfigPath =
+        "Plugins/Neo.Plugins.L2DA/config.json";
+
     /// <summary>Construct with an explicitly local, development-only default backend.</summary>
     public L2DAPlugin()
     {
@@ -29,6 +36,21 @@ public sealed class L2DAPlugin : Plugin
         _reader = writer.CreateReader();
         _constructed = true;
         Configure();
+    }
+
+    /// <summary>
+    /// Host composition for Multisig/Optimistic local DA: open
+    /// <c>PersistentDAWriter</c> under <c>data/settlement/da</c> and install it as the
+    /// active writer. Public DA modes (L1/NeoFS/External/DAC) must use
+    /// <see cref="WithProductionBackend"/> instead.
+    /// </summary>
+    public static L2DAPlugin CreateLocalFromChainDirectory(string chainDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        var writer = PersistentDAWriter.OpenLocalFromChainDirectory(chainDirectory);
+        var plugin = new L2DAPlugin();
+        plugin.WithWriter(writer);
+        return plugin;
     }
 
     /// <inheritdoc />

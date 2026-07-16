@@ -80,6 +80,54 @@ public class UT_L2MetricsPlugin
     }
 
     [TestMethod]
+    public void CreateFromChainDirectory_LoadsPortAndBindAddress()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-metrics-cfd-" + Guid.NewGuid().ToString("N"));
+        var configDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Metrics");
+        Directory.CreateDirectory(configDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(configDir, "config.json"), """
+                {
+                  "PluginConfiguration": {
+                    "Enabled": true,
+                    "BindAddress": "127.0.0.1",
+                    "Port": 19191,
+                    "MaxConcurrentConnections": 16
+                  }
+                }
+                """);
+            using var plugin = L2MetricsPlugin.CreateFromChainDirectory(dir);
+            Assert.AreEqual(19191, plugin.Settings.Port);
+            Assert.AreEqual("127.0.0.1", plugin.Settings.BindAddress);
+            Assert.AreEqual(16, plugin.Settings.MaxConcurrentConnections);
+            Assert.IsTrue(plugin.Settings.Enabled);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void CreateFromChainDirectory_MissingConfig_FailsClosed()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-metrics-empty-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            Assert.ThrowsExactly<FileNotFoundException>(
+                () => L2MetricsPlugin.CreateFromChainDirectory(dir));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void WithReadinessCheck_RejectsNull()
     {
         using var plugin = new L2MetricsPlugin();

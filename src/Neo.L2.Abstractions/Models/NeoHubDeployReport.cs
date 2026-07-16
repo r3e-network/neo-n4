@@ -228,6 +228,46 @@ public sealed record NeoHubDeployReport(
             proverJson,
             alsoWriteFromDeployCopy: true));
 
+        // Metrics: default loopback scrape endpoint for host composition / Neo.CLI plugins.
+        var metrics = new Dictionary<string, object?>
+        {
+            ["PluginConfiguration"] = new Dictionary<string, object?>
+            {
+                ["Enabled"] = true,
+                ["BindAddress"] = "127.0.0.1",
+                ["Port"] = 9090,
+                ["MaxConcurrentConnections"] = 32,
+            },
+        };
+        var metricsJson = JsonSerializer.Serialize(metrics, jsonOptions) + Environment.NewLine;
+        written.AddRange(WritePluginConfig(
+            chainDirectory,
+            "Neo.Plugins.L2Metrics",
+            metricsJson,
+            alsoWriteFromDeployCopy: true));
+
+        // DA plugin: advertise chain.config daMode; Local Multisig points DataDirectory at
+        // the settlement local DA store. Public modes leave DataDirectory unset so hosts
+        // inject production backends (no simulated/local fallback).
+        var daModeByte = ResolveDAModeByte(chainDirectory);
+        var daPluginConfig = new Dictionary<string, object?>
+        {
+            ["Profile"] = "Development",
+            ["DAMode"] = daModeByte,
+        };
+        if (daModeByte == (byte)DAMode.Local)
+            daPluginConfig["DataDirectory"] = RelativeLocalDaStoreDir;
+        var da = new Dictionary<string, object?>
+        {
+            ["PluginConfiguration"] = daPluginConfig,
+        };
+        var daJson = JsonSerializer.Serialize(da, jsonOptions) + Environment.NewLine;
+        written.AddRange(WritePluginConfig(
+            chainDirectory,
+            "Neo.Plugins.L2DA",
+            daJson,
+            alsoWriteFromDeployCopy: true));
+
         // Operator checklist for WireProduction args that are not plugin config fields.
         // Deploy heights materialize from the evidence report when blockIndex is present;
         // durable store paths remain operator-supplied.
@@ -276,6 +316,8 @@ public sealed record NeoHubDeployReport(
                     ["batchPluginFactory"] = "L2BatchPlugin.CreateFromChainDirectory(chainDirectory)",
                     ["settlementPluginFactory"] = "L2SettlementPlugin.CreateFromChainDirectory(chainDirectory)",
                     ["proverPluginFactory"] = "L2ProverPlugin.CreateFromChainDirectory(chainDirectory)",
+                    ["metricsPluginFactory"] = "L2MetricsPlugin.CreateFromChainDirectory(chainDirectory)",
+                    ["localDaPluginFactory"] = "L2DAPlugin.CreateLocalFromChainDirectory(chainDirectory)",
                     ["stateStore"] = RelativeStateDir,
                     ["stateOpenHelper"] =
                         "Sp1SettlementExecutionStack.OpenStateFromChainDirectory(chainDirectory)",
@@ -299,6 +341,11 @@ public sealed record NeoHubDeployReport(
                     + "(or L2BatchSettings.FromChainDirectory + ctor)",
                     "L2ProverPlugin.CreateFromChainDirectory(chainDir) then Wire(signerSet / "
                     + "optimisticProver / zkProver from Sp1 stack)",
+                    "L2MetricsPlugin.CreateFromChainDirectory(chainDir) then WithMetrics on batch/"
+                    + "settlement/DA plugins and Start()",
+                    "Multisig/Optimistic local DA: L2DAPlugin.CreateLocalFromChainDirectory(chainDir) "
+                    + "or PersistentDAWriter.OpenLocalFromChainDirectory; public DAMode needs "
+                    + "WithProductionBackend",
                     "Zk: state = Sp1SettlementExecutionStack.OpenStateFromChainDirectory(chainDir) "
                     + "then CreateFromChainDirectory(chainDir, state, executorPath, executorSha256, vk) "
                     + "after bootstrap-genesis (ensures prover/executor-scratch + prover/inbox; "
@@ -428,6 +475,37 @@ public sealed record NeoHubDeployReport(
                 throw new ArgumentException(
                     $"chain.config.json proofType='{name}' is not a valid ProofType");
             return (byte)proofType;
+        }
+        catch (JsonException ex)
+        {
+            throw new ArgumentException(
+                $"chain.config.json is not valid JSON: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Map <c>chain.config.json</c> <c>daMode</c> name to the DA plugin byte.
+    /// Defaults to <see cref="DAMode.Local"/> when the file or field is absent (host-local
+    /// Multisig durability — not a ChainRegistry public label).
+    /// </summary>
+    public static byte ResolveDAModeByte(string chainDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        var configPath = Path.Combine(chainDirectory, "chain.config.json");
+        if (!File.Exists(configPath))
+            return (byte)DAMode.Local;
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(configPath));
+            if (!doc.RootElement.TryGetProperty("daMode", out var prop)
+                || prop.ValueKind != JsonValueKind.String
+                || string.IsNullOrWhiteSpace(prop.GetString()))
+                return (byte)DAMode.Local;
+            var name = prop.GetString()!;
+            if (!Enum.TryParse<DAMode>(name, ignoreCase: true, out var daMode))
+                throw new ArgumentException(
+                    $"chain.config.json daMode='{name}' is not a valid DAMode");
+            return (byte)daMode;
         }
         catch (JsonException ex)
         {

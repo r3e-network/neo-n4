@@ -366,6 +366,10 @@ public sealed record NeoHubDeployReport(
                         "ProofBoundRpcGlobalRootPublisher.OpenFromChainDirectory(chainDirectory, signer|signAndSend)",
                     ["gatewayPublisherSignAndSend"] =
                         "ProofBoundRpcGlobalRootPublisher.CreateSignAndSend(rpcTransactionSender)",
+                    ["l1DeployedEndpoints"] =
+                        "L1DeployedEndpoints.FromChainDirectory(chainDirectory)",
+                    ["gatewayConfigurePublicationFromChainDirectory"] =
+                        "gateway.ConfigureGlobalRootPublicationFromChainDirectory(chainDir, prover, publisher, replayDomain, vk)",
                     ["gatewayProverQueue"] = RelativeGatewayProverQueueDir,
                     ["gatewaySp1ProverFromChainDirectory"] =
                         "Sp1GatewayProofProver.OpenFromChainDirectory(chainDirectory, gatewayVerificationKey)",

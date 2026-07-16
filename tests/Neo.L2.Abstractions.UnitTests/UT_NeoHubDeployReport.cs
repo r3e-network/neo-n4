@@ -224,6 +224,12 @@ public class UT_NeoHubDeployReport
                 "L2ProverPlugin.CreateOptimisticWiredFromChainDirectory(chainDirectory, sequencerKey, bondContract, bondTxHash)",
                 stores.GetProperty("proverPluginOptimisticWired").GetString());
             Assert.AreEqual(
+                "L1DeployedEndpoints.FromChainDirectory(chainDirectory)",
+                stores.GetProperty("l1DeployedEndpoints").GetString());
+            Assert.AreEqual(
+                "gateway.ConfigureGlobalRootPublicationFromChainDirectory(chainDir, prover, publisher, replayDomain, vk)",
+                stores.GetProperty("gatewayConfigurePublicationFromChainDirectory").GetString());
+            Assert.AreEqual(
                 "L2SettlementPlugin.CreateDepositSourceFromChainDirectory(chainDirectory)",
                 stores.GetProperty("depositSourceFromChainDirectory").GetString());
             Assert.AreEqual(

@@ -474,4 +474,92 @@ public class UT_L2GatewayPlugin
                 Directory.Delete(dir, recursive: true);
         }
     }
+
+    [TestMethod]
+    public void ConfigureGlobalRootPublicationFromChainDirectory_LoadsMessageRouter()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-cfg-pub-" + Guid.NewGuid().ToString("N"));
+        var configDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Gateway");
+        Directory.CreateDirectory(configDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(configDir, "config.json"), """
+                {
+                  "PluginConfiguration": {
+                    "Enabled": true,
+                    "MaxAutomaticRetries": 3
+                  }
+                }
+                """);
+            var messageRouter = UInt160.Parse("0x" + new string('a', 40));
+            var settlementManager = UInt160.Parse("0x" + new string('b', 40));
+            File.WriteAllText(Path.Combine(dir, "l1.deployed.json"), $$"""
+                {
+                  "rpc": "https://l1.example/",
+                  "network": 894710606,
+                  "settlementManager": "{{settlementManager}}",
+                  "messageRouter": "{{messageRouter}}"
+                }
+                """);
+
+            using var plugin = L2GatewayPlugin.CreateMerkleDurableFromChainDirectory(dir);
+            var prover = new DelegatingGatewayProofProver(
+                proofSystem: 1,
+                aggregationBackendId: MerklePathRoundProver.ConstBackendId,
+                proofFactory: static (_, _, _) => ValueTask.FromResult<ReadOnlyMemory<byte>>(
+                    new byte[] { 0x01 }));
+            var publisher = new RecordingPublisher();
+            var replay = UInt256.Parse("0x" + new string('d', 64));
+            var vk = UInt256.Parse("0x" + new string('e', 64));
+
+            plugin.ConfigureGlobalRootPublicationFromChainDirectory(
+                dir, prover, publisher, replay, vk);
+
+            // Profile installed; empty durable outbox → no pending publication.
+            Assert.IsFalse(plugin.HasPendingPublication);
+            Assert.IsInstanceOfType(plugin.Aggregator, typeof(BinaryTreeAggregator));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void ConfigureGlobalRootPublicationFromChainDirectory_MissingDeployed_FailsClosed()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-cfg-miss-" + Guid.NewGuid().ToString("N"));
+        var configDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Gateway");
+        Directory.CreateDirectory(configDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(configDir, "config.json"), """
+                {
+                  "PluginConfiguration": {
+                    "Enabled": true,
+                    "MaxAutomaticRetries": 3
+                  }
+                }
+                """);
+            using var plugin = L2GatewayPlugin.CreateMerkleDurableFromChainDirectory(dir);
+            var prover = new DelegatingGatewayProofProver(
+                proofSystem: 1,
+                aggregationBackendId: MerklePathRoundProver.ConstBackendId,
+                proofFactory: static (_, _, _) => ValueTask.FromResult<ReadOnlyMemory<byte>>(
+                    new byte[] { 0x01 }));
+            Assert.ThrowsExactly<InvalidDataException>(() =>
+                plugin.ConfigureGlobalRootPublicationFromChainDirectory(
+                    dir,
+                    prover,
+                    new RecordingPublisher(),
+                    UInt256.Parse("0x" + new string('1', 64)),
+                    UInt256.Parse("0x" + new string('2', 64))));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
 }

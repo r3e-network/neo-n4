@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — L1DeployedEndpoints + Gateway publication from chain directory — 2026-07-17
+
+- `L1DeployedEndpoints.FromChainDirectory` resolves L1 RPC + SettlementManager + MessageRouter
+  from settlement plugin config and/or `l1.deployed.json` (shared host composition helper).
+- `ProofBoundRpcGlobalRootPublisher.OpenFromChainDirectory` uses that helper (no behavior change).
+- `L2GatewayPlugin.ConfigureGlobalRootPublicationFromChainDirectory` loads MessageRouter from
+  the same endpoints so hosts need not re-type the hash after init-l2.
+- Wireproduction notes + unit coverage. Replay domain / VK / funded L1 remain host-supplied.
+
 ### Added — Optimistic prover wired factory + host-composition integration test — 2026-07-17
 
 - `L2ProverPlugin.CreateOptimisticWiredFromChainDirectory` loads Optimistic ProofType and

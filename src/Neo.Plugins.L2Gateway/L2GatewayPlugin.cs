@@ -284,6 +284,37 @@ public sealed class L2GatewayPlugin : Plugin
     }
 
     /// <summary>
+    /// Host composition: configure production publication using MessageRouter from
+    /// <see cref="L1DeployedEndpoints.FromChainDirectory"/> (settlement config /
+    /// <c>l1.deployed.json</c>).
+    /// </summary>
+    /// <remarks>
+    /// Pair with <see cref="CreateMerkleDurableFromChainDirectory"/> (or Multisig/SP1),
+    /// <c>Sp1GatewayProofProver.OpenFromChainDirectory</c> or another
+    /// <see cref="IGatewayProofProver"/>, and
+    /// <c>ProofBoundRpcGlobalRootPublisher.OpenFromChainDirectory</c>. Replay domain and
+    /// verification key remain host-supplied (deploy-time / governance pins).
+    /// </remarks>
+    public void ConfigureGlobalRootPublicationFromChainDirectory(
+        string chainDirectory,
+        IGatewayProofProver proofProver,
+        IProofBoundGlobalRootPublisher publisher,
+        UInt256 replayDomain,
+        UInt256 verificationKeyId,
+        int? maxAutomaticRetries = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        var endpoints = L1DeployedEndpoints.FromChainDirectory(chainDirectory);
+        ConfigureGlobalRootPublication(
+            proofProver,
+            publisher,
+            endpoints.MessageRouter,
+            replayDomain,
+            verificationKeyId,
+            maxAutomaticRetries);
+    }
+
+    /// <summary>
     /// Configure the fail-closed production publication profile. The active aggregator and proving
     /// circuit must use the same non-pass-through backend, and a persistent outbox is mandatory.
     /// </summary>

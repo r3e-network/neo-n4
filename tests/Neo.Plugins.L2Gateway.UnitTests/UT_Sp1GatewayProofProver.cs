@@ -201,6 +201,42 @@ public sealed class UT_Sp1GatewayProofProver
         resultTimeout: TimeSpan.FromSeconds(5),
         pollInterval: TimeSpan.FromMilliseconds(10));
 
+    [TestMethod]
+    public void OpenFromChainDirectory_CreatesCanonicalQueue()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-prover-cfd-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var prover = Sp1GatewayProofProver.OpenFromChainDirectory(
+                dir,
+                GatewayVerificationKey,
+                resultTimeout: TimeSpan.FromSeconds(5),
+                pollInterval: TimeSpan.FromMilliseconds(10));
+            var expected = Path.GetFullPath(Path.Combine(
+                dir, NeoHubDeployReport.RelativeGatewayProverQueueDir));
+            Assert.AreEqual(expected, prover.QueueDirectory);
+            Assert.IsTrue(Directory.Exists(expected));
+            Assert.AreEqual(Sp1GatewayProofProver.Sp1ProofSystem, prover.ProofSystem);
+            Assert.AreEqual(
+                Sp1GatewayProofProver.RecursiveAggregationBackendId,
+                prover.AggregationBackendId);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void OpenFromChainDirectory_MissingRoot_FailsClosed()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-prover-missing-" + Guid.NewGuid().ToString("N"));
+        Assert.ThrowsExactly<DirectoryNotFoundException>(
+            () => Sp1GatewayProofProver.OpenFromChainDirectory(dir, GatewayVerificationKey));
+    }
+
     private static (GatewayProofBinding Binding, AggregatedCommitment Aggregate) Statement()
     {
         var constituent = Batch();

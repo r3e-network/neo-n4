@@ -358,12 +358,19 @@ public sealed record NeoHubDeployReport(
                         "L2GatewayPlugin.CreateMerkleDurableFromChainDirectory(chainDirectory)",
                     ["gatewayPluginMultisigDurable"] =
                         "L2GatewayPlugin.CreateMultisigDurableFromChainDirectory(chainDirectory, signers, threshold)",
+                    ["gatewayPluginSp1Durable"] =
+                        "L2GatewayPlugin.CreateSp1DurableFromChainDirectory(chainDirectory)",
                     ["gatewayPluginSettingsOnly"] =
                         "L2GatewayPlugin.CreateFromChainDirectory(chainDirectory)",
                     ["gatewayPublisherFromChainDirectory"] =
                         "ProofBoundRpcGlobalRootPublisher.OpenFromChainDirectory(chainDirectory, signer|signAndSend)",
                     ["gatewayPublisherSignAndSend"] =
                         "ProofBoundRpcGlobalRootPublisher.CreateSignAndSend(rpcTransactionSender)",
+                    ["gatewayProverQueue"] = RelativeGatewayProverQueueDir,
+                    ["gatewaySp1ProverFromChainDirectory"] =
+                        "Sp1GatewayProofProver.OpenFromChainDirectory(chainDirectory, gatewayVerificationKey)",
+                    ["proverPluginMultisigWired"] =
+                        "L2ProverPlugin.CreateMultisigWiredFromChainDirectory(chainDirectory, signers)",
                     ["stateStore"] = RelativeStateDir,
                     ["rpcProofStore"] = RelativeRpcProofStoreDir,
                     ["gatewayOutboxStore"] = RelativeGatewayOutboxStoreDir,
@@ -522,6 +529,12 @@ public sealed record NeoHubDeployReport(
     public const string RelativeGatewayOutboxStoreDir = "data/gateway/outbox";
 
     /// <summary>
+    /// Canonical shared file-queue directory for the Gateway SP1 recursive prover daemon
+    /// (opened by <c>Sp1GatewayProofProver.OpenFromChainDirectory</c>).
+    /// </summary>
+    public const string RelativeGatewayProverQueueDir = "prover/gateway-inbox";
+
+    /// <summary>
     /// Create the canonical WireProduction durable-store directories under a chain layout.
     /// Safe to call repeatedly; does not open RocksDB (empty dirs only).
     /// </summary>
@@ -539,6 +552,7 @@ public sealed record NeoHubDeployReport(
             RelativeLocalDaStoreDir,
             RelativeRpcProofStoreDir,
             RelativeGatewayOutboxStoreDir,
+            RelativeGatewayProverQueueDir,
         };
         foreach (var path in relative)
             Directory.CreateDirectory(Path.Combine(chainDirectory, path));

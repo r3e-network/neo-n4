@@ -50,11 +50,39 @@ public sealed class L2ProverPlugin : Plugin
     /// Reads <c>Plugins/Neo.Plugins.L2Prover/config.json</c> (or node/batcher-node variants)
     /// written by deploy-report materialization. Call <see cref="Wire"/> afterward with the
     /// stage-specific dependency (signer set / OptimisticProver / Sp1BatchProofProver).
+    /// Multisig hosts may use <see cref="CreateMultisigWiredFromChainDirectory"/> to bind
+    /// <see cref="AttestationProver"/> in one call.
     /// </remarks>
     public static L2ProverPlugin CreateFromChainDirectory(string chainDirectory)
     {
         var kind = ReadProofTypeFromChainDirectory(chainDirectory);
         return new L2ProverPlugin { Kind = kind };
+    }
+
+    /// <summary>
+    /// Host composition: load Multisig proof type from the chain directory and wire
+    /// <see cref="AttestationProver"/> over the operator-supplied <see cref="ISignerSet"/>.
+    /// </summary>
+    /// <remarks>
+    /// Fails closed when the chain directory configures a non-Multisig <c>ProofType</c>
+    /// (Optimistic/Zk need their own stage dependency). Production uses HSM/KMS
+    /// <see cref="ISignerSet"/>; <see cref="InMemorySignerSet"/> is tests/devnet only.
+    /// Pass <see cref="Prover"/> into <c>WireProductionFromLayout</c> after this call.
+    /// </remarks>
+    public static L2ProverPlugin CreateMultisigWiredFromChainDirectory(
+        string chainDirectory,
+        ISignerSet signers)
+    {
+        ArgumentNullException.ThrowIfNull(signers);
+        var plugin = CreateFromChainDirectory(chainDirectory);
+        if (plugin.Kind != ProofType.Multisig)
+        {
+            throw new InvalidOperationException(
+                $"CreateMultisigWiredFromChainDirectory requires ProofType.Multisig; "
+                + $"chain directory configures {plugin.Kind}");
+        }
+        plugin.Wire(signerSet: signers);
+        return plugin;
     }
 
     /// <summary>

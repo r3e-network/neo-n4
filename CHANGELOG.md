@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — SP1 Gateway durable + Multisig prover wired factories — 2026-07-17
+
+- `L2GatewayPlugin.CreateSp1DurableFromChainDirectory` binds
+  `BinaryTreeAggregator` + `Sp1RecursiveRoundProver` + durable outbox.
+- `Sp1GatewayProofProver.OpenFromChainDirectory` opens the canonical
+  `prover/gateway-inbox` file queue (VK remains host-supplied; daemon is funded).
+- `L2ProverPlugin.CreateMultisigWiredFromChainDirectory` loads Multisig ProofType and
+  wires `AttestationProver` over an operator `ISignerSet` for `WireProductionFromLayout`.
+- `EnsureSettlementStoreDirectories` also creates `prover/gateway-inbox`; wireproduction
+  notes document the new helpers. Terminal Groth16 still needs the operator daemon.
+
 ### Added — Gateway Merkle/Multisig durable factories + ProofBound publisher from chain dir — 2026-07-17
 
 - `L2GatewayPlugin.CreateMerkleDurableFromChainDirectory` binds

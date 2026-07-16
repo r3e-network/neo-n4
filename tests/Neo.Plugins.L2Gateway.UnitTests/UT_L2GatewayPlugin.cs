@@ -402,6 +402,37 @@ public class UT_L2GatewayPlugin
     }
 
     [TestMethod]
+    public void CreateSp1DurableFromChainDirectory_BindsRecursiveBackendAndOutbox()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-sp1-" + Guid.NewGuid().ToString("N"));
+        var configDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Gateway");
+        Directory.CreateDirectory(configDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(configDir, "config.json"), """
+                {
+                  "PluginConfiguration": {
+                    "Enabled": true,
+                    "MaxAutomaticRetries": 3
+                  }
+                }
+                """);
+            using var plugin = L2GatewayPlugin.CreateSp1DurableFromChainDirectory(dir);
+            Assert.IsTrue(plugin.HasPersistentOutbox);
+            var binary = (BinaryTreeAggregator)plugin.Aggregator;
+            Assert.IsInstanceOfType(binary.RoundProver, typeof(Sp1RecursiveRoundProver));
+            Assert.AreEqual(Sp1RecursiveRoundProver.ConstBackendId, binary.RoundProver.BackendId);
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                dir, NeoHubDeployReport.RelativeGatewayOutboxStoreDir)));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void CreateFromChainDirectory_MissingConfig_FailsClosed()
     {
         var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-empty-" + Guid.NewGuid().ToString("N"));

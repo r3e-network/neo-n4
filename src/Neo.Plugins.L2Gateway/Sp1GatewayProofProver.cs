@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Neo.Cryptography;
+using Neo.L2;
 
 namespace Neo.Plugins.L2Gateway;
 
@@ -83,6 +84,42 @@ public sealed class Sp1GatewayProofProver : IGatewayProofProver
         Directory.CreateDirectory(_queueDirectory);
         RejectReparsePoint(_queueDirectory, "queue directory");
         _gatewayVerificationKey = gatewayVerificationKey.GetSpan().ToArray();
+    }
+
+    /// <summary>
+    /// Host composition: open the Gateway SP1 file queue at
+    /// <see cref="NeoHubDeployReport.RelativeGatewayProverQueueDir"/> under a chain
+    /// working directory. The reviewed Gateway guest verification key remains host-supplied.
+    /// </summary>
+    /// <remarks>
+    /// Pair with <see cref="L2GatewayPlugin.CreateSp1DurableFromChainDirectory"/> then
+    /// <see cref="L2GatewayPlugin.ConfigureGlobalRootPublication"/> and
+    /// <c>ProofBoundRpcGlobalRootPublisher.OpenFromChainDirectory</c>. The isolated
+    /// <c>neo-zkvm-gateway-host</c> daemon must watch the same queue directory (funded
+    /// operator process).
+    /// </remarks>
+    public static Sp1GatewayProofProver OpenFromChainDirectory(
+        string chainDirectory,
+        UInt256 gatewayVerificationKey,
+        TimeSpan? resultTimeout = null,
+        TimeSpan? pollInterval = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        ArgumentNullException.ThrowIfNull(gatewayVerificationKey);
+
+        var root = Path.GetFullPath(chainDirectory);
+        if (!Directory.Exists(root))
+            throw new DirectoryNotFoundException(
+                $"Chain directory not found: {root}. Run neo-stack init-l2 first.");
+
+        NeoHubDeployReport.EnsureSettlementStoreDirectories(root);
+        var queue = Path.Combine(root, NeoHubDeployReport.RelativeGatewayProverQueueDir);
+        Directory.CreateDirectory(queue);
+        return new Sp1GatewayProofProver(
+            queue,
+            gatewayVerificationKey,
+            resultTimeout,
+            pollInterval);
     }
 
     /// <inheritdoc />

@@ -186,6 +186,22 @@ public sealed class L2GatewayPlugin : Plugin
     }
 
     /// <summary>
+    /// Host composition: durable Gateway with
+    /// <see cref="BinaryTreeAggregator"/> + <see cref="Sp1RecursiveRoundProver"/>
+    /// (backend 0xC2). Call <see cref="ConfigureGlobalRootPublication"/> with
+    /// <see cref="Sp1GatewayProofProver.OpenFromChainDirectory"/> next.
+    /// </summary>
+    /// <remarks>
+    /// Aggregation is local and deterministic; the terminal 356-byte Groth16 proof still
+    /// requires the operator-run <c>neo-zkvm-gateway-host</c> daemon watching
+    /// <c>prover/gateway-inbox</c> (funded process / binary pin).
+    /// </remarks>
+    public static L2GatewayPlugin CreateSp1DurableFromChainDirectory(string chainDirectory)
+        => CreateDurableFromChainDirectory(
+            chainDirectory,
+            new BinaryTreeAggregator(new Sp1RecursiveRoundProver()));
+
+    /// <summary>
     /// Attach <see cref="PersistentGatewayOutbox"/> at
     /// <c>data/gateway/outbox</c> after <see cref="UseAggregator"/>.
     /// </summary>

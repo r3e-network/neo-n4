@@ -200,6 +200,51 @@ public class UT_L2ProverPlugin
     }
 
     [TestMethod]
+    public void CreateMultisigWiredFromChainDirectory_BindsAttestationProver()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-prover-ms-wired-" + Guid.NewGuid().ToString("N"));
+        var configDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Prover");
+        Directory.CreateDirectory(configDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(configDir, "config.json"), """
+                { "PluginConfiguration": { "ProofType": 1 } }
+                """);
+            using var plugin = L2ProverPlugin.CreateMultisigWiredFromChainDirectory(dir, SampleSigners());
+            Assert.AreEqual(ProofType.Multisig, plugin.Kind);
+            Assert.IsInstanceOfType(plugin.Prover, typeof(AttestationProver));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void CreateMultisigWiredFromChainDirectory_ZkConfig_FailsClosed()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-prover-ms-zk-" + Guid.NewGuid().ToString("N"));
+        var configDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Prover");
+        Directory.CreateDirectory(configDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(configDir, "config.json"), """
+                { "PluginConfiguration": { "ProofType": 3 } }
+                """);
+            var ex = Assert.ThrowsExactly<InvalidOperationException>(
+                () => L2ProverPlugin.CreateMultisigWiredFromChainDirectory(dir, SampleSigners()));
+            StringAssert.Contains(ex.Message, "Multisig");
+            StringAssert.Contains(ex.Message, "Zk");
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void Wire_Optimistic_WithProver_InstallsIL2Prover()
     {
         var priv = Enumerable.Range(1, 32).Select(i => (byte)i).ToArray();

@@ -191,6 +191,9 @@ public class UT_NeoHubDeployReport
                 "L2GatewayPlugin.CreateMultisigDurableFromChainDirectory(chainDirectory, signers, threshold)",
                 stores.GetProperty("gatewayPluginMultisigDurable").GetString());
             Assert.AreEqual(
+                "L2GatewayPlugin.CreateSp1DurableFromChainDirectory(chainDirectory)",
+                stores.GetProperty("gatewayPluginSp1Durable").GetString());
+            Assert.AreEqual(
                 "L2GatewayPlugin.CreateFromChainDirectory(chainDirectory)",
                 stores.GetProperty("gatewayPluginSettingsOnly").GetString());
             Assert.AreEqual(
@@ -199,6 +202,15 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "ProofBoundRpcGlobalRootPublisher.CreateSignAndSend(rpcTransactionSender)",
                 stores.GetProperty("gatewayPublisherSignAndSend").GetString());
+            Assert.AreEqual(
+                NeoHubDeployReport.RelativeGatewayProverQueueDir,
+                stores.GetProperty("gatewayProverQueue").GetString());
+            Assert.AreEqual(
+                "Sp1GatewayProofProver.OpenFromChainDirectory(chainDirectory, gatewayVerificationKey)",
+                stores.GetProperty("gatewaySp1ProverFromChainDirectory").GetString());
+            Assert.AreEqual(
+                "L2ProverPlugin.CreateMultisigWiredFromChainDirectory(chainDirectory, signers)",
+                stores.GetProperty("proverPluginMultisigWired").GetString());
             Assert.AreEqual(
                 "L2SettlementPlugin.CreateDepositSourceFromChainDirectory(chainDirectory)",
                 stores.GetProperty("depositSourceFromChainDirectory").GetString());
@@ -300,11 +312,12 @@ public class UT_NeoHubDeployReport
         {
             var first = NeoHubDeployReport.EnsureSettlementStoreDirectories(dir);
             var second = NeoHubDeployReport.EnsureSettlementStoreDirectories(dir);
-            Assert.AreEqual(7, first.Count);
-            Assert.AreEqual(7, second.Count);
+            Assert.AreEqual(8, first.Count);
+            Assert.AreEqual(8, second.Count);
             CollectionAssert.Contains(first.ToList(), NeoHubDeployReport.RelativeLocalDaStoreDir);
             CollectionAssert.Contains(first.ToList(), NeoHubDeployReport.RelativeRpcProofStoreDir);
             CollectionAssert.Contains(first.ToList(), NeoHubDeployReport.RelativeGatewayOutboxStoreDir);
+            CollectionAssert.Contains(first.ToList(), NeoHubDeployReport.RelativeGatewayProverQueueDir);
             foreach (var relative in first)
                 Assert.IsTrue(Directory.Exists(Path.Combine(dir, relative)));
         }

@@ -370,6 +370,10 @@ public sealed record NeoHubDeployReport(
                     ["wireProductionFromLayout"] =
                         "L2SettlementPlugin.WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer)",
                     ["localDaOpenHelper"] = "PersistentDAWriter.OpenLocalFromChainDirectory(chainDirectory)",
+                    ["depositSourceFromChainDirectory"] =
+                        "L2SettlementPlugin.CreateDepositSourceFromChainDirectory(chainDirectory)",
+                    ["depositSourceOpenHelper"] =
+                        "RpcSharedBridgeDepositSource.OpenFromChainDirectory(chainDir, rpc, sharedBridge, chainId, l2Bridge, startHeight)",
                     ["nestedNep17Signer"] =
                         "LocalKeyTransactionSigner.FromEnvironmentVariableWithGlobalScope()",
                 },
@@ -383,8 +387,10 @@ public sealed record NeoHubDeployReport(
                     + "(or L2SettlementSettings.FromChainDirectory + ctor)",
                     "L2BatchPlugin.CreateFromChainDirectory(chainDir) "
                     + "(or L2BatchSettings.FromChainDirectory + ctor)",
-                    "L2BridgePlugin.CreateFromChainDirectory(chainDir) then WithDepositSource / "
-                    + "WireL1MessageInbox on the batch plugin for SharedBridge drain",
+                    "L2BridgePlugin.CreateFromChainDirectory(chainDir); SharedBridge deposits: "
+                    + "L2SettlementPlugin.CreateDepositSourceFromChainDirectory(chainDir) "
+                    + "(or RpcSharedBridgeDepositSource.OpenFromChainDirectory + WithDepositSource) "
+                    + "then L2BatchPlugin.WireL1MessageInbox for drain/confirm",
                     "L2ProverPlugin.CreateFromChainDirectory(chainDir) then Wire(signerSet / "
                     + "optimisticProver / zkProver from Sp1 stack)",
                     "L2MetricsPlugin.CreateFromChainDirectory(chainDir) then WithMetrics on batch/"

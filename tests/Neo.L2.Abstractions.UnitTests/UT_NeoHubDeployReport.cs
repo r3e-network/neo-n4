@@ -188,6 +188,12 @@ public class UT_NeoHubDeployReport
                 "L2GatewayPlugin.CreateFromChainDirectory(chainDirectory)",
                 stores.GetProperty("gatewayPluginSettingsOnly").GetString());
             Assert.AreEqual(
+                "L2SettlementPlugin.CreateDepositSourceFromChainDirectory(chainDirectory)",
+                stores.GetProperty("depositSourceFromChainDirectory").GetString());
+            Assert.AreEqual(
+                "RpcSharedBridgeDepositSource.OpenFromChainDirectory(chainDir, rpc, sharedBridge, chainId, l2Bridge, startHeight)",
+                stores.GetProperty("depositSourceOpenHelper").GetString());
+            Assert.AreEqual(
                 NeoHubDeployReport.RelativeRpcProofStoreDir,
                 stores.GetProperty("rpcProofStore").GetString());
             Assert.AreEqual(

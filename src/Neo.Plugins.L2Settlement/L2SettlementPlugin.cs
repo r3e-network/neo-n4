@@ -50,6 +50,44 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
     public static L2SettlementPlugin CreateFromChainDirectory(string chainDirectory)
         => new(L2SettlementSettings.FromChainDirectory(chainDirectory));
 
+    /// <summary>
+    /// Host composition: build an owned <see cref="RpcSharedBridgeDepositSource"/> from
+    /// settlement plugin config + durable store under
+    /// <c>data/settlement/shared-bridge-deposits</c>.
+    /// </summary>
+    /// <remarks>
+    /// Requires <c>SharedBridgeHash</c>, <c>SharedBridgeDeploymentHeight</c>,
+    /// <c>L1RpcEndpoint</c>, and non-zero <c>ChainId</c> in settlement config (as written by
+    /// deploy-report materialization). Empty <c>L2BridgeHash</c> resolves to native
+    /// <c>L2Bridge</c>. Pass the result to <c>L2BridgePlugin.WithDepositSource</c> and/or
+    /// <c>L2BatchPlugin.WireL1MessageInbox</c>. Caller owns disposal (source owns RPC + store).
+    /// </remarks>
+    public static RpcSharedBridgeDepositSource CreateDepositSourceFromChainDirectory(
+        string chainDirectory)
+    {
+        var settings = L2SettlementSettings.FromChainDirectory(chainDirectory);
+        var production = settings.ValidateProduction();
+        if (production.SharedBridgeHash is null || production.L2BridgeHash is null)
+            throw new InvalidOperationException(
+                "CreateDepositSourceFromChainDirectory requires SharedBridgeHash "
+                + "(and optional L2BridgeHash) in settlement plugin config");
+        if (settings.SharedBridgeDeploymentHeight == 0)
+            throw new InvalidOperationException(
+                "CreateDepositSourceFromChainDirectory requires SharedBridgeDeploymentHeight "
+                + "in settlement plugin config (deploy-report blockIndex)");
+
+        var rpc = new JsonRpcClient(production.RpcEndpoint.AbsoluteUri);
+        return RpcSharedBridgeDepositSource.OpenFromChainDirectory(
+            chainDirectory,
+            rpc,
+            production.SharedBridgeHash,
+            production.ChainId,
+            production.L2BridgeHash,
+            settings.SharedBridgeDeploymentHeight,
+            settings.L1FinalityDepth,
+            ownsRpc: true);
+    }
+
     /// <summary>Loaded settlement settings (host composition / tests).</summary>
     internal L2SettlementSettings Settings => _settings;
 

@@ -356,6 +356,45 @@ public class UT_L2SettlementSettings
             Assert.AreEqual(s.ProofType, plugin.Settings.ProofType);
             Assert.AreEqual(s.ForcedInclusionDeploymentHeight, plugin.Settings.ForcedInclusionDeploymentHeight);
             Assert.AreEqual(s.SettlementManagerHash, plugin.Settings.SettlementManagerHash);
+
+            // Host deposit composition: settings + durable store under chain layout.
+            using var depositSource = L2SettlementPlugin.CreateDepositSourceFromChainDirectory(dir);
+            Assert.AreEqual(s.ChainId, depositSource.ChainId);
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                dir, NeoHubDeployReport.RelativeSharedBridgeDepositEventStoreDir)));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void CreateDepositSourceFromChainDirectory_MissingSharedBridge_FailsClosed()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-deposit-no-sb-" + Guid.NewGuid().ToString("N"));
+        var configDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Settlement");
+        Directory.CreateDirectory(configDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(configDir, "config.json"), """
+                {
+                  "PluginConfiguration": {
+                    "ChainId": 20260716,
+                    "L1RpcEndpoint": "https://n3seed1.ngd.network:20332/",
+                    "ExpectedNetwork": 894710606,
+                    "SettlementManagerHash": "0x11448868f1c14422506b9c2360051df34bcbbb51",
+                    "ForcedInclusionHash": "0x962829ae28e7f89e5de4b4672b167c8ae2ba55a9",
+                    "SharedBridgeHash": "",
+                    "ProofType": 1,
+                    "L1FinalityDepth": 1,
+                    "Enabled": true
+                  }
+                }
+                """);
+            Assert.ThrowsExactly<InvalidOperationException>(
+                () => L2SettlementPlugin.CreateDepositSourceFromChainDirectory(dir));
         }
         finally
         {

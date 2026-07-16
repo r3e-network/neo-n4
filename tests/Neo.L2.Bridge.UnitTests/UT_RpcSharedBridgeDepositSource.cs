@@ -21,6 +21,54 @@ public class UT_RpcSharedBridgeDepositSource
     private static readonly UInt256 TransactionHash = UInt256.Parse("0x" + new string('2', 64));
 
     [TestMethod]
+    public void OpenFromChainDirectory_CreatesDurableStoreUnderLayout()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-deposit-open-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var (rpc, _) = BuildRpc();
+            using var source = RpcSharedBridgeDepositSource.OpenFromChainDirectory(
+                dir,
+                rpc,
+                SharedBridge,
+                ChainId,
+                L2Bridge,
+                startHeight: 10,
+                ownsRpc: true);
+            Assert.AreEqual(ChainId, source.ChainId);
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                dir, NeoHubDeployReport.RelativeSharedBridgeDepositEventStoreDir)));
+            Assert.AreEqual(0, source.Peek(10).Count);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void OpenFromChainDirectory_ZeroStartHeight_FailsClosed()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-deposit-zero-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var (rpc, _) = BuildRpc();
+            using var _ = rpc;
+            Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
+                RpcSharedBridgeDepositSource.OpenFromChainDirectory(
+                    dir, rpc, SharedBridge, ChainId, L2Bridge, startHeight: 0));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public async Task Scan_MaterializesDepositMessage_AndConfirmForgetsNonce()
     {
         using var store = new InMemoryKeyValueStore();

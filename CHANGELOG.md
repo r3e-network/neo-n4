@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — SharedBridge deposit source from chain directory — 2026-07-17
+
+- `RpcSharedBridgeDepositSource.OpenFromChainDirectory` opens the durable event store under
+  `data/settlement/shared-bridge-deposits` for host composition outside full WireProduction.
+- `L2SettlementPlugin.CreateDepositSourceFromChainDirectory` loads settlement config
+  (RPC, SharedBridge hash, deploy height, finality) and returns an owned deposit source
+  for `L2BridgePlugin.WithDepositSource` / `L2BatchPlugin.WireL1MessageInbox`.
+- Wireproduction notes document both helpers; unit coverage for store open + fail-closed paths.
+
 ### Fixed — Gateway host composition order (aggregator before outbox) — 2026-07-17
 
 - `L2GatewayPlugin.CreateFromChainDirectory` now loads settings only; attaching the

@@ -71,6 +71,60 @@ public sealed class RpcSharedBridgeDepositSource : ISharedBridgeDepositSource, I
             maximumBlocksPerScan);
     }
 
+    /// <summary>
+    /// Open a production deposit source whose durable event store lives under
+    /// <see cref="NeoHubDeployReport.RelativeSharedBridgeDepositEventStoreDir"/> in a chain
+    /// working directory. The source owns that RocksDB store.
+    /// </summary>
+    /// <remarks>
+    /// Host composition for batcher / bridge plugins outside full
+    /// <c>L2SettlementPlugin.WireProduction</c>. Prefer
+    /// <c>L2SettlementPlugin.CreateDepositSourceFromChainDirectory</c> when settlement
+    /// plugin config already has RPC endpoint, SharedBridge hash, and deploy height.
+    /// Caller still owns <paramref name="rpc"/> unless <paramref name="ownsRpc"/> is true.
+    /// </remarks>
+    public static RpcSharedBridgeDepositSource OpenFromChainDirectory(
+        string chainDirectory,
+        JsonRpcClient rpc,
+        UInt160 sharedBridgeHash,
+        uint chainId,
+        UInt160 l2BridgeHash,
+        uint startHeight,
+        uint finalityDepth = 1,
+        int maximumBlocksPerScan = 256,
+        bool ownsRpc = false)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        ArgumentNullException.ThrowIfNull(rpc);
+        ArgumentNullException.ThrowIfNull(sharedBridgeHash);
+        ArgumentNullException.ThrowIfNull(l2BridgeHash);
+        if (startHeight == 0)
+            throw new ArgumentOutOfRangeException(
+                nameof(startHeight), "SharedBridge deployment height must be non-zero");
+
+        var root = System.IO.Path.GetFullPath(chainDirectory);
+        if (!System.IO.Directory.Exists(root))
+            throw new System.IO.DirectoryNotFoundException(
+                $"Chain directory not found: {root}. Run neo-stack init-l2 first.");
+
+        NeoHubDeployReport.EnsureSettlementStoreDirectories(root);
+        var absolute = System.IO.Path.Combine(
+            root, NeoHubDeployReport.RelativeSharedBridgeDepositEventStoreDir);
+        System.IO.Directory.CreateDirectory(absolute);
+        var store = new RocksDbKeyValueStore(absolute);
+        return new RpcSharedBridgeDepositSource(
+            rpc,
+            sharedBridgeHash,
+            chainId,
+            l2BridgeHash,
+            store,
+            startHeight,
+            finalityDepth,
+            maximumBlocksPerScan,
+            ownsRpc,
+            ownsStore: true);
+    }
+
     /// <inheritdoc />
     public uint ChainId { get; }
 

@@ -17,6 +17,7 @@
     <ProjectReference Include="..\Neo.L2.Messaging\Neo.L2.Messaging.csproj" />
     <ProjectReference Include="..\Neo.L2.Persistence\Neo.L2.Persistence.csproj" />
     <ProjectReference Include="..\Neo.L2.Proving\Neo.L2.Proving.csproj" />
+    <ProjectReference Include="..\Neo.L2.Sequencer\Neo.L2.Sequencer.csproj" />
     <ProjectReference Include="..\Neo.L2.Settlement.Rpc\Neo.L2.Settlement.Rpc.csproj" />
     <ProjectReference Include="..\Neo.L2.State\Neo.L2.State.csproj" />
     <ProjectReference Include="..\Neo.L2.Telemetry\Neo.L2.Telemetry.csproj" />

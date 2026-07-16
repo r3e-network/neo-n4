@@ -812,6 +812,139 @@ public class UT_L2SettlementProductionWiring
     }
 
     [TestMethod]
+    public void WireProductionFromLayout_BindsStoresCommitteeAndLegacyProfile()
+    {
+        var reportPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        var chainDir = Path.Combine(Path.GetTempPath(), "neo-n4-wp-layout-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            var validatorA = new KeyPair(Enumerable.Range(3, 32).Select(i => (byte)i).ToArray()).PublicKey;
+            var validatorB = new KeyPair(Enumerable.Range(4, 32).Select(i => (byte)i).ToArray()).PublicKey;
+            var hexA = Convert.ToHexString(validatorA.EncodePoint(true)).ToLowerInvariant();
+            var hexB = Convert.ToHexString(validatorB.EncodePoint(true)).ToLowerInvariant();
+            File.WriteAllText(Path.Combine(chainDir, "chain.config.json"), $$"""
+                {
+                  "chainId": 20260716,
+                  "proofType": "Multisig",
+                  "securityLevel": "TrainingWheels",
+                  "daMode": "Local",
+                  "validators": [ "{{hexA}}", "{{hexB}}" ]
+                }
+                """);
+            NeoHubDeployReport.Load(reportPath).WriteOperatorArtifacts(chainDir);
+
+            // Multisig host: rewrite ProofType after deploy-report materialization (report pins Zk).
+            var loaded = L2SettlementSettings.FromChainDirectory(chainDir);
+            var multisigSettings = new L2SettlementSettings
+            {
+                ChainId = loaded.ChainId,
+                L1RpcEndpoint = loaded.L1RpcEndpoint,
+                ExpectedNetwork = loaded.ExpectedNetwork,
+                SettlementManagerHash = loaded.SettlementManagerHash,
+                ForcedInclusionHash = loaded.ForcedInclusionHash,
+                SharedBridgeHash = loaded.SharedBridgeHash,
+                MessageRouterHash = loaded.MessageRouterHash,
+                ForcedInclusionDeploymentHeight = loaded.ForcedInclusionDeploymentHeight,
+                SharedBridgeDeploymentHeight = loaded.SharedBridgeDeploymentHeight,
+                MessageRouterDeploymentHeight = loaded.MessageRouterDeploymentHeight,
+                L1FinalityDepth = loaded.L1FinalityDepth,
+                ProofType = (byte)ProofType.Multisig,
+                Enabled = false,
+            };
+            var settlementConfigDir = Path.Combine(chainDir, "Plugins", "Neo.Plugins.L2Settlement");
+            Directory.CreateDirectory(settlementConfigDir);
+            File.WriteAllText(Path.Combine(settlementConfigDir, "config.json"), $$"""
+                {
+                  "PluginConfiguration": {
+                    "ChainId": {{multisigSettings.ChainId}},
+                    "L1RpcEndpoint": "{{multisigSettings.L1RpcEndpoint}}",
+                    "ExpectedNetwork": {{multisigSettings.ExpectedNetwork}},
+                    "SettlementManagerHash": "{{multisigSettings.SettlementManagerHash}}",
+                    "ForcedInclusionHash": "{{multisigSettings.ForcedInclusionHash}}",
+                    "SharedBridgeHash": "{{multisigSettings.SharedBridgeHash}}",
+                    "MessageRouterHash": "{{multisigSettings.MessageRouterHash}}",
+                    "ForcedInclusionDeploymentHeight": {{multisigSettings.ForcedInclusionDeploymentHeight}},
+                    "SharedBridgeDeploymentHeight": {{multisigSettings.SharedBridgeDeploymentHeight}},
+                    "MessageRouterDeploymentHeight": {{multisigSettings.MessageRouterDeploymentHeight}},
+                    "L1FinalityDepth": {{multisigSettings.L1FinalityDepth}},
+                    "ProofType": {{multisigSettings.ProofType}},
+                    "Enabled": false
+                  }
+                }
+                """);
+            // Must match CanonicalRootHttpClient's mocked L1 getCanonicalStateRoot (Root(0x11)).
+            var genesis = Root(0x11);
+            File.WriteAllText(Path.Combine(chainDir, "genesis-manifest.json"), $$"""
+                { "chainId": {{multisigSettings.ChainId}}, "initialStateRoot": "{{genesis}}" }
+                """);
+
+            using var layout = L2SettlementStoreLayout.Open(chainDir);
+            using var batch = new L2BatchPlugin();
+            using var settlement = new L2SettlementPlugin(multisigSettings);
+            using var http = CanonicalRootHttpClient();
+
+            var forcedSource = settlement.WireProductionFromLayout(
+                chainDir,
+                layout,
+                batch,
+                new TestExecutor(),
+                new TestDaWriter(),
+                new TestProver(),
+                new TrackingSigner(Account(0x44)),
+                rpcHttpClient: http);
+
+            Assert.IsNotNull(forcedSource);
+            Assert.AreEqual(multisigSettings.ChainId, forcedSource.ChainId);
+            Assert.IsNotNull(settlement.ProductionComposition?.OwnedDepositSource);
+            Assert.IsNotNull(settlement.ProductionComposition?.OwnedMessageRouter);
+            settlement.Dispose();
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void WireProductionFromLayout_MismatchedLayoutDirectory_FailsClosed()
+    {
+        var a = Path.Combine(Path.GetTempPath(), "neo-n4-layout-a-" + Guid.NewGuid().ToString("N"));
+        var b = Path.Combine(Path.GetTempPath(), "neo-n4-layout-b-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(a);
+        Directory.CreateDirectory(b);
+        try
+        {
+            NeoHubDeployReport.EnsureSettlementStoreDirectories(a);
+            NeoHubDeployReport.EnsureSettlementStoreDirectories(b);
+            using var layout = L2SettlementStoreLayout.Open(a);
+            using var batch = new L2BatchPlugin();
+            using var settlement = new L2SettlementPlugin(ProductionSettings());
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
+                settlement.WireProductionFromLayout(
+                    b,
+                    layout,
+                    batch,
+                    new TestExecutor(),
+                    new TestDaWriter(),
+                    new TestProver(),
+                    new TrackingSigner(Account(0x55))));
+        }
+        finally
+        {
+            if (Directory.Exists(a)) Directory.Delete(a, recursive: true);
+            if (Directory.Exists(b)) Directory.Delete(b, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void WireProduction_ConstructsOwnedMessageRouterWhenConfigured()
     {
         using var backend = new TemporaryRocksDb();

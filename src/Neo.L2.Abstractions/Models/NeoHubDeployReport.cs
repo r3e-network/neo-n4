@@ -257,6 +257,8 @@ public sealed record NeoHubDeployReport(
                     ["messageRouterEventStore"] = RelativeMessageRouterEventStoreDir,
                     ["localDaStore"] = RelativeLocalDaStoreDir,
                     ["openHelper"] = "L2SettlementStoreLayout.Open(chainDirectory)",
+                    ["wireProductionFromLayout"] =
+                        "L2SettlementPlugin.WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer)",
                     ["localDaOpenHelper"] = "PersistentDAWriter.OpenLocalFromChainDirectory(chainDirectory)",
                 },
                 ["requiredCallerArgs"] = new[]
@@ -265,10 +267,13 @@ public sealed record NeoHubDeployReport(
                     + "for local/testnet (use WitnessScope.Global when nested NEP-17 transfers "
                     + "are required: SharedBridge.Deposit / ForcedInclusion fees); "
                     + "production uses HSM/KMS INeoTransactionSigner",
-                    "L2SettlementSettings.FromChainDirectory(chainDir) (or FromPluginConfigFile)",
+                    "L2SettlementSettings.FromChainDirectory(chainDir) → new L2SettlementPlugin(settings)",
                     "L2BatchSettings.FromChainDirectory(chainDir) (or FromPluginConfigFile)",
-                    "L2SettlementStoreLayout.Open(chainDir) → ProofWitness + event stores "
-                    + "(or open RocksDB at recommended paths below)",
+                    "L2SettlementStoreLayout.Open(chainDir) then "
+                    + "WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer) "
+                    + "— binds ProofWitness + three scanners, static committee hash from "
+                    + "chain.config validators, and Multisig/Optimistic profile via "
+                    + "LegacyFromChainDirectory (pass Sp1 profile explicitly for Zk)",
                     "durable proofWitnessStore (recommended: "
                     + RelativeProofWitnessStoreDir + ")",
                     "durable forcedInclusionEventStore (recommended: "
@@ -285,14 +290,13 @@ public sealed record NeoHubDeployReport(
                     + " (node-local durability only; Zk/Validity public DA uses L1/NeoFS production writers)",
                     "l1FinalizedHeight optional: WireProduction defaults from production RPC + L1FinalityDepth "
                     + "(or pass RpcL1FinalizedHeightSource.CreateSyncProvider)",
-                    "sequencerCommitteeHash provider (required for L1 inbox): "
-                    + "SequencerCommitteeConfig.CreateStaticHashProviderFromChainDirectory(chainDir) "
-                    + "when chain.config.json validators is non-empty; or "
-                    + "SequencerCommitteeHasher.CreateSyncProvider("
-                    + "new RpcSequencerCommitteeProvider(rpc, sequencerRegistry, chainId, genesisKeys))",
+                    "sequencerCommitteeHash: WireProductionFromLayout defaults to "
+                    + "SequencerCommitteeConfig.CreateStaticHashProviderFromChainDirectory(chainDir); "
+                    + "override with SequencerCommitteeHasher.CreateSyncProvider("
+                    + "new RpcSequencerCommitteeProvider(...)) for live registry polling",
                     "genesis state root: L2GenesisManifest.ReadInitialStateRootFromChainDirectory(chainDir) "
-                    + "after bootstrap-genesis",
-                    "profile: ProofWitnessPipelineProfile.LegacyFromChainDirectory(chainDir) for Multisig/Optimistic; "
+                    + "after bootstrap-genesis (also used by LegacyFromChainDirectory)",
+                    "profile: default LegacyFromChainDirectory for Multisig/Optimistic; "
                     + "Sp1SettlementExecutionStack.Create for Zk",
                     "executor + DA writer + prover (e.g. Sp1SettlementExecutionStack for Zk; "
                     + "Multisig: AttestationProver + PersistentDAWriter.OpenLocalFromChainDirectory)",

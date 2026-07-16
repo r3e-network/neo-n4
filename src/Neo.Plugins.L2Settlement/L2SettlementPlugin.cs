@@ -5,6 +5,7 @@ using Neo.L2.Executor.ProofWitness;
 using Neo.L2.ForcedInclusion;
 using Neo.L2.Messaging;
 using Neo.L2.Persistence;
+using Neo.L2.Sequencer;
 using Neo.L2.Settlement.Rpc;
 using Neo.L2.Telemetry;
 
@@ -298,6 +299,66 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
             composition.Dispose();
             throw;
         }
+    }
+
+    /// <summary>
+    /// Production composition root that binds durable stores from
+    /// <see cref="L2SettlementStoreLayout"/> and the static sequencer committee hash from
+    /// <c>chain.config.json</c> validators under <paramref name="chainDirectory"/>.
+    /// </summary>
+    /// <remarks>
+    /// When <paramref name="profile"/> is omitted, uses
+    /// <see cref="ProofWitnessPipelineProfile.LegacyFromChainDirectory"/> (Multisig/Optimistic).
+    /// ZK hosts must pass a profile from <c>Sp1SettlementExecutionStack</c> (and matching
+    /// settings ProofType). Executor, DA writer, prover, and signer remain host-supplied
+    /// (Multisig local DA: <c>PersistentDAWriter.OpenLocalFromChainDirectory</c>).
+    /// Layout ownership stays with the caller — dispose the layout after this plugin.
+    /// </remarks>
+    public RpcForcedInclusionSource WireProductionFromLayout(
+        string chainDirectory,
+        L2SettlementStoreLayout layout,
+        L2BatchPlugin batchPlugin,
+        IProofWitnessBatchExecutor executor,
+        IDAWriter daWriter,
+        IL2Prover prover,
+        INeoTransactionSigner signer,
+        ProofWitnessPipelineProfile? profile = null,
+        Func<UInt256>? sequencerCommitteeHash = null,
+        HttpClient? rpcHttpClient = null,
+        ISharedBridgeDepositSource? depositSource = null,
+        IMessageRouter? messageRouter = null,
+        Func<uint>? l1FinalizedHeight = null,
+        int? maxAutomaticRetries = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        ArgumentNullException.ThrowIfNull(layout);
+        var root = System.IO.Path.GetFullPath(chainDirectory);
+        var layoutRoot = System.IO.Path.GetFullPath(layout.ChainDirectory);
+        if (!string.Equals(root, layoutRoot, StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                $"L2SettlementStoreLayout chain directory '{layoutRoot}' differs from '{root}'");
+
+        profile ??= ProofWitnessPipelineProfile.LegacyFromChainDirectory(root);
+        sequencerCommitteeHash ??= SequencerCommitteeConfig
+            .CreateStaticHashProviderFromChainDirectory(root);
+
+        return WireProduction(
+            batchPlugin,
+            executor,
+            daWriter,
+            layout.ProofWitness,
+            prover,
+            profile,
+            signer,
+            layout.ForcedInclusionEvents,
+            rpcHttpClient: rpcHttpClient,
+            depositSource: depositSource,
+            messageRouter: messageRouter,
+            l1FinalizedHeight: l1FinalizedHeight,
+            sequencerCommitteeHash: sequencerCommitteeHash,
+            sharedBridgeDepositEventStore: layout.SharedBridgeDeposits,
+            messageRouterEventStore: layout.MessageRouterEvents,
+            maxAutomaticRetries: maxAutomaticRetries);
     }
 
     internal L2SettlementProductionComposition? ProductionComposition =>

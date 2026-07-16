@@ -152,6 +152,9 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "PersistentDAWriter.OpenLocalFromChainDirectory(chainDirectory)",
                 stores.GetProperty("localDaOpenHelper").GetString());
+            Assert.AreEqual(
+                "L2SettlementPlugin.WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer)",
+                stores.GetProperty("wireProductionFromLayout").GetString());
             Assert.IsTrue(Directory.Exists(Path.Combine(
                 dir, NeoHubDeployReport.RelativeLocalDaStoreDir)));
         }

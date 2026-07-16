@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — WireProductionFromLayout host composition root — 2026-07-16
+
+- `L2SettlementPlugin.WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer)`
+  binds durable ProofWitness + scanner stores from `L2SettlementStoreLayout`, static
+  sequencer committee hash from `chain.config.json` validators, and Multisig/Optimistic
+  profile via `LegacyFromChainDirectory` (Zk hosts pass Sp1 profile explicitly).
+- Wireproduction notes document `wireProductionFromLayout` + simplified requiredCallerArgs.
+- Fails closed when layout path ≠ chain directory.
+
 ### Fixed — SharedBridge.Deposit uses transaction sender (wallet path) — 2026-07-16
 
 - `SharedBridge.Deposit` now pulls NEP-17 from `Runtime.Transaction.Sender` with

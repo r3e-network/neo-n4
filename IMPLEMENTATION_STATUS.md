@@ -306,7 +306,7 @@ External-bridge stack (doc.md §11.3 — cross-foreign-chain to Eth/Tron/Sol):
 | Tool                  | Role                                                  |
 | --------------------- | ----------------------------------------------------- |
 | `Neo.External.Bridge.Cli` | `neo-external-bridge` CLI: operator key-gen + dual-side committee setup + ordered deploy plan for the cross-foreign-chain bridge. `genkey` (real secp256k1 keypair → pub33 + ethAddr20 for the same identity; private key written to a file, 0600 on POSIX); `committee-blob` (validates each pubkey is a real secp256k1 point, rejects duplicates / oversize, emits Neo blob + matching Eth address list); `deploy-bundle` (cross-checks committee size + threshold, prints the ordered 4-step Neo+Eth wire-up checklist). Same plan-printer pattern as `neo-bridge` / `neo-l2-faucet` — no live RPC, no built-in signer. |
-| `Neo.Stack.Cli`       | `neo-stack` CLI: 12 subcommands all functional. Signed transaction commands provide plan and confirmed `--broadcast` modes. `start-sequencer` / `start-batcher` supervise operator-supplied Neo.CLI deployments without a shell, validate protocol/validator/plugin consistency, propagate exit codes, and handle SIGINT/SIGTERM; `start-prover` supervises the real SP1 daemon. `init-l2` prepares isolated sequencer, batcher, and prover state directories and can install a reviewed Neo.CLI config without overwriting it. |
+| `Neo.Stack.Cli`       | `neo-stack` CLI: 13 subcommands all functional (`bootstrap-genesis` added). Signed transaction commands provide plan and confirmed `--broadcast` modes. `start-sequencer` / `start-batcher` supervise operator-supplied Neo.CLI deployments without a shell, validate protocol/validator/plugin consistency, propagate exit codes, and handle SIGINT/SIGTERM; `start-prover` supervises the real SP1 daemon. `init-l2` prepares isolated sequencer, batcher, and prover state directories and can install a reviewed Neo.CLI config without overwriting it. `bootstrap-genesis` materializes durable SP1 genesis roots; `register-chain --from-deploy-report` + `--genesis-manifest` closes the local L1 registration encoding path. |
 | `Neo.L2.Devnet`       | `neo-l2-devnet <N> [--metrics-port <P>] [--data-dir <path>] [--config <path>] [--executor <kind>]` — runs N batches end-to-end with real `KeyedStateStore` continuity + sequencer committee + DA publish per batch + post-run `ChainAuditor` pass; with `--metrics-port` stands up a live HTTP server + self-scrapes `/metrics`, `/healthz`, `/readyz`; with `--data-dir` wires `RocksDbKeyValueStore` instances under that path so committee + state + RPC proofs + DA payloads all survive restart; with `--config <path>` reads §16.2 dimensions (security/da/sequencer/exit/gateway) from a `chain.config.json`; with `--executor counter` wires `Sample.CounterChainExecutor` end-to-end (state mutation via `KeyedStateStoreAdapter`, real receipts/withdrawals/messages from CounterTxBuilder-built transactions) so an operator can preview a real custom executor through the same pipeline. |
 | `Neo.Hub.Deploy`      | `neo-hub-deploy` — declarative L1 deploy planner: scaffold / plan / verify |
 
@@ -378,11 +378,18 @@ real secp256k1 signatures.
 
 Key hashes: ChainRegistry `0x65201c54…2d23`, SettlementManager `0x11448868…bb51`, SharedBridge `0xf2f5114b…b241`, MessageRouter `0x3caf3c6e…fe90`, ForcedInclusion `0x962829ae…55a9`, Sp1Groth16Verifier `0x1004bb51…0c4d`.
 
-Still **not** closed by this deploy alone: on-chain `register-chain` broadcast with a signed
-genesis root, L2 node/operator stack, 4-SDK live fixture, production DA credentials, real SP1
-proof vectors. Locally, `neo-stack register-chain --from-deploy-report
-docs/audit/testnet-deployment-20260716-live.json` materializes `l1.deployed.json` + settlement
-config and emits canonical `configBytes` once `--genesis-state-root` is supplied.
+Still **not** closed by this deploy alone: on-chain `registerChain` broadcast (needs operator
+WIF/signer), full L2 node process stack against a reviewed Neo.CLI binary, 4-SDK live fixture,
+production DA credentials, real SP1 proof vectors. Locally the operator path is complete:
+
+```bash
+neo-stack create-chain --chain-id 20260716 --output ./my-l2 --template zk-rollup
+neo-stack bootstrap-genesis --chain-id 20260716 --output ./my-l2
+neo-stack register-chain --chain-id 20260716 --output ./my-l2 \
+  --from-deploy-report docs/audit/testnet-deployment-20260716-live.json \
+  --genesis-manifest ./my-l2/genesis-manifest.json
+# optional: add --broadcast + NEO_N4_OPERATOR_WIF for live L1 registration
+```
 
 ## Production integrations still operator-supplied
 

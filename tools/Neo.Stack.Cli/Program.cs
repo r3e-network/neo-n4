@@ -27,6 +27,7 @@ internal static class Program
             {
                 "create-chain" => CreateChainCommand.Run(rest),
                 "init-l2" => InitL2Command.Run(rest),
+                "bootstrap-genesis" => BootstrapGenesisCommand.Run(rest),
                 "register-chain" => await RegisterChainCommand.RunAsync(rest),
                 "deploy-bridge-adapter" => await DeployBridgeAdapterCommand.RunAsync(rest),
                 "start-sequencer" => await StartSequencerCommand.RunAsync(rest, cancellationToken: shutdown.Token),
@@ -65,8 +66,9 @@ internal static class Program
             Subcommands:
               create-chain          Generate chain.config.json from a template (rollup / zk-rollup / validium / sidechain)
               init-l2               Initialize an L2 node working directory
+              bootstrap-genesis     Bootstrap NeoVM + SP1 genesis state and write genesis-manifest.json
               register-chain        Validate or sign+broadcast NeoHub.ChainRegistry registration
-                                    (supports --from-deploy-report <neo-hub-deploy evidence JSON>)
+                                    (supports --from-deploy-report and --genesis-manifest)
               deploy-bridge-adapter Configure canonical asset mappings on L1 and L2
               start-sequencer       Start the L2 sequencer (dBFT committee)
               start-batcher         Start the batcher

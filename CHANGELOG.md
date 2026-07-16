@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — bootstrap-genesis CLI for register-chain trust anchor — 2026-07-16
+
+- `neo-stack bootstrap-genesis` runs `NeoVMGenesisBootstrap` +
+  `Sp1StateWitnessSource.InitializeGenesisContractBindings` and writes
+  `genesis-manifest.json` (non-zero `initialStateRoot`) under the chain directory.
+  Default path uses durable RocksDB at `data/state`; `--ephemeral` uses in-memory
+  state for dry-runs/tests; `--force` re-bootstraps after operator review.
+- `register-chain --genesis-manifest <path>` accepts that manifest as the
+  authenticated genesis root (still fails closed on zero/mismatched explicit roots).
+- End-to-end local path: `create-chain` → `bootstrap-genesis` →
+  `register-chain --from-deploy-report … --genesis-manifest …` emits canonical
+  91-byte `configBytes` without hand-copying L1 hashes or inventing roots.
+
 ### Added — register-chain from NeoHub deploy report — 2026-07-16
 
 - `NeoHubDeployReport` parses `neo-hub-deploy deploy-testnet` evidence JSON into typed

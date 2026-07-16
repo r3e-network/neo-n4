@@ -929,9 +929,11 @@ After all 24 deploys + post-deploy wiring complete, capture the
 ```bash
 # From a neo-hub-deploy evidence JSON (e.g. docs/audit/testnet-deployment-*-live.json):
 neo-stack create-chain --chain-id 20260716 --output ./my-l2 --template zk-rollup
+neo-stack bootstrap-genesis --chain-id 20260716 --output ./my-l2
+# Writes data/state (RocksDB) + genesis-manifest.json with the SP1 initialStateRoot.
 neo-stack register-chain --chain-id 20260716 --output ./my-l2 \
     --from-deploy-report docs/audit/testnet-deployment-20260716-live.json \
-    --genesis-state-root <non-zero root from the signed deployment manifest>
+    --genesis-manifest ./my-l2/genesis-manifest.json
 # Writes l1.deployed.json + Plugins/Neo.Plugins.L2Settlement/config.from-deploy.json
 # and prints the canonical 91-byte configBytes hex.
 

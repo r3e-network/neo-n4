@@ -118,16 +118,45 @@ internal static class RegisterChainCommand
         {
             try
             {
+                UInt256 genesisStateRoot;
+                var genesisManifest = ArgUtil.Get(args, "--genesis-manifest", "");
                 var genesisStateRootValue = ArgUtil.Get(args, "--genesis-state-root", "");
-                if (!UInt256.TryParse(genesisStateRootValue, out var genesisStateRoot)
-                    || genesisStateRoot == UInt256.Zero)
+                if (genesisManifest.Length > 0)
+                {
+                    try
+                    {
+                        genesisStateRoot = BootstrapGenesisCommand.ReadInitialStateRoot(genesisManifest);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine($"failed to read --genesis-manifest: {ex.Message}");
+                        return Task.FromResult(4);
+                    }
+                    if (genesisStateRootValue.Length > 0
+                        && UInt256.TryParse(genesisStateRootValue, out var explicitRoot)
+                        && explicitRoot is not null
+                        && !explicitRoot.Equals(genesisStateRoot))
+                    {
+                        Console.Error.WriteLine(
+                            "--genesis-state-root differs from --genesis-manifest initialStateRoot");
+                        return Task.FromResult(4);
+                    }
+                }
+                else if (!UInt256.TryParse(genesisStateRootValue, out var parsedRoot)
+                    || parsedRoot is null
+                    || parsedRoot.Equals(UInt256.Zero))
                 {
                     Console.Error.WriteLine(
-                        "--genesis-state-root <non-zero UInt256> is required with the four L1 contract hashes"
+                        "--genesis-state-root <non-zero UInt256> or --genesis-manifest <path> is required "
+                        + "with the four L1 contract hashes"
                         + (deployReport is not null
                             ? " (or after --from-deploy-report)"
                             : ""));
                     return Task.FromResult(4);
+                }
+                else
+                {
+                    genesisStateRoot = parsedRoot;
                 }
                 var config = L2ChainConfigJsonReader.FromJson(chainId, configJson,
                     operatorHash, verifierHash, bridgeHash, messageHash);
@@ -208,10 +237,9 @@ internal static class RegisterChainCommand
         Console.WriteLine($"  1. Run `neo-hub-deploy deploy-testnet` (or scaffold+plan+wallet) for L1 NeoHub.");
         Console.WriteLine($"  2. Re-run register-chain with either:");
         Console.WriteLine($"       --from-deploy-report docs/audit/testnet-deployment-<date>-live.json \\");
-        Console.WriteLine($"         --genesis-state-root <authenticated non-zero UInt256>");
-        Console.WriteLine($"     or the four explicit hashes:");
-        Console.WriteLine($"       --operator <hash> --verifier <hash> --bridge <hash> --message <hash> \\");
-        Console.WriteLine($"         --genesis-state-root <authenticated non-zero UInt256>");
+        Console.WriteLine($"         --genesis-manifest ./my-l2/genesis-manifest.json");
+        Console.WriteLine($"     (run `neo-stack bootstrap-genesis` first to produce the manifest)");
+        Console.WriteLine($"     or the four explicit hashes + --genesis-state-root <UInt256>");
         Console.WriteLine($"     to emit the canonical 91-byte configBytes hex (ready for wallet-side submission).");
         Console.WriteLine($"  3. Sign + submit registerChain({chainId}, <configBytes>, <genesisStateRoot>) via --broadcast or wallet.");
         Console.WriteLine($"  4. Verify on L1 by calling ChainRegistry.isActive({chainId}).");

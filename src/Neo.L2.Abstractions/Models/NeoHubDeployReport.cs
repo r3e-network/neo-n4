@@ -259,25 +259,32 @@ public sealed record NeoHubDeployReport(
                     ["openHelper"] = "L2SettlementStoreLayout.Open(chainDirectory)",
                     ["batchPluginFactory"] = "L2BatchPlugin.CreateFromChainDirectory(chainDirectory)",
                     ["settlementPluginFactory"] = "L2SettlementPlugin.CreateFromChainDirectory(chainDirectory)",
+                    ["sp1StackFromChainDirectory"] =
+                        "Sp1SettlementExecutionStack.CreateFromChainDirectory(chainDir, state, executorPath, executorSha256, vk)",
                     ["wireProductionFromLayout"] =
                         "L2SettlementPlugin.WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer)",
                     ["localDaOpenHelper"] = "PersistentDAWriter.OpenLocalFromChainDirectory(chainDirectory)",
+                    ["nestedNep17Signer"] =
+                        "LocalKeyTransactionSigner.FromEnvironmentVariableWithGlobalScope()",
                 },
                 ["requiredCallerArgs"] = new[]
                 {
                     "INeoTransactionSigner: LocalKeyTransactionSigner.FromEnvironmentVariable() "
-                    + "for local/testnet (use WitnessScope.Global when nested NEP-17 transfers "
-                    + "are required: SharedBridge.Deposit / ForcedInclusion fees); "
+                    + "for local/testnet; nested NEP-17 (SharedBridge.Deposit / ForcedInclusion fees) "
+                    + "use FromEnvironmentVariableWithGlobalScope() or --witness-scope Global; "
                     + "production uses HSM/KMS INeoTransactionSigner",
                     "L2SettlementPlugin.CreateFromChainDirectory(chainDir) "
                     + "(or L2SettlementSettings.FromChainDirectory + ctor)",
                     "L2BatchPlugin.CreateFromChainDirectory(chainDir) "
                     + "(or L2BatchSettings.FromChainDirectory + ctor)",
+                    "Zk: Sp1SettlementExecutionStack.CreateFromChainDirectory(chainDir, state, "
+                    + "executorPath, executorSha256, verificationKeyId) after bootstrap-genesis "
+                    + "(opens prover/executor-scratch + prover/inbox; state = RocksDB at data/state)",
                     "L2SettlementStoreLayout.Open(chainDir) then "
                     + "WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer) "
                     + "— binds ProofWitness + three scanners, static committee hash from "
                     + "chain.config validators, and Multisig/Optimistic profile via "
-                    + "LegacyFromChainDirectory (pass Sp1 profile explicitly for Zk)",
+                    + "LegacyFromChainDirectory (pass Sp1 stack Profile for Zk)",
                     "durable proofWitnessStore (recommended: "
                     + RelativeProofWitnessStoreDir + ")",
                     "durable forcedInclusionEventStore (recommended: "

@@ -1,3 +1,4 @@
+using Neo.Network.P2P.Payloads;
 using Neo.Wallets;
 
 namespace Neo.L2.Settlement.Rpc.UnitTests;
@@ -51,6 +52,27 @@ public class UT_LocalKeyTransactionSigner
         try
         {
             using var signer = LocalKeyTransactionSigner.FromEnvironmentVariable(name);
+            Assert.AreNotEqual(UInt160.Zero, signer.Account);
+            Assert.AreEqual(WitnessScope.CalledByEntry, signer.Scope);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(name, null);
+        }
+    }
+
+    [TestMethod]
+    public void FromEnvironmentVariableWithGlobalScope_UsesGlobalWitness()
+    {
+        var name = "NEO_N4_TEST_WIF_" + Guid.NewGuid().ToString("N");
+        var key = new KeyPair(Enumerable.Range(5, 32).Select(i => (byte)i).ToArray());
+        var wif = key.Export();
+        key.PrivateKey.AsSpan().Clear();
+        Environment.SetEnvironmentVariable(name, wif);
+        try
+        {
+            using var signer = LocalKeyTransactionSigner.FromEnvironmentVariableWithGlobalScope(name);
+            Assert.AreEqual(WitnessScope.Global, signer.Scope);
             Assert.AreNotEqual(UInt160.Zero, signer.Account);
         }
         finally

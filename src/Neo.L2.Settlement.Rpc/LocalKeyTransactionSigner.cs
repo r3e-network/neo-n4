@@ -77,6 +77,18 @@ public sealed class LocalKeyTransactionSigner : INeoTransactionSigner, IDisposab
         return FromWif(wif, scope);
     }
 
+    /// <summary>
+    /// Import operator WIF with <see cref="WitnessScope.Global"/> for nested native NEP-17
+    /// transfers (<c>SharedBridge.Deposit</c>, <c>ForcedInclusion</c> fee pulls).
+    /// </summary>
+    /// <remarks>
+    /// Prefer HSM/KMS with scoped CustomContracts in production. Global is the local/testnet
+    /// convenience that matches <c>neo-stack --witness-scope Global</c>.
+    /// </remarks>
+    public static LocalKeyTransactionSigner FromEnvironmentVariableWithGlobalScope(
+        string environmentVariableName = DefaultOperatorWifEnvironmentVariable)
+        => FromEnvironmentVariable(environmentVariableName, WitnessScope.Global);
+
     /// <inheritdoc />
     public UInt160 Account { get; }
 

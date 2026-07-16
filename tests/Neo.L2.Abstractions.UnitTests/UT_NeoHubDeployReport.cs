@@ -161,6 +161,12 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "L2SettlementPlugin.CreateFromChainDirectory(chainDirectory)",
                 stores.GetProperty("settlementPluginFactory").GetString());
+            Assert.AreEqual(
+                "Sp1SettlementExecutionStack.CreateFromChainDirectory(chainDir, state, executorPath, executorSha256, vk)",
+                stores.GetProperty("sp1StackFromChainDirectory").GetString());
+            Assert.AreEqual(
+                "LocalKeyTransactionSigner.FromEnvironmentVariableWithGlobalScope()",
+                stores.GetProperty("nestedNep17Signer").GetString());
             Assert.IsTrue(Directory.Exists(Path.Combine(
                 dir, NeoHubDeployReport.RelativeLocalDaStoreDir)));
         }

@@ -13,6 +13,21 @@ namespace Neo.Plugins.L2;
 /// </remarks>
 public sealed record Sp1SettlementExecutionStack
 {
+    /// <summary>
+    /// Canonical L2 state RocksDB path under a chain working directory
+    /// (written by <c>neo-stack bootstrap-genesis</c>).
+    /// </summary>
+    public const string RelativeStateDir = "data/state";
+
+    /// <summary>Scratch directory for host-native <c>neo-zkvm-executor</c> runs.</summary>
+    public const string RelativeExecutorScratchDir = "prover/executor-scratch";
+
+    /// <summary>
+    /// File-queue directory watched by the out-of-process <c>prove-batch</c> daemon
+    /// (matches <c>init-l2</c> <c>prover/inbox</c>).
+    /// </summary>
+    public const string RelativeProverQueueDir = "prover/inbox";
+
     /// <summary>Native executor that produces authenticated proof witness material.</summary>
     public required Sp1StatefulBatchExecutor Executor { get; init; }
 
@@ -71,5 +86,68 @@ public sealed record Sp1SettlementExecutionStack
                 verificationKeyId,
                 initialStateRoot),
         };
+    }
+
+    /// <summary>
+    /// Bind SP1 executor/prover/profile from a chain working directory after
+    /// <c>bootstrap-genesis</c> and <c>init-l2 --from-deploy-report</c>.
+    /// </summary>
+    /// <remarks>
+    /// Loads <c>ChainId</c> from settlement plugin config (must be ProofType=Zk) and the
+    /// genesis root from <c>genesis-manifest.json</c>. Ensures
+    /// <see cref="RelativeExecutorScratchDir"/> and <see cref="RelativeProverQueueDir"/>
+    /// exist under the chain root. The reviewed <c>neo-zkvm-executor</c> binary path/SHA-256
+    /// and governance-registered verification key remain host-supplied (funded release pin).
+    /// Caller owns <paramref name="state"/> (typically RocksDB at
+    /// <see cref="RelativeStateDir"/> after bootstrap-genesis).
+    /// </remarks>
+    public static Sp1SettlementExecutionStack CreateFromChainDirectory(
+        string chainDirectory,
+        IAtomicL2KeyValueStore state,
+        string executorPath,
+        ReadOnlyMemory<byte> executorSha256,
+        UInt256 verificationKeyId,
+        TimeSpan? executionTimeout = null,
+        TimeSpan? proofTimeout = null,
+        TimeSpan? proofPollInterval = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentException.ThrowIfNullOrWhiteSpace(executorPath);
+        ArgumentNullException.ThrowIfNull(verificationKeyId);
+
+        var root = System.IO.Path.GetFullPath(chainDirectory);
+        if (!Directory.Exists(root))
+            throw new DirectoryNotFoundException(
+                $"Chain directory not found: {root}. Run neo-stack init-l2 first.");
+
+        var settings = L2SettlementSettings.FromChainDirectory(root);
+        if (settings.ChainId == 0)
+            throw new InvalidDataException(
+                "settlement plugin config ChainId is unset — run init-l2 --from-deploy-report first");
+        var proofType = ProofTypeExtensions.Resolve(settings.ProofType);
+        if (proofType != ProofType.Zk)
+            throw new InvalidOperationException(
+                "CreateFromChainDirectory requires ProofType=Zk settlement config — "
+                + "use ProofWitnessPipelineProfile.LegacyFromChainDirectory for Multisig/Optimistic");
+
+        var genesis = L2GenesisManifest.ReadInitialStateRootFromChainDirectory(root);
+        var scratch = System.IO.Path.Combine(root, RelativeExecutorScratchDir);
+        var queue = System.IO.Path.Combine(root, RelativeProverQueueDir);
+        Directory.CreateDirectory(scratch);
+        Directory.CreateDirectory(queue);
+
+        return Create(
+            settings.ChainId,
+            state,
+            genesis,
+            executorPath,
+            executorSha256,
+            scratch,
+            queue,
+            verificationKeyId,
+            executionTimeout,
+            proofTimeout,
+            proofPollInterval);
     }
 }

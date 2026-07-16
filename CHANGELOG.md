@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Sp1SettlementExecutionStack.CreateFromChainDirectory — 2026-07-16
+
+- Loads ProofType=Zk settlement config + genesis-manifest, ensures
+  `prover/executor-scratch` and `prover/inbox` under the chain layout, and binds the
+  SP1 executor/prover/profile. Reviewed `neo-zkvm-executor` path/SHA-256 and VK remain
+  host-supplied (funded release pin). Fails closed for Multisig/Optimistic configs.
+
+### Added — LocalKeyTransactionSigner.FromEnvironmentVariableWithGlobalScope — 2026-07-16
+
+- Convenience factory for nested NEP-17 pulls (Deposit / ForcedInclusion fees) matching
+  `neo-stack --witness-scope Global`.
+
 ### Added — OptimisticProver (Stage-1 IL2Prover) — 2026-07-16
 
 - `Neo.L2.Proving.Optimistic.OptimisticProver` signs canonical public inputs and packs

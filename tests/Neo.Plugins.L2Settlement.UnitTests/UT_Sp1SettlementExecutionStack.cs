@@ -55,6 +55,120 @@ public sealed class UT_Sp1SettlementExecutionStack
         Assert.AreNotEqual(harness.InitialRoot, await stack.Executor.GetCurrentStateRootAsync());
     }
 
+    [TestMethod]
+    public void CreateFromChainDirectory_BindsGenesisAndProverLayout()
+    {
+        using var harness = new StackHarness();
+        var chainDir = Path.Combine(Path.GetTempPath(), "neo-n4-sp1-chain-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            WriteSettlementConfig(chainDir, ProofType.Zk, chainId: 20260716);
+            File.WriteAllText(Path.Combine(chainDir, L2GenesisManifest.RelativePath), $$"""
+                {
+                  "schemaVersion": 1,
+                  "chainId": 20260716,
+                  "initialStateRoot": "{{harness.InitialRoot}}"
+                }
+                """);
+
+            var stack = Sp1SettlementExecutionStack.CreateFromChainDirectory(
+                chainDir,
+                harness.State,
+                harness.ExecutablePath,
+                harness.ExecutableSha256,
+                Hash(0x55));
+
+            Assert.AreEqual(20260716u, stack.Profile.ChainId);
+            Assert.AreEqual(ProofType.Zk, stack.Profile.ProofType);
+            Assert.AreEqual(harness.InitialRoot, stack.Profile.GenesisStateRoot);
+            Assert.AreEqual(Hash(0x55), stack.Profile.VerificationKeyId);
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                chainDir, Sp1SettlementExecutionStack.RelativeExecutorScratchDir)));
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                chainDir, Sp1SettlementExecutionStack.RelativeProverQueueDir)));
+            Assert.AreEqual(
+                Path.GetFullPath(Path.Combine(chainDir, Sp1SettlementExecutionStack.RelativeProverQueueDir)),
+                Path.GetFullPath(stack.Prover.QueueDirectory));
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void CreateFromChainDirectory_MultisigConfig_FailsClosed()
+    {
+        using var harness = new StackHarness();
+        var chainDir = Path.Combine(Path.GetTempPath(), "neo-n4-sp1-ms-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            WriteSettlementConfig(chainDir, ProofType.Multisig, chainId: 20260716);
+            File.WriteAllText(Path.Combine(chainDir, L2GenesisManifest.RelativePath), $$"""
+                { "initialStateRoot": "{{harness.InitialRoot}}" }
+                """);
+            var ex = Assert.ThrowsExactly<InvalidOperationException>(() =>
+                Sp1SettlementExecutionStack.CreateFromChainDirectory(
+                    chainDir,
+                    harness.State,
+                    harness.ExecutablePath,
+                    harness.ExecutableSha256,
+                    Hash(0x55)));
+            StringAssert.Contains(ex.Message, "ProofType=Zk");
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void CreateFromChainDirectory_MissingGenesis_FailsClosed()
+    {
+        using var harness = new StackHarness();
+        var chainDir = Path.Combine(Path.GetTempPath(), "neo-n4-sp1-nog-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            WriteSettlementConfig(chainDir, ProofType.Zk, chainId: 20260716);
+            Assert.ThrowsExactly<FileNotFoundException>(() =>
+                Sp1SettlementExecutionStack.CreateFromChainDirectory(
+                    chainDir,
+                    harness.State,
+                    harness.ExecutablePath,
+                    harness.ExecutableSha256,
+                    Hash(0x55)));
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
+    private static void WriteSettlementConfig(string chainDir, ProofType proofType, uint chainId)
+    {
+        var dir = Path.Combine(chainDir, "Plugins", "Neo.Plugins.L2Settlement");
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "config.json"), $$"""
+            {
+              "PluginConfiguration": {
+                "ChainId": {{chainId}},
+                "L1RpcEndpoint": "http://127.0.0.1:10332",
+                "ExpectedNetwork": 860833102,
+                "SettlementManagerHash": "0x1111111111111111111111111111111111111111",
+                "ForcedInclusionHash": "0x2222222222222222222222222222222222222222",
+                "ProofType": {{(byte)proofType}},
+                "Enabled": false
+              }
+            }
+            """);
+    }
+
     private sealed class StackHarness : IDisposable
     {
         private readonly string _root = Path.Combine(

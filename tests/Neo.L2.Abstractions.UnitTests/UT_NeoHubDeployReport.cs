@@ -185,8 +185,20 @@ public class UT_NeoHubDeployReport
                 "L2GatewayPlugin.CreateDurableFromChainDirectory(chainDirectory, aggregator)",
                 stores.GetProperty("gatewayPluginFactory").GetString());
             Assert.AreEqual(
+                "L2GatewayPlugin.CreateMerkleDurableFromChainDirectory(chainDirectory)",
+                stores.GetProperty("gatewayPluginMerkleDurable").GetString());
+            Assert.AreEqual(
+                "L2GatewayPlugin.CreateMultisigDurableFromChainDirectory(chainDirectory, signers, threshold)",
+                stores.GetProperty("gatewayPluginMultisigDurable").GetString());
+            Assert.AreEqual(
                 "L2GatewayPlugin.CreateFromChainDirectory(chainDirectory)",
                 stores.GetProperty("gatewayPluginSettingsOnly").GetString());
+            Assert.AreEqual(
+                "ProofBoundRpcGlobalRootPublisher.OpenFromChainDirectory(chainDirectory, signer|signAndSend)",
+                stores.GetProperty("gatewayPublisherFromChainDirectory").GetString());
+            Assert.AreEqual(
+                "ProofBoundRpcGlobalRootPublisher.CreateSignAndSend(rpcTransactionSender)",
+                stores.GetProperty("gatewayPublisherSignAndSend").GetString());
             Assert.AreEqual(
                 "L2SettlementPlugin.CreateDepositSourceFromChainDirectory(chainDirectory)",
                 stores.GetProperty("depositSourceFromChainDirectory").GetString());

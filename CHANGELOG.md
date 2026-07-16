@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Gateway Merkle/Multisig durable factories + ProofBound publisher from chain dir — 2026-07-17
+
+- `L2GatewayPlugin.CreateMerkleDurableFromChainDirectory` binds
+  `BinaryTreeAggregator` + `MerklePathRoundProver` + durable outbox (no HSM/toolchain).
+- `CreateMultisigDurableFromChainDirectory` binds Multisig round prover over an operator
+  `ISignerSet` (HSM/KMS in production; `InMemorySignerSet` for tests/devnet only).
+- `ProofBoundRpcGlobalRootPublisher.OpenFromChainDirectory` loads L1 RPC + SettlementManager +
+  MessageRouter from settlement plugin config and/or `l1.deployed.json`.
+- `OpenFromChainDirectory(chainDir, INeoTransactionSigner)` and `CreateSignAndSend` build the
+  canonical `SettlementManager.publishGatewayGlobalRoot` invocation via `RpcTransactionSender`.
+- Wireproduction notes document the new host factories. Terminal SP1 proof prover and funded L1
+  publication remain operator/funded gates.
+
 ### Evidence — Neo N3 testnet full reverify + Deposit nonce 3 — 2026-07-17
 
 - Re-verified the full NeoHub bundle on N3 testnet with operator WIF (env-only):

@@ -4,6 +4,7 @@ using System.Text.Json;
 using Neo.L2;
 using Neo.L2.Gateway.Rpc;
 using Neo.L2.Settlement.Rpc;
+using Neo.Network.P2P.Payloads;
 using Neo.Plugins.L2Gateway;
 
 namespace Neo.L2.Gateway.Rpc.UnitTests;
@@ -233,6 +234,134 @@ public sealed class UT_ProofBoundRpcGlobalRootPublisher
 
         Assert.AreEqual(0, submissions);
         Assert.AreEqual(0, handler.ContractMethods.Count);
+    }
+
+    [TestMethod]
+    public void OpenFromChainDirectory_LoadsDeployedHashesAndRpc()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-pub-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "l1.deployed.json"), $$"""
+                {
+                  "rpc": "https://n3seed1.ngd.network:20332/",
+                  "network": 894710606,
+                  "settlementManager": "{{SettlementManager}}",
+                  "messageRouter": "{{MessageRouter}}"
+                }
+                """);
+            var calls = 0;
+            using var publisher = ProofBoundRpcGlobalRootPublisher.OpenFromChainDirectory(
+                dir,
+                (_, _, _, _, _, _, _, _, _, _, _, _) =>
+                {
+                    calls++;
+                    return ValueTask.FromResult(H(0xAB));
+                });
+            Assert.IsNotNull(publisher);
+            Assert.AreEqual(0, calls);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void OpenFromChainDirectory_MissingEndpoints_FailsClosed()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-pub-empty-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            Assert.ThrowsExactly<InvalidDataException>(
+                () => ProofBoundRpcGlobalRootPublisher.OpenFromChainDirectory(
+                    dir,
+                    (_, _, _, _, _, _, _, _, _, _, _, _) => ValueTask.FromResult(H(0x01))));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void OpenFromChainDirectory_PrefersSettlementPluginConfig()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-pub-cfg-" + Guid.NewGuid().ToString("N"));
+        var settlementDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Settlement");
+        Directory.CreateDirectory(settlementDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(settlementDir, "config.json"), $$"""
+                {
+                  "PluginConfiguration": {
+                    "L1RpcEndpoint": "https://l1.example/",
+                    "ExpectedNetwork": 894710606,
+                    "SettlementManagerHash": "{{SettlementManager}}",
+                    "MessageRouterHash": "{{MessageRouter}}"
+                  }
+                }
+                """);
+            using var publisher = ProofBoundRpcGlobalRootPublisher.OpenFromChainDirectory(
+                dir,
+                (_, _, _, _, _, _, _, _, _, _, _, _) => ValueTask.FromResult(H(0xCD)));
+            Assert.IsNotNull(publisher);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void CreateSignAndSend_RejectsConstituentLengthMismatch()
+    {
+        using var handler = new RouterRpcHandler();
+        using var http = new HttpClient(handler);
+        using var rpc = new JsonRpcClient(new Uri("http://l1.example/"), http);
+        var signer = new StubSigner();
+        var sender = new RpcTransactionSender(
+            rpc,
+            signer,
+            new RpcTransactionSenderOptions { ExpectedNetwork = 894710606 });
+        var signAndSend = ProofBoundRpcGlobalRootPublisher.CreateSignAndSend(sender);
+
+        Assert.ThrowsExactlyAsync<ArgumentException>(async () =>
+            await signAndSend(
+                SettlementManager,
+                1,
+                new byte[11], // not multiple of 12
+                H(0x01),
+                H(0x02),
+                1,
+                1,
+                1,
+                H(0x03),
+                H(0x04),
+                new byte[Sp1GatewayProofProver.Groth16ProofSize],
+                CancellationToken.None)).GetAwaiter().GetResult();
+    }
+
+    private sealed class StubSigner : INeoTransactionSigner
+    {
+        public UInt160 Account { get; } = UInt160.Parse("0x" + new string('c', 40));
+        public WitnessScope Scope => WitnessScope.CalledByEntry;
+
+        public Witness CreatePlaceholderWitness()
+            => new()
+            {
+                InvocationScript = Array.Empty<byte>(),
+                VerificationScript = Array.Empty<byte>(),
+            };
+
+        public ValueTask<Witness> SignAsync(
+            Transaction tx, uint network, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("stub signer does not sign");
     }
 
     private static (GatewayProofBinding Binding, AggregatedCommitment Aggregate) Statement()

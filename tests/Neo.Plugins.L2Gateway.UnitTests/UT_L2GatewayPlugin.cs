@@ -332,6 +332,76 @@ public class UT_L2GatewayPlugin
     }
 
     [TestMethod]
+    public void CreateMerkleDurableFromChainDirectory_BindsMerkleBackendAndOutbox()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-merkle-" + Guid.NewGuid().ToString("N"));
+        var configDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Gateway");
+        Directory.CreateDirectory(configDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(configDir, "config.json"), """
+                {
+                  "PluginConfiguration": {
+                    "Enabled": true,
+                    "MaxAutomaticRetries": 3
+                  }
+                }
+                """);
+            using var plugin = L2GatewayPlugin.CreateMerkleDurableFromChainDirectory(dir);
+            Assert.IsTrue(plugin.HasPersistentOutbox);
+            Assert.IsInstanceOfType(plugin.Aggregator, typeof(BinaryTreeAggregator));
+            var binary = (BinaryTreeAggregator)plugin.Aggregator;
+            Assert.IsInstanceOfType(binary.RoundProver, typeof(MerklePathRoundProver));
+            Assert.AreEqual(MerklePathRoundProver.ConstBackendId, binary.RoundProver.BackendId);
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                dir, NeoHubDeployReport.RelativeGatewayOutboxStoreDir)));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void CreateMultisigDurableFromChainDirectory_BindsMultisigBackend()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-msig-" + Guid.NewGuid().ToString("N"));
+        var configDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Gateway");
+        Directory.CreateDirectory(configDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(configDir, "config.json"), """
+                {
+                  "PluginConfiguration": {
+                    "Enabled": true,
+                    "MaxAutomaticRetries": 3
+                  }
+                }
+                """);
+            var keys = Enumerable.Range(1, 3).Select(i =>
+            {
+                var priv = new byte[32];
+                for (var j = 0; j < 32; j++) priv[j] = (byte)(i + j);
+                return (Neo.Cryptography.ECC.ECCurve.Secp256r1.G * priv, priv);
+            }).ToList();
+            var signers = new Neo.L2.Proving.Attestation.InMemorySignerSet(keys);
+            using var plugin = L2GatewayPlugin.CreateMultisigDurableFromChainDirectory(
+                dir, signers, threshold: 2);
+            Assert.IsTrue(plugin.HasPersistentOutbox);
+            var binary = (BinaryTreeAggregator)plugin.Aggregator;
+            Assert.IsInstanceOfType(binary.RoundProver, typeof(MultisigRoundProver));
+            Assert.AreEqual(MultisigRoundProver.ConstBackendId, binary.RoundProver.BackendId);
+            Assert.AreEqual(2, ((MultisigRoundProver)binary.RoundProver).Threshold);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void CreateFromChainDirectory_MissingConfig_FailsClosed()
     {
         var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-empty-" + Guid.NewGuid().ToString("N"));

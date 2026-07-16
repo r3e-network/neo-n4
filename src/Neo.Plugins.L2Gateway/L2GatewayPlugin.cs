@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Neo.L2;
+using Neo.L2.Proving.Attestation;
 using Neo.L2.Telemetry;
 
 namespace Neo.Plugins.L2Gateway;
@@ -144,6 +145,44 @@ public sealed class L2GatewayPlugin : Plugin
         plugin.UseAggregator(aggregator);
         plugin.AttachOutboxFromChainDirectory(chainDirectory);
         return plugin;
+    }
+
+    /// <summary>
+    /// Host composition: durable Gateway with
+    /// <see cref="BinaryTreeAggregator"/> + <see cref="MerklePathRoundProver"/>
+    /// (no HSM/toolchain). Call <see cref="ConfigureGlobalRootPublication"/> next.
+    /// </summary>
+    /// <remarks>
+    /// Local Multisig/dev hosts use this when every batch's inclusion in the aggregate
+    /// root must be independently provable without a recursive-ZK prover. Terminal L1
+    /// publication still requires an <see cref="IGatewayProofProver"/> and
+    /// <see cref="IProofBoundGlobalRootPublisher"/> (see
+    /// <c>ProofBoundRpcGlobalRootPublisher.OpenFromChainDirectory</c>).
+    /// </remarks>
+    public static L2GatewayPlugin CreateMerkleDurableFromChainDirectory(string chainDirectory)
+        => CreateDurableFromChainDirectory(
+            chainDirectory,
+            new BinaryTreeAggregator(new MerklePathRoundProver()));
+
+    /// <summary>
+    /// Host composition: durable Gateway with
+    /// <see cref="BinaryTreeAggregator"/> + <see cref="MultisigRoundProver"/> over the
+    /// operator-supplied <see cref="ISignerSet"/>. Call
+    /// <see cref="ConfigureGlobalRootPublication"/> next.
+    /// </summary>
+    /// <remarks>
+    /// Production HSM/KMS adapters implement <see cref="ISignerSet"/>;
+    /// <see cref="InMemorySignerSet"/> is for tests/devnet only.
+    /// </remarks>
+    public static L2GatewayPlugin CreateMultisigDurableFromChainDirectory(
+        string chainDirectory,
+        ISignerSet signers,
+        int threshold)
+    {
+        ArgumentNullException.ThrowIfNull(signers);
+        return CreateDurableFromChainDirectory(
+            chainDirectory,
+            new BinaryTreeAggregator(new MultisigRoundProver(signers, threshold)));
     }
 
     /// <summary>

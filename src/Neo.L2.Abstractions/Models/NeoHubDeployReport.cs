@@ -354,8 +354,16 @@ public sealed record NeoHubDeployReport(
                     ["localDaPluginFactory"] = "L2DAPlugin.CreateLocalFromChainDirectory(chainDirectory)",
                     ["gatewayPluginFactory"] =
                         "L2GatewayPlugin.CreateDurableFromChainDirectory(chainDirectory, aggregator)",
+                    ["gatewayPluginMerkleDurable"] =
+                        "L2GatewayPlugin.CreateMerkleDurableFromChainDirectory(chainDirectory)",
+                    ["gatewayPluginMultisigDurable"] =
+                        "L2GatewayPlugin.CreateMultisigDurableFromChainDirectory(chainDirectory, signers, threshold)",
                     ["gatewayPluginSettingsOnly"] =
                         "L2GatewayPlugin.CreateFromChainDirectory(chainDirectory)",
+                    ["gatewayPublisherFromChainDirectory"] =
+                        "ProofBoundRpcGlobalRootPublisher.OpenFromChainDirectory(chainDirectory, signer|signAndSend)",
+                    ["gatewayPublisherSignAndSend"] =
+                        "ProofBoundRpcGlobalRootPublisher.CreateSignAndSend(rpcTransactionSender)",
                     ["stateStore"] = RelativeStateDir,
                     ["rpcProofStore"] = RelativeRpcProofStoreDir,
                     ["gatewayOutboxStore"] = RelativeGatewayOutboxStoreDir,

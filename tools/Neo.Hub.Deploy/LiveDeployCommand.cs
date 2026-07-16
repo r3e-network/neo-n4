@@ -149,7 +149,7 @@ public static class LiveDeployCommand
             {
                 ValidateRemoteContractState(invocation.Name, hash, nefBytes, manifestJson, existingState.Value);
                 Console.WriteLine($"[{deployed}/{bundle.Invocations.Count}] reuse {invocation.Name} {hash}");
-                records.Add(Record("deploy", invocation.Name, "reused", hash, txHash: null, null, null, null));
+                records.Add(Record("deploy", invocation.Name, "reused", hash, txHash: null, null, null, null, blockIndex: null));
                 WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
                     l2ChainId, fraudReplayDomain, governanceCouncil.Count, governanceThreshold,
                     dryRun, records);
@@ -166,6 +166,7 @@ public static class LiveDeployCommand
             Console.WriteLine($"[{deployed}/{bundle.Invocations.Count}] deploy {invocation.Name} {hash}");
             Console.WriteLine($"  tx: {txHash}");
 
+            uint? blockIndex = null;
             if (!dryRun)
             {
                 await SendTransactionAsync(rpc, tx);
@@ -176,9 +177,12 @@ public static class LiveDeployCommand
                 if (deployedState is null)
                     throw new InvalidOperationException($"{invocation.Name} tx halted but contract state not found at {hash}");
                 ValidateRemoteContractState(invocation.Name, hash, nefBytes, manifestJson, deployedState.Value);
+                blockIndex = await TryResolveTransactionBlockIndexAsync(rpc, tx.Hash);
+                if (blockIndex is not null)
+                    Console.WriteLine($"  blockIndex: {blockIndex}");
             }
 
-            records.Add(Record("deploy", invocation.Name, dryRun ? "dry-run" : "deployed", hash, txHash, tx.SystemFee, tx.NetworkFee, "HALT"));
+            records.Add(Record("deploy", invocation.Name, dryRun ? "dry-run" : "deployed", hash, txHash, tx.SystemFee, tx.NetworkFee, "HALT", blockIndex));
             WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
                 l2ChainId, fraudReplayDomain, governanceCouncil.Count, governanceThreshold,
                 dryRun, records);
@@ -200,7 +204,7 @@ public static class LiveDeployCommand
                 {
                     Console.WriteLine($"postdeploy {action.Name}: already satisfied");
                     records.Add(Record("postdeploy", action.Name, "reused", action.Contract,
-                        txHash: null, null, null, "HALT"));
+                        txHash: null, null, null, "HALT", blockIndex: null));
                     WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
                         l2ChainId, fraudReplayDomain, governanceCouncil.Count, governanceThreshold,
                         dryRun, records);
@@ -214,7 +218,8 @@ public static class LiveDeployCommand
                 var execution = await WaitForApplicationLogAsync(rpc, tx.Hash);
                 if (execution.VmState != "HALT")
                     throw new InvalidOperationException($"{action.Name} failed: {execution.Exception}");
-                records.Add(Record("postdeploy", action.Name, "executed", action.Contract, tx.Hash.ToString(), tx.SystemFee, tx.NetworkFee, execution.VmState));
+                var postBlockIndex = await TryResolveTransactionBlockIndexAsync(rpc, tx.Hash);
+                records.Add(Record("postdeploy", action.Name, "executed", action.Contract, tx.Hash.ToString(), tx.SystemFee, tx.NetworkFee, execution.VmState, postBlockIndex));
                 WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
                     l2ChainId, fraudReplayDomain, governanceCouncil.Count, governanceThreshold,
                     dryRun, records);
@@ -237,7 +242,7 @@ public static class LiveDeployCommand
             {
                 await smoke.RunAsync(rpc);
                 Console.WriteLine($"smoke {smoke.Name}: ok");
-                records.Add(Record("smoke", smoke.Name, "ok", smoke.Contract, txHash: null, null, null, "HALT"));
+                records.Add(Record("smoke", smoke.Name, "ok", smoke.Contract, txHash: null, null, null, "HALT", blockIndex: null));
                 WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
                     l2ChainId, fraudReplayDomain, governanceCouncil.Count, governanceThreshold,
                     dryRun, records);
@@ -1111,9 +1116,10 @@ public static class LiveDeployCommand
         string? txHash,
         long? systemFee,
         long? networkFee,
-        string? vmState)
+        string? vmState,
+        uint? blockIndex = null)
     {
-        return new Dictionary<string, object?>
+        var record = new Dictionary<string, object?>
         {
             ["category"] = category,
             ["name"] = name,
@@ -1125,6 +1131,38 @@ public static class LiveDeployCommand
             ["vmState"] = vmState,
             ["utc"] = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture),
         };
+        if (blockIndex is not null)
+            record["blockIndex"] = blockIndex.Value;
+        return record;
+    }
+
+    /// <summary>
+    /// Resolve the confirmed block index for a transaction via
+    /// <c>getrawtransaction</c> → <c>blockhash</c> → <c>getblock</c> → <c>index</c>.
+    /// Returns null when the node has not yet indexed the block metadata.
+    /// </summary>
+    private static async Task<uint?> TryResolveTransactionBlockIndexAsync(ILiveRpcClient rpc, UInt256 txHash)
+    {
+        try
+        {
+            var raw = await rpc.CallAsync("getrawtransaction", txHash.ToString(), true);
+            if (!raw.TryGetProperty("blockhash", out var blockHashEl)
+                || blockHashEl.ValueKind != JsonValueKind.String
+                || string.IsNullOrWhiteSpace(blockHashEl.GetString()))
+                return null;
+            var blockHash = blockHashEl.GetString()!;
+            // Prefer verbose getblock so we receive a JSON object with index.
+            var block = await rpc.CallAsync("getblock", blockHash, 1);
+            if (block.ValueKind == JsonValueKind.Object
+                && block.TryGetProperty("index", out var indexEl)
+                && indexEl.TryGetUInt32(out var index))
+                return index;
+            return null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     private static void WriteReport(

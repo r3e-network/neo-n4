@@ -36,25 +36,29 @@ public class UT_NeoHubDeployReport
                   "category": "deploy",
                   "name": "SharedBridge",
                   "status": "deployed",
-                  "contractHash": "0xf2f5114b83dd6fed4ddcac0ff9966fd22a77b241"
+                  "contractHash": "0xf2f5114b83dd6fed4ddcac0ff9966fd22a77b241",
+                  "blockIndex": 17729307
                 },
                 {
                   "category": "deploy",
                   "name": "MessageRouter",
                   "status": "deployed",
-                  "contractHash": "0x3caf3c6e160b5aec2e07672dc37662b5998afe90"
+                  "contractHash": "0x3caf3c6e160b5aec2e07672dc37662b5998afe90",
+                  "blockIndex": 17729303
                 },
                 {
                   "category": "deploy",
                   "name": "SettlementManager",
                   "status": "deployed",
-                  "contractHash": "0x11448868f1c14422506b9c2360051df34bcbbb51"
+                  "contractHash": "0x11448868f1c14422506b9c2360051df34bcbbb51",
+                  "blockIndex": 17729293
                 },
                 {
                   "category": "deploy",
                   "name": "ForcedInclusion",
                   "status": "reused",
-                  "contractHash": "0x962829ae28e7f89e5de4b4672b167c8ae2ba55a9"
+                  "contractHash": "0x962829ae28e7f89e5de4b4672b167c8ae2ba55a9",
+                  "blockIndex": 17729309
                 },
                 {
                   "category": "smoke",
@@ -90,6 +94,41 @@ public class UT_NeoHubDeployReport
             UInt160.Parse("0x3caf3c6e160b5aec2e07672dc37662b5998afe90"),
             report.MessageRouter);
         Assert.IsTrue(report.Contracts.ContainsKey("ForcedInclusion"));
+        Assert.AreEqual(17729309u, report.DeployHeights["ForcedInclusion"]);
+        Assert.AreEqual(17729307u, report.DeployHeights["SharedBridge"]);
+        Assert.AreEqual(17729303u, report.DeployHeights["MessageRouter"]);
+    }
+
+    [TestMethod]
+    public void WriteOperatorArtifacts_MaterializesDeploymentHeights()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-deploy-heights-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var report = NeoHubDeployReport.Parse(MinimalReportJson());
+            report.WriteOperatorArtifacts(dir);
+            var notes = JsonDocument.Parse(
+                File.ReadAllText(Path.Combine(dir, "l1.wireproduction-notes.json")));
+            var heights = notes.RootElement
+                .GetProperty("wireProduction")
+                .GetProperty("deploymentHeights");
+            Assert.AreEqual(17729309u, heights.GetProperty("forcedInclusion").GetUInt32());
+            Assert.AreEqual(17729307u, heights.GetProperty("sharedBridge").GetUInt32());
+            Assert.AreEqual(17729303u, heights.GetProperty("messageRouter").GetUInt32());
+            Assert.AreEqual(
+                17729309u,
+                heights.GetProperty("all").GetProperty("ForcedInclusion").GetUInt32());
+            Assert.AreEqual(
+                0,
+                notes.RootElement.GetProperty("wireProduction")
+                    .GetProperty("missingDeploymentHeights").GetArrayLength());
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
     }
 
     [TestMethod]

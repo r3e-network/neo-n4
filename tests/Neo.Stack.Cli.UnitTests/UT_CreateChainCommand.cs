@@ -88,7 +88,8 @@ public class UT_CreateChainCommand
         StringAssert.Contains(config, "\"template\": \"zk-rollup\"");
         StringAssert.Contains(config, "\"securityLevel\": \"Validity\"");
         StringAssert.Contains(config, "\"proofType\": \"Zk\"");
-        StringAssert.Contains(config, "\"daMode\": \"NeoFS\"");
+        // Validity requires L1 DA (ChainRegistry.AssertSecurityConfigurationCompatible).
+        StringAssert.Contains(config, "\"daMode\": \"L1\"");
         StringAssert.Contains(config, "\"exitModel\": \"Permissionless\"");
         StringAssert.Contains(config, "\"gatewayEnabled\": true");
     }

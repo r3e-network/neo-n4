@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using Neo.Extensions;
 using Neo.Json;
 using Neo.Network.P2P.Payloads;
 using Neo.Wallets;
@@ -165,6 +166,23 @@ public class UT_RpcTransactionSender
     }
 
     [TestMethod]
+    public async Task BroadcastAndWait_AcceptsNeoRpcServerHashObject()
+    {
+        // Production Neo RpcServer returns {"hash":"<UInt256>"}, not a bare boolean.
+        var handler = new ScriptedRpcHandler(Network) { UseNeoHashObjectBroadcastResult = true };
+        using var http = new HttpClient(handler);
+        using var rpc = new JsonRpcClient(Endpoint, http);
+        using var signer = CreateSigner();
+        var sender = CreateSender(rpc, signer);
+
+        var receipt = await sender.SendInvocationAsync(new byte[] { 0x40 });
+
+        Assert.AreEqual("HALT", receipt.VmState);
+        Assert.IsTrue(handler.Methods.Contains("sendrawtransaction"));
+        Assert.IsTrue(handler.Methods.Contains("getapplicationlog"));
+    }
+
+    [TestMethod]
     public void Constructor_RejectsUnsafeOptions()
     {
         using var http = new HttpClient(new ScriptedRpcHandler(Network));
@@ -241,6 +259,7 @@ public class UT_RpcTransactionSender
         public bool FailNetworkFee { get; init; }
         public int PendingApplicationLogs { get; set; }
         public JToken BroadcastResult { get; init; } = true;
+        public bool UseNeoHashObjectBroadcastResult { get; init; }
         public string? BroadcastErrorMessage { get; init; }
 
         protected override async Task<HttpResponseMessage> SendAsync(
@@ -279,7 +298,7 @@ public class UT_RpcTransactionSender
             }
             else
             {
-                response["result"] = Result(method);
+                response["result"] = Result(method, envelope);
             }
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
@@ -287,7 +306,7 @@ public class UT_RpcTransactionSender
             };
         }
 
-        private JToken Result(string method)
+        private JToken Result(string method, JObject envelope)
         {
             return method switch
             {
@@ -295,10 +314,21 @@ public class UT_RpcTransactionSender
                 "invokescript" => InvokeResult(),
                 "getblockcount" => 100,
                 "calculatenetworkfee" => NetworkFee(),
-                "sendrawtransaction" => BroadcastResult,
+                "sendrawtransaction" => SendRawTransactionResult(envelope),
                 "getapplicationlog" => ApplicationLog(),
                 _ => throw new InvalidOperationException($"Unexpected RPC method {method}"),
             };
+        }
+
+        private JToken SendRawTransactionResult(JObject envelope)
+        {
+            if (!UseNeoHashObjectBroadcastResult)
+                return BroadcastResult;
+            var base64 = ((JArray)envelope["params"]!)[0]!.AsString();
+            var tx = Convert.FromBase64String(base64).AsSerializable<Transaction>();
+            var obj = new JObject();
+            obj["hash"] = tx.Hash.ToString();
+            return obj;
         }
 
         private JObject Version()

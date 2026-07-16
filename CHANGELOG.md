@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — zk-rollup template + sendrawtransaction hash object; testnet registerChain — 2026-07-16
+
+- `zk-rollup` template now uses `daMode=L1` with `securityLevel=Validity` (matches
+  `ChainRegistry.AssertSecurityConfigurationCompatible`; off-chain DA + ZK remains `validium`).
+- `validate` warns when Validity/Validium DA pairing contradicts the on-chain rule.
+- `RpcTransactionSender` accepts Neo RpcServer's `sendrawtransaction` result
+  `{"hash":"<UInt256>"}` (previously only bare boolean/string), so `--broadcast` no longer
+  false-fails after a successful relay.
+- `LiveDeployCommand` records optional `blockIndex` on deploy/postdeploy records;
+  `NeoHubDeployReport` materializes scanner heights into `l1.wireproduction-notes.json`.
+- Live evidence JSON enriched with deploy heights; chain `20260716` registered on N3 testnet
+  (`isActive=true`, register tx `0xb3d02a5f…9f26`, genesis `0x59be9f14…5130`).
+
 ### Fixed — deploy-report settlement ProofType follows chain.config.json — 2026-07-16
 
 - `NeoHubDeployReport.WriteOperatorArtifacts` maps `chain.config.json` `proofType`

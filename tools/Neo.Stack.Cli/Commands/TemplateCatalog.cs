@@ -36,11 +36,13 @@ internal static class TemplateCatalog
             UseCase: "General-purpose Neo L2 — DeFi, dApp hosting. Inherits the §17 mitigation #2 optimistic challenge window so a faulty proof is contestable. NeoFS is the canonical N4 DA layer: batches remain Neo-native, content-addressed, and retrievable without forcing every byte into L1 calldata. Pick this unless one of the others specifically applies."),
         new Template(
             Name: "zk-rollup",
-            ChainMode: "L2RollupMode", DaMode: "NeoFS", ProofType: "Zk",
+            // ChainRegistry asserts SecurityLevel.Validity ⇒ DAMode.L1 (doc.md §12 / §16.2).
+            // Off-chain DA + ZK is the validium template, not zk-rollup.
+            ChainMode: "L2RollupMode", DaMode: "L1", ProofType: "Zk",
             SecurityLevel: "Validity", SequencerModel: "DbftCommittee",
             ExitModel: "Permissionless", GatewayEnabled: true, PermissionlessExit: true,
-            TagLine: "ZK validity + NeoFS DA + permissionless exit. Strong proof, Neo-native DA.",
-            UseCase: "Validity-proof rollup. No challenge window — finalization is the proof. NeoFS DA + permissionless exit gives users a Neo-native data-retrieval path while keeping L1 settlement focused on commitments and proofs. Gateway-enabled so the chain participates in Phase-5 cross-L2 messaging. Use when the chain warrants ZK proving cost (high TVL, regulatory rigor)."),
+            TagLine: "ZK validity + L1 DA + permissionless exit. Strongest DA + proof guarantees.",
+            UseCase: "Validity-proof rollup with L1 data availability. No challenge window — finalization is the proof. Batch data lands on L1 so users can reconstruct state without an off-chain DA committee. Gateway-enabled so the chain participates in Phase-5 cross-L2 messaging. Use when the chain warrants ZK proving cost and L1 DA cost (high TVL, regulatory rigor). Prefer the validium template when NeoFS/off-chain DA is acceptable."),
         new Template(
             Name: "validium",
             ChainMode: "L2ValidiumMode", DaMode: "NeoFS", ProofType: "Zk",

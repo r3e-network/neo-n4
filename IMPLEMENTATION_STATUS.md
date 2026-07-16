@@ -368,18 +368,18 @@ real secp256k1 signatures.
 
 | Field | Value |
 |-------|-------|
-| Status | **Current for NeoHub L1 bundle** (2026-07-16) |
+| Status | **Current for NeoHub L1 bundle + registerChain** (2026-07-16) |
 | Network | Neo N3 testnet magic `894710606` |
 | RPC | `https://n3seed1.ngd.network:20332` |
 | Signer | `NLtL2v28d7TyMEaXcPqtekunkFRksJ7wxu` |
-| L2 domain id | `20260716` |
-| Contracts | 24 deployed + post-deploy wiring + smoke |
+| L2 domain id | `20260716` (`isActive=true`, Validity + L1 DA, Zk) |
+| Contracts | 24 deployed + post-deploy wiring + smoke; deploy `blockIndex` enriched |
+| registerChain | tx `0xb3d02a5f…9f26` HALT; genesis root `0x59be9f14…5130` |
 | Evidence | [`docs/audit/testnet-deployment-20260716-live.json`](./docs/audit/testnet-deployment-20260716-live.json), [`docs/audit/testnet-evidence-status-2026-07-16.json`](./docs/audit/testnet-evidence-status-2026-07-16.json) |
 
-Key hashes: ChainRegistry `0x65201c54…2d23`, SettlementManager `0x11448868…bb51`, SharedBridge `0xf2f5114b…b241`, MessageRouter `0x3caf3c6e…fe90`, ForcedInclusion `0x962829ae…55a9`, Sp1Groth16Verifier `0x1004bb51…0c4d`.
+Key hashes: ChainRegistry `0x65201c54…2d23`, SettlementManager `0x11448868…bb51`, SharedBridge `0xf2f5114b…b241`, MessageRouter `0x3caf3c6e…fe90`, ForcedInclusion `0x962829ae…55a9`, Sp1Groth16Verifier `0x1004bb51…0c4d`. Scanner deploy heights: ForcedInclusion `17729309`, SharedBridge `17729307`, MessageRouter `17729303`.
 
-Still **not** closed by this deploy alone: on-chain `registerChain` broadcast (needs operator
-WIF/signer), full L2 node process stack against a reviewed Neo.CLI binary, 4-SDK live fixture,
+Still **not** closed: full L2 node process stack against a reviewed Neo.CLI binary, 4-SDK live fixture,
 production DA credentials, real SP1 proof vectors. Locally the operator path is complete:
 
 ```bash

@@ -320,7 +320,11 @@ public sealed class RpcTransactionSender
         return BitConverter.ToUInt32(bytes);
     }
 
-    private static void ValidateBroadcastResult(JToken? result, UInt256 expectedHash)
+    /// <summary>
+    /// Accept boolean true, a bare hash string, or Neo RpcServer's
+    /// <c>{"hash":"&lt;UInt256&gt;"}</c> object (see <c>RpcServer.Node.SendRawTransaction</c>).
+    /// </summary>
+    internal static void ValidateBroadcastResult(JToken? result, UInt256 expectedHash)
     {
         if (result is JBoolean accepted)
         {
@@ -334,6 +338,17 @@ public sealed class RpcTransactionSender
             && returnedHash == expectedHash)
         {
             return;
+        }
+        if (result is JObject relay)
+        {
+            var hashTextFromObject = relay["hash"]?.AsString();
+            if (!string.IsNullOrWhiteSpace(hashTextFromObject)
+                && UInt256.TryParse(hashTextFromObject, out var objectHash)
+                && objectHash is not null
+                && objectHash == expectedHash)
+            {
+                return;
+            }
         }
         throw new InvalidOperationException(
             $"sendrawtransaction returned an unexpected result for {expectedHash}");

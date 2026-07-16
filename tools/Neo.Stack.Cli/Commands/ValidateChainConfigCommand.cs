@@ -139,6 +139,18 @@ internal static class ValidateChainConfigCommand
                 Console.WriteLine($"⚠ chainMode=L2ValidiumMode contradicts daMode=L1; validium chains by definition have off-chain DA (NeoFS / External / DAC), and NeoFS is the recommended N4 DA tier");
             }
 
+            // SecurityLevel vs DAMode mirrors ChainRegistry.AssertSecurityConfigurationCompatible:
+            // Validity requires L1 DA; Validium requires off-chain DA. Flag before register-chain
+            // so the operator does not discover the abort only after a funded broadcast.
+            if (sec == SecurityLevel.Validity && da != DAMode.L1)
+            {
+                Console.WriteLine($"⚠ securityLevel=Validity requires daMode=L1 (ChainRegistry rejects Validity with off-chain DA); got {da}");
+            }
+            if (sec == SecurityLevel.Validium && da == DAMode.L1)
+            {
+                Console.WriteLine($"⚠ securityLevel=Validium requires off-chain DA (NeoFS / External / DAC); got daMode=L1");
+            }
+
             // ChainMode vs SecurityLevel: each chainMode has a canonical set of
             // SecurityLevels that match its consensus + DA semantics (per doc.md §6).
             //  - SidechainMode: {Sidechain, Settled} — no L1 proof verification

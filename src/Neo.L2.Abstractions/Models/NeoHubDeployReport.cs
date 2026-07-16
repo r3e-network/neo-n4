@@ -22,13 +22,17 @@ public sealed record NeoHubDeployReport(
     UInt160 MessageRouter,
     UInt160 SettlementManager,
     UInt160 ForcedInclusion,
-    IReadOnlyDictionary<string, UInt160> Contracts)
+    IReadOnlyDictionary<string, UInt160> Contracts,
+    IReadOnlyDictionary<string, uint> DeployHeights)
 {
     /// <summary>
     /// Default <c>--operator</c> for register-chain: the deploy signer script hash
     /// (hot-wallet / multisig account that owns NeoHub contracts after deploy).
     /// </summary>
     public UInt160 DefaultOperatorManager => OwnerScriptHash;
+
+    // DeployHeights: confirmed L1 block indices for deploy records with blockIndex.
+    // Empty when the report predates height materialization or heights were not resolved.
 
     /// <summary>Load and validate a live (or dry-run) deploy report JSON file.</summary>
     public static NeoHubDeployReport Load(string path)
@@ -58,6 +62,7 @@ public sealed record NeoHubDeployReport(
             throw new ArgumentException("deploy report missing records[]");
 
         var contracts = new Dictionary<string, UInt160>(StringComparer.Ordinal);
+        var heights = new Dictionary<string, uint>(StringComparer.Ordinal);
         foreach (var record in records.EnumerateArray())
         {
             if (!record.TryGetProperty("category", out var category)
@@ -81,6 +86,10 @@ public sealed record NeoHubDeployReport(
             if (hash.Equals(UInt160.Zero))
                 throw new ArgumentException($"deploy record '{name}' has a zero contractHash");
             contracts[name] = hash;
+            if (record.TryGetProperty("blockIndex", out var heightEl)
+                && heightEl.ValueKind == JsonValueKind.Number
+                && heightEl.TryGetUInt32(out var height))
+                heights[name] = height;
         }
 
         return new NeoHubDeployReport(
@@ -95,7 +104,8 @@ public sealed record NeoHubDeployReport(
             RequireContract(contracts, "MessageRouter"),
             RequireContract(contracts, "SettlementManager"),
             RequireContract(contracts, "ForcedInclusion"),
-            contracts);
+            contracts,
+            heights);
     }
 
     /// <summary>
@@ -181,8 +191,23 @@ public sealed record NeoHubDeployReport(
             batchJson,
             alsoWriteFromDeployCopy: true));
 
-        // Operator checklist for WireProduction args that are not plugin config fields
-        // (durable store paths + non-zero deploy heights remain operator-supplied).
+        // Operator checklist for WireProduction args that are not plugin config fields.
+        // Deploy heights materialize from the evidence report when blockIndex is present;
+        // durable store paths remain operator-supplied.
+        var deployHeights = new Dictionary<string, object?>
+        {
+            ["forcedInclusion"] = DeployHeights.TryGetValue("ForcedInclusion", out var fiH) ? fiH : null,
+            ["sharedBridge"] = DeployHeights.TryGetValue("SharedBridge", out var sbH) ? sbH : null,
+            ["messageRouter"] = DeployHeights.TryGetValue("MessageRouter", out var mrH) ? mrH : null,
+            ["settlementManager"] = DeployHeights.TryGetValue("SettlementManager", out var smH) ? smH : null,
+            ["all"] = DeployHeights.ToDictionary(
+                pair => pair.Key,
+                pair => (object)pair.Value,
+                StringComparer.Ordinal),
+        };
+        var missingHeights = new[] { "ForcedInclusion", "SharedBridge", "MessageRouter" }
+            .Where(name => !DeployHeights.ContainsKey(name))
+            .ToArray();
         var notes = new Dictionary<string, object?>
         {
             ["schemaVersion"] = 1,
@@ -196,6 +221,8 @@ public sealed record NeoHubDeployReport(
                 ["messageRouterHash"] = MessageRouter.ToString(),
                 ["l1RpcEndpoint"] = Rpc,
                 ["expectedNetwork"] = Network,
+                ["deploymentHeights"] = deployHeights,
+                ["missingDeploymentHeights"] = missingHeights,
                 ["requiredCallerArgs"] = new[]
                 {
                     "INeoTransactionSigner",

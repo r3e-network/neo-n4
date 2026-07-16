@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — L2SettlementStoreLayout opens canonical WireProduction RocksDB stores — 2026-07-16
+
+- `L2SettlementStoreLayout.Open(chainDirectory)` ensures `data/settlement/*` and opens
+  durable RocksDB backends for proof-witness, ForcedInclusion events, SharedBridge deposits,
+  and MessageRouter L1→L2 events; hosts pass the handles into `WireProduction` without
+  re-typing store paths.
+- Unit coverage: open/idempotent reopen, missing-dir fail-closed, and end-to-end
+  `WireProduction` with layout stores + config heights (owned deposit + MessageRouter).
+- `l1.wireproduction-notes.json` documents `openHelper: L2SettlementStoreLayout.Open(...)`.
+
 ### Added — WireProduction store layout + register-chain post-verify — 2026-07-16
 
 - Canonical settlement durable-store directories under the chain root:

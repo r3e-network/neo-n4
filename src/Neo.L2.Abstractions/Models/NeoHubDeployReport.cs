@@ -245,10 +245,13 @@ public sealed record NeoHubDeployReport(
                     ["forcedInclusionEventStore"] = RelativeForcedInclusionEventStoreDir,
                     ["sharedBridgeDepositEventStore"] = RelativeSharedBridgeDepositEventStoreDir,
                     ["messageRouterEventStore"] = RelativeMessageRouterEventStoreDir,
+                    ["openHelper"] = "L2SettlementStoreLayout.Open(chainDirectory)",
                 },
                 ["requiredCallerArgs"] = new[]
                 {
                     "INeoTransactionSigner",
+                    "L2SettlementStoreLayout.Open(chainDir) → ProofWitness + event stores "
+                    + "(or open RocksDB at recommended paths below)",
                     "durable proofWitnessStore (recommended: "
                     + RelativeProofWitnessStoreDir + ")",
                     "durable forcedInclusionEventStore (recommended: "
@@ -261,6 +264,7 @@ public sealed record NeoHubDeployReport(
                     + RelativeMessageRouterEventStoreDir
                     + "; MessageRouterDeploymentHeight from plugin config when MessageRouterHash set)",
                     "l1FinalizedHeight + sequencerCommitteeHash providers",
+                    "executor + DA writer + prover + profile (e.g. Sp1SettlementExecutionStack)",
                 },
             },
             ["genesisManifest"] = BootstrapGenesisManifestRelativePath,

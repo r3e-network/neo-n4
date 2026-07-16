@@ -629,6 +629,59 @@ public class UT_L2SettlementProductionWiring
     }
 
     [TestMethod]
+    public void WireProduction_FromSettlementStoreLayout_WiresOwnedDepositAndRouter()
+    {
+        var chainDir = Path.Combine(Path.GetTempPath(), "neo-n4-wp-layout-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            using var layout = L2SettlementStoreLayout.Open(chainDir);
+            using var batch = new L2BatchPlugin();
+            using var settlement = new L2SettlementPlugin(new L2SettlementSettings
+            {
+                ChainId = ChainId,
+                L1RpcEndpoint = "http://127.0.0.1:10332",
+                ExpectedNetwork = 860833102,
+                SettlementManagerHash = "0x" + new string('1', 40),
+                ForcedInclusionHash = "0x" + new string('2', 40),
+                SharedBridgeHash = "0x" + new string('3', 40),
+                MessageRouterHash = "0x" + new string('4', 40),
+                ForcedInclusionDeploymentHeight = 17729309,
+                SharedBridgeDeploymentHeight = 17729307,
+                MessageRouterDeploymentHeight = 17729303,
+                ProofType = (byte)ProofType.Multisig,
+                Enabled = false,
+            });
+            using var http = CanonicalRootHttpClient();
+
+            var forcedSource = settlement.WireProduction(
+                batch,
+                new TestExecutor(),
+                new TestDaWriter(),
+                layout.ProofWitness,
+                new TestProver(),
+                ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
+                new TrackingSigner(Account(0x33)),
+                layout.ForcedInclusionEvents,
+                sharedBridgeDepositEventStore: layout.SharedBridgeDeposits,
+                messageRouterEventStore: layout.MessageRouterEvents,
+                l1FinalizedHeight: () => 200u,
+                sequencerCommitteeHash: () => Root(0x22),
+                rpcHttpClient: http);
+
+            Assert.IsNotNull(forcedSource);
+            Assert.IsNotNull(settlement.ProductionComposition?.OwnedDepositSource);
+            Assert.IsNotNull(settlement.ProductionComposition?.OwnedMessageRouter);
+            settlement.Dispose();
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void WireProduction_ConstructsOwnedMessageRouterWhenConfigured()
     {
         using var backend = new TemporaryRocksDb();

@@ -326,7 +326,7 @@ internal static class Program
                 L1FinalizedHeight = (uint)(1000 + batchNum),
                 FirstBlockTimestamp = (ulong)(1_700_000_000_000 + batchNum * 10_000),
                 LastBlockTimestamp = (ulong)(1_700_000_000_000 + batchNum * 10_000 + 5_000),
-                SequencerCommitteeHash = HashCommittee(initialCommittee),
+                SequencerCommitteeHash = Neo.L2.Sequencer.SequencerCommitteeHasher.Compute(initialCommittee),
                 Network = 0x4F454E,
             };
             var execReq = new BatchExecutionRequest
@@ -657,14 +657,6 @@ internal static class Program
     {
         var s = h.ToString();
         return s.Length <= 14 ? s : s[..10] + "…" + s[^4..];
-    }
-
-    private static UInt256 HashCommittee(IReadOnlyList<CommitteeMember> members)
-    {
-        if (members.Count == 0) return UInt256.Zero;
-        var bytes = new List<byte>();
-        foreach (var m in members.OrderBy(x => x.PublicKey)) bytes.AddRange(m.PublicKey.EncodePoint(true));
-        return new UInt256(Crypto.Hash256(bytes.ToArray()));
     }
 
     private static byte[] BalanceKey(UInt160 asset, UInt160 holder)

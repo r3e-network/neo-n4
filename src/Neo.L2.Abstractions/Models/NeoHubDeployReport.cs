@@ -263,7 +263,8 @@ public sealed record NeoHubDeployReport(
                     "durable messageRouterEventStore (recommended: "
                     + RelativeMessageRouterEventStoreDir
                     + "; MessageRouterDeploymentHeight from plugin config when MessageRouterHash set)",
-                    "l1FinalizedHeight + sequencerCommitteeHash providers",
+                    "l1FinalizedHeight provider (RpcL1FinalizedHeightSource.CreateSyncProvider)",
+                    "sequencerCommitteeHash provider (SequencerCommitteeHasher.CreateSyncProvider)",
                     "executor + DA writer + prover + profile (e.g. Sp1SettlementExecutionStack)",
                 },
             },

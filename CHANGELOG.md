@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — L1 finalized-height + sequencer committee hash providers for WireProduction — 2026-07-16
+
+- `RpcL1FinalizedHeightSource` reads L1 `getblockcount` and returns
+  `blockCount - 1 - finalityDepth` (zero when the tip is shallower than the depth);
+  `CreateSyncProvider()` supplies the `Func<uint>` seal / WireProduction expects.
+- `SequencerCommitteeHasher` computes the canonical `SequencerCommitteeHash`
+  (Hash256 over lexicographically sorted compressed pubkeys) and
+  `CreateSyncProvider(ISequencerCommitteeProvider)` for `Func<UInt256>`.
+- Devnet reuses the shared hasher; wireproduction notes list both helpers.
+
 ### Added — L2SettlementStoreLayout opens canonical WireProduction RocksDB stores — 2026-07-16
 
 - `L2SettlementStoreLayout.Open(chainDirectory)` ensures `data/settlement/*` and opens

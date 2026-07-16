@@ -384,11 +384,12 @@ production DA credentials, real SP1 proof vectors. Locally the operator path is 
 
 ```bash
 neo-stack create-chain --chain-id 20260716 --output ./my-l2 --template zk-rollup
+neo-stack init-l2 --chain-id 20260716 --output ./my-l2 \
+  --from-deploy-report docs/audit/testnet-deployment-20260716-live.json
 neo-stack bootstrap-genesis --chain-id 20260716 --output ./my-l2
 neo-stack register-chain --chain-id 20260716 --output ./my-l2 \
-  --from-deploy-report docs/audit/testnet-deployment-20260716-live.json \
-  --genesis-manifest ./my-l2/genesis-manifest.json
-# optional: add --broadcast + NEO_N4_OPERATOR_WIF for live L1 registration
+  --from-deploy-report docs/audit/testnet-deployment-20260716-live.json
+# genesis-manifest.json auto-detected; optional --broadcast + NEO_N4_OPERATOR_WIF
 ```
 
 ## Production integrations still operator-supplied

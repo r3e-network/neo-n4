@@ -163,16 +163,16 @@ internal static class NewL2Command
         Console.WriteLine($"  #    NoOp opcode with your chain's opcodes. See");
         Console.WriteLine($"  #    {executorOutput}/README.md for the 5-step customization checklist.");
         Console.WriteLine();
-        Console.WriteLine($"  # 5. When ready for L1 deploy, generate the NeoHub deploy bundle:");
-        Console.WriteLine($"  dotnet run --project tools/Neo.Hub.Deploy -- scaffold --output {output}/deploy-plan.json");
-        Console.WriteLine($"  dotnet run --project tools/Neo.Hub.Deploy -- plan --plan {output}/deploy-plan.json --output {output}/deploy-bundle.json");
-        Console.WriteLine($"  #    Feed the bundle to your wallet to deploy each NeoHub contract via");
-        Console.WriteLine($"  #    ContractManagement.Deploy. Capture the REAL on-chain hash your wallet");
-        Console.WriteLine($"  #    returns from each deploy (NOT the deterministic stub hashes in the");
-        Console.WriteLine($"  #    bundle, which only exist for plan reproducibility), then call:");
+        Console.WriteLine($"  # 5. Bootstrap the SP1/NeoVM genesis trust anchor (writes genesis-manifest.json):");
+        Console.WriteLine($"  neo-stack bootstrap-genesis --chain-id {chainId} --output {output}");
+        Console.WriteLine();
+        Console.WriteLine($"  # 6. After NeoHub is on L1 (deploy-testnet evidence JSON), materialize hashes + register:");
+        Console.WriteLine($"  neo-stack init-l2 --chain-id {chainId} --output {output} \\");
+        Console.WriteLine($"    --from-deploy-report docs/audit/testnet-deployment-<date>-live.json");
         Console.WriteLine($"  neo-stack register-chain --chain-id {chainId} --output {output} \\");
-        Console.WriteLine($"    --genesis-state-root <authenticated non-zero UInt256> \\");
-        Console.WriteLine($"    --operator <real hash> --verifier <real hash> --bridge <real hash> --message <real hash>");
+        Console.WriteLine($"    --from-deploy-report docs/audit/testnet-deployment-<date>-live.json");
+        Console.WriteLine($"  #    genesis-manifest.json is auto-detected under {output}/ when present.");
+        Console.WriteLine($"  #    Add --broadcast + NEO_N4_OPERATOR_WIF to submit registerChain on L1.");
         Console.WriteLine($"  # See docs/launching-an-l2.md for the full L1-deploy walkthrough.");
         return 0;
     }

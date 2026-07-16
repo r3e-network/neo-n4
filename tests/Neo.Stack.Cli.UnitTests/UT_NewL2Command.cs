@@ -93,8 +93,13 @@ public class UT_NewL2Command
         Assert.AreEqual(0, rc);
         StringAssert.Contains(
             output,
-            "--genesis-state-root <authenticated non-zero UInt256>",
-            "new-l2 must not emit a registration command that omits the immutable L1 trust anchor");
+            "bootstrap-genesis",
+            "new-l2 must point operators at the SP1/NeoVM genesis trust-anchor step");
+        StringAssert.Contains(
+            output,
+            "genesis-manifest.json is auto-detected",
+            "new-l2 registration path must not omit the immutable L1 trust anchor");
+        StringAssert.Contains(output, "--from-deploy-report");
     }
 
     [TestMethod]

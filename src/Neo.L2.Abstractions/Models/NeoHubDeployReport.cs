@@ -99,13 +99,18 @@ public sealed record NeoHubDeployReport(
     }
 
     /// <summary>
-    /// Write operator-facing artifacts under a chain directory: full hash map plus a
-    /// production settlement config snippet matching <c>L2SettlementSettings</c>.
+    /// Write operator-facing artifacts under a chain directory: full hash map, settlement
+    /// plugin config (WireProduction-ready), and batch plugin config. Also installs plugin
+    /// configs under <c>node/Plugins</c> and <c>batcher-node/Plugins</c> when those roots
+    /// exist (after <c>init-l2</c>).
     /// </summary>
-    public void WriteOperatorArtifacts(string chainDirectory)
+    /// <returns>Relative paths written (for CLI reporting).</returns>
+    public IReadOnlyList<string> WriteOperatorArtifacts(string chainDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
         Directory.CreateDirectory(chainDirectory);
+        var written = new List<string>();
+        var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
 
         var deployed = new Dictionary<string, object?>
         {
@@ -128,11 +133,9 @@ public sealed record NeoHubDeployReport(
         var deployedPath = Path.Combine(chainDirectory, "l1.deployed.json");
         File.WriteAllText(
             deployedPath,
-            JsonSerializer.Serialize(deployed, new JsonSerializerOptions { WriteIndented = true })
-                + Environment.NewLine);
+            JsonSerializer.Serialize(deployed, jsonOptions) + Environment.NewLine);
+        written.Add("l1.deployed.json");
 
-        var settlementDir = Path.Combine(chainDirectory, "Plugins", "Neo.Plugins.L2Settlement");
-        Directory.CreateDirectory(settlementDir);
         var settlement = new Dictionary<string, object?>
         {
             ["PluginConfiguration"] = new Dictionary<string, object?>
@@ -149,10 +152,70 @@ public sealed record NeoHubDeployReport(
                 ["Enabled"] = true,
             },
         };
-        File.WriteAllText(
-            Path.Combine(settlementDir, "config.from-deploy.json"),
-            JsonSerializer.Serialize(settlement, new JsonSerializerOptions { WriteIndented = true })
-                + Environment.NewLine);
+        var settlementJson = JsonSerializer.Serialize(settlement, jsonOptions) + Environment.NewLine;
+        written.AddRange(WritePluginConfig(
+            chainDirectory,
+            "Neo.Plugins.L2Settlement",
+            settlementJson,
+            alsoWriteFromDeployCopy: true));
+
+        var batch = new Dictionary<string, object?>
+        {
+            ["PluginConfiguration"] = new Dictionary<string, object?>
+            {
+                ["ChainId"] = L2ChainId,
+                ["MaxBlocksPerBatch"] = 50,
+                ["MaxTransactionsPerBatch"] = 5000,
+                ["MaxBatchAgeMillis"] = 30000,
+                ["Enabled"] = true,
+            },
+        };
+        var batchJson = JsonSerializer.Serialize(batch, jsonOptions) + Environment.NewLine;
+        written.AddRange(WritePluginConfig(
+            chainDirectory,
+            "Neo.Plugins.L2Batch",
+            batchJson,
+            alsoWriteFromDeployCopy: true));
+
+        return written;
+    }
+
+    private static IEnumerable<string> WritePluginConfig(
+        string chainDirectory,
+        string pluginName,
+        string json,
+        bool alsoWriteFromDeployCopy)
+    {
+        var relativeRoots = new[]
+        {
+            Path.Combine("Plugins", pluginName),
+            Path.Combine("node", "Plugins", pluginName),
+            Path.Combine("batcher-node", "Plugins", pluginName),
+        };
+        foreach (var relative in relativeRoots)
+        {
+            var absoluteDir = Path.Combine(chainDirectory, relative);
+            // Always write under top-level Plugins/; only write under node/batcher roots
+            // when those trees already exist (created by init-l2).
+            var isTopLevelPlugin = relative.StartsWith(
+                "Plugins" + Path.DirectorySeparatorChar, StringComparison.Ordinal);
+            if (!isTopLevelPlugin)
+            {
+                var parent = Path.GetDirectoryName(absoluteDir);
+                if (parent is null || !Directory.Exists(parent))
+                    continue;
+            }
+            Directory.CreateDirectory(absoluteDir);
+            var configPath = Path.Combine(absoluteDir, "config.json");
+            File.WriteAllText(configPath, json);
+            yield return Path.Combine(relative, "config.json");
+            if (alsoWriteFromDeployCopy)
+            {
+                var fromDeploy = Path.Combine(absoluteDir, "config.from-deploy.json");
+                File.WriteAllText(fromDeploy, json);
+                yield return Path.Combine(relative, "config.from-deploy.json");
+            }
+        }
     }
 
     private static UInt160 RequireContract(IReadOnlyDictionary<string, UInt160> contracts, string name)

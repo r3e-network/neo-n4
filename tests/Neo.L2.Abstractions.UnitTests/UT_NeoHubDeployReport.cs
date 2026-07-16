@@ -125,8 +125,10 @@ public class UT_NeoHubDeployReport
                 deployed.RootElement.GetProperty("settlementManager").GetString());
 
             var settlementPath = Path.Combine(
-                dir, "Plugins", "Neo.Plugins.L2Settlement", "config.from-deploy.json");
+                dir, "Plugins", "Neo.Plugins.L2Settlement", "config.json");
             Assert.IsTrue(File.Exists(settlementPath));
+            Assert.IsTrue(File.Exists(Path.Combine(
+                dir, "Plugins", "Neo.Plugins.L2Settlement", "config.from-deploy.json")));
             using var settlement = JsonDocument.Parse(File.ReadAllText(settlementPath));
             var plugin = settlement.RootElement.GetProperty("PluginConfiguration");
             Assert.AreEqual(20260716u, plugin.GetProperty("ChainId").GetUInt32());
@@ -136,6 +138,13 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 report.SharedBridge.ToString(),
                 plugin.GetProperty("SharedBridgeHash").GetString());
+
+            var batchPath = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Batch", "config.json");
+            Assert.IsTrue(File.Exists(batchPath));
+            using var batch = JsonDocument.Parse(File.ReadAllText(batchPath));
+            Assert.AreEqual(
+                20260716u,
+                batch.RootElement.GetProperty("PluginConfiguration").GetProperty("ChainId").GetUInt32());
         }
         finally
         {

@@ -306,11 +306,12 @@ public class UT_RegisterChainCommand
             Assert.AreEqual(0, rc);
             var output = sw.ToString();
             StringAssert.Contains(output, "l1.deployed.json");
-            StringAssert.Contains(output, "config.from-deploy.json");
             StringAssert.Contains(output, "0xe058ea01d6933f38bad1321d0407f514112016b1");
             Assert.IsTrue(File.Exists(Path.Combine(_tempDir, "l1.deployed.json")));
             Assert.IsTrue(File.Exists(Path.Combine(
-                _tempDir, "Plugins", "Neo.Plugins.L2Settlement", "config.from-deploy.json")));
+                _tempDir, "Plugins", "Neo.Plugins.L2Settlement", "config.json")));
+            Assert.IsTrue(File.Exists(Path.Combine(
+                _tempDir, "Plugins", "Neo.Plugins.L2Batch", "config.json")));
         }
         finally
         {

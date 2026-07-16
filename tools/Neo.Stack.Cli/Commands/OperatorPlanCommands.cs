@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Neo.Extensions.VM;
 using Neo.L2;
@@ -85,12 +86,11 @@ internal static class RegisterChainCommand
                         $"--chain-id {chainId} differs from deploy report l2ChainId {deployReport.L2ChainId}");
                     return Task.FromResult(4);
                 }
-                deployReport.WriteOperatorArtifacts(chainDir);
+                var written = deployReport.WriteOperatorArtifacts(chainDir);
                 Console.WriteLine($"  Deploy report   : {deployReportPath}");
                 Console.WriteLine($"  L1 network      : {deployReport.Network} @ {deployReport.Rpc}");
-                Console.WriteLine($"  Wrote           : {Path.Combine(chainDir, "l1.deployed.json")}");
-                Console.WriteLine(
-                    $"  Wrote           : {Path.Combine(chainDir, "Plugins", "Neo.Plugins.L2Settlement", "config.from-deploy.json")}");
+                foreach (var artifact in written.Distinct(StringComparer.Ordinal))
+                    Console.WriteLine($"  Wrote           : {Path.Combine(chainDir, artifact)}");
                 Console.WriteLine();
             }
             catch (Exception ex)
@@ -120,6 +120,14 @@ internal static class RegisterChainCommand
             {
                 UInt256 genesisStateRoot;
                 var genesisManifest = ArgUtil.Get(args, "--genesis-manifest", "");
+                // Default to chain-dir genesis-manifest.json when present so
+                // bootstrap-genesis → register-chain needs no re-typed path.
+                if (genesisManifest.Length == 0)
+                {
+                    var defaultManifest = Path.Combine(chainDir, BootstrapGenesisCommand.ManifestFileName);
+                    if (File.Exists(defaultManifest))
+                        genesisManifest = defaultManifest;
+                }
                 var genesisStateRootValue = ArgUtil.Get(args, "--genesis-state-root", "");
                 if (genesisManifest.Length > 0)
                 {

@@ -147,12 +147,12 @@ public class UT_BootstrapGenesisCommand
         {
             var sw = new StringWriter();
             Console.SetOut(sw);
+            // No explicit --genesis-manifest: auto-detect chain-dir default.
             var rc = await RegisterChainCommand.RunAsync(
             [
                 "--chain-id", "20260716",
                 "--output", _tempDir,
                 "--from-deploy-report", reportPath,
-                "--genesis-manifest", Path.Combine(_tempDir, BootstrapGenesisCommand.ManifestFileName),
             ]);
             Assert.AreEqual(0, rc);
             var output = sw.ToString();

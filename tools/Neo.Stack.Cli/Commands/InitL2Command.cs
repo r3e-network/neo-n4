@@ -1,6 +1,8 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
+using Neo.L2;
 
 namespace Neo.Stack.Cli.Commands;
 
@@ -85,6 +87,30 @@ internal static class InitL2Command
             File.WriteAllBytes(batcherConfigDestination, batcherConfigBytes);
         }
 
+        // Optional: materialize L1 deploy hashes + plugin configs as soon as the node
+        // layout exists, so WireProduction hosts do not wait until register-chain.
+        var deployReportPath = ArgUtil.Get(args, "--from-deploy-report", "");
+        IReadOnlyList<string>? deployArtifacts = null;
+        if (deployReportPath.Length > 0)
+        {
+            try
+            {
+                var report = NeoHubDeployReport.Load(deployReportPath);
+                if (report.L2ChainId != chainId)
+                {
+                    Console.Error.WriteLine(
+                        $"--chain-id {chainId} differs from deploy report l2ChainId {report.L2ChainId}");
+                    return 4;
+                }
+                deployArtifacts = report.WriteOperatorArtifacts(path);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"failed to load --from-deploy-report: {ex.Message}");
+                return 4;
+            }
+        }
+
         Console.WriteLine($"Initialized L2 node at {path}");
         Console.WriteLine($"  data       = {path}/data");
         Console.WriteLine($"  batcher    = {path}/batcher-data");
@@ -93,6 +119,12 @@ internal static class InitL2Command
         Console.WriteLine($"  node root  = {path}/node");
         Console.WriteLine($"  prover     = {path}/prover");
         Console.WriteLine($"  da mode    = {da}");
+        if (deployArtifacts is not null)
+        {
+            Console.WriteLine($"  L1 deploy  = {deployReportPath}");
+            foreach (var artifact in deployArtifacts.Distinct(StringComparer.Ordinal))
+                Console.WriteLine($"  wrote      = {path}/{artifact}");
+        }
         return 0;
     }
 

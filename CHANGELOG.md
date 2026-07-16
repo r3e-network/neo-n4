@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — init-l2 from-deploy-report + plugin config install — 2026-07-16
+
+- `neo-stack init-l2 --from-deploy-report <evidence.json>` materializes `l1.deployed.json`
+  and installs `Neo.Plugins.L2Settlement` + `Neo.Plugins.L2Batch` plugin configs under
+  `Plugins/`, `node/Plugins/`, and `batcher-node/Plugins/` (WireProduction-ready hashes
+  and chain id).
+- `NeoHubDeployReport.WriteOperatorArtifacts` now also emits batch plugin config and
+  writes both `config.json` and `config.from-deploy.json` audit copies.
+- `register-chain` auto-detects `{chainDir}/genesis-manifest.json` when
+  `--genesis-manifest` / `--genesis-state-root` are omitted after `bootstrap-genesis`.
+- `new-l2` next-step text points at bootstrap-genesis + from-deploy-report registration.
+
 ### Added — bootstrap-genesis CLI for register-chain trust anchor — 2026-07-16
 
 - `neo-stack bootstrap-genesis` runs `NeoVMGenesisBootstrap` +

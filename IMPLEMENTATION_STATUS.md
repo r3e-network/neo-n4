@@ -417,8 +417,9 @@ These are explicit deployment seams rather than missing protocol algorithms:
   `SequencerCommitteeConfig.CreateStaticHashProviderFromChainDirectory` (when
   `chain.config.json` `validators` is non-empty) or
   `SequencerCommitteeHasher.CreateSyncProvider` over `RpcSequencerCommitteeProvider`
-  (registry hash in `l1.deployed.json` / wireproduction notes; live membership still
-  needs operator-supplied known keys). Seal-time deposit `ScanAsync` via
+  (registry hash in `l1.deployed.json` / wireproduction notes). Local/dev hosts can also
+  bootstrap `InMemorySequencerCommitteeProvider` via
+  `CreateInMemoryProviderFromChainDirectory`. Seal-time deposit `ScanAsync` via
   `L1MessageDrain.FromDeposits`.
   `neo-stack --signer-command` provides a provider-neutral, deadline-bounded executable
   boundary with pinned account/script, canonical sign data, and fee-witness-shape validation.

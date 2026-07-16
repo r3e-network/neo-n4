@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Neo.Cryptography.ECC;
+using Neo.SmartContract;
 using NeoECPoint = Neo.Cryptography.ECC.ECPoint;
 
 namespace Neo.L2.Sequencer;
@@ -9,10 +10,10 @@ namespace Neo.L2.Sequencer;
 /// <c>sequencerCommitteeHash</c> providers for <c>WireProduction</c> / batch sealing.
 /// </summary>
 /// <remarks>
-/// See doc.md §7.1 / §14.2. Production hosts that track live L1 registry membership should
-/// prefer <see cref="SequencerCommitteeHasher.CreateSyncProvider"/> over
-/// <see cref="RpcSequencerCommitteeProvider"/>. This helper covers the static genesis path
-/// when <c>validators</c> in chain config is the trust anchor for seal block context.
+/// See doc.md §7.1 / §14.2. The static genesis path trusts <c>validators</c> in chain config.
+/// Hosts that track live L1 registry membership should use
+/// <see cref="SequencerCommitteeHasher.CreateSyncProvider"/> over
+/// <see cref="RpcSequencerCommitteeProvider"/> instead.
 /// </remarks>
 public static class SequencerCommitteeConfig
 {
@@ -104,5 +105,47 @@ public static class SequencerCommitteeConfig
         ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
         return CreateStaticHashProvider(
             Path.Combine(Path.GetFullPath(chainDirectory), RelativeChainConfigPath));
+    }
+
+    /// <summary>
+    /// Bootstrap an <see cref="InMemorySequencerCommitteeProvider"/> with every validator from
+    /// <c>chain.config.json</c> as Active (L1 address derived from the signature redeem script).
+    /// For tests and local composition; production should poll L1 via
+    /// <see cref="RpcSequencerCommitteeProvider"/>.
+    /// </summary>
+    public static InMemorySequencerCommitteeProvider CreateInMemoryProviderFromChainDirectory(
+        string chainDirectory,
+        int maxCommitteeSize = 21)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        var root = Path.GetFullPath(chainDirectory);
+        var configPath = Path.Combine(root, RelativeChainConfigPath);
+        var keys = ReadValidators(configPath);
+        if (keys.Count == 0)
+            throw new InvalidDataException(
+                $"{configPath} validators is empty — cannot bootstrap an in-memory committee");
+
+        var chainId = ReadChainId(configPath);
+        if (keys.Count > maxCommitteeSize)
+            throw new InvalidDataException(
+                $"{configPath} has {keys.Count} validators but maxCommitteeSize is {maxCommitteeSize}");
+
+        var provider = new InMemorySequencerCommitteeProvider(chainId, maxCommitteeSize);
+        foreach (var key in keys)
+        {
+            var l1Address = Contract.CreateSignatureRedeemScript(key).ToScriptHash();
+            provider.Register(key, l1Address);
+        }
+        return provider;
+    }
+
+    private static uint ReadChainId(string chainConfigPath)
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(chainConfigPath));
+        if (!document.RootElement.TryGetProperty("chainId", out var chainIdEl)
+            || chainIdEl.ValueKind != JsonValueKind.Number)
+            throw new InvalidDataException($"{chainConfigPath} is missing a numeric chainId");
+        var chainId = chainIdEl.GetUInt32();
+        return ChainIdValidator.ValidateL2(chainId, "chain.config.json chainId");
     }
 }

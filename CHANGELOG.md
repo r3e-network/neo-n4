@@ -10,6 +10,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `SequencerCommitteeConfig.ReadValidators` / `CreateStaticHashProvider` load compressed
   secp256r1 keys from `chain.config.json` `validators` and return a stable
   `Func<UInt256>` via `SequencerCommitteeHasher` for WireProduction L1 inbox wiring.
+- `CreateInMemoryProviderFromChainDirectory` bootstraps an
+  `InMemorySequencerCommitteeProvider` with those validators as Active (for local
+  composition / tests).
+- Host WireProduction E2E uses static committee hash from chain.config validators
+  together with deploy-report settings + store layout.
 - Fails closed on missing file, empty validators, duplicates, or invalid keys.
 - Wireproduction notes document the static genesis path alongside live
   `RpcSequencerCommitteeProvider`.

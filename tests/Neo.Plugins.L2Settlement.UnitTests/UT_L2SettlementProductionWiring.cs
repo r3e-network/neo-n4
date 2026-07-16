@@ -3,8 +3,10 @@ using Neo.L2.Executor.ProofWitness;
 using Neo.L2.ForcedInclusion;
 using Neo.L2.Messaging;
 using Neo.L2.Persistence;
+using Neo.L2.Sequencer;
 using Neo.L2.Settlement.Rpc;
 using Neo.Network.P2P.Payloads;
+using Neo.Wallets;
 using System.Net;
 using System.Text;
 
@@ -730,12 +732,18 @@ public class UT_L2SettlementProductionWiring
         Directory.CreateDirectory(chainDir);
         try
         {
-            File.WriteAllText(Path.Combine(chainDir, "chain.config.json"), """
+            // Genesis committee keys in chain.config enable static committee-hash wiring.
+            var validatorA = new KeyPair(Enumerable.Range(1, 32).Select(i => (byte)i).ToArray()).PublicKey;
+            var validatorB = new KeyPair(Enumerable.Range(2, 32).Select(i => (byte)i).ToArray()).PublicKey;
+            var hexA = Convert.ToHexString(validatorA.EncodePoint(true)).ToLowerInvariant();
+            var hexB = Convert.ToHexString(validatorB.EncodePoint(true)).ToLowerInvariant();
+            File.WriteAllText(Path.Combine(chainDir, "chain.config.json"), $$"""
                 {
                   "chainId": 20260716,
                   "proofType": "Zk",
                   "securityLevel": "Validity",
-                  "daMode": "L1"
+                  "daMode": "L1",
+                  "validators": [ "{{hexA}}", "{{hexB}}" ]
                 }
                 """);
             NeoHubDeployReport.Load(reportPath).WriteOperatorArtifacts(chainDir);
@@ -746,6 +754,11 @@ public class UT_L2SettlementProductionWiring
             Assert.AreEqual(17729307u, loaded.SharedBridgeDeploymentHeight);
             Assert.AreEqual(17729303u, loaded.MessageRouterDeploymentHeight);
             _ = loaded.ValidateProduction();
+
+            var committeeHash = SequencerCommitteeConfig.CreateStaticHashProviderFromChainDirectory(chainDir);
+            Assert.AreEqual(
+                SequencerCommitteeHasher.Compute([validatorA, validatorB]),
+                committeeHash());
 
             // Wire with Multisig profile for composition-only coverage (full ZK uses
             // Sp1SettlementExecutionStack + production DA; ProofType must match profile).
@@ -782,7 +795,7 @@ public class UT_L2SettlementProductionWiring
                 layout.ForcedInclusionEvents,
                 sharedBridgeDepositEventStore: layout.SharedBridgeDeposits,
                 messageRouterEventStore: layout.MessageRouterEvents,
-                sequencerCommitteeHash: static () => Root(0x22),
+                sequencerCommitteeHash: committeeHash,
                 rpcHttpClient: http);
 
             Assert.IsNotNull(forcedSource);

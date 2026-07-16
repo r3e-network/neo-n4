@@ -101,6 +101,34 @@ public class UT_SequencerCommitteeConfig
             () => SequencerCommitteeConfig.CreateStaticHashProviderFromChainDirectory(_tempDir));
     }
 
+    [TestMethod]
+    public async Task CreateInMemoryProviderFromChainDirectory_RegistersActiveMembers()
+    {
+        var a = Key(6);
+        var b = Key(7);
+        WriteChainConfig(a, b);
+
+        using var provider = SequencerCommitteeConfig.CreateInMemoryProviderFromChainDirectory(_tempDir);
+        Assert.AreEqual(1001u, provider.ChainId);
+        var committee = await provider.GetActiveCommitteeAsync();
+        Assert.AreEqual(2, committee.Count);
+        Assert.IsTrue(await provider.IsRegisteredAsync(a));
+        Assert.IsTrue(await provider.IsRegisteredAsync(b));
+        Assert.AreEqual(
+            SequencerCommitteeHasher.Compute([a, b]),
+            SequencerCommitteeHasher.Compute(committee));
+    }
+
+    [TestMethod]
+    public void CreateInMemoryProvider_EmptyValidators_FailsClosed()
+    {
+        File.WriteAllText(Path.Combine(_tempDir, "chain.config.json"), """
+            { "chainId": 1001, "validators": [] }
+            """);
+        Assert.ThrowsExactly<InvalidDataException>(
+            () => SequencerCommitteeConfig.CreateInMemoryProviderFromChainDirectory(_tempDir));
+    }
+
     private void WriteChainConfig(params ECPoint[] keys)
     {
         var hex = keys.Select(k => "\"" + Convert.ToHexString(k.EncodePoint(true)).ToLowerInvariant() + "\"");

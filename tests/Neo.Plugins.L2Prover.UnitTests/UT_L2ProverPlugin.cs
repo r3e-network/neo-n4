@@ -115,14 +115,36 @@ public class UT_L2ProverPlugin
     }
 
     [TestMethod]
-    public void Wire_Optimistic_ThrowsWithPointerToSettlementPlugin()
+    public void Wire_Optimistic_WithoutProver_ThrowsHelpfulError()
     {
-        // Optimistic proving lives in L2SettlementPlugin (it just signs); the prover
-        // plugin can't supply that. The error must point operators at the right plugin.
         using var plugin = new L2ProverPlugin { Kind = ProofType.Optimistic };
-        var ex = Assert.ThrowsExactly<NotSupportedException>(() => plugin.Wire());
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() => plugin.Wire());
         StringAssert.Contains(ex.Message, "Optimistic");
-        StringAssert.Contains(ex.Message, "L2SettlementPlugin");
+        StringAssert.Contains(ex.Message, "OptimisticProver");
+    }
+
+    [TestMethod]
+    public void Wire_Optimistic_WithProver_InstallsIL2Prover()
+    {
+        var priv = Enumerable.Range(1, 32).Select(i => (byte)i).ToArray();
+        var key = new Neo.Wallets.KeyPair(priv);
+        try
+        {
+            var optimistic = new Neo.L2.Proving.Optimistic.OptimisticProver(
+                key,
+                UInt160.Parse("0x" + new string('b', 40)),
+                UInt256.Parse("0x" + new string('c', 64)),
+                submittedAtUnixMs: static () => 1_700_000_000_000UL);
+            using var plugin = new L2ProverPlugin { Kind = ProofType.Optimistic };
+            plugin.Wire(optimisticProver: optimistic);
+            Assert.IsNotNull(plugin.Prover);
+            Assert.AreEqual(ProofType.Optimistic, plugin.Prover!.Kind);
+        }
+        finally
+        {
+            key.PrivateKey.AsSpan().Clear();
+            priv.AsSpan().Clear();
+        }
     }
 
     [TestMethod]

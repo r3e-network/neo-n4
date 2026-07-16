@@ -58,6 +58,86 @@ public class UT_OptimisticAndRiscV
     }
 
     [TestMethod]
+    public async Task OptimisticProver_Prove_RoundTripsThroughVerifier()
+    {
+        var priv = Enumerable.Range(1, 32).Select(i => (byte)i).ToArray();
+        var key = new Neo.Wallets.KeyPair(priv);
+        try
+        {
+            var bondContract = UInt160.Parse("0x" + new string('b', 40));
+            var bondTx = UInt256.Parse("0x" + new string('c', 64));
+            const ulong submittedAt = 1_700_000_000_000UL;
+            var prover = new OptimisticProver(
+                key,
+                bondContract,
+                bondTx,
+                submittedAtUnixMs: static () => submittedAt);
+            Assert.AreEqual(ProofType.Optimistic, prover.Kind);
+            Assert.AreEqual(SequencerAccount(key.PublicKey), prover.SequencerAccount);
+
+            var inputs = SamplePublicInputs();
+            var result = await prover.ProveAsync(new ProofRequest
+            {
+                PublicInputs = inputs,
+                Witness = Array.Empty<byte>(),
+                Kind = ProofType.Optimistic,
+            });
+
+            Assert.AreEqual(ProofType.Optimistic, result.Kind);
+            Assert.AreEqual(StateRootCalculator.HashPublicInputs(inputs), result.PublicInputHash);
+            var payload = OptimisticProofPayload.Decode(result.Proof.Span);
+            Assert.AreEqual(bondContract, payload.BondContract);
+            Assert.AreEqual(bondTx, payload.BondTxHash);
+            Assert.AreEqual(submittedAt, payload.SubmittedAt);
+            Assert.AreEqual(prover.SequencerAccount, payload.Sequencer);
+            Assert.AreEqual(64, payload.SequencerSignature.Length);
+
+            var verified = await new OptimisticVerifier(key.PublicKey)
+                .VerifyAsync(inputs, result.Proof);
+            Assert.IsTrue(verified.Valid, verified.FailureReason);
+        }
+        finally
+        {
+            key.PrivateKey.AsSpan().Clear();
+            priv.AsSpan().Clear();
+        }
+    }
+
+    [TestMethod]
+    public async Task OptimisticProver_RejectsWrongProofTypeAndZeroBond()
+    {
+        var priv = Enumerable.Range(1, 32).Select(i => (byte)i).ToArray();
+        var key = new Neo.Wallets.KeyPair(priv);
+        try
+        {
+            Assert.ThrowsExactly<ArgumentException>(() =>
+                new OptimisticProver(key, UInt160.Zero, UInt256.Parse("0x" + new string('c', 64))));
+            Assert.ThrowsExactly<ArgumentException>(() =>
+                new OptimisticProver(
+                    key,
+                    UInt160.Parse("0x" + new string('b', 40)),
+                    UInt256.Zero));
+
+            var prover = new OptimisticProver(
+                key,
+                UInt160.Parse("0x" + new string('b', 40)),
+                UInt256.Parse("0x" + new string('c', 64)));
+            await Assert.ThrowsExactlyAsync<ArgumentException>(async () =>
+                await prover.ProveAsync(new ProofRequest
+                {
+                    PublicInputs = SamplePublicInputs(),
+                    Witness = Array.Empty<byte>(),
+                    Kind = ProofType.Multisig,
+                }));
+        }
+        finally
+        {
+            key.PrivateKey.AsSpan().Clear();
+            priv.AsSpan().Clear();
+        }
+    }
+
+    [TestMethod]
     public async Task Optimistic_VerifierRejectsBadSignature()
     {
         var priv = new byte[32]; priv[0] = 1;

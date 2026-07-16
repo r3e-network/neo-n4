@@ -303,7 +303,9 @@ public sealed record NeoHubDeployReport(
                     "profile: default LegacyFromChainDirectory for Multisig/Optimistic; "
                     + "Sp1SettlementExecutionStack.Create for Zk",
                     "executor + DA writer + prover (e.g. Sp1SettlementExecutionStack for Zk; "
-                    + "Multisig: AttestationProver + PersistentDAWriter.OpenLocalFromChainDirectory)",
+                    + "Multisig: AttestationProver + PersistentDAWriter.OpenLocalFromChainDirectory; "
+                    + "Optimistic: OptimisticProver(sequencerKey, bondContract, bondTxHash) "
+                    + "+ local or production DA)",
                 },
             },
             ["genesisManifest"] = BootstrapGenesisManifestRelativePath,

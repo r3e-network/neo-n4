@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — OptimisticProver (Stage-1 IL2Prover) — 2026-07-16
+
+- `Neo.L2.Proving.Optimistic.OptimisticProver` signs canonical public inputs and packs
+  `OptimisticProofPayload` (bond contract/tx + sequencer account + 64-byte sig).
+- Round-trips through `OptimisticVerifier`; fails closed on zero bond fields and wrong
+  `ProofType`.
+- `L2ProverPlugin.Wire` accepts optional `optimisticProver` for Stage-1 composition
+  (replaces the previous NotSupportedException pointer).
+
 ### Added — CreateFromChainDirectory for batch + settlement plugins — 2026-07-16
 
 - `L2BatchPlugin.CreateFromChainDirectory` and `L2SettlementPlugin.CreateFromChainDirectory`

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Neo.L2;
 using Neo.L2.Proving;
 using Neo.L2.Proving.Attestation;
+using Neo.L2.Proving.Optimistic;
 using Neo.L2.Proving.RiscVZk;
 
 namespace Neo.Plugins.L2;
@@ -35,23 +36,30 @@ public sealed class L2ProverPlugin : Plugin
 
     /// <summary>
     /// Wire the plugin with stage-specific dependencies. Multisig wants an <see cref="ISignerSet"/>;
-    /// Optimistic wants a sequencer key + bond reference (handled in L2SettlementPlugin); Zk
-    /// wants an explicit <see cref="IZkExecutionProver"/> implementation.
+    /// Optimistic wants an <see cref="OptimisticProver"/> (sequencer key + bond reference);
+    /// Zk wants an explicit <see cref="IZkExecutionProver"/> implementation.
     /// </summary>
     /// <remarks>
     /// Production Stage-2 chains inject <see cref="Sp1BatchProofProver"/>, which exchanges
     /// immutable content-addressed artifacts with the isolated <c>prove-batch daemon</c> at
     /// <c>bridge/neo-zkvm-host/</c>. Tests may inject <see cref="MockRiscVProver"/>; the
     /// settlement pipeline rejects its non-cryptographic metadata in production ZK profiles.
+    /// Optimistic hosts construct <see cref="OptimisticProver"/> with the sequencer key and
+    /// L1 bond tx reference, then pass it here or directly to
+    /// <c>L2SettlementPlugin.WireProduction</c> / <c>WireProductionFromLayout</c>.
     /// </remarks>
-    public void Wire(ISignerSet? signerSet = null, IZkExecutionProver? zkProver = null)
+    public void Wire(
+        ISignerSet? signerSet = null,
+        IZkExecutionProver? zkProver = null,
+        OptimisticProver? optimisticProver = null)
     {
         _prover = _kind switch
         {
             ProofType.Multisig => new AttestationProver(signerSet ?? throw new InvalidOperationException("ProofType.Multisig requires a signer set")),
             ProofType.Zk => zkProver ?? throw new InvalidOperationException(
                 "ProofType.Zk requires an IZkExecutionProver; use Sp1BatchProofProver with the isolated `prove-batch daemon` in production."),
-            ProofType.Optimistic => throw new NotSupportedException("Optimistic prover lives in L2SettlementPlugin (it just signs)."),
+            ProofType.Optimistic => optimisticProver ?? throw new InvalidOperationException(
+                "ProofType.Optimistic requires an OptimisticProver (sequencer key + non-zero bondContract/bondTxHash)"),
             // ProofType.None is legal in the wire format (genesis / operator-trusted flows)
             // but the prover plugin can't produce a proof for it. Without this explicit case
             // the operator sees "Unknown ProofType None" — misleading, since None is defined.

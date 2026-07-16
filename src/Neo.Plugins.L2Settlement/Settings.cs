@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 
 namespace Neo.Plugins.L2;
@@ -74,6 +75,13 @@ public sealed class L2SettlementSettings
     /// <summary>Master kill switch.</summary>
     public bool Enabled { get; init; } = true;
 
+    /// <summary>
+    /// Relative path of the settlement plugin config under a chain working directory
+    /// (written by <c>init-l2 --from-deploy-report</c> / <c>register-chain --from-deploy-report</c>).
+    /// </summary>
+    public const string RelativePluginConfigPath =
+        "Plugins/Neo.Plugins.L2Settlement/config.json";
+
     /// <summary>Build settings from <c>PluginConfiguration</c>.</summary>
     public static L2SettlementSettings From(IConfigurationSection s)
     {
@@ -105,6 +113,72 @@ public sealed class L2SettlementSettings
             Enabled = s.GetValue("Enabled", true),
         };
     }
+
+    /// <summary>
+    /// Load settings from a settlement plugin <c>config.json</c> file
+    /// (<c>{ "PluginConfiguration": { ... } }</c>).
+    /// </summary>
+    public static L2SettlementSettings FromPluginConfigFile(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var fullPath = Path.GetFullPath(path);
+        if (!File.Exists(fullPath))
+            throw new FileNotFoundException(
+                "settlement plugin config not found", fullPath);
+
+        // Parse via System.Text.Json then project into IConfiguration so From() and
+        // RejectPrivateKeyConfiguration stay the single validation path (no second JSON schema).
+        using var document = JsonDocument.Parse(File.ReadAllText(fullPath));
+        if (!document.RootElement.TryGetProperty("PluginConfiguration", out var plugin)
+            || plugin.ValueKind != JsonValueKind.Object)
+            throw new InvalidDataException(
+                $"{fullPath} is missing a PluginConfiguration object");
+
+        var pairs = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var property in plugin.EnumerateObject())
+            pairs["PluginConfiguration:" + property.Name] = JsonValueToConfigString(property.Value);
+
+        var root = new ConfigurationBuilder()
+            .AddInMemoryCollection(pairs)
+            .Build();
+        return From(root.GetSection("PluginConfiguration"));
+    }
+
+    /// <summary>
+    /// Load settings from a chain working directory written by <c>init-l2</c> /
+    /// <c>--from-deploy-report</c>. Tries top-level, <c>node/</c>, then <c>batcher-node/</c>
+    /// plugin config paths.
+    /// </summary>
+    public static L2SettlementSettings FromChainDirectory(string chainDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        var root = Path.GetFullPath(chainDirectory);
+        var candidates = new[]
+        {
+            Path.Combine(root, "Plugins", "Neo.Plugins.L2Settlement", "config.json"),
+            Path.Combine(root, "node", "Plugins", "Neo.Plugins.L2Settlement", "config.json"),
+            Path.Combine(root, "batcher-node", "Plugins", "Neo.Plugins.L2Settlement", "config.json"),
+        };
+        foreach (var candidate in candidates)
+        {
+            if (File.Exists(candidate))
+                return FromPluginConfigFile(candidate);
+        }
+        throw new FileNotFoundException(
+            "settlement plugin config not found under chain directory "
+            + $"(expected {RelativePluginConfigPath} or node/batcher-node variants)",
+            Path.Combine(root, RelativePluginConfigPath));
+    }
+
+    private static string? JsonValueToConfigString(JsonElement value) => value.ValueKind switch
+    {
+        JsonValueKind.String => value.GetString(),
+        JsonValueKind.Number => value.GetRawText(),
+        JsonValueKind.True => "true",
+        JsonValueKind.False => "false",
+        JsonValueKind.Null => null,
+        _ => value.GetRawText(),
+    };
 
     internal L2SettlementProductionConfiguration ValidateProduction()
     {

@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — load settlement settings from deploy-report plugin config — 2026-07-16
+
+- `L2SettlementSettings.FromPluginConfigFile` and `FromChainDirectory` load the
+  `PluginConfiguration` object from `config.json` written by
+  `init-l2` / `register-chain --from-deploy-report`, reusing the same validation as
+  `From(IConfigurationSection)` (including private-key rejection).
+- Live-evidence round-trip test: materialize report → `FromChainDirectory` →
+  ProofType=Zk, scanner heights, `ValidateProduction`.
+
 ### Added — WireProduction defaults L1 finalized height for inbox wiring — 2026-07-16
 
 - When SharedBridge / MessageRouter inbox is owned or supplied and

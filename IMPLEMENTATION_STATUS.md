@@ -405,10 +405,12 @@ These are explicit deployment seams rather than missing protocol algorithms:
   forced-inclusion finalization, optionally an owned `RpcSharedBridgeDepositSource` when
   `SharedBridgeHash` is configured, and optionally an owned `RpcMessageRouter` +
   `RpcMessageRouterEventScanner` when `MessageRouterHash` is configured.
-  `L2SettlementStoreLayout.Open(chainDir)` opens the canonical durable RocksDB stores under
-  `data/settlement/*` for proof-witness + the three scanners; deploy heights and
-  `L1FinalityDepth` come from plugin config (materialized by `--from-deploy-report` when the
-  evidence JSON has `blockIndex`) with optional per-scanner WireProduction overrides.
+  Hosts load materialised plugin config via `L2SettlementSettings.FromChainDirectory(chainDir)`
+  (or `FromPluginConfigFile`). `L2SettlementStoreLayout.Open(chainDir)` opens the canonical
+  durable RocksDB stores under `data/settlement/*` for proof-witness + the three scanners;
+  deploy heights and `L1FinalityDepth` come from that plugin config (materialized by
+  `--from-deploy-report` when the evidence JSON has `blockIndex`) with optional per-scanner
+  WireProduction overrides.
   L1 inbox: `WireProduction` defaults `l1FinalizedHeight` from the production RPC +
   `L1FinalityDepth` when omitted; `sequencerCommitteeHash` is still required via
   `SequencerCommitteeHasher.CreateSyncProvider` over `RpcSequencerCommitteeProvider`

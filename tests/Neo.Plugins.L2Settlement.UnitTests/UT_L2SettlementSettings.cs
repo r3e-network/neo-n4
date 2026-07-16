@@ -204,6 +204,160 @@ public class UT_L2SettlementSettings
         Assert.AreEqual(3u, s.L1FinalityDepth);
     }
 
+    [TestMethod]
+    public void FromPluginConfigFile_LoadsDeployReportShape()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-settlement-cfg-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var path = Path.Combine(dir, "config.json");
+            File.WriteAllText(path, """
+                {
+                  "PluginConfiguration": {
+                    "ChainId": 20260716,
+                    "L1RpcEndpoint": "https://n3seed1.ngd.network:20332/",
+                    "ExpectedNetwork": 894710606,
+                    "SettlementManagerHash": "0x11448868f1c14422506b9c2360051df34bcbbb51",
+                    "ForcedInclusionHash": "0x962829ae28e7f89e5de4b4672b167c8ae2ba55a9",
+                    "SharedBridgeHash": "0xf2f5114b83dd6fed4ddcac0ff9966fd22a77b241",
+                    "MessageRouterHash": "0x3caf3c6e160b5aec2e07672dc37662b5998afe90",
+                    "ProofType": 3,
+                    "L1FinalityDepth": 1,
+                    "ForcedInclusionDeploymentHeight": 17729309,
+                    "SharedBridgeDeploymentHeight": 17729307,
+                    "MessageRouterDeploymentHeight": 17729303,
+                    "Enabled": true
+                  }
+                }
+                """);
+
+            var s = L2SettlementSettings.FromPluginConfigFile(path);
+            Assert.AreEqual(20260716u, s.ChainId);
+            Assert.AreEqual(894710606u, s.ExpectedNetwork);
+            Assert.AreEqual((byte)ProofType.Zk, s.ProofType);
+            Assert.AreEqual(17729309u, s.ForcedInclusionDeploymentHeight);
+            Assert.AreEqual(17729307u, s.SharedBridgeDeploymentHeight);
+            Assert.AreEqual(17729303u, s.MessageRouterDeploymentHeight);
+            Assert.AreEqual(1u, s.L1FinalityDepth);
+            var production = s.ValidateProduction();
+            Assert.AreEqual(20260716u, production.ChainId);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void FromChainDirectory_PrefersTopLevelPluginConfig()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-settlement-chain-" + Guid.NewGuid().ToString("N"));
+        var pluginDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Settlement");
+        Directory.CreateDirectory(pluginDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(pluginDir, "config.json"), """
+                {
+                  "PluginConfiguration": {
+                    "ChainId": 1001,
+                    "L1RpcEndpoint": "http://127.0.0.1:10332",
+                    "ExpectedNetwork": 860833102,
+                    "SettlementManagerHash": "0x1111111111111111111111111111111111111111",
+                    "ForcedInclusionHash": "0x2222222222222222222222222222222222222222",
+                    "ProofType": 1
+                  }
+                }
+                """);
+
+            var s = L2SettlementSettings.FromChainDirectory(dir);
+            Assert.AreEqual(1001u, s.ChainId);
+            Assert.AreEqual("http://127.0.0.1:10332", s.L1RpcEndpoint);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void FromPluginConfigFile_MissingFile_FailsClosed()
+    {
+        Assert.ThrowsExactly<FileNotFoundException>(
+            () => L2SettlementSettings.FromPluginConfigFile(
+                Path.Combine(Path.GetTempPath(), "missing-settlement-config-" + Guid.NewGuid().ToString("N") + ".json")));
+    }
+
+    [TestMethod]
+    public void FromPluginConfigFile_RejectsPrivateKeyFields()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-settlement-wif-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var path = Path.Combine(dir, "config.json");
+            File.WriteAllText(path, """
+                {
+                  "PluginConfiguration": {
+                    "ChainId": 1001,
+                    "Wif": "Kxshouldnotbehere"
+                  }
+                }
+                """);
+            Assert.ThrowsExactly<InvalidDataException>(() => L2SettlementSettings.FromPluginConfigFile(path));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void FromChainDirectory_LiveDeployReport_RoundTripsHeightsAndProofType()
+    {
+        var reportPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-settlement-live-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "chain.config.json"), """
+                {
+                  "chainId": 20260716,
+                  "proofType": "Zk",
+                  "securityLevel": "Validity",
+                  "daMode": "L1"
+                }
+                """);
+            var report = NeoHubDeployReport.Load(reportPath);
+            report.WriteOperatorArtifacts(dir);
+
+            var s = L2SettlementSettings.FromChainDirectory(dir);
+            Assert.AreEqual(20260716u, s.ChainId);
+            Assert.AreEqual((byte)ProofType.Zk, s.ProofType);
+            Assert.AreEqual(17729309u, s.ForcedInclusionDeploymentHeight);
+            Assert.AreEqual(17729307u, s.SharedBridgeDeploymentHeight);
+            Assert.AreEqual(17729303u, s.MessageRouterDeploymentHeight);
+            Assert.AreEqual(1u, s.L1FinalityDepth);
+            Assert.IsFalse(string.IsNullOrWhiteSpace(s.SharedBridgeHash));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(s.MessageRouterHash));
+            _ = s.ValidateProduction();
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
     private static L2SettlementSettings ValidProductionSettings(
         uint chainId = 1001,
         string endpoint = "https://l1.example.invalid:10331/rpc",

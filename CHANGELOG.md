@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Gateway host composition order (aggregator before outbox) — 2026-07-17
+
+- `L2GatewayPlugin.CreateFromChainDirectory` now loads settings only; attaching the
+  durable outbox first made `UseAggregator` fail closed (outbox rehydrate binds the
+  active aggregator).
+- Added `CreateDurableFromChainDirectory(chainDir, aggregator)` and
+  `AttachOutboxFromChainDirectory` for the production order:
+  settings → UseAggregator → outbox → ConfigureGlobalRootPublication.
+- Wireproduction notes document the durable factory; unit coverage for settings-only
+  + durable path.
+
 ### Added — L2BridgePlugin CreateFromChainDirectory + deploy-report config — 2026-07-17
 
 - `L2BridgeSettings.FromChainDirectory` / `L2BridgePlugin.CreateFromChainDirectory` preload
@@ -15,15 +26,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added — L2GatewayPlugin CreateFromChainDirectory + durable outbox layout — 2026-07-17
 
-- `L2GatewaySettings.FromChainDirectory` / `L2GatewayPlugin.CreateFromChainDirectory`
-  preload Enabled/MaxAutomaticRetries and attach `PersistentGatewayOutbox` under
-  `data/gateway/outbox`. Production still requires `UseAggregator` +
-  `ConfigureGlobalRootPublication` (funded DA/prover/publisher).
+- `L2GatewaySettings.FromChainDirectory` / settings-only `CreateFromChainDirectory`
+  (see follow-up fix: outbox must attach after aggregator).
 - `PersistentGatewayOutbox.OpenFromChainDirectory`; deploy-report materializes
-  `Neo.Plugins.L2Gateway` config (`gatewayEnabled` from chain.config) and documents
-  gateway factory/helpers in wireproduction notes.
+  `Neo.Plugins.L2Gateway` config (`gatewayEnabled` from chain.config).
 - `EnsureSettlementStoreDirectories` creates seven durable store dirs (adds gateway outbox).
-- Unit coverage: settings load, missing config fail-closed, outbox open/reopen, deploy-report notes.
 
 ### Fixed — SharedBridge.Deposit live on Neo N3 testnet — 2026-07-17
 

@@ -182,8 +182,11 @@ public class UT_NeoHubDeployReport
                 "L2DAPlugin.CreateLocalFromChainDirectory(chainDirectory)",
                 stores.GetProperty("localDaPluginFactory").GetString());
             Assert.AreEqual(
-                "L2GatewayPlugin.CreateFromChainDirectory(chainDirectory)",
+                "L2GatewayPlugin.CreateDurableFromChainDirectory(chainDirectory, aggregator)",
                 stores.GetProperty("gatewayPluginFactory").GetString());
+            Assert.AreEqual(
+                "L2GatewayPlugin.CreateFromChainDirectory(chainDirectory)",
+                stores.GetProperty("gatewayPluginSettingsOnly").GetString());
             Assert.AreEqual(
                 NeoHubDeployReport.RelativeRpcProofStoreDir,
                 stores.GetProperty("rpcProofStore").GetString());

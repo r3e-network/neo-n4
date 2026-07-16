@@ -377,10 +377,10 @@ real secp256k1 signatures.
 | registerChain | tx `0xb3d02a5f…9f26` HALT; genesis root `0x59be9f14…5130` |
 | TokenRegistry | GAS+NEO mappings for chain `20260716` live (`0xc1f44721…e06a`, `0xb51c8e4f…7daa`) |
 | ForcedInclusion | nonce 1 enqueued (`0x73924dce…f412`, HALT); needs `WitnessScope.Global` for fee transfer |
-| SharedBridge deposit | **live fixed**: new bridge `0xf64548c2…1bae` (nccs recompile of `Transaction.Sender` Deposit); live Deposit tx `0x9b72709e…4675ae` HALT nonce 1 with `WitnessScope.Global`. Legacy `0xf2f5114b…b241` still broken. Chain `20260716` config still points at legacy until governance retarget (**funded/governance gate**). |
+| SharedBridge deposit | **live fixed**: bridge `0xf64548c2…1bae`; Deposit nonce 1 (`0x9b72709e…4675ae`) + nonce 2 (`0x77ea50a9…fe6f31`) HALT with `WitnessScope.Global`. Full bundle reverify 24/24 reuse + 42 smoke (2026-07-17). Legacy `0xf2f5114b…b241` still broken. Chain `20260716` config still points at legacy until governance retarget (**funded/governance gate**). |
 | Local Multisig DA | **code-complete**: `PersistentDAWriter.OpenLocalFromChainDirectory` → `data/settlement/da` |
-| Host WireProduction | **code-complete**: batch/settlement/bridge/prover/metrics/gateway `CreateFromChainDirectory` + local DA + RPC proofs + gateway outbox + `WireProductionFromLayout` + Multisig/Optimistic provers; Zk: `OpenStateFromChainDirectory` + Sp1 stack (still needs funded executor binary + VK + production DA); Gateway production still needs aggregator/prover/publisher wiring |
-| Evidence | [`docs/audit/testnet-deployment-20260716-live.json`](./docs/audit/testnet-deployment-20260716-live.json), [`docs/audit/testnet-deployment-20260717-reverify.json`](./docs/audit/testnet-deployment-20260717-reverify.json), [`docs/audit/testnet-deployment-20260717-sharedbridge-fix.json`](./docs/audit/testnet-deployment-20260717-sharedbridge-fix.json), [`docs/audit/testnet-evidence-status-2026-07-17.json`](./docs/audit/testnet-evidence-status-2026-07-17.json) |
+| Host WireProduction | **code-complete**: batch/settlement/bridge/prover/metrics/gateway factories + local DA + RPC proofs + gateway outbox + `WireProductionFromLayout` + Multisig/Optimistic provers; Zk: `OpenStateFromChainDirectory` + Sp1 stack (still needs funded executor binary + VK + production DA); Gateway: `CreateDurableFromChainDirectory(chainDir, aggregator)` then `ConfigureGlobalRootPublication` (funded prover/publisher) |
+| Evidence | [`docs/audit/testnet-deployment-20260716-live.json`](./docs/audit/testnet-deployment-20260716-live.json), [`docs/audit/testnet-deployment-20260717-reverify.json`](./docs/audit/testnet-deployment-20260717-reverify.json), [`docs/audit/testnet-deployment-20260717-full-reverify.json`](./docs/audit/testnet-deployment-20260717-full-reverify.json), [`docs/audit/testnet-deployment-20260717-sharedbridge-fix.json`](./docs/audit/testnet-deployment-20260717-sharedbridge-fix.json), [`docs/audit/testnet-evidence-status-2026-07-17.json`](./docs/audit/testnet-evidence-status-2026-07-17.json), [`docs/audit/testnet-evidence-status-2026-07-17-session.json`](./docs/audit/testnet-evidence-status-2026-07-17-session.json) |
 
 Key hashes: ChainRegistry `0x65201c54…2d23`, SettlementManager `0x11448868…bb51`, SharedBridge **fixed** `0xf64548c2…1bae` (legacy `0xf2f5114b…b241`), MessageRouter `0x3caf3c6e…fe90`, ForcedInclusion `0x962829ae…55a9`, TokenRegistry `0x96ae4655…505b`, Sp1Groth16Verifier `0x1004bb51…0c4d`. Scanner deploy heights (legacy bundle): ForcedInclusion `17729309`, SharedBridge `17729307`, MessageRouter `17729303`.
 
@@ -421,8 +421,10 @@ These are explicit deployment seams rather than missing protocol algorithms:
   `WithProductionBackend`), L2 RPC
   `InMemoryL2RpcStore.OpenFromChainDirectory(chainDir)` then `NeoSystem.AddService(store)`
   (durable proofs under `data/rpc/proofs`), and Gateway
-  `L2GatewayPlugin.CreateFromChainDirectory(chainDir)` (durable outbox under
-  `data/gateway/outbox`; then `UseAggregator` + `ConfigureGlobalRootPublication`).
+  `L2GatewayPlugin.CreateDurableFromChainDirectory(chainDir, aggregator)` (settings →
+  aggregator → durable outbox under `data/gateway/outbox`) then
+  `ConfigureGlobalRootPublication` (or settings-only `CreateFromChainDirectory` when the
+  host will call `UseAggregator` / `AttachOutboxFromChainDirectory` separately).
   Deploy-report materialization writes settlement + batch + bridge + prover + metrics + DA +
   gateway plugin configs (ProofType/DAMode/gatewayEnabled from chain.config).
   Genesis root via `L2GenesisManifest.ReadInitialStateRootFromChainDirectory`; Multisig/Optimistic

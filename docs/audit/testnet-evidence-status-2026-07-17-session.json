@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "checkedAtUtc": "2026-07-16T18:04:41Z",
+  "rpc": "https://n3seed1.ngd.network:20332/",
+  "networkMagic": 894710606,
+  "signerAddress": "NLtL2v28d7TyMEaXcPqtekunkFRksJ7wxu",
+  "signerScriptHash": "0x13ef519c362973f9a34648a9eac5b71250b2a80a",
+  "l2ChainId": 20260716,
+  "gasBalanceApprox": 112479.02,
+  "deployReverify": {
+    "report": "docs/audit/testnet-deployment-20260717-full-reverify.json",
+    "counts": {
+      "deploy/reused": 24,
+      "postdeploy/reused": 29,
+      "smoke/ok": 42
+    },
+    "sharedBridgeReused": "0xf64548c2c947f5c2150b467700c0f46f90dc1bae"
+  },
+  "chain20260716": {
+    "isActive": true,
+    "securityLevel": 3,
+    "registeredBridgeStillLegacy": "0xf2f5114b83dd6fed4ddcac0ff9966fd22a77b241",
+    "note": "Chain config still points at legacy SharedBridge; Deposit works on fixed bridge independently. Governance retarget needed for L2 scanner default."
+  },
+  "tokenRegistry": {
+    "GAS": true,
+    "NEO": true
+  },
+  "forcedInclusion": {
+    "fee": 100000,
+    "isProductionReady": true
+  },
+  "sharedBridgeDeposit": {
+    "fixedBridge": "0xf64548c2c947f5c2150b467700c0f46f90dc1bae",
+    "legacyBridge": "0xf2f5114b83dd6fed4ddcac0ff9966fd22a77b241",
+    "priorDepositNonce1": "present on fixed bridge",
+    "liveDepositNonce2": {
+      "status": "HALT",
+      "txHash": "0x77ea50a93b56f51528a74bb02b9cccac00833762913ab9187932eede10fe6f31",
+      "amountDatoshi": 100000,
+      "witnessScope": "Global",
+      "notifications": 2
+    },
+    "legacyDepositTestInvoke": "FAULT asset transfer failed (expected)"
+  },
+  "securityNote": "WIF used only via process env; not written to repo."
+}

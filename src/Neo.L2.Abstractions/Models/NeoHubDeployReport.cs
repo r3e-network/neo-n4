@@ -353,6 +353,8 @@ public sealed record NeoHubDeployReport(
                     ["metricsPluginFactory"] = "L2MetricsPlugin.CreateFromChainDirectory(chainDirectory)",
                     ["localDaPluginFactory"] = "L2DAPlugin.CreateLocalFromChainDirectory(chainDirectory)",
                     ["gatewayPluginFactory"] =
+                        "L2GatewayPlugin.CreateDurableFromChainDirectory(chainDirectory, aggregator)",
+                    ["gatewayPluginSettingsOnly"] =
                         "L2GatewayPlugin.CreateFromChainDirectory(chainDirectory)",
                     ["stateStore"] = RelativeStateDir,
                     ["rpcProofStore"] = RelativeRpcProofStoreDir,
@@ -393,9 +395,11 @@ public sealed record NeoHubDeployReport(
                     "L2 RPC: InMemoryL2RpcStore.OpenFromChainDirectory(chainDir) then "
                     + "NeoSystem.AddService(store) before L2RpcPlugin registers methods "
                     + "(durable proofs under " + RelativeRpcProofStoreDir + ")",
-                    "Gateway: L2GatewayPlugin.CreateFromChainDirectory(chainDir) attaches durable "
-                    + "outbox at " + RelativeGatewayOutboxStoreDir
-                    + "; then UseAggregator + ConfigureGlobalRootPublication (production DA/prover)",
+                    "Gateway: L2GatewayPlugin.CreateDurableFromChainDirectory(chainDir, aggregator) "
+                    + "(settings → UseAggregator → AttachOutboxFromChainDirectory at "
+                    + RelativeGatewayOutboxStoreDir + "); then ConfigureGlobalRootPublication "
+                    + "(production proof prover + proof-bound publisher). CreateFromChainDirectory "
+                    + "alone loads settings only so UseAggregator is not blocked by an early outbox",
                     "Zk: state = Sp1SettlementExecutionStack.OpenStateFromChainDirectory(chainDir) "
                     + "then CreateFromChainDirectory(chainDir, state, executorPath, executorSha256, vk) "
                     + "after bootstrap-genesis (ensures prover/executor-scratch + prover/inbox; "

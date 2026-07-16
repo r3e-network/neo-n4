@@ -110,18 +110,51 @@ public sealed class L2GatewayPlugin : Plugin
 
     /// <summary>
     /// Host composition factory: load Enabled/MaxAutomaticRetries from a chain directory
-    /// and attach a durable <see cref="PersistentGatewayOutbox"/> under
-    /// <c>data/gateway/outbox</c>. Call <see cref="UseAggregator"/> and
-    /// <see cref="ConfigureGlobalRootPublication"/> before accepting production work.
+    /// without attaching the durable outbox yet.
     /// </summary>
+    /// <remarks>
+    /// Production order is fail-closed and intentional:
+    /// <list type="number">
+    ///   <item><description><see cref="CreateFromChainDirectory"/></description></item>
+    ///   <item><description><see cref="UseAggregator"/> (must precede outbox)</description></item>
+    ///   <item><description><see cref="AttachOutboxFromChainDirectory"/> or
+    ///   <see cref="UsePersistentOutbox"/></description></item>
+    ///   <item><description><see cref="ConfigureGlobalRootPublication"/></description></item>
+    /// </list>
+    /// Attaching the outbox first would freeze the default pass-through aggregator and block
+    /// production <see cref="UseAggregator"/> (outbox rehydrate submits into the active aggregator).
+    /// Prefer <see cref="CreateDurableFromChainDirectory"/> when the aggregator is known.
+    /// </remarks>
     public static L2GatewayPlugin CreateFromChainDirectory(string chainDirectory)
     {
         var settings = L2GatewaySettings.FromChainDirectory(chainDirectory);
-        var plugin = new L2GatewayPlugin(settings);
-        plugin.UsePersistentOutbox(
+        return new L2GatewayPlugin(settings);
+    }
+
+    /// <summary>
+    /// Host composition: settings + production aggregator + durable outbox under
+    /// <c>data/gateway/outbox</c>. Call <see cref="ConfigureGlobalRootPublication"/> next.
+    /// </summary>
+    public static L2GatewayPlugin CreateDurableFromChainDirectory(
+        string chainDirectory,
+        IGatewayAggregator aggregator)
+    {
+        ArgumentNullException.ThrowIfNull(aggregator);
+        var plugin = CreateFromChainDirectory(chainDirectory);
+        plugin.UseAggregator(aggregator);
+        plugin.AttachOutboxFromChainDirectory(chainDirectory);
+        return plugin;
+    }
+
+    /// <summary>
+    /// Attach <see cref="PersistentGatewayOutbox"/> at
+    /// <c>data/gateway/outbox</c> after <see cref="UseAggregator"/>.
+    /// </summary>
+    public void AttachOutboxFromChainDirectory(string chainDirectory)
+    {
+        UsePersistentOutbox(
             PersistentGatewayOutbox.OpenFromChainDirectory(chainDirectory),
             ownsOutbox: true);
-        return plugin;
     }
 
     /// <summary>Loaded gateway settings (host composition / tests).</summary>

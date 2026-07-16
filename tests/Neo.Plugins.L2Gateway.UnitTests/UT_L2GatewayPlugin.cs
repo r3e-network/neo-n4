@@ -268,7 +268,7 @@ public class UT_L2GatewayPlugin
     }
 
     [TestMethod]
-    public void CreateFromChainDirectory_LoadsSettingsAndAttachesOutbox()
+    public void CreateFromChainDirectory_LoadsSettingsWithoutOutbox()
     {
         var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-cfd-" + Guid.NewGuid().ToString("N"));
         var configDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Gateway");
@@ -286,9 +286,43 @@ public class UT_L2GatewayPlugin
             using var plugin = L2GatewayPlugin.CreateFromChainDirectory(dir);
             Assert.IsTrue(plugin.Settings.Enabled);
             Assert.AreEqual(7, plugin.Settings.MaxAutomaticRetries);
+            // Settings-only factory must leave outbox detached so UseAggregator remains legal.
+            Assert.IsFalse(plugin.HasPersistentOutbox);
+            plugin.UseAggregator(new BinaryTreeAggregator(new MerklePathRoundProver()));
+            Assert.IsInstanceOfType(plugin.Aggregator, typeof(BinaryTreeAggregator));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void CreateDurableFromChainDirectory_AggregatorThenOutbox()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-durable-" + Guid.NewGuid().ToString("N"));
+        var configDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Gateway");
+        Directory.CreateDirectory(configDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(configDir, "config.json"), """
+                {
+                  "PluginConfiguration": {
+                    "Enabled": true,
+                    "MaxAutomaticRetries": 3
+                  }
+                }
+                """);
+            using var plugin = L2GatewayPlugin.CreateDurableFromChainDirectory(
+                dir, new BinaryTreeAggregator(new MerklePathRoundProver()));
             Assert.IsTrue(plugin.HasPersistentOutbox);
+            Assert.IsInstanceOfType(plugin.Aggregator, typeof(BinaryTreeAggregator));
             Assert.IsTrue(Directory.Exists(Path.Combine(
                 dir, NeoHubDeployReport.RelativeGatewayOutboxStoreDir)));
+            // Outbox attached → further aggregator swap fails closed.
+            Assert.ThrowsExactly<InvalidOperationException>(
+                () => plugin.UseAggregator(new PassThroughAggregator()));
         }
         finally
         {

@@ -431,8 +431,9 @@ These are explicit deployment seams rather than missing protocol algorithms:
   + `ConfigureGlobalRootPublication` (gateway host daemon + funded L1 remain
   operator-supplied; settings-only `CreateFromChainDirectory` when the host will call
   `UseAggregator` / `AttachOutboxFromChainDirectory` separately). Multisig batch provers:
-  `L2ProverPlugin.CreateMultisigWiredFromChainDirectory(chainDir, signers)`. Zk batch provers:
-  `L2ProverPlugin.CreateZkWiredFromChainDirectory(chainDir, vk)` /
+  `L2ProverPlugin.CreateMultisigWiredFromChainDirectory(chainDir, signers)`. Optimistic:
+  `CreateOptimisticWiredFromChainDirectory(chainDir, sequencerKey, bondContract, bondTxHash)`.
+  Zk batch provers: `CreateZkWiredFromChainDirectory(chainDir, vk)` /
   `Sp1BatchProofProver.OpenFromChainDirectory(chainDir, vk)` (queue `prover/inbox`).
   Deploy-report materialization writes settlement + batch + bridge + prover + metrics + DA +
   gateway plugin configs (ProofType/DAMode/gatewayEnabled from chain.config).

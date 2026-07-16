@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — deploy-report settlement ProofType follows chain.config.json — 2026-07-16
+
+- `NeoHubDeployReport.WriteOperatorArtifacts` maps `chain.config.json` `proofType`
+  (`None`/`Multisig`/`Optimistic`/`Zk`) into the settlement plugin `ProofType` byte instead
+  of hardcoding Multisig(1), so zk-rollup templates materialize Validity/ZK settlement
+  configs. Emits `l1.wireproduction-notes.json` listing WireProduction caller-owned args.
+- Quick-path integration covers create-chain (zk-rollup) → init-l2 --from-deploy-report →
+  bootstrap-genesis → register-chain against the live testnet evidence JSON.
+
 ### Added — init-l2 from-deploy-report + plugin config install — 2026-07-16
 
 - `neo-stack init-l2 --from-deploy-report <evidence.json>` materializes `l1.deployed.json`

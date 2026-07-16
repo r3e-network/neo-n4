@@ -386,6 +386,7 @@ production DA credentials, real SP1 proof vectors. Locally the operator path is 
 neo-stack create-chain --chain-id 20260716 --output ./my-l2 --template zk-rollup
 neo-stack init-l2 --chain-id 20260716 --output ./my-l2 \
   --from-deploy-report docs/audit/testnet-deployment-20260716-live.json
+# settlement config ProofType=Zk from chain.config; batch config + wireproduction-notes
 neo-stack bootstrap-genesis --chain-id 20260716 --output ./my-l2
 neo-stack register-chain --chain-id 20260716 --output ./my-l2 \
   --from-deploy-report docs/audit/testnet-deployment-20260716-live.json

@@ -114,6 +114,19 @@ public class UT_NeoHubDeployReport
         var dir = Path.Combine(Path.GetTempPath(), "neo-n4-deploy-report-" + Guid.NewGuid().ToString("N"));
         try
         {
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(Path.Combine(dir, "chain.config.json"), """
+                {
+                  "chainId": 20260716,
+                  "proofType": "Zk",
+                  "securityLevel": "Validity",
+                  "daMode": "L1",
+                  "sequencerModel": "DbftCommittee",
+                  "exitModel": "Permissionless",
+                  "gatewayEnabled": true,
+                  "permissionlessExit": true
+                }
+                """);
             var report = NeoHubDeployReport.Parse(MinimalReportJson());
             report.WriteOperatorArtifacts(dir);
 
@@ -132,6 +145,7 @@ public class UT_NeoHubDeployReport
             using var settlement = JsonDocument.Parse(File.ReadAllText(settlementPath));
             var plugin = settlement.RootElement.GetProperty("PluginConfiguration");
             Assert.AreEqual(20260716u, plugin.GetProperty("ChainId").GetUInt32());
+            Assert.AreEqual((byte)ProofType.Zk, plugin.GetProperty("ProofType").GetByte());
             Assert.AreEqual(
                 report.MessageRouter.ToString(),
                 plugin.GetProperty("MessageRouterHash").GetString());
@@ -145,6 +159,25 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 20260716u,
                 batch.RootElement.GetProperty("PluginConfiguration").GetProperty("ChainId").GetUInt32());
+
+            Assert.IsTrue(File.Exists(Path.Combine(dir, "l1.wireproduction-notes.json")));
+            Assert.AreEqual((byte)ProofType.Zk, NeoHubDeployReport.ResolveProofTypeByte(dir));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void ResolveProofTypeByte_DefaultsToMultisigWithoutConfig()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-proof-type-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(dir);
+            Assert.AreEqual((byte)ProofType.Multisig, NeoHubDeployReport.ResolveProofTypeByte(dir));
         }
         finally
         {

@@ -136,6 +136,10 @@ public sealed record NeoHubDeployReport(
             JsonSerializer.Serialize(deployed, jsonOptions) + Environment.NewLine);
         written.Add("l1.deployed.json");
 
+        // Prefer chain.config.json proofType so zk-rollup / optimistic templates do not
+        // silently materialize Multisig settlement configs.
+        var proofTypeByte = ResolveProofTypeByte(chainDirectory);
+
         var settlement = new Dictionary<string, object?>
         {
             ["PluginConfiguration"] = new Dictionary<string, object?>
@@ -148,7 +152,7 @@ public sealed record NeoHubDeployReport(
                 ["SharedBridgeHash"] = SharedBridge.ToString(),
                 ["L2BridgeHash"] = "",
                 ["MessageRouterHash"] = MessageRouter.ToString(),
-                ["ProofType"] = 1,
+                ["ProofType"] = proofTypeByte,
                 ["Enabled"] = true,
             },
         };
@@ -177,7 +181,81 @@ public sealed record NeoHubDeployReport(
             batchJson,
             alsoWriteFromDeployCopy: true));
 
+        // Operator checklist for WireProduction args that are not plugin config fields
+        // (durable store paths + non-zero deploy heights remain operator-supplied).
+        var notes = new Dictionary<string, object?>
+        {
+            ["schemaVersion"] = 1,
+            ["l2ChainId"] = L2ChainId,
+            ["proofType"] = proofTypeByte,
+            ["wireProduction"] = new Dictionary<string, object?>
+            {
+                ["settlementManagerHash"] = SettlementManager.ToString(),
+                ["forcedInclusionHash"] = ForcedInclusion.ToString(),
+                ["sharedBridgeHash"] = SharedBridge.ToString(),
+                ["messageRouterHash"] = MessageRouter.ToString(),
+                ["l1RpcEndpoint"] = Rpc,
+                ["expectedNetwork"] = Network,
+                ["requiredCallerArgs"] = new[]
+                {
+                    "INeoTransactionSigner",
+                    "durable proofWitnessStore",
+                    "durable forcedInclusionEventStore + forcedInclusionDeploymentHeight",
+                    "durable sharedBridgeDepositEventStore + sharedBridgeDeploymentHeight (when SharedBridgeHash set)",
+                    "durable messageRouterEventStore + messageRouterDeploymentHeight (when MessageRouterHash set)",
+                    "l1FinalizedHeight + sequencerCommitteeHash providers",
+                },
+            },
+            ["genesisManifest"] = BootstrapGenesisManifestRelativePath,
+            ["registerChain"] = new Dictionary<string, object?>
+            {
+                ["chainRegistry"] = ChainRegistry.ToString(),
+                ["operatorManager"] = DefaultOperatorManager.ToString(),
+                ["verifier"] = VerifierRegistry.ToString(),
+                ["bridge"] = SharedBridge.ToString(),
+                ["message"] = MessageRouter.ToString(),
+            },
+        };
+        var notesPath = Path.Combine(chainDirectory, "l1.wireproduction-notes.json");
+        File.WriteAllText(
+            notesPath,
+            JsonSerializer.Serialize(notes, jsonOptions) + Environment.NewLine);
+        written.Add("l1.wireproduction-notes.json");
+
         return written;
+    }
+
+    /// <summary>Relative path of the genesis manifest written by <c>bootstrap-genesis</c>.</summary>
+    public const string BootstrapGenesisManifestRelativePath = "genesis-manifest.json";
+
+    /// <summary>
+    /// Map <c>chain.config.json</c> <c>proofType</c> name to the settlement plugin byte.
+    /// Defaults to Multisig(1) when the file or field is absent.
+    /// </summary>
+    public static byte ResolveProofTypeByte(string chainDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        var configPath = Path.Combine(chainDirectory, "chain.config.json");
+        if (!File.Exists(configPath))
+            return (byte)ProofType.Multisig;
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(configPath));
+            if (!doc.RootElement.TryGetProperty("proofType", out var prop)
+                || prop.ValueKind != JsonValueKind.String
+                || string.IsNullOrWhiteSpace(prop.GetString()))
+                return (byte)ProofType.Multisig;
+            var name = prop.GetString()!;
+            if (!Enum.TryParse<ProofType>(name, ignoreCase: true, out var proofType))
+                throw new ArgumentException(
+                    $"chain.config.json proofType='{name}' is not a valid ProofType");
+            return (byte)proofType;
+        }
+        catch (JsonException ex)
+        {
+            throw new ArgumentException(
+                $"chain.config.json is not valid JSON: {ex.Message}", ex);
+        }
     }
 
     private static IEnumerable<string> WritePluginConfig(

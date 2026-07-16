@@ -264,4 +264,73 @@ public class UT_QuickPathIntegration
         Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "QuickPathExecutor")));
         Assert.IsTrue(Directory.Exists(Path.Combine(_tempDir, "QuickPathExecutor.UnitTests")));
     }
+
+    [TestMethod]
+    public async Task QuickPath_DeployReportToRegistration_ProducesZkConfigBytes()
+    {
+        // Documented post-testnet path: create-chain (zk) → init-l2 --from-deploy-report
+        // → bootstrap-genesis → register-chain (auto genesis-manifest + report hashes).
+        var reportPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        Assert.AreEqual(0, CreateChainCommand.Run(
+        [
+            "--chain-id", "20260716",
+            "--template", "zk-rollup",
+            "--output", _tempDir,
+        ]));
+        Assert.AreEqual(0, InitL2Command.Run(
+        [
+            "--chain-id", "20260716",
+            "--output", _tempDir,
+            "--from-deploy-report", reportPath,
+        ]));
+        Assert.IsTrue(File.Exists(Path.Combine(
+            _tempDir, "Plugins", "Neo.Plugins.L2Settlement", "config.json")));
+        using (var settlement = System.Text.Json.JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(
+                _tempDir, "Plugins", "Neo.Plugins.L2Settlement", "config.json"))))
+        {
+            Assert.AreEqual(
+                (byte)Neo.L2.ProofType.Zk,
+                settlement.RootElement.GetProperty("PluginConfiguration")
+                    .GetProperty("ProofType").GetByte(),
+                "zk-rollup chain.config must materialize ProofType=Zk (3)");
+        }
+        Assert.IsTrue(File.Exists(Path.Combine(_tempDir, "l1.wireproduction-notes.json")));
+
+        Assert.AreEqual(0, BootstrapGenesisCommand.Run(
+        [
+            "--chain-id", "20260716",
+            "--output", _tempDir,
+            "--ephemeral",
+        ]));
+
+        var origOut = Console.Out;
+        try
+        {
+            var sw = new StringWriter();
+            Console.SetOut(sw);
+            var rc = await RegisterChainCommand.RunAsync(
+            [
+                "--chain-id", "20260716",
+                "--output", _tempDir,
+                "--from-deploy-report", reportPath,
+            ]);
+            Assert.AreEqual(0, rc);
+            var output = sw.ToString();
+            StringAssert.Contains(output, "configBytes=<91 bytes>");
+            // SharedBridge is the --bridge value printed in the registration plan.
+            StringAssert.Contains(output, "0xf2f5114b83dd6fed4ddcac0ff9966fd22a77b241");
+            StringAssert.Contains(output, "0x3caf3c6e160b5aec2e07672dc37662b5998afe90");
+        }
+        finally
+        {
+            Console.SetOut(origOut);
+        }
+    }
 }

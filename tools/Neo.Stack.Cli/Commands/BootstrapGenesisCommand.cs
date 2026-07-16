@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using Neo.L2;
 using Neo.L2.Executor;
 using Neo.L2.Executor.ProofWitness;
 using Neo.L2.Persistence;
@@ -131,25 +132,7 @@ internal static class BootstrapGenesisCommand
 
     /// <summary>Read a previously written genesis-manifest.json and return the root.</summary>
     public static UInt256 ReadInitialStateRoot(string manifestPath)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(manifestPath);
-        if (!File.Exists(manifestPath))
-            throw new FileNotFoundException("genesis manifest not found", manifestPath);
-        using var doc = JsonDocument.Parse(File.ReadAllText(manifestPath));
-        if ((!doc.RootElement.TryGetProperty("initialStateRoot", out var rootEl)
-                && !doc.RootElement.TryGetProperty("InitialStateRoot", out rootEl))
-            || rootEl.ValueKind != JsonValueKind.String)
-            throw new InvalidDataException("genesis manifest missing initialStateRoot");
-        var text = rootEl.GetString()
-            ?? throw new InvalidDataException("genesis manifest initialStateRoot is null");
-        if (string.IsNullOrWhiteSpace(text)
-            || !UInt256.TryParse(text, out var root)
-            || root is null
-            || root.Equals(UInt256.Zero))
-            throw new InvalidDataException(
-                "genesis manifest initialStateRoot must be a non-zero UInt256");
-        return root;
-    }
+        => L2GenesisManifest.ReadInitialStateRoot(manifestPath);
 
     internal static UInt256 Bootstrap(IL2KeyValueStore state)
     {

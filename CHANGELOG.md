@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — L2GenesisManifest reader + LocalKeyTransactionSigner WIF factories — 2026-07-16
+
+- `L2GenesisManifest.ReadInitialStateRoot` / `ReadInitialStateRootFromChainDirectory` load the
+  non-zero genesis root from `genesis-manifest.json` (camelCase or PascalCase) for host
+  profile wiring after `bootstrap-genesis`.
+- `neo-stack bootstrap-genesis` / `register-chain` reuse the shared reader.
+- `LocalKeyTransactionSigner.FromWif` and `FromEnvironmentVariable` (default
+  `NEO_N4_OPERATOR_WIF`) for local/testnet signing; stack CLI WIF import uses `FromWif`.
+- Wireproduction notes document both helpers.
+
 ### Added — sequencer committee hash from chain.config.json validators — 2026-07-16
 
 - `SequencerCommitteeConfig.ReadValidators` / `CreateStaticHashProvider` load compressed

@@ -382,27 +382,7 @@ internal static class OperatorTransactionSignerFactory
     }
 
     private static LocalKeyTransactionSigner ImportLocalKeySigner(string wif)
-    {
-        var payload = wif.Base58CheckDecode();
-        try
-        {
-            if (payload.Length != 34 || payload[0] != 0x80 || payload[33] != 0x01)
-                throw new FormatException("WIF payload is not a compressed Neo private key.");
-            var key = new KeyPair(payload[1..33]);
-            try
-            {
-                return new LocalKeyTransactionSigner(key);
-            }
-            finally
-            {
-                key.PrivateKey.AsSpan().Clear();
-            }
-        }
-        finally
-        {
-            payload.AsSpan().Clear();
-        }
-    }
+        => LocalKeyTransactionSigner.FromWif(wif);
 
     private static bool TryParseHex(
         string value,

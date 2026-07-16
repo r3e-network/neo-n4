@@ -406,7 +406,9 @@ These are explicit deployment seams rather than missing protocol algorithms:
   `SharedBridgeHash` is configured, and optionally an owned `RpcMessageRouter` +
   `RpcMessageRouterEventScanner` when `MessageRouterHash` is configured.
   Hosts load materialised plugin config via `L2SettlementSettings.FromChainDirectory(chainDir)`
-  and `L2BatchSettings.FromChainDirectory(chainDir)` (or `FromPluginConfigFile`).
+  and `L2BatchSettings.FromChainDirectory(chainDir)` (or `FromPluginConfigFile`); genesis root
+  via `L2GenesisManifest.ReadInitialStateRootFromChainDirectory`; local signer via
+  `LocalKeyTransactionSigner.FromEnvironmentVariable` / `FromWif` (production uses HSM/KMS).
   `L2SettlementStoreLayout.Open(chainDir)` opens the canonical durable RocksDB stores under
   `data/settlement/*` for proof-witness + the three scanners;
   deploy heights and `L1FinalityDepth` come from that plugin config (materialized by

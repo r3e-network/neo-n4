@@ -259,7 +259,8 @@ public sealed record NeoHubDeployReport(
                 },
                 ["requiredCallerArgs"] = new[]
                 {
-                    "INeoTransactionSigner",
+                    "INeoTransactionSigner: LocalKeyTransactionSigner.FromEnvironmentVariable() "
+                    + "for local/testnet; production uses HSM/KMS INeoTransactionSigner",
                     "L2SettlementSettings.FromChainDirectory(chainDir) (or FromPluginConfigFile)",
                     "L2BatchSettings.FromChainDirectory(chainDir) (or FromPluginConfigFile)",
                     "L2SettlementStoreLayout.Open(chainDir) → ProofWitness + event stores "
@@ -282,6 +283,8 @@ public sealed record NeoHubDeployReport(
                     + "when chain.config.json validators is non-empty; or "
                     + "SequencerCommitteeHasher.CreateSyncProvider("
                     + "new RpcSequencerCommitteeProvider(rpc, sequencerRegistry, chainId, genesisKeys))",
+                    "genesis state root: L2GenesisManifest.ReadInitialStateRootFromChainDirectory(chainDir) "
+                    + "after bootstrap-genesis",
                     "executor + DA writer + prover + profile (e.g. Sp1SettlementExecutionStack)",
                 },
             },

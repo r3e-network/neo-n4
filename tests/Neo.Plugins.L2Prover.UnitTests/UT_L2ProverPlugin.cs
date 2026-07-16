@@ -297,6 +297,63 @@ public class UT_L2ProverPlugin
     }
 
     [TestMethod]
+    public void CreateOptimisticWiredFromChainDirectory_BindsOptimisticProver()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-prover-opt-wired-" + Guid.NewGuid().ToString("N"));
+        var configDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Prover");
+        Directory.CreateDirectory(configDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(configDir, "config.json"), """
+                { "PluginConfiguration": { "ProofType": 2 } }
+                """);
+            var priv = Enumerable.Range(1, 32).Select(i => (byte)i).ToArray();
+            var key = new Neo.Wallets.KeyPair(priv);
+            var bond = UInt160.Parse("0x" + new string('b', 40));
+            var bondTx = UInt256.Parse("0x" + new string('c', 64));
+            using var plugin = L2ProverPlugin.CreateOptimisticWiredFromChainDirectory(
+                dir, key, bond, bondTx, submittedAtUnixMs: static () => 1_700_000_000_000UL);
+            Assert.AreEqual(ProofType.Optimistic, plugin.Kind);
+            Assert.IsNotNull(plugin.Prover);
+            Assert.AreEqual(ProofType.Optimistic, plugin.Prover!.Kind);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void CreateOptimisticWiredFromChainDirectory_ZkConfig_FailsClosed()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-prover-opt-zk-" + Guid.NewGuid().ToString("N"));
+        var configDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Prover");
+        Directory.CreateDirectory(configDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(configDir, "config.json"), """
+                { "PluginConfiguration": { "ProofType": 3 } }
+                """);
+            var priv = Enumerable.Range(2, 32).Select(i => (byte)i).ToArray();
+            var key = new Neo.Wallets.KeyPair(priv);
+            var ex = Assert.ThrowsExactly<InvalidOperationException>(
+                () => L2ProverPlugin.CreateOptimisticWiredFromChainDirectory(
+                    dir,
+                    key,
+                    UInt160.Parse("0x" + new string('d', 40)),
+                    UInt256.Parse("0x" + new string('e', 64))));
+            StringAssert.Contains(ex.Message, "Optimistic");
+            StringAssert.Contains(ex.Message, "Zk");
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void Wire_Optimistic_WithProver_InstallsIL2Prover()
     {
         var priv = Enumerable.Range(1, 32).Select(i => (byte)i).ToArray();

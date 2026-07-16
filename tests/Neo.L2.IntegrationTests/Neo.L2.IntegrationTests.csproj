@@ -35,6 +35,10 @@
     <ProjectReference Include="..\..\src\Neo.Plugins.L2Batch\Neo.Plugins.L2Batch.csproj" />
     <ProjectReference Include="..\..\src\Neo.Plugins.L2Metrics\Neo.Plugins.L2Metrics.csproj" />
     <ProjectReference Include="..\..\src\Neo.Plugins.L2Rpc\Neo.Plugins.L2Rpc.csproj" />
+    <ProjectReference Include="..\..\src\Neo.Plugins.L2Settlement\Neo.Plugins.L2Settlement.csproj" />
+    <ProjectReference Include="..\..\src\Neo.Plugins.L2Prover\Neo.Plugins.L2Prover.csproj" />
+    <ProjectReference Include="..\..\src\Neo.Plugins.L2Bridge\Neo.Plugins.L2Bridge.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Gateway.Rpc\Neo.L2.Gateway.Rpc.csproj" />
     <ProjectReference Include="..\..\samples\executors\Sample.CounterChainExecutor\Sample.CounterChainExecutor.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Settlement.Rpc\Neo.L2.Settlement.Rpc.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Sdk\Neo.L2.Sdk.csproj" />

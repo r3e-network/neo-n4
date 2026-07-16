@@ -5,6 +5,7 @@ using Neo.L2.Proving;
 using Neo.L2.Proving.Attestation;
 using Neo.L2.Proving.Optimistic;
 using Neo.L2.Proving.RiscVZk;
+using Neo.Wallets;
 
 namespace Neo.Plugins.L2;
 
@@ -116,6 +117,41 @@ public sealed class L2ProverPlugin : Plugin
             resultTimeout,
             pollInterval);
         plugin.Wire(zkProver: zkProver);
+        return plugin;
+    }
+
+    /// <summary>
+    /// Host composition: load Optimistic proof type from the chain directory and wire
+    /// <see cref="OptimisticProver"/> over the sequencer key and L1 bond references.
+    /// </summary>
+    /// <remarks>
+    /// Fails closed when the chain directory configures a non-Optimistic <c>ProofType</c>.
+    /// Bond contract/tx hashes are operator-supplied (posted SequencerBond on L1 — funded).
+    /// Pass <see cref="Prover"/> into <c>WireProductionFromLayout</c> after this call.
+    /// </remarks>
+    public static L2ProverPlugin CreateOptimisticWiredFromChainDirectory(
+        string chainDirectory,
+        KeyPair sequencerKey,
+        UInt160 bondContract,
+        UInt256 bondTxHash,
+        Func<ulong>? submittedAtUnixMs = null)
+    {
+        ArgumentNullException.ThrowIfNull(sequencerKey);
+        ArgumentNullException.ThrowIfNull(bondContract);
+        ArgumentNullException.ThrowIfNull(bondTxHash);
+        var plugin = CreateFromChainDirectory(chainDirectory);
+        if (plugin.Kind != ProofType.Optimistic)
+        {
+            throw new InvalidOperationException(
+                $"CreateOptimisticWiredFromChainDirectory requires ProofType.Optimistic; "
+                + $"chain directory configures {plugin.Kind}");
+        }
+        var optimistic = new OptimisticProver(
+            sequencerKey,
+            bondContract,
+            bondTxHash,
+            submittedAtUnixMs);
+        plugin.Wire(optimisticProver: optimistic);
         return plugin;
     }
 

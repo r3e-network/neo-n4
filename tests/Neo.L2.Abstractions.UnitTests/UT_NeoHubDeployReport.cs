@@ -221,6 +221,9 @@ public class UT_NeoHubDeployReport
                 "L2ProverPlugin.CreateZkWiredFromChainDirectory(chainDirectory, verificationKeyId)",
                 stores.GetProperty("proverPluginZkWired").GetString());
             Assert.AreEqual(
+                "L2ProverPlugin.CreateOptimisticWiredFromChainDirectory(chainDirectory, sequencerKey, bondContract, bondTxHash)",
+                stores.GetProperty("proverPluginOptimisticWired").GetString());
+            Assert.AreEqual(
                 "L2SettlementPlugin.CreateDepositSourceFromChainDirectory(chainDirectory)",
                 stores.GetProperty("depositSourceFromChainDirectory").GetString());
             Assert.AreEqual(

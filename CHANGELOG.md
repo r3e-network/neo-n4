@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Optimistic prover wired factory + host-composition integration test — 2026-07-17
+
+- `L2ProverPlugin.CreateOptimisticWiredFromChainDirectory` loads Optimistic ProofType and
+  wires `OptimisticProver` (sequencer key + L1 bond refs) for `WireProductionFromLayout`.
+- Integration smoke `UT_E2E_HostComposition_FromDeployReport` materializes Multisig layout from
+  the public testnet deploy report and opens batch/settlement/bridge/metrics/DA/RPC/gateway/
+  Multisig prover/SP1 queues/publisher/L1 inbox factories without funded L1 traffic.
+- Wireproduction notes document the Optimistic factory. Bond posting remains funded.
+
 ### Added — SP1 batch prover OpenFromChainDirectory + Zk wired factory — 2026-07-17
 
 - `Sp1BatchProofProver.OpenFromChainDirectory` opens the canonical `prover/inbox` file queue

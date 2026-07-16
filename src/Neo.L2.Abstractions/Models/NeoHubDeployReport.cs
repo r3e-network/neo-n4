@@ -376,6 +376,8 @@ public sealed record NeoHubDeployReport(
                         "L2ProverPlugin.CreateMultisigWiredFromChainDirectory(chainDirectory, signers)",
                     ["proverPluginZkWired"] =
                         "L2ProverPlugin.CreateZkWiredFromChainDirectory(chainDirectory, verificationKeyId)",
+                    ["proverPluginOptimisticWired"] =
+                        "L2ProverPlugin.CreateOptimisticWiredFromChainDirectory(chainDirectory, sequencerKey, bondContract, bondTxHash)",
                     ["stateStore"] = RelativeStateDir,
                     ["rpcProofStore"] = RelativeRpcProofStoreDir,
                     ["gatewayOutboxStore"] = RelativeGatewayOutboxStoreDir,

@@ -156,6 +156,9 @@ public class UT_NeoHubDeployReport
                 "L2SettlementPlugin.WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer)",
                 stores.GetProperty("wireProductionFromLayout").GetString());
             Assert.AreEqual(
+                "MultisigLocalHostComposition.Open(chainDir, executor, signers, signer)",
+                stores.GetProperty("multisigLocalHostComposition").GetString());
+            Assert.AreEqual(
                 "L2BatchPlugin.CreateFromChainDirectory(chainDirectory)",
                 stores.GetProperty("batchPluginFactory").GetString());
             Assert.AreEqual(

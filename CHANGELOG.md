@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — MultisigLocalHostComposition chain-directory root — 2026-07-17
+
+- `MultisigLocalHostComposition.Open(chainDir, executor, signers, signer)` opens Multisig
+  batch/settlement plugins, durable layout, local DA, Multisig-wired prover, and
+  `WireProductionFromLayout` in one fail-closed call (ProofType.Multisig required).
+- Wireproduction notes document the helper. Unit coverage against the public testnet
+  deploy report with mocked L1 RPC. Executor/signer and funded L1 remain host-supplied.
+
 ### Added — L1DeployedEndpoints + Gateway publication from chain directory — 2026-07-17
 
 - `L1DeployedEndpoints.FromChainDirectory` resolves L1 RPC + SettlementManager + MessageRouter

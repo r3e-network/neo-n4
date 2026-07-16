@@ -395,6 +395,8 @@ public sealed record NeoHubDeployReport(
                         "Sp1SettlementExecutionStack.CreateFromChainDirectory(chainDir, state, executorPath, executorSha256, vk)",
                     ["wireProductionFromLayout"] =
                         "L2SettlementPlugin.WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer)",
+                    ["multisigLocalHostComposition"] =
+                        "MultisigLocalHostComposition.Open(chainDir, executor, signers, signer)",
                     ["localDaOpenHelper"] = "PersistentDAWriter.OpenLocalFromChainDirectory(chainDirectory)",
                     ["depositSourceFromChainDirectory"] =
                         "L2SettlementPlugin.CreateDepositSourceFromChainDirectory(chainDirectory)",

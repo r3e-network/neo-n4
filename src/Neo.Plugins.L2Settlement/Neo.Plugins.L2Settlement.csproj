@@ -22,6 +22,8 @@
     <ProjectReference Include="..\Neo.L2.State\Neo.L2.State.csproj" />
     <ProjectReference Include="..\Neo.L2.Telemetry\Neo.L2.Telemetry.csproj" />
     <ProjectReference Include="..\Neo.Plugins.L2Batch\Neo.Plugins.L2Batch.csproj" />
+    <ProjectReference Include="..\Neo.Plugins.L2DA\Neo.Plugins.L2DA.csproj" />
+    <ProjectReference Include="..\Neo.Plugins.L2Prover\Neo.Plugins.L2Prover.csproj" />
   </ItemGroup>
 
   <ItemGroup>

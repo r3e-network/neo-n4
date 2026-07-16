@@ -120,6 +120,7 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
     /// </summary>
     public bool RegisterInboundNonce(ulong nonce)
     {
+        ThrowIfDisposed();
         _eventScanner?.TrackNonce(nonce);
         return RegisterDiscoveredNonce(nonce);
     }
@@ -127,6 +128,7 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
     /// <summary>Force a fresh L1 fanout on the next <see cref="DequeueL1MessagesAsync"/>.</summary>
     public void InvalidateInboundCache()
     {
+        ThrowIfDisposed();
         lock (_cacheGate)
         {
             _cachedInbound = null;
@@ -142,6 +144,7 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
     /// </summary>
     public void RecordFinalizedProof(UInt256 messageHash, ReadOnlyMemory<byte> proofBytes)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(messageHash);
         _finalized.Put(messageHash.GetSpan(), proofBytes.ToArray());
     }
@@ -150,6 +153,7 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
     public async ValueTask<IReadOnlyList<CrossChainMessage>> DequeueL1MessagesAsync(
         uint chainId, int maxMessages, CancellationToken cancellationToken = default)
     {
+        ThrowIfDisposed();
         if (chainId != _chainId)
             throw new ArgumentException($"chainId {chainId} differs from local {_chainId}", nameof(chainId));
         if (maxMessages < 0) throw new ArgumentOutOfRangeException(nameof(maxMessages));
@@ -200,6 +204,7 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
     /// <inheritdoc />
     public ValueTask EnqueueOutboundAsync(IReadOnlyList<CrossChainMessage> messages, CancellationToken cancellationToken = default)
     {
+        ThrowIfDisposed();
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(messages);
         foreach (var m in messages) _outbox.Add(m);
@@ -209,6 +214,7 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
     /// <inheritdoc />
     public ValueTask<ReadOnlyMemory<byte>?> GetMessageProofAsync(UInt256 messageHash, CancellationToken cancellationToken = default)
     {
+        ThrowIfDisposed();
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(messageHash);
         var bytes = _finalized.Get(messageHash.GetSpan());
@@ -218,7 +224,14 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
     }
 
     /// <summary>The L2-internal outbox; the batcher consumes its contents when sealing.</summary>
-    public L2Outbox Outbox => _outbox;
+    public L2Outbox Outbox
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _outbox;
+        }
+    }
 
     private bool RegisterDiscoveredNonce(ulong nonce)
     {
@@ -308,5 +321,10 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
         _eventScanner?.Dispose();
         if (_ownsRpc) _rpc.Dispose();
         if (_ownsFinalized) _finalized.Dispose();
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
     }
 }

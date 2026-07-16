@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — batcher MessageRouter surface + combined L1 inbox seal evidence — 2026-07-16
+
+- `L2BatchPlugin.WireL1MessageInbox` retains and exposes the wired `MessageRouter`
+  (symmetric to `DepositSource`) so operators can record finalized message proofs after
+  settlement without holding a parallel reference.
+- Unit coverage: MessageRouter-only seal includes inbound L1 messages; deposits + MessageRouter
+  merge sorted under `sourceChainId=0`; second distinct router fails closed; `WireProduction`
+  owned router surfaces on the batcher, fails closed on volatile/zero-height event stores, and
+  is disposed with the production stack.
+- `RpcMessageRouter` instance methods fail closed after `Dispose`.
+
 ### Added — production MessageRouter event scanner + WireProduction ownership — 2026-07-16
 
 - `RpcMessageRouterEventScanner` durably discovers finalized `L1ToL2Enqueued` events

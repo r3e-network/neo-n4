@@ -2,6 +2,7 @@ using Neo.Cryptography;
 using Neo.L2;
 using Neo.L2.Batch;
 using Neo.L2.ForcedInclusion;
+using Neo.L2.Messaging;
 using Neo.L2.Telemetry;
 using Neo.Plugins.L2;
 
@@ -365,6 +366,82 @@ public class UT_L2BatchPlugin
     }
 
     [TestMethod]
+    public void WireL1MessageInbox_MessageRouter_SealsInboundMessages()
+    {
+        // MessageRouter traffic must enter the sealed batch L1 inbox via FromRouter.
+        using var router = new InMemoryMessageRouter();
+        router.Inbox.Enqueue(L1CallMessage(nonce: 3));
+        router.Inbox.Enqueue(L1CallMessage(nonce: 4));
+
+        var sink = new DurableSink();
+        using var plugin = new L2BatchPlugin(OneBlockSettings());
+        plugin.WireL1MessageInbox(
+            chainId: 1001,
+            l1FinalizedHeight: static () => 9,
+            sequencerCommitteeHash: static () => CommitteeHash,
+            messageRouter: router);
+        plugin.WithSealedBatchSink(sink, 1001);
+
+        plugin.ProcessCommittedBlock(1, 1000, 11, NoTxs());
+
+        Assert.AreSame(router, plugin.MessageRouter);
+        var batch = sink.PersistedBatches.Single();
+        Assert.AreEqual(2, batch.L1Messages.Count);
+        Assert.AreEqual(3UL, batch.L1Messages[0].Nonce);
+        Assert.AreEqual(4UL, batch.L1Messages[1].Nonce);
+        Assert.AreEqual(MessageType.Call, batch.L1Messages[0].MessageType);
+        Assert.AreEqual(0, router.Inbox.PendingCount, "dequeue must consume inbox");
+    }
+
+    [TestMethod]
+    public void WireL1MessageInbox_DepositsAndMessageRouter_MergeSorted()
+    {
+        // Combined inbox: SharedBridge deposits + MessageRouter call messages, sorted by nonce.
+        // Nonces must not collide under sourceChainId=0 (Combine fail-closed).
+        var deposits = new InMemorySharedBridgeDepositSource(1001, L2BridgeHash);
+        deposits.Enqueue(DepositRecord(nonce: 2, amount: 100));
+        deposits.Enqueue(DepositRecord(nonce: 5, amount: 200));
+        using var router = new InMemoryMessageRouter();
+        router.Inbox.Enqueue(L1CallMessage(nonce: 3));
+        router.Inbox.Enqueue(L1CallMessage(nonce: 4));
+
+        var sink = new DurableSink();
+        using var plugin = new L2BatchPlugin(OneBlockSettings());
+        plugin.WireL1MessageInbox(
+            chainId: 1001,
+            l1FinalizedHeight: static () => 1,
+            sequencerCommitteeHash: static () => CommitteeHash,
+            deposits: deposits,
+            messageRouter: router);
+        plugin.WithSealedBatchSink(sink, 1001);
+
+        plugin.ProcessCommittedBlock(1, 1000, 11, NoTxs());
+
+        var batch = sink.PersistedBatches.Single();
+        CollectionAssert.AreEqual(
+            new ulong[] { 2, 3, 4, 5 },
+            batch.L1Messages.Select(m => m.Nonce).ToArray());
+        Assert.AreEqual(MessageType.Deposit, batch.L1Messages[0].MessageType);
+        Assert.AreEqual(MessageType.Call, batch.L1Messages[1].MessageType);
+        Assert.AreSame(deposits, plugin.DepositSource);
+        Assert.AreSame(router, plugin.MessageRouter);
+        Assert.AreEqual(0, deposits.Peek(10).Count, "deposits confirmed after durable seal");
+    }
+
+    [TestMethod]
+    public void WireL1MessageInbox_RejectsSecondDistinctMessageRouter()
+    {
+        using var first = new InMemoryMessageRouter();
+        using var second = new InMemoryMessageRouter();
+        using var plugin = new L2BatchPlugin(OneBlockSettings());
+        plugin.WireL1MessageInbox(
+            1001, static () => 1, static () => CommitteeHash, messageRouter: first);
+        Assert.ThrowsExactly<InvalidOperationException>(() =>
+            plugin.WireL1MessageInbox(
+                1001, static () => 1, static () => CommitteeHash, messageRouter: second));
+    }
+
+    [TestMethod]
     public void ForcedInclusion_FiltersTrackedAndNullEntriesWithoutEarlyConsumption()
     {
         var source = new FakeForcedInclusionSource(1001)
@@ -499,6 +576,15 @@ public class UT_L2BatchPlugin
         Nonce = nonce,
         Amount = amount,
     };
+
+    private static CrossChainMessage L1CallMessage(ulong nonce) => MessageBuilder.Build(
+        sourceChainId: 0,
+        targetChainId: 1001,
+        nonce: nonce,
+        sender: AliceHash,
+        receiver: L2BridgeHash,
+        messageType: MessageType.Call,
+        payload: new byte[] { 0xCA, (byte)nonce });
 
     private static L2BatchSettings OneBlockSettings() => new()
     {

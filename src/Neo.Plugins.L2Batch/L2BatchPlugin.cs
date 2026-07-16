@@ -39,6 +39,7 @@ public sealed class L2BatchPlugin : Plugin
     private Func<UInt256>? _sequencerCommitteeHash;
     private IForcedInclusionSource? _forcedInclusionSource;
     private ISharedBridgeDepositSource? _depositSource;
+    private IMessageRouter? _messageRouter;
 
     /// <summary>Emitted after a sealed batch has been durably accepted by the configured sink.</summary>
     public event EventHandler<SealedBatch>? OnBatchSealed;
@@ -137,7 +138,12 @@ public sealed class L2BatchPlugin : Plugin
             drains.Add(L1MessageDrain.FromDeposits(deposits));
         }
         if (messageRouter is not null)
+        {
+            if (_messageRouter is not null && !ReferenceEquals(_messageRouter, messageRouter))
+                throw new InvalidOperationException("a MessageRouter is already wired");
+            _messageRouter = messageRouter;
             drains.Add(L1MessageDrain.FromRouter(messageRouter, chainId));
+        }
 
         WithSealingInputs(
             L1MessageDrain.Combine(drains.ToArray()),
@@ -147,6 +153,12 @@ public sealed class L2BatchPlugin : Plugin
 
     /// <summary>Currently wired SharedBridge deposit source, if any.</summary>
     public ISharedBridgeDepositSource? DepositSource => _depositSource;
+
+    /// <summary>
+    /// Currently wired MessageRouter, if any. Production hosts use this to record finalized
+    /// message proofs (<c>RecordFinalizedProof</c> / <c>RecordFinalized</c>) after settlement.
+    /// </summary>
+    public IMessageRouter? MessageRouter => _messageRouter;
 
     /// <summary>
     /// Wire the L1 forced-inclusion read source. The durable settlement sink remains the

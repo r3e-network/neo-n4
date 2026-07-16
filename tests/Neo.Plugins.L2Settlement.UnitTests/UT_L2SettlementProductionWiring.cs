@@ -612,6 +612,130 @@ public class UT_L2SettlementProductionWiring
         var composition = settlement.ProductionComposition;
         Assert.IsNotNull(composition);
         Assert.IsNull(composition.OwnedMessageRouter);
+        Assert.AreSame(explicitRouter, batch.MessageRouter);
+    }
+
+    [TestMethod]
+    public void WireProduction_MessageRouterZeroDeploymentHeight_FailsClosed()
+    {
+        using var backend = new TemporaryRocksDb();
+        using var forcedEvents = new TemporaryRocksDb();
+        using var routerEvents = new TemporaryRocksDb();
+        using var store = new KeyValueProofWitnessStore(backend.Store);
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin(ProductionSettingsWithMessageRouter());
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => settlement.WireProduction(
+            batch,
+            new TestExecutor(),
+            new TestDaWriter(),
+            store,
+            new TestProver(),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
+            new TrackingSigner(Account(0x5F)),
+            forcedEvents.Store,
+            forcedInclusionDeploymentHeight: 123,
+            l1FinalizedHeight: static () => 10,
+            sequencerCommitteeHash: static () => Root(0xCC),
+            messageRouterEventStore: routerEvents.Store,
+            messageRouterDeploymentHeight: 0));
+    }
+
+    [TestMethod]
+    public void WireProduction_MessageRouterVolatileEventStore_FailsClosed()
+    {
+        using var backend = new TemporaryRocksDb();
+        using var forcedEvents = new TemporaryRocksDb();
+        using var routerEvents = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend.Store);
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin(ProductionSettingsWithMessageRouter());
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => settlement.WireProduction(
+            batch,
+            new TestExecutor(),
+            new TestDaWriter(),
+            store,
+            new TestProver(),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
+            new TrackingSigner(Account(0x60)),
+            forcedEvents.Store,
+            forcedInclusionDeploymentHeight: 123,
+            l1FinalizedHeight: static () => 10,
+            sequencerCommitteeHash: static () => Root(0xCC),
+            messageRouterEventStore: routerEvents,
+            messageRouterDeploymentHeight: 40));
+    }
+
+    [TestMethod]
+    public async Task Dispose_ProductionStackDisposesOwnedMessageRouter()
+    {
+        using var backend = new TemporaryRocksDb();
+        using var forcedEvents = new TemporaryRocksDb();
+        using var routerEvents = new TemporaryRocksDb();
+        using var store = new KeyValueProofWitnessStore(backend.Store);
+        using var batch = new L2BatchPlugin();
+        var settlement = new L2SettlementPlugin(ProductionSettingsWithMessageRouter());
+        using var http = CanonicalRootHttpClient();
+
+        settlement.WireProduction(
+            batch,
+            new TestExecutor(),
+            new TestDaWriter(),
+            store,
+            new TestProver(),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
+            new TrackingSigner(Account(0x61)),
+            forcedEvents.Store,
+            forcedInclusionDeploymentHeight: 123,
+            rpcHttpClient: http,
+            l1FinalizedHeight: static () => 10,
+            sequencerCommitteeHash: static () => Root(0xCC),
+            messageRouterEventStore: routerEvents.Store,
+            messageRouterDeploymentHeight: 40);
+
+        var owned = settlement.ProductionComposition!.OwnedMessageRouter;
+        Assert.IsNotNull(owned);
+        Assert.AreSame(owned, batch.MessageRouter);
+
+        settlement.Dispose();
+
+        // Disposed router must fail closed on the next operator-facing call.
+        await Assert.ThrowsExactlyAsync<ObjectDisposedException>(async () =>
+            await owned!.DequeueL1MessagesAsync(ChainId, 1));
+    }
+
+    [TestMethod]
+    public void WireProduction_OwnedMessageRouter_SurfacesOnBatchPlugin()
+    {
+        using var backend = new TemporaryRocksDb();
+        using var forcedEvents = new TemporaryRocksDb();
+        using var routerEvents = new TemporaryRocksDb();
+        using var store = new KeyValueProofWitnessStore(backend.Store);
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin(ProductionSettingsWithMessageRouter());
+        using var http = CanonicalRootHttpClient();
+
+        settlement.WireProduction(
+            batch,
+            new TestExecutor(),
+            new TestDaWriter(),
+            store,
+            new TestProver(),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
+            new TrackingSigner(Account(0x62)),
+            forcedEvents.Store,
+            forcedInclusionDeploymentHeight: 123,
+            rpcHttpClient: http,
+            l1FinalizedHeight: static () => 10,
+            sequencerCommitteeHash: static () => Root(0xCC),
+            messageRouterEventStore: routerEvents.Store,
+            messageRouterDeploymentHeight: 40);
+
+        Assert.IsNotNull(batch.MessageRouter);
+        Assert.AreSame(
+            settlement.ProductionComposition!.OwnedMessageRouter,
+            batch.MessageRouter);
     }
 
     private static UInt160 Account(byte value)

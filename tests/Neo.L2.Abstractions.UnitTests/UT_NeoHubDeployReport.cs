@@ -165,6 +165,12 @@ public class UT_NeoHubDeployReport
                 "Sp1SettlementExecutionStack.CreateFromChainDirectory(chainDir, state, executorPath, executorSha256, vk)",
                 stores.GetProperty("sp1StackFromChainDirectory").GetString());
             Assert.AreEqual(
+                NeoHubDeployReport.RelativeStateDir,
+                stores.GetProperty("stateStore").GetString());
+            Assert.AreEqual(
+                "Sp1SettlementExecutionStack.OpenStateFromChainDirectory(chainDirectory)",
+                stores.GetProperty("stateOpenHelper").GetString());
+            Assert.AreEqual(
                 "LocalKeyTransactionSigner.FromEnvironmentVariableWithGlobalScope()",
                 stores.GetProperty("nestedNep17Signer").GetString());
             Assert.IsTrue(Directory.Exists(Path.Combine(

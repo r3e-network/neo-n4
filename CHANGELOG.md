@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Sp1SettlementExecutionStack.OpenStateFromChainDirectory — 2026-07-16
+
+- Opens RocksDB at `data/state` after `bootstrap-genesis` (caller-owned dispose).
+- Pairs with `CreateFromChainDirectory` so Zk hosts do not hard-code state paths.
+- `NeoHubDeployReport` documents `RelativeStateDir` + `stateOpenHelper` in wireproduction notes.
+- `LegacyFromChainDirectory` Zk error text points at CreateFromChainDirectory + OpenState.
+
 ### Added — Sp1SettlementExecutionStack.CreateFromChainDirectory — 2026-07-16
 
 - Loads ProofType=Zk settlement config + genesis-manifest, ensures

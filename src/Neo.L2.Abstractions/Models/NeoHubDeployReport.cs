@@ -259,6 +259,9 @@ public sealed record NeoHubDeployReport(
                     ["openHelper"] = "L2SettlementStoreLayout.Open(chainDirectory)",
                     ["batchPluginFactory"] = "L2BatchPlugin.CreateFromChainDirectory(chainDirectory)",
                     ["settlementPluginFactory"] = "L2SettlementPlugin.CreateFromChainDirectory(chainDirectory)",
+                    ["stateStore"] = RelativeStateDir,
+                    ["stateOpenHelper"] =
+                        "Sp1SettlementExecutionStack.OpenStateFromChainDirectory(chainDirectory)",
                     ["sp1StackFromChainDirectory"] =
                         "Sp1SettlementExecutionStack.CreateFromChainDirectory(chainDir, state, executorPath, executorSha256, vk)",
                     ["wireProductionFromLayout"] =
@@ -277,9 +280,10 @@ public sealed record NeoHubDeployReport(
                     + "(or L2SettlementSettings.FromChainDirectory + ctor)",
                     "L2BatchPlugin.CreateFromChainDirectory(chainDir) "
                     + "(or L2BatchSettings.FromChainDirectory + ctor)",
-                    "Zk: Sp1SettlementExecutionStack.CreateFromChainDirectory(chainDir, state, "
-                    + "executorPath, executorSha256, verificationKeyId) after bootstrap-genesis "
-                    + "(opens prover/executor-scratch + prover/inbox; state = RocksDB at data/state)",
+                    "Zk: state = Sp1SettlementExecutionStack.OpenStateFromChainDirectory(chainDir) "
+                    + "then CreateFromChainDirectory(chainDir, state, executorPath, executorSha256, vk) "
+                    + "after bootstrap-genesis (ensures prover/executor-scratch + prover/inbox; "
+                    + "state path " + RelativeStateDir + ")",
                     "L2SettlementStoreLayout.Open(chainDir) then "
                     + "WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer) "
                     + "— binds ProofWitness + three scanners, static committee hash from "
@@ -354,6 +358,12 @@ public sealed record NeoHubDeployReport(
     /// (node-local durability only — not public DA evidence).
     /// </summary>
     public const string RelativeLocalDaStoreDir = "data/settlement/da";
+
+    /// <summary>
+    /// Canonical L2 execution state RocksDB path (written by <c>bootstrap-genesis</c>;
+    /// opened by Sp1 hosts via <c>Sp1SettlementExecutionStack.OpenStateFromChainDirectory</c>).
+    /// </summary>
+    public const string RelativeStateDir = "data/state";
 
     /// <summary>
     /// Create the canonical WireProduction durable-store directories under a chain layout.

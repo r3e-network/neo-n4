@@ -89,6 +89,25 @@ public sealed record Sp1SettlementExecutionStack
     }
 
     /// <summary>
+    /// Open durable L2 state RocksDB at <see cref="RelativeStateDir"/> after
+    /// <c>neo-stack bootstrap-genesis</c>. Caller owns disposal.
+    /// </summary>
+    public static RocksDbKeyValueStore OpenStateFromChainDirectory(string chainDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        var root = System.IO.Path.GetFullPath(chainDirectory);
+        if (!Directory.Exists(root))
+            throw new DirectoryNotFoundException(
+                $"Chain directory not found: {root}. Run neo-stack init-l2 first.");
+
+        var statePath = System.IO.Path.Combine(root, RelativeStateDir);
+        if (!Directory.Exists(statePath))
+            throw new DirectoryNotFoundException(
+                $"L2 state store not found at {statePath}. Run neo-stack bootstrap-genesis first.");
+        return new RocksDbKeyValueStore(statePath);
+    }
+
+    /// <summary>
     /// Bind SP1 executor/prover/profile from a chain working directory after
     /// <c>bootstrap-genesis</c> and <c>init-l2 --from-deploy-report</c>.
     /// </summary>
@@ -98,8 +117,8 @@ public sealed record Sp1SettlementExecutionStack
     /// <see cref="RelativeExecutorScratchDir"/> and <see cref="RelativeProverQueueDir"/>
     /// exist under the chain root. The reviewed <c>neo-zkvm-executor</c> binary path/SHA-256
     /// and governance-registered verification key remain host-supplied (funded release pin).
-    /// Caller owns <paramref name="state"/> (typically RocksDB at
-    /// <see cref="RelativeStateDir"/> after bootstrap-genesis).
+    /// Prefer <see cref="OpenStateFromChainDirectory"/> for <paramref name="state"/> when
+    /// the host does not already hold the RocksDB handle.
     /// </remarks>
     public static Sp1SettlementExecutionStack CreateFromChainDirectory(
         string chainDirectory,

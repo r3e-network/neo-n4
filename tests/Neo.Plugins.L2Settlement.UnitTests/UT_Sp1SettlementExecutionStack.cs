@@ -150,6 +150,88 @@ public sealed class UT_Sp1SettlementExecutionStack
         }
     }
 
+    [TestMethod]
+    public void OpenStateFromChainDirectory_OpensBootstrapLayout()
+    {
+        var chainDir = Path.Combine(Path.GetTempPath(), "neo-n4-sp1-state-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            var statePath = Path.Combine(chainDir, Sp1SettlementExecutionStack.RelativeStateDir);
+            Directory.CreateDirectory(statePath);
+            // Seed an empty RocksDB so OpenState can reopen it.
+            using (var seed = new RocksDbKeyValueStore(statePath))
+            {
+                seed.Put("k"u8, "v"u8);
+            }
+
+            using var reopened = Sp1SettlementExecutionStack.OpenStateFromChainDirectory(chainDir);
+            CollectionAssert.AreEqual("v"u8.ToArray(), reopened.Get("k"u8)!.ToArray());
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void OpenStateFromChainDirectory_MissingState_FailsClosed()
+    {
+        var chainDir = Path.Combine(Path.GetTempPath(), "neo-n4-sp1-nostate-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            var ex = Assert.ThrowsExactly<DirectoryNotFoundException>(
+                () => Sp1SettlementExecutionStack.OpenStateFromChainDirectory(chainDir));
+            StringAssert.Contains(ex.Message, "bootstrap-genesis");
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void CreateFromChainDirectory_WithOpenState_BindsEndToEnd()
+    {
+        using var harness = new StackHarness();
+        var chainDir = Path.Combine(Path.GetTempPath(), "neo-n4-sp1-e2e-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            WriteSettlementConfig(chainDir, ProofType.Zk, chainId: 20260716);
+            File.WriteAllText(Path.Combine(chainDir, L2GenesisManifest.RelativePath), $$"""
+                { "initialStateRoot": "{{harness.InitialRoot}}" }
+                """);
+            var statePath = Path.Combine(chainDir, Sp1SettlementExecutionStack.RelativeStateDir);
+            Directory.CreateDirectory(statePath);
+            using (var seed = new RocksDbKeyValueStore(statePath))
+            {
+                seed.Put("pin"u8, "1"u8);
+            }
+
+            // OpenState after seed dispose; Create uses harness in-memory state (genesis bindings).
+            using var opened = Sp1SettlementExecutionStack.OpenStateFromChainDirectory(chainDir);
+            CollectionAssert.AreEqual("1"u8.ToArray(), opened.Get("pin"u8)!);
+
+            var stack = Sp1SettlementExecutionStack.CreateFromChainDirectory(
+                chainDir,
+                harness.State,
+                harness.ExecutablePath,
+                harness.ExecutableSha256,
+                Hash(0x66));
+            Assert.AreEqual(harness.InitialRoot, stack.Profile.GenesisStateRoot);
+            Assert.AreEqual(20260716u, stack.Profile.ChainId);
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
     private static void WriteSettlementConfig(string chainDir, ProofType proofType, uint chainId)
     {
         var dir = Path.Combine(chainDir, "Plugins", "Neo.Plugins.L2Settlement");

@@ -142,8 +142,9 @@ public sealed record ProofWitnessPipelineProfile
         var proofType = ProofTypeExtensions.Resolve(settings.ProofType);
         if (proofType == ProofType.Zk)
             throw new InvalidOperationException(
-                "LegacyFromChainDirectory does not support ProofType=Zk — use Sp1SettlementExecutionStack.Create "
-                + "with L2GenesisManifest.ReadInitialStateRootFromChainDirectory for the validity path");
+                "LegacyFromChainDirectory does not support ProofType=Zk — use "
+                + "Sp1SettlementExecutionStack.CreateFromChainDirectory (or Create) with "
+                + "OpenStateFromChainDirectory after bootstrap-genesis for the validity path");
         var genesis = L2GenesisManifest.ReadInitialStateRootFromChainDirectory(chainDirectory);
         return Legacy(settings.ChainId, proofType, genesis, requireProductionDA);
     }

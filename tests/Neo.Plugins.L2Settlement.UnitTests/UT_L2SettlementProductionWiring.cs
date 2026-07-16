@@ -529,6 +529,106 @@ public class UT_L2SettlementProductionWiring
     };
 
     [TestMethod]
+    public void WireProduction_UsesSettingsDeploymentHeightsWhenArgsOmitted()
+    {
+        using var backend = new TemporaryRocksDb();
+        using var forcedEvents = new TemporaryRocksDb();
+        using var depositEvents = new TemporaryRocksDb();
+        using var store = new KeyValueProofWitnessStore(backend.Store);
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin(new L2SettlementSettings
+        {
+            ChainId = ChainId,
+            L1RpcEndpoint = "http://127.0.0.1:10332",
+            ExpectedNetwork = 860833102,
+            SettlementManagerHash = "0x" + new string('1', 40),
+            ForcedInclusionHash = "0x" + new string('2', 40),
+            SharedBridgeHash = "0x" + new string('3', 40),
+            ForcedInclusionDeploymentHeight = 17729309,
+            SharedBridgeDeploymentHeight = 17729307,
+            ProofType = (byte)ProofType.Multisig,
+            Enabled = false,
+        });
+        using var http = CanonicalRootHttpClient();
+
+        // No explicit height args — plugin config must supply them.
+        var forcedSource = settlement.WireProduction(
+            batch,
+            new TestExecutor(),
+            new TestDaWriter(),
+            store,
+            new TestProver(),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
+            new TrackingSigner(Account(0x33)),
+            forcedEvents.Store,
+            sharedBridgeDepositEventStore: depositEvents.Store,
+            l1FinalizedHeight: () => 200u,
+            sequencerCommitteeHash: () => Root(0x22),
+            rpcHttpClient: http);
+
+        Assert.IsNotNull(forcedSource);
+        Assert.IsNotNull(settlement.ProductionComposition?.OwnedDepositSource);
+    }
+
+    [TestMethod]
+    public void WireProduction_MissingForcedInclusionHeight_FailsClosed()
+    {
+        using var backend = new TemporaryRocksDb();
+        using var forcedEvents = new TemporaryRocksDb();
+        using var store = new KeyValueProofWitnessStore(backend.Store);
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin(ProductionSettings());
+
+        var error = Assert.ThrowsExactly<InvalidOperationException>(() => settlement.WireProduction(
+            batch,
+            new TestExecutor(),
+            new TestDaWriter(),
+            store,
+            new TestProver(),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
+            new TrackingSigner(Account(0x33)),
+            forcedEvents.Store));
+        StringAssert.Contains(error.Message, "ForcedInclusionDeploymentHeight");
+    }
+
+    [TestMethod]
+    public void WireProduction_ExplicitHeightOverridesSettings()
+    {
+        using var backend = new TemporaryRocksDb();
+        using var forcedEvents = new TemporaryRocksDb();
+        using var store = new KeyValueProofWitnessStore(backend.Store);
+        using var batch = new L2BatchPlugin();
+        using var settlement = new L2SettlementPlugin(new L2SettlementSettings
+        {
+            ChainId = ChainId,
+            L1RpcEndpoint = "http://127.0.0.1:10332",
+            ExpectedNetwork = 860833102,
+            SettlementManagerHash = "0x" + new string('1', 40),
+            ForcedInclusionHash = "0x" + new string('2', 40),
+            ForcedInclusionDeploymentHeight = 1,
+            ProofType = (byte)ProofType.Multisig,
+            Enabled = false,
+        });
+        using var http = CanonicalRootHttpClient();
+
+        // Explicit arg wins over settings height=1; success is enough (override path).
+        var forcedSource = settlement.WireProduction(
+            batch,
+            new TestExecutor(),
+            new TestDaWriter(),
+            store,
+            new TestProver(),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
+            new TrackingSigner(Account(0x33)),
+            forcedEvents.Store,
+            forcedInclusionDeploymentHeight: 999,
+            rpcHttpClient: http);
+
+        Assert.IsNotNull(forcedSource);
+        Assert.IsNotNull(settlement.ProductionComposition);
+    }
+
+    [TestMethod]
     public void WireProduction_ConstructsOwnedMessageRouterWhenConfigured()
     {
         using var backend = new TemporaryRocksDb();

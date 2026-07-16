@@ -170,7 +170,7 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         ProofWitnessPipelineProfile profile,
         INeoTransactionSigner signer,
         IL2KeyValueStore forcedInclusionEventStore,
-        uint forcedInclusionDeploymentHeight,
+        uint forcedInclusionDeploymentHeight = 0,
         uint forcedInclusionFinalityDepth = 1,
         int forcedInclusionMaximumBlocksPerScan = 256,
         IEnumerable<ulong>? knownForcedInclusionNonces = null,
@@ -208,6 +208,23 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         if (_pipeline is not null || _productionComposition is not null)
             throw new InvalidOperationException("settlement pipeline is already wired");
 
+        // Explicit WireProduction height args win; otherwise use plugin config (typically
+        // materialized from neo-hub-deploy evidence via --from-deploy-report).
+        var effectiveForcedHeight = ResolveDeploymentHeight(
+            forcedInclusionDeploymentHeight,
+            _settings.ForcedInclusionDeploymentHeight,
+            "ForcedInclusionDeploymentHeight");
+        var effectiveSharedBridgeHeight = ResolveDeploymentHeight(
+            sharedBridgeDeploymentHeight,
+            _settings.SharedBridgeDeploymentHeight,
+            "SharedBridgeDeploymentHeight",
+            required: false);
+        var effectiveMessageRouterHeight = ResolveDeploymentHeight(
+            messageRouterDeploymentHeight,
+            _settings.MessageRouterDeploymentHeight,
+            "MessageRouterDeploymentHeight",
+            required: false);
+
         // When SharedBridgeHash / MessageRouterHash are configured and the caller does not
         // supply those sources, composition owns the RPC adapters. Explicit sources remain
         // caller-owned and skip auto-construction.
@@ -215,18 +232,18 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
             _settings,
             signer,
             forcedInclusionEventStore,
-            forcedInclusionDeploymentHeight,
+            effectiveForcedHeight,
             forcedInclusionFinalityDepth,
             forcedInclusionMaximumBlocksPerScan,
             knownForcedInclusionNonces,
             rpcHttpClient,
             sharedBridgeDepositEventStore,
-            sharedBridgeDeploymentHeight,
+            effectiveSharedBridgeHeight,
             sharedBridgeFinalityDepth,
             sharedBridgeMaximumBlocksPerScan,
             constructDepositSource: depositSource is null,
             messageRouterEventStore,
-            messageRouterDeploymentHeight,
+            effectiveMessageRouterHeight,
             messageRouterFinalityDepth,
             messageRouterMaximumBlocksPerScan,
             knownInboundMessageNonces,
@@ -386,6 +403,24 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
             productionComposition?.Dispose();
         }
         base.Dispose(disposing);
+    }
+
+    /// <summary>
+    /// Prefer an explicit non-zero method argument; otherwise use the plugin config height.
+    /// Forced-inclusion height is always required (scanner cursor start).
+    /// </summary>
+    private static uint ResolveDeploymentHeight(
+        uint argumentHeight,
+        uint settingsHeight,
+        string settingsName,
+        bool required = true)
+    {
+        var resolved = argumentHeight != 0 ? argumentHeight : settingsHeight;
+        if (required && resolved == 0)
+            throw new InvalidOperationException(
+                $"{settingsName} must be a non-zero L1 deploy block "
+                + "(pass WireProduction height argument or set plugin config from deploy report)");
+        return resolved;
     }
 
     private async Task ReconcileSafelyAsync(

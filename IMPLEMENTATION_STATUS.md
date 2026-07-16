@@ -402,7 +402,9 @@ These are explicit deployment seams rather than missing protocol algorithms:
   forced-inclusion finalization, optionally an owned `RpcSharedBridgeDepositSource` when
   `SharedBridgeHash` is configured, and optionally an owned `RpcMessageRouter` +
   `RpcMessageRouterEventScanner` when `MessageRouterHash` is configured (durable event stores
-  + deploy heights required; block-context providers required for L1 inbox; seal-time deposit
+  required; deploy heights come from explicit `WireProduction` args **or** plugin config
+  fields `*DeploymentHeight` materialized by `--from-deploy-report` when the evidence JSON
+  has `blockIndex`; block-context providers required for L1 inbox; seal-time deposit
   `ScanAsync` via `L1MessageDrain.FromDeposits`). `neo-stack --signer-command` provides a
   provider-neutral, deadline-bounded executable boundary with pinned account/script, canonical
   sign data, and fee-witness-shape validation. Operators still select and own the reviewed

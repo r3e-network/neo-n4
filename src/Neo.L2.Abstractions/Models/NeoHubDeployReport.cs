@@ -150,21 +150,33 @@ public sealed record NeoHubDeployReport(
         // silently materialize Multisig settlement configs.
         var proofTypeByte = ResolveProofTypeByte(chainDirectory);
 
+        // Materialize scanner start heights when the evidence report includes blockIndex
+        // so WireProduction can default from plugin config without re-typed args.
+        DeployHeights.TryGetValue("ForcedInclusion", out var forcedHeight);
+        DeployHeights.TryGetValue("SharedBridge", out var sharedBridgeHeight);
+        DeployHeights.TryGetValue("MessageRouter", out var messageRouterHeight);
+        var settlementConfig = new Dictionary<string, object?>
+        {
+            ["ChainId"] = L2ChainId,
+            ["L1RpcEndpoint"] = Rpc,
+            ["ExpectedNetwork"] = Network,
+            ["SettlementManagerHash"] = SettlementManager.ToString(),
+            ["ForcedInclusionHash"] = ForcedInclusion.ToString(),
+            ["SharedBridgeHash"] = SharedBridge.ToString(),
+            ["L2BridgeHash"] = "",
+            ["MessageRouterHash"] = MessageRouter.ToString(),
+            ["ProofType"] = proofTypeByte,
+            ["Enabled"] = true,
+        };
+        if (forcedHeight != 0)
+            settlementConfig["ForcedInclusionDeploymentHeight"] = forcedHeight;
+        if (sharedBridgeHeight != 0)
+            settlementConfig["SharedBridgeDeploymentHeight"] = sharedBridgeHeight;
+        if (messageRouterHeight != 0)
+            settlementConfig["MessageRouterDeploymentHeight"] = messageRouterHeight;
         var settlement = new Dictionary<string, object?>
         {
-            ["PluginConfiguration"] = new Dictionary<string, object?>
-            {
-                ["ChainId"] = L2ChainId,
-                ["L1RpcEndpoint"] = Rpc,
-                ["ExpectedNetwork"] = Network,
-                ["SettlementManagerHash"] = SettlementManager.ToString(),
-                ["ForcedInclusionHash"] = ForcedInclusion.ToString(),
-                ["SharedBridgeHash"] = SharedBridge.ToString(),
-                ["L2BridgeHash"] = "",
-                ["MessageRouterHash"] = MessageRouter.ToString(),
-                ["ProofType"] = proofTypeByte,
-                ["Enabled"] = true,
-            },
+            ["PluginConfiguration"] = settlementConfig,
         };
         var settlementJson = JsonSerializer.Serialize(settlement, jsonOptions) + Environment.NewLine;
         written.AddRange(WritePluginConfig(
@@ -223,13 +235,17 @@ public sealed record NeoHubDeployReport(
                 ["expectedNetwork"] = Network,
                 ["deploymentHeights"] = deployHeights,
                 ["missingDeploymentHeights"] = missingHeights,
+                ["heightsInPluginConfig"] = missingHeights.Length == 0,
                 ["requiredCallerArgs"] = new[]
                 {
                     "INeoTransactionSigner",
                     "durable proofWitnessStore",
-                    "durable forcedInclusionEventStore + forcedInclusionDeploymentHeight",
-                    "durable sharedBridgeDepositEventStore + sharedBridgeDeploymentHeight (when SharedBridgeHash set)",
-                    "durable messageRouterEventStore + messageRouterDeploymentHeight (when MessageRouterHash set)",
+                    "durable forcedInclusionEventStore "
+                    + "(ForcedInclusionDeploymentHeight from plugin config when set)",
+                    "durable sharedBridgeDepositEventStore "
+                    + "(SharedBridgeDeploymentHeight from plugin config when SharedBridgeHash set)",
+                    "durable messageRouterEventStore "
+                    + "(MessageRouterDeploymentHeight from plugin config when MessageRouterHash set)",
                     "l1FinalizedHeight + sequencerCommitteeHash providers",
                 },
             },

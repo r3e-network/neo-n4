@@ -40,6 +40,26 @@ public sealed class L2SettlementSettings
     /// </summary>
     public string MessageRouterHash { get; init; } = "";
 
+    /// <summary>
+    /// L1 block index where ForcedInclusion was deployed. Used by production scanners when
+    /// <c>WireProduction</c> is not given an explicit non-zero height argument.
+    /// </summary>
+    public uint ForcedInclusionDeploymentHeight { get; init; }
+
+    /// <summary>
+    /// L1 block index where SharedBridge was deployed. Required when
+    /// <see cref="SharedBridgeHash"/> is set and the caller does not pass a non-zero
+    /// <c>sharedBridgeDeploymentHeight</c> to <c>WireProduction</c>.
+    /// </summary>
+    public uint SharedBridgeDeploymentHeight { get; init; }
+
+    /// <summary>
+    /// L1 block index where MessageRouter was deployed. Required when
+    /// <see cref="MessageRouterHash"/> is set and the caller does not pass a non-zero
+    /// <c>messageRouterDeploymentHeight</c> to <c>WireProduction</c>.
+    /// </summary>
+    public uint MessageRouterDeploymentHeight { get; init; }
+
     /// <summary>Proof type used at this stage: 0=None, 1=Multisig, 2=Optimistic, 3=Zk.</summary>
     public byte ProofType { get; init; } = 1;
 
@@ -69,6 +89,9 @@ public sealed class L2SettlementSettings
             SharedBridgeHash = s.GetValue<string>("SharedBridgeHash") ?? "",
             L2BridgeHash = s.GetValue<string>("L2BridgeHash") ?? "",
             MessageRouterHash = s.GetValue<string>("MessageRouterHash") ?? "",
+            ForcedInclusionDeploymentHeight = s.GetValue<uint>("ForcedInclusionDeploymentHeight", 0u),
+            SharedBridgeDeploymentHeight = s.GetValue<uint>("SharedBridgeDeploymentHeight", 0u),
+            MessageRouterDeploymentHeight = s.GetValue<uint>("MessageRouterDeploymentHeight", 0u),
             ProofType = rawProofType,
             Enabled = s.GetValue("Enabled", true),
         };

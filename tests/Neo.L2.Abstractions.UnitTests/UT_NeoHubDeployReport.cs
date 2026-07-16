@@ -123,6 +123,16 @@ public class UT_NeoHubDeployReport
                 0,
                 notes.RootElement.GetProperty("wireProduction")
                     .GetProperty("missingDeploymentHeights").GetArrayLength());
+            Assert.IsTrue(
+                notes.RootElement.GetProperty("wireProduction")
+                    .GetProperty("heightsInPluginConfig").GetBoolean());
+
+            var settlement = JsonDocument.Parse(File.ReadAllText(Path.Combine(
+                dir, "Plugins", "Neo.Plugins.L2Settlement", "config.json")));
+            var plugin = settlement.RootElement.GetProperty("PluginConfiguration");
+            Assert.AreEqual(17729309u, plugin.GetProperty("ForcedInclusionDeploymentHeight").GetUInt32());
+            Assert.AreEqual(17729307u, plugin.GetProperty("SharedBridgeDeploymentHeight").GetUInt32());
+            Assert.AreEqual(17729303u, plugin.GetProperty("MessageRouterDeploymentHeight").GetUInt32());
         }
         finally
         {

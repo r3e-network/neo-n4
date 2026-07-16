@@ -175,6 +175,27 @@ public class UT_L2SettlementSettings
         Assert.IsFalse(s.Enabled);
     }
 
+    [TestMethod]
+    public void From_ParsesDeploymentHeights()
+    {
+        var s = L2SettlementSettings.From(BuildSection(
+            ("ForcedInclusionDeploymentHeight", "17729309"),
+            ("SharedBridgeDeploymentHeight", "17729307"),
+            ("MessageRouterDeploymentHeight", "17729303")));
+        Assert.AreEqual(17729309u, s.ForcedInclusionDeploymentHeight);
+        Assert.AreEqual(17729307u, s.SharedBridgeDeploymentHeight);
+        Assert.AreEqual(17729303u, s.MessageRouterDeploymentHeight);
+    }
+
+    [TestMethod]
+    public void From_DeploymentHeightsDefaultToZero()
+    {
+        var s = L2SettlementSettings.From(BuildSection());
+        Assert.AreEqual(0u, s.ForcedInclusionDeploymentHeight);
+        Assert.AreEqual(0u, s.SharedBridgeDeploymentHeight);
+        Assert.AreEqual(0u, s.MessageRouterDeploymentHeight);
+    }
+
     private static L2SettlementSettings ValidProductionSettings(
         uint chainId = 1001,
         string endpoint = "https://l1.example.invalid:10331/rpc",

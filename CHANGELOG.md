@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — settlement plugin config materializes scanner deploy heights — 2026-07-16
+
+- `L2SettlementSettings` accepts `ForcedInclusionDeploymentHeight`,
+  `SharedBridgeDeploymentHeight`, and `MessageRouterDeploymentHeight` from plugin config.
+- `WireProduction` prefers explicit height args, otherwise uses plugin config (fails closed
+  when ForcedInclusion height is still zero). Deposit/MessageRouter heights still fail closed
+  at composition when those hashes are set without a non-zero height.
+- `NeoHubDeployReport.WriteOperatorArtifacts` writes the three heights into settlement
+  `config.json` when the evidence report includes deploy `blockIndex` values, so
+  `init-l2` / `register-chain --from-deploy-report` closes the local WireProduction height gap.
+
 ### Fixed — zk-rollup template + sendrawtransaction hash object; testnet registerChain — 2026-07-16
 
 - `zk-rollup` template now uses `daMode=L1` with `securityLevel=Validity` (matches

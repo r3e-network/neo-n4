@@ -382,6 +382,8 @@ public sealed record NeoHubDeployReport(
                         "L2SettlementPlugin.CreateMessageRouterFromChainDirectory(chainDirectory)",
                     ["messageRouterOpenHelper"] =
                         "RpcMessageRouter.OpenFromChainDirectory(chainDir, rpc, routerHash, chainId, startHeight)",
+                    ["l1InboxFromChainDirectory"] =
+                        "L1InboxFromChainDirectory.Open(chainDirectory) / WireL1InboxFromChainDirectory(chainDir, batch)",
                     ["nestedNep17Signer"] =
                         "LocalKeyTransactionSigner.FromEnvironmentVariableWithGlobalScope()",
                 },
@@ -395,10 +397,10 @@ public sealed record NeoHubDeployReport(
                     + "(or L2SettlementSettings.FromChainDirectory + ctor)",
                     "L2BatchPlugin.CreateFromChainDirectory(chainDir) "
                     + "(or L2BatchSettings.FromChainDirectory + ctor)",
-                    "L2BridgePlugin.CreateFromChainDirectory(chainDir); L1 inbox sources: "
-                    + "CreateDepositSourceFromChainDirectory / CreateForcedInclusionSourceFromChainDirectory / "
-                    + "CreateMessageRouterFromChainDirectory (or OpenFromChainDirectory on each type) "
-                    + "then L2BatchPlugin.WireL1MessageInbox for drain/confirm",
+                    "L1 inbox: L2SettlementPlugin.WireL1InboxFromChainDirectory(chainDir, batch) "
+                    + "or L1InboxFromChainDirectory.Open(chainDir).WireBatch(batch) — one shared L1 "
+                    + "RPC for deposit + ForcedInclusion + MessageRouter; also "
+                    + "Create*FromChainDirectory / OpenFromChainDirectory per type when needed",
                     "L2ProverPlugin.CreateFromChainDirectory(chainDir) then Wire(signerSet / "
                     + "optimisticProver / zkProver from Sp1 stack)",
                     "L2MetricsPlugin.CreateFromChainDirectory(chainDir) then WithMetrics on batch/"

@@ -200,6 +200,9 @@ public class UT_NeoHubDeployReport
                 "L2SettlementPlugin.CreateMessageRouterFromChainDirectory(chainDirectory)",
                 stores.GetProperty("messageRouterFromChainDirectory").GetString());
             Assert.AreEqual(
+                "L1InboxFromChainDirectory.Open(chainDirectory) / WireL1InboxFromChainDirectory(chainDir, batch)",
+                stores.GetProperty("l1InboxFromChainDirectory").GetString());
+            Assert.AreEqual(
                 NeoHubDeployReport.RelativeRpcProofStoreDir,
                 stores.GetProperty("rpcProofStore").GetString());
             Assert.AreEqual(

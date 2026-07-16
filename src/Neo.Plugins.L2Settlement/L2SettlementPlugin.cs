@@ -145,6 +145,34 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
             ownsRpc: true);
     }
 
+    /// <summary>
+    /// Host composition: open deposit + ForcedInclusion + MessageRouter with one L1 RPC
+    /// client and wire them onto <paramref name="batchPlugin"/>.
+    /// </summary>
+    /// <remarks>
+    /// Prefer this over three independent <c>Create*FromChainDirectory</c> calls.
+    /// Caller must dispose the returned <see cref="L1InboxFromChainDirectory"/> after the
+    /// batch plugin (and any bridge plugin that holds the deposit source) are disposed.
+    /// </remarks>
+    public static L1InboxFromChainDirectory WireL1InboxFromChainDirectory(
+        string chainDirectory,
+        L2BatchPlugin batchPlugin,
+        bool openFinalizedProofStore = true)
+    {
+        ArgumentNullException.ThrowIfNull(batchPlugin);
+        var inbox = L1InboxFromChainDirectory.Open(chainDirectory, openFinalizedProofStore);
+        try
+        {
+            inbox.WireBatch(batchPlugin);
+            return inbox;
+        }
+        catch
+        {
+            inbox.Dispose();
+            throw;
+        }
+    }
+
     /// <summary>Loaded settlement settings (host composition / tests).</summary>
     internal L2SettlementSettings Settings => _settings;
 

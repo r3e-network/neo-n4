@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Neo.Wallets;
 
 namespace Neo.Plugins.L2Settlement.UnitTests;
 
@@ -373,6 +374,64 @@ public class UT_L2SettlementSettings
                 dir, NeoHubDeployReport.RelativeMessageRouterEventStoreDir)));
             Assert.IsTrue(Directory.Exists(Path.Combine(
                 dir, NeoHubDeployReport.RelativeRpcProofStoreDir)));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void L1InboxFromChainDirectory_OpenAndWireBatch_FromLiveDeployReport()
+    {
+        var reportPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-l1-inbox-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var validatorA = new KeyPair(Enumerable.Range(1, 32).Select(i => (byte)i).ToArray()).PublicKey;
+            var validatorB = new KeyPair(Enumerable.Range(2, 32).Select(i => (byte)i).ToArray()).PublicKey;
+            var hexA = Convert.ToHexString(validatorA.EncodePoint(true)).ToLowerInvariant();
+            var hexB = Convert.ToHexString(validatorB.EncodePoint(true)).ToLowerInvariant();
+            File.WriteAllText(Path.Combine(dir, "chain.config.json"), $$"""
+                {
+                  "chainId": 20260716,
+                  "proofType": "Zk",
+                  "securityLevel": "Validity",
+                  "daMode": "L1",
+                  "validators": [ "{{hexA}}", "{{hexB}}" ]
+                }
+                """);
+            NeoHubDeployReport.Load(reportPath).WriteOperatorArtifacts(dir);
+
+            using (var inbox = L1InboxFromChainDirectory.Open(dir))
+            {
+                Assert.AreEqual(20260716u, inbox.ChainId);
+                Assert.IsNotNull(inbox.ForcedInclusion);
+                Assert.IsNotNull(inbox.Deposits);
+                Assert.IsNotNull(inbox.MessageRouter);
+                Assert.AreNotEqual(UInt256.Zero, inbox.SequencerCommitteeHash());
+
+                using var batch = L2BatchPlugin.CreateFromChainDirectory(dir);
+                inbox.WireBatch(batch);
+                Assert.IsNotNull(batch.DepositSource);
+                Assert.IsNotNull(batch.MessageRouter);
+                Assert.AreSame(inbox.Deposits, batch.DepositSource);
+                Assert.AreSame(inbox.MessageRouter, batch.MessageRouter);
+            }
+
+            // Second open after dispose: WireL1InboxFromChainDirectory convenience path.
+            using var batch2 = L2BatchPlugin.CreateFromChainDirectory(dir);
+            using var wired = L2SettlementPlugin.WireL1InboxFromChainDirectory(dir, batch2);
+            Assert.IsNotNull(batch2.DepositSource);
+            Assert.IsNotNull(batch2.MessageRouter);
         }
         finally
         {

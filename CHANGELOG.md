@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — L1InboxFromChainDirectory host composition root — 2026-07-17
+
+- `L1InboxFromChainDirectory.Open(chainDir)` opens SharedBridge deposit + ForcedInclusion +
+  MessageRouter with one shared L1 RPC client and static sequencer committee hash from
+  `chain.config.json` validators.
+- `WireBatch` / `L2SettlementPlugin.WireL1InboxFromChainDirectory` install forced-inclusion
+  and optional deposits/MessageRouter on `L2BatchPlugin` before the first sealed block.
+- Wireproduction notes document `l1InboxFromChainDirectory`; unit coverage against live
+  deploy-report materialization.
+
 ### Added — ForcedInclusion + MessageRouter sources from chain directory — 2026-07-17
 
 - `RpcForcedInclusionSource.OpenFromChainDirectory` and

@@ -76,6 +76,69 @@ public class UT_OperatorTransactionBroadcaster
     }
 
     [TestMethod]
+    public async Task Broadcast_WitnessScopeGlobal_AcceptedForNestedNep17Paths()
+    {
+        var environmentVariable = $"NEO_N4_TEST_WIF_{Guid.NewGuid():N}";
+        var key = new KeyPair(Enumerable.Range(1, 32).Select(value => (byte)value).ToArray());
+        var wif = key.Export();
+        key.PrivateKey.AsSpan().Clear();
+        Environment.SetEnvironmentVariable(environmentVariable, wif);
+        try
+        {
+            var handler = new RpcHandler(Network);
+            using var http = new HttpClient(handler);
+
+            var result = await OperatorTransactionBroadcaster.BroadcastAsync(
+                new[]
+                {
+                    "--rpc", "http://localhost:10332",
+                    "--expected-network", Network.ToString(),
+                    "--wif-env", environmentVariable,
+                    "--witness-scope", "Global",
+                },
+                new byte[] { 0x40 },
+                "test operation",
+                http);
+
+            Assert.AreEqual(0, result);
+            Assert.AreEqual("Global", handler.LastInvokeSignerScope);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(environmentVariable, null);
+        }
+    }
+
+    [TestMethod]
+    public async Task Broadcast_WitnessScopeInvalid_FailsClosed()
+    {
+        var environmentVariable = $"NEO_N4_TEST_WIF_{Guid.NewGuid():N}";
+        var key = new KeyPair(Enumerable.Range(1, 32).Select(value => (byte)value).ToArray());
+        var wif = key.Export();
+        key.PrivateKey.AsSpan().Clear();
+        Environment.SetEnvironmentVariable(environmentVariable, wif);
+        try
+        {
+            var result = await OperatorTransactionBroadcaster.BroadcastAsync(
+                new[]
+                {
+                    "--rpc", "http://localhost:10332",
+                    "--expected-network", Network.ToString(),
+                    "--wif-env", environmentVariable,
+                    "--witness-scope", "CustomContracts",
+                },
+                new byte[] { 0x40 },
+                "test operation");
+
+            Assert.AreEqual(12, result);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(environmentVariable, null);
+        }
+    }
+
+    [TestMethod]
     public async Task Broadcast_CallerCancellationReturns130()
     {
         var environmentVariable = $"NEO_N4_TEST_WIF_{Guid.NewGuid():N}";
@@ -328,6 +391,8 @@ public class UT_OperatorTransactionBroadcaster
     {
         public List<string> Methods { get; } = [];
 
+        public string? LastInvokeSignerScope { get; private set; }
+
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
@@ -336,6 +401,15 @@ public class UT_OperatorTransactionBroadcaster
             var envelope = (JObject)JToken.Parse(body)!;
             var method = envelope["method"]!.AsString();
             Methods.Add(method);
+            if (method == "invokescript"
+                && envelope["params"] is JArray invokeParams
+                && invokeParams.Count > 1
+                && invokeParams[1] is JArray signers
+                && signers.Count > 0
+                && signers[0] is JObject signer)
+            {
+                LastInvokeSignerScope = signer["scopes"]?.AsString();
+            }
             var response = new JObject();
             response["jsonrpc"] = "2.0";
             response["id"] = envelope["id"];

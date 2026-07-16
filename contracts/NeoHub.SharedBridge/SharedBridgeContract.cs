@@ -136,10 +136,17 @@ public class SharedBridgeContract : SmartContract
     }
 
     /// <summary>
-    /// Lock <paramref name="amount"/> of <paramref name="asset"/> from <see cref="Runtime.CallingScriptHash"/>'s
-    /// allowance, allocate a deposit nonce for <paramref name="targetChainId"/>, and emit the
-    /// canonical L1→L2 message. The L2 then consumes the message in its next batch.
+    /// Lock <paramref name="amount"/> of <paramref name="asset"/> from the transaction
+    /// sender's balance, allocate a deposit nonce for <paramref name="targetChainId"/>, and
+    /// emit the canonical L1→L2 message. The L2 then consumes the message in its next batch.
     /// </summary>
+    /// <remarks>
+    /// Uses <see cref="Runtime.Transaction"/>.Sender + CheckWitness (same model as
+    /// ForcedInclusion fee pull). Wallet entry-script invocations cannot use
+    /// <see cref="Runtime.CallingScriptHash"/> as the NEP-17 from account because the
+    /// entry script is not the user account. Nested native transfer still needs a
+    /// witness scope that covers the asset contract (typically Global for testnet WIF).
+    /// </remarks>
     public static ulong Deposit(UInt160 asset, BigInteger amount, uint targetChainId, UInt160 l2Recipient)
     {
         ExecutionEngine.Assert(!IsPaused(), "network paused");
@@ -163,25 +170,30 @@ public class SharedBridgeContract : SmartContract
             tokenRegistry, "isActive", CallFlags.ReadOnly, new object[] { asset, targetChainId });
         ExecutionEngine.Assert(mappingActive, "asset mapping inactive");
 
-        var caller = Runtime.CallingScriptHash;
+        // Transaction sender is the depositor (wallet or multi-sig account). Matches
+        // ForcedInclusion.EnqueueForcedTransaction; CallingScriptHash is the entry script
+        // for wallet invokes and cannot hold or authorize NEP-17 balances.
+        var depositor = Runtime.Transaction.Sender;
+        ExecutionEngine.Assert(depositor.IsValid && !depositor.IsZero, "invalid transaction sender");
+        ExecutionEngine.Assert(Runtime.CheckWitness(depositor), "transaction sender witness required");
 
         // Allocate nonce and commit deposit record before pulling tokens.
         // If the subsequent transfer fails, NeoVM FAULT reverts the storage write,
         // so there is no stale nonce gap. This ordering prevents a re-entrant token
         // from re-using the same nonce and overwriting a prior deposit.
         var nonce = NextDepositNonce(targetChainId);
-        var encoded = EncodeDeposit(asset, amount, l2Recipient, caller, nonce);
+        var encoded = EncodeDeposit(asset, amount, l2Recipient, depositor, nonce);
         Storage.Put(DepositKey(targetChainId, nonce), encoded);
 
         // Pull tokens into escrow. The asset must be NEP-17. The pending-transfer
         // marker lets the NEP-17 hook reject unsolicited direct transfers while
         // still accepting this Deposit-initiated transfer.
-        var pendingKey = PendingTransferKey(asset, caller);
+        var pendingKey = PendingTransferKey(asset, depositor);
         Storage.Put(pendingKey, new byte[] { 1 });
         var transferred = (bool)Contract.Call(
             asset, "transfer",
             CallFlags.All,
-            new object[] { caller, Runtime.ExecutingScriptHash, amount, null! });
+            new object[] { depositor, Runtime.ExecutingScriptHash, amount, null! });
         ExecutionEngine.Assert(transferred, "asset transfer failed");
         Storage.Delete(pendingKey);
 
@@ -190,7 +202,7 @@ public class SharedBridgeContract : SmartContract
         // chain's own escrow instead of the whole shared pool.
         IncrementLocked(targetChainId, asset, amount);
 
-        OnDepositEnqueued(targetChainId, nonce, caller, l2Recipient, amount);
+        OnDepositEnqueued(targetChainId, nonce, depositor, l2Recipient, amount);
         return nonce;
     }
 

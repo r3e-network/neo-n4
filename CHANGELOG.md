@@ -5,6 +5,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — SharedBridge.Deposit uses transaction sender (wallet path) — 2026-07-16
+
+- `SharedBridge.Deposit` now pulls NEP-17 from `Runtime.Transaction.Sender` with
+  `CheckWitness`, matching ForcedInclusion fee accounting.
+- Wallet entry-script invocations no longer depend on `CallingScriptHash` (the entry
+  script is not the user account). ABI/method signature unchanged.
+- Nested native transfer still requires a witness scope covering the asset
+  (testnet WIF: `--witness-scope Global`).
+
+### Added — local Multisig DA under chain settlement layout — 2026-07-16
+
+- `NeoHubDeployReport.RelativeLocalDaStoreDir` = `data/settlement/da` included in
+  `EnsureSettlementStoreDirectories` (init-l2 / deploy-report materialization).
+- `PersistentDAWriter.OpenLocalFromChainDirectory(chainDir)` opens owned RocksDB DA
+  for Multisig/Optimistic host composition (node-local only, not public DA evidence).
+- Wireproduction notes document `localDaStore` + open helper + Multisig DA caller arg.
+
+### Added — neo-stack `--witness-scope` for local WIF broadcast — 2026-07-16
+
+- Operator WIF path accepts `--witness-scope CalledByEntry|Global` (and `--l1-witness-scope`
+  with prefix). Global is required for nested NEP-17 pulls on Deposit / ForcedInclusion.
+
 ### Evidence — Neo N3 testnet follow-on live ops (WIF operator) — 2026-07-16
 
 - Re-verified all 24 NeoHub contracts still present on testnet (`getcontractstate`).
@@ -14,8 +36,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (`0xc1f44721…e06a`, `0xb51c8e4f…7daa`).
 - Live `ForcedInclusion.enqueueForcedTransaction` nonce 1
   (`0x73924dce…f412`); nested GAS fee requires `WitnessScope.Global`.
-- Documented wallet `SharedBridge.Deposit` block: contract pulls from
-  `Runtime.CallingScriptHash`, not `Transaction.Sender`.
+- Wallet `SharedBridge.Deposit` failed on then-deployed bytecode (`CallingScriptHash`);
+  source now uses `Transaction.Sender` (redeploy still funded/governance gate).
 - Evidence: `docs/audit/testnet-evidence-status-2026-07-16.json`.
 
 ### Added — ProofWitnessPipelineProfile.LegacyFromChainDirectory — 2026-07-16

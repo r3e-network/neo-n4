@@ -84,8 +84,11 @@ internal static class Program
             Signed L1 execution:
               Add --broadcast --rpc <url> --expected-network <magic> and set
               NEO_N4_OPERATOR_WIF (or select another variable with --wif-env).
-              Production adapters use --signer-command with --signer-account,
-              --signer-verification-script, and --signer-placeholder-invocation-script.
+              Optional --witness-scope CalledByEntry|Global (default CalledByEntry).
+              Use Global for SharedBridge.Deposit and ForcedInclusion fee transfers
+              (nested NEP-17). Production adapters use --signer-command with
+              --signer-account, --signer-verification-script, and
+              --signer-placeholder-invocation-script.
               Bridge mapping uses the corresponding --l1-* and --l2-* options.
 
             Operator processes:

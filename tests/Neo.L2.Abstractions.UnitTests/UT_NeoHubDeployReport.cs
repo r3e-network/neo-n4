@@ -146,6 +146,14 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 NeoHubDeployReport.RelativeForcedInclusionEventStoreDir,
                 stores.GetProperty("forcedInclusionEventStore").GetString());
+            Assert.AreEqual(
+                NeoHubDeployReport.RelativeLocalDaStoreDir,
+                stores.GetProperty("localDaStore").GetString());
+            Assert.AreEqual(
+                "PersistentDAWriter.OpenLocalFromChainDirectory(chainDirectory)",
+                stores.GetProperty("localDaOpenHelper").GetString());
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                dir, NeoHubDeployReport.RelativeLocalDaStoreDir)));
         }
         finally
         {
@@ -162,8 +170,9 @@ public class UT_NeoHubDeployReport
         {
             var first = NeoHubDeployReport.EnsureSettlementStoreDirectories(dir);
             var second = NeoHubDeployReport.EnsureSettlementStoreDirectories(dir);
-            Assert.AreEqual(4, first.Count);
-            Assert.AreEqual(4, second.Count);
+            Assert.AreEqual(5, first.Count);
+            Assert.AreEqual(5, second.Count);
+            CollectionAssert.Contains(first.ToList(), NeoHubDeployReport.RelativeLocalDaStoreDir);
             foreach (var relative in first)
                 Assert.IsTrue(Directory.Exists(Path.Combine(dir, relative)));
         }

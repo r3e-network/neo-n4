@@ -377,14 +377,15 @@ real secp256k1 signatures.
 | registerChain | tx `0xb3d02a5f…9f26` HALT; genesis root `0x59be9f14…5130` |
 | TokenRegistry | GAS+NEO mappings for chain `20260716` live (`0xc1f44721…e06a`, `0xb51c8e4f…7daa`) |
 | ForcedInclusion | nonce 1 enqueued (`0x73924dce…f412`, HALT); needs `WitnessScope.Global` for fee transfer |
-| SharedBridge deposit | wallet entry-script path blocked (`CallingScriptHash` pull model); see evidence |
+| SharedBridge deposit | **code fix** on master: `Transaction.Sender` + CheckWitness (ABI stable). **Deployed testnet** still runs pre-fix bytecode until SharedBridge redeploy + chain update. Nested NEP-17 needs `--witness-scope Global`. |
+| Local Multisig DA | **code-complete**: `PersistentDAWriter.OpenLocalFromChainDirectory` → `data/settlement/da` |
 | Evidence | [`docs/audit/testnet-deployment-20260716-live.json`](./docs/audit/testnet-deployment-20260716-live.json), [`docs/audit/testnet-evidence-status-2026-07-16.json`](./docs/audit/testnet-evidence-status-2026-07-16.json) |
 
 Key hashes: ChainRegistry `0x65201c54…2d23`, SettlementManager `0x11448868…bb51`, SharedBridge `0xf2f5114b…b241`, MessageRouter `0x3caf3c6e…fe90`, ForcedInclusion `0x962829ae…55a9`, TokenRegistry `0x96ae4655…505b`, Sp1Groth16Verifier `0x1004bb51…0c4d`. Scanner deploy heights: ForcedInclusion `17729309`, SharedBridge `17729307`, MessageRouter `17729303`.
 
 Still **not** closed (funded / operator binary gates): full L2 node process stack against a reviewed
-Neo.CLI binary, 4-SDK live fixture, production DA credentials, real SP1 proof vectors, wallet
-SharedBridge.Deposit caller-model fix (use `Transaction.Sender` + redeploy/governance).
+Neo.CLI binary, 4-SDK live fixture, production DA credentials, real SP1 proof vectors, testnet
+redeploy of SharedBridge with the sender-based Deposit model (governance-locked chain update).
 
 **Code-complete operator path** (local layout + L1 registration encoding/broadcast/verify):
 

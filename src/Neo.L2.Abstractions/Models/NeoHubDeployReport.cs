@@ -255,12 +255,16 @@ public sealed record NeoHubDeployReport(
                     ["forcedInclusionEventStore"] = RelativeForcedInclusionEventStoreDir,
                     ["sharedBridgeDepositEventStore"] = RelativeSharedBridgeDepositEventStoreDir,
                     ["messageRouterEventStore"] = RelativeMessageRouterEventStoreDir,
+                    ["localDaStore"] = RelativeLocalDaStoreDir,
                     ["openHelper"] = "L2SettlementStoreLayout.Open(chainDirectory)",
+                    ["localDaOpenHelper"] = "PersistentDAWriter.OpenLocalFromChainDirectory(chainDirectory)",
                 },
                 ["requiredCallerArgs"] = new[]
                 {
                     "INeoTransactionSigner: LocalKeyTransactionSigner.FromEnvironmentVariable() "
-                    + "for local/testnet; production uses HSM/KMS INeoTransactionSigner",
+                    + "for local/testnet (use WitnessScope.Global when nested NEP-17 transfers "
+                    + "are required: SharedBridge.Deposit / ForcedInclusion fees); "
+                    + "production uses HSM/KMS INeoTransactionSigner",
                     "L2SettlementSettings.FromChainDirectory(chainDir) (or FromPluginConfigFile)",
                     "L2BatchSettings.FromChainDirectory(chainDir) (or FromPluginConfigFile)",
                     "L2SettlementStoreLayout.Open(chainDir) → ProofWitness + event stores "
@@ -276,6 +280,9 @@ public sealed record NeoHubDeployReport(
                     "durable messageRouterEventStore (recommended: "
                     + RelativeMessageRouterEventStoreDir
                     + "; MessageRouterDeploymentHeight from plugin config when MessageRouterHash set)",
+                    "local Multisig/Optimistic DA: PersistentDAWriter.OpenLocalFromChainDirectory(chainDir) "
+                    + "→ " + RelativeLocalDaStoreDir
+                    + " (node-local durability only; Zk/Validity public DA uses L1/NeoFS production writers)",
                     "l1FinalizedHeight optional: WireProduction defaults from production RPC + L1FinalityDepth "
                     + "(or pass RpcL1FinalizedHeightSource.CreateSyncProvider)",
                     "sequencerCommitteeHash provider (required for L1 inbox): "
@@ -287,7 +294,8 @@ public sealed record NeoHubDeployReport(
                     + "after bootstrap-genesis",
                     "profile: ProofWitnessPipelineProfile.LegacyFromChainDirectory(chainDir) for Multisig/Optimistic; "
                     + "Sp1SettlementExecutionStack.Create for Zk",
-                    "executor + DA writer + prover (e.g. Sp1SettlementExecutionStack for Zk)",
+                    "executor + DA writer + prover (e.g. Sp1SettlementExecutionStack for Zk; "
+                    + "Multisig: AttestationProver + PersistentDAWriter.OpenLocalFromChainDirectory)",
                 },
             },
             ["genesisManifest"] = BootstrapGenesisManifestRelativePath,
@@ -325,6 +333,12 @@ public sealed record NeoHubDeployReport(
     public const string RelativeMessageRouterEventStoreDir = "data/settlement/message-router-events";
 
     /// <summary>
+    /// Canonical RocksDB path for Multisig/Optimistic local <c>PersistentDAWriter</c>
+    /// (node-local durability only — not public DA evidence).
+    /// </summary>
+    public const string RelativeLocalDaStoreDir = "data/settlement/da";
+
+    /// <summary>
     /// Create the canonical WireProduction durable-store directories under a chain layout.
     /// Safe to call repeatedly; does not open RocksDB (empty dirs only).
     /// </summary>
@@ -339,6 +353,7 @@ public sealed record NeoHubDeployReport(
             RelativeForcedInclusionEventStoreDir,
             RelativeSharedBridgeDepositEventStoreDir,
             RelativeMessageRouterEventStoreDir,
+            RelativeLocalDaStoreDir,
         };
         foreach (var path in relative)
             Directory.CreateDirectory(Path.Combine(chainDirectory, path));

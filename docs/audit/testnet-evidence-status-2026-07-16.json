@@ -71,8 +71,8 @@
       "notes": "Requires WitnessScope.Global for nested native GAS fee transfer under ForcedInclusion."
     },
     "sharedBridgeDeposit": {
-      "status": "blocked-by-caller-model",
-      "reason": "SharedBridge.Deposit pulls NEP-17 from Runtime.CallingScriptHash; wallet entry-script invocations are not the user account, so transfer fails even with Global witness. ForcedInclusion correctly uses Transaction.Sender. Wallet deposit needs a contract fix (use Sender + CheckWitness) and redeploy/governance update, or a contract-wallet intermediate."
+      "status": "code-fixed-redeploy-pending",
+      "reason": "Live testnet SharedBridge still uses CallingScriptHash pull model (failed wallet deposit). Source on master now matches ForcedInclusion (Transaction.Sender + CheckWitness). Redeploy SharedBridge + governance chain update still required before live wallet Deposit works; nested NEP-17 needs WitnessScope.Global."
     },
     "settlement": {
       "latestFinalizedBatch": 0,

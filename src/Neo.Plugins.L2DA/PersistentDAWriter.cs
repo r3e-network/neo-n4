@@ -49,6 +49,30 @@ public sealed class PersistentDAWriter : IDAWriter, IDisposable
         _ownsStore = ownsStore;
     }
 
+    /// <summary>
+    /// Open a RocksDB-backed local DA writer under the chain layout
+    /// (<see cref="NeoHubDeployReport.RelativeLocalDaStoreDir"/>). The writer owns the store.
+    /// </summary>
+    /// <remarks>
+    /// Multisig/Optimistic host composition only. Never advertise this path as public
+    /// NeoFS/L1/DAC evidence. Call <see cref="NeoHubDeployReport.EnsureSettlementStoreDirectories"/>
+    /// first (also invoked by <c>init-l2</c> / deploy-report materialization).
+    /// </remarks>
+    public static PersistentDAWriter OpenLocalFromChainDirectory(string chainDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        var root = Path.GetFullPath(chainDirectory);
+        if (!Directory.Exists(root))
+            throw new DirectoryNotFoundException(
+                $"Chain directory not found: {root}. Run neo-stack init-l2 first.");
+
+        NeoHubDeployReport.EnsureSettlementStoreDirectories(root);
+        var absolute = Path.Combine(root, NeoHubDeployReport.RelativeLocalDaStoreDir);
+        Directory.CreateDirectory(absolute);
+        var store = new RocksDbKeyValueStore(absolute);
+        return new PersistentDAWriter(store, DAMode.Local, ownsStore: true);
+    }
+
     /// <inheritdoc />
     public ValueTask<DAReceipt> PublishAsync(DAPublishRequest request, CancellationToken cancellationToken = default)
     {

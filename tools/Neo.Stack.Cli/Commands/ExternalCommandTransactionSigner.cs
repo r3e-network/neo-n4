@@ -291,9 +291,12 @@ internal static class OperatorTransactionSignerFactory
             return false;
         }
 
+        if (!TryParseWitnessScope(args, optionPrefix, out var scope, out error))
+            return false;
+
         try
         {
-            signer = ImportLocalKeySigner(wif);
+            signer = ImportLocalKeySigner(wif, scope);
             return true;
         }
         catch (Exception exception)
@@ -301,6 +304,36 @@ internal static class OperatorTransactionSignerFactory
             error = $"Unable to import {wifEnvironmentVariable}: {exception.Message}";
             return false;
         }
+    }
+
+    /// <summary>
+    /// Parse optional <c>--witness-scope</c> (or prefixed) for local WIF signers.
+    /// Nested NEP-17 pulls (SharedBridge.Deposit, ForcedInclusion fees) need
+    /// <see cref="WitnessScope.Global"/> (or CustomContracts covering the asset).
+    /// </summary>
+    private static bool TryParseWitnessScope(
+        string[] args,
+        string optionPrefix,
+        out WitnessScope scope,
+        out string error)
+    {
+        scope = WitnessScope.CalledByEntry;
+        error = "";
+        var scopeOption = Option(optionPrefix, "witness-scope");
+        var raw = ArgUtil.Get(args, scopeOption, "CalledByEntry");
+        if (string.IsNullOrWhiteSpace(raw))
+            return true;
+        if (Enum.TryParse<WitnessScope>(raw, ignoreCase: true, out var parsed)
+            && Enum.IsDefined(parsed)
+            && parsed is WitnessScope.CalledByEntry or WitnessScope.Global)
+        {
+            scope = parsed;
+            return true;
+        }
+
+        error = $"{scopeOption} must be CalledByEntry or Global (got '{raw}'). "
+            + "Use Global for SharedBridge.Deposit and ForcedInclusion fee transfers.";
+        return false;
     }
 
     private static bool TryCreateExternalSigner(
@@ -381,8 +414,8 @@ internal static class OperatorTransactionSignerFactory
         }
     }
 
-    private static LocalKeyTransactionSigner ImportLocalKeySigner(string wif)
-        => LocalKeyTransactionSigner.FromWif(wif);
+    private static LocalKeyTransactionSigner ImportLocalKeySigner(string wif, WitnessScope scope)
+        => LocalKeyTransactionSigner.FromWif(wif, scope);
 
     private static bool TryParseHex(
         string value,

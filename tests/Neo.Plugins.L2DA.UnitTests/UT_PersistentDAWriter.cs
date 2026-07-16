@@ -213,4 +213,43 @@ public class UT_PersistentDAWriter
         Assert.IsNull(await reader.ReadAsync(receipt with { Kind = DAReceiptKind.NeoFSObject }));
         Assert.IsNull(await reader.ReadAsync(receipt with { Evidence = ReadOnlyMemory<byte>.Empty }));
     }
+
+    [TestMethod]
+    public async Task OpenLocalFromChainDirectory_PublishesUnderSettlementDaLayout()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-local-da-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            using var writer = PersistentDAWriter.OpenLocalFromChainDirectory(dir);
+            Assert.AreEqual(DAMode.Local, writer.Mode);
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                dir, NeoHubDeployReport.RelativeLocalDaStoreDir)));
+
+            var payload = new byte[] { 0xCA, 0xFE };
+            var receipt = await writer.PublishAsync(new DAPublishRequest
+            {
+                ChainId = 20260716,
+                BatchNumber = 1,
+                Payload = payload,
+            });
+            Assert.IsTrue(await writer.IsAvailableAsync(receipt));
+            CollectionAssert.AreEqual(
+                payload,
+                (await writer.CreateReader().ReadAsync(receipt))!.Value.ToArray());
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void OpenLocalFromChainDirectory_MissingRoot_FailsClosed()
+    {
+        var missing = Path.Combine(Path.GetTempPath(), "neo-n4-missing-" + Guid.NewGuid().ToString("N"));
+        Assert.ThrowsExactly<DirectoryNotFoundException>(
+            () => PersistentDAWriter.OpenLocalFromChainDirectory(missing));
+    }
 }

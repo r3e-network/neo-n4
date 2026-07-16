@@ -115,6 +115,75 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
     }
 
     /// <summary>
+    /// Open a production message router whose durable L1→L2 event store lives under
+    /// <see cref="NeoHubDeployReport.RelativeMessageRouterEventStoreDir"/>. Optionally opens
+    /// a durable finalized-proof store under <see cref="NeoHubDeployReport.RelativeRpcProofStoreDir"/>.
+    /// </summary>
+    /// <remarks>
+    /// Owns the event-store RocksDB via the scanner. When <paramref name="openFinalizedProofStore"/>
+    /// is true, also opens and owns the RPC proofs RocksDB so outbound inclusion proofs survive
+    /// restarts. Caller still owns <paramref name="rpc"/> unless <paramref name="ownsRpc"/> is true.
+    /// </remarks>
+    public static RpcMessageRouter OpenFromChainDirectory(
+        string chainDirectory,
+        JsonRpcClient rpc,
+        UInt160 messageRouterHash,
+        uint chainId,
+        uint startHeight,
+        uint finalityDepth = 1,
+        int maximumBlocksPerScan = 256,
+        bool openFinalizedProofStore = true,
+        bool ownsRpc = false)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        ArgumentNullException.ThrowIfNull(rpc);
+        ArgumentNullException.ThrowIfNull(messageRouterHash);
+        if (startHeight == 0)
+            throw new ArgumentOutOfRangeException(
+                nameof(startHeight), "MessageRouter deployment height must be non-zero");
+
+        var root = System.IO.Path.GetFullPath(chainDirectory);
+        if (!System.IO.Directory.Exists(root))
+            throw new System.IO.DirectoryNotFoundException(
+                $"Chain directory not found: {root}. Run neo-stack init-l2 first.");
+
+        NeoHubDeployReport.EnsureSettlementStoreDirectories(root);
+        var eventPath = System.IO.Path.Combine(
+            root, NeoHubDeployReport.RelativeMessageRouterEventStoreDir);
+        System.IO.Directory.CreateDirectory(eventPath);
+        var eventStore = new RocksDbKeyValueStore(eventPath);
+        var scanner = new RpcMessageRouterEventScanner(
+            rpc,
+            messageRouterHash,
+            chainId,
+            eventStore,
+            startHeight,
+            finalityDepth,
+            maximumBlocksPerScan,
+            ownsStore: true);
+
+        IL2KeyValueStore? finalized = null;
+        var ownsFinalized = false;
+        if (openFinalizedProofStore)
+        {
+            var proofPath = System.IO.Path.Combine(root, NeoHubDeployReport.RelativeRpcProofStoreDir);
+            System.IO.Directory.CreateDirectory(proofPath);
+            finalized = new RocksDbKeyValueStore(proofPath);
+            ownsFinalized = true;
+        }
+
+        return new RpcMessageRouter(
+            rpc,
+            messageRouterHash,
+            chainId,
+            Array.Empty<ulong>(),
+            finalized: finalized,
+            ownsFinalized: ownsFinalized,
+            ownsRpc: ownsRpc,
+            eventScanner: scanner);
+    }
+
+    /// <summary>
     /// Add an L1→L2 nonce to the known set. Production scanners call this for each
     /// discovered event; operators may also seed nonces for migration/recovery.
     /// </summary>

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Neo.Cryptography;
+using Neo.L2.Persistence;
 using Neo.L2.Settlement.Rpc;
 
 namespace Neo.L2.ForcedInclusion;
@@ -77,6 +78,56 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
             foreach (var nonce in _eventScanner.LoadTrackedNonces())
                 RegisterDiscoveredNonce(nonce);
         }
+    }
+
+    /// <summary>
+    /// Open a production forced-inclusion source whose durable event store lives under
+    /// <see cref="NeoHubDeployReport.RelativeForcedInclusionEventStoreDir"/> in a chain
+    /// working directory. Owns the RocksDB store (via the event scanner) and optionally the RPC client.
+    /// </summary>
+    public static RpcForcedInclusionSource OpenFromChainDirectory(
+        string chainDirectory,
+        JsonRpcClient rpc,
+        UInt160 forcedInclusionHash,
+        uint chainId,
+        uint startHeight,
+        uint finalityDepth = 1,
+        int maximumBlocksPerScan = 256,
+        bool ownsRpc = false)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        ArgumentNullException.ThrowIfNull(rpc);
+        ArgumentNullException.ThrowIfNull(forcedInclusionHash);
+        if (startHeight == 0)
+            throw new ArgumentOutOfRangeException(
+                nameof(startHeight), "ForcedInclusion deployment height must be non-zero");
+
+        var root = System.IO.Path.GetFullPath(chainDirectory);
+        if (!System.IO.Directory.Exists(root))
+            throw new System.IO.DirectoryNotFoundException(
+                $"Chain directory not found: {root}. Run neo-stack init-l2 first.");
+
+        NeoHubDeployReport.EnsureSettlementStoreDirectories(root);
+        var absolute = System.IO.Path.Combine(
+            root, NeoHubDeployReport.RelativeForcedInclusionEventStoreDir);
+        System.IO.Directory.CreateDirectory(absolute);
+        var store = new RocksDbKeyValueStore(absolute);
+        var scanner = new RpcForcedInclusionEventScanner(
+            rpc,
+            forcedInclusionHash,
+            chainId,
+            store,
+            startHeight,
+            finalityDepth,
+            maximumBlocksPerScan,
+            ownsStore: true);
+        return new RpcForcedInclusionSource(
+            rpc,
+            forcedInclusionHash,
+            chainId,
+            Array.Empty<ulong>(),
+            ownsRpc: ownsRpc,
+            eventScanner: scanner);
     }
 
     /// <summary>

@@ -254,4 +254,48 @@ public class UT_RpcForcedInclusionSource
         Assert.ThrowsExactly<InvalidDataException>(
             () => RpcForcedInclusionSource.DecodeEntry(7, encoded));
     }
+
+    [TestMethod]
+    public void OpenFromChainDirectory_CreatesDurableStoreUnderLayout()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-fi-open-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var stub = new StubRpcHandler();
+            var http = new HttpClient(stub);
+            var rpc = new JsonRpcClient(new Uri(Endpoint), http);
+            using var source = RpcForcedInclusionSource.OpenFromChainDirectory(
+                dir, rpc, RegistryHash, TestChainId, startHeight: 10, ownsRpc: true);
+            Assert.AreEqual(TestChainId, source.ChainId);
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                dir, NeoHubDeployReport.RelativeForcedInclusionEventStoreDir)));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void OpenFromChainDirectory_ZeroStartHeight_FailsClosed()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-fi-zero-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var stub = new StubRpcHandler();
+            using var http = new HttpClient(stub);
+            using var rpc = new JsonRpcClient(new Uri(Endpoint), http);
+            Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
+                RpcForcedInclusionSource.OpenFromChainDirectory(
+                    dir, rpc, RegistryHash, TestChainId, startHeight: 0));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
 }

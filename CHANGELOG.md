@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — ForcedInclusion + MessageRouter sources from chain directory — 2026-07-17
+
+- `RpcForcedInclusionSource.OpenFromChainDirectory` and
+  `RpcMessageRouter.OpenFromChainDirectory` open durable event stores under
+  `data/settlement/forced-inclusion-events` and `data/settlement/message-router-events`
+  (message router optionally owns `data/rpc/proofs` for finalized proofs).
+- Event scanners accept `ownsStore` so chain-directory factories can dispose RocksDB
+  with the source/router.
+- `L2SettlementPlugin.CreateForcedInclusionSourceFromChainDirectory` and
+  `CreateMessageRouterFromChainDirectory` load settlement config and return owned instances
+  for `WireL1MessageInbox` host composition.
+- Wireproduction notes + unit coverage for store open / fail-closed paths.
+
 ### Added — SharedBridge deposit source from chain directory — 2026-07-17
 
 - `RpcSharedBridgeDepositSource.OpenFromChainDirectory` opens the durable event store under

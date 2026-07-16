@@ -88,6 +88,63 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
             ownsRpc: true);
     }
 
+    /// <summary>
+    /// Host composition: owned <see cref="RpcForcedInclusionSource"/> from settlement config
+    /// + durable store under <c>data/settlement/forced-inclusion-events</c>.
+    /// </summary>
+    public static RpcForcedInclusionSource CreateForcedInclusionSourceFromChainDirectory(
+        string chainDirectory)
+    {
+        var settings = L2SettlementSettings.FromChainDirectory(chainDirectory);
+        var production = settings.ValidateProduction();
+        if (settings.ForcedInclusionDeploymentHeight == 0)
+            throw new InvalidOperationException(
+                "CreateForcedInclusionSourceFromChainDirectory requires ForcedInclusionDeploymentHeight "
+                + "in settlement plugin config (deploy-report blockIndex)");
+
+        var rpc = new JsonRpcClient(production.RpcEndpoint.AbsoluteUri);
+        return RpcForcedInclusionSource.OpenFromChainDirectory(
+            chainDirectory,
+            rpc,
+            production.ForcedInclusionHash,
+            production.ChainId,
+            settings.ForcedInclusionDeploymentHeight,
+            settings.L1FinalityDepth,
+            ownsRpc: true);
+    }
+
+    /// <summary>
+    /// Host composition: owned <see cref="RpcMessageRouter"/> from settlement config + durable
+    /// L1→L2 event store under <c>data/settlement/message-router-events</c> (and optional
+    /// finalized proofs under <c>data/rpc/proofs</c>).
+    /// </summary>
+    public static RpcMessageRouter CreateMessageRouterFromChainDirectory(
+        string chainDirectory,
+        bool openFinalizedProofStore = true)
+    {
+        var settings = L2SettlementSettings.FromChainDirectory(chainDirectory);
+        var production = settings.ValidateProduction();
+        if (production.MessageRouterHash is null)
+            throw new InvalidOperationException(
+                "CreateMessageRouterFromChainDirectory requires MessageRouterHash "
+                + "in settlement plugin config");
+        if (settings.MessageRouterDeploymentHeight == 0)
+            throw new InvalidOperationException(
+                "CreateMessageRouterFromChainDirectory requires MessageRouterDeploymentHeight "
+                + "in settlement plugin config (deploy-report blockIndex)");
+
+        var rpc = new JsonRpcClient(production.RpcEndpoint.AbsoluteUri);
+        return RpcMessageRouter.OpenFromChainDirectory(
+            chainDirectory,
+            rpc,
+            production.MessageRouterHash,
+            production.ChainId,
+            settings.MessageRouterDeploymentHeight,
+            settings.L1FinalityDepth,
+            openFinalizedProofStore: openFinalizedProofStore,
+            ownsRpc: true);
+    }
+
     /// <summary>Loaded settlement settings (host composition / tests).</summary>
     internal L2SettlementSettings Settings => _settings;
 

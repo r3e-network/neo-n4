@@ -194,6 +194,12 @@ public class UT_NeoHubDeployReport
                 "RpcSharedBridgeDepositSource.OpenFromChainDirectory(chainDir, rpc, sharedBridge, chainId, l2Bridge, startHeight)",
                 stores.GetProperty("depositSourceOpenHelper").GetString());
             Assert.AreEqual(
+                "L2SettlementPlugin.CreateForcedInclusionSourceFromChainDirectory(chainDirectory)",
+                stores.GetProperty("forcedInclusionSourceFromChainDirectory").GetString());
+            Assert.AreEqual(
+                "L2SettlementPlugin.CreateMessageRouterFromChainDirectory(chainDirectory)",
+                stores.GetProperty("messageRouterFromChainDirectory").GetString());
+            Assert.AreEqual(
                 NeoHubDeployReport.RelativeRpcProofStoreDir,
                 stores.GetProperty("rpcProofStore").GetString());
             Assert.AreEqual(

@@ -357,11 +357,22 @@ public class UT_L2SettlementSettings
             Assert.AreEqual(s.ForcedInclusionDeploymentHeight, plugin.Settings.ForcedInclusionDeploymentHeight);
             Assert.AreEqual(s.SettlementManagerHash, plugin.Settings.SettlementManagerHash);
 
-            // Host deposit composition: settings + durable store under chain layout.
+            // Host L1-inbox composition: deposit / forced-inclusion / message-router.
             using var depositSource = L2SettlementPlugin.CreateDepositSourceFromChainDirectory(dir);
             Assert.AreEqual(s.ChainId, depositSource.ChainId);
             Assert.IsTrue(Directory.Exists(Path.Combine(
                 dir, NeoHubDeployReport.RelativeSharedBridgeDepositEventStoreDir)));
+
+            using var forcedSource = L2SettlementPlugin.CreateForcedInclusionSourceFromChainDirectory(dir);
+            Assert.AreEqual(s.ChainId, forcedSource.ChainId);
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                dir, NeoHubDeployReport.RelativeForcedInclusionEventStoreDir)));
+
+            using var messageRouter = L2SettlementPlugin.CreateMessageRouterFromChainDirectory(dir);
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                dir, NeoHubDeployReport.RelativeMessageRouterEventStoreDir)));
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                dir, NeoHubDeployReport.RelativeRpcProofStoreDir)));
         }
         finally
         {

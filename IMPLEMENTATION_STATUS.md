@@ -379,7 +379,7 @@ real secp256k1 signatures.
 | ForcedInclusion | nonce 1 enqueued (`0x73924dce…f412`, HALT); needs `WitnessScope.Global` for fee transfer |
 | SharedBridge deposit | **live fixed**: bridge `0xf64548c2…1bae`; Deposit nonce 1 (`0x9b72709e…4675ae`) + nonce 2 (`0x77ea50a9…fe6f31`) HALT with `WitnessScope.Global`. Full bundle reverify 24/24 reuse + 42 smoke (2026-07-17). Legacy `0xf2f5114b…b241` still broken. Chain `20260716` config still points at legacy until governance retarget (**funded/governance gate**). |
 | Local Multisig DA | **code-complete**: `PersistentDAWriter.OpenLocalFromChainDirectory` → `data/settlement/da` |
-| Host WireProduction | **code-complete**: batch/settlement/bridge/prover/metrics/gateway factories + local DA + RPC proofs + gateway outbox + deposit source from chain dir (`CreateDepositSourceFromChainDirectory` / `OpenFromChainDirectory`) + `WireProductionFromLayout` + Multisig/Optimistic provers; Zk: `OpenStateFromChainDirectory` + Sp1 stack (still needs funded executor binary + VK + production DA); Gateway: `CreateDurableFromChainDirectory(chainDir, aggregator)` then `ConfigureGlobalRootPublication` (funded prover/publisher) |
+| Host WireProduction | **code-complete**: batch/settlement/bridge/prover/metrics/gateway factories + local DA + RPC proofs + gateway outbox + L1 inbox factories (deposit / forced-inclusion / message-router `Create*FromChainDirectory` + `OpenFromChainDirectory`) + `WireProductionFromLayout` + Multisig/Optimistic provers; Zk: `OpenStateFromChainDirectory` + Sp1 stack (still needs funded executor binary + VK + production DA); Gateway: `CreateDurableFromChainDirectory(chainDir, aggregator)` then `ConfigureGlobalRootPublication` (funded prover/publisher) |
 | Evidence | [`docs/audit/testnet-deployment-20260716-live.json`](./docs/audit/testnet-deployment-20260716-live.json), [`docs/audit/testnet-deployment-20260717-reverify.json`](./docs/audit/testnet-deployment-20260717-reverify.json), [`docs/audit/testnet-deployment-20260717-full-reverify.json`](./docs/audit/testnet-deployment-20260717-full-reverify.json), [`docs/audit/testnet-deployment-20260717-sharedbridge-fix.json`](./docs/audit/testnet-deployment-20260717-sharedbridge-fix.json), [`docs/audit/testnet-evidence-status-2026-07-17.json`](./docs/audit/testnet-evidence-status-2026-07-17.json), [`docs/audit/testnet-evidence-status-2026-07-17-session.json`](./docs/audit/testnet-evidence-status-2026-07-17-session.json) |
 
 Key hashes: ChainRegistry `0x65201c54…2d23`, SettlementManager `0x11448868…bb51`, SharedBridge **fixed** `0xf64548c2…1bae` (legacy `0xf2f5114b…b241`), MessageRouter `0x3caf3c6e…fe90`, ForcedInclusion `0x962829ae…55a9`, TokenRegistry `0x96ae4655…505b`, Sp1Groth16Verifier `0x1004bb51…0c4d`. Scanner deploy heights (legacy bundle): ForcedInclusion `17729309`, SharedBridge `17729307`, MessageRouter `17729303`.
@@ -413,10 +413,11 @@ These are explicit deployment seams rather than missing protocol algorithms:
   `RpcMessageRouterEventScanner` when `MessageRouterHash` is configured.
   Hosts construct plugins via `L2SettlementPlugin.CreateFromChainDirectory(chainDir)`,
   `L2BatchPlugin.CreateFromChainDirectory(chainDir)`,
-  `L2BridgePlugin.CreateFromChainDirectory(chainDir)` then
-  `L2SettlementPlugin.CreateDepositSourceFromChainDirectory(chainDir)` (or
-  `RpcSharedBridgeDepositSource.OpenFromChainDirectory`) + `WithDepositSource` /
-  batch `WireL1MessageInbox`,
+  `L2BridgePlugin.CreateFromChainDirectory(chainDir)` then L1 inbox factories
+  `CreateDepositSourceFromChainDirectory` /
+  `CreateForcedInclusionSourceFromChainDirectory` /
+  `CreateMessageRouterFromChainDirectory` (or type-level `OpenFromChainDirectory`) +
+  `WithDepositSource` / batch `WireL1MessageInbox`,
   `L2ProverPlugin.CreateFromChainDirectory(chainDir)` then `Wire(...)`,
   `L2MetricsPlugin.CreateFromChainDirectory(chainDir)`, for Multisig/Optimistic local DA
   `L2DAPlugin.CreateLocalFromChainDirectory(chainDir)` (public DAMode uses

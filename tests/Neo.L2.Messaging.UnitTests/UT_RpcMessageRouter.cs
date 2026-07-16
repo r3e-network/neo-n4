@@ -281,4 +281,49 @@ public class UT_RpcMessageRouter
         // MessageHash must be the recomputed canonical hash, not zero.
         Assert.AreNotEqual(UInt256.Zero, decoded.MessageHash);
     }
+
+    [TestMethod]
+    public void OpenFromChainDirectory_CreatesEventAndProofStores()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-router-open-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var stub = new StubRpcHandler();
+            var http = new HttpClient(stub);
+            var rpc = new JsonRpcClient(new Uri(Endpoint), http);
+            using var router = RpcMessageRouter.OpenFromChainDirectory(
+                dir, rpc, RouterHash, TestChainId, startHeight: 10, ownsRpc: true);
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                dir, NeoHubDeployReport.RelativeMessageRouterEventStoreDir)));
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                dir, NeoHubDeployReport.RelativeRpcProofStoreDir)));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void OpenFromChainDirectory_ZeroStartHeight_FailsClosed()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-router-zero-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var stub = new StubRpcHandler();
+            using var http = new HttpClient(stub);
+            using var rpc = new JsonRpcClient(new Uri(Endpoint), http);
+            Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
+                RpcMessageRouter.OpenFromChainDirectory(
+                    dir, rpc, RouterHash, TestChainId, startHeight: 0));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
 }

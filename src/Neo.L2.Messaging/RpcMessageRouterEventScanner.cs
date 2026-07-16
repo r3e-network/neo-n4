@@ -38,7 +38,12 @@ public sealed class RpcMessageRouterEventScanner : IDisposable
     private readonly SemaphoreSlim _scanGate = new(1, 1);
     private int _disposed;
 
-    /// <summary>Construct a durable scanner over a caller-owned key-value store.</summary>
+    private readonly bool _ownsStore;
+
+    /// <summary>
+    /// Construct a durable scanner over a key-value store.
+    /// When <paramref name="ownsStore"/> is true, <see cref="Dispose"/> disposes the store.
+    /// </summary>
     public RpcMessageRouterEventScanner(
         JsonRpcClient rpc,
         UInt160 contractHash,
@@ -46,7 +51,8 @@ public sealed class RpcMessageRouterEventScanner : IDisposable
         IL2KeyValueStore store,
         uint startHeight,
         uint finalityDepth = 1,
-        int maximumBlocksPerScan = 256)
+        int maximumBlocksPerScan = 256,
+        bool ownsStore = false)
     {
         ArgumentNullException.ThrowIfNull(rpc);
         ArgumentNullException.ThrowIfNull(contractHash);
@@ -63,6 +69,7 @@ public sealed class RpcMessageRouterEventScanner : IDisposable
         _contractHash = contractHash;
         _chainId = chainId;
         _store = store;
+        _ownsStore = ownsStore;
         _startHeight = startHeight;
         _finalityDepth = finalityDepth;
         _maximumBlocksPerScan = maximumBlocksPerScan;
@@ -162,6 +169,7 @@ public sealed class RpcMessageRouterEventScanner : IDisposable
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         _scanGate.Dispose();
+        if (_ownsStore) _store.Dispose();
     }
 
     private async ValueTask VerifyResumeHashAsync(

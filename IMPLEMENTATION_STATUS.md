@@ -364,6 +364,22 @@ real secp256k1 signatures.
 | `NeoHub.Sp1Groth16Verifier.UnitTests` | 12   | positive SP1 Groth16 vector, malformed/tampered proof and public-input rejection, and fresh verifier/contract artifact equivalence |
 | `Sample.CounterChainExecutor.UnitTests` | 24 | **operator-facing reference for "how to plug in custom chain logic"**: 3-opcode custom executor (IncrementCounter / EmitWithdrawal / EmitMessage) demonstrates the `ITransactionExecutor` seam. Per-sender-counter happy-path + accumulation + ulong wraparound semantics; per-sender state isolation; truncated-tx → Failed-receipt path (not crash); withdrawal happy-path produces valid `WithdrawalRequest` with deterministic txHash-derived nonce; zero-amount withdrawal rejected; message happy-path produces routable `CrossChainMessage` via canonical `MessageBuilder.Build`; self-routed (source==target) rejected; oversized message body builder-rejected at MaxMessageBytes cap; unknown-opcode + empty-tx → Failed; SPEC.md determinism pin (two fresh executors + identical inputs → identical receipts + state); mixed-opcode batch smoke test; **executor ctor null-state / null-emittingContract guards; ExecuteAsync null-batchContext guard; cooperative-cancellation pin (cancelled token → OperationCanceledException, not a wasted receipt); `KeyedStateStoreAdapter` round-trip Put/Get + missing-key returns false + adapter writes flow through to `KeyedStateStore.ComputeRoot` parity vs direct writes; adapter ctor null-store + Put null-key/null-value + TryGet null-key all reject with ArgumentNullException at the call boundary so a misconfigured DI wiring fails at composition, not later with an unattributed NRE** |
 
+## Public testnet evidence (NeoHub L1)
+
+| Field | Value |
+|-------|-------|
+| Status | **Current for NeoHub L1 bundle** (2026-07-16) |
+| Network | Neo N3 testnet magic `894710606` |
+| RPC | `https://n3seed1.ngd.network:20332` |
+| Signer | `NLtL2v28d7TyMEaXcPqtekunkFRksJ7wxu` |
+| L2 domain id | `20260716` |
+| Contracts | 24 deployed + post-deploy wiring + smoke |
+| Evidence | [`docs/audit/testnet-deployment-20260716-live.json`](./docs/audit/testnet-deployment-20260716-live.json), [`docs/audit/testnet-evidence-status-2026-07-16.json`](./docs/audit/testnet-evidence-status-2026-07-16.json) |
+
+Key hashes: ChainRegistry `0x65201c54…2d23`, SettlementManager `0x11448868…bb51`, SharedBridge `0xf2f5114b…b241`, MessageRouter `0x3caf3c6e…fe90`, ForcedInclusion `0x962829ae…55a9`, Sp1Groth16Verifier `0x1004bb51…0c4d`.
+
+Still **not** closed by this deploy alone: `register-chain` + genesis root, L2 node/operator stack, 4-SDK live fixture, production DA credentials, real SP1 proof vectors.
+
 ## Production integrations still operator-supplied
 
 These are explicit deployment seams rather than missing protocol algorithms:

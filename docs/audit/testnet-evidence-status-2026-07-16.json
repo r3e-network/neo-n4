@@ -1,0 +1,176 @@
+{
+  "schemaVersion": 1,
+  "checkedAtUtc": "2026-07-16T02:40:22Z",
+  "sourceCommit": "c1daf7d",
+  "rpc": "https://n3seed1.ngd.network:20332/",
+  "networkMagic": 894710606,
+  "signerAddress": "NLtL2v28d7TyMEaXcPqtekunkFRksJ7wxu",
+  "signerScriptHash": "0x13ef519c362973f9a34648a9eac5b71250b2a80a",
+  "l2ChainId": 20260716,
+  "governance": "2-of-2",
+  "sp1ProgramVKey": null,
+  "deploymentReport": "docs/audit/testnet-deployment-20260716-live.json",
+  "dryRunReport": "docs/audit/testnet-deployment-20260716-dry-run.json",
+  "contractsDeployed": 24,
+  "postDeployActions": 29,
+  "smokeChecksPassed": 42,
+  "onChainContractStatesPresent": 24,
+  "releaseEvidenceStatus": "current-for-neohub-l1-bundle",
+  "releaseGate": "NeoHub 24-contract L1 bundle deployed and smoke-verified on Neo N3 testnet. Remaining: register-chain with genesis root, L2 operator stack, 4-SDK live fixture, DA rehearsal, real SP1 proof vectors.",
+  "keyContracts": {
+    "ChainRegistry": "0x65201c5415f6fc13093ad7169c556351c2392d23",
+    "SettlementManager": "0x11448868f1c14422506b9c2360051df34bcbbb51",
+    "SharedBridge": "0xf2f5114b83dd6fed4ddcac0ff9966fd22a77b241",
+    "MessageRouter": "0x3caf3c6e160b5aec2e07672dc37662b5998afe90",
+    "ForcedInclusion": "0x962829ae28e7f89e5de4b4672b167c8ae2ba55a9",
+    "Sp1Groth16Verifier": "0x1004bb5185ee6947800661b0be55c38d80ee0c4d",
+    "ContractZkVerifier": "0x66b68cbe8e86230e557e4f7008e6b476c055f03c",
+    "OptimisticChallenge": "0x1f6fcc8876084528ee00c9222437bd9447051a0f"
+  },
+  "contracts": [
+    {
+      "name": "ChainRegistry",
+      "hash": "0x65201c5415f6fc13093ad7169c556351c2392d23",
+      "tx": "0x9891745a0582dddec6385eeb2e6d5510100de0ee0d5b61fa64329a8d51833c0d",
+      "status": "deployed"
+    },
+    {
+      "name": "VerifierRegistry",
+      "hash": "0xe058ea01d6933f38bad1321d0407f514112016b1",
+      "tx": "0xa8431f0d975e3af3fd4b04b3590dc428471fcb6320946faa1e1150b312277155",
+      "status": "deployed"
+    },
+    {
+      "name": "ContractZkVerifier",
+      "hash": "0x66b68cbe8e86230e557e4f7008e6b476c055f03c",
+      "tx": "0xc5683789cfb348bd9e5ddac3170e066502793fa78437577f377a678f455fb309",
+      "status": "deployed"
+    },
+    {
+      "name": "Sp1Groth16Verifier",
+      "hash": "0x1004bb5185ee6947800661b0be55c38d80ee0c4d",
+      "tx": "0xcafd91903ec7f5b5ffb6ffb4ac497c78a882d513a5ef2e56f99943e905785292",
+      "status": "deployed"
+    },
+    {
+      "name": "TokenRegistry",
+      "hash": "0x96ae4655fb3792594b134067d1443922ce8f505b",
+      "tx": "0xebbcb0f04fbe55b34ecb52b869d0833e9b144ff80b5c5f2467e387bf2825854a",
+      "status": "deployed"
+    },
+    {
+      "name": "SettlementManager",
+      "hash": "0x11448868f1c14422506b9c2360051df34bcbbb51",
+      "tx": "0xb31a312c1aa289b4349da4fe9328b1d9ecaf04f95d71e0cf5741adac1a75df87",
+      "status": "deployed"
+    },
+    {
+      "name": "DARegistry",
+      "hash": "0xc5ac85fd851354339999dbc113078172127b7e9f",
+      "tx": "0x7a5336209c659c24a3881ebc0a04d1c178c6973360d4daca897fb6eaf7aca4cb",
+      "status": "deployed"
+    },
+    {
+      "name": "DAValidator",
+      "hash": "0x8a749d8052a83d8787fee97d52536689b809a810",
+      "tx": "0xc5896aaf26ddee93265024a28a3cb3973d54c163956aecfa6724233c97e619f2",
+      "status": "deployed"
+    },
+    {
+      "name": "EmergencyManager",
+      "hash": "0x55dec8628b9ed722e076ab11ead74ef6615e2400",
+      "tx": "0x8ef04b10c30bada72b3952caa630c555ce0dfba162d7e2be336187c05c37657d",
+      "status": "deployed"
+    },
+    {
+      "name": "GovernanceController",
+      "hash": "0x25f636a905cb2a507c3674c62baeffacc0ba2ceb",
+      "tx": "0xb31b6aeabbe5671b9fddef63b0689ee89ee010a6eb1a5668d21754aeb5a93c22",
+      "status": "deployed"
+    },
+    {
+      "name": "MessageRouter",
+      "hash": "0x3caf3c6e160b5aec2e07672dc37662b5998afe90",
+      "tx": "0x0c524dc5c45432ad4fc8abf0f9d51a1a37b94717715278d01c5130c61180d8f9",
+      "status": "deployed"
+    },
+    {
+      "name": "L1TxFilter",
+      "hash": "0x703882b2ce4bc58a75ce5d6833e6ae0ee119d1ce",
+      "tx": "0x1a1776887cd58787620501023093f472c669094a1b893e7be6d0255c9c1ea206",
+      "status": "deployed"
+    },
+    {
+      "name": "SharedBridge",
+      "hash": "0xf2f5114b83dd6fed4ddcac0ff9966fd22a77b241",
+      "tx": "0x2c8e4f518b03e97aaf486e713a6e7c3fe14a419a3cf57b070bddee39aa89ea51",
+      "status": "deployed"
+    },
+    {
+      "name": "ForcedInclusion",
+      "hash": "0x962829ae28e7f89e5de4b4672b167c8ae2ba55a9",
+      "tx": "0xe8cb9d27bb43647c81872f21995c82d8bbb8252fc1783154cd9ac39f6e88e814",
+      "status": "deployed"
+    },
+    {
+      "name": "SequencerBond",
+      "hash": "0xb99a1f10958ffa54406775e6c75113359d1b5f93",
+      "tx": "0x28245f51660abeaab69e9c45c129cd488a90d48dc1b4f972227da653bf716e55",
+      "status": "deployed"
+    },
+    {
+      "name": "SequencerRegistry",
+      "hash": "0xfdc33efcd9ffe81d4c9a2f70a60922f6e5039366",
+      "tx": "0xb33f8345dc88441ed0bb7b89ed5495865dc712085cb71ff827bb71e8c22dfaaf",
+      "status": "deployed"
+    },
+    {
+      "name": "OptimisticChallenge",
+      "hash": "0x1f6fcc8876084528ee00c9222437bd9447051a0f",
+      "tx": "0xb7f598b3cea07d64e5ef204421795512097857dcc501336f8f79b3708eb7f1eb",
+      "status": "deployed"
+    },
+    {
+      "name": "RestrictedExecutionFraudVerifier",
+      "hash": "0x1819e64994c3feb659cc28e581ea0ba951fca96b",
+      "tx": "0x5f756f523f8bdf2f6e95073a6d98c668bdbd1f7b3f1165cbc091e663eb9cbc5e",
+      "status": "deployed"
+    },
+    {
+      "name": "MpcCommitteeVerifier",
+      "hash": "0xfa1b2be246e7eb8f1c0f08b207e9bb0f759bfd58",
+      "tx": "0x8f4994cd19667041b84e83501513d47ed4dd67d3b425cc554f50a9b0e3cd7c7e",
+      "status": "deployed"
+    },
+    {
+      "name": "ExternalBridgeRegistry",
+      "hash": "0x8a39a97d3a9cf9021da7a26feb2f6081d0cc823e",
+      "tx": "0xe4a4a7a0d4e6a4d63d2ca9f8bd4e9b2ae1fd7d9daf03ef809af31b3eecc46167",
+      "status": "deployed"
+    },
+    {
+      "name": "ExternalBridgeEscrow",
+      "hash": "0xc63820c72d661654f3ee2ffad7212612f26ba8b5",
+      "tx": "0x85963e0e42d7079dd94f28b7a5c91bf54b1b38e123d4e5ee3233d0b21b87df56",
+      "status": "deployed"
+    },
+    {
+      "name": "L2PayoutAdapter",
+      "hash": "0x8748cb4b98febb5c9b21f965efce1ce6960ec6c1",
+      "tx": "0xf62439adff66621efe165a386b4f51c7006eb416dc495d5c5f3847abaccd2305",
+      "status": "deployed"
+    },
+    {
+      "name": "ExternalBridgeBond",
+      "hash": "0xb7cd05b3185c456887499d83039c1780fff85c30",
+      "tx": "0xaf5a83dca88446bb66316bbeb74f0c8dac8c28fd21c19409c0701245f5ebaebf",
+      "status": "deployed"
+    },
+    {
+      "name": "MpcCommitteeFraudVerifier",
+      "hash": "0x31e1b20fe81ec4eb438fe9b319267982778822ef",
+      "tx": "0xc0300024df262e8c79a42a7377fb027ec218b1e73c892ed9c333a9d81a07c913",
+      "status": "deployed"
+    }
+  ]
+}

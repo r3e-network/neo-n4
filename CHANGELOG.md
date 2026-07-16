@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Neo N3 testnet NeoHub live deployment evidence — 2026-07-16
+
+- Deployed the full 24-contract NeoHub production bundle to Neo N3 testnet
+  (`network=894710606`, RPC `https://n3seed1.ngd.network:20332`) from signer
+  `NLtL2v28d7TyMEaXcPqtekunkFRksJ7wxu`, L2 domain `20260716`, governance 2-of-2.
+- All post-deploy wiring + smoke checks HALT; independent `getcontractstate` re-check
+  confirms every contract present. Evidence:
+  `docs/audit/testnet-deployment-20260716-live.json`,
+  `docs/audit/testnet-evidence-status-2026-07-16.json`.
+- Remaining funded/operator gates after this L1 deploy: `register-chain` with signed
+  genesis root, L2 operator node stack, 4-SDK live fixture, DA rehearsal, real SP1 proof
+  vectors against the deployed verifier.
+
 ### Fixed — batcher MessageRouter surface + combined L1 inbox seal evidence — 2026-07-16
 
 - `L2BatchPlugin.WireL1MessageInbox` retains and exposes the wired `MessageRouter`

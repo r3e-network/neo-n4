@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — sequencer committee hash from chain.config.json validators — 2026-07-16
+
+- `SequencerCommitteeConfig.ReadValidators` / `CreateStaticHashProvider` load compressed
+  secp256r1 keys from `chain.config.json` `validators` and return a stable
+  `Func<UInt256>` via `SequencerCommitteeHasher` for WireProduction L1 inbox wiring.
+- Fails closed on missing file, empty validators, duplicates, or invalid keys.
+- Wireproduction notes document the static genesis path alongside live
+  `RpcSequencerCommitteeProvider`.
+
 ### Added — batch plugin config load + host WireProduction path from deploy report — 2026-07-16
 
 - `L2BatchSettings.FromPluginConfigFile` / `FromChainDirectory` mirror settlement loading

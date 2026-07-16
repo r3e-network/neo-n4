@@ -278,6 +278,8 @@ public sealed record NeoHubDeployReport(
                     "l1FinalizedHeight optional: WireProduction defaults from production RPC + L1FinalityDepth "
                     + "(or pass RpcL1FinalizedHeightSource.CreateSyncProvider)",
                     "sequencerCommitteeHash provider (required for L1 inbox): "
+                    + "SequencerCommitteeConfig.CreateStaticHashProviderFromChainDirectory(chainDir) "
+                    + "when chain.config.json validators is non-empty; or "
                     + "SequencerCommitteeHasher.CreateSyncProvider("
                     + "new RpcSequencerCommitteeProvider(rpc, sequencerRegistry, chainId, genesisKeys))",
                     "executor + DA writer + prover + profile (e.g. Sp1SettlementExecutionStack)",

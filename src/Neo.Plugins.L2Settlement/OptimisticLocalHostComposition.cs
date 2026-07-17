@@ -159,7 +159,7 @@ public sealed class OptimisticLocalHostComposition : IDisposable
 
             bridge = L2BridgePlugin.CreateFromChainDirectory(root);
             bridge.WithMetrics(metrics.Metrics);
-            var deposits = settlement.ProductionComposition?.OwnedDepositSource;
+            var deposits = settlement.ProductionDepositSource;
             if (deposits is not null)
                 bridge.WithDepositSource(deposits);
 

@@ -502,6 +502,34 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
     internal L2SettlementProductionComposition? ProductionComposition =>
         _productionComposition;
 
+    /// <summary>
+    /// Deposit source owned by the last successful <see cref="WireProduction"/> /
+    /// <see cref="WireProductionFromLayout"/> when SharedBridge is configured; null when
+    /// the caller supplied a deposit source or SharedBridge is not configured.
+    /// </summary>
+    public RpcSharedBridgeDepositSource? ProductionDepositSource =>
+        _productionComposition?.OwnedDepositSource;
+
+    /// <summary>
+    /// Message router owned by the last successful WireProduction path when
+    /// MessageRouterHash is configured; null when the caller supplied a router or it is unset.
+    /// </summary>
+    public RpcMessageRouter? ProductionMessageRouter =>
+        _productionComposition?.OwnedMessageRouter;
+
+    /// <summary>
+    /// Forced-inclusion source owned by WireProduction (same instance returned by
+    /// <see cref="WireProduction"/> / <see cref="WireProductionFromLayout"/>).
+    /// </summary>
+    public RpcForcedInclusionSource? ProductionForcedInclusionSource =>
+        _productionComposition?.ForcedInclusionSource;
+
+    /// <summary>
+    /// Settlement client owned by WireProduction for L1 submit/finalization RPC calls.
+    /// </summary>
+    public RpcSettlementClient? ProductionSettlementClient =>
+        _productionComposition?.SettlementClient;
+
     /// <summary>Wire a telemetry sink without changing durable pipeline state.</summary>
     public void WithMetrics(IL2Metrics metrics)
     {

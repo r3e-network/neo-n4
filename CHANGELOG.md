@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Public WireProduction deposit/router accessors + Gateway Multisig/Sp1 E2E — 2026-07-17
+
+- `L2SettlementPlugin` exposes production-owned surfaces after WireProduction:
+  `ProductionDepositSource`, `ProductionMessageRouter`,
+  `ProductionForcedInclusionSource`, `ProductionSettlementClient` (no InternalsVisibleTo).
+- LocalHost compositions bind bridge deposits via the public deposit accessor.
+- Integration: Multisig host + `GatewayHostComposition.OpenMultisig` then `OpenSp1`
+  from the testnet deploy report (outbox disposed between backends).
+
 ### Added — LocalHost compositions open durable L2 RPC proof store — 2026-07-17
 
 - `MultisigLocalHostComposition` / `OptimisticLocalHostComposition` /

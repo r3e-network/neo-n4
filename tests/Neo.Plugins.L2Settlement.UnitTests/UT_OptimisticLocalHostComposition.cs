@@ -49,14 +49,16 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(ProofType.Optimistic, host.Prover.Prover!.Kind);
             Assert.AreEqual(DAMode.Local, host.DaWriter.Mode);
             Assert.AreEqual(20260716u, host.ForcedInclusion.ChainId);
-            Assert.IsNotNull(host.Settlement.ProductionComposition);
+            Assert.IsNotNull(host.Settlement.ProductionForcedInclusionSource);
+            Assert.IsNotNull(host.Settlement.ProductionSettlementClient);
+            Assert.AreSame(host.ForcedInclusion, host.Settlement.ProductionForcedInclusionSource);
             Assert.AreEqual(20260716u, host.Bridge.ChainId);
             Assert.IsNotNull(host.Metrics.Metrics);
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);
-            if (host.Settlement.ProductionComposition!.OwnedDepositSource is not null)
+            if (host.Settlement.ProductionDepositSource is not null)
             {
                 Assert.AreSame(
-                    host.Settlement.ProductionComposition.OwnedDepositSource,
+                    host.Settlement.ProductionDepositSource,
                     host.Bridge.DepositSource);
             }
         }

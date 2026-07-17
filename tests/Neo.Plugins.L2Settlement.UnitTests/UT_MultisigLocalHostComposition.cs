@@ -49,12 +49,14 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsInstanceOfType(host.Prover.Prover, typeof(AttestationProver));
             Assert.AreEqual(DAMode.Local, host.DaWriter.Mode);
             Assert.AreEqual(20260716u, host.ForcedInclusion.ChainId);
-            Assert.IsNotNull(host.Settlement.ProductionComposition);
-            Assert.IsNotNull(host.Settlement.ProductionComposition!.OwnedDepositSource);
-            Assert.IsNotNull(host.Settlement.ProductionComposition.OwnedMessageRouter);
+            Assert.IsNotNull(host.Settlement.ProductionDepositSource);
+            Assert.IsNotNull(host.Settlement.ProductionMessageRouter);
+            Assert.IsNotNull(host.Settlement.ProductionForcedInclusionSource);
+            Assert.IsNotNull(host.Settlement.ProductionSettlementClient);
+            Assert.AreSame(host.ForcedInclusion, host.Settlement.ProductionForcedInclusionSource);
             Assert.AreEqual(20260716u, host.Bridge.ChainId);
             Assert.AreSame(
-                host.Settlement.ProductionComposition.OwnedDepositSource,
+                host.Settlement.ProductionDepositSource,
                 host.Bridge.DepositSource);
             Assert.IsNotNull(host.Metrics.Metrics);
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);

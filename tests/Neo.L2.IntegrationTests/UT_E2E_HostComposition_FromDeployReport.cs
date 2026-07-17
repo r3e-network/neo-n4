@@ -195,6 +195,11 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsNotNull(settlementHost.Metrics.Metrics);
             Assert.AreEqual(20260716u, settlementHost.RpcStore.ChainId);
             Assert.AreEqual(DAMode.Local, settlementHost.RpcStore.DAMode);
+            Assert.IsNotNull(settlementHost.Settlement.ProductionDepositSource);
+            Assert.IsNotNull(settlementHost.Settlement.ProductionMessageRouter);
+            Assert.AreSame(
+                settlementHost.Settlement.ProductionDepositSource,
+                settlementHost.Bridge.DepositSource);
 
             Assert.AreEqual(Path.GetFullPath(chainDir), gatewayHost.ChainDirectory);
             Assert.IsInstanceOfType(gatewayHost.Gateway.Aggregator, typeof(BinaryTreeAggregator));
@@ -203,6 +208,80 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 ((BinaryTreeAggregator)gatewayHost.Gateway.Aggregator).RoundProver.BackendId);
             Assert.IsNotNull(gatewayHost.Publisher);
             Assert.AreSame(gatewayProof, gatewayHost.ProofProver);
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void MultisigLocalHost_And_GatewayOpenMultisig_And_OpenSp1_FromDeployReport()
+    {
+        var reportPath = ResolveDeployReportPath();
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        var chainDir = Path.Combine(
+            Path.GetTempPath(),
+            "neo-n4-host-msig-gw-backends-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            MaterializeChain(chainDir, reportPath, ProofType.Multisig, DAMode.Local, "Optimistic");
+            using var http = MockL1HttpClient(Root(0x11));
+            var signers = new InMemorySignerSet([GenKey(0x10), GenKey(0x20)]);
+            using var settlementHost = MultisigLocalHostComposition.Open(
+                chainDir,
+                new StubExecutor(),
+                signers,
+                new StubSigner(Account(0x44)),
+                rpcHttpClient: http);
+
+            Assert.IsNotNull(settlementHost.Settlement.ProductionForcedInclusionSource);
+            Assert.IsNotNull(settlementHost.Settlement.ProductionSettlementClient);
+            Assert.AreEqual(20260716u, settlementHost.RpcStore.ChainId);
+
+            var multisigProof = new DelegatingGatewayProofProver(
+                proofSystem: 1,
+                aggregationBackendId: MultisigRoundProver.ConstBackendId,
+                proofFactory: static (_, _, _) =>
+                    ValueTask.FromResult<ReadOnlyMemory<byte>>(new byte[] { 0xC0 }));
+            using (var gatewayMultisig = GatewayHostComposition.OpenMultisig(
+                chainDir,
+                signers,
+                threshold: 2,
+                multisigProof,
+                new StubSigner(Account(0x55)),
+                UInt256.Parse("0x" + new string('d', 64)),
+                UInt256.Parse("0x" + new string('e', 64))))
+            {
+                Assert.AreEqual(
+                    MultisigRoundProver.ConstBackendId,
+                    ((BinaryTreeAggregator)gatewayMultisig.Gateway.Aggregator).RoundProver.BackendId);
+                Assert.AreEqual(
+                    2,
+                    ((MultisigRoundProver)((BinaryTreeAggregator)gatewayMultisig.Gateway.Aggregator)
+                        .RoundProver).Threshold);
+                Assert.IsNotNull(gatewayMultisig.Publisher);
+            }
+
+            // Dispose Multisig gateway before Sp1 reuses durable outbox paths.
+            var vk = UInt256.Parse("0x" + new string('a', 64));
+            using var gatewaySp1 = GatewayHostComposition.OpenSp1(
+                chainDir,
+                vk,
+                new StubSigner(Account(0x66)),
+                UInt256.Parse("0x" + new string('d', 64)),
+                vk,
+                resultTimeout: TimeSpan.FromSeconds(5),
+                pollInterval: TimeSpan.FromMilliseconds(10));
+            Assert.IsTrue(gatewaySp1.OwnsProofProver);
+            Assert.IsInstanceOfType(gatewaySp1.ProofProver, typeof(Sp1GatewayProofProver));
+            Assert.IsNotNull(gatewaySp1.Publisher);
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                chainDir, NeoHubDeployReport.RelativeGatewayProverQueueDir)));
         }
         finally
         {

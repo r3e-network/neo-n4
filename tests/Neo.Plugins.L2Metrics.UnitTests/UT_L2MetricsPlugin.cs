@@ -101,6 +101,7 @@ public class UT_L2MetricsPlugin
             Assert.AreEqual(19191, plugin.Settings.Port);
             Assert.AreEqual("127.0.0.1", plugin.Settings.BindAddress);
             Assert.AreEqual(16, plugin.Settings.MaxConcurrentConnections);
+            Assert.AreEqual(16, plugin.MaxConcurrentConnections);
             Assert.IsTrue(plugin.Settings.Enabled);
             Assert.IsTrue(plugin.IsEnabled);
             Assert.AreEqual(19191, plugin.ConfiguredPort);

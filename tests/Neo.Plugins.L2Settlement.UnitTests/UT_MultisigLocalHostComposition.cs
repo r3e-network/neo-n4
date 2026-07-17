@@ -205,10 +205,20 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsFalse(host.RegisterForcedInclusionNonce(42)); // already known
             Assert.AreEqual(1, host.KnownForcedInclusionNonceCount);
             Assert.IsTrue(host.HasBatchForcedInclusionSource);
+            Assert.IsTrue(host.HasBatchDepositSource);
+            Assert.IsTrue(host.HasBatchMessageRouter);
+            Assert.IsTrue(host.MaxForcedTransactionsPerBatch > 0);
+            Assert.IsTrue(host.MaxL1MessagesPerBatch > 0);
+            Assert.IsTrue(host.MetricsMaxConcurrentConnections > 0);
             host.InvalidateForcedInclusionCache();
             var statusFi = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(1, statusFi.KnownForcedInclusionNonceCount);
             Assert.IsTrue(statusFi.HasBatchForcedInclusionSource);
+            Assert.IsTrue(statusFi.HasBatchDepositSource);
+            Assert.IsTrue(statusFi.HasBatchMessageRouter);
+            Assert.AreEqual(host.MaxForcedTransactionsPerBatch, statusFi.MaxForcedTransactionsPerBatch);
+            Assert.AreEqual(host.MaxL1MessagesPerBatch, statusFi.MaxL1MessagesPerBatch);
+            Assert.AreEqual(host.MetricsMaxConcurrentConnections, statusFi.MetricsMaxConcurrentConnections);
             var daReq = new DAPublishRequest
             {
                 ChainId = 20260716u,

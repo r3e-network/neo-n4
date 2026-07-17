@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Batcher inbox wiring flags, seal caps, and metrics concurrency on LocalHost — 2026-07-18
+
+- `L2BatchPlugin` exposes `HasDepositSource` / `HasMessageRouter` / `HasForcedInclusionSource`
+  plus `MaxForcedTransactionsPerBatch` / `MaxL1MessagesPerBatch` for offline inbox wiring and
+  seal capacity checks.
+- Multisig/Optimistic/Zk LocalHost + operator status add `HasBatchDepositSource` /
+  `HasBatchMessageRouter` / seal caps, and `MetricsMaxConcurrentConnections`.
+- `L2MetricsPlugin.MaxConcurrentConnections` public. Wireproduction notes + init-l2 tips;
+  unit/integration coverage. No wire/ABI change.
+
 ### Added — Metrics settings + deposit soft-consumed + scanner deploy heights on LocalHost — 2026-07-18
 
 - `L2MetricsPlugin` exposes `IsEnabled` / `ConfiguredPort` / `BindAddress` for offline

@@ -176,7 +176,8 @@ public class UT_NeoHubDeployReport
                 + "startMetricsHttp?) + InMemoryL2RpcStore (data/rpc/proofs)",
                 stores.GetProperty("zkLocalHostComposition").GetString());
             Assert.AreEqual(
-                "L2BatchPlugin.HasSealedBatchSink / ForcedInclusionSource / DepositSource / MessageRouter",
+                "L2BatchPlugin.HasSealedBatchSink / HasDepositSource / HasMessageRouter / "
+                + "HasForcedInclusionSource / MaxForcedTransactionsPerBatch / MaxL1MessagesPerBatch",
                 stores.GetProperty("batchInboxVisibility").GetString());
             Assert.AreEqual(
                 "L2SettlementPlugin.IsProductionWired / IsEnabled / L1FinalityDepth / "
@@ -208,7 +209,9 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "LocalHost.NextExpectedBlock / LastAcknowledgedBatchNumber / LastAcknowledgedBlock / "
                 + "NextBatchNumber / HasPendingSealedBatch / PendingSealedBatchNumber / "
-                + "PendingSealedBatchLastBlock / IsBatcherEnabled / MaxBlocksPerBatch / MaxTransactionsPerBatch / MaxBatchAgeMillis / PendingSealedBatch / HasOpenBatch / "
+                + "PendingSealedBatchLastBlock / IsBatcherEnabled / MaxBlocksPerBatch / MaxTransactionsPerBatch / MaxBatchAgeMillis / "
+                + "MaxForcedTransactionsPerBatch / MaxL1MessagesPerBatch / HasBatchDepositSource / "
+                + "HasBatchMessageRouter / HasBatchForcedInclusionSource / PendingSealedBatch / HasOpenBatch / "
                 + "InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / OpenBatchBlockCount / "
                 + "OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / ProcessCommittedBlock / "
                 + "TryRetryPendingSealedBatch / OnBatchSealed",
@@ -239,7 +242,7 @@ public class UT_NeoHubDeployReport
                 stores.GetProperty("localHostMetricsExport").GetString());
             Assert.AreEqual(
                 "LocalHost.IsMetricsEnabled / MetricsConfiguredPort / MetricsBindAddress / "
-                + "MetricsBoundPort / IsMetricsHttpListening",
+                + "MetricsMaxConcurrentConnections / MetricsBoundPort / IsMetricsHttpListening",
                 stores.GetProperty("localHostMetricsSettings").GetString());
             Assert.AreEqual(
                 "LocalHost.BridgeAssetRegistry / RegisterBridgeAsset / "

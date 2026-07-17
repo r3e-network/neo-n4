@@ -167,6 +167,21 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Batcher forced-inclusion source wired.</summary>
     public required bool HasBatchForcedInclusionSource { get; init; }
 
+    /// <summary>Batcher deposit source wired.</summary>
+    public required bool HasBatchDepositSource { get; init; }
+
+    /// <summary>Batcher MessageRouter wired.</summary>
+    public required bool HasBatchMessageRouter { get; init; }
+
+    /// <summary>Max forced-inclusion entries per sealed batch.</summary>
+    public required int MaxForcedTransactionsPerBatch { get; init; }
+
+    /// <summary>Max L1 inbox messages per sealed batch.</summary>
+    public required int MaxL1MessagesPerBatch { get; init; }
+
+    /// <summary>Metrics max concurrent HTTP connections.</summary>
+    public required int MetricsMaxConcurrentConnections { get; init; }
+
     /// <summary>Settlement plugin enabled in settings.</summary>
     public required bool IsSettlementEnabled { get; init; }
 
@@ -262,6 +277,11 @@ public sealed record LocalHostOperatorStatusDocument
             TrackedForcedInclusionNonceCount = status.TrackedForcedInclusionNonceCount,
             KnownForcedInclusionNonceCount = status.KnownForcedInclusionNonceCount,
             HasBatchForcedInclusionSource = status.HasBatchForcedInclusionSource,
+            HasBatchDepositSource = status.HasBatchDepositSource,
+            HasBatchMessageRouter = status.HasBatchMessageRouter,
+            MaxForcedTransactionsPerBatch = status.MaxForcedTransactionsPerBatch,
+            MaxL1MessagesPerBatch = status.MaxL1MessagesPerBatch,
+            MetricsMaxConcurrentConnections = status.MetricsMaxConcurrentConnections,
             IsSettlementEnabled = status.IsSettlementEnabled,
             L1FinalityDepth = status.L1FinalityDepth,
             DepositSourceReadyCount = status.DepositSourceReadyCount,

@@ -242,6 +242,8 @@ public class UT_L2BatchPlugin
         Assert.AreEqual(1UL, plugin.PendingSealedBatchLastBlock);
         Assert.IsTrue(plugin.IsEnabled);
         Assert.IsTrue(plugin.MaxBlocksPerBatch > 0);
+        Assert.IsTrue(plugin.MaxForcedTransactionsPerBatch > 0);
+        Assert.IsTrue(plugin.MaxL1MessagesPerBatch > 0);
         Assert.IsTrue(plugin.MaxTransactionsPerBatch > 0);
         Assert.IsTrue(plugin.MaxBatchAgeMillis > 0);
         Assert.IsFalse(plugin.HasOpenBatch);

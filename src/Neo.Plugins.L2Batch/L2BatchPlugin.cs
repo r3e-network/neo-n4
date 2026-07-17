@@ -166,6 +166,27 @@ public sealed class L2BatchPlugin : Plugin
     /// </summary>
     public IForcedInclusionSource? ForcedInclusionSource => _forcedInclusionSource;
 
+    /// <summary>True when a SharedBridge deposit source is wired on the batcher.</summary>
+    public bool HasDepositSource => _depositSource is not null;
+
+    /// <summary>True when a MessageRouter is wired on the batcher.</summary>
+    public bool HasMessageRouter => _messageRouter is not null;
+
+    /// <summary>True when a forced-inclusion source is wired on the batcher.</summary>
+    public bool HasForcedInclusionSource => _forcedInclusionSource is not null;
+
+    /// <summary>
+    /// Max forced-inclusion entries per sealed batch
+    /// (<see cref="BatchSealer.MaxForcedTransactionsPerBatch"/>).
+    /// </summary>
+    public int MaxForcedTransactionsPerBatch => BatchSealer.MaxForcedTransactionsPerBatch;
+
+    /// <summary>
+    /// Max L1 inbox messages consumed per sealed batch
+    /// (<see cref="BatchSealer.MaxL1MessagesPerBatch"/>).
+    /// </summary>
+    public int MaxL1MessagesPerBatch => BatchSealer.MaxL1MessagesPerBatch;
+
     /// <summary>
     /// True after <see cref="WithSealedBatchSink"/> has installed the durable settlement sink
     /// (e.g. via <c>L2SettlementPlugin.WireProduction</c>).

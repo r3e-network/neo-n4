@@ -68,6 +68,12 @@ public sealed class L2MetricsPlugin : Plugin
     /// <summary>Configured metrics bind address from settings.</summary>
     public string BindAddress => _settings.BindAddress;
 
+    /// <summary>
+    /// Configured max concurrent metrics HTTP connections
+    /// (<see cref="L2MetricsSettings.MaxConcurrentConnections"/>).
+    /// </summary>
+    public int MaxConcurrentConnections => _settings.MaxConcurrentConnections;
+
     /// <summary>The configured port the HTTP server is bound to (after <see cref="Start"/>). 0 before Start.</summary>
     public int BoundPort => _server?.Endpoint.Port ?? 0;
 

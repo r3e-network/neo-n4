@@ -192,9 +192,39 @@ public sealed record LocalHostOperatorStatus
 
     /// <summary>
     /// True when the batcher has a forced-inclusion source wired
-    /// (<see cref="L2BatchPlugin.ForcedInclusionSource"/>).
+    /// (<see cref="L2BatchPlugin.HasForcedInclusionSource"/>).
     /// </summary>
     public required bool HasBatchForcedInclusionSource { get; init; }
+
+    /// <summary>
+    /// True when the batcher has a SharedBridge deposit source wired
+    /// (<see cref="L2BatchPlugin.HasDepositSource"/>).
+    /// </summary>
+    public required bool HasBatchDepositSource { get; init; }
+
+    /// <summary>
+    /// True when the batcher has a MessageRouter wired
+    /// (<see cref="L2BatchPlugin.HasMessageRouter"/>).
+    /// </summary>
+    public required bool HasBatchMessageRouter { get; init; }
+
+    /// <summary>
+    /// Max forced-inclusion entries per sealed batch
+    /// (<see cref="L2BatchPlugin.MaxForcedTransactionsPerBatch"/>).
+    /// </summary>
+    public required int MaxForcedTransactionsPerBatch { get; init; }
+
+    /// <summary>
+    /// Max L1 inbox messages per sealed batch
+    /// (<see cref="L2BatchPlugin.MaxL1MessagesPerBatch"/>).
+    /// </summary>
+    public required int MaxL1MessagesPerBatch { get; init; }
+
+    /// <summary>
+    /// Configured metrics max concurrent HTTP connections
+    /// (<see cref="L2MetricsPlugin.MaxConcurrentConnections"/>).
+    /// </summary>
+    public required int MetricsMaxConcurrentConnections { get; init; }
 
     /// <summary>Whether settlement plugin submit/reconcile is enabled in settings.</summary>
     public required bool IsSettlementEnabled { get; init; }

@@ -446,6 +446,11 @@ public sealed class OptimisticLocalHostComposition : IDisposable
             TrackedForcedInclusionNonceCount = tracked.Count,
             KnownForcedInclusionNonceCount = KnownForcedInclusionNonceCount,
             HasBatchForcedInclusionSource = HasBatchForcedInclusionSource,
+            HasBatchDepositSource = HasBatchDepositSource,
+            HasBatchMessageRouter = HasBatchMessageRouter,
+            MaxForcedTransactionsPerBatch = MaxForcedTransactionsPerBatch,
+            MaxL1MessagesPerBatch = MaxL1MessagesPerBatch,
+            MetricsMaxConcurrentConnections = MetricsMaxConcurrentConnections,
             IsSettlementEnabled = IsSettlementEnabled,
             L1FinalityDepth = L1FinalityDepth,
             DepositSourceReadyCount = DepositSourceReadyCount,
@@ -727,9 +732,39 @@ public sealed class OptimisticLocalHostComposition : IDisposable
 
     /// <summary>
     /// True when the batcher has a forced-inclusion source wired
-    /// (<see cref="L2BatchPlugin.ForcedInclusionSource"/>).
+    /// (<see cref="L2BatchPlugin.HasForcedInclusionSource"/>).
     /// </summary>
-    public bool HasBatchForcedInclusionSource => Batch.ForcedInclusionSource is not null;
+    public bool HasBatchForcedInclusionSource => Batch.HasForcedInclusionSource;
+
+    /// <summary>
+    /// True when the batcher has a SharedBridge deposit source wired
+    /// (<see cref="L2BatchPlugin.HasDepositSource"/>).
+    /// </summary>
+    public bool HasBatchDepositSource => Batch.HasDepositSource;
+
+    /// <summary>
+    /// True when the batcher has a MessageRouter wired
+    /// (<see cref="L2BatchPlugin.HasMessageRouter"/>).
+    /// </summary>
+    public bool HasBatchMessageRouter => Batch.HasMessageRouter;
+
+    /// <summary>
+    /// Max forced-inclusion entries per sealed batch
+    /// (<see cref="L2BatchPlugin.MaxForcedTransactionsPerBatch"/>).
+    /// </summary>
+    public int MaxForcedTransactionsPerBatch => Batch.MaxForcedTransactionsPerBatch;
+
+    /// <summary>
+    /// Max L1 inbox messages per sealed batch
+    /// (<see cref="L2BatchPlugin.MaxL1MessagesPerBatch"/>).
+    /// </summary>
+    public int MaxL1MessagesPerBatch => Batch.MaxL1MessagesPerBatch;
+
+    /// <summary>
+    /// Configured metrics max concurrent HTTP connections
+    /// (<see cref="L2MetricsPlugin.MaxConcurrentConnections"/>).
+    /// </summary>
+    public int MetricsMaxConcurrentConnections => Metrics.MaxConcurrentConnections;
 
     /// <summary>
     /// Whether settlement submit/reconcile is enabled

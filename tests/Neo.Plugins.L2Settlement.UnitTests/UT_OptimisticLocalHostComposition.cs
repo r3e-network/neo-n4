@@ -131,6 +131,10 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(host.RegisterForcedInclusionNonce(7));
             Assert.AreEqual(1, host.KnownForcedInclusionNonceCount);
             Assert.IsTrue(host.HasBatchForcedInclusionSource);
+            Assert.IsTrue(host.HasBatchDepositSource);
+            Assert.IsTrue(host.HasBatchMessageRouter);
+            Assert.IsTrue(host.MaxForcedTransactionsPerBatch > 0);
+            Assert.IsTrue(host.MetricsMaxConcurrentConnections > 0);
             var daReceipt = host.PublishDaAsync(new DAPublishRequest
             {
                 ChainId = 20260716u,

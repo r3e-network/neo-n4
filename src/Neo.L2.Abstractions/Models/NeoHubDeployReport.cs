@@ -413,7 +413,8 @@ public sealed record NeoHubDeployReport(
                         "ZkLocalHostComposition.Open(chainDir, executorPath, executorSha256, vk, productionDaWriter, signer, "
                         + "startMetricsHttp?) + InMemoryL2RpcStore (data/rpc/proofs)",
                     ["batchInboxVisibility"] =
-                        "L2BatchPlugin.HasSealedBatchSink / ForcedInclusionSource / DepositSource / MessageRouter",
+                        "L2BatchPlugin.HasSealedBatchSink / HasDepositSource / HasMessageRouter / "
+                        + "HasForcedInclusionSource / MaxForcedTransactionsPerBatch / MaxL1MessagesPerBatch",
                     ["settlementProductionWired"] =
                         "L2SettlementPlugin.IsProductionWired / IsEnabled / L1FinalityDepth / "
                         + "ForcedInclusionDeploymentHeight / SharedBridgeDeploymentHeight / "
@@ -440,7 +441,9 @@ public sealed record NeoHubDeployReport(
                         "LocalHost.NextExpectedBlock / LastAcknowledgedBatchNumber / LastAcknowledgedBlock / "
                         + "NextBatchNumber / HasPendingSealedBatch / PendingSealedBatchNumber / "
                         + "PendingSealedBatchLastBlock / IsBatcherEnabled / MaxBlocksPerBatch / "
-                        + "MaxTransactionsPerBatch / MaxBatchAgeMillis / PendingSealedBatch / HasOpenBatch / "
+                        + "MaxTransactionsPerBatch / MaxBatchAgeMillis / MaxForcedTransactionsPerBatch / "
+                        + "MaxL1MessagesPerBatch / HasBatchDepositSource / HasBatchMessageRouter / "
+                        + "HasBatchForcedInclusionSource / PendingSealedBatch / HasOpenBatch / "
                         + "InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / OpenBatchBlockCount / "
                         + "OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / ProcessCommittedBlock / "
                         + "TryRetryPendingSealedBatch / OnBatchSealed",
@@ -465,7 +468,7 @@ public sealed record NeoHubDeployReport(
                         "LocalHost.CaptureMetricsSnapshot / ExportPrometheusMetrics",
                     ["localHostMetricsSettings"] =
                         "LocalHost.IsMetricsEnabled / MetricsConfiguredPort / MetricsBindAddress / "
-                        + "MetricsBoundPort / IsMetricsHttpListening",
+                        + "MetricsMaxConcurrentConnections / MetricsBoundPort / IsMetricsHttpListening",
                     ["localHostBridgeRegistry"] =
                         "LocalHost.BridgeAssetRegistry / RegisterBridgeAsset / "
                         + "SnapshotBridgeAssets / BridgeAssetCount",

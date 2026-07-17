@@ -90,6 +90,17 @@ public sealed class GatewayHostComposition : IDisposable
     public void ReceiveBatch(L2BatchCommitment commitment) => Gateway.ReceiveBatch(commitment);
 
     /// <summary>
+    /// Pull a ready aggregate without publishing to L1
+    /// (<see cref="L2GatewayPlugin.PullAggregate"/>).
+    /// </summary>
+    /// <remarks>
+    /// Fails closed when a durable publication outbox is attached (host OpenMerkle/Multisig/Sp1);
+    /// use <see cref="PublishAggregateAsync"/> for the production path. Useful for in-memory
+    /// aggregator inspection only.
+    /// </remarks>
+    public AggregatedCommitment? PullAggregate() => Gateway.PullAggregate();
+
+    /// <summary>
     /// Aggregate, prove, publish, and confirm the next Gateway epoch
     /// (<see cref="L2GatewayPlugin.PublishAggregateAsync"/>). Funded L1 confirmation remains
     /// operator-owned.

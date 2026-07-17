@@ -250,6 +250,18 @@ public sealed class ZkLocalHostComposition : IDisposable
     public int OpenBatchBlockCount => Batch.OpenBatchBlockCount;
 
     /// <summary>
+    /// L1 messages consumed into the open batch
+    /// (<see cref="L2BatchPlugin.OpenBatchL1MessageCount"/>).
+    /// </summary>
+    public int OpenBatchL1MessageCount => Batch.OpenBatchL1MessageCount;
+
+    /// <summary>
+    /// L2→L1 messages staged in the open batch
+    /// (<see cref="L2BatchPlugin.OpenBatchL2ToL1MessageCount"/>).
+    /// </summary>
+    public int OpenBatchL2ToL1MessageCount => Batch.OpenBatchL2ToL1MessageCount;
+
+    /// <summary>
     /// Feed one committed L2 block into the durable batcher hand-off without Neo.CLI
     /// (<see cref="L2BatchPlugin.ProcessCommittedBlock"/>).
     /// </summary>
@@ -348,6 +360,9 @@ public sealed class ZkLocalHostComposition : IDisposable
             OpenBatchFirstBlock = OpenBatchFirstBlock,
             OpenBatchLastBlock = OpenBatchLastBlock,
             OpenBatchBlockCount = OpenBatchBlockCount,
+            OpenBatchL1MessageCount = OpenBatchL1MessageCount,
+            OpenBatchL2ToL1MessageCount = OpenBatchL2ToL1MessageCount,
+            ConsumedDepositCount = ConsumedDepositCount,
             IsOperatorReady = IsOperatorReady,
             HasDepositSource = DepositSource is not null,
             HasMessageRouter = MessageRouter is not null,
@@ -610,6 +625,12 @@ public sealed class ZkLocalHostComposition : IDisposable
     }
 
     /// <summary>
+    /// Stop the metrics HTTP server without disposing the metrics sink
+    /// (<see cref="L2MetricsPlugin.Stop"/>). Idempotent.
+    /// </summary>
+    public void StopMetricsHttp() => Metrics.Stop();
+
+    /// <summary>
     /// Create an <see cref="L2RpcPlugin"/> pre-wired with this host's metrics sink.
     /// Caller must <c>NeoSystem.AddService(RpcStore)</c> and register the plugin with Neo.CLI;
     /// this composition does not own the returned plugin.
@@ -706,6 +727,12 @@ public sealed class ZkLocalHostComposition : IDisposable
     /// </summary>
     public bool HasConsumedDeposit(uint sourceChainId, ulong nonce)
         => Bridge.DepositProcessor.HasConsumed(sourceChainId, nonce);
+
+    /// <summary>
+    /// Soft in-memory consumed-deposit cache size
+    /// (<see cref="DepositProcessor.ConsumedCount"/>).
+    /// </summary>
+    public int ConsumedDepositCount => Bridge.DepositProcessor.ConsumedCount;
 
     /// <summary>
     /// Stage a withdrawal into the current batch tree

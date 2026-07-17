@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Metrics Stop, open-batch message counts, PullAggregate — 2026-07-17
+
+- `L2MetricsPlugin.Stop` + LocalHost `StopMetricsHttp` for offline metrics HTTP lifecycle.
+- Open-batch `OpenBatchL1MessageCount` / `OpenBatchL2ToL1MessageCount` on sealer/plugin/LocalHost.
+- `DepositProcessor.ConsumedCount` + LocalHost `ConsumedDepositCount` (soft cache size).
+- `GatewayHostComposition.PullAggregate` for offline aggregate inspection without L1 publish.
+- Operator status JSON + wireproduction/init-l2 tips; no wire/ABI change.
+
 ### Added — Open-batch block range + MessageRouter inbound helpers — 2026-07-17
 
 - `BatchSealer` / `L2BatchPlugin` / Multisig/Optimistic/Zk LocalHost expose

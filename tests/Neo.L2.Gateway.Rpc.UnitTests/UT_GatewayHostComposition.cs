@@ -86,6 +86,8 @@ public sealed class UT_GatewayHostComposition
             StringAssert.Contains(statusJson, "\"outboxQueueDepth\": 0");
             StringAssert.Contains(statusJson, "\"hasMetrics\": true");
             Assert.IsNotNull(host.Publisher);
+            // Durable outbox host compositions fail closed on direct PullAggregate.
+            Assert.ThrowsExactly<InvalidOperationException>(() => host.PullAggregate());
             // Metrics sink is retained for outbox/aggregator emission + export.
             Assert.AreSame(metrics, host.Metrics);
             Assert.IsTrue(host.CaptureMetricsSnapshot().TotalEntries >= 0);

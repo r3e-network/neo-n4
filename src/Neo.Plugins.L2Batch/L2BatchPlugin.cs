@@ -220,6 +220,18 @@ public sealed class L2BatchPlugin : Plugin
     public int OpenBatchBlockCount => _sealer?.OpenBatchBlockCount ?? 0;
 
     /// <summary>
+    /// L1 messages consumed into the open batch
+    /// (<see cref="BatchSealer.OpenBatchL1MessageCount"/>).
+    /// </summary>
+    public int OpenBatchL1MessageCount => _sealer?.OpenBatchL1MessageCount ?? 0;
+
+    /// <summary>
+    /// L2→L1 messages staged in the open batch
+    /// (<see cref="BatchSealer.OpenBatchL2ToL1MessageCount"/>).
+    /// </summary>
+    public int OpenBatchL2ToL1MessageCount => _sealer?.OpenBatchL2ToL1MessageCount ?? 0;
+
+    /// <summary>
     /// Wire the L1 forced-inclusion read source. The durable settlement sink remains the
     /// reservation source of truth; this method never calls
     /// <see cref="IForcedInclusionSource.ConfirmConsumedAsync"/>.

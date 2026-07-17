@@ -258,6 +258,8 @@ public class UT_L2BatchPlugin
         Assert.AreEqual(1UL, plugin.OpenBatchFirstBlock);
         Assert.AreEqual(1UL, plugin.OpenBatchLastBlock);
         Assert.AreEqual(1, plugin.OpenBatchBlockCount);
+        Assert.AreEqual(0, plugin.OpenBatchL1MessageCount);
+        Assert.AreEqual(0, plugin.OpenBatchL2ToL1MessageCount);
         Assert.IsFalse(plugin.HasPendingSealedBatch);
     }
 

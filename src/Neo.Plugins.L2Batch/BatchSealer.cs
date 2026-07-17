@@ -109,6 +109,14 @@ public sealed class BatchSealer
             ? checked((int)(_builder!.Batch.LastBlock - _builder.Batch.FirstBlock + 1))
             : 0;
 
+    /// <summary>L1 messages consumed into the open batch (0 when none is open).</summary>
+    public int OpenBatchL1MessageCount =>
+        HasOpenBatch ? _builder!.Batch.L1MessagesConsumed.Count : 0;
+
+    /// <summary>L2→L1 messages staged in the open batch (0 when none is open).</summary>
+    public int OpenBatchL2ToL1MessageCount =>
+        HasOpenBatch ? _builder!.Batch.L2ToL1Messages.Count : 0;
+
     /// <summary>Immutable sealed batch awaiting durable persistence and acknowledgement.</summary>
     public SealedBatch? PendingBatch => _pendingBatch;
 

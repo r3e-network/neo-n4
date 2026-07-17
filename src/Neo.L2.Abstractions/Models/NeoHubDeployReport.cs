@@ -430,7 +430,8 @@ public sealed record NeoHubDeployReport(
                     ["localHostBatcherHelpers"] =
                         "LocalHost.NextExpectedBlock / HasPendingSealedBatch / PendingSealedBatch / "
                         + "HasOpenBatch / InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / "
-                        + "OpenBatchBlockCount / ProcessCommittedBlock / TryRetryPendingSealedBatch",
+                        + "OpenBatchBlockCount / OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / "
+                        + "ProcessCommittedBlock / TryRetryPendingSealedBatch",
                     ["localHostRpcStoreHelpers"] =
                         "LocalHost.GetLatestRpcStateRoot / GetRpcStateRootAtBatch / AddRpcBatch / "
                         + "FinalizeRpcBatch / RecordRpcDeposit / GetRpcL1DepositStatus / GetRpcBatch / "
@@ -453,7 +454,7 @@ public sealed record NeoHubDeployReport(
                         + "SnapshotBridgeAssets / BridgeAssetCount",
                     ["localHostBridgeProcessors"] =
                         "LocalHost.ProcessDeposit / ProcessReadyDeposits / ScanSharedBridgeDepositsAsync / "
-                        + "ScanAndProcessReadyDepositsAsync / HasConsumedDeposit / "
+                        + "ScanAndProcessReadyDepositsAsync / HasConsumedDeposit / ConsumedDepositCount / "
                         + "StageWithdrawal / StagedWithdrawalCount / SealWithdrawalBatch / ProveAsync",
                     ["localHostForcedInclusionOverdue"] =
                         "LocalHost.HasOverdueForcedInclusionAsync(nowUnixSeconds)",
@@ -474,7 +475,8 @@ public sealed record NeoHubDeployReport(
                         + "GetTrackedForcedInclusionNoncesAsync / GetLatestCheckpointAsync / "
                         + "GetInitialStateRootAsync",
                     ["localHostStartMetricsHttp"] =
-                        "LocalHost.StartMetricsHttp(portOverride?, readiness?) / Open startMetricsHttp",
+                        "LocalHost.StartMetricsHttp(portOverride?, readiness?) / StopMetricsHttp / "
+                        + "Open startMetricsHttp",
                     ["localHostCreateRpcPlugin"] =
                         "LocalHost.CreateRpcPlugin() then NeoSystem.AddService(RpcStore)",
                     ["metricsReadiness"] =
@@ -487,7 +489,8 @@ public sealed record NeoHubDeployReport(
                         "GatewayHostComposition.OpenSp1(chainDir, gatewayVk, signer, replayDomain, vk, metrics?)",
                     ["gatewayHostOpsHelpers"] =
                         "GatewayHostComposition.HasPendingPublication / PendingPublicationEpoch / "
-                        + "OutboxStatus / Aggregator / ReceiveBatch / PublishAggregateAsync / "
+                        + "OutboxStatus / Aggregator / ReceiveBatch / PullAggregate "
+                        + "(fails closed with durable outbox) / PublishAggregateAsync / "
                         + "RecoverPoisonedPublication / GetOperatorStatus / WriteOperatorStatusAsync / "
                         + "Metrics / CaptureMetricsSnapshot / ExportPrometheusMetrics / "
                         + "WritePrometheusMetricsAsync",

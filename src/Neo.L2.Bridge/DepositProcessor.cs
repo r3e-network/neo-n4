@@ -127,6 +127,18 @@ public sealed class DepositProcessor
             return _consumed.Contains((sourceChainId, nonce));
     }
 
+    /// <summary>
+    /// Soft in-memory consumed-nonce cache size (not the authoritative L2 native store).
+    /// </summary>
+    public int ConsumedCount
+    {
+        get
+        {
+            lock (_gate)
+                return _consumed.Count;
+        }
+    }
+
     // Evict oldest-first (FIFO) once the in-memory set exceeds capacity, matching
     // WithdrawalProcessor.SealBatch's eviction. Authoritative replay protection is
     // the L2 native PrefixDepositConsumed store, so dropping the oldest in-memory

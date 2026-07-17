@@ -88,6 +88,9 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsNull(host.OpenBatchFirstBlock);
             Assert.IsNull(host.OpenBatchLastBlock);
             Assert.AreEqual(0, host.OpenBatchBlockCount);
+            Assert.AreEqual(0, host.OpenBatchL1MessageCount);
+            Assert.AreEqual(0, host.OpenBatchL2ToL1MessageCount);
+            Assert.AreEqual(0, host.ConsumedDepositCount);
             Assert.IsFalse(host.TryRetryPendingSealedBatch());
             Assert.IsTrue(host.RegisterInboundMessageNonce(7));
             host.InvalidateInboundMessageCache();
@@ -230,6 +233,7 @@ public sealed class UT_MultisigLocalHostComposition
             var mint = host.ProcessDeposit(depositMsg);
             Assert.AreEqual(l2Asset, mint.L2Asset);
             Assert.IsTrue(host.HasConsumedDeposit(0, 1));
+            Assert.AreEqual(1, host.ConsumedDepositCount);
             // Ready-deposit drain is peek-only; empty ready set yields empty without L1 scan.
             Assert.AreEqual(0, host.ProcessReadyDeposits().Count);
             Assert.AreEqual(0, host.ProcessReadyDeposits(0).Count);
@@ -308,6 +312,8 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(statusJson, "\"hasOpenBatch\": false");
             StringAssert.Contains(statusJson, "\"inProgressTxCount\": 0");
             StringAssert.Contains(statusJson, "\"openBatchBlockCount\": 0");
+            StringAssert.Contains(statusJson, "\"openBatchL1MessageCount\": 0");
+            StringAssert.Contains(statusJson, "\"consumedDepositCount\": 1");
             StringAssert.Contains(statusJson, "\"messageOutboxL2ToL1Count\": 1");
             StringAssert.Contains(statusJson, "\"stagedWithdrawalCount\": 0");
             var promPath = Path.Combine(chainDir, "metrics.prom");

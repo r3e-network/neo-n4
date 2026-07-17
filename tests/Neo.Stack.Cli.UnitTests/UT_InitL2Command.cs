@@ -236,6 +236,9 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "OpenBatchBlockCount");
         StringAssert.Contains(output, "TryRetryPendingSealedBatch");
         StringAssert.Contains(output, "RegisterInboundMessageNonce");
+        StringAssert.Contains(output, "StopMetricsHttp");
+        StringAssert.Contains(output, "ConsumedDepositCount");
+        StringAssert.Contains(output, "PullAggregate");
         StringAssert.Contains(output, "AddRpcBatch");
         StringAssert.Contains(output, "MessageOutbox");
         StringAssert.Contains(output, "PublishDaAsync");

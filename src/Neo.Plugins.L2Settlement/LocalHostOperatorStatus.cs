@@ -62,6 +62,15 @@ public sealed record LocalHostOperatorStatus
     /// <summary>Block count in the open batch (0 when none is open).</summary>
     public required int OpenBatchBlockCount { get; init; }
 
+    /// <summary>L1 messages consumed into the open batch (0 when none is open).</summary>
+    public required int OpenBatchL1MessageCount { get; init; }
+
+    /// <summary>L2→L1 messages staged in the open batch (0 when none is open).</summary>
+    public required int OpenBatchL2ToL1MessageCount { get; init; }
+
+    /// <summary>Soft in-memory consumed-deposit cache size.</summary>
+    public required int ConsumedDepositCount { get; init; }
+
     /// <summary>
     /// <see cref="IsProductionWired"/> and <see cref="HasSealedBatchSink"/> — matches default
     /// LocalHost <c>/readyz</c>.

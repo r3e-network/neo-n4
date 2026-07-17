@@ -59,6 +59,15 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Block count in the open batch.</summary>
     public required int OpenBatchBlockCount { get; init; }
 
+    /// <summary>L1 messages in the open batch.</summary>
+    public required int OpenBatchL1MessageCount { get; init; }
+
+    /// <summary>L2→L1 messages in the open batch.</summary>
+    public required int OpenBatchL2ToL1MessageCount { get; init; }
+
+    /// <summary>Soft consumed-deposit cache size.</summary>
+    public required int ConsumedDepositCount { get; init; }
+
     /// <summary>Operator readiness flag.</summary>
     public required bool IsOperatorReady { get; init; }
 
@@ -127,6 +136,9 @@ public sealed record LocalHostOperatorStatusDocument
             OpenBatchFirstBlock = status.OpenBatchFirstBlock,
             OpenBatchLastBlock = status.OpenBatchLastBlock,
             OpenBatchBlockCount = status.OpenBatchBlockCount,
+            OpenBatchL1MessageCount = status.OpenBatchL1MessageCount,
+            OpenBatchL2ToL1MessageCount = status.OpenBatchL2ToL1MessageCount,
+            ConsumedDepositCount = status.ConsumedDepositCount,
             IsOperatorReady = status.IsOperatorReady,
             HasDepositSource = status.HasDepositSource,
             HasMessageRouter = status.HasMessageRouter,

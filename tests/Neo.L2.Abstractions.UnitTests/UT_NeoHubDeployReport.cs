@@ -199,7 +199,8 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "LocalHost.NextExpectedBlock / HasPendingSealedBatch / PendingSealedBatch / "
                 + "HasOpenBatch / InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / "
-                + "OpenBatchBlockCount / ProcessCommittedBlock / TryRetryPendingSealedBatch",
+                + "OpenBatchBlockCount / OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / "
+                + "ProcessCommittedBlock / TryRetryPendingSealedBatch",
                 stores.GetProperty("localHostBatcherHelpers").GetString());
             Assert.AreEqual(
                 "LocalHost.GetLatestRpcStateRoot / GetRpcStateRootAtBatch / AddRpcBatch / "
@@ -229,7 +230,7 @@ public class UT_NeoHubDeployReport
                 stores.GetProperty("localHostBridgeRegistry").GetString());
             Assert.AreEqual(
                 "LocalHost.ProcessDeposit / ProcessReadyDeposits / ScanSharedBridgeDepositsAsync / "
-                + "ScanAndProcessReadyDepositsAsync / HasConsumedDeposit / "
+                + "ScanAndProcessReadyDepositsAsync / HasConsumedDeposit / ConsumedDepositCount / "
                 + "StageWithdrawal / StagedWithdrawalCount / SealWithdrawalBatch / ProveAsync",
                 stores.GetProperty("localHostBridgeProcessors").GetString());
             Assert.AreEqual(
@@ -258,7 +259,8 @@ public class UT_NeoHubDeployReport
                 + "GetInitialStateRootAsync",
                 stores.GetProperty("localHostRecoveryHelpers").GetString());
             Assert.AreEqual(
-                "LocalHost.StartMetricsHttp(portOverride?, readiness?) / Open startMetricsHttp",
+                "LocalHost.StartMetricsHttp(portOverride?, readiness?) / StopMetricsHttp / "
+                + "Open startMetricsHttp",
                 stores.GetProperty("localHostStartMetricsHttp").GetString());
             Assert.AreEqual(
                 "LocalHost.CreateRpcPlugin() then NeoSystem.AddService(RpcStore)",
@@ -277,7 +279,8 @@ public class UT_NeoHubDeployReport
                 stores.GetProperty("gatewayHostCompositionSp1").GetString());
             Assert.AreEqual(
                 "GatewayHostComposition.HasPendingPublication / PendingPublicationEpoch / "
-                + "OutboxStatus / Aggregator / ReceiveBatch / PublishAggregateAsync / "
+                + "OutboxStatus / Aggregator / ReceiveBatch / PullAggregate "
+                + "(fails closed with durable outbox) / PublishAggregateAsync / "
                 + "RecoverPoisonedPublication / GetOperatorStatus / WriteOperatorStatusAsync / "
                 + "Metrics / CaptureMetricsSnapshot / ExportPrometheusMetrics / "
                 + "WritePrometheusMetricsAsync",

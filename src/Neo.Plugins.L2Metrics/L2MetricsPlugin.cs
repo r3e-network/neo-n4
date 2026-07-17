@@ -104,6 +104,19 @@ public sealed class L2MetricsPlugin : Plugin
     }
 
     /// <summary>
+    /// Stop the HTTP server without disposing the metrics sink. Idempotent.
+    /// Host compositions can re-<see cref="Start"/> later.
+    /// </summary>
+    public void Stop()
+    {
+        lock (_startGate)
+        {
+            _server?.Dispose();
+            _server = null;
+        }
+    }
+
+    /// <summary>
     /// Resolve <paramref name="bindAddress"/> to an <see cref="IPAddress"/>. Accepts numeric
     /// addresses (<c>127.0.0.1</c>, <c>0.0.0.0</c>, <c>::1</c>) and hostnames (<c>localhost</c>);
     /// for hostnames, returns the first DNS resolution result.

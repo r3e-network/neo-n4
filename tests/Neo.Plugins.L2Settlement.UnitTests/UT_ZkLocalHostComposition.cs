@@ -80,6 +80,7 @@ public sealed class UT_ZkLocalHostComposition
             Assert.AreSame(host.Settlement.ProductionMessageRouter, host.Batch.MessageRouter);
             Assert.AreSame(host.ForcedInclusion, host.Batch.ForcedInclusionSource);
             Assert.IsTrue(host.Batch.HasSealedBatchSink);
+            Assert.IsTrue(host.Settlement.IsProductionWired);
             Assert.IsNotNull(host.Metrics.Metrics);
             Assert.AreSame(da, host.DaWriter);
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);

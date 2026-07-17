@@ -198,9 +198,14 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(DAMode.Local, settlementHost.RpcStore.DAMode);
             Assert.IsNotNull(settlementHost.Settlement.ProductionDepositSource);
             Assert.IsNotNull(settlementHost.Settlement.ProductionMessageRouter);
+            Assert.IsTrue(settlementHost.Settlement.IsProductionWired);
+            Assert.IsTrue(settlementHost.Batch.HasSealedBatchSink);
             Assert.AreSame(
                 settlementHost.Settlement.ProductionDepositSource,
                 settlementHost.Bridge.DepositSource);
+            Assert.AreSame(
+                settlementHost.ForcedInclusion,
+                settlementHost.Batch.ForcedInclusionSource);
 
             Assert.AreEqual(Path.GetFullPath(chainDir), gatewayHost.ChainDirectory);
             Assert.IsInstanceOfType(gatewayHost.Gateway.Aggregator, typeof(BinaryTreeAggregator));
@@ -294,7 +299,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
     }
 
     [TestMethod]
-    public void OptimisticLocalHost_OpensFromDeployReport()
+    public void OptimisticLocalHost_And_GatewayHost_OpenTogether_FromDeployReport()
     {
         var reportPath = ResolveDeployReportPath();
         if (!File.Exists(reportPath))
@@ -328,6 +333,25 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(20260716u, host.Bridge.ChainId);
             Assert.IsNotNull(host.Metrics.Metrics);
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);
+            Assert.IsTrue(host.Settlement.IsProductionWired);
+            Assert.IsTrue(host.Batch.HasSealedBatchSink);
+
+            var gatewayProof = new DelegatingGatewayProofProver(
+                proofSystem: 1,
+                aggregationBackendId: MerklePathRoundProver.ConstBackendId,
+                proofFactory: static (_, _, _) =>
+                    ValueTask.FromResult<ReadOnlyMemory<byte>>(new byte[] { 0xC1 }));
+            using var gatewayHost = GatewayHostComposition.OpenMerkle(
+                chainDir,
+                gatewayProof,
+                new StubSigner(Account(0x47)),
+                UInt256.Parse("0x" + new string('d', 64)),
+                UInt256.Parse("0x" + new string('e', 64)),
+                metrics: host.Metrics.Metrics);
+            Assert.IsNotNull(gatewayHost.Publisher);
+            Assert.AreEqual(
+                MerklePathRoundProver.ConstBackendId,
+                ((BinaryTreeAggregator)gatewayHost.Gateway.Aggregator).RoundProver.BackendId);
         }
         finally
         {

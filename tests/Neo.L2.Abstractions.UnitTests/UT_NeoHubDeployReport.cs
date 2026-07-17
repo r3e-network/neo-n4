@@ -178,6 +178,12 @@ public class UT_NeoHubDeployReport
                 "L2BatchPlugin.HasSealedBatchSink / ForcedInclusionSource / DepositSource / MessageRouter",
                 stores.GetProperty("batchInboxVisibility").GetString());
             Assert.AreEqual(
+                "L2SettlementPlugin.IsProductionWired after WireProduction",
+                stores.GetProperty("settlementProductionWired").GetString());
+            Assert.AreEqual(
+                "LocalHost Open startMetricsHttp → WithReadinessCheck(HasSealedBatchSink)",
+                stores.GetProperty("metricsReadiness").GetString());
+            Assert.AreEqual(
                 "GatewayHostComposition.OpenMerkle(chainDir, proofProver, signer, replayDomain, vk, metrics?)",
                 stores.GetProperty("gatewayHostCompositionMerkle").GetString());
             Assert.AreEqual(

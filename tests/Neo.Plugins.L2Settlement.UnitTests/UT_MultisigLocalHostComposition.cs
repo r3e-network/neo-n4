@@ -63,6 +63,7 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreSame(host.Settlement.ProductionMessageRouter, host.Batch.MessageRouter);
             Assert.AreSame(host.ForcedInclusion, host.Batch.ForcedInclusionSource);
             Assert.IsTrue(host.Batch.HasSealedBatchSink);
+            Assert.IsTrue(host.Settlement.IsProductionWired);
             Assert.IsNotNull(host.Metrics.Metrics);
             Assert.AreEqual(0, host.Metrics.BoundPort); // HTTP not started by default
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);
@@ -102,6 +103,9 @@ public sealed class UT_MultisigLocalHostComposition
                 startMetricsHttp: true,
                 metricsPortOverride: 0);
             Assert.IsTrue(host.Metrics.BoundPort > 0);
+            Assert.IsTrue(host.Batch.HasSealedBatchSink);
+            Assert.IsTrue(host.Settlement.IsProductionWired);
+            // Default readiness = HasSealedBatchSink (true after WireProduction).
             Assert.IsTrue(host.Batch.HasSealedBatchSink);
         }
         finally

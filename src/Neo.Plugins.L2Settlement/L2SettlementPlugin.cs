@@ -503,6 +503,12 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         _productionComposition;
 
     /// <summary>
+    /// True after a successful <see cref="WireProduction"/> /
+    /// <see cref="WireProductionFromLayout"/> that still owns the production composition.
+    /// </summary>
+    public bool IsProductionWired => _productionComposition is not null;
+
+    /// <summary>
     /// Deposit source owned by the last successful <see cref="WireProduction"/> /
     /// <see cref="WireProductionFromLayout"/> when SharedBridge is configured; null when
     /// the caller supplied a deposit source or SharedBridge is not configured.

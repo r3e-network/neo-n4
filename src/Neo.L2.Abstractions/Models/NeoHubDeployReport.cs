@@ -409,6 +409,10 @@ public sealed record NeoHubDeployReport(
                         + "startMetricsHttp?) + InMemoryL2RpcStore (data/rpc/proofs)",
                     ["batchInboxVisibility"] =
                         "L2BatchPlugin.HasSealedBatchSink / ForcedInclusionSource / DepositSource / MessageRouter",
+                    ["settlementProductionWired"] =
+                        "L2SettlementPlugin.IsProductionWired after WireProduction",
+                    ["metricsReadiness"] =
+                        "LocalHost Open startMetricsHttp → WithReadinessCheck(HasSealedBatchSink)",
                     ["gatewayHostCompositionMerkle"] =
                         "GatewayHostComposition.OpenMerkle(chainDir, proofProver, signer, replayDomain, vk, metrics?)",
                     ["gatewayHostCompositionMultisig"] =

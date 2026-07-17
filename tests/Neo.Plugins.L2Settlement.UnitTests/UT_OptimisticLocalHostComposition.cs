@@ -66,6 +66,7 @@ public sealed class UT_OptimisticLocalHostComposition
                 Assert.AreSame(host.Settlement.ProductionMessageRouter, host.Batch.MessageRouter);
             Assert.AreSame(host.ForcedInclusion, host.Batch.ForcedInclusionSource);
             Assert.IsTrue(host.Batch.HasSealedBatchSink);
+            Assert.IsTrue(host.Settlement.IsProductionWired);
         }
         finally
         {

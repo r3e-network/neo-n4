@@ -101,7 +101,8 @@ public sealed class OptimisticLocalHostComposition : IDisposable
         HttpClient? rpcHttpClient = null,
         Func<ulong>? submittedAtUnixMs = null,
         bool startMetricsHttp = false,
-        int? metricsPortOverride = null)
+        int? metricsPortOverride = null,
+        Func<bool>? metricsReadinessCheck = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
         ArgumentNullException.ThrowIfNull(executor);
@@ -167,7 +168,15 @@ public sealed class OptimisticLocalHostComposition : IDisposable
                 bridge.WithDepositSource(deposits);
 
             if (startMetricsHttp)
+            {
+                metrics.WithReadinessCheck(
+                    metricsReadinessCheck ?? (() => batch.HasSealedBatchSink));
                 metrics.Start(metricsPortOverride);
+            }
+            else if (metricsReadinessCheck is not null)
+            {
+                metrics.WithReadinessCheck(metricsReadinessCheck);
+            }
 
             return new OptimisticLocalHostComposition(
                 root,

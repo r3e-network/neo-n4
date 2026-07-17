@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — IsProductionWired, metrics readiness, Optimistic+Gateway E2E — 2026-07-17
+
+- `L2SettlementPlugin.IsProductionWired` after WireProduction.
+- LocalHost `Open` optional `metricsReadinessCheck`; with `startMetricsHttp` defaults to
+  `batch.HasSealedBatchSink` for `/readyz`.
+- Integration: Optimistic LocalHost + Gateway OpenMerkle (shared metrics); Multisig E2E
+  asserts sealed-batch sink + production wired + FI on the batcher.
+
 ### Added — Batch sink/FI visibility + LocalHost startMetricsHttp — 2026-07-17
 
 - `L2BatchPlugin.HasSealedBatchSink` and `ForcedInclusionSource` expose WireProduction

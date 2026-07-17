@@ -123,6 +123,10 @@ public sealed class ZkLocalHostComposition : IDisposable
     /// When true, starts the metrics HTTP server after wiring (<see cref="L2MetricsPlugin.Start"/>).
     /// </param>
     /// <param name="metricsPortOverride">Optional port override (use 0 for an ephemeral test port).</param>
+    /// <param name="metricsReadinessCheck">
+    /// Optional <c>/readyz</c> predicate. When <paramref name="startMetricsHttp"/> is true and
+    /// this is null, defaults to <c>() =&gt; batch.HasSealedBatchSink</c>.
+    /// </param>
     public static ZkLocalHostComposition Open(
         string chainDirectory,
         string executorPath,
@@ -135,7 +139,8 @@ public sealed class ZkLocalHostComposition : IDisposable
         TimeSpan? proofTimeout = null,
         TimeSpan? proofPollInterval = null,
         bool startMetricsHttp = false,
-        int? metricsPortOverride = null)
+        int? metricsPortOverride = null,
+        Func<bool>? metricsReadinessCheck = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
         ArgumentException.ThrowIfNullOrWhiteSpace(executorPath);
@@ -217,7 +222,15 @@ public sealed class ZkLocalHostComposition : IDisposable
                 bridge.WithDepositSource(deposits);
 
             if (startMetricsHttp)
+            {
+                metrics.WithReadinessCheck(
+                    metricsReadinessCheck ?? (() => batch.HasSealedBatchSink));
                 metrics.Start(metricsPortOverride);
+            }
+            else if (metricsReadinessCheck is not null)
+            {
+                metrics.WithReadinessCheck(metricsReadinessCheck);
+            }
 
             return new ZkLocalHostComposition(
                 root,

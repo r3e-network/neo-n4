@@ -2,6 +2,7 @@ using Neo.L2;
 using Neo.L2.Bridge;
 using Neo.L2.Executor.ProofWitness;
 using Neo.L2.ForcedInclusion;
+using Neo.L2.Messaging;
 using Neo.L2.Proving;
 using Neo.L2.Proving.Optimistic;
 using Neo.L2.Settlement.Rpc;
@@ -122,6 +123,45 @@ public sealed class OptimisticLocalHostComposition : IDisposable
     /// (<see cref="L2SettlementPlugin.IsProductionWired"/>).
     /// </summary>
     public bool IsProductionWired => Settlement.IsProductionWired;
+
+    /// <summary>
+    /// Production SharedBridge deposit source after WireProduction (same instance as
+    /// <see cref="L2BatchPlugin.DepositSource"/> / <see cref="L2BridgePlugin.DepositSource"/>).
+    /// </summary>
+    public RpcSharedBridgeDepositSource? DepositSource => Settlement.ProductionDepositSource;
+
+    /// <summary>
+    /// Production MessageRouter after WireProduction (same instance as
+    /// <see cref="L2BatchPlugin.MessageRouter"/>).
+    /// </summary>
+    public RpcMessageRouter? MessageRouter => Settlement.ProductionMessageRouter;
+
+    /// <summary>
+    /// Production forced-inclusion finalizer after WireProduction
+    /// (<see cref="L2SettlementPlugin.ProductionForcedInclusionFinalizer"/>).
+    /// </summary>
+    public RpcForcedInclusionFinalizationClient? ForcedInclusionFinalizer
+        => Settlement.ProductionForcedInclusionFinalizer;
+
+    /// <summary>
+    /// Production settlement client after WireProduction
+    /// (<see cref="L2SettlementPlugin.ProductionSettlementClient"/>).
+    /// </summary>
+    public RpcSettlementClient? SettlementClient => Settlement.ProductionSettlementClient;
+
+    /// <summary>
+    /// Production L1 transaction sender after WireProduction
+    /// (<see cref="L2SettlementPlugin.ProductionTransactionSender"/>).
+    /// </summary>
+    public RpcTransactionSender? TransactionSender => Settlement.ProductionTransactionSender;
+
+    /// <summary>
+    /// Bound metrics HTTP port after <see cref="StartMetricsHttp"/> (0 when not listening).
+    /// </summary>
+    public int MetricsBoundPort => Metrics.BoundPort;
+
+    /// <summary>True when the metrics HTTP server is listening.</summary>
+    public bool IsMetricsHttpListening => Metrics.BoundPort > 0;
 
     /// <summary>
     /// Start (or re-enter) the metrics HTTP server. Idempotent.

@@ -1,3 +1,4 @@
+using Neo.L2;
 using Neo.L2.Proving.Attestation;
 using Neo.L2.Settlement.Rpc;
 using Neo.L2.Telemetry;
@@ -49,6 +50,46 @@ public sealed class GatewayHostComposition : IDisposable
 
     /// <summary>True when this composition created and owns <see cref="ProofProver"/> disposal.</summary>
     public bool OwnsProofProver { get; }
+
+    /// <summary>
+    /// True when an unconfirmed publication remains retryable or poisoned
+    /// (<see cref="L2GatewayPlugin.HasPendingPublication"/>).
+    /// </summary>
+    public bool HasPendingPublication => Gateway.HasPendingPublication;
+
+    /// <summary>
+    /// Pending publication epoch, or null when none awaits confirmation
+    /// (<see cref="L2GatewayPlugin.PendingPublicationEpoch"/>).
+    /// </summary>
+    public ulong? PendingPublicationEpoch => Gateway.PendingPublicationEpoch;
+
+    /// <summary>
+    /// Durable outbox / confirmation-lag status
+    /// (<see cref="L2GatewayPlugin.OutboxStatus"/>).
+    /// </summary>
+    public GatewayOutboxStatus OutboxStatus => Gateway.OutboxStatus;
+
+    /// <summary>
+    /// Forward a finalized per-chain batch into the durable aggregator/outbox
+    /// (<see cref="L2GatewayPlugin.ReceiveBatch"/>).
+    /// </summary>
+    public void ReceiveBatch(L2BatchCommitment commitment) => Gateway.ReceiveBatch(commitment);
+
+    /// <summary>
+    /// Aggregate, prove, publish, and confirm the next Gateway epoch
+    /// (<see cref="L2GatewayPlugin.PublishAggregateAsync"/>). Funded L1 confirmation remains
+    /// operator-owned.
+    /// </summary>
+    public ValueTask<UInt256> PublishAggregateAsync(
+        ulong batchEpoch,
+        CancellationToken cancellationToken = default)
+        => Gateway.PublishAggregateAsync(batchEpoch, cancellationToken);
+
+    /// <summary>
+    /// Reset a poisoned publication for operator recovery
+    /// (<see cref="L2GatewayPlugin.RecoverPoisonedPublication"/>).
+    /// </summary>
+    public void RecoverPoisonedPublication() => Gateway.RecoverPoisonedPublication();
 
     /// <summary>
     /// Open Merkle-path Gateway composition: durable Merkle aggregator/outbox + publisher

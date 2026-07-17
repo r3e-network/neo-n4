@@ -73,6 +73,14 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsNotNull(host.Settlement.ProductionForcedInclusionFinalizer);
             Assert.IsNotNull(host.Settlement.ProductionSettlementClient);
             Assert.AreSame(host.ForcedInclusion, host.Settlement.ProductionForcedInclusionSource);
+            Assert.AreSame(host.Settlement.ProductionDepositSource, host.DepositSource);
+            Assert.AreSame(host.Settlement.ProductionMessageRouter, host.MessageRouter);
+            Assert.AreSame(
+                host.Settlement.ProductionForcedInclusionFinalizer,
+                host.ForcedInclusionFinalizer);
+            Assert.AreSame(host.Settlement.ProductionSettlementClient, host.SettlementClient);
+            Assert.AreSame(host.Settlement.ProductionTransactionSender, host.TransactionSender);
+            Assert.IsFalse(host.IsMetricsHttpListening);
             Assert.AreEqual(20260716u, host.Bridge.ChainId);
             Assert.AreSame(
                 host.Settlement.ProductionDepositSource,
@@ -93,7 +101,8 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsTrue(host.IsProductionWired);
 
             host.StartMetricsHttp(portOverride: 0);
-            Assert.IsTrue(host.Metrics.BoundPort > 0);
+            Assert.IsTrue(host.IsMetricsHttpListening);
+            Assert.IsTrue(host.MetricsBoundPort > 0);
             var rpcPlugin = host.CreateRpcPlugin();
             Assert.IsNotNull(rpcPlugin);
             Assert.IsFalse(rpcPlugin.IsRegistered(894710606));

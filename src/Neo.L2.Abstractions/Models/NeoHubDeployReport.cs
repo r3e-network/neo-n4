@@ -397,7 +397,8 @@ public sealed record NeoHubDeployReport(
                         "L2SettlementPlugin.WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer)",
                     ["wireProductionPublicAccessors"] =
                         "ProductionDepositSource / ProductionMessageRouter / "
-                        + "ProductionForcedInclusionSource / ProductionSettlementClient",
+                        + "ProductionForcedInclusionSource / ProductionForcedInclusionFinalizer / "
+                        + "ProductionSettlementClient / ProductionTransactionSender",
                     ["multisigLocalHostComposition"] =
                         "MultisigLocalHostComposition.Open(chainDir, executor, signers, signer, "
                         + "startMetricsHttp?) + InMemoryL2RpcStore (data/rpc/proofs)",
@@ -415,6 +416,9 @@ public sealed record NeoHubDeployReport(
                         "L2SettlementPlugin.ProductionTransactionSender after WireProduction",
                     ["settlementProductionForcedInclusionFinalizer"] =
                         "L2SettlementPlugin.ProductionForcedInclusionFinalizer after WireProduction",
+                    ["localHostProductionSurfaces"] =
+                        "LocalHost.DepositSource / MessageRouter / ForcedInclusionFinalizer / "
+                        + "SettlementClient / TransactionSender / MetricsBoundPort / IsMetricsHttpListening",
                     ["localHostSettleHelpers"] =
                         "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                         + "PersistAsync / EnqueueAsync",
@@ -430,6 +434,9 @@ public sealed record NeoHubDeployReport(
                         "GatewayHostComposition.OpenMultisig(chainDir, signers, threshold, proofProver, signer, replayDomain, vk, metrics?)",
                     ["gatewayHostCompositionSp1"] =
                         "GatewayHostComposition.OpenSp1(chainDir, gatewayVk, signer, replayDomain, vk, metrics?)",
+                    ["gatewayHostOpsHelpers"] =
+                        "GatewayHostComposition.HasPendingPublication / PendingPublicationEpoch / "
+                        + "OutboxStatus / ReceiveBatch / PublishAggregateAsync / RecoverPoisonedPublication",
                     ["localDaOpenHelper"] = "PersistentDAWriter.OpenLocalFromChainDirectory(chainDirectory)",
                     ["daMetricsWrap"] =
                         "MetricsEmittingDAWriter / MetricsEmittingProductionDAWriter (LocalHost Open)",

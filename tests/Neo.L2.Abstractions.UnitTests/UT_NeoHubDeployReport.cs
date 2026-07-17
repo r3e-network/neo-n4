@@ -160,7 +160,8 @@ public class UT_NeoHubDeployReport
                 stores.GetProperty("wireProductionFromLayout").GetString());
             Assert.AreEqual(
                 "ProductionDepositSource / ProductionMessageRouter / "
-                + "ProductionForcedInclusionSource / ProductionSettlementClient",
+                + "ProductionForcedInclusionSource / ProductionForcedInclusionFinalizer / "
+                + "ProductionSettlementClient / ProductionTransactionSender",
                 stores.GetProperty("wireProductionPublicAccessors").GetString());
             Assert.AreEqual(
                 "MultisigLocalHostComposition.Open(chainDir, executor, signers, signer, "
@@ -187,6 +188,10 @@ public class UT_NeoHubDeployReport
                 "L2SettlementPlugin.ProductionForcedInclusionFinalizer after WireProduction",
                 stores.GetProperty("settlementProductionForcedInclusionFinalizer").GetString());
             Assert.AreEqual(
+                "LocalHost.DepositSource / MessageRouter / ForcedInclusionFinalizer / "
+                + "SettlementClient / TransactionSender / MetricsBoundPort / IsMetricsHttpListening",
+                stores.GetProperty("localHostProductionSurfaces").GetString());
+            Assert.AreEqual(
                 "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                 + "PersistAsync / EnqueueAsync",
                 stores.GetProperty("localHostSettleHelpers").GetString());
@@ -208,6 +213,10 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "GatewayHostComposition.OpenSp1(chainDir, gatewayVk, signer, replayDomain, vk, metrics?)",
                 stores.GetProperty("gatewayHostCompositionSp1").GetString());
+            Assert.AreEqual(
+                "GatewayHostComposition.HasPendingPublication / PendingPublicationEpoch / "
+                + "OutboxStatus / ReceiveBatch / PublishAggregateAsync / RecoverPoisonedPublication",
+                stores.GetProperty("gatewayHostOpsHelpers").GetString());
             Assert.AreEqual(
                 "L2BatchPlugin.CreateFromChainDirectory(chainDirectory)",
                 stores.GetProperty("batchPluginFactory").GetString());

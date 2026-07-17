@@ -53,18 +53,28 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsNotNull(host.Settlement.ProductionForcedInclusionFinalizer);
             Assert.IsNotNull(host.Settlement.ProductionSettlementClient);
             Assert.AreSame(host.ForcedInclusion, host.Settlement.ProductionForcedInclusionSource);
+            Assert.AreSame(
+                host.Settlement.ProductionForcedInclusionFinalizer,
+                host.ForcedInclusionFinalizer);
+            Assert.AreSame(host.Settlement.ProductionSettlementClient, host.SettlementClient);
+            Assert.AreSame(host.Settlement.ProductionTransactionSender, host.TransactionSender);
+            Assert.IsFalse(host.IsMetricsHttpListening);
             Assert.AreEqual(20260716u, host.Bridge.ChainId);
             Assert.IsNotNull(host.Metrics.Metrics);
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);
             if (host.Settlement.ProductionDepositSource is not null)
             {
+                Assert.AreSame(host.Settlement.ProductionDepositSource, host.DepositSource);
                 Assert.AreSame(
                     host.Settlement.ProductionDepositSource,
                     host.Bridge.DepositSource);
                 Assert.AreSame(host.Settlement.ProductionDepositSource, host.Batch.DepositSource);
             }
             if (host.Settlement.ProductionMessageRouter is not null)
+            {
+                Assert.AreSame(host.Settlement.ProductionMessageRouter, host.MessageRouter);
                 Assert.AreSame(host.Settlement.ProductionMessageRouter, host.Batch.MessageRouter);
+            }
             Assert.AreSame(host.ForcedInclusion, host.Batch.ForcedInclusionSource);
             Assert.IsTrue(host.Batch.HasSealedBatchSink);
             Assert.IsTrue(host.Settlement.IsProductionWired);
@@ -73,7 +83,8 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(host.IsProductionWired);
 
             host.StartMetricsHttp(portOverride: 0);
-            Assert.IsTrue(host.Metrics.BoundPort > 0);
+            Assert.IsTrue(host.IsMetricsHttpListening);
+            Assert.IsTrue(host.MetricsBoundPort > 0);
             var rpcPlugin = host.CreateRpcPlugin();
             Assert.IsNotNull(rpcPlugin);
             Assert.IsFalse(rpcPlugin.IsRegistered(894710606));

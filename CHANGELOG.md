@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost production surfaces + GatewayHost ops helpers — 2026-07-17
+
+- Multisig/Optimistic/Zk LocalHost expose production WireProduction surfaces without
+  digging into Settlement: `DepositSource`, `MessageRouter`, `ForcedInclusionFinalizer`,
+  `SettlementClient`, `TransactionSender`, plus `MetricsBoundPort` / `IsMetricsHttpListening`.
+- `GatewayHostComposition` exposes outbox/publication ops:
+  `HasPendingPublication`, `PendingPublicationEpoch`, `OutboxStatus`, `ReceiveBatch`,
+  `PublishAggregateAsync`, `RecoverPoisonedPublication` (L1 confirmation remains funded).
+- Wireproduction notes document both surfaces. Unit coverage on Multisig/Optimistic/Zk
+  LocalHost and Gateway OpenMerkle.
+
 ### Added — ProductionForcedInclusionFinalizer + init-l2 host open tip — 2026-07-17
 
 - `L2SettlementPlugin.ProductionForcedInclusionFinalizer` after WireProduction.

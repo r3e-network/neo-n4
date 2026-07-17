@@ -65,6 +65,10 @@ public sealed class UT_GatewayHostComposition
                 MerklePathRoundProver.ConstBackendId,
                 ((BinaryTreeAggregator)host.Gateway.Aggregator).RoundProver.BackendId);
             Assert.IsFalse(host.Gateway.HasPendingPublication);
+            // Host-level ops surface (no dig into Gateway plugin).
+            Assert.IsFalse(host.HasPendingPublication);
+            Assert.IsNull(host.PendingPublicationEpoch);
+            Assert.IsNotNull(host.OutboxStatus);
             Assert.IsNotNull(host.Publisher);
             // Metrics sink is retained for outbox/aggregator emission (no throw on wire).
             Assert.IsNotNull(metrics);

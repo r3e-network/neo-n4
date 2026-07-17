@@ -55,6 +55,16 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsNotNull(host.Settlement.ProductionForcedInclusionFinalizer);
             Assert.IsNotNull(host.Settlement.ProductionSettlementClient);
             Assert.AreSame(host.ForcedInclusion, host.Settlement.ProductionForcedInclusionSource);
+            // Host-level production surfaces (no dig into Settlement internals).
+            Assert.AreSame(host.Settlement.ProductionDepositSource, host.DepositSource);
+            Assert.AreSame(host.Settlement.ProductionMessageRouter, host.MessageRouter);
+            Assert.AreSame(
+                host.Settlement.ProductionForcedInclusionFinalizer,
+                host.ForcedInclusionFinalizer);
+            Assert.AreSame(host.Settlement.ProductionSettlementClient, host.SettlementClient);
+            Assert.AreSame(host.Settlement.ProductionTransactionSender, host.TransactionSender);
+            Assert.IsFalse(host.IsMetricsHttpListening);
+            Assert.AreEqual(0, host.MetricsBoundPort);
             Assert.AreEqual(20260716u, host.Bridge.ChainId);
             Assert.AreSame(
                 host.Settlement.ProductionDepositSource,
@@ -65,6 +75,7 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreSame(host.ForcedInclusion, host.Batch.ForcedInclusionSource);
             Assert.IsTrue(host.Batch.HasSealedBatchSink);
             Assert.IsTrue(host.Settlement.IsProductionWired);
+            Assert.IsTrue(host.IsProductionWired);
             Assert.IsNotNull(host.Metrics.Metrics);
             Assert.AreEqual(0, host.Metrics.BoundPort); // HTTP not started by default
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);
@@ -103,15 +114,18 @@ public sealed class UT_MultisigLocalHostComposition
                 rpcHttpClient: http,
                 startMetricsHttp: true,
                 metricsPortOverride: 0);
-            Assert.IsTrue(host.Metrics.BoundPort > 0);
+            Assert.IsTrue(host.IsMetricsHttpListening);
+            Assert.IsTrue(host.MetricsBoundPort > 0);
+            Assert.AreEqual(host.Metrics.BoundPort, host.MetricsBoundPort);
             Assert.IsTrue(host.Batch.HasSealedBatchSink);
             Assert.IsTrue(host.Settlement.IsProductionWired);
-            Assert.IsNotNull(host.Settlement.ProductionTransactionSender);
+            Assert.IsNotNull(host.TransactionSender);
+            Assert.AreSame(host.Settlement.ProductionTransactionSender, host.TransactionSender);
 
             using var client = new HttpClient();
-            var ready = await client.GetAsync($"http://127.0.0.1:{host.Metrics.BoundPort}/readyz");
+            var ready = await client.GetAsync($"http://127.0.0.1:{host.MetricsBoundPort}/readyz");
             Assert.AreEqual(System.Net.HttpStatusCode.OK, ready.StatusCode);
-            var health = await client.GetAsync($"http://127.0.0.1:{host.Metrics.BoundPort}/healthz");
+            var health = await client.GetAsync($"http://127.0.0.1:{host.MetricsBoundPort}/healthz");
             Assert.AreEqual(System.Net.HttpStatusCode.OK, health.StatusCode);
 
             Assert.AreEqual(0, await host.GetPendingCountAsync());
@@ -120,7 +134,7 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(host.IsProductionWired);
 
             var metricsBody = await client.GetStringAsync(
-                $"http://127.0.0.1:{host.Metrics.BoundPort}/metrics");
+                $"http://127.0.0.1:{host.MetricsBoundPort}/metrics");
             Assert.IsFalse(string.IsNullOrWhiteSpace(metricsBody));
             // Prometheus exposition always includes TYPE/HELP or at least scrapeable text.
             StringAssert.Contains(metricsBody, "#");
@@ -156,10 +170,12 @@ public sealed class UT_MultisigLocalHostComposition
                 SampleSigners(),
                 new StubSigner(Account(0x44)),
                 rpcHttpClient: http);
-            Assert.AreEqual(0, host.Metrics.BoundPort);
+            Assert.AreEqual(0, host.MetricsBoundPort);
+            Assert.IsFalse(host.IsMetricsHttpListening);
 
             host.StartMetricsHttp(portOverride: 0);
-            Assert.IsTrue(host.Metrics.BoundPort > 0);
+            Assert.IsTrue(host.IsMetricsHttpListening);
+            Assert.IsTrue(host.MetricsBoundPort > 0);
             Assert.IsTrue(host.IsProductionWired);
 
             var rpcPlugin = host.CreateRpcPlugin();

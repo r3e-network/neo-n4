@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Tested — Neo N3 testnet session8 reverify + SharedBridge deposit n9 — 2026-07-18
+
+- Re-ran `neo-hub-deploy deploy-testnet` (skip-existing): **24/24 deploy reused**,
+  **29/29 postdeploy reused**, **42/42 smoke ok** against magic `894710606`.
+- Live SharedBridge Deposit **nonce 9** HALT (`0xff78d6fb…9273`, 0.001 GAS,
+  `WitnessScope.Global`, Transfer + DepositEnqueued); `getDeposit` confirmed.
+- Evidence: `docs/audit/testnet-deployment-20260718-session8-reverify.json`,
+  `docs/audit/testnet-evidence-status-2026-07-18-session8.json`.
+- WIF only via process env `NEO_N4_TESTNET_WIF` (not committed). Funded gates still open:
+  L1 settle, Zk prove-batch, production DA, 2-of-2 bridge retarget, full Neo.CLI stack.
+
 ### Added — Batcher inbox wiring flags, seal caps, and metrics concurrency on LocalHost — 2026-07-18
 
 - `L2BatchPlugin` exposes `HasDepositSource` / `HasMessageRouter` / `HasForcedInclusionSource`

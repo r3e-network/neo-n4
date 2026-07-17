@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "checkedAtUtc": "2026-07-17T23:47:35Z",
+  "sourceCommit": "95f8b59",
+  "rpc": "https://n3seed1.ngd.network:20332/",
+  "networkMagic": 894710606,
+  "signerAddress": "NLtL2v28d7TyMEaXcPqtekunkFRksJ7wxu",
+  "signerScriptHash": "0x13ef519c362973f9a34648a9eac5b71250b2a80a",
+  "l2ChainId": 20260716,
+  "gasBalanceDatoshiApprox": "11257433661860",
+  "deployReverify": {
+    "report": "docs/audit/testnet-deployment-20260718-session8-reverify.json",
+    "exitCode": 0,
+    "counts": {
+      "deploy/reused": 24,
+      "postdeploy/reused": 29,
+      "smoke/ok": 42
+    },
+    "sharedBridgeReused": "0xf64548c2c947f5c2150b467700c0f46f90dc1bae",
+    "fraudReplayDomainWire": "0xf1e2d3c4b5a697887766554433221100ffeeddccbbaa99887766554433221100",
+    "fraudReplayDomainNote": "CLI --fraud-replay-domain must be on-chain raw wire bytes (RestrictedExecutionFraudVerifier.getReplayDomain); report ToString may display reversed form."
+  },
+  "chain20260716": {
+    "isActive": true,
+    "registeredBridgeStillLegacy": "0xf2f5114b83dd6fed4ddcac0ff9966fd22a77b241",
+    "note": "ChainRegistry config still points at legacy SharedBridge; live Deposit works on fixed bridge independently. Governance retarget is a funded 2-of-2 gate."
+  },
+  "tokenRegistry": {
+    "gasActive": true,
+    "neoActive": true
+  },
+  "forcedInclusion": {
+    "isProductionReady": true,
+    "getEntry_chain20260716_nonce1": "present"
+  },
+  "sharedBridgeDeposit": {
+    "fixedBridge": "0xf64548c2c947f5c2150b467700c0f46f90dc1bae",
+    "legacyBridge": "0xf2f5114b83dd6fed4ddcac0ff9966fd22a77b241",
+    "priorDeposits": {
+      "nonce1": "0x9b72709e007a480a1c49fd672d0e46b6d449aa2b9c53f9bf8b3503051b4675ae",
+      "nonce2": "0x77ea50a93b56f51528a74bb02b9cccac00833762913ab9187932eede10fe6f31",
+      "nonce3": "0xa06e7952574e3a3384ad64c8181ed640be4172039848391c84bab5d37de6d821",
+      "nonce4": "0xd33952c5b01e2d7854eb3f1f3ac60a9ee666ca3bc26f2c2184ed01b0dc2b1294",
+      "nonce5": "0xf9539490826eb9dbf59a320b3becf63b635d87ffd2f601fdb10aceb2c92bd9bb",
+      "nonce6": "0x55ccf7b13dfe50280779d2991df669e78378054f05d1e1829542a019f3bb61cd",
+      "nonce7": "0xde9e334287e31a11dfc5462ca12ec8624177fc58b8b8957e3c3f078bf8cce4b8",
+      "nonce8": "0xa30e573bd06362595c561460428f98b0523a1dddc0466651cb6324cffbfabebc"
+    },
+    "liveDepositNonce9": {
+      "status": "HALT",
+      "txHash": "0xff78d6fb6aefb8367b0147063ba02e744e7e28a9c9b6b05a36d2e1772cec9273",
+      "amountDatoshi": 100000,
+      "witnessScope": "Global",
+      "notifications": [
+        "Transfer",
+        "DepositEnqueued"
+      ],
+      "getDeposit_confirmed": true
+    }
+  },
+  "securityNote": "WIF used only via process env NEO_N4_TESTNET_WIF; not written to repo or evidence files.",
+  "localOperatorPath": {
+    "note": "session8 focuses on L1 reverify + deposit n9; local init-l2 path previously validated"
+  },
+  "fundedGatesStillOpen": [
+    "L1 batch settle / publish against SettlementManager",
+    "Zk executor binary + SP1 prove-batch production path",
+    "production DA credentials (L1/NeoFS)",
+    "2-of-2 governance retarget of chain 20260716 bridge hash to fixed SharedBridge",
+    "ForcedInclusion L1 drain / full operator Neo.CLI stack"
+  ]
+}

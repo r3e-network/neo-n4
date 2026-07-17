@@ -399,14 +399,16 @@ public sealed record NeoHubDeployReport(
                         "ProductionDepositSource / ProductionMessageRouter / "
                         + "ProductionForcedInclusionSource / ProductionSettlementClient",
                     ["multisigLocalHostComposition"] =
-                        "MultisigLocalHostComposition.Open(chainDir, executor, signers, signer) "
-                        + "+ InMemoryL2RpcStore (data/rpc/proofs)",
+                        "MultisigLocalHostComposition.Open(chainDir, executor, signers, signer, "
+                        + "startMetricsHttp?) + InMemoryL2RpcStore (data/rpc/proofs)",
                     ["optimisticLocalHostComposition"] =
-                        "OptimisticLocalHostComposition.Open(chainDir, executor, sequencerKey, bondContract, bondTxHash, signer) "
-                        + "+ InMemoryL2RpcStore (data/rpc/proofs)",
+                        "OptimisticLocalHostComposition.Open(chainDir, executor, sequencerKey, bondContract, bondTxHash, signer, "
+                        + "startMetricsHttp?) + InMemoryL2RpcStore (data/rpc/proofs)",
                     ["zkLocalHostComposition"] =
-                        "ZkLocalHostComposition.Open(chainDir, executorPath, executorSha256, vk, productionDaWriter, signer) "
-                        + "+ InMemoryL2RpcStore (data/rpc/proofs)",
+                        "ZkLocalHostComposition.Open(chainDir, executorPath, executorSha256, vk, productionDaWriter, signer, "
+                        + "startMetricsHttp?) + InMemoryL2RpcStore (data/rpc/proofs)",
+                    ["batchInboxVisibility"] =
+                        "L2BatchPlugin.HasSealedBatchSink / ForcedInclusionSource / DepositSource / MessageRouter",
                     ["gatewayHostCompositionMerkle"] =
                         "GatewayHostComposition.OpenMerkle(chainDir, proofProver, signer, replayDomain, vk, metrics?)",
                     ["gatewayHostCompositionMultisig"] =

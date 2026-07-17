@@ -64,6 +64,8 @@ public sealed class UT_OptimisticLocalHostComposition
             }
             if (host.Settlement.ProductionMessageRouter is not null)
                 Assert.AreSame(host.Settlement.ProductionMessageRouter, host.Batch.MessageRouter);
+            Assert.AreSame(host.ForcedInclusion, host.Batch.ForcedInclusionSource);
+            Assert.IsTrue(host.Batch.HasSealedBatchSink);
         }
         finally
         {

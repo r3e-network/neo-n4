@@ -58,12 +58,51 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreSame(
                 host.Settlement.ProductionDepositSource,
                 host.Bridge.DepositSource);
-            // WireProduction installs the L1 inbox on the batcher.
+            // WireProduction installs the L1 inbox + sealed-batch sink on the batcher.
             Assert.AreSame(host.Settlement.ProductionDepositSource, host.Batch.DepositSource);
             Assert.AreSame(host.Settlement.ProductionMessageRouter, host.Batch.MessageRouter);
+            Assert.AreSame(host.ForcedInclusion, host.Batch.ForcedInclusionSource);
+            Assert.IsTrue(host.Batch.HasSealedBatchSink);
             Assert.IsNotNull(host.Metrics.Metrics);
+            Assert.AreEqual(0, host.Metrics.BoundPort); // HTTP not started by default
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);
             Assert.AreEqual(DAMode.Local, host.RpcStore.DAMode);
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void Open_StartMetricsHttp_BindsEphemeralPort()
+    {
+        var reportPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        var chainDir = Path.Combine(
+            Path.GetTempPath(),
+            "neo-n4-msig-host-metrics-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            MaterializeMultisigChain(chainDir, reportPath);
+            using var http = CanonicalRootHttpClient();
+            using var host = MultisigLocalHostComposition.Open(
+                chainDir,
+                new StubExecutor(),
+                SampleSigners(),
+                new StubSigner(Account(0x44)),
+                rpcHttpClient: http,
+                startMetricsHttp: true,
+                metricsPortOverride: 0);
+            Assert.IsTrue(host.Metrics.BoundPort > 0);
+            Assert.IsTrue(host.Batch.HasSealedBatchSink);
         }
         finally
         {

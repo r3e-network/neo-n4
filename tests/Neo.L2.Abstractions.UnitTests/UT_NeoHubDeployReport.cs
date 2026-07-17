@@ -163,17 +163,20 @@ public class UT_NeoHubDeployReport
                 + "ProductionForcedInclusionSource / ProductionSettlementClient",
                 stores.GetProperty("wireProductionPublicAccessors").GetString());
             Assert.AreEqual(
-                "MultisigLocalHostComposition.Open(chainDir, executor, signers, signer) "
-                + "+ InMemoryL2RpcStore (data/rpc/proofs)",
+                "MultisigLocalHostComposition.Open(chainDir, executor, signers, signer, "
+                + "startMetricsHttp?) + InMemoryL2RpcStore (data/rpc/proofs)",
                 stores.GetProperty("multisigLocalHostComposition").GetString());
             Assert.AreEqual(
-                "OptimisticLocalHostComposition.Open(chainDir, executor, sequencerKey, bondContract, bondTxHash, signer) "
-                + "+ InMemoryL2RpcStore (data/rpc/proofs)",
+                "OptimisticLocalHostComposition.Open(chainDir, executor, sequencerKey, bondContract, bondTxHash, signer, "
+                + "startMetricsHttp?) + InMemoryL2RpcStore (data/rpc/proofs)",
                 stores.GetProperty("optimisticLocalHostComposition").GetString());
             Assert.AreEqual(
-                "ZkLocalHostComposition.Open(chainDir, executorPath, executorSha256, vk, productionDaWriter, signer) "
-                + "+ InMemoryL2RpcStore (data/rpc/proofs)",
+                "ZkLocalHostComposition.Open(chainDir, executorPath, executorSha256, vk, productionDaWriter, signer, "
+                + "startMetricsHttp?) + InMemoryL2RpcStore (data/rpc/proofs)",
                 stores.GetProperty("zkLocalHostComposition").GetString());
+            Assert.AreEqual(
+                "L2BatchPlugin.HasSealedBatchSink / ForcedInclusionSource / DepositSource / MessageRouter",
+                stores.GetProperty("batchInboxVisibility").GetString());
             Assert.AreEqual(
                 "GatewayHostComposition.OpenMerkle(chainDir, proofProver, signer, replayDomain, vk, metrics?)",
                 stores.GetProperty("gatewayHostCompositionMerkle").GetString());

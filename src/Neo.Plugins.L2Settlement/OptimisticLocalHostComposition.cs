@@ -99,7 +99,9 @@ public sealed class OptimisticLocalHostComposition : IDisposable
         UInt256 bondTxHash,
         INeoTransactionSigner signer,
         HttpClient? rpcHttpClient = null,
-        Func<ulong>? submittedAtUnixMs = null)
+        Func<ulong>? submittedAtUnixMs = null,
+        bool startMetricsHttp = false,
+        int? metricsPortOverride = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
         ArgumentNullException.ThrowIfNull(executor);
@@ -163,6 +165,9 @@ public sealed class OptimisticLocalHostComposition : IDisposable
             var deposits = settlement.ProductionDepositSource;
             if (deposits is not null)
                 bridge.WithDepositSource(deposits);
+
+            if (startMetricsHttp)
+                metrics.Start(metricsPortOverride);
 
             return new OptimisticLocalHostComposition(
                 root,

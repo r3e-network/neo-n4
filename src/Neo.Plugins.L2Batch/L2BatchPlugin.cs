@@ -161,6 +161,18 @@ public sealed class L2BatchPlugin : Plugin
     public IMessageRouter? MessageRouter => _messageRouter;
 
     /// <summary>
+    /// Currently wired forced-inclusion read source, if any (set by
+    /// <see cref="WithForcedInclusionSource"/> / production WireProduction inbox wiring).
+    /// </summary>
+    public IForcedInclusionSource? ForcedInclusionSource => _forcedInclusionSource;
+
+    /// <summary>
+    /// True after <see cref="WithSealedBatchSink"/> has installed the durable settlement sink
+    /// (e.g. via <c>L2SettlementPlugin.WireProduction</c>).
+    /// </summary>
+    public bool HasSealedBatchSink => _sink is not null;
+
+    /// <summary>
     /// Wire the L1 forced-inclusion read source. The durable settlement sink remains the
     /// reservation source of truth; this method never calls
     /// <see cref="IForcedInclusionSource.ConfirmConsumedAsync"/>.

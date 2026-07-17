@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Batch sink/FI visibility + LocalHost startMetricsHttp — 2026-07-17
+
+- `L2BatchPlugin.HasSealedBatchSink` and `ForcedInclusionSource` expose WireProduction
+  sink/inbox wiring for host composition checks.
+- Multisig/Optimistic/Zk LocalHost `Open` accepts optional `startMetricsHttp` +
+  `metricsPortOverride` (ephemeral port `0` for tests) to start the metrics HTTP server
+  without Neo.CLI.
+- Unit coverage for sealed-batch sink + FI on the batcher and ephemeral metrics bind.
+
 ### Added — GatewayHostComposition metrics + Zk+Gateway OpenSp1 E2E — 2026-07-17
 
 - `GatewayHostComposition.OpenMerkle` / `OpenMultisig` / `OpenSp1` accept optional

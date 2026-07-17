@@ -119,6 +119,10 @@ public sealed class ZkLocalHostComposition : IDisposable
     /// <param name="executionTimeout">Optional native executor timeout.</param>
     /// <param name="proofTimeout">Optional SP1 proof result wait timeout.</param>
     /// <param name="proofPollInterval">Optional SP1 queue poll interval.</param>
+    /// <param name="startMetricsHttp">
+    /// When true, starts the metrics HTTP server after wiring (<see cref="L2MetricsPlugin.Start"/>).
+    /// </param>
+    /// <param name="metricsPortOverride">Optional port override (use 0 for an ephemeral test port).</param>
     public static ZkLocalHostComposition Open(
         string chainDirectory,
         string executorPath,
@@ -129,7 +133,9 @@ public sealed class ZkLocalHostComposition : IDisposable
         HttpClient? rpcHttpClient = null,
         TimeSpan? executionTimeout = null,
         TimeSpan? proofTimeout = null,
-        TimeSpan? proofPollInterval = null)
+        TimeSpan? proofPollInterval = null,
+        bool startMetricsHttp = false,
+        int? metricsPortOverride = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
         ArgumentException.ThrowIfNullOrWhiteSpace(executorPath);
@@ -209,6 +215,9 @@ public sealed class ZkLocalHostComposition : IDisposable
             var deposits = settlement.ProductionDepositSource;
             if (deposits is not null)
                 bridge.WithDepositSource(deposits);
+
+            if (startMetricsHttp)
+                metrics.Start(metricsPortOverride);
 
             return new ZkLocalHostComposition(
                 root,

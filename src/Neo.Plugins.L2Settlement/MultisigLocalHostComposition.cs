@@ -97,12 +97,18 @@ public sealed class MultisigLocalHostComposition : IDisposable
     /// <param name="signers">Committee <see cref="ISignerSet"/> for attestation proofs.</param>
     /// <param name="signer">L1 settlement transaction signer.</param>
     /// <param name="rpcHttpClient">Optional HTTP client for L1 JSON-RPC (tests inject mocks).</param>
+    /// <param name="startMetricsHttp">
+    /// When true, starts the metrics HTTP server after wiring (<see cref="L2MetricsPlugin.Start"/>).
+    /// </param>
+    /// <param name="metricsPortOverride">Optional port override (use 0 for an ephemeral test port).</param>
     public static MultisigLocalHostComposition Open(
         string chainDirectory,
         IProofWitnessBatchExecutor executor,
         ISignerSet signers,
         INeoTransactionSigner signer,
-        HttpClient? rpcHttpClient = null)
+        HttpClient? rpcHttpClient = null,
+        bool startMetricsHttp = false,
+        int? metricsPortOverride = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
         ArgumentNullException.ThrowIfNull(executor);
@@ -161,6 +167,9 @@ public sealed class MultisigLocalHostComposition : IDisposable
             var deposits = settlement.ProductionDepositSource;
             if (deposits is not null)
                 bridge.WithDepositSource(deposits);
+
+            if (startMetricsHttp)
+                metrics.Start(metricsPortOverride);
 
             return new MultisigLocalHostComposition(
                 root,

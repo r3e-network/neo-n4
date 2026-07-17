@@ -221,8 +221,8 @@ public class UT_NeoHubDeployReport
                 + "SnapshotBridgeAssets / BridgeAssetCount",
                 stores.GetProperty("localHostBridgeRegistry").GetString());
             Assert.AreEqual(
-                "LocalHost.ProcessDeposit / HasConsumedDeposit / StageWithdrawal / "
-                + "StagedWithdrawalCount / SealWithdrawalBatch / ProveAsync",
+                "LocalHost.ProcessDeposit / ProcessReadyDeposits / HasConsumedDeposit / "
+                + "StageWithdrawal / StagedWithdrawalCount / SealWithdrawalBatch / ProveAsync",
                 stores.GetProperty("localHostBridgeProcessors").GetString());
             Assert.AreEqual(
                 "LocalHost.WriteOperatorStatusAsync(path) → LocalHostOperatorStatusDocument JSON",
@@ -233,6 +233,10 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "GatewayHostComposition.WriteOperatorStatusAsync(path) → GatewayHostOperatorStatusDocument JSON",
                 stores.GetProperty("gatewayHostWriteOperatorStatus").GetString());
+            Assert.AreEqual(
+                "GatewayHostComposition.WritePrometheusMetricsAsync(path) / ExportPrometheusMetrics "
+                + "(when Metrics is IMetricsSource)",
+                stores.GetProperty("gatewayHostWritePrometheusMetrics").GetString());
             Assert.AreEqual(
                 "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                 + "PersistAsync / EnqueueAsync",
@@ -263,7 +267,9 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "GatewayHostComposition.HasPendingPublication / PendingPublicationEpoch / "
                 + "OutboxStatus / Aggregator / ReceiveBatch / PublishAggregateAsync / "
-                + "RecoverPoisonedPublication / GetOperatorStatus / WriteOperatorStatusAsync",
+                + "RecoverPoisonedPublication / GetOperatorStatus / WriteOperatorStatusAsync / "
+                + "Metrics / CaptureMetricsSnapshot / ExportPrometheusMetrics / "
+                + "WritePrometheusMetricsAsync",
                 stores.GetProperty("gatewayHostOpsHelpers").GetString());
             Assert.AreEqual(
                 "L2BatchPlugin.CreateFromChainDirectory(chainDirectory)",

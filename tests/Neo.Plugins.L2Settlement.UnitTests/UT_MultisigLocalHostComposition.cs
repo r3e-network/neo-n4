@@ -208,6 +208,9 @@ public sealed class UT_MultisigLocalHostComposition
             var mint = host.ProcessDeposit(depositMsg);
             Assert.AreEqual(l2Asset, mint.L2Asset);
             Assert.IsTrue(host.HasConsumedDeposit(0, 1));
+            // Ready-deposit drain is peek-only; empty source yields empty (no L1 scan).
+            Assert.AreEqual(0, host.ProcessReadyDeposits().Count);
+            Assert.AreEqual(0, host.ProcessReadyDeposits(0).Count);
             Assert.AreEqual(0, host.StagedWithdrawalCount);
             var proof = host.ProveAsync(new ProofRequest
             {

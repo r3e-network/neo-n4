@@ -83,8 +83,14 @@ public sealed class UT_GatewayHostComposition
             StringAssert.Contains(statusJson, "\"hasPendingPublication\": false");
             StringAssert.Contains(statusJson, "\"outboxQueueDepth\": 0");
             Assert.IsNotNull(host.Publisher);
-            // Metrics sink is retained for outbox/aggregator emission (no throw on wire).
-            Assert.IsNotNull(metrics);
+            // Metrics sink is retained for outbox/aggregator emission + export.
+            Assert.AreSame(metrics, host.Metrics);
+            Assert.IsTrue(host.CaptureMetricsSnapshot().TotalEntries >= 0);
+            Assert.IsFalse(string.IsNullOrWhiteSpace(host.ExportPrometheusMetrics()));
+            var promPath = Path.Combine(dir, "gateway-metrics.prom");
+            host.WritePrometheusMetricsAsync(promPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(promPath));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(File.ReadAllText(promPath)));
         }
         finally
         {

@@ -442,14 +442,17 @@ public sealed record NeoHubDeployReport(
                         "LocalHost.BridgeAssetRegistry / RegisterBridgeAsset / "
                         + "SnapshotBridgeAssets / BridgeAssetCount",
                     ["localHostBridgeProcessors"] =
-                        "LocalHost.ProcessDeposit / HasConsumedDeposit / StageWithdrawal / "
-                        + "StagedWithdrawalCount / SealWithdrawalBatch / ProveAsync",
+                        "LocalHost.ProcessDeposit / ProcessReadyDeposits / HasConsumedDeposit / "
+                        + "StageWithdrawal / StagedWithdrawalCount / SealWithdrawalBatch / ProveAsync",
                     ["localHostWriteOperatorStatus"] =
                         "LocalHost.WriteOperatorStatusAsync(path) → LocalHostOperatorStatusDocument JSON",
                     ["localHostWritePrometheusMetrics"] =
                         "LocalHost.WritePrometheusMetricsAsync(path) → Prometheus text file",
                     ["gatewayHostWriteOperatorStatus"] =
                         "GatewayHostComposition.WriteOperatorStatusAsync(path) → GatewayHostOperatorStatusDocument JSON",
+                    ["gatewayHostWritePrometheusMetrics"] =
+                        "GatewayHostComposition.WritePrometheusMetricsAsync(path) / ExportPrometheusMetrics "
+                        + "(when Metrics is IMetricsSource)",
                     ["localHostSettleHelpers"] =
                         "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                         + "PersistAsync / EnqueueAsync",
@@ -472,7 +475,9 @@ public sealed record NeoHubDeployReport(
                     ["gatewayHostOpsHelpers"] =
                         "GatewayHostComposition.HasPendingPublication / PendingPublicationEpoch / "
                         + "OutboxStatus / Aggregator / ReceiveBatch / PublishAggregateAsync / "
-                        + "RecoverPoisonedPublication / GetOperatorStatus / WriteOperatorStatusAsync",
+                        + "RecoverPoisonedPublication / GetOperatorStatus / WriteOperatorStatusAsync / "
+                        + "Metrics / CaptureMetricsSnapshot / ExportPrometheusMetrics / "
+                        + "WritePrometheusMetricsAsync",
                     ["localDaOpenHelper"] = "PersistentDAWriter.OpenLocalFromChainDirectory(chainDirectory)",
                     ["daMetricsWrap"] =
                         "MetricsEmittingDAWriter / MetricsEmittingProductionDAWriter (LocalHost Open)",

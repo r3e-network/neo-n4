@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Gateway Prometheus export + LocalHost ProcessReadyDeposits — 2026-07-17
+
+- `GatewayHostComposition` retains optional `Metrics` and exposes
+  `CaptureMetricsSnapshot` / `ExportPrometheusMetrics` / `WritePrometheusMetricsAsync`
+  when the sink implements `IMetricsSource` (parity with LocalHost offline scrape files).
+- Multisig/Optimistic/Zk LocalHost `ProcessReadyDeposits` peeks ready SharedBridge deposits
+  and mints unconsumed ones (deposit-source Drain/Confirm remains the batcher path).
+- Wireproduction notes + init-l2 tip + unit/integration coverage; no wire/ABI change.
+- L1 gateway publish confirmation and live deposit scan remain funded gates.
+
 ### Added — Gateway WriteOperatorStatusAsync + LocalHost Prometheus file dump — 2026-07-17
 
 - `GatewayHostComposition.WriteOperatorStatusAsync(path)` writes camelCase

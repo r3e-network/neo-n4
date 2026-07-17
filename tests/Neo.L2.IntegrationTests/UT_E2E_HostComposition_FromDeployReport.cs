@@ -280,6 +280,11 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             gatewayHost.WriteOperatorStatusAsync(gwStatusPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(gwStatusPath));
             StringAssert.Contains(File.ReadAllText(gwStatusPath), "\"hasPendingPublication\": false");
+            Assert.AreSame(settlementHost.Metrics.Metrics, gatewayHost.Metrics);
+            Assert.AreEqual(0, settlementHost.ProcessReadyDeposits().Count);
+            var gwPromPath = Path.Combine(chainDir, "gateway-metrics.prom");
+            gatewayHost.WritePrometheusMetricsAsync(gwPromPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(gwPromPath));
         }
         finally
         {

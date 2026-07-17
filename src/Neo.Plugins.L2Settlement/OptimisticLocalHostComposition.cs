@@ -535,6 +535,30 @@ public sealed class OptimisticLocalHostComposition : IDisposable
         => Bridge.DepositProcessor.Process(message);
 
     /// <summary>
+    /// Peek ready SharedBridge deposits and mint any not yet consumed by
+    /// <see cref="DepositProcessor"/>. Non-mutating on the deposit source (peek only);
+    /// batcher <c>Drain</c>/<c>ConfirmConsumed</c> remains the inclusion path.
+    /// </summary>
+    public IReadOnlyList<MintInstruction> ProcessReadyDeposits(int maxMessages = 64)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxMessages);
+        if (maxMessages == 0)
+            return Array.Empty<MintInstruction>();
+        var ready = PeekSharedBridgeDeposits(maxMessages);
+        if (ready.Count == 0)
+            return Array.Empty<MintInstruction>();
+        List<MintInstruction>? minted = null;
+        foreach (var message in ready)
+        {
+            if (HasConsumedDeposit(message.SourceChainId, message.Nonce))
+                continue;
+            minted ??= new List<MintInstruction>(ready.Count);
+            minted.Add(ProcessDeposit(message));
+        }
+        return minted is null ? Array.Empty<MintInstruction>() : minted;
+    }
+
+    /// <summary>
     /// True when the deposit processor has already consumed
     /// (<paramref name="sourceChainId"/>, <paramref name="nonce"/>).
     /// </summary>

@@ -27,13 +27,15 @@ public sealed class GatewayHostComposition : IDisposable
         L2GatewayPlugin gateway,
         ProofBoundRpcGlobalRootPublisher publisher,
         IGatewayProofProver proofProver,
-        bool ownsProofProver)
+        bool ownsProofProver,
+        IL2Metrics? metrics)
     {
         ChainDirectory = chainDirectory;
         Gateway = gateway;
         Publisher = publisher;
         ProofProver = proofProver;
         OwnsProofProver = ownsProofProver;
+        Metrics = metrics;
     }
 
     /// <summary>Absolute chain working directory.</summary>
@@ -50,6 +52,12 @@ public sealed class GatewayHostComposition : IDisposable
 
     /// <summary>True when this composition created and owns <see cref="ProofProver"/> disposal.</summary>
     public bool OwnsProofProver { get; }
+
+    /// <summary>
+    /// Optional metrics sink passed at open (e.g. Multisig LocalHost <c>Metrics.Metrics</c>).
+    /// Null when no sink was supplied; export helpers then return empty snapshots.
+    /// </summary>
+    public IL2Metrics? Metrics { get; }
 
     /// <summary>
     /// Active aggregator installed on the gateway plugin
@@ -141,6 +149,40 @@ public sealed class GatewayHostComposition : IDisposable
             });
         await File.WriteAllTextAsync(fullPath, json + Environment.NewLine, cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Capture an in-process metrics snapshot when <see cref="Metrics"/> implements
+    /// <see cref="IMetricsSource"/>; otherwise returns <see cref="MetricsSnapshot.Empty"/>.
+    /// </summary>
+    public MetricsSnapshot CaptureMetricsSnapshot()
+    {
+        if (Metrics is IMetricsSource source)
+            return source.Snapshot();
+        return MetricsSnapshot.Empty;
+    }
+
+    /// <summary>
+    /// Render Prometheus exposition text from the wired metrics sink
+    /// (<see cref="PrometheusExporter.Format"/>). Empty when no exportable sink is present.
+    /// </summary>
+    public string ExportPrometheusMetrics()
+        => PrometheusExporter.Format(CaptureMetricsSnapshot());
+
+    /// <summary>
+    /// Write <see cref="ExportPrometheusMetrics"/> text to <paramref name="path"/> for offline scrape files.
+    /// </summary>
+    public async ValueTask WritePrometheusMetricsAsync(
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var fullPath = Path.GetFullPath(path);
+        var dir = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+        var body = ExportPrometheusMetrics();
+        await File.WriteAllTextAsync(fullPath, body, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -323,7 +365,8 @@ public sealed class GatewayHostComposition : IDisposable
                 gateway,
                 publisher,
                 proofProver,
-                ownsProofProver);
+                ownsProofProver,
+                metrics);
         }
         catch
         {

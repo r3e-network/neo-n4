@@ -446,6 +446,10 @@ public sealed record NeoHubDeployReport(
                         + "StagedWithdrawalCount / SealWithdrawalBatch / ProveAsync",
                     ["localHostWriteOperatorStatus"] =
                         "LocalHost.WriteOperatorStatusAsync(path) → LocalHostOperatorStatusDocument JSON",
+                    ["localHostWritePrometheusMetrics"] =
+                        "LocalHost.WritePrometheusMetricsAsync(path) → Prometheus text file",
+                    ["gatewayHostWriteOperatorStatus"] =
+                        "GatewayHostComposition.WriteOperatorStatusAsync(path) → GatewayHostOperatorStatusDocument JSON",
                     ["localHostSettleHelpers"] =
                         "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                         + "PersistAsync / EnqueueAsync",
@@ -468,7 +472,7 @@ public sealed record NeoHubDeployReport(
                     ["gatewayHostOpsHelpers"] =
                         "GatewayHostComposition.HasPendingPublication / PendingPublicationEpoch / "
                         + "OutboxStatus / Aggregator / ReceiveBatch / PublishAggregateAsync / "
-                        + "RecoverPoisonedPublication / GetOperatorStatus",
+                        + "RecoverPoisonedPublication / GetOperatorStatus / WriteOperatorStatusAsync",
                     ["localDaOpenHelper"] = "PersistentDAWriter.OpenLocalFromChainDirectory(chainDirectory)",
                     ["daMetricsWrap"] =
                         "MetricsEmittingDAWriter / MetricsEmittingProductionDAWriter (LocalHost Open)",

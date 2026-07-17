@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Gateway WriteOperatorStatusAsync + LocalHost Prometheus file dump — 2026-07-17
+
+- `GatewayHostComposition.WriteOperatorStatusAsync(path)` writes camelCase
+  `GatewayHostOperatorStatusDocument` JSON (outbox/publication snapshot) without Neo.CLI.
+- Multisig/Optimistic/Zk LocalHost expose `WritePrometheusMetricsAsync(path)` for offline
+  scrape files (wraps existing `ExportPrometheusMetrics`).
+- Wireproduction notes, init-l2 tip, unit + Multisig/Optimistic integration coverage.
+- No wire/ABI change. L1 gateway confirmation remains a funded gate.
+
 ### Evidence — Neo N3 testnet session5 reverify + Deposit nonce 6 — 2026-07-17
 
 - Re-ran `neo-hub-deploy deploy-testnet` with skip-existing: 24/24 deploy reused,

@@ -119,6 +119,31 @@ public sealed class GatewayHostComposition : IDisposable
     }
 
     /// <summary>
+    /// Write <see cref="GetOperatorStatus"/> as indented camelCase JSON for host health files
+    /// without Neo.CLI (L1 confirmation remains funded and is not claimed).
+    /// </summary>
+    public async ValueTask WriteOperatorStatusAsync(
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var document = GatewayHostOperatorStatusDocument.From(GetOperatorStatus());
+        var fullPath = Path.GetFullPath(path);
+        var dir = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+        var json = System.Text.Json.JsonSerializer.Serialize(
+            document,
+            new System.Text.Json.JsonSerializerOptions
+            {
+                WriteIndented = true,
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+            });
+        await File.WriteAllTextAsync(fullPath, json + Environment.NewLine, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Open Merkle-path Gateway composition: durable Merkle aggregator/outbox + publisher
     /// + <see cref="L2GatewayPlugin.ConfigureGlobalRootPublicationFromChainDirectory"/>.
     /// </summary>

@@ -76,6 +76,12 @@ public sealed class UT_GatewayHostComposition
             Assert.AreEqual(0, gwStatus.OutboxQueueDepth);
             Assert.AreEqual(MerklePathRoundProver.ConstBackendId, gwStatus.AggregationBackendId);
             Assert.IsFalse(gwStatus.OwnsProofProver);
+            var statusPath = Path.Combine(dir, "gateway-status.json");
+            host.WriteOperatorStatusAsync(statusPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(statusPath));
+            var statusJson = File.ReadAllText(statusPath);
+            StringAssert.Contains(statusJson, "\"hasPendingPublication\": false");
+            StringAssert.Contains(statusJson, "\"outboxQueueDepth\": 0");
             Assert.IsNotNull(host.Publisher);
             // Metrics sink is retained for outbox/aggregator emission (no throw on wire).
             Assert.IsNotNull(metrics);

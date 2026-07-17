@@ -272,6 +272,10 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(statusJson, "\"isOperatorReady\": true");
             StringAssert.Contains(statusJson, "\"messageOutboxL2ToL1Count\": 1");
             StringAssert.Contains(statusJson, "\"stagedWithdrawalCount\": 0");
+            var promPath = Path.Combine(chainDir, "metrics.prom");
+            await host.WritePrometheusMetricsAsync(promPath);
+            Assert.IsTrue(File.Exists(promPath));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(await File.ReadAllTextAsync(promPath)));
             Assert.AreEqual(0, host.Metrics.BoundPort); // HTTP not started by default
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);
             Assert.AreEqual(DAMode.Local, host.RpcStore.DAMode);

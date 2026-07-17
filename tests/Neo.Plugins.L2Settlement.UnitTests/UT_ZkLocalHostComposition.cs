@@ -128,6 +128,9 @@ public sealed class UT_ZkLocalHostComposition
             host.WriteOperatorStatusAsync(statusPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(statusPath));
             StringAssert.Contains(File.ReadAllText(statusPath), "\"proofType\": \"Zk\"");
+            var promPath = Path.Combine(chainDir, "metrics.prom");
+            host.WritePrometheusMetricsAsync(promPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(promPath));
             // Zk ProveAsync / production DA remain funded operator paths (executor + credentials).
             var recovery = host.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(0, recovery.PendingCount);

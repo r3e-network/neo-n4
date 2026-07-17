@@ -588,6 +588,22 @@ public sealed class ZkLocalHostComposition : IDisposable
 
 
     /// <summary>
+    /// Write <see cref="ExportPrometheusMetrics"/> text to <paramref name="path"/> for offline scrape files.
+    /// </summary>
+    public async ValueTask WritePrometheusMetricsAsync(
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var fullPath = Path.GetFullPath(path);
+        var dir = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+        var body = ExportPrometheusMetrics();
+        await File.WriteAllTextAsync(fullPath, body, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Write <see cref="GetOperatorStatusAsync"/> as indented JSON for host health files
     /// without Neo.CLI (primitive fields + recovery summary only).
     /// </summary>

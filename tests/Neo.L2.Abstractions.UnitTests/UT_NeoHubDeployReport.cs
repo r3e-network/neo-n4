@@ -228,6 +228,12 @@ public class UT_NeoHubDeployReport
                 "LocalHost.WriteOperatorStatusAsync(path) → LocalHostOperatorStatusDocument JSON",
                 stores.GetProperty("localHostWriteOperatorStatus").GetString());
             Assert.AreEqual(
+                "LocalHost.WritePrometheusMetricsAsync(path) → Prometheus text file",
+                stores.GetProperty("localHostWritePrometheusMetrics").GetString());
+            Assert.AreEqual(
+                "GatewayHostComposition.WriteOperatorStatusAsync(path) → GatewayHostOperatorStatusDocument JSON",
+                stores.GetProperty("gatewayHostWriteOperatorStatus").GetString());
+            Assert.AreEqual(
                 "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                 + "PersistAsync / EnqueueAsync",
                 stores.GetProperty("localHostSettleHelpers").GetString());
@@ -257,7 +263,7 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "GatewayHostComposition.HasPendingPublication / PendingPublicationEpoch / "
                 + "OutboxStatus / Aggregator / ReceiveBatch / PublishAggregateAsync / "
-                + "RecoverPoisonedPublication / GetOperatorStatus",
+                + "RecoverPoisonedPublication / GetOperatorStatus / WriteOperatorStatusAsync",
                 stores.GetProperty("gatewayHostOpsHelpers").GetString());
             Assert.AreEqual(
                 "L2BatchPlugin.CreateFromChainDirectory(chainDirectory)",

@@ -209,6 +209,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             settlementHost.WriteOperatorStatusAsync(statusPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(statusPath));
             StringAssert.Contains(File.ReadAllText(statusPath), "\"isOperatorReady\": true");
+            var promPath = Path.Combine(chainDir, "metrics.prom");
+            settlementHost.WritePrometheusMetricsAsync(promPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(promPath));
             // Local durable recovery surface (no funded L1 publish).
             var recovery = settlementHost.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(0, recovery.PendingCount);
@@ -273,6 +276,10 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsFalse(gwStatus.HasPendingPublication);
             Assert.AreEqual(0, gwStatus.OutboxQueueDepth);
             Assert.AreEqual(MerklePathRoundProver.ConstBackendId, gwStatus.AggregationBackendId);
+            var gwStatusPath = Path.Combine(chainDir, "gateway-status.json");
+            gatewayHost.WriteOperatorStatusAsync(gwStatusPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(gwStatusPath));
+            StringAssert.Contains(File.ReadAllText(gwStatusPath), "\"hasPendingPublication\": false");
         }
         finally
         {
@@ -406,6 +413,10 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(host.MetricsBoundPort > 0);
             Assert.IsNotNull(host.CreateRpcPlugin());
             Assert.AreEqual(0, host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult());
+            var statusPath = Path.Combine(chainDir, "operator-status.json");
+            host.WriteOperatorStatusAsync(statusPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(statusPath));
+            StringAssert.Contains(File.ReadAllText(statusPath), "\"proofType\": \"Optimistic\"");
 
             var gatewayProof = new DelegatingGatewayProofProver(
                 proofSystem: 1,
@@ -423,6 +434,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(
                 MerklePathRoundProver.ConstBackendId,
                 ((BinaryTreeAggregator)gatewayHost.Gateway.Aggregator).RoundProver.BackendId);
+            var gwStatusPath = Path.Combine(chainDir, "gateway-status.json");
+            gatewayHost.WriteOperatorStatusAsync(gwStatusPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(gwStatusPath));
         }
         finally
         {

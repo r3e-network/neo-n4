@@ -422,7 +422,10 @@ public sealed record NeoHubDeployReport(
                         "L2SettlementPlugin.ProductionForcedInclusionFinalizer after WireProduction",
                     ["localHostProductionSurfaces"] =
                         "LocalHost.DepositSource / MessageRouter / ForcedInclusionFinalizer / "
-                        + "SettlementClient / TransactionSender / MetricsBoundPort / IsMetricsHttpListening",
+                        + "SettlementClient / TransactionSender / HasForcedInclusionFinalizer / "
+                        + "HasSettlementClient / HasTransactionSender / L1InboxPendingCount / "
+                        + "L1InboxConsumedCount / KnownInboundNonceCount / MetricsBoundPort / "
+                        + "IsMetricsHttpListening",
                     ["localHostReadiness"] =
                         "LocalHost.ChainId / ProofType / DaMode / HasSealedBatchSink / "
                         + "NextExpectedBlock / ProcessCommittedBlock / IsOperatorReady / "
@@ -445,7 +448,7 @@ public sealed record NeoHubDeployReport(
                         "LocalHost.MessageOutbox / MessageOutboxL2ToL1Root / MessageOutboxL2ToL2Root / "
                         + "EnqueueOutboundMessagesAsync / RecordMessageRouterFinalizedProof / "
                         + "GetMessageRouterProofAsync / RegisterInboundMessageNonce / "
-                        + "InvalidateInboundMessageCache",
+                        + "InvalidateInboundMessageCache / KnownInboundNonceCount",
                     ["localHostForcedInclusionHelpers"] =
                         "LocalHost.RegisterForcedInclusionNonce / InvalidateForcedInclusionCache",
                     ["localHostDaHelpers"] =

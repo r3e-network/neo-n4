@@ -193,7 +193,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(0, settlementHost.OpenBatchBlockCount);
             Assert.IsFalse(settlementHost.TryRetryPendingSealedBatch());
             Assert.IsTrue(settlementHost.RegisterInboundMessageNonce(11));
+            Assert.AreEqual(1, settlementHost.KnownInboundNonceCount);
             settlementHost.InvalidateInboundMessageCache();
+            Assert.AreEqual(0, settlementHost.L1InboxPendingCount);
             Assert.AreEqual(20260716u, settlementHost.ChainId);
             Assert.AreEqual(ProofType.Multisig, settlementHost.ProofType);
             Assert.AreEqual(DAMode.Local, settlementHost.DaMode);
@@ -204,6 +206,11 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(0, opStatus.ReadyDepositCount);
             Assert.IsTrue(opStatus.HasDepositSource);
             Assert.IsTrue(opStatus.HasMessageRouter);
+            Assert.IsTrue(opStatus.HasForcedInclusionFinalizer);
+            Assert.IsTrue(opStatus.HasSettlementClient);
+            Assert.IsTrue(opStatus.HasTransactionSender);
+            Assert.AreEqual(1, opStatus.KnownInboundNonceCount);
+            Assert.AreEqual(0, opStatus.L1InboxPendingCount);
             Assert.AreEqual(settlementHost.GetLatestRpcStateRoot(), opStatus.LatestRpcStateRoot);
             Assert.IsNotNull(settlementHost.ForcedInclusionFinalizer);
             Assert.IsNotNull(settlementHost.TransactionSender);

@@ -189,7 +189,10 @@ public class UT_NeoHubDeployReport
                 stores.GetProperty("settlementProductionForcedInclusionFinalizer").GetString());
             Assert.AreEqual(
                 "LocalHost.DepositSource / MessageRouter / ForcedInclusionFinalizer / "
-                + "SettlementClient / TransactionSender / MetricsBoundPort / IsMetricsHttpListening",
+                + "SettlementClient / TransactionSender / HasForcedInclusionFinalizer / "
+                + "HasSettlementClient / HasTransactionSender / L1InboxPendingCount / "
+                + "L1InboxConsumedCount / KnownInboundNonceCount / MetricsBoundPort / "
+                + "IsMetricsHttpListening",
                 stores.GetProperty("localHostProductionSurfaces").GetString());
             Assert.AreEqual(
                 "LocalHost.ChainId / ProofType / DaMode / HasSealedBatchSink / "
@@ -215,7 +218,7 @@ public class UT_NeoHubDeployReport
                 "LocalHost.MessageOutbox / MessageOutboxL2ToL1Root / MessageOutboxL2ToL2Root / "
                 + "EnqueueOutboundMessagesAsync / RecordMessageRouterFinalizedProof / "
                 + "GetMessageRouterProofAsync / RegisterInboundMessageNonce / "
-                + "InvalidateInboundMessageCache",
+                + "InvalidateInboundMessageCache / KnownInboundNonceCount",
                 stores.GetProperty("localHostMessageRouterHelpers").GetString());
             Assert.AreEqual(
                 "LocalHost.RegisterForcedInclusionNonce / InvalidateForcedInclusionCache",

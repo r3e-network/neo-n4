@@ -104,6 +104,24 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>MessageRouter installed.</summary>
     public required bool HasMessageRouter { get; init; }
 
+    /// <summary>Forced-inclusion finalizer installed.</summary>
+    public required bool HasForcedInclusionFinalizer { get; init; }
+
+    /// <summary>Settlement client installed.</summary>
+    public required bool HasSettlementClient { get; init; }
+
+    /// <summary>L1 transaction sender installed.</summary>
+    public required bool HasTransactionSender { get; init; }
+
+    /// <summary>Bridge L1 inbox pending message count.</summary>
+    public required int L1InboxPendingCount { get; init; }
+
+    /// <summary>Bridge L1 inbox consumed message count.</summary>
+    public required int L1InboxConsumedCount { get; init; }
+
+    /// <summary>MessageRouter known inbound nonce count.</summary>
+    public required int KnownInboundNonceCount { get; init; }
+
     /// <summary>Metrics HTTP listening.</summary>
     public required bool IsMetricsHttpListening { get; init; }
 
@@ -184,6 +202,12 @@ public sealed record LocalHostOperatorStatusDocument
             IsOperatorReady = status.IsOperatorReady,
             HasDepositSource = status.HasDepositSource,
             HasMessageRouter = status.HasMessageRouter,
+            HasForcedInclusionFinalizer = status.HasForcedInclusionFinalizer,
+            HasSettlementClient = status.HasSettlementClient,
+            HasTransactionSender = status.HasTransactionSender,
+            L1InboxPendingCount = status.L1InboxPendingCount,
+            L1InboxConsumedCount = status.L1InboxConsumedCount,
+            KnownInboundNonceCount = status.KnownInboundNonceCount,
             IsMetricsHttpListening = status.IsMetricsHttpListening,
             MetricsBoundPort = status.MetricsBoundPort,
             PendingSettlementCount = status.PendingSettlementCount,

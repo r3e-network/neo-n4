@@ -102,7 +102,10 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(0, host.ConsumedDepositCount);
             Assert.IsFalse(host.TryRetryPendingSealedBatch());
             Assert.IsTrue(host.RegisterInboundMessageNonce(7));
+            Assert.AreEqual(1, host.KnownInboundNonceCount);
             host.InvalidateInboundMessageCache();
+            Assert.AreEqual(0, host.L1InboxPendingCount);
+            Assert.AreEqual(0, host.L1InboxConsumedCount);
             // ProcessCommittedBlock is public on L2BatchPlugin/LocalHost; first-block drain hits
             // L1 FI/deposit scanners (funded). Full hand-off covered by L2BatchPlugin unit tests.
             Assert.IsTrue(host.Settlement.IsProductionWired);
@@ -128,6 +131,12 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(0, status.OpenBatchBlockCount);
             Assert.IsTrue(status.HasDepositSource);
             Assert.IsTrue(status.HasMessageRouter);
+            Assert.IsTrue(status.HasForcedInclusionFinalizer);
+            Assert.IsTrue(status.HasSettlementClient);
+            Assert.IsTrue(status.HasTransactionSender);
+            Assert.AreEqual(0, status.L1InboxPendingCount);
+            Assert.AreEqual(0, status.L1InboxConsumedCount);
+            Assert.AreEqual(1, status.KnownInboundNonceCount);
             Assert.IsFalse(status.IsMetricsHttpListening);
             Assert.AreEqual(0, status.PendingSettlementCount);
             Assert.AreEqual(0, status.ReadyDepositCount);

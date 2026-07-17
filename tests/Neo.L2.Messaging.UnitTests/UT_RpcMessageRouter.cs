@@ -52,6 +52,7 @@ public class UT_RpcMessageRouter
         var receiver = UInt160.Parse("0x" + new string('2', 40));
         var (router, stub, rpc) = Build(genesisNonces: new ulong[] { 1, 2 });
         using var _ = rpc;
+        Assert.AreEqual(2, router.KnownInboundNonceCount);
 
         stub.Register((m, h, p) =>
         {
@@ -72,6 +73,8 @@ public class UT_RpcMessageRouter
         Assert.AreEqual(2UL, dequeued[1].Nonce);
         Assert.AreEqual(0u, dequeued[0].SourceChainId);
         Assert.AreEqual(TestChainId, dequeued[0].TargetChainId);
+        Assert.IsTrue(router.RegisterInboundNonce(9));
+        Assert.AreEqual(3, router.KnownInboundNonceCount);
     }
 
     [TestMethod]

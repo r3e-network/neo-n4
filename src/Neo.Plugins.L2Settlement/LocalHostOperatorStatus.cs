@@ -110,6 +110,32 @@ public sealed record LocalHostOperatorStatus
     /// <summary>True when WireProduction installed a MessageRouter.</summary>
     public required bool HasMessageRouter { get; init; }
 
+    /// <summary>True when WireProduction installed a forced-inclusion finalizer.</summary>
+    public required bool HasForcedInclusionFinalizer { get; init; }
+
+    /// <summary>True when WireProduction installed a settlement client.</summary>
+    public required bool HasSettlementClient { get; init; }
+
+    /// <summary>True when WireProduction installed an L1 transaction sender.</summary>
+    public required bool HasTransactionSender { get; init; }
+
+    /// <summary>
+    /// Unconsumed L1→L2 messages buffered in the bridge inbox
+    /// (<see cref="Neo.L2.Messaging.L1MessageInbox.PendingCount"/>).
+    /// </summary>
+    public required int L1InboxPendingCount { get; init; }
+
+    /// <summary>
+    /// Messages ever consumed from the bridge inbox
+    /// (<see cref="Neo.L2.Messaging.L1MessageInbox.ConsumedCount"/>).
+    /// </summary>
+    public required int L1InboxConsumedCount { get; init; }
+
+    /// <summary>
+    /// Known MessageRouter L1→L2 inbound nonces (0 when MessageRouter is unwired).
+    /// </summary>
+    public required int KnownInboundNonceCount { get; init; }
+
     /// <summary>True when the metrics HTTP server is listening.</summary>
     public required bool IsMetricsHttpListening { get; init; }
 

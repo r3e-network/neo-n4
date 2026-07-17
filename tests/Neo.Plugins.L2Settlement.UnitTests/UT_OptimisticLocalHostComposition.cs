@@ -86,6 +86,8 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(0, host.OpenBatchBlockCount);
             Assert.IsFalse(host.TryRetryPendingSealedBatch());
             Assert.IsTrue(host.RegisterInboundMessageNonce(3));
+            Assert.AreEqual(1, host.KnownInboundNonceCount);
+            Assert.AreEqual(0, host.L1InboxPendingCount);
             Assert.IsTrue(host.Settlement.IsProductionWired);
             Assert.IsNotNull(host.Settlement.ProductionTransactionSender);
             Assert.AreEqual(0, host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult());
@@ -98,6 +100,11 @@ public sealed class UT_OptimisticLocalHostComposition
             var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(status.IsOperatorReady);
             Assert.AreEqual(ProofType.Optimistic, status.ProofType);
+            Assert.IsTrue(status.HasForcedInclusionFinalizer);
+            Assert.IsTrue(status.HasSettlementClient);
+            Assert.IsTrue(status.HasTransactionSender);
+            Assert.AreEqual(1, status.KnownInboundNonceCount);
+            Assert.AreEqual(0, status.L1InboxPendingCount);
             Assert.AreEqual(0, status.PendingSettlementCount);
             Assert.AreEqual(0, status.ReadyDepositCount);
             Assert.AreEqual(host.GetLatestRpcStateRoot(), status.LatestRpcStateRoot);

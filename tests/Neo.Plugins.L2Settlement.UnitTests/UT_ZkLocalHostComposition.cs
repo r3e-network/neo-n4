@@ -98,6 +98,8 @@ public sealed class UT_ZkLocalHostComposition
             Assert.AreEqual(0, host.OpenBatchBlockCount);
             Assert.IsFalse(host.TryRetryPendingSealedBatch());
             Assert.IsTrue(host.RegisterInboundMessageNonce(3));
+            Assert.AreEqual(1, host.KnownInboundNonceCount);
+            Assert.AreEqual(0, host.L1InboxPendingCount);
             Assert.IsTrue(host.Settlement.IsProductionWired);
             Assert.IsNotNull(host.Settlement.ProductionTransactionSender);
             Assert.IsNotNull(host.Metrics.Metrics);
@@ -121,6 +123,11 @@ public sealed class UT_ZkLocalHostComposition
             Assert.AreEqual(0, status.ReadyDepositCount);
             Assert.IsTrue(status.HasDepositSource);
             Assert.IsTrue(status.HasMessageRouter);
+            Assert.IsTrue(status.HasForcedInclusionFinalizer);
+            Assert.IsTrue(status.HasSettlementClient);
+            Assert.IsTrue(status.HasTransactionSender);
+            Assert.AreEqual(1, status.KnownInboundNonceCount);
+            Assert.AreEqual(0, status.L1InboxPendingCount);
             Assert.AreEqual(host.GetLatestRpcStateRoot(), status.LatestRpcStateRoot);
             Assert.AreEqual(host.RpcStore.GatewayEnabled, status.GatewayEnabled);
             Assert.IsNotNull(host.MessageOutbox);

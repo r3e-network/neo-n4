@@ -184,6 +184,19 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
     }
 
     /// <summary>
+    /// Count of L1→L2 inbound nonces known to this router (scanner + operator seed).
+    /// Offline ops surface for MessageRouter fanout readiness without an L1 scan.
+    /// </summary>
+    public int KnownInboundNonceCount
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _knownNonces.Count;
+        }
+    }
+
+    /// <summary>
     /// Add an L1→L2 nonce to the known set. Production scanners call this for each
     /// discovered event; operators may also seed nonces for migration/recovery.
     /// </summary>

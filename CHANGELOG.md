@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — L1 inbox + production wiring readiness on LocalHost ops — 2026-07-18
+
+- Multisig/Optimistic/Zk LocalHost expose `L1InboxPendingCount` / `L1InboxConsumedCount`
+  and `KnownInboundNonceCount` (via `RpcMessageRouter.KnownInboundNonceCount`).
+- Operator status (+ JSON) adds `HasForcedInclusionFinalizer` / `HasSettlementClient` /
+  `HasTransactionSender` plus the inbox and inbound-nonce counts for offline deposit
+  pipeline and WireProduction completeness checks.
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+- Live L1 deposit scan / FI drain / settle remains a funded RPC gate.
+
 ### Tested — Neo N3 testnet session7 reverify + SharedBridge deposit n8 — 2026-07-18
 
 - Re-ran `neo-hub-deploy deploy-testnet` (skip-existing): **24/24 deploy reused**,

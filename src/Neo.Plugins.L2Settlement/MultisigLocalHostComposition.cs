@@ -425,6 +425,12 @@ public sealed class MultisigLocalHostComposition : IDisposable
             IsOperatorReady = IsOperatorReady,
             HasDepositSource = DepositSource is not null,
             HasMessageRouter = MessageRouter is not null,
+            HasForcedInclusionFinalizer = ForcedInclusionFinalizer is not null,
+            HasSettlementClient = SettlementClient is not null,
+            HasTransactionSender = TransactionSender is not null,
+            L1InboxPendingCount = L1InboxPendingCount,
+            L1InboxConsumedCount = L1InboxConsumedCount,
+            KnownInboundNonceCount = KnownInboundNonceCount,
             IsMetricsHttpListening = IsMetricsHttpListening,
             MetricsBoundPort = MetricsBoundPort,
             PendingSettlementCount = pending,
@@ -681,6 +687,24 @@ public sealed class MultisigLocalHostComposition : IDisposable
     /// (<see cref="L2SettlementPlugin.ProductionTransactionSender"/>).
     /// </summary>
     public RpcTransactionSender? TransactionSender => Settlement.ProductionTransactionSender;
+
+    /// <summary>
+    /// Unconsumed L1→L2 messages in the bridge inbox
+    /// (<see cref="L1MessageInbox.PendingCount"/>). Offline deposit pipeline health.
+    /// </summary>
+    public int L1InboxPendingCount => Bridge.Inbox.PendingCount;
+
+    /// <summary>
+    /// Messages ever consumed from the bridge inbox
+    /// (<see cref="L1MessageInbox.ConsumedCount"/>).
+    /// </summary>
+    public int L1InboxConsumedCount => Bridge.Inbox.ConsumedCount;
+
+    /// <summary>
+    /// Known MessageRouter L1→L2 inbound nonces (0 when MessageRouter is unwired).
+    /// Mirrors <see cref="RpcMessageRouter.KnownInboundNonceCount"/>.
+    /// </summary>
+    public int KnownInboundNonceCount => MessageRouter?.KnownInboundNonceCount ?? 0;
 
     /// <summary>
     /// Bound metrics HTTP port after <see cref="StartMetricsHttp"/> (0 when not listening).

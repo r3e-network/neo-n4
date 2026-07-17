@@ -236,8 +236,13 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "PendingSealedBatchNumber");
         StringAssert.Contains(output, "MaxBlocksPerBatch");
         StringAssert.Contains(output, "MessageOutboxL2ToL1Root");
+        StringAssert.Contains(output, "KnownInboundNonceCount");
         StringAssert.Contains(output, "StopMetricsHttp");
         StringAssert.Contains(output, "ConsumedDepositCount");
+        StringAssert.Contains(output, "L1InboxPendingCount");
+        StringAssert.Contains(output, "HasForcedInclusionFinalizer");
+        StringAssert.Contains(output, "HasSettlementClient");
+        StringAssert.Contains(output, "HasTransactionSender");
         StringAssert.Contains(output, "IsPublicationConfigured");
         StringAssert.Contains(output, "AddRpcBatch");
         StringAssert.Contains(output, "MessageOutbox");

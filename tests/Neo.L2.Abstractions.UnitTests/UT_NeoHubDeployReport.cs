@@ -197,10 +197,11 @@ public class UT_NeoHubDeployReport
                 + "PeekSharedBridgeDeposits / GetOperatorStatusAsync",
                 stores.GetProperty("localHostReadiness").GetString());
             Assert.AreEqual(
-                "LocalHost.NextExpectedBlock / HasPendingSealedBatch / PendingSealedBatch / "
-                + "HasOpenBatch / InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / "
-                + "OpenBatchBlockCount / OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / "
-                + "ProcessCommittedBlock / TryRetryPendingSealedBatch",
+                "LocalHost.NextExpectedBlock / LastAcknowledgedBatchNumber / LastAcknowledgedBlock / "
+                + "NextBatchNumber / HasPendingSealedBatch / PendingSealedBatch / HasOpenBatch / "
+                + "InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / OpenBatchBlockCount / "
+                + "OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / ProcessCommittedBlock / "
+                + "TryRetryPendingSealedBatch / OnBatchSealed",
                 stores.GetProperty("localHostBatcherHelpers").GetString());
             Assert.AreEqual(
                 "LocalHost.GetLatestRpcStateRoot / GetRpcStateRootAtBatch / AddRpcBatch / "

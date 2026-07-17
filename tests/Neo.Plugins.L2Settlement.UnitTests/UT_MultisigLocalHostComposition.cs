@@ -80,6 +80,9 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(host.HasSealedBatchSink);
             Assert.AreEqual(1UL, host.NextExpectedBlock);
             Assert.AreEqual(host.Batch.NextExpectedBlock, host.NextExpectedBlock);
+            Assert.AreEqual(0UL, host.LastAcknowledgedBatchNumber);
+            Assert.AreEqual(0UL, host.LastAcknowledgedBlock);
+            Assert.AreEqual(1UL, host.NextBatchNumber);
             Assert.IsFalse(host.HasPendingSealedBatch);
             Assert.IsNull(host.PendingSealedBatch);
             Assert.IsFalse(host.Batch.HasPendingSealedBatch);
@@ -314,6 +317,8 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(statusJson, "\"openBatchBlockCount\": 0");
             StringAssert.Contains(statusJson, "\"openBatchL1MessageCount\": 0");
             StringAssert.Contains(statusJson, "\"consumedDepositCount\": 1");
+            StringAssert.Contains(statusJson, "\"lastAcknowledgedBatchNumber\": 0");
+            StringAssert.Contains(statusJson, "\"nextBatchNumber\": 1");
             StringAssert.Contains(statusJson, "\"messageOutboxL2ToL1Count\": 1");
             StringAssert.Contains(statusJson, "\"stagedWithdrawalCount\": 0");
             var promPath = Path.Combine(chainDir, "metrics.prom");
@@ -388,6 +393,14 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsFalse(string.IsNullOrWhiteSpace(metricsBody));
             // Prometheus exposition always includes TYPE/HELP or at least scrapeable text.
             StringAssert.Contains(metricsBody, "#");
+
+            host.StopMetricsHttp();
+            Assert.IsFalse(host.IsMetricsHttpListening);
+            Assert.AreEqual(0, host.MetricsBoundPort);
+            // Can restart after stop without disposing the host metrics sink.
+            host.StartMetricsHttp(portOverride: 0);
+            Assert.IsTrue(host.IsMetricsHttpListening);
+            Assert.IsTrue(host.MetricsBoundPort > 0);
         }
         finally
         {

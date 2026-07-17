@@ -232,6 +232,24 @@ public sealed class L2BatchPlugin : Plugin
     public int OpenBatchL2ToL1MessageCount => _sealer?.OpenBatchL2ToL1MessageCount ?? 0;
 
     /// <summary>
+    /// Last batch number that completed durable persist + acknowledgement
+    /// (<see cref="BatchSealer.LastAcknowledgedBatchNumber"/>).
+    /// </summary>
+    public ulong LastAcknowledgedBatchNumber => _sealer?.LastAcknowledgedBatchNumber ?? 0UL;
+
+    /// <summary>
+    /// Last L2 block covered by the last acknowledged batch
+    /// (<see cref="BatchSealer.LastAcknowledgedBlock"/>).
+    /// </summary>
+    public ulong LastAcknowledgedBlock => _sealer?.LastAcknowledgedBlock ?? 0UL;
+
+    /// <summary>
+    /// Batch number that will be assigned to the next sealed batch
+    /// (<see cref="BatchSealer.NextBatchNumber"/>).
+    /// </summary>
+    public ulong NextBatchNumber => _sealer?.NextBatchNumber ?? 1UL;
+
+    /// <summary>
     /// Wire the L1 forced-inclusion read source. The durable settlement sink remains the
     /// reservation source of truth; this method never calls
     /// <see cref="IForcedInclusionSource.ConfirmConsumedAsync"/>.

@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Batcher ack progress + LocalHost OnBatchSealed — 2026-07-17
+
+- `BatchSealer` / `L2BatchPlugin` / Multisig/Optimistic/Zk LocalHost expose
+  `LastAcknowledgedBatchNumber`, `LastAcknowledgedBlock`, and `NextBatchNumber`.
+- LocalHost forwards `OnBatchSealed` for offline sealed-batch subscribers.
+- Operator status JSON includes ack/next batch progress; `StopMetricsHttp` restart covered
+  in Multisig unit tests. No wire/ABI change.
+
 ### Added — Metrics Stop, open-batch message counts, PullAggregate — 2026-07-17
 
 - `L2MetricsPlugin.Stop` + LocalHost `StopMetricsHttp` for offline metrics HTTP lifecycle.

@@ -121,6 +121,21 @@ public sealed class BatchSealer
     public SealedBatch? PendingBatch => _pendingBatch;
 
     /// <summary>
+    /// Last batch number that completed durable persist + acknowledgement (0 before any).
+    /// </summary>
+    public ulong LastAcknowledgedBatchNumber => _lastAcknowledgedBatchNumber;
+
+    /// <summary>
+    /// Last L2 block index covered by <see cref="LastAcknowledgedBatchNumber"/> (0 before any).
+    /// </summary>
+    public ulong LastAcknowledgedBlock => _lastAcknowledgedBlock;
+
+    /// <summary>
+    /// Batch number that will be assigned to the next sealed batch (starts at 1).
+    /// </summary>
+    public ulong NextBatchNumber => _nextBatchNumber;
+
+    /// <summary>
     /// Next block required for a continuous hand-off, or null before an explicit restore or
     /// the first direct block feed.
     /// </summary>

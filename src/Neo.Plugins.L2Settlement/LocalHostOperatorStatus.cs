@@ -71,6 +71,15 @@ public sealed record LocalHostOperatorStatus
     /// <summary>Soft in-memory consumed-deposit cache size.</summary>
     public required int ConsumedDepositCount { get; init; }
 
+    /// <summary>Last batch number that completed durable persist + acknowledgement.</summary>
+    public required ulong LastAcknowledgedBatchNumber { get; init; }
+
+    /// <summary>Last L2 block covered by the last acknowledged batch.</summary>
+    public required ulong LastAcknowledgedBlock { get; init; }
+
+    /// <summary>Batch number that will be assigned to the next sealed batch.</summary>
+    public required ulong NextBatchNumber { get; init; }
+
     /// <summary>
     /// <see cref="IsProductionWired"/> and <see cref="HasSealedBatchSink"/> — matches default
     /// LocalHost <c>/readyz</c>.

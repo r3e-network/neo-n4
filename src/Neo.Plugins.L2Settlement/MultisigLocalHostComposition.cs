@@ -248,6 +248,34 @@ public sealed class MultisigLocalHostComposition : IDisposable
     public int OpenBatchL2ToL1MessageCount => Batch.OpenBatchL2ToL1MessageCount;
 
     /// <summary>
+    /// Last batch number that completed durable persist + acknowledgement
+    /// (<see cref="L2BatchPlugin.LastAcknowledgedBatchNumber"/>).
+    /// </summary>
+    public ulong LastAcknowledgedBatchNumber => Batch.LastAcknowledgedBatchNumber;
+
+    /// <summary>
+    /// Last L2 block covered by the last acknowledged batch
+    /// (<see cref="L2BatchPlugin.LastAcknowledgedBlock"/>).
+    /// </summary>
+    public ulong LastAcknowledgedBlock => Batch.LastAcknowledgedBlock;
+
+    /// <summary>
+    /// Batch number that will be assigned to the next sealed batch
+    /// (<see cref="L2BatchPlugin.NextBatchNumber"/>).
+    /// </summary>
+    public ulong NextBatchNumber => Batch.NextBatchNumber;
+
+    /// <summary>
+    /// Subscribe to sealed-batch dispatch without Neo.CLI
+    /// (<see cref="L2BatchPlugin.OnBatchSealed"/>).
+    /// </summary>
+    public event EventHandler<SealedBatch>? OnBatchSealed
+    {
+        add => Batch.OnBatchSealed += value;
+        remove => Batch.OnBatchSealed -= value;
+    }
+
+    /// <summary>
     /// Feed one committed L2 block into the durable batcher hand-off without Neo.CLI
     /// (<see cref="L2BatchPlugin.ProcessCommittedBlock"/>).
     /// </summary>
@@ -349,6 +377,9 @@ public sealed class MultisigLocalHostComposition : IDisposable
             OpenBatchL1MessageCount = OpenBatchL1MessageCount,
             OpenBatchL2ToL1MessageCount = OpenBatchL2ToL1MessageCount,
             ConsumedDepositCount = ConsumedDepositCount,
+            LastAcknowledgedBatchNumber = LastAcknowledgedBatchNumber,
+            LastAcknowledgedBlock = LastAcknowledgedBlock,
+            NextBatchNumber = NextBatchNumber,
             IsOperatorReady = IsOperatorReady,
             HasDepositSource = DepositSource is not null,
             HasMessageRouter = MessageRouter is not null,

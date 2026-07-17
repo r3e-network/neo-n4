@@ -180,6 +180,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(settlementHost.IsOperatorReady);
             Assert.IsTrue(settlementHost.HasSealedBatchSink);
             Assert.AreEqual(1UL, settlementHost.NextExpectedBlock);
+            Assert.AreEqual(0UL, settlementHost.LastAcknowledgedBatchNumber);
+            Assert.AreEqual(1UL, settlementHost.NextBatchNumber);
             Assert.IsFalse(settlementHost.HasPendingSealedBatch);
             Assert.IsFalse(settlementHost.HasOpenBatch);
             Assert.AreEqual(0, settlementHost.OpenBatchBlockCount);

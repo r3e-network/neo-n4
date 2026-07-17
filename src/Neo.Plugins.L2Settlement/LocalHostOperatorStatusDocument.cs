@@ -68,6 +68,15 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Soft consumed-deposit cache size.</summary>
     public required int ConsumedDepositCount { get; init; }
 
+    /// <summary>Last acknowledged batch number.</summary>
+    public required ulong LastAcknowledgedBatchNumber { get; init; }
+
+    /// <summary>Last acknowledged L2 block.</summary>
+    public required ulong LastAcknowledgedBlock { get; init; }
+
+    /// <summary>Next batch number to seal.</summary>
+    public required ulong NextBatchNumber { get; init; }
+
     /// <summary>Operator readiness flag.</summary>
     public required bool IsOperatorReady { get; init; }
 
@@ -139,6 +148,9 @@ public sealed record LocalHostOperatorStatusDocument
             OpenBatchL1MessageCount = status.OpenBatchL1MessageCount,
             OpenBatchL2ToL1MessageCount = status.OpenBatchL2ToL1MessageCount,
             ConsumedDepositCount = status.ConsumedDepositCount,
+            LastAcknowledgedBatchNumber = status.LastAcknowledgedBatchNumber,
+            LastAcknowledgedBlock = status.LastAcknowledgedBlock,
+            NextBatchNumber = status.NextBatchNumber,
             IsOperatorReady = status.IsOperatorReady,
             HasDepositSource = status.HasDepositSource,
             HasMessageRouter = status.HasMessageRouter,

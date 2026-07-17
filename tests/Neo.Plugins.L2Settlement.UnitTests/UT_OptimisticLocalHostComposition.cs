@@ -79,6 +79,8 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(host.Batch.HasSealedBatchSink);
             Assert.IsTrue(host.HasSealedBatchSink);
             Assert.AreEqual(1UL, host.NextExpectedBlock);
+            Assert.AreEqual(0UL, host.LastAcknowledgedBatchNumber);
+            Assert.AreEqual(1UL, host.NextBatchNumber);
             Assert.IsFalse(host.HasPendingSealedBatch);
             Assert.IsFalse(host.HasOpenBatch);
             Assert.AreEqual(0, host.OpenBatchBlockCount);

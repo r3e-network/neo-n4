@@ -428,10 +428,11 @@ public sealed record NeoHubDeployReport(
                         + "NextExpectedBlock / ProcessCommittedBlock / IsOperatorReady / "
                         + "PeekSharedBridgeDeposits / GetOperatorStatusAsync",
                     ["localHostBatcherHelpers"] =
-                        "LocalHost.NextExpectedBlock / HasPendingSealedBatch / PendingSealedBatch / "
-                        + "HasOpenBatch / InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / "
-                        + "OpenBatchBlockCount / OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / "
-                        + "ProcessCommittedBlock / TryRetryPendingSealedBatch",
+                        "LocalHost.NextExpectedBlock / LastAcknowledgedBatchNumber / LastAcknowledgedBlock / "
+                        + "NextBatchNumber / HasPendingSealedBatch / PendingSealedBatch / HasOpenBatch / "
+                        + "InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / OpenBatchBlockCount / "
+                        + "OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / ProcessCommittedBlock / "
+                        + "TryRetryPendingSealedBatch / OnBatchSealed",
                     ["localHostRpcStoreHelpers"] =
                         "LocalHost.GetLatestRpcStateRoot / GetRpcStateRootAtBatch / AddRpcBatch / "
                         + "FinalizeRpcBatch / RecordRpcDeposit / GetRpcL1DepositStatus / GetRpcBatch / "

@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost RPC store helpers + Gateway GetOperatorStatus — 2026-07-17
+
+- Multisig/Optimistic/Zk LocalHost expose host RPC store ops without Neo.CLI:
+  `GetLatestRpcStateRoot`, `AddRpcBatch`, `FinalizeRpcBatch`, `RecordRpcDeposit`,
+  `GetRpcL1DepositStatus`, `GetRpcBatch`, `GetRpcBatchStatus`.
+- `LocalHostOperatorStatus` adds `SecurityLevel`, `HasDepositSource`,
+  `HasMessageRouter`, `LatestRpcStateRoot`.
+- `GatewayHostComposition.GetOperatorStatus` returns `GatewayHostOperatorStatus`
+  (outbox/publication/backend snapshot; L1 confirm remains funded).
+- Wireproduction notes + unit/integration coverage; no wire/ABI change.
+
 ### Added — LocalHost GetOperatorStatusAsync + Gateway Aggregator — 2026-07-17
 
 - Multisig/Optimistic/Zk LocalHost expose `GetOperatorStatusAsync` returning

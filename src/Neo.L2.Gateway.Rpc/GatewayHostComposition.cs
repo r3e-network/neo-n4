@@ -98,6 +98,27 @@ public sealed class GatewayHostComposition : IDisposable
     public void RecoverPoisonedPublication() => Gateway.RecoverPoisonedPublication();
 
     /// <summary>
+    /// Aggregate local Gateway operator readiness without Neo.CLI or funded L1 traffic.
+    /// </summary>
+    public GatewayHostOperatorStatus GetOperatorStatus()
+    {
+        var outbox = OutboxStatus;
+        return new GatewayHostOperatorStatus
+        {
+            ChainDirectory = ChainDirectory,
+            HasPendingPublication = HasPendingPublication,
+            PendingPublicationEpoch = PendingPublicationEpoch,
+            OutboxQueueDepth = outbox.QueueDepth,
+            PublicationState = outbox.PublicationState,
+            OutboxRetryCount = outbox.RetryCount,
+            OutboxLastError = outbox.LastError,
+            ConfirmationLagMilliseconds = outbox.ConfirmationLagMilliseconds,
+            AggregationBackendId = ProofProver.AggregationBackendId,
+            OwnsProofProver = OwnsProofProver,
+        };
+    }
+
+    /// <summary>
     /// Open Merkle-path Gateway composition: durable Merkle aggregator/outbox + publisher
     /// + <see cref="L2GatewayPlugin.ConfigureGlobalRootPublicationFromChainDirectory"/>.
     /// </summary>

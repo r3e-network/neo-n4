@@ -111,6 +111,9 @@ public sealed class UT_ZkLocalHostComposition
             Assert.AreEqual(DAMode.L1, status.DaMode);
             Assert.AreEqual(0, status.PendingSettlementCount);
             Assert.AreEqual(0, status.ReadyDepositCount);
+            Assert.IsTrue(status.HasDepositSource);
+            Assert.IsTrue(status.HasMessageRouter);
+            Assert.AreEqual(host.GetLatestRpcStateRoot(), status.LatestRpcStateRoot);
             var recovery = host.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(0, recovery.PendingCount);
             Assert.AreEqual(

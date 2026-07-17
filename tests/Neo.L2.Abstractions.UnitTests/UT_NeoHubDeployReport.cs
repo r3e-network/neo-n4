@@ -196,6 +196,10 @@ public class UT_NeoHubDeployReport
                 + "IsOperatorReady / PeekSharedBridgeDeposits / GetOperatorStatusAsync",
                 stores.GetProperty("localHostReadiness").GetString());
             Assert.AreEqual(
+                "LocalHost.GetLatestRpcStateRoot / AddRpcBatch / FinalizeRpcBatch / "
+                + "RecordRpcDeposit / GetRpcL1DepositStatus / GetRpcBatch / GetRpcBatchStatus",
+                stores.GetProperty("localHostRpcStoreHelpers").GetString());
+            Assert.AreEqual(
                 "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                 + "PersistAsync / EnqueueAsync",
                 stores.GetProperty("localHostSettleHelpers").GetString());
@@ -225,7 +229,7 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "GatewayHostComposition.HasPendingPublication / PendingPublicationEpoch / "
                 + "OutboxStatus / Aggregator / ReceiveBatch / PublishAggregateAsync / "
-                + "RecoverPoisonedPublication",
+                + "RecoverPoisonedPublication / GetOperatorStatus",
                 stores.GetProperty("gatewayHostOpsHelpers").GetString());
             Assert.AreEqual(
                 "L2BatchPlugin.CreateFromChainDirectory(chainDirectory)",

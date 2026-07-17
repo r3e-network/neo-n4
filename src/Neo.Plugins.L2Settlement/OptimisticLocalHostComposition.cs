@@ -220,17 +220,65 @@ public sealed class OptimisticLocalHostComposition : IDisposable
             ChainId = ChainId,
             ProofType = ProofType,
             DaMode = DaMode,
+            SecurityLevel = RpcStore.SecurityLevel,
             IsProductionWired = IsProductionWired,
             HasSealedBatchSink = HasSealedBatchSink,
             IsOperatorReady = IsOperatorReady,
+            HasDepositSource = DepositSource is not null,
+            HasMessageRouter = MessageRouter is not null,
             IsMetricsHttpListening = IsMetricsHttpListening,
             MetricsBoundPort = MetricsBoundPort,
             PendingSettlementCount = pending,
             ReadyDepositCount = readyDeposits.Count,
+            LatestRpcStateRoot = GetLatestRpcStateRoot(),
             Recovery = recovery,
             TrackedForcedInclusionNonceCount = tracked.Count,
         };
     }
+
+    /// <summary>
+    /// Latest finalized L2 state root from the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.GetLatestStateRoot"/>).
+    /// </summary>
+    public UInt256 GetLatestRpcStateRoot() => RpcStore.GetLatestStateRoot();
+
+    /// <summary>
+    /// Record a sealed batch into the host RPC store for L2 RPC without Neo.CLI
+    /// (<see cref="InMemoryL2RpcStore.AddBatch"/>).
+    /// </summary>
+    public void AddRpcBatch(L2BatchCommitment commitment, BatchStatus status)
+        => RpcStore.AddBatch(commitment, status);
+
+    /// <summary>
+    /// Mark a batch finalized in the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.Finalize"/>).
+    /// </summary>
+    public void FinalizeRpcBatch(ulong batchNumber) => RpcStore.Finalize(batchNumber);
+
+    /// <summary>
+    /// Record an L1 deposit status into the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.RecordDeposit"/>).
+    /// </summary>
+    public void RecordRpcDeposit(DepositStatus status) => RpcStore.RecordDeposit(status);
+
+    /// <summary>
+    /// Query L1 deposit status from the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.GetL1DepositStatus"/>).
+    /// </summary>
+    public DepositStatus? GetRpcL1DepositStatus(uint sourceChainId, ulong nonce)
+        => RpcStore.GetL1DepositStatus(sourceChainId, nonce);
+
+    /// <summary>
+    /// Query a batch commitment from the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.GetBatch"/>).
+    /// </summary>
+    public L2BatchCommitment? GetRpcBatch(ulong batchNumber) => RpcStore.GetBatch(batchNumber);
+
+    /// <summary>
+    /// Query batch status from the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.GetBatchStatus"/>).
+    /// </summary>
+    public BatchStatus GetRpcBatchStatus(ulong batchNumber) => RpcStore.GetBatchStatus(batchNumber);
 
     /// <summary>
     /// Production SharedBridge deposit source after WireProduction (same instance as

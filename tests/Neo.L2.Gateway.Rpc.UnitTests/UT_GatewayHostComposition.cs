@@ -70,6 +70,12 @@ public sealed class UT_GatewayHostComposition
             Assert.IsFalse(host.HasPendingPublication);
             Assert.IsNull(host.PendingPublicationEpoch);
             Assert.IsNotNull(host.OutboxStatus);
+            var gwStatus = host.GetOperatorStatus();
+            Assert.IsFalse(gwStatus.HasPendingPublication);
+            Assert.IsNull(gwStatus.PendingPublicationEpoch);
+            Assert.AreEqual(0, gwStatus.OutboxQueueDepth);
+            Assert.AreEqual(MerklePathRoundProver.ConstBackendId, gwStatus.AggregationBackendId);
+            Assert.IsFalse(gwStatus.OwnsProofProver);
             Assert.IsNotNull(host.Publisher);
             // Metrics sink is retained for outbox/aggregator emission (no throw on wire).
             Assert.IsNotNull(metrics);

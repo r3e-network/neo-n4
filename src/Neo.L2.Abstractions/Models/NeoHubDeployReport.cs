@@ -422,6 +422,9 @@ public sealed record NeoHubDeployReport(
                     ["localHostReadiness"] =
                         "LocalHost.ChainId / ProofType / DaMode / HasSealedBatchSink / "
                         + "IsOperatorReady / PeekSharedBridgeDeposits / GetOperatorStatusAsync",
+                    ["localHostRpcStoreHelpers"] =
+                        "LocalHost.GetLatestRpcStateRoot / AddRpcBatch / FinalizeRpcBatch / "
+                        + "RecordRpcDeposit / GetRpcL1DepositStatus / GetRpcBatch / GetRpcBatchStatus",
                     ["localHostSettleHelpers"] =
                         "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                         + "PersistAsync / EnqueueAsync",
@@ -444,7 +447,7 @@ public sealed record NeoHubDeployReport(
                     ["gatewayHostOpsHelpers"] =
                         "GatewayHostComposition.HasPendingPublication / PendingPublicationEpoch / "
                         + "OutboxStatus / Aggregator / ReceiveBatch / PublishAggregateAsync / "
-                        + "RecoverPoisonedPublication",
+                        + "RecoverPoisonedPublication / GetOperatorStatus",
                     ["localDaOpenHelper"] = "PersistentDAWriter.OpenLocalFromChainDirectory(chainDirectory)",
                     ["daMetricsWrap"] =
                         "MetricsEmittingDAWriter / MetricsEmittingProductionDAWriter (LocalHost Open)",

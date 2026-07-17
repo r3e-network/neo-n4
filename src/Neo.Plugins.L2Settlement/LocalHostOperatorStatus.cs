@@ -21,6 +21,9 @@ public sealed record LocalHostOperatorStatus
     /// <summary>DA mode of the wired DA writer.</summary>
     public required DAMode DaMode { get; init; }
 
+    /// <summary>Security level advertised by the durable L2 RPC store.</summary>
+    public required SecurityLevel SecurityLevel { get; init; }
+
     /// <summary>True after WireProduction installed the production composition.</summary>
     public required bool IsProductionWired { get; init; }
 
@@ -32,6 +35,12 @@ public sealed record LocalHostOperatorStatus
     /// LocalHost <c>/readyz</c>.
     /// </summary>
     public required bool IsOperatorReady { get; init; }
+
+    /// <summary>True when WireProduction installed a SharedBridge deposit source.</summary>
+    public required bool HasDepositSource { get; init; }
+
+    /// <summary>True when WireProduction installed a MessageRouter.</summary>
+    public required bool HasMessageRouter { get; init; }
 
     /// <summary>True when the metrics HTTP server is listening.</summary>
     public required bool IsMetricsHttpListening { get; init; }
@@ -47,6 +56,11 @@ public sealed record LocalHostOperatorStatus
     /// (capped by the peek limit passed to the status builder).
     /// </summary>
     public required int ReadyDepositCount { get; init; }
+
+    /// <summary>
+    /// Latest finalized L2 state root from the host RPC store (zero until a batch is finalized).
+    /// </summary>
+    public required UInt256 LatestRpcStateRoot { get; init; }
 
     /// <summary>Durable pending / retry / poison recovery surface.</summary>
     public required SettlementRecoveryStatus Recovery { get; init; }

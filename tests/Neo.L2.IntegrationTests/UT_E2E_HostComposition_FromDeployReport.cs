@@ -187,6 +187,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(opStatus.IsOperatorReady);
             Assert.AreEqual(0, opStatus.PendingSettlementCount);
             Assert.AreEqual(0, opStatus.ReadyDepositCount);
+            Assert.IsTrue(opStatus.HasDepositSource);
+            Assert.IsTrue(opStatus.HasMessageRouter);
+            Assert.AreEqual(settlementHost.GetLatestRpcStateRoot(), opStatus.LatestRpcStateRoot);
             Assert.IsNotNull(settlementHost.ForcedInclusionFinalizer);
             Assert.IsNotNull(settlementHost.TransactionSender);
             // Local durable recovery surface (no funded L1 publish).
@@ -249,6 +252,10 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsNull(gatewayHost.PendingPublicationEpoch);
             Assert.IsNotNull(gatewayHost.OutboxStatus);
             Assert.AreSame(gatewayHost.Gateway.Aggregator, gatewayHost.Aggregator);
+            var gwStatus = gatewayHost.GetOperatorStatus();
+            Assert.IsFalse(gwStatus.HasPendingPublication);
+            Assert.AreEqual(0, gwStatus.OutboxQueueDepth);
+            Assert.AreEqual(MerklePathRoundProver.ConstBackendId, gwStatus.AggregationBackendId);
         }
         finally
         {

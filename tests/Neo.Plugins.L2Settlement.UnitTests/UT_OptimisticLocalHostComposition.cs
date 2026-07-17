@@ -92,6 +92,8 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(ProofType.Optimistic, status.ProofType);
             Assert.AreEqual(0, status.PendingSettlementCount);
             Assert.AreEqual(0, status.ReadyDepositCount);
+            Assert.AreEqual(host.GetLatestRpcStateRoot(), status.LatestRpcStateRoot);
+            Assert.AreEqual(BatchStatus.Unknown, host.GetRpcBatchStatus(1));
             var recovery = host.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(0, recovery.PendingCount);
             Assert.AreEqual(

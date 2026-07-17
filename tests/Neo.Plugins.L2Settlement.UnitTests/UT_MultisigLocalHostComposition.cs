@@ -8,6 +8,7 @@ using Neo.L2.Proving;
 using Neo.L2.Proving.Attestation;
 using Neo.L2.Settlement.Rpc;
 using Neo.Network.P2P.Payloads;
+using Neo.Plugins.L2Rpc;
 using Neo.Wallets;
 
 namespace Neo.Plugins.L2Settlement.UnitTests;
@@ -86,14 +87,47 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(20260716u, status.ChainId);
             Assert.AreEqual(ProofType.Multisig, status.ProofType);
             Assert.AreEqual(DAMode.Local, status.DaMode);
+            Assert.AreEqual(host.RpcStore.SecurityLevel, status.SecurityLevel);
             Assert.IsTrue(status.IsOperatorReady);
             Assert.IsTrue(status.IsProductionWired);
             Assert.IsTrue(status.HasSealedBatchSink);
+            Assert.IsTrue(status.HasDepositSource);
+            Assert.IsTrue(status.HasMessageRouter);
             Assert.IsFalse(status.IsMetricsHttpListening);
             Assert.AreEqual(0, status.PendingSettlementCount);
             Assert.AreEqual(0, status.ReadyDepositCount);
             Assert.AreEqual(0, status.TrackedForcedInclusionNonceCount);
             Assert.AreEqual(0, status.Recovery.PendingCount);
+            Assert.AreEqual(host.GetLatestRpcStateRoot(), status.LatestRpcStateRoot);
+            // Host RPC store helpers (no Neo.CLI).
+            var root = new UInt256(Enumerable.Repeat((byte)0xAB, 32).ToArray());
+            var z = UInt256.Zero;
+            var batch = new L2BatchCommitment
+            {
+                ChainId = 20260716u,
+                BatchNumber = 1,
+                FirstBlock = 1,
+                LastBlock = 1,
+                PreStateRoot = z,
+                PostStateRoot = root,
+                TxRoot = z,
+                ReceiptRoot = z,
+                WithdrawalRoot = z,
+                L2ToL1MessageRoot = z,
+                L2ToL2MessageRoot = z,
+                DACommitment = z,
+                PublicInputHash = z,
+                ProofType = ProofType.Multisig,
+                Proof = ReadOnlyMemory<byte>.Empty,
+            };
+            host.AddRpcBatch(batch, BatchStatus.Pending);
+            Assert.AreEqual(BatchStatus.Pending, host.GetRpcBatchStatus(1));
+            Assert.IsNotNull(host.GetRpcBatch(1));
+            host.FinalizeRpcBatch(1);
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(1));
+            Assert.AreEqual(root, host.GetLatestRpcStateRoot());
+            host.RecordRpcDeposit(new DepositStatus(20260716u, 1, ConsumedOnL2: false, IncludedInBatch: null));
+            Assert.IsNotNull(host.GetRpcL1DepositStatus(20260716u, 1));
             Assert.IsNotNull(host.Metrics.Metrics);
             Assert.AreEqual(0, host.Metrics.BoundPort); // HTTP not started by default
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);

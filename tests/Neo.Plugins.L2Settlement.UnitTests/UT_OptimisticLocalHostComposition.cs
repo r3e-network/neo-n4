@@ -94,6 +94,14 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(0, status.ReadyDepositCount);
             Assert.AreEqual(host.GetLatestRpcStateRoot(), status.LatestRpcStateRoot);
             Assert.AreEqual(BatchStatus.Unknown, host.GetRpcBatchStatus(1));
+            Assert.AreEqual(host.RpcStore.GatewayEnabled, status.GatewayEnabled);
+            Assert.AreEqual(host.RpcStore.Sequencer, status.Sequencer);
+            Assert.AreEqual(host.RpcStore.Exit, status.Exit);
+            var l1 = UInt160.Parse("0x" + new string('1', 40));
+            var l2 = UInt160.Parse("0x" + new string('2', 40));
+            host.RegisterRpcAsset(l1, l2);
+            Assert.AreEqual(l2, host.GetRpcBridgedAsset(l1));
+            Assert.IsNotNull(host.MessageOutbox);
             var recovery = host.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(0, recovery.PendingCount);
             Assert.AreEqual(

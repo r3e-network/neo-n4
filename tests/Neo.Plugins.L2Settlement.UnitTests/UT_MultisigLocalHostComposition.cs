@@ -128,6 +128,23 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(root, host.GetLatestRpcStateRoot());
             host.RecordRpcDeposit(new DepositStatus(20260716u, 1, ConsumedOnL2: false, IncludedInBatch: null));
             Assert.IsNotNull(host.GetRpcL1DepositStatus(20260716u, 1));
+            var l1Asset = UInt160.Parse("0x" + new string('a', 40));
+            var l2Asset = UInt160.Parse("0x" + new string('b', 40));
+            host.RegisterRpcAsset(l1Asset, l2Asset);
+            Assert.AreEqual(l2Asset, host.GetRpcBridgedAsset(l1Asset));
+            Assert.AreEqual(l1Asset, host.GetRpcCanonicalAsset(l2Asset));
+            var leaf = new UInt256(Enumerable.Repeat((byte)0xCD, 32).ToArray());
+            host.RecordRpcWithdrawalProof(leaf, [0x01, 0x02]);
+            Assert.IsTrue(host.GetRpcWithdrawalProof(leaf) is { Length: 2 });
+            var msgHash = new UInt256(Enumerable.Repeat((byte)0xEF, 32).ToArray());
+            host.RecordRpcMessageProof(msgHash, [0x03]);
+            Assert.IsTrue(host.GetRpcMessageProof(msgHash) is { Length: 1 });
+            Assert.IsNotNull(host.MessageOutbox);
+            Assert.AreEqual(0, host.MessageOutbox!.L2ToL1Count);
+            host.RecordMessageRouterFinalizedProof(msgHash, new byte[] { 0x04 });
+            var routerProof = host.GetMessageRouterProofAsync(msgHash).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(routerProof is { Length: 1 });
+            Assert.IsTrue(status.GatewayEnabled);
             Assert.IsNotNull(host.Metrics.Metrics);
             Assert.AreEqual(0, host.Metrics.BoundPort); // HTTP not started by default
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);

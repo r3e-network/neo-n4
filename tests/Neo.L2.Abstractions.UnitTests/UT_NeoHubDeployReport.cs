@@ -197,8 +197,15 @@ public class UT_NeoHubDeployReport
                 stores.GetProperty("localHostReadiness").GetString());
             Assert.AreEqual(
                 "LocalHost.GetLatestRpcStateRoot / AddRpcBatch / FinalizeRpcBatch / "
-                + "RecordRpcDeposit / GetRpcL1DepositStatus / GetRpcBatch / GetRpcBatchStatus",
+                + "RecordRpcDeposit / GetRpcL1DepositStatus / GetRpcBatch / GetRpcBatchStatus / "
+                + "RegisterRpcAsset / GetRpcCanonicalAsset / GetRpcBridgedAsset / "
+                + "RecordRpcWithdrawalProof / RecordRpcMessageProof / "
+                + "GetRpcWithdrawalProof / GetRpcMessageProof",
                 stores.GetProperty("localHostRpcStoreHelpers").GetString());
+            Assert.AreEqual(
+                "LocalHost.MessageOutbox / EnqueueOutboundMessagesAsync / "
+                + "RecordMessageRouterFinalizedProof / GetMessageRouterProofAsync",
+                stores.GetProperty("localHostMessageRouterHelpers").GetString());
             Assert.AreEqual(
                 "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                 + "PersistAsync / EnqueueAsync",

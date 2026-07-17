@@ -24,6 +24,15 @@ public sealed record LocalHostOperatorStatus
     /// <summary>Security level advertised by the durable L2 RPC store.</summary>
     public required SecurityLevel SecurityLevel { get; init; }
 
+    /// <summary>Whether the L2 RPC store advertises Gateway support.</summary>
+    public required bool GatewayEnabled { get; init; }
+
+    /// <summary>Sequencer model advertised by the durable L2 RPC store.</summary>
+    public required SequencerModel Sequencer { get; init; }
+
+    /// <summary>Exit model advertised by the durable L2 RPC store.</summary>
+    public required ExitModel Exit { get; init; }
+
     /// <summary>True after WireProduction installed the production composition.</summary>
     public required bool IsProductionWired { get; init; }
 

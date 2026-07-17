@@ -424,7 +424,13 @@ public sealed record NeoHubDeployReport(
                         + "IsOperatorReady / PeekSharedBridgeDeposits / GetOperatorStatusAsync",
                     ["localHostRpcStoreHelpers"] =
                         "LocalHost.GetLatestRpcStateRoot / AddRpcBatch / FinalizeRpcBatch / "
-                        + "RecordRpcDeposit / GetRpcL1DepositStatus / GetRpcBatch / GetRpcBatchStatus",
+                        + "RecordRpcDeposit / GetRpcL1DepositStatus / GetRpcBatch / GetRpcBatchStatus / "
+                        + "RegisterRpcAsset / GetRpcCanonicalAsset / GetRpcBridgedAsset / "
+                        + "RecordRpcWithdrawalProof / RecordRpcMessageProof / "
+                        + "GetRpcWithdrawalProof / GetRpcMessageProof",
+                    ["localHostMessageRouterHelpers"] =
+                        "LocalHost.MessageOutbox / EnqueueOutboundMessagesAsync / "
+                        + "RecordMessageRouterFinalizedProof / GetMessageRouterProofAsync",
                     ["localHostSettleHelpers"] =
                         "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                         + "PersistAsync / EnqueueAsync",

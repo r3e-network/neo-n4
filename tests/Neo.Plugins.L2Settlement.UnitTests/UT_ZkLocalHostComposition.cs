@@ -114,6 +114,10 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsTrue(status.HasDepositSource);
             Assert.IsTrue(status.HasMessageRouter);
             Assert.AreEqual(host.GetLatestRpcStateRoot(), status.LatestRpcStateRoot);
+            Assert.AreEqual(host.RpcStore.GatewayEnabled, status.GatewayEnabled);
+            Assert.IsNotNull(host.MessageOutbox);
+            Assert.IsNull(
+                host.GetMessageRouterProofAsync(new UInt256(new byte[32])).AsTask().GetAwaiter().GetResult());
             var recovery = host.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(0, recovery.PendingCount);
             Assert.AreEqual(

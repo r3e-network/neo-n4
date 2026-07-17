@@ -236,6 +236,9 @@ public sealed class ZkLocalHostComposition : IDisposable
             ProofType = ProofType,
             DaMode = DaMode,
             SecurityLevel = RpcStore.SecurityLevel,
+            GatewayEnabled = RpcStore.GatewayEnabled,
+            Sequencer = RpcStore.Sequencer,
+            Exit = RpcStore.Exit,
             IsProductionWired = IsProductionWired,
             HasSealedBatchSink = HasSealedBatchSink,
             IsOperatorReady = IsOperatorReady,
@@ -294,6 +297,96 @@ public sealed class ZkLocalHostComposition : IDisposable
     /// (<see cref="InMemoryL2RpcStore.GetBatchStatus"/>).
     /// </summary>
     public BatchStatus GetRpcBatchStatus(ulong batchNumber) => RpcStore.GetBatchStatus(batchNumber);
+
+    /// <summary>
+    /// Register an L1↔L2 asset mapping in the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.RegisterAsset"/>).
+    /// </summary>
+    public void RegisterRpcAsset(UInt160 l1Asset, UInt160 l2Asset)
+        => RpcStore.RegisterAsset(l1Asset, l2Asset);
+
+    /// <summary>
+    /// Resolve L1 asset for an L2 token from the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.GetCanonicalAsset"/>).
+    /// </summary>
+    public UInt160? GetRpcCanonicalAsset(UInt160 l2Asset) => RpcStore.GetCanonicalAsset(l2Asset);
+
+    /// <summary>
+    /// Resolve L2 token for an L1 asset from the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.GetBridgedAsset"/>).
+    /// </summary>
+    public UInt160? GetRpcBridgedAsset(UInt160 l1Asset) => RpcStore.GetBridgedAsset(l1Asset);
+
+    /// <summary>
+    /// Record a withdrawal inclusion proof in the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.RecordWithdrawalProof"/>).
+    /// </summary>
+    public void RecordRpcWithdrawalProof(UInt256 leafHash, byte[] proofBytes)
+        => RpcStore.RecordWithdrawalProof(leafHash, proofBytes);
+
+    /// <summary>
+    /// Record a message inclusion proof in the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.RecordMessageProof"/>).
+    /// </summary>
+    public void RecordRpcMessageProof(UInt256 messageHash, byte[] proofBytes)
+        => RpcStore.RecordMessageProof(messageHash, proofBytes);
+
+    /// <summary>
+    /// Query a withdrawal inclusion proof from the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.GetWithdrawalProof"/>).
+    /// </summary>
+    public ReadOnlyMemory<byte>? GetRpcWithdrawalProof(UInt256 leafHash)
+        => RpcStore.GetWithdrawalProof(leafHash);
+
+    /// <summary>
+    /// Query a message inclusion proof from the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.GetMessageProof"/>).
+    /// </summary>
+    public ReadOnlyMemory<byte>? GetRpcMessageProof(UInt256 messageHash)
+        => RpcStore.GetMessageProof(messageHash);
+
+    /// <summary>
+    /// Local MessageRouter outbox when WireProduction installed a router; null otherwise
+    /// (<see cref="RpcMessageRouter.Outbox"/>).
+    /// </summary>
+    public L2Outbox? MessageOutbox => MessageRouter?.Outbox;
+
+    /// <summary>
+    /// Enqueue outbound cross-chain messages into the wired MessageRouter outbox
+    /// (<see cref="RpcMessageRouter.EnqueueOutboundAsync"/>).
+    /// </summary>
+    public ValueTask EnqueueOutboundMessagesAsync(
+        IReadOnlyList<CrossChainMessage> messages,
+        CancellationToken cancellationToken = default)
+    {
+        var router = MessageRouter
+            ?? throw new InvalidOperationException("MessageRouter is not wired on this LocalHost");
+        return router.EnqueueOutboundAsync(messages, cancellationToken);
+    }
+
+    /// <summary>
+    /// Record a finalized message proof on the wired MessageRouter
+    /// (<see cref="RpcMessageRouter.RecordFinalizedProof"/>).
+    /// </summary>
+    public void RecordMessageRouterFinalizedProof(UInt256 messageHash, ReadOnlyMemory<byte> proofBytes)
+    {
+        var router = MessageRouter
+            ?? throw new InvalidOperationException("MessageRouter is not wired on this LocalHost");
+        router.RecordFinalizedProof(messageHash, proofBytes);
+    }
+
+    /// <summary>
+    /// Query a finalized message proof from the wired MessageRouter store
+    /// (<see cref="RpcMessageRouter.GetMessageProofAsync"/>). Returns null when unwired.
+    /// </summary>
+    public ValueTask<ReadOnlyMemory<byte>?> GetMessageRouterProofAsync(
+        UInt256 messageHash,
+        CancellationToken cancellationToken = default)
+    {
+        if (MessageRouter is null)
+            return ValueTask.FromResult<ReadOnlyMemory<byte>?>(null);
+        return MessageRouter.GetMessageProofAsync(messageHash, cancellationToken);
+    }
 
     /// <summary>
     /// Production SharedBridge deposit source after WireProduction (same instance as

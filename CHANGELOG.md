@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost RPC proofs/assets + MessageRouter helpers — 2026-07-17
+
+- Multisig/Optimistic/Zk LocalHost expose additional host RPC store ops without Neo.CLI:
+  `RegisterRpcAsset` / `GetRpcCanonicalAsset` / `GetRpcBridgedAsset`,
+  `RecordRpcWithdrawalProof` / `RecordRpcMessageProof` /
+  `GetRpcWithdrawalProof` / `GetRpcMessageProof`.
+- MessageRouter local surface: `MessageOutbox`, `EnqueueOutboundMessagesAsync`,
+  `RecordMessageRouterFinalizedProof`, `GetMessageRouterProofAsync`.
+- `LocalHostOperatorStatus` adds `GatewayEnabled`, `Sequencer`, `Exit` from the RPC store.
+- `init-l2` prints host rpc tip. Wireproduction notes + unit coverage; no wire/ABI change.
+
 ### Added — LocalHost RPC store helpers + Gateway GetOperatorStatus — 2026-07-17
 
 - Multisig/Optimistic/Zk LocalHost expose host RPC store ops without Neo.CLI:

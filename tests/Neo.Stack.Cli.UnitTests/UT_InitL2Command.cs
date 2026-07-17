@@ -231,6 +231,8 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "ZkLocalHostComposition.Open");
         StringAssert.Contains(output, "IsOperatorReady");
         StringAssert.Contains(output, "GetOperatorStatusAsync");
+        StringAssert.Contains(output, "AddRpcBatch");
+        StringAssert.Contains(output, "MessageOutbox");
         StringAssert.Contains(output, "l1.wireproduction-notes.json");
     }
 

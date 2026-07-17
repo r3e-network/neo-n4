@@ -111,6 +111,10 @@ public sealed class UT_OptimisticLocalHostComposition
             }).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(host.IsDaAvailableAsync(daReceipt).AsTask().GetAwaiter().GetResult());
             Assert.IsNotNull(host.CreateLocalDaReader());
+            Assert.AreEqual(0, host.BridgeAssetCount);
+            var prom = host.ExportPrometheusMetrics();
+            Assert.IsFalse(string.IsNullOrWhiteSpace(prom));
+            Assert.IsNotNull(host.CaptureMetricsSnapshot());
             var recovery = host.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(0, recovery.PendingCount);
             Assert.AreEqual(

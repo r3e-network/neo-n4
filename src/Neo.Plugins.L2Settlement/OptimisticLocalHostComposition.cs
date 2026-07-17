@@ -234,6 +234,10 @@ public sealed class OptimisticLocalHostComposition : IDisposable
             PendingSettlementCount = pending,
             ReadyDepositCount = readyDeposits.Count,
             LatestRpcStateRoot = GetLatestRpcStateRoot(),
+            BridgeAssetCount = Bridge.Registry.Count,
+            MetricsEntryCount = CaptureMetricsSnapshot().TotalEntries,
+            MessageOutboxL2ToL1Count = MessageOutbox?.L2ToL1Count ?? 0,
+            MessageOutboxL2ToL2Count = MessageOutbox?.L2ToL2Count ?? 0,
             Recovery = recovery,
             TrackedForcedInclusionNonceCount = tracked.Count,
         };
@@ -467,6 +471,48 @@ public sealed class OptimisticLocalHostComposition : IDisposable
     /// Caller must <c>NeoSystem.AddService(RpcStore)</c> and register the plugin with Neo.CLI;
     /// this composition does not own the returned plugin.
     /// </summary>
+
+    /// <summary>
+    /// Capture an in-process metrics snapshot without HTTP
+    /// (<see cref="IMetricsSource.Snapshot"/>).
+    /// </summary>
+    public MetricsSnapshot CaptureMetricsSnapshot()
+    {
+        if (Metrics.Metrics is IMetricsSource source)
+            return source.Snapshot();
+        return MetricsSnapshot.Empty;
+    }
+
+    /// <summary>
+    /// Render Prometheus exposition text from the current metrics sink
+    /// (<see cref="PrometheusExporter.Format"/>).
+    /// </summary>
+    public string ExportPrometheusMetrics()
+        => PrometheusExporter.Format(CaptureMetricsSnapshot());
+
+    /// <summary>
+    /// Bridge plugin asset registry (L1↔L2 mappings for deposit minting)
+    /// (<see cref="L2BridgePlugin.Registry"/>).
+    /// </summary>
+    public AssetRegistry BridgeAssetRegistry => Bridge.Registry;
+
+    /// <summary>
+    /// Register a bridge-side asset mapping
+    /// (<see cref="AssetRegistry.Register"/>).
+    /// </summary>
+    public void RegisterBridgeAsset(AssetMapping mapping)
+        => Bridge.Registry.Register(mapping);
+
+    /// <summary>
+    /// Snapshot all bridge-side asset mappings
+    /// (<see cref="AssetRegistry.Snapshot"/>).
+    /// </summary>
+    public IReadOnlyList<AssetMapping> SnapshotBridgeAssets()
+        => Bridge.Registry.Snapshot();
+
+    /// <summary>Count of bridge-side asset mappings.</summary>
+    public int BridgeAssetCount => Bridge.Registry.Count;
+
     public L2RpcPlugin CreateRpcPlugin()
     {
         var plugin = new L2RpcPlugin();

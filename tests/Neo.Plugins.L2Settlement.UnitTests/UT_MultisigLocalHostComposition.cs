@@ -162,6 +162,28 @@ public sealed class UT_MultisigLocalHostComposition
             var payload = daReader.ReadAsync(receipt).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(payload is { Length: 3 });
             Assert.IsNotNull(host.Metrics.Metrics);
+            Assert.AreEqual(0, host.BridgeAssetCount);
+            host.RegisterBridgeAsset(new AssetMapping
+            {
+                L1Asset = l1Asset,
+                L2Asset = l2Asset,
+                L2ChainId = 20260716u,
+                L1Decimals = 8,
+                L2Decimals = 8,
+                AssetType = AssetType.Gas,
+                MintBurn = true,
+                LockMint = true,
+                Active = true,
+            });
+            Assert.AreEqual(1, host.BridgeAssetCount);
+            Assert.AreEqual(1, host.SnapshotBridgeAssets().Count);
+            var prom = host.ExportPrometheusMetrics();
+            Assert.IsFalse(string.IsNullOrWhiteSpace(prom));
+            var snap = host.CaptureMetricsSnapshot();
+            Assert.IsTrue(snap.TotalEntries >= 0);
+            var status2 = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(1, status2.BridgeAssetCount);
+            Assert.AreEqual(0, status2.MessageOutboxL2ToL1Count);
             Assert.AreEqual(0, host.Metrics.BoundPort); // HTTP not started by default
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);
             Assert.AreEqual(DAMode.Local, host.RpcStore.DAMode);

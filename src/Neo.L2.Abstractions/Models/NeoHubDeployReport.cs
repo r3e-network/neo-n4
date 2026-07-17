@@ -436,6 +436,11 @@ public sealed record NeoHubDeployReport(
                     ["localHostDaHelpers"] =
                         "LocalHost.PublishDaAsync / IsDaAvailableAsync / "
                         + "CreateLocalDaReader (Multisig/Optimistic local DA)",
+                    ["localHostMetricsExport"] =
+                        "LocalHost.CaptureMetricsSnapshot / ExportPrometheusMetrics",
+                    ["localHostBridgeRegistry"] =
+                        "LocalHost.BridgeAssetRegistry / RegisterBridgeAsset / "
+                        + "SnapshotBridgeAssets / BridgeAssetCount",
                     ["localHostSettleHelpers"] =
                         "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                         + "PersistAsync / EnqueueAsync",

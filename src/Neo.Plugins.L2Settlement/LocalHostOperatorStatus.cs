@@ -71,6 +71,18 @@ public sealed record LocalHostOperatorStatus
     /// </summary>
     public required UInt256 LatestRpcStateRoot { get; init; }
 
+    /// <summary>Count of L1↔L2 mappings in the bridge plugin asset registry.</summary>
+    public required int BridgeAssetCount { get; init; }
+
+    /// <summary>Total counter+gauge+histogram entries in the metrics snapshot.</summary>
+    public required int MetricsEntryCount { get; init; }
+
+    /// <summary>L2→L1 messages staged in the MessageRouter outbox (0 when unwired).</summary>
+    public required int MessageOutboxL2ToL1Count { get; init; }
+
+    /// <summary>L2→L2 messages staged in the MessageRouter outbox (0 when unwired).</summary>
+    public required int MessageOutboxL2ToL2Count { get; init; }
+
     /// <summary>Durable pending / retry / poison recovery surface.</summary>
     public required SettlementRecoveryStatus Recovery { get; init; }
 

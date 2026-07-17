@@ -214,6 +214,13 @@ public class UT_NeoHubDeployReport
                 + "CreateLocalDaReader (Multisig/Optimistic local DA)",
                 stores.GetProperty("localHostDaHelpers").GetString());
             Assert.AreEqual(
+                "LocalHost.CaptureMetricsSnapshot / ExportPrometheusMetrics",
+                stores.GetProperty("localHostMetricsExport").GetString());
+            Assert.AreEqual(
+                "LocalHost.BridgeAssetRegistry / RegisterBridgeAsset / "
+                + "SnapshotBridgeAssets / BridgeAssetCount",
+                stores.GetProperty("localHostBridgeRegistry").GetString());
+            Assert.AreEqual(
                 "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                 + "PersistAsync / EnqueueAsync",
                 stores.GetProperty("localHostSettleHelpers").GetString());

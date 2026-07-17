@@ -201,6 +201,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 Payload = new byte[] { 0xDE, 0xAD },
             }).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(settlementHost.IsDaAvailableAsync(daReceipt).AsTask().GetAwaiter().GetResult());
+            Assert.IsFalse(string.IsNullOrWhiteSpace(settlementHost.ExportPrometheusMetrics()));
+            Assert.AreEqual(0, settlementHost.BridgeAssetCount);
             // Local durable recovery surface (no funded L1 publish).
             var recovery = settlementHost.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(0, recovery.PendingCount);

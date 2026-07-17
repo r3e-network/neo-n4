@@ -235,6 +235,8 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "MessageOutbox");
         StringAssert.Contains(output, "PublishDaAsync");
         StringAssert.Contains(output, "RegisterForcedInclusionNonce");
+        StringAssert.Contains(output, "ExportPrometheusMetrics");
+        StringAssert.Contains(output, "RegisterBridgeAsset");
         StringAssert.Contains(output, "l1.wireproduction-notes.json");
     }
 

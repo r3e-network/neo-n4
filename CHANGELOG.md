@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost metrics export + bridge asset registry — 2026-07-17
+
+- Multisig/Optimistic/Zk LocalHost expose offline metrics export:
+  `CaptureMetricsSnapshot`, `ExportPrometheusMetrics` (no HTTP required).
+- Bridge asset registry helpers: `BridgeAssetRegistry`, `RegisterBridgeAsset`,
+  `SnapshotBridgeAssets`, `BridgeAssetCount`.
+- `LocalHostOperatorStatus` adds `BridgeAssetCount`, `MetricsEntryCount`,
+  `MessageOutboxL2ToL1Count`, `MessageOutboxL2ToL2Count`.
+- `init-l2` prints host ops tip. Wireproduction notes + unit/integration coverage;
+  no wire/ABI change.
+
 ### Added — LocalHost FI + DA publish helpers — 2026-07-17
 
 - Multisig/Optimistic/Zk LocalHost expose forced-inclusion recovery helpers:

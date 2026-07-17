@@ -430,7 +430,8 @@ public sealed record NeoHubDeployReport(
                     ["localHostBatcherHelpers"] =
                         "LocalHost.NextExpectedBlock / LastAcknowledgedBatchNumber / LastAcknowledgedBlock / "
                         + "NextBatchNumber / HasPendingSealedBatch / PendingSealedBatchNumber / "
-                        + "PendingSealedBatchLastBlock / IsBatcherEnabled / PendingSealedBatch / HasOpenBatch / "
+                        + "PendingSealedBatchLastBlock / IsBatcherEnabled / MaxBlocksPerBatch / "
+                        + "MaxTransactionsPerBatch / MaxBatchAgeMillis / PendingSealedBatch / HasOpenBatch / "
                         + "InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / OpenBatchBlockCount / "
                         + "OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / ProcessCommittedBlock / "
                         + "TryRetryPendingSealedBatch / OnBatchSealed",

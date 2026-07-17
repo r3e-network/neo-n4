@@ -88,6 +88,9 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsNull(host.PendingSealedBatch);
             Assert.IsNull(host.PendingSealedBatchNumber);
             Assert.IsTrue(host.IsBatcherEnabled);
+            Assert.IsTrue(host.MaxBlocksPerBatch > 0);
+            Assert.IsTrue(host.MaxTransactionsPerBatch > 0);
+            Assert.IsTrue(host.MaxBatchAgeMillis > 0);
             Assert.IsFalse(host.Batch.HasPendingSealedBatch);
             Assert.IsFalse(host.HasOpenBatch);
             Assert.AreEqual(0, host.InProgressTxCount);
@@ -318,6 +321,9 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(statusJson, "\"nextExpectedBlock\": 1");
             StringAssert.Contains(statusJson, "\"hasPendingSealedBatch\": false");
             StringAssert.Contains(statusJson, "\"isBatcherEnabled\": true");
+            StringAssert.Contains(statusJson, "\"maxBlocksPerBatch\":");
+            StringAssert.Contains(statusJson, "\"maxTransactionsPerBatch\":");
+            StringAssert.Contains(statusJson, "\"maxBatchAgeMillis\":");
             StringAssert.Contains(statusJson, "\"hasOpenBatch\": false");
             StringAssert.Contains(statusJson, "\"inProgressTxCount\": 0");
             StringAssert.Contains(statusJson, "\"openBatchBlockCount\": 0");

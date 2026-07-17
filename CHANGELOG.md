@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Batcher seal thresholds on LocalHost ops status — 2026-07-18
+
+- `L2BatchPlugin` / Multisig/Optimistic/Zk LocalHost expose `MaxBlocksPerBatch`,
+  `MaxTransactionsPerBatch`, and `MaxBatchAgeMillis` from plugin settings.
+- Operator status JSON includes the seal thresholds for offline batcher health.
+- Wireproduction notes + init-l2 tip; unit/integration coverage. No wire/ABI change.
+
 ### Added — Gateway AggregatorPendingCount on host ops status — 2026-07-18
 
 - `GatewayHostComposition.AggregatorPendingCount` mirrors `IGatewayAggregator.PendingCount`

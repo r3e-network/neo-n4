@@ -53,6 +53,15 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Batcher plugin enabled flag.</summary>
     public required bool IsBatcherEnabled { get; init; }
 
+    /// <summary>Configured max L2 blocks per sealed batch.</summary>
+    public required int MaxBlocksPerBatch { get; init; }
+
+    /// <summary>Configured max transactions per sealed batch.</summary>
+    public required int MaxTransactionsPerBatch { get; init; }
+
+    /// <summary>Configured max open-batch age in milliseconds.</summary>
+    public required int MaxBatchAgeMillis { get; init; }
+
     /// <summary>Open batch currently accumulating.</summary>
     public required bool HasOpenBatch { get; init; }
 
@@ -158,6 +167,9 @@ public sealed record LocalHostOperatorStatusDocument
             PendingSealedBatchNumber = status.PendingSealedBatchNumber,
             PendingSealedBatchLastBlock = status.PendingSealedBatchLastBlock,
             IsBatcherEnabled = status.IsBatcherEnabled,
+            MaxBlocksPerBatch = status.MaxBlocksPerBatch,
+            MaxTransactionsPerBatch = status.MaxTransactionsPerBatch,
+            MaxBatchAgeMillis = status.MaxBatchAgeMillis,
             HasOpenBatch = status.HasOpenBatch,
             InProgressTxCount = status.InProgressTxCount,
             OpenBatchFirstBlock = status.OpenBatchFirstBlock,

@@ -224,6 +224,24 @@ public sealed class MultisigLocalHostComposition : IDisposable
     public bool IsBatcherEnabled => Batch.IsEnabled;
 
     /// <summary>
+    /// Configured max L2 blocks per sealed batch
+    /// (<see cref="L2BatchPlugin.MaxBlocksPerBatch"/>).
+    /// </summary>
+    public int MaxBlocksPerBatch => Batch.MaxBlocksPerBatch;
+
+    /// <summary>
+    /// Configured max transactions per sealed batch
+    /// (<see cref="L2BatchPlugin.MaxTransactionsPerBatch"/>).
+    /// </summary>
+    public int MaxTransactionsPerBatch => Batch.MaxTransactionsPerBatch;
+
+    /// <summary>
+    /// Configured max open-batch age in milliseconds
+    /// (<see cref="L2BatchPlugin.MaxBatchAgeMillis"/>).
+    /// </summary>
+    public int MaxBatchAgeMillis => Batch.MaxBatchAgeMillis;
+
+    /// <summary>
     /// True when a batch is currently being accumulated
     /// (<see cref="L2BatchPlugin.HasOpenBatch"/>).
     /// </summary>
@@ -390,6 +408,9 @@ public sealed class MultisigLocalHostComposition : IDisposable
             PendingSealedBatchNumber = PendingSealedBatchNumber,
             PendingSealedBatchLastBlock = PendingSealedBatchLastBlock,
             IsBatcherEnabled = IsBatcherEnabled,
+            MaxBlocksPerBatch = MaxBlocksPerBatch,
+            MaxTransactionsPerBatch = MaxTransactionsPerBatch,
+            MaxBatchAgeMillis = MaxBatchAgeMillis,
             HasOpenBatch = HasOpenBatch,
             InProgressTxCount = InProgressTxCount,
             OpenBatchFirstBlock = OpenBatchFirstBlock,

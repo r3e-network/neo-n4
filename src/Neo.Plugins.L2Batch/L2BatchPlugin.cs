@@ -205,6 +205,24 @@ public sealed class L2BatchPlugin : Plugin
     public bool IsEnabled => _settings.Enabled;
 
     /// <summary>
+    /// Configured max L2 blocks per sealed batch
+    /// (<see cref="L2BatchSettings.MaxBlocksPerBatch"/>).
+    /// </summary>
+    public int MaxBlocksPerBatch => _settings.MaxBlocksPerBatch;
+
+    /// <summary>
+    /// Configured max transactions per sealed batch
+    /// (<see cref="L2BatchSettings.MaxTransactionsPerBatch"/>).
+    /// </summary>
+    public int MaxTransactionsPerBatch => _settings.MaxTransactionsPerBatch;
+
+    /// <summary>
+    /// Configured max open-batch age in milliseconds
+    /// (<see cref="L2BatchSettings.MaxBatchAgeMillis"/>).
+    /// </summary>
+    public int MaxBatchAgeMillis => _settings.MaxBatchAgeMillis;
+
+    /// <summary>
     /// True when a batch is currently being accumulated
     /// (<see cref="BatchSealer.HasOpenBatch"/>).
     /// </summary>

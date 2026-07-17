@@ -185,6 +185,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsFalse(settlementHost.HasPendingSealedBatch);
             Assert.IsNull(settlementHost.PendingSealedBatchNumber);
             Assert.IsTrue(settlementHost.IsBatcherEnabled);
+            Assert.IsTrue(settlementHost.MaxBlocksPerBatch > 0);
+            Assert.IsTrue(settlementHost.MaxTransactionsPerBatch > 0);
+            Assert.IsTrue(settlementHost.MaxBatchAgeMillis > 0);
             Assert.IsFalse(settlementHost.HasOpenBatch);
             Assert.AreEqual(UInt256.Zero, settlementHost.MessageOutboxL2ToL1Root);
             Assert.AreEqual(0, settlementHost.OpenBatchBlockCount);

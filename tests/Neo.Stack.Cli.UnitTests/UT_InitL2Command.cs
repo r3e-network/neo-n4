@@ -234,7 +234,7 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "NextExpectedBlock");
         StringAssert.Contains(output, "NextBatchNumber");
         StringAssert.Contains(output, "PendingSealedBatchNumber");
-        StringAssert.Contains(output, "IsBatcherEnabled");
+        StringAssert.Contains(output, "MaxBlocksPerBatch");
         StringAssert.Contains(output, "MessageOutboxL2ToL1Root");
         StringAssert.Contains(output, "StopMetricsHttp");
         StringAssert.Contains(output, "ConsumedDepositCount");

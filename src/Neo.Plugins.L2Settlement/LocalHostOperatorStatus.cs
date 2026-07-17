@@ -56,6 +56,15 @@ public sealed record LocalHostOperatorStatus
     /// <summary>Whether the batcher plugin is enabled in settings.</summary>
     public required bool IsBatcherEnabled { get; init; }
 
+    /// <summary>Configured max L2 blocks per sealed batch.</summary>
+    public required int MaxBlocksPerBatch { get; init; }
+
+    /// <summary>Configured max transactions per sealed batch.</summary>
+    public required int MaxTransactionsPerBatch { get; init; }
+
+    /// <summary>Configured max open-batch age in milliseconds.</summary>
+    public required int MaxBatchAgeMillis { get; init; }
+
     /// <summary>True when a batch is currently being accumulated by the batcher.</summary>
     public required bool HasOpenBatch { get; init; }
 

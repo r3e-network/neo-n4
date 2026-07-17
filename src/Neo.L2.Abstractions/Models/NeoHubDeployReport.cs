@@ -399,6 +399,8 @@ public sealed record NeoHubDeployReport(
                         "MultisigLocalHostComposition.Open(chainDir, executor, signers, signer)",
                     ["optimisticLocalHostComposition"] =
                         "OptimisticLocalHostComposition.Open(chainDir, executor, sequencerKey, bondContract, bondTxHash, signer)",
+                    ["zkLocalHostComposition"] =
+                        "ZkLocalHostComposition.Open(chainDir, executorPath, executorSha256, vk, productionDaWriter, signer)",
                     ["gatewayHostCompositionMerkle"] =
                         "GatewayHostComposition.OpenMerkle(chainDir, proofProver, signer, replayDomain, vk)",
                     ["gatewayHostCompositionMultisig"] =
@@ -452,10 +454,12 @@ public sealed record NeoHubDeployReport(
                     + RelativeGatewayOutboxStoreDir + "); then ConfigureGlobalRootPublication "
                     + "(production proof prover + proof-bound publisher). CreateFromChainDirectory "
                     + "alone loads settings only so UseAggregator is not blocked by an early outbox",
-                    "Zk: state = Sp1SettlementExecutionStack.OpenStateFromChainDirectory(chainDir) "
+                    "Zk: ZkLocalHostComposition.Open(chainDir, executorPath, executorSha256, vk, "
+                    + "daWriter, signer) after bootstrap-genesis — or manually "
+                    + "state = Sp1SettlementExecutionStack.OpenStateFromChainDirectory(chainDir) "
                     + "then CreateFromChainDirectory(chainDir, state, executorPath, executorSha256, vk) "
-                    + "after bootstrap-genesis (ensures prover/executor-scratch + prover/inbox; "
-                    + "state path " + RelativeStateDir + ")",
+                    + "(ensures prover/executor-scratch + prover/inbox; state path "
+                    + RelativeStateDir + "); production DA writer + prove-batch daemon remain funded",
                     "L2SettlementStoreLayout.Open(chainDir) then "
                     + "WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer) "
                     + "— binds ProofWitness + three scanners, static committee hash from "

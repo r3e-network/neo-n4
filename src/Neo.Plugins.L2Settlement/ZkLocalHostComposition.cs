@@ -1,0 +1,237 @@
+using Neo.L2;
+using Neo.L2.Bridge;
+using Neo.L2.ForcedInclusion;
+using Neo.L2.Persistence;
+using Neo.L2.Proving.RiscVZk;
+using Neo.L2.Settlement.Rpc;
+using Neo.L2.Telemetry;
+
+namespace Neo.Plugins.L2;
+
+/// <summary>
+/// Zk host composition root: chain-directory plugins + durable L2 state +
+/// <see cref="Sp1SettlementExecutionStack"/> +
+/// <see cref="L2SettlementPlugin.WireProductionFromLayout"/> + bridge deposit source + metrics.
+/// </summary>
+/// <remarks>
+/// See doc.md §7.3 / §7.5 / §8 / §14.2. Opens Zk settlement without Neo.CLI after
+/// <c>init-l2 --from-deploy-report</c> and <c>bootstrap-genesis</c>. Host-supplied:
+/// reviewed <c>neo-zkvm-executor</c> path + SHA-256 pin, governance-registered verification key,
+/// production <see cref="IDAWriter"/> (L1 / NeoFS — funded credentials), and L1 settlement signer.
+/// The out-of-process <c>prove-batch</c> daemon that drains <c>prover/inbox</c> remains a funded
+/// operator process. Dispose the composition (settlement first) before reopening RocksDB paths.
+/// </remarks>
+public sealed class ZkLocalHostComposition : IDisposable
+{
+    private bool _disposed;
+
+    private ZkLocalHostComposition(
+        string chainDirectory,
+        L2BatchPlugin batch,
+        L2SettlementPlugin settlement,
+        L2SettlementStoreLayout layout,
+        RocksDbKeyValueStore state,
+        Sp1SettlementExecutionStack stack,
+        L2ProverPlugin prover,
+        IProductionDAWriter daWriter,
+        RpcForcedInclusionSource forcedInclusion,
+        L2BridgePlugin bridge,
+        L2MetricsPlugin metrics)
+    {
+        ChainDirectory = chainDirectory;
+        Batch = batch;
+        Settlement = settlement;
+        Layout = layout;
+        State = state;
+        Stack = stack;
+        Prover = prover;
+        DaWriter = daWriter;
+        ForcedInclusion = forcedInclusion;
+        Bridge = bridge;
+        Metrics = metrics;
+    }
+
+    /// <summary>Absolute chain working directory.</summary>
+    public string ChainDirectory { get; }
+
+    /// <summary>Batch plugin with L1 inbox + sealed-batch sink wired.</summary>
+    public L2BatchPlugin Batch { get; }
+
+    /// <summary>Settlement plugin with production WireProduction stack.</summary>
+    public L2SettlementPlugin Settlement { get; }
+
+    /// <summary>Durable settlement RocksDB layout (dispose after Settlement).</summary>
+    public L2SettlementStoreLayout Layout { get; }
+
+    /// <summary>
+    /// Durable L2 state RocksDB at <see cref="Sp1SettlementExecutionStack.RelativeStateDir"/>
+    /// (owned by this composition).
+    /// </summary>
+    public RocksDbKeyValueStore State { get; }
+
+    /// <summary>Bound SP1 executor, file-queue prover, and ZK pipeline profile.</summary>
+    public Sp1SettlementExecutionStack Stack { get; }
+
+    /// <summary>Zk <see cref="Sp1BatchProofProver"/> host (same instance as <see cref="Stack"/>).</summary>
+    public L2ProverPlugin Prover { get; }
+
+    /// <summary>Host-supplied production DA writer (not disposed by this composition).</summary>
+    public IProductionDAWriter DaWriter { get; }
+
+    /// <summary>Forced-inclusion source installed on the batch plugin.</summary>
+    public RpcForcedInclusionSource ForcedInclusion { get; }
+
+    /// <summary>
+    /// Bridge plugin with the same SharedBridge deposit source as the batcher L1 inbox
+    /// when production deposit wiring is active.
+    /// </summary>
+    public L2BridgePlugin Bridge { get; }
+
+    /// <summary>Shared metrics sink host (wired onto batch + settlement + bridge).</summary>
+    public L2MetricsPlugin Metrics { get; }
+
+    /// <summary>
+    /// Open Zk host composition from a chain directory after
+    /// <c>init-l2 --from-deploy-report</c>, <c>bootstrap-genesis</c>, and Zk ProofType config.
+    /// </summary>
+    /// <param name="chainDirectory">Chain root with plugin configs + durable store dirs.</param>
+    /// <param name="executorPath">Reviewed host-native <c>neo-zkvm-executor</c> path.</param>
+    /// <param name="executorSha256">Pinned SHA-256 of that binary (funded release pin).</param>
+    /// <param name="verificationKeyId">Governance-registered SP1 verification key id.</param>
+    /// <param name="daWriter">
+    /// Production DA writer (<see cref="IProductionDAWriter"/> — L1 / NeoFS). Validity public DA
+    /// credentials remain funded; tests inject stubs that implement the production marker.
+    /// </param>
+    /// <param name="signer">L1 settlement transaction signer.</param>
+    /// <param name="rpcHttpClient">Optional HTTP client for L1 JSON-RPC (tests inject mocks).</param>
+    /// <param name="executionTimeout">Optional native executor timeout.</param>
+    /// <param name="proofTimeout">Optional SP1 proof result wait timeout.</param>
+    /// <param name="proofPollInterval">Optional SP1 queue poll interval.</param>
+    public static ZkLocalHostComposition Open(
+        string chainDirectory,
+        string executorPath,
+        ReadOnlyMemory<byte> executorSha256,
+        UInt256 verificationKeyId,
+        IProductionDAWriter daWriter,
+        INeoTransactionSigner signer,
+        HttpClient? rpcHttpClient = null,
+        TimeSpan? executionTimeout = null,
+        TimeSpan? proofTimeout = null,
+        TimeSpan? proofPollInterval = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        ArgumentException.ThrowIfNullOrWhiteSpace(executorPath);
+        ArgumentNullException.ThrowIfNull(verificationKeyId);
+        ArgumentNullException.ThrowIfNull(daWriter);
+        ArgumentNullException.ThrowIfNull(signer);
+
+        var root = Path.GetFullPath(chainDirectory);
+        if (!Directory.Exists(root))
+            throw new DirectoryNotFoundException(
+                $"Chain directory not found: {root}. Run neo-stack init-l2 first.");
+
+        var settlementSettings = L2SettlementSettings.FromChainDirectory(root);
+        if ((ProofType)settlementSettings.ProofType != ProofType.Zk)
+        {
+            throw new InvalidOperationException(
+                $"ZkLocalHostComposition requires settlement ProofType.Zk; "
+                + $"configured {(ProofType)settlementSettings.ProofType}");
+        }
+
+        L2BatchPlugin? batch = null;
+        L2SettlementPlugin? settlement = null;
+        L2SettlementStoreLayout? layout = null;
+        RocksDbKeyValueStore? state = null;
+        L2ProverPlugin? prover = null;
+        L2BridgePlugin? bridge = null;
+        L2MetricsPlugin? metrics = null;
+        try
+        {
+            batch = L2BatchPlugin.CreateFromChainDirectory(root);
+            settlement = L2SettlementPlugin.CreateFromChainDirectory(root);
+            layout = L2SettlementStoreLayout.Open(root);
+            state = Sp1SettlementExecutionStack.OpenStateFromChainDirectory(root);
+            var stack = Sp1SettlementExecutionStack.CreateFromChainDirectory(
+                root,
+                state,
+                executorPath,
+                executorSha256,
+                verificationKeyId,
+                executionTimeout,
+                proofTimeout,
+                proofPollInterval);
+
+            // Bind the same Sp1BatchProofProver instance the stack owns (one queue identity).
+            prover = L2ProverPlugin.CreateFromChainDirectory(root);
+            if (prover.Kind != ProofType.Zk)
+            {
+                throw new InvalidOperationException(
+                    $"ZkLocalHostComposition requires prover ProofType.Zk; "
+                    + $"configured {prover.Kind}");
+            }
+            prover.Wire(zkProver: stack.Prover);
+
+            metrics = L2MetricsPlugin.CreateFromChainDirectory(root);
+            batch.WithMetrics(metrics.Metrics);
+            settlement.WithMetrics(metrics.Metrics);
+
+            var forced = settlement.WireProductionFromLayout(
+                root,
+                layout,
+                batch,
+                stack.Executor,
+                daWriter,
+                prover.Prover
+                    ?? throw new InvalidOperationException("Zk prover Wire did not install IL2Prover"),
+                signer,
+                profile: stack.Profile,
+                rpcHttpClient: rpcHttpClient);
+
+            bridge = L2BridgePlugin.CreateFromChainDirectory(root);
+            bridge.WithMetrics(metrics.Metrics);
+            var deposits = settlement.ProductionComposition?.OwnedDepositSource;
+            if (deposits is not null)
+                bridge.WithDepositSource(deposits);
+
+            return new ZkLocalHostComposition(
+                root,
+                batch,
+                settlement,
+                layout,
+                state,
+                stack,
+                prover,
+                daWriter,
+                forced,
+                bridge,
+                metrics);
+        }
+        catch
+        {
+            settlement?.Dispose();
+            bridge?.Dispose();
+            metrics?.Dispose();
+            prover?.Dispose();
+            batch?.Dispose();
+            layout?.Dispose();
+            state?.Dispose();
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        // Settlement owns production RPC scanners/clients that hold layout store refs.
+        Settlement.Dispose();
+        Bridge.Dispose();
+        Metrics.Dispose();
+        Prover.Dispose();
+        Batch.Dispose();
+        Layout.Dispose();
+        State.Dispose();
+        GC.SuppressFinalize(this);
+    }
+}

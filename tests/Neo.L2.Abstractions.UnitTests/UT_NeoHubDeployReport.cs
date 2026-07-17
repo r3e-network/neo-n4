@@ -162,6 +162,9 @@ public class UT_NeoHubDeployReport
                 "OptimisticLocalHostComposition.Open(chainDir, executor, sequencerKey, bondContract, bondTxHash, signer)",
                 stores.GetProperty("optimisticLocalHostComposition").GetString());
             Assert.AreEqual(
+                "ZkLocalHostComposition.Open(chainDir, executorPath, executorSha256, vk, productionDaWriter, signer)",
+                stores.GetProperty("zkLocalHostComposition").GetString());
+            Assert.AreEqual(
                 "GatewayHostComposition.OpenMerkle(chainDir, proofProver, signer, replayDomain, vk)",
                 stores.GetProperty("gatewayHostCompositionMerkle").GetString());
             Assert.AreEqual(

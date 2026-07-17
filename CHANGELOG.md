@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — ZkLocalHostComposition chain-directory root — 2026-07-17
+
+- `ZkLocalHostComposition.Open` binds bootstrap state, `Sp1SettlementExecutionStack`,
+  Zk-wired prover (same `Sp1BatchProofProver` as the stack), `WireProductionFromLayout` with
+  the SP1 profile, SharedBridge deposit source on the bridge plugin, and metrics.
+- Host-supplied: reviewed `neo-zkvm-executor` path/SHA-256, verification key,
+  `IProductionDAWriter`, and L1 signer. `prove-batch` daemon + real DA credentials remain funded.
+- Wireproduction notes + unit coverage (deploy-report materialization, Multisig fail-closed,
+  missing bootstrap state fail-closed).
+
 ### Evidence — Neo N3 testnet reverify + Deposit nonce 4 — 2026-07-17
 
 - Re-verified the full NeoHub bundle on N3 testnet with operator WIF (env-only):

@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Tested — Neo N3 testnet session7 reverify + SharedBridge deposit n8 — 2026-07-18
+
+- Re-ran `neo-hub-deploy deploy-testnet` (skip-existing): **24/24 deploy reused**,
+  **29/29 postdeploy reused**, **42/42 smoke ok** against magic `894710606`.
+- Live SharedBridge Deposit **nonce 8** HALT (`0xa30e573b…bebc`, 0.001 GAS,
+  `WitnessScope.Global`, Transfer + DepositEnqueued); `getDeposit` confirmed.
+- Evidence: `docs/audit/testnet-deployment-20260718-session7-reverify.json`,
+  `docs/audit/testnet-evidence-status-2026-07-18-session7.json`.
+- WIF only via process env `NEO_N4_TESTNET_WIF` (not committed). Funded gates still open:
+  L1 settle, Zk prove-batch, production DA, 2-of-2 bridge retarget, full Neo.CLI stack.
+
 ### Added — Gateway publication readiness flags on host ops — 2026-07-18
 
 - `L2GatewayPlugin` / `GatewayHostComposition` expose `HasDurableOutbox` and

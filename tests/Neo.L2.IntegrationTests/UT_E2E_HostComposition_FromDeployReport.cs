@@ -341,7 +341,12 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsNotNull(host.Metrics.Metrics);
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);
             Assert.IsTrue(host.Settlement.IsProductionWired);
+            Assert.IsTrue(host.IsProductionWired);
             Assert.IsTrue(host.Batch.HasSealedBatchSink);
+            host.StartMetricsHttp(portOverride: 0);
+            Assert.IsTrue(host.Metrics.BoundPort > 0);
+            Assert.IsNotNull(host.CreateRpcPlugin());
+            Assert.AreEqual(0, host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult());
 
             var gatewayProof = new DelegatingGatewayProofProver(
                 proofSystem: 1,
@@ -411,6 +416,11 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsNotNull(host.Metrics.Metrics);
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);
             Assert.AreEqual(DAMode.L1, host.RpcStore.DAMode);
+            Assert.IsTrue(host.IsProductionWired);
+            host.StartMetricsHttp(portOverride: 0);
+            Assert.IsTrue(host.Metrics.BoundPort > 0);
+            Assert.IsNotNull(host.CreateRpcPlugin());
+            Assert.AreEqual(0, host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult());
 
             // Validity + Gateway SP1 one-shot share the chain directory (no funded daemon traffic).
             var gatewayVk = Hash(0x88);

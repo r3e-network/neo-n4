@@ -89,6 +89,13 @@ public sealed class UT_ZkLocalHostComposition
             Assert.AreEqual(DAMode.L1, host.RpcStore.DAMode);
             Assert.IsTrue(Directory.Exists(Path.Combine(
                 chainDir, Sp1SettlementExecutionStack.RelativeProverQueueDir)));
+            Assert.IsTrue(host.IsProductionWired);
+
+            host.StartMetricsHttp(portOverride: 0);
+            Assert.IsTrue(host.Metrics.BoundPort > 0);
+            var rpcPlugin = host.CreateRpcPlugin();
+            Assert.IsNotNull(rpcPlugin);
+            Assert.IsFalse(rpcPlugin.IsRegistered(894710606));
         }
         finally
         {

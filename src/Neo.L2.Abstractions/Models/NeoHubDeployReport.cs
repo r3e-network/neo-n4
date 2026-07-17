@@ -414,7 +414,8 @@ public sealed record NeoHubDeployReport(
                     ["settlementProductionTransactionSender"] =
                         "L2SettlementPlugin.ProductionTransactionSender after WireProduction",
                     ["localHostSettleHelpers"] =
-                        "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync",
+                        "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
+                        + "PersistAsync / EnqueueAsync",
                     ["localHostStartMetricsHttp"] =
                         "LocalHost.StartMetricsHttp(portOverride?, readiness?) / Open startMetricsHttp",
                     ["localHostCreateRpcPlugin"] =

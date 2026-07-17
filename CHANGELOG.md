@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost Persist/Enqueue helpers + Optimistic/Zk metrics RPC parity — 2026-07-17
+
+- Multisig/Optimistic/Zk LocalHost expose `PersistAsync` / `EnqueueAsync` passthroughs to
+  settlement WireProduction.
+- Optimistic and Zk unit + integration paths exercise deferred `StartMetricsHttp` and
+  `CreateRpcPlugin` (parity with Multisig).
+
 ### Added — LocalHost StartMetricsHttp, CreateRpcPlugin, /metrics E2E — 2026-07-17
 
 - Multisig/Optimistic/Zk LocalHost expose deferred `StartMetricsHttp`,

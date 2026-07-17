@@ -115,6 +115,24 @@ public sealed class ZkLocalHostComposition : IDisposable
         => Settlement.GetPendingCountAsync(cancellationToken);
 
     /// <summary>
+    /// Persist a sealed batch through the durable production settlement path
+    /// (<see cref="L2SettlementPlugin.PersistAsync"/>).
+    /// </summary>
+    public ValueTask<UInt256> PersistAsync(
+        Neo.L2.Batch.SealedBatch batch,
+        CancellationToken cancellationToken = default)
+        => Settlement.PersistAsync(batch, cancellationToken);
+
+    /// <summary>
+    /// Backfill a sealed batch through the same durable path as
+    /// <see cref="PersistAsync"/> (<see cref="L2SettlementPlugin.EnqueueAsync"/>).
+    /// </summary>
+    public ValueTask<UInt256> EnqueueAsync(
+        Neo.L2.Batch.SealedBatch batch,
+        CancellationToken cancellationToken = default)
+        => Settlement.EnqueueAsync(batch, cancellationToken);
+
+    /// <summary>
     /// True after WireProduction installed the production composition
     /// (<see cref="L2SettlementPlugin.IsProductionWired"/>).
     /// </summary>

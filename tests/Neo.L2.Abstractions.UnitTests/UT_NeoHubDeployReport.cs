@@ -184,7 +184,8 @@ public class UT_NeoHubDeployReport
                 "L2SettlementPlugin.ProductionTransactionSender after WireProduction",
                 stores.GetProperty("settlementProductionTransactionSender").GetString());
             Assert.AreEqual(
-                "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync",
+                "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
+                + "PersistAsync / EnqueueAsync",
                 stores.GetProperty("localHostSettleHelpers").GetString());
             Assert.AreEqual(
                 "LocalHost.StartMetricsHttp(portOverride?, readiness?) / Open startMetricsHttp",

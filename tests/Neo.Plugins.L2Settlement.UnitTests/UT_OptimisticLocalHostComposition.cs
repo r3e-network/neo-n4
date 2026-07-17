@@ -69,6 +69,13 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(host.Settlement.IsProductionWired);
             Assert.IsNotNull(host.Settlement.ProductionTransactionSender);
             Assert.AreEqual(0, host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult());
+            Assert.IsTrue(host.IsProductionWired);
+
+            host.StartMetricsHttp(portOverride: 0);
+            Assert.IsTrue(host.Metrics.BoundPort > 0);
+            var rpcPlugin = host.CreateRpcPlugin();
+            Assert.IsNotNull(rpcPlugin);
+            Assert.IsFalse(rpcPlugin.IsRegistered(894710606));
         }
         finally
         {

@@ -99,6 +99,12 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsTrue(Directory.Exists(Path.Combine(
                 chainDir, Sp1SettlementExecutionStack.RelativeProverQueueDir)));
             Assert.IsTrue(host.IsProductionWired);
+            var recovery = host.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(0, recovery.PendingCount);
+            Assert.AreEqual(
+                0,
+                host.GetTrackedForcedInclusionNoncesAsync(20260716u).AsTask().GetAwaiter().GetResult()
+                    .Count);
 
             host.StartMetricsHttp(portOverride: 0);
             Assert.IsTrue(host.IsMetricsHttpListening);

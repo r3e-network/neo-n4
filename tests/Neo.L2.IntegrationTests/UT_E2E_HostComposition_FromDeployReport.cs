@@ -174,15 +174,24 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
 
             // Deferred metrics start (operator path without Open startMetricsHttp flag).
             settlementHost.StartMetricsHttp(portOverride: 0);
-            Assert.IsTrue(settlementHost.Metrics.BoundPort > 0);
+            Assert.IsTrue(settlementHost.IsMetricsHttpListening);
+            Assert.IsTrue(settlementHost.MetricsBoundPort > 0);
             Assert.IsTrue(settlementHost.IsProductionWired);
-            Assert.IsNotNull(settlementHost.Settlement.ProductionForcedInclusionFinalizer);
+            Assert.IsNotNull(settlementHost.ForcedInclusionFinalizer);
+            Assert.IsNotNull(settlementHost.TransactionSender);
+            // Local durable recovery surface (no funded L1 publish).
+            var recovery = settlementHost.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(0, recovery.PendingCount);
+            Assert.AreEqual(
+                0,
+                settlementHost.GetTrackedForcedInclusionNoncesAsync(20260716u).AsTask()
+                    .GetAwaiter().GetResult().Count);
             var rpcPlugin = settlementHost.CreateRpcPlugin();
             Assert.IsNotNull(rpcPlugin);
             using (var httpClient = new HttpClient())
             {
                 var ready = httpClient.GetAsync(
-                    $"http://127.0.0.1:{settlementHost.Metrics.BoundPort}/readyz")
+                    $"http://127.0.0.1:{settlementHost.MetricsBoundPort}/readyz")
                     .GetAwaiter().GetResult();
                 Assert.AreEqual(System.Net.HttpStatusCode.OK, ready.StatusCode);
             }
@@ -206,18 +215,15 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(DAMode.Local, settlementHost.DaWriter.Mode);
             Assert.IsNotNull(settlementHost.ForcedInclusion);
             Assert.AreEqual(20260716u, settlementHost.ForcedInclusion.ChainId);
-            Assert.IsNotNull(settlementHost.Bridge.DepositSource);
+            Assert.IsNotNull(settlementHost.DepositSource);
             Assert.AreEqual(20260716u, settlementHost.Bridge.ChainId);
             Assert.IsNotNull(settlementHost.Metrics.Metrics);
             Assert.AreEqual(20260716u, settlementHost.RpcStore.ChainId);
             Assert.AreEqual(DAMode.Local, settlementHost.RpcStore.DAMode);
-            Assert.IsNotNull(settlementHost.Settlement.ProductionDepositSource);
-            Assert.IsNotNull(settlementHost.Settlement.ProductionMessageRouter);
-            Assert.IsTrue(settlementHost.Settlement.IsProductionWired);
+            Assert.IsNotNull(settlementHost.MessageRouter);
+            Assert.IsTrue(settlementHost.IsProductionWired);
             Assert.IsTrue(settlementHost.Batch.HasSealedBatchSink);
-            Assert.AreSame(
-                settlementHost.Settlement.ProductionDepositSource,
-                settlementHost.Bridge.DepositSource);
+            Assert.AreSame(settlementHost.DepositSource, settlementHost.Bridge.DepositSource);
             Assert.AreSame(
                 settlementHost.ForcedInclusion,
                 settlementHost.Batch.ForcedInclusionSource);
@@ -229,6 +235,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 ((BinaryTreeAggregator)gatewayHost.Gateway.Aggregator).RoundProver.BackendId);
             Assert.IsNotNull(gatewayHost.Publisher);
             Assert.AreSame(gatewayProof, gatewayHost.ProofProver);
+            Assert.IsFalse(gatewayHost.HasPendingPublication);
+            Assert.IsNull(gatewayHost.PendingPublicationEpoch);
+            Assert.IsNotNull(gatewayHost.OutboxStatus);
         }
         finally
         {

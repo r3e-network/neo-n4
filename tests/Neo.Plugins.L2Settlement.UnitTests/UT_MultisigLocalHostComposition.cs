@@ -133,6 +133,13 @@ public sealed class UT_MultisigLocalHostComposition
             await host.SubmitNextAsync();
             Assert.IsTrue(host.IsProductionWired);
 
+            // Recovery helpers that read only durable local stores (no extra L1 RPC).
+            var recovery = await host.GetRecoveryStatusAsync();
+            Assert.AreEqual(0, recovery.PendingCount);
+            Assert.IsNull(recovery.State);
+            var tracked = await host.GetTrackedForcedInclusionNoncesAsync(20260716u);
+            Assert.AreEqual(0, tracked.Count);
+
             var metricsBody = await client.GetStringAsync(
                 $"http://127.0.0.1:{host.MetricsBoundPort}/metrics");
             Assert.IsFalse(string.IsNullOrWhiteSpace(metricsBody));

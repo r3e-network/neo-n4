@@ -196,6 +196,11 @@ public class UT_NeoHubDeployReport
                 + "PersistAsync / EnqueueAsync",
                 stores.GetProperty("localHostSettleHelpers").GetString());
             Assert.AreEqual(
+                "LocalHost.GetRecoveryStatusAsync / RecoverPoisonedBatchAsync / "
+                + "GetTrackedForcedInclusionNoncesAsync / GetLatestCheckpointAsync / "
+                + "GetInitialStateRootAsync",
+                stores.GetProperty("localHostRecoveryHelpers").GetString());
+            Assert.AreEqual(
                 "LocalHost.StartMetricsHttp(portOverride?, readiness?) / Open startMetricsHttp",
                 stores.GetProperty("localHostStartMetricsHttp").GetString());
             Assert.AreEqual(

@@ -1,4 +1,5 @@
 using Neo.L2;
+using Neo.L2.Batch;
 using Neo.L2.Bridge;
 using Neo.L2.ForcedInclusion;
 using Neo.L2.Messaging;
@@ -116,11 +117,54 @@ public sealed class ZkLocalHostComposition : IDisposable
         => Settlement.GetPendingCountAsync(cancellationToken);
 
     /// <summary>
+    /// Read durable pending / retry / poison state
+    /// (<see cref="L2SettlementPlugin.GetRecoveryStatusAsync"/>).
+    /// </summary>
+    public ValueTask<SettlementRecoveryStatus> GetRecoveryStatusAsync(
+        CancellationToken cancellationToken = default)
+        => Settlement.GetRecoveryStatusAsync(cancellationToken);
+
+    /// <summary>
+    /// Reset the exact poisoned batch after operator remediation
+    /// (<see cref="L2SettlementPlugin.RecoverPoisonedBatchAsync"/>).
+    /// </summary>
+    public Task RecoverPoisonedBatchAsync(
+        ulong batchNumber,
+        UInt256 artifactContentHash,
+        CancellationToken cancellationToken = default)
+        => Settlement.RecoverPoisonedBatchAsync(batchNumber, artifactContentHash, cancellationToken);
+
+    /// <summary>
+    /// Forced-inclusion nonces reserved in durable settlement state
+    /// (<see cref="L2SettlementPlugin.GetTrackedForcedInclusionNoncesAsync"/>).
+    /// </summary>
+    public ValueTask<IReadOnlyCollection<ulong>> GetTrackedForcedInclusionNoncesAsync(
+        uint chainId,
+        CancellationToken cancellationToken = default)
+        => Settlement.GetTrackedForcedInclusionNoncesAsync(chainId, cancellationToken);
+
+    /// <summary>
+    /// Latest sealed-batch checkpoint when present
+    /// (<see cref="L2SettlementPlugin.GetLatestCheckpointAsync"/>).
+    /// </summary>
+    public ValueTask<SealedBatchCheckpoint?> GetLatestCheckpointAsync(
+        CancellationToken cancellationToken = default)
+        => Settlement.GetLatestCheckpointAsync(cancellationToken);
+
+    /// <summary>
+    /// Pipeline initial state root (genesis / last finalized)
+    /// (<see cref="L2SettlementPlugin.GetInitialStateRootAsync"/>).
+    /// </summary>
+    public ValueTask<UInt256> GetInitialStateRootAsync(
+        CancellationToken cancellationToken = default)
+        => Settlement.GetInitialStateRootAsync(cancellationToken);
+
+    /// <summary>
     /// Persist a sealed batch through the durable production settlement path
     /// (<see cref="L2SettlementPlugin.PersistAsync"/>).
     /// </summary>
     public ValueTask<UInt256> PersistAsync(
-        Neo.L2.Batch.SealedBatch batch,
+        SealedBatch batch,
         CancellationToken cancellationToken = default)
         => Settlement.PersistAsync(batch, cancellationToken);
 
@@ -129,7 +173,7 @@ public sealed class ZkLocalHostComposition : IDisposable
     /// <see cref="PersistAsync"/> (<see cref="L2SettlementPlugin.EnqueueAsync"/>).
     /// </summary>
     public ValueTask<UInt256> EnqueueAsync(
-        Neo.L2.Batch.SealedBatch batch,
+        SealedBatch batch,
         CancellationToken cancellationToken = default)
         => Settlement.EnqueueAsync(batch, cancellationToken);
 

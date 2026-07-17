@@ -422,6 +422,10 @@ public sealed record NeoHubDeployReport(
                     ["localHostSettleHelpers"] =
                         "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                         + "PersistAsync / EnqueueAsync",
+                    ["localHostRecoveryHelpers"] =
+                        "LocalHost.GetRecoveryStatusAsync / RecoverPoisonedBatchAsync / "
+                        + "GetTrackedForcedInclusionNoncesAsync / GetLatestCheckpointAsync / "
+                        + "GetInitialStateRootAsync",
                     ["localHostStartMetricsHttp"] =
                         "LocalHost.StartMetricsHttp(portOverride?, readiness?) / Open startMetricsHttp",
                     ["localHostCreateRpcPlugin"] =

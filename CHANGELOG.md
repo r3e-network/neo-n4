@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost settlement recovery/checkpoint helpers — 2026-07-17
+
+- Multisig/Optimistic/Zk LocalHost expose durable settlement ops without Neo.CLI:
+  `GetRecoveryStatusAsync`, `RecoverPoisonedBatchAsync`,
+  `GetTrackedForcedInclusionNoncesAsync`, `GetLatestCheckpointAsync`,
+  `GetInitialStateRootAsync`.
+- Wireproduction notes document the recovery surface. Unit + Multisig/Gateway
+  integration coverage on empty durable store (no funded L1).
+
 ### Added — LocalHost production surfaces + GatewayHost ops helpers — 2026-07-17
 
 - Multisig/Optimistic/Zk LocalHost expose production WireProduction surfaces without

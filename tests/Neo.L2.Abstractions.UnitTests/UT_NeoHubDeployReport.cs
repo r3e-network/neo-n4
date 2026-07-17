@@ -193,13 +193,18 @@ public class UT_NeoHubDeployReport
                 stores.GetProperty("localHostProductionSurfaces").GetString());
             Assert.AreEqual(
                 "LocalHost.ChainId / ProofType / DaMode / HasSealedBatchSink / "
-                + "IsOperatorReady / PeekSharedBridgeDeposits / GetOperatorStatusAsync",
+                + "NextExpectedBlock / ProcessCommittedBlock / IsOperatorReady / "
+                + "PeekSharedBridgeDeposits / GetOperatorStatusAsync",
                 stores.GetProperty("localHostReadiness").GetString());
             Assert.AreEqual(
-                "LocalHost.GetLatestRpcStateRoot / AddRpcBatch / FinalizeRpcBatch / "
-                + "RecordRpcDeposit / GetRpcL1DepositStatus / GetRpcBatch / GetRpcBatchStatus / "
-                + "RegisterRpcAsset / GetRpcCanonicalAsset / GetRpcBridgedAsset / "
-                + "RecordRpcWithdrawalProof / RecordRpcMessageProof / "
+                "LocalHost.NextExpectedBlock / ProcessCommittedBlock "
+                + "(L2BatchPlugin public hand-off without Neo.CLI)",
+                stores.GetProperty("localHostBatcherHelpers").GetString());
+            Assert.AreEqual(
+                "LocalHost.GetLatestRpcStateRoot / GetRpcStateRootAtBatch / AddRpcBatch / "
+                + "FinalizeRpcBatch / RecordRpcDeposit / GetRpcL1DepositStatus / GetRpcBatch / "
+                + "GetRpcBatchStatus / RegisterRpcAsset / GetRpcCanonicalAsset / "
+                + "GetRpcBridgedAsset / RecordRpcWithdrawalProof / RecordRpcMessageProof / "
                 + "GetRpcWithdrawalProof / GetRpcMessageProof",
                 stores.GetProperty("localHostRpcStoreHelpers").GetString());
             Assert.AreEqual(
@@ -276,7 +281,7 @@ public class UT_NeoHubDeployReport
                 + "WritePrometheusMetricsAsync",
                 stores.GetProperty("gatewayHostOpsHelpers").GetString());
             Assert.AreEqual(
-                "L2BatchPlugin.CreateFromChainDirectory(chainDirectory)",
+                "L2BatchPlugin.CreateFromChainDirectory / NextExpectedBlock / ProcessCommittedBlock",
                 stores.GetProperty("batchPluginFactory").GetString());
             Assert.AreEqual(
                 "L2SettlementPlugin.CreateFromChainDirectory(chainDirectory)",

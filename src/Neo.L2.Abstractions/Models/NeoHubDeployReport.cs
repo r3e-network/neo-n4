@@ -346,7 +346,8 @@ public sealed record NeoHubDeployReport(
                     ["messageRouterEventStore"] = RelativeMessageRouterEventStoreDir,
                     ["localDaStore"] = RelativeLocalDaStoreDir,
                     ["openHelper"] = "L2SettlementStoreLayout.Open(chainDirectory)",
-                    ["batchPluginFactory"] = "L2BatchPlugin.CreateFromChainDirectory(chainDirectory)",
+                    ["batchPluginFactory"] =
+                        "L2BatchPlugin.CreateFromChainDirectory / NextExpectedBlock / ProcessCommittedBlock",
                     ["settlementPluginFactory"] = "L2SettlementPlugin.CreateFromChainDirectory(chainDirectory)",
                     ["bridgePluginFactory"] = "L2BridgePlugin.CreateFromChainDirectory(chainDirectory)",
                     ["proverPluginFactory"] = "L2ProverPlugin.CreateFromChainDirectory(chainDirectory)",
@@ -421,12 +422,16 @@ public sealed record NeoHubDeployReport(
                         + "SettlementClient / TransactionSender / MetricsBoundPort / IsMetricsHttpListening",
                     ["localHostReadiness"] =
                         "LocalHost.ChainId / ProofType / DaMode / HasSealedBatchSink / "
-                        + "IsOperatorReady / PeekSharedBridgeDeposits / GetOperatorStatusAsync",
+                        + "NextExpectedBlock / ProcessCommittedBlock / IsOperatorReady / "
+                        + "PeekSharedBridgeDeposits / GetOperatorStatusAsync",
+                    ["localHostBatcherHelpers"] =
+                        "LocalHost.NextExpectedBlock / ProcessCommittedBlock "
+                        + "(L2BatchPlugin public hand-off without Neo.CLI)",
                     ["localHostRpcStoreHelpers"] =
-                        "LocalHost.GetLatestRpcStateRoot / AddRpcBatch / FinalizeRpcBatch / "
-                        + "RecordRpcDeposit / GetRpcL1DepositStatus / GetRpcBatch / GetRpcBatchStatus / "
-                        + "RegisterRpcAsset / GetRpcCanonicalAsset / GetRpcBridgedAsset / "
-                        + "RecordRpcWithdrawalProof / RecordRpcMessageProof / "
+                        "LocalHost.GetLatestRpcStateRoot / GetRpcStateRootAtBatch / AddRpcBatch / "
+                        + "FinalizeRpcBatch / RecordRpcDeposit / GetRpcL1DepositStatus / GetRpcBatch / "
+                        + "GetRpcBatchStatus / RegisterRpcAsset / GetRpcCanonicalAsset / "
+                        + "GetRpcBridgedAsset / RecordRpcWithdrawalProof / RecordRpcMessageProof / "
                         + "GetRpcWithdrawalProof / GetRpcMessageProof",
                     ["localHostMessageRouterHelpers"] =
                         "LocalHost.MessageOutbox / EnqueueOutboundMessagesAsync / "

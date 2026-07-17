@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost offline ProcessCommittedBlock batcher hand-off — 2026-07-17
+
+- `L2BatchPlugin.ProcessCommittedBlock` is public (host/offline composition without Neo.CLI
+  `Blockchain.Committed`) plus `NextExpectedBlock`.
+- Multisig/Optimistic/Zk LocalHost wrap both helpers; add `GetRpcStateRootAtBatch`.
+- Wireproduction notes, init-l2 batch tip, unit/integration coverage; no wire/ABI change.
+- Sealing still requires a real executor when MaxBlocks/tx thresholds trip (funded/host binary).
+
 ### Added — LocalHost deposit scan helpers + Gateway status metrics — 2026-07-17
 
 - Multisig/Optimistic/Zk LocalHost expose deposit inbox ops without Neo.CLI:

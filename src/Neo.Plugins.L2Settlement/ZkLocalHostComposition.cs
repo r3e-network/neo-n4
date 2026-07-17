@@ -202,6 +202,23 @@ public sealed class ZkLocalHostComposition : IDisposable
     public bool HasSealedBatchSink => Batch.HasSealedBatchSink;
 
     /// <summary>
+    /// Next L2 block index the batcher expects
+    /// (<see cref="L2BatchPlugin.NextExpectedBlock"/>).
+    /// </summary>
+    public ulong? NextExpectedBlock => Batch.NextExpectedBlock;
+
+    /// <summary>
+    /// Feed one committed L2 block into the durable batcher hand-off without Neo.CLI
+    /// (<see cref="L2BatchPlugin.ProcessCommittedBlock"/>).
+    /// </summary>
+    public void ProcessCommittedBlock(
+        uint blockIndex,
+        ulong blockTimestamp,
+        uint network,
+        IEnumerable<byte[]> rawTransactions)
+        => Batch.ProcessCommittedBlock(blockIndex, blockTimestamp, network, rawTransactions);
+
+    /// <summary>
     /// Operator readiness without Neo.CLI: production WireProduction + sealed-batch sink.
     /// Matches the default LocalHost <c>/readyz</c> predicate.
     /// </summary>
@@ -299,6 +316,13 @@ public sealed class ZkLocalHostComposition : IDisposable
     /// (<see cref="InMemoryL2RpcStore.GetLatestStateRoot"/>).
     /// </summary>
     public UInt256 GetLatestRpcStateRoot() => RpcStore.GetLatestStateRoot();
+
+    /// <summary>
+    /// State root at a finalized RPC batch number
+    /// (<see cref="InMemoryL2RpcStore.GetStateRootAtBatch"/>).
+    /// </summary>
+    public UInt256 GetRpcStateRootAtBatch(ulong batchNumber)
+        => RpcStore.GetStateRootAtBatch(batchNumber);
 
     /// <summary>
     /// Record a sealed batch into the host RPC store for L2 RPC without Neo.CLI

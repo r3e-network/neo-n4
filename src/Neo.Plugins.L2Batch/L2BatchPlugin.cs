@@ -173,6 +173,12 @@ public sealed class L2BatchPlugin : Plugin
     public bool HasSealedBatchSink => _sink is not null;
 
     /// <summary>
+    /// Next L2 block index required for a continuous hand-off after
+    /// <see cref="WithSealedBatchSink"/>, or null when the sealer is not yet restored.
+    /// </summary>
+    public ulong? NextExpectedBlock => _sealer?.NextExpectedBlock;
+
+    /// <summary>
     /// Wire the L1 forced-inclusion read source. The durable settlement sink remains the
     /// reservation source of truth; this method never calls
     /// <see cref="IForcedInclusionSource.ConfirmConsumedAsync"/>.
@@ -343,13 +349,14 @@ public sealed class L2BatchPlugin : Plugin
     }
 
     /// <summary>
-    /// Process one committed block through the durable pending/persist/ack hand-off.
+    /// Process one committed L2 block through the durable pending/persist/ack hand-off
+    /// without Neo.CLI <c>Blockchain.Committed</c> (host/offline composition).
     /// </summary>
     /// <remarks>
-    /// Internal for deterministic recovery tests. A pending sealed batch is retried and
-    /// acknowledged before this method accepts a later block.
+    /// See doc.md §7.2. A pending sealed batch is retried and acknowledged before this
+    /// method accepts a later block. Requires <see cref="WithSealedBatchSink"/>.
     /// </remarks>
-    internal void ProcessCommittedBlock(
+    public void ProcessCommittedBlock(
         uint blockIndex,
         ulong blockTimestamp,
         uint network,

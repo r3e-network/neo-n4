@@ -78,6 +78,10 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreSame(host.ForcedInclusion, host.Batch.ForcedInclusionSource);
             Assert.IsTrue(host.Batch.HasSealedBatchSink);
             Assert.IsTrue(host.HasSealedBatchSink);
+            Assert.AreEqual(1UL, host.NextExpectedBlock);
+            Assert.AreEqual(host.Batch.NextExpectedBlock, host.NextExpectedBlock);
+            // ProcessCommittedBlock is public on L2BatchPlugin/LocalHost; first-block drain hits
+            // L1 FI/deposit scanners (funded). Full hand-off covered by L2BatchPlugin unit tests.
             Assert.IsTrue(host.Settlement.IsProductionWired);
             Assert.IsTrue(host.IsProductionWired);
             Assert.IsTrue(host.IsOperatorReady);
@@ -128,6 +132,7 @@ public sealed class UT_MultisigLocalHostComposition
             host.FinalizeRpcBatch(1);
             Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(1));
             Assert.AreEqual(root, host.GetLatestRpcStateRoot());
+            Assert.AreEqual(root, host.GetRpcStateRootAtBatch(1));
             host.RecordRpcDeposit(new DepositStatus(20260716u, 1, ConsumedOnL2: false, IncludedInBatch: null));
             Assert.IsNotNull(host.GetRpcL1DepositStatus(20260716u, 1));
             var l1Asset = UInt160.Parse("0x" + new string('a', 40));

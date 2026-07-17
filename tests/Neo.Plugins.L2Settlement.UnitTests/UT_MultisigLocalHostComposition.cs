@@ -74,8 +74,14 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreSame(host.Settlement.ProductionMessageRouter, host.Batch.MessageRouter);
             Assert.AreSame(host.ForcedInclusion, host.Batch.ForcedInclusionSource);
             Assert.IsTrue(host.Batch.HasSealedBatchSink);
+            Assert.IsTrue(host.HasSealedBatchSink);
             Assert.IsTrue(host.Settlement.IsProductionWired);
             Assert.IsTrue(host.IsProductionWired);
+            Assert.IsTrue(host.IsOperatorReady);
+            Assert.AreEqual(20260716u, host.ChainId);
+            Assert.AreEqual(ProofType.Multisig, host.ProofType);
+            Assert.AreEqual(DAMode.Local, host.DaMode);
+            Assert.AreEqual(0, host.PeekSharedBridgeDeposits(8).Count);
             Assert.IsNotNull(host.Metrics.Metrics);
             Assert.AreEqual(0, host.Metrics.BoundPort); // HTTP not started by default
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);

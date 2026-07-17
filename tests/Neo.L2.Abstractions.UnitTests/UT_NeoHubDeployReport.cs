@@ -192,6 +192,10 @@ public class UT_NeoHubDeployReport
                 + "SettlementClient / TransactionSender / MetricsBoundPort / IsMetricsHttpListening",
                 stores.GetProperty("localHostProductionSurfaces").GetString());
             Assert.AreEqual(
+                "LocalHost.ChainId / ProofType / DaMode / HasSealedBatchSink / "
+                + "IsOperatorReady / PeekSharedBridgeDeposits",
+                stores.GetProperty("localHostReadiness").GetString());
+            Assert.AreEqual(
                 "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                 + "PersistAsync / EnqueueAsync",
                 stores.GetProperty("localHostSettleHelpers").GetString());

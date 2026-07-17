@@ -419,6 +419,9 @@ public sealed record NeoHubDeployReport(
                     ["localHostProductionSurfaces"] =
                         "LocalHost.DepositSource / MessageRouter / ForcedInclusionFinalizer / "
                         + "SettlementClient / TransactionSender / MetricsBoundPort / IsMetricsHttpListening",
+                    ["localHostReadiness"] =
+                        "LocalHost.ChainId / ProofType / DaMode / HasSealedBatchSink / "
+                        + "IsOperatorReady / PeekSharedBridgeDeposits",
                     ["localHostSettleHelpers"] =
                         "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                         + "PersistAsync / EnqueueAsync",

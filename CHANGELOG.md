@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost readiness + deposit peek surface — 2026-07-17
+
+- Multisig/Optimistic/Zk LocalHost expose operator readiness without Neo.CLI:
+  `ChainId`, `ProofType`, `DaMode`, `HasSealedBatchSink`, `IsOperatorReady`
+  (wired + sealed sink), and `PeekSharedBridgeDeposits` (non-mutating inbox view).
+- Wireproduction notes document the readiness surface. Unit + Multisig/Gateway
+  integration coverage on empty deposit queue.
+
 ### Added — LocalHost settlement recovery/checkpoint helpers — 2026-07-17
 
 - Multisig/Optimistic/Zk LocalHost expose durable settlement ops without Neo.CLI:

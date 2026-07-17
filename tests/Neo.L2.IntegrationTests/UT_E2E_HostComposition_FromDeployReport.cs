@@ -177,6 +177,12 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(settlementHost.IsMetricsHttpListening);
             Assert.IsTrue(settlementHost.MetricsBoundPort > 0);
             Assert.IsTrue(settlementHost.IsProductionWired);
+            Assert.IsTrue(settlementHost.IsOperatorReady);
+            Assert.IsTrue(settlementHost.HasSealedBatchSink);
+            Assert.AreEqual(20260716u, settlementHost.ChainId);
+            Assert.AreEqual(ProofType.Multisig, settlementHost.ProofType);
+            Assert.AreEqual(DAMode.Local, settlementHost.DaMode);
+            Assert.AreEqual(0, settlementHost.PeekSharedBridgeDeposits(8).Count);
             Assert.IsNotNull(settlementHost.ForcedInclusionFinalizer);
             Assert.IsNotNull(settlementHost.TransactionSender);
             // Local durable recovery surface (no funded L1 publish).

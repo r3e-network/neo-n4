@@ -184,6 +184,37 @@ public sealed class ZkLocalHostComposition : IDisposable
     public bool IsProductionWired => Settlement.IsProductionWired;
 
     /// <summary>
+    /// L2 chain id from the wired bridge / forced-inclusion inbox
+    /// (<see cref="L2BridgePlugin.ChainId"/>).
+    /// </summary>
+    public uint ChainId => Bridge.ChainId;
+
+    /// <summary>Configured proof type of the wired prover host.</summary>
+    public ProofType ProofType => Prover.Kind;
+
+    /// <summary>Production DA mode of the host-supplied DA writer.</summary>
+    public DAMode DaMode => DaWriter.Mode;
+
+    /// <summary>
+    /// True when WireProduction installed the sealed-batch sink on the batcher
+    /// (<see cref="L2BatchPlugin.HasSealedBatchSink"/>).
+    /// </summary>
+    public bool HasSealedBatchSink => Batch.HasSealedBatchSink;
+
+    /// <summary>
+    /// Operator readiness without Neo.CLI: production WireProduction + sealed-batch sink.
+    /// Matches the default LocalHost <c>/readyz</c> predicate.
+    /// </summary>
+    public bool IsOperatorReady => IsProductionWired && HasSealedBatchSink;
+
+    /// <summary>
+    /// Non-mutating view of ready SharedBridge deposits
+    /// (<see cref="L2BridgePlugin.PeekSharedBridgeDeposits"/>).
+    /// </summary>
+    public IReadOnlyList<CrossChainMessage> PeekSharedBridgeDeposits(int maxMessages)
+        => Bridge.PeekSharedBridgeDeposits(maxMessages);
+
+    /// <summary>
     /// Production SharedBridge deposit source after WireProduction (same instance as
     /// <see cref="L2BatchPlugin.DepositSource"/> / <see cref="L2BridgePlugin.DepositSource"/>).
     /// </summary>

@@ -89,6 +89,7 @@ public sealed class UT_ZkLocalHostComposition
             Assert.AreSame(host.Settlement.ProductionMessageRouter, host.Batch.MessageRouter);
             Assert.AreSame(host.ForcedInclusion, host.Batch.ForcedInclusionSource);
             Assert.IsTrue(host.Batch.HasSealedBatchSink);
+            Assert.IsTrue(host.HasSealedBatchSink);
             Assert.IsTrue(host.Settlement.IsProductionWired);
             Assert.IsNotNull(host.Settlement.ProductionTransactionSender);
             Assert.IsNotNull(host.Metrics.Metrics);
@@ -99,6 +100,11 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsTrue(Directory.Exists(Path.Combine(
                 chainDir, Sp1SettlementExecutionStack.RelativeProverQueueDir)));
             Assert.IsTrue(host.IsProductionWired);
+            Assert.IsTrue(host.IsOperatorReady);
+            Assert.AreEqual(20260716u, host.ChainId);
+            Assert.AreEqual(ProofType.Zk, host.ProofType);
+            Assert.AreEqual(DAMode.L1, host.DaMode);
+            Assert.AreEqual(0, host.PeekSharedBridgeDeposits(8).Count);
             var recovery = host.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(0, recovery.PendingCount);
             Assert.AreEqual(

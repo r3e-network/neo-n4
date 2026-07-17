@@ -77,10 +77,16 @@ public sealed class UT_OptimisticLocalHostComposition
             }
             Assert.AreSame(host.ForcedInclusion, host.Batch.ForcedInclusionSource);
             Assert.IsTrue(host.Batch.HasSealedBatchSink);
+            Assert.IsTrue(host.HasSealedBatchSink);
             Assert.IsTrue(host.Settlement.IsProductionWired);
             Assert.IsNotNull(host.Settlement.ProductionTransactionSender);
             Assert.AreEqual(0, host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult());
             Assert.IsTrue(host.IsProductionWired);
+            Assert.IsTrue(host.IsOperatorReady);
+            Assert.AreEqual(20260716u, host.ChainId);
+            Assert.AreEqual(ProofType.Optimistic, host.ProofType);
+            Assert.AreEqual(DAMode.Local, host.DaMode);
+            Assert.AreEqual(0, host.PeekSharedBridgeDeposits(8).Count);
             var recovery = host.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(0, recovery.PendingCount);
             Assert.AreEqual(

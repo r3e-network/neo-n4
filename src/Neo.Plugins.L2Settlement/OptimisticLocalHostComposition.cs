@@ -145,13 +145,14 @@ public sealed class OptimisticLocalHostComposition : IDisposable
             metrics = L2MetricsPlugin.CreateFromChainDirectory(root);
             batch.WithMetrics(metrics.Metrics);
             settlement.WithMetrics(metrics.Metrics);
+            IDAWriter instrumentedDa = new MetricsEmittingDAWriter(daWriter, metrics.Metrics);
 
             var forced = settlement.WireProductionFromLayout(
                 root,
                 layout,
                 batch,
                 executor,
-                daWriter,
+                instrumentedDa,
                 prover.Prover
                     ?? throw new InvalidOperationException("Optimistic prover Wire did not install IL2Prover"),
                 signer,

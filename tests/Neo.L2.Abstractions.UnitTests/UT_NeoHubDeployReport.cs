@@ -153,6 +153,9 @@ public class UT_NeoHubDeployReport
                 "PersistentDAWriter.OpenLocalFromChainDirectory(chainDirectory)",
                 stores.GetProperty("localDaOpenHelper").GetString());
             Assert.AreEqual(
+                "MetricsEmittingDAWriter / MetricsEmittingProductionDAWriter (LocalHost Open)",
+                stores.GetProperty("daMetricsWrap").GetString());
+            Assert.AreEqual(
                 "L2SettlementPlugin.WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer)",
                 stores.GetProperty("wireProductionFromLayout").GetString());
             Assert.AreEqual(

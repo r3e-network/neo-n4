@@ -414,6 +414,8 @@ public sealed record NeoHubDeployReport(
                     ["gatewayHostCompositionSp1"] =
                         "GatewayHostComposition.OpenSp1(chainDir, gatewayVk, signer, replayDomain, vk)",
                     ["localDaOpenHelper"] = "PersistentDAWriter.OpenLocalFromChainDirectory(chainDirectory)",
+                    ["daMetricsWrap"] =
+                        "MetricsEmittingDAWriter / MetricsEmittingProductionDAWriter (LocalHost Open)",
                     ["depositSourceFromChainDirectory"] =
                         "L2SettlementPlugin.CreateDepositSourceFromChainDirectory(chainDirectory)",
                     ["depositSourceOpenHelper"] =

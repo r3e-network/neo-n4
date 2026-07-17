@@ -142,13 +142,15 @@ public sealed class MultisigLocalHostComposition : IDisposable
             metrics = L2MetricsPlugin.CreateFromChainDirectory(root);
             batch.WithMetrics(metrics.Metrics);
             settlement.WithMetrics(metrics.Metrics);
+            // Local DA publishes through the same l2.da.* counters as L2DAPlugin.WithMetrics.
+            IDAWriter instrumentedDa = new MetricsEmittingDAWriter(daWriter, metrics.Metrics);
 
             var forced = settlement.WireProductionFromLayout(
                 root,
                 layout,
                 batch,
                 executor,
-                daWriter,
+                instrumentedDa,
                 prover.Prover
                     ?? throw new InvalidOperationException("Multisig prover Wire did not install IL2Prover"),
                 signer,

@@ -163,6 +163,43 @@ public class UT_MetricsEmittingDAWriter
         Assert.AreEqual(0, metrics.GetCounter(MetricNames.DAPublished, ("mode", "NeoFS")));
     }
 
+    [TestMethod]
+    public async Task ProductionWrapper_PreservesIProductionDAWriter_AndEmitsMetrics()
+    {
+        var inner = new StubProductionDaWriter();
+        var metrics = new InMemoryMetrics();
+        IProductionDAWriter decorated = new MetricsEmittingProductionDAWriter(inner, metrics);
+
+        Assert.IsInstanceOfType(decorated, typeof(IProductionDAWriter));
+        var receipt = await decorated.PublishAsync(BuildRequest(1, new byte[] { 0x01 }));
+        Assert.AreEqual(DAMode.L1, receipt.Layer);
+        Assert.AreEqual(1, metrics.GetCounter(MetricNames.DAPublished, ("mode", "L1")));
+        Assert.AreEqual(1, metrics.GetHistogram(MetricNames.DAPublishLatencyMs, ("mode", "L1")).Count);
+    }
+
+    private sealed class StubProductionDaWriter : IProductionDAWriter
+    {
+        public DAMode Mode => DAMode.L1;
+        public DAReceiptKind ReceiptKind => DAReceiptKind.L1Transaction;
+
+        public ValueTask<DAReceipt> PublishAsync(
+            DAPublishRequest request,
+            CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(new DAReceipt
+            {
+                Commitment = new UInt256(Neo.Cryptography.Crypto.Hash256(request.Payload.Span)),
+                Pointer = new byte[] { 0x70 },
+                Evidence = new byte[] { 0x65 },
+                Kind = ReceiptKind,
+                Layer = Mode,
+            });
+
+        public ValueTask<bool> IsAvailableAsync(
+            DAReceipt receipt,
+            CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(true);
+    }
+
     private sealed class MalformedWriter : IDAWriter
     {
         public DAMode Mode => DAMode.NeoFS;

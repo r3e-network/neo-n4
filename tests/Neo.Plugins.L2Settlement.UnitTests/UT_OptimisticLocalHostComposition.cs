@@ -60,7 +60,10 @@ public sealed class UT_OptimisticLocalHostComposition
                 Assert.AreSame(
                     host.Settlement.ProductionDepositSource,
                     host.Bridge.DepositSource);
+                Assert.AreSame(host.Settlement.ProductionDepositSource, host.Batch.DepositSource);
             }
+            if (host.Settlement.ProductionMessageRouter is not null)
+                Assert.AreSame(host.Settlement.ProductionMessageRouter, host.Batch.MessageRouter);
         }
         finally
         {

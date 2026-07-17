@@ -58,6 +58,9 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreSame(
                 host.Settlement.ProductionDepositSource,
                 host.Bridge.DepositSource);
+            // WireProduction installs the L1 inbox on the batcher.
+            Assert.AreSame(host.Settlement.ProductionDepositSource, host.Batch.DepositSource);
+            Assert.AreSame(host.Settlement.ProductionMessageRouter, host.Batch.MessageRouter);
             Assert.IsNotNull(host.Metrics.Metrics);
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);
             Assert.AreEqual(DAMode.Local, host.RpcStore.DAMode);

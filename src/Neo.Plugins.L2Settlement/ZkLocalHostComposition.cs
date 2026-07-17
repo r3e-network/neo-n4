@@ -188,13 +188,16 @@ public sealed class ZkLocalHostComposition : IDisposable
             metrics = L2MetricsPlugin.CreateFromChainDirectory(root);
             batch.WithMetrics(metrics.Metrics);
             settlement.WithMetrics(metrics.Metrics);
+            // Keep IProductionDAWriter for RequireProductionDA; still emit l2.da.* metrics.
+            IProductionDAWriter instrumentedDa =
+                new MetricsEmittingProductionDAWriter(daWriter, metrics.Metrics);
 
             var forced = settlement.WireProductionFromLayout(
                 root,
                 layout,
                 batch,
                 stack.Executor,
-                daWriter,
+                instrumentedDa,
                 prover.Prover
                     ?? throw new InvalidOperationException("Zk prover Wire did not install IL2Prover"),
                 signer,

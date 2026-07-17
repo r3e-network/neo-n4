@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost DA metrics wrap + batch inbox assertions — 2026-07-17
+
+- Multisig/Optimistic LocalHost compositions publish local DA through
+  `MetricsEmittingDAWriter` so `l2.da.*` counters match L2DAPlugin.WithMetrics.
+- Zk LocalHost wraps host `IProductionDAWriter` with
+  `MetricsEmittingProductionDAWriter` (keeps production marker for RequireProductionDA).
+- Unit tests assert WireProduction installs deposit + MessageRouter on the batcher.
+
 ### Added — Public WireProduction deposit/router accessors + Gateway Multisig/Sp1 E2E — 2026-07-17
 
 - `L2SettlementPlugin` exposes production-owned surfaces after WireProduction:

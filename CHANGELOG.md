@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Evidence — Neo N3 testnet session5 reverify + Deposit nonce 6 — 2026-07-17
+
+- Re-ran `neo-hub-deploy deploy-testnet` with skip-existing: 24/24 deploy reused,
+  29/29 postdeploy reused, 42/42 smoke ok against `https://n3seed1.ngd.network:20332/`
+  (network magic `894710606`, chain `20260716`).
+- Live SharedBridge Deposit nonce 6: tx `0x55ccf7b1…61cd` HALT with Transfer +
+  DepositEnqueued; `getDeposit` confirmed on fixed bridge `0xf64548c2…1bae`.
+- Confirmed chain isActive, ForcedInclusion production-ready + entry nonce 1,
+  TokenRegistry GAS+NEO active for chain 20260716; create-chain zk-rollup +
+  `init-l2 --from-deploy-report` session5 reverify ok.
+- Evidence: `docs/audit/testnet-deployment-20260717-session5-reverify.json`,
+  `docs/audit/testnet-evidence-status-2026-07-17-session5.json`.
+- WIF via env only (`NEO_N4_TESTNET_WIF`); not written to repo.
+
 ### Added — LocalHost WriteOperatorStatusAsync + withdrawal/outbox E2E — 2026-07-17
 
 - Multisig/Optimistic/Zk LocalHost expose `WriteOperatorStatusAsync(path)` writing

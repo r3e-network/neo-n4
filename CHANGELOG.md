@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost deposit scan helpers + Gateway status metrics — 2026-07-17
+
+- Multisig/Optimistic/Zk LocalHost expose deposit inbox ops without Neo.CLI:
+  `ScanSharedBridgeDepositsAsync`, `ScanAndProcessReadyDepositsAsync`, and
+  `HasOverdueForcedInclusionAsync` (live L1 discovery remains a funded RPC gate).
+- `GatewayHostOperatorStatus` / document add `HasMetrics` + `MetricsEntryCount`.
+- Wireproduction notes, init-l2 tip, unit/integration coverage; no wire/ABI change.
+
 ### Added — Gateway Prometheus export + LocalHost ProcessReadyDeposits — 2026-07-17
 
 - `GatewayHostComposition` retains optional `Metrics` and exposes

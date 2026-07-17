@@ -239,6 +239,8 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "RegisterBridgeAsset");
         StringAssert.Contains(output, "ProcessDeposit");
         StringAssert.Contains(output, "ProcessReadyDeposits");
+        StringAssert.Contains(output, "ScanAndProcessReadyDepositsAsync");
+        StringAssert.Contains(output, "HasOverdueForcedInclusionAsync");
         StringAssert.Contains(output, "StageWithdrawal");
         StringAssert.Contains(output, "ProveAsync");
         StringAssert.Contains(output, "WriteOperatorStatusAsync");

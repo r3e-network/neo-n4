@@ -442,8 +442,11 @@ public sealed record NeoHubDeployReport(
                         "LocalHost.BridgeAssetRegistry / RegisterBridgeAsset / "
                         + "SnapshotBridgeAssets / BridgeAssetCount",
                     ["localHostBridgeProcessors"] =
-                        "LocalHost.ProcessDeposit / ProcessReadyDeposits / HasConsumedDeposit / "
+                        "LocalHost.ProcessDeposit / ProcessReadyDeposits / ScanSharedBridgeDepositsAsync / "
+                        + "ScanAndProcessReadyDepositsAsync / HasConsumedDeposit / "
                         + "StageWithdrawal / StagedWithdrawalCount / SealWithdrawalBatch / ProveAsync",
+                    ["localHostForcedInclusionOverdue"] =
+                        "LocalHost.HasOverdueForcedInclusionAsync(nowUnixSeconds)",
                     ["localHostWriteOperatorStatus"] =
                         "LocalHost.WriteOperatorStatusAsync(path) → LocalHostOperatorStatusDocument JSON",
                     ["localHostWritePrometheusMetrics"] =

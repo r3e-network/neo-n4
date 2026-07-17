@@ -201,6 +201,41 @@ public sealed class MultisigLocalHostComposition : IDisposable
         => Bridge.PeekSharedBridgeDeposits(maxMessages);
 
     /// <summary>
+    /// Proactively scan the wired SharedBridge deposit source for newly finalized L1 deposits
+    /// (<see cref="ISharedBridgeDepositSource.ScanAsync"/>). Returns 0 when no source is wired.
+    /// Live L1 discovery remains a funded RPC gate; offline mocks return 0.
+    /// </summary>
+    public ValueTask<int> ScanSharedBridgeDepositsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var source = DepositSource;
+        if (source is null)
+            return ValueTask.FromResult(0);
+        return source.ScanAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Scan then mint ready SharedBridge deposits not yet consumed by
+    /// <see cref="DepositProcessor"/> (peek-only on the deposit source).
+    /// </summary>
+    public async ValueTask<IReadOnlyList<MintInstruction>> ScanAndProcessReadyDepositsAsync(
+        int maxMessages = 64,
+        CancellationToken cancellationToken = default)
+    {
+        await ScanSharedBridgeDepositsAsync(cancellationToken).ConfigureAwait(false);
+        return ProcessReadyDeposits(maxMessages);
+    }
+
+    /// <summary>
+    /// True when any unconsumed forced-inclusion entry is past
+    /// <paramref name="nowUnixSeconds"/> (<see cref="IForcedInclusionSource.HasOverdueEntryAsync"/>).
+    /// </summary>
+    public ValueTask<bool> HasOverdueForcedInclusionAsync(
+        uint nowUnixSeconds,
+        CancellationToken cancellationToken = default)
+        => ForcedInclusion.HasOverdueEntryAsync(nowUnixSeconds, cancellationToken);
+
+    /// <summary>
     /// Aggregate local operator readiness (durable settlement + deposit peek + metrics)
     /// without Neo.CLI or funded L1 traffic beyond stores already opened by WireProduction.
     /// </summary>

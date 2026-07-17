@@ -39,6 +39,12 @@ public sealed record GatewayHostOperatorStatusDocument
     /// <summary>True when this composition owns proof-prover disposal.</summary>
     public required bool OwnsProofProver { get; init; }
 
+    /// <summary>True when an optional metrics sink was supplied at open.</summary>
+    public required bool HasMetrics { get; init; }
+
+    /// <summary>Metrics snapshot entry count when exportable; otherwise 0.</summary>
+    public required int MetricsEntryCount { get; init; }
+
     /// <summary>Map a live status snapshot into a JSON document.</summary>
     public static GatewayHostOperatorStatusDocument From(GatewayHostOperatorStatus status)
     {
@@ -55,6 +61,8 @@ public sealed record GatewayHostOperatorStatusDocument
             ConfirmationLagMilliseconds = status.ConfirmationLagMilliseconds,
             AggregationBackendId = status.AggregationBackendId,
             OwnsProofProver = status.OwnsProofProver,
+            HasMetrics = status.HasMetrics,
+            MetricsEntryCount = status.MetricsEntryCount,
         };
     }
 }

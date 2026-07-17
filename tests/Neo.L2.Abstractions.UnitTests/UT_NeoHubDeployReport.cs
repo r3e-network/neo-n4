@@ -221,9 +221,13 @@ public class UT_NeoHubDeployReport
                 + "SnapshotBridgeAssets / BridgeAssetCount",
                 stores.GetProperty("localHostBridgeRegistry").GetString());
             Assert.AreEqual(
-                "LocalHost.ProcessDeposit / ProcessReadyDeposits / HasConsumedDeposit / "
+                "LocalHost.ProcessDeposit / ProcessReadyDeposits / ScanSharedBridgeDepositsAsync / "
+                + "ScanAndProcessReadyDepositsAsync / HasConsumedDeposit / "
                 + "StageWithdrawal / StagedWithdrawalCount / SealWithdrawalBatch / ProveAsync",
                 stores.GetProperty("localHostBridgeProcessors").GetString());
+            Assert.AreEqual(
+                "LocalHost.HasOverdueForcedInclusionAsync(nowUnixSeconds)",
+                stores.GetProperty("localHostForcedInclusionOverdue").GetString());
             Assert.AreEqual(
                 "LocalHost.WriteOperatorStatusAsync(path) → LocalHostOperatorStatusDocument JSON",
                 stores.GetProperty("localHostWriteOperatorStatus").GetString());

@@ -208,9 +208,17 @@ public sealed class UT_MultisigLocalHostComposition
             var mint = host.ProcessDeposit(depositMsg);
             Assert.AreEqual(l2Asset, mint.L2Asset);
             Assert.IsTrue(host.HasConsumedDeposit(0, 1));
-            // Ready-deposit drain is peek-only; empty source yields empty (no L1 scan).
+            // Ready-deposit drain is peek-only; empty ready set yields empty without L1 scan.
             Assert.AreEqual(0, host.ProcessReadyDeposits().Count);
             Assert.AreEqual(0, host.ProcessReadyDeposits(0).Count);
+            Assert.IsNotNull(host.DepositSource);
+            Assert.IsNotNull(host.ForcedInclusion);
+            // Scan / overdue check hit L1 applicationlog scanners (funded RPC gate);
+            // weak mock only covers settle-style getblockcount probes.
+            await Assert.ThrowsExactlyAsync<Neo.L2.Settlement.Rpc.JsonRpcException>(
+                async () => await host.ScanSharedBridgeDepositsAsync());
+            await Assert.ThrowsExactlyAsync<Neo.L2.Settlement.Rpc.JsonRpcException>(
+                async () => await host.HasOverdueForcedInclusionAsync(0));
             Assert.AreEqual(0, host.StagedWithdrawalCount);
             var proof = host.ProveAsync(new ProofRequest
             {

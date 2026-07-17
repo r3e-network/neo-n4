@@ -123,6 +123,8 @@ public sealed class GatewayHostComposition : IDisposable
             ConfirmationLagMilliseconds = outbox.ConfirmationLagMilliseconds,
             AggregationBackendId = ProofProver.AggregationBackendId,
             OwnsProofProver = OwnsProofProver,
+            HasMetrics = Metrics is not null,
+            MetricsEntryCount = CaptureMetricsSnapshot().TotalEntries,
         };
     }
 

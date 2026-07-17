@@ -40,4 +40,13 @@ public sealed record GatewayHostOperatorStatus
 
     /// <summary>True when this composition owns proof-prover disposal.</summary>
     public required bool OwnsProofProver { get; init; }
+
+    /// <summary>True when an optional metrics sink was supplied at open.</summary>
+    public required bool HasMetrics { get; init; }
+
+    /// <summary>
+    /// Counter+gauge+histogram entry count when <see cref="HasMetrics"/> and the sink
+    /// implements <see cref="Neo.L2.Telemetry.IMetricsSource"/>; otherwise 0.
+    /// </summary>
+    public required int MetricsEntryCount { get; init; }
 }

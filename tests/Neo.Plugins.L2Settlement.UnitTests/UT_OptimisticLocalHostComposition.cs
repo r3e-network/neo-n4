@@ -118,6 +118,8 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(l2, host.GetRpcBridgedAsset(l1));
             Assert.IsNotNull(host.MessageOutbox);
             Assert.IsTrue(host.RegisterForcedInclusionNonce(7));
+            Assert.AreEqual(1, host.KnownForcedInclusionNonceCount);
+            Assert.IsTrue(host.HasBatchForcedInclusionSource);
             var daReceipt = host.PublishDaAsync(new DAPublishRequest
             {
                 ChainId = 20260716u,

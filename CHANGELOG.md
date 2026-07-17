@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Gateway enable/retry thresholds + FI known nonces on LocalHost — 2026-07-18
+
+- `L2GatewayPlugin` / `GatewayHostComposition` expose `IsEnabled` and `MaxAutomaticRetries`;
+  `GatewayHostOperatorStatus` (+ JSON) includes both for offline gateway settings health.
+- `RpcForcedInclusionSource.KnownNonceCount`; Multisig/Optimistic/Zk LocalHost expose
+  `KnownForcedInclusionNonceCount` and `HasBatchForcedInclusionSource` on ops status.
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+- Live FI drain / Gateway L1 publish remain funded gates.
+
 ### Added — L1 inbox + production wiring readiness on LocalHost ops — 2026-07-18
 
 - Multisig/Optimistic/Zk LocalHost expose `L1InboxPendingCount` / `L1InboxConsumedCount`

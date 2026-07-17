@@ -192,7 +192,12 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(status.GatewayEnabled);
             Assert.IsTrue(host.RegisterForcedInclusionNonce(42));
             Assert.IsFalse(host.RegisterForcedInclusionNonce(42)); // already known
+            Assert.AreEqual(1, host.KnownForcedInclusionNonceCount);
+            Assert.IsTrue(host.HasBatchForcedInclusionSource);
             host.InvalidateForcedInclusionCache();
+            var statusFi = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(1, statusFi.KnownForcedInclusionNonceCount);
+            Assert.IsTrue(statusFi.HasBatchForcedInclusionSource);
             var daReq = new DAPublishRequest
             {
                 ChainId = 20260716u,

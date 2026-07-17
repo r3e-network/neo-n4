@@ -87,6 +87,18 @@ public sealed class GatewayHostComposition : IDisposable
     public bool IsPublicationConfigured => Gateway.IsPublicationConfigured;
 
     /// <summary>
+    /// Whether the Gateway plugin is enabled in settings
+    /// (<see cref="L2GatewayPlugin.IsEnabled"/>).
+    /// </summary>
+    public bool IsEnabled => Gateway.IsEnabled;
+
+    /// <summary>
+    /// Configured max automatic publication retries
+    /// (<see cref="L2GatewayPlugin.MaxAutomaticRetries"/>).
+    /// </summary>
+    public int MaxAutomaticRetries => Gateway.MaxAutomaticRetries;
+
+    /// <summary>
     /// True when an unconfirmed publication remains retryable or poisoned
     /// (<see cref="L2GatewayPlugin.HasPendingPublication"/>).
     /// </summary>
@@ -151,6 +163,8 @@ public sealed class GatewayHostComposition : IDisposable
             AggregatorPendingCount = AggregatorPendingCount,
             HasDurableOutbox = HasDurableOutbox,
             IsPublicationConfigured = IsPublicationConfigured,
+            IsEnabled = IsEnabled,
+            MaxAutomaticRetries = MaxAutomaticRetries,
             OutboxQueueDepth = outbox.QueueDepth,
             PublicationState = outbox.PublicationState,
             OutboxRetryCount = outbox.RetryCount,

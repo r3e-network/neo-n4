@@ -215,6 +215,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsNotNull(settlementHost.ForcedInclusionFinalizer);
             Assert.IsNotNull(settlementHost.TransactionSender);
             Assert.IsTrue(settlementHost.RegisterForcedInclusionNonce(11));
+            Assert.AreEqual(1, settlementHost.KnownForcedInclusionNonceCount);
+            Assert.IsTrue(settlementHost.HasBatchForcedInclusionSource);
             Assert.IsNotNull(settlementHost.MessageOutbox);
             var daReceipt = settlementHost.PublishDaAsync(new DAPublishRequest
             {

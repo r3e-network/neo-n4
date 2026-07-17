@@ -35,6 +35,12 @@ public sealed record GatewayHostOperatorStatus
     /// </summary>
     public required bool IsPublicationConfigured { get; init; }
 
+    /// <summary>Whether the Gateway plugin is enabled in settings.</summary>
+    public required bool IsEnabled { get; init; }
+
+    /// <summary>Configured max automatic publication retries before poison.</summary>
+    public required int MaxAutomaticRetries { get; init; }
+
     /// <summary>Durable outbox queue depth.</summary>
     public required int OutboxQueueDepth { get; init; }
 

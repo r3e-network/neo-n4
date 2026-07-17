@@ -161,6 +161,12 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Tracked forced-inclusion nonce count.</summary>
     public required int TrackedForcedInclusionNonceCount { get; init; }
 
+    /// <summary>In-process FI source known-nonce count.</summary>
+    public required int KnownForcedInclusionNonceCount { get; init; }
+
+    /// <summary>Batcher forced-inclusion source wired.</summary>
+    public required bool HasBatchForcedInclusionSource { get; init; }
+
     /// <summary>Recovery summary.</summary>
     public required LocalHostRecoveryDocument Recovery { get; init; }
 
@@ -221,6 +227,8 @@ public sealed record LocalHostOperatorStatusDocument
             MessageOutboxL2ToL2Root = status.MessageOutboxL2ToL2Root.ToString(),
             StagedWithdrawalCount = status.StagedWithdrawalCount,
             TrackedForcedInclusionNonceCount = status.TrackedForcedInclusionNonceCount,
+            KnownForcedInclusionNonceCount = status.KnownForcedInclusionNonceCount,
+            HasBatchForcedInclusionSource = status.HasBatchForcedInclusionSource,
             Recovery = LocalHostRecoveryDocument.From(status.Recovery),
         };
     }

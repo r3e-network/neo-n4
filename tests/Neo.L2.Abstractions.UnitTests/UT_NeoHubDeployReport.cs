@@ -221,7 +221,8 @@ public class UT_NeoHubDeployReport
                 + "InvalidateInboundMessageCache / KnownInboundNonceCount",
                 stores.GetProperty("localHostMessageRouterHelpers").GetString());
             Assert.AreEqual(
-                "LocalHost.RegisterForcedInclusionNonce / InvalidateForcedInclusionCache",
+                "LocalHost.RegisterForcedInclusionNonce / InvalidateForcedInclusionCache / "
+                + "KnownForcedInclusionNonceCount / HasBatchForcedInclusionSource",
                 stores.GetProperty("localHostForcedInclusionHelpers").GetString());
             Assert.AreEqual(
                 "LocalHost.PublishDaAsync / IsDaAvailableAsync / "
@@ -286,9 +287,9 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "GatewayHostComposition.HasPendingPublication / PendingPublicationEpoch / "
                 + "AggregatorPendingCount / HasDurableOutbox / IsPublicationConfigured / "
+                + "IsEnabled / MaxAutomaticRetries / "
                 + "OutboxStatus / Aggregator / ReceiveBatch / "
-                + "PullAggregate "
-                + "(fails closed with durable outbox) / PublishAggregateAsync / "
+                + "PullAggregate (fails closed with durable outbox) / PublishAggregateAsync / "
                 + "RecoverPoisonedPublication / GetOperatorStatus / WriteOperatorStatusAsync / "
                 + "Metrics / CaptureMetricsSnapshot / ExportPrometheusMetrics / "
                 + "WritePrometheusMetricsAsync",

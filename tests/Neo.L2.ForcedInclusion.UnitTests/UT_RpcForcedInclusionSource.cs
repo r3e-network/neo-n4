@@ -177,6 +177,7 @@ public class UT_RpcForcedInclusionSource
 
         Assert.IsTrue(src.RegisterNonce(2));
         Assert.IsFalse(src.RegisterNonce(2)); // already known
+        Assert.IsTrue(src.KnownNonceCount >= 1);
 
         var second = await src.DrainAsync(max: 10);
         Assert.AreEqual(2, second.Count);

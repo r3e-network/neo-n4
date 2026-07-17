@@ -131,6 +131,19 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
     }
 
     /// <summary>
+    /// Count of forced-inclusion nonces known to this source (scanner + operator seed).
+    /// Offline ops surface without an L1 drain; durable settlement tracking remains separate.
+    /// </summary>
+    public int KnownNonceCount
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposedFlag) != 0, this);
+            return _knownNonces.Count;
+        }
+    }
+
+    /// <summary>
     /// Add a newly-discovered forced-tx nonce. Operators wire this to an L1
     /// <c>OnForcedTxEnqueued</c> event subscription so the next
     /// <see cref="DrainAsync"/> picks it up.

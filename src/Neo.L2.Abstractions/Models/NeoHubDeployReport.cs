@@ -450,7 +450,8 @@ public sealed record NeoHubDeployReport(
                         + "GetMessageRouterProofAsync / RegisterInboundMessageNonce / "
                         + "InvalidateInboundMessageCache / KnownInboundNonceCount",
                     ["localHostForcedInclusionHelpers"] =
-                        "LocalHost.RegisterForcedInclusionNonce / InvalidateForcedInclusionCache",
+                        "LocalHost.RegisterForcedInclusionNonce / InvalidateForcedInclusionCache / "
+                        + "KnownForcedInclusionNonceCount / HasBatchForcedInclusionSource",
                     ["localHostDaHelpers"] =
                         "LocalHost.PublishDaAsync / IsDaAvailableAsync / "
                         + "CreateLocalDaReader (Multisig/Optimistic local DA)",
@@ -497,6 +498,7 @@ public sealed record NeoHubDeployReport(
                     ["gatewayHostOpsHelpers"] =
                         "GatewayHostComposition.HasPendingPublication / PendingPublicationEpoch / "
                         + "AggregatorPendingCount / HasDurableOutbox / IsPublicationConfigured / "
+                        + "IsEnabled / MaxAutomaticRetries / "
                         + "OutboxStatus / Aggregator / ReceiveBatch / "
                         + "PullAggregate (fails closed with durable outbox) / PublishAggregateAsync / "
                         + "RecoverPoisonedPublication / GetOperatorStatus / WriteOperatorStatusAsync / "

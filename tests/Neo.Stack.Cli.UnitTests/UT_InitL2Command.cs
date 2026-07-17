@@ -237,6 +237,9 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "MaxBlocksPerBatch");
         StringAssert.Contains(output, "MessageOutboxL2ToL1Root");
         StringAssert.Contains(output, "KnownInboundNonceCount");
+        StringAssert.Contains(output, "KnownForcedInclusionNonceCount");
+        StringAssert.Contains(output, "GatewayHost.IsEnabled");
+        StringAssert.Contains(output, "MaxAutomaticRetries");
         StringAssert.Contains(output, "StopMetricsHttp");
         StringAssert.Contains(output, "ConsumedDepositCount");
         StringAssert.Contains(output, "L1InboxPendingCount");

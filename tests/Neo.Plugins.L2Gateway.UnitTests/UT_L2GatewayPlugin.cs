@@ -289,6 +289,8 @@ public class UT_L2GatewayPlugin
             // Settings-only factory must leave outbox detached so UseAggregator remains legal.
             Assert.IsFalse(plugin.HasDurableOutbox);
             Assert.IsFalse(plugin.IsPublicationConfigured);
+            Assert.IsTrue(plugin.IsEnabled);
+            Assert.IsTrue(plugin.MaxAutomaticRetries >= 1);
             plugin.UseAggregator(new BinaryTreeAggregator(new MerklePathRoundProver()));
             Assert.IsInstanceOfType(plugin.Aggregator, typeof(BinaryTreeAggregator));
         }

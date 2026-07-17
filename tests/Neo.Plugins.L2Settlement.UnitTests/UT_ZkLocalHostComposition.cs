@@ -134,6 +134,8 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsNull(
                 host.GetMessageRouterProofAsync(new UInt256(new byte[32])).AsTask().GetAwaiter().GetResult());
             Assert.IsTrue(host.RegisterForcedInclusionNonce(9));
+            Assert.AreEqual(1, host.KnownForcedInclusionNonceCount);
+            Assert.IsTrue(host.HasBatchForcedInclusionSource);
             host.InvalidateForcedInclusionCache();
             Assert.AreEqual(0, host.BridgeAssetCount);
             Assert.IsFalse(string.IsNullOrWhiteSpace(host.ExportPrometheusMetrics()));

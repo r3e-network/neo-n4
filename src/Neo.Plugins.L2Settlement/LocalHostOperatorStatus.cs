@@ -182,4 +182,17 @@ public sealed record LocalHostOperatorStatus
 
     /// <summary>Count of forced-inclusion nonces tracked in durable settlement state.</summary>
     public required int TrackedForcedInclusionNonceCount { get; init; }
+
+    /// <summary>
+    /// Soft known-nonce count on the in-process FI source
+    /// (<see cref="Neo.L2.ForcedInclusion.RpcForcedInclusionSource.KnownNonceCount"/>).
+    /// Distinct from durable <see cref="TrackedForcedInclusionNonceCount"/>.
+    /// </summary>
+    public required int KnownForcedInclusionNonceCount { get; init; }
+
+    /// <summary>
+    /// True when the batcher has a forced-inclusion source wired
+    /// (<see cref="L2BatchPlugin.ForcedInclusionSource"/>).
+    /// </summary>
+    public required bool HasBatchForcedInclusionSource { get; init; }
 }

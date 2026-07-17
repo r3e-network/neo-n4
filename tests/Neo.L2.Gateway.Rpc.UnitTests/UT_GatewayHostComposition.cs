@@ -73,6 +73,8 @@ public sealed class UT_GatewayHostComposition
             Assert.AreEqual(host.Aggregator.PendingCount, host.AggregatorPendingCount);
             Assert.IsTrue(host.HasDurableOutbox);
             Assert.IsTrue(host.IsPublicationConfigured);
+            Assert.IsTrue(host.IsEnabled);
+            Assert.IsTrue(host.MaxAutomaticRetries >= 1);
             Assert.IsNotNull(host.OutboxStatus);
             var gwStatus = host.GetOperatorStatus();
             Assert.IsFalse(gwStatus.HasPendingPublication);
@@ -80,6 +82,8 @@ public sealed class UT_GatewayHostComposition
             Assert.AreEqual(0, gwStatus.AggregatorPendingCount);
             Assert.IsTrue(gwStatus.HasDurableOutbox);
             Assert.IsTrue(gwStatus.IsPublicationConfigured);
+            Assert.IsTrue(gwStatus.IsEnabled);
+            Assert.AreEqual(host.MaxAutomaticRetries, gwStatus.MaxAutomaticRetries);
             Assert.AreEqual(0, gwStatus.OutboxQueueDepth);
             Assert.AreEqual(MerklePathRoundProver.ConstBackendId, gwStatus.AggregationBackendId);
             Assert.IsFalse(gwStatus.OwnsProofProver);

@@ -27,6 +27,12 @@ public sealed record GatewayHostOperatorStatusDocument
     /// <summary>True when production global-root publication is configured.</summary>
     public required bool IsPublicationConfigured { get; init; }
 
+    /// <summary>Whether the Gateway plugin is enabled in settings.</summary>
+    public required bool IsEnabled { get; init; }
+
+    /// <summary>Configured max automatic publication retries before poison.</summary>
+    public required int MaxAutomaticRetries { get; init; }
+
     /// <summary>Durable outbox queue depth.</summary>
     public required int OutboxQueueDepth { get; init; }
 
@@ -66,6 +72,8 @@ public sealed record GatewayHostOperatorStatusDocument
             AggregatorPendingCount = status.AggregatorPendingCount,
             HasDurableOutbox = status.HasDurableOutbox,
             IsPublicationConfigured = status.IsPublicationConfigured,
+            IsEnabled = status.IsEnabled,
+            MaxAutomaticRetries = status.MaxAutomaticRetries,
             OutboxQueueDepth = status.OutboxQueueDepth,
             PublicationState = status.PublicationState?.ToString(),
             OutboxRetryCount = status.OutboxRetryCount,

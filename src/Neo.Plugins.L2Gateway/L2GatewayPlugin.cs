@@ -219,6 +219,18 @@ public sealed class L2GatewayPlugin : Plugin
         MaxAutomaticRetries = _maxAutomaticRetries,
     };
 
+    /// <summary>
+    /// Whether the Gateway plugin is enabled in settings. When false, receive/publish
+    /// paths no-op without L1 traffic.
+    /// </summary>
+    public bool IsEnabled => _enabled;
+
+    /// <summary>
+    /// Configured max automatic publication retries before poison
+    /// (<see cref="L2GatewaySettings.MaxAutomaticRetries"/>).
+    /// </summary>
+    public int MaxAutomaticRetries => _maxAutomaticRetries;
+
     /// <summary>True when a durable outbox is attached.</summary>
     public bool HasDurableOutbox => _outbox is not null;
 

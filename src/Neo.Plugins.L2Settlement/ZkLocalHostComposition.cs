@@ -459,6 +459,8 @@ public sealed class ZkLocalHostComposition : IDisposable
             StagedWithdrawalCount = Bridge.WithdrawalProcessor.StagedCount,
             Recovery = recovery,
             TrackedForcedInclusionNonceCount = tracked.Count,
+            KnownForcedInclusionNonceCount = KnownForcedInclusionNonceCount,
+            HasBatchForcedInclusionSource = HasBatchForcedInclusionSource,
         };
     }
 
@@ -713,6 +715,19 @@ public sealed class ZkLocalHostComposition : IDisposable
     /// Mirrors <see cref="RpcMessageRouter.KnownInboundNonceCount"/>.
     /// </summary>
     public int KnownInboundNonceCount => MessageRouter?.KnownInboundNonceCount ?? 0;
+
+    /// <summary>
+    /// Soft known-nonce count on the in-process FI source
+    /// (<see cref="RpcForcedInclusionSource.KnownNonceCount"/>). Distinct from durable
+    /// settlement tracked nonces.
+    /// </summary>
+    public int KnownForcedInclusionNonceCount => ForcedInclusion.KnownNonceCount;
+
+    /// <summary>
+    /// True when the batcher has a forced-inclusion source wired
+    /// (<see cref="L2BatchPlugin.ForcedInclusionSource"/>).
+    /// </summary>
+    public bool HasBatchForcedInclusionSource => Batch.ForcedInclusionSource is not null;
 
     /// <summary>
     /// Bound metrics HTTP port after <see cref="StartMetricsHttp"/> (0 when not listening).

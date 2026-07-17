@@ -61,9 +61,10 @@ public sealed class UT_GatewayHostComposition
             Assert.IsFalse(host.OwnsProofProver);
             Assert.AreSame(prover, host.ProofProver);
             Assert.IsInstanceOfType(host.Gateway.Aggregator, typeof(BinaryTreeAggregator));
+            Assert.AreSame(host.Gateway.Aggregator, host.Aggregator);
             Assert.AreEqual(
                 MerklePathRoundProver.ConstBackendId,
-                ((BinaryTreeAggregator)host.Gateway.Aggregator).RoundProver.BackendId);
+                ((BinaryTreeAggregator)host.Aggregator).RoundProver.BackendId);
             Assert.IsFalse(host.Gateway.HasPendingPublication);
             // Host-level ops surface (no dig into Gateway plugin).
             Assert.IsFalse(host.HasPendingPublication);

@@ -183,6 +183,10 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(ProofType.Multisig, settlementHost.ProofType);
             Assert.AreEqual(DAMode.Local, settlementHost.DaMode);
             Assert.AreEqual(0, settlementHost.PeekSharedBridgeDeposits(8).Count);
+            var opStatus = settlementHost.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(opStatus.IsOperatorReady);
+            Assert.AreEqual(0, opStatus.PendingSettlementCount);
+            Assert.AreEqual(0, opStatus.ReadyDepositCount);
             Assert.IsNotNull(settlementHost.ForcedInclusionFinalizer);
             Assert.IsNotNull(settlementHost.TransactionSender);
             // Local durable recovery surface (no funded L1 publish).
@@ -244,6 +248,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsFalse(gatewayHost.HasPendingPublication);
             Assert.IsNull(gatewayHost.PendingPublicationEpoch);
             Assert.IsNotNull(gatewayHost.OutboxStatus);
+            Assert.AreSame(gatewayHost.Gateway.Aggregator, gatewayHost.Aggregator);
         }
         finally
         {
@@ -365,9 +370,16 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);
             Assert.IsTrue(host.Settlement.IsProductionWired);
             Assert.IsTrue(host.IsProductionWired);
-            Assert.IsTrue(host.Batch.HasSealedBatchSink);
+            Assert.IsTrue(host.IsOperatorReady);
+            Assert.IsTrue(host.HasSealedBatchSink);
+            Assert.AreEqual(ProofType.Optimistic, host.ProofType);
+            Assert.AreEqual(0, host.PeekSharedBridgeDeposits(8).Count);
+            var opStatus = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(opStatus.IsOperatorReady);
+            Assert.AreEqual(0, opStatus.PendingSettlementCount);
             host.StartMetricsHttp(portOverride: 0);
-            Assert.IsTrue(host.Metrics.BoundPort > 0);
+            Assert.IsTrue(host.IsMetricsHttpListening);
+            Assert.IsTrue(host.MetricsBoundPort > 0);
             Assert.IsNotNull(host.CreateRpcPlugin());
             Assert.AreEqual(0, host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult());
 
@@ -440,8 +452,17 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);
             Assert.AreEqual(DAMode.L1, host.RpcStore.DAMode);
             Assert.IsTrue(host.IsProductionWired);
+            Assert.IsTrue(host.IsOperatorReady);
+            Assert.AreEqual(ProofType.Zk, host.ProofType);
+            Assert.AreEqual(DAMode.L1, host.DaMode);
+            Assert.AreEqual(0, host.PeekSharedBridgeDeposits(8).Count);
+            var opStatus = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(opStatus.IsOperatorReady);
+            Assert.AreEqual(ProofType.Zk, opStatus.ProofType);
+            Assert.AreEqual(0, opStatus.ReadyDepositCount);
             host.StartMetricsHttp(portOverride: 0);
-            Assert.IsTrue(host.Metrics.BoundPort > 0);
+            Assert.IsTrue(host.IsMetricsHttpListening);
+            Assert.IsTrue(host.MetricsBoundPort > 0);
             Assert.IsNotNull(host.CreateRpcPlugin());
             Assert.AreEqual(0, host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult());
 

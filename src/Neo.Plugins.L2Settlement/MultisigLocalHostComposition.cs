@@ -201,6 +201,39 @@ public sealed class MultisigLocalHostComposition : IDisposable
         => Bridge.PeekSharedBridgeDeposits(maxMessages);
 
     /// <summary>
+    /// Aggregate local operator readiness (durable settlement + deposit peek + metrics)
+    /// without Neo.CLI or funded L1 traffic beyond stores already opened by WireProduction.
+    /// </summary>
+    /// <param name="depositPeekLimit">Max deposits counted via non-mutating peek (default 64).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async ValueTask<LocalHostOperatorStatus> GetOperatorStatusAsync(
+        int depositPeekLimit = 64,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(depositPeekLimit);
+        var pending = await GetPendingCountAsync(cancellationToken).ConfigureAwait(false);
+        var recovery = await GetRecoveryStatusAsync(cancellationToken).ConfigureAwait(false);
+        var tracked = await GetTrackedForcedInclusionNoncesAsync(ChainId, cancellationToken)
+            .ConfigureAwait(false);
+        var readyDeposits = PeekSharedBridgeDeposits(depositPeekLimit);
+        return new LocalHostOperatorStatus
+        {
+            ChainId = ChainId,
+            ProofType = ProofType,
+            DaMode = DaMode,
+            IsProductionWired = IsProductionWired,
+            HasSealedBatchSink = HasSealedBatchSink,
+            IsOperatorReady = IsOperatorReady,
+            IsMetricsHttpListening = IsMetricsHttpListening,
+            MetricsBoundPort = MetricsBoundPort,
+            PendingSettlementCount = pending,
+            ReadyDepositCount = readyDeposits.Count,
+            Recovery = recovery,
+            TrackedForcedInclusionNonceCount = tracked.Count,
+        };
+    }
+
+    /// <summary>
     /// Production SharedBridge deposit source after WireProduction (same instance as
     /// <see cref="L2BatchPlugin.DepositSource"/> / <see cref="L2BridgePlugin.DepositSource"/>).
     /// </summary>

@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost GetOperatorStatusAsync + Gateway Aggregator — 2026-07-17
+
+- Multisig/Optimistic/Zk LocalHost expose `GetOperatorStatusAsync` returning
+  `LocalHostOperatorStatus` (chain/proof/DA, readiness, metrics bind, pending
+  settlement, deposit peek count, recovery, tracked FI nonces) without Neo.CLI.
+- `GatewayHostComposition.Aggregator` passthrough for host inspection.
+- `neo-stack init-l2` prints host ready tip (`IsOperatorReady` / `GetOperatorStatusAsync`).
+- Wireproduction notes + unit/integration coverage; no wire/ABI change.
+
 ### Added — LocalHost readiness + deposit peek surface — 2026-07-17
 
 - Multisig/Optimistic/Zk LocalHost expose operator readiness without Neo.CLI:

@@ -87,6 +87,11 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(ProofType.Optimistic, host.ProofType);
             Assert.AreEqual(DAMode.Local, host.DaMode);
             Assert.AreEqual(0, host.PeekSharedBridgeDeposits(8).Count);
+            var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(status.IsOperatorReady);
+            Assert.AreEqual(ProofType.Optimistic, status.ProofType);
+            Assert.AreEqual(0, status.PendingSettlementCount);
+            Assert.AreEqual(0, status.ReadyDepositCount);
             var recovery = host.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(0, recovery.PendingCount);
             Assert.AreEqual(

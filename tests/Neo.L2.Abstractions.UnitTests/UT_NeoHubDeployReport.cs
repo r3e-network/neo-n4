@@ -193,7 +193,7 @@ public class UT_NeoHubDeployReport
                 stores.GetProperty("localHostProductionSurfaces").GetString());
             Assert.AreEqual(
                 "LocalHost.ChainId / ProofType / DaMode / HasSealedBatchSink / "
-                + "IsOperatorReady / PeekSharedBridgeDeposits",
+                + "IsOperatorReady / PeekSharedBridgeDeposits / GetOperatorStatusAsync",
                 stores.GetProperty("localHostReadiness").GetString());
             Assert.AreEqual(
                 "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
@@ -224,7 +224,8 @@ public class UT_NeoHubDeployReport
                 stores.GetProperty("gatewayHostCompositionSp1").GetString());
             Assert.AreEqual(
                 "GatewayHostComposition.HasPendingPublication / PendingPublicationEpoch / "
-                + "OutboxStatus / ReceiveBatch / PublishAggregateAsync / RecoverPoisonedPublication",
+                + "OutboxStatus / Aggregator / ReceiveBatch / PublishAggregateAsync / "
+                + "RecoverPoisonedPublication",
                 stores.GetProperty("gatewayHostOpsHelpers").GetString());
             Assert.AreEqual(
                 "L2BatchPlugin.CreateFromChainDirectory(chainDirectory)",

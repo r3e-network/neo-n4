@@ -52,6 +52,12 @@ public sealed class GatewayHostComposition : IDisposable
     public bool OwnsProofProver { get; }
 
     /// <summary>
+    /// Active aggregator installed on the gateway plugin
+    /// (<see cref="L2GatewayPlugin.Aggregator"/>).
+    /// </summary>
+    public IGatewayAggregator Aggregator => Gateway.Aggregator;
+
+    /// <summary>
     /// True when an unconfirmed publication remains retryable or poisoned
     /// (<see cref="L2GatewayPlugin.HasPendingPublication"/>).
     /// </summary>

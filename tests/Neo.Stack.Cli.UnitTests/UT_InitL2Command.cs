@@ -229,6 +229,8 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "MultisigLocalHostComposition.Open");
         StringAssert.Contains(output, "OptimisticLocalHostComposition.Open");
         StringAssert.Contains(output, "ZkLocalHostComposition.Open");
+        StringAssert.Contains(output, "IsOperatorReady");
+        StringAssert.Contains(output, "GetOperatorStatusAsync");
         StringAssert.Contains(output, "l1.wireproduction-notes.json");
     }
 

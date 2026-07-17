@@ -82,6 +82,18 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(ProofType.Multisig, host.ProofType);
             Assert.AreEqual(DAMode.Local, host.DaMode);
             Assert.AreEqual(0, host.PeekSharedBridgeDeposits(8).Count);
+            var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(20260716u, status.ChainId);
+            Assert.AreEqual(ProofType.Multisig, status.ProofType);
+            Assert.AreEqual(DAMode.Local, status.DaMode);
+            Assert.IsTrue(status.IsOperatorReady);
+            Assert.IsTrue(status.IsProductionWired);
+            Assert.IsTrue(status.HasSealedBatchSink);
+            Assert.IsFalse(status.IsMetricsHttpListening);
+            Assert.AreEqual(0, status.PendingSettlementCount);
+            Assert.AreEqual(0, status.ReadyDepositCount);
+            Assert.AreEqual(0, status.TrackedForcedInclusionNonceCount);
+            Assert.AreEqual(0, status.Recovery.PendingCount);
             Assert.IsNotNull(host.Metrics.Metrics);
             Assert.AreEqual(0, host.Metrics.BoundPort); // HTTP not started by default
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);

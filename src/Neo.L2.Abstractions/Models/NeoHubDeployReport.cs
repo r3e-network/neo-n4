@@ -421,7 +421,7 @@ public sealed record NeoHubDeployReport(
                         + "SettlementClient / TransactionSender / MetricsBoundPort / IsMetricsHttpListening",
                     ["localHostReadiness"] =
                         "LocalHost.ChainId / ProofType / DaMode / HasSealedBatchSink / "
-                        + "IsOperatorReady / PeekSharedBridgeDeposits",
+                        + "IsOperatorReady / PeekSharedBridgeDeposits / GetOperatorStatusAsync",
                     ["localHostSettleHelpers"] =
                         "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                         + "PersistAsync / EnqueueAsync",
@@ -443,7 +443,8 @@ public sealed record NeoHubDeployReport(
                         "GatewayHostComposition.OpenSp1(chainDir, gatewayVk, signer, replayDomain, vk, metrics?)",
                     ["gatewayHostOpsHelpers"] =
                         "GatewayHostComposition.HasPendingPublication / PendingPublicationEpoch / "
-                        + "OutboxStatus / ReceiveBatch / PublishAggregateAsync / RecoverPoisonedPublication",
+                        + "OutboxStatus / Aggregator / ReceiveBatch / PublishAggregateAsync / "
+                        + "RecoverPoisonedPublication",
                     ["localDaOpenHelper"] = "PersistentDAWriter.OpenLocalFromChainDirectory(chainDirectory)",
                     ["daMetricsWrap"] =
                         "MetricsEmittingDAWriter / MetricsEmittingProductionDAWriter (LocalHost Open)",

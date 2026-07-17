@@ -105,6 +105,12 @@ public sealed class UT_ZkLocalHostComposition
             Assert.AreEqual(ProofType.Zk, host.ProofType);
             Assert.AreEqual(DAMode.L1, host.DaMode);
             Assert.AreEqual(0, host.PeekSharedBridgeDeposits(8).Count);
+            var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(status.IsOperatorReady);
+            Assert.AreEqual(ProofType.Zk, status.ProofType);
+            Assert.AreEqual(DAMode.L1, status.DaMode);
+            Assert.AreEqual(0, status.PendingSettlementCount);
+            Assert.AreEqual(0, status.ReadyDepositCount);
             var recovery = host.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(0, recovery.PendingCount);
             Assert.AreEqual(

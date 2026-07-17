@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — ProductionTransactionSender + LocalHost settle helpers + /readyz E2E — 2026-07-17
+
+- `L2SettlementPlugin.ProductionTransactionSender` after WireProduction.
+- Multisig/Optimistic/Zk LocalHost expose `ReconcileAsync` / `SubmitNextAsync` /
+  `GetPendingCountAsync` passthroughs for operator hosts without Neo.CLI.
+- Multisig unit test starts metrics HTTP and asserts `/readyz` + `/healthz` 200 with
+  default sealed-sink readiness, plus empty pending reconcile/submit helpers.
+
 ### Added — IsProductionWired, metrics readiness, Optimistic+Gateway E2E — 2026-07-17
 
 - `L2SettlementPlugin.IsProductionWired` after WireProduction.

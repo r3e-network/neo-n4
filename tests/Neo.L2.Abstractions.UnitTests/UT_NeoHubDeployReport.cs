@@ -181,6 +181,12 @@ public class UT_NeoHubDeployReport
                 "L2SettlementPlugin.IsProductionWired after WireProduction",
                 stores.GetProperty("settlementProductionWired").GetString());
             Assert.AreEqual(
+                "L2SettlementPlugin.ProductionTransactionSender after WireProduction",
+                stores.GetProperty("settlementProductionTransactionSender").GetString());
+            Assert.AreEqual(
+                "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync",
+                stores.GetProperty("localHostSettleHelpers").GetString());
+            Assert.AreEqual(
                 "LocalHost Open startMetricsHttp → WithReadinessCheck(HasSealedBatchSink)",
                 stores.GetProperty("metricsReadiness").GetString());
             Assert.AreEqual(

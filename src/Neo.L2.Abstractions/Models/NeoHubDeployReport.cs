@@ -411,6 +411,10 @@ public sealed record NeoHubDeployReport(
                         "L2BatchPlugin.HasSealedBatchSink / ForcedInclusionSource / DepositSource / MessageRouter",
                     ["settlementProductionWired"] =
                         "L2SettlementPlugin.IsProductionWired after WireProduction",
+                    ["settlementProductionTransactionSender"] =
+                        "L2SettlementPlugin.ProductionTransactionSender after WireProduction",
+                    ["localHostSettleHelpers"] =
+                        "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync",
                     ["metricsReadiness"] =
                         "LocalHost Open startMetricsHttp → WithReadinessCheck(HasSealedBatchSink)",
                     ["gatewayHostCompositionMerkle"] =

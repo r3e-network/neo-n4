@@ -88,6 +88,18 @@ public sealed class MultisigLocalHostComposition : IDisposable
     /// </summary>
     public InMemoryL2RpcStore RpcStore { get; }
 
+    /// <summary>Recover and process durable pending settlement artifacts.</summary>
+    public Task ReconcileAsync(CancellationToken cancellationToken = default)
+        => Settlement.ReconcileAsync(cancellationToken);
+
+    /// <summary>Process at most one durable pending artifact (best-effort).</summary>
+    public Task SubmitNextAsync(CancellationToken cancellationToken = default)
+        => Settlement.SubmitNextAsync(cancellationToken);
+
+    /// <summary>Count durable artifacts not yet finalized on L1.</summary>
+    public ValueTask<int> GetPendingCountAsync(CancellationToken cancellationToken = default)
+        => Settlement.GetPendingCountAsync(cancellationToken);
+
     /// <summary>
     /// Open Multisig host composition from a chain directory after
     /// <c>init-l2 --from-deploy-report</c> (and Multisig ProofType in settlement/prover config).

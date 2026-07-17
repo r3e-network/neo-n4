@@ -536,6 +536,12 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
     public RpcSettlementClient? ProductionSettlementClient =>
         _productionComposition?.SettlementClient;
 
+    /// <summary>
+    /// Transaction sender owned by WireProduction (network-pinned signing + broadcast).
+    /// </summary>
+    public RpcTransactionSender? ProductionTransactionSender =>
+        _productionComposition?.TransactionSender;
+
     /// <summary>Wire a telemetry sink without changing durable pipeline state.</summary>
     public void WithMetrics(IL2Metrics metrics)
     {

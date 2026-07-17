@@ -77,7 +77,7 @@ public sealed class UT_MultisigLocalHostComposition
     }
 
     [TestMethod]
-    public void Open_StartMetricsHttp_BindsEphemeralPort()
+    public async Task Open_StartMetricsHttp_ReadyzOk_AndSettleHelpersWork()
     {
         var reportPath = Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory,
@@ -105,8 +105,17 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(host.Metrics.BoundPort > 0);
             Assert.IsTrue(host.Batch.HasSealedBatchSink);
             Assert.IsTrue(host.Settlement.IsProductionWired);
-            // Default readiness = HasSealedBatchSink (true after WireProduction).
-            Assert.IsTrue(host.Batch.HasSealedBatchSink);
+            Assert.IsNotNull(host.Settlement.ProductionTransactionSender);
+
+            using var client = new HttpClient();
+            var ready = await client.GetAsync($"http://127.0.0.1:{host.Metrics.BoundPort}/readyz");
+            Assert.AreEqual(System.Net.HttpStatusCode.OK, ready.StatusCode);
+            var health = await client.GetAsync($"http://127.0.0.1:{host.Metrics.BoundPort}/healthz");
+            Assert.AreEqual(System.Net.HttpStatusCode.OK, health.StatusCode);
+
+            Assert.AreEqual(0, await host.GetPendingCountAsync());
+            await host.ReconcileAsync();
+            await host.SubmitNextAsync();
         }
         finally
         {

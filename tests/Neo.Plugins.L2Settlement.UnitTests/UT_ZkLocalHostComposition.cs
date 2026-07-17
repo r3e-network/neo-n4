@@ -81,8 +81,10 @@ public sealed class UT_ZkLocalHostComposition
             Assert.AreSame(host.ForcedInclusion, host.Batch.ForcedInclusionSource);
             Assert.IsTrue(host.Batch.HasSealedBatchSink);
             Assert.IsTrue(host.Settlement.IsProductionWired);
+            Assert.IsNotNull(host.Settlement.ProductionTransactionSender);
             Assert.IsNotNull(host.Metrics.Metrics);
             Assert.AreSame(da, host.DaWriter);
+            Assert.AreEqual(0, host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult());
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);
             Assert.AreEqual(DAMode.L1, host.RpcStore.DAMode);
             Assert.IsTrue(Directory.Exists(Path.Combine(

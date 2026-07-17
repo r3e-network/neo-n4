@@ -282,7 +282,8 @@ public class UT_NeoHubDeployReport
                 stores.GetProperty("gatewayHostCompositionSp1").GetString());
             Assert.AreEqual(
                 "GatewayHostComposition.HasPendingPublication / PendingPublicationEpoch / "
-                + "OutboxStatus / Aggregator / ReceiveBatch / PullAggregate "
+                + "AggregatorPendingCount / OutboxStatus / Aggregator / ReceiveBatch / "
+                + "PullAggregate "
                 + "(fails closed with durable outbox) / PublishAggregateAsync / "
                 + "RecoverPoisonedPublication / GetOperatorStatus / WriteOperatorStatusAsync / "
                 + "Metrics / CaptureMetricsSnapshot / ExportPrometheusMetrics / "

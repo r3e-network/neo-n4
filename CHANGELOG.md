@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Gateway AggregatorPendingCount on host ops status — 2026-07-18
+
+- `GatewayHostComposition.AggregatorPendingCount` mirrors `IGatewayAggregator.PendingCount`
+  for offline aggregation queue depth without digging into the plugin.
+- `GatewayHostOperatorStatus` (+ JSON document) includes `AggregatorPendingCount`.
+- Wireproduction notes + init-l2 tip; unit/integration coverage. No wire/ABI change.
+- L1 `PublishAggregateAsync` confirmation remains a funded gate.
+
 ### Added — Pending sealed summary, outbox roots, IsBatcherEnabled — 2026-07-18
 
 - `L2BatchPlugin` / Multisig/Optimistic/Zk LocalHost expose `PendingSealedBatchNumber`,

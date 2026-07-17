@@ -66,6 +66,13 @@ public sealed class GatewayHostComposition : IDisposable
     public IGatewayAggregator Aggregator => Gateway.Aggregator;
 
     /// <summary>
+    /// Commitments currently pending aggregation in the active aggregator
+    /// (<see cref="IGatewayAggregator.PendingCount"/>). Offline ops surface without
+    /// digging into <see cref="Gateway"/>; L1 publish remains a funded gate.
+    /// </summary>
+    public int AggregatorPendingCount => Aggregator.PendingCount;
+
+    /// <summary>
     /// True when an unconfirmed publication remains retryable or poisoned
     /// (<see cref="L2GatewayPlugin.HasPendingPublication"/>).
     /// </summary>
@@ -127,6 +134,7 @@ public sealed class GatewayHostComposition : IDisposable
             ChainDirectory = ChainDirectory,
             HasPendingPublication = HasPendingPublication,
             PendingPublicationEpoch = PendingPublicationEpoch,
+            AggregatorPendingCount = AggregatorPendingCount,
             OutboxQueueDepth = outbox.QueueDepth,
             PublicationState = outbox.PublicationState,
             OutboxRetryCount = outbox.RetryCount,

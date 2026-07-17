@@ -138,7 +138,7 @@ internal static class InitL2Command
         Console.WriteLine("  host bridge= LocalHost.ProcessDeposit / ProcessReadyDeposits / ScanAndProcessReadyDepositsAsync");
         Console.WriteLine("               ConsumedDepositCount / StageWithdrawal / ProveAsync; HasOverdueForcedInclusionAsync");
         Console.WriteLine("  host status= LocalHost.WriteOperatorStatusAsync(path) (JSON health dump)");
-        Console.WriteLine("  host prom  = LocalHost/GatewayHost WritePrometheusMetricsAsync; GatewayHost.PullAggregate");
+        Console.WriteLine("  host prom  = LocalHost/GatewayHost WritePrometheusMetricsAsync; GatewayHost.AggregatorPendingCount");
         Console.WriteLine("               (see l1.wireproduction-notes.json when --from-deploy-report was used)");
         return 0;
     }

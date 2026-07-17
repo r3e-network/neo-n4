@@ -20,6 +20,12 @@ public sealed record GatewayHostOperatorStatus
     /// <summary>Pending publication epoch, or null when none awaits confirmation.</summary>
     public required ulong? PendingPublicationEpoch { get; init; }
 
+    /// <summary>
+    /// Commitments pending aggregation in the in-process aggregator (0 when empty).
+    /// Distinct from durable outbox depth / L1 confirmation lag.
+    /// </summary>
+    public required int AggregatorPendingCount { get; init; }
+
     /// <summary>Durable outbox queue depth.</summary>
     public required int OutboxQueueDepth { get; init; }
 

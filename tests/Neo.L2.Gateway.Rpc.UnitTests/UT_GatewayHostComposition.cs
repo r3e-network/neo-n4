@@ -69,10 +69,13 @@ public sealed class UT_GatewayHostComposition
             // Host-level ops surface (no dig into Gateway plugin).
             Assert.IsFalse(host.HasPendingPublication);
             Assert.IsNull(host.PendingPublicationEpoch);
+            Assert.AreEqual(0, host.AggregatorPendingCount);
+            Assert.AreEqual(host.Aggregator.PendingCount, host.AggregatorPendingCount);
             Assert.IsNotNull(host.OutboxStatus);
             var gwStatus = host.GetOperatorStatus();
             Assert.IsFalse(gwStatus.HasPendingPublication);
             Assert.IsNull(gwStatus.PendingPublicationEpoch);
+            Assert.AreEqual(0, gwStatus.AggregatorPendingCount);
             Assert.AreEqual(0, gwStatus.OutboxQueueDepth);
             Assert.AreEqual(MerklePathRoundProver.ConstBackendId, gwStatus.AggregationBackendId);
             Assert.IsFalse(gwStatus.OwnsProofProver);
@@ -83,6 +86,7 @@ public sealed class UT_GatewayHostComposition
             Assert.IsTrue(File.Exists(statusPath));
             var statusJson = File.ReadAllText(statusPath);
             StringAssert.Contains(statusJson, "\"hasPendingPublication\": false");
+            StringAssert.Contains(statusJson, "\"aggregatorPendingCount\": 0");
             StringAssert.Contains(statusJson, "\"outboxQueueDepth\": 0");
             StringAssert.Contains(statusJson, "\"hasMetrics\": true");
             Assert.IsNotNull(host.Publisher);

@@ -18,6 +18,9 @@ public sealed record GatewayHostOperatorStatusDocument
     /// <summary>Pending publication epoch, if any.</summary>
     public required ulong? PendingPublicationEpoch { get; init; }
 
+    /// <summary>In-process aggregator pending commitment count.</summary>
+    public required int AggregatorPendingCount { get; init; }
+
     /// <summary>Durable outbox queue depth.</summary>
     public required int OutboxQueueDepth { get; init; }
 
@@ -54,6 +57,7 @@ public sealed record GatewayHostOperatorStatusDocument
             ChainDirectory = status.ChainDirectory,
             HasPendingPublication = status.HasPendingPublication,
             PendingPublicationEpoch = status.PendingPublicationEpoch,
+            AggregatorPendingCount = status.AggregatorPendingCount,
             OutboxQueueDepth = status.OutboxQueueDepth,
             PublicationState = status.PublicationState?.ToString(),
             OutboxRetryCount = status.OutboxRetryCount,

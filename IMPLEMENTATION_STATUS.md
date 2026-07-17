@@ -434,7 +434,10 @@ These are explicit deployment seams rather than missing protocol algorithms:
   `CreateFromChainDirectory` when the host will call `UseAggregator` /
   `AttachOutboxFromChainDirectory` separately). Multisig one-shot host:
   `MultisigLocalHostComposition.Open(chainDir, executor, signers, signer)` (local DA +
-  Multisig prover + WireProductionFromLayout). Multisig batch provers alone:
+  Multisig prover + WireProductionFromLayout). Optimistic one-shot host:
+  `OptimisticLocalHostComposition.Open(chainDir, executor, sequencerKey, bondContract,
+  bondTxHash, signer)`. Gateway one-shot: `GatewayHostComposition.OpenMerkle` /
+  `OpenSp1`. Multisig batch provers alone:
   `L2ProverPlugin.CreateMultisigWiredFromChainDirectory(chainDir, signers)`. Optimistic:
   `CreateOptimisticWiredFromChainDirectory(chainDir, sequencerKey, bondContract, bondTxHash)`.
   Zk batch provers: `CreateZkWiredFromChainDirectory(chainDir, vk)` /

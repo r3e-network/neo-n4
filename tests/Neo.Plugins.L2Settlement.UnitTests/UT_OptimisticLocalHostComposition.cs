@@ -107,6 +107,10 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(0, status.L1InboxPendingCount);
             Assert.AreEqual(0, status.PendingSettlementCount);
             Assert.AreEqual(0, status.ReadyDepositCount);
+            Assert.AreEqual(0, status.DepositSourceReadyCount);
+            Assert.AreEqual(0, status.DepositSourceReservedCount);
+            Assert.IsTrue(status.IsSettlementEnabled);
+            Assert.IsTrue(status.L1FinalityDepth >= 1);
             Assert.AreEqual(host.GetLatestRpcStateRoot(), status.LatestRpcStateRoot);
             Assert.AreEqual(BatchStatus.Unknown, host.GetRpcBatchStatus(1));
             Assert.AreEqual(host.RpcStore.GatewayEnabled, status.GatewayEnabled);

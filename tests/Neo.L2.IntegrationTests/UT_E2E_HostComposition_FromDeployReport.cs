@@ -205,6 +205,10 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(0, opStatus.PendingSettlementCount);
             Assert.AreEqual(0, opStatus.ReadyDepositCount);
             Assert.IsTrue(opStatus.HasDepositSource);
+            Assert.AreEqual(0, opStatus.DepositSourceReadyCount);
+            Assert.AreEqual(0, opStatus.DepositSourceReservedCount);
+            Assert.IsTrue(opStatus.IsSettlementEnabled);
+            Assert.IsTrue(settlementHost.IsSettlementEnabled);
             Assert.IsTrue(opStatus.HasMessageRouter);
             Assert.IsTrue(opStatus.HasForcedInclusionFinalizer);
             Assert.IsTrue(opStatus.HasSettlementClient);

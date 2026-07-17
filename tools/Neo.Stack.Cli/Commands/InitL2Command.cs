@@ -137,8 +137,9 @@ internal static class InitL2Command
         Console.WriteLine("  host gw    = GatewayHost.IsEnabled / MaxAutomaticRetries / IsPublicationConfigured");
         Console.WriteLine("  host ops   = LocalHost.ExportPrometheusMetrics / RegisterBridgeAsset / StartMetricsHttp / StopMetricsHttp");
         Console.WriteLine("  host bridge= LocalHost.ProcessDeposit / ProcessReadyDeposits / ScanAndProcessReadyDepositsAsync");
-        Console.WriteLine("               ConsumedDepositCount / L1InboxPendingCount / L1InboxConsumedCount / StageWithdrawal / ProveAsync");
-        Console.WriteLine("               HasForcedInclusionFinalizer / HasSettlementClient / HasTransactionSender / HasOverdueForcedInclusionAsync");
+        Console.WriteLine("               ConsumedDepositCount / DepositSourceReadyCount / DepositSourceReservedCount / L1InboxPendingCount");
+        Console.WriteLine("               IsSettlementEnabled / L1FinalityDepth / StageWithdrawal / ProveAsync / HasOverdueForcedInclusionAsync");
+        Console.WriteLine("               HasForcedInclusionFinalizer / HasSettlementClient / HasTransactionSender");
         Console.WriteLine("  host status= LocalHost.WriteOperatorStatusAsync(path) (JSON health dump)");
         Console.WriteLine("  host prom  = LocalHost/GatewayHost WritePrometheusMetricsAsync; GatewayHost.IsPublicationConfigured");
         Console.WriteLine("               (see l1.wireproduction-notes.json when --from-deploy-report was used)");

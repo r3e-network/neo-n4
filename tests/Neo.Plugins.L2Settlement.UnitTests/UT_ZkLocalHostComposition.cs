@@ -121,6 +121,10 @@ public sealed class UT_ZkLocalHostComposition
             Assert.AreEqual(DAMode.L1, status.DaMode);
             Assert.AreEqual(0, status.PendingSettlementCount);
             Assert.AreEqual(0, status.ReadyDepositCount);
+            Assert.AreEqual(0, status.DepositSourceReadyCount);
+            Assert.AreEqual(0, status.DepositSourceReservedCount);
+            Assert.IsTrue(status.IsSettlementEnabled);
+            Assert.IsTrue(status.L1FinalityDepth >= 1);
             Assert.IsTrue(status.HasDepositSource);
             Assert.IsTrue(status.HasMessageRouter);
             Assert.IsTrue(status.HasForcedInclusionFinalizer);

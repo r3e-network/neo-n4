@@ -128,6 +128,44 @@ public sealed class RpcSharedBridgeDepositSource : ISharedBridgeDepositSource, I
     /// <inheritdoc />
     public uint ChainId { get; }
 
+    /// <summary>
+    /// Soft ready-queue depth (materialized, not yet reserved/drained). Offline ops surface
+    /// without a capped peek; L1 scan remains a funded gate.
+    /// </summary>
+    public int ReadyCount
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _ready.Count;
+        }
+    }
+
+    /// <summary>
+    /// Soft reserved-queue depth (drained for seal, not yet confirmed). Offline batcher
+    /// hand-off health without Neo.CLI.
+    /// </summary>
+    public int ReservedCount
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _reserved.Count;
+        }
+    }
+
+    /// <summary>
+    /// Soft consumed-nonce cache size on this source (not the bridge DepositProcessor cache).
+    /// </summary>
+    public int SoftConsumedCount
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _consumed.Count;
+        }
+    }
+
     /// <inheritdoc />
     public async ValueTask<int> ScanAsync(CancellationToken cancellationToken = default)
     {

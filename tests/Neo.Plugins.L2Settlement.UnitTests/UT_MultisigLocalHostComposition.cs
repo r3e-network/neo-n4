@@ -140,6 +140,10 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsFalse(status.IsMetricsHttpListening);
             Assert.AreEqual(0, status.PendingSettlementCount);
             Assert.AreEqual(0, status.ReadyDepositCount);
+            Assert.AreEqual(0, status.DepositSourceReadyCount);
+            Assert.AreEqual(0, status.DepositSourceReservedCount);
+            Assert.IsTrue(status.IsSettlementEnabled);
+            Assert.IsTrue(status.L1FinalityDepth >= 1);
             Assert.AreEqual(0, status.TrackedForcedInclusionNonceCount);
             Assert.AreEqual(0, status.Recovery.PendingCount);
             Assert.AreEqual(host.GetLatestRpcStateRoot(), status.LatestRpcStateRoot);

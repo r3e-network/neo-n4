@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Settlement enable/finality + deposit source queue depths on LocalHost — 2026-07-18
+
+- `L2SettlementPlugin` exposes `IsEnabled`, `L1FinalityDepth`, and deploy heights;
+  Multisig/Optimistic/Zk LocalHost forward `IsSettlementEnabled` / `L1FinalityDepth`.
+- `RpcSharedBridgeDepositSource` exposes soft `ReadyCount` / `ReservedCount` /
+  `SoftConsumedCount`; LocalHost status includes `DepositSourceReadyCount` /
+  `DepositSourceReservedCount` for offline deposit pipeline health (beyond capped peek).
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+- Live L1 deposit scan / settle remains a funded RPC gate.
+
 ### Added — Gateway enable/retry thresholds + FI known nonces on LocalHost — 2026-07-18
 
 - `L2GatewayPlugin` / `GatewayHostComposition` expose `IsEnabled` and `MaxAutomaticRetries`;

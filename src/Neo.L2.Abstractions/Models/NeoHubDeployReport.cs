@@ -415,7 +415,7 @@ public sealed record NeoHubDeployReport(
                     ["batchInboxVisibility"] =
                         "L2BatchPlugin.HasSealedBatchSink / ForcedInclusionSource / DepositSource / MessageRouter",
                     ["settlementProductionWired"] =
-                        "L2SettlementPlugin.IsProductionWired after WireProduction",
+                        "L2SettlementPlugin.IsProductionWired / IsEnabled / L1FinalityDepth after WireProduction",
                     ["settlementProductionTransactionSender"] =
                         "L2SettlementPlugin.ProductionTransactionSender after WireProduction",
                     ["settlementProductionForcedInclusionFinalizer"] =
@@ -423,9 +423,10 @@ public sealed record NeoHubDeployReport(
                     ["localHostProductionSurfaces"] =
                         "LocalHost.DepositSource / MessageRouter / ForcedInclusionFinalizer / "
                         + "SettlementClient / TransactionSender / HasForcedInclusionFinalizer / "
-                        + "HasSettlementClient / HasTransactionSender / L1InboxPendingCount / "
-                        + "L1InboxConsumedCount / KnownInboundNonceCount / MetricsBoundPort / "
-                        + "IsMetricsHttpListening",
+                        + "HasSettlementClient / HasTransactionSender / IsSettlementEnabled / "
+                        + "L1FinalityDepth / DepositSourceReadyCount / DepositSourceReservedCount / "
+                        + "L1InboxPendingCount / L1InboxConsumedCount / KnownInboundNonceCount / "
+                        + "MetricsBoundPort / IsMetricsHttpListening",
                     ["localHostReadiness"] =
                         "LocalHost.ChainId / ProofType / DaMode / HasSealedBatchSink / "
                         + "NextExpectedBlock / ProcessCommittedBlock / IsOperatorReady / "
@@ -463,6 +464,7 @@ public sealed record NeoHubDeployReport(
                     ["localHostBridgeProcessors"] =
                         "LocalHost.ProcessDeposit / ProcessReadyDeposits / ScanSharedBridgeDepositsAsync / "
                         + "ScanAndProcessReadyDepositsAsync / HasConsumedDeposit / ConsumedDepositCount / "
+                        + "DepositSourceReadyCount / DepositSourceReservedCount / "
                         + "StageWithdrawal / StagedWithdrawalCount / SealWithdrawalBatch / ProveAsync",
                     ["localHostForcedInclusionOverdue"] =
                         "LocalHost.HasOverdueForcedInclusionAsync(nowUnixSeconds)",

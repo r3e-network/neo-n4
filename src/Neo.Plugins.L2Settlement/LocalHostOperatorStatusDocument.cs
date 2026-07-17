@@ -167,6 +167,18 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Batcher forced-inclusion source wired.</summary>
     public required bool HasBatchForcedInclusionSource { get; init; }
 
+    /// <summary>Settlement plugin enabled in settings.</summary>
+    public required bool IsSettlementEnabled { get; init; }
+
+    /// <summary>Configured L1 finality depth.</summary>
+    public required uint L1FinalityDepth { get; init; }
+
+    /// <summary>Deposit source soft ready-queue depth.</summary>
+    public required int DepositSourceReadyCount { get; init; }
+
+    /// <summary>Deposit source soft reserved-queue depth.</summary>
+    public required int DepositSourceReservedCount { get; init; }
+
     /// <summary>Recovery summary.</summary>
     public required LocalHostRecoveryDocument Recovery { get; init; }
 
@@ -229,6 +241,10 @@ public sealed record LocalHostOperatorStatusDocument
             TrackedForcedInclusionNonceCount = status.TrackedForcedInclusionNonceCount,
             KnownForcedInclusionNonceCount = status.KnownForcedInclusionNonceCount,
             HasBatchForcedInclusionSource = status.HasBatchForcedInclusionSource,
+            IsSettlementEnabled = status.IsSettlementEnabled,
+            L1FinalityDepth = status.L1FinalityDepth,
+            DepositSourceReadyCount = status.DepositSourceReadyCount,
+            DepositSourceReservedCount = status.DepositSourceReservedCount,
             Recovery = LocalHostRecoveryDocument.From(status.Recovery),
         };
     }

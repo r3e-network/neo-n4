@@ -95,6 +95,8 @@ public class UT_RpcSharedBridgeDepositSource
 
         Assert.AreEqual(1, await source.ScanAsync());
         Assert.AreEqual(1, source.Peek(10).Count);
+        Assert.AreEqual(1, source.ReadyCount);
+        Assert.AreEqual(0, source.ReservedCount);
         var messages = source.Drain(10);
         Assert.AreEqual(1, messages.Count);
         Assert.AreEqual(7UL, messages[0].Nonce);
@@ -103,10 +105,14 @@ public class UT_RpcSharedBridgeDepositSource
         Assert.AreEqual(Sender, messages[0].Sender);
         CollectionAssert.AreEqual(record.ToDepositPayload().Encode(), messages[0].Payload.ToArray());
         Assert.AreEqual(0, source.Peek(10).Count, "drain must reserve");
+        Assert.AreEqual(0, source.ReadyCount);
+        Assert.AreEqual(1, source.ReservedCount);
         Assert.AreEqual(0, source.Drain(10).Count, "must not re-drain reserved");
 
         source.ConfirmConsumed(7);
         Assert.AreEqual(0, source.Peek(10).Count);
+        Assert.AreEqual(0, source.ReservedCount);
+        Assert.AreEqual(1, source.SoftConsumedCount);
 
         using var restarted = new RpcSharedBridgeDepositScanner(
             rpc, SharedBridge, ChainId, store, startHeight: 10, finalityDepth: 1);

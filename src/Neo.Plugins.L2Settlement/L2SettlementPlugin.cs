@@ -509,6 +509,26 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
     public bool IsProductionWired => _productionComposition is not null;
 
     /// <summary>
+    /// Whether settlement submit/reconcile is enabled in plugin settings.
+    /// </summary>
+    public bool IsEnabled => _settings.Enabled;
+
+    /// <summary>
+    /// Configured L1 finality depth used by deposit / FI / MessageRouter scanners
+    /// when WireProduction does not override per-scanner depths.
+    /// </summary>
+    public uint L1FinalityDepth => _settings.L1FinalityDepth;
+
+    /// <summary>Configured ForcedInclusion contract deployment height (0 when unset).</summary>
+    public uint ForcedInclusionDeploymentHeight => _settings.ForcedInclusionDeploymentHeight;
+
+    /// <summary>Configured SharedBridge contract deployment height (0 when unset).</summary>
+    public uint SharedBridgeDeploymentHeight => _settings.SharedBridgeDeploymentHeight;
+
+    /// <summary>Configured MessageRouter contract deployment height (0 when unset).</summary>
+    public uint MessageRouterDeploymentHeight => _settings.MessageRouterDeploymentHeight;
+
+    /// <summary>
     /// Deposit source owned by the last successful <see cref="WireProduction"/> /
     /// <see cref="WireProductionFromLayout"/> when SharedBridge is configured; null when
     /// the caller supplied a deposit source or SharedBridge is not configured.

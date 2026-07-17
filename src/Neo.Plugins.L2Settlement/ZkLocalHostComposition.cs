@@ -461,6 +461,10 @@ public sealed class ZkLocalHostComposition : IDisposable
             TrackedForcedInclusionNonceCount = tracked.Count,
             KnownForcedInclusionNonceCount = KnownForcedInclusionNonceCount,
             HasBatchForcedInclusionSource = HasBatchForcedInclusionSource,
+            IsSettlementEnabled = IsSettlementEnabled,
+            L1FinalityDepth = L1FinalityDepth,
+            DepositSourceReadyCount = DepositSourceReadyCount,
+            DepositSourceReservedCount = DepositSourceReservedCount,
         };
     }
 
@@ -728,6 +732,30 @@ public sealed class ZkLocalHostComposition : IDisposable
     /// (<see cref="L2BatchPlugin.ForcedInclusionSource"/>).
     /// </summary>
     public bool HasBatchForcedInclusionSource => Batch.ForcedInclusionSource is not null;
+
+    /// <summary>
+    /// Whether settlement submit/reconcile is enabled
+    /// (<see cref="L2SettlementPlugin.IsEnabled"/>).
+    /// </summary>
+    public bool IsSettlementEnabled => Settlement.IsEnabled;
+
+    /// <summary>
+    /// Configured L1 finality depth for production scanners
+    /// (<see cref="L2SettlementPlugin.L1FinalityDepth"/>).
+    /// </summary>
+    public uint L1FinalityDepth => Settlement.L1FinalityDepth;
+
+    /// <summary>
+    /// Soft ready depth on the production deposit source (0 when unwired).
+    /// (<see cref="RpcSharedBridgeDepositSource.ReadyCount"/>).
+    /// </summary>
+    public int DepositSourceReadyCount => DepositSource?.ReadyCount ?? 0;
+
+    /// <summary>
+    /// Soft reserved depth on the production deposit source (0 when unwired).
+    /// (<see cref="RpcSharedBridgeDepositSource.ReservedCount"/>).
+    /// </summary>
+    public int DepositSourceReservedCount => DepositSource?.ReservedCount ?? 0;
 
     /// <summary>
     /// Bound metrics HTTP port after <see cref="StartMetricsHttp"/> (0 when not listening).

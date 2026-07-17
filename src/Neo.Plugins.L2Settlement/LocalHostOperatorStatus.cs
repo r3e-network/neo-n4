@@ -195,4 +195,21 @@ public sealed record LocalHostOperatorStatus
     /// (<see cref="L2BatchPlugin.ForcedInclusionSource"/>).
     /// </summary>
     public required bool HasBatchForcedInclusionSource { get; init; }
+
+    /// <summary>Whether settlement plugin submit/reconcile is enabled in settings.</summary>
+    public required bool IsSettlementEnabled { get; init; }
+
+    /// <summary>Configured L1 finality depth for production scanners.</summary>
+    public required uint L1FinalityDepth { get; init; }
+
+    /// <summary>
+    /// Soft ready depth on the production deposit source (0 when unwired). Exact cache size,
+    /// not the capped <see cref="ReadyDepositCount"/> peek.
+    /// </summary>
+    public required int DepositSourceReadyCount { get; init; }
+
+    /// <summary>
+    /// Soft reserved depth on the production deposit source (0 when unwired).
+    /// </summary>
+    public required int DepositSourceReservedCount { get; init; }
 }

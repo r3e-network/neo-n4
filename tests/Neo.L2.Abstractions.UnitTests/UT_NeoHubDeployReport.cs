@@ -179,7 +179,7 @@ public class UT_NeoHubDeployReport
                 "L2BatchPlugin.HasSealedBatchSink / ForcedInclusionSource / DepositSource / MessageRouter",
                 stores.GetProperty("batchInboxVisibility").GetString());
             Assert.AreEqual(
-                "L2SettlementPlugin.IsProductionWired after WireProduction",
+                "L2SettlementPlugin.IsProductionWired / IsEnabled / L1FinalityDepth after WireProduction",
                 stores.GetProperty("settlementProductionWired").GetString());
             Assert.AreEqual(
                 "L2SettlementPlugin.ProductionTransactionSender after WireProduction",
@@ -190,9 +190,10 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "LocalHost.DepositSource / MessageRouter / ForcedInclusionFinalizer / "
                 + "SettlementClient / TransactionSender / HasForcedInclusionFinalizer / "
-                + "HasSettlementClient / HasTransactionSender / L1InboxPendingCount / "
-                + "L1InboxConsumedCount / KnownInboundNonceCount / MetricsBoundPort / "
-                + "IsMetricsHttpListening",
+                + "HasSettlementClient / HasTransactionSender / IsSettlementEnabled / "
+                + "L1FinalityDepth / DepositSourceReadyCount / DepositSourceReservedCount / "
+                + "L1InboxPendingCount / L1InboxConsumedCount / KnownInboundNonceCount / "
+                + "MetricsBoundPort / IsMetricsHttpListening",
                 stores.GetProperty("localHostProductionSurfaces").GetString());
             Assert.AreEqual(
                 "LocalHost.ChainId / ProofType / DaMode / HasSealedBatchSink / "
@@ -238,6 +239,7 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "LocalHost.ProcessDeposit / ProcessReadyDeposits / ScanSharedBridgeDepositsAsync / "
                 + "ScanAndProcessReadyDepositsAsync / HasConsumedDeposit / ConsumedDepositCount / "
+                + "DepositSourceReadyCount / DepositSourceReservedCount / "
                 + "StageWithdrawal / StagedWithdrawalCount / SealWithdrawalBatch / ProveAsync",
                 stores.GetProperty("localHostBridgeProcessors").GetString());
             Assert.AreEqual(

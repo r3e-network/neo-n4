@@ -182,7 +182,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 gatewayProof,
                 new StubSigner(Account(0x55)),
                 UInt256.Parse("0x" + new string('d', 64)),
-                UInt256.Parse("0x" + new string('e', 64)));
+                UInt256.Parse("0x" + new string('e', 64)),
+                metrics: settlementHost.Metrics.Metrics);
 
             Assert.AreEqual(Path.GetFullPath(chainDir), settlementHost.ChainDirectory);
             Assert.AreEqual(ProofType.Multisig, settlementHost.Prover.Kind);
@@ -255,7 +256,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 multisigProof,
                 new StubSigner(Account(0x55)),
                 UInt256.Parse("0x" + new string('d', 64)),
-                UInt256.Parse("0x" + new string('e', 64))))
+                UInt256.Parse("0x" + new string('e', 64)),
+                metrics: settlementHost.Metrics.Metrics))
             {
                 Assert.AreEqual(
                     MultisigRoundProver.ConstBackendId,
@@ -276,7 +278,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 UInt256.Parse("0x" + new string('d', 64)),
                 vk,
                 resultTimeout: TimeSpan.FromSeconds(5),
-                pollInterval: TimeSpan.FromMilliseconds(10));
+                pollInterval: TimeSpan.FromMilliseconds(10),
+                metrics: settlementHost.Metrics.Metrics);
             Assert.IsTrue(gatewaySp1.OwnsProofProver);
             Assert.IsInstanceOfType(gatewaySp1.ProofProver, typeof(Sp1GatewayProofProver));
             Assert.IsNotNull(gatewaySp1.Publisher);
@@ -377,6 +380,23 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsNotNull(host.Metrics.Metrics);
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);
             Assert.AreEqual(DAMode.L1, host.RpcStore.DAMode);
+
+            // Validity + Gateway SP1 one-shot share the chain directory (no funded daemon traffic).
+            var gatewayVk = Hash(0x88);
+            using var gatewayHost = GatewayHostComposition.OpenSp1(
+                chainDir,
+                gatewayVk,
+                new StubSigner(Account(0x49)),
+                UInt256.Parse("0x" + new string('d', 64)),
+                gatewayVk,
+                resultTimeout: TimeSpan.FromSeconds(5),
+                pollInterval: TimeSpan.FromMilliseconds(10),
+                metrics: host.Metrics.Metrics);
+            Assert.IsTrue(gatewayHost.OwnsProofProver);
+            Assert.IsInstanceOfType(gatewayHost.ProofProver, typeof(Sp1GatewayProofProver));
+            Assert.IsNotNull(gatewayHost.Publisher);
+            Assert.IsTrue(Directory.Exists(Path.Combine(
+                chainDir, NeoHubDeployReport.RelativeGatewayProverQueueDir)));
         }
         finally
         {

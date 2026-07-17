@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — GatewayHostComposition metrics + Zk+Gateway OpenSp1 E2E — 2026-07-17
+
+- `GatewayHostComposition.OpenMerkle` / `OpenMultisig` / `OpenSp1` accept optional
+  `IL2Metrics` and call `L2GatewayPlugin.WithMetrics` (pair with LocalHost metrics).
+- Integration: Multisig LocalHost shares metrics into Gateway one-shots; Zk LocalHost
+  opens with `GatewayHostComposition.OpenSp1` on the same chain directory (no funded daemon).
+
 ### Added — LocalHost DA metrics wrap + batch inbox assertions — 2026-07-17
 
 - Multisig/Optimistic LocalHost compositions publish local DA through

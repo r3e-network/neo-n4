@@ -1,5 +1,6 @@
 using Neo.L2.Proving.Attestation;
 using Neo.L2.Settlement.Rpc;
+using Neo.L2.Telemetry;
 using Neo.Plugins.L2Gateway;
 
 namespace Neo.L2.Gateway.Rpc;
@@ -12,7 +13,9 @@ namespace Neo.L2.Gateway.Rpc;
 /// See doc.md §4 / §14.2. Lives in Gateway.Rpc so <see cref="ProofBoundRpcGlobalRootPublisher"/>
 /// can bind without circular plugin dependencies. Terminal proving circuit and replay domain /
 /// verification key remain host-supplied; funded L1 confirmation is operator-owned.
-/// Dispose the composition (gateway then publisher) before reopening durable outbox paths.
+/// Optional <see cref="IL2Metrics"/> wires outbox/aggregator telemetry (pair with
+/// Multisig/Optimistic/Zk LocalHost metrics). Dispose the composition (gateway then publisher)
+/// before reopening durable outbox paths.
 /// </remarks>
 public sealed class GatewayHostComposition : IDisposable
 {
@@ -57,13 +60,15 @@ public sealed class GatewayHostComposition : IDisposable
     /// <param name="replayDomain">Non-zero application/network replay domain.</param>
     /// <param name="verificationKeyId">Non-zero verification key id bound on L1.</param>
     /// <param name="options">Optional RPC sender options (network defaults from deployed layout).</param>
+    /// <param name="metrics">Optional metrics sink (e.g. Multisig LocalHost <c>Metrics.Metrics</c>).</param>
     public static GatewayHostComposition OpenMerkle(
         string chainDirectory,
         IGatewayProofProver proofProver,
         INeoTransactionSigner signer,
         UInt256 replayDomain,
         UInt256 verificationKeyId,
-        RpcTransactionSenderOptions? options = null)
+        RpcTransactionSenderOptions? options = null,
+        IL2Metrics? metrics = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
         ArgumentNullException.ThrowIfNull(proofProver);
@@ -86,7 +91,8 @@ public sealed class GatewayHostComposition : IDisposable
             signer,
             replayDomain,
             verificationKeyId,
-            options);
+            options,
+            metrics);
     }
 
     /// <summary>
@@ -102,6 +108,7 @@ public sealed class GatewayHostComposition : IDisposable
     /// <param name="replayDomain">Non-zero application/network replay domain.</param>
     /// <param name="verificationKeyId">Non-zero verification key id bound on L1.</param>
     /// <param name="options">Optional RPC sender options.</param>
+    /// <param name="metrics">Optional metrics sink for outbox/aggregator telemetry.</param>
     public static GatewayHostComposition OpenMultisig(
         string chainDirectory,
         ISignerSet signers,
@@ -110,7 +117,8 @@ public sealed class GatewayHostComposition : IDisposable
         INeoTransactionSigner signer,
         UInt256 replayDomain,
         UInt256 verificationKeyId,
-        RpcTransactionSenderOptions? options = null)
+        RpcTransactionSenderOptions? options = null,
+        IL2Metrics? metrics = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
         ArgumentNullException.ThrowIfNull(signers);
@@ -135,7 +143,8 @@ public sealed class GatewayHostComposition : IDisposable
             signer,
             replayDomain,
             verificationKeyId,
-            options);
+            options,
+            metrics);
     }
 
     /// <summary>
@@ -154,6 +163,7 @@ public sealed class GatewayHostComposition : IDisposable
     /// <param name="options">Optional RPC sender options.</param>
     /// <param name="resultTimeout">Optional SP1 result wait timeout.</param>
     /// <param name="pollInterval">Optional SP1 result poll interval.</param>
+    /// <param name="metrics">Optional metrics sink for outbox/aggregator telemetry.</param>
     public static GatewayHostComposition OpenSp1(
         string chainDirectory,
         UInt256 gatewayVerificationKey,
@@ -162,7 +172,8 @@ public sealed class GatewayHostComposition : IDisposable
         UInt256 verificationKeyId,
         RpcTransactionSenderOptions? options = null,
         TimeSpan? resultTimeout = null,
-        TimeSpan? pollInterval = null)
+        TimeSpan? pollInterval = null,
+        IL2Metrics? metrics = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
         ArgumentNullException.ThrowIfNull(gatewayVerificationKey);
@@ -183,7 +194,8 @@ public sealed class GatewayHostComposition : IDisposable
             signer,
             replayDomain,
             verificationKeyId,
-            options);
+            options,
+            metrics);
     }
 
     private static GatewayHostComposition Open(
@@ -194,11 +206,15 @@ public sealed class GatewayHostComposition : IDisposable
         INeoTransactionSigner signer,
         UInt256 replayDomain,
         UInt256 verificationKeyId,
-        RpcTransactionSenderOptions? options)
+        RpcTransactionSenderOptions? options,
+        IL2Metrics? metrics)
     {
         ProofBoundRpcGlobalRootPublisher? publisher = null;
         try
         {
+            if (metrics is not null)
+                gateway.WithMetrics(metrics);
+
             publisher = ProofBoundRpcGlobalRootPublisher.OpenFromChainDirectory(
                 chainDirectory,
                 signer,

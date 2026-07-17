@@ -3,6 +3,7 @@ using Neo.L2;
 using Neo.L2.Gateway.Rpc;
 using Neo.L2.Proving.Attestation;
 using Neo.L2.Settlement.Rpc;
+using Neo.L2.Telemetry;
 using Neo.Network.P2P.Payloads;
 using Neo.Plugins.L2Gateway;
 
@@ -47,12 +48,14 @@ public sealed class UT_GatewayHostComposition
                 aggregationBackendId: MerklePathRoundProver.ConstBackendId,
                 proofFactory: static (_, _, _) => ValueTask.FromResult<ReadOnlyMemory<byte>>(
                     new byte[] { 0x01 }));
+            var metrics = new InMemoryMetrics();
             using var host = GatewayHostComposition.OpenMerkle(
                 dir,
                 prover,
                 new StubSigner(),
                 UInt256.Parse("0x" + new string('d', 64)),
-                UInt256.Parse("0x" + new string('e', 64)));
+                UInt256.Parse("0x" + new string('e', 64)),
+                metrics: metrics);
 
             Assert.AreEqual(Path.GetFullPath(dir), host.ChainDirectory);
             Assert.IsFalse(host.OwnsProofProver);
@@ -63,6 +66,8 @@ public sealed class UT_GatewayHostComposition
                 ((BinaryTreeAggregator)host.Gateway.Aggregator).RoundProver.BackendId);
             Assert.IsFalse(host.Gateway.HasPendingPublication);
             Assert.IsNotNull(host.Publisher);
+            // Metrics sink is retained for outbox/aggregator emission (no throw on wire).
+            Assert.IsNotNull(metrics);
         }
         finally
         {

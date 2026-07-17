@@ -175,13 +175,13 @@ public class UT_NeoHubDeployReport
                 + "+ InMemoryL2RpcStore (data/rpc/proofs)",
                 stores.GetProperty("zkLocalHostComposition").GetString());
             Assert.AreEqual(
-                "GatewayHostComposition.OpenMerkle(chainDir, proofProver, signer, replayDomain, vk)",
+                "GatewayHostComposition.OpenMerkle(chainDir, proofProver, signer, replayDomain, vk, metrics?)",
                 stores.GetProperty("gatewayHostCompositionMerkle").GetString());
             Assert.AreEqual(
-                "GatewayHostComposition.OpenMultisig(chainDir, signers, threshold, proofProver, signer, replayDomain, vk)",
+                "GatewayHostComposition.OpenMultisig(chainDir, signers, threshold, proofProver, signer, replayDomain, vk, metrics?)",
                 stores.GetProperty("gatewayHostCompositionMultisig").GetString());
             Assert.AreEqual(
-                "GatewayHostComposition.OpenSp1(chainDir, gatewayVk, signer, replayDomain, vk)",
+                "GatewayHostComposition.OpenSp1(chainDir, gatewayVk, signer, replayDomain, vk, metrics?)",
                 stores.GetProperty("gatewayHostCompositionSp1").GetString());
             Assert.AreEqual(
                 "L2BatchPlugin.CreateFromChainDirectory(chainDirectory)",

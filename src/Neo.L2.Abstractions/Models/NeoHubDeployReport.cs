@@ -408,11 +408,11 @@ public sealed record NeoHubDeployReport(
                         "ZkLocalHostComposition.Open(chainDir, executorPath, executorSha256, vk, productionDaWriter, signer) "
                         + "+ InMemoryL2RpcStore (data/rpc/proofs)",
                     ["gatewayHostCompositionMerkle"] =
-                        "GatewayHostComposition.OpenMerkle(chainDir, proofProver, signer, replayDomain, vk)",
+                        "GatewayHostComposition.OpenMerkle(chainDir, proofProver, signer, replayDomain, vk, metrics?)",
                     ["gatewayHostCompositionMultisig"] =
-                        "GatewayHostComposition.OpenMultisig(chainDir, signers, threshold, proofProver, signer, replayDomain, vk)",
+                        "GatewayHostComposition.OpenMultisig(chainDir, signers, threshold, proofProver, signer, replayDomain, vk, metrics?)",
                     ["gatewayHostCompositionSp1"] =
-                        "GatewayHostComposition.OpenSp1(chainDir, gatewayVk, signer, replayDomain, vk)",
+                        "GatewayHostComposition.OpenSp1(chainDir, gatewayVk, signer, replayDomain, vk, metrics?)",
                     ["localDaOpenHelper"] = "PersistentDAWriter.OpenLocalFromChainDirectory(chainDirectory)",
                     ["daMetricsWrap"] =
                         "MetricsEmittingDAWriter / MetricsEmittingProductionDAWriter (LocalHost Open)",

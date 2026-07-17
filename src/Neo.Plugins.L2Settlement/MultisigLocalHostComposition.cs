@@ -578,6 +578,35 @@ public sealed class MultisigLocalHostComposition : IDisposable
         return prover.ProveAsync(request, cancellationToken);
     }
 
+
+    /// <summary>
+    /// Write <see cref="GetOperatorStatusAsync"/> as indented JSON for host health files
+    /// without Neo.CLI (primitive fields + recovery summary only).
+    /// </summary>
+    public async ValueTask WriteOperatorStatusAsync(
+        string path,
+        int depositPeekLimit = 64,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var status = await GetOperatorStatusAsync(depositPeekLimit, cancellationToken)
+            .ConfigureAwait(false);
+        var document = LocalHostOperatorStatusDocument.From(status);
+        var fullPath = Path.GetFullPath(path);
+        var dir = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+        var json = System.Text.Json.JsonSerializer.Serialize(
+            document,
+            new System.Text.Json.JsonSerializerOptions
+            {
+                WriteIndented = true,
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+            });
+        await File.WriteAllTextAsync(fullPath, json + Environment.NewLine, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     public L2RpcPlugin CreateRpcPlugin()
     {
         var plugin = new L2RpcPlugin();

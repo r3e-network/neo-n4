@@ -20,7 +20,7 @@ namespace Neo.Plugins.L2Settlement.UnitTests;
 public sealed class UT_MultisigLocalHostComposition
 {
     [TestMethod]
-    public void Open_FromDeployReport_WiresMultisigLocalStack()
+    public async Task Open_FromDeployReport_WiresMultisigLocalStack()
     {
         var reportPath = Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory,
@@ -232,6 +232,46 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(ProofType.Multisig, proof.Kind);
             Assert.IsFalse(proof.Proof.IsEmpty);
             Assert.IsNotNull(host.BatchProver);
+            // Withdrawal staging + outbound message outbox + status JSON dump.
+            var sender = Account(0x77);
+            var wdLeaf = host.StageWithdrawal(new WithdrawalRequest
+            {
+                ChainId = 20260716u,
+                EmittingContract = sender,
+                L2Sender = sender,
+                L1Recipient = sender,
+                L2Asset = l2Asset,
+                Amount = new BigInteger(50),
+                Nonce = 1,
+            });
+            Assert.AreNotEqual(UInt256.Zero, wdLeaf);
+            Assert.AreEqual(1, host.StagedWithdrawalCount);
+            var sealedWd = host.SealWithdrawalBatch();
+            Assert.AreNotEqual(UInt256.Zero, sealedWd.Root);
+            Assert.AreEqual(0, host.StagedWithdrawalCount);
+            await host.EnqueueOutboundMessagesAsync(
+            [
+                new CrossChainMessage
+                {
+                    SourceChainId = 20260716u,
+                    TargetChainId = 0,
+                    Nonce = 9,
+                    Sender = sender,
+                    Receiver = sender,
+                    MessageType = MessageType.Event,
+                    Payload = new byte[] { 0x01 },
+                    MessageHash = UInt256.Zero,
+                },
+            ]);
+            Assert.AreEqual(1, host.MessageOutbox!.L2ToL1Count);
+            var statusPath = Path.Combine(chainDir, "operator-status.json");
+            await host.WriteOperatorStatusAsync(statusPath);
+            Assert.IsTrue(File.Exists(statusPath));
+            var statusJson = await File.ReadAllTextAsync(statusPath);
+            StringAssert.Contains(statusJson, "\"chainId\": 20260716");
+            StringAssert.Contains(statusJson, "\"isOperatorReady\": true");
+            StringAssert.Contains(statusJson, "\"messageOutboxL2ToL1Count\": 1");
+            StringAssert.Contains(statusJson, "\"stagedWithdrawalCount\": 0");
             Assert.AreEqual(0, host.Metrics.BoundPort); // HTTP not started by default
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);
             Assert.AreEqual(DAMode.Local, host.RpcStore.DAMode);

@@ -444,6 +444,8 @@ public sealed record NeoHubDeployReport(
                     ["localHostBridgeProcessors"] =
                         "LocalHost.ProcessDeposit / HasConsumedDeposit / StageWithdrawal / "
                         + "StagedWithdrawalCount / SealWithdrawalBatch / ProveAsync",
+                    ["localHostWriteOperatorStatus"] =
+                        "LocalHost.WriteOperatorStatusAsync(path) → LocalHostOperatorStatusDocument JSON",
                     ["localHostSettleHelpers"] =
                         "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                         + "PersistAsync / EnqueueAsync",

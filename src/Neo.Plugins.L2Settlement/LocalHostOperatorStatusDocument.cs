@@ -1,0 +1,160 @@
+using Neo.L2;
+
+namespace Neo.Plugins.L2;
+
+/// <summary>
+/// JSON-serializable projection of <see cref="LocalHostOperatorStatus"/> for host health files.
+/// </summary>
+/// <remarks>
+/// See doc.md §7.5 / §14.2. Roots and enums are stringified so operators can dump status
+/// without custom UInt256 converters. Produced by <c>WriteOperatorStatusAsync</c>.
+/// </remarks>
+public sealed record LocalHostOperatorStatusDocument
+{
+    /// <summary>L2 chain id.</summary>
+    public required uint ChainId { get; init; }
+
+    /// <summary>Proof type name.</summary>
+    public required string ProofType { get; init; }
+
+    /// <summary>DA mode name.</summary>
+    public required string DaMode { get; init; }
+
+    /// <summary>Security level name.</summary>
+    public required string SecurityLevel { get; init; }
+
+    /// <summary>Whether Gateway is enabled in the RPC store.</summary>
+    public required bool GatewayEnabled { get; init; }
+
+    /// <summary>Sequencer model name.</summary>
+    public required string Sequencer { get; init; }
+
+    /// <summary>Exit model name.</summary>
+    public required string Exit { get; init; }
+
+    /// <summary>Production WireProduction installed.</summary>
+    public required bool IsProductionWired { get; init; }
+
+    /// <summary>Sealed-batch sink installed.</summary>
+    public required bool HasSealedBatchSink { get; init; }
+
+    /// <summary>Operator readiness flag.</summary>
+    public required bool IsOperatorReady { get; init; }
+
+    /// <summary>Deposit source installed.</summary>
+    public required bool HasDepositSource { get; init; }
+
+    /// <summary>MessageRouter installed.</summary>
+    public required bool HasMessageRouter { get; init; }
+
+    /// <summary>Metrics HTTP listening.</summary>
+    public required bool IsMetricsHttpListening { get; init; }
+
+    /// <summary>Metrics HTTP port.</summary>
+    public required int MetricsBoundPort { get; init; }
+
+    /// <summary>Pending settlement artifacts.</summary>
+    public required int PendingSettlementCount { get; init; }
+
+    /// <summary>Ready deposit peek count.</summary>
+    public required int ReadyDepositCount { get; init; }
+
+    /// <summary>Latest RPC state root as 0x-hex.</summary>
+    public required string LatestRpcStateRoot { get; init; }
+
+    /// <summary>Bridge asset mapping count.</summary>
+    public required int BridgeAssetCount { get; init; }
+
+    /// <summary>Metrics entry count.</summary>
+    public required int MetricsEntryCount { get; init; }
+
+    /// <summary>L2→L1 outbox depth.</summary>
+    public required int MessageOutboxL2ToL1Count { get; init; }
+
+    /// <summary>L2→L2 outbox depth.</summary>
+    public required int MessageOutboxL2ToL2Count { get; init; }
+
+    /// <summary>Staged withdrawal count.</summary>
+    public required int StagedWithdrawalCount { get; init; }
+
+    /// <summary>Tracked forced-inclusion nonce count.</summary>
+    public required int TrackedForcedInclusionNonceCount { get; init; }
+
+    /// <summary>Recovery summary.</summary>
+    public required LocalHostRecoveryDocument Recovery { get; init; }
+
+    /// <summary>Map a live status snapshot into a JSON document.</summary>
+    public static LocalHostOperatorStatusDocument From(LocalHostOperatorStatus status)
+    {
+        ArgumentNullException.ThrowIfNull(status);
+        ArgumentNullException.ThrowIfNull(status.Recovery);
+        return new LocalHostOperatorStatusDocument
+        {
+            ChainId = status.ChainId,
+            ProofType = status.ProofType.ToString(),
+            DaMode = status.DaMode.ToString(),
+            SecurityLevel = status.SecurityLevel.ToString(),
+            GatewayEnabled = status.GatewayEnabled,
+            Sequencer = status.Sequencer.ToString(),
+            Exit = status.Exit.ToString(),
+            IsProductionWired = status.IsProductionWired,
+            HasSealedBatchSink = status.HasSealedBatchSink,
+            IsOperatorReady = status.IsOperatorReady,
+            HasDepositSource = status.HasDepositSource,
+            HasMessageRouter = status.HasMessageRouter,
+            IsMetricsHttpListening = status.IsMetricsHttpListening,
+            MetricsBoundPort = status.MetricsBoundPort,
+            PendingSettlementCount = status.PendingSettlementCount,
+            ReadyDepositCount = status.ReadyDepositCount,
+            LatestRpcStateRoot = status.LatestRpcStateRoot.ToString(),
+            BridgeAssetCount = status.BridgeAssetCount,
+            MetricsEntryCount = status.MetricsEntryCount,
+            MessageOutboxL2ToL1Count = status.MessageOutboxL2ToL1Count,
+            MessageOutboxL2ToL2Count = status.MessageOutboxL2ToL2Count,
+            StagedWithdrawalCount = status.StagedWithdrawalCount,
+            TrackedForcedInclusionNonceCount = status.TrackedForcedInclusionNonceCount,
+            Recovery = LocalHostRecoveryDocument.From(status.Recovery),
+        };
+    }
+}
+
+/// <summary>JSON-serializable recovery subset of <see cref="SettlementRecoveryStatus"/>.</summary>
+public sealed record LocalHostRecoveryDocument
+{
+    /// <summary>Pending artifact count.</summary>
+    public required int PendingCount { get; init; }
+
+    /// <summary>Confirmation lag in batches.</summary>
+    public required int ConfirmationLagBatches { get; init; }
+
+    /// <summary>Recovery state name, if any.</summary>
+    public string? State { get; init; }
+
+    /// <summary>Blocked batch number, if any.</summary>
+    public ulong? BlockedBatchNumber { get; init; }
+
+    /// <summary>Artifact content hash as 0x-hex, if any.</summary>
+    public string? ArtifactContentHash { get; init; }
+
+    /// <summary>Retry count.</summary>
+    public required int RetryCount { get; init; }
+
+    /// <summary>Last error text, if any.</summary>
+    public string? LastError { get; init; }
+
+    /// <summary>Map a recovery snapshot into a JSON document.</summary>
+    public static LocalHostRecoveryDocument From(SettlementRecoveryStatus recovery)
+    {
+        ArgumentNullException.ThrowIfNull(recovery);
+        return new LocalHostRecoveryDocument
+        {
+            PendingCount = recovery.PendingCount,
+            ConfirmationLagBatches = recovery.ConfirmationLagBatches,
+            State = recovery.State?.ToString(),
+            BlockedBatchNumber = recovery.BlockedBatchNumber,
+            ArtifactContentHash = recovery.ArtifactContentHash?.ToString(),
+            RetryCount = recovery.RetryCount,
+            LastError = recovery.LastError,
+        };
+    }
+}

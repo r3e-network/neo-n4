@@ -240,6 +240,7 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "ProcessDeposit");
         StringAssert.Contains(output, "StageWithdrawal");
         StringAssert.Contains(output, "ProveAsync");
+        StringAssert.Contains(output, "WriteOperatorStatusAsync");
         StringAssert.Contains(output, "l1.wireproduction-notes.json");
     }
 

@@ -205,6 +205,10 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(0, settlementHost.BridgeAssetCount);
             Assert.AreEqual(0, settlementHost.StagedWithdrawalCount);
             Assert.IsNotNull(settlementHost.BatchProver);
+            var statusPath = Path.Combine(chainDir, "operator-status.json");
+            settlementHost.WriteOperatorStatusAsync(statusPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(statusPath));
+            StringAssert.Contains(File.ReadAllText(statusPath), "\"isOperatorReady\": true");
             // Local durable recovery surface (no funded L1 publish).
             var recovery = settlementHost.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(0, recovery.PendingCount);

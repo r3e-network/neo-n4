@@ -225,6 +225,9 @@ public class UT_NeoHubDeployReport
                 + "StagedWithdrawalCount / SealWithdrawalBatch / ProveAsync",
                 stores.GetProperty("localHostBridgeProcessors").GetString());
             Assert.AreEqual(
+                "LocalHost.WriteOperatorStatusAsync(path) → LocalHostOperatorStatusDocument JSON",
+                stores.GetProperty("localHostWriteOperatorStatus").GetString());
+            Assert.AreEqual(
                 "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                 + "PersistAsync / EnqueueAsync",
                 stores.GetProperty("localHostSettleHelpers").GetString());

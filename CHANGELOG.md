@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost WriteOperatorStatusAsync + withdrawal/outbox E2E — 2026-07-17
+
+- Multisig/Optimistic/Zk LocalHost expose `WriteOperatorStatusAsync(path)` writing
+  `LocalHostOperatorStatusDocument` JSON (primitive fields + recovery summary) for
+  host health dumps without Neo.CLI.
+- Unit coverage stages a withdrawal, seals the tree, enqueues an L2→L1 outbox message,
+  and asserts the JSON status file; Optimistic/Zk + Multisig/Gateway integration dump status.
+- Wireproduction notes + init-l2 status tip; no wire/ABI change.
+
 ### Added — LocalHost deposit/withdrawal processors + ProveAsync — 2026-07-17
 
 - Multisig/Optimistic/Zk LocalHost expose bridge mint/withdraw staging without Neo.CLI:

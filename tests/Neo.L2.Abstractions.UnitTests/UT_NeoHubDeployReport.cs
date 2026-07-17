@@ -221,6 +221,10 @@ public class UT_NeoHubDeployReport
                 + "SnapshotBridgeAssets / BridgeAssetCount",
                 stores.GetProperty("localHostBridgeRegistry").GetString());
             Assert.AreEqual(
+                "LocalHost.ProcessDeposit / HasConsumedDeposit / StageWithdrawal / "
+                + "StagedWithdrawalCount / SealWithdrawalBatch / ProveAsync",
+                stores.GetProperty("localHostBridgeProcessors").GetString());
+            Assert.AreEqual(
                 "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                 + "PersistAsync / EnqueueAsync",
                 stores.GetProperty("localHostSettleHelpers").GetString());

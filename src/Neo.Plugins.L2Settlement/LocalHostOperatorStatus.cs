@@ -83,6 +83,9 @@ public sealed record LocalHostOperatorStatus
     /// <summary>L2→L2 messages staged in the MessageRouter outbox (0 when unwired).</summary>
     public required int MessageOutboxL2ToL2Count { get; init; }
 
+    /// <summary>Withdrawals staged in the bridge withdrawal tree for the open batch.</summary>
+    public required int StagedWithdrawalCount { get; init; }
+
     /// <summary>Durable pending / retry / poison recovery surface.</summary>
     public required SettlementRecoveryStatus Recovery { get; init; }
 

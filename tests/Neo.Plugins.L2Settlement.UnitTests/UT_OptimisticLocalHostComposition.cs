@@ -115,6 +115,10 @@ public sealed class UT_OptimisticLocalHostComposition
             var prom = host.ExportPrometheusMetrics();
             Assert.IsFalse(string.IsNullOrWhiteSpace(prom));
             Assert.IsNotNull(host.CaptureMetricsSnapshot());
+            Assert.AreEqual(0, host.StagedWithdrawalCount);
+            Assert.IsNotNull(host.DepositProcessor);
+            Assert.IsNotNull(host.WithdrawalProcessor);
+            Assert.IsNotNull(host.BatchProver);
             var recovery = host.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(0, recovery.PendingCount);
             Assert.AreEqual(

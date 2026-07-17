@@ -1,8 +1,10 @@
 using System.Net;
+using System.Numerics;
 using System.Text;
 using Neo.Cryptography.ECC;
 using Neo.L2;
 using Neo.L2.Batch;
+using Neo.L2.Bridge;
 using Neo.L2.Executor.ProofWitness;
 using Neo.L2.Proving;
 using Neo.L2.Proving.Attestation;
@@ -184,6 +186,52 @@ public sealed class UT_MultisigLocalHostComposition
             var status2 = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(1, status2.BridgeAssetCount);
             Assert.AreEqual(0, status2.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(0, status2.StagedWithdrawalCount);
+            // Offline deposit mint path + Multisig prove (no funded L1).
+            var depositPayload = new DepositPayload
+            {
+                L1Asset = l1Asset,
+                L2Recipient = Account(0x55),
+                Amount = new BigInteger(1_000),
+            };
+            var depositMsg = new CrossChainMessage
+            {
+                SourceChainId = 0,
+                TargetChainId = 20260716u,
+                Nonce = 1,
+                Sender = Account(0x66),
+                Receiver = Account(0x55),
+                MessageType = MessageType.Deposit,
+                Payload = depositPayload.Encode(),
+                MessageHash = UInt256.Zero,
+            };
+            var mint = host.ProcessDeposit(depositMsg);
+            Assert.AreEqual(l2Asset, mint.L2Asset);
+            Assert.IsTrue(host.HasConsumedDeposit(0, 1));
+            Assert.AreEqual(0, host.StagedWithdrawalCount);
+            var proof = host.ProveAsync(new ProofRequest
+            {
+                PublicInputs = new PublicInputs
+                {
+                    ChainId = 20260716u,
+                    BatchNumber = 1,
+                    PreStateRoot = z,
+                    PostStateRoot = root,
+                    TxRoot = z,
+                    ReceiptRoot = z,
+                    WithdrawalRoot = z,
+                    L2ToL1MessageRoot = z,
+                    L2ToL2MessageRoot = z,
+                    L1MessageHash = z,
+                    DACommitment = z,
+                    BlockContextHash = z,
+                },
+                Witness = ReadOnlyMemory<byte>.Empty,
+                Kind = ProofType.Multisig,
+            }).AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(ProofType.Multisig, proof.Kind);
+            Assert.IsFalse(proof.Proof.IsEmpty);
+            Assert.IsNotNull(host.BatchProver);
             Assert.AreEqual(0, host.Metrics.BoundPort); // HTTP not started by default
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);
             Assert.AreEqual(DAMode.Local, host.RpcStore.DAMode);

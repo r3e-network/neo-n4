@@ -133,6 +133,7 @@ internal static class InitL2Command
         Console.WriteLine("  host rpc   = LocalHost.AddRpcBatch / RecordRpcDeposit / RegisterRpcAsset / MessageOutbox");
         Console.WriteLine("  host da/fi = LocalHost.PublishDaAsync / RegisterForcedInclusionNonce (local DA offline)");
         Console.WriteLine("  host ops   = LocalHost.ExportPrometheusMetrics / RegisterBridgeAsset / SnapshotBridgeAssets");
+        Console.WriteLine("  host bridge= LocalHost.ProcessDeposit / StageWithdrawal / ProveAsync (offline Multisig prove)");
         Console.WriteLine("               (see l1.wireproduction-notes.json when --from-deploy-report was used)");
         return 0;
     }

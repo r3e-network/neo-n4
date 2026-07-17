@@ -239,6 +239,7 @@ public sealed class MultisigLocalHostComposition : IDisposable
             MetricsEntryCount = CaptureMetricsSnapshot().TotalEntries,
             MessageOutboxL2ToL1Count = MessageOutbox?.L2ToL1Count ?? 0,
             MessageOutboxL2ToL2Count = MessageOutbox?.L2ToL2Count ?? 0,
+            StagedWithdrawalCount = Bridge.WithdrawalProcessor.StagedCount,
             Recovery = recovery,
             TrackedForcedInclusionNonceCount = tracked.Count,
         };
@@ -513,6 +514,69 @@ public sealed class MultisigLocalHostComposition : IDisposable
 
     /// <summary>Count of bridge-side asset mappings.</summary>
     public int BridgeAssetCount => Bridge.Registry.Count;
+
+
+    /// <summary>
+    /// Bridge deposit processor (mint instruction path)
+    /// (<see cref="L2BridgePlugin.DepositProcessor"/>).
+    /// </summary>
+    public DepositProcessor DepositProcessor => Bridge.DepositProcessor;
+
+    /// <summary>
+    /// Bridge withdrawal processor (staging + seal tree)
+    /// (<see cref="L2BridgePlugin.WithdrawalProcessor"/>).
+    /// </summary>
+    public WithdrawalProcessor WithdrawalProcessor => Bridge.WithdrawalProcessor;
+
+    /// <summary>
+    /// Validate a SharedBridge deposit message and produce a mint instruction
+    /// (<see cref="DepositProcessor.Process"/>).
+    /// </summary>
+    public MintInstruction ProcessDeposit(CrossChainMessage message)
+        => Bridge.DepositProcessor.Process(message);
+
+    /// <summary>
+    /// True when the deposit processor has already consumed
+    /// (<paramref name="sourceChainId"/>, <paramref name="nonce"/>).
+    /// </summary>
+    public bool HasConsumedDeposit(uint sourceChainId, ulong nonce)
+        => Bridge.DepositProcessor.HasConsumed(sourceChainId, nonce);
+
+    /// <summary>
+    /// Stage a withdrawal into the current batch tree
+    /// (<see cref="WithdrawalProcessor.Stage"/>).
+    /// </summary>
+    public UInt256 StageWithdrawal(WithdrawalRequest request)
+        => Bridge.WithdrawalProcessor.Stage(request);
+
+    /// <summary>Number of withdrawals staged in the current open tree.</summary>
+    public int StagedWithdrawalCount => Bridge.WithdrawalProcessor.StagedCount;
+
+    /// <summary>
+    /// Seal the staged withdrawal tree and start a fresh one
+    /// (<see cref="WithdrawalProcessor.SealBatch"/>).
+    /// </summary>
+    public (UInt256 Root, Neo.L2.State.WithdrawalTree Tree) SealWithdrawalBatch()
+        => Bridge.WithdrawalProcessor.SealBatch();
+
+    /// <summary>
+    /// Wired batch prover instance, or null when the prover plugin has not installed one.
+    /// </summary>
+    public IL2Prover? BatchProver => Prover.Prover;
+
+    /// <summary>
+    /// Generate a proof via the wired host prover
+    /// (<see cref="IL2Prover.ProveAsync"/>). Multisig is fully offline; Zk may require
+    /// funded executor/daemon resources.
+    /// </summary>
+    public ValueTask<ProofResult> ProveAsync(
+        ProofRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var prover = Prover.Prover
+            ?? throw new InvalidOperationException("batch prover is not wired on this LocalHost");
+        return prover.ProveAsync(request, cancellationToken);
+    }
 
     public L2RpcPlugin CreateRpcPlugin()
     {

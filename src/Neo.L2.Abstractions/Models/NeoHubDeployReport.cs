@@ -441,6 +441,9 @@ public sealed record NeoHubDeployReport(
                     ["localHostBridgeRegistry"] =
                         "LocalHost.BridgeAssetRegistry / RegisterBridgeAsset / "
                         + "SnapshotBridgeAssets / BridgeAssetCount",
+                    ["localHostBridgeProcessors"] =
+                        "LocalHost.ProcessDeposit / HasConsumedDeposit / StageWithdrawal / "
+                        + "StagedWithdrawalCount / SealWithdrawalBatch / ProveAsync",
                     ["localHostSettleHelpers"] =
                         "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                         + "PersistAsync / EnqueueAsync",

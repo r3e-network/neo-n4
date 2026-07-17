@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost deposit/withdrawal processors + ProveAsync — 2026-07-17
+
+- Multisig/Optimistic/Zk LocalHost expose bridge mint/withdraw staging without Neo.CLI:
+  `DepositProcessor` / `WithdrawalProcessor`, `ProcessDeposit` / `HasConsumedDeposit`,
+  `StageWithdrawal` / `StagedWithdrawalCount` / `SealWithdrawalBatch`.
+- `BatchProver` + `ProveAsync` for offline Multisig attestation (Zk prove may still need
+  funded executor/daemon).
+- `LocalHostOperatorStatus.StagedWithdrawalCount`. `init-l2` host bridge tip.
+- Wireproduction notes + unit/integration coverage; no wire/ABI change.
+
 ### Added — LocalHost metrics export + bridge asset registry — 2026-07-17
 
 - Multisig/Optimistic/Zk LocalHost expose offline metrics export:

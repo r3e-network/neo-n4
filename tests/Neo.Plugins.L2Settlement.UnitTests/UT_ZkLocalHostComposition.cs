@@ -122,7 +122,9 @@ public sealed class UT_ZkLocalHostComposition
             host.InvalidateForcedInclusionCache();
             Assert.AreEqual(0, host.BridgeAssetCount);
             Assert.IsFalse(string.IsNullOrWhiteSpace(host.ExportPrometheusMetrics()));
-            // Zk production DA publish remains a funded credential path (stub throws by design).
+            Assert.AreEqual(0, host.StagedWithdrawalCount);
+            Assert.IsNotNull(host.BatchProver);
+            // Zk ProveAsync / production DA remain funded operator paths (executor + credentials).
             var recovery = host.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(0, recovery.PendingCount);
             Assert.AreEqual(

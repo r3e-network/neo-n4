@@ -187,6 +187,12 @@ public class UT_NeoHubDeployReport
                 "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync",
                 stores.GetProperty("localHostSettleHelpers").GetString());
             Assert.AreEqual(
+                "LocalHost.StartMetricsHttp(portOverride?, readiness?) / Open startMetricsHttp",
+                stores.GetProperty("localHostStartMetricsHttp").GetString());
+            Assert.AreEqual(
+                "LocalHost.CreateRpcPlugin() then NeoSystem.AddService(RpcStore)",
+                stores.GetProperty("localHostCreateRpcPlugin").GetString());
+            Assert.AreEqual(
                 "LocalHost Open startMetricsHttp → WithReadinessCheck(HasSealedBatchSink)",
                 stores.GetProperty("metricsReadiness").GetString());
             Assert.AreEqual(

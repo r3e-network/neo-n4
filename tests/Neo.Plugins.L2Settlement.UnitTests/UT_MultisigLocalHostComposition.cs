@@ -116,6 +116,56 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(0, await host.GetPendingCountAsync());
             await host.ReconcileAsync();
             await host.SubmitNextAsync();
+            Assert.IsTrue(host.IsProductionWired);
+
+            var metricsBody = await client.GetStringAsync(
+                $"http://127.0.0.1:{host.Metrics.BoundPort}/metrics");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(metricsBody));
+            // Prometheus exposition always includes TYPE/HELP or at least scrapeable text.
+            StringAssert.Contains(metricsBody, "#");
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void Open_DeferredStartMetricsHttp_And_CreateRpcPlugin()
+    {
+        var reportPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        var chainDir = Path.Combine(
+            Path.GetTempPath(),
+            "neo-n4-msig-host-deferred-metrics-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            MaterializeMultisigChain(chainDir, reportPath);
+            using var http = CanonicalRootHttpClient();
+            using var host = MultisigLocalHostComposition.Open(
+                chainDir,
+                new StubExecutor(),
+                SampleSigners(),
+                new StubSigner(Account(0x44)),
+                rpcHttpClient: http);
+            Assert.AreEqual(0, host.Metrics.BoundPort);
+
+            host.StartMetricsHttp(portOverride: 0);
+            Assert.IsTrue(host.Metrics.BoundPort > 0);
+            Assert.IsTrue(host.IsProductionWired);
+
+            var rpcPlugin = host.CreateRpcPlugin();
+            Assert.IsNotNull(rpcPlugin);
+            Assert.IsFalse(rpcPlugin.IsRegistered(894710606)); // no NeoSystem registration yet
+            // Metrics already configured on the plugin; second WithMetrics would be ok only if
+            // no networks registered — CreateRpcPlugin owns that one-shot wiring.
         }
         finally
         {

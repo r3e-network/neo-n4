@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost StartMetricsHttp, CreateRpcPlugin, /metrics E2E — 2026-07-17
+
+- Multisig/Optimistic/Zk LocalHost expose deferred `StartMetricsHttp`,
+  `CreateRpcPlugin()` (metrics pre-wired for Neo.CLI registration), and
+  `IsProductionWired`.
+- Multisig unit test scrapes `/metrics` Prometheus body; integration Multisig+Gateway
+  uses deferred metrics start + CreateRpcPlugin without funded L1.
+
 ### Added — ProductionTransactionSender + LocalHost settle helpers + /readyz E2E — 2026-07-17
 
 - `L2SettlementPlugin.ProductionTransactionSender` after WireProduction.

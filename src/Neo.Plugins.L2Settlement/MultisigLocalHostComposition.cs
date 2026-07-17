@@ -101,6 +101,35 @@ public sealed class MultisigLocalHostComposition : IDisposable
         => Settlement.GetPendingCountAsync(cancellationToken);
 
     /// <summary>
+    /// True after WireProduction installed the production composition
+    /// (<see cref="L2SettlementPlugin.IsProductionWired"/>).
+    /// </summary>
+    public bool IsProductionWired => Settlement.IsProductionWired;
+
+    /// <summary>
+    /// Start (or re-enter) the metrics HTTP server. Idempotent.
+    /// When <paramref name="readinessCheck"/> is null, uses
+    /// <c>() =&gt; Batch.HasSealedBatchSink</c>.
+    /// </summary>
+    public void StartMetricsHttp(int? portOverride = null, Func<bool>? readinessCheck = null)
+    {
+        Metrics.WithReadinessCheck(readinessCheck ?? (() => Batch.HasSealedBatchSink));
+        Metrics.Start(portOverride);
+    }
+
+    /// <summary>
+    /// Create an <see cref="L2RpcPlugin"/> pre-wired with this host's metrics sink.
+    /// Caller must <c>NeoSystem.AddService(RpcStore)</c> and register the plugin with Neo.CLI;
+    /// this composition does not own the returned plugin.
+    /// </summary>
+    public L2RpcPlugin CreateRpcPlugin()
+    {
+        var plugin = new L2RpcPlugin();
+        plugin.WithMetrics(Metrics.Metrics);
+        return plugin;
+    }
+
+    /// <summary>
     /// Open Multisig host composition from a chain directory after
     /// <c>init-l2 --from-deploy-report</c> (and Multisig ProofType in settlement/prover config).
     /// </summary>

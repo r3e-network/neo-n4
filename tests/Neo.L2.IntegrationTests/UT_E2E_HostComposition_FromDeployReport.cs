@@ -172,6 +172,13 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 new StubSigner(Account(0x44)),
                 rpcHttpClient: http);
 
+            // Deferred metrics start (operator path without Open startMetricsHttp flag).
+            settlementHost.StartMetricsHttp(portOverride: 0);
+            Assert.IsTrue(settlementHost.Metrics.BoundPort > 0);
+            Assert.IsTrue(settlementHost.IsProductionWired);
+            var rpcPlugin = settlementHost.CreateRpcPlugin();
+            Assert.IsNotNull(rpcPlugin);
+
             var gatewayProof = new DelegatingGatewayProofProver(
                 proofSystem: 1,
                 aggregationBackendId: MerklePathRoundProver.ConstBackendId,

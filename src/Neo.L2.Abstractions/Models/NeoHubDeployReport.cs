@@ -415,6 +415,10 @@ public sealed record NeoHubDeployReport(
                         "L2SettlementPlugin.ProductionTransactionSender after WireProduction",
                     ["localHostSettleHelpers"] =
                         "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync",
+                    ["localHostStartMetricsHttp"] =
+                        "LocalHost.StartMetricsHttp(portOverride?, readiness?) / Open startMetricsHttp",
+                    ["localHostCreateRpcPlugin"] =
+                        "LocalHost.CreateRpcPlugin() then NeoSystem.AddService(RpcStore)",
                     ["metricsReadiness"] =
                         "LocalHost Open startMetricsHttp → WithReadinessCheck(HasSealedBatchSink)",
                     ["gatewayHostCompositionMerkle"] =

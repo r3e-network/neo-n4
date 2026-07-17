@@ -238,7 +238,7 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "MessageOutboxL2ToL1Root");
         StringAssert.Contains(output, "StopMetricsHttp");
         StringAssert.Contains(output, "ConsumedDepositCount");
-        StringAssert.Contains(output, "AggregatorPendingCount");
+        StringAssert.Contains(output, "IsPublicationConfigured");
         StringAssert.Contains(output, "AddRpcBatch");
         StringAssert.Contains(output, "MessageOutbox");
         StringAssert.Contains(output, "PublishDaAsync");

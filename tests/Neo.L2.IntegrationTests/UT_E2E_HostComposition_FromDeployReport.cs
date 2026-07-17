@@ -286,11 +286,15 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsFalse(gatewayHost.HasPendingPublication);
             Assert.IsNull(gatewayHost.PendingPublicationEpoch);
             Assert.AreEqual(0, gatewayHost.AggregatorPendingCount);
+            Assert.IsTrue(gatewayHost.HasDurableOutbox);
+            Assert.IsTrue(gatewayHost.IsPublicationConfigured);
             Assert.IsNotNull(gatewayHost.OutboxStatus);
             Assert.AreSame(gatewayHost.Gateway.Aggregator, gatewayHost.Aggregator);
             var gwStatus = gatewayHost.GetOperatorStatus();
             Assert.IsFalse(gwStatus.HasPendingPublication);
             Assert.AreEqual(0, gwStatus.AggregatorPendingCount);
+            Assert.IsTrue(gwStatus.HasDurableOutbox);
+            Assert.IsTrue(gwStatus.IsPublicationConfigured);
             Assert.AreEqual(0, gwStatus.OutboxQueueDepth);
             Assert.AreEqual(MerklePathRoundProver.ConstBackendId, gwStatus.AggregationBackendId);
             var gwStatusPath = Path.Combine(chainDir, "gateway-status.json");

@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Gateway publication readiness flags on host ops — 2026-07-18
+
+- `L2GatewayPlugin` / `GatewayHostComposition` expose `HasDurableOutbox` and
+  `IsPublicationConfigured` for offline publication wiring checks.
+- `GatewayHostOperatorStatus` (+ JSON) includes both flags. No wire/ABI change.
+- L1 confirmation of a published epoch remains a funded gate.
+
 ### Added — Batcher seal thresholds on LocalHost ops status — 2026-07-18
 
 - `L2BatchPlugin` / Multisig/Optimistic/Zk LocalHost expose `MaxBlocksPerBatch`,

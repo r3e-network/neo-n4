@@ -21,6 +21,12 @@ public sealed record GatewayHostOperatorStatusDocument
     /// <summary>In-process aggregator pending commitment count.</summary>
     public required int AggregatorPendingCount { get; init; }
 
+    /// <summary>True when a durable Gateway outbox is attached.</summary>
+    public required bool HasDurableOutbox { get; init; }
+
+    /// <summary>True when production global-root publication is configured.</summary>
+    public required bool IsPublicationConfigured { get; init; }
+
     /// <summary>Durable outbox queue depth.</summary>
     public required int OutboxQueueDepth { get; init; }
 
@@ -58,6 +64,8 @@ public sealed record GatewayHostOperatorStatusDocument
             HasPendingPublication = status.HasPendingPublication,
             PendingPublicationEpoch = status.PendingPublicationEpoch,
             AggregatorPendingCount = status.AggregatorPendingCount,
+            HasDurableOutbox = status.HasDurableOutbox,
+            IsPublicationConfigured = status.IsPublicationConfigured,
             OutboxQueueDepth = status.OutboxQueueDepth,
             PublicationState = status.PublicationState?.ToString(),
             OutboxRetryCount = status.OutboxRetryCount,

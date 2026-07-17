@@ -220,7 +220,20 @@ public sealed class L2GatewayPlugin : Plugin
     };
 
     /// <summary>True when a durable outbox is attached.</summary>
-    internal bool HasPersistentOutbox => _outbox is not null;
+    public bool HasDurableOutbox => _outbox is not null;
+
+    /// <summary>
+    /// True when production global-root publication has been configured
+    /// (<see cref="ConfigureGlobalRootPublication"/> / FromChainDirectory).
+    /// </summary>
+    public bool IsPublicationConfigured
+    {
+        get
+        {
+            lock (_stateGate)
+                return _publicationProfile is not null;
+        }
+    }
 
     /// <summary>
     /// Replace the active aggregator before a durable outbox or any Gateway work is attached.

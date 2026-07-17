@@ -493,7 +493,8 @@ public sealed record NeoHubDeployReport(
                         "GatewayHostComposition.OpenSp1(chainDir, gatewayVk, signer, replayDomain, vk, metrics?)",
                     ["gatewayHostOpsHelpers"] =
                         "GatewayHostComposition.HasPendingPublication / PendingPublicationEpoch / "
-                        + "AggregatorPendingCount / OutboxStatus / Aggregator / ReceiveBatch / "
+                        + "AggregatorPendingCount / HasDurableOutbox / IsPublicationConfigured / "
+                        + "OutboxStatus / Aggregator / ReceiveBatch / "
                         + "PullAggregate (fails closed with durable outbox) / PublishAggregateAsync / "
                         + "RecoverPoisonedPublication / GetOperatorStatus / WriteOperatorStatusAsync / "
                         + "Metrics / CaptureMetricsSnapshot / ExportPrometheusMetrics / "

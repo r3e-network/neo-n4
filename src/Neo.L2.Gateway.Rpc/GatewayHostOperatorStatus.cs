@@ -26,6 +26,15 @@ public sealed record GatewayHostOperatorStatus
     /// </summary>
     public required int AggregatorPendingCount { get; init; }
 
+    /// <summary>True when a durable Gateway outbox is attached.</summary>
+    public required bool HasDurableOutbox { get; init; }
+
+    /// <summary>
+    /// True when production global-root publication is configured (proof prover + L1
+    /// publisher wiring). L1 confirmation of a specific epoch remains a funded gate.
+    /// </summary>
+    public required bool IsPublicationConfigured { get; init; }
+
     /// <summary>Durable outbox queue depth.</summary>
     public required int OutboxQueueDepth { get; init; }
 

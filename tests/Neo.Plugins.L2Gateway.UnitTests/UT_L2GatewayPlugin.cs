@@ -287,7 +287,8 @@ public class UT_L2GatewayPlugin
             Assert.IsTrue(plugin.Settings.Enabled);
             Assert.AreEqual(7, plugin.Settings.MaxAutomaticRetries);
             // Settings-only factory must leave outbox detached so UseAggregator remains legal.
-            Assert.IsFalse(plugin.HasPersistentOutbox);
+            Assert.IsFalse(plugin.HasDurableOutbox);
+            Assert.IsFalse(plugin.IsPublicationConfigured);
             plugin.UseAggregator(new BinaryTreeAggregator(new MerklePathRoundProver()));
             Assert.IsInstanceOfType(plugin.Aggregator, typeof(BinaryTreeAggregator));
         }
@@ -316,7 +317,8 @@ public class UT_L2GatewayPlugin
                 """);
             using var plugin = L2GatewayPlugin.CreateDurableFromChainDirectory(
                 dir, new BinaryTreeAggregator(new MerklePathRoundProver()));
-            Assert.IsTrue(plugin.HasPersistentOutbox);
+            Assert.IsTrue(plugin.HasDurableOutbox);
+            Assert.IsFalse(plugin.IsPublicationConfigured);
             Assert.IsInstanceOfType(plugin.Aggregator, typeof(BinaryTreeAggregator));
             Assert.IsTrue(Directory.Exists(Path.Combine(
                 dir, NeoHubDeployReport.RelativeGatewayOutboxStoreDir)));
@@ -348,7 +350,7 @@ public class UT_L2GatewayPlugin
                 }
                 """);
             using var plugin = L2GatewayPlugin.CreateMerkleDurableFromChainDirectory(dir);
-            Assert.IsTrue(plugin.HasPersistentOutbox);
+            Assert.IsTrue(plugin.HasDurableOutbox);
             Assert.IsInstanceOfType(plugin.Aggregator, typeof(BinaryTreeAggregator));
             var binary = (BinaryTreeAggregator)plugin.Aggregator;
             Assert.IsInstanceOfType(binary.RoundProver, typeof(MerklePathRoundProver));
@@ -388,7 +390,7 @@ public class UT_L2GatewayPlugin
             var signers = new Neo.L2.Proving.Attestation.InMemorySignerSet(keys);
             using var plugin = L2GatewayPlugin.CreateMultisigDurableFromChainDirectory(
                 dir, signers, threshold: 2);
-            Assert.IsTrue(plugin.HasPersistentOutbox);
+            Assert.IsTrue(plugin.HasDurableOutbox);
             var binary = (BinaryTreeAggregator)plugin.Aggregator;
             Assert.IsInstanceOfType(binary.RoundProver, typeof(MultisigRoundProver));
             Assert.AreEqual(MultisigRoundProver.ConstBackendId, binary.RoundProver.BackendId);
@@ -418,7 +420,7 @@ public class UT_L2GatewayPlugin
                 }
                 """);
             using var plugin = L2GatewayPlugin.CreateSp1DurableFromChainDirectory(dir);
-            Assert.IsTrue(plugin.HasPersistentOutbox);
+            Assert.IsTrue(plugin.HasDurableOutbox);
             var binary = (BinaryTreeAggregator)plugin.Aggregator;
             Assert.IsInstanceOfType(binary.RoundProver, typeof(Sp1RecursiveRoundProver));
             Assert.AreEqual(Sp1RecursiveRoundProver.ConstBackendId, binary.RoundProver.BackendId);

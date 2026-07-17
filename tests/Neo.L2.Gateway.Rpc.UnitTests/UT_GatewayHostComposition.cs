@@ -71,11 +71,15 @@ public sealed class UT_GatewayHostComposition
             Assert.IsNull(host.PendingPublicationEpoch);
             Assert.AreEqual(0, host.AggregatorPendingCount);
             Assert.AreEqual(host.Aggregator.PendingCount, host.AggregatorPendingCount);
+            Assert.IsTrue(host.HasDurableOutbox);
+            Assert.IsTrue(host.IsPublicationConfigured);
             Assert.IsNotNull(host.OutboxStatus);
             var gwStatus = host.GetOperatorStatus();
             Assert.IsFalse(gwStatus.HasPendingPublication);
             Assert.IsNull(gwStatus.PendingPublicationEpoch);
             Assert.AreEqual(0, gwStatus.AggregatorPendingCount);
+            Assert.IsTrue(gwStatus.HasDurableOutbox);
+            Assert.IsTrue(gwStatus.IsPublicationConfigured);
             Assert.AreEqual(0, gwStatus.OutboxQueueDepth);
             Assert.AreEqual(MerklePathRoundProver.ConstBackendId, gwStatus.AggregationBackendId);
             Assert.IsFalse(gwStatus.OwnsProofProver);
@@ -87,6 +91,8 @@ public sealed class UT_GatewayHostComposition
             var statusJson = File.ReadAllText(statusPath);
             StringAssert.Contains(statusJson, "\"hasPendingPublication\": false");
             StringAssert.Contains(statusJson, "\"aggregatorPendingCount\": 0");
+            StringAssert.Contains(statusJson, "\"hasDurableOutbox\": true");
+            StringAssert.Contains(statusJson, "\"isPublicationConfigured\": true");
             StringAssert.Contains(statusJson, "\"outboxQueueDepth\": 0");
             StringAssert.Contains(statusJson, "\"hasMetrics\": true");
             Assert.IsNotNull(host.Publisher);

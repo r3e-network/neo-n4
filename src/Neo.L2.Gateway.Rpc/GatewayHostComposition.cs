@@ -73,6 +73,20 @@ public sealed class GatewayHostComposition : IDisposable
     public int AggregatorPendingCount => Aggregator.PendingCount;
 
     /// <summary>
+    /// True when a durable Gateway outbox is attached
+    /// (<see cref="L2GatewayPlugin.HasDurableOutbox"/>). OpenMerkle/Multisig/Sp1 hosts
+    /// always attach one.
+    /// </summary>
+    public bool HasDurableOutbox => Gateway.HasDurableOutbox;
+
+    /// <summary>
+    /// True when production global-root publication is configured
+    /// (<see cref="L2GatewayPlugin.IsPublicationConfigured"/>). Distinct from funded
+    /// L1 confirmation of a specific epoch.
+    /// </summary>
+    public bool IsPublicationConfigured => Gateway.IsPublicationConfigured;
+
+    /// <summary>
     /// True when an unconfirmed publication remains retryable or poisoned
     /// (<see cref="L2GatewayPlugin.HasPendingPublication"/>).
     /// </summary>
@@ -135,6 +149,8 @@ public sealed class GatewayHostComposition : IDisposable
             HasPendingPublication = HasPendingPublication,
             PendingPublicationEpoch = PendingPublicationEpoch,
             AggregatorPendingCount = AggregatorPendingCount,
+            HasDurableOutbox = HasDurableOutbox,
+            IsPublicationConfigured = IsPublicationConfigured,
             OutboxQueueDepth = outbox.QueueDepth,
             PublicationState = outbox.PublicationState,
             OutboxRetryCount = outbox.RetryCount,

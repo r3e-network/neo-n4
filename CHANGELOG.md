@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Evidence — Neo N3 testnet reverify + Deposit nonce 4 — 2026-07-17
+
+- Re-verified the full NeoHub bundle on N3 testnet with operator WIF (env-only):
+  24/24 deploy reuse, 29/29 postdeploy reuse, 42/42 smoke HALT.
+- Fixed SharedBridge `0xf64548c2…1bae` live Deposit nonce 4 HALT
+  (`0xd33952c5…2b1294`, 0.001 GAS, `WitnessScope.Global`, Transfer + DepositEnqueued);
+  getDeposit confirms nonces 1–4 present.
+- Confirmed chain `20260716` isActive (config bridge still legacy until 2-of-2 retarget),
+  TokenRegistry GAS+NEO `isActive=true`, ForcedInclusion production-ready + entry nonce 1.
+- Evidence: `docs/audit/testnet-deployment-20260717-session3-reverify.json`,
+  `docs/audit/testnet-evidence-status-2026-07-17-session3.json`.
+- WIF never written to the repo.
+
 ### Added — Gateway OpenMultisig + Multisig/Optimistic host bridge/metrics — 2026-07-17
 
 - `GatewayHostComposition.OpenMultisig` binds Multisig durable aggregator/outbox + publisher +

@@ -50,6 +50,7 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(DAMode.Local, host.DaWriter.Mode);
             Assert.AreEqual(20260716u, host.ForcedInclusion.ChainId);
             Assert.IsNotNull(host.Settlement.ProductionForcedInclusionSource);
+            Assert.IsNotNull(host.Settlement.ProductionForcedInclusionFinalizer);
             Assert.IsNotNull(host.Settlement.ProductionSettlementClient);
             Assert.AreSame(host.ForcedInclusion, host.Settlement.ProductionForcedInclusionSource);
             Assert.AreEqual(20260716u, host.Bridge.ChainId);

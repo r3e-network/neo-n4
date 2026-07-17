@@ -176,8 +176,16 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             settlementHost.StartMetricsHttp(portOverride: 0);
             Assert.IsTrue(settlementHost.Metrics.BoundPort > 0);
             Assert.IsTrue(settlementHost.IsProductionWired);
+            Assert.IsNotNull(settlementHost.Settlement.ProductionForcedInclusionFinalizer);
             var rpcPlugin = settlementHost.CreateRpcPlugin();
             Assert.IsNotNull(rpcPlugin);
+            using (var httpClient = new HttpClient())
+            {
+                var ready = httpClient.GetAsync(
+                    $"http://127.0.0.1:{settlementHost.Metrics.BoundPort}/readyz")
+                    .GetAwaiter().GetResult();
+                Assert.AreEqual(System.Net.HttpStatusCode.OK, ready.StatusCode);
+            }
 
             var gatewayProof = new DelegatingGatewayProofProver(
                 proofSystem: 1,

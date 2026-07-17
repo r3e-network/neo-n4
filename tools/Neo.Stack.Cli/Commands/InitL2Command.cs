@@ -127,6 +127,9 @@ internal static class InitL2Command
             foreach (var artifact in deployArtifacts.Distinct(StringComparer.Ordinal))
                 Console.WriteLine($"  wrote      = {path}/{artifact}");
         }
+        // Operator host composition roots (no Neo.CLI required for local Multisig/Optimistic/Zk).
+        Console.WriteLine("  host open  = MultisigLocalHostComposition.Open / OptimisticLocalHostComposition.Open / ZkLocalHostComposition.Open");
+        Console.WriteLine("               (see l1.wireproduction-notes.json when --from-deploy-report was used)");
         return 0;
     }
 

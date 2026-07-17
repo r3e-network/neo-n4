@@ -531,6 +531,12 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         _productionComposition?.ForcedInclusionSource;
 
     /// <summary>
+    /// Forced-inclusion L1 finalization client owned by WireProduction (consume/slash path).
+    /// </summary>
+    public RpcForcedInclusionFinalizationClient? ProductionForcedInclusionFinalizer =>
+        _productionComposition?.ForcedInclusionFinalizer;
+
+    /// <summary>
     /// Settlement client owned by WireProduction for L1 submit/finalization RPC calls.
     /// </summary>
     public RpcSettlementClient? ProductionSettlementClient =>

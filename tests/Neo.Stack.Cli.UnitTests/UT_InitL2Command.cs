@@ -217,6 +217,22 @@ public class UT_InitL2Command
     }
 
     [TestMethod]
+    public void InitL2_PrintsLocalHostCompositionOpenTip()
+    {
+        SeedChainDirWithConfig();
+        var (rc, output) = CaptureStdout(() => InitL2Command.Run(new[]
+        {
+            "--chain-id", "1099",
+            "--output", _tempDir,
+        }));
+        Assert.AreEqual(0, rc);
+        StringAssert.Contains(output, "MultisigLocalHostComposition.Open");
+        StringAssert.Contains(output, "OptimisticLocalHostComposition.Open");
+        StringAssert.Contains(output, "ZkLocalHostComposition.Open");
+        StringAssert.Contains(output, "l1.wireproduction-notes.json");
+    }
+
+    [TestMethod]
     public void InitL2_RerunIsIdempotent()
     {
         // Operator who already ran init-l2 + populated data/ shouldn't lose work

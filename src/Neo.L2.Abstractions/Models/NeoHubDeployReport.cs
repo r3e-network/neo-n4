@@ -413,6 +413,8 @@ public sealed record NeoHubDeployReport(
                         "L2SettlementPlugin.IsProductionWired after WireProduction",
                     ["settlementProductionTransactionSender"] =
                         "L2SettlementPlugin.ProductionTransactionSender after WireProduction",
+                    ["settlementProductionForcedInclusionFinalizer"] =
+                        "L2SettlementPlugin.ProductionForcedInclusionFinalizer after WireProduction",
                     ["localHostSettleHelpers"] =
                         "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                         + "PersistAsync / EnqueueAsync",

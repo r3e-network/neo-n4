@@ -184,6 +184,9 @@ public class UT_NeoHubDeployReport
                 "L2SettlementPlugin.ProductionTransactionSender after WireProduction",
                 stores.GetProperty("settlementProductionTransactionSender").GetString());
             Assert.AreEqual(
+                "L2SettlementPlugin.ProductionForcedInclusionFinalizer after WireProduction",
+                stores.GetProperty("settlementProductionForcedInclusionFinalizer").GetString());
+            Assert.AreEqual(
                 "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                 + "PersistAsync / EnqueueAsync",
                 stores.GetProperty("localHostSettleHelpers").GetString());

@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "checkedAtUtc": "2026-07-17T06:54:28Z",
+  "sourceCommit": "951ffb8",
+  "rpc": "https://n3seed1.ngd.network:20332/",
+  "networkMagic": 894710606,
+  "signerAddress": "NLtL2v28d7TyMEaXcPqtekunkFRksJ7wxu",
+  "signerScriptHash": "0x13ef519c362973f9a34648a9eac5b71250b2a80a",
+  "l2ChainId": 20260716,
+  "gasBalanceDatoshiApprox": "11254922577998",
+  "deployReverify": {
+    "report": "docs/audit/testnet-deployment-20260717-session4-reverify.json",
+    "exitCode": 0,
+    "counts": {
+      "deploy/reused": 24,
+      "postdeploy/reused": 29,
+      "smoke/ok": 42
+    },
+    "sharedBridgeReused": "0xf64548c2c947f5c2150b467700c0f46f90dc1bae",
+    "fraudReplayDomainWire": "0xf1e2d3c4b5a697887766554433221100ffeeddccbbaa99887766554433221100",
+    "fraudReplayDomainNote": "CLI --fraud-replay-domain must be on-chain raw wire bytes (RestrictedExecutionFraudVerifier.getReplayDomain); report ToString may display reversed form."
+  },
+  "chain20260716": {
+    "isActive": true,
+    "registeredBridgeStillLegacy": "0xf2f5114b83dd6fed4ddcac0ff9966fd22a77b241",
+    "note": "ChainRegistry config still points at legacy SharedBridge; live Deposit works on fixed bridge independently. Governance retarget is a funded 2-of-2 gate."
+  },
+  "forcedInclusion": {
+    "isProductionReady": true,
+    "getEntry_chain20260716_nonce1": "present"
+  },
+  "sharedBridgeDeposit": {
+    "fixedBridge": "0xf64548c2c947f5c2150b467700c0f46f90dc1bae",
+    "legacyBridge": "0xf2f5114b83dd6fed4ddcac0ff9966fd22a77b241",
+    "priorDeposits": {
+      "nonce1": "0x9b72709e007a480a1c49fd672d0e46b6d449aa2b9c53f9bf8b3503051b4675ae",
+      "nonce2": "0x77ea50a93b56f51528a74bb02b9cccac00833762913ab9187932eede10fe6f31",
+      "nonce3": "0xa06e7952574e3a3384ad64c8181ed640be4172039848391c84bab5d37de6d821",
+      "nonce4": "0xd33952c5b01e2d7854eb3f1f3ac60a9ee666ca3bc26f2c2184ed01b0dc2b1294"
+    },
+    "liveDepositNonce5": {
+      "status": "HALT",
+      "txHash": "0xf9539490826eb9dbf59a320b3becf63b635d87ffd2f601fdb10aceb2c92bd9bb",
+      "amountDatoshi": 100000,
+      "witnessScope": "Global",
+      "notifications": [
+        "Transfer",
+        "DepositEnqueued"
+      ],
+      "getDeposit_confirmed": true
+    }
+  },
+  "securityNote": "WIF used only via process env NEO_N4_TESTNET_WIF; not written to repo or evidence files.",
+  "localOperatorPath": {
+    "createChain": "ok (/tmp/n4-l2-session4 zk-rollup)",
+    "initL2FromSession4Reverify": "ok",
+    "l1DeployedSharedBridge": "0xf64548c2c947f5c2150b467700c0f46f90dc1bae"
+  }
+}

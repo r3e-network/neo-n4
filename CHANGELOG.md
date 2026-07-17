@@ -5,6 +5,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — ProductionForcedInclusionFinalizer + init-l2 host open tip — 2026-07-17
+
+- `L2SettlementPlugin.ProductionForcedInclusionFinalizer` after WireProduction.
+- `neo-stack init-l2` prints Multisig/Optimistic/Zk LocalHostComposition.Open hints
+  (and wireproduction notes when deploy-report was used).
+- Multisig+Gateway integration scrapes `/readyz` after deferred StartMetricsHttp.
+
+### Evidence — Neo N3 testnet reverify + Deposit nonce 5 — 2026-07-17
+
+- Re-verified the full NeoHub bundle on N3 testnet with operator WIF (env-only):
+  24/24 deploy reuse, 29/29 postdeploy reuse, 42/42 smoke HALT.
+- Fixed SharedBridge `0xf64548c2…1bae` live Deposit nonce 5 HALT
+  (`0xf9539490…2bd9bb`, 0.001 GAS, `WitnessScope.Global`, Transfer + DepositEnqueued);
+  getDeposit confirms nonces 1–5 present.
+- Confirmed chain `20260716` isActive (config bridge still legacy until 2-of-2 retarget),
+  ForcedInclusion production-ready + entry nonce 1.
+- Local operator path: `create-chain` + `init-l2 --from-deploy-report` session4 reverify
+  materializes SharedBridge `0xf64548c2…1bae`.
+- Evidence: `docs/audit/testnet-deployment-20260717-session4-reverify.json`,
+  `docs/audit/testnet-evidence-status-2026-07-17-session4.json`.
+- WIF never written to the repo.
+
 ### Added — LocalHost Persist/Enqueue helpers + Optimistic/Zk metrics RPC parity — 2026-07-17
 
 - Multisig/Optimistic/Zk LocalHost expose `PersistAsync` / `EnqueueAsync` passthroughs to
